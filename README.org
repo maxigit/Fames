@@ -1,0 +1,73 @@
+* FAMES
+FrontAccounting Master & Events Source
+* Overview
+FAMES is a complement to FrontAccounting written in Haskell providing functionalities hard to add to FA itself.
+It's a complement and not a plugin in the way that it's designed to live
+beside (in fact, on top) FA (on a separate server and using an separate database) instead of being a plugin.
+Doing so allow more flexibility, such has being able to write in another language and have slightly different concept
+for the same things (ex items/variations) without being to confusing.
+FAMES acts as a master for FA, allowing to enter and modifying data before /commiting/ them to FA.
+FAMES can access FA database (read onlystock system doesn't) and modify FA database (/control/) using FA API.
+
+The main features that FAMES is adding are
+
+- Items and variations management
+- Warehouse Planning
+- CRM and User management
+- Reporting and Business Intellingence
+- GL, Bank reconciliation and Event sourcing
+- Payroll
+* Features
+** TODO Items and variations management
+FA actual stock system is missing a concept of variations and some useful meta information such box dimensions, style locations etc .
+FAMES try to solves this by adding a variations management allowing to group variations by styles and allow
+mass assignment of data like prices or shelf location for a given style.
+It should also allow aggregation by style in report.
+** TODO CRM
+Improve user management and add email tracking facilities.
+** TODO Reporting and Business Intellingence
+Provide easy reporting via using Haskell 
+** TODO GL, Bank reconciliation and Event sourcing
+FAMES  is not trying to replace FA General ledger but instead complement with an even system similar (I think ) to event sourcing.
+Instead of entering Accounting event (like customer payment, supplier invoice) etc directly as post to the GL (as FA does),
+FAMES records those events as "Event". Events are then translated into real GL event and send to FA.
+The main difference and benefit of this approach is : if the translation of an event changes (for example we decide that sales of items of type A should be using 
+the account /sales A/ instead of /sales/), we are then able to cancel all previous post to /sales/ and repost them to /sales A/.
+*** Event Sourcing
+Another advantage is that one event can correspond to an arbitrary complex set of GL entries, such as prepayment and accrual. Such set of GL entries are quite complex to modify in FA.
+With event sourcing, one just need to modify the event (or the rule) to void all the incorrect entries and post the correct one.
+
+**** Examples
+A company do trade show in August but need to pay $6000 in advance when booking the stand in February.
+The benefit of the show are supposed to last for 6 months to the company "spead" the actual cost of the show over the next 6 month following the show.
+
+In FA, the current solution is to create a full invoice going to a prepayment account on the invoice date and then enter 6 journal entries for each month following the show.
+We have the following GL post:
+
+| Month     | Bank Credit | Prepayment Debit | Prepayment Credit | Show Credit |
+|-----------+-------------+-----------------+-------------------+-------------|
+| February  |        6000 |            6000 |                   |             |
+| August    |             |                 |              1000 |        1000 |
+| September |             |                 |              1000 |        1000 |
+| October   |             |                 |              1000 |        1000 |
+| November  |             |                 |              1000 |        1000 |
+| December  |             |                 |              1000 |        1000 |
+| January   |             |                 |              1000 |        1000 |
+|-----------+-------------+-----------------+-------------------+-------------|
+| Balance   |        6000 |            6000 |              6000 |        6000 |
+#+TBLFM: @9$2..@9$>=vsum(@I..@II)
+
+Imagine, we made a mistake, we forgot that the $6000 included the tax. $1000 should go to the tax and only $5000 to the prepayment account. There is no automatic way to do so. The user will have to find and correct manually all GL entries. This is tedious and error prone.
+With an event system, we just need to correct the event and recalculate the correct GL entries.
+Of course, each event /remembers/ which GL posts it has generated in the past, so that we can cancel them if necessary.
+*** Bank reconciliation
+** TODO Payrol
+** Same users as FA
+For the moment, FAMES will probably use frontaccounting user tables.
+* TODO Techonologies
+The backend of FAMES is writting in Haskell using Yesod.
+The frontend Javascript using Fay and/or maybe AngularJS.
+If we end up moving lots of rendering to the client-side we might consider moving from Fay to Haste
+or GHCJS
+The persistence is using postgreSQL as a standard RDMS and possibly as a document store (using json and bjson type). Storing JSON should allow us to store Algebraic Data Type.
+
