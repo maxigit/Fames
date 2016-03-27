@@ -17,8 +17,10 @@ The main features that FAMES is adding are
 - Reporting and Business Intellingence
 - GL, Bank reconciliation and Event sourcing
 - Payroll
+* Status
+At the moment, nothing has been implemented yet.
 * Features
-** TODO Items and variations management
+** Items and variations management
 FA actual stock system is missing a concept of variations and some useful meta information such box dimensions, style locations etc .
 FAMES try to solves this by adding a variations management allowing to group variations by styles and allow
 mass assignment of data like prices or shelf location for a given style.
@@ -26,7 +28,7 @@ It should also allow aggregation by style in report.
 ** TODO CRM
 Improve user management and add email tracking facilities.
 ** TODO Reporting and Business Intellingence
-Provide easy reporting via using Haskell 
+Provide easy reporting via using Haskell.
 ** TODO GL, Bank reconciliation and Event sourcing
 FAMES  is not trying to replace FA General ledger but instead complement with an even system similar (I think ) to event sourcing.
 Instead of entering Accounting event (like customer payment, supplier invoice) etc directly as post to the GL (as FA does),
@@ -62,12 +64,17 @@ With an event system, we just need to correct the event and recalculate the corr
 Of course, each event /remembers/ which GL posts it has generated in the past, so that we can cancel them if necessary.
 *** Bank reconciliation
 ** TODO Payrol
+Keep track of employees schedule, and generate FA GL entry and payment.
 ** Same users as FA
 For the moment, FAMES will probably use frontaccounting user tables.
-* TODO Techonologies
-The backend of FAMES is writting in Haskell using Yesod.
-The frontend Javascript using Fay and/or maybe AngularJS.
+* Techonologies
+The backend of FAMES is written in Haskell using Yesod.
+
+The front-end Javascript using Fay and/or maybe AngularJS.
+
 If we end up moving lots of rendering to the client-side we might consider moving from Fay to Haste
 or GHCJS
+
 The persistence is using postgreSQL as a standard RDMS and possibly as a document store (using json and bjson type). Storing JSON should allow us to store Algebraic Data Type.
+
 
