@@ -12,4 +12,60 @@ plugin or hardcoded ?
 Enter all payment receipt in a easy way
 
 InputFormat -> [FATransaction]
+*** TODO Use cases [0/3]
+**** TODO User need a spreadsheet templates
+**** TODO User upload a new spreadsheet
+***** TODO Check format (syntax) is valid [0/4]
+- [ ] column names are correct
+- [ ] type of column correct
+example integer, float, string, non null etc ..
+- [ ] accept valid
+- [ ] reject invalid
+  - [ ] or save for later
+  Ideally we would like to be able to save the full things
+and process what is correct. 
+
+***** TODO Check semantic is valid
+- [ ] bank account exists
+- [ ] totals add up
+- [ ] Taxes add up
+- [ ] all information are there
+- [ ] transform to event
+*****  TODO Check events are correct
+validate which one are correct
+***** TODO  process correct events
+*****  TODO Modify events until correct
+unvalid event can be skipped for later
+***** TODO push correct all correct even to FA
+We probably need a bulk and individual push options
+**** TODO User upload an existing spreadsheet
+A user should be able to reupload a spread which
+which either contained invalid colum or has been modified
+
+To do so, we need to be able to track the fact that the same sheet was similar.
+ie have an unique identifier per document (user ?)
+
+We should also be able to track different version of the same document
+and keep its history.
+
+The best is probably to have a general document mechanism, allowing us to save
+"everything" and ideally have a diff mechanism (with or without semantic).
+
+Maybe document could be converted from untyped to "something" (ex invoice, PL, receipts)
+
+***** Compute difference with previous version
+The previous version of the document can have event which are valid and even
+have been validated and successfully commited to FA.
+The system should be able to ignore those and find the difference in order
+to only regenerate events which needs to be.
+
+Finding events which haven't changed it's easy (even if they don't appear in the
+same order). Modified one will have to be seen as deleted and created. (finding 
+modification might be tricky and useless anyway)
+
+
+
+
+
+
 
