@@ -12,9 +12,10 @@ plugin or hardcoded ?
 Enter all payment receipt in a easy way
 
 InputFormat -> [FATransaction]
-*** TODO Use cases [0/3]
+*** TODO Process Receipts Use cases [0/3]
 **** TODO User need a spreadsheet templates
 **** TODO User upload a new spreadsheet
+Either upload a file or upload text via text input.
 ***** TODO Check format (syntax) is valid [0/4]
 - [ ] column names are correct
 - [ ] type of column correct
@@ -69,3 +70,10 @@ modification might be tricky and useless anyway)
 
 
 
+* Documents
+User should be able to store multiple version of (any) document
+and then process them with the appropriate action.
+
+We should also have a shortcut to upload and process a document.
+
+We need permission on document and documents types.
