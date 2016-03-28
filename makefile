@@ -8,7 +8,7 @@ devel:
 DB_ROOT ?= postgres
 DB_PASSWORD ?= # empty 
 DB_CONTAINER_NAME ?= fames_dbt # database test
-DB_NAME ?= fames_test
+DB_NAME ?= fames_devel
 
 
 run_db:

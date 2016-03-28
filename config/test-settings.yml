@@ -6,4 +6,4 @@ database:
   # something like:
   #
   #   database: "_env:PGDATABASE:Fames_LOWER_test"
-  database: Fames_LOWER_test
+  database: fames_test
