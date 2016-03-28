@@ -1,0 +1,15 @@
+* TODO
+** General
+- [ ] create roles and permissions
+permission :: Role -> Feature -> Authorised Yes/No
+- [ ] general config (code).
+plugin or hardcoded ?
+
+** GL
+- [ ] create event rules
+- [ ] create FA transaction class
+*** VAT problem
+Enter all payment receipt in a easy way
+
+InputFormat -> [FATransaction]
+
