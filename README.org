@@ -7,6 +7,11 @@ beside (in fact, on top) FA (on a separate server and using an separate database
 Doing so allow more flexibility, such has being able to write in another language and have slightly different concept
 for the same things (ex items/variations) without being to confusing.
 FAMES acts as a master for FA, allowing to enter and modifying data before /commiting/ them to FA.
+Having a two stages process has two advantages:
+ 
+- Data can be verified and modified before being push FA, which result in tidier accounts.
+- Journal entries can be entered and committed by different users with different permissions.
+
 FAMES can access FA database (read onlystock system doesn't) and modify FA database (/control/) using FA API.
 
 The main features that FAMES is adding are
