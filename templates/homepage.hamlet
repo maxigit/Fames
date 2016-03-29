@@ -1,6 +1,10 @@
 <h1.jumbotron>
   Welcome to Yesod!
 
+<.page-header><h2>GL
+<pan.list-group>
+  <a href=@{GLEnterReceiptSheetR}>Enter receipts spreadsheet
+
 <.page-header><h2>Starting
 
 <section.list-group>
