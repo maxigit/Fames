@@ -25,6 +25,7 @@ library
                      Handler.Fay
                      Handler.Home
                      Handler.Comment
+                     Handler.GLEnterReceiptSheet
 
     if flag(dev) || flag(library-only)
         cpp-options:   -DDEVELOPMENT
