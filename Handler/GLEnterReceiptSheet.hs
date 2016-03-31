@@ -6,11 +6,10 @@ module Handler.GLEnterReceiptSheet where
 import Import
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput)
-import Data.Conduit.List (consume)
 import qualified Data.Csv as Csv
+import Data.Csv
 import Data.Char (ord)
 import Data.Time(parseTimeM)
-import Data.Encoding
 -- | Entry point to enter a receipts spreadsheet
 -- The use should be able to :
 --   - post a text
@@ -76,20 +75,27 @@ instance Csv.FromField Day where
     _ -> mzero
     where
       formats = ["%d"]
+
 instance Csv.FromNamedRecord RawReceiptRow where
   parseNamedRecord m = pure RawReceiptRow
-    <*> m Csv..: "Date"
-    <*> m Csv..: "Company"
-    <*> m Csv..: "Bank Account"
-    <*> m Csv..: "Comment"
-    <*> m Csv..: "Total Price"
-    <*> m Csv..: "Item Price"
-    <*> m Csv..: "Item Net"
-    <*> m Csv..: "Item Tax"
-    <*> m Csv..: "Item"
-    <*> m Csv..: "GL Account"
-    <*> m Csv..: "Dimension 1"
-    <*> m Csv..: "Dimension 2"
+    <*> m `parse` "date"
+    <*> m `parse` "company"
+    <*> m `parse` "bank account"
+    <*> m `parse` "comment"
+    <*> m `parse` "total price"
+    <*> m `parse` "item price"
+    <*> m `parse` "item net"
+    <*> m `parse` "item tax"
+    <*> m `parse` "item"
+    <*> m `parse` "gl account"
+    <*> m `parse` "dimension 1"
+    <*> m `parse` "dimension 2"
+    where parse m  colname = do
+            x <- m Csv..: colname
+            return (case x of 
+                    Left bs -> let types = bs :: ByteString in  Left (decodeUtf8 bs)
+                    Right r -> Right r
+                    )
 
 processReceiptSheetR title text  = do
   case x text of
@@ -106,7 +112,7 @@ x text = case asum results  of
   Right (header, vector) -> Right (toList vector)
   where
     results = map (`Csv.decodeByNameWith` content) seps
-    content = encode text
+    content = encodeUtf8 (fromStrict text)
     seps = [Csv.DecodeOptions (fromIntegral (ord sep)) | sep <- ",;\t" ]
 
 
