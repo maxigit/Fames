@@ -165,7 +165,14 @@ tdWithError (Right Nothing) = [whamlet|
  <  span .bg-warnig>
 |]
   
-rowStatus row ="warning" :: Text
+
+rowStatus :: RawReceiptRow -> Text
+rowStatus raw = case validateRawRow raw  of
+  Left _ -> "danger"
+  Right row -> case rowFilled row of
+    Nothing -> "warning"
+    Just _ ->  "succes"
+
 -- formatF :: (Num a) => a -> Text
 formatF :: Amount -> Text
 formatF f = pack $ printf "%.02f" f
@@ -194,7 +201,7 @@ data ReceiptRow = ReceiptRow
   , rItemNet :: (Maybe Amount)
   , rItemTaxAmount :: (Maybe Amount)
   , rItem :: (Maybe Text)
-  , rGlAccount :: (Maybe Text)
+  , rGLAccount :: (Maybe Text)
   , rGLDimension1 :: (Maybe Int)
   , rGLDimension2 :: (Maybe Int)
   } deriving (Show, Read)
@@ -223,6 +230,26 @@ validateRawRows raws = case traverse validateRawRow raws of
   Left _ -> Left raws
   Right  rows -> Right rows
 
+
+  -- Check if enough fields are filled
+rowFilled :: ReceiptRow -> Maybe ReceiptRow
+rowFilled row = do
+  asum [ rDate row >> return ()
+       , rCompany row >> return ()
+       , rBankAccount row >> return ()
+       --- , rcomment row
+       , rTotalAmount row >> return ()
+       , rItemPrice row >> return ()
+       , rItemNet row >> return ()
+       , rItemTaxAmount row >> return ()
+       , rItem row >> return ()
+       , rGLAccount row >> return ()
+       -- , rgldimension1 row
+       -- , rgldimension2 row
+       ]
+
+  return row
+                  
 data Receipt
 -- groups rows into a set op receipt
 z :: [ReceiptRow] -> [Receipt]
