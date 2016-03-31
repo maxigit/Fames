@@ -49,7 +49,7 @@ postGLEnterReceiptSheetR = do
   ((res, postW), enctype) <- runFormPost postTextForm
   case res of
     FormSuccess (title, text) -> processReceiptSheetR title (unTextarea text)
-    _ -> setMessage "Form empty" >> redirect GLEnterReceiptSheetR
+    _ -> setError "Form empty" >> redirect GLEnterReceiptSheetR
 
 type Amount = Double
 
@@ -66,7 +66,7 @@ data RawReceiptRow = RawReceiptRow
   , rrGlAccount :: Either Text (Maybe Text)
   , rrGLDimension1 :: Either Text (Maybe Int)
   , rrGLDimension2 :: Either Text (Maybe Int)
-  }
+  } deriving (Show, Read)
 
 instance Csv.FromField Day where
   parseField "" = empty
@@ -91,25 +91,26 @@ instance Csv.FromNamedRecord RawReceiptRow where
     <*> m `parse` "dimension 1"
     <*> m `parse` "dimension 2"
     where parse m  colname = do
-            x <- m Csv..: colname
-            return (case x of 
+            e <- m Csv..: colname
+            return (case e of 
                     Left bs -> let types = bs :: ByteString in  Left (decodeUtf8 bs)
                     Right r -> Right r
                     )
 
 processReceiptSheetR title text  = do
-  case x text of
-    Left err -> setMessage (fromString $ show err) >> redirect GLEnterReceiptSheetR
-    Right _ -> defaultLayout $ [whamlet|hello|]
+  case parseReceiptSheet text of
+    Left err -> setError (fromString $ "Error encountered" ++ show err) >> redirect GLEnterReceiptSheetR
+    Right csv -> defaultLayout $ [whamlet|#{tshow csv}|]
   
   
 -- Transforms a text into a set of receipts
 data RawRow 
 -- validates that the text is a table with the correct columns
-x :: Text -> Either Text [RawReceiptRow]
-x text = case asum results  of
-  Left msg -> Left (pack msg)
-  Right (header, vector) -> Right (toList vector)
+parseReceiptSheet :: Text -> Either Text [RawReceiptRow]
+parseReceiptSheet text = case partitionEithers results  of
+  (_, [(header, vector)]) -> Right (toList vector)
+  (errs, []) -> Left $ pack ("Invalid format:" ++ show errs)
+  (_,rights) -> Left "File ambiguous."
   where
     results = map (`Csv.decodeByNameWith` content) seps
     content = encodeUtf8 (fromStrict text)

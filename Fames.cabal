@@ -59,6 +59,7 @@ library
                  , yesod-form                    >= 1.4.0      && < 1.5
                  , yesod-fay                     >= 0.7        && < 0.9
                  , fay                           >= 0.21.2.1   && < 0.24
+                 , cassava                       >= 0.4.5      && < 0.5
                  , classy-prelude                >= 0.10.2
                  , classy-prelude-conduit        >= 0.10.2
                  , classy-prelude-yesod          >= 0.10.2
