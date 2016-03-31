@@ -90,6 +90,7 @@ library
                  , time
                  , case-insensitive
                  , wai
+                 , blaze-html
 
 executable         Fames
     if flag(library-only)

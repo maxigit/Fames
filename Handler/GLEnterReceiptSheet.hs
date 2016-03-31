@@ -10,6 +10,8 @@ import qualified Data.Csv as Csv
 import Data.Csv
 import Data.Char (ord)
 import Data.Time(parseTimeM)
+import Text.Blaze.Html(ToMarkup(toMarkup))
+import Text.Printf(printf)
 -- | Entry point to enter a receipts spreadsheet
 -- The use should be able to :
 --   - post a text
@@ -76,6 +78,8 @@ instance Csv.FromField Day where
     where
       formats = ["%d"]
 
+instance ToMarkup Day where
+  toMarkup d = "TODO"
 instance Csv.FromNamedRecord RawReceiptRow where
   parseNamedRecord m = pure RawReceiptRow
     <*> m `parse` "date"
@@ -100,9 +104,33 @@ instance Csv.FromNamedRecord RawReceiptRow where
 processReceiptSheetR title text  = do
   case parseReceiptSheet text of
     Left err -> setError (fromString $ "Error encountered" ++ show err) >> redirect GLEnterReceiptSheetR
-    Right csv -> defaultLayout $ [whamlet|#{tshow csv}|]
+    Right csv -> defaultLayout $ [whamlet|
+<table>
+  $forall row <- csv
+    <tr>
+      <td> ^{withError $ rrDate row}
+      <td> ^{withError $ rrCompany row}
+      <td> ^{withError $ rrBankAccount row}
+      <td> ^{withError $ rrComment row}
+      <td> ^{withError $ rrTotalAmount row}
+      <td> ^{withError $ map formatF <$> rrItemPrice row}
+      <td> ^{withError $ map formatF <$> rrItemNet row}
+      <td> ^{withError $ map formatF <$> rrItemTaxAmount row}
+      <td> ^{withError $ rrItem row}
+      <td> ^{withError $ rrGlAccount row}
+      <td> ^{withError $ rrGLDimension1 row}
+      <td> ^{withError $ rrGLDimension2 row}
+                                         |]
   
+withError :: (ToMarkup a) => Either Text (Maybe a) -> Widget
+withError (Left e) = toWidget [hamlet|<span style="background:lightred; color:darkred">#{e}|]
+withError (Right (Just v)) = [whamlet|<span style="background:lightgreen; color:darkgreen">#{v}|]
+withError (Right Nothing) = return () -- [whamlet|<span style="background:green; color:darkgreen">#{c}|]
   
+-- formatF :: (Num a) => a -> Text
+formatF :: Amount -> Text
+formatF f = pack $ printf "%.02f" f
+
 -- Transforms a text into a set of receipts
 data RawRow 
 -- validates that the text is a table with the correct columns
