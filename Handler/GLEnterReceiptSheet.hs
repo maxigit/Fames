@@ -55,6 +55,13 @@ postGLEnterReceiptSheetR = do
 
 type Amount = Double
 
+-- Convenience functions to help decides of string-like types
+s :: String -> String
+s =  id
+
+t :: Text -> Text  
+t = id 
+
 data RawReceiptRow = RawReceiptRow
   { rrDate :: Either Text (Maybe Day)
   , rrCompany :: Either Text (Maybe Text)
@@ -72,14 +79,20 @@ data RawReceiptRow = RawReceiptRow
 
 instance Csv.FromField Day where
   parseField "" = empty
-  parseField str = case  concat [parseTimeM True defaultTimeLocale f ("str") | f <- formats] of
+  parseField bs = parseField bs >>= \str ->  case  concat [parseTimeM True defaultTimeLocale f str | f <- formats] of
     [day] -> pure day
     _ -> mzero
     where
-      formats = ["%d"]
+      formats = ["%d/%m/%y"] ++  [ "%" ++ show day ++ show sep ++ "%" ++ show month ++ show  sep ++ "%" ++ show year
+                | day <- s"de"
+                , month <- s"mb"
+                , year <- s"yY"
+                , sep <- s"-/ "
+                ]
+
 
 instance ToMarkup Day where
-  toMarkup d = "TODO"
+  toMarkup day = toMarkup $ formatTime defaultTimeLocale "%a %d %b %Y" day
 instance Csv.FromNamedRecord RawReceiptRow where
   parseNamedRecord m = pure RawReceiptRow
     <*> m `parse` "date"
@@ -104,29 +117,55 @@ instance Csv.FromNamedRecord RawReceiptRow where
 processReceiptSheetR title text  = do
   case parseReceiptSheet text of
     Left err -> setError (fromString $ "Error encountered" ++ show err) >> redirect GLEnterReceiptSheetR
-    Right csv -> defaultLayout $ [whamlet|
-<table>
-  $forall row <- csv
-    <tr>
-      <td> ^{withError $ rrDate row}
-      <td> ^{withError $ rrCompany row}
-      <td> ^{withError $ rrBankAccount row}
-      <td> ^{withError $ rrComment row}
-      <td> ^{withError $ rrTotalAmount row}
-      <td> ^{withError $ map formatF <$> rrItemPrice row}
-      <td> ^{withError $ map formatF <$> rrItemNet row}
-      <td> ^{withError $ map formatF <$> rrItemTaxAmount row}
-      <td> ^{withError $ rrItem row}
-      <td> ^{withError $ rrGlAccount row}
-      <td> ^{withError $ rrGLDimension1 row}
-      <td> ^{withError $ rrGLDimension2 row}
-                                         |]
+    Right csv -> defaultLayout (renderRawReceiptRows csv)
+
+
+renderRawReceiptRows rows = [whamlet|
+<table .table .table-striped .table-hover>
+  <tr>
+    <th>date
+    <th>company
+    <th>bank account
+    <th>comment
+    <th>total price
+    <th>item price
+    <th>item net
+    <th>item tax
+    <th>item
+    <th>gl account
+    <th>dimension 1
+    <th>dimension 2
+  $forall row <- rows
+    <tr class=#{rowStatus row} >
+      ^{tdWithError $ rrDate row}
+      ^{tdWithError $ rrCompany row}
+      ^{tdWithError $ rrBankAccount row}
+      ^{tdWithError $ rrComment row}
+      ^{tdWithError $ rrTotalAmount row}
+      ^{tdWithError $ map formatF <$> rrItemPrice row}
+      ^{tdWithError $ map formatF <$> rrItemNet row}
+      ^{tdWithError $ map formatF <$> rrItemTaxAmount row}
+      ^{tdWithError $ rrItem row}
+      ^{tdWithError $ rrGlAccount row}
+      ^{tdWithError $ rrGLDimension1 row}
+      ^{tdWithError $ rrGLDimension2 row}
+|]
+    
+tdWithError :: (ToMarkup a) => Either Text (Maybe a) -> Widget
+tdWithError (Left e) = toWidget [hamlet|
+<td>
+  <span .text-danger .bg-danger>#{e}
+|]
+tdWithError (Right (Just v)) = toWidget [hamlet|
+<td>
+  <span .bg-success>#{v}
+|]
+tdWithError (Right Nothing) = [whamlet|
+<td>
+ <  span .bg-warnig>
+|]
   
-withError :: (ToMarkup a) => Either Text (Maybe a) -> Widget
-withError (Left e) = toWidget [hamlet|<span style="background:lightred; color:darkred">#{e}|]
-withError (Right (Just v)) = [whamlet|<span style="background:lightgreen; color:darkgreen">#{v}|]
-withError (Right Nothing) = return () -- [whamlet|<span style="background:green; color:darkgreen">#{c}|]
-  
+rowStatus row ="warning" :: Text
 -- formatF :: (Num a) => a -> Text
 formatF :: Amount -> Text
 formatF f = pack $ printf "%.02f" f
@@ -145,17 +184,51 @@ parseReceiptSheet text = case partitionEithers results  of
     seps = [Csv.DecodeOptions (fromIntegral (ord sep)) | sep <- ",;\t" ]
 
 
-data RawReceipt
--- validates that each raw is valid
-y :: RawRow -> Either Text [RawReceipt] 
-y = undefined
+data ReceiptRow = ReceiptRow
+  { rDate :: (Maybe Day)
+  , rCompany :: (Maybe Text)
+  , rBankAccount :: (Maybe Text)
+  , rComment :: (Maybe Text)
+  , rTotalAmount :: (Maybe Amount)
+  , rItemPrice :: (Maybe Amount)
+  , rItemNet :: (Maybe Amount)
+  , rItemTaxAmount :: (Maybe Amount)
+  , rItem :: (Maybe Text)
+  , rGlAccount :: (Maybe Text)
+  , rGLDimension1 :: (Maybe Int)
+  , rGLDimension2 :: (Maybe Int)
+  } deriving (Show, Read)
+
+-- validates that eack raw is valid
+validateRawRow :: RawReceiptRow -> Either RawReceiptRow ReceiptRow
+validateRawRow raw = let row = pure ReceiptRow
+                              <*> rrDate raw
+                              <*> rrCompany raw
+                              <*> rrBankAccount raw
+                              <*> rrComment raw
+                              <*> rrTotalAmount raw
+                              <*> rrItemPrice raw
+                              <*> rrItemNet raw
+                              <*> rrItemTaxAmount raw
+                              <*> rrItem raw
+                              <*> rrGlAccount raw
+                              <*> rrGLDimension1 raw
+                              <*> rrGLDimension2 raw
+                    in case row of
+                            Left _ -> Left raw
+                            Right r -> Right r
+ 
+validateRawRows :: [RawReceiptRow] -> Either [RawReceiptRow] [ReceiptRow]
+validateRawRows raws = case traverse validateRawRow raws of
+  Left _ -> Left raws
+  Right  rows -> Right rows
 
 data Receipt
 -- groups rows into a set op receipt
-z :: [RawReceipt] -> [Receipt]
+z :: [ReceiptRow] -> [Receipt]
 z  = undefined
 
 data Event
 -- transforms a receipt into an Event
-t :: Receipt -> Event
-t = undefined
+t' :: Receipt -> Event
+t' = undefined
