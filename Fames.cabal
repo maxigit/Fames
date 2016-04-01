@@ -140,3 +140,4 @@ test-suite test
                  , classy-prelude
                  , classy-prelude-yesod
                  , aeson
+                 , cassava

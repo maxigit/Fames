@@ -54,6 +54,15 @@ postGLEnterReceiptSheetR = do
     _ -> setError "Form empty" >> redirect GLEnterReceiptSheetR
 
 type Amount = Double
+-- Amount with currency sign
+newtype Amount' = Amount' { unAmount' :: Amount} deriving (Read, Show, Eq, Ord, Num, Fractional)
+
+instance Csv.FromField Amount' where
+  parseField bs = do
+    let stripped = bs `fromMaybe` stripPrefix "£" bs
+    Amount' <$> parseField stripped
+
+    
 
 -- Convenience functions to help decides of string-like types
 s :: String -> String
@@ -67,10 +76,10 @@ data RawReceiptRow = RawReceiptRow
   , rrCompany :: Either Text (Maybe Text)
   , rrBankAccount :: Either Text (Maybe Text)
   , rrComment :: Either Text (Maybe Text)
-  , rrTotalAmount :: Either Text (Maybe Amount)
-  , rrItemPrice :: Either Text (Maybe Amount)
-  , rrItemNet :: Either Text (Maybe Amount)
-  , rrItemTaxAmount :: Either Text (Maybe Amount)
+  , rrTotalAmount :: Either Text (Maybe Amount')
+  , rrItemPrice :: Either Text (Maybe Amount')
+  , rrItemNet :: Either Text (Maybe Amount')
+  , rrItemTaxAmount :: Either Text (Maybe Amount')
   , rrItem :: Either Text (Maybe Text)
   , rrGlAccount :: Either Text (Maybe Text)
   , rrGLDimension1 :: Either Text (Maybe Int)
@@ -136,15 +145,15 @@ renderRawReceiptRows rows = [whamlet|
     <th>dimension 1
     <th>dimension 2
   $forall row <- rows
-    <tr class=#{rowStatus row} >
+    <tr class=x#{rowStatus row} >
       ^{tdWithError $ rrDate row}
       ^{tdWithError $ rrCompany row}
       ^{tdWithError $ rrBankAccount row}
       ^{tdWithError $ rrComment row}
-      ^{tdWithError $ rrTotalAmount row}
-      ^{tdWithError $ map formatF <$> rrItemPrice row}
-      ^{tdWithError $ map formatF <$> rrItemNet row}
-      ^{tdWithError $ map formatF <$> rrItemTaxAmount row}
+      ^{tdWithError $ map (formatF . unAmount') <$> rrTotalAmount row}
+      ^{tdWithError $ map (formatF . unAmount') <$> rrItemPrice row}
+      ^{tdWithError $ map (formatF . unAmount') <$> rrItemNet row}
+      ^{tdWithError $ map (formatF . unAmount') <$> rrItemTaxAmount row}
       ^{tdWithError $ rrItem row}
       ^{tdWithError $ rrGlAccount row}
       ^{tdWithError $ rrGLDimension1 row}
@@ -213,10 +222,10 @@ validateRawRow raw = let row = pure ReceiptRow
                               <*> rrCompany raw
                               <*> rrBankAccount raw
                               <*> rrComment raw
-                              <*> rrTotalAmount raw
-                              <*> rrItemPrice raw
-                              <*> rrItemNet raw
-                              <*> rrItemTaxAmount raw
+                              <*> (map unAmount' <$> rrTotalAmount raw)
+                              <*> (map unAmount' <$> rrItemPrice raw)
+                              <*> (map unAmount' <$> rrItemNet raw)
+                              <*> (map unAmount' <$> rrItemTaxAmount raw)
                               <*> rrItem raw
                               <*> rrGlAccount raw
                               <*> rrGLDimension1 raw
