@@ -23,20 +23,21 @@ pureSpec = do
   describe "Parshing csv" $ do
     context "should parse dates" $ do
       sequence_ [
-        let expectedDate = fromGregorian 2015 01 02
+        -- we use 2011 so that 11 is also a valid month
+        let expectedDate = fromGregorian 2011 01 02
         in it ("like '" <> show str) $ do
             assertField str expectedDate 
-            | str  <- ["2015/01/02" 
-                        , "02/01/2015"
-                        , "02/01/15"
-                        , "02 Jan 2015"
-                        , "02 Jan 15"
-                        , "02-Jan-15"
-                        , "2015 Jan 02"
-                        , "2015-Jan-02"
-                        , "2015-Jan-02"
-                        , "2015-01-02"
-                        , "2015/01/02"
+            | str  <- ["2011/01/02" 
+                        , "02/01/2011"
+                        , "02/01/11"
+                        , "02 Jan 2011"
+                        , "02 Jan 11"
+                        , "02-Jan-11"
+                        , "2011 Jan 02"
+                        , "2011-Jan-02"
+                        , "2011-Jan-02"
+                        , "2011-01-02"
+                        , "Wed 02 Jan 2011"
                         ]
             ] 
     context "should parse amounts" $ do

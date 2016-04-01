@@ -92,13 +92,23 @@ instance Csv.FromField Day where
   parseField "" = empty
   parseField bs = parseField bs >>= \str ->  case  concat [parseTimeM True defaultTimeLocale f str | f <- formats] of
     [day] -> pure day
+    (d:ds) -> error (show (d:ds))
     _ -> mzero
     where
-      formats = ["%d/%m/%y"] ++  [ "%" ++ show day ++ show sep ++ "%" ++ show month ++ show  sep ++ "%" ++ show year
-                | day <- s"de"
-                , month <- s"mb"
-                , year <- s"yY"
-                , sep <- s"-/ "
+      -- formats to try. Normally there shouldn't be any overlap bettween the different format.
+      -- The 0 in %0Y is important. It guarantes that only 4 digits are accepted.
+      -- without 11/01/01 will be parsed by %Y/%m/%d and %d/%m/%y
+      formats = [ "%0Y/%m/%d"
+                , "%d/%m/%0Y"
+                , "%d/%m/%y"
+                , "%0Y-%m-%d"
+                , "%d %b %0Y"
+                , "%d-%b-%0Y"
+                , "%d %b %y"
+                , "%d-%b-%y"
+                , "%0Y %b %d"
+                , "%0Y-%b-%d"
+                , "%a %d %b %0Y"
                 ]
 
 
