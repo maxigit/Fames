@@ -58,9 +58,11 @@ type Amount = Double
 newtype Amount' = Amount' { unAmount' :: Amount} deriving (Read, Show, Eq, Ord, Num, Fractional)
 
 instance Csv.FromField Amount' where
-  parseField bs = do
-    let stripped = bs `fromMaybe` stripPrefix "£" bs
-    Amount' <$> parseField stripped
+  parseField bs =
+    case stripPrefix " " bs of
+          Nothing -> let stripped = bs `fromMaybe` stripPrefix "£" bs
+                     in Amount' <$> parseField stripped
+          Just bs' -> parseField bs'
 
     
 
