@@ -60,8 +60,12 @@ newtype Amount' = Amount' { unAmount' :: Amount} deriving (Read, Show, Eq, Ord, 
 instance Csv.FromField Amount' where
   parseField bs =
     case stripPrefix " " bs of
-          Nothing -> let stripped = bs `fromMaybe` stripPrefix "£" bs
-                     in Amount' <$> parseField stripped
+          Nothing -> case stripPrefix "-" bs of
+                          Nothing -> let stripped = bs `fromMaybe` stripPrefix (encodeUtf8 "£") bs
+                                         r =  Amount' <$> parseField stripped
+                                     in trace (show (length bs, bs, length stripped, stripped)) r
+
+                          Just bs' -> map negate (parseField bs')
           Just bs' -> parseField bs'
 
     

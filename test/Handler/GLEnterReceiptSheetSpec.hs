@@ -42,15 +42,20 @@ pureSpec = do
             ] 
     context "should parse amounts" $ do
       it "without currency" $ do
-        assertField "23.45" (23.45 :: Amount')
+        assertUtf8Field "23.45" (23.45 :: Amount')
       it "without currency and spaces" $ do
-        assertField " 23.45 " (23.45 :: Amount')
+        assertUtf8Field " 23.45 " (23.45 :: Amount')
       it "with currency" $ do
-        assertField "£23.45" (23.45 :: Amount')
+        assertUtf8Field "£23.45" (23.45 :: Amount')
       it "with currency and spaces" $ do
-        assertField " £23.45 " (23.45 :: Amount')
+        assertUtf8Field " £23.45 " (23.45 :: Amount')
       it "with currency and spaces between the currency" $ do
-        assertField "£ 23.45 " (23.45 :: Amount')
+        assertUtf8Field "£ 23.45 " (23.45 :: Amount')
+      it "negative with currency and spaces between the currency" $ do
+        assertUtf8Field " - £ 23.45 " (-23.45 :: Amount')
     
 
 assertField str value  = decode NoHeader (str <> ",") `shouldBe` Right (fromList [(value, ())])
+-- we need  to encode bystestring in UTF8 because the IsString instance for bytestring
+-- doesn't encode £ to two words but only one.
+assertUtf8Field text value = assertField (encodeUtf8 text) value
