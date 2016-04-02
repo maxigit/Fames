@@ -91,6 +91,7 @@ library
                  , case-insensitive
                  , wai
                  , blaze-html
+                 , split
 
 executable         Fames
     if flag(library-only)

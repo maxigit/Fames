@@ -4,6 +4,7 @@
 module Handler.GLEnterReceiptSheet where
 
 import Import
+
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput)
 import qualified Data.Csv as Csv
@@ -12,6 +13,7 @@ import Data.Char (ord)
 import Data.Time(parseTimeM)
 import Text.Blaze.Html(ToMarkup(toMarkup))
 import Text.Printf(printf)
+import qualified Data.List.Split  as S
 -- | Entry point to enter a receipts spreadsheet
 -- The use should be able to :
 --   - post a text
@@ -142,9 +144,13 @@ instance Csv.FromNamedRecord RawReceiptRow where
 processReceiptSheetR title text  = do
   case parseReceiptSheet text of
     Left err -> setError (fromString $ "Error encountered" ++ show err) >> redirect GLEnterReceiptSheetR
-    Right csv -> defaultLayout (renderRawReceiptRows csv)
+    Right csv -> case validateRawRows csv of
+      Left _ ->  defaultLayout (renderRawReceiptRows csv)
+      Right rows ->  defaultLayout (renderReceipts (groupReceiptRows rows))
 
 
+
+renderRawReceiptRows :: (Foldable t, MonadIO m, MonadBaseControl IO m, MonadThrow m) => t RawReceiptRow -> WidgetT App m ()
 renderRawReceiptRows rows = [whamlet|
 <table .table .table-striped .table-hover>
   <tr>
@@ -194,10 +200,9 @@ tdWithError (Right Nothing) = [whamlet|
 
 rowStatus :: RawReceiptRow -> Text
 rowStatus raw = case validateRawRow raw  of
-  Left _ -> "danger"
-  Right row -> case rowFilled row of
-    Nothing -> "warning"
-    Just _ ->  "" -- """succes"
+  Left (_, ParseError) -> "danger"
+  Left (_, _) -> "warning"
+  Right _ ->  "" -- """succes"
 
 -- formatF :: (Num a) => a -> Text
 formatF :: Amount -> Text
@@ -209,7 +214,7 @@ data RawRow
 parseReceiptSheet :: Text -> Either Text [RawReceiptRow]
 parseReceiptSheet text = case partitionEithers results  of
   (_, [(header, vector)]) -> Right (toList vector)
-  (errs, []) -> Left $ pack ("Invalid format:" ++ show errs)
+  (errs, []) -> Left $ pack ("PriceMissing format:" ++ show errs)
   (_,rights) -> Left "File ambiguous."
   where
     results = map (`Csv.decodeByNameWith` content) seps
@@ -217,69 +222,131 @@ parseReceiptSheet text = case partitionEithers results  of
     seps = [Csv.DecodeOptions (fromIntegral (ord sep)) | sep <- ",;\t" ]
 
 
-data ReceiptRow = ReceiptRow
-  { rDate :: (Maybe Day)
-  , rCompany :: (Maybe Text)
-  , rBankAccount :: (Maybe Text)
-  , rComment :: (Maybe Text)
-  , rTotalAmount :: (Maybe Amount)
-  , rItemPrice :: (Maybe Amount)
-  , rItemNet :: (Maybe Amount)
-  , rItemTaxAmount :: (Maybe Amount)
-  , rItem :: (Maybe Text)
-  , rGLAccount :: (Maybe Text)
-  , rGLDimension1 :: (Maybe Int)
-  , rGLDimension2 :: (Maybe Int)
-  } deriving (Show, Read)
+data ReceiptRow
+  = HeaderRow
+    { rDate :: Day
+    , rCompany :: Text
+    , rBankAccount :: Text
+    , rComment :: (Maybe Text)
+    , rTotalAmount :: Amount
+    , rItemPrice :: (Maybe Amount)
+    , rItemNet :: (Maybe Amount)
+    , rItemTaxAmount :: (Maybe Amount)
+    , rItem :: (Maybe Text)
+    , rGLAccount :: (Maybe Text)
+    , rGLDimension1 :: (Maybe Int)
+    , rGLDimension2 :: (Maybe Int)
+    }
+  | ReceiptRow
+    { rItemPrice :: (Maybe Amount)
+    , rItemNet :: (Maybe Amount)
+    , rItemTaxAmount :: (Maybe Amount)
+    , rItem :: (Maybe Text)
+    , rGLAccount :: (Maybe Text)
+    , rGLDimension1 :: (Maybe Int)
+    , rGLDimension2 :: (Maybe Int)
+    }
+  deriving (Show, Read)
 
--- validates that eack raw is valid
-validateRawRow :: RawReceiptRow -> Either RawReceiptRow ReceiptRow
-validateRawRow raw = let row = pure ReceiptRow
-                              <*> rrDate raw
-                              <*> rrCompany raw
-                              <*> rrBankAccount raw
-                              <*> rrComment raw
-                              <*> (map unAmount' <$> rrTotalAmount raw)
-                              <*> (map unAmount' <$> rrItemPrice raw)
-                              <*> (map unAmount' <$> rrItemNet raw)
-                              <*> (map unAmount' <$> rrItemTaxAmount raw)
-                              <*> rrItem raw
-                              <*> rrGlAccount raw
-                              <*> rrGLDimension1 raw
-                              <*> rrGLDimension2 raw
-                    in case row of
-                            Left _ -> Left raw
-                            Right r -> Right r
+data RawRowStatus = ParseError | PriceMissing | InvalidReceiptHeader deriving (Read, Show, Eq, Ord)
+-- validates that a raw is valid
+validateRawRow :: RawReceiptRow -> Either (RawReceiptRow, RawRowStatus) ReceiptRow
+validateRawRow raw =
+  let row = do
+        (iPrice, iNet, iTax, item, account, dim1, dim2) <- pure (,,,,,,)
+          <*> (map unAmount' <$> rrItemPrice raw)
+          <*> (map unAmount' <$> rrItemNet raw)
+          <*> (map unAmount' <$> rrItemTaxAmount raw)
+          <*> rrItem raw
+          <*> rrGlAccount raw
+          <*> rrGLDimension1 raw
+          <*> rrGLDimension2 raw
+      
+        let header =  pure (,,,,) <*> rrDate raw
+              <*> rrCompany raw
+              <*> rrBankAccount raw
+              <*> rrComment raw
+              <*> (map unAmount' <$> rrTotalAmount raw)
+        case header of
+          Left _ -> Right $  let rrow =  ReceiptRow iPrice iNet iTax item account dim1 dim2
+                                   -- check at least one price is present
+                             in case asum [iPrice, iNet, iTax] of
+                                     Nothing -> {- Price missing -} (Left PriceMissing)
+                                     Just _ -> (Right rrow)
+            
+          Right (Just date, Just company, Just bank, comment, Just total) ->
+                               Right . Right $ HeaderRow date company bank comment total
+                                                 iPrice iNet iTax item account dim1 dim2
+          Right _ -> Right $ Left InvalidReceiptHeader
+
+  in case row of
+      Left _ -> Left (raw, ParseError)
+      Right (Left e) -> Left (raw, e)
+      Right (Right r) -> Right r
  
 validateRawRows :: [RawReceiptRow] -> Either [RawReceiptRow] [ReceiptRow]
 validateRawRows raws = case traverse validateRawRow raws of
   Left _ -> Left raws
   Right  rows -> Right rows
 
+data Receipt = Receipt
+  { receiptDate :: Day
+  , receiptCompany :: Text
+  , receiptBankAccount :: Text
+  , receiptComment :: (Maybe Text)
+  , receiptTotalAmount :: Amount
+  , receiptItems :: [ReceiptItem]
+  } deriving (Show, Read, Eq, Ord)
 
-  -- At least one amount be filled and item description
-rowFilled :: ReceiptRow -> Maybe ReceiptRow
-rowFilled row = do
-  asum [ --  rDate row >> return ()
-       -- , rCompany row >> return ()
-       -- , rBankAccount row >> return ()
-       --- , rcomment row
-       rTotalAmount row >> return ()
-       , rItemPrice row >> return ()
-       , rItemNet row >> return ()
-       , rItemTaxAmount row >> return ()
-       -- , rItem row >> return ()
-       -- , rGLAccount row >> return ()
-       -- , rgldimension1 row
-       -- , rgldimension2 row
-       ]
-
-  return row
-                  
-data Receipt
+data ReceiptItem = ReceiptItem
+  { itemPrice :: Amount
+  , itemNet :: Amount
+  , itemTaxAmount :: Amount
+  , itemMemo :: Maybe Text
+  , itemGlAccount :: Maybe Text
+  , itemGLDimension1 :: Maybe Int
+  , itemGLDimension2 :: Maybe Int
+  } deriving (Show, Read, Eq, Ord)
 -- groups rows into a set op receipt
-z :: [ReceiptRow] -> [Receipt]
-z  = undefined
+
+-- starts an new group on each line having a company and a total
+groupReceiptRows :: [ReceiptRow] -> [Either [ReceiptRow ]Receipt]
+groupReceiptRows  rows = let
+  groups =  S.split (S.keepDelimsL $ S.whenElt  startReceipt) rows
+  startReceipt row = undefined --  isJust $ rCompany row >> rTotalAmount row
+  in map makeReceipt groups
+
+makeReceipt [] = Left []
+makeReceipt (header:items) =  undefined
+
+     
+renderReceipts receipts = [whamlet|
+<ul>
+  $forall  receiptE <- receipts
+    <li>
+      $case  receiptE
+        $of Left row
+          #{tshow row}
+        $of Right receipt
+          <table .table>
+            <tr>
+              <th>
+              <th> receiptDate  receipt
+              <th> receiptCompany  receipt
+              <th> receiptBankAccount  receipt
+              <th> receiptComment  receipt
+              <th> receiptTotalAmount  receipt
+              $forall item <- receiptItems receipt
+            <tr>
+            <tr> itemPrice  item
+            <tr> itemNet  item
+            <tr> itemTaxAmount  item
+            <tr> itemMemo  item
+            <tr> itemGlAccount  item
+            <tr> itemGLDimension1  item
+            <tr> itemGLDimension2  item
+|]
+
 
 data Event
 -- transforms a receipt into an Event
