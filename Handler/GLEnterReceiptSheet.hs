@@ -161,7 +161,7 @@ renderRawReceiptRows rows = [whamlet|
     <th>dimension 1
     <th>dimension 2
   $forall row <- rows
-    <tr class=x#{rowStatus row} >
+    <tr class=#{rowStatus row} >
       ^{tdWithError $ rrDate row}
       ^{tdWithError $ rrCompany row}
       ^{tdWithError $ rrBankAccount row}
@@ -183,7 +183,8 @@ tdWithError (Left e) = toWidget [hamlet|
 |]
 tdWithError (Right (Just v)) = toWidget [hamlet|
 <td>
-  <span .bg-success>#{v}
+  $#<span .bg-success>#{v}
+  <span>#{v}
 |]
 tdWithError (Right Nothing) = [whamlet|
 <td>
@@ -196,7 +197,7 @@ rowStatus raw = case validateRawRow raw  of
   Left _ -> "danger"
   Right row -> case rowFilled row of
     Nothing -> "warning"
-    Just _ ->  "succes"
+    Just _ ->  "" -- """succes"
 
 -- formatF :: (Num a) => a -> Text
 formatF :: Amount -> Text
@@ -256,19 +257,19 @@ validateRawRows raws = case traverse validateRawRow raws of
   Right  rows -> Right rows
 
 
-  -- Check if enough fields are filled
+  -- At least one amount be filled and item description
 rowFilled :: ReceiptRow -> Maybe ReceiptRow
 rowFilled row = do
-  asum [ rDate row >> return ()
-       , rCompany row >> return ()
-       , rBankAccount row >> return ()
+  asum [ --  rDate row >> return ()
+       -- , rCompany row >> return ()
+       -- , rBankAccount row >> return ()
        --- , rcomment row
-       , rTotalAmount row >> return ()
+       rTotalAmount row >> return ()
        , rItemPrice row >> return ()
        , rItemNet row >> return ()
        , rItemTaxAmount row >> return ()
-       , rItem row >> return ()
-       , rGLAccount row >> return ()
+       -- , rItem row >> return ()
+       -- , rGLAccount row >> return ()
        -- , rgldimension1 row
        -- , rgldimension2 row
        ]
