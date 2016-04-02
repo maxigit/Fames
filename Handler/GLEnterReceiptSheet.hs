@@ -92,7 +92,7 @@ data RawReceiptRow = RawReceiptRow
   , rrGlAccount :: Either Text (Maybe Text)
   , rrGLDimension1 :: Either Text (Maybe Int)
   , rrGLDimension2 :: Either Text (Maybe Int)
-  } deriving (Show, Read)
+  } deriving (Show, Read, Eq, Ord)
 
 instance Csv.FromField Day where
   parseField "" = empty
@@ -202,7 +202,7 @@ rowStatus :: RawReceiptRow -> Text
 rowStatus raw = case validateRawRow raw  of
   Left (_, ParseError) -> "danger"
   Left (_, _) -> "warning"
-  Right _ ->  "" -- """succes"
+  _ ->  "" -- """succes"
 
 -- formatF :: (Num a) => a -> Text
 formatF :: Amount -> Text
@@ -246,14 +246,20 @@ data ReceiptRow
     , rGLDimension1 :: (Maybe Int)
     , rGLDimension2 :: (Maybe Int)
     }
-  deriving (Show, Read)
+  deriving (Show, Read, Eq, Ord)
 
 data RawRowStatus = ParseError | PriceMissing | InvalidReceiptHeader deriving (Read, Show, Eq, Ord)
 -- validates that a raw is valid
 validateRawRow :: RawReceiptRow -> Either (RawReceiptRow, RawRowStatus) ReceiptRow
 validateRawRow raw =
   let row = do
-        (iPrice, iNet, iTax, item, account, dim1, dim2) <- pure (,,,,,,)
+        ( date, company, bank, comment, total 
+         , iPrice, iNet, iTax, item, account, dim1, dim2) <- pure (,,,,,,,,,,,)
+          <*> rrDate raw
+          <*> rrCompany raw
+          <*> rrBankAccount raw
+          <*> rrComment raw
+          <*> (map unAmount' <$> rrTotalAmount raw)
           <*> (map unAmount' <$> rrItemPrice raw)
           <*> (map unAmount' <$> rrItemNet raw)
           <*> (map unAmount' <$> rrItemTaxAmount raw)
@@ -261,23 +267,20 @@ validateRawRow raw =
           <*> rrGlAccount raw
           <*> rrGLDimension1 raw
           <*> rrGLDimension2 raw
-      
-        let header =  pure (,,,,) <*> rrDate raw
-              <*> rrCompany raw
-              <*> rrBankAccount raw
-              <*> rrComment raw
-              <*> (map unAmount' <$> rrTotalAmount raw)
-        case header of
-          Left _ -> Right $  let rrow =  ReceiptRow iPrice iNet iTax item account dim1 dim2
-                                   -- check at least one price is present
-                             in case asum [iPrice, iNet, iTax] of
-                                     Nothing -> {- Price missing -} (Left PriceMissing)
-                                     Just _ -> (Right rrow)
+
+        let hasHeader = z date <|> z company <|> z bank <|> z total
+            hasPrice = asum [iPrice, iNet, iTax]
+            rrow =  ReceiptRow iPrice iNet iTax item account dim1 dim2
+            z = map (const ())
+        case ((date, company, bank, total), hasHeader, hasPrice) of 
+              
+              ((Just date', Just company', Just bank', Just total'),_,_) ->
+                Right . Right $ HeaderRow date' company' bank' comment total'
+                iPrice iNet iTax item account dim1 dim2
+              (_, Just _, _ ) -> Right $ Left InvalidReceiptHeader
+              (_, Nothing, Just _ ) -> Right $ Right rrow
+              _ -> Right $ Left PriceMissing
             
-          Right (Just date, Just company, Just bank, comment, Just total) ->
-                               Right . Right $ HeaderRow date company bank comment total
-                                                 iPrice iNet iTax item account dim1 dim2
-          Right _ -> Right $ Left InvalidReceiptHeader
 
   in case row of
       Left _ -> Left (raw, ParseError)

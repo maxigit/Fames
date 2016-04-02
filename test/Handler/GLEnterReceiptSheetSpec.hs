@@ -55,6 +55,52 @@ pureSpec = do
         assertUtf8Field " - £ 23.45 " (-23.45 :: Amount')
     
 
+  describe "validateRawRow" $ do
+    let validRawRow = RawReceiptRow rnot rnot rnot rnot
+                                 rnot rnot rnot rnot
+                                 rnot rnot rnot rnot
+        rnot = Right Nothing
+        rjust = Right . Just
+        emptyRow = ReceiptRow  Nothing Nothing Nothing
+                               Nothing Nothing Nothing
+                               Nothing
+        date = fromGregorian 2015 11 27
+        emptyHeader = HeaderRow date "" "" Nothing 0
+                               Nothing Nothing Nothing
+                               Nothing Nothing Nothing
+                               Nothing
+        
+    it "finds header" $ do
+      let raw = validRawRow { rrDate = rjust date
+                            , rrCompany = rjust "company"
+                            , rrBankAccount = rjust "bank"
+                            , rrTotalAmount = rjust 99
+                            }
+      validateRawRow raw `shouldBe` Right (emptyHeader { rCompany = "company"
+                                                    , rBankAccount = "bank"
+                                                    , rTotalAmount = 99
+                                                    }
+                                       )
+    it "finds invalid header" $ do
+      let raw = validRawRow { rrDate = rjust date
+                            , rrCompany = rjust "company"
+                            , rrTotalAmount = rjust 99
+                            }
+      validateRawRow raw `shouldBe` Left (raw, InvalidReceiptHeader)
+    it "finds normal row" $ do
+      let raw = validRawRow { rrItem= rjust  "item"
+                            , rrItemPrice = rjust 12.50
+                            }
+      validateRawRow raw `shouldBe` Right (emptyRow { rItemPrice = Just 12.50
+                                                    , rItem = Just "item"
+                                                    }
+                                           )
+    it "find row without price" $ do
+      let raw = validRawRow { rrItem = rjust  "item"
+                            }
+      validateRawRow raw `shouldBe` Left (raw, PriceMissing)
+
+
 assertField str value  = decode NoHeader (str <> ",") `shouldBe` Right (fromList [(value, ())])
 -- we need  to encode bystestring in UTF8 because the IsString instance for bytestring
 -- doesn't encode £ to two words but only one.
