@@ -1,6 +1,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DeriveFunctor #-}
 module Handler.GLEnterReceiptSheet where
 
 import Import
@@ -109,8 +110,8 @@ data RawReceiptRow = RawReceiptRow
   , rrItemTaxAmount :: Either Text (Maybe TaxAmount)
   , rrItem :: Either Text (Maybe Text)
   , rrGlAccount :: Either Text (Maybe Text)
-  , rrGLDimension1 :: Either Text (Maybe Int)
-  , rrGLDimension2 :: Either Text (Maybe Int)
+  , rrGLDimension1 :: Either Text (Maybe Text)
+  , rrGLDimension2 :: Either Text (Maybe Text)
   } deriving (Show, Read, Eq, Ord)
 
 instance Csv.FromField Day where
@@ -257,8 +258,8 @@ data ReceiptRow
     , rItemTaxAmount :: (Maybe TaxAmount)
     , rItem :: (Maybe Text)
     , rGLAccount :: (Maybe Text)
-    , rGLDimension1 :: (Maybe Int)
-    , rGLDimension2 :: (Maybe Int)
+    , rGLDimension1 :: (Maybe Text)
+    , rGLDimension2 :: (Maybe Text)
     }
   | ReceiptRow
     { rItemPrice :: (Maybe Amount)
@@ -266,8 +267,8 @@ data ReceiptRow
     , rItemTaxAmount :: (Maybe TaxAmount)
     , rItem :: (Maybe Text)
     , rGLAccount :: (Maybe Text)
-    , rGLDimension1 :: (Maybe Int)
-    , rGLDimension2 :: (Maybe Int)
+    , rGLDimension1 :: (Maybe Text)
+    , rGLDimension2 :: (Maybe Text)
     }
   deriving (Show, Read, Eq, Ord)
 
@@ -320,6 +321,7 @@ data Receipt = Receipt
   , receiptBankAccount :: Text
   , receiptComment :: (Maybe Text)
   , receiptTotalAmount :: Amount
+  , receiptDefaultTaxAmount :: Maybe TaxAmount
   , receiptItems :: [ReceiptItem]
   } deriving (Show, Read, Eq, Ord)
 
@@ -328,9 +330,9 @@ data ReceiptItem = ReceiptItem
   , itemNet :: Maybe Amount
   , itemTaxAmount :: Maybe TaxAmount
   , itemMemo :: Maybe Text
-  , itemGlAccount :: Maybe Text
-  , itemGLDimension1 :: Maybe Int
-  , itemGLDimension2 :: Maybe Int
+  , itemGLAccount :: Maybe Text
+  , itemGLDimension1 :: Maybe Text
+  , itemGLDimension2 :: Maybe Text
   } deriving (Show, Read, Eq, Ord)
 -- groups rows into a set op receipt
 
@@ -343,9 +345,13 @@ groupReceiptRows  rows = let
   in map makeReceipt groups
 
 makeReceipt [] = Left []
-makeReceipt (HeaderRow {..}: rows) = Right $ Receipt rDate rCompany rBankAccount rComment rTotalAmount items
+makeReceipt (HeaderRow {..}: rows) = Right $
+  Receipt rDate rCompany rBankAccount
+          rComment rTotalAmount defaultTaxRate items
   where items = map makeItem $ (ReceiptRow rItemPrice rItemNet rItemTaxAmount rItem
                 rGLAccount rGLDimension1 rGLDimension2) : rows
+        defaultTaxRate | length items > 2 && isNothing rItemNet = rItemTaxAmount
+                       | otherwise = Nothing
         makeItem (ReceiptRow {..}) =
           ReceiptItem rItemPrice rItemNet rItemTaxAmount rItem
                           rGLAccount rGLDimension1 rGLDimension2
@@ -376,7 +382,7 @@ renderReceipts receipts = [whamlet|
                 <td> #{maybeToHtml $ formatF <$> itemNet  item}
                 <td> #{maybeToHtml $ formatTax <$> itemTaxAmount  item}
                 <td> #{maybeToHtml $ itemMemo  item}
-                <td> #{maybeToHtml $ itemGlAccount  item}
+                <td> #{maybeToHtml $ itemGLAccount  item}
                 <td> #{maybeToHtml $ itemGLDimension1  item}
                 <td> #{maybeToHtml $ itemGLDimension2  item}
 |]
@@ -385,7 +391,135 @@ renderReceipts receipts = [whamlet|
 maybeToHtml Nothing = ""
 maybeToHtml (Just v) = toHtml v
 
-data Event
+-- * Event relateds
+  -- Keep the origin of a value, if it's been calculated, guessed etc ...
+data GivenStatus = Guessed | Calculated | Given deriving (Read, Show, Eq, Ord)
+
+data GValue  a = GValue { givenStatus :: GivenStatus , givenValue :: a }
+     deriving (Read, Show, Eq, Functor)
+guess a = a { givenStatus = Guessed }
+given a = GValue Given a
+
+instance Applicative (GValue) where
+  pure x = GValue Given x
+  (GValue fs fv) <*> (GValue as av)= GValue (min fs as) (fv av)
+
+
+  
+instance Num a => Num (GValue a) where
+  fromInteger = GValue Given . fromInteger
+  negate = map negate
+  abs = map abs
+  signum = map signum
+
+  a + b  = map (+) a <*> b
+  a * b  = map (*) a <*> b
+  a - b  = map (-) a <*> b
+
+instance Fractional a => Fractional (GValue a) where
+  a / b = map (/) a <*> b
+  recip = map recip
+  fromRational = GValue Given . fromRational
+
+instance Ord a => Ord (GValue a) where
+  (<) = undefined
+  
+
+data Event = PaymentEvent
+  { evDate :: Day
+  , evCounterparty :: GValue Contreparty
+  , evBankAccount :: GValue BankAccount
+  , evComment :: Maybe Text
+  , evPayItems :: [EventPaymentItem]
+  } deriving (Read, Show, Eq, Ord)
+
+data EventPaymentItem
+  = TaxedPaymentItem { payTotal :: GValue Amount
+                     , payNet :: GValue Amount
+                     , payTax :: GValue Amount
+                     , payGLAccount :: GValue GLAccount
+                     , payGLDimension1 :: GValue (Maybe GLDimension)
+                     , payGLDimension2 :: GValue (Maybe GLDimension)
+                     , payGLTaxAccount :: GValue GLAccount
+                     }
+  | UntaxedPaymentItem { payTotal :: GValue Amount
+                       , payGLAccount :: GValue GLAccount
+                       , payGLDimension1 :: GValue (Maybe GLDimension)
+                       , payGLDimension2 :: GValue (Maybe GLDimension)
+                       }
+  deriving (Read, Show, Eq, Ord)
+data Contreparty = Customer | Supplier | Other Text  deriving (Read, Show, Eq, Ord)
+data BankAccount = BankAccount deriving (Read, Show, Eq, Ord)
+data GLAccount = GLAccount deriving (Read, Show, Eq, Ord)
+data GLDimension = GLDimension deriving (Read, Show, Eq, Ord)
 -- transforms a receipt into an Event
-t' :: Receipt -> Event
-t' = undefined
+receiptToEvent :: Config -> Receipt -> Either Receipt (Receipt, Event)
+receiptToEvent conf receipt@(Receipt {..})= maybe (Left receipt) Right $ do
+  let defRate = fromMaybe (guess 20 )$ given . getTaxRate conf <$> receiptDefaultTaxAmount
+      makeItems (ReceiptItem {..}) = do
+        glAccount <- getGLAccount conf =<< itemGLAccount
+        let glDimension1 = sequenceA $ getGLDimension conf =<< itemGLDimension1
+            glDimension2 = sequenceA $ getGLDimension conf =<< itemGLDimension2
+            glTaxAccount = guess $ pure GLAccount
+        let (price, net, tax ) = calculateAmount defRate (itemPrice, itemNet, itemTaxAmount) 
+        return $ TaxedPaymentItem price net tax  glAccount glDimension1 glDimension2 glTaxAccount
+  items <- mapM makeItems (receiptItems)
+  contreparty <-  getContreparty conf receiptCompany
+  bank <-   getBankAccount conf receiptBankAccount
+    
+  let event = PaymentEvent receiptDate
+                           contreparty
+                           bank
+                           receiptComment
+                           items
+
+    -- check that the sum of all items adds up with the overall total 
+  return (receipt, event)
+
+  
+
+-- calculate missing amounts needs a default rate
+calculateAmount defRate gnt = case gnt of
+  (Just gross, Nothing, Nothing) -> let g = given gross
+                                        t = taxFromGross g defRate
+                                    in (g, g-t, t )
+  (Just gross, Nothing, Just (TaxAmount tax)) -> let g = given gross
+                                                     t = given tax
+                                    in (g, g-t, t )
+  (Just gross, Nothing, Just (TaxRate rate)) ->
+    let g = given gross
+        t = taxFromGross g (given rate)
+    in (g, g-t, t)
+  (Nothing, Just net, Nothing) -> let n = given net
+                                      t = guess defRate
+                                  in (n+t, n, t)
+  (Nothing, Just net, Just (TaxAmount tax)) -> let n = given net
+                                                   t = given tax
+                                               in (n+t,n,t)
+  (Nothing, Just net, Just (TaxRate rate)) ->
+    let n = given net
+        t = given rate  * n
+    in (n+t, n, t) 
+  where taxFromGross gross rate = gross / (1+rate)
+
+  
+  
+-- * Config
+-- Needs to be moved in App
+data Config = Config
+ {getTaxRate :: TaxAmount -> Amount
+ , getBankAccount :: Text -> Maybe   (GValue BankAccount)
+ , getGLAccount :: Text -> Maybe  (GValue GLAccount)
+ , getGLDimension :: Text -> Maybe  (GValue GLDimension)
+ , getContreparty :: Text -> Maybe  (GValue Contreparty)
+ }
+
+defaultConfig = let
+  getTaxRate = undefined
+  getBankAccount = const (Just . pure $ BankAccount)
+  getGLAccount = const (Just . pure $ GLAccount)
+  getGLDimension = const (Just . pure $ GLDimension)
+  getContreparty = const (Just . pure $ Customer)
+
+  in Config {..}
+  
