@@ -79,6 +79,16 @@ instance Csv.FromField Amount' where
                           Just bs' -> map negate (parseField bs')
           Just bs' -> parseField bs'
 
+-- Can be a real amount or a percentage. Percentage can still be multiplied
+data TaxAmount =TaxAmount Amount | TaxRate Amount | TaxCode Text deriving (Read, Show, Eq, Ord)
+-- normal numbers are treated as amount. Number starting with T represent a tax code.
+instance Csv.FromField TaxAmount where
+  parseField bs | Just bs' <- stripPrefix " " bs = parseField bs'
+                | Just bs' <- stripPrefix "T" bs = TaxCode <$> parseField bs'
+                | Just bs' <- stripPrefix "R" bs = TaxRate . (/100) <$> parseField bs'
+                | Just bs' <- stripSuffix "%" bs = TaxRate . (/100) <$> parseField bs' 
+                | otherwise = TaxAmount . unAmount' <$> parseField bs
+
     
 
 -- Convenience functions to help decides of string-like types
@@ -96,7 +106,7 @@ data RawReceiptRow = RawReceiptRow
   , rrTotalAmount :: Either Text (Maybe Amount')
   , rrItemPrice :: Either Text (Maybe Amount')
   , rrItemNet :: Either Text (Maybe Amount')
-  , rrItemTaxAmount :: Either Text (Maybe Amount')
+  , rrItemTaxAmount :: Either Text (Maybe TaxAmount)
   , rrItem :: Either Text (Maybe Text)
   , rrGlAccount :: Either Text (Maybe Text)
   , rrGLDimension1 :: Either Text (Maybe Int)
@@ -184,7 +194,7 @@ renderRawReceiptRows rows = [whamlet|
       ^{tdWithError $ map (formatF . unAmount') <$> rrTotalAmount row}
       ^{tdWithError $ map (formatF . unAmount') <$> rrItemPrice row}
       ^{tdWithError $ map (formatF . unAmount') <$> rrItemNet row}
-      ^{tdWithError $ map (formatF . unAmount') <$> rrItemTaxAmount row}
+      ^{tdWithError $ map (formatTax) <$> rrItemTaxAmount row}
       ^{tdWithError $ rrItem row}
       ^{tdWithError $ rrGlAccount row}
       ^{tdWithError $ rrGLDimension1 row}
@@ -206,6 +216,10 @@ tdWithError (Right Nothing) = [whamlet|
  <  span .bg-warnig>
 |]
   
+
+formatTax (TaxAmount amount) = formatF amount
+formatTax (TaxCode code) = "T" <> code
+formatTax (TaxRate rate) = formatF (100*rate) <> "%"
 
 rowStatus :: RawReceiptRow -> Text
 rowStatus raw = case validateRawRow raw  of
@@ -240,7 +254,7 @@ data ReceiptRow
     , rTotalAmount :: Amount
     , rItemPrice :: (Maybe Amount)
     , rItemNet :: (Maybe Amount)
-    , rItemTaxAmount :: (Maybe Amount)
+    , rItemTaxAmount :: (Maybe TaxAmount)
     , rItem :: (Maybe Text)
     , rGLAccount :: (Maybe Text)
     , rGLDimension1 :: (Maybe Int)
@@ -249,7 +263,7 @@ data ReceiptRow
   | ReceiptRow
     { rItemPrice :: (Maybe Amount)
     , rItemNet :: (Maybe Amount)
-    , rItemTaxAmount :: (Maybe Amount)
+    , rItemTaxAmount :: (Maybe TaxAmount)
     , rItem :: (Maybe Text)
     , rGLAccount :: (Maybe Text)
     , rGLDimension1 :: (Maybe Int)
@@ -271,16 +285,15 @@ validateRawRow raw =
           <*> (map unAmount' <$> rrTotalAmount raw)
           <*> (map unAmount' <$> rrItemPrice raw)
           <*> (map unAmount' <$> rrItemNet raw)
-          <*> (map unAmount' <$> rrItemTaxAmount raw)
+          <*> (rrItemTaxAmount raw)
           <*> rrItem raw
           <*> rrGlAccount raw
           <*> rrGLDimension1 raw
           <*> rrGLDimension2 raw
 
-        let hasHeader = z date <|> z company <|> z bank <|> z total
-            hasPrice = asum [iPrice, iNet, iTax]
+        let hasHeader = void date <|> void company <|> void bank <|> void total
+            hasPrice = asum [void iPrice, void iNet, void iTax]
             rrow =  ReceiptRow iPrice iNet iTax item account dim1 dim2
-            z = map (const ())
         case ((date, company, bank, total), hasHeader, hasPrice) of 
               
               ((Just date', Just company', Just bank', Just total'),_,_) ->
@@ -313,7 +326,7 @@ data Receipt = Receipt
 data ReceiptItem = ReceiptItem
   { itemPrice :: Maybe Amount
   , itemNet :: Maybe Amount
-  , itemTaxAmount :: Maybe Amount
+  , itemTaxAmount :: Maybe TaxAmount
   , itemMemo :: Maybe Text
   , itemGlAccount :: Maybe Text
   , itemGLDimension1 :: Maybe Int
@@ -355,13 +368,13 @@ renderReceipts receipts = [whamlet|
               <th> #{receiptCompany  receipt}
               <th> #{receiptBankAccount  receipt}
               <th> #{fromMaybe "" $ receiptComment  receipt}
-              <th> #{receiptTotalAmount  receipt}
+              <th> #{formatF $ receiptTotalAmount  receipt}
           <table .table .panel .panel-body>
             $forall item <- receiptItems receipt
               <tr>
-                <td> #{maybeToHtml $ itemPrice  item}
-                <td> #{maybeToHtml $ itemNet  item}
-                <td> #{maybeToHtml $ itemTaxAmount  item}
+                <td> #{maybeToHtml $ formatF <$> itemPrice  item}
+                <td> #{maybeToHtml $ formatF <$> itemNet  item}
+                <td> #{maybeToHtml $ formatTax <$> itemTaxAmount  item}
                 <td> #{maybeToHtml $ itemMemo  item}
                 <td> #{maybeToHtml $ itemGlAccount  item}
                 <td> #{maybeToHtml $ itemGLDimension1  item}
