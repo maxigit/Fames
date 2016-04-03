@@ -145,7 +145,7 @@ processReceiptSheetR title text  = do
   case parseReceiptSheet text of
     Left err -> setError (fromString $ "Error encountered" ++ show err) >> redirect GLEnterReceiptSheetR
     Right csv -> case validateRawRows csv of
-      Left _ ->  defaultLayout (renderRawReceiptRows csv)
+      Left _ ->  defaultLayout $ "<h1>Some rows are invalids</h1>" >> (renderRawReceiptRows csv)
       Right rows ->  defaultLayout (renderReceipts (groupReceiptRows rows))
 
 
@@ -313,14 +313,26 @@ data ReceiptItem = ReceiptItem
 -- groups rows into a set op receipt
 
 -- starts an new group on each line having a company and a total
-groupReceiptRows :: [ReceiptRow] -> [Either [ReceiptRow ]Receipt]
+groupReceiptRows :: [ReceiptRow] -> [Either [ReceiptRow] Receipt]
 groupReceiptRows  rows = let
-  groups =  S.split (S.keepDelimsL $ S.whenElt  startReceipt) rows
-  startReceipt row = undefined --  isJust $ rCompany row >> rTotalAmount row
+  groups =  S.split (S.keepDelimsL $ S.whenElt  isHeaderRow) rows
+  isHeaderRow (HeaderRow {}) = True
+  isHeaderRow _ = False
   in map makeReceipt groups
 
 makeReceipt [] = Left []
-makeReceipt (header:items) =  undefined
+makeReceipt (HeaderRow {..}: rows) = Right $ Receipt rDate rCompany rBankAccount rComment rTotalAmount items
+  where items = map makeItem $ (ReceiptRow rItemPrice rItemNet rItemTaxAmount rItem
+                rGLAccount rGLDimension1 rGLDimension2) : rows
+        makeItem (ReceiptRow {..}) =
+          let (price, net, tax) =
+                case (rItemPrice, rItemNet, rItemTaxAmount) of
+                  (Just price, _, _) -> (price, 0, price/6)
+                  _ -> (0,-50,0)
+          in ReceiptItem price net tax rItem
+                          rGLAccount rGLDimension1 rGLDimension2
+
+        
 
      
 renderReceipts receipts = [whamlet|
@@ -331,23 +343,23 @@ renderReceipts receipts = [whamlet|
         $of Left row
           #{tshow row}
         $of Right receipt
-          <table .table>
-            <tr>
+          <table .table .panel .panel-default>
+            <tr .panel-primary .bg-info>
               <th>
-              <th> receiptDate  receipt
-              <th> receiptCompany  receipt
-              <th> receiptBankAccount  receipt
-              <th> receiptComment  receipt
-              <th> receiptTotalAmount  receipt
-              $forall item <- receiptItems receipt
-            <tr>
-            <tr> itemPrice  item
-            <tr> itemNet  item
-            <tr> itemTaxAmount  item
-            <tr> itemMemo  item
-            <tr> itemGlAccount  item
-            <tr> itemGLDimension1  item
-            <tr> itemGLDimension2  item
+              <th> #{receiptDate  receipt}
+              <th> #{receiptCompany  receipt}
+              <th> #{receiptBankAccount  receipt}
+              <th> #{fromMaybe "" $ receiptComment  receipt}
+              <th> #{receiptTotalAmount  receipt}
+            $forall item <- receiptItems receipt
+              <tr>
+                <td> #{itemPrice  item}
+                <td> #{itemNet  item}
+                <td> #{itemTaxAmount  item}
+                <td> #{fromMaybe "" $ itemMemo  item}
+                <td> #{fromMaybe "" $ itemGlAccount  item}
+                <td> #{fromMaybe 0 $ itemGLDimension1  item}
+                <td> #{fromMaybe 0 $ itemGLDimension2  item}
 |]
 
 
