@@ -302,9 +302,9 @@ data Receipt = Receipt
   } deriving (Show, Read, Eq, Ord)
 
 data ReceiptItem = ReceiptItem
-  { itemPrice :: Amount
-  , itemNet :: Amount
-  , itemTaxAmount :: Amount
+  { itemPrice :: Maybe Amount
+  , itemNet :: Maybe Amount
+  , itemTaxAmount :: Maybe Amount
   , itemMemo :: Maybe Text
   , itemGlAccount :: Maybe Text
   , itemGLDimension1 :: Maybe Int
@@ -325,11 +325,7 @@ makeReceipt (HeaderRow {..}: rows) = Right $ Receipt rDate rCompany rBankAccount
   where items = map makeItem $ (ReceiptRow rItemPrice rItemNet rItemTaxAmount rItem
                 rGLAccount rGLDimension1 rGLDimension2) : rows
         makeItem (ReceiptRow {..}) =
-          let (price, net, tax) =
-                case (rItemPrice, rItemNet, rItemTaxAmount) of
-                  (Just price, _, _) -> (price, 0, price/6)
-                  _ -> (0,-50,0)
-          in ReceiptItem price net tax rItem
+          ReceiptItem rItemPrice rItemNet rItemTaxAmount rItem
                           rGLAccount rGLDimension1 rGLDimension2
 
         
@@ -354,15 +350,18 @@ renderReceipts receipts = [whamlet|
           <table .table .panel .panel-body>
             $forall item <- receiptItems receipt
               <tr>
-                <td> #{itemPrice  item}
-                <td> #{itemNet  item}
-                <td> #{itemTaxAmount  item}
-                <td> #{fromMaybe "" $ itemMemo  item}
-                <td> #{fromMaybe "" $ itemGlAccount  item}
-                <td> #{fromMaybe 0 $ itemGLDimension1  item}
-                <td> #{fromMaybe 0 $ itemGLDimension2  item}
+                <td> #{maybeToHtml $ itemPrice  item}
+                <td> #{maybeToHtml $ itemNet  item}
+                <td> #{maybeToHtml $ itemTaxAmount  item}
+                <td> #{maybeToHtml $ itemMemo  item}
+                <td> #{maybeToHtml $ itemGlAccount  item}
+                <td> #{maybeToHtml $ itemGLDimension1  item}
+                <td> #{maybeToHtml $ itemGLDimension2  item}
 |]
 
+
+maybeToHtml Nothing = ""
+maybeToHtml (Just v) = toHtml v
 
 data Event
 -- transforms a receipt into an Event
