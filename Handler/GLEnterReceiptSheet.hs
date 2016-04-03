@@ -336,14 +336,14 @@ makeReceipt (HeaderRow {..}: rows) = Right $ Receipt rDate rCompany rBankAccount
 
      
 renderReceipts receipts = [whamlet|
-<ul>
+<ul .list-group>
   $forall  receiptE <- receipts
-    <li>
+    <li .list-group-item .panel .panel-default>
       $case  receiptE
         $of Left row
           #{tshow row}
         $of Right receipt
-          <table .table .panel .panel-default>
+          <table .table .panel-heading > 
             <tr .panel-primary .bg-info>
               <th>
               <th> #{receiptDate  receipt}
@@ -351,6 +351,7 @@ renderReceipts receipts = [whamlet|
               <th> #{receiptBankAccount  receipt}
               <th> #{fromMaybe "" $ receiptComment  receipt}
               <th> #{receiptTotalAmount  receipt}
+          <table .table .panel .panel-body>
             $forall item <- receiptItems receipt
               <tr>
                 <td> #{itemPrice  item}
