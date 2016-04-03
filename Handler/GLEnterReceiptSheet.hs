@@ -13,6 +13,7 @@ import Data.Char (ord)
 import Data.Time(parseTimeM)
 import Text.Blaze.Html(ToMarkup(toMarkup))
 import Text.Printf(printf)
+import Data.Conduit.List (consume)
 import qualified Data.List.Split  as S
 -- | Entry point to enter a receipts spreadsheet
 -- The use should be able to :
@@ -33,7 +34,9 @@ getGLEnterReceiptSheetR = do
             ^{postTextFormW}
             <button type="submit" .btn .btn-default>Process
     <li> Or Upload a document
-    Not implemented
+    <form role=form method=post action=@{GLEnterReceiptSheetR} enctype=#{upEncType}>
+            ^{uploadFileFormW}
+            <button type="submit" .btn .btn-default>Process
     <li> Or use an existing document
     Not implemented
     <li> Or download a spreadsheet template
@@ -47,14 +50,20 @@ postTextForm = renderBootstrap3 BootstrapBasicForm $ (,)
   <*> areq textareaField ("Receipts") Nothing
 
 
-uploadFileForm = renderBootstrap3 BootstrapBasicForm $ (areq fileField (withSmallInput "upload") Nothing )
+uploadFileForm = renderBootstrap3 BootstrapBasicForm $ (areq fileField ("upload") Nothing )
 postGLEnterReceiptSheetR :: Handler Html
 postGLEnterReceiptSheetR = do
   ((res, postW), enctype) <- runFormPost postTextForm
-  case res of
-    FormSuccess (title, text) -> processReceiptSheetR title (unTextarea text)
+  ((upRes, upW), enctype) <- runFormPost uploadFileForm
+  case (res, upRes) of
+    (FormSuccess (title, text),_) -> processReceiptSheetR title (encodeUtf8  $ unTextarea text)
+    (_, FormSuccess fileinfo) ->  do
+      bytes <- runResourceT $ fileSource fileinfo $$ consume
+      let title = fileName fileinfo
+      processReceiptSheetR title (concat bytes)
     _ -> setError "Form empty" >> redirect GLEnterReceiptSheetR
 
+   
 type Amount = Double
 -- Amount with currency sign
 newtype Amount' = Amount' { unAmount' :: Amount} deriving (Read, Show, Eq, Ord, Num, Fractional)
@@ -211,14 +220,14 @@ formatF f = pack $ printf "%.02f" f
 -- Transforms a text into a set of receipts
 data RawRow 
 -- validates that the text is a table with the correct columns
-parseReceiptSheet :: Text -> Either Text [RawReceiptRow]
-parseReceiptSheet text = case partitionEithers results  of
+parseReceiptSheet :: ByteString -> Either Text [RawReceiptRow]
+parseReceiptSheet bytes = case partitionEithers results  of
   (_, [(header, vector)]) -> Right (toList vector)
   (errs, []) -> Left $ pack ("PriceMissing format:" ++ show errs)
   (_,rights) -> Left "File ambiguous."
   where
-    results = map (`Csv.decodeByNameWith` content) seps
-    content = encodeUtf8 (fromStrict text)
+    bytes' = fromStrict bytes
+    results = map (`Csv.decodeByNameWith` bytes') seps
     seps = [Csv.DecodeOptions (fromIntegral (ord sep)) | sep <- ",;\t" ]
 
 
