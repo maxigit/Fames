@@ -63,13 +63,6 @@ to only regenerate events which needs to be.
 Finding events which haven't changed it's easy (even if they don't appear in the
 same order). Modified one will have to be seen as deleted and created. (finding 
 modification might be tricky and useless anyway)
-
-
-
-
-
-
-
 * Documents
 User should be able to store multiple version of (any) document
 and then process them with the appropriate action.
@@ -77,3 +70,22 @@ and then process them with the appropriate action.
 We should also have a shortcut to upload and process a document.
 
 We need permission on document and documents types.
+
+
+
+
+
+
+
+*  Next
+** TODO Upload via file
+** TODO add Uknown/Calculated/Given monad
+** DONE Generate event from receipt
+CLOSED: [2016-04-03 Sun 11:33]
+keep receipt together so we can display both
+- guess VAT
+** TODO parse VAT ex : Te0
+
+
+
+
