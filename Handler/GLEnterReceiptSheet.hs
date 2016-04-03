@@ -65,7 +65,7 @@ instance Csv.FromField Amount' where
           Nothing -> case stripPrefix "-" bs of
                           Nothing -> let stripped = bs `fromMaybe` stripPrefix (encodeUtf8 "£") bs
                                          r =  Amount' <$> parseField stripped
-                                     in trace (show (length bs, bs, length stripped, stripped)) r
+                                     in  r
 
                           Just bs' -> map negate (parseField bs')
           Just bs' -> parseField bs'
