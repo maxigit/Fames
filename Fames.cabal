@@ -14,6 +14,9 @@ Flag library-only
 library
     hs-source-dirs: ., fay-shared, app
     exposed-modules: Application
+                     GL.FA
+                     GL
+                     GL.Receipt
                      Foundation
                      Import
                      Import.NoFoundation

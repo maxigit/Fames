@@ -166,9 +166,14 @@ processReceiptSheetR title text  = do
     Left err -> setError (fromString $ "Error encountered" ++ show err) >> redirect GLEnterReceiptSheetR
     Right csv -> case validateRawRows csv of
       Left _ ->  defaultLayout $ "<h1>Some rows are invalids</h1>" >> (renderRawReceiptRows csv)
-      Right rows ->  defaultLayout (renderReceipts (groupReceiptRows rows))
+      Right rows ->  let receipts = groupReceiptRows rows
+        in case sequence receipts of
+          Left _ -> defaultLayout $ renderReceipts receipts
+          Right receipts ->  defaultLayout (processReceipts receipts)
 
-
+processReceipts receipts = do
+  let eventsOrReceipt = map (receiptToEvent defaultConfig) receipts
+  mapM_ renderEvents (rights eventsOrReceipt)
 
 renderRawReceiptRows :: (Foldable t, MonadIO m, MonadBaseControl IO m, MonadThrow m) => t RawReceiptRow -> WidgetT App m ()
 renderRawReceiptRows rows = [whamlet|
@@ -342,7 +347,7 @@ groupReceiptRows  rows = let
   groups =  S.split (S.keepDelimsL $ S.whenElt  isHeaderRow) rows
   isHeaderRow (HeaderRow {}) = True
   isHeaderRow _ = False
-  in map makeReceipt groups
+  in map makeReceipt (drop 1 $ groups) -- @TODO remove
 
 makeReceipt [] = Left []
 makeReceipt (HeaderRow {..}: rows) = Right $
@@ -452,6 +457,10 @@ data Contreparty = Customer | Supplier | Other Text  deriving (Read, Show, Eq, O
 data BankAccount = BankAccount deriving (Read, Show, Eq, Ord)
 data GLAccount = GLAccount deriving (Read, Show, Eq, Ord)
 data GLDimension = GLDimension deriving (Read, Show, Eq, Ord)
+
+
+renderEvents events =  undefined
+renderEvent event =  undefined
 -- transforms a receipt into an Event
 receiptToEvent :: Config -> Receipt -> Either Receipt (Receipt, Event)
 receiptToEvent conf receipt@(Receipt {..})= maybe (Left receipt) Right $ do
