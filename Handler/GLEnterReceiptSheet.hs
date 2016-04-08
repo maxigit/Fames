@@ -509,6 +509,7 @@ calculateAmount defRate gnt = case gnt of
     let n = given net
         t = given rate  * n
     in (n+t, n, t) 
+  _ -> error (show (defRate, gnt))
   where taxFromGross gross rate = gross / (1+rate)
 
   

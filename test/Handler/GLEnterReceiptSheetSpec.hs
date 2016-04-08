@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-missing-signatures -fno-warn-unused-binds #-}
 module Handler.GLEnterReceiptSheetSpec (spec) where
 
 import TestImport
