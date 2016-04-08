@@ -8,7 +8,7 @@ spec :: Spec
 
 spec = describe "#Receipt translator" $ do
   it "Generates a simple payment with VAT" $ do
-    let receipt =  Receipt 7501 100 (ratePercent 20) --  {amount = 100.00} 
+    let receipt =  Receipt 7501 100 (TaxType 0.20 2200) --  {amount = 100.00} 
     translate receipt `shouldBe`
       FA.Payment
         [ FA.PaymentItem 7501 100.00 Nothing Nothing Nothing Nothing

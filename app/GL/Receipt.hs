@@ -1,8 +1,8 @@
 -- | Event corresponding to a receipt.
 -- It translates in FA to a payment or a supplier invoice.
 module GL.Receipt
-  (Amount
-  , ratePercent
+  ( Amount
+  , TaxType(..)
   , Receipt(..)
   , translate
   ) where
@@ -14,18 +14,24 @@ import Data.Ratio
 
 -- * General types
 type Amount = Rational
-
 -- | Rate dimensionless number. Used for tax rates.
-newtype  Rate = Rate Rational deriving (Read, Show, Eq, Ord)
-ratePercent :: Rational -> Rate 
-ratePercent p = Rate (p / 100)
+type Rate = Rational
+
+type GLAccount = Int
+
+
+-- | Tax type 
+data TaxType = TaxType
+  { taxRate :: Rate
+  , taxAccount :: GLAccount
+  } deriving (Read, Show, Eq)
 
 -- *  Receipt
 
 data Receipt = Receipt
-  { glAccount :: Int
+  { glAccount :: GLAccount
   , amount :: Amount
-  , rate :: Rate
+  , taxType :: TaxType
   }
   deriving (Read, Show, Eq)
 
@@ -33,9 +39,9 @@ data Receipt = Receipt
 translate :: Receipt -> FA.Payment
 translate (Receipt {..}) = FA.Payment [net, tax] where
   net =  FA.PaymentItem glAccount (f amount) Nothing Nothing Nothing Nothing
-  tax =  FA.PaymentItem 2200 (f $ amount*rate')  (Just . f $ amount) Nothing Nothing Nothing
+  tax =  FA.PaymentItem taxAccount (f $ amount*rate')  (Just . f $ amount) Nothing Nothing Nothing
   f = fromRational
-  Rate rate' = rate
+  TaxType rate' taxAccount  = taxType
 
          
 
