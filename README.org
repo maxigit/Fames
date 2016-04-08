@@ -81,5 +81,15 @@ If we end up moving lots of rendering to the client-side we might consider movin
 or GHCJS
 
 The persistence is using postgreSQL as a standard RDMS and possibly as a document store (using json and bjson type). Storing JSON should allow us to store Algebraic Data Type.
+* Troubles Shooting
+Before doing anything, make sure all the required docker containers are running
+
+  - postgres :  make run_db or docker restart fames_dbt
+  -
+
+Make sure the IP address of the required containers is correct AND than they can be accessed.
+Ping should work. You can check the ip address of the postgres container by runing =make db_id=.
+And check the status of all container using dockerUI. dockerUI is run via the dockerUI container and
+accessed on [http://127.0.0.1:9000]
 
 
