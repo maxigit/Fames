@@ -6,7 +6,7 @@ import TestImport
 import Handler.GLEnterReceiptSheet
 import Data.Csv (decode, HasHeader(NoHeader))
 spec :: Spec
-spec = pureSpec >> storiesSpec -- >> appSpec
+spec = pureSpec >> storiesSpec >> appSpec
 
 
 appSpec :: Spec
@@ -17,10 +17,16 @@ appSpec = withApp $ do
 	  get GLEnterReceiptSheetR
           statusIs 200
    
-   	  bodyContains "Upload button" -- to transform
+   	  bodyContains "upload" -- to transform
 
     describe "postGLEnterReceiptSheetR" $ do
         it "displays the receipts corresponding to the spreadsheet" $ do
+           request $ do
+             setMethod "POST"
+             setUrl GLEnterReceiptSheetR
+             fileByLabel "upload" "simple_vat.csv" "application/text"
+        
+           statusIs 200
            bodyContains "pending"
 
 
