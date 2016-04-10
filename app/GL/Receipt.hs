@@ -4,12 +4,14 @@ module GL.Receipt
   ( Amount
   , TaxType(..)
   , Receipt(..)
+  , ReceiptItem(..)
   , translate
   ) where
 
 import ClassyPrelude
 import qualified GL.FA as FA
 import Data.Ratio
+import qualified Data.Map as Map
 
 
 -- * General types
@@ -24,11 +26,12 @@ type GLAccount = Int
 data TaxType = TaxType
   { taxRate :: Rate
   , taxAccount :: GLAccount
-  } deriving (Read, Show, Eq)
+  } deriving (Read, Show, Eq, Ord)
 
 -- *  Receipt
 
-data Receipt = Receipt
+data Receipt = Receipt { items :: [ReceiptItem] }
+data ReceiptItem = ReceiptItem
   { glAccount :: GLAccount
   , amount :: Amount
   , taxType :: TaxType
@@ -36,12 +39,19 @@ data Receipt = Receipt
   deriving (Read, Show, Eq)
 
 -- * Translation to FA objects
-translate :: Receipt -> FA.Payment
-translate (Receipt {..}) = FA.Payment [net, tax] where
-  net =  FA.PaymentItem glAccount (f amount) Nothing Nothing Nothing Nothing
-  tax =  FA.PaymentItem taxAccount (f $ amount*rate')  (Just . f $ amount) Nothing Nothing Nothing
+translate receipt = FA.Payment (nets ++ taxes) where
+  groupByTax =
+    Map.fromListWith (<>)
+                 [ (taxType , [FA.PaymentItem glAccount (f amount) Nothing Nothing Nothing Nothing])
+                 | (ReceiptItem {..}) <- items receipt
+                 ]
+
+  nets = concat (Map.elems groupByTax)
+
+  -- tax =  FA.PaymentItem taxAccount (f $ amount*rate')  (Just . f $ amount) Nothing Nothing Nothing
+  taxes = []
   f = fromRational
-  TaxType rate' taxAccount  = taxType
+  -- TaxType rate' taxAccount  = taxType
 
          
 
