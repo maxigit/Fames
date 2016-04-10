@@ -42,14 +42,19 @@ data ReceiptItem = ReceiptItem
 translate receipt = FA.Payment (nets ++ taxes) where
   groupByTax =
     Map.fromListWith (<>)
-                 [ (taxType , [FA.PaymentItem glAccount (f amount) Nothing Nothing Nothing Nothing])
-                 | (ReceiptItem {..}) <- items receipt
+                 [ (taxType item , [item])
+                 | item <- items receipt
                  ]
 
-  nets = concat (Map.elems groupByTax)
+  nets = [ FA.PaymentItem glAccount (f amount) Nothing Nothing Nothing Nothing
+         | ReceiptItem {..} <- items receipt
+         ]
+           
+  taxes = [ FA.PaymentItem taxAccount (f $ netAmount*rate)  (Just . f $ netAmount) Nothing Nothing Nothing
+          | (TaxType rate taxAccount, items) <- Map.toList groupByTax
+          , let netAmount = sum (map amount items)
+          ]
 
-  -- tax =  FA.PaymentItem taxAccount (f $ amount*rate')  (Just . f $ amount) Nothing Nothing Nothing
-  taxes = []
   f = fromRational
   -- TaxType rate' taxAccount  = taxType
 
