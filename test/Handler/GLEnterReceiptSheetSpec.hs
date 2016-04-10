@@ -6,18 +6,43 @@ import TestImport
 import Handler.GLEnterReceiptSheet
 import Data.Csv (decode, HasHeader(NoHeader))
 spec :: Spec
-spec = pureSpec -- >> appSpec
+spec = pureSpec >> storiesSpec -- >> appSpec
+
 
 appSpec :: Spec
 appSpec = withApp $ do
 
     describe "getGLEnterReceiptSheetR" $ do
-        error "Spec not implemented: getGLEnterReceiptSheetR"
-
+	it "proposes to upload a file" $ do
+	  get GLEnterReceiptSheetR
+          statusIs 200
+   
+   	  bodyContains "Upload button" -- to transform
 
     describe "postGLEnterReceiptSheetR" $ do
-        error "Spec not implemented: postGLEnterReceiptSheetR"
+        it "displays the receipts corresponding to the spreadsheet" $ do
+           bodyContains "pending"
 
+
+storiesSpec :: Spec 
+storiesSpec =  withApp $ do
+  describe "upload a file without error" $ do
+    {-
+      The user upload a spreadsheet.
+      The result of the conversion to receipt events is displayed
+      as well as the corresponding row of the spreadsheet
+      The user can then validate it and save it
+    
+      - For that we need one page proposing to upload a file
+        - getGLEnterReceiptSheetR
+      - another one displaying the result
+        - postGLEnterReceiptSheetR
+      - another one display errors
+        - postGLEnterReceiptSheetR
+ 
+    -}
+     it "todo" $ do
+       statusIs 202
 
 pureSpec :: Spec
 pureSpec = do
