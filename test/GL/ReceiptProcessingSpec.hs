@@ -23,3 +23,6 @@ spec = describe "#Receipt translator" $ do
         , FA.PaymentItem 8000 50.00 Nothing Nothing Nothing Nothing
         , FA.PaymentItem 2200 30.00 (Just 150) Nothing Nothing Nothing
         ]
+
+  it "Generates a simple payment without tax type" $ do
+    pending
