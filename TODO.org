@@ -1,3 +1,7 @@
+* TODO TDD [/]
+** Refactor Receipt code if needed
+** Chuck all code away and rewrite from scratch.
+Maybe move hamlet in separate file
 * TODO
 ** General
 - [ ] create roles and permissions
