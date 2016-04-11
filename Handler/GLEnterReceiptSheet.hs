@@ -31,17 +31,19 @@ getGLEnterReceiptSheetR = do
   (uploadFileFormW, upEncType) <- generateFormPost uploadFileForm
   let widget =  [whamlet|
 <h1>Enter a receipts spreadsheet
-         <form role=form method=post action=@{GLEnterReceiptSheetR} enctype=#{postEncType}>
-            ^{postTextFormW}
-            <button type="submit" .btn .btn-default>Process
-    <li> Or Upload a document
-    <form role=form method=post action=@{GLEnterReceiptSheetR} enctype=#{upEncType}>
-            ^{uploadFileFormW}
-            <button type="submit" .btn .btn-default>Process
-    <li> Or use an existing document
-    Not implemented
-    <li> Or download a spreadsheet template
-    Not implemented
+<ul>
+   <li>
+     <form #text-form role=form method=post action=@{GLEnterReceiptSheetR} enctype=#{postEncType}>
+         ^{postTextFormW}
+          <button type="submit" .btn .btn-default>Process
+   <li> Or Upload a document
+      <form #upload-form role=form method=post action=@{GLEnterReceiptSheetR} enctype=#{upEncType}>
+         ^{uploadFileFormW}
+         <button type="submit" .btn .btn-default>Process
+   <li> Or use an existing document
+        Not implemented
+   <li> Or download a spreadsheet template
+        Not implemented
 |]
   defaultLayout $ widget
 

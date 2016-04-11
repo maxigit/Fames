@@ -52,6 +52,7 @@ translate receipt = FA.Payment (nets ++ taxes) where
            
   taxes = [ FA.PaymentItem taxAccount (f $ netAmount*rate)  (Just . f $ netAmount) Nothing Nothing Nothing
           | (TaxType rate taxAccount, items) <- Map.toList groupByTax
+
           , let netAmount = sum (map amount items)
           ]
 
@@ -59,6 +60,6 @@ translate receipt = FA.Payment (nets ++ taxes) where
   -- TaxType rate' taxAccount  = taxType
 
          
-
+  
 
 

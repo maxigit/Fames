@@ -1,10 +1,13 @@
 {-# OPTIONS_GHC -fno-warn-missing-signatures -fno-warn-unused-binds #-}
+{-# LANGUAGE QuasiQuotes#-}
 module Handler.GLEnterReceiptSheetSpec (spec) where
 
 import TestImport
 
 import Handler.GLEnterReceiptSheet
 import Data.Csv (decode, HasHeader(NoHeader))
+import Text.Shakespeare.Text (st)
+
 spec :: Spec
 spec = pureSpec >> storiesSpec >> appSpec
 
@@ -21,13 +24,27 @@ appSpec = withApp $ do
 
     describe "postGLEnterReceiptSheetR" $ do
         it "displays the receipts corresponding to the spreadsheet" $ do
-           request $ do
-             setMethod "POST"
-             setUrl GLEnterReceiptSheetR
-             fileByLabel "upload" "simple_vat.csv" "application/text"
+	  get GLEnterReceiptSheetR
+          statusIs 200
+          -- we try here the text area form instead of file  because it's
+          -- easier to setup and read
+
+          request $ do
+            setMethod "POST"
+            setUrl GLEnterReceiptSheetR
+            addToken_ "form#text-form " --"" "#text-form"
+            byLabel "Sheet name" "test 1"
+            byLabel "Receipts" [st|
+account, amount, tax_rate
+7501, 100, 20%
+8000, 50, 20%
+                               |]
         
-           statusIs 200
-           bodyContains "pending"
+          statusIs 200
+          htmlAnyContain ".amount" "100.00"
+          htmlAnyContain ".amount" "50.00"
+          htmlAnyContain ".amount" "30.00"
+          htmlAnyContain ".input" "150.00"
 
 
 storiesSpec :: Spec 
@@ -47,8 +64,7 @@ storiesSpec =  withApp $ do
         - postGLEnterReceiptSheetR
  
     -}
-     it "todo" $ do
-       statusIs 202
+    it "story to write" (const pending)
 
 pureSpec :: Spec
 pureSpec = do
