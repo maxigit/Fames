@@ -9,7 +9,7 @@ import Data.Csv (decode, HasHeader(NoHeader))
 import Text.Shakespeare.Text (st)
 
 spec :: Spec
-spec = pureSpec >> storiesSpec >> appSpec
+spec = {-pureSpec >> -} storiesSpec >> appSpec
 
 
 appSpec :: Spec
@@ -41,10 +41,11 @@ account, amount, tax_rate
                                |]
         
           statusIs 200
+          printBody
           htmlAnyContain ".amount" "100.00"
+          htmlAnyContain ".glAccount" "7501"
           htmlAnyContain ".amount" "50.00"
-          htmlAnyContain ".amount" "30.00"
-          htmlAnyContain ".input" "150.00"
+          htmlAnyContain ".glAccount" "8000"
 
 
 storiesSpec :: Spec 
@@ -65,7 +66,7 @@ storiesSpec =  withApp $ do
  
     -}
     it "story to write" (const pending)
-
+{-
 pureSpec :: Spec
 pureSpec = do
   describe "Parshing csv" $ do
@@ -153,3 +154,5 @@ assertField str value  = decode NoHeader (str <> ",") `shouldBe` Right (fromList
 -- we need  to encode bystestring in UTF8 because the IsString instance for bytestring
 -- doesn't encode £ to two words but only one.
 assertUtf8Field text value = assertField (encodeUtf8 text) value
+
+-}

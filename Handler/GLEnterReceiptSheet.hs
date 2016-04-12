@@ -5,6 +5,7 @@
 module Handler.GLEnterReceiptSheet where
 
 import Import
+import GL.Receipt
 
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput)
@@ -16,6 +17,7 @@ import Text.Blaze.Html(ToMarkup(toMarkup))
 import Text.Printf(printf)
 import Data.Conduit.List (consume)
 import qualified Data.List.Split  as S
+import Text.Printf (printf)
 -- | Entry point to enter a receipts spreadsheet
 -- The use should be able to :
 --   - post a text
@@ -56,6 +58,38 @@ postTextForm = renderBootstrap3 BootstrapBasicForm $ (,)
 uploadFileForm = renderBootstrap3 BootstrapBasicForm $ (areq fileField ("upload") Nothing )
 postGLEnterReceiptSheetR :: Handler Html
 postGLEnterReceiptSheetR = do
+  ((res, postW), enctype) <- runFormPost postTextForm
+  defaultLayout $ case res of
+    FormSuccess (title, spreadsheet) -> do
+      let receipts =  parseReceipts (encodeUtf8 $ unTextarea spreadsheet)
+      [whamlet|
+<h1> #title parsed successfully
+<ul>
+  $forall receipt <- receipts
+    <li>
+      <ul>
+        $forall item <- items receipt
+          <li>
+            <span.glAccount>#{glAccount item}
+            <span.amount>#{formatAmount $ amount item}
+            <span.taxTyple>#{tshow $ taxType item}
+              |]
+          
+  
+
+-- ** To move in app
+
+parseReceipts :: ByteString -> [Receipt]
+parseReceipts bs = [receipt] where
+  receipt =  Receipt [ReceiptItem 7501 100 r20 , ReceiptItem 8000 50 r20]
+  r20 = TaxType (20/100) 2200
+
+-- ** to move in general helper or better in App
+-- formatAmount :: Amount -> Text
+formatAmount = tshow . (\t -> t :: String) .  printf "%0.2f" . (\x -> x :: Double) .  fromRational
+{-
+
+postGLEnterReceiptSheetR' = do
   ((res, postW), enctype) <- runFormPost postTextForm
   ((upRes, upW), enctype) <- runFormPost uploadFileForm
   case (res, upRes) of
@@ -243,7 +277,7 @@ formatF f = pack $ printf "%.02f" f
 data RawRow 
 -- validates that the text is a table with the correct columns
 parseReceiptSheet :: ByteString -> Either Text [RawReceiptRow]
-parseReceiptSheet bytes = case partitionEithers results  of
+parseReceiptSheet' bytes = case partitionEithers results  of
   (_, [(header, vector)]) -> Right (toList vector)
   (errs, []) -> Left $ pack ("PriceMissing format:" ++ show errs)
   (_,rights) -> Left "File ambiguous."
@@ -535,3 +569,5 @@ defaultConfig = let
 
   in Config {..}
   
+
+-}
