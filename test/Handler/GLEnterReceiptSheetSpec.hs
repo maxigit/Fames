@@ -34,14 +34,12 @@ appSpec = withApp $ do
             setUrl GLEnterReceiptSheetR
             addToken_ "form#text-form " --"" "#text-form"
             byLabel "Sheet name" "test 1"
-            byLabel "Receipts" [st|
-account, amount, tax_rate
-7501, 100, 20%
-8000, 50, 20%
-                               |]
+            byLabel "Receipts" [st|gl account,amount,tax rate
+7501,100,20%
+8000,50,20%|]
         
-          statusIs 200
-          printBody
+          -- statusIs 200
+          followRedirect >> printBody
           htmlAnyContain ".amount" "100.00"
           htmlAnyContain ".glAccount" "7501"
           htmlAnyContain ".amount" "50.00"

@@ -18,6 +18,7 @@ import Text.Printf(printf)
 import Data.Conduit.List (consume)
 import qualified Data.List.Split  as S
 import Text.Printf (printf)
+import Data.Ratio (approxRational)
 -- | Entry point to enter a receipts spreadsheet
 -- The use should be able to :
 --   - post a text
@@ -59,10 +60,10 @@ uploadFileForm = renderBootstrap3 BootstrapBasicForm $ (areq fileField ("upload"
 postGLEnterReceiptSheetR :: Handler Html
 postGLEnterReceiptSheetR = do
   ((res, postW), enctype) <- runFormPost postTextForm
-  defaultLayout $ case res of
-    FormSuccess (title, spreadsheet) -> do
-      let receipts =  parseReceipts (encodeUtf8 $ unTextarea spreadsheet)
-      [whamlet|
+  let responseE = case res of
+                        FormSuccess (title, spreadsheet) -> do -- Either
+                          receipts <-  parseReceipts (encodeUtf8 $ unTextarea spreadsheet)
+                          Right [whamlet|
 <h1> #title parsed successfully
 <ul>
   $forall receipt <- receipts
@@ -74,15 +75,57 @@ postGLEnterReceiptSheetR = do
             <span.amount>#{formatAmount $ amount item}
             <span.taxTyple>#{tshow $ taxType item}
               |]
+  case responseE of
+    Left msg -> setMessage (toHtml msg) >> redirect GLEnterReceiptSheetR
+    Right widget -> defaultLayout $ widget
           
   
 
 -- ** To move in app
+-- Represents a row of the spreadsheet.
+data ReceiptRow = ReceiptRow
+  { rowGlAccount :: Int
+  , rowAmount :: Double
+  , rowTax :: Text
+  } deriving (Read, Show, Eq)
 
-parseReceipts :: ByteString -> [Receipt]
-parseReceipts bs = [receipt] where
-  receipt =  Receipt [ReceiptItem 7501 100 r20 , ReceiptItem 8000 50 r20]
-  r20 = TaxType (20/100) 2200
+instance Csv.FromNamedRecord ReceiptRow where
+  parseNamedRecord m = pure ReceiptRow
+    <*> m `parse` "gl account"
+    <*> m `parse` "amount"
+    <*> m `parse` "tax rate"
+    where parse m colname = m Csv..: colname
+  
+parseReceipts :: ByteString -> Either Text [Receipt]
+parseReceipts bytes = do
+  rows <- parseReceiptRow bytes
+  let rowToItem (ReceiptRow{..}) = ReceiptItem rowGlAccount
+                               (approxRational rowAmount (0.0005))
+                               (TaxType 0.20 2200)
+      parseTax "20%" = TaxType 0.20 2200
+      parseTax _ = TaxType 0.0 2209
+
+  Right [Receipt (map rowToItem rows)]
+
+parseReceiptRow :: ByteString -> Either Text [ReceiptRow]
+parseReceiptRow bytes = either (Left . pack)  (Right . toList)$ do
+    (header, vector) <- try
+    Right vector
+  where
+    try = Csv.decodeByNameWith (sep) bytes'
+    (sep:_) = [Csv.DecodeOptions (fromIntegral (ord sep)) | sep <- ",;\t" ]
+    bytes' = fromStrict bytes
+  -- we try different separators. If everything is ok
+  -- only one matches
+  {-
+  case partitionEithers tries of
+    (_, [(header, vector)]) -> toList vector
+    _ -> []  -- error "header not correct"
+  where
+    tries = map (`Csv.decodeByNameWith` bytes') seps
+    seps = [Csv.DecodeOptions (fromIntegral (ord sep)) | sep <- ",;\t" ]
+    bytes' = fromStrict bytes
+  -}
 
 -- ** to move in general helper or better in App
 -- formatAmount :: Amount -> Text
