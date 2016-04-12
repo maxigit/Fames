@@ -38,8 +38,7 @@ appSpec = withApp $ do
 7501,100,20%
 8000,50,20%|]
         
-          -- statusIs 200
-          followRedirect >> printBody
+          statusIs 200
           htmlAnyContain ".amount" "100.00"
           htmlAnyContain ".glAccount" "7501"
           htmlAnyContain ".amount" "50.00"
