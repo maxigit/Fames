@@ -61,14 +61,13 @@ appSpec = withApp $ do
 2015/01/02,stapples,B1,120,7501,100,20%
 2015/01/02,stapples,B1,60,8000,50,20%|]
         
-          followRedirect >> printBody
           statusIs 200
           htmlAnyContain "#receipt1 .amount" "100.00"
           htmlAnyContain "#receipt1 .glAccount" "7501"
           htmlAnyContain "#receipt2 .amount" "50.00"
           htmlAnyContain "#receipt2 .glAccount" "8000"
 
-        it "displays errors if a header line is not fulled" $ do
+        it "displays an error if a header line is not fulled" $ do
           return pending
 	  get GLEnterReceiptSheetR
           statusIs 200
@@ -81,11 +80,15 @@ appSpec = withApp $ do
             addToken_ "form#text-form " --"" "#text-form"
             byLabel "Sheet name" "test 2"
             byLabel "Receipts" [st|date,contreparty,bank account,total,gl account,amount,tax rate
-2015/01/02,stapples,B1,120,7501,100,20%
-2015/01/02,stapples,B1,,8000,50,20%|]
+2015/01/02,,B1,120,7501,100,20%|]
         
-          statusIs 300 -- wrong
-          htmlAnyContain "#receipt1 .amount" "100.00"
+          statusIs 422 -- wrong
+          bodyContains "Counterparty is missing"
+
+        it "display receipt header" (const pending)
+        it "needs at least one header" (const pending)
+       
+
 
 storiesSpec :: Spec 
 storiesSpec =  withApp $ do

@@ -6,6 +6,7 @@ module Handler.GLEnterReceiptSheet where
 
 import Import
 import GL.Receipt
+import Handler.GLEnterReceiptSheet.ReceiptRow
 
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput)
@@ -69,14 +70,19 @@ postGLEnterReceiptSheetR = do
 <ul>
   $forall receiptI <- zip receipts ns
     $case receiptI
-      $of (receipt, i) 
-        <li id=receipt#{tshow i}>
+      $of (Right receipt, i) 
+        <li .receipt id=receipt#{tshow i}>
           <ul>
             $forall item <- items receipt
               <li>
                 <span.glAccount>#{glAccount item}
                 <span.amount>#{formatAmount $ amount item}
                 <span.taxTyple>#{tshow $ taxType item}
+      $of (Left ReceiptRow{..}, i) 
+        <li .invalidRow id=invalidRow#{tshow i}>
+                <span.rowGlAccount>#{rowGlAccount}
+                <span.rowAmount>#{tshow rowAmount}
+                <span.rowTax>#{tshow rowTax}
               |]
   case responseE of
     Left msg -> setMessage (toHtml msg) >> redirect GLEnterReceiptSheetR
@@ -86,16 +92,6 @@ postGLEnterReceiptSheetR = do
 
 -- ** To move in app
 -- Represents a row of the spreadsheet.
-data ReceiptRow = ReceiptRow
-  { rowDate :: Maybe Text  
-  , rowCounterparty :: Maybe Text
-  , rowBankAccount :: Maybe Text
-  , rowTotal :: Maybe Double
-  , rowGlAccount :: Int
-  , rowAmount :: Double
-  , rowTax :: Text
-  } deriving (Read, Show, Eq)
-
 instance Csv.FromNamedRecord ReceiptRow where
   parseNamedRecord m = pure ReceiptRow
     <*> (m `parse` "date") -- >>= parseDay)
@@ -130,7 +126,7 @@ parseDay bs = do
                 , "%a %d %b %0Y"
                 ]
 
-parseReceipts :: ByteString -> Either Text [Receipt]
+parseReceipts :: ByteString -> Either Text [Either ReceiptRow Receipt]
 parseReceipts bytes = do
   rows <- parseReceiptRow bytes
   let rowToItem (ReceiptRow{..}) = ReceiptItem rowGlAccount
@@ -138,14 +134,18 @@ parseReceipts bytes = do
                                (TaxType 0.20 2200)
       parseTax "20%" = TaxType 0.20 2200
       parseTax _ = TaxType 0.0 2209
-      ([]:groups) =  S.split (S.keepDelimsL $ S.whenElt  isHeaderRow) rows
+      grouped =  S.split (S.keepDelimsL $ S.whenElt  isHeaderRow) rows
       isHeaderRow (ReceiptRow{..}) = case (rowDate, rowCounterparty,rowTotal) of
         (Nothing, Nothing, Nothing) -> False
         _ -> True
-
       makeReceipt rows = Receipt (map rowToItem rows)
-
-  Right $ map makeReceipt groups
+-- split returns as it's first element what was before the first element matching the conditions
+  -- therefore grouped should be at least [[]]
+  when (null grouped) (Left "Something went wrong.")
+  let (orphans:groups) = grouped
+  Right $ (map Left orphans)
+        ++ map (Right . makeReceipt) groups
+      
 
 parseReceiptRow :: ByteString -> Either Text [ReceiptRow]
 parseReceiptRow bytes = either (Left . pack)  (Right . toList)$ do
