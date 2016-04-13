@@ -63,39 +63,73 @@ postGLEnterReceiptSheetR = do
   let responseE = case res of
                         FormSuccess (title, spreadsheet) -> do -- Either
                           receipts <-  parseReceipts (encodeUtf8 $ unTextarea spreadsheet)
+                          let ns = [1..]
                           Right [whamlet|
 <h1> #title parsed successfully
 <ul>
-  $forall receipt <- receipts
-    <li>
-      <ul>
-        $forall item <- items receipt
-          <li>
-            <span.glAccount>#{glAccount item}
-            <span.amount>#{formatAmount $ amount item}
-            <span.taxTyple>#{tshow $ taxType item}
+  $forall receiptI <- zip receipts ns
+    $case receiptI
+      $of (receipt, i) 
+        <li id=receipt#{tshow i}>
+          <ul>
+            $forall item <- items receipt
+              <li>
+                <span.glAccount>#{glAccount item}
+                <span.amount>#{formatAmount $ amount item}
+                <span.taxTyple>#{tshow $ taxType item}
               |]
   case responseE of
     Left msg -> setMessage (toHtml msg) >> redirect GLEnterReceiptSheetR
     Right widget -> defaultLayout $ widget
-          
+
   
 
 -- ** To move in app
 -- Represents a row of the spreadsheet.
 data ReceiptRow = ReceiptRow
-  { rowGlAccount :: Int
+  { rowDate :: Maybe Text  
+  , rowCounterparty :: Maybe Text
+  , rowBankAccount :: Maybe Text
+  , rowTotal :: Maybe Double
+  , rowGlAccount :: Int
   , rowAmount :: Double
   , rowTax :: Text
   } deriving (Read, Show, Eq)
 
 instance Csv.FromNamedRecord ReceiptRow where
   parseNamedRecord m = pure ReceiptRow
+    <*> (m `parse` "date") -- >>= parseDay)
+    <*> m `parse` "counterparty"
+    <*> m `parse` "bank account"
+    <*> m `parse` "total"
     <*> m `parse` "gl account"
     <*> m `parse` "amount"
     <*> m `parse` "tax rate"
     where parse m colname = m Csv..: colname
-  
+
+parseDay bs = do
+  str <- parseField bs
+  case  concat [parseTimeM True defaultTimeLocale f str | f <- formats] of
+    [day] -> pure day
+    (d:ds) -> error (show (d:ds))
+    _ -> mzero
+  where
+      -- formats to try. Normally there shouldn't be any overlap bettween the different format.
+      -- The 0 in %0Y is important. It guarantes that only 4 digits are accepted.
+      -- without 11/01/01 will be parsed by %Y/%m/%d and %d/%m/%y
+      formats = [ "%0Y/%m/%d"
+                , "%d/%m/%0Y"
+                , "%d/%m/%y"
+                , "%0Y-%m-%d"
+                , "%d %b %0Y"
+                , "%d-%b-%0Y"
+                , "%d %b %y"
+                , "%d-%b-%y"
+                , "%0Y %b %d"
+                , "%0Y-%b-%d"
+                , "%a %d %b %0Y"
+                ]
+
 parseReceipts :: ByteString -> Either Text [Receipt]
 parseReceipts bytes = do
   rows <- parseReceiptRow bytes
@@ -104,8 +138,14 @@ parseReceipts bytes = do
                                (TaxType 0.20 2200)
       parseTax "20%" = TaxType 0.20 2200
       parseTax _ = TaxType 0.0 2209
+      ([]:groups) =  S.split (S.keepDelimsL $ S.whenElt  isHeaderRow) rows
+      isHeaderRow (ReceiptRow{..}) = case (rowDate, rowCounterparty,rowTotal) of
+        (Nothing, Nothing, Nothing) -> False
+        _ -> True
 
-  Right [Receipt (map rowToItem rows)]
+      makeReceipt rows = Receipt (map rowToItem rows)
+
+  Right $ map makeReceipt groups
 
 parseReceiptRow :: ByteString -> Either Text [ReceiptRow]
 parseReceiptRow bytes = either (Left . pack)  (Right . toList)$ do

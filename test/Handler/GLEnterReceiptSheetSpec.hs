@@ -23,7 +23,7 @@ appSpec = withApp $ do
    	  bodyContains "upload" -- to transform
 
     describe "postGLEnterReceiptSheetR" $ do
-        it "displays the receipts corresponding to the spreadsheet" $ do
+        it "displays correctly a receipt with multiple lines" $ do
 	  get GLEnterReceiptSheetR
           statusIs 200
           -- we try here the text area form instead of file  because it's
@@ -34,16 +34,58 @@ appSpec = withApp $ do
             setUrl GLEnterReceiptSheetR
             addToken_ "form#text-form " --"" "#text-form"
             byLabel "Sheet name" "test 1"
-            byLabel "Receipts" [st|gl account,amount,tax rate
-7501,100,20%
-8000,50,20%|]
+            byLabel "Receipts" [st|date,counterparty,bank account,total,gl account,amount,tax rate
+2015/01/02,stapples,B1,180,7501,100,20%
+,,,,8000,50,20%
+|]
         
           statusIs 200
-          htmlAnyContain ".amount" "100.00"
-          htmlAnyContain ".glAccount" "7501"
-          htmlAnyContain ".amount" "50.00"
-          htmlAnyContain ".glAccount" "8000"
 
+          htmlAnyContain "#receipt1 .amount" "100.00"
+          htmlAnyContain "#receipt1 .glAccount" "7501"
+          htmlAnyContain "#receipt1 .amount" "50.00"
+          htmlAnyContain "#receipt1 .glAccount" "8000"
+
+        it "displays correctly a spreadsheet with multiple receipts" $ do
+	  get GLEnterReceiptSheetR
+          statusIs 200
+          -- we try here the text area form instead of file  because it's
+          -- easier to setup and read
+
+          request $ do
+            setMethod "POST"
+            setUrl GLEnterReceiptSheetR
+            addToken_ "form#text-form " --"" "#text-form"
+            byLabel "Sheet name" "test 2"
+            byLabel "Receipts" [st|date,counterparty,bank account,total,gl account,amount,tax rate
+2015/01/02,stapples,B1,120,7501,100,20%
+2015/01/02,stapples,B1,60,8000,50,20%|]
+        
+          followRedirect >> printBody
+          statusIs 200
+          htmlAnyContain "#receipt1 .amount" "100.00"
+          htmlAnyContain "#receipt1 .glAccount" "7501"
+          htmlAnyContain "#receipt2 .amount" "50.00"
+          htmlAnyContain "#receipt2 .glAccount" "8000"
+
+        it "displays errors if a header line is not fulled" $ do
+          return pending
+	  get GLEnterReceiptSheetR
+          statusIs 200
+          -- we try here the text area form instead of file  because it's
+          -- easier to setup and read
+
+          request $ do
+            setMethod "POST"
+            setUrl GLEnterReceiptSheetR
+            addToken_ "form#text-form " --"" "#text-form"
+            byLabel "Sheet name" "test 2"
+            byLabel "Receipts" [st|date,contreparty,bank account,total,gl account,amount,tax rate
+2015/01/02,stapples,B1,120,7501,100,20%
+2015/01/02,stapples,B1,,8000,50,20%|]
+        
+          statusIs 300 -- wrong
+          htmlAnyContain "#receipt1 .amount" "100.00"
 
 storiesSpec :: Spec 
 storiesSpec =  withApp $ do
