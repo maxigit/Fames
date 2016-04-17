@@ -79,7 +79,7 @@ appSpec = withApp $ do
             setUrl GLEnterReceiptSheetR
             addToken_ "form#text-form " --"" "#text-form"
             byLabel "Sheet name" "test 2"
-            byLabel "Receipts" [st|date,contreparty,bank account,total,gl account,amount,tax rate
+            byLabel "Receipts" [st|date,counterparty,bank account,total,gl account,amount,tax rate
 2015/01/02,,B1,120,7501,100,20%|]
         
           statusIs 422 -- wrong
