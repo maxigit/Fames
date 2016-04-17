@@ -82,6 +82,8 @@ appSpec = withApp $ do
             byLabel "Receipts" [st|date,counterparty,bank account,total,gl account,amount,tax rate
 2015/01/02,,B1,120,7501,100,20%|]
         
+
+          printBody
           statusIs 422 -- wrong
           bodyContains "Counterparty is missing"
 

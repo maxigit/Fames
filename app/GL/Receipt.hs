@@ -18,8 +18,9 @@ import qualified Data.Map as Map
 type Amount = Rational
 -- | Rate dimensionless number. Used for tax rates.
 type Rate = Rational
-
 type GLAccount = Int
+type Counterparty = Text
+type BankAccount = Text
 
 
 -- | Tax type 
@@ -30,13 +31,19 @@ data TaxType = TaxType
 
 -- *  Receipt
 
-data Receipt = Receipt { items :: [ReceiptItem] }
+data Receipt = Receipt
+  { date :: Text
+  , counterparty :: Counterparty
+  , bankAccount :: BankAccount
+  , totalAmount :: Amount
+  , items :: [ReceiptItem]
+  } deriving (Read, Show, Eq)
+
 data ReceiptItem = ReceiptItem
   { glAccount :: GLAccount
   , amount :: Amount
   , taxType :: TaxType
-  }
-  deriving (Read, Show, Eq)
+  } deriving (Read, Show, Eq)
 
 -- * Translation to FA objects
 translate receipt = FA.Payment (nets ++ taxes) where
