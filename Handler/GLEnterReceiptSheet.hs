@@ -82,7 +82,7 @@ postGLEnterReceiptSheetR = do
                 <span.glAccount>#{glAccount item}
                 <span.amount>#{formatAmount $ amount item}
                 <span.taxTyple>#{tshow $ taxType item}
-      $of (Left ReceiptRow{..}, i) 
+      $of (Left (ReceiptRow'{..}), i) 
         <li .invalidRow id=invalidRow#{tshow i}>
                 <span.rowGlAccount>#{rowGlAccount}
                 <span.rowAmount>#{tshow rowAmount}
@@ -96,8 +96,8 @@ postGLEnterReceiptSheetR = do
 
 -- ** To move in app
 -- Represents a row of the spreadsheet.
-instance Csv.FromNamedRecord (ReceiptRow Raw)where
-  parseNamedRecord m = pure ReceiptRow
+instance Csv.FromNamedRecord (ReceiptRow' Raw)where
+  parseNamedRecord m = pure ReceiptRow'
     <*> (m `parse` "date") -- >>= parseDay)
     <*> m `parse` "counterparty"
     <*> m `parse` "bank account"
@@ -130,22 +130,22 @@ parseDay bs = do
                 , "%a %d %b %0Y"
                 ]
 
-parseReceipts :: ByteString -> Either Text [Either (ReceiptRow Raw) Receipt]
+parseReceipts :: ByteString -> Either Text [Either (ReceiptRow' Raw) Receipt]
 parseReceipts bytes = do
-  rows <- parseReceiptRow bytes
-  let rowToItem (ReceiptRow{..}) = ReceiptItem rowGlAccount
+  rows <- {-map analyseReceiptRow <$>-} parseReceiptRow bytes
+  let rowToItem (ReceiptRow'{..}) = ReceiptItem rowGlAccount
                                (approxRational rowAmount (0.0005))
                                (TaxType 0.20 2200)
       parseTax "20%" = TaxType 0.20 2200
       parseTax _ = TaxType 0.0 2209
       grouped =  S.split (S.keepDelimsL $ S.whenElt  isHeaderRow) rows
       -- a row is a header if any of the "header" field are present
-      isHeaderRow (ReceiptRow{..}) = case (rowDate, rowCounterparty, rowBankAccount, rowTotal) of
+      isHeaderRow (ReceiptRow'{..}) = case (rowDate, rowCounterparty, rowBankAccount, rowTotal) of
         (Nothing, Nothing, Nothing, Nothing) -> False
         _ -> True
       
       -- however, to be valid a header needs ALL the header field to be present
-      makeReceipt rows@(ReceiptRow{..}:_) =
+      makeReceipt rows@(ReceiptRow'{..}:_) =
         case (rowDate , rowCounterparty , rowBankAccount , rowTotal) of
              ( Just date , Just counterparty , Just bankAccount , Just total)
                -> Receipt date counterparty bankAccount (approxRational total 0.0005)
@@ -160,7 +160,7 @@ parseReceipts bytes = do
         ++ map (Right . makeReceipt) groups
       
 -- | Parse a csv and return a list of receipt row if possible
-parseReceiptRow :: ByteString -> Either Text [ReceiptRow Raw]
+parseReceiptRow :: ByteString -> Either Text [ReceiptRow' Raw]
 parseReceiptRow bytes = either (Left . pack)  (Right . toList)$ do
     (header, vector) <- try
     Right vector
