@@ -90,15 +90,15 @@ postGLEnterReceiptSheetR = do
 --                 <span.rowTax>#{tshow rowTax}
 --               |]
   case responseE of
-    Left msg -> setMessage (toHtml msg) >> redirect GLEnterReceiptSheetR
+    Left (Left msg) -> setMessage (toHtml msg) >> redirect GLEnterReceiptSheetR
     Right widget -> defaultLayout $ widget
 
-  
+
 
 -- ** To move in app
 -- Represents a row of the spreadsheet.
-instance Csv.FromNamedRecord (ReceiptRow' Raw)where
-  parseNamedRecord m = pure ReceiptRow'
+instance Csv.FromNamedRecord (ReceiptRow Raw)where
+  parseNamedRecord m = pure ReceiptRow
     <*> (m `parse` "date") -- >>= parseDay)
     <*> m `parse` "counterparty"
     <*> m `parse` "bank account"
@@ -137,8 +137,8 @@ parseReceipts :: ByteString
                                 , [EitherRow InvalidRowT ValidRowT]
                                 )]
                         )
-                        [( ReceiptRow' ValidHeaderT
-                        , [ReceiptRow' ValidRowT]
+                        [( ReceiptRow ValidHeaderT
+                        , [ReceiptRow ValidRowT]
                         )]
 parseReceipts bytes = do
   rows <- either (Left . Left) (Right . map analyseReceiptRow) $ parseReceiptRow bytes
@@ -162,7 +162,7 @@ parseReceipts bytes = do
 
       
 -- | Parse a csv and return a list of receipt row if possible
-parseReceiptRow :: ByteString -> Either Text [ReceiptRow' Raw]
+parseReceiptRow :: ByteString -> Either Text [ReceiptRow Raw]
 parseReceiptRow bytes = either (Left . pack)  (Right . toList)$ do
     (header, vector) <- try
     Right vector

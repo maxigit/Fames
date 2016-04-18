@@ -8,7 +8,7 @@ import Import hiding(InvalidHeader)
 -- The actual type of each field depend of a status or stage
 -- This is needed to model different types of row which have 
 -- Which have the same structure but different semantic.
-data ReceiptRow' s = ReceiptRow'
+data ReceiptRow s = ReceiptRow
   { rowDate :: RowDateTF s
   , rowCounterparty :: RowCounterpartyTF s
   , rowBankAccount :: RowBankAccountTF s
@@ -18,12 +18,6 @@ data ReceiptRow' s = ReceiptRow'
   , rowAmount :: RowAmountTF s
   , rowTax :: RowAmountTF s
   } -- deriving (Read, Show, Eq)
-
-data ReceiptRow 
-  = ValidHeader (ReceiptRow' ValidHeaderT)
-  | InvalidHeader (ReceiptRow' InvalidHeaderT)
-  | ValidRow (ReceiptRow' ValidRowT)
-  | InvalidRow (ReceiptRow' InvalidRowT)
 
 data ReceiptRowType
   = Raw
@@ -85,44 +79,29 @@ type family RowTaxTF (s :: ReceiptRowType) where
   RowTaxTF InvalidRowT = Text
 
   {-
-analyseReceiptRow :: ReceiptRow' Raw -> ReceiptRow
-analyseReceiptRow (ReceiptRow'{..}) =
+analyseReceiptRow :: ReceiptRow Raw -> ReceiptRow
+analyseReceiptRow (ReceiptRow{..}) =
   case (rowDate , rowCounterparty , rowBankAccount , rowTotal) of
        ( Just date , Just counterparty , Just bankAccount , Just total)
-         -> ValidHeader $ ReceiptRow' date counterparty bankAccount total
+         -> ValidHeader $ ReceiptRow date counterparty bankAccount total
                                    rowGlAccount rowAmount rowTax
        (Nothing, Nothing, Nothing, Nothing)
-         -> ValidRow $ ReceiptRow' () () () ()
+         -> ValidRow $ ReceiptRow () () () ()
                                    rowGlAccount rowAmount rowTax
-       _ -> InvalidHeader $ ReceiptRow' rowDate rowCounterparty rowBankAccount rowTotal
+       _ -> InvalidHeader $ ReceiptRow rowDate rowCounterparty rowBankAccount rowTotal
                           rowGlAccount rowAmount rowTax
 -}
-type EitherRow a b = Either (ReceiptRow' a) (ReceiptRow' b)
+type EitherRow a b = Either (ReceiptRow a) (ReceiptRow b)
 
-analyseReceiptRow :: ReceiptRow' Raw -> Either (EitherRow InvalidRowT ValidRowT )
+analyseReceiptRow :: ReceiptRow Raw -> Either (EitherRow InvalidRowT ValidRowT )
                                                (EitherRow InvalidHeaderT ValidHeaderT )
-analyseReceiptRow (ReceiptRow'{..}) =
+analyseReceiptRow (ReceiptRow{..}) =
   case (rowDate , rowCounterparty , rowBankAccount , rowTotal) of
        ( Just date , Just counterparty , Just bankAccount , Just total)
-         -> Right . Right $ ReceiptRow' date counterparty bankAccount total
+         -> Right . Right $ ReceiptRow date counterparty bankAccount total
                                    rowGlAccount rowAmount rowTax
        (Nothing, Nothing, Nothing, Nothing)
-         -> Left . Right $  ReceiptRow' () () () ()
+         -> Left . Right $  ReceiptRow () () () ()
                                    rowGlAccount rowAmount rowTax
-       _ -> Right. Left $ ReceiptRow' rowDate rowCounterparty rowBankAccount rowTotal
+       _ -> Right. Left $ ReceiptRow rowDate rowCounterparty rowBankAccount rowTotal
                           rowGlAccount rowAmount rowTax
-
- {- 
-isHeaderRow :: ReceiptRow -> Bool
-isHeaderRow (ValidHeader _) = True
-isHeaderRow (InvalidHeader _) = True
-isHeaderRow _ = False
-
--}
-
-class HasStatus s where
-  status :: s -> ReceiptRowType
-
-
-instance HasStatus (ReceiptRow' ValidRowT ) where
-  status = const ValidRowT
