@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeFamilies, DataKinds #-}
+{-# LANGUAGE LiberalTypeSynonyms #-}
 module Handler.GLEnterReceiptSheet.ReceiptRow where
 
 import Import hiding(InvalidHeader)
@@ -83,6 +84,7 @@ type family RowTaxTF (s :: ReceiptRowType) where
   RowTaxTF ValidRowT = Text
   RowTaxTF InvalidRowT = Text
 
+  {-
 analyseReceiptRow :: ReceiptRow' Raw -> ReceiptRow
 analyseReceiptRow (ReceiptRow'{..}) =
   case (rowDate , rowCounterparty , rowBankAccount , rowTotal) of
@@ -94,3 +96,33 @@ analyseReceiptRow (ReceiptRow'{..}) =
                                    rowGlAccount rowAmount rowTax
        _ -> InvalidHeader $ ReceiptRow' rowDate rowCounterparty rowBankAccount rowTotal
                           rowGlAccount rowAmount rowTax
+-}
+type EitherRow a b = Either (ReceiptRow' a) (ReceiptRow' b)
+
+analyseReceiptRow :: ReceiptRow' Raw -> Either (EitherRow InvalidRowT ValidRowT )
+                                               (EitherRow InvalidHeaderT ValidHeaderT )
+analyseReceiptRow (ReceiptRow'{..}) =
+  case (rowDate , rowCounterparty , rowBankAccount , rowTotal) of
+       ( Just date , Just counterparty , Just bankAccount , Just total)
+         -> Right . Right $ ReceiptRow' date counterparty bankAccount total
+                                   rowGlAccount rowAmount rowTax
+       (Nothing, Nothing, Nothing, Nothing)
+         -> Left . Right $  ReceiptRow' () () () ()
+                                   rowGlAccount rowAmount rowTax
+       _ -> Right. Left $ ReceiptRow' rowDate rowCounterparty rowBankAccount rowTotal
+                          rowGlAccount rowAmount rowTax
+
+ {- 
+isHeaderRow :: ReceiptRow -> Bool
+isHeaderRow (ValidHeader _) = True
+isHeaderRow (InvalidHeader _) = True
+isHeaderRow _ = False
+
+-}
+
+class HasStatus s where
+  status :: s -> ReceiptRowType
+
+
+instance HasStatus (ReceiptRow' ValidRowT ) where
+  status = const ValidRowT

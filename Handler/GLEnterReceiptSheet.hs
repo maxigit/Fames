@@ -4,7 +4,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 module Handler.GLEnterReceiptSheet where
 
-import Import
+import Import hiding(InvalidHeader)
 import GL.Receipt
 import Handler.GLEnterReceiptSheet.ReceiptRow
 
@@ -12,6 +12,7 @@ import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput)
 import qualified Data.Csv as Csv
 import Data.Csv
+import Data.Either
 import Data.Char (ord)
 import Data.Time(parseTimeM)
 import Text.Blaze.Html(ToMarkup(toMarkup))
@@ -65,29 +66,29 @@ postGLEnterReceiptSheetR = do
                         FormSuccess (title, spreadsheet) -> do -- Either
                           receipts <-  parseReceipts (encodeUtf8 $ unTextarea spreadsheet)
                           let ns = [1..]
-                          Right [whamlet|
-<h1> #title parsed successfully
-<ul>
-  $forall receiptI <- zip receipts ns
-    $case receiptI
-      $of (Right receipt, i) 
-        <li .receipt id=receipt#{tshow i}>
-          <span.date>#{date receipt}
-          <span.counterparty>#{counterparty receipt}
-          <span.bankAccount>#{bankAccount receipt}
-          <span.totalAmount>#{formatAmount $ totalAmount receipt}
-          <ul>
-            $forall item <- items receipt
-              <li>
-                <span.glAccount>#{glAccount item}
-                <span.amount>#{formatAmount $ amount item}
-                <span.taxTyple>#{tshow $ taxType item}
-      $of (Left (ReceiptRow'{..}), i) 
-        <li .invalidRow id=invalidRow#{tshow i}>
-                <span.rowGlAccount>#{rowGlAccount}
-                <span.rowAmount>#{tshow rowAmount}
-                <span.rowTax>#{tshow rowTax}
-              |]
+                          Right [whamlet| |]
+-- <h1> #title parsed successfully
+-- <ul>
+--   $forall receiptI <- zip receipts ns
+--     $case receiptI
+--       $of (Right receipt, i) 
+--         <li .receipt id=receipt#{tshow i}>
+--           <span.date>#{date receipt}
+--           <span.counterparty>#{counterparty receipt}
+--           <span.bankAccount>#{bankAccount receipt}
+--           <span.totalAmount>#{formatAmount $ totalAmount receipt}
+--           <ul>
+--             $forall item <- items receipt
+--               <li>
+--                 <span.glAccount>#{glAccount item}
+--                 <span.amount>#{formatAmount $ amount item}
+--                 <span.taxTyple>#{tshow $ taxType item}
+--       $of (Left (ReceiptRow'{..}), i) 
+--         <li .invalidRow id=invalidRow#{tshow i}>
+--                 <span.rowGlAccount>#{rowGlAccount}
+--                 <span.rowAmount>#{tshow rowAmount}
+--                 <span.rowTax>#{tshow rowTax}
+--               |]
   case responseE of
     Left msg -> setMessage (toHtml msg) >> redirect GLEnterReceiptSheetR
     Right widget -> defaultLayout $ widget
@@ -130,34 +131,35 @@ parseDay bs = do
                 , "%a %d %b %0Y"
                 ]
 
-parseReceipts :: ByteString -> Either Text [Either (ReceiptRow' Raw) Receipt]
+parseReceipts :: ByteString
+              -> Either (Either Text
+                                [( EitherRow InvalidHeaderT ValidHeaderT
+                                , [EitherRow InvalidRowT ValidRowT]
+                                )]
+                        )
+                        [( ReceiptRow' ValidHeaderT
+                        , [ReceiptRow' ValidRowT]
+                        )]
 parseReceipts bytes = do
-  rows <- {-map analyseReceiptRow <$>-} parseReceiptRow bytes
-  let rowToItem (ReceiptRow'{..}) = ReceiptItem rowGlAccount
-                               (approxRational rowAmount (0.0005))
-                               (TaxType 0.20 2200)
-      parseTax "20%" = TaxType 0.20 2200
-      parseTax _ = TaxType 0.0 2209
-      grouped =  S.split (S.keepDelimsL $ S.whenElt  isHeaderRow) rows
-      -- a row is a header if any of the "header" field are present
-      isHeaderRow (ReceiptRow'{..}) = case (rowDate, rowCounterparty, rowBankAccount, rowTotal) of
-        (Nothing, Nothing, Nothing, Nothing) -> False
-        _ -> True
-      
-      -- however, to be valid a header needs ALL the header field to be present
-      makeReceipt rows@(ReceiptRow'{..}:_) =
-        case (rowDate , rowCounterparty , rowBankAccount , rowTotal) of
-             ( Just date , Just counterparty , Just bankAccount , Just total)
-               -> Receipt date counterparty bankAccount (approxRational total 0.0005)
-                          (map rowToItem rows)
-             -- _ -> Receipt date counterparty bankAccount (approxRational total 0.0005)
-             --              (map rowToItem rows)
--- split returns as it's first element what was before the first element matching the conditions
-  -- therefore grouped should be at least [[]]
-  when (null grouped) (Left "Something went wrong.")
-  let (orphans:groups) = grouped
-  Right $ (map Left orphans)
-        ++ map (Right . makeReceipt) groups
+  rows <- either (Left . Left) (Right . map analyseReceiptRow) $ parseReceiptRow bytes
+
+  -- split by header, valid or not
+  let (orphans:groups) =  S.split (S.keepDelimsL $ S.whenElt  isRight) rows
+      -- we know header are right and rows are left
+      makeReceipt (Right header:rows) = (header, lefts rows)
+      receipts = map makeReceipt groups
+
+      toMaybe = either (const Nothing) Just
+      validReceipt (header, rows) =
+        liftA2 (,)
+        (toMaybe header)
+        (traverse toMaybe rows)
+        
+        
+  case traverse validReceipt receipts of
+    Just valids -> Right valids
+    Nothing -> Left  . Right $ receipts
+
       
 -- | Parse a csv and return a list of receipt row if possible
 parseReceiptRow :: ByteString -> Either Text [ReceiptRow' Raw]
