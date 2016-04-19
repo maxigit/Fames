@@ -66,7 +66,9 @@ postGLEnterReceiptSheetR = do
                         FormSuccess (title, spreadsheet) -> do -- Either
                           let receiptsE =  parseReceipts (encodeUtf8 $ unTextarea spreadsheet)
                           let ns = [1..]
-                          Right [whamlet|
+                          case receiptsE of
+                            (Left (Left msg)) -> Left msg
+                            _ -> Right [whamlet|
 <h1> #title parsed successfully
 <ul>
 $case receiptsE
@@ -78,9 +80,9 @@ $case receiptsE
     $forall receiptI <- zip receipts ns
       <ul>
         <li .invalid> ^{render (fst receiptI)}
-              |]
+|]
   case responseE of
-    -- Left (Left msg) -> setMessage (toHtml msg) >> redirect GLEnterReceiptSheetR
+    Left msg -> setMessage (toHtml msg) >> redirect GLEnterReceiptSheetR
     Right widget -> defaultLayout $ widget
 
 
