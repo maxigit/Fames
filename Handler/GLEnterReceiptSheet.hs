@@ -73,13 +73,14 @@ postGLEnterReceiptSheetR = do
 <ul>
 $case receiptsE
   $of (Right receipts)
-    $forall receiptI <- zip receipts ns
+    <div> #{tshow receipts}
+    $forall (receipt, i) <- zip receipts ns
       <ul>
-        <li .valid> ^{render (fst receiptI)}
+        <li .valid #receipt#{tshow i}> ^{render receipt}
   $of (Left (Right receipts))
-    $forall receiptI <- zip receipts ns
-      <ul>
-        <li .invalid> ^{render (fst receiptI)}
+    $forall (receipt, i) <- zip receipts ns
+      <ul .invalid>
+        <li .invalid #receipt#{tshow i}> ^{render receipt}
 |]
   case responseE of
     Left msg -> setMessage (toHtml msg) >> redirect GLEnterReceiptSheetR
@@ -88,8 +89,8 @@ $case receiptsE
 
 -- ** Widgets
 renderReceiptRow ReceiptRow{..} = [whamlet|
-<span.rowGlAccount>^{render rowGlAccount}
-<span.rowAmount>^{render rowAmount}
+<span.glAccount>^{render rowGlAccount}
+<span.amount>^{render rowAmount}
 |]
 
 instance Renderable (ReceiptRow ValidRowT) where render = renderReceiptRow
@@ -107,12 +108,12 @@ instance Renderable (ReceiptRow ValidHeaderT) where render = renderReceiptHeader
 instance Renderable (ReceiptRow InvalidHeaderT) where render = renderReceiptHeader
 
 
-instance (Renderable h, Renderable r) => Renderable (h, [r]) where
+instance (Renderable h, Renderable r, Show h, Show r) => Renderable (h, [r]) where
   render (header, rows) = [whamlet|
 ^{render header}
 <ul>
   $forall (row, i) <- zip rows is
-    <li .row id=row_#{tshow i}> ^{render row}
+    <li .row id=row#{tshow i}> ^{render row}
 |] where is = [1..]
 -- <span.rowTax>#{render rowTax}
 
@@ -145,6 +146,7 @@ instance Csv.FromNamedRecord (ReceiptRow Raw)where
     <*> m `parse` "counterparty"
     <*> m `parse` "bank account"
     <*> m `parse` "total"
+
     <*> m `parse` "gl account"
     <*> m `parse` "amount"
     <*> m `parse` "tax rate"
@@ -188,14 +190,15 @@ parseReceipts bytes = do
   -- split by header, valid or not
   let (orphans:groups) =  S.split (S.keepDelimsL $ S.whenElt  isRight) rows
       -- we know header are right and rows are left
-      makeReceipt (Right header:rows) = (header, lefts rows)
+      makeReceipt (Right header:rows) = (header , headerToRowE header  : lefts rows)
+      headerToRowE = either (Left . transformRow) (Right . transformRow)
       receipts = map makeReceipt groups
 
       toMaybe = either (const Nothing) Just
       validReceipt (header, rows) =
         liftA2 (,)
         (toMaybe header)
-        (traverse toMaybe rows)
+        (traverse toMaybe (headerToRowE header : rows))
         
         
   case traverse validReceipt receipts of

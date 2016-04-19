@@ -16,9 +16,10 @@ data ReceiptRow s = ReceiptRow
 
   , rowGlAccount :: RowGLAccountTF s
   , rowAmount :: RowAmountTF s
-  , rowTax :: RowAmountTF s
+  , rowTax :: RowTaxTF s
   } -- deriving (Read, Show, Eq)
 
+  
 data ReceiptRowType
   = Raw
   | ValidHeaderT
@@ -26,6 +27,21 @@ data ReceiptRowType
   | ValidRowT
   | InvalidRowT
   deriving (Read, Show, Eq)
+
+instance Show (ReceiptRow ValidHeaderT) where show = showReceiptRow ValidHeaderT
+instance Show (ReceiptRow InvalidHeaderT) where show = showReceiptRow InvalidHeaderT
+instance Show (ReceiptRow ValidRowT) where show = showReceiptRow ValidRowT
+instance Show (ReceiptRow InvalidRowT) where show = showReceiptRow InvalidRowT
+         
+
+showReceiptRow rType ReceiptRow{..} = show "ReceiptRow " ++ show rType ++ " {"
+  ++ "rowDate=" ++ show rowDate ++ ", " 
+  ++ "rowCounterparty=" ++ show rowCounterparty ++ ", " 
+  ++ "rowBankAccount=" ++ show rowBankAccount ++ ", " 
+  ++ "rowTotal=" ++ show rowTotal ++ ", " 
+  ++ "rowGlAccount=" ++ show rowGlAccount ++ ", " 
+  ++ "rowAmount=" ++ show rowAmount ++ ", " 
+  ++ "rowTax=" ++ show rowTax ++ "}" 
 
 type ParsingError = Text
 
@@ -73,10 +89,10 @@ type family RowAmountTF (s :: ReceiptRowType) where
 
 type family RowTaxTF (s :: ReceiptRowType) where
   RowTaxTF Raw = (Maybe Text)
-  RowTaxTF ValidHeaderT = Text
-  RowTaxTF InvalidHeaderT = Text
-  RowTaxTF ValidRowT = Text
-  RowTaxTF InvalidRowT = Text
+  RowTaxTF ValidHeaderT = (Maybe Text)
+  RowTaxTF InvalidHeaderT = (Maybe Text)
+  RowTaxTF ValidRowT = (Maybe Text)
+  RowTaxTF InvalidRowT = (Maybe Text)
 
   {-
 analyseReceiptRow :: ReceiptRow Raw -> ReceiptRow
@@ -105,3 +121,40 @@ analyseReceiptRow (ReceiptRow{..}) =
                                    rowGlAccount rowAmount rowTax
        _ -> Right. Left $ ReceiptRow rowDate rowCounterparty rowBankAccount rowTotal
                           rowGlAccount rowAmount rowTax
+
+
+class Transformable a b where
+  transform :: a -> b
+
+instance Transformable a () where
+  transform = const ()
+
+instance (Transformable a b) => Transformable a (Maybe b) where
+  transform = Just . transform  
+
+instance Transformable () (Maybe a) where
+  transform = const Nothing
+
+instance {-# OVERLAPS #-} Transformable a a where
+  transform x = x
+
+instance Transformable (Maybe Double) Double where
+  transform x = -1
+
+instance Transformable (Maybe Double) Text where
+  transform x = "-1"
+
+instance Transformable (Maybe Text) Text where
+  transform x = "-1"
+
+instance Transformable Double Text where
+  transform = tshow
+
+transformRow ReceiptRow{..} = ReceiptRow
+  (transform rowDate)
+  (transform rowCounterparty)
+  (transform rowBankAccount)
+  (transform rowTotal)
+  (transform rowGlAccount )
+  (transform rowAmount )
+  (transform rowTotal )
