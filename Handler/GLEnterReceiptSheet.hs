@@ -67,25 +67,29 @@ postGLEnterReceiptSheetR = do
                           let receiptsE =  parseReceipts (encodeUtf8 $ unTextarea spreadsheet)
                           let ns = [1..]
                           case receiptsE of
-                            (Left (Left msg)) -> Left msg
-                            _ -> Right [whamlet|
+                            (Left (Left msg)) -> Left (Left msg)
+                            (Right receipts) -> Right [whamlet|
 <h1> #title parsed successfully
 <ul>
-$case receiptsE
-  $of (Right receipts)
-    <div> #{tshow receipts}
-    $forall (receipt, i) <- zip receipts ns
-      <ul>
-        <li .valid #receipt#{tshow i}> ^{render receipt}
-  $of (Left (Right receipts))
+  $forall (receipt, i) <- zip receipts ns
+    <ul>
+      <li .valid #receipt#{tshow i}> ^{render receipt}
+|]
+                            (Left (Right receipts)) -> Left $ Right [whamlet|
+<h1> #title parsed unsuccessfully
+<ul>
     $forall (receipt, i) <- zip receipts ns
       <ul .invalid>
         <li .invalid #receipt#{tshow i}> ^{render receipt}
 |]
   case responseE of
-    Left msg -> setMessage (toHtml msg) >> redirect GLEnterReceiptSheetR
-    Right widget -> defaultLayout $ widget
+    Left (Left msg) -> setMessage (toHtml msg) >> redirect GLEnterReceiptSheetR
+    Left (Right widget) -> do
+         setMessage (toHtml $ t "Invalid file")
+         defaultLayout widget
+    Right widget -> defaultLayout widget
 
+t = id :: Text -> Text
 
 -- ** Widgets
 renderReceiptRow ReceiptRow{..} = [whamlet|
