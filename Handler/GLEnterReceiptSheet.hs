@@ -64,36 +64,76 @@ postGLEnterReceiptSheetR = do
   ((res, postW), enctype) <- runFormPost postTextForm
   let responseE = case res of
                         FormSuccess (title, spreadsheet) -> do -- Either
-                          receipts <-  parseReceipts (encodeUtf8 $ unTextarea spreadsheet)
+                          let receiptsE =  parseReceipts (encodeUtf8 $ unTextarea spreadsheet)
                           let ns = [1..]
-                          Right [whamlet| |]
--- <h1> #title parsed successfully
--- <ul>
---   $forall receiptI <- zip receipts ns
---     $case receiptI
---       $of (Right receipt, i) 
---         <li .receipt id=receipt#{tshow i}>
---           <span.date>#{date receipt}
---           <span.counterparty>#{counterparty receipt}
---           <span.bankAccount>#{bankAccount receipt}
---           <span.totalAmount>#{formatAmount $ totalAmount receipt}
---           <ul>
---             $forall item <- items receipt
---               <li>
---                 <span.glAccount>#{glAccount item}
---                 <span.amount>#{formatAmount $ amount item}
---                 <span.taxTyple>#{tshow $ taxType item}
---       $of (Left (ReceiptRow'{..}), i) 
---         <li .invalidRow id=invalidRow#{tshow i}>
---                 <span.rowGlAccount>#{rowGlAccount}
---                 <span.rowAmount>#{tshow rowAmount}
---                 <span.rowTax>#{tshow rowTax}
---               |]
+                          Right [whamlet|
+<h1> #title parsed successfully
+<ul>
+$case receiptsE
+  $of (Right receipts)
+    $forall receiptI <- zip receipts ns
+      <ul>
+        <li .valid> ^{render (fst receiptI)}
+  $of (Left (Right receipts))
+    $forall receiptI <- zip receipts ns
+      <ul>
+        <li .invalid> ^{render (fst receiptI)}
+              |]
   case responseE of
-    Left (Left msg) -> setMessage (toHtml msg) >> redirect GLEnterReceiptSheetR
+    -- Left (Left msg) -> setMessage (toHtml msg) >> redirect GLEnterReceiptSheetR
     Right widget -> defaultLayout $ widget
 
 
+-- ** Widgets
+renderReceiptRow ReceiptRow{..} = [whamlet|
+<span.rowGlAccount>^{render rowGlAccount}
+<span.rowAmount>^{render rowAmount}
+|]
+
+instance Renderable (ReceiptRow ValidRowT) where render = renderReceiptRow
+instance Renderable (ReceiptRow InvalidRowT) where render = renderReceiptRow
+
+-- renderReceipt :: (ReceiptRow header, [ReceiptRow row]) -> Widget
+renderReceiptHeader header= [whamlet|
+<span.date>^{render $ rowDate header}
+<span.counterparty>^{render $ rowCounterparty header}
+<span.bankAccount>^{render $ rowBankAccount header}
+<span.totalAmount>^{render $ rowTotal header}
+|]
+
+instance Renderable (ReceiptRow ValidHeaderT) where render = renderReceiptHeader
+instance Renderable (ReceiptRow InvalidHeaderT) where render = renderReceiptHeader
+
+
+instance (Renderable h, Renderable r) => Renderable (h, [r]) where
+  render (header, rows) = [whamlet|
+^{render header}
+<ul>
+  $forall (row, i) <- zip rows is
+    <li .row id=row_#{tshow i}> ^{render row}
+|] where is = [1..]
+-- <span.rowTax>#{render rowTax}
+
+class Renderable r where
+  render :: r -> Widget
+
+instance Renderable Int where
+  render i = [whamlet|#{tshow i}|]
+
+instance Renderable Double where
+  render d = [whamlet|#{formatDouble d}|]
+
+instance Renderable Text where
+  render t = [whamlet|#{t}|]
+
+instance Renderable Day where
+instance (Renderable r) => Renderable (Maybe r) where
+  render (Just x) = render x
+  render (Nothing) = [whamlet||]
+
+instance (Renderable l, Renderable r) => Renderable (Either l r) where
+  render (Left r) = [whamlet|<span.invalid>^{render r}|]
+  render (Right r) = [whamlet|<span.valid>^{render r}|]
 
 -- ** To move in app
 -- Represents a row of the spreadsheet.
@@ -174,4 +214,5 @@ parseReceiptRow bytes = either (Left . pack)  (Right . toList)$ do
 -- ** to move in general helper or better in App
 -- formatAmount :: Amount -> Text
 formatAmount = tshow . (\t -> t :: String) .  printf "%0.2f" . (\x -> x :: Double) .  fromRational
+formatDouble = tshow . (\t -> t :: String) .  printf "%0.2f"
 
