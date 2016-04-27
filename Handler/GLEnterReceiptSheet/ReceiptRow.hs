@@ -43,7 +43,12 @@ showReceiptRow rType ReceiptRow{..} = show "ReceiptRow " ++ show rType ++ " {"
   ++ "rowAmount=" ++ show rowAmount ++ ", " 
   ++ "rowTax=" ++ show rowTax ++ "}" 
 
-type ParsingError = Text
+data ErrorDescription a = ErrorDescription Text (Maybe a)
+instance (Show a) => Show (ErrorDescription a)
+  where
+    show (ErrorDescription desc v) = "ErrorDescription " ++ show desc ++ " " ++ show v
+  
+type ParsingError t = Either (ErrorDescription t) t
 
 type family RowDateTF (s :: ReceiptRowType) where
   RowDateTF Raw = (Maybe Text)
@@ -55,9 +60,9 @@ type family RowDateTF (s :: ReceiptRowType) where
 type family RowCounterpartyTF (s :: ReceiptRowType) where
   RowCounterpartyTF Raw = (Maybe Text)
   RowCounterpartyTF ValidHeaderT = Text
-  RowCounterpartyTF InvalidHeaderT = Maybe Text
+  RowCounterpartyTF InvalidHeaderT = ParsingError Text
   RowCounterpartyTF ValidRowT = ()
-  RowCounterpartyTF InvalidRowT = Text
+  RowCounterpartyTF InvalidRowT = ParsingError Text
 
 type family RowBankAccountTF (s :: ReceiptRowType) where
   RowBankAccountTF Raw = (Maybe Text)
@@ -119,9 +124,11 @@ analyseReceiptRow (ReceiptRow{..}) =
        (Nothing, Nothing, Nothing, Nothing)
          -> Left . Right $  ReceiptRow () () () ()
                                    rowGlAccount rowAmount rowTax
-       _ -> Right. Left $ ReceiptRow rowDate rowCounterparty rowBankAccount rowTotal
+       _ -> Right. Left $ ReceiptRow rowDate (validateMaybe "Counterparty" rowCounterparty) rowBankAccount rowTotal
                           rowGlAccount rowAmount rowTax
 
+  where validateMaybe name Nothing = Left $ ErrorDescription (name <> " is missing") Nothing
+        validateMaybe _ (Just v) = Right v
 
 class Transformable a b where
   transform :: a -> b
@@ -149,6 +156,11 @@ instance Transformable (Maybe Text) Text where
 
 instance Transformable Double Text where
   transform = tshow
+
+-- instance (Transformable a Text) => Transformable (ParsingError a) Text where
+--   transform Left (msg, v) =  "<div><div class=\"field-error\">"<> msg <> "</div>"
+--                           <> "<div>" <> transform v <> "</div></div>"
+--   transform Right v = transform v
 
 transformRow ReceiptRow{..} = ReceiptRow
   (transform rowDate)

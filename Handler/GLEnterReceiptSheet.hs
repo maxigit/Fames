@@ -79,6 +79,7 @@ postGLEnterReceiptSheetR = do
 <h1> #title parsed unsuccessfully
 <ul>
     $forall (receipt, i) <- zip receipts ns
+      <div> #{tshow receipt}
       <ul .invalid>
         <li .invalid #receipt#{tshow i}> ^{render receipt}
 |]
@@ -86,8 +87,9 @@ postGLEnterReceiptSheetR = do
     Left (Left msg) -> setMessage (toHtml msg) >> redirect GLEnterReceiptSheetR
     Left (Right widget) -> do
          setMessage (toHtml $ t "Invalid file")
-         defaultLayout widget
-    Right widget -> defaultLayout widget
+         sendResponseStatus (toEnum 422) =<< defaultLayout widget
+    Right widget -> do
+          defaultLayout widget
 
 t = id :: Text -> Text
 
@@ -139,15 +141,22 @@ instance (Renderable r) => Renderable (Maybe r) where
   render (Nothing) = [whamlet||]
 
 instance (Renderable l, Renderable r) => Renderable (Either l r) where
-  render (Left r) = [whamlet|<span.invalid>^{render r}|]
-  render (Right r) = [whamlet|<span.valid>^{render r}|]
+  render (Left r) = [whamlet|<span.left>^{render r}|]
+  render (Right r) = [whamlet|<span.right>^{render r}|]
+
+instance (Renderable r) => Renderable (ErrorDescription r)  where
+  render (ErrorDescription msg v) = [whamlet|<span .invalid>
+<span.error-description>^{render msg}
+<span>^{render v }
+|]
 
 -- ** To move in app
 -- Represents a row of the spreadsheet.
 instance Csv.FromNamedRecord (ReceiptRow Raw)where
   parseNamedRecord m = pure ReceiptRow
     <*> (m `parse` "date") -- >>= parseDay)
-    <*> m `parse` "counterparty"
+    -- <*> (textToMaybe <$> m `parse` "counterparty")
+    <*> (m `parse` "counterparty")
     <*> m `parse` "bank account"
     <*> m `parse` "total"
 
@@ -179,6 +188,10 @@ parseDay bs = do
                 , "%a %d %b %0Y"
                 ]
 
+
+textToMaybe :: Text -> Maybe Text
+textToMaybe str = guard (null str) >> return str
+  
 parseReceipts :: ByteString
               -> Either (Either Text
                                 [( EitherRow InvalidHeaderT ValidHeaderT
