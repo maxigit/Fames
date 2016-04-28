@@ -3,6 +3,7 @@
 module Handler.GLEnterReceiptSheet.ReceiptRow where
 
 import Import hiding(InvalidHeader)
+import Data.Bifunctor (bimap)
 
 -- | Represents a row of the spreadsheet.
 -- The actual type of each field depend of a status or stage
@@ -47,57 +48,59 @@ data ErrorDescription a = ErrorDescription Text (Maybe a)
 instance (Show a) => Show (ErrorDescription a)
   where
     show (ErrorDescription desc v) = "ErrorDescription " ++ show desc ++ " " ++ show v
+instance Functor (ErrorDescription) where
+  fmap f (ErrorDescription t x) = ErrorDescription t (f <$> x)
   
 type ParsingError t = Either (ErrorDescription t) t
 
 type family RowDateTF (s :: ReceiptRowType) where
-  RowDateTF Raw = (Maybe Text)
+  RowDateTF Raw = Either Text (Maybe Text)
   RowDateTF ValidHeaderT = Text
-  RowDateTF InvalidHeaderT = Maybe Text
-  RowDateTF InvalidRowT = ()
+  RowDateTF InvalidHeaderT = ParsingError Text
   RowDateTF ValidRowT = ()
+  RowDateTF InvalidRowT = ()
 
 type family RowCounterpartyTF (s :: ReceiptRowType) where
-  RowCounterpartyTF Raw = (Maybe Text)
+  RowCounterpartyTF Raw = Either Text (Maybe Text)
   RowCounterpartyTF ValidHeaderT = Text
   RowCounterpartyTF InvalidHeaderT = ParsingError Text
   RowCounterpartyTF ValidRowT = ()
-  RowCounterpartyTF InvalidRowT = ParsingError Text
+  RowCounterpartyTF InvalidRowT = ()
 
 type family RowBankAccountTF (s :: ReceiptRowType) where
-  RowBankAccountTF Raw = (Maybe Text)
+  RowBankAccountTF Raw = Either Text (Maybe Text)
   RowBankAccountTF ValidHeaderT = Text
-  RowBankAccountTF InvalidHeaderT = Maybe Text
+  RowBankAccountTF InvalidHeaderT = ParsingError Text
   RowBankAccountTF ValidRowT = ()
-  RowBankAccountTF InvalidRowT = Text
+  RowBankAccountTF InvalidRowT = ()
 
 type family RowTotalTF (s :: ReceiptRowType) where
-  RowTotalTF Raw = (Maybe Double)
+  RowTotalTF Raw = Either Text (Maybe Double)
   RowTotalTF ValidHeaderT = Double
-  RowTotalTF InvalidHeaderT = Maybe Double
+  RowTotalTF InvalidHeaderT = ParsingError Double
   RowTotalTF ValidRowT = ()
-  RowTotalTF InvalidRowT = Double
+  RowTotalTF InvalidRowT = ()
 
 type family RowGLAccountTF (s :: ReceiptRowType) where
-  RowGLAccountTF Raw = Int
+  RowGLAccountTF Raw = Either Text Int
   RowGLAccountTF ValidHeaderT = Int
-  RowGLAccountTF InvalidHeaderT = Int
+  RowGLAccountTF InvalidHeaderT = ParsingError Int
   RowGLAccountTF ValidRowT = Int
-  RowGLAccountTF InvalidRowT = Int
+  RowGLAccountTF InvalidRowT = ParsingError Int
 
 type family RowAmountTF (s :: ReceiptRowType) where
-  RowAmountTF Raw = Double
+  RowAmountTF Raw = Either Text Double
   RowAmountTF ValidHeaderT = Double
-  RowAmountTF InvalidHeaderT = Double
+  RowAmountTF InvalidHeaderT = ParsingError Double
   RowAmountTF ValidRowT = Double
-  RowAmountTF InvalidRowT = Double
+  RowAmountTF InvalidRowT = ParsingError Double
 
 type family RowTaxTF (s :: ReceiptRowType) where
-  RowTaxTF Raw = (Maybe Text)
+  RowTaxTF Raw = Either Text (Maybe Text)
   RowTaxTF ValidHeaderT = (Maybe Text)
-  RowTaxTF InvalidHeaderT = (Maybe Text)
+  RowTaxTF InvalidHeaderT = ParsingError (Maybe Text)
   RowTaxTF ValidRowT = (Maybe Text)
-  RowTaxTF InvalidRowT = (Maybe Text)
+  RowTaxTF InvalidRowT = ParsingError (Maybe Text)
 
   {-
 analyseReceiptRow :: ReceiptRow Raw -> ReceiptRow
@@ -114,21 +117,40 @@ analyseReceiptRow (ReceiptRow{..}) =
 -}
 type EitherRow a b = Either (ReceiptRow a) (ReceiptRow b)
 
+-- What are invalid header ? with valid header field but missing  or invalid header field
 analyseReceiptRow :: ReceiptRow Raw -> Either (EitherRow InvalidRowT ValidRowT )
                                                (EitherRow InvalidHeaderT ValidHeaderT )
 analyseReceiptRow (ReceiptRow{..}) =
-  case (rowDate , rowCounterparty , rowBankAccount , rowTotal) of
-       ( Just date , Just counterparty , Just bankAccount , Just total)
+  case (rowDate , rowCounterparty , rowBankAccount , rowTotal, rowGlAccount, rowAmount, rowTax) of
+       -- valid header
+       ( Right (Just date) , Right (Just counterparty) , Right (Just bankAccount) , Right (Just total) , Right glAccount, Right amount, Right tax )
          -> Right . Right $ ReceiptRow date counterparty bankAccount total
-                                   rowGlAccount rowAmount rowTax
-       (Nothing, Nothing, Nothing, Nothing)
+                                   glAccount amount tax
+       -- valid row
+       (Right Nothing, Right Nothing, Right Nothing, Right Nothing , Right glAccount, Right amount, Right tax )
          -> Left . Right $  ReceiptRow () () () ()
-                                   rowGlAccount rowAmount rowTax
-       _ -> Right. Left $ ReceiptRow rowDate (validateMaybe "Counterparty" rowCounterparty) rowBankAccount rowTotal
-                          rowGlAccount rowAmount rowTax
+                                   glAccount amount tax
+       -- invalid row
+       (Right Nothing, Right Nothing, Right Nothing, Right Nothing , glAccount, amount, tax )
+         -> Left . Left $  ReceiptRow () () () ()
+                                      (validateEither "GL account" (Just <$>glAccount))
+                                      (validateEither "Amount" (Just <$> amount))
+                                      (validateEither "Tax" (Just <$> tax))
+       -- invalid header
+       _ -> Right. Left $ ReceiptRow (validateEither "Date" rowDate)
+                                     (validateEither "Counterparty" rowCounterparty)
+                                     (validateEither "Bank account" rowBankAccount)
+                                     (validateEither "Total" rowTotal)
+                                      (validateEither "GL account" (Just <$> rowGlAccount))
+                                      (validateEither "Amount" (Just <$> rowAmount))
+                                      (validateEither "Tax" (Just <$> rowTax))
 
   where validateMaybe name Nothing = Left $ ErrorDescription (name <> " is missing") Nothing
         validateMaybe _ (Just v) = Right v
+
+        validateEither :: Show a => Text -> Either Text (Maybe a) -> ParsingError a
+        validateEither name (Left v) = Left $ ErrorDescription (name <> " is invalid") Nothing
+        validateEither name (Right v) = validateMaybe name v
 
 class Transformable a b where
   transform :: a -> b
@@ -136,14 +158,18 @@ class Transformable a b where
 instance Transformable a () where
   transform = const ()
 
+instance {-# OVERLAPPABLE #-} a ~ b =>  Transformable a b where
+  transform x = x
+
+instance {-# OVERLAPPABLE #-} (Transformable l l', Transformable r r' )
+         => Transformable (Either l r) (Either l' r') where
+  transform = bimap transform transform
+  
 instance (Transformable a b) => Transformable a (Maybe b) where
   transform = Just . transform  
 
 instance Transformable () (Maybe a) where
   transform = const Nothing
-
-instance {-# OVERLAPS #-} Transformable a a where
-  transform x = x
 
 instance Transformable (Maybe Double) Double where
   transform x = -1
@@ -157,10 +183,8 @@ instance Transformable (Maybe Text) Text where
 instance Transformable Double Text where
   transform = tshow
 
--- instance (Transformable a Text) => Transformable (ParsingError a) Text where
---   transform Left (msg, v) =  "<div><div class=\"field-error\">"<> msg <> "</div>"
---                           <> "<div>" <> transform v <> "</div></div>"
---   transform Right v = transform v
+instance Transformable a b => Transformable (ErrorDescription a) (ErrorDescription b) where
+ transform = map transform
 
 transformRow ReceiptRow{..} = ReceiptRow
   (transform rowDate)
@@ -169,4 +193,4 @@ transformRow ReceiptRow{..} = ReceiptRow
   (transform rowTotal)
   (transform rowGlAccount )
   (transform rowAmount )
-  (transform rowTotal )
+  (transform rowTax )

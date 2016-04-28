@@ -67,6 +67,7 @@ postGLEnterReceiptSheetR = do
                           let receiptsE =  parseReceipts (encodeUtf8 $ unTextarea spreadsheet)
                           let ns = [1..]
                           case receiptsE of
+                            (Left (Right _)) -> error "a"
                             (Left (Left msg)) -> Left (Left msg)
                             (Right receipts) -> Right [whamlet|
 <h1> #title parsed successfully
@@ -83,6 +84,7 @@ postGLEnterReceiptSheetR = do
       <ul .invalid>
         <li .invalid #receipt#{tshow i}> ^{render receipt}
 |]
+                            _ -> error "B"
   case responseE of
     Left (Left msg) -> setMessage (toHtml msg) >> redirect GLEnterReceiptSheetR
     Left (Right widget) -> do
@@ -158,12 +160,12 @@ instance Csv.FromNamedRecord (ReceiptRow Raw)where
     -- <*> (textToMaybe <$> m `parse` "counterparty")
     <*> (m `parse` "counterparty")
     <*> m `parse` "bank account"
-    <*> m `parse` "total"
+    <*> (m `parse` "total")
 
     <*> m `parse` "gl account"
     <*> m `parse` "amount"
     <*> m `parse` "tax rate"
-    where parse m colname = m Csv..: colname
+    where parse m colname = toError <$>  m Csv..: colname
 
 parseDay bs = do
   str <- parseField bs
@@ -188,9 +190,12 @@ parseDay bs = do
                 , "%a %d %b %0Y"
                 ]
 
+toError :: Either Csv.Field a -> Either Text a
+toError e = case e of
+  Left err -> Left (tshow err)
+  Right v -> Right v
 
-textToMaybe :: Text -> Maybe Text
-textToMaybe str = guard (null str) >> return str
+
   
 parseReceipts :: ByteString
               -> Either (Either Text
