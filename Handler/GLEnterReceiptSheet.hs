@@ -63,11 +63,12 @@ postGLEnterReceiptSheetR :: Handler Html
 postGLEnterReceiptSheetR = do
   ((res, postW), enctype) <- runFormPost postTextForm
   let responseE = case res of
+                        FormFailure _ -> error "fomr failure"
+                        FormMissing -> error "missing"
                         FormSuccess (title, spreadsheet) -> do -- Either
                           let receiptsE =  parseReceipts (encodeUtf8 $ unTextarea spreadsheet)
                           let ns = [1..]
                           case receiptsE of
-                            (Left (Right _)) -> error "a"
                             (Left (Left msg)) -> Left (Left msg)
                             (Right receipts) -> Right [whamlet|
 <h1> #title parsed successfully
@@ -84,7 +85,6 @@ postGLEnterReceiptSheetR = do
       <ul .invalid>
         <li .invalid #receipt#{tshow i}> ^{render receipt}
 |]
-                            _ -> error "B"
   case responseE of
     Left (Left msg) -> setMessage (toHtml msg) >> redirect GLEnterReceiptSheetR
     Left (Right widget) -> do
@@ -146,12 +146,13 @@ instance (Renderable l, Renderable r) => Renderable (Either l r) where
   render (Left r) = [whamlet|<span.left>^{render r}|]
   render (Right r) = [whamlet|<span.right>^{render r}|]
 
-instance (Renderable r) => Renderable (ErrorDescription r)  where
-  render (ErrorDescription msg v) = [whamlet|<span .invalid>
-<span.error-description>^{render msg}
-<span>^{render v }
+instance Renderable InvalidField where
+  render (ParsingError err value) = [whamlet|
+<span.error>
+  <span.description>^{render err}
+  <span.message>^{render value}
 |]
-
+  
 -- ** To move in app
 -- Represents a row of the spreadsheet.
 instance Csv.FromNamedRecord (ReceiptRow Raw)where
@@ -165,7 +166,11 @@ instance Csv.FromNamedRecord (ReceiptRow Raw)where
     <*> m `parse` "gl account"
     <*> m `parse` "amount"
     <*> m `parse` "tax rate"
-    where parse m colname = toError <$>  m Csv..: colname
+    where parse m colname = do
+            t <- m Csv..:colname
+            let types = t :: Text
+            res <-  toError t <$>  m Csv..: colname
+            return $ trace (show (colname, t, res )) res
 
 parseDay bs = do
   str <- parseField bs
@@ -190,9 +195,9 @@ parseDay bs = do
                 , "%a %d %b %0Y"
                 ]
 
-toError :: Either Csv.Field a -> Either Text a
-toError e = case e of
-  Left err -> Left (tshow err)
+toError :: Text -> Either Csv.Field a -> Either InvalidField a
+toError t e = case e of
+  Left err -> Left (ParsingError ("Invalid format") t)
   Right v -> Right v
 
 
@@ -212,7 +217,16 @@ parseReceipts bytes = do
   -- split by header, valid or not
   let (orphans:groups) =  S.split (S.keepDelimsL $ S.whenElt  isRight) rows
       -- we know header are right and rows are left
+
+      makeReceipt :: [(Either (EitherRow InvalidRowT ValidRowT)
+                              (EitherRow InvalidHeaderT ValidHeaderT)
+                      )
+                     ]
+                  -> ( EitherRow InvalidHeaderT ValidHeaderT
+                     , [EitherRow InvalidRowT ValidRowT]
+                     )
       makeReceipt (Right header:rows) = (header , headerToRowE header  : lefts rows)
+      headerToRowE :: (EitherRow InvalidHeaderT ValidHeaderT) -> (EitherRow InvalidRowT ValidRowT)
       headerToRowE = either (Left . transformRow) (Right . transformRow)
       receipts = map makeReceipt groups
 
