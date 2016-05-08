@@ -144,9 +144,9 @@ $forall (row, j) <- zip rows is
   <tr class="#{class_ (rowType row)}" id="receipt#{i}-#{j}">
       ^{render row}
 |] where is = [1..] :: [Int]
-         class_ ValidHeaderT = "receipt-header valid bg-success" :: Text
+         class_ ValidHeaderT = "receipt-header valid bg-info" :: Text
          class_ InvalidHeaderT = "receipt-header invalid bg-danger"
-         class_ ValidRowT = "receipt-row valid bg-info"
+         class_ ValidRowT = "receipt-row valid"
          class_ InvalidRowT = "receipt-row invalid bg-warning"
 -- <span.rowTax>#{render rowTax}
 
@@ -291,6 +291,6 @@ parseReceiptRow bytes = either (Left . pack)  (Right . toList)$ do
 
 -- ** to move in general helper or better in App
 -- formatAmount :: Amount -> Text
-formatAmount = tshow . (\t -> t :: String) .  printf "%0.2f" . (\x -> x :: Double) .  fromRational
-formatDouble = tshow . (\t -> t :: String) .  printf "%0.2f"
+formatAmount = (\t -> t :: String) .  printf "%0.2f" . (\x -> x :: Double) .  fromRational
+formatDouble = (\t -> t :: String) .  printf "%0.2f"
 
