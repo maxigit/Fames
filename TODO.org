@@ -82,7 +82,7 @@ We need permission on document and documents types.
 
 
 *  Next
-- [ ] allow file to be parsed.
+- [X] allow file to be parsed.
 This is the priority as it allows manual testing much easier
 
 - [ ] fix test ?

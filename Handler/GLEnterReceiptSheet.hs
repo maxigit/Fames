@@ -61,16 +61,22 @@ postTextForm = renderBootstrap3 BootstrapBasicForm $ (,)
 uploadFileForm = renderBootstrap3 BootstrapBasicForm $ (areq fileField ("upload") Nothing )
 postGLEnterReceiptSheetR :: Handler Html
 postGLEnterReceiptSheetR = do
-  ((res, postW), enctype) <- runFormPost postTextForm
-  let responseE = case res of
-                        FormFailure _ -> error "fomr failure"
-                        FormMissing -> error "missing"
-                        FormSuccess (title, spreadsheet) -> do -- Either
-                          let receiptsE =  parseReceipts (encodeUtf8 $ unTextarea spreadsheet)
-                          case receiptsE of
+  ((textResp, postTextW), enctype) <- runFormPost postTextForm
+  ((fileResp, postFileW), enctype) <- runFormPost uploadFileForm
+  spreadSheet <- case (textResp, fileResp) of
+                        (FormMissing, FormMissing) -> error "missing"
+                        (FormSuccess (title, spreadsheet), _) -> return $ encodeUtf8 $ unTextarea spreadsheet
+                        (_, FormSuccess fileInfo) -> do
+                          c <- fileSource fileInfo $$ consume
+                          return $ concat c
+                          
+                        _ -> error "Form failure"
+
+  let responseE = case parseReceipts spreadSheet of
                             (Left (Left msg)) -> Left (Left msg)
                             (Right receipts) -> Right (responseW "parsed sucessfully"receipts)
                             (Left (Right receipts)) -> Left $ Right (responseW "parsed unsucessfully" receipts)
+      types = spreadSheet :: ByteString
       responseW title receipts = do
         let ns = [1..]
         [whamlet| 
