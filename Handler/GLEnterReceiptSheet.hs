@@ -73,12 +73,11 @@ postGLEnterReceiptSheetR = do
                             (Left (Right receipts)) -> Left $ Right (responseW "parsed unsucessfully" receipts)
       responseW title receipts = do
         let ns = [1..]
-        toWidget [cassius|
-|]
         [whamlet| 
 <h1> #title #{tshow title}
-<table.table-striped.table-bordered>
+<table..table.table-bordered>
   <tr>
+    <th>
     <th>Date
     <th>Counterparty
     <th>Bank Account
@@ -101,13 +100,26 @@ postGLEnterReceiptSheetR = do
 t = id :: Text -> Text
 
 -- ** Widgets
-instance Renderable (ReceiptRow ValidRowT) where render = renderReceiptRow "valid row"
-instance Renderable (ReceiptRow InvalidRowT) where render = renderReceiptRow "bg-danger invalid row"
+instance Renderable (ReceiptRow ValidRowT) where render = renderReceiptRow ValidRowT
+instance Renderable (ReceiptRow InvalidRowT) where render = renderReceiptRow InvalidRowT
 
 -- renderReceipt :: (ReceiptRow header, [ReceiptRow row]) -> Widget
-renderReceiptRow class_ ReceiptRow{..}= let types = class_ :: String
-  in [whamlet|
-<tr class="#{class_}">
+renderReceiptRow rowType ReceiptRow{..}= do
+  let class_ ValidHeaderT = "receipt-header valid bg-success" :: Text
+      class_ InvalidHeaderT = "receipt-header invalid bg-danger"
+      class_ ValidRowT = "receipt-row valid bg-info"
+      class_ InvalidRowT = "receipt-row invalid bg-warning"
+      groupIndicator ValidHeaderT = ">" :: Text
+      groupIndicator InvalidHeaderT = ">"
+      groupIndicator _ = ""
+  toWidget [cassius|
+.receipt-header
+  font-size: 1.2 em
+  font-weight: bold
+|]
+  [whamlet|
+<tr class="#{class_ rowType}">
+  <td.receiptGroup>#{groupIndicator rowType}
   <td.date>^{render rowDate}
   <td.counterparty>^{render rowCounterparty}
   <td.bankAccount>^{render rowBankAccount}
@@ -117,8 +129,8 @@ renderReceiptRow class_ ReceiptRow{..}= let types = class_ :: String
   <td.tax>^{render rowTax}
 |]
 
-instance Renderable (ReceiptRow ValidHeaderT) where render = renderReceiptRow "valid header bg-success"
-instance Renderable (ReceiptRow InvalidHeaderT) where render = renderReceiptRow "bg-danger invalid header"
+instance Renderable (ReceiptRow ValidHeaderT) where render = renderReceiptRow ValidHeaderT
+instance Renderable (ReceiptRow InvalidHeaderT) where render = renderReceiptRow InvalidHeaderT
 
 
 instance (Renderable h, Renderable r, Show h, Show r) => Renderable (h, [r]) where
@@ -165,7 +177,6 @@ instance Renderable InvalidField where
   <span.message.text-danger data-toggle="tooltip" title="^{render err}">^{render value}
 |]
     toWidget [julius|
-alert("This is included in the body");
 $('[data-toggle="tooltip"]').tooltip();
 |]
     addScriptRemote "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"

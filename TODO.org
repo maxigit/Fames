@@ -82,6 +82,12 @@ We need permission on document and documents types.
 
 
 *  Next
+- [ ] allow file to be parsed.
+This is the priority as it allows manual testing much easier
+
+- [ ] fix test ?
+- [ ] fix invalid row from invalid header field
+Value are lost ... 
 ** DONE Upload via file
 CLOSED: [2016-04-03 Sun 13:47]
 ** TODO add Uknown/Calculated/Given monad
