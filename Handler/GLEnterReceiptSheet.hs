@@ -67,24 +67,29 @@ postGLEnterReceiptSheetR = do
                         FormMissing -> error "missing"
                         FormSuccess (title, spreadsheet) -> do -- Either
                           let receiptsE =  parseReceipts (encodeUtf8 $ unTextarea spreadsheet)
-                          let ns = [1..]
                           case receiptsE of
                             (Left (Left msg)) -> Left (Left msg)
-                            (Right receipts) -> Right [whamlet|
-<h1> #title parsed successfully
-<ul>
+                            (Right receipts) -> Right (responseW "parsed sucessfully"receipts)
+                            (Left (Right receipts)) -> Left $ Right (responseW "parsed unsucessfully" receipts)
+      responseW title receipts = do
+        let ns = [1..]
+        toWidget [cassius|
+|]
+        [whamlet| 
+<h1> #title #{tshow title}
+<table.table-striped.table-bordered>
+  <tr>
+    <th>Date
+    <th>Counterparty
+    <th>Bank Account
+    <th>Total
+    <th>GL Account
+    <th>Amount
+    <th>Tax Rate
   $forall (receipt, i) <- zip receipts ns
-    <ul>
-      <li .valid #receipt#{tshow i}> ^{render receipt}
+    ^{render receipt}
 |]
-                            (Left (Right receipts)) -> Left $ Right [whamlet|
-<h1> #title parsed unsuccessfully
-<ul>
-    $forall (receipt, i) <- zip receipts ns
-      <div> #{tshow receipt}
-      <ul .invalid>
-        <li .invalid #receipt#{tshow i}> ^{render receipt}
-|]
+
   case responseE of
     Left (Left msg) -> setMessage (toHtml msg) >> redirect GLEnterReceiptSheetR
     Left (Right widget) -> do
@@ -96,38 +101,39 @@ postGLEnterReceiptSheetR = do
 t = id :: Text -> Text
 
 -- ** Widgets
-renderReceiptRow ReceiptRow{..} = [whamlet|
-<span.glAccount>^{render rowGlAccount}
-<span.amount>^{render rowAmount}
-|]
-
-instance Renderable (ReceiptRow ValidRowT) where render = renderReceiptRow
-instance Renderable (ReceiptRow InvalidRowT) where render = renderReceiptRow
+instance Renderable (ReceiptRow ValidRowT) where render = renderReceiptRow "valid row"
+instance Renderable (ReceiptRow InvalidRowT) where render = renderReceiptRow "bg-danger invalid row"
 
 -- renderReceipt :: (ReceiptRow header, [ReceiptRow row]) -> Widget
-renderReceiptHeader header= [whamlet|
-<span.date>^{render $ rowDate header}
-<span.counterparty>^{render $ rowCounterparty header}
-<span.bankAccount>^{render $ rowBankAccount header}
-<span.totalAmount>^{render $ rowTotal header}
+renderReceiptRow class_ ReceiptRow{..}= let types = class_ :: String
+  in [whamlet|
+<tr class="#{class_}">
+  <td.date>^{render rowDate}
+  <td.counterparty>^{render rowCounterparty}
+  <td.bankAccount>^{render rowBankAccount}
+  <td.totalAmount>^{render rowTotal}
+  <td.glAccount>^{render rowGlAccount}
+  <td.amount>^{render rowAmount}
+  <td.tax>^{render rowTax}
 |]
 
-instance Renderable (ReceiptRow ValidHeaderT) where render = renderReceiptHeader
-instance Renderable (ReceiptRow InvalidHeaderT) where render = renderReceiptHeader
+instance Renderable (ReceiptRow ValidHeaderT) where render = renderReceiptRow "valid header bg-success"
+instance Renderable (ReceiptRow InvalidHeaderT) where render = renderReceiptRow "bg-danger invalid header"
 
 
 instance (Renderable h, Renderable r, Show h, Show r) => Renderable (h, [r]) where
   render (header, rows) = [whamlet|
 ^{render header}
-<ul>
   $forall (row, i) <- zip rows is
-    <li .row id=row#{tshow i}> ^{render row}
+    ^{render row}
 |] where is = [1..]
 -- <span.rowTax>#{render rowTax}
 
 class Renderable r where
   render :: r -> Widget
 
+instance Renderable () where
+  render () = return ()
 instance Renderable Int where
   render i = [whamlet|#{tshow i}|]
 
@@ -147,11 +153,22 @@ instance (Renderable l, Renderable r) => Renderable (Either l r) where
   render (Right r) = [whamlet|<span.right>^{render r}|]
 
 instance Renderable InvalidField where
-  render (ParsingError err value) = [whamlet|
-<span.error>
-  <span.description>^{render err}
-  <span.message>^{render value}
+  render (ParsingError err value) = do
+    toWidget [cassius|
+.parsing-error
+  .description
+     display:none
 |]
+    [whamlet|
+<span.parsing-error>
+  <span.description>^{render err}
+  <span.message.text-danger data-toggle="tooltip" title="^{render err}">^{render value}
+|]
+    toWidget [julius|
+alert("This is included in the body");
+$('[data-toggle="tooltip"]').tooltip();
+|]
+    addScriptRemote "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"
   
 -- ** To move in app
 -- Represents a row of the spreadsheet.
