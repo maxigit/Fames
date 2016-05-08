@@ -38,13 +38,15 @@ appSpec = withApp $ do
 2015/01/02,stapples,B1,180,7501,100,20%
 ,,,,8000,50,20%
 |]
+
+          printBody
         
           statusIs 200
 
           htmlAnyContain "#receipt1 .amount" "100.00"
           htmlAnyContain "#receipt1 .glAccount" "7501"
-          htmlAnyContain "#receipt1 .amount" "50.00"
-          htmlAnyContain "#receipt1 .glAccount" "8000"
+          htmlAnyContain "#receipt1-2 .amount" "50.00"
+          htmlAnyContain "#receipt1-2 .glAccount" "8000"
 
         it "displays correctly a spreadsheet with multiple receipts" $ do
 	  get GLEnterReceiptSheetR
@@ -62,10 +64,10 @@ appSpec = withApp $ do
 2015/01/02,stapples,B1,60,8000,50,20%|]
         
           statusIs 200
-          htmlAnyContain "#receipt1 .amount" "100.00"
-          htmlAnyContain "#receipt1 .glAccount" "7501"
-          htmlAnyContain "#receipt2 .amount" "50.00"
-          htmlAnyContain "#receipt2 .glAccount" "8000"
+          htmlAnyContain "#receipt1-1 .amount" "100.00"
+          htmlAnyContain "#receipt1-1 .glAccount" "7501"
+          htmlAnyContain "#receipt2-1 .amount" "50.00"
+          htmlAnyContain "#receipt2-1 .glAccount" "8000"
 
         it "displays Unprocessable Entity the spreadsheet is not total valid" $ do
           return pending

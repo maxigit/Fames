@@ -78,7 +78,7 @@ postGLEnterReceiptSheetR = do
                             (Left (Right receipts)) -> Left $ Right (responseW "parsed unsucessfully" receipts)
       types = spreadSheet :: ByteString
       responseW title receipts = do
-        let ns = [1..]
+        let ns = [1..] :: [Int]
         [whamlet| 
 <h1> #title #{tshow title}
 <table..table.table-bordered>
@@ -92,7 +92,7 @@ postGLEnterReceiptSheetR = do
     <th>Amount
     <th>Tax Rate
   $forall (receipt, i) <- zip receipts ns
-    ^{render receipt}
+    ^{render (i, receipt)}
 |]
 
   case responseE of
@@ -111,11 +111,7 @@ instance Renderable (ReceiptRow InvalidRowT) where render = renderReceiptRow Inv
 
 -- renderReceipt :: (ReceiptRow header, [ReceiptRow row]) -> Widget
 renderReceiptRow rowType ReceiptRow{..}= do
-  let class_ ValidHeaderT = "receipt-header valid bg-success" :: Text
-      class_ InvalidHeaderT = "receipt-header invalid bg-danger"
-      class_ ValidRowT = "receipt-row valid bg-info"
-      class_ InvalidRowT = "receipt-row invalid bg-warning"
-      groupIndicator ValidHeaderT = ">" :: Text
+  let groupIndicator ValidHeaderT = ">" :: Text
       groupIndicator InvalidHeaderT = ">"
       groupIndicator _ = ""
   toWidget [cassius|
@@ -124,27 +120,34 @@ renderReceiptRow rowType ReceiptRow{..}= do
   font-weight: bold
 |]
   [whamlet|
-<tr class="#{class_ rowType}">
-  <td.receiptGroup>#{groupIndicator rowType}
-  <td.date>^{render rowDate}
-  <td.counterparty>^{render rowCounterparty}
-  <td.bankAccount>^{render rowBankAccount}
-  <td.totalAmount>^{render rowTotal}
-  <td.glAccount>^{render rowGlAccount}
-  <td.amount>^{render rowAmount}
-  <td.tax>^{render rowTax}
+<td.receiptGroup>#{groupIndicator rowType}
+<td.date>^{render rowDate}
+<td.counterparty>^{render rowCounterparty}
+<td.bankAccount>^{render rowBankAccount}
+<td.totalAmount>^{render rowTotal}
+<td.glAccount>^{render rowGlAccount}
+<td.amount>^{render rowAmount}
+<td.tax>^{render rowTax}
 |]
 
 instance Renderable (ReceiptRow ValidHeaderT) where render = renderReceiptRow ValidHeaderT
 instance Renderable (ReceiptRow InvalidHeaderT) where render = renderReceiptRow InvalidHeaderT
 
 
-instance (Renderable h, Renderable r, Show h, Show r) => Renderable (h, [r]) where
-  render (header, rows) = [whamlet|
-^{render header}
-  $forall (row, i) <- zip rows is
-    ^{render row}
-|] where is = [1..]
+instance ( ReceiptRowTypeClass h, Renderable h
+         , ReceiptRowTypeClass r, Renderable r
+         , Show h, Show r) => Renderable (Int, (h, [r])) where
+  render (i, (header, rows)) = [whamlet|
+<tr class="#{class_ (rowType header)}" id="receipt#{i}">
+  ^{render header}
+$forall (row, j) <- zip rows is
+  <tr class="#{class_ (rowType row)}" id="receipt#{i}-#{j}">
+      ^{render row}
+|] where is = [1..] :: [Int]
+         class_ ValidHeaderT = "receipt-header valid bg-success" :: Text
+         class_ InvalidHeaderT = "receipt-header invalid bg-danger"
+         class_ ValidRowT = "receipt-row valid bg-info"
+         class_ InvalidRowT = "receipt-row invalid bg-warning"
 -- <span.rowTax>#{render rowTax}
 
 class Renderable r where

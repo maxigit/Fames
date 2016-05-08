@@ -36,6 +36,7 @@ instance Show (ReceiptRow ValidRowT) where show = showReceiptRow ValidRowT
 instance Show (ReceiptRow InvalidRowT) where show = showReceiptRow InvalidRowT
          
 
+                                             
 showReceiptRow rType ReceiptRow{..} = show "ReceiptRow " ++ show rType ++ " {"
   ++ "rowDate=" ++ show rowDate ++ ", " 
   ++ "rowCounterparty=" ++ show rowCounterparty ++ ", " 
@@ -44,6 +45,17 @@ showReceiptRow rType ReceiptRow{..} = show "ReceiptRow " ++ show rType ++ " {"
   ++ "rowGlAccount=" ++ show rowGlAccount ++ ", " 
   ++ "rowAmount=" ++ show rowAmount ++ ", " 
   ++ "rowTax=" ++ show rowTax ++ "}" 
+
+
+class ReceiptRowTypeClass a where
+  rowType :: a -> ReceiptRowType
+
+instance ReceiptRowTypeClass (ReceiptRow ValidHeaderT) where rowType = const ValidHeaderT
+instance ReceiptRowTypeClass (ReceiptRow InvalidHeaderT) where rowType = const InvalidHeaderT
+instance ReceiptRowTypeClass (ReceiptRow ValidRowT) where rowType = const ValidRowT
+instance ReceiptRowTypeClass (ReceiptRow InvalidRowT) where rowType = const InvalidRowT
+instance (ReceiptRowTypeClass l, ReceiptRowTypeClass r) => ReceiptRowTypeClass (Either l r) where
+  rowType = either rowType rowType
 
 data InvalidField = ParsingError { invFieldType :: Text
                                  , invFieldValue :: Text
