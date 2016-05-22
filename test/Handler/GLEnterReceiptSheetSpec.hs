@@ -9,7 +9,7 @@ import Data.Csv (decode, HasHeader(NoHeader))
 import Text.Shakespeare.Text (st)
 
 spec :: Spec
-spec = {-pureSpec >> -} storiesSpec >> appSpec
+spec = pureSpec >> storiesSpec >> appSpec
 
 
 appSpec :: Spec
@@ -39,8 +39,6 @@ appSpec = withApp $ do
 ,,,,8000,50,20%
 |]
 
-          printBody
-        
           statusIs 200
 
           htmlAnyContain "#receipt1 .amount" "100.00"
@@ -151,9 +149,10 @@ storiesSpec =  withApp $ do
  
     -}
     it "story to write" (const pending)
-{-
 pureSpec :: Spec
 pureSpec = do
+   return ()
+{-
   describe "Parshing csv" $ do
     context "should parse dates" $ do
       sequence_ [

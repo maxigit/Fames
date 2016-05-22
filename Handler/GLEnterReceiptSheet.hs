@@ -174,22 +174,29 @@ instance (Renderable l, Renderable r) => Renderable (Either l r) where
   render (Right r) = [whamlet|<span.right>^{render r}|]
 
 instance Renderable InvalidField where
-  render (ParsingError err value) = do
+  render invField = do
+    let (class_, value) = case invField of
+          ParsingError _ v -> ("parsing-error" :: Text, v)
+          MissingValueError _ -> ("missing-value" :: Text,"<Empty>")
     toWidget [cassius|
-.parsing-error
+.parsing-error, .missing-value
   .description
      display:none
+.missing-value
+  .message
+    font-style: italic
 |]
     [whamlet|
-<span.parsing-error>
-  <span.description>^{render err}
-  <span.message.text-danger data-toggle="tooltip" title="^{render err}">^{render value}
+<span class="#{class_}">
+  <span.description>#{invalidFieldError invField}
+  <span.message.text-danger data-toggle="tooltip" title="#{invalidFieldError invField}">#{value}
 |]
     toWidget [julius|
 $('[data-toggle="tooltip"]').tooltip();
 |]
     addScriptRemote "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"
   
+
 -- ** To move in app
 -- Represents a row of the spreadsheet.
 instance Csv.FromNamedRecord (ReceiptRow RawT)where
@@ -241,13 +248,14 @@ toError t e = case e of
   
 parseReceipts :: ByteString
               -> Either (Either Text
-                                [( EitherRow InvalidHeaderT ValidHeaderT
-                                , [EitherRow InvalidRowT ValidRowT]
+                                [( Either InvalidHeader ValidHeader
+                                , [Either InvalidRow ValidRow]
                                 )]
                         )
-                        [( ReceiptRow ValidHeaderT
-                        , [ReceiptRow ValidRowT]
-                        )]
+                        [ (ValidHeader
+                          , [ValidRow]
+                          )
+                        ]
 parseReceipts bytes = do
   rows <- either (Left . Left) (Right . map analyseReceiptRow) $ parseReceiptRow bytes
 
@@ -255,14 +263,14 @@ parseReceipts bytes = do
   let (orphans:groups) =  S.split (S.keepDelimsL $ S.whenElt  isRight) rows
       -- we know header are right and rows are left
 
-      makeReceipt :: [ Either (EitherRow InvalidRowT ValidRowT)
-                              (EitherRow InvalidHeaderT ValidHeaderT)
+      makeReceipt :: [ Either (Either InvalidRow ValidRow)
+                              (Either InvalidHeader ValidHeader)
                      ]
-                  -> ( EitherRow InvalidHeaderT ValidHeaderT
-                     , [EitherRow InvalidRowT ValidRowT]
+                  -> ( Either InvalidHeader ValidHeader
+                     , [Either InvalidRow ValidRow]
                      )
-      makeReceipt (Right header:rows) = (header , headerToRowE header  : lefts rows)
-      headerToRowE :: (EitherRow InvalidHeaderT ValidHeaderT) -> (EitherRow InvalidRowT ValidRowT)
+      makeReceipt (Right header:rows) = (header , lefts rows)
+      headerToRowE :: (Either InvalidHeader ValidHeader) -> (Either InvalidRow ValidRow)
       headerToRowE = either (Left . transformRow) (Right . transformRow)
       receipts = map makeReceipt groups
 
@@ -279,7 +287,7 @@ parseReceipts bytes = do
 
       
 -- | Parse a csv and return a list of receipt row if possible
-parseReceiptRow :: ByteString -> Either Text [ReceiptRow RawT]
+parseReceiptRow :: ByteString -> Either Text [RawRow]
 parseReceiptRow bytes = either (Left . pack)  (Right . toList)$ do
     (header, vector) <- try
     Right vector

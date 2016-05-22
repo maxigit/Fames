@@ -31,16 +31,16 @@ data ReceiptRowType
   | InvalidRowT
   deriving (Read, Show, Eq)
 
-type RawRow = ReceiptRow RawT
-type ValidHeader = ReceiptRow ValidHeaderT
-type InvalidHeader = ReceiptRow InvalidHeaderT
-type ValidRow = ReceiptRow ValidRowT
-type InvalidRow = ReceiptRow InvalidRowT
+type RawRow = ReceiptRow 'RawT
+type ValidHeader = ReceiptRow 'ValidHeaderT
+type InvalidHeader = ReceiptRow 'InvalidHeaderT
+type ValidRow = ReceiptRow 'ValidRowT
+type InvalidRow = ReceiptRow 'InvalidRowT
  
-instance Show (ReceiptRow ValidHeaderT) where show = showReceiptRow ValidHeaderT
-instance Show (ReceiptRow InvalidHeaderT) where show = showReceiptRow InvalidHeaderT
-instance Show (ReceiptRow ValidRowT) where show = showReceiptRow ValidRowT
-instance Show (ReceiptRow InvalidRowT) where show = showReceiptRow InvalidRowT
+instance Show (ValidHeader) where show = showReceiptRow ValidHeaderT
+instance Show (InvalidHeader) where show = showReceiptRow InvalidHeaderT
+instance Show (ValidRow) where show = showReceiptRow ValidRowT
+instance Show (InvalidRow) where show = showReceiptRow InvalidRowT
          
 
 pattern RJust x = Right (Just x)
@@ -66,16 +66,17 @@ showReceiptRow rType ReceiptRow{..} = show "ReceiptRow " ++ show rType ++ " {"
 class ReceiptRowTypeClass a where
   rowType :: a -> ReceiptRowType
 
-instance ReceiptRowTypeClass (ReceiptRow ValidHeaderT) where rowType = const ValidHeaderT
-instance ReceiptRowTypeClass (ReceiptRow InvalidHeaderT) where rowType = const InvalidHeaderT
-instance ReceiptRowTypeClass (ReceiptRow ValidRowT) where rowType = const ValidRowT
-instance ReceiptRowTypeClass (ReceiptRow InvalidRowT) where rowType = const InvalidRowT
+instance ReceiptRowTypeClass ValidHeader where rowType = const ValidHeaderT
+instance ReceiptRowTypeClass InvalidHeader where rowType = const InvalidHeaderT
+instance ReceiptRowTypeClass ValidRow where rowType = const ValidRowT
+instance ReceiptRowTypeClass InvalidRow where rowType = const InvalidRowT
 instance (ReceiptRowTypeClass l, ReceiptRowTypeClass r) => ReceiptRowTypeClass (Either l r) where
   rowType = either rowType rowType
 
 data InvalidField = ParsingError { invFieldType :: Text
                                  , invFieldValue :: Text
                                  }
+                  | MissingValueError { invFieldType :: Text }
   deriving (Read, Show)
 
 invalidFieldError :: InvalidField -> Text
@@ -84,29 +85,28 @@ invalidFieldError ParsingError{..} = "Can't parse '"
                                      <> "' as "
                                      <> invFieldType
                                      <> "."
+invalidFieldError MissingValueError{..} = invFieldType <> " is missing."
 
 type family HeaderFieldTF (s :: ReceiptRowType) a where
-  HeaderFieldTF RawT  a = Either InvalidField (Maybe a)
-  HeaderFieldTF ValidHeaderT a = a
-  HeaderFieldTF InvalidHeaderT a = Either InvalidField (Maybe a)
-  HeaderFieldTF ValidRowT a = ()
-  HeaderFieldTF InvalidRowT a = ()
+  HeaderFieldTF 'RawT  a = Either InvalidField (Maybe a)
+  HeaderFieldTF 'ValidHeaderT a = a
+  HeaderFieldTF 'InvalidHeaderT a = Either InvalidField (Maybe a)
+  HeaderFieldTF 'ValidRowT a = ()
+  HeaderFieldTF 'InvalidRowT a = ()
 
 type family RowFieldTF (s :: ReceiptRowType) a where
-  RowFieldTF RawT  (Maybe a) = Either InvalidField (Maybe a)
-  RowFieldTF RawT  a = Either InvalidField (Maybe a)
-  RowFieldTF ValidHeaderT a = a
-  RowFieldTF InvalidHeaderT (Maybe a) = Either InvalidField (Maybe a)
-  RowFieldTF InvalidHeaderT a = Either InvalidField (Maybe a)
-  RowFieldTF ValidRowT a = a
-  RowFieldTF InvalidRowT (Maybe a) = Either InvalidField (Maybe a)
-  RowFieldTF InvalidRowT a = Either InvalidField (Maybe a)
+  RowFieldTF 'RawT  (Maybe a) = Either InvalidField (Maybe a)
+  RowFieldTF 'RawT  a = Either InvalidField (Maybe a)
+  RowFieldTF 'ValidHeaderT a = a
+  RowFieldTF 'InvalidHeaderT (Maybe a) = Either InvalidField (Maybe a)
+  RowFieldTF 'InvalidHeaderT a = Either InvalidField (Maybe a)
+  RowFieldTF 'ValidRowT a = a
+  RowFieldTF 'InvalidRowT (Maybe a) = Either InvalidField (Maybe a)
+  RowFieldTF 'InvalidRowT a = Either InvalidField (Maybe a)
   
-type EitherRow a b = Either (ReceiptRow a) (ReceiptRow b)
-
 -- What are invalid header ? with valid header field but missing  or invalid header field
-analyseReceiptRow :: ReceiptRow RawT -> Either (EitherRow InvalidRowT ValidRowT )
-                                               (EitherRow InvalidHeaderT ValidHeaderT )
+analyseReceiptRow :: RawRow -> Either (Either InvalidRow ValidRow )
+                                      (Either InvalidHeader ValidHeader)
 analyseReceiptRow (ReceiptRow (RJust date) (RJust counterparty) (RJust bankAccount) (RJust total) (RJust glAccount) (RJust amount) (Right tax))
   = Right . Right $ ReceiptRow date counterparty bankAccount total
                                    glAccount amount tax
@@ -118,14 +118,18 @@ analyseReceiptRow (NonHeaderRow glAccount amount tax)
   = Left . Left $  RowP glAccount amount tax
 analyseReceiptRow ReceiptRow{..}
   -- invalid header
-  = Right. Left $ ReceiptRow rowDate
-                                     rowCounterparty
-                                     rowBankAccount
-                                     rowTotal
-                                     rowGlAccount
-                                     rowAmount
-                                     rowTax
+  = Right. Left $ ReceiptRow (validateNonEmpty "Date" rowDate)
+                             (validateNonEmpty "Counterparty" rowCounterparty)
+                             (validateNonEmpty "Bank Account" rowBankAccount)
+                             (validateNonEmpty "Total" rowTotal)
+                             rowGlAccount
+                             rowAmount
+                             rowTax
   where row = ReceiptRow () () () ()
+
+validateNonEmpty :: Text -> Either InvalidField (Maybe a) -> Either InvalidField (Maybe a)
+validateNonEmpty field RNothing = Left (MissingValueError field) 
+validateNonEmpty field v = v
 
 class Transformable a b where
   transform :: a -> b
