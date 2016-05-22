@@ -55,10 +55,10 @@ getGLEnterReceiptSheetR = do
 postTextForm :: Form (Text, Textarea)
 postTextForm = renderBootstrap3 BootstrapBasicForm $ (,)
   <$> areq textField "Sheet name" Nothing
-  <*> areq textareaField ("Receipts") Nothing
+  <*> areq textareaField "Receipts" Nothing
 
 
-uploadFileForm = renderBootstrap3 BootstrapBasicForm $ (areq fileField ("upload") Nothing )
+uploadFileForm = renderBootstrap3 BootstrapBasicForm (areq fileField ("upload") Nothing )
 postGLEnterReceiptSheetR :: Handler Html
 postGLEnterReceiptSheetR = do
   ((textResp, postTextW), enctype) <- runFormPost postTextForm
@@ -167,7 +167,7 @@ instance Renderable Text where
 instance Renderable Day where
 instance (Renderable r) => Renderable (Maybe r) where
   render (Just x) = render x
-  render (Nothing) = [whamlet||]
+  render Nothing = [whamlet||]
 
 instance (Renderable l, Renderable r) => Renderable (Either l r) where
   render (Left r) = [whamlet|<span.left>^{render r}|]
@@ -255,9 +255,8 @@ parseReceipts bytes = do
   let (orphans:groups) =  S.split (S.keepDelimsL $ S.whenElt  isRight) rows
       -- we know header are right and rows are left
 
-      makeReceipt :: [(Either (EitherRow InvalidRowT ValidRowT)
+      makeReceipt :: [ Either (EitherRow InvalidRowT ValidRowT)
                               (EitherRow InvalidHeaderT ValidHeaderT)
-                      )
                      ]
                   -> ( EitherRow InvalidHeaderT ValidHeaderT
                      , [EitherRow InvalidRowT ValidRowT]
