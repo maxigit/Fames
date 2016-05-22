@@ -192,7 +192,7 @@ $('[data-toggle="tooltip"]').tooltip();
   
 -- ** To move in app
 -- Represents a row of the spreadsheet.
-instance Csv.FromNamedRecord (ReceiptRow Raw)where
+instance Csv.FromNamedRecord (ReceiptRow RawT)where
   parseNamedRecord m = pure ReceiptRow
     <*> (m `parse` "date") -- >>= parseDay)
     -- <*> (textToMaybe <$> m `parse` "counterparty")
@@ -280,7 +280,7 @@ parseReceipts bytes = do
 
       
 -- | Parse a csv and return a list of receipt row if possible
-parseReceiptRow :: ByteString -> Either Text [ReceiptRow Raw]
+parseReceiptRow :: ByteString -> Either Text [ReceiptRow RawT]
 parseReceiptRow bytes = either (Left . pack)  (Right . toList)$ do
     (header, vector) <- try
     Right vector

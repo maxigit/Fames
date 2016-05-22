@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeFamilies, DataKinds #-}
 {-# LANGUAGE LiberalTypeSynonyms #-}
+{-# LANGUAGE PatternSynonyms #-}
 module Handler.GLEnterReceiptSheet.ReceiptRow where
 
 
@@ -23,19 +24,34 @@ data ReceiptRow s = ReceiptRow
 
   
 data ReceiptRowType
-  = Raw
+  = RawT
   | ValidHeaderT
   | InvalidHeaderT
   | ValidRowT
   | InvalidRowT
   deriving (Read, Show, Eq)
 
+type RawRow = ReceiptRow RawT
+type ValidHeader = ReceiptRow ValidHeaderT
+type InvalidHeader = ReceiptRow InvalidHeaderT
+type ValidRow = ReceiptRow ValidRowT
+type InvalidRow = ReceiptRow InvalidRowT
+ 
 instance Show (ReceiptRow ValidHeaderT) where show = showReceiptRow ValidHeaderT
 instance Show (ReceiptRow InvalidHeaderT) where show = showReceiptRow InvalidHeaderT
 instance Show (ReceiptRow ValidRowT) where show = showReceiptRow ValidRowT
 instance Show (ReceiptRow InvalidRowT) where show = showReceiptRow InvalidRowT
          
 
+pattern RJust x = Right (Just x)
+pattern RNothing = Right Nothing
+pattern RRight x = Right (Right x)
+pattern RLeft x = Right (Left x)
+pattern LRight x = Left (Right x)
+pattern LLeft x = Left (Left x)
+
+pattern NonHeaderRow gl amount tax = ReceiptRow RNothing RNothing RNothing RNothing gl amount tax
+pattern RowP gl amount tax = ReceiptRow () () () () gl amount tax
                                              
 showReceiptRow rType ReceiptRow{..} = show "ReceiptRow " ++ show rType ++ " {"
   ++ "rowDate=" ++ show rowDate ++ ", " 
@@ -70,15 +86,15 @@ invalidFieldError ParsingError{..} = "Can't parse '"
                                      <> "."
 
 type family HeaderFieldTF (s :: ReceiptRowType) a where
-  HeaderFieldTF Raw  a = Either InvalidField (Maybe a)
+  HeaderFieldTF RawT  a = Either InvalidField (Maybe a)
   HeaderFieldTF ValidHeaderT a = a
   HeaderFieldTF InvalidHeaderT a = Either InvalidField (Maybe a)
   HeaderFieldTF ValidRowT a = ()
   HeaderFieldTF InvalidRowT a = ()
 
 type family RowFieldTF (s :: ReceiptRowType) a where
-  RowFieldTF Raw  (Maybe a) = Either InvalidField (Maybe a)
-  RowFieldTF Raw  a = Either InvalidField (Maybe a)
+  RowFieldTF RawT  (Maybe a) = Either InvalidField (Maybe a)
+  RowFieldTF RawT  a = Either InvalidField (Maybe a)
   RowFieldTF ValidHeaderT a = a
   RowFieldTF InvalidHeaderT (Maybe a) = Either InvalidField (Maybe a)
   RowFieldTF InvalidHeaderT a = Either InvalidField (Maybe a)
@@ -89,32 +105,27 @@ type family RowFieldTF (s :: ReceiptRowType) a where
 type EitherRow a b = Either (ReceiptRow a) (ReceiptRow b)
 
 -- What are invalid header ? with valid header field but missing  or invalid header field
-analyseReceiptRow :: ReceiptRow Raw -> Either (EitherRow InvalidRowT ValidRowT )
+analyseReceiptRow :: ReceiptRow RawT -> Either (EitherRow InvalidRowT ValidRowT )
                                                (EitherRow InvalidHeaderT ValidHeaderT )
-analyseReceiptRow ReceiptRow{..} =
-  case (rowDate , rowCounterparty , rowBankAccount , rowTotal, rowGlAccount, rowAmount, rowTax) of
-       -- valid header
-       ( Right (Just date) , Right (Just counterparty) , Right (Just bankAccount) , Right (Just total) , Right (Just glAccount), Right (Just amount), Right tax)
-         -> Right . Right $ ReceiptRow date counterparty bankAccount total
+analyseReceiptRow (ReceiptRow (RJust date) (RJust counterparty) (RJust bankAccount) (RJust total) (RJust glAccount) (RJust amount) (Right tax))
+  = Right . Right $ ReceiptRow date counterparty bankAccount total
                                    glAccount amount tax
-       -- valid row
-       (Right Nothing, Right Nothing, Right Nothing, Right Nothing , Right (Just glAccount), Right (Just amount), Right tax )
-         -> Left . Right $  ReceiptRow () () () ()
-                                   glAccount amount tax
-       -- invalid row
-       (Right Nothing, Right Nothing, Right Nothing, Right Nothing , glAccount, amount, tax )
-         -> Left . Left $  ReceiptRow () () () ()
-            glAccount
-            amount
-            tax
-       -- invalid header
-       _ -> Right. Left $ ReceiptRow rowDate
+analyseReceiptRow (NonHeaderRow (RJust glAccount) (RJust amount) (Right tax))
+  -- valid row
+  = Left . Right $  RowP glAccount amount tax
+analyseReceiptRow (NonHeaderRow glAccount amount tax)
+  -- invalid row
+  = Left . Left $  RowP glAccount amount tax
+analyseReceiptRow ReceiptRow{..}
+  -- invalid header
+  = Right. Left $ ReceiptRow rowDate
                                      rowCounterparty
                                      rowBankAccount
                                      rowTotal
                                      rowGlAccount
                                      rowAmount
                                      rowTax
+  where row = ReceiptRow () () () ()
 
 class Transformable a b where
   transform :: a -> b
