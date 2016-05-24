@@ -234,17 +234,6 @@ instance Csv.FromField Currency where
             res = Currency <$> parseField stripped
         trace ("Currency: " ++ show (bs, stripped)) res
       
-
-  
-stripCurrencySymbol :: Text -> Text
-stripCurrencySymbol t = Text.dropWhile (`elem` currencies) (Text.strip t)
-  where currencies = "$£\t" :: String
-
-stripCurrencySymbol' :: ByteString -> ByteString
-stripCurrencySymbol' t = BL.dropWhile (`BL.elem` currencies) t
-  where currencies = encodeUtf8 "$£\t " 
-
-        
 parseDay bs = do
   str <- parseField bs
   case  concat [parseTimeM True defaultTimeLocale f str | f <- formats] of
