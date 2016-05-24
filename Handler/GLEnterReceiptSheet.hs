@@ -224,7 +224,7 @@ instance Csv.FromNamedRecord (ReceiptRow RawT)where
             return res
 
 -- | temporary class to remove currency symbol
-newtype Currency = Currency {unCurrency :: Double} deriving (Show, Num)
+newtype Currency = Currency {unCurrency :: Double} deriving (Show, Eq, Num, Fractional)
 instance Csv.FromField Currency where
   parseField bs = do
     case stripPrefix "-" bs of

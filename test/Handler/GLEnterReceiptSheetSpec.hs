@@ -165,7 +165,6 @@ storiesSpec =  withApp $ do
     it "story to write" (const pending)
 pureSpec :: Spec
 pureSpec = do
-   return ()
 {-
   describe "Parshing csv" $ do
     context "should parse dates" $ do
@@ -187,19 +186,26 @@ pureSpec = do
                         , "Wed 02 Jan 2011"
                         ]
             ] 
+-}
     context "should parse amounts" $ do
       it "without currency" $ do
-        assertUtf8Field "23.45" (23.45 :: Amount')
+        assertUtf8Field "23.45" (23.45 :: Currency)
       it "without currency and spaces" $ do
-        assertUtf8Field " 23.45 " (23.45 :: Amount')
+        assertUtf8Field " 23.45 " (23.45 :: Currency)
       it "with currency" $ do
-        assertUtf8Field "£23.45" (23.45 :: Amount')
+        assertUtf8Field "£23.45" (23.45 :: Currency)
+      it "negative with currency" $ do
+        assertUtf8Field "-£23.45" (-23.45 :: Currency)
+      it "negative with currency" $ do
+        assertUtf8Field "£-23.45" (-23.45 :: Currency)
+
+ {-
       it "with currency and spaces" $ do
-        assertUtf8Field " £23.45 " (23.45 :: Amount')
+        assertUtf8Field " £23.45 " (23.45 :: Currency)
       it "with currency and spaces between the currency" $ do
-        assertUtf8Field "£ 23.45 " (23.45 :: Amount')
+        assertUtf8Field "£ 23.45 " (23.45 :: Currency)
       it "negative with currency and spaces between the currency" $ do
-        assertUtf8Field " - £ 23.45 " (-23.45 :: Amount')
+        assertUtf8Field " - £ 23.45 " (-23.45 :: Currency)
     
 
   describe "validateRawRow" $ do
@@ -248,9 +254,9 @@ pureSpec = do
       validateRawRow raw `shouldBe` Left (raw, PriceMissing)
 
 
+-}
 assertField str value  = decode NoHeader (str <> ",") `shouldBe` Right (fromList [(value, ())])
 -- we need  to encode bystestring in UTF8 because the IsString instance for bytestring
 -- doesn't encode £ to two words but only one.
 assertUtf8Field text value = assertField (encodeUtf8 text) value
 
--}
