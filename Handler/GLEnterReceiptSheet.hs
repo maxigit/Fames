@@ -232,7 +232,8 @@ instance Csv.FromField Currency where
       Nothing -> do
         let stripped = bs `fromMaybe` stripPrefix (encodeUtf8 "£") bs
             res = Currency <$> parseField stripped
-        trace ("Currency: " ++ show (bs, stripped)) res
+        -- trace ("Currency: " ++ show (bs, stripped)) res
+        res
       
 parseDay bs = do
   str <- parseField bs
