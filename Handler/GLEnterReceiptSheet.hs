@@ -1,7 +1,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies, DataKinds #-}
-{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFunctor, GeneralizedNewtypeDeriving #-}
 module Handler.GLEnterReceiptSheet where
 
 import Import hiding(InvalidHeader)
@@ -20,7 +20,10 @@ import Text.Printf(printf)
 import Data.Conduit.List (consume)
 import qualified Data.List.Split  as S
 import Text.Printf (printf)
+import qualified Data.Text as Text
+import qualified Data.Text.Read as Text
 import Data.Ratio (approxRational)
+import qualified Data.ByteString as BL
 -- | Entry point to enter a receipts spreadsheet
 -- The use should be able to :
 --   - post a text
@@ -197,6 +200,9 @@ $('[data-toggle="tooltip"]').tooltip();
     addScriptRemote "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"
   
 
+infixl 4 <$$$>, <$$>
+(<$$$>) = fmap . fmap . fmap
+(<$$>) = fmap . fmap . fmap
 -- ** To move in app
 -- Represents a row of the spreadsheet.
 instance Csv.FromNamedRecord (ReceiptRow RawT)where
@@ -205,17 +211,40 @@ instance Csv.FromNamedRecord (ReceiptRow RawT)where
     -- <*> (textToMaybe <$> m `parse` "counterparty")
     <*> (m `parse` "counterparty")
     <*> m `parse` "bank account"
-    <*> (m `parse` "total")
+    <*> (unCurrency <$$$> m  `parse` "total")
 
     <*> m `parse` "gl account"
-    <*> m `parse` "amount"
+    <*> (unCurrency <$$$> m `parse` "amount")
     <*> m `parse` "tax rate"
     where parse m colname = do
             t <- m Csv..:colname
             let types = t :: Text
             res <-  toError t <$>  m Csv..: colname
-            return $ trace (show (colname, t, res )) res
+            -- return $ trace (show (colname, t, res )) res
+            return res
 
+-- | temporary class to remove currency symbol
+newtype Currency = Currency {unCurrency :: Double} deriving (Show, Num)
+instance Csv.FromField Currency where
+  parseField bs = do
+    case stripPrefix "-" bs of
+      Just bs' -> negate <$> parseField bs'
+      Nothing -> do
+        let stripped = bs `fromMaybe` stripPrefix (encodeUtf8 "£") bs
+            res = Currency <$> parseField stripped
+        trace ("Currency: " ++ show (bs, stripped)) res
+      
+
+  
+stripCurrencySymbol :: Text -> Text
+stripCurrencySymbol t = Text.dropWhile (`elem` currencies) (Text.strip t)
+  where currencies = "$£\t" :: String
+
+stripCurrencySymbol' :: ByteString -> ByteString
+stripCurrencySymbol' t = BL.dropWhile (`BL.elem` currencies) t
+  where currencies = encodeUtf8 "$£\t " 
+
+        
 parseDay bs = do
   str <- parseField bs
   case  concat [parseTimeM True defaultTimeLocale f str | f <- formats] of

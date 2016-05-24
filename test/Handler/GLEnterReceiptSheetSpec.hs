@@ -23,6 +23,21 @@ appSpec = withApp $ do
    	  bodyContains "upload" -- to transform
 
     describe "postGLEnterReceiptSheetR" $ do
+        it "parses correctly amounts with pound sign" $ do
+	  get GLEnterReceiptSheetR
+          statusIs 200
+
+          request $ do
+            setMethod "POST"
+            setUrl GLEnterReceiptSheetR
+            addToken_ "form#text-form " --"" "#text-form"
+            byLabel "Sheet name" "test 1"
+            byLabel "Receipts" [st|date,counterparty,bank account,total,gl account,amount,tax rate
+2015/01/02,stapples,B1,180,7501,£100,20%
+|]
+
+          statusIs 200
+          htmlAnyContain "#receipt1 .amount" "100.00"
         it "displays correctly a receipt with multiple lines" $ do
 	  get GLEnterReceiptSheetR
           statusIs 200
@@ -122,8 +137,7 @@ appSpec = withApp $ do
 2015/01/02,,B1,120,7501,100,20%|]
         
 
-          printBody
-          --statusIs 422 -- @todo wrong
+          statusIs 422 -- @todo wrong
           bodyContains "Counterparty is missing"
 
         it "display receipt header" (const pending)
