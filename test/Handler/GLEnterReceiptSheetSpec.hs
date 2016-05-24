@@ -11,10 +11,21 @@ import Text.Shakespeare.Text (st)
 spec :: Spec
 spec = pureSpec >> storiesSpec >> appSpec
 
+postReceiptSheet status sheet = do
+  get GLEnterReceiptSheetR
+  statusIs 200
+
+  request $ do
+    setMethod "POST"
+    setUrl GLEnterReceiptSheetR
+    addToken_ "form#text-form " --"" "#text-form"
+    byLabel "Sheet name" "test 1"
+    byLabel "Receipts" sheet
+
+  statusIs status
 
 appSpec :: Spec
 appSpec = withApp $ do
-
     describe "getGLEnterReceiptSheetR" $ do
 	it "proposes to upload a file" $ do
 	  get GLEnterReceiptSheetR
