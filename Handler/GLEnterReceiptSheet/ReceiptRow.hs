@@ -37,6 +37,7 @@ type InvalidHeader = ReceiptRow 'InvalidHeaderT
 type ValidRow = ReceiptRow 'ValidRowT
 type InvalidRow = ReceiptRow 'InvalidRowT
  
+instance Show (RawRow) where show = showReceiptRow ValidHeaderT
 instance Show (ValidHeader) where show = showReceiptRow ValidHeaderT
 instance Show (InvalidHeader) where show = showReceiptRow InvalidHeaderT
 instance Show (ValidRow) where show = showReceiptRow ValidRowT

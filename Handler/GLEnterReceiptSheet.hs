@@ -11,7 +11,7 @@ import Handler.GLEnterReceiptSheet.ReceiptRow
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput)
 import qualified Data.Csv as Csv
-import Data.Csv
+-- import Data.Csv hi
 import Data.Either
 import Data.Char (ord)
 import Data.Time(parseTimeM)
@@ -24,6 +24,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Read as Text
 import Data.Ratio (approxRational)
 import qualified Data.ByteString as BL
+import qualified Data.Map as Map
 -- | Entry point to enter a receipts spreadsheet
 -- The use should be able to :
 --   - post a text
@@ -84,6 +85,7 @@ postGLEnterReceiptSheetR = do
         let ns = [1..] :: [Int]
         [whamlet| 
 <h1> #title #{tshow title}
+<table..table.table-bordered>
 <table..table.table-bordered>
   <tr>
     <th>
@@ -228,15 +230,15 @@ newtype Currency = Currency {unCurrency :: Double} deriving (Show, Eq, Num, Frac
 instance Csv.FromField Currency where
   parseField bs = do
     case stripPrefix "-" bs of
-      Just bs' -> negate <$> parseField bs'
+      Just bs' -> negate <$> Csv.parseField bs'
       Nothing -> do
         let stripped = bs `fromMaybe` stripPrefix (encodeUtf8 "£") bs
-            res = Currency <$> parseField stripped
+            res = Currency <$> Csv.parseField stripped
         -- trace ("Currency: " ++ show (bs, stripped)) res
         res
       
 parseDay bs = do
-  str <- parseField bs
+  str <- Csv.parseField bs
   case  concat [parseTimeM True defaultTimeLocale f str | f <- formats] of
     [day] -> pure day
     (d:ds) -> error (show (d:ds))
@@ -266,7 +268,7 @@ toError t e = case e of
 
   
 parseReceipts :: ByteString
-              -> Either (Either Text
+              -> Either (Either InvalidReceiptSheet
                                 [( Either InvalidHeader ValidHeader
                                 , [Either InvalidRow ValidRow]
                                 )]
@@ -304,19 +306,74 @@ parseReceipts bytes = do
     Just valids -> Right valids
     Nothing -> Left  . Right $ receipts
 
+-- | If we can't parse the csv at all (columns are not present),
+-- we need a way to gracefully return a error
+data InvalidReceiptSheet = InvalidReceiptSheet
+  { missingColumns :: [Text]
+  , columnIndexes :: [Int] -- ^ index of present columns
+  , sheet :: [[Text]]  -- ^ origin file
+  } deriving Show
+  {-
+  | InvalidFileFormat
+  { errMessage :: Text
+  , missingColumns :: [Text]
+  }
+-}
+
+
       
 -- | Parse a csv and return a list of receipt row if possible
-parseReceiptRow :: ByteString -> Either Text [RawRow]
-parseReceiptRow bytes = either (Left . pack)  (Right . toList)$ do
+parseReceiptRow :: ByteString -> Either InvalidReceiptSheet [RawRow]
+parseReceiptRow bytes = either (Left . parseInvalidReceiptSheet bytes')  (Right . toList)$ do
     (header, vector) <- try
     Right vector
   where
-    try = Csv.decodeByNameWith (sep) bytes'
+    try' = Csv.decodeByNameWith (sep) bytes'
+    try = trace (show try') try'
     (sep:_) = [Csv.DecodeOptions (fromIntegral (ord sep)) | sep <- ",;\t" ]
     bytes' = fromStrict bytes
 
+parseInvalidReceiptSheet bytes err =
+  let columns = ["date", "counterparty", "bank account", "total"
+                ,"gl account","amount", "tax rate"
+                ]
+  in case toList <$> Csv.decode Csv.NoHeader bytes of
+       Right sheet@(header:_) -> do
+         let headerPos = Map.fromList (zip header [0..]) :: Map Text Int
+             -- index of a given column in the current header. Starts a 0.
+             indexes = [(col, lookup col headerPos) | col <- columns]
+             missingColumns = [col | (col, Nothing) <- indexes]
+             columnIndexes = catMaybes (map snd indexes)
+         InvalidReceiptSheet{..}
+       Right [] -> InvalidReceiptSheet columns [] [["<Emtpy file>"]]
+       Left err -> InvalidReceiptSheet columns [] [[pack $ "<<" ++ err ++ ">>"]]
+    
 -- ** to move in general helper or better in App
 -- formatAmount :: Amount -> Text
-formatAmount = (\t -> t :: String) .  printf "%0.2f" . (\x -> x :: Double) .  fromRational
+formatAmount = (\t -> t :: String) .  printf "" . (\x -> x :: Double) .  fromRational
 formatDouble = (\t -> t :: String) .  printf "%0.2f"
+
+
+instance ToMarkup InvalidReceiptSheet where
+  toMarkup i@InvalidReceiptSheet{..} = let
+    colClass = go 0 columnIndexes
+    go :: Int -> [Int]-> [Text]
+    go i [] = "" : go i []
+    go i (ix:ixs) | ix == i = "bg-success" : go (i+1) ixs
+                  | otherwise = "" : go (i+1) (ix:ixs)
+    in trace ("toHtml" ++ show i )[shamlet|
+<div .invalid-receipt>
+  <div .missing-columens .bg-danger .text-danger>
+    The following columns are missing:
+    <ul>
+      $forall column <- missingColumns
+        <li> #{column}
+  <table.sheet.table.table-bordered>
+    $forall line <- sheet
+      <tr>
+        $forall (class_, field) <- zip colClass line
+          <td class="#{class_}"> #{field}
+          |]
+           
+             
 
