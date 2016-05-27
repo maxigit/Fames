@@ -22,8 +22,21 @@ postReceiptSheet status sheet = do
     byLabel "Sheet name" "test 1"
     byLabel "Receipts" sheet
 
+  printBody
   statusIs status
 
+uploadReceiptSheet status path = do
+  get GLEnterReceiptSheetR
+  statusIs 200
+
+  request $ do
+    setMethod "POST"
+    setUrl GLEnterReceiptSheetR
+    addToken_ "form#upload-form "
+    fileByLabel "upload" ("test/Handler/GLEnterReceiptSheetSpec/" ++ path) "text/plain"
+
+  printBody
+  statusIs status
 appSpec :: Spec
 appSpec = withApp $ do
     describe "getGLEnterReceiptSheetR" $ do
@@ -91,25 +104,41 @@ appSpec = withApp $ do
         it "displays receipt header" (const pending)
         it "needs at least one header" (const pending)
 
-        context "Given invalid format file" $ do
-          let sheet = [st|date,wounterparty,bank account,total,gl account,amount,tax rate
+        context "Given invalid format file:" $ do
+          it "empty file, it displays an error messape" $ do
+            postReceiptSheet 422 ""
+            htmlAnyContain ".invalid-receipt" "file is empty"
+          it "wrong encoding, suggest encoding error" $ do
+             uploadReceiptSheet 303 "latin-1.csv"
+             bodyContains "UTF8"
+              
+          it "malformed csv, suggests format error" $ do
+            postReceiptSheet 303 [st|date,counterparty,bank account,total,gl account,amount,tax rate
+  2015/01/02,"stapples,B1,60,8000,50,20%|]
+            htmlAnyContain ".message" "wrong format"
+
+          it "uneven colums, displays a table" $ do
+            postReceiptSheet 422 [st|date,counterparty,bank account,total,gl account,amount,tax rate
+  2015/01/02,stapples|]
+            htmlAnyContain ".invalid-receipt" "<table>"
+
+
+             
+          context "missing column" $ do
+            let sheet = [st|date,wounterparty,bank account,total,gl account,amount,tax rate
   2015/01/02,stapples,B1,60,8000,50,20%|]
 
-          it "displays the original source " $ do 
-            postReceiptSheet 303 sheet
+            it "displays the original source " $ do 
+              postReceiptSheet 422 sheet
+              bodyContains (unpack sheet)
 
-            bodyContains (unpack sheet)
-
-          it "displays missing columns" $ do
-            postReceiptSheet 303 sheet
-
-            bodyContains "Coudn't find the following columns : counterparty."
+            it "displays missing columns" $ do
+              postReceiptSheet 422 sheet
+              htmlAnyContain ".message" "Coudn't find the following columns : counterparty."
        
-          it "displays correct columns" $ do
-            postReceiptSheet 303 sheet
-
-            bodyContains "todo: indicates somehow which columns are good"
-
+            it "displays correct columns" $ do
+              postReceiptSheet 422 sheet
+              bodyContains "todo: indicates somehow which columns are good"
 
 storiesSpec :: Spec 
 storiesSpec =  withApp $ do

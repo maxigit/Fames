@@ -74,7 +74,7 @@ postGLEnterReceiptSheetR = do
                           c <- fileSource fileInfo $$ consume
                           return $ concat c
                           
-                        _ -> error "Form failure"
+                        (FormFailure a,FormFailure b) -> error $ "Form failure : " ++  show a ++ ", " ++ show b
 
   let responseE = case parseReceipts spreadSheet of
                             (Left (Left msg)) -> Left (Left msg)
@@ -101,15 +101,16 @@ postGLEnterReceiptSheetR = do
 |]
 
   case responseE of
-    Left (Left msg) -> setMessage (toHtml msg) >> redirect GLEnterReceiptSheetR
+    Left (Left invalid) -> setMessage' (invalid) >> getGLEnterReceiptSheetR --  redirect GLEnterReceiptSheetR
     Left (Right widget) -> do
-         setMessage (toHtml $ t "Invalid file")
+         setMessage' (t "Invalid file")
          sendResponseStatus (toEnum 422) =<< defaultLayout widget
     Right widget -> do
           defaultLayout widget
 
 t = id :: Text -> Text
 
+setMessage' msg = trace ("set message : " ++ show msg) (setMessage $ toHtml msg)
 -- ** Widgets
 instance Renderable (ReceiptRow ValidRowT) where render = renderReceiptRow ValidRowT
 instance Renderable (ReceiptRow InvalidRowT) where render = renderReceiptRow InvalidRowT
@@ -309,9 +310,10 @@ parseReceipts bytes = do
 -- | If we can't parse the csv at all (columns are not present),
 -- we need a way to gracefully return a error
 data InvalidReceiptSheet = InvalidReceiptSheet
-  { missingColumns :: [Text]
+  { errorDescription :: Text
+  , missingColumns :: [Text]
   , columnIndexes :: [Int] -- ^ index of present columns
-  , sheet :: [[Text]]  -- ^ origin file
+  , sheet :: [[ Either Csv.Field Text]]  -- ^ origin file
   } deriving Show
   {-
   | InvalidFileFormat
@@ -329,7 +331,7 @@ parseReceiptRow bytes = either (Left . parseInvalidReceiptSheet bytes')  (Right 
     Right vector
   where
     try' = Csv.decodeByNameWith (sep) bytes'
-    try = trace (show try') try'
+    try = trace ("decoded: " ++ show try') try'
     (sep:_) = [Csv.DecodeOptions (fromIntegral (ord sep)) | sep <- ",;\t" ]
     bytes' = fromStrict bytes
 
@@ -337,16 +339,21 @@ parseInvalidReceiptSheet bytes err =
   let columns = ["date", "counterparty", "bank account", "total"
                 ,"gl account","amount", "tax rate"
                 ]
-  in case toList <$> Csv.decode Csv.NoHeader bytes of
-       Right sheet@(header:_) -> do
+      decoded = toList <$> Csv.decode Csv.NoHeader bytes :: Either String [[Either Csv.Field Text]]
+  in case decoded of
+       Left err -> InvalidReceiptSheet "Can't parse file. Please check the file is encoded in UTF8 or is well formatted." columns [] [[Left (toStrict bytes)]]
+       Right [] -> InvalidReceiptSheet "Empty file" columns [] []
+       Right sheet@(headerE:_) -> do
          let headerPos = Map.fromList (zip header [0..]) :: Map Text Int
+             header = map (either decodeUtf8 id) headerE
              -- index of a given column in the current header. Starts a 0.
              indexes = [(col, lookup col headerPos) | col <- columns]
              missingColumns = [col | (col, Nothing) <- indexes]
              columnIndexes = catMaybes (map snd indexes)
+             errorDescription = case traverse sequence sheet of
+                                     Left _ -> "Encoding is wrong. Please make sure the file is in UTF8"
+                                     Right _ -> ""
          InvalidReceiptSheet{..}
-       Right [] -> InvalidReceiptSheet columns [] [["<Emtpy file>"]]
-       Left err -> InvalidReceiptSheet columns [] [[pack $ "<<" ++ err ++ ">>"]]
     
 -- ** to move in general helper or better in App
 -- formatAmount :: Amount -> Text
@@ -361,8 +368,12 @@ instance ToMarkup InvalidReceiptSheet where
     go i [] = "" : go i []
     go i (ix:ixs) | ix == i = "bg-success" : go (i+1) ixs
                   | otherwise = "" : go (i+1) (ix:ixs)
+    convertField :: Either Csv.Field Text -> (Text, Text)
+    convertField (Left bs) = ("bg-danger text-danger", decodeUtf8 bs)
+    convertField (Right t) = ("", t)
     in trace ("toHtml" ++ show i )[shamlet|
 <div .invalid-receipt>
+  <div .error-description> #{errorDescription}
   <div .missing-columens .bg-danger .text-danger>
     The following columns are missing:
     <ul>
@@ -372,7 +383,8 @@ instance ToMarkup InvalidReceiptSheet where
     $forall line <- sheet
       <tr>
         $forall (class_, field) <- zip colClass line
-          <td class="#{class_}"> #{field}
+          $with (fieldClass, fieldValue) <- convertField field
+            <td class="#{class_} #{fieldClass}"> #{fieldValue}
           |]
            
              
