@@ -104,16 +104,16 @@ appSpec = withApp $ do
         it "displays receipt header" (const pending)
         it "needs at least one header" (const pending)
 
-        context "Given invalid format file:" $ do
+        context "Given an unparsable format file:" $ do
           it "empty file, it displays an error messape" $ do
-            postReceiptSheet 422 ""
+            uploadReceiptSheet 422 "empty.csv"
             htmlAnyContain ".invalid-receipt" "file is empty"
           it "wrong encoding, suggest encoding error" $ do
-             uploadReceiptSheet 303 "latin-1.csv"
+             uploadReceiptSheet 422 "latin-1.csv"
              bodyContains "UTF8"
               
           it "malformed csv, suggests format error" $ do
-            postReceiptSheet 303 [st|date,counterparty,bank account,total,gl account,amount,tax rate
+            postReceiptSheet 422 [st|date,counterparty,bank account,total,gl account,amount,tax rate
   2015/01/02,"stapples,B1,60,8000,50,20%|]
             htmlAnyContain ".message" "wrong format"
 
@@ -122,8 +122,7 @@ appSpec = withApp $ do
   2015/01/02,stapples|]
             htmlAnyContain ".invalid-receipt" "<table>"
 
-
-             
+        context "Given a parsable file:" $ do
           context "missing column" $ do
             let sheet = [st|date,wounterparty,bank account,total,gl account,amount,tax rate
   2015/01/02,stapples,B1,60,8000,50,20%|]

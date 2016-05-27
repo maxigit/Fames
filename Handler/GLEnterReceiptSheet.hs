@@ -101,7 +101,9 @@ postGLEnterReceiptSheetR = do
 |]
 
   case responseE of
-    Left (Left invalid) -> setMessage' (invalid) >> getGLEnterReceiptSheetR --  redirect GLEnterReceiptSheetR
+    Left (Left invalid) -> do
+         setMessage' (invalid)
+         sendResponseStatus (toEnum 422) =<< getGLEnterReceiptSheetR
     Left (Right widget) -> do
          setMessage' (t "Invalid file")
          sendResponseStatus (toEnum 422) =<< defaultLayout widget
@@ -110,7 +112,7 @@ postGLEnterReceiptSheetR = do
 
 t = id :: Text -> Text
 
-setMessage' msg = trace ("set message : " ++ show msg) (setMessage $ toHtml msg)
+setMessage' msg = {-trace ("set message : " ++ show msg)-} (setMessage $ toHtml msg)
 -- ** Widgets
 instance Renderable (ReceiptRow ValidRowT) where render = renderReceiptRow ValidRowT
 instance Renderable (ReceiptRow InvalidRowT) where render = renderReceiptRow InvalidRowT
@@ -330,8 +332,8 @@ parseReceiptRow bytes = either (Left . parseInvalidReceiptSheet bytes')  (Right 
     (header, vector) <- try
     Right vector
   where
-    try' = Csv.decodeByNameWith (sep) bytes'
-    try = trace ("decoded: " ++ show try') try'
+    try = Csv.decodeByNameWith (sep) bytes'
+    -- try = trace ("decoded: " ++ show try') try'
     (sep:_) = [Csv.DecodeOptions (fromIntegral (ord sep)) | sep <- ",;\t" ]
     bytes' = fromStrict bytes
 
@@ -340,10 +342,11 @@ parseInvalidReceiptSheet bytes err =
                 ,"gl account","amount", "tax rate"
                 ]
       decoded = toList <$> Csv.decode Csv.NoHeader bytes :: Either String [[Either Csv.Field Text]]
-  in case decoded of
-       Left err -> InvalidReceiptSheet "Can't parse file. Please check the file is encoded in UTF8 or is well formatted." columns [] [[Left (toStrict bytes)]]
-       Right [] -> InvalidReceiptSheet "Empty file" columns [] []
-       Right sheet@(headerE:_) -> do
+  in case (null bytes, decoded) of
+       (True, _ )  -> InvalidReceiptSheet "Empty file" columns [] []
+       (_, Right [])  -> InvalidReceiptSheet "Empty file" columns [] []
+       (False, Left err) -> InvalidReceiptSheet "Can't parse file. Please check the file is encoded in UTF8 or is well formatted." columns [] [[Left (toStrict bytes)]]
+       (False, Right sheet@(headerE:_)) -> do
          let headerPos = Map.fromList (zip header [0..]) :: Map Text Int
              header = map (either decodeUtf8 id) headerE
              -- index of a given column in the current header. Starts a 0.
@@ -371,14 +374,15 @@ instance ToMarkup InvalidReceiptSheet where
     convertField :: Either Csv.Field Text -> (Text, Text)
     convertField (Left bs) = ("bg-danger text-danger", decodeUtf8 bs)
     convertField (Right t) = ("", t)
-    in trace ("toHtml" ++ show i )[shamlet|
+    in {-trace ("toHtml" ++ show i ) -}[shamlet|
 <div .invalid-receipt>
   <div .error-description> #{errorDescription}
-  <div .missing-columens .bg-danger .text-danger>
-    The following columns are missing:
-    <ul>
-      $forall column <- missingColumns
-        <li> #{column}
+  $if not (null missingColumns)
+    <div .missing-columns .bg-danger .text-danger>
+      The following columns are missing:
+      <ul>
+        $forall column <- missingColumns
+          <li> #{column}
   <table.sheet.table.table-bordered>
     $forall line <- sheet
       <tr>
