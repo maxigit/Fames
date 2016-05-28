@@ -13,7 +13,7 @@ import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
 import qualified Data.Csv as Csv
 -- import Data.Csv hi
 import Data.Either
-import Data.Char (ord)
+import Data.Char (ord,toUpper)
 import Data.Time(parseTimeM)
 import Text.Blaze.Html(ToMarkup(toMarkup))
 import Text.Printf(printf)
@@ -222,11 +222,21 @@ instance Csv.FromNamedRecord (ReceiptRow RawT)where
     <*> (unCurrency <$$$> m `parse` "amount")
     <*> m `parse` "tax rate"
     where parse m colname = do
-            t <- m Csv..:colname
-            let types = t :: Text
-            res <-  toError t <$>  m Csv..: colname
-            -- return $ trace (show (colname, t, res )) res
-            return res
+            -- try colname, Colname and COLNAME
+            let colnames = fromString <$> expandColumnName colname
+                mts = map (m Csv..:) colnames
+                mts' = asum $ map (m Csv..:) colnames
+            -- let types = mts :: [Csv.Parser Text]
+            t <- asum mts
+            res <-  toError t <$>  mts'
+            return $ trace (show (colname, t, res )) res
+            -- return res
+
+expandColumnName :: String -> [String]
+expandColumnName colname = [id, capitalize, map Data.Char.toUpper] <*> [colname]
+
+capitalize [] = []
+capitalize (x:xs) = Data.Char.toUpper x : xs
 
 -- | temporary class to remove currency symbol
 newtype Currency = Currency {unCurrency :: Double} deriving (Show, Eq, Num, Fractional)
@@ -350,7 +360,13 @@ parseInvalidReceiptSheet bytes err =
          let headerPos = Map.fromList (zip header [0..]) :: Map Text Int
              header = map (either decodeUtf8 id) headerE
              -- index of a given column in the current header. Starts a 0.
-             indexes = [(col, lookup col headerPos) | col <- columns]
+             indexes = [ (fromString col
+                         , asum [ lookup (fromString col') headerPos
+                                | col' <- expandColumnName col
+                                ]
+                         )
+                       | col <- columns
+                       ]
              missingColumns = [col | (col, Nothing) <- indexes]
              columnIndexes = catMaybes (map snd indexes)
              errorDescription = case traverse sequence sheet of

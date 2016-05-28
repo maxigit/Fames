@@ -81,14 +81,25 @@ We need permission on document and documents types.
 
 
 
-*  Next
+*  Done
 - [X] allow file to be parsed.
 This is the priority as it allows manual testing much easier
 
-- [ ] fix invalid row from invalid header field
-- [ ] fix duplicated rows
-- [ ] fix test ?
-Value are lost ... 
+- [X] fix invalid row from invalid header field
+- [X] fix duplicated rows
+- [X] fix test ?
+* Next
+** TODO Add all columns
+** DONE pre-process header
+So we can use Date, date, DATE etc ...
+- [ ] +DRY columns list and those in the parser+
+- [ ] +find an alternative library+
+- [ ] +write my own bit+
+Solution, just try them explicitely using =asum=
+** TODO Think of a/the flow
+Each steps should be able to have it's own page or not ...
+- [ ]  MAYBE add steps  in URL
+- [ ] split handler into function and dispatch (and pass error/parsing result)
 ** DONE Upload via file
 CLOSED: [2016-04-03 Sun 13:47]
 ** TODO add Uknown/Calculated/Given monad
