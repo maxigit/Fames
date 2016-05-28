@@ -17,6 +17,7 @@ import Data.Char (ord,toUpper)
 import Data.Time(parseTimeM)
 import Text.Blaze.Html(ToMarkup(toMarkup))
 import Text.Printf(printf)
+import Data.Text.Encoding(decodeLatin1)
 import Data.Conduit.List (consume)
 import qualified Data.List.Split  as S
 import Text.Printf (printf)
@@ -62,7 +63,13 @@ postTextForm = renderBootstrap3 BootstrapBasicForm $ (,)
   <*> areq textareaField "Receipts" Nothing
 
 
-uploadFileForm = renderBootstrap3 BootstrapBasicForm (areq fileField ("upload") Nothing )
+data Encoding = UTF8 | Latin1 deriving (Show, Read, Eq, Enum, Bounded)
+
+uploadFileForm = renderBootstrap3 BootstrapBasicForm
+  ((,)
+   <$> areq fileField ("upload") Nothing
+  <*> areq (selectField optionsEnum ) "encoding" (Just UTF8)
+    )
 postGLEnterReceiptSheetR :: Handler Html
 postGLEnterReceiptSheetR = do
   ((textResp, postTextW), enctype) <- runFormPost postTextForm
@@ -70,9 +77,11 @@ postGLEnterReceiptSheetR = do
   spreadSheet <- case (textResp, fileResp) of
                         (FormMissing, FormMissing) -> error "missing"
                         (FormSuccess (title, spreadsheet), _) -> return $ encodeUtf8 $ unTextarea spreadsheet
-                        (_, FormSuccess fileInfo) -> do
+                        (_, FormSuccess (fileInfo, encoding)) -> do
+                          let decode UTF8 bs = bs
+                              decode Latin1 bs = encodeUtf8 . decodeLatin1 $ bs
                           c <- fileSource fileInfo $$ consume
-                          return $ concat c
+                          return . decode encoding $ concat c
                           
                         (FormFailure a,FormFailure b) -> error $ "Form failure : " ++  show a ++ ", " ++ show b
 

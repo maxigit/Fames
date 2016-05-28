@@ -22,10 +22,10 @@ postReceiptSheet status sheet = do
     byLabel "Sheet name" "test 1"
     byLabel "Receipts" sheet
 
-  printBody
+  -- printBody
   statusIs status
 
-uploadReceiptSheet status path = do
+uploadReceiptSheet status encoding path = do
   get GLEnterReceiptSheetR
   statusIs 200
 
@@ -34,8 +34,9 @@ uploadReceiptSheet status path = do
     setUrl GLEnterReceiptSheetR
     addToken_ "form#upload-form "
     fileByLabel "upload" ("test/Handler/GLEnterReceiptSheetSpec/" ++ path) "text/plain"
+    byLabel "encoding" (tshow $ fromEnum encoding)
 
-  printBody
+  -- printBody
   statusIs status
 appSpec :: Spec
 appSpec = withApp $ do
@@ -106,12 +107,16 @@ appSpec = withApp $ do
 
         context "Given an unparsable format file:" $ do
           it "empty file, it displays an error messape" $ do
-            uploadReceiptSheet 422 "empty.csv"
+            uploadReceiptSheet 422 (UTF8) "empty.csv"
             htmlAnyContain ".invalid-receipt" "file is empty"
           it "wrong encoding, suggest encoding error" $ do
-             uploadReceiptSheet 422 "latin-1.csv"
+             uploadReceiptSheet 422 (UTF8) "latin-1.csv"
              bodyContains "UTF8"
               
+          it "good encoding, suggest encoding error" $ do
+             uploadReceiptSheet 422 (Latin1) "latin-1.csv"
+             bodyContains "£"
+
           it "malformed csv, suggests format error" $ do
             postReceiptSheet 422 [st|date,counterparty,bank account,total,gl account,amount,tax rate
   2015/01/02,"stapples,B1,60,8000,50,20%|]
