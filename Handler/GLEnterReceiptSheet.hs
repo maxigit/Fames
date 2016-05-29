@@ -361,9 +361,10 @@ parseInvalidReceiptSheet bytes err =
                 ,"gl account","amount", "tax rate"
                 ]
       decoded = toList <$> Csv.decode Csv.NoHeader bytes :: Either String [[Either Csv.Field Text]]
+      onEmpty = InvalidReceiptSheet "The file is empty" columns [] []
   in case (null bytes, decoded) of
-       (True, _ )  -> InvalidReceiptSheet "Empty file" columns [] []
-       (_, Right [])  -> InvalidReceiptSheet "Empty file" columns [] []
+       (True, _ )  -> onEmpty
+       (_, Right [])  -> onEmpty
        (False, Left err) -> InvalidReceiptSheet "Can't parse file. Please check the file is encoded in UTF8 or is well formatted." columns [] [[Left (toStrict bytes)]]
        (False, Right sheet@(headerE:_)) -> do
          let headerPos = Map.fromList (zip header [0..]) :: Map Text Int
