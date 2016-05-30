@@ -154,39 +154,49 @@ validateNonEmpty :: Text -> Either InvalidField (Maybe a) -> Either InvalidField
 validateNonEmpty field RNothing = Left (MissingValueError field) 
 validateNonEmpty field v = v
 
+type family UnMaybe a where
+  UnMaybe (Maybe a) = a
+  UnMaybe a = a
+  
+type family NotEq a b where
+  NotEq a a = 'True
+  NotEq a b = 'False
+
 class Transformable a b where
   transform :: a -> b
 
 instance Transformable a () where
-  transform = const ()
+  transform = trace "a -> ():" $ const ()
 
-instance {-# OVERLAPPABLE #-} a ~ b =>  Transformable a b where
-  transform x = x
+-- instance {-# #-} a ~ b =>  Transformable a b where
+instance {-# #-} Transformable a a where
+  transform x = trace "a ->a: " $ x
 
-instance {-# OVERLAPPABLE #-} (Transformable l l', Transformable r r')
-         => Transformable (Either l r) (Either l' r') where
-  transform = bimap transform transform
+-- instance {-# OVERLAPPABLE #-} (Transformable l l', Transformable r r')
+--          => Transformable (Either l r) (Either l' r') where
+--   transform = trace "either -> eithir: " $ bimap transform transform
   
-instance (Transformable a b) => Transformable a (Maybe b) where
-  transform = Just . transform  
+-- instance (Transformable a b, UnMaybe a ~ a, NotEq a () ~ 'True) => Transformable a (Maybe b) where
+instance Transformable a (Maybe a) where
+  transform = trace "a -> Maybe b:" $ Just 
 
 instance Transformable () (Maybe a) where
-  transform = const Nothing
+  transform = trace "() -> Maybe a: " $ const Nothing
 
-instance Transformable (Maybe Double) Double where
-  transform x = -1
+-- instance Transformable (Maybe Double) Double where
+--   transform x = trace "Maybe Double -> Double: " $ -1
 
-instance Transformable (Maybe Int) Int where
-  transform x = error (show x) --  -1
+-- instance Transformable (Maybe Int) Int where
+--   transform x = trace "Maybe Int -> Int: " $ error (show x) --  -1
 
-instance Transformable (Maybe Double) Text where
-  transform x = "-1"
+-- instance Transformable (Maybe Double) Text where
+--   transform x = trace "Maybe Double -> Double:" $ "-1"
 
-instance Transformable (Maybe Text) Text where
-  transform x = "-1"
+-- instance Transformable (Maybe Text) Text where
+--   transform x = trace "Maybe Text -> Text:" $ "-1"
 
-instance Transformable Double Text where
-  transform = tshow
+-- instance Transformable Double Text where
+--   transform = trace "Double -> Text: " $ tshow
 
 transformRow ReceiptRow{..} = ReceiptRow
   (transform rowDate)

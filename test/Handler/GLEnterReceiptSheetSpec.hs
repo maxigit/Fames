@@ -22,7 +22,7 @@ postReceiptSheet status sheet = do
     byLabel "Sheet name" "test 1"
     byLabel "Receipts" sheet
 
-  -- printBody
+  printBody
   statusIs status
 
 uploadReceiptSheet status encoding path = do
@@ -83,17 +83,6 @@ appSpec = withApp $ do
           postReceiptSheet 422
             [st|date,counterparty,bank account,total,gl account,amount,tax rate
 2015/01/02,,B1,120,7501,100,20%|]
-
-        it "displays correctly a spreadsheet with multiple receipts" $ do
-          postReceiptSheet 200
-            [st|date,counterparty,bank account,total,gl account,amount,tax rate
-2015/01/02,stapples,B1,120,7501,100,20%
-2015/01/02,stapples,B1,60,8000,50,20%|]
-        
-          htmlAnyContain "#receipt1 .amount" "100.00"
-          htmlAnyContain "#receipt1 .glAccount" "7501"
-          htmlAnyContain "#receipt2 .amount" "50.00"
-          htmlAnyContain "#receipt2 .glAccount" "8000"
 
         it "displays an error if a header line is not fulled" $ do
           postReceiptSheet 422
