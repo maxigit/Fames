@@ -15,11 +15,16 @@ data ReceiptRow s = ReceiptRow
   { rowDate :: HeaderFieldTF s Text --  RowDateTF s
   , rowCounterparty :: HeaderFieldTF s Text -- RowCounterpartyTF s
   , rowBankAccount :: HeaderFieldTF s Text -- RowBankAccountTF s
+  , rowComment :: HeaderFieldTF s (Maybe Text)
   , rowTotal :: HeaderFieldTF s Double
 
-  , rowGlAccount :: RowFieldTF s Int -- RowGLAccountTF s
-  , rowAmount :: RowFieldTF s Double -- RowAmountTF s
+  , rowGlAccount :: RowFieldTF s (Maybe Int)-- RowGLAccountTF s
+  , rowAmount :: RowFieldTF s (Maybe Double)-- RowAmountTF s
+  , rowNetAmount :: RowFieldTF s (Maybe Double)-- RowAmountTF s
+  , rowMemo :: RowFieldTF s (Maybe Text)
   , rowTax :: RowFieldTF s (Maybe Text) -- RowTaxTF s
+  , rowGLDimension1 :: RowFieldTF s (Maybe Int)
+  , rowGLDimension2 :: RowFieldTF s (Maybe Int)
   } -- deriving (Read, Show, Eq)
 
   
@@ -51,17 +56,21 @@ pattern RLeft x = Right (Left x)
 pattern LRight x = Left (Right x)
 pattern LLeft x = Left (Left x)
 
-pattern NonHeaderRow gl amount tax = ReceiptRow RNothing RNothing RNothing RNothing gl amount tax
-pattern RowP gl amount tax = ReceiptRow () () () () gl amount tax
+pattern NonHeaderRow gl amount net memo tax dim1 dim2 = ReceiptRow RNothing RNothing RNothing RNothing RNothing gl amount net memo tax dim1 dim2
+pattern RowP gl amount net memo tax dim1 dim2 = ReceiptRow () () () () () gl amount net memo tax dim1 dim2
                                              
 showReceiptRow rType ReceiptRow{..} = show "ReceiptRow " ++ show rType ++ " {"
   ++ "rowDate=" ++ show rowDate ++ ", " 
   ++ "rowCounterparty=" ++ show rowCounterparty ++ ", " 
   ++ "rowBankAccount=" ++ show rowBankAccount ++ ", " 
+  ++ "rowComment=" ++ show rowComment ++ ", " 
   ++ "rowTotal=" ++ show rowTotal ++ ", " 
   ++ "rowGlAccount=" ++ show rowGlAccount ++ ", " 
   ++ "rowAmount=" ++ show rowAmount ++ ", " 
-  ++ "rowTax=" ++ show rowTax ++ "}" 
+  ++ "rowNetAmount=" ++ show rowNetAmount ++ ", " 
+  ++ "rowTax=" ++ show rowTax ++ "," 
+  ++ "rowGlDimension1=" ++ show rowGLDimension1 ++ ", " 
+  ++ "rowGlDimension2=" ++ show rowGLDimension2 ++ "}" 
 
 
 class ReceiptRowTypeClass a where
@@ -89,8 +98,10 @@ invalidFieldError ParsingError{..} = "Can't parse '"
 invalidFieldError MissingValueError{..} = invFieldType <> " is missing."
 
 type family HeaderFieldTF (s :: ReceiptRowType) a where
+  HeaderFieldTF 'RawT  (Maybe a) = Either InvalidField (Maybe a)
   HeaderFieldTF 'RawT  a = Either InvalidField (Maybe a)
   HeaderFieldTF 'ValidHeaderT a = a
+  HeaderFieldTF 'InvalidHeaderT (Maybe a) = Either InvalidField (Maybe a)
   HeaderFieldTF 'InvalidHeaderT a = Either InvalidField (Maybe a)
   HeaderFieldTF 'ValidRowT a = ()
   HeaderFieldTF 'InvalidRowT a = ()
@@ -106,27 +117,38 @@ type family RowFieldTF (s :: ReceiptRowType) a where
   RowFieldTF 'InvalidRowT a = Either InvalidField (Maybe a)
   
 -- What are invalid header ? with valid header field but missing  or invalid header field
-analyseReceiptRow :: RawRow -> Either (Either InvalidRow ValidRow )
+analyseReceiptRow :: RawRow -> Either (Either InvalidRow ValidRow)
                                       (Either InvalidHeader ValidHeader)
-analyseReceiptRow (ReceiptRow (RJust date) (RJust counterparty) (RJust bankAccount) (RJust total) (RJust glAccount) (RJust amount) (Right tax))
-  = Right . Right $ ReceiptRow date counterparty bankAccount total
-                                   glAccount amount tax
-analyseReceiptRow (NonHeaderRow (RJust glAccount) (RJust amount) (Right tax))
-  -- valid row
-  = Left . Right $  RowP glAccount amount tax
-analyseReceiptRow (NonHeaderRow glAccount amount tax)
+analyseReceiptRow (ReceiptRow
+                   (RJust date) (RJust counterparty) (RJust bankAccount) (Right comment) (RJust total)
+                   (Right glAccount) (Right amount) (Right net) (Right memo) (Right tax) (Right dim1) (Right dim2))
+  = Right . Right $ ReceiptRow date counterparty bankAccount comment total
+                                   glAccount amount net memo tax dim1 dim2
+analyseReceiptRow (NonHeaderRow RNothing RNothing RNothing RNothing RNothing RNothing RNothing)
+  -- empty row
+  = Left . Left $ RowP RNothing RNothing RNothing RNothing RNothing RNothing RNothing
+analyseReceiptRow (NonHeaderRow (Right glAccount) (Right amount) (Right net) (Right memo) (Right tax) (Right dim1) (Right dim2))
+  -- valid row. at least one is non empty
+  = Left . Right $  RowP glAccount amount net memo tax dim1 dim2
+analyseReceiptRow (NonHeaderRow glAccount amount net memo tax dim1 dim2)
   -- invalid row
-  = Left . Left $  RowP glAccount amount tax
+  = Left . Left $  RowP glAccount amount net memo tax dim1 dim2
 analyseReceiptRow ReceiptRow{..}
   -- invalid header
   = Right. Left $ ReceiptRow (validateNonEmpty "Date" rowDate)
                              (validateNonEmpty "Counterparty" rowCounterparty)
                              (validateNonEmpty "Bank Account" rowBankAccount)
+                             rowComment
                              (validateNonEmpty "Total" rowTotal)
                              rowGlAccount
                              rowAmount
+                             rowNetAmount
+                             rowMemo
                              rowTax
-  where row = ReceiptRow () () () ()
+                             rowGLDimension1
+                             rowGLDimension2
+
+  where row = ReceiptRow () () () () () () ()
 
 validateNonEmpty :: Text -> Either InvalidField (Maybe a) -> Either InvalidField (Maybe a)
 validateNonEmpty field RNothing = Left (MissingValueError field) 
@@ -141,7 +163,7 @@ instance Transformable a () where
 instance {-# OVERLAPPABLE #-} a ~ b =>  Transformable a b where
   transform x = x
 
-instance {-# OVERLAPPABLE #-} (Transformable l l', Transformable r r' )
+instance {-# OVERLAPPABLE #-} (Transformable l l', Transformable r r')
          => Transformable (Either l r) (Either l' r') where
   transform = bimap transform transform
   
@@ -170,7 +192,12 @@ transformRow ReceiptRow{..} = ReceiptRow
   (transform rowDate)
   (transform rowCounterparty)
   (transform rowBankAccount)
+  (transform rowComment)
   (transform rowTotal)
-  (transform rowGlAccount )
-  (transform rowAmount )
-  (transform rowTax )
+  (transform rowGlAccount)
+  (transform rowAmount)
+  (transform rowNetAmount)
+  (transform rowMemo)
+  (transform rowTax)
+  (transform rowGLDimension1)
+  (transform rowGLDimension2)

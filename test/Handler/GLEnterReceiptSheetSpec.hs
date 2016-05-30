@@ -50,17 +50,17 @@ appSpec = withApp $ do
     describe "postGLEnterReceiptSheetR" $ do
         it "parses correctly amounts with pound sign" $ do
           postReceiptSheet 200
-            [st|date,counterparty,bank account,total,gl account,amount,tax rate
-2015/01/02,stapples,B1,180,7501,£100,20%
+              [st|date,counterparty,bank account,comment,total,gl account,amount,net amount,memo,tax rate,dimension 1,dimension 2
+2015/01/02,stapples,B1,stationary,180,7501,£100,,misc,20%,,
 |]
 
           htmlAnyContain "#receipt1 .amount" "100.00"
 
         it "displays correctly a receipt with multiple lines" $ do
           postReceiptSheet 200
-              [st|date,counterparty,bank account,total,gl account,amount,tax rate
-2015/01/02,stapples,B1,180,7501,100,20%
-,,,,8000,50,20%
+              [st|date,counterparty,bank account,comment,total,gl account,amount,net amount,memo,tax rate,dimension 1,dimension 2
+2015/01/02,stapples,B1,stationary,180,7501,100,,misc,20%,,
+,,,,,8000,50,,,20%,,
 |]
 
           htmlAnyContain "#receipt1 .amount" "100.00"
@@ -70,13 +70,13 @@ appSpec = withApp $ do
 
         it "displays correctly a spreadsheet with multiple receipts" $ do
           postReceiptSheet 200
-            [st|date,counterparty,bank account,total,gl account,amount,tax rate
-2015/01/02,stapples,B1,120,7501,100,20%
-2015/01/02,stapples,B1,60,8000,50,20%|]
+            [st|date,counterparty,bank account,comment,total,gl account,amount,net amount,memo,tax rate,dimension 1,dimension 2
+2015/01/02,stapples,B1,stationary,120,7501,120,100,misc,20%,23,
+2015/01/02,stapples,B1,misc,60,8000,60,50,ink,20%,,|]
         
-          htmlAnyContain "#receipt1-1 .amount" "100.00"
+          htmlAnyContain "#receipt1-1 .amount" "120.00"
           htmlAnyContain "#receipt1-1 .glAccount" "7501"
-          htmlAnyContain "#receipt2-1 .amount" "50.00"
+          htmlAnyContain "#receipt2-1 .amount" "60.00"
           htmlAnyContain "#receipt2-1 .glAccount" "8000"
 
         it "displays Unprocessable Entity the spreadsheet is not total valid" $ do

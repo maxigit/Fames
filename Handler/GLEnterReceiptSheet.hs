@@ -101,7 +101,7 @@ postGLEnterReceiptSheetR = do
     <th>Date
     <th>Counterparty
     <th>Bank Account
-    <th>Total
+    <th>Totalparse
     <th>GL Account
     <th>Amount
     <th>Tax Rate
@@ -223,13 +223,18 @@ instance Csv.FromNamedRecord (ReceiptRow RawT)where
   parseNamedRecord m = pure ReceiptRow
     <*> (m `parse` "date") -- >>= parseDay)
     -- <*> (textToMaybe <$> m `parse` "counterparty")
-    <*> (m `parse` "counterparty")
+    <*> (m `parse` "counterparty" <|> m `parse` "company")
     <*> m `parse` "bank account"
-    <*> (unCurrency <$$$> m  `parse` "total")
+    <*> m `parse` "comment"
+    <*> (unCurrency <$$$> m  `parse` "total" <|> m `parse` "total price")
 
     <*> m `parse` "gl account"
-    <*> (unCurrency <$$$> m `parse` "amount")
-    <*> m `parse` "tax rate"
+    <*> (unCurrency <$$$> m `parse` "amount" <|> m `parse` "item price")
+    <*> (unCurrency <$$$> m `parse` "net amount" <|> m `parse` "net")
+    <*> (m `parse` "memo" <|> m `parse` "item")
+    <*> (m `parse` "tax rate" <|> m `parse` "vat")
+    <*> m `parse` "dimension 1"
+    <*> m `parse` "dimension 2"
     where parse m colname = do
             -- try colname, Colname and COLNAME
             let colnames = fromString <$> expandColumnName colname
@@ -357,8 +362,8 @@ parseReceiptRow bytes = either (Left . parseInvalidReceiptSheet bytes')  (Right 
     bytes' = fromStrict bytes
 
 parseInvalidReceiptSheet bytes err =
-  let columns = ["date", "counterparty", "bank account", "total"
-                ,"gl account","amount", "tax rate"
+  let columns = ["date", "counterparty", "bank account", "comment", "total"
+                ,"gl account","amount", "net amount", "memo", "tax rate", "dimension 1", "dimension 2"
                 ]
       decoded = toList <$> Csv.decode Csv.NoHeader bytes :: Either String [[Either Csv.Field Text]]
       onEmpty = InvalidReceiptSheet "The file is empty" columns [] []
@@ -381,7 +386,7 @@ parseInvalidReceiptSheet bytes err =
              columnIndexes = catMaybes (map snd indexes)
              errorDescription = case traverse sequence sheet of
                                      Left _ -> "Encoding is wrong. Please make sure the file is in UTF8"
-                                     Right _ -> ""
+                                     Right _ -> tshow err
          InvalidReceiptSheet{..}
     
 -- ** to move in general helper or better in App
