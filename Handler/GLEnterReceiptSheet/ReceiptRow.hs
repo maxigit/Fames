@@ -166,37 +166,16 @@ class Transformable a b where
   transform :: a -> b
 
 instance Transformable a () where
-  transform = trace "a -> ():" $ const ()
+  transform = const ()
 
--- instance {-# #-} a ~ b =>  Transformable a b where
-instance {-# #-} Transformable a a where
-  transform x = trace "a ->a: " $ x
+instance  Transformable a a where
+  transform x =  x
 
--- instance {-# OVERLAPPABLE #-} (Transformable l l', Transformable r r')
---          => Transformable (Either l r) (Either l' r') where
---   transform = trace "either -> eithir: " $ bimap transform transform
-  
--- instance (Transformable a b, UnMaybe a ~ a, NotEq a () ~ 'True) => Transformable a (Maybe b) where
-instance Transformable a (Maybe a) where
-  transform = trace "a -> Maybe b:" $ Just 
+instance Applicative f => Transformable a (f a) where
+  transform = pure
 
-instance Transformable () (Maybe a) where
-  transform = trace "() -> Maybe a: " $ const Nothing
-
--- instance Transformable (Maybe Double) Double where
---   transform x = trace "Maybe Double -> Double: " $ -1
-
--- instance Transformable (Maybe Int) Int where
---   transform x = trace "Maybe Int -> Int: " $ error (show x) --  -1
-
--- instance Transformable (Maybe Double) Text where
---   transform x = trace "Maybe Double -> Double:" $ "-1"
-
--- instance Transformable (Maybe Text) Text where
---   transform x = trace "Maybe Text -> Text:" $ "-1"
-
--- instance Transformable Double Text where
---   transform = trace "Double -> Text: " $ tshow
+instance Alternative f => Transformable () (f a) where
+  transform = const empty
 
 transformRow ReceiptRow{..} = ReceiptRow
   (transform rowDate)
