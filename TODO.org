@@ -89,7 +89,15 @@ This is the priority as it allows manual testing much easier
 - [X] fix duplicated rows
 - [X] fix test ?
 * Next
-** TODO Add all columns
+** DONE Add all columns
+CLOSED: [2016-05-30 Mon 21:21]
+- [X] modify code
+- [X] modify test
+** TODO refactor multi column names
+** DONE fix transform
+CLOSED: [2016-05-30 Mon 21:21]
+Transforming row is not safe (Maybe Int) -> Int. Check why it's needed
+** TODO refactor handler to accept flow
 ** DONE finalize tests
 ** DONE pre-process header
 So we can use Date, date, DATE etc ...

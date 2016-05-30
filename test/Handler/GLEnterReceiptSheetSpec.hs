@@ -22,7 +22,7 @@ postReceiptSheet status sheet = do
     byLabel "Sheet name" "test 1"
     byLabel "Receipts" sheet
 
-  printBody
+  -- printBody
   statusIs status
 
 uploadReceiptSheet status encoding path = do
@@ -88,8 +88,8 @@ appSpec = withApp $ do
           postReceiptSheet 422
             [st|date,counterparty,bank account,total,gl account,amount,tax rate
 2015/01/02,,B1,120,7501,100,20%|]
-        
-          bodyContains "Counterparty is missing"
+
+          htmlAnyContain ".missing-columns" "comment"
 
         it "displays receipt header" (const pending)
         it "needs at least one header" (const pending)
@@ -129,7 +129,7 @@ appSpec = withApp $ do
 
             it "displays missing columns" $ do
               postReceiptSheet 422 sheet
-              htmlAnyContain "#message .missing-columns li" "counterparty"
+              htmlAnyContain ".missing-columns li" "counterparty"
        
             it "displays correct columns" $ do
               postReceiptSheet 422 sheet
