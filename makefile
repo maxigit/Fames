@@ -1,5 +1,10 @@
+current:
+	.stack-work/dist/x86_64-linux/Cabal-1.22.8.0/build/test/test
+
 devel:
+	mv -f distou dist
 	stack exec yesod devel
+	mv -f dist distou
 
 # Docker Image for Server
 
