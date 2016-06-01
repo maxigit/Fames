@@ -33,15 +33,27 @@ import qualified Data.Map as Map
 --   - use an existing document
 --   - download a spreadsheet template
 
-       
+infixl 3 <&!> 
+(<&!>) :: Either a b -> (a -> a') -> Either a' b
+Left l <&!> f = Left (f l)
+Right r <&!> _ = Right r
 
+-- | process GET for GLEnterReceiptSheetR route
+-- used to upload a receip sheet.
 getGLEnterReceiptSheetR :: Handler Html
-getGLEnterReceiptSheetR = do
+getGLEnterReceiptSheetR = renderGLEnterReceiptSheet 200 ""  (return ())
+
+-- | Render a page with a form to upload a receipt sheet
+-- via text or file. It can also display the content of the previous attempt if any.
+renderGLEnterReceiptSheet :: Int -> Text -> Widget -> Handler Html
+renderGLEnterReceiptSheet status title pre = do
   (postTextFormW, postEncType) <- generateFormPost postTextForm
   (uploadFileFormW, upEncType) <- generateFormPost uploadFileForm
-  let widget =  [whamlet|
+  setMessage (toHtml title)
+  sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
 <h1>Enter a receipts spreadsheet
 <ul>
+   <li #gl-enter-receipt-sheet-pre> ^{pre}
    <li>
      <form #text-form role=form method=post action=@{GLEnterReceiptSheetR} enctype=#{postEncType}>
          ^{postTextFormW}
@@ -55,7 +67,6 @@ getGLEnterReceiptSheetR = do
    <li> Or download a spreadsheet template
         Not implemented
 |]
-  defaultLayout $ widget
 
 postTextForm :: Form (Text, Textarea)
 postTextForm = renderBootstrap3 BootstrapBasicForm $ (,)
@@ -63,13 +74,14 @@ postTextForm = renderBootstrap3 BootstrapBasicForm $ (,)
   <*> areq textareaField "Receipts" Nothing
 
 
+-- | Encoding of the file being uploaded.
 data Encoding = UTF8 | Latin1 deriving (Show, Read, Eq, Enum, Bounded)
 
 uploadFileForm = renderBootstrap3 BootstrapBasicForm
   ((,)
-   <$> areq fileField ("upload") Nothing
-  <*> areq (selectField optionsEnum ) "encoding" (Just UTF8)
-    )
+   <$> areq fileField "upload" Nothing
+   <*> areq (selectField optionsEnum ) "encoding" (Just UTF8)
+  )
 postGLEnterReceiptSheetR :: Handler Html
 postGLEnterReceiptSheetR = do
   ((textResp, postTextW), enctype) <- runFormPost postTextForm
@@ -84,40 +96,37 @@ postGLEnterReceiptSheetR = do
                           return . decode encoding $ concat c
                           
                         (FormFailure a,FormFailure b) -> error $ "Form failure : " ++  show a ++ ", " ++ show b
+  either id defaultLayout $ do
+    rawRows <- parseReceiptRow spreadSheet <&!>  renderGLEnterReceiptSheet 422 "Invalid file or columns missing." . render
+    let receiptRows = map analyseReceiptRow rawRows
+    receipts <- makeReceipt receiptRows <&!> renderGLEnterReceiptSheet  422 "Invalid cell format." . renderReceiptSheet
+    return $ renderReceiptSheet receipts
 
-  let responseE = case parseReceipts spreadSheet of
-                            (Left (Left msg)) -> Left (Left msg)
-                            (Right receipts) -> Right (responseW "parsed sucessfully"receipts)
-                            (Left (Right receipts)) -> Left $ Right (responseW "parsed unsucessfully" receipts)
-      types = spreadSheet :: ByteString
-      responseW title receipts = do
-        let ns = [1..] :: [Int]
-        [whamlet| 
-<h1> #title #{tshow title}
-<table..table.table-bordered>
+
+renderReceiptSheet :: ( ReceiptRowTypeClass h, Renderable h
+                      , ReceiptRowTypeClass r, Renderable r
+                      , Show h, Show r) => [(h, [r])] -> Widget
+renderReceiptSheet receipts =  do
+  let ns = [1..] :: [Int]
+  [whamlet| 
 <table..table.table-bordered>
   <tr>
     <th>
     <th>Date
     <th>Counterparty
     <th>Bank Account
+    <th>Comment
     <th>Totalparse
     <th>GL Account
     <th>Amount
+    <th>Net Amount
+    <th>Memo
     <th>Tax Rate
+    <th>Dimension 1
+    <th>Dimension 2
   $forall (receipt, i) <- zip receipts ns
     ^{render (i, receipt)}
 |]
-
-  case responseE of
-    Left (Left invalid) -> do
-         setMessage' (invalid)
-         sendResponseStatus (toEnum 422) =<< getGLEnterReceiptSheetR
-    Left (Right widget) -> do
-         setMessage' (t "Invalid file")
-         sendResponseStatus (toEnum 422) =<< defaultLayout widget
-    Right widget -> do
-          defaultLayout widget
 
 t = id :: Text -> Text
 
@@ -218,33 +227,52 @@ infixl 4 <$$$>, <$$>
 (<$$$>) = fmap . fmap . fmap
 (<$$>) = fmap . fmap . fmap
 -- ** To move in app
+columnMap :: Map String [String]
+columnMap = Map.fromList
+  [ (col, concatMap expandColumnName (col:cols)  )
+  | (col, cols) <-
+    [ ("date", [])
+    , ("counterparty", ["company"])
+    , ("bank account", ["account"])
+    , ("comment", [])
+    , ("total", ["total price"])
+    , ("gl account", ["account"])
+    , ("amount", ["item price"])
+    , ("net amount", ["net", "net item"])
+    , ("memo" , ["item"])
+    , ("tax rate" , ["vat"])
+    , ("dimension 1", ["dim1", "dimension1"])
+    , ("dimension 2", ["dim2", "dimension2"])
+    ]
+  ]
+                          
 -- Represents a row of the spreadsheet.
 instance Csv.FromNamedRecord (ReceiptRow RawT)where
   parseNamedRecord m = pure ReceiptRow
-    <*> (m `parse` "date") -- >>= parseDay)
-    -- <*> (textToMaybe <$> m `parse` "counterparty")
-    <*> (m `parse` "counterparty" <|> m `parse` "company")
+    <*> m `parse` "date"
+    <*> m `parse` "counterparty" 
     <*> m `parse` "bank account"
     <*> m `parse` "comment"
-    <*> (unCurrency <$$$> m  `parse` "total" <|> m `parse` "total price")
+    <*> (unCurrency <$$$> m  `parse` "total" )
 
     <*> m `parse` "gl account"
-    <*> (unCurrency <$$$> m `parse` "amount" <|> m `parse` "item price")
-    <*> (unCurrency <$$$> m `parse` "net amount" <|> m `parse` "net")
-    <*> (m `parse` "memo" <|> m `parse` "item")
-    <*> (m `parse` "tax rate" <|> m `parse` "vat")
+    <*> (unCurrency <$$$> m `parse` "amount" )
+    <*> (unCurrency <$$$> m `parse` "net amount" )
+    <*> m `parse` "memo" 
+    <*> m `parse` "tax rate" 
     <*> m `parse` "dimension 1"
     <*> m `parse` "dimension 2"
     where parse m colname = do
             -- try colname, Colname and COLNAME
-            let colnames = fromString <$> expandColumnName colname
+            let Just colnames'' = (Map.lookup colname columnMap)
+                colnames = fromString <$> colnames''
                 mts = map (m Csv..:) colnames
                 mts' = asum $ map (m Csv..:) colnames
             -- let types = mts :: [Csv.Parser Text]
             t <- asum mts
             res <-  toError t <$>  mts'
-            return $ trace (show (colname, t, res )) res
-            -- return res
+            -- return $ trace (show (colname, t, res )) res
+            return res
 
 expandColumnName :: String -> [String]
 expandColumnName colname = [id, capitalize, map Data.Char.toUpper] <*> [colname]
@@ -293,7 +321,7 @@ toError t e = case e of
   Right v -> Right v
 
 
-  
+ {-
 parseReceipts :: ByteString
               -> Either (Either InvalidReceiptSheet
                                 [( Either InvalidHeader ValidHeader
@@ -307,31 +335,42 @@ parseReceipts :: ByteString
 parseReceipts bytes = do
   rows <- either (Left . Left) (Right . map analyseReceiptRow) $ parseReceiptRow bytes
 
+-}
+-- | Regroups receipts rows starting with a header (valid or invalid)
+makeReceipt :: [Either (Either InvalidRow ValidRow)
+                       (Either InvalidHeader ValidHeader)
+               ]
+             -> Either [( Either InvalidHeader ValidHeader
+                         , [Either InvalidRow ValidRow]
+                         )]
+                       [ (ValidHeader
+                          , [ValidRow]
+                          )
+                       ]
+makeReceipt [] = Left []
+makeReceipt rows = 
   -- split by header, valid or not
   let (orphans:groups) =  S.split (S.keepDelimsL $ S.whenElt  isRight) rows
       -- we know header are right and rows are left
 
-      makeReceipt :: [ Either (Either InvalidRow ValidRow)
-                              (Either InvalidHeader ValidHeader)
-                     ]
-                  -> ( Either InvalidHeader ValidHeader
-                     , [Either InvalidRow ValidRow]
-                     )
-      makeReceipt (Right header:rows) = (header , lefts rows)
+      go (Right header:rows) = (header , lefts rows)
+
       headerToRowE :: (Either InvalidHeader ValidHeader) -> (Either InvalidRow ValidRow)
       headerToRowE = either (Left . transformRow) (Right . transformRow)
-      receipts = map makeReceipt groups
+
+      receipts = if null orphans then map go groups else error "orphans"
 
       toMaybe = either (const Nothing) Just
+      -- to valid a 'receipt' we traverse all of its constituent rows
       validReceipt (header, rows) =
         liftA2 (,)
         (toMaybe header)
         (traverse toMaybe (headerToRowE header : rows))
         
         
-  case traverse validReceipt receipts of
+  in case traverse validReceipt receipts of
     Just valids -> Right valids
-    Nothing -> Left  . Right $ receipts
+    Nothing -> Left receipts
 
 -- | If we can't parse the csv at all (columns are not present),
 -- we need a way to gracefully return a error
@@ -362,9 +401,7 @@ parseReceiptRow bytes = either (Left . parseInvalidReceiptSheet bytes')  (Right 
     bytes' = fromStrict bytes
 
 parseInvalidReceiptSheet bytes err =
-  let columns = ["date", "counterparty", "bank account", "comment", "total"
-                ,"gl account","amount", "net amount", "memo", "tax rate", "dimension 1", "dimension 2"
-                ]
+  let columns = fromString <$> keys columnMap 
       decoded = toList <$> Csv.decode Csv.NoHeader bytes :: Either String [[Either Csv.Field Text]]
       onEmpty = InvalidReceiptSheet "The file is empty" columns [] []
   in case (null bytes, decoded) of
@@ -377,10 +414,10 @@ parseInvalidReceiptSheet bytes err =
              -- index of a given column in the current header. Starts a 0.
              indexes = [ (fromString col
                          , asum [ lookup (fromString col') headerPos
-                                | col' <- expandColumnName col
+                                | col' <- cols
                                 ]
                          )
-                       | col <- columns
+                       | (col, cols)  <- Map.toList columnMap
                        ]
              missingColumns = [col | (col, Nothing) <- indexes]
              columnIndexes = catMaybes (map snd indexes)
@@ -395,9 +432,9 @@ formatAmount = (\t -> t :: String) .  printf "" . (\x -> x :: Double) .  fromRat
 formatDouble = (\t -> t :: String) .  printf "%0.2f"
 
 
-instance ToMarkup InvalidReceiptSheet where
-  toMarkup i@InvalidReceiptSheet{..} = let
-    colClass = go 0 columnIndexes
+instance Renderable InvalidReceiptSheet where
+  render i@InvalidReceiptSheet{..} = let
+    colClass = go 0 (sort columnIndexes)
     go :: Int -> [Int]-> [Text]
     go i [] = "" : go i []
     go i (ix:ixs) | ix == i = "bg-success" : go (i+1) ixs
@@ -405,7 +442,7 @@ instance ToMarkup InvalidReceiptSheet where
     convertField :: Either Csv.Field Text -> (Text, Text)
     convertField (Left bs) = ("bg-danger text-danger", decodeUtf8 bs)
     convertField (Right t) = ("", t)
-    in {-trace ("toHtml" ++ show i ) -}[shamlet|
+    in  {-trace ("toHtml" ++ show i ) -}[whamlet|
 <div .invalid-receipt>
   <div .error-description> #{errorDescription}
   $if not (null missingColumns)

@@ -55,6 +55,11 @@ appSpec = withApp $ do
 |]
 
           htmlAnyContain "#receipt1 .amount" "100.00"
+        it "parses correctly alternative column name" $ do
+          postReceiptSheet 200
+              [st|date,company,bank account,comment,total,gl account,amount,net amount,memo,tax rate,dimension 1,dimension 2
+2015/01/02,stapples,B1,stationary,180,7501,100,,misc,20%,,
+|]
 
         it "displays correctly a receipt with multiple lines" $ do
           postReceiptSheet 200
@@ -133,7 +138,7 @@ appSpec = withApp $ do
        
             it "displays correct columns" $ do
               postReceiptSheet 422 sheet
-              printBody
+
               htmlAnyContain "table td.bg-success" "tax rate"
 
 
