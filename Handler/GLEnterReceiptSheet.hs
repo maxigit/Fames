@@ -1,25 +1,31 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE TypeFamilies, DataKinds #-}
+{-# LANGUAGE DeriveFunctor, GeneralizedNewtypeDeriving #-}
 module Handler.GLEnterReceiptSheet where
 
-import Import
+import Import hiding(InvalidHeader)
 import GL.Receipt
 import Handler.GLEnterReceiptSheet.ReceiptRow
 
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput)
 import qualified Data.Csv as Csv
-import Data.Csv
-import Data.Char (ord)
+-- import Data.Csv hi
+import Data.Either
+import Data.Char (ord,toUpper)
 import Data.Time(parseTimeM)
 import Text.Blaze.Html(ToMarkup(toMarkup))
 import Text.Printf(printf)
+import Data.Text.Encoding(decodeLatin1)
 import Data.Conduit.List (consume)
 import qualified Data.List.Split  as S
 import Text.Printf (printf)
+import qualified Data.Text as Text
+import qualified Data.Text.Read as Text
 import Data.Ratio (approxRational)
+import qualified Data.ByteString as BL
+import qualified Data.Map as Map
 -- | Entry point to enter a receipts spreadsheet
 -- The use should be able to :
 --   - post a text
@@ -27,15 +33,27 @@ import Data.Ratio (approxRational)
 --   - use an existing document
 --   - download a spreadsheet template
 
-       
+infixl 3 <&!> 
+(<&!>) :: Either a b -> (a -> a') -> Either a' b
+Left l <&!> f = Left (f l)
+Right r <&!> _ = Right r
 
+-- | process GET for GLEnterReceiptSheetR route
+-- used to upload a receip sheet.
 getGLEnterReceiptSheetR :: Handler Html
-getGLEnterReceiptSheetR = do
+getGLEnterReceiptSheetR = renderGLEnterReceiptSheet 200 ""  (return ())
+
+-- | Render a page with a form to upload a receipt sheet
+-- via text or file. It can also display the content of the previous attempt if any.
+renderGLEnterReceiptSheet :: Int -> Text -> Widget -> Handler Html
+renderGLEnterReceiptSheet status title pre = do
   (postTextFormW, postEncType) <- generateFormPost postTextForm
   (uploadFileFormW, upEncType) <- generateFormPost uploadFileForm
-  let widget =  [whamlet|
+  setMessage (toHtml title)
+  sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
 <h1>Enter a receipts spreadsheet
 <ul>
+   <li #gl-enter-receipt-sheet-pre> ^{pre}
    <li>
      <form #text-form role=form method=post action=@{GLEnterReceiptSheetR} enctype=#{postEncType}>
          ^{postTextFormW}
@@ -49,62 +67,233 @@ getGLEnterReceiptSheetR = do
    <li> Or download a spreadsheet template
         Not implemented
 |]
-  defaultLayout $ widget
 
 postTextForm :: Form (Text, Textarea)
 postTextForm = renderBootstrap3 BootstrapBasicForm $ (,)
   <$> areq textField "Sheet name" Nothing
-  <*> areq textareaField ("Receipts") Nothing
+  <*> areq textareaField "Receipts" Nothing
 
 
-uploadFileForm = renderBootstrap3 BootstrapBasicForm $ (areq fileField ("upload") Nothing )
+-- | Encoding of the file being uploaded.
+data Encoding = UTF8 | Latin1 deriving (Show, Read, Eq, Enum, Bounded)
+
+uploadFileForm = renderBootstrap3 BootstrapBasicForm
+  ((,)
+   <$> areq fileField "upload" Nothing
+   <*> areq (selectField optionsEnum ) "encoding" (Just UTF8)
+  )
 postGLEnterReceiptSheetR :: Handler Html
 postGLEnterReceiptSheetR = do
-  ((res, postW), enctype) <- runFormPost postTextForm
-  let responseE = case res of
-                        FormSuccess (title, spreadsheet) -> do -- Either
-                          receipts <-  parseReceipts (encodeUtf8 $ unTextarea spreadsheet)
-                          let ns = [1..]
-                          Right [whamlet|
-<h1> #title parsed successfully
-<ul>
-  $forall receiptI <- zip receipts ns
-    $case receiptI
-      $of (Right receipt, i) 
-        <li .receipt id=receipt#{tshow i}>
-          <ul>
-            $forall item <- items receipt
-              <li>
-                <span.glAccount>#{glAccount item}
-                <span.amount>#{formatAmount $ amount item}
-                <span.taxTyple>#{tshow $ taxType item}
-      $of (Left ReceiptRow{..}, i) 
-        <li .invalidRow id=invalidRow#{tshow i}>
-                <span.rowGlAccount>#{rowGlAccount}
-                <span.rowAmount>#{tshow rowAmount}
-                <span.rowTax>#{tshow rowTax}
-              |]
-  case responseE of
-    Left msg -> setMessage (toHtml msg) >> redirect GLEnterReceiptSheetR
-    Right widget -> defaultLayout $ widget
+  ((textResp, postTextW), enctype) <- runFormPost postTextForm
+  ((fileResp, postFileW), enctype) <- runFormPost uploadFileForm
+  spreadSheet <- case (textResp, fileResp) of
+                        (FormMissing, FormMissing) -> error "missing"
+                        (FormSuccess (title, spreadsheet), _) -> return $ encodeUtf8 $ unTextarea spreadsheet
+                        (_, FormSuccess (fileInfo, encoding)) -> do
+                          let decode UTF8 bs = bs
+                              decode Latin1 bs = encodeUtf8 . decodeLatin1 $ bs
+                          c <- fileSource fileInfo $$ consume
+                          return . decode encoding $ concat c
+                          
+                        (FormFailure a,FormFailure b) -> error $ "Form failure : " ++  show a ++ ", " ++ show b
+  either id defaultLayout $ do
+    rawRows <- parseReceiptRow spreadSheet <&!>  renderGLEnterReceiptSheet 422 "Invalid file or columns missing." . render
+    let receiptRows = map analyseReceiptRow rawRows
+    receipts <- makeReceipt receiptRows <&!> renderGLEnterReceiptSheet  422 "Invalid cell format." . renderReceiptSheet
+    return $ renderReceiptSheet receipts
 
+
+renderReceiptSheet :: ( ReceiptRowTypeClass h, Renderable h
+                      , ReceiptRowTypeClass r, Renderable r
+                      , Show h, Show r) => [(h, [r])] -> Widget
+renderReceiptSheet receipts =  do
+  let ns = [1..] :: [Int]
+  [whamlet| 
+<table..table.table-bordered>
+  <tr>
+    <th>
+    <th>Date
+    <th>Counterparty
+    <th>Bank Account
+    <th>Comment
+    <th>Totalparse
+    <th>GL Account
+    <th>Amount
+    <th>Net Amount
+    <th>Memo
+    <th>Tax Rate
+    <th>Dimension 1
+    <th>Dimension 2
+  $forall (receipt, i) <- zip receipts ns
+    ^{render (i, receipt)}
+|]
+
+t = id :: Text -> Text
+
+setMessage' msg = {-trace ("set message : " ++ show msg)-} (setMessage $ toHtml msg)
+-- ** Widgets
+instance Renderable (ReceiptRow ValidRowT) where render = renderReceiptRow ValidRowT
+instance Renderable (ReceiptRow InvalidRowT) where render = renderReceiptRow InvalidRowT
+
+-- renderReceipt :: (ReceiptRow header, [ReceiptRow row]) -> Widget
+renderReceiptRow rowType ReceiptRow{..}= do
+  let groupIndicator ValidHeaderT = ">" :: Text
+      groupIndicator InvalidHeaderT = ">"
+      groupIndicator _ = ""
+  toWidget [cassius|
+.receipt-header
+  font-size: 1.2 em
+  font-weight: bold
+|]
+  [whamlet|
+<td.receiptGroup>#{groupIndicator rowType}
+<td.date>^{render rowDate}
+<td.counterparty>^{render rowCounterparty}
+<td.bankAccount>^{render rowBankAccount}
+<td.totalAmount>^{render rowTotal}
+<td.glAccount>^{render rowGlAccount}
+<td.amount>^{render rowAmount}
+<td.tax>^{render rowTax}
+|]
+
+instance Renderable (ReceiptRow ValidHeaderT) where render = renderReceiptRow ValidHeaderT
+instance Renderable (ReceiptRow InvalidHeaderT) where render = renderReceiptRow InvalidHeaderT
+
+
+instance ( ReceiptRowTypeClass h, Renderable h
+         , ReceiptRowTypeClass r, Renderable r
+         , Show h, Show r) => Renderable (Int, (h, [r])) where
+  render (i, (header, rows)) = [whamlet|
+<tr class="#{class_ (rowType header)}" id="receipt#{i}">
+  ^{render header}
+$forall (row, j) <- zip rows is
+  <tr class="#{class_ (rowType row)}" id="receipt#{i}-#{j}">
+      ^{render row}
+|] where is = [1..] :: [Int]
+         class_ ValidHeaderT = "receipt-header valid bg-info" :: Text
+         class_ InvalidHeaderT = "receipt-header invalid bg-danger"
+         class_ ValidRowT = "receipt-row valid"
+         class_ InvalidRowT = "receipt-row invalid bg-warning"
+-- <span.rowTax>#{render rowTax}
+
+class Renderable r where
+  render :: r -> Widget
+
+instance Renderable () where
+  render () = return ()
+instance Renderable Int where
+  render i = [whamlet|#{tshow i}|]
+
+instance Renderable Double where
+  render d = [whamlet|#{formatDouble d}|]
+
+instance Renderable Text where
+  render t = [whamlet|#{t}|]
+
+instance Renderable Day where
+instance (Renderable r) => Renderable (Maybe r) where
+  render (Just x) = render x
+  render Nothing = [whamlet||]
+
+instance (Renderable l, Renderable r) => Renderable (Either l r) where
+  render (Left r) = [whamlet|<span.left>^{render r}|]
+  render (Right r) = [whamlet|<span.right>^{render r}|]
+
+instance Renderable InvalidField where
+  render invField = do
+    let (class_, value) = case invField of
+          ParsingError _ v -> ("parsing-error" :: Text, v)
+          MissingValueError _ -> ("missing-value" :: Text,"<Empty>")
+    toWidget [cassius|
+.parsing-error, .missing-value
+  .description
+     display:none
+.missing-value
+  .message
+    font-style: italic
+|]
+    [whamlet|
+<span class="#{class_}">
+  <span.description>#{invalidFieldError invField}
+  <span.message.text-danger data-toggle="tooltip" title="#{invalidFieldError invField}">#{value}
+|]
+    toWidget [julius|
+$('[data-toggle="tooltip"]').tooltip();
+|]
+    addScriptRemote "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"
   
 
+infixl 4 <$$$>, <$$>
+(<$$$>) = fmap . fmap . fmap
+(<$$>) = fmap . fmap . fmap
 -- ** To move in app
+columnMap :: Map String [String]
+columnMap = Map.fromList
+  [ (col, concatMap expandColumnName (col:cols)  )
+  | (col, cols) <-
+    [ ("date", [])
+    , ("counterparty", ["company"])
+    , ("bank account", ["account"])
+    , ("comment", [])
+    , ("total", ["total price"])
+    , ("gl account", ["account"])
+    , ("amount", ["item price"])
+    , ("net amount", ["net", "net item"])
+    , ("memo" , ["item"])
+    , ("tax rate" , ["vat"])
+    , ("dimension 1", ["dim1", "dimension1"])
+    , ("dimension 2", ["dim2", "dimension2"])
+    ]
+  ]
+                          
 -- Represents a row of the spreadsheet.
-instance Csv.FromNamedRecord ReceiptRow where
+instance Csv.FromNamedRecord (ReceiptRow RawT)where
   parseNamedRecord m = pure ReceiptRow
-    <*> (m `parse` "date") -- >>= parseDay)
-    <*> m `parse` "counterparty"
+    <*> m `parse` "date"
+    <*> m `parse` "counterparty" 
     <*> m `parse` "bank account"
-    <*> m `parse` "total"
-    <*> m `parse` "gl account"
-    <*> m `parse` "amount"
-    <*> m `parse` "tax rate"
-    where parse m colname = m Csv..: colname
+    <*> m `parse` "comment"
+    <*> (unCurrency <$$$> m  `parse` "total" )
 
+    <*> m `parse` "gl account"
+    <*> (unCurrency <$$$> m `parse` "amount" )
+    <*> (unCurrency <$$$> m `parse` "net amount" )
+    <*> m `parse` "memo" 
+    <*> m `parse` "tax rate" 
+    <*> m `parse` "dimension 1"
+    <*> m `parse` "dimension 2"
+    where parse m colname = do
+            -- try colname, Colname and COLNAME
+            let Just colnames'' = (Map.lookup colname columnMap)
+                colnames = fromString <$> colnames''
+                mts = map (m Csv..:) colnames
+                mts' = asum $ map (m Csv..:) colnames
+            -- let types = mts :: [Csv.Parser Text]
+            t <- asum mts
+            res <-  toError t <$>  mts'
+            -- return $ trace (show (colname, t, res )) res
+            return res
+
+expandColumnName :: String -> [String]
+expandColumnName colname = [id, capitalize, map Data.Char.toUpper] <*> [colname]
+
+capitalize [] = []
+capitalize (x:xs) = Data.Char.toUpper x : xs
+
+-- | temporary class to remove currency symbol
+newtype Currency = Currency {unCurrency :: Double} deriving (Show, Eq, Num, Fractional)
+instance Csv.FromField Currency where
+  parseField bs = do
+    case stripPrefix "-" bs of
+      Just bs' -> negate <$> Csv.parseField bs'
+      Nothing -> do
+        let stripped = bs `fromMaybe` stripPrefix (encodeUtf8 "£") bs
+            res = Currency <$> Csv.parseField stripped
+        -- trace ("Currency: " ++ show (bs, stripped)) res
+        res
+      
 parseDay bs = do
-  str <- parseField bs
+  str <- Csv.parseField bs
   case  concat [parseTimeM True defaultTimeLocale f str | f <- formats] of
     [day] -> pure day
     (d:ds) -> error (show (d:ds))
@@ -126,531 +315,149 @@ parseDay bs = do
                 , "%a %d %b %0Y"
                 ]
 
-parseReceipts :: ByteString -> Either Text [Either ReceiptRow Receipt]
-parseReceipts bytes = do
-  rows <- parseReceiptRow bytes
-  let rowToItem (ReceiptRow{..}) = ReceiptItem rowGlAccount
-                               (approxRational rowAmount (0.0005))
-                               (TaxType 0.20 2200)
-      parseTax "20%" = TaxType 0.20 2200
-      parseTax _ = TaxType 0.0 2209
-      grouped =  S.split (S.keepDelimsL $ S.whenElt  isHeaderRow) rows
-      isHeaderRow (ReceiptRow{..}) = case (rowDate, rowCounterparty,rowTotal) of
-        (Nothing, Nothing, Nothing) -> False
-        _ -> True
-      makeReceipt rows = Receipt (map rowToItem rows)
--- split returns as it's first element what was before the first element matching the conditions
-  -- therefore grouped should be at least [[]]
-  when (null grouped) (Left "Something went wrong.")
-  let (orphans:groups) = grouped
-  Right $ (map Left orphans)
-        ++ map (Right . makeReceipt) groups
-      
+toError :: Text -> Either Csv.Field a -> Either InvalidField a
+toError t e = case e of
+  Left err -> Left (ParsingError ("Invalid format") t)
+  Right v -> Right v
 
-parseReceiptRow :: ByteString -> Either Text [ReceiptRow]
-parseReceiptRow bytes = either (Left . pack)  (Right . toList)$ do
+
+ {-
+parseReceipts :: ByteString
+              -> Either (Either InvalidReceiptSheet
+                                [( Either InvalidHeader ValidHeader
+                                , [Either InvalidRow ValidRow]
+                                )]
+                        )
+                        [ (ValidHeader
+                          , [ValidRow]
+                          )
+                        ]
+parseReceipts bytes = do
+  rows <- either (Left . Left) (Right . map analyseReceiptRow) $ parseReceiptRow bytes
+
+-}
+-- | Regroups receipts rows starting with a header (valid or invalid)
+makeReceipt :: [Either (Either InvalidRow ValidRow)
+                       (Either InvalidHeader ValidHeader)
+               ]
+             -> Either [( Either InvalidHeader ValidHeader
+                         , [Either InvalidRow ValidRow]
+                         )]
+                       [ (ValidHeader
+                          , [ValidRow]
+                          )
+                       ]
+makeReceipt [] = Left []
+makeReceipt rows = 
+  -- split by header, valid or not
+  let (orphans:groups) =  S.split (S.keepDelimsL $ S.whenElt  isRight) rows
+      -- we know header are right and rows are left
+
+      go (Right header:rows) = (header , lefts rows)
+
+      headerToRowE :: (Either InvalidHeader ValidHeader) -> (Either InvalidRow ValidRow)
+      headerToRowE = either (Left . transformRow) (Right . transformRow)
+
+      receipts = if null orphans then map go groups else error "orphans"
+
+      toMaybe = either (const Nothing) Just
+      -- to valid a 'receipt' we traverse all of its constituent rows
+      validReceipt (header, rows) =
+        liftA2 (,)
+        (toMaybe header)
+        (traverse toMaybe (headerToRowE header : rows))
+        
+        
+  in case traverse validReceipt receipts of
+    Just valids -> Right valids
+    Nothing -> Left receipts
+
+-- | If we can't parse the csv at all (columns are not present),
+-- we need a way to gracefully return a error
+data InvalidReceiptSheet = InvalidReceiptSheet
+  { errorDescription :: Text
+  , missingColumns :: [Text]
+  , columnIndexes :: [Int] -- ^ index of present columns
+  , sheet :: [[ Either Csv.Field Text]]  -- ^ origin file
+  } deriving Show
+  {-
+  | InvalidFileFormat
+  { errMessage :: Text
+  , missingColumns :: [Text]
+  }
+-}
+
+
+      
+-- | Parse a csv and return a list of receipt row if possible
+parseReceiptRow :: ByteString -> Either InvalidReceiptSheet [RawRow]
+parseReceiptRow bytes = either (Left . parseInvalidReceiptSheet bytes')  (Right . toList)$ do
     (header, vector) <- try
     Right vector
   where
     try = Csv.decodeByNameWith (sep) bytes'
+    -- try = trace ("decoded: " ++ show try') try'
     (sep:_) = [Csv.DecodeOptions (fromIntegral (ord sep)) | sep <- ",;\t" ]
     bytes' = fromStrict bytes
-  -- we try different separators. If everything is ok
-  -- only one matches
-  {-
-  case partitionEithers tries of
-    (_, [(header, vector)]) -> toList vector
-    _ -> []  -- error "header not correct"
-  where
-    tries = map (`Csv.decodeByNameWith` bytes') seps
-    seps = [Csv.DecodeOptions (fromIntegral (ord sep)) | sep <- ",;\t" ]
-    bytes' = fromStrict bytes
-  -}
 
+parseInvalidReceiptSheet bytes err =
+  let columns = fromString <$> keys columnMap 
+      decoded = toList <$> Csv.decode Csv.NoHeader bytes :: Either String [[Either Csv.Field Text]]
+      onEmpty = InvalidReceiptSheet "The file is empty" columns [] []
+  in case (null bytes, decoded) of
+       (True, _ )  -> onEmpty
+       (_, Right [])  -> onEmpty
+       (False, Left err) -> InvalidReceiptSheet "Can't parse file. Please check the file is encoded in UTF8 or is well formatted." columns [] [[Left (toStrict bytes)]]
+       (False, Right sheet@(headerE:_)) -> do
+         let headerPos = Map.fromList (zip header [0..]) :: Map Text Int
+             header = map (either decodeUtf8 id) headerE
+             -- index of a given column in the current header. Starts a 0.
+             indexes = [ (fromString col
+                         , asum [ lookup (fromString col') headerPos
+                                | col' <- cols
+                                ]
+                         )
+                       | (col, cols)  <- Map.toList columnMap
+                       ]
+             missingColumns = [col | (col, Nothing) <- indexes]
+             columnIndexes = catMaybes (map snd indexes)
+             errorDescription = case traverse sequence sheet of
+                                     Left _ -> "Encoding is wrong. Please make sure the file is in UTF8"
+                                     Right _ -> tshow err
+         InvalidReceiptSheet{..}
+    
 -- ** to move in general helper or better in App
 -- formatAmount :: Amount -> Text
-formatAmount = tshow . (\t -> t :: String) .  printf "%0.2f" . (\x -> x :: Double) .  fromRational
-{-
-
-postGLEnterReceiptSheetR' = do
-  ((res, postW), enctype) <- runFormPost postTextForm
-  ((upRes, upW), enctype) <- runFormPost uploadFileForm
-  case (res, upRes) of
-    (FormSuccess (title, text),_) -> processReceiptSheetR title (encodeUtf8  $ unTextarea text)
-    (_, FormSuccess fileinfo) ->  do
-      bytes <- runResourceT $ fileSource fileinfo $$ consume
-      let title = fileName fileinfo
-      processReceiptSheetR title (concat bytes)
-    _ -> setError "Form empty" >> redirect GLEnterReceiptSheetR
-
-   
-type Amount = Double
--- Amount with currency sign
-newtype Amount' = Amount' { unAmount' :: Amount} deriving (Read, Show, Eq, Ord, Num, Fractional)
-
-instance Csv.FromField Amount' where
-  parseField bs =
-    case stripPrefix " " bs of
-          Nothing -> case stripPrefix "-" bs of
-                          Nothing -> let stripped = bs `fromMaybe` stripPrefix (encodeUtf8 "£") bs
-                                         r =  Amount' <$> parseField stripped
-                                     in  r
-
-                          Just bs' -> map negate (parseField bs')
-          Just bs' -> parseField bs'
-
--- Can be a real amount or a percentage. Percentage can still be multiplied
-data TaxAmount =TaxAmount Amount | TaxRate Amount | TaxCode Text deriving (Read, Show, Eq, Ord)
--- normal numbers are treated as amount. Number starting with T represent a tax code.
-instance Csv.FromField TaxAmount where
-  parseField bs | Just bs' <- stripPrefix " " bs = parseField bs'
-                | Just bs' <- stripPrefix "T" bs = TaxCode <$> parseField bs'
-                | Just bs' <- stripPrefix "R" bs = TaxRate . (/100) <$> parseField bs'
-                | Just bs' <- stripSuffix "%" bs = TaxRate . (/100) <$> parseField bs' 
-                | otherwise = TaxAmount . unAmount' <$> parseField bs
-
-    
-
--- Convenience functions to help decides of string-like types
-s :: String -> String
-s =  id
-
-t :: Text -> Text  
-t = id 
-
-data RawReceiptRow = RawReceiptRow
-  { rrDate :: Either Text (Maybe Day)
-  , rrCompany :: Either Text (Maybe Text)
-  , rrBankAccount :: Either Text (Maybe Text)
-  , rrComment :: Either Text (Maybe Text)
-  , rrTotalAmount :: Either Text (Maybe Amount')
-  , rrItemPrice :: Either Text (Maybe Amount')
-  , rrItemNet :: Either Text (Maybe Amount')
-  , rrItemTaxAmount :: Either Text (Maybe TaxAmount)
-  , rrItem :: Either Text (Maybe Text)
-  , rrGlAccount :: Either Text (Maybe Text)
-  , rrGLDimension1 :: Either Text (Maybe Text)
-  , rrGLDimension2 :: Either Text (Maybe Text)
-  } deriving (Show, Read, Eq, Ord)
-
-instance Csv.FromField Day where
-  parseField "" = empty
-  parseField bs = parseField bs >>= \str ->  case  concat [parseTimeM True defaultTimeLocale f str | f <- formats] of
-    [day] -> pure day
-    (d:ds) -> error (show (d:ds))
-    _ -> mzero
-    where
-      -- formats to try. Normally there shouldn't be any overlap bettween the different format.
-      -- The 0 in %0Y is important. It guarantes that only 4 digits are accepted.
-      -- without 11/01/01 will be parsed by %Y/%m/%d and %d/%m/%y
-      formats = [ "%0Y/%m/%d"
-                , "%d/%m/%0Y"
-                , "%d/%m/%y"
-                , "%0Y-%m-%d"
-                , "%d %b %0Y"
-                , "%d-%b-%0Y"
-                , "%d %b %y"
-                , "%d-%b-%y"
-                , "%0Y %b %d"
-                , "%0Y-%b-%d"
-                , "%a %d %b %0Y"
-                ]
+formatAmount = (\t -> t :: String) .  printf "" . (\x -> x :: Double) .  fromRational
+formatDouble = (\t -> t :: String) .  printf "%0.2f"
 
 
-instance ToMarkup Day where
-  toMarkup day = toMarkup $ formatTime defaultTimeLocale "%a %d %b %Y" day
-instance Csv.FromNamedRecord RawReceiptRow where
-  parseNamedRecord m = pure RawReceiptRow
-    <*> m `parse` "date"
-    <*> m `parse` "company"
-    <*> m `parse` "bank account"
-    <*> m `parse` "comment"
-    <*> m `parse` "total price"
-    <*> m `parse` "item price"
-    <*> m `parse` "item net"
-    <*> m `parse` "item tax"
-    <*> m `parse` "item"
-    <*> m `parse` "gl account"
-    <*> m `parse` "dimension 1"
-    <*> m `parse` "dimension 2"
-    where parse m  colname = do
-            e <- m Csv..: colname
-            return (case e of 
-                    Left bs -> let types = bs :: ByteString in  Left (decodeUtf8 bs)
-                    Right r -> Right r
-                    )
+instance Renderable InvalidReceiptSheet where
+  render i@InvalidReceiptSheet{..} = let
+    colClass = go 0 (sort columnIndexes)
+    go :: Int -> [Int]-> [Text]
+    go i [] = "" : go i []
+    go i (ix:ixs) | ix == i = "bg-success" : go (i+1) ixs
+                  | otherwise = "" : go (i+1) (ix:ixs)
+    convertField :: Either Csv.Field Text -> (Text, Text)
+    convertField (Left bs) = ("bg-danger text-danger", decodeUtf8 bs)
+    convertField (Right t) = ("", t)
+    in  {-trace ("toHtml" ++ show i ) -}[whamlet|
+<div .invalid-receipt>
+  <div .error-description> #{errorDescription}
+  $if not (null missingColumns)
+    <div .missing-columns .bg-danger .text-danger>
+      The following columns are missing:
+      <ul>
+        $forall column <- missingColumns
+          <li> #{column}
+  <table.sheet.table.table-bordered>
+    $forall line <- sheet
+      <tr>
+        $forall (class_, field) <- zip colClass line
+          $with (fieldClass, fieldValue) <- convertField field
+            <td class="#{class_} #{fieldClass}"> #{fieldValue}
+          |]
+           
+             
 
-processReceiptSheetR title text  = do
-  case parseReceiptSheet text of
-    Left err -> setError (fromString $ "Error encountered" ++ show err) >> redirect GLEnterReceiptSheetR
-    Right csv -> case validateRawRows csv of
-      Left _ ->  defaultLayout $ "<h1>Some rows are invalids</h1>" >> (renderRawReceiptRows csv)
-      Right rows ->  let receipts = groupReceiptRows rows
-        in case sequence receipts of
-          Left _ -> defaultLayout $ renderReceipts receipts
-          Right receipts ->  defaultLayout (processReceipts receipts)
-
-processReceipts receipts = do
-  let eventsOrReceipt = map (receiptToEvent defaultConfig) receipts
-  mapM_ renderEvents (rights eventsOrReceipt)
-
-renderRawReceiptRows :: (Foldable t, MonadIO m, MonadBaseControl IO m, MonadThrow m) => t RawReceiptRow -> WidgetT App m ()
-renderRawReceiptRows rows = [whamlet|
-<table .table .table-striped .table-hover>
-  <tr>
-    <th>date
-    <th>company
-    <th>bank account
-    <th>comment
-    <th>total price
-    <th>item price
-    <th>item net
-    <th>item tax
-    <th>item
-    <th>gl account
-    <th>dimension 1
-    <th>dimension 2
-  $forall row <- rows
-    <tr class=#{rowStatus row} >
-      ^{tdWithError $ rrDate row}
-      ^{tdWithError $ rrCompany row}
-      ^{tdWithError $ rrBankAccount row}
-      ^{tdWithError $ rrComment row}
-      ^{tdWithError $ map (formatF . unAmount') <$> rrTotalAmount row}
-      ^{tdWithError $ map (formatF . unAmount') <$> rrItemPrice row}
-      ^{tdWithError $ map (formatF . unAmount') <$> rrItemNet row}
-      ^{tdWithError $ map (formatTax) <$> rrItemTaxAmount row}
-      ^{tdWithError $ rrItem row}
-      ^{tdWithError $ rrGlAccount row}
-      ^{tdWithError $ rrGLDimension1 row}
-      ^{tdWithError $ rrGLDimension2 row}
-|]
-    
-tdWithError :: (ToMarkup a) => Either Text (Maybe a) -> Widget
-tdWithError (Left e) = toWidget [hamlet|
-<td>
-  <span .text-danger .bg-danger>#{e}
-|]
-tdWithError (Right (Just v)) = toWidget [hamlet|
-<td>
-  $#<span .bg-success>#{v}
-  <span>#{v}
-|]
-tdWithError (Right Nothing) = [whamlet|
-<td>
- <  span .bg-warnig>
-|]
-  
-
-formatTax (TaxAmount amount) = formatF amount
-formatTax (TaxCode code) = "T" <> code
-formatTax (TaxRate rate) = formatF (100*rate) <> "%"
-
-rowStatus :: RawReceiptRow -> Text
-rowStatus raw = case validateRawRow raw  of
-  Left (_, ParseError) -> "danger"
-  Left (_, _) -> "warning"
-  _ ->  "" -- """succes"
-
--- formatF :: (Num a) => a -> Text
-formatF :: Amount -> Text
-formatF f = pack $ printf "%.02f" f
-
--- Transforms a text into a set of receipts
-data RawRow 
--- validates that the text is a table with the correct columns
-parseReceiptSheet :: ByteString -> Either Text [RawReceiptRow]
-parseReceiptSheet' bytes = case partitionEithers results  of
-  (_, [(header, vector)]) -> Right (toList vector)
-  (errs, []) -> Left $ pack ("PriceMissing format:" ++ show errs)
-  (_,rights) -> Left "File ambiguous."
-  where
-    bytes' = fromStrict bytes
-    results = map (`Csv.decodeByNameWith` bytes') seps
-    seps = [Csv.DecodeOptions (fromIntegral (ord sep)) | sep <- ",;\t" ]
-
-
-data ReceiptRow
-  = HeaderRow
-    { rDate :: Day
-    , rCompany :: Text
-    , rBankAccount :: Text
-    , rComment :: (Maybe Text)
-    , rTotalAmount :: Amount
-    , rItemPrice :: (Maybe Amount)
-    , rItemNet :: (Maybe Amount)
-    , rItemTaxAmount :: (Maybe TaxAmount)
-    , rItem :: (Maybe Text)
-    , rGLAccount :: (Maybe Text)
-    , rGLDimension1 :: (Maybe Text)
-    , rGLDimension2 :: (Maybe Text)
-    }
-  | ReceiptRow
-    { rItemPrice :: (Maybe Amount)
-    , rItemNet :: (Maybe Amount)
-    , rItemTaxAmount :: (Maybe TaxAmount)
-    , rItem :: (Maybe Text)
-    , rGLAccount :: (Maybe Text)
-    , rGLDimension1 :: (Maybe Text)
-    , rGLDimension2 :: (Maybe Text)
-    }
-  deriving (Show, Read, Eq, Ord)
-
-data RawRowStatus = ParseError | PriceMissing | InvalidReceiptHeader deriving (Read, Show, Eq, Ord)
--- validates that a raw is valid
-validateRawRow :: RawReceiptRow -> Either (RawReceiptRow, RawRowStatus) ReceiptRow
-validateRawRow raw =
-  let row = do
-        ( date, company, bank, comment, total 
-         , iPrice, iNet, iTax, item, account, dim1, dim2) <- pure (,,,,,,,,,,,)
-          <*> rrDate raw
-          <*> rrCompany raw
-          <*> rrBankAccount raw
-          <*> rrComment raw
-          <*> (map unAmount' <$> rrTotalAmount raw)
-          <*> (map unAmount' <$> rrItemPrice raw)
-          <*> (map unAmount' <$> rrItemNet raw)
-          <*> (rrItemTaxAmount raw)
-          <*> rrItem raw
-          <*> rrGlAccount raw
-          <*> rrGLDimension1 raw
-          <*> rrGLDimension2 raw
-
-        let hasHeader = void date <|> void company <|> void bank <|> void total
-            hasPrice = asum [void iPrice, void iNet, void iTax]
-            rrow =  ReceiptRow iPrice iNet iTax item account dim1 dim2
-        case ((date, company, bank, total), hasHeader, hasPrice) of 
-              
-              ((Just date', Just company', Just bank', Just total'),_,_) ->
-                Right . Right $ HeaderRow date' company' bank' comment total'
-                iPrice iNet iTax item account dim1 dim2
-              (_, Just _, _ ) -> Right $ Left InvalidReceiptHeader
-              (_, Nothing, Just _ ) -> Right $ Right rrow
-              _ -> Right $ Left PriceMissing
-            
-
-  in case row of
-      Left _ -> Left (raw, ParseError)
-      Right (Left e) -> Left (raw, e)
-      Right (Right r) -> Right r
- 
-validateRawRows :: [RawReceiptRow] -> Either [RawReceiptRow] [ReceiptRow]
-validateRawRows raws = case traverse validateRawRow raws of
-  Left _ -> Left raws
-  Right  rows -> Right rows
-
-data Receipt = Receipt
-  { receiptDate :: Day
-  , receiptCompany :: Text
-  , receiptBankAccount :: Text
-  , receiptComment :: (Maybe Text)
-  , receiptTotalAmount :: Amount
-  , receiptDefaultTaxAmount :: Maybe TaxAmount
-  , receiptItems :: [ReceiptItem]
-  } deriving (Show, Read, Eq, Ord)
-
-data ReceiptItem = ReceiptItem
-  { itemPrice :: Maybe Amount
-  , itemNet :: Maybe Amount
-  , itemTaxAmount :: Maybe TaxAmount
-  , itemMemo :: Maybe Text
-  , itemGLAccount :: Maybe Text
-  , itemGLDimension1 :: Maybe Text
-  , itemGLDimension2 :: Maybe Text
-  } deriving (Show, Read, Eq, Ord)
--- groups rows into a set op receipt
-
--- starts an new group on each line having a company and a total
-groupReceiptRows :: [ReceiptRow] -> [Either [ReceiptRow] Receipt]
-groupReceiptRows  rows = let
-  groups =  S.split (S.keepDelimsL $ S.whenElt  isHeaderRow) rows
-  isHeaderRow (HeaderRow {}) = True
-  isHeaderRow _ = False
-  in map makeReceipt (drop 1 $ groups) -- @TODO remove
-
-makeReceipt [] = Left []
-makeReceipt (HeaderRow {..}: rows) = Right $
-  Receipt rDate rCompany rBankAccount
-          rComment rTotalAmount defaultTaxRate items
-  where items = map makeItem $ (ReceiptRow rItemPrice rItemNet rItemTaxAmount rItem
-                rGLAccount rGLDimension1 rGLDimension2) : rows
-        defaultTaxRate | length items > 2 && isNothing rItemNet = rItemTaxAmount
-                       | otherwise = Nothing
-        makeItem (ReceiptRow {..}) =
-          ReceiptItem rItemPrice rItemNet rItemTaxAmount rItem
-                          rGLAccount rGLDimension1 rGLDimension2
-
-        
-
-     
-renderReceipts receipts = [whamlet|
-<ul .list-group>
-  $forall  receiptE <- receipts
-    <li .list-group-item .panel .panel-default>
-      $case  receiptE
-        $of Left row
-          #{tshow row}
-        $of Right receipt
-          <table .table .panel-heading > 
-            <tr .panel-primary .bg-info>
-              <th>
-              <th> #{receiptDate  receipt}
-              <th> #{receiptCompany  receipt}
-              <th> #{receiptBankAccount  receipt}
-              <th> #{fromMaybe "" $ receiptComment  receipt}
-              <th> #{formatF $ receiptTotalAmount  receipt}
-          <table .table .panel .panel-body>
-            $forall item <- receiptItems receipt
-              <tr>
-                <td> #{maybeToHtml $ formatF <$> itemPrice  item}
-                <td> #{maybeToHtml $ formatF <$> itemNet  item}
-                <td> #{maybeToHtml $ formatTax <$> itemTaxAmount  item}
-                <td> #{maybeToHtml $ itemMemo  item}
-                <td> #{maybeToHtml $ itemGLAccount  item}
-                <td> #{maybeToHtml $ itemGLDimension1  item}
-                <td> #{maybeToHtml $ itemGLDimension2  item}
-|]
-
-
-maybeToHtml Nothing = ""
-maybeToHtml (Just v) = toHtml v
-
--- * Event relateds
-  -- Keep the origin of a value, if it's been calculated, guessed etc ...
-data GivenStatus = Guessed | Calculated | Given deriving (Read, Show, Eq, Ord)
-
-data GValue  a = GValue { givenStatus :: GivenStatus , givenValue :: a }
-     deriving (Read, Show, Eq, Functor)
-guess a = a { givenStatus = Guessed }
-given a = GValue Given a
-
-instance Applicative (GValue) where
-  pure x = GValue Given x
-  (GValue fs fv) <*> (GValue as av)= GValue (min fs as) (fv av)
-
-
-  
-instance Num a => Num (GValue a) where
-  fromInteger = GValue Given . fromInteger
-  negate = map negate
-  abs = map abs
-  signum = map signum
-
-  a + b  = map (+) a <*> b
-  a * b  = map (*) a <*> b
-  a - b  = map (-) a <*> b
-
-instance Fractional a => Fractional (GValue a) where
-  a / b = map (/) a <*> b
-  recip = map recip
-  fromRational = GValue Given . fromRational
-
-instance Ord a => Ord (GValue a) where
-  (<) = undefined
-  
-
-data Event = PaymentEvent
-  { evDate :: Day
-  , evCounterparty :: GValue Contreparty
-  , evBankAccount :: GValue BankAccount
-  , evComment :: Maybe Text
-  , evPayItems :: [EventPaymentItem]
-  } deriving (Read, Show, Eq, Ord)
-
-data EventPaymentItem
-  = TaxedPaymentItem { payTotal :: GValue Amount
-                     , payNet :: GValue Amount
-                     , payTax :: GValue Amount
-                     , payGLAccount :: GValue GLAccount
-                     , payGLDimension1 :: GValue (Maybe GLDimension)
-                     , payGLDimension2 :: GValue (Maybe GLDimension)
-                     , payGLTaxAccount :: GValue GLAccount
-                     }
-  | UntaxedPaymentItem { payTotal :: GValue Amount
-                       , payGLAccount :: GValue GLAccount
-                       , payGLDimension1 :: GValue (Maybe GLDimension)
-                       , payGLDimension2 :: GValue (Maybe GLDimension)
-                       }
-  deriving (Read, Show, Eq, Ord)
-data Contreparty = Customer | Supplier | Other Text  deriving (Read, Show, Eq, Ord)
-data BankAccount = BankAccount deriving (Read, Show, Eq, Ord)
-data GLAccount = GLAccount deriving (Read, Show, Eq, Ord)
-data GLDimension = GLDimension deriving (Read, Show, Eq, Ord)
-
-
-renderEvents events =  undefined
-renderEvent event =  undefined
--- transforms a receipt into an Event
-receiptToEvent :: Config -> Receipt -> Either Receipt (Receipt, Event)
-receiptToEvent conf receipt@(Receipt {..})= maybe (Left receipt) Right $ do
-  let defRate = fromMaybe (guess 20 )$ given . getTaxRate conf <$> receiptDefaultTaxAmount
-      makeItems (ReceiptItem {..}) = do
-        glAccount <- getGLAccount conf =<< itemGLAccount
-        let glDimension1 = sequenceA $ getGLDimension conf =<< itemGLDimension1
-            glDimension2 = sequenceA $ getGLDimension conf =<< itemGLDimension2
-            glTaxAccount = guess $ pure GLAccount
-        let (price, net, tax ) = calculateAmount defRate (itemPrice, itemNet, itemTaxAmount) 
-        return $ TaxedPaymentItem price net tax  glAccount glDimension1 glDimension2 glTaxAccount
-  items <- mapM makeItems (receiptItems)
-  contreparty <-  getContreparty conf receiptCompany
-  bank <-   getBankAccount conf receiptBankAccount
-    
-  let event = PaymentEvent receiptDate
-                           contreparty
-                           bank
-                           receiptComment
-                           items
-
-    -- check that the sum of all items adds up with the overall total 
-  return (receipt, event)
-
-  
-
--- calculate missing amounts needs a default rate
-calculateAmount defRate gnt = case gnt of
-  (Just gross, Nothing, Nothing) -> let g = given gross
-                                        t = taxFromGross g defRate
-                                    in (g, g-t, t )
-  (Just gross, Nothing, Just (TaxAmount tax)) -> let g = given gross
-                                                     t = given tax
-                                    in (g, g-t, t )
-  (Just gross, Nothing, Just (TaxRate rate)) ->
-    let g = given gross
-        t = taxFromGross g (given rate)
-    in (g, g-t, t)
-  (Nothing, Just net, Nothing) -> let n = given net
-                                      t = guess defRate
-                                  in (n+t, n, t)
-  (Nothing, Just net, Just (TaxAmount tax)) -> let n = given net
-                                                   t = given tax
-                                               in (n+t,n,t)
-  (Nothing, Just net, Just (TaxRate rate)) ->
-    let n = given net
-        t = given rate  * n
-    in (n+t, n, t) 
-  _ -> error (show (defRate, gnt))
-  where taxFromGross gross rate = gross / (1+rate)
-
-  
-  
--- * Config
--- Needs to be moved in App
-data Config = Config
- {getTaxRate :: TaxAmount -> Amount
- , getBankAccount :: Text -> Maybe   (GValue BankAccount)
- , getGLAccount :: Text -> Maybe  (GValue GLAccount)
- , getGLDimension :: Text -> Maybe  (GValue GLDimension)
- , getContreparty :: Text -> Maybe  (GValue Contreparty)
- }
-
-defaultConfig = let
-  getTaxRate = undefined
-  getBankAccount = const (Just . pure $ BankAccount)
-  getGLAccount = const (Just . pure $ GLAccount)
-  getGLDimension = const (Just . pure $ GLDimension)
-  getContreparty = const (Just . pure $ Customer)
-
-  in Config {..}
-  
-
--}

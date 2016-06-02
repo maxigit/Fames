@@ -81,7 +81,38 @@ We need permission on document and documents types.
 
 
 
-*  Next
+*  Done
+- [X] allow file to be parsed.
+This is the priority as it allows manual testing much easier
+
+- [X] fix invalid row from invalid header field
+- [X] fix duplicated rows
+- [X] fix test ?
+* Next
+** DONE Add all columns
+CLOSED: [2016-05-30 Mon 21:21]
+- [X] modify code
+- [X] modify test
+** TODO refactor multi column names
+** DONE fix transform
+CLOSED: [2016-05-30 Mon 21:21]
+Transforming row is not safe (Maybe Int) -> Int. Check why it's needed
+** TODO refactor handler to accept flow
+** DONE finalize tests
+** DONE pre-process header
+So we can use Date, date, DATE etc ...
+- [ ] +DRY columns list and those in the parser+
+- [ ] +find an alternative library+
+- [ ] +write my own bit+
+Solution, just try them explicitly using =asum=
+** DONE add encoding options
+** TODO Think of a/the flow
+Each steps should be able to have it's own page or not ...
+- [ ]  MAYBE add steps  in URL
+- [ ] split handler into function and dispatch (and pass error/parsing result)
+** TODO lookup bank account, gl account etc ...
+*** TODO how to do private conf ?
+** TODO validate and create full receipt
 ** DONE Upload via file
 CLOSED: [2016-04-03 Sun 13:47]
 ** TODO add Uknown/Calculated/Given monad

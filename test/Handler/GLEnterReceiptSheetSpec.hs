@@ -9,12 +9,37 @@ import Data.Csv (decode, HasHeader(NoHeader))
 import Text.Shakespeare.Text (st)
 
 spec :: Spec
-spec = {-pureSpec >> -} storiesSpec >> appSpec
+spec = pureSpec >> storiesSpec >> appSpec
 
+postReceiptSheet status sheet = do
+  get GLEnterReceiptSheetR
+  statusIs 200
 
+  request $ do
+    setMethod "POST"
+    setUrl GLEnterReceiptSheetR
+    addToken_ "form#text-form " --"" "#text-form"
+    byLabel "Sheet name" "test 1"
+    byLabel "Receipts" sheet
+
+  -- printBody
+  statusIs status
+
+uploadReceiptSheet status encoding path = do
+  get GLEnterReceiptSheetR
+  statusIs 200
+
+  request $ do
+    setMethod "POST"
+    setUrl GLEnterReceiptSheetR
+    addToken_ "form#upload-form "
+    fileByLabel "upload" ("test/Handler/GLEnterReceiptSheetSpec/" ++ path) "text/plain"
+    byLabel "encoding" (tshow $ 1) -- fromEnum encoding)
+
+  -- printBody
+  statusIs status
 appSpec :: Spec
 appSpec = withApp $ do
-
     describe "getGLEnterReceiptSheetR" $ do
 	it "proposes to upload a file" $ do
 	  get GLEnterReceiptSheetR
@@ -23,71 +48,99 @@ appSpec = withApp $ do
    	  bodyContains "upload" -- to transform
 
     describe "postGLEnterReceiptSheetR" $ do
-        it "displays correctly a receipt with multiple lines" $ do
-	  get GLEnterReceiptSheetR
-          statusIs 200
-          -- we try here the text area form instead of file  because it's
-          -- easier to setup and read
-
-          request $ do
-            setMethod "POST"
-            setUrl GLEnterReceiptSheetR
-            addToken_ "form#text-form " --"" "#text-form"
-            byLabel "Sheet name" "test 1"
-            byLabel "Receipts" [st|date,counterparty,bank account,total,gl account,amount,tax rate
-2015/01/02,stapples,B1,180,7501,100,20%
-,,,,8000,50,20%
+        it "parses correctly amounts with pound sign" $ do
+          postReceiptSheet 200
+              [st|date,counterparty,bank account,comment,total,gl account,amount,net amount,memo,tax rate,dimension 1,dimension 2
+2015/01/02,stapples,B1,stationary,180,7501,£100,,misc,20%,,
 |]
-        
-          statusIs 200
+
+          htmlAnyContain "#receipt1 .amount" "100.00"
+        it "parses correctly alternative column name" $ do
+          postReceiptSheet 200
+              [st|date,company,bank account,comment,total,gl account,amount,net amount,memo,tax rate,dimension 1,dimension 2
+2015/01/02,stapples,B1,stationary,180,7501,100,,misc,20%,,
+|]
+
+        it "displays correctly a receipt with multiple lines" $ do
+          postReceiptSheet 200
+              [st|date,counterparty,bank account,comment,total,gl account,amount,net amount,memo,tax rate,dimension 1,dimension 2
+2015/01/02,stapples,B1,stationary,180,7501,100,,misc,20%,,
+,,,,,8000,50,,,20%,,
+|]
 
           htmlAnyContain "#receipt1 .amount" "100.00"
           htmlAnyContain "#receipt1 .glAccount" "7501"
-          htmlAnyContain "#receipt1 .amount" "50.00"
-          htmlAnyContain "#receipt1 .glAccount" "8000"
+          htmlAnyContain "#receipt1-2 .amount" "50.00"
+          htmlAnyContain "#receipt1-2 .glAccount" "8000"
 
         it "displays correctly a spreadsheet with multiple receipts" $ do
-	  get GLEnterReceiptSheetR
-          statusIs 200
-          -- we try here the text area form instead of file  because it's
-          -- easier to setup and read
-
-          request $ do
-            setMethod "POST"
-            setUrl GLEnterReceiptSheetR
-            addToken_ "form#text-form " --"" "#text-form"
-            byLabel "Sheet name" "test 2"
-            byLabel "Receipts" [st|date,counterparty,bank account,total,gl account,amount,tax rate
-2015/01/02,stapples,B1,120,7501,100,20%
-2015/01/02,stapples,B1,60,8000,50,20%|]
+          postReceiptSheet 200
+            [st|date,counterparty,bank account,comment,total,gl account,amount,net amount,memo,tax rate,dimension 1,dimension 2
+2015/01/02,stapples,B1,stationary,120,7501,120,100,misc,20%,23,
+2015/01/02,stapples,B1,misc,60,8000,60,50,ink,20%,,|]
         
-          statusIs 200
-          htmlAnyContain "#receipt1 .amount" "100.00"
-          htmlAnyContain "#receipt1 .glAccount" "7501"
-          htmlAnyContain "#receipt2 .amount" "50.00"
-          htmlAnyContain "#receipt2 .glAccount" "8000"
+          htmlAnyContain "#receipt1-1 .amount" "120.00"
+          htmlAnyContain "#receipt1-1 .glAccount" "7501"
+          htmlAnyContain "#receipt2-1 .amount" "60.00"
+          htmlAnyContain "#receipt2-1 .glAccount" "8000"
+
+        it "displays Unprocessable Entity the spreadsheet is not total valid" $ do
+          postReceiptSheet 422
+            [st|date,counterparty,bank account,total,gl account,amount,tax rate
+2015/01/02,,B1,120,7501,100,20%|]
 
         it "displays an error if a header line is not fulled" $ do
-          return pending
-	  get GLEnterReceiptSheetR
-          statusIs 200
-          -- we try here the text area form instead of file  because it's
-          -- easier to setup and read
-
-          request $ do
-            setMethod "POST"
-            setUrl GLEnterReceiptSheetR
-            addToken_ "form#text-form " --"" "#text-form"
-            byLabel "Sheet name" "test 2"
-            byLabel "Receipts" [st|date,counterparty,bank account,total,gl account,amount,tax rate
+          postReceiptSheet 422
+            [st|date,counterparty,bank account,total,gl account,amount,tax rate
 2015/01/02,,B1,120,7501,100,20%|]
-        
-          statusIs 422 -- wrong
-          bodyContains "Counterparty is missing"
 
-        it "display receipt header" (const pending)
+          htmlAnyContain ".missing-columns" "comment"
+
+        it "displays receipt header" (const pending)
         it "needs at least one header" (const pending)
+
+        context "Given an unparsable format file:" $ do
+          it "empty file, it displays an error messape" $ do
+            uploadReceiptSheet 422 (UTF8) "empty.csv"
+            htmlAnyContain ".invalid-receipt" "file is empty"
+          it "wrong encoding, suggest encoding error" $ do
+             uploadReceiptSheet 422 (UTF8) "latin-1.csv"
+
+             bodyContains "UTF8"
+              
+          it "good encoding, suggest encoding error" $ do
+             uploadReceiptSheet 422 (Latin1) "latin-1.csv"
+             bodyContains "£"
+
+          it "malformed csv, doesn't crash" $ do
+            postReceiptSheet 422 [st|date,counterparty,bank account,total,gl account,amount,tax rate
+  2015/01/02,"stapples,B1,60,8000,50,20%|] -- quotes not closed
+            -- htmlAnyContain "#message" "wrong format"
+
+          it "uneven columns, doesn't crash" $ do
+            postReceiptSheet 422 [st|date,counterparty,bank account,total,gl account,amount,tax rate
+  2015/01/02,stapples|]
+            -- htmlAnyContain ".invalid-receipt" "<table>"
+
+        context "Given a parsable file:" $ do
+          context "missing column" $ do
+            let sheet = [st|date,wounterparty,bank account,total,gl account,amount,tax rate
+  2015/01/02,stapples,B1,60,8000,50,20%|]
+
+            it "displays the original source " $ do 
+              postReceiptSheet 422 sheet
+              htmlAnyContain "table.sheet" "date"
+              htmlAnyContain "table.sheet" "8000"
+
+            it "displays missing columns" $ do
+              postReceiptSheet 422 sheet
+              htmlAnyContain ".missing-columns li" "counterparty"
        
+            it "displays correct columns" $ do
+              postReceiptSheet 422 sheet
+
+              htmlAnyContain "table td.bg-success" "tax rate"
+
 
 
 storiesSpec :: Spec 
@@ -108,9 +161,9 @@ storiesSpec =  withApp $ do
  
     -}
     it "story to write" (const pending)
-{-
 pureSpec :: Spec
 pureSpec = do
+{-
   describe "Parshing csv" $ do
     context "should parse dates" $ do
       sequence_ [
@@ -131,19 +184,26 @@ pureSpec = do
                         , "Wed 02 Jan 2011"
                         ]
             ] 
+-}
     context "should parse amounts" $ do
       it "without currency" $ do
-        assertUtf8Field "23.45" (23.45 :: Amount')
+        assertUtf8Field "23.45" (23.45 :: Currency)
       it "without currency and spaces" $ do
-        assertUtf8Field " 23.45 " (23.45 :: Amount')
+        assertUtf8Field " 23.45 " (23.45 :: Currency)
       it "with currency" $ do
-        assertUtf8Field "£23.45" (23.45 :: Amount')
+        assertUtf8Field "£23.45" (23.45 :: Currency)
+      it "negative with currency" $ do
+        assertUtf8Field "-£23.45" (-23.45 :: Currency)
+      it "negative with currency" $ do
+        assertUtf8Field "£-23.45" (-23.45 :: Currency)
+
+ {-
       it "with currency and spaces" $ do
-        assertUtf8Field " £23.45 " (23.45 :: Amount')
+        assertUtf8Field " £23.45 " (23.45 :: Currency)
       it "with currency and spaces between the currency" $ do
-        assertUtf8Field "£ 23.45 " (23.45 :: Amount')
+        assertUtf8Field "£ 23.45 " (23.45 :: Currency)
       it "negative with currency and spaces between the currency" $ do
-        assertUtf8Field " - £ 23.45 " (-23.45 :: Amount')
+        assertUtf8Field " - £ 23.45 " (-23.45 :: Currency)
     
 
   describe "validateRawRow" $ do
@@ -192,9 +252,9 @@ pureSpec = do
       validateRawRow raw `shouldBe` Left (raw, PriceMissing)
 
 
+-}
 assertField str value  = decode NoHeader (str <> ",") `shouldBe` Right (fromList [(value, ())])
 -- we need  to encode bystestring in UTF8 because the IsString instance for bytestring
 -- doesn't encode £ to two words but only one.
 assertUtf8Field text value = assertField (encodeUtf8 text) value
 
--}
