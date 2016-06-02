@@ -1,5 +1,8 @@
 -- | Event corresponding to a receipt.
 -- It translates in FA to a payment or a supplier invoice.
+-- The main difference between an event and an FA payment is :
+-- an even can generate more than one payment and can have
+-- and can abstract things like GLAccount and GLDimension into one abstraction (to decide)
 module GL.Receipt
   ( Amount
   , TaxType(..)
