@@ -97,15 +97,15 @@ library
                  , blaze-html
                  , split
 
--- executable         Fames
---     if flag(library-only)
---         Buildable: False
--- 
---     main-is:           main.hs
---     hs-source-dirs:    app
---     build-depends:     base, Fames
--- 
---     ghc-options:       -threaded -rtsopts -with-rtsopts=-N
+executable         Fames
+    if flag(library-only)
+        Buildable: False
+
+    main-is:           main.hs
+    hs-source-dirs:    app
+    build-depends:     base, Fames
+
+    ghc-options:       -threaded -rtsopts -with-rtsopts=-N
 
 test-suite test
     type:              exitcode-stdio-1.0
