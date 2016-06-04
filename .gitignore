@@ -8,6 +8,8 @@ config/client_session_key.aes
 *.o
 *.sqlite3
 fay/Fay/Yesod.hs
+*.sqlite3-shm
+*.sqlite3-wal
 .hsenv*
 cabal-dev/
 .stack-work/

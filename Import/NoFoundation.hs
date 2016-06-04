@@ -1,6 +1,5 @@
 module Import.NoFoundation
     ( module Import
-    , setError
     , setWarning
     ) where
 

@@ -1,12 +1,13 @@
 module Foundation where
 
-import Database.Persist.Sql        (ConnectionPool, runSqlPool)
 import Import.NoFoundation
-import Text.Hamlet                 (hamletFile)
-import Yesod.Auth.OpenId           (authOpenId, IdentifierType (Claimed))
+import Database.Persist.Sql (ConnectionPool, runSqlPool)
+import Text.Hamlet          (hamletFile)
+import Text.Jasmine         (minifym)
+import Yesod.Auth.OpenId    (authOpenId, IdentifierType (Claimed))
+import Yesod.Default.Util   (addStaticContentExternal)
+import Yesod.Core.Types     (Logger)
 import qualified Yesod.Core.Unsafe as Unsafe
-import Yesod.Core.Types            (Logger)
-import Yesod.Default.Util          (addStaticContentExternal)
 import Yesod.Fay
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Text.Encoding as TE
@@ -16,11 +17,11 @@ import qualified Data.Text.Encoding as TE
 -- starts running, such as database connections. Every handler will have
 -- access to the data present here.
 data App = App
-    { appSettings          :: AppSettings
-    , appStatic            :: Static -- ^ Settings for static file serving.
-    , appConnPool          :: ConnectionPool -- ^ Database connection pool.
-    , appHttpManager       :: Manager
-    , appLogger            :: Logger
+    { appSettings    :: AppSettings
+    , appStatic      :: Static -- ^ Settings for static file serving.
+    , appConnPool    :: ConnectionPool -- ^ Database connection pool.
+    , appHttpManager :: Manager
+    , appLogger      :: Logger
     , appFayCommandHandler :: CommandHandler App
     }
 
@@ -98,7 +99,7 @@ instance Yesod App where
         master <- getYesod
         let staticDir = appStaticDir $ appSettings master
         addStaticContentExternal
-            Right
+            minifym
             genFileName
             staticDir
             (StaticR . flip StaticRoute [])
