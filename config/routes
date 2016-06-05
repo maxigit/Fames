@@ -9,3 +9,6 @@
 
 /comments CommentR POST
 /gl/enter_receipts_sheet GLEnterReceiptSheetR GET POST
+
+/fa/bank_accounts FABankAccountsR GET
+/fa/users FAUsersR GET

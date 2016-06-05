@@ -26,10 +26,10 @@ ip-from-header: "_env:IP_FROM_HEADER:false"
 database:
   user:     "_env:MYSQL_USER:test"
   password: "_env:MYSQL_PASSWORD:test"
-  host:     "_env:MYSQL_HOST:172.17.0.5"
+  host:     "_env:MYSQL_HOST:172.17.0.2"
   port:     "_env:MYSQL_PORT:3306"
   # See config/test-settings.yml for an override during tests
-  database: "_env:MYSQL_DATABASE:Fames_dbt"
+  database: "_env:MYSQL_DATABASE:Fames_devel"
   poolsize: "_env:MYSQL_POOLSIZE:10"
 
 copyright: Insert copyright statement here

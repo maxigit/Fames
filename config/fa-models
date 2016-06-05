@@ -1,0 +1,15 @@
+User sql=0_users
+    Id 
+    readName Text
+    email Text
+    deriving Typeable
+
+BankAccount sql=0_bank_accounts
+    Id
+    accountName Text
+    accountCode Text
+    accountNumber Text
+           
+
+
+
