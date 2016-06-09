@@ -3,7 +3,7 @@ module Handler.CommonSpec (spec) where
 import TestImport
 
 spec :: Spec
-spec = withApp $ do
+spec = withAppNoDB $ do
     describe "robots.txt" $ do
         it "gives a 200" $ do
             get RobotsR

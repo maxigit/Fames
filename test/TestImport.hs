@@ -1,3 +1,4 @@
+{-# LANGUAGE PartialTypeSignatures #-}
 module TestImport
     ( module TestImport
     , module X
@@ -22,23 +23,34 @@ runDB query = do
 runDBWithApp :: App -> SqlPersistM a -> IO a
 runDBWithApp app query = runSqlPersistMPool query (appConnPool app)
 
-withApp :: SpecWith (TestApp App) -> Spec
-withApp = before $ do
+withApp :: (Text -> Bool) -- ^ filter tables to truncate
+        -> _ -- ^ Hook before o beforeAll
+        -> SpecWith (TestApp App) -> Spec
+withApp tablePredicate  hook = hook $ do
     settings <- loadYamlSettings
         ["config/test-settings.yml", "config/settings.yml"]
         []
         ignoreEnv
     foundation <- makeFoundation settings
-    wipeDB foundation
+    wipeDB tablePredicate foundation
     logWare <- liftIO $ makeLogWare foundation
     return (foundation, logWare)
 
--- This function will truncate all of the tables in your database.
+withAppNoDB = withApp keepAllTables beforeAll
+withAppWipe = withApp keepFA before
+-- This function will truncate all of the tables matching the predicates in your database.
 -- 'withApp' calls it before each test, creating a clean environment for each
 -- spec to run in.
-wipeDB :: App -> IO ()
-wipeDB app = runDBWithApp app $ do
-    tables <- getTables
+
+allTables, keepFA, keepAllTables :: Text -> Bool 
+allTables _ = True
+keepFA = X.isPrefixOf "0_"
+keepAllTables _ = False
+
+
+wipeDB :: (Text -> Bool) -> App -> IO ()
+wipeDB toKeep app = runDBWithApp app $ do
+    tables <- filter (not . toKeep) <$> getTables
     sqlBackend <- ask
     let queries = map (\t -> "TRUNCATE TABLE " ++ connEscapeName sqlBackend (DBName t)) tables
 
