@@ -18,6 +18,7 @@ DB_CONTAINER_NAME ?= fames_dbt # database test
 DB_NAME ?= fames_devel
 
 
+dump_fa_test: docker exec $DB_CONTAINER_NAME mysqldump Fames_test -u$DB_USER -p$DB_PASSWORD > test/sql/fa_test.sql
 run_db:
 	docker run --name ${DB_CONTAINER_NAME} \
 			-e MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD} \
