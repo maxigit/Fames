@@ -1,6 +1,7 @@
 User sql=0_users
     Id 
-    readName Text
+    login Text sql=user_id
+    realName Text
     email Text
     deriving Typeable
 

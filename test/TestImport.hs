@@ -23,7 +23,7 @@ runDB query = do
 runDBWithApp :: App -> SqlPersistM a -> IO a
 runDBWithApp app query = runSqlPersistMPool query (appConnPool app)
 
-withApp :: (Text -> Bool) -- ^ filter tables to truncate
+withApp :: (Text -> KeepOrWipe) -- ^ filter tables to truncate
         -> _ -- ^ Hook before o beforeAll
         -> SpecWith (TestApp App) -> Spec
 withApp tablePredicate  hook = hook $ do
@@ -42,15 +42,17 @@ withAppWipe = withApp keepFA before
 -- 'withApp' calls it before each test, creating a clean environment for each
 -- spec to run in.
 
-allTables, keepFA, keepAllTables :: Text -> Bool 
-allTables _ = True
-keepFA = X.isPrefixOf "0_"
-keepAllTables _ = False
+data KeepOrWipe = Keep | Wipe deriving (Eq, Show)
+keepFA, keepAllTables :: Text -> KeepOrWipe 
+keepFA t = if X.isPrefixOf "0_" t 
+           then Keep
+           else Wipe
+keepAllTables _ = Keep
 
 
-wipeDB :: (Text -> Bool) -> App -> IO ()
+wipeDB :: (Text -> KeepOrWipe) -> App -> IO ()
 wipeDB toKeep app = runDBWithApp app $ do
-    tables <- filter (not . toKeep) <$> getTables
+    tables <- filter ((== Wipe) . toKeep) <$> getTables
     sqlBackend <- ask
     let queries = map (\t -> "TRUNCATE TABLE " ++ connEscapeName sqlBackend (DBName t)) tables
 
@@ -65,3 +67,4 @@ getTables :: MonadIO m => ReaderT SqlBackend m [Text]
 getTables = do
     tables <- rawSql "SHOW TABLES;" []
     return $ map unSingle tables
+
