@@ -152,3 +152,14 @@ test-suite test
                  , classy-prelude-yesod
                  , aeson
                  , cassava
+
+
+executable FAGenerator
+    if flag(dev)
+        Buildable: True
+
+    main-is: FAGenerator.hs
+    hs-source-dirs: tools
+    build-depends: base, mysql-simple
+
+
