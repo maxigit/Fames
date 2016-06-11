@@ -160,6 +160,7 @@ executable FAGenerator
 
     main-is: FAGenerator.hs
     hs-source-dirs: tools
-    build-depends: base, mysql-simple
+    build-depends: base, mysql-simple, split
+    extensions: RecordWildCards
 
 
