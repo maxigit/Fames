@@ -7,7 +7,7 @@ module Handler.FA
 import Import
 import FA
 import Handler.FA.Def
-
+{-
 getFAUsersR :: Handler Html
 getFAUsersR = do
   entities <- runDB $ selectList [] []
@@ -23,3 +23,4 @@ getFABankAccountsR = do
   let accounts = entities :: [Entity FA.BankAccount]
 
   defaultLayout $ toWidget (entitiesToTable  getDBName entities)
+-}

@@ -1,10 +1,10 @@
 -- Model
-Area sql=areas
+Area sql=0_areas
     areaCode Int  sql=area_code
     description Text  sql=description
     inactive Bool  sql=inactive
 
-Attachment sql=attachments
+Attachment sql=0_attachments
     Id sql=id
     description Text  sql=description
     typeNo Int  sql=type_no
@@ -15,7 +15,7 @@ Attachment sql=attachments
     filesize Int  sql=filesize
     filetype Text  sql=filetype
 
-AuditTrail sql=audit_trail
+AuditTrail sql=0_audit_trail
     Id sql=id
     type Int  sql=type
     transNo Int  sql=trans_no
@@ -26,7 +26,7 @@ AuditTrail sql=audit_trail
     glDate Day  sql=gl_date
     glSeq Int Maybe sql=gl_seq
 
-BankAccount sql=bank_accounts
+BankAccount sql=0_bank_accounts
     accountCode Text  sql=account_code
     accountType Int  sql=account_type
     bankAccountName Text  sql=bank_account_name
@@ -40,7 +40,7 @@ BankAccount sql=bank_accounts
     endingReconcileBalance Double  sql=ending_reconcile_balance
     inactive Bool  sql=inactive
 
-BankTran sql=bank_trans
+BankTran sql=0_bank_trans
     Id sql=id
     type Int Maybe sql=type
     transNo Int Maybe sql=trans_no
@@ -55,7 +55,7 @@ BankTran sql=bank_trans
     personId ByteString Maybe sql=person_id
     reconciled Day Maybe sql=reconciled
 
-Bom sql=bom
+Bom sql=0_bom
     Id sql=id
     parent Text  sql=parent
     component Text  sql=component
@@ -63,7 +63,7 @@ Bom sql=bom
     locCode Text  sql=loc_code
     quantity Double  sql=quantity
 
-BudgetTran sql=budget_trans
+BudgetTran sql=0_budget_trans
     counter Int  sql=counter
     type Int  sql=type
     typeNo Int  sql=type_no
@@ -76,39 +76,39 @@ BudgetTran sql=budget_trans
     personTypeId Int Maybe sql=person_type_id
     personId ByteString Maybe sql=person_id
 
-ChartClas sql=chart_class
+ChartClas sql=0_chart_class
     cid Text  sql=cid
     className Text  sql=class_name
     ctype Bool  sql=ctype
     inactive Bool  sql=inactive
 
-ChartMaster sql=chart_master
+ChartMaster sql=0_chart_master
     accountCode Text  sql=account_code
     accountCode2 Text  sql=account_code2
     accountName Text  sql=account_name
     accountType Text  sql=account_type
     inactive Bool  sql=inactive
 
-ChartType sql=chart_types
+ChartType sql=0_chart_types
     Id sql=id
     name Text  sql=name
     classId Text  sql=class_id
     parent Text  sql=parent
     inactive Bool  sql=inactive
 
-Comment sql=comments
+Comment sql=0_comments
     type Int  sql=type
     Id sql=id
     date Day Maybe sql=date_
     memo Text Maybe sql=memo_
 
-CreditStatu sql=credit_status
+CreditStatu sql=0_credit_status
     Id sql=id
     reasonDescription Text  sql=reason_description
     dissallowInvoices Bool  sql=dissallow_invoices
     inactive Bool  sql=inactive
 
-CrmCategorie sql=crm_categories
+CrmCategorie sql=0_crm_categories
     Id sql=id
     type Text  sql=type
     action Text  sql=action
@@ -117,14 +117,14 @@ CrmCategorie sql=crm_categories
     system Bool  sql=system
     inactive Bool  sql=inactive
 
-CrmContact sql=crm_contacts
+CrmContact sql=0_crm_contacts
     Id sql=id
     personId Int  sql=person_id
     type Text  sql=type
     action Text  sql=action
     entityId Text Maybe sql=entity_id
 
-CrmPerson sql=crm_persons
+CrmPerson sql=0_crm_persons
     Id sql=id
     ref Text  sql=ref
     name Text  sql=name
@@ -138,7 +138,7 @@ CrmPerson sql=crm_persons
     notes Text  sql=notes
     inactive Bool  sql=inactive
 
-Currencie sql=currencies
+Currencie sql=0_currencies
     currency Text  sql=currency
     currAbrev Text  sql=curr_abrev
     currSymbol Text  sql=curr_symbol
@@ -147,7 +147,7 @@ Currencie sql=currencies
     inactive Bool  sql=inactive
     autoUpdate Bool  sql=auto_update
 
-CustAllocation sql=cust_allocations
+CustAllocation sql=0_cust_allocations
     Id sql=id
     amt Double Maybe sql=amt
     dateAlloc Day  sql=date_alloc
@@ -156,7 +156,7 @@ CustAllocation sql=cust_allocations
     transNoTo Int Maybe sql=trans_no_to
     transTypeTo Int Maybe sql=trans_type_to
 
-CustBranch sql=cust_branch
+CustBranch sql=0_cust_branch
     branchCode Int  sql=branch_code
     debtorNo Int  sql=debtor_no
     brName Text  sql=br_name
@@ -178,7 +178,7 @@ CustBranch sql=cust_branch
     inactive Bool  sql=inactive
     branchRef Text  sql=branch_ref
 
-DebtorsMaster sql=debtors_master
+DebtorsMaster sql=0_debtors_master
     debtorNo Int  sql=debtor_no
     name Text  sql=name
     address Text Maybe sql=address
@@ -196,7 +196,7 @@ DebtorsMaster sql=debtors_master
     inactive Bool  sql=inactive
     debtorRef Text  sql=debtor_ref
 
-DebtorTran sql=debtor_trans
+DebtorTran sql=0_debtor_trans
     transNo Int  sql=trans_no
     type Int  sql=type
     version Bool  sql=version
@@ -219,7 +219,7 @@ DebtorTran sql=debtor_trans
     dimension2Id Int  sql=dimension2_id
     paymentTerms Int Maybe sql=payment_terms
 
-DebtorTransDetail sql=debtor_trans_details
+DebtorTransDetail sql=0_debtor_trans_details
     Id sql=id
     debtorTransNo Int Maybe sql=debtor_trans_no
     debtorTransType Int Maybe sql=debtor_trans_type
@@ -233,7 +233,7 @@ DebtorTransDetail sql=debtor_trans_details
     qtyDone Double  sql=qty_done
     srcId Int Maybe sql=src_id
 
-Dimension sql=dimensions
+Dimension sql=0_dimensions
     Id sql=id
     reference Text  sql=reference
     name Text  sql=name
@@ -242,20 +242,20 @@ Dimension sql=dimensions
     date Day  sql=date_
     dueDate Day  sql=due_date
 
-ExchangeRate sql=exchange_rates
+ExchangeRate sql=0_exchange_rates
     Id sql=id
     currCode Text  sql=curr_code
     rateBuy Double  sql=rate_buy
     rateSell Double  sql=rate_sell
     date Day  sql=date_
 
-FiscalYear sql=fiscal_year
+FiscalYear sql=0_fiscal_year
     Id sql=id
     begin Day Maybe sql=begin
     end Day Maybe sql=end
     closed Bool  sql=closed
 
-GlTran sql=gl_trans
+GlTran sql=0_gl_trans
     counter Int  sql=counter
     type Int  sql=type
     typeNo Int  sql=type_no
@@ -268,7 +268,7 @@ GlTran sql=gl_trans
     personTypeId Int Maybe sql=person_type_id
     personId ByteString Maybe sql=person_id
 
-GrnBatch sql=grn_batch
+GrnBatch sql=0_grn_batch
     Id sql=id
     supplierId Int  sql=supplier_id
     purchOrderNo Int Maybe sql=purch_order_no
@@ -276,7 +276,7 @@ GrnBatch sql=grn_batch
     deliveryDate Day  sql=delivery_date
     locCode Text Maybe sql=loc_code
 
-GrnItem sql=grn_items
+GrnItem sql=0_grn_items
     Id sql=id
     grnBatchId Int Maybe sql=grn_batch_id
     poDetailItem Int  sql=po_detail_item
@@ -285,12 +285,12 @@ GrnItem sql=grn_items
     qtyRecd Double  sql=qty_recd
     quantityInv Double  sql=quantity_inv
 
-Group sql=groups
+Group sql=0_groups
     Id sql=id
     description Text  sql=description
     inactive Bool  sql=inactive
 
-ItemCode sql=item_codes
+ItemCode sql=0_item_codes
     Id sql=id
     itemCode Text  sql=item_code
     stockId Text  sql=stock_id
@@ -300,23 +300,23 @@ ItemCode sql=item_codes
     isForeign Bool  sql=is_foreign
     inactive Bool  sql=inactive
 
-ItemTaxType sql=item_tax_types
+ItemTaxType sql=0_item_tax_types
     Id sql=id
     name Text  sql=name
     exempt Bool  sql=exempt
     inactive Bool  sql=inactive
 
-ItemTaxTypeExemption sql=item_tax_type_exemptions
+ItemTaxTypeExemption sql=0_item_tax_type_exemptions
     itemTaxTypeId Int  sql=item_tax_type_id
     taxTypeId Int  sql=tax_type_id
 
-ItemUnit sql=item_units
+ItemUnit sql=0_item_units
     abbr Text  sql=abbr
     name Text  sql=name
     decimals Bool  sql=decimals
     inactive Bool  sql=inactive
 
-Location sql=locations
+Location sql=0_locations
     locCode Text  sql=loc_code
     locationName Text  sql=location_name
     deliveryAddress Text  sql=delivery_address
@@ -327,31 +327,31 @@ Location sql=locations
     contact Text  sql=contact
     inactive Bool  sql=inactive
 
-LocStock sql=loc_stock
+LocStock sql=0_loc_stock
     locCode Text  sql=loc_code
     stockId Text  sql=stock_id
     reorderLevel Int  sql=reorder_level
 
-MovementType sql=movement_types
+MovementType sql=0_movement_types
     Id sql=id
     name Text  sql=name
     inactive Bool  sql=inactive
 
-PaymentTerm sql=payment_terms
+PaymentTerm sql=0_payment_terms
     termsIndicator Int  sql=terms_indicator
     terms Text  sql=terms
     daysBeforeDue Int  sql=days_before_due
     dayInFollowingMonth Int  sql=day_in_following_month
     inactive Bool  sql=inactive
 
-Price sql=prices
+Price sql=0_prices
     Id sql=id
     stockId Text  sql=stock_id
     salesTypeId Int  sql=sales_type_id
     currAbrev Text  sql=curr_abrev
     price Double  sql=price
 
-Printer sql=printers
+Printer sql=0_printers
     Id sql=id
     name Text  sql=name
     description Text  sql=description
@@ -360,13 +360,13 @@ Printer sql=printers
     port Int  sql=port
     timeout Bool  sql=timeout
 
-PrintProfile sql=print_profiles
+PrintProfile sql=0_print_profiles
     Id sql=id
     profile Text  sql=profile
     report Text Maybe sql=report
     printer Bool Maybe sql=printer
 
-PurchData sql=purch_data
+PurchData sql=0_purch_data
     supplierId Int  sql=supplier_id
     stockId Text  sql=stock_id
     price Double  sql=price
@@ -374,7 +374,7 @@ PurchData sql=purch_data
     conversionFactor Double  sql=conversion_factor
     supplierDescription Text  sql=supplier_description
 
-PurchOrder sql=purch_orders
+PurchOrder sql=0_purch_orders
     orderNo Int  sql=order_no
     supplierId Int  sql=supplier_id
     comments Text Maybe sql=comments
@@ -386,7 +386,7 @@ PurchOrder sql=purch_orders
     total Double  sql=total
     taxIncluded Bool  sql=tax_included
 
-PurchOrderDetail sql=purch_order_details
+PurchOrderDetail sql=0_purch_order_details
     poDetailItem Int  sql=po_detail_item
     orderNo Int  sql=order_no
     itemCode Text  sql=item_code
@@ -399,7 +399,7 @@ PurchOrderDetail sql=purch_order_details
     quantityOrdered Double  sql=quantity_ordered
     quantityReceived Double  sql=quantity_received
 
-QuickEntrie sql=quick_entries
+QuickEntrie sql=0_quick_entries
     Id sql=id
     type Bool  sql=type
     description Text  sql=description
@@ -407,7 +407,7 @@ QuickEntrie sql=quick_entries
     baseDesc Text Maybe sql=base_desc
     balType Bool  sql=bal_type
 
-QuickEntryLine sql=quick_entry_lines
+QuickEntryLine sql=0_quick_entry_lines
     Id sql=id
     qid Int  sql=qid
     amount Double Maybe sql=amount
@@ -416,7 +416,7 @@ QuickEntryLine sql=quick_entry_lines
     dimensionId Int Maybe sql=dimension_id
     dimension2Id Int Maybe sql=dimension2_id
 
-RecurrentInvoice sql=recurrent_invoices
+RecurrentInvoice sql=0_recurrent_invoices
     Id sql=id
     description Text  sql=description
     orderNo Int  sql=order_no
@@ -428,12 +428,12 @@ RecurrentInvoice sql=recurrent_invoices
     end Day  sql=end
     lastSent Day  sql=last_sent
 
-Ref sql=refs
+Ref sql=0_refs
     Id sql=id
     type Int  sql=type
     reference Text  sql=reference
 
-Salesman sql=salesman
+Salesman sql=0_salesman
     salesmanCode Int  sql=salesman_code
     salesmanName Text  sql=salesman_name
     salesmanPhone Text  sql=salesman_phone
@@ -444,7 +444,7 @@ Salesman sql=salesman
     provision2 Double  sql=provision2
     inactive Bool  sql=inactive
 
-SalesOrder sql=sales_orders
+SalesOrder sql=0_sales_orders
     orderNo Int  sql=order_no
     transType Int  sql=trans_type
     version Bool  sql=version
@@ -467,7 +467,7 @@ SalesOrder sql=sales_orders
     paymentTerms Int Maybe sql=payment_terms
     total Double  sql=total
 
-SalesOrderDetail sql=sales_order_details
+SalesOrderDetail sql=0_sales_order_details
     Id sql=id
     orderNo Int  sql=order_no
     transType Int  sql=trans_type
@@ -478,7 +478,7 @@ SalesOrderDetail sql=sales_order_details
     quantity Double  sql=quantity
     discountPercent Double  sql=discount_percent
 
-SalesPo sql=sales_pos
+SalesPo sql=0_sales_pos
     Id sql=id
     posName Text  sql=pos_name
     cashSale Bool  sql=cash_sale
@@ -487,14 +487,14 @@ SalesPo sql=sales_pos
     posAccount Int  sql=pos_account
     inactive Bool  sql=inactive
 
-SalesType sql=sales_types
+SalesType sql=0_sales_types
     Id sql=id
     salesType Text  sql=sales_type
     taxIncluded Int  sql=tax_included
     factor Double  sql=factor
     inactive Bool  sql=inactive
 
-SecurityRole sql=security_roles
+SecurityRole sql=0_security_roles
     Id sql=id
     role Text  sql=role
     description Text Maybe sql=description
@@ -502,7 +502,7 @@ SecurityRole sql=security_roles
     areas Text Maybe sql=areas
     inactive Bool  sql=inactive
 
-Shipper sql=shippers
+Shipper sql=0_shippers
     shipperId Int  sql=shipper_id
     shipperName Text  sql=shipper_name
     phone Text  sql=phone
@@ -511,13 +511,13 @@ Shipper sql=shippers
     address Text  sql=address
     inactive Bool  sql=inactive
 
-SqlTrail sql=sql_trail
+SqlTrail sql=0_sql_trail
     Id sql=id
     sql Text  sql=sql
     result Bool  sql=result
     msg Text  sql=msg
 
-StockCategory sql=stock_category
+StockCategory sql=0_stock_category
     categoryId Int  sql=category_id
     description Text  sql=description
     inactive Bool  sql=inactive
@@ -533,7 +533,7 @@ StockCategory sql=stock_category
     dfltDim2 Int Maybe sql=dflt_dim2
     dfltNoSale Bool  sql=dflt_no_sale
 
-StockMaster sql=stock_master
+StockMaster sql=0_stock_master
     stockId Text  sql=stock_id
     categoryId Int  sql=category_id
     taxTypeId Int  sql=tax_type_id
@@ -557,7 +557,7 @@ StockMaster sql=stock_master
     noSale Bool  sql=no_sale
     editable Bool  sql=editable
 
-StockMove sql=stock_moves
+StockMove sql=0_stock_moves
     transId Int  sql=trans_id
     transNo Int  sql=trans_no
     stockId Text  sql=stock_id
@@ -572,7 +572,7 @@ StockMove sql=stock_moves
     standardCost Double  sql=standard_cost
     visible Bool  sql=visible
 
-Supplier sql=suppliers
+Supplier sql=0_suppliers
     supplierId Int  sql=supplier_id
     suppName Text  sql=supp_name
     address Text  sql=address
@@ -596,7 +596,7 @@ Supplier sql=suppliers
     inactive Bool  sql=inactive
     suppRef Text  sql=supp_ref
 
-SuppAllocation sql=supp_allocations
+SuppAllocation sql=0_supp_allocations
     Id sql=id
     amt Double Maybe sql=amt
     dateAlloc Day  sql=date_alloc
@@ -605,7 +605,7 @@ SuppAllocation sql=supp_allocations
     transNoTo Int Maybe sql=trans_no_to
     transTypeTo Int Maybe sql=trans_type_to
 
-SuppInvoiceItem sql=supp_invoice_items
+SuppInvoiceItem sql=0_supp_invoice_items
     Id sql=id
     suppTransNo Int Maybe sql=supp_trans_no
     suppTransType Int Maybe sql=supp_trans_type
@@ -619,7 +619,7 @@ SuppInvoiceItem sql=supp_invoice_items
     unitTax Double  sql=unit_tax
     memo Text Maybe sql=memo_
 
-SuppTran sql=supp_trans
+SuppTran sql=0_supp_trans
     transNo Int  sql=trans_no
     type Int  sql=type
     supplierId Int Maybe sql=supplier_id
@@ -634,41 +634,41 @@ SuppTran sql=supp_trans
     alloc Double  sql=alloc
     taxIncluded Bool  sql=tax_included
 
-SysPref sql=sys_prefs
+SysPref sql=0_sys_prefs
     name Text  sql=name
     category Text Maybe sql=category
     type Text  sql=type
     length Int Maybe sql=length
     value Text Maybe sql=value
 
-SysType sql=sys_types
+SysType sql=0_sys_types
     typeId Int  sql=type_id
     typeNo Int  sql=type_no
     nextReference Text  sql=next_reference
 
-Tag sql=tags
+Tag sql=0_tags
     Id sql=id
     type Int  sql=type
     name Text  sql=name
     description Text Maybe sql=description
     inactive Bool  sql=inactive
 
-TagAssociation sql=tag_associations
+TagAssociation sql=0_tag_associations
     recordId Text  sql=record_id
     tagId Int  sql=tag_id
 
-TaxGroup sql=tax_groups
+TaxGroup sql=0_tax_groups
     Id sql=id
     name Text  sql=name
     taxShipping Bool  sql=tax_shipping
     inactive Bool  sql=inactive
 
-TaxGroupItem sql=tax_group_items
+TaxGroupItem sql=0_tax_group_items
     taxGroupId Int  sql=tax_group_id
     taxTypeId Int  sql=tax_type_id
     rate Double  sql=rate
 
-TaxType sql=tax_types
+TaxType sql=0_tax_types
     Id sql=id
     rate Double  sql=rate
     salesGlCode Text  sql=sales_gl_code
@@ -676,7 +676,7 @@ TaxType sql=tax_types
     name Text  sql=name
     inactive Bool  sql=inactive
 
-TransTaxDetail sql=trans_tax_details
+TransTaxDetail sql=0_trans_tax_details
     Id sql=id
     transType Int Maybe sql=trans_type
     transNo Int Maybe sql=trans_no
@@ -689,13 +689,13 @@ TransTaxDetail sql=trans_tax_details
     amount Double  sql=amount
     memo Text Maybe sql=memo
 
-Useronline sql=useronline
+Useronline sql=0_useronline
     Id sql=id
     timestamp Int  sql=timestamp
     ip Text  sql=ip
     file Text  sql=file
 
-User sql=users
+User sql=0_users
     Id sql=id
     userId Text  sql=user_id
     password Text  sql=password
@@ -727,19 +727,19 @@ User sql=users
     showGl Bool  sql=show_gl
     showCodes Bool  sql=show_codes
 
-Voided sql=voided
+Voided sql=0_voided
     memo Text  sql=memo_
     date Day  sql=date_
     Id sql=id
     type Int  sql=type
 
-Workcentre sql=workcentres
+Workcentre sql=0_workcentres
     name Text  sql=name
     description Text  sql=description
     inactive Bool  sql=inactive
     Id sql=id
 
-Workorder sql=workorders
+Workorder sql=0_workorders
     releasedDate Day  sql=released_date
     additionalCosts Double  sql=additional_costs
     released Bool  sql=released
@@ -754,7 +754,7 @@ Workorder sql=workorders
     stockId Text  sql=stock_id
     date Day  sql=date_
 
-WoIssue sql=wo_issues
+WoIssue sql=0_wo_issues
     reference Text Maybe sql=reference
     workcentreId Int Maybe sql=workcentre_id
     locCode Text Maybe sql=loc_code
@@ -762,20 +762,20 @@ WoIssue sql=wo_issues
     workorderId Int  sql=workorder_id
     issueDate Day Maybe sql=issue_date
 
-WoIssueItem sql=wo_issue_items
+WoIssueItem sql=0_wo_issue_items
     issueId Int Maybe sql=issue_id
     Id sql=id
     qtyIssued Double Maybe sql=qty_issued
     stockId Text Maybe sql=stock_id
 
-WoManufacture sql=wo_manufacture
+WoManufacture sql=0_wo_manufacture
     Id sql=id
     reference Text Maybe sql=reference
     workorderId Int  sql=workorder_id
     quantity Double  sql=quantity
     date Day  sql=date_
 
-WoRequirement sql=wo_requirements
+WoRequirement sql=0_wo_requirements
     stockId Text  sql=stock_id
     workcentre Int  sql=workcentre
     unitsReq Double  sql=units_req

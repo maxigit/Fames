@@ -72,7 +72,7 @@ main = do
 
 generateModel :: Table -> IO ()
 generateModel Table{..} = do
-  printf "%s sql=%s\n"
+  printf "%s sql=0_%s\n"
          (model $ tableName)
          tableName
   mapM_ go tableColumns
@@ -98,7 +98,7 @@ generateRoute Table{..} = do
          (handler tableName)
 
 handler :: String -> String
-handler s = printf "FA%sDefR" (capitalize  $ camelCase s)
+handler s = printf "FA%sR" (capitalize  $ camelCase s)
 
 model :: String -> String
 model = capitalize . camelCase . singularize
