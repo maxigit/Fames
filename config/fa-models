@@ -7,9 +7,9 @@ User sql=0_users
 
 BankAccount sql=0_bank_accounts
     Id
-    accountName Text
+    accountName Text sql=bank_account_name
     accountCode Text
-    accountNumber Text
+    accountNumber Text sql=bank_account_number
            
 
 

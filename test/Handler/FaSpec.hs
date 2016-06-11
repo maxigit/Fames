@@ -10,9 +10,9 @@ appSpec = withAppNoDB $ do
   describe "FA bindings" $ do
     it "displays list of bank accounts" $ do
       get FABankAccountsR
-      statusIs 401
+      statusIs 200
 
-      bodyContains "current account"
+      bodyContains "Current account"
 
     it "displays list of users" $ do
       get FAUsersR 

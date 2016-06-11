@@ -7,22 +7,42 @@ import FA
 getFAUsersR :: Handler Html
 getFAUsersR = do
   users <- runDB $ selectList [] []
+  let m = Nothing :: Maybe FA.User
+  let u = users :: [Entity FA.User]
+  let def = entityDef m
+  
 
   defaultLayout [whamlet|
+div #{tshow def}
 <table>
   <tr>
-    <th> Id
-    <th> RealName
-    <th> Email
+    $forall field <- entityFields def
+      <th> #{unDBName $ fieldDB field}
   $forall Entity uid user <- users
     <tr>
+      $forall some <- toPersistFields user
+        <td> #{show $ toPersistValue some}
       <td> #{tshow uid}
-      <td> #{tshow $ userLogin user}
-      <td> #{tshow $ userRealName user}
-      <td> #{tshow $ userEmail user}
 |]
 
 
 
-getFABankAccountsR :: Handler ()
-getFABankAccountsR = return ()
+getFABankAccountsR :: Handler Html
+getFABankAccountsR = do
+  entities <- runDB $ selectList [] []
+  let m = Nothing :: Maybe FA.BankAccount
+  let types = entities :: [Entity FA.BankAccount]
+  let def = entityDef m
+  
+  defaultLayout [whamlet|
+div #{tshow def}
+<table>
+  <tr>
+    $forall field <- entityFields def
+      <th> #{unDBName $ fieldDB field}
+  $forall Entity rid record <- entities
+    <tr>
+      $forall some <- toPersistFields record
+        <td> #{show $ toPersistValue some}
+      <td> #{tshow rid}
+|]
