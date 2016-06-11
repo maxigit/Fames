@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-#  #-}
 -- | Generates persistent model and routes for
 -- each tables of frontaccounting schema.
 module Main where
@@ -45,7 +44,7 @@ loadSchema connectInfo database = do
   let groups = groupBy ((==) `on` fst) [(t, (c,d,n)) | (t,c,d,n) <- rows]
   return $ map makeTable groups
 
-  where makeTable rows = Table (fst.head $ rows) (map makeColumn rows)
+  where makeTable rows = Table (dropNonLetterPrefix . fst . head $ rows) (map makeColumn rows)
         makeColumn (_, (name, dtype, nullable)) = Column name dtype (nullable == ("YES" :: String ))
 
 main :: IO ()
@@ -58,22 +57,30 @@ main = do
          }
       db = "Fames_test"
   tables <- loadSchema connectInfo db
-  print "#Model"
+  putStrLn "-- Model"
   mapM_ generateModel tables
-  print "#Route"
+  putStrLn "\n-- Route"
   mapM_ generateRoute tables
-  print "#Handler"
+  putStrLn "\n-- Handler\n\
+\module Handler.FA.Def where\n\
+\import Import\n\
+\import FA\n\
+\\n"
+
   mapM_ generateHandler tables
 
 
 generateModel :: Table -> IO ()
 generateModel Table{..} = do
   printf "%s sql=%s\n"
-         (capitalize . camelCase . singularize . dropNonLetterPrefix $ tableName)
+         (model $ tableName)
          tableName
   mapM_ go tableColumns
   putStrLn ""
-  where go Column{..} = do
+  where go Column{..} | map toLower columnName == "id"
+                        || map toLower columnName == tableName ++ "_id"
+                                                 = printf "    Id sql=%s\n" columnName
+                      | True = do
           printf "    %s %s %s sql=%s\n"
                  (camelCase columnName)
                  (htype columnType)
@@ -84,11 +91,33 @@ generateModel Table{..} = do
                  columnName
 
 
-generateRoute table = do
-  return ()
+generateRoute :: Table -> IO ()
+generateRoute Table{..} = do
+  printf "/fa/%s %s GET\n"
+         tableName
+         (handler tableName)
 
-generateHandler table = do
-  return ()
+handler :: String -> String
+handler s = printf "FA%sDefR" (capitalize  $ camelCase s)
+
+model :: String -> String
+model = capitalize . camelCase . singularize
+
+generateHandler :: Table -> IO ()
+generateHandler Table{..} = do
+  let handlerName = "get" ++ handler tableName
+  printf "\
+\%s :: Handler Html \n\
+\%s = do \n\
+\  entities <- runDB $ selectList [] []\n\
+\  let typed = entities :: [Entity FA.%s]\n\
+\  defaultLayout $ toWidget (entitiesToTable getDBName entities)\n\
+\\n"
+         handlerName
+         handlerName
+         (model tableName)
+
+
   
 
         
@@ -125,28 +154,28 @@ singularize = reverse . go . reverse where
   go s = s
 
 htype :: String -> String
-htype "varchar" = "String"
-htype "bigint" = "Integer"
-htype "longtext" = "String"
-htype "datetime" = "Time.UTCTime"
+htype "varchar" = "Text"
+htype "bigint" = "Int"
+htype "longtext" = "Text"
+htype "datetime" = "UTCTime"
 htype "int" = "Int"
-htype "decimal" = "Ratio"
-htype "text" = "String"
-htype "longblob" = "String"
+htype "decimal" = "Rational"
+htype "text" = "Text"
+htype "longblob" = "ByteString"
 htype "tinyint" = "Bool"
 htype "smallint" = "Int"
-htype "mediumtext" = "String"
-htype "blob" = "String"
-htype "tinytext" = "String"
-htype "mediumint" = "String"
-htype "float" = "Float"
+htype "mediumtext" = "Text"
+htype "blob" = "ByteString"
+htype "tinytext" = "Text"
+htype "mediumint" = "Int"
+htype "float" = "Double"
 htype "double" = "Double"
-htype "date" = "Time.Day"
-htype "timestamp" = "Time.UTCTime"
-htype "char" = "String"
-htype "tinyblob" = "String"
-htype "varbinary" = "String"
+htype "date" = "Day"
+htype "timestamp" = "UTCTime"
+htype "char" = "Text"
+htype "tinyblob" = "ByteString"
+htype "varbinary" = "ByteString"
 -- htype "set" = "String"
 -- htype "enum" = "String"
-htype "time" = "Time.TimeOfDay"
+htype "time" = "TimeOfDay"
 htype s = "<-- Please edit me " ++  s ++ " -->"

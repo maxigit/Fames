@@ -32,6 +32,7 @@ library
                      Handler.GLEnterReceiptSheet
                      Handler.GLEnterReceiptSheet.ReceiptRow
                      Handler.FA
+                     Handler.FA.Def
                      Handler.Util
 
     if flag(dev) || flag(library-only)

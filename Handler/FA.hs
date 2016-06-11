@@ -1,8 +1,12 @@
 {-# LANGUAGE QuasiQuotes #-}
-module Handler.FA where
+module Handler.FA
+( module Handler.FA
+, module Handler.FA.Def
+) where
 
 import Import
 import FA
+import Handler.FA.Def
 
 getFAUsersR :: Handler Html
 getFAUsersR = do
