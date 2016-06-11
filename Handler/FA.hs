@@ -9,7 +9,7 @@ getFAUsersR = do
   entities <- runDB $ selectList [] []
   let users = entities :: [Entity FA.User]
   
-  defaultLayout $ toWidget (renderEntities getDBName entities)
+  defaultLayout $ toWidget (entitiesToTable getDBName entities)
 
 
 
@@ -18,4 +18,4 @@ getFABankAccountsR = do
   entities <- runDB $ selectList [] []
   let accounts = entities :: [Entity FA.BankAccount]
 
-  defaultLayout $ toWidget (renderEntities getDBName entities)
+  defaultLayout $ toWidget (entitiesToTable  getDBName entities)

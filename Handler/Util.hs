@@ -1,14 +1,18 @@
 -- | Miscellaneous functions to help rendering
 -- | and/or accessing the database
-module Handler.Util where
+module Handler.Util
+( entitiesToTable
+, getDBName
+, getHaskellName
+) where
 
 -- import Foundation
 import Import.NoFoundation
 import Database.Persist
 
 
--- renderEntities :: PersistEntity a => (FieldDef -> Text) -> [Entity a] -> Html
-renderEntities getColumn entities = do
+entitiesToTable :: PersistEntity a => (FieldDef -> Text) -> [Entity a] -> Html
+entitiesToTable getColumn entities = do
   let eDef = entityDef (map entityVal entities)
 -- <table class="#{unHaskellName . entityHaskell $ eDef}">
   [shamlet|
@@ -19,7 +23,7 @@ renderEntities getColumn entities = do
   $forall Entity eit entity  <- entities
     <tr>
       $forall (pfield, fieldDef) <- zip (toPersistFields entity) (entityFields eDef)
-        <td class="#{getHaskellName fieldDef}" > #{show $ toPersistValue pfield}
+        <td class="#{getHaskellName fieldDef}" > #{renderPersistValue $ toPersistValue pfield}
 |]
 
 getDBName :: FieldDef -> Text
@@ -27,6 +31,13 @@ getDBName = unDBName . fieldDB
 
 getHaskellName :: FieldDef -> Text
 getHaskellName = unHaskellName . fieldHaskell
+
+
+renderPersistValue :: PersistValue -> Text
+renderPersistValue pvalue = case (fromPersistValueText pvalue) of
+  Left _ -> tshow pvalue
+  Right text -> text
+
 
 
 
