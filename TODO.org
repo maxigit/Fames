@@ -88,7 +88,6 @@ This is the priority as it allows manual testing much easier
 - [X] fix invalid row from invalid header field
 - [X] fix duplicated rows
 - [X] fix test ?
-* Next
 ** DONE Add all columns
 CLOSED: [2016-05-30 Mon 21:21]
 - [X] modify code
@@ -97,7 +96,7 @@ CLOSED: [2016-05-30 Mon 21:21]
 ** DONE fix transform
 CLOSED: [2016-05-30 Mon 21:21]
 Transforming row is not safe (Maybe Int) -> Int. Check why it's needed
-** TODO refactor handler to accept flow
+** DONE refactor handler to accept flow
 ** DONE finalize tests
 ** DONE pre-process header
 So we can use Date, date, DATE etc ...
@@ -106,21 +105,27 @@ So we can use Date, date, DATE etc ...
 - [ ] +write my own bit+
 Solution, just try them explicitly using =asum=
 ** DONE add encoding options
+** DONE Upload via file
+CLOSED: [2016-04-03 Sun 13:47]
 ** TODO Think of a/the flow
 Each steps should be able to have it's own page or not ...
 - [ ]  MAYBE add steps  in URL
 - [ ] split handler into function and dispatch (and pass error/parsing result)
-** TODO lookup bank account, gl account etc ...
-*** TODO how to do private conf ?
-** TODO validate and create full receipt
-** DONE Upload via file
-CLOSED: [2016-04-03 Sun 13:47]
-** TODO add Uknown/Calculated/Given monad
 ** DONE Generate event from receipt
 CLOSED: [2016-04-03 Sun 11:33]
 keep receipt together so we can display both
 - guess VAT
+* Next
+** TODO use FA user as login
+** TODO add Roles and Permissions
+because some tables shouldn't be accessible
+The easiest is probably to create roles (hiearchy ?) and assing user to them (hardcoded).
+** TODO lookup bank account, gl account etc ...
+*** TODO how to do private conf ?
+** TODO validate and create full receipt
+** TODO add Uknown/Calculated/Given monad
 ** TODO parse VAT ex : Te0
+** TODO replace FA routes by ones with sub type
 
 
 

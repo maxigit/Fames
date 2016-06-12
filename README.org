@@ -72,7 +72,7 @@ Of course, each event /remembers/ which GL posts it has generated in the past, s
 Keep track of employees schedule, and generate FA GL entry and payment.
 ** Same users as FA
 For the moment, FAMES will probably use frontaccounting user tables.
-* Techonologies
+* Technologies
 The backend of FAMES is written in Haskell using Yesod.
 
 The front-end Javascript using Fay and/or maybe AngularJS.
