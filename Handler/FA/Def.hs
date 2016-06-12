@@ -1,3 +1,4 @@
+-- Handler
 module Handler.FA.Def where
 import Import
 import FA
@@ -48,7 +49,7 @@ getFABudgetTransR = do
 getFAChartClassR :: Handler Html 
 getFAChartClassR = do 
   entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.ChartClas]
+  let typed = entities :: [Entity FA.ChartClass]
   defaultLayout $ toWidget (entitiesToTable getDBName entities)
 
 getFAChartMasterR :: Handler Html 
@@ -78,7 +79,7 @@ getFACreditStatusR = do
 getFACrmCategoriesR :: Handler Html 
 getFACrmCategoriesR = do 
   entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.CrmCategorie]
+  let typed = entities :: [Entity FA.CrmCategory]
   defaultLayout $ toWidget (entitiesToTable getDBName entities)
 
 getFACrmContactsR :: Handler Html 
@@ -96,7 +97,7 @@ getFACrmPersonsR = do
 getFACurrenciesR :: Handler Html 
 getFACurrenciesR = do 
   entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.Currencie]
+  let typed = entities :: [Entity FA.Currency]
   defaultLayout $ toWidget (entitiesToTable getDBName entities)
 
 getFACustAllocationsR :: Handler Html 
@@ -258,7 +259,7 @@ getFAPurchOrderDetailsR = do
 getFAQuickEntriesR :: Handler Html 
 getFAQuickEntriesR = do 
   entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.QuickEntrie]
+  let typed = entities :: [Entity FA.QuickEntry]
   defaultLayout $ toWidget (entitiesToTable getDBName entities)
 
 getFAQuickEntryLinesR :: Handler Html 
@@ -470,3 +471,4 @@ getFAWoRequirementsR = do
   entities <- runDB $ selectList [] []
   let typed = entities :: [Entity FA.WoRequirement]
   defaultLayout $ toWidget (entitiesToTable getDBName entities)
+

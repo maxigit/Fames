@@ -4,6 +4,7 @@
 module Main where
 
 import Prelude
+import Control.Monad
 import qualified Database.MySQL.Simple as SQL
 import Data.List
 import Data.List.Split(splitOn)
@@ -22,6 +23,7 @@ data Column = Column
   { columnName :: String
   , columnType :: String
   , columnNullabe :: Bool
+  , columnIsPrimary :: Bool
   } deriving (Show, Read, Eq, Ord)
 
 
@@ -34,6 +36,7 @@ loadSchema connectInfo database = do
       \      , column_name \
       \      , data_type \
       \      , is_nullable \
+      \      , column_key \
       \ FROM information_schema.columns \
       \ WHERE table_schema = ? \
       \ AND table_name like '0_%' \
@@ -41,11 +44,20 @@ loadSchema connectInfo database = do
       \ AND column_name not like '% %' \
       \ ORDER BY table_name \
       \" [database :: String]
-  let groups = groupBy ((==) `on` fst) [(t, (c,d,n)) | (t,c,d,n) <- rows]
+  let groups = groupBy ((==) `on` fst) [(t, (c,d,n,p)) | (t,c,d,n,p) <- rows]
   return $ map makeTable groups
 
-  where makeTable rows = Table (dropNonLetterPrefix . fst . head $ rows) (map makeColumn rows)
-        makeColumn (_, (name, dtype, nullable)) = Column name dtype (nullable == ("YES" :: String ))
+  where makeTable rows = Table (dropNonLetterPrefix . fst . head $ rows) (makeColumns rows)
+        makeColumns rows =
+          let columns = map makeColumn rows
+        -- if more than one columns is a primary key, remove them all
+          in if length (filter (==True) (map columnIsPrimary columns)) /= 1
+             then [ col {columnIsPrimary = False} | col <- columns]
+             else columns
+               
+        makeColumn (_, (name, dtype, nullable, primary)) =
+			Column name dtype (nullable == ("YES" :: String ))
+                                          (primary == ("PRI" :: String))
 
 main :: IO ()
 main = do
@@ -75,14 +87,14 @@ generateModel Table{..} = do
   printf "%s sql=0_%s\n"
          (model $ tableName)
          tableName
-  mapM_ go tableColumns
+  mapM go tableColumns 
   putStrLn ""
-  where go Column{..} | map toLower columnName == "id"
-                        || map toLower columnName == tableName ++ "_id"
-                                                 = printf "    Id sql=%s\n" columnName
-                      | True = do
+  where go Column{..} = do
           printf "    %s %s %s sql=%s\n"
-                 (camelCase columnName)
+                 ( if columnIsPrimary 
+                   then "Id"
+                   else camelCase columnName
+                 )
                  (htype columnType)
                  (if columnNullabe
                     then "Maybe" :: String
@@ -150,6 +162,8 @@ uncapitalize (x:xs) = toLower x : xs
 -- remove trailing s at the moment
 singularize = reverse . go . reverse where
   go [] = []
+  go s@('s':'s':_) = s
+  go ('s':'e':'i':s) ='y':s
   go ('s':s) = s
   go s = s
 
