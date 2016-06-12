@@ -25,6 +25,8 @@ library
                      Settings
                      Settings.StaticFiles
                      SharedTypes
+                     Handler.Administrator
+                     Handler.Login
                      Handler.Common
                      Handler.Fay
                      Handler.Home

@@ -11,6 +11,9 @@
 /gl/enter_receipts_sheet GLEnterReceiptSheetR GET POST
 
 
+/administrator AdministratorR GET
+/login LoginR' GET POST
+
 /fa/areas FAAreasR GET
 /fa/attachments FAAttachmentsR GET
 /fa/audit_trail FAAuditTrailR GET

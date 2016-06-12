@@ -117,6 +117,7 @@ keep receipt together so we can display both
 - guess VAT
 * Next
 ** TODO use FA user as login
+** TODO sort loginR' loginR
 ** TODO add Roles and Permissions
 because some tables shouldn't be accessible
 The easiest is probably to create roles (hiearchy ?) and assing user to them (hardcoded).

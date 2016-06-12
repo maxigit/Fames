@@ -33,6 +33,8 @@ import Yesod.Fay                            (getFaySite)
 
 -- Import all relevant handler modules here.
 -- Don't forget to add new modules to your cabal file!
+import Handler.Administrator
+import Handler.Login
 import Handler.Common
 import Handler.Fay
 import Handler.Home
