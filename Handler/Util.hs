@@ -14,9 +14,8 @@ import Database.Persist
 entitiesToTable :: PersistEntity a => (FieldDef -> Text) -> [Entity a] -> Html
 entitiesToTable getColumn entities = do
   let eDef = entityDef (map entityVal entities)
--- <table class="#{unHaskellName . entityHaskell $ eDef}">
   [shamlet|
-<table.table.table-bordered class="#{unHaskellName $ entityHaskell eDef}">
+<table.table.table-bordered.table-striped class="#{unHaskellName $ entityHaskell eDef}">
   <tr>
     <th> Id
     $forall field <- entityFields eDef
