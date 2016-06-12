@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances, DeriveGeneric #-}
 module FA where
 
 import ClassyPrelude.Yesod

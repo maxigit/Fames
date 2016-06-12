@@ -36,6 +36,7 @@ getHaskellName = unHaskellName . fieldHaskell
 
 
 renderPersistValue :: PersistValue -> Text
+renderPersistValue (PersistList _) = "<>"
 renderPersistValue pvalue = case (fromPersistValueText pvalue) of
   Left _ -> tshow pvalue
   Right text -> text

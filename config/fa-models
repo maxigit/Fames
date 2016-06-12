@@ -57,7 +57,7 @@ BankTran sql=0_bank_trans
 
 Bom sql=0_bom
     Id Int  sql=id
-    parent Text  sql=parent
+    parent Text  sql=parent_sq
     component Text  sql=component
     workcentreAdded Int  sql=workcentre_added
     locCode Text  sql=loc_code
@@ -177,6 +177,7 @@ CustBranch sql=0_cust_branch
     notes Text Maybe sql=notes
     inactive Bool  sql=inactive
     branchRef Text  sql=branch_ref
+    Primary branchCode debtorNo
 
 DebtorsMaster sql=0_debtors_master
     Id Int  sql=debtor_no
@@ -218,6 +219,7 @@ DebtorTran sql=0_debtor_trans
     dimensionId Int  sql=dimension_id
     dimension2Id Int  sql=dimension2_id
     paymentTerms Int Maybe sql=payment_terms
+    Primary transNo type
 
 DebtorTransDetail sql=0_debtor_trans_details
     Id Int  sql=id
@@ -309,6 +311,7 @@ ItemTaxType sql=0_item_tax_types
 ItemTaxTypeExemption sql=0_item_tax_type_exemptions
     itemTaxTypeId Int  sql=item_tax_type_id
     taxTypeId Int  sql=tax_type_id
+    Primary itemTaxTypeId taxTypeId
 
 ItemUnit sql=0_item_units
     Id Text  sql=abbr
@@ -331,6 +334,7 @@ LocStock sql=0_loc_stock
     locCode Text  sql=loc_code
     stockId Text  sql=stock_id
     reorderLevel Int  sql=reorder_level
+    Primary locCode stockId
 
 MovementType sql=0_movement_types
     Id Int  sql=id
@@ -373,6 +377,7 @@ PurchData sql=0_purch_data
     suppliersUom Text  sql=suppliers_uom
     conversionFactor Double  sql=conversion_factor
     supplierDescription Text  sql=supplier_description
+    Primary supplierId stockId
 
 PurchOrder sql=0_purch_orders
     Id Int  sql=order_no
@@ -466,6 +471,7 @@ SalesOrder sql=0_sales_orders
     deliveryDate Day  sql=delivery_date
     paymentTerms Int Maybe sql=payment_terms
     total Double  sql=total
+    Primary orderNo transType
 
 SalesOrderDetail sql=0_sales_order_details
     Id Int  sql=id
@@ -633,6 +639,7 @@ SuppTran sql=0_supp_trans
     rate Double  sql=rate
     alloc Double  sql=alloc
     taxIncluded Bool  sql=tax_included
+    Primary transNo type
 
 SysPref sql=0_sys_prefs
     Id Text  sql=name
@@ -656,6 +663,7 @@ Tag sql=0_tags
 TagAssociation sql=0_tag_associations
     recordId Text  sql=record_id
     tagId Int  sql=tag_id
+    Primary recordId tagId
 
 TaxGroup sql=0_tax_groups
     Id Int  sql=id
@@ -667,6 +675,7 @@ TaxGroupItem sql=0_tax_group_items
     taxGroupId Int  sql=tax_group_id
     taxTypeId Int  sql=tax_type_id
     rate Double  sql=rate
+    Primary taxGroupId taxTypeId
 
 TaxType sql=0_tax_types
     Id Int  sql=id

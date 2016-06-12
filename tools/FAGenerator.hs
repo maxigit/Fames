@@ -47,14 +47,7 @@ loadSchema connectInfo database = do
   let groups = groupBy ((==) `on` fst) [(t, (c,d,n,p)) | (t,c,d,n,p) <- rows]
   return $ map makeTable groups
 
-  where makeTable rows = Table (dropNonLetterPrefix . fst . head $ rows) (makeColumns rows)
-        makeColumns rows =
-          let columns = map makeColumn rows
-        -- if more than one columns is a primary key, remove them all
-          in if length (filter (==True) (map columnIsPrimary columns)) /= 1
-             then [ col {columnIsPrimary = False} | col <- columns]
-             else columns
-               
+  where makeTable rows = Table (dropNonLetterPrefix . fst . head $ rows) (map makeColumn rows)
         makeColumn (_, (name, dtype, nullable, primary)) =
 			Column name dtype (nullable == ("YES" :: String ))
                                           (primary == ("PRI" :: String))
@@ -88,10 +81,14 @@ generateModel Table{..} = do
          (model $ tableName)
          tableName
   mapM go tableColumns 
+  -- generate primary keys if composite
+  when composite
+       (putStrLn $ "    Primary " ++ unwords (map (camelCase . columnName) composites))
+       
   putStrLn ""
   where go Column{..} = do
           printf "    %s %s %s sql=%s\n"
-                 ( if columnIsPrimary 
+                 ( if columnIsPrimary && not composite 
                    then "Id"
                    else camelCase columnName
                  )
@@ -101,6 +98,8 @@ generateModel Table{..} = do
                     else ""
                  )
                  columnName
+        composites = filter ((==True). columnIsPrimary) tableColumns
+        composite = length composites > 1
 
 
 generateRoute :: Table -> IO ()
