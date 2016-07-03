@@ -104,6 +104,7 @@ library
                  , wai
                  , blaze-html
                  , split
+                 , cryptohash
 
 executable         Fames
     if flag(library-only)

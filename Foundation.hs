@@ -14,6 +14,8 @@ import Yesod.Fay
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Text.Encoding as TE
 import qualified FA as FA
+import qualified Crypto.Hash as Crypto
+import Crypto.Hash (MD5, Digest, hash)
 
 -- | The foundation datatype for your application. This can be a good place to
 -- keep settings and values requiring initialization before your application
@@ -234,8 +236,12 @@ postLoginR = do
                                  )
   where validatePassword username password = runDB $ do
            c <- count [ FA.UserUserId ==. username
-                      , FA.UserPassword ==. password ]
+                      , FA.UserPassword ==. md5 password ]
            return $ c == 1
         doesUserNameExist username = runDB $ do
           c <- count [ FA.UserUserId ==. username ]
           return $ c >= 1
+md5 :: Text -> Text
+md5 text = let digest = Crypto.hash (encodeUtf8 text)  :: Digest MD5
+            in tshow digest
+
