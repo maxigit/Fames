@@ -94,7 +94,6 @@ instance Yesod App where
     isAuthorized (AuthR _) _ = return Authorized
     isAuthorized FaviconR _ = return Authorized
     isAuthorized RobotsR _ = return Authorized
-    isAuthorized LoginR' _ = return Authorized
     isAuthorized GLEnterReceiptSheetR _ = return Authorized
     -- Default to Authorized for now.
     isAuthorized _ _ = return AuthenticationRequired

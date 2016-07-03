@@ -12,7 +12,6 @@
 
 
 /administrator AdministratorR GET
-/login LoginR' GET POST
 
 /fa/areas FAAreasR GET
 /fa/attachments FAAttachmentsR GET
