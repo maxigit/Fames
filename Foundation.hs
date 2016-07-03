@@ -5,12 +5,15 @@ import Database.Persist.Sql (ConnectionPool, runSqlPool)
 import Text.Hamlet          (hamletFile)
 import Text.Jasmine         (minifym)
 import Yesod.Auth.OpenId    (authOpenId, IdentifierType (Claimed))
+import qualified Yesod.Auth.Message    as Msg
+import Yesod.Form (ireq, runInputPost, textField)
 import Yesod.Default.Util   (addStaticContentExternal)
 import Yesod.Core.Types     (Logger)
 import qualified Yesod.Core.Unsafe as Unsafe
 import Yesod.Fay
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Text.Encoding as TE
+import qualified FA as FA
 
 -- | The foundation datatype for your application. This can be a good place to
 -- keep settings and values requiring initialization before your application
@@ -82,14 +85,17 @@ instance Yesod App where
         withUrlRenderer $(hamletFile "templates/default-layout-wrapper.hamlet")
 
     -- The page to be redirected to when authentication is required.
+    -- authRoute _ = Just $ LoginR' --  AuthR LoginR
     authRoute _ = Just $ AuthR LoginR
 
     -- Routes not requiring authentication.
     isAuthorized (AuthR _) _ = return Authorized
     isAuthorized FaviconR _ = return Authorized
     isAuthorized RobotsR _ = return Authorized
+    isAuthorized LoginR' _ = return Authorized
+    isAuthorized GLEnterReceiptSheetR _ = return Authorized
     -- Default to Authorized for now.
-    isAuthorized _ _ = return Authorized
+    isAuthorized _ _ = return AuthenticationRequired
 
     -- This function creates static content files in the static folder
     -- and names them based on a hash of their content. This allows
@@ -157,7 +163,7 @@ instance YesodAuth App where
                 }
 
     -- You can add other plugins like Google Email, email or OAuth here
-    authPlugins _ = [authOpenId Claimed []]
+    authPlugins _ = [authFA] -- [authOpenId Claimed []]
 
     authHttpManager = getHttpManager
 
@@ -184,3 +190,52 @@ unsafeHandler = Unsafe.fakeHandlerGetLogger appLogger
 -- https://github.com/yesodweb/yesod/wiki/Sending-email
 -- https://github.com/yesodweb/yesod/wiki/Serve-static-files-from-a-separate-domain
 -- https://github.com/yesodweb/yesod/wiki/i18n-messages-in-the-scaffolding
+
+authFA = AuthPlugin "fa" dispatch loginWidget
+  where
+    -- dispatch _ _ = undefined
+    dispatch "POST" ["login"] = postLoginR >>= sendResponse
+    dispatch _ _ = notFound
+    loginR = PluginR "fa" ["login"]
+    loginWidget toMaster = do
+      request <- getRequest
+      [whamlet|
+ $newline never
+        <form method="post" action="@{toMaster loginR}">
+          $maybe t <- reqToken request
+            <input type=hidden name=#{defaultCsrfParamName} value=#{t}>
+          <table>
+            <tr>
+              <th>_{Msg.UserName}
+              <td>
+                 <input type="text" name="username" required>
+            <tr>
+              <th>_{Msg.Password}
+              <td>
+                 <input type="password" name="password" required>
+            <tr>
+              <td colspan="2">
+                 <button type="submit" .btn .btn-success>_{Msg.LoginTitle}
+        |]
+postLoginR :: HandlerT Auth (HandlerT App IO) TypedContent
+postLoginR = do
+  (username, password) <- lift ( runInputPost
+                                 ((,) <$> ireq textField "username"
+                                      <*> ireq passwordField "password")
+                               )
+  isValid <- lift $ validatePassword username password
+  if isValid
+    then lift (setCredsRedirect (Creds "fa" username []))
+    else do
+       userExists <- lift $ doesUserNameExist username
+       loginErrorMessageI LoginR ( if userExists
+                                      then Msg.InvalidUsernamePass
+                                      else Msg.IdentifierNotFound username
+                                 )
+  where validatePassword username password = runDB $ do
+           c <- count [ FA.UserUserId ==. username
+                      , FA.UserPassword ==. password ]
+           return $ c == 1
+        doesUserNameExist username = runDB $ do
+          c <- count [ FA.UserUserId ==. username ]
+          return $ c >= 1
