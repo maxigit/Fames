@@ -1,34 +1,38 @@
 module Handler.AuthSpec (spec) where
 
 import TestImport
+import Yesod.Auth (Route(LoginR))
 
 logAsAdmin = do
-     get HomeR
+     get (AuthR LoginR)
      request $ do
        setMethod "POST"
-       addToken_ "form#text-form"
-       byLabel "Login" "admin"
-       byLabel "password" "wadmin"
+       setUrl ("auth/page/fa/login" :: String)
+       addToken_ "form#login-form"
+       addPostParam "username" "admin"
+       addPostParam "password" "wadmin"
 
 spec :: Spec
 spec = withAppNoDB $ do
   it "not logged" $ do
     get AdministratorR
-    statusIs 403
+    statusIs 303
+    followRedirect
+    bodyContains "username"
 
   it  "logging" $ do
-     get LoginR'
+     get (AuthR LoginR)
+     printBody
      statusIs 200
-     bodyContains "Please login"
+     htmlCount "input[name=username]" 1
+     htmlCount "input[name=password]" 1
      -- log detail
 
-     request $ do
-       setMethod "POST"
-       addToken_ "form#text-form"
-       byLabel "Login" "admin"
-       byLabel "password" "wadmin"
+     logAsAdmin
 
+     printBody
      statusIs 200
+     bodyContains "You are logged in"
 
   it "logged as administrator" $ do
     logAsAdmin

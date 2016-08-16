@@ -94,9 +94,13 @@ instance Yesod App where
     isAuthorized (AuthR _) _ = return Authorized
     isAuthorized FaviconR _ = return Authorized
     isAuthorized RobotsR _ = return Authorized
-    isAuthorized GLEnterReceiptSheetR _ = return Authorized
+    isAuthorized HomeR _ = return Authorized
     -- Default to Authorized for now.
-    isAuthorized _ _ = return AuthenticationRequired
+    isAuthorized _ _ = do
+       mu <- maybeAuthId
+       return $ case mu of
+         Nothing -> AuthenticationRequired
+         Just _ -> Authorized
 
     -- This function creates static content files in the static folder
     -- and names them based on a hash of their content. This allows
@@ -202,7 +206,7 @@ authFA = AuthPlugin "fa" dispatch loginWidget
       request <- getRequest
       [whamlet|
  $newline never
-        <form method="post" action="@{toMaster loginR}">
+        <form #login-form method="post" action="@{toMaster loginR}">
           $maybe t <- reqToken request
             <input type=hidden name=#{defaultCsrfParamName} value=#{t}>
           <table>
@@ -235,12 +239,12 @@ postLoginR = do
                                  )
   where validatePassword username password = runDB $ do
            c <- count [ FA.UserUserId ==. username
-                      , FA.UserPassword ==. md5 password ]
+                      , FA.UserPassword ==. cryptFAPassword password ]
            return $ c == 1
         doesUserNameExist username = runDB $ do
           c <- count [ FA.UserUserId ==. username ]
           return $ c >= 1
-md5 :: Text -> Text
-md5 text = let digest = Crypto.hash (encodeUtf8 text)  :: Digest MD5
+cryptFAPassword :: Text -> Text
+cryptFAPassword text = let digest = Crypto.hash (encodeUtf8 text)  :: Digest MD5
             in tshow digest
 

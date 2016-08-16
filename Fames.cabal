@@ -144,6 +144,7 @@ test-suite test
                  , yesod-test >= 1.5.0.1 && < 1.6
                  , yesod-core
                  , yesod
+                 , yesod-auth
                  , persistent
                  , persistent-mysql
                  , resourcet
