@@ -7,7 +7,7 @@ logAsAdmin = do
      get (AuthR LoginR)
      request $ do
        setMethod "POST"
-       setUrl ("auth/page/fa/login" :: String)
+       setUrl ("/auth/page/fa/login" :: String)
        addToken_ "form#login-form"
        addPostParam "username" "admin"
        addPostParam "password" "wadmin"
@@ -20,28 +20,23 @@ spec = withAppNoDB $ do
     followRedirect
     bodyContains "username"
 
-  it  "logging" $ do
+  it "ask for logging details on login page" $ do
      get (AuthR LoginR)
-     printBody
      statusIs 200
      htmlCount "input[name=username]" 1
      htmlCount "input[name=password]" 1
-     -- log detail
 
+  it  "logging" $ do
      logAsAdmin
-
-     printBody
+     statusIs 303
+     followRedirect
      statusIs 200
-     bodyContains "You are logged in"
+     bodyContains "You are now logged in"
 
   it "logged as administrator" $ do
     logAsAdmin
    
     get AdministratorR
     statusIs 200
-
     bodyContains "You are logged as Administrator"
-
-
-     
 

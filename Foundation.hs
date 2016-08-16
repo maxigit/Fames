@@ -96,6 +96,7 @@ instance Yesod App where
     isAuthorized RobotsR _ = return Authorized
     isAuthorized HomeR _ = return Authorized
     -- Default to Authorized for now.
+    -- isAuthorized AdministratorR _ = isAdministrator
     isAuthorized _ _ = do
        mu <- maybeAuthId
        return $ case mu of
