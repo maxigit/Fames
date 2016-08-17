@@ -4,7 +4,7 @@ import TestImport
 import Data.Aeson
 
 spec :: Spec
-spec = withAppWipe $ do
+spec = withAppWipe BypassAuth $ do
     describe "valid request" $ do
         it "gives a 200" $ do
             get HomeR

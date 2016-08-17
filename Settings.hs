@@ -21,6 +21,7 @@ import Yesod.Default.Util         (WidgetFileSettings, widgetFileNoReload,
 import qualified Database.MySQL.Base as MySQL
 import Yesod.Fay
 
+data AuthMode = BypassAuth | CheckAuth deriving (Read, Show, Eq)
 -- | Runtime settings to configure this application. These settings can be
 -- loaded from various sources: defaults, environment variables, config files,
 -- theoretically even a database.
@@ -56,7 +57,9 @@ data AppSettings = AppSettings
     -- ^ Copyright text to appear in the footer of the page
     , appAnalytics              :: Maybe Text
     -- ^ Google Analytics code
-    }
+    , appBypassAuth             :: AuthMode
+    -- ^ Allow to bypass authorization. Usefull for test
+    } deriving Show
 
 instance FromJSON AppSettings where
     parseJSON = withObject "AppSettings" $ \o -> do
@@ -81,6 +84,7 @@ instance FromJSON AppSettings where
 
         appCopyright              <- o .: "copyright"
         appAnalytics              <- o .:? "analytics"
+        
 
         -- This code enables MySQL's strict mode, without which MySQL will truncate data.
         -- See https://github.com/yesodweb/persistent/wiki/Database-Configuration#strict-mode for details
@@ -91,6 +95,7 @@ instance FromJSON AppSettings where
                   ( MySQL.connectOptions (myConnInfo fromYamlAppDatabaseConf)) ++ [MySQL.InitCommand "SET SESSION sql_mode = 'STRICT_ALL_TABLES';\0"]
               }
             }
+            appBypassAuth = CheckAuth
 
         return AppSettings {..}
 

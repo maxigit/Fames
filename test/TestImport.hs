@@ -2,6 +2,7 @@
 module TestImport
     ( module TestImport
     , module X
+    , AuthMode(..)
     ) where
 
 import Application           (makeFoundation, makeLogWare)
@@ -14,6 +15,18 @@ import Test.Hspec            as X
 import Text.Shakespeare.Text (st)
 import Yesod.Default.Config2 (ignoreEnv, loadYamlSettings)
 import Yesod.Test            as X
+import Yesod.Auth (Route(LoginR))
+import Settings(appBypassAuth, AuthMode(..))
+
+-- Log as administrator, In theory gives access to every page
+logAsAdmin = do
+     get (AuthR LoginR)
+     request $ do
+       setMethod "POST"
+       setUrl ("/auth/page/fa/login" :: String)
+       addToken_ "form#login-form"
+       addPostParam "username" "admin"
+       addPostParam "password" "wadmin"
 
 runDB :: SqlPersistM a -> YesodExample App a
 runDB query = do
@@ -23,15 +36,17 @@ runDB query = do
 runDBWithApp :: App -> SqlPersistM a -> IO a
 runDBWithApp app query = runSqlPersistMPool query (appConnPool app)
 
-withApp :: (Text -> KeepOrWipe) -- ^ filter tables to truncate
+withApp ::  (Text -> KeepOrWipe) -- ^ filter tables to truncate
         -> _ -- ^ Hook before o beforeAll
-        -> SpecWith (TestApp App) -> Spec
-withApp tablePredicate  hook = hook $ do
+        -> AuthMode -- ^ Bypass authorization
+        -> SpecWith (TestApp App)
+        -> Spec
+withApp tablePredicate  hook bypassAuth = hook $ do
     settings <- loadYamlSettings
         ["config/test-settings.yml", "config/settings.yml"]
         []
         ignoreEnv
-    foundation <- makeFoundation settings
+    foundation <- makeFoundation settings {appBypassAuth = bypassAuth }
     wipeDB tablePredicate foundation
     logWare <- liftIO $ makeLogWare foundation
     return (foundation, logWare)
@@ -44,7 +59,7 @@ withAppWipe = withApp keepFA before
 
 data KeepOrWipe = Keep | Wipe deriving (Eq, Show)
 keepFA, keepAllTables :: Text -> KeepOrWipe 
-keepFA t = if X.isPrefixOf "0_" t 
+keepFA table = if X.isPrefixOf "0_" table
            then Keep
            else Wipe
 keepAllTables _ = Keep

@@ -97,11 +97,18 @@ instance Yesod App where
     isAuthorized HomeR _ = return Authorized
     -- Default to Authorized for now.
     -- isAuthorized AdministratorR _ = isAdministrator
-    isAuthorized _ _ = do
-       mu <- maybeAuthId
-       return $ case mu of
-         Nothing -> AuthenticationRequired
-         Just _ -> Authorized
+
+    isAuthorized route r = do
+       settings <- appSettings <$> getYesod
+       case appBypassAuth settings of
+          BypassAuth ->  return Authorized
+          _ -> do
+            mu <- maybeAuthId
+            return $ case mu of
+              Nothing -> AuthenticationRequired
+              Just u -> go route r u
+       where 
+         go _ _ _ = Authorized
 
     -- This function creates static content files in the static folder
     -- and names them based on a hash of their content. This allows

@@ -6,7 +6,7 @@ spec :: Spec
 spec = appSpec
 
 appSpec :: Spec
-appSpec = withAppNoDB $ do
+appSpec = withAppNoDB BypassAuth $ do
   describe "FA bindings" $ do
     it "displays list of bank accounts" $ do
       get FABankAccountsR

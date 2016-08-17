@@ -39,7 +39,7 @@ uploadReceiptSheet status encoding path = do
   -- printBody
   statusIs status
 appSpec :: Spec
-appSpec = withAppNoDB $ do
+appSpec = withAppNoDB BypassAuth $ do
     describe "getGLEnterReceiptSheetR" $ do
 	it "proposes to upload a file" $ do
 	  get GLEnterReceiptSheetR
@@ -144,7 +144,7 @@ appSpec = withAppNoDB $ do
 
 
 storiesSpec :: Spec 
-storiesSpec =  withAppNoDB $ do
+storiesSpec =  withAppNoDB BypassAuth $ do
   describe "upload a file without error" $ do
     {-
       The user upload a spreadsheet.

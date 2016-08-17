@@ -3,17 +3,8 @@ module Handler.AuthSpec (spec) where
 import TestImport
 import Yesod.Auth (Route(LoginR))
 
-logAsAdmin = do
-     get (AuthR LoginR)
-     request $ do
-       setMethod "POST"
-       setUrl ("/auth/page/fa/login" :: String)
-       addToken_ "form#login-form"
-       addPostParam "username" "admin"
-       addPostParam "password" "wadmin"
-
 spec :: Spec
-spec = withAppNoDB $ do
+spec = withAppNoDB CheckAuth $ do
   it "not logged" $ do
     get AdministratorR
     statusIs 303
