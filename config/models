@@ -1,14 +1,14 @@
-User
+User sql=fames_user
     ident Text
     password Text Maybe
     UniqueUser ident
     deriving Typeable
-Email
+Email sql=fames_email
     email Text
     userId UserId Maybe
     verkey Text Maybe
     UniqueEmail email
-Comment json -- Adding "json" causes ToJSON and FromJSON instances to be derived.
+Comment sql=fames_comment json -- Adding "json" causes ToJSON and FromJSON instances to be derived.
     message Text
     userId UserId Maybe
     deriving Eq
