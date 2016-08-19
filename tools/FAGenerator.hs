@@ -119,13 +119,11 @@ generateHandler Table{..} = do
   let handlerName = "get" ++ handler tableName
   printf "\
 \%s :: Handler Html \n\
-\%s = do \n\
-\  entities <- runDB $ selectList [] []\n\
-\  let typed = entities :: [Entity FA.%s]\n\
-\  defaultLayout $ toWidget (entitiesToTable getDBName entities)\n\
+\%s = entityTableHandler %s ([] :: [Filter FA.%s]) \n\
 \\n"
          handlerName
          handlerName
+         (handler tableName)
          (model tableName)
 
 

@@ -1,474 +1,239 @@
--- Handler
 module Handler.FA.Def where
 import Import
 import FA
 
 
 getFAAreasR :: Handler Html 
-getFAAreasR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.Area]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAAreasR = entityTableHandler FAAreasR ([] :: [Filter FA.Area]) 
 
 getFAAttachmentsR :: Handler Html 
-getFAAttachmentsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.Attachment]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAAttachmentsR = entityTableHandler FAAttachmentsR ([] :: [Filter FA.Attachment]) 
 
 getFAAuditTrailR :: Handler Html 
-getFAAuditTrailR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.AuditTrail]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAAuditTrailR = entityTableHandler FAAuditTrailR ([] :: [Filter FA.AuditTrail]) 
 
 getFABankAccountsR :: Handler Html 
-getFABankAccountsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.BankAccount]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFABankAccountsR = entityTableHandler FABankAccountsR ([] :: [Filter FA.BankAccount]) 
 
 getFABankTransR :: Handler Html 
-getFABankTransR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.BankTran]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFABankTransR = entityTableHandler FABankTransR ([] :: [Filter FA.BankTran]) 
 
 getFABomR :: Handler Html 
-getFABomR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.Bom]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFABomR = entityTableHandler FABomR ([] :: [Filter FA.Bom]) 
 
 getFABudgetTransR :: Handler Html 
-getFABudgetTransR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.BudgetTran]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFABudgetTransR = entityTableHandler FABudgetTransR ([] :: [Filter FA.BudgetTran]) 
 
 getFAChartClassR :: Handler Html 
-getFAChartClassR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.ChartClass]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAChartClassR = entityTableHandler FAChartClassR ([] :: [Filter FA.ChartClass]) 
 
 getFAChartMasterR :: Handler Html 
-getFAChartMasterR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.ChartMaster]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAChartMasterR = entityTableHandler FAChartMasterR ([] :: [Filter FA.ChartMaster]) 
 
 getFAChartTypesR :: Handler Html 
-getFAChartTypesR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.ChartType]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAChartTypesR = entityTableHandler FAChartTypesR ([] :: [Filter FA.ChartType]) 
 
 getFACommentsR :: Handler Html 
-getFACommentsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.Comment]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFACommentsR = entityTableHandler FACommentsR ([] :: [Filter FA.Comment]) 
 
 getFACreditStatusR :: Handler Html 
-getFACreditStatusR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.CreditStatu]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFACreditStatusR = entityTableHandler FACreditStatusR ([] :: [Filter FA.CreditStatu]) 
 
 getFACrmCategoriesR :: Handler Html 
-getFACrmCategoriesR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.CrmCategory]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFACrmCategoriesR = entityTableHandler FACrmCategoriesR ([] :: [Filter FA.CrmCategory]) 
 
 getFACrmContactsR :: Handler Html 
-getFACrmContactsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.CrmContact]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFACrmContactsR = entityTableHandler FACrmContactsR ([] :: [Filter FA.CrmContact]) 
 
 getFACrmPersonsR :: Handler Html 
-getFACrmPersonsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.CrmPerson]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFACrmPersonsR = entityTableHandler FACrmPersonsR ([] :: [Filter FA.CrmPerson]) 
 
 getFACurrenciesR :: Handler Html 
-getFACurrenciesR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.Currency]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFACurrenciesR = entityTableHandler FACurrenciesR ([] :: [Filter FA.Currency]) 
 
 getFACustAllocationsR :: Handler Html 
-getFACustAllocationsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.CustAllocation]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFACustAllocationsR = entityTableHandler FACustAllocationsR ([] :: [Filter FA.CustAllocation]) 
 
 getFACustBranchR :: Handler Html 
-getFACustBranchR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.CustBranch]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFACustBranchR = entityTableHandler FACustBranchR ([] :: [Filter FA.CustBranch]) 
 
 getFADebtorsMasterR :: Handler Html 
-getFADebtorsMasterR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.DebtorsMaster]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFADebtorsMasterR = entityTableHandler FADebtorsMasterR ([] :: [Filter FA.DebtorsMaster]) 
 
 getFADebtorTransR :: Handler Html 
-getFADebtorTransR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.DebtorTran]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFADebtorTransR = entityTableHandler FADebtorTransR ([] :: [Filter FA.DebtorTran]) 
 
 getFADebtorTransDetailsR :: Handler Html 
-getFADebtorTransDetailsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.DebtorTransDetail]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFADebtorTransDetailsR = entityTableHandler FADebtorTransDetailsR ([] :: [Filter FA.DebtorTransDetail]) 
 
 getFADimensionsR :: Handler Html 
-getFADimensionsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.Dimension]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFADimensionsR = entityTableHandler FADimensionsR ([] :: [Filter FA.Dimension]) 
 
 getFAExchangeRatesR :: Handler Html 
-getFAExchangeRatesR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.ExchangeRate]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAExchangeRatesR = entityTableHandler FAExchangeRatesR ([] :: [Filter FA.ExchangeRate]) 
 
 getFAFiscalYearR :: Handler Html 
-getFAFiscalYearR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.FiscalYear]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAFiscalYearR = entityTableHandler FAFiscalYearR ([] :: [Filter FA.FiscalYear]) 
 
 getFAGlTransR :: Handler Html 
-getFAGlTransR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.GlTran]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAGlTransR = entityTableHandler FAGlTransR ([] :: [Filter FA.GlTran]) 
 
 getFAGrnBatchR :: Handler Html 
-getFAGrnBatchR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.GrnBatch]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAGrnBatchR = entityTableHandler FAGrnBatchR ([] :: [Filter FA.GrnBatch]) 
 
 getFAGrnItemsR :: Handler Html 
-getFAGrnItemsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.GrnItem]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAGrnItemsR = entityTableHandler FAGrnItemsR ([] :: [Filter FA.GrnItem]) 
 
 getFAGroupsR :: Handler Html 
-getFAGroupsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.Group]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAGroupsR = entityTableHandler FAGroupsR ([] :: [Filter FA.Group]) 
 
 getFAItemCodesR :: Handler Html 
-getFAItemCodesR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.ItemCode]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAItemCodesR = entityTableHandler FAItemCodesR ([] :: [Filter FA.ItemCode]) 
 
 getFAItemTaxTypesR :: Handler Html 
-getFAItemTaxTypesR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.ItemTaxType]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAItemTaxTypesR = entityTableHandler FAItemTaxTypesR ([] :: [Filter FA.ItemTaxType]) 
 
 getFAItemTaxTypeExemptionsR :: Handler Html 
-getFAItemTaxTypeExemptionsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.ItemTaxTypeExemption]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAItemTaxTypeExemptionsR = entityTableHandler FAItemTaxTypeExemptionsR ([] :: [Filter FA.ItemTaxTypeExemption]) 
 
 getFAItemUnitsR :: Handler Html 
-getFAItemUnitsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.ItemUnit]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAItemUnitsR = entityTableHandler FAItemUnitsR ([] :: [Filter FA.ItemUnit]) 
 
 getFALocationsR :: Handler Html 
-getFALocationsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.Location]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFALocationsR = entityTableHandler FALocationsR ([] :: [Filter FA.Location]) 
 
 getFALocStockR :: Handler Html 
-getFALocStockR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.LocStock]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFALocStockR = entityTableHandler FALocStockR ([] :: [Filter FA.LocStock]) 
 
 getFAMovementTypesR :: Handler Html 
-getFAMovementTypesR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.MovementType]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAMovementTypesR = entityTableHandler FAMovementTypesR ([] :: [Filter FA.MovementType]) 
 
 getFAPaymentTermsR :: Handler Html 
-getFAPaymentTermsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.PaymentTerm]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAPaymentTermsR = entityTableHandler FAPaymentTermsR ([] :: [Filter FA.PaymentTerm]) 
 
 getFAPricesR :: Handler Html 
-getFAPricesR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.Price]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAPricesR = entityTableHandler FAPricesR ([] :: [Filter FA.Price]) 
 
 getFAPrintersR :: Handler Html 
-getFAPrintersR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.Printer]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAPrintersR = entityTableHandler FAPrintersR ([] :: [Filter FA.Printer]) 
 
 getFAPrintProfilesR :: Handler Html 
-getFAPrintProfilesR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.PrintProfile]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAPrintProfilesR = entityTableHandler FAPrintProfilesR ([] :: [Filter FA.PrintProfile]) 
 
 getFAPurchDataR :: Handler Html 
-getFAPurchDataR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.PurchData]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAPurchDataR = entityTableHandler FAPurchDataR ([] :: [Filter FA.PurchData]) 
 
 getFAPurchOrdersR :: Handler Html 
-getFAPurchOrdersR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.PurchOrder]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAPurchOrdersR = entityTableHandler FAPurchOrdersR ([] :: [Filter FA.PurchOrder]) 
 
 getFAPurchOrderDetailsR :: Handler Html 
-getFAPurchOrderDetailsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.PurchOrderDetail]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAPurchOrderDetailsR = entityTableHandler FAPurchOrderDetailsR ([] :: [Filter FA.PurchOrderDetail]) 
 
 getFAQuickEntriesR :: Handler Html 
-getFAQuickEntriesR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.QuickEntry]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAQuickEntriesR = entityTableHandler FAQuickEntriesR ([] :: [Filter FA.QuickEntry]) 
 
 getFAQuickEntryLinesR :: Handler Html 
-getFAQuickEntryLinesR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.QuickEntryLine]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAQuickEntryLinesR = entityTableHandler FAQuickEntryLinesR ([] :: [Filter FA.QuickEntryLine]) 
 
 getFARecurrentInvoicesR :: Handler Html 
-getFARecurrentInvoicesR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.RecurrentInvoice]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFARecurrentInvoicesR = entityTableHandler FARecurrentInvoicesR ([] :: [Filter FA.RecurrentInvoice]) 
 
 getFARefsR :: Handler Html 
-getFARefsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.Ref]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFARefsR = entityTableHandler FARefsR ([] :: [Filter FA.Ref]) 
 
 getFASalesmanR :: Handler Html 
-getFASalesmanR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.Salesman]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFASalesmanR = entityTableHandler FASalesmanR ([] :: [Filter FA.Salesman]) 
 
 getFASalesOrdersR :: Handler Html 
-getFASalesOrdersR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.SalesOrder]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFASalesOrdersR = entityTableHandler FASalesOrdersR ([] :: [Filter FA.SalesOrder]) 
 
 getFASalesOrderDetailsR :: Handler Html 
-getFASalesOrderDetailsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.SalesOrderDetail]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFASalesOrderDetailsR = entityTableHandler FASalesOrderDetailsR ([] :: [Filter FA.SalesOrderDetail]) 
 
 getFASalesPosR :: Handler Html 
-getFASalesPosR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.SalesPo]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFASalesPosR = entityTableHandler FASalesPosR ([] :: [Filter FA.SalesPo]) 
 
 getFASalesTypesR :: Handler Html 
-getFASalesTypesR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.SalesType]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFASalesTypesR = entityTableHandler FASalesTypesR ([] :: [Filter FA.SalesType]) 
 
 getFASecurityRolesR :: Handler Html 
-getFASecurityRolesR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.SecurityRole]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFASecurityRolesR = entityTableHandler FASecurityRolesR ([] :: [Filter FA.SecurityRole]) 
 
 getFAShippersR :: Handler Html 
-getFAShippersR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.Shipper]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAShippersR = entityTableHandler FAShippersR ([] :: [Filter FA.Shipper]) 
 
 getFASqlTrailR :: Handler Html 
-getFASqlTrailR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.SqlTrail]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFASqlTrailR = entityTableHandler FASqlTrailR ([] :: [Filter FA.SqlTrail]) 
 
 getFAStockCategoryR :: Handler Html 
-getFAStockCategoryR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.StockCategory]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAStockCategoryR = entityTableHandler FAStockCategoryR ([] :: [Filter FA.StockCategory]) 
 
 getFAStockMasterR :: Handler Html 
-getFAStockMasterR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.StockMaster]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAStockMasterR = entityTableHandler FAStockMasterR ([] :: [Filter FA.StockMaster]) 
 
 getFAStockMovesR :: Handler Html 
-getFAStockMovesR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.StockMove]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAStockMovesR = entityTableHandler FAStockMovesR ([] :: [Filter FA.StockMove]) 
 
 getFASuppliersR :: Handler Html 
-getFASuppliersR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.Supplier]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFASuppliersR = entityTableHandler FASuppliersR ([] :: [Filter FA.Supplier]) 
 
 getFASuppAllocationsR :: Handler Html 
-getFASuppAllocationsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.SuppAllocation]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFASuppAllocationsR = entityTableHandler FASuppAllocationsR ([] :: [Filter FA.SuppAllocation]) 
 
 getFASuppInvoiceItemsR :: Handler Html 
-getFASuppInvoiceItemsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.SuppInvoiceItem]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFASuppInvoiceItemsR = entityTableHandler FASuppInvoiceItemsR ([] :: [Filter FA.SuppInvoiceItem]) 
 
 getFASuppTransR :: Handler Html 
-getFASuppTransR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.SuppTran]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFASuppTransR = entityTableHandler FASuppTransR ([] :: [Filter FA.SuppTran]) 
 
 getFASysPrefsR :: Handler Html 
-getFASysPrefsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.SysPref]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFASysPrefsR = entityTableHandler FASysPrefsR ([] :: [Filter FA.SysPref]) 
 
 getFASysTypesR :: Handler Html 
-getFASysTypesR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.SysType]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFASysTypesR = entityTableHandler FASysTypesR ([] :: [Filter FA.SysType]) 
 
 getFATagsR :: Handler Html 
-getFATagsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.Tag]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFATagsR = entityTableHandler FATagsR ([] :: [Filter FA.Tag]) 
 
 getFATagAssociationsR :: Handler Html 
-getFATagAssociationsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.TagAssociation]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFATagAssociationsR = entityTableHandler FATagAssociationsR ([] :: [Filter FA.TagAssociation]) 
 
 getFATaxGroupsR :: Handler Html 
-getFATaxGroupsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.TaxGroup]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFATaxGroupsR = entityTableHandler FATaxGroupsR ([] :: [Filter FA.TaxGroup]) 
 
 getFATaxGroupItemsR :: Handler Html 
-getFATaxGroupItemsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.TaxGroupItem]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFATaxGroupItemsR = entityTableHandler FATaxGroupItemsR ([] :: [Filter FA.TaxGroupItem]) 
 
 getFATaxTypesR :: Handler Html 
-getFATaxTypesR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.TaxType]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFATaxTypesR = entityTableHandler FATaxTypesR ([] :: [Filter FA.TaxType]) 
 
 getFATransTaxDetailsR :: Handler Html 
-getFATransTaxDetailsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.TransTaxDetail]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFATransTaxDetailsR = entityTableHandler FATransTaxDetailsR ([] :: [Filter FA.TransTaxDetail]) 
 
 getFAUseronlineR :: Handler Html 
-getFAUseronlineR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.Useronline]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAUseronlineR = entityTableHandler FAUseronlineR ([] :: [Filter FA.Useronline]) 
 
 getFAUsersR :: Handler Html 
-getFAUsersR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.User]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAUsersR = entityTableHandler FAUsersR ([] :: [Filter FA.User]) 
 
 getFAVoidedR :: Handler Html 
-getFAVoidedR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.Voided]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAVoidedR = entityTableHandler FAVoidedR ([] :: [Filter FA.Voided]) 
 
 getFAWorkcentresR :: Handler Html 
-getFAWorkcentresR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.Workcentre]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAWorkcentresR = entityTableHandler FAWorkcentresR ([] :: [Filter FA.Workcentre]) 
 
 getFAWorkordersR :: Handler Html 
-getFAWorkordersR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.Workorder]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAWorkordersR = entityTableHandler FAWorkordersR ([] :: [Filter FA.Workorder]) 
 
 getFAWoIssuesR :: Handler Html 
-getFAWoIssuesR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.WoIssue]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAWoIssuesR = entityTableHandler FAWoIssuesR ([] :: [Filter FA.WoIssue]) 
 
 getFAWoIssueItemsR :: Handler Html 
-getFAWoIssueItemsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.WoIssueItem]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAWoIssueItemsR = entityTableHandler FAWoIssueItemsR ([] :: [Filter FA.WoIssueItem]) 
 
 getFAWoManufactureR :: Handler Html 
-getFAWoManufactureR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.WoManufacture]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAWoManufactureR = entityTableHandler FAWoManufactureR ([] :: [Filter FA.WoManufacture]) 
 
 getFAWoRequirementsR :: Handler Html 
-getFAWoRequirementsR = do 
-  entities <- runDB $ selectList [] []
-  let typed = entities :: [Entity FA.WoRequirement]
-  defaultLayout $ toWidget (entitiesToTable getDBName entities)
+getFAWoRequirementsR = entityTableHandler FAWoRequirementsR ([] :: [Filter FA.WoRequirement]) 
 
