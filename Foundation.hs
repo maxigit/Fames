@@ -103,12 +103,20 @@ instance Yesod App where
        case appBypassAuth settings of
           BypassAuth ->  return Authorized
           _ -> do
-            mu <- maybeAuthId
-            return $ case mu of
-              Nothing -> AuthenticationRequired
-              Just u -> go route r u
+            mu <- maybeAuth
+            case mu of
+              Nothing -> return AuthenticationRequired
+              Just (Entity _ u) -> go route r u
        where 
-         go _ _ _ = Authorized
+         go _ _ u = isAdministrator u
+         isAdministrator user = do
+           master <- getYesod
+           let username = userIdent user
+               adminLogin = appAdminLogin (appSettings master)
+
+           return $ if username == adminLogin
+                       then Authorized
+                       else AuthenticationRequired
 
     -- This function creates static content files in the static folder
     -- and names them based on a hash of their content. This allows

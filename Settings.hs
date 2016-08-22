@@ -59,6 +59,7 @@ data AppSettings = AppSettings
     -- ^ Google Analytics code
     , appBypassAuth             :: AuthMode
     -- ^ Allow to bypass authorization. Usefull for test
+    , appAdminLogin :: Text 
     } deriving Show
 
 instance FromJSON AppSettings where
@@ -84,6 +85,7 @@ instance FromJSON AppSettings where
 
         appCopyright              <- o .: "copyright"
         appAnalytics              <- o .:? "analytics"
+        appAdminLogin             <- o .:? "admin-login" .!= "admin"
         
 
         -- This code enables MySQL's strict mode, without which MySQL will truncate data.
