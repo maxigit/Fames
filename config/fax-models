@@ -1,0 +1,106 @@
+-- Warning ! This code has been generated !
+-- Model
+ItemRequest sql=0_item_requests
+    Id Int  sql=id
+    user Int  sql=user
+    requestDate UTCTime  sql=request_date
+    stockId Text  sql=stock_id
+    qoh Double Maybe sql=qoh
+    available Double Maybe sql=available
+    onDemand Double Maybe sql=on_demand
+    coming Double Maybe sql=coming
+    until Day Maybe sql=until
+
+BoxDimension sql=box_dimensions
+    style Text  sql=style
+    numberOfBoxes Int  sql=numberOfBoxes
+    itemPerBox Int  sql=itemPerBox
+    oLength Double  sql=oLength
+    oWidth Double  sql=oWidth
+    oHeight Double  sql=oHeight
+    itemPerIBox Int Maybe sql=itemPerIBox
+    iLength Double Maybe sql=iLength
+    iWidth Double Maybe sql=iWidth
+    iHeight Double Maybe sql=iHeight
+    date Day Maybe sql=date
+    source Text  sql=source
+    comment Text Maybe sql=comment
+    volume Double  sql=volume
+
+Dispatched sql=dispatched
+    location Text Maybe sql=location
+    stockId Text  sql=stock_id
+    take Text  sql=take
+    padding Text  sql=padding
+    default Double Maybe sql=default
+    lost Double Maybe sql=lost
+    max_tranDate_ Day Maybe sql=max(tran_date)
+
+MyBigOrder sql=my_big_order
+    stockId Text  sql=stock_id
+    deliveryDate Day  sql=delivery_date
+    payDate Day  sql=pay_date
+    quantity Double Maybe sql=quantity
+    price Double Maybe sql=price
+    amount Double Maybe sql=amount
+    debtorNo Int  sql=debtor_no
+
+MyPickup sql=my_pickup
+    code Text  sql=code
+    color Text  sql=color
+    toPick Double Maybe sql=to_pick
+    inStock Double Maybe sql=in_stock
+    orders ByteString Maybe sql=orders
+    groupLoc ByteString Maybe sql=group_loc
+
+MyRate sql=my_rates
+    tranDate Day  sql=tran_date
+    rate Double Maybe sql=rate
+
+MyVat sql=my_vat
+    type Int  sql=type
+    typeNo Int  sql=type_no
+    tranDate Day  sql=tran_date
+    account Text  sql=account
+    accountName Text  sql=account_name
+    name Text  sql=name
+    memo Text  sql=memo_
+    credit Double Maybe sql=credit
+    debit Double Maybe sql=debit
+    amount Double Maybe sql=amount
+    vat Double Maybe sql=vat
+    netAmount Double Maybe sql=net_amount
+
+StocktakePriority sql=stocktake_priority
+    location Text Maybe sql=location
+    stockId Text  sql=stock_id
+    take Text  sql=take
+    padding Text  sql=padding
+    default Double Maybe sql=default
+    lost Double Maybe sql=lost
+    max_tranDate_ Day Maybe sql=max(tran_date)
+
+StockAudit sql=stock_audit
+    id_ Int  sql=id
+    counter Int Maybe sql=counter
+    stockId Text  sql=stock_id
+    tranDate Day Maybe sql=tran_date
+    account Text  sql=account
+    amount Double  sql=amount
+    memo Text Maybe sql=memo
+
+StockTake sql=stock_take
+    stockId Text  sql=stock_id
+    date Day  sql=date
+    take Int  sql=take
+    qoh Int  sql=qoh
+    lost Int  sql=lost
+    Id Int  sql=id
+
+Volume sql=volumes
+    Id Text  sql=style
+    volume Double  sql=volume
+    comment Text  sql=comment
+    perOuterBox Int  sql=per_outer_box
+    perInnerBox Int  sql=per_inner_box
+

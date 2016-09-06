@@ -129,5 +129,9 @@ The easiest is probably to create roles (hiearchy ?) and assing user to them (ha
 ** TODO replace FA routes by ones with sub type
 
 
+* TODO Bug
+solves problems with id
+problems  with max(tranDate), view ?
+don't push before changing credential and squash everything
 
 

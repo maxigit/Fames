@@ -15,6 +15,7 @@ library
     hs-source-dirs: ., fay-shared, app
     exposed-modules: Application
                      FA
+                     FAX
                      GL.FA
                      GL
                      GL.Receipt
@@ -33,7 +34,9 @@ library
                      Handler.GLEnterReceiptSheet
                      Handler.GLEnterReceiptSheet.ReceiptRow
                      Handler.FA
+                     Handler.FAX
                      Handler.FA.Def
+                     Handler.FAX.Def
                      Handler.Util
 
     if flag(dev) || flag(library-only)
@@ -164,7 +167,7 @@ executable FAGenerator
 
     main-is: FAGenerator.hs
     hs-source-dirs: tools
-    build-depends: base, mysql-simple, split, filepath
+    build-depends: base, mysql-simple, split, filepath, directory
     extensions: RecordWildCards
 
 

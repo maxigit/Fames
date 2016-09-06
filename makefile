@@ -37,8 +37,9 @@ db_ip:
 
 
 # From DB Handler and routes generatio
-config/routes.gen: config/routes config/fa-routes
-	cat $< > $@
+.PHONY: config/routes.gen
+config/routes.gen: config/routes config/fa-routes config/fax-routes
+	cat $^ > $@
 
 
 config/%-routes:

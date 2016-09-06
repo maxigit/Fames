@@ -1,238 +1,298 @@
+-- Warning ! This code has been generated !
+-- Handler
 module Handler.FA.Def where
 import Import
 import FA
 
 
 getFAAreasR :: Handler Html 
-getFAAreasR = entityTableHandler FAAreasR ([] :: [Filter FA.Area]) 
+getFAAreasR = entityTableHandler (FA'R FAAreasR) ([] :: [Filter FA.Area]) 
 
 getFAAttachmentsR :: Handler Html 
-getFAAttachmentsR = entityTableHandler FAAttachmentsR ([] :: [Filter FA.Attachment]) 
+getFAAttachmentsR = entityTableHandler (FA'R FAAttachmentsR) ([] :: [Filter FA.Attachment]) 
 
 getFAAuditTrailR :: Handler Html 
-getFAAuditTrailR = entityTableHandler FAAuditTrailR ([] :: [Filter FA.AuditTrail]) 
+getFAAuditTrailR = entityTableHandler (FA'R FAAuditTrailR) ([] :: [Filter FA.AuditTrail]) 
 
 getFABankAccountsR :: Handler Html 
-getFABankAccountsR = entityTableHandler FABankAccountsR ([] :: [Filter FA.BankAccount]) 
+getFABankAccountsR = entityTableHandler (FA'R FABankAccountsR) ([] :: [Filter FA.BankAccount]) 
 
 getFABankTransR :: Handler Html 
-getFABankTransR = entityTableHandler FABankTransR ([] :: [Filter FA.BankTran]) 
+getFABankTransR = entityTableHandler (FA'R FABankTransR) ([] :: [Filter FA.BankTran]) 
 
 getFABomR :: Handler Html 
-getFABomR = entityTableHandler FABomR ([] :: [Filter FA.Bom]) 
+getFABomR = entityTableHandler (FA'R FABomR) ([] :: [Filter FA.Bom]) 
 
 getFABudgetTransR :: Handler Html 
-getFABudgetTransR = entityTableHandler FABudgetTransR ([] :: [Filter FA.BudgetTran]) 
+getFABudgetTransR = entityTableHandler (FA'R FABudgetTransR) ([] :: [Filter FA.BudgetTran]) 
 
 getFAChartClassR :: Handler Html 
-getFAChartClassR = entityTableHandler FAChartClassR ([] :: [Filter FA.ChartClass]) 
+getFAChartClassR = entityTableHandler (FA'R FAChartClassR) ([] :: [Filter FA.ChartClass]) 
 
 getFAChartMasterR :: Handler Html 
-getFAChartMasterR = entityTableHandler FAChartMasterR ([] :: [Filter FA.ChartMaster]) 
+getFAChartMasterR = entityTableHandler (FA'R FAChartMasterR) ([] :: [Filter FA.ChartMaster]) 
 
 getFAChartTypesR :: Handler Html 
-getFAChartTypesR = entityTableHandler FAChartTypesR ([] :: [Filter FA.ChartType]) 
+getFAChartTypesR = entityTableHandler (FA'R FAChartTypesR) ([] :: [Filter FA.ChartType]) 
 
 getFACommentsR :: Handler Html 
-getFACommentsR = entityTableHandler FACommentsR ([] :: [Filter FA.Comment]) 
+getFACommentsR = entityTableHandler (FA'R FACommentsR) ([] :: [Filter FA.Comment]) 
 
 getFACreditStatusR :: Handler Html 
-getFACreditStatusR = entityTableHandler FACreditStatusR ([] :: [Filter FA.CreditStatu]) 
+getFACreditStatusR = entityTableHandler (FA'R FACreditStatusR) ([] :: [Filter FA.CreditStatu]) 
 
 getFACrmCategoriesR :: Handler Html 
-getFACrmCategoriesR = entityTableHandler FACrmCategoriesR ([] :: [Filter FA.CrmCategory]) 
+getFACrmCategoriesR = entityTableHandler (FA'R FACrmCategoriesR) ([] :: [Filter FA.CrmCategory]) 
 
 getFACrmContactsR :: Handler Html 
-getFACrmContactsR = entityTableHandler FACrmContactsR ([] :: [Filter FA.CrmContact]) 
+getFACrmContactsR = entityTableHandler (FA'R FACrmContactsR) ([] :: [Filter FA.CrmContact]) 
 
 getFACrmPersonsR :: Handler Html 
-getFACrmPersonsR = entityTableHandler FACrmPersonsR ([] :: [Filter FA.CrmPerson]) 
+getFACrmPersonsR = entityTableHandler (FA'R FACrmPersonsR) ([] :: [Filter FA.CrmPerson]) 
 
 getFACurrenciesR :: Handler Html 
-getFACurrenciesR = entityTableHandler FACurrenciesR ([] :: [Filter FA.Currency]) 
+getFACurrenciesR = entityTableHandler (FA'R FACurrenciesR) ([] :: [Filter FA.Currency]) 
 
 getFACustAllocationsR :: Handler Html 
-getFACustAllocationsR = entityTableHandler FACustAllocationsR ([] :: [Filter FA.CustAllocation]) 
+getFACustAllocationsR = entityTableHandler (FA'R FACustAllocationsR) ([] :: [Filter FA.CustAllocation]) 
 
 getFACustBranchR :: Handler Html 
-getFACustBranchR = entityTableHandler FACustBranchR ([] :: [Filter FA.CustBranch]) 
+getFACustBranchR = entityTableHandler (FA'R FACustBranchR) ([] :: [Filter FA.CustBranch]) 
+
+getFADashboardRemindersR :: Handler Html 
+getFADashboardRemindersR = entityTableHandler (FA'R FADashboardRemindersR) ([] :: [Filter FA.DashboardReminder]) 
+
+getFADashboardWidgetsR :: Handler Html 
+getFADashboardWidgetsR = entityTableHandler (FA'R FADashboardWidgetsR) ([] :: [Filter FA.DashboardWidget]) 
 
 getFADebtorsMasterR :: Handler Html 
-getFADebtorsMasterR = entityTableHandler FADebtorsMasterR ([] :: [Filter FA.DebtorsMaster]) 
+getFADebtorsMasterR = entityTableHandler (FA'R FADebtorsMasterR) ([] :: [Filter FA.DebtorsMaster]) 
 
 getFADebtorTransR :: Handler Html 
-getFADebtorTransR = entityTableHandler FADebtorTransR ([] :: [Filter FA.DebtorTran]) 
+getFADebtorTransR = entityTableHandler (FA'R FADebtorTransR) ([] :: [Filter FA.DebtorTran]) 
 
 getFADebtorTransDetailsR :: Handler Html 
-getFADebtorTransDetailsR = entityTableHandler FADebtorTransDetailsR ([] :: [Filter FA.DebtorTransDetail]) 
+getFADebtorTransDetailsR = entityTableHandler (FA'R FADebtorTransDetailsR) ([] :: [Filter FA.DebtorTransDetail]) 
+
+getFADenormOrderDetailsQueueR :: Handler Html 
+getFADenormOrderDetailsQueueR = entityTableHandler (FA'R FADenormOrderDetailsQueueR) ([] :: [Filter FA.DenormOrderDetailsQueue]) 
+
+getFADenormQohR :: Handler Html 
+getFADenormQohR = entityTableHandler (FA'R FADenormQohR) ([] :: [Filter FA.DenormQoh]) 
 
 getFADimensionsR :: Handler Html 
-getFADimensionsR = entityTableHandler FADimensionsR ([] :: [Filter FA.Dimension]) 
+getFADimensionsR = entityTableHandler (FA'R FADimensionsR) ([] :: [Filter FA.Dimension]) 
 
 getFAExchangeRatesR :: Handler Html 
-getFAExchangeRatesR = entityTableHandler FAExchangeRatesR ([] :: [Filter FA.ExchangeRate]) 
+getFAExchangeRatesR = entityTableHandler (FA'R FAExchangeRatesR) ([] :: [Filter FA.ExchangeRate]) 
 
 getFAFiscalYearR :: Handler Html 
-getFAFiscalYearR = entityTableHandler FAFiscalYearR ([] :: [Filter FA.FiscalYear]) 
+getFAFiscalYearR = entityTableHandler (FA'R FAFiscalYearR) ([] :: [Filter FA.FiscalYear]) 
+
+getFAGlToStockR :: Handler Html 
+getFAGlToStockR = entityTableHandler (FA'R FAGlToStockR) ([] :: [Filter FA.GlToStock]) 
 
 getFAGlTransR :: Handler Html 
-getFAGlTransR = entityTableHandler FAGlTransR ([] :: [Filter FA.GlTran]) 
+getFAGlTransR = entityTableHandler (FA'R FAGlTransR) ([] :: [Filter FA.GlTran]) 
 
 getFAGrnBatchR :: Handler Html 
-getFAGrnBatchR = entityTableHandler FAGrnBatchR ([] :: [Filter FA.GrnBatch]) 
+getFAGrnBatchR = entityTableHandler (FA'R FAGrnBatchR) ([] :: [Filter FA.GrnBatch]) 
 
 getFAGrnItemsR :: Handler Html 
-getFAGrnItemsR = entityTableHandler FAGrnItemsR ([] :: [Filter FA.GrnItem]) 
+getFAGrnItemsR = entityTableHandler (FA'R FAGrnItemsR) ([] :: [Filter FA.GrnItem]) 
 
 getFAGroupsR :: Handler Html 
-getFAGroupsR = entityTableHandler FAGroupsR ([] :: [Filter FA.Group]) 
+getFAGroupsR = entityTableHandler (FA'R FAGroupsR) ([] :: [Filter FA.Group]) 
 
 getFAItemCodesR :: Handler Html 
-getFAItemCodesR = entityTableHandler FAItemCodesR ([] :: [Filter FA.ItemCode]) 
+getFAItemCodesR = entityTableHandler (FA'R FAItemCodesR) ([] :: [Filter FA.ItemCode]) 
 
 getFAItemTaxTypesR :: Handler Html 
-getFAItemTaxTypesR = entityTableHandler FAItemTaxTypesR ([] :: [Filter FA.ItemTaxType]) 
+getFAItemTaxTypesR = entityTableHandler (FA'R FAItemTaxTypesR) ([] :: [Filter FA.ItemTaxType]) 
 
 getFAItemTaxTypeExemptionsR :: Handler Html 
-getFAItemTaxTypeExemptionsR = entityTableHandler FAItemTaxTypeExemptionsR ([] :: [Filter FA.ItemTaxTypeExemption]) 
+getFAItemTaxTypeExemptionsR = entityTableHandler (FA'R FAItemTaxTypeExemptionsR) ([] :: [Filter FA.ItemTaxTypeExemption]) 
 
 getFAItemUnitsR :: Handler Html 
-getFAItemUnitsR = entityTableHandler FAItemUnitsR ([] :: [Filter FA.ItemUnit]) 
+getFAItemUnitsR = entityTableHandler (FA'R FAItemUnitsR) ([] :: [Filter FA.ItemUnit]) 
 
 getFALocationsR :: Handler Html 
-getFALocationsR = entityTableHandler FALocationsR ([] :: [Filter FA.Location]) 
+getFALocationsR = entityTableHandler (FA'R FALocationsR) ([] :: [Filter FA.Location]) 
 
 getFALocStockR :: Handler Html 
-getFALocStockR = entityTableHandler FALocStockR ([] :: [Filter FA.LocStock]) 
+getFALocStockR = entityTableHandler (FA'R FALocStockR) ([] :: [Filter FA.LocStock]) 
+
+getFAMopActionsR :: Handler Html 
+getFAMopActionsR = entityTableHandler (FA'R FAMopActionsR) ([] :: [Filter FA.MopAction]) 
 
 getFAMovementTypesR :: Handler Html 
-getFAMovementTypesR = entityTableHandler FAMovementTypesR ([] :: [Filter FA.MovementType]) 
+getFAMovementTypesR = entityTableHandler (FA'R FAMovementTypesR) ([] :: [Filter FA.MovementType]) 
+
+getFAMyStockR :: Handler Html 
+getFAMyStockR = entityTableHandler (FA'R FAMyStockR) ([] :: [Filter FA.MyStock]) 
+
+getFAOrderSummaryViewR :: Handler Html 
+getFAOrderSummaryViewR = entityTableHandler (FA'R FAOrderSummaryViewR) ([] :: [Filter FA.OrderSummaryView]) 
 
 getFAPaymentTermsR :: Handler Html 
-getFAPaymentTermsR = entityTableHandler FAPaymentTermsR ([] :: [Filter FA.PaymentTerm]) 
+getFAPaymentTermsR = entityTableHandler (FA'R FAPaymentTermsR) ([] :: [Filter FA.PaymentTerm]) 
 
 getFAPricesR :: Handler Html 
-getFAPricesR = entityTableHandler FAPricesR ([] :: [Filter FA.Price]) 
+getFAPricesR = entityTableHandler (FA'R FAPricesR) ([] :: [Filter FA.Price]) 
 
 getFAPrintersR :: Handler Html 
-getFAPrintersR = entityTableHandler FAPrintersR ([] :: [Filter FA.Printer]) 
+getFAPrintersR = entityTableHandler (FA'R FAPrintersR) ([] :: [Filter FA.Printer]) 
 
 getFAPrintProfilesR :: Handler Html 
-getFAPrintProfilesR = entityTableHandler FAPrintProfilesR ([] :: [Filter FA.PrintProfile]) 
+getFAPrintProfilesR = entityTableHandler (FA'R FAPrintProfilesR) ([] :: [Filter FA.PrintProfile]) 
 
 getFAPurchDataR :: Handler Html 
-getFAPurchDataR = entityTableHandler FAPurchDataR ([] :: [Filter FA.PurchData]) 
+getFAPurchDataR = entityTableHandler (FA'R FAPurchDataR) ([] :: [Filter FA.PurchData]) 
 
 getFAPurchOrdersR :: Handler Html 
-getFAPurchOrdersR = entityTableHandler FAPurchOrdersR ([] :: [Filter FA.PurchOrder]) 
+getFAPurchOrdersR = entityTableHandler (FA'R FAPurchOrdersR) ([] :: [Filter FA.PurchOrder]) 
 
 getFAPurchOrderDetailsR :: Handler Html 
-getFAPurchOrderDetailsR = entityTableHandler FAPurchOrderDetailsR ([] :: [Filter FA.PurchOrderDetail]) 
+getFAPurchOrderDetailsR = entityTableHandler (FA'R FAPurchOrderDetailsR) ([] :: [Filter FA.PurchOrderDetail]) 
 
 getFAQuickEntriesR :: Handler Html 
-getFAQuickEntriesR = entityTableHandler FAQuickEntriesR ([] :: [Filter FA.QuickEntry]) 
+getFAQuickEntriesR = entityTableHandler (FA'R FAQuickEntriesR) ([] :: [Filter FA.QuickEntry]) 
 
 getFAQuickEntryLinesR :: Handler Html 
-getFAQuickEntryLinesR = entityTableHandler FAQuickEntryLinesR ([] :: [Filter FA.QuickEntryLine]) 
+getFAQuickEntryLinesR = entityTableHandler (FA'R FAQuickEntryLinesR) ([] :: [Filter FA.QuickEntryLine]) 
 
 getFARecurrentInvoicesR :: Handler Html 
-getFARecurrentInvoicesR = entityTableHandler FARecurrentInvoicesR ([] :: [Filter FA.RecurrentInvoice]) 
+getFARecurrentInvoicesR = entityTableHandler (FA'R FARecurrentInvoicesR) ([] :: [Filter FA.RecurrentInvoice]) 
 
 getFARefsR :: Handler Html 
-getFARefsR = entityTableHandler FARefsR ([] :: [Filter FA.Ref]) 
+getFARefsR = entityTableHandler (FA'R FARefsR) ([] :: [Filter FA.Ref]) 
+
+getFARequisitionsR :: Handler Html 
+getFARequisitionsR = entityTableHandler (FA'R FARequisitionsR) ([] :: [Filter FA.Requisition]) 
+
+getFARequisitionDetailsR :: Handler Html 
+getFARequisitionDetailsR = entityTableHandler (FA'R FARequisitionDetailsR) ([] :: [Filter FA.RequisitionDetail]) 
 
 getFASalesmanR :: Handler Html 
-getFASalesmanR = entityTableHandler FASalesmanR ([] :: [Filter FA.Salesman]) 
+getFASalesmanR = entityTableHandler (FA'R FASalesmanR) ([] :: [Filter FA.Salesman]) 
 
 getFASalesOrdersR :: Handler Html 
-getFASalesOrdersR = entityTableHandler FASalesOrdersR ([] :: [Filter FA.SalesOrder]) 
+getFASalesOrdersR = entityTableHandler (FA'R FASalesOrdersR) ([] :: [Filter FA.SalesOrder]) 
 
 getFASalesOrderDetailsR :: Handler Html 
-getFASalesOrderDetailsR = entityTableHandler FASalesOrderDetailsR ([] :: [Filter FA.SalesOrderDetail]) 
+getFASalesOrderDetailsR = entityTableHandler (FA'R FASalesOrderDetailsR) ([] :: [Filter FA.SalesOrderDetail]) 
+
+getFASalesOrderDetails2R :: Handler Html 
+getFASalesOrderDetails2R = entityTableHandler (FA'R FASalesOrderDetails2R) ([] :: [Filter FA.SalesOrderDetails2]) 
 
 getFASalesPosR :: Handler Html 
-getFASalesPosR = entityTableHandler FASalesPosR ([] :: [Filter FA.SalesPo]) 
+getFASalesPosR = entityTableHandler (FA'R FASalesPosR) ([] :: [Filter FA.SalesPo]) 
 
 getFASalesTypesR :: Handler Html 
-getFASalesTypesR = entityTableHandler FASalesTypesR ([] :: [Filter FA.SalesType]) 
+getFASalesTypesR = entityTableHandler (FA'R FASalesTypesR) ([] :: [Filter FA.SalesType]) 
 
 getFASecurityRolesR :: Handler Html 
-getFASecurityRolesR = entityTableHandler FASecurityRolesR ([] :: [Filter FA.SecurityRole]) 
+getFASecurityRolesR = entityTableHandler (FA'R FASecurityRolesR) ([] :: [Filter FA.SecurityRole]) 
 
 getFAShippersR :: Handler Html 
-getFAShippersR = entityTableHandler FAShippersR ([] :: [Filter FA.Shipper]) 
+getFAShippersR = entityTableHandler (FA'R FAShippersR) ([] :: [Filter FA.Shipper]) 
 
 getFASqlTrailR :: Handler Html 
-getFASqlTrailR = entityTableHandler FASqlTrailR ([] :: [Filter FA.SqlTrail]) 
+getFASqlTrailR = entityTableHandler (FA'R FASqlTrailR) ([] :: [Filter FA.SqlTrail]) 
+
+getFAStockAuditR :: Handler Html 
+getFAStockAuditR = entityTableHandler (FA'R FAStockAuditR) ([] :: [Filter FA.StockAudit]) 
 
 getFAStockCategoryR :: Handler Html 
-getFAStockCategoryR = entityTableHandler FAStockCategoryR ([] :: [Filter FA.StockCategory]) 
+getFAStockCategoryR = entityTableHandler (FA'R FAStockCategoryR) ([] :: [Filter FA.StockCategory]) 
 
 getFAStockMasterR :: Handler Html 
-getFAStockMasterR = entityTableHandler FAStockMasterR ([] :: [Filter FA.StockMaster]) 
+getFAStockMasterR = entityTableHandler (FA'R FAStockMasterR) ([] :: [Filter FA.StockMaster]) 
 
 getFAStockMovesR :: Handler Html 
-getFAStockMovesR = entityTableHandler FAStockMovesR ([] :: [Filter FA.StockMove]) 
+getFAStockMovesR = entityTableHandler (FA'R FAStockMovesR) ([] :: [Filter FA.StockMove]) 
+
+getFAStockToCostR :: Handler Html 
+getFAStockToCostR = entityTableHandler (FA'R FAStockToCostR) ([] :: [Filter FA.StockToCost]) 
 
 getFASuppliersR :: Handler Html 
-getFASuppliersR = entityTableHandler FASuppliersR ([] :: [Filter FA.Supplier]) 
+getFASuppliersR = entityTableHandler (FA'R FASuppliersR) ([] :: [Filter FA.Supplier]) 
 
 getFASuppAllocationsR :: Handler Html 
-getFASuppAllocationsR = entityTableHandler FASuppAllocationsR ([] :: [Filter FA.SuppAllocation]) 
+getFASuppAllocationsR = entityTableHandler (FA'R FASuppAllocationsR) ([] :: [Filter FA.SuppAllocation]) 
 
 getFASuppInvoiceItemsR :: Handler Html 
-getFASuppInvoiceItemsR = entityTableHandler FASuppInvoiceItemsR ([] :: [Filter FA.SuppInvoiceItem]) 
+getFASuppInvoiceItemsR = entityTableHandler (FA'R FASuppInvoiceItemsR) ([] :: [Filter FA.SuppInvoiceItem]) 
 
 getFASuppTransR :: Handler Html 
-getFASuppTransR = entityTableHandler FASuppTransR ([] :: [Filter FA.SuppTran]) 
+getFASuppTransR = entityTableHandler (FA'R FASuppTransR) ([] :: [Filter FA.SuppTran]) 
 
 getFASysPrefsR :: Handler Html 
-getFASysPrefsR = entityTableHandler FASysPrefsR ([] :: [Filter FA.SysPref]) 
+getFASysPrefsR = entityTableHandler (FA'R FASysPrefsR) ([] :: [Filter FA.SysPref]) 
 
 getFASysTypesR :: Handler Html 
-getFASysTypesR = entityTableHandler FASysTypesR ([] :: [Filter FA.SysType]) 
+getFASysTypesR = entityTableHandler (FA'R FASysTypesR) ([] :: [Filter FA.SysType]) 
 
 getFATagsR :: Handler Html 
-getFATagsR = entityTableHandler FATagsR ([] :: [Filter FA.Tag]) 
+getFATagsR = entityTableHandler (FA'R FATagsR) ([] :: [Filter FA.Tag]) 
 
 getFATagAssociationsR :: Handler Html 
-getFATagAssociationsR = entityTableHandler FATagAssociationsR ([] :: [Filter FA.TagAssociation]) 
+getFATagAssociationsR = entityTableHandler (FA'R FATagAssociationsR) ([] :: [Filter FA.TagAssociation]) 
 
 getFATaxGroupsR :: Handler Html 
-getFATaxGroupsR = entityTableHandler FATaxGroupsR ([] :: [Filter FA.TaxGroup]) 
+getFATaxGroupsR = entityTableHandler (FA'R FATaxGroupsR) ([] :: [Filter FA.TaxGroup]) 
 
 getFATaxGroupItemsR :: Handler Html 
-getFATaxGroupItemsR = entityTableHandler FATaxGroupItemsR ([] :: [Filter FA.TaxGroupItem]) 
+getFATaxGroupItemsR = entityTableHandler (FA'R FATaxGroupItemsR) ([] :: [Filter FA.TaxGroupItem]) 
+
+getFATaxRepR :: Handler Html 
+getFATaxRepR = entityTableHandler (FA'R FATaxRepR) ([] :: [Filter FA.TaxRep]) 
+
+getFATaxRepLineR :: Handler Html 
+getFATaxRepLineR = entityTableHandler (FA'R FATaxRepLineR) ([] :: [Filter FA.TaxRepLine]) 
+
+getFATaxRepLineAccountsR :: Handler Html 
+getFATaxRepLineAccountsR = entityTableHandler (FA'R FATaxRepLineAccountsR) ([] :: [Filter FA.TaxRepLineAccount]) 
 
 getFATaxTypesR :: Handler Html 
-getFATaxTypesR = entityTableHandler FATaxTypesR ([] :: [Filter FA.TaxType]) 
+getFATaxTypesR = entityTableHandler (FA'R FATaxTypesR) ([] :: [Filter FA.TaxType]) 
+
+getFATopickR :: Handler Html 
+getFATopickR = entityTableHandler (FA'R FATopickR) ([] :: [Filter FA.Topick]) 
 
 getFATransTaxDetailsR :: Handler Html 
-getFATransTaxDetailsR = entityTableHandler FATransTaxDetailsR ([] :: [Filter FA.TransTaxDetail]) 
+getFATransTaxDetailsR = entityTableHandler (FA'R FATransTaxDetailsR) ([] :: [Filter FA.TransTaxDetail]) 
+
+getFATransToRateR :: Handler Html 
+getFATransToRateR = entityTableHandler (FA'R FATransToRateR) ([] :: [Filter FA.TransToRate]) 
+
+getFATransToStockR :: Handler Html 
+getFATransToStockR = entityTableHandler (FA'R FATransToStockR) ([] :: [Filter FA.TransToStock]) 
 
 getFAUseronlineR :: Handler Html 
-getFAUseronlineR = entityTableHandler FAUseronlineR ([] :: [Filter FA.Useronline]) 
+getFAUseronlineR = entityTableHandler (FA'R FAUseronlineR) ([] :: [Filter FA.Useronline]) 
 
 getFAUsersR :: Handler Html 
-getFAUsersR = entityTableHandler FAUsersR ([] :: [Filter FA.User]) 
+getFAUsersR = entityTableHandler (FA'R FAUsersR) ([] :: [Filter FA.User]) 
 
 getFAVoidedR :: Handler Html 
-getFAVoidedR = entityTableHandler FAVoidedR ([] :: [Filter FA.Voided]) 
+getFAVoidedR = entityTableHandler (FA'R FAVoidedR) ([] :: [Filter FA.Voided]) 
 
 getFAWorkcentresR :: Handler Html 
-getFAWorkcentresR = entityTableHandler FAWorkcentresR ([] :: [Filter FA.Workcentre]) 
+getFAWorkcentresR = entityTableHandler (FA'R FAWorkcentresR) ([] :: [Filter FA.Workcentre]) 
 
 getFAWorkordersR :: Handler Html 
-getFAWorkordersR = entityTableHandler FAWorkordersR ([] :: [Filter FA.Workorder]) 
+getFAWorkordersR = entityTableHandler (FA'R FAWorkordersR) ([] :: [Filter FA.Workorder]) 
 
 getFAWoIssuesR :: Handler Html 
-getFAWoIssuesR = entityTableHandler FAWoIssuesR ([] :: [Filter FA.WoIssue]) 
+getFAWoIssuesR = entityTableHandler (FA'R FAWoIssuesR) ([] :: [Filter FA.WoIssue]) 
 
 getFAWoIssueItemsR :: Handler Html 
-getFAWoIssueItemsR = entityTableHandler FAWoIssueItemsR ([] :: [Filter FA.WoIssueItem]) 
+getFAWoIssueItemsR = entityTableHandler (FA'R FAWoIssueItemsR) ([] :: [Filter FA.WoIssueItem]) 
 
 getFAWoManufactureR :: Handler Html 
-getFAWoManufactureR = entityTableHandler FAWoManufactureR ([] :: [Filter FA.WoManufacture]) 
+getFAWoManufactureR = entityTableHandler (FA'R FAWoManufactureR) ([] :: [Filter FA.WoManufacture]) 
 
 getFAWoRequirementsR :: Handler Html 
-getFAWoRequirementsR = entityTableHandler FAWoRequirementsR ([] :: [Filter FA.WoRequirement]) 
+getFAWoRequirementsR = entityTableHandler (FA'R FAWoRequirementsR) ([] :: [Filter FA.WoRequirement]) 
+
