@@ -236,4 +236,3 @@ getFAWoManufactureR = entityTableHandler FAWoManufactureR ([] :: [Filter FA.WoMa
 
 getFAWoRequirementsR :: Handler Html 
 getFAWoRequirementsR = entityTableHandler FAWoRequirementsR ([] :: [Filter FA.WoRequirement]) 
-

@@ -42,7 +42,7 @@ data App = App
 -- This function also generates the following type synonyms:
 -- type Handler = HandlerT App IO
 -- type Widget = WidgetT App IO ()
-mkYesodData "App" $(parseRoutesFile "config/routes")
+mkYesodData "App" $(parseRoutesFile "config/routes.gen")
 
 -- | A convenient synonym for creating forms.
 type Form x = Html -> MForm (HandlerT App IO) (FormResult x, Widget)

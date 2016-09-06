@@ -36,3 +36,10 @@ db_ip:
 
 
 
+# From DB Handler and routes generatio
+config/routes.gen: config/routes config/fa-routes
+	cat $< > $@
+
+
+config/%-routes:
+	stack exec FAGenerator $*
