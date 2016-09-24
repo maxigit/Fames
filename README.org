@@ -91,5 +91,37 @@ Make sure the IP address of the required containers is correct AND than they can
 Ping should work. You can check the ip address of the postgres container by runing =make db_id=.
 And check the status of all container using dockerUI. dockerUI is run via the dockerUI container and
 accessed on [http://127.0.0.1:9000]
+* Code
+
+** Obsolote
+data Role = Administror -- ^ Administrator
+          | Permissions [Permissions] --^ attributes
+          | UserRole UserId                          |
 
 
+Map User [Role]
+isauthorized route r = do
+
+
+remove appBypassAuth and put user -> [Roles] instead
+
+** Current
+We need permission on route, customer, suppliers, items (example price)
+All permissions needs to be validated by one or many roles to be ok
+
+We need Role -> Permissionable -> Bool
+
+Permissions -> [Permission]
+Role -> [Permission] -> [Permission]
+
+
+We also want to be able to override full routes
+ex : fa/gl -> "FA" "GL" (attributes permission) || "fa/gl" (route permission)
+user1 : "fa" "gl"
+user2 : "fa/gl"
+   
+customer is and AND
+
+fa/gl/supp1 : ((fa && gl) || "fa/gl" ) && "supp1"
+
+*** Permission monad
