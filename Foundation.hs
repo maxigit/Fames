@@ -17,6 +17,7 @@ import qualified Data.Text.Encoding as TE
 import qualified FA as FA
 import qualified Crypto.Hash as Crypto
 import Crypto.Hash (MD5, Digest, hash)
+import Role
 
 -- | The foundation datatype for your application. This can be a good place to
 -- keep settings and values requiring initialization before your application
@@ -47,31 +48,6 @@ mkYesodData "App" $(parseRoutesFile "config/routes.gen")
 
 -- | A convenient synonym for creating forms.
 type Form x = Html -> MForm (HandlerT App IO) (FormResult x, Widget)
-
-data WriteRequest = WriteRequest | ReadRequest deriving (Eq, Read, Show)
-data Role = Administrator
-          | RolePermission Permissions
-          | RoleRoute (Route App) WriteRequest
-  deriving(Show, Read)
-
-type Permissions = Set Text
-rolesFor :: User -> Handler [Role]
-rolesFor user = return $ [RolePermission (setFromList ["fa"])]
-
-isRouteAllowed :: Route App -> WriteRequest -> Role -> Bool
-isRouteAllowed _ _ Administrator =  True
-isRouteAllowed route r (RoleRoute route' r') | route == route' =
-  case (r,r') of
-    (WriteRequest, ReadRequest) -> False
-    (_, _) -> True
-
-isRouteAllowed _ _ _ = False
-
--- | Remove permissions which are granted
-filterPermissions :: Permissions -> Role -> Permissions
-filterPermissions _ Administrator = mempty
-filterPermissions perms (RolePermission grants) = perms \\ grants
-
 
 -- Please see the documentation for the Yesod typeclass. There are a number
 -- of settings which can be configured by overriding methods here.
@@ -129,36 +105,13 @@ instance Yesod App where
     isAuthorized route r = do
        let wreq = if r then WriteRequest else ReadRequest
        settings <- appSettings <$> getYesod
-       -- check if we need to bypass authentication
-       -- this is useful for testing
-       case appBypassAuth settings of
-          BypassAuth ->  return Authorized
-          _ -> do
-            mu <- maybeAuth
-            case mu of
-              Nothing -> return AuthenticationRequired
-              Just (Entity _ u) -> go route wreq u
-       where 
-         go route r user = do
-           roles <- rolesFor user
-           let permissions = routeAttrs route
-               
-               routeAllowed = or $ map (isRouteAllowed route r) roles
-               unauthorized = foldl' filterPermissions permissions roles
-           case (routeAllowed, null unauthorized) of
-                 (_, True) -> return Authorized
-                 (True, _) -> return Authorized
-                 _ -> return AuthenticationRequired
-               
-         go _ _ u = isAdministrator u
-         isAdministrator user = do
-           master <- getYesod
-           let username = userIdent user
-               adminLogin = appAdminLogin (appSettings master)
-
-           return $ if username == adminLogin
-                       then Authorized
-                       else AuthenticationRequired
+       urlRender <- getUrlRender 
+       mu <- maybeAuth
+       case mu of
+         Nothing -> return AuthenticationRequired
+         Just (Entity _ u) -> return $ authorizeFor (roleFor (appRoleFor settings) (userIdent u))
+                                                    (urlRender route)
+                                                    wreq 
 
     -- This function creates static content files in the static folder
     -- and names them based on a hash of their content. This allows

@@ -16,7 +16,8 @@ import Text.Shakespeare.Text (st)
 import Yesod.Default.Config2 (ignoreEnv, loadYamlSettings)
 import Yesod.Test            as X
 import Yesod.Auth (Route(LoginR))
-import Settings(appBypassAuth, AuthMode(..))
+import Settings(appRoleFor)
+import Role(Role(Administrator), RoleFor(..))
 
 -- Log as administrator, In theory gives access to every page
 logAsAdmin = do
@@ -36,17 +37,21 @@ runDB query = do
 runDBWithApp :: App -> SqlPersistM a -> IO a
 runDBWithApp app query = runSqlPersistMPool query (appConnPool app)
 
+data AuthMode = BypassAuth | CheckAuth deriving (Eq, Read, Show)
 withApp ::  (Text -> KeepOrWipe) -- ^ filter tables to truncate
         -> _ -- ^ Hook before o beforeAll
         -> AuthMode -- ^ Bypass authorization
         -> SpecWith (TestApp App)
         -> Spec
-withApp tablePredicate  hook bypassAuth = hook $ do
+withApp tablePredicate  hook authMode = hook $ do
     settings <- loadYamlSettings
         ["config/test-settings.yml", "config/settings.yml"]
         []
         ignoreEnv
-    foundation <- makeFoundation settings {appBypassAuth = bypassAuth }
+    foundation <- makeFoundation ( if authMode == BypassAuth
+                                   then settings {appRoleFor = RoleFor (const Administrator) }
+                                   else settings
+                                 )
     wipeDB tablePredicate foundation
     logWare <- liftIO $ makeLogWare foundation
     return (foundation, logWare)

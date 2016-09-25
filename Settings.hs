@@ -20,11 +20,13 @@ import Yesod.Default.Util         (WidgetFileSettings, widgetFileNoReload,
                                    widgetFileReload)
 import qualified Database.MySQL.Base as MySQL
 import Yesod.Fay
+import  Role
 
 data AuthMode = BypassAuth | CheckAuth deriving (Read, Show, Eq)
 -- | Runtime settings to configure this application. These settings can be
 -- loaded from various sources: defaults, environment variables, config files,
 -- theoretically even a database.
+
 data AppSettings = AppSettings
     { appStaticDir              :: String
     -- ^ Directory from which to serve static files.
@@ -57,12 +59,13 @@ data AppSettings = AppSettings
     -- ^ Copyright text to appear in the footer of the page
     , appAnalytics              :: Maybe Text
     -- ^ Google Analytics code
-    , appBypassAuth             :: AuthMode
-    -- ^ Allow to bypass authorization. Usefull for test
-    , appAdminLogin :: Text 
+    , appRoleFor :: RoleFor 
+    -- ^ Roles for each users. Can be overridden for tests.
+    -- Must return a Role for everybody, even a "empty" role.
     } deriving Show
 
-instance FromJSON AppSettings where
+
+instance FromJSON AppSettings  where
     parseJSON = withObject "AppSettings" $ \o -> do
         let defaultDev =
 #if DEVELOPMENT
@@ -85,7 +88,7 @@ instance FromJSON AppSettings where
 
         appCopyright              <- o .: "copyright"
         appAnalytics              <- o .:? "analytics"
-        appAdminLogin             <- o .:? "admin-login" .!= "admin"
+        appRoleFor                <- o .:? "users" .!= undefined
         
 
         -- This code enables MySQL's strict mode, without which MySQL will truncate data.

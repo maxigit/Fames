@@ -19,6 +19,7 @@ library
                      GL.FA
                      GL
                      GL.Receipt
+                     Role
                      Foundation
                      Import
                      Import.NoFoundation
