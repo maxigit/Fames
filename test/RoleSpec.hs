@@ -19,8 +19,6 @@ pureSpec = do
       it "doesn't authorize if missing roles" $ do
         authorizeFromAttributes (RolePermission (setFromList [(fa, ReadRequest)])) attrs ReadRequest
         `shouldBe` False
-      it "doesn't authorize if missing roles" $ do
-        authorizeFromAttributes (RolePermission (setFromList [(fa, ReadRequest)])) attrs ReadRequest
       it "from one role" $ do
         authorizeFromAttributes (RolePermission (setFromList [(fa, ReadRequest)
                                                              , (gl, ReadRequest)
@@ -55,22 +53,7 @@ pureSpec = do
     it "doesn't authorize Write if Read" $ do
       authorizeFromPath (RoleRoute "/fa/gl_trans" ReadRequest) "/fa/gl_trans" WriteRequest `shouldBe` False
     
-    -- describe "authorize from route" $ do
-    --  it "uses attributes" $ do
-    --    authorizeFor (RolePermission [("fa", ReadRequest), ("db", ReadRequest)] )
-    --                 (FA'R FACustAllocationsR)
-    --                 ReadRequest
-    --       `shouldBe` Authorized
-    --  it "uses route" $ do
-    --     authorizeFor (RoleRoute ("/db/fa/cust_allocations"))
-    --                 (FA'R FACustAllocationsR)
-    --                  ReadRequest
-    --       `shouldBe` Authorized
-
-      -- pending "route/path"
       -- pending "parse json"
-      -- pending "test write route"
-      -- pending "test write attr"
 
     
   

@@ -109,9 +109,11 @@ instance Yesod App where
        mu <- maybeAuth
        case mu of
          Nothing -> return AuthenticationRequired
-         Just (Entity _ u) -> return $ authorizeFor (roleFor (appRoleFor settings) (userIdent u))
-                                                    (urlRender route)
-                                                    wreq 
+         Just (Entity _ user) -> let role = roleFor (appRoleFor settings) (userIdent user)
+                              in if isRouteAllowed (urlRender route) wreq role
+                                 || authorizeFromAttributes role (routeAttrs route) wreq
+                              then return Authorized
+                              else return $ Unauthorized "Access restricted"
 
     -- This function creates static content files in the static folder
     -- and names them based on a hash of their content. This allows
