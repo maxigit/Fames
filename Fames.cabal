@@ -160,6 +160,7 @@ test-suite test
                  , classy-prelude-yesod
                  , aeson
                  , cassava
+                 , yaml
 
 
 executable FAGenerator

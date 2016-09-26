@@ -1,7 +1,9 @@
-{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE NoImplicitPrelude, OverloadedStrings #-}
 module Role where
 
 import ClassyPrelude.Yesod
+import Data.Text(init)
+import qualified Data.Text as Text
 
 -- * Types
 -- | Read or Write request
@@ -23,7 +25,7 @@ data Role = Administrator
           | RoleGroup [Role]
           | RolePermission Permissions
           | RoleRoute (URL) WriteRequest
-  --deriving(Show, Read)
+  deriving(Show, Read, Eq)
 
 -- * Checking permissions
 -- | Check if the given route is allowed, based on it path 
@@ -56,4 +58,16 @@ authorizeFromPath (RoleRoute route' wreq') route wreq = route == route' && wreq'
 
 -- * From JSON
 
--- instance FromJSON Role
+instance FromJSON Role where
+  parseJSON (String s) | s ==  "Administrator" = return Administrator
+  parseJSON (Array os) = do
+    roles <- mapM parseJSON (toList os)
+    return $ RoleGroup roles
+
+  parseJSON Null = return $ RoleGroup []
+  parseJSON (String s) = case (Text.splitAt 1 s) of
+    ("/", _) -> let (route, wreq) = isWriteReq s in return $ RoleRoute route wreq
+    _ -> return . RolePermission . setFromList $ map (isWriteReq) (words s)
+    where isWriteReq s | not (null s)  = if Text.last s == '+'
+                                       then (init s, WriteRequest)
+                                       else  (s, ReadRequest)

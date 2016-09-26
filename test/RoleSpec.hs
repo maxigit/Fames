@@ -5,6 +5,9 @@ import TestImport
 import Import.NoFoundation
 import Role
 
+import Data.Yaml (decode)
+import Text.Shakespeare.Text (st)
+
 spec :: Spec
 spec = pureSpec
 
@@ -53,7 +56,57 @@ pureSpec = do
     it "doesn't authorize Write if Read" $ do
       authorizeFromPath (RoleRoute "/fa/gl_trans" ReadRequest) "/fa/gl_trans" WriteRequest `shouldBe` False
     
-      -- pending "parse json"
+  describe "#Yaml" $ do
+    let shouldDecodeTo yaml result = decode (encodeUtf8 yaml) `shouldBe` Just result
+    it "decodes Administrator" $ do
+      "Administrator" `shouldDecodeTo` Administrator
 
-    
+    it "decodes route" $ do
+      "/fa/gl" `shouldDecodeTo` RoleRoute "/fa/gl" ReadRequest
+    it "decodes writable route" $ do
+      "/fa/gl+" `shouldDecodeTo` RoleRoute "/fa/gl" WriteRequest
+
+    it "decodes route attribute" $ do
+      "fa" `shouldDecodeTo` RolePermission [("fa", ReadRequest)]
+    it "decodes route attributes" $ do
+      "fa gl" `shouldDecodeTo` RolePermission [("fa", ReadRequest), ("gl", ReadRequest)]
+    it "decodes writable route attributes" $ do
+      "fa+ db gl+" `shouldDecodeTo` RolePermission [("fa", WriteRequest)
+                                                   , ("db", ReadRequest)
+                                                   , ("gl", WriteRequest)
+                                                   ]
+    it "decodes group" $ do
+      [st|
+- fa gl
+- /web/admin+
+       |] `shouldDecodeTo` RoleGroup [ RolePermission [("fa", ReadRequest), ("gl", ReadRequest)]
+                                     , RoleRoute "/web/admin" WriteRequest
+                                     ]
   
+    it "decodes nested groups" $ do
+      [st|
+- fa gl
+- &Web
+  - /web+
+  - /web/admin
+       |] `shouldDecodeTo` RoleGroup [ RolePermission [("fa", ReadRequest), ("gl", ReadRequest)]
+                                     , RoleGroup [ RoleRoute "/web" WriteRequest
+                                                 , RoleRoute "/web/admin" ReadRequest
+                                                 ]
+                                     ]
+    it "decodes maps" $ do
+      [st|
+Accountant: /fa/gl
+       |] `shouldDecodeTo`  ( mapFromList [ ("Accountant" , RoleRoute "/fa/gl" ReadRequest)]
+                            :: Map Text Role
+                            )
+    it "decodes anchors" $ do
+      [st|
+acc1: &Accountant /fa/gl
+acc2: *Accountant
+
+       |] `shouldDecodeTo`  ( mapFromList [ ("acc1" , RoleRoute "/fa/gl" ReadRequest)
+                                          , ("acc2" , RoleRoute "/fa/gl" ReadRequest)
+                                          ]
+                            :: Map Text Role
+                            )
