@@ -17,8 +17,6 @@ newtype RoleFor = RoleFor {roleFor :: (Maybe Text -> Role) }
 
 instance Show RoleFor where
   show _ = "RoleFor"
-instance FromJSON RoleFor where
-  parseJSON = undefined 
 
 -- | A role, can grant permissions.
 data Role = Administrator
