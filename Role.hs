@@ -12,7 +12,7 @@ data WriteRequest = ReadRequest | WriteRequest deriving (Eq, Read, Show, Ord)
 type Permissions = Set (Text, WriteRequest)
 type URL = Text
 
-newtype RoleFor = RoleFor {roleFor :: (Text -> Role) }
+newtype RoleFor = RoleFor {roleFor :: (Maybe Text -> Role) }
 
 
 instance Show RoleFor where
@@ -47,6 +47,7 @@ filterPermissions wreq perms (RolePermission grants) = perms \\ setFromList [g |
 filterPermissions _ perms (RoleRoute _ _) = perms
 
 authorizeFromAttributes :: Role -> Set Text -> WriteRequest -> Bool
+authorizeFromAttributes _ attrs _ | null attrs = False
 authorizeFromAttributes role attrs wreq = null $ (filterPermissions wreq) attrs role
 
 authorizeFromPath :: Role -> URL -> WriteRequest-> Bool

@@ -107,13 +107,14 @@ instance Yesod App where
        settings <- appSettings <$> getYesod
        urlRender <- getUrlRender 
        mu <- maybeAuth
-       case mu of
-         Nothing -> return AuthenticationRequired
-         Just (Entity _ user) -> let role = roleFor (appRoleFor settings) (userIdent user)
-                              in if isRouteAllowed (urlRender route) wreq role
-                                 || authorizeFromAttributes role (routeAttrs route) wreq
-                              then return Authorized
-                              else return $ Unauthorized "Access restricted"
+       let denied = case mu of
+                        Nothing -> AuthenticationRequired
+                        Just _  -> Unauthorized "Permissions required"
+           role = roleFor (appRoleFor settings) (userIdent . entityVal <$> mu)
+       if isRouteAllowed (urlRender route) wreq role
+          || authorizeFromAttributes role (routeAttrs route) wreq
+          then return Authorized
+          else return denied
 
     -- This function creates static content files in the static folder
     -- and names them based on a hash of their content. This allows

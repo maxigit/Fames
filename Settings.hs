@@ -91,8 +91,12 @@ instance FromJSON AppSettings  where
 
         roleForMap                <- o .:? "roles" .!= (mempty :: Map Text Role)
         let types = roleForMap  :: Map Text Role
-            defaultRole = fromMaybe (RoleGroup []) (lookup "default" roleForMap)
-            appRoleFor = RoleFor $ \user -> fromMaybe defaultRole (lookup user roleForMap)
+            appRoleFor = RoleFor $
+                \user -> fromMaybe (RoleGroup [])
+                                   (asum [lookup u roleForMap
+                                         | u <- (maybeToList user >>= \u -> [u, "<authenticated>"]) ++ ["<anonymous>"]
+                                         ]
+                                   )
         
 
         -- This code enables MySQL's strict mode, without which MySQL will truncate data.
