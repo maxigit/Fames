@@ -23,7 +23,8 @@ The main features that FAMES is adding are
 - GL, Bank reconciliation and Event sourcing
 - Payroll
 * Status
-At the moment, nothing has been implemented yet.
+** Permissions
+Roles and permissions can be set in the configuration file.
 * Features
 ** Items and variations management
 FA actual stock system is missing a concept of variations and some useful meta information such box dimensions, style locations etc .
@@ -92,36 +93,41 @@ Ping should work. You can check the ip address of the postgres container by runi
 And check the status of all container using dockerUI. dockerUI is run via the dockerUI container and
 accessed on [http://127.0.0.1:9000]
 * Code
+** Stock take
+*** We want
+we need to track styles and boxes withing bays/shelves. 
+Ideal we should be able to do stock take independently of boxes and /or location
+- Styles can be tracked either in a box or in a shelf/bay
+- Boxes can be tracked in either a shelf or a bay
+Generate stock movement/adjustment
+***  barcode
+**** process
+- scan shelf
+- scan all boxes
+- enter somehow if the box is full or not
+**** Need
+- barcode on in shelf
+- barcode on each box:
+  - new barcode for old box
+  - add barcode to labels
+- decide what contains the barcode
+  - coded string box identifcation : date+PL number ?
+  - or id + table
+  - dimension of the box itself
+  - what to do when no packing list ?
+*** Old system
+Generates prefilled spreadsheet with qoh 2 columns:
+- qoh at the time the sheet was printied. Important to deduce how many are missings
+- take : the actual stock take. What's is missing is just the difference.
+**** Pros
+- easy to do
+**** Cons
+- needs manual work to process the
+- Problem with multiple locations
+- needs separate box take 
+*** Which items to stock take
+- per styles
+- per bay
+- urgent : combination of stock level, stock availability  and least recent check
 
-** Obsolote
-data Role = Administror -- ^ Administrator
-          | Permissions [Permissions] --^ attributes
-          | UserRole UserId                          |
 
-
-Map User [Role]
-isauthorized route r = do
-
-
-remove appBypassAuth and put user -> [Roles] instead
-
-** Current
-We need permission on route, customer, suppliers, items (example price)
-All permissions needs to be validated by one or many roles to be ok
-
-We need Role -> Permissionable -> Bool
-
-Permissions -> [Permission]
-Role -> [Permission] -> [Permission]
-
-
-We also want to be able to override full routes
-ex : fa/gl -> "FA" "GL" (attributes permission) || "fa/gl" (route permission)
-user1 : "fa" "gl"
-user2 : "fa/gl"
-   
-customer is and AND
-
-fa/gl/supp1 : ((fa && gl) || "fa/gl" ) && "supp1"
-
-*** Permission monad
