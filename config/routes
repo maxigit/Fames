@@ -10,6 +10,8 @@
 /comments CommentR POST
 /gl/enter_receipts_sheet GLEnterReceiptSheetR GET POST
 
+/warehouse WarehouseR !warehouse:
+  /barcodes WHBarcodeR GET POST !barcode:
 
 /administrator AdministratorR GET
 

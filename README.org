@@ -129,5 +129,19 @@ Generates prefilled spreadsheet with qoh 2 columns:
 - per styles
 - per bay
 - urgent : combination of stock level, stock availability  and least recent check
+*** Solution
+- Generate labels with unique barcode as csv
+- save last number by prefix
+- add checksum (not usefull when scanning, but usefull when writting them down)
+- Print them using Mail merging  Words or
+*** TODO
+- [ ] add barcode table
+- post page
+- [ ] add route
+- [ ] add handler
+  prefix from list 
+  - [ ] hardcoded : ST
+  - [ ] config file
+- [ ] post => csv
 
 

@@ -34,6 +34,8 @@ library
                      Handler.Comment
                      Handler.GLEnterReceiptSheet
                      Handler.GLEnterReceiptSheet.ReceiptRow
+                     Handler.WH
+                     Handler.WH.Barcode
                      Handler.FA
                      Handler.FAX
                      Handler.FA.Def
@@ -108,6 +110,7 @@ library
                  , blaze-html
                  , split
                  , cryptohash
+                 , formatting
 
 executable         Fames
     if flag(library-only)
