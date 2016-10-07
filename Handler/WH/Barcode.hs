@@ -5,8 +5,6 @@ import Import
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 -- toto
-  -- select prefix
-  -- inactive date
   -- make checksum work
   -- use conduit ?
   -- proper csv (with colnames and more columns) 
@@ -15,15 +13,16 @@ import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
 import Formatting
 import Formatting.Time
 import Data.Text.Lazy.Builder (fromLazyText)
+import Data.Char (ord, chr)
 -- | Allowed prefixes. Read from configuration file.
 barcodeTypes :: Handler [(Text, Text)]
 barcodeTypes = return $ [("ST", "Stock take")]
   
 barcodeForm :: [(Text, Text)] -> Maybe Day -> Form (Text, Int, Day)
 barcodeForm prefixes date = renderBootstrap3 BootstrapBasicForm $ (,,)
-  <$> areq textField "Prefix" Nothing
-  <*> areq intField "Number" Nothing
-  <*> areq dayField "Date" date
+  <$> areq (selectFieldList [(p <> " - " <> d, p) | (p,d) <- prefixes ]) "Prefix" Nothing
+  <*> areq intField "Number" (Just 42)
+  <*> areq dayField (FieldSettings "Date" Nothing Nothing Nothing [("disabled", "disabled")]) date
 
 getWHBarcodeR :: Handler Html
 getWHBarcodeR = do
@@ -99,4 +98,4 @@ month2 day = let (_, month, _) = toGregorian day
 
 -- | checksum
 -- checksum :: Text -> Text
-checksum s = "TODO"
+checksum s = toStrict . singleton . chr $ sum (map ord) (toList s) `mod` 26 + ord 'A'
