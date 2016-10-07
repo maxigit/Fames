@@ -5,7 +5,6 @@ import Import
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 -- toto
-  -- make checksum work
   -- use conduit ?
   -- proper csv (with colnames and more columns) 
   -- refactor , clean
@@ -14,6 +13,8 @@ import Formatting
 import Formatting.Time
 import Data.Text.Lazy.Builder (fromLazyText)
 import Data.Char (ord, chr)
+import qualified Data.Text.Lazy as LT
+ 
 -- | Allowed prefixes. Read from configuration file.
 barcodeTypes :: Handler [(Text, Text)]
 barcodeTypes = return $ [("ST", "Stock take")]
@@ -22,7 +23,8 @@ barcodeForm :: [(Text, Text)] -> Maybe Day -> Form (Text, Int, Day)
 barcodeForm prefixes date = renderBootstrap3 BootstrapBasicForm $ (,,)
   <$> areq (selectFieldList [(p <> " - " <> d, p) | (p,d) <- prefixes ]) "Prefix" Nothing
   <*> areq intField "Number" (Just 42)
-  <*> areq dayField (FieldSettings "Date" Nothing Nothing Nothing [("disabled", "disabled")]) date
+  -- <*> areq dayField (FieldSettings "Date" Nothing Nothing Nothing [("disabled", "disabled")]) date
+  <*> areq dayField (FieldSettings "Date" Nothing Nothing Nothing [("readonly", "readonly")]) date
 
 getWHBarcodeR :: Handler Html
 getWHBarcodeR = do
@@ -44,6 +46,7 @@ postWHBarcodeR = do
   ((resp, textW), encType) <- runFormPost $ barcodeForm prefixes Nothing
   case resp of
     FormMissing -> error "missing"
+    FormFailure msg ->  error "Form Failure"
     FormSuccess (barcodeType, number, date) -> do
       addHeader "Content-Disposition" "attachment"
       addHeader "Filename" "barcodes.csv"
@@ -97,5 +100,6 @@ month2 day = let (_, month, _) = toGregorian day
 
 
 -- | checksum
--- checksum :: Text -> Text
-checksum s = toStrict . singleton . chr $ sum (map ord) (toList s) `mod` 26 + ord 'A'
+checksum :: LT.Text -> LT.Text
+checksum s = singleton . chr $ sum (map ((*23) . ord) (toList s)) `mod` 26 + ord 'A'
+
