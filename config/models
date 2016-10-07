@@ -16,8 +16,9 @@ Comment sql=fames_comment json -- Adding "json" causes ToJSON and FromJSON insta
 
  -- By default this file is used in Model.hs (which is imported by Foundation.hs)
 
-Barcode sql=fames_barcode
-    prefix Text
-    last Int
+BarcodeSeed sql=fames_barcode_seed
+    prefix Text 
+    lastUsed Int
+    UniqueBCSeed prefix
     deriving Eq
     deriving Show
