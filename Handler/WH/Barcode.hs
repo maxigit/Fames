@@ -5,9 +5,9 @@ import Import
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 -- toto
-  -- add number in CSV and type
+  -- change modulo checksum
   -- refactor , clean
-  -- stop if too many number
+  --  load from config
 
 import Formatting
 import Formatting.Time
@@ -16,16 +16,28 @@ import Data.Char (ord, chr)
 import qualified Data.Text.Lazy as LT
  
 -- | Allowed prefixes. Read from configuration file.
-barcodeTypes :: Handler [(Text, Text)]
-barcodeTypes = return $ [("ST", "Stock take")]
+data BarcodeParams = BarcodeParams
+  { bpPrefix :: Text
+  , bpDescription :: Text
+  , bpTemplate :: Text
+  , bpNbPerPage :: Int
+  } deriving (Eq, Read, Show)
+
+data OutputMode = Csv | GLabels deriving (Eq, Ord, Read, Show)
+barcodeTypes :: Handler [BarcodeParams]
+barcodeTypes = return $ [BarcodeParams "ST" "Stock take" "stock_take.gl3" 21]
   
-barcodeForm :: [(Text, Text)] -> Maybe Day -> Maybe Int ->  Form (Text, Maybe Int, Int,  Day)
-barcodeForm prefixes date start = renderBootstrap3 BootstrapBasicForm $ (,,,)
-  <$> areq (selectFieldList [(p <> " - " <> d, p) | (p,d) <- prefixes ]) "Prefix" Nothing
+barcodeForm :: [BarcodeParams]
+            -> Maybe Day
+            -> Maybe Int
+            ->  Form (BarcodeParams, Maybe Int, Int,  Day, OutputMode)
+barcodeForm bparams date start = renderBootstrap3 BootstrapBasicForm $ (,,,,)
+  <$> areq (selectFieldList [(bpPrefix p <> " - " <> bpDescription p, p) | p <- bparams]) "Prefix" Nothing
   <*> aopt intField "Start" (Just start)
   <*> areq intField "Number" (Just 42)
   -- <*> areq dayField (FieldSettings "Date" Nothing Nothing Nothing [("disabled", "disabled")]) date
   <*> areq dayField (FieldSettings "Date" Nothing Nothing Nothing [("readonly", "readonly")]) date
+  <*> ((\o -> if o then Csv else GLabels) <$> areq checkBoxField "Only data" (Just False))
 
 getWHBarcodeR :: Handler Html
 getWHBarcodeR = do
@@ -50,52 +62,65 @@ renderGetWHBarcodeR date  start = do
 
 postWHBarcodeR :: Handler TypedContent 
 postWHBarcodeR = do
-  prefixes <- barcodeTypes
-  ((resp, textW), encType) <- runFormPost $ barcodeForm prefixes Nothing Nothing
+  bparams <- barcodeTypes
+  ((resp, textW), encType) <- runFormPost $ barcodeForm bparams Nothing Nothing
   case resp of
     FormMissing -> error "missing"
     FormFailure msg ->  error "Form Failure"
-    FormSuccess (barcodeType, startM, number, date) -> do
+    FormSuccess (bparam, startM, number, date, outputMode) -> do
       addHeader "Content-Disposition" "attachment"
       addHeader "Filename" "barcodes.csv"
 
       let prefix = format
                    ((fitLeft 2 %. stext) % (yy `mappend` later month2) ) --  (yy <> later month2))
-                   barcodeType
+                   (bpPrefix bparam) -- barcodeType
                    (date)
           prefix' = toStrict prefix
+          endFor start =
+            let number' = case outputMode of
+                          Csv -> start + number -1
+                          GLabels -> -- fill a page
+                                  let perPage = bpNbPerPage bparam
+                                      missing = (- number) `mod` perPage
+                                  in start + number + missing -1
+            in min 99999 number'
+            
       
       -- find last available number
       seE <- runDB $ do
         seedM <- getBy (UniqueBCSeed prefix')
+        liftIO $ print (prefix', seedM)
         case seedM of
           Nothing -> do
             let start = fromMaybe 1 startM
-                end = start + number -1
+                end = endFor start
             insert $ BarcodeSeed prefix' end
             return $ Right (start, end)
           (Just (Entity sId (BarcodeSeed _ lastUsed))) -> do
             -- check if start set by user is valid
-            let range s = (s, s +number-1)
+            let range s = do
+                  let end = endFor s
+                  update sId [BarcodeSeedLastUsed =. end]
+                  return (s, end)
             case startM of
-                 Nothing -> return $ Right (range $ lastUsed +1)
-                 Just start' | lastUsed > start' -> return $ Left lastUsed
-                 Just start' -> do
-                    let (start, end) = range (lastUsed + 1)
-                    update sId [BarcodeSeedLastUsed =. end]
-                    return $ Right (start, end)
+                 Nothing -> Right <$> range (lastUsed +1)
+                 Just start' | lastUsed >= start' -> return $ Left lastUsed
+                 Just start' -> Right <$> range start'
       case seE of
           Left lastUsed -> do
                 setMessage $ "Start parameter too low"
                 -- toTypedContent <$> renderGetWHBarcodeR date (Just $ lastUsed+1)
-                redirect (WarehouseR WHBarcodeR, [("Prefix", prefix'), ("Start", tshow lastUsed), ("Number", tshow number), ("Date", toStrict $ format dateDash date)])
+                redirect (WarehouseR WHBarcodeR, [("Prefix", prefix'), ("Start", tshow (lastUsed+1)), ("Number", tshow number), ("Date", toStrict $ format dateDash date)])
           Right (start, end) -> do
-                let bareBarcodes = [format (stext % (left 5 '0'))  prefix' n | n <- [start..end]]
-                    barcodes = map ((<>) <*>  checksum) bareBarcodes
+                let numbers = [start..end]
+                    bareBarcodes = [format (stext % (left 5 '0'))  prefix' n | n <- numbers]
+                    barcodes = zip (map ((<>) <*>  checksum) bareBarcodes) numbers
 
                 respondSource typePlain $ do
-                    sendChunkText $ "Barcode,Date\n"
-                    forM_ barcodes (\b -> sendChunkText . toStrict $ format (text % "," % dateDash % "\n")  b date )
+                    sendChunkText $ "Barcode,Number,Date\n"
+                    forM_ barcodes (\(b,n) -> sendChunkText
+                                           . toStrict
+                                           $ format (text % "," % int %","% dateDash % "\n")  b n date )
 
                        
 
@@ -120,5 +145,5 @@ month2 day = let (_, month, _) = toGregorian day
 
 -- | checksum
 checksum :: LT.Text -> LT.Text
-checksum s = singleton . chr $ sum (map ((*23) . ord) (toList s)) `mod` 26 + ord 'A'
+checksum s = singleton . chr $ product (map ((*23) . ord) (toList s)) `mod` 26 + ord 'A'
 
