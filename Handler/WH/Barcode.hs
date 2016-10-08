@@ -5,9 +5,9 @@ import Import
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 -- toto
-  -- use conduit ?
-  -- proper csv (with colnames and more columns) 
+  -- add number in CSV and type
   -- refactor , clean
+  -- stop if too many number
 
 import Formatting
 import Formatting.Time
@@ -19,35 +19,43 @@ import qualified Data.Text.Lazy as LT
 barcodeTypes :: Handler [(Text, Text)]
 barcodeTypes = return $ [("ST", "Stock take")]
   
-barcodeForm :: [(Text, Text)] -> Maybe Day -> Form (Text, Int, Day)
-barcodeForm prefixes date = renderBootstrap3 BootstrapBasicForm $ (,,)
+barcodeForm :: [(Text, Text)] -> Maybe Day -> Maybe Int ->  Form (Text, Maybe Int, Int,  Day)
+barcodeForm prefixes date start = renderBootstrap3 BootstrapBasicForm $ (,,,)
   <$> areq (selectFieldList [(p <> " - " <> d, p) | (p,d) <- prefixes ]) "Prefix" Nothing
+  <*> aopt intField "Start" (Just start)
   <*> areq intField "Number" (Just 42)
   -- <*> areq dayField (FieldSettings "Date" Nothing Nothing Nothing [("disabled", "disabled")]) date
   <*> areq dayField (FieldSettings "Date" Nothing Nothing Nothing [("readonly", "readonly")]) date
 
 getWHBarcodeR :: Handler Html
 getWHBarcodeR = do
-  prefixes <- barcodeTypes
   now <- utctDay <$> liftIO getCurrentTime
-  (form, encType) <- generateFormPost (barcodeForm prefixes (Just now))
-  defaultLayout [whamlet|
+  start <- lookupGetParam "Start"
+  renderGetWHBarcodeR now (readMay =<< start)
+
+
+renderGetWHBarcodeR :: Day -> Maybe Int -> Handler Html
+renderGetWHBarcodeR date  start = do
+  prefixes <- barcodeTypes
+  (form, encType) <- generateFormPost (barcodeForm prefixes (Just date) start)
+  table <- entityTableHandler (WarehouseR WHBarcodeR) ([] :: [Filter BarcodeSeed])
+  defaultLayout $ [whamlet|
 <h1> Barcode Generator
   <form #barcode-form role=form method=post action=@{WarehouseR WHBarcodeR} enctype=#{encType}>
     ^{form}
     <button type="submit" .btn .btn-default>Download
+    <div>
+      ^{table}
 |]
 
-
-
-postWHBarcodeR :: Handler Html 
+postWHBarcodeR :: Handler TypedContent 
 postWHBarcodeR = do
   prefixes <- barcodeTypes
-  ((resp, textW), encType) <- runFormPost $ barcodeForm prefixes Nothing
+  ((resp, textW), encType) <- runFormPost $ barcodeForm prefixes Nothing Nothing
   case resp of
     FormMissing -> error "missing"
     FormFailure msg ->  error "Form Failure"
-    FormSuccess (barcodeType, number, date) -> do
+    FormSuccess (barcodeType, startM, number, date) -> do
       addHeader "Content-Disposition" "attachment"
       addHeader "Filename" "barcodes.csv"
 
@@ -58,26 +66,37 @@ postWHBarcodeR = do
           prefix' = toStrict prefix
       
       -- find last available number
-      (start, end) <- runDB $ do
+      seE <- runDB $ do
         seedM <- getBy (UniqueBCSeed prefix')
         case seedM of
           Nothing -> do
-            let start = 1
+            let start = fromMaybe 1 startM
                 end = start + number -1
             insert $ BarcodeSeed prefix' end
-            return (start, end)
-          (Just (Entity sId (BarcodeSeed _ start))) -> do
-            let end = start + number -1
-            update sId [BarcodeSeedLastUsed =. end]
-            return (start, end)
-      let bareBarcodes = [format (stext % (left 4 '0'))  prefix' n | n <- [start..end]]
-          barcodes = map ((<>) <*>  checksum) bareBarcodes
-      defaultLayout [whamlet|
-<ul>
-  $forall (barcode) <- barcodes
-    <li>
-        #{barcode}
-|]
+            return $ Right (start, end)
+          (Just (Entity sId (BarcodeSeed _ lastUsed))) -> do
+            -- check if start set by user is valid
+            let range s = (s, s +number-1)
+            case startM of
+                 Nothing -> return $ Right (range $ lastUsed +1)
+                 Just start' | lastUsed > start' -> return $ Left lastUsed
+                 Just start' -> do
+                    let (start, end) = range (lastUsed + 1)
+                    update sId [BarcodeSeedLastUsed =. end]
+                    return $ Right (start, end)
+      case seE of
+          Left lastUsed -> do
+                setMessage $ "Start parameter too low"
+                -- toTypedContent <$> renderGetWHBarcodeR date (Just $ lastUsed+1)
+                redirect (WarehouseR WHBarcodeR, [("Prefix", prefix'), ("Start", tshow lastUsed), ("Number", tshow number), ("Date", toStrict $ format dateDash date)])
+          Right (start, end) -> do
+                let bareBarcodes = [format (stext % (left 4 '0'))  prefix' n | n <- [start..end]]
+                    barcodes = map ((<>) <*>  checksum) bareBarcodes
+
+                respondSource typePlain $ do
+                    sendChunkText $ "Barcode,Date\n"
+                    forM_ barcodes (\b -> sendChunkText . toStrict $ format (text % "," % dateDash % "\n")  b date )
+
                        
 
 -- | Month abbreviation on letter
