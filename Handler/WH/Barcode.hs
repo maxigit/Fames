@@ -90,7 +90,7 @@ postWHBarcodeR = do
                 -- toTypedContent <$> renderGetWHBarcodeR date (Just $ lastUsed+1)
                 redirect (WarehouseR WHBarcodeR, [("Prefix", prefix'), ("Start", tshow lastUsed), ("Number", tshow number), ("Date", toStrict $ format dateDash date)])
           Right (start, end) -> do
-                let bareBarcodes = [format (stext % (left 4 '0'))  prefix' n | n <- [start..end]]
+                let bareBarcodes = [format (stext % (left 5 '0'))  prefix' n | n <- [start..end]]
                     barcodes = map ((<>) <*>  checksum) bareBarcodes
 
                 respondSource typePlain $ do
