@@ -13,6 +13,7 @@ import Formatting
 import Formatting.Time
 import Data.Text.Lazy.Builder (fromLazyText)
 import Data.Char (ord, chr)
+import Data.List (iterate)
 import qualified Data.Text.Lazy as LT
  
 -- | Allowed prefixes. Read from configuration file.
@@ -145,5 +146,7 @@ month2 day = let (_, month, _) = toGregorian day
 
 -- | checksum
 checksum :: LT.Text -> LT.Text
-checksum s = singleton . chr $ product (map ((*23) . ord) (toList s)) `mod` 26 + ord 'A'
+checksum text = let
+ c = sum $ zipWith (*) (map ord (reverse $ toList text)) (iterate (*10) 7)
+ in singleton . chr $ c `mod` 26 + ord 'A'
 
