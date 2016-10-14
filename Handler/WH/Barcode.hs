@@ -16,11 +16,6 @@ import Formatting.Time
 import WH.Barcode
 import Data.List((!!))
  
-barcodeTypes :: Handler [BarcodeParams]
-barcodeTypes = return $ [ BarcodeParams "TT" "Test" []
-                        , BarcodeParams "ST" "Stock take" [BarcodeTemplate "stock_take.gl3" 21]
-                        ]
-  
 barcodeForm :: [BarcodeParams]
             -> Maybe Day
             -> Maybe Int
@@ -40,14 +35,17 @@ getWHBarcodeR = do
   start <- lookupGetParam "Start"
   renderGetWHBarcodeR now (readMay =<< start)
 
+getBarcodeParams :: Handler [BarcodeParams]
+getBarcodeParams = appBarcodeParams <$> appSettings <$> getYesod
 
 renderGetWHBarcodeR :: Day -> Maybe Int -> Handler Html
 renderGetWHBarcodeR date  start = do
-  prefixes <- barcodeTypes
-  (form, encType) <- generateFormPost (barcodeForm prefixes (Just date) start)
+  barcodeParams <- getBarcodeParams
+  (form, encType) <- generateFormPost (barcodeForm barcodeParams (Just date) start)
   table <- entityTableHandler (WarehouseR WHBarcodeR) ([] :: [Filter BarcodeSeed])
   defaultLayout $ [whamlet|
 <h1> Barcode Generator
+  #{tshow barcodeParams}
   <form #barcode-form role=form method=post action=@{WarehouseR WHBarcodeR} enctype=#{encType}>
     ^{form}
     <button type="submit" .btn .btn-default>Download
@@ -57,7 +55,7 @@ renderGetWHBarcodeR date  start = do
 
 postWHBarcodeR :: Handler TypedContent 
 postWHBarcodeR = do
-  bparams <- barcodeTypes
+  bparams <- getBarcodeParams
   ((resp, textW), encType) <- runFormPost $ barcodeForm bparams Nothing Nothing
   case resp of
     FormMissing -> error "missing"
@@ -115,9 +113,12 @@ postWHBarcodeR = do
                     bareBarcodes = [format (stext % (left 5 '0'))  prefix' n | n <- numbers]
                     barcodes = zip (map ((<>) <*>  checksum) bareBarcodes) numbers
 
-                addHeader "Content-Disposition" "attachment"
-                addHeader "Filename"
-                          (toStrict $ format ("barcode-"%text%"-"%int%"-"%int%".csv") prefix start end)
+                addHeader "Content-Disposition"
+                          (toStrict $ format ("attachment; filename=\"barcodes-"%text%"-"%int%"-"%int%".csv\"")
+                                             prefix
+                                             start
+                                             end
+                          )
                 respondSource typePlain $ do
                     sendChunkText $ "Barcode,Number,Date\n"
                     forM_ barcodes (\(b,n) -> sendChunkText
