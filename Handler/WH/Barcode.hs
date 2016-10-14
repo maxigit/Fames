@@ -5,35 +5,29 @@ import Import
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 -- toto
-  -- change modulo checksum
-  -- refactor , clean
   --  load from config
+	-- add many template
+         -- with description (in config)
+	-- use glabels
+  -- refactor , clean
 
 import Formatting
 import Formatting.Time
-import Data.Text.Lazy.Builder (fromLazyText)
-import Data.Char (ord, chr)
-import Data.List (iterate)
-import qualified Data.Text.Lazy as LT
+import WH.Barcode
+import Data.List((!!))
  
--- | Allowed prefixes. Read from configuration file.
-data BarcodeParams = BarcodeParams
-  { bpPrefix :: Text
-  , bpDescription :: Text
-  , bpTemplate :: Text
-  , bpNbPerPage :: Int
-  } deriving (Eq, Read, Show)
-
-data OutputMode = Csv | GLabels deriving (Eq, Ord, Read, Show)
 barcodeTypes :: Handler [BarcodeParams]
-barcodeTypes = return $ [BarcodeParams "ST" "Stock take" "stock_take.gl3" 21]
+barcodeTypes = return $ [ BarcodeParams "TT" "Test" []
+                        , BarcodeParams "ST" "Stock take" [BarcodeTemplate "stock_take.gl3" 21]
+                        ]
   
 barcodeForm :: [BarcodeParams]
             -> Maybe Day
             -> Maybe Int
-            ->  Form (BarcodeParams, Maybe Int, Int,  Day, OutputMode)
-barcodeForm bparams date start = renderBootstrap3 BootstrapBasicForm $ (,,,,)
+            ->  Form (BarcodeParams, Maybe Int, Maybe Int, Int,  Day, OutputMode)
+barcodeForm bparams date start = renderBootstrap3 BootstrapBasicForm $ (,,,,,)
   <$> areq (selectFieldList [(bpPrefix p <> " - " <> bpDescription p, p) | p <- bparams]) "Prefix" Nothing
+  <*> aopt intField "Template" Nothing
   <*> aopt intField "Start" (Just start)
   <*> areq intField "Number" (Just 42)
   -- <*> areq dayField (FieldSettings "Date" Nothing Nothing Nothing [("disabled", "disabled")]) date
@@ -68,20 +62,24 @@ postWHBarcodeR = do
   case resp of
     FormMissing -> error "missing"
     FormFailure msg ->  error "Form Failure"
-    FormSuccess (bparam, startM, number, date, outputMode) -> do
-      addHeader "Content-Disposition" "attachment"
-      addHeader "Filename" "barcodes.csv"
+    FormSuccess (bparam, templateNb, startM, number, date, outputMode) -> do
 
       let prefix = format
                    ((fitLeft 2 %. stext) % (yy `mappend` later month2) ) --  (yy <> later month2))
                    (bpPrefix bparam) -- barcodeType
                    (date)
           prefix' = toStrict prefix
+          template = do
+             n <- templateNb
+             if n < length (bpTemplates bparam)
+                then return $ (bpTemplates bparam) !! n
+                else Nothing
+          
           endFor start =
             let number' = case outputMode of
                           Csv -> start + number -1
                           GLabels -> -- fill a page
-                                  let perPage = bpNbPerPage bparam
+                                  let perPage = fromMaybe 1 (btNbPerPage <$> template)
                                       missing = (- number) `mod` perPage
                                   in start + number + missing -1
             in min 99999 number'
@@ -117,6 +115,9 @@ postWHBarcodeR = do
                     bareBarcodes = [format (stext % (left 5 '0'))  prefix' n | n <- numbers]
                     barcodes = zip (map ((<>) <*>  checksum) bareBarcodes) numbers
 
+                addHeader "Content-Disposition" "attachment"
+                addHeader "Filename"
+                          (toStrict $ format ("barcode-"%text%"-"%int%"-"%int%".csv") prefix start end)
                 respondSource typePlain $ do
                     sendChunkText $ "Barcode,Number,Date\n"
                     forM_ barcodes (\(b,n) -> sendChunkText
@@ -125,28 +126,6 @@ postWHBarcodeR = do
 
                        
 
--- | Month abbreviation on letter
--- month2 :: Day -> Text
-month2 day = let (_, month, _) = toGregorian day
-  in fromLazyText $ go month  where
-  go 1 = "JA"
-  go 2 = "FE"
-  go 3 = "MR"
-  go 4 = "AP"
-  go 5 = "MY"
-  go 6 = "JU"
-  go 7 = "JL"
-  go 8 = "AU"
-  go 9 = "SE"
-  go 10 = "OC"
-  go 11 = "NV"
-  go 12 = "DE"
 
 
-
--- | checksum
-checksum :: LT.Text -> LT.Text
-checksum text = let
- c = sum $ zipWith (*) (map ord (reverse $ toList text)) (iterate (*10) 7)
- in singleton . chr $ c `mod` 26 + ord 'A'
 

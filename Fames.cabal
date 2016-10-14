@@ -41,6 +41,7 @@ library
                      Handler.FA.Def
                      Handler.FAX.Def
                      Handler.Util
+                     WH.Barcode
 
     if flag(dev) || flag(library-only)
         cpp-options:   -DDEVELOPMENT

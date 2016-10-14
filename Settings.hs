@@ -21,11 +21,15 @@ import Yesod.Default.Util         (WidgetFileSettings, widgetFileNoReload,
 import qualified Database.MySQL.Base as MySQL
 import Yesod.Fay
 import  Role
+import WH.Barcode
+import qualified Data.Map as Map
 
 data AuthMode = BypassAuth | CheckAuth deriving (Read, Show, Eq)
 -- | Runtime settings to configure this application. These settings can be
 -- loaded from various sources: defaults, environment variables, config files,
 -- theoretically even a database.
+
+-- | Allowed prefixes. Read from configuration file.
 
 data AppSettings = AppSettings
     { appStaticDir              :: String
@@ -62,6 +66,7 @@ data AppSettings = AppSettings
     , appRoleFor :: RoleFor 
     -- ^ Roles for each users. Can be overridden for tests.
     -- Must return a Role for everybody, even a "empty" role.
+    , appBarcodeParams :: [BarcodeParams]
     } deriving Show
 
 
@@ -88,6 +93,12 @@ instance FromJSON AppSettings  where
 
         appCopyright              <- o .: "copyright"
         appAnalytics              <- o .:? "analytics"
+
+        barcodeParamsMap          <- o .:? "barcodes" .!= (mempty :: Map Text (Text -> BarcodeParams))
+        let appBarcodeParams = [ bp prefix
+                               | (prefix, bp)
+                               <- Map.toList (barcodeParamsMap)
+                               ]
 
         roleForMap                <- o .:? "roles" .!= (mempty :: Map Text Role)
         let types = roleForMap  :: Map Text Role
