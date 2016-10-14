@@ -6,9 +6,9 @@ import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 -- toto
   --  load from config
-	-- add many template
+  -- add many template
          -- with description (in config)
-	-- use glabels
+  -- use glabels
   -- refactor , clean
 
 import Formatting
@@ -19,15 +19,56 @@ import Data.List((!!))
 barcodeForm :: [BarcodeParams]
             -> Maybe Day
             -> Maybe Int
-            ->  Form (BarcodeParams, Maybe Int, Maybe Int, Int,  Day, OutputMode)
-barcodeForm bparams date start = renderBootstrap3 BootstrapBasicForm $ (,,,,,)
-  <$> areq (selectFieldList [(bpPrefix p <> " - " <> bpDescription p, p) | p <- bparams]) "Prefix" Nothing
-  <*> aopt intField "Template" Nothing
+            -> Html
+            ->  MForm Handler ( FormResult (BarcodeParams, Maybe BarcodeTemplate, Maybe Int, Int,  Day, OutputMode)
+                              , Widget
+                              )
+-- | Displays a Form with a dropdown menu for the prefix
+--  and a list of available templates for the prefix
+-- we use JS to modify the the list of templates to display
+barcodeForm bparams date start extra = do
+  (prefixRes, prefixView) <- mreq (selectFieldList [(bpPrefix p <> " - " <> bpDescription p, p) | p <- bparams])
+           "Prefix"
+           Nothing
+  (templateRes, templateView) <- mopt (radioFieldList [(btPath t, t) | t <- allTemplates])
+           "Template"
+           Nothing
+  (startRes, startView) <- mopt intField "Start" (Just start)
+  (numberRes, numberView) <- mreq intField "Number" (Just 42)
+  (dateRes, dateView) <- mreq dayField (FieldSettings "Date" Nothing Nothing Nothing [("readonly", "readonly")]) date
+  (onlyRes, onlyView) <- mreq checkBoxField "Only data" (Just False)
+  let widget = do
+        [whamlet|
+                #{extra}
+                ^{fvInput prefixView}
+                ^{fvInput templateView}
+                ^{fvInput numberView}
+                ^{fvInput dateView}
+                ^{fvInput onlyView}
+        |]
+
+      result = (,,,,,) <$> prefixRes
+                       <*> templateRes
+                       <*> startRes
+                       <*> numberRes
+                       <*> dateRes
+                       <*> ((\o -> if o then Csv else GLabels) <$> onlyRes)
+  return (result, widget)
+  where allTemplates = bparams >>= bpTemplates
+
+barcodeForm' bparams date start = renderBootstrap3 BootstrapBasicForm $ (,,,,,)
+  <$> areq (selectFieldList [(bpPrefix p <> " - " <> bpDescription p, p) | p <- bparams])
+           "Prefix"
+           Nothing
+  <*> aopt (radioFieldList [(btPath t, t) | t <- allTemplates])
+           "Template"
+           Nothing
   <*> aopt intField "Start" (Just start)
   <*> areq intField "Number" (Just 42)
   -- <*> areq dayField (FieldSettings "Date" Nothing Nothing Nothing [("disabled", "disabled")]) date
   <*> areq dayField (FieldSettings "Date" Nothing Nothing Nothing [("readonly", "readonly")]) date
   <*> ((\o -> if o then Csv else GLabels) <$> areq checkBoxField "Only data" (Just False))
+  where allTemplates = bparams >>= bpTemplates
 
 getWHBarcodeR :: Handler Html
 getWHBarcodeR = do
@@ -41,11 +82,10 @@ getBarcodeParams = appBarcodeParams <$> appSettings <$> getYesod
 renderGetWHBarcodeR :: Day -> Maybe Int -> Handler Html
 renderGetWHBarcodeR date  start = do
   barcodeParams <- getBarcodeParams
-  (form, encType) <- generateFormPost (barcodeForm barcodeParams (Just date) start)
+  ((_,form), encType) <- runFormGet (barcodeForm barcodeParams (Just date) start)
   table <- entityTableHandler (WarehouseR WHBarcodeR) ([] :: [Filter BarcodeSeed])
   defaultLayout $ [whamlet|
 <h1> Barcode Generator
-  #{tshow barcodeParams}
   <form #barcode-form role=form method=post action=@{WarehouseR WHBarcodeR} enctype=#{encType}>
     ^{form}
     <button type="submit" .btn .btn-default>Download
@@ -60,18 +100,13 @@ postWHBarcodeR = do
   case resp of
     FormMissing -> error "missing"
     FormFailure msg ->  error "Form Failure"
-    FormSuccess (bparam, templateNb, startM, number, date, outputMode) -> do
+    FormSuccess (bparam, template, startM, number, date, outputMode) -> do
 
       let prefix = format
                    ((fitLeft 2 %. stext) % (yy `mappend` later month2) ) --  (yy <> later month2))
                    (bpPrefix bparam) -- barcodeType
                    (date)
           prefix' = toStrict prefix
-          template = do
-             n <- templateNb
-             if n < length (bpTemplates bparam)
-                then return $ (bpTemplates bparam) !! n
-                else Nothing
           
           endFor start =
             let number' = case outputMode of
