@@ -10,12 +10,15 @@ import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
          -- with description (in config)
   -- use glabels
   -- refactor , clean
+     -- angular -> fay ?
 
 import Formatting
 import Formatting.Time
 import WH.Barcode
 import Data.List((!!))
  
+barcodeFayWidget = $(fayFile "WH/Barcode")
+
 barcodeForm :: [BarcodeParams]
             -> Maybe Day
             -> Maybe Int
@@ -27,25 +30,46 @@ barcodeForm :: [BarcodeParams]
 --  and a list of available templates for the prefix
 -- we use JS to modify the the list of templates to display
 barcodeForm bparams date start extra = do
+  let templateName = "ftemplate" :: Text
+      dateName = "fdate" :: Text
+      ns = [1..] :: [Int]
   (prefixRes, prefixView) <- mreq (selectFieldList [(bpPrefix p <> " - " <> bpDescription p, p) | p <- bparams])
            "Prefix"
            Nothing
   (templateRes, templateView) <- mopt (radioFieldList [(btPath t, t) | t <- allTemplates])
-           "Template"
+           ("Template" {fsName = Just templateName})
            Nothing
   (startRes, startView) <- mopt intField "Start" (Just start)
   (numberRes, numberView) <- mreq intField "Number" (Just 42)
-  (dateRes, dateView) <- mreq dayField (FieldSettings "Date" Nothing Nothing Nothing [("readonly", "readonly")]) date
+  (dateRes, dateView) <- mreq dayField ("Date" {fsName = Just dateName, fsAttrs = [("readonly", "readonly")]}) date
   (onlyRes, onlyView) <- mreq checkBoxField "Only data" (Just False)
   let widget = do
         [whamlet|
 #{extra}
-<div> ^{fvInput prefixView}
-<div> ^{fvInput templateView}
-<div> ^{fvInput numberView}
-<div> ^{fvInput dateView}
-<div> ^{fvInput onlyView}
+<div .form-grouprequired>
+  <label for=#{fvLabel prefixView }> Prefix
+  ^{fvInput prefixView}
+<div ##{fvId templateView} .form-groupoptional>
+  <label for=#{fvLabel templateView }> Template
+    $forall (bparam, bi) <- zip bparams ns
+      $forall (template, i) <- zip (bpTemplates bparam) ns
+        <div ##{fvId templateView } .template-#{bi} type="radio">
+          <input name="#{templateName}" type="radio" value="#{i}">
+            #{btPath template} - #{btNbPerPage template}
+<div .form-groupoptional>
+  <label for=#{fvLabel startView }> Start
+  ^{fvInput startView}
+<div .form-grouprequired>
+  <label for=#{fvLabel numberView }> Number
+  ^{fvInput numberView}
+<div .form-grouprequired>
+  <label for=#{fvLabel dateView }> Date
+  <input ##{fvId dateView} readonly="readonly" name="#{dateName}" type="date" value="#{maybe "" tshow date}">
+<div .form-grouprequired>
+  <label for=#{fvLabel onlyView }> Only Data
+  ^{fvInput onlyView}
 |]
+
 
       result = (,,,,,) <$> prefixRes
                        <*> templateRes
@@ -53,7 +77,7 @@ barcodeForm bparams date start extra = do
                        <*> numberRes
                        <*> dateRes
                        <*> ((\o -> if o then Csv else GLabels) <$> onlyRes)
-  return (result, widget)
+  return (result, widget >> barcodeFayWidget)
   where allTemplates = bparams >>= bpTemplates
 
 barcodeForm' bparams date start = renderBootstrap3 BootstrapBasicForm $ (,,,,,)

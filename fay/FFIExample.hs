@@ -12,5 +12,7 @@ import FFI
 onKeyUp :: Element -> Fay () -> Fay ()
 onKeyUp = ffi "%1.onkeyup=%2"
 
+onChange :: Element -> Fay () -> Fay ()
+onChange = ffi "%1.onchange=%2"
 setInnerHTML :: Element -> Text -> Fay ()
 setInnerHTML = ffi "%1.innerHTML=%2"
