@@ -39,13 +39,13 @@ barcodeForm bparams date start extra = do
   (onlyRes, onlyView) <- mreq checkBoxField "Only data" (Just False)
   let widget = do
         [whamlet|
-                #{extra}
-                ^{fvInput prefixView}
-                ^{fvInput templateView}
-                ^{fvInput numberView}
-                ^{fvInput dateView}
-                ^{fvInput onlyView}
-        |]
+#{extra}
+<div> ^{fvInput prefixView}
+<div> ^{fvInput templateView}
+<div> ^{fvInput numberView}
+<div> ^{fvInput dateView}
+<div> ^{fvInput onlyView}
+|]
 
       result = (,,,,,) <$> prefixRes
                        <*> templateRes
@@ -82,7 +82,7 @@ getBarcodeParams = appBarcodeParams <$> appSettings <$> getYesod
 renderGetWHBarcodeR :: Day -> Maybe Int -> Handler Html
 renderGetWHBarcodeR date  start = do
   barcodeParams <- getBarcodeParams
-  ((_,form), encType) <- runFormGet (barcodeForm barcodeParams (Just date) start)
+  ((_,form), encType) <- runFormPost (barcodeForm barcodeParams (Just date) start)
   table <- entityTableHandler (WarehouseR WHBarcodeR) ([] :: [Filter BarcodeSeed])
   defaultLayout $ [whamlet|
 <h1> Barcode Generator
@@ -99,7 +99,7 @@ postWHBarcodeR = do
   ((resp, textW), encType) <- runFormPost $ barcodeForm bparams Nothing Nothing
   case resp of
     FormMissing -> error "missing"
-    FormFailure msg ->  error "Form Failure"
+    FormFailure msg ->  error $ "Form Failure:" ++ show msg
     FormSuccess (bparam, template, startM, number, date, outputMode) -> do
 
       let prefix = format
