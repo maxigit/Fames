@@ -5,19 +5,30 @@ import Import
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 -- toto
-  --  load from config
-  -- add many template
+  -- fix template retrieving from form
+  --  load from config DONE
+  -- add many template TODO
          -- with description (in config)
   -- use glabels
   -- refactor , clean
+     -- field creation
      -- angular -> fay ?
+     -- remove [Template] param, just return a Barcode with a list
+     -- use angular Yesod ?
 
 import Formatting
 import Formatting.Time
 import WH.Barcode
 import Data.List((!!))
  
-barcodeFayWidget = $(fayFile "WH/Barcode")
+barcodeFayWidget = return () --  $(fayFile "WH/Barcode")
+
+withAngularApp :: Maybe Text -> Widget -> Widget
+withAngularApp modM widget = do
+  case modM of
+     Nothing -> [whamlet|<div ng-app>^{widget}|]
+     Just mod -> [whamlet|<div ng-app=#{mod}>^{widget}|]
+  addScriptRemote "https://ajax.googleapis.com/ajax/libs/angularjs/1.5.6/angular.min.js"
 
 barcodeForm :: [BarcodeParams]
             -> Maybe Day
@@ -27,7 +38,7 @@ barcodeForm :: [BarcodeParams]
                               , Widget
                               )
 -- | Displays a Form with a dropdown menu for the prefix
---  and a list of available templates for the prefix
+--  and a list of availabl /e templates for the prefix
 -- we use JS to modify the the list of templates to display
 barcodeForm bparams date start extra = do
   let prefixName = "fprefix" :: Text
@@ -45,21 +56,22 @@ barcodeForm bparams date start extra = do
   (dateRes, dateView) <- mreq dayField ("Date" {fsName = Just dateName, fsAttrs = [("readonly", "readonly")]}) date
   (onlyRes, onlyView) <- mreq checkBoxField "Only data" (Just False)
   let widget = do
-        [whamlet|
+        withAngularApp Nothing [whamlet|
 #{extra}
 <div .form-grouprequired>
   <label for=#{fvLabel prefixView }> Type
-  <select ##{fvId prefixView} name=#{prefixName}>
+  <select ##{fvId prefixView} name=#{prefixName} ng-model="prefix">
     $forall (bparam, bi) <- zip bparams ns
-      <option value=#{bi}> #{bpPrefix bparam}-#{bpDescription bparam}
+      <option value=#{bi}> #{bpPrefix bparam}-#{bpDescription bparam} {{prefix}}
 
 <div ##{fvId templateView} .form-groupoptional>
   <label for=#{fvLabel templateView }> Template
     $forall (bparam, bi) <- zip bparams ns
-      $forall (template, i) <- zip (bpTemplates bparam) ns
-        <div .template-#{bi}>
-          <input name="#{templateName}" type="radio" value="#{i}">
-            #{btPath template} - #{btNbPerPage template}
+      <div .template-#{bi} ng-show="prefix==#{bi}">
+        $forall (template, i) <- zip (bpTemplates bparam) ns
+          <div>
+            <input name="#{templateName}" type="radio" value="#{i}">
+              #{btPath template} - #{btNbPerPage template} {{prefix}}
 
 <div .form-groupoptional>
   <label for=#{fvLabel startView }> Start
@@ -74,7 +86,6 @@ barcodeForm bparams date start extra = do
   <label for=#{fvLabel onlyView }> Only Data
   ^{fvInput onlyView}
 |]
-
 
       result = (,,,,,) <$> prefixRes
                        <*> templateRes
