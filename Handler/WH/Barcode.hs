@@ -44,11 +44,10 @@ barcodeForm bparams date start extra = do
   let prefixName = "fprefix" :: Text
       templateName = "ftemplate" :: Text
       dateName = "fdate" :: Text
-      ns = [1..] :: [Int]
   (prefixRes, prefixView) <- mreq (selectFieldList [(bpPrefix p <> " - " <> bpDescription p, p) | p <- bparams])
            ("Prefix" {fsName = Just prefixName})
            Nothing
-  (templateRes, templateView) <- mopt (radioFieldList [(btPath t, t) | t <- allTemplates])
+  (templateRes, templateView) <- mopt (radioFieldList [(btPath t, t) | (_, t) <- allTemplates])
            ("Template" {fsName = Just templateName})
            Nothing
   (startRes, startView) <- mopt intField "Start" (Just start)
@@ -62,16 +61,14 @@ barcodeForm bparams date start extra = do
   <label for=#{fvLabel prefixView }> Type
   <select ##{fvId prefixView} name=#{prefixName} ng-model="prefix">
     $forall (bparam, bi) <- zip bparams ns
-      <option value=#{bi}> #{bpPrefix bparam}-#{bpDescription bparam} {{prefix}}
+      <option value=#{bi}> #{bpPrefix bparam}-#{bpDescription bparam}
 
 <div ##{fvId templateView} .form-groupoptional>
   <label for=#{fvLabel templateView }> Template
-    $forall (bparam, bi) <- zip bparams ns
-      <div .template-#{bi} ng-show="prefix==#{bi}">
-        $forall (template, i) <- zip (bpTemplates bparam) ns
-          <div>
-            <input name="#{templateName}" type="radio" value="#{i}">
-              #{btPath template} - #{btNbPerPage template} {{prefix}}
+    $forall ((bi, template), i) <- zip allTemplates ns
+      <div ng-show="prefix==#{bi}">
+         <input name="#{templateName}" type="radio" value="#{i}">
+            #{btPath template} - #{btNbPerPage template}
 
 <div .form-groupoptional>
   <label for=#{fvLabel startView }> Start
@@ -94,21 +91,11 @@ barcodeForm bparams date start extra = do
                        <*> dateRes
                        <*> ((\o -> if o then Csv else GLabels) <$> onlyRes)
   return (result, widget >> barcodeFayWidget)
-  where allTemplates = bparams >>= bpTemplates
-
-barcodeForm' bparams date start = renderBootstrap3 BootstrapBasicForm $ (,,,,,)
-  <$> areq (selectFieldList [(bpPrefix p <> " - " <> bpDescription p, p) | p <- bparams])
-           "Prefix"
-           Nothing
-  <*> aopt (radioFieldList [(btPath t, t) | t <- allTemplates])
-           "Template"
-           Nothing
-  <*> aopt intField "Start" (Just start)
-  <*> areq intField "Number" (Just 42)
-  -- <*> areq dayField (FieldSettings "Date" Nothing Nothing Nothing [("disabled", "disabled")]) date
-  <*> areq dayField (FieldSettings "Date" Nothing Nothing Nothing [("readonly", "readonly")]) date
-  <*> ((\o -> if o then Csv else GLabels) <$> areq checkBoxField "Only data" (Just False))
-  where allTemplates = bparams >>= bpTemplates
+  where allTemplates = [(bi, template)
+                       | (bparam,bi) <- zip bparams ns
+                       , template <- bpTemplates bparam
+                       ]
+        ns = [1..] :: [Int]
 
 getWHBarcodeR :: Handler Html
 getWHBarcodeR = do
