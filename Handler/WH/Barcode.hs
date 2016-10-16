@@ -30,11 +30,12 @@ barcodeForm :: [BarcodeParams]
 --  and a list of available templates for the prefix
 -- we use JS to modify the the list of templates to display
 barcodeForm bparams date start extra = do
-  let templateName = "ftemplate" :: Text
+  let prefixName = "fprefix" :: Text
+      templateName = "ftemplate" :: Text
       dateName = "fdate" :: Text
       ns = [1..] :: [Int]
   (prefixRes, prefixView) <- mreq (selectFieldList [(bpPrefix p <> " - " <> bpDescription p, p) | p <- bparams])
-           "Prefix"
+           ("Prefix" {fsName = Just prefixName})
            Nothing
   (templateRes, templateView) <- mopt (radioFieldList [(btPath t, t) | t <- allTemplates])
            ("Template" {fsName = Just templateName})
@@ -47,15 +48,19 @@ barcodeForm bparams date start extra = do
         [whamlet|
 #{extra}
 <div .form-grouprequired>
-  <label for=#{fvLabel prefixView }> Prefix
-  ^{fvInput prefixView}
+  <label for=#{fvLabel prefixView }> Type
+  <select ##{fvId prefixView} name=#{prefixName}>
+    $forall (bparam, bi) <- zip bparams ns
+      <option value=#{bi}> #{bpPrefix bparam}-#{bpDescription bparam}
+
 <div ##{fvId templateView} .form-groupoptional>
   <label for=#{fvLabel templateView }> Template
     $forall (bparam, bi) <- zip bparams ns
       $forall (template, i) <- zip (bpTemplates bparam) ns
-        <div ##{fvId templateView } .template-#{bi} type="radio">
+        <div .template-#{bi}>
           <input name="#{templateName}" type="radio" value="#{i}">
             #{btPath template} - #{btNbPerPage template}
+
 <div .form-groupoptional>
   <label for=#{fvLabel startView }> Start
   ^{fvInput startView}
