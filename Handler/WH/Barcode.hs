@@ -5,6 +5,9 @@ import Import
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 -- toto
+  -- clean code (Conduit)
+  -- clean import (conduit, cabal)
+  -- manage error in calling gllabels
   -- fix template retrieving from form
   --  load from config DONE
   -- add many template TODO
@@ -20,6 +23,9 @@ import Formatting
 import Formatting.Time
 import WH.Barcode
 import Data.List((!!))
+import Data.Streaming.Process (streamingProcess, proc, ClosedStream(..), waitForStreamingProcess)
+import System.IO.Temp (openTempFile)
+import qualified Data.Conduit.Binary as CB
  
 barcodeFayWidget = return () --  $(fayFile "WH/Barcode")
 
@@ -175,17 +181,53 @@ postWHBarcodeR = do
                     bareBarcodes = [format (stext % (left 5 '0'))  prefix' n | n <- numbers]
                     barcodes = zip (map ((<>) <*>  checksum) bareBarcodes) numbers
 
-                addHeader "Content-Disposition"
-                          (toStrict $ format ("attachment; filename=\"barcodes-"%text%"-"%int%"-"%int%".csv\"")
-                                             prefix
-                                             start
-                                             end
-                          )
-                respondSource typePlain $ do
-                    sendChunkText $ "Barcode,Number,Date\n"
-                    forM_ barcodes (\(b,n) -> sendChunkText
-                                           . toStrict
-                                           $ format (text % "," % int %","% dateDash % "\n")  b n date )
+                let barcodeSource =  do
+                            yield "Barcode,Number,Date\n"
+                            yieldMany [ format (text % "," % int %","% dateDash % "\n")  b n date
+                                      | (b,n) <- barcodes
+                                      ]
+                case (outputMode, template) of
+                  (Csv, _) -> do
+                        addHeader "Content-Disposition"
+                                  (toStrict $ format ("attachment; filename=\"barcodes-"%text%"-"%int%"-"%int%".csv\"")
+                                                    prefix
+                                                    start
+                                                    end
+                                  )
+                        respondSource "text/csv" $ do
+                            barcodeSource =$= mapC (toFlushBuilder . toStrict)
+
+                  (GLabels, Just template') -> do
+                        addHeader "Content-Disposition"
+                                  (toStrict $ format ("attachment; filename=\"barcodes-"%text%"-"%int%"-"%int%".pdf\"")
+                                                    prefix
+                                                    start
+                                                    end
+                                  )
+                        respondSource "application/pdf" $ do
+                            (tmp, thandle) <- liftIO $ openTempFile "/tmp" "barcode.pdf" 
+                            (pin, ClosedStream, ClosedStream, phandle ) <- streamingProcess (proc "glabels-3-batch" ["--input=-", "--output", tmp, unpack $ btPath template'])
+                            -- (pin, pout, ClosedStream, phandle ) <- streamingProcess (proc "echo" [])
+                            
+                            -- barcodeSource =$= mapMC (\b -> putStr (toStrict  b) >> return b) =$= sinkHandle pin
+                            barcodeSource =$= sinkHandle pin
+                            waitForStreamingProcess phandle
+                            -- sourceHandle thandle =$= mapC (toFlushBuilder . (\t -> t :: Text))
+                            -- sourceHandle thandle =$= mapMC (\b -> putStr (b) >> return b) =$= mapC (toFlushBuilder . (\t -> t :: Text))
+                            -- sourceHandle pout =$= mapC (toFlushBuilder . (\t -> t :: Text))
+                            -- sourceHandle perr =$= mapC (toFlushBuilder . (\t -> t :: Text))
+
+
+  {-
+                            (ClosedStream, pout2, ClosedStream, phandle2) <- streamingProcess (proc "cat" ["Application.hs", "pipo.pdf"])
+
+
+                            waitForStreamingProcess phandle2
+                            sourceHandle pout2 =$= mapC (toFlushBuilder . (\t -> t :: Text))
+-}
+                            CB.sourceHandle thandle =$= {-mapMC (\b -> putStr (decodeLatin1 b) >> return b) =$= -} mapC (toFlushBuilder)
+                            
+
 
                        
 

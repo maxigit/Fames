@@ -97,6 +97,8 @@ library
                  , data-default
                  , aeson                         >= 0.6        && < 0.12
                  , conduit                       >= 1.0        && < 2.0
+                 , conduit-extra
+                 , streaming-commons
                  , monad-logger                  >= 0.3        && < 0.4
                  , fast-logger                   >= 2.2        && < 2.5
                  , wai-logger                    >= 2.2        && < 2.3
@@ -112,6 +114,7 @@ library
                  , split
                  , cryptohash
                  , formatting
+                 , temporary
 
 executable         Fames
     if flag(library-only)
