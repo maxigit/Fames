@@ -4,22 +4,22 @@ module Handler.WH.Barcode where
 import Import
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
--- toto
-  -- clean code (Conduit)
-  -- clean import (conduit, cabal)
-  -- manage error in calling gllabels
-  -- fix template retrieving from form
-  --  load from config DONE
-  -- add many template TODO
-         -- with description (in config)
-  -- use glabels
+-- TODO
+  -- TODO clean code (Conduit)
+  -- TODO clean import (conduit, cabal)
+  -- DONE manage error in calling gllabels
+  -- TODO fix template retrieving from form
+  --  DONE load from config
+  -- DONE add many template
+     -- TODO with description (in config)
+  -- DONE use glabels
   -- refactor , clean
-     -- field creation
+     -- field creation DONE
      -- angular -> fay ?
      -- remove [Template] param, just return a Barcode with a list
      -- use angular Yesod ?
-  -- split into function
-  -- bracket tmp file
+  -- split into function DONE
+  -- bracket tmp file DONE
 
 import Formatting
 import Formatting.Time
@@ -29,6 +29,7 @@ import Data.Streaming.Process (streamingProcess, proc, ClosedStream(..), waitFor
 import System.IO.Temp (openTempFile)
 import System.Exit (ExitCode(..))
 import qualified Data.Conduit.Binary as CB
+import System.Directory (removeFile)
  
 barcodeFayWidget = return () --  $(fayFile "WH/Barcode")
 
@@ -220,12 +221,19 @@ generateLabels barcodeSource template attachmentPath = do
   -- glabels doesn't set the exit code.
   -- we need to stderr instead 
   errorMessage <- sourceToList  $ sourceHandle perr 
+  let cleanUp = liftIO $  do
+      hClose phandle
+      hClose pout
+      hClose perr
+
+      removeFile tmp
+      hClose thandle
 
   case errorMessage of
     [] ->  do
       setAttachment attachmentPath
       respondSource "application/pdf"
-                    (CB.sourceHandle thandle =$= mapC (toFlushBuilder))
+                    (const cleanUp `addCleanup` CB.sourceHandle thandle =$= mapC (toFlushBuilder))
 
     _ -> do
         runConduit $ sourceHandle pout =$= mapC (\t -> t :: Text) =$= sinkHandle stdout
