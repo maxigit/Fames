@@ -18,6 +18,8 @@ import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
      -- angular -> fay ?
      -- remove [Template] param, just return a Barcode with a list
      -- use angular Yesod ?
+  -- split into function
+  -- bracket tmp file
 
 import Formatting
 import Formatting.Time
@@ -25,10 +27,24 @@ import WH.Barcode
 import Data.List((!!))
 import Data.Streaming.Process (streamingProcess, proc, ClosedStream(..), waitForStreamingProcess)
 import System.IO.Temp (openTempFile)
+import System.Exit (ExitCode(..))
 import qualified Data.Conduit.Binary as CB
  
 barcodeFayWidget = return () --  $(fayFile "WH/Barcode")
 
+data ReqOpt = Optional | Required deriving (Eq, Read, Show)
+renderField ::
+  (MonadIO m, MonadBaseControl IO m, MonadThrow m)
+  => Text-> FieldView site -> ReqOpt -> WidgetT site m ()
+renderField label view fieldType = let
+  class_ = case fieldType of
+    Optional -> "optional" :: Text
+    Required -> "required"
+  in [whamlet|
+<div .form-group#{class_}>
+  <label for=#{fvLabel view}> #{label}
+  ^{fvInput view}
+|]
 withAngularApp :: Maybe Text -> Widget -> Widget
 withAngularApp modM widget = do
   case modM of
@@ -76,18 +92,12 @@ barcodeForm bparams date start extra = do
          <input name="#{templateName}" type="radio" value="#{i}">
             #{btPath template} - #{btNbPerPage template}
 
-<div .form-groupoptional>
-  <label for=#{fvLabel startView }> Start
-  ^{fvInput startView}
-<div .form-grouprequired>
-  <label for=#{fvLabel numberView }> Number
-  ^{fvInput numberView}
-<div .form-grouprequired>
+^{renderField "Start" startView Optional}
+^{renderField "Number" numberView Required}
+<div .form-grouprequired<div .form-grouprequired>
   <label for=#{fvLabel dateView }> Date
   <input ##{fvId dateView} readonly="readonly" name="#{dateName}" type="date" value="#{maybe "" tshow date}">
-<div .form-grouprequired>
-  <label for=#{fvLabel onlyView }> Only Data
-  ^{fvInput onlyView}
+^{renderField "Only Data" onlyView Required}
 |]
 
       result = (,,,,,) <$> prefixRes
@@ -187,50 +197,45 @@ postWHBarcodeR = do
                                       | (b,n) <- barcodes
                                       ]
                 case (outputMode, template) of
+                  (GLabels, Just template') -> do
+                            generateLabels barcodeSource template' (outputFile prefix start end "pdf")
+
                   (Csv, _) -> do
-                        addHeader "Content-Disposition"
-                                  (toStrict $ format ("attachment; filename=\"barcodes-"%text%"-"%int%"-"%int%".csv\"")
-                                                    prefix
-                                                    start
-                                                    end
-                                  )
+                        setAttachment (outputFile prefix start end "csv")
                         respondSource "text/csv" $ do
                             barcodeSource =$= mapC (toFlushBuilder . toStrict)
 
-                  (GLabels, Just template') -> do
-                        addHeader "Content-Disposition"
-                                  (toStrict $ format ("attachment; filename=\"barcodes-"%text%"-"%int%"-"%int%".pdf\"")
-                                                    prefix
-                                                    start
-                                                    end
-                                  )
-                        respondSource "application/pdf" $ do
-                            (tmp, thandle) <- liftIO $ openTempFile "/tmp" "barcode.pdf" 
-                            (pin, ClosedStream, ClosedStream, phandle ) <- streamingProcess (proc "glabels-3-batch" ["--input=-", "--output", tmp, unpack $ btPath template'])
-                            -- (pin, pout, ClosedStream, phandle ) <- streamingProcess (proc "echo" [])
-                            
-                            -- barcodeSource =$= mapMC (\b -> putStr (toStrict  b) >> return b) =$= sinkHandle pin
-                            barcodeSource =$= sinkHandle pin
-                            waitForStreamingProcess phandle
-                            -- sourceHandle thandle =$= mapC (toFlushBuilder . (\t -> t :: Text))
-                            -- sourceHandle thandle =$= mapMC (\b -> putStr (b) >> return b) =$= mapC (toFlushBuilder . (\t -> t :: Text))
-                            -- sourceHandle pout =$= mapC (toFlushBuilder . (\t -> t :: Text))
-                            -- sourceHandle perr =$= mapC (toFlushBuilder . (\t -> t :: Text))
+generateLabels barcodeSource template attachmentPath = do
+  (tmp, thandle) <- liftIO $ openTempFile "/tmp" "barcode.pdf" 
+  (pin, pout, perr, phandle ) <- streamingProcess (proc "glabels-3-batch"
+                                                        ["--input=-"
+                                                        , "--output"
+                                                        , tmp
+                                                        , unpack $ btPath template
+                                                        ]
+                                                  )
+  runConduit $ barcodeSource =$= sinkHandle pin
+  exitCode <- waitForStreamingProcess phandle
+  -- we would like to check the exitCode, unfortunately
+  -- glabels doesn't set the exit code.
+  -- we need to stderr instead 
+  errorMessage <- sourceToList  $ sourceHandle perr 
+
+  case errorMessage of
+    [] ->  do
+      setAttachment attachmentPath
+      respondSource "application/pdf"
+                    (CB.sourceHandle thandle =$= mapC (toFlushBuilder))
+
+    _ -> do
+        runConduit $ sourceHandle pout =$= mapC (\t -> t :: Text) =$= sinkHandle stdout
+        sendResponseStatus (toEnum 422) (mconcat (errorMessage :: [Text]))
+
+-- outputFile :: Text -> Int -> Int -> Text -> Text
+outputFile prefix start end ext =
+  format ("barcodes-"%text%"-"%int%"-"%int%"."%text) prefix start end ext
 
 
-  {-
-                            (ClosedStream, pout2, ClosedStream, phandle2) <- streamingProcess (proc "cat" ["Application.hs", "pipo.pdf"])
-
-
-                            waitForStreamingProcess phandle2
-                            sourceHandle pout2 =$= mapC (toFlushBuilder . (\t -> t :: Text))
--}
-                            CB.sourceHandle thandle =$= {-mapMC (\b -> putStr (decodeLatin1 b) >> return b) =$= -} mapC (toFlushBuilder)
-                            
-
-
-                       
-
-
-
+setAttachment path = do
+  addHeader "Content-Disposition" (toStrict $ format ("attachment; filename=\"barcodes-"%text%"\"") path)
 
