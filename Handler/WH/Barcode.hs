@@ -222,7 +222,6 @@ generateLabels barcodeSource template attachmentPath = do
   -- we need to stderr instead 
   errorMessage <- sourceToList  $ sourceHandle perr 
   let cleanUp = liftIO $  do
-      hClose phandle
       hClose pout
       hClose perr
 
@@ -237,6 +236,7 @@ generateLabels barcodeSource template attachmentPath = do
 
     _ -> do
         runConduit $ sourceHandle pout =$= mapC (\t -> t :: Text) =$= sinkHandle stdout
+        cleanUp
         sendResponseStatus (toEnum 422) (mconcat (errorMessage :: [Text]))
 
 -- outputFile :: Text -> Int -> Int -> Text -> Text
