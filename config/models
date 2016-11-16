@@ -22,3 +22,41 @@ BarcodeSeed sql=fames_barcode_seed
     UniqueBCSeed prefix
     deriving Eq
     deriving Show
+
+Operator  sql=fames_operator
+  firstname Text
+  surname Text
+  nickname Text
+  UniqueNickname nickname
+  deriving Eq
+  deriving Show
+
+
+Stocktake sql=fames_stocktake
+  stockId Text sql=stock_id
+  quantity Int Maybe
+  barcode Text
+  date Day
+  active Bool default=True
+  operatorId OperatorId
+  UniqueSB barcode
+  deriving Eq
+  deriving Show
+
+Boxtake sql=fames_boxtake
+  length Double
+  width Double
+  height Double
+  barcode Text
+  location Text sqltype=Blob
+  date Day
+  active Bool
+  operatorId OperatorId
+  UniqueBB barcode
+  deriving Eq
+  deriving Show
+
+
+
+  
+          
