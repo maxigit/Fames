@@ -25,12 +25,12 @@ admin-login: "_env:ADMIN_LOGIN:admin"
 # See https://github.com/yesodweb/yesod/wiki/Configuration#parsing-numeric-values-as-strings
 
 database:
-  user:     "_env:MYSQL_USER:test"
+  user:     "_env:MYSQL_USER:fames"
   password: "_env:MYSQL_PASSWORD:test"
-  host:     "_env:MYSQL_HOST:172.17.0.2"
+  host:     "_env:MYSQL_HOST:db"
   port:     "_env:MYSQL_PORT:3306"
   # See config/test-settings.yml for an override during tests
-  database: "_env:MYSQL_DATABASE:Fames_devel"
+  database: "_env:MYSQL_DATABASE:Fames"
   poolsize: "_env:MYSQL_POOLSIZE:10"
 
 copyright: Insert copyright statement here

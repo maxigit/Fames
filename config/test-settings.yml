@@ -6,8 +6,11 @@ database:
   # something like:
   #
   #   database: "_env:MYSQL_DATABASE:Fames_test"
-  database: Fames_test
-  host: 172.17.0.4
+  user: root
+  password: test
+  host: 127.0.0.1
+  port: 3317
+  database: fa
 
 roles:
   admin: Administrator

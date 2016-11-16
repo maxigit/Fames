@@ -27,7 +27,7 @@ logAsAdmin = do
        setUrl ("/auth/page/fa/login" :: String)
        addToken_ "form#login-form"
        addPostParam "username" "admin"
-       addPostParam "password" "wadmin"
+       addPostParam "password" "password"
 
 runDB :: SqlPersistM a -> YesodExample App a
 runDB query = do

@@ -26,7 +26,7 @@ spec = withAppNoDB CheckAuth $ do
 
   it "logged as administrator" $ do
     logAsAdmin
-   
+
     get AdministratorR
     statusIs 200
     bodyContains "You are logged as Administrator"

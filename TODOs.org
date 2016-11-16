@@ -1,0 +1,15 @@
+* Stock take [0/8]
+** TODO  parse CSV
+** TODO detect error
+** TODO check validity [/]
+- [ ] barcode correct
+- [ ] barcode ranges matchup
+if 1 .. 9 : should have exactly 9 items
+** TODO Fill missing values
+use constantes, or range for barcode
+** TODO save in db
+** TODO store original document ?
+*** TODO visualize it ?
+** TODO Generate stock adjustement
+*** TODO compare with stock
+*** TODO generate 0 or not for missing variations within a style
