@@ -13,6 +13,8 @@ Flag library-only
 
 library
     hs-source-dirs: ., fay-shared, app
+                    -- for intero
+                    , test 
     exposed-modules: Application
                      FA
                      FAX
@@ -36,6 +38,7 @@ library
                      Handler.GLEnterReceiptSheet.ReceiptRow
                      Handler.WH
                      Handler.WH.Barcode
+                     Handler.WH.Stocktake
                      Handler.FA
                      Handler.FAX
                      Handler.FA.Def
@@ -168,6 +171,7 @@ test-suite test
                  , aeson
                  , cassava
                  , yaml
+                 , temporary
 
 
 executable FAGenerator

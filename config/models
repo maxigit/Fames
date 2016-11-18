@@ -36,10 +36,11 @@ Stocktake sql=fames_stocktake
   stockId Text sql=stock_id
   quantity Int Maybe
   barcode Text
+  index Int default=1
   date Day
   active Bool default=True
   operatorId OperatorId
-  UniqueSB barcode
+  UniqueSB barcode index
   deriving Eq
   deriving Show
 

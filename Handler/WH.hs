@@ -1,6 +1,7 @@
 module Handler.WH
-( module Handler.WH.Barcode
+( module X
 ) where
 
 
-import Handler.WH.Barcode
+import Handler.WH.Barcode as X
+import Handler.WH.Stocktake as X

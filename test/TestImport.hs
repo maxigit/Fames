@@ -18,6 +18,7 @@ import Yesod.Test            as X
 import Yesod.Auth (Route(LoginR))
 import Settings(appRoleFor)
 import Role(Role(Administrator), RoleFor(..))
+import System.IO.Temp (openTempFile)
 
 -- Log as administrator, In theory gives access to every page
 logAsAdmin = do
@@ -87,4 +88,15 @@ getTables :: MonadIO m => ReaderT SqlBackend m [Text]
 getTables = do
     tables <- rawSql "SHOW TABLES;" []
     return $ map unSingle tables
+
+
+-- * Utility function
+-- | Save a Text in a temporary file so it can be uploaded
+-- Returns a path
+saveToTempFile :: MonadIO io => Text -> io FilePath
+saveToTempFile content = liftIO $ do
+  (path, handle) <- openTempFile "/tmp" "test"
+  writeFile path content
+  hClose handle
+  return path
 
