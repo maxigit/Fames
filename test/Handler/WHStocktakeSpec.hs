@@ -28,8 +28,7 @@ uploadSTSheet status path = do
 -- more convenient for testing
 postSTSheet status sheet = do
   path <- saveToTempFile sheet
-  statusIs status
-  -- uploadSTSheet status path
+  uploadSTSheet status path
 
 findBarcodes = do
   entities <- runDB $ selectList [] []

@@ -17,8 +17,6 @@ import Data.Char (ord,toUpper)
 import Data.Time(parseTimeM)
 import Text.Blaze.Html(ToMarkup(toMarkup))
 import Text.Printf(printf)
-import Data.Text.Encoding(decodeLatin1)
-import Data.Conduit.List (consume)
 import qualified Data.List.Split  as S
 import Text.Printf (printf)
 import qualified Data.Text as Text
@@ -32,11 +30,6 @@ import qualified Data.Map as Map
 --   - upload a document
 --   - use an existing document
 --   - download a spreadsheet template
-
-infixl 3 <&!> 
-(<&!>) :: Either a b -> (a -> a') -> Either a' b
-Left l <&!> f = Left (f l)
-Right r <&!> _ = Right r
 
 -- | process GET for GLEnterReceiptSheetR route
 -- used to upload a receip sheet.
@@ -82,16 +75,13 @@ postGLEnterReceiptSheetR = do
                         (FormMissing, FormMissing) -> error "missing"
                         (FormSuccess (title, spreadsheet), _) -> return $ encodeUtf8 $ unTextarea spreadsheet
                         (_, FormSuccess (fileInfo, encoding)) -> do
-                          let decode UTF8 bs = bs
-                              decode Latin1 bs = encodeUtf8 . decodeLatin1 $ bs
-                          c <- fileSource fileInfo $$ consume
-                          return . decode encoding $ concat c
+                          readUploadUTF8 fileInfo encoding
                           
                         (FormFailure a,FormFailure b) -> error $ "Form failure : " ++  show a ++ ", " ++ show b
   either id defaultLayout $ do
-    rawRows <- parseReceiptRow spreadSheet <&!>  renderGLEnterReceiptSheet 422 "Invalid file or columns missing." . render
+    rawRows <- parseReceiptRow spreadSheet <|&>  renderGLEnterReceiptSheet 422 "Invalid file or columns missing." . render
     let receiptRows = map analyseReceiptRow rawRows
-    receipts <- makeReceipt receiptRows <&!> renderGLEnterReceiptSheet  422 "Invalid cell format." . renderReceiptSheet
+    receipts <- makeReceipt receiptRows <|&> renderGLEnterReceiptSheet  422 "Invalid cell format." . renderReceiptSheet
     return $ renderReceiptSheet receipts
 
 

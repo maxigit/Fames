@@ -7,11 +7,14 @@ module Handler.Util
 , entityTableHandler
 , uploadFileForm
 , Encoding(..)
+, readUploadUTF8
 ) where
 
 -- import Foundation
 import Import.NoFoundation
 import Database.Persist
+import Data.Conduit.List (consume)
+import Data.Text.Encoding(decodeLatin1)
 
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput)
@@ -98,3 +101,11 @@ uploadFileForm = renderBootstrap3 BootstrapBasicForm
   )
 
 
+
+-- | Retrieve the content of an uploaded file.
+readUploadUTF8  fileInfo encoding = do
+  c <- fileSource fileInfo $$ consume
+  return . decode encoding $ concat c
+
+decode UTF8 bs = bs
+decode Latin1 bs = encodeUtf8 . decodeLatin1 $ bs

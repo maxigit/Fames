@@ -1,6 +1,7 @@
 module Import.NoFoundation
     ( module Import
     , setWarning
+    , (<|&>)
     ) where
 
 import ClassyPrelude.Yesod   as Import
@@ -16,3 +17,8 @@ import Yesod.Default.Config2 as Import
 
 setError = setMessage      
 setWarning = setMessage
+
+infixl 3 <|&> 
+(<|&>) :: Either a b -> (a -> a') -> Either a' b
+Left l <|&> f = Left (f l)
+Right r <|&> _ = Right r

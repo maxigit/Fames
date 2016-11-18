@@ -28,5 +28,13 @@ getWHStocktakeR = do
 
 
 postWHStocktakeR :: Handler Html
-postWHStocktakeR = return ""
+postWHStocktakeR = do
+  ((fileResp, postFileW), enctype) <- runFormPost uploadFileForm
+  case fileResp of
+    FormMissing -> error "form missing"
+    FormFailure a -> error $ "Form failure : " ++ show a
+    FormSuccess (fileInfo, encoding) -> do
+      spreadsheet <- readUploadUTF8 fileInfo encoding
+      defaultLayout $ return ()
+  
 
