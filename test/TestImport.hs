@@ -19,6 +19,7 @@ import Yesod.Auth (Route(LoginR))
 import Settings(appRoleFor)
 import Role(Role(Administrator), RoleFor(..))
 import System.IO.Temp (openTempFile)
+import Handler.Util               as X
 
 -- Log as administrator, In theory gives access to every page
 logAsAdmin = do
@@ -95,8 +96,8 @@ getTables = do
 -- Returns a path
 saveToTempFile :: MonadIO io => Text -> io FilePath
 saveToTempFile content = liftIO $ do
-  (path, handle) <- openTempFile "/tmp" "test"
-  writeFile path content
+  (path, handle) <- openTempFile "/tmp" "fames-test"
+  hPut handle content
   hClose handle
   return path
 

@@ -5,15 +5,20 @@ module Handler.Util
 , getDBName
 , getHaskellName
 , entityTableHandler
+, uploadFileForm
+, Encoding(..)
 ) where
 
 -- import Foundation
 import Import.NoFoundation
 import Database.Persist
 
-  -- | Display Persist entities as paginated table
-  -- the filter is mainly there as a proxy to indicate
-  -- the entity type to display
+import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
+                              withSmallInput)
+-- * Display entities
+-- | Display Persist entities as paginated table
+-- the filter is mainly there as a proxy to indicate
+-- the entity type to display
 entityTableHandler :: (Yesod site, YesodPersist site
                       , PersistQuery (YesodPersistBackend site)
                       , PersistEntity a
@@ -83,5 +88,13 @@ renderPersistValue pvalue = case (fromPersistValueText pvalue) of
   Right text -> text
 
 
+-- * Forms
+-- | Encoding of the file being uploaded.
+data Encoding = UTF8 | Latin1 deriving (Show, Read, Eq, Enum, Bounded)
+uploadFileForm = renderBootstrap3 BootstrapBasicForm
+  ((,)
+   <$> areq fileField "upload" Nothing
+   <*> areq (selectField optionsEnum ) "encoding" (Just UTF8)
+  )
 
 

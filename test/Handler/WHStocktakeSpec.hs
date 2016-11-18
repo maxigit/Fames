@@ -28,7 +28,12 @@ uploadSTSheet status path = do
 -- more convenient for testing
 postSTSheet status sheet = do
   path <- saveToTempFile sheet
-  uploadSTSheet status path
+  statusIs status
+  -- uploadSTSheet status path
+
+findBarcodes = do
+  entities <- runDB $ selectList [] []
+  return $ map (stocktakeBarcode . entityVal) entities
 
 appSpec = withAppNoDB BypassAuth $ do
   describe "upload stocktake" $ do
@@ -41,15 +46,45 @@ appSpec = withAppNoDB BypassAuth $ do
 
     describe "upload" $ do
       it "parses correctly a correct file" $ do
-        postSTSheet 200 [st||]
+        postSTSheet 200 [st|
+Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV000399X,34,20,17,2016/11/10,Jack
+|]
+    it "saves" (const pending)
 
     describe "process blanks" $ do
-      it "fills barcode prefix" (const pending)
-      it "fills barcode sequence" (const pending)
-      it "fills everything else  with sequence" $ do  (const pending)
+      it "fills barcode prefix" $ do
+        postSTSheet 200 [st|
+Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV000399X,34,20,17,2016/11/10,Jack
+t-shirt,red,120,shelf-1,400E,34,20,17,2016/11/10,Jack
+|]
+        barcodes <- findBarcodes
+        let types = barcodes :: [Text]
+        liftIO $ barcodes `shouldBe`  ["ST16NV00399X","ST16NV00400E"]
+
+          
+      it "fills barcode sequence" $ do
+        postSTSheet 200 [st|
+Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+t-shirt,red,120,shelf-1,,34,20,17,2016/11/10,Jack
+t-shirt,red,120,shelf-1,00401L,34,20,17,2016/11/10,Jack
+|]
+        barcodes <- findBarcodes
+        let types = barcodes :: [Text]
+        liftIO $ barcodes `shouldBe` ["ST16NV00399X","ST16NV0400E","ST16NV401L"]
+
+      it "fills everything else  with sequence" $ do 
+        postSTSheet 200 [st|
+Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV000399X,34,20,17,2016/11/10,Jack
+,red,120,shelf-1,400E,,,,,
+|]
+        liftIO $ ("" :: String) `shouldBe` "to do"
 
       it "groups mixed colours" (const pending)
 
     it "detects incorrect barcodes" (const pending)
-    it "saves " (const pending)
+    it "detects incorrect barcode sequence" (const pending)
 

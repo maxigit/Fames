@@ -74,14 +74,6 @@ postTextForm = renderBootstrap3 BootstrapBasicForm $ (,)
   <*> areq textareaField "Receipts" Nothing
 
 
--- | Encoding of the file being uploaded.
-data Encoding = UTF8 | Latin1 deriving (Show, Read, Eq, Enum, Bounded)
-
-uploadFileForm = renderBootstrap3 BootstrapBasicForm
-  ((,)
-   <$> areq fileField "upload" Nothing
-   <*> areq (selectField optionsEnum ) "encoding" (Just UTF8)
-  )
 postGLEnterReceiptSheetR :: Handler Html
 postGLEnterReceiptSheetR = do
   ((textResp, postTextW), enctype) <- runFormPost postTextForm
