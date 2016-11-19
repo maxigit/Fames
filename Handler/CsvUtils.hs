@@ -166,6 +166,8 @@ instance Renderable Text where
   render t = [whamlet|#{t}|]
 
 instance Renderable Day where
+  render t = [whamlet|#{tshow t}|]
+
 instance (Renderable r) => Renderable (Maybe r) where
   render (Just x) = render x
   render Nothing = [whamlet||]

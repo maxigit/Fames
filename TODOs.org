@@ -1,5 +1,6 @@
 * Stock take [0/8]
 ** TODO  parse CSV
+*** TODO allow multiple columns
 ** TODO detect error
 ** TODO check validity [/]
 - [ ] barcode correct
@@ -14,3 +15,7 @@ use constantes, or range for barcode
 *** TODO compare with stock
 *** TODO generate 0 or not for missing variations within a style
 *** TODO warning when things has been picked on the day
+* Refactoring
+* TODO Unify GLEnterReceiptSheetR and StockTake rows class
+** TODO Use generics 
+

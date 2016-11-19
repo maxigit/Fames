@@ -21,7 +21,7 @@ uploadSTSheet status path = do
     fileByLabel "upload" path "text/plain"
     byLabel "encoding" (tshow $ 1)
 
-  -- printBody
+  printBody
   statusIs status
 
 -- write the sheet to a temporary file and upload it.
@@ -45,11 +45,10 @@ appSpec = withAppNoDB BypassAuth $ do
 
     describe "upload" $ do
       it "parses correctly a correct file" $ do
-        postSTSheet 200 [st|
-Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+        postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
 t-shirt,black,120,shelf-1,ST16NV000399X,34,20,17,2016/11/10,Jack
 |]
-    it "saves" (const pending)
+      it "saves" (const pending)
 
     describe "process blanks" $ do
       it "fills barcode prefix" $ do

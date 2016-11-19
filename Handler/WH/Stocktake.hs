@@ -7,6 +7,7 @@ module Handler.WH.Stocktake where
 
 import Import
 import Handler.CsvUtils
+import Data.List(scanl)
 
 import qualified Data.Csv as Csv
 import Yesod.Form.Bootstrap3 
@@ -26,7 +27,7 @@ renderWHStocktake status title pre = do
   sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
 <h1> Upload a stocktake spreadsheet
   <div .pre> ^{pre}
-  <form #upload-form role=form method=post action=@{GLEnterReceiptSheetR} enctype=#{upEncType}>
+  <form #upload-form role=form method=post action=@{WarehouseR WHStocktakeR} enctype=#{upEncType}>
     ^{uploadFileFormW}
     <button type="sumbit" name="validate" .btn .btn-default>Validate
     <button type="submit" name="process" .btn .btn-default>Process
@@ -59,16 +60,16 @@ postWHStocktakeR = do
 
 -- | a take row can hold stocktake and boxtake information
 data TakeRow s = TakeRow
-  { rowStyle :: FieldTF s Text
-  , rowColour :: FieldTF s Text 
-  , rowQuantity :: FieldTF s Int
-  , rowLocation :: FieldTF s Text
-  , rowBarcode :: FieldTF s Text
-  , rowLength :: FieldTF s Double
-  , rowWidth :: FieldTF s Double
-  , rowHeight :: FieldTF s Double
-  , rowDate :: FieldTF s Day
-  , rowOperator :: FieldTF s Text
+  { rowStyle :: FieldTF s Text 
+  , rowColour :: FieldTF s Text  
+  , rowQuantity :: FieldTF s Int 
+  , rowLocation :: FieldTF s Text 
+  , rowBarcode :: FieldTF s Text 
+  , rowLength :: FieldTF s Double 
+  , rowWidth :: FieldTF s Double 
+  , rowHeight :: FieldTF s Double 
+  , rowDate :: FieldTF s Day 
+  , rowOperator :: FieldTF s Text 
   }
   
 
@@ -102,7 +103,27 @@ validateRaw raw= either (const $ Left raw) Right $ do
 
 -- | Validates if a row is invalid or not. ie 
 validateRows :: [PartialRow] -> Either [RawRow] [ValidRow]
-validateRows rows = Left (map transformRow rows)
+validateRows [] = Left []
+validateRows (row:rows) = do
+  -- fill blank with previous value if possible
+  let filleds = scanl fillFromPreviow (validateRow row) rows :: [Either RawRow ValidRow]
+      transformRow' r = let p = transformRow r  
+                        in transformRow (p :: PartialRow)
+  valids <- sequence filleds <|&> (const $ map (either id (transformRow')) filleds)
+  Right valids
+
+
+validateRow :: PartialRow -> Either RawRow ValidRow
+validateRow (TakeRow (Just rowStyle) (Just rowColour) ( Just rowQuantity)
+                    (Just rowLocation) (Just rowBarcode)
+                    (Just rowLength) (Just rowHeight) ( Just rowWidth)
+                    (Just rowDate) (Just rowOperator))
+  = Right TakeRow{..}
+validateRow invalid = Left $ transformRow invalid
+
+fillFromPreviow :: Either RawRow ValidRow -> PartialRow -> Either RawRow ValidRow
+fillFromPreviow previous partial = let
+  in validateRow partial
 
 data ParsingResult
   = WrongHeader InvalidSpreadsheet
@@ -114,10 +135,16 @@ parseTakes  :: ByteString -> ParsingResult
 parseTakes bytes = either id ParsingCorrect $ do
   raws <- parseSpreadsheet mempty Nothing bytes <|&> WrongHeader
   rows <- validateAll validateRaw raws <|&> InvalidFormat
-  validateRows rows <|&> InvalidData
+  valids <- validateRows rows <|&> InvalidData 
+  Right valids
 
-  where validateAll = error "validateAll not implemented" :: (a-> Either b c) -> [a] -> Either [b] [c]
-        toTake = error "toTake not implemented"
+  where -- validateAll :: (a-> Either b c) -> [a] -> Either [b] [c]
+        validateAll validate rows = let
+          a = (traverse validate rows)
+          in a <|&> (const $ map transformRow rows)
+
+
+          
 
 
 
@@ -140,16 +167,16 @@ transformRow TakeRow{..} = TakeRow
 -- * Csv
 instance Csv.FromNamedRecord RawRow where
   parseNamedRecord m = pure TakeRow
-    <*> m `parse` "rowStyle"
-    <*> m `parse` "rowColour"
-    <*> m `parse` "rowQuantity"
-    <*> m `parse` "rowLocation"
-    <*> m `parse` "rowBarcode"
-    <*> m `parse` "rowLength"
-    <*> m `parse` "rowWidth"
-    <*> m `parse` "rowHeight"
-    <*> (allFormatsDay <$$$> m `parse` "rowDate" )
-    <*> m `parse` "rowOperator"
+    <*> m `parse` "Style"
+    <*> m `parse` "Colour"
+    <*> m `parse` "Quantity"
+    <*> m `parse` "Location"
+    <*> m `parse` "Barcode Number"
+    <*> m `parse` "Length"
+    <*> m `parse` "Width"
+    <*> m `parse` "Height"
+    <*> (allFormatsDay <$$$> m `parse` "Date Checked" )
+    <*> m `parse` "Operator"
     where parse m colname = do
             -- parse as a text. To get the cell content
             t <- m Csv..: colname
