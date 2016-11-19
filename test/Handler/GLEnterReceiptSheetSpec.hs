@@ -5,6 +5,7 @@ module Handler.GLEnterReceiptSheetSpec (spec) where
 import TestImport
 
 import Handler.GLEnterReceiptSheet
+import Handler.CsvUtils
 import Data.Csv (decode, HasHeader(NoHeader))
 import Text.Shakespeare.Text (st)
 
