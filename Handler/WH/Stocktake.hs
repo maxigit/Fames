@@ -25,7 +25,7 @@ renderWHStocktake status title pre = do
   (uploadFileFormW, upEncType) <- generateFormPost uploadFileForm
   setMessage (toHtml title)
   sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
-<h1> Upload a stocktake spreadsheet
+                                                               
   <div .pre> ^{pre}
   <form #upload-form role=form method=post action=@{WarehouseR WHStocktakeR} enctype=#{upEncType}>
     ^{uploadFileFormW}
@@ -220,5 +220,5 @@ renderRows rows = do
     <th>Date
     <th>Operator
     $forall row  <- rows
-      <td> ^{render row}
+      <tr> ^{render row}
 |]
