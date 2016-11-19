@@ -10,8 +10,8 @@ import Handler.GLEnterReceiptSheet.ReceiptRow
 
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput)
+import Handler.CsvUtils
 import qualified Data.Csv as Csv
--- import Data.Csv hi
 import Data.Either
 import Data.Char (ord,toUpper)
 import Data.Time(parseTimeM)
@@ -79,7 +79,7 @@ postGLEnterReceiptSheetR = do
                           
                         (FormFailure a,FormFailure b) -> error $ "Form failure : " ++  show a ++ ", " ++ show b
   either id defaultLayout $ do
-    rawRows <- parseReceiptRow spreadSheet <|&>  renderGLEnterReceiptSheet 422 "Invalid file or columns missing." . render
+    rawRows <- parseSpreadsheet columnMap Nothing spreadSheet <|&>  renderGLEnterReceiptSheet 422 "Invalid file or columns missing." . render
     let receiptRows = map analyseReceiptRow rawRows
     receipts <- makeReceipt receiptRows <|&> renderGLEnterReceiptSheet  422 "Invalid cell format." . renderReceiptSheet
     return $ renderReceiptSheet receipts
@@ -205,9 +205,6 @@ $('[data-toggle="tooltip"]').tooltip();
     addScriptRemote "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"
   
 
-infixl 4 <$$$>, <$$>
-(<$$$>) = fmap . fmap . fmap
-(<$$>) = fmap . fmap . fmap
 -- ** To move in app
 columnMap :: Map String [String]
 columnMap = Map.fromList
@@ -305,7 +302,7 @@ toError t e = case e of
 
  {-
 parseReceipts :: ByteString
-              -> Either (Either InvalidReceiptSheet
+              -> Either (Either InvalidSpreadsheet
                                 [( Either InvalidHeader ValidHeader
                                 , [Either InvalidRow ValidRow]
                                 )]
@@ -354,14 +351,6 @@ makeReceipt rows =
     Just valids -> Right valids
     Nothing -> Left receipts
 
--- | If we can't parse the csv at all (columns are not present),
--- we need a way to gracefully return a error
-data InvalidReceiptSheet = InvalidReceiptSheet
-  { errorDescription :: Text
-  , missingColumns :: [Text]
-  , columnIndexes :: [Int] -- ^ index of present columns
-  , sheet :: [[ Either Csv.Field Text]]  -- ^ origin file
-  } deriving Show
   {-
   | InvalidFileFormat
   { errMessage :: Text
@@ -370,52 +359,14 @@ data InvalidReceiptSheet = InvalidReceiptSheet
 -}
 
 
-      
--- | Parse a csv and return a list of receipt row if possible
-parseReceiptRow :: ByteString -> Either InvalidReceiptSheet [RawRow]
-parseReceiptRow bytes = either (Left . parseInvalidReceiptSheet bytes')  (Right . toList)$ do
-    (header, vector) <- try
-    Right vector
-  where
-    try = Csv.decodeByNameWith (sep) bytes'
-    -- try = trace ("decoded: " ++ show try') try'
-    (sep:_) = [Csv.DecodeOptions (fromIntegral (ord sep)) | sep <- ",;\t" ]
-    bytes' = fromStrict bytes
-
-parseInvalidReceiptSheet bytes err =
-  let columns = fromString <$> keys columnMap 
-      decoded = toList <$> Csv.decode Csv.NoHeader bytes :: Either String [[Either Csv.Field Text]]
-      onEmpty = InvalidReceiptSheet "The file is empty" columns [] []
-  in case (null bytes, decoded) of
-       (True, _ )  -> onEmpty
-       (_, Right [])  -> onEmpty
-       (False, Left err) -> InvalidReceiptSheet "Can't parse file. Please check the file is encoded in UTF8 or is well formatted." columns [] [[Left (toStrict bytes)]]
-       (False, Right sheet@(headerE:_)) -> do
-         let headerPos = Map.fromList (zip header [0..]) :: Map Text Int
-             header = map (either decodeUtf8 id) headerE
-             -- index of a given column in the current header. Starts a 0.
-             indexes = [ (fromString col
-                         , asum [ lookup (fromString col') headerPos
-                                | col' <- cols
-                                ]
-                         )
-                       | (col, cols)  <- Map.toList columnMap
-                       ]
-             missingColumns = [col | (col, Nothing) <- indexes]
-             columnIndexes = catMaybes (map snd indexes)
-             errorDescription = case traverse sequence sheet of
-                                     Left _ -> "Encoding is wrong. Please make sure the file is in UTF8"
-                                     Right _ -> tshow err
-         InvalidReceiptSheet{..}
-    
 -- ** to move in general helper or better in App
 -- formatAmount :: Amount -> Text
 formatAmount = (\t -> t :: String) .  printf "" . (\x -> x :: Double) .  fromRational
 formatDouble = (\t -> t :: String) .  printf "%0.2f"
 
 
-instance Renderable InvalidReceiptSheet where
-  render i@InvalidReceiptSheet{..} = let
+instance Renderable InvalidSpreadsheet where
+  render i@InvalidSpreadsheet{..} = let
     colClass = go 0 (sort columnIndexes)
     go :: Int -> [Int]-> [Text]
     go i [] = "" : go i []

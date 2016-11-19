@@ -6,12 +6,14 @@ module Handler.WH.Stocktake where
 
 import Import
 
+import Handler.CsvUtils
+
 import Yesod.Form.Bootstrap3 
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput)
 
 
--- * Request
+-- * Requests
 
 getWHStocktakeR :: Handler Html
 getWHStocktakeR = do
@@ -35,6 +37,26 @@ postWHStocktakeR = do
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess (fileInfo, encoding) -> do
       spreadsheet <- readUploadUTF8 fileInfo encoding
-      defaultLayout $ return ()
+      either id defaultLayout $ do
+        -- expected results
+        --   Everything is fine : [These Stocktake Boxtake]
+        --   wrong header : 
+        --   good header but invalid format
+        --   parsable but invalid
+        error "Not Implemented "
+        
   
 
+-- * Csv
+
+data TakeRow
+
+data ParsingResult
+  = WrongHeader InvalidSpreadsheet
+  | InvalidFormat -- some cells can't be parsed
+  | InvalidData -- can be parsed but data are invalid
+  | ParsingCorrect [These Stocktake Boxtake] -- Ok
+  deriving Show
+
+parseTakes  :: ByteString -> ParsingResult
+parseTakes bytes = ParsingCorrect []

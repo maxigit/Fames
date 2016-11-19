@@ -44,6 +44,7 @@ library
                      Handler.FA.Def
                      Handler.FAX.Def
                      Handler.Util
+                     Handler.CsvUtils
                      WH.Barcode
 
     if flag(dev) || flag(library-only)
@@ -118,6 +119,7 @@ library
                  , cryptohash
                  , formatting
                  , temporary
+                 , these
 
 executable         Fames
     if flag(library-only)
