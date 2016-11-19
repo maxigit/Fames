@@ -7,6 +7,7 @@ module Handler.WH.Stocktake where
 
 import Import
 import Handler.CsvUtils
+import WH.Barcode
 import Data.List(scanl)
 
 import qualified Data.Csv as Csv
@@ -122,8 +123,31 @@ validateRow (TakeRow (Just rowStyle) (Just rowColour) ( Just rowQuantity)
 validateRow invalid = Left $ transformRow invalid
 
 fillFromPreviow :: Either RawRow ValidRow -> PartialRow -> Either RawRow ValidRow
-fillFromPreviow previous partial = let
-  in validateRow partial
+fillFromPreviow (Left _) partial = Left $ transformRow partial
+fillFromPreviow (Right previous) partial
+  | Right valid  <- validateRow partial = Right valid
+  | otherwise = let
+      style    = rowStyle partial <|> Just (rowStyle previous)
+      colour   = rowColour partial <|> Just (rowColour previous)
+      quantity = rowQuantity partial <|> Just (rowQuantity previous)
+      location = rowLocation partial <|> Just (rowLocation previous)
+      barcode  = rowBarcode partial `fillBarcode` (rowBarcode previous)
+      length   = rowLength partial <|> Just (rowLength previous)
+      width    = rowWidth partial <|> Just (rowWidth previous)
+      height   = rowHeight partial <|> Just (rowHeight previous)
+      date     = rowDate partial <|> Just (rowDate previous)
+      operator = rowOperator partial <|> Just (rowOperator previous)
+
+      new = TakeRow style colour quantity location barcode
+                    length width height
+                    date operator :: PartialRow
+      in validateRow new
+
+fillBarcode :: (Maybe Text) -> Text -> Maybe Text
+fillBarcode new prev = case (new) of
+  (Nothing) -> toStrict <$> nextBarcode (fromStrict prev)
+  (Just  "-") -> Just $ prev
+  (Just _) -> new
 
 data ParsingResult
   = WrongHeader InvalidSpreadsheet

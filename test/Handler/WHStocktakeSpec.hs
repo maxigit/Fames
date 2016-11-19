@@ -52,8 +52,7 @@ t-shirt,black,120,shelf-1,ST16NV000399X,34,20,17,2016/11/10,Jack
 
     describe "process blanks" $ do
       it "fills barcode prefix" $ do
-        postSTSheet 200 [st|
-Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+        postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
 t-shirt,black,120,shelf-1,ST16NV000399X,34,20,17,2016/11/10,Jack
 t-shirt,red,120,shelf-1,400E,34,20,17,2016/11/10,Jack
 |]
@@ -63,8 +62,7 @@ t-shirt,red,120,shelf-1,400E,34,20,17,2016/11/10,Jack
 
           
       it "fills barcode sequence" $ do
-        postSTSheet 200 [st|
-Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+        postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
 t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 t-shirt,red,120,shelf-1,,34,20,17,2016/11/10,Jack
 t-shirt,red,120,shelf-1,00401L,34,20,17,2016/11/10,Jack
@@ -73,9 +71,8 @@ t-shirt,red,120,shelf-1,00401L,34,20,17,2016/11/10,Jack
         let types = barcodes :: [Text]
         liftIO $ barcodes `shouldBe` ["ST16NV00399X","ST16NV0400E","ST16NV401L"]
 
-      it "fills everything else  with sequence" $ do 
-        postSTSheet 200 [st|
-Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+      it "fills everything else" $ do 
+        postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
 t-shirt,black,120,shelf-1,ST16NV000399X,34,20,17,2016/11/10,Jack
 ,red,120,shelf-1,400E,,,,,
 |]

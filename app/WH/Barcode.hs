@@ -7,6 +7,7 @@ import Data.Char (ord, chr)
 import Data.List (iterate)
 import Data.Aeson                 (Result (..), fromJSON, withObject, (.!=),
                                    (.:?))
+import Formatting
 -- * Types
 -- | Allowed prefixes. Read from configuration file.
 data BarcodeParams = BarcodeParams
@@ -52,8 +53,28 @@ month2 day = let (_, month, _) = toGregorian day
   go 11 = "NV"
   go 12 = "DE"
 
+-- formatBarcode:: Text -> Int -> .Text
+formatBarcode prefix n = let
+  bare = format (text % (left 5 '0'))  prefix n
+  in checksum bare
+
 -- | checksum
 checksum :: LT.Text -> LT.Text
 checksum text = let
  c = sum $ zipWith (*) (map ord (reverse $ toList text)) (iterate (*10) 7)
  in singleton . chr $ c `mod` 26 + ord 'A'
+
+isBarcodeValid :: LT.Text -> Bool
+isBarcodeValid barcode | null barcode = False
+                       | otherwise = let
+                           code = LT.init barcode
+                           in checksum code == barcode
+
+
+nextBarcode :: LT.Text -> Maybe LT.Text
+nextBarcode barcode | null barcode = Nothing
+nextBarcode barcode = do
+  let (prefix, num) = LT.splitAt 4 (LT.init barcode)
+  n <- readMay num
+  Just $ formatBarcode prefix (n+1 :: Int)
+

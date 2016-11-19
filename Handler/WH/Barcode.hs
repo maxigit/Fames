@@ -189,8 +189,8 @@ postWHBarcodeR = do
                 redirect (WarehouseR WHBarcodeR, [("Prefix", prefix'), ("Start", tshow (lastUsed+1)), ("Number", tshow number), ("Date", toStrict $ format dateDash date)])
           Right (start, end) -> do
                 let numbers = [start..end]
-                    bareBarcodes = [format (stext % (left 5 '0'))  prefix' n | n <- numbers]
-                    barcodes = zip (map ((<>) <*>  checksum) bareBarcodes) numbers
+                    bareBarcodes = map (formatBarcode prefix) numbers
+                    barcodes = zip (bareBarcodes) numbers
 
                 let barcodeSource =  do
                             yield "Barcode,Number,Date\n"
