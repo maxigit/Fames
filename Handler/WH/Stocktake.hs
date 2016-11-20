@@ -148,10 +148,11 @@ validateRow validateMode row@(TakeRow (Just rowStyle) (Just rowColour) ( Just ro
 validateRow _ invalid =  Left $ transformRow invalid
 
 fillFromPrevious :: Either RawRow ValidRow -> PartialRow -> Either RawRow ValidRow
-fillFromPrevious  _ _ = error "IMplement barcode sequence check"
 fillFromPrevious (Left prev) partial =  Left $ transformRow partial
 fillFromPrevious (Right previous) partial
-  | Right valid  <- validateRow CheckBarcode partial = Right valid
+  -- | Right valid  <- validateRow CheckBarcode partial = Right valid
+  --  ^ can't do that, as we need to check if a barcode sequence is correct
+
   | otherwise = let
       style    = rowStyle partial `fillValue` transform (rowStyle previous)
       colour   = rowColour partial `fillValue` transform (rowColour previous)
@@ -181,7 +182,10 @@ fillBarcode :: (Maybe (ValidField Text)) -> Either InvalidField (ValidField Text
 fillBarcode new prevE =
   case (new, prevE) of
     (Just  (Provided "-"), Right prev) -> Right (guess prev)
-    (Just barcode, Right prev) -> do -- we need to check if it's valid or miss a prefix
+    (Just barcode, Right prev) -> do
+      -- we need to check if it's valid or miss a prefix
+      -- as well as if it's the end of a sequence
+      
       let invalid = Left $ ParsingError "Invalid Barcode" (validValue barcode)
           splitBarcodeE s = maybe invalid  Right $ splitBarcode s
 
@@ -195,9 +199,10 @@ fillBarcode new prevE =
       -- check suffix is correct
       (_,_,newC) <- splitBarcodeE new
 
-      if newC == c
-        then Right $ Provided (toStrict new)
-        else Left $ ParsingError "Invalid Barcode" (validValue barcode)
+      case (newC == c, prev) of
+        (False, _) -> Left $ ParsingError "Invalid Barcode" (validValue barcode)
+        (_, Guessed _ ) | n /= n0+1 -> Left $ ParsingError "Barcode Sequence broken" (toStrict new)
+        (_,_) -> Right $ Provided (toStrict new)
 
     (Just barcode, _)  -> Right (barcode)
     (Nothing,_) -> do -- Either
