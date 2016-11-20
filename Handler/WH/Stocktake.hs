@@ -100,10 +100,10 @@ deriving instance Show PartialRow
 deriving instance Show ValidRow
 
 type family FieldTF (s :: RowTypes) a where
-  FieldTF 'RawT (Maybe a) = Either InvalidField (Maybe a)
-  FieldTF 'RawT a = Either InvalidField (Maybe a)
-  FieldTF 'PartialT (Maybe a) = (Maybe a)
-  FieldTF 'PartialT a = (Maybe a)
+  FieldTF 'RawT (Maybe a) = Either InvalidField (Maybe (ValidField a))
+  FieldTF 'RawT a = Either InvalidField (Maybe (ValidField a))
+  FieldTF 'PartialT (Maybe a) = (Maybe (ValidField a))
+  FieldTF 'PartialT a = (Maybe (ValidField a))
   FieldTF 'ValidT a = ValidField a
   FieldTF 'FinalT a = a
  
@@ -138,14 +138,14 @@ validateRows (row:rows) = do
 data ValidationMode = CheckBarcode | NoCheckBarcode deriving Eq
 
 validateRow :: ValidationMode -> PartialRow -> Either RawRow ValidRow
-validateRow validateMode (TakeRow (Just rowStyle) (Just rowColour) ( Just rowQuantity)
+validateRow validateMode row@(TakeRow (Just rowStyle) (Just rowColour) ( Just rowQuantity)
                     (Just rowLocation) (Just rowBarcode)
                     (Just rowLength) (Just rowHeight) ( Just rowWidth)
                     (Just rowDate) (Just rowOperator))
-  = if isBarcodeValid (fromStrict rowBarcode) || validateMode == NoCheckBarcode
-    then Right TakeRow{..}
-    else Left TakeRow{rowBarcode=ParsingError "Invalid barcode" rowBarcode,..}
-validateRow invalid =  Left $ transformRow invalid
+  = if isBarcodeValid (fromStrict $ validValue rowBarcode) || validateMode == NoCheckBarcode
+    then Right $ (TakeRow{..}  )
+    else Left $ (transformRow row) {rowBarcode=Left (ParsingError "Invalid barcode" (validValue rowBarcode))}
+validateRow _ invalid =  Left $ transformRow invalid
 
 fillFromPrevious :: Either RawRow ValidRow -> PartialRow -> Either RawRow ValidRow
 fillFromPrevious  _ _ = error "IMplement barcode sequence check"
@@ -153,50 +153,58 @@ fillFromPrevious (Left prev) partial =  Left $ transformRow partial
 fillFromPrevious (Right previous) partial
   | Right valid  <- validateRow CheckBarcode partial = Right valid
   | otherwise = let
-      style    = rowStyle partial `fillValue` Just (rowStyle previous)
-      colour   = rowColour partial `fillValue` Just (rowColour previous)
-      quantity = rowQuantity partial `fillValue` Just (rowQuantity previous)
-      location = rowLocation partial `fillValue` Just (rowLocation previous)
-      barcode  = rowBarcode partial `fillBarcode` (rowBarcode previous)
-      length   = rowLength partial `fillValue` Just (rowLength previous)
-      width    = rowWidth partial `fillValue` Just (rowWidth previous)
-      height   = rowHeight partial `fillValue` Just (rowHeight previous)
-      date     = rowDate partial `fillValue` Just (rowDate previous)
-      operator = rowOperator partial `fillValue` Just (rowOperator previous)
+      style    = rowStyle partial `fillValue` transform (rowStyle previous)
+      colour   = rowColour partial `fillValue` transform (rowColour previous)
+      quantity = rowQuantity partial `fillValue` transform (rowQuantity previous)
+      location = rowLocation partial `fillValue` transform (rowLocation previous)
+      barcode  = rowBarcode partial `fillBarcode` transform (rowBarcode previous)
+      length   = rowLength partial `fillValue` transform (rowLength previous)
+      width    = rowWidth partial `fillValue` transform (rowWidth previous)
+      height   = rowHeight partial `fillValue` transform (rowHeight previous)
+      date     = rowDate partial `fillValue` transform (rowDate previous)
+      operator = rowOperator partial `fillValue` transform (rowOperator previous)
 
-      new = TakeRow style colour quantity location barcode
-                    length width height
-                    date operator :: RawRow
-      in  validateRow CheckBarcode new
+      raw = (TakeRow (Just <$> style) (Just <$> colour) (Just <$> quantity)
+                    (Just <$> location) (Just <$> barcode)
+                    (Just <$> length) (Just <$> width) (Just <$> height)
+                    (Just <$> date) (Just <$> operator) :: RawRow)
+      in (validateRow CheckBarcode) =<< validateRaw raw
 
-fillValue :: (Maybe a) -> (ValidField a) -> Either  InvalidField (ValidField a)
-fillValue (Just new) _ = Right (Provided new)
-fillValue Nothing old = Right old
+fillValue :: (Maybe (ValidField a)) -> Either InvalidField (ValidField a) -> Either  InvalidField (ValidField a)
+fillValue (Just new) _ = Right new
+fillValue Nothing old = old
 
 -- | Fill barcodes in a sequence (ie previous + 1)
 -- However, we also need to check the last of a sequence is given and correct.
 
-fillBarcode :: (Maybe Text) -> (ValidField Text) -> Either InvalidField  (ValidField a)
-fillBarcode new prev = case (new) of
-  (Nothing) -> maybe (Left $ error "fillBarcode:shouldn't happend")
-                     (Right . guess )
-                      (toStrict <$$> nextBarcode (fromStrict <$> prev))
-  (Just  "-") -> Right (guess prev)
-  (Just barcode) -> do -- we need to check if it's valid or miss a prefix
-    -- even though the prefix has been set, we don't count it as guessed.
-    (prefix, n, c) <- splitBarcode (fromStrict barcode)
-    (prefix0, n0, _) <- splitBarcode (fromStrict $ validValue prev)
-    -- add prefix if missing
-    let prefix' = if null prefix then prefix0 else prefix
-        new = formatBarcode prefix' n
-    -- check suffix is correct
-    (_,_,newC) <- splitBarcode new
-    if newC == c || True
-      then Right Provided (toStrict new)
-      else Left (ParsingError "Invalid Barcode" barcode)
+fillBarcode :: (Maybe (ValidField Text)) -> Either InvalidField (ValidField Text) -> Either InvalidField  (ValidField Text)
+fillBarcode new prevE =
+  case (new, prevE) of
+    (Just  (Provided "-"), Right prev) -> Right (guess prev)
+    (Just barcode, Right prev) -> do -- we need to check if it's valid or miss a prefix
+      let invalid = Left $ ParsingError "Invalid Barcode" (validValue barcode)
+          splitBarcodeE s = maybe invalid  Right $ splitBarcode s
 
+      -- even though the prefix has been set, we don't count it as guessed.
+      (prefix, n, c) <- splitBarcodeE (fromStrict $ validValue barcode)
+      (prefix0, n0, _) <- splitBarcodeE (fromStrict $ validValue prev)
 
+      -- add prefix if missing
+      let prefix' = if null prefix then prefix0 else prefix
+          new = formatBarcode prefix' n
+      -- check suffix is correct
+      (_,_,newC) <- splitBarcodeE new
 
+      if newC == c
+        then Right $ Provided (toStrict new)
+        else Left $ ParsingError "Invalid Barcode" (validValue barcode)
+
+    (Just barcode, _)  -> Right (barcode)
+    (Nothing,_) -> do -- Either
+                 prev <- validValue <$> prevE
+                 case nextBarcode $ fromStrict prev of
+                   Nothing -> Left $ ParsingError ("Previous barcode invalid" <> prev) ""
+                   Just barcode -> Right (Guessed $ toStrict barcode)
     
 
 data ParsingResult
@@ -249,7 +257,7 @@ instance Csv.FromNamedRecord RawRow where
     <*> m `parse` "Length"
     <*> m `parse` "Width"
     <*> m `parse` "Height"
-    <*> (allFormatsDay <$$$> m `parse` "Date Checked" )
+    <*> (allFormatsDay <$$$$> m `parse` "Date Checked" )
     <*> m `parse` "Operator"
     where parse m colname = do
             -- parse as a text. To get the cell content

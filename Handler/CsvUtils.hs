@@ -34,6 +34,11 @@ invalidFieldError ParsingError{..} = "Can't parse '"
 invalidFieldError MissingValueError{..} = invFieldType <> " is missing."
 
 data ValidField a = Provided { validValue :: a} | Guessed { validValue :: a }  deriving Functor
+instance Applicative ValidField  where
+  pure = Provided
+  (Provided f) <*> (Provided v) = Provided (f v)
+  f <*> v = Guessed $ (validValue f) (validValue v)
+
 guess :: ValidField a -> ValidField a
 guess v = Guessed (validValue v)
 
@@ -156,6 +161,11 @@ instance Csv.FromField AllFormatsDay where
                   , "%0Y-%b-%d"
                   , "%a %d %b %0Y"
                   ]
+
+instance (Csv.FromField a) => Csv.FromField (ValidField a) where
+  parseField bs = do
+    val <- Csv.parseField bs
+    return $ Provided val
 
 -- | Generate a Either InvalidField from a cell value and parsed field.
 toError :: Text -> Either Csv.Field a -> Either InvalidField a
