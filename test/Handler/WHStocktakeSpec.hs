@@ -69,6 +69,13 @@ t-shirt,red,120,shelf-1,400E,34,20,17,2016/11/10,Jack
         mapM (htmlAnyContain "table td.stocktakeBarcode")
              ["ST16NV00399X","ST16NV00400E"]
 
+      it "highlights guessed valued" $ do
+        postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+t-shirt,red,120,shelf-1,400E,34,20,17,2016/11/10,Jack
+|]
+        htmlAnyContain "table td.stocktakeBarcode span.guessed-value" "ST16NV00400E"
+      
           
       it "fills barcode sequence" $ do
         postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator

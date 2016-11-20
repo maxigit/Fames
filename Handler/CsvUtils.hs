@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternSynonyms, LiberalTypeSynonyms #-}
+{-# LANGUAGE PatternSynonyms, LiberalTypeSynonyms, DeriveFunctor #-}
 -- | Miscellaneous functions and types to parse and render CSV.
 module Handler.CsvUtils where
 
@@ -33,6 +33,13 @@ invalidFieldError ParsingError{..} = "Can't parse '"
                                      <> "."
 invalidFieldError MissingValueError{..} = invFieldType <> " is missing."
 
+data ValidField a = Provided { validValue :: a} | Guessed { validValue :: a }  deriving Functor
+guess :: ValidField a -> ValidField a
+guess v = Guessed (validValue v)
+
+deriving instance Show a => Show (ValidField a)
+deriving instance Read a => Read (ValidField a)
+deriving instance Eq a => Eq (ValidField a)
 -- * Patterns
 pattern RJust x = Right (Just x)
 pattern RNothing = Right Nothing
@@ -57,6 +64,12 @@ instance Applicative f => Transformable a (f a) where
 
 instance Alternative f => Transformable () (f a) where
   transform = const empty
+
+instance Transformable (ValidField a) a where
+  transform v = validValue v
+ 
+instance Transformable a (ValidField a) where
+  transform x = Provided x
 
 -- * Functions
 
@@ -199,6 +212,16 @@ $('[data-toggle="tooltip"]').tooltip();
 |]
     addScriptRemote "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"
   
+instance Renderable a => Renderable (ValidField a) where
+  render (Provided x) = render x
+  render (Guessed x) = do
+    toWidget [cassius|
+
+|]
+    [whamlet|
+<span.guessed-value>^{render x}
+|]
+
 instance Renderable InvalidSpreadsheet where
   render i@InvalidSpreadsheet{..} = let
     colClass = go 0 (sort columnIndexes)
