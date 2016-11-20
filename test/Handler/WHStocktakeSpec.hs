@@ -103,7 +103,7 @@ t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 
 
 
-      it "groups mixed colours with the same barcode" $ do
+      it "@toto groups mixed colours with the same barcode" $ do
         postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
 t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 t-shirt,red,120,shelf-1,-,,,,,Jack
@@ -165,8 +165,8 @@ t-shirt,red,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
           
       it "checks everything is the same for group" $ do
           postSTSheet 422 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
-t-  shirt,black,120,shelf-1,ST16NV00399Z,34,20,17,2016/11/10,Jack
-,r  ed,120,shelf-2,-,,,,,
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+t-shirt,black,120,shelf-2,-,34,20,17,2016/11/10,Jack
 |]  
-          htmlAllContain "table td.stocktakeLocation. .parsing-error" "shelf-2"
+          htmlAnyContain "table td.stocktakeLocation. .parsing-error" "shelf-2"
 

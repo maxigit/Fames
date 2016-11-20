@@ -4,12 +4,13 @@
 {-# LANGUAGE DeriveFunctor, GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LiberalTypeSynonyms #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE RankNTypes #-}
 module Handler.WH.Stocktake where
 
-import Import
+import Import hiding(last)
 import Handler.CsvUtils
 import WH.Barcode
-import Data.List(scanl)
+import Data.List(scanl, last, init)
 import Data.Either
 
 import qualified Data.Csv as Csv
@@ -134,8 +135,17 @@ validateRows (row:rows) = do
   let filleds = scanl fillFromPrevious (validateRow CheckBarcode row) rows :: [Either RawRow ValidRow]
       transformRow' r = let p = transformRow r  
                         in transformRow (p :: PartialRow)
-  valids <- sequence  filleds <|&> (const $ map (either id (transformRow')) filleds)
-  Right valids
+  -- we need to check that the last barcode is not guessed
+  
+      errors = map (either id (transformRow')) filleds
+  valids <- sequence  filleds <|&> const errors
+  
+  case rowBarcode (last valids) of
+    Guessed barcode -> let l = last errors
+                           l' = l {rowBarcode = Left $ ParsingError "Last barcode of a sequence should be provided" barcode }
+                      
+                           in Left $ (init errors) ++ [l']
+    _ -> Right valids
 
 
 data ValidationMode = CheckBarcode | NoCheckBarcode deriving Eq
@@ -176,7 +186,42 @@ fillFromPrevious (Right previous) partial
                     (Just <$> location) (Just <$> barcode)
                     (Just <$> length) (Just <$> width) (Just <$> height)
                     (Just <$> date) (Just <$> operator) :: RawRow)
-      in (validateRow CheckBarcode) =<< validateRaw raw
+      a /~ b = (guess <$> a) /=(guess <$> b)
+      modifiers = case rowBarcode partial of
+      -- belongs to the previous box, we need to check that box information
+        -- are identical (if set)
+        Just (Provided "-" ) ->
+          [ if location /~ Right (rowLocation previous)
+            then \r -> r {rowLocation = Left $ ParsingError "Doesn't match original box"
+                           (maybe "" (tshow . validValue) (rowLocation partial))
+                         }
+            else id
+          , if length /~ Right (rowLength previous)
+            then \r -> r {rowLength = Left $ ParsingError (tshow (length, rowLength previous)) -- "Doesn't match original box"
+                           (maybe "" (tshow . validValue) (rowLength partial))
+                         }
+            else id
+                         
+          , if width /~ Right (rowWidth previous)
+            then \r -> r {rowWidth = Left $ ParsingError "Doesn't match original box"
+                           (maybe "" (tshow . validValue) (rowWidth partial))
+                         }
+            else id
+          , if height /~ Right (rowHeight previous)
+            then \r -> r {rowHeight = Left $ ParsingError "Doesn't match original box"
+                           (maybe "" (tshow . validValue) (rowHeight partial))
+                         }
+            else id
+          , if operator /~ Right (rowOperator previous)
+            then \r -> r {rowOperator = Left $ ParsingError "Doesn't match original box"
+                           (maybe "" (tshow . validValue) (rowOperator partial))
+                         }
+            else id
+          ]
+        _ -> []
+     
+        
+      in (validateRow CheckBarcode) =<< validateRaw (foldr ($) raw modifiers)
 
 fillValue :: (Maybe (ValidField a)) -> Either InvalidField (ValidField a) -> Either  InvalidField (ValidField a)
 fillValue (Just new) _ = Right new
@@ -188,10 +233,14 @@ fillValue Nothing old = guess <$> old
 fillBarcode :: (Maybe (ValidField Text)) -> Either InvalidField (ValidField Text) -> Either InvalidField  (ValidField Text)
 fillBarcode new prevE =
   case (new, prevE) of
-    (Just  (Provided "-"), Right prev) -> Right (guess prev)
+    (Just  (Provided "-"), Right prev) -> Right (Provided $ validValue prev) -- not guessed. Doesn't count a sequence
+  -- TODO Add datatype to deal with type of barcode
     (Just barcode, Right prev) -> do
       -- we need to check if it's valid or miss a prefix
       -- as well as if it's the end of a sequence
+      -- and the same barcode is not used twice.
+      -- in theory we should check if a barcode hasn't been used at all
+      -- but in practice checking the last one should be enough
       
       let invalid = Left $ ParsingError "Invalid Barcode" (validValue barcode)
           splitBarcodeE s = maybe invalid  Right $ splitBarcode s
@@ -209,7 +258,8 @@ fillBarcode new prevE =
       case (newC == c, prev) of
         (False, _) -> Left $ ParsingError "Invalid Barcode" (validValue barcode)
         (_, Guessed _ ) | n /= n0+1 -> Left $ ParsingError "Barcode Sequence broken" (toStrict new)
-        (_,_) -> Right $ Provided (toStrict new)
+        _ | n == n0 -> Left $ ParsingError "Barcode alread in use" (validValue barcode)
+        _  -> Right $ Provided (toStrict new)
 
     (Just barcode, _)  -> Right (barcode)
     (Nothing,_) -> do -- Either

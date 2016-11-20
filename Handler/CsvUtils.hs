@@ -23,7 +23,7 @@ data InvalidField = ParsingError { invFieldType :: Text
                                  , invFieldValue :: Text
                                  }
                   | MissingValueError { invFieldType :: Text }
-  deriving (Read, Show)
+  deriving (Read, Show, Eq)
 
 invalidFieldError :: InvalidField -> Text
 invalidFieldError ParsingError{..} = "Can't parse '"
