@@ -10,13 +10,13 @@ spec = appSpec
 
 relPath path = "test/Handler/WHStocktakeSpec/" ++ path
 
-uploadSTSheet status path = do
+uploadSTSheet route status path = do
   get (WarehouseR WHStocktakeR)
   statusIs 200
 
   request $ do
     setMethod "POST"
-    setUrl (WarehouseR WHStocktakeR)
+    setUrl (WarehouseR route)
     addToken_ "form#upload-form"
     fileByLabel "upload" path "text/plain"
     byLabel "encoding" (tshow $ 1)
@@ -28,7 +28,11 @@ uploadSTSheet status path = do
 -- more convenient for testing
 postSTSheet status sheet = do
   path <- saveToTempFile sheet
-  uploadSTSheet status path
+  uploadSTSheet WHStocktakeR status path
+
+saveSTSheet status sheet = do
+  path <- saveToTempFile sheet
+  uploadSTSheet WHStocktakeSaveR status path
 
 findBarcodes = do
   entities <- runDB $ selectList [] []
@@ -48,7 +52,13 @@ appSpec = withAppNoDB BypassAuth $ do
         postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
 t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 |]
-      it "saves" (const pending)
+      it "saves" $ do
+        saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+|]
+        barcodes <- findBarcodes
+        let types = barcodes :: [Text]
+        liftIO $ barcodes `shouldBe`  ["ST16NV00399X"]
 
     describe "process blanks" $ do
       it "fills barcode prefix" $ do
@@ -80,8 +90,34 @@ t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
         htmlAllContain "table td.stocktakeOperator" "Jack"
         htmlCount "table td.stocktakeOperator" 2
 
-      it "groups mixed colours" (const pending)
+      it "groups mixed colours with the same barcode" $ do
+        postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+,red,120,-,,,,,
+|]
+        htmlAllContain "table td.stocktakeBarcode" "ST16NV00399X"
+        htmlCount "table td.stocktakeBarcode" 2
 
-    it "detects incorrect barcodes" (const pending)
-    it "detects incorrect barcode sequence" (const pending)
+    describe "validation" $ do
+      it "detects incorrect barcodes" $ do
+          postSTSheet 422 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-  shirt,black,120,shelf-1,ST16NV00399Z,34,20,17,2016/11/10,Jack
+,r  ed,120,-,,,,,
+|]  
+          htmlAllContain "table td.stocktakeBarcode.error" "ST16NV00399Z"
+
+      it "detects incorrect barcode sequence" $ do
+          postSTSheet 422 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-  shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+t-  shirt,red,120,shelf-1,,34,20,17,2016/11/10,Jack
+t-  shirt,red,120,shelf-1,00400E,34,20,17,2016/11/10,Jack
+|]  
+          htmlAllContain "table td.stocktakeBarcode.error" "ST16NV00399X"
+
+      it "check everything is the same for group" $ do
+          postSTSheet 422 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-  shirt,black,120,shelf-1,ST16NV00399Z,34,20,17,2016/11/10,Jack
+,r  ed,120,shelf-2,-,,,,,
+|]  
+          htmlAllContain "table td.stocktakeLocation.error" "shelf-2"
 
