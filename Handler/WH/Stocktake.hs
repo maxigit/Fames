@@ -3,6 +3,7 @@
 {-# LANGUAGE TypeFamilies, DataKinds #-}
 {-# LANGUAGE DeriveFunctor, GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE PatternSynonyms, LiberalTypeSynonyms #-}
+{-# LANGUAGE StandaloneDeriving #-}
 module Handler.WH.Stocktake where
 
 import Import
@@ -79,6 +80,10 @@ type RawRow = TakeRow RawT
 type PartialRow = TakeRow PartialT
 type ValidRow = TakeRow ValidT
 
+deriving instance Show RawRow
+deriving instance Show PartialRow
+deriving instance Show ValidRow
+
 type family FieldTF (s :: RowTypes) a where
   FieldTF 'RawT (Maybe a) = Either InvalidField (Maybe a)
   FieldTF 'RawT a = Either InvalidField (Maybe a)
@@ -107,24 +112,24 @@ validateRows :: [PartialRow] -> Either [RawRow] [ValidRow]
 validateRows [] = Left []
 validateRows (row:rows) = do
   -- fill blank with previous value if possible
-  let filleds = scanl fillFromPreviow (validateRow row) rows :: [Either RawRow ValidRow]
+  let filleds = scanl fillFromPrevious (validateRow row) rows :: [Either RawRow ValidRow]
       transformRow' r = let p = transformRow r  
                         in transformRow (p :: PartialRow)
-  valids <- sequence filleds <|&> (const $ map (either id (transformRow')) filleds)
+  valids <- sequence  filleds <|&> (const $ map (either id (transformRow')) filleds)
   Right valids
 
 
 validateRow :: PartialRow -> Either RawRow ValidRow
-validateRow (TakeRow (Just rowStyle) (Just rowColour) ( Just rowQuantity)
+validateRow row@(TakeRow (Just rowStyle) (Just rowColour) ( Just rowQuantity)
                     (Just rowLocation) (Just rowBarcode)
                     (Just rowLength) (Just rowHeight) ( Just rowWidth)
                     (Just rowDate) (Just rowOperator))
-  = Right TakeRow{..}
-validateRow invalid = Left $ transformRow invalid
+  | isBarcodeValid (fromStrict rowBarcode) =  Right TakeRow{..}
+validateRow invalid =  Left $ transformRow invalid
 
-fillFromPreviow :: Either RawRow ValidRow -> PartialRow -> Either RawRow ValidRow
-fillFromPreviow (Left _) partial = Left $ transformRow partial
-fillFromPreviow (Right previous) partial
+fillFromPrevious :: Either RawRow ValidRow -> PartialRow -> Either RawRow ValidRow
+fillFromPrevious (Left prev) partial =  Left $ transformRow partial
+fillFromPrevious (Right previous) partial
   | Right valid  <- validateRow partial = Right valid
   | otherwise = let
       style    = rowStyle partial <|> Just (rowStyle previous)
@@ -141,13 +146,27 @@ fillFromPreviow (Right previous) partial
       new = TakeRow style colour quantity location barcode
                     length width height
                     date operator :: PartialRow
-      in validateRow new
+      in  validateRow new
 
 fillBarcode :: (Maybe Text) -> Text -> Maybe Text
 fillBarcode new prev = case (new) of
   (Nothing) -> toStrict <$> nextBarcode (fromStrict prev)
   (Just  "-") -> Just $ prev
-  (Just _) -> new
+  (Just barcode) -> do -- we need to check if it's valid or miss a prefix
+    (prefix, n, c) <- splitBarcode (fromStrict barcode)
+    (prefix0, n0, _) <- splitBarcode (fromStrict prev)
+    -- add prefix if missing
+    let prefix' = if null prefix then prefix0 else prefix
+        new = formatBarcode prefix' n
+    -- check suffix is correct
+    (_,_,newC) <- splitBarcode new
+    if newC == c || True
+      then Just (toStrict new)
+      else Nothing
+
+
+
+    
 
 data ParsingResult
   = WrongHeader InvalidSpreadsheet

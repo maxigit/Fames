@@ -56,7 +56,7 @@ month2 day = let (_, month, _) = toGregorian day
 -- formatBarcode:: Text -> Int -> .Text
 formatBarcode prefix n = let
   bare = format (text % (left 5 '0'))  prefix n
-  in checksum bare
+  in bare ++ checksum bare
 
 -- | checksum
 checksum :: LT.Text -> LT.Text
@@ -65,16 +65,21 @@ checksum text = let
  in singleton . chr $ c `mod` 26 + ord 'A'
 
 isBarcodeValid :: LT.Text -> Bool
-isBarcodeValid barcode | null barcode = False
+isBarcodeValid barcode | LT.length barcode /= 12  = False
                        | otherwise = let
                            code = LT.init barcode
-                           in checksum code == barcode
+                           in checksum code == LT.singleton (LT.last barcode)
 
+
+splitBarcode :: LT.Text -> Maybe (LT.Text, Int, Char)
+splitBarcode barcode =  do
+  let (prefix, num) = LT.splitAt (LT.length barcode - 6) (LT.init barcode)
+  n <- readMay num
+  Just (prefix, n, LT.last barcode)
 
 nextBarcode :: LT.Text -> Maybe LT.Text
 nextBarcode barcode | null barcode = Nothing
 nextBarcode barcode = do
-  let (prefix, num) = LT.splitAt 4 (LT.init barcode)
-  n <- readMay num
+  (prefix, n,_) <- splitBarcode barcode
   Just $ formatBarcode prefix (n+1 :: Int)
 
