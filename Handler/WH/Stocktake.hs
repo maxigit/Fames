@@ -129,7 +129,9 @@ validateRows :: [PartialRow] -> Either [RawRow] [ValidRow]
 validateRows [] = Left []
 validateRows (row:rows) = do
   -- fill blank with previous value if possible
-  let filleds = scanl fillFromPrevious (validateRow NoCheckBarcode row) rows :: [Either RawRow ValidRow]
+  -- All row needs to be validated. However, except the firs one
+  -- we don't the check the barcode as it can be missing the prefix
+  let filleds = scanl fillFromPrevious (validateRow CheckBarcode row) rows :: [Either RawRow ValidRow]
       transformRow' r = let p = transformRow r  
                         in transformRow (p :: PartialRow)
   valids <- sequence  filleds <|&> (const $ map (either id (transformRow')) filleds)

@@ -1,18 +1,25 @@
-* TODO Sunday
+* TODO Sunday [3/6]
+** TODO Change home page to have useful link
+** TODO Deploy production
 ** TODO save db
-** TODO add Guessed class to see in blue what's been added
-** TODO Use Either instead of Maybe to fill blanks 
+** DONE add Guessed class to see in blue what's been added
+   CLOSED: [2016-11-20 Sun 16:54]
+** DONE Use Either instead of Maybe to fill blanks 
+   CLOSED: [2016-11-20 Sun 16:54]
 and update error status in case of error
-** TODO separate validation/stave steps
-* Stock take [0/8]
-** TODO  parse CSV
+** DONE separate validation/stave steps
+   CLOSED: [2016-11-20 Sun 16:54]
+* Stock take [2/7]
+** DONE parse CSV
+   CLOSED: [2016-11-20 Sun 16:55]
 *** TODO allow multiple columns
 ** TODO detect error
 ** TODO check validity [/]
 - [ ] barcode correct
 - [ ] barcode ranges matchup
 if 1 .. 9 : should have exactly 9 items
-** TODO Fill missing values
+** DONE Fill missing values
+   CLOSED: [2016-11-20 Sun 16:55]
 use constantes, or range for barcode
 ** TODO save in db
 ** TODO store original document ?
