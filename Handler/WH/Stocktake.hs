@@ -10,6 +10,7 @@ import Import
 import Handler.CsvUtils
 import WH.Barcode
 import Data.List(scanl)
+import Data.Either
 
 import qualified Data.Csv as Csv
 import Yesod.Form.Bootstrap3 
@@ -66,9 +67,9 @@ processStocktakeSheet mode = do
         --   parsable but invalid
         case parseTakes spreadsheet of
           WrongHeader invalid -> Left $ renderWHStocktake mode 422 "Invalid file or columns missing" (render invalid)
-          InvalidFormat raws -> Left $ renderWHStocktake mode 422 "Invalid cell format" (renderRows raws)
-          InvalidData raws ->  Left $ renderWHStocktake mode 422 "Invalid data" (renderRows raws)
-          ParsingCorrect rows -> Right $ renderRows rows
+          InvalidFormat raws -> Left $ renderWHStocktake mode 422 "Invalid cell format" (render raws)
+          InvalidData raws ->  Left $ renderWHStocktake mode 422 "Invalid data" (render raws)
+          ParsingCorrect rows -> Right $ render rows
         
   
 
@@ -140,7 +141,7 @@ data ValidationMode = CheckBarcode | NoCheckBarcode deriving Eq
 validateRow :: ValidationMode -> PartialRow -> Either RawRow ValidRow
 validateRow validateMode row@(TakeRow (Just rowStyle) (Just rowColour) ( Just rowQuantity)
                     (Just rowLocation) (Just rowBarcode)
-                    (Just rowLength) (Just rowHeight) ( Just rowWidth)
+                    (Just rowLength) (Just rowWidth) ( Just rowHeight)
                     (Just rowDate) (Just rowOperator))
   = if isBarcodeValid (fromStrict $ validValue rowBarcode) || validateMode == NoCheckBarcode
     then Right $ (TakeRow{..}  )
@@ -148,7 +149,11 @@ validateRow validateMode row@(TakeRow (Just rowStyle) (Just rowColour) ( Just ro
 validateRow _ invalid =  Left $ transformRow invalid
 
 fillFromPrevious :: Either RawRow ValidRow -> PartialRow -> Either RawRow ValidRow
-fillFromPrevious (Left prev) partial =  Left $ transformRow partial
+fillFromPrevious (Left prev) partial =
+  case validateRow CheckBarcode partial of
+    Left _ ->  Left $ transformRow partial
+    Right valid -> Right valid -- We don't need to check the sequence barcode as the row the previous row is invalid anyway
+
 fillFromPrevious (Right previous) partial
   -- | Right valid  <- validateRow CheckBarcode partial = Right valid
   --  ^ can't do that, as we need to check if a barcode sequence is correct
@@ -173,7 +178,7 @@ fillFromPrevious (Right previous) partial
 
 fillValue :: (Maybe (ValidField a)) -> Either InvalidField (ValidField a) -> Either  InvalidField (ValidField a)
 fillValue (Just new) _ = Right new
-fillValue Nothing old = old
+fillValue Nothing old = guess <$> old
 
 -- | Fill barcodes in a sequence (ie previous + 1)
 -- However, we also need to check the last of a sequence is given and correct.
@@ -227,8 +232,13 @@ parseTakes bytes = either id ParsingCorrect $ do
 
   where -- validateAll :: (a-> Either b c) -> [a] -> Either [b] [c]
         validateAll validate rows = let
-          a = (traverse validate rows)
-          in a <|&> (const $ map transformRow rows)
+          validateds = map validate rows
+          in case (lefts validateds, rights validateds) of
+            ([], valids) -> Right valids
+            (invalids,_) -> Left invalids
+
+          -- a = (traverse validate rows)
+          -- in a <|&> -- (const $ lefts ) (const $ map transformRow rows)
 
 
           
@@ -290,9 +300,17 @@ renderRow TakeRow{..} = do
 
 instance Renderable RawRow where render = renderRow
 instance Renderable ValidRow where render = renderRow
+instance Renderable [RawRow ]where render = renderRows classForRaw
+instance Renderable [ValidRow] where render = renderRows (const ("" :: Text))
 
+classForRaw :: RawRow -> Text                                 
+classForRaw raw = case validateRaw raw of
+  Left _ -> "invalid bg-danger"
+  Right row -> case validateRow CheckBarcode row of
+    Left _ -> "bg-warning"
+    Right _ -> ""
 
-renderRows rows = do
+renderRows classFor rows = do
   [whamlet|
 <table.table.table-bordered>
   <tr>
@@ -307,5 +325,5 @@ renderRows rows = do
     <th>Date
     <th>Operator
     $forall row  <- rows
-      <tr> ^{render row}
+      <tr class=#{classFor row}> ^{render row}
 |]

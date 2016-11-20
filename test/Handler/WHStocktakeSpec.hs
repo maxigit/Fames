@@ -21,7 +21,7 @@ uploadSTSheet route status path = do
     fileByLabel "upload" path "text/plain"
     byLabel "encoding" (tshow $ 1)
 
-  -- printBody
+  printBody
   statusIs status
 
 -- write the sheet to a temporary file and upload it.
@@ -71,10 +71,10 @@ t-shirt,red,120,shelf-1,400E,34,20,17,2016/11/10,Jack
 
       it "highlights guessed valued" $ do
         postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
-t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
-t-shirt,red,120,shelf-1,400E,34,20,17,2016/11/10,Jack
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jacko
+t-shirt,red,120,shelf-1,400E,34,20,17,2016/11/10,
 |]
-        htmlAnyContain "table td.stocktakeBarcode span.guessed-value" "ST16NV00400E"
+        htmlAnyContain "table td.stocktakeOperator span.guessed-value" "Jack"
       
           
       it "fills barcode sequence" $ do
@@ -111,7 +111,7 @@ t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 t-  shirt,black,120,shelf-1,ST16NV00399Z,34,20,17,2016/11/10,Jack
 ,r  ed,120,-,,,,,
 |]  
-          htmlAllContain "table td.stocktakeBarcode.error" "ST16NV00399Z"
+          htmlAllContain "table td.stocktakeBarcode .parsing-error" "ST16NV00399Z"
 
       it "detects incorrect barcode sequence" $ do
           postSTSheet 422 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
@@ -119,12 +119,17 @@ t-  shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 t-  shirt,red,120,shelf-1,,34,20,17,2016/11/10,Jack
 t-  shirt,red,120,shelf-1,00400E,34,20,17,2016/11/10,Jack
 |]  
-          htmlAllContain "table td.stocktakeBarcode.error" "ST16NV00399X"
+          htmlAllContain "table td.stocktakeBarcode. .parsing-error" "ST16NV00399X"
+      it "check barcode sequence ends" $ do
+        postSTSheet 422 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+t-shirt,red,120,shelf-1,,34,20,17,2016/11/10,
+|]
 
       it "check everything is the same for group" $ do
           postSTSheet 422 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
 t-  shirt,black,120,shelf-1,ST16NV00399Z,34,20,17,2016/11/10,Jack
 ,r  ed,120,shelf-2,-,,,,,
 |]  
-          htmlAllContain "table td.stocktakeLocation.error" "shelf-2"
+          htmlAllContain "table td.stocktakeLocation. .parsing-error" "shelf-2"
 
