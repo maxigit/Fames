@@ -1,6 +1,8 @@
 * TODO Sunday
 ** TODO save db
 ** TODO add Guessed class to see in blue what's been added
+** TODO Use Either instead of Maybe to fill blanks 
+and update error status in case of error
 ** TODO separate validation/stave steps
 * Stock take [0/8]
 ** TODO  parse CSV

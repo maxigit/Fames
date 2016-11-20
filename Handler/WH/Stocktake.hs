@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies, DataKinds #-}
 {-# LANGUAGE DeriveFunctor, GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE PatternSynonyms, LiberalTypeSynonyms #-}
+{-# LANGUAGE LiberalTypeSynonyms #-}
 {-# LANGUAGE StandaloneDeriving #-}
 module Handler.WH.Stocktake where
 
@@ -19,25 +19,39 @@ import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
 
 -- * Requests
 
-getWHStocktakeR :: Handler Html
-getWHStocktakeR = renderWHStocktake 200 "Enter Stocktake" (return ())
+data SavingMode = Validate | Save deriving (Eq, Read, Show)
 
-renderWHStocktake :: Int -> Text -> Widget -> Handler Html
-renderWHStocktake status title pre = do
+getWHStocktakeR :: Handler Html
+getWHStocktakeR = renderWHStocktake Validate 200 "Enter Stocktake" (return ())
+
+renderWHStocktake :: SavingMode -> Int -> Text -> Widget -> Handler Html
+renderWHStocktake mode status title pre = do
+  let (action, button) = case mode of
+        Validate -> (WHStocktakeR, "vaildate" :: Text)
+        Save -> (WHStocktakeSaveR, "save")
   (uploadFileFormW, upEncType) <- generateFormPost uploadFileForm
   setMessage (toHtml title)
   sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
                                                                
   <div .pre> ^{pre}
-  <form #upload-form role=form method=post action=@{WarehouseR WHStocktakeR} enctype=#{upEncType}>
+  <form #upload-form role=form method=post action=@{WarehouseR action} enctype=#{upEncType}>
     ^{uploadFileFormW}
-    <button type="sumbit" name="validate" .btn .btn-default>Validate
-    <button type="submit" name="process" .btn .btn-default>Process
+    <button type="sumbit" name="#{button}" .btn .btn-default>Validate
 |]
 
 
 postWHStocktakeR :: Handler Html
-postWHStocktakeR = do
+postWHStocktakeR = processStocktakeSheet Validate
+
+postWHStocktakeSaveR :: Handler Html
+postWHStocktakeSaveR = processStocktakeSheet Save
+
+-- | Display or save the uploaded spreadsheet
+-- At the moment saving a spreadsheet involves having to upload it twice.
+-- Once for validation and once for processing. We could use a session or similar
+-- to "save" the validation processing.
+processStocktakeSheet :: SavingMode -> Handler Html 
+processStocktakeSheet mode = do
   ((fileResp, postFileW), enctype) <- runFormPost uploadFileForm
   case fileResp of
     FormMissing -> error "form missing"
@@ -51,9 +65,9 @@ postWHStocktakeR = do
         --   good header but invalid format
         --   parsable but invalid
         case parseTakes spreadsheet of
-          WrongHeader invalid -> Left $ renderWHStocktake 422 "Invalid file or columns missing" (render invalid)
-          InvalidFormat raws -> Left $ renderWHStocktake 422 "Invalid cell format" (renderRows raws)
-          InvalidData raws ->  Left $ renderWHStocktake 422 "Invalid data" (renderRows raws)
+          WrongHeader invalid -> Left $ renderWHStocktake mode 422 "Invalid file or columns missing" (render invalid)
+          InvalidFormat raws -> Left $ renderWHStocktake mode 422 "Invalid cell format" (renderRows raws)
+          InvalidData raws ->  Left $ renderWHStocktake mode 422 "Invalid data" (renderRows raws)
           ParsingCorrect rows -> Right $ renderRows rows
         
   

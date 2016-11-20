@@ -154,6 +154,8 @@ test-suite test
                 DeriveDataTypeable
                 ViewPatterns
                 TupleSections
+                PatternGuards
+                PatternSynonyms
 
     build-depends: base
                  , Fames

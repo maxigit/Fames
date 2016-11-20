@@ -56,9 +56,8 @@ t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 t-shirt,red,120,shelf-1,400E,34,20,17,2016/11/10,Jack
 |]
-        barcodes <- findBarcodes
-        let types = barcodes :: [Text]
-        liftIO $ barcodes `shouldBe`  ["ST16NV00399X","ST16NV00400E"]
+        mapM (htmlAnyContain "table td.stocktakeBarcode")
+             ["ST16NV00399X","ST16NV00400E"]
 
           
       it "fills barcode sequence" $ do
@@ -67,16 +66,19 @@ t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 t-shirt,red,120,shelf-1,,34,20,17,2016/11/10,Jack
 t-shirt,red,120,shelf-1,00401L,34,20,17,2016/11/10,Jack
 |]
-        barcodes <- findBarcodes
-        let types = barcodes :: [Text]
-        liftIO $ barcodes `shouldBe` ["ST16NV00399X","ST16NV0400E","ST16NV401L"]
+        mapM (htmlAnyContain "table td.stocktakeBarcode")
+             ["ST16NV00399X","ST16NV00400E","ST16NV00401L"]
 
       it "fills everything else" $ do 
         postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
 t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 ,red,120,shelf-1,400E,,,,,
 |]
-        liftIO $ ("" :: String) `shouldBe` "to do"
+        htmlAllContain "table td.stocktakeStyle" "t-shirt"
+        htmlCount "table td.stocktakeStyle" 2
+
+        htmlAllContain "table td.stocktakeOperator" "Jack"
+        htmlCount "table td.stocktakeOperator" 2
 
       it "groups mixed colours" (const pending)
 
