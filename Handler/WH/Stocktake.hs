@@ -35,7 +35,9 @@ renderWHStocktake mode status title pre = do
   (uploadFileFormW, upEncType) <- generateFormPost uploadFileForm
   setMessage (toHtml title)
   sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
-                                                               
+  <div>
+    <p>
+      <a href=@{WarehouseR WHStocktakeLocationR}>Available locations
   <div .pre> ^{pre}
   <form #upload-form role=form method=post action=@{WarehouseR action} enctype=#{upEncType}>
     ^{uploadFileFormW}
@@ -403,4 +405,20 @@ renderRows classFor rows = do
     <th>Operator
     $forall row  <- rows
       <tr class=#{classFor row}> ^{render row}
+|]
+
+
+
+-- | Displays the list of locations
+getWHStocktakeLocationR :: Handler Html
+getWHStocktakeLocationR = do
+  locations <- appStockLocations . appSettings <$> getYesod
+  defaultLayout [whamlet|
+<h1> Stock locations
+  <table.table.table-striped> 
+    <tr>
+      <th> Name
+    $forall location <- locations
+      <tr>
+        <td> #{location}
 |]
