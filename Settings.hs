@@ -66,6 +66,8 @@ data AppSettings = AppSettings
     , appRoleFor :: RoleFor 
     -- ^ Roles for each users. Can be overridden for tests.
     -- Must return a Role for everybody, even a "empty" role.
+    , appStockLocations :: [String]
+    -- ^ All locations (shelves) available in the warehouse
     , appBarcodeParams :: [BarcodeParams]
     } deriving Show
 
@@ -108,6 +110,7 @@ instance FromJSON AppSettings  where
                                          | u <- (maybeToList user >>= \u -> [u, "<authenticated>"]) ++ ["<anonymous>"]
                                          ]
                                    )
+        appStockLocations      <- o .:? "stock-locations" .!= []
         
 
         -- This code enables MySQL's strict mode, without which MySQL will truncate data.

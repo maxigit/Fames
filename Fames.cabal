@@ -123,6 +123,7 @@ library
                  , formatting
                  , temporary
                  , these
+                 , Glob
 
 executable         Fames
     if flag(library-only)
