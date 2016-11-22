@@ -16,7 +16,6 @@ import Data.Either
 import Data.Char (ord,toUpper)
 import Data.Time(parseTimeM)
 import Text.Blaze.Html(ToMarkup(toMarkup))
-import Text.Printf(printf)
 import qualified Data.List.Split  as S
 import Text.Printf (printf)
 import qualified Data.Text as Text
@@ -158,54 +157,6 @@ $forall (row, j) <- zip rows is
          class_ InvalidRowT = "receipt-row invalid bg-warning"
 -- <span.rowTax>#{render rowTax}
 
-class Renderable r where
-  render :: r -> Widget
-
-instance Renderable () where
-  render () = return ()
-instance Renderable Int where
-  render i = [whamlet|#{tshow i}|]
-
-instance Renderable Double where
-  render d = [whamlet|#{formatDouble d}|]
-
-instance Renderable Text where
-  render t = [whamlet|#{t}|]
-
-instance Renderable Day where
-instance (Renderable r) => Renderable (Maybe r) where
-  render (Just x) = render x
-  render Nothing = [whamlet||]
-
-instance (Renderable l, Renderable r) => Renderable (Either l r) where
-  render (Left r) = [whamlet|<span.left>^{render r}|]
-  render (Right r) = [whamlet|<span.right>^{render r}|]
-
-instance Renderable InvalidField where
-  render invField = do
-    let (class_, value) = case invField of
-          ParsingError _ v -> ("parsing-error" :: Text, v)
-          MissingValueError _ -> ("missing-value" :: Text,"<Empty>")
-    toWidget [cassius|
-.parsing-error, .missing-value
-  .description
-     display:none
-.missing-value
-  .message
-    font-style: italic
-|]
-    [whamlet|
-<span class="#{class_}">
-  <span.description>#{invalidFieldError invField}
-  <span.message.text-danger data-toggle="tooltip" title="#{invalidFieldError invField}">#{value}
-|]
-    toWidget [julius|
-$('[data-toggle="tooltip"]').tooltip();
-|]
-    addScriptRemote "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"
-  
-
--- ** To move in app
 columnMap :: Map String [String]
 columnMap = Map.fromList
   [ (col, concatMap expandColumnName (col:cols)  )
@@ -253,68 +204,6 @@ instance Csv.FromNamedRecord (ReceiptRow RawT)where
             -- return $ trace (show (colname, t, res )) res
             return res
 
-expandColumnName :: String -> [String]
-expandColumnName colname = [id, capitalize, map Data.Char.toUpper] <*> [colname]
-
-capitalize [] = []
-capitalize (x:xs) = Data.Char.toUpper x : xs
-
--- | temporary class to remove currency symbol
-newtype Currency = Currency {unCurrency :: Double} deriving (Show, Eq, Num, Fractional)
-instance Csv.FromField Currency where
-  parseField bs = do
-    case stripPrefix "-" bs of
-      Just bs' -> negate <$> Csv.parseField bs'
-      Nothing -> do
-        let stripped = bs `fromMaybe` stripPrefix (encodeUtf8 "£") bs
-            res = Currency <$> Csv.parseField stripped
-        -- trace ("Currency: " ++ show (bs, stripped)) res
-        res
-      
-parseDay bs = do
-  str <- Csv.parseField bs
-  case  concat [parseTimeM True defaultTimeLocale f str | f <- formats] of
-    [day] -> pure day
-    (d:ds) -> error (show (d:ds))
-    _ -> mzero
-  where
-      -- formats to try. Normally there shouldn't be any overlap bettween the different format.
-      -- The 0 in %0Y is important. It guarantes that only 4 digits are accepted.
-      -- without 11/01/01 will be parsed by %Y/%m/%d and %d/%m/%y
-      formats = [ "%0Y/%m/%d"
-                , "%d/%m/%0Y"
-                , "%d/%m/%y"
-                , "%0Y-%m-%d"
-                , "%d %b %0Y"
-                , "%d-%b-%0Y"
-                , "%d %b %y"
-                , "%d-%b-%y"
-                , "%0Y %b %d"
-                , "%0Y-%b-%d"
-                , "%a %d %b %0Y"
-                ]
-
-toError :: Text -> Either Csv.Field a -> Either InvalidField a
-toError t e = case e of
-  Left err -> Left (ParsingError ("Invalid format") t)
-  Right v -> Right v
-
-
- {-
-parseReceipts :: ByteString
-              -> Either (Either InvalidSpreadsheet
-                                [( Either InvalidHeader ValidHeader
-                                , [Either InvalidRow ValidRow]
-                                )]
-                        )
-                        [ (ValidHeader
-                          , [ValidRow]
-                          )
-                        ]
-parseReceipts bytes = do
-  rows <- either (Left . Left) (Right . map analyseReceiptRow) $ parseReceiptRow bytes
-
--}
 -- | Regroups receipts rows starting with a header (valid or invalid)
 makeReceipt :: [Either (Either InvalidRow ValidRow)
                        (Either InvalidHeader ValidHeader)
@@ -350,47 +239,3 @@ makeReceipt rows =
   in case traverse validReceipt receipts of
     Just valids -> Right valids
     Nothing -> Left receipts
-
-  {-
-  | InvalidFileFormat
-  { errMessage :: Text
-  , missingColumns :: [Text]
-  }
--}
-
-
--- ** to move in general helper or better in App
--- formatAmount :: Amount -> Text
-formatAmount = (\t -> t :: String) .  printf "" . (\x -> x :: Double) .  fromRational
-formatDouble = (\t -> t :: String) .  printf "%0.2f"
-
-
-instance Renderable InvalidSpreadsheet where
-  render i@InvalidSpreadsheet{..} = let
-    colClass = go 0 (sort columnIndexes)
-    go :: Int -> [Int]-> [Text]
-    go i [] = "" : go i []
-    go i (ix:ixs) | ix == i = "bg-success" : go (i+1) ixs
-                  | otherwise = "" : go (i+1) (ix:ixs)
-    convertField :: Either Csv.Field Text -> (Text, Text)
-    convertField (Left bs) = ("bg-danger text-danger", decodeUtf8 bs)
-    convertField (Right t) = ("", t)
-    in  {-trace ("toHtml" ++ show i ) -}[whamlet|
-<div .invalid-receipt>
-  <div .error-description> #{errorDescription}
-  $if not (null missingColumns)
-    <div .missing-columns .bg-danger .text-danger>
-      The following columns are missing:
-      <ul>
-        $forall column <- missingColumns
-          <li> #{column}
-  <table.sheet.table.table-bordered>
-    $forall line <- sheet
-      <tr>
-        $forall (class_, field) <- zip colClass line
-          $with (fieldClass, fieldValue) <- convertField field
-            <td class="#{class_} #{fieldClass}"> #{fieldValue}
-          |]
-           
-             
-

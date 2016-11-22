@@ -5,6 +5,7 @@ module Handler.GLEnterReceiptSheetSpec (spec) where
 import TestImport
 
 import Handler.GLEnterReceiptSheet
+import Handler.CsvUtils
 import Data.Csv (decode, HasHeader(NoHeader))
 import Text.Shakespeare.Text (st)
 
@@ -22,7 +23,7 @@ postReceiptSheet status sheet = do
     byLabel "Sheet name" "test 1"
     byLabel "Receipts" sheet
 
-  -- printBody
+  printBody
   statusIs status
 
 uploadReceiptSheet status encoding path = do

@@ -5,6 +5,7 @@ module Handler.GLEnterReceiptSheet.ReceiptRow where
 
 
 import Import hiding(InvalidHeader)
+import Handler.CsvUtils
 
 
 -- | Represents a row of the spreadsheet.
@@ -49,12 +50,6 @@ instance Show (ValidRow) where show = showReceiptRow ValidRowT
 instance Show (InvalidRow) where show = showReceiptRow InvalidRowT
          
 
-pattern RJust x = Right (Just x)
-pattern RNothing = Right Nothing
-pattern RRight x = Right (Right x)
-pattern RLeft x = Right (Left x)
-pattern LRight x = Left (Right x)
-pattern LLeft x = Left (Left x)
 
 pattern NonHeaderRow gl amount net memo tax dim1 dim2 = ReceiptRow RNothing RNothing RNothing RNothing RNothing gl amount net memo tax dim1 dim2
 pattern RowP gl amount net memo tax dim1 dim2 = ReceiptRow () () () () () gl amount net memo tax dim1 dim2
@@ -82,20 +77,6 @@ instance ReceiptRowTypeClass ValidRow where rowType = const ValidRowT
 instance ReceiptRowTypeClass InvalidRow where rowType = const InvalidRowT
 instance (ReceiptRowTypeClass l, ReceiptRowTypeClass r) => ReceiptRowTypeClass (Either l r) where
   rowType = either rowType rowType
-
-data InvalidField = ParsingError { invFieldType :: Text
-                                 , invFieldValue :: Text
-                                 }
-                  | MissingValueError { invFieldType :: Text }
-  deriving (Read, Show)
-
-invalidFieldError :: InvalidField -> Text
-invalidFieldError ParsingError{..} = "Can't parse '"
-                                     <> invFieldValue
-                                     <> "' as "
-                                     <> invFieldType
-                                     <> "."
-invalidFieldError MissingValueError{..} = invFieldType <> " is missing."
 
 type family HeaderFieldTF (s :: ReceiptRowType) a where
   HeaderFieldTF 'RawT  (Maybe a) = Either InvalidField (Maybe a)
@@ -150,10 +131,6 @@ analyseReceiptRow ReceiptRow{..}
 
   where row = ReceiptRow () () () () () () ()
 
-validateNonEmpty :: Text -> Either InvalidField (Maybe a) -> Either InvalidField (Maybe a)
-validateNonEmpty field RNothing = Left (MissingValueError field) 
-validateNonEmpty field v = v
-
 type family UnMaybe a where
   UnMaybe (Maybe a) = a
   UnMaybe a = a
@@ -161,21 +138,6 @@ type family UnMaybe a where
 type family NotEq a b where
   NotEq a a = 'True
   NotEq a b = 'False
-
-class Transformable a b where
-  transform :: a -> b
-
-instance Transformable a () where
-  transform = const ()
-
-instance  Transformable a a where
-  transform x =  x
-
-instance Applicative f => Transformable a (f a) where
-  transform = pure
-
-instance Alternative f => Transformable () (f a) where
-  transform = const empty
 
 transformRow ReceiptRow{..} = ReceiptRow
   (transform rowDate)
