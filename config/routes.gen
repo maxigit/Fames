@@ -11,10 +11,10 @@
 /gl/enter_receipts_sheet GLEnterReceiptSheetR GET POST
 
 /warehouse WarehouseR !warehouse:
-  /barcodes WHBarcodeR GET POST !barcode:
-  /stocktake WHStocktakeR GET POST !stocktake:
-  /stocktake/save WHStocktakeSaveR POST
-  /stocktake/location WHStocktakeLocationR GET
+  /barcodes WHBarcodeR GET POST
+  /stocktake WHStocktakeR GET POST
+  /stocktake/save WHStocktakeSaveR POST !stocktake
+  /stocktake/locations WHStocktakeLocationR GET
 
 /administrator AdministratorR GET
 

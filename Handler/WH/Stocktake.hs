@@ -246,7 +246,7 @@ fillValue Nothing old = guess <$> old
 fillBarcode :: (Maybe (ValidField Text)) -> Either InvalidField (ValidField Text) -> Either InvalidField  (ValidField Text)
 fillBarcode new prevE =
   case (new, prevE) of
-    (Just  (Provided "-"), Right prev) -> Right (Provided $ validValue prev) -- not guessed. Doesn't count a sequence
+    (Just  (Provided "-"), Right prev) -> Right prev -- use the same level of guessing than the previous one
   -- TODO Add datatype to deal with type of barcode
     (Just barcode, Right prev) -> do
       -- we need to check if it's valid or miss a prefix

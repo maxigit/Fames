@@ -19,22 +19,27 @@ instance Show RoleFor where
   show _ = "RoleFor"
 
 -- | A role, can grant permissions.
-data Role = Administrator
-          | RoleGroup [Role]
-          | RolePermission Permissions
-          | RoleRoute (URL) WriteRequest
+-- An object can require  many permissions.
+-- To be authorized the object needs all the permissions to be grant from the role.
+-- There is no distinction between a user and a role.
+data Role = Administrator -- ^ As access to everything
+          | RoleGroup [Role] -- ^ groups role
+          | RolePermission Permissions -- ^ a set of permissions
+          | RoleRoute (URL) WriteRequest -- ^ a url. Override everything else
   deriving(Show, Read, Eq)
 
 -- * Checking permissions
--- | Check if the given route is allowed, based on it path 
-isRouteAllowed :: URL -> WriteRequest -> Role -> Bool
-isRouteAllowed _ _ Administrator =  True
-isRouteAllowed route r (RoleGroup roles) = or $ map (isRouteAllowed route r) roles
-isRouteAllowed _ _ (RolePermission _) = False
-isRouteAllowed route r (RoleRoute route' r') | route == route' =
-  case (r,r') of
-    (WriteRequest, ReadRequest) -> False
-    (_, _) -> True
+-- | Check if the given route is allowed, based on it path .
+-- Ignores any route attributes.
+
+-- isRouteAllowed :: URL -> WriteRequest -> Role -> Bool
+-- isRouteAllowed _ _ Administrator =  True
+-- isRouteAllowed route r (RoleGroup roles) = or $ map (isRouteAllowed route r) roles
+-- isRouteAllowed _ _ (RolePermission _) = False
+-- isRouteAllowed route r (RoleRoute route' r') | route == route' =
+--   case (r,r') of
+--     (WriteRequest, ReadRequest) -> False
+--     (_, _) -> True
 
 
 -- | Remove permissions which are granted

@@ -107,11 +107,17 @@ instance Yesod App where
        settings <- appSettings <$> getYesod
        urlRender <- getUrlRender 
        mu <- maybeAuth
+       -- anonymous users are given the role <anonymous>, which might
+       -- give them access to the route.
+       -- However, if it's not the error message is different :
+       -- They are not "unauthorized", they need to log on.
        let denied = case mu of
                         Nothing -> AuthenticationRequired
                         Just _  -> Unauthorized "Permissions required"
            role = roleFor (appRoleFor settings) (userIdent . entityVal <$> mu)
-       if isRouteAllowed (urlRender route) wreq role
+           routeUrl = mconcat [ "/" <> p | p <- fst (renderRoute route)]
+       
+       if authorizeFromPath role routeUrl wreq
           || authorizeFromAttributes role (routeAttrs route) wreq
           then return Authorized
           else return denied
