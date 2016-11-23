@@ -33,7 +33,12 @@ renderWHStocktake mode status title pre = do
         Validate -> (WHStocktakeR, "vaildate" :: Text)
         Save -> (WHStocktakeSaveR, "save")
   (uploadFileFormW, upEncType) <- generateFormPost uploadFileForm
-  setMessage (toHtml title)
+  -- setMessage (toHtml title)
+  setMessage $ mconcat [ formatWarning ("This is example warning ove rst." )
+                       , formatError ("This is example error ove rst." )
+                       , formatInfo ("This is example info ove rst." )
+                       , formatSuccess ("This is example success ove rst." )
+                       ]
   sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
   <div>
     <p>

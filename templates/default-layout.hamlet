@@ -1,3 +1,14 @@
-$maybe msg <- mmsg
-  <div #message>#{msg}
-^{widget}
+<div.navbar.navbar-brand> Fames
+  <div.container>
+    <div.navbar-header>
+      <a.navbar-brand href=@{HomeR}>FAMES
+<div.container style="width:100%">
+  <div.col-md-3> 
+    <div>
+      <ul>
+        <li> Warehouse
+        <li> GL
+  <div.col-md-9> 
+    $maybe msg <- mmsg
+        #{msg}
+    ^{widget}
