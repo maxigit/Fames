@@ -58,3 +58,8 @@ up:
 test: up
 	stack test
 	docker-compose down -v
+
+.PHONY: install
+install:
+	scp .stack-work/install/x86_64-linux/lts-5.18/7.10.3/bin/Fames sinbad:prod/fames-config/bin/Fames
+
