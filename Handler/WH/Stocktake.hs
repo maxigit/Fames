@@ -27,18 +27,13 @@ data SavingMode = Validate | Save deriving (Eq, Read, Show)
 getWHStocktakeR :: Handler Html
 getWHStocktakeR = renderWHStocktake Validate 200 "Enter Stocktake" (return ())
 
-renderWHStocktake :: SavingMode -> Int -> Text -> Widget -> Handler Html
+renderWHStocktake :: SavingMode -> Int -> Html -> Widget -> Handler Html
 renderWHStocktake mode status title pre = do
   let (action, button) = case mode of
         Validate -> (WHStocktakeR, "vaildate" :: Text)
         Save -> (WHStocktakeSaveR, "save")
   (uploadFileFormW, upEncType) <- generateFormPost uploadFileForm
-  -- setMessage (toHtml title)
-  setMessage $ mconcat [ formatWarning ("This is example warning ove rst." )
-                       , formatError ("This is example error ove rst." )
-                       , formatInfo ("This is example info ove rst." )
-                       , formatSuccess ("This is example success ove rst." )
-                       ]
+  setMessage title
   sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
   <div>
     <p>
@@ -69,17 +64,17 @@ processStocktakeSheet mode = do
     FormSuccess (fileInfo, encoding) -> do
       spreadsheet <- readUploadUTF8 fileInfo encoding
       locations <- appStockLocations . appSettings <$> getYesod
-      either id defaultLayout $ do
+      either id id $ do
         -- expected results
         --   Everything is fine : [These Stocktake Boxtake]
         --   wrong header : 
         --   good header but invalid format
         --   parsable but invalid
         case parseTakes locations spreadsheet of
-          WrongHeader invalid -> Left $ renderWHStocktake mode 422 "Invalid file or columns missing" (render invalid)
-          InvalidFormat raws -> Left $ renderWHStocktake mode 422 "Invalid cell format" (render raws)
-          InvalidData raws ->  Left $ renderWHStocktake mode 422 "Invalid data" (render raws)
-          ParsingCorrect rows -> Right $ render rows
+          WrongHeader invalid -> Left $ renderWHStocktake mode 422 (formatError "Invalid file or columns missing") (render invalid)
+          InvalidFormat raws -> Left $ renderWHStocktake mode 422 (formatError "Invalid cell format") (render raws)
+          InvalidData raws ->  Left $ renderWHStocktake mode 422 (formatError "Invalid data") (render raws)
+          ParsingCorrect rows -> Right $ renderWHStocktake Save 200 (formatInfo "Validation ok!") (render rows)
         
   
 

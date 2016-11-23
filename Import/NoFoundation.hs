@@ -48,7 +48,7 @@ formatMessage mtype t =
             
   in [shamlet|
 <div.alert class="alert-#{class_}">
-  <span.glyphicon class="glyphicon-#{icon} style="font-size:2em; float:left;">
+  <span.glyphicon class="glyphicon-#{icon}"><nbsp>
   ^{t}
 |]
 
