@@ -84,7 +84,7 @@ processStocktakeSheet mode = do
 data TakeRow s = TakeRow
   { rowStyle :: FieldTF s Text 
   , rowColour :: FieldTF s Text  
-  , rowQuantity :: FieldTF s Int 
+  , rowQuantity :: FieldTF s (Known Int)
   , rowLocation :: FieldTF s Text 
   , rowBarcode :: FieldTF s Text 
   , rowLength :: FieldTF s Double 
@@ -155,7 +155,7 @@ validateRows locations (row:rows) = do
 data ValidationMode = CheckBarcode | NoCheckBarcode deriving Eq
 
 validateRow :: [String] -> ValidationMode -> PartialRow -> Either RawRow ValidRow
-validateRow locations validateMode row@(TakeRow (Just rowStyle) (Just rowColour) ( Just rowQuantity)
+validateRow locations validateMode row@(TakeRow (Just rowStyle) (Just rowColour) (Just rowQuantity)
                     (Just rowLocation) (Just rowBarcode)
                     (Just rowLength) (Just rowWidth) ( Just rowHeight)
                     (Just rowDate) (Just rowOperator))

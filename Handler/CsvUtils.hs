@@ -167,6 +167,26 @@ instance (Csv.FromField a) => Csv.FromField (ValidField a) where
     val <- Csv.parseField bs
     return $ Provided val
 
+-- | Like Maybe but needs to be explicitly set to Unknown using "?"
+data Known a = Unknown | Known a 
+deriving instance Show a => Show (Known a)
+
+instance Csv.FromField a => Csv.FromField (Known a) where
+  parseField "?" = return Unknown
+  parseField bs = do
+    val <- Csv.parseField bs
+    return $ Known val
+
+instance Transformable (Maybe a) (Known a) where
+  transform x = maybe Unknown Known x
+
+instance Transformable (Known a) (Maybe a) where
+  transform Unknown = Nothing
+  transform (Known x) = Just x
+
+unknow :: Known a -> Maybe a
+unknow = transform
+
 -- | Generate a Either InvalidField from a cell value and parsed field.
 toError :: Text -> Either Csv.Field a -> Either InvalidField a
 toError t e = case e of
@@ -232,6 +252,15 @@ span.guessed-value
     [whamlet|
 <span.guessed-value>^{render x}
 |]
+
+instance Renderable a => Renderable (Known a) where
+  render (Known a) = render a
+  render Unknown = do
+    toWidget [cassius|
+span.unknown-value
+  color:orange
+|]
+    [whamlet|<span.unknown-value>?|]
 
 instance Renderable InvalidSpreadsheet where
   render i@InvalidSpreadsheet{..} = let
