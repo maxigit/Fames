@@ -43,20 +43,32 @@ $newline never
     <script>
       document.documentElement.className = document.documentElement.className.replace(/\bno-js\b/,'js');
   <body>
-    <div class="container">
-      <header>
-      <div id="main" role="main">
-        ^{pageBody pc}
-      <footer>
-        #{appCopyright $ appSettings master}
+    <div class="container-fluid">
+      <div.row>
+        <div class="navbar navbar-inverse navbar-static-top">
+          <div.navbar-header>
+            <a.navbar-brand href=@{HomeR}>Fames
+          <div.collapse.navbar-collapse>
+            <ul.nav.navbar-nav>
+              <li> Warehouse
+              <li> General Ledger
+        <div.col-md-2.navbar.navbar-default style="min-height:100">
+          <div.list-group.table-of-contents>
+            <a.list-group-item href=@{WarehouseR WHBarcodeR}>Barcodes
+            <a.list-group-item href=@{WarehouseR WHStocktakeR}>StocktakeR
+        <div.col-md-8 id="main" role="main">
+          ^{pageBody pc}
+      <div.row>
+        <footer>
+          #{appCopyright $ appSettings master}
 
-    $maybe analytics <- appAnalytics $ appSettings master
-      <script>
-        if(!window.location.href.match(/localhost/)){
-          window._gaq = [['_setAccount','#{analytics}'],['_trackPageview'],['_trackPageLoadTime']];
-          (function() {
-          \  var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
-          \  ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
-          \  var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
-          })();
-        }
+        $maybe analytics <- appAnalytics $ appSettings master
+          <script>
+            if(!window.location.href.match(/localhost/)){
+              window._gaq = [['_setAccount','#{analytics}'],['_trackPageview'],['_trackPageLoadTime']];
+              (function() {
+              \  var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+              \  ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+              \  var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+              })();
+            }

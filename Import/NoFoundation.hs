@@ -3,6 +3,7 @@ module Import.NoFoundation
     , setWarning
     , setError 
     , setInfo
+    , setSuccess
     , formatWarning
     , formatError 
     , formatInfo
@@ -28,10 +29,10 @@ import Text.Printf(printf)
 
 data MessageType = MError | MWarning | MInfo | MSuccess deriving (Eq, Read, Show)
 
-setError = setMessage . formatError
-setWarning = setMessage . formatWarning
-setInfo = setMessage . formatInfo
-setSuccess = setMessage . formatSuccess
+setError = addMessage "Error" . formatError
+setWarning = addMessage "Warning" . formatWarning
+setInfo = addMessage "Info" . formatInfo
+setSuccess = addMessage "Success" . formatSuccess
 
 formatError = formatMessage MError
 formatWarning = formatMessage MWarning 
@@ -39,16 +40,18 @@ formatInfo = formatMessage MInfo
 formatSuccess = formatMessage MSuccess
 
 formatMessage mtype t = 
-  let (class_, icon) = case  mtype of
-        MError  ->  ("danger", "exclamation-sign") :: (Text, Text)
-        MWarning -> ("warning", "warning-sign")
-        MInfo ->  ("info", "info-sign")
-        MSuccess -> ("success", "ok-sign")
+  let (class_, icon, status) = case  mtype of
+        MError  ->  ("danger", "exclamation-sign", "Error") :: (Text, Text, Text)
+        MWarning -> ("warning", "warning-sign", "Warning")
+        MInfo ->  ("info", "info-sign", " Information")
+        MSuccess -> ("success", "ok-sign", "Success")
 
             
   in [shamlet|
 <div.alert class="alert-#{class_}">
-  <span.glyphicon class="glyphicon-#{icon}"><nbsp>
+  <div.alert-header>
+    <span.glyphicon class="glyphicon-#{icon}"> #{status}
+  <br>
   ^{t}
 |]
 
