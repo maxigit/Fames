@@ -74,7 +74,7 @@ postGLEnterReceiptSheetR = do
                         (FormMissing, FormMissing) -> error "missing"
                         (FormSuccess (title, spreadsheet), _) -> return $ encodeUtf8 $ unTextarea spreadsheet
                         (_, FormSuccess (fileInfo, encoding)) -> do
-                          readUploadUTF8 fileInfo encoding
+                          fst <$> readUploadUTF8 fileInfo encoding
                           
                         (FormFailure a,FormFailure b) -> error $ "Form failure : " ++  show a ++ ", " ++ show b
   either id defaultLayout $ do

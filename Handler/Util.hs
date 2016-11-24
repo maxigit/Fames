@@ -18,6 +18,8 @@ import Data.Text.Encoding(decodeLatin1)
 
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput)
+import qualified Crypto.Hash as Crypto
+
 -- * Display entities
 -- | Display Persist entities as paginated table
 -- the filter is mainly there as a proxy to indicate
@@ -101,11 +103,19 @@ uploadFileForm = renderBootstrap3 BootstrapBasicForm
   )
 
 
+computeDocumentKey :: ByteString -> Text
+computeDocumentKey bs = let
+  digest = Crypto.hash bs :: Crypto.Digest Crypto.SHA256
+  in tshow bs
+
 
 -- | Retrieve the content of an uploaded file.
+readUploadUTF8 :: MonadResource m => FileInfo -> Encoding -> m (ByteString, Text)
 readUploadUTF8  fileInfo encoding = do
   c <- fileSource fileInfo $$ consume
-  return . decode encoding $ concat c
+  let bs = decode encoding (concat c)
+
+  return $ (bs, computeDocumentKey bs)
 
 decode UTF8 bs = bs
 decode Latin1 bs = encodeUtf8 . decodeLatin1 $ bs

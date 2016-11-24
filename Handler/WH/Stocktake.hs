@@ -10,7 +10,7 @@ module Handler.WH.Stocktake where
 import Import hiding(last)
 import Handler.CsvUtils
 import WH.Barcode
-import Data.List(scanl, last, init)
+import Data.List(scanl, last, init, length, head)
 import Data.Either
 
 import qualified Data.Csv as Csv
@@ -18,7 +18,7 @@ import Yesod.Form.Bootstrap3
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput)
 import qualified System.FilePath.Glob as Glob
-
+import qualified Data.Map.Strict as Map
 
 -- * Requests
 
@@ -30,7 +30,7 @@ getWHStocktakeR = renderWHStocktake Validate 200 (formatInfo "Enter Stocktake") 
 renderWHStocktake :: SavingMode -> Int -> Html -> Widget -> Handler Html
 renderWHStocktake mode status title pre = do
   let (action, button) = case mode of
-        Validate -> (WHStocktakeR, "vaildate" :: Text)
+        Validate -> (WHStocktakeR, "validate" :: Text)
         Save -> (WHStocktakeSaveR, "save")
   (uploadFileFormW, upEncType) <- generateFormPost uploadFileForm
   setMessage title
@@ -49,6 +49,10 @@ renderWHStocktake mode status title pre = do
 postWHStocktakeR :: Handler Html
 postWHStocktakeR = processStocktakeSheet Validate
 
+
+getWHStocktakeSaveR :: Handler Html
+getWHStocktakeSaveR = renderWHStocktake Save 200 (formatInfo "Enter Stocktake") (return ())
+
 postWHStocktakeSaveR :: Handler Html
 postWHStocktakeSaveR = processStocktakeSheet Save
 
@@ -63,23 +67,99 @@ processStocktakeSheet mode = do
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess (fileInfo, encoding) -> do
-      spreadsheet <- readUploadUTF8 fileInfo encoding
+      (spreadsheet, key) <- readUploadUTF8 fileInfo encoding
+
+      -- TODO move to reuse
+      -- check if the document has already been uploaded
+      -- and reject it.
+      documentKey <- runDB $ getBy (UniqueSK key)
+      forM documentKey $ \(Entity _ doc) -> do
+        uploader <- runDB $ get (documentKeyUserId doc)
+        let msg = [shamlet|Document has already been uploaded
+$maybe u <- uploader
+  by ${userIdent u}
+  on the #{tshow $ documentKeyProcessedAt doc}.
+|]
+        case mode of
+          Validate -> setWarning msg >> return ""
+          Save -> renderWHStocktake mode 422 (formatError msg) (return ()) -- should exit
+
       locations <- appStockLocations . appSettings <$> getYesod
-      either id id $ do
+    -- get all operators and generate a map name, firstname  -> operator, operator id
+      operators <- runDB $ selectList [OperatorActive ==. True] [] 
+      let operatorKeys = Map.fromListWith (++) $
+                   [ (toLower $ operatorNickname op, [Operator' opId op] ) | op'@(Entity opId op) <- operators ]
+                <> [ (toLower $ operatorFirstname op <> " " <> operatorSurname op, [Operator' opId op] )
+                   | op'@(Entity opId op) <- operators
+                   ] :: Map Text [Operator']
+           -- we need to filter operators key with more than one solution
+          pks = Map.map (Data.List.head)  (Map.filter (\ops -> Data.List.length ops /=1) operatorKeys)
+          -- findOps = Map.lookup (Map.map (Data.List.head)  (Map.filter (\ops -> Data.List.length ops /=1) operatorKeys)) . toLower :: Text -> Entity Operator
+          findOps = (flip Map.lookup) pks  . toLower
+
+      userId <- requireAuthId
+      processedAt <- liftIO getCurrentTime
+
+      let docKey = DocumentKey (fileName fileInfo) "" key (userId) processedAt
+
+      either id (process locations docKey mode) $ do
         -- expected results
         --   Everything is fine : [These Stocktake Boxtake]
         --   wrong header : 
         --   good header but invalid format
         --   parsable but invalid
-        case parseTakes locations spreadsheet of
+        case parseTakes findOps locations spreadsheet of
           WrongHeader invalid -> Left $ renderWHStocktake mode 422 (formatError "Invalid file or columns missing") (render invalid)
           InvalidFormat raws -> Left $ renderWHStocktake mode 422 (formatError "Invalid cell format") (render raws)
           InvalidData raws ->  Left $ renderWHStocktake mode 422 (formatError "Invalid data") (render raws)
-          ParsingCorrect rows -> Right $ renderWHStocktake Save 200 (formatInfo "Validation ok!") (render rows)
+          ParsingCorrect rows -> Right rows
+          
+  where process _ doc Validate rows = renderWHStocktake mode 200 (formatSuccess "Validation ok!") (render rows)
+        process locations doc Save rows = (runDB $ do
+          let finals = map transformRow rows :: [FinalRow]
+
+          -- rows can't be converted straight away to stocktakes and boxtakes
+          -- if in case of many row for the same barcodes, stocktakes needs to be indexed
+          -- and boxtake needs to keep only the first one.
+          let groups = groupBy ((==) `on` rowBarcode)
+                     . sortBy (comparing rowBarcode)
+                     $ finals :: [[FinalRow]]
+              
+          keyId <- insert doc
+          let stocktakes =  do 
+                group <- groups
+                (mapMaybe (toStocktakeF keyId) group) <*> [1..]
+
+              boxtakes = do
+                group <- groups
+                take 1 $ mapMaybe (toBoxtake keyId locations) group
+          
+
+          forM stocktakes $ \stock -> do
+              -- inactive similar key
+              updateWhere [StocktakeBarcode ==. stocktakeBarcode stock] [StocktakeActive =. False]
+              insert stock
+
+          forM boxtakes $ \box -> do
+              -- inactive similar key
+              updateWhere [BoxtakeBarcode ==. boxtakeBarcode box] [BoxtakeActive =. False]
+              insert box
+            
+          setSuccess "Spreadsheet processed!"
+          ) >> getWHStocktakeR
+       
+     
+
+
+          
         
   
 
 -- * Csv
+
+-- | Wrapper around Operator
+data Operator' = Operator' {opId :: OperatorId, op :: Operator} deriving (Eq, Show)
+type OpFinder = Text -> Maybe Operator'
 
 -- | a take row can hold stocktake and boxtake information
 data TakeRow s = TakeRow
@@ -92,7 +172,7 @@ data TakeRow s = TakeRow
   , rowWidth :: FieldTF s Double 
   , rowHeight :: FieldTF s Double 
   , rowDate :: FieldTF s Day 
-  , rowOperator :: FieldTF s Text 
+  , rowOperator :: FieldTF s Operator'
   }
   
 
@@ -116,8 +196,23 @@ type family FieldTF (s :: RowTypes) a where
  
 
 -- | Validates if a raw row has been parsed properly. ie cell are well formatted
-validateRaw :: RawRow -> Either RawRow PartialRow
-validateRaw raw= either (const $ Left raw) Right $ do
+validateRaw :: OpFinder -> RawRow -> Either RawRow PartialRow
+validateRaw ops raw= do
+  -- preprocess  Operator
+  -- Operator is special in a sense it can't be parsed without a map name -> operator
+  -- So, when the spreadsheet is parsed, rowOperator is necessary `Left`.
+  -- We need to check if the name means something, and if so replace it the operator
+  -- However, if we are validating again a valid value, ops shouldn't be need.
+  -- We just keep the right value
+  let rowOperator' =
+        case rowOperator raw of
+          Right operator -> Right operator
+          Left (ParsingError _ name) -> maybe (Left $ ParsingError ("Can't find operator with name " <> name) name)
+                             (Right . Just .Provided)
+                             (ops name)
+          Left field -> Left field
+
+  either (const $ Left raw {rowOperator = rowOperator'}) Right $ do
   rowStyle <- rowStyle raw
   rowColour <- rowColour raw
   rowQuantity <- rowQuantity raw
@@ -127,7 +222,8 @@ validateRaw raw= either (const $ Left raw) Right $ do
   rowWidth <- rowWidth raw
   rowHeight <- rowHeight raw
   rowDate <- rowDate raw
-  rowOperator <- rowOperator raw
+  rowOperator <- rowOperator'
+
   Right TakeRow{..}
 
 -- | Validates if a row is invalid or not. ie 
@@ -235,7 +331,7 @@ fillFromPrevious locations (Right previous) partial
         _ -> []
      
         
-      in (validateRow locations CheckBarcode) =<< validateRaw (foldr ($) raw modifiers)
+      in (validateRow locations CheckBarcode) =<< validateRaw (const Nothing) (foldr ($) raw modifiers)
 
 fillValue :: (Maybe (ValidField a)) -> Either InvalidField (ValidField a) -> Either  InvalidField (ValidField a)
 fillValue (Just new) _ = Right new
@@ -303,10 +399,11 @@ data ParsingResult
 
 -- | Parses a csv of stocktakes. If a list of locations is given
 -- parseTakes that the locations are valid (matches provided location using unix file globing)
-parseTakes  :: [String] -> ByteString -> ParsingResult
-parseTakes locations bytes = either id ParsingCorrect $ do
+parseTakes  :: OpFinder -> [String] -> ByteString -> ParsingResult
+parseTakes ops locations bytes = either id ParsingCorrect $ do
+    
   raws <- parseSpreadsheet mempty Nothing bytes <|&> WrongHeader
-  rows <- validateAll validateRaw raws <|&> InvalidFormat
+  rows <- validateAll (validateRaw ops) raws <|&> InvalidFormat
   valids <- validateRows locations rows <|&> InvalidData 
   Right valids
 
@@ -321,10 +418,27 @@ parseTakes locations bytes = either id ParsingCorrect $ do
           -- in a <|&> -- (const $ lefts ) (const $ map transformRow rows)
 
 
-          
+toStocktakeF :: DocumentKeyId -> FinalRow -> Maybe (Int -> Stocktake)
+toStocktakeF docId TakeRow{..} = case rowQuantity of
+  Unknown -> Nothing
+  Known quantity -> Just $ \index -> Stocktake (rowStyle <> "-" <> rowColour)
+                      quantity
+                      rowBarcode
+                      index
+                      rowDate
+                      True
+                      (opId rowOperator)
+                      docId
 
 
-
+toBoxtake :: DocumentKeyId -> [String] -> FinalRow -> Maybe Boxtake
+toBoxtake docId locations TakeRow{..} =
+  Just $ Boxtake rowLength rowWidth rowHeight
+                 rowBarcode ( intercalate "" $ pack <$> expandLocation locations (unpack rowLocation))
+                 rowDate
+                 True
+                 (opId rowOperator)
+                 docId
 
 transformRow TakeRow{..} = TakeRow
   (transform rowStyle)
@@ -337,9 +451,6 @@ transformRow TakeRow{..} = TakeRow
   (transform rowHeight)
   (transform rowDate)
   (transform rowOperator)
- 
-
-    
 
 -- * Csv
 instance Csv.FromNamedRecord RawRow where
@@ -353,13 +464,18 @@ instance Csv.FromNamedRecord RawRow where
     <*> m `parse` "Width"
     <*> m `parse` "Height"
     <*> (allFormatsDay <$$$$> m `parse` "Date Checked" )
-    <*> m `parse` "Operator"
+    <*> m Csv..: "Operator"
     where parse m colname = do
             -- parse as a text. To get the cell content
             t <- m Csv..: colname
             -- the real value to parse, can fail
             val <- m Csv..: colname
             return $ toError t val
+
+instance Csv.FromField (Either InvalidField (Maybe (ValidField (Operator')))) where
+  parseField bs = do
+    t <- Csv.parseField bs
+    return $ Left (ParsingError "Operator doesn't exist" t)
 
 
 -- * Rendering
@@ -383,8 +499,11 @@ instance Renderable ValidRow where render = renderRow
 instance Renderable [RawRow ]where render = renderRows classForRaw
 instance Renderable [ValidRow] where render = renderRows (const ("" :: Text))
 
+instance Renderable Operator' where
+  render (Operator' opId op) = render $ operatorNickname op
+
 classForRaw :: RawRow -> Text                                 
-classForRaw raw = case validateRaw raw of
+classForRaw raw = case validateRaw (const Nothing) raw of
   Left _ -> "invalid bg-danger"
   Right row -> case validateRow [] NoCheckBarcode row of
     Left _ -> "bg-warning"
@@ -392,7 +511,7 @@ classForRaw raw = case validateRaw raw of
 
 renderRows classFor rows = do
   [whamlet|
-<table.table.table-bordered>
+<table.table.table-bordered.table-hover>
   <tr>
     <th>Style
     <th>Colour

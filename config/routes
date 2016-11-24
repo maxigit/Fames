@@ -13,7 +13,7 @@
 /warehouse WarehouseR !warehouse:
   /barcodes WHBarcodeR GET POST
   /stocktake WHStocktakeR GET POST
-  /stocktake/save WHStocktakeSaveR POST !stocktake
+  /stocktake/save WHStocktakeSaveR GET POST !stocktake
   /stocktake/locations WHStocktakeLocationR GET
 
 /administrator AdministratorR GET

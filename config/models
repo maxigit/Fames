@@ -29,6 +29,7 @@ Operator  sql=fames_operator
   firstname Text
   surname Text
   nickname Text
+  active Bool
   UniqueNickname nickname
   deriving Eq
   deriving Show
@@ -75,7 +76,7 @@ DocumentKey sql=fames_document_key
   comment Text
   key Text sql=document_key
   userId UserId 
-  processed_at UTCTime
+  processedAt UTCTime
   UniqueSK key
   deriving Eq
   deriving Show
