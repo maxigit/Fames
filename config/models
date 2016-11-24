@@ -1,4 +1,5 @@
 User sql=fames_user
+    Id sql=user_id
     ident Text
     password Text Maybe
     UniqueUser ident
@@ -24,6 +25,7 @@ BarcodeSeed sql=fames_barcode_seed
     deriving Show
 
 Operator  sql=fames_operator
+  Id sql=operator_id
   firstname Text
   surname Text
   nickname Text
@@ -31,20 +33,26 @@ Operator  sql=fames_operator
   deriving Eq
   deriving Show
 
-
+-- Stocktake. How many items are in a box.
+-- index allows to have multiple variations in the same box.
+-- The link to Boxtake is a "soft" link via barcode.
 Stocktake sql=fames_stocktake
+  Id sql=stocktake_id
   stockId Text sql=stock_id
-  quantity Int Maybe
+  quantity Int
   barcode Text
   index Int default=1
   date Day
   active Bool default=True
   operatorId OperatorId
+  source DocumentKeyId
   UniqueSB barcode index
   deriving Eq
   deriving Show
 
+-- Similar to stocktake but doesn't care about the content.
 Boxtake sql=fames_boxtake
+  Id sql=boxtake_id
   length Double
   width Double
   height Double
@@ -53,7 +61,22 @@ Boxtake sql=fames_boxtake
   date Day
   active Bool
   operatorId OperatorId
-  UniqueBB barcode
+  documentKey DocumentKeyId
+  UniqueBB barcode documentKey
+  deriving Eq
+  deriving Show
+
+-- Represent the key of a document which has been processed.
+-- We use a key SHA1 or SHA256 so we can detect if a document
+-- has already been processed or not. We don't save the documenty yet.
+-- In the future it can be used to retrieve from an external system (git-annex, syncthing, etc ...)
+DocumentKey sql=fames_document_key
+  name Text
+  comment Text
+  key Text sql=document_key
+  userId UserId 
+  processed_at UTCTime
+  UniqueSK key
   deriving Eq
   deriving Show
 
