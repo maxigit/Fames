@@ -25,7 +25,7 @@ import qualified System.FilePath.Glob as Glob
 data SavingMode = Validate | Save deriving (Eq, Read, Show)
 
 getWHStocktakeR :: Handler Html
-getWHStocktakeR = renderWHStocktake Validate 200 "Enter Stocktake" (return ())
+getWHStocktakeR = renderWHStocktake Validate 200 (formatInfo "Enter Stocktake") (return ())
 
 renderWHStocktake :: SavingMode -> Int -> Html -> Widget -> Handler Html
 renderWHStocktake mode status title pre = do
@@ -39,9 +39,10 @@ renderWHStocktake mode status title pre = do
     <p>
       <a href=@{WarehouseR WHStocktakeLocationR}>Available locations
   <div .pre> ^{pre}
-  <form #upload-form role=form method=post action=@{WarehouseR action} enctype=#{upEncType}>
-    ^{uploadFileFormW}
-    <button type="sumbit" name="#{button}" .btn .btn-default>Validate
+  <div.well>
+    <form #upload-form role=form method=post action=@{WarehouseR action} enctype=#{upEncType}>
+      ^{uploadFileFormW}
+      <button type="sumbit" name="#{button}" .btn .btn-primary>Validate
 |]
 
 
