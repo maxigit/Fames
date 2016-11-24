@@ -11,9 +11,13 @@ spec = appSpec
 relPath path = "test/Handler/WHStocktakeSpec/" ++ path
 
 uploadSTSheet route status path = do
+
+  logAsAdmin 
   get (WarehouseR WHStocktakeR)
   statusIs 200
 
+  runDB $ do
+    insert $ Operator "John" "Smith" "Jack" True
   request $ do
     setMethod "POST"
     setUrl (WarehouseR route)
@@ -21,7 +25,7 @@ uploadSTSheet route status path = do
     fileByLabel "upload" path "text/plain"
     byLabel "encoding" (tshow $ 1)
 
-  printBody
+  -- printBody
   statusIs status
 
 -- write the sheet to a temporary file and upload it.
@@ -34,14 +38,15 @@ saveSTSheet status sheet = do
   path <- saveToTempFile sheet
   uploadSTSheet WHStocktakeSaveR status path
 
-findBarcodes = do
+findBarcodes getBarcode = do
   entities <- runDB $ selectList [] []
   return $ map (stocktakeBarcode . entityVal) entities
 
-appSpec = withAppNoDB BypassAuth $ do
+appSpec = withAppWipe BypassAuth $ do
   describe "upload stocktake" $ do
     describe "upload page" $ do
       it "propose to upload a file" $ do
+        logAsAdmin 
         get (WarehouseR WHStocktakeR)
         statusIs 200
 
@@ -49,18 +54,26 @@ appSpec = withAppNoDB BypassAuth $ do
 
     describe "upload" $ do
       it "parses correctly a correct file" $ do
+        logAsAdmin
         postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
 t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 |]
 
-      it "saves" $ do
+      it "saves stocktakes" $ do
         saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
 t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 |]
-        barcodes <- findBarcodes
+        barcodes <- findBarcodes stocktakeBarcode
         let types = barcodes :: [Text]
         liftIO $ barcodes `shouldBe`  ["ST16NV00399X"]
 
+      it "saves boxtakes" $ do
+        saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+|]
+        barcodes <- findBarcodes boxtakeBarcode
+        let types = barcodes :: [Text]
+        liftIO $ barcodes `shouldBe`  ["ST16NV00399X"]
 
     describe "process blanks" $ do
       it "fills barcode prefix" $ do
@@ -74,7 +87,7 @@ t-shirt,red,120,shelf-1,400E,34,20,17,2016/11/10,Jack
 
       it "highlights guessed valued" $ do
         postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
-t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jacko
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 t-shirt,red,120,shelf-1,400E,34,20,17,2016/11/10,
 |]
         htmlAnyContain "table td.stocktakeOperator span.guessed-value" "Jack"

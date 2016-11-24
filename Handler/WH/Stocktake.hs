@@ -93,7 +93,7 @@ $maybe u <- uploader
                    | op'@(Entity opId op) <- operators
                    ] :: Map Text [Operator']
            -- we need to filter operators key with more than one solution
-          pks = Map.map (Data.List.head)  (Map.filter (\ops -> Data.List.length ops /=1) operatorKeys)
+          pks = Map.map (Data.List.head)  (Map.filter (\ops -> Data.List.length ops ==1) operatorKeys)
           -- findOps = Map.lookup (Map.map (Data.List.head)  (Map.filter (\ops -> Data.List.length ops /=1) operatorKeys)) . toLower :: Text -> Entity Operator
           findOps = (flip Map.lookup) pks  . toLower
 
@@ -128,7 +128,7 @@ $maybe u <- uploader
           keyId <- insert doc
           let stocktakes =  do 
                 group <- groups
-                (mapMaybe (toStocktakeF keyId) group) <*> [1..]
+                zipWith ($)(mapMaybe (toStocktakeF keyId) group) [1..]
 
               boxtakes = do
                 group <- groups
@@ -475,7 +475,10 @@ instance Csv.FromNamedRecord RawRow where
 instance Csv.FromField (Either InvalidField (Maybe (ValidField (Operator')))) where
   parseField bs = do
     t <- Csv.parseField bs
-    return $ Left (ParsingError "Operator doesn't exist" t)
+    let types = t :: Maybe Text 
+    case t of
+      Nothing -> return $ Right Nothing
+      Just t' -> return $ Left (ParsingError "Operator doesn't exist" t')
 
 
 -- * Rendering
