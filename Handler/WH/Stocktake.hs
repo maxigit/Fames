@@ -103,7 +103,7 @@ $maybe u <- uploader
 
       let docKey = DocumentKey (fileName fileInfo) "" key (userId) processedAt
 
-      either id (process locations docKey mode) $ do
+      either id (process (fileName fileInfo) locations docKey mode) $ do
         -- expected results
         --   Everything is fine : [These Stocktake Boxtake]
         --   wrong header : 
@@ -115,8 +115,8 @@ $maybe u <- uploader
           InvalidData raws ->  Left $ renderWHStocktake mode 422 (formatError "Invalid data") (render raws)
           ParsingCorrect rows -> Right rows
           
-  where process _ doc Validate rows = renderWHStocktake mode 200 (formatSuccess "Validation ok!") (render rows)
-        process locations doc Save rows = (runDB $ do
+  where process _ _ doc Validate rows = renderWHStocktake mode 200 (formatSuccess "Validation ok!") (render rows)
+        process path locations doc Save rows = (runDB $ do
           let finals = map transformRow rows :: [FinalRow]
 
           -- rows can't be converted straight away to stocktakes and boxtakes
@@ -146,8 +146,7 @@ $maybe u <- uploader
               updateWhere [BoxtakeBarcode ==. boxtakeBarcode box] [BoxtakeActive =. False]
               insert_ box
             
-          setSuccess "Spreadsheet processed!"
-          ) >> getWHStocktakeR
+          ) >> renderWHStocktake mode 200 (formatSuccess (toHtml $ "Spreadsheet "<> path <> " processed")) (return ())
        
      
 
