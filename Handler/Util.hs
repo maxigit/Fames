@@ -106,7 +106,7 @@ uploadFileForm = renderBootstrap3 BootstrapBasicForm
 computeDocumentKey :: ByteString -> Text
 computeDocumentKey bs = let
   digest = Crypto.hash bs :: Crypto.Digest Crypto.SHA256
-  in tshow bs
+  in tshow digest
 
 
 -- | Retrieve the content of an uploaded file.
