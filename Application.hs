@@ -41,6 +41,7 @@ import Handler.Comment
 import Handler.GLEnterReceiptSheet
 import Handler.FA
 import Handler.FAX
+import Handler.FAMES
 import Handler.WH
 
 -- This line actually creates our YesodDispatch instance. It is the second half

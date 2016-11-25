@@ -1,0 +1,64 @@
+-- Warning ! This code has been generated !
+-- Model
+FamesBarcodeSeed sql=fames_barcode_seed
+    Id Int  sql=id
+    prefix Text  sql=prefix
+    lastUsed Int  sql=last_used
+
+FamesBoxtake sql=fames_boxtake
+    Id Int  sql=boxtake_id
+    description Text Maybe sql=description
+    reference Text  sql=reference
+    length Double  sql=length
+    width Double  sql=width
+    height Double  sql=height
+    barcode Text  sql=barcode
+    location ByteString  sql=location
+    date Day  sql=date
+    active Bool  sql=active
+    operatorId Int  sql=operator_id
+    documentKeyId Int  sql=document_key_id
+
+FamesComment sql=fames_comment
+    Id Int  sql=id
+    message Text  sql=message
+    userId Int Maybe sql=user_id
+
+FamesDocumentKey sql=fames_document_key
+    Id Int  sql=document_key_id
+    documentType Text  sql=document_type
+    name Text  sql=name
+    comment Text  sql=comment
+    documentKey Text  sql=document_key
+    userId Int  sql=user_id
+    processedAt UTCTime  sql=processed_at
+
+FamesEmail sql=fames_email
+    Id Int  sql=id
+    email Text  sql=email
+    userId Int Maybe sql=user_id
+    verkey Text Maybe sql=verkey
+
+FamesOperator sql=fames_operator
+    Id Int  sql=operator_id
+    firstname Text  sql=firstname
+    surname Text  sql=surname
+    nickname Text  sql=nickname
+    active Bool  sql=active
+
+FamesStocktake sql=fames_stocktake
+    Id Int  sql=stocktake_id
+    stockId Text  sql=stock_id
+    quantity Int  sql=quantity
+    barcode Text  sql=barcode
+    index Int  sql=index
+    date Day  sql=date
+    active Bool  sql=active
+    operatorId Int  sql=operator_id
+    documentKeyId Int  sql=document_key_id
+
+FamesUser sql=fames_user
+    Id Int  sql=user_id
+    ident Text  sql=ident
+    password Text Maybe sql=password
+

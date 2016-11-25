@@ -1,0 +1,12 @@
+-- Warning ! This code has been generated !}
+
+-- Route
+/db/fames FAMES'R !db !fames:
+  /fames_barcode_seed FAMESFamesBarcodeSeedR GET
+  /fames_boxtake FAMESFamesBoxtakeR GET
+  /fames_comment FAMESFamesCommentR GET
+  /fames_document_key FAMESFamesDocumentKeyR GET
+  /fames_email FAMESFamesEmailR GET
+  /fames_operator FAMESFamesOperatorR GET
+  /fames_stocktake FAMESFamesStocktakeR GET
+  /fames_user FAMESFamesUserR GET

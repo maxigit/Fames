@@ -33,7 +33,7 @@ data Column = Column
   } deriving (Show, Read, Eq, Ord)
 
 
-data FilterMode = All | OnlyFA | ExcludeFA deriving (Eq, Read, Show)
+data FilterMode = All | OnlyFA | ExcludeFA | Fames deriving (Eq, Read, Show)
 
 -- loadSchema :: SQL IO [Table]
 loadSchema mode connectInfo database = do
@@ -43,6 +43,7 @@ loadSchema mode connectInfo database = do
       OnlyFA -> " AND " ++ faTables
       ExcludeFA ->
         " AND NOT (" ++ faTables ++ ") AND table_name not like 'fames_%' "
+      Fames -> "AND table_name like 'fames_%'"
      where
       faTables = "table_name like '0_%' and table_name != '0_item_requests' "
   conn <- SQL.connect connectInfo
@@ -87,11 +88,12 @@ main = do
   args <- getArgs
   let (db, module_, mode) = case args of
         ["fax"] -> ("fa", "FAX", ExcludeFA)
+        ["fames"] -> ("fa", "FAMES", Fames)
         _       -> ("fa", "FA", OnlyFA)
       connectInfo         = SQL.defaultConnectInfo
-         { SQL.connectHost = "172.17.0.3"
-         , SQL.connectUser = "test"
-         , SQL.connectPassword = "test"
+         { SQL.connectHost = "127.0.0.1"
+         , SQL.connectUser = "root"
+         , SQL.connectPassword = "stag"
          , SQL.connectDatabase = db
          }
       moduleLower         = map toLower module_

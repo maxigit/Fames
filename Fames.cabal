@@ -18,6 +18,7 @@ library
     exposed-modules: Application
                      FA
                      FAX
+                     FAMES
                      GL.FA
                      GL
                      GL.Receipt
@@ -41,8 +42,10 @@ library
                      Handler.WH.Stocktake
                      Handler.FA
                      Handler.FAX
+                     Handler.FAMES
                      Handler.FA.Def
                      Handler.FAX.Def
+                     Handler.FAMES.Def
                      Handler.Util
                      Handler.CsvUtils
                      WH.Barcode
