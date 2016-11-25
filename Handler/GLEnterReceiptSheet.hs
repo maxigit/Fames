@@ -40,7 +40,7 @@ getGLEnterReceiptSheetR = renderGLEnterReceiptSheet 200 ""  (return ())
 renderGLEnterReceiptSheet :: Int -> Text -> Widget -> Handler Html
 renderGLEnterReceiptSheet status title pre = do
   (postTextFormW, postEncType) <- generateFormPost postTextForm
-  (uploadFileFormW, upEncType) <- generateFormPost uploadFileForm
+  (uploadFileFormW, upEncType) <- generateFormPost $ uploadFileForm (pure ())
   setMessage (toHtml title)
   sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
 <h1>Enter a receipts spreadsheet
@@ -69,11 +69,11 @@ postTextForm = renderBootstrap3 BootstrapBasicForm $ (,)
 postGLEnterReceiptSheetR :: Handler Html
 postGLEnterReceiptSheetR = do
   ((textResp, postTextW), enctype) <- runFormPost postTextForm
-  ((fileResp, postFileW), enctype) <- runFormPost uploadFileForm
+  ((fileResp, postFileW), enctype) <- runFormPost $ uploadFileForm (pure ())
   spreadSheet <- case (textResp, fileResp) of
                         (FormMissing, FormMissing) -> error "missing"
                         (FormSuccess (title, spreadsheet), _) -> return $ encodeUtf8 $ unTextarea spreadsheet
-                        (_, FormSuccess (fileInfo, encoding)) -> do
+                        (_, FormSuccess (fileInfo, encoding, ())) -> do
                           fst <$> readUploadUTF8 fileInfo encoding
                           
                         (FormFailure a,FormFailure b) -> error $ "Form failure : " ++  show a ++ ", " ++ show b

@@ -6,6 +6,7 @@ module Handler.Util
 , getHaskellName
 , entityTableHandler
 , uploadFileForm
+, uploadFileFormWithComment
 , Encoding(..)
 , readUploadUTF8
 ) where
@@ -96,18 +97,18 @@ renderPersistValue pvalue = case (fromPersistValueText pvalue) of
 -- * Forms
 -- | Encoding of the file being uploaded.
 data Encoding = UTF8 | Latin1 deriving (Show, Read, Eq, Enum, Bounded)
-uploadFileForm = renderBootstrap3 BootstrapBasicForm
-  ((,)
+uploadFileForm fields = renderBootstrap3 BootstrapBasicForm
+  ((,,)
    <$> areq fileField "upload" Nothing
    <*> areq (selectField optionsEnum ) "encoding" (Just UTF8)
+   <*> fields
   )
 
-
+uploadFileFormWithComment = uploadFileForm (aopt textareaField "comment" Nothing)
 computeDocumentKey :: ByteString -> Text
 computeDocumentKey bs = let
   digest = Crypto.hash bs :: Crypto.Digest Crypto.SHA256
   in tshow digest
-
 
 -- | Retrieve the content of an uploaded file.
 readUploadUTF8 :: MonadResource m => FileInfo -> Encoding -> m (ByteString, Text)

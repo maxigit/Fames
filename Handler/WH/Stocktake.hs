@@ -29,10 +29,13 @@ getWHStocktakeR = renderWHStocktake Validate 200 (formatInfo "Enter Stocktake") 
 
 renderWHStocktake :: SavingMode -> Int -> Html -> Widget -> Handler Html
 renderWHStocktake mode status title pre = do
+  let form Save = uploadFileFormWithComment
+      form Validate = uploadFileForm (pure Nothing)
+
   let (action, button) = case mode of
         Validate -> (WHStocktakeR, "validate" :: Text)
         Save -> (WHStocktakeSaveR, "save")
-  (uploadFileFormW, upEncType) <- generateFormPost uploadFileForm
+  (uploadFileFormW, upEncType) <- generateFormPost $ form mode
   setMessage title
   sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
   <div>
@@ -62,11 +65,14 @@ postWHStocktakeSaveR = processStocktakeSheet Save
 -- to "save" the validation processing.
 processStocktakeSheet :: SavingMode -> Handler Html 
 processStocktakeSheet mode = do
-  ((fileResp, postFileW), enctype) <- runFormPost uploadFileForm
+  let form Save = uploadFileFormWithComment
+      form Validate = uploadFileForm (pure Nothing)
+
+  ((fileResp, postFileW), enctype) <- runFormPost (form mode)
   case fileResp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
-    FormSuccess (fileInfo, encoding) -> do
+    FormSuccess (fileInfo, encoding, commentM) -> do
       (spreadsheet, key) <- readUploadUTF8 fileInfo encoding
 
       -- TODO move to reuse
@@ -101,7 +107,7 @@ $maybe u <- uploader
       userId <- requireAuthId
       processedAt <- liftIO getCurrentTime
 
-      let docKey = DocumentKey (fileName fileInfo) "" key (userId) processedAt
+      let docKey = DocumentKey "stocktake" (fileName fileInfo) (maybe "" unTextarea commentM) key (userId) processedAt
 
       either id (process (fileName fileInfo) locations docKey mode) $ do
         -- expected results
@@ -117,35 +123,31 @@ $maybe u <- uploader
           
   where process _ _ doc Validate rows = renderWHStocktake mode 200 (formatSuccess "Validation ok!") (render rows)
         process path locations doc Save rows = (runDB $ do
-          let finals = map transformRow rows :: [FinalRow]
+          let finals = zip [1..] (map transformRow rows) :: [(Int, FinalRow)]
 
           -- rows can't be converted straight away to stocktakes and boxtakes
           -- if in case of many row for the same barcodes, stocktakes needs to be indexed
           -- and boxtake needs to keep only the first one.
-          let groups = groupBy ((==) `on` rowBarcode)
-                     . sortBy (comparing rowBarcode)
-                     $ finals :: [[FinalRow]]
+          let groups = groupBy ((==) `on` (rowBarcode . snd))
+                     . sortBy (comparing (rowBarcode . snd))
+                     $ finals :: [[(Int, FinalRow)]]
               
           keyId <- insert doc
           let stocktakes =  do 
                 group <- groups
-                zipWith ($)(mapMaybe (toStocktakeF keyId) group) [1..]
+                zipWith ($)(mapMaybe (toStocktakeF keyId . snd) group) [1..]
 
               boxtakes = do
                 group <- groups
-                take 1 $ mapMaybe (toBoxtake keyId locations) group
+                let descriptionF = case group of
+                                      [row] -> id
+                                      (_:_) -> (<> "*")
+                take 1 $ mapMaybe (toBoxtake keyId locations descriptionF) group
           
 
-          forM stocktakes $ \stock -> do
-              -- inactive similar key
-              updateWhere [StocktakeBarcode ==. stocktakeBarcode stock] [StocktakeActive =. False]
-              insert_ stock
+          insertMany_ stocktakes
+          insertMany_ boxtakes
 
-          forM boxtakes $ \box -> do
-              -- inactive similar key
-              updateWhere [BoxtakeBarcode ==. boxtakeBarcode box] [BoxtakeActive =. False]
-              insert_ box
-            
           ) >> renderWHStocktake mode 200 (formatSuccess (toHtml $ "Spreadsheet "<> path <> " processed")) (return ())
        
      
@@ -431,9 +433,11 @@ toStocktakeF docId TakeRow{..} = case rowQuantity of
                       docId
 
 
-toBoxtake :: DocumentKeyId -> [String] -> FinalRow -> Maybe Boxtake
-toBoxtake docId locations TakeRow{..} =
-  Just $ Boxtake rowLength rowWidth rowHeight
+toBoxtake :: DocumentKeyId -> [String] -> (Text -> Text) ->  (Int, FinalRow) -> Maybe Boxtake
+toBoxtake docId locations descriptionFn (col, TakeRow{..}) =
+  Just $ Boxtake (Just $ descriptionFn (rowStyle<>"-"<>rowColour))
+                 (tshow col)
+                 rowLength rowWidth rowHeight
                  rowBarcode ( intercalate "|" $ pack <$> expandLocation locations (unpack rowLocation))
                  rowDate
                  True
