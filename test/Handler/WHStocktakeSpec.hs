@@ -17,7 +17,7 @@ uploadSTSheet route status path = do
   statusIs 200
 
   runDB $ do
-    insert $ Operator "John" "Smith" "Jack" True
+    insertUnique $ Operator "John" "Smith" "Jack" True
   request $ do
     setMethod "POST"
     setUrl (WarehouseR route)
@@ -70,6 +70,26 @@ t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
       it "saves boxtakes" $ do
         saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
 t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+|]
+        barcodes <- findBarcodes boxtakeBarcode
+        let types = barcodes :: [Text]
+        liftIO $ barcodes `shouldBe`  ["ST16NV00399X"]
+
+      it "doesn't save twice the same file" $ do
+        saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+|]
+        saveSTSheet 422 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+|]
+        bodyContains "Document has already been uploaded"
+      
+      it "saves twice" $ do
+        saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+|]
+        saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-2,ST16NV00399X,34,20,17,2016/11/10,Jack
 |]
         barcodes <- findBarcodes boxtakeBarcode
         let types = barcodes :: [Text]
