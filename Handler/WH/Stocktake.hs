@@ -89,13 +89,13 @@ $maybe u <- uploader
       operators <- runDB $ selectList [OperatorActive ==. True] [] 
       let operatorKeys = Map.fromListWith (++) $
                    [ (toLower $ operatorNickname op, [Operator' opId op] ) | op'@(Entity opId op) <- operators ]
-                <> [ (toLower $ operatorFirstname op <> " " <> operatorSurname op, [Operator' opId op] )
+                <> [ (toLower $ operatorFirstname op <> operatorSurname op, [Operator' opId op] )
                    | op'@(Entity opId op) <- operators
                    ] :: Map Text [Operator']
            -- we need to filter operators key with more than one solution
           pks = Map.map (Data.List.head)  (Map.filter (\ops -> Data.List.length ops ==1) operatorKeys)
           -- findOps = Map.lookup (Map.map (Data.List.head)  (Map.filter (\ops -> Data.List.length ops /=1) operatorKeys)) . toLower :: Text -> Entity Operator
-          findOps = (flip Map.lookup) pks  . toLower
+          findOps = (flip Map.lookup) pks  . toLower . (filter (/= ' '))
 
       userId <- requireAuthId
       processedAt <- liftIO getCurrentTime
