@@ -25,7 +25,10 @@ import qualified Data.Map.Strict as Map
 data SavingMode = Validate | Save deriving (Eq, Read, Show)
 
 getWHStocktakeR :: Handler Html
-getWHStocktakeR = renderWHStocktake Validate 200 (formatInfo "Enter Stocktake") (return ())
+getWHStocktakeR = entityTableHandler (WarehouseR WHStocktakeR) ([] :: [Filter Stocktake])
+
+getWHStocktakeValidateR :: Handler Html
+getWHStocktakeValidateR = renderWHStocktake Validate 200 (formatInfo "Enter Stocktake") (return ())
 
 renderWHStocktake :: SavingMode -> Int -> Html -> Widget -> Handler Html
 renderWHStocktake mode status title pre = do
@@ -33,7 +36,7 @@ renderWHStocktake mode status title pre = do
       form Validate = uploadFileForm (pure Nothing)
 
   let (action, button) = case mode of
-        Validate -> (WHStocktakeR, "validate" :: Text)
+        Validate -> (WHStocktakeValidateR, "validate" :: Text)
         Save -> (WHStocktakeSaveR, "save")
   (uploadFileFormW, upEncType) <- generateFormPost $ form mode
   setMessage title
@@ -49,8 +52,8 @@ renderWHStocktake mode status title pre = do
 |]
 
 
-postWHStocktakeR :: Handler Html
-postWHStocktakeR = processStocktakeSheet Validate
+postWHStocktakeValidateR :: Handler Html
+postWHStocktakeValidateR = processStocktakeSheet Validate
 
 
 getWHStocktakeSaveR :: Handler Html
