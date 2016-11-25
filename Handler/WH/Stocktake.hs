@@ -138,12 +138,12 @@ $maybe u <- uploader
           forM stocktakes $ \stock -> do
               -- inactive similar key
               updateWhere [StocktakeBarcode ==. stocktakeBarcode stock] [StocktakeActive =. False]
-              insert stock
+              insert_ stock
 
           forM boxtakes $ \box -> do
               -- inactive similar key
               updateWhere [BoxtakeBarcode ==. boxtakeBarcode box] [BoxtakeActive =. False]
-              insert box
+              insert_ box
             
           setSuccess "Spreadsheet processed!"
           ) >> getWHStocktakeR
