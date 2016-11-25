@@ -434,7 +434,7 @@ toStocktakeF docId TakeRow{..} = case rowQuantity of
 toBoxtake :: DocumentKeyId -> [String] -> FinalRow -> Maybe Boxtake
 toBoxtake docId locations TakeRow{..} =
   Just $ Boxtake rowLength rowWidth rowHeight
-                 rowBarcode ( intercalate "" $ pack <$> expandLocation locations (unpack rowLocation))
+                 rowBarcode ( intercalate "|" $ pack <$> expandLocation locations (unpack rowLocation))
                  rowDate
                  True
                  (opId rowOperator)
