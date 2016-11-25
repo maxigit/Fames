@@ -77,7 +77,8 @@ processStocktakeSheet mode = do
         uploader <- runDB $ get (documentKeyUserId doc)
         let msg = [shamlet|Document has already been uploaded
 $maybe u <- uploader
-  by ${userIdent u}
+  as "#{documentKeyName doc}"
+  by #{userIdent u}
   on the #{tshow $ documentKeyProcessedAt doc}.
 |]
         case mode of
