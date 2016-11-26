@@ -18,6 +18,13 @@ import Database.Persist.MySQL
 -- If the stocktake has been done the same day (around?) as a pick
 -- we are unsure if the stocktake has been done before or after the pick
 
+-- DONE filter style
+-- TODO button save
+-- TODO add all items
+-- TODO save  as csv -> compatible with old system
+-- TODO add all container
+-- TODO parse
+-- TODO check product exists
 data Unsure = Sure | Unsure | All deriving (Eq, Read, Show, Enum, Bounded)
 
 
@@ -29,6 +36,7 @@ data StyleMode = LooseMissing | Partial deriving (Eq, Read, Show, Enum)
 
 data FormParam = FormParam
   { style :: Maybe Text
+  , download :: Bool
   , unsure :: Unsure
   } deriving (Eq, Read, Show)
 
@@ -36,7 +44,8 @@ data FormParam = FormParam
 paramForm = renderBootstrap3 BootstrapBasicForm  form
   where form = FormParam
             <$> aopt textField "style" Nothing
-            <*> areq (selectField optionsEnum) "mode" (Just All)
+            <*> areq boolField "download" (Just False)
+            <*> pure All -- areq (selectField optionsEnum) "mode" (Just All)
 
 
 
@@ -65,13 +74,15 @@ postWHStockAdjustmentR = do
     FormMissing -> error "Form missing"
     FormFailure a -> defaultLayout [whamlet|^{view}|]
     FormSuccess param -> do
+      let (w,p) = case style param of
+                  Just like  -> (" AND stock_id like ?", [PersistText like])
+                  Nothing -> ("", [])
       let sql = "SELECT stock_id, SUM(quantity), MAX(date) \
                \ FROM fames_stocktake \
-               \ WHERE active =1 \
-               \ GROUP BY stock_id \
-               \ LIMIT 5000 "
+               \ WHERE active =1 " <> w <> "\
+               \ GROUP BY stock_id "
 
-      stocktakes <- runDB $ rawSql sql []
+      stocktakes <- runDB $ rawSql sql p
 
       -- use conduit ? TODO
       xs <- mapM qohFor stocktakes
