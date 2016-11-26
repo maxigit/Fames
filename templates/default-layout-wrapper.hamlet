@@ -55,6 +55,7 @@ $newline never
         <div.col-md-2.navbar.navbar-default style="min-height:100">
           <div.list-group.table-of-contents>
             <a.list-group-item href=@{WarehouseR WHBarcodeR}>Barcodes
+            <a.list-group-item href=@{WarehouseR WHStockAdjustmentR}>Stock Adjustement
             <a.list-group-item href=@{WarehouseR WHStocktakeR}>Stocktake
             <a.list-group-item href=@{WarehouseR WHStocktakeValidateR}>Validate Stocktake
             <a.list-group-item href=@{WarehouseR WHStocktakeSaveR}>Save Stocktake

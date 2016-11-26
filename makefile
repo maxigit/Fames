@@ -61,5 +61,5 @@ test: up
 
 .PHONY: install
 install:
-	scp .stack-work/install/x86_64-linux/lts-5.18/7.10.3/bin/Fames sinbad:prod/fames-config/bin/Fames
+	rsync -z .stack-work/install/x86_64-linux/lts-5.18/7.10.3/bin/Fames sinbad:prod/fames-config/bin/Fames
 

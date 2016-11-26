@@ -5,3 +5,4 @@ module Handler.WH
 
 import Handler.WH.Barcode as X
 import Handler.WH.Stocktake as X
+import Handler.WH.StockAdjustment as X

@@ -12,14 +12,17 @@
 
 /warehouse WarehouseR !warehouse:
   /barcodes WHBarcodeR GET POST
+
   /stocktake WHStocktakeR GET !stoctake
   /stocktake/save WHStocktakeSaveR GET POST !stocktake
   /stocktake/validate WHStocktakeValidateR GET POST !stocktake
+  /stock_adjustment WHStockAdjustmentR GET POST !stock_adj
+
   /stocktake/locations WHStocktakeLocationR GET
 
 /administrator AdministratorR GET
 
--- Warning ! This code has been generated !}
+--- Warning ! This code has been generated !}
 
 -- Route
 /db/fa FA'R !db !fa:

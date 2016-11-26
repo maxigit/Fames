@@ -40,6 +40,7 @@ library
                      Handler.WH
                      Handler.WH.Barcode
                      Handler.WH.Stocktake
+                     Handler.WH.StockAdjustment
                      Handler.FA
                      Handler.FAX
                      Handler.FAMES
