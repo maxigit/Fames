@@ -22,7 +22,7 @@
 
 /administrator AdministratorR GET
 
---- Warning ! This code has been generated !}
+-- Warning ! This code has been generated !}
 
 -- Route
 /db/fa FA'R !db !fa:
@@ -149,4 +149,6 @@
   /fames_email FAMESFamesEmailR GET
   /fames_operator FAMESFamesOperatorR GET
   /fames_stocktake FAMESFamesStocktakeR GET
+  /fames_stock_adjustment FAMESFamesStockAdjustmentR GET
+  /fames_stock_adj_detail FAMESFamesStockAdjDetailR GET
   /fames_user FAMESFamesUserR GET

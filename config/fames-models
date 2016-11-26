@@ -52,10 +52,27 @@ FamesStocktake sql=fames_stocktake
     quantity Int  sql=quantity
     barcode Text  sql=barcode
     index Int  sql=index
+    locCode Text  sql=loc_code
     date Day  sql=date
     active Bool  sql=active
     operatorId Int  sql=operator_id
+    stockAdjId Int Maybe sql=stock_adj_id
     documentKeyId Int  sql=document_key_id
+
+FamesStockAdjustment sql=fames_stock_adjustment
+    Id Int  sql=stock_adj_id
+    comment Text  sql=comment
+    date Day  sql=date
+    status Int  sql=status
+    user Int  sql=user
+
+FamesStockAdjDetail sql=fames_stock_adj_detail
+    Id Int  sql=stock_adj_detail_id
+    stockAdjId Int  sql=stock_adj_id
+    stockId Text  sql=stock_id
+    quantity Int  sql=quantity
+    locFrom Text  sql=loc_from
+    locTo Text  sql=loc_to
 
 FamesUser sql=fames_user
     Id Int  sql=user_id

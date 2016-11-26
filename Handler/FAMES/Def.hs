@@ -26,6 +26,12 @@ getFAMESFamesOperatorR = entityTableHandler (FAMES'R FAMESFamesOperatorR) ([] ::
 getFAMESFamesStocktakeR :: Handler Html 
 getFAMESFamesStocktakeR = entityTableHandler (FAMES'R FAMESFamesStocktakeR) ([] :: [Filter FAMES.FamesStocktake]) 
 
+getFAMESFamesStockAdjustmentR :: Handler Html 
+getFAMESFamesStockAdjustmentR = entityTableHandler (FAMES'R FAMESFamesStockAdjustmentR) ([] :: [Filter FAMES.FamesStockAdjustment]) 
+
+getFAMESFamesStockAdjDetailR :: Handler Html 
+getFAMESFamesStockAdjDetailR = entityTableHandler (FAMES'R FAMESFamesStockAdjDetailR) ([] :: [Filter FAMES.FamesStockAdjDetail]) 
+
 getFAMESFamesUserR :: Handler Html 
 getFAMESFamesUserR = entityTableHandler (FAMES'R FAMESFamesUserR) ([] :: [Filter FAMES.FamesUser]) 
 

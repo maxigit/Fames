@@ -86,7 +86,7 @@ postWHStockAdjustmentR = do
       <th> Style
       <th> Stocktake
       <th> Date
-      <th> Quantity on Hand
+      <th> QOH FA
       <th> Last move
     $forall (st, qty, stDate, qoh, lastMove) <- xs
       <tr class="#{classFor qty qoh}">
