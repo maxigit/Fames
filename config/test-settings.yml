@@ -1,3 +1,4 @@
+should-log-all: false
 database:
   # NOTE: By design, this setting prevents the MYSQL_DATABASE environment variable
   # from affecting test runs, so that we don't accidentally affect the
@@ -14,3 +15,14 @@ database:
 
 roles:
   admin: Administrator
+
+stock-locations:
+  DEF:
+  - shelf-1
+  - shelf-2
+  - DEF
+  LOST:
+  - LOST
+  "Container 1":
+  - shelf-3
+

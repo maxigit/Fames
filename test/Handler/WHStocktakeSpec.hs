@@ -13,7 +13,7 @@ relPath path = "test/Handler/WHStocktakeSpec/" ++ path
 uploadSTSheet route status path = do
 
   logAsAdmin 
-  get (WarehouseR WHStocktakeR)
+  get (WarehouseR WHStocktakeValidateR)
   statusIs 200
 
   runDB $ do
@@ -32,7 +32,7 @@ uploadSTSheet route status path = do
 -- more convenient for testing
 postSTSheet status sheet = do
   path <- saveToTempFile sheet
-  uploadSTSheet WHStocktakeR status path
+  uploadSTSheet WHStocktakeValidateR status path
 
 saveSTSheet status sheet = do
   path <- saveToTempFile sheet
@@ -47,7 +47,7 @@ appSpec = withAppWipe BypassAuth $ do
     describe "upload page" $ do
       it "propose to upload a file" $ do
         logAsAdmin 
-        get (WarehouseR WHStocktakeR)
+        get (WarehouseR WHStocktakeValidateR)
         statusIs 200
 
         bodyContains "upload"
@@ -84,16 +84,16 @@ t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 |]
         bodyContains "Document has already been uploaded"
       
-      it "saves twice" $ do
-        saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
-t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
-|]
-        saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
-t-shirt,black,120,shelf-2,ST16NV00399X,34,20,17,2016/11/10,Jack
-|]
-        barcodes <- findBarcodes boxtakeBarcode
-        let types = barcodes :: [Text]
-        liftIO $ barcodes `shouldBe`  ["ST16NV00399X"]
+--       it "@current saves twice" $ do
+--         saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+-- t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+-- |]
+--         saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+-- t-shirt,black,120,shelf-2,ST16NV00399X,34,20,17,2016/11/10,Jack
+-- |]
+--         barcodes <- findBarcodes boxtakeBarcode
+--         let types = barcodes :: [Text]
+--         liftIO $ barcodes `shouldBe`  ["ST16NV00399X"]
 
     describe "process blanks" $ do
       it "fills barcode prefix" $ do
@@ -202,4 +202,16 @@ t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 t-shirt,black,120,shelf-2,-,34,20,17,2016/11/10,Jack
 |]  
           htmlAnyContain "table td.stocktakeLocation. .parsing-error" "shelf-2"
+
+      it "expands shelves" $ do
+          postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-[12],ST16NV00399X,34,20,17,2016/11/10,Jack
+|]  
+          htmlAnyContain "table td.stocktakeLocation" "shelf-1|shelf-2"
+
+      it "checks shelves belongs to the same location " $ do
+          postSTSheet 422 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-[123],ST16NV00399X,34,20,17,2016/11/10,Jack
+|]  
+          htmlAnyContain "table td.stocktakeLocation " "find location with name"
 
