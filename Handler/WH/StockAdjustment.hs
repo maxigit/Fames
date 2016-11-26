@@ -19,10 +19,10 @@ import Database.Persist.MySQL
 -- we are unsure if the stocktake has been done before or after the pick
 
 -- DONE filter style
--- TODO button save
--- TODO add all items
--- TODO save  as csv -> compatible with old system
+-- DONE add all items
 -- TODO add all container
+-- TODO button save
+-- TODO save  as csv -> compatible with old system
 -- TODO parse
 -- TODO check product exists
 data Unsure = Sure | Unsure | All deriving (Eq, Read, Show, Enum, Bounded)
@@ -77,15 +77,21 @@ postWHStockAdjustmentR = do
       let (w,p) = case style param of
                   Just like  -> (" AND stock_id like ?", [PersistText like])
                   Nothing -> ("", [])
-      let sql = "SELECT stock_id, SUM(quantity), MAX(date) \
-               \ FROM fames_stocktake \
-               \ WHERE active =1 " <> w <> "\
+      -- only get the styles which one of the variations has been stock taken.
+      let stockTakenStyle = " (active = 1 OR active IS NULL AND stock_adj_id IS NULL) "
+      let sql = "SELECT stock_id, COALESCE(SUM(quantity),0), MAX(date) \
+               \ FROM 0_stock_master \
+               \ LEFT JOIN fames_stocktake USING (stock_id) \
+               \ WHERE " <> stockTakenStyle <>
+               " AND LEFT(stock_id,8) IN ( SELECT DISTINCT LEFT(stock_id, 8)  \
+               \                           FROM fames_stocktake WHERE " <> stockTakenStyle <> ") "
+               <> w <> "\
                \ GROUP BY stock_id "
 
       stocktakes <- runDB $ rawSql sql p
 
       -- use conduit ? TODO
-      xs <- mapM qohFor stocktakes
+      xs <- catMaybes <$> mapM qohFor stocktakes
       let classFor qty qoh = case compare qty qoh of
             GT -> "success"
             EQ -> ""
@@ -118,23 +124,32 @@ postWHStockAdjustmentR = do
 -- return also the date of the last move (the one corresponding to given quantity).
 -- Needed to detect if the stocktake is sure or not.
 
-qohFor :: (Single Text, Single Int,  Single Day) -> Handler (Text, Int, Day, Int, Day)
-qohFor r@(Single stockId, Single qty, Single stDate) = do
+qohFor :: (Single Text, Single Int,  Single (Maybe Day)) -> Handler (Maybe (Text, Int, Day, Int, Day))
+qohFor r@(Single stockId, Single qty, Single stDateM) = do
   print r
 
+  let (w,p) = case stDateM of
+        Just stDate -> ("  AND tran_date <= ? ", [PersistDay stDate])
+        Nothing -> ("", [])
   let sql = "SELECT SUM(qty), MAX(tran_date)\
             \ FROM 0_stock_moves \
-            \ WHERE stock_id =? \
-            \ AND tran_date <= ? \
+            \ WHERE stock_id =? " <> w <> "\
             \ AND loc_code = 'DEF'"
 
-  result <- runDB $ rawSql sql [ PersistText stockId
-                                , PersistDay stDate
-                                ]
-  case result of 
-    [(Single qoh, Single last)] -> return (stockId, qty, stDate
+  print sql
+  result <- runDB $ rawSql sql ([ PersistText stockId] <> p)
+  
+  case (result, stDateM) of 
+    ([(Single qoh, Single last)], Just stDate) -> return $ Just (stockId, qty, stDate
                                           , fromMaybe 0 qoh , fromMaybe stDate last)
-    [] -> return (stockId, qty, stDate , 0 , stDate)
+    -- no stock take but qoh
+    ([(Single (Just 0), _)], Nothing) -> return Nothing 
+    ([(Single qoh, Single (Just last))], Nothing) -> return $ Just (stockId, qty, last
+                                          , fromMaybe 0 qoh , last)
+    ([], Just stDate) -> return . Just $ (stockId, qty, stDate , 0 , stDate)
+    -- shouldn't be needed
+    ([], Nothing) -> return Nothing 
+    ([(Single Nothing, _)], Nothing) -> return Nothing 
     other -> error (show other)
 
 
