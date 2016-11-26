@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# Language CPP #-}
 -- | Settings are centralized, as much as possible, into this file. This
 -- includes database connection settings, static file locations, etc.
@@ -66,8 +67,13 @@ data AppSettings = AppSettings
     , appRoleFor :: RoleFor 
     -- ^ Roles for each users. Can be overridden for tests.
     -- Must return a Role for everybody, even a "empty" role.
-    , appStockLocations :: [String]
-    -- ^ All locations (shelves) available in the warehouse
+    , appStockLocations :: Map Text [Text]
+    -- ^ All FA locations and their shelves
+    , appStockLocationsInverse :: Map Text Text
+    -- ^ inverse of stockLocations. Gives the FA location from a shelf
+    , appFALostLocation :: Text
+    -- ^ FA location use to loose object
+    , appFADefaultLocation :: Text
     , appBarcodeParams :: [BarcodeParams]
     } deriving Show
 
@@ -110,7 +116,13 @@ instance FromJSON AppSettings  where
                                          | u <- (maybeToList user >>= \u -> [u, "<authenticated>"]) ++ ["<anonymous>"]
                                          ]
                                    )
-        appStockLocations      <- o .:? "stock-locations" .!= []
+        appStockLocations      <- o .:? "stock-locations" .!= Map.fromList []
+        let appStockLocationsInverse = Map.fromList [(shelf, fa)
+                                                    | (fa, shelves) <- Map.toList appStockLocations
+                                                    , shelf <- shelves
+                                                    ]
+        appFALostLocation  <- o .:? "fa-lost-location" .!= "LOST"
+        appFADefaultLocation  <- o .:? "fa-lost-location" .!= "DEF"
         
 
         -- This code enables MySQL's strict mode, without which MySQL will truncate data.

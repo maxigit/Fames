@@ -572,6 +572,7 @@ SalesOrder sql=0_sales_orders
     deliverTo Text  sql=deliver_to
     freightCost Double  sql=freight_cost
     fromStkLoc Text  sql=from_stk_loc
+
     deliveryDate Day  sql=delivery_date
     paymentTerms Int Maybe sql=payment_terms
     total Double  sql=total

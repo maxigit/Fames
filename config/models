@@ -49,6 +49,22 @@ DocumentKey sql=fames_document_key
   UniqueSK key
   deriving Eq
   deriving Show
+-- | A stock adjustment. can generate one more real (FA) adjustemnt and transfer
+StockAdjustment sql=fames_stock_adjustment
+  Id sql=stock_adj_id
+  comment Text
+  date Day
+  status PendingStatus sqltype=Int
+  user UserId 
+
+StockAdjustmentDetail sql=fames_stock_adj_detail
+  Id sql=stock_adj_detail_id
+  ajustement StockAdjustmentId sql=stock_adj_id
+  stockId Text
+  quantity Int
+  from FA.LocationId sql=loc_from
+  to FA.LocationId sql=loc_to
+
 
 -- Stocktake. How many items are in a box.
 -- index allows to have multiple variations in the same box.
@@ -59,10 +75,12 @@ Stocktake sql=fames_stocktake
   quantity Int
   barcode Text
   index Int default=1
+  faLocation FA.LocationId sql=loc_code
   date Day
   active Bool default=True
-  operatorId OperatorId
-  documentKeyId DocumentKeyId
+  operator OperatorId sql=operator_id
+  adjustment StockAdjustmentId Maybe sql=stock_adj_id
+  documentKey DocumentKeyId sql=document_key_id
   UniqueSB barcode index
   deriving Eq
   deriving Show
@@ -79,13 +97,12 @@ Boxtake sql=fames_boxtake
   location Text sqltype=Blob
   date Day
   active Bool
-  operatorId OperatorId
-  documentKeyId DocumentKeyId
+  operator OperatorId sql=operator_id
+  documentKey DocumentKeyId sql=document_key_id
   UniqueBB barcode
-  UniqueBK documentKeyId reference
+  UniqueBK documentKey reference
   deriving Eq
   deriving Show
-
 
 
   

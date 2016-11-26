@@ -20,6 +20,8 @@ import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
 import qualified System.FilePath.Glob as Glob
 import qualified Data.Map.Strict as Map
 
+import qualified FA as FA
+
 -- * Requests
 
 data SavingMode = Validate | Save deriving (Eq, Read, Show)
@@ -94,7 +96,7 @@ $maybe u <- uploader
           Validate -> setWarning msg >> return ""
           Save -> renderWHStocktake mode 422 (formatError msg) (return ()) -- should exit
 
-      locations <- appStockLocations . appSettings <$> getYesod
+      locations <- appStockLocationsInverse . appSettings <$> getYesod
     -- get all operators and generate a map name, firstname  -> operator, operator id
       operators <- runDB $ selectList [OperatorActive ==. True] [] 
       let operatorKeys = Map.fromListWith (++) $
@@ -106,26 +108,27 @@ $maybe u <- uploader
           pks = Map.map (Data.List.head)  (Map.filter (\ops -> Data.List.length ops ==1) operatorKeys)
           -- findOps = Map.lookup (Map.map (Data.List.head)  (Map.filter (\ops -> Data.List.length ops /=1) operatorKeys)) . toLower :: Text -> Entity Operator
           findOps = (flip Map.lookup) pks  . toLower . (filter (/= ' '))
+          findLocs = validateLocation locations
 
       userId <- requireAuthId
       processedAt <- liftIO getCurrentTime
 
       let docKey = DocumentKey "stocktake" (fileName fileInfo) (maybe "" unTextarea commentM) key (userId) processedAt
 
-      either id (process (fileName fileInfo) locations docKey mode) $ do
+      either id (process (fileName fileInfo) docKey mode) $ do
         -- expected results
         --   Everything is fine : [These Stocktake Boxtake]
         --   wrong header : 
         --   good header but invalid format
         --   parsable but invalid
-        case parseTakes findOps locations spreadsheet of
+        case parseTakes findOps findLocs spreadsheet of
           WrongHeader invalid -> Left $ renderWHStocktake mode 422 (formatError "Invalid file or columns missing") (render invalid)
           InvalidFormat raws -> Left $ renderWHStocktake mode 422 (formatError "Invalid cell format") (render raws)
           InvalidData raws ->  Left $ renderWHStocktake mode 422 (formatError "Invalid data") (render raws)
           ParsingCorrect rows -> Right rows
           
-  where process _ _ doc Validate rows = renderWHStocktake mode 200 (formatSuccess "Validation ok!") (render rows)
-        process path locations doc Save rows = (runDB $ do
+  where process  _ doc Validate rows = renderWHStocktake mode 200 (formatSuccess "Validation ok!") (render rows)
+        process path doc Save rows = (runDB $ do
           let finals = zip [1..] (map transformRow rows) :: [(Int, FinalRow)]
 
           -- rows can't be converted straight away to stocktakes and boxtakes
@@ -145,7 +148,7 @@ $maybe u <- uploader
                 let descriptionF = case group of
                                       [row] -> id
                                       (_:_) -> (<> "*")
-                take 1 $ mapMaybe (toBoxtake keyId locations descriptionF) group
+                take 1 $ mapMaybe (toBoxtake keyId descriptionF) group
           
 
           insertMany_ stocktakes
@@ -163,15 +166,24 @@ $maybe u <- uploader
 -- * Csv
 
 -- | Wrapper around Operator
+-- ** Temporary types for parsing
 data Operator' = Operator' {opId :: OperatorId, op :: Operator} deriving (Eq, Show)
 type OpFinder = Text -> Maybe Operator'
+
+
+-- Result of the parsing of location
+data Location' = Location' { faLocation :: FA.LocationId
+                           , parsed :: Text
+                           , expanded :: Text
+                           } deriving (Eq, Read, Show)
+type LocFinder = Text -> Maybe Location'
 
 -- | a take row can hold stocktake and boxtake information
 data TakeRow s = TakeRow
   { rowStyle :: FieldTF s Text 
   , rowColour :: FieldTF s Text  
   , rowQuantity :: FieldTF s (Known Int)
-  , rowLocation :: FieldTF s Text 
+  , rowLocation :: FieldTF s Location'
   , rowBarcode :: FieldTF s Text 
   , rowLength :: FieldTF s Double 
   , rowWidth :: FieldTF s Double 
@@ -201,8 +213,8 @@ type family FieldTF (s :: RowTypes) a where
  
 
 -- | Validates if a raw row has been parsed properly. ie cell are well formatted
-validateRaw :: OpFinder -> RawRow -> Either RawRow PartialRow
-validateRaw ops raw= do
+validateRaw :: OpFinder -> LocFinder ->  RawRow -> Either RawRow PartialRow
+validateRaw ops locs raw= do
   -- preprocess  Operator
   -- Operator is special in a sense it can't be parsed without a map name -> operator
   -- So, when the spreadsheet is parsed, rowOperator is necessary `Left`.
@@ -216,12 +228,19 @@ validateRaw ops raw= do
                              (Right . Just .Provided)
                              (ops name)
           Left field -> Left field
+  let rowLocation' =
+        case rowLocation raw of
+          Right location -> Right location
+          Left (ParsingError _ name) -> maybe (Left $ ParsingError ("Can't find location with name " <> name) name)
+                             (Right . Just .Provided)
+                             (locs name)
+          Left field -> Left field
 
-  either (const $ Left raw {rowOperator = rowOperator'}) Right $ do
+  either (const $ Left raw {rowOperator = rowOperator', rowLocation = rowLocation'}) Right $ do
   rowStyle <- rowStyle raw
   rowColour <- rowColour raw
   rowQuantity <- rowQuantity raw
-  rowLocation <- rowLocation raw
+  rowLocation <- rowLocation'
   rowBarcode <- rowBarcode raw
   rowLength <- rowLength raw
   rowWidth <- rowWidth raw
@@ -232,13 +251,13 @@ validateRaw ops raw= do
   Right TakeRow{..}
 
 -- | Validates if a row is invalid or not. ie 
-validateRows :: [String] -> [PartialRow] -> Either [RawRow] [ValidRow]
-validateRows _ [] = Left []
-validateRows locations (row:rows) = do
+validateRows :: [PartialRow] -> Either [RawRow] [ValidRow]
+validateRows [] = Left []
+validateRows (row:rows) = do
   -- fill blank with previous value if possible
   -- All row needs to be validated. However, except the firs one
   -- we don't the check the barcode as it can be missing the prefix
-  let filleds = scanl (fillFromPrevious locations) (validateRow locations CheckBarcode row) rows :: [Either RawRow ValidRow]
+  let filleds = scanl fillFromPrevious  (validateRow CheckBarcode row) rows :: [Either RawRow ValidRow]
       transformRow' r = let p = transformRow r  
                         in transformRow (p :: PartialRow)
   -- we need to check that the last barcode is not guessed
@@ -256,8 +275,8 @@ validateRows locations (row:rows) = do
 
 data ValidationMode = CheckBarcode | NoCheckBarcode deriving Eq
 
-validateRow :: [String] -> ValidationMode -> PartialRow -> Either RawRow ValidRow
-validateRow locations validateMode row@(TakeRow (Just rowStyle) (Just rowColour) (Just rowQuantity)
+validateRow :: ValidationMode -> PartialRow -> Either RawRow ValidRow
+validateRow validateMode row@(TakeRow (Just rowStyle) (Just rowColour) (Just rowQuantity)
                     (Just rowLocation) (Just rowBarcode)
                     (Just rowLength) (Just rowWidth) ( Just rowHeight)
                     (Just rowDate) (Just rowOperator))
@@ -265,23 +284,20 @@ validateRow locations validateMode row@(TakeRow (Just rowStyle) (Just rowColour)
                          || validateMode == NoCheckBarcode)
                       then Nothing
                       else Just (\r -> r {rowBarcode=Left $ ParsingError "Invalid barcode" (validValue rowBarcode)})
-                    , if isLocationValid locations (unpack $ validValue rowLocation)
-                      then Nothing
-                      else Just(\r -> r  {rowLocation=Left $ ParsingError "Invalid location" (validValue rowLocation)})
                     ] of
        [] -> Right $ TakeRow{..}
        modifiers -> Left $ foldr ($) (transformRow row) modifiers
 
-validateRow _ _ invalid =  Left $ transformRow invalid
+validateRow _ invalid =  Left $ transformRow invalid
 
 
-fillFromPrevious :: [String] -> Either RawRow ValidRow -> PartialRow -> Either RawRow ValidRow
-fillFromPrevious locations (Left prev) partial =
-  case validateRow locations CheckBarcode partial of
+fillFromPrevious :: Either RawRow ValidRow -> PartialRow -> Either RawRow ValidRow
+fillFromPrevious (Left prev) partial =
+  case validateRow CheckBarcode partial of
     Left _ ->  Left $ transformRow partial
     Right valid -> Right valid -- We don't need to check the sequence barcode as the row the previous row is invalid anyway
 
-fillFromPrevious locations (Right previous) partial
+fillFromPrevious (Right previous) partial
   -- | Right valid  <- validateRow CheckBarcode partial = Right valid
   --  ^ can't do that, as we need to check if a barcode sequence is correct
 
@@ -336,7 +352,7 @@ fillFromPrevious locations (Right previous) partial
         _ -> []
      
         
-      in (validateRow locations CheckBarcode) =<< validateRaw (const Nothing) (foldr ($) raw modifiers)
+      in (validateRow CheckBarcode) =<< validateRaw (const Nothing) (const Nothing)  (foldr ($) raw modifiers)
 
 fillValue :: (Maybe (ValidField a)) -> Either InvalidField (ValidField a) -> Either  InvalidField (ValidField a)
 fillValue (Just new) _ = Right new
@@ -385,16 +401,39 @@ fillBarcode new prevE =
     
 -- | Expand a location pattern to the matching locations
 -- ex : ["AB" "AC" "BD"] "A?" -> AB AC
-expandLocation :: [String] -> String -> [String]
-expandLocation [] pat = [pat]
-expandLocation locations pat = let
-  pat' = Glob.compile pat
-  in filter (Glob.match pat') locations
+-- expandLocation :: [String] -> String -> [String]
+-- expandLocation [] pat = [pat]
+-- expandLocation locations pat = let
+--   pat' = Glob.compile pat
+--   in filter (Glob.match pat') locations
+
+expandLocation :: Text -> [Text]
+expandLocation name = let
+  (fix, vars) = break (=='[') name
+  in case stripPrefix "[" vars of
+    Nothing -> [fix]
+    (Just vars) -> case break (==']') vars of
+        (_ ,rest) | null rest -> [] --  Left $ "unbalanced brackets in " <> name
+        (elements, rest) -> do
+              e <- toList elements
+              expanded <- expandLocation (drop 1 rest)
+              return $ (fix<> singleton e)<>expanded
+
+validateLocation :: Map Text Text -> Text -> Maybe Location'
+validateLocation locMap t =
+  let locs = expandLocation t
+  in case mapMaybe (flip Map.lookup locMap) locs of
+  [] -> Nothing
+  (fa:fas) -> -- check all shelves exists and belongs to the same FA location
+    if null (filter (/= fa) fas)
+    then Just $ Location' (FA.LocationKey fa) t (intercalate "|" locs)
+    else Nothing
+  
+  
 
 
-
-isLocationValid :: [String] -> String -> Bool
-isLocationValid = not . null <$$> expandLocation
+-- isLocationValid :: [String] -> String -> Bool
+-- isLocationValid = not . null <$$> validateLocation
 
 data ParsingResult
   = WrongHeader InvalidSpreadsheet
@@ -404,12 +443,12 @@ data ParsingResult
 
 -- | Parses a csv of stocktakes. If a list of locations is given
 -- parseTakes that the locations are valid (matches provided location using unix file globing)
-parseTakes  :: OpFinder -> [String] -> ByteString -> ParsingResult
-parseTakes ops locations bytes = either id ParsingCorrect $ do
+parseTakes  :: OpFinder -> LocFinder -> ByteString -> ParsingResult
+parseTakes opf locf bytes = either id ParsingCorrect $ do
     
   raws <- parseSpreadsheet mempty Nothing bytes <|&> WrongHeader
-  rows <- validateAll (validateRaw ops) raws <|&> InvalidFormat
-  valids <- validateRows locations rows <|&> InvalidData 
+  rows <- validateAll (validateRaw opf locf) raws <|&> InvalidFormat
+  valids <- validateRows rows <|&> InvalidData 
   Right valids
 
   where -- validateAll :: (a-> Either b c) -> [a] -> Either [b] [c]
@@ -422,7 +461,6 @@ parseTakes ops locations bytes = either id ParsingCorrect $ do
           -- a = (traverse validate rows)
           -- in a <|&> -- (const $ lefts ) (const $ map transformRow rows)
 
-
 toStocktakeF :: DocumentKeyId -> FinalRow -> Maybe (Int -> Stocktake)
 toStocktakeF docId TakeRow{..} = case rowQuantity of
   Unknown -> Nothing
@@ -430,18 +468,20 @@ toStocktakeF docId TakeRow{..} = case rowQuantity of
                       quantity
                       rowBarcode
                       index
+                      (faLocation rowLocation)
                       rowDate
                       True
                       (opId rowOperator)
+                      Nothing
                       docId
 
 
-toBoxtake :: DocumentKeyId -> [String] -> (Text -> Text) ->  (Int, FinalRow) -> Maybe Boxtake
-toBoxtake docId locations descriptionFn (col, TakeRow{..}) =
+toBoxtake :: DocumentKeyId -> (Text -> Text) -> (Int, FinalRow) -> Maybe Boxtake
+toBoxtake docId descriptionFn (col, TakeRow{..}) =
   Just $ Boxtake (Just $ descriptionFn (rowStyle<>"-"<>rowColour))
                  (tshow col)
                  rowLength rowWidth rowHeight
-                 rowBarcode ( intercalate "|" $ pack <$> expandLocation locations (unpack rowLocation))
+                 rowBarcode (expanded rowLocation)
                  rowDate
                  True
                  (opId rowOperator)
@@ -465,13 +505,13 @@ instance Csv.FromNamedRecord RawRow where
     <*> m `parse` "Style"
     <*> m `parse` "Colour"
     <*> m `parse` "Quantity"
-    <*> m `parse` "Location"
+    <*> m  Csv..: "Location"
     <*> m `parse` "Barcode Number"
     <*> m `parse` "Length"
     <*> m `parse` "Width"
     <*> m `parse` "Height"
     <*> (allFormatsDay <$$$$> m `parse` "Date Checked" )
-    <*> m Csv..: "Operator"
+    <*> m  Csv..: "Operator"
     where parse m colname = do
             -- parse as a text. To get the cell content
             t <- m Csv..: colname
@@ -487,6 +527,14 @@ instance Csv.FromField (Either InvalidField (Maybe (ValidField (Operator')))) wh
       Nothing -> return $ Right Nothing
       Just t' -> return $ Left (ParsingError "Operator doesn't exist" t')
 
+
+instance Csv.FromField (Either InvalidField (Maybe (ValidField (Location')))) where
+  parseField bs = do
+    t <- Csv.parseField bs
+    let types = t :: Maybe Text 
+    case t of
+      Nothing -> return $ Right Nothing
+      Just t' -> return $ Left (ParsingError "Location doesn't exist" t')
 
 -- * Rendering
 
@@ -512,10 +560,16 @@ instance Renderable [ValidRow] where render = renderRows (const ("" :: Text))
 instance Renderable Operator' where
   render (Operator' opId op) = render $ operatorNickname op
 
+instance Renderable Location' where
+  render loc = [whamlet|
+<span.message. data-toggle="tooltip" title=#{expanded loc}>
+  #{parsed loc} (#{FA.unLocationKey $ faLocation loc})
+|]
+
 classForRaw :: RawRow -> Text                                 
-classForRaw raw = case validateRaw (const Nothing) raw of
+classForRaw raw = case validateRaw (const Nothing) (const Nothing) raw of
   Left _ -> "invalid bg-danger"
-  Right row -> case validateRow [] NoCheckBarcode row of
+  Right row -> case validateRow NoCheckBarcode row of
     Left _ -> "bg-warning"
     Right _ -> ""
 
@@ -542,13 +596,13 @@ renderRows classFor rows = do
 -- | Displays the list of locations
 getWHStocktakeLocationR :: Handler Html
 getWHStocktakeLocationR = do
-  locations <- appStockLocations . appSettings <$> getYesod
+  locations <- appStockLocationsInverse . appSettings <$> getYesod
   defaultLayout [whamlet|
 <h1> Stock locations
   <table.table.table-striped> 
     <tr>
       <th> Name
-    $forall location <- locations
+    $forall (shelf, location) <- Map.toList locations
       <tr>
-        <td> #{location}
+        <td> #{location}: #{shelf}
 |]
