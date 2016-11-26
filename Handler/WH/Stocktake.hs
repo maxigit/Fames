@@ -48,7 +48,7 @@ renderWHStocktake mode status title pre = do
   <div.well>
     <form #upload-form role=form method=post action=@{WarehouseR action} enctype=#{upEncType}>
       ^{uploadFileFormW}
-      <button type="sumbit" name="#{button}" .btn .btn-primary>#{button}
+      <button type="submit" name="#{button}" .btn .btn-primary>#{button}
 |]
 
 
