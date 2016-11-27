@@ -74,6 +74,8 @@ data AppSettings = AppSettings
     , appFALostLocation :: Text
     -- ^ FA location use to loose object
     , appFADefaultLocation :: Text
+    , appFAStockLikeFilter :: Text
+    -- ^ SQL LIKE expression to filter what's is considered stock
     , appBarcodeParams :: [BarcodeParams]
     } deriving Show
 
@@ -122,7 +124,8 @@ instance FromJSON AppSettings  where
                                                     , shelf <- shelves
                                                     ]
         appFALostLocation  <- o .:? "fa-lost-location" .!= "LOST"
-        appFADefaultLocation  <- o .:? "fa-lost-location" .!= "DEF"
+        appFADefaultLocation  <- o .:? "fa-default-location" .!= "DEF"
+        appFAStockLikeFilter  <- o .:? "fa-stock-like-filter" .!= "%"
         
 
         -- This code enables MySQL's strict mode, without which MySQL will truncate data.
