@@ -5,6 +5,8 @@ import Import
 import Yesod.Form.Bootstrap3
 import Database.Persist.MySQL
 
+import qualified FA as FA
+
 -- 3 sections
 -- displays all, or each in a row
 -- give a title, modify textcart to check title correct
@@ -42,10 +44,12 @@ data FormParam = FormParam
   , maxQty :: Maybe Int
   , sortMode :: SortMode
   , unsure :: Unsure
+  , comment :: Maybe Text
   } deriving (Eq, Read, Show)
 
 
-paramForm = renderBootstrap3 BootstrapBasicForm  form
+data FormMode = Save | View deriving (Eq, Read, Show)
+paramForm mode = renderBootstrap3 BootstrapBasicForm  form
   where form = FormParam
             <$> aopt textField "style" Nothing
             <*> areq boolField "download" (Just False)
@@ -53,6 +57,9 @@ paramForm = renderBootstrap3 BootstrapBasicForm  form
             <*> aopt intField "max quantity" Nothing
             <*> areq (selectField optionsEnum)"sort by" Nothing
             <*> areq (selectField optionsEnum) "mode" (Just All)
+            <*>  (unTextarea <$$> case mode of
+                   Save -> aopt textareaField "comment" Nothing
+                   View -> pure Nothing)
 
 
 
@@ -64,7 +71,7 @@ getWHStockAdjustmentR = do
 
 renderStockAdjustment :: Handler Html
 renderStockAdjustment = do
-  (paramForm, encType) <- generateFormPost paramForm
+  (paramForm, encType) <- generateFormPost (paramForm View)
   let response = [whamlet|
 <form.well #stock-adjustement role=form method=post action=@{WarehouseR WHStockAdjustmentR} enctype=#{encType}>
   ^{paramForm}
@@ -74,9 +81,16 @@ renderStockAdjustment = do
   defaultLayout response
 
 
+
 postWHStockAdjustmentR :: Handler Html
 postWHStockAdjustmentR = do
-  ((resp, view), encType) <- runFormPost paramForm
+  action <- lookupPostParam "action"
+  let mode = case action of
+            Just "save" -> Save
+            _ -> View
+        
+
+  ((resp, view), encType) <- runFormPost (paramForm mode)
   case resp of
     FormMissing -> error "Form missing"
     FormFailure a -> defaultLayout [whamlet|^{view}|]
@@ -121,11 +135,10 @@ postWHStockAdjustmentR = do
           split qty qoh lost = let new = qty -qoh
                                    fromLost = min lost (qty -qoh)
                                in (fromLost, new -fromLost) :: (Int, Int)
-      let response = [whamlet|
-<form #stock-adjustement role=form method=post action=@{WarehouseR WHStockAdjustmentR} enctype=#{encType}>
-  ^{view}
-  <button type="submit" .btn.btn-primary>Submit
-  <button type="submit" name="save" .btn.btn-danger>Save
+      
+      response <- case mode of
+            Save -> saveStockAdj (comment param) rows
+            View -> return [whamlet|
 <div>
   <table.table.table-border.table-hover>
     <tr>
@@ -154,7 +167,13 @@ postWHStockAdjustmentR = do
           <td>#{quantityNow (lost pre)}
           <td>#{tshow $ date $ main pre}
 |]
-      defaultLayout response
+      defaultLayout [whamlet|
+<form #stock-adjustement role=form method=post action=@{WarehouseR WHStockAdjustmentR} enctype=#{encType}>
+  ^{view}
+  <button type="submit" name="action" value="submit" .btn.btn-primary>Submit
+  <button type="submit" name="action" value="save" .btn.btn-danger>Save
+^{response}
+|]
 
 
 -- | Temporary data holding stock adjustment information (to display)
@@ -216,4 +235,49 @@ quantitiesFor loc (Single sku, Single take, Single dateM) = do
 
 
 
+computeAdj :: StockAdjustmentId -> PreAdjust -> [StockAdjustmentDetail]
+computeAdj key pre =
+  let mainTake = quantityTake0 (main pre)
+      mainAt   = quantityAt  (main pre)
+      mainNow   = quantityNow  (main pre)
+      lostTake = quantityTake0 (lost pre)
+      lostAt   = quantityAt  (lost pre)
+      lostNow   = quantityNow  (lost pre)
 
+      lostLoc = Just . FA.LocationKey . location . lost $ pre 
+      mainLoc = Just . FA.LocationKey . location . main $ pre 
+      stock_id = sku pre
+
+      adjs = if mainTake > mainAt
+              then -- found
+                let found = mainTake - mainAt
+                    fromLost = min lostNow found
+                    new = max 0 (found - fromLost)
+
+                in [ StockAdjustmentDetail key stock_id fromLost lostLoc mainLoc  -- found
+                    , StockAdjustmentDetail key stock_id new Nothing mainLoc
+                    ]
+              else
+               let lostQuantity = mainAt - mainTake
+                   -- we don't want stock adjustment to result in negative stock
+                   toAdjust = min lostQuantity mainNow
+                   
+               in  [ StockAdjustmentDetail key stock_id toAdjust mainLoc lostLoc ]
+  in filter ((/= 0) . stockAdjustmentDetailQuantity) adjs
+
+
+
+
+saveStockAdj :: Maybe Text -> [PreAdjust] -> Handler (Widget)
+saveStockAdj comment pres = do
+  now  <- liftIO getCurrentTime
+  userId <- requireAuthId
+  runDB $ do
+    let adj = StockAdjustment (fromMaybe "" comment) now Pending userId
+    adjKey <- insert adj
+
+    let adjs = concatMap (computeAdj adjKey) pres
+    insertMany_ adjs
+
+    setSuccess "Stock adjustment saved"
+    return ""

@@ -5,7 +5,15 @@
 {-# LANGUAGE LiberalTypeSynonyms #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE RankNTypes #-}
-module Handler.WH.Stocktake where
+module Handler.WH.Stocktake
+( getWHStocktakeR
+, postWHStocktakeSaveR
+, postWHStocktakeSaveR
+, getWHStocktakeSaveR
+, postWHStocktakeValidateR
+, getWHStocktakeValidateR
+, getWHStocktakeLocationR
+) where
 
 import Import hiding(last)
 import Handler.CsvUtils
