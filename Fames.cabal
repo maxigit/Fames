@@ -27,6 +27,7 @@ library
                      Import
                      Import.NoFoundation
                      Model
+                     ModelField
                      Settings
                      Settings.StaticFiles
                      SharedTypes

@@ -54,7 +54,7 @@ StockAdjustment sql=fames_stock_adjustment
   Id sql=stock_adj_id
   comment Text
   date UTCTime
-  status PendingStatus sqltype=Int
+  status PendingStatus
   user UserId 
 
 StockAdjustmentDetail sql=fames_stock_adj_detail

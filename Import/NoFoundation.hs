@@ -17,6 +17,7 @@ module Import.NoFoundation
 import ClassyPrelude.Yesod as Import
 import Data.These as Import
 import Model as Import
+import ModelField as Import
 import Settings as Import
 import Settings.StaticFiles as Import
 import SharedTypes as Import

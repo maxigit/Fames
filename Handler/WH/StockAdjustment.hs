@@ -90,7 +90,7 @@ postWHStockAdjustmentR = do
             _ -> View
         
 
-  ((resp, view), encType) <- runFormPost (paramForm mode)
+  ((resp, view), encType) <- runFormPost (paramForm Save)
   case resp of
     FormMissing -> error "Form missing"
     FormFailure a -> defaultLayout [whamlet|^{view}|]
@@ -168,7 +168,7 @@ postWHStockAdjustmentR = do
           <td>#{tshow $ date $ main pre}
 |]
       defaultLayout [whamlet|
-<form #stock-adjustement role=form method=post action=@{WarehouseR WHStockAdjustmentR} enctype=#{encType}>
+<form.well #stock-adjustement role=form method=post action=@{WarehouseR WHStockAdjustmentR} enctype=#{encType}>
   ^{view}
   <button type="submit" name="action" value="submit" .btn.btn-primary>Submit
   <button type="submit" name="action" value="save" .btn.btn-danger>Save
@@ -279,5 +279,11 @@ saveStockAdj comment pres = do
     let adjs = concatMap (computeAdj adjKey) pres
     insertMany_ adjs
 
+    -- update stock take
+    mapM_ (\pre -> updateWhere [ StocktakeStockId ==. (sku pre)
+                               , StocktakeAdjustment ==. Nothing
+                               ]
+                               [StocktakeAdjustment =. Just adjKey])
+                               pres
     setSuccess "Stock adjustment saved"
     return ""
