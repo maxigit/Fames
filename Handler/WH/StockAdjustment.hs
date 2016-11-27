@@ -34,9 +34,13 @@ data CartMode = Lost | Found | New deriving (Eq, Read, Show, Enum)
 -- should be lost .
 data StyleMode = LooseMissing | Partial deriving (Eq, Read, Show, Enum)
 
+data SortMode = SortByStyle | SortByQuantity deriving (Eq, Read, Show, Enum, Bounded)
 data FormParam = FormParam
   { style :: Maybe Text
   , download :: Bool
+  , minQty :: Maybe Int
+  , maxQty :: Maybe Int
+  , sortMode :: SortMode
   , unsure :: Unsure
   } deriving (Eq, Read, Show)
 
@@ -45,6 +49,9 @@ paramForm = renderBootstrap3 BootstrapBasicForm  form
   where form = FormParam
             <$> aopt textField "style" Nothing
             <*> areq boolField "download" (Just False)
+            <*> aopt intField "min quantity" (Just (Just 1))
+            <*> aopt intField "max quantity" Nothing
+            <*> areq (selectField optionsEnum)"sort by" Nothing
             <*> pure All -- areq (selectField optionsEnum) "mode" (Just All)
 
 
@@ -69,7 +76,7 @@ renderStockAdjustment = do
 
 postWHStockAdjustmentR :: Handler Html
 postWHStockAdjustmentR = do
-  ((resp, view), enctype) <- runFormPost paramForm
+  ((resp, view), encType) <- runFormPost paramForm
   case resp of
     FormMissing -> error "Form missing"
     FormFailure a -> defaultLayout [whamlet|^{view}|]
@@ -89,14 +96,26 @@ postWHStockAdjustmentR = do
                \ GROUP BY stock_id "
 
       stocktakes <- runDB $ rawSql sql p
+      results <- catMaybes <$> mapM qohFor stocktakes
+      let withDiff = [(abs (qoh - qty), row) | row@(st, qty, stDate, qoh, lastMove) <- results]
+          f  (q,_) = (maybe True (q >=) (minQty param))
+                   &&  (maybe True (q <=) (maxQty param))
+          filtered = filter f withDiff
+
+          rows = map snd $ case sortMode param of
+            SortByStyle -> filtered
+            SortByQuantity -> sortBy (comparing (\(q,(st,_,_,_,_)) -> (Down q, st) ))  filtered
+          
 
       -- use conduit ? TODO
-      xs <- catMaybes <$> mapM qohFor stocktakes
       let classFor qty qoh = case compare qty qoh of
             GT -> "success"
             EQ -> ""
             LT -> "danger" :: Text
       let response = [whamlet|
+<form #stock-adjustement role=form method=post action=@{WarehouseR WHStockAdjustmentR} enctype=#{encType}>
+  ^{view}
+  <button type="submit" .btn.btn-primary>Submit
 <div>
   <table.table.table-border.table-hover>
     <tr>
@@ -105,7 +124,7 @@ postWHStockAdjustmentR = do
       <th> Date
       <th> QOH FA
       <th> Last move
-    $forall (st, qty, stDate, qoh, lastMove) <- xs
+    $forall (st, qty, stDate, qoh, lastMove) <- rows
       <tr class="#{classFor qty qoh}">
         <td>#{st}
         <td>#{qty}
