@@ -68,7 +68,7 @@ renderStockAdjustment = do
   let response = [whamlet|
 <form.well #stock-adjustement role=form method=post action=@{WarehouseR WHStockAdjustmentR} enctype=#{encType}>
   ^{paramForm}
-  <button type="submit" .btn.btn-primary>Submit
+  <button type="submit" name="submit" .btn.btn-default>Submit
 |]
 
   defaultLayout response
@@ -125,6 +125,7 @@ postWHStockAdjustmentR = do
 <form #stock-adjustement role=form method=post action=@{WarehouseR WHStockAdjustmentR} enctype=#{encType}>
   ^{view}
   <button type="submit" .btn.btn-primary>Submit
+  <button type="submit" name="save" .btn.btn-danger>Save
 <div>
   <table.table.table-border.table-hover>
     <tr>
@@ -203,7 +204,6 @@ quantitiesFor loc (Single sku, Single take, Single dateM) = do
             \WHERE stock_id = ? \
             \AND loc_code = ?"
 
-  print sql
   results <- runDB $ rawSql sql (params <> [PersistText sku, PersistText loc])
 
   return $ case results of

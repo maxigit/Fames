@@ -39,9 +39,9 @@ renderWHStocktake mode status title pre = do
   let form Save = uploadFileFormWithComment
       form Validate = uploadFileForm (pure Nothing)
 
-  let (action, button) = case mode of
-        Validate -> (WHStocktakeValidateR, "validate" :: Text)
-        Save -> (WHStocktakeSaveR, "save")
+  let (action, button,btn) = case mode of
+        Validate -> (WHStocktakeValidateR, "validate" :: Text, "primary" :: Text)
+        Save -> (WHStocktakeSaveR, "save", "danger")
   (uploadFileFormW, upEncType) <- generateFormPost $ form mode
   setMessage title
   sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
@@ -52,7 +52,7 @@ renderWHStocktake mode status title pre = do
   <div.well>
     <form #upload-form role=form method=post action=@{WarehouseR action} enctype=#{upEncType}>
       ^{uploadFileFormW}
-      <button type="submit" name="#{button}" .btn .btn-primary>#{button}
+      <button type="submit" name="#{button}" .btn class="btn-#{btn}">#{button}
 |]
 
 
