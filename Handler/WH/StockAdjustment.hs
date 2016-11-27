@@ -52,7 +52,7 @@ paramForm = renderBootstrap3 BootstrapBasicForm  form
             <*> aopt intField "min quantity" (Just (Just 1))
             <*> aopt intField "max quantity" Nothing
             <*> areq (selectField optionsEnum)"sort by" Nothing
-            <*> pure All -- areq (selectField optionsEnum) "mode" (Just All)
+            <*> areq (selectField optionsEnum) "mode" (Just All)
 
 
 
@@ -98,8 +98,13 @@ postWHStockAdjustmentR = do
       stocktakes <- runDB $ rawSql sql p
       results <- catMaybes <$> mapM qohFor stocktakes
       let withDiff = [(abs (qoh - qty), row) | row@(st, qty, stDate, qoh, lastMove) <- results]
-          f  (q,_) = (maybe True (q >=) (minQty param))
+          f  (q,(st, qty, stDate, qoh, lastMove)) = (maybe True (q >=) (minQty param))
                    &&  (maybe True (q <=) (maxQty param))
+                   && case unsure param of
+                        All -> True
+                        Unsure -> stDate == lastMove
+                        Sure -> stDate /= lastMove
+
           filtered = filter f withDiff
 
           rows = map snd $ case sortMode param of
@@ -139,13 +144,27 @@ postWHStockAdjustmentR = do
       defaultLayout response
 
 
+-- | Temporary data holding stock adjustment information (to display)
+data LocationInfo = LocationInfo
+  { location :: !Text
+  , quantityTake :: !Int -- quantity from stock take 
+  , qoh :: !Int -- quantity on hand at date
+  , now :: !Int -- quantity on hand NOW. To avoid negative stock
+  , date :: !Day
+  } deriving (Eq, Read, Show)
+
+data PreAdjust = PreAdjust
+  { sku :: !Text
+  , main :: !LocationInfo
+  , lost :: !LocationInfo
+  } deriving (Eq, Read, Show)
+
 -- | Returns the qoh at the date of the stocktake.
 -- return also the date of the last move (the one corresponding to given quantity).
 -- Needed to detect if the stocktake is sure or not.
 
 qohFor :: (Single Text, Single Int,  Single (Maybe Day)) -> Handler (Maybe (Text, Int, Day, Int, Day))
 qohFor r@(Single stockId, Single qty, Single stDateM) = do
-  print r
 
   let (w,p) = case stDateM of
         Just stDate -> ("  AND tran_date <= ? ", [PersistDay stDate])
@@ -155,7 +174,6 @@ qohFor r@(Single stockId, Single qty, Single stDateM) = do
             \ WHERE stock_id =? " <> w <> "\
             \ AND loc_code = 'DEF'"
 
-  print sql
   result <- runDB $ rawSql sql ([ PersistText stockId] <> p)
   
   case (result, stDateM) of 
@@ -170,6 +188,7 @@ qohFor r@(Single stockId, Single qty, Single stDateM) = do
     ([], Nothing) -> return Nothing 
     ([(Single Nothing, _)], Nothing) -> return Nothing 
     other -> error (show other)
+
 
 
   
