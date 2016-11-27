@@ -147,9 +147,9 @@ postWHStockAdjustmentR = do
 -- | Temporary data holding stock adjustment information (to display)
 data LocationInfo = LocationInfo
   { location :: !Text
-  , quantityTake :: !Int -- quantity from stock take 
-  , qoh :: !Int -- quantity on hand at date
-  , now :: !Int -- quantity on hand NOW. To avoid negative stock
+  , take :: (Maybe Int) -- quantity from stock take 
+  , quantityAt :: Int -- quantity on hand at date
+  , quantitiNow :: !Int -- quantity on hand NOW. To avoid negative stock
   , date :: !Day
   } deriving (Eq, Read, Show)
 
@@ -162,7 +162,6 @@ data PreAdjust = PreAdjust
 -- | Returns the qoh at the date of the stocktake.
 -- return also the date of the last move (the one corresponding to given quantity).
 -- Needed to detect if the stocktake is sure or not.
-
 qohFor :: (Single Text, Single Int,  Single (Maybe Day)) -> Handler (Maybe (Text, Int, Day, Int, Day))
 qohFor r@(Single stockId, Single qty, Single stDateM) = do
 
@@ -189,6 +188,24 @@ qohFor r@(Single stockId, Single qty, Single stDateM) = do
     ([(Single Nothing, _)], Nothing) -> return Nothing 
     other -> error (show other)
 
+
+-- | Retrive the quantities available for the given location at the given date if provided.
+quantitiesFor :: Text -> (Single Text, Single Int, Single (Maybe Day)) -> Handler LocationInfo 
+quantitiesFor loc (Single sku, Single take, Single dateM) = do
+  today <- utctDay <$> liftIO getCurrentTime
+  let (qtyAtSQL, params) = case dateM of
+        Nothing -> ("TRUE" , [])
+        Just date -> ("tran_date<= ?", [PersistDay date, PersistDay date])
+  let sql = "SELECT SUM(qty) qoh, SUM(IF(#{old},qty,0) qoh_at, MAX(IF(#{old},tran_date,NULL)) \
+            \FROM 0_stock_moves \
+            \WHERE stock_id = ? \
+            \AND loc_code = ?"
+
+  results <- runDB $ rawSql sql (params <> [PersistText sku, PersistText loc])
+
+  return $ case results of
+    [] -> LocationInfo loc Nothing 0 0 today
+    [(Single qoh, Single at, Single last)] -> LocationInfo loc (Just take) at qoh last
 
 
   
