@@ -66,7 +66,7 @@ renderStockAdjustment :: Handler Html
 renderStockAdjustment = do
   (paramForm, encType) <- generateFormPost paramForm
   let response = [whamlet|
-<form #stock-adjustement role=form method=post action=@{WarehouseR WHStockAdjustmentR} enctype=#{encType}>
+<form.well #stock-adjustement role=form method=post action=@{WarehouseR WHStockAdjustmentR} enctype=#{encType}>
   ^{paramForm}
   <button type="submit" .btn.btn-primary>Submit
 |]
@@ -97,19 +97,20 @@ postWHStockAdjustmentR = do
 
       stocktakes <- runDB $ rawSql sql p
       results <- catMaybes <$> mapM qohFor stocktakes
-      let withDiff = [(abs (qoh - qty), row) | row@(st, qty, stDate, qoh, lastMove) <- results]
-          f  (q,(st, qty, stDate, qoh, lastMove)) = (maybe True (q >=) (minQty param))
+      let withDiff = [(abs (quantityTake0 (main pre) - quantityAt (main pre)), pre) |  pre <- results]
+          f  (q, pre) = (maybe True (q >=) (minQty param))
                    &&  (maybe True (q <=) (maxQty param))
-                   && case unsure param of
+                   && let isUnsure = date (main pre) == date (lost pre)
+                      in case unsure param of
                         All -> True
-                        Unsure -> stDate == lastMove
-                        Sure -> stDate /= lastMove
+                        Unsure -> isUnsure
+                        Sure -> not isUnsure
 
           filtered = filter f withDiff
 
           rows = map snd $ case sortMode param of
             SortByStyle -> filtered
-            SortByQuantity -> sortBy (comparing (\(q,(st,_,_,_,_)) -> (Down q, st) ))  filtered
+            SortByQuantity -> sortBy (comparing (\(q,pre) -> (Down q, sku pre ) ))  filtered
           
 
       -- use conduit ? TODO
@@ -117,6 +118,9 @@ postWHStockAdjustmentR = do
             GT -> "success"
             EQ -> ""
             LT -> "danger" :: Text
+          split qty qoh lost = let new = qty -qoh
+                                   fromLost = min lost (qty -qoh)
+                               in (fromLost, new -fromLost) :: (Int, Int)
       let response = [whamlet|
 <form #stock-adjustement role=form method=post action=@{WarehouseR WHStockAdjustmentR} enctype=#{encType}>
   ^{view}
@@ -128,18 +132,26 @@ postWHStockAdjustmentR = do
       <th> Stocktake
       <th> Date
       <th> QOH FA
+      <th> lost
       <th> Last move
-    $forall (st, qty, stDate, qoh, lastMove) <- rows
-      <tr class="#{classFor qty qoh}">
-        <td>#{st}
-        <td>#{qty}
-          $if qoh > qty
-            <span.badge style="#{min (succ qoh - qty) 9}em; background-color:#d9534f">#{qoh - qty}
-        <td>#{tshow $ stDate}
-        <td>#{qoh}
-          $if qty > qoh
-            <span.badge style="width:#{min (succ qty - qoh) 9}em;">#{qty - qoh}
-        <td>#{tshow $ lastMove}
+    $forall pre <- rows
+      $with (qty, qoh, lostq) <- (quantityTake0 (main pre), quantityAt (main pre), quantityNow (lost pre))
+        <tr class="#{classFor qty qoh}">
+          <td>#{sku pre}
+          <td>#{qty}
+            $if qoh > qty
+              <span.badge style="#{min (succ qoh - qty) 9}em; background-color:#d9534f">#{qoh - qty}
+          <td>#{tshow $ date (main pre)}
+          <td>#{qoh}
+            $if qty > qoh
+              $with (fromLost, new) <- split qty qoh lostq
+                $if fromLost > 0
+                  <span.badge style="width:#{min (succ fromLost) 9}em; background-color:#29abe0">#{fromLost}
+                $if new > 0
+                  <span.badge style="width:#{min (succ new) 9}em;">#{new}
+
+          <td>#{quantityNow (lost pre)}
+          <td>#{tshow $ date $ main pre}
 |]
       defaultLayout response
 
@@ -147,11 +159,15 @@ postWHStockAdjustmentR = do
 -- | Temporary data holding stock adjustment information (to display)
 data LocationInfo = LocationInfo
   { location :: !Text
-  , take :: (Maybe Int) -- quantity from stock take 
+  , quantityTake :: (Maybe Int) -- quantity from stock take 
   , quantityAt :: Int -- quantity on hand at date
-  , quantitiNow :: !Int -- quantity on hand NOW. To avoid negative stock
+  , quantityNow :: !Int -- quantity on hand NOW. To avoid negative stock
   , date :: !Day
   } deriving (Eq, Read, Show)
+
+quantityTake0 = fromMaybe 0 . quantityTake
+
+noInfo locInfo = all (==0) [quantityTake0 locInfo, quantityAt locInfo ]
 
 data PreAdjust = PreAdjust
   { sku :: !Text
@@ -159,53 +175,40 @@ data PreAdjust = PreAdjust
   , lost :: !LocationInfo
   } deriving (Eq, Read, Show)
 
+adjustInfos adj  = [main, lost] <*> [adj]
 -- | Returns the qoh at the date of the stocktake.
 -- return also the date of the last move (the one corresponding to given quantity).
 -- Needed to detect if the stocktake is sure or not.
-qohFor :: (Single Text, Single Int,  Single (Maybe Day)) -> Handler (Maybe (Text, Int, Day, Int, Day))
-qohFor r@(Single stockId, Single qty, Single stDateM) = do
-
-  let (w,p) = case stDateM of
-        Just stDate -> ("  AND tran_date <= ? ", [PersistDay stDate])
-        Nothing -> ("", [])
-  let sql = "SELECT SUM(qty), MAX(tran_date)\
-            \ FROM 0_stock_moves \
-            \ WHERE stock_id =? " <> w <> "\
-            \ AND loc_code = 'DEF'"
-
-  result <- runDB $ rawSql sql ([ PersistText stockId] <> p)
-  
-  case (result, stDateM) of 
-    ([(Single qoh, Single last)], Just stDate) -> return $ Just (stockId, qty, stDate
-                                          , fromMaybe 0 qoh , fromMaybe stDate last)
-    -- no stock take but qoh
-    ([(Single (Just 0), _)], Nothing) -> return Nothing 
-    ([(Single qoh, Single (Just last))], Nothing) -> return $ Just (stockId, qty, last
-                                          , fromMaybe 0 qoh , last)
-    ([], Just stDate) -> return . Just $ (stockId, qty, stDate , 0 , stDate)
-    -- shouldn't be needed
-    ([], Nothing) -> return Nothing 
-    ([(Single Nothing, _)], Nothing) -> return Nothing 
-    other -> error (show other)
-
+qohFor :: (Single Text, Single Int,  Single (Maybe Day)) -> Handler (Maybe PreAdjust)
+qohFor r@(Single sku, Single qtake, Single dateM) = do
+  adj <-  PreAdjust
+         <$> pure sku
+         <*> quantitiesFor "DEF" r
+         <*> quantitiesFor "LOST" r
+  return $ if all noInfo (adjustInfos adj)
+              then Nothing
+              else Just adj
 
 -- | Retrive the quantities available for the given location at the given date if provided.
 quantitiesFor :: Text -> (Single Text, Single Int, Single (Maybe Day)) -> Handler LocationInfo 
 quantitiesFor loc (Single sku, Single take, Single dateM) = do
   today <- utctDay <$> liftIO getCurrentTime
-  let (qtyAtSQL, params) = case dateM of
+  let (old, params) = case dateM of
         Nothing -> ("TRUE" , [])
         Just date -> ("tran_date<= ?", [PersistDay date, PersistDay date])
-  let sql = "SELECT SUM(qty) qoh, SUM(IF(#{old},qty,0) qoh_at, MAX(IF(#{old},tran_date,NULL)) \
+  let sql = "SELECT SUM(qty) qoh\
+            \, SUM( IF("<>old<>",qty,0) ) qoh_at\
+            \, MAX( IF("<>old<>",tran_date,NULL) ) \
             \FROM 0_stock_moves \
             \WHERE stock_id = ? \
             \AND loc_code = ?"
 
+  print sql
   results <- runDB $ rawSql sql (params <> [PersistText sku, PersistText loc])
 
   return $ case results of
     [] -> LocationInfo loc Nothing 0 0 today
-    [(Single qoh, Single at, Single last)] -> LocationInfo loc (Just take) at qoh last
+    [(Single qoh, Single at, Single last)] -> LocationInfo loc (Just take) (fromMaybe 0 at) (fromMaybe 0 qoh) (fromMaybe today last)
 
 
   
