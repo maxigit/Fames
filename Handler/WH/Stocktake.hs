@@ -13,6 +13,7 @@ import WH.Barcode
 import Data.List(scanl, last, init, length, head)
 import Data.Either
 
+import Database.Persist.Sql
 import qualified Data.Csv as Csv
 import Yesod.Form.Bootstrap3 
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
@@ -21,6 +22,7 @@ import qualified System.FilePath.Glob as Glob
 import qualified Data.Map.Strict as Map
 
 import qualified FA as FA
+import qualified Data.Set as Set
 
 -- * Requests
 
@@ -97,6 +99,7 @@ $maybe u <- uploader
           Save -> renderWHStocktake mode 422 (formatError msg) (return ()) -- should exit
 
       locations <- appStockLocationsInverse . appSettings <$> getYesod
+      skus <- getStockIds
     -- get all operators and generate a map name, firstname  -> operator, operator id
       operators <- runDB $ selectList [OperatorActive ==. True] [] 
       let operatorKeys = Map.fromListWith (++) $
@@ -121,7 +124,7 @@ $maybe u <- uploader
         --   wrong header : 
         --   good header but invalid format
         --   parsable but invalid
-        case parseTakes findOps findLocs spreadsheet of
+        case parseTakes skus findOps findLocs spreadsheet of
           WrongHeader invalid -> Left $ renderWHStocktake mode 422 (formatError "Invalid file or columns missing") (render invalid)
           InvalidFormat raws -> Left $ renderWHStocktake mode 422 (formatError "Invalid cell format") (render raws)
           InvalidData raws ->  Left $ renderWHStocktake mode 422 (formatError "Invalid data") (render raws)
@@ -251,13 +254,13 @@ validateRaw ops locs raw= do
   Right TakeRow{..}
 
 -- | Validates if a row is invalid or not. ie 
-validateRows :: [PartialRow] -> Either [RawRow] [ValidRow]
-validateRows [] = Left []
-validateRows (row:rows) = do
+validateRows :: Set Text -> [PartialRow] -> Either [RawRow] [ValidRow]
+validateRows _ [] = Left []
+validateRows skus (row:rows) = do
   -- fill blank with previous value if possible
   -- All row needs to be validated. However, except the firs one
   -- we don't the check the barcode as it can be missing the prefix
-  let filleds = scanl fillFromPrevious  (validateRow CheckBarcode row) rows :: [Either RawRow ValidRow]
+  let filleds = scanl (fillFromPrevious skus)  (validateRow skus CheckBarcode row) rows :: [Either RawRow ValidRow]
       transformRow' r = let p = transformRow r  
                         in transformRow (p :: PartialRow)
   -- we need to check that the last barcode is not guessed
@@ -275,8 +278,8 @@ validateRows (row:rows) = do
 
 data ValidationMode = CheckBarcode | NoCheckBarcode deriving Eq
 
-validateRow :: ValidationMode -> PartialRow -> Either RawRow ValidRow
-validateRow validateMode row@(TakeRow (Just rowStyle) (Just rowColour) (Just rowQuantity)
+validateRow :: Set Text -> ValidationMode -> PartialRow -> Either RawRow ValidRow
+validateRow skus validateMode row@(TakeRow (Just rowStyle) (Just rowColour) (Just rowQuantity)
                     (Just rowLocation) (Just rowBarcode)
                     (Just rowLength) (Just rowWidth) ( Just rowHeight)
                     (Just rowDate) (Just rowOperator))
@@ -284,20 +287,25 @@ validateRow validateMode row@(TakeRow (Just rowStyle) (Just rowColour) (Just row
                          || validateMode == NoCheckBarcode)
                       then Nothing
                       else Just (\r -> r {rowBarcode=Left $ ParsingError "Invalid barcode" (validValue rowBarcode)})
+                    , 
+                        let sku = validValue rowStyle <> "-" <> validValue rowColour
+                        in if null skus || sku `member` skus
+                              then Nothing
+                              else Just (\r -> r {rowColour=Left $ ParsingError "Invalid variation" sku})
                     ] of
        [] -> Right $ TakeRow{..}
        modifiers -> Left $ foldr ($) (transformRow row) modifiers
 
-validateRow _ invalid =  Left $ transformRow invalid
+validateRow _ _ invalid =  Left $ transformRow invalid
 
 
-fillFromPrevious :: Either RawRow ValidRow -> PartialRow -> Either RawRow ValidRow
-fillFromPrevious (Left prev) partial =
-  case validateRow CheckBarcode partial of
+fillFromPrevious :: Set Text -> Either RawRow ValidRow -> PartialRow -> Either RawRow ValidRow
+fillFromPrevious skus (Left prev) partial =
+  case validateRow skus CheckBarcode partial of
     Left _ ->  Left $ transformRow partial
     Right valid -> Right valid -- We don't need to check the sequence barcode as the row the previous row is invalid anyway
 
-fillFromPrevious (Right previous) partial
+fillFromPrevious skus (Right previous) partial
   -- | Right valid  <- validateRow CheckBarcode partial = Right valid
   --  ^ can't do that, as we need to check if a barcode sequence is correct
 
@@ -352,7 +360,7 @@ fillFromPrevious (Right previous) partial
         _ -> []
      
         
-      in (validateRow CheckBarcode) =<< validateRaw (const Nothing) (const Nothing)  (foldr ($) raw modifiers)
+      in (validateRow skus CheckBarcode) =<< validateRaw (const Nothing) (const Nothing)  (foldr ($) raw modifiers)
 
 fillValue :: (Maybe (ValidField a)) -> Either InvalidField (ValidField a) -> Either  InvalidField (ValidField a)
 fillValue (Just new) _ = Right new
@@ -443,12 +451,12 @@ data ParsingResult
 
 -- | Parses a csv of stocktakes. If a list of locations is given
 -- parseTakes that the locations are valid (matches provided location using unix file globing)
-parseTakes  :: OpFinder -> LocFinder -> ByteString -> ParsingResult
-parseTakes opf locf bytes = either id ParsingCorrect $ do
+parseTakes  :: Set Text -> OpFinder -> LocFinder -> ByteString -> ParsingResult
+parseTakes skus opf locf bytes = either id ParsingCorrect $ do
     
   raws <- parseSpreadsheet mempty Nothing bytes <|&> WrongHeader
   rows <- validateAll (validateRaw opf locf) raws <|&> InvalidFormat
-  valids <- validateRows rows <|&> InvalidData 
+  valids <- validateRows skus rows <|&> InvalidData 
   Right valids
 
   where -- validateAll :: (a-> Either b c) -> [a] -> Either [b] [c]
@@ -569,7 +577,7 @@ instance Renderable Location' where
 classForRaw :: RawRow -> Text                                 
 classForRaw raw = case validateRaw (const Nothing) (const Nothing) raw of
   Left _ -> "invalid bg-danger"
-  Right row -> case validateRow NoCheckBarcode row of
+  Right row -> case validateRow mempty NoCheckBarcode row of
     Left _ -> "bg-warning"
     Right _ -> ""
 
@@ -606,3 +614,14 @@ getWHStocktakeLocationR = do
       <tr>
         <td> #{location}: #{shelf}
 |]
+
+getStockIds :: Handler (Set Text)
+getStockIds = do
+  stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
+  let sql = " SELECT stock_id \
+            \ FROM 0_stock_master \
+            \ WHERE inactive = 0 \
+            \ AND stock_id like ?"
+
+  results <- runDB $ rawSql sql [PersistText stockLike]
+  return $ Set.fromList (map unSingle results)
