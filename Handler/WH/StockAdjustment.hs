@@ -163,7 +163,7 @@ postWHStockAdjustmentR = do
           <td>#{sku pre}
           <td>#{qty}
             $if qoh > qty
-              <span.badge style="#{min (succ qoh - qty) 9}em; background-color:#d9534f">#{qoh - qty}
+              <span.badge style="width:#{min (succ qoh - qty) 9}em; background-color:#d9534f">#{qoh - qty}
           <td>#{tshow $ date (main pre)}
           <td>#{qoh}
             $if qty > qoh
