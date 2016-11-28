@@ -32,3 +32,8 @@ use constantes, or range for barcode
 * TODO Unify GLEnterReceiptSheetR and StockTake rows class
 ** TODO Use generics 
 
+* Bug
+** Stock adjustment
+*** TODO link adjustment to stocktake without error
+*** TODO use DEF and LOST location from config file
+

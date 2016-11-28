@@ -53,7 +53,7 @@ paramForm mode = renderBootstrap3 BootstrapBasicForm  form
   where form = FormParam
             <$> aopt textField "style" Nothing
             <*> areq boolField "download" (Just False)
-            <*> aopt intField "min quantity" (Just (Just 1))
+            <*> aopt intField "min quantity" Nothing
             <*> aopt intField "max quantity" Nothing
             <*> areq (selectField optionsEnum)"sort by" Nothing
             <*> areq (selectField optionsEnum) "mode" (Just All)
@@ -113,7 +113,8 @@ postWHStockAdjustmentR = do
                \ LEFT JOIN fames_stocktake USING (stock_id) \
                \ WHERE " <> stockTakenStyle <>
                " AND LEFT(stock_id,8) IN ( SELECT DISTINCT LEFT(stock_id, 8)  \
-               \                           FROM fames_stocktake WHERE " <> stockTakenStyle <> ") "
+               \                           FROM fames_stocktake WHERE " <> stockTakenStyle <> ") \
+               \ AND stock_adj_id IS NULL "
                <> w <> "\
                \ GROUP BY stock_id "
 
@@ -299,7 +300,7 @@ saveStockAdj comment pres = do
 -- | Displays a list of pending adjustment
 renderPending :: Handler Widget
 renderPending = do
-  pendings <- runDB $ selectList [StockAdjustmentStatus ==. Pending] [LimitTo 10]
+  pendings <- runDB $ selectList [StockAdjustmentStatus ==. Pending] [] -- [LimitTo 10]
   return [whamlet|
 <table.table.table-hover>
   <tr>
