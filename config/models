@@ -59,7 +59,7 @@ StockAdjustment sql=fames_stock_adjustment
 
 StockAdjustmentDetail sql=fames_stock_adj_detail
   Id sql=stock_adj_detail_id
-  ajustement StockAdjustmentId sql=stock_adj_id
+  adjustment StockAdjustmentId sql=stock_adj_id
   stockId Text
   quantity Int
   from FA.LocationId Maybe sql=loc_from

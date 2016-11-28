@@ -17,9 +17,8 @@
   /stocktake/save WHStocktakeSaveR GET POST !stocktake
   /stocktake/validate WHStocktakeValidateR GET POST !stocktake
   /stock_adjustment WHStockAdjustmentR GET POST !stock_adj
+  !/stock_adjustment/#Int64 WHStockAdjustmentViewR GET !stock_adj
 
   /stocktake/locations WHStocktakeLocationR GET
 
 /administrator AdministratorR GET
-
-warehouse/stocktake?page=1&pageSize_=200

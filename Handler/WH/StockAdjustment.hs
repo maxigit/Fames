@@ -72,10 +72,18 @@ getWHStockAdjustmentR = do
 renderStockAdjustment :: Handler Html
 renderStockAdjustment = do
   (paramForm, encType) <- generateFormPost (paramForm View)
+  pendings <- renderPending
   let response = [whamlet|
-<form.well #stock-adjustement role=form method=post action=@{WarehouseR WHStockAdjustmentR} enctype=#{encType}>
-  ^{paramForm}
-  <button type="submit" name="submit" .btn.btn-default>Submit
+<div.panel.panel-info>
+  <div.panel-heading>
+    <h3> Pending Stock Adjustment
+  <div.panel-body>
+    ^{pendings}
+<div.panel> 
+  <div.panel-body>
+    <form.well #stock-adjustement role=form method=post action=@{WarehouseR WHStockAdjustmentR} enctype=#{encType}>
+      ^{paramForm}
+      <button type="submit" name="submit" .btn.btn-default>Submit
 |]
 
   defaultLayout response
@@ -287,3 +295,65 @@ saveStockAdj comment pres = do
                                pres
     setSuccess "Stock adjustment saved"
     return ""
+
+-- | Displays a list of pending adjustment
+renderPending :: Handler Widget
+renderPending = do
+  pendings <- runDB $ selectList [StockAdjustmentStatus ==. Pending] [LimitTo 10]
+  return [whamlet|
+<table.table.table-hover>
+  <tr>
+    <th> Id
+    <th> Date
+    <th> Comment
+    <th> Statement
+  $forall (Entity k adj) <- pendings
+    <tr>
+      <td> <a href=@{WarehouseR (WHStockAdjustmentViewR (unSqlBackendKey $ unStockAdjustmentKey k) )}>
+       ##{tshow $ unSqlBackendKey $ unStockAdjustmentKey k}
+      <td> #{tshow $ stockAdjustmentDate adj}
+      <td> #{take 50 $ stockAdjustmentComment adj}
+      <td> #{tshow $ stockAdjustmentStatus adj}
+|]
+
+
+getWHStockAdjustmentViewR :: Int64 -> Handler Html
+getWHStockAdjustmentViewR key = do
+  let adjKey  = (SqlBackendKey key)
+      mainLoc = Just (FA.LocationKey "DEF")
+      lostLoc = Just (FA.LocationKey "LOST")
+
+  
+  (details, adj) <- runDB $ do
+    adj <- get (StockAdjustmentKey adjKey)
+
+    entities <- selectList [StockAdjustmentDetailAdjustment ==. StockAdjustmentKey adjKey] []
+    return (map entityVal entities, adj)
+  
+  let lost = filter ((== mainLoc) . stockAdjustmentDetailFrom ) details
+  let found = filter ((== lostLoc) . stockAdjustmentDetailFrom ) details
+  let new = filter ((== Nothing) . stockAdjustmentDetailFrom ) details
+
+  let renderDetails :: Text -> Text -> [StockAdjustmentDetail] -> Widget
+      renderDetails title class_ details = [whamlet|
+<div.panel. class="panel-#{class_}">
+  <div.panel-heading>
+    <h3> #{title}
+  <div.panel-body>
+    <p.well>
+      $forall d <- details
+       #{stockAdjustmentDetailStockId d} #{stockAdjustmentDetailQuantity d} <br>
+                          |]
+
+  defaultLayout $ do
+    [whamlet|
+$maybe a <- adj                                                  
+  <div>
+    #{tshow $ stockAdjustmentDate a}
+    #{tshow $ stockAdjustmentStatus a}
+    <div.well> #{stockAdjustmentComment a}
+            |]
+    renderDetails "Found" "success"  found
+    renderDetails "Lost" "danger"  lost
+    renderDetails "New" "warning"  new
+  
