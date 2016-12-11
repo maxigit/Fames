@@ -10,11 +10,16 @@ spec = appSpec
 
 relPath path = "test/Handler/WHStocktakeSpec/" ++ path
 
-uploadSTSheet route status path = do
+uploadSTSheet route status path overrideM = do
 
   logAsAdmin 
-  get (WarehouseR WHStocktakeValidateR)
+  if isJust overrideM
+     then  -- we need the override button to be present
+       get (WarehouseR WHStocktakeSaveR)
+     else 
+       get (WarehouseR WHStocktakeValidateR)
   statusIs 200
+  printBody
 
   runDB $ do
     insertUnique $ Operator "John" "Smith" "Jack" True
@@ -23,20 +28,28 @@ uploadSTSheet route status path = do
     setUrl (WarehouseR route)
     addToken_ "form#upload-form"
     fileByLabel "upload" path "text/plain"
-    byLabel "encoding" (tshow $ 1)
+    byLabel "encoding" (tshow 1)
+    case overrideM of
+      Nothing -> return ()
+      Just False -> addPostParam "f4" "no"
+      Just True -> addPostParam "f4" "yes"
+    -- forM_ overrideM  (\override ->  byLabel "override" "")
 
-  -- printBody
   statusIs status
 
 -- write the sheet to a temporary file and upload it.
 -- more convenient for testing
 postSTSheet status sheet = do
   path <- saveToTempFile sheet
-  uploadSTSheet WHStocktakeValidateR status path
+  uploadSTSheet WHStocktakeValidateR status path Nothing
 
 saveSTSheet status sheet = do
   path <- saveToTempFile sheet
-  uploadSTSheet WHStocktakeSaveR status path
+  uploadSTSheet WHStocktakeSaveR status path (Just False)
+
+updateSTSheet status sheet = do
+  path <- saveToTempFile sheet
+  uploadSTSheet WHStocktakeSaveR status path (Just True)
 
 findBarcodes getBarcode = do
   entities <- runDB $ selectList [] []
@@ -45,7 +58,7 @@ findBarcodes getBarcode = do
 appSpec = withAppWipe BypassAuth $ do
   describe "upload stocktake" $ do
     describe "upload page" $ do
-      it "propose to upload a file" $ do
+      it "proposes to upload a file" $ do
         logAsAdmin 
         get (WarehouseR WHStocktakeValidateR)
         statusIs 200
@@ -145,6 +158,16 @@ t-shirt,red,120,shelf-1,-,,,,,Jack
         htmlCount "table td.stocktakeBarcode" 2
 
 
+    describe "overriding existing stocktake" $ do
+      it "Creates a new stocktake item if needed" $ do
+        updateSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+|]
+        stockTake <- runDB $ getBy (UniqueSB "ST16NV00399X" 10)
+        liftIO $ ((,) <$> stocktakeStockId <*> stocktakeQuantity) . entityVal <$> stockTake `shouldBe` Just ("t-shirt-black", 120)
+
+      it "Updates the stocktake value" (const pending)
+      it "doesn't update the adjustment key" (const pending)
   
     describe "validation" $ do
       it "detects incorrect barcode on the first line" $ do

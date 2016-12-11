@@ -171,7 +171,7 @@ $maybe u <- uploader
 
           if override
             then do
-              (mapM (\s -> upsert s []) stocktakes ) >> return ()
+              (mapM (\s -> upsert s [StocktakeAdjustment =. error "implement the code"]) stocktakes ) >> return ()
               (mapM (\s -> upsert s []) boxtakes) >> return ()
             else do
               insertMany_ stocktakes

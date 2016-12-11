@@ -23,7 +23,7 @@ postReceiptSheet status sheet = do
     byLabel "Sheet name" "test 1"
     byLabel "Receipts" sheet
 
-  printBody
+  -- printBody
   statusIs status
 
 uploadReceiptSheet status encoding path = do
