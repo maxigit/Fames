@@ -44,13 +44,10 @@ getWHStocktakeValidateR = renderWHStocktake Validate 200 (formatInfo "Enter Stoc
 
 renderWHStocktake :: SavingMode -> Int -> Html -> Widget -> Handler Html
 renderWHStocktake mode status title pre = do
-  let form Save = uploadFileFormWithComment
-      form Validate = uploadFileForm (pure Nothing)
-
   let (action, button,btn) = case mode of
         Validate -> (WHStocktakeValidateR, "validate" :: Text, "primary" :: Text)
         Save -> (WHStocktakeSaveR, "save", "danger")
-  (uploadFileFormW, upEncType) <- generateFormPost $ form mode
+  (uploadFileFormW, upEncType) <- generateFormPost $ uploadForm mode
   setMessage title
   sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
   <div>
@@ -74,20 +71,30 @@ getWHStocktakeSaveR = renderWHStocktake Save 200 (formatInfo "Enter Stocktake") 
 postWHStocktakeSaveR :: Handler Html
 postWHStocktakeSaveR = processStocktakeSheet Save
 
+uploadForm mode = 
+  let form' Save = (,,,)
+                   <$> areq fileField "upload" Nothing
+                   <*> areq (selectField optionsEnum ) "encoding" (Just UTF8)
+                   <*> aopt textareaField "comment" Nothing
+                   <*> areq boolField "override" (Just False)
+      form' Validate = (,,,)
+                   <$> areq fileField "upload" Nothing
+                   <*> areq (selectField optionsEnum ) "encoding" (Just UTF8)
+                   <*> pure Nothing
+                   <*> pure False
+  in renderBootstrap3 BootstrapBasicForm . form' $ mode
+
 -- | Display or save the uploaded spreadsheet
 -- At the moment saving a spreadsheet involves having to upload it twice.
 -- Once for validation and once for processing. We could use a session or similar
 -- to "save" the validation processing.
 processStocktakeSheet :: SavingMode -> Handler Html 
 processStocktakeSheet mode = do
-  let form Save = uploadFileFormWithComment
-      form Validate = uploadFileForm (pure Nothing)
-
-  ((fileResp, postFileW), enctype) <- runFormPost (form mode)
+  ((fileResp, postFileW), enctype) <- runFormPost (uploadForm mode)
   case fileResp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
-    FormSuccess (fileInfo, encoding, commentM) -> do
+    FormSuccess (fileInfo, encoding, commentM, override) -> do
       (spreadsheet, key) <- readUploadUTF8 fileInfo encoding
 
       -- TODO move to reuse
@@ -126,7 +133,7 @@ $maybe u <- uploader
 
       let docKey = DocumentKey "stocktake" (fileName fileInfo) (maybe "" unTextarea commentM) key (userId) processedAt
 
-      either id (process (fileName fileInfo) docKey mode) $ do
+      either id (process (fileName fileInfo) docKey mode override) $ do
         -- expected results
         --   Everything is fine : [These Stocktake Boxtake]
         --   wrong header : 
@@ -138,8 +145,8 @@ $maybe u <- uploader
           InvalidData raws ->  Left $ renderWHStocktake mode 422 (formatError "Invalid data") (render raws)
           ParsingCorrect rows -> Right rows
           
-  where process  _ doc Validate rows = renderWHStocktake mode 200 (formatSuccess "Validation ok!") (render rows)
-        process path doc Save rows = (runDB $ do
+  where process  _ doc Validate _ rows = renderWHStocktake mode 200 (formatSuccess "Validation ok!") (render rows)
+        process path doc Save override rows = (runDB $ do
           let finals = zip [1..] (map transformRow rows) :: [(Int, FinalRow)]
 
           -- rows can't be converted straight away to stocktakes and boxtakes
@@ -162,8 +169,13 @@ $maybe u <- uploader
                 take 1 $ mapMaybe (toBoxtake keyId descriptionF) group
           
 
-          insertMany_ stocktakes
-          insertMany_ boxtakes
+          if override
+            then do
+              (mapM (\s -> upsert s []) stocktakes ) >> return ()
+              (mapM (\s -> upsert s []) boxtakes) >> return ()
+            else do
+              insertMany_ stocktakes
+              insertMany_ boxtakes
 
           ) >> renderWHStocktake mode 200 (formatSuccess (toHtml $ "Spreadsheet "<> path <> " processed")) (return ())
        
