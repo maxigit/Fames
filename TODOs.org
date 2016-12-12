@@ -1,3 +1,6 @@
+* TODO not forget
+- [ ] put back saving of boxstacke
+- [ ] replace update by post in spec
 * TODO Sunday [3/6]
 ** TODO Change home page to have useful link
 ** TODO Deploy production
@@ -36,4 +39,5 @@ use constantes, or range for barcode
 ** Stock adjustment
 *** TODO link adjustment to stocktake without error
 *** TODO use DEF and LOST location from config file
+*** TODO save all stock adj in one transaction
 

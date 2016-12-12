@@ -4,6 +4,9 @@ module Handler.WHStocktakeSpec where
 
 import TestImport
 import Text.Shakespeare.Text (st)
+import ModelField
+import Yesod.Auth (requireAuthId)
+import Database.Persist.Sql (toSqlKey)
 
 spec :: Spec
 spec = appSpec
@@ -19,7 +22,6 @@ uploadSTSheet route status path overrideM = do
      else 
        get (WarehouseR WHStocktakeValidateR)
   statusIs 200
-  printBody
 
   runDB $ do
     insertUnique $ Operator "John" "Smith" "Jack" True
@@ -149,7 +151,7 @@ t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 
 
 
-      it "@toto groups mixed colours with the same barcode" $ do
+      it "groups mixed colours with the same barcode" $ do
         postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
 t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 t-shirt,red,120,shelf-1,-,,,,,Jack
@@ -163,11 +165,40 @@ t-shirt,red,120,shelf-1,-,,,,,Jack
         updateSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
 t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 |]
-        stockTake <- runDB $ getBy (UniqueSB "ST16NV00399X" 10)
+        stockTake <- runDB $ getBy (UniqueSB "ST16NV00399X" 1)
         liftIO $ ((,) <$> stocktakeStockId <*> stocktakeQuantity) . entityVal <$> stockTake `shouldBe` Just ("t-shirt-black", 120)
 
-      it "Updates the stocktake value" (const pending)
-      it "doesn't update the adjustment key" (const pending)
+      it "Updates the stocktake value" $ do
+        saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+|]
+        stockTakeOrig <- runDB $ getBy (UniqueSB "ST16NV00399X" 1)
+        liftIO $ ((,) <$> stocktakeStockId <*> stocktakeQuantity) . entityVal <$> stockTakeOrig
+          `shouldBe` Just ("t-shirt-black", 120)
+        updateSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,red,17,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+|]
+        stockTake <- runDB $ getBy (UniqueSB "ST16NV00399X" 1)
+        liftIO $ ((,) <$> stocktakeStockId <*> stocktakeQuantity) . entityVal <$> stockTake `shouldBe` Just ("t-shirt-red", 17)
+              
+      it "doesn't update the adjustment key" $ do
+        saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+|]
+        Just (Entity oldKey old) <- runDB $ getBy (UniqueSB "ST16NV00399X" 1)
+        -- create document
+        now <- liftIO getCurrentTime
+        let adj = StockAdjustment "test" now Pending (toSqlKey 1)
+        adjId <- runDB $ insert adj
+  
+        runDB $ update oldKey [StocktakeAdjustment =. Just adjId]
+         
+        -- update
+        updateSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,red,17,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+|]
+        Just (Entity _ new) <- runDB $ getBy (UniqueSB "ST16NV00399X" 1)
+        liftIO $ (stocktakeAdjustment new) `shouldBe` Just adjId
   
     describe "validation" $ do
       it "detects incorrect barcode on the first line" $ do

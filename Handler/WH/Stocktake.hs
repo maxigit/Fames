@@ -170,9 +170,23 @@ $maybe u <- uploader
           
 
           if override
-            then do
-              (mapM (\s -> upsert s [StocktakeAdjustment =. error "implement the code"]) stocktakes ) >> return ()
-              (mapM (\s -> upsert s []) boxtakes) >> return ()
+            then 
+              forM_ stocktakes $ \s -> do
+                -- todo  not optimal
+                let unique = UniqueSB (stocktakeBarcode s) (stocktakeIndex s)
+                existM <- getBy  unique
+                case existM of
+                  Nothing -> insert_ s
+                  Just (Entity key old) -> update key [ StocktakeStockId =. stocktakeStockId s
+                                           , StocktakeQuantity =. stocktakeQuantity s
+                                           , StocktakeFaLocation =. stocktakeFaLocation s
+                                           , StocktakeDate =. stocktakeDate s
+                                           , StocktakeActive =. stocktakeActive s
+                                           , StocktakeOperator =. stocktakeOperator s
+                                           -- , StocktakeAdjustment =. stocktakeAdjustment old
+                                           , StocktakeDocumentKey =. stocktakeDocumentKey s
+                                           ]
+              -- (mapM (\s -> upsert s []) boxtakes) >> return ()
             else do
               insertMany_ stocktakes
               insertMany_ boxtakes
