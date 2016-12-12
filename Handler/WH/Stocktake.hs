@@ -171,22 +171,43 @@ $maybe u <- uploader
 
           if override
             then 
-              forM_ stocktakes $ \s -> do
-                -- todo  not optimal
-                let unique = UniqueSB (stocktakeBarcode s) (stocktakeIndex s)
-                existM <- getBy  unique
-                case existM of
-                  Nothing -> insert_ s
-                  Just (Entity key old) -> update key [ StocktakeStockId =. stocktakeStockId s
-                                           , StocktakeQuantity =. stocktakeQuantity s
-                                           , StocktakeFaLocation =. stocktakeFaLocation s
-                                           , StocktakeDate =. stocktakeDate s
-                                           , StocktakeActive =. stocktakeActive s
-                                           , StocktakeOperator =. stocktakeOperator s
-                                           -- , StocktakeAdjustment =. stocktakeAdjustment old
-                                           , StocktakeDocumentKey =. stocktakeDocumentKey s
-                                           ]
-              -- (mapM (\s -> upsert s []) boxtakes) >> return ()
+              do
+                forM_ stocktakes $ \s -> do
+                  -- todo  not optimal
+                  let unique = UniqueSB (stocktakeBarcode s) (stocktakeIndex s)
+                  existM <- getBy  unique
+                  case existM of
+                    Nothing -> insert_ s
+                    Just (Entity key old) -> update key [ StocktakeStockId =. stocktakeStockId s
+                                            , StocktakeQuantity =. stocktakeQuantity s
+                                            , StocktakeFaLocation =. stocktakeFaLocation s
+                                            , StocktakeDate =. stocktakeDate s
+                                            , StocktakeActive =. stocktakeActive s
+                                            , StocktakeOperator =. stocktakeOperator s
+                                            -- , StocktakeAdjustment =. stocktakeAdjustment old
+                                            , StocktakeDocumentKey =. stocktakeDocumentKey s
+                                            ]
+                mapM (\b -> do
+                  let unique = UniqueBB (boxtakeBarcode b)
+                  existM <- getBy unique
+                  case existM of
+                    Nothing -> insert_ b
+                    Just (Entity key _) -> update key [ BoxtakeDescription =. boxtakeDescription b
+                                                      ,  BoxtakeReference =. boxtakeReference b
+                                                      ,  BoxtakeLength =. boxtakeLength b
+                                                      ,  BoxtakeWidth =. boxtakeWidth b
+                                                      ,  BoxtakeHeight =. boxtakeHeight b
+                                                      ,  BoxtakeBarcode =. boxtakeBarcode b
+                                                      ,  BoxtakeLocation =. boxtakeLocation b
+                                                      ,  BoxtakeDate =. boxtakeDate b
+                                                      ,  BoxtakeActive =. boxtakeActive b
+                                                      ,  BoxtakeOperator =. boxtakeOperator b
+                                                      ,  BoxtakeDocumentKey =. boxtakeDocumentKey b
+                                                      ]
+                  -- print (b, existM)
+                  -- upsert b []
+                     ) boxtakes
+                return ()
             else do
               insertMany_ stocktakes
               insertMany_ boxtakes
