@@ -40,6 +40,7 @@ library
                      Handler.GLEnterReceiptSheet.ReceiptRow
                      Handler.WH
                      Handler.WH.Barcode
+                     Handler.WH.PackingList
                      Handler.WH.Stocktake
                      Handler.WH.StockAdjustment
                      Handler.FA
