@@ -104,6 +104,23 @@ parseInvalidSpreadsheet columnMap bytes err =
                                      Right _ -> tshow err
          InvalidSpreadsheet{..}
 
+-- | Helper to parse a field given different row names
+-- equivalent to m `parse` a <|> m `parse` b
+parseMulti ::
+  (Functor t, Ord k, Foldable t, Csv.FromField a) =>
+  Map k (t String)
+  -> Csv.NamedRecord -> k -> Csv.Parser (Either InvalidField a)
+parseMulti columnMap m colname =  do
+            let Just colnames'' = (Map.lookup colname columnMap)
+                colnames = fromString <$> colnames''
+                mts = map (m Csv..:) colnames
+                mts' = asum $ map (m Csv..:) colnames
+            -- let types = mts :: [Csv.Parser Text]
+            t <- asum mts
+            res <-  toError t <$>  mts'
+            -- return $ trace (show (colname, t, res )) res
+            return res
+
 parseSpreadsheet :: Csv.FromNamedRecord a => Map String [String] ->  Maybe String -> ByteString -> Either InvalidSpreadsheet [a]
 parseSpreadsheet columnMap seps bytes = do
   let lbytes = fromStrict bytes
