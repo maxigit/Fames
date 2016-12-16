@@ -18,29 +18,30 @@ data Mode = Validate | Save deriving (Eq, Read, Show)
 data Format = PartialFirst deriving (Eq, Read, Show)
 data UploadParam = UploadParam
   { containerName :: Text -- ^ name of the container
-  , source :: Text -- ^ name of the file to upload
+  , reference :: Text -- ^ name of the file to upload
   , description :: Textarea -- ^ any comment
   , spreadsheet :: Textarea -- ^ the actual spreadsheet to upload/process
   } deriving (Eq, Read, Show)
 
-uploadForm = renderBootstrap3 BootstrapBasicForm form
+uploadForm param = renderBootstrap3 BootstrapBasicForm form
   where form = UploadParam
-            <$> (areq textField "container" Nothing)
-            <*> (areq textField "reference" Nothing)
-            <*> (areq textareaField "description" Nothing )
-            <*> (areq textareaField "spreadsheet" Nothing )
+            <$> (areq textField "container" (fmap containerName param))
+            <*> (areq textField "reference" (fmap reference param ))
+            <*> (areq textareaField "description" (fmap description param) )
+            <*> (areq textareaField "spreadsheet" (fmap spreadsheet param) )
 
 getWHPackingListR :: Handler Html
-getWHPackingListR = renderWHPackingList Validate 200 (setInfo "Enter a packing list") (return ())
+getWHPackingListR = renderWHPackingList Validate Nothing 200 (setInfo "Enter a packing list") (return ())
 
-renderWHPackingList :: Mode -> Int -> Handler () ->  Widget -> Handler Html
-renderWHPackingList mode status message pre = do
+renderWHPackingList :: Mode -> (Maybe UploadParam) -> Int -> Handler () ->  Widget -> Handler Html
+renderWHPackingList mode param status message pre = do
   let btn = case mode of
         Validate -> "primary" :: Text
         Save -> "danger"
-  (form, encType) <- generateFormPost uploadForm 
+  (form, encType) <- generateFormPost (uploadForm param)
   message
   sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
+    <div.well> ^{pre}
     <div.well>
       <form #upload-form role=form method=post action=@{WarehouseR WHPackingListR} enctype=#{encType}>
         ^{form}
@@ -50,7 +51,7 @@ renderWHPackingList mode status message pre = do
 postWHPackingListR :: Handler Html
 postWHPackingListR = do
   action <- lookupPostParam "action"
-  ((resp, view), encType) <- runFormPost uploadForm
+  ((resp, view), encType) <- runFormPost (uploadForm Nothing)
   case resp of
     FormMissing -> error "Form Missing"
     FormFailure a -> defaultLayout [whamlet|^{view}|]
@@ -62,7 +63,7 @@ processUpload :: Mode -> UploadParam -> Handler Html
 processUpload mode param = do
   let bytes = encodeUtf8 . unTextarea $ spreadsheet param
 
-  renderParsingResult (renderWHPackingList mode 422) 
+  renderParsingResult (renderWHPackingList mode (Just param) 422) 
                       undefined
                       (parsePackingList bytes)
       
