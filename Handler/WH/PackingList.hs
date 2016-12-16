@@ -45,17 +45,16 @@ renderWHPackingList mode param status message pre = do
   message
   sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
     <div.well> ^{pre}
-    <div.panel.panel-default>
-      <div.panel-heading> Make sure the header is present and contains the following columns.
-      <div.panel-body>
-        <table.table.table-bordered.table-hover>
+    <div.panel.panel-info>
+      <div.panel-heading data-toggle="collapse" data-target="#pl-upload-colnames"> Make sure the header is present and contains the following columns.
+      <table#pl-upload-colnames.table.table-bordered.table-hover.collapse.in>
+        <tr>
+          $forall header <- (map fst columnNames) 
+            <th>#{header}
+        $forall values <- transposeM (map snd columnNames)
           <tr>
-            $forall header <- (map fst columnNames) 
-              <th>#{header}
-          $forall values <- transposeM (map snd columnNames)
-            <tr>
-              $forall value <- values
-                <td>#{fromMaybe "" value}
+            $forall value <- values
+              <td>#{fromMaybe "" value}
     <div.well>
       <form #upload-form role=form method=post action=@{WarehouseR WHPackingListR} enctype=#{encType}>
         ^{form}
