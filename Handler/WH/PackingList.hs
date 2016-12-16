@@ -11,6 +11,8 @@ import Yesod.Form.Bootstrap3
 import Handler.CsvUtils
 import qualified Data.Csv as Csv
 import qualified Data.Map as Map
+import Data.List (transpose)
+import qualified Data.List as List
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
 
@@ -38,15 +40,41 @@ renderWHPackingList mode param status message pre = do
   let btn = case mode of
         Validate -> "primary" :: Text
         Save -> "danger"
+      
   (form, encType) <- generateFormPost (uploadForm param)
   message
   sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
     <div.well> ^{pre}
+    <div.panel.panel-default>
+      <div.panel-heading> Make sure the header is present and contains the following columns.
+      <div.panel-body>
+        <table.table.table-bordered.table-hover>
+          <tr>
+            $forall header <- (map fst columnNames) 
+              <th>#{header}
+          $forall values <- transposeM (map snd columnNames)
+            <tr>
+              $forall value <- values
+                <td>#{fromMaybe "" value}
     <div.well>
       <form #upload-form role=form method=post action=@{WarehouseR WHPackingListR} enctype=#{encType}>
         ^{form}
         <button type="submit" name="#{tshow mode}" class="btn btn-#{btn}">#{tshow mode}
                         |]
+  
+--  [[1,2]
+--  ,[3]
+--  ] =>
+-- [[Just 1,Just 3]]
+-- ,[Just 2,Nothing]
+-- ]
+transposeM :: [[a]] -> [[Maybe a]]
+transposeM lines  =
+  let maxLength = List.maximum (map List.length lines)
+      linesM = map (take maxLength . (++ repeat Nothing) . map Just) lines
+  in transpose linesM
+
+
   
 postWHPackingListR :: Handler Html
 postWHPackingListR = do
@@ -111,16 +139,17 @@ type family PLFieldTF (s :: PLRowTypes) a where
 
 columnNames :: [(String, [String])]
 columnNames = [("Style", ["S", "s", "Style", "style", "Style No.", "Style No"] )
-             ,("Quantity", ["q", "Q", "QTY", "qty", "order QTY"])
-             ,("1st carton number", ["start", "f", "F", "cn", "C/NO", "first"])
-             ,("last carton number", ["end", "last", "e"])
-             ,("Number of Carton", ["CTNS", "n", "N"])
-             ,("Quantity per Carton", ["qc", "Q/C", "QTY/CTN"])
-             ,("Total Quantity", ["Total", "t", "T", "TOTAL"])
-             ,("Length", ["l", "L", "Length", "LENGTH"])
-             ,("Width", ["w", "W", "Width", "WIDTH"])
-             ,("Height", ["h", "H", "Height", "HEIGHT"])
-             ]
+              , ("Colour", ["C", "c", "Col", "col", "Color", "color"])
+              ,("Quantity", ["q", "Q", "QTY", "qty", "order QTY"])
+              ,("1st carton number", ["start", "f", "F", "cn", "C/NO", "first"])
+              ,("last carton number", ["end", "last", "e"])
+              ,("Number of Carton", ["CTNS", "n", "N"])
+              ,("Quantity per Carton", ["qc", "Q/C", "QTY/CTN"])
+              ,("Total Quantity", ["Total", "t", "T", "TOTAL"])
+              ,("Length", ["l", "L", "Length", "LENGTH"])
+              ,("Width", ["w", "W", "Width", "WIDTH"])
+              ,("Height", ["h", "H", "Height", "HEIGHT"])
+              ]
 columnNameMap = Map.fromList columnNames
 
 instance Csv.FromNamedRecord (PLRow 'PLRawT) where
