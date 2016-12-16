@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternSynonyms, LiberalTypeSynonyms, DeriveFunctor #-}
+{-# LANGUAGE PatternSynonyms, LiberalTypeSynonyms, DeriveFunctor, DataKinds, PolyKinds #-}
 -- | Miscellaneous functions and types to parse and render CSV.
 module Handler.CsvUtils where
 
@@ -24,7 +24,40 @@ data InvalidField = ParsingError { invFieldType :: Text
                                  }
                   | MissingValueError { invFieldType :: Text }
   deriving (Read, Show, Eq)
+-- State of a row after parsing
+data RowTypes = RawT -- raw row, everything is text
+              | PartialT -- final type but blank allowed
+              | ValidT -- valid. can be guessed (if blank) or provided (by the user itself)
+              | FinalT -- final type
+              deriving (Read, Show, Eq)
 
+data ParsingResult row result
+  = WrongHeader InvalidSpreadsheet
+  | InvalidFormat [row]-- some cells can't be parsed
+  | InvalidData [row]-- each row is well formatted but invalid as a whole
+  | ParsingCorrect result -- Ok
+
+type family NotEq a b where
+  NotEq a a = 'True
+  NotEq a b = 'False
+
+type family UnMaybe a where
+  UnMaybe  (Maybe a) = a
+  UnMaybe  a = a 
+
+type FieldForRaw a  = Either InvalidField (Maybe (ValidField (UnMaybe a)))
+type FieldForPartial a = (Maybe (ValidField (UnMaybe a)))
+type FieldForValid a = ValidField a
+type FieldForFinal a = a
+
+type family FieldTF (s :: RowTypes) a where
+  FieldTF 'RawT (Maybe a) = Either InvalidField (Maybe (ValidField a))
+  FieldTF 'RawT a = Either InvalidField (Maybe (ValidField a))
+  FieldTF 'PartialT (Maybe a) = (Maybe (ValidField a))
+  FieldTF 'PartialT a = (Maybe (ValidField a))
+  FieldTF 'ValidT a = ValidField a
+  FieldTF 'FinalT a = a
+ 
 invalidFieldError :: InvalidField -> Text
 invalidFieldError ParsingError{..} = "Can't parse '"
                                      <> invFieldValue
@@ -121,6 +154,7 @@ parseMulti columnMap m colname =  do
             -- return $ trace (show (colname, t, res )) res
             return res
 
+-- | Parse a spread sheet 
 parseSpreadsheet :: Csv.FromNamedRecord a => Map String [String] ->  Maybe String -> ByteString -> Either InvalidSpreadsheet [a]
 parseSpreadsheet columnMap seps bytes = do
   let lbytes = fromStrict bytes
@@ -308,3 +342,10 @@ instance Renderable InvalidSpreadsheet where
            
              
 
+-- renderParsingResult :: (a -> b)   (r ValidT -> b) -> ParsingResult r -> b
+renderParsingResult onError onSuccess result = 
+        case result of
+          WrongHeader invalid -> onError (setError "Invalid file or columns missing") (render invalid)
+          InvalidFormat raws -> onError (setError "Invalid cell format") (render raws)
+          InvalidData raws ->  onError (setError "Invalid data") (render raws)
+          ParsingCorrect rows -> onSuccess rows

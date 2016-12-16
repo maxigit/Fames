@@ -40,15 +40,15 @@ getWHStocktakeR :: Handler Html
 getWHStocktakeR = entityTableHandler (WarehouseR WHStocktakeR) ([] :: [Filter Stocktake])
 
 getWHStocktakeValidateR :: Handler Html
-getWHStocktakeValidateR = renderWHStocktake Validate 200 (formatInfo "Enter Stocktake") (return ())
+getWHStocktakeValidateR = renderWHStocktake Validate 200 (setInfo "Enter Stocktake") (return ())
 
-renderWHStocktake :: SavingMode -> Int -> Html -> Widget -> Handler Html
-renderWHStocktake mode status title pre = do
+renderWHStocktake :: SavingMode -> Int -> Handler () -> Widget -> Handler Html
+renderWHStocktake mode status message pre = do
   let (action, button,btn) = case mode of
         Validate -> (WHStocktakeValidateR, "validate" :: Text, "primary" :: Text)
         Save -> (WHStocktakeSaveR, "save", "danger")
   (uploadFileFormW, upEncType) <- generateFormPost $ uploadForm mode
-  setMessage title
+  message
   sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
   <div>
     <p>
@@ -66,7 +66,7 @@ postWHStocktakeValidateR = processStocktakeSheet Validate
 
 
 getWHStocktakeSaveR :: Handler Html
-getWHStocktakeSaveR = renderWHStocktake Save 200 (formatInfo "Enter Stocktake") (return ())
+getWHStocktakeSaveR = renderWHStocktake Save 200 (setInfo "Enter Stocktake") (return ())
 
 postWHStocktakeSaveR :: Handler Html
 postWHStocktakeSaveR = processStocktakeSheet Save
@@ -111,7 +111,7 @@ $maybe u <- uploader
 |]
         case mode of
           Validate -> setWarning msg >> return ""
-          Save -> renderWHStocktake mode 422 (formatError msg) (return ()) -- should exit
+          Save -> renderWHStocktake mode 422 (setError msg) (return ()) -- should exit
 
       locations <- appStockLocationsInverse . appSettings <$> getYesod
       skus <- getStockIds
@@ -133,19 +133,10 @@ $maybe u <- uploader
 
       let docKey = DocumentKey "stocktake" (fileName fileInfo) (maybe "" unTextarea commentM) key (userId) processedAt
 
-      either id (process (fileName fileInfo) docKey mode override) $ do
-        -- expected results
-        --   Everything is fine : [These Stocktake Boxtake]
-        --   wrong header : 
-        --   good header but invalid format
-        --   parsable but invalid
-        case parseTakes skus findOps findLocs spreadsheet of
-          WrongHeader invalid -> Left $ renderWHStocktake mode 422 (formatError "Invalid file or columns missing") (render invalid)
-          InvalidFormat raws -> Left $ renderWHStocktake mode 422 (formatError "Invalid cell format") (render raws)
-          InvalidData raws ->  Left $ renderWHStocktake mode 422 (formatError "Invalid data") (render raws)
-          ParsingCorrect rows -> Right rows
-          
-  where process  _ doc Validate _ rows = renderWHStocktake mode 200 (formatSuccess "Validation ok!") (render rows)
+      renderParsingResult (renderWHStocktake mode 422)
+                          (process (fileName fileInfo) docKey mode override)
+                          (parseTakes skus findOps findLocs spreadsheet)
+  where process  _ doc Validate _ rows = renderWHStocktake mode 200 (setSuccess "Validation ok!") (render rows)
         process path doc Save override rows = (runDB $ do
           let finals = zip [1..] (map transformRow rows) :: [(Int, FinalRow)]
 
@@ -212,7 +203,7 @@ $maybe u <- uploader
               insertMany_ stocktakes
               insertMany_ boxtakes
 
-          ) >> renderWHStocktake mode 200 (formatSuccess (toHtml $ "Spreadsheet "<> path <> " processed")) (return ())
+          ) >> renderWHStocktake mode 200 (setSuccess (toHtml $ "Spreadsheet "<> path <> " processed")) (return ())
        
      
 
@@ -251,7 +242,6 @@ data TakeRow s = TakeRow
   }
   
 
-data RowTypes = RawT | PartialT | ValidT | FinalT deriving (Read, Show, Eq)
 type RawRow = TakeRow RawT -- Raw data. Contains if the original text value if necessary
 type PartialRow = TakeRow PartialT -- Well formatted row. Can contains blank
 type ValidRow = TakeRow ValidT -- Contains valid value with guessed/provided indicator
@@ -261,14 +251,6 @@ deriving instance Show RawRow
 deriving instance Show PartialRow
 deriving instance Show ValidRow
 
-type family FieldTF (s :: RowTypes) a where
-  FieldTF 'RawT (Maybe a) = Either InvalidField (Maybe (ValidField a))
-  FieldTF 'RawT a = Either InvalidField (Maybe (ValidField a))
-  FieldTF 'PartialT (Maybe a) = (Maybe (ValidField a))
-  FieldTF 'PartialT a = (Maybe (ValidField a))
-  FieldTF 'ValidT a = ValidField a
-  FieldTF 'FinalT a = a
- 
 
 -- | Validates if a raw row has been parsed properly. ie cell are well formatted
 validateRaw :: OpFinder -> LocFinder ->  RawRow -> Either RawRow PartialRow
@@ -492,21 +474,10 @@ validateLocation locMap t =
     then Just $ Location' (FA.LocationKey fa) t (intercalate "|" locs)
     else Nothing
   
-  
-
-
--- isLocationValid :: [String] -> String -> Bool
--- isLocationValid = not . null <$$> validateLocation
-
-data ParsingResult
-  = WrongHeader InvalidSpreadsheet
-  | InvalidFormat [RawRow]-- some cells can't be parsed
-  | InvalidData [RawRow]-- each row is well formatted but invalid as a whole
-  | ParsingCorrect [ValidRow] -- Ok
 
 -- | Parses a csv of stocktakes. If a list of locations is given
 -- parseTakes that the locations are valid (matches provided location using unix file globing)
-parseTakes  :: Set Text -> OpFinder -> LocFinder -> ByteString -> ParsingResult
+-- parseTakes  :: Set Text -> OpFinder -> LocFinder -> ByteString -> ParsingResult RawRow [ValidRow]
 parseTakes skus opf locf bytes = either id ParsingCorrect $ do
     
   raws <- parseSpreadsheet mempty Nothing bytes <|&> WrongHeader

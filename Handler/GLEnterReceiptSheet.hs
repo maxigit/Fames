@@ -10,7 +10,7 @@ import Handler.GLEnterReceiptSheet.ReceiptRow
 
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput)
-import Handler.CsvUtils
+import Handler.CsvUtils hiding(RawT)
 import qualified Data.Csv as Csv
 import Data.Either
 import Data.Char (ord,toUpper)
