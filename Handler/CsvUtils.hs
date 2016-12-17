@@ -2,13 +2,13 @@
 -- | Miscellaneous functions and types to parse and render CSV.
 module Handler.CsvUtils where
 
-import Import
+import Import hiding(toLower)
 import qualified Data.Csv as Csv
 
 import Data.Either
 import Data.Time(parseTimeM)
 import qualified Data.Map as Map
-import Data.Char (ord,toUpper)
+import Data.Char (ord,toUpper,toLower)
 import Data.List (nub)
 import qualified Data.ByteString.Lazy as LazyBS
 -- * Types
@@ -174,7 +174,11 @@ validateNonEmpty field RNothing = Left (MissingValueError field)
 validateNonEmpty field v = v
 
 expandColumnName :: String -> [String]
-expandColumnName colname = [id, unwords . map capitalize . words, map Data.Char.toUpper] <*> [colname]
+expandColumnName colname = [ id
+                           , unwords . map capitalize . words
+                           , map Data.Char.toUpper
+                           , map Data.Char.toLower
+                           ] <*> [colname]
 
 -- | Builds a Map of column name to aliases compatible with parseSpreadsheet
 buildColumnMap :: [(String, [String])] -> Map String [String]
@@ -182,7 +186,7 @@ buildColumnMap columnNames = Map.fromList [(col, expand (col:cols)) | (col, cols
   where expand = nub . sort . (concatMap expandColumnName) 
 
 capitalize [] = []
-capitalize (x:xs) = Data.Char.toUpper x : xs
+capitalize (x:xs) = Data.Char.toUpper x : map Data.Char.toLower xs
 
 -- ** Custom field parsers.
 -- | temporary class to remove currency symbol

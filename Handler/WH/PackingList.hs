@@ -183,12 +183,12 @@ parsePackingList bytes = either id ParsingCorrect $ do
         raws <- parseSpreadsheet columnNameMap Nothing bytes <|&> WrongHeader
         rows <- mapM validate raws <|&> const (InvalidFormat raws)
         valids <-  groupRow rows <|&> const (InvalidData raws)
-        Right $ undefined valids
+        Right $ (error "row validation not implemented") valids
 
         where validate :: PLRaw -> Either PLRaw PLValid
-              validate = undefined
+              validate = error "validate not implementend"
               groupRow :: [PLValid] -> Either PLRaw ([ PLBoxGroup ], [ (PLContainer , PLBoxGroup)])
-              groupRow = undefined
+              groupRow = error "grouprow not implemented"
    
 -- * Render
 renderRow PLRow{..} = do
