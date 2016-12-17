@@ -46,8 +46,9 @@ renderWHPackingList mode param status message pre = do
   sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
     <div.well> ^{pre}
     <div.panel.panel-info>
-      <div.panel-heading data-toggle="collapse" data-target="#pl-upload-colnames"> Make sure the header is present and contains the following columns.
-      <table#pl-upload-colnames.table.table-bordered.table-hover.collapse.in>
+      <div.panel-heading data-toggle="collapse" data-target=".pl-upload-colnames">
+        Make sure the header is present and contains the following columns.
+      <table.pl-upload-colnames.table.table-bordered.table-hover.collapse.in>
         <tr>
           $forall header <- (map fst columnNames) 
             <th>#{header}

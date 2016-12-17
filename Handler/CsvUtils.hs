@@ -327,17 +327,25 @@ instance Renderable InvalidSpreadsheet where
 <div .invalid-receipt>
   <div .error-description> #{errorDescription}
   $if not (null missingColumns)
-    <div .missing-columns .bg-danger .text-danger>
-      The following columns are missing:
+    <div.panel.panel-danger>
+      <div.missing-columns.panel-heading>
+        The following columns are missing:
       <ul>
         $forall column <- missingColumns
           <li> #{column}
   <table.sheet.table.table-bordered>
-    $forall line <- sheet
-      <tr>
-        $forall (class_, field) <- zip colClass line
-          $with (fieldClass, fieldValue) <- convertField field
-            <td class="#{class_} #{fieldClass}"> #{fieldValue}
+    <thead>
+      $forall line <- take 1 sheet
+        <tr data-toggle="collapse" data-target="#invalid-spreadsheet-body">
+          $forall (class_, field) <- zip colClass line
+            $with (fieldClass, fieldValue) <- convertField field
+              <th class="#{class_} #{fieldClass}"> #{fieldValue}
+    <tbody#invalid-spreadsheet-body.collapse.in>
+      $forall line <- drop 1 sheet
+        <tr>
+          $forall (class_, field) <- zip colClass line
+            $with (fieldClass, fieldValue) <- convertField field
+              <td class="#{class_} #{fieldClass}"> #{fieldValue}
           |]
            
              
