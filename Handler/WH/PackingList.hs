@@ -107,6 +107,9 @@ postWHPackingListSaveR = undefined
 -- getWHPackingListTextcartR plId = undefined
 
 
+-- | A row in the spreasheet
+-- Depending on the type of box, the order quantity can represent the quantity
+-- for the given color, or total quantity (for all similar boxes)
 data PLRow s = PLRow
   { plStyle :: PLFieldTF s Text
   , plColour :: PLFieldTF s Text
@@ -128,6 +131,11 @@ type PLFullBox = PLRow PLFullBoxT
 type PLPartialBox = PLRow PLPartialBoxT
 type PLContainer = PLRow PLContainerT
 
+deriving instance Show PLRaw
+deriving instance Show PLFullBox
+deriving instance Show PLPartialBox
+deriving instance Show PLContainer
+
 data PLValid
   = FullBox PLFullBox
   | PartialPox PLPartialBox
@@ -135,6 +143,7 @@ data PLValid
 type family PLFieldTF (s :: PLRowTypes) a where
   PLFieldTF 'PLFullBoxT a = FieldForValid a
   PLFieldTF 'PLRawT a = FieldForRaw a
+  PLFieldTF b a = Maybe a
 
 columnNames :: [(String, [String])]
 columnNames = [("Style", ["S", "Style No.", "Style No"] )

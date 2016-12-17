@@ -10,6 +10,7 @@ import Data.Time(parseTimeM)
 import qualified Data.Map as Map
 import Data.Char (ord,toUpper)
 import Data.List (nub)
+import qualified Data.ByteString.Lazy as LazyBS
 -- * Types
 -- | If we can't parse the csv at all (columns are not present),
 -- we need a way to gracefully return a error
@@ -112,9 +113,9 @@ instance Transformable a (ValidField a) where
 
 -- * Functions
 
-parseInvalidSpreadsheet columnMap bytes err =
+parseInvalidSpreadsheet opt columnMap bytes err =
   let columns = fromString <$> keys columnMap 
-      decoded = toList <$> Csv.decode Csv.NoHeader bytes :: Either String [[Either Csv.Field Text]]
+      decoded = toList <$> Csv.decodeWith opt Csv.NoHeader bytes :: Either String [[Either Csv.Field Text]]
       onEmpty = InvalidSpreadsheet "The file is empty" columns [] []
   in case (null bytes, decoded) of
        (True, _ )  -> onEmpty
@@ -156,13 +157,16 @@ parseMulti columnMap m colname =  do
             return res
 
 -- | Parse a spread sheet 
-parseSpreadsheet :: Csv.FromNamedRecord a => Map String [String] ->  Maybe String -> ByteString -> Either InvalidSpreadsheet [a]
+parseSpreadsheet :: (Csv.FromNamedRecord a, Show a) => Map String [String] ->  Maybe String -> ByteString -> Either InvalidSpreadsheet [a]
 parseSpreadsheet columnMap seps bytes = do
   let lbytes = fromStrict bytes
-      (sep:_) = [Csv.DecodeOptions (fromIntegral (ord sep)) | sep <- fromMaybe ",;\t" seps ]
-  case Csv.decodeByNameWith sep lbytes of
-    Left err -> Left $ parseInvalidSpreadsheet columnMap lbytes err
-    Right (header, vector) -> Right $ toList vector
+      options = [Csv.DecodeOptions (fromIntegral (ord sep)) | sep <- fromMaybe ",;\t" seps ]
+      tries =  [(Csv.decodeByNameWith opt lbytes, opt) | opt <- options ]
+  case asum (map fst tries) of
+    Left _ -> let
+                invalids = [parseInvalidSpreadsheet opt columnMap lbytes err | (Left err, opt) <- tries ]
+              in  Left $ minimumByEx (comparing $ length . missingColumns) invalids
+    Right (header, vector) ->  Right $ toList vector
   
 
 validateNonEmpty :: Text -> Either InvalidField (Maybe a) -> Either InvalidField (Maybe a)
