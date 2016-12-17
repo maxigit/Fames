@@ -10,7 +10,6 @@ import Import
 import Yesod.Form.Bootstrap3
 import Handler.CsvUtils
 import qualified Data.Csv as Csv
-import qualified Data.Map as Map
 import Data.List (transpose)
 import qualified Data.List as List
 
@@ -138,19 +137,19 @@ type family PLFieldTF (s :: PLRowTypes) a where
   PLFieldTF 'PLRawT a = FieldForRaw a
 
 columnNames :: [(String, [String])]
-columnNames = [("Style", ["S", "s", "Style", "style", "Style No.", "Style No"] )
-              , ("Colour", ["C", "c", "Col", "col", "Color", "color"])
-              ,("Quantity", ["q", "Q", "QTY", "qty", "order QTY"])
-              ,("1st carton number", ["start", "f", "F", "cn", "C/NO", "first"])
+columnNames = [("Style", ["S", "Style No.", "Style No"] )
+              , ("Colour", ["C", "Col", "Color"])
+              ,("Quantity", ["Q", "QTY", "order QTY"])
+              ,("1st carton number", ["start", "F", "cn", "C/NO", "first"])
               ,("last carton number", ["end", "last", "e"])
-              ,("Number of Carton", ["CTNS", "n", "N"])
+              ,("Number of Carton", ["CTNS", "N"])
               ,("Quantity per Carton", ["qc", "Q/C", "QTY/CTN"])
-              ,("Total Quantity", ["Total", "t", "T", "TOTAL"])
-              ,("Length", ["l", "L", "Length", "LENGTH"])
-              ,("Width", ["w", "W", "Width", "WIDTH"])
-              ,("Height", ["h", "H", "Height", "HEIGHT"])
+              ,("Total Quantity", ["T", "Total", "TQTY"])
+              ,("Length", ["L"])
+              ,("Width", ["W"])
+              ,("Height", ["H"])
               ]
-columnNameMap = Map.fromList columnNames
+columnNameMap = buildColumnMap columnNames
 
 instance Csv.FromNamedRecord (PLRow 'PLRawT) where
   parseNamedRecord m = let

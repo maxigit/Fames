@@ -9,6 +9,7 @@ import Data.Either
 import Data.Time(parseTimeM)
 import qualified Data.Map as Map
 import Data.Char (ord,toUpper)
+import Data.List (nub)
 -- * Types
 -- | If we can't parse the csv at all (columns are not present),
 -- we need a way to gracefully return a error
@@ -169,7 +170,12 @@ validateNonEmpty field RNothing = Left (MissingValueError field)
 validateNonEmpty field v = v
 
 expandColumnName :: String -> [String]
-expandColumnName colname = [id, capitalize, map Data.Char.toUpper] <*> [colname]
+expandColumnName colname = [id, unwords . map capitalize . words, map Data.Char.toUpper] <*> [colname]
+
+-- | Builds a Map of column name to aliases compatible with parseSpreadsheet
+buildColumnMap :: [(String, [String])] -> Map String [String]
+buildColumnMap columnNames = Map.fromList [(col, expand (col:cols)) | (col, cols) <- columnNames]
+  where expand = nub . sort . (concatMap expandColumnName) 
 
 capitalize [] = []
 capitalize (x:xs) = Data.Char.toUpper x : xs
@@ -327,8 +333,8 @@ instance Renderable InvalidSpreadsheet where
 <div .invalid-receipt>
   <div .error-description> #{errorDescription}
   $if not (null missingColumns)
-    <div.panel.panel-danger>
-      <div.missing-columns.panel-heading>
+    <div.panel.panel-danger.missing-columns>
+      <div.panel-heading>
         The following columns are missing:
       <ul>
         $forall column <- missingColumns

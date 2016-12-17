@@ -140,7 +140,8 @@ appSpec = withAppNoDB BypassAuth $ do
             it "displays correct columns" $ do
               postReceiptSheet 422 sheet
 
-              htmlAnyContain "table td.bg-success" "tax rate"
+              printBody
+              htmlAnyContain "table th.bg-success" "tax rate"
 
 
 
