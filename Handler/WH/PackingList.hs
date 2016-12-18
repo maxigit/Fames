@@ -43,7 +43,13 @@ renderWHPackingList mode param status message pre = do
       
   (form, encType) <- generateFormPost (uploadForm param)
   message
-  sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
+  sendResponseStatus (toEnum status) =<< defaultLayout
+--     toWidget [cassius|
+-- tr.table-top-border td
+--   border-top: black thin solid black
+--                      |]
+
+    [whamlet|
     <div.well> ^{pre}
     <div.panel.panel-info>
       <div.panel-heading data-toggle="collapse" data-target=".pl-upload-colnames">
@@ -91,9 +97,36 @@ processUpload :: Mode -> UploadParam -> Handler Html
 processUpload mode param = do
   let bytes = encodeUtf8 . unTextarea $ spreadsheet param
 
+      renderBoxGroup :: PLBoxGroup -> Widget
+      renderBoxGroup (partials, full) = do
+        topBorder
+        [whamlet|
+<tr.table-top-border> ^{renderRow full}
+  $forall partial <- partials
+    <tr.text-muted> ^{renderRow partial}
+                                         |]
+      renderSection :: (PLContainer, [PLBoxGroup]) -> Widget
+      renderSection (container, groups) = do
+        let containerId = validValue $ plStyle container
+        [whamlet|
+<div.panel.panel-default>
+  <div.panel-heading data-toggle="collapse" data-target="##{tshow containerId}-pl"> #{containerId}
+  <table.table.table-hover.collapse.in id="#{tshow containerId}-pl">
+    ^{renderHeaderRow}
+    $forall group <- groups
+      ^{renderBoxGroup group}
+      |]
+      onSuccess Save rows = error "Saving PL not implemented"
+      onSuccess Validate (rows, groups) =
+        renderWHPackingList Save (Just param)
+                            200 (setSuccess "Packing list valid")
+                            (mapM_ renderSection ( (PLRow {plStyle= Guessed "todo"}, rows) : groups)
+                            )
+    
   renderParsingResult (renderWHPackingList mode (Just param) 422) 
-                      undefined
+                      (onSuccess mode)
                       (parsePackingList bytes)
+    
       
         
 
@@ -210,12 +243,12 @@ transformRow PLRow{..} = PLRow
        (transform plHeight)
   
 type PLBoxGroup = ([PLPartialBox] , PLFullBox)
-parsePackingList :: ByteString -> ParsingResult PLRaw  ([ PLBoxGroup ], [ (PLContainer , PLBoxGroup)])
+parsePackingList :: ByteString -> ParsingResult PLRaw  ([ PLBoxGroup ], [ (PLContainer , [PLBoxGroup])])
 parsePackingList bytes = either id ParsingCorrect $ do
         raws <- parseSpreadsheet columnNameMap Nothing bytes <|&> WrongHeader
         rows <- mapM validate raws <|&> const (InvalidFormat raws)
         valids <-  groupRow rows <|&> const (InvalidData raws)
-        Right $ (error "row validation not implemented") valids
+        Right $ valids
 
         where validate :: PLRaw -> Either PLRaw PLValid
               validate raw@PLRow{..} = do
@@ -236,8 +269,14 @@ parsePackingList bytes = either id ParsingCorrect $ do
 
                 
                 
-              groupRow :: [PLValid] -> Either PLRaw ([ PLBoxGroup ], [ (PLContainer , PLBoxGroup)])
-              groupRow = error "grouprow not implemented"
+              groupRow :: [PLValid] -> Either PLRaw ([ PLBoxGroup ], [ (PLContainer , [PLBoxGroup])])
+              groupRow rows = Right (go rows [], []) where
+                go [] [] = []
+                go [] partials = error "box not finished"
+                go (FullBox full:rows) partials = (partials, full) : go rows []
+                go (PartialBox partial:rows) partials = go rows (partials++[partial])
+                go (Container cont:rows) partials = go rows (partials)
+                -- go rows partials = traceShow (rows, partials) undefined
    
 -- * Render
 renderRow PLRow{..} = do
@@ -255,9 +294,7 @@ renderRow PLRow{..} = do
           <td.pl>^{render plHeight}
           |]
 
-renderRows classFor rows = do
-  [whamlet|
-<table.table.table-bordered.table-hover>
+renderHeaderRow = [whamlet|
   <tr>
     <th>Style
     <th>Colour
@@ -272,9 +309,15 @@ renderRows classFor rows = do
     <th>Height
     <th>Vol/CNT
     <th>Total Vol
-    $forall row <- rows
-      <tr class="#{classFor row}">^{render row}
-          |]
+|]
+
+renderRows classFor rows = do
+  [whamlet|
+<table.table.table-bordered.table-hover>
+  ^{renderHeaderRow}
+  $forall row <- rows
+    <tr class="#{classFor row}">^{render row}
+        |]
 
 instance Renderable PLRaw where render = renderRow
 instance Renderable [PLRaw] where render = renderRows (const ("" :: String))

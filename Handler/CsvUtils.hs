@@ -381,3 +381,9 @@ renderParsingResult onError onSuccess result =
           InvalidFormat raws -> onError (setError "Invalid cell format") (render raws)
           InvalidData raws ->  onError (setError "Invalid data") (render raws)
           ParsingCorrect rows -> onSuccess rows
+
+
+topBorder = toWidget [cassius|
+tr.table-top-border td
+  border-top: thin solid black !important
+                     |]
