@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Handler.WH.PackingList
 ( getWHPackingListR
 , postWHPackingListR
@@ -111,39 +112,43 @@ postWHPackingListSaveR = undefined
 -- Depending on the type of box, the order quantity can represent the quantity
 -- for the given color, or total quantity (for all similar boxes)
 data PLRow s = PLRow
-  { plStyle :: PLFieldTF s Text
-  , plColour :: PLFieldTF s Text
-  , plOrderQuantity :: PLFieldTF s Int
-  , plFirstCartonNumber :: PLFieldTF s Int
-  , plLastCartonNumber :: PLFieldTF s Int
-  , plNumberOfCarton :: PLFieldTF s Int
-  , plQuantityPerCarton :: PLFieldTF s Int
-  , plTotalQuantity :: PLFieldTF s Int
-  , plLength :: PLFieldTF s  Double
-  , plWidth :: PLFieldTF s  Double
-  , plHeight :: PLFieldTF s  Double
+  { plStyle :: PLFieldTF s Text Identity Identity
+  , plColour :: PLFieldTF s Text Identity Maybe 
+  , plOrderQuantity :: PLFieldTF s Int Identity Null
+  , plFirstCartonNumber :: PLFieldTF s Int Null Null
+  , plLastCartonNumber :: PLFieldTF s Int Null Null
+  , plNumberOfCarton :: PLFieldTF s Int Null Null
+  , plQuantityPerCarton :: PLFieldTF s Int Null Null
+  , plTotalQuantity :: PLFieldTF s Int Null Null
+  , plLength :: PLFieldTF s  Double Maybe  Null
+  , plWidth :: PLFieldTF s  Double Maybe Null
+  , plHeight :: PLFieldTF s  Double Maybe Null
   }
 
-data PLRowTypes = PLRawT | PLFullBoxT | PLPartialBoxT | PLTotalT | PLContainerT deriving (Eq, Read, Show) 
+data PLRowTypes = PLRawT | PLPartialT | PLFullBoxT | PLPartialBoxT | PLTotalT | PLContainerT deriving (Eq, Read, Show) 
 
 type PLRaw = PLRow PLRawT
+type PLPartial = PLRow PLPartialT
 type PLFullBox = PLRow PLFullBoxT
 type PLPartialBox = PLRow PLPartialBoxT
 type PLContainer = PLRow PLContainerT
 
 deriving instance Show PLRaw
+deriving instance Show PLPartial
 deriving instance Show PLFullBox
 deriving instance Show PLPartialBox
 deriving instance Show PLContainer
 
 data PLValid
   = FullBox PLFullBox
-  | PartialPox PLPartialBox
+  | PartialBox PLPartialBox
   | Container PLContainer
-type family PLFieldTF (s :: PLRowTypes) a where
-  PLFieldTF 'PLFullBoxT a = FieldForValid a
-  PLFieldTF 'PLRawT a = FieldForRaw a
-  PLFieldTF b a = Maybe a
+type family PLFieldTF (s :: PLRowTypes) a f g where
+  PLFieldTF 'PLFullBoxT a f g = FieldForValid a
+  PLFieldTF 'PLPartialBoxT a f g = FieldForValid (UnIdentity (f a))
+  PLFieldTF 'PLContainerT a f g = FieldForValid (UnIdentity (g a))
+  PLFieldTF 'PLRawT a f g = FieldForRaw a
+  PLFieldTF 'PLPartialT a f g = FieldForPartial a
 
 columnNames :: [(String, [String])]
 columnNames = [("Style", ["S", "Style No.", "Style No"] )
@@ -177,6 +182,33 @@ instance Csv.FromNamedRecord (PLRow 'PLRawT) where
         <*> m `parse` w
         <*> m `parse` h
 
+
+traverseRow PLRow{..} = pure PLRow
+       <*> plStyle
+       <*> plColour
+       <*> plOrderQuantity
+       <*> plFirstCartonNumber
+       <*> plLastCartonNumber
+       <*> plNumberOfCarton
+       <*> plQuantityPerCarton
+       <*> plTotalQuantity
+       <*> plLength
+       <*> plWidth
+       <*> plHeight
+
+transformRow PLRow{..} = PLRow
+       (transform plStyle)
+       (transform plColour)
+       (transform plOrderQuantity)
+       (transform plFirstCartonNumber)
+       (transform plLastCartonNumber)
+       (transform plNumberOfCarton)
+       (transform plQuantityPerCarton)
+       (transform plTotalQuantity)
+       (transform plLength)
+       (transform plWidth)
+       (transform plHeight)
+  
 type PLBoxGroup = ([PLPartialBox] , PLFullBox)
 parsePackingList :: ByteString -> ParsingResult PLRaw  ([ PLBoxGroup ], [ (PLContainer , PLBoxGroup)])
 parsePackingList bytes = either id ParsingCorrect $ do
@@ -186,7 +218,24 @@ parsePackingList bytes = either id ParsingCorrect $ do
         Right $ (error "row validation not implemented") valids
 
         where validate :: PLRaw -> Either PLRaw PLValid
-              validate = error "validate not implementend"
+              validate raw@PLRow{..} = do
+                partial <- traverseRow raw <|&> const raw
+                case partial of
+                 _ | Just full <- traverseRow (partial :: PLPartial) -> Right (FullBox full)
+                 PLRow{..} | Just style <- plStyle
+                           , Just colour <- plColour
+                           , Just qty <- plOrderQuantity
+                           , 0 <- fromMaybe 0 (validValue <$> plTotalQuantity)
+                           -> Right $ PartialBox ( PLRow style colour qty
+                                                         () () () () ()
+                                                         plLength plWidth plHeight
+                                                 )
+                
+                
+
+
+                
+                
               groupRow :: [PLValid] -> Either PLRaw ([ PLBoxGroup ], [ (PLContainer , PLBoxGroup)])
               groupRow = error "grouprow not implemented"
    

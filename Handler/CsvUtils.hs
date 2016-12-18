@@ -10,6 +10,7 @@ import Data.Time(parseTimeM)
 import qualified Data.Map as Map
 import Data.Char (ord,toUpper,toLower)
 import Data.List (nub)
+  
 import qualified Data.ByteString.Lazy as LazyBS
 -- * Types
 -- | If we can't parse the csv at all (columns are not present),
@@ -47,9 +48,14 @@ type family UnMaybe a where
   UnMaybe  (Maybe a) = a
   UnMaybe  a = a 
 
+data Null a = Null
+type family UnIdentity a where
+  UnIdentity (Identity a) = a
+  UnIdentity (Null a) = ()
+  UnIdentity a = a
+  
 type FieldForRaw a  = Either InvalidField (Maybe (ValidField (UnMaybe a)))
 type FieldForPartial a = (Maybe (ValidField (UnMaybe a)))
-type FieldForValid a = ValidField a
 type FieldForFinal a = a
 
 type family FieldTF (s :: RowTypes) a where
@@ -57,6 +63,8 @@ type family FieldTF (s :: RowTypes) a where
   FieldTF 'RawT a = Either InvalidField (Maybe (ValidField a))
   FieldTF 'PartialT (Maybe a) = (Maybe (ValidField a))
   FieldTF 'PartialT a = (Maybe (ValidField a))
+  FieldTF 'ValidT () = ()
+  FieldTF 'ValidT (Maybe a) = Maybe (ValidField a)
   FieldTF 'ValidT a = ValidField a
   FieldTF 'FinalT a = a
  
@@ -67,6 +75,8 @@ invalidFieldError ParsingError{..} = "Can't parse '"
                                      <> invFieldType
                                      <> "."
 invalidFieldError MissingValueError{..} = invFieldType <> " is missing."
+
+type FieldForValid a = FieldTF 'ValidT a
 
 data ValidField a = Provided { validValue :: a} | Guessed { validValue :: a }  deriving Functor
 instance Applicative ValidField  where
