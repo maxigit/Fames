@@ -117,11 +117,10 @@ processUpload mode param = do
       ^{renderBoxGroup group}
       |]
       onSuccess Save rows = error "Saving PL not implemented"
-      onSuccess Validate (rows, groups) =
+      onSuccess Validate groups =
         renderWHPackingList Save (Just param)
                             200 (setSuccess "Packing list valid")
-                            (mapM_ renderSection ( (PLRow {plStyle= Guessed "todo"}, rows) : groups)
-                            )
+                            (mapM_ renderSection groups)
     
   renderParsingResult (renderWHPackingList mode (Just param) 422) 
                       (onSuccess mode)
@@ -243,12 +242,13 @@ transformRow PLRow{..} = PLRow
        (transform plHeight)
   
 type PLBoxGroup = ([PLPartialBox] , PLFullBox)
-parsePackingList :: Text -> ByteString -> ParsingResult PLRaw  ([ PLBoxGroup ], [ (PLOrderRef , [PLBoxGroup])])
+parsePackingList :: Text -> ByteString -> ParsingResult PLRaw  [(PLOrderRef , [PLBoxGroup])]
 parsePackingList orderRef bytes = either id ParsingCorrect $ do
         raws <- parseSpreadsheet columnNameMap Nothing bytes <|&> WrongHeader
         rows <- mapM validate raws <|&> const (InvalidFormat raws)
         valids <-  groupRow orderRef rows <|&> const (InvalidData raws)
-        Right $ (error "validate group total for whole group and number of boxes") valids
+        -- Right $ (error "validate group total for whole group and number of boxes") valids
+        Right $  valids
 
         where validate :: PLRaw -> Either PLRaw PLValid
               validate raw@PLRow{..} = do
@@ -263,20 +263,29 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
                                                          () () () () ()
                                                          plLength plWidth plHeight
                                                  )
+                 PLRow (Just ref) Nothing Nothing Nothing Nothing Nothing
+                                  Nothing Nothing Nothing Nothing Nothing
+                            -> Right $ OrderRef ( PLRow ref Nothing () () () ()
+                                                                () () () () ()
+                                                  )
+
                 
                 
 
 
                 
                 
-              order = PLRow (Provided orderRef) Nothing () () () () () () () () () :: PLOrderRef
+              createOrder orderRef = PLRow (Provided orderRef) Nothing () () () () () () () () () :: PLOrderRef
               groupRow :: Text -> [PLValid] -> Either PLRaw [ (PLOrderRef , [PLBoxGroup])]
-              groupRow orderRef rows = Right [(order, go rows [])] where
-                go [] [] = []
-                go [] partials = error "box not finished"
-                go (FullBox full:rows) partials = (partials, full) : go rows []
-                go (PartialBox partial:rows) partials = go rows (partials++[partial])
-                go (OrderRef cont:rows) partials = go rows (partials)
+              groupRow orderRef rows = Right $ go (createOrder orderRef) rows [] []
+                where
+                    go :: PLOrderRef -> [PLValid] -> [PLPartialBox] -> [PLBoxGroup] -> [(PLOrderRef, [PLBoxGroup])]
+                    go order [] [] groups = [(order, groups)]
+                    go _ [] partials _ = error "box not finished"
+                    go order (FullBox full:rows) partials groups = go order rows []  ((partials, full):groups)
+                    go order (PartialBox partial:rows) partials groups = go order rows (partials++[partial]) groups
+                    go order (OrderRef order':rows) [] groups = (order, groups) : go order' rows [] []
+                    go order (OrderRef order':rows) _ _ = error "box not finished"
                 -- go rows partials = traceShow (rows, partials) undefined
    
 -- * Render
