@@ -19,16 +19,16 @@ data Mode = Validate | Save deriving (Eq, Read, Show)
 -- | Type of file
 data Format = PartialFirst deriving (Eq, Read, Show)
 data UploadParam = UploadParam
-  { containerName :: Text -- ^ name of the container
-  , reference :: Text -- ^ name of the file to upload
+  { orderRef :: Text -- ^ original order reference
+  , invoiceRef :: Text -- ^ name of the file to upload
   , description :: Textarea -- ^ any comment
   , spreadsheet :: Textarea -- ^ the actual spreadsheet to upload/process
   } deriving (Eq, Read, Show)
 
 uploadForm param = renderBootstrap3 BootstrapBasicForm form
   where form = UploadParam
-            <$> (areq textField "container" (fmap containerName param))
-            <*> (areq textField "reference" (fmap reference param ))
+            <$> (areq textField "order ref" (fmap orderRef param))
+            <*> (areq textField "invoice ref" (fmap invoiceRef param ))
             <*> (areq textareaField "description" (fmap description param) )
             <*> (areq textareaField "spreadsheet" (fmap spreadsheet param) )
 
@@ -105,13 +105,13 @@ processUpload mode param = do
   $forall partial <- partials
     <tr.text-muted> ^{renderRow partial}
                                          |]
-      renderSection :: (PLContainer, [PLBoxGroup]) -> Widget
-      renderSection (container, groups) = do
-        let containerId = validValue $ plStyle container
+      renderSection :: (PLOrderRef, [PLBoxGroup]) -> Widget
+      renderSection (orderRef, groups) = do
+        let orderRefId = validValue $ plStyle orderRef
         [whamlet|
 <div.panel.panel-default>
-  <div.panel-heading data-toggle="collapse" data-target="##{tshow containerId}-pl"> #{containerId}
-  <table.table.table-hover.collapse.in id="#{tshow containerId}-pl">
+  <div.panel-heading data-toggle="collapse" data-target="##{tshow orderRefId}-pl"> #{orderRefId}
+  <table.table.table-hover.collapse.in id="#{tshow orderRefId}-pl">
     ^{renderHeaderRow}
     $forall group <- groups
       ^{renderBoxGroup group}
@@ -125,7 +125,7 @@ processUpload mode param = do
     
   renderParsingResult (renderWHPackingList mode (Just param) 422) 
                       (onSuccess mode)
-                      (parsePackingList bytes)
+                      (parsePackingList (orderRef param) bytes)
     
       
         
@@ -158,28 +158,28 @@ data PLRow s = PLRow
   , plHeight :: PLFieldTF s  Double Maybe Null
   }
 
-data PLRowTypes = PLRawT | PLPartialT | PLFullBoxT | PLPartialBoxT | PLTotalT | PLContainerT deriving (Eq, Read, Show) 
+data PLRowTypes = PLRawT | PLPartialT | PLFullBoxT | PLPartialBoxT | PLTotalT | PLOrderRefT deriving (Eq, Read, Show) 
 
 type PLRaw = PLRow PLRawT
 type PLPartial = PLRow PLPartialT
 type PLFullBox = PLRow PLFullBoxT
 type PLPartialBox = PLRow PLPartialBoxT
-type PLContainer = PLRow PLContainerT
+type PLOrderRef = PLRow PLOrderRefT
 
 deriving instance Show PLRaw
 deriving instance Show PLPartial
 deriving instance Show PLFullBox
 deriving instance Show PLPartialBox
-deriving instance Show PLContainer
+deriving instance Show PLOrderRef
 
 data PLValid
   = FullBox PLFullBox
   | PartialBox PLPartialBox
-  | Container PLContainer
+  | OrderRef PLOrderRef
 type family PLFieldTF (s :: PLRowTypes) a f g where
   PLFieldTF 'PLFullBoxT a f g = FieldForValid a
   PLFieldTF 'PLPartialBoxT a f g = FieldForValid (UnIdentity (f a))
-  PLFieldTF 'PLContainerT a f g = FieldForValid (UnIdentity (g a))
+  PLFieldTF 'PLOrderRefT a f g = FieldForValid (UnIdentity (g a))
   PLFieldTF 'PLRawT a f g = FieldForRaw a
   PLFieldTF 'PLPartialT a f g = FieldForPartial a
 
@@ -243,12 +243,12 @@ transformRow PLRow{..} = PLRow
        (transform plHeight)
   
 type PLBoxGroup = ([PLPartialBox] , PLFullBox)
-parsePackingList :: ByteString -> ParsingResult PLRaw  ([ PLBoxGroup ], [ (PLContainer , [PLBoxGroup])])
-parsePackingList bytes = either id ParsingCorrect $ do
+parsePackingList :: Text -> ByteString -> ParsingResult PLRaw  ([ PLBoxGroup ], [ (PLOrderRef , [PLBoxGroup])])
+parsePackingList orderRef bytes = either id ParsingCorrect $ do
         raws <- parseSpreadsheet columnNameMap Nothing bytes <|&> WrongHeader
         rows <- mapM validate raws <|&> const (InvalidFormat raws)
-        valids <-  groupRow rows <|&> const (InvalidData raws)
-        Right $ valids
+        valids <-  groupRow orderRef rows <|&> const (InvalidData raws)
+        Right $ (error "validate group total for whole group and number of boxes") valids
 
         where validate :: PLRaw -> Either PLRaw PLValid
               validate raw@PLRow{..} = do
@@ -269,13 +269,14 @@ parsePackingList bytes = either id ParsingCorrect $ do
 
                 
                 
-              groupRow :: [PLValid] -> Either PLRaw ([ PLBoxGroup ], [ (PLContainer , [PLBoxGroup])])
-              groupRow rows = Right (go rows [], []) where
+              order = PLRow (Provided orderRef) Nothing () () () () () () () () () :: PLOrderRef
+              groupRow :: Text -> [PLValid] -> Either PLRaw [ (PLOrderRef , [PLBoxGroup])]
+              groupRow orderRef rows = Right [(order, go rows [])] where
                 go [] [] = []
                 go [] partials = error "box not finished"
                 go (FullBox full:rows) partials = (partials, full) : go rows []
                 go (PartialBox partial:rows) partials = go rows (partials++[partial])
-                go (Container cont:rows) partials = go rows (partials)
+                go (OrderRef cont:rows) partials = go rows (partials)
                 -- go rows partials = traceShow (rows, partials) undefined
    
 -- * Render
