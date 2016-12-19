@@ -109,7 +109,7 @@ processUpload mode param = do
       renderSection (orderRef, groups) = do
         let orderRefId = validValue $ plStyle orderRef
         [whamlet|
-<div.panel.panel-default>
+<div.panel.panel-primary>
   <div.panel-heading data-toggle="collapse" data-target="##{tshow orderRefId}-pl"> #{orderRefId}
   <table.table.table-hover.collapse.in id="#{tshow orderRefId}-pl">
     ^{renderHeaderRow}
@@ -120,7 +120,11 @@ processUpload mode param = do
       onSuccess Validate groups =
         renderWHPackingList Save (Just param)
                             200 (setSuccess "Packing list valid")
-                            (mapM_ renderSection groups)
+                            [whamlet|
+<div.panel-group>
+  $forall section <- groups
+    ^{renderSection section}
+                                    |]
     
   renderParsingResult (renderWHPackingList mode (Just param) 422) 
                       (onSuccess mode)
@@ -289,6 +293,7 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
                 -- go rows partials = traceShow (rows, partials) undefined
    
 -- * Render
+instance Num ()
 renderRow PLRow{..} = do
   [whamlet|
           <td.pl>^{render plStyle}
@@ -323,9 +328,9 @@ renderHeaderRow = [whamlet|
     <th>Width
     <th>
     <th>Height
-    <th>Vol/CNT
-    <th>Total Vol
 |]
+    -- <th>Vol/CNT
+    -- <th>Total Vol
 
 renderRows classFor rows = do
   [whamlet|
