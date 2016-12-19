@@ -184,7 +184,7 @@ type family PLFieldTF (s :: PLRowTypes) a f g where
   PLFieldTF 'PLPartialT a f g = FieldForPartial a
 
 columnNames :: [(String, [String])]
-columnNames = [("Style", ["S", "Style No.", "Style No"] )
+columnNames = [("Style", ["S", "Style No.", "Style No", "Style No ."] )
               , ("Colour", ["C", "Col", "Color"])
               ,("Quantity", ["Q", "QTY", "order QTY"])
               ,("1st carton number", ["start", "F", "cn", "C/NO", "first"])
@@ -285,12 +285,15 @@ renderRow PLRow{..} = do
           <td.pl>^{render plColour}
           <td.pl>^{render plOrderQuantity}
           <td.pl>^{render plFirstCartonNumber}
+          <td.pl>-
           <td.pl>^{render plLastCartonNumber}
           <td.pl>^{render plNumberOfCarton}
           <td.pl>^{render plQuantityPerCarton}
           <td.pl>^{render plTotalQuantity}
           <td.pl>^{render plLength}
+          <td.pl>x
           <td.pl>^{render plWidth}
+          <td.pl>x
           <td.pl>^{render plHeight}
           |]
 
@@ -300,12 +303,15 @@ renderHeaderRow = [whamlet|
     <th>Colour
     <th>Order Qty
     <th>1st CTN/N
+    <th>
     <th>last CTN/N
     <th># of CTN
     <th>Qty/CTN
     <th>Total Qty
     <th>Length
+    <th>
     <th>Width
+    <th>
     <th>Height
     <th>Vol/CNT
     <th>Total Vol
