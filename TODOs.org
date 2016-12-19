@@ -1,3 +1,5 @@
+* PL
+- [ ] TODO check group are valid
 * Features
 ** TODO Stock Adjustment [0/1]
 *** TODO Generate stock adjustment from stock take admeendet [0/2]
