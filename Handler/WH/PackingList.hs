@@ -245,14 +245,30 @@ transformRow PLRow{..} = PLRow
        (transform plWidth)
        (transform plHeight)
   
+transformPartial :: PLPartialBox -> PLRaw
+transformPartial PLRow{..} = PLRow
+  (transform plStyle)
+  (transform plColour)
+  (transform plOrderQuantity)
+  (Right Nothing)
+  (Right Nothing)
+  (Right Nothing)
+  (Right Nothing)
+  (Right Nothing)
+  (transform plLength)
+  (transform plWidth)
+  (transform plHeight)
+
 type PLBoxGroup = ([PLPartialBox] , PLFullBox)
 parsePackingList :: Text -> ByteString -> ParsingResult PLRaw  [(PLOrderRef , [PLBoxGroup])]
 parsePackingList orderRef bytes = either id ParsingCorrect $ do
         raws <- parseSpreadsheet columnNameMap Nothing bytes <|&> WrongHeader
         rows <- mapM validate raws <|&> const (InvalidFormat raws)
-        valids <-  groupRow orderRef rows <|&> const (InvalidData raws)
-        -- Right $ (error "validate group total for whole group and number of boxes") valids
-        Right $  valids
+        groups <-  groupRow orderRef rows <|&> const (InvalidData raws)
+        let validGroups = concatMap (map validateGroup . snd) groups
+        sequence validGroups <|&> InvalidData
+        Right $  groups
+        -- Right $  valids
 
         where validate :: PLRaw -> Either PLRaw PLValid
               validate raw@PLRow{..} = do
@@ -272,12 +288,6 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
                             -> Right $ OrderRef ( PLRow ref Nothing () () () ()
                                                                 () () () () ()
                                                   )
-
-                
-                
-
-
-                
                 
               createOrder orderRef = PLRow (Provided orderRef) Nothing () () () () () () () () () :: PLOrderRef
               groupRow :: Text -> [PLValid] -> Either PLRaw [ (PLOrderRef , [PLBoxGroup])]
@@ -291,6 +301,48 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
                     go order (OrderRef order':rows) [] groups = (order, groups) : go order' rows [] []
                     go order (OrderRef order':rows) _ _ = error "box not finished"
                 -- go rows partials = traceShow (rows, partials) undefined
+              validateGroup :: PLBoxGroup -> Either [PLRaw] PLBoxGroup 
+              validateGroup group@(partials, main) = let
+                orderQty = sum (map (validValue . plOrderQuantity) partials) + (validValue $ plOrderQuantity main)
+                onErrors :: [PLRaw -> PLRaw]
+                onErrors = catMaybes [ if orderQty /= validValue (plTotalQuantity main)
+                                       then Just $ \r -> r {plTotalQuantity = Left (InvalidValueError "Total quantity doesn't match order quantities" (tshow $ plTotalQuantity main)) }
+                                       else Nothing
+                                     , if validValue (plTotalQuantity main)
+                                          /= (validValue $ plQuantityPerCarton main)
+                                             * (validValue $ plNumberOfCarton main)
+                                       then Just $ \r -> r {plTotalQuantity = Left (InvalidValueError "Total quantity doesn't carton quantities" (tshow $ plTotalQuantity main)) }
+                                       else Nothing
+                                     , if (validValue $ plLastCartonNumber main)
+                                          - (validValue $ plFirstCartonNumber main)
+                                          +1 /= (validValue $ plNumberOfCarton main)
+                                       then Just $ \r -> r {plNumberOfCarton = Left (InvalidValueError "Number of carton doesn't match carton numbers" (tshow $ plNumberOfCarton main)) }
+                                       else Nothing
+                  -- check if provid ed that partial dimension = main one
+                                     , if not . null $ filter (/= plLength main) (mapMaybe plLength partials)
+                                       then Just $ \r -> r { plLength = Left (InvalidValueError "Box Dimension should be the same within a box" (tshow $ plLength main)) }
+                                       else Nothing
+                                     , if not . null $ filter (/= plWidth main) (mapMaybe plWidth partials)
+                                       then Just $ \r -> r { plWidth = Left (InvalidValueError "Box Dimension should be the same within a box" (tshow $ plWidth main)) }
+                                       else Nothing
+                                     , if not . null $ filter (/= plHeight main) (mapMaybe plHeight partials)
+                                       then Just $ \r -> r { plHeight = Left (InvalidValueError "Box Dimension should be the same within a box" (tshow $ plHeight main)) }
+                                       else Nothing
+
+                                     ]
+                in case onErrors of
+                    [] -> Right group
+                    updaters -> Left $ (foldr (($)) (transformRow main) updaters) : map transformPartial partials
+                  -- checkDimensions = let
+                          
+                   
+
+                  
+
+                     
+                        
+
+
    
 -- * Render
 instance Num ()

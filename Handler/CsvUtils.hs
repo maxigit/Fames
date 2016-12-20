@@ -2,7 +2,7 @@
 -- | Miscellaneous functions and types to parse and render CSV.
 module Handler.CsvUtils where
 
-import Import hiding(toLower)
+import Import hiding(toLower, Null)
 import qualified Data.Csv as Csv
 
 import Data.Either
@@ -26,6 +26,9 @@ data InvalidField = ParsingError { invFieldType :: Text
                                  , invFieldValue :: Text
                                  }
                   | MissingValueError { invFieldType :: Text }
+                  | InvalidValueError { invFieldError :: Text 
+                                      , invFieldValue :: Text
+                                      }
   deriving (Read, Show, Eq)
 -- State of a row after parsing
 data RowTypes = RawT -- raw row, everything is text
@@ -49,6 +52,22 @@ type family UnMaybe a where
   UnMaybe  a = a 
 
 data Null a = Null
+instance Functor Null where
+  fmap _ Null =  Null
+
+instance Applicative Null where
+  pure _ = Null
+  _ <*> _ = Null
+
+instance Num (Null a) where
+  fromInteger _ = Null
+  Null + Null = Null
+  Null - Null = Null
+  Null * Null = Null
+  negate Null = Null
+  abs Null = Null
+  signum Null = Null
+  
 type family UnIdentity a where
   UnIdentity (Identity a) = a
   UnIdentity (Null a) = ()
@@ -75,6 +94,7 @@ invalidFieldError ParsingError{..} = "Can't parse '"
                                      <> invFieldType
                                      <> "."
 invalidFieldError MissingValueError{..} = invFieldType <> " is missing."
+invalidFieldError InvalidValueError{..} = invFieldError
 
 type FieldForValid a = FieldTF 'ValidT a
 
@@ -120,6 +140,13 @@ instance Transformable (ValidField a) a where
  
 instance Transformable a (ValidField a) where
   transform x = Provided x
+
+
+instance Transformable a b => Transformable [a] [b] where
+  transform x = map transform x
+
+instance Transformable b (Either e (Maybe b))  where
+  transform x = Right (Just x)
 
 -- * Functions
 
@@ -299,6 +326,7 @@ instance Renderable InvalidField where
     let (class_, value) = case invField of
           ParsingError _ v -> ("parsing-error" :: Text, v)
           MissingValueError _ -> ("missing-value" :: Text,"<Empty>")
+          InvalidValueError e v -> ("invalid-value" :: Text, v)
     toWidget [cassius|
 .parsing-error, .missing-value
   .description
