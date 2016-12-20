@@ -263,10 +263,12 @@ type PLBoxGroup = ([PLPartialBox] , PLFullBox)
 parsePackingList :: Text -> ByteString -> ParsingResult PLRaw  [(PLOrderRef , [PLBoxGroup])]
 parsePackingList orderRef bytes = either id ParsingCorrect $ do
         raws <- parseSpreadsheet columnNameMap Nothing bytes <|&> WrongHeader
-        rows <- mapM validate raws <|&> const (InvalidFormat raws)
-        groups <-  groupRow orderRef rows <|&> const (InvalidData raws)
+        let rawsE = map validate raws
+        rows <- sequence rawsE <|&> const (InvalidFormat . lefts $ rawsE)
+        groups <-  groupRow orderRef rows <|&> const (InvalidData . lefts $ rawsE)
         let validGroups = concatMap (map validateGroup . snd) groups
-        sequence validGroups <|&> InvalidData
+        -- sequence validGroups <|&> const (InvalidData $ concatMap (either id (\(partials,main) -> transformRow main : map transformPartial partials )) validGroups)
+        sequence validGroups <|&> const (InvalidData . concat $ lefts validGroups)
         Right $  groups
         -- Right $  valids
 
@@ -288,6 +290,7 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
                             -> Right $ OrderRef ( PLRow ref Nothing () () () ()
                                                                 () () () () ()
                                                   )
+                 _  -> Left raw
                 
               createOrder orderRef = PLRow (Provided orderRef) Nothing () () () () () () () () () :: PLOrderRef
               groupRow :: Text -> [PLValid] -> Either PLRaw [ (PLOrderRef , [PLBoxGroup])]
@@ -306,27 +309,27 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
                 orderQty = sum (map (validValue . plOrderQuantity) partials) + (validValue $ plOrderQuantity main)
                 onErrors :: [PLRaw -> PLRaw]
                 onErrors = catMaybes [ if orderQty /= validValue (plTotalQuantity main)
-                                       then Just $ \r -> r {plTotalQuantity = Left (InvalidValueError "Total quantity doesn't match order quantities" (tshow $ plTotalQuantity main)) }
+                                       then Just $ \r -> r {plTotalQuantity = Left (InvalidValueError "Total quantity doesn't match order quantities" (tshow . validValue $ plTotalQuantity main)) }
                                        else Nothing
                                      , if validValue (plTotalQuantity main)
                                           /= (validValue $ plQuantityPerCarton main)
                                              * (validValue $ plNumberOfCarton main)
-                                       then Just $ \r -> r {plTotalQuantity = Left (InvalidValueError "Total quantity doesn't carton quantities" (tshow $ plTotalQuantity main)) }
+                                       then Just $ \r -> r {plTotalQuantity = Left (InvalidValueError "Total quantity doesn't carton quantities" (tshow . validValue $ plTotalQuantity main)) }
                                        else Nothing
                                      , if (validValue $ plLastCartonNumber main)
                                           - (validValue $ plFirstCartonNumber main)
                                           +1 /= (validValue $ plNumberOfCarton main)
-                                       then Just $ \r -> r {plNumberOfCarton = Left (InvalidValueError "Number of carton doesn't match carton numbers" (tshow $ plNumberOfCarton main)) }
+                                       then Just $ \r -> r {plNumberOfCarton = Left (InvalidValueError "Number of carton doesn't match carton numbers" (tshow . validValue $ plNumberOfCarton main)) }
                                        else Nothing
                   -- check if provid ed that partial dimension = main one
                                      , if not . null $ filter (/= plLength main) (mapMaybe plLength partials)
-                                       then Just $ \r -> r { plLength = Left (InvalidValueError "Box Dimension should be the same within a box" (tshow $ plLength main)) }
+                                       then Just $ \r -> r { plLength = Left (InvalidValueError "Box Dimension should be the same within a box" (tshow . validValue $ plLength main)) }
                                        else Nothing
                                      , if not . null $ filter (/= plWidth main) (mapMaybe plWidth partials)
-                                       then Just $ \r -> r { plWidth = Left (InvalidValueError "Box Dimension should be the same within a box" (tshow $ plWidth main)) }
+                                       then Just $ \r -> r { plWidth = Left (InvalidValueError "Box Dimension should be the same within a box" (tshow . validValue $ plWidth main)) }
                                        else Nothing
                                      , if not . null $ filter (/= plHeight main) (mapMaybe plHeight partials)
-                                       then Just $ \r -> r { plHeight = Left (InvalidValueError "Box Dimension should be the same within a box" (tshow $ plHeight main)) }
+                                       then Just $ \r -> r { plHeight = Left (InvalidValueError "Box Dimension should be the same within a box" (tshow . validValue $ plHeight main)) }
                                        else Nothing
 
                                      ]

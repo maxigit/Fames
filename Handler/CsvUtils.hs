@@ -328,7 +328,7 @@ instance Renderable InvalidField where
           MissingValueError _ -> ("missing-value" :: Text,"<Empty>")
           InvalidValueError e v -> ("invalid-value" :: Text, v)
     toWidget [cassius|
-.parsing-error, .missing-value
+.parsing-error, .missing-value, .invalid-value
   .description
      display:none
 .missing-value
