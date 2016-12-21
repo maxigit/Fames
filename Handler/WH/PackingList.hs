@@ -4,7 +4,8 @@
 module Handler.WH.PackingList
 ( getWHPackingListR
 , postWHPackingListR
-, postWHPackingListSaveR
+, getWHPackingListViewR
+-- , postWHPackingListViewR
 ) where
 
 import Import
@@ -13,6 +14,7 @@ import Handler.CsvUtils
 import qualified Data.Csv as Csv
 import Data.List (transpose)
 import qualified Data.List as List
+import Database.Persist.MySQL
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
 
@@ -132,13 +134,55 @@ processUpload mode param = do
     
       
         
+getWHPackingListViewR :: Int64 -> Handler Html
+getWHPackingListViewR key = do
+  let plKey = PackingListKey (SqlBackendKey key)
+  (plM, entities) <- runDB $ do
+      pl <- get plKey
+      entities <- selectList [PackingListDetailPackingList ==. plKey] []
+      return (pl, entities)
+  case plM of
+    Nothing -> notFound
+    Just pl -> do
+    
+    let header = [ ("Invoice Ref" , packingListInvoiceRef pl )
+                , ("To deliver", tshow (packingListBoxesToDeliver_d pl))
+                ] :: [(Text, Text)]
+    let fieldsS = [ [ ("Container" , packingListContainer pl )
+                    , ("Vessel", packingListVessel pl)
+                    ]
+                  , error "document"
+                  , [ ("ETD", tshow <$> packingListEtd pl)
+                    , ("ETA", tshow <$> packingListEta pl)
+                    ]
+                  ] :: [[(Text, Maybe Text)]]
+    let panelClass delivered | delivered == 0 = "success" :: Text
+                             | delivered == length entities = "info"
+                             | otherwise = "danger"
 
 
-postWHPackingListSaveR :: Handler Html
-postWHPackingListSaveR = undefined
 
--- getWHPackingListViewR :: Int64 -> Handler Html
--- getWHPackingListViewR plId = undefined
+    defaultLayout $ do
+      [whamlet|
+        <div.panel. class="panel-#{panelClass (packingListBoxesToDeliver_d pl)}">
+          <div.panel-heading>
+              $forall (field, value) <- header
+                <label>#{field}
+                <p>#{value}
+          <div.panel-body>
+            $forall fields <- fieldsS
+              <div>
+                $forall (field, value) <- fields
+                  <label>#{field}
+                  <p>#{fromMaybe "" value}
+
+          <p>#{fromMaybe "" (packingListComment pl)}
+              |]
+      [whamlet|
+          <div.panel.panel-default>
+            <div.panel-heading> Details
+            ^{entitiesToTable getDBName entities}
+              |]
 
 -- getWHPackingListTextcartR :: Int64 -> Handler Html
 -- getWHPackingListTextcartR plId = undefined

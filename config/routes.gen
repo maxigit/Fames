@@ -23,8 +23,7 @@
   /stocktake/locations WHStocktakeLocationR GET
 
   /packinglist WHPackingListR  GET POST !pl
-  /packinglist/save WHPackingListSaveR POST !pl/save
-  -- !/packinglist/#Int64 WHPackingListViewR GET !pl
+  !/packinglist/#Int64 WHPackingListViewR GET !pl
   -- /packinglist/textcart#Int64 WHPackingListViewR GET !pl
 
 /administrator AdministratorR GET
