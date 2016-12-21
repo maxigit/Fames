@@ -15,7 +15,7 @@ import qualified Data.Csv as Csv
 import Data.List (transpose)
 import qualified Data.List as List
 import Database.Persist.MySQL
-
+import qualified Data.Map as Map
 data Mode = Validate | Save deriving (Eq, Read, Show)
 
 -- | Type of file
@@ -23,7 +23,11 @@ data Format = PartialFirst deriving (Eq, Read, Show)
 data UploadParam = UploadParam
   { orderRef :: Text -- ^ original order reference
   , invoiceRef :: Text -- ^ name of the file to upload
-  , description :: Textarea -- ^ any comment
+  , container :: Maybe Text
+  , vessel :: Maybe Text
+  , departure :: Maybe Day
+  , arriving :: Maybe Day
+  , comment :: Maybe Textarea -- ^ any comment
   , spreadsheet :: Textarea -- ^ the actual spreadsheet to upload/process
   } deriving (Eq, Read, Show)
 
@@ -31,7 +35,11 @@ uploadForm param = renderBootstrap3 BootstrapBasicForm form
   where form = UploadParam
             <$> (areq textField "order ref" (fmap orderRef param))
             <*> (areq textField "invoice ref" (fmap invoiceRef param ))
-            <*> (areq textareaField "description" (fmap description param) )
+            <*> (aopt textField "container" (fmap container param ))
+            <*> (aopt textField "vessel" (fmap vessel param ))
+            <*> (aopt dayField "departure" (fmap departure param ))
+            <*> (aopt dayField "arriving" (fmap departure param ))
+            <*> (aopt textareaField "comment" (fmap comment param) )
             <*> (areq textareaField "spreadsheet" (fmap spreadsheet param) )
 
 getWHPackingListR :: Handler Html
@@ -118,7 +126,10 @@ processUpload mode param = do
     $forall group <- groups
       ^{renderBoxGroup group}
       |]
-      onSuccess Save rows = error "Saving PL not implemented"
+      onSuccess Save rows = do
+        savePLFromRows param rows
+        sendResponseStatus (toEnum 201 )=<< getWHPackingListR
+
       onSuccess Validate groups =
         renderWHPackingList Save (Just param)
                             200 (setSuccess "Packing list valid")
@@ -152,8 +163,8 @@ getWHPackingListViewR key = do
                     , ("Vessel", packingListVessel pl)
                     ]
                   , error "document"
-                  , [ ("ETD", tshow <$> packingListEtd pl)
-                    , ("ETA", tshow <$> packingListEta pl)
+                  , [ ("DEPARTURE", tshow <$> packingListDeparture pl)
+                    , ("ARRIVING", tshow <$> packingListArriving pl)
                     ]
                   ] :: [[(Text, Maybe Text)]]
     let panelClass delivered | delivered == 0 = "success" :: Text
@@ -203,21 +214,33 @@ data PLRow s = PLRow
   , plLength :: PLFieldTF s  Double Maybe  Null
   , plWidth :: PLFieldTF s  Double Maybe Null
   , plHeight :: PLFieldTF s  Double Maybe Null
+  , plVolume :: PLFieldTF s  Double Maybe Null
+  , plTotalVolume :: PLFieldTF s  Double Maybe Null
+  , plWeight :: PLFieldTF s  Double Maybe Null
+  , plTotalWeight :: PLFieldTF s  Double Maybe Null
   }
 
-data PLRowTypes = PLRawT | PLPartialT | PLFullBoxT | PLPartialBoxT | PLTotalT | PLOrderRefT deriving (Eq, Read, Show) 
+data PLRowTypes = PLRawT
+                | PLPartialT
+                | PLFullBoxT
+                | PLPartialBoxT
+                | PLTotalT
+                | PLOrderRefT
+                | PLFinalT deriving (Eq, Read, Show) 
 
 type PLRaw = PLRow PLRawT
 type PLPartial = PLRow PLPartialT
 type PLFullBox = PLRow PLFullBoxT
 type PLPartialBox = PLRow PLPartialBoxT
 type PLOrderRef = PLRow PLOrderRefT
+type PLFinal = PLRow PLFinalT
 
 deriving instance Show PLRaw
 deriving instance Show PLPartial
 deriving instance Show PLFullBox
 deriving instance Show PLPartialBox
 deriving instance Show PLOrderRef
+deriving instance Show PLFinal
 
 data PLValid
   = FullBox PLFullBox
@@ -229,6 +252,7 @@ type family PLFieldTF (s :: PLRowTypes) a f g where
   PLFieldTF 'PLOrderRefT a f g = FieldForValid (UnIdentity (g a))
   PLFieldTF 'PLRawT a f g = FieldForRaw a
   PLFieldTF 'PLPartialT a f g = FieldForPartial a
+  PLFieldTF 'PLFinalT a f g = a
 
 columnNames :: [(String, [String])]
 columnNames = [("Style", ["S", "Style No.", "Style No", "Style No ."] )
@@ -242,12 +266,16 @@ columnNames = [("Style", ["S", "Style No.", "Style No", "Style No ."] )
               ,("Length", ["L"])
               ,("Width", ["W"])
               ,("Height", ["H"])
+              ,("Volume", ["V", "CBM"])
+              ,("Total Volume", ["TV", "TOTAL CBM"])
+              ,("Weight", ["N.W"])
+              ,("Total Weight", ["TOTAL N.W"])
               ]
 columnNameMap = buildColumnMap columnNames
 
 instance Csv.FromNamedRecord (PLRow 'PLRawT) where
   parseNamedRecord m = let
-    [style, col, qty, cn, cne, n, qc, tot, l, w, h] = map fst columnNames
+    [style, col, qty, cn, cne, n, qc, tot, l, w, h, weight, tweight, vol, tvol] = map fst columnNames
     parse = parseMulti columnNameMap
     in pure PLRow
         <*> m `parse` style
@@ -261,6 +289,10 @@ instance Csv.FromNamedRecord (PLRow 'PLRawT) where
         <*> m `parse` l
         <*> m `parse` w
         <*> m `parse` h
+        <*> m `parse` weight
+        <*> m `parse` tweight
+        <*> m `parse` vol
+        <*> m `parse` tvol
 
 
 traverseRow PLRow{..} = pure PLRow
@@ -275,6 +307,10 @@ traverseRow PLRow{..} = pure PLRow
        <*> plLength
        <*> plWidth
        <*> plHeight
+       <*> plWeight
+       <*> plTotalWeight
+       <*> plVolume
+       <*> plTotalVolume
 
 transformRow PLRow{..} = PLRow
        (transform plStyle)
@@ -288,6 +324,10 @@ transformRow PLRow{..} = PLRow
        (transform plLength)
        (transform plWidth)
        (transform plHeight)
+       (transform plWeight)
+       (transform plTotalWeight)
+       (transform plVolume)
+       (transform plTotalVolume)
   
 transformPartial :: PLPartialBox -> PLRaw
 transformPartial PLRow{..} = PLRow
@@ -302,6 +342,10 @@ transformPartial PLRow{..} = PLRow
   (transform plLength)
   (transform plWidth)
   (transform plHeight)
+  (transform plWeight)
+  (transform plTotalWeight)
+  (transform plVolume)
+  (transform plTotalVolume)
 
 type PLBoxGroup = ([PLPartialBox] , PLFullBox)
 parsePackingList :: Text -> ByteString -> ParsingResult PLRaw  [(PLOrderRef , [PLBoxGroup])]
@@ -328,15 +372,19 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
                            -> Right $ PartialBox ( PLRow style colour qty
                                                          () () () () ()
                                                          plLength plWidth plHeight
+                                                         plWeight plTotalWeight
+                                                         plVolume plTotalVolume
                                                  )
                  PLRow (Just ref) Nothing Nothing Nothing Nothing Nothing
                                   Nothing Nothing Nothing Nothing Nothing
+                                  Nothing Nothing Nothing Nothing
                             -> Right $ OrderRef ( PLRow ref Nothing () () () ()
                                                                 () () () () ()
+                                                                () () () ()
                                                   )
                  _  -> Left raw
                 
-              createOrder orderRef = PLRow (Provided orderRef) Nothing () () () () () () () () () :: PLOrderRef
+              createOrder orderRef = PLRow (Provided orderRef) Nothing () () () () () () () () () () ()  () ():: PLOrderRef
               groupRow :: Text -> [PLValid] -> Either PLRaw [ (PLOrderRef , [PLBoxGroup])]
               groupRow orderRef rows = Right $ go (createOrder orderRef) rows [] []
                 where
@@ -350,7 +398,11 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
                 -- go rows partials = traceShow (rows, partials) undefined
               validateGroup :: PLBoxGroup -> Either [PLRaw] PLBoxGroup 
               validateGroup group@(partials, main) = let
+                final = transformRow main :: PLFinal
+              -- TODO remove use of validValue and use final instead of main when needed
                 orderQty = sum (map (validValue . plOrderQuantity) partials) + (validValue $ plOrderQuantity main)
+                (l,w,h) = (,,) <$> plLength <*> plWidth <*> plHeight $ final
+                (v,wg) = (,) <$> plVolume <*> plWeight $ final
                 onErrors :: [PLRaw -> PLRaw]
                 onErrors = catMaybes [ if orderQty /= validValue (plTotalQuantity main)
                                        then Just $ \r -> r {plTotalQuantity = Left (InvalidValueError "Total quantity doesn't match order quantities" (tshow . validValue $ plTotalQuantity main)) }
@@ -375,7 +427,15 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
                                      , if not . null $ filter (/= plHeight main) (mapMaybe plHeight partials)
                                        then Just $ \r -> r { plHeight = Left (InvalidValueError "Box Dimension should be the same within a box" (tshow . validValue $ plHeight main)) }
                                        else Nothing
-
+                                     , if abs(l*w*h - v/1000000) > 1e-2
+                                       then Just $ \r -> r { plVolume = Left (InvalidValueError "Volume doesn't match dimensions" (tshow . validValue $ plVolume main)) }
+                                       else Nothing
+                                     , if w * fromIntegral (plNumberOfCarton final) /= plTotalWeight final
+                                       then Just $ \r -> r { plWeight = Left (InvalidValueError "total weight doesn't boxes weight" (tshow . validValue $ plWeight main)) }
+                                       else Nothing
+                                     , if v * fromIntegral (plNumberOfCarton final) /= plTotalVolume final
+                                       then Just $ \r -> r { plVolume = Left (InvalidValueError "total volume doesn't boxes volume" (tshow . validValue $ plVolume main)) }
+                                       else Nothing
                                      ]
                 in case onErrors of
                     [] -> Right group
@@ -409,6 +469,10 @@ renderRow PLRow{..} = do
           <td.pl>^{render plWidth}
           <td.pl>x
           <td.pl>^{render plHeight}
+          <td.pl>^{render plWeight}
+          <td.pl>^{render plTotalWeight}
+          <td.pl>^{render plVolume}
+          <td.pl>^{render plTotalVolume}
           |]
 
 renderHeaderRow = [whamlet|
@@ -427,6 +491,10 @@ renderHeaderRow = [whamlet|
     <th>Width
     <th>
     <th>Height
+    <th>Weight
+    <th>Total Weight
+    <th>Volume
+    <th>Total Volume
 |]
     -- <th>Vol/CNT
     -- <th>Total Vol
@@ -442,4 +510,62 @@ renderRows classFor rows = do
 instance Renderable PLRaw where render = renderRow
 instance Renderable [PLRaw] where render = renderRows (const ("" :: String))
                               
+  
+-- * Saving
+
+savePLFromRows :: UploadParam -> [(PLOrderRef, [PLBoxGroup])] -> Handler (PackingList, [PackingListDetail])
+savePLFromRows param sections = runDB $ do
+  let docKey = error "implement document key creation"
+      nOfCartons (_, groups) = sum (map (validValue . plNumberOfCarton . snd) groups)
+      
+  let pl = createPLFromForm docKey (sum (map nOfCartons sections)) param
+  pKey <- insert pl
+  let details = concatMap (createDetailsFromSection pKey) sections
+  insertMany details
+  return (pl, details)
+  
+createPLFromForm :: DocumentKeyId -> Int -> UploadParam ->  PackingList
+createPLFromForm docKey nOfBoxes =
+  pure PackingList
+  <*> invoiceRef
+  <*> vessel
+  <*> container
+  <*> (pure docKey)
+  <*> (\u -> unTextarea <$> (comment u))
+  <*> (pure nOfBoxes)
+  <*> departure
+  <*> arriving
+  
+createDetailsFromSection pKey (orderRef, groups) = do
+  let ref = validValue $ plStyle orderRef
+  concatMap (createDetails pKey ref) groups
+
+-- | one row in the spreadsheet can create multiple rows if there are more
+-- than one carton
+createDetails :: PackingListId -> Text -> PLBoxGroup -> [PackingListDetail]
+createDetails pKey orderRef (partials, main') = do
+  let main = transform main :: PLFinal
+  let content = Map.fromListWith (+)
+                                 ( (plColour main, plOrderQuantity main)
+                                 : [(validValue $ plColour p, validValue $ plOrderQuantity p) | p <- partials]
+                                 )
+      (begin, end) = (,) <$> plFirstCartonNumber <*> plLastCartonNumber $ main
+      ns = [begin..end]
+  error "validaet mixed box on ly one"
+  error "add weight"
+  error "validate weight"
+  [ (pure PackingListDetail
+     <*> (pure pKey)
+     <*> plStyle
+     <*> (pure content)
+     <*> (pure orderRef)
+     <*> (pure n)
+     <*> plLength
+     <*> plWidth
+     <*> plHeight
+     <*> plWeight
+     <*> (pure False)
+     $ main
+    )
+   | n <- ns]
   

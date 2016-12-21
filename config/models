@@ -112,8 +112,8 @@ PackingList sql=fames_packinglist
   documentKey DocumentKeyId sql=document_key_id
   comment Text Maybe
   boxesToDeliver_d Int
-  etd Day Maybe
-  eta Day Maybe
+  departure Day Maybe
+  arriving Day Maybe
   UniquePL invoiceRef
   deriving Eq
   deriving Show
@@ -127,8 +127,8 @@ PackingListDetail sql=fames_packinglist_detail
   width Double
   height Double
   weight Double
-  Unique PLD packingList style boxNumber
   delivered Bool default=False
+  Unique PLD packingList style boxNumber
 
 
 
