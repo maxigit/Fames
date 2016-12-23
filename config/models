@@ -110,7 +110,7 @@ PackingList sql=fames_packinglist
   vessel Text Maybe
   container Text Maybe
   documentKey DocumentKeyId sql=document_key_id
-  comment Text Maybe
+  -- comment Text Maybe Not needed in Docu
   boxesToDeliver_d Int
   departure Day Maybe
   arriving Day Maybe
@@ -122,6 +122,7 @@ PackingListDetail sql=fames_packinglist_detail
   packingList PackingListId sql=packinglist_id
   style Text
   content (Map Text Int) 
+  reference Text
   boxNumber Int
   length Double
   width Double

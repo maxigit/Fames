@@ -9,6 +9,7 @@ module Handler.Util
 , uploadFileFormWithComment
 , Encoding(..)
 , readUploadUTF8
+, computeDocumentKey
 ) where
 
 -- import Foundation

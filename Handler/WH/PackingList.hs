@@ -109,6 +109,7 @@ processUpload mode param = do
 
       renderBoxGroup :: PLBoxGroup -> Widget
       renderBoxGroup (partials, full) = do
+        "add here document key ckecking and creation"
         topBorder
         [whamlet|
 <tr.table-top-border> ^{renderRow full}
@@ -126,11 +127,29 @@ processUpload mode param = do
     $forall group <- groups
       ^{renderBoxGroup group}
       |]
-      onSuccess Save rows = do
-        savePLFromRows param rows
+
+      key = computeDocumentKey bytes
+  documentKey <- runDB $ (getBy (UniqueSK key))
+      -- TODO used in Stocktake factorize
+  forM documentKey $ \(Entity _ doc) -> do
+    uploader <- runDB $ get (documentKeyUserId doc)
+    let msg = [shamlet|Document has already been uploaded
+$maybe u <- uploader
+  as "#{documentKeyName doc}"
+  by #{userIdent u}
+  on the #{tshow $ documentKeyProcessedAt doc}.
+|]
+    case mode of
+      Validate -> setWarning msg >> return ""
+      Save -> renderWHPackingList Save (Just param) 422 (setError msg) (return ()) -- should exit
+        
+  let onSuccess Save rows = do
+        savePLFromRows key param rows
+        setSuccess "Packing list uploaded successfully"
         sendResponseStatus (toEnum 201 )=<< getWHPackingListR
 
-      onSuccess Validate groups =
+      onSuccess Validate groups = do
+        
         renderWHPackingList Save (Just param)
                             200 (setSuccess "Packing list valid")
                             [whamlet|
@@ -148,52 +167,58 @@ processUpload mode param = do
 getWHPackingListViewR :: Int64 -> Handler Html
 getWHPackingListViewR key = do
   let plKey = PackingListKey (SqlBackendKey key)
-  (plM, entities) <- runDB $ do
-      pl <- get plKey
+  (plM, docKeyM, entities) <- runDB $ do
+      plM <- get plKey
       entities <- selectList [PackingListDetailPackingList ==. plKey] []
-      return (pl, entities)
-  case plM of
-    Nothing -> notFound
-    Just pl -> do
+      docKey <- do
+        case plM of
+          Nothing -> return Nothing
+          Just pl -> get (packingListDocumentKey pl)
+      return (plM, docKey, entities)
+      
+      
+  case (plM, docKeyM) of
+    (Just pl, Just docKey) -> do
     
-    let header = [ ("Invoice Ref" , packingListInvoiceRef pl )
-                , ("To deliver", tshow (packingListBoxesToDeliver_d pl))
-                ] :: [(Text, Text)]
-    let fieldsS = [ [ ("Container" , packingListContainer pl )
-                    , ("Vessel", packingListVessel pl)
-                    ]
-                  , error "document"
-                  , [ ("DEPARTURE", tshow <$> packingListDeparture pl)
-                    , ("ARRIVING", tshow <$> packingListArriving pl)
-                    ]
-                  ] :: [[(Text, Maybe Text)]]
-    let panelClass delivered | delivered == 0 = "success" :: Text
-                             | delivered == length entities = "info"
-                             | otherwise = "danger"
+      let header = [ ("Invoice Ref" , packingListInvoiceRef pl )
+                  , ("To deliver", tshow (packingListBoxesToDeliver_d pl))
+                  ] :: [(Text, Text)]
+      let fieldsS = [ [ ("Container" , packingListContainer pl )
+                      , ("Vessel", packingListVessel pl)
+                      ]
+                    , error "document"
+                    , [ ("DEPARTURE", tshow <$> packingListDeparture pl)
+                      , ("ARRIVING", tshow <$> packingListArriving pl)
+                      ]
+                    ] :: [[(Text, Maybe Text)]]
+      let panelClass delivered | delivered == 0 = "success" :: Text
+                              | delivered == length entities = "info"
+                              | otherwise = "danger"
 
 
 
-    defaultLayout $ do
-      [whamlet|
-        <div.panel. class="panel-#{panelClass (packingListBoxesToDeliver_d pl)}">
-          <div.panel-heading>
-              $forall (field, value) <- header
-                <label>#{field}
-                <p>#{value}
-          <div.panel-body>
-            $forall fields <- fieldsS
-              <div>
-                $forall (field, value) <- fields
+      defaultLayout $ do
+        [whamlet|
+          <div.panel. class="panel-#{panelClass (packingListBoxesToDeliver_d pl)}">
+            <div.panel-heading>
+                $forall (field, value) <- header
                   <label>#{field}
-                  <p>#{fromMaybe "" value}
+                  <p>#{value}
+            <div.panel-body>
+              $forall fields <- fieldsS
+                <div>
+                  $forall (field, value) <- fields
+                    <label>#{field}
+                    <p>#{fromMaybe "" value}
 
-          <p>#{fromMaybe "" (packingListComment pl)}
-              |]
-      [whamlet|
-          <div.panel.panel-default>
-            <div.panel-heading> Details
-            ^{entitiesToTable getDBName entities}
-              |]
+            <p>#{documentKeyComment docKey}
+                |]
+        [whamlet|
+            <div.panel.panel-default>
+              <div.panel-heading> Details
+              ^{entitiesToTable getDBName entities}
+                |]
+    _ -> notFound
 
 -- getWHPackingListTextcartR :: Int64 -> Handler Html
 -- getWHPackingListTextcartR plId = undefined
@@ -513,16 +538,22 @@ instance Renderable [PLRaw] where render = renderRows (const ("" :: String))
   
 -- * Saving
 
-savePLFromRows :: UploadParam -> [(PLOrderRef, [PLBoxGroup])] -> Handler (PackingList, [PackingListDetail])
-savePLFromRows param sections = runDB $ do
-  let docKey = error "implement document key creation"
-      nOfCartons (_, groups) = sum (map (validValue . plNumberOfCarton . snd) groups)
-      
-  let pl = createPLFromForm docKey (sum (map nOfCartons sections)) param
-  pKey <- insert pl
-  let details = concatMap (createDetailsFromSection pKey) sections
-  insertMany details
-  return (pl, details)
+savePLFromRows :: Text -> UploadParam -> [(PLOrderRef, [PLBoxGroup])] -> Handler (PackingList, [PackingListDetail])
+savePLFromRows key param sections = do
+  userId <- requireAuthId
+  processedAt <- liftIO getCurrentTime
+  let documentKey = DocumentKey "packinglist" (invoiceRef param)
+                                (maybe "" unTextarea (comment param))
+                                key userId processedAt
+
+  runDB $ do
+    docKey <- insert documentKey
+    let nOfCartons (_, groups) = sum (map (validValue . plNumberOfCarton . snd) groups)
+    let pl = createPLFromForm docKey (sum (map nOfCartons sections)) param
+    pKey <- insert pl
+    let details = concatMap (createDetailsFromSection pKey) sections
+    insertMany details
+    return (pl, details)
   
 createPLFromForm :: DocumentKeyId -> Int -> UploadParam ->  PackingList
 createPLFromForm docKey nOfBoxes =
@@ -531,7 +562,6 @@ createPLFromForm docKey nOfBoxes =
   <*> vessel
   <*> container
   <*> (pure docKey)
-  <*> (\u -> unTextarea <$> (comment u))
   <*> (pure nOfBoxes)
   <*> departure
   <*> arriving
@@ -551,9 +581,6 @@ createDetails pKey orderRef (partials, main') = do
                                  )
       (begin, end) = (,) <$> plFirstCartonNumber <*> plLastCartonNumber $ main
       ns = [begin..end]
-  error "validaet mixed box on ly one"
-  error "add weight"
-  error "validate weight"
   [ (pure PackingListDetail
      <*> (pure pKey)
      <*> plStyle
