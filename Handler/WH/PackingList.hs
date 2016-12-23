@@ -98,7 +98,7 @@ postWHPackingListR = do
   ((resp, view), encType) <- runFormPost (uploadForm Nothing)
   case resp of
     FormMissing -> error "Form Missing"
-    FormFailure a -> defaultLayout [whamlet|^{view}|]
+    FormFailure a -> sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
     FormSuccess param ->  do
       processUpload (fromMaybe Validate (readMay =<< action)) param
         

@@ -137,7 +137,7 @@ appSpec = withAppNoDB BypassAuth $ do
               postReceiptSheet 422 sheet
               htmlAnyContain ".missing-columns li" "counterparty"
        
-            it "@fails displays correct columns" $ do
+            it "displays correct columns" $ do
               postReceiptSheet 422 sheet
 
               printBody
