@@ -285,22 +285,22 @@ columnNames = [("Style", ["S", "Style No.", "Style No", "Style No ."] )
               ,("Quantity", ["Q", "QTY", "order QTY"])
               ,("1st carton number", ["start", "F", "cn", "C/NO", "first"])
               ,("last carton number", ["end", "last", "e"])
-              ,("Number of Carton", ["CTNS", "N"])
+              ,("Number of Carton", ["CTNS", "CTN", "N"])
               ,("Quantity per Carton", ["qc", "Q/C", "QTY/CTN"])
               ,("Total Quantity", ["T", "Total", "TQTY"])
               ,("Length", ["L"])
               ,("Width", ["W"])
               ,("Height", ["H"])
-              ,("Volume", ["V", "CBM"])
-              ,("Total Volume", ["TV", "TOTAL CBM"])
-              ,("Weight", ["N.W"])
-              ,("Total Weight", ["TOTAL N.W"])
+              ,("Volume", ["V", "CBM/CTN"])
+              ,("Total Volume", ["TV", "CBM", "TOTAL CBM"])
+              ,("Weight", ["N.W/CTN", "N.W./CTN"])
+              ,("Total Weight", ["N.W","TOTAL N.W"])
               ]
 columnNameMap = buildColumnMap columnNames
 
 instance Csv.FromNamedRecord (PLRow 'PLRawT) where
   parseNamedRecord m = let
-    [style, col, qty, cn, cne, n, qc, tot, l, w, h, weight, tweight, vol, tvol] = map fst columnNames
+    [style, col, qty, cn, cne, n, qc, tot, l, w, h, vol, tvol, weight, tweight] = map fst columnNames
     parse = parseMulti columnNameMap
     in pure PLRow
         <*> m `parse` style
@@ -314,10 +314,10 @@ instance Csv.FromNamedRecord (PLRow 'PLRawT) where
         <*> m `parse` l
         <*> m `parse` w
         <*> m `parse` h
-        <*> m `parse` weight
-        <*> m `parse` tweight
         <*> m `parse` vol
         <*> m `parse` tvol
+        <*> m `parse` weight
+        <*> m `parse` tweight
 
 
 traverseRow PLRow{..} = pure PLRow
@@ -332,10 +332,10 @@ traverseRow PLRow{..} = pure PLRow
        <*> plLength
        <*> plWidth
        <*> plHeight
-       <*> plWeight
-       <*> plTotalWeight
        <*> plVolume
        <*> plTotalVolume
+       <*> plWeight
+       <*> plTotalWeight
 
 transformRow PLRow{..} = PLRow
        (transform plStyle)
@@ -349,10 +349,10 @@ transformRow PLRow{..} = PLRow
        (transform plLength)
        (transform plWidth)
        (transform plHeight)
-       (transform plWeight)
-       (transform plTotalWeight)
        (transform plVolume)
        (transform plTotalVolume)
+       (transform plWeight)
+       (transform plTotalWeight)
   
 transformPartial :: PLPartialBox -> PLRaw
 transformPartial PLRow{..} = PLRow
@@ -367,10 +367,10 @@ transformPartial PLRow{..} = PLRow
   (transform plLength)
   (transform plWidth)
   (transform plHeight)
-  (transform plWeight)
-  (transform plTotalWeight)
   (transform plVolume)
   (transform plTotalVolume)
+  (transform plWeight)
+  (transform plTotalWeight)
 
 type PLBoxGroup = ([PLPartialBox] , PLFullBox)
 parsePackingList :: Text -> ByteString -> ParsingResult PLRaw  [(PLOrderRef , [PLBoxGroup])]
@@ -452,13 +452,13 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
                                      , if not . null $ filter (/= plHeight main) (mapMaybe plHeight partials)
                                        then Just $ \r -> r { plHeight = Left (InvalidValueError "Box Dimension should be the same within a box" (tshow . validValue $ plHeight main)) }
                                        else Nothing
-                                     , if abs(l*w*h - v/1000000) > 1e-2
+                                     , if abs(l*w*h/1000000 - v) > 1e-2
                                        then Just $ \r -> r { plVolume = Left (InvalidValueError "Volume doesn't match dimensions" (tshow . validValue $ plVolume main)) }
                                        else Nothing
-                                     , if w * fromIntegral (plNumberOfCarton final) /= plTotalWeight final
-                                       then Just $ \r -> r { plWeight = Left (InvalidValueError "total weight doesn't boxes weight" (tshow . validValue $ plWeight main)) }
+                                     , if (wg * fromIntegral (plNumberOfCarton final) - plTotalWeight final) > 1e-2
+                                       then Just $ \r -> r { plWeight = Left (InvalidValueError "total weight doesn't match boxes weight" (tshow . validValue $ plWeight main)) }
                                        else Nothing
-                                     , if v * fromIntegral (plNumberOfCarton final) /= plTotalVolume final
+                                     , if (l*w*h/1000000 * fromIntegral (plNumberOfCarton final) - plTotalVolume final) > 1e-2 -- we can't use v(olume) as it's rounded
                                        then Just $ \r -> r { plVolume = Left (InvalidValueError "total volume doesn't boxes volume" (tshow . validValue $ plVolume main)) }
                                        else Nothing
                                      ]
@@ -494,10 +494,10 @@ renderRow PLRow{..} = do
           <td.pl>^{render plWidth}
           <td.pl>x
           <td.pl>^{render plHeight}
-          <td.pl>^{render plWeight}
-          <td.pl>^{render plTotalWeight}
           <td.pl>^{render plVolume}
           <td.pl>^{render plTotalVolume}
+          <td.pl>^{render plWeight}
+          <td.pl>^{render plTotalWeight}
           |]
 
 renderHeaderRow = [whamlet|
@@ -516,10 +516,10 @@ renderHeaderRow = [whamlet|
     <th>Width
     <th>
     <th>Height
-    <th>Weight
-    <th>Total Weight
     <th>Volume
     <th>Total Volume
+    <th>Weight
+    <th>Total Weight
 |]
     -- <th>Vol/CNT
     -- <th>Total Vol
