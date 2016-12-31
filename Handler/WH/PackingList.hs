@@ -372,6 +372,24 @@ transformPartial PLRow{..} = PLRow
   (transform plWeight)
   (transform plTotalWeight)
 
+transformOrder :: PLOrderRef -> PLRaw
+transformOrder PLRow{..} = PLRow
+  (transform plStyle)
+  (transform plColour)
+  (Right Nothing)
+  (Right Nothing)
+  (Right Nothing)
+  (Right Nothing)
+  (Right Nothing)
+  (Right Nothing)
+  (Right Nothing)
+  (Right Nothing)
+  (Right Nothing)
+  (Right Nothing)
+  (Right Nothing)
+  (Right Nothing)
+  (Right Nothing)
+
 type PLBoxGroup = ([PLPartialBox] , PLFullBox)
 parsePackingList :: Text -> ByteString -> ParsingResult PLRaw  [(PLOrderRef , [PLBoxGroup])]
 parsePackingList orderRef bytes = either id ParsingCorrect $ do
@@ -411,20 +429,20 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
                 
               createOrder orderRef = PLRow (Provided orderRef) Nothing () () () () () () () () () () ()  () ():: PLOrderRef
               groupRow :: Text -> [PLValid] -> Either PLRaw [ (PLOrderRef , [PLBoxGroup])]
-              groupRow orderRef rows = Right $ go (createOrder orderRef) rows [] []
+              groupRow orderRef rows = go (createOrder orderRef) rows [] []
                 where
-                    go :: PLOrderRef -> [PLValid] -> [PLPartialBox] -> [PLBoxGroup] -> [(PLOrderRef, [PLBoxGroup])]
-                    go order [] [] groups = [(order, groups)]
-                    go _ [] partials _ = error "box not finished"
+                    go :: PLOrderRef -> [PLValid] -> [PLPartialBox] -> [PLBoxGroup] -> Either PLRaw [(PLOrderRef, [PLBoxGroup])]
+                    go order [] [] groups = Right [(order, groups)]
+                    go _ [] partials _ = Left (error "Should not append")
                     go order (FullBox full:rows) partials groups = go order rows []  ((partials, full):groups)
                     go order (PartialBox partial:rows) partials groups = go order rows (partials++[partial]) groups
-                    go order (OrderRef order':rows) [] groups = (order, groups) : go order' rows [] []
-                    go order (OrderRef order':rows) _ _ = error "box not finished"
+                    go order (OrderRef order':rows) [] groups = ((order, groups) :) <$> go order' rows [] []
+                    go order (OrderRef order':rows) _ _ = Left $ (transformOrder order') -- {plColour = Left (InvalidValueError "Box not closed" "") } 
                 -- go rows partials = traceShow (rows, partials) undefined
               validateGroup :: PLBoxGroup -> Either [PLRaw] PLBoxGroup 
               validateGroup group@(partials, main) = let
                 final = transformRow main :: PLFinal
-              -- TODO remove use of validValue and use final instead of main when needed
+                -- TODO remove use of validValue and use final instead of main when needed
                 orderQty = sum (map (validValue . plOrderQuantity) partials) + (validValue $ plOrderQuantity main)
                 (l,w,h) = (,,) <$> plLength <*> plWidth <*> plHeight $ final
                 (v,wg) = (,) <$> plVolume <*> plWeight $ final
@@ -455,11 +473,11 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
                                      , if abs(l*w*h/1000000 - v) > 1e-2
                                        then Just $ \r -> r { plVolume = Left (InvalidValueError "Volume doesn't match dimensions" (tshow . validValue $ plVolume main)) }
                                        else Nothing
-                                     , if (wg * fromIntegral (plNumberOfCarton final) - plTotalWeight final) > 1e-2
-                                       then Just $ \r -> r { plWeight = Left (InvalidValueError "total weight doesn't match boxes weight" (tshow . validValue $ plWeight main)) }
+                                     , if  abs (wg * fromIntegral (plNumberOfCarton final) - plTotalWeight final) > 1e-2 
+                                       then Just $ \r -> r { plWeight = Left (InvalidValueError "Total weight doesn't match boxes weight" (tshow . validValue $ plWeight main)) }
                                        else Nothing
-                                     , if (l*w*h/1000000 * fromIntegral (plNumberOfCarton final) - plTotalVolume final) > 1e-2 -- we can't use v(olume) as it's rounded
-                                       then Just $ \r -> r { plVolume = Left (InvalidValueError "total volume doesn't boxes volume" (tshow . validValue $ plVolume main)) }
+                                     , if abs (l*w*h/1000000 * fromIntegral (plNumberOfCarton final) - plTotalVolume final) > 1e-2 -- we can't use v(olume) as it's rounded
+                                       then Just $ \r -> r { plVolume = Left (InvalidValueError "Total volume doesn't match boxes volume" (tshow . validValue $ plVolume main)) }
                                        else Nothing
                                      ]
                 in case onErrors of
