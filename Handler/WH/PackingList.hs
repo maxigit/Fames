@@ -43,9 +43,9 @@ uploadForm param = renderBootstrap3 BootstrapBasicForm form
             <*> (areq textareaField "spreadsheet" (fmap spreadsheet param) )
 
 getWHPackingListR :: Handler Html
-getWHPackingListR = renderWHPackingList Validate Nothing 200 (setInfo "Enter a packing list") (return ())
+getWHPackingListR = renderWHPackingList Validate Nothing ok200 (setInfo "Enter a packing list") (return ())
 
-renderWHPackingList :: Mode -> (Maybe UploadParam) -> Int -> Handler () ->  Widget -> Handler Html
+renderWHPackingList :: Mode -> (Maybe UploadParam) -> Status -> Handler () ->  Widget -> Handler Html
 renderWHPackingList mode param status message pre = do
   let btn = case mode of
         Validate -> "primary" :: Text
@@ -53,7 +53,7 @@ renderWHPackingList mode param status message pre = do
       
   (form, encType) <- generateFormPost (uploadForm param)
   message
-  sendResponseStatus (toEnum status) =<< defaultLayout
+  sendResponseStatus status =<< defaultLayout
 --     toWidget [cassius|
 -- tr.table-top-border td
 --   border-top: black thin solid black
@@ -75,7 +75,7 @@ renderWHPackingList mode param status message pre = do
     <div.well>
       <form #upload-form role=form method=post action=@{WarehouseR WHPackingListR} enctype=#{encType}>
         ^{form}
-        <button type="submit" name="#{tshow mode}" class="btn btn-#{btn}">#{tshow mode}
+        <button type="submit" name="action" class="btn btn-#{btn}">#{tshow mode}
                         |]
   
 --  [[1,2]
@@ -129,6 +129,7 @@ processUpload mode param = do
       |]
 
       key = computeDocumentKey bytes
+
   documentKey <- runDB $ (getBy (UniqueSK key))
       -- TODO used in Stocktake factorize
   forM documentKey $ \(Entity _ doc) -> do
@@ -141,24 +142,23 @@ $maybe u <- uploader
 |]
     case mode of
       Validate -> setWarning msg >> return ""
-      Save -> renderWHPackingList Save (Just param) 422 (setError msg) (return ()) -- should exit
+      Save -> renderWHPackingList Save (Just param) expectationFailed417 (setError msg) (return ()) -- should exit
         
   let onSuccess Save rows = do
         savePLFromRows key param rows
-        setSuccess "Packing list uploaded successfully"
-        sendResponseStatus (toEnum 201 )=<< getWHPackingListR
+        renderWHPackingList Validate Nothing created201 (setSuccess "Packing list uploaded successfully") (return ())
 
       onSuccess Validate groups = do
         
         renderWHPackingList Save (Just param)
-                            200 (setSuccess "Packing list valid")
+                            ok200 (setSuccess "Packing list valid")
                             [whamlet|
 <div.panel-group>
   $forall section <- groups
     ^{renderSection section}
                                     |]
     
-  renderParsingResult (renderWHPackingList mode (Just param) 422) 
+  renderParsingResult (renderWHPackingList mode (Just param) badRequest400) 
                       (onSuccess mode)
                       (parsePackingList (orderRef param) bytes)
     
@@ -396,7 +396,7 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
         raws <- parseSpreadsheet columnNameMap Nothing bytes <|&> WrongHeader
         let rawsE = map validate raws
         rows <- sequence rawsE <|&> const (InvalidFormat . lefts $ rawsE)
-        groups <-  groupRow orderRef rows <|&> const (InvalidData . lefts $ rawsE)
+        groups <-  groupRow orderRef rows <|&> InvalidData
         let validGroups = concatMap (map validateGroup . snd) groups
         -- sequence validGroups <|&> const (InvalidData $ concatMap (either id (\(partials,main) -> transformRow main : map transformPartial partials )) validGroups)
         sequence validGroups <|&> const (InvalidData . concat $ lefts validGroups)
@@ -428,16 +428,18 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
                  _  -> Left raw
                 
               createOrder orderRef = PLRow (Provided orderRef) Nothing () () () () () () () () () () ()  () ():: PLOrderRef
-              groupRow :: Text -> [PLValid] -> Either PLRaw [ (PLOrderRef , [PLBoxGroup])]
+              groupRow :: Text -> [PLValid] -> Either [PLRaw] [ (PLOrderRef , [PLBoxGroup])]
               groupRow orderRef rows = go (createOrder orderRef) rows [] []
                 where
-                    go :: PLOrderRef -> [PLValid] -> [PLPartialBox] -> [PLBoxGroup] -> Either PLRaw [(PLOrderRef, [PLBoxGroup])]
+                    go :: PLOrderRef -> [PLValid] -> [PLPartialBox] -> [PLBoxGroup] -> Either [PLRaw ][(PLOrderRef, [PLBoxGroup])]
                     go order [] [] groups = Right [(order, groups)]
-                    go _ [] partials _ = Left (error "Should not append")
+                    go _ [] partials@(_:_) _ = let raws = map transformPartial partials
+                                         in  Left $ List.init raws ++ [(List.last raws) {plFirstCartonNumber = Left (InvalidValueError "Box not closed" "")}]
                     go order (FullBox full:rows) partials groups = go order rows []  ((partials, full):groups)
                     go order (PartialBox partial:rows) partials groups = go order rows (partials++[partial]) groups
                     go order (OrderRef order':rows) [] groups = ((order, groups) :) <$> go order' rows [] []
-                    go order (OrderRef order':rows) _ _ = Left $ (transformOrder order') -- {plColour = Left (InvalidValueError "Box not closed" "") } 
+                    go order (OrderRef order':rows) _ _ = Left [(transformOrder order') {plColour = Left (InvalidValueError "Box not closed" "") } ]
+                    go _ _ _ _ = error "PackingList::groupRow should not append"
                 -- go rows partials = traceShow (rows, partials) undefined
               validateGroup :: PLBoxGroup -> Either [PLRaw] PLBoxGroup 
               validateGroup group@(partials, main) = let
@@ -550,6 +552,7 @@ renderRows classFor rows = do
     <tr class="#{classFor row}">^{render row}
         |]
 
+
 instance Renderable PLRaw where render = renderRow
 instance Renderable [PLRaw] where render = renderRows (const ("" :: String))
                               
@@ -592,7 +595,7 @@ createDetailsFromSection pKey (orderRef, groups) = do
 -- than one carton
 createDetails :: PackingListId -> Text -> PLBoxGroup -> [PackingListDetail]
 createDetails pKey orderRef (partials, main') = do
-  let main = transform main :: PLFinal
+  let main = transformRow main' :: PLFinal
   let content = Map.fromListWith (+)
                                  ( (plColour main, plOrderQuantity main)
                                  : [(validValue $ plColour p, validValue $ plOrderQuantity p) | p <- partials]

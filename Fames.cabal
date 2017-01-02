@@ -184,6 +184,7 @@ test-suite test
                  , cassava
                  , yaml
                  , temporary
+                 , http-types >= 0.9
 
 
 executable FAGenerator
