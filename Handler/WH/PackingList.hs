@@ -109,7 +109,6 @@ processUpload mode param = do
 
       renderBoxGroup :: PLBoxGroup -> Widget
       renderBoxGroup (partials, full) = do
-        "add here document key ckecking and creation"
         topBorder
         [whamlet|
 <tr.table-top-border> ^{renderRow full}
@@ -134,7 +133,7 @@ processUpload mode param = do
       -- TODO used in Stocktake factorize
   forM documentKey $ \(Entity _ doc) -> do
     uploader <- runDB $ get (documentKeyUserId doc)
-    let msg = [shamlet|Document has already been uploaded
+    let msg = [shamlet|Document has already been uploaded 
 $maybe u <- uploader
   as "#{documentKeyName doc}"
   by #{userIdent u}
@@ -432,6 +431,7 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
               groupRow orderRef rows = go (createOrder orderRef) rows [] []
                 where
                     go :: PLOrderRef -> [PLValid] -> [PLPartialBox] -> [PLBoxGroup] -> Either [PLRaw ][(PLOrderRef, [PLBoxGroup])]
+                    -- go order valids partials groups
                     go order [] [] groups = Right [(order, groups)]
                     go _ [] partials@(_:_) _ = let raws = map transformPartial partials
                                          in  Left $ List.init raws ++ [(List.last raws) {plFirstCartonNumber = Left (InvalidValueError "Box not closed" "")}]

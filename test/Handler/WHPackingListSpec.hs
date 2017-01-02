@@ -63,16 +63,17 @@ Cardigan,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0|]
       it "saves" $ do
         savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
 T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
-Cardigan,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
+CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
 |]
-        error "check it works"
+
+        c <- runDB $ count [PackingListDetailStyle ==. "CardiganForSave"]
+        liftIO $ c `shouldBe` 4 -- 4 boxes
 
       it "saves only once" $ do
         savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
 T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
 Cardigan,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
 |]
-        error "check TODO in code"
         savePLSheet expectationFailed417 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
 T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
 Cardigan,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
@@ -96,9 +97,16 @@ T-shirt,Black,24,13,,16,5,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
 |]
         bodyContains "Number of carton doesn"
 
-      it "detects unfinished" $ do
+      it "detects unfinished (EOF)" $ do
         validatePLSheet badRequest400 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
 Cardigan,Red,12,,,,,1,,,X,,X,,,,,,,
+|]
+        bodyContains "Box not closed"
+
+      it "detects unfinished (End of Container)" $ do
+        validatePLSheet badRequest400 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
+Cardigan,Red,12,,,,,1,,,X,,X,,,,,,,
+Container C2,,,,,,,,,,,,,,,,,,,
 |]
         bodyContains "Box not closed"
       it "detects different length within group" $ do
