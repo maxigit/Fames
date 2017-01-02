@@ -16,6 +16,8 @@ import Data.List (transpose)
 import qualified Data.List as List
 import Database.Persist.MySQL
 import qualified Data.Map as Map
+import Data.Time (diffDays)
+
 data Mode = Validate | Save deriving (Eq, Read, Show)
 
 -- | Type of file
@@ -174,6 +176,8 @@ getWHPackingListViewR key = do
           Nothing -> return Nothing
           Just pl -> get (packingListDocumentKey pl)
       return (plM, docKey, entities)
+
+  today <- utctDay <$> liftIO getCurrentTime
       
       
   case (plM, docKeyM) of
@@ -204,6 +208,10 @@ getWHPackingListViewR key = do
                   <label>#{field}
                   <p>#{value}
             <div.panel-body>
+              <div.pl-time.col-xs-12>
+                ^{timeProgress Nothing Nothing today pl}
+
+
               $forall fields <- fieldsS
                 <div>
                   $forall (field, value) <- fields
@@ -222,6 +230,47 @@ getWHPackingListViewR key = do
 -- getWHPackingListTextcartR :: Int64 -> Handler Html
 -- getWHPackingListTextcartR plId = undefined
 
+
+-- | Generates a progress bar to track the delivery timing
+-- In order to normalize progress bars when displaying different packing list
+-- we need some "bounds"
+timeProgress :: Maybe Day -> Maybe Day -> Day -> PackingList -> Widget
+timeProgress minDateM maxDateM today pl = do
+  let minDate = List.minimum . (\x -> x :: [Day]) $ catMaybes [Just today, minDateM , packingListDeparture pl]
+      maxDate = List.maximum . (\x -> x :: [Day]) $ catMaybes [Just today, maxDateM, packingListArriving pl]
+  -- let minDate = minimum $ mlcons today ( toMinLenZero $ catMaybes [minDateM , packingListDeparture pl])
+  --     maxDate = maximum $ mlcons today (toMinLenZero $ catMaybes [Just today, maxDateM, packingListArriving pl])
+      departure = fromMaybe today (packingListDeparture pl)
+      arriving = fromMaybe today (packingListArriving pl)
+      maxWidth = max 1 (diffDays maxDate minDate) :: Integer
+
+      bars = [ (col, fromIntegral w / fromIntegral maxWidth) | (col,w) <-
+                case () of
+                 _ | today < departure -> [ ("none" :: Text, diffDays today minDate)
+                                         , ("info", diffDays arriving today)
+                                         ]
+                 _ | today >= departure && today <= arriving -> [ ("none", diffDays departure minDate)
+                                                               , ("success", diffDays today departure)
+                                                               , ("info", diffDays arriving today)
+                                                               ]
+                 _ | packingListBoxesToDeliver_d pl <= 0 -> [ ("none", diffDays arriving minDate)
+                                                          , ("success", diffDays today arriving )
+                                                          ] 
+                 _ | True -> [ ("none", diffDays arriving minDate)
+                             , ("danger", diffDays today arriving )
+                             ] 
+             ]
+        
+  [whamlet|
+<div.progress>
+  $forall (style, width) <- bars
+    <div.progress-bar class="progress-bar-#{style}"
+                      role="progress-bar"
+                      style="min-width:10%; width:#{tshow width}%"><span sr-only> #{tshow width}%
+|]
+
+  
+  
 
 -- | A row in the spreasheet
 -- Depending on the type of box, the order quantity can represent the quantity
