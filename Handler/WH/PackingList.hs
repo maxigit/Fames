@@ -19,6 +19,9 @@ import qualified Data.List as List
 import Database.Persist.MySQL
 import qualified Data.Map as Map
 import Data.Time (diffDays)
+import Formatting
+import Formatting.Time
+import WH.Barcode
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
 
@@ -214,7 +217,7 @@ viewPackingList mode key = do
   let plKey = PackingListKey (SqlBackendKey key)
   (plM, docKeyM, entities) <- runDB $ do
       plM <- get plKey
-      entities <- selectList [PackingListDetailPackingList ==. plKey] []
+      entities <- selectList [PackingListDetailPackingList ==. plKey] [Asc PackingListDetailId]
       docKey <- do
         case plM of
           Nothing -> return Nothing
@@ -295,12 +298,13 @@ renderTextcart _ entities = entitiesToTable getDBName entities
 renderStickers :: Day -> PackingList -> [Entity PackingListDetail] -> Html
 renderStickers today pl entities = 
   [shamlet|
-style,delivery_date,reference,number,a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4
+style,delivery_date,reference,number,barcode,a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4
 $forall (Entity k detail) <- entities
   <p> #{packingListDetailStyle detail}
     , #{tshow $ fromMaybe today (packingListArriving pl) }
     , #{tshow $ packingListDetailReference detail }
     , #{tshow $ packingListDetailBoxNumber detail }
+    , #{packingListDetailBarcode detail}
     $forall field <- detailToStickerMarks detail
       , #{field}
 |]
@@ -327,6 +331,7 @@ contentToMarks unsorted =  let
 
   in concatMap go sorted
     
+  
 -- | Generates a progress bar to track the delivery timing
 -- In order to normalize progress bars when displaying different packing list
 -- we need some "bounds"
@@ -430,7 +435,7 @@ type family PLFieldTF (s :: PLRowTypes) a f g where
 columnNames :: [(String, [String])]
 columnNames = [("Style", ["S", "Style No.", "Style No", "Style No ."] )
               , ("Colour", ["C", "Col", "Color"])
-              ,("Quantity", ["Q", "QTY", "order QTY"])
+              ,("Quantity", ["Q", "QTY", "order QTY", "order Qty"])
               ,("1st carton number", ["start", "F", "cn", "C/NO", "first"])
               ,("last carton number", ["end", "last", "e"])
               ,("Number of Carton", ["CTNS", "CTN", "N"])
@@ -442,7 +447,7 @@ columnNames = [("Style", ["S", "Style No.", "Style No", "Style No ."] )
               ,("Volume", ["V", "CBM/CTN"])
               ,("Total Volume", ["TV", "CBM", "TOTAL CBM"])
               ,("Weight", ["N.W/CTN", "N.W./CTN"])
-              ,("Total Weight", ["N.W","TOTAL N.W"])
+              ,("Total Weight", ["N.W", "N.W.","TOTAL N.W"])
               ]
 columnNameMap = buildColumnMap columnNames
 
@@ -719,9 +724,13 @@ savePLFromRows key param sections = do
   runDB $ do
     docKey <- insert documentKey
     let nOfCartons (_, groups) = sum (map (validValue . plNumberOfCarton . snd) groups)
-    let pl = createPLFromForm docKey (sum (map nOfCartons sections)) param
+        pl = createPLFromForm docKey (sum (map nOfCartons sections)) param
     pKey <- insert pl
-    let details = concatMap (createDetailsFromSection pKey) sections
+    let detailFns = concatMap (createDetailsFromSection pKey) sections
+
+    barcodes <- generateBarcodes pl
+    let details = zipWith ($) detailFns barcodes
+
     insertMany details
     return (pl, details)
   
@@ -736,13 +745,53 @@ createPLFromForm docKey nOfBoxes =
   <*> departure
   <*> arriving
   
+generateBarcodes pl = do
+  -- TODO factorize
+  -- find prefix corresponding to the delivery date
+  today <- utctDay <$> liftIO getCurrentTime
+  let date = fromMaybe today (packingListArriving pl)
+      prefix = format ((fitLeft 2 %. stext) % (yy `mappend` later month2))
+                      "DL"
+                      date
+      prefix' = toStrict prefix
+      nb = packingListBoxesToDeliver_d pl
+      endFor start = let r = start + nb -1
+                     in if r > 99999 then error "Too many barcode" else r
+  -- find last available number
+  seedM <- getBy (UniqueBCSeed prefix')
+  (start, end) <- case seedM of
+    Nothing -> do
+      let start = 1
+          end = endFor start
+
+      insert $ BarcodeSeed prefix' end
+      return (start,end)
+
+    Just (Entity sId (BarcodeSeed _ lastUsed)) -> do
+      let start = lastUsed + 1
+          end = endFor start
+      update sId [ BarcodeSeedLastUsed =. end ]
+      return (start,end)
+
+  return $ map (toStrict . formatBarcode prefix) [start..end]
+
+
+  
+     
+
+
+
+
+
+
+  
 createDetailsFromSection pKey (orderRef, groups) = do
   let ref = validValue $ plStyle orderRef
   concatMap (createDetails pKey ref) groups
 
 -- | one row in the spreadsheet can create multiple rows if there are more
 -- than one carton
-createDetails :: PackingListId -> Text -> PLBoxGroup -> [PackingListDetail]
+createDetails :: PackingListId -> Text -> PLBoxGroup -> [Text -> PackingListDetail]
 createDetails pKey orderRef (partials, main') = do
   let main = transformRow main' :: PLFinal
   let content = Map.fromListWith (+)
@@ -751,12 +800,13 @@ createDetails pKey orderRef (partials, main') = do
                                  )
       (begin, end) = (,) <$> plFirstCartonNumber <*> plLastCartonNumber $ main
       ns = [begin..end]
-  [ (pure PackingListDetail
+  [ (\bc -> pure PackingListDetail
      <*> (pure pKey)
      <*> plStyle
      <*> (pure content)
      <*> (pure orderRef)
      <*> (pure n)
+     <*> (pure bc)
      <*> plLength
      <*> plWidth
      <*> plHeight

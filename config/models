@@ -124,12 +124,13 @@ PackingListDetail sql=fames_packinglist_detail
   content (Map Text Int) 
   reference Text
   boxNumber Int
+  barcode Text
   length Double
   width Double
   height Double
   weight Double
   delivered Bool default=False
-  Unique PLD packingList style boxNumber
+  Unique PLD packingList reference boxNumber
 
 
 
