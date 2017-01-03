@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE UndecidableInstances #-}
 module Handler.WH.PackingList
 ( getWHPackingListR
@@ -221,7 +220,10 @@ getWHPackingListViewR key = do
       let fieldsS = [ [ ("Container" , packingListContainer pl )
                       , ("Vessel", packingListVessel pl)
                       ]
-                    , error "document"
+                    , [ -- ("Comment", Just $ documentKeyComment docKey)
+                      ("user", Just . tshow . unSqlBackendKey . unUserKey $ documentKeyUserId docKey)
+                      , ("processed", Just . tshow $ documentKeyProcessedAt docKey)
+                      ]
                     , [ ("DEPARTURE", tshow <$> packingListDeparture pl)
                       , ("ARRIVING", tshow <$> packingListArriving pl)
                       ]
@@ -236,19 +238,20 @@ getWHPackingListViewR key = do
         [whamlet|
           <div.panel. class="panel-#{panelClass (packingListBoxesToDeliver_d pl)}">
             <div.panel-heading>
+                <p>
                 $forall (field, value) <- header
-                  <label>#{field}
-                  <p>#{value}
+                     <b>#{field}
+                     #{value}
             <div.panel-body>
               <div.pl-time.col-xs-12>
                 ^{timeProgress Nothing Nothing today pl}
 
 
               $forall fields <- fieldsS
-                <div>
+                <p>
                   $forall (field, value) <- fields
-                    <label>#{field}
-                    <p>#{fromMaybe "" value}
+                      <b>#{field}
+                      #{fromMaybe "" value}
 
             <p>#{documentKeyComment docKey}
                 |]
@@ -276,7 +279,7 @@ timeProgress minDateM maxDateM today pl = do
       arriving = fromMaybe today (packingListArriving pl)
       maxWidth = max 1 (diffDays maxDate minDate) :: Integer
 
-      bars = [ (col, fromIntegral w / fromIntegral maxWidth) | (col,w) <-
+      bars = [ (col, 100 * fromIntegral w / fromIntegral maxWidth) | (col,w) <-
                 case () of
                  _ | today < departure -> [ ("none" :: Text, diffDays today minDate)
                                          , ("info", diffDays arriving today)
@@ -297,9 +300,13 @@ timeProgress minDateM maxDateM today pl = do
 <div.progress>
   $forall (style, width) <- bars
     <div.progress-bar class="progress-bar-#{style}"
-                      role="progress-bar"
-                      style="min-width:10%; width:#{tshow width}%"><span sr-only> #{tshow width}%
+                      role="progressbar"
+                      style="min-width:0%; width:#{tshow width}%">&nbsp;<span class="sr-only"> #{tshow width}%
 |]
+  toWidget [cassius|
+.progress-bar-none
+  opacity:0
+                   |]
 
   
   
