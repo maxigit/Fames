@@ -309,11 +309,24 @@ $forall (Entity k detail) <- entities
 -- colour name and circles for every 6.
 -- see specs for explanation
 detailToStickerMarks :: PackingListDetail -> [Text] -- 16 fields
-detailToStickerMarks detail = contentToMarks . Map.toList $ packingListDetailContent detail
+detailToStickerMarks detail = let
+  marks = contentToMarks . Map.toList $ packingListDetailContent detail
+  in take 16 $ marks ++ (repeat "")
 
 contentToMarks :: [(Text, Int)] -> [Text]
-contentToMarks content =  let a = 0
-  in ["BLK", "o", "o"]
+contentToMarks unsorted =  let
+  sorted = sort unsorted
+  groupBy3 [] = []
+  groupBy3 [x] = [[x,"",""]]
+  groupBy3 [x,y] = [[x,y,""]]
+  groupBy3 (x:y:z:xs) = [x,y,z]:groupBy3 xs
+  go (col, quantity) = let
+    nbOfCircles = (quantity + 5) `div` 6
+    circless = groupBy3 (replicate nbOfCircles "⃝")
+    in concat $ zipWith (:) (col:repeat "") circless
+
+  in concatMap go sorted
+    
 -- | Generates a progress bar to track the delivery timing
 -- In order to normalize progress bars when displaying different packing list
 -- we need some "bounds"
