@@ -7,9 +7,11 @@ import Text.Shakespeare.Text (st)
 import Yesod.Auth (requireAuthId)
 import Database.Persist.Sql (toSqlKey)
 import Network.HTTP.Types.Status
+import Data.List (dropWhileEnd)
+import Handler.WH.PackingList
 
 spec :: Spec
-spec = appSpec
+spec = pureSpec >> appSpec
 
 data Mode = Save | Validate deriving (Eq, Show)
 uploadPLSheet mode status sheet = do
@@ -147,3 +149,24 @@ T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,120,6.04
 |]
         bodyContains "Total weight doesn"
   
+shouldGenerate content expectation =
+  let result = contentToMarks content
+
+  in (dropWhileEnd (=="") result) `shouldBe` expectation
+
+
+
+pureSpec = do
+  describe "@pure #stickers from PL" $ do
+    it "generates 12" $ do
+      [("BLK", 12)] `shouldGenerate` ["BLK", "o", "o"]
+    it "generates two lines without name duplication" $ do
+      [("BLK", 24)] `shouldGenerate` ["BLK", "o", "o", "o", "BLK", "o"]
+    it "generates two lines with different names " $ do
+      [("BLK", 12), ("RED", 12)] `shouldGenerate` ["BLK", "o", "o", "", "RED", "o"]
+    it "generates colour in alphabetical order" $ do
+      [("RED", 12), ("BLK", 12)] `shouldGenerate` ["BLK", "o", "o", "", "RED", "o"]
+      
+      
+      
+      

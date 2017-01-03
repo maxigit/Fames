@@ -6,6 +6,7 @@ module Handler.WH.PackingList
 , getWHPackingListViewR
 , getWHPackingListTextcartR
 , getWHPackingListStickersR
+, contentToMarks
 -- , postWHPackingListViewR
 ) where
 
@@ -250,7 +251,7 @@ viewPackingList mode key = do
             case mode of
                       Details -> renderDetails
                       Textcart -> renderTextcart
-                      Stickers -> renderStickers
+                      Stickers -> renderStickers today
           viewRoute Details = WHPackingListViewR
           viewRoute Textcart = WHPackingListTextcartR
           viewRoute Stickers = WHPackingListStickersR
@@ -283,18 +284,36 @@ viewPackingList mode key = do
             $forall nav <-[Details,Textcart,Stickers]
               <li class="#{navClass nav}">
                 <a href="@{WarehouseR (viewRoute nav key) }">#{tshow nav}
-          ^{renderEntities entities}
+          ^{renderEntities pl entities}
                 |]
     _ -> notFound
 
-renderDetails entities = entitiesToTable getDBName entities
+renderDetails _ entities = entitiesToTable getDBName entities
   
-renderTextcart entities = entitiesToTable getDBName entities
+renderTextcart _ entities = entitiesToTable getDBName entities
 
-renderStickers entities = [whamlet||]
+renderStickers :: Day -> PackingList -> [Entity PackingListDetail] -> Html
+renderStickers today pl entities = 
+  [shamlet|
+style,delivery_date,reference,number,a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4
+$forall (Entity k detail) <- entities
+  <p> #{packingListDetailStyle detail}
+    , #{tshow $ fromMaybe today (packingListArriving pl) }
+    , #{tshow $ packingListDetailReference detail }
+    , #{tshow $ packingListDetailBoxNumber detail }
+    $forall field <- detailToStickerMarks detail
+      , #{field}
+|]
 
+-- Transforms a serie of colour quantites, to box marks ie
+-- colour name and circles for every 6.
+-- see specs for explanation
+detailToStickerMarks :: PackingListDetail -> [Text] -- 16 fields
+detailToStickerMarks detail = contentToMarks . Map.toList $ packingListDetailContent detail
 
-
+contentToMarks :: [(Text, Int)] -> [Text]
+contentToMarks content =  let a = 0
+  in ["BLK", "o", "o"]
 -- | Generates a progress bar to track the delivery timing
 -- In order to normalize progress bars when displaying different packing list
 -- we need some "bounds"

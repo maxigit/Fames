@@ -13,7 +13,7 @@ spec = pureSpec
 
 
 pureSpec = do
-  describe "#authorizing from route attributes:" $ do
+  describe "@pure #authorizing from route attributes:" $ do
     context "two attributes" $ do
       let fa = "fa"
           gl = "gl"
