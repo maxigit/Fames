@@ -49,9 +49,12 @@ getWHPackingListR = renderWHPackingList Validate Nothing ok200 (setInfo "Enter a
 
 renderWHPackingList :: Mode -> (Maybe UploadParam) -> Status -> Handler () ->  Widget -> Handler Html
 renderWHPackingList mode param status message pre = do
-  let btn = case mode of
-        Validate -> "primary" :: Text
-        Save -> "danger"
+  let (btn, plViewH) = case mode of
+        Validate -> ("primary" :: Text, Just viewPLLists)
+        Save -> ("danger", Nothing)
+     
+  plViewM <- forM plViewH id
+
       
   (form, encType) <- generateFormPost (uploadForm param)
   message
@@ -62,6 +65,9 @@ renderWHPackingList mode param status message pre = do
 --                      |]
 
     [whamlet|
+    $maybe plView <- plViewM
+      <div.well>
+        ^{plView}
     <div.well> ^{pre}
     <div.panel.panel-info>
       <div.panel-heading data-toggle="collapse" data-target=".pl-upload-colnames">
@@ -77,15 +83,41 @@ renderWHPackingList mode param status message pre = do
     <div.well>
       <form #upload-form role=form method=post action=@{WarehouseR WHPackingListR} enctype=#{encType}>
         ^{form}
-        <button type="submit" name="action" class="btn btn-#{btn}">#{tshow mode}
+        <button type="submit" name="action" value="#{tshow mode}" class="btn btn-#{btn}">#{tshow mode}
                         |]
   
---  [[1,2]
---  ,[3]
---  ] =>
--- [[Just 1,Just 3]]
--- ,[Just 2,Nothing]
--- ]
+viewPLLists :: Handler Widget
+viewPLLists = do
+  entities <- runDB $ selectList [] []
+  today <- utctDay <$> liftIO getCurrentTime
+  let pls = map entityVal entities
+      minDate = Just $ List.minimum (today : catMaybes (map (packingListDeparture) pls))
+      maxDate = Just $ List.maximum (today : catMaybes (map (packingListArriving) pls))
+  
+  return [whamlet|
+<table.table.table-bordered>
+  <tr>
+    <th> Id
+    <th> Invoice Ref
+    <th> Vessel
+    <th> Container
+    <th> Left
+    <th> Departure
+    <th> 
+    <th> Arriving
+  $forall (Entity key pl) <- entities
+    <tr>
+      <td> <a href="@{WarehouseR (WHPackingListViewR (unSqlBackendKey $ unPackingListKey key))}">
+       ##{tshow $ unSqlBackendKey $ unPackingListKey key}
+      <td> #{packingListInvoiceRef pl}
+      <td> #{fromMaybe "" $ packingListVessel pl}
+      <td> #{fromMaybe "" $ packingListContainer pl}
+      <td> #{packingListBoxesToDeliver_d pl}
+      <td> #{maybe "" tshow (packingListDeparture pl) }
+      <td> ^{timeProgress minDate maxDate today pl}
+      <td> #{maybe "" tshow (packingListArriving pl) }
+          |]
+  
 transposeM :: [[a]] -> [[Maybe a]]
 transposeM lines  =
   let maxLength = List.maximum (map List.length lines)
