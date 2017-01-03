@@ -4,6 +4,8 @@ module Handler.WH.PackingList
 ( getWHPackingListR
 , postWHPackingListR
 , getWHPackingListViewR
+, getWHPackingListTextcartR
+, getWHPackingListStickersR
 -- , postWHPackingListViewR
 ) where
 
@@ -194,10 +196,20 @@ $maybe u <- uploader
                       (onSuccess mode)
                       (parsePackingList (orderRef param) bytes)
     
-      
+     
+data ViewMode = Details | Textcart | Stickers deriving (Eq, Read, Show)
         
 getWHPackingListViewR :: Int64 -> Handler Html
-getWHPackingListViewR key = do
+getWHPackingListViewR = viewPackingList Details
+
+getWHPackingListTextcartR :: Int64 -> Handler Html
+getWHPackingListTextcartR = viewPackingList Textcart
+
+getWHPackingListStickersR :: Int64 -> Handler Html
+getWHPackingListStickersR = viewPackingList Stickers
+
+viewPackingList :: ViewMode -> Int64 -> Handler Html
+viewPackingList mode key = do
   let plKey = PackingListKey (SqlBackendKey key)
   (plM, docKeyM, entities) <- runDB $ do
       plM <- get plKey
@@ -231,12 +243,23 @@ getWHPackingListViewR key = do
       let panelClass delivered | delivered == 0 = "success" :: Text
                               | delivered == length entities = "info"
                               | otherwise = "danger"
+          navClass nav | nav == mode = "active" :: Text
+                       | otherwise = ""
+
+          renderEntities =
+            case mode of
+                      Details -> renderDetails
+                      Textcart -> renderTextcart
+                      Stickers -> renderStickers
+          viewRoute Details = WHPackingListViewR
+          viewRoute Textcart = WHPackingListTextcartR
+          viewRoute Stickers = WHPackingListStickersR
 
 
 
       defaultLayout $ do
         [whamlet|
-          <div.panel. class="panel-#{panelClass (packingListBoxesToDeliver_d pl)}">
+          <div.panel class="panel-#{panelClass (packingListBoxesToDeliver_d pl)}">
             <div.panel-heading>
                 <p>
                 $forall (field, value) <- header
@@ -256,14 +279,20 @@ getWHPackingListViewR key = do
             <p>#{documentKeyComment docKey}
                 |]
         [whamlet|
-            <div.panel.panel-default>
-              <div.panel-heading> Details
-              ^{entitiesToTable getDBName entities}
+          <ul.nav.nav-tabs>
+            $forall nav <-[Details,Textcart,Stickers]
+              <li class="#{navClass nav}">
+                <a href="@{WarehouseR (viewRoute nav key) }">#{tshow nav}
+          ^{renderEntities entities}
                 |]
     _ -> notFound
 
--- getWHPackingListTextcartR :: Int64 -> Handler Html
--- getWHPackingListTextcartR plId = undefined
+renderDetails entities = entitiesToTable getDBName entities
+  
+renderTextcart entities = entitiesToTable getDBName entities
+
+renderStickers entities = [whamlet||]
+
 
 
 -- | Generates a progress bar to track the delivery timing
