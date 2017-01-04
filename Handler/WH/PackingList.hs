@@ -108,7 +108,7 @@ viewPLLists = do
     <th> Container
     <th> Left
     <th> Departure
-    <th> 
+    <th.col-xs-4.col-md-6> 
     <th> Arriving
   $forall (Entity key pl) <- entities
     <tr>
