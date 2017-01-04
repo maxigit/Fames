@@ -131,6 +131,7 @@ PackingListDetail sql=fames_packinglist_detail
   weight Double
   delivered Bool default=False
   Unique PLD packingList reference style boxNumber
+  Unique PLB barcode
 
 
 

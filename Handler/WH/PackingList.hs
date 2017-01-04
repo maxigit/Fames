@@ -297,12 +297,15 @@ renderTextcart _ entities = entitiesToTable getDBName entities
 
 renderStickers :: Day -> PackingList -> [Entity PackingListDetail] -> Html
 renderStickers today pl entities = 
-  [shamlet|
+  let sorted = sortBy (comparing cmp) entities
+      -- need to be printed in reverse order as the sticker are printed on a roll
+      cmp (Entity _ detail) = (packingListDetailStyle detail, Down (packingListDetailContent detail, packingListDetailBoxNumber detail) )
+  in [shamlet|
 style,delivery_date,reference,number,barcode,a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4
-$forall (Entity k detail) <- entities
+$forall (Entity k detail) <- sorted
   <p> #{packingListDetailStyle detail}
     , #{tshow $ fromMaybe today (packingListArriving pl) }
-    , #{tshow $ packingListDetailReference detail }
+    , #{packingListDetailReference detail }
     , #{tshow $ packingListDetailBoxNumber detail }
     , #{packingListDetailBarcode detail}
     $forall field <- detailToStickerMarks detail
@@ -800,7 +803,7 @@ createDetails :: PackingListId -> Text -> PLBoxGroup -> [Text -> PackingListDeta
 createDetails pKey orderRef (partials, main') = do
   let main = transformRow main' :: PLFinal
   let content = Map.fromListWith (+)
-                                 ( (plColour main, plOrderQuantity main)
+                                 ( (plColour main, plOrderQuantity main `div` (end-begin+1))
                                  : [(validValue $ plColour p, validValue $ plOrderQuantity p) | p <- partials]
                                  )
       (begin, end) = (,) <$> plFirstCartonNumber <*> plLastCartonNumber $ main
