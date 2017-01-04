@@ -18,7 +18,7 @@ import Data.List (transpose)
 import qualified Data.List as List
 import Database.Persist.MySQL
 import qualified Data.Map as Map
-import Data.Time (diffDays)
+import Data.Time (diffDays, addGregorianMonthsClip)
 import Formatting
 import Formatting.Time
 import WH.Barcode
@@ -45,7 +45,7 @@ uploadForm param = renderBootstrap3 BootstrapBasicForm form
             <*> (aopt textField "container" (fmap container param ))
             <*> (aopt textField "vessel" (fmap vessel param ))
             <*> (aopt dayField "departure" (fmap departure param ))
-            <*> (aopt dayField "arriving" (fmap departure param ))
+            <*> (aopt dayField "arriving" (fmap arriving param ))
             <*> (aopt textareaField "comment" (fmap comment param) )
             <*> (areq textareaField "spreadsheet" (fmap spreadsheet param) )
 
@@ -340,8 +340,8 @@ contentToMarks unsorted =  let
 -- we need some "bounds"
 timeProgress :: Maybe Day -> Maybe Day -> Day -> PackingList -> Widget
 timeProgress minDateM maxDateM today pl = do
-  let minDate = List.minimum . (\x -> x :: [Day]) $ catMaybes [Just today, minDateM , packingListDeparture pl]
-      maxDate = List.maximum . (\x -> x :: [Day]) $ catMaybes [Just today, maxDateM, packingListArriving pl]
+  let minDate = List.minimum . (\x -> x :: [Day]) $ catMaybes [Just (addGregorianMonthsClip (-1) today), minDateM , packingListDeparture pl]
+      maxDate = List.maximum . (\x -> x :: [Day]) $ catMaybes [Just (addGregorianMonthsClip 1 today), maxDateM, packingListArriving pl]
   -- let minDate = minimum $ mlcons today ( toMinLenZero $ catMaybes [minDateM , packingListDeparture pl])
   --     maxDate = maximum $ mlcons today (toMinLenZero $ catMaybes [Just today, maxDateM, packingListArriving pl])
       departure = fromMaybe today (packingListDeparture pl)
