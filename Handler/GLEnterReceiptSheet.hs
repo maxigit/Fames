@@ -10,7 +10,7 @@ import Handler.GLEnterReceiptSheet.ReceiptRow
 
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput)
-import Handler.CsvUtils
+import Handler.CsvUtils hiding(RawT)
 import qualified Data.Csv as Csv
 import Data.Either
 import Data.Char (ord,toUpper)
@@ -192,17 +192,7 @@ instance Csv.FromNamedRecord (ReceiptRow RawT)where
     <*> m `parse` "tax rate" 
     <*> m `parse` "dimension 1"
     <*> m `parse` "dimension 2"
-    where parse m colname = do
-            -- try colname, Colname and COLNAME
-            let Just colnames'' = (Map.lookup colname columnMap)
-                colnames = fromString <$> colnames''
-                mts = map (m Csv..:) colnames
-                mts' = asum $ map (m Csv..:) colnames
-            -- let types = mts :: [Csv.Parser Text]
-            t <- asum mts
-            res <-  toError t <$>  mts'
-            -- return $ trace (show (colname, t, res )) res
-            return res
+    where parse = parseMulti columnMap
 
 -- | Regroups receipts rows starting with a header (valid or invalid)
 makeReceipt :: [Either (Either InvalidRow ValidRow)

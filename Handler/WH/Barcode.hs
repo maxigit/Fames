@@ -165,7 +165,7 @@ postWHBarcodeR = do
       -- find last available number
       seE <- runDB $ do
         seedM <- getBy (UniqueBCSeed prefix')
-        liftIO $ print (prefix', seedM)
+        -- liftIO $ print (prefix', seedM)
         case seedM of
           Nothing -> do
             let start = fromMaybe 1 startM

@@ -1,14 +1,17 @@
-{-# LANGUAGE PatternSynonyms, LiberalTypeSynonyms, DeriveFunctor #-}
+{-# LANGUAGE PatternSynonyms, LiberalTypeSynonyms, DeriveFunctor, DataKinds, PolyKinds #-}
 -- | Miscellaneous functions and types to parse and render CSV.
 module Handler.CsvUtils where
 
-import Import
+import Import hiding(toLower, Null)
 import qualified Data.Csv as Csv
 
 import Data.Either
 import Data.Time(parseTimeM)
 import qualified Data.Map as Map
-import Data.Char (ord,toUpper)
+import Data.Char (ord,toUpper,toLower)
+import Data.List (nub)
+  
+import qualified Data.ByteString.Lazy as LazyBS
 -- * Types
 -- | If we can't parse the csv at all (columns are not present),
 -- we need a way to gracefully return a error
@@ -23,8 +26,67 @@ data InvalidField = ParsingError { invFieldType :: Text
                                  , invFieldValue :: Text
                                  }
                   | MissingValueError { invFieldType :: Text }
+                  | InvalidValueError { invFieldError :: Text 
+                                      , invFieldValue :: Text
+                                      }
   deriving (Read, Show, Eq)
+-- State of a row after parsing
+data RowTypes = RawT -- raw row, everything is text
+              | PartialT -- final type but blank allowed
+              | ValidT -- valid. can be guessed (if blank) or provided (by the user itself)
+              | FinalT -- final type
+              deriving (Read, Show, Eq)
 
+data ParsingResult row result
+  = WrongHeader InvalidSpreadsheet
+  | InvalidFormat [row]-- some cells can't be parsed
+  | InvalidData [row]-- each row is well formatted but invalid as a whole
+  | ParsingCorrect result -- Ok
+
+type family NotEq a b where
+  NotEq a a = 'True
+  NotEq a b = 'False
+
+type family UnMaybe a where
+  UnMaybe  (Maybe a) = a
+  UnMaybe  a = a 
+
+data Null a = Null
+instance Functor Null where
+  fmap _ Null =  Null
+
+instance Applicative Null where
+  pure _ = Null
+  _ <*> _ = Null
+
+instance Num (Null a) where
+  fromInteger _ = Null
+  Null + Null = Null
+  Null - Null = Null
+  Null * Null = Null
+  negate Null = Null
+  abs Null = Null
+  signum Null = Null
+  
+type family UnIdentity a where
+  UnIdentity (Identity a) = a
+  UnIdentity (Null a) = ()
+  UnIdentity a = a
+  
+type FieldForRaw a  = Either InvalidField (Maybe (ValidField (UnMaybe a)))
+type FieldForPartial a = (Maybe (ValidField (UnMaybe a)))
+type FieldForFinal a = a
+
+type family FieldTF (s :: RowTypes) a where
+  FieldTF 'RawT (Maybe a) = Either InvalidField (Maybe (ValidField a))
+  FieldTF 'RawT a = Either InvalidField (Maybe (ValidField a))
+  FieldTF 'PartialT (Maybe a) = (Maybe (ValidField a))
+  FieldTF 'PartialT a = (Maybe (ValidField a))
+  FieldTF 'ValidT () = ()
+  FieldTF 'ValidT (Maybe a) = Maybe (ValidField a)
+  FieldTF 'ValidT a = ValidField a
+  FieldTF 'FinalT a = a
+ 
 invalidFieldError :: InvalidField -> Text
 invalidFieldError ParsingError{..} = "Can't parse '"
                                      <> invFieldValue
@@ -32,6 +94,9 @@ invalidFieldError ParsingError{..} = "Can't parse '"
                                      <> invFieldType
                                      <> "."
 invalidFieldError MissingValueError{..} = invFieldType <> " is missing."
+invalidFieldError InvalidValueError{..} = invFieldError
+
+type FieldForValid a = FieldTF 'ValidT a
 
 data ValidField a = Provided { validValue :: a} | Guessed { validValue :: a }  deriving Functor
 instance Applicative ValidField  where
@@ -76,11 +141,18 @@ instance Transformable (ValidField a) a where
 instance Transformable a (ValidField a) where
   transform x = Provided x
 
+
+instance Transformable a b => Transformable [a] [b] where
+  transform x = map transform x
+
+instance Transformable b (Either e (Maybe b))  where
+  transform x = Right (Just x)
+
 -- * Functions
 
-parseInvalidSpreadsheet columnMap bytes err =
+parseInvalidSpreadsheet opt columnMap bytes err =
   let columns = fromString <$> keys columnMap 
-      decoded = toList <$> Csv.decode Csv.NoHeader bytes :: Either String [[Either Csv.Field Text]]
+      decoded = toList <$> Csv.decodeWith opt Csv.NoHeader bytes :: Either String [[Either Csv.Field Text]]
       onEmpty = InvalidSpreadsheet "The file is empty" columns [] []
   in case (null bytes, decoded) of
        (True, _ )  -> onEmpty
@@ -104,13 +176,34 @@ parseInvalidSpreadsheet columnMap bytes err =
                                      Right _ -> tshow err
          InvalidSpreadsheet{..}
 
-parseSpreadsheet :: Csv.FromNamedRecord a => Map String [String] ->  Maybe String -> ByteString -> Either InvalidSpreadsheet [a]
+-- | Helper to parse a field given different row names
+-- equivalent to m `parse` a <|> m `parse` b
+parseMulti ::
+  (Functor t, Ord k, Foldable t, Csv.FromField a) =>
+  Map k (t String)
+  -> Csv.NamedRecord -> k -> Csv.Parser (Either InvalidField a)
+parseMulti columnMap m colname =  do
+            let Just colnames'' = (Map.lookup colname columnMap)
+                colnames = fromString <$> colnames''
+                mts = map (m Csv..:) colnames
+                mts' = asum $ map (m Csv..:) colnames
+            -- let types = mts :: [Csv.Parser Text]
+            t <- asum mts
+            res <-  toError t <$>  mts'
+            -- return $ trace (show (colname, t, res )) res
+            return res
+
+-- | Parse a spread sheet 
+parseSpreadsheet :: (Csv.FromNamedRecord a, Show a) => Map String [String] ->  Maybe String -> ByteString -> Either InvalidSpreadsheet [a]
 parseSpreadsheet columnMap seps bytes = do
   let lbytes = fromStrict bytes
-      (sep:_) = [Csv.DecodeOptions (fromIntegral (ord sep)) | sep <- fromMaybe ",;\t" seps ]
-  case Csv.decodeByNameWith sep lbytes of
-    Left err -> Left $ parseInvalidSpreadsheet columnMap lbytes err
-    Right (header, vector) -> Right $ toList vector
+      options = [Csv.DecodeOptions (fromIntegral (ord sep)) | sep <- fromMaybe ",;\t" seps ]
+      tries =  [(Csv.decodeByNameWith opt lbytes, opt) | opt <- options ]
+  case asum (map fst tries) of
+    Left _ -> let
+                invalids = [parseInvalidSpreadsheet opt columnMap lbytes err | (Left err, opt) <- tries ]
+              in  Left $ minimumByEx (comparing $ length . missingColumns) invalids
+    Right (header, vector) ->  Right $ toList vector
   
 
 validateNonEmpty :: Text -> Either InvalidField (Maybe a) -> Either InvalidField (Maybe a)
@@ -118,10 +211,19 @@ validateNonEmpty field RNothing = Left (MissingValueError field)
 validateNonEmpty field v = v
 
 expandColumnName :: String -> [String]
-expandColumnName colname = [id, capitalize, map Data.Char.toUpper] <*> [colname]
+expandColumnName colname = [ id
+                           , unwords . map capitalize . words
+                           , map Data.Char.toUpper
+                           , map Data.Char.toLower
+                           ] <*> [colname]
+
+-- | Builds a Map of column name to aliases compatible with parseSpreadsheet
+buildColumnMap :: [(String, [String])] -> Map String [String]
+buildColumnMap columnNames = Map.fromList [(col, expand (col:cols)) | (col, cols) <- columnNames]
+  where expand = nub . sort . (concatMap expandColumnName) 
 
 capitalize [] = []
-capitalize (x:xs) = Data.Char.toUpper x : xs
+capitalize (x:xs) = Data.Char.toUpper x : map Data.Char.toLower xs
 
 -- ** Custom field parsers.
 -- | temporary class to remove currency symbol
@@ -224,8 +326,9 @@ instance Renderable InvalidField where
     let (class_, value) = case invField of
           ParsingError _ v -> ("parsing-error" :: Text, v)
           MissingValueError _ -> ("missing-value" :: Text,"<Empty>")
+          InvalidValueError e v -> ("invalid-value" :: Text, v)
     toWidget [cassius|
-.parsing-error, .missing-value
+.parsing-error, .missing-value, .invalid-value
   .description
      display:none
 .missing-value
@@ -276,18 +379,39 @@ instance Renderable InvalidSpreadsheet where
 <div .invalid-receipt>
   <div .error-description> #{errorDescription}
   $if not (null missingColumns)
-    <div .missing-columns .bg-danger .text-danger>
-      The following columns are missing:
+    <div.panel.panel-danger.missing-columns>
+      <div.panel-heading>
+        The following columns are missing:
       <ul>
         $forall column <- missingColumns
           <li> #{column}
   <table.sheet.table.table-bordered>
-    $forall line <- sheet
-      <tr>
-        $forall (class_, field) <- zip colClass line
-          $with (fieldClass, fieldValue) <- convertField field
-            <td class="#{class_} #{fieldClass}"> #{fieldValue}
+    <thead>
+      $forall line <- take 1 sheet
+        <tr data-toggle="collapse" data-target="#invalid-spreadsheet-body">
+          $forall (class_, field) <- zip colClass line
+            $with (fieldClass, fieldValue) <- convertField field
+              <th class="#{class_} #{fieldClass}"> #{fieldValue}
+    <tbody#invalid-spreadsheet-body.collapse.in>
+      $forall line <- drop 1 sheet
+        <tr>
+          $forall (class_, field) <- zip colClass line
+            $with (fieldClass, fieldValue) <- convertField field
+              <td class="#{class_} #{fieldClass}"> #{fieldValue}
           |]
            
              
 
+-- renderParsingResult :: (a -> b)   (r ValidT -> b) -> ParsingResult r -> b
+renderParsingResult onError onSuccess result = 
+        case result of
+          WrongHeader invalid -> onError (setError "Invalid file or columns missing") (render invalid)
+          InvalidFormat raws -> onError (setError "Invalid cell format") (render raws)
+          InvalidData raws ->  onError (setError "Invalid data") (render raws)
+          ParsingCorrect rows -> onSuccess rows
+
+
+topBorder = toWidget [cassius|
+tr.table-top-border td
+  border-top: thin solid black !important
+                     |]

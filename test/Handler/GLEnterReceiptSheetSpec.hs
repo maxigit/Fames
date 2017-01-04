@@ -140,7 +140,8 @@ appSpec = withAppNoDB BypassAuth $ do
             it "displays correct columns" $ do
               postReceiptSheet 422 sheet
 
-              htmlAnyContain "table td.bg-success" "tax rate"
+              printBody
+              htmlAnyContain "table th.bg-success" "tax rate"
 
 
 
@@ -164,6 +165,7 @@ storiesSpec =  withAppNoDB BypassAuth $ do
     it "story to write" (const pending)
 pureSpec :: Spec
 pureSpec = do
+  describe "@pure" $ do
 {-
   describe "Parshing csv" $ do
     context "should parse dates" $ do

@@ -40,6 +40,7 @@ library
                      Handler.GLEnterReceiptSheet.ReceiptRow
                      Handler.WH
                      Handler.WH.Barcode
+                     Handler.WH.PackingList
                      Handler.WH.Stocktake
                      Handler.WH.StockAdjustment
                      Handler.FA
@@ -183,6 +184,7 @@ test-suite test
                  , cassava
                  , yaml
                  , temporary
+                 , http-types >= 0.9
 
 
 executable FAGenerator

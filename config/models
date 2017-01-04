@@ -104,6 +104,40 @@ Boxtake sql=fames_boxtake
   deriving Eq
   deriving Show
 
+PackingList sql=fames_packinglist
+  Id sql=packinglist_id
+  invoiceRef Text
+  vessel Text Maybe
+  container Text Maybe
+  documentKey DocumentKeyId sql=document_key_id
+  -- comment Text Maybe Not needed in Docu
+  boxesToDeliver_d Int
+  departure Day Maybe
+  arriving Day Maybe
+  UniquePL invoiceRef
+  deriving Eq
+  deriving Show
+
+PackingListDetail sql=fames_packinglist_detail
+  packingList PackingListId sql=packinglist_id
+  style Text
+  content (Map Text Int) 
+  reference Text
+  boxNumber Int
+  barcode Text
+  length Double
+  width Double
+  height Double
+  weight Double
+  delivered Bool default=False
+  Unique PLD packingList reference style boxNumber
+  Unique PLB barcode
+
+
+
+
+
+
 
   
           

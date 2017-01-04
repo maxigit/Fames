@@ -5,7 +5,7 @@ module Handler.GLEnterReceiptSheet.ReceiptRow where
 
 
 import Import hiding(InvalidHeader)
-import Handler.CsvUtils
+import Handler.CsvUtils hiding (RowTypes(..))
 
 
 -- | Represents a row of the spreadsheet.
@@ -130,14 +130,6 @@ analyseReceiptRow ReceiptRow{..}
                              rowGLDimension2
 
   where row = ReceiptRow () () () () () () ()
-
-type family UnMaybe a where
-  UnMaybe (Maybe a) = a
-  UnMaybe a = a
-  
-type family NotEq a b where
-  NotEq a a = 'True
-  NotEq a b = 'False
 
 transformRow ReceiptRow{..} = ReceiptRow
   (transform rowDate)

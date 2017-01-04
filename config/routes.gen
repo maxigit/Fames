@@ -14,12 +14,18 @@
   /barcodes WHBarcodeR GET POST
 
   /stocktake WHStocktakeR GET !stoctake
-  /stocktake/save WHStocktakeSaveR GET POST !stocktake
+  /stocktake/save WHStocktakeSaveR GET POST !stocktake/save
   /stocktake/validate WHStocktakeValidateR GET POST !stocktake
+
   /stock_adjustment WHStockAdjustmentR GET POST !stock_adj
   !/stock_adjustment/#Int64 WHStockAdjustmentViewR GET !stock_adj
 
   /stocktake/locations WHStocktakeLocationR GET
+
+  /packinglist WHPackingListR  GET POST !pl
+  !/packinglist/#Int64 WHPackingListViewR GET !pl
+  !/packinglist/#Int64/stickers WHPackingListStickersR GET !pl
+  !/packinglist/#Int64/textcart WHPackingListTextcartR GET !pl
 
 /administrator AdministratorR GET
 -- Warning ! This code has been generated !}
