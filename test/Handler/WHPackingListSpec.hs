@@ -29,6 +29,8 @@ uploadPLSheet mode status sheet = do
     byLabel "container" "C1"
     byLabel "vessel" "Britanny Ferry/Bretagne"
     byLabel "spreadsheet" sheet
+    byLabel "departure" "2016-12-01"
+    byLabel "arriving" "2017-01-15"
     addPostParam "action" (tshow mode)
     
     -- byLabel "encoding" (tshow 1)
@@ -67,6 +69,12 @@ Cardigan,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0|]
 T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
 CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
 |]
+        pls <- runDB $ selectList [] []
+        liftIO $ do
+          length pls `shouldBe` 1
+          let [(Entity _ pl)] = pls
+          packingListDeparture pl `shouldBe` (Just (fromGregorian 2016 12 1))
+          packingListArriving pl `shouldBe` (Just (fromGregorian 2017 1 15))
 
         c <- runDB $ count [PackingListDetailStyle ==. "CardiganForSave"]
         liftIO $ c `shouldBe` 4 -- 4 boxes
