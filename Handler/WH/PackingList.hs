@@ -736,7 +736,7 @@ savePLFromRows key param sections = do
                      then -- get box number instead
                           map (\fn -> toStrict $ formatBarcode "DL16DE" (packingListDetailBoxNumber (fn "")))
                               detailFns
-                     else barcodes
+                     else barcodes'
     let details = zipWith ($) detailFns barcodes
 
     insertMany details
