@@ -327,6 +327,7 @@ contentToMarks unsorted =  let
   groupBy3 [x] = [[x,"",""]]
   groupBy3 [x,y] = [[x,y,""]]
   groupBy3 (x:y:z:xs) = [x,y,z]:groupBy3 xs
+  go (col, 1) = [col, "∅", "", ""]
   go (col, quantity) = let
     nbOfCircles = (quantity + 5) `div` 6
     circless = groupBy3 (replicate nbOfCircles "⃝")

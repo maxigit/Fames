@@ -186,6 +186,8 @@ pureSpec = do
                                                               , ""   , "⃝", ""   , ""
                                                               , "RED", "⃝", "⃝"
                                                               ]
+    it "displays 1 properly" $ do
+      [("BLK", 1)] `shouldGenerate` ["BLK", "∅"]
       
       
       
