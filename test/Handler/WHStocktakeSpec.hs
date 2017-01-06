@@ -37,6 +37,7 @@ uploadSTSheet route status path overrideM = do
       Just True -> addPostParam "f4" "yes"
     -- forM_ overrideM  (\override ->  byLabel "override" "")
 
+  -- printBody
   statusIs status
 
 -- write the sheet to a temporary file and upload it.
@@ -159,6 +160,13 @@ t-shirt,red,120,shelf-1,-,,,,,Jack
         htmlAllContain "table td.stocktakeBarcode" "ST16NV00399X"
         htmlCount "table td.stocktakeBarcode" 2
 
+      it "@fail @current skips blank lines" $ do
+        postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+,,,,,,,,,,
+t-shirt,red,120,shelf-1,400E,,,,,Jack
+|]
+        htmlCount "table. td.stocktakeBarcode" 2
 
     describe "overriding existing stocktake" $ do
       it "Creates a new stocktake item if needed" $ do
@@ -268,4 +276,13 @@ t-shirt,black,120,shelf-[12],ST16NV00399X,34,20,17,2016/11/10,Jack
 t-shirt,black,120,shelf-[123],ST16NV00399X,34,20,17,2016/11/10,Jack
 |]  
           htmlAnyContain "table td.stocktakeLocation " "find location with name"
+  describe "@current null quantity " $ do
+    it "accepts null dimensions" $ do
+          postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,0,,ST16NV00399X,,,,,Jack
+|]  
+    it "creates missing barcode" $ do
+          postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,0,,,,,,,Jack
+|]  
 

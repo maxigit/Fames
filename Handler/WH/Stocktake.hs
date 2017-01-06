@@ -5,6 +5,7 @@
 {-# LANGUAGE LiberalTypeSynonyms #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Handler.WH.Stocktake
 ( getWHStocktakeR
 , postWHStocktakeSaveR
@@ -16,7 +17,8 @@ module Handler.WH.Stocktake
 ) where
 
 import Import hiding(last)
-import Handler.CsvUtils
+import Handler.CsvUtils hiding(FieldTF, RawT, PartialT, ValidT, FinalT)
+import qualified Handler.CsvUtils as CU
 import WH.Barcode
 import Data.List(scanl, last, init, length, head)
 import Data.Either
@@ -229,23 +231,34 @@ type LocFinder = Text -> Maybe Location'
 
 -- | a take row can hold stocktake and boxtake information
 data TakeRow s = TakeRow
-  { rowStyle :: FieldTF s Text 
-  , rowColour :: FieldTF s Text  
-  , rowQuantity :: FieldTF s (Known Int)
-  , rowLocation :: FieldTF s Location'
-  , rowBarcode :: FieldTF s Text 
-  , rowLength :: FieldTF s Double 
-  , rowWidth :: FieldTF s Double 
-  , rowHeight :: FieldTF s Double 
-  , rowDate :: FieldTF s Day 
-  , rowOperator :: FieldTF s Operator'
+  { rowStyle :: FieldTF s Text Identity
+  , rowColour :: FieldTF s Text Identity
+  , rowQuantity :: FieldTF s (Known Int) Null
+  , rowLocation :: FieldTF s Location' Null
+  , rowBarcode :: FieldTF s Text  Null
+  , rowLength :: FieldTF s Double  Null
+  , rowWidth :: FieldTF s Double  Null
+  , rowHeight :: FieldTF s Double  Null
+  , rowDate :: FieldTF s Day  Identity
+  , rowOperator :: FieldTF s Operator' Identity
   }
   
 
+data TakeRowType = RawT | PartialT | ValidT | ZeroT | FinalZeroT |  FinalT deriving (Eq, Read, Show)
 type RawRow = TakeRow RawT -- Raw data. Contains if the original text value if necessary
 type PartialRow = TakeRow PartialT -- Well formatted row. Can contains blank
 type ValidRow = TakeRow ValidT -- Contains valid value with guessed/provided indicator
+type ZeroRow = TakeRow ZeroT -- Zero take. No item founds, therefore no quantities, barcode, box dimensions, etc ...
 type FinalRow = TakeRow FinalT -- Contains value with ornement
+type FinalZeroRow = TakeRow FinalZeroT -- Contains value with ornement
+
+type family  FieldTF (s :: TakeRowType) a z where
+  FieldTF 'RawT a z = FieldForRaw a
+  FieldTF 'PartialT a z = FieldForPartial a
+  FieldTF 'ValidT a z = FieldForValid a
+  FieldTF 'ZeroT a z = FieldForValid (UnIdentity (z a))
+  FieldTF 'FinalT a z = a
+  FieldTF 'FinalZeroT a z = (UnIdentity (z a))
 
 deriving instance Show RawRow
 deriving instance Show PartialRow
