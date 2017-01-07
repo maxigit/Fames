@@ -19,6 +19,7 @@ module Handler.WH.Stocktake
 import Import hiding(length)
 import Handler.CsvUtils hiding(FieldTF, RawT, PartialT, ValidT, FinalT)
 import qualified Handler.CsvUtils as CU
+import Handler.WH.Barcode
 import WH.Barcode
 import Data.List(scanl, init, length, head)
 import Data.Either
@@ -166,7 +167,6 @@ $maybe u <- uploader
                                       (_:_) -> (<> "*")
                 take 1 $ mapMaybe (toBoxtake keyId descriptionF) group
           
-          
           insertZeroTakes keyId zeros
 
           if override
@@ -215,12 +215,13 @@ $maybe u <- uploader
           ) >> renderWHStocktake mode 200 (setSuccess (toHtml $ "Spreadsheet "<> path <> " processed")) (return ())
        
      
-insertZeroTakes _ [] = return ()
+insertZeroTakes :: MonadIO m => Key DocumentKey -> [FinalZeroRow] -> ReaderT SqlBackend m ()
+-- insertZeroTakes _ [] = return ()
 insertZeroTakes docId zeros = do
   let count = length zeros
 
       toStockTake barcode TakeRow{..} =
-        Stocktake (rowStyle <> "-" <> "rowColour")
+        Stocktake (rowStyle <> "-" <> rowColour)
                   0
                   barcode
                   1 -- index
@@ -364,6 +365,12 @@ validateRows skus (row:rows) = do
 data ValidationMode = CheckBarcode | NoCheckBarcode deriving Eq
 
 validateRow :: Set Text -> ValidationMode -> PartialRow -> Either RawRow ValidRow
+validateRow skus validateMode row@(TakeRow (Just rowStyle) (Just rowColour) (Just (Provided (Known 0)))
+                                  _ _ _ _ _ (Just rowDate) (Just rowOperator))
+  = Right . ZeroST $ TakeRow{rowQuantity=(), rowLocation=(), rowBarcode=() 
+                            , rowLength=(), rowWidth=(), rowHeight=()
+                            , .. }
+
 validateRow skus validateMode row@(TakeRow (Just rowStyle) (Just rowColour) (Just rowQuantity)
                     (Just rowLocation) (Just rowBarcode)
                     (Just rowLength) (Just rowWidth) ( Just rowHeight)
@@ -380,14 +387,6 @@ validateRow skus validateMode row@(TakeRow (Just rowStyle) (Just rowColour) (Jus
                     ] of
        [] -> Right . FullST $ TakeRow{..}
        modifiers -> Left $ foldr ($) (transformRow row) modifiers
-
-validateRow skus validateMode row@(TakeRow (Just rowStyle) (Just rowColour) (Just (Provided (Known 0)))
-                                  Nothing Nothing
-                                  Nothing Nothing Nothing
-                                  (Just rowDate) (Just rowOperator))
-  = Right . ZeroST $ TakeRow{rowQuantity=(), rowLocation=(), rowBarcode=() 
-                            , rowLength=(), rowWidth=(), rowHeight=()
-                            , .. }
 
 validateRow _ _ invalid =  Left $ transformRow invalid
 
@@ -423,10 +422,11 @@ fillFromPrevious skus (Right (FullST previous)) partial
                     (Just <$> length) (Just <$> width) (Just <$> height)
                     (Just <$> date) (Just <$> operator) :: RawRow)
       a /~ b = (guess <$> a) /=(guess <$> b)
-      modifiers = case rowBarcode partial of
+      modifiers = case (rowBarcode partial, rowQuantity partial) of
       -- belongs to the previous box, we need to check that box information
         -- are identical (if set)
-        Just (Provided "-" ) ->
+        (_, Just (Provided (Known 0))) -> []
+        (Just (Provided "-" ), _) ->
           [ if location /~ Right (rowLocation previous)
             then \r -> r {rowLocation = Left $ ParsingError "Doesn't match original box"
                            (maybe "" (tshow . validValue) (rowLocation partial))
@@ -457,7 +457,7 @@ fillFromPrevious skus (Right (FullST previous)) partial
         _ -> []
      
         
-      in (validateRow skus CheckBarcode) =<< validateRaw (const Nothing) (const Nothing)  (foldr ($) raw modifiers)
+      in validateRow skus CheckBarcode =<< validateRaw (const Nothing) (const Nothing)  (foldr ($) raw modifiers)
 
 fillValue :: (Maybe (ValidField a)) -> Either InvalidField (ValidField a) -> Either  InvalidField (ValidField a)
 fillValue (Just new) _ = Right new
@@ -654,7 +654,10 @@ renderRow TakeRow{..} = do
 
 instance Renderable RawRow where render = renderRow
 instance Renderable FullRow where render = renderRow
-instance Renderable ZeroRow where render = renderRow
+instance Renderable ZeroRow where
+  render row = let partial = transformRow row :: PartialRow
+               in renderRow $ partial{rowQuantity= Just . Provided $ Known  0 }
+
 instance Renderable [RawRow ]where render = renderRows classForRaw
 instance Renderable [ValidRow] where render = renderRows (const ("" :: Text))
 instance Renderable ValidRow where

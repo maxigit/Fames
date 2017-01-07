@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NumDecimals #-}
 module Handler.WH.Barcode where
 
 import Import
@@ -30,6 +31,7 @@ import System.IO.Temp (openTempFile)
 import System.Exit (ExitCode(..))
 import qualified Data.Conduit.Binary as CB
 import System.Directory (removeFile)
+import Data.Time
  
 barcodeFayWidget = return () --  $(fayFile "WH/Barcode")
 
@@ -247,3 +249,50 @@ outputFile prefix start end ext =
 setAttachment path = do
   addHeader "Content-Disposition" (toStrict $ format ("attachment; filename=\"barcodes-"%text%"\"") path)
 
+
+-- * Utils
+
+-- | generates a sequence of barcodes given a prefix
+-- roll to the next prefix if needed
+-- generateBarcodes :: Text -> (Maybe Day) -> Int -> Handler [Text]
+generateBarcodes code dayM 0 = return []
+generateBarcodes code dayM nb = do
+  today <- utctDay <$> liftIO getCurrentTime
+  let date = fromMaybe today dayM
+      prefix = format ((fitLeft 2 %. stext) % (yy `mappend` later month2))
+                      code
+                      date
+      prefix' = toStrict prefix
+      endFor start = start + nb -1
+  
+  -- find last available number
+  seedM <- getBy (UniqueBCSeed prefix')
+  (start, end) <- case seedM of
+    Nothing -> do
+      let start = 1
+          end = endFor start
+
+      insert $ BarcodeSeed prefix' end
+      return (start,end)
+
+    Just (Entity sId (BarcodeSeed _ lastUsed)) -> do
+      let start = lastUsed + 1
+          end = endFor start
+      update sId [ BarcodeSeedLastUsed =. end ]
+      return (start,end)
+
+  let maxIndex = 1e5-1 :: Int
+      (range, done) = if start > maxIndex
+                 then  ([], 0)
+                 else  let end' = min maxIndex end
+                       in   ([start..end'], end'-start+1)
+
+  -- in case we need to use the next date
+  nexts <- generateBarcodes code (Just $ addGregorianMonthsClip 1 date) (nb -done)
+      -- nexts = []
+
+  -- is there any left
+  return $   map (toStrict . formatBarcode prefix) range ++ nexts
+      
+  
+ 

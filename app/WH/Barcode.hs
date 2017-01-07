@@ -8,6 +8,8 @@ import Data.List (iterate)
 import Data.Aeson                 (Result (..), fromJSON, withObject, (.!=),
                                    (.:?))
 import Formatting
+import Formatting.Time
+
 -- * Types
 -- | Allowed prefixes. Read from configuration file.
 data BarcodeParams = BarcodeParams
@@ -82,12 +84,3 @@ nextBarcode barcode | null barcode = Nothing
 nextBarcode barcode = do
   (prefix, n,_) <- splitBarcode barcode
   Just $ formatBarcode prefix (n+1 :: Int)
-
-
--- | generates a sequence of barcodes given a prefix
--- roll to the next prefix if needed
--- generateBarcodes :: Text -> (Maybe Day) -> Int -> Handler [Text]
-generateBarcodes prefix dayM count = do
-  return ["a", "b", "c"]
-  
- 
