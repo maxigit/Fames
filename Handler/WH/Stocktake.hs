@@ -16,11 +16,11 @@ module Handler.WH.Stocktake
 , getWHStocktakeLocationR
 ) where
 
-import Import hiding(last)
+import Import hiding(length)
 import Handler.CsvUtils hiding(FieldTF, RawT, PartialT, ValidT, FinalT)
 import qualified Handler.CsvUtils as CU
 import WH.Barcode
-import Data.List(scanl, last, init, length, head)
+import Data.List(scanl, init, length, head)
 import Data.Either
 
 import Database.Persist.Sql
@@ -145,7 +145,7 @@ $maybe u <- uploader
           -- zero takes needs to be associated with a new barcodes
           -- and don't have box information.
               fulls = [(i, full) | (i, FinalFull full) <- finals]
-              zeros = [(i, zero) | (i, FinalZero zero) <- finals]
+              zeros = [ zero | (_, FinalZero zero) <- finals]
 
           -- rows can't be converted straight away to stocktakes and boxtakes
           -- if in case of many row for the same barcodes, stocktakes needs to be indexed
@@ -166,6 +166,8 @@ $maybe u <- uploader
                                       (_:_) -> (<> "*")
                 take 1 $ mapMaybe (toBoxtake keyId descriptionF) group
           
+          
+          insertZeroTakes keyId zeros
 
           if override
             then 
@@ -213,11 +215,26 @@ $maybe u <- uploader
           ) >> renderWHStocktake mode 200 (setSuccess (toHtml $ "Spreadsheet "<> path <> " processed")) (return ())
        
      
+insertZeroTakes _ [] = return ()
+insertZeroTakes docId zeros = do
+  let count = length zeros
 
+      toStockTake barcode TakeRow{..} =
+        Stocktake (rowStyle <> "-" <> "rowColour")
+                  0
+                  barcode
+                  1 -- index
+                  (FA.LocationKey "LOST") -- location
+                  rowDate
+                  True -- active
+                  (opId rowOperator)
+                  Nothing
+                  docId
 
-          
-        
-  
+  barcodes <- generateBarcodes ("ZT" :: Text) Nothing count
+  let zerotakes = zipWith toStockTake barcodes zeros
+
+  insertMany_ zerotakes
 
 -- * Csv
 
@@ -335,8 +352,9 @@ validateRows skus (row:rows) = do
                
   valids <- sequence  filleds <|&> const errors
   
-  case (last (mapMaybe validBarcode valids))  of
-    Guessed barcode -> let l = last errors
+  case (lastMay (mapMaybe validBarcode valids))  of
+    (Just (Guessed barcode)) -> let
+                           l = last (unsafeToMinLen errors) -- valids is not null, so errors isn't either
                            l' = l {rowBarcode = Left $ ParsingError "Last barcode of a sequence should be provided" barcode }
                       
                            in Left $ (init errors) ++ [l']
@@ -363,18 +381,28 @@ validateRow skus validateMode row@(TakeRow (Just rowStyle) (Just rowColour) (Jus
        [] -> Right . FullST $ TakeRow{..}
        modifiers -> Left $ foldr ($) (transformRow row) modifiers
 
-validateRow _ _ invalid =  error "Implement zero"
+validateRow skus validateMode row@(TakeRow (Just rowStyle) (Just rowColour) (Just (Provided (Known 0)))
+                                  Nothing Nothing
+                                  Nothing Nothing Nothing
+                                  (Just rowDate) (Just rowOperator))
+  = Right . ZeroST $ TakeRow{rowQuantity=(), rowLocation=(), rowBarcode=() 
+                            , rowLength=(), rowWidth=(), rowHeight=()
+                            , .. }
+
 validateRow _ _ invalid =  Left $ transformRow invalid
 
 
 fillFromPrevious :: Set Text -> Either RawRow ValidRow -> PartialRow -> Either RawRow ValidRow
-fillFromPrevious = error "implement fillFromPrevious"
-fillFromPrevious' skus (Left prev) partial =
+fillFromPrevious skus (Left prev) partial =
   case validateRow skus CheckBarcode partial of
     Left _ ->  Left $ transformRow partial
     Right valid -> Right valid -- We don't need to check the sequence barcode as the row the previous row is invalid anyway
 
-fillFromPrevious' skus (Right previous) partial
+fillFromPrevious skus (Right (ZeroST previous)) partial =
+  case validateRow skus CheckBarcode partial of
+    Left _ ->  Left $ transformRow partial
+    Right valid -> Right valid -- We don't need to check the sequence barcode as the row the previous row is invalid anyway
+fillFromPrevious skus (Right (FullST previous)) partial
   -- | Right valid  <- validateRow CheckBarcode partial = Right valid
   --  ^ can't do that, as we need to check if a barcode sequence is correct
 

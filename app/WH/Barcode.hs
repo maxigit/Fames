@@ -83,3 +83,11 @@ nextBarcode barcode = do
   (prefix, n,_) <- splitBarcode barcode
   Just $ formatBarcode prefix (n+1 :: Int)
 
+
+-- | generates a sequence of barcodes given a prefix
+-- roll to the next prefix if needed
+-- generateBarcodes :: Text -> (Maybe Day) -> Int -> Handler [Text]
+generateBarcodes prefix dayM count = do
+  return ["a", "b", "c"]
+  
+ 

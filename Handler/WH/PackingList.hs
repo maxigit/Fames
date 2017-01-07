@@ -732,7 +732,7 @@ savePLFromRows key param sections = do
     pKey <- insert pl
     let detailFns = concatMap (createDetailsFromSection pKey) sections
 
-    barcodes' <- generateBarcodes pl
+    barcodes' <- generateBarcodes "DL" (packingListArriving pl) (packingListBoxesToDeliver_d pl)
     let barcodes = if take 5 (invoiceRef param) == "16107"
                      then -- get box number instead
                           map (\fn -> toStrict $ formatBarcode "DL16DE" (packingListDetailBoxNumber (fn "")))
@@ -754,7 +754,7 @@ createPLFromForm docKey nOfBoxes =
   <*> departure
   <*> arriving
   
-generateBarcodes pl = do
+generateBarcodes' pl = do
   -- TODO factorize
   -- find prefix corresponding to the delivery date
   today <- utctDay <$> liftIO getCurrentTime
