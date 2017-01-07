@@ -140,14 +140,19 @@ $maybe u <- uploader
                           (parseTakes skus findOps findLocs spreadsheet)
   where process  _ doc Validate _ rows = renderWHStocktake mode 200 (setSuccess "Validation ok!") (render rows)
         process path doc Save override rows = (runDB $ do
-          let finals = zip [1..] (map transformRow rows) :: [(Int, FinalRow)]
+          let finals = zip [1..] (map finalizeRow rows) :: [(Int, FinalRow)]
+          -- separate between full stocktake and zero one.
+          -- zero takes needs to be associated with a new barcodes
+          -- and don't have box information.
+              fulls = [(i, full) | (i, FinalFull full) <- finals]
+              zeros = [(i, zero) | (i, FinalZero zero) <- finals]
 
           -- rows can't be converted straight away to stocktakes and boxtakes
           -- if in case of many row for the same barcodes, stocktakes needs to be indexed
           -- and boxtake needs to keep only the first one.
           let groups = groupBy ((==) `on` (rowBarcode . snd))
                      . sortBy (comparing (rowBarcode . snd))
-                     $ finals :: [[(Int, FinalRow)]]
+                     $ fulls :: [[(Int, FinalFullRow)]]
               
           keyId <- insert doc
           let stocktakes =  do 
@@ -244,26 +249,31 @@ data TakeRow s = TakeRow
   }
   
 
-data TakeRowType = RawT | PartialT | ValidT | ZeroT | FinalZeroT |  FinalT deriving (Eq, Read, Show)
+data TakeRowType = RawT | PartialT | FullT | ZeroT | FinalZeroT |  FinalT deriving (Eq, Read, Show)
 type RawRow = TakeRow RawT -- Raw data. Contains if the original text value if necessary
 type PartialRow = TakeRow PartialT -- Well formatted row. Can contains blank
-type ValidRow = TakeRow ValidT -- Contains valid value with guessed/provided indicator
+type FullRow = TakeRow FullT -- Contains valid value with guessed/provided indicator
 type ZeroRow = TakeRow ZeroT -- Zero take. No item founds, therefore no quantities, barcode, box dimensions, etc ...
-type FinalRow = TakeRow FinalT -- Contains value with ornement
+type FinalFullRow = TakeRow FinalT -- Contains value with ornement
 type FinalZeroRow = TakeRow FinalZeroT -- Contains value with ornement
 
 type family  FieldTF (s :: TakeRowType) a z where
   FieldTF 'RawT a z = FieldForRaw a
   FieldTF 'PartialT a z = FieldForPartial a
-  FieldTF 'ValidT a z = FieldForValid a
+  FieldTF 'FullT a z = FieldForValid a
   FieldTF 'ZeroT a z = FieldForValid (UnIdentity (z a))
   FieldTF 'FinalT a z = a
   FieldTF 'FinalZeroT a z = (UnIdentity (z a))
 
 deriving instance Show RawRow
 deriving instance Show PartialRow
-deriving instance Show ValidRow
+deriving instance Show FullRow
+deriving instance Show ZeroRow
+deriving instance Show FinalFullRow
+deriving instance Show FinalZeroRow
 
+data ValidRow = FullST FullRow | ZeroST ZeroRow  deriving Show
+data FinalRow = FinalFull FinalFullRow | FinalZero FinalZeroRow  deriving Show
 
 -- | Validates if a raw row has been parsed properly. ie cell are well formatted
 validateRaw :: OpFinder -> LocFinder ->  RawRow -> Either RawRow PartialRow
@@ -311,14 +321,21 @@ validateRows skus (row:rows) = do
   -- All row needs to be validated. However, except the firs one
   -- we don't the check the barcode as it can be missing the prefix
   let filleds = scanl (fillFromPrevious skus)  (validateRow skus CheckBarcode row) rows :: [Either RawRow ValidRow]
-      transformRow' r = let p = transformRow r  
-                        in transformRow (p :: PartialRow)
+      transformRow' r = case r of
+        FullST full -> let p = transformRow full  
+                       in transformRow (p :: PartialRow)
+        ZeroST zero -> let p = transformRow zero  
+                       in transformRow (p :: PartialRow)
   -- we need to check that the last barcode is not guessed
   
       errors = map (either id (transformRow')) filleds
+      -- ignore zerotake barcode when determining if a sequence of barcode is correct or not.
+      validBarcode (FullST row) = Just (rowBarcode row)
+      validBarcode (ZeroST row) = Nothing 
+               
   valids <- sequence  filleds <|&> const errors
   
-  case rowBarcode (last valids) of
+  case (last (mapMaybe validBarcode valids))  of
     Guessed barcode -> let l = last errors
                            l' = l {rowBarcode = Left $ ParsingError "Last barcode of a sequence should be provided" barcode }
                       
@@ -343,19 +360,21 @@ validateRow skus validateMode row@(TakeRow (Just rowStyle) (Just rowColour) (Jus
                               then Nothing
                               else Just (\r -> r {rowColour=Left $ ParsingError "Invalid variation" sku})
                     ] of
-       [] -> Right $ TakeRow{..}
+       [] -> Right . FullST $ TakeRow{..}
        modifiers -> Left $ foldr ($) (transformRow row) modifiers
 
+validateRow _ _ invalid =  error "Implement zero"
 validateRow _ _ invalid =  Left $ transformRow invalid
 
 
 fillFromPrevious :: Set Text -> Either RawRow ValidRow -> PartialRow -> Either RawRow ValidRow
-fillFromPrevious skus (Left prev) partial =
+fillFromPrevious = error "implement fillFromPrevious"
+fillFromPrevious' skus (Left prev) partial =
   case validateRow skus CheckBarcode partial of
     Left _ ->  Left $ transformRow partial
     Right valid -> Right valid -- We don't need to check the sequence barcode as the row the previous row is invalid anyway
 
-fillFromPrevious skus (Right previous) partial
+fillFromPrevious' skus (Right previous) partial
   -- | Right valid  <- validateRow CheckBarcode partial = Right valid
   --  ^ can't do that, as we need to check if a barcode sequence is correct
 
@@ -490,7 +509,7 @@ validateLocation locMap t =
 
 -- | Parses a csv of stocktakes. If a list of locations is given
 -- parseTakes that the locations are valid (matches provided location using unix file globing)
--- parseTakes  :: Set Text -> OpFinder -> LocFinder -> ByteString -> ParsingResult RawRow [ValidRow]
+parseTakes  :: Set Text -> OpFinder -> LocFinder -> ByteString -> ParsingResult RawRow [ValidRow]
 parseTakes skus opf locf bytes = either id ParsingCorrect $ do
     
   raws <- parseSpreadsheet mempty Nothing bytes <|&> WrongHeader
@@ -508,7 +527,7 @@ parseTakes skus opf locf bytes = either id ParsingCorrect $ do
           -- a = (traverse validate rows)
           -- in a <|&> -- (const $ lefts ) (const $ map transformRow rows)
 
-toStocktakeF :: DocumentKeyId -> FinalRow -> Maybe (Int -> Stocktake)
+toStocktakeF :: DocumentKeyId -> FinalFullRow -> Maybe (Int -> Stocktake)
 toStocktakeF docId TakeRow{..} = case rowQuantity of
   Unknown -> Nothing
   Known quantity -> Just $ \index -> Stocktake (rowStyle <> "-" <> rowColour)
@@ -523,7 +542,7 @@ toStocktakeF docId TakeRow{..} = case rowQuantity of
                       docId
 
 
-toBoxtake :: DocumentKeyId -> (Text -> Text) -> (Int, FinalRow) -> Maybe Boxtake
+toBoxtake :: DocumentKeyId -> (Text -> Text) -> (Int, FinalFullRow) -> Maybe Boxtake
 toBoxtake docId descriptionFn (col, TakeRow{..}) =
   Just $ Boxtake (Just $ descriptionFn (rowStyle<>"-"<>rowColour))
                  (tshow col)
@@ -545,6 +564,12 @@ transformRow TakeRow{..} = TakeRow
   (transform rowHeight)
   (transform rowDate)
   (transform rowOperator)
+
+transformValid (FullST row) = transformRow row
+transformValid (ZeroST row) = transformRow row
+
+finalizeRow (FullST row) = FinalFull (transformRow row)
+finalizeRow (ZeroST row) = FinalZero (transformRow row)
 
 -- * Csv
 instance Csv.FromNamedRecord RawRow where
@@ -600,9 +625,13 @@ renderRow TakeRow{..} = do
 |]
 
 instance Renderable RawRow where render = renderRow
-instance Renderable ValidRow where render = renderRow
+instance Renderable FullRow where render = renderRow
+instance Renderable ZeroRow where render = renderRow
 instance Renderable [RawRow ]where render = renderRows classForRaw
 instance Renderable [ValidRow] where render = renderRows (const ("" :: Text))
+instance Renderable ValidRow where
+  render (FullST row) = render row
+  render (ZeroST row) = render row
 
 instance Renderable Operator' where
   render (Operator' opId op) = render $ operatorNickname op

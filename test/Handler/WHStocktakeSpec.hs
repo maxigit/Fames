@@ -100,7 +100,7 @@ t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 |]
         bodyContains "Document has already been uploaded"
       
---       it "@current saves twice" $ do
+--       it "saves twice" $ do
 --         saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
 -- t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 -- |]
@@ -285,4 +285,8 @@ t-shirt,black,0,,ST16NV00399X,,,,,Jack
           postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
 t-shirt,black,0,,,,,,,Jack
 |]  
+          (zerotakes, boxtakes) <- runDB $ liftM2 (,)  (selectList[] []) (selectList [] [])
+          liftIO $ do
+              length (zerotakes ::[Entity Stocktake])  `shouldBe` 1
+              length (boxtakes :: [Entity Boxtake]) `shouldBe` 0
 
