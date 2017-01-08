@@ -23,6 +23,7 @@ import Handler.WH.Barcode
 import WH.Barcode
 import Data.List(scanl, init, length, head)
 import Data.Either
+import System.Directory (doesFileExist)
 
 import Database.Persist.Sql
 import qualified Data.Csv as Csv
@@ -43,14 +44,14 @@ getWHStocktakeR :: Handler Html
 getWHStocktakeR = entityTableHandler (WarehouseR WHStocktakeR) ([] :: [Filter Stocktake])
 
 getWHStocktakeValidateR :: Handler Html
-getWHStocktakeValidateR = renderWHStocktake Validate 200 (setInfo "Enter Stocktake") (return ())
+getWHStocktakeValidateR = renderWHStocktake Validate Nothing 200 (setInfo "Enter Stocktake") (return ())
 
-renderWHStocktake :: SavingMode -> Int -> Handler () -> Widget -> Handler Html
-renderWHStocktake mode status message pre = do
+renderWHStocktake :: SavingMode -> Maybe FormParam -> Int -> Handler () -> Widget -> Handler Html
+renderWHStocktake mode paramM status message pre = do
   let (action, button,btn) = case mode of
         Validate -> (WHStocktakeValidateR, "validate" :: Text, "primary" :: Text)
         Save -> (WHStocktakeSaveR, "save", "danger")
-  (uploadFileFormW, upEncType) <- generateFormPost $ uploadForm mode
+  (uploadFileFormW, upEncType) <- generateFormPost $ uploadForm mode paramM
   message
   sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
   <div>
@@ -69,22 +70,36 @@ postWHStocktakeValidateR = processStocktakeSheet Validate
 
 
 getWHStocktakeSaveR :: Handler Html
-getWHStocktakeSaveR = renderWHStocktake Save 200 (setInfo "Enter Stocktake") (return ())
+getWHStocktakeSaveR = renderWHStocktake Save Nothing 200 (setInfo "Enter Stocktake") (return ())
 
 postWHStocktakeSaveR :: Handler Html
 postWHStocktakeSaveR = processStocktakeSheet Save
 
-uploadForm mode = 
-  let form' Save = (,,,)
-                   <$> areq fileField "upload" Nothing
-                   <*> areq (selectField optionsEnum ) "encoding" (Just UTF8)
-                   <*> aopt textareaField "comment" Nothing
-                   <*> areq boolField "override" (Just False)
-      form' Validate = (,,,)
-                   <$> areq fileField "upload" Nothing
-                   <*> areq (selectField optionsEnum ) "encoding" (Just UTF8)
+-- | Should be Either FileInfo (Text, Text)
+data FormParam = FormParam
+ { pFileInfo :: Maybe FileInfo
+ , pFileKey :: Maybe Text
+ , pFilePath :: Maybe Text
+ , pEncoding :: Encoding
+ , pComment :: Maybe Textarea
+ , pOveridde :: Bool
+ }
+
+uploadForm mode paramM = 
+  let form' Save = FormParam
+                   <$> pure Nothing -- areq hiddenField "upload" (fmap pFileInfo paramM)
+                   <*> areq hiddenField "key" (Just $ pFileKey =<< paramM)
+                   <*> areq hiddenField "path" (Just $ pFilePath =<< paramM)
+                   <*> areq (selectField optionsEnum ) "encoding" (fmap pEncoding paramM <|> Just UTF8)
+                   <*> aopt textareaField "comment" (fmap pComment paramM)
+                   <*> areq boolField "override" (fmap pOveridde paramM <|> Just False)
+      form' Validate = FormParam
+                   <$> (Just <$> areq fileField "upload" (pFileInfo =<< paramM))
                    <*> pure Nothing
-                   <*> pure False
+                   <*> pure Nothing
+                   <*> areq (selectField optionsEnum ) "encoding" (fmap pEncoding paramM <|> Just UTF8)
+                   <*> aopt textareaField "comment" (fmap pComment paramM)
+                   <*> areq boolField "override" (fmap pOveridde paramM <|> Just False)
   in renderBootstrap3 BootstrapBasicForm . form' $ mode
 
 -- | Display or save the uploaded spreadsheet
@@ -93,12 +108,24 @@ uploadForm mode =
 -- to "save" the validation processing.
 processStocktakeSheet :: SavingMode -> Handler Html 
 processStocktakeSheet mode = do
-  ((fileResp, postFileW), enctype) <- runFormPost (uploadForm mode)
+  ((fileResp, postFileW), enctype) <- runFormPost (uploadForm mode Nothing)
   case fileResp of
     FormMissing -> error "form missing"
-    FormFailure a -> error $ "Form failure : " ++ show a
-    FormSuccess (fileInfo, encoding, commentM, override) -> do
-      (spreadsheet, key) <- readUploadUTF8 fileInfo encoding
+    FormFailure a -> error $ "Form failure : " ++ show (mode, a)
+    FormSuccess param@(FormParam fileInfoM keyM pathM encoding commentM override) -> do
+      let tmp file = "/tmp" </> (unpack file)
+      (spreadsheet, key, path) <- case (fileInfoM, keyM, pathM) of
+        (_, Just key, Just path) -> do
+          ss <- readFile (tmp key)
+          return (ss, key, path)
+        (Just fileInfo, _, _) -> do
+          (ss, key) <- readUploadUTF8 fileInfo encoding
+          let path = tmp key
+          exist <- liftIO $ doesFileExist path
+          unless exist $ do
+            writeFile (tmp key) ss
+          return (ss, key, fileName fileInfo)
+          
 
       -- TODO move to reuse
       -- check if the document has already been uploaded
@@ -114,7 +141,7 @@ $maybe u <- uploader
 |]
         case mode of
           Validate -> setWarning msg >> return ""
-          Save -> renderWHStocktake mode 422 (setError msg) (return ()) -- should exit
+          Save -> renderWHStocktake Validate Nothing  422 (setError msg) (return ()) -- should exit
 
       locations <- appStockLocationsInverse . appSettings <$> getYesod
       skus <- getStockIds
@@ -134,19 +161,21 @@ $maybe u <- uploader
       userId <- requireAuthId
       processedAt <- liftIO getCurrentTime
 
-      let docKey = DocumentKey "stocktake" (fileName fileInfo) (maybe "" unTextarea commentM) key (userId) processedAt
+      let docKey = DocumentKey "stocktake" path (maybe "" unTextarea commentM) key (userId) processedAt
+          newParam = param {pFileKey = Just key, pFilePath = Just path}
 
-      renderParsingResult (renderWHStocktake mode 422)
-                          (process (fileName fileInfo) docKey mode override)
+      renderParsingResult (renderWHStocktake mode ((Just newParam)) 422)
+                          (process newParam docKey mode)
                           (parseTakes skus findOps findLocs spreadsheet)
-  where process  _ doc Validate _ rows = renderWHStocktake mode 200 (setSuccess "Validation ok!") (render rows)
-        process path doc Save override rows = (runDB $ do
+  where process  param doc Validate rows = renderWHStocktake Save (Just param) 200 (setSuccess "Validation ok!") (render rows)
+        process param doc Save rows = (runDB $ do
           let finals = zip [1..] (map finalizeRow rows) :: [(Int, FinalRow)]
           -- separate between full stocktake and zero one.
           -- zero takes needs to be associated with a new barcodes
           -- and don't have box information.
               fulls = [(i, full) | (i, FinalFull full) <- finals]
               zeros = [ zero | (_, FinalZero zero) <- finals]
+              override = pOveridde param
 
           -- rows can't be converted straight away to stocktakes and boxtakes
           -- if in case of many row for the same barcodes, stocktakes needs to be indexed
@@ -212,7 +241,14 @@ $maybe u <- uploader
               insertMany_ stocktakes
               insertMany_ boxtakes
 
-          ) >> renderWHStocktake mode 200 (setSuccess (toHtml $ "Spreadsheet "<> path <> " processed")) (return ())
+          ) >> renderWHStocktake mode
+                                 Nothing
+                                 200
+                                 ( setSuccess (toHtml $ "Spreadsheet"
+                                                       <> (fromMaybe "<path>" (pFilePath param))
+                                                       <> " processed")
+                                 )
+                                 (return ())
        
      
 insertZeroTakes :: MonadIO m => Key DocumentKey -> [FinalZeroRow] -> ReaderT SqlBackend m ()

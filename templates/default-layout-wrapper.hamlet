@@ -59,7 +59,6 @@ $newline never
             <a.list-group-item href=@{WarehouseR WHStockAdjustmentR}>Stock Adjustement
             <a.list-group-item href=@{WarehouseR WHStocktakeR}>Stocktake
             <a.list-group-item href=@{WarehouseR WHStocktakeValidateR}>Validate Stocktake
-            <a.list-group-item href=@{WarehouseR WHStocktakeSaveR}>Save Stocktake
         <div.col-md-8 id="main" role="main">
           ^{pageBody pc}
       <div.row>

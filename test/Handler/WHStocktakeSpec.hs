@@ -28,14 +28,21 @@ uploadSTSheet route status path overrideM = do
   request $ do
     setMethod "POST"
     setUrl (WarehouseR route)
-    addToken_ "form#upload-form"
-    fileByLabel "upload" path "text/plain"
     byLabel "encoding" (tshow 1)
     case overrideM of
-      Nothing -> return ()
-      Just False -> addPostParam "f4" "no"
-      Just True -> addPostParam "f4" "yes"
-    -- forM_ overrideM  (\override ->  byLabel "override" "")
+      Nothing -> do
+        addToken_ "form#upload-form"
+        fileByLabel "upload" path "text/plain"
+        addPostParam "f4" "no"
+        
+      Just over -> do
+        sheet <- liftIO $ readFile path
+        let key = computeDocumentKey  sheet
+        liftIO  $ writeFile ("/tmp/" <> unpack key) sheet
+        addToken_ "form#upload-form"
+        addPostParam "f1" ("Just "<> key)
+        addPostParam "f2" (tshow $ Just (path))
+        addPostParam "f5" $ if over then "yes" else "no"
 
   -- printBody
   statusIs status
@@ -53,6 +60,7 @@ saveSTSheet status sheet = do
 updateSTSheet status sheet = do
   path <- saveToTempFile sheet
   uploadSTSheet WHStocktakeSaveR status path (Just True)
+  -- uploadSTSheet WHStocktakeSaveR status path (Just False)
 
 findBarcodes getBarcode = do
   entities <- runDB $ selectList [] []
