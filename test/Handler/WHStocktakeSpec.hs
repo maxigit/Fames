@@ -28,15 +28,23 @@ uploadSTSheet route status path overrideM = do
   request $ do
     setMethod "POST"
     setUrl (WarehouseR route)
-    addToken_ "form#upload-form"
-    fileByLabel "upload" path "text/plain"
     byLabel "encoding" (tshow 1)
     case overrideM of
-      Nothing -> return ()
-      Just False -> addPostParam "f4" "no"
-      Just True -> addPostParam "f4" "yes"
-    -- forM_ overrideM  (\override ->  byLabel "override" "")
+      Nothing -> do
+        addToken_ "form#upload-form"
+        fileByLabel "upload" path "text/plain"
+        addPostParam "f4" "no"
+        
+      Just over -> do
+        sheet <- liftIO $ readFile path
+        let key = computeDocumentKey  sheet
+        liftIO  $ writeFile ("/tmp/" <> unpack key) sheet
+        addToken_ "form#upload-form"
+        addPostParam "f1" ("Just "<> key)
+        addPostParam "f2" (tshow $ Just (path))
+        addPostParam "f5" $ if over then "yes" else "no"
 
+  -- printBody
   statusIs status
 
 -- write the sheet to a temporary file and upload it.
@@ -52,6 +60,7 @@ saveSTSheet status sheet = do
 updateSTSheet status sheet = do
   path <- saveToTempFile sheet
   uploadSTSheet WHStocktakeSaveR status path (Just True)
+  -- uploadSTSheet WHStocktakeSaveR status path (Just False)
 
 findBarcodes getBarcode = do
   entities <- runDB $ selectList [] []
@@ -99,7 +108,7 @@ t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 |]
         bodyContains "Document has already been uploaded"
       
---       it "@current saves twice" $ do
+--       it "saves twice" $ do
 --         saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
 -- t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 -- |]
@@ -159,6 +168,14 @@ t-shirt,red,120,shelf-1,-,,,,,Jack
         htmlAllContain "table td.stocktakeBarcode" "ST16NV00399X"
         htmlCount "table td.stocktakeBarcode" 2
 
+      it "skips blank lines" $ do
+        (const pending)
+--         postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+-- t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+-- ,,,,,,,,,,
+-- t-shirt,red,120,shelf-1,400E,,,,,Jack
+-- |]
+--         htmlCount "table. td.stocktakeBarcode" 2
 
     describe "overriding existing stocktake" $ do
       it "Creates a new stocktake item if needed" $ do
@@ -268,4 +285,45 @@ t-shirt,black,120,shelf-[12],ST16NV00399X,34,20,17,2016/11/10,Jack
 t-shirt,black,120,shelf-[123],ST16NV00399X,34,20,17,2016/11/10,Jack
 |]  
           htmlAnyContain "table td.stocktakeLocation " "find location with name"
+  describe "null quantity " $ do
+    it "accepts missing barcode" $ do
+          saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,0,,,,,,2016/11/10,Jack
+|]  
+          (zerotakes, boxtakes) <- runDB $ liftM2 (,)  (selectList[] []) (selectList [] [])
+          liftIO $ do
+              length (zerotakes ::[Entity Stocktake])  `shouldBe` 1
+              length (boxtakes :: [Entity Boxtake]) `shouldBe` 0
 
+    it "accepts 0 after boxes" $ do
+        postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+t-shirt,red,0,,,,,,,Jack
+|]
+        htmlAllContain "table td.stocktakeStyle" "t-shirt"
+        htmlCount "table td.stocktakeStyle" 2
+        htmlAnyContain "table td.stocktakeQuantity" "0"
+
+    it "breaks barcode sequences" $ do
+          postSTSheet 422 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+t-shirt,red,120,shelf-1,,34,20,17,2016/11/10,Jack
+t-shirt,red,0,,,,,,2016/11/10,Jack
+|]  
+
+    it "accepts 0 quantity in grouped box" $ do
+        postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+t-shirt,red,0,,,,,,,Jack
+t-shirt,black,120,shelf-1,ST16NV00400E,34,20,17,2016/11/10,Jack
+|]
+        htmlAnyContain "table td.stocktakeBarcode" "ST16NV00399X"
+        htmlCount "table td.stocktakeBarcode" 3
+
+    it "use previous data if needed" $ do
+        postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+,red,0,,,,,,,
+|]
+        htmlAllContain "table td.stocktakeStyle" "t-shirt"
+        htmlCount "table td.stocktakeStyle" 2

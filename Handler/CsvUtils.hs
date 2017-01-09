@@ -126,7 +126,7 @@ class Transformable a b where
 instance Transformable a () where
   transform = const ()
 
-instance  Transformable a a where
+instance  {-# OVERLAPPABLE #-} (a~b) => Transformable a b where
   transform x =  x
 
 instance Applicative f => Transformable a (f a) where

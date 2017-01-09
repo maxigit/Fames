@@ -19,8 +19,7 @@ import qualified Data.List as List
 import Database.Persist.MySQL
 import qualified Data.Map as Map
 import Data.Time (diffDays, addGregorianMonthsClip)
-import Formatting
-import Formatting.Time
+import Handler.WH.Barcode
 import WH.Barcode
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
@@ -732,7 +731,7 @@ savePLFromRows key param sections = do
     pKey <- insert pl
     let detailFns = concatMap (createDetailsFromSection pKey) sections
 
-    barcodes' <- generateBarcodes pl
+    barcodes' <- generateBarcodes "DL" (packingListArriving pl) (packingListBoxesToDeliver_d pl)
     let barcodes = if take 5 (invoiceRef param) == "16107"
                      then -- get box number instead
                           map (\fn -> toStrict $ formatBarcode "DL16DE" (packingListDetailBoxNumber (fn "")))
@@ -753,46 +752,6 @@ createPLFromForm docKey nOfBoxes =
   <*> (pure nOfBoxes)
   <*> departure
   <*> arriving
-  
-generateBarcodes pl = do
-  -- TODO factorize
-  -- find prefix corresponding to the delivery date
-  today <- utctDay <$> liftIO getCurrentTime
-  let date = fromMaybe today (packingListArriving pl)
-      prefix = format ((fitLeft 2 %. stext) % (yy `mappend` later month2))
-                      "DL"
-                      date
-      prefix' = toStrict prefix
-      nb = packingListBoxesToDeliver_d pl
-      endFor start = let r = start + nb -1
-                     in if r > 99999 then error "Too many barcode" else r
-  -- find last available number
-  seedM <- getBy (UniqueBCSeed prefix')
-  (start, end) <- case seedM of
-    Nothing -> do
-      let start = 1
-          end = endFor start
-
-      insert $ BarcodeSeed prefix' end
-      return (start,end)
-
-    Just (Entity sId (BarcodeSeed _ lastUsed)) -> do
-      let start = lastUsed + 1
-          end = endFor start
-      update sId [ BarcodeSeedLastUsed =. end ]
-      return (start,end)
-
-  return $ map (toStrict . formatBarcode prefix) [start..end]
-
-
-  
-     
-
-
-
-
-
-
   
 createDetailsFromSection pKey (orderRef, groups) = do
   let ref = validValue $ plStyle orderRef

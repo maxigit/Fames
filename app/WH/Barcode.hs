@@ -8,6 +8,8 @@ import Data.List (iterate)
 import Data.Aeson                 (Result (..), fromJSON, withObject, (.!=),
                                    (.:?))
 import Formatting
+import Formatting.Time
+
 -- * Types
 -- | Allowed prefixes. Read from configuration file.
 data BarcodeParams = BarcodeParams
@@ -82,4 +84,3 @@ nextBarcode barcode | null barcode = Nothing
 nextBarcode barcode = do
   (prefix, n,_) <- splitBarcode barcode
   Just $ formatBarcode prefix (n+1 :: Int)
-

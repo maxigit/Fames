@@ -5,6 +5,7 @@
 {-# LANGUAGE LiberalTypeSynonyms #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Handler.WH.Stocktake
 ( getWHStocktakeR
 , postWHStocktakeSaveR
@@ -15,11 +16,14 @@ module Handler.WH.Stocktake
 , getWHStocktakeLocationR
 ) where
 
-import Import hiding(last)
-import Handler.CsvUtils
+import Import hiding(length)
+import Handler.CsvUtils hiding(FieldTF, RawT, PartialT, ValidT, FinalT)
+import qualified Handler.CsvUtils as CU
+import Handler.WH.Barcode
 import WH.Barcode
-import Data.List(scanl, last, init, length, head)
+import Data.List(scanl, init, length, head)
 import Data.Either
+import System.Directory (doesFileExist)
 
 import Database.Persist.Sql
 import qualified Data.Csv as Csv
@@ -40,14 +44,14 @@ getWHStocktakeR :: Handler Html
 getWHStocktakeR = entityTableHandler (WarehouseR WHStocktakeR) ([] :: [Filter Stocktake])
 
 getWHStocktakeValidateR :: Handler Html
-getWHStocktakeValidateR = renderWHStocktake Validate 200 (setInfo "Enter Stocktake") (return ())
+getWHStocktakeValidateR = renderWHStocktake Validate Nothing 200 (setInfo "Enter Stocktake") (return ())
 
-renderWHStocktake :: SavingMode -> Int -> Handler () -> Widget -> Handler Html
-renderWHStocktake mode status message pre = do
+renderWHStocktake :: SavingMode -> Maybe FormParam -> Int -> Handler () -> Widget -> Handler Html
+renderWHStocktake mode paramM status message pre = do
   let (action, button,btn) = case mode of
         Validate -> (WHStocktakeValidateR, "validate" :: Text, "primary" :: Text)
         Save -> (WHStocktakeSaveR, "save", "danger")
-  (uploadFileFormW, upEncType) <- generateFormPost $ uploadForm mode
+  (uploadFileFormW, upEncType) <- generateFormPost $ uploadForm mode paramM
   message
   sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
   <div>
@@ -66,22 +70,36 @@ postWHStocktakeValidateR = processStocktakeSheet Validate
 
 
 getWHStocktakeSaveR :: Handler Html
-getWHStocktakeSaveR = renderWHStocktake Save 200 (setInfo "Enter Stocktake") (return ())
+getWHStocktakeSaveR = renderWHStocktake Save Nothing 200 (setInfo "Enter Stocktake") (return ())
 
 postWHStocktakeSaveR :: Handler Html
 postWHStocktakeSaveR = processStocktakeSheet Save
 
-uploadForm mode = 
-  let form' Save = (,,,)
-                   <$> areq fileField "upload" Nothing
-                   <*> areq (selectField optionsEnum ) "encoding" (Just UTF8)
-                   <*> aopt textareaField "comment" Nothing
-                   <*> areq boolField "override" (Just False)
-      form' Validate = (,,,)
-                   <$> areq fileField "upload" Nothing
-                   <*> areq (selectField optionsEnum ) "encoding" (Just UTF8)
+-- | Should be Either FileInfo (Text, Text)
+data FormParam = FormParam
+ { pFileInfo :: Maybe FileInfo
+ , pFileKey :: Maybe Text
+ , pFilePath :: Maybe Text
+ , pEncoding :: Encoding
+ , pComment :: Maybe Textarea
+ , pOveridde :: Bool
+ }
+
+uploadForm mode paramM = 
+  let form' Save = FormParam
+                   <$> pure Nothing -- areq hiddenField "upload" (fmap pFileInfo paramM)
+                   <*> areq hiddenField "key" (Just $ pFileKey =<< paramM)
+                   <*> areq hiddenField "path" (Just $ pFilePath =<< paramM)
+                   <*> areq (selectField optionsEnum ) "encoding" (fmap pEncoding paramM <|> Just UTF8)
+                   <*> aopt textareaField "comment" (fmap pComment paramM)
+                   <*> areq boolField "override" (fmap pOveridde paramM <|> Just False)
+      form' Validate = FormParam
+                   <$> (Just <$> areq fileField "upload" (pFileInfo =<< paramM))
                    <*> pure Nothing
-                   <*> pure False
+                   <*> pure Nothing
+                   <*> areq (selectField optionsEnum ) "encoding" (fmap pEncoding paramM <|> Just UTF8)
+                   <*> aopt textareaField "comment" (fmap pComment paramM)
+                   <*> areq boolField "override" (fmap pOveridde paramM <|> Just False)
   in renderBootstrap3 BootstrapBasicForm . form' $ mode
 
 -- | Display or save the uploaded spreadsheet
@@ -90,12 +108,24 @@ uploadForm mode =
 -- to "save" the validation processing.
 processStocktakeSheet :: SavingMode -> Handler Html 
 processStocktakeSheet mode = do
-  ((fileResp, postFileW), enctype) <- runFormPost (uploadForm mode)
+  ((fileResp, postFileW), enctype) <- runFormPost (uploadForm mode Nothing)
   case fileResp of
     FormMissing -> error "form missing"
-    FormFailure a -> error $ "Form failure : " ++ show a
-    FormSuccess (fileInfo, encoding, commentM, override) -> do
-      (spreadsheet, key) <- readUploadUTF8 fileInfo encoding
+    FormFailure a -> error $ "Form failure : " ++ show (mode, a)
+    FormSuccess param@(FormParam fileInfoM keyM pathM encoding commentM override) -> do
+      let tmp file = "/tmp" </> (unpack file)
+      (spreadsheet, key, path) <- case (fileInfoM, keyM, pathM) of
+        (_, Just key, Just path) -> do
+          ss <- readFile (tmp key)
+          return (ss, key, path)
+        (Just fileInfo, _, _) -> do
+          (ss, key) <- readUploadUTF8 fileInfo encoding
+          let path = tmp key
+          exist <- liftIO $ doesFileExist path
+          unless exist $ do
+            writeFile (tmp key) ss
+          return (ss, key, fileName fileInfo)
+          
 
       -- TODO move to reuse
       -- check if the document has already been uploaded
@@ -111,7 +141,7 @@ $maybe u <- uploader
 |]
         case mode of
           Validate -> setWarning msg >> return ""
-          Save -> renderWHStocktake mode 422 (setError msg) (return ()) -- should exit
+          Save -> renderWHStocktake Validate Nothing  422 (setError msg) (return ()) -- should exit
 
       locations <- appStockLocationsInverse . appSettings <$> getYesod
       skus <- getStockIds
@@ -131,21 +161,28 @@ $maybe u <- uploader
       userId <- requireAuthId
       processedAt <- liftIO getCurrentTime
 
-      let docKey = DocumentKey "stocktake" (fileName fileInfo) (maybe "" unTextarea commentM) key (userId) processedAt
+      let docKey = DocumentKey "stocktake" path (maybe "" unTextarea commentM) key (userId) processedAt
+          newParam = param {pFileKey = Just key, pFilePath = Just path}
 
-      renderParsingResult (renderWHStocktake mode 422)
-                          (process (fileName fileInfo) docKey mode override)
+      renderParsingResult (renderWHStocktake mode ((Just newParam)) 422)
+                          (process newParam docKey mode)
                           (parseTakes skus findOps findLocs spreadsheet)
-  where process  _ doc Validate _ rows = renderWHStocktake mode 200 (setSuccess "Validation ok!") (render rows)
-        process path doc Save override rows = (runDB $ do
-          let finals = zip [1..] (map transformRow rows) :: [(Int, FinalRow)]
+  where process  param doc Validate rows = renderWHStocktake Save (Just param) 200 (setSuccess "Validation ok!") (render rows)
+        process param doc Save rows = (runDB $ do
+          let finals = zip [1..] (map finalizeRow rows) :: [(Int, FinalRow)]
+          -- separate between full stocktake and zero one.
+          -- zero takes needs to be associated with a new barcodes
+          -- and don't have box information.
+              fulls = [(i, full) | (i, FinalFull full) <- finals]
+              zeros = [ zero | (_, FinalZero zero) <- finals]
+              override = pOveridde param
 
           -- rows can't be converted straight away to stocktakes and boxtakes
           -- if in case of many row for the same barcodes, stocktakes needs to be indexed
           -- and boxtake needs to keep only the first one.
           let groups = groupBy ((==) `on` (rowBarcode . snd))
                      . sortBy (comparing (rowBarcode . snd))
-                     $ finals :: [[(Int, FinalRow)]]
+                     $ fulls :: [[(Int, FinalFullRow)]]
               
           keyId <- insert doc
           let stocktakes =  do 
@@ -159,6 +196,7 @@ $maybe u <- uploader
                                       (_:_) -> (<> "*")
                 take 1 $ mapMaybe (toBoxtake keyId descriptionF) group
           
+          insertZeroTakes keyId zeros
 
           if override
             then 
@@ -203,14 +241,37 @@ $maybe u <- uploader
               insertMany_ stocktakes
               insertMany_ boxtakes
 
-          ) >> renderWHStocktake mode 200 (setSuccess (toHtml $ "Spreadsheet "<> path <> " processed")) (return ())
+          ) >> renderWHStocktake mode
+                                 Nothing
+                                 200
+                                 ( setSuccess (toHtml $ "Spreadsheet"
+                                                       <> (fromMaybe "<path>" (pFilePath param))
+                                                       <> " processed")
+                                 )
+                                 (return ())
        
      
+insertZeroTakes :: MonadIO m => Key DocumentKey -> [FinalZeroRow] -> ReaderT SqlBackend m ()
+-- insertZeroTakes _ [] = return ()
+insertZeroTakes docId zeros = do
+  let count = length zeros
 
+      toStockTake barcode TakeRow{..} =
+        Stocktake (rowStyle <> "-" <> rowColour)
+                  0
+                  barcode
+                  1 -- index
+                  (FA.LocationKey "LOST") -- location
+                  rowDate
+                  True -- active
+                  (opId rowOperator)
+                  Nothing
+                  docId
 
-          
-        
-  
+  barcodes <- generateBarcodes ("ZT" :: Text) Nothing count
+  let zerotakes = zipWith toStockTake barcodes zeros
+
+  insertMany_ zerotakes
 
 -- * Csv
 
@@ -229,28 +290,44 @@ type LocFinder = Text -> Maybe Location'
 
 -- | a take row can hold stocktake and boxtake information
 data TakeRow s = TakeRow
-  { rowStyle :: FieldTF s Text 
-  , rowColour :: FieldTF s Text  
-  , rowQuantity :: FieldTF s (Known Int)
-  , rowLocation :: FieldTF s Location'
-  , rowBarcode :: FieldTF s Text 
-  , rowLength :: FieldTF s Double 
-  , rowWidth :: FieldTF s Double 
-  , rowHeight :: FieldTF s Double 
-  , rowDate :: FieldTF s Day 
-  , rowOperator :: FieldTF s Operator'
+  { rowStyle :: FieldTF s Text Identity
+  , rowColour :: FieldTF s Text Identity
+  , rowQuantity :: FieldTF s (Known Int) Null
+  , rowLocation :: FieldTF s Location' Null
+  , rowBarcode :: FieldTF s Text  Null
+  , rowLength :: FieldTF s Double  Null
+  , rowWidth :: FieldTF s Double  Null
+  , rowHeight :: FieldTF s Double  Null
+  , rowDate :: FieldTF s Day  Identity
+  , rowOperator :: FieldTF s Operator' Identity
   }
   
 
+data TakeRowType = RawT | PartialT | FullT | ZeroT | FinalZeroT |  FinalT deriving (Eq, Read, Show)
 type RawRow = TakeRow RawT -- Raw data. Contains if the original text value if necessary
 type PartialRow = TakeRow PartialT -- Well formatted row. Can contains blank
-type ValidRow = TakeRow ValidT -- Contains valid value with guessed/provided indicator
-type FinalRow = TakeRow FinalT -- Contains value with ornement
+type FullRow = TakeRow FullT -- Contains valid value with guessed/provided indicator
+type ZeroRow = TakeRow ZeroT -- Zero take. No item founds, therefore no quantities, barcode, box dimensions, etc ...
+type FinalFullRow = TakeRow FinalT -- Contains value with ornement
+type FinalZeroRow = TakeRow FinalZeroT -- Contains value with ornement
+
+type family  FieldTF (s :: TakeRowType) a z where
+  FieldTF 'RawT a z = FieldForRaw a
+  FieldTF 'PartialT a z = FieldForPartial a
+  FieldTF 'FullT a z = FieldForValid a
+  FieldTF 'ZeroT a z = FieldForValid (UnIdentity (z a))
+  FieldTF 'FinalT a z = a
+  FieldTF 'FinalZeroT a z = (UnIdentity (z a))
 
 deriving instance Show RawRow
 deriving instance Show PartialRow
-deriving instance Show ValidRow
+deriving instance Show FullRow
+deriving instance Show ZeroRow
+deriving instance Show FinalFullRow
+deriving instance Show FinalZeroRow
 
+data ValidRow = FullST FullRow | ZeroST ZeroRow  deriving Show
+data FinalRow = FinalFull FinalFullRow | FinalZero FinalZeroRow  deriving Show
 
 -- | Validates if a raw row has been parsed properly. ie cell are well formatted
 validateRaw :: OpFinder -> LocFinder ->  RawRow -> Either RawRow PartialRow
@@ -298,15 +375,23 @@ validateRows skus (row:rows) = do
   -- All row needs to be validated. However, except the firs one
   -- we don't the check the barcode as it can be missing the prefix
   let filleds = scanl (fillFromPrevious skus)  (validateRow skus CheckBarcode row) rows :: [Either RawRow ValidRow]
-      transformRow' r = let p = transformRow r  
-                        in transformRow (p :: PartialRow)
+      transformRow' r = case r of
+        FullST full -> let p = transformRow full  
+                       in transformRow (p :: PartialRow)
+        ZeroST zero -> let p = transformRow zero  
+                       in transformRow (p :: PartialRow)
   -- we need to check that the last barcode is not guessed
   
       errors = map (either id (transformRow')) filleds
+      -- ignore zerotake barcode when determining if a sequence of barcode is correct or not.
+      validBarcode (FullST row) = Just (rowBarcode row)
+      validBarcode (ZeroST row) = Nothing 
+               
   valids <- sequence  filleds <|&> const errors
   
-  case rowBarcode (last valids) of
-    Guessed barcode -> let l = last errors
+  case (lastMay (mapMaybe validBarcode valids))  of
+    (Just (Guessed barcode)) -> let
+                           l = last (unsafeToMinLen errors) -- valids is not null, so errors isn't either
                            l' = l {rowBarcode = Left $ ParsingError "Last barcode of a sequence should be provided" barcode }
                       
                            in Left $ (init errors) ++ [l']
@@ -316,6 +401,12 @@ validateRows skus (row:rows) = do
 data ValidationMode = CheckBarcode | NoCheckBarcode deriving Eq
 
 validateRow :: Set Text -> ValidationMode -> PartialRow -> Either RawRow ValidRow
+validateRow skus validateMode row@(TakeRow (Just rowStyle) (Just rowColour) (Just (Provided (Known 0)))
+                                  _ _ _ _ _ (Just rowDate) (Just rowOperator))
+  = Right . ZeroST $ TakeRow{rowQuantity=(), rowLocation=(), rowBarcode=() 
+                            , rowLength=(), rowWidth=(), rowHeight=()
+                            , .. }
+
 validateRow skus validateMode row@(TakeRow (Just rowStyle) (Just rowColour) (Just rowQuantity)
                     (Just rowLocation) (Just rowBarcode)
                     (Just rowLength) (Just rowWidth) ( Just rowHeight)
@@ -330,7 +421,7 @@ validateRow skus validateMode row@(TakeRow (Just rowStyle) (Just rowColour) (Jus
                               then Nothing
                               else Just (\r -> r {rowColour=Left $ ParsingError "Invalid variation" sku})
                     ] of
-       [] -> Right $ TakeRow{..}
+       [] -> Right . FullST $ TakeRow{..}
        modifiers -> Left $ foldr ($) (transformRow row) modifiers
 
 validateRow _ _ invalid =  Left $ transformRow invalid
@@ -342,7 +433,11 @@ fillFromPrevious skus (Left prev) partial =
     Left _ ->  Left $ transformRow partial
     Right valid -> Right valid -- We don't need to check the sequence barcode as the row the previous row is invalid anyway
 
-fillFromPrevious skus (Right previous) partial
+fillFromPrevious skus (Right (ZeroST previous)) partial =
+  case validateRow skus CheckBarcode partial of
+    Left _ ->  Left $ transformRow partial
+    Right valid -> Right valid -- We don't need to check the sequence barcode as the row the previous row is invalid anyway
+fillFromPrevious skus (Right (FullST previous)) partial
   -- | Right valid  <- validateRow CheckBarcode partial = Right valid
   --  ^ can't do that, as we need to check if a barcode sequence is correct
 
@@ -363,10 +458,11 @@ fillFromPrevious skus (Right previous) partial
                     (Just <$> length) (Just <$> width) (Just <$> height)
                     (Just <$> date) (Just <$> operator) :: RawRow)
       a /~ b = (guess <$> a) /=(guess <$> b)
-      modifiers = case rowBarcode partial of
+      modifiers = case (rowBarcode partial, rowQuantity partial) of
       -- belongs to the previous box, we need to check that box information
         -- are identical (if set)
-        Just (Provided "-" ) ->
+        (_, Just (Provided (Known 0))) -> []
+        (Just (Provided "-" ), _) ->
           [ if location /~ Right (rowLocation previous)
             then \r -> r {rowLocation = Left $ ParsingError "Doesn't match original box"
                            (maybe "" (tshow . validValue) (rowLocation partial))
@@ -397,7 +493,7 @@ fillFromPrevious skus (Right previous) partial
         _ -> []
      
         
-      in (validateRow skus CheckBarcode) =<< validateRaw (const Nothing) (const Nothing)  (foldr ($) raw modifiers)
+      in validateRow skus CheckBarcode =<< validateRaw (const Nothing) (const Nothing)  (foldr ($) raw modifiers)
 
 fillValue :: (Maybe (ValidField a)) -> Either InvalidField (ValidField a) -> Either  InvalidField (ValidField a)
 fillValue (Just new) _ = Right new
@@ -477,7 +573,7 @@ validateLocation locMap t =
 
 -- | Parses a csv of stocktakes. If a list of locations is given
 -- parseTakes that the locations are valid (matches provided location using unix file globing)
--- parseTakes  :: Set Text -> OpFinder -> LocFinder -> ByteString -> ParsingResult RawRow [ValidRow]
+parseTakes  :: Set Text -> OpFinder -> LocFinder -> ByteString -> ParsingResult RawRow [ValidRow]
 parseTakes skus opf locf bytes = either id ParsingCorrect $ do
     
   raws <- parseSpreadsheet mempty Nothing bytes <|&> WrongHeader
@@ -495,7 +591,7 @@ parseTakes skus opf locf bytes = either id ParsingCorrect $ do
           -- a = (traverse validate rows)
           -- in a <|&> -- (const $ lefts ) (const $ map transformRow rows)
 
-toStocktakeF :: DocumentKeyId -> FinalRow -> Maybe (Int -> Stocktake)
+toStocktakeF :: DocumentKeyId -> FinalFullRow -> Maybe (Int -> Stocktake)
 toStocktakeF docId TakeRow{..} = case rowQuantity of
   Unknown -> Nothing
   Known quantity -> Just $ \index -> Stocktake (rowStyle <> "-" <> rowColour)
@@ -510,7 +606,7 @@ toStocktakeF docId TakeRow{..} = case rowQuantity of
                       docId
 
 
-toBoxtake :: DocumentKeyId -> (Text -> Text) -> (Int, FinalRow) -> Maybe Boxtake
+toBoxtake :: DocumentKeyId -> (Text -> Text) -> (Int, FinalFullRow) -> Maybe Boxtake
 toBoxtake docId descriptionFn (col, TakeRow{..}) =
   Just $ Boxtake (Just $ descriptionFn (rowStyle<>"-"<>rowColour))
                  (tshow col)
@@ -532,6 +628,12 @@ transformRow TakeRow{..} = TakeRow
   (transform rowHeight)
   (transform rowDate)
   (transform rowOperator)
+
+transformValid (FullST row) = transformRow row
+transformValid (ZeroST row) = transformRow row
+
+finalizeRow (FullST row) = FinalFull (transformRow row)
+finalizeRow (ZeroST row) = FinalZero (transformRow row)
 
 -- * Csv
 instance Csv.FromNamedRecord RawRow where
@@ -587,9 +689,16 @@ renderRow TakeRow{..} = do
 |]
 
 instance Renderable RawRow where render = renderRow
-instance Renderable ValidRow where render = renderRow
+instance Renderable FullRow where render = renderRow
+instance Renderable ZeroRow where
+  render row = let partial = transformRow row :: PartialRow
+               in renderRow $ partial{rowQuantity= Just . Provided $ Known  0 }
+
 instance Renderable [RawRow ]where render = renderRows classForRaw
 instance Renderable [ValidRow] where render = renderRows (const ("" :: Text))
+instance Renderable ValidRow where
+  render (FullST row) = render row
+  render (ZeroST row) = render row
 
 instance Renderable Operator' where
   render (Operator' opId op) = render $ operatorNickname op
