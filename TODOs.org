@@ -1,6 +1,6 @@
 * Todo<2017-01-08 Sun> 
 - [X] refactor stocktake to validate and save on the same workflow
-- [ ] check stocktake dates in stockadj page
+- [X] check stocktake dates in stockadj page
 - [ ] filter stockadj by 
   - [ ] date
   - [ ] stocktake
