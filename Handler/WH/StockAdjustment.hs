@@ -119,6 +119,8 @@ postWHStockAdjustmentR = do
                \ GROUP BY stock_id "
 
       stocktakes <- runDB $ rawSql sql p
+      traceShowM sql
+      traceShowM stocktakes
       results <- catMaybes <$> mapM qohFor stocktakes
       let withDiff = [(abs (quantityTake0 (main pre) - quantityAt (main pre)), pre) |  pre <- results]
           f  (q, pre) = (maybe True (q >=) (minQty param))
@@ -160,12 +162,12 @@ postWHStockAdjustmentR = do
     $forall pre <- rows
       $with (qty, qoh, lostq) <- (quantityTake0 (main pre), quantityAt (main pre), quantityNow (lost pre))
         <tr class="#{classFor qty qoh}">
-          <td>#{sku pre}
-          <td>#{qty}
+          <td.style>#{sku pre}
+          <td.quantity>#{qty}
             $if qoh > qty
               <span.badge style="width:#{min (succ qoh - qty) 9}em; background-color:#d9534f">#{qoh - qty}
-          <td>#{tshow $ date (main pre)}
-          <td>#{qoh}
+          <td.date>#{tshow $ date (main pre)}
+          <td.qoh>#{qoh}
             $if qty > qoh
               $with (fromLost, new) <- split qty qoh lostq
                 $if fromLost > 0
@@ -173,8 +175,8 @@ postWHStockAdjustmentR = do
                 $if new > 0
                   <span.badge style="width:#{min (succ new) 9}em;">#{new}
 
-          <td>#{quantityNow (lost pre)}
-          <td>#{tshow $ date $ main pre}
+          <td.lost>#{quantityNow (lost pre)}
+          <td.last_move>#{tshow $ date $ main pre}
 |]
       defaultLayout [whamlet|
 <form.well #stock-adjustement role=form method=post action=@{WarehouseR WHStockAdjustmentR} enctype=#{encType}>
@@ -204,6 +206,7 @@ data PreAdjust = PreAdjust
   , lost :: !LocationInfo
   } deriving (Eq, Read, Show)
 
+adjustInfos :: PreAdjust -> [LocationInfo]
 adjustInfos adj  = [main, lost] <*> [adj]
 -- | Returns the qoh at the date of the stocktake.
 -- return also the date of the last move (the one corresponding to given quantity).

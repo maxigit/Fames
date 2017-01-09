@@ -5,6 +5,9 @@
   - [ ] date
   - [ ] stocktake
 - [ ] add =complete style= button
+- [ ] add stocktake date if needed
+  but probably not as it's in the file.
+- [ ] check override erase everything
 - [  filter stocktake by
   - [ ] style
   - [ ] 
