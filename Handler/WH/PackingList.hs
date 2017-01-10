@@ -20,7 +20,7 @@ import Data.List (transpose)
 import qualified Data.List as List
 import Database.Persist.MySQL
 import qualified Data.Map as Map
-import Data.Time (diffDays, addGregorianMonthsClip)
+import Data.Time (diffDays, addDays, addGregorianMonthsClip)
 import Handler.WH.Barcode
 import WH.Barcode
 import Handler.WH.Legacy.Box
@@ -432,17 +432,24 @@ timeProgress minDateM maxDateM today pl = do
       bars = [ (col, 100 * fromIntegral w / fromIntegral maxWidth) | (col,w) <-
                 case () of
                  _ | today < departure -> [ ("none" :: Text, diffDays today minDate)
-                                         , ("info", diffDays arriving today)
-                                         ]
+                                          , ("primary" , 1)
+                                          , ("none", (diffDays departure today) -1)
+                                          , ("info", diffDays arriving today)
+                                          ]
                  _ | today >= departure && today <= arriving -> [ ("none", diffDays departure minDate)
                                                                , ("success", diffDays today departure)
                                                                , ("info", diffDays arriving today)
                                                                ]
-                 _ | packingListBoxesToDeliver_d pl <= 0 -> [ ("none", diffDays arriving minDate)
-                                                          , ("success", diffDays today arriving )
+                 -- arriving < tody
+                 _ | packingListBoxesToDeliver_d pl <= 0 -> [ ("none", diffDays departure minDate)
+                                                          , ("success", diffDays arriving departure )
+                                                          , ("none", diffDays today arriving)
+                                                          , ("primary", 1)
                                                           ] 
-                 _ | True -> [ ("none", diffDays arriving minDate)
-                             , ("danger", diffDays today arriving )
+                 _ | True -> [ ("none", diffDays departure minDate)
+                             , ("danger", diffDays arriving departure )
+                             , ("none", diffDays today arriving)
+                             , ("primary", 1)
                              ] 
              ]
         
