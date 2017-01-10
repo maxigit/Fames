@@ -4,10 +4,12 @@
 - [ ] filter stockadj by 
   - [ ] date
   - [ ] stocktake
-- [ ] add =complete style= button
+- [X] add =complete style= button
 - [ ] add stocktake date if needed
   but probably not as it's in the file.
-- [ ] check override erase everything
+- [X] check override erase everything
+Doesn't, as it's not an update. It only overrides barcodes
+Maybe it should.
 - [  filter stocktake by
   - [ ] style
   - [ ] 

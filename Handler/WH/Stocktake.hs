@@ -127,7 +127,9 @@ renderValidRows param rows = do
   unless (null missings) $ do
     setWarning (toHtml $ tshow (length missings) <> " variations are missing. Please check this is correct.")
 
-  let missingW = [whamlet|
+  let missingW = if (null missings)
+                 then ""
+                 else [whamlet|
 <div.panel.panel-warning>
   <div.panel-heading data-toggle="collapse" data-target="#st-missing-variations">
     <h3> Missings variations
