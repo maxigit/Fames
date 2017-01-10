@@ -7,6 +7,7 @@ module Handler.WH.PackingList
 , getWHPackingListTextcartR
 , getWHPackingListStickersR
 , getWHPackingListChalkR
+, getWHPackingListPlannerR
 , contentToMarks
 -- , postWHPackingListViewR
 ) where
@@ -203,7 +204,8 @@ $maybe u <- uploader
                       (parsePackingList (orderRef param) bytes)
     
      
-data ViewMode = Details | Textcart | Stickers | Chalk deriving (Eq, Read, Show)
+data ViewMode = Details | Textcart | Stickers | Chalk | Planner
+  deriving (Eq, Read, Show)
         
 getWHPackingListViewR :: Int64 -> Handler Html
 getWHPackingListViewR = viewPackingList Details
@@ -216,6 +218,9 @@ getWHPackingListStickersR = viewPackingList Stickers
 
 getWHPackingListChalkR :: Int64 -> Handler Html
 getWHPackingListChalkR = viewPackingList Chalk
+
+getWHPackingListPlannerR :: Int64 -> Handler Html
+getWHPackingListPlannerR = viewPackingList Planner
 
 viewPackingList :: ViewMode -> Int64 -> Handler Html
 viewPackingList mode key = do
@@ -263,10 +268,12 @@ viewPackingList mode key = do
                       Textcart -> renderTextcart
                       Stickers -> renderStickers today
                       Chalk -> renderChalk corridors
+                      Planner -> renderPlanner
           viewRoute Details = WHPackingListViewR
           viewRoute Textcart = WHPackingListTextcartR
           viewRoute Stickers = WHPackingListStickersR
           viewRoute Chalk = WHPackingListChalkR
+          viewRoute Planner = WHPackingListPlannerR
 
 
 
@@ -293,7 +300,7 @@ viewPackingList mode key = do
                 |]
         [whamlet|
           <ul.nav.nav-tabs>
-            $forall nav <-[Details,Textcart,Stickers,Chalk]
+            $forall nav <-[Details,Textcart,Stickers,Chalk, Planner]
               <li class="#{navClass nav}">
                 <a href="@{WarehouseR (viewRoute nav key) }">#{tshow nav}
           ^{renderEntities pl entities}
@@ -380,6 +387,34 @@ renderChalk _ pl details = let
       <td> #{showf cw} - #{ showf (cw + w)}
       <td> #{tshow nd} (#{showf d})
 |]
+
+-- | CSV compatible with WarehousePlanner
+renderPlanner :: PackingList -> [Entity PackingListDetail] -> Html
+renderPlanner pl details = let
+  groups = Map.fromListWith (+) [ ( ( style detail
+                                   , packingListDetailLength
+                                   , packingListDetailWidth
+                                   , packingListDetailHeight
+                                   )
+                                 , (1 :: Int)
+                                 )
+                               | (Entity _ detail@PackingListDetail{..}) <- details
+                               ]
+  style PackingListDetail{..} = packingListDetailStyle <> "-" <> (content $ Map.toList packingListDetailContent )
+  content [] = ""
+  content ((col,qty):cs) = col <> if null cs then "" else "*"
+  in [shamlet|
+style,quantity,l,w,h
+$forall ((style, l, w, h),qty) <- Map.toList groups
+    <br>
+    #{style}
+    , #{tshow qty}
+    , #{l} 
+    , #{w}
+    , #{h}
+|]
+
+  
   
 -- | Generates a progress bar to track the delivery timing
 -- In order to normalize progress bars when displaying different packing list

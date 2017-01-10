@@ -27,6 +27,7 @@
   !/packinglist/#Int64/stickers WHPackingListStickersR GET !pl
   !/packinglist/#Int64/textcart WHPackingListTextcartR GET !pl
   !/packinglist/#Int64/chalk WHPackingListChalkR GET !pl
+  !/packinglist/#Int64/planner WHPackingListPlannerR GET !pl
 
 /administrator AdministratorR GET
 -- Warning ! This code has been generated !}
