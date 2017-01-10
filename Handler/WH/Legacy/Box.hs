@@ -151,6 +151,7 @@ main = do
 -- ie columns of a similar slices
 type Slice = ( Style
              , Int -- ^ width in box
+             , Int -- ^ Height in box
              , Double -- ^ width
              , Double -- ^ Depth
              , Double -- ^ cumulative Widt
@@ -172,21 +173,21 @@ findSlices boxes = let
                     l = floor $ maxLength / bLength d
                     w = number b `divup` (h*l)
                     l' = number b `divup` (h*w)
-                in (style b, w, bWidth d * fromIntegral w/100, fromIntegral l'*bLength d)
+                in (style b, w, h, bWidth d * fromIntegral w/100, fromIntegral l'*bLength d)
     preSlices = map toSlice $ Map.elems byStyle
     -- splitNarrow
-    (narrow, wide) = partition (\(_,_,_,l)  -> l< 120) preSlices
+    (narrow, wide) = partition (\(_,_,_,_,l)  -> l< 120) preSlices
     -- we need slices to be sorteb by
     [narrowS, wideS]= map (sortBy (compare `on` priority))
                           [narrow, wide]
-    priority (s, _, _, _) = drop 5 s
+    priority (s, _, _, _, _) = drop 5 s
     
-    run sorted =  evalState (mapM (\(s, n, w, l) -> do
+    run sorted =  evalState (mapM (\(s, n, nh, w, l) -> do
                                 acc <- get
                                 let acc' = resetif 8 (acc+w+0.1)
                                 
                                 put acc'
-                                return $ (s, n, w, l, acc)
+                                return $ (s, n, nh, w, l, acc)
                         ) sorted
                     ) 0
     in concatMap run [narrowS++ wideS]
@@ -197,7 +198,7 @@ resetif threshold v = if v >= threshold
                          else v
                 
 printSlice :: Slice -> IO ()
-printSlice (st, n, w, d ,cw) = printf "%-15s x %2d  |  %5.2f - %5.2f (%2.0f) \n"
+printSlice (st, n, nh, w, d ,cw) = printf "%-15s x %2d  |  %5.2f - %5.2f (%2.0f) \n"
                                       st n cw (cw + w) d
                                                  
         

@@ -368,14 +368,14 @@ renderChalk _ pl details = let
 <table.table.table-striped>
   <tr>
     <th> Style
-    <th> Number of Row
+    <th> Number of Boxes
     <th> Total Width (cm)
     <th> Position
     <th> Depth
-  $forall (st, n, w, d, cw ) <- slices
+  $forall (st, n, nh, w, d, cw ) <- slices
     <tr>
       <td> #{st}
-      <td> #{tshow n}
+      <td> #{tshow n} x #{tshow nh}
       <td> #{showf w}
       <td> #{showf cw} - #{ showf (cw + w)}
       <td> #{showf d}
