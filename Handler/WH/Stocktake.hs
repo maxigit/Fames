@@ -123,10 +123,22 @@ renderValidRows param rows = do
   missings <- case pStyleComplete param of
     StyleComplete -> ZeroST <$$> generateMissings rows
     StyleIncomplete -> return []
+
+  unless (null missings) $ do
+    setWarning (toHtml $ tshow (length missings) <> " variations are missing. Please check this is correct.")
+
+  let missingW = [whamlet|
+<div.panel.panel-warning>
+  <div.panel-heading>
+    <h3> Missings variations
+    <p> Those variations will be added automatically to the stocktake.
+  <div.panel-body>
+    ^{render missings}  
+|]
     
   return $ case pDisplayMode param of
-          DisplayAll -> render rows >> render missings
-          DisplayMissingOnly -> render missings
+          DisplayAll -> missingW >> render rows
+          DisplayMissingOnly -> missingW
           HideMissing -> render rows
   
 -- | Display or save the uploaded spreadsheet
