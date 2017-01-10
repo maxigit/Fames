@@ -6,6 +6,7 @@ module Handler.WH.PackingList
 , getWHPackingListViewR
 , getWHPackingListTextcartR
 , getWHPackingListStickersR
+, getWHPackingListChalkR
 , contentToMarks
 -- , postWHPackingListViewR
 ) where
@@ -21,6 +22,8 @@ import qualified Data.Map as Map
 import Data.Time (diffDays, addGregorianMonthsClip)
 import Handler.WH.Barcode
 import WH.Barcode
+import Handler.WH.Legacy.Box
+import Text.Printf(printf)
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
 
@@ -200,7 +203,7 @@ $maybe u <- uploader
                       (parsePackingList (orderRef param) bytes)
     
      
-data ViewMode = Details | Textcart | Stickers deriving (Eq, Read, Show)
+data ViewMode = Details | Textcart | Stickers | Chalk deriving (Eq, Read, Show)
         
 getWHPackingListViewR :: Int64 -> Handler Html
 getWHPackingListViewR = viewPackingList Details
@@ -210,6 +213,9 @@ getWHPackingListTextcartR = viewPackingList Textcart
 
 getWHPackingListStickersR :: Int64 -> Handler Html
 getWHPackingListStickersR = viewPackingList Stickers
+
+getWHPackingListChalkR :: Int64 -> Handler Html
+getWHPackingListChalkR = viewPackingList Chalk
 
 viewPackingList :: ViewMode -> Int64 -> Handler Html
 viewPackingList mode key = do
@@ -249,14 +255,18 @@ viewPackingList mode key = do
           navClass nav | nav == mode = "active" :: Text
                        | otherwise = ""
 
+          corridors :: [(Double, Double, Double)] -- TODO extract from config
+          corridors = [(8, 1.9, 3 ), (5, 1.5, 3), (4, 1.2, 3)]
           renderEntities =
             case mode of
                       Details -> renderDetails
                       Textcart -> renderTextcart
                       Stickers -> renderStickers today
+                      Chalk -> renderChalk corridors
           viewRoute Details = WHPackingListViewR
           viewRoute Textcart = WHPackingListTextcartR
           viewRoute Stickers = WHPackingListStickersR
+          viewRoute Chalk = WHPackingListChalkR
 
 
 
@@ -283,7 +293,7 @@ viewPackingList mode key = do
                 |]
         [whamlet|
           <ul.nav.nav-tabs>
-            $forall nav <-[Details,Textcart,Stickers]
+            $forall nav <-[Details,Textcart,Stickers,Chalk]
               <li class="#{navClass nav}">
                 <a href="@{WarehouseR (viewRoute nav key) }">#{tshow nav}
           ^{renderEntities pl entities}
@@ -334,6 +344,42 @@ contentToMarks unsorted =  let
 
   in concatMap go sorted
     
+   
+-- | Generates lines to write on the floor to unload a container.
+-- Note that the dimension are only taken has int and things can overflow slightly.
+renderChalk  :: [(Double, Double, Double)] -> PackingList -> [Entity PackingListDetail] -> Html
+renderChalk _ pl details = let
+  -- convert details into Box.box
+  toBox (Entity _ PackingListDetail{..}) = Box ( Dimension packingListDetailLength
+                                                           packingListDetailWidth
+                                                           packingListDetailHeight
+                                               )
+                                               (unpack packingListDetailStyle)
+                                               1
+                                               1
+  --
+  boxes = map toBox details
+  --
+  slices = findSlices boxes
+  --
+  showf = (\x -> x :: String) . printf "%5.2f"
+  --
+  in [shamlet|
+<table.table.table-striped>
+  <tr>
+    <th> Style
+    <th> Number of Row
+    <th> Total Width (cm)
+    <th> Position
+    <th> Depth
+  $forall (st, n, w, d, cw ) <- slices
+    <tr>
+      <td> #{st}
+      <td> #{tshow n}
+      <td> #{showf w}
+      <td> #{showf cw} - #{ showf (cw + w)}
+      <td> #{showf d}
+|]
   
 -- | Generates a progress bar to track the delivery timing
 -- In order to normalize progress bars when displaying different packing list

@@ -43,6 +43,7 @@ library
                      Handler.WH.PackingList
                      Handler.WH.Stocktake
                      Handler.WH.StockAdjustment
+                     Handler.WH.Legacy.Box
                      Handler.FA
                      Handler.FAX
                      Handler.FAMES
@@ -52,6 +53,7 @@ library
                      Handler.Util
                      Handler.CsvUtils
                      WH.Barcode
+                     
 
     if flag(dev) || flag(library-only)
         cpp-options:   -DDEVELOPMENT
@@ -130,6 +132,7 @@ library
                  , temporary
                  , these
                  , Glob
+                 , mtl >= 2.2 && < 2.3
 
 executable         Fames
     if flag(library-only)
