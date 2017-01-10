@@ -129,10 +129,10 @@ renderValidRows param rows = do
 
   let missingW = [whamlet|
 <div.panel.panel-warning>
-  <div.panel-heading>
+  <div.panel-heading data-toggle="collapse" data-target="#st-missing-variations">
     <h3> Missings variations
-    <p> Those variations will be added automatically to the stocktake.
-  <div.panel-body>
+    <p> Those variations are considered lost and will be added automatically to the stocktake.
+  <div.panel-body #st-missing-variations>
     ^{render missings}  
 |]
     
