@@ -1,10 +1,15 @@
 * Todo<2017-01-08 Sun> 
 - [X] refactor stocktake to validate and save on the same workflow
-- [ ] check stocktake dates in stockadj page
+- [X] check stocktake dates in stockadj page
 - [ ] filter stockadj by 
   - [ ] date
   - [ ] stocktake
-- [ ] add =complete style= button
+- [X] add =complete style= button
+- [ ] add stocktake date if needed
+  but probably not as it's in the file.
+- [X] check override erase everything
+Doesn't, as it's not an update. It only overrides barcodes
+Maybe it should.
 - [  filter stocktake by
   - [ ] style
   - [ ] 

@@ -29,11 +29,13 @@ uploadSTSheet route status path overrideM = do
     setMethod "POST"
     setUrl (WarehouseR route)
     byLabel "encoding" (tshow 1)
+    byLabel "stylecomplete" (tshow 1)
+    byLabel "displaymode" (tshow 1)
     case overrideM of
       Nothing -> do
         addToken_ "form#upload-form"
         fileByLabel "upload" path "text/plain"
-        addPostParam "f4" "no"
+        addPostParam "f6" "no"
         
       Just over -> do
         sheet <- liftIO $ readFile path
@@ -42,7 +44,7 @@ uploadSTSheet route status path overrideM = do
         addToken_ "form#upload-form"
         addPostParam "f1" ("Just "<> key)
         addPostParam "f2" (tshow $ Just (path))
-        addPostParam "f5" $ if over then "yes" else "no"
+        addPostParam "f7" $ if over then "yes" else "no"
 
   -- printBody
   statusIs status

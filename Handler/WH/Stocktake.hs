@@ -16,12 +16,12 @@ module Handler.WH.Stocktake
 , getWHStocktakeLocationR
 ) where
 
-import Import hiding(length)
+import Import hiding(length, (\\))
 import Handler.CsvUtils hiding(FieldTF, RawT, PartialT, ValidT, FinalT)
 import qualified Handler.CsvUtils as CU
 import Handler.WH.Barcode
 import WH.Barcode
-import Data.List(scanl, init, length, head)
+import Data.List(scanl, init, length, head, (\\), nub)
 import Data.Either
 import System.Directory (doesFileExist)
 
@@ -75,6 +75,16 @@ getWHStocktakeSaveR = renderWHStocktake Save Nothing 200 (setInfo "Enter Stockta
 postWHStocktakeSaveR :: Handler Html
 postWHStocktakeSaveR = processStocktakeSheet Save
 
+-- | Which stocktake items to display.
+-- Complete stocktake can be quite big so displaying in the browser can be skipped if not needed.
+data DisplayMode = DisplayAll | DisplayMissingOnly | HideMissing
+  deriving (Eq, Read, Show, Enum, Bounded)
+
+-- | Whether a style is complete or not, i.e. we need to generate zerotake for variations
+-- not present in the stocktake (only for style present)
+data StyleComplete = StyleComplete | StyleIncomplete
+  deriving (Eq, Read, Show, Enum, Bounded)
+
 -- | Should be Either FileInfo (Text, Text)
 data FormParam = FormParam
  { pFileInfo :: Maybe FileInfo
@@ -82,6 +92,8 @@ data FormParam = FormParam
  , pFilePath :: Maybe Text
  , pEncoding :: Encoding
  , pComment :: Maybe Textarea
+ , pStyleComplete :: StyleComplete
+ , pDisplayMode :: DisplayMode
  , pOveridde :: Bool
  }
 
@@ -92,6 +104,8 @@ uploadForm mode paramM =
                    <*> areq hiddenField "path" (Just $ pFilePath =<< paramM)
                    <*> areq (selectField optionsEnum ) "encoding" (fmap pEncoding paramM <|> Just UTF8)
                    <*> aopt textareaField "comment" (fmap pComment paramM)
+                   <*> areq (selectField optionsEnum ) "stylecomplete" (fmap pStyleComplete paramM <|> Just StyleComplete)
+                   <*> areq (selectField optionsEnum ) "displaymode" (fmap pDisplayMode paramM <|> Just DisplayAll)
                    <*> areq boolField "override" (fmap pOveridde paramM <|> Just False)
       form' Validate = FormParam
                    <$> (Just <$> areq fileField "upload" (pFileInfo =<< paramM))
@@ -99,9 +113,36 @@ uploadForm mode paramM =
                    <*> pure Nothing
                    <*> areq (selectField optionsEnum ) "encoding" (fmap pEncoding paramM <|> Just UTF8)
                    <*> aopt textareaField "comment" (fmap pComment paramM)
+                   <*> areq (selectField optionsEnum ) "stylecomplete" (fmap pStyleComplete paramM <|> Just StyleComplete)
+                   <*> areq (selectField optionsEnum ) "displaymode" (fmap pDisplayMode paramM <|> Just DisplayAll)
                    <*> areq boolField "override" (fmap pOveridde paramM <|> Just False)
   in renderBootstrap3 BootstrapBasicForm . form' $ mode
 
+renderValidRows :: FormParam -> [ValidRow] -> Handler Widget
+renderValidRows param rows = do
+  missings <- case pStyleComplete param of
+    StyleComplete -> ZeroST <$$> generateMissings rows
+    StyleIncomplete -> return []
+
+  unless (null missings) $ do
+    setWarning (toHtml $ tshow (length missings) <> " variations are missing. Please check this is correct.")
+
+  let missingW = if (null missings)
+                 then ""
+                 else [whamlet|
+<div.panel.panel-warning>
+  <div.panel-heading data-toggle="collapse" data-target="#st-missing-variations">
+    <h3> Missings variations
+    <p> Those variations are considered lost and will be added automatically to the stocktake.
+  <div.panel-body #st-missing-variations>
+    ^{render missings}  
+|]
+    
+  return $ case pDisplayMode param of
+          DisplayAll -> missingW >> render rows
+          DisplayMissingOnly -> missingW
+          HideMissing -> render rows
+  
 -- | Display or save the uploaded spreadsheet
 -- At the moment saving a spreadsheet involves having to upload it twice.
 -- Once for validation and once for processing. We could use a session or similar
@@ -112,7 +153,7 @@ processStocktakeSheet mode = do
   case fileResp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show (mode, a)
-    FormSuccess param@(FormParam fileInfoM keyM pathM encoding commentM override) -> do
+    FormSuccess param@(FormParam fileInfoM keyM pathM encoding commentM complete display override) -> do
       let tmp file = "/tmp" </> (unpack file)
       (spreadsheet, key, path) <- case (fileInfoM, keyM, pathM) of
         (_, Just key, Just path) -> do
@@ -167,9 +208,15 @@ $maybe u <- uploader
       renderParsingResult (renderWHStocktake mode ((Just newParam)) 422)
                           (process newParam docKey mode)
                           (parseTakes skus findOps findLocs spreadsheet)
-  where process  param doc Validate rows = renderWHStocktake Save (Just param) 200 (setSuccess "Validation ok!") (render rows)
-        process param doc Save rows = (runDB $ do
-          let finals = zip [1..] (map finalizeRow rows) :: [(Int, FinalRow)]
+  where process  param doc Validate rows = do
+          widget <- renderValidRows param rows
+          renderWHStocktake Save (Just param) 200 (setSuccess "Validation ok!") widget
+        process param doc Save rows = do
+          missings <- case pStyleComplete param of
+            StyleComplete -> map ZeroST <$> generateMissings rows
+            StyleIncomplete -> return []
+          (runDB $ do
+          let finals = zip [1..] (map finalizeRow $ rows <> missings)  :: [(Int, FinalRow)]
           -- separate between full stocktake and zero one.
           -- zero takes needs to be associated with a new barcodes
           -- and don't have box information.
@@ -617,6 +664,63 @@ toBoxtake docId descriptionFn (col, TakeRow{..}) =
                  (opId rowOperator)
                  docId
 
+-- | Generates zerotake corresponding to variations which exits for a given style
+-- but have not been stock taken
+generateMissings :: [ValidRow] -> Handler [ZeroRow]
+generateMissings rows = do
+  let cmp row = let row' = transformValid row :: ZeroRow
+                in (,) <$> (validValue . rowStyle)
+                       <*> (Down . validValue . rowDate)
+                       $ row'
+  let groups = groupBy ((==) `on` (validValue . styleFor)) (sortBy (comparing cmp) rows)
+  
+  zeros <- mapM generateMissingsFor groups
+  return $ concat zeros 
+      
+
+-- | All rows should belongs to the same style. The first one
+-- being the one use to set the date and operator.
+generateMissingsFor :: [ValidRow] -> Handler [ZeroRow]
+generateMissingsFor [] = return []
+generateMissingsFor rows@(row:_) = do
+  let day = validValue . rowDate $ (transformValid row :: ZeroRow) -- max date, rows are sorted by date DESC
+  -- find all items which have been in stock
+  let sql = "SELECT stock_id FROM (SELECT stock_id, SUM(qty) quantity \
+            \FROM 0_stock_moves \
+            \WHERE LEFT(stock_id,8)  = ? \
+            \ AND tran_date <= ? \
+            \ AND loc_code = \"DEF\" \
+            \GROUP BY stock_id \
+            \HAVING quantity != 0 ) variations"
+      style = validValue (styleFor row) :: Text
+      getColour = drop 9
+
+      
+
+  variations <- runDB $ rawSql sql [PersistText style, PersistDay day]
+
+  let usedVars = nub . sort $ map (validValue . rowColour . (\r -> transformValid r :: ZeroRow)) rows
+  let vars = nub . sort $ (map (getColour . unSingle) variations)
+  let missingVars = vars \\ usedVars
+      row' = transformValid row :: ZeroRow
+
+  -- traceShowM (length rows)
+  -- traceShowM ("variations", vars
+  --            , "takes", usedVars
+  --            , "missing", missingVars
+  --            )
+
+  return $ [TakeRow  {rowQuantity=(), rowLocation=(), rowBarcode=() 
+                     , rowLength=(), rowWidth=(), rowHeight=()
+                     , rowStyle = Provided style
+                     , rowColour = Guessed var
+                     , rowDate = rowDate row'
+                     , rowOperator = rowOperator row'
+                     }
+           | var <- missingVars
+           ]
+
+
 transformRow TakeRow{..} = TakeRow
   (transform rowStyle)
   (transform rowColour)
@@ -634,6 +738,9 @@ transformValid (ZeroST row) = transformRow row
 
 finalizeRow (FullST row) = FinalFull (transformRow row)
 finalizeRow (ZeroST row) = FinalZero (transformRow row)
+
+styleFor (FullST row) = rowStyle row
+styleFor (ZeroST row) = rowStyle row
 
 -- * Csv
 instance Csv.FromNamedRecord RawRow where
