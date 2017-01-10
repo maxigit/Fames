@@ -372,13 +372,13 @@ renderChalk _ pl details = let
     <th> Total Width (cm)
     <th> Position
     <th> Depth
-  $forall (st, n, nh, w, d, cw ) <- slices
+  $forall (st, n, nh, w, nd,d, cw ) <- slices
     <tr>
       <td> #{st}
-      <td> #{tshow n} x #{tshow nh}
+      <td> #{tshow n} x #{tshow nh} (up)
       <td> #{showf w}
       <td> #{showf cw} - #{ showf (cw + w)}
-      <td> #{showf d}
+      <td> #{tshow nd} (#{showf d})
 |]
   
 -- | Generates a progress bar to track the delivery timing
