@@ -429,12 +429,12 @@ timeProgress minDateM maxDateM today pl = do
       arriving = fromMaybe today (packingListArriving pl)
       maxWidth = max 1 (diffDays maxDate minDate) :: Integer
 
-      bars = [ (col, 100 * fromIntegral w / fromIntegral maxWidth) | (col,w) <-
+      bars = traceShowId [ (col, 100 * fromIntegral w / fromIntegral maxWidth) | (col,w) <-
                 case () of
                  _ | today < departure -> [ ("none" :: Text, diffDays today minDate)
                                           , ("primary" , 1)
                                           , ("none", (diffDays departure today) -1)
-                                          , ("info", diffDays arriving today)
+                                          , ("info", diffDays arriving departure)
                                           ]
                  _ | today >= departure && today <= arriving -> [ ("none", diffDays departure minDate)
                                                                , ("success", diffDays today departure)
