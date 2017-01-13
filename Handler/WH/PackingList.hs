@@ -25,6 +25,11 @@ import Handler.WH.Barcode
 import WH.Barcode
 import Handler.WH.Legacy.Box
 import Text.Printf(printf)
+import Data.Streaming.Process (streamingProcess, proc, ClosedStream(..), waitForStreamingProcess)
+import System.IO.Temp (openTempFile)
+import System.Exit (ExitCode(..))
+import qualified Data.Conduit.Binary as CB
+import System.Directory (removeFile)
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
 
@@ -207,22 +212,22 @@ $maybe u <- uploader
 data ViewMode = Details | Textcart | Stickers | Chalk | Planner
   deriving (Eq, Read, Show)
         
-getWHPackingListViewR :: Int64 -> Handler Html
+getWHPackingListViewR :: Int64 -> Handler TypedContent
 getWHPackingListViewR = viewPackingList Details
 
-getWHPackingListTextcartR :: Int64 -> Handler Html
+getWHPackingListTextcartR :: Int64 -> Handler TypedContent
 getWHPackingListTextcartR = viewPackingList Textcart
 
-getWHPackingListStickersR :: Int64 -> Handler Html
+getWHPackingListStickersR :: Int64 -> Handler TypedContent
 getWHPackingListStickersR = viewPackingList Stickers
 
-getWHPackingListChalkR :: Int64 -> Handler Html
+getWHPackingListChalkR :: Int64 -> Handler TypedContent
 getWHPackingListChalkR = viewPackingList Chalk
 
-getWHPackingListPlannerR :: Int64 -> Handler Html
+getWHPackingListPlannerR :: Int64 -> Handler TypedContent
 getWHPackingListPlannerR = viewPackingList Planner
 
-viewPackingList :: ViewMode -> Int64 -> Handler Html
+viewPackingList :: ViewMode -> Int64 -> Handler TypedContent
 viewPackingList mode key = do
   let plKey = PackingListKey (SqlBackendKey key)
   (plM, docKeyM, entities) <- runDB $ do
@@ -276,9 +281,10 @@ viewPackingList mode key = do
           viewRoute Planner = WHPackingListPlannerR
 
 
-
-      defaultLayout $ do
-        [whamlet|
+      if mode == Stickers
+         then generateStickers pl entities
+         else selectRep $ provideRep $ defaultLayout $ do
+              [whamlet|
           <div.panel class="panel-#{panelClass (packingListBoxesToDeliver_d pl)}">
             <div.panel-heading>
                 <p>
@@ -298,7 +304,7 @@ viewPackingList mode key = do
 
             <p>#{documentKeyComment docKey}
                 |]
-        [whamlet|
+              [whamlet|
           <ul.nav.nav-tabs>
             $forall nav <-[Details,Textcart,Stickers,Chalk, Planner]
               <li class="#{navClass nav}">
@@ -351,6 +357,58 @@ contentToMarks unsorted =  let
 
   in concatMap go sorted
     
+stickerSource ::
+  Monad m =>
+  Day
+  -> PackingList
+  -> [Entity PackingListDetail]
+  -> ConduitM i Text m ()
+stickerSource today pl details = do
+  yield "style,delivery_date,reference,number,barcode,a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4\n"
+  yieldMany [ packingListDetailStyle detail
+            <> "," <> (tshow $ fromMaybe today (packingListArriving pl) )
+            <> "," <> (packingListDetailReference detail )
+            <> "," <> (tshow $ packingListDetailBoxNumber detail )
+            <> "," <> (packingListDetailBarcode detail)
+            <> (intercalate "," (detailToStickerMarks detail))
+            <> "\n"
+            | (Entity _ detail) <- details
+            ]
+
+generateStickers :: PackingList -> [Entity PackingListDetail] -> Handler TypedContent
+generateStickers pl details = do
+  today <- utctDay <$> liftIO getCurrentTime
+  (tmp, thandle) <- liftIO $ openTempFile "/tmp" "stickers.pdf" 
+  (pin, pout, perr, phandle ) <- streamingProcess (proc "glabels-3-batch"
+                                                        ["--input=-"
+                                                        , "--output"
+                                                        , tmp
+                                                        , "/config/delivery-stickers.glabels"
+                                                        ]
+                                                  )
+  runConduit $ stickerSource today pl details =$= encodeUtf8C =$= sinkHandle pin
+  exitCode <- waitForStreamingProcess phandle
+  -- we would like to check the exitCode, unfortunately
+  -- glabels doesn't set the exit code.
+  -- we need to stderr instead 
+  errorMessage <- sourceToList  $ sourceHandle perr 
+  let cleanUp = liftIO $  do
+      hClose pout
+      hClose perr
+
+      removeFile tmp
+      hClose thandle
+
+  case errorMessage of
+    _ ->  do
+      setAttachment "attachement.pdf"
+      respondSource "application/pdf"
+                    (const cleanUp `addCleanup` CB.sourceHandle thandle =$= mapC (toFlushBuilder))
+
+    _ -> do
+        runConduit $ sourceHandle pout =$= mapC (\t -> t :: Text) =$= sinkHandle stdout
+        cleanUp
+        sendResponseStatus (toEnum 422) (mconcat (errorMessage :: [Text]))
    
 -- | Generates lines to write on the floor to unload a container.
 -- Note that the dimension are only taken has int and things can overflow slightly.
