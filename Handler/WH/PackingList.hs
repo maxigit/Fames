@@ -25,7 +25,7 @@ import Handler.WH.Barcode
 import WH.Barcode
 import Handler.WH.Legacy.Box
 import Text.Printf(printf)
-import Data.Streaming.Process (streamingProcess, proc, ClosedStream(..), waitForStreamingProcess)
+import Data.Streaming.Process (streamingProcess, proc, Inherited(..), waitForStreamingProcess, env)
 import System.IO.Temp (openTempFile)
 import System.Exit (ExitCode(..))
 import qualified Data.Conduit.Binary as CB
@@ -370,7 +370,7 @@ stickerSource today pl details = do
             <> "," <> (packingListDetailReference detail )
             <> "," <> (tshow $ packingListDetailBoxNumber detail )
             <> "," <> (packingListDetailBarcode detail)
-            <> (intercalate "," (detailToStickerMarks detail))
+            <> "," <> (intercalate "," (detailToStickerMarks detail))
             <> "\n"
             | (Entity _ detail) <- details
             ]
@@ -379,13 +379,13 @@ generateStickers :: PackingList -> [Entity PackingListDetail] -> Handler TypedCo
 generateStickers pl details = do
   today <- utctDay <$> liftIO getCurrentTime
   (tmp, thandle) <- liftIO $ openTempFile "/tmp" "stickers.pdf" 
-  (pin, pout, perr, phandle ) <- streamingProcess (proc "glabels-3-batch"
+  (pin, Inherited, perr, phandle ) <- streamingProcess (proc "glabels-3-batch"
                                                         ["--input=-"
                                                         , "--output"
                                                         , tmp
                                                         , "/config/delivery-stickers.glabels"
                                                         ]
-                                                  )
+                                                  ) {env = Just [("LANG", "C.UTF-8")]}
   runConduit $ stickerSource today pl details =$= encodeUtf8C =$= sinkHandle pin
   exitCode <- waitForStreamingProcess phandle
   -- we would like to check the exitCode, unfortunately
@@ -393,7 +393,6 @@ generateStickers pl details = do
   -- we need to stderr instead 
   errorMessage <- sourceToList  $ sourceHandle perr 
   let cleanUp = liftIO $  do
-      hClose pout
       hClose perr
 
       removeFile tmp
@@ -406,7 +405,6 @@ generateStickers pl details = do
                     (const cleanUp `addCleanup` CB.sourceHandle thandle =$= mapC (toFlushBuilder))
 
     _ -> do
-        runConduit $ sourceHandle pout =$= mapC (\t -> t :: Text) =$= sinkHandle stdout
         cleanUp
         sendResponseStatus (toEnum 422) (mconcat (errorMessage :: [Text]))
    
