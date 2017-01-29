@@ -107,11 +107,11 @@ postWHStockAdjustmentR = do
       let (w,p) = case style param of
                   Just like  -> (" AND stock_id like ?", [PersistText like])
                   Nothing -> ("", [])
-      let sql = "SELECT stock_id, COALESCE(SUM(quantity),0), MAX(date) \
-               \ FROM fames_stocktake  \
-               \ WHERE stock_adj_id IS NULL "
-               <> w <> "\
-               \ GROUP BY stock_id "
+      let sql = "SELECT stock_id, COALESCE(SUM(quantity),0), MAX(date) "
+                <> " FROM fames_stocktake  "
+                <> " WHERE stock_adj_id IS NULL "
+                <> w
+                <> " GROUP BY stock_id "
 
       stocktakes <- runDB $ rawSql sql p
       results <- catMaybes <$> mapM qohFor stocktakes
@@ -221,13 +221,13 @@ qohFor r@(Single sku, Single qtake, Single date) = do
 -- | Retrive the quantities available for the given location at the given date
 quantitiesFor :: Text -> (Single Text, Single Int, Single Day) -> Handler LocationInfo 
 quantitiesFor loc (Single sku, Single take, Single date) = do
-  let sql = "SELECT SUM(qty) qoh\
-            \, SUM(qty) qoh_at\
-            \, MAX(tran_date)  \
-            \FROM 0_stock_moves \
-            \WHERE stock_id = ? \
-            \AND tran_date <= ? \
-            \AND loc_code = ?"
+  let sql = "SELECT SUM(qty) qoh"
+            <> ", SUM(qty) qoh_at"
+            <> ", MAX(tran_date)  "
+            <> "FROM 0_stock_moves "
+            <> "WHERE stock_id = ? "
+            <> "AND tran_date <= ? "
+            <> "AND loc_code = ?"
 
   results <- runDB $ rawSql sql [PersistText sku, PersistDay date, PersistText loc]
 

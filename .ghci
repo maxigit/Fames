@@ -4,6 +4,8 @@
 :set -XDeriveDataTypeable
 :set -XEmptyDataDecls
 :set -XFlexibleContexts
+:set -XFlexibleInstances
+:set -XRankNTypes
 :set -XGADTs
 :set -XGeneralizedNewtypeDeriving
 :set -XMultiParamTypeClasses
@@ -16,3 +18,7 @@
 :set -XTupleSections
 :set -XTypeFamilies
 :set -XViewPatterns
+:set -XPartialTypeSignatures 
+:set -XStandaloneDeriving
+:set -hide-package cryptonite
+:set -hide-package filemanip
