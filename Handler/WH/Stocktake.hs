@@ -685,13 +685,13 @@ generateMissingsFor [] = return []
 generateMissingsFor rows@(row:_) = do
   let day = validValue . rowDate $ (transformValid row :: ZeroRow) -- max date, rows are sorted by date DESC
   -- find all items which have been in stock
-  let sql = "SELECT stock_id FROM (SELECT stock_id, SUM(qty) quantity \
-            \FROM 0_stock_moves \
-            \WHERE LEFT(stock_id,8)  = ? \
-            \ AND tran_date <= ? \
-            \ AND loc_code = \"DEF\" \
-            \GROUP BY stock_id \
-            \HAVING quantity != 0 ) variations"
+  let sql = "SELECT stock_id FROM (SELECT stock_id, SUM(qty) quantity "
+            <> "FROM 0_stock_moves "
+            <> "WHERE LEFT(stock_id,8)  = ? "
+            <> " AND tran_date <= ? "
+            <> " AND loc_code = \"DEF\" "
+            <> "GROUP BY stock_id "
+            <> "HAVING quantity != 0 ) variations"
       style = validValue (styleFor row) :: Text
       getColour = drop 9
 
@@ -860,10 +860,10 @@ getWHStocktakeLocationR = do
 getStockIds :: Handler (Set Text)
 getStockIds = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
-  let sql = " SELECT stock_id \
-            \ FROM 0_stock_master \
-            \ WHERE inactive = 0 \
-            \ AND stock_id like ?"
+  let sql = " SELECT stock_id "
+            <> " FROM 0_stock_master "
+            <> " WHERE inactive = 0 "
+            <> " AND stock_id like ?"
 
   results <- runDB $ rawSql sql [PersistText stockLike]
   return $ Set.fromList (map unSingle results)
