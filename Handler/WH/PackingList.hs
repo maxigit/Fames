@@ -30,6 +30,7 @@ import Data.Streaming.Process (streamingProcess, proc, Inherited(..), waitForStr
 import System.IO.Temp (openTempFile)
 import System.Exit (ExitCode(..))
 import qualified Data.Conduit.Binary as CB
+import Data.Conduit.List (consume)
 import System.Directory (removeFile)
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
@@ -324,19 +325,12 @@ renderTextcart _ entities = entitiesToTable getDBName entities
 
 renderStickers :: Day -> PackingList -> [Entity PackingListDetail] -> Html
 renderStickers today pl entities = 
-  let sorted = sortBy (comparing cmp) entities
-      -- need to be printed in reverse order as the sticker are printed on a roll
-      cmp (Entity _ detail) = (packingListDetailStyle detail, Down (packingListDetailContent detail, packingListDetailBoxNumber detail) )
+  -- we need a monad to use the conduit. Let's use Maybe ...
+  let Just csv = stickerSource today pl entities $$ consume
   in [shamlet|
-style,delivery_date,reference,number,barcode,a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4
-$forall (Entity k detail) <- sorted
-  <p> #{packingListDetailStyle detail}
-    , #{tshow $ fromMaybe today (packingListArriving pl) }
-    , #{packingListDetailReference detail }
-    , #{tshow $ packingListDetailBoxNumber detail }
-    , #{packingListDetailBarcode detail}
-    $forall field <- detailToStickerMarks detail
-      , #{field}
+<p>
+  $forall row <- csv
+    <div>#{row}
 |]
 
 -- Transforms a serie of colour quantites, to box marks ie
@@ -368,7 +362,9 @@ stickerSource ::
   -> PackingList
   -> [Entity PackingListDetail]
   -> ConduitM i Text m ()
-stickerSource today pl details = do
+stickerSource today pl entities = do
+  let sorted = sortBy (comparing cmp) entities
+      cmp (Entity _ detail) = (packingListDetailStyle detail, Down (packingListDetailContent detail, packingListDetailBoxNumber detail) )
   yield "style,delivery_date,reference,number,barcode,a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4\n"
   yieldMany [ packingListDetailStyle detail
             <> "," <> (tshow $ fromMaybe today (packingListArriving pl) )
@@ -376,8 +372,8 @@ stickerSource today pl details = do
             <> "," <> (tshow $ packingListDetailBoxNumber detail )
             <> "," <> (packingListDetailBarcode detail)
             <> "," <> (intercalate "," (detailToStickerMarks detail))
-            <> "\n"
-            | (Entity _ detail) <- details
+            -- <> "\n"
+            | (Entity _ detail) <- sorted
             ]
 
 generateStickers :: PackingList -> [Entity PackingListDetail] -> Handler TypedContent
