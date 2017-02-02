@@ -6,6 +6,7 @@ module Handler.WH.PackingList
 , getWHPackingListViewR
 , getWHPackingListTextcartR
 , getWHPackingListStickersR
+, getWHPackingListStickerCsvR
 , getWHPackingListChalkR
 , getWHPackingListPlannerR
 , contentToMarks
@@ -209,7 +210,7 @@ $maybe u <- uploader
                       (parsePackingList (orderRef param) bytes)
     
      
-data ViewMode = Details | Textcart | Stickers | Chalk | Planner
+data ViewMode = Details | Textcart | Stickers | StickerCsv | Chalk | Planner
   deriving (Eq, Read, Show)
         
 getWHPackingListViewR :: Int64 -> Handler TypedContent
@@ -220,6 +221,9 @@ getWHPackingListTextcartR = viewPackingList Textcart
 
 getWHPackingListStickersR :: Int64 -> Handler TypedContent
 getWHPackingListStickersR = viewPackingList Stickers
+
+getWHPackingListStickerCsvR :: Int64 -> Handler TypedContent
+getWHPackingListStickerCsvR = viewPackingList StickerCsv
 
 getWHPackingListChalkR :: Int64 -> Handler TypedContent
 getWHPackingListChalkR = viewPackingList Chalk
@@ -271,12 +275,13 @@ viewPackingList mode key = do
             case mode of
                       Details -> renderDetails
                       Textcart -> renderTextcart
-                      Stickers -> renderStickers today
+                      StickerCsv -> renderStickers today
                       Chalk -> renderChalk corridors
                       Planner -> renderPlanner
           viewRoute Details = WHPackingListViewR
           viewRoute Textcart = WHPackingListTextcartR
           viewRoute Stickers = WHPackingListStickersR
+          viewRoute StickerCsv = WHPackingListStickerCsvR
           viewRoute Chalk = WHPackingListChalkR
           viewRoute Planner = WHPackingListPlannerR
 
@@ -306,7 +311,7 @@ viewPackingList mode key = do
                 |]
               [whamlet|
           <ul.nav.nav-tabs>
-            $forall nav <-[Details,Textcart,Stickers,Chalk, Planner]
+            $forall nav <-[Details,Textcart,Stickers, StickerCsv, Chalk, Planner]
               <li class="#{navClass nav}">
                 <a href="@{WarehouseR (viewRoute nav key) }">#{tshow nav}
           ^{renderEntities pl entities}
@@ -408,8 +413,6 @@ generateStickers pl details = do
         cleanUp
         sendResponseStatus (toEnum 422) (mconcat (errorMessage :: [Text]))
    
--- | Generates lines to write on the floor to unload a container.
--- Note that the dimension are only taken has int and things can overflow slightly.
 renderChalk  :: [(Double, Double, Double)] -> PackingList -> [Entity PackingListDetail] -> Html
 renderChalk _ pl details = let
   -- convert details into Box.box
