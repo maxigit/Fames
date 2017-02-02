@@ -63,3 +63,5 @@ test: up
 install:
 	rsync -z .stack-work/install/x86_64-linux/lts-5.18/7.10.3/bin/Fames sinbad:prod/fames-config/bin/Fames
 
+ghcid:
+	ghcid --command="stack exec ghci --test -- -iapp -i. -itest -hide-package=filemanip -hide-package=cryptonite  -w test/Spec.hs"   --test ":main --rerun --color"

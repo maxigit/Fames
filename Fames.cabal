@@ -146,7 +146,7 @@ executable         Fames
 
 test-suite test
     type:              exitcode-stdio-1.0
-    main-is:           Spec.hs
+    main-is:           Main.hs
     hs-source-dirs:    test
     -- ghc-options:       -Wall
     ghc-options:       -w
@@ -181,6 +181,7 @@ test-suite test
                  , shakespeare
                  , transformers
                  , hspec >= 2.0.0
+                 , hspec-stack-rerun
                  , classy-prelude
                  , classy-prelude-yesod
                  , aeson

@@ -6,6 +6,7 @@ module Handler.WH.PackingList
 , getWHPackingListViewR
 , getWHPackingListTextcartR
 , getWHPackingListStickersR
+, getWHPackingListStickerCsvR
 , getWHPackingListChalkR
 , getWHPackingListPlannerR
 , contentToMarks
@@ -25,6 +26,12 @@ import Handler.WH.Barcode
 import WH.Barcode
 import Handler.WH.Legacy.Box
 import Text.Printf(printf)
+import Data.Streaming.Process (streamingProcess, proc, Inherited(..), waitForStreamingProcess, env)
+import System.IO.Temp (openTempFile)
+import System.Exit (ExitCode(..))
+import qualified Data.Conduit.Binary as CB
+import Data.Conduit.List (consume)
+import System.Directory (removeFile)
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
 
@@ -204,25 +211,28 @@ $maybe u <- uploader
                       (parsePackingList (orderRef param) bytes)
     
      
-data ViewMode = Details | Textcart | Stickers | Chalk | Planner
+data ViewMode = Details | Textcart | Stickers | StickerCsv | Chalk | Planner
   deriving (Eq, Read, Show)
         
-getWHPackingListViewR :: Int64 -> Handler Html
+getWHPackingListViewR :: Int64 -> Handler TypedContent
 getWHPackingListViewR = viewPackingList Details
 
-getWHPackingListTextcartR :: Int64 -> Handler Html
+getWHPackingListTextcartR :: Int64 -> Handler TypedContent
 getWHPackingListTextcartR = viewPackingList Textcart
 
-getWHPackingListStickersR :: Int64 -> Handler Html
+getWHPackingListStickersR :: Int64 -> Handler TypedContent
 getWHPackingListStickersR = viewPackingList Stickers
 
-getWHPackingListChalkR :: Int64 -> Handler Html
+getWHPackingListStickerCsvR :: Int64 -> Handler TypedContent
+getWHPackingListStickerCsvR = viewPackingList StickerCsv
+
+getWHPackingListChalkR :: Int64 -> Handler TypedContent
 getWHPackingListChalkR = viewPackingList Chalk
 
-getWHPackingListPlannerR :: Int64 -> Handler Html
+getWHPackingListPlannerR :: Int64 -> Handler TypedContent
 getWHPackingListPlannerR = viewPackingList Planner
 
-viewPackingList :: ViewMode -> Int64 -> Handler Html
+viewPackingList :: ViewMode -> Int64 -> Handler TypedContent
 viewPackingList mode key = do
   let plKey = PackingListKey (SqlBackendKey key)
   (plM, docKeyM, entities) <- runDB $ do
@@ -266,19 +276,21 @@ viewPackingList mode key = do
             case mode of
                       Details -> renderDetails
                       Textcart -> renderTextcart
-                      Stickers -> renderStickers today
+                      StickerCsv -> renderStickers today
                       Chalk -> renderChalk corridors
                       Planner -> renderPlanner
           viewRoute Details = WHPackingListViewR
           viewRoute Textcart = WHPackingListTextcartR
           viewRoute Stickers = WHPackingListStickersR
+          viewRoute StickerCsv = WHPackingListStickerCsvR
           viewRoute Chalk = WHPackingListChalkR
           viewRoute Planner = WHPackingListPlannerR
 
 
-
-      defaultLayout $ do
-        [whamlet|
+      if mode == Stickers
+         then generateStickers pl entities
+         else selectRep $ provideRep $ defaultLayout $ do
+              [whamlet|
           <div.panel class="panel-#{panelClass (packingListBoxesToDeliver_d pl)}">
             <div.panel-heading>
                 <p>
@@ -298,9 +310,9 @@ viewPackingList mode key = do
 
             <p>#{documentKeyComment docKey}
                 |]
-        [whamlet|
+              [whamlet|
           <ul.nav.nav-tabs>
-            $forall nav <-[Details,Textcart,Stickers,Chalk, Planner]
+            $forall nav <-[Details,Textcart,Stickers, StickerCsv, Chalk, Planner]
               <li class="#{navClass nav}">
                 <a href="@{WarehouseR (viewRoute nav key) }">#{tshow nav}
           ^{renderEntities pl entities}
@@ -313,19 +325,12 @@ renderTextcart _ entities = entitiesToTable getDBName entities
 
 renderStickers :: Day -> PackingList -> [Entity PackingListDetail] -> Html
 renderStickers today pl entities = 
-  let sorted = sortBy (comparing cmp) entities
-      -- need to be printed in reverse order as the sticker are printed on a roll
-      cmp (Entity _ detail) = (packingListDetailStyle detail, Down (packingListDetailContent detail, packingListDetailBoxNumber detail) )
+  -- we need a monad to use the conduit. Let's use Maybe ...
+  let Just csv = stickerSource today pl entities $$ consume
   in [shamlet|
-style,delivery_date,reference,number,barcode,a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4
-$forall (Entity k detail) <- sorted
-  <p> #{packingListDetailStyle detail}
-    , #{tshow $ fromMaybe today (packingListArriving pl) }
-    , #{packingListDetailReference detail }
-    , #{tshow $ packingListDetailBoxNumber detail }
-    , #{packingListDetailBarcode detail}
-    $forall field <- detailToStickerMarks detail
-      , #{field}
+<p>
+  $forall row <- csv
+    <div>#{row}
 |]
 
 -- Transforms a serie of colour quantites, to box marks ie
@@ -351,9 +356,59 @@ contentToMarks unsorted =  let
 
   in concatMap go sorted
     
+stickerSource ::
+  Monad m =>
+  Day
+  -> PackingList
+  -> [Entity PackingListDetail]
+  -> ConduitM i Text m ()
+stickerSource today pl entities = do
+  let sorted = sortBy (comparing cmp) entities
+      cmp (Entity _ detail) = (packingListDetailStyle detail, Down (packingListDetailContent detail, packingListDetailBoxNumber detail) )
+  yield "style,delivery_date,reference,number,barcode,a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4\n"
+  yieldMany [ packingListDetailStyle detail
+            <> "," <> (tshow $ fromMaybe today (packingListArriving pl) )
+            <> "," <> (packingListDetailReference detail )
+            <> "," <> (tshow $ packingListDetailBoxNumber detail )
+            <> "," <> (packingListDetailBarcode detail)
+            <> "," <> (intercalate "," (detailToStickerMarks detail))
+            -- <> "\n"
+            | (Entity _ detail) <- sorted
+            ]
+
+generateStickers :: PackingList -> [Entity PackingListDetail] -> Handler TypedContent
+generateStickers pl details = do
+  today <- utctDay <$> liftIO getCurrentTime
+  (tmp, thandle) <- liftIO $ openTempFile "/tmp" "stickers.pdf" 
+  (pin, Inherited, perr, phandle ) <- streamingProcess (proc "glabels-3-batch"
+                                                        ["--input=-"
+                                                        , "--output"
+                                                        , tmp
+                                                        , "/config/delivery-stickers.glabels"
+                                                        ]
+                                                  ) {env = Just [("LANG", "C.UTF-8")]}
+  runConduit $ stickerSource today pl details =$= encodeUtf8C =$= sinkHandle pin
+  exitCode <- waitForStreamingProcess phandle
+  -- we would like to check the exitCode, unfortunately
+  -- glabels doesn't set the exit code.
+  -- we need to stderr instead 
+  errorMessage <- sourceToList  $ sourceHandle perr 
+  let cleanUp = liftIO $  do
+      hClose perr
+
+      removeFile tmp
+      hClose thandle
+
+  case errorMessage of
+    _ ->  do
+      setAttachment "attachement.pdf"
+      respondSource "application/pdf"
+                    (const cleanUp `addCleanup` CB.sourceHandle thandle =$= mapC (toFlushBuilder))
+
+    _ -> do
+        cleanUp
+        sendResponseStatus (toEnum 422) (mconcat (errorMessage :: [Text]))
    
--- | Generates lines to write on the floor to unload a container.
--- Note that the dimension are only taken has int and things can overflow slightly.
 renderChalk  :: [(Double, Double, Double)] -> PackingList -> [Entity PackingListDetail] -> Html
 renderChalk _ pl details = let
   -- convert details into Box.box
