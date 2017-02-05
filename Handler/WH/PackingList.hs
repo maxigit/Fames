@@ -16,6 +16,7 @@ module Handler.WH.PackingList
 import Import
 import Yesod.Form.Bootstrap3
 import Handler.CsvUtils
+import Handler.Util(generateLabelsResponse)
 import qualified Data.Csv as Csv
 import Data.List (transpose)
 import qualified Data.List as List
@@ -26,12 +27,7 @@ import Handler.WH.Barcode
 import WH.Barcode
 import Handler.WH.Legacy.Box
 import Text.Printf(printf)
-import Data.Streaming.Process (streamingProcess, proc, Inherited(..), waitForStreamingProcess, env)
-import System.IO.Temp (openTempFile)
-import System.Exit (ExitCode(..))
-import qualified Data.Conduit.Binary as CB
 import Data.Conduit.List (consume)
-import System.Directory (removeFile)
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
 
@@ -349,9 +345,10 @@ contentToMarks unsorted =  let
   groupBy3 [x,y] = [[x,y,""]]
   groupBy3 (x:y:z:xs) = [x,y,z]:groupBy3 xs
   go (col, 1) = [col, "∅", "", ""]
+  go (col, quantity) | quantity >= 50 = [col, "◇", "", ""]
   go (col, quantity) = let
     nbOfCircles = (quantity + 5) `div` 6
-    circless = groupBy3 (replicate nbOfCircles "⃝")
+    circless = groupBy3 (replicate nbOfCircles "○")
     in concat $ zipWith (:) (col:repeat "") circless
 
   in concatMap go sorted
@@ -372,42 +369,16 @@ stickerSource today pl entities = do
             <> "," <> (tshow $ packingListDetailBoxNumber detail )
             <> "," <> (packingListDetailBarcode detail)
             <> "," <> (intercalate "," (detailToStickerMarks detail))
-            -- <> "\n"
+            <> "\n"
             | (Entity _ detail) <- sorted
             ]
 
 generateStickers :: PackingList -> [Entity PackingListDetail] -> Handler TypedContent
 generateStickers pl details = do
   today <- utctDay <$> liftIO getCurrentTime
-  (tmp, thandle) <- liftIO $ openTempFile "/tmp" "stickers.pdf" 
-  (pin, Inherited, perr, phandle ) <- streamingProcess (proc "glabels-3-batch"
-                                                        ["--input=-"
-                                                        , "--output"
-                                                        , tmp
-                                                        , "/config/delivery-stickers.glabels"
-                                                        ]
-                                                  ) {env = Just [("LANG", "C.UTF-8")]}
-  runConduit $ stickerSource today pl details =$= encodeUtf8C =$= sinkHandle pin
-  exitCode <- waitForStreamingProcess phandle
-  -- we would like to check the exitCode, unfortunately
-  -- glabels doesn't set the exit code.
-  -- we need to stderr instead 
-  errorMessage <- sourceToList  $ sourceHandle perr 
-  let cleanUp = liftIO $  do
-      hClose perr
-
-      removeFile tmp
-      hClose thandle
-
-  case errorMessage of
-    _ ->  do
-      setAttachment "attachement.pdf"
-      respondSource "application/pdf"
-                    (const cleanUp `addCleanup` CB.sourceHandle thandle =$= mapC (toFlushBuilder))
-
-    _ -> do
-        cleanUp
-        sendResponseStatus (toEnum 422) (mconcat (errorMessage :: [Text]))
+  generateLabelsResponse ("label" <> ( maybe "" ("-" <>) (packingListContainer pl)) )
+                         "/config/delivery-stickers.glabels"
+                         (stickerSource today pl details)
    
 renderChalk  :: [(Double, Double, Double)] -> PackingList -> [Entity PackingListDetail] -> Html
 renderChalk _ pl details = let

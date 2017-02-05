@@ -10,6 +10,8 @@ module Handler.Util
 , Encoding(..)
 , readUploadUTF8
 , computeDocumentKey
+, setAttachment
+, generateLabelsResponse
 ) where
 
 -- import Foundation
@@ -17,10 +19,15 @@ import Import.NoFoundation
 import Database.Persist
 import Data.Conduit.List (consume)
 import Data.Text.Encoding(decodeLatin1)
-
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput)
 import qualified Crypto.Hash as Crypto
+import qualified Data.Conduit.Binary as CB
+import Data.Conduit.List (consume)
+import System.Directory (removeFile)
+import System.IO.Temp (openTempFile)
+import System.Exit (ExitCode(..))
+import Data.Streaming.Process (streamingProcess, proc, Inherited(..), waitForStreamingProcess, env)
 
 -- * Display entities
 -- | Display Persist entities as paginated table
@@ -121,3 +128,47 @@ readUploadUTF8  fileInfo encoding = do
 
 decode UTF8 bs = bs
 decode Latin1 bs = encodeUtf8 . decodeLatin1 $ bs
+
+
+setAttachment path = 
+  addHeader "Content-Disposition" (toStrict ("attachment; filename=\"barcodes-"<>path<>"\"") )
+
+
+-- * Labels
+generateLabelsResponse ::
+  (Utf8 b b1, IOData b1) =>
+  Text
+  -> Text
+  -> Conduit () (HandlerT site IO) b
+  -> HandlerT site IO TypedContent
+generateLabelsResponse outputName template labelSource = do
+  let types = (outputName, template) :: (Text, Text)
+  (tmp, thandle) <- liftIO $ openTempFile "/tmp" (unpack outputName)
+  (pin, Inherited, perr, phandle ) <- streamingProcess (proc "glabels-3-batch"
+                                                        ["--input=-"
+                                                        , "--output"
+                                                        , tmp
+                                                        , (unpack template)
+                                                        ]
+                                                  ) {env = Just [("LANG", "C.UTF-8")]}
+  runConduit $ labelSource =$= encodeUtf8C =$= sinkHandle pin
+  exitCode <- waitForStreamingProcess phandle
+  -- we would like to check the exitCode, unfortunately
+  -- glabels doesn't set the exit code.
+  -- we need to stderr instead 
+  errorMessage <- sourceToList  $ sourceHandle perr 
+  let cleanUp = liftIO $  do
+      hClose perr
+
+      removeFile tmp
+      hClose thandle
+
+  case errorMessage of
+    _ ->  do
+      setAttachment (fromStrict outputName)
+      respondSource "application/pdf"
+                    (const cleanUp `addCleanup` CB.sourceHandle thandle =$= mapC (toFlushBuilder))
+
+    _ -> do
+        cleanUp
+        sendResponseStatus (toEnum 422) (mconcat (errorMessage :: [Text]))

@@ -26,11 +26,12 @@ import Formatting
 import Formatting.Time
 import WH.Barcode
 import Data.List((!!))
-import Data.Streaming.Process (streamingProcess, proc, ClosedStream(..), waitForStreamingProcess)
-import System.IO.Temp (openTempFile)
-import System.Exit (ExitCode(..))
-import qualified Data.Conduit.Binary as CB
-import System.Directory (removeFile)
+import Handler.Util(setAttachment, generateLabelsResponse)
+-- import Data.Streaming.Process (streamingProcess, proc, ClosedStream(..), waitForStreamingProcess)
+-- import System.IO.Temp (openTempFile)
+-- import System.Exit (ExitCode(..))
+-- import qualified Data.Conduit.Binary as CB
+-- import System.Directory (removeFile)
 import Data.Time
  
 barcodeFayWidget = return () --  $(fayFile "WH/Barcode")
@@ -201,53 +202,19 @@ postWHBarcodeR = do
                                       ]
                 case (outputMode, template) of
                   (GLabels, Just template') -> do
-                            generateLabels barcodeSource template' (outputFile prefix start end "pdf")
+                            generateLabelsResponse  (toStrict $ outputFile prefix start end "pdf")
+                                                    (btPath template')
+                                                    barcodeSource
 
                   (Csv, _) -> do
                         setAttachment (outputFile prefix start end "csv")
                         respondSource "text/csv" $ do
                             barcodeSource =$= mapC (toFlushBuilder . toStrict)
 
-generateLabels barcodeSource template attachmentPath = do
-  (tmp, thandle) <- liftIO $ openTempFile "/tmp" "barcode.pdf" 
-  (pin, pout, perr, phandle ) <- streamingProcess (proc "glabels-3-batch"
-                                                        ["--input=-"
-                                                        , "--output"
-                                                        , tmp
-                                                        , unpack $ btPath template
-                                                        ]
-                                                  )
-  runConduit $ barcodeSource =$= sinkHandle pin
-  exitCode <- waitForStreamingProcess phandle
-  -- we would like to check the exitCode, unfortunately
-  -- glabels doesn't set the exit code.
-  -- we need to stderr instead 
-  errorMessage <- sourceToList  $ sourceHandle perr 
-  let cleanUp = liftIO $  do
-      hClose pout
-      hClose perr
-
-      removeFile tmp
-      hClose thandle
-
-  case errorMessage of
-    [] ->  do
-      setAttachment attachmentPath
-      respondSource "application/pdf"
-                    (const cleanUp `addCleanup` CB.sourceHandle thandle =$= mapC (toFlushBuilder))
-
-    _ -> do
-        runConduit $ sourceHandle pout =$= mapC (\t -> t :: Text) =$= sinkHandle stdout
-        cleanUp
-        sendResponseStatus (toEnum 422) (mconcat (errorMessage :: [Text]))
 
 -- outputFile :: Text -> Int -> Int -> Text -> Text
 outputFile prefix start end ext =
   format ("barcodes-"%text%"-"%int%"-"%int%"."%text) prefix start end ext
-
-
-setAttachment path = do
-  addHeader "Content-Disposition" (toStrict $ format ("attachment; filename=\"barcodes-"%text%"\"") path)
 
 
 -- * Utils
