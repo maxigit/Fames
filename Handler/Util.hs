@@ -5,6 +5,7 @@ module Handler.Util
 , getDBName
 , getHaskellName
 , entityTableHandler
+, entitiesToTable
 , uploadFileForm
 , uploadFileFormWithComment
 , Encoding(..)

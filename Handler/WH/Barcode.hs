@@ -63,6 +63,7 @@ barcodeForm :: [BarcodeParams]
             ->  MForm Handler ( FormResult (BarcodeParams, Maybe BarcodeTemplate, Maybe Int, Int,  Day, OutputMode)
                               , Widget
                               )
+
 -- | Displays a Form with a dropdown menu for the prefix
 --  and a list of availabl /e templates for the prefix
 -- we use JS to modify the the list of templates to display
@@ -85,15 +86,18 @@ barcodeForm bparams date start extra = do
 #{extra}
 <div .form-grouprequired>
   <label for=#{fvLabel prefixView }> Type
-  <select ##{fvId prefixView} name=#{prefixName} ng-model="prefix">
+  <select ##{fvId prefixView} name=#{prefixName} ng-model="prefix"
+      onchange="$('input.template-'+$('##{fvId prefixView}').val())[0].checked=true;"
+  >
     $forall (bparam, bi) <- zip bparams ns
-      <option value=#{bi}> #{bpPrefix bparam}-#{bpDescription bparam}
+      <option value=#{bi}
+      > #{bpPrefix bparam}-#{bpDescription bparam}
 
 <div ##{fvId templateView} .form-groupoptional>
   <label for=#{fvLabel templateView }> Template
     $forall ((bi, template), i) <- zip allTemplates ns
       <div ng-show="prefix==#{bi}">
-         <input name="#{templateName}" type="radio" value="#{i}">
+         <input class="template template-#{bi}" name="#{templateName}" type="radio" value="#{i}">
             #{btPath template} - #{btNbPerPage template}
 
 ^{renderField "Start" startView Optional}
@@ -130,7 +134,8 @@ renderGetWHBarcodeR :: Day -> Maybe Int -> Handler Html
 renderGetWHBarcodeR date  start = do
   barcodeParams <- getBarcodeParams
   ((_,form), encType) <- runFormPost (barcodeForm barcodeParams (Just date) start)
-  table <- entityTableHandler (WarehouseR WHBarcodeR) ([] :: [Filter BarcodeSeed])
+  entities <- runDB $ selectList ([] :: [Filter BarcodeSeed]) []
+  let table = entitiesToTable getDBName entities
   defaultLayout $ [whamlet|
 <h1> Barcode Generator
   <form #barcode-form role=form method=post action=@{WarehouseR WHBarcodeR} enctype=#{encType}>
