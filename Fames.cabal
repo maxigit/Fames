@@ -201,3 +201,12 @@ executable FAGenerator
     extensions: RecordWildCards
 
 
+executable TextcartHelper
+    if flag(dev)
+        Buildable: True
+
+    main-is: TextcartHelper.hs
+    hs-source-dirs: tools
+    build-depends: base, mysql-simple, containers
+
+
