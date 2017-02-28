@@ -40,6 +40,7 @@ main = do
          }
 
 
+  putStrLn "%s/.*/\\U&/"
   go readStock connectInfo
   go readStock' connectInfo
 
@@ -52,7 +53,7 @@ go reader connectInfo = do
 
   traceShowM duplicates
 
-  forM_ uniques (\(style, [base]) -> printf "%%s/%s/%s&-#/ie\n" style base)
+  forM_ uniques (\(style, [base]) -> printf "%%s/^%s/:%s&-#/ie\n" style base)
   
 
 
