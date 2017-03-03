@@ -317,12 +317,15 @@ viewPackingList mode key = do
 
 renderDetails _ entities = entitiesToTable getDBName entities
   
-renderTextcart _ entities = [shamlet|
-$forall (Entity _ detail) <- entities
-  $forall (var, qty) <- content detail
-    <div> #{packingListDetailStyle detail}-#{var},#{qty}
+renderTextcart _ entities =
+  let skus = Map.toList $ Map.fromListWith (+) [ (packingListDetailStyle d <> "-" <> var, qty)
+                                  | (Entity _ d) <- entities
+                                  , (var, qty) <- Map.toList $ (packingListDetailContent d)
+                                  ]
+  in  [shamlet|
+$forall (sku, qty) <- skus
+  <div> #{sku},#{qty}
 |]
-  where content = Map.toList . packingListDetailContent
 
 renderStickers :: Day -> PackingList -> [Entity PackingListDetail] -> Html
 renderStickers today pl entities = 
