@@ -209,6 +209,22 @@ $maybe u <- uploader
                       (onSuccess mode)
                       (parsePackingList (orderRef param) bytes)
     
+updatePackingList mode key cart = do
+  let bytes = encodeUtf8 . unTextarea $ cart
+      onSuccess mode sections = do
+        case mode of
+          -- TODO create data type
+          "replace" -> replacePLDetails key sections
+          "insert" -> insertPLDetails key sections
+          "delete" -> deletePLDetails key sections
+          
+        viewPackingList Details key
+
+  renderParsingResult (\msg _ -> do msg >>  viewPackingList EditDetails key)
+                      (onSuccess mode)
+                      (parsePackingList ("") bytes)
+  
+-- ** View
      
 data ViewMode = Details | Textcart | Stickers | StickerCsv | Chalk | Planner | EditDetails
   deriving (Eq, Read, Show)
@@ -235,7 +251,16 @@ getWHPackingListEditDetailsR :: Int64 -> Handler TypedContent
 getWHPackingListEditDetailsR = viewPackingList EditDetails
 
 postWHPackingListEditDetailsR :: Int64 -> Handler TypedContent
-postWHPackingListEditDetailsR = viewPackingList EditDetails
+postWHPackingListEditDetailsR key = do
+  actionM <- lookupPostParam "action"
+  ((resp, view), encType)  <- runFormPost (editDetailsForm Nothing)
+  case resp of
+    FormMissing -> error "Form Missing"
+    FormFailure a -> sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
+    FormSuccess cart -> do
+      case actionM of
+        Nothing -> error "Action missing"
+        Just action -> updatePackingList action key cart
 
 viewPackingList :: ViewMode -> Int64 -> Handler TypedContent
 viewPackingList mode key = do
@@ -463,7 +488,7 @@ $forall ((style, l, w, h),qty) <- Map.toList groups
 |]
 
 editDetailsForm defCart  = renderBootstrap3 BootstrapBasicForm form
-  where form = areq textareaField "cart" (Just (Textarea defCart))
+  where form = areq textareaField "cart" (Textarea <$> defCart)
 
 detailsCart :: [Entity PackingListDetail] -> Text
 detailsCart details = let
@@ -510,7 +535,7 @@ detailsCart details = let
 
 renderEditDetails :: Maybe Text -> Int64 -> [Entity PackingListDetail] -> Handler Widget
 renderEditDetails defCart key details = do
-  let cart = fromMaybe (detailsCart details) defCart
+  let cart = defCart <|> Just (detailsCart details)
   (form, encType) <- generateFormPost (editDetailsForm cart)
   return [whamlet|
 <div>
@@ -978,3 +1003,7 @@ createDetails pKey orderRef (partials, main') = do
     )
    | n <- ns]
   
+
+replacePLDetails pKey sections = error "replacePLDetails not implemeted"
+insertPLDetails pKey sections = error "insertPLDetails not implemented"
+deletePLDetails pKey sections = error "deletePLDetails not implemented"
