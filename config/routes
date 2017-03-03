@@ -29,5 +29,6 @@
   !/packinglist/#Int64/textcart WHPackingListTextcartR GET !pl
   !/packinglist/#Int64/chalk WHPackingListChalkR GET !pl
   !/packinglist/#Int64/planner WHPackingListPlannerR GET !pl
+  !/packinglist/#Int64/edit_details WHPackingListEditDetailsR GET POST !pl
 
 /administrator AdministratorR GET

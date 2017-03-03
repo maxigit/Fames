@@ -9,6 +9,8 @@ module Handler.WH.PackingList
 , getWHPackingListStickerCsvR
 , getWHPackingListChalkR
 , getWHPackingListPlannerR
+, getWHPackingListEditDetailsR
+, postWHPackingListEditDetailsR
 , contentToMarks
 -- , postWHPackingListViewR
 ) where
@@ -207,7 +209,7 @@ $maybe u <- uploader
                       (parsePackingList (orderRef param) bytes)
     
      
-data ViewMode = Details | Textcart | Stickers | StickerCsv | Chalk | Planner
+data ViewMode = Details | Textcart | Stickers | StickerCsv | Chalk | Planner | EditDetails
   deriving (Eq, Read, Show)
         
 getWHPackingListViewR :: Int64 -> Handler TypedContent
@@ -227,6 +229,12 @@ getWHPackingListChalkR = viewPackingList Chalk
 
 getWHPackingListPlannerR :: Int64 -> Handler TypedContent
 getWHPackingListPlannerR = viewPackingList Planner
+
+getWHPackingListEditDetailsR :: Int64 -> Handler TypedContent
+getWHPackingListEditDetailsR = viewPackingList EditDetails
+
+postWHPackingListEditDetailsR :: Int64 -> Handler TypedContent
+postWHPackingListEditDetailsR = viewPackingList EditDetails
 
 viewPackingList :: ViewMode -> Int64 -> Handler TypedContent
 viewPackingList mode key = do
@@ -268,24 +276,29 @@ viewPackingList mode key = do
 
           corridors :: [(Double, Double, Double)] -- TODO extract from config
           corridors = [(8, 1.9, 3 ), (5, 1.5, 3), (4, 1.2, 3)]
-          renderEntities =
-            case mode of
-                      Details -> renderDetails
-                      Textcart -> renderTextcart
-                      StickerCsv -> renderStickers today
-                      Chalk -> renderChalk corridors
-                      Planner -> renderPlanner
+
           viewRoute Details = WHPackingListViewR
           viewRoute Textcart = WHPackingListTextcartR
           viewRoute Stickers = WHPackingListStickersR
           viewRoute StickerCsv = WHPackingListStickerCsvR
           viewRoute Chalk = WHPackingListChalkR
           viewRoute Planner = WHPackingListPlannerR
+          viewRoute EditDetails = WHPackingListEditDetailsR
 
 
       if mode == Stickers
          then generateStickers pl entities
-         else selectRep $ provideRep $ defaultLayout $ do
+         else do
+           entitiesWidget <-case mode of
+             EditDetails -> renderEditDetails Nothing key entities
+             _ -> return . toWidget $ (case mode of
+                                 Details -> renderDetails
+                                 Textcart -> renderTextcart
+                                 StickerCsv -> renderStickers today
+                                 Chalk -> renderChalk corridors
+                                 Planner -> renderPlanner
+                           ) pl entities
+           selectRep $ provideRep $ defaultLayout $ do
               [whamlet|
           <div.panel class="panel-#{panelClass (packingListBoxesToDeliver_d pl)}">
             <div.panel-heading>
@@ -308,10 +321,10 @@ viewPackingList mode key = do
                 |]
               [whamlet|
           <ul.nav.nav-tabs>
-            $forall nav <-[Details,Textcart,Stickers, StickerCsv, Chalk, Planner]
+            $forall nav <-[Details, EditDetails, Textcart,Stickers, StickerCsv, Chalk, Planner]
               <li class="#{navClass nav}">
                 <a href="@{WarehouseR (viewRoute nav key) }">#{tshow nav}
-          ^{renderEntities pl entities}
+          ^{entitiesWidget}
                 |]
     _ -> notFound
 
@@ -448,6 +461,24 @@ $forall ((style, l, w, h),qty) <- Map.toList groups
     , #{h}
 |]
 
+editDetailsForm defCart  = renderBootstrap3 BootstrapBasicForm form
+  where form = areq textareaField "cart" (Just (Textarea defCart))
+
+detailsCart :: [Entity PackingListDetail] -> Text
+detailsCart details = "papillon,3\ncarapaces,10"
+
+renderEditDetails :: Maybe Text -> Int64 -> [Entity PackingListDetail] -> Handler Widget
+renderEditDetails defCart key details = do
+  let cart = fromMaybe (detailsCart details) defCart
+  (form, encType) <- generateFormPost (editDetailsForm cart)
+  return [whamlet|
+<div>
+  <form #edit-details role=form method=post action=@{WarehouseR $ WHPackingListEditDetailsR key} enctype=#{encType}>
+    ^{form}
+    <div.form-inline>
+      $forall action <- ["replace", "insert", "delete"]
+        <button type="submit" name="action" value=#{action} class="btn btn-default">#{capitalize action}
+|]
   
   
 -- | Generates a progress bar to track the delivery timing
