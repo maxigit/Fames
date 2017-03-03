@@ -211,18 +211,19 @@ $maybe u <- uploader
     
 updatePackingList mode key cart = do
   let bytes = encodeUtf8 . unTextarea $ cart
+      plKey = PackingListKey (SqlBackendKey key)
       onSuccess mode sections = do
-        case mode of
+        runDB $ case mode of
           -- TODO create data type
-          "replace" -> replacePLDetails key sections
-          "insert" -> insertPLDetails key sections
-          "delete" -> deletePLDetails key sections
+          "replace" -> replacePLDetails plKey sections
+          "insert" -> insertPLDetails plKey sections
+          "delete" -> deletePLDetails plKey sections
           
         viewPackingList Details key
 
   renderParsingResult (\msg _ -> do msg >>  viewPackingList EditDetails key)
                       (onSuccess mode)
-                      (parsePackingList ("") bytes)
+                      (parsePackingList ("FIXME") bytes)
   
 -- ** View
      
@@ -491,18 +492,27 @@ editDetailsForm defCart  = renderBootstrap3 BootstrapBasicForm form
   where form = areq textareaField "cart" (Textarea <$> defCart)
 
 detailsCart :: [Entity PackingListDetail] -> Text
+  -- The order reference is not part of the PL row
+  -- but is specified as a special row (order ref)
+  -- we need to generate those rows
+
+  
 detailsCart details = let
   header = (map (pack.fst) columnNames)
-  lines = concatMap toLines details
-  toLines (Entity _ detail) =
+  lines = concat . snd $ List.mapAccumL toLines "" details
+  toLines lastRef (Entity _ detail) =
     let content = Map.toList (packingListDetailContent detail)
         tqty = sum (map snd content)
     -- in the case of many colours in the same boxes
     -- we only want the last line to carry the box information
     -- to do so, we just process the content in reverse order
     -- and reverse the result
-       
-    in reverse [
+        reference = packingListDetailReference detail
+        orderRow = if reference == lastRef
+                      then []
+                      else [take (List.length columnNames) (reference : repeat "")]
+                           
+    in (reference, orderRow ++ reverse [
       [ packingListDetailStyle detail
       , var
       , tshow qty
@@ -528,7 +538,8 @@ detailsCart details = let
                              ,packingListDetailHeight
                              ] <*> [detail]
                    ) / 1000000
-    ]
+    ])
+
 
   in unlines (map (intercalate ",") (header:lines))
   
@@ -972,6 +983,7 @@ createPLFromForm docKey nOfBoxes =
   <*> departure
   <*> arriving
   
+createDetailsFromSection :: PackingListId -> (PLOrderRef, [PLBoxGroup]) -> [Text -> PackingListDetail]
 createDetailsFromSection pKey (orderRef, groups) = do
   let ref = validValue $ plStyle orderRef
   concatMap (createDetails pKey ref) groups
@@ -1002,8 +1014,20 @@ createDetails pKey orderRef (partials, main') = do
      $ main
     )
    | n <- ns]
-  
 
-replacePLDetails pKey sections = error "replacePLDetails not implemeted"
-insertPLDetails pKey sections = error "insertPLDetails not implemented"
-deletePLDetails pKey sections = error "deletePLDetails not implemented"
+replacePLDetails plKey sections = do
+  deleteWhere [PackingListDetailPackingList ==. plKey]
+  insertPLDetails plKey sections
+
+insertPLDetails plKey sections = do
+  pl <- getJust plKey
+  barcodes <- generateBarcodes "DL" (packingListArriving pl) (packingListBoxesToDeliver_d pl)
+
+  let detailFns = concatMap (createDetailsFromSection plKey) sections
+      details = zipWith ($) detailFns barcodes
+
+  insertMany details
+
+
+  
+deletePLDetails plKey sections = error "deletePLDetails not implemented"
