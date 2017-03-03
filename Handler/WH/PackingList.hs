@@ -489,14 +489,20 @@ detailsCart details = let
       , h $ tshow $ packingListDetailLength detail
       , h $ tshow $ packingListDetailWidth detail
       , h $ tshow $ packingListDetailHeight detail
-      , "" -- volume
-      , "" -- total volume
-      , h $ tshow $ packingListDetailWeight detail
-      , "" -- total weight
+      , h $ tshow volume
+      , h $ tshow volume
+      , h $ tshow weight
+      , h $ tshow weight
       ]
 
     | ((var, qty), main) <- zip (reverse content) (True : repeat False)
     , let h val = if main then val else ""
+          weight = packingListDetailWeight detail
+          volume = (product $ [packingListDetailLength
+                             ,packingListDetailWidth
+                             ,packingListDetailHeight
+                             ] <*> [detail]
+                   ) / 1000000
     ]
 
   in unlines (map (intercalate ",") (header:lines))
