@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Handler.WH.PackingList
 ( getWHPackingListR
 , postWHPackingListR
@@ -465,7 +466,41 @@ editDetailsForm defCart  = renderBootstrap3 BootstrapBasicForm form
   where form = areq textareaField "cart" (Just (Textarea defCart))
 
 detailsCart :: [Entity PackingListDetail] -> Text
-detailsCart details = "papillon,3\ncarapaces,10"
+detailsCart details = let
+  header = (map (pack.fst) columnNames)
+  lines = concatMap toLines details
+  toLines (Entity _ detail) =
+    let content = Map.toList (packingListDetailContent detail)
+        tqty = sum (map snd content)
+    -- in the case of many colours in the same boxes
+    -- we only want the last line to carry the box information
+    -- to do so, we just process the content in reverse order
+    -- and reverse the result
+       
+    in reverse [
+      [ packingListDetailStyle detail
+      , var
+      , tshow qty
+      , h $ tshow $ packingListDetailBoxNumber detail
+      , h $ tshow $ packingListDetailBoxNumber detail
+      , h $ tshow 1
+      , h $ tshow tqty
+      , h $ tshow tqty
+      , h $ tshow $ packingListDetailLength detail
+      , h $ tshow $ packingListDetailWidth detail
+      , h $ tshow $ packingListDetailHeight detail
+      , "" -- volume
+      , "" -- total volume
+      , h $ tshow $ packingListDetailWeight detail
+      , "" -- total weight
+      ]
+
+    | ((var, qty), main) <- zip (reverse content) (True : repeat False)
+    , let h val = if main then val else ""
+    ]
+
+  in unlines (map (intercalate ",") (header:lines))
+  
 
 renderEditDetails :: Maybe Text -> Int64 -> [Entity PackingListDetail] -> Handler Widget
 renderEditDetails defCart key details = do
