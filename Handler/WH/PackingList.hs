@@ -222,9 +222,16 @@ updatePackingList mode key cart = do
           
         viewPackingList Details key
 
+  -- we the first detail reference use if possible 
+  firstDetail <- runDB $ selectFirst [PackingListDetailPackingList ==. plKey]
+                              [Asc PackingListDetailId]
+                              
+  let orderRef = maybe "" (packingListDetailReference . entityVal) firstDetail
+
+
   renderParsingResult (\msg _ -> do msg >>  viewPackingList EditDetails key)
                       (onSuccess mode)
-                      (parsePackingList ("FIXME") bytes)
+                      (parsePackingList orderRef bytes)
   
 -- ** View
      
