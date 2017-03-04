@@ -53,6 +53,7 @@ library
                      Handler.Util
                      Handler.CsvUtils
                      WH.Barcode
+                     RoutePiece
                      
 
     if flag(dev) || flag(library-only)
@@ -133,6 +134,7 @@ library
                  , these
                  , Glob
                  , mtl >= 2.2 && < 2.3
+                 , path-pieces >= 0.2 && <0.3
 
 executable         Fames
     if flag(library-only)

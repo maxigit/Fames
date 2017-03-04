@@ -47,22 +47,22 @@ savePLSheet = uploadPLSheet Save
 updateDetails action status cart = do
   (Just (Entity key _)) <- runDB $ selectFirst [] [Desc PackingListId]
   let [PersistInt64 plId] =  keyToValues key
-  let route = WarehouseR $ WHPackingListEditDetailsR plId
   logAsAdmin
-  get route
+  get (WarehouseR $ WHPackingListViewR plId (Just EditDetails))
   statusIs 200
 
+  let route = WarehouseR $ WHPackingListEditDetailsR plId
   request $ do
     setMethod "POST"
     setUrl route
     addToken_ "form#edit-details"
     byLabel "cart" cart
-    addPostParam "action" action
+    addPostParam "action" (tshow action)
   statusIs (fromEnum status)
 
-replaceDetails = updateDetails "replace"
-insertDetails = updateDetails "insert"
-deleteDetails = updateDetails "delete"
+replaceDetails = updateDetails Replace
+insertDetails = updateDetails Insert
+deleteDetails = updateDetails Delete
   
 appSpec = withAppWipe BypassAuth $ do
   describe "upload packing list" $ do

@@ -5,14 +5,9 @@ module Handler.WH.PackingList
 ( getWHPackingListR
 , postWHPackingListR
 , getWHPackingListViewR
-, getWHPackingListTextcartR
-, getWHPackingListStickersR
-, getWHPackingListStickerCsvR
-, getWHPackingListChalkR
-, getWHPackingListPlannerR
-, getWHPackingListEditDetailsR
 , postWHPackingListEditDetailsR
 , contentToMarks
+, EditMode(..)
 -- , postWHPackingListViewR
 ) where
 
@@ -33,6 +28,7 @@ import Text.Printf(printf)
 import Data.Conduit.List (consume)
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
+data EditMode = Replace | Insert | Delete deriving (Eq, Read, Show, Enum)
 
 -- | Type of file
 data Format = PartialFirst deriving (Eq, Read, Show)
@@ -121,7 +117,7 @@ viewPLLists = do
     <th> Arriving
   $forall (Entity key pl) <- entities
     <tr>
-      <td> <a href="@{WarehouseR (WHPackingListViewR (unSqlBackendKey $ unPackingListKey key))}">
+      <td> <a href="@{WarehouseR (WHPackingListViewR (unSqlBackendKey $ unPackingListKey key) Nothing)}">
        ##{tshow $ unSqlBackendKey $ unPackingListKey key}
       <td> #{packingListInvoiceRef pl}
       <td> #{fromMaybe "" $ packingListVessel pl}
@@ -215,9 +211,9 @@ updatePackingList mode key cart = do
       onSuccess mode sections = do
         runDB $ case mode of
           -- TODO create data type
-          "replace" -> replacePLDetails plKey sections
-          "insert" -> insertPLDetails plKey sections
-          "delete" -> deletePLDetails plKey sections
+          Replace -> replacePLDetails plKey sections
+          Insert -> insertPLDetails plKey sections
+          Delete -> deletePLDetails plKey sections
         setSuccess "Packing list updated."
           
         viewPackingList Details key
@@ -235,29 +231,9 @@ updatePackingList mode key cart = do
   
 -- ** View
      
-data ViewMode = Details | Textcart | Stickers | StickerCsv | Chalk | Planner | EditDetails
-  deriving (Eq, Read, Show)
         
-getWHPackingListViewR :: Int64 -> Handler TypedContent
-getWHPackingListViewR = viewPackingList Details
-
-getWHPackingListTextcartR :: Int64 -> Handler TypedContent
-getWHPackingListTextcartR = viewPackingList Textcart
-
-getWHPackingListStickersR :: Int64 -> Handler TypedContent
-getWHPackingListStickersR = viewPackingList Stickers
-
-getWHPackingListStickerCsvR :: Int64 -> Handler TypedContent
-getWHPackingListStickerCsvR = viewPackingList StickerCsv
-
-getWHPackingListChalkR :: Int64 -> Handler TypedContent
-getWHPackingListChalkR = viewPackingList Chalk
-
-getWHPackingListPlannerR :: Int64 -> Handler TypedContent
-getWHPackingListPlannerR = viewPackingList Planner
-
-getWHPackingListEditDetailsR :: Int64 -> Handler TypedContent
-getWHPackingListEditDetailsR = viewPackingList EditDetails
+getWHPackingListViewR :: Int64 -> Maybe PLViewMode -> Handler TypedContent
+getWHPackingListViewR key mode = viewPackingList (fromMaybe Details mode) key
 
 postWHPackingListEditDetailsR :: Int64 -> Handler TypedContent
 postWHPackingListEditDetailsR key = do
@@ -267,11 +243,11 @@ postWHPackingListEditDetailsR key = do
     FormMissing -> error "Form Missing"
     FormFailure a -> sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
     FormSuccess cart -> do
-      case actionM of
+      case actionM >>= readMay of
         Nothing -> error "Action missing"
         Just action -> updatePackingList action key cart
 
-viewPackingList :: ViewMode -> Int64 -> Handler TypedContent
+viewPackingList :: PLViewMode -> Int64 -> Handler TypedContent
 viewPackingList mode key = do
   let plKey = PackingListKey (SqlBackendKey key)
   (plM, docKeyM, entities) <- runDB $ do
@@ -312,15 +288,6 @@ viewPackingList mode key = do
           corridors :: [(Double, Double, Double)] -- TODO extract from config
           corridors = [(8, 1.9, 3 ), (5, 1.5, 3), (4, 1.2, 3)]
 
-          viewRoute Details = WHPackingListViewR
-          viewRoute Textcart = WHPackingListTextcartR
-          viewRoute Stickers = WHPackingListStickersR
-          viewRoute StickerCsv = WHPackingListStickerCsvR
-          viewRoute Chalk = WHPackingListChalkR
-          viewRoute Planner = WHPackingListPlannerR
-          viewRoute EditDetails = WHPackingListEditDetailsR
-
-
       if mode == Stickers
          then generateStickers pl entities
          else do
@@ -358,7 +325,7 @@ viewPackingList mode key = do
           <ul.nav.nav-tabs>
             $forall nav <-[Details, EditDetails, Textcart,Stickers, StickerCsv, Chalk, Planner]
               <li class="#{navClass nav}">
-                <a href="@{WarehouseR (viewRoute nav key) }">#{tshow nav}
+                <a href="@{WarehouseR (WHPackingListViewR key (Just nav)) }">#{tshow nav}
           ^{entitiesWidget}
                 |]
     _ -> notFound
@@ -561,8 +528,8 @@ renderEditDetails defCart key details = do
   <form #edit-details role=form method=post action=@{WarehouseR $ WHPackingListEditDetailsR key} enctype=#{encType}>
     ^{form}
     <div.form-inline>
-      $forall action <- ["replace", "insert", "delete"]
-        <button type="submit" name="action" value=#{action} class="btn btn-default">#{capitalize action}
+      $forall action <- [Replace,Insert,Delete]
+        <button type="submit" name="action" value=#{tshow action} class="btn btn-default">#{capitalize (show action)}
 |]
   
   

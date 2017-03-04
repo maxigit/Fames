@@ -1,13 +1,13 @@
 * TODO<2017-03-04 Sat> 
-** Edit packing list [3/7]
+** Edit packing list [5/7]
 - [X] add message
  to tell the user the PL have been edited
 - [X] use PL reference as first order ref
 - [X] implement delete details
-- [ ] write tests for "edit details" features
-- [ ] refactor
-  - [ ] remove all view routes use parameter instead
-    - [ ] where to put PL types used by routes ?
+- [X] write tests for "edit details" features
+- [X] refactor
+  - [X] remove all view routes use parameter instead
+    - [X] where to put PL types used by routes ?
 - [ ] display parsing error nicely
 - [ ] edit PL info (not details)
   - [ ] write tests

@@ -1,5 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Foundation where
+module Foundation
+( module Foundation
+, module RoutePiece
+, module Role
+) where
+
 
 import Import.NoFoundation
 import Database.Persist.Sql (ConnectionPool, runSqlPool)
@@ -18,6 +23,7 @@ import qualified FA as FA
 import qualified Crypto.Hash as Crypto
 import Crypto.Hash (MD5, Digest, hash)
 import Role
+import RoutePiece
 
 -- | The foundation datatype for your application. This can be a good place to
 -- keep settings and values requiring initialization before your application
