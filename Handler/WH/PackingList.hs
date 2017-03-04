@@ -1026,8 +1026,16 @@ insertPLDetails plKey sections = do
   let detailFns = concatMap (createDetailsFromSection plKey) sections
       details = zipWith ($) detailFns barcodes
 
-  insertMany details
+  insertMany_ details
 
 
   
-deletePLDetails plKey sections = error "deletePLDetails not implemented"
+deletePLDetails plKey sections = do
+  let detailFns = concatMap (createDetailsFromSection plKey) sections
+      details = zipWith ($) detailFns (repeat "<dummy>")
+
+  forM_ details (deleteBy . ( UniquePLD plKey <$> packingListDetailReference
+                                              <*> packingListDetailStyle
+                                              <*> packingListDetailBoxNumber
+                          )
+                )
