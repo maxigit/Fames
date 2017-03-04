@@ -167,24 +167,24 @@ shouldGenerate content expectation =
 pureSpec = do
   describe "@pure #stickers from PL" $ do
     it "generates 12" $ do
-      [("BLK", 12)] `shouldGenerate` ["BLK", "⃝", "⃝"]
+      [("BLK", 12)] `shouldGenerate` ["BLK", "○", "○"]
     it "generates two lines without name duplication" $ do
-      [("BLK", 24)] `shouldGenerate` [ "BLK", "⃝", "⃝", "⃝"
-                                     , ""   , "⃝"
+      [("BLK", 24)] `shouldGenerate` [ "BLK", "○", "○", "○"
+                                     , ""   , "○"
                                      ]
     it "generates two lines with different names " $ do
-      [("BLK", 12), ("RED", 12)] `shouldGenerate` [ "BLK", "⃝", "⃝", ""
-                                                  , "RED", "⃝", "⃝"
+      [("BLK", 12), ("RED", 12)] `shouldGenerate` [ "BLK", "○", "○", ""
+                                                  , "RED", "○", "○"
                                                   ]
     it "generates colour in alphabetical order" $ do
-      [("RED", 12), ("BLK", 12)] `shouldGenerate` [ "BLK", "⃝", "⃝", ""
-                                                  , "RED", "⃝", "⃝"
+      [("RED", 12), ("BLK", 12)] `shouldGenerate` [ "BLK", "○", "○", ""
+                                                  , "RED", "○", "○"
                                                   ]
     it "more lines colour in alphabetical order" $ do
-      [("RED", 12), ("BLK", 6), ("NAY", 24)] `shouldGenerate` [ "BLK", "⃝",    "", ""
-                                                              , "NAY", "⃝", "⃝", "⃝"
-                                                              , ""   , "⃝", ""   , ""
-                                                              , "RED", "⃝", "⃝"
+      [("RED", 12), ("BLK", 6), ("NAY", 24)] `shouldGenerate` [ "BLK", "○",    "", ""
+                                                              , "NAY", "○", "○", "○"
+                                                              , ""   , "○", ""   , ""
+                                                              , "RED", "○", "○"
                                                               ]
     it "displays 1 properly" $ do
       [("BLK", 1)] `shouldGenerate` ["BLK", "∅"]
