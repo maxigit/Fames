@@ -182,7 +182,7 @@ T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,120,6.04
   describe "@editpl updating packing list details" $ do
     describe "#valid" $ do
       describe "#replaces" $ do
-        it "@fail replaces all details with the new ones" $ do
+        it "replaces all details with the new ones" $ do
           savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
 T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
 CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
@@ -217,7 +217,7 @@ CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
 T-shirt,Red,24,23,,26,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
 |]
           details <- runDB $ selectList [] [Asc PackingListDetailId]
-          liftIO $ length details `shouldBe` 9
+          liftIO $ length details `shouldBe` 12
        
         it "uses default order reference" $ do
           savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
@@ -230,7 +230,7 @@ CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
 T-shirt,Red,24,23,,26,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
 |]
           details <- runDB $ selectList [PackingListDetailReference ==. "Container C1"] []
-          liftIO $ length details `shouldBe` 6
+          liftIO $ length details `shouldBe` 8
 
         it "uses row order reference" $ do
           savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
@@ -244,7 +244,7 @@ Container C2,,,,,,,,,,,,,,,,,,,
 T-shirt,Red,24,23,,26,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
 |]
           details <- runDB $ selectList [PackingListDetailReference ==. "Container C2"] []
-          liftIO $ length details `shouldBe` 6
+          liftIO $ length details `shouldBe` 8
 
       it "deletes expected details" $ do
           savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
@@ -257,7 +257,7 @@ CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
 T-shirt,Red,24,23,,26,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
 |]
           details <- runDB $ selectList [PackingListDetailReference ==. "Container C2"] []
-          liftIO $ length details `shouldBe` 5
+          liftIO $ length details `shouldBe` 4
 
 shouldGenerate content expectation =
   let result = contentToMarks content

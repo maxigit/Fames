@@ -794,7 +794,7 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
         let validGroups = concatMap (map validateGroup . snd) groups
         -- sequence validGroups <|&> const (InvalidData $ concatMap (either id (\(partials,main) -> transformRow main : map transformPartial partials )) validGroups)
         sequence validGroups <|&> const (InvalidData . concat $ lefts validGroups)
-        Right $  groups
+        Right $  map (map reverse) groups
         -- Right $  valids
 
         where validate :: PLRaw -> Either PLRaw PLValid
