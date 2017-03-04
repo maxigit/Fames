@@ -1,6 +1,6 @@
 * TODO<2017-03-04 Sat> 
-** Edit packing list [1/7]
-- [ ] add message
+** Edit packing list [2/7]
+- [X] add message
  to tell the user the PL have been edited
 - [ ] use PL reference as first order ref
 - [X] implement delete details

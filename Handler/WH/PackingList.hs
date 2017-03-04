@@ -218,6 +218,7 @@ updatePackingList mode key cart = do
           "replace" -> replacePLDetails plKey sections
           "insert" -> insertPLDetails plKey sections
           "delete" -> deletePLDetails plKey sections
+        setSuccess "Packing list updated."
           
         viewPackingList Details key
 
