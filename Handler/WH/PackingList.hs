@@ -211,7 +211,7 @@ updatePackingList mode key cart = do
       onSuccess mode sections = do
         runDB $ case mode of
           -- TODO create data type
-          Replace -> replacePLDetails plKey sections
+          Replace -> replacePLDetails plKey sections bytes
           Insert -> insertPLDetails plKey sections
           Delete -> deletePLDetails plKey sections
         setSuccess "Packing list updated."
@@ -921,17 +921,20 @@ instance Renderable [PLRaw] where render = renderRows (const ("" :: String))
                               
   
 -- * Saving
+createDocumentKey key reference comment = do
+  userId <- lift requireAuthId
+  processedAt <- liftIO getCurrentTime
+  let documentKey = DocumentKey "packinglist" reference
+                                comment
+                                key userId processedAt
+  insert documentKey
+
+
 
 savePLFromRows :: Text -> UploadParam -> [(PLOrderRef, [PLBoxGroup])] -> Handler (PackingList, [PackingListDetail])
 savePLFromRows key param sections = do
-  userId <- requireAuthId
-  processedAt <- liftIO getCurrentTime
-  let documentKey = DocumentKey "packinglist" (invoiceRef param)
-                                (maybe "" unTextarea (comment param))
-                                key userId processedAt
-
   runDB $ do
-    docKey <- insert documentKey
+    docKey <- createDocumentKey key (invoiceRef param) (maybe "" unTextarea (comment param))
     let nOfCartons (_, groups) = sum (map (validValue . plNumberOfCarton . snd) groups)
         pl = createPLFromForm docKey (sum (map nOfCartons sections)) param
     pKey <- insert pl
@@ -991,7 +994,30 @@ createDetails pKey orderRef (partials, main') = do
     )
    | n <- ns]
 
-replacePLDetails plKey sections = do
+updateDocumentKey plKey bytes  = do
+  let key = computeDocumentKey bytes
+
+  documentKey <- getBy (UniqueSK key)
+
+
+  pl <- getJust plKey
+  oldKey <- getJust (packingListDocumentKey pl)
+
+  let reference = packingListInvoiceRef pl
+      comment = documentKeyComment oldKey ++ "\nedited"
+
+  docKey <- case documentKey of
+    Nothing -> createDocumentKey key reference comment
+    Just k -> return $ entityKey k
+
+  update plKey [PackingListDocumentKey =. docKey ]
+
+replacePLDetails plKey sections cart = do
+  -- As we total discard the content of the previous document
+  -- There is no need to keep a link to the old document key.
+  -- Instead, we need to update it with the current cart.
+
+  updateDocumentKey plKey cart
   deleteWhere [PackingListDetailPackingList ==. plKey]
   insertPLDetails plKey sections
 
