@@ -9,11 +9,12 @@
   - [X] remove all view routes use parameter instead
     - [X] where to put PL types used by routes ?
 - [X] display parsing error nicely
-- [ ] Allow empty PL
+- [ ] +Allow empty PL+
   - [ ] what to do with the document key ? (Can't be null)
-- [ ] edit PL info (not details)
+   Doesn't work. Using the same document twice generate an error.
+- [-] edit PL info (not details)
   - [ ] write tests
-  - [ ] implement
+  - [X] implement
 - [X] update document key table ?
   - [X] easy when replacing
 

@@ -4,6 +4,7 @@
 module Handler.WH.PackingList
 ( getWHPackingListR
 , postWHPackingListR
+, postWHPackingListEditR
 , getWHPackingListViewR
 , postWHPackingListEditDetailsR
 , contentToMarks
@@ -205,7 +206,7 @@ $maybe u <- uploader
                       (onSuccess mode)
                       (parsePackingList (orderRef param) bytes)
     
-updatePackingList mode key cart = do
+updatePackingListDetails mode key cart = do
   let bytes = encodeUtf8 . unTextarea $ cart
       plKey = PackingListKey (SqlBackendKey key)
       onSuccess mode sections = do
@@ -228,6 +229,29 @@ updatePackingList mode key cart = do
   renderParsingResult (\msg pre -> do msg >>  viewPackingList EditDetails key pre)
                       (onSuccess mode)
                       (parsePackingList orderRef bytes)
+
+updatePackingList key param = do
+  let plKey = PackingListKey (SqlBackendKey key)
+      plUpdates = 
+                [ (PackingListInvoiceRef =. invoiceRef param)
+                , (PackingListContainer =. container param)
+                , (PackingListVessel =. vessel param)
+                , (PackingListDeparture =. departure param)
+                , (PackingListArriving =. arriving param)
+                ]
+      docUpdates = catMaybes
+                 [ (DocumentKeyComment =.) . unTextarea <$> comment param ]
+  runDB $ do
+    unless (null plUpdates) $ update plKey plUpdates
+    pl <- getJust plKey
+    let docKey = packingListDocumentKey pl
+    doc <- get docKey
+    unless (null docUpdates) $ update docKey docUpdates
+
+    setSuccess "Packing list updated successfully"
+
+  viewPackingList Details key (return ())
+
   
 -- ** View
      
@@ -245,7 +269,15 @@ postWHPackingListEditDetailsR key = do
     FormSuccess cart -> do
       case actionM >>= readMay of
         Nothing -> error "Action missing"
-        Just action -> updatePackingList action key cart
+        Just action -> updatePackingListDetails action key cart
+
+postWHPackingListEditR :: Int64 -> Handler TypedContent
+postWHPackingListEditR key = do
+  ((resp, view), encType)  <- runFormPost (editForm Nothing Nothing)
+  case resp of
+    FormMissing -> error "Form Missing"
+    FormFailure a -> sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
+    FormSuccess param -> updatePackingList key param
 
 viewPackingList :: PLViewMode -> Int64 ->  Widget -> Handler TypedContent
 viewPackingList mode key pre = do
@@ -293,6 +325,7 @@ viewPackingList mode key pre = do
          else do
            entitiesWidget <-case mode of
              EditDetails -> renderEditDetails Nothing key entities
+             Edit -> renderEdit key pl docKey
              _ -> return . toWidget $ (case mode of
                                  Details -> renderDetails
                                  Textcart -> renderTextcart
@@ -324,12 +357,13 @@ viewPackingList mode key pre = do
               [whamlet|
                       ^{pre}
           <ul.nav.nav-tabs>
-            $forall nav <-[Details, EditDetails, Textcart,Stickers, StickerCsv, Chalk, Planner]
+            $forall nav <-[Details, Edit, EditDetails, Textcart,Stickers, StickerCsv, Chalk, Planner]
               <li class="#{navClass nav}">
                 <a href="@{WarehouseR (WHPackingListViewR key (Just nav)) }">#{tshow nav}
           ^{entitiesWidget}
                 |]
     _ -> notFound
+
 
 renderDetails _ entities = entitiesToTable getDBName entities
   
@@ -533,7 +567,28 @@ renderEditDetails defCart key details = do
         <button type="submit" name="action" value=#{tshow action} class="btn btn-default">#{capitalize (show action)}
 |]
   
-  
+editForm pl doc = renderBootstrap3 BootstrapBasicForm form
+  where form = UploadParam
+            <$> pure ""
+            <*> (areq textField "invoice ref" (Just . packingListInvoiceRef =<< pl))
+            <*> (aopt textField "container" (Just . packingListContainer =<< pl))
+            <*> (aopt textField "vessel" (Just . packingListVessel =<< pl))
+            <*> (aopt dayField "departure" (Just . packingListDeparture =<< pl))
+            <*> (aopt dayField "arriving" (Just . packingListArriving =<< pl))
+            <*> (aopt textareaField "comment" (Just . Just . Textarea . documentKeyComment =<< doc))
+            <*> pure (Textarea "")
+
+renderEdit :: Int64  -> PackingList -> DocumentKey -> Handler Widget
+renderEdit key pl doc = do
+  (form, encType) <- generateFormPost (editForm (Just pl) (Just doc))
+  return [whamlet|
+<div>
+  <form #edit role=form method=post action=@{WarehouseR $ WHPackingListEditR key} enctype=#{encType}>
+    ^{form}
+    <button type="submit" name=action class="btn bt-defaut">Update
+|]
+
+
 -- | Generates a progress bar to track the delivery timing
 -- In order to normalize progress bars when displaying different packing list
 -- we need some "bounds"
