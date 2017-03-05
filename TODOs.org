@@ -1,5 +1,5 @@
 * TODO<2017-03-04 Sat> 
-** Edit packing list [5/7]
+** Edit packing list [6/8]
 - [X] add message
  to tell the user the PL have been edited
 - [X] use PL reference as first order ref
@@ -8,10 +8,12 @@
 - [X] refactor
   - [X] remove all view routes use parameter instead
     - [X] where to put PL types used by routes ?
-- [ ] display parsing error nicely
+- [X] display parsing error nicely
 - [ ] edit PL info (not details)
   - [ ] write tests
-  - [ ] implement 
+  - [ ] implement
+- [ ] update document key table ?
+  - [ ] easy when replacing
 
 * TODO <2017-01-08 Sun> 
 - [X] refactor stocktake to validate and save on the same workflow

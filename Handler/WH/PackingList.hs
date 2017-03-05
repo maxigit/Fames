@@ -216,7 +216,7 @@ updatePackingList mode key cart = do
           Delete -> deletePLDetails plKey sections
         setSuccess "Packing list updated."
           
-        viewPackingList Details key
+        viewPackingList Details key (return ())
 
   -- we the first detail reference use if possible 
   firstDetail <- runDB $ selectFirst [PackingListDetailPackingList ==. plKey]
@@ -225,7 +225,7 @@ updatePackingList mode key cart = do
   let orderRef = maybe "" (packingListDetailReference . entityVal) firstDetail
 
 
-  renderParsingResult (\msg _ -> do msg >>  viewPackingList EditDetails key)
+  renderParsingResult (\msg pre -> do msg >>  viewPackingList EditDetails key pre)
                       (onSuccess mode)
                       (parsePackingList orderRef bytes)
   
@@ -233,7 +233,7 @@ updatePackingList mode key cart = do
      
         
 getWHPackingListViewR :: Int64 -> Maybe PLViewMode -> Handler TypedContent
-getWHPackingListViewR key mode = viewPackingList (fromMaybe Details mode) key
+getWHPackingListViewR key mode = viewPackingList (fromMaybe Details mode) key (return ())
 
 postWHPackingListEditDetailsR :: Int64 -> Handler TypedContent
 postWHPackingListEditDetailsR key = do
@@ -247,8 +247,8 @@ postWHPackingListEditDetailsR key = do
         Nothing -> error "Action missing"
         Just action -> updatePackingList action key cart
 
-viewPackingList :: PLViewMode -> Int64 -> Handler TypedContent
-viewPackingList mode key = do
+viewPackingList :: PLViewMode -> Int64 ->  Widget -> Handler TypedContent
+viewPackingList mode key pre = do
   let plKey = PackingListKey (SqlBackendKey key)
   (plM, docKeyM, entities) <- runDB $ do
       plM <- get plKey
@@ -322,6 +322,7 @@ viewPackingList mode key = do
             <p>#{documentKeyComment docKey}
                 |]
               [whamlet|
+                      ^{pre}
           <ul.nav.nav-tabs>
             $forall nav <-[Details, EditDetails, Textcart,Stickers, StickerCsv, Chalk, Planner]
               <li class="#{navClass nav}">
