@@ -206,17 +206,24 @@ $maybe u <- uploader
                       (onSuccess mode)
                       (parsePackingList (orderRef param) bytes)
     
+  -- | Update denormalized fields, ie boxesToDeliver_d
+updateDenorm plKey = do
+  boxesToDeliver <- count [ PackingListDetailPackingList ==. plKey
+                          , PackingListDetailDelivered ==. False
+                          ]
+
+  update plKey [PackingListBoxesToDeliver_d =. boxesToDeliver ]
+  
 updatePackingListDetails mode key cart = do
   let bytes = encodeUtf8 . unTextarea $ cart
       plKey = PackingListKey (SqlBackendKey key)
       onSuccess mode sections = do
-        runDB $ case mode of
-          -- TODO create data type
-          Replace -> replacePLDetails plKey sections bytes
-          Insert -> insertPLDetails plKey sections
-          Delete -> deletePLDetails plKey sections
+        runDB $ do case mode of
+                        Replace -> replacePLDetails plKey sections bytes
+                        Insert -> insertPLDetails plKey sections
+                        Delete -> deletePLDetails plKey sections
+                   updateDenorm plKey
         setSuccess "Packing list updated."
-          
         viewPackingList Details key (return ())
 
   -- we the first detail reference use if possible 
@@ -556,7 +563,10 @@ detailsCart details = let
 
 renderEditDetails :: Maybe Text -> Int64 -> [Entity PackingListDetail] -> Handler Widget
 renderEditDetails defCart key details = do
-  let cart = defCart <|> Just (detailsCart details)
+  -- we only display undelivered items
+  let cart = defCart <|> Just ( detailsCart
+                              $ filter (not . packingListDetailDelivered . entityVal) details
+                              )
   (form, encType) <- generateFormPost (editDetailsForm cart)
   return [whamlet|
 <div>
@@ -645,21 +655,21 @@ timeProgress minDateM maxDateM today pl = do
 -- Depending on the type of box, the order quantity can represent the quantity
 -- for the given color, or total quantity (for all similar boxes)
 data PLRow s = PLRow
-  { plStyle :: PLFieldTF s Text Identity Identity
-  , plColour :: PLFieldTF s Text Identity Maybe 
-  , plOrderQuantity :: PLFieldTF s Int Identity Null
+  { plStyle             :: PLFieldTF s Text Identity Identity
+  , plColour            :: PLFieldTF s Text Identity Maybe 
+  , plOrderQuantity     :: PLFieldTF s Int Identity Null
   , plFirstCartonNumber :: PLFieldTF s Int Null Null
-  , plLastCartonNumber :: PLFieldTF s Int Null Null
-  , plNumberOfCarton :: PLFieldTF s Int Null Null
+  , plLastCartonNumber  :: PLFieldTF s Int Null Null
+  , plNumberOfCarton    :: PLFieldTF s Int Null Null
   , plQuantityPerCarton :: PLFieldTF s Int Null Null
-  , plTotalQuantity :: PLFieldTF s Int Null Null
-  , plLength :: PLFieldTF s  Double Maybe  Null
-  , plWidth :: PLFieldTF s  Double Maybe Null
-  , plHeight :: PLFieldTF s  Double Maybe Null
-  , plVolume :: PLFieldTF s  Double Maybe Null
-  , plTotalVolume :: PLFieldTF s  Double Maybe Null
-  , plWeight :: PLFieldTF s  Double Maybe Null
-  , plTotalWeight :: PLFieldTF s  Double Maybe Null
+  , plTotalQuantity     :: PLFieldTF s Int Null Null
+  , plLength            :: PLFieldTF s  Double Maybe  Null
+  , plWidth             :: PLFieldTF s  Double Maybe Null
+  , plHeight            :: PLFieldTF s  Double Maybe Null
+  , plVolume            :: PLFieldTF s  Double Maybe Null
+  , plTotalVolume       :: PLFieldTF s  Double Maybe Null
+  , plWeight            :: PLFieldTF s  Double Maybe Null
+  , plTotalWeight       :: PLFieldTF s  Double Maybe Null
   }
 
 data PLRowTypes = PLRawT
@@ -1073,7 +1083,9 @@ replacePLDetails plKey sections cart = do
   -- Instead, we need to update it with the current cart.
 
   updateDocumentKey plKey cart
-  deleteWhere [PackingListDetailPackingList ==. plKey]
+  deleteWhere [ PackingListDetailPackingList ==. plKey
+              , PackingListDetailDelivered ==. False
+              ]
   insertPLDetails plKey sections
 
 insertPLDetails plKey sections = do
