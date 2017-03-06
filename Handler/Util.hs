@@ -127,6 +127,7 @@ readUploadUTF8  fileInfo encoding = do
 
   return $ (bs, computeDocumentKey bs)
 
+decode :: Encoding -> ByteString -> ByteString
 decode UTF8 bs = bs
 decode Latin1 bs = encodeUtf8 . decodeLatin1 $ bs
 

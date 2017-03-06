@@ -9,6 +9,7 @@ import Database.Persist.Sql (toSqlKey)
 import Network.HTTP.Types.Status
 import Data.List (dropWhileEnd)
 import Handler.WH.PackingList
+import qualified Data.Map as Map
 
 spec :: Spec
 spec = pureSpec >> appSpec
@@ -43,6 +44,26 @@ validatePLSheet status sheet = do
   
 savePLSheet = uploadPLSheet Save
 
+updateDetails action status cart = do
+  (Just (Entity key _)) <- runDB $ selectFirst [] [Desc PackingListId]
+  let [PersistInt64 plId] =  keyToValues key
+  logAsAdmin
+  get (WarehouseR $ WHPackingListViewR plId (Just EditDetails))
+  statusIs 200
+
+  let route = WarehouseR $ WHPackingListEditDetailsR plId
+  request $ do
+    setMethod "POST"
+    setUrl route
+    addToken_ "form#edit-details"
+    byLabel "cart" cart
+    addPostParam "action" (tshow action)
+  statusIs (fromEnum status)
+
+replaceDetails = updateDetails Replace
+insertDetails = updateDetails Insert
+deleteDetails = updateDetails Delete
+  
 appSpec = withAppWipe BypassAuth $ do
   describe "upload packing list" $ do
     describe "#valid" $ do
@@ -157,34 +178,113 @@ T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,120,6.04
 |]
         bodyContains "Total weight doesn"
   
+
+  describe "@editpl updating packing list details" $ do
+    describe "#valid" $ do
+      describe "#replaces" $ do
+        it "replaces all details with the new ones" $ do
+          savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
+T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
+CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
+|]
+          replaceDetails ok200 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
+T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
+CardiganForUpdate,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
+|]
+          details <- runDB $ selectList [] [Asc PackingListDetailId]
+          liftIO $ map (packingListDetailStyle . entityVal) details `shouldBe` (replicate 4 "T-shirt") ++  (replicate 4 "CardiganForUpdate" )
+
+        it "replace with mixed box" $ do
+          savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
+T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
+CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
+|]
+          replaceDetails 200 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
+T-shirt,Red,12,,,,,1,,,X,,X,,,,,,,
+T-shirt,Black,24,13,,13,1,36,36,79,X,45,X,38,0.14,0.3,1.51,0.135,0.3,6.04
+|]
+
+          details <- runDB $ selectList [] [Asc PackingListDetailId]
+          liftIO $ map (packingListDetailContent .entityVal) details `shouldBe` [Map.fromList [("Red", 12), ("Black", 24)]]
+
+      describe "#insert" $ do
+        it "keeps previous details" $ do
+          savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
+T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
+CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
+|]
+          insertDetails ok200 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
+T-shirt,Red,24,23,,26,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
+|]
+          details <- runDB $ selectList [] [Asc PackingListDetailId]
+          liftIO $ length details `shouldBe` 12
+       
+        it "uses default order reference" $ do
+          savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
+Container C1,,,,,,,,,,,,,,,,,,,
+T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
+Container C2,,,,,,,,,,,,,,,,,,,
+CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
+|]
+          insertDetails ok200 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
+T-shirt,Red,24,23,,26,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
+|]
+          details <- runDB $ selectList [PackingListDetailReference ==. "Container C1"] []
+          liftIO $ length details `shouldBe` 8
+
+        it "uses row order reference" $ do
+          savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
+Container C1,,,,,,,,,,,,,,,,,,,
+T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
+Container C2,,,,,,,,,,,,,,,,,,,
+CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
+|]
+          insertDetails ok200 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
+Container C2,,,,,,,,,,,,,,,,,,,
+T-shirt,Red,24,23,,26,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
+|]
+          details <- runDB $ selectList [PackingListDetailReference ==. "Container C2"] []
+          liftIO $ length details `shouldBe` 8
+
+      it "deletes expected details" $ do
+          savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
+Container C1,,,,,,,,,,,,,,,,,,,
+T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
+Container C2,,,,,,,,,,,,,,,,,,,
+CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
+|]
+          deleteDetails ok200 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
+T-shirt,Red,24,23,,26,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
+|]
+          details <- runDB $ selectList [PackingListDetailReference ==. "Container C2"] []
+          liftIO $ length details `shouldBe` 4
+
 shouldGenerate content expectation =
   let result = contentToMarks content
-
   in (dropWhileEnd (=="") result) `shouldBe` expectation
-
 
 
 pureSpec = do
   describe "@pure #stickers from PL" $ do
     it "generates 12" $ do
-      [("BLK", 12)] `shouldGenerate` ["BLK", "⃝", "⃝"]
+      [("BLK", 12)] `shouldGenerate` ["BLK", "○", "○"]
     it "generates two lines without name duplication" $ do
-      [("BLK", 24)] `shouldGenerate` [ "BLK", "⃝", "⃝", "⃝"
-                                     , ""   , "⃝"
+      [("BLK", 24)] `shouldGenerate` [ "BLK", "○", "○", "○"
+                                     , ""   , "○"
                                      ]
     it "generates two lines with different names " $ do
-      [("BLK", 12), ("RED", 12)] `shouldGenerate` [ "BLK", "⃝", "⃝", ""
-                                                  , "RED", "⃝", "⃝"
+      [("BLK", 12), ("RED", 12)] `shouldGenerate` [ "BLK", "○", "○", ""
+                                                  , "RED", "○", "○"
                                                   ]
     it "generates colour in alphabetical order" $ do
-      [("RED", 12), ("BLK", 12)] `shouldGenerate` [ "BLK", "⃝", "⃝", ""
-                                                  , "RED", "⃝", "⃝"
+      [("RED", 12), ("BLK", 12)] `shouldGenerate` [ "BLK", "○", "○", ""
+                                                  , "RED", "○", "○"
                                                   ]
     it "more lines colour in alphabetical order" $ do
-      [("RED", 12), ("BLK", 6), ("NAY", 24)] `shouldGenerate` [ "BLK", "⃝",    "", ""
-                                                              , "NAY", "⃝", "⃝", "⃝"
-                                                              , ""   , "⃝", ""   , ""
-                                                              , "RED", "⃝", "⃝"
+      [("RED", 12), ("BLK", 6), ("NAY", 24)] `shouldGenerate` [ "BLK", "○",    "", ""
+                                                              , "NAY", "○", "○", "○"
+                                                              , ""   , "○", ""   , ""
+                                                              , "RED", "○", "○"
                                                               ]
     it "displays 1 properly" $ do
       [("BLK", 1)] `shouldGenerate` ["BLK", "∅"]

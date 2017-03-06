@@ -1,15 +1,14 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Handler.WH.PackingList
 ( getWHPackingListR
 , postWHPackingListR
+, postWHPackingListEditR
 , getWHPackingListViewR
-, getWHPackingListTextcartR
-, getWHPackingListStickersR
-, getWHPackingListStickerCsvR
-, getWHPackingListChalkR
-, getWHPackingListPlannerR
+, postWHPackingListEditDetailsR
 , contentToMarks
+, EditMode(..)
 -- , postWHPackingListViewR
 ) where
 
@@ -30,6 +29,7 @@ import Text.Printf(printf)
 import Data.Conduit.List (consume)
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
+data EditMode = Replace | Insert | Delete deriving (Eq, Read, Show, Enum)
 
 -- | Type of file
 data Format = PartialFirst deriving (Eq, Read, Show)
@@ -118,7 +118,7 @@ viewPLLists = do
     <th> Arriving
   $forall (Entity key pl) <- entities
     <tr>
-      <td> <a href="@{WarehouseR (WHPackingListViewR (unSqlBackendKey $ unPackingListKey key))}">
+      <td> <a href="@{WarehouseR (WHPackingListViewR (unSqlBackendKey $ unPackingListKey key) Nothing)}">
        ##{tshow $ unSqlBackendKey $ unPackingListKey key}
       <td> #{packingListInvoiceRef pl}
       <td> #{fromMaybe "" $ packingListVessel pl}
@@ -206,30 +206,81 @@ $maybe u <- uploader
                       (onSuccess mode)
                       (parsePackingList (orderRef param) bytes)
     
+updatePackingListDetails mode key cart = do
+  let bytes = encodeUtf8 . unTextarea $ cart
+      plKey = PackingListKey (SqlBackendKey key)
+      onSuccess mode sections = do
+        runDB $ case mode of
+          -- TODO create data type
+          Replace -> replacePLDetails plKey sections bytes
+          Insert -> insertPLDetails plKey sections
+          Delete -> deletePLDetails plKey sections
+        setSuccess "Packing list updated."
+          
+        viewPackingList Details key (return ())
+
+  -- we the first detail reference use if possible 
+  firstDetail <- runDB $ selectFirst [PackingListDetailPackingList ==. plKey]
+                              [Asc PackingListDetailId]
+                              
+  let orderRef = maybe "" (packingListDetailReference . entityVal) firstDetail
+
+
+  renderParsingResult (\msg pre -> do msg >>  viewPackingList EditDetails key pre)
+                      (onSuccess mode)
+                      (parsePackingList orderRef bytes)
+
+updatePackingList key param = do
+  let plKey = PackingListKey (SqlBackendKey key)
+      plUpdates = 
+                [ (PackingListInvoiceRef =. invoiceRef param)
+                , (PackingListContainer =. container param)
+                , (PackingListVessel =. vessel param)
+                , (PackingListDeparture =. departure param)
+                , (PackingListArriving =. arriving param)
+                ]
+      docUpdates = catMaybes
+                 [ (DocumentKeyComment =.) . unTextarea <$> comment param ]
+  runDB $ do
+    unless (null plUpdates) $ update plKey plUpdates
+    pl <- getJust plKey
+    let docKey = packingListDocumentKey pl
+    doc <- get docKey
+    unless (null docUpdates) $ update docKey docUpdates
+
+    setSuccess "Packing list updated successfully"
+
+  viewPackingList Details key (return ())
+
+  
+-- ** View
      
-data ViewMode = Details | Textcart | Stickers | StickerCsv | Chalk | Planner
-  deriving (Eq, Read, Show)
         
-getWHPackingListViewR :: Int64 -> Handler TypedContent
-getWHPackingListViewR = viewPackingList Details
+getWHPackingListViewR :: Int64 -> Maybe PLViewMode -> Handler TypedContent
+getWHPackingListViewR key mode = viewPackingList (fromMaybe Details mode) key (return ())
 
-getWHPackingListTextcartR :: Int64 -> Handler TypedContent
-getWHPackingListTextcartR = viewPackingList Textcart
+postWHPackingListEditDetailsR :: Int64 -> Handler TypedContent
+postWHPackingListEditDetailsR key = do
+  actionM <- lookupPostParam "action"
+  ((resp, view), encType)  <- runFormPost (editDetailsForm Nothing)
+  case resp of
+    FormMissing -> error "Form Missing"
+    FormFailure a -> sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
+    FormSuccess cart -> do
+      case actionM >>= readMay of
+        Nothing -> error "Action missing"
+        Just action -> updatePackingListDetails action key cart
 
-getWHPackingListStickersR :: Int64 -> Handler TypedContent
-getWHPackingListStickersR = viewPackingList Stickers
+postWHPackingListEditR :: Int64 -> Handler TypedContent
+postWHPackingListEditR key = do
+  ((resp, view), encType)  <- runFormPost (editForm Nothing Nothing)
+  case resp of
+    FormMissing -> error "Form Missing"
+    FormFailure a -> sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
+    FormSuccess param -> updatePackingList key param
 
-getWHPackingListStickerCsvR :: Int64 -> Handler TypedContent
-getWHPackingListStickerCsvR = viewPackingList StickerCsv
-
-getWHPackingListChalkR :: Int64 -> Handler TypedContent
-getWHPackingListChalkR = viewPackingList Chalk
-
-getWHPackingListPlannerR :: Int64 -> Handler TypedContent
-getWHPackingListPlannerR = viewPackingList Planner
-
-viewPackingList :: ViewMode -> Int64 -> Handler TypedContent
-viewPackingList mode key = do
+viewPackingList :: PLViewMode -> Int64 ->  Widget -> Handler TypedContent
+viewPackingList mode key pre = do
   let plKey = PackingListKey (SqlBackendKey key)
   (plM, docKeyM, entities) <- runDB $ do
       plM <- get plKey
@@ -268,24 +319,21 @@ viewPackingList mode key = do
 
           corridors :: [(Double, Double, Double)] -- TODO extract from config
           corridors = [(8, 1.9, 3 ), (5, 1.5, 3), (4, 1.2, 3)]
-          renderEntities =
-            case mode of
-                      Details -> renderDetails
-                      Textcart -> renderTextcart
-                      StickerCsv -> renderStickers today
-                      Chalk -> renderChalk corridors
-                      Planner -> renderPlanner
-          viewRoute Details = WHPackingListViewR
-          viewRoute Textcart = WHPackingListTextcartR
-          viewRoute Stickers = WHPackingListStickersR
-          viewRoute StickerCsv = WHPackingListStickerCsvR
-          viewRoute Chalk = WHPackingListChalkR
-          viewRoute Planner = WHPackingListPlannerR
-
 
       if mode == Stickers
          then generateStickers pl entities
-         else selectRep $ provideRep $ defaultLayout $ do
+         else do
+           entitiesWidget <-case mode of
+             EditDetails -> renderEditDetails Nothing key entities
+             Edit -> renderEdit key pl docKey
+             _ -> return . toWidget $ (case mode of
+                                 Details -> renderDetails
+                                 Textcart -> renderTextcart
+                                 StickerCsv -> renderStickers today
+                                 Chalk -> renderChalk corridors
+                                 Planner -> renderPlanner
+                           ) pl entities
+           selectRep $ provideRep $ defaultLayout $ do
               [whamlet|
           <div.panel class="panel-#{panelClass (packingListBoxesToDeliver_d pl)}">
             <div.panel-heading>
@@ -307,22 +355,27 @@ viewPackingList mode key = do
             <p>#{documentKeyComment docKey}
                 |]
               [whamlet|
+                      ^{pre}
           <ul.nav.nav-tabs>
-            $forall nav <-[Details,Textcart,Stickers, StickerCsv, Chalk, Planner]
+            $forall nav <-[Details, Edit, EditDetails, Textcart,Stickers, StickerCsv, Chalk, Planner]
               <li class="#{navClass nav}">
-                <a href="@{WarehouseR (viewRoute nav key) }">#{tshow nav}
-          ^{renderEntities pl entities}
+                <a href="@{WarehouseR (WHPackingListViewR key (Just nav)) }">#{tshow nav}
+          ^{entitiesWidget}
                 |]
     _ -> notFound
 
+
 renderDetails _ entities = entitiesToTable getDBName entities
   
-renderTextcart _ entities = [shamlet|
-$forall (Entity _ detail) <- entities
-  $forall (var, qty) <- content detail
-    <div> #{packingListDetailStyle detail}-#{var},#{qty}
+renderTextcart _ entities =
+  let skus = Map.toList $ Map.fromListWith (+) [ (packingListDetailStyle d <> "-" <> var, qty)
+                                  | (Entity _ d) <- entities
+                                  , (var, qty) <- Map.toList $ (packingListDetailContent d)
+                                  ]
+  in  [shamlet|
+$forall (sku, qty) <- skus
+  <div> #{sku},#{qty}
 |]
-  where content = Map.toList . packingListDetailContent
 
 renderStickers :: Day -> PackingList -> [Entity PackingListDetail] -> Html
 renderStickers today pl entities = 
@@ -445,8 +498,97 @@ $forall ((style, l, w, h),qty) <- Map.toList groups
     , #{h}
 |]
 
+editDetailsForm defCart  = renderBootstrap3 BootstrapBasicForm form
+  where form = areq textareaField "cart" (Textarea <$> defCart)
+
+detailsCart :: [Entity PackingListDetail] -> Text
+  -- The order reference is not part of the PL row
+  -- but is specified as a special row (order ref)
+  -- we need to generate those rows
+
   
+detailsCart details = let
+  header = (map (pack.fst) columnNames)
+  lines = concat . snd $ List.mapAccumL toLines "" details
+  toLines lastRef (Entity _ detail) =
+    let content = Map.toList (packingListDetailContent detail)
+        tqty = sum (map snd content)
+    -- in the case of many colours in the same boxes
+    -- we only want the last line to carry the box information
+    -- to do so, we just process the content in reverse order
+    -- and reverse the result
+        reference = packingListDetailReference detail
+        orderRow = if reference == lastRef
+                      then []
+                      else [take (List.length columnNames) (reference : repeat "")]
+                           
+    in (reference, orderRow ++ reverse [
+      [ packingListDetailStyle detail
+      , var
+      , tshow qty
+      , h $ tshow $ packingListDetailBoxNumber detail
+      , h $ tshow $ packingListDetailBoxNumber detail
+      , h $ tshow 1
+      , h $ tshow tqty
+      , h $ tshow tqty
+      , h $ tshow $ packingListDetailLength detail
+      , h $ tshow $ packingListDetailWidth detail
+      , h $ tshow $ packingListDetailHeight detail
+      , h $ tshow volume
+      , h $ tshow volume
+      , h $ tshow weight
+      , h $ tshow weight
+      ]
+
+    | ((var, qty), main) <- zip (reverse content) (True : repeat False)
+    , let h val = if main then val else ""
+          weight = packingListDetailWeight detail
+          volume = (product $ [packingListDetailLength
+                             ,packingListDetailWidth
+                             ,packingListDetailHeight
+                             ] <*> [detail]
+                   ) / 1000000
+    ])
+
+
+  in unlines (map (intercalate ",") (header:lines))
   
+
+renderEditDetails :: Maybe Text -> Int64 -> [Entity PackingListDetail] -> Handler Widget
+renderEditDetails defCart key details = do
+  let cart = defCart <|> Just (detailsCart details)
+  (form, encType) <- generateFormPost (editDetailsForm cart)
+  return [whamlet|
+<div>
+  <form #edit-details role=form method=post action=@{WarehouseR $ WHPackingListEditDetailsR key} enctype=#{encType}>
+    ^{form}
+    <div.form-inline>
+      $forall action <- [Replace,Insert,Delete]
+        <button type="submit" name="action" value=#{tshow action} class="btn btn-default">#{capitalize (show action)}
+|]
+  
+editForm pl doc = renderBootstrap3 BootstrapBasicForm form
+  where form = UploadParam
+            <$> pure ""
+            <*> (areq textField "invoice ref" (Just . packingListInvoiceRef =<< pl))
+            <*> (aopt textField "container" (Just . packingListContainer =<< pl))
+            <*> (aopt textField "vessel" (Just . packingListVessel =<< pl))
+            <*> (aopt dayField "departure" (Just . packingListDeparture =<< pl))
+            <*> (aopt dayField "arriving" (Just . packingListArriving =<< pl))
+            <*> (aopt textareaField "comment" (Just . Just . Textarea . documentKeyComment =<< doc))
+            <*> pure (Textarea "")
+
+renderEdit :: Int64  -> PackingList -> DocumentKey -> Handler Widget
+renderEdit key pl doc = do
+  (form, encType) <- generateFormPost (editForm (Just pl) (Just doc))
+  return [whamlet|
+<div>
+  <form #edit role=form method=post action=@{WarehouseR $ WHPackingListEditR key} enctype=#{encType}>
+    ^{form}
+    <button type="submit" name=action class="btn bt-defaut">Update
+|]
+
+
 -- | Generates a progress bar to track the delivery timing
 -- In order to normalize progress bars when displaying different packing list
 -- we need some "bounds"
@@ -675,7 +817,7 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
         let validGroups = concatMap (map validateGroup . snd) groups
         -- sequence validGroups <|&> const (InvalidData $ concatMap (either id (\(partials,main) -> transformRow main : map transformPartial partials )) validGroups)
         sequence validGroups <|&> const (InvalidData . concat $ lefts validGroups)
-        Right $  groups
+        Right $  map (map reverse) groups
         -- Right $  valids
 
         where validate :: PLRaw -> Either PLRaw PLValid
@@ -834,17 +976,20 @@ instance Renderable [PLRaw] where render = renderRows (const ("" :: String))
                               
   
 -- * Saving
+createDocumentKey key reference comment = do
+  userId <- lift requireAuthId
+  processedAt <- liftIO getCurrentTime
+  let documentKey = DocumentKey "packinglist" reference
+                                comment
+                                key userId processedAt
+  insert documentKey
+
+
 
 savePLFromRows :: Text -> UploadParam -> [(PLOrderRef, [PLBoxGroup])] -> Handler (PackingList, [PackingListDetail])
 savePLFromRows key param sections = do
-  userId <- requireAuthId
-  processedAt <- liftIO getCurrentTime
-  let documentKey = DocumentKey "packinglist" (invoiceRef param)
-                                (maybe "" unTextarea (comment param))
-                                key userId processedAt
-
   runDB $ do
-    docKey <- insert documentKey
+    docKey <- createDocumentKey key (invoiceRef param) (maybe "" unTextarea (comment param))
     let nOfCartons (_, groups) = sum (map (validValue . plNumberOfCarton . snd) groups)
         pl = createPLFromForm docKey (sum (map nOfCartons sections)) param
     pKey <- insert pl
@@ -872,6 +1017,7 @@ createPLFromForm docKey nOfBoxes =
   <*> departure
   <*> arriving
   
+createDetailsFromSection :: PackingListId -> (PLOrderRef, [PLBoxGroup]) -> [Text -> PackingListDetail]
 createDetailsFromSection pKey (orderRef, groups) = do
   let ref = validValue $ plStyle orderRef
   concatMap (createDetails pKey ref) groups
@@ -902,4 +1048,51 @@ createDetails pKey orderRef (partials, main') = do
      $ main
     )
    | n <- ns]
+
+updateDocumentKey plKey bytes  = do
+  let key = computeDocumentKey bytes
+
+  documentKey <- getBy (UniqueSK key)
+
+
+  pl <- getJust plKey
+  oldKey <- getJust (packingListDocumentKey pl)
+
+  let reference = packingListInvoiceRef pl
+      comment = documentKeyComment oldKey ++ "\nedited"
+
+  docKey <- case documentKey of
+    Nothing -> createDocumentKey key reference comment
+    Just k -> return $ entityKey k
+
+  update plKey [PackingListDocumentKey =. docKey ]
+
+replacePLDetails plKey sections cart = do
+  -- As we total discard the content of the previous document
+  -- There is no need to keep a link to the old document key.
+  -- Instead, we need to update it with the current cart.
+
+  updateDocumentKey plKey cart
+  deleteWhere [PackingListDetailPackingList ==. plKey]
+  insertPLDetails plKey sections
+
+insertPLDetails plKey sections = do
+  pl <- getJust plKey
+  barcodes <- generateBarcodes "DL" (packingListArriving pl) (packingListBoxesToDeliver_d pl)
+
+  let detailFns = concatMap (createDetailsFromSection plKey) sections
+      details = zipWith ($) detailFns barcodes
+
+  insertMany_ details
+
+
   
+deletePLDetails plKey sections = do
+  let detailFns = concatMap (createDetailsFromSection plKey) sections
+      details = zipWith ($) detailFns (repeat "<dummy>")
+
+  forM_ details (deleteBy . ( UniquePLD plKey <$> packingListDetailReference
+                                              <*> packingListDetailStyle
+                                              <*> packingListDetailBoxNumber
+                          )
+                )

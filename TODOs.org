@@ -1,4 +1,24 @@
-* Todo<2017-01-08 Sun> 
+* TODO <2017-03-04 Sat> 
+** Edit packing list [7/9]
+- [X] add message
+ to tell the user the PL have been edited
+- [X] use PL reference as first order ref
+- [X] implement delete details
+- [X] write tests for "edit details" features
+- [X] refactor
+  - [X] remove all view routes use parameter instead
+    - [X] where to put PL types used by routes ?
+- [X] display parsing error nicely
+- [ ] +Allow empty PL+
+  - [ ] what to do with the document key ? (Can't be null)
+   Doesn't work. Using the same document twice generate an error.
+- [-] edit PL info (not details)
+  - [ ] write tests
+  - [X] implement
+- [X] update document key table ?
+  - [X] easy when replacing
+
+* TODO <2017-01-08 Sun> 
 - [X] refactor stocktake to validate and save on the same workflow
 - [X] check stocktake dates in stockadj page
 - [ ] filter stockadj by 
@@ -15,10 +35,13 @@ Maybe it should.
   - [ ] 
 - [ ] link stock_id in stock adj to stocktake 
 * PL
-- [ ] TODO check group are valid
+- [ ] TODO check groups are valid
+- [ ] deliver boxes
+  - [ ] mark them as deliver
+  - [ ] generate automatic stocktake
 * Features
 ** TODO Stock Adjustment [0/1]
-*** TODO Generate stock adjustment from stock take admeendet [0/2]
+*** TODO Generate stock adjustment from stock take amendment [0/2]
 - [ ] Generate the diff
 between the stock adj saved in db and the one which 
 should be generated from the actual stocktake.
