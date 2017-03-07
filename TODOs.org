@@ -9,6 +9,7 @@
   - [X] remove all view routes use parameter instead
     - [X] where to put PL types used by routes ?
 - [X] display parsing error nicely
+- [ ] use user textcart to fill form on error
 - [ ] +Allow empty PL+
   - [ ] what to do with the document key ? (Can't be null)
    Doesn't work. Using the same document twice generate an error.

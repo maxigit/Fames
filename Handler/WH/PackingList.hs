@@ -7,6 +7,7 @@ module Handler.WH.PackingList
 , postWHPackingListEditR
 , getWHPackingListViewR
 , postWHPackingListEditDetailsR
+, postWHPackingListDeliverR
 , contentToMarks
 , EditMode(..)
 -- , postWHPackingListViewR
@@ -27,6 +28,7 @@ import WH.Barcode
 import Handler.WH.Legacy.Box
 import Text.Printf(printf)
 import Data.Conduit.List (consume)
+import Data.Text(splitOn)
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
 data EditMode = Replace | Insert | Delete deriving (Eq, Read, Show, Enum)
@@ -260,6 +262,32 @@ updatePackingList key param = do
   viewPackingList Details key (return ())
 
   
+-- | Marks all details in the cart as delivered.
+-- unmarks the ones which are not.
+deliverPackingList :: Int64 -> Text -> Handler TypedContent
+deliverPackingList key cart = do
+  let plKey =  PackingListKey (SqlBackendKey key)
+      onSuccess details = do
+          runDB $ do
+            -- first, undeliver everything, so that
+            -- the one not present in the cart ar undeliver
+            updateWhere [ PackingListDetailPackingList ==. plKey
+                        , PackingListDetailDelivered ==. True
+                        ]
+                        [ PackingListDetailDelivered =. False]
+            forM_ details $ \key -> update key [PackingListDetailDelivered =. True]
+            updateDenorm plKey
+            setSuccess "Packing List Delivered"
+          viewPackingList Details key (return ())
+
+  renderParsingResult (\msg pre -> do msg >> viewPackingList Details key pre)
+                      onSuccess
+                      (parseDeliverList cart)
+              
+
+                
+    
+  
 -- ** View
      
         
@@ -285,6 +313,14 @@ postWHPackingListEditR key = do
     FormMissing -> error "Form Missing"
     FormFailure a -> sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
     FormSuccess param -> updatePackingList key param
+
+postWHPackingListDeliverR :: Int64 -> Handler TypedContent
+postWHPackingListDeliverR key = do
+  ((resp, view), encType) <- runFormPost (deliverDetailsForm Nothing)
+  case resp of
+    FormMissing -> error "Form Missing"
+    FormFailure a -> sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
+    FormSuccess param -> deliverPackingList key (unTextarea param)
 
 viewPackingList :: PLViewMode -> Int64 ->  Widget -> Handler TypedContent
 viewPackingList mode key pre = do
@@ -333,6 +369,7 @@ viewPackingList mode key pre = do
            entitiesWidget <-case mode of
              EditDetails -> renderEditDetails Nothing key entities
              Edit -> renderEdit key pl docKey
+             Deliver -> renderDeliver Nothing key entities
              _ -> return . toWidget $ (case mode of
                                  Details -> renderDetails
                                  Textcart -> renderTextcart
@@ -364,13 +401,37 @@ viewPackingList mode key pre = do
               [whamlet|
                       ^{pre}
           <ul.nav.nav-tabs>
-            $forall nav <-[Details, Edit, EditDetails, Textcart,Stickers, StickerCsv, Chalk, Planner]
+            $forall nav <-[Details, Edit, EditDetails, Textcart,Stickers, StickerCsv, Chalk, Planner, Deliver]
               <li class="#{navClass nav}">
                 <a href="@{WarehouseR (WHPackingListViewR key (Just nav)) }">#{tshow nav}
           ^{entitiesWidget}
                 |]
     _ -> notFound
 
+deliverDetailsForm = editDetailsForm
+deliverCart :: [Entity PackingListDetail] -> Text
+deliverCart details = let
+  lines = map toLine details
+  toLine (Entity key detail) = [ tshow . unSqlBackendKey . unPackingListDetailKey $  key
+                               , packingListDetailStyle detail
+                               , intercalate " " $ [ var <> "x" <> tshow qty
+                                                   | (var, qty) <- Map.toList $ packingListDetailContent detail 
+                                                   ]
+                               ]
+  in unlines (map (intercalate ",") lines)
+  
+renderDeliver :: Maybe Text -> Int64 -> [Entity PackingListDetail] -> Handler Widget
+renderDeliver defCart key details = do
+  let cart = defCart <|> Just ( deliverCart
+                              $ filter (not . packingListDetailDelivered . entityVal) details
+                              )
+  (form, encType) <- generateFormPost (deliverDetailsForm cart)
+  return [whamlet|
+<div>
+  <form #edit-details role=form method=post action=@{WarehouseR $ WHPackingListDeliverR key} enctype=#{encType}>
+    ^{form}
+    <button type="submit" name="action" value="deliver" class="btn btn-default">Deliver
+|]
 
 renderDetails _ entities = entitiesToTable getDBName entities
   
@@ -921,6 +982,29 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
 
                      
                         
+-- ** Parse delivery cart
+
+-- | Wrap result of parseDeliveryList in a newtype to be renderable
+
+newtype ParseDeliveryError = ParseDeliveryError (Either Text Text)
+parseDeliverList :: Text -> ParsingResult ParseDeliveryError [PackingListDetailId]
+parseDeliverList cart = let
+  parsed = map parseLine (lines cart)
+  parseLine line = let
+    fields = splitOn "," line
+    in case fields of
+      (keyT:_) | Just key <- readMay keyT -> Right (key, line)
+      _ -> Left line
+
+  in case sequence parsed of
+      Right keys ->  ParsingCorrect (map (PackingListDetailKey . fst) keys)
+      Left _ -> InvalidFormat $ map (ParseDeliveryError . map snd) parsed
+
+
+
+    
+  
+  
 
 
    
@@ -985,6 +1069,17 @@ instance Renderable PLRaw where render = renderRow
 instance Renderable [PLRaw] where render = renderRows (const ("" :: String))
                               
   
+instance Renderable [ParseDeliveryError] where
+  render lines= [whamlet|
+<ul>
+  $forall (ParseDeliveryError line) <- lines
+    $case line
+      $of Left line'
+        <li.text-danger>#{line'}
+      $of Right line'
+        <li>#{line'}
+|]
+
 -- * Saving
 createDocumentKey key reference comment = do
   userId <- lift requireAuthId

@@ -6,7 +6,15 @@ import Web.PathPieces
 -- * Warehouse
 -- ** PackingList
 -- | Different way of viewing a packing list.
-data PLViewMode = Details | Textcart | Stickers | StickerCsv | Chalk | Planner | EditDetails | Edit
+data PLViewMode = Details 
+                | Textcart 
+                | Stickers 
+                | StickerCsv 
+                | Chalk 
+                | Planner 
+                | EditDetails 
+                | Edit
+                | Deliver
   deriving (Eq, Read, Show, Enum, Bounded)
 
 instance PathPiece PLViewMode where

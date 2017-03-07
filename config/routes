@@ -26,5 +26,6 @@
   !/packinglist/#Int64/#Maybe-PLViewMode WHPackingListViewR GET !pl
   !/packinglist/#Int64 WHPackingListEditR POST !pl
   !/packinglist/#Int64/edit_details WHPackingListEditDetailsR POST !pl
+  !/packinglist/#Int64/deliver WHPackingListDeliverR POST !pl
 
 /administrator AdministratorR GET
