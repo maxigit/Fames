@@ -7,7 +7,7 @@ import Text.Shakespeare.Text (st)
 import Yesod.Auth (requireAuthId)
 import Database.Persist.Sql (toSqlKey)
 import Network.HTTP.Types.Status
-import Data.List (dropWhileEnd)
+import Data.List (dropWhileEnd, (!!))
 import Handler.WH.PackingList
 import qualified Data.Map as Map
 
@@ -63,7 +63,29 @@ updateDetails action status cart = do
 replaceDetails = updateDetails Replace
 insertDetails = updateDetails Insert
 deleteDetails = updateDetails Delete
+
   
+deliver status indexes = do
+  allDetails <- runDB $ selectList [PackingListDetailDelivered ==. False] [Asc PackingListDetailId]
+  let details = map ((allDetails!!).(pred)) (indexes :: [Int])
+      cart = deliverCart details
+
+  traceShowM cart
+
+  (Just (Entity key _)) <- runDB $ selectFirst [] [Desc PackingListId]
+  let [PersistInt64 plId] =  keyToValues key
+  logAsAdmin 
+  get (WarehouseR $ WHPackingListViewR plId (Just Deliver))
+  statusIs 200
+
+  let route = WarehouseR $ WHPackingListDeliverR plId
+  request $ do
+    setMethod "POST"
+    setUrl route
+    addToken_ "form#deliver-details"
+    byLabel "cart" cart
+  statusIs (fromEnum status)
+
 appSpec = withAppWipe BypassAuth $ do
   describe "upload packing list" $ do
     describe "#valid" $ do
@@ -258,7 +280,56 @@ T-shirt,Red,24,23,,26,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
 |]
           details <- runDB $ selectList [PackingListDetailReference ==. "Container C2"] []
           liftIO $ length details `shouldBe` 4
+  describe "@deliver #deliver" $ do
+    it "delivers what's on the cart" $ do
+      savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
+T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
+CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
+|]
+      deliver ok200 [1..8]
+      delivereds <- runDB $ selectList [PackingListDetailDelivered ==. True] []
+      liftIO $ length delivereds `shouldBe` 8
 
+    it "undelivers what's not on the cart" $ do
+      savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
+T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
+CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
+|]
+      deliver ok200 [1..8]
+      delivereds <- runDB $ selectList [PackingListDetailDelivered ==. False] []
+      liftIO $ length delivereds `shouldBe` 0
+      deliver ok200 [2..8]
+      delivereds' <- runDB $ selectList [PackingListDetailDelivered ==. False] []
+      liftIO $ length delivereds' `shouldBe` 1
+
+    it "creates the correstponding boxtake" $ do
+      savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
+T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
+CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
+|]
+      deliver ok200 [1..8]
+      boxtakes <- runDB $ selectList [] [Asc BoxtakeId]
+      liftIO $ length boxtakes `shouldBe` 8
+  
+    it "removes the correstponding boxtake" $ do
+      savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
+T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
+CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
+|]
+      deliver ok200 [1..8]
+      deliver ok200 [2..8]
+      boxtakes <- runDB $ selectList [] [Asc BoxtakeId]
+      liftIO $ length boxtakes `shouldBe` 7
+  
+    it "update denorm field accordingly" $ do
+      savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
+T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
+CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
+|]
+      deliver ok200 [2..8]
+      Just (Entity _ pl) <- runDB $ selectFirst [] [Asc PackingListId]
+      liftIO $ packingListBoxesToDeliver_d pl `shouldBe` 0
+  
 shouldGenerate content expectation =
   let result = contentToMarks content
   in (dropWhileEnd (=="") result) `shouldBe` expectation

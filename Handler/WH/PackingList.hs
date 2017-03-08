@@ -9,6 +9,7 @@ module Handler.WH.PackingList
 , postWHPackingListEditDetailsR
 , postWHPackingListDeliverR
 , contentToMarks
+, deliverCart
 , EditMode(..)
 -- , postWHPackingListViewR
 ) where
@@ -428,7 +429,7 @@ renderDeliver defCart key details = do
   (form, encType) <- generateFormPost (deliverDetailsForm cart)
   return [whamlet|
 <div>
-  <form #edit-details role=form method=post action=@{WarehouseR $ WHPackingListDeliverR key} enctype=#{encType}>
+  <form #deliver-details role=form method=post action=@{WarehouseR $ WHPackingListDeliverR key} enctype=#{encType}>
     ^{form}
     <button type="submit" name="action" value="deliver" class="btn btn-default">Deliver
 |]
