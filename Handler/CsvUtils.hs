@@ -1,4 +1,5 @@
 {-# LANGUAGE PatternSynonyms, LiberalTypeSynonyms, DeriveFunctor, DataKinds, PolyKinds #-}
+{-# LANGUAGE StandaloneDeriving #-} 
 -- | Miscellaneous functions and types to parse and render CSV.
 module Handler.CsvUtils where
 
@@ -20,7 +21,7 @@ data InvalidSpreadsheet = InvalidSpreadsheet
   , missingColumns :: [Text]
   , columnIndexes :: [Int] -- ^ index of present columns
   , sheet :: [[ Either Csv.Field Text]]  -- ^ origin file
-  } deriving Show
+  } deriving (Eq, Read, Show)
 
 data InvalidField = ParsingError { invFieldType :: Text
                                  , invFieldValue :: Text
@@ -42,6 +43,9 @@ data ParsingResult row result
   | InvalidFormat [row]-- some cells can't be parsed
   | InvalidData [row]-- each row is well formatted but invalid as a whole
   | ParsingCorrect result -- Ok
+
+deriving instance (Eq a, Eq b) => Eq (ParsingResult a b)
+deriving instance (Show a, Show b) => Show (ParsingResult a b)
 
 type family NotEq a b where
   NotEq a a = 'True

@@ -9,7 +9,9 @@ module Handler.WH.PackingList
 , postWHPackingListEditDetailsR
 , postWHPackingListDeliverR
 , contentToMarks
+-- For test
 , deliverCart
+, parseDeliverList
 , EditMode(..)
 -- , postWHPackingListViewR
 ) where
@@ -268,7 +270,7 @@ updatePackingList key param = do
 deliverPackingList :: Int64 -> Text -> Handler TypedContent
 deliverPackingList key cart = do
   let plKey =  PackingListKey (SqlBackendKey key)
-      onSuccess details = do
+      onSuccess (delivers, undelivers) = do
           runDB $ do
             -- first, undeliver everything, so that
             -- the one not present in the cart ar undeliver
@@ -276,7 +278,8 @@ deliverPackingList key cart = do
                         , PackingListDetailDelivered ==. True
                         ]
                         [ PackingListDetailDelivered =. False]
-            forM_ details $ \key -> update key [PackingListDetailDelivered =. True]
+            forM_ delivers $ \key -> update key [PackingListDetailDelivered =. True]
+            forM_ undelivers $ \key -> update key [PackingListDetailDelivered =. False]
             updateDenorm plKey
             setSuccess "Packing List Delivered"
           viewPackingList Details key (return ())
@@ -987,8 +990,8 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
 
 -- | Wrap result of parseDeliveryList in a newtype to be renderable
 
-newtype ParseDeliveryError = ParseDeliveryError (Either Text Text)
-parseDeliverList :: Text -> ParsingResult ParseDeliveryError [PackingListDetailId]
+newtype ParseDeliveryError = ParseDeliveryError (Either Text Text) deriving (Eq, Show)
+parseDeliverList :: Text -> ParsingResult ParseDeliveryError ([PackingListDetailId], [PackingListDetailId])
 parseDeliverList cart = let
   parsed = map parseLine (lines cart)
   parseLine line = let
@@ -998,7 +1001,7 @@ parseDeliverList cart = let
       _ -> Left line
 
   in case sequence parsed of
-      Right keys ->  ParsingCorrect (map (PackingListDetailKey . fst) keys)
+      Right keys ->  ParsingCorrect ((map (PackingListDetailKey . SqlBackendKey . fst) keys), [])
       Left _ -> InvalidFormat $ map (ParseDeliveryError . map snd) parsed
 
 
