@@ -272,12 +272,6 @@ deliverPackingList key cart = do
   let plKey =  PackingListKey (SqlBackendKey key)
       onSuccess (delivers, undelivers) = do
           runDB $ do
-            -- first, undeliver everything, so that
-            -- the one not present in the cart ar undeliver
-            updateWhere [ PackingListDetailPackingList ==. plKey
-                        , PackingListDetailDelivered ==. True
-                        ]
-                        [ PackingListDetailDelivered =. False]
             forM_ delivers $ \key -> update key [PackingListDetailDelivered =. True]
             forM_ undelivers $ \key -> update key [PackingListDetailDelivered =. False]
             updateDenorm plKey
@@ -993,15 +987,20 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
 newtype ParseDeliveryError = ParseDeliveryError (Either Text Text) deriving (Eq, Show)
 parseDeliverList :: Text -> ParsingResult ParseDeliveryError ([PackingListDetailId], [PackingListDetailId])
 parseDeliverList cart = let
-  parsed = map parseLine (lines cart)
+  parsed = map parseLine (filter (not . isPrefixOf "--") (lines cart))
   parseLine line = let
     fields = splitOn "," line
     in case fields of
-      (keyT:_) | Just key <- readMay keyT -> Right (key, line)
+      (keyT:_) | Just key <- readMay keyT -> if key > 0  then Right (Right key, line)
+                                                         else Right (Left (-key), line)
+                               
       _ -> Left line
+  toKeys = map (PackingListDetailKey . SqlBackendKey)
 
-  in case sequence parsed of
-      Right keys ->  ParsingCorrect ((map (PackingListDetailKey . SqlBackendKey . fst) keys), [])
+  in case sequence $ traceShow ("PARSE", cart, parsed) parsed of
+      Right keys -> let ks = map fst keys
+                    in ParsingCorrect (toKeys $ rights ks, toKeys $ lefts ks)
+                   
       Left _ -> InvalidFormat $ map (ParseDeliveryError . map snd) parsed
 
 

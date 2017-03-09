@@ -282,13 +282,12 @@ T-shirt,Red,24,23,,26,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
           liftIO $ length details `shouldBe` 4
 
   describe "@deliver #deliver" $ do
-    it "delivers what's on the cart" $ do
+    it "@fail delivers what's on the cart" $ do
       savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
 T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
 CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
 |]
-      deliver ok200 "1,T-shirt\n\
-                    \2,T-shirt\n"
+      deliver ok200 "1,T-shirt\n2,T-shirt"
       delivereds <- runDB $ selectList [PackingListDetailDelivered ==. True] []
       liftIO $ length delivereds `shouldBe` 2
 
@@ -297,22 +296,20 @@ CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
 T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
 CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
 |]
-      deliver ok200 "1,T-shirt\n\
-                    \2,T-shirt\n"
-      delivereds <- runDB $ selectList [PackingListDetailDelivered ==. False] []
+      deliver ok200 "1,T-shirt\n2,T-shirt\n"
+      delivereds <- runDB $ selectList [PackingListDetailDelivered ==. True] []
       liftIO $ length delivereds `shouldBe` 2
 
       deliver ok200 "-1,T-shirt\n"
-      delivereds' <- runDB $ selectList [PackingListDetailDelivered ==. False] []
-      liftIO $ length delivereds' `shouldBe` 1
+      undelivereds <- runDB $ selectList [PackingListDetailDelivered ==. False] []
+      liftIO $ length undelivereds `shouldBe` 7
 
     it "creates the correstponding boxtake" $ do
       savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
 T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
 CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
 |]
-      deliver ok200 "1,T-shirt\n\
-                    \2,T-shirt\n"
+      deliver ok200 "1,T-shirt\n2,T-shirt\n"
       boxtakes <- runDB $ selectList [] [Asc BoxtakeId]
       liftIO $ length boxtakes `shouldBe` 2
   
@@ -321,8 +318,7 @@ CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
 T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
 CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
 |]
-      deliver ok200 "1,T-shirt\n\
-                    \2,T-shirt\n"
+      deliver ok200 "1,T-shirt\n\2,T-shirt\n"
       deliver ok200 "-1,T-shirt\n"
       boxtakes <- runDB $ selectList [] [Asc BoxtakeId]
       liftIO $ length boxtakes `shouldBe` 1
@@ -332,8 +328,7 @@ CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
 T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
 CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
 |]
-      deliver ok200 "1,T-shirt\n\
-                    \2,T-shirt\n"
+      deliver ok200 "1,T-shirt\n2,T-shirt\n"
       Just (Entity _ pl) <- runDB $ selectFirst [] [Asc PackingListId]
       liftIO $ packingListBoxesToDeliver_d pl `shouldBe` 6
   
@@ -366,7 +361,7 @@ pureSpec = do
                                                               ]
     it "displays 1 properly" $ do
       [("BLK", 1)] `shouldGenerate` ["BLK", "∅"]
-  describe "@pure parses deliver cart" $ do
+  describe "@pure @deliver parses deliver cart" $ do
     it "parses ids to deliver" $ do
       let cart = "1,comment\n"
           result = parseDeliverList cart
