@@ -267,22 +267,49 @@ updatePackingList key param = do
 
 -- | Marks all details in the cart as delivered.
 -- unmarks the ones which are not.
-deliverPackingList :: Int64 -> Text -> Handler TypedContent
-deliverPackingList key cart = do
+deliverPackingList :: Int64 -> DeliveryParam -> Handler TypedContent
+deliverPackingList key param = do
   let plKey =  PackingListKey (SqlBackendKey key)
       onSuccess (delivers, undelivers) = do
           runDB $ do
+            -- prefill information
+            (pl) <- getJust plKey
+            let docKey = packingListDocumentKey pl
+            -- deliver
             forM_ delivers $ \key -> update key [PackingListDetailDelivered =. True]
+            -- create associated boxtakes
+            details <- selectList [PackingListDetailId <-. delivers] []
+            let boxtakes = map (detailToBoxtake param docKey . entityVal) details
+            insertMany_ boxtakes
+            -- undeliver
             forM_ undelivers $ \key -> update key [PackingListDetailDelivered =. False]
+            undetails <- selectList [PackingListDetailId <-. undelivers] []
+            let unbarcodes = map (packingListDetailBarcode . entityVal) undetails
+            mapM_ (deleteBy <$> UniqueBB) unbarcodes
+
             updateDenorm plKey
             setSuccess "Packing List Delivered"
           viewPackingList Details key (return ())
 
   renderParsingResult (\msg pre -> do msg >> viewPackingList Details key pre)
                       onSuccess
-                      (parseDeliverList cart)
+                      (parseDeliverList (param))
 
 
+detailToBoxtake :: DeliveryParam -> DocumentKeyId -> PackingListDetail -> Boxtake
+detailToBoxtake param docKey detail = Boxtake
+  (Just $ packingListDetailStyle detail)
+  (packingListDetailReference detail)
+  (packingListDetailLength detail)
+  (packingListDetailWidth detail)
+  (packingListDetailHeight detail)
+  (packingListDetailBarcode detail)
+  (dpLocation param)
+  (dpDate param)
+  True
+  (dpOperator param)
+  docKey
+  
 
 
 
@@ -318,7 +345,7 @@ postWHPackingListDeliverR key = do
   case resp of
     FormMissing -> error "Form Missing"
     FormFailure a -> sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
-    FormSuccess param -> deliverPackingList key (unTextarea param)
+    FormSuccess param -> deliverPackingList key param
 
 viewPackingList :: PLViewMode -> Int64 ->  Widget -> Handler TypedContent
 viewPackingList mode key pre = do
@@ -406,11 +433,30 @@ viewPackingList mode key pre = do
                 |]
     _ -> notFound
 
-deliverDetailsForm = editDetailsForm
+data DeliveryParam = DeliveryParam
+  { dpCart :: !Text
+  , dpOperator :: !OperatorId
+  , dpDate :: !Day
+  , dpLocation :: !Text
+  }
+
+deliverDetailsForm defParam = renderBootstrap3 BootstrapBasicForm form
+  where form = DeliveryParam
+                <$> unTextarea <$> (areq textareaField "cart" ((Textarea . dpCart) <$> defParam))
+                <*> areq (selectField operators)  "operator" (dpOperator <$> defParam)
+                <*> areq dayField "date" (dpDate <$> defParam)
+                <*> areq textField "location" (dpLocation <$> defParam)
+        operators = optionsPersistKey [] [Asc OperatorNickname] operatorNickname
+
 deliverCart :: [Entity PackingListDetail] -> Text
 deliverCart details = let
   lines = map toLine details
-  toLine (Entity key detail) = [ tshow . unSqlBackendKey . unPackingListDetailKey $  key
+  prefix :: PackingListDetail -> Text
+  prefix d = if packingListDetailDelivered d
+             then "-- -" -- '--' :comment, '-' : ready to undeliver
+             else ""
+
+  toLine (Entity key detail) = [ prefix detail <> (tshow . unSqlBackendKey . unPackingListDetailKey $  key)
                                , packingListDetailStyle detail
                                , intercalate " " $ [ var <> "x" <> tshow qty
                                                    | (var, qty) <- Map.toList $ packingListDetailContent detail 
@@ -420,10 +466,19 @@ deliverCart details = let
 
 renderDeliver :: Maybe Text -> Int64 -> [Entity PackingListDetail] -> Handler Widget
 renderDeliver defCart key details = do
-  let cart = defCart <|> Just ( deliverCart
-                              $ filter (not . packingListDetailDelivered . entityVal) details
-                              )
-  (form, encType) <- generateFormPost (deliverDetailsForm cart)
+  today <- utctDay <$> lift getCurrentTime
+  location <- appFADefaultLocation . appSettings <$> getYesod
+  operator <- runDB $ selectKeysList [] [Asc OperatorId, LimitTo 1]
+  let opId = case operator of
+                [] -> do
+                    error "The operator table is empty. Please contact your administrator."
+                [opId] -> opId
+    
+  let cart = fromMaybe (deliverCart details) defCart
+      param = DeliveryParam cart opId today location
+
+     
+  (form, encType) <- generateFormPost (deliverDetailsForm (Just param))
   return [whamlet|
 <div>
   <form #deliver-details role=form method=post action=@{WarehouseR $ WHPackingListDeliverR key} enctype=#{encType}>
@@ -985,9 +1040,9 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
 -- | Wrap result of parseDeliveryList in a newtype to be renderable
 
 newtype ParseDeliveryError = ParseDeliveryError (Either Text Text) deriving (Eq, Show)
-parseDeliverList :: Text -> ParsingResult ParseDeliveryError ([PackingListDetailId], [PackingListDetailId])
-parseDeliverList cart = let
-  parsed = map parseLine (filter (not . isPrefixOf "--") (lines cart))
+parseDeliverList :: DeliveryParam -> ParsingResult ParseDeliveryError ([PackingListDetailId], [PackingListDetailId])
+parseDeliverList param = let
+  parsed = map parseLine (filter (not . isPrefixOf "--") (lines (dpCart param)))
   parseLine line = let
     fields = splitOn "," line
     in case fields of
@@ -997,7 +1052,7 @@ parseDeliverList cart = let
       _ -> Left line
   toKeys = map (PackingListDetailKey . SqlBackendKey)
 
-  in case sequence $ traceShow ("PARSE", cart, parsed) parsed of
+  in case sequence parsed of
       Right keys -> let ks = map fst keys
                     in ParsingCorrect (toKeys $ rights ks, toKeys $ lefts ks)
 

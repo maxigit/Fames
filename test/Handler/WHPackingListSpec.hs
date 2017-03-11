@@ -65,18 +65,16 @@ replaceDetails = updateDetails Replace
 insertDetails = updateDetails Insert
 deleteDetails = updateDetails Delete
 
-deliver status cart = do
-  -- allDetails <- runDB $ selectList [PackingListDetailDelivered ==. False] [Asc PackingListDetailId]
-  -- let details = map ((allDetails!!).(pred)) (indexes :: [Int])
-  --     cart = deliverCart details
-
-  traceShowM cart
-
+viewDeliverTab status = do
   (Just (Entity key _)) <- runDB $ selectFirst [] [Desc PackingListId]
   let [PersistInt64 plId] =  keyToValues key
   logAsAdmin 
   get (WarehouseR $ WHPackingListViewR plId (Just Deliver))
-  statusIs 200
+  statusIs status
+  return plId
+
+deliver status cart = do
+  plId <- viewDeliverTab 200
 
   let route = WarehouseR $ WHPackingListDeliverR plId
   request $ do
@@ -282,7 +280,7 @@ T-shirt,Red,24,23,,26,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
           liftIO $ length details `shouldBe` 4
 
   describe "@deliver #deliver" $ do
-    it "@fail delivers what's on the cart" $ do
+    it "delivers what's on the cart" $ do
       savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
 T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
 CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
@@ -331,6 +329,23 @@ CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
       deliver ok200 "1,T-shirt\n2,T-shirt\n"
       Just (Entity _ pl) <- runDB $ selectFirst [] [Asc PackingListId]
       liftIO $ packingListBoxesToDeliver_d pl `shouldBe` 6
+    describe "#prefilled cart" $ do
+      it "contains all undeliverd items" $ do
+        savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
+T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
+CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
+|]
+        viewDeliverTab 200
+        htmlAllContain "#deliver-details" "1,T-shirt"
+
+      it "contains delevired items but commented" $ do
+        savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
+T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
+CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
+|]
+        deliver ok200 "1,T-shirt\n2,T-shirt\n"
+        viewDeliverTab 200
+        htmlAllContain "#deliver-details" "-- -1,T-shirt"
   
 shouldGenerate content expectation =
   let result = contentToMarks content
