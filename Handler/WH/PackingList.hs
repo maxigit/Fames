@@ -293,13 +293,13 @@ deliverPackingList key param = do
 
   renderParsingResult (\msg pre -> do msg >> viewPackingList Details key pre)
                       onSuccess
-                      (parseDeliverList (param))
+                      (parseDeliverList (dpCart param))
 
 
 detailToBoxtake :: DeliveryParam -> DocumentKeyId -> PackingListDetail -> Boxtake
-detailToBoxtake param docKey detail = Boxtake
+detailToBoxtake param docKey detail = traceShowId $ Boxtake
   (Just $ packingListDetailStyle detail)
-  (packingListDetailReference detail)
+  reference
   (packingListDetailLength detail)
   (packingListDetailWidth detail)
   (packingListDetailHeight detail)
@@ -309,6 +309,11 @@ detailToBoxtake param docKey detail = Boxtake
   True
   (dpOperator param)
   docKey
+  where reference =  intercalate "-" ([ packingListDetailReference
+                     , packingListDetailStyle
+                     , tshow . packingListDetailBoxNumber
+                     ] <*> [detail]
+                                     )
   
 
 
@@ -446,7 +451,7 @@ deliverDetailsForm defParam = renderBootstrap3 BootstrapBasicForm form
                 <*> areq (selectField operators)  "operator" (dpOperator <$> defParam)
                 <*> areq dayField "date" (dpDate <$> defParam)
                 <*> areq textField "location" (dpLocation <$> defParam)
-        operators = optionsPersistKey [] [Asc OperatorNickname] operatorNickname
+        operators = optionsPersistKey [OperatorActive ==. True] [Asc OperatorNickname] operatorNickname
 
 deliverCart :: [Entity PackingListDetail] -> Text
 deliverCart details = let
@@ -1040,9 +1045,9 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
 -- | Wrap result of parseDeliveryList in a newtype to be renderable
 
 newtype ParseDeliveryError = ParseDeliveryError (Either Text Text) deriving (Eq, Show)
-parseDeliverList :: DeliveryParam -> ParsingResult ParseDeliveryError ([PackingListDetailId], [PackingListDetailId])
-parseDeliverList param = let
-  parsed = map parseLine (filter (not . isPrefixOf "--") (lines (dpCart param)))
+parseDeliverList :: Text -> ParsingResult ParseDeliveryError ([PackingListDetailId], [PackingListDetailId])
+parseDeliverList cart = let
+  parsed = map parseLine (filter (not . isPrefixOf "--") (lines cart))
   parseLine line = let
     fields = splitOn "," line
     in case fields of

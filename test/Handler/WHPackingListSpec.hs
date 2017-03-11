@@ -66,6 +66,11 @@ insertDetails = updateDetails Insert
 deleteDetails = updateDetails Delete
 
 viewDeliverTab status = do
+  -- create an operator if needed
+  oCount <- runDB $ count [OperatorActive ==. True]
+  when ( oCount == 0 ) $ do
+       runDB $ insertUnique $ Operator "John" "Smith" "Jack" True
+       return ()
   (Just (Entity key _)) <- runDB $ selectFirst [] [Desc PackingListId]
   let [PersistInt64 plId] =  keyToValues key
   logAsAdmin 
@@ -82,6 +87,10 @@ deliver status cart = do
     setUrl route
     addToken_ "form#deliver-details"
     byLabel "cart" cart
+    byLabel "operator" "1"
+    byLabel "date" "2017-03-11"
+    byLabel "location" "Default"
+
   statusIs (fromEnum status)
 
 appSpec = withAppWipe BypassAuth $ do
@@ -316,7 +325,7 @@ CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
 T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
 CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
 |]
-      deliver ok200 "1,T-shirt\n\2,T-shirt\n"
+      deliver ok200 "1,T-shirt\n2,T-shirt\n"
       deliver ok200 "-1,T-shirt\n"
       boxtakes <- runDB $ selectList [] [Asc BoxtakeId]
       liftIO $ length boxtakes `shouldBe` 1
@@ -330,7 +339,7 @@ CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
       Just (Entity _ pl) <- runDB $ selectFirst [] [Asc PackingListId]
       liftIO $ packingListBoxesToDeliver_d pl `shouldBe` 6
     describe "#prefilled cart" $ do
-      it "contains all undeliverd items" $ do
+      it "contains all undelivered items" $ do
         savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
 T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
 CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
@@ -338,7 +347,7 @@ CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
         viewDeliverTab 200
         htmlAllContain "#deliver-details" "1,T-shirt"
 
-      it "contains delevired items but commented" $ do
+      it "contains delivered items but commented" $ do
         savePLSheet created201 [st|Style No .,Color,QTY,C/NO,,last,CTN,QTY/CTN,TQTY,Length,,Width,,Height,CBM/CTN,N.W./CTN,G.W./CTN,TV,N.W,"G.W.(KGS)"
 T-shirt,Black,24,13,,16,4,6,24,79,X,45,X,38,0.14,0.3,1.51,0.54,1.2,6.04
 CardiganForSave,Red,24,1124,,1127,4,6,24,41,X,39,X,76,0.12,0.4,1.9,0.49,1.6,0
