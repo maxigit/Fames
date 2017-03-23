@@ -38,6 +38,8 @@ library
                      Handler.Comment
                      Handler.GLEnterReceiptSheet
                      Handler.GLEnterReceiptSheet.ReceiptRow
+                     Handler.Items
+                     Handler.Items.Index
                      Handler.WH
                      Handler.WH.Barcode
                      Handler.WH.PackingList
