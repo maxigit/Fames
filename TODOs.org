@@ -21,7 +21,7 @@ The real information where things are is in the boxtake table.
 - [X] make sure that only zerotakes discard boxes
 - [ ] make sure style, operator and date are carried over
 *** TODO reuse style, operator and date
-* TODO <2017-03-04 Sat> 
+* DONE <2017-03-04 Sat> 
 ** Edit packing list [7/9]
 - [X] add message
  to tell the user the PL have been edited
@@ -66,7 +66,7 @@ Maybe it should.
     Boxtakess are generated. We could instead generate a stocktake sheet
 to upload manually.
 * Features
-** TODO Stock Adjustment [0/1]
+** TODO Stock Adjustment [0/2]
 *** TODO Generate stock adjustment from stock take amendment [0/2]
 - [ ] Generate the diff
 between the stock adj saved in db and the one which 
@@ -79,6 +79,37 @@ The new adj should set the parent to the original
 When comparing expeced adj with one in DB , we need to not only 
 check for the adj to amend but also to all it's descendant and possibly ascendant.
 Basically, all adjustments related to the original one should be loaded and taken into consideration.
+** TODO Items
+Allows to create an update new variations.
+** Design
+The main page displays the (outer) cross product between selected styles and selected colours (from style)
+This done by filtering variations by regexp or SQL like expression the style and the colours.
+The first variations selected represent the style to overview, the second variations represent the colour to look at.
+For example the first selection returns
+
+| T-Shirt | Black |
+| T-Shirt | Blue  |
+| Cap     | Black |
+
+This correspond to T-Shirt and Cap[
+
+
+and the second selection returns
+| Hat | Black |
+| Hat | Red |
+This correspond to Black and Red.
+
+The *cross product* will be
+
+| T-Shirt | Black | Present |
+| T-Shirt | Blue | Extra |
+| T-Shrit | Red | Missing |
+| Cap | Black | Present |
+| Cap | Red | Missing |
+
+
+T-Shirt-Red and Cap-Rep are *missing*. T-Shirt blue is *extra* as not part of the selected colours.
+However Cap-Blue is not displayed as blue is not an expected colors
 
 
 * Bugs
