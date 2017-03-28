@@ -2,6 +2,7 @@
 module Handler.Items.Index where
 
 import Import
+import Handler.Table
 import Yesod.Form.Bootstrap3
 import FA
 
@@ -52,63 +53,64 @@ itemsTable styleF varF = runDB $ do
                 [Asc FA.StockMasterId]
 
   let columns = [ "stock_id"
-                , "categoryId"
-                , "taxTypeId"
+                -- , "categoryId"
+                -- , "taxTypeId"
                 , "description"
                 , "longDescription"
-                , "units"
-                , "mbFlag"
+                -- , "units"
+                -- , "mbFlag"
                 , "salesAccount"
                 , "cogsAccount"
                 , "inventoryAccount"
                 , "adjustmentAccount"
-                , "assemblyAccount"
+                -- , "assemblyAccount"
                 , "dimensionId"
                 , "dimension2Id"
-                , "actualCost"
-                , "lastCost"
-                , "materialCost"
-                , "labourCost"
-                , "overheadCost"
+                -- , "actualCost"
+                -- , "lastCost"
+                -- , "materialCost"
+                -- , "labourCost"
+                -- , "overheadCost"
                 , "inactive"
-                , "noSale"
-                , "editable"
+                -- , "noSale"
+                -- , "editable"
                 ] :: [Text]
-      rows = [(t"normal", key, val) | (Entity key val) <- styles]
-      t = \x -> x :: Text
-  
-  return [whamlet|
-<table.well.table.table-stripped.table-bordered>
-  <theader>
-    <tr>
-      $forall col <- columns
-        <th>#{col}
-  <tbody>
-    $forall (class_, sku, row) <- rows
-      <tr class="#{class_}">
-        <td.stock_id> #{ unStockMasterKey $ sku}
-        <td.categoryId> #{ tshow $ stockMasterCategoryId row} 
-        <td.taxTypeId> #{ tshow $ stockMasterTaxTypeId row} 
-        <td.description> #{ stockMasterDescription row} 
-        <td.longDescription> #{ stockMasterLongDescription row} 
-        <td.units> #{ stockMasterUnits row} 
-        <td.mbFlag> #{ stockMasterMbFlag row} 
-        <td.salesAccount> #{ stockMasterSalesAccount row} 
-        <td.cogsAccount> #{ stockMasterCogsAccount row} 
-        <td.inventoryAccount> #{ stockMasterInventoryAccount row} 
-        <td.adjustmentAccount> #{ stockMasterAdjustmentAccount row} 
-        <td.assemblyAccount> #{ stockMasterAssemblyAccount row} 
-        <td.dimensionId> #{ tshow $ stockMasterDimensionId row} 
-        <td.dimension2Id> #{ tshow $ stockMasterDimension2Id row} 
-        <td.actualCost> #{ tshow $ stockMasterActualCost row} 
-        <td.lastCost> #{ tshow $ stockMasterLastCost row} 
-        <td.materialCost> #{ tshow $ stockMasterMaterialCost row} 
-        <td.labourCost> #{ tshow $ stockMasterLabourCost row} 
-        <td.overheadCost> #{ tshow $ stockMasterOverheadCost row} 
-        <td.inactive> #{ tshow $ stockMasterInactive row} 
-        <td.noSale> #{ tshow $ stockMasterNoSale row} 
-        <td.editable> #{ tshow $ stockMasterEditable row} 
-                 |]
+
+  -- Church encoding ?
+  let rowToF sku stock =
+        let val col = case col of
+              "stock_id" -> Just $ unStockMasterKey $ sku
+              "categoryId" -> Just $ tshow $ stockMasterCategoryId stock 
+              "taxTypeId" -> Just $ tshow $ stockMasterTaxTypeId stock 
+              "description" -> Just $ stockMasterDescription stock 
+              "longDescription" -> Just $ stockMasterLongDescription stock 
+              "units" -> Just $ stockMasterUnits stock 
+              "mbFlag" -> Just $ stockMasterMbFlag stock 
+              "salesAccount" -> Just $ stockMasterSalesAccount stock 
+              "cogsAccount" -> Just $ stockMasterCogsAccount stock 
+              "inventoryAccount" -> Just $ stockMasterInventoryAccount stock 
+              "adjustmentAccount" -> Just $ stockMasterAdjustmentAccount stock 
+              "assemblyAccount" -> Just $ stockMasterAssemblyAccount stock 
+              "dimensionId" -> Just $ tshow $ stockMasterDimensionId stock 
+              "dimension2Id" -> Just $ tshow $ stockMasterDimension2Id stock 
+              "actualCost" -> Just $ tshow $ stockMasterActualCost stock 
+              "lastCost" -> Just $ tshow $ stockMasterLastCost stock 
+              "materialCost" -> Just $ tshow $ stockMasterMaterialCost stock 
+              "labourCost" -> Just $ tshow $ stockMasterLabourCost stock 
+              "overheadCost" -> Just $ tshow $ stockMasterOverheadCost stock 
+              "inactive" -> Just $ tshow $ stockMasterInactive stock 
+              "noSale" -> Just $ tshow $ stockMasterNoSale stock 
+              "editable" -> Just $ tshow $ stockMasterEditable stock 
+              _ -> Nothing
+            inactive = if stockMasterInactive stock
+                          then "warning"
+                          else ""
+        in (\col -> fmap (\v -> (toHtml v, "stock-master-col")) (val col), inactive)
+        
+  return $ displayTable columns
+                        (\c -> (toHtml c, ""))
+                        [rowToF key val | (Entity key val) <- styles ]
+                      
 
 -- * Rendering
 getItemsIndexR :: Handler Html
@@ -129,8 +131,7 @@ renderIndex param status = do
     <form #items-form role=form method=post action=@{ItemsR ItemsIndexR} enctype=#{encType}>
       ^{form}
       <button type="submit" name="search" class="btn btn-default">Search
- <div.well>
-   ^{index}
+  ^{index}
 |]
   sendResponseStatus status =<< defaultLayout widget
 

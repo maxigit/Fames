@@ -53,6 +53,7 @@ library
                      Handler.FAX.Def
                      Handler.FAMES.Def
                      Handler.Util
+                     Handler.Table
                      Handler.CsvUtils
                      WH.Barcode
                      RoutePiece
