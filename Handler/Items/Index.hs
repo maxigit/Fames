@@ -114,7 +114,7 @@ itemsTable styleF varF = runDB $ do
 
 -- * Rendering
 getItemsIndexR :: Handler Html
-getItemsIndexR = renderIndex (Just $ IndexParam (Just "%AD1%") (Just "/^MW16-.*-BLK")) ok200
+getItemsIndexR = renderIndex (Just $ IndexParam Nothing Nothing) ok200
 
 indexForm param = renderBootstrap3 BootstrapBasicForm form
   where form = IndexParam
@@ -122,13 +122,17 @@ indexForm param = renderBootstrap3 BootstrapBasicForm form
           <*> (aopt filterEField "variations" (fmap ipVariations param))
 
 renderIndex :: (Maybe IndexParam) -> Status -> Handler Html
-renderIndex param status = do
-  (form, encType) <- generateFormPost (indexForm param)
+renderIndex param0 status = do
+  ((resp, form), encType) <- runFormGet (indexForm param0)
+  let param = case resp of
+        FormMissing -> param0
+        FormSuccess par -> Just par
+        FormFailure _ -> param0
   index <- itemsTable (ipStyles =<< param) (ipVariations =<< param)
   let widget = [whamlet|
 <div #items-index>
   <div.well>
-    <form #items-form role=form method=post action=@{ItemsR ItemsIndexR} enctype=#{encType}>
+    <form #items-form role=form method=get action=@{ItemsR ItemsIndexR} enctype=#{encType}>
       ^{form}
       <button type="submit" name="search" class="btn btn-default">Search
   ^{index}
