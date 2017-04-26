@@ -48,10 +48,15 @@ filterE conv field (Just (RegexFilter regex)) =
 itemsTable :: Maybe FilterExpression -> Maybe FilterExpression -> Handler Widget
 itemsTable styleF varF = runDB $ do
   let conv = StockMasterKey
+      limit = case styleF of
+                Nothing -> [LimitTo 200]
+                Just _ -> []
   styles <- selectList (filterE conv FA.StockMasterId styleF)
-                [Asc FA.StockMasterId, LimitTo 100]
-  variations <- selectList (filterE conv FA.StockMasterId varF <> [FA.StockMasterInactive ==. False ])
-                [Asc FA.StockMasterId, LimitTo 100]
+                ([Asc FA.StockMasterId] ++ limit)
+  variations <- case varF of
+    Nothing -> return styles
+    Just _  -> selectList (filterE conv FA.StockMasterId varF <> [FA.StockMasterInactive ==. False ])
+                [Asc FA.StockMasterId]
 
   let columns = [ "stock_id"
                 -- , "categoryId"
@@ -117,7 +122,7 @@ itemsTable styleF varF = runDB $ do
       stockMasterToItem (Entity key val) = ItemInfo  style var val where
                   sku = unStockMasterKey key
                   style = take 8 sku
-                  var = drop 10 sku
+                  var = drop 9 sku
       itemStyles = map stockMasterToItem styles
       itemVars =  map stockMasterToItem variations
       items = joinStyleVariations itemStyles itemVars
