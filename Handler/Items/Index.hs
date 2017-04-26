@@ -5,6 +5,7 @@ import Import
 import Handler.Table
 import Yesod.Form.Bootstrap3
 import FA
+import Items
 
 -- * Types
 -- | SQL text filter expression. Can be use either the LIKE syntax or the Regex one.
@@ -48,9 +49,9 @@ itemsTable :: Maybe FilterExpression -> Maybe FilterExpression -> Handler Widget
 itemsTable styleF varF = runDB $ do
   let conv = StockMasterKey
   styles <- selectList (filterE conv FA.StockMasterId styleF)
-                [Asc FA.StockMasterId]
+                [Asc FA.StockMasterId, LimitTo 100]
   variations <- selectList (filterE conv FA.StockMasterId varF <> [FA.StockMasterInactive ==. False ])
-                [Asc FA.StockMasterId]
+                [Asc FA.StockMasterId, LimitTo 100]
 
   let columns = [ "stock_id"
                 -- , "categoryId"
@@ -77,9 +78,9 @@ itemsTable styleF varF = runDB $ do
                 ] :: [Text]
 
   -- Church encoding ?
-  let rowToF sku stock =
+  let itemToF (status , ItemInfo style var stock) =
         let val col = case col of
-              "stock_id" -> Just $ unStockMasterKey $ sku
+              "stock_id" -> Just ( style <> "-" <> var)
               "categoryId" -> Just $ tshow $ stockMasterCategoryId stock 
               "taxTypeId" -> Just $ tshow $ stockMasterTaxTypeId stock 
               "description" -> Just $ stockMasterDescription stock 
@@ -102,14 +103,28 @@ itemsTable styleF varF = runDB $ do
               "noSale" -> Just $ tshow $ stockMasterNoSale stock 
               "editable" -> Just $ tshow $ stockMasterEditable stock 
               _ -> Nothing
-            inactive = if stockMasterInactive stock
-                          then "warning"
-                          else ""
-        in (\col -> fmap (\v -> (toHtml v, "stock-master-col")) (val col), inactive)
+            classes :: [Text]
+            classes = if stockMasterInactive stock
+                          then  ["inactive"]
+                          else []
+                      ++ case status of
+                           VarOk -> []
+                           VarMissing -> ["danger"]
+                           VarExtra -> ["info"]
+     
+        in (\col -> fmap (\v -> (toHtml v, ["stock-master-col"])) (val col), classes)
+
+      stockMasterToItem (Entity key val) = ItemInfo  style var val where
+                  sku = unStockMasterKey key
+                  style = take 8 sku
+                  var = drop 10 sku
+      itemStyles = map stockMasterToItem styles
+      itemVars =  map stockMasterToItem variations
+      items = joinStyleVariations itemStyles itemVars
         
   return $ displayTable columns
-                        (\c -> (toHtml c, ""))
-                        [rowToF key val | (Entity key val) <- styles ]
+                        (\c -> (toHtml c, []))
+                        (map itemToF items)
                       
 
 -- * Rendering
