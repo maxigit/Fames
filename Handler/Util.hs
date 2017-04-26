@@ -160,10 +160,10 @@ generateLabelsResponse outputName template labelSource = do
   -- we need to stderr instead 
   errorMessage <- sourceToList  $ sourceHandle perr 
   let cleanUp = liftIO $  do
-      hClose perr
+        hClose perr
 
-      removeFile tmp
-      hClose thandle
+        removeFile tmp
+        hClose thandle
 
   case errorMessage of
     _ ->  do

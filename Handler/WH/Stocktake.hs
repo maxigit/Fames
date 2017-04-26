@@ -534,18 +534,18 @@ validateRaw ops locs raw= do
           Left field -> Left field
 
   either (const $ Left raw {rowOperator = rowOperator', rowLocation = rowLocation'}) Right $ do
-  rowStyle <- rowStyle raw
-  rowColour <- rowColour raw
-  rowQuantity <- rowQuantity raw
-  rowLocation <- rowLocation'
-  rowBarcode <- rowBarcode raw
-  rowLength <- rowLength raw
-  rowWidth <- rowWidth raw
-  rowHeight <- rowHeight raw
-  rowDate <- rowDate raw
-  rowOperator <- rowOperator'
+    rowStyle <- rowStyle raw
+    rowColour <- rowColour raw
+    rowQuantity <- rowQuantity raw
+    rowLocation <- rowLocation'
+    rowBarcode <- rowBarcode raw
+    rowLength <- rowLength raw
+    rowWidth <- rowWidth raw
+    rowHeight <- rowHeight raw
+    rowDate <- rowDate raw
+    rowOperator <- rowOperator'
 
-  Right TakeRow{..}
+    Right TakeRow{..}
 
 -- | Validates if a row is invalid or not. ie 
 validateRows :: Set Text -> [PartialRow] -> Either [RawRow] [ValidRow]
