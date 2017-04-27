@@ -426,6 +426,7 @@ test-suite test
       Handler.WHBarcodeSpec
       Handler.WHPackingListSpec
       Handler.WHStocktakeSpec
+      Items.InternalSpec
       RoleSpec
       Spec
       TestImport

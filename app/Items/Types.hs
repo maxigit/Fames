@@ -8,6 +8,9 @@ data ItemInfo a = ItemInfo
   , iiVariation:: Text
   , iiInfo :: a
   }
+deriving instance (Show a) => Show (ItemInfo a)
+deriving instance (Eq a) => Eq (ItemInfo a)
+deriving instance (Ord a) => Ord (ItemInfo a)
 
 
-data VariationStatus= VarOk | VarMissing | VarExtra deriving (Eq, Show, Read)
+data VariationStatus= VarOk | VarMissing | VarExtra deriving (Eq, Show, Read, Ord)
