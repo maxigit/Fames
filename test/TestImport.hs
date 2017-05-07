@@ -6,7 +6,7 @@ module TestImport
     ) where
 
 import Application           (makeFoundation, makeLogWare)
-import ClassyPrelude         as X hiding (delete, deleteBy)
+import ClassyPrelude         as X hiding (delete, deleteBy, Handler)
 import Database.Persist      as X hiding (get)
 import Database.Persist.Sql  (SqlPersistM, SqlBackend, runSqlPersistMPool, rawExecute, rawSql, unSingle, connEscapeName)
 import Foundation            as X
@@ -97,7 +97,7 @@ getTables = do
 saveToTempFile :: MonadIO io => Text -> io FilePath
 saveToTempFile content = liftIO $ do
   (path, handle) <- openTempFile "/tmp" "fames-test"
-  hPut handle content
+  hPut handle (encodeUtf8 content)
   hClose handle
   return path
 

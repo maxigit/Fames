@@ -6,6 +6,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 module Handler.WH.Stocktake
 ( getWHStocktakeR
 , postWHStocktakeSaveR
@@ -438,10 +439,10 @@ validateRows skus (row:rows) = do
   
   case (lastMay (mapMaybe validBarcode valids))  of
     (Just (Guessed barcode)) -> let
-                           l = last (unsafeToMinLen errors) -- valids is not null, so errors isn't either
+                           l = last (impureNonNull errors) -- valids is not null, so errors isn't either
                            l' = l {rowBarcode = Left $ ParsingError "Last barcode of a sequence should be provided" barcode }
                       
-                           in Left $ (init errors) ++ [l']
+                           in Left $ (initEx errors) ++ [l']
     _ -> Right valids
 
 

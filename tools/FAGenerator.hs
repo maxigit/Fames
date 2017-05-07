@@ -28,7 +28,7 @@ data Table = Table
 data Column = Column
   { columnName :: String
   , columnType :: String
-  , columnNullabe :: Bool
+  , columnNullable :: Bool
   , columnIsPrimary :: Bool
   } deriving (Show, Read, Eq, Ord)
 
@@ -154,11 +154,12 @@ generateModel out Table {..} = do
       go :: Column -> IO ()
       go col@(Column {..}) = do
         hPrintf out
-          "    %s %s %s sql=%s\n"
+          "    %s %s %s sql=%s%s\n"
           (fieldName col)
           (htype columnType)
-          (if columnNullabe then "Maybe" :: String else "")
+          (if columnNullable then "Maybe" :: String else "")
           columnName
+          (if columnNullable && (htype columnType == "Text") then " default=NULL" :: String else "") -- persistent bug workaround
   mapM go tableColumns
   when (length composites > 1)
        (  hPutStrLn out
