@@ -5,9 +5,9 @@
 {-# LANGUAGE UndecidableSuperClasses, RankNTypes #-}
 {-# LANGUAGE FlexibleContexts, ScopedTypeVariables #-}
 {-# LANGUAGE AllowAmbiguousTypes, StandaloneDeriving #-}
-{-# LANGUAGE ImplicitPrelude #-}
 module Items.SOP where
 
+import Prelude
 import Data.Functor.Identity
 import Generics.SOP hiding (Record)
 import Generics.SOP.Constraint

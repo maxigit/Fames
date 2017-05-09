@@ -83,41 +83,49 @@ itemsTable styleF varF = runDB $ do
                 ] :: [Text]
 
   -- Church encoding ?
-  let itemToF (status , ItemInfo style var stock) =
+  let itemToF :: (VariationStatus, ItemInfo (StockMasterInfo ((,) [Text])))
+              -> (Text -> Maybe (Html, [Text]) -- Html + classes per column
+                 , [Text]) -- classes for row
+
+      itemToF (status , ItemInfo style var stock) =
         let val col = case col of
-              "stock_id" -> Just ( style <> "-" <> var)
-              "categoryId" -> Just $ tshow $ stockMasterCategoryId stock 
-              "taxTypeId" -> Just $ tshow $ stockMasterTaxTypeId stock 
-              "description" -> Just $ stockMasterDescription stock 
-              "longDescription" -> Just $ stockMasterLongDescription stock 
-              "units" -> Just $ stockMasterUnits stock 
-              "mbFlag" -> Just $ stockMasterMbFlag stock 
-              "salesAccount" -> Just $ stockMasterSalesAccount stock 
-              "cogsAccount" -> Just $ stockMasterCogsAccount stock 
-              "inventoryAccount" -> Just $ stockMasterInventoryAccount stock 
-              "adjustmentAccount" -> Just $ stockMasterAdjustmentAccount stock 
-              "assemblyAccount" -> Just $ stockMasterAssemblyAccount stock 
-              "dimensionId" -> Just $ tshow $ stockMasterDimensionId stock 
-              "dimension2Id" -> Just $ tshow $ stockMasterDimension2Id stock 
-              "actualCost" -> Just $ tshow $ stockMasterActualCost stock 
-              "lastCost" -> Just $ tshow $ stockMasterLastCost stock 
-              "materialCost" -> Just $ tshow $ stockMasterMaterialCost stock 
-              "labourCost" -> Just $ tshow $ stockMasterLabourCost stock 
-              "overheadCost" -> Just $ tshow $ stockMasterOverheadCost stock 
-              "inactive" -> Just $ tshow $ stockMasterInactive stock 
-              "noSale" -> Just $ tshow $ stockMasterNoSale stock 
-              "editable" -> Just $ tshow $ stockMasterEditable stock 
+              "stock_id" -> Just ([], style <> "-" <> var)
+              "categoryId" -> Just ( tshow <$> smiCategoryId stock )
+              "taxTypeId" -> Just $ tshow <$> smiTaxTypeId stock 
+              "description" -> Just $ smiDescription stock 
+              "longDescription" -> Just $ smiLongDescription stock 
+              "units" -> Just $ smiUnits stock 
+              "mbFlag" -> Just $ smiMbFlag stock 
+              "salesAccount" -> Just $ smiSalesAccount stock 
+              "cogsAccount" -> Just $ smiCogsAccount stock 
+              "inventoryAccount" -> Just $ smiInventoryAccount stock 
+              "adjustmentAccount" -> Just $ smiAdjustmentAccount stock 
+              "assemblyAccount" -> Just $ smiAssemblyAccount stock 
+              "dimensionId" -> Just $ tshow <$> smiDimensionId stock 
+              "dimension2Id" -> Just $ tshow <$> smiDimension2Id stock 
+              "actualCost" -> Just $ tshow <$> smiActualCost stock 
+              "lastCost" -> Just $ tshow <$> smiLastCost stock 
+              "materialCost" -> Just $ tshow <$> smiMaterialCost stock 
+              "labourCost" -> Just $ tshow <$> smiLabourCost stock 
+              "overheadCost" -> Just $ tshow <$> smiOverheadCost stock 
+              "inactive" -> Just $ tshow <$> smiInactive stock 
+              "noSale" -> Just $ tshow <$> smiNoSale stock 
+              "editable" -> Just $ tshow <$> smiEditable stock 
               _ -> Nothing
             classes :: [Text]
-            classes = if stockMasterInactive stock
-                          then  ["inactive"]
-                          else []
+            classes = case smiInactive stock of
+                           (_, True) -> ["text-muted"]
+                           _ -> []
                       ++ case status of
                            VarOk -> []
                            VarMissing -> ["danger"]
                            VarExtra -> ["info"]
      
-        in (\col -> fmap (\v -> (toHtml v, ["stock-master-col"])) (val col), classes)
+        in (\col -> fmap (\(fieldClasses, v)
+                    -> (toHtml v, "stock-master-col":fieldClasses)
+                       ) (val col)
+           , classes
+           )
 
       stockMasterToItem (Entity key val) = ItemInfo  style var val where
                   sku = unStockMasterKey key

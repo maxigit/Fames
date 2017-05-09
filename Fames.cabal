@@ -50,7 +50,7 @@ library
     , monad-control >=0.3 && <1.1
     , wai-extra >=3.0 && <3.1
     , yaml >=0.8 && <0.9
-    , http-conduit >=2.1 && <2.2
+    , http-conduit >=2.1 && <2.3
     , directory >=1.1 && <1.4
     , warp >=3.0 && <3.3
     , data-default
@@ -165,7 +165,7 @@ executable FAGenerator
     , monad-control >=0.3 && <1.1
     , wai-extra >=3.0 && <3.1
     , yaml >=0.8 && <0.9
-    , http-conduit >=2.1 && <2.2
+    , http-conduit >=2.1 && <2.3
     , directory >=1.1 && <1.4
     , warp >=3.0 && <3.3
     , data-default
@@ -236,7 +236,7 @@ executable Fames
     , monad-control >=0.3 && <1.1
     , wai-extra >=3.0 && <3.1
     , yaml >=0.8 && <0.9
-    , http-conduit >=2.1 && <2.2
+    , http-conduit >=2.1 && <2.3
     , directory >=1.1 && <1.4
     , warp >=3.0 && <3.3
     , data-default
@@ -311,7 +311,7 @@ executable TextcartHelper
     , monad-control >=0.3 && <1.1
     , wai-extra >=3.0 && <3.1
     , yaml >=0.8 && <0.9
-    , http-conduit >=2.1 && <2.2
+    , http-conduit >=2.1 && <2.3
     , directory >=1.1 && <1.4
     , warp >=3.0 && <3.3
     , data-default
@@ -380,7 +380,7 @@ test-suite test
     , monad-control >=0.3 && <1.1
     , wai-extra >=3.0 && <3.1
     , yaml >=0.8 && <0.9
-    , http-conduit >=2.1 && <2.2
+    , http-conduit >=2.1 && <2.3
     , directory >=1.1 && <1.4
     , warp >=3.0 && <3.3
     , data-default
