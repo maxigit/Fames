@@ -77,6 +77,9 @@ library
     , Glob
     , mtl >=2.2 && <2.3
     , path-pieces >=0.2 && <0.3
+    , generics-sop
+    , Metamorphosis
+    , microlens >= 0.4.8.0 && < 0.5
   if (flag(dev)) || (flag(library-only))
     ghc-options: -w -fwarn-tabs -O0
     cpp-options: -DDEVELOPMENT
@@ -126,6 +129,7 @@ library
       GL.Receipt
       Items
       Items.Internal
+      Items.SOP
       Items.Types
       WH.Barcode
   default-language: Haskell2010
@@ -188,6 +192,9 @@ executable FAGenerator
     , Glob
     , mtl >=2.2 && <2.3
     , path-pieces >=0.2 && <0.3
+    , generics-sop
+    , Metamorphosis
+    , microlens >= 0.4.8.0 && < 0.5
     , base
     , mysql-simple
     , split
@@ -256,6 +263,9 @@ executable Fames
     , Glob
     , mtl >=2.2 && <2.3
     , path-pieces >=0.2 && <0.3
+    , generics-sop
+    , Metamorphosis
+    , microlens >= 0.4.8.0 && < 0.5
     , Fames
   if flag(library-only)
     buildable: False
@@ -265,6 +275,7 @@ executable Fames
       GL.Receipt
       Items
       Items.Internal
+      Items.SOP
       Items.Types
       WH.Barcode
   default-language: Haskell2010
@@ -327,6 +338,9 @@ executable TextcartHelper
     , Glob
     , mtl >=2.2 && <2.3
     , path-pieces >=0.2 && <0.3
+    , generics-sop
+    , Metamorphosis
+    , microlens >= 0.4.8.0 && < 0.5
     , base
     , mysql-simple
   other-modules:
@@ -393,6 +407,9 @@ test-suite test
     , Glob
     , mtl >=2.2 && <2.3
     , path-pieces >=0.2 && <0.3
+    , generics-sop
+    , Metamorphosis
+    , microlens >= 0.4.8.0 && < 0.5
     , base
     , Fames
     , yesod-test >=1.5.0.1 && <1.6

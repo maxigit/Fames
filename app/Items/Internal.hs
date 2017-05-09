@@ -7,7 +7,6 @@ import Data.List (cycle)
 import Data.These
 import Data.Align(align)
 import qualified Data.Map as Map
-
   
 -- | Check for each styles if they all variations present in variations
 -- variations

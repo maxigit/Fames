@@ -54,6 +54,9 @@ dependencies:
 - Glob
 - mtl >=2.2 && <2.3
 - path-pieces >=0.2 && <0.3
+- generics-sop
+- Metamorphosis
+- microlens >= 0.4.8.0 && < 0.5
 default-extensions:
 - TemplateHaskell
 - QuasiQuotes
