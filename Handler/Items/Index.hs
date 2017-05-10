@@ -14,6 +14,7 @@ data FilterExpression = LikeFilter Text  | RegexFilter Text deriving (Eq, Show, 
 data IndexParam = IndexParam
   { ipStyles :: Maybe FilterExpression
   , ipVariations :: Maybe FilterExpression
+  , ipShowInactive :: Bool
   } deriving (Eq, Show, Read)
 
 -- * Utils
@@ -45,41 +46,44 @@ filterE conv field (Just (RegexFilter regex)) =
   ]
   
 
-itemsTable :: Maybe FilterExpression -> Maybe FilterExpression -> Handler Widget
-itemsTable styleF varF = runDB $ do
+itemsTable :: Maybe FilterExpression -> Maybe FilterExpression -> Bool ->  Handler Widget
+itemsTable styleF varF showInactive = runDB $ do
   let conv = StockMasterKey
-      limit = case styleF of
-                Nothing -> [LimitTo 200]
-                Just _ -> []
-  styles <- selectList (filterE conv FA.StockMasterId styleF)
-                ([Asc FA.StockMasterId] ++ limit)
+  styles <- case styleF of
+    Nothing -> do
+               setWarning "Please enter a styles filter expression (SQL like expression or regexp starting with '/'')"
+               return []
+    Just _ -> selectList (filterE conv FA.StockMasterId styleF
+                          ++ if showInactive then [] else [FA.StockMasterInactive ==. False]
+                         )
+                        [Asc FA.StockMasterId]
   variations <- case varF of
     Nothing -> return styles
     Just _  -> selectList (filterE conv FA.StockMasterId varF <> [FA.StockMasterInactive ==. False ])
                 [Asc FA.StockMasterId]
 
   let columns = [ "stock_id"
-                -- , "categoryId"
-                -- , "taxTypeId"
+                , "categoryId"
+                , "taxTypeId"
                 , "description"
                 , "longDescription"
-                -- , "units"
-                -- , "mbFlag"
+                , "units"
+                , "mbFlag"
                 , "salesAccount"
                 , "cogsAccount"
                 , "inventoryAccount"
                 , "adjustmentAccount"
-                -- , "assemblyAccount"
+                , "assemblyAccount"
                 , "dimensionId"
                 , "dimension2Id"
-                -- , "actualCost"
-                -- , "lastCost"
-                -- , "materialCost"
-                -- , "labourCost"
-                -- , "overheadCost"
+                , "actualCost"
+                , "lastCost"
+                , "materialCost"
+                , "labourCost"
+                , "overheadCost"
                 , "inactive"
-                -- , "noSale"
-                -- , "editable"
+                , "noSale"
+                , "editable"
                 ] :: [Text]
 
   -- Church encoding ?
@@ -142,21 +146,22 @@ itemsTable styleF varF = runDB $ do
 
 -- * Rendering
 getItemsIndexR :: Handler Html
-getItemsIndexR = renderIndex (Just $ IndexParam Nothing Nothing) ok200
+getItemsIndexR = renderIndex (IndexParam Nothing Nothing False) ok200
 
 indexForm param = renderBootstrap3 BootstrapBasicForm form
   where form = IndexParam
-          <$> (aopt filterEField "styles" (fmap ipStyles param))
-          <*> (aopt filterEField "variations" (fmap ipVariations param))
+          <$> (aopt filterEField "styles" (Just $ ipStyles param))
+          <*> (aopt filterEField "variations" (Just $ ipVariations param))
+          <*> (areq boolField "Show Inactive" (Just $ ipShowInactive param))
 
-renderIndex :: (Maybe IndexParam) -> Status -> Handler Html
+renderIndex :: IndexParam -> Status -> Handler Html
 renderIndex param0 status = do
   ((resp, form), encType) <- runFormGet (indexForm param0)
   let param = case resp of
         FormMissing -> param0
-        FormSuccess par -> Just par
+        FormSuccess par -> par
         FormFailure _ -> param0
-  index <- itemsTable (ipStyles =<< param) (ipVariations =<< param)
+  index <- itemsTable (ipStyles param) (ipVariations param) (ipShowInactive param)
   let widget = [whamlet|
 <div #items-index>
   <div.well>
