@@ -118,7 +118,8 @@ itemsTable styleF varF showInactive = runDB $ do
               "editable" -> Just $ tshow <$> smiEditable stock 
               _ -> Nothing
             classes :: [Text]
-            classes = case smiInactive stock of
+            classes = "style-" <> iiStyle item0:
+              case smiInactive stock of
                            (_, True) -> ["text-muted"]
                            _ -> []
                       ++ case status of
@@ -126,11 +127,11 @@ itemsTable styleF varF showInactive = runDB $ do
                            VarMissing -> ["danger"]
                            VarExtra -> ["info"]
                     ++ if var == iiVariation item0
-                       then ["bg-info", "base", "base-" <> iiStyle item0]
-                       else ["style-" <> iiStyle item0]
+                        then ["bg-info", "base"]
+                        else ["variation"]
      
         in (\col -> fmap (\(fieldClasses, v)
-                    -> (toHtml v, "stock-master-col":fieldClasses)
+                    -> (toHtml v, ("stock-master-"<>col):fieldClasses)
                        ) (val col)
            , classes
            )

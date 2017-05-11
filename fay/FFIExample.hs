@@ -19,3 +19,4 @@ setInnerHTML = ffi "%1.innerHTML=%2"
 
 alert :: Text -> Fay ()
 alert = ffi "alert(%1)"
+

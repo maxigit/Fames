@@ -27,32 +27,26 @@ main = do
 installC :: Double -> JQ.Element -> Fay JQuery
 installC index el = do
   row <- select el
-  isBase <- hasClass "base" row
-  alert (T.pack $ show isBase)
-  case isBase of
-    True -> onclickBase row
-    False -> onclickRow row
+  onclickBase row
 
 
 onclickBase base = do
   dklasses <- JQ.getAttr "class" base
-  alert (T.pack $ show dklasses)
   case dklasses of
     Undefined -> return base
     Defined cs -> do
       let classes = FT.splitOn (" ") cs
-      alert (T.pack $ show classes)
-      let styles = findInClasses "base-" classes
-      alert (T.pack $ show styles)
+          styles = findInClasses "style-" classes
+          hideShow = if "base" `elem` classes then jToggleBase base else jHide
+
       case styles of
-            [style] -> 
+            [style] ->  do
                 onClick (\ev -> do
-                            alert (T.pack $ show style)
+                            hideShow =<< select ("#items-index table > tbody > tr.variation.style-" `FT.append` style )
                             return True
                         ) base
             _ -> return base
 
-onclickRow = onclickBase
 
 findInClasses prefix [] = []
 findInClasses prefix (c:cs) =
@@ -67,4 +61,31 @@ stripPrefix pre s = let
      then Just (FT.drop l s)
      else Nothing
                                 
+jHide :: JQuery -> Fay ()
+jHide = ffi "%1.hide()"
+
+jShow :: JQuery -> Fay ()
+jShow = ffi "%1.show()"
+
+jToggleBase :: JQuery -> JQuery -> Fay ()
+jToggleBase base elements = do
+  let hiddenAttr = "data-hidden"
+  hidden <- JQ.getAttr hiddenAttr base
+  let toHide = case hidden of
+        Defined "" -> True
+        Undefined -> True
+        _ -> False
+
+  if toHide
+    then
+        do
+          JQ.setAttr hiddenAttr "true" base
+          jHide elements
+    else
+       do
+           JQ.setAttr hiddenAttr "false" base
+           jShow elements
+
+    
+
                             
