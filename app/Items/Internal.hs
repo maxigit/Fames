@@ -22,13 +22,19 @@ import FA
 -- variations
 -- joinStyleVariations :: [ItemInfo a] -> [ItemInfo b] -> [(VariationStatus , ItemInfo a)]
 joinStyleVariations :: [ItemInfo StockMaster] -> [ItemInfo StockMaster]
-                    -> [(VariationStatus, ItemInfo (StockMasterInfo ((,) [Text])))]
+                    -> [( ItemInfo StockMaster
+                        , [(VariationStatus, ItemInfo (StockMasterInfo ((,) [Text])))]
+                        )]
 joinStyleVariations items vars = let
   varMap = mapFromList $ map ((,()) . iiVariation) vars
   styles = Map.fromListWith (flip (<>))  [(iiStyle item, [item]) | item <- items]
 
-  in concatMap (\(style, variations) -> computeItemsStatus (headEx variations) varMap variations )
-               (mapToList styles)
+  in map (\(style, variations) -> let base = headEx variations
+                                      in (base, computeItemsStatus (headEx variations)
+                                                                   varMap
+                                                                   variations )
+         )
+         (mapToList styles)
 
 -- | Computes the VariationStatus ie if variations are present
 -- or not in the given map. "Missing" .i.e where the variation

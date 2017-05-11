@@ -16,3 +16,6 @@ onChange :: Element -> Fay () -> Fay ()
 onChange = ffi "%1.onchange=%2"
 setInnerHTML :: Element -> Text -> Fay ()
 setInnerHTML = ffi "%1.innerHTML=%2"
+
+alert :: Text -> Fay ()
+alert = ffi "alert(%1)"

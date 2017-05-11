@@ -87,11 +87,12 @@ itemsTable styleF varF showInactive = runDB $ do
                 ] :: [Text]
 
   -- Church encoding ?
-  let itemToF :: (VariationStatus, ItemInfo (StockMasterInfo ((,) [Text])))
+  let itemToF :: ItemInfo StockMaster
+              -> (VariationStatus, ItemInfo (StockMasterInfo ((,) [Text])))
               -> (Text -> Maybe (Html, [Text]) -- Html + classes per column
                  , [Text]) -- classes for row
 
-      itemToF (status , ItemInfo style var stock) =
+      itemToF item0 (status , ItemInfo style var stock) =
         let val col = case col of
               "stock_id" -> Just ([], style <> "-" <> var)
               "categoryId" -> Just ( tshow <$> smiCategoryId stock )
@@ -124,6 +125,9 @@ itemsTable styleF varF showInactive = runDB $ do
                            VarOk -> []
                            VarMissing -> ["danger"]
                            VarExtra -> ["info"]
+                    ++ if var == iiVariation item0
+                       then ["bg-info", "base", "base-" <> iiStyle item0]
+                       else ["style-" <> iiStyle item0]
      
         in (\col -> fmap (\(fieldClasses, v)
                     -> (toHtml v, "stock-master-col":fieldClasses)
@@ -137,11 +141,11 @@ itemsTable styleF varF showInactive = runDB $ do
                   var = drop 9 sku
       itemStyles = map stockMasterToItem styles
       itemVars =  map stockMasterToItem variations
-      items = joinStyleVariations itemStyles itemVars
+      itemGroups = joinStyleVariations itemStyles itemVars
         
   return $ displayTable columns
                         (\c -> (toHtml c, []))
-                        (map itemToF items)
+                        (concatMap (\(base, vars) -> map (itemToF base) vars) itemGroups)
                       
 
 -- * Rendering
@@ -170,7 +174,8 @@ renderIndex param0 status = do
       <button type="submit" name="search" class="btn btn-default">Search
   ^{index}
 |]
-  sendResponseStatus status =<< defaultLayout widget
+      fay = $(fayFile "ItemsIndex")
+  sendResponseStatus status =<< defaultLayout (widget >> fay)
 
 
   
