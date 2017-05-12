@@ -81,3 +81,25 @@ diffField :: Eq a => Identity a -> Identity a -> ((,) [Text]) a
 diffField (Identity a) (Identity b) = if a == b then ([], a) else (["text-danger"], b)
 
   
+-- computeMinMax :: NonNull ItemInfo StockMaster -> ItemInfo (StockMasterInfo MinMax)
+computeMinMax ::
+  forall r xs .
+  ( SOP.Generic (r MinMax)
+  , Code (r MinMax) ~ '[xs]
+  , AllZip (AppEqualR MinMax) xs xs  -- xs ~ Map MinMax zs
+  , AllZipF (AppEqualL MinMax) xs xs
+  , All Ord xs
+  )
+  => [r MinMax] -> r MinMax
+computeMinMax infos = let
+  sops' :: [NP MinMax xs]
+  sops' = map from' infos
+  in to' (foldr concatNP undefined sops')
+
+-- foldMinMax nps =
+concatNP :: All Ord xs => NP MinMax xs -> NP MinMax xs -> NP MinMax xs
+concatNP = hczipWith (Proxy :: Proxy Ord) (<>)
+
+-- * MinMax
+minMax a = MinMax a a
+ 

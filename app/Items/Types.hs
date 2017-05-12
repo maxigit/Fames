@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric, DeriveFunctor #-}
 module Items.Types where
 
 import ClassyPrelude
@@ -38,3 +38,14 @@ $(metamorphosis
  )
 
 -- instance Generic (StockMasterInfo f)
+
+
+-- MinMax Min and Max functor
+data MinMax a = MinMax a a deriving Functor
+
+instance Ord a => Semigroup (MinMax a) where
+  (MinMax x y) <> (MinMax x' y') = MinMax (min x x') (max y y')
+
+instance Applicative MinMax where
+  pure x = MinMax x x
+  (MinMax fx fy) <*> (MinMax x y) = MinMax (fx x) (fy y)
