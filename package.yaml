@@ -57,7 +57,7 @@ dependencies:
 - mtl >=2.2 && <2.3
 - path-pieces >=0.2 && <0.3
 - generics-sop
-- Metamorphosis
+- Metamorphosis >= 0.1.0.1
 - microlens >= 0.4.8.0 && < 0.5
 default-extensions:
 - TemplateHaskell

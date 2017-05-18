@@ -5,6 +5,7 @@
 {-# LANGUAGE UndecidableSuperClasses, RankNTypes #-}
 {-# LANGUAGE FlexibleContexts, ScopedTypeVariables #-}
 {-# LANGUAGE AllowAmbiguousTypes, StandaloneDeriving #-}
+{-# LANGUAGE DeriveAnyClass #-}
 -- | Main pure functions related to items ...
 module Items.Internal where
 
@@ -14,35 +15,23 @@ import Data.List (cycle)
 import Data.These
 import Data.Align(align)
 import qualified Data.Map as Map
-import Generics.SOP as SOP
-import Items.SOP
+import Metamorphosis
 import FA
-  
--- | Check for each styles if they all variations present in variations
--- variations
--- joinStyleVariations :: [ItemInfo a] -> [ItemInfo b] -> [(VariationStatus , ItemInfo a)]
-joinStyleVariations :: [ItemInfo StockMaster] -> [ItemInfo StockMaster]
-                    -> [( ItemInfo StockMaster
-                        , [(VariationStatus, ItemInfo (StockMasterInfo ((,) [Text])))]
-                        )]
-joinStyleVariations items vars = let
-  varMap = mapFromList $ map ((,()) . iiVariation) vars
-  styles = Map.fromListWith (flip (<>))  [(iiStyle item, [item]) | item <- items]
 
-  in map (\(style, variations) -> let base = headEx variations
-                                      in (base, computeItemsStatus (headEx variations)
-                                                                   varMap
-                                                                   variations )
-         )
-         (mapToList styles)
 
--- | Computes the VariationStatus ie if variations are present
--- or not in the given map. "Missing" .i.e where the variation
--- is not present in the variation map will be created from item0
-computeItemsStatus :: ItemInfo StockMaster
-                   -> Map Text ()
-                   -> [ItemInfo StockMaster]
-                   -> [(VariationStatus, ItemInfo (StockMasterInfo ((,) [Text])))]
+diffField :: Eq a => Identity a -> Identity a -> ((,) [Text]) a
+diffField (Identity a) (Identity b) = if a == b then ([], a) else (["text-danger"], b)
+
+$(mmZip "diffField" ''StockMasterInfo)
+
+-- -- * MinMax
+minMax a = MinMax a a
+ 
+-- $(mmZip "mappend" ''StockMasterInfo)
+
+deriving instance Monoid (StockMasterInfo MinMax) -- where
+  -- mappend = mappendStockMasterInfo
+
 computeItemsStatus item0 varMap items = let
   styleMap = mapFromList [(iiVariation i, i) | i <- items ]
   varMap' = Map.mapWithKey (\var _ -> item0 { iiVariation = var }) varMap
@@ -51,8 +40,6 @@ computeItemsStatus item0 varMap items = let
   r = map (these (VarMissing,) (VarExtra,) ok) (Map.elems joineds)
   in map (\(s, i) -> (s, computeDiff item0 i)) r
 
-
-instance SOP.Generic (StockMasterInfo f)
 computeDiff :: ItemInfo StockMaster -> ItemInfo StockMaster -> ItemInfo (StockMasterInfo ((,) [Text]))
 computeDiff item0 item | iiStyle item0 == iiStyle item  && iiVariation item0 == iiVariation item
       = ItemInfo (iiStyle item0)
@@ -60,46 +47,37 @@ computeDiff item0 item | iiStyle item0 == iiStyle item  && iiVariation item0 == 
                  (runIdentity . aStockMasterToStockMasterInfo . iiInfo $ item0)
 computeDiff item0 item@(ItemInfo style var _) = let
   [i0, i] = (map (runIdentity . aStockMasterToStockMasterInfo . iiInfo ) [item0, item]) :: [StockMasterInfo Identity]
-  diff = diffInfo i0 i 
+  diff = diffFieldStockMasterInfo i0 i 
 
   in ItemInfo style var (diff)
 
-diffInfo ::
-  forall r xs ys zs .
-  ( SOP.Generic (r Identity), SOP.Generic (r ((,) [Text]))
-  , Code (r Identity) ~ '[ xs ], Code (r ((,) [Text])) ~ '[ ys ]
-  , AllZip (AppEqualR Identity) xs zs  -- xs ~ Map Identity zs
-  , AllZip (AppEqualL ((,) [Text])   ) zs ys  -- ys ~ Map Maybe    zs
-  , All Eq zs
-  ) => r Identity -> r Identity -> r ((,) [Text])
-diffInfo a b= to' ( diffInfoNP (from' a) (from' b) :: NP ((,) [Text]) zs)
-
-diffInfoNP :: All Eq xs => NP Identity xs -> NP Identity xs -> NP ((,) [Text]) xs
-diffInfoNP = hczipWith (Proxy :: Proxy Eq) diffField
+-- | Computes the VariationStatus ie if variations are present
+-- or not in the given map. "Missing" .i.e where the variation
+-- is not present in the variation map will be created from item0
   
-diffField :: Eq a => Identity a -> Identity a -> ((,) [Text]) a
-diffField (Identity a) (Identity b) = if a == b then ([], a) else (["text-danger"], b)
+-- | Check for each styles if they all variations present in variations
+-- variations
+-- joinStyleVariations :: [ItemInfo a] -> [ItemInfo b] -> [(VariationStatus , ItemInfo a)]
+joinStyleVariations :: [ItemInfo StockMaster] -> [ItemInfo StockMaster]
+                    -> [( ItemInfo StockMaster
+                        , ItemInfo (StockMasterInfo MinMax)
+                        , [(VariationStatus, ItemInfo (StockMasterInfo ((,) [Text])))]
+                        )]
+joinStyleVariations items vars = let
+  varMap = mapFromList $ map ((,()) . iiVariation) vars
+  styles = Map.fromListWith (flip (<>))  [(iiStyle item, [item]) | item <- items]
 
-  
--- computeMinMax :: NonNull ItemInfo StockMaster -> ItemInfo (StockMasterInfo MinMax)
-computeMinMax ::
-  forall r xs .
-  ( SOP.Generic (r MinMax)
-  , Code (r MinMax) ~ '[xs]
-  , AllZip (AppEqualR MinMax) xs xs  -- xs ~ Map MinMax zs
-  , AllZipF (AppEqualL MinMax) xs xs
-  , All Ord xs
-  )
-  => [r MinMax] -> r MinMax
-computeMinMax infos = let
-  sops' :: [NP MinMax xs]
-  sops' = map from' infos
-  in to' (foldr concatNP undefined sops')
+  in map (\(style, variations) -> let base = headEx variations
+                                      in ( base
+                                         , minMaxFor base variations
+                                         , computeItemsStatus (headEx variations)
+                                                              varMap
+                                                              variations
+                                         )
+         )
+         (mapToList styles)
 
--- foldMinMax nps =
-concatNP :: All Ord xs => NP MinMax xs -> NP MinMax xs -> NP MinMax xs
-concatNP = hczipWith (Proxy :: Proxy Ord) (<>)
-
--- * MinMax
-minMax a = MinMax a a
- 
+minMaxFor :: ItemInfo StockMaster -> [ItemInfo StockMaster]  -> ItemInfo (StockMasterInfo MinMax)
+minMaxFor (ItemInfo st var _) infos = let
+ infos' = map (runIdentity . aStockMasterToStockMasterInfo . iiInfo) infos
+ in ItemInfo st var (mconcat infos')
