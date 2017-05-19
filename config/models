@@ -69,6 +69,12 @@ StockAdjustmentDetail sql=fames_stock_adj_detail
 -- Stocktake. How many items are in a box.
 -- index allows to have multiple variations in the same box.
 -- The link to Boxtake is a "soft" link via barcode.
+-- history allows to keep an history of who and when
+-- a stocktake has been done many time.
+-- This happend is a box hasn't been opened between
+-- different stocktake and the barcode is reused.
+-- history is a list of past event occured on the take.
+-- As a barcode is unique
 Stocktake sql=fames_stocktake
   Id sql=stocktake_id
   stockId Text sql=stock_id
@@ -81,6 +87,7 @@ Stocktake sql=fames_stocktake
   operator OperatorId sql=operator_id
   adjustment StockAdjustmentId Maybe sql=stock_adj_id
   documentKey DocumentKeyId sql=document_key_id
+  history (Pairs Day (Key Operator))
   UniqueSB barcode index
   deriving Eq
   deriving Show

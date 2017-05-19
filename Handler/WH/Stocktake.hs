@@ -267,6 +267,9 @@ $maybe u <- uploader
                                             , StocktakeOperator =. stocktakeOperator s
                                             -- , StocktakeAdjustment =. stocktakeAdjustment old
                                             , StocktakeDocumentKey =. stocktakeDocumentKey s
+                                            , StocktakeHistory =. ( stocktakeDate s
+                                                                  , stocktakeOperator s
+                                                                  ) : stocktakeHistory old
                                             ]
                 mapM (\b -> do
                   let unique = UniqueBB (boxtakeBarcode b)
@@ -320,6 +323,7 @@ insertZeroTakes docId zeros = do
                   (opId rowOperator)
                   Nothing
                   docId
+                  []
 
   barcodes <- generateBarcodes zeroPrefix  Nothing count
   let zerotakes = zipWith toStockTake barcodes zeros
@@ -674,6 +678,7 @@ toStocktakeF docId TakeRow{..} = case rowQuantity of
                       (opId rowOperator)
                       Nothing
                       docId
+                      []
 
 
 toBoxtake :: DocumentKeyId -> (Text -> Text) -> (Int, FinalFullRow) -> Maybe Boxtake
