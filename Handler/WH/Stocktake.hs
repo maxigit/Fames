@@ -244,6 +244,10 @@ $maybe u <- uploader
                                       (_:_) -> (<> "*")
                 take 1 $ mapMaybe (toBoxtake keyId descriptionF) group
           
+          -- we assume that when doing a stock take
+          -- ALL boxes of a given style are withing the stock take
+          -- Therefore we can inactivated the previous for a given style
+          invalidPreviousTakes stocktakes
           insertZeroTakes keyId zeros
 
           if override
@@ -298,6 +302,7 @@ $maybe u <- uploader
                                  )
                                  (return ())
        
+zeroPrefix = "ZT" :: Text
      
 insertZeroTakes :: MonadIO m => Key DocumentKey -> [FinalZeroRow] -> ReaderT SqlBackend m ()
 -- insertZeroTakes _ [] = return ()
@@ -316,10 +321,27 @@ insertZeroTakes docId zeros = do
                   Nothing
                   docId
 
-  barcodes <- generateBarcodes ("ZT" :: Text) Nothing count
+  barcodes <- generateBarcodes zeroPrefix  Nothing count
   let zerotakes = zipWith toStockTake barcodes zeros
 
   insertMany_ zerotakes
+
+isBarcodeZero :: Text -> Bool
+isBarcodeZero = isPrefixOf zeroPrefix
+-- invalidPreviousStockTakes :: [Stocktake]
+-- invalidPreviousStockTakes stocktakes = do
+--   let skus = nub $ sort (map stocktakeStockId stocktakes)
+--       invalid sku = updateWhere [StocktakeStockId ==. sku, StocktakeActive ==. True]
+--                                      [StocktakeActive =. False ]
+--   mapM_ invalid skus
+   
+invalidPreviousTakes stocktakes = do
+  let skus = nub $ sort (map stocktakeStockId stocktakes)
+      sql = "UPDATE fames_stocktake st " <>
+            "LEFT JOIN fames_boxtake bt USING (barcode) " <>
+            "SET st.active = 0, bt.active = 0 " <>
+            "WHERE st.stock_id = ?"
+  mapM_ (rawExecute sql) (map (return .toPersistValue) skus)
 
 -- * Csv
 
