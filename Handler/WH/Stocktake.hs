@@ -206,9 +206,11 @@ $maybe u <- uploader
       let docKey = DocumentKey "stocktake" path (maybe "" unTextarea commentM) key (userId) processedAt
           newParam = param {pFileKey = Just key, pFilePath = Just path}
 
+          parsed = (parseTakes skus findOps findLocs spreadsheet)
+      takes <- lookupBarcodes parsed
       renderParsingResult (renderWHStocktake mode ((Just newParam)) 422)
                           (process newParam docKey mode)
-                          (parseTakes skus findOps findLocs spreadsheet)
+                          (takes)
   where process  param doc Validate rows = do
           widget <- renderValidRows param rows
           renderWHStocktake Save (Just param) 200 (setSuccess "Validation ok!") widget
@@ -363,45 +365,58 @@ data Location' = Location' { faLocation :: FA.LocationId
 type LocFinder = Text -> Maybe Location'
 
 -- | a take row can hold stocktake and boxtake information
-data TakeRow s = TakeRow
-  { rowStyle :: FieldTF s Text Identity
-  , rowColour :: FieldTF s Text Identity
-  , rowQuantity :: FieldTF s (Known Int) Null
-  , rowLocation :: FieldTF s Location' Null
-  , rowBarcode :: FieldTF s Text  Null
-  , rowLength :: FieldTF s Double  Null
-  , rowWidth :: FieldTF s Double  Null
-  , rowHeight :: FieldTF s Double  Null
-  , rowDate :: FieldTF s Day  Identity
-  , rowOperator :: FieldTF s Operator' Identity
+data TakeRow s = TakeRow --  Basic       ZeroTake BarcodeLookup
+  { rowStyle    :: FieldTF s Text        Identity Identity
+  , rowColour   :: FieldTF s Text        Identity Identity
+  , rowQuantity :: FieldTF s (Known Int) Null     Null
+  , rowLocation :: FieldTF s Location'   Null     Identity
+  , rowBarcode  :: FieldTF s Text        Null     Identity
+  , rowLength   :: FieldTF s Double      Null     Null
+  , rowWidth    :: FieldTF s Double      Null     Null
+  , rowHeight   :: FieldTF s Double      Null     Null
+  , rowDate     :: FieldTF s Day         Identity Identity
+  , rowOperator :: FieldTF s Operator'   Identity Identity
   }
   
 
-data TakeRowType = RawT | PartialT | FullT | ZeroT | FinalZeroT |  FinalT deriving (Eq, Read, Show)
+data TakeRowType = RawT | PartialT | FullT
+  | ZeroT | FinalZeroT
+  |  BarcodeLookupT -- | FinalBarcodeLookupT
+  | FinalT deriving (Eq, Read, Show)
 type RawRow = TakeRow RawT -- Raw data. Contains if the original text value if necessary
 type PartialRow = TakeRow PartialT -- Well formatted row. Can contains blank
 type FullRow = TakeRow FullT -- Contains valid value with guessed/provided indicator
 type ZeroRow = TakeRow ZeroT -- Zero take. No item founds, therefore no quantities, barcode, box dimensions, etc ...
+type BarcodeLookupRow = TakeRow BarcodeLookupT -- Barcode lookup. Rescan an already scanned boxed
 type FinalFullRow = TakeRow FinalT -- Contains value with ornement
 type FinalZeroRow = TakeRow FinalZeroT -- Contains value with ornement
+-- type FinalBarcodeLookupRow = TakeRow FinalBarcodeLookupT -- Barcode lookup. Rescan an already scanned boxed
 
-type family  FieldTF (s :: TakeRowType) a z where
-  FieldTF 'RawT a z = FieldForRaw a
-  FieldTF 'PartialT a z = FieldForPartial a
-  FieldTF 'FullT a z = FieldForValid a
-  FieldTF 'ZeroT a z = FieldForValid (UnIdentity (z a))
-  FieldTF 'FinalT a z = a
-  FieldTF 'FinalZeroT a z = (UnIdentity (z a))
+type family  FieldTF (s :: TakeRowType) a z lk where
+  FieldTF 'RawT a z lk = FieldForRaw a
+  FieldTF 'PartialT a z lk = FieldForPartial a
+  FieldTF 'FullT a z lk = FieldForValid a
+  FieldTF 'ZeroT a z lk = FieldForValid (UnIdentity (z a))
+  FieldTF 'FinalZeroT a z lk = UnIdentity (z a)
+  FieldTF 'BarcodeLookupT a z lk = FieldForValid (UnIdentity (lk a))
+  -- FieldTF 'FinalBarcodeLookupT a z lk = UnIdentity (lk a)
+  FieldTF 'FinalT a z lk = a
 
 deriving instance Show RawRow
 deriving instance Show PartialRow
 deriving instance Show FullRow
 deriving instance Show ZeroRow
-deriving instance Show FinalFullRow
 deriving instance Show FinalZeroRow
+deriving instance Show FinalFullRow
+deriving instance Show BarcodeLookupRow
+-- deriving instance Show FinalBarcodeLookupRow
 
-data ValidRow = FullST FullRow | ZeroST ZeroRow  deriving Show
-data FinalRow = FinalFull FinalFullRow | FinalZero FinalZeroRow  deriving Show
+data ValidRow = FullST FullRow | ZeroST ZeroRow
+              | BLookupST BarcodeLookupRow | BLookedupST FullRow   deriving Show
+data FinalRow = FinalFull FinalFullRow
+              | FinalZero FinalZeroRow
+              | FinalBarcodeLookup FinalFullRow
+              deriving Show
 
 -- | Validates if a raw row has been parsed properly. ie cell are well formatted
 validateRaw :: OpFinder -> LocFinder ->  RawRow -> Either RawRow PartialRow
@@ -748,6 +763,55 @@ generateMissingsFor rows@(row:_) = do
            | var <- missingVars
            ]
 
+-- 
+lookupBarcodes :: ParsingResult RawRow [ValidRow] -> Handler (ParsingResult RawRow [ValidRow])
+lookupBarcodes (ParsingCorrect rows) = do
+  finalizeds <- runDB $ mapM lookupBarcode rows
+  case sequence finalizeds of
+    Right valids -> return (ParsingCorrect (concat valids))
+    Left invalids -> return (InvalidData $ undefined invalids)
+    
+  
+lookupBarcodes result = return result
+
+lookupBarcode :: MonadIO m => ValidRow -> ReaderT SqlBackend m (Either RawRow [ValidRow])
+lookupBarcode valid@(BLookupST row@TakeRow{..}) = do
+  let barcode = validValue rowBarcode
+      style = validValue rowStyle
+      raw = transformValid' valid
+  stocktakes <- selectList [StocktakeBarcode ==. barcode] []
+  boxtakeM <- getBy (UniqueBB $ barcode)
+
+  return $ case (stocktakes, boxtakeM) of
+            ((Entity _ st0:_), Just (Entity _ boxtake)) -> 
+              -- check the style is correct
+              if all (isPrefixOf style ) (map (stocktakeStockId . entityVal) stocktakes)
+              then Right [ BLookedupST (TakeRow
+                                       (rowStyle)
+                                       (Guessed $ colour)
+                                       (Guessed . Known $ stocktakeQuantity st)
+                                       rowLocation
+                                       rowBarcode
+                                       (Guessed $ boxtakeLength boxtake)
+                                       (Guessed $ boxtakeWidth boxtake)
+                                       (Guessed $ boxtakeHeight boxtake)
+                                       rowDate 
+                                       rowOperator 
+                                       )
+                        | (Entity key st) <- stocktakes 
+                        , let Just colour = stripPrefix style (stocktakeStockId st)
+                        ]
+              else Left raw {rowStyle = Left ( InvalidValueError ( "Actual style doesn't match content: "
+                                                            <> stocktakeStockId st0
+                                                            <> ")"
+                                                            ) style
+                                             )
+                            }
+            _ -> Left raw {rowBarcode = Left (InvalidValueError "the given barcode exists" barcode)}
+  
+  
+lookupBarcode row = return . return $ return row
+-- * Transform instance Related
 
 transformRow TakeRow{..} = TakeRow
   (transform rowStyle)
@@ -761,14 +825,30 @@ transformRow TakeRow{..} = TakeRow
   (transform rowDate)
   (transform rowOperator)
 
+-- transformValid :: ValidRow -> TakeRow s
 transformValid (FullST row) = transformRow row
 transformValid (ZeroST row) = transformRow row
+transformValid' (BLookupST TakeRow{..}) = TakeRow
+              (transform rowStyle)
+              (transform rowColour)
+              RNothing
+              (transform rowLocation)
+              (transform rowBarcode)
+              RNothing
+              RNothing
+              RNothing
+              (transform rowDate)
+              (transform rowOperator)
 
 finalizeRow (FullST row) = FinalFull (transformRow row)
 finalizeRow (ZeroST row) = FinalZero (transformRow row)
+-- finalizeRow (BLookupST row) = error "Shouldn't happend"
+-- finalizeRow (BLookedupST row) = row
 
 styleFor (FullST row) = rowStyle row
 styleFor (ZeroST row) = rowStyle row
+-- styleFor (BLookupST row) = rowStyle row
+-- styleFor (BLookedupST row) = rowStyle row
 
 -- * Csv
 instance Csv.FromNamedRecord RawRow where
