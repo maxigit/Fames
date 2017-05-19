@@ -106,6 +106,7 @@ Boxtake sql=fames_boxtake
   active Bool
   operator OperatorId sql=operator_id
   documentKey DocumentKeyId sql=document_key_id
+  locationHistory (Pairs Day (Text))
   UniqueBB barcode
   UniqueBK documentKey reference
   deriving Eq

@@ -354,7 +354,7 @@ instance Renderable a => Renderable (ValidField a) where
   render (Guessed x) = do
     toWidget [cassius|
 span.guessed-value
-  color:lightblue
+  color:blue
 |]
     [whamlet|
 <span.guessed-value>^{render x}
