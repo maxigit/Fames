@@ -16,6 +16,9 @@ stock adjustement if they have been already adjusted.
 
 In fact, a stocktake can be seen as a queue for pending adjustement.
 The real information where things are is in the boxtake table.
+*** TODO change ZeroTake to QuickTake
+- [ ] make sure that only zerotakes discard boxes
+- [ ] make sure style, operator and date are carried over
 * TODO <2017-03-04 Sat> 
 ** Edit packing list [7/9]
 - [X] add message

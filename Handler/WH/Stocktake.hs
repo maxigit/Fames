@@ -131,7 +131,7 @@ uploadForm mode paramM =
 renderValidRows :: FormParam -> [ValidRow] -> Handler Widget
 renderValidRows param rows = do
   missings <- case pStyleComplete param of
-    StyleComplete -> ZeroST <$$> generateMissings rows
+    StyleComplete -> QuickST <$$> generateMissings rows
     _ -> return []
 
   unless (null missings) $ do
@@ -226,15 +226,15 @@ $maybe u <- uploader
           renderWHStocktake Save (Just param) 200 (setSuccess "Validation ok!") widget
         process param doc Save rows = do
           missings <- case pStyleComplete param of
-            StyleComplete -> map ZeroST <$> generateMissings rows
+            StyleComplete -> map QuickST <$> generateMissings rows
             _ -> return []
           (runDB $ do
           let finals = zip [1..] (map finalizeRow $ rows <> missings)  :: [(Int, FinalRow)]
-          -- separate between full stocktake, barcode lookup and zero one.
-          -- zero takes needs to be associated with a new barcodes
+          -- separate between full stocktake, barcode lookup and quick one.
+          -- quick takes needs to be associated with a new barcodes
           -- and don't have box information.
               fulls = [(i, full) | (i, FinalFull full) <- finals]
-              zeros = [ zero | (_, FinalZero zero) <- finals]
+              quicks = [ quick | (_, FinalQuick quick) <- finals]
               fromBarcodes = [(i, lookedup) | (i, FinalBarcodeLookup lookedup) <- finals]
               override = pOveridde param
 
@@ -264,14 +264,32 @@ $maybe u <- uploader
           -- Unless we are doing "addition" .We assume that when doing a stock take
           -- ALL boxes of a given style are withing the stock take
           -- Therefore we can inactivated the previous for a given style
+          -- However, for quick take which are not null 
+          -- which corresponds to a partial check
+          -- we don't invalid the boxes are they are probably still there.
+          -- We only invalidate the other takes. This is wrong as well
+          -- but if we consider a stocktake to be an event, when someone counted boxes
+          -- everything is fine. We can have form example 6x4=24 on the previous stocktake
+          -- and only count 5. This corresponds to a loss of 19 or -1 if we consider it modulo 6.
+          -- Invalidating the other means when doing the stock adjustement that we will ose 19 (or 1)
+          -- This shouldn't change anything anyway as the previous stocktake might be already part
+          -- of a stock adjustment and therefore not taken into account anyway whilst creating the
+          -- adjustment.
+          -- However, we keep the boxes.
+          -- Quick check with 0 are different. It means we haven't found any, therefore
+          -- it is legitimate to also inacite the boxes. We know (or think) the boxes
+          -- have disappeared.
           when (pStyleComplete param /= StyleAddition) (do
             let skusForFull = map stocktakeStockId stocktakes
-                skusForZero = zipWith makeSku (map rowStyle zeros) (map rowColour zeros)
-            invalidPreviousTakes (skusForFull ++ skusForZero)
+                (zeros, nonZeros)= partition (\r -> rowQuantity r == Known 0)  quicks
+                skusForZeros = zipWith makeSku (map rowStyle quicks) (map rowColour zeros)
+                skusForNonZeros = zipWith makeSku (map rowStyle quicks) (map rowColour nonZeros)
+            invalidPreviousTakes (skusForFull ++ skusForZeros)
+            invalidPreviousStocktakes  skusForNonZeros
             return ()
             )
 
-          insertZeroTakes keyId zeros
+          insertQuickTakes keyId quicks
           mapM_ (updateLookedUp keyId) (groupByBarcode fromBarcodes)
 
           if override
@@ -329,16 +347,16 @@ $maybe u <- uploader
                                  )
                                  (return ())
        
-zeroPrefix = "ZT" :: Text
+quickPrefix = "ZT" :: Text
      
-insertZeroTakes :: MonadIO m => Key DocumentKey -> [FinalZeroRow] -> ReaderT SqlBackend m ()
--- insertZeroTakes _ [] = return ()
-insertZeroTakes docId zeros = do
-  let count = length zeros
+insertQuickTakes :: MonadIO m => Key DocumentKey -> [FinalQuickRow] -> ReaderT SqlBackend m ()
+-- insertQuickTakes _ [] = return ()
+insertQuickTakes docId quicks = do
+  let count = length quicks
 
       toStockTake barcode TakeRow{..} =
         Stocktake (makeSku rowStyle rowColour)
-                  0
+                  (qty)
                   barcode
                   1 -- index
                   (FA.LocationKey "LOST") -- location
@@ -348,14 +366,15 @@ insertZeroTakes docId zeros = do
                   Nothing
                   docId
                   []
+        where Known qty = rowQuantity
 
-  barcodes <- generateBarcodes zeroPrefix  Nothing count
-  let zerotakes = zipWith toStockTake barcodes zeros
+  barcodes <- generateBarcodes quickPrefix  Nothing count
+  let quicktakes = zipWith toStockTake barcodes quicks
 
-  insertMany_ zerotakes
+  insertMany_ quicktakes
 
-isBarcodeZero :: Text -> Bool
-isBarcodeZero = isPrefixOf zeroPrefix
+isBarcodeQuick :: Text -> Bool
+isBarcodeQuick = isPrefixOf quickPrefix
 -- invalidPreviousStockTakes :: [Stocktake]
 -- invalidPreviousStockTakes stocktakes = do
 --   let skus = nub $ sort (map stocktakeStockId stocktakes)
@@ -369,6 +388,14 @@ invalidPreviousTakes skus0 = do
       sql = "UPDATE fames_stocktake st " <>
             "LEFT JOIN fames_boxtake bt USING (barcode) " <>
             "SET st.active = 0, bt.active = 0 " <>
+            "WHERE st.stock_id = ?"
+  mapM_ (rawExecute sql) (map (return .toPersistValue) skus)
+-- @TODO factorize with invalidPreviousTakes
+invalidPreviousStocktakes :: MonadIO m => [Text] -> ReaderT SqlBackend m ()
+invalidPreviousStocktakes skus0 = do
+  let skus = nub $ sort skus0
+      sql = "UPDATE fames_stocktake st " <>
+            "SET st.active = 0 " <>
             "WHERE st.stock_id = ?"
   mapM_ (rawExecute sql) (map (return .toPersistValue) skus)
 
@@ -415,7 +442,7 @@ updateLookedUp docKey i'rows = do
 
 -- * Csv
 
--- | Wrapper around Operator
+-- | Wrapper around Operators
 -- ** Temporary types for parsing
 data Operator' = Operator' {opId :: OperatorId, op :: Operator} deriving (Eq, Show)
 type OpFinder = Text -> Maybe Operator'
@@ -429,10 +456,10 @@ data Location' = Location' { faLocation :: FA.LocationId
 type LocFinder = Text -> Maybe Location'
 
 -- | a take row can hold stocktake and boxtake information
-data TakeRow s = TakeRow --  Basic       ZeroTake BarcodeLookup
+data TakeRow s = TakeRow --  Basic       QuickTake BarcodeLookup
   { rowStyle    :: FieldTF s Text        Identity Identity
   , rowColour   :: FieldTF s Text        Identity Null
-  , rowQuantity :: FieldTF s (Known Int) Null     Null
+  , rowQuantity :: FieldTF s (Known Int) Identity Null
   , rowLocation :: FieldTF s Location'   Null     Identity
   , rowBarcode  :: FieldTF s Text        Null     Identity
   , rowLength   :: FieldTF s Double      Null     Null
@@ -444,24 +471,24 @@ data TakeRow s = TakeRow --  Basic       ZeroTake BarcodeLookup
   
 
 data TakeRowType = RawT | PartialT | FullT
-  | ZeroT | FinalZeroT
+  | QuickT | FinalQuickT
   |  BarcodeLookupT -- | FinalBarcodeLookupT
   | FinalT deriving (Eq, Read, Show)
 type RawRow = TakeRow RawT -- Raw data. Contains if the original text value if necessary
 type PartialRow = TakeRow PartialT -- Well formatted row. Can contains blank
 type FullRow = TakeRow FullT -- Contains valid value with guessed/provided indicator
-type ZeroRow = TakeRow ZeroT -- Zero take. No item founds, therefore no quantities, barcode, box dimensions, etc ...
+type QuickRow = TakeRow QuickT -- Quick take. No item founds, therefore no quantities, barcode, box dimensions, etc ...
 type BarcodeLookupRow = TakeRow BarcodeLookupT -- Barcode lookup. Rescan an already scanned boxed
 type FinalFullRow = TakeRow FinalT -- Contains value with ornement
-type FinalZeroRow = TakeRow FinalZeroT -- Contains value with ornement
+type FinalQuickRow = TakeRow FinalQuickT -- Contains value with ornement
 -- type FinalBarcodeLookupRow = TakeRow FinalBarcodeLookupT -- Barcode lookup. Rescan an already scanned boxed
 
 type family  FieldTF (s :: TakeRowType) a z lk where
   FieldTF 'RawT a z lk = FieldForRaw a
   FieldTF 'PartialT a z lk = FieldForPartial a
   FieldTF 'FullT a z lk = FieldForValid a
-  FieldTF 'ZeroT a z lk = FieldForValid (UnIdentity (z a))
-  FieldTF 'FinalZeroT a z lk = UnIdentity (z a)
+  FieldTF 'QuickT a z lk = FieldForValid (UnIdentity (z a))
+  FieldTF 'FinalQuickT a z lk = UnIdentity (z a)
   FieldTF 'BarcodeLookupT a z lk = FieldForValid (UnIdentity (lk a))
   -- FieldTF 'FinalBarcodeLookupT a z lk = UnIdentity (lk a)
   FieldTF 'FinalT a z lk = a
@@ -469,16 +496,16 @@ type family  FieldTF (s :: TakeRowType) a z lk where
 deriving instance Show RawRow
 deriving instance Show PartialRow
 deriving instance Show FullRow
-deriving instance Show ZeroRow
-deriving instance Show FinalZeroRow
+deriving instance Show QuickRow
+deriving instance Show FinalQuickRow
 deriving instance Show FinalFullRow
 deriving instance Show BarcodeLookupRow
 -- deriving instance Show FinalBarcodeLookupRow
 
-data ValidRow = FullST FullRow | ZeroST ZeroRow
+data ValidRow = FullST FullRow | QuickST QuickRow
               | BLookupST BarcodeLookupRow | BLookedupST FullRow   deriving Show
 data FinalRow = FinalFull FinalFullRow
-              | FinalZero FinalZeroRow
+              | FinalQuick FinalQuickRow
               | FinalBarcodeLookup FinalFullRow
               deriving Show
 
@@ -531,7 +558,7 @@ validateRows skus (row:rows) = do
       transformRow' r = case r of
         FullST full -> let p = transformRow full  
                        in transformRow (p :: PartialRow)
-        ZeroST zero -> let p = transformRow zero  
+        QuickST quick -> let p = transformRow quick  
                        in transformRow (p :: PartialRow)
         BLookupST lookup -> let p = transformRow lookup  
                        in transformRow (p :: PartialRow)
@@ -539,9 +566,9 @@ validateRows skus (row:rows) = do
   -- we need to check that the last barcode is not guessed
   
       errors = map (either id (transformRow')) filleds
-      -- ignore zerotake barcode when determining if a sequence of barcode is correct or not.
+      -- ignore quicktake barcode when determining if a sequence of barcode is correct or not.
       validBarcode (FullST row) = Just (rowBarcode row)
-      validBarcode (ZeroST row) = Nothing 
+      validBarcode (QuickST row) = Nothing 
       validBarcode (BLookupST row) = Nothing 
       validBarcode (BLookedupST row) = error "Shouldn't happen"
                
@@ -561,9 +588,10 @@ data ValidationMode = CheckBarcode | NoCheckBarcode deriving Eq
 -- | The big parsing method which detect depending on the available value
 -- which type of row we are having.
 validateRow :: Set Text -> ValidationMode -> PartialRow -> Either RawRow ValidRow
-validateRow skus validateMode row@(TakeRow (Just rowStyle) (Just rowColour) (Just (Provided (Known 0)))
+validateRow skus validateMode row@(TakeRow (Just rowStyle) (Just rowColour)
+                                   (Just rowQuantity@(Provided (Known _)))
                                   _ _ _ _ _ (Just rowDate) (Just rowOperator))
-  = Right . ZeroST $ TakeRow{rowQuantity=(), rowLocation=(), rowBarcode=() 
+  = Right . QuickST $ TakeRow{rowLocation=(), rowBarcode=() 
                             , rowLength=(), rowWidth=(), rowHeight=()
                             , .. }
 validateRow skus validateMode row@(TakeRow (Just rowStyle) (Nothing) (Nothing)
@@ -599,7 +627,7 @@ fillFromPrevious skus (Left prev) partial =
     Left _ ->  Left $ transformRow partial
     Right valid -> Right valid -- We don't need to check the sequence barcode as the row the previous row is invalid anyway
 
-fillFromPrevious skus (Right (ZeroST previous)) partial =
+fillFromPrevious skus (Right (QuickST previous)) partial =
   case validateRow skus CheckBarcode partial of
     Left _ ->  Left $ transformRow partial
     Right valid -> Right valid -- We don't need to check the sequence barcode as the row the previous row is invalid anyway
@@ -815,26 +843,26 @@ groupToStocktakes docId group = let
   stockFns = mapMaybe (toStocktakeF docId . snd) group
   in zipWith ($) stockFns (map StIndex [1..])
 
--- | Generates zerotake corresponding to variations which exits for a given style
+-- | Generates quicktake corresponding to variations which exits for a given style
 -- but have not been stock taken
-generateMissings :: [ValidRow] -> Handler [ZeroRow]
+generateMissings :: [ValidRow] -> Handler [QuickRow]
 generateMissings rows = do
-  let cmp row = let row' = transformValid row :: ZeroRow
+  let cmp row = let row' = transformValid row :: QuickRow
                 in (,) <$> (validValue . rowStyle)
                        <*> (Down . validValue . rowDate)
                        $ row'
   let groups = groupBy ((==) `on` (validValue . styleFor)) (sortBy (comparing cmp) rows)
   
-  zeros <- mapM generateMissingsFor groups
-  return $ concat zeros 
+  quicks <- mapM generateMissingsFor groups
+  return $ concat quicks 
       
 
 -- | All rows should belongs to the same style. The first one
 -- being the one use to set the date and operator.
-generateMissingsFor :: [ValidRow] -> Handler [ZeroRow]
+generateMissingsFor :: [ValidRow] -> Handler [QuickRow]
 generateMissingsFor [] = return []
 generateMissingsFor rows@(row:_) = do
-  let day = validValue . rowDate $ (transformValid row :: ZeroRow) -- max date, rows are sorted by date DESC
+  let day = validValue . rowDate $ (transformValid row :: QuickRow) -- max date, rows are sorted by date DESC
   -- find all items which have been in stock
   let sql = "SELECT stock_id FROM (SELECT stock_id, SUM(qty) quantity "
             <> "FROM 0_stock_moves "
@@ -850,10 +878,10 @@ generateMissingsFor rows@(row:_) = do
 
   variations <- runDB $ rawSql sql [PersistText style, PersistDay day]
 
-  let usedVars = nub . sort $ map (validValue . rowColour . (\r -> transformValid r :: ZeroRow)) rows
+  let usedVars = nub . sort $ map (validValue . rowColour . (\r -> transformValid r :: QuickRow)) rows
   let vars = nub . sort $ (map (getColour . unSingle) variations)
   let missingVars = vars \\ usedVars
-      row' = transformValid row :: ZeroRow
+      row' = transformValid row :: QuickRow
 
   -- traceShowM (length rows)
   -- traceShowM ("variations", vars
@@ -861,7 +889,7 @@ generateMissingsFor rows@(row:_) = do
   --            , "missing", missingVars
   --            )
 
-  return $ [TakeRow  {rowQuantity=(), rowLocation=(), rowBarcode=() 
+  return $ [TakeRow  {rowQuantity = Guessed (Known 0), rowLocation=(), rowBarcode=() 
                      , rowLength=(), rowWidth=(), rowHeight=()
                      , rowStyle = Provided style
                      , rowColour = Guessed var
@@ -960,16 +988,16 @@ transformRow TakeRow{..} = TakeRow
   (transform rowDate)
   (transform rowOperator)
 
-transformValid :: ValidRow -> ZeroRow
+transformValid :: ValidRow -> QuickRow
 transformValid (FullST row) = transformRow row
-transformValid (ZeroST row) = transformRow row
+transformValid (QuickST row) = transformRow row
 transformValid (BLookedupST row) = transformRow row
 transformValid row = error ("transformValid:" ++ show row)
 
 transformValid' :: ValidRow -> RawRow
 transformValid' (FullST row) = transformRow row
 transformValid' (BLookedupST row) = transformRow row
-transformValid' (ZeroST TakeRow{..}) = TakeRow
+transformValid' (QuickST TakeRow{..}) = TakeRow
               (transform rowStyle)
               RNothing
               RNothing
@@ -994,12 +1022,12 @@ transformValid' (BLookupST TakeRow{..}) = TakeRow
               (transform rowOperator)
 
 finalizeRow (FullST row) = FinalFull (transformRow row)
-finalizeRow (ZeroST row) = FinalZero (transformRow row)
+finalizeRow (QuickST row) = FinalQuick (transformRow row)
 finalizeRow (BLookupST row) = error "Shouldn't happend"
 finalizeRow (BLookedupST row) = FinalBarcodeLookup (transformRow row)
 
 styleFor (FullST row) = rowStyle row
-styleFor (ZeroST row) = rowStyle row
+styleFor (QuickST row) = rowStyle row
 styleFor (BLookupST row) = rowStyle row
 styleFor (BLookedupST row) = rowStyle row
 
@@ -1060,7 +1088,7 @@ renderRow TakeRow{..} = do
 
 instance Renderable RawRow where render = renderRow
 instance Renderable FullRow where render = renderRow
-instance Renderable ZeroRow where
+instance Renderable QuickRow where
   render row = let partial = transformRow row :: PartialRow
                in renderRow $ partial{rowQuantity= Just . Provided $ Known  0 }
 
@@ -1068,7 +1096,7 @@ instance Renderable [RawRow ]where render = renderRows classForRaw
 instance Renderable [ValidRow] where render = renderRows (const ("" :: Text))
 instance Renderable ValidRow where
   render (FullST row) = render row
-  render (ZeroST row) = render row
+  render (QuickST row) = render row
   render (BLookedupST row) = render row
   render (BLookupST row) = error "Shouldn't happen"
 
