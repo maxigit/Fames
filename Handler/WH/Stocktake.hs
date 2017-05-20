@@ -264,7 +264,13 @@ $maybe u <- uploader
           -- Unless we are doing "addition" .We assume that when doing a stock take
           -- ALL boxes of a given style are withing the stock take
           -- Therefore we can inactivated the previous for a given style
-          when (pStyleComplete param /= StyleAddition) (invalidPreviousTakes stocktakes >> return ())
+          when (pStyleComplete param /= StyleAddition) (do
+            let skusForFull = map stocktakeStockId stocktakes
+                skusForZero = zipWith makeSku (map rowStyle zeros) (map rowColour zeros)
+            invalidPreviousTakes (skusForFull ++ skusForZero)
+            return ()
+            )
+
           insertZeroTakes keyId zeros
           mapM_ (updateLookedUp keyId) (groupByBarcode fromBarcodes)
 
@@ -331,7 +337,7 @@ insertZeroTakes docId zeros = do
   let count = length zeros
 
       toStockTake barcode TakeRow{..} =
-        Stocktake (rowStyle <> "-" <> rowColour)
+        Stocktake (makeSku rowStyle rowColour)
                   0
                   barcode
                   1 -- index
@@ -357,8 +363,9 @@ isBarcodeZero = isPrefixOf zeroPrefix
 --                                      [StocktakeActive =. False ]
 --   mapM_ invalid skus
    
-invalidPreviousTakes stocktakes = do
-  let skus = nub $ sort (map stocktakeStockId stocktakes)
+invalidPreviousTakes :: MonadIO m => [Text] -> ReaderT SqlBackend m ()
+invalidPreviousTakes skus0 = do
+  let skus = nub $ sort skus0
       sql = "UPDATE fames_stocktake st " <>
             "LEFT JOIN fames_boxtake bt USING (barcode) " <>
             "SET st.active = 0, bt.active = 0 " <>
@@ -575,7 +582,7 @@ validateRow skus validateMode row@(TakeRow (Just rowStyle) (Just rowColour) (Jus
                       then Nothing
                       else Just (\r -> r {rowBarcode=Left $ ParsingError "Invalid barcode" (validValue rowBarcode)})
                     , 
-                        let sku = validValue rowStyle <> "-" <> validValue rowColour
+                        let sku = makeSku (validValue rowStyle) (validValue rowColour)
                         in if null skus || sku `member` skus
                               then Nothing
                               else Just (\r -> r {rowColour=Left $ ParsingError "Invalid variation" sku})
@@ -778,7 +785,7 @@ newtype StIndex = StIndex Int deriving (Eq, Show)
 toStocktakeF :: DocumentKeyId -> FinalFullRow -> Maybe (StIndex -> Stocktake)
 toStocktakeF docId TakeRow{..} = case rowQuantity of
   Unknown -> Nothing
-  Known quantity -> Just $ \(StIndex index) -> Stocktake (rowStyle <> "-" <> rowColour)
+  Known quantity -> Just $ \(StIndex index) -> Stocktake (makeSku rowStyle rowColour)
                       quantity
                       rowBarcode
                       index
@@ -996,6 +1003,8 @@ styleFor (ZeroST row) = rowStyle row
 styleFor (BLookupST row) = rowStyle row
 styleFor (BLookedupST row) = rowStyle row
 
+makeSku :: Text -> Text -> Text
+makeSku style colour = style <> "-" <> colour
 -- * Csv
 instance Csv.FromNamedRecord RawRow where
   parseNamedRecord m = pure TakeRow
