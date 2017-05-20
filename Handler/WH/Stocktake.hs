@@ -590,7 +590,15 @@ data ValidationMode = CheckBarcode | NoCheckBarcode deriving Eq
 validateRow :: Set Text -> ValidationMode -> PartialRow -> Either RawRow ValidRow
 validateRow skus validateMode row@(TakeRow (Just rowStyle) (Just rowColour)
                                    (Just rowQuantity@(Provided (Known _)))
-                                  _ _ _ _ _ (Just rowDate) (Just rowOperator))
+                                  Nothing (Just (Provided "0")) Nothing Nothing Nothing
+                                   (Just rowDate) (Just rowOperator))
+  = Right . QuickST $ TakeRow{rowLocation=(), rowBarcode=() 
+                            , rowLength=(), rowWidth=(), rowHeight=()
+                            , .. }
+validateRow skus validateMode row@(TakeRow (Just rowStyle) (Just rowColour)
+                                   (Just rowQuantity@(Provided (Known 0)))
+                                  _ _ _ _ _
+                                   (Just rowDate) (Just rowOperator))
   = Right . QuickST $ TakeRow{rowLocation=(), rowBarcode=() 
                             , rowLength=(), rowWidth=(), rowHeight=()
                             , .. }

@@ -329,3 +329,18 @@ t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 |]
         htmlAllContain "table td.stocktakeStyle" "t-shirt"
         htmlCount "table td.stocktakeStyle" 2
+
+    describe "quick test" $ do
+      it "doesn't generate boxes" (const pending)
+      it "doesn't invalidate previous boxes" (const pending)
+      it "does invalidate previous stockst" (const pending)
+      it "reuse previous style, operator and date" (const pending)
+    describe "barcode lookup" $ do
+      it "" (const pending)
+    describe "invalidates previous take" $ do
+      context "full take" $ do
+        it "does invalidate previous boxes" (const pending)
+        it "does invalidate previous stocktakes" (const pending)
+      context "zero take" $ do
+        it "does invalidate previous boxes" (const pending)
+        it "does invalidate previous stocktakes" (const pending)
