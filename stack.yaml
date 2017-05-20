@@ -18,6 +18,7 @@ extra-deps:
 - say-0.1.0.0
 - typed-process-0.1.0.0
 - hspec-stack-rerun-0.1.0.3
+- intero-0.1.20
 
 # Override default flag values for local packages and extra-deps
 flags: {}
