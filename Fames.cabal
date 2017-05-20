@@ -60,7 +60,7 @@ library
         cpp-options:   -DDEVELOPMENT
         ghc-options:   -w -fwarn-tabs -O0
     else
-        ghc-options:   -w -fwarn-tabs -O2
+        ghc-options:   -w -fwarn-tabs -Wincomplete-patterns -O2
 
     extensions: TemplateHaskell
                 QuasiQuotes
