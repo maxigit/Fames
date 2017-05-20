@@ -1,3 +1,21 @@
+* TODO<2017-05-20 Sat> 
+** TODO StockAdjustment
+   - [ ] add modulo
+   On generate adjusment modulo 6 (for example) optional
+** TODO Collect MOP lost items
+** TODO generate quickcheck
+Allow stocktake without barcode.
+similar to 0 takes but doesn't
+For example if 24 of a styles are in stock
+but only 5 are checked.
+We don't want to invalidate the last stocktake (and not the box)
+as it's indicate where (location and barcode) are the styles
+if needs to be.
+However, those items won't be taken into account when calculating 
+stock adjustement if they have been already adjusted.
+
+In fact, a stocktake can be seen as a queue for pending adjustement.
+The real information where things are is in the boxtake table.
 * TODO <2017-03-04 Sat> 
 ** Edit packing list [7/9]
 - [X] add message
@@ -37,9 +55,11 @@ Maybe it should.
 - [ ] link stock_id in stock adj to stocktake 
 * PL
 - [ ] TODO check groups are valid
-- [ ] deliver boxes
-  - [ ] mark them as deliver
+- [-] deliver boxes
+  - [X] mark them as deliver
   - [ ] generate automatic stocktake
+    Boxtakess are generated. We could instead generate a stocktake sheet
+to upload manually.
 * Features
 ** TODO Stock Adjustment [0/1]
 *** TODO Generate stock adjustment from stock take amendment [0/2]
