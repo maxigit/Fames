@@ -3,8 +3,7 @@
    - [ ] add modulo
    On generate adjusment modulo 6 (for example) optional
 ** TODO Collect MOP lost items
-** DONE generate quickcheck
-   CLOSED: [2017-05-21 Sun 08:07]
+** TODO generate quickcheck
 Allow stocktake without barcode.
 similar to 0 takes but doesn't
 For example if 24 of a styles are in stock
@@ -21,6 +20,7 @@ The real information where things are is in the boxtake table.
     CLOSED: [2017-05-21 Sun 08:07]
 - [X] make sure that only zerotakes discard boxes
 - [ ] make sure style, operator and date are carried over
+*** TODO reuse style, operator and date
 * TODO <2017-03-04 Sat> 
 ** Edit packing list [7/9]
 - [X] add message

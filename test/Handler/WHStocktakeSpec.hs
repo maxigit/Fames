@@ -373,12 +373,12 @@ t-shirt,black,120,,0,,,,2017/11/10,Jack
         stocktakeLengthShouldBe 3 
         lengthShouldBe [StocktakeActive ==. True] 2 
 
---       it "reuse previous style, operator and date" $ do
---         saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
--- t-shirt,black,120,,0,,,,2017/11/10,Jack
--- ,red,120,,0,,,,
--- |]
---         stocktakeLengthShouldBe 2 
+      it "reuse previous style, operator and date" $ do
+        saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,,0,,,,2017/11/10,Jack
+,red,120,,0,,,,
+|]
+        stocktakeLengthShouldBe 2 
 
     describe "barcode lookup" $ do
       it "find content from barcode" $ do
