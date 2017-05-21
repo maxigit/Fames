@@ -3,7 +3,8 @@
    - [ ] add modulo
    On generate adjusment modulo 6 (for example) optional
 ** TODO Collect MOP lost items
-** TODO generate quickcheck
+** DONE generate quickcheck
+   CLOSED: [2017-05-21 Sun 08:07]
 Allow stocktake without barcode.
 similar to 0 takes but doesn't
 For example if 24 of a styles are in stock
@@ -16,8 +17,9 @@ stock adjustement if they have been already adjusted.
 
 In fact, a stocktake can be seen as a queue for pending adjustement.
 The real information where things are is in the boxtake table.
-*** TODO change ZeroTake to QuickTake
-- [ ] make sure that only zerotakes discard boxes
+*** DONE change ZeroTake to QuickTake
+    CLOSED: [2017-05-21 Sun 08:07]
+- [X] make sure that only zerotakes discard boxes
 - [ ] make sure style, operator and date are carried over
 * TODO <2017-03-04 Sat> 
 ** Edit packing list [7/9]
