@@ -636,9 +636,22 @@ fillFromPrevious skus (Left prev) partial =
     Right valid -> Right valid -- We don't need to check the sequence barcode as the row the previous row is invalid anyway
 
 fillFromPrevious skus (Right (QuickST previous)) partial =
-  case validateRow skus CheckBarcode partial of
-    Left _ ->  Left $ transformRow partial
-    Right valid -> Right valid -- We don't need to check the sequence barcode as the row the previous row is invalid anyway
+  let 
+      style    = rowStyle partial `fillValue` transform (rowStyle previous)
+      colour = rowColour partial
+      quantity = rowQuantity partial
+      location = rowLocation partial
+      barcode  = rowBarcode partial
+      length   = rowLength partial
+      width    = rowWidth partial
+      height   = rowHeight partial
+      date     = rowDate partial `fillValue` transform (rowDate previous)
+      operator = rowOperator partial `fillValue` transform (rowOperator previous)
+      raw = (TakeRow (Just <$> style) (Right colour) (Right quantity)
+                    (Right location) (Right barcode)
+                    (Right length) (Right width) (Right height)
+                    (Just <$> date) (Just <$> operator) :: RawRow)
+  in validateRow skus CheckBarcode =<< validateRaw (const Nothing) (const Nothing)  raw
 
 fillFromPrevious skus (Right (BLookupST previous)) partial = let
       style    = rowStyle partial `fillValue` transform (rowStyle previous)

@@ -376,7 +376,7 @@ t-shirt,black,120,,0,,,,2017/11/10,Jack
       it "reuse previous style, operator and date" $ do
         saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
 t-shirt,black,120,,0,,,,2017/11/10,Jack
-,red,120,,0,,,,
+,red,120,,0,,,,,
 |]
         stocktakeLengthShouldBe 2 
 
