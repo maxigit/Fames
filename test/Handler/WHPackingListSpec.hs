@@ -13,7 +13,7 @@ import qualified Data.Map as Map
 import Handler.CsvUtils
 
 spec :: Spec
-spec = pureSpec >> appSpec
+spec = parallel pureSpec >> appSpec
 
 data Mode = Save | Validate deriving (Eq, Show)
 uploadPLSheet mode status sheet = do

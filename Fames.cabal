@@ -148,10 +148,10 @@ executable         Fames
 
 test-suite test
     type:              exitcode-stdio-1.0
-    main-is:           Main.hs
+    main-is:           Spec.hs
     hs-source-dirs:    test
     -- ghc-options:       -Wall
-    ghc-options:       -w
+    ghc-options:       -w -threaded -rtsopts -with-rtsopts=-N
 
     extensions: TemplateHaskell
                 QuasiQuotes
@@ -182,8 +182,7 @@ test-suite test
                  , monad-logger
                  , shakespeare
                  , transformers
-                 , hspec >= 2.0.0
-                 , hspec-stack-rerun
+                 , hspec >= 2.4 && < 2.5
                  , classy-prelude
                  , classy-prelude-yesod
                  , aeson
