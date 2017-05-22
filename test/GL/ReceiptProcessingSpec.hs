@@ -6,7 +6,7 @@ import GL.Receipt
 
 spec :: Spec
 
-spec = describe "#Receipt translator" $ do
+spec = parallel $ describe "@parallel @Receipt #Receipt translator" $ do
   it "Generates a simple payment with tax type" $ do
     let receipt =  Receipt "" "" "" 0  [ReceiptItem 7501 100 (TaxType 0.20 2200)]
     translate receipt `shouldBe`

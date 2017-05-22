@@ -362,7 +362,7 @@ shouldGenerate content expectation =
 
 
 pureSpec = do
-  describe "@pure #stickers from PL" $ do
+  describe "@pure @parallel #stickers from PL" $ do
     it "generates 12" $ do
       [("BLK", 12)] `shouldGenerate` ["BLK", "○", "○"]
     it "generates two lines without name duplication" $ do
@@ -385,7 +385,7 @@ pureSpec = do
                                                               ]
     it "displays 1 properly" $ do
       [("BLK", 1)] `shouldGenerate` ["BLK", "∅"]
-  describe "@pure @deliver parses deliver cart" $ do
+  describe "@pure @parallel @deliver parses deliver cart" $ do
     it "parses ids to deliver" $ do
       let cart = "1,comment\n"
           result = parseDeliverList cart

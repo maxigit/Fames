@@ -82,7 +82,7 @@ findBarcodes getBarcode = do
   return $ map (stocktakeBarcode . entityVal) entities
 
 appSpec = withAppWipe BypassAuth $ do
-  describe "upload stocktake" $ do
+  describe "@Stocktake upload stocktake" $ do
     describe "upload page" $ do
       it "proposes to upload a file" $ do
         logAsAdmin 
@@ -433,44 +433,46 @@ t-shirt,,,shelf-2,ST16NV00399X,,,,2017/05/19,Jack
                                             , jackK
                                             )]
               
+
     describe "invalidates previous take" $ do
+      -- we used a different t-shirt code so that specs can be ran in parallel
       context "full take" $ do
         it "does invalidate previous boxes" $ do
           saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
-t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+t-shirt#1,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 |]
           saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
-t-shirt,black,120,shelf-1,ST16NV00400E,34,20,17,2017/05/19,Jack
+t-shirt#1,black,120,shelf-1,ST16NV00400E,34,20,17,2017/05/19,Jack
 |]
-          lengthShouldBe [BoxtakeActive ==. False] 1
+          lengthShouldBe [BoxtakeDescription ==. Just "t-shirt#1-black", BoxtakeActive ==. False] 1
 
         it "does invalidate previous stocktakes" $ do
           saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
-t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+t-shirt#2,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 |]
           saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
-t-shirt,black,120,shelf-1,ST16NV00400E,34,20,17,2017/05/19,Jack
+t-shirt#2,black,120,shelf-1,ST16NV00400E,34,20,17,2017/05/19,Jack
 |]
           stocktakeLengthShouldBe 2
-          lengthShouldBe [StocktakeActive ==. False] 1
+          lengthShouldBe [StocktakeStockId ==. "t-shirt#2-black", StocktakeActive ==. False] 1
 
       context "zero take" $ do
         it "does invalidate previous boxes" $ do
           saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
-t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+t-shirt#3,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 |]
           saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
-t-shirt,black,0,,,,,,2017/05/19,Jack
+t-shirt#3,black,0,,,,,,2017/05/19,Jack
 |]
 
-          lengthShouldBe [BoxtakeActive ==. False] 1
+          lengthShouldBe [BoxtakeDescription ==. Just "t-shirt#3-black", BoxtakeActive ==. False] 1
 
         it "does invalidate previous stocktakes" $ do
           saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
-t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+t-shirt#4,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 |]
           saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
-t-shirt,black,0,,,,,,2017/05/19,Jack
+t-shirt#4,black,0,,,,,,2017/05/19,Jack
 |]
           stocktakeLengthShouldBe 2
-          lengthShouldBe [StocktakeActive ==. False] 1
+          lengthShouldBe [StocktakeStockId ==. "t-shirt#4-black", StocktakeActive ==. False] 1

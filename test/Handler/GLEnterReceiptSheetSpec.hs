@@ -165,7 +165,7 @@ storiesSpec =  withAppNoDB BypassAuth $ do
     it "story to write" (const pending)
 pureSpec :: Spec
 pureSpec = do
-  describe "@pure" $ do
+  describe "@pure @parallel" $ do
 {-
   describe "Parshing csv" $ do
     context "should parse dates" $ do
