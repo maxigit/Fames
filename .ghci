@@ -21,4 +21,3 @@
 :set -XPartialTypeSignatures 
 :set -XStandaloneDeriving
 :set -hide-package cryptonite
-:set -hide-package filemanip

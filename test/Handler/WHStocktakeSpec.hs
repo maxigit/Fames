@@ -49,6 +49,19 @@ uploadSTSheet route status path overrideM = do
   -- printBody
   statusIs status
 
+boxtakeLengthShouldBe expected = do
+  boxtakes <- runDB (selectList [] [])
+  liftIO $ length (boxtakes :: [Entity Boxtake]) `shouldBe` expected
+
+stocktakeLengthShouldBe expected = do
+  stocktakes <- runDB (selectList [] [])
+  liftIO $ length (stocktakes :: [Entity Stocktake]) `shouldBe` expected
+
+lengthShouldBe filter expected = do
+  l <- runDB $ count filter
+  liftIO $ l `shouldBe` expected
+
+
 -- write the sheet to a temporary file and upload it.
 -- more convenient for testing
 postSTSheet status sheet = do
@@ -329,3 +342,135 @@ t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
 |]
         htmlAllContain "table td.stocktakeStyle" "t-shirt"
         htmlCount "table td.stocktakeStyle" 2
+
+    describe "quick test" $ do
+      it "doesn't generate boxes" $ do
+        postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,,0,,,,2017/11/10,Jack
+|]
+        boxtakeLengthShouldBe 0 
+
+      it "doesn't invalidate previous boxes" $ do
+        saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+,red,0,,,,,,,
+|]
+        boxtakeLengthShouldBe 1
+        postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,,0,,,,2017/11/10,Jack
+|]
+        lengthShouldBe [BoxtakeActive ==. True] 1 
+
+      it "does invalidate previous stocktakes" $ do
+        saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+,red,0,,,,,,,
+|]
+        stocktakeLengthShouldBe 2 
+        saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,,0,,,,2017/11/10,Jack
+|]
+        stocktakeLengthShouldBe 3 
+        lengthShouldBe [StocktakeActive ==. True] 2 
+
+      it "reuse previous style, operator and date" $ do
+        saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,,0,,,,2017/11/10,Jack
+,red,120,,0,,,,,
+|]
+        stocktakeLengthShouldBe 2 
+
+    describe "barcode lookup" $ do
+      it "find content from barcode" $ do
+        saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+,red,120,,-,,,,2016/11/10,Jack
+|]
+        postSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,,,shelf-2,ST16NV00399X,,,,2016/11/10,Jack
+|]
+
+        mapM (htmlAnyContain "table td.stocktakeColour") ["red", "black"]
+
+
+      it "updates boxetakes" $ do
+        saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+,red,120,,-,,,,2016/11/10,Jack
+|]
+        saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,,,shelf-2,ST16NV00399X,,,,2016/11/10,Jack
+|]
+        lengthShouldBe [BoxtakeLocation ==. "shelf-2"] 1
+
+      it "updates boxtake history" $ do
+        saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+,red,120,,-,,,,2016/11/10,Jack
+|]
+
+        saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,,,shelf-2,ST16NV00399X,,,,2017/05/19,Jack
+|]
+        boxM <- runDB $ getBy (UniqueBB "ST16NV00399X")
+        liftIO $ (boxtakeLocationHistory . entityVal)
+                <$> boxM `shouldBe` Just [( fromGregorian 2016 11 10
+                                          , "shelf-1"
+                                          )]
+      it "updates stocktakes history" $ do
+        saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+,red,120,,-,,,,2016/11/10,Jack
+|]
+
+        saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,,,shelf-2,ST16NV00399X,,,,2017/05/19,Jack
+|]
+        Just (Entity jackK _) <- runDB $ selectFirst [OperatorNickname ==. "Jack"] []
+        stockM <- runDB $ getBy (UniqueSB "ST16NV00399X" 1)
+        liftIO $ (stocktakeHistory . entityVal)
+                <$> stockM `shouldBe` Just [( fromGregorian 2016 11 10
+                                            , jackK
+                                            )]
+              
+    describe "invalidates previous take" $ do
+      context "full take" $ do
+        it "does invalidate previous boxes" $ do
+          saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+|]
+          saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00400E,34,20,17,2017/05/19,Jack
+|]
+          lengthShouldBe [BoxtakeActive ==. False] 1
+
+        it "does invalidate previous stocktakes" $ do
+          saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+|]
+          saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00400E,34,20,17,2017/05/19,Jack
+|]
+          stocktakeLengthShouldBe 2
+          lengthShouldBe [StocktakeActive ==. False] 1
+
+      context "zero take" $ do
+        it "does invalidate previous boxes" $ do
+          saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+|]
+          saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,0,,,,,,2017/05/19,Jack
+|]
+
+          lengthShouldBe [BoxtakeActive ==. False] 1
+
+        it "does invalidate previous stocktakes" $ do
+          saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack
+|]
+          saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator
+t-shirt,black,0,,,,,,2017/05/19,Jack
+|]
+          stocktakeLengthShouldBe 2
+          lengthShouldBe [StocktakeActive ==. False] 1

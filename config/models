@@ -1,13 +1,13 @@
 User sql=fames_user
     Id sql=user_id
     ident Text
-    password Text Maybe
+    password Text Maybe default=NULL
     UniqueUser ident
     deriving Typeable
 Email sql=fames_email
     email Text
     userId UserId Maybe
-    verkey Text Maybe
+    verkey Text Maybe default=NULL
     UniqueEmail email
 Comment sql=fames_comment json -- Adding "json" causes ToJSON and FromJSON instances to be derived.
     message Text
@@ -62,13 +62,19 @@ StockAdjustmentDetail sql=fames_stock_adj_detail
   adjustment StockAdjustmentId sql=stock_adj_id
   stockId Text
   quantity Int
-  from FA.LocationId Maybe sql=loc_from
-  to FA.LocationId Maybe sql=loc_to
+  from FA.LocationId Maybe sql=loc_from default=NULL
+  to FA.LocationId Maybe sql=loc_to default=NULL
 
 
 -- Stocktake. How many items are in a box.
 -- index allows to have multiple variations in the same box.
 -- The link to Boxtake is a "soft" link via barcode.
+-- history allows to keep an history of who and when
+-- a stocktake has been done many time.
+-- This happend is a box hasn't been opened between
+-- different stocktake and the barcode is reused.
+-- history is a list of past event occured on the take.
+-- As a barcode is unique
 Stocktake sql=fames_stocktake
   Id sql=stocktake_id
   stockId Text sql=stock_id
@@ -81,6 +87,7 @@ Stocktake sql=fames_stocktake
   operator OperatorId sql=operator_id
   adjustment StockAdjustmentId Maybe sql=stock_adj_id
   documentKey DocumentKeyId sql=document_key_id
+  history (Pairs Day (Key Operator))
   UniqueSB barcode index
   deriving Eq
   deriving Show
@@ -88,7 +95,7 @@ Stocktake sql=fames_stocktake
 -- Similar to stocktake but doesn't care about the content.
 Boxtake sql=fames_boxtake
   Id sql=boxtake_id
-  description Text Maybe
+  description Text Maybe default=NULL
   reference Text
   length Double
   width Double
@@ -99,6 +106,7 @@ Boxtake sql=fames_boxtake
   active Bool
   operator OperatorId sql=operator_id
   documentKey DocumentKeyId sql=document_key_id
+  locationHistory (Pairs Day (Text))
   UniqueBB barcode
   UniqueBK documentKey reference
   deriving Eq
@@ -107,10 +115,10 @@ Boxtake sql=fames_boxtake
 PackingList sql=fames_packinglist
   Id sql=packinglist_id
   invoiceRef Text
-  vessel Text Maybe
-  container Text Maybe
+  vessel Text Maybe default=NULL
+  container Text Maybe default=NULL
   documentKey DocumentKeyId sql=document_key_id
-  -- comment Text Maybe Not needed in Docu
+  -- comment Text Maybe Not needed in Docu default=NULL
   boxesToDeliver_d Int
   departure Day Maybe
   arriving Day Maybe

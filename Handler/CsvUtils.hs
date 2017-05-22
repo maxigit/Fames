@@ -274,8 +274,7 @@ instance (Csv.FromField a) => Csv.FromField (ValidField a) where
     return $ Provided val
 
 -- | Like Maybe but needs to be explicitly set to Unknown using "?"
-data Known a = Unknown | Known a 
-deriving instance Show a => Show (Known a)
+data Known a = Unknown | Known a  deriving (Read, Show, Eq, Ord)
 
 instance Csv.FromField a => Csv.FromField (Known a) where
   parseField "?" = return Unknown
@@ -354,7 +353,7 @@ instance Renderable a => Renderable (ValidField a) where
   render (Guessed x) = do
     toWidget [cassius|
 span.guessed-value
-  color:lightblue
+  color:blue
 |]
     [whamlet|
 <span.guessed-value>^{render x}

@@ -2,7 +2,6 @@
 module Role where
 
 import ClassyPrelude.Yesod
-import Data.Text(init)
 import qualified Data.Text as Text
 
 -- * Types
@@ -73,5 +72,5 @@ instance FromJSON Role where
     ("/", _) -> let (route, wreq) = isWriteReq s in return $ RoleRoute route wreq
     _ -> return . RolePermission . setFromList $ map (isWriteReq) (words s)
     where isWriteReq s | not (null s)  = if Text.last s == '+'
-                                       then (init s, WriteRequest)
+                                       then (initEx s, WriteRequest)
                                        else  (s, ReadRequest)

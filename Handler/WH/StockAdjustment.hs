@@ -110,6 +110,7 @@ postWHStockAdjustmentR = do
       let sql = "SELECT stock_id, COALESCE(SUM(quantity),0), MAX(date) "
                 <> " FROM fames_stocktake  "
                 <> " WHERE stock_adj_id IS NULL "
+                <> " AND active = 1 "
                 <> w
                 <> " GROUP BY stock_id "
 
@@ -125,6 +126,8 @@ postWHStockAdjustmentR = do
                         Sure -> not isUnsure
 
           filtered = filter f withDiff
+      let
+
 
           rows = map snd $ case sortMode param of
             SortByStyle -> filtered
@@ -191,7 +194,7 @@ data LocationInfo = LocationInfo
 
 quantityTake0 = fromMaybe 0 . quantityTake
 
-noInfo locInfo = all (==0) [quantityTake0 locInfo, quantityAt locInfo ]
+noInfo locInfo = (quantityTake locInfo == Nothing) && (quantityAt locInfo == 0)
 
 data PreAdjust = PreAdjust
   { sku :: !Text

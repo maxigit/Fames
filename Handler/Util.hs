@@ -29,16 +29,17 @@ import System.Directory (removeFile)
 import System.IO.Temp (openTempFile)
 import System.Exit (ExitCode(..))
 import Data.Streaming.Process (streamingProcess, proc, Inherited(..), waitForStreamingProcess, env)
+-- import Data.IOData (IOData)
 
 -- * Display entities
 -- | Display Persist entities as paginated table
 -- the filter is mainly there as a proxy to indicate
 -- the entity type to display
-entityTableHandler :: (Yesod site, YesodPersist site
-                      , PersistQuery (YesodPersistBackend site)
-                      , PersistEntity a
-                      , YesodPersistBackend site ~ PersistEntityBackend a)
-                   => Route site -> [Filter a] -> HandlerT site IO Html
+-- entityTableHandler :: (Yesod site, YesodPersist site
+--                       , PersistQuery (YesodPersistBackend site)
+--                       , PersistEntity a
+--                       , YesodPersistBackend site ~ PersistEntityBackend a)
+--                    => Route site -> [Filter a] -> HandlerT site IO Html
 entityTableHandler route filter = do
   let page_ = "page"
       pageSize_ = "pageSize_"
@@ -138,10 +139,9 @@ setAttachment path =
 
 -- * Labels
 generateLabelsResponse ::
-  (Utf8 b b1, IOData b1) =>
   Text
   -> Text
-  -> Conduit () (HandlerT site IO) b
+  -> Conduit () (HandlerT site IO) Text
   -> HandlerT site IO TypedContent
 generateLabelsResponse outputName template labelSource = do
   let types = (outputName, template) :: (Text, Text)
@@ -173,4 +173,4 @@ generateLabelsResponse outputName template labelSource = do
 
     _ -> do
         cleanUp
-        sendResponseStatus (toEnum 422) (mconcat (errorMessage :: [Text]))
+        sendResponseStatus (toEnum 422) (mconcat (map decodeUtf8 errorMessage :: [Text]))

@@ -33,6 +33,7 @@ import Handler.Util(setAttachment, generateLabelsResponse)
 -- import qualified Data.Conduit.Binary as CB
 -- import System.Directory (removeFile)
 import Data.Time
+import qualified Data.Text.Lazy as LT
  
 barcodeFayWidget = return () --  $(fayFile "WH/Barcode")
 
@@ -202,7 +203,7 @@ postWHBarcodeR = do
 
                 let barcodeSource =  do
                             yield "Barcode,Number,Date\n"
-                            yieldMany [ format (text % "," % int %","% dateDash % "\n")  b n date
+                            yieldMany [ toStrict $ format (text % "," % int %","% dateDash % "\n")  b n date
                                       | (b,n) <- barcodes
                                       ]
                 case (outputMode, template) of
@@ -214,7 +215,7 @@ postWHBarcodeR = do
                   (Csv, _) -> do
                         setAttachment (outputFile prefix start end "csv")
                         respondSource "text/csv" $ do
-                            barcodeSource =$= mapC (toFlushBuilder . toStrict)
+                            barcodeSource =$= mapC toFlushBuilder
 
 
 -- outputFile :: Text -> Int -> Int -> Text -> Text

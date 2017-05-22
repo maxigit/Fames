@@ -9,3 +9,9 @@ data PendingStatus = Pending | Process deriving (Eq, Read, Show, Enum, Bounded, 
 derivePersistField "PendingStatus"
 
 
+
+-- Trick to use in Persistent model declaration
+-- as using normal tuples doesn't seem to work
+type Pair a b = (a,b)
+type Pairs a b = [(a,b)]
+
