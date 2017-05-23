@@ -5,6 +5,8 @@ import Import
 import Yesod.Form.Bootstrap3
 import Database.Persist.MySQL
 import qualified Data.List as List
+import Data.Time (addDays)
+import Data.Time.Calendar.WeekDate (toWeekDate)
 
 import qualified FA as FA
 
@@ -45,6 +47,7 @@ data FormParam = FormParam
   , maxQty :: Maybe Int
   , sortMode :: SortMode
   , unsure :: Unsure
+  , modulo :: Maybe Int
   , comment :: Maybe Text
   } deriving (Eq, Read, Show)
 
@@ -58,6 +61,7 @@ paramForm mode = renderBootstrap3 BootstrapBasicForm  form
             <*> aopt intField "max quantity" Nothing
             <*> areq (selectField optionsEnum)"sort by" Nothing
             <*> areq (selectField optionsEnum) "mode" (Just All)
+            <*> aopt intField "modulo" Nothing
             <*>  (unTextarea <$$> case mode of
                    Save -> aopt textareaField "comment" Nothing
                    View -> pure Nothing)
@@ -155,6 +159,7 @@ postWHStockAdjustmentR = do
       <th> QOH FA
       <th> lost
       <th> Last move
+      <th> Debug
     $forall pre <- rows
       $with (qty, qoh, lostq) <- (quantityTake0 (main pre), quantityAt (main pre), quantityNow (lost pre))
         <tr class="#{classFor qty qoh}">
@@ -173,6 +178,7 @@ postWHStockAdjustmentR = do
 
           <td.lost>#{quantityNow (lost pre)}
           <td.last_move>#{fromMaybe "" (tshow <$> (lastMove pre))}
+          <td.debug>#{tshow ( movesAt $ main pre)}
 |]
       defaultLayout [whamlet|
 <form.well #stock-adjustement role=form method=post action=@{WarehouseR WHStockAdjustmentR} enctype=#{encType}>
@@ -190,6 +196,7 @@ data LocationInfo = LocationInfo
   , quantityAt :: Int -- quantity on hand at date
   , quantityNow :: !Int -- quantity on hand NOW. To avoid negative stock
   , date :: Maybe Day
+  , movesAt :: [MoveInfo] -- any picking have been done within the "UNsure" date range
   } deriving (Eq, Read, Show)
 
 quantityTake0 = fromMaybe 0 . quantityTake
@@ -205,6 +212,13 @@ data PreAdjust = PreAdjust
 
 adjustInfos :: PreAdjust -> [LocationInfo]
 adjustInfos adj  = [main, lost] <*> [adj]
+
+data MoveInfo = MoveInfo
+ { moveDate :: !Day
+ , moveCustomerName :: !Text
+ , moveOperatorName :: Maybe Text
+ , movePickedQty :: !Int
+ } deriving (Eq, Read, Show)
 
 lastMove pre = max (date (main pre)) (date (lost pre)) 
 -- | Returns the qoh at the date of the stocktake.
@@ -224,7 +238,8 @@ qohFor r@(Single sku, Single qtake, Single date) = do
 -- | Retrive the quantities available for the given location at the given date
 quantitiesFor :: Text -> (Single Text, Single Int, Single Day) -> Handler LocationInfo 
 quantitiesFor loc (Single sku, Single take, Single date) = do
-  let sql = "SELECT SUM(qty) qoh"
+  let (minDate, maxDate) = unsureRange date
+      sql = "SELECT SUM(qty) qoh"
             <> ", SUM(qty) qoh_at"
             <> ", MAX(tran_date)  "
             <> "FROM 0_stock_moves "
@@ -232,15 +247,56 @@ quantitiesFor loc (Single sku, Single take, Single date) = do
             <> "AND tran_date <= ? "
             <> "AND loc_code = ?"
 
-  results <- runDB $ rawSql sql [PersistText sku, PersistDay date, PersistText loc]
+  -- extract all relevant moves within the unsure range
+  let sqlForMoves = "SELECT moves.tran_date, COALESCE(debtor.name, '<>'), COALESCE(GROUP_CONCAT(operator.name), 'nop'), SUM(moves.qty) "
+                   <> " FROM 0_stock_moves moves "
+                   <> " LEFT JOIN 0_debtor_trans USING(trans_no, type)"
+                   <> " LEFT JOIN 0_debtors_master debtor USING(debtor_no)"
+                   <> " LEFT JOIN mop.action ON (orderId = order_ AND sku = stock_id AND typeId = 1)"
+                   <> " LEFT JOIN mop.session ON (groupId = actionGroupId)"
+                   <> " LEFT JOIN mop.operator ON (operatorId = operator.id)"
+                   <> " WHERE stock_id = ?"
+                   <> " AND moves.tran_date between ? AND ?"
+                   <> " AND loc_code = ?"
+                   <> " GROUP BY trans_no, type"
+                   <> " ORDER BY moves.tran_date, moves.trans_id " :: Text
+      toMove (Single date, Single debtor, Single operators, Single qty) = MoveInfo date debtor operators qty
+                    
+  (results, moves) <- runDB $ do
+    results <- rawSql sql [PersistText sku, PersistDay maxDate, PersistText loc]
+    moves <- rawSql sqlForMoves [PersistText sku, PersistDay minDate, PersistDay maxDate, PersistText loc]
+    return (results , moves)
 
+
+  traceShowM(sqlForMoves, moves)
   return $ case results of
-    [] -> LocationInfo loc Nothing 0 0 Nothing
-    [(Single qoh, Single at, Single last)] -> LocationInfo loc (Just take) (fromMaybe 0 at) (fromMaybe 0 qoh) (last)
+    [] -> LocationInfo loc Nothing 0 0 Nothing []
+    [(Single qoh, Single at, Single last)] -> LocationInfo loc (Just take) (fromMaybe 0 at) (fromMaybe 0 qoh) (last) (map toMove moves)
 
 
+-- | Computes the date range when a stock take can be unsure or not.
+-- A stocktake is unsure, if an item has been picked at the day as the stock take.
+-- In that case, we can't guess if the stock take has been done before or after the picking.
+-- In other word, does the stocktake take the picking into account or not ?
+-- Things get ever more complicated as items can be picked a day but only processed in the system
+-- the next working day. An item can have picked before a stocktake but only be seens as picked
+-- on the day after. In that case, the stocktake , take the picked quantity into account even though
+-- the stock moves only occurs the day after.
+-- In reverse, a item can be picked the day before but only processed on the stocktake day.
+-- In that case, we shouldn't take the move into account.
+-- UnsureRange, computes the previous and next working day.
+unsureRange :: Day -> (Day, Day)
+unsureRange day = (previousWorkingDay day, nextWorkingDay day)
+
+nextWorkingDay :: Day -> Day
+nextWorkingDay day = headEx . filter (isWorkingDay) . drop 1 $  List.iterate (addDays 1) day
   
+previousWorkingDay :: Day -> Day
+previousWorkingDay day = headEx . filter (isWorkingDay)  . drop 1 $ List.iterate (addDays (-1)) day
   
+isWorkingDay :: Day -> Bool
+isWorkingDay day = let (_, _, weekDay) = toWeekDate day
+  in weekDay <= 5
 
 
 
