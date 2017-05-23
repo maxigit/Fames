@@ -407,6 +407,7 @@ viewPackingList mode key pre = do
                                  StickerCsv -> renderStickers today
                                  Chalk -> renderChalk corridors
                                  Planner -> renderPlanner
+                                 PlannerColourless -> renderPlannerColourless
                            ) pl entities
            selectRep $ provideRep $ defaultLayout $ do
               [whamlet|
@@ -432,7 +433,7 @@ viewPackingList mode key pre = do
               [whamlet|
                       ^{pre}
           <ul.nav.nav-tabs>
-            $forall nav <-[Details, Edit, EditDetails, Textcart,Stickers, StickerCsv, Chalk, Planner, Deliver]
+            $forall nav <-[Details, Edit, EditDetails, Textcart,Stickers, StickerCsv, Chalk, Planner, PlannerColourless,Deliver]
               <li class="#{navClass nav}">
                 <a href="@{WarehouseR (WHPackingListViewR key (Just nav)) }">#{tshow nav}
           ^{entitiesWidget}
@@ -611,9 +612,9 @@ renderPlanner pl details = let
                                  )
                                | (Entity _ detail@PackingListDetail{..}) <- details
                                ]
-  style PackingListDetail{..} = packingListDetailStyle <> "-" <> (content $ Map.toList packingListDetailContent )
+  style PackingListDetail{..} = packingListDetailStyle <> (content $ Map.toList packingListDetailContent )
   content [] = ""
-  content ((col,qty):cs) = col <> if null cs then "" else "*"
+  content ((col,qty):cs) = "-" <> col <> if null cs then "" else "*"
   in [shamlet|
 style,quantity,l,w,h
 $forall ((style, l, w, h),qty) <- Map.toList groups
@@ -624,6 +625,15 @@ $forall ((style, l, w, h),qty) <- Map.toList groups
     , #{w}
     , #{h}
 |]
+
+-- | CSV compatible with warehousePlanner. Identical to {renderPlanner}
+-- but remove colour information so that it's easier to know actuall how many boxes
+-- are coming for a given style.
+renderPlannerColourless :: PackingList -> [Entity PackingListDetail] -> Html
+renderPlannerColourless pl details = renderPlanner pl (map removeColour details) where
+  removeColour (Entity key detail) = Entity  key detail {packingListDetailContent = Map.fromList []}
+
+
 
 editDetailsForm defCart  = renderBootstrap3 BootstrapBasicForm form
   where form = areq textareaField "cart" (Textarea <$> defCart)
@@ -773,7 +783,7 @@ timeProgress minDateM maxDateM today pl = do
 
 -- | A row in the spreasheet
 -- Depending on the type of box, the order quantity can represent the quantity
--- for the given color, or total quantity (for all similar boxes)
+-- for the given colour, or total quantity (for all similar boxes)
 data PLRow s = PLRow
   { plStyle             :: PLFieldTF s Text Identity Identity
   , plColour            :: PLFieldTF s Text Identity Maybe 

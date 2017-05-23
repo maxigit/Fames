@@ -12,6 +12,7 @@ data PLViewMode = Details
                 | StickerCsv 
                 | Chalk 
                 | Planner 
+                | PlannerColourless
                 | EditDetails 
                 | Edit
                 | Deliver
