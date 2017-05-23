@@ -1131,6 +1131,7 @@ instance Renderable Location' where
 |]
 
 classForRaw :: RawRow -> Text                                 
+classForRaw raw = ""
 classForRaw raw = case validateRaw (const Nothing) (const Nothing) raw of
   Left _ -> "invalid bg-danger"
   Right row -> case validateRow mempty NoCheckBarcode row of

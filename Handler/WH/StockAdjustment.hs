@@ -120,10 +120,10 @@ postWHStockAdjustmentR = do
 
       stocktakes <- runDB $ rawSql sql p
       results <- catMaybes <$> mapM qohFor stocktakes
-      let withDiff = use range [(abs (quantityTake0 (main pre) - quantityAt (main pre)), pre) |  pre <- results]
+      let withDiff = [(abs (quantityTake0 (main pre) - quantityAt (main pre)), pre) |  pre <- results]
           f  (q, pre) = (maybe True (q >=) (minQty param))
                    &&  (maybe True (q <=) (maxQty param))
-                   && let isUnsure = Just (takeDate pre) `elem` [date (c pre) | c <- [lost, main]]
+                   && let isUnsure = not . null $  concatMap (\loc -> movesAt $ loc pre) [main, lost]
                       in case unsure param of
                         All -> True
                         Unsure -> isUnsure
@@ -139,13 +139,15 @@ postWHStockAdjustmentR = do
           
 
       -- use conduit ? TODO
-      let classFor qty qoh = case compare qty qoh of
+      let classFor' qty qoh = case compare qty qoh of
             GT -> "success"
             EQ -> ""
             LT -> "danger" :: Text
           split qty qoh lost = let new = qty -qoh
                                    fromLost = min lost (qty -qoh)
                                in (fromLost, new -fromLost) :: (Int, Int)
+          classFor [] = "" :: Text
+          classFor _ = "danger" :: Text
       
       response <- case mode of
             Save -> saveStockAdj (comment param) rows
@@ -159,10 +161,9 @@ postWHStockAdjustmentR = do
       <th> QOH FA
       <th> lost
       <th> Last move
-      <th> Debug
     $forall pre <- rows
-      $with (qty, qoh, lostq) <- (quantityTake0 (main pre), quantityAt (main pre), quantityNow (lost pre))
-        <tr class="#{classFor qty qoh}">
+      $with (qty, qoh, lostq, mainMoves, lostMoves) <- (quantityTake0 (main pre), quantityAt (main pre), quantityNow (lost pre), (movesAt $ main pre), movesAt $ lost pre)
+        <tr class="#{classFor mainMoves} id=#{sku pre}-row">
           <td.style>#{sku pre}
           <td.quantity>#{qty}
             $if qoh > qty
@@ -178,14 +179,25 @@ postWHStockAdjustmentR = do
 
           <td.lost>#{quantityNow (lost pre)}
           <td.last_move>#{fromMaybe "" (tshow <$> (lastMove pre))}
-          <td.debug>#{tshow ( movesAt $ main pre)}
+          $forall move <- mainMoves
+            $with before <- moveDate move <= takeDate pre
+              $with after <- not before
+                <tr :before:.bg-info>
+                  <td> <select name="#{sku pre}">
+                      <option :before:selected value="#{movePickedQty move}" >Before
+                      <option :after:selected value="0">After
+                  <td> #{movePickedQty move} #{moveCustomerName move}
+                  <td> #{tshow $ moveDate move}
+                  <td>
+                  <td> #{(fromMaybe "" $ moveOperatorName move)}
+                  <td>
 |]
       defaultLayout [whamlet|
 <form.well #stock-adjustement role=form method=post action=@{WarehouseR WHStockAdjustmentR} enctype=#{encType}>
   ^{view}
   <button type="submit" name="action" value="submit" .btn.btn-primary>Submit
   <button type="submit" name="action" value="save" .btn.btn-danger>Save
-^{response}
+  ^{response}
 |]
 
 
