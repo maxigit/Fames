@@ -120,7 +120,7 @@ postWHStockAdjustmentR = do
 
       stocktakes <- runDB $ rawSql sql p
       results <- catMaybes <$> mapM qohFor stocktakes
-      let withDiff = [(abs (quantityTake0 (main pre) - quantityAt (main pre)), pre) |  pre <- results]
+      let withDiff = use range [(abs (quantityTake0 (main pre) - quantityAt (main pre)), pre) |  pre <- results]
           f  (q, pre) = (maybe True (q >=) (minQty param))
                    &&  (maybe True (q <=) (maxQty param))
                    && let isUnsure = Just (takeDate pre) `elem` [date (c pre) | c <- [lost, main]]
