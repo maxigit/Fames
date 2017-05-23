@@ -16,6 +16,4 @@ pureSpec = describe "@pure @parallel" $ do
      it "get next monday day" $ do
        nextWorkingDay (fromGregorian 2017 05 19) `shouldBe` (fromGregorian 2017 05 22)
      it "get previous friday day" $ do
-       nextWorkingDay (fromGregorian 2017 05 22) `shouldBe` (fromGregorian 2017 05 19)
-
-  
+       previousWorkingDay (fromGregorian 2017 05 22) `shouldBe` (fromGregorian 2017 05 19)

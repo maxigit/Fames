@@ -139,7 +139,11 @@ tests:
   test:
     main: Main.hs
     source-dirs: test
-    ghc-options: -w
+    ghc-options:
+    - -w
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
     dependencies:
     - base
     - Fames

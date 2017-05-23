@@ -229,116 +229,115 @@ $maybe u <- uploader
             StyleComplete -> map QuickST <$> generateMissings rows
             _ -> return []
           (runDB $ do
-          let finals = zip [1..] (map finalizeRow $ rows <> missings)  :: [(Int, FinalRow)]
-          -- separate between full stocktake, barcode lookup and quick one.
-          -- quick takes needs to be associated with a new barcodes
-          -- and don't have box information.
-              fulls = [(i, full) | (i, FinalFull full) <- finals]
-              quicks = [ quick | (_, FinalQuick quick) <- finals]
-              fromBarcodes = [(i, lookedup) | (i, FinalBarcodeLookup lookedup) <- finals]
-              override = pOveridde param
+            let finals = zip [1..] (map finalizeRow $ rows <> missings)  :: [(Int, FinalRow)]
+            -- separate between full stocktake, barcode lookup and quick one.
+            -- quick takes needs to be associated with a new barcodes
+            -- and don't have box information.
+                fulls = [(i, full) | (i, FinalFull full) <- finals]
+                quicks = [ quick | (_, FinalQuick quick) <- finals]
+                fromBarcodes = [(i, lookedup) | (i, FinalBarcodeLookup lookedup) <- finals]
+                override = pOveridde param
 
-          -- rows can't be converted straight away to stocktakes and boxtakes
-          -- if in case of many row for the same barcodes, stocktakes needs to be indexed
-          -- and boxtake needs to keep only the first one.
-          let groupByBarcode = groupBy ((==) `on` (rowBarcode . snd))
-                     . sortBy (comparing ((,) <$> rowBarcode . snd <*> fst))
-          let groups = groupByBarcode fulls :: [[(Int, FinalFullRow)]]
-              
-          keyId <- do
-            existM <- getBy (UniqueSK $ documentKeyKey doc)
-            case existM of
-              Nothing ->  insert doc
-              Just (Entity k _ ) -> replace k doc >> return k
-              
-            
-          let stocktakes =  concatMap (groupToStocktakes keyId) groups
-              boxtakes = do
-                group <- groups
-                let descriptionF = case group of
-                                      [row] -> id
-                                      (_:_) -> (<> "*")
-                                      _ -> error "shouldn't happen"
-                take 1 $ mapMaybe (toBoxtake keyId descriptionF) group
+            -- rows can't be converted straight away to stocktakes and boxtakes
+            -- if in case of many row for the same barcodes, stocktakes needs to be indexed
+            -- and boxtake needs to keep only the first one.
+            let groupByBarcode = groupBy ((==) `on` (rowBarcode . snd))
+                      . sortBy (comparing ((,) <$> rowBarcode . snd <*> fst))
+            let groups = groupByBarcode fulls :: [[(Int, FinalFullRow)]]
+
+            keyId <- do
+              existM <- getBy (UniqueSK $ documentKeyKey doc)
+              case existM of
+                Nothing ->  insert doc
+                Just (Entity k _ ) -> replace k doc >> return k
+
+
+            let stocktakes =  concatMap (groupToStocktakes keyId) groups
+                boxtakes = do
+                  group <- groups
+                  let descriptionF = case group of
+                                        [row] -> id
+                                        (_:_) -> (<> "*")
+                                        _ -> error "shouldn't happen"
+                  take 1 $ mapMaybe (toBoxtake keyId descriptionF) group
           
-          -- Unless we are doing "addition" .We assume that when doing a stock take
-          -- ALL boxes of a given style are withing the stock take
-          -- Therefore we can inactivated the previous for a given style
-          -- However, for quick take which are not null 
-          -- which corresponds to a partial check
-          -- we don't invalid the boxes are they are probably still there.
-          -- We only invalidate the other takes. This is wrong as well
-          -- but if we consider a stocktake to be an event, when someone counted boxes
-          -- everything is fine. We can have form example 6x4=24 on the previous stocktake
-          -- and only count 5. This corresponds to a loss of 19 or -1 if we consider it modulo 6.
-          -- Invalidating the other means when doing the stock adjustement that we will ose 19 (or 1)
-          -- This shouldn't change anything anyway as the previous stocktake might be already part
-          -- of a stock adjustment and therefore not taken into account anyway whilst creating the
-          -- adjustment.
-          -- However, we keep the boxes.
-          -- Quick check with 0 are different. It means we haven't found any, therefore
-          -- it is legitimate to also inacite the boxes. We know (or think) the boxes
-          -- have disappeared.
-          when (pStyleComplete param /= StyleAddition) (do
-            let skusForFull = map stocktakeStockId stocktakes
-                (zeros, nonZeros)= partition (\r -> rowQuantity r == Known 0)  quicks
-                skusForZeros = zipWith makeSku (map rowStyle quicks) (map rowColour zeros)
-                skusForNonZeros = zipWith makeSku (map rowStyle quicks) (map rowColour nonZeros)
-            invalidPreviousTakes (skusForFull ++ skusForZeros)
-            invalidPreviousStocktakes  skusForNonZeros
-            return ()
-            )
+            -- Unless we are doing "addition" .We assume that when doing a stock take
+            -- ALL boxes of a given style are withing the stock take
+            -- Therefore we can inactivated the previous for a given style
+            -- However, for quick take which are not null 
+            -- which corresponds to a partial check
+            -- we don't invalid the boxes are they are probably still there.
+            -- We only invalidate the other takes. This is wrong as well
+            -- but if we consider a stocktake to be an event, when someone counted boxes
+            -- everything is fine. We can have form example 6x4=24 on the previous stocktake
+            -- and only count 5. This corresponds to a loss of 19 or -1 if we consider it modulo 6.
+            -- Invalidating the other means when doing the stock adjustement that we will ose 19 (or 1)
+            -- This shouldn't change anything anyway as the previous stocktake might be already part
+            -- of a stock adjustment and therefore not taken into account anyway whilst creating the
+            -- adjustment.
+            -- However, we keep the boxes.
+            -- Quick check with 0 are different. It means we haven't found any, therefore
+            -- it is legitimate to also inacite the boxes. We know (or think) the boxes
+            -- have disappeared.
+            when (pStyleComplete param /= StyleAddition) (do
+              let skusForFull = map stocktakeStockId stocktakes
+                  (zeros, nonZeros)= partition (\r -> rowQuantity r == Known 0)  quicks
+                  skusForZeros = zipWith makeSku (map rowStyle quicks) (map rowColour zeros)
+                  skusForNonZeros = zipWith makeSku (map rowStyle quicks) (map rowColour nonZeros)
+              invalidPreviousTakes (skusForFull ++ skusForZeros)
+              invalidPreviousStocktakes  skusForNonZeros
+              return ()
+              )
 
-          insertQuickTakes keyId quicks
-          mapM_ (updateLookedUp keyId) (groupByBarcode fromBarcodes)
+            insertQuickTakes keyId quicks
+            mapM_ (updateLookedUp keyId) (groupByBarcode fromBarcodes)
 
-          if override
-            then 
-              do
-                forM_ stocktakes $ \s -> do
-                  -- todo  not optimal
-                  let unique = UniqueSB (stocktakeBarcode s) (stocktakeIndex s)
-                  existM <- getBy  unique
-                  case existM of
-                    Nothing -> insert_ s
-                    Just (Entity key old) -> update key [ StocktakeStockId =. stocktakeStockId s
-                                            , StocktakeQuantity =. stocktakeQuantity s
-                                            , StocktakeFaLocation =. stocktakeFaLocation s
-                                            , StocktakeDate =. stocktakeDate s
-                                            , StocktakeActive =. stocktakeActive s
-                                            , StocktakeOperator =. stocktakeOperator s
-                                            -- , StocktakeAdjustment =. stocktakeAdjustment old
-                                            , StocktakeDocumentKey =. stocktakeDocumentKey s
-                                            , StocktakeHistory =. ( stocktakeDate s
-                                                                  , stocktakeOperator s
-                                                                  ) : stocktakeHistory old
-                                            ]
-                mapM (\b -> do
-                  let unique = UniqueBB (boxtakeBarcode b)
-                  existM <- getBy unique
-                  case existM of
-                    Nothing -> insert_ b
-                    Just (Entity key _) -> update key [ BoxtakeDescription =. boxtakeDescription b
-                                                      ,  BoxtakeReference =. boxtakeReference b
-                                                      ,  BoxtakeLength =. boxtakeLength b
-                                                      ,  BoxtakeWidth =. boxtakeWidth b
-                                                      ,  BoxtakeHeight =. boxtakeHeight b
-                                                      ,  BoxtakeBarcode =. boxtakeBarcode b
-                                                      ,  BoxtakeLocation =. boxtakeLocation b
-                                                      ,  BoxtakeDate =. boxtakeDate b
-                                                      ,  BoxtakeActive =. boxtakeActive b
-                                                      ,  BoxtakeOperator =. boxtakeOperator b
-                                                      ,  BoxtakeDocumentKey =. boxtakeDocumentKey b
-                                                      ]
-                  -- print (b, existM)
-                  -- upsert b []
-                     ) boxtakes
-                return ()
-            else do
-              insertMany_ stocktakes
-              insertMany_ boxtakes
+            if override
+              then do
+                  forM_ stocktakes $ \s -> do
+                    -- todo  not optimal
+                    let unique = UniqueSB (stocktakeBarcode s) (stocktakeIndex s)
+                    existM <- getBy  unique
+                    case existM of
+                      Nothing -> insert_ s
+                      Just (Entity key old) -> update key [ StocktakeStockId =. stocktakeStockId s
+                                              , StocktakeQuantity =. stocktakeQuantity s
+                                              , StocktakeFaLocation =. stocktakeFaLocation s
+                                              , StocktakeDate =. stocktakeDate s
+                                              , StocktakeActive =. stocktakeActive s
+                                              , StocktakeOperator =. stocktakeOperator s
+                                              -- , StocktakeAdjustment =. stocktakeAdjustment old
+                                              , StocktakeDocumentKey =. stocktakeDocumentKey s
+                                              , StocktakeHistory =. ( stocktakeDate s
+                                                                    , stocktakeOperator s
+                                                                    ) : stocktakeHistory old
+                                              ]
+                  mapM (\b -> do
+                    let unique = UniqueBB (boxtakeBarcode b)
+                    existM <- getBy unique
+                    case existM of
+                      Nothing -> insert_ b
+                      Just (Entity key _) -> update key [ BoxtakeDescription =. boxtakeDescription b
+                                                        ,  BoxtakeReference =. boxtakeReference b
+                                                        ,  BoxtakeLength =. boxtakeLength b
+                                                        ,  BoxtakeWidth =. boxtakeWidth b
+                                                        ,  BoxtakeHeight =. boxtakeHeight b
+                                                        ,  BoxtakeBarcode =. boxtakeBarcode b
+                                                        ,  BoxtakeLocation =. boxtakeLocation b
+                                                        ,  BoxtakeDate =. boxtakeDate b
+                                                        ,  BoxtakeActive =. boxtakeActive b
+                                                        ,  BoxtakeOperator =. boxtakeOperator b
+                                                        ,  BoxtakeDocumentKey =. boxtakeDocumentKey b
+                                                        ]
+                    -- print (b, existM)
+                    -- upsert b []
+                      ) boxtakes
+                  return ()
+              else do
+                insertMany_ stocktakes
+                insertMany_ boxtakes
 
-          ) >> renderWHStocktake mode
+           ) >> renderWHStocktake mode
                                  Nothing
                                  200
                                  ( setSuccess (toHtml $ "Spreadsheet"

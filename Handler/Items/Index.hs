@@ -146,7 +146,7 @@ itemsTable styleF varF showInactive = runDB $ do
         
   return $ displayTable columns
                         (\c -> (toHtml c, []))
-                        (concatMap (\(base, vars) -> map (itemToF base) vars) itemGroups)
+                        (concatMap (\(base, aggregate, vars) -> map (itemToF base) vars) itemGroups)
                       
 
 -- * Rendering

@@ -359,7 +359,7 @@ test-suite test
   hs-source-dirs:
       test
   default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving
-  ghc-options: -w
+  ghc-options: -w -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       containers
     , base >=4 && <5
@@ -449,6 +449,7 @@ test-suite test
       Handler.HomeSpec
       Handler.WHBarcodeSpec
       Handler.WHPackingListSpec
+      Handler.WHStockAdjustmentSpec
       Handler.WHStocktakeSpec
       RoleSpec
       Spec
