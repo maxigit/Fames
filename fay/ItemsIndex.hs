@@ -61,30 +61,6 @@ stripPrefix pre s = let
      then Just (FT.drop l s)
      else Nothing
                                 
-jHide :: JQuery -> Fay ()
-jHide = ffi "%1.hide()"
-
-jShow :: JQuery -> Fay ()
-jShow = ffi "%1.show()"
-
-jToggleBase :: JQuery -> JQuery -> Fay ()
-jToggleBase base elements = do
-  let hiddenAttr = "data-hidden"
-  hidden <- JQ.getAttr hiddenAttr base
-  let toHide = case hidden of
-        Defined "" -> True
-        Undefined -> True
-        _ -> False
-
-  if toHide
-    then
-        do
-          JQ.setAttr hiddenAttr "true" base
-          jHide elements
-    else
-       do
-           JQ.setAttr hiddenAttr "false" base
-           jShow elements
 
     
 

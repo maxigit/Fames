@@ -146,12 +146,14 @@ postWHStockAdjustmentR = do
           split qty qoh lost = let new = qty -qoh
                                    fromLost = min lost (qty -qoh)
                                in (fromLost, new -fromLost) :: (Int, Int)
-          classFor [] = "" :: Text
-          classFor _ = "danger" :: Text
+          classesFor [] = "" :: Text
+          classesFor _ = "unsure danger" :: Text
       
       response <- case mode of
             Save -> saveStockAdj (comment param) rows
-            View -> return [whamlet|
+            View -> do
+              let fay = $(fayFile "WHStockAdjustment")
+              return $ fay <> [whamlet|
 <div>
   <table.table.table-border.table-hover>
     <tr>
@@ -163,7 +165,7 @@ postWHStockAdjustmentR = do
       <th> Last move
     $forall pre <- rows
       $with (qty, qoh, lostq, mainMoves, lostMoves) <- (quantityTake0 (main pre), quantityAt (main pre), quantityNow (lost pre), (movesAt $ main pre), movesAt $ lost pre)
-        <tr class="#{classFor mainMoves} id=#{sku pre}-row">
+        <tr class="#{classesFor mainMoves}" id="#{sku pre}-row" data-sku="#{sku pre}" data-hidden="true">
           <td.style>#{sku pre}
           <td.quantity>#{qty}
             $if qoh > qty
@@ -182,7 +184,7 @@ postWHStockAdjustmentR = do
           $forall move <- mainMoves
             $with before <- moveDate move <= takeDate pre
               $with after <- not before
-                <tr :before:.bg-info>
+                <tr :before:.bg-info class="move sku-#{sku pre}" style="display:none">
                   <td> <select name="#{sku pre}">
                       <option :before:selected value="#{movePickedQty move}" >Before
                       <option :after:selected value="0">After
@@ -193,7 +195,7 @@ postWHStockAdjustmentR = do
                   <td>
 |]
       defaultLayout [whamlet|
-<form.well #stock-adjustement role=form method=post action=@{WarehouseR WHStockAdjustmentR} enctype=#{encType}>
+<form.well #stock-adjustment role=form method=post action=@{WarehouseR WHStockAdjustmentR} enctype=#{encType}>
   ^{view}
   <button type="submit" name="action" value="submit" .btn.btn-primary>Submit
   <button type="submit" name="action" value="save" .btn.btn-danger>Save

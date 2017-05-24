@@ -9,3 +9,4 @@ select name as nickname
      , active
      from mop.operator
      where active = 1
+
