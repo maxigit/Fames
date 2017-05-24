@@ -69,3 +69,4 @@ jToggleBase base elements = do
 
 jsize :: JQuery -> Fay Int
 jsize = ffi "%1.size()"
+

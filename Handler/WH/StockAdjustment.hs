@@ -171,7 +171,8 @@ postWHStockAdjustmentR = do
             $if qoh > qty
               <span.badge style="width:#{min (succ qoh - qty) 9}em; background-color:#d9534f">#{qoh - qty}
           <td.date>#{tshow $ (takeDate pre)}
-          <td.qoh>#{qoh}
+          <td.qoh>
+            <span.qoh>#{qoh}
             $if qty > qoh
               $with (fromLost, new) <- split qty qoh lostq
                 $if fromLost > 0
