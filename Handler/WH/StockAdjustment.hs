@@ -156,7 +156,10 @@ postWHStockAdjustmentR = do
                          | move <- movesAt m
                          , moveDate move <= day
                          ]
-          toOrigAndBadges pre = (orig, computeBadges orig, before)
+          -- | We want to pass the original quantities (without move) to the data- in html
+          -- however the badges needs to be computed as if
+          -- the "before" select boxes needs have been selected
+          toOrigAndBadges pre = (orig, computeBadges orig {qoh = qoh orig + before}, before)
             where (orig, before) = preToOriginal pre
           classesFor [] = "" :: Text
           classesFor _ = "unsure danger" :: Text
@@ -188,7 +191,7 @@ postWHStockAdjustmentR = do
             ^{badgeSpan (bMissingMod badges) (Just "#cccccc") "missing-mod"}
           <td.date>#{tshow $ (takeDate pre)}
           <td.qoh data-original=#{qoh qties}>
-            <span.qoh>#{qoh qties}
+            <span.qoh>#{qoh qties + before}
             ^{badgeSpan (bFoundMod badges) (Just "#cccccc") "found-mod"}
             ^{badgeSpan (bFound badges) (Just "#29abe0") "found"}
             ^{badgeSpan (bNew badges) Nothing "new" }
