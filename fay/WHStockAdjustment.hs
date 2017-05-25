@@ -25,31 +25,42 @@ installC index el = do
   row <- select el
   Defined sku <- JQ.getAttr "data-sku" row
   moveRows <- select ("tr.move.sku-" `FT.append` sku)
-  options <- findSelector "option" moveRows
-  jQueryMap (updateQohOnChange row) options
+  inputs <- findSelector "select" moveRows
+  jQueryMap (updateQohOnChange row) inputs
   onClick (\e -> do
     jToggleBase row moveRows
     return True) row
 
-
 updateQohOnChange :: JQuery -> Double -> JQ.Element -> Fay JQuery
-updateQohOnChange row index option = do
-  jOption <- select option
-  spanVal <- findSelector "td.qoh > span.qoh" row
-  qohS <- getVal spanVal
-  qtyS <- getVal =<< select option
-  alert' (qohS `FT.append` "," `FT.append` qtyS)
-  qoh <- parseInt (T.pack $ FT.unpack qohS)
-  qty <- parseInt (T.pack $ FT.unpack qtyS)
+updateQohOnChange row index input = do
+  spanQoh <- findSelector "span.qoh" row
+  qohS <- getText spanQoh 
+  qoh <- getText spanQoh >>= parseInt'
+  jSelect <- select input
+  -- find options
+  let quantityBefore = do
+        jOptions <- findSelector "option:selected" jSelect
+        options' <- jToList jOptions
+        options <- (mapM select options')
+        qtys <- mapM (\option -> do
+                         alertS (show option)
+                         value <- getVal option
+                         parseInt' value
+             ) options
+
+        return $ sum qtys
+        
+
+  qBefores <- quantityBefore
+  let q0 = qoh - qBefores -- Quantity in stock before ANY moves without any 
   
   onChange ( do
-    qohS <- getVal spanVal
-    qoh <- parseInt (T.pack $ FT.unpack qohS)
-    setVal (FT.pack . show $ qoh + qty) spanVal
-    return ()
-    ) jOption
+               q <- quantityBefore
+               setText (FT.pack . show $ q0+q) spanQoh
+               return ()
+    ) jSelect
     
-  return jOption
+  return jSelect
     
 
 

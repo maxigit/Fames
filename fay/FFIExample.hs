@@ -11,10 +11,11 @@ module FFIExample where
 import Fay.Text (fromString) 
 import qualified Fay.Text as FT
 import           Prelude
-import Data.Text (Text)
+import Data.Text (Text, pack)
 import DOM
 import FFI
-import           JQuery as JQ hiding(Element)
+import           JQuery hiding(Element)
+import qualified JQuery as JQ
   
 onKeyUp :: Element -> Fay () -> Fay ()
 onKeyUp = ffi "%1.onkeyup=%2"
@@ -70,3 +71,10 @@ jToggleBase base elements = do
 jsize :: JQuery -> Fay Int
 jsize = ffi "%1.size()"
 
+
+jToList :: JQuery -> Fay [JQ.Element]
+jToList = ffi "%1.toArray()"
+
+
+parseInt' :: FT.Text -> Fay Int
+parseInt' = parseInt . pack . FT.unpack
