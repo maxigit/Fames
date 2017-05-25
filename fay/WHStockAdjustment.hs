@@ -24,43 +24,83 @@ main = do
 installC :: Double -> JQ.Element -> Fay JQuery
 installC index el = do
   row <- select el
-  Defined sku <- JQ.getAttr "data-sku" row
-  moveRows <- select ("tr.move.sku-" `FT.append` sku)
-  inputs <- findSelector "select" moveRows
+  moves <- findMoves row
+  inputs <- findSelectMoves row
   jQueryMap (updateQohOnChange row) inputs
   onClick (\e -> do
-    jToggleBase row moveRows
+    jToggleBase row moves
     return True) row
 
+findMoves :: JQuery -> Fay JQuery
+findMoves row = do
+  Defined sku <- JQ.getAttr "data-sku" row
+  select ("tr.move.sku-" `FT.append` sku)
+  
+findSelectMoves :: JQuery -> Fay JQuery
+findSelectMoves row = do
+  moveRows <- findMoves row
+  findSelector "select" moveRows
+
+  
 updateQohOnChange :: JQuery -> Double -> JQ.Element -> Fay JQuery
 updateQohOnChange row index input = do
-  orig <- getOriginalQuantities row
   jSelect <- select input
-  spanQoh <- findSelector "span.qoh" row
   -- find options
-  let quantityBefore = do
-        jOptions <- findSelector "option:selected" jSelect
-        options' <- jToList jOptions
-        options <- (mapM select options')
-        qtys <- mapM (\option -> do
-                         value <- getVal option
-                         parseInt' value
-             ) options
-
-        return $ sum qtys
-        
-  qBefores <- quantityBefore
-  let q0 = qoh orig - qBefores -- Quantity in stock before ANY moves without any 
-  
-  onChange ( do
-               q <- quantityBefore
-               setText (FT.pack . show $ q0+q) spanQoh
-               return ()
+  onChange ( updateBadges row >> return ()
     ) jSelect
     
   return jSelect
     
+-- | Return the sum of moves select as before
+-- for a give row
+quantityBefore :: JQuery -> JQuery ->  Fay Int
+quantityBefore row jSelect = do
+  jOptions <- findSelector "option:selected" jSelect
+  options' <- jToList jOptions
+  options <- (mapM select options')
+  qtys <- mapM (\option -> do
+                   value <- getVal option
+                   parseInt' value
+               ) options
 
+
+  return $ sum qtys
+  
+
+updateBadges :: JQuery -> Fay JQuery
+updateBadges row = do
+  oqties <- getOriginalQuantities row
+  jSelect <- findSelectMoves row
+  spanQoh <- findSelector "span.qoh" row
+
+  -- computes the new qoh depending on the selected moves 
+  qBefore <- quantityBefore row jSelect
+  let newQoh = qoh oqties + qBefore
+  -- update QOH cell
+  setText (FT.pack . show $ newQoh) spanQoh
+  -- update bagde sizes
+  let nqties = oqties {qoh = newQoh}
+      badges = computeBadges nqties
+
+      updateBadge (accessor, klass) = do
+        let q = accessor badges
+        badge <- findSelector ("span.badge." `FT.append` klass) row
+        case badgeWidth q of
+          Nothing -> jHide badge
+          Just w -> do
+            jShow badge
+            setText (FT.pack $ show q ) badge
+            setCss "width" (FT.pack (show w) `FT.append` "em") badge >> return ()
+
+
+  mapM_ updateBadge [(bMissing, "missing"), (bMissingMod, "missing-mod")
+                        , (bFound, "found") , (bFoundMod , "found-mod")
+                        , (bNew, "new")]
+  return row
+
+
+
+  
 
 getOriginalQuantities :: JQuery -> Fay OriginalQuantities
 getOriginalQuantities row = do

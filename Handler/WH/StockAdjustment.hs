@@ -144,12 +144,20 @@ postWHStockAdjustmentR = do
             GT -> "success"
             EQ -> ""
             LT -> "danger" :: Text
-          preToOriginal pre = OriginalQuantities qtake qoh qlost Nothing where
+          preToOriginal pre = (OriginalQuantities qtake (qoh-before) qlost Nothing, before) where
             m = main pre
             qtake = quantityTake0 m
             qoh = quantityAt m
             qlost = quantityNow (lost pre)
-          toOrigAndBadges pre = (orig, computeBadges orig) where orig = preToOriginal pre
+            day = takeDate pre
+            -- Move picked before the stock take have been taken into account
+            -- in the QOH. We need to remove them to get the quantity excluding ALL moves
+            before = sum [ movePickedQty move
+                         | move <- movesAt m
+                         , moveDate move <= day
+                         ]
+          toOrigAndBadges pre = (orig, computeBadges orig, before)
+            where (orig, before) = preToOriginal pre
           classesFor [] = "" :: Text
           classesFor _ = "unsure danger" :: Text
       
@@ -168,7 +176,7 @@ postWHStockAdjustmentR = do
       <th> lost
       <th> Last move
     $forall pre <- rows
-      $with ((qties, badges), mainMoves, lostMoves) <- (toOrigAndBadges pre, (movesAt $ main pre), movesAt $ lost pre)
+      $with ((qties, badges, before), mainMoves, lostMoves) <- (toOrigAndBadges pre, (movesAt $ main pre), movesAt $ lost pre)
         <tr class="#{classesFor mainMoves}"
             id="#{sku pre}-row"
             data-sku="#{sku pre}"
@@ -176,14 +184,14 @@ postWHStockAdjustmentR = do
             >
           <td.style>#{sku pre}
           <td.quantity data-original=#{qtake qties}>#{qtake qties}
-            ^{badgeSpan (bMissing badges) (Just "#d9534f")}
-            ^{badgeSpan (bMissingMod badges) (Just "#cccccc")}
+            ^{badgeSpan (bMissing badges) (Just "#d9534f") "missing"}
+            ^{badgeSpan (bMissingMod badges) (Just "#cccccc") "missing-mod"}
           <td.date>#{tshow $ (takeDate pre)}
           <td.qoh data-original=#{qoh qties}>
             <span.qoh>#{qoh qties}
-            ^{badgeSpan (bFoundMod badges) (Just "#cccccc")}
-            ^{badgeSpan (bFound badges) (Just "#29abe0")}
-            ^{badgeSpan (bNew badges) Nothing }
+            ^{badgeSpan (bFoundMod badges) (Just "#cccccc") "found-mod"}
+            ^{badgeSpan (bFound badges) (Just "#29abe0") "found"}
+            ^{badgeSpan (bNew badges) Nothing "new" }
           <td.lost data-original=#{qlost qties}>#{qlost qties}
           <td.last_move>#{fromMaybe "" (tshow <$> (lastMove pre))}
           $forall move <- mainMoves
@@ -434,12 +442,12 @@ $maybe a <- adj
     renderDetails "New" "warning"  new
   
 
-badgeSpan :: Int -> Maybe String -> Widget
-badgeSpan qty bgM = do
+badgeSpan :: Int -> Maybe String -> String -> Widget
+badgeSpan qty bgM klass = do
   let style = case badgeWidth qty of
         Nothing -> "display:none"
         Just w ->  "width:" ++ show w ++ "em"
       bg = case bgM of
              Nothing -> ""
              Just col ->  "background-color:"++col++";"
-  [whamlet|<span.badge style="#{style}; #{bg}">#{qty}|]
+  [whamlet|<span.badge class=#{klass} style="#{style}; #{bg}">#{qty}|]
