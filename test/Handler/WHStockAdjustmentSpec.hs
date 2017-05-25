@@ -2,6 +2,7 @@ module Handler.WHStockAdjustmentSpec where
 
 import TestImport
 import Handler.WH.StockAdjustment
+import SharedStockAdjustment
 
 spec :: Spec
 spec = parallel pureSpec
@@ -17,3 +18,55 @@ pureSpec = describe "@pure @parallel" $ do
        nextWorkingDay (fromGregorian 2017 05 19) `shouldBe` (fromGregorian 2017 05 22)
      it "get previous friday day" $ do
        previousWorkingDay (fromGregorian 2017 05 22) `shouldBe` (fromGregorian 2017 05 19)
+  describe "computeBadges" $ do
+    let o0 = OriginalQuantities 0 0 0 Nothing
+        b0 = BadgeQuantities 0 0 0 0 0
+    it "find 1 missing" $ do
+      computeBadges (OriginalQuantities 5 6 1 Nothing)
+        `shouldBe` b0 {bMissing = 1}
+    it "find 1 new" $ do
+      computeBadges (OriginalQuantities 7 6 0 Nothing)
+        `shouldBe` b0 {bNew = 1}
+    it "find 1 found" $ do
+      computeBadges (OriginalQuantities 7 6 5 Nothing)
+        `shouldBe` b0 {bFound = 1}
+    it "bug " $ do
+      computeBadges (OriginalQuantities 12 11 1 Nothing)
+        `shouldBe` b0 {bFound = 1}
+    it "find some found and some new" $ do
+      computeBadges o0 {qtake = 12, qoh = 5, qlost = 4}
+        `shouldBe` b0 {bFound = 4, bNew = 3}
+    describe "using modulo" $ do 
+      let o6 = o0 {qModulo = Just 6}
+      context "missing in stocktake" $ do
+        it "find 1 missing" $ do
+          computeBadges o6 {qtake = 5, qoh = 12}
+            `shouldBe` b0 {bMissing = 1, bMissingMod = 6}
+        it "find 1 too many:new" $ do
+          computeBadges o6 {qtake = 7, qoh = 12}
+            `shouldBe` b0 {bNew =1, bMissingMod = 6 }
+        it "find 1 too many:lost" $ do
+          computeBadges o6 {qtake = 7, qoh = 12, qlost = 1}
+            `shouldBe` b0 {bFound =1, bMissingMod = 6 }
+      context "missing in FA" $ do 
+        context "new" $ do
+          it "find 1 missing" $ do
+            computeBadges o6 {qtake = 5}
+              `shouldBe` b0 {bMissing = 1, bFoundMod = 6}
+          it "find 1 too many (new)" $ do
+            computeBadges o6 {qtake = 7}
+              `shouldBe` b0 {bNew = 1, bFoundMod = 6}
+          it "find 1 too many (found)" $ do
+            computeBadges o6 {qtake = 7, qlost = 1}
+              `shouldBe` b0 {bFound = 1, bFoundMod = 6}
+        context "lost" $ do
+          it "find 0 missing" $ do
+            computeBadges o6 {qtake = 5, qlost=5}
+              `shouldBe` b0 {bFound=5}
+          it "find 1 too many" $ do
+            computeBadges o6 {qtake = 8, qlost = 1}
+              `shouldBe` b0 {bNew = 1, bFound = 1, bFoundMod = 6}
+      
+       
+
+
