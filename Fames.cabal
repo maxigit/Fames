@@ -125,6 +125,7 @@ library
       RoutePiece
       Settings
       Settings.StaticFiles
+      SharedStockAdjustment
       SharedTypes
       GL
       GL.FA

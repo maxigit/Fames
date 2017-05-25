@@ -14,6 +14,7 @@ import           Fay.Yesod
 import           JQuery as JQ
 import           Prelude
 import           SharedTypes
+import SharedStockAdjustment
 
 main = do
   unsures <- select"#stock-adjustment table tr.unsure"
@@ -33,26 +34,23 @@ installC index el = do
 
 updateQohOnChange :: JQuery -> Double -> JQ.Element -> Fay JQuery
 updateQohOnChange row index input = do
-  spanQoh <- findSelector "span.qoh" row
-  qohS <- getText spanQoh 
-  qoh <- getText spanQoh >>= parseInt'
+  orig <- getOriginalQuantities row
   jSelect <- select input
+  spanQoh <- findSelector "span.qoh" row
   -- find options
   let quantityBefore = do
         jOptions <- findSelector "option:selected" jSelect
         options' <- jToList jOptions
         options <- (mapM select options')
         qtys <- mapM (\option -> do
-                         alertS (show option)
                          value <- getVal option
                          parseInt' value
              ) options
 
         return $ sum qtys
         
-
   qBefores <- quantityBefore
-  let q0 = qoh - qBefores -- Quantity in stock before ANY moves without any 
+  let q0 = qoh orig - qBefores -- Quantity in stock before ANY moves without any 
   
   onChange ( do
                q <- quantityBefore
@@ -64,8 +62,19 @@ updateQohOnChange row index input = do
     
 
 
+getOriginalQuantities :: JQuery -> Fay OriginalQuantities
+getOriginalQuantities row = do
+  let getFrom selector = do
+        j <- findSelector selector row
+        Defined attr <- JQ.getAttr "data-original" j
+        parseInt' attr
+        
+  qtake' <- getFrom "td.quantity"
+  qoh' <- getFrom "td.qoh" 
+  qlost' <- getFrom "td.lost" 
 
-  
+  return $ OriginalQuantities qtake' qoh' qlost' Nothing
+
 -- | Moves which have been done BEFORE the stocktake
 -- needs to be taken into account when calculating the stock adjustment.
 -- Moves which have been done AFTER  don't.
