@@ -144,9 +144,12 @@ postWHStockAdjustmentR = do
             GT -> "success"
             EQ -> ""
             LT -> "danger" :: Text
-          split qty qoh lost = let new = qty -qoh
-                                   fromLost = min lost (qty -qoh)
-                               in (fromLost, new -fromLost) :: (Int, Int)
+          preToOriginal pre = OriginalQuantities qtake qoh qlost Nothing where
+            m = main pre
+            qtake = quantityTake0 m
+            qoh = quantityAt m
+            qlost = quantityNow (lost pre)
+          toOrigAndBadges pre = (orig, computeBadges orig) where orig = preToOriginal pre
           classesFor [] = "" :: Text
           classesFor _ = "unsure danger" :: Text
       
@@ -165,27 +168,23 @@ postWHStockAdjustmentR = do
       <th> lost
       <th> Last move
     $forall pre <- rows
-      $with (qty, qoh, lostq, mainMoves, lostMoves) <- (quantityTake0 (main pre), quantityAt (main pre), quantityNow (lost pre), (movesAt $ main pre), movesAt $ lost pre)
+      $with ((qties, badges), mainMoves, lostMoves) <- (toOrigAndBadges pre, (movesAt $ main pre), movesAt $ lost pre)
         <tr class="#{classesFor mainMoves}"
             id="#{sku pre}-row"
             data-sku="#{sku pre}"
             data-hidden="true"
             >
           <td.style>#{sku pre}
-          <td.quantity data-original=#{qty}>#{qty}
-            $if qoh > qty
-              <span.badge style="width:#{min (succ qoh - qty) 9}em; background-color:#d9534f">#{qoh - qty}
+          <td.quantity data-original=#{qtake qties}>#{qtake qties}
+            ^{badgeSpan (bMissing badges) (Just "#d9534f")}
+            ^{badgeSpan (bMissingMod badges) (Just "#cccccc")}
           <td.date>#{tshow $ (takeDate pre)}
-          <td.qoh data-original=#{qoh}>
-            <span.qoh>#{qoh}
-            $if qty > qoh
-              $with (fromLost, new) <- split qty qoh lostq
-                $if fromLost > 0
-                  <span.badge style="width:#{min (succ fromLost) 9}em; background-color:#29abe0">#{fromLost}
-                $if new > 0
-                  <span.badge style="width:#{min (succ new) 9}em;">#{new}
-
-          <td.lost data-original=#{lostq}>#{lostq}
+          <td.qoh data-original=#{qoh qties}>
+            <span.qoh>#{qoh qties}
+            ^{badgeSpan (bFoundMod badges) (Just "#cccccc")}
+            ^{badgeSpan (bFound badges) (Just "#29abe0")}
+            ^{badgeSpan (bNew badges) Nothing }
+          <td.lost data-original=#{qlost qties}>#{qlost qties}
           <td.last_move>#{fromMaybe "" (tshow <$> (lastMove pre))}
           $forall move <- mainMoves
             $with before <- moveDate move <= takeDate pre
@@ -434,3 +433,13 @@ $maybe a <- adj
     renderDetails "Lost" "danger"  lost
     renderDetails "New" "warning"  new
   
+
+badgeSpan :: Int -> Maybe String -> Widget
+badgeSpan qty bgM = do
+  let style = case badgeWidth qty of
+        Nothing -> "display:none"
+        Just w ->  "width:" ++ show w ++ "em"
+      bg = case bgM of
+             Nothing -> ""
+             Just col ->  "background-color:"++col++";"
+  [whamlet|<span.badge style="#{style}; #{bg}">#{qty}|]
