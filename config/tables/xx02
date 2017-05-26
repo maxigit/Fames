@@ -1,0 +1,11 @@
+
+AuditTrail sql=0_audit_trail
+    Id Int  sql=id
+    type Int  sql=type
+    transNo Int  sql=trans_no
+    user Int  sql=user
+    stamp UTCTime  sql=stamp
+    description Text Maybe sql=description default=NULL
+    fiscalYear Int  sql=fiscal_year
+    glDate Day  sql=gl_date
+    glSeq Int Maybe sql=gl_seq

@@ -1,0 +1,10 @@
+
+ItemCode sql=0_item_codes
+    Id Int  sql=id
+    itemCode Text  sql=item_code
+    stockId Text  sql=stock_id
+    description Text  sql=description
+    categoryId Int  sql=category_id
+    quantity Double  sql=quantity
+    isForeign Bool  sql=is_foreign
+    inactive Bool  sql=inactive

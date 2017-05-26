@@ -1,0 +1,6 @@
+
+TaxGroup sql=0_tax_groups
+    Id Int  sql=id
+    name Text  sql=name
+    taxShipping Bool  sql=tax_shipping
+    inactive Bool  sql=inactive

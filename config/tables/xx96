@@ -1,0 +1,10 @@
+
+WoRequirement sql=0_wo_requirements
+    Id Int  sql=id
+    workorderId Int  sql=workorder_id
+    stockId Text  sql=stock_id
+    workcentre Int  sql=workcentre
+    unitsReq Double  sql=units_req
+    stdCost Double  sql=std_cost
+    locCode Text  sql=loc_code
+    unitsIssued Double  sql=units_issued

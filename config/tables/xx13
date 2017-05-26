@@ -1,0 +1,7 @@
+
+CrmContact sql=0_crm_contacts
+    Id Int  sql=id
+    personId Int  sql=person_id
+    type Text  sql=type
+    action Text  sql=action
+    entityId Text Maybe sql=entity_id default=NULL

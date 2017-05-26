@@ -1,0 +1,11 @@
+
+DenormOrderDetailsQueue sql=0_denorm_order_details_queue
+    detailId Int Maybe sql=detail_id
+    stockId Text Maybe sql=stock_id default=NULL
+    orderId Int Maybe sql=order_id
+    quantity Double Maybe sql=quantity
+    quantityBefore Double Maybe sql=quantity_before
+    priority UTCTime Maybe sql=priority
+    expectedLocation Text Maybe sql=expected_location default=NULL
+    Id Int  sql=id
+    expectedDeliveryDate Day  sql=expected_delivery_date

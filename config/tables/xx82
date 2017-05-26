@@ -1,0 +1,5 @@
+
+TaxRepLineAccount sql=0_tax_rep_line_accounts
+    Id Int  sql=tax_rep_line_account_id
+    taxRepLineId Int  sql=tax_rep_line_id
+    code Text  sql=code

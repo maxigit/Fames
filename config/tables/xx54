@@ -1,0 +1,10 @@
+
+Requisition sql=0_requisitions
+    Id Int  sql=requisition_id
+    pointOfUse Text Maybe sql=point_of_use default=NULL
+    narrative Text Maybe sql=narrative default=NULL
+    applicationDate UTCTime  sql=application_date
+    completed Bool  sql=completed
+    processed Bool  sql=processed
+    inactive Bool  sql=inactive
+    details Text Maybe sql=details default=NULL

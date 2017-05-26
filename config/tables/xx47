@@ -1,0 +1,9 @@
+
+PurchData sql=0_purch_data
+    supplierId Int  sql=supplier_id
+    stockId Text  sql=stock_id
+    price Double  sql=price
+    suppliersUom Text  sql=suppliers_uom
+    conversionFactor Double  sql=conversion_factor
+    supplierDescription Text  sql=supplier_description
+    Primary supplierId stockId

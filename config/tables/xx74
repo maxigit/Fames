@@ -1,0 +1,7 @@
+
+SysPref sql=0_sys_prefs
+    Id Text  sql=name
+    category Text Maybe sql=category default=NULL
+    type Text  sql=type
+    length Int Maybe sql=length
+    value Text Maybe sql=value default=NULL

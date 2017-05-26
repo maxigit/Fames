@@ -1,0 +1,9 @@
+
+SuppAllocation sql=0_supp_allocations
+    Id Int  sql=id
+    amt Double Maybe sql=amt
+    dateAlloc Day  sql=date_alloc
+    transNoFrom Int Maybe sql=trans_no_from
+    transTypeFrom Int Maybe sql=trans_type_from
+    transNoTo Int Maybe sql=trans_no_to
+    transTypeTo Int Maybe sql=trans_type_to

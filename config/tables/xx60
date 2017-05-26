@@ -1,0 +1,9 @@
+
+SalesPo sql=0_sales_pos
+    Id Int  sql=id
+    posName Text  sql=pos_name
+    cashSale Bool  sql=cash_sale
+    creditSale Bool  sql=credit_sale
+    posLocation Text  sql=pos_location
+    posAccount Int  sql=pos_account
+    inactive Bool  sql=inactive

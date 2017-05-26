@@ -1,0 +1,6 @@
+
+GlToStock sql=0_gl_to_stock
+    Id Int  sql=counter
+    stockId Text  sql=stock_id
+    quantity Double Maybe sql=quantity
+    detailId Int Maybe sql=detail_id

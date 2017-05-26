@@ -1,0 +1,9 @@
+
+Shipper sql=0_shippers
+    Id Int  sql=shipper_id
+    shipperName Text  sql=shipper_name
+    phone Text  sql=phone
+    phone2 Text  sql=phone2
+    contact Text  sql=contact
+    address Text  sql=address
+    inactive Bool  sql=inactive

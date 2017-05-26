@@ -1,0 +1,15 @@
+
+Workorder sql=0_workorders
+    Id Int  sql=id
+    woRef Text  sql=wo_ref
+    locCode Text  sql=loc_code
+    unitsReqd Double  sql=units_reqd
+    stockId Text  sql=stock_id
+    date Day  sql=date_
+    type Bool  sql=type
+    requiredBy Day  sql=required_by
+    releasedDate Day  sql=released_date
+    unitsIssued Double  sql=units_issued
+    closed Bool  sql=closed
+    released Bool  sql=released
+    additionalCosts Double  sql=additional_costs

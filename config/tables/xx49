@@ -1,0 +1,13 @@
+
+PurchOrderDetail sql=0_purch_order_details
+    Id Int  sql=po_detail_item
+    orderNo Int  sql=order_no
+    itemCode Text  sql=item_code
+    description Text Maybe sql=description default=NULL
+    deliveryDate Day  sql=delivery_date
+    qtyInvoiced Double  sql=qty_invoiced
+    unitPrice Double  sql=unit_price
+    actPrice Double  sql=act_price
+    stdCostUnit Double  sql=std_cost_unit
+    quantityOrdered Double  sql=quantity_ordered
+    quantityReceived Double  sql=quantity_received

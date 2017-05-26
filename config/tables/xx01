@@ -1,0 +1,11 @@
+
+Attachment sql=0_attachments
+    Id Int  sql=id
+    description Text  sql=description
+    typeNo Int  sql=type_no
+    transNo Int  sql=trans_no
+    uniqueName Text  sql=unique_name
+    tranDate Day  sql=tran_date
+    filename Text  sql=filename
+    filesize Int  sql=filesize
+    filetype Text  sql=filetype

@@ -1,0 +1,8 @@
+
+WoIssue sql=0_wo_issues
+    Id Int  sql=issue_no
+    workorderId Int  sql=workorder_id
+    reference Text Maybe sql=reference default=NULL
+    issueDate Day Maybe sql=issue_date
+    locCode Text Maybe sql=loc_code default=NULL
+    workcentreId Int Maybe sql=workcentre_id

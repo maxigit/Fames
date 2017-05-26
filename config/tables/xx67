@@ -1,0 +1,25 @@
+
+StockMaster sql=0_stock_master
+    Id Text  sql=stock_id
+    categoryId Int  sql=category_id
+    taxTypeId Int  sql=tax_type_id
+    description Text  sql=description
+    longDescription Text  sql=long_description
+    units Text  sql=units
+    mbFlag Text  sql=mb_flag
+    salesAccount Text  sql=sales_account
+    cogsAccount Text  sql=cogs_account
+    inventoryAccount Text  sql=inventory_account
+    adjustmentAccount Text  sql=adjustment_account
+    assemblyAccount Text  sql=assembly_account
+    dimensionId Int Maybe sql=dimension_id
+    dimension2Id Int Maybe sql=dimension2_id
+    actualCost Double  sql=actual_cost
+    lastCost Double  sql=last_cost
+    materialCost Double  sql=material_cost
+    labourCost Double  sql=labour_cost
+    overheadCost Double  sql=overhead_cost
+    inactive Bool  sql=inactive
+    noSale Bool  sql=no_sale
+    editable Bool  sql=editable
+    deriving Show

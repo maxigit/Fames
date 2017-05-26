@@ -1,0 +1,6 @@
+
+ItemUnit sql=0_item_units
+    Id Text  sql=abbr
+    name Text  sql=name
+    decimals Bool  sql=decimals
+    inactive Bool  sql=inactive

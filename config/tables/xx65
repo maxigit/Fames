@@ -1,0 +1,9 @@
+
+StockAudit sql=0_stock_audit
+    Id Int  sql=id
+    counter Int Maybe sql=counter
+    stockId Text  sql=stock_id
+    tranDate Day Maybe sql=tran_date
+    account Text  sql=account
+    amount Double  sql=amount
+    memo Text Maybe sql=memo default=NULL

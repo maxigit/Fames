@@ -1,0 +1,6 @@
+
+SqlTrail sql=0_sql_trail
+    Id Int  sql=id
+    sql Text  sql=sql
+    result Bool  sql=result
+    msg Text  sql=msg

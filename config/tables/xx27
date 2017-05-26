@@ -1,0 +1,6 @@
+
+FiscalYear sql=0_fiscal_year
+    Id Int  sql=id
+    begin Day Maybe sql=begin
+    end Day Maybe sql=end
+    closed Bool  sql=closed

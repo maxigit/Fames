@@ -1,0 +1,9 @@
+
+Currency sql=0_currencies
+    currency Text  sql=currency
+    Id Text  sql=curr_abrev
+    currSymbol Text  sql=curr_symbol
+    country Text  sql=country
+    hundredsName Text  sql=hundreds_name
+    inactive Bool  sql=inactive
+    autoUpdate Bool  sql=auto_update

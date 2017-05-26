@@ -1,0 +1,16 @@
+
+DebtorTransDetail sql=0_debtor_trans_details
+    Id Int  sql=id
+    debtorTransNo Int Maybe sql=debtor_trans_no
+    debtorTransType Int Maybe sql=debtor_trans_type
+    stockId Text  sql=stock_id
+    description Text Maybe sql=description default=NULL
+    unitPrice Double  sql=unit_price
+    unitTax Double  sql=unit_tax
+    quantity Double  sql=quantity
+    discountPercent Double  sql=discount_percent
+    standardCost Double  sql=standard_cost
+    qtyDone Double  sql=qty_done
+    srcId Int Maybe sql=src_id
+    ppd Double  sql=ppd
+    ppdGst Double Maybe sql=ppd_gst

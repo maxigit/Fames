@@ -1,0 +1,6 @@
+
+TaxGroupItem sql=0_tax_group_items
+    taxGroupId Int  sql=tax_group_id
+    taxTypeId Int  sql=tax_type_id
+    rate Double  sql=rate
+    Primary taxGroupId taxTypeId

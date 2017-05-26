@@ -1,0 +1,5 @@
+
+MovementType sql=0_movement_types
+    Id Int  sql=id
+    name Text  sql=name
+    inactive Bool  sql=inactive

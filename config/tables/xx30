@@ -1,0 +1,8 @@
+
+GrnBatch sql=0_grn_batch
+    Id Int  sql=id
+    supplierId Int  sql=supplier_id
+    purchOrderNo Int Maybe sql=purch_order_no
+    reference Text  sql=reference
+    deliveryDate Day  sql=delivery_date
+    locCode Text Maybe sql=loc_code default=NULL

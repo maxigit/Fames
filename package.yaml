@@ -86,6 +86,7 @@ library:
   - ./.
   - fay-shared
   - app
+  - config/fa
   exposed-modules:
   when:
   - condition: (flag(dev)) || (flag(library-only))

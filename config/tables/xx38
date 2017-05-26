@@ -1,0 +1,6 @@
+
+LocStock sql=0_loc_stock
+    locCode Text  sql=loc_code
+    stockId Text  sql=stock_id
+    reorderLevel Int  sql=reorder_level
+    Primary locCode stockId

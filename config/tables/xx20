@@ -1,0 +1,18 @@
+
+DebtorsMaster sql=0_debtors_master
+    Id Int  sql=debtor_no
+    name Text  sql=name
+    address Text Maybe sql=address default=NULL
+    taxId Text  sql=tax_id
+    currCode Text  sql=curr_code
+    salesType Int  sql=sales_type
+    dimensionId Int  sql=dimension_id
+    dimension2Id Int  sql=dimension2_id
+    creditStatus Int  sql=credit_status
+    paymentTerms Int Maybe sql=payment_terms
+    discount Double  sql=discount
+    pymtDiscount Double  sql=pymt_discount
+    creditLimit Double  sql=credit_limit
+    notes Text Maybe sql=notes default=NULL
+    inactive Bool  sql=inactive
+    debtorRef Text  sql=debtor_ref

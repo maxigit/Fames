@@ -1,0 +1,24 @@
+
+Supplier sql=0_suppliers
+    Id Int  sql=supplier_id
+    suppName Text  sql=supp_name
+    address Text  sql=address
+    suppAddress Text  sql=supp_address
+    gstNo Text  sql=gst_no
+    contact Text  sql=contact
+    suppAccountNo Text  sql=supp_account_no
+    website Text  sql=website
+    bankAccount Text  sql=bank_account
+    currCode Text Maybe sql=curr_code default=NULL
+    paymentTerms Int Maybe sql=payment_terms
+    taxIncluded Bool  sql=tax_included
+    dimensionId Int Maybe sql=dimension_id
+    dimension2Id Int Maybe sql=dimension2_id
+    taxGroupId Int Maybe sql=tax_group_id
+    creditLimit Double  sql=credit_limit
+    purchaseAccount Text  sql=purchase_account
+    payableAccount Text  sql=payable_account
+    paymentDiscountAccount Text  sql=payment_discount_account
+    notes Text  sql=notes
+    inactive Bool  sql=inactive
+    suppRef Text  sql=supp_ref

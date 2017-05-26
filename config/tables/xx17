@@ -1,0 +1,23 @@
+
+CustBranch sql=0_cust_branch
+    branchCode Int  sql=branch_code
+    debtorNo Int  sql=debtor_no
+    brName Text  sql=br_name
+    brAddress Text  sql=br_address
+    area Int Maybe sql=area
+    salesman Int  sql=salesman
+    contactName Text  sql=contact_name
+    defaultLocation Text  sql=default_location
+    taxGroupId Int Maybe sql=tax_group_id
+    salesAccount Text  sql=sales_account
+    salesDiscountAccount Text  sql=sales_discount_account
+    receivablesAccount Text  sql=receivables_account
+    paymentDiscountAccount Text  sql=payment_discount_account
+    defaultShipVia Int  sql=default_ship_via
+    disableTrans Bool  sql=disable_trans
+    brPostAddress Text  sql=br_post_address
+    groupNo Int  sql=group_no
+    notes Text Maybe sql=notes default=NULL
+    inactive Bool  sql=inactive
+    branchRef Text  sql=branch_ref
+    Primary branchCode debtorNo

@@ -1,0 +1,12 @@
+
+RecurrentInvoice sql=0_recurrent_invoices
+    Id Int  sql=id
+    description Text  sql=description
+    orderNo Int  sql=order_no
+    debtorNo Int Maybe sql=debtor_no
+    groupNo Int Maybe sql=group_no
+    days Int  sql=days
+    monthly Int  sql=monthly
+    begin Day  sql=begin
+    end Day  sql=end
+    lastSent Day  sql=last_sent

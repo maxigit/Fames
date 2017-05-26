@@ -1,0 +1,28 @@
+
+DebtorTran sql=0_debtor_trans
+    transNo Int  sql=trans_no
+    type Int  sql=type
+    version Bool  sql=version
+    debtorNo Int Maybe sql=debtor_no
+    branchCode Int  sql=branch_code
+    tranDate Day  sql=tran_date
+    dueDate Day  sql=due_date
+    reference Text  sql=reference
+    tpe Int  sql=tpe
+    order Int  sql=order_
+    ovAmount Double  sql=ov_amount
+    ovGst Double  sql=ov_gst
+    ovFreight Double  sql=ov_freight
+    ovFreightTax Double  sql=ov_freight_tax
+    ovDiscount Double  sql=ov_discount
+    alloc Double  sql=alloc
+    rate Double  sql=rate
+    shipVia Int Maybe sql=ship_via
+    dimensionId Int  sql=dimension_id
+    dimension2Id Int  sql=dimension2_id
+    paymentTerms Int Maybe sql=payment_terms
+    ovPpdAmount Double Maybe sql=ov_ppd_amount
+    ovPpdGst Double Maybe sql=ov_ppd_gst
+    ppd Double Maybe sql=ppd
+    ppdDays Int Maybe sql=ppd_days
+    Primary transNo type

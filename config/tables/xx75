@@ -1,0 +1,5 @@
+
+SysType sql=0_sys_types
+    Id Int  sql=type_id
+    typeNo Int  sql=type_no
+    nextReference Text  sql=next_reference

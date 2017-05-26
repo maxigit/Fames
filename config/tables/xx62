@@ -1,0 +1,8 @@
+
+SecurityRole sql=0_security_roles
+    Id Int  sql=id
+    role Text  sql=role
+    description Text Maybe sql=description default=NULL
+    sections Text Maybe sql=sections default=NULL
+    areas Text Maybe sql=areas default=NULL
+    inactive Bool  sql=inactive

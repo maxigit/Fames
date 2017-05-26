@@ -1,0 +1,11 @@
+
+Salesman sql=0_salesman
+    Id Int  sql=salesman_code
+    salesmanName Text  sql=salesman_name
+    salesmanPhone Text  sql=salesman_phone
+    salesmanFax Text  sql=salesman_fax
+    salesmanEmail Text  sql=salesman_email
+    provision Double  sql=provision
+    breakPt Double  sql=break_pt
+    provision2 Double  sql=provision2
+    inactive Bool  sql=inactive

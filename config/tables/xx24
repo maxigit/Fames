@@ -1,0 +1,6 @@
+
+DenormQoh sql=0_denorm_qoh
+    Id Int  sql=id
+    stockId Text Maybe sql=stock_id default=NULL
+    locCode Text Maybe sql=loc_code default=NULL
+    quantity Double Maybe sql=quantity

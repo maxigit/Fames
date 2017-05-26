@@ -1,0 +1,14 @@
+
+GlTran sql=0_gl_trans
+    Id Int  sql=counter
+    type Int  sql=type
+    typeNo Int  sql=type_no
+    tranDate Day  sql=tran_date
+    account Text  sql=account
+    memo Text  sql=memo_
+    amount Double  sql=amount
+    dimensionId Int  sql=dimension_id
+    dimension2Id Int  sql=dimension2_id
+    personTypeId Int Maybe sql=person_type_id
+    personId ByteString Maybe sql=person_id
+    stockId Text Maybe sql=stock_id default=NULL

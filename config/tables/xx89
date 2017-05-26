@@ -1,0 +1,32 @@
+
+User sql=0_users
+    Id Int  sql=id
+    userId Text  sql=user_id
+    password Text  sql=password
+    realName Text  sql=real_name
+    roleId Int  sql=role_id
+    phone Text  sql=phone
+    email Text Maybe sql=email default=NULL
+    language Text Maybe sql=language default=NULL
+    dateFormat Bool  sql=date_format
+    dateSep Bool  sql=date_sep
+    thoSep Bool  sql=tho_sep
+    decSep Bool  sql=dec_sep
+    theme Text  sql=theme
+    pageSize Text  sql=page_size
+    pricesDec Int  sql=prices_dec
+    qtyDec Int  sql=qty_dec
+    ratesDec Int  sql=rates_dec
+    percentDec Int  sql=percent_dec
+    showGl Bool  sql=show_gl
+    showCodes Bool  sql=show_codes
+    showHints Bool  sql=show_hints
+    lastVisitDate UTCTime Maybe sql=last_visit_date
+    querySize Bool Maybe sql=query_size
+    graphicLinks Bool Maybe sql=graphic_links
+    pos Int Maybe sql=pos
+    printProfile Text  sql=print_profile
+    repPopup Bool Maybe sql=rep_popup
+    stickyDocDate Bool Maybe sql=sticky_doc_date
+    startupTab Text  sql=startup_tab
+    inactive Bool  sql=inactive

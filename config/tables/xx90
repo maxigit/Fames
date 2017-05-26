@@ -1,0 +1,7 @@
+
+Voided sql=0_voided
+    type Int  sql=type
+    id_ Int  sql=id
+    date Day  sql=date_
+    memo Text  sql=memo_
+    Primary type id_

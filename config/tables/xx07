@@ -1,0 +1,6 @@
+
+ChartClass sql=0_chart_class
+    Id Text  sql=cid
+    className Text  sql=class_name
+    ctype Bool  sql=ctype
+    inactive Bool  sql=inactive

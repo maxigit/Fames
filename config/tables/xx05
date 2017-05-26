@@ -1,0 +1,9 @@
+
+Bom sql=0_bom
+    id_ Int  sql=id
+    parent Text  sql=parent
+    component Text  sql=component
+    workcentreAdded Int  sql=workcentre_added
+    locCode Text  sql=loc_code
+    quantity Double  sql=quantity
+    Primary parent component workcentreAdded locCode

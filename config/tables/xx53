@@ -1,0 +1,6 @@
+
+Ref sql=0_refs
+    id_ Int  sql=id
+    type Int  sql=type
+    reference Text  sql=reference
+    Primary id_ type

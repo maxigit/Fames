@@ -1,0 +1,8 @@
+
+QuickEntry sql=0_quick_entries
+    Id Int  sql=id
+    type Bool  sql=type
+    description Text  sql=description
+    baseAmount Double  sql=base_amount
+    baseDesc Text Maybe sql=base_desc default=NULL
+    balType Bool  sql=bal_type

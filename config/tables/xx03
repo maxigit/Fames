@@ -1,0 +1,14 @@
+
+BankAccount sql=0_bank_accounts
+    accountCode Text  sql=account_code
+    accountType Int  sql=account_type
+    bankAccountName Text  sql=bank_account_name
+    bankAccountNumber Text  sql=bank_account_number
+    bankName Text  sql=bank_name
+    bankAddress Text Maybe sql=bank_address default=NULL
+    bankCurrCode Text  sql=bank_curr_code
+    dfltCurrAct Bool  sql=dflt_curr_act
+    Id Int  sql=id
+    lastReconciledDate UTCTime  sql=last_reconciled_date
+    endingReconcileBalance Double  sql=ending_reconcile_balance
+    inactive Bool  sql=inactive

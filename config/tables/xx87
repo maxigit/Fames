@@ -1,0 +1,6 @@
+
+TransToStock sql=0_trans_to_stock
+    typeNo Int  sql=type_no
+    type Int  sql=type
+    stockId Text Maybe sql=stock_id default=NULL
+    tranDate Day  sql=tran_date

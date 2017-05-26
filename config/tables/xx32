@@ -1,0 +1,5 @@
+
+Group sql=0_groups
+    Id Int  sql=id
+    description Text  sql=description
+    inactive Bool  sql=inactive

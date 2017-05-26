@@ -1,0 +1,13 @@
+
+Topick sql=0_topick
+    sku Text Maybe sql=sku default=NULL
+    location Text Maybe sql=location default=NULL
+    orderLink Text Maybe sql=order_link default=NULL
+    itemLink Text Maybe sql=item_link default=NULL
+    base Text Maybe sql=base default=NULL
+    variation Text Maybe sql=variation default=NULL
+    orderId Int Maybe sql=order_id
+    detailId Int Maybe sql=detail_id
+    quantity Int Maybe sql=quantity
+    id_ Int  sql=id
+    type Text Maybe sql=type default=NULL

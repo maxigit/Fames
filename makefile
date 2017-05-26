@@ -65,3 +65,32 @@ install:
 
 ghcid:
 	ghcid --command="stack exec ghci --test -- -iapp -i. -ifay-shared -itest -hide-package=cryptonite  -w test/Spec.hs"   --test ":main --rerun --color"
+
+config/tables/xx%: config/fa-models
+
+config/fa/FAxx%.hs: config/tables/xx%
+	@echo '{-# LANGUAGE FlexibleInstances, DeriveGeneric #-}'  > $@
+	@echo "module FAxx$* where" >> $@
+	@echo  >> $@
+	@echo 'import ClassyPrelude.Yesod' >> $@
+	@echo 'import Database.Persist.Quasi' >> $@
+	@echo '' >> $@
+	@echo 'share [mkPersist sqlSettings] -- , mkMigrate "migrateAll"]' >> $@
+	@echo '    $$(persistFileWith lowerCaseSettings "$<")' >> $@
+
+FAS=$(patsubst config/tables/%,config/fa/FA%.hs,$(wildcard config/tables/xx*))
+
+FA.hs: $(FAS)
+	echo 'module FA (module X) where ' > $@
+	for file in $(patsubst config/fa/%.hs,%, $?);do echo import $$file as X >> $@; done 
+
+clean_fa:
+	rm -rf config/fa/*
+
+
+# Split fa-models to one file per table
+# should be faster to compile
+gen_tables:
+	cd config; csplit fa-models /^$/ {*}
+	mv config/xx* config/tables
+
