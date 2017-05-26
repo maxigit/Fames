@@ -66,7 +66,34 @@ pureSpec = describe "@pure @parallel" $ do
           it "find 1 too many" $ do
             computeBadges o6 {qtake = 8, qlost = 1}
               `shouldBe` b0 {bNew = 1, bFound = 1, bFoundMod = 6}
-      
-       
+      context "edge case" $ do
+        -- 3 missing should be seen as missing, not as found
+            it "find 2 too many" $ do
+              computeBadges o6 {qtake = 2}
+                `shouldBe` b0 {bNew = 2}
+            it "find 3 missing" $ do
+              computeBadges o6 {qtake = 3}
+                `shouldBe` b0 {bMissing = 3, bFoundMod = 6}
+            it "find 2 missing" $ do
+              computeBadges o6 {qtake = 4}
+                `shouldBe` b0 {bMissing = 2, bFoundMod = 6}
+      context "modulo not needed" $ do
+        it "find 1 missing" $ do
+          computeBadges o6 {qtake = 5, qoh = 6, qlost = 1}
+            `shouldBe` b0 {bMissing = 1}
+        it "find 1 new" $ do
+          computeBadges o6 {qtake = 7, qoh = 6}
+            `shouldBe` b0 {bNew = 1}
+        it "find 1 found" $ do
+          computeBadges o6 {qtake = 7, qoh = 6, qlost = 5}
+            `shouldBe` b0 {bFound = 1}
+        it "bug " $ do
+          computeBadges o6 {qtake = 12, qoh = 11, qlost = 1}
+            `shouldBe` b0 {bFound = 1}
+        it "find some found and some new" $ do
+          computeBadges o0 {qtake = 12, qoh = 5, qlost = 4}
+            `shouldBe` b0 {bFound = 4, bNew = 3}
+
+
 
 

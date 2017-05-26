@@ -25,10 +25,24 @@ computeBadges (OriginalQuantities qtake qoh qlost Nothing) = let
   in BadgeQuantities missing 0 found 0 new
 computeBadges o@(OriginalQuantities qtake qoh qlost (Just modulo)) = let
   -- modulo represent the number of item per boxes in case boxes hasn't been stocktaked
-  badge0 = computeBadges o { qModulo = Nothing}
-  missing = bMissing badge0 `rem` modulo
-  
-  in badge0
+  totalQoh = qoh + qlost -- we ignore at the moment where is what. 
+  missing = totalQoh -qtake -- quantity missed from the stock take
+  halfMod = (modulo  + 1) `div` 2 --half rounded up
+  -- ^ we need negative or positive value centered around 0
+  in case missing of
+        0 -> computeBadges o {qModulo = Nothing}
+        _ | missing > 0 -> -- missing stock takes
+            -- we create some fake stocktakes
+            let adjust = ((missing + halfMod) `div` modulo) * modulo
+                badges = computeBadges o {qtake = qtake + adjust, qModulo = Nothing}
+                in  badges {bMissingMod = adjust}
+        _ | missing < 0 -> -- missing in QOH
+            -- we create some fake QOH
+            let adjust = ((halfMod-missing) `div` modulo) * modulo
+                badges = computeBadges o {qoh = qoh + adjust, qModulo = Nothing}
+                in badges {bFoundMod = adjust}
+    
+
 
 
 badgeWidth :: Int -> Maybe Int
