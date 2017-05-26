@@ -28,8 +28,13 @@ computeBadges o@(OriginalQuantities qtake qoh qlost (Just modulo)) = let
   totalQoh = qoh + qlost -- we ignore at the moment where is what. 
   missing = totalQoh -qtake -- quantity missed from the stock take
   halfMod = (modulo  + 1) `div` 2 --half rounded up
+  delta = (missing + halfMod) `mod` modulo + halfMod
   -- ^ we need negative or positive value centered around 0
-  in case missing of
+  normal = computeBadges o {qModulo = Nothing}
+  -- if everything can be found, no need for modulo
+  in if bFound normal > 0 && bNew normal == 0
+     then  normal
+     else case missing of
         0 -> computeBadges o {qModulo = Nothing}
         _ | missing > 0 -> -- missing stock takes
             -- we create some fake stocktakes
