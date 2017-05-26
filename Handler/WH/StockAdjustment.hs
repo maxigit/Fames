@@ -144,7 +144,7 @@ postWHStockAdjustmentR = do
             GT -> "success"
             EQ -> ""
             LT -> "danger" :: Text
-          preToOriginal pre = (OriginalQuantities qtake (qoh-before) qlost Nothing, before) where
+          preToOriginal pre = (OriginalQuantities qtake (qoh-before) qlost (modulo param), before) where
             m = main pre
             qtake = quantityTake0 m
             qoh = quantityAt m

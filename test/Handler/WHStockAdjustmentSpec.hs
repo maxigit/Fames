@@ -77,6 +77,13 @@ pureSpec = describe "@pure @parallel" $ do
             it "find 2 missing" $ do
               computeBadges o6 {qtake = 4}
                 `shouldBe` b0 {bMissing = 2, bFoundMod = 6}
+      context "remove full boxes missing" $ do
+        it "cancels 12 missing" $ do
+              computeBadges o6 {qtake = 6, qoh = 24}
+                `shouldBe` b0 {bMissingMod = 18}
+        it "cancels 12 found" $ do
+              computeBadges o6 {qtake = 24, qoh = 6}
+                `shouldBe` b0 {bFoundMod = 18}
       context "modulo not needed" $ do
         it "find 1 missing" $ do
           computeBadges o6 {qtake = 5, qoh = 6, qlost = 1}

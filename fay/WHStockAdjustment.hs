@@ -16,10 +16,28 @@ import           Prelude
 import           SharedTypes
 import SharedStockAdjustment
 
+selectModuloInput :: Fay JQuery
+selectModuloInput = select "#hident8" -- @TODO change
+
+getModuloValue :: Fay (Maybe Int)
+getModuloValue = do
+  jMod <- selectModuloInput
+  val <- getVal jMod
+  case val of
+    "" -> return Nothing
+    "0" -> return Nothing
+    _ -> parseInt' val >>= (\v -> return (Just v))
+    
+
+
 main = do
   unsures <- select"#stock-adjustment table tr.unsure"
   jQueryMap installC unsures
-  return ()
+  -- update badge on modulo change, for all row
+  rows <- select "#stock-adjustment table tr[data-sku]"
+  moduloInput <- selectModuloInput
+  onChange ( (jQueryMap (\_ e -> select e >>= updateBadges ) rows) >> return ()
+           ) moduloInput
 
 installC :: Double -> JQ.Element -> Fay JQuery
 installC index el = do
@@ -79,7 +97,8 @@ updateBadges row = do
   -- update QOH cell
   setText (FT.pack . show $ newQoh) spanQoh
   -- update bagde sizes
-  let nqties = oqties {qoh = newQoh}
+  modulo <- getModuloValue
+  let nqties = oqties {qoh = newQoh, qModulo = modulo}
       badges = computeBadges nqties
 
       updateBadge (accessor, klass) = do

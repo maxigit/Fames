@@ -23,6 +23,7 @@ computeBadges (OriginalQuantities qtake qoh qlost Nothing) = let
   found = max 0 $ min qlost tomany
   new = tomany - found
   in BadgeQuantities missing 0 found 0 new
+computeBadges o@(OriginalQuantities _ _ _ (Just 0)) = computeBadges o {qModulo = Nothing}
 computeBadges o@(OriginalQuantities qtake qoh qlost (Just modulo)) = let
   -- modulo represent the number of item per boxes in case boxes hasn't been stocktaked
   totalQoh = qoh + qlost -- we ignore at the moment where is what. 
