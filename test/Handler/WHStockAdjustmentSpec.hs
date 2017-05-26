@@ -59,8 +59,11 @@ pureSpec = describe "@pure @parallel" $ do
           it "find 1 too many (found)" $ do
             computeBadges o6 {qtake = 7, qlost = 1}
               `shouldBe` b0 {bFound = 1, bFoundMod = 6}
-        context "lost" $ do
           it "find 0 missing" $ do
+            computeBadges o6 {qtake = 5, qoh=5}
+              `shouldBe` b0 
+        context "lost" $ do
+          it "@fail find all missing" $ do
             computeBadges o6 {qtake = 5, qlost=5}
               `shouldBe` b0 {bFound=5}
           it "find 1 too many" $ do
@@ -98,8 +101,13 @@ pureSpec = describe "@pure @parallel" $ do
           computeBadges o6 {qtake = 12, qoh = 11, qlost = 1}
             `shouldBe` b0 {bFound = 1}
         it "find some found and some new" $ do
-          computeBadges o0 {qtake = 12, qoh = 5, qlost = 4}
-            `shouldBe` b0 {bFound = 4, bNew = 3}
+          computeBadges o6 {qtake = 12, qoh = 4, qlost = 1}
+            `shouldBe` b0 {bFound = 1, bNew = 1, bFoundMod =6}
+      context "bugs" $ do
+        it "find not too much some found and some new" $ do
+          computeBadges o6 {qtake = 8, qoh = 20, qlost = 9}
+            `shouldBe` b0 {bMissingMod = 12}
+      
 
 
 
