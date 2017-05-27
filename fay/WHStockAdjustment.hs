@@ -38,6 +38,7 @@ main = do
   moduloInput <- selectModuloInput
   onChange ( (jQueryMap (\_ e -> select e >>= updateBadges ) rows) >> return ()
            ) moduloInput
+  installActiveCallback
 
 installC :: Double -> JQ.Element -> Fay JQuery
 installC index el = do
@@ -143,3 +144,61 @@ getOriginalQuantities row = do
 -- moves after which are moved before ...
 -- updateQOH = 
 -- updateQOH _ = undefined
+
+-- * Toggle All
+installActiveCallback :: Fay JQuery
+installActiveCallback = do
+  master <- select "#stock-adj-active-all"
+  boxes <- getAllActiveBoxes
+
+  onChange (do
+               
+              checked <- JQ.getProp "checked" master
+              JQ.setProp "checked" checked boxes
+              setRowActiveStyle master checked boxes
+              return ()
+           ) master
+
+  jQueryMap (installUpdateActive master) boxes
+  return boxes
+
+
+getAllActiveBoxes :: Fay JQuery
+getAllActiveBoxes = do
+  select "#stock-adjustment table tr td.active input"
+
+installUpdateActive :: JQuery -> Double -> JQ.Element -> Fay  JQuery
+installUpdateActive master _ el = do
+  j <- select el
+  onChange (do
+               checked <- JQ.getProp "checked" j
+               setRowActiveStyle master checked j
+               updateActiveMaster master
+               return ()
+           ) j
+  return j
+  
+
+setRowActiveStyle :: JQuery -> FT.Text -> JQuery -> Fay JQuery 
+setRowActiveStyle master checkedStr boxes = do
+  checked <- jIsTrue checkedStr
+  let opacity = if checked then "1" else "0.5"
+  rows <- parent =<< parent boxes
+  setCss "opacity" opacity rows
+
+-- If one more of the active boxes are checked, the master should be checked
+updateActiveMaster :: JQuery -> Fay ()
+updateActiveMaster master = do
+  boxes <- getAllActiveBoxes
+  -- checkedBoxes <- findSelector ":checked" boxes
+  checkedBoxes <- select "#stock-adjustment table tr td.active input:checked"
+  size <- jsize checkedBoxes
+  if size == 0
+    then jUncheck master
+    else setProp "checked" "true" master
+  return ()
+
+
+
+  
+

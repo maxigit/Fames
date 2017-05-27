@@ -78,3 +78,10 @@ jToList = ffi "%1.toArray()"
 
 parseInt' :: FT.Text -> Fay Int
 parseInt' = parseInt . pack . FT.unpack
+
+jIsTrue :: FT.Text -> Fay Bool
+jIsTrue = ffi "%1 === true"
+
+
+jUncheck :: JQuery -> Fay JQuery
+jUncheck = ffi "%1.prop('checked', false)"
