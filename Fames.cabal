@@ -84,10 +84,10 @@ library
     , Metamorphosis >= 0.1.0.1
     , microlens >= 0.4.8.0 && < 0.5
   if (flag(dev)) || (flag(library-only))
-    ghc-options: -w -fwarn-tabs -O0
+    ghc-options: -w -fwarn-tabs -O0 -j6
     cpp-options: -DDEVELOPMENT
   else
-    ghc-options: -w -fwarn-tabs -O2
+    ghc-options: -w -fwarn-tabs -O2 -j6
   exposed-modules:
       Application
       FA

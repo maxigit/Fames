@@ -95,12 +95,14 @@ library:
       - -w
       - -fwarn-tabs
       - -O0
+      - -j6
       cpp-options: -DDEVELOPMENT
     else:
       ghc-options:
       - -w
       - -fwarn-tabs
       - -O2
+      - -j6
 
 executables:
   Fames:
