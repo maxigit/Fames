@@ -1,13 +1,133 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Handler.WHStockAdjustmentSpec where
 
 import TestImport
 import Handler.WH.StockAdjustment
 import SharedStockAdjustment
+import Yesod.Auth (requireAuthId)
+import FA hiding(User)
 
 spec :: Spec
-spec = parallel pureSpec
+spec = parallel pureSpec >> appSpec
+
+lostLoc = FA.LocationKey "LOST" :: FA.LocationId
+defLoc = FA.LocationKey "DEF" :: FA.LocationId
+
+prepareDB = do
+      Just (Entity userId user) <- runDB $  selectFirst [] []
+      let types = user :: User
+      
+      processedAt <- liftIO getCurrentTime
+      runDB $ do
+        Just jack <- insertUnique $ Operator "John" "Smith" "Jack" True
+        Just doc <- insertUnique $ DocumentKey "key" "test" "ref0" "" userId  processedAt
+        insertMany_ [ (Stocktake sku qty sku  1 defLoc
+                                 (fromGregorian 2017 05 26)
+                            True jack Nothing doc []) :: Stocktake
+                    | (sku, qty) <- [("A", 5), ("B", 7), ("C", 12)]
+                    ]
+
+lengthShouldBe filter expected = do
+  l <- runDB $ count filter
+  liftIO $ l `shouldBe` expected
+
+postAdjustment modulo sku def lost = do
+  logAsAdmin
+  prepareDB
+  runDB $ do
+    when (def >( 0 :: Double)) $ do
+      insert_ $ StockMove 1 sku 1 "DEF" (fromGregorian 2016 05 25) Nothing 0 "" def 0 0 True
+    when (lost >( 0 :: Double)) $ do
+      insert_ $ StockMove 1 sku 1 "LOST" (fromGregorian 2016 05 25) Nothing 0 "" lost 0 0 True
+  get (WarehouseR WHStockAdjustmentR)
+  statusIs 200
+  request $ do
+    setMethod "POST"
+    setUrl (WarehouseR WHStockAdjustmentR)
+    byLabel "modulo" (tshow (modulo :: Maybe Int))
+    mapM_ (\sku' -> addPostParam ("active-"<>sku') (if sku' == sku then "on" else "" ))
+          ["A", "B", "C"]
+  statusIs 200
+   
+  
+  
+appSpec = withAppWipe BypassAuth $ describe "StockAdjustment" $ do
+  context "without modulo" $ do
+    it "create missing adjustment" $ do
+      postAdjustment (Nothing :: Maybe Int) ("A" ) 6 (0)
+      [ StockAdjustmentDetailStockId ==. "A"
+        , StockAdjustmentDetailQuantity ==. 1
+        , StockAdjustmentDetailFrom ==. (Just defLoc)
+        , StockAdjustmentDetailTo ==. (Just lostLoc)
+        ] `lengthShouldBe` 1
+    it "create new adjustment" $ do
+      postAdjustment Nothing "B" 6 0
+      [ StockAdjustmentDetailStockId ==. "B"
+        , StockAdjustmentDetailQuantity ==. 1
+        , StockAdjustmentDetailFrom ==. Nothing
+        , StockAdjustmentDetailTo ==. (Just defLoc)
+        ] `lengthShouldBe` 1
+    it "create found adjustment" $ do
+      postAdjustment Nothing "B" 6 1
+      [ StockAdjustmentDetailStockId ==. "B"
+        , StockAdjustmentDetailQuantity ==. 1
+        , StockAdjustmentDetailFrom ==. (Just lostLoc)
+        , StockAdjustmentDetailTo ==. (Just defLoc)
+        ] `lengthShouldBe` 1
+    it "create lost new adjustment" $ do
+      postAdjustment Nothing "B" 4 1
+      [ StockAdjustmentDetailStockId ==. "B"
+        , StockAdjustmentDetailQuantity ==. 1
+        , StockAdjustmentDetailFrom ==. (Just lostLoc)
+        , StockAdjustmentDetailTo ==. (Just defLoc)
+        ] `lengthShouldBe` 1
+      [ StockAdjustmentDetailStockId ==. "B"
+        , StockAdjustmentDetailQuantity ==. 2
+        , StockAdjustmentDetailFrom ==. Nothing
+        , StockAdjustmentDetailTo ==. (Just defLoc)
+        ] `lengthShouldBe` 1
+  context "with modulo" $ do
+    it "create missing adjustment" $ do
+      postAdjustment (Just 6) "A" 0 0
+      [ StockAdjustmentDetailStockId ==. "A"
+        , StockAdjustmentDetailQuantity ==. 1
+        , StockAdjustmentDetailFrom ==. (Just defLoc)
+        , StockAdjustmentDetailTo ==. (Just lostLoc)
+        ] `lengthShouldBe` 1
+    it "create new adjustment" $ do
+      postAdjustment (Just 6) "B" 0 0
+      [ StockAdjustmentDetailStockId ==. "B"
+        , StockAdjustmentDetailQuantity ==. 1
+        , StockAdjustmentDetailFrom ==. Nothing
+        , StockAdjustmentDetailTo ==. (Just defLoc)
+        ] `lengthShouldBe` 1
+    it "create found adjustment" $ do
+      postAdjustment (Just 6) "B" 0 1
+      [ StockAdjustmentDetailStockId ==. "B"
+        , StockAdjustmentDetailQuantity ==. 1
+        , StockAdjustmentDetailFrom ==. (Just lostLoc)
+        , StockAdjustmentDetailTo ==. (Just defLoc)
+        ] `lengthShouldBe` 1
+    it "create lost new adjustment" $ do
+      postAdjustment (Just 4) "B" 0 1
+      [ StockAdjustmentDetailStockId ==. "B"
+        , StockAdjustmentDetailQuantity ==. 1
+        , StockAdjustmentDetailFrom ==. (Just lostLoc)
+        , StockAdjustmentDetailTo ==. (Just defLoc)
+        ] `lengthShouldBe` 1
+      [ StockAdjustmentDetailStockId ==. "B"
+        , StockAdjustmentDetailQuantity ==. 2
+        , StockAdjustmentDetailFrom ==. Nothing
+        , StockAdjustmentDetailTo ==. (Just defLoc)
+        ] `lengthShouldBe` 1
+      
+          
 
 pureSpec = describe "@pure @parallel" $ do
+  workingDaysSpec
+  computeBadgesSpec
+
+workingDaysSpec = describe "WorkingDays" $ do
   context "next working day without rolling" $ do
      it"get next day" $ do
        nextWorkingDay (fromGregorian 2017 05 22) `shouldBe` (fromGregorian 2017 05 23)
@@ -18,7 +138,8 @@ pureSpec = describe "@pure @parallel" $ do
        nextWorkingDay (fromGregorian 2017 05 19) `shouldBe` (fromGregorian 2017 05 22)
      it "get previous friday day" $ do
        previousWorkingDay (fromGregorian 2017 05 22) `shouldBe` (fromGregorian 2017 05 19)
-  describe "computeBadges" $ do
+
+computeBadgesSpec = describe "computeBadges" $ do
     let o0 = OriginalQuantities 0 0 0 Nothing
         b0 = BadgeQuantities 0 0 0 0 0
     it "find 1 missing" $ do
@@ -107,8 +228,3 @@ pureSpec = describe "@pure @parallel" $ do
         it "find not too much some found and some new" $ do
           computeBadges o6 {qtake = 8, qoh = 20, qlost = 9}
             `shouldBe` b0 {bMissingMod = 12}
-      
-
-
-
-
