@@ -7,6 +7,7 @@ import Database.Persist.MySQL
 import qualified Data.List as List
 import Data.Time (addDays)
 import Data.Time.Calendar.WeekDate (toWeekDate)
+import qualified Data.Set as Set
 
 import SharedStockAdjustment
 import qualified FA as FA
@@ -50,6 +51,7 @@ data FormParam = FormParam
   , unsure :: Unsure
   , modulo :: Maybe Int
   , comment :: Maybe Text
+  , activeRows :: Set Text
   } deriving (Eq, Read, Show)
 
 
@@ -66,8 +68,15 @@ paramForm mode = renderBootstrap3 BootstrapBasicForm  form
             <*>  (unTextarea <$$> case mode of
                    Save -> aopt textareaField "comment" Nothing
                    View -> pure Nothing)
+            <*> pure (Set.fromList [])
 
 
+
+getActiveRows :: Handler (Set Text)
+getActiveRows = do
+  (params, _) <- runRequestBody
+  let skusToKeep = [sku | (sku, checked) <- params, checked == "on" ]
+  return (Set.fromList (skusToKeep))
 
 getWHStockAdjustmentR :: Handler Html
 getWHStockAdjustmentR = do
@@ -108,7 +117,9 @@ postWHStockAdjustmentR = do
   case resp of
     FormMissing -> error "Form missing"
     FormFailure a -> defaultLayout [whamlet|^{view}|]
-    FormSuccess param -> do
+    FormSuccess param0 -> do
+      activeRows <- getActiveRows
+      let param = param0 {activeRows = activeRows}
       let (w,p) = case style param of
                   Just like  -> (" AND stock_id like ?", [PersistText like])
                   Nothing -> ("", [])
@@ -144,28 +155,12 @@ postWHStockAdjustmentR = do
             GT -> "success"
             EQ -> ""
             LT -> "danger" :: Text
-          preToOriginal pre = (OriginalQuantities qtake (qoh-before) qlost (modulo param), before) where
-            m = main pre
-            qtake = quantityTake0 m
-            qoh = quantityAt m
-            qlost = quantityNow (lost pre)
-            day = takeDate pre
-            -- Move picked before the stock take have been taken into account
-            -- in the QOH. We need to remove them to get the quantity excluding ALL moves
-            before = sum [ movePickedQty move
-                         | move <- movesAt m
-                         , moveDate move <= day
-                         ]
-          -- | We want to pass the original quantities (without move) to the data- in html
-          -- however the badges needs to be computed as if
-          -- the "before" select boxes needs have been selected
-          toOrigAndBadges pre = (orig, computeBadges orig {qoh = qoh orig + before}, before)
-            where (orig, before) = preToOriginal pre
           classesFor [] = "" :: Text
           classesFor _ = "unsure danger" :: Text
+          toOrigAndBadges'  = toOrigAndBadges (modulo param)
       
       response <- case mode of
-            Save -> saveStockAdj (comment param) rows
+            Save -> saveStockAdj param rows
             View -> do
               let fay = $(fayFile "WHStockAdjustment")
               return $ fay <> [whamlet|
@@ -180,7 +175,7 @@ postWHStockAdjustmentR = do
       <th> lost
       <th> Last move
     $forall pre <- rows
-      $with ((qties, badges, before), mainMoves, lostMoves) <- (toOrigAndBadges pre, (movesAt $ main pre), movesAt $ lost pre)
+      $with ((qties, badges, before), mainMoves, lostMoves) <- (toOrigAndBadges' pre, (movesAt $ main pre), movesAt $ lost pre)
         <tr class="#{classesFor mainMoves}"
             id="#{sku pre}-row"
             data-sku="#{sku pre}"
@@ -332,48 +327,35 @@ isWorkingDay day = let (_, _, weekDay) = toWeekDate day
 
 
 
-computeAdj :: StockAdjustmentId -> PreAdjust -> [StockAdjustmentDetail]
-computeAdj key pre =
-  let mainTake = quantityTake0 (main pre)
-      mainAt   = quantityAt  (main pre)
-      mainNow   = quantityNow  (main pre)
-      lostTake = quantityTake0 (lost pre)
-      lostAt   = quantityAt  (lost pre)
-      lostNow   = quantityNow  (lost pre)
-
+computeAdj :: Maybe Int -> StockAdjustmentId -> PreAdjust -> [StockAdjustmentDetail]
+computeAdj modulo key pre =
+  let (_, BadgeQuantities{..}, _) = toOrigAndBadges modulo pre 
       lostLoc = Just . FA.LocationKey . location . lost $ pre 
       mainLoc = Just . FA.LocationKey . location . main $ pre 
       stock_id = sku pre
 
-      adjs = if mainTake > mainAt
-              then -- found
-                let found = mainTake - mainAt
-                    fromLost = min lostNow found
-                    new = max 0 (found - fromLost)
-
-                in [ StockAdjustmentDetail key stock_id fromLost lostLoc mainLoc  -- found
-                    , StockAdjustmentDetail key stock_id new Nothing mainLoc
-                    ]
-              else
-               let lostQuantity = mainAt - mainTake
-                   -- we don't want stock adjustment to result in negative stock
-                   toAdjust = min lostQuantity mainNow
-                   
-               in  [ StockAdjustmentDetail key stock_id toAdjust mainLoc lostLoc ]
+      adjs = [ StockAdjustmentDetail key stock_id qty fromTo toTo
+             | (qty, fromTo, toTo) <- [ (bMissing, mainLoc, lostLoc )
+                                      , (bFound, lostLoc, mainLoc)
+                                      , (bNew, Nothing, mainLoc)
+                                      ]
+            ]
   in filter ((/= 0) . stockAdjustmentDetailQuantity) adjs
 
 
 
 
-saveStockAdj :: Maybe Text -> [PreAdjust] -> Handler (Widget)
-saveStockAdj comment pres = do
+saveStockAdj :: FormParam -> [PreAdjust] -> Handler (Widget)
+saveStockAdj FormParam{..} pres' = do
   now  <- liftIO getCurrentTime
   userId <- requireAuthId
+  -- we Only keep adjustment which are active
+  let pres = filter ((`elem` activeRows) . sku) pres'
   runDB $ do
     let adj = StockAdjustment (fromMaybe "" comment) now Pending userId
     adjKey <- insert adj
 
-    let adjs = concatMap (computeAdj adjKey) pres
+    let adjs = concatMap (computeAdj modulo adjKey) pres
     insertMany_ adjs
 
     -- update stock take
@@ -456,3 +438,21 @@ badgeSpan qty bgM klass = do
              Nothing -> ""
              Just col ->  "background-color:"++col++";"
   [whamlet|<span.badge class=#{klass} style="#{style}; #{bg}">#{qty}|]
+
+preToOriginal modulo pre = (OriginalQuantities qtake (qoh-before) qlost modulo , before) where
+  m = main pre
+  qtake = quantityTake0 m
+  qoh = quantityAt m
+  qlost = quantityNow (lost pre)
+  day = takeDate pre
+    -- Move picked before the stock take have been taken into account
+    -- in the QOH. We need to remove them to get the quantity excluding ALL moves
+  before = sum [ movePickedQty move
+              | move <- movesAt m
+              , moveDate move <= day
+              ]
+  -- | We want to pass the original quantities (without move) to the data- in html
+  -- however the badges needs to be computed as if
+  -- the "before" select boxes needs have been selected
+toOrigAndBadges modulo pre = (orig, computeBadges orig {qoh = qoh orig + before}, before)
+  where (orig, before) = preToOriginal modulo pre
