@@ -18,6 +18,7 @@ module Handler.WH.Stocktake
 ) where
 
 import Import hiding(length, (\\), Null)
+import Handler.Util
 import Handler.CsvUtils hiding(FieldTF, RawT, PartialT, ValidT, FinalT)
 import qualified Handler.CsvUtils as CU
 import Handler.WH.Barcode
@@ -45,7 +46,12 @@ getWHStocktakeR :: Handler Html
 getWHStocktakeR = entityTableHandler (WarehouseR WHStocktakeR) ([] :: [Filter Stocktake])
 
 getWHStocktakeValidateR :: Handler Html
-getWHStocktakeValidateR = renderWHStocktake Validate Nothing 200 (setInfo "Enter Stocktake") (return ())
+getWHStocktakeValidateR = do
+  mop0 <- collect0FromMOP
+  traceShowM mop0
+  let param0 = FormParam {pStyleComplete = StyleComplete, pDisplayMode = HideMissing }
+  widget <- renderValidRows param0 mop0
+  renderWHStocktake Validate Nothing 200 (setInfo "Enter Stocktake") widget
 
 renderWHStocktake :: SavingMode -> Maybe FormParam -> Int -> Handler () -> Widget -> Handler Html
 renderWHStocktake mode paramM status message pre = do
@@ -216,7 +222,11 @@ $maybe u <- uploader
       let docKey = DocumentKey "stocktake" path (maybe "" unTextarea commentM) key (userId) processedAt
           newParam = param {pFileKey = Just key, pFilePath = Just path}
 
-          parsed = (parseTakes skus findOps findLocs spreadsheet)
+          parsed' = (parseTakes skus findOps findLocs spreadsheet)
+      mop0 <- collect0FromMOP
+      let parsed = ParsingCorrect mop0
+        
+
       takes <- lookupBarcodes parsed
       renderParsingResult (renderWHStocktake mode ((Just newParam)) 422)
                           (process newParam docKey mode)
@@ -1089,6 +1099,42 @@ instance Csv.FromField (Either InvalidField (Maybe (ValidField (Location')))) wh
     case t of
       Nothing -> return $ Right Nothing
       Just t' -> return $ Left (ParsingError "Location doesn't exist" t')
+
+-- * Generate ZeroTake from lost items in MOP
+-- | It seems easier to generate the result of parsing a spreading
+-- and passing to the process function which will take care of generating
+-- fake barcodes and invalidates everything required
+-- rather than generate Stocktake and refactorethe code to make it work on Stocktake
+-- We use if available the operator and date corresponding to picking action in MOP
+collect0FromMOP :: Handler [ValidRow]
+collect0FromMOP = do
+  (Entity opId operator) <- firstOperator 
+  today <- utctDay <$> liftIO getCurrentTime
+  let sql = "SELECT base, variation, quantity "
+            <> " , NULL, NULL"
+            <> " FROM 0_topick "
+            <> " WHERE `type` = 'LOST'"
+  traceShowM sql
+  losts <- runDB $ rawSql sql []
+  -- let types = losts :: [(Text, Text, Int, Maybe Day, Maybe Text)]
+  return $ map (mopToFinalRow (Operator' opId operator) today) losts
+
+mopToFinalRow :: Operator' -> Day
+              -> (Single Text, Single Text, Single Int, Single (Maybe Day), Single (Maybe Text))  -> ValidRow
+mopToFinalRow user day (Single style, Single variation , Single quantity, Single mday, Single moperator) = let
+  rowStyle = Provided style
+  rowColour = Provided variation
+  rowQuantity = Provided $ Known quantity
+  rowLocation = ()
+  rowBarcode = ()
+  rowLength = ()
+  rowWidth = ()
+  rowHeight = ()
+  rowOperator = Guessed user -- fromMaybe user moperator 
+  rowDate = Guessed $ fromMaybe day mday
+  in QuickST $ TakeRow {..}
+
+  
 
 -- * Rendering
 

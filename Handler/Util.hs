@@ -13,6 +13,7 @@ module Handler.Util
 , computeDocumentKey
 , setAttachment
 , generateLabelsResponse
+, firstOperator
 ) where
 
 -- import Foundation
@@ -174,3 +175,11 @@ generateLabelsResponse outputName template labelSource = do
     _ -> do
         cleanUp
         sendResponseStatus (toEnum 422) (mconcat (map decodeUtf8 errorMessage :: [Text]))
+
+-- * Operator
+-- | Returns the first active operator.
+-- This is the default operator which will be used in batch mode if  required.
+--- We should have at least one operator, so we don't need the Maybe
+firstOperator = do
+  operator <- runDB $ selectFirst [OperatorActive ==. True] [Asc OperatorId]
+  maybe (error "No active operators found. Please contact your administrator") return operator
