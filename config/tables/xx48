@@ -1,0 +1,12 @@
+
+PurchOrder sql=0_purch_orders
+    Id Int  sql=order_no
+    supplierId Int  sql=supplier_id
+    comments Text Maybe sql=comments default=NULL
+    ordDate Day  sql=ord_date
+    reference Text  sql=reference
+    requisitionNo Text Maybe sql=requisition_no default=NULL
+    intoStockLocation Text  sql=into_stock_location
+    deliveryAddress Text  sql=delivery_address
+    total Double  sql=total
+    taxIncluded Bool  sql=tax_included

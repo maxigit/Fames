@@ -1,0 +1,14 @@
+
+CrmPerson sql=0_crm_persons
+    Id Int  sql=id
+    ref Text  sql=ref
+    name Text  sql=name
+    name2 Text Maybe sql=name2 default=NULL
+    address Text Maybe sql=address default=NULL
+    phone Text Maybe sql=phone default=NULL
+    phone2 Text Maybe sql=phone2 default=NULL
+    fax Text Maybe sql=fax default=NULL
+    email Text Maybe sql=email default=NULL
+    lang Text Maybe sql=lang default=NULL
+    notes Text  sql=notes
+    inactive Bool  sql=inactive

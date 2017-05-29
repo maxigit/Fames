@@ -1,0 +1,18 @@
+
+SalesOrderDetails2 sql=0_sales_order_details2
+    Id Int  sql=id
+    orderNo Int  sql=order_no
+    transType Int  sql=trans_type
+    stkCode Text  sql=stk_code
+    description Text Maybe sql=description default=NULL
+    qtySent Double  sql=qty_sent
+    unitPrice Double  sql=unit_price
+    quantity Double  sql=quantity
+    discountPercent Double  sql=discount_percent
+    requiredDate Day Maybe sql=required_date
+    comment Text Maybe sql=comment default=NULL
+    ref Text Maybe sql=ref default=NULL
+    priority UTCTime Maybe sql=priority
+    expiryDate Day Maybe sql=expiry_date
+    holdUntilDate Day Maybe sql=hold_until_date
+    ppd Double  sql=ppd

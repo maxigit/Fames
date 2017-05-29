@@ -1,0 +1,6 @@
+
+Workcentre sql=0_workcentres
+    Id Int  sql=id
+    name Text  sql=name
+    description Text  sql=description
+    inactive Bool  sql=inactive

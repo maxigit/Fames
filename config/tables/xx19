@@ -1,0 +1,11 @@
+
+DashboardWidget sql=0_dashboard_widgets
+    Id Int  sql=id
+    userId Int  sql=user_id
+    app Text  sql=app
+    columnId Int  sql=column_id
+    sortNo Int  sql=sort_no
+    collapsed Bool  sql=collapsed
+    widget Text  sql=widget
+    description Text  sql=description
+    param Text Maybe sql=param default=NULL

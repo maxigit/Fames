@@ -1,0 +1,16 @@
+
+StockCategory sql=0_stock_category
+    Id Int  sql=category_id
+    description Text  sql=description
+    inactive Bool  sql=inactive
+    dfltTaxType Int  sql=dflt_tax_type
+    dfltUnits Text  sql=dflt_units
+    dfltMbFlag Text  sql=dflt_mb_flag
+    dfltSalesAct Text  sql=dflt_sales_act
+    dfltCogsAct Text  sql=dflt_cogs_act
+    dfltInventoryAct Text  sql=dflt_inventory_act
+    dfltAdjustmentAct Text  sql=dflt_adjustment_act
+    dfltAssemblyAct Text  sql=dflt_assembly_act
+    dfltDim1 Int Maybe sql=dflt_dim1
+    dfltDim2 Int Maybe sql=dflt_dim2
+    dfltNoSale Bool  sql=dflt_no_sale

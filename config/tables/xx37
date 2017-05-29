@@ -1,0 +1,13 @@
+
+Location sql=0_locations
+    Id Text  sql=loc_code
+    locationName Text  sql=location_name
+    deliveryAddress Text  sql=delivery_address
+    phone Text  sql=phone
+    phone2 Text  sql=phone2
+    orderWeight Double  sql=order_weight
+    stockWeight Double  sql=stock_weight
+    fax Text  sql=fax
+    email Text  sql=email
+    contact Text  sql=contact
+    inactive Bool  sql=inactive

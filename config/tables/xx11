@@ -1,0 +1,6 @@
+
+CreditStatu sql=0_credit_status
+    Id Int  sql=id
+    reasonDescription Text  sql=reason_description
+    dissallowInvoices Bool  sql=dissallow_invoices
+    inactive Bool  sql=inactive

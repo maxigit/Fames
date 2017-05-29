@@ -1,0 +1,7 @@
+
+Price sql=0_prices
+    Id Int  sql=id
+    stockId Text  sql=stock_id
+    salesTypeId Int  sql=sales_type_id
+    currAbrev Text  sql=curr_abrev
+    price Double  sql=price

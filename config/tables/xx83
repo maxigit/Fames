@@ -1,0 +1,8 @@
+
+TaxType sql=0_tax_types
+    Id Int  sql=id
+    rate Double  sql=rate
+    salesGlCode Text  sql=sales_gl_code
+    purchasingGlCode Text  sql=purchasing_gl_code
+    name Text  sql=name
+    inactive Bool  sql=inactive

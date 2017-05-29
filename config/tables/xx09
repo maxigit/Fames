@@ -1,0 +1,7 @@
+
+ChartType sql=0_chart_types
+    Id Text  sql=id
+    name Text  sql=name
+    classId Text  sql=class_id
+    parent Text  sql=parent
+    inactive Bool  sql=inactive

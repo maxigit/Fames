@@ -1,0 +1,6 @@
+
+ItemTaxType sql=0_item_tax_types
+    Id Int  sql=id
+    name Text  sql=name
+    exempt Bool  sql=exempt
+    inactive Bool  sql=inactive

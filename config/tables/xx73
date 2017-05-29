@@ -1,0 +1,16 @@
+
+SuppTran sql=0_supp_trans
+    transNo Int  sql=trans_no
+    type Int  sql=type
+    supplierId Int Maybe sql=supplier_id
+    reference Text  sql=reference
+    suppReference Text  sql=supp_reference
+    tranDate Day  sql=tran_date
+    dueDate Day  sql=due_date
+    ovAmount Double  sql=ov_amount
+    ovDiscount Double  sql=ov_discount
+    ovGst Double  sql=ov_gst
+    rate Double  sql=rate
+    alloc Double  sql=alloc
+    taxIncluded Bool  sql=tax_included
+    Primary transNo type

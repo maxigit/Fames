@@ -1,0 +1,7 @@
+
+WoManufacture sql=0_wo_manufacture
+    Id Int  sql=id
+    reference Text Maybe sql=reference default=NULL
+    workorderId Int  sql=workorder_id
+    quantity Double  sql=quantity
+    date Day  sql=date_

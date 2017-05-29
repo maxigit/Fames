@@ -1,0 +1,27 @@
+
+SalesOrder sql=0_sales_orders
+    orderNo Int  sql=order_no
+    transType Int  sql=trans_type
+    version Bool  sql=version
+    type Bool  sql=type
+    debtorNo Int  sql=debtor_no
+    branchCode Int  sql=branch_code
+    reference Text  sql=reference
+    customerRef Text  sql=customer_ref
+    comments Text Maybe sql=comments default=NULL
+    ordDate Day  sql=ord_date
+    orderType Int  sql=order_type
+    shipVia Int  sql=ship_via
+    deliveryAddress Text  sql=delivery_address
+    contactPhone Text Maybe sql=contact_phone default=NULL
+    contactEmail Text Maybe sql=contact_email default=NULL
+    deliverTo Text  sql=deliver_to
+    freightCost Double  sql=freight_cost
+    fromStkLoc Text  sql=from_stk_loc
+    deliveryDate Day  sql=delivery_date
+    paymentTerms Int Maybe sql=payment_terms
+    total Double  sql=total
+    totalPpd Double Maybe sql=total_ppd
+    ppd Double Maybe sql=ppd
+    ppdDays Int Maybe sql=ppd_days
+    Primary orderNo transType

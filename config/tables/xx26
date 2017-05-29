@@ -1,0 +1,7 @@
+
+ExchangeRate sql=0_exchange_rates
+    Id Int  sql=id
+    currCode Text  sql=curr_code
+    rateBuy Double  sql=rate_buy
+    rateSell Double  sql=rate_sell
+    date Day  sql=date_

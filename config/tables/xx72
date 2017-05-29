@@ -1,0 +1,14 @@
+
+SuppInvoiceItem sql=0_supp_invoice_items
+    Id Int  sql=id
+    suppTransNo Int Maybe sql=supp_trans_no
+    suppTransType Int Maybe sql=supp_trans_type
+    glCode Text  sql=gl_code
+    grnItemId Int Maybe sql=grn_item_id
+    poDetailItemId Int Maybe sql=po_detail_item_id
+    stockId Text  sql=stock_id
+    description Text Maybe sql=description default=NULL
+    quantity Double  sql=quantity
+    unitPrice Double  sql=unit_price
+    unitTax Double  sql=unit_tax
+    memo Text Maybe sql=memo_ default=NULL

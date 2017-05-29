@@ -1,0 +1,6 @@
+
+Useronline sql=0_useronline
+    Id Int  sql=id
+    timestamp Int  sql=timestamp
+    ip Text  sql=ip
+    file Text  sql=file

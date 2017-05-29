@@ -1,0 +1,6 @@
+
+StockToCost sql=0_stock_to_cost
+    stockId Text  sql=stock_id
+    standardCost Double  sql=standard_cost
+    quantity Int  sql=quantity
+    date Day Maybe sql=date

@@ -1,0 +1,9 @@
+
+GrnItem sql=0_grn_items
+    Id Int  sql=id
+    grnBatchId Int Maybe sql=grn_batch_id
+    poDetailItem Int  sql=po_detail_item
+    itemCode Text  sql=item_code
+    description Text Maybe sql=description default=NULL
+    qtyRecd Double  sql=qty_recd
+    quantityInv Double  sql=quantity_inv

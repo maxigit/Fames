@@ -1,214 +1,556 @@
-name:              Fames
-version:           0.0.0
-cabal-version:     >= 1.8
-build-type:        Simple
+-- This file has been generated from package.yaml by hpack version 0.17.0.
+--
+-- see: https://github.com/sol/hpack
 
-Flag dev
-    Description:   Turn on development settings, like auto-reload templates.
-    Default:       False
+name:           Fames
+version:        0.0.0
+license:        UnspecifiedLicense
+build-type:     Simple
+cabal-version:  >= 1.10
 
-Flag library-only
-    Description:   Build for use with "yesod devel"
-    Default:       False
+flag dev
+  description: Turn on development settings, like auto-reload templates.
+  manual: False
+  default: False
+
+flag library-only
+  description: Build for use with "yesod devel"
+  manual: False
+  default: False
 
 library
-    hs-source-dirs: ., fay-shared, app
-                    -- for intero
-                    , test 
-    exposed-modules: Application
-                     FA
-                     FAX
-                     FAMES
-                     GL.FA
-                     GL
-                     GL.Receipt
-                     Role
-                     Foundation
-                     Import
-                     Import.NoFoundation
-                     Model
-                     ModelField
-                     Settings
-                     Settings.StaticFiles
-                     SharedTypes
-                     Handler.Administrator
-                     Handler.Common
-                     Handler.Fay
-                     Handler.Home
-                     Handler.Comment
-                     Handler.GLEnterReceiptSheet
-                     Handler.GLEnterReceiptSheet.ReceiptRow
-                     Handler.WH
-                     Handler.WH.Barcode
-                     Handler.WH.PackingList
-                     Handler.WH.Stocktake
-                     Handler.WH.StockAdjustment
-                     Handler.WH.Legacy.Box
-                     Handler.FA
-                     Handler.FAX
-                     Handler.FAMES
-                     Handler.FA.Def
-                     Handler.FAX.Def
-                     Handler.FAMES.Def
-                     Handler.Util
-                     Handler.CsvUtils
-                     WH.Barcode
-                     RoutePiece
-                     
-
-    if flag(dev) || flag(library-only)
-        cpp-options:   -DDEVELOPMENT
-        ghc-options:   -w -fwarn-tabs -O0
-    else
-        ghc-options:   -w -fwarn-tabs -Wincomplete-patterns -O2
-
-    extensions: TemplateHaskell
-                QuasiQuotes
-                OverloadedStrings
-                NoImplicitPrelude
-                MultiParamTypeClasses
-                TypeFamilies
-                GADTs
-                GeneralizedNewtypeDeriving
-                FlexibleContexts
-                FlexibleInstances
-                EmptyDataDecls
-                NoMonomorphismRestriction
-                RankNTypes
-                DeriveDataTypeable
-                ViewPatterns
-                TupleSections
-                RecordWildCards
-                PatternGuards
-                PatternSynonyms
-                StandaloneDeriving
-
-    build-depends: base                          >= 4          && < 5
-                 , yesod                         >= 1.4.1      && < 1.5
-                 , yesod-core                    >= 1.4.17     && < 1.5
-                 , yesod-auth                    >= 1.4.0      && < 1.5
-                 , yesod-static                  >= 1.4.0.3    && < 1.6
-                 , yesod-form                    >= 1.4.0      && < 1.5
-                 , yesod-fay                     >= 0.7        && < 0.9
-                 , fay                           >= 0.21.2.1   && < 0.24
-                 , cassava                       >= 0.4.5      && < 0.5
-                 , classy-prelude                >= 0.10.2
-                 , classy-prelude-conduit        >= 0.10.2
-                 , classy-prelude-yesod          >= 0.10.2
-                 , bytestring                    >= 0.9        && < 0.11
-                 , text                          >= 0.11       && < 2.0
-                 , persistent                    >= 2.0        && < 2.7
-                 , persistent-mysql              >= 2.1.2      && < 2.7
-                 , mysql
-                 , persistent-template           >= 2.0        && < 2.6
-                 , template-haskell
-                 , shakespeare                   >= 2.0        && < 2.1
-                 , hjsmin                        >= 0.1        && < 0.3
-                 , monad-control                 >= 0.3        && < 1.1
-                 , wai-extra                     >= 3.0        && < 3.1
-                 , yaml                          >= 0.8        && < 0.9
-                 , http-conduit                  >= 2.1        && < 2.3
-                 , directory                     >= 1.1        && < 1.4
-                 , warp                          >= 3.0        && < 3.3
-                 , data-default
-                 , aeson                         >= 0.6        && < 1.1
-                 , conduit                       >= 1.0        && < 2.0
-                 , conduit-extra
-                 , streaming-commons
-                 , monad-logger                  >= 0.3        && < 0.4
-                 , fast-logger                   >= 2.2        && < 2.5
-                 , wai-logger                    >= 2.2        && < 2.4
-                 , file-embed
-                 , safe
-                 , unordered-containers
-                 , containers
-                 , vector
-                 , time
-                 , case-insensitive
-                 , wai
-                 , blaze-html
-                 , split
-                 , cryptohash
-                 , formatting
-                 , temporary
-                 , these
-                 , Glob
-                 , mtl >= 2.2 && < 2.3
-                 , path-pieces >= 0.2 && <0.3
-
-executable         Fames
-    if flag(library-only)
-        Buildable: False
-
-    main-is:           main.hs
-    hs-source-dirs:    app
-    build-depends:     base, Fames
-
-    ghc-options:       -threaded -rtsopts -with-rtsopts=-N
-
-test-suite test
-    type:              exitcode-stdio-1.0
-    main-is:           Spec.hs
-    hs-source-dirs:    test
-    -- ghc-options:       -Wall
-    ghc-options:       -w -threaded -rtsopts -with-rtsopts=-N
-
-    extensions: TemplateHaskell
-                QuasiQuotes
-                OverloadedStrings
-                NoImplicitPrelude
-                CPP
-                MultiParamTypeClasses
-                TypeFamilies
-                GADTs
-                GeneralizedNewtypeDeriving
-                FlexibleContexts
-                FlexibleInstances
-                EmptyDataDecls
-                NoMonomorphismRestriction
-                DeriveDataTypeable
-                ViewPatterns
-                TupleSections
-
-    build-depends: base
-                 , Fames
-                 , yesod-test >= 1.5.0.1 && < 1.6
-                 , yesod-core
-                 , yesod
-                 , yesod-auth
-                 , persistent
-                 , persistent-mysql
-                 , resourcet
-                 , monad-logger
-                 , shakespeare
-                 , transformers
-                 , hspec >= 2.4 && < 2.5
-                 , classy-prelude
-                 , classy-prelude-yesod
-                 , aeson
-                 , cassava
-                 , yaml
-                 , temporary
-                 , http-types >= 0.9
-                 , containers
-
+  hs-source-dirs:
+      ./.
+      fay-shared
+      app
+      config/fa
+  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving
+  build-depends:
+      containers
+    , base >=4 && <5
+    , text >=0.11 && <2.0
+    , yesod >=1.4.1 && <1.5
+    , yesod-core >=1.4.17 && <1.5
+    , yesod-auth >=1.4.0 && <1.5
+    , yesod-static >=1.4.0.3 && <1.6
+    , yesod-form >=1.4.0 && <1.5
+    , yesod-fay >=0.7 && <0.9
+    , fay >=0.21.2.1 && <0.24
+    , fay-jquery >=0.6 && <0.7
+    , fay-text >=0.3 && <0.4
+    , cassava >=0.4.5 && <0.5
+    , classy-prelude >=0.10.2
+    , classy-prelude-conduit >=0.10.2
+    , classy-prelude-yesod >=0.10.2
+    , bytestring >=0.9 && <0.11
+    , persistent >=2.0 && <2.7
+    , persistent-mysql >=2.1.2 && <2.7
+    , mysql
+    , persistent-template >=2.0 && <2.6
+    , template-haskell
+    , shakespeare >=2.0 && <2.1
+    , hjsmin >=0.1 && <0.3
+    , monad-control >=0.3 && <1.1
+    , wai-extra >=3.0 && <3.1
+    , yaml >=0.8 && <0.9
+    , http-conduit >=2.1 && <2.3
+    , directory >=1.1 && <1.4
+    , warp >=3.0 && <3.3
+    , data-default
+    , aeson >=0.6 && <1.1
+    , conduit >=1.0 && <2.0
+    , conduit-extra
+    , streaming-commons
+    , monad-logger >=0.3 && <0.4
+    , fast-logger >=2.2 && <2.5
+    , wai-logger >=2.2 && <2.4
+    , file-embed
+    , safe
+    , unordered-containers
+    , vector
+    , time
+    , case-insensitive
+    , wai
+    , blaze-html
+    , split
+    , cryptohash
+    , formatting
+    , temporary
+    , these
+    , Glob
+    , mtl >=2.2 && <2.3
+    , path-pieces >=0.2 && <0.3
+    , generics-sop
+    , Metamorphosis >= 0.1.0.1
+    , microlens >= 0.4.8.0 && < 0.5
+  if (flag(dev)) || (flag(library-only))
+    ghc-options: -w -fwarn-tabs -O0 -j6
+    cpp-options: -DDEVELOPMENT
+  else
+    ghc-options: -w -fwarn-tabs -O2 -j6
+  exposed-modules:
+      Application
+      FA
+      FAMES
+      FAX
+      Foundation
+      Handler.Administrator
+      Handler.Comment
+      Handler.Common
+      Handler.CsvUtils
+      Handler.FA
+      Handler.FA.Def
+      Handler.FAMES
+      Handler.FAMES.Def
+      Handler.FAX
+      Handler.FAX.Def
+      Handler.Fay
+      Handler.GLEnterReceiptSheet
+      Handler.GLEnterReceiptSheet.ReceiptRow
+      Handler.Home
+      Handler.Items
+      Handler.Items.Index
+      Handler.Table
+      Handler.Util
+      Handler.WH
+      Handler.WH.Barcode
+      Handler.WH.Legacy.Box
+      Handler.WH.PackingList
+      Handler.WH.StockAdjustment
+      Handler.WH.Stocktake
+      Import
+      Import.NoFoundation
+      Model
+      ModelField
+      Role
+      RoutePiece
+      Settings
+      Settings.StaticFiles
+      SharedStockAdjustment
+      SharedTypes
+      GL
+      GL.FA
+      GL.Receipt
+      Items
+      Items.Internal
+      Items.Types
+      WH.Barcode
+      FAxx00
+      FAxx01
+      FAxx02
+      FAxx03
+      FAxx04
+      FAxx05
+      FAxx06
+      FAxx07
+      FAxx08
+      FAxx09
+      FAxx10
+      FAxx11
+      FAxx12
+      FAxx13
+      FAxx14
+      FAxx15
+      FAxx16
+      FAxx17
+      FAxx18
+      FAxx19
+      FAxx20
+      FAxx21
+      FAxx22
+      FAxx23
+      FAxx24
+      FAxx25
+      FAxx26
+      FAxx27
+      FAxx28
+      FAxx29
+      FAxx30
+      FAxx31
+      FAxx32
+      FAxx33
+      FAxx34
+      FAxx35
+      FAxx36
+      FAxx37
+      FAxx38
+      FAxx39
+      FAxx40
+      FAxx41
+      FAxx42
+      FAxx43
+      FAxx44
+      FAxx45
+      FAxx46
+      FAxx47
+      FAxx48
+      FAxx49
+      FAxx50
+      FAxx51
+      FAxx52
+      FAxx53
+      FAxx54
+      FAxx55
+      FAxx56
+      FAxx57
+      FAxx58
+      FAxx59
+      FAxx60
+      FAxx61
+      FAxx62
+      FAxx63
+      FAxx64
+      FAxx65
+      FAxx66
+      FAxx67
+      FAxx68
+      FAxx69
+      FAxx70
+      FAxx71
+      FAxx72
+      FAxx73
+      FAxx74
+      FAxx75
+      FAxx76
+      FAxx77
+      FAxx78
+      FAxx79
+      FAxx80
+      FAxx81
+      FAxx82
+      FAxx83
+      FAxx84
+      FAxx85
+      FAxx86
+      FAxx87
+      FAxx88
+      FAxx89
+      FAxx90
+      FAxx91
+      FAxx92
+      FAxx93
+      FAxx94
+      FAxx95
+      FAxx96
+      FAxx97
+  default-language: Haskell2010
 
 executable FAGenerator
-    if flag(dev)
-        Buildable: True
+  main-is: FAGenerator.hs
+  hs-source-dirs:
+      tools
+  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving
+  build-depends:
+      containers
+    , base >=4 && <5
+    , text >=0.11 && <2.0
+    , yesod >=1.4.1 && <1.5
+    , yesod-core >=1.4.17 && <1.5
+    , yesod-auth >=1.4.0 && <1.5
+    , yesod-static >=1.4.0.3 && <1.6
+    , yesod-form >=1.4.0 && <1.5
+    , yesod-fay >=0.7 && <0.9
+    , fay >=0.21.2.1 && <0.24
+    , fay-jquery >=0.6 && <0.7
+    , fay-text >=0.3 && <0.4
+    , cassava >=0.4.5 && <0.5
+    , classy-prelude >=0.10.2
+    , classy-prelude-conduit >=0.10.2
+    , classy-prelude-yesod >=0.10.2
+    , bytestring >=0.9 && <0.11
+    , persistent >=2.0 && <2.7
+    , persistent-mysql >=2.1.2 && <2.7
+    , mysql
+    , persistent-template >=2.0 && <2.6
+    , template-haskell
+    , shakespeare >=2.0 && <2.1
+    , hjsmin >=0.1 && <0.3
+    , monad-control >=0.3 && <1.1
+    , wai-extra >=3.0 && <3.1
+    , yaml >=0.8 && <0.9
+    , http-conduit >=2.1 && <2.3
+    , directory >=1.1 && <1.4
+    , warp >=3.0 && <3.3
+    , data-default
+    , aeson >=0.6 && <1.1
+    , conduit >=1.0 && <2.0
+    , conduit-extra
+    , streaming-commons
+    , monad-logger >=0.3 && <0.4
+    , fast-logger >=2.2 && <2.5
+    , wai-logger >=2.2 && <2.4
+    , file-embed
+    , safe
+    , unordered-containers
+    , vector
+    , time
+    , case-insensitive
+    , wai
+    , blaze-html
+    , split
+    , cryptohash
+    , formatting
+    , temporary
+    , these
+    , Glob
+    , mtl >=2.2 && <2.3
+    , path-pieces >=0.2 && <0.3
+    , generics-sop
+    , Metamorphosis >= 0.1.0.1
+    , microlens >= 0.4.8.0 && < 0.5
+    , base
+    , mysql-simple
+    , split
+    , filepath
+    , directory
+  other-modules:
+      TextcartHelper
+  default-language: Haskell2010
 
-    main-is: FAGenerator.hs
-    hs-source-dirs: tools
-    build-depends: base, mysql-simple, split, filepath, directory
-    extensions: RecordWildCards
-
+executable Fames
+  main-is: main.hs
+  hs-source-dirs:
+      app
+  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      containers
+    , base >=4 && <5
+    , text >=0.11 && <2.0
+    , yesod >=1.4.1 && <1.5
+    , yesod-core >=1.4.17 && <1.5
+    , yesod-auth >=1.4.0 && <1.5
+    , yesod-static >=1.4.0.3 && <1.6
+    , yesod-form >=1.4.0 && <1.5
+    , yesod-fay >=0.7 && <0.9
+    , fay >=0.21.2.1 && <0.24
+    , fay-jquery >=0.6 && <0.7
+    , fay-text >=0.3 && <0.4
+    , cassava >=0.4.5 && <0.5
+    , classy-prelude >=0.10.2
+    , classy-prelude-conduit >=0.10.2
+    , classy-prelude-yesod >=0.10.2
+    , bytestring >=0.9 && <0.11
+    , persistent >=2.0 && <2.7
+    , persistent-mysql >=2.1.2 && <2.7
+    , mysql
+    , persistent-template >=2.0 && <2.6
+    , template-haskell
+    , shakespeare >=2.0 && <2.1
+    , hjsmin >=0.1 && <0.3
+    , monad-control >=0.3 && <1.1
+    , wai-extra >=3.0 && <3.1
+    , yaml >=0.8 && <0.9
+    , http-conduit >=2.1 && <2.3
+    , directory >=1.1 && <1.4
+    , warp >=3.0 && <3.3
+    , data-default
+    , aeson >=0.6 && <1.1
+    , conduit >=1.0 && <2.0
+    , conduit-extra
+    , streaming-commons
+    , monad-logger >=0.3 && <0.4
+    , fast-logger >=2.2 && <2.5
+    , wai-logger >=2.2 && <2.4
+    , file-embed
+    , safe
+    , unordered-containers
+    , vector
+    , time
+    , case-insensitive
+    , wai
+    , blaze-html
+    , split
+    , cryptohash
+    , formatting
+    , temporary
+    , these
+    , Glob
+    , mtl >=2.2 && <2.3
+    , path-pieces >=0.2 && <0.3
+    , generics-sop
+    , Metamorphosis >= 0.1.0.1
+    , microlens >= 0.4.8.0 && < 0.5
+    , Fames
+  if flag(library-only)
+    buildable: False
+  other-modules:
+      GL
+      GL.FA
+      GL.Receipt
+      Items
+      Items.Internal
+      Items.Types
+      WH.Barcode
+  default-language: Haskell2010
 
 executable TextcartHelper
-    if flag(dev)
-        Buildable: True
+  main-is: TextcartHelper.hs
+  hs-source-dirs:
+      tools
+  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving ImplicitPrelude
+  build-depends:
+      containers
+    , base >=4 && <5
+    , text >=0.11 && <2.0
+    , yesod >=1.4.1 && <1.5
+    , yesod-core >=1.4.17 && <1.5
+    , yesod-auth >=1.4.0 && <1.5
+    , yesod-static >=1.4.0.3 && <1.6
+    , yesod-form >=1.4.0 && <1.5
+    , yesod-fay >=0.7 && <0.9
+    , fay >=0.21.2.1 && <0.24
+    , fay-jquery >=0.6 && <0.7
+    , fay-text >=0.3 && <0.4
+    , cassava >=0.4.5 && <0.5
+    , classy-prelude >=0.10.2
+    , classy-prelude-conduit >=0.10.2
+    , classy-prelude-yesod >=0.10.2
+    , bytestring >=0.9 && <0.11
+    , persistent >=2.0 && <2.7
+    , persistent-mysql >=2.1.2 && <2.7
+    , mysql
+    , persistent-template >=2.0 && <2.6
+    , template-haskell
+    , shakespeare >=2.0 && <2.1
+    , hjsmin >=0.1 && <0.3
+    , monad-control >=0.3 && <1.1
+    , wai-extra >=3.0 && <3.1
+    , yaml >=0.8 && <0.9
+    , http-conduit >=2.1 && <2.3
+    , directory >=1.1 && <1.4
+    , warp >=3.0 && <3.3
+    , data-default
+    , aeson >=0.6 && <1.1
+    , conduit >=1.0 && <2.0
+    , conduit-extra
+    , streaming-commons
+    , monad-logger >=0.3 && <0.4
+    , fast-logger >=2.2 && <2.5
+    , wai-logger >=2.2 && <2.4
+    , file-embed
+    , safe
+    , unordered-containers
+    , vector
+    , time
+    , case-insensitive
+    , wai
+    , blaze-html
+    , split
+    , cryptohash
+    , formatting
+    , temporary
+    , these
+    , Glob
+    , mtl >=2.2 && <2.3
+    , path-pieces >=0.2 && <0.3
+    , generics-sop
+    , Metamorphosis >= 0.1.0.1
+    , microlens >= 0.4.8.0 && < 0.5
+    , base
+    , mysql-simple
+  other-modules:
+      FAGenerator
+  default-language: Haskell2010
 
-    main-is: TextcartHelper.hs
-    hs-source-dirs: tools
-    build-depends: base, mysql-simple, containers
-
-
+test-suite test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  hs-source-dirs:
+      test
+  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving
+  ghc-options: -w -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      containers
+    , base >=4 && <5
+    , text >=0.11 && <2.0
+    , yesod >=1.4.1 && <1.5
+    , yesod-core >=1.4.17 && <1.5
+    , yesod-auth >=1.4.0 && <1.5
+    , yesod-static >=1.4.0.3 && <1.6
+    , yesod-form >=1.4.0 && <1.5
+    , yesod-fay >=0.7 && <0.9
+    , fay >=0.21.2.1 && <0.24
+    , fay-jquery >=0.6 && <0.7
+    , fay-text >=0.3 && <0.4
+    , cassava >=0.4.5 && <0.5
+    , classy-prelude >=0.10.2
+    , classy-prelude-conduit >=0.10.2
+    , classy-prelude-yesod >=0.10.2
+    , bytestring >=0.9 && <0.11
+    , persistent >=2.0 && <2.7
+    , persistent-mysql >=2.1.2 && <2.7
+    , mysql
+    , persistent-template >=2.0 && <2.6
+    , template-haskell
+    , shakespeare >=2.0 && <2.1
+    , hjsmin >=0.1 && <0.3
+    , monad-control >=0.3 && <1.1
+    , wai-extra >=3.0 && <3.1
+    , yaml >=0.8 && <0.9
+    , http-conduit >=2.1 && <2.3
+    , directory >=1.1 && <1.4
+    , warp >=3.0 && <3.3
+    , data-default
+    , aeson >=0.6 && <1.1
+    , conduit >=1.0 && <2.0
+    , conduit-extra
+    , streaming-commons
+    , monad-logger >=0.3 && <0.4
+    , fast-logger >=2.2 && <2.5
+    , wai-logger >=2.2 && <2.4
+    , file-embed
+    , safe
+    , unordered-containers
+    , vector
+    , time
+    , case-insensitive
+    , wai
+    , blaze-html
+    , split
+    , cryptohash
+    , formatting
+    , temporary
+    , these
+    , Glob
+    , mtl >=2.2 && <2.3
+    , path-pieces >=0.2 && <0.3
+    , generics-sop
+    , Metamorphosis >= 0.1.0.1
+    , microlens >= 0.4.8.0 && < 0.5
+    , base
+    , Fames
+    , yesod-test >=1.5.0.1 && <1.6
+    , yesod-core
+    , yesod
+    , yesod-auth
+    , persistent
+    , persistent-mysql
+    , resourcet
+    , monad-logger
+    , shakespeare
+    , transformers
+    , hspec >=2.0.0
+    , hspec-stack-rerun
+    , classy-prelude
+    , classy-prelude-yesod
+    , aeson
+    , cassava
+    , yaml
+    , temporary
+    , http-types >=0.9
+  other-modules:
+      GL.ReceiptProcessingSpec
+      Handler.AuthSpec
+      Handler.CommentSpec
+      Handler.CommonSpec
+      Handler.FaSpec
+      Handler.GLEnterReceiptSheetSpec
+      Handler.HomeSpec
+      Handler.WHBarcodeSpec
+      Handler.WHPackingListSpec
+      Handler.WHStockAdjustmentSpec
+      Handler.WHStocktakeSpec
+      RoleSpec
+      TestImport
+  default-language: Haskell2010

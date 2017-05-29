@@ -1,0 +1,12 @@
+
+TaxRep sql=0_tax_rep
+    Id Int  sql=tax_rep_id
+    code Text  sql=code
+    description Text  sql=description
+    basis Text  sql=basis
+    balancingJournal Bool  sql=balancing_journal
+    liabilityAccount Text  sql=liability_account
+    taxPayment Bool  sql=tax_payment
+    bankAccount Text  sql=bank_account
+    custom Text  sql=custom
+    inactive Bool  sql=inactive

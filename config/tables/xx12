@@ -1,0 +1,9 @@
+
+CrmCategory sql=0_crm_categories
+    Id Int  sql=id
+    type Text  sql=type
+    action Text  sql=action
+    name Text  sql=name
+    description Text  sql=description
+    system Bool  sql=system
+    inactive Bool  sql=inactive

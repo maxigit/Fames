@@ -1,0 +1,15 @@
+
+BankTran sql=0_bank_trans
+    Id Int  sql=id
+    type Int Maybe sql=type
+    transNo Int Maybe sql=trans_no
+    bankAct Text  sql=bank_act
+    ref Text Maybe sql=ref default=NULL
+    transDate Day  sql=trans_date
+    bankTransTypeId Int Maybe sql=bank_trans_type_id
+    amount Double Maybe sql=amount
+    dimensionId Int  sql=dimension_id
+    dimension2Id Int  sql=dimension2_id
+    personTypeId Int  sql=person_type_id
+    personId ByteString Maybe sql=person_id
+    reconciled Day Maybe sql=reconciled

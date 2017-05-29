@@ -1,0 +1,12 @@
+
+RequisitionDetail sql=0_requisition_details
+    Id Int  sql=requisition_detail_id
+    requisitionId Int Maybe sql=requisition_id
+    itemCode Text Maybe sql=item_code default=NULL
+    supplierId Int Maybe sql=supplier_id
+    lpoId Int Maybe sql=lpo_id
+    orderQuantity Int  sql=order_quantity
+    estimatePrice Double  sql=estimate_price
+    quantity Int  sql=quantity
+    price Double  sql=price
+    purpose Text Maybe sql=purpose default=NULL

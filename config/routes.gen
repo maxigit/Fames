@@ -28,6 +28,9 @@
   !/packinglist/#Int64/edit_details WHPackingListEditDetailsR POST !pl
   !/packinglist/#Int64/deliver WHPackingListDeliverR POST !pl
 
+/items ItemsR !items:
+  /index ItemsIndexR GET !items/index
+
 /administrator AdministratorR GET
 -- Warning ! This code has been generated !}
 

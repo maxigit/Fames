@@ -1,0 +1,7 @@
+
+PaymentTerm sql=0_payment_terms
+    Id Int  sql=terms_indicator
+    terms Text  sql=terms
+    daysBeforeDue Int  sql=days_before_due
+    dayInFollowingMonth Int  sql=day_in_following_month
+    inactive Bool  sql=inactive

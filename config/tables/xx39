@@ -1,0 +1,12 @@
+
+MopAction sql=0_mop_actions
+    sku Text Maybe sql=sku default=NULL
+    typeId Int Maybe sql=type_id
+    quantity Int Maybe sql=quantity
+    base Text Maybe sql=base default=NULL
+    variation Text Maybe sql=variation default=NULL
+    location Text Maybe sql=location default=NULL
+    orderId Int Maybe sql=order_id
+    detailId Int Maybe sql=detail_id
+    actionGroupId Int Maybe sql=action_group_id
+    id_ Int  sql=id

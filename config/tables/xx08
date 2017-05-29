@@ -1,0 +1,7 @@
+
+ChartMaster sql=0_chart_master
+    Id Text  sql=account_code
+    accountCode2 Text  sql=account_code2
+    accountName Text  sql=account_name
+    accountType Text  sql=account_type
+    inactive Bool  sql=inactive

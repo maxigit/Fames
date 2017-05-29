@@ -1,0 +1,7 @@
+
+Tag sql=0_tags
+    Id Int  sql=id
+    type Int  sql=type
+    name Text  sql=name
+    description Text Maybe sql=description default=NULL
+    inactive Bool  sql=inactive

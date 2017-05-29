@@ -1,0 +1,9 @@
+
+Printer sql=0_printers
+    Id Bool  sql=id
+    name Text  sql=name
+    description Text  sql=description
+    queue Text  sql=queue
+    host Text  sql=host
+    port Int  sql=port
+    timeout Bool  sql=timeout

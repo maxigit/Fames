@@ -1,0 +1,8 @@
+
+DashboardReminder sql=0_dashboard_reminders
+    Id Int  sql=id
+    roleId Int  sql=role_id
+    nextDate Day  sql=next_date
+    description Text Maybe sql=description default=NULL
+    frequency Text  sql=frequency
+    param Text Maybe sql=param default=NULL

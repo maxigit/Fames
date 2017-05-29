@@ -1,0 +1,6 @@
+-- Warning ! This code has been generated !
+-- Model
+Area sql=0_areas
+    Id Int  sql=area_code
+    description Text  sql=description
+    inactive Bool  sql=inactive

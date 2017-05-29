@@ -1,0 +1,9 @@
+
+QuickEntryLine sql=0_quick_entry_lines
+    Id Int  sql=id
+    qid Int  sql=qid
+    amount Double Maybe sql=amount
+    action Text  sql=action
+    destId Text  sql=dest_id
+    dimensionId Int Maybe sql=dimension_id
+    dimension2Id Int Maybe sql=dimension2_id

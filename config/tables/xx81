@@ -1,0 +1,10 @@
+
+TaxRepLine sql=0_tax_rep_line
+    Id Int  sql=tax_rep_line_id
+    taxRepId Int  sql=tax_rep_id
+    code Text  sql=code
+    description Text  sql=description
+    lineType Text  sql=line_type
+    calculation Text  sql=calculation
+    codeBasis Text  sql=code_basis
+    sequence Int  sql=sequence

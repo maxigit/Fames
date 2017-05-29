@@ -1,0 +1,15 @@
+
+StockMove sql=0_stock_moves
+    Id Int  sql=trans_id
+    transNo Int  sql=trans_no
+    stockId Text  sql=stock_id
+    type Int  sql=type
+    locCode Text  sql=loc_code
+    tranDate Day  sql=tran_date
+    personId Int Maybe sql=person_id
+    price Double  sql=price
+    reference Text  sql=reference
+    qty Double  sql=qty
+    discountPercent Double  sql=discount_percent
+    standardCost Double  sql=standard_cost
+    visible Bool  sql=visible

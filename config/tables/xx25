@@ -1,0 +1,9 @@
+
+Dimension sql=0_dimensions
+    Id Int  sql=id
+    reference Text  sql=reference
+    name Text  sql=name
+    type Bool  sql=type_
+    closed Bool  sql=closed
+    date Day  sql=date_
+    dueDate Day  sql=due_date

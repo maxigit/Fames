@@ -1,0 +1,13 @@
+
+TransTaxDetail sql=0_trans_tax_details
+    Id Int  sql=id
+    transType Int Maybe sql=trans_type
+    transNo Int Maybe sql=trans_no
+    tranDate Day  sql=tran_date
+    taxTypeId Int  sql=tax_type_id
+    rate Double  sql=rate
+    exRate Double  sql=ex_rate
+    includedInPrice Bool  sql=included_in_price
+    netAmount Double  sql=net_amount
+    amount Double  sql=amount
+    memo Text Maybe sql=memo default=NULL

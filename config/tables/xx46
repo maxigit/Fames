@@ -1,0 +1,6 @@
+
+PrintProfile sql=0_print_profiles
+    Id Int  sql=id
+    profile Text  sql=profile
+    report Text Maybe sql=report default=NULL
+    printer Bool Maybe sql=printer

@@ -1,0 +1,6 @@
+
+Comment sql=0_comments
+    type Int  sql=type
+    id_ Int  sql=id
+    date Day Maybe sql=date_
+    memo Text Maybe sql=memo_ default=NULL

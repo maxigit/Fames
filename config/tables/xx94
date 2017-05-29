@@ -1,0 +1,6 @@
+
+WoIssueItem sql=0_wo_issue_items
+    Id Int  sql=id
+    stockId Text Maybe sql=stock_id default=NULL
+    issueId Int Maybe sql=issue_id
+    qtyIssued Double Maybe sql=qty_issued

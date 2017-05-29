@@ -1,0 +1,5 @@
+
+ItemTaxTypeExemption sql=0_item_tax_type_exemptions
+    itemTaxTypeId Int  sql=item_tax_type_id
+    taxTypeId Int  sql=tax_type_id
+    Primary itemTaxTypeId taxTypeId

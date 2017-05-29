@@ -1,0 +1,9 @@
+
+SalesType sql=0_sales_types
+    Id Int  sql=id
+    salesType Text  sql=sales_type
+    taxIncluded Int  sql=tax_included
+    factor Double  sql=factor
+    inactive Bool  sql=inactive
+    ppd Double  sql=ppd
+    ppdDays Int Maybe sql=ppd_days

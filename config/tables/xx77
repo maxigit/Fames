@@ -1,0 +1,5 @@
+
+TagAssociation sql=0_tag_associations
+    recordId Text  sql=record_id
+    tagId Int  sql=tag_id
+    Primary recordId tagId

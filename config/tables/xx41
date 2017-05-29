@@ -1,0 +1,3 @@
+
+MyStock sql=0_my_stock
+    id_ Text Maybe sql=id default=NULL
