@@ -11,6 +11,7 @@ module Handler.WH.Stocktake
 ( getWHStocktakeR
 , postWHStocktakeSaveR
 , postWHStocktakeSaveR
+, postWHStocktakeCollect0R
 , getWHStocktakeSaveR
 , postWHStocktakeValidateR
 , getWHStocktakeValidateR
@@ -40,7 +41,8 @@ import qualified Data.Set as Set
 
 -- * Requests
 
-data SavingMode = Validate | Save deriving (Eq, Read, Show)
+-- | Validate spreadsheet, save , collect and save 0-takes generated from lost items
+data SavingMode = Validate | Save | Collect0 deriving (Eq, Read, Show)
 
 getWHStocktakeR :: Handler Html
 getWHStocktakeR = entityTableHandler (WarehouseR WHStocktakeR) ([] :: [Filter Stocktake])
@@ -49,8 +51,20 @@ getWHStocktakeValidateR :: Handler Html
 getWHStocktakeValidateR = do
   mop0 <- collect0FromMOP
   traceShowM mop0
-  let param0 = FormParam {pStyleComplete = StyleComplete, pDisplayMode = HideMissing }
-  widget <- renderValidRows param0 mop0
+  let param0 = FormParam {pStyleComplete = StyleIncomplete, pDisplayMode = HideMissing }
+  widget <- if null mop0
+    then return $ return ()
+    else do 
+      table <- renderValidRows param0 mop0
+      setWarning "Some items have been lost. Please collect them"
+      return [whamlet|
+<div.panel.panel-info >
+  <div.panel-heading><h3> Lost Items
+  <div.panel-body>
+    <form #save-collect0 method=post action=@{WarehouseR WHStocktakeCollect0R }>
+      ^{table}
+      <button type="submit" name="Collect" .btn class="btn-danger">Collect
+|]
   renderWHStocktake Validate Nothing 200 (setInfo "Enter Stocktake") widget
 
 renderWHStocktake :: SavingMode -> Maybe FormParam -> Int -> Handler () -> Widget -> Handler Html
@@ -82,6 +96,8 @@ getWHStocktakeSaveR = renderWHStocktake Save Nothing 200 (setInfo "Enter Stockta
 postWHStocktakeSaveR :: Handler Html
 postWHStocktakeSaveR = processStocktakeSheet Save
 
+postWHStocktakeCollect0R :: Handler Html
+postWHStocktakeCollect0R = processStocktakeSheet Collect0
 -- | Which stocktake items to display.
 -- Complete stocktake can be quite big so displaying in the browser can be skipped if not needed.
 data DisplayMode = DisplayAll | DisplayMissingOnly | HideMissing

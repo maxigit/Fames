@@ -16,6 +16,7 @@
   /stocktake WHStocktakeR GET !stoctake
   /stocktake/save WHStocktakeSaveR GET POST !stocktake/save
   /stocktake/validate WHStocktakeValidateR GET POST !stocktake
+  /stocktake/collect0 WHStocktakeCollect0R POST !stocktake/collect0
 
   /stock_adjustment WHStockAdjustmentR GET POST !stock_adj
   !/stock_adjustment/#Int64 WHStockAdjustmentViewR GET !stock_adj
