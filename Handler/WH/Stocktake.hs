@@ -50,7 +50,7 @@ getWHStocktakeR = entityTableHandler (WarehouseR WHStocktakeR) ([] :: [Filter St
 getWHStocktakeValidateR :: Handler Html
 getWHStocktakeValidateR = do
   mop0 <- collect0FromMOP
-  traceShowM mop0
+  (formW, encType) <- generateFormPost $ uploadForm Collect0 Nothing
   let param0 = FormParam {pStyleComplete = StyleIncomplete, pDisplayMode = HideMissing }
   widget <- if null mop0
     then return $ return ()
@@ -61,8 +61,9 @@ getWHStocktakeValidateR = do
 <div.panel.panel-info >
   <div.panel-heading><h3> Lost Items
   <div.panel-body>
-    <form #save-collect0 method=post action=@{WarehouseR WHStocktakeCollect0R }>
+    <form #save-collect0 method=post action=@{WarehouseR WHStocktakeCollect0R} enctype=#{encType}>
       ^{table}
+      ^{formW}
       <button type="submit" name="Collect" .btn class="btn-danger">Collect
 |]
   renderWHStocktake Validate Nothing 200 (setInfo "Enter Stocktake") widget
@@ -148,6 +149,15 @@ uploadForm mode paramM =
                    <*> areq (selectField optionsEnum ) "stylecomplete" (fmap pStyleComplete paramM <|> Just StyleComplete)
                    <*> areq (selectField optionsEnum ) "displaymode" (fmap pDisplayMode paramM <|> Just DisplayAll)
                    <*> areq boolField "override" (fmap pOveridde paramM <|> Just False)
+      form' Collect0 = FormParam
+                   <$> pure Nothing
+                   <*> pure Nothing
+                   <*> pure Nothing
+                   <*> pure UTF8
+                   <*> pure Nothing
+                   <*> pure StyleIncomplete 
+                   <*> pure HideMissing
+                   <*> pure False
   in renderBootstrap3 BootstrapBasicForm . form' $ mode
 
 renderValidRows :: FormParam -> [ValidRow] -> Handler Widget
@@ -198,7 +208,9 @@ processStocktakeSheet mode = do
           unless exist $ do
             writeFile (tmp key) ss
           return (ss, key, fileName fileInfo)
-        (_,_,_) -> error "Shouldn't happen"
+        (_,_,_) -> do -- Collect0
+          time <- liftIO getCurrentTime
+          return ("", computeDocumentKey (encodeUtf8 (tshow time)), "collect0" )
           
 
       -- TODO move to reuse
@@ -238,19 +250,21 @@ $maybe u <- uploader
       let docKey = DocumentKey "stocktake" path (maybe "" unTextarea commentM) key (userId) processedAt
           newParam = param {pFileKey = Just key, pFilePath = Just path}
 
-          parsed' = (parseTakes skus findOps findLocs spreadsheet)
-      mop0 <- collect0FromMOP
-      let parsed = ParsingCorrect mop0
-        
+      (parsed, finalizer) <- case mode of
+                               Collect0 -> do
+                                 takes0 <- collect0FromMOP
+                                 return (ParsingCorrect takes0
+                                        , mapM_ cleanupTopick takes0) -- processAt
+                               _ -> return $ (parseTakes skus findOps findLocs spreadsheet, return ())
 
       takes <- lookupBarcodes parsed
       renderParsingResult (renderWHStocktake mode ((Just newParam)) 422)
-                          (process newParam docKey mode)
+                          (process newParam docKey mode finalizer)
                           (takes)
-  where process  param doc Validate rows = do
+  where process  param doc Validate finalizer rows = do
           widget <- renderValidRows param rows
           renderWHStocktake Save (Just param) 200 (setSuccess "Validation ok!") widget
-        process param doc Save rows = do
+        process param doc mode finalizer rows | mode == Save || mode == Collect0 = do
           missings <- case pStyleComplete param of
             StyleComplete -> map QuickST <$> generateMissings rows
             _ -> return []
@@ -363,7 +377,8 @@ $maybe u <- uploader
                 insertMany_ stocktakes
                 insertMany_ boxtakes
 
-           ) >> renderWHStocktake mode
+            finalizer
+           ) >> renderWHStocktake Validate
                                  Nothing
                                  200
                                  ( setSuccess (toHtml $ "Spreadsheet"
@@ -874,7 +889,7 @@ toStocktakeF docId TakeRow{..} = case rowQuantity of
 
 toBoxtake :: DocumentKeyId -> (Text -> Text) -> (Int, FinalFullRow) -> Maybe Boxtake
 toBoxtake docId descriptionFn (col, TakeRow{..}) =
-  Just $ Boxtake (Just $ descriptionFn (rowStyle<>"-"<>rowColour))
+  Just $ Boxtake (Just $ descriptionFn (makeSku rowStyle rowColour))
                  (tshow col)
                  rowLength rowWidth rowHeight
                  rowBarcode (expanded rowLocation)
@@ -1011,7 +1026,7 @@ deriving instance Show PackingListDetail
 -- | Fetch box content information from a packing list 
 lookupPackingListDetail checkStyle barcode = do
   detailE <- getBy (UniquePLB barcode)
-  traceShowM (barcode, detailE)
+  -- traceShowM (barcode, detailE)
   return $ case detailE of
     Just (Entity _ detail) -> case checkStyle (packingListDetailStyle detail) [] of
                                  Nothing -> Right [ ( colour , quantity)
@@ -1130,7 +1145,7 @@ collect0FromMOP = do
             <> " , NULL, NULL"
             <> " FROM 0_topick "
             <> " WHERE `type` = 'LOST'"
-  traceShowM sql
+  -- traceShowM sql
   losts <- runDB $ rawSql sql []
   -- let types = losts :: [(Text, Text, Int, Maybe Day, Maybe Text)]
   return $ map (mopToFinalRow (Operator' opId operator) today) losts
@@ -1140,7 +1155,7 @@ mopToFinalRow :: Operator' -> Day
 mopToFinalRow user day (Single style, Single variation , Single quantity, Single mday, Single moperator) = let
   rowStyle = Provided style
   rowColour = Provided variation
-  rowQuantity = Provided $ Known quantity
+  rowQuantity = Provided $ Known 0
   rowLocation = ()
   rowBarcode = ()
   rowLength = ()
@@ -1151,6 +1166,10 @@ mopToFinalRow user day (Single style, Single variation , Single quantity, Single
   in QuickST $ TakeRow {..}
 
   
+-- cleanupTopick:: ValidRow -> Handler ()
+cleanupTopick (QuickST TakeRow{..}) = do
+  let sku = makeSku (validValue rowStyle) (validValue rowColour)
+  deleteWhere [FA.TopickSku ==. Just sku, FA.TopickType ==. Just "lost"]
 
 -- * Rendering
 
