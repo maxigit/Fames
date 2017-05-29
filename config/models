@@ -64,6 +64,7 @@ StockAdjustmentDetail sql=fames_stock_adj_detail
   quantity Int
   from FA.LocationId Maybe sql=loc_from default=NULL
   to FA.LocationId Maybe sql=loc_to default=NULL
+  deriving Show
 
 
 -- Stocktake. How many items are in a box.

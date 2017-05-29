@@ -75,7 +75,8 @@ paramForm mode = renderBootstrap3 BootstrapBasicForm  form
 getActiveRows :: Handler (Set Text)
 getActiveRows = do
   (params, _) <- runRequestBody
-  let skusToKeep = [sku | (sku, checked) <- params, checked == "on" ]
+  let prefixLength = 7 --  length ("active-" :: Text)
+  let skusToKeep = [drop prefixLength  sku | (sku, checked) <- params, checked == "on" ]
   return (Set.fromList (skusToKeep))
 
 getWHStockAdjustmentR :: Handler Html
@@ -113,6 +114,7 @@ postWHStockAdjustmentR = do
             _ -> View
         
 
+  (pp, _) <- runRequestBody
   ((resp, view), encType) <- runFormPost (paramForm Save)
   case resp of
     FormMissing -> error "Form missing"
@@ -295,7 +297,7 @@ quantitiesFor loc (Single sku, Single take, Single date) = do
     return (results , moves)
 
 
-  traceShowM(sqlForMoves, moves)
+  -- traceShowM(sqlForMoves, moves)
   return $ case results of
     [] -> LocationInfo loc Nothing 0 0 Nothing []
     [(Single qoh, Single at, Single last)] -> LocationInfo loc (Just take) (fromMaybe 0 at) (fromMaybe 0 qoh) (last) (map toMove moves)

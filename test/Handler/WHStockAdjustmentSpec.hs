@@ -24,27 +24,39 @@ prepareDB = do
         insertMany_ [ (Stocktake sku qty sku  1 defLoc
                                  (fromGregorian 2017 05 26)
                             True jack Nothing doc []) :: Stocktake
-                    | (sku, qty) <- [("A", 5), ("B", 7), ("C", 12)]
+                    | (sku, qty) <- [("A", 5), ("B", 7), ("C", 14)]
                     ]
 
-lengthShouldBe filter expected = do
+lengthShouldBe' filter all expected = do
+  adjs <- runDB $ selectList [] []
+  -- traceShowM adjs
+  liftIO $ length (adjs :: [Entity StockAdjustmentDetail]) `shouldBe` all
   l <- runDB $ count filter
   liftIO $ l `shouldBe` expected
+
+lengthShouldBe filter expected = lengthShouldBe' filter expected expected
 
 postAdjustment modulo sku def lost = do
   logAsAdmin
   prepareDB
   runDB $ do
+    deleteWhere [StockMoveStockId ==. sku]
     when (def >( 0 :: Double)) $ do
       insert_ $ StockMove 1 sku 1 "DEF" (fromGregorian 2016 05 25) Nothing 0 "" def 0 0 True
     when (lost >( 0 :: Double)) $ do
       insert_ $ StockMove 1 sku 1 "LOST" (fromGregorian 2016 05 25) Nothing 0 "" lost 0 0 True
   get (WarehouseR WHStockAdjustmentR)
+  printBody
   statusIs 200
   request $ do
     setMethod "POST"
     setUrl (WarehouseR WHStockAdjustmentR)
-    byLabel "modulo" (tshow (modulo :: Maybe Int))
+    addToken_ "form#stock-adjustement"
+    addPostParam "f2" "no" -- download
+    byLabel "sort by" (tshow $ 1)
+    byLabel "mode" (tshow $ 3)
+    forM modulo $ \m -> byLabel "modulo" (tshow (m :: Int))
+    addPostParam "action" "save"
     mapM_ (\sku' -> addPostParam ("active-"<>sku') (if sku' == sku then "on" else "" ))
           ["A", "B", "C"]
   statusIs 200
@@ -53,7 +65,7 @@ postAdjustment modulo sku def lost = do
   
 appSpec = withAppWipe BypassAuth $ describe "StockAdjustment" $ do
   context "without modulo" $ do
-    it "create missing adjustment" $ do
+    it "@fail create missing adjustment" $ do
       postAdjustment (Nothing :: Maybe Int) ("A" ) 6 (0)
       [ StockAdjustmentDetailStockId ==. "A"
         , StockAdjustmentDetailQuantity ==. 1
@@ -80,12 +92,12 @@ appSpec = withAppWipe BypassAuth $ describe "StockAdjustment" $ do
         , StockAdjustmentDetailQuantity ==. 1
         , StockAdjustmentDetailFrom ==. (Just lostLoc)
         , StockAdjustmentDetailTo ==. (Just defLoc)
-        ] `lengthShouldBe` 1
+        ] `lengthShouldBe'` 2 $ 1
       [ StockAdjustmentDetailStockId ==. "B"
         , StockAdjustmentDetailQuantity ==. 2
         , StockAdjustmentDetailFrom ==. Nothing
         , StockAdjustmentDetailTo ==. (Just defLoc)
-        ] `lengthShouldBe` 1
+        ] `lengthShouldBe'`  2 $ 1
   context "with modulo" $ do
     it "create missing adjustment" $ do
       postAdjustment (Just 6) "A" 0 0
@@ -102,24 +114,24 @@ appSpec = withAppWipe BypassAuth $ describe "StockAdjustment" $ do
         , StockAdjustmentDetailTo ==. (Just defLoc)
         ] `lengthShouldBe` 1
     it "create found adjustment" $ do
-      postAdjustment (Just 6) "B" 0 1
+      postAdjustment (Just 6) "B" 0 1 
       [ StockAdjustmentDetailStockId ==. "B"
         , StockAdjustmentDetailQuantity ==. 1
         , StockAdjustmentDetailFrom ==. (Just lostLoc)
         , StockAdjustmentDetailTo ==. (Just defLoc)
         ] `lengthShouldBe` 1
     it "create lost new adjustment" $ do
-      postAdjustment (Just 4) "B" 0 1
-      [ StockAdjustmentDetailStockId ==. "B"
+      postAdjustment (Just 6) "C" 0 1
+      [ StockAdjustmentDetailStockId ==. "C"
         , StockAdjustmentDetailQuantity ==. 1
         , StockAdjustmentDetailFrom ==. (Just lostLoc)
         , StockAdjustmentDetailTo ==. (Just defLoc)
-        ] `lengthShouldBe` 1
-      [ StockAdjustmentDetailStockId ==. "B"
-        , StockAdjustmentDetailQuantity ==. 2
+        ] `lengthShouldBe'` 2 $ 1
+      [ StockAdjustmentDetailStockId ==. "C"
+        , StockAdjustmentDetailQuantity ==. 1
         , StockAdjustmentDetailFrom ==. Nothing
         , StockAdjustmentDetailTo ==. (Just defLoc)
-        ] `lengthShouldBe` 1
+        ] `lengthShouldBe'` 2 $ 1
       
           
 
@@ -184,7 +196,7 @@ computeBadgesSpec = describe "computeBadges" $ do
             computeBadges o6 {qtake = 5, qoh=5}
               `shouldBe` b0 
         context "lost" $ do
-          it "@fail find all missing" $ do
+          it "find all missing" $ do
             computeBadges o6 {qtake = 5, qlost=5}
               `shouldBe` b0 {bFound=5}
           it "find 1 too many" $ do
