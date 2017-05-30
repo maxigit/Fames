@@ -166,6 +166,8 @@ computeBadgesSpec = describe "computeBadges" $ do
     it "bug " $ do
       computeBadges (OriginalQuantities 12 11 1 Nothing)
         `shouldBe` b0 {bFound = 1}
+      computeBadges (OriginalQuantities 6 9 0 (Just 6))
+        `shouldBe` b0 {bMissing = 3}
     it "find some found and some new" $ do
       computeBadges o0 {qtake = 12, qoh = 5, qlost = 4}
         `shouldBe` b0 {bFound = 4, bNew = 3}
