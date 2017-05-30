@@ -49,7 +49,7 @@ getWHStocktakeR = entityTableHandler (WarehouseR WHStocktakeR) ([] :: [Filter St
 
 getWHStocktakeValidateR :: Handler Html
 getWHStocktakeValidateR = do
-  mop0 <- collect0FromMOP
+  mop0 <- collect0FromMOP Nothing
   (formW, encType) <- generateFormPost $ uploadForm Collect0 Nothing
   let param0 = FormParam {pStyleComplete = StyleIncomplete, pDisplayMode = HideMissing }
   widget <- if null mop0
@@ -252,7 +252,7 @@ $maybe u <- uploader
 
       (parsed, finalizer) <- case mode of
                                Collect0 -> do
-                                 takes0 <- collect0FromMOP
+                                 takes0 <- collect0FromMOP (Just 0)
                                  return (ParsingCorrect takes0
                                         , mapM_ cleanupTopick takes0) -- processAt
                                _ -> return $ (parseTakes skus findOps findLocs spreadsheet, return ())
@@ -1137,8 +1137,11 @@ instance Csv.FromField (Either InvalidField (Maybe (ValidField (Location')))) wh
 -- fake barcodes and invalidates everything required
 -- rather than generate Stocktake and refactorethe code to make it work on Stocktake
 -- We use if available the operator and date corresponding to picking action in MOP
-collect0FromMOP :: Handler [ValidRow]
-collect0FromMOP = do
+-- The quantity retrieved should be zero. However to show how much is lost
+-- we use a fake quantity corresponding to what was in stock when the item was lost
+-- forceQuantity, forces the quantity or not
+collect0FromMOP :: Maybe Int -> Handler [ValidRow]
+collect0FromMOP forcedQuantity= do
   (Entity opId operator) <- firstOperator 
   today <- utctDay <$> liftIO getCurrentTime
   -- query might incorrect if an order details has been picked multiple time
@@ -1160,17 +1163,17 @@ collect0FromMOP = do
   -- traceShowM sql
   losts <- runDB $ rawSql sql []
   -- let types = losts :: [(Text, Text, Int, Maybe Day, Maybe Text)]
-  return $ map (mopToFinalRow (Operator' opId operator) today) losts
+  return $ map (mopToFinalRow forcedQuantity (Operator' opId operator) today) losts
 
-mopToFinalRow :: Operator' -> Day
+mopToFinalRow :: Maybe Int -> Operator' -> Day
               -> (Single Text, Single Text, Single Int
                  ,Single (Maybe (Key Operator)), Single (Maybe Text)
                  , Single (Maybe Day))  -> ValidRow
-mopToFinalRow user day (Single style, Single variation , Single quantity
+mopToFinalRow forcedQuantity user day (Single style, Single variation , Single quantity
                        , Single mOpId, Single mOpName,  Single mday) = let
   rowStyle = Provided style
   rowColour = Provided variation
-  rowQuantity = Provided $ Known 0
+  rowQuantity = Provided $ Known (fromMaybe quantity forcedQuantity)
   rowLocation = ()
   rowBarcode = ()
   rowLength = ()
@@ -1212,7 +1215,7 @@ instance Renderable RawRow where render = renderRow
 instance Renderable FullRow where render = renderRow
 instance Renderable QuickRow where
   render row = let partial = transformRow row :: PartialRow
-               in renderRow $ partial{rowQuantity= Just . Provided $ Known  0 }
+               in renderRow $ partial -- {rowQuantity= Just . Provided $ Known  0 }
 
 instance Renderable [RawRow ]where render = renderRows classForRaw
 instance Renderable [ValidRow] where render = renderRows (const ("" :: Text))
