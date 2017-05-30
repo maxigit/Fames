@@ -1141,18 +1141,33 @@ collect0FromMOP :: Handler [ValidRow]
 collect0FromMOP = do
   (Entity opId operator) <- firstOperator 
   today <- utctDay <$> liftIO getCurrentTime
-  let sql = "SELECT base, variation, quantity "
-            <> " , NULL, NULL"
+  -- query might incorrect if an order details has been picked multiple time
+  -- the system will probably found the last session
+  let action = "SELECT * from mop.action "
+               <> "JOIN (SELECT max(id) id "
+               <> "      FROM mop.action "
+               <> "      WHERE typeId = 1 GROUP BY detailId"
+               <> "      ) maxaction USING (id) "
+  let sql = "SELECT 0_topick.base, 0_topick.variation, 0_topick.quantity "
+            <> " , op.operator_id, GROUP_CONCAT(nickname), MAX(session.date)"
             <> " FROM 0_topick "
+            <> " LEFT JOIN (" <> action <> ") action ON (detailId = detail_id AND typeId = 1)" -- picking only
+            <> " LEFT JOIN mop.session ON (groupId = actionGroupId)"
+            <> " LEFT JOIN mop.operator mop ON (operatorId = mop.id)"
+            <> " LEFT JOIN fames_operator op ON (op.nickname = mop.name)" 
             <> " WHERE `type` = 'LOST'"
+            <> " GROUP BY base, variation "
   -- traceShowM sql
   losts <- runDB $ rawSql sql []
   -- let types = losts :: [(Text, Text, Int, Maybe Day, Maybe Text)]
   return $ map (mopToFinalRow (Operator' opId operator) today) losts
 
 mopToFinalRow :: Operator' -> Day
-              -> (Single Text, Single Text, Single Int, Single (Maybe Day), Single (Maybe Text))  -> ValidRow
-mopToFinalRow user day (Single style, Single variation , Single quantity, Single mday, Single moperator) = let
+              -> (Single Text, Single Text, Single Int
+                 ,Single (Maybe (Key Operator)), Single (Maybe Text)
+                 , Single (Maybe Day))  -> ValidRow
+mopToFinalRow user day (Single style, Single variation , Single quantity
+                       , Single mOpId, Single mOpName,  Single mday) = let
   rowStyle = Provided style
   rowColour = Provided variation
   rowQuantity = Provided $ Known 0
@@ -1161,8 +1176,14 @@ mopToFinalRow user day (Single style, Single variation , Single quantity, Single
   rowLength = ()
   rowWidth = ()
   rowHeight = ()
-  rowOperator = Guessed user -- fromMaybe user moperator 
-  rowDate = Guessed $ fromMaybe day mday
+  rowOperator = case mOpId of
+                  Just opId -> Provided $ Operator' opId
+                                                   (Operator {operatorNickname=fromMaybe "" mOpName
+                                                             ,operatorFirstname=""
+                                                             ,operatorSurname=""
+                                                             ,operatorActive=True})
+                  Nothing -> Guessed user
+  rowDate = maybe (Guessed day) Provided mday
   in QuickST $ TakeRow {..}
 
   
