@@ -4,7 +4,7 @@ import TestImport
 import Handler.WH.Barcode
 
 spec :: Spec
-spec = parallel pureSpec >> appSpec
+spec = pureSpec >> appSpec
 
 
 pureSpec =  return ()

@@ -1142,8 +1142,6 @@ instance Csv.FromField (Either InvalidField (Maybe (ValidField (Location')))) wh
 -- forceQuantity, forces the quantity or not
 collect0FromMOP :: Maybe Int -> Handler [ValidRow]
 collect0FromMOP forcedQuantity= do
-  (Entity opId operator) <- firstOperator 
-  today <- utctDay <$> liftIO getCurrentTime
   -- query might incorrect if an order details has been picked multiple time
   -- the system will probably found the last session
   let action = "SELECT * from mop.action "
@@ -1163,7 +1161,12 @@ collect0FromMOP forcedQuantity= do
   -- traceShowM sql
   losts <- runDB $ rawSql sql []
   -- let types = losts :: [(Text, Text, Int, Maybe Day, Maybe Text)]
-  return $ map (mopToFinalRow forcedQuantity (Operator' opId operator) today) losts
+  if null losts
+    then return []
+    else do
+      (Entity opId operator) <- firstOperator
+      today <- utctDay <$> liftIO getCurrentTime
+      return $ map (mopToFinalRow forcedQuantity (Operator' opId operator) today) losts
 
 mopToFinalRow :: Maybe Int -> Operator' -> Day
               -> (Single Text, Single Text, Single Int
