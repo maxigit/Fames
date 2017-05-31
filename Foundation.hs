@@ -104,6 +104,7 @@ instance Yesod App where
     isAuthorized FaviconR _ = return Authorized
     isAuthorized RobotsR _ = return Authorized
     isAuthorized HomeR _ = return Authorized
+    isAuthorized (StaticR _) False = return Authorized
     -- Default to Authorized for now.
     -- isAuthorized AdministratorR _ = isAdministrator
 
@@ -274,4 +275,5 @@ postLoginR = do
 cryptFAPassword :: Text -> Text
 cryptFAPassword text = let digest = Crypto.hash (encodeUtf8 text)  :: Digest MD5
             in tshow digest
+
 
