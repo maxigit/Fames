@@ -1,9 +1,29 @@
-* TODO<2017-05-20 Sat> 
-** TODO StockAdjustment
-   - [ ] add modulo
+* TODO StockAdjustment to FA <2017-06-03 Sat> 
+- [ ] use CURL lib to generate
+  - [ ] generate StockAdjustment FA Object - which mapp to 
+  - [ ] generate StockRename
+  - [ ] generate Item Transfert Object - no persistence
+- [ ] Stock adjustmen
+- [ ] item transfer
+- [ ] Add Reject/process button
+Items which are not processed (and don't need to) need to
+be marked somehow so we don't try to process them again.
+- [ ] Record FA transaction reference, in either StockAdjustment or details
+- [ ] Adjust quantity to not generate negative stock
+  - [ ] display it along old original quantity (textcart comment ?)
+  - [ ] find way to calculate actual quantities to adjustment
+    - [ ] just floor quantity to 0
+    - [ ] OR see which adjustment have been made since
+    - [ ] OR see all movement done since (or just compare QOH now)
+* TODO TODO<2017-05-20 Sat> 
+** DONE StockAdjustment
+   CLOSED: [2017-06-03 Sat 14:23]
+   - [X] add modulo
    On generate adjusment modulo 6 (for example) optional
-** TODO Collect MOP lost items
-** TODO generate quickcheck
+** DONE Collect MOP lost items
+   CLOSED: [2017-06-03 Sat 14:23]
+** DONE generate quickcheck
+   CLOSED: [2017-06-03 Sat 14:24]
 Allow stocktake without barcode.
 similar to 0 takes but doesn't
 For example if 24 of a styles are in stock
@@ -20,7 +40,8 @@ The real information where things are is in the boxtake table.
     CLOSED: [2017-05-21 Sun 08:07]
 - [X] make sure that only zerotakes discard boxes
 - [ ] make sure style, operator and date are carried over
-*** TODO reuse style, operator and date
+*** DONE reuse style, operator and date
+    CLOSED: [2017-06-03 Sat 14:24]
 * DONE <2017-03-04 Sat> 
 ** Edit packing list [7/9]
 - [X] add message

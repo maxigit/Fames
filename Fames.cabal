@@ -135,6 +135,8 @@ library
       Items.Internal
       Items.Types
       WH.Barcode
+      WH.FA
+      WH.FA.Types
       FAxx00
       FAxx01
       FAxx02
@@ -382,6 +384,8 @@ executable Fames
       Items.Internal
       Items.Types
       WH.Barcode
+      WH.FA
+      WH.FA.Types
   default-language: Haskell2010
 
 executable TextcartHelper
