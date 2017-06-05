@@ -7,7 +7,8 @@ import ClassyPrelude
 -- * StockAdjustment
 -- | Information needed to post a FA stock adjustment
 data StockAdjustment = StockAdjustment
-  { location :: !Text
+  { reference :: !Text
+  , location :: !Text
   , date :: !Day
   , details :: [StockAdjustmentDetail]
   , adjType :: AdjustmentType
@@ -20,15 +21,15 @@ data StockAdjustmentDetail = StockAdjustmentDetail
   } deriving (Eq, Show)
 
 data AdjustmentType = PositiveAdjustment  | NegativeAdjustment
-  deriving (Eq, Show)
+  deriving (Eq, Show, Enum)
 
 -- * Location Transfer
 -- | needed to post a FA stock adjustment
 data LocationTransfer = LocationTransfer
   { locationFrom :: !Text
   , locationTo :: !Text
-  , date :: !Day
-  , details :: [LocationTransferDetail]
+  , date1 :: !Day
+  , details1 :: [LocationTransferDetail]
   } deriving (Eq, Show)
 
 data LocationTransferDetail = LocationTransferDetail
