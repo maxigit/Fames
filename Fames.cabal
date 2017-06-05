@@ -84,6 +84,8 @@ library
     , Metamorphosis >= 0.1.0.1
     , microlens >= 0.4.8.0 && < 0.5
     , curl >= 1.3.8 && < 1.4
+    , tagsoup >=  0.14.1 && < 0.15
+    , regex-tdfa >= 1.2.2 && < 1.3
   if (flag(dev)) || (flag(library-only))
     ghc-options: -w -fwarn-tabs -O0 -j6
     cpp-options: -DDEVELOPMENT
@@ -304,6 +306,8 @@ executable FAGenerator
     , Metamorphosis >= 0.1.0.1
     , microlens >= 0.4.8.0 && < 0.5
     , curl >= 1.3.8 && < 1.4
+    , tagsoup >=  0.14.1 && < 0.15
+    , regex-tdfa >= 1.2.2 && < 1.3
     , base
     , mysql-simple
     , split
@@ -378,6 +382,8 @@ executable Fames
     , Metamorphosis >= 0.1.0.1
     , microlens >= 0.4.8.0 && < 0.5
     , curl >= 1.3.8 && < 1.4
+    , tagsoup >=  0.14.1 && < 0.15
+    , regex-tdfa >= 1.2.2 && < 1.3
     , Fames
   if flag(library-only)
     buildable: False
@@ -459,6 +465,8 @@ executable TextcartHelper
     , Metamorphosis >= 0.1.0.1
     , microlens >= 0.4.8.0 && < 0.5
     , curl >= 1.3.8 && < 1.4
+    , tagsoup >=  0.14.1 && < 0.15
+    , regex-tdfa >= 1.2.2 && < 1.3
     , base
     , mysql-simple
   other-modules:
@@ -531,6 +539,8 @@ test-suite test
     , Metamorphosis >= 0.1.0.1
     , microlens >= 0.4.8.0 && < 0.5
     , curl >= 1.3.8 && < 1.4
+    , tagsoup >=  0.14.1 && < 0.15
+    , regex-tdfa >= 1.2.2 && < 1.3
     , base
     , Fames
     , yesod-test >=1.5.0.1 && <1.6

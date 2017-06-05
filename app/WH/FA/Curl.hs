@@ -13,6 +13,8 @@ import Network.Curl
 import Control.Monad.Except
 
 import qualified Prelude as Prelude
+import Text.HTML.TagSoup 
+import Text.Regex.TDFA
 
 faURL = "http://127.0.0.1"
 inventoryAdjustmentURL = ?baseURL <> "/inventory/adjustments.php"
@@ -56,7 +58,7 @@ withFACurlDo user password m = do
        then throwError "Failed to log in to FrontAccounting"
        else m
 
-postStockAdjustment :: StockAdjustment -> IO (Either Text ())
+postStockAdjustment :: StockAdjustment -> IO (Either Text Int)
 postStockAdjustment stockAdj = do
   let ?baseURL = faURL
   runExceptT $ withFACurlDo "curl" "purl" $ do
@@ -74,8 +76,27 @@ postStockAdjustment stockAdj = do
                                  ] : method_POST
     r <- docurl ajaxInventoryAdjustmentURL process
     when (respCurlCode r /= CurlOK || respStatus r /= 200) $ do
+
+
+
       throwError $ "Failed to add process session : "
                    <> tshow (respCurlCode r)
                    <> tshow (respStatusLine r)
     lift $ Prelude.putStrLn (respBody r)
-    return ()
+    case extractNewAdjustmentId (respBody r) of
+            Nothing -> throwError "Inventory Adjustment creation failed."
+            Just id -> return id
+
+-- | Extract the Id from the process adjustment response
+extractNewAdjustmentId :: String -> Maybe Int
+extractNewAdjustmentId response = let
+  tags = parseTags response
+  metas = sections (~== TagOpen ("meta" :: String) [("http-equiv","Request"), ("url","")]) tags
+  in case (traceShowId metas) of
+      [meta:_] -> let
+        url = fromAttrib "url" meta
+        in case mrSubList $ url =~ ("AddedID=([0-9]+)" :: String) of
+             [s] -> Just $ Prelude.read  (traceId s)
+             _ -> Nothing
+      _ -> Nothing
+  
