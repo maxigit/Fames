@@ -27,18 +27,31 @@ ajaxInventoryAdjustmentURL = toAjax inventoryAdjustmentURL
 docurl:: (?curl :: Curl) => URLString -> [CurlOption] -> ExceptT Text IO CurlResponse
 docurl url opts = lift $ do_curl_ ?curl url opts
 
+-- | send a request using curl an return a tag soup if successfull
+curlSoup :: (?curl :: Curl)
+         => URLString -> [CurlOption] -> Int -> Text -> ExceptT Text IO [Tag String]
+curlSoup url opts status msg = do
+  r <- docurl url opts
+  let tags = parseTags (respBody r)
+  when (respCurlCode r /= CurlOK || respStatus r /= status) $ do
+      throwError $ "Failed to : " <> msg
+                   <> tshow (respCurlCode r)
+                   <> tshow (respStatusLine r)
+  case (extractErrorMsgFromSoup tags) of
+    Nothing -> return tags
+    Just error -> throwError error
+
 withCurl = mapExceptT withCurlDo
   
-addAdjustmentDetail :: (?curl :: Curl, ?baseURL:: String) => StockAdjustmentDetail -> ExceptT Text IO ()
+addAdjustmentDetail :: (?curl :: Curl, ?baseURL:: String)
+                    => StockAdjustmentDetail -> ExceptT Text IO [Tag String]
 addAdjustmentDetail StockAdjustmentDetail{..} = do
   let items = CurlPostFields [ "AddItem=Add%20Item"
                              , "stock_id="<> unpack sku
                              , "std_cost=" <> show cost
                              , "qty=" <> show quantity
                              ] : method_POST
-  r <- docurl ajaxInventoryAdjustmentURL items :: ExceptT Text IO CurlResponse
-
-  maybe (return ()) throwError (extractErrorMsg r)
+  curlSoup ajaxInventoryAdjustmentURL items 200 "add items"
   
 
 -- | Open a Session  to FrontAccounting an execute curl statement
@@ -54,11 +67,11 @@ withFACurlDo user password m = do
     curl <- lift initialize
     let ?curl = curl
     lift $ setopts curl opts
-    r <- docurl ?baseURL (loginOptions <> [CurlCookieJar "cookies", CurlCookieSession True])
+    -- r <- docurl ?baseURL (loginOptions <> [CurlCookieJar "cookies", CurlCookieSession True])
+    curlSoup ?baseURL (loginOptions <> [CurlCookieJar "cookies", CurlCookieSession True])
+             200 "log in FrontAccounting"
     lift $ setopts curl [CurlCookieFile "cookies"]
-    if respCurlCode r /= CurlOK || respStatus r /= 200
-       then throwError "Failed to log in to FrontAccounting"
-       else m
+    m
 
 postStockAdjustment :: StockAdjustment -> IO (Either Text Int)
 postStockAdjustment stockAdj = do
@@ -76,23 +89,14 @@ postStockAdjustment stockAdj = do
                                  , "Increase=" <> if adjType stockAdj == PositiveAdjustment 
                                                      then "1" else "0"
                                  ] : method_POST
-    r <- docurl ajaxInventoryAdjustmentURL process
-    when (respCurlCode r /= CurlOK || respStatus r /= 200) $ do
-
-
-
-      throwError $ "Failed to add process session : "
-                   <> tshow (respCurlCode r)
-                   <> tshow (respStatusLine r)
-    lift $ Prelude.putStrLn (respBody r)
-    case extractNewAdjustmentId (respBody r) of
+    tags <- curlSoup ajaxInventoryAdjustmentURL process 200 "process inventory adjustment"
+    case extractNewAdjustmentId tags  of
             Left e -> throwError $ "Inventory Adjustment creation failed:" <> e
             Right id -> return id
 
 -- | Extract the Id from the process adjustment response
-extractNewAdjustmentId :: String -> Either Text Int
-extractNewAdjustmentId response = let
-  tags = parseTags response
+extractNewAdjustmentId :: [Tag String] -> Either Text Int
+extractNewAdjustmentId tags = let
   metas = sections (~== TagOpen ("meta" :: String) [("http-equiv","Refresh"), ("content","")]) tags
   in case (traceShowId metas) of
       [meta:_] -> let
