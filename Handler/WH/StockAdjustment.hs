@@ -74,6 +74,8 @@ paramForm mode = renderBootstrap3 BootstrapBasicForm  form
 -- Holds different information relative to adjusment, lost, new etc ...
 data Carts adj trans = Carts { cNew :: adj, cLost :: trans, cFound :: trans} deriving Show
 type DetailCarts = Carts [StockAdjustmentDetail] [StockAdjustmentDetail]
+-- | Adjusted cart details with cost price and real quantity
+type DetailCarts' = Carts [(StockAdjustmentDetail, Double)] [(StockAdjustmentDetail, Int)]
 type FACarts = Carts WFA.StockAdjustment WFA.LocationTransfer
 
 
@@ -408,7 +410,7 @@ getWHStockAdjustmentViewR key = do
     entities <- selectList [StockAdjustmentDetailAdjustment ==. StockAdjustmentKey adjKey] []
     return (map entityVal entities, adj)
   
-  let Carts{..} = splitDetails mainLoc lostLoc details
+  Carts{..} <- adjustCarts $ splitDetails mainLoc lostLoc details 
 
   let renderDetails :: Text -> Text -> [StockAdjustmentDetail] -> Widget
       renderDetails title class_ details = [whamlet|
@@ -420,6 +422,19 @@ getWHStockAdjustmentViewR key = do
       $forall d <- details
        #{stockAdjustmentDetailStockId d} #{stockAdjustmentDetailQuantity d} <br>
                           |]
+  let renderDetails' :: Text -> Text -> [(StockAdjustmentDetail, Double)] -> Widget
+      renderDetails' title class_ details = [whamlet|
+<div.panel. class="panel-#{class_}">
+  <div.panel-heading>
+    <h3> #{title}
+  <div.panel-body>
+    <p.well>
+      $forall (d, cost) <- details
+        #{stockAdjustmentDetailStockId d}
+        #{stockAdjustmentDetailQuantity d}
+        #{dollar}#{tshow cost}
+        <br>
+                          |] where dollar = "$" :: Text
 
   defaultLayout $ do
     [whamlet|
@@ -431,7 +446,7 @@ $maybe a <- adj
             |]
     renderDetails "Found" "success"  cFound
     renderDetails "Lost" "danger"  cLost
-    renderDetails "New" "warning"  cNew
+    renderDetails' "New" "warning"  cNew
   
 
 badgeSpan :: Int -> Maybe String -> String -> Widget
@@ -500,7 +515,29 @@ detailsToCartFA ref date (Carts news losts founds) = let
 
   in Carts new lost found
   
+-- | retrieve the cost price from FrontAccounting needed to generated a stock adjustment. 
+-- We just lookup in the stock_master table. The standard cost in FA doesn't depends on the date ...
+findCostPrice :: StockAdjustmentDetail -> Handler (StockAdjustmentDetail, Double)
+findCostPrice detail = do
+  infoE <- runDB $ get ( FA.StockMasterKey (stockAdjustmentDetailStockId detail))
+  return $ case infoE of
+             Just info -> (detail, FA.stockMasterMaterialCost info
+                                   + FA.stockMasterLabourCost info
+                                   + FA.stockMasterOverheadCost info)
+             Nothing -> (detail, 0)
+
+-- adjustCart :: FACart -> Handler FACart'
+adjustCarts Carts{..} = do
+  new <- mapM findCostPrice cNew
+  let lost = cLost
+      found = cFound
+  return $ Carts new lost found
   
+
+
+
+  
+
   
 
   
