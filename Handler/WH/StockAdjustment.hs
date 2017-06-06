@@ -464,20 +464,24 @@ toOrigAndBadges modulo pre = (orig, computeBadges orig {qoh = qoh orig + before}
 
 -- * To FA
 
+splitDetails :: Maybe FA.LocationId -> Maybe FA.LocationId -> [StockAdjustmentDetail] -> DetailCarts
 splitDetails mainLoc lostLoc details = let
   cLost = filter ((== mainLoc) . stockAdjustmentDetailFrom ) details
   cFound = filter ((== lostLoc) . stockAdjustmentDetailFrom ) details
   cNew = filter ((== Nothing) . stockAdjustmentDetailFrom ) details
   in Carts{..}
   
--- stockAdjToFA :: [StockAdjustmentDetail] -> ([WFA.StockAdjustment], [WFA.StockTransfer])
+detailsToCartFA :: Text -> Day -> DetailCarts -> FACarts
 detailsToCartFA ref date (Carts news losts founds) = let
   new = WFA.StockAdjustment (ref<> "-new")
                         "DEF"
                         date
-                        [ WFA.StockAdjustmentDetail (stockAdjustmentDetailStockId d) (fromIntegral $ stockAdjustmentDetailQuantity d) (0 ) -- cost
+                        [ WFA.StockAdjustmentDetail (stockAdjustmentDetailStockId d)
+                                                    (fromIntegral $ stockAdjustmentDetailQuantity d)
+                                                    (0 ) -- cost
                         | d <- news
                         ]
+                        WFA.PositiveAdjustment
 
   lost = WFA.LocationTransfer (ref<> "-lost")
                         "DEF" "LOST"
