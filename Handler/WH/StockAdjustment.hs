@@ -11,6 +11,7 @@ import qualified Data.Set as Set
 
 import SharedStockAdjustment
 import qualified FA as FA
+import qualified WH.FA.Types as WFA
 
 -- 3 sections
 -- displays all, or each in a row
@@ -70,6 +71,10 @@ paramForm mode = renderBootstrap3 BootstrapBasicForm  form
                    View -> pure Nothing)
             <*> pure (Set.fromList [])
 
+-- Holds different information relative to adjusment, lost, new etc ...
+data Carts adj trans = Carts { cNew :: adj, cLost :: trans, cFound :: trans} deriving Show
+type DetailCarts = Carts [StockAdjustmentDetail] [StockAdjustmentDetail]
+type FACarts = Carts WFA.StockAdjustment WFA.LocationTransfer
 
 
 getActiveRows :: Handler (Set Text)
@@ -403,9 +408,7 @@ getWHStockAdjustmentViewR key = do
     entities <- selectList [StockAdjustmentDetailAdjustment ==. StockAdjustmentKey adjKey] []
     return (map entityVal entities, adj)
   
-  let lost = filter ((== mainLoc) . stockAdjustmentDetailFrom ) details
-  let found = filter ((== lostLoc) . stockAdjustmentDetailFrom ) details
-  let new = filter ((== Nothing) . stockAdjustmentDetailFrom ) details
+  let Carts{..} = splitDetails mainLoc lostLoc details
 
   let renderDetails :: Text -> Text -> [StockAdjustmentDetail] -> Widget
       renderDetails title class_ details = [whamlet|
@@ -426,9 +429,9 @@ $maybe a <- adj
     #{tshow $ stockAdjustmentStatus a}
     <div.well> #{stockAdjustmentComment a}
             |]
-    renderDetails "Found" "success"  found
-    renderDetails "Lost" "danger"  lost
-    renderDetails "New" "warning"  new
+    renderDetails "Found" "success"  cFound
+    renderDetails "Lost" "danger"  cLost
+    renderDetails "New" "warning"  cNew
   
 
 badgeSpan :: Int -> Maybe String -> String -> Widget
@@ -458,3 +461,43 @@ preToOriginal modulo pre = (OriginalQuantities qtake (qoh-before) qlost modulo ,
   -- the "before" select boxes needs have been selected
 toOrigAndBadges modulo pre = (orig, computeBadges orig {qoh = qoh orig + before}, before)
   where (orig, before) = preToOriginal modulo pre
+
+-- * To FA
+
+splitDetails mainLoc lostLoc details = let
+  cLost = filter ((== mainLoc) . stockAdjustmentDetailFrom ) details
+  cFound = filter ((== lostLoc) . stockAdjustmentDetailFrom ) details
+  cNew = filter ((== Nothing) . stockAdjustmentDetailFrom ) details
+  in Carts{..}
+  
+-- stockAdjToFA :: [StockAdjustmentDetail] -> ([WFA.StockAdjustment], [WFA.StockTransfer])
+detailsToCartFA ref date (Carts news losts founds) = let
+  new = WFA.StockAdjustment (ref<> "-new")
+                        "DEF"
+                        date
+                        [ WFA.StockAdjustmentDetail (stockAdjustmentDetailStockId d) (fromIntegral $ stockAdjustmentDetailQuantity d) (0 ) -- cost
+                        | d <- news
+                        ]
+
+  lost = WFA.LocationTransfer (ref<> "-lost")
+                        "DEF" "LOST"
+                        date
+                        [ WFA.LocationTransferDetail (stockAdjustmentDetailStockId d)
+                                                     (stockAdjustmentDetailQuantity d)
+                        | d <- losts
+                        ]
+  found = WFA.LocationTransfer (ref<> "-found")
+                        "LOST" "DEF"
+                        date
+                        [ WFA.LocationTransferDetail (stockAdjustmentDetailStockId d)
+                                                    (stockAdjustmentDetailQuantity d)
+                        | d <- founds
+                        ]
+
+  in Carts new lost found
+  
+  
+  
+
+  
+  

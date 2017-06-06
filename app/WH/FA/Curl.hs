@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ImplicitParams #-}
-{-# LANGUAGE DisambiguateRecordFields #-}
 -- | Post event to FA using Curl
 module WH.FA.Curl
 ( postStockAdjustment
@@ -47,9 +46,9 @@ addAdjustmentDetail :: (?curl :: Curl, ?baseURL:: String)
                     => StockAdjustmentDetail -> ExceptT Text IO [Tag String]
 addAdjustmentDetail StockAdjustmentDetail{..} = do
   let items = CurlPostFields [ "AddItem=Add%20Item"
-                             , "stock_id="<> unpack sku
-                             , "std_cost=" <> show cost
-                             , "qty=" <> show quantity
+                             , "stock_id="<> unpack adjSku
+                             , "std_cost=" <> show adjCost
+                             , "qty=" <> show adjQuantity
                              ] : method_POST
   curlSoup ajaxInventoryAdjustmentURL items 200 "add items"
   
@@ -80,13 +79,13 @@ postStockAdjustment stockAdj = do
     r <- docurl newAdjustmentURL method_GET
     when (respCurlCode r /= CurlOK || respStatus r /= 200) $ do
        throwError "Problem trying to create a new inventory adjustment"
-    mapM addAdjustmentDetail (details (stockAdj :: StockAdjustment))
-    let process = CurlPostFields [ "ref="<> (unpack $ reference stockAdj)
+    mapM addAdjustmentDetail (adjDetails (stockAdj :: StockAdjustment))
+    let process = CurlPostFields [ "ref="<> (unpack $ adjReference (stockAdj :: StockAdjustment))
                                  , "Process=Process"
-                                 , "AdjDate=" <>  formatTime defaultTimeLocale faDateFormat (date stockAdj)
-                                 , "StockLocation=" <> unpack (location stockAdj) 
+                                 , "AdjDate=" <>  formatTime defaultTimeLocale faDateFormat (adjDate stockAdj)
+                                 , "StockLocation=" <> unpack (adjLocation stockAdj) 
                                  , "type=1" -- Adjustment @TODO config file
-                                 , "Increase=" <> if adjType stockAdj == PositiveAdjustment 
+                                 , "Increase=" <> if adjAdjType stockAdj == PositiveAdjustment 
                                                      then "1" else "0"
                                  ] : method_POST
     tags <- curlSoup ajaxInventoryAdjustmentURL process 200 "process inventory adjustment"
