@@ -37,7 +37,8 @@ addAdjustmentDetail StockAdjustmentDetail{..} = do
                              , "qty=" <> show quantity
                              ] : method_POST
   r <- docurl ajaxInventoryAdjustmentURL items :: ExceptT Text IO CurlResponse
-  return ()
+
+  maybe (return ()) throwError (extractErrorMsg r)
   
 
 -- | Open a Session  to FrontAccounting an execute curl statement
@@ -92,7 +93,6 @@ postStockAdjustment stockAdj = do
 extractNewAdjustmentId :: String -> Either Text Int
 extractNewAdjustmentId response = let
   tags = parseTags response
-  errors = sections (~== TagOpen ("div" :: String) [("class", "err_msg")]) tags
   metas = sections (~== TagOpen ("meta" :: String) [("http-equiv","Refresh"), ("content","")]) tags
   in case (traceShowId metas) of
       [meta:_] -> let
@@ -100,9 +100,19 @@ extractNewAdjustmentId response = let
         in case mrSubList $ url =~ ("AddedID=([0-9]+)$" :: String) of
              [s] -> Right $ Prelude.read  (traceId s)
              _ -> Left (pack "Error, can't find adjustment Id.")
-      _ -> let
-        msgs = map (headEx .drop 1) errors -- get next tag
-        msg = unlines (mapMaybe maybeTagText msgs)
-        in Left (pack msg)
+      _ -> Left (fromMaybe "" $ extractErrorMsgFromSoup tags)
         
   
+extractErrorMsg :: CurlResponse -> Maybe Text
+extractErrorMsg response = let
+  tags = parseTags (respBody response)
+  in extractErrorMsgFromSoup tags
+  
+
+extractErrorMsgFromSoup :: [Tag [Element String]] -> Maybe Text
+extractErrorMsgFromSoup tags = let
+  errors = sections (~== TagOpen ("div" :: String) [("class", "err_msg")]) tags
+  msgs = map (headEx .drop 1) errors -- get next tag
+  in case msgs of
+    [] -> Nothing
+    _ -> Just . pack $ unlines (mapMaybe maybeTagText msgs)
