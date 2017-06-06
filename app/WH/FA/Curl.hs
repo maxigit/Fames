@@ -16,6 +16,7 @@ import qualified Prelude as Prelude
 import Text.HTML.TagSoup 
 import Text.Regex.TDFA
 
+faDateFormat = "%Y/%m/%d" :: String
 faURL = "http://127.0.0.1"
 inventoryAdjustmentURL = ?baseURL <> "/inventory/adjustments.php"
 newAdjustmentURL = inventoryAdjustmentURL <> "?NewAdjustment=1"
@@ -68,7 +69,7 @@ postStockAdjustment stockAdj = do
     mapM addAdjustmentDetail (details (stockAdj :: StockAdjustment))
     let process = CurlPostFields [ "ref="<> (unpack $ reference stockAdj)
                                  , "Process=Process"
-                                 , "AdjDate=" <>  formatTime defaultTimeLocale "%F" (date stockAdj)
+                                 , "AdjDate=" <>  formatTime defaultTimeLocale faDateFormat (date stockAdj)
                                  , "StockLocation=" <> unpack (location stockAdj) 
                                  , "type=1" -- Adjustment @TODO config file
                                  , "Increase=" <> if adjType stockAdj == PositiveAdjustment 
@@ -84,19 +85,24 @@ postStockAdjustment stockAdj = do
                    <> tshow (respStatusLine r)
     lift $ Prelude.putStrLn (respBody r)
     case extractNewAdjustmentId (respBody r) of
-            Nothing -> throwError "Inventory Adjustment creation failed."
-            Just id -> return id
+            Left e -> throwError $ "Inventory Adjustment creation failed:" <> e
+            Right id -> return id
 
 -- | Extract the Id from the process adjustment response
-extractNewAdjustmentId :: String -> Maybe Int
+extractNewAdjustmentId :: String -> Either Text Int
 extractNewAdjustmentId response = let
   tags = parseTags response
-  metas = sections (~== TagOpen ("meta" :: String) [("http-equiv","Request"), ("url","")]) tags
+  errors = sections (~== TagOpen ("div" :: String) [("class", "err_msg")]) tags
+  metas = sections (~== TagOpen ("meta" :: String) [("http-equiv","Refresh"), ("content","")]) tags
   in case (traceShowId metas) of
       [meta:_] -> let
-        url = fromAttrib "url" meta
-        in case mrSubList $ url =~ ("AddedID=([0-9]+)" :: String) of
-             [s] -> Just $ Prelude.read  (traceId s)
-             _ -> Nothing
-      _ -> Nothing
+        url = fromAttrib "content" meta
+        in case mrSubList $ url =~ ("AddedID=([0-9]+)$" :: String) of
+             [s] -> Right $ Prelude.read  (traceId s)
+             _ -> Left (pack "Error, can't find adjustment Id.")
+      _ -> let
+        msgs = map (headEx .drop 1) errors -- get next tag
+        msg = unlines (mapMaybe maybeTagText msgs)
+        in Left (pack msg)
+        
   
