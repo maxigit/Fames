@@ -1,20 +1,23 @@
+* TODO StockAdjustment to FA<2017-06-07 Wed>
+- [ ] update adjustment as processed
+- [ ] record the link between FA transactions and Fames ones
+- [ ] moves hardcoded value to config file
+
 * TODO StockAdjustment to FA <2017-06-03 Sat> 
-- [ ] use CURL lib to generate
-  - [ ] generate StockAdjustment FA Object - which mapp to 
+- [-] use CURL lib to generate
+  - [X] generate StockAdjustment FA Object - which mapp to 
   - [ ] generate StockRename
-  - [ ] generate Item Transfert Object - no persistence
-- [ ] Stock adjustmen
-- [ ] item transfer
+  - [X] generate Item Transfert Object - no persistence
+- [X] Stock adjustmen
+- [X] item transfer
 - [ ] Add Reject/process button
 Items which are not processed (and don't need to) need to
 be marked somehow so we don't try to process them again.
 - [ ] Record FA transaction reference, in either StockAdjustment or details
-- [ ] Adjust quantity to not generate negative stock
-  - [ ] display it along old original quantity (textcart comment ?)
-  - [ ] find way to calculate actual quantities to adjustment
-    - [ ] just floor quantity to 0
-    - [ ] OR see which adjustment have been made since
-    - [ ] OR see all movement done since (or just compare QOH now)
+- [-] Adjust quantity to not generate negative stock
+  - [X] display it along old original quantity (textcart comment ?)
+  - [-] find way to calculate actual quantities to adjustment
+    - [X] just floor quantity to 0
 * TODO TODO<2017-05-20 Sat> 
 ** DONE StockAdjustment
    CLOSED: [2017-06-03 Sat 14:23]
