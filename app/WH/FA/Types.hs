@@ -28,8 +28,8 @@ data LocationTransfer = LocationTransfer
   { ltrReference:: !Text
   , ltrLocationFrom :: !Text
   , ltrLocationTo :: !Text
-  , ltrDate1 :: !Day
-  , ltrDetails1 :: [LocationTransferDetail]
+  , ltrDate :: !Day
+  , ltrDetails :: [LocationTransferDetail]
   } deriving (Eq, Show)
 
 data LocationTransferDetail = LocationTransferDetail

@@ -12,6 +12,7 @@ import qualified Data.Set as Set
 import SharedStockAdjustment
 import qualified FA as FA
 import qualified WH.FA.Types as WFA
+import qualified WH.FA.Curl as WFA
 import Control.Monad.Except hiding (mapM_)
 
 -- 3 sections
@@ -480,12 +481,12 @@ postWHStockAdjustmentToFAR key = do
   (details, adj) <- runDB $ loadAdjustment key
   carts <- adjustCarts date $ splitDetails mainLoc lostLoc details
   let Carts{..} = detailsToCartFA baseref date carts
-  err <- runExceptT $ do
+  err <- runExceptT  $ do
     postStockAdjustmentToFA cNew
     postLocationTransferToFA cFound
     postLocationTransferToFA cLost
   case err of
-    Left err -> setError err  >> getWHStockAdjustmentViewR key
+    Left err -> setError (toHtml err)  >> getWHStockAdjustmentViewR key
     Right _ -> do
       setSuccess "Stock adjusments have been processed sucessfully"
       getWHStockAdjustmentR
@@ -599,11 +600,24 @@ findMaxQuantity date detail = do
 
 -- | Post a stock adjusmtent to FrontAccounting and update
 -- Fames db accordingly.
+-- postStockAdjustmentToFA :: WFA.StockAdjustment -> ExceptT Text IO (Maybe Int)
 postStockAdjustmentToFA adj = do
-  return ()
+  if null (WFA.adjDetails adj)
+    then return Nothing
+    else do
+      adjId <- ExceptT . liftIO $ WFA.postStockAdjustment adj
+      setSuccess . toHtml $ "Adjustment#" <> tshow adjId <> " has been created successfully"
+      return (Just adjId)
+
   
 
 -- | Post a location transfer to FrontAccounting and update
 -- Fames db accordingly.
+-- postLocationTransferToFA :: WFA.LocationTransfer -> ExceptT Text IO (Maybe Int)
 postLocationTransferToFA trans = do
-  return ()
+  if null (WFA.ltrDetails trans)
+    then return Nothing
+    else do
+      transId <- ExceptT . liftIO $ WFA.postLocationTransfer trans
+      setSuccess . toHtml $ "Transfer#" <> tshow transId <> " has been created successfully"
+      return (Just transId)

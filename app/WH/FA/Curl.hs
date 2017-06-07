@@ -3,7 +3,7 @@
 -- | Post event to FA using Curl
 module WH.FA.Curl
 ( postStockAdjustment
--- , postLocationTransfer
+, postLocationTransfer
 ) where
 
 import ClassyPrelude
@@ -16,7 +16,7 @@ import Text.HTML.TagSoup
 import Text.Regex.TDFA
 
 faDateFormat = "%Y/%m/%d" :: String
-faURL = "http://127.0.0.1"
+faURL = "http://172.18.0.1"
 inventoryAdjustmentURL = ?baseURL <> "/inventory/adjustments.php"
 newAdjustmentURL = inventoryAdjustmentURL <> "?NewAdjustment=1"
 toAjax url = url <> "?jsHttpRequest=0-xml"
@@ -76,9 +76,7 @@ postStockAdjustment :: StockAdjustment -> IO (Either Text Int)
 postStockAdjustment stockAdj = do
   let ?baseURL = faURL
   runExceptT $ withFACurlDo "curl" "purl" $ do
-    r <- docurl newAdjustmentURL method_GET
-    when (respCurlCode r /= CurlOK || respStatus r /= 200) $ do
-       throwError "Problem trying to create a new inventory adjustment"
+    curlSoup newAdjustmentURL method_GET 200 "Problem trying to create a new inventory adjustment"
     mapM addAdjustmentDetail (adjDetails (stockAdj :: StockAdjustment))
     let process = CurlPostFields [ "ref="<> (unpack $ adjReference (stockAdj :: StockAdjustment))
                                  , "Process=Process"
@@ -89,13 +87,13 @@ postStockAdjustment stockAdj = do
                                                      then "1" else "0"
                                  ] : method_POST
     tags <- curlSoup ajaxInventoryAdjustmentURL process 200 "process inventory adjustment"
-    case extractNewAdjustmentId tags  of
+    case extractAddedId tags  of
             Left e -> throwError $ "Inventory Adjustment creation failed:" <> e
             Right id -> return id
 
 -- | Extract the Id from the process adjustment response
-extractNewAdjustmentId :: [Tag String] -> Either Text Int
-extractNewAdjustmentId tags = let
+extractAddedId :: [Tag String] -> Either Text Int
+extractAddedId tags = let
   metas = sections (~== TagOpen ("meta" :: String) [("http-equiv","Refresh"), ("content","")]) tags
   in case (traceShowId metas) of
       [meta:_] -> let
@@ -119,3 +117,33 @@ extractErrorMsgFromSoup tags = let
   in case msgs of
     [] -> Nothing
     _ -> Just . pack $ unlines (mapMaybe maybeTagText msgs)
+
+
+postLocationTransfer :: LocationTransfer -> IO (Either Text Int)
+postLocationTransfer locTrans = do
+  let ?baseURL = faURL
+  runExceptT $ withFACurlDo "curl" "purl" $ do
+    curlSoup newLocationTransferURL method_GET 200 "Problem trying to create a new location transfer"
+    mapM addLocationTransferDetail (ltrDetails (locTrans :: LocationTransfer))
+    let process = CurlPostFields [ "ref="<> (unpack $ ltrReference (locTrans :: LocationTransfer))
+                                 , "Process=Process"
+                                 , "AdjDate=" <>  formatTime defaultTimeLocale faDateFormat (ltrDate locTrans)
+                                 , "FromStockLocation=" <> unpack (ltrLocationFrom locTrans) 
+                                 , "ToStockLocation=" <> unpack (ltrLocationTo locTrans) 
+                                 ] : method_POST
+    tags <- curlSoup (toAjax locationTransferURL) process 200 "process location transfer"
+    case extractAddedId tags  of
+            Left e -> throwError $ "Location Transfer creation failed:" <> e
+            Right id -> return id
+
+locationTransferURL = ?baseURL <> "/inventory/transfers.php"
+newLocationTransferURL = locationTransferURL <> "?NewTransfer=1"
+
+
+addLocationTransferDetail LocationTransferDetail{..} = do
+  let items = CurlPostFields [ "AddItem=Add%20Item"
+                             , "stock_id="<> unpack ltrSku
+                             , "std_cost=0"
+                             , "qty=" <> show ltrQuantity
+                             ] : method_POST
+  curlSoup (toAjax locationTransferURL) items 200 "add items"
