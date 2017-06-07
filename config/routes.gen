@@ -20,6 +20,7 @@
 
   /stock_adjustment WHStockAdjustmentR GET POST !stock_adj
   !/stock_adjustment/#Int64 WHStockAdjustmentViewR GET !stock_adj
+  !/stock_adjustment/tofa/#Int64 WHStockAdjustmentToFAR POST !stock_adj/tofa
 
   /stocktake/locations WHStocktakeLocationR GET
 

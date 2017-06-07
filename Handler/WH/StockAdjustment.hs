@@ -12,6 +12,7 @@ import qualified Data.Set as Set
 import SharedStockAdjustment
 import qualified FA as FA
 import qualified WH.FA.Types as WFA
+import Control.Monad.Except hiding (mapM_)
 
 -- 3 sections
 -- displays all, or each in a row
@@ -397,30 +398,41 @@ renderPending = do
 |]
 
 
+-- | Load an adjustment from its key. We assume, as the key as been provided
+-- and should come from somewhere, that the adjusment exists
+-- loadAdjustment :: Int64 -> Handler Maybe (([StockAdjustmentDetail], StockAdjustmenty))
+loadAdjustment key = do
+  let adjKey  = (SqlBackendKey key)
+  adj <- getJust (StockAdjustmentKey adjKey)
+  entities <- selectList [StockAdjustmentDetailAdjustment ==. StockAdjustmentKey adjKey] []
+  return (map entityVal entities, adj)
+
 getWHStockAdjustmentViewR :: Int64 -> Handler Html
 getWHStockAdjustmentViewR key = do
-  let adjKey  = (SqlBackendKey key)
-      mainLoc = Just (FA.LocationKey "DEF")
+  let mainLoc = Just (FA.LocationKey "DEF")
       lostLoc = Just (FA.LocationKey "LOST")
 
   
-  (details, adj) <- runDB $ do
-    adj <- get (StockAdjustmentKey adjKey)
+  (details, adj) <-runDB $ loadAdjustment key
 
-    entities <- selectList [StockAdjustmentDetailAdjustment ==. StockAdjustmentKey adjKey] []
-    return (map entityVal entities, adj)
+  let date = utctDay $ stockAdjustmentDate adj
   
-  Carts{..} <- adjustCarts $ splitDetails mainLoc lostLoc details 
+  Carts{..} <- adjustCarts date $ splitDetails mainLoc lostLoc details 
 
-  let renderDetails :: Text -> Text -> [StockAdjustmentDetail] -> Widget
+  let renderDetails :: Text -> Text -> [(StockAdjustmentDetail, Int)] -> Widget
       renderDetails title class_ details = [whamlet|
 <div.panel. class="panel-#{class_}">
   <div.panel-heading>
     <h3> #{title}
   <div.panel-body>
     <p.well>
-      $forall d <- details
-       #{stockAdjustmentDetailStockId d} #{stockAdjustmentDetailQuantity d} <br>
+      $forall (d, qty) <- details
+       #{stockAdjustmentDetailStockId d}
+       #{qty} 
+       $with oqty <- stockAdjustmentDetailQuantity d
+         $if oqty /= qty
+            -- Original qty:#{stockAdjustmentDetailQuantity d}
+       <br>
                           |]
   let renderDetails' :: Text -> Text -> [(StockAdjustmentDetail, Double)] -> Widget
       renderDetails' title class_ details = [whamlet|
@@ -436,18 +448,50 @@ getWHStockAdjustmentViewR key = do
         <br>
                           |] where dollar = "$" :: Text
 
+
+
+  let page = do 
+        renderDetails "Found" "success"  cFound
+        renderDetails "Lost" "danger"  cLost
+        renderDetails' "New" "warning"  cNew
+  
   defaultLayout $ do
     [whamlet|
-$maybe a <- adj                                                  
-  <div>
-    #{tshow $ stockAdjustmentDate a}
-    #{tshow $ stockAdjustmentStatus a}
-    <div.well> #{stockAdjustmentComment a}
+<div>
+  #{tshow $ stockAdjustmentDate adj}
+  #{tshow $ stockAdjustmentStatus adj}
+  <div.well> #{stockAdjustmentComment adj}
+    ^{page}
+    <form role=form method=post action=@{WarehouseR $ WHStockAdjustmentToFAR (key )}>
+      <button type="submit" .btn.btn-danger>Save To FrontAccounting
             |]
-    renderDetails "Found" "success"  cFound
-    renderDetails "Lost" "danger"  cLost
-    renderDetails' "New" "warning"  cNew
   
+-- | Save the required adjustments/transfer to FrontAccounting.
+-- Everything is done within the same transaction even though we can be posting more than
+-- one transactions. if on fail, everything will be rollbacked even though previous transcation
+-- in FA might persists. They might needs to be cleaned manually
+postWHStockAdjustmentToFAR ::  Int64 -> Handler Html
+postWHStockAdjustmentToFAR key = do
+  let mainLoc = Just (FA.LocationKey "DEF")
+      lostLoc = Just (FA.LocationKey "LOST")
+      baseref = "FamesAdj#" <> tshow key
+  date <- utctDay <$> liftIO getCurrentTime
+
+  (details, adj) <- runDB $ loadAdjustment key
+  carts <- adjustCarts date $ splitDetails mainLoc lostLoc details
+  let Carts{..} = detailsToCartFA baseref date carts
+  err <- runExceptT $ do
+    postStockAdjustmentToFA cNew
+    postLocationTransferToFA cFound
+    postLocationTransferToFA cLost
+  case err of
+    Left err -> setError err  >> getWHStockAdjustmentViewR key
+    Right _ -> do
+      setSuccess "Stock adjusments have been processed sucessfully"
+      getWHStockAdjustmentR
+
+  
+
 
 badgeSpan :: Int -> Maybe String -> String -> Widget
 badgeSpan qty bgM klass = do
@@ -486,15 +530,15 @@ splitDetails mainLoc lostLoc details = let
   cNew = filter ((== Nothing) . stockAdjustmentDetailFrom ) details
   in Carts{..}
   
-detailsToCartFA :: Text -> Day -> DetailCarts -> FACarts
+detailsToCartFA :: Text -> Day -> DetailCarts' -> FACarts
 detailsToCartFA ref date (Carts news losts founds) = let
   new = WFA.StockAdjustment (ref<> "-new")
                         "DEF"
                         date
                         [ WFA.StockAdjustmentDetail (stockAdjustmentDetailStockId d)
                                                     (fromIntegral $ stockAdjustmentDetailQuantity d)
-                                                    (0 ) -- cost
-                        | d <- news
+                                                    cost
+                        | (d, cost) <- news
                         ]
                         WFA.PositiveAdjustment
 
@@ -502,15 +546,15 @@ detailsToCartFA ref date (Carts news losts founds) = let
                         "DEF" "LOST"
                         date
                         [ WFA.LocationTransferDetail (stockAdjustmentDetailStockId d)
-                                                     (stockAdjustmentDetailQuantity d)
-                        | d <- losts
+                                                     qty
+                        | (d, qty) <- losts
                         ]
   found = WFA.LocationTransfer (ref<> "-found")
                         "LOST" "DEF"
                         date
                         [ WFA.LocationTransferDetail (stockAdjustmentDetailStockId d)
-                                                    (stockAdjustmentDetailQuantity d)
-                        | d <- founds
+                                                     qty
+                        | (d, qty) <- founds
                         ]
 
   in Carts new lost found
@@ -527,18 +571,39 @@ findCostPrice detail = do
              Nothing -> (detail, 0)
 
 -- adjustCart :: FACart -> Handler FACart'
-adjustCarts Carts{..} = do
+adjustCarts date Carts{..} = do
   new <- mapM findCostPrice cNew
-  let lost = cLost
-      found = cFound
+  lost <- mapM (findMaxQuantity date) cLost
+  found <- mapM (findMaxQuantity date) cFound
   return $ Carts new lost found
+
+-- | Cap quantity to transfer according to quantity on hand so that
+-- we don't generate negative stock.
+-- As transfer can be done in the past, we need to make sure
+-- that it doesn't result in a negative stock (at the transfer date)
+-- or today. This can happen if an  item has been found and delivered between the stocktake/transfer and the current day
+findMaxQuantity :: Day -> StockAdjustmentDetail -> Handler (StockAdjustmentDetail, Int)
+findMaxQuantity date detail = do
+  case stockAdjustmentDetailFrom detail of
+    Nothing -> return (detail, 0)
+    Just loc -> do
+      let sku = stockAdjustmentDetailStockId detail
+          qty = stockAdjustmentDetailQuantity detail
+      locInfo <- quantitiesFor (FA.unLocationKey loc)  (Single sku, Single 0, Single date)
+
+      
+      -- to generate negative quantities, we can move more than the qoh at date
+      -- as well as qoh now. qoh after the moves would be qoh-adj and should be >= 0
+      let qmax = minimum $ nonNull [qty , quantityAt locInfo, quantityNow locInfo]
+      return (detail, qmax)
+
+-- | Post a stock adjusmtent to FrontAccounting and update
+-- Fames db accordingly.
+postStockAdjustmentToFA adj = do
+  return ()
   
 
-
-
-  
-
-  
-
-  
-  
+-- | Post a location transfer to FrontAccounting and update
+-- Fames db accordingly.
+postLocationTransferToFA trans = do
+  return ()
