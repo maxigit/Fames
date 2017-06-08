@@ -488,6 +488,7 @@ postWHStockAdjustmentToFAR key = do
   case err of
     Left err -> setError (toHtml err)  >> getWHStockAdjustmentViewR key
     Right _ -> do
+      runDB $ update (StockAdjustmentKey $ SqlBackendKey key) [StockAdjustmentStatus =. Process]
       setSuccess "Stock adjusments have been processed sucessfully"
       getWHStockAdjustmentR
 
