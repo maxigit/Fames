@@ -416,7 +416,8 @@ getWHStockAdjustmentViewR key = do
   
   (details, adj) <-runDB $ loadAdjustment key
 
-  let date = utctDay $ stockAdjustmentDate adj
+  -- let date = utctDay $  stockAdjustmentDate adj
+  date <- utctDay <$> liftIO getCurrentTime
   
   Carts{..} <- adjustCarts date $ splitDetails mainLoc lostLoc details 
 
@@ -481,14 +482,22 @@ postWHStockAdjustmentToFAR key = do
   (details, adj) <- runDB $ loadAdjustment key
   carts <- adjustCarts date $ splitDetails mainLoc lostLoc details
   let Carts{..} = detailsToCartFA baseref date carts
-  err <- runExceptT  $ do
-    postStockAdjustmentToFA cNew
-    postLocationTransferToFA cFound
-    postLocationTransferToFA cLost
+  err <- runExceptT  $ liftM3 (,,)
+    (postStockAdjustmentToFA cNew)
+    (postLocationTransferToFA cFound)
+    (postLocationTransferToFA cLost)
   case err of
     Left err -> setError (toHtml err)  >> getWHStockAdjustmentViewR key
-    Right _ -> do
-      runDB $ update (StockAdjustmentKey $ SqlBackendKey key) [StockAdjustmentStatus =. Process]
+    Right (adjId, t1, t2  ) -> do
+      runDB $ do
+        update (StockAdjustmentKey $ SqlBackendKey key) [StockAdjustmentStatus =. Process]
+        insertMany_ [ TransactionMap faType faId StockAdjustmentE (fromIntegral key)
+                    | (faId, faType) <- catMaybes [ (, ST_INVADJUST) <$> adjId
+                                                  , (, ST_LOCTRANSFER) <$> t1
+                                                  , (, ST_LOCTRANSFER) <$> t2
+                                                  ]
+                    ]
+       
       setSuccess "Stock adjusments have been processed sucessfully"
       getWHStockAdjustmentR
 
@@ -538,9 +547,11 @@ detailsToCartFA ref date (Carts news losts founds) = let
                         "DEF"
                         date
                         [ WFA.StockAdjustmentDetail (stockAdjustmentDetailStockId d)
-                                                    (fromIntegral $ stockAdjustmentDetailQuantity d)
+                                                    (fromIntegral $ qty)
                                                     cost
                         | (d, cost) <- news
+                        , let qty = stockAdjustmentDetailQuantity d
+                        , qty > 0
                         ]
                         WFA.PositiveAdjustment
 
@@ -550,6 +561,7 @@ detailsToCartFA ref date (Carts news losts founds) = let
                         [ WFA.LocationTransferDetail (stockAdjustmentDetailStockId d)
                                                      qty
                         | (d, qty) <- losts
+                        , qty > 0
                         ]
   found = WFA.LocationTransfer (ref<> "-found")
                         "LOST" "DEF"
@@ -557,6 +569,7 @@ detailsToCartFA ref date (Carts news losts founds) = let
                         [ WFA.LocationTransferDetail (stockAdjustmentDetailStockId d)
                                                      qty
                         | (d, qty) <- founds
+                        , qty > 0
                         ]
 
   in Carts new lost found
@@ -572,7 +585,7 @@ findCostPrice detail = do
                                    + FA.stockMasterOverheadCost info)
              Nothing -> (detail, 0)
 
--- adjustCart :: FACart -> Handler FACart'
+adjustCarts :: Day -> DetailCarts -> Handler DetailCarts'
 adjustCarts date Carts{..} = do
   new <- mapM findCostPrice cNew
   lost <- mapM (findMaxQuantity date) cLost

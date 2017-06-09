@@ -1,7 +1,9 @@
 * TODO StockAdjustment to FA<2017-06-07 Wed>
-- [ ] update adjustment as processed
-- [ ] record the link between FA transactions and Fames ones
+- [X] update adjustment as processed
+- [X] record the link between FA transactions and Fames ones
 - [ ] moves hardcoded value to config file
+- [X ] check adjusted quantity is used instead of original one
+Works but behavior is weird if we got a delivery between stocktake and adjustment ...
 
 * TODO StockAdjustment to FA <2017-06-03 Sat> 
 - [-] use CURL lib to generate

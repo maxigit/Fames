@@ -113,6 +113,7 @@ Boxtake sql=fames_boxtake
   deriving Eq
   deriving Show
 
+-- | A Packing lista (box descriptions: dimension + content)
 PackingList sql=fames_packinglist
   Id sql=packinglist_id
   invoiceRef Text
@@ -126,7 +127,7 @@ PackingList sql=fames_packinglist
   UniquePL invoiceRef
   deriving Eq
   deriving Show
-
+-- | Detail of a packing list , correspong to one box
 PackingListDetail sql=fames_packinglist_detail
   packingList PackingListId sql=packinglist_id
   style Text
@@ -141,6 +142,15 @@ PackingListDetail sql=fames_packinglist_detail
   delivered Bool default=False
   UniquePLD packingList reference style boxNumber
   UniquePLB barcode
+
+-- FrontAccounting Fames many to many relation table
+-- Link Fames "event" to FA Transaction
+TransactionMap sql=fames_transaction_map
+  faTransType FATransType sqltype=Int
+  faTransNo Int
+  eventType EventType sqltype=Int
+  eventNo Int
+
 
 
 
