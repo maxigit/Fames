@@ -33,4 +33,6 @@
 /items ItemsR !items:
   /index ItemsIndexR GET !items/index
 
-/administrator AdministratorR GET
+/administrator AdministratorR !administrator:
+  / AIndexR GET
+  /testfa  ATestFAR GET

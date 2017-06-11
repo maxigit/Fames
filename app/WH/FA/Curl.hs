@@ -4,6 +4,7 @@
 module WH.FA.Curl
 ( postStockAdjustment
 , postLocationTransfer
+, testFAConnection
 ) where
 
 import ClassyPrelude
@@ -147,3 +148,11 @@ addLocationTransferDetail LocationTransferDetail{..} = do
                              , "qty=" <> show ltrQuantity
                              ] : method_POST
   curlSoup (toAjax locationTransferURL) items 200 "add items"
+
+testFAConnection :: FAConnectInfo -> IO (Either Text ())
+testFAConnection connectInfo = do
+  let ?baseURL = faURL connectInfo
+  runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
+    return ()
+
+  
