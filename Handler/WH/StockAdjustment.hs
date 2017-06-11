@@ -482,10 +482,12 @@ postWHStockAdjustmentToFAR key = do
   (details, adj) <- runDB $ loadAdjustment key
   carts <- adjustCarts date $ splitDetails mainLoc lostLoc details
   let Carts{..} = detailsToCartFA baseref date carts
+  setting <- appSettings <$> getYesod
+  let connectInfo = WFA.FAConnectInfo (appFAURL setting) (appFAUser setting) (appFAPassword setting)
   err <- runExceptT  $ liftM3 (,,)
-    (postStockAdjustmentToFA cNew)
-    (postLocationTransferToFA cFound)
-    (postLocationTransferToFA cLost)
+    (postStockAdjustmentToFA connectInfo cNew)
+    (postLocationTransferToFA connectInfo cFound)
+    (postLocationTransferToFA connectInfo cLost)
   case err of
     Left err -> setError (toHtml err)  >> getWHStockAdjustmentViewR key
     Right (adjId, t1, t2  ) -> do
@@ -615,11 +617,11 @@ findMaxQuantity date detail = do
 -- | Post a stock adjusmtent to FrontAccounting and update
 -- Fames db accordingly.
 -- postStockAdjustmentToFA :: WFA.StockAdjustment -> ExceptT Text IO (Maybe Int)
-postStockAdjustmentToFA adj = do
+postStockAdjustmentToFA connectInfo adj = do
   if null (WFA.adjDetails adj)
     then return Nothing
     else do
-      adjId <- ExceptT . liftIO $ WFA.postStockAdjustment adj
+      adjId <- ExceptT . liftIO $ WFA.postStockAdjustment connectInfo adj
       setSuccess . toHtml $ "Adjustment#" <> tshow adjId <> " has been created successfully"
       return (Just adjId)
 
@@ -628,10 +630,10 @@ postStockAdjustmentToFA adj = do
 -- | Post a location transfer to FrontAccounting and update
 -- Fames db accordingly.
 -- postLocationTransferToFA :: WFA.LocationTransfer -> ExceptT Text IO (Maybe Int)
-postLocationTransferToFA trans = do
+postLocationTransferToFA connectInfo trans = do
   if null (WFA.ltrDetails trans)
     then return Nothing
     else do
-      transId <- ExceptT . liftIO $ WFA.postLocationTransfer trans
+      transId <- ExceptT . liftIO $ WFA.postLocationTransfer connectInfo trans
       setSuccess . toHtml $ "Transfer#" <> tshow transId <> " has been created successfully"
       return (Just transId)

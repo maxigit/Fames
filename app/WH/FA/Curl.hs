@@ -16,7 +16,7 @@ import Text.HTML.TagSoup
 import Text.Regex.TDFA
 
 faDateFormat = "%Y/%m/%d" :: String
-faURL = "http://172.18.0.1"
+-- faURL = "http://172.18.0.1"
 inventoryAdjustmentURL = ?baseURL <> "/inventory/adjustments.php"
 newAdjustmentURL = inventoryAdjustmentURL <> "?NewAdjustment=1"
 toAjax url = url <> "?jsHttpRequest=0-xml"
@@ -72,10 +72,10 @@ withFACurlDo user password m = do
     lift $ setopts curl [CurlCookieFile "cookies"]
     m
 
-postStockAdjustment :: StockAdjustment -> IO (Either Text Int)
-postStockAdjustment stockAdj = do
-  let ?baseURL = faURL
-  runExceptT $ withFACurlDo "curl" "purl" $ do
+postStockAdjustment :: FAConnectInfo -> StockAdjustment -> IO (Either Text Int)
+postStockAdjustment connectInfo stockAdj = do
+  let ?baseURL = faURL connectInfo
+  runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
     curlSoup newAdjustmentURL method_GET 200 "Problem trying to create a new inventory adjustment"
     mapM addAdjustmentDetail (adjDetails (stockAdj :: StockAdjustment))
     let process = CurlPostFields [ "ref="<> (unpack $ adjReference (stockAdj :: StockAdjustment))
@@ -119,10 +119,10 @@ extractErrorMsgFromSoup tags = let
     _ -> Just . pack $ unlines (mapMaybe maybeTagText msgs)
 
 
-postLocationTransfer :: LocationTransfer -> IO (Either Text Int)
-postLocationTransfer locTrans = do
-  let ?baseURL = faURL
-  runExceptT $ withFACurlDo "curl" "purl" $ do
+postLocationTransfer :: FAConnectInfo -> LocationTransfer -> IO (Either Text Int)
+postLocationTransfer connectInfo locTrans = do
+  let ?baseURL = faURL connectInfo
+  runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
     curlSoup newLocationTransferURL method_GET 200 "Problem trying to create a new location transfer"
     mapM addLocationTransferDetail (ltrDetails (locTrans :: LocationTransfer))
     let process = CurlPostFields [ "ref="<> (unpack $ ltrReference (locTrans :: LocationTransfer))

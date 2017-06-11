@@ -23,6 +23,7 @@ import qualified Database.MySQL.Base as MySQL
 import Yesod.Fay
 import  Role
 import WH.Barcode
+import WH.FA.Types
 import qualified Data.Map as Map
 
 data AuthMode = BypassAuth | CheckAuth deriving (Read, Show, Eq)
@@ -77,6 +78,9 @@ data AppSettings = AppSettings
     , appFAStockLikeFilter :: Text
     -- ^ SQL LIKE expression to filter what's is considered stock
     , appBarcodeParams :: [BarcodeParams]
+    , appFAURL :: String -- ^ URL to connect to FrontAccounting to post transactions
+    , appFAUser :: String -- ^ User to connect to FrontAcounting
+    , appFAPassword :: String -- ^ User passwrod to connect to FA to post transactions.
     } deriving Show
 
 
@@ -126,6 +130,9 @@ instance FromJSON AppSettings  where
         appFALostLocation  <- o .:? "fa-lost-location" .!= "LOST"
         appFADefaultLocation  <- o .:? "fa-default-location" .!= "DEF"
         appFAStockLikeFilter  <- o .:? "fa-stock-like-filter" .!= "%"
+        appFAURL <- o .:? "fa-url" .!= "http://127.0.0.1"
+        appFAUser <- o .:? "fa-user" .!= "admin"
+        appFAPassword <- o .:? "fa-password" .!= "password"
         
 
         -- This code enables MySQL's strict mode, without which MySQL will truncate data.

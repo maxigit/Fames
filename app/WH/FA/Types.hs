@@ -3,6 +3,13 @@ module WH.FA.Types where
 
 import ClassyPrelude
 
+-- * Connection parametes
+data FAConnectInfo = FAConnectInfo
+  { faURL :: String
+  , faUser :: String
+  , faPassword :: String
+  }  deriving (Eq, Show)
+
 -- * StockAdjustment
 -- | Information needed to post a FA stock adjustment
 data StockAdjustment = StockAdjustment
