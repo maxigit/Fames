@@ -152,6 +152,8 @@ instance Transformable a b => Transformable [a] [b] where
 instance Transformable b (Either e (Maybe b))  where
   transform x = Right (Just x)
 
+instance Transformable a b => Transformable (Maybe a) (Maybe b) where
+  transform x = map transform x
 -- * Functions
 
 parseInvalidSpreadsheet opt columnMap bytes err =

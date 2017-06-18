@@ -55,6 +55,8 @@ pureSpec = do
       authorizeFromPath (RoleRoute "/fa/gl_trans" WriteRequest) "/fa/gl_trans" ReadRequest `shouldBe` True
     it "doesn't authorize Write if Read" $ do
       authorizeFromPath (RoleRoute "/fa/gl_trans" ReadRequest) "/fa/gl_trans" WriteRequest `shouldBe` False
+    it "#authorizing from URL with parameter" $ do
+      authorizeFromPath (RoleRoute "/fa/gl_trans/*" ReadRequest) "/fa/gl_trans/3" WriteRequest `shouldBe` False
     
   describe "#Yaml" $ do
     let shouldDecodeTo yaml result = decode (encodeUtf8 yaml) `shouldBe` Just result

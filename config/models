@@ -89,6 +89,7 @@ Stocktake sql=fames_stocktake
   adjustment StockAdjustmentId Maybe sql=stock_adj_id
   documentKey DocumentKeyId sql=document_key_id
   history (Pairs Day (Key Operator))
+  comment Text Maybe
   UniqueSB barcode index
   deriving Eq
   deriving Show
