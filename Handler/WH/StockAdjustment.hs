@@ -134,7 +134,7 @@ postWHStockAdjustmentR = do
       let (w,p) = case style param of
                   Just like  -> (" AND stock_id like ?", [PersistText like])
                   Nothing -> ("", [])
-      let sql = "SELECT stock_id, COALESCE(SUM(quantity),0), MAX(date) "
+      let sql = "SELECT stock_id, COALESCE(SUM(quantity),0), MAX(date), GROUP_CONCAT(comment) "
                 <> " FROM fames_stocktake  "
                 <> " WHERE stock_adj_id IS NULL "
                 <> " AND active = 1 "
@@ -185,6 +185,7 @@ postWHStockAdjustmentR = do
       <th> QOH FA
       <th> lost
       <th> Last move
+      <th> Comment
     $forall pre <- rows
       $with ((qties, badges, before), mainMoves, lostMoves) <- (toOrigAndBadges' pre, (movesAt $ main pre), movesAt $ lost pre)
         <tr class="#{classesFor mainMoves}"
@@ -205,6 +206,7 @@ postWHStockAdjustmentR = do
             ^{badgeSpan (bNew badges) Nothing "new" }
           <td.lost data-original=#{qlost qties}>#{qlost qties}
           <td.last_move>#{fromMaybe "" (tshow <$> (lastMove pre))}
+          <td.comment_move>#{fromMaybe "" (tshow <$> (preComment pre))}
           $forall move <- mainMoves
             $with before <- moveDate move <= takeDate pre
               $with after <- not before
@@ -246,6 +248,7 @@ data PreAdjust = PreAdjust
   , main :: !LocationInfo
   , lost :: !LocationInfo
   , takeDate :: !Day
+  , preComment :: Maybe Text
   } deriving (Eq, Read, Show)
 
 adjustInfos :: PreAdjust -> [LocationInfo]
@@ -262,20 +265,21 @@ lastMove pre = max (date (main pre)) (date (lost pre))
 -- | Returns the qoh at the date of the stocktake.
 -- return also the date of the last move (the one corresponding to given quantity).
 -- Needed to detect if the stocktake is sure or not.
-qohFor :: (Single Text, Single Int,  Single Day) -> Handler (Maybe PreAdjust)
-qohFor r@(Single sku, Single qtake, Single date) = do
+qohFor :: (Single Text, Single Int,  Single Day, Single (Maybe Text)) -> Handler (Maybe PreAdjust)
+qohFor r@(Single sku, Single qtake, Single date, Single comment) = do
   adj <-  PreAdjust
          <$> pure sku
          <*> quantitiesFor "DEF" r
          <*> quantitiesFor "LOST" r
          <*> pure date
+         <*> pure comment
   return $ if all noInfo (adjustInfos adj)
               then Nothing
               else Just adj
 
 -- | Retrive the quantities available for the given location at the given date
-quantitiesFor :: Text -> (Single Text, Single Int, Single Day) -> Handler LocationInfo 
-quantitiesFor loc (Single sku, Single take, Single date) = do
+quantitiesFor :: Text -> (Single Text, Single Int, Single Day, Single (Maybe Text)) -> Handler LocationInfo 
+quantitiesFor loc (Single sku, Single take, Single date, Single comment) = do
   let (minDate, maxDate) = unsureRange date
       sql = "SELECT SUM(qty) qoh"
             <> ", SUM(qty) qoh_at"
@@ -606,7 +610,7 @@ findMaxQuantity date detail = do
     Just loc -> do
       let sku = stockAdjustmentDetailStockId detail
           qty = stockAdjustmentDetailQuantity detail
-      locInfo <- quantitiesFor (FA.unLocationKey loc)  (Single sku, Single 0, Single date)
+      locInfo <- quantitiesFor (FA.unLocationKey loc)  (Single sku, Single 0, Single date, Single Nothing)
 
       
       -- to generate negative quantities, we can move more than the qoh at date
