@@ -214,12 +214,13 @@ postWHStockAdjustmentR = do
                   <td> <select name="#{sku pre}">
                       <option :before:selected value="#{movePickedQty move}" >Before
                       <option :after:selected value="0">After
-                  <td> #{movePickedQty move} #{moveCustomerName move}
+                  <td>
+                  <td> #{movePickedQty move}
                   <td> #{tshow $ moveDate move}
                   <td>
+                  <td>
                   <td> #{(fromMaybe "" $ moveOperatorName move)}
-                  <td>
-                  <td>
+                  <td> #{moveCustomerName move}
 |]
       defaultLayout [whamlet|
 <form.well #stock-adjustment role=form method=post action=@{WarehouseR WHStockAdjustmentR} enctype=#{encType}>
