@@ -219,6 +219,7 @@ postWHStockAdjustmentR = do
                   <td>
                   <td> #{(fromMaybe "" $ moveOperatorName move)}
                   <td>
+                  <td>
 |]
       defaultLayout [whamlet|
 <form.well #stock-adjustment role=form method=post action=@{WarehouseR WHStockAdjustmentR} enctype=#{encType}>

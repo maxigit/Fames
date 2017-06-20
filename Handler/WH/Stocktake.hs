@@ -11,7 +11,7 @@ module Handler.WH.Stocktake
 ( getWHStocktakeR
 , postWHStocktakeSaveR
 , postWHStocktakeSaveR
-, postWHStocktakeCollect0R
+, postWHStocktakeCollectMOPR
 , getWHStocktakeSaveR
 , postWHStocktakeValidateR
 , getWHStocktakeValidateR
@@ -41,16 +41,16 @@ import qualified Data.Set as Set
 
 -- * Requests
 
--- | Validate spreadsheet, save , collect and save 0-takes generated from lost items
-data SavingMode = Validate | Save | Collect0 deriving (Eq, Read, Show)
+-- | Validate spreadsheet, save , collect and save partial stocktakes generated from lost items
+data SavingMode = Validate | Save | CollectMOP deriving (Eq, Read, Show)
 
 getWHStocktakeR :: Handler Html
 getWHStocktakeR = entityTableHandler (WarehouseR WHStocktakeR) ([] :: [Filter Stocktake])
 
 getWHStocktakeValidateR :: Handler Html
 getWHStocktakeValidateR = do
-  mop0 <- collect0FromMOP Nothing
-  (formW, encType) <- generateFormPost $ uploadForm Collect0 Nothing
+  mop0 <- collectFromMOP
+  (formW, encType) <- generateFormPost $ uploadForm CollectMOP Nothing
   let param0 = FormParam {pStyleComplete = StyleIncomplete, pDisplayMode = HideMissing }
   widget <- if null mop0
     then return $ return ()
@@ -61,7 +61,7 @@ getWHStocktakeValidateR = do
 <div.panel.panel-info >
   <div.panel-heading><h3> Lost Items
   <div.panel-body>
-    <form #save-collect0 method=post action=@{WarehouseR WHStocktakeCollect0R} enctype=#{encType}>
+    <form #save-collect method=post action=@{WarehouseR WHStocktakeCollectMOPR} enctype=#{encType}>
       ^{table}
       ^{formW}
       <button type="submit" name="Collect" .btn class="btn-danger">Collect
@@ -97,8 +97,8 @@ getWHStocktakeSaveR = renderWHStocktake Save Nothing 200 (setInfo "Enter Stockta
 postWHStocktakeSaveR :: Handler Html
 postWHStocktakeSaveR = processStocktakeSheet Save
 
-postWHStocktakeCollect0R :: Handler Html
-postWHStocktakeCollect0R = processStocktakeSheet Collect0
+postWHStocktakeCollectMOPR :: Handler Html
+postWHStocktakeCollectMOPR = processStocktakeSheet CollectMOP
 -- | Which stocktake items to display.
 -- Complete stocktake can be quite big so displaying in the browser can be skipped if not needed.
 data DisplayMode = DisplayAll | DisplayMissingOnly | HideMissing
@@ -149,7 +149,7 @@ uploadForm mode paramM =
                    <*> areq (selectField optionsEnum ) "stylecomplete" (fmap pStyleComplete paramM <|> Just StyleComplete)
                    <*> areq (selectField optionsEnum ) "displaymode" (fmap pDisplayMode paramM <|> Just DisplayAll)
                    <*> areq boolField "override" (fmap pOveridde paramM <|> Just False)
-      form' Collect0 = FormParam
+      form' CollectMOP = FormParam
                    <$> pure Nothing
                    <*> pure Nothing
                    <*> pure Nothing
@@ -208,9 +208,9 @@ processStocktakeSheet mode = do
           unless exist $ do
             writeFile (tmp key) ss
           return (ss, key, fileName fileInfo)
-        (_,_,_) -> do -- Collect0
+        (_,_,_) -> do -- CollectMOP
           time <- liftIO getCurrentTime
-          return ("", computeDocumentKey (encodeUtf8 (tshow time)), "collect0" )
+          return ("", computeDocumentKey (encodeUtf8 (tshow time)), "collectMOP" )
           
 
       -- TODO move to reuse
@@ -251,8 +251,8 @@ $maybe u <- uploader
           newParam = param {pFileKey = Just key, pFilePath = Just path}
 
       (parsed, finalizer) <- case mode of
-                               Collect0 -> do
-                                 takes0 <- collect0FromMOP (Just 0)
+                               CollectMOP -> do
+                                 takes0 <- collectFromMOP
                                  return (ParsingCorrect takes0
                                         , mapM_ cleanupTopick takes0) -- processAt
                                _ -> return $ (parseTakes skus findOps findLocs spreadsheet, return ())
@@ -264,7 +264,7 @@ $maybe u <- uploader
   where process  param doc Validate finalizer rows = do
           widget <- renderValidRows param rows
           renderWHStocktake Save (Just param) 200 (setSuccess "Validation ok!") widget
-        process param doc mode finalizer rows | mode == Save || mode == Collect0 = do
+        process param doc mode finalizer rows | mode == Save || mode == CollectMOP = do
           missings <- case pStyleComplete param of
             StyleComplete -> map QuickST <$> generateMissings rows
             _ -> return []
@@ -1142,17 +1142,18 @@ instance Csv.FromField (Either InvalidField (Maybe (ValidField (Location')))) wh
       Nothing -> return $ Right Nothing
       Just t' -> return $ Left (ParsingError "Location doesn't exist" t')
 
--- * Generate ZeroTake from lost items in MOP
+-- * Generate partial stocktake from lost items in MOP
 -- | It seems easier to generate the result of parsing a spreading
 -- and passing to the process function which will take care of generating
 -- fake barcodes and invalidates everything required
--- rather than generate Stocktake and refactorethe code to make it work on Stocktake
+-- rather than generate Stocktake and refactore the code to make it work on Stocktake
 -- We use if available the operator and date corresponding to picking action in MOP
--- The quantity retrieved should be zero. However to show how much is lost
--- we use a fake quantity corresponding to what was in stock when the item was lost
--- forceQuantity, forces the quantity or not
-collect0FromMOP :: Maybe Int -> Handler [ValidRow]
-collect0FromMOP forcedQuantity= do
+-- MOP Stocktake can comes from two different sources. They can correspond to lost item
+-- Which haven't been picked or dispatched (0 takes) or by operator checking manually
+-- the stock value. In that case quantities generally only corresponds to the quantity in box
+-- and have been entered through the MOP tracking page.
+collectFromMOP :: Handler [ValidRow]
+collectFromMOP = do
   -- query might incorrect if an order details has been picked multiple time
   -- the system will probably found the last session
   let action = "SELECT * from mop.action "
@@ -1160,16 +1161,17 @@ collect0FromMOP forcedQuantity= do
                <> "      FROM mop.action "
                <> "      WHERE typeId = 1 GROUP BY detailId"
                <> "      ) maxaction USING (id) "
-  let sql = "SELECT 0_topick.base, 0_topick.variation, 0_topick.quantity "
+  let sql = "SELECT 0_topick.base, 0_topick.variation, MAX(IF(type = 'lost', 0, 0_topick.quantity)) "
+            <> " , CONCAT(0_topick.location, ' (', IF(type='lost', MAX(0_topick.quantity), 'partial'), ')') "
             <> " , op.operator_id, GROUP_CONCAT(nickname), MAX(session.date)"
             <> " FROM 0_topick "
             <> " LEFT JOIN (" <> action <> ") action ON (detailId = detail_id AND typeId = 1)" -- picking only
             <> " LEFT JOIN mop.session ON (groupId = actionGroupId)"
             <> " LEFT JOIN mop.operator mop ON (operatorId = mop.id)"
             <> " LEFT JOIN fames_operator op ON (op.nickname = mop.name)" 
-            <> " WHERE `type` = 'LOST'"
+            <> " WHERE `type` IN ('lost', 'stocktake')"
             <> " GROUP BY base, variation "
-  -- traceShowM sql
+  traceShowM sql
   losts <- runDB $ rawSql sql []
   -- let types = losts :: [(Text, Text, Int, Maybe Day, Maybe Text)]
   if null losts
@@ -1177,17 +1179,17 @@ collect0FromMOP forcedQuantity= do
     else do
       (Entity opId operator) <- firstOperator
       today <- utctDay <$> liftIO getCurrentTime
-      return $ map (mopToFinalRow forcedQuantity (Operator' opId operator) today) losts
+      return $ map (mopToFinalRow (Operator' opId operator) today) losts
 
-mopToFinalRow :: Maybe Int -> Operator' -> Day
-              -> (Single Text, Single Text, Single Int
+mopToFinalRow :: Operator' -> Day
+              -> (Single Text, Single Text, Single Int, Single Text
                  ,Single (Maybe (Key Operator)), Single (Maybe Text)
                  , Single (Maybe Day))  -> ValidRow
-mopToFinalRow forcedQuantity user day (Single style, Single variation , Single quantity
+mopToFinalRow user day (Single style, Single variation , Single quantity, Single comment
                        , Single mOpId, Single mOpName,  Single mday) = let
   rowStyle = Provided style
   rowColour = Provided variation
-  rowQuantity = Provided $ Known (fromMaybe quantity forcedQuantity)
+  rowQuantity = Provided $ Known quantity 
   rowLocation = ()
   rowBarcode = ()
   rowLength = ()
@@ -1201,7 +1203,7 @@ mopToFinalRow forcedQuantity user day (Single style, Single variation , Single q
                                                              ,operatorActive=True})
                   Nothing -> Guessed user
   rowDate = maybe (Guessed day) Provided mday
-  rowComment = Just $ Provided "0: collected from MOP"
+  rowComment = Just $ Provided ("MOP: " <> comment)
   in QuickST $ TakeRow {..}
 
   
@@ -1209,6 +1211,7 @@ mopToFinalRow forcedQuantity user day (Single style, Single variation , Single q
 cleanupTopick (QuickST TakeRow{..}) = do
   let sku = makeSku (validValue rowStyle) (validValue rowColour)
   deleteWhere [FA.TopickSku ==. Just sku, FA.TopickType ==. Just "lost"]
+  deleteWhere [FA.TopickSku ==. Just sku, FA.TopickType ==. Just "stocktake"]
 
 -- * Rendering
 
