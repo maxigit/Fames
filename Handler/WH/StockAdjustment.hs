@@ -471,7 +471,8 @@ getWHStockAdjustmentViewR key = do
   <div.well> #{stockAdjustmentComment adj}
     ^{page}
     <form role=form method=post action=@{WarehouseR $ WHStockAdjustmentToFAR (key )}>
-      <button type="submit" .btn.btn-danger>Save To FrontAccounting
+      $if (stockAdjustmentStatus adj /= Process)
+        <button type="submit" .btn.btn-danger>Save To FrontAccounting
             |]
   
 -- | Save the required adjustments/transfer to FrontAccounting.
@@ -486,6 +487,9 @@ postWHStockAdjustmentToFAR key = do
   date <- utctDay <$> liftIO getCurrentTime
 
   (details, adj) <- runDB $ loadAdjustment key
+  when (stockAdjustmentStatus adj == Process) $ do
+    setError "The adjustment has already been processed. It can't be processed twice."
+    sendResponseStatus (toEnum 412) =<< getWHStockAdjustmentViewR key
   carts <- adjustCarts date $ splitDetails mainLoc lostLoc details
   let Carts{..} = detailsToCartFA baseref date carts
   setting <- appSettings <$> getYesod

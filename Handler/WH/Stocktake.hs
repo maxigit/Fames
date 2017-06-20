@@ -963,6 +963,7 @@ generateMissingsFor rows@(row:_) = do
                      , rowColour = Guessed var
                      , rowDate = rowDate row'
                      , rowOperator = rowOperator row'
+                     , rowComment = Just $ Guessed "Missing: auto-generated."
                      }
            | var <- missingVars
            ]
