@@ -586,6 +586,7 @@ validateRaw ops locs raw= do
     rowHeight <- rowHeight raw
     rowDate <- rowDate raw
     rowOperator <- rowOperator'
+    rowComment <- rowComment raw
 
     Right TakeRow{..}
 
