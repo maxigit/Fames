@@ -6,7 +6,7 @@ import Yesod.Auth (Route(LoginR))
 spec :: Spec
 spec = withAppNoDB CheckAuth $ do
   it "not logged" $ do
-    get AdministratorR
+    get (AdministratorR AIndexR)
     statusIs 303
     followRedirect
     bodyContains "username"
@@ -27,7 +27,7 @@ spec = withAppNoDB CheckAuth $ do
   it "logged as administrator" $ do
     logAsAdmin
 
-    get AdministratorR
+    get (AdministratorR AIndexR)
     statusIs 200
     bodyContains "You are logged as Administrator"
 

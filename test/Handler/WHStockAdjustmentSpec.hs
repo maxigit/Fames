@@ -23,7 +23,7 @@ prepareDB = do
         Just doc <- insertUnique $ DocumentKey "key" "test" "ref0" "" userId  processedAt
         insertMany_ [ (Stocktake sku qty sku  1 defLoc
                                  (fromGregorian 2017 05 26)
-                            True jack Nothing doc []) :: Stocktake
+                            True jack Nothing doc [] Nothing) :: Stocktake
                     | (sku, qty) <- [("A", 5), ("B", 7), ("C", 14)]
                     ]
 
