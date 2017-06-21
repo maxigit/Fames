@@ -8,6 +8,7 @@ import qualified Data.List as List
 import Data.Time (addDays)
 import Data.Time.Calendar.WeekDate (toWeekDate)
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 
 import SharedStockAdjustment
 import qualified FA as FA
@@ -55,6 +56,7 @@ data FormParam = FormParam
   , modulo :: Maybe Int
   , comment :: Maybe Text
   , activeRows :: Set Text
+  , quantityBefore :: Map Text Int -- ^ Quantity to substract from qoh
   } deriving (Eq, Read, Show)
 
 
@@ -72,6 +74,7 @@ paramForm mode = renderBootstrap3 BootstrapBasicForm  form
                    Save -> aopt textareaField "comment" Nothing
                    View -> pure Nothing)
             <*> pure (Set.fromList [])
+            <*> pure (Map.fromList [])
 
 -- Holds different information relative to adjusment, lost, new etc ...
 data Carts adj trans = Carts { cNew :: adj, cLost :: trans, cFound :: trans} deriving Show
@@ -81,12 +84,14 @@ type DetailCarts' = Carts [(StockAdjustmentDetail, Double)] [(StockAdjustmentDet
 type FACarts = Carts WFA.StockAdjustment WFA.LocationTransfer
 
 
-getActiveRows :: Handler (Set Text)
-getActiveRows = do
-  (params, _) <- runRequestBody
+getActiveRows :: [(Text, Text)] -> Set Text
+getActiveRows params = 
   let prefixLength = 7 --  length ("active-" :: Text)
-  let skusToKeep = [drop prefixLength  sku | (sku, checked) <- params, checked == "on" ]
-  return (Set.fromList (skusToKeep))
+      skusToKeep = [drop prefixLength  sku | (sku, checked) <- params, checked == "on" ]
+  in Set.fromList (skusToKeep)
+
+getQuantityBefore :: [(Text, Text)] -> Map Text Int
+getQuantityBefore params = Map.fromList $ mapMaybe (traverse readMay) params
 
 getWHStockAdjustmentR :: Handler Html
 getWHStockAdjustmentR = do
@@ -129,8 +134,9 @@ postWHStockAdjustmentR = do
     FormMissing -> error "Form missing"
     FormFailure a -> defaultLayout [whamlet|^{view}|]
     FormSuccess param0 -> do
-      activeRows <- getActiveRows
-      let param = param0 {activeRows = activeRows}
+      let activeRows = getActiveRows pp
+          qBefore = getQuantityBefore pp
+      let param = param0 {activeRows = activeRows, quantityBefore = qBefore}
       let (w,p) = case style param of
                   Just like  -> (" AND stock_id like ?", [PersistText like])
                   Nothing -> ("", [])
@@ -344,9 +350,12 @@ isWorkingDay day = let (_, _, weekDay) = toWeekDate day
 
 
 
-computeAdj :: Maybe Int -> StockAdjustmentId -> PreAdjust -> [StockAdjustmentDetail]
-computeAdj modulo key pre =
-  let (_, BadgeQuantities{..}, _) = toOrigAndBadges modulo pre 
+computeAdj :: (Map Text Int) -> Maybe Int -> StockAdjustmentId -> PreAdjust -> [StockAdjustmentDetail]
+computeAdj qBefores modulo key pre =
+  let qBefore = Map.findWithDefault 0 (sku pre) qBefores
+      -- ^ quantity selected by the user
+      (orig, _) = preToOriginal modulo pre
+      BadgeQuantities{..} = computeBadges orig { qoh = qoh orig + qBefore }
       lostLoc = Just . FA.LocationKey . location . lost $ pre 
       mainLoc = Just . FA.LocationKey . location . main $ pre 
       stock_id = sku pre
@@ -359,20 +368,19 @@ computeAdj modulo key pre =
             ]
   in filter ((/= 0) . stockAdjustmentDetailQuantity) adjs
 
-
-
-
 saveStockAdj :: FormParam -> [PreAdjust] -> Handler (Widget)
 saveStockAdj FormParam{..} pres' = do
   now  <- liftIO getCurrentTime
   userId <- requireAuthId
   -- we Only keep adjustment which are active
+  -- we also need to adjust the quantity on hand
+  -- according to the before/after quantities
   let pres = filter ((`elem` activeRows) . sku) pres'
   runDB $ do
     let adj = StockAdjustment (fromMaybe "" comment) now Pending userId
     adjKey <- insert adj
 
-    let adjs = concatMap (computeAdj modulo adjKey) pres
+    let adjs = concatMap (computeAdj quantityBefore modulo adjKey) pres
     insertMany_ adjs
 
     -- update stock take
@@ -510,7 +518,7 @@ postWHStockAdjustmentToFAR key = do
                                                   ]
                     ]
        
-      setSuccess "Stock adjusments have been processed sucessfully"
+      setSuccess "Stock adjustments have been processed sucessfully"
       getWHStockAdjustmentR
 
   
@@ -541,7 +549,7 @@ preToOriginal modulo pre = (OriginalQuantities qtake (qoh-before) qlost modulo ,
   -- | We want to pass the original quantities (without move) to the data- in html
   -- however the badges needs to be computed as if
   -- the "before" select boxes needs have been selected
-toOrigAndBadges modulo pre = (orig, computeBadges orig {qoh = qoh orig + before}, before)
+toOrigAndBadges modulo pre = traceShowId (orig, computeBadges orig {qoh = qoh orig + before}, before)
   where (orig, before) = preToOriginal modulo pre
 
 -- * To FA
