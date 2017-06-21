@@ -24,7 +24,9 @@ prepareDB = do
         insertMany_ [ (Stocktake sku qty sku  1 defLoc
                                  (fromGregorian 2017 05 26)
                             True jack Nothing doc [] Nothing) :: Stocktake
-                    | (sku, qty) <- [("A", 5), ("B", 7), ("C", 14), ("Before", 4), ("After", 4)]
+                    | (sku, qty) <- [("A", 5), ("B", 7), ("C", 14)
+                                    , ("Before", 4), ("After", 4), ("Before'" , 4), ("After'", 4)
+                                    ]
                     ]
 
 lengthShouldBe' filter all expected = do
@@ -44,7 +46,7 @@ postAdjustment modulo sku def lost = do
     when (def >( 0 :: Double)) $ do
       insert_ $ StockMove 1 sku 1 "DEF" (fromGregorian 2016 05 25) Nothing 0 "" def 0 0 True
     when (lost >( 0 :: Double)) $ do
-      insert_ $ StockMove 1 sku 1 "LOST" (fromGregorian 2017 05 25) Nothing 0 "" lost 0 0 True
+      insert_ $ StockMove 1 sku 1 "LOST" (fromGregorian 2016 05 25) Nothing 0 "" lost 0 0 True
     insert_ $ StockMove 1 "Before" 1 "DEF" (fromGregorian 2017 05 25) Nothing 0 "" (-1) 0 0 True
     insert_ $ StockMove 1 "After" 1 "DEF" (fromGregorian 2017 05 25) Nothing 0 "" (-1) 0 0 True
     insert_ $ StockMove 1 "Before'" 1 "DEF" (fromGregorian 2017 05 27) Nothing 0 "" (-1) 0 0 True
@@ -61,7 +63,7 @@ postAdjustment modulo sku def lost = do
     forM modulo $ \m -> byLabel "modulo" (tshow (m :: Int))
     addPostParam "action" "save"
     mapM_ (\sku' -> addPostParam ("active-"<>sku') (if sku' == sku then "on" else "" ))
-          ["A", "B", "C", "Before", "After"]
+          ["A", "B", "C", "Before", "After", "Before'", "After'"]
     addPostParam "Before" "-1"
     addPostParam "After" "0"
     addPostParam "Before'" "-1"
@@ -73,7 +75,7 @@ postAdjustment modulo sku def lost = do
 appSpec = withAppWipe BypassAuth $ describe "StockAdjustment" $ do
   context "without modulo" $ do
     it "create missing adjustment" $ do
-      postAdjustment (Nothing :: Maybe Int) ("A" ) 5 (0)
+      postAdjustment (Nothing :: Maybe Int) ("A" ) 6 (0)
       [ StockAdjustmentDetailStockId ==. "A"
         , StockAdjustmentDetailQuantity ==. 1
         , StockAdjustmentDetailFrom ==. (Just defLoc)

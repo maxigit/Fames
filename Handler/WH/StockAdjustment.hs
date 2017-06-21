@@ -313,7 +313,7 @@ quantitiesFor loc (Single sku, Single take, Single date, Single comment) = do
       toMove (Single date, Single debtor, Single operators, Single qty) = MoveInfo date debtor operators qty
                     
   (results, moves) <- runDB $ do
-    results <- rawSql sql [PersistText sku, PersistDay maxDate, PersistText loc]
+    results <- rawSql sql [PersistText sku, PersistDay date, PersistText loc]
     moves <- rawSql sqlForMoves [PersistText sku, PersistDay minDate, PersistDay maxDate, PersistText loc]
     return (results , moves)
 
@@ -549,7 +549,7 @@ preToOriginal modulo pre = (OriginalQuantities qtake (qoh-before) qlost modulo ,
   -- | We want to pass the original quantities (without move) to the data- in html
   -- however the badges needs to be computed as if
   -- the "before" select boxes needs have been selected
-toOrigAndBadges modulo pre = traceShowId (orig, computeBadges orig {qoh = qoh orig + before}, before)
+toOrigAndBadges modulo pre = (orig, computeBadges orig {qoh = qoh orig + before}, before)
   where (orig, before) = preToOriginal modulo pre
 
 -- * To FA
