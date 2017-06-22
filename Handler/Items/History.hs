@@ -48,7 +48,7 @@ historyToTable events = let
 
 valueFor :: ItemEvent -> Text -> Maybe (Html, [Text])
 valueFor (ItemEvent opM (Left (FA.StockMove{..})) qoh)  col = case col of
-  "Type" -> Just ("not implemented", ["bg-danger"]) -- _xxx (stockMoveType)
+  "Type" -> Just (showTransType $ toEnum stockMoveType, [])
   "#" -> Just (toHtml (tshow stockMoveTransNo), [])
   "Reference" -> Just (toHtml (stockMoveReference), [])
   "Location" -> Just (toHtml (stockMoveLocCode), [])
@@ -60,8 +60,8 @@ valueFor (ItemEvent opM (Left (FA.StockMove{..})) qoh)  col = case col of
 
 valueFor (ItemEvent opM (Right (Entity key (Stocktake{..}))) qoh) col = let
   diff = qoh - fromIntegral stocktakeQuantity
-  found = max 0 diff
-  lost = max 0 (-diff)
+  lost = max 0 diff
+  found = max 0 (-diff)
   in case col of
   "Type" -> Just ("Stocktake", [])
   "#" -> Just (toHtml . unSqlBackendKey . unStocktakeKey $ key, [])
@@ -93,7 +93,7 @@ makeEvents moves takes = let
 
 
 
-loadMoves sku = selectList [FA.StockMoveStockId ==. sku] [Asc FA.StockMoveTranDate, Asc FA.StockMoveId]
+loadMoves sku = selectList [FA.StockMoveStockId ==. sku, FA.StockMoveLocCode ==. "DEF"] [Asc FA.StockMoveTranDate, Asc FA.StockMoveId]
 loadTakes sku = selectList [StocktakeStockId ==. sku] [Asc StocktakeDate]
 
 
