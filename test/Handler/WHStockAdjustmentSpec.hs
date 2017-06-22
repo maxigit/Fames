@@ -38,6 +38,11 @@ lengthShouldBe' filter all expected = do
 
 lengthShouldBe filter expected = lengthShouldBe' filter expected expected
 
+printAdjustments = do
+  adjs <- runDB $ selectList [] []
+  mapM_ (print. entityVal) (adjs :: [Entity StockAdjustmentDetail])
+
+
 postAdjustment modulo sku def lost = do
   logAsAdmin
   prepareDB
@@ -172,6 +177,71 @@ appSpec = withAppWipe BypassAuth $ describe "StockAdjustment" $ do
         , StockAdjustmentDetailFrom ==. Nothing
         , StockAdjustmentDetailTo ==. (Just defLoc)
         ] `lengthShouldBe'` 2 $ 1
+  context "many moves (bugs)" $ do
+    -- In this case the stock take has been correct
+    -- but multiple pickings induceds a fake stocktake
+    -- the initial QOH is 8
+    -- someone picked 1 leaving 7
+    -- the second picker notice there is only 7 (which is correct) instead of 8
+    -- We therefore get a stocktake for 7.
+    -- In this case the first move (pick) has been done before the stocktake of 7
+    -- whereas the second moves has been done after.
+    -- A post with -1 before should not generate any moves
+    let postA qBefores = do
+            logAsAdmin
+            Just (Entity userId user) <- runDB $  selectFirst [] []
+            let types = user :: User
+            
+            processedAt <- liftIO getCurrentTime
+            runDB $ do
+              Just jack <- insertUnique $ Operator "John" "Smith" "Jack" True
+              Just doc <- insertUnique $ DocumentKey "key" "test" "ref0" "" userId  processedAt
+              insertMany_ [ (Stocktake sku qty sku  1 defLoc
+                                       (fromGregorian 2017 06 21)
+                                  True jack Nothing doc [] Nothing) :: Stocktake
+                          | (sku, qty) <- [("Bug", 7)]
+                          ]
+            runDB $ do
+              deleteWhere [StockMoveStockId ==. "Bug"]
+              insert_ $ StockMove 1 "Bug" 1 "DEF" (fromGregorian 2016 05 25) Nothing 0 "" 8 0 0 True
+              insert_ $ StockMove 1 "Bug" 1 "DEF" (fromGregorian 2017 06 21) Nothing 0 "" (-1) 0 0 True
+              insert_ $ StockMove 1 "Bug" 1 "DEF" (fromGregorian 2017 06 21) Nothing 0 "" (-1) 0 0 True
+            get (WarehouseR WHStockAdjustmentR)
+            statusIs 200
+            request $ do
+              setMethod "POST"
+              setUrl (WarehouseR WHStockAdjustmentR)
+              addToken_ "form#stock-adjustement"
+              addPostParam "f2" "no" -- download
+              byLabel "sort by" (tshow $ 1)
+              byLabel "mode" (tshow $ 3)
+              byLabel "modulo" "6"
+              addPostParam "action" "save"
+              addPostParam "active-Bug" "on"
+              mapM_ (addPostParam "Bug") (map tshow qBefores)
+            statusIs 200
+    it "new one" $ do
+      postA [-1, -1]
+      printAdjustments
+      [ StockAdjustmentDetailStockId ==. "Bug"
+        , StockAdjustmentDetailQuantity ==. 1
+        , StockAdjustmentDetailFrom ==. Nothing
+        , StockAdjustmentDetailTo ==. (Just defLoc)
+        ] `lengthShouldBe` 1
+    it "nothing happend" $ do
+      postA [-1,0]
+      [ StockAdjustmentDetailStockId ==. "Bug"
+        ] `lengthShouldBe` 0
+      printAdjustments
+    it "lose one" $ do
+      postA [0,0]
+      printAdjustments
+      [ StockAdjustmentDetailStockId ==. "Bug"
+        , StockAdjustmentDetailQuantity ==. 1
+        , StockAdjustmentDetailFrom ==. (Just defLoc)
+        , StockAdjustmentDetailTo ==. (Just lostLoc)
+        ] `lengthShouldBe` 1
+    
       
           
 
