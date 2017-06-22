@@ -90,9 +90,13 @@ getActiveRows params =
       skusToKeep = [drop prefixLength  sku | (sku, checked) <- params, checked == "on" ]
   in Set.fromList (skusToKeep)
 
+-- | Create a map Sku -> quantities selected from the postParams
 getQuantityBefore :: [(Text, Text)] -> Map Text Int
-getQuantityBefore params = Map.fromList $ mapMaybe (traverse readMay) params
-
+getQuantityBefore params = 
+  -- The same sku can appears more than once with different quantities
+  -- We need to sum those quantites ()
+  let sku'qtys = mapMaybe (traverse readMay) params
+  in Map.fromListWith (+) sku'qtys
 getWHStockAdjustmentR :: Handler Html
 getWHStockAdjustmentR = do
   renderStockAdjustment
@@ -129,6 +133,7 @@ postWHStockAdjustmentR = do
         
 
   (pp, _) <- runRequestBody
+  -- traceShowM pp
   ((resp, view), encType) <- runFormPost (paramForm Save)
   case resp of
     FormMissing -> error "Form missing"
