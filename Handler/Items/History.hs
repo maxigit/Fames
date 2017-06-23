@@ -7,6 +7,7 @@ import Yesod.Form.Bootstrap3
 import qualified FA as FA
 import Database.Persist.MySQL(unSqlBackendKey)
 import Data.List (mapAccumL)
+import Text.Blaze.Html (ToMarkup)
 
 data FormParams = FormParams
   { pStart :: Maybe Day
@@ -37,7 +38,8 @@ loadHistory sku = do
 
 historyToTable :: [ItemEvent] -> Widget
 historyToTable events = let
-  columns = ["Type", "#", "Reference", "Location", "Date", "In", "Out", "Quantity On Hand", "Operator"]
+  columns = ["Type", "#", "Reference", "Location", "Date", "In", "Quantity On Hand", "Out", "Operator"]
+  -- columns = ["Type", "#", "Reference", "Location", "Date", "InOut", "Operator"]
   colDisplay col = (toHtml col, [])
   rows = [ (valueFor event, [])
          | event <- events
@@ -47,15 +49,23 @@ historyToTable events = let
   
 
 valueFor :: ItemEvent -> Text -> Maybe (Html, [Text])
+valueFor ie "InOut" = let
+  fromM = fromMaybe ("", [])
+  (in_, _) = fromM (valueFor ie "In")
+  (out, _) = fromM (valueFor ie "Out")
+  (qoh, k) = fromM (valueFor ie "Quantity On Hand")
+  in Just (in_ >> qoh >> out, k)
 valueFor (ItemEvent opM (Left (FA.StockMove{..})) qoh)  col = case col of
   "Type" -> Just (showTransType $ toEnum stockMoveType, [])
   "#" -> Just (toHtml (tshow stockMoveTransNo), [])
   "Reference" -> Just (toHtml (stockMoveReference), [])
   "Location" -> Just (toHtml (stockMoveLocCode), [])
   "Date" -> Just (toHtml (tshow stockMoveTranDate), [])
-  "In" -> if stockMoveQty > 0 then Just (toHtml $ tshow stockMoveQty, []) else Nothing
-  "Out" -> if stockMoveQty < 0 then Just (toHtml $ tshow (-stockMoveQty), []) else Nothing
-  "Quantity On Hand" -> Just (toHtml qoh, [])
+  "In" -> Just (badgeSpan' inBadge stockMoveQty "", [])
+  "Out" -> Just (badgeSpan' outBadge (-stockMoveQty) "", [])
+  "Quantity On Hand" -> Just ((badgeSpan' qohBadge (qoh - (max 0 stockMoveQty))  ""
+                              >> (badgeSpan' negBadge ((max 0 stockMoveQty) - qoh)  "")
+                              ), [])
   "Operator" -> Just ("Need operator", ["bg-danger"])
 
 valueFor (ItemEvent opM (Right (Entity key (Stocktake{..}))) qoh) col = let
@@ -68,12 +78,26 @@ valueFor (ItemEvent opM (Right (Entity key (Stocktake{..}))) qoh) col = let
   "Reference" -> Just (toHtml (stocktakeBarcode), [])
   "Location" -> Just (toHtml . FA.unLocationKey $ stocktakeFaLocation, [])
   "Date" -> Just (toHtml (tshow $ stocktakeDate), [])
-  "In" -> if found > 0 then Just (toHtml found, []) else Nothing
-  "Out" -> if lost > 0 then Just (toHtml lost, []) else Nothing
-  "Quantity On Hand" -> Just (toHtml stocktakeQuantity, []) 
+  "In" -> Just (badgeSpan' inBadge found "", [])
+  "Out" -> Just (badgeSpan' outBadge lost "", [])
+  "Quantity On Hand" -> Just (badgeSpan' qohBadge (fromIntegral stocktakeQuantity) "", [])
   "Operator" -> Just ("Need operator", ["bg-danger"])
 
 
+-- badgeSpan' :: (Num a, Ord a, ToMarkup a)  => a -> Maybe String -> String -> Html
+badgeSpan' :: Maybe String -> Double -> String -> Html
+badgeSpan' bgM qty klass =
+  badgeSpan badgeWidth qty bgM klass
+
+qohBadge = Just "#29abe0"
+inBadge = Nothing
+outBadge = Just "#d9534f"
+negBadge = Just "#000000"
+
+
+
+badgeWidth q | q <= 0 = Nothing
+             | otherwise = Just . (max 2) . floor $ (min (q / 6) 24) 
 
 makeEvents moves takes = let
   moves' = [ ((FA.stockMoveTranDate move, fromIntegral $ FA.unStockMoveKey key), Left move)
