@@ -12,6 +12,7 @@ module Import.NoFoundation
     , (<$$>), (<$$$>), (<$$$$>)
     , formatAmount
     , formatDouble
+    , formatQuantity
     , showTransType
     ) where
 
@@ -72,6 +73,8 @@ infixl 4 <$$>, <$$$>, <$$$$>
 -- formatAmount :: Amount -> Text
 formatAmount = (\t -> t :: String) .  printf "" . (\x -> x :: Double) .  fromRational
 formatDouble = (\t -> t :: String) .  printf "%0.2f"
+formatQuantity = strip0 . (\t -> t :: String) .  printf "%0.2f" where
+  strip0 s = fromMaybe s (stripSuffix ".00" s)
 
 -- * FA utilit
 showTransType ST_JOURNAL = "Journal Entry"

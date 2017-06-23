@@ -8,6 +8,8 @@ import qualified FA as FA
 import Database.Persist.MySQL(unSqlBackendKey)
 import Data.List (mapAccumL)
 import Text.Blaze.Html (ToMarkup)
+import qualified Data.Map as Map
+import Data.Time(addDays)
 
 data FormParams = FormParams
   { pStart :: Maybe Day
@@ -25,8 +27,9 @@ getItemsHistoryR sku = do
 -- data ItemEvent = ItemEvent deriving Show
 data ItemEvent = ItemEvent
  { ieOperator :: Maybe Operator
- , ieEvent :: Either FA.StockMove (Entity Stocktake)
+ , ieEvent :: Either FA.StockMove [Entity Stocktake]
  , ieQoh :: Double
+ , ieStocktake :: Maybe Double
  }
 
  
@@ -38,7 +41,7 @@ loadHistory sku = do
 
 historyToTable :: [ItemEvent] -> Widget
 historyToTable events = let
-  columns = ["Type", "#", "Reference", "Location", "Date", "In", "Quantity On Hand", "Out", "Operator"]
+  columns = ["Type", "#", "Reference", "Location", "Date", "InOut", "Quantity On Hand", "Stocktake", "Operator"]
   -- columns = ["Type", "#", "Reference", "Location", "Date", "InOut", "Operator"]
   colDisplay col = (toHtml col, [])
   rows = [ (valueFor event, [])
@@ -49,13 +52,25 @@ historyToTable events = let
   
 
 valueFor :: ItemEvent -> Text -> Maybe (Html, [Text])
-valueFor ie "InOut" = let
+valueFor ie "InOutQ" = let
   fromM = fromMaybe ("", [])
   (in_, _) = fromM (valueFor ie "In")
   (out, _) = fromM (valueFor ie "Out")
   (qoh, k) = fromM (valueFor ie "Quantity On Hand")
   in Just (in_ >> qoh >> out, k)
-valueFor (ItemEvent opM (Left (FA.StockMove{..})) qoh)  col = case col of
+valueFor ie "InOut" = let
+  fromM = fromMaybe ("", [])
+  (in_, k) = fromM (valueFor ie "In")
+  (out, _) = fromM (valueFor ie "Out")
+  in Just (in_ >> out, k)
+valueFor (ItemEvent opM _ qoh stake) "Quantity On Hand" =
+  let found = (fromMaybe 0 stake - qoh)
+  in Just (toHtml (formatQuantity qoh) >> badgeSpan' inBadge found "", [])
+valueFor (ItemEvent opM _ qoh (Just stake)) "Stocktake" =
+  let lost = (qoh - stake)
+  in Just (toHtml (formatQuantity stake) >> badgeSpan' outBadge lost "", [])
+valueFor (ItemEvent _ _ _ Nothing) "Stocktake" = Nothing
+valueFor (ItemEvent opM (Left (FA.StockMove{..})) qoh stake)  col = case col of
   "Type" -> Just (showTransType $ toEnum stockMoveType, [])
   "#" -> Just (toHtml (tshow stockMoveTransNo), [])
   "Reference" -> Just (toHtml (stockMoveReference), [])
@@ -63,12 +78,9 @@ valueFor (ItemEvent opM (Left (FA.StockMove{..})) qoh)  col = case col of
   "Date" -> Just (toHtml (tshow stockMoveTranDate), [])
   "In" -> Just (badgeSpan' inBadge stockMoveQty "", [])
   "Out" -> Just (badgeSpan' outBadge (-stockMoveQty) "", [])
-  "Quantity On Hand" -> Just ((badgeSpan' qohBadge (qoh - (max 0 stockMoveQty))  ""
-                              >> (badgeSpan' negBadge ((max 0 stockMoveQty) - qoh)  "")
-                              ), [])
   "Operator" -> Just ("Need operator", ["bg-danger"])
 
-valueFor (ItemEvent opM (Right (Entity key (Stocktake{..}))) qoh) col = let
+valueFor (ItemEvent opM (Right takes@((Entity key Stocktake{..}):_)) qoh stake) col = let
   diff = qoh - fromIntegral stocktakeQuantity
   lost = max 0 diff
   found = max 0 (-diff)
@@ -80,7 +92,6 @@ valueFor (ItemEvent opM (Right (Entity key (Stocktake{..}))) qoh) col = let
   "Date" -> Just (toHtml (tshow $ stocktakeDate), [])
   "In" -> Just (badgeSpan' inBadge found "", [])
   "Out" -> Just (badgeSpan' outBadge lost "", [])
-  "Quantity On Hand" -> Just (badgeSpan' qohBadge (fromIntegral stocktakeQuantity) "", [])
   "Operator" -> Just ("Need operator", ["bg-danger"])
 
 
@@ -100,18 +111,24 @@ badgeWidth q | q <= 0 = Nothing
              | otherwise = Just . (max 2) . floor $ (min (q / 6) 24) 
 
 makeEvents moves takes = let
-  moves' = [ ((FA.stockMoveTranDate move, fromIntegral $ FA.unStockMoveKey key), Left move)
+  moves' = [ ((FA.stockMoveTranDate move, 0, fromIntegral $ FA.unStockMoveKey key), Left move)
            | (Entity key move) <- moves
            ]
-  takes' = [ ((stocktakeDate $ entityVal take , unSqlBackendKey . unStocktakeKey $ entityKey take), Right take)
-           | take <- takes
+  -- we need to group stocktake by document id, as a stock take correspond to a box
+  -- therefore, to have the total number stock take we need to regroup them.
+  -- If they don't have the same date, we use the last one,
+  takesByKey = Map.fromListWith (++) [(unDocumentKeyKey $ stocktakeDocumentKey (entityVal take), [take]) | take <- takes]
+  takes' = [((date, 1, key ), Right ts)
+           | (key, ts) <- Map.toList takesByKey
+           , let date = maximumEx $ map (stocktakeDate . entityVal) ts
            ]
   lines =  map snd $ sortBy (comparing fst) (moves' ++ takes')
-  events = snd $  mapAccumL accumEvent 0 lines 
-  accumEvent qoh e@(Left move) = (newQoh, ItemEvent Nothing e newQoh) where
+  events = snd $  mapAccumL accumEvent (0, Nothing) lines 
+  accumEvent (qoh, stake) e@(Left move) = ((newQoh, newTake), ItemEvent Nothing e newQoh newTake) where
     newQoh = qoh + FA.stockMoveQty move
-  accumEvent qoh e@(Right take ) = (qoh, ItemEvent Nothing e qoh) where
-    newQoh = fromIntegral .  stocktakeQuantity . entityVal $ take
+    newTake = (+FA.stockMoveQty move) <$> stake
+  accumEvent (qoh, _) e@(Right takes ) = ((qoh, newTake), ItemEvent Nothing e qoh newTake) where
+                                             newTake = Just . fromIntegral . sum $ map (stocktakeQuantity . entityVal) takes
     
   in events
 
