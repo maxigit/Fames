@@ -27,11 +27,18 @@ getItemsHistoryR sku = do
 -- data ItemEvent = ItemEvent deriving Show
 data ItemEvent = ItemEvent
  { ieOperator :: Maybe Operator
- , ieEvent :: Either FA.StockMove [Entity Stocktake]
+ , ieEvent :: Either FA.StockMove Adjustment
  , ieQoh :: Double
  , ieStocktake :: Maybe Double
+ , ieMod :: Double -- ^ quantity added to topup partial stock take 
  }
 
+-- | Local type which contains a group of stocktake
+-- and the corresponding adjustment detail if any
+data Adjustment = Adjustment
+  { aAdj :: Maybe StockAdjustmentDetail
+  , aTakes :: [Entity Stocktake]
+  }
  
 loadHistory :: Text -> Handler [ItemEvent]
 loadHistory sku = do
@@ -63,19 +70,21 @@ valueFor ie "InOut" = let
   (in_, k) = fromM (valueFor ie "In")
   (out, _) = fromM (valueFor ie "Out")
   in Just (in_ >> out, k)
-valueFor (ItemEvent opM _ qoh stake) "Quantity On Hand" =
-  let found = (fromMaybe 0 stake - qoh)
-  in Just (toHtml (formatQuantity qoh) >> badgeSpan' inBadge found "", [])
-valueFor (ItemEvent opM ie qoh (Just stake)) "Stocktake" =
-  let lost = (qoh - stake)
+valueFor (ItemEvent opM _ qoh stake mod) "Quantity On Hand" =
+  let found = (fromMaybe 0 stake + mod - qoh)
+  in Just (toHtml (formatQuantity qoh)
+           >> badgeSpan' modBadge (- mod) ""
+           >> badgeSpan' inBadge found "", [])
+valueFor (ItemEvent opM ie qoh (Just stake) mod) "Stocktake" =
+  let lost = (qoh - stake - mod)
       -- on a stocktake columen display a colour either or good or bad if the stocktake is correct
       stake' = case ie of
         Left _ -> toHtml (formatQuantity stake)
         Right _ -> badgeSpan' (if lost == 0 then qohBadge else negBadge) stake ""
      
-  in Just (stake' >> badgeSpan' outBadge lost "", [])
-valueFor (ItemEvent _ _ _ Nothing) "Stocktake" = Nothing
-valueFor (ItemEvent opM (Left (FA.StockMove{..})) qoh stake)  col = case col of
+  in Just (stake' >> badgeSpan' modBadge mod "" >>  badgeSpan' outBadge lost "", [])
+valueFor (ItemEvent _ _ _ Nothing _) "Stocktake" = Nothing
+valueFor (ItemEvent opM (Left (FA.StockMove{..})) qoh stake _)  col = case col of
   "Type" -> Just (showTransType $ toEnum stockMoveType, [])
   "#" -> Just (toHtml (tshow stockMoveTransNo), [])
   "Reference" -> Just (toHtml (stockMoveReference), [])
@@ -85,13 +94,14 @@ valueFor (ItemEvent opM (Left (FA.StockMove{..})) qoh stake)  col = case col of
   "Out" -> Just (badgeSpan' outBadge (-stockMoveQty) "", [])
   "Operator" -> Just ("Need operator", ["bg-danger"])
 
-valueFor (ItemEvent opM (Right takes@((Entity key Stocktake{..}):_)) qoh stake) col = let
+valueFor (ItemEvent opM (Right adj ) qoh stake _) col = let
+  Stocktake{..} = entityVal . headEx $ aTakes adj
   diff = 0 -- qoh - fromIntegral stocktakeQuantity
   lost = max 0 diff
   found = max 0 (-diff)
   in case col of
   "Type" -> Just ("Stocktake", [])
-  "#" -> Just (toHtml . unSqlBackendKey . unStocktakeKey $ key, [])
+  "#" -> (\a -> (toHtml . unSqlBackendKey . unStockAdjustmentKey $ stockAdjustmentDetailAdjustment a, [])) <$> aAdj adj
   "Reference" -> Just (toHtml (stocktakeBarcode), [])
   "Location" -> Just (toHtml . FA.unLocationKey $ stocktakeFaLocation, [])
   "Date" -> Just (toHtml (tshow $ stocktakeDate), [])
@@ -109,6 +119,7 @@ qohBadge = Just "#29abe0"
 inBadge = Nothing
 outBadge = Just "#d9534f"
 negBadge = Just "#000000"
+modBadge = Just "#cccccc"
 
 
 
@@ -119,17 +130,13 @@ makeEvents moves takes = let
   moves' = [ ((FA.stockMoveTranDate move, 0, fromIntegral $ FA.unStockMoveKey key), Left move)
            | (Entity key move) <- moves
            ]
-  -- we need to group stocktake by document id, as a stock take correspond to a box
-  -- therefore, to have the total number stock take we need to regroup them.
-  -- If they don't have the same date, we use the last one,
-  takesByKey = Map.fromListWith (++) [(unDocumentKeyKey $ stocktakeDocumentKey (entityVal take), [take]) | take <- takes]
-  takes' = [((date, 1, key ), Right ts)
-           | (key, ts) <- Map.toList takesByKey
+  takes' = [ ((date, 1, (undefined . stocktakeAdjustment  . entityVal $ headEx ts)), Right a)
+           | a@(Adjustment adj ts) <- takes
            , let date = maximumEx $ map (stocktakeDate . entityVal) ts
            ]
   lines =  map snd $ sortBy (comparing fst) (moves' ++ takes')
   events = snd $  mapAccumL accumEvent (0, Nothing) lines 
-  accumEvent (qoh, stake) e@(Left move) = ((newQoh, newTake), ItemEvent Nothing e newQoh newTake) where
+  accumEvent (qoh, stake) e@(Left move) = ((newQoh, newTake), ItemEvent Nothing e newQoh newTake 0) where
     newQoh = qoh + FA.stockMoveQty move
     -- We update accordinglinyg the expected stocktake 
     -- However, if the new qoh matches the (old) expected stocktake
@@ -137,19 +144,42 @@ makeEvents moves takes = let
     newTake = if stake == Just newQoh
               then Nothing
               else (+FA.stockMoveQty move) <$> stake
-  accumEvent (qoh, _) e@(Right takes ) = ((qoh, newTake), ItemEvent Nothing e qoh newTake) where
-                                             newTake = Just . fromIntegral . sum $ map (stocktakeQuantity . entityVal) takes
+  accumEvent (qoh, _) e@(Right takes ) =
+    ((qoh, (+mod) <$> newTake), ItemEvent Nothing e qoh newTake mod) where
+    newTake0 = fromIntegral . sum $ map (stocktakeQuantity . entityVal) (aTakes takes)
+    newTake = Just newTake0
+    mod = case aAdj takes of
+            Nothing -> 0
+            Just adj -> let
+                  lost = (if stockAdjustmentDetailFrom adj == Just (FA.LocationKey "DEF")
+                          then 1
+                          else -1) * stockAdjustmentDetailQuantity adj
+
+                  -- lost = qoh - stocktake - mod
+                  in qoh - newTake0 - fromIntegral lost
     
   in events
 
 
 
+-- loadMoves :: Text -> ReaderT backend m [Entity FA.StockMove]
 loadMoves sku = selectList [ FA.StockMoveStockId ==. sku
                            , FA.StockMoveLocCode ==. "DEF"
                            , FA.StockMoveQty !=. 0
                            ]
                            [Asc FA.StockMoveTranDate, Asc FA.StockMoveId]
-loadTakes sku = selectList [StocktakeStockId ==. sku] [Asc StocktakeDate]
+
+-- loadTakes :: Text -> ReaderT backend m [Adjustment]
+loadTakes sku = do
+  takes <- selectList [StocktakeStockId ==. sku] [Asc StocktakeDate]
+  -- join manual with the adjustment if any
+  details <- selectList [StockAdjustmentDetailStockId ==. sku] [Asc StockAdjustmentDetailId]
+  let takesByKey = Map.fromListWith (++) [(stocktakeAdjustment (entityVal take), [take]) | take <- takes]
+      detailsByKey = Map.fromList [(stockAdjustmentDetailAdjustment d, d) | (Entity _ d) <- details]
+
+  return [Adjustment (k >>= flip Map.lookup detailsByKey) ts | (k, ts) <- Map.toList takesByKey]
+
+
 
 
 
