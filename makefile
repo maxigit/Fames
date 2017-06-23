@@ -96,4 +96,4 @@ gen_tables:
 
 
 restart:
-  cd ..; docker-compose restart fames
+	cd ..; docker-compose restart fames

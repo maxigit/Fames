@@ -66,9 +66,14 @@ valueFor ie "InOut" = let
 valueFor (ItemEvent opM _ qoh stake) "Quantity On Hand" =
   let found = (fromMaybe 0 stake - qoh)
   in Just (toHtml (formatQuantity qoh) >> badgeSpan' inBadge found "", [])
-valueFor (ItemEvent opM _ qoh (Just stake)) "Stocktake" =
+valueFor (ItemEvent opM ie qoh (Just stake)) "Stocktake" =
   let lost = (qoh - stake)
-  in Just (toHtml (formatQuantity stake) >> badgeSpan' outBadge lost "", [])
+      -- on a stocktake columen display a colour either or good or bad if the stocktake is correct
+      stake' = case ie of
+        Left _ -> toHtml (formatQuantity stake)
+        Right _ -> badgeSpan' (if lost == 0 then qohBadge else negBadge) stake ""
+     
+  in Just (stake' >> badgeSpan' outBadge lost "", [])
 valueFor (ItemEvent _ _ _ Nothing) "Stocktake" = Nothing
 valueFor (ItemEvent opM (Left (FA.StockMove{..})) qoh stake)  col = case col of
   "Type" -> Just (showTransType $ toEnum stockMoveType, [])
@@ -81,7 +86,7 @@ valueFor (ItemEvent opM (Left (FA.StockMove{..})) qoh stake)  col = case col of
   "Operator" -> Just ("Need operator", ["bg-danger"])
 
 valueFor (ItemEvent opM (Right takes@((Entity key Stocktake{..}):_)) qoh stake) col = let
-  diff = qoh - fromIntegral stocktakeQuantity
+  diff = 0 -- qoh - fromIntegral stocktakeQuantity
   lost = max 0 diff
   found = max 0 (-diff)
   in case col of
@@ -108,7 +113,7 @@ negBadge = Just "#000000"
 
 
 badgeWidth q | q <= 0 = Nothing
-             | otherwise = Just . (max 2) . floor $ (min (q / 6) 24) 
+             | otherwise = Just . (max 2) . floor $ (min q  12) 
 
 makeEvents moves takes = let
   moves' = [ ((FA.stockMoveTranDate move, 0, fromIntegral $ FA.unStockMoveKey key), Left move)
@@ -126,7 +131,12 @@ makeEvents moves takes = let
   events = snd $  mapAccumL accumEvent (0, Nothing) lines 
   accumEvent (qoh, stake) e@(Left move) = ((newQoh, newTake), ItemEvent Nothing e newQoh newTake) where
     newQoh = qoh + FA.stockMoveQty move
-    newTake = (+FA.stockMoveQty move) <$> stake
+    -- We update accordinglinyg the expected stocktake 
+    -- However, if the new qoh matches the (old) expected stocktake
+    -- There is no point to carry on tracking the difference and we reset it.
+    newTake = if stake == Just newQoh
+              then Nothing
+              else (+FA.stockMoveQty move) <$> stake
   accumEvent (qoh, _) e@(Right takes ) = ((qoh, newTake), ItemEvent Nothing e qoh newTake) where
                                              newTake = Just . fromIntegral . sum $ map (stocktakeQuantity . entityVal) takes
     
@@ -134,7 +144,11 @@ makeEvents moves takes = let
 
 
 
-loadMoves sku = selectList [FA.StockMoveStockId ==. sku, FA.StockMoveLocCode ==. "DEF"] [Asc FA.StockMoveTranDate, Asc FA.StockMoveId]
+loadMoves sku = selectList [ FA.StockMoveStockId ==. sku
+                           , FA.StockMoveLocCode ==. "DEF"
+                           , FA.StockMoveQty !=. 0
+                           ]
+                           [Asc FA.StockMoveTranDate, Asc FA.StockMoveId]
 loadTakes sku = selectList [StocktakeStockId ==. sku] [Asc StocktakeDate]
 
 
