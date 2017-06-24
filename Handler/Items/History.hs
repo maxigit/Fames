@@ -36,7 +36,7 @@ data ItemEvent = ItemEvent
 -- | Local type which contains a group of stocktake
 -- and the corresponding adjustment detail if any
 data Adjustment = Adjustment
-  { aAdj :: Maybe StockAdjustmentDetail
+  { aAdj :: [StockAdjustmentDetail]
   , aTakes :: [Entity Stocktake]
   }
  
@@ -101,7 +101,7 @@ valueFor (ItemEvent opM (Right adj ) qoh stake _) col = let
   found = max 0 (-diff)
   in case col of
   "Type" -> Just ("Stocktake", [])
-  "#" -> (\a -> (toHtml . unSqlBackendKey . unStockAdjustmentKey $ stockAdjustmentDetailAdjustment a, [])) <$> aAdj adj
+  "#" -> (\a -> (toHtml . unSqlBackendKey . unStockAdjustmentKey $ stockAdjustmentDetailAdjustment a, [])) <$> headMay (aAdj adj)
   "Reference" -> Just (toHtml (stocktakeBarcode), [])
   "Location" -> Just (toHtml . FA.unLocationKey $ stocktakeFaLocation, [])
   "Date" -> Just (toHtml (tshow $ stocktakeDate), [])
@@ -149,11 +149,14 @@ makeEvents moves takes = let
     newTake0 = fromIntegral . sum $ map (stocktakeQuantity . entityVal) (aTakes takes)
     newTake = Just newTake0
     mod = case aAdj takes of
-            Nothing -> 0
-            Just adj -> let
-                  lost = (if stockAdjustmentDetailFrom adj == Just (FA.LocationKey "DEF")
-                          then 1
-                          else -1) * stockAdjustmentDetailQuantity adj
+            [] -> 0
+            details -> let
+                  lost = sum  [ (if stockAdjustmentDetailFrom adj == Just (FA.LocationKey "DEF")
+                                 then 1
+                                 else -1) * stockAdjustmentDetailQuantity adj
+                              | adj <- details
+                              ]
+
 
                   -- lost = qoh - stocktake - mod
                   in qoh - newTake0 - fromIntegral lost
@@ -175,9 +178,9 @@ loadTakes sku = do
   -- join manual with the adjustment if any
   details <- selectList [StockAdjustmentDetailStockId ==. sku] [Asc StockAdjustmentDetailId]
   let takesByKey = Map.fromListWith (++) [(stocktakeAdjustment (entityVal take), [take]) | take <- takes]
-      detailsByKey = Map.fromList [(stockAdjustmentDetailAdjustment d, d) | (Entity _ d) <- details]
+      detailsByKey = Map.fromListWith (++) [(stockAdjustmentDetailAdjustment d, [d]) | (Entity _ d) <- details]
 
-  return [Adjustment (k >>= flip Map.lookup detailsByKey) ts | (k, ts) <- Map.toList takesByKey]
+  return [Adjustment ( concat $ k >>= flip Map.lookup detailsByKey) ts | (k, ts) <- Map.toList takesByKey]
 
 
 

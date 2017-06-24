@@ -1,5 +1,5 @@
-* Todo History [0/4] <2017-06-24 Sat> 
-- [ ] Group Adjustment details
+* Todo History [1/6] <2017-06-24 Sat> 
+- [X] Group Adjustment details
 in case of new + found
 - [ ] move stock adjustment at the end of the day ?
 but not delivery
