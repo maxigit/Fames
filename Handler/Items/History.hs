@@ -44,6 +44,7 @@ data Move = Move
   { tMove :: FA.StockMove
   , tFrom :: Maybe Text -- ^ From location
   , tInfo :: Text
+  , tAdjId :: Maybe Int
   }
  
 loadHistory :: Text -> Handler [ItemEvent]
@@ -95,7 +96,7 @@ valueFor (ItemEvent opM ie qoh (Just stake) mod) "Stocktake" =
         Right _ -> badgeSpan' (if lost == 0 then qohBadge else negBadge) stake ""
   in Just (stake' >> badgeSpan' modBadge mod "" >>  badgeSpan' outBadge lost "", [])
 valueFor (ItemEvent _ _ _ Nothing _) "Stocktake" = Nothing
-valueFor (ItemEvent opM (Left (Move FA.StockMove{..} _ info)) qoh stake _)  col = case col of
+valueFor (ItemEvent opM (Left (Move FA.StockMove{..} _ info _)) qoh stake _)  col = case col of
   "Type" -> Just (showTransType $ toEnum stockMoveType, [])
   "#" -> Just (toHtml (tshow stockMoveTransNo), [])
   "Reference" -> Just (toHtml (stockMoveReference), [])
@@ -142,15 +143,9 @@ modBadge = Just "#cccccc"
 badgeWidth q | q <= 0 = Nothing
              | otherwise = Just . (max 2) . floor $ (min q  12) 
 
+makeEvents :: [(Key FA.StockMove, Move)] -> [Adjustment] -> [ItemEvent]
 makeEvents moves takes = let
-  moves' = [ ((FA.stockMoveTranDate (tMove move), 0, fromIntegral $ FA.unStockMoveKey key), Left move)
-           | (key, move) <- moves
-           ]
-  takes' = [ ((date, 1, (undefined . stocktakeAdjustment  . entityVal $ headEx ts)), Right a)
-           | a@(Adjustment adj ts) <- takes
-           , let date = maximumEx $ map (stocktakeDate . entityVal) ts
-           ]
-  lines =  map snd $ sortBy (comparing fst) (moves' ++ takes')
+  lines =  interleaveEvents moves takes
   events = snd $  mapAccumL accumEvent (0, Nothing) lines 
   accumEvent (qoh, stake) e@(Left move') = ((newQoh, newTake), ItemEvent Nothing e newQoh newTake 0) where
     move = tMove move'
@@ -162,9 +157,9 @@ makeEvents moves takes = let
                    , toEnum (FA.stockMoveType move)
                      `elem` [ST_CUSTCREDIT, ST_CUSTDELIVERY, ST_SUPPRECEIVE, ST_SUPPCREDIT]
                    ) of
-               (True, _ ) ->  stake
-               (False, True) -> (+FA.stockMoveQty move) <$> stake
-               (False, False)  -> stake
+               (True, False ) ->  stake
+               (False, False)  | FA.stockMoveQty move < 24 -> stake
+               _ -> (+FA.stockMoveQty move) <$> stake
   accumEvent (qoh, _) e@(Right takes ) =
     ((qoh, (+mod) <$> newTake), ItemEvent Nothing e qoh newTake mod) where
     newTake0 = fromIntegral . sum $ map (stocktakeQuantity . entityVal) (aTakes takes)
@@ -185,11 +180,28 @@ makeEvents moves takes = let
   in events
 
 
+-- | Moves coming from FrontAccounting and stocktakes from Fames
+-- needs to be interleaved.  Normally, we just need to sort moves by date and by id
+-- however, within the same day, adjustment needs to be move after the corresponding stocktakes.
+interleaveEvents :: [(Key FA.StockMove, Move)] -> [Adjustment] -> [Either Move Adjustment]
+interleaveEvents moves takes =  let
+  moves' = [ (( FA.stockMoveTranDate (tMove move)
+              , if isJust (tAdjId move)  then 3 else 0
+              , fromIntegral $ FA.unStockMoveKey key), Left move)
+           | (key, move) <- moves
+           ]
+  takes' = [ ((date, 1, (undefined . stocktakeAdjustment  . entityVal $ headEx ts)), Right a)
+           | a@(Adjustment adj ts) <- takes
+           , let date = maximumEx $ map (stocktakeDate . entityVal) ts
+           ]
+  in map snd $ sortBy (comparing fst) (moves' ++ takes')
+
+
 
 loadMoves :: MonadIO m => Text -> ReaderT SqlBackend m [(Key FA.StockMove, Move)]
 loadMoves sku = do
-  let sql = "SELECT ??, COALESCE(br_name, supp_name) FROM 0_stock_moves"
-            <> supp <> customer
+  let sql = "SELECT ??, COALESCE(br_name, supp_name), event_no FROM 0_stock_moves"
+            <> supp <> customer <> adj
             <>" WHERE stock_id = ? AND loc_code = 'DEF' AND qty != 0 "
             <> " ORDER BY tran_date, trans_id "
       supp = " LEFT JOIN 0_suppliers ON (type in (" <> (inTypes [ST_SUPPRECEIVE, ST_SUPPCREDIT]) 
@@ -197,12 +209,15 @@ loadMoves sku = do
       customer = " LEFT JOIN 0_debtor_trans dt ON (dt.type = 0_stock_moves.type AND dt.trans_no = 0_stock_moves.trans_no AND 0_stock_moves.type in (" <> inTypes [ST_CUSTCREDIT, ST_CUSTDELIVERY] <> ") ) "
                <> " LEFT JOIN 0_cust_branch cust ON (cust.branch_code = dt.branch_code "
                <> "                              AND cust.debtor_no = dt.debtor_no)"
+      adj =  " LEFT JOIN fames_transaction_map ON (fa_trans_no = 0_stock_moves.trans_no "
+             <> " AND fa_trans_type = 0_stock_moves.type "
+             <> "AND event_type = " <> tshow (fromEnum StockAdjustmentE) <> ")"
         
         
-  traceShowM sql
+  -- traceShowM sql
   moves <- rawSql sql [PersistText sku]
-  return [(key, Move move Nothing (fromMaybe "" (fmap decodeHtmlEntities info)))
-         | (Entity key move, Single info) <- moves ]
+  return [(key, Move move Nothing (fromMaybe "" (fmap decodeHtmlEntities info)) adj)
+         | (Entity key move, Single info, Single adj) <- moves ]
 
 loadTakes :: (MonadIO m) => Text -> ReaderT SqlBackend m [Adjustment]
 loadTakes sku = do
