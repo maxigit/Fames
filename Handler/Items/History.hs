@@ -48,7 +48,7 @@ loadHistory sku = do
 
 historyToTable :: [ItemEvent] -> Widget
 historyToTable events = let
-  columns = ["Type", "#", "Reference", "Location", "Date", "InOut", "Quantity On Hand", "Stocktake", "Operator"]
+  columns = ["Type", "#", "Reference", "Location", "Date", "Comment","InOut", "Quantity On Hand", "Stocktake", "Operator"]
   -- columns = ["Type", "#", "Reference", "Location", "Date", "InOut", "Operator"]
   colDisplay col = (toHtml col, [])
   rows = [ (valueFor event, [])
@@ -93,6 +93,7 @@ valueFor (ItemEvent opM (Left (FA.StockMove{..})) qoh stake _)  col = case col o
   "In" -> Just (badgeSpan' inBadge stockMoveQty "", [])
   "Out" -> Just (badgeSpan' outBadge (-stockMoveQty) "", [])
   "Operator" -> Just ("Need operator", ["bg-danger"])
+  "Comment" -> Just ("Need customer", ["bg-danger"])
 
 valueFor (ItemEvent opM (Right adj ) qoh stake _) col = let
   Stocktake{..} = entityVal . headEx $ aTakes adj
@@ -108,6 +109,7 @@ valueFor (ItemEvent opM (Right adj ) qoh stake _) col = let
   "In" -> Just (badgeSpan' inBadge found "", [])
   "Out" -> Just (badgeSpan' outBadge lost "", [])
   "Operator" -> Just ("Need operator", ["bg-danger"])
+  "Comment" -> (,[]) . toHtml <$> stocktakeComment
 
 
 -- badgeSpan' :: (Num a, Ord a, ToMarkup a)  => a -> Maybe String -> String -> Html

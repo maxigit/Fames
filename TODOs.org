@@ -1,6 +1,9 @@
 * Todo History [1/6] <2017-06-24 Sat> 
 - [X] Group Adjustment details
 in case of new + found
+- [ ] don't update stocktake on stock adjusment
+The problem is to differentiate genuine loc transfer
+from delivery
 - [ ] move stock adjustment at the end of the day ?
 but not delivery
 - [ ] try clever algo to reorder moves within a day
