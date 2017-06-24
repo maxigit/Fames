@@ -150,9 +150,13 @@ makeEvents moves takes = let
     -- We update accordinglinyg the expected stocktake 
     -- However, if the new qoh matches the (old) expected stocktake
     -- There is no point to carry on tracking the difference and we reset it.
-    newTake = if stake == Just newQoh
-              then Nothing
-              else (+FA.stockMoveQty move) <$> stake
+    newTake = case ( stake == Just newQoh
+                   , toEnum (FA.stockMoveType move)
+                     `elem` [ST_CUSTCREDIT, ST_CUSTDELIVERY, ST_SUPPRECEIVE, ST_SUPPCREDIT]
+                   ) of
+               (True, _ ) ->  Nothing
+               (False, True) -> (+FA.stockMoveQty move) <$> stake
+               (False, False)  -> stake
   accumEvent (qoh, _) e@(Right takes ) =
     ((qoh, (+mod) <$> newTake), ItemEvent Nothing e qoh newTake mod) where
     newTake0 = fromIntegral . sum $ map (stocktakeQuantity . entityVal) (aTakes takes)
