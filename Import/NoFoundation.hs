@@ -14,6 +14,7 @@ module Import.NoFoundation
     , formatDouble
     , formatQuantity
     , showTransType
+    , decodeHtmlEntities
     ) where
 
 import ClassyPrelude.Yesod as Import
@@ -26,6 +27,7 @@ import SharedTypes as Import
 import Yesod.Auth as Import
 import Yesod.Core.Types as Import (loggerSet)
 import Yesod.Default.Config2 as Import
+import qualified Text.HTML.TagSoup as TS
 
 
 import Text.Printf(printf)
@@ -99,3 +101,7 @@ showTransType ST_SALESORDER = "Sales Order"
 showTransType ST_SALESQUOTE = "Sales Quote"
 showTransType ST_COSTUPDATE = "Cost Update"
 showTransType ST_DIMENSION = "Dimensions"
+
+-- * Html 
+decodeHtmlEntities :: Text -> Text
+decodeHtmlEntities s = TS.fromTagText $ headEx $ TS.parseTags s

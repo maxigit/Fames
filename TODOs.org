@@ -1,16 +1,18 @@
-* Todo History [2/9] <2017-06-24 Sat> 
+* Todo History [3/9] <2017-06-24 Sat> 
 - [X] Group Adjustment details
 in case of new + found
 - [ ] don't update stocktake on stock adjusment
+Done. but bugged
 The problem is to differentiate genuine loc transfer
-from delivery
+from delivery. Need from location
 - [ ] move stock adjustment at the end of the day ?
 but not delivery
 - [ ] try clever algo to reorder moves within a day
-- [ ] Add customer name
+- [X] Add customer name
 - [X] Add supplier name
 - [ ] Add loc from 
 - [ ] add operator
+  - [ ] stocktake
   - [ ] pick 
   - [ ] pack
 - [ ] display in blue when adjustment matches stocktake

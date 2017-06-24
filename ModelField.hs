@@ -108,6 +108,8 @@ instance PersistField FATransType where
   fromPersistValue = map toEnum . fromPersistValue
 
 
+inTypes :: [FATransType] -> Text
+inTypes types = intercalate "," $ map (tshow . fromEnum) types
   
 
 

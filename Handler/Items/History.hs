@@ -123,7 +123,7 @@ valueFor (ItemEvent opM (Right adj ) qoh stake _) col = let
   "In" -> Just (badgeSpan' inBadge found "", [])
   "Out" -> Just (badgeSpan' outBadge lost "", [])
   "Operator" -> Just ("Need operator", ["bg-danger"])
-  "Info" -> (,[]) . toHtml <$> stocktakeComment
+  "Info" -> (,[]) . toHtml . decodeHtmlEntities <$> stocktakeComment
 
 
 -- badgeSpan' :: (Num a, Ord a, ToMarkup a)  => a -> Maybe String -> String -> Html
@@ -140,7 +140,7 @@ modBadge = Just "#cccccc"
 
 
 badgeWidth q | q <= 0 = Nothing
-             | otherwise = Just 2 --  Just . (max 2) . floor $ (min q  12) 
+             | otherwise = Just . (max 2) . floor $ (min q  12) 
 
 makeEvents moves takes = let
   moves' = [ ((FA.stockMoveTranDate (tMove move), 0, fromIntegral $ FA.unStockMoveKey key), Left move)
@@ -186,22 +186,25 @@ makeEvents moves takes = let
 
 
 
--- loadMoves :: Text -> ReaderT backend m [Entity FA.StockMove]
+loadMoves :: MonadIO m => Text -> ReaderT SqlBackend m [(Key FA.StockMove, Move)]
 loadMoves sku = do
-  let sql = "SELECT ??, supp_name FROM 0_stock_moves"
-            <> supp
+  let sql = "SELECT ??, COALESCE(br_name, supp_name) FROM 0_stock_moves"
+            <> supp <> customer
             <>" WHERE stock_id = ? AND loc_code = 'DEF' AND qty != 0 "
             <> " ORDER BY tran_date, trans_id "
-      supp = " LEFT JOIN 0_suppliers ON (type in (" <> ((intercalate "," $ map (tshow . fromEnum)
-                                                          [ST_SUPPRECEIVE, ST_SUPPCREDIT]) :: Text)
+      supp = " LEFT JOIN 0_suppliers ON (type in (" <> (inTypes [ST_SUPPRECEIVE, ST_SUPPCREDIT]) 
              <> "                         ) AND person_id = supplier_id) "
+      customer = " LEFT JOIN 0_debtor_trans dt ON (dt.type = 0_stock_moves.type AND dt.trans_no = 0_stock_moves.trans_no AND 0_stock_moves.type in (" <> inTypes [ST_CUSTCREDIT, ST_CUSTDELIVERY] <> ") ) "
+               <> " LEFT JOIN 0_cust_branch cust ON (cust.branch_code = dt.branch_code "
+               <> "                              AND cust.debtor_no = dt.debtor_no)"
         
         
+  traceShowM sql
   moves <- rawSql sql [PersistText sku]
-  return [(key, Move move Nothing (fromMaybe "" info))
+  return [(key, Move move Nothing (fromMaybe "" (fmap decodeHtmlEntities info)))
          | (Entity key move, Single info) <- moves ]
 
--- loadTakes :: Text -> ReaderT backend m [Adjustment]
+loadTakes :: (MonadIO m) => Text -> ReaderT SqlBackend m [Adjustment]
 loadTakes sku = do
   takes <- selectList [StocktakeStockId ==. sku] [Asc StocktakeDate]
   -- join manual with the adjustment if any
