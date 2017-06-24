@@ -76,18 +76,23 @@ valueFor ie "InOut" = let
   (in_, k) = fromM (valueFor ie "In")
   (out, _) = fromM (valueFor ie "Out")
   in Just (in_ >> out, k)
-valueFor (ItemEvent opM _ qoh stake mod) "Quantity On Hand" =
+valueFor (ItemEvent opM ie qoh stake mod) "Quantity On Hand" =
   let found = (fromMaybe 0 stake + mod - qoh)
-  in Just (toHtml (formatQuantity qoh)
-           >> badgeSpan' modBadge (- mod) ""
-           >> badgeSpan' inBadge found "", [])
+  -- if a stock adjustment result in matching the stocktake  : badge
+  in case ie of
+       (Left move) | (toEnum . FA.stockMoveType $ tMove move) `elem` [ST_LOCTRANSFER, ST_INVADJUST]
+                      && found == 0
+                      && mod == 0 -> Just (badgeSpan' qohBadge qoh "", [])
+       _ -> Just (toHtml (formatQuantity qoh)
+                  >> badgeSpan' modBadge (- mod) ""
+                  >> badgeSpan' inBadge found "", [])
 valueFor (ItemEvent opM ie qoh (Just stake) mod) "Stocktake" =
   let lost = (qoh - stake - mod)
-      -- on a stocktake columen display a colour either or good or bad if the stocktake is correct
       stake' = case ie of
-        Left _ -> toHtml (formatQuantity stake)
+        Left _ -> if stake == qoh
+                  then [shamlet|<span style="color:#29abe0;"> #{formatQuantity stake}|]
+                  else toHtml (formatQuantity stake)
         Right _ -> badgeSpan' (if lost == 0 then qohBadge else negBadge) stake ""
-     
   in Just (stake' >> badgeSpan' modBadge mod "" >>  badgeSpan' outBadge lost "", [])
 valueFor (ItemEvent _ _ _ Nothing _) "Stocktake" = Nothing
 valueFor (ItemEvent opM (Left (Move FA.StockMove{..} _ info)) qoh stake _)  col = case col of
@@ -96,7 +101,10 @@ valueFor (ItemEvent opM (Left (Move FA.StockMove{..} _ info)) qoh stake _)  col 
   "Reference" -> Just (toHtml (stockMoveReference), [])
   "Location" -> Just (toHtml (stockMoveLocCode), [])
   "Date" -> Just (toHtml (tshow stockMoveTranDate), [])
-  "In" -> Just (badgeSpan' inBadge stockMoveQty "", [])
+  "In" -> let bg = if toEnum stockMoveType == ST_LOCTRANSFER -- found
+                   then qohBadge
+                   else inBadge
+          in Just (badgeSpan' bg stockMoveQty "", [])
   "Out" -> Just (badgeSpan' outBadge (-stockMoveQty) "", [])
   "Operator" -> Just ("Need operator", ["bg-danger"])
   "Info" -> Just (toHtml info, [])
@@ -132,7 +140,7 @@ modBadge = Just "#cccccc"
 
 
 badgeWidth q | q <= 0 = Nothing
-             | otherwise = Just . (max 2) . floor $ (min q  12) 
+             | otherwise = Just 2 --  Just . (max 2) . floor $ (min q  12) 
 
 makeEvents moves takes = let
   moves' = [ ((FA.stockMoveTranDate (tMove move), 0, fromIntegral $ FA.unStockMoveKey key), Left move)
@@ -154,7 +162,7 @@ makeEvents moves takes = let
                    , toEnum (FA.stockMoveType move)
                      `elem` [ST_CUSTCREDIT, ST_CUSTDELIVERY, ST_SUPPRECEIVE, ST_SUPPCREDIT]
                    ) of
-               (True, _ ) ->  Nothing
+               (True, _ ) ->  stake
                (False, True) -> (+FA.stockMoveQty move) <$> stake
                (False, False)  -> stake
   accumEvent (qoh, _) e@(Right takes ) =
