@@ -1,4 +1,4 @@
-* Todo History [1/6] <2017-06-24 Sat> 
+* Todo History [2/9] <2017-06-24 Sat> 
 - [X] Group Adjustment details
 in case of new + found
 - [ ] don't update stocktake on stock adjusment
@@ -7,7 +7,9 @@ from delivery
 - [ ] move stock adjustment at the end of the day ?
 but not delivery
 - [ ] try clever algo to reorder moves within a day
-- [ ] A customer name
+- [ ] Add customer name
+- [X] Add supplier name
+- [ ] Add loc from 
 - [ ] add operator
   - [ ] pick 
   - [ ] pack

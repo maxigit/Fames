@@ -95,5 +95,9 @@ gen_tables:
 	mv config/xx* config/tables
 
 
-restart:
+restart: 
 	cd ..; docker-compose restart fames
+
+brestart: build restart
+build:
+	stack build

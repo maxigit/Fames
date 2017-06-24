@@ -5,7 +5,7 @@ import Import
 import Handler.Table
 import Yesod.Form.Bootstrap3
 import qualified FA as FA
-import Database.Persist.MySQL(unSqlBackendKey)
+import Database.Persist.MySQL(unSqlBackendKey, rawSql, Single(..))
 import Data.List (mapAccumL)
 import Text.Blaze.Html (ToMarkup)
 import qualified Data.Map as Map
@@ -27,7 +27,7 @@ getItemsHistoryR sku = do
 -- data ItemEvent = ItemEvent deriving Show
 data ItemEvent = ItemEvent
  { ieOperator :: Maybe Operator
- , ieEvent :: Either FA.StockMove Adjustment
+ , ieEvent :: Either Move Adjustment
  , ieQoh :: Double
  , ieStocktake :: Maybe Double
  , ieMod :: Double -- ^ quantity added to topup partial stock take 
@@ -38,6 +38,12 @@ data ItemEvent = ItemEvent
 data Adjustment = Adjustment
   { aAdj :: [StockAdjustmentDetail]
   , aTakes :: [Entity Stocktake]
+  }
+
+data Move = Move
+  { tMove :: FA.StockMove
+  , tFrom :: Maybe Text -- ^ From location
+  , tComment :: Text
   }
  
 loadHistory :: Text -> Handler [ItemEvent]
@@ -84,7 +90,7 @@ valueFor (ItemEvent opM ie qoh (Just stake) mod) "Stocktake" =
      
   in Just (stake' >> badgeSpan' modBadge mod "" >>  badgeSpan' outBadge lost "", [])
 valueFor (ItemEvent _ _ _ Nothing _) "Stocktake" = Nothing
-valueFor (ItemEvent opM (Left (FA.StockMove{..})) qoh stake _)  col = case col of
+valueFor (ItemEvent opM (Left (Move FA.StockMove{..} _ comment)) qoh stake _)  col = case col of
   "Type" -> Just (showTransType $ toEnum stockMoveType, [])
   "#" -> Just (toHtml (tshow stockMoveTransNo), [])
   "Reference" -> Just (toHtml (stockMoveReference), [])
@@ -93,7 +99,7 @@ valueFor (ItemEvent opM (Left (FA.StockMove{..})) qoh stake _)  col = case col o
   "In" -> Just (badgeSpan' inBadge stockMoveQty "", [])
   "Out" -> Just (badgeSpan' outBadge (-stockMoveQty) "", [])
   "Operator" -> Just ("Need operator", ["bg-danger"])
-  "Comment" -> Just ("Need customer", ["bg-danger"])
+  "Comment" -> Just (toHtml comment, [])
 
 valueFor (ItemEvent opM (Right adj ) qoh stake _) col = let
   Stocktake{..} = entityVal . headEx $ aTakes adj
@@ -129,8 +135,8 @@ badgeWidth q | q <= 0 = Nothing
              | otherwise = Just . (max 2) . floor $ (min q  12) 
 
 makeEvents moves takes = let
-  moves' = [ ((FA.stockMoveTranDate move, 0, fromIntegral $ FA.unStockMoveKey key), Left move)
-           | (Entity key move) <- moves
+  moves' = [ ((FA.stockMoveTranDate (tMove move), 0, fromIntegral $ FA.unStockMoveKey key), Left move)
+           | (key, move) <- moves
            ]
   takes' = [ ((date, 1, (undefined . stocktakeAdjustment  . entityVal $ headEx ts)), Right a)
            | a@(Adjustment adj ts) <- takes
@@ -138,7 +144,8 @@ makeEvents moves takes = let
            ]
   lines =  map snd $ sortBy (comparing fst) (moves' ++ takes')
   events = snd $  mapAccumL accumEvent (0, Nothing) lines 
-  accumEvent (qoh, stake) e@(Left move) = ((newQoh, newTake), ItemEvent Nothing e newQoh newTake 0) where
+  accumEvent (qoh, stake) e@(Left move') = ((newQoh, newTake), ItemEvent Nothing e newQoh newTake 0) where
+    move = tMove move'
     newQoh = qoh + FA.stockMoveQty move
     -- We update accordinglinyg the expected stocktake 
     -- However, if the new qoh matches the (old) expected stocktake
@@ -168,11 +175,18 @@ makeEvents moves takes = let
 
 
 -- loadMoves :: Text -> ReaderT backend m [Entity FA.StockMove]
-loadMoves sku = selectList [ FA.StockMoveStockId ==. sku
-                           , FA.StockMoveLocCode ==. "DEF"
-                           , FA.StockMoveQty !=. 0
-                           ]
-                           [Asc FA.StockMoveTranDate, Asc FA.StockMoveId]
+loadMoves sku = do
+  let sql = "SELECT ??, supp_name FROM 0_stock_moves"
+            <> " LEFT JOIN 0_suppliers ON (type in (" <> ((intercalate "," $ map (tshow . fromEnum)
+                                                            [ST_SUPPRECEIVE, ST_SUPPCREDIT]) :: Text)
+            <> "                         ) AND person_id = supplier_id) "
+            <>" WHERE stock_id = ? AND loc_code = 'DEF' AND qty != 0 "
+            <> " ORDER BY tran_date, trans_id "
+        
+        
+  moves <- rawSql sql [PersistText sku]
+  return [(key, Move move Nothing (fromMaybe "" comment))
+         | (Entity key move, Single comment) <- moves ]
 
 -- loadTakes :: Text -> ReaderT backend m [Adjustment]
 loadTakes sku = do
