@@ -43,7 +43,7 @@ data Adjustment = Adjustment
 data Move = Move
   { tMove :: FA.StockMove
   , tFrom :: Maybe Text -- ^ From location
-  , tComment :: Text
+  , tInfo :: Text
   }
  
 loadHistory :: Text -> Handler [ItemEvent]
@@ -54,7 +54,7 @@ loadHistory sku = do
 
 historyToTable :: [ItemEvent] -> Widget
 historyToTable events = let
-  columns = ["Type", "#", "Reference", "Location", "Date", "Comment","InOut", "Quantity On Hand", "Stocktake", "Operator"]
+  columns = ["Type", "#", "Reference", "Location", "Date", "Info","InOut", "Quantity On Hand", "Stocktake", "Operator"]
   -- columns = ["Type", "#", "Reference", "Location", "Date", "InOut", "Operator"]
   colDisplay col = (toHtml col, [])
   rows = [ (valueFor event, [])
@@ -90,7 +90,7 @@ valueFor (ItemEvent opM ie qoh (Just stake) mod) "Stocktake" =
      
   in Just (stake' >> badgeSpan' modBadge mod "" >>  badgeSpan' outBadge lost "", [])
 valueFor (ItemEvent _ _ _ Nothing _) "Stocktake" = Nothing
-valueFor (ItemEvent opM (Left (Move FA.StockMove{..} _ comment)) qoh stake _)  col = case col of
+valueFor (ItemEvent opM (Left (Move FA.StockMove{..} _ info)) qoh stake _)  col = case col of
   "Type" -> Just (showTransType $ toEnum stockMoveType, [])
   "#" -> Just (toHtml (tshow stockMoveTransNo), [])
   "Reference" -> Just (toHtml (stockMoveReference), [])
@@ -99,7 +99,7 @@ valueFor (ItemEvent opM (Left (Move FA.StockMove{..} _ comment)) qoh stake _)  c
   "In" -> Just (badgeSpan' inBadge stockMoveQty "", [])
   "Out" -> Just (badgeSpan' outBadge (-stockMoveQty) "", [])
   "Operator" -> Just ("Need operator", ["bg-danger"])
-  "Comment" -> Just (toHtml comment, [])
+  "Info" -> Just (toHtml info, [])
 
 valueFor (ItemEvent opM (Right adj ) qoh stake _) col = let
   Stocktake{..} = entityVal . headEx $ aTakes adj
@@ -115,7 +115,7 @@ valueFor (ItemEvent opM (Right adj ) qoh stake _) col = let
   "In" -> Just (badgeSpan' inBadge found "", [])
   "Out" -> Just (badgeSpan' outBadge lost "", [])
   "Operator" -> Just ("Need operator", ["bg-danger"])
-  "Comment" -> (,[]) . toHtml <$> stocktakeComment
+  "Info" -> (,[]) . toHtml <$> stocktakeComment
 
 
 -- badgeSpan' :: (Num a, Ord a, ToMarkup a)  => a -> Maybe String -> String -> Html
@@ -177,16 +177,17 @@ makeEvents moves takes = let
 -- loadMoves :: Text -> ReaderT backend m [Entity FA.StockMove]
 loadMoves sku = do
   let sql = "SELECT ??, supp_name FROM 0_stock_moves"
-            <> " LEFT JOIN 0_suppliers ON (type in (" <> ((intercalate "," $ map (tshow . fromEnum)
-                                                            [ST_SUPPRECEIVE, ST_SUPPCREDIT]) :: Text)
-            <> "                         ) AND person_id = supplier_id) "
+            <> supp
             <>" WHERE stock_id = ? AND loc_code = 'DEF' AND qty != 0 "
             <> " ORDER BY tran_date, trans_id "
+      supp = " LEFT JOIN 0_suppliers ON (type in (" <> ((intercalate "," $ map (tshow . fromEnum)
+                                                          [ST_SUPPRECEIVE, ST_SUPPCREDIT]) :: Text)
+             <> "                         ) AND person_id = supplier_id) "
         
         
   moves <- rawSql sql [PersistText sku]
-  return [(key, Move move Nothing (fromMaybe "" comment))
-         | (Entity key move, Single comment) <- moves ]
+  return [(key, Move move Nothing (fromMaybe "" info))
+         | (Entity key move, Single info) <- moves ]
 
 -- loadTakes :: Text -> ReaderT backend m [Adjustment]
 loadTakes sku = do
