@@ -165,7 +165,13 @@ makeEvents moves takes = let
     newTake0 = fromIntegral . sum $ map (stocktakeQuantity . entityVal) (aTakes takes)
     newTake = Just newTake0
     mod = case aAdj takes of
-            [] -> 0
+            -- no adjustment can be there is no adj or
+            -- the stocktake generated 0 adujstment. in that case
+            -- this mean the stocktake is correct
+            [] -> case stocktakeAdjustment (entityVal . headEx $ aTakes takes) of
+              Nothing -> 0
+              Just _ ->  qoh - newTake0
+              
             details -> let
                   lost = sum  [ (if stockAdjustmentDetailFrom adj == Just (FA.LocationKey "DEF")
                                  then 1
