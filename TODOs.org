@@ -1,8 +1,9 @@
 * Todo History [4/9] <2017-06-24 Sat> 
+- [ ] bug bd1-sir ...
 - [X] Group Adjustment details
 in case of new + found
 - [ ] don't update stocktake on stock adjusment
-Done. but bugged
+Done. but hardcoded
 The problem is to differentiate genuine loc transfer
 from delivery. Need from location
 - [ ] move stock adjustment at the end of the day ?

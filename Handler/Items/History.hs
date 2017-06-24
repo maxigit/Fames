@@ -192,7 +192,7 @@ makeEvents moves takes = let
 interleaveEvents :: [(Key FA.StockMove, Move)] -> [Adjustment] -> [Either Move Adjustment]
 interleaveEvents moves takes =  let
   moves' = [ (( FA.stockMoveTranDate (tMove move)
-              , if isJust (tAdjId move)  then 3 else 0
+              , if isJust (tAdjId move)  then 3 else 2
               , fromIntegral $ FA.unStockMoveKey key), Left move)
            | (key, move) <- moves
            ]
