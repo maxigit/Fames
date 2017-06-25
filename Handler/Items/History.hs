@@ -20,7 +20,12 @@ data FormParams = FormParams
 getItemsHistoryR :: Text -> Handler Html
 getItemsHistoryR sku = do
   history <- loadHistory sku
-  let tableW = historyToTable history
+  let tableW = do
+        toWidget [cassius|
+td.qoh
+   text-align: center
+                |]
+        historyToTable history
   defaultLayout tableW
 
 
@@ -83,17 +88,18 @@ valueFor (ItemEvent opM ie qoh stake mod) "Quantity On Hand" =
   in case ie of
        (Left move) | (toEnum . FA.stockMoveType $ tMove move) `elem` [ST_LOCTRANSFER, ST_INVADJUST]
                       && found == 0
-                      && mod == 0 -> Just (badgeSpan' qohBadge qoh "", [])
-       _ -> Just (toHtml (formatQuantity qoh)
+                      && mod == 0 -> Just (badgeSpan' okBadge qoh "", [])
+       _ -> Just ( -- toHtml (formatQuantity qoh)
+                  badgeSpan' qohBadge qoh ""
                   >> badgeSpan' modBadge (- mod) ""
-                  >> badgeSpan' inBadge found "", [])
+                  >> badgeSpan' inBadge found "", ["qoh"])
 valueFor (ItemEvent opM ie qoh (Just stake) mod) "Stocktake" =
   let lost = (qoh - stake - mod)
       stake' = case ie of
         Left _ -> if stake == qoh
                   then [shamlet|<span style="color:#29abe0;"> #{formatQuantity stake}|]
                   else toHtml (formatQuantity stake)
-        Right _ -> badgeSpan' (if lost == 0 then qohBadge else negBadge) stake ""
+        Right _ -> badgeSpan' (if lost == 0 then okBadge else negBadge) stake ""
   in Just (stake' >> badgeSpan' modBadge mod "" >>  badgeSpan' outBadge lost "", [])
 valueFor (ItemEvent _ _ _ Nothing _) "Stocktake" = Nothing
 valueFor (ItemEvent opM (Left (Move FA.StockMove{..} _ info _)) qoh stake _)  col = case col of
@@ -103,7 +109,7 @@ valueFor (ItemEvent opM (Left (Move FA.StockMove{..} _ info _)) qoh stake _)  co
   "Location" -> Just (toHtml (stockMoveLocCode), [])
   "Date" -> Just (toHtml (tshow stockMoveTranDate), [])
   "In" -> let bg = if toEnum stockMoveType == ST_LOCTRANSFER -- found
-                   then qohBadge
+                   then okBadge
                    else inBadge
           in Just (badgeSpan' bg stockMoveQty "", [])
   "Out" -> Just (badgeSpan' outBadge (-stockMoveQty) "", [])
@@ -132,7 +138,8 @@ badgeSpan' :: Maybe String -> Double -> String -> Html
 badgeSpan' bgM qty klass =
   badgeSpan badgeWidth qty bgM klass
 
-qohBadge = Just "#29abe0"
+okBadge = Just "#29abe0"
+qohBadge = Just "#ccccff"
 inBadge = Nothing
 outBadge = Just "#d9534f"
 negBadge = Just "#000000"
