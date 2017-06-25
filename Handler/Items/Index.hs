@@ -98,7 +98,7 @@ itemsTable styleF varF showInactive = do
           let val col = case col of
                 "stock_id" -> let sku =  style <> "-" <> var
                                   route = ItemsR $ ItemsHistoryR sku
-                              in Just ([], [hamlet|<a href=@{route}>#{sku}|] renderUrl )
+                              in Just ([], [hamlet|<a href=@{route} target="_blank">#{sku}|] renderUrl )
                 "categoryId" -> Just (toHtml . tshow <$> smiCategoryId stock )
                 "taxTypeId" -> Just $ toHtml <$> smiTaxTypeId stock 
                 "description" -> Just $ toHtml <$>  smiDescription stock 

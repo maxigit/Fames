@@ -205,7 +205,7 @@ postWHStockAdjustmentR = do
             data-hidden="true"
             >
           <td.active><input type="checkbox" name="active-#{sku pre}" checked>
-          <td.style>#{sku pre}
+          <td.style><a href=@{route pre} target="_blank">#{sku pre}
           <td.quantity data-original=#{qtake qties}>#{qtake qties}
             ^{badgeSpan' (bMissing badges) (Just "#d9534f") "missing"}
             ^{badgeSpan' (bMissingMod badges) (Just "#cccccc") "missing-mod"}
@@ -266,6 +266,8 @@ data PreAdjust = PreAdjust
 
 adjustInfos :: PreAdjust -> [LocationInfo]
 adjustInfos adj  = [main, lost] <*> [adj]
+
+route pre = ItemsR $ ItemsHistoryR (sku pre)
 
 data MoveInfo = MoveInfo
  { moveDate :: !Day
