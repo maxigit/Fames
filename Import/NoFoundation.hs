@@ -12,6 +12,9 @@ module Import.NoFoundation
     , (<$$>), (<$$$>), (<$$$$>)
     , formatAmount
     , formatDouble
+    , formatQuantity
+    , showTransType
+    , decodeHtmlEntities
     ) where
 
 import ClassyPrelude.Yesod as Import
@@ -24,6 +27,7 @@ import SharedTypes as Import
 import Yesod.Auth as Import
 import Yesod.Core.Types as Import (loggerSet)
 import Yesod.Default.Config2 as Import
+import qualified Text.HTML.TagSoup as TS
 
 
 import Text.Printf(printf)
@@ -57,6 +61,7 @@ formatMessage mtype t =
 |]
 
 infixl 3 <|&> 
+-- | Similar to <&> but operate on Left instead of Right
 (<|&>) :: Either a b -> (a -> a') -> Either a' b
 Left l <|&> f = Left (f l)
 Right r <|&> _ = Right r
@@ -70,3 +75,33 @@ infixl 4 <$$>, <$$$>, <$$$$>
 -- formatAmount :: Amount -> Text
 formatAmount = (\t -> t :: String) .  printf "" . (\x -> x :: Double) .  fromRational
 formatDouble = (\t -> t :: String) .  printf "%0.2f"
+formatQuantity = strip0 . (\t -> t :: String) .  printf "%0.2f" where
+  strip0 s = fromMaybe s (stripSuffix ".00" s)
+
+-- * FA utilit
+showTransType ST_JOURNAL = "Journal Entry"
+showTransType ST_BANKPAYMENT = "Bank Payment"
+showTransType ST_BANKDEPOSIT = "Bank Deposit"
+showTransType ST_BANKTRANSFER = "Bank Transfer"
+showTransType ST_SALESINVOICE = "Sales Invoice"
+showTransType ST_CUSTCREDIT = "Customer Credit Note"
+showTransType ST_CUSTPAYMENT = "Customer payment"
+showTransType ST_CUSTDELIVERY = "Customer Delivery"
+showTransType ST_LOCTRANSFER = "Location Transfer"
+showTransType ST_INVADJUST = "Inventory Adjustment"
+showTransType ST_PURCHORDER = "Purchase Order"
+showTransType ST_SUPPINVOICE = "Supplier Invoice"
+showTransType ST_SUPPCREDIT = "Supplier Credit Note"
+showTransType ST_SUPPAYMENT = "Supplier Payment"
+showTransType ST_SUPPRECEIVE = "Supplier receive"
+showTransType ST_WORKORDER = "Work Order"
+showTransType ST_MANUISSUE = "Manu Issue"
+showTransType ST_MANURECEIVE = "Manu Receive"
+showTransType ST_SALESORDER = "Sales Order"
+showTransType ST_SALESQUOTE = "Sales Quote"
+showTransType ST_COSTUPDATE = "Cost Update"
+showTransType ST_DIMENSION = "Dimensions"
+
+-- * Html 
+decodeHtmlEntities :: Text -> Text
+decodeHtmlEntities s = TS.fromTagText $ headEx $ TS.parseTags s

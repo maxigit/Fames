@@ -207,14 +207,14 @@ postWHStockAdjustmentR = do
           <td.active><input type="checkbox" name="active-#{sku pre}" checked>
           <td.style>#{sku pre}
           <td.quantity data-original=#{qtake qties}>#{qtake qties}
-            ^{badgeSpan (bMissing badges) (Just "#d9534f") "missing"}
-            ^{badgeSpan (bMissingMod badges) (Just "#cccccc") "missing-mod"}
+            ^{badgeSpan' (bMissing badges) (Just "#d9534f") "missing"}
+            ^{badgeSpan' (bMissingMod badges) (Just "#cccccc") "missing-mod"}
           <td.date>#{tshow $ (takeDate pre)}
           <td.qoh data-original=#{qoh qties}>
             <span.qoh>#{qoh qties + before}
-            ^{badgeSpan (bFoundMod badges) (Just "#cccccc") "found-mod"}
-            ^{badgeSpan (bFound badges) (Just "#29abe0") "found"}
-            ^{badgeSpan (bNew badges) Nothing "new" }
+            ^{badgeSpan' (bFoundMod badges) (Just "#cccccc") "found-mod"}
+            ^{badgeSpan' (bFound badges) (Just "#29abe0") "found"}
+            ^{badgeSpan' (bNew badges) Nothing "new" }
           <td.lost data-original=#{qlost qties}>#{qlost qties}
           <td.last_move>#{fromMaybe "" (tshow <$> (lastMove pre))}
           <td.comment_move>#{fromMaybe "" (tshow <$> (preComment pre))}
@@ -529,15 +529,8 @@ postWHStockAdjustmentToFAR key = do
   
 
 
-badgeSpan :: Int -> Maybe String -> String -> Widget
-badgeSpan qty bgM klass = do
-  let style = case badgeWidth qty of
-        Nothing -> "display:none"
-        Just w ->  "width:" ++ show w ++ "em"
-      bg = case bgM of
-             Nothing -> ""
-             Just col ->  "background-color:"++col++";"
-  [whamlet|<span.badge class=#{klass} style="#{style}; #{bg}">#{qty}|]
+badgeSpan' :: Int -> Maybe String -> String -> Widget
+badgeSpan' qty bgM klass = toWidget $ badgeSpan badgeWidth qty bgM klass
 
 preToOriginal modulo pre = (OriginalQuantities qtake (qoh-before) qlost modulo , before) where
   m = main pre

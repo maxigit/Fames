@@ -14,6 +14,7 @@ module Handler.Util
 , setAttachment
 , generateLabelsResponse
 , firstOperator
+, badgeSpan
 ) where
 
 -- import Foundation
@@ -30,6 +31,7 @@ import System.Directory (removeFile)
 import System.IO.Temp (openTempFile)
 import System.Exit (ExitCode(..))
 import Data.Streaming.Process (streamingProcess, proc, Inherited(..), waitForStreamingProcess, env)
+import Text.Blaze.Html (ToMarkup)
 -- import Data.IOData (IOData)
 
 -- * Display entities
@@ -183,3 +185,17 @@ generateLabelsResponse outputName template labelSource = do
 firstOperator = do
   operator <- runDB $ selectFirst [OperatorActive ==. True] [Asc OperatorId]
   maybe (error "No active operators found. Please contact your administrator") return operator
+
+
+-- * Badges
+badgeSpan :: (Num a,  Show a) => (a -> Maybe Int) -> a -> Maybe String -> String -> Html
+badgeSpan badgeWidth qty bgM klass = do
+  let style = case badgeWidth qty of
+        Nothing -> "display:none"
+        Just w ->  "width:" ++ show w  ++ "em"
+      bg = case bgM of
+             Nothing -> ""
+             Just col ->  "background-color:"++col++";"
+      qs = tshow qty
+      q = fromMaybe qs $  stripSuffix ".0" qs
+  [shamlet|<span.badge class=#{klass} style="#{style}; #{bg}">#{q}|]

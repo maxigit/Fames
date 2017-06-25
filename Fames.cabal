@@ -112,6 +112,7 @@ library
       Handler.GLEnterReceiptSheet.ReceiptRow
       Handler.Home
       Handler.Items
+      Handler.Items.History
       Handler.Items.Index
       Handler.Table
       Handler.Util

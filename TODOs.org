@@ -1,3 +1,22 @@
+* Todo History [4/9] <2017-06-24 Sat> 
+- [ ] bug bd1-sir ...
+- [X] Group Adjustment details
+in case of new + found
+- [ ] don't update stocktake on stock adjusment
+Done. but hardcoded
+The problem is to differentiate genuine loc transfer
+from delivery. Need from location
+- [ ] move stock adjustment at the end of the day ?
+but not delivery
+- [X] try clever algo to reorder moves within a day
+- [X] Add customer name
+- [X] Add supplier name
+- [ ] Add loc from 
+- [ ] add operator
+  - [ ] stocktake
+  - [ ] pick 
+  - [ ] pack
+- [ ] display in blue when adjustment matches stocktake
 * TODO StockAdjustment to FA<2017-06-07 Wed>
 - [X] update adjustment as processed
 - [X] record the link between FA transactions and Fames ones

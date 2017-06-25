@@ -3,3 +3,4 @@ module Handler.Items
 ) where
 
 import Handler.Items.Index as X
+import Handler.Items.History as X

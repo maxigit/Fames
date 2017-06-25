@@ -94,3 +94,10 @@ gen_tables:
 	cd config; csplit fa-models /^$/ {*}
 	mv config/xx* config/tables
 
+
+restart: 
+	cd ..; docker-compose restart fames
+
+brestart: build restart
+build:
+	stack build
