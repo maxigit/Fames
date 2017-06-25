@@ -6,7 +6,7 @@ import Handler.Table
 import Yesod.Form.Bootstrap3
 import qualified FA as FA
 import Database.Persist.MySQL(unSqlBackendKey, rawSql, Single(..))
-import Data.List (mapAccumL)
+import Data.List (mapAccumL, cycle)
 import Text.Blaze.Html (ToMarkup)
 import qualified Data.Map as Map
 import Data.Time(addDays)
@@ -24,6 +24,20 @@ getItemsHistoryR sku = do
         toWidget [cassius|
 td.qoh
    text-align: center
+tr
+  span.total
+     display: inline
+  div.total
+     display: block
+  .split
+     display: none
+tr:hover
+  .total
+     display: none
+  span.split
+     display: inline
+  div.split
+     display: block
                 |]
         historyToTable history
   defaultLayout tableW
@@ -99,7 +113,13 @@ valueFor (ItemEvent opM ie qoh (Just stake) mod) "Stocktake" =
         Left _ -> if stake == qoh
                   then [shamlet|<span style="color:#29abe0;"> #{formatQuantity stake}|]
                   else toHtml (formatQuantity stake)
-        Right _ -> badgeSpan' (if lost == 0 then okBadge else negBadge) stake ""
+        Right adj -> do
+          let bg = if lost == 0 then okBadge else negBadge
+          -- total
+          badgeSpan' bg stake "total"
+          -- splits 
+          mapM_ (\t -> let badge = badgeSpan' bg (fromIntegral . stocktakeQuantity . entityVal $ t) ""
+                       in [shamlet|<div.split>#{badge}|]) (aTakes adj)
   in Just (stake' >> badgeSpan' modBadge mod "" >>  badgeSpan' outBadge lost "", [])
 valueFor (ItemEvent _ _ _ Nothing _) "Stocktake" = Nothing
 valueFor (ItemEvent opM (Left (Move FA.StockMove{..} _ info _)) qoh stake _)  col = case col of
@@ -117,20 +137,29 @@ valueFor (ItemEvent opM (Left (Move FA.StockMove{..} _ info _)) qoh stake _)  co
   "Info" -> Just (toHtml info, [])
 
 valueFor (ItemEvent opM (Right adj ) qoh stake _) col = let
-  Stocktake{..} = entityVal . headEx $ aTakes adj
+  inlineAll f = let
+    values = map (f . entityVal) (aTakes adj)
+    v'ks = case values of
+      [x] -> [(x,"")]
+      (x:xs) -> [(x, "" :: Text), ("...", "total")] ++ zip xs (cycle ["split"])
+    in mapM_ (\(v, k) -> [shamlet|<div class="#{k}">#{v}|]) v'ks
+            
   diff = 0 -- qoh - fromIntegral stocktakeQuantity
   lost = max 0 diff
   found = max 0 (-diff)
   in case col of
   "Type" -> Just ("Stocktake", [])
   "#" -> (\a -> (toHtml . unSqlBackendKey . unStockAdjustmentKey $ stockAdjustmentDetailAdjustment a, [])) <$> headMay (aAdj adj)
-  "Reference" -> Just (toHtml (stocktakeBarcode), [])
-  "Location" -> Just (toHtml . FA.unLocationKey $ stocktakeFaLocation, [])
-  "Date" -> Just (toHtml (tshow $ stocktakeDate), [])
+  "Reference" -> Just (inlineAll stocktakeBarcode, [])
+  "Location" -> Just (inlineAll  (FA.unLocationKey . stocktakeFaLocation), [])
+  "Date" -> Just (inlineAll (tshow . stocktakeDate), [])
   "In" -> Just (badgeSpan' inBadge found "", [])
   "Out" -> Just (badgeSpan' outBadge lost "", [])
   "Operator" -> Just ("Need operator", ["bg-danger"])
-  "Info" -> (,[]) . toHtml . decodeHtmlEntities <$> stocktakeComment
+  "Info" -> case mapMaybe (stocktakeComment . entityVal) (aTakes adj) of
+                  [] -> Nothing
+                  _ ->  Just (inlineAll (\e -> fromMaybe "" $ decodeHtmlEntities <$> stocktakeComment e), [])
+
 
 
 -- badgeSpan' :: (Num a, Ord a, ToMarkup a)  => a -> Maybe String -> String -> Html
