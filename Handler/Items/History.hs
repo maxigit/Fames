@@ -56,7 +56,7 @@ data ItemEvent = ItemEvent
 -- and the corresponding adjustment detail if any
 data Adjustment = Adjustment
   { aAdj :: [StockAdjustmentDetail]
-  , aTakes :: [Entity Stocktake]
+  , aTakes :: [(Entity Stocktake, Text)]
   }
 
 data Move = Move
@@ -118,7 +118,7 @@ valueFor (ItemEvent opM ie qoh (Just stake) mod) "Stocktake" =
           -- total
           badgeSpan' bg stake "total"
           -- splits 
-          mapM_ (\t -> let badge = badgeSpan' bg (fromIntegral . stocktakeQuantity . entityVal $ t) ""
+          mapM_ (\t -> let badge = badgeSpan' bg (fromIntegral . stocktakeQuantity . entityVal . fst $ t) ""
                        in [shamlet|<div.split>#{badge}|]) (aTakes adj)
   in Just (stake' >> badgeSpan' modBadge mod "" >>  badgeSpan' outBadge lost "", [])
 valueFor (ItemEvent _ _ _ Nothing _) "Stocktake" = Nothing
@@ -137,8 +137,8 @@ valueFor (ItemEvent opM (Left (Move FA.StockMove{..} _ info _)) qoh stake _)  co
   "Info" -> Just (toHtml info, [])
 
 valueFor (ItemEvent opM (Right adj ) qoh stake _) col = let
-  inlineAll f = let
-    values = map (f . entityVal) (aTakes adj)
+  inlineAll f = inlineAll' (map (f . entityVal . fst) (aTakes adj))
+  inlineAll' values = let
     v'ks = case values of
       [x] -> [(x,"")]
       (x:xs) -> [(x, "" :: Text), ("...", "total")] ++ zip xs (cycle ["split"])
@@ -155,8 +155,8 @@ valueFor (ItemEvent opM (Right adj ) qoh stake _) col = let
   "Date" -> Just (inlineAll (tshow . stocktakeDate), [])
   "In" -> Just (badgeSpan' inBadge found "", [])
   "Out" -> Just (badgeSpan' outBadge lost "", [])
-  "Operator" -> Just ("Need operator", ["bg-danger"])
-  "Info" -> case mapMaybe (stocktakeComment . entityVal) (aTakes adj) of
+  "Operator" -> Just (inlineAll' (map snd $ aTakes adj), [])
+  "Info" -> case mapMaybe (stocktakeComment . entityVal . fst) (aTakes adj) of
                   [] -> Nothing
                   _ ->  Just (inlineAll (\e -> fromMaybe "" $ decodeHtmlEntities <$> stocktakeComment e), [])
 
@@ -198,13 +198,13 @@ makeEvents moves takes = let
                _ -> (+FA.stockMoveQty move) <$> stake
   accumEvent (qoh, _) e@(Right takes ) =
     ((qoh, (+mod) <$> newTake), ItemEvent Nothing e qoh newTake mod) where
-    newTake0 = fromIntegral . sum $ map (stocktakeQuantity . entityVal) (aTakes takes)
+    newTake0 = fromIntegral . sum $ map (stocktakeQuantity . entityVal . fst) (aTakes takes)
     newTake = Just newTake0
     mod = case aAdj takes of
             -- no adjustment can be there is no adj or
             -- the stocktake generated 0 adujstment. in that case
             -- this mean the stocktake is correct
-            [] -> case stocktakeAdjustment (entityVal . headEx $ aTakes takes) of
+            [] -> case stocktakeAdjustment (entityVal . fst . headEx $ aTakes takes) of
               Nothing -> 0
               Just _ ->  qoh - newTake0
               
@@ -232,9 +232,9 @@ interleaveEvents moves takes =  let
               , fromIntegral $ FA.unStockMoveKey key), Left move)
            | (key, move) <- moves
            ]
-  takes' = [ ((date, 1, (undefined . stocktakeAdjustment  . entityVal $ headEx ts)), Right a)
+  takes' = [ ((date, 1, (undefined . stocktakeAdjustment  . entityVal . fst $ headEx ts)), Right a)
            | a@(Adjustment adj ts) <- takes
-           , let date = maximumEx $ map (stocktakeDate . entityVal) ts
+           , let date = maximumEx $ map (stocktakeDate . entityVal . fst) ts
            ]
   in map snd $ sortBy (comparing fst) (moves' ++ takes')
 
@@ -263,10 +263,15 @@ loadMoves sku = do
 
 loadTakes :: (MonadIO m) => Text -> ReaderT SqlBackend m [Adjustment]
 loadTakes sku = do
-  takes <- selectList [StocktakeStockId ==. sku] [Asc StocktakeDate]
+  let sql = "SELECT ??, nickname FROM fames_stocktake "
+            <> " JOIN fames_operator USING (operator_id) "
+            <> " WHERE stock_id = ? ORDER BY date"
+  takes <- rawSql sql [PersistText sku]
   -- join manual with the adjustment if any
   details <- selectList [StockAdjustmentDetailStockId ==. sku] [Asc StockAdjustmentDetailId]
-  let takesByKey = Map.fromListWith (++) [(stocktakeAdjustment (entityVal take), [take]) | take <- takes]
+  let takesByKey = Map.fromListWith (++) [(stocktakeAdjustment (entityVal take), [(take, operator)])
+                                         | (take, Single operator) <- takes
+                                         ]
       detailsByKey = Map.fromListWith (++) [(stockAdjustmentDetailAdjustment d, [d]) | (Entity _ d) <- details]
 
   return [Adjustment ( concat $ k >>= flip Map.lookup detailsByKey) ts | (k, ts) <- Map.toList takesByKey]
