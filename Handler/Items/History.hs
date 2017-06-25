@@ -10,6 +10,7 @@ import Data.List (mapAccumL, cycle)
 import Text.Blaze.Html (ToMarkup)
 import qualified Data.Map as Map
 import Data.Time(addDays)
+import Data.Text(splitOn)
 
 data FormParams = FormParams
   { pStart :: Maybe Day
@@ -38,6 +39,12 @@ tr:hover
      display: inline
   div.split
      display: block
+span.badge.Pickers
+  background-color:#dfc
+  color: black
+span.badge.Packers
+  background-color:#fdc
+  color: black
                 |]
         historyToTable history
   defaultLayout tableW
@@ -45,8 +52,7 @@ tr:hover
 
 -- data ItemEvent = ItemEvent deriving Show
 data ItemEvent = ItemEvent
- { ieOperator :: Maybe Operator
- , ieEvent :: Either Move Adjustment
+ { ieEvent :: Either Move Adjustment
  , ieQoh :: Double
  , ieStocktake :: Maybe Double
  , ieMod :: Double -- ^ quantity added to topup partial stock take 
@@ -64,6 +70,8 @@ data Move = Move
   , tFrom :: Maybe Text -- ^ From location
   , tInfo :: Text
   , tAdjId :: Maybe Int
+  , tPickers :: Maybe Text
+  , tPackers :: Maybe Text
   }
  
 loadHistory :: Text -> Handler [ItemEvent]
@@ -83,6 +91,27 @@ historyToTable events = let
   in displayTable columns colDisplay rows
   
   
+inlineAll' values = let
+  v'ks = case values of
+           [x] -> [(x,"")]
+           (x:xs) -> [(x, "" :: Text), ("...", "total")] ++ zip xs (cycle ["split"])
+  in mapM_ (\(v, k) -> [shamlet|<div class="#{k}">#{v}|]) v'ks
+            
+
+displayPkers :: Text -> Maybe Text -> Html
+displayPkers _ Nothing = return ()
+displayPkers title (Just pkers) = do
+  let operators = splitOn "," pkers
+      toBadge op = [shamlet|<span.badge class=#{title}>#{op}|]
+  inlineAll' (map toBadge operators)
+  
+-- displayPkers title_ (Just pkers) = do
+--   let operators = splitOn "," pkers
+--       title = [shamlet|<span.badge class="#{title}">#{title}|]
+--   case operators of
+--     [op] -> toHtml ( title <> op)
+--     _ -> inlineAll' (title: operators)
+  
 
 valueFor :: ItemEvent -> Text -> Maybe (Html, [Text])
 valueFor ie "InOutQ" = let
@@ -96,7 +125,7 @@ valueFor ie "InOut" = let
   (in_, k) = fromM (valueFor ie "In")
   (out, _) = fromM (valueFor ie "Out")
   in Just (in_ >> out, k)
-valueFor (ItemEvent opM ie qoh stake mod) "Quantity On Hand" =
+valueFor (ItemEvent ie qoh stake mod) "Quantity On Hand" =
   let found = (fromMaybe 0 stake + mod - qoh)
   -- if a stock adjustment result in matching the stocktake  : badge
   in case ie of
@@ -107,7 +136,7 @@ valueFor (ItemEvent opM ie qoh stake mod) "Quantity On Hand" =
                   badgeSpan' qohBadge qoh ""
                   >> badgeSpan' modBadge (- mod) ""
                   >> badgeSpan' inBadge found "", ["qoh"])
-valueFor (ItemEvent opM ie qoh (Just stake) mod) "Stocktake" =
+valueFor (ItemEvent ie qoh (Just stake) mod) "Stocktake" =
   let lost = (qoh - stake - mod)
       stake' = case ie of
         Left _ -> if stake == qoh
@@ -121,8 +150,8 @@ valueFor (ItemEvent opM ie qoh (Just stake) mod) "Stocktake" =
           mapM_ (\t -> let badge = badgeSpan' bg (fromIntegral . stocktakeQuantity . entityVal . fst $ t) ""
                        in [shamlet|<div.split>#{badge}|]) (aTakes adj)
   in Just (stake' >> badgeSpan' modBadge mod "" >>  badgeSpan' outBadge lost "", [])
-valueFor (ItemEvent _ _ _ Nothing _) "Stocktake" = Nothing
-valueFor (ItemEvent opM (Left (Move FA.StockMove{..} _ info _)) qoh stake _)  col = case col of
+valueFor (ItemEvent _ _ Nothing _) "Stocktake" = Nothing
+valueFor (ItemEvent (Left (Move FA.StockMove{..} _ info _ pickers packers)) qoh stake _)  col = case col of
   "Type" -> Just (showTransType $ toEnum stockMoveType, [])
   "#" -> Just (toHtml (tshow stockMoveTransNo), [])
   "Reference" -> Just (toHtml (stockMoveReference), [])
@@ -133,17 +162,11 @@ valueFor (ItemEvent opM (Left (Move FA.StockMove{..} _ info _)) qoh stake _)  co
                    else inBadge
           in Just (badgeSpan' bg stockMoveQty "", [])
   "Out" -> Just (badgeSpan' outBadge (-stockMoveQty) "", [])
-  "Operator" -> Just ("Need operator", ["bg-danger"])
+  "Operator" -> Just (displayPkers "Pickers" pickers >> displayPkers "Packers" packers, [])
   "Info" -> Just (toHtml info, [])
 
-valueFor (ItemEvent opM (Right adj ) qoh stake _) col = let
+valueFor (ItemEvent (Right adj ) qoh stake _) col = let
   inlineAll f = inlineAll' (map (f . entityVal . fst) (aTakes adj))
-  inlineAll' values = let
-    v'ks = case values of
-      [x] -> [(x,"")]
-      (x:xs) -> [(x, "" :: Text), ("...", "total")] ++ zip xs (cycle ["split"])
-    in mapM_ (\(v, k) -> [shamlet|<div class="#{k}">#{v}|]) v'ks
-            
   diff = 0 -- qoh - fromIntegral stocktakeQuantity
   lost = max 0 diff
   found = max 0 (-diff)
@@ -183,7 +206,7 @@ makeEvents :: [(Key FA.StockMove, Move)] -> [Adjustment] -> [ItemEvent]
 makeEvents moves takes = let
   lines =  interleaveEvents moves takes
   events = snd $  mapAccumL accumEvent (0, Nothing) lines 
-  accumEvent (qoh, stake) e@(Left move') = ((newQoh, newTake), ItemEvent Nothing e newQoh newTake 0) where
+  accumEvent (qoh, stake) e@(Left move') = ((newQoh, newTake), ItemEvent e newQoh newTake 0) where
     move = tMove move'
     newQoh = qoh + FA.stockMoveQty move
     -- We update accordinglinyg the expected stocktake 
@@ -197,7 +220,7 @@ makeEvents moves takes = let
                (False, False)  | FA.stockMoveQty move < 24 -> stake
                _ -> (+FA.stockMoveQty move) <$> stake
   accumEvent (qoh, _) e@(Right takes ) =
-    ((qoh, (+mod) <$> newTake), ItemEvent Nothing e qoh newTake mod) where
+    ((qoh, (+mod) <$> newTake), ItemEvent e qoh newTake mod) where
     newTake0 = fromIntegral . sum $ map (stocktakeQuantity . entityVal . fst) (aTakes takes)
     newTake = Just newTake0
     mod = case aAdj takes of
@@ -242,8 +265,9 @@ interleaveEvents moves takes =  let
 
 loadMoves :: MonadIO m => Text -> ReaderT SqlBackend m [(Key FA.StockMove, Move)]
 loadMoves sku = do
-  let sql = "SELECT ??, COALESCE(br_name, supp_name), event_no FROM 0_stock_moves"
+  let sql = "SELECT ??, COALESCE(br_name, supp_name), event_no, pickers, packers FROM 0_stock_moves"
             <> supp <> customer <> adj
+            <> "LEFT JOIN (" <> operators <> ") operators ON debtor_trans_no = 0_stock_moves.trans_no "
             <>" WHERE stock_id = ? AND loc_code = 'DEF' AND qty != 0 "
             <> " ORDER BY tran_date, trans_id "
       supp = " LEFT JOIN 0_suppliers ON (type in (" <> (inTypes [ST_SUPPRECEIVE, ST_SUPPCREDIT]) 
@@ -254,12 +278,22 @@ loadMoves sku = do
       adj =  " LEFT JOIN fames_transaction_map ON (fa_trans_no = 0_stock_moves.trans_no "
              <> " AND fa_trans_type = 0_stock_moves.type "
              <> "AND event_type = " <> tshow (fromEnum StockAdjustmentE) <> ")"
+      operators = ""
+                <> "select debtor_trans_no, GROUP_CONCAT(distinct IF(typeId =1, operator.name, NULL)) pickers "
+                <> ", GROUP_CONCAT(distinct IF(typeId =2, operator.name, NULL)) packers "
+                <> "from 0_debtor_trans_details "
+                <> "join mop.action ON (0_debtor_trans_details.src_id = action.detailId)  "
+                <> "join mop.session ON (session.groupId = action.actionGroupId) "
+                <> "join mop.operator ON (session.operatorId = operator.id) "
+                <> "where 1 "
+                <> "and debtor_trans_type = 13 "
+                <> "group by debtor_trans_no "
         
         
   -- traceShowM sql
   moves <- rawSql sql [PersistText sku]
-  return [(key, Move move Nothing (fromMaybe "" (fmap decodeHtmlEntities info)) adj)
-         | (Entity key move, Single info, Single adj) <- moves ]
+  return [(key, Move move Nothing (fromMaybe "" (fmap decodeHtmlEntities info)) adj picker packer)
+         | (Entity key move, Single info, Single adj, Single picker, Single packer) <- moves ]
 
 loadTakes :: (MonadIO m) => Text -> ReaderT SqlBackend m [Adjustment]
 loadTakes sku = do
