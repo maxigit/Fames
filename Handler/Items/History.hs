@@ -77,7 +77,7 @@ data Move = Move
 loadHistory :: Text -> Handler [ItemEvent]
 loadHistory sku = do
   (moves, takes) <- runDB $ liftA2 (,) (loadMoves sku) (loadTakes sku)
-  return $ makeEvents moves takes
+  return . take 200 . reverse $ makeEvents moves takes
 
 
 historyToTable :: [ItemEvent] -> Widget
