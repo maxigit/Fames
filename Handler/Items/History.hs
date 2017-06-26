@@ -21,6 +21,7 @@ data FormParams = FormParams
 getItemsHistoryR :: Text -> Handler Html
 getItemsHistoryR sku = do
   faUrl <- getsYesod (pack . appFAExternalURL . appSettings)
+  renderUrl <- getUrlRenderParams
   history <- loadHistory sku
   let tableW = do
         toWidget [cassius|
@@ -47,7 +48,7 @@ span.badge.Packers
   background-color:#fdc
   color: black
                 |]
-        historyToTable faUrl history
+        historyToTable (faUrl, renderUrl) history
   defaultLayout tableW
 
 
@@ -81,12 +82,12 @@ loadHistory sku = do
   return . take 200 . reverse $ makeEvents moves takes
 
 
-historyToTable :: Text ->  [ItemEvent] -> Widget
-historyToTable faUrl events = let
+historyToTable :: (Text, Route App -> [(Text, Text)] -> Text) ->  [ItemEvent] -> Widget
+historyToTable (faUrl, renderUrl) events = let
   columns = ["Type", "#", "Reference", "Location", "Date", "Info","InOut", "Quantity On Hand", "Stocktake", "Operator"]
   -- columns = ["Type", "#", "Reference", "Location", "Date", "InOut", "Operator"]
   colDisplay col = (toHtml col, [])
-  rows = [ (valueFor (urlForFA faUrl) event, [])
+  rows = [ (valueFor (urlForFA faUrl, renderUrl) event, [])
          | event <- events
          ]
   in displayTable columns colDisplay rows
@@ -114,7 +115,8 @@ displayPkers title (Just pkers) = do
 --     _ -> inlineAll' (title: operators)
   
 
-valueFor :: (FATransType -> Int -> Text) -> ItemEvent -> Text -> Maybe (Html, [Text])
+valueFor :: (FATransType -> Int -> Text, (Route App) -> [(Text, Text)] -> Text)
+         -> ItemEvent -> Text -> Maybe (Html, [Text])
 valueFor faUrl ie "InOutQ" = let
   fromM = fromMaybe ("", [])
   (in_, _) = fromM (valueFor faUrl ie "In")
@@ -152,7 +154,7 @@ valueFor _ (ItemEvent ie qoh (Just stake) mod) "Stocktake" =
                        in [shamlet|<div.split>#{badge}|]) (aTakes adj)
   in Just (stake' >> badgeSpan' modBadge mod "" >>  badgeSpan' outBadge lost "", [])
 valueFor _ (ItemEvent _ _ Nothing _) "Stocktake" = Nothing
-valueFor urlForFA' (ItemEvent (Left (Move FA.StockMove{..} _ info _ pickers packers)) qoh stake _)  col = case col of
+valueFor (urlForFA', renderUrl) (ItemEvent (Left (Move FA.StockMove{..} _ info _ pickers packers)) qoh stake _)  col = case col of
   "Type" -> Just (showTransType $ toEnum stockMoveType, [])
   "#" -> Just ([shamlet|<a href="#{urlForFA' (toEnum stockMoveType) stockMoveTransNo}">#{stockMoveTransNo}|], [])
   "Reference" -> Just (toHtml (stockMoveReference), [])
@@ -166,14 +168,19 @@ valueFor urlForFA' (ItemEvent (Left (Move FA.StockMove{..} _ info _ pickers pack
   "Operator" -> Just (displayPkers "Pickers" pickers >> displayPkers "Packers" packers, [])
   "Info" -> Just (toHtml info, [])
 
-valueFor _ (ItemEvent (Right adj ) qoh stake _) col = let
+valueFor (_, renderUrl) (ItemEvent (Right adj ) qoh stake _) col = let
   inlineAll f = inlineAll' (map (f . entityVal . fst) (aTakes adj))
   diff = 0 -- qoh - fromIntegral stocktakeQuantity
   lost = max 0 diff
   found = max 0 (-diff)
   in case col of
   "Type" -> Just ("Stocktake", [])
-  "#" -> (\a -> (toHtml . unSqlBackendKey . unStockAdjustmentKey $ stockAdjustmentDetailAdjustment a, [])) <$> headMay (aAdj adj)
+  "#" -> ( \a -> let adj =  stockAdjustmentDetailAdjustment a
+                     adjId =  unSqlBackendKey $ unStockAdjustmentKey adj
+                 in ([hamlet|<a href=@{WarehouseR (WHStockAdjustmentViewR adjId)}>#{adjId}|] renderUrl
+                     , [])
+         ) <$> headMay (aAdj adj)
+  -- "#" -> Just ([hamlet|<a href="@{WarehouseR WHStocktakeR}?doc_key=#{unDocumentKeyKey . stocktakeDocumentKey . entityVal . fst}">|] renderUrl, [])
   "Reference" -> Just (inlineAll stocktakeBarcode, [])
   "Location" -> Just (inlineAll  (FA.unLocationKey . stocktakeFaLocation), [])
   "Date" -> Just (inlineAll (tshow . stocktakeDate), [])

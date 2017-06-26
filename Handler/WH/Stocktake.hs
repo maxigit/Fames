@@ -45,7 +45,16 @@ import qualified Data.Set as Set
 data SavingMode = Validate | Save | CollectMOP deriving (Eq, Read, Show)
 
 getWHStocktakeR :: Handler Html
-getWHStocktakeR = entityTableHandler (WarehouseR WHStocktakeR) ([] :: [Filter Stocktake])
+getWHStocktakeR = do
+  sId <- lookupGetParam "id"
+  stockId <- lookupGetParam "stock_id"
+  docId <- lookupGetParam "doc_key"
+  let filter = catMaybes
+        [ (\i -> StocktakeId ==. StocktakeKey (SqlBackendKey i)) <$> (sId >>= readMay)
+        , (StocktakeStockId ==. ) <$> stockId
+        , (\k -> StocktakeDocumentKey ==. DocumentKeyKey' (SqlBackendKey k) ) <$> (docId >>= readMay)
+        ]
+  entityTableHandler (WarehouseR WHStocktakeR) (filter :: [Filter Stocktake])
 
 getWHStocktakeValidateR :: Handler Html
 getWHStocktakeValidateR = do
