@@ -81,6 +81,7 @@ data AppSettings = AppSettings
     , appFAURL :: String -- ^ URL to connect to FrontAccounting to post transactions
     , appFAUser :: String -- ^ User to connect to FrontAcounting
     , appFAPassword :: String -- ^ User passwrod to connect to FA to post transactions.
+    , appFAExternalURL :: String -- ^ User passwrod to connect to FA to post transactions.
     } deriving Show
 
 
@@ -130,7 +131,8 @@ instance FromJSON AppSettings  where
         appFALostLocation  <- o .:? "fa-lost-location" .!= "LOST"
         appFADefaultLocation  <- o .:? "fa-default-location" .!= "DEF"
         appFAStockLikeFilter  <- o .:? "fa-stock-like-filter" .!= "%"
-        appFAURL <- o .:? "fa-url" .!= "http://127.0.0.1"
+        appFAExternalURL <- o .:? "fa-x-url" .!= "http://127.0.0.1" -- for outsideworld 
+        appFAURL <- o .:? "fa-url" .!= "http://127.0.0.1" -- from inside the Fames container
         appFAUser <- o .:? "fa-user" .!= "admin"
         appFAPassword <- o .:? "fa-password" .!= "password"
         

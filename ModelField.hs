@@ -3,6 +3,7 @@ module ModelField where
 
 import ClassyPrelude.Yesod
 import Database.Persist.Quasi
+import Text.Printf(printf)
 -- | Where as a transaction has been processed or not.
 data PendingStatus = Pending | Process deriving (Eq, Read, Show, Enum, Bounded, Ord)
 
@@ -112,4 +113,14 @@ inTypes :: [FATransType] -> Text
 inTypes types = intercalate "," $ map (tshow . fromEnum) types
   
 
-
+urlForFA :: Text -> FATransType -> Int -> Text
+urlForFA base type_ no = base <> "/" <> pack url  where
+  tp = fromEnum type_
+  url = case type_ of
+    ST_CUSTDELIVERY -> printf "sales/view/view_dispatch.php?trans_no=%d?trans_type=%d" no tp
+    ST_CUSTCREDIT -> printf "sales/view/view_credit.php?trans_no=%d?trans_type=%d" no tp
+    ST_LOCTRANSFER -> printf "inventory/view/view_transfer.php?trans_no=%d" no
+    ST_INVADJUST -> printf "inventory/view/view_adjustment.php?trans_no=%d" no
+    ST_SUPPRECEIVE -> printf "purchasing/view/view_grn.php?trans_no=%d" no
+    _ -> "not found"
+                                        

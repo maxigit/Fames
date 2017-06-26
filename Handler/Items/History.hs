@@ -20,6 +20,7 @@ data FormParams = FormParams
 
 getItemsHistoryR :: Text -> Handler Html
 getItemsHistoryR sku = do
+  faUrl <- getsYesod (pack . appFAExternalURL . appSettings)
   history <- loadHistory sku
   let tableW = do
         toWidget [cassius|
@@ -46,7 +47,7 @@ span.badge.Packers
   background-color:#fdc
   color: black
                 |]
-        historyToTable history
+        historyToTable faUrl history
   defaultLayout tableW
 
 
@@ -80,12 +81,12 @@ loadHistory sku = do
   return . take 200 . reverse $ makeEvents moves takes
 
 
-historyToTable :: [ItemEvent] -> Widget
-historyToTable events = let
+historyToTable :: Text ->  [ItemEvent] -> Widget
+historyToTable faUrl events = let
   columns = ["Type", "#", "Reference", "Location", "Date", "Info","InOut", "Quantity On Hand", "Stocktake", "Operator"]
   -- columns = ["Type", "#", "Reference", "Location", "Date", "InOut", "Operator"]
   colDisplay col = (toHtml col, [])
-  rows = [ (valueFor event, [])
+  rows = [ (valueFor (urlForFA faUrl) event, [])
          | event <- events
          ]
   in displayTable columns colDisplay rows
@@ -113,19 +114,19 @@ displayPkers title (Just pkers) = do
 --     _ -> inlineAll' (title: operators)
   
 
-valueFor :: ItemEvent -> Text -> Maybe (Html, [Text])
-valueFor ie "InOutQ" = let
+valueFor :: (FATransType -> Int -> Text) -> ItemEvent -> Text -> Maybe (Html, [Text])
+valueFor faUrl ie "InOutQ" = let
   fromM = fromMaybe ("", [])
-  (in_, _) = fromM (valueFor ie "In")
-  (out, _) = fromM (valueFor ie "Out")
-  (qoh, k) = fromM (valueFor ie "Quantity On Hand")
+  (in_, _) = fromM (valueFor faUrl ie "In")
+  (out, _) = fromM (valueFor faUrl ie "Out")
+  (qoh, k) = fromM (valueFor faUrl ie "Quantity On Hand")
   in Just (in_ >> qoh >> out, k)
-valueFor ie "InOut" = let
+valueFor faUrl ie "InOut" = let
   fromM = fromMaybe ("", [])
-  (in_, k) = fromM (valueFor ie "In")
-  (out, _) = fromM (valueFor ie "Out")
+  (in_, k) = fromM (valueFor faUrl ie "In")
+  (out, _) = fromM (valueFor faUrl ie "Out")
   in Just (in_ >> out, k)
-valueFor (ItemEvent ie qoh stake mod) "Quantity On Hand" =
+valueFor _ (ItemEvent ie qoh stake mod) "Quantity On Hand" =
   let found = (fromMaybe 0 stake + mod - qoh)
   -- if a stock adjustment result in matching the stocktake  : badge
   in case ie of
@@ -136,7 +137,7 @@ valueFor (ItemEvent ie qoh stake mod) "Quantity On Hand" =
                   badgeSpan' qohBadge qoh ""
                   >> badgeSpan' modBadge (- mod) ""
                   >> badgeSpan' inBadge found "", ["qoh"])
-valueFor (ItemEvent ie qoh (Just stake) mod) "Stocktake" =
+valueFor _ (ItemEvent ie qoh (Just stake) mod) "Stocktake" =
   let lost = (qoh - stake - mod)
       stake' = case ie of
         Left _ -> if stake == qoh
@@ -150,10 +151,10 @@ valueFor (ItemEvent ie qoh (Just stake) mod) "Stocktake" =
           mapM_ (\t -> let badge = badgeSpan' bg (fromIntegral . stocktakeQuantity . entityVal . fst $ t) ""
                        in [shamlet|<div.split>#{badge}|]) (aTakes adj)
   in Just (stake' >> badgeSpan' modBadge mod "" >>  badgeSpan' outBadge lost "", [])
-valueFor (ItemEvent _ _ Nothing _) "Stocktake" = Nothing
-valueFor (ItemEvent (Left (Move FA.StockMove{..} _ info _ pickers packers)) qoh stake _)  col = case col of
+valueFor _ (ItemEvent _ _ Nothing _) "Stocktake" = Nothing
+valueFor urlForFA' (ItemEvent (Left (Move FA.StockMove{..} _ info _ pickers packers)) qoh stake _)  col = case col of
   "Type" -> Just (showTransType $ toEnum stockMoveType, [])
-  "#" -> Just (toHtml (tshow stockMoveTransNo), [])
+  "#" -> Just ([shamlet|<a href="#{urlForFA' (toEnum stockMoveType) stockMoveTransNo}">#{stockMoveTransNo}|], [])
   "Reference" -> Just (toHtml (stockMoveReference), [])
   "Location" -> Just (toHtml (stockMoveLocCode), [])
   "Date" -> Just (toHtml (tshow stockMoveTranDate), [])
@@ -165,7 +166,7 @@ valueFor (ItemEvent (Left (Move FA.StockMove{..} _ info _ pickers packers)) qoh 
   "Operator" -> Just (displayPkers "Pickers" pickers >> displayPkers "Packers" packers, [])
   "Info" -> Just (toHtml info, [])
 
-valueFor (ItemEvent (Right adj ) qoh stake _) col = let
+valueFor _ (ItemEvent (Right adj ) qoh stake _) col = let
   inlineAll f = inlineAll' (map (f . entityVal . fst) (aTakes adj))
   diff = 0 -- qoh - fromIntegral stocktakeQuantity
   lost = max 0 diff
