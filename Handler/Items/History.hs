@@ -155,10 +155,14 @@ valueFor _ (ItemEvent ie qoh (Just stake) mod) "Stocktake" =
                        in [shamlet|<div.split>#{badge}|]) (aTakes adj)
   in Just (stake' >> badgeSpan' modBadge mod "" >>  badgeSpan' outBadge lost "", [])
 valueFor _ (ItemEvent _ _ Nothing _) "Stocktake" = Nothing
-valueFor (urlForFA', renderUrl) (ItemEvent (Left (Move FA.StockMove{..} _ info _ pickers packers)) qoh stake _)  col = case col of
+valueFor (urlForFA', renderUrl) (ItemEvent (Left (Move FA.StockMove{..} _ info adjM pickers packers)) qoh stake _)  col = case col of
   "Type" -> Just (showTransType $ toEnum stockMoveType, [])
   "#" -> Just ([shamlet|<a href="#{urlForFA' (toEnum stockMoveType) stockMoveTransNo}" target=_blank>#{stockMoveTransNo}|], [])
-  "Reference" -> Just (toHtml (stockMoveReference), [])
+  "Reference" -> Just (case adjM of
+                         Nothing -> toHtml (stockMoveReference)
+                         Just adj -> let adjId = fromIntegral adj
+                                       in [hamlet|<a href="@{WarehouseR (WHStockAdjustmentViewR adjId)}" target=_blank>#{stockMoveReference}|] renderUrl
+                                          , [])
   "Location" -> Just (toHtml (stockMoveLocCode), [])
   "Date" -> Just (toHtml (tshow stockMoveTranDate), [])
   "In" -> let bg = if toEnum stockMoveType == ST_LOCTRANSFER -- found
