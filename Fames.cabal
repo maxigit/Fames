@@ -72,6 +72,7 @@ library
     , case-insensitive
     , wai
     , blaze-html
+    , blaze-markup
     , split
     , cryptohash
     , formatting
@@ -295,6 +296,7 @@ executable FAGenerator
     , case-insensitive
     , wai
     , blaze-html
+    , blaze-markup
     , split
     , cryptohash
     , formatting
@@ -371,6 +373,7 @@ executable Fames
     , case-insensitive
     , wai
     , blaze-html
+    , blaze-markup
     , split
     , cryptohash
     , formatting
@@ -454,6 +457,7 @@ executable TextcartHelper
     , case-insensitive
     , wai
     , blaze-html
+    , blaze-markup
     , split
     , cryptohash
     , formatting
@@ -528,6 +532,7 @@ test-suite test
     , case-insensitive
     , wai
     , blaze-html
+    , blaze-markup
     , split
     , cryptohash
     , formatting

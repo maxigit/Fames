@@ -48,6 +48,7 @@ dependencies:
 - case-insensitive
 - wai
 - blaze-html
+- blaze-markup
 - split
 - cryptohash
 - formatting

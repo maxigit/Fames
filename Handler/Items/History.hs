@@ -8,6 +8,7 @@ import qualified FA as FA
 import Database.Persist.MySQL(unSqlBackendKey, rawSql, Single(..))
 import Data.List (mapAccumL, cycle)
 import Text.Blaze.Html (ToMarkup)
+import Text.Blaze.Renderer.Text (renderHtml)
 import qualified Data.Map as Map
 import Data.Time(addDays)
 import Data.Text(splitOn)
@@ -93,12 +94,12 @@ historyToTable (faUrl, renderUrl) events = let
   in displayTable columns colDisplay rows
   
   
-inlineAll' values = let
+inlineAll' = inlineAll'' "..." (\(v,k) -> [shamlet|<div class="#{k}">#{v}|])
+inlineAll'' ellipsis render values = let
   v'ks = case values of
            [x] -> [(x,"")]
-           (x:xs) -> [(x, "" :: Text), ("...", "total")] ++ zip xs (cycle ["split"])
-  in mapM_ (\(v, k) -> [shamlet|<div class="#{k}">#{v}|]) v'ks
-            
+           (x:xs) -> [(x, "" :: Text), (ellipsis, "total")] ++ zip xs (cycle ["split"])
+  in mapM_ render v'ks
 
 displayPkers :: Text -> Maybe Text -> Html
 displayPkers _ Nothing = return ()
@@ -156,7 +157,7 @@ valueFor _ (ItemEvent ie qoh (Just stake) mod) "Stocktake" =
 valueFor _ (ItemEvent _ _ Nothing _) "Stocktake" = Nothing
 valueFor (urlForFA', renderUrl) (ItemEvent (Left (Move FA.StockMove{..} _ info _ pickers packers)) qoh stake _)  col = case col of
   "Type" -> Just (showTransType $ toEnum stockMoveType, [])
-  "#" -> Just ([shamlet|<a href="#{urlForFA' (toEnum stockMoveType) stockMoveTransNo}">#{stockMoveTransNo}|], [])
+  "#" -> Just ([shamlet|<a href="#{urlForFA' (toEnum stockMoveType) stockMoveTransNo}" target=_blank>#{stockMoveTransNo}|], [])
   "Reference" -> Just (toHtml (stockMoveReference), [])
   "Location" -> Just (toHtml (stockMoveLocCode), [])
   "Date" -> Just (toHtml (tshow stockMoveTranDate), [])
@@ -177,11 +178,19 @@ valueFor (_, renderUrl) (ItemEvent (Right adj ) qoh stake _) col = let
   "Type" -> Just ("Stocktake", [])
   "#" -> ( \a -> let adj =  stockAdjustmentDetailAdjustment a
                      adjId =  unSqlBackendKey $ unStockAdjustmentKey adj
-                 in ([hamlet|<a href=@{WarehouseR (WHStockAdjustmentViewR adjId)}>#{adjId}|] renderUrl
+                 in ([hamlet|<a href="@{WarehouseR (WHStockAdjustmentViewR adjId)}" target=_blank>#{adjId}|] renderUrl
                      , [])
          ) <$> headMay (aAdj adj)
   -- "#" -> Just ([hamlet|<a href="@{WarehouseR WHStocktakeR}?doc_key=#{unDocumentKeyKey . stocktakeDocumentKey . entityVal . fst}">|] renderUrl, [])
-  "Reference" -> Just (inlineAll stocktakeBarcode, [])
+  "Reference" -> let barWithRef (Nothing, k) = [shamlet|<div class="#{k}">...|]
+                     barWithRef (Just stock,k) =
+                       let barcode = stocktakeBarcode stock
+                           docKey = unSqlBackendKey $ unDocumentKeyKey (stocktakeDocumentKey stock)
+                                        in [hamlet|
+<div class="#{k}">
+  <a href="@{WarehouseR WHStocktakeR}?doc_key=#{docKey}" target=_blank>##{docKey}|] renderUrl
+                                            
+                 in Just (inlineAll'' Nothing barWithRef (map (Just . entityVal .fst) (aTakes adj)) , [])
   "Location" -> Just (inlineAll  (FA.unLocationKey . stocktakeFaLocation), [])
   "Date" -> Just (inlineAll (tshow . stocktakeDate), [])
   "In" -> Just (badgeSpan' inBadge found "", [])
