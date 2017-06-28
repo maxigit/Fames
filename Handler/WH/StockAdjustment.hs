@@ -320,27 +320,34 @@ quantitiesFor loc (Single sku, Single take, Single date, Single comment) = do
             <> "AND loc_code = ?"
 
   -- extract all relevant moves within the unsure range
-  let sqlForMoves = "SELECT moves.tran_date, COALESCE(debtor.name, '<>'), COALESCE(GROUP_CONCAT(operator.name), 'nop'), SUM(moves.qty) "
+  let sqlForMoves = "SELECT moves.tran_date, COALESCE(debtor.name, '<>'), COALESCE(operators, 'no op'), SUM(moves.qty) "
                    <> " FROM 0_stock_moves moves "
                    <> " LEFT JOIN 0_debtor_trans USING(trans_no, type)"
                    <> " LEFT JOIN 0_debtors_master debtor USING(debtor_no)"
-                   <> " LEFT JOIN mop.action ON (orderId = order_ AND sku = stock_id AND typeId = 1)"
-                   <> " LEFT JOIN mop.session ON (groupId = actionGroupId)"
-                   <> " LEFT JOIN mop.operator ON (operatorId = operator.id)"
+                   <> " LEFT JOIN (" <> operators <> ") operators ON (orderId = order_ AND sku = stock_id )"
                    <> " WHERE stock_id = ?"
                    <> " AND moves.tran_date between ? AND ?"
                    <> " AND loc_code = ?"
                    <> " GROUP BY trans_no, type"
                    <> " ORDER BY moves.tran_date, moves.trans_id " :: Text
+      
+      -- we have to group operators in a separate query to avoid moves quantity to be counted many times
+      operators = " SELECT orderId, sku, GROUP_CONCAT(distinct operator.name) as operators "
+                   <> " FROM mop.action "
+                   <> " JOIN mop.session ON (groupId = actionGroupId)"
+                   <> " JOIN mop.operator ON (operatorId = operator.id)"
+                   <> " WHERE typeId = 1"
+                   <> " GROUP BY orderId, sku"
       toMove (Single date, Single debtor, Single operators, Single qty) = MoveInfo date debtor operators qty
                     
+  traceShowM sqlForMoves
   (results, moves) <- runDB $ do
     results <- rawSql sql [PersistText sku, PersistDay date, PersistText loc]
     moves <- rawSql sqlForMoves [PersistText sku, PersistDay minDate, PersistDay maxDate, PersistText loc]
     return (results , moves)
 
 
-  -- traceShowM(sqlForMoves, moves)
+  traceShowM(sqlForMoves, moves)
   return $ case results of
     [] -> LocationInfo loc Nothing 0 0 Nothing []
     [(Single qoh, Single at, Single last)] -> LocationInfo loc (Just take) (fromMaybe 0 at) (fromMaybe 0 qoh) (last) (map toMove moves)
