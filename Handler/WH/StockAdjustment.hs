@@ -457,7 +457,7 @@ renderAdjustments adjustments = do
     <th> Statement
   $forall (Entity k adj) <- adjustments
     <tr>
-      <td> <a href=@{WarehouseR (WHStockAdjustmentViewR (unSqlBackendKey $ unStockAdjustmentKey k) )}>
+      <td> <a target=_blank href=@{WarehouseR (WHStockAdjustmentViewR (unSqlBackendKey $ unStockAdjustmentKey k) )}>
        ##{tshow $ unSqlBackendKey $ unStockAdjustmentKey k}
       <td> #{tshow $ stockAdjustmentDate adj}
       <td> #{take 50 $ stockAdjustmentComment adj}
@@ -506,7 +506,7 @@ getWHStockAdjustmentViewR key = do
   
   Carts{..} <- adjustCarts date $ splitDetails mainLoc lostLoc details 
 
-  let renderStockId d = [whamlet|<a href="@{route}" target=_blank>#{stockId}|]
+  let renderStockId d = [whamlet|<a href="@{route}" target="_blank">#{stockId}|]
         where stockId = stockAdjustmentDetailStockId d
               route = ItemsR (ItemsHistoryR stockId)
   let renderDetails :: Text -> Text -> [(StockAdjustmentDetail, Int)] -> Widget
