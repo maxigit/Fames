@@ -414,6 +414,27 @@ saveStockAdj FormParam{..} pres' = do
     setSuccess "Stock adjustment saved"
     return ""
 
+-- | Reject a stock adjusment, releasing the stocktakes to be processed again.
+-- Depending of it's state
+-- The stock adjustment can be deleted
+-- or not.
+-- Transaction in FA are left, which should not be a problem
+-- has the next stock adjustment should take the new QOH into account.
+rejectStockAdj :: Int64 -> Handler ()
+rejectStockAdj adjId = do
+  let key = StockAdjustmentKey (SqlBackendKey adjId)
+  -- unset stock adjustment
+  runDB $ do
+    adj <- getJust key
+    updateWhere [StocktakeAdjustment ==. Just key] [StocktakeAdjustment =. Nothing]
+  -- delete stock adjustment if possible
+    when (stockAdjustmentStatus adj == Pending ) $ do
+      deleteWhere [StockAdjustmentDetailAdjustment ==. key]
+      deleteWhere [StockAdjustmentId ==. key]
+
+    setSuccess . toHtml $ "Adjustment #"<> tshow adjId <> " has been successfully rejected."
+
+  
 -- | Displays a list of pending adjustment
 renderPending :: Handler Widget
 renderPending =  do
@@ -531,9 +552,11 @@ getWHStockAdjustmentViewR key = do
   #{tshow $ stockAdjustmentStatus adj}
   <div.well> #{stockAdjustmentComment adj}
     ^{page}
-    <form role=form method=post action=@{WarehouseR $ WHStockAdjustmentToFAR (key )}>
-      $if (stockAdjustmentStatus adj /= Process)
+    $if (stockAdjustmentStatus adj /= Process)
+      <form role=form method=post action=@{WarehouseR $ WHStockAdjustmentToFAR (key )}>
         <button type="submit" .btn.btn-danger>Save To FrontAccounting
+    <form role=form method=post action=@{WarehouseR $ WHStockAdjustmentRejectR (key )}>
+      <button type="submit" .btn.btn-warning>Reject 
             |]
   
 -- | Save the required adjustments/transfer to FrontAccounting.
@@ -575,6 +598,11 @@ postWHStockAdjustmentToFAR key = do
       getWHStockAdjustmentR
 
   
+postWHStockAdjustmentRejectR :: Int64 -> Handler Html
+postWHStockAdjustmentRejectR adjId = do
+  rejectStockAdj adjId
+  renderStockAdjustment
+
 
 
 badgeSpan' :: Int -> Maybe String -> String -> Widget
@@ -701,3 +729,4 @@ postLocationTransferToFA connectInfo trans = do
       transId <- ExceptT . liftIO $ WFA.postLocationTransfer connectInfo trans
       setSuccess . toHtml $ "Transfer#" <> tshow transId <> " has been created successfully"
       return (Just transId)
+
