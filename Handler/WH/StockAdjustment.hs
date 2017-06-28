@@ -107,12 +107,24 @@ renderStockAdjustment :: Handler Html
 renderStockAdjustment = do
   (paramForm, encType) <- generateFormPost (paramForm View)
   pendings <- renderPending
+  lastAdjs <- renderLast 10
+  lastTakes <- renderTakes 10
   let response = [whamlet|
 <div.panel.panel-info>
   <div.panel-heading>
-    <h3> Pending Stock Adjustment
+    <h3> Pending Stock Adjustments
   <div.panel-body>
     ^{pendings}
+<div.panel.panel-primary>
+  <div.panel-heading>
+    <h3> Last 10 Stock AdjustmentS
+  <div.panel-body>
+    ^{lastAdjs}
+<div.panel.panel-primary>
+  <div.panel-heading>
+    <h3> Last 10 Stocktakes
+  <div.panel-body>
+    ^{lastTakes}
 <div.panel> 
   <div.panel-body>
     <form.well #stock-adjustement role=form method=post action=@{WarehouseR WHStockAdjustmentR} enctype=#{encType}>
@@ -401,8 +413,17 @@ saveStockAdj FormParam{..} pres' = do
 
 -- | Displays a list of pending adjustment
 renderPending :: Handler Widget
-renderPending = do
+renderPending =  do
   pendings <- runDB $ selectList [StockAdjustmentStatus ==. Pending] [] -- [LimitTo 10]
+  renderAdjustments pendings
+
+renderLast :: Int -> Handler Widget
+renderLast limit =  do
+  lasts <- runDB $ selectList [StockAdjustmentStatus !=. Pending] [LimitTo limit, Desc StockAdjustmentId]
+  renderAdjustments (reverse lasts)
+
+renderAdjustments :: [Entity StockAdjustment] -> Handler Widget
+renderAdjustments adjustments = do
   return [whamlet|
 <table.table.table-hover>
   <tr>
@@ -410,7 +431,7 @@ renderPending = do
     <th> Date
     <th> Comment
     <th> Statement
-  $forall (Entity k adj) <- pendings
+  $forall (Entity k adj) <- adjustments
     <tr>
       <td> <a href=@{WarehouseR (WHStockAdjustmentViewR (unSqlBackendKey $ unStockAdjustmentKey k) )}>
        ##{tshow $ unSqlBackendKey $ unStockAdjustmentKey k}
@@ -418,6 +439,25 @@ renderPending = do
       <td> #{take 50 $ stockAdjustmentComment adj}
       <td> #{tshow $ stockAdjustmentStatus adj}
 |]
+
+renderTakes :: Int -> Handler Widget
+renderTakes limit = do
+  rtakes <- runDB $ selectList [DocumentKeyType ==. "stocktake"] [LimitTo limit, Desc DocumentKeyId]
+  let takes = reverse rtakes
+  return [whamlet|
+<table.table.table-hover>
+  <tr>
+    <th> Id
+    <th> Date
+    <th> Comment
+  $forall (Entity k doc) <- takes
+    <tr>
+      <td> ##{tshow $ unSqlBackendKey $ unDocumentKeyKey k}
+      <td> #{tshow $ documentKeyProcessedAt doc}
+      <td> #{take 50 $ documentKeyComment doc}
+|]
+
+        -- <a href="@{WarehouseR WHStockAdjustmentR}&stock_id=#{tshow . unSqlBackendKey $ unStockAdjustmentKey k}">
 
 
 -- | Load an adjustment from its key. We assume, as the key as been provided
