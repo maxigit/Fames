@@ -276,7 +276,7 @@ interleaveEvents moves takes =  let
               , fromIntegral $ FA.unStockMoveKey key), Left move)
            | (key, move) <- moves
            ]
-  takes' = [ ((date, 1, (undefined . stocktakeAdjustment  . entityVal . fst $ headEx ts)), Right a)
+  takes' = [ ((date, 1, (maybe 0 (fromIntegral . unStockAdjustmentKey) $ stocktakeAdjustment  . entityVal . fst $ headEx ts)), Right a)
            | a@(Adjustment adj ts) <- takes
            , let date = maximumEx $ map (stocktakeDate . entityVal . fst) ts
            ]
