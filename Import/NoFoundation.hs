@@ -9,6 +9,7 @@ module Import.NoFoundation
     , formatInfo
     , formatSuccess
     , (<|&>)
+    , (<&>)
     , (<$$>), (<$$$>), (<$$$$>)
     , formatAmount
     , formatDouble
@@ -60,11 +61,15 @@ formatMessage mtype t =
   ^{t}
 |]
 
-infixl 3 <|&> 
+infixl 3 <|&>
 -- | Similar to <&> but operate on Left instead of Right
 (<|&>) :: Either a b -> (a -> a') -> Either a' b
 Left l <|&> f = Left (f l)
 Right r <|&> _ = Right r
+
+infixl 3 <&>
+(<&>) :: Functor f => f a  -> (a ->b) -> f b
+x <&> f = fmap f x
 
 infixl 4 <$$>, <$$$>, <$$$$>
 (<$$>) = fmap . fmap

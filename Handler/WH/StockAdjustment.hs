@@ -54,6 +54,7 @@ data FormParam = FormParam
   , sortMode :: SortMode
   , unsure :: Unsure
   , modulo :: Maybe Int
+  , stocktakeDoc :: Maybe Int64 -- ^ stocktakes are groupeb by documentKey
   , comment :: Maybe Text
   , activeRows :: Set Text
   , quantityBefore :: Map Text Int -- ^ Quantity to substract from qoh
@@ -70,6 +71,7 @@ paramForm mode = renderBootstrap3 BootstrapBasicForm  form
             <*> areq (selectField optionsEnum)"sort by" Nothing
             <*> areq (selectField optionsEnum) "mode" (Just All)
             <*> aopt intField "modulo" Nothing
+            <*> aopt intField "Stocktake#" Nothing
             <*>  (unTextarea <$$> case mode of
                    Save -> aopt textareaField "comment" Nothing
                    View -> pure Nothing)
@@ -154,14 +156,15 @@ postWHStockAdjustmentR = do
       let activeRows = getActiveRows pp
           qBefore = getQuantityBefore pp
       let param = param0 {activeRows = activeRows, quantityBefore = qBefore}
-      let (w,p) = case style param of
-                  Just like  -> (" AND stock_id like ?", [PersistText like])
-                  Nothing -> ("", [])
+      let (w,p) = unzip $ catMaybes
+                  [ style param <&>  (\like -> (" AND stock_id like ?", PersistText like))
+                  , stocktakeDoc param <&> (\key -> (" AND document_key_id = ?", PersistInt64 key))
+                  ]
       let sql = "SELECT stock_id, COALESCE(SUM(quantity),0), MAX(date), GROUP_CONCAT(comment) "
                 <> " FROM fames_stocktake  "
                 <> " WHERE stock_adj_id IS NULL "
                 <> " AND active = 1 "
-                <> w
+                <> (concat w)
                 <> " GROUP BY stock_id "
 
       stocktakes <- runDB $ rawSql sql p
