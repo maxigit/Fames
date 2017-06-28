@@ -485,6 +485,9 @@ getWHStockAdjustmentViewR key = do
   
   Carts{..} <- adjustCarts date $ splitDetails mainLoc lostLoc details 
 
+  let renderStockId d = [whamlet|<a href="@{route}" target=_blank>#{stockId}|]
+        where stockId = stockAdjustmentDetailStockId d
+              route = ItemsR (ItemsHistoryR stockId)
   let renderDetails :: Text -> Text -> [(StockAdjustmentDetail, Int)] -> Widget
       renderDetails title class_ details = [whamlet|
 <div.panel. class="panel-#{class_}">
@@ -493,7 +496,7 @@ getWHStockAdjustmentViewR key = do
   <div.panel-body>
     <p.well>
       $forall (d, qty) <- details
-       #{stockAdjustmentDetailStockId d}
+       ^{renderStockId d}
        #{qty} 
        $with oqty <- stockAdjustmentDetailQuantity d
          $if oqty /= qty
@@ -508,7 +511,7 @@ getWHStockAdjustmentViewR key = do
   <div.panel-body>
     <p.well>
       $forall (d, cost) <- details
-        #{stockAdjustmentDetailStockId d}
+        ^{renderStockId d}
         #{stockAdjustmentDetailQuantity d}
         #{dollar}#{tshow cost}
         <br>
