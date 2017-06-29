@@ -61,7 +61,7 @@ data FormParam = FormParam
   } deriving (Eq, Read, Show)
 
 
-data FormMode = Save | View deriving (Eq, Read, Show)
+data FormMode = Save | Reject | View deriving (Eq, Read, Show)
 paramForm mode = renderBootstrap3 BootstrapBasicForm  form
   where form = FormParam
             <$> aopt textField "style" Nothing
@@ -74,6 +74,7 @@ paramForm mode = renderBootstrap3 BootstrapBasicForm  form
             <*> aopt intField "Stocktake#" Nothing
             <*>  (unTextarea <$$> case mode of
                    Save -> aopt textareaField "comment" Nothing
+                   Reject -> pure Nothing
                    View -> pure Nothing)
             <*> pure (Set.fromList [])
             <*> pure (Map.fromList [])
@@ -143,12 +144,13 @@ postWHStockAdjustmentR = do
   action <- lookupPostParam "action"
   let mode = case action of
             Just "save" -> Save
+            Just "reject" -> Reject
             _ -> View
         
 
   (pp, _) <- runRequestBody
   -- traceShowM pp
-  ((resp, view), encType) <- runFormPost (paramForm Save)
+  ((resp, view), encType) <- runFormPost (paramForm mode)
   case resp of
     FormMissing -> error "Form missing"
     FormFailure a -> defaultLayout [whamlet|^{view}|]
@@ -198,6 +200,7 @@ postWHStockAdjustmentR = do
       
       response <- case mode of
             Save -> saveStockAdj param rows
+            Reject -> rejectTakes param rows
             View -> do
               let fay = $(fayFile "WHStockAdjustment")
               return $ fay <> [whamlet|
@@ -253,6 +256,7 @@ postWHStockAdjustmentR = do
   ^{view}
   <button type="submit" name="action" value="submit" .btn.btn-primary>Submit
   <button type="submit" name="action" value="save" .btn.btn-danger>Save
+  <button type="submit" name="action" value="reject" .btn.btn-warning>Reject
   ^{response}
 |]
 
@@ -340,14 +344,13 @@ quantitiesFor loc (Single sku, Single take, Single date, Single comment) = do
                    <> " GROUP BY orderId, sku"
       toMove (Single date, Single debtor, Single operators, Single qty) = MoveInfo date debtor operators qty
                     
-  traceShowM sqlForMoves
   (results, moves) <- runDB $ do
     results <- rawSql sql [PersistText sku, PersistDay date, PersistText loc]
     moves <- rawSql sqlForMoves [PersistText sku, PersistDay minDate, PersistDay maxDate, PersistText loc]
     return (results , moves)
 
 
-  traceShowM(sqlForMoves, moves)
+  -- traceShowM(sqlForMoves, moves)
   return $ case results of
     [] -> LocationInfo loc Nothing 0 0 Nothing []
     [(Single qoh, Single at, Single last)] -> LocationInfo loc (Just take) (fromMaybe 0 at) (fromMaybe 0 qoh) (last) (map toMove moves)
@@ -421,6 +424,29 @@ saveStockAdj FormParam{..} pres' = do
     setSuccess "Stock adjustment saved"
     return ""
 
+-- | Delete stocktakes  because they are probably wrong.
+-- We could inactive them instead, but then we won't know
+-- the difference between a rejected stocktake and a old one.
+rejectTakes :: FormParam -> [PreAdjust] -> Handler (Widget)
+rejectTakes FormParam{..} pres' = do
+  let pres = filter ((`elem` activeRows) . sku) pres'
+   
+      -- in case  document has been selected
+      -- we need to only remove this one
+      globalFilter = catMaybes [
+        stocktakeDoc <&> (\key -> StocktakeDocumentKey ==. (DocumentKeyKey' $ SqlBackendKey key ) )
+        ]
+      
+  runDB $
+     (flip traverse) pres  $ \pre -> 
+         deleteWhere ([StocktakeStockId ==. sku pre
+                      , StocktakeActive ==. True
+                      , StocktakeAdjustment ==. Nothing
+                      ]
+                      ++ globalFilter
+                     )
+  setSuccess "Stocktakes have been deleted sucessfuly "
+  return ""
 -- | Reject a stock adjusment, releasing the stocktakes to be processed again.
 -- Depending of it's state
 -- The stock adjustment can be deleted
