@@ -526,22 +526,30 @@ loadAdjustment key = do
   entities <- selectList [StockAdjustmentDetailAdjustment ==. StockAdjustmentKey adjKey] []
   return (map entityVal entities, adj)
 
+loadAdjustmentTakes key = do
+  let adjKey  = StockAdjustmentKey (SqlBackendKey key)
+  map entityVal <$>  selectList [StocktakeAdjustment ==. Just adjKey] [Asc StocktakeStockId]
+
+  
 getWHStockAdjustmentViewR :: Int64 -> Handler Html
 getWHStockAdjustmentViewR key = do
   let mainLoc = Just (FA.LocationKey "DEF")
       lostLoc = Just (FA.LocationKey "LOST")
 
   
-  (details, adj) <-runDB $ loadAdjustment key
+  ((details, adj), takes) <-runDB $ do
+    adjs <- loadAdjustment key
+    takes <- loadAdjustmentTakes key
+    return (adjs, takes)
 
   -- let date = utctDay $  stockAdjustmentDate adj
   date <- utctDay <$> liftIO getCurrentTime
   
   Carts{..} <- adjustCarts date $ splitDetails mainLoc lostLoc details 
 
-  let renderStockId d = [whamlet|<a href="@{route}" target="_blank">#{stockId}|]
-        where stockId = stockAdjustmentDetailStockId d
-              route = ItemsR (ItemsHistoryR stockId)
+  let renderStockId stockId = [whamlet|<a href="@{route}" target="_blank">#{stockId}|]
+        where route = ItemsR (ItemsHistoryR stockId)
+      renderStockIdFor = renderStockId . stockAdjustmentDetailStockId 
   let renderDetails :: Text -> Text -> [(StockAdjustmentDetail, Int)] -> Widget
       renderDetails title class_ details = [whamlet|
 <div.panel. class="panel-#{class_}">
@@ -550,7 +558,7 @@ getWHStockAdjustmentViewR key = do
   <div.panel-body>
     <p.well>
       $forall (d, qty) <- details
-       ^{renderStockId d}
+       ^{renderStockIdFor d}
        #{qty} 
        $with oqty <- stockAdjustmentDetailQuantity d
          $if oqty /= qty
@@ -565,18 +573,31 @@ getWHStockAdjustmentViewR key = do
   <div.panel-body>
     <p.well>
       $forall (d, cost) <- details
-        ^{renderStockId d}
+        ^{renderStockIdFor d}
         #{stockAdjustmentDetailQuantity d}
         #{dollar}#{tshow cost}
         <br>
                           |] where dollar = "$" :: Text
 
-
+  let renderTakes' takes = [whamlet|
+<div.panel. class="panel-primary">
+  <div.panel-heading>
+    <h3> Stocktakes
+  <div.panel-body>
+    <p.well>
+      $forall take <- takes
+        ^{renderStockId (stocktakeStockId take) }
+        #{stocktakeQuantity take}
+        #{tshow $ stocktakeDate take}
+        ##{tshow $ unSqlBackendKey $ unDocumentKeyKey $ stocktakeDocumentKey take}
+        <br>
+                            |]
 
   let page = do 
         renderDetails "Found" "success"  cFound
         renderDetails "Lost" "danger"  cLost
         renderDetails' "New" "warning"  cNew
+        renderTakes' takes
   
   defaultLayout $ do
     [whamlet|
