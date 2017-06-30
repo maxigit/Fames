@@ -11,6 +11,8 @@ import ClassyPrelude.Yesod hiding(throw)
 import Control.Exception          (throw)
 import Data.Aeson                 (Result (..), fromJSON, withObject, (.!=),
                                    (.:?))
+import qualified Data.Aeson as JSON
+import Data.Aeson.TH(deriveToJSON, defaultOptions)
 import Data.FileEmbed             (embedFile)
 import Data.Yaml                  (decodeEither')
 import Database.Persist.MySQL     (MySQLConf (..))
@@ -84,7 +86,17 @@ data AppSettings = AppSettings
     , appFAExternalURL :: String -- ^ User passwrod to connect to FA to post transactions.
     } deriving Show
 
-
+-- TODO clean
+instance ToJSON MySQLConf  where
+  toJSON = const $  JSON.String "MySQL Conf..."
+instance ToJSON HostPreference  where
+  toJSON = const $ JSON.String "Host Preference..."
+instance ToJSON RoleFor  where
+  toJSON = const $ JSON.String "RoleFor..."
+  
+$(deriveToJSON defaultOptions ''BarcodeTemplate)
+$(deriveToJSON defaultOptions ''BarcodeParams)
+$(deriveToJSON defaultOptions ''AppSettings)
 instance FromJSON AppSettings  where
     parseJSON = withObject "AppSettings" $ \o -> do
         let defaultDev =
