@@ -6,13 +6,13 @@ module Handler.CsvUtils where
 import Import hiding(toLower, Null)
 import qualified Data.Csv as Csv
 
-import Data.Either
 import Data.Time(parseTimeM)
 import qualified Data.Map as Map
 import Data.Char (ord,toUpper,toLower)
 import Data.List (nub)
   
 import qualified Data.ByteString.Lazy as LazyBS
+
 -- * Types
 -- | If we can't parse the csv at all (columns are not present),
 -- we need a way to gracefully return a error
@@ -115,12 +115,24 @@ deriving instance Show a => Show (ValidField a)
 deriving instance Read a => Read (ValidField a)
 deriving instance Eq a => Eq (ValidField a)
 -- * Patterns
+pattern RJust :: a -> Either e (Maybe a)
 pattern RJust x = Right (Just x)
+
+pattern RNothing :: Either e (Maybe a)
 pattern RNothing = Right Nothing
+
+pattern RRight :: a -> Either e (Either e' a)
 pattern RRight x = Right (Right x)
+
+pattern RLeft :: e' -> Either e (Either e' a)
 pattern RLeft x = Right (Left x)
+
+pattern LRight :: a -> Either (Either e' a) b
 pattern LRight x = Left (Right x)
+
+pattern LLeft :: e' -> Either (Either e' a) b
 pattern LLeft x = Left (Left x)
+
 -- * Transformables
 -- | Sort of convert but can loose information
 -- Used to demote valid rows to invalid ones.
@@ -156,6 +168,12 @@ instance Transformable a b => Transformable (Maybe a) (Maybe b) where
   transform x = map transform x
 -- * Functions
 
+parseInvalidSpreadsheet :: Show a
+  => Csv.DecodeOptions
+  -> Map String [String]
+  -> LazyBS.ByteString
+  -> a
+  -> InvalidSpreadsheet
 parseInvalidSpreadsheet opt columnMap bytes err =
   let columns = fromString <$> keys columnMap 
       decoded = toList <$> Csv.decodeWith opt Csv.NoHeader bytes :: Either String [[Either Csv.Field Text]]
@@ -163,7 +181,7 @@ parseInvalidSpreadsheet opt columnMap bytes err =
   in case (null bytes, decoded) of
        (True, _ )  -> onEmpty
        (_, Right [])  -> onEmpty
-       (False, Left err) -> InvalidSpreadsheet "Can't parse file. Please check the file is encoded in UTF8 or is well formatted." columns [] [[Left (toStrict bytes)]]
+       (False, Left err1) -> InvalidSpreadsheet ("Can't parse file. Please check the file is encoded in UTF8 or is well formatted." <> pack err1) columns [] [[Left (toStrict bytes)]]
        (False, Right sheet@(headerE:_)) -> do
          let headerPos = Map.fromList (zip header [0..]) :: Map Text Int
              header = map (either decodeUtf8 id) headerE
@@ -209,12 +227,12 @@ parseSpreadsheet columnMap seps bytes = do
     Left _ -> let
                 invalids = [parseInvalidSpreadsheet opt columnMap lbytes err | (Left err, opt) <- tries ]
               in  Left $ minimumByEx (comparing $ length . missingColumns) invalids
-    Right (header, vector) ->  Right $ toList vector
+    Right (__header, vector) ->  Right $ toList vector
   
 
 validateNonEmpty :: Text -> Either InvalidField (Maybe a) -> Either InvalidField (Maybe a)
 validateNonEmpty field RNothing = Left (MissingValueError field) 
-validateNonEmpty field v = v
+validateNonEmpty __field v = v
 
 expandColumnName :: String -> [String]
 expandColumnName colname = [ id
@@ -228,6 +246,7 @@ buildColumnMap :: [(String, [String])] -> Map String [String]
 buildColumnMap columnNames = Map.fromList [(col, expand (col:cols)) | (col, cols) <- columnNames]
   where expand = nub . sort . (concatMap expandColumnName) 
 
+capitalize :: String -> String
 capitalize [] = []
 capitalize (x:xs) = Data.Char.toUpper x : map Data.Char.toLower xs
 
@@ -297,7 +316,7 @@ unknow = transform
 -- | Generate a Either InvalidField from a cell value and parsed field.
 toError :: Text -> Either Csv.Field a -> Either InvalidField a
 toError t e = case e of
-  Left err -> Left (ParsingError ("Invalid format") t)
+  Left err -> Left (ParsingError ("Invalid format:" <> decodeUtf8 err) t)
   Right v -> Right v
 -- * Renderable
 
@@ -331,7 +350,7 @@ instance Renderable InvalidField where
     let (class_, value) = case invField of
           ParsingError _ v -> ("parsing-error" :: Text, v)
           MissingValueError _ -> ("missing-value" :: Text,"<Empty>")
-          InvalidValueError e v -> ("invalid-value" :: Text, v)
+          InvalidValueError e v -> ("invalid-value:" <> e :: Text, v)
     toWidget [cassius|
 .parsing-error, .missing-value, .invalid-value
   .description
@@ -371,15 +390,15 @@ span.unknown-value
     [whamlet|<span.unknown-value>?|]
 
 instance Renderable InvalidSpreadsheet where
-  render i@InvalidSpreadsheet{..} = let
+  render InvalidSpreadsheet{..} = let
     colClass = go 0 (sort columnIndexes)
     go :: Int -> [Int]-> [Text]
     go i [] = "" : go i []
     go i (ix:ixs) | ix == i = "bg-success" : go (i+1) ixs
                   | otherwise = "" : go (i+1) (ix:ixs)
-    convertField :: Either Csv.Field Text -> (Text, Text)
-    convertField (Left bs) = ("bg-danger text-danger", decodeUtf8 bs)
-    convertField (Right t) = ("", t)
+    convertField_ :: Either Csv.Field Text -> (Text, Text)
+    convertField_ (Left bs) = ("bg-danger text-danger", decodeUtf8 bs)
+    convertField_ (Right t) = ("", t)
     in  {-trace ("toHtml" ++ show i ) -}[whamlet|
 <div .invalid-receipt>
   <div .error-description> #{errorDescription}
@@ -395,19 +414,20 @@ instance Renderable InvalidSpreadsheet where
       $forall line <- take 1 sheet
         <tr data-toggle="collapse" data-target="#invalid-spreadsheet-body">
           $forall (class_, field) <- zip colClass line
-            $with (fieldClass, fieldValue) <- convertField field
+            $with (fieldClass, fieldValue) <- convertField_ field
               <th class="#{class_} #{fieldClass}"> #{fieldValue}
     <tbody#invalid-spreadsheet-body.collapse.in>
       $forall line <- drop 1 sheet
         <tr>
           $forall (class_, field) <- zip colClass line
-            $with (fieldClass, fieldValue) <- convertField field
+            $with (fieldClass, fieldValue) <- convertField_ field
               <td class="#{class_} #{fieldClass}"> #{fieldValue}
           |]
            
              
 
--- renderParsingResult :: (a -> b)   (r ValidT -> b) -> ParsingResult r -> b
+renderParsingResult :: (Renderable [row], MonadHandler m)
+  => (m () -> Widget -> out) -> (result -> out) -> ParsingResult row result -> out
 renderParsingResult onError onSuccess result = 
         case result of
           WrongHeader invalid -> onError (setError "Invalid file or columns missing") (render invalid)
@@ -416,6 +436,7 @@ renderParsingResult onError onSuccess result =
           ParsingCorrect rows -> onSuccess rows
 
 
+topBorder :: Widget
 topBorder = toWidget [cassius|
 tr.table-top-border td
   border-top: thin solid black !important

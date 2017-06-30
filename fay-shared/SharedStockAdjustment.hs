@@ -1,7 +1,6 @@
 module SharedStockAdjustment where
 
 import Prelude
-import Data.Data
 
 
 data OriginalQuantities = OriginalQuantities
@@ -24,7 +23,7 @@ computeBadges (OriginalQuantities qtake qoh qlost Nothing) = let
   new = tomany - found
   in BadgeQuantities missing 0 found 0 new
 computeBadges o@(OriginalQuantities _ _ _ (Just 0)) = computeBadges o {qModulo = Nothing}
-computeBadges o@(OriginalQuantities qtake qoh qlost (Just modulo)) = let
+computeBadges o@(OriginalQuantities qtake qoh _ (Just modulo)) = let
   -- modulo represent the number of item per boxes in case boxes hasn't been stocktaked
   totalQoh = qoh -- + (max 2 qlost) -- we ignore at the moment where is what. 
   missing = totalQoh -qtake -- quantity missed from the stock take
@@ -34,14 +33,14 @@ computeBadges o@(OriginalQuantities qtake qoh qlost (Just modulo)) = let
   -- if everything can be found, no need for modulo
   in if bFound normal == -missing && (missing < 0) && bNew normal == 0
      then  normal
-     else case missing of
-        0 -> computeBadges o {qModulo = Nothing}
-        _ | missing > 0 -> -- missing stock takes
+     else case compare missing 0 of
+        EQ -> computeBadges o {qModulo = Nothing}
+        GT -> -- missing stock takes
             -- we create some fake stocktakes
             let adjust = ((missing + halfMod-1) `div` modulo) * modulo
                 badges = computeBadges o {qtake = qtake + adjust, qModulo = Nothing}
                 in  badges {bMissingMod = adjust}
-        _ | missing < 0 -> -- missing in QOH
+        LT -> -- missing in QOH
             -- we create some fake QOH
             let adjust = ((halfMod-missing) `div` modulo) * modulo
                 badges = computeBadges o {qoh = qoh + adjust, qModulo = Nothing}

@@ -6,6 +6,7 @@ import Handler.Table
 import Yesod.Form.Bootstrap3
 import FA
 import Items
+import Text.Blaze (Markup)
 
 -- * Types
 -- | SQL text filter expression. Can be use either the LIKE syntax or the Regex one.
@@ -23,16 +24,28 @@ showFilterExpression :: FilterExpression -> Text
 showFilterExpression (LikeFilter t) = t
 showFilterExpression (RegexFilter t) = "/" <> t
 
+
 readFilterExpression :: Text -> FilterExpression
 readFilterExpression t = case stripPrefix "/" t of
   Nothing -> LikeFilter t
   Just regex -> RegexFilter regex
 
+
 instance IsString FilterExpression where
   fromString = readFilterExpression . fromString
 
+
+filterEField :: (RenderMessage (HandlerSite m) FormMessage,
+                  Monad m) =>
+                Field m FilterExpression
 filterEField = convertField readFilterExpression showFilterExpression textField
 
+
+filterE :: PersistField a =>
+           (Text -> a)
+        -> EntityField record a
+        -> Maybe FilterExpression
+        -> [Filter record]
 filterE _ _ Nothing = []
 filterE conv field (Just (LikeFilter like)) = 
   [ Filter field
@@ -150,13 +163,18 @@ itemsTable styleF varF showInactive = do
 
     return $ displayTable columns
                           (\c -> (toHtml c, []))
-                          (concatMap (\(base, aggregate, vars) -> map (itemToF base) vars) itemGroups)
+                          (concatMap (\(base, _, vars) -> map (itemToF base) vars) itemGroups)
                       
 
 -- * Rendering
 getItemsIndexR :: Handler Html
 getItemsIndexR = renderIndex (IndexParam Nothing Nothing False) ok200
 
+indexForm :: (MonadHandler m,
+              RenderMessage (HandlerSite m) FormMessage)
+          => IndexParam
+          -> Markup
+          -> MForm m (FormResult IndexParam, WidgetT (HandlerSite m) IO ())
 indexForm param = renderBootstrap3 BootstrapBasicForm form
   where form = IndexParam
           <$> (aopt filterEField "styles" (Just $ ipStyles param))
@@ -170,14 +188,14 @@ renderIndex param0 status = do
         FormMissing -> param0
         FormSuccess par -> par
         FormFailure _ -> param0
-  index <- itemsTable (ipStyles param) (ipVariations param) (ipShowInactive param)
+  ix <- itemsTable (ipStyles param) (ipVariations param) (ipShowInactive param)
   let widget = [whamlet|
 <div #items-index>
   <div.well>
     <form #items-form role=form method=get action=@{ItemsR ItemsIndexR} enctype=#{encType}>
       ^{form}
       <button type="submit" name="search" class="btn btn-default">Search
-  ^{index}
+  ^{ix}
 |]
       fay = $(fayFile "ItemsIndex")
   sendResponseStatus status =<< defaultLayout (widget >> fay)

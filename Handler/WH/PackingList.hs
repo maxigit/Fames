@@ -1,6 +1,11 @@
+{-# OPTIONS_GHC -fno-warn-type-defaults #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+-- TODO remove:
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# OPTIONS_GHC -Wno-unused-matches #-}
 module Handler.WH.PackingList
 ( getWHPackingListR
 , postWHPackingListR
@@ -25,13 +30,14 @@ import Data.List (transpose)
 import qualified Data.List as List
 import Database.Persist.MySQL
 import qualified Data.Map as Map
-import Data.Time (diffDays, addDays, addGregorianMonthsClip)
+import Data.Time (diffDays, addGregorianMonthsClip)
 import Handler.WH.Barcode
 import WH.Barcode
-import Handler.WH.Legacy.Box
+import Handler.WH.Legacy.Box hiding(main)
 import Text.Printf(printf)
 import Data.Conduit.List (consume)
 import Data.Text(splitOn)
+import Text.Blaze.Html(Markup, ToMarkup)
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
 data EditMode = Replace | Insert | Delete deriving (Eq, Read, Show, Enum)
@@ -49,6 +55,7 @@ data UploadParam = UploadParam
   , spreadsheet :: Textarea -- ^ the actual spreadsheet to upload/process
   } deriving (Eq, Read, Show)
 
+uploadForm :: Maybe UploadParam -> Markup ->  _ (FormResult UploadParam, Widget)
 uploadForm param = renderBootstrap3 BootstrapBasicForm form
   where form = UploadParam
             <$> (areq textField "order ref" (fmap orderRef param))
@@ -135,9 +142,9 @@ viewPLLists = do
           |]
 
 transposeM :: [[a]] -> [[Maybe a]]
-transposeM lines  =
-  let maxLength = List.maximum (map List.length lines)
-      linesM = map (take maxLength . (++ repeat Nothing) . map Just) lines
+transposeM lines_  =
+  let maxLength = List.maximum (map List.length lines_)
+      linesM = map (take maxLength . (++ repeat Nothing) . map Just) lines_
   in transpose linesM
 
 
@@ -145,10 +152,12 @@ transposeM lines  =
 postWHPackingListR :: Handler Html
 postWHPackingListR = do
   action <- lookupPostParam "action"
-  ((resp, view), encType) <- runFormPost (uploadForm Nothing)
+  ((resp, view), _encType) <- runFormPost (uploadForm Nothing)
   case resp of
     FormMissing -> error "Form Missing"
-    FormFailure a -> sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
+    FormFailure a -> do
+      setError $ "FormFailure:" >> mapM_ toHtml a
+      sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
     FormSuccess param ->  do
       processUpload (fromMaybe Validate (readMay =<< action)) param
 
@@ -181,7 +190,7 @@ processUpload mode param = do
 
   documentKey <- runDB $ (getBy (UniqueSK key))
       -- TODO used in Stocktake factorize
-  forM documentKey $ \(Entity _ doc) -> do
+  _ <- forM documentKey $ \(Entity _ doc) -> do
     uploader <- runDB $ get (documentKeyUserId doc)
     let msg = [shamlet|Document has already been uploaded 
 $maybe u <- uploader
@@ -194,7 +203,7 @@ $maybe u <- uploader
       Save -> renderWHPackingList Save (Just param) expectationFailed417 (setError msg) (return ()) -- should exit
 
   let onSuccess Save rows = do
-        savePLFromRows key param rows
+        __saved <-savePLFromRows key param rows
         renderWHPackingList Validate Nothing created201 (setSuccess "Packing list uploaded successfully") (return ())
 
       onSuccess Validate groups = do
@@ -212,6 +221,7 @@ $maybe u <- uploader
                       (parsePackingList (orderRef param) bytes)
 
   -- | Update denormalized fields, ie boxesToDeliver_d
+updateDenorm :: (BaseBackend backend ~ SqlBackend, PersistStoreWrite backend, MonadIO m, PersistQueryRead backend) => Key PackingList -> ReaderT backend m ()
 updateDenorm plKey = do
   boxesToDeliver <- count [ PackingListDetailPackingList ==. plKey
                           , PackingListDetailDelivered ==. False
@@ -219,10 +229,11 @@ updateDenorm plKey = do
 
   update plKey [PackingListBoxesToDeliver_d =. boxesToDeliver ]
 
+updatePackingListDetails :: EditMode -> Int64 -> Textarea -> HandlerT App IO TypedContent
 updatePackingListDetails mode key cart = do
   let bytes = encodeUtf8 . unTextarea $ cart
       plKey = PackingListKey (SqlBackendKey key)
-      onSuccess mode sections = do
+      onSuccess sections = do
         runDB $ do case mode of
                         Replace -> replacePLDetails plKey sections bytes
                         Insert -> insertPLDetails plKey sections
@@ -239,9 +250,10 @@ updatePackingListDetails mode key cart = do
 
 
   renderParsingResult (\msg pre -> do msg >>  viewPackingList EditDetails key pre)
-                      (onSuccess mode)
+                      onSuccess 
                       (parsePackingList orderRef bytes)
 
+updatePackingList :: Int64 -> UploadParam -> HandlerT App IO TypedContent
 updatePackingList key param = do
   let plKey = PackingListKey (SqlBackendKey key)
       plUpdates = 
@@ -257,7 +269,8 @@ updatePackingList key param = do
     unless (null plUpdates) $ update plKey plUpdates
     pl <- getJust plKey
     let docKey = packingListDocumentKey pl
-    doc <- get docKey
+    -- TODO remove 
+    __doc <- get docKey
     unless (null docUpdates) $ update docKey docUpdates
 
     setSuccess "Packing list updated successfully"
@@ -276,13 +289,13 @@ deliverPackingList key param = do
             (pl) <- getJust plKey
             let docKey = packingListDocumentKey pl
             -- deliver
-            forM_ delivers $ \key -> update key [PackingListDetailDelivered =. True]
+            forM_ delivers $ \k -> update k [PackingListDetailDelivered =. True]
             -- create associated boxtakes
             details <- selectList [PackingListDetailId <-. delivers] []
             let boxtakes = map (detailToBoxtake param docKey . entityVal) details
             insertMany_ boxtakes
             -- undeliver
-            forM_ undelivers $ \key -> update key [PackingListDetailDelivered =. False]
+            forM_ undelivers $ \k -> update k [PackingListDetailDelivered =. False]
             undetails <- selectList [PackingListDetailId <-. undelivers] []
             let unbarcodes = map (packingListDetailBarcode . entityVal) undetails
             mapM_ (deleteBy <$> UniqueBB) unbarcodes
@@ -328,10 +341,12 @@ getWHPackingListViewR key mode = viewPackingList (fromMaybe Details mode) key (r
 postWHPackingListEditDetailsR :: Int64 -> Handler TypedContent
 postWHPackingListEditDetailsR key = do
   actionM <- lookupPostParam "action"
-  ((resp, view), encType)  <- runFormPost (editDetailsForm Nothing)
+  ((resp, view), __encType)  <- runFormPost (editDetailsForm Nothing)
   case resp of
     FormMissing -> error "Form Missing"
-    FormFailure a -> sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
+    FormFailure a -> do
+      setError $ "FormFailure" >> mapM_ toHtml a
+      sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
     FormSuccess cart -> do
       case actionM >>= readMay of
         Nothing -> error "Action missing"
@@ -339,18 +354,22 @@ postWHPackingListEditDetailsR key = do
 
 postWHPackingListEditR :: Int64 -> Handler TypedContent
 postWHPackingListEditR key = do
-  ((resp, view), encType)  <- runFormPost (editForm Nothing Nothing)
+  ((resp, view), __encType)  <- runFormPost (editForm Nothing Nothing)
   case resp of
     FormMissing -> error "Form Missing"
-    FormFailure a -> sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
+    FormFailure a -> do
+      setError $ "FormFailure:" >> mapM_ toHtml a
+      sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
     FormSuccess param -> updatePackingList key param
 
 postWHPackingListDeliverR :: Int64 -> Handler TypedContent
 postWHPackingListDeliverR key = do
-  ((resp, view), encType) <- runFormPost (deliverDetailsForm Nothing)
+  ((resp, view), __encType) <- runFormPost (deliverDetailsForm Nothing)
   case resp of
     FormMissing -> error "Form Missing"
-    FormFailure a -> sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
+    FormFailure a -> do
+      setError $ "FormFailure:" >> mapM_ toHtml a
+      sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
     FormSuccess param -> deliverPackingList key param
 
 viewPackingList :: PLViewMode -> Int64 ->  Widget -> Handler TypedContent
@@ -408,6 +427,10 @@ viewPackingList mode key pre = do
                                  Chalk -> renderChalk corridors
                                  Planner -> renderPlanner
                                  PlannerColourless -> renderPlannerColourless
+                                 Stickers ->  error "Shoudn't happen"
+                                 EditDetails ->  error "Shoudn't happen"
+                                 Edit ->  error "Shoudn't happen"
+                                 Deliver ->  error "Shoudn't happen"
                            ) pl entities
            selectRep $ provideRep $ defaultLayout $ do
               [whamlet|
@@ -447,6 +470,7 @@ data DeliveryParam = DeliveryParam
   , dpLocation :: !Text
   }
 
+deliverDetailsForm :: Maybe DeliveryParam -> _ -> _ (FormResult DeliveryParam, Widget)
 deliverDetailsForm defParam = renderBootstrap3 BootstrapBasicForm form
   where form = DeliveryParam
                 <$> unTextarea <$> (areq textareaField "cart" ((Textarea . dpCart) <$> defParam))
@@ -457,7 +481,7 @@ deliverDetailsForm defParam = renderBootstrap3 BootstrapBasicForm form
 
 deliverCart :: [Entity PackingListDetail] -> Text
 deliverCart details = let
-  lines = map toLine details
+  lines_ = map toLine details
   prefix :: PackingListDetail -> Text
   prefix d = if packingListDetailDelivered d
              then "-- -" -- '--' :comment, '-' : ready to undeliver
@@ -469,7 +493,7 @@ deliverCart details = let
                                                    | (var, qty) <- Map.toList $ packingListDetailContent detail 
                                                    ]
                                ]
-  in unlines (map (intercalate ",") lines)
+  in unlines (map (intercalate ",") lines_)
 
 renderDeliver :: Maybe Text -> Int64 -> [Entity PackingListDetail] -> Handler Widget
 renderDeliver defCart key details = do
@@ -479,7 +503,8 @@ renderDeliver defCart key details = do
   let opId = case operator of
                 [] -> do
                     error "The operator table is empty. Please contact your administrator."
-                [opId] -> opId
+                [opId0] -> opId0
+                _ -> error "Shoudn't happened, ^limit 1"
     
   let cart = fromMaybe (deliverCart details) defCart
       param = DeliveryParam cart opId today location
@@ -493,8 +518,10 @@ renderDeliver defCart key details = do
     <button type="submit" name="action" value="deliver" class="btn btn-default">Deliver
 |]
 
+renderDetails :: PersistEntity a => t -> [Entity a] -> Html
 renderDetails _ entities = entitiesToTable getDBName entities
 
+renderTextcart :: t -> [Entity PackingListDetail] -> Markup
 renderTextcart _ entities =
   let skus = Map.toList $ Map.fromListWith (+) [ (packingListDetailStyle d <> "-" <> var, qty)
                                   | (Entity _ d) <- entities
@@ -567,7 +594,7 @@ generateStickers pl details = do
                          (stickerSource today pl details)
 
 renderChalk  :: [(Double, Double, Double)] -> PackingList -> [Entity PackingListDetail] -> Html
-renderChalk _ pl details = let
+renderChalk _ _ details = let
   -- convert details into Box.box
   toBox (Entity _ PackingListDetail{..}) = Box ( Dimension packingListDetailLength
                                                            packingListDetailWidth
@@ -602,7 +629,7 @@ renderChalk _ pl details = let
 
 -- | CSV compatible with WarehousePlanner
 renderPlanner :: PackingList -> [Entity PackingListDetail] -> Html
-renderPlanner pl details = let
+renderPlanner _ details = let
   groups = Map.fromListWith (+) [ ( ( style detail
                                    , packingListDetailLength
                                    , packingListDetailWidth
@@ -614,7 +641,7 @@ renderPlanner pl details = let
                                ]
   style PackingListDetail{..} = packingListDetailStyle <> (content $ Map.toList packingListDetailContent )
   content [] = ""
-  content ((col,qty):cs) = "-" <> col <> if null cs then "" else "*"
+  content ((col,__qty):cs) = "-" <> col <> if null cs then "" else "*"
   in [shamlet|
 style,quantity,l,w,h
 $forall ((style, l, w, h),qty) <- Map.toList groups
@@ -635,6 +662,7 @@ renderPlannerColourless pl details = renderPlanner pl (map removeColour details)
 
 
 
+editDetailsForm :: Maybe Text -> Markup -> _ (FormResult Textarea, Widget)
 editDetailsForm defCart  = renderBootstrap3 BootstrapBasicForm form
   where form = areq textareaField "cart" (Textarea <$> defCart)
 
@@ -646,7 +674,7 @@ detailsCart :: [Entity PackingListDetail] -> Text
 
 detailsCart details = let
   header = (map (pack.fst) columnNames)
-  lines = concat . snd $ List.mapAccumL toLines "" details
+  lines_ = concat . snd $ List.mapAccumL toLines "" details
   toLines lastRef (Entity _ detail) =
     let content = Map.toList (packingListDetailContent detail)
         tqty = sum (map snd content)
@@ -665,7 +693,7 @@ detailsCart details = let
       , tshow qty
       , h $ tshow $ packingListDetailBoxNumber detail
       , h $ tshow $ packingListDetailBoxNumber detail
-      , h $ tshow 1
+      , h $ tshow (1 :: Int)
       , h $ tshow tqty
       , h $ tshow tqty
       , h $ tshow $ packingListDetailLength detail
@@ -688,7 +716,7 @@ detailsCart details = let
     ])
 
 
-  in unlines (map (intercalate ",") (header:lines))
+  in unlines (map (intercalate ",") (header:lines_))
 
 
 renderEditDetails :: Maybe Text -> Int64 -> [Entity PackingListDetail] -> Handler Widget
@@ -707,6 +735,7 @@ renderEditDetails defCart key details = do
         <button type="submit" name="action" value=#{tshow action} class="btn btn-default">#{capitalize (show action)}
 |]
 
+editForm ::  Maybe PackingList -> Maybe DocumentKey -> Markup -> _ (FormResult UploadParam, Widget)
 editForm pl doc = renderBootstrap3 BootstrapBasicForm form
   where form = UploadParam
             <$> pure ""
@@ -810,12 +839,12 @@ data PLRowTypes = PLRawT
                 | PLOrderRefT
                 | PLFinalT deriving (Eq, Read, Show) 
 
-type PLRaw = PLRow PLRawT
-type PLPartial = PLRow PLPartialT
-type PLFullBox = PLRow PLFullBoxT
-type PLPartialBox = PLRow PLPartialBoxT
-type PLOrderRef = PLRow PLOrderRefT
-type PLFinal = PLRow PLFinalT
+type PLRaw = PLRow 'PLRawT
+type PLPartial = PLRow 'PLPartialT
+type PLFullBox = PLRow 'PLFullBoxT
+type PLPartialBox = PLRow 'PLPartialBoxT
+type PLOrderRef = PLRow 'PLOrderRefT
+type PLFinal = PLRow 'PLFinalT
 
 deriving instance Show PLRaw
 deriving instance Show PLPartial
@@ -853,6 +882,7 @@ columnNames = [("Style", ["S", "Style No.", "Style No", "Style No ."] )
               ,("Weight", ["N.W/CTN", "N.W./CTN"])
               ,("Total Weight", ["N.W", "N.W.","TOTAL N.W"])
               ]
+columnNameMap :: Map String [String]
 columnNameMap = buildColumnMap columnNames
 
 instance Csv.FromNamedRecord (PLRow 'PLRawT) where
@@ -877,6 +907,7 @@ instance Csv.FromNamedRecord (PLRow 'PLRawT) where
         <*> m `parse` tweight
 
 
+traverseRow :: (PLFieldTF t Double Maybe Null ~ f (PLFieldTF s Double Maybe Null), PLFieldTF t Int Null Null ~ f (PLFieldTF s Int Null Null), PLFieldTF t Int Identity Null ~ f (PLFieldTF s Int Identity Null), PLFieldTF t Text Identity Maybe ~ f (PLFieldTF s Text Identity Maybe), PLFieldTF t Text Identity Identity ~ f (PLFieldTF s Text Identity Identity), Applicative f) => PLRow t -> f (PLRow s)
 traverseRow PLRow{..} = pure PLRow
        <*> plStyle
        <*> plColour
@@ -894,6 +925,7 @@ traverseRow PLRow{..} = pure PLRow
        <*> plWeight
        <*> plTotalWeight
 
+transformRow :: (Transformable (PLFieldTF t Double Maybe Null) (PLFieldTF s Double Maybe Null), Transformable (PLFieldTF t Int Null Null) (PLFieldTF s Int Null Null), Transformable (PLFieldTF t Int Identity Null) (PLFieldTF s Int Identity Null), Transformable (PLFieldTF t Text Identity Maybe) (PLFieldTF s Text Identity Maybe), Transformable (PLFieldTF t Text Identity Identity) (PLFieldTF s Text Identity Identity)) => PLRow t -> PLRow s
 transformRow PLRow{..} = PLRow
        (transform plStyle)
        (transform plColour)
@@ -956,7 +988,7 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
         groups <-  groupRow orderRef rows <|&> InvalidData
         let validGroups = concatMap (map validateGroup . snd) groups
         -- sequence validGroups <|&> const (InvalidData $ concatMap (either id (\(partials,main) -> transformRow main : map transformPartial partials )) validGroups)
-        sequence validGroups <|&> const (InvalidData . concat $ lefts validGroups)
+        _ <- sequence validGroups <|&> const (InvalidData . concat $ lefts validGroups)
         Right $  map (map reverse) groups
         -- Right $  valids
 
@@ -984,23 +1016,23 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
                                                   )
                  _  -> Left raw
 
-              createOrder orderRef = PLRow (Provided orderRef) Nothing () () () () () () () () () () ()  () ():: PLOrderRef
+              createOrder orderRef0 = PLRow (Provided orderRef0) Nothing () () () () () () () () () () ()  () ():: PLOrderRef
               groupRow :: Text -> [PLValid] -> Either [PLRaw] [ (PLOrderRef , [PLBoxGroup])]
-              groupRow orderRef rows = go (createOrder orderRef) rows [] []
+              groupRow orderRef0 rows = go (createOrder orderRef0) rows [] []
                 where
                     go :: PLOrderRef -> [PLValid] -> [PLPartialBox] -> [PLBoxGroup] -> Either [PLRaw ][(PLOrderRef, [PLBoxGroup])]
                     -- go order valids partials groups
                     go order [] [] groups = Right [(order, groups)]
                     go _ [] partials@(_:_) _ = let raws = map transformPartial partials
                                          in  Left $ List.init raws ++ [(List.last raws) {plFirstCartonNumber = Left (InvalidValueError "Box not closed" "")}]
-                    go order (FullBox full:rows) partials groups = go order rows []  ((partials, full):groups)
-                    go order (PartialBox partial:rows) partials groups = go order rows (partials++[partial]) groups
-                    go order (OrderRef order':rows) [] groups = ((order, groups) :) <$> go order' rows [] []
-                    go order (OrderRef order':rows) _ _ = Left [(transformOrder order') {plColour = Left (InvalidValueError "Box not closed" "") } ]
+                    go order (FullBox full:rows0) partials groups = go order rows0 []  ((partials, full):groups)
+                    go order (PartialBox partial:rows0) partials groups = go order rows0 (partials++[partial]) groups
+                    go order (OrderRef order':rows0) [] groups = ((order, groups) :) <$> go order' rows0 [] []
+                    go order (OrderRef order':rows0) _ _ = Left [(transformOrder order') {plColour = Left (InvalidValueError "Box not closed" "") } ]
                     go _ _ _ _ = error "PackingList::groupRow should not append"
                 -- go rows partials = traceShow (rows, partials) undefined
               validateGroup :: PLBoxGroup -> Either [PLRaw] PLBoxGroup 
-              validateGroup group@(partials, main) = let
+              validateGroup grp@(partials, main) = let
                 final = transformRow main :: PLFinal
                 -- TODO remove use of validValue and use final instead of main when needed
                 orderQty = sum (map (validValue . plOrderQuantity) partials) + (validValue $ plOrderQuantity main)
@@ -1041,7 +1073,7 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
                                        else Nothing
                                      ]
                 in case onErrors of
-                    [] -> Right group
+                    [] -> Right grp
                     updaters -> Left $ (foldr (($)) (transformRow main) updaters) : map transformPartial partials
                   -- checkDimensions = let
 
@@ -1084,6 +1116,7 @@ parseDeliverList cart = let
 
 -- * Render
 instance Num ()
+renderRow :: (MonadIO m, MonadThrow m, MonadBaseControl IO m, Renderable (PLFieldTF t Text Identity Identity), Renderable (PLFieldTF t Text Identity Maybe), Renderable (PLFieldTF t Int Identity Null), Renderable (PLFieldTF t Int Null Null), Renderable (PLFieldTF t Double Maybe Null)) => PLRow t -> WidgetT App m ()
 renderRow PLRow{..} = do
   [whamlet|
           <td.pl>^{render plStyle}
@@ -1106,6 +1139,7 @@ renderRow PLRow{..} = do
           <td.pl>^{render plTotalWeight}
           |]
 
+renderHeaderRow :: (MonadBaseControl IO m, MonadThrow m, MonadIO m) => WidgetT site m ()
 renderHeaderRow = [whamlet|
   <tr>
     <th>Style
@@ -1130,6 +1164,8 @@ renderHeaderRow = [whamlet|
     -- <th>Vol/CNT
     -- <th>Total Vol
 
+-- renderRows :: (ToMarkup a) => (r -> a) -> [r] -> Widget
+renderRows :: _ => (r -> a) -> [r] -> Widget
 renderRows classFor rows = do
   [whamlet|
 <table.table.table-bordered.table-hover>
@@ -1144,9 +1180,9 @@ instance Renderable [PLRaw] where render = renderRows (const ("" :: String))
 
 
 instance Renderable [ParseDeliveryError] where
-  render lines= [whamlet|
+  render lines_= [whamlet|
 <ul>
-  $forall (ParseDeliveryError line) <- lines
+  $forall (ParseDeliveryError line) <- lines_
     $case line
       $of Left line'
         <li.text-danger>#{line'}
@@ -1155,6 +1191,7 @@ instance Renderable [ParseDeliveryError] where
 |]
 
 -- * Saving
+createDocumentKey :: (BaseBackend backend ~ SqlBackend, AuthId master ~ Key User, PersistStoreWrite backend, YesodAuth master) => Text -> Text -> Text -> ReaderT backend (HandlerT master IO) (Key DocumentKey)
 createDocumentKey key reference comment = do
   userId <- lift requireAuthId
   processedAt <- liftIO getCurrentTime
@@ -1228,6 +1265,7 @@ createDetails pKey orderRef (partials, main') = do
     )
    | n <- ns]
 
+updateDocumentKey :: (AuthId master ~ Key User, BaseBackend backend ~ SqlBackend, YesodAuth master, PersistStoreWrite backend, PersistUniqueRead backend) => Key PackingList -> ByteString -> ReaderT backend (HandlerT master IO) ()
 updateDocumentKey plKey bytes  = do
   let key = computeDocumentKey bytes
 
@@ -1246,6 +1284,7 @@ updateDocumentKey plKey bytes  = do
 
   update plKey [PackingListDocumentKey =. docKey ]
 
+replacePLDetails :: (Element mono ~ (PLOrderRef, [PLBoxGroup]), BaseBackend backend ~ SqlBackend, AuthId master ~ Key User, MonoFoldable mono, PersistQueryWrite backend, PersistUniqueRead backend, YesodAuth master) => Key PackingList -> mono -> ByteString -> ReaderT backend (HandlerT master IO) ()
 replacePLDetails plKey sections cart = do
   -- As we total discard the content of the previous document
   -- There is no need to keep a link to the old document key.
@@ -1257,6 +1296,7 @@ replacePLDetails plKey sections cart = do
               ]
   insertPLDetails plKey sections
 
+insertPLDetails :: (Element mono ~ (PLOrderRef, [PLBoxGroup]), BaseBackend backend ~ SqlBackend, MonoFoldable mono, PersistStoreWrite backend, PersistUniqueRead backend, MonadIO m) => Key PackingList -> mono -> ReaderT backend m ()
 insertPLDetails plKey sections = do
   pl <- getJust plKey
   barcodes <- generateBarcodes "DL" (packingListArriving pl) (packingListBoxesToDeliver_d pl)
@@ -1268,6 +1308,7 @@ insertPLDetails plKey sections = do
 
 
 
+deletePLDetails :: (BaseBackend backend ~ SqlBackend, Element mono ~ (PLOrderRef, [PLBoxGroup]), MonadIO m, PersistUniqueWrite backend, MonoFoldable mono) => PackingListId -> mono -> ReaderT backend m ()
 deletePLDetails plKey sections = do
   let detailFns = concatMap (createDetailsFromSection plKey) sections
       details = zipWith ($) detailFns (repeat "<dummy>")

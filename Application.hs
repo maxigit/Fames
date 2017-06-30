@@ -27,7 +27,7 @@ import Network.Wai.Middleware.RequestLogger (Destination (Logger),
                                              IPAddrSource (..),
                                              OutputFormat (..), destination,
                                              mkRequestLogger, outputFormat)
-import System.Log.FastLogger                (defaultBufSize, newStdoutLoggerSet
+import System.Log.FastLogger                (defaultBufSize 
                                             , newStderrLoggerSet
                                             ,toLogStr)
 import Yesod.Fay                            (getFaySite)

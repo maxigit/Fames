@@ -16,13 +16,17 @@ import qualified Prelude as Prelude
 import Text.HTML.TagSoup 
 import Text.Regex.TDFA
 
-faDateFormat = "%Y/%m/%d" :: String
+faDateFormat :: String
+faDateFormat = "%Y/%m/%d"
 -- faURL = "http://172.18.0.1"
+inventoryAdjustmentURL :: (?baseURL :: URLString) => URLString
 inventoryAdjustmentURL = ?baseURL <> "/inventory/adjustments.php"
+newAdjustmentURL ::  (?baseURL :: URLString) => URLString
 newAdjustmentURL = inventoryAdjustmentURL <> "?NewAdjustment=1"
+toAjax :: URLString -> URLString
 toAjax url = url <> "?jsHttpRequest=0-xml"
+ajaxInventoryAdjustmentURL  :: (?baseURL :: URLString) => URLString
 ajaxInventoryAdjustmentURL = toAjax inventoryAdjustmentURL
-
 
 docurl:: (?curl :: Curl) => URLString -> [CurlOption] -> ExceptT Text IO CurlResponse
 docurl url opts = lift $ do_curl_ ?curl url opts
@@ -39,8 +43,9 @@ curlSoup url opts status msg = do
                    <> tshow (respStatusLine r)
   case (extractErrorMsgFromSoup tags) of
     Nothing -> return tags
-    Just error -> throwError error
+    Just err -> throwError err
 
+withCurl :: ExceptT e' IO b -> ExceptT e' IO b
 withCurl = mapExceptT withCurlDo
   
 addAdjustmentDetail :: (?curl :: Curl, ?baseURL:: String)
@@ -68,8 +73,8 @@ withFACurlDo user password m = do
     let ?curl = curl
     lift $ setopts curl opts
     -- r <- docurl ?baseURL (loginOptions <> [CurlCookieJar "cookies", CurlCookieSession True])
-    curlSoup ?baseURL (loginOptions <> [CurlCookieJar "cookies", CurlCookieSession True])
-             200 "log in FrontAccounting"
+    _ <- curlSoup ?baseURL (loginOptions <> [CurlCookieJar "cookies", CurlCookieSession True])
+                  200 "log in FrontAccounting"
     lift $ setopts curl [CurlCookieFile "cookies"]
     m
 
@@ -77,8 +82,8 @@ postStockAdjustment :: FAConnectInfo -> StockAdjustment -> IO (Either Text Int)
 postStockAdjustment connectInfo stockAdj = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
-    curlSoup newAdjustmentURL method_GET 200 "Problem trying to create a new inventory adjustment"
-    mapM addAdjustmentDetail (adjDetails (stockAdj :: StockAdjustment))
+    _ <- curlSoup newAdjustmentURL method_GET 200 "Problem trying to create a new inventory adjustment"
+    _ <- mapM addAdjustmentDetail (adjDetails (stockAdj :: StockAdjustment))
     let process = CurlPostFields [ "ref="<> (unpack $ adjReference (stockAdj :: StockAdjustment))
                                  , "Process=Process"
                                  , "AdjDate=" <>  formatTime defaultTimeLocale faDateFormat (adjDate stockAdj)
@@ -90,7 +95,7 @@ postStockAdjustment connectInfo stockAdj = do
     tags <- curlSoup ajaxInventoryAdjustmentURL process 200 "process inventory adjustment"
     case extractAddedId tags  of
             Left e -> throwError $ "Inventory Adjustment creation failed:" <> e
-            Right id -> return id
+            Right faId -> return faId
 
 -- | Extract the Id from the process adjustment response
 extractAddedId :: [Tag String] -> Either Text Int
@@ -105,12 +110,6 @@ extractAddedId tags = let
       _ -> Left (fromMaybe "" $ extractErrorMsgFromSoup tags)
         
   
-extractErrorMsg :: CurlResponse -> Maybe Text
-extractErrorMsg response = let
-  tags = parseTags (respBody response)
-  in extractErrorMsgFromSoup tags
-  
-
 extractErrorMsgFromSoup :: [Tag [Element String]] -> Maybe Text
 extractErrorMsgFromSoup tags = let
   errors = sections (~== TagOpen ("div" :: String) [("class", "err_msg")]) tags
@@ -124,8 +123,8 @@ postLocationTransfer :: FAConnectInfo -> LocationTransfer -> IO (Either Text Int
 postLocationTransfer connectInfo locTrans = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
-    curlSoup newLocationTransferURL method_GET 200 "Problem trying to create a new location transfer"
-    mapM addLocationTransferDetail (ltrDetails (locTrans :: LocationTransfer))
+    _ <- curlSoup newLocationTransferURL method_GET 200 "Problem trying to create a new location transfer"
+    _ <- mapM addLocationTransferDetail (ltrDetails (locTrans :: LocationTransfer))
     let process = CurlPostFields [ "ref="<> (unpack $ ltrReference (locTrans :: LocationTransfer))
                                  , "Process=Process"
                                  , "AdjDate=" <>  formatTime defaultTimeLocale faDateFormat (ltrDate locTrans)
@@ -135,12 +134,16 @@ postLocationTransfer connectInfo locTrans = do
     tags <- curlSoup (toAjax locationTransferURL) process 200 "process location transfer"
     case extractAddedId tags  of
             Left e -> throwError $ "Location Transfer creation failed:" <> e
-            Right id -> return id
+            Right faId -> return faId
 
+locationTransferURL :: (?baseURL :: URLString) => URLString
 locationTransferURL = ?baseURL <> "/inventory/transfers.php"
+newLocationTransferURL :: (?baseURL :: URLString) => URLString
 newLocationTransferURL = locationTransferURL <> "?NewTransfer=1"
 
 
+addLocationTransferDetail  :: (?baseURL :: URLString, ?curl :: Curl)
+                           => LocationTransferDetail -> ExceptT Text IO [Tag String]
 addLocationTransferDetail LocationTransferDetail{..} = do
   let items = CurlPostFields [ "AddItem=Add%20Item"
                              , "stock_id="<> unpack ltrSku

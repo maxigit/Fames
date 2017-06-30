@@ -1,14 +1,11 @@
 module WH.Barcode where
-import ClassyPrelude.Yesod
-import Data.Text.Lazy.Builder (fromLazyText)
+import ClassyPrelude.Yesod hiding(Builder)
+import Data.Text.Lazy.Builder (fromLazyText, Builder)
 import qualified Data.Text.Lazy as LT
 import qualified Data.Map as Map
 import Data.Char (ord, chr)
 import Data.List (iterate)
-import Data.Aeson                 (Result (..), fromJSON, withObject, (.!=),
-                                   (.:?))
 import Formatting
-import Formatting.Time
 
 -- * Types
 -- | Allowed prefixes. Read from configuration file.
@@ -40,6 +37,7 @@ instance FromJSON (Text -> BarcodeParams) where
 -- * Functions
 -- | Month abbreviation on letter
 -- month2 :: Day -> Text
+month2 :: Day -> Builder
 month2 day = let (_, month, _) = toGregorian day
   in fromLazyText $ go month  where
   go 1 = "JA"
@@ -54,16 +52,18 @@ month2 day = let (_, month, _) = toGregorian day
   go 10 = "OC"
   go 11 = "NV"
   go 12 = "DE"
+  go _ = error "Month should be between 1 and 12"
 
 -- formatBarcode:: Text -> Int -> .Text
+formatBarcode :: Buildable a => LT.Text -> a -> LT.Text
 formatBarcode prefix n = let
   bare = format (text % (left 5 '0'))  prefix n
   in bare ++ checksum bare
 
 -- | checksum
 checksum :: LT.Text -> LT.Text
-checksum text = let
- c = sum $ zipWith (*) (map ord (reverse $ toList text)) (iterate (*10) 7)
+checksum txt = let
+ c = sum $ zipWith (*) (map ord (reverse $ toList txt)) (iterate (*10) 7)
  in singleton . chr $ c `mod` 26 + ord 'A'
 
 isBarcodeValid :: LT.Text -> Bool

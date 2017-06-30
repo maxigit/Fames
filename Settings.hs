@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# Language CPP #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- | Settings are centralized, as much as possible, into this file. This
 -- includes database connection settings, static file locations, etc.
 -- In addition, you can configure a number of different aspects of Yesod
@@ -25,7 +26,6 @@ import qualified Database.MySQL.Base as MySQL
 import Yesod.Fay
 import  Role
 import WH.Barcode
-import WH.FA.Types
 import qualified Data.Map as Map
 
 data AuthMode = BypassAuth | CheckAuth deriving (Read, Show, Eq)
@@ -128,7 +128,7 @@ instance FromJSON AppSettings  where
                                ]
 
         roleForMap                <- o .:? "roles" .!= (mempty :: Map Text Role)
-        let types = roleForMap  :: Map Text Role
+        let -- types = roleForMap  :: Map Text Role
             appRoleFor = RoleFor $
                 \user -> fromMaybe (RoleGroup [])
                                    (asum [lookup u roleForMap
@@ -158,7 +158,6 @@ instance FromJSON AppSettings  where
                   ( MySQL.connectOptions (myConnInfo fromYamlAppDatabaseConf)) ++ [MySQL.InitCommand "SET SESSION sql_mode = 'STRICT_ALL_TABLES';\0"]
               }
             }
-            appBypassAuth = CheckAuth
 
         return AppSettings {..}
 

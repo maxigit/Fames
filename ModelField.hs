@@ -2,7 +2,6 @@
 module ModelField where
 
 import ClassyPrelude.Yesod
-import Database.Persist.Quasi
 import Text.Printf(printf)
 -- | Where as a transaction has been processed or not.
 data PendingStatus = Pending | Process deriving (Eq, Read, Show, Enum, Bounded, Ord)
@@ -102,7 +101,7 @@ instance Enum FATransType where
   toEnum 30 = ST_SALESORDER
   toEnum 32 = ST_SALESQUOTE
   toEnum 35 = ST_COSTUPDATE
-  toEnum 40 = ST_DIMENSION
+  toEnum i = error $ "Can't convert " ++ show i ++ " to FATransType"
 
 instance PersistField FATransType where
   toPersistValue = toPersistValue . fromEnum

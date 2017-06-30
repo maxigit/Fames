@@ -13,7 +13,6 @@ module GL.Receipt
 
 import ClassyPrelude
 import qualified GL.FA as FA
-import Data.Ratio
 import qualified Data.Map as Map
 
 
@@ -49,6 +48,7 @@ data ReceiptItem = ReceiptItem
   } deriving (Read, Show, Eq)
 
 -- * Translation to FA objects
+translate :: Receipt -> FA.Payment
 translate receipt = FA.Payment (nets ++ taxes) where
   groupByTax =
     Map.fromListWith (<>)

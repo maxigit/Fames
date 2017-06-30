@@ -1,4 +1,6 @@
-{-# LANGUAGE DeriveGeneric, DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric, DeriveFunctor, DeriveAnyClass #-}
+{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
+{-# OPTIONS_GHC -Wno-missing-methods #-}
 module Items.Types where
 
 import ClassyPrelude
@@ -36,6 +38,7 @@ $(metamorphosis
  (const $ Just applicativeBCR)
  (const [''GHC.Generic])
  )
+deriving instance Monoid (StockMasterInfo MinMax)
 
 -- instance Generic (StockMasterInfo f)
 

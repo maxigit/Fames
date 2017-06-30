@@ -5,13 +5,11 @@
 {-# LANGUAGE UndecidableSuperClasses, RankNTypes #-}
 {-# LANGUAGE FlexibleContexts, ScopedTypeVariables #-}
 {-# LANGUAGE AllowAmbiguousTypes, StandaloneDeriving #-}
-{-# LANGUAGE DeriveAnyClass #-}
 -- | Main pure functions related to items ...
 module Items.Internal where
 
 import ClassyPrelude
 import Items.Types
-import Data.List (cycle)
 import Data.These
 import Data.Align(align)
 import qualified Data.Map as Map
@@ -25,13 +23,18 @@ diffField (Identity a) (Identity b) = if a == b then ([], a) else (["text-danger
 $(mmZip "diffField" ''StockMasterInfo)
 
 -- -- * MinMax
+minMax :: a -> MinMax a
 minMax a = MinMax a a
  
 -- $(mmZip "mappend" ''StockMasterInfo)
 
-deriving instance Monoid (StockMasterInfo MinMax) -- where
   -- mappend = mappendStockMasterInfo
 
+
+computeItemsStatus :: ItemInfo StockMaster
+                   -> Map Text a
+                   -> [ItemInfo StockMaster]
+                   -> [(VariationStatus, ItemInfo (StockMasterInfo ((,) [Text])))]
 computeItemsStatus item0 varMap items = let
   styleMap = mapFromList [(iiVariation i, i) | i <- items ]
   varMap' = Map.mapWithKey (\var _ -> item0 { iiVariation = var }) varMap
@@ -67,7 +70,7 @@ joinStyleVariations items vars = let
   varMap = mapFromList $ map ((,()) . iiVariation) vars
   styles = Map.fromListWith (flip (<>))  [(iiStyle item, [item]) | item <- items]
 
-  in map (\(style, variations) -> let base = headEx variations
+  in map (\(_, variations) -> let base = headEx variations
                                       in ( base
                                          , minMaxFor base variations
                                          , computeItemsStatus (headEx variations)

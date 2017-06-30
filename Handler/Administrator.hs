@@ -36,9 +36,9 @@ getATestFAR = do
   setting <- appSettings <$> getYesod
   let connectInfo = FAConnectInfo (appFAURL setting) (appFAUser setting) (appFAPassword setting)
   resp <- liftIO $ testFAConnection connectInfo
-  widget <- case resp of
-    Left error -> do
-      setError (toHtml $ "Couldn't connect to FrontAccounting" <> error)
+  _ <- case resp of
+    Left err -> do
+      setError (toHtml $ "Couldn't connect to FrontAccounting" <> err)
     Right () -> do
       setSuccess "Connection successful"
   defaultLayout $ [whamlet|

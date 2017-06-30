@@ -24,7 +24,7 @@ library
       fay-shared
       app
       config/fa
-  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving
+  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures
   build-depends:
       containers
     , base >=4 && <5
@@ -91,7 +91,7 @@ library
     ghc-options: -w -fwarn-tabs -O0 -j6
     cpp-options: -DDEVELOPMENT
   else
-    ghc-options: -w -fwarn-tabs -O2 -j6
+    ghc-options: -Wall -fwarn-tabs -Wno-type-defaults -O0 -j6
   exposed-modules:
       Application
       FA
@@ -133,7 +133,6 @@ library
       Settings.StaticFiles
       SharedStockAdjustment
       SharedTypes
-      FAHttpClient
       GL
       GL.FA
       GL.Receipt
@@ -248,7 +247,7 @@ executable FAGenerator
   main-is: FAGenerator.hs
   hs-source-dirs:
       tools
-  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving
+  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures
   build-depends:
       containers
     , base >=4 && <5
@@ -324,7 +323,7 @@ executable Fames
   main-is: main.hs
   hs-source-dirs:
       app
-  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving
+  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       containers
@@ -392,7 +391,6 @@ executable Fames
   if flag(library-only)
     buildable: False
   other-modules:
-      FAHttpClient
       GL
       GL.FA
       GL.Receipt
@@ -409,7 +407,7 @@ executable TextcartHelper
   main-is: TextcartHelper.hs
   hs-source-dirs:
       tools
-  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving ImplicitPrelude
+  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures ImplicitPrelude
   build-depends:
       containers
     , base >=4 && <5
@@ -483,7 +481,7 @@ test-suite test
   main-is: Spec.hs
   hs-source-dirs:
       test
-  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving
+  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures
   ghc-options: -w -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       containers

@@ -2,26 +2,24 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies, DataKinds #-}
 {-# LANGUAGE DeriveFunctor, GeneralizedNewtypeDeriving #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Handler.GLEnterReceiptSheet where
 
 import Import hiding(InvalidHeader)
-import GL.Receipt
+-- import GL.Receipt
 import Handler.GLEnterReceiptSheet.ReceiptRow
 
-import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
-                              withSmallInput)
+import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import Handler.CsvUtils hiding(RawT)
 import qualified Data.Csv as Csv
 import Data.Either
-import Data.Char (ord,toUpper)
-import Data.Time(parseTimeM)
-import Text.Blaze.Html(ToMarkup(toMarkup))
+import Text.Blaze.Html(ToMarkup())
 import qualified Data.List.Split  as S
-import Text.Printf (printf)
-import qualified Data.Text as Text
-import qualified Data.Text.Read as Text
-import Data.Ratio (approxRational)
-import qualified Data.ByteString as BL
+-- import Text.Printf (printf)
+-- import qualified Data.Text as Text
+-- import qualified Data.Text.Read as Text
+-- import Data.Ratio (approxRational)
+-- import qualified Data.ByteString as BL
 import qualified Data.Map as Map
 -- | Entry point to enter a receipts spreadsheet
 -- The use should be able to :
@@ -68,15 +66,20 @@ postTextForm = renderBootstrap3 BootstrapBasicForm $ (,)
 
 postGLEnterReceiptSheetR :: Handler Html
 postGLEnterReceiptSheetR = do
-  ((textResp, postTextW), enctype) <- runFormPost postTextForm
-  ((fileResp, postFileW), enctype) <- runFormPost $ uploadFileForm (pure ())
+  ((textResp, __postTextW), __enctype) <- runFormPost postTextForm
+  ((fileResp, __postFileW), ___enctype) <- runFormPost $ uploadFileForm (pure ())
+  let showForm form = case form of
+                      (FormFailure f) -> "Form Failure:" ++ show f
+                      (FormMissing) -> "Form missing"
+                      (FormSuccess _) -> "Form Success"
+
   spreadSheet <- case (textResp, fileResp) of
-                        (FormMissing, FormMissing) -> error "missing"
-                        (FormSuccess (title, spreadsheet), _) -> return $ encodeUtf8 $ unTextarea spreadsheet
+                        -- (FormMissing, FormMissing) -> error "missing"
+                        (FormSuccess (__title, spreadsheet), _) -> return $ encodeUtf8 $ unTextarea spreadsheet
                         (_, FormSuccess (fileInfo, encoding, ())) -> do
                           fst <$> readUploadUTF8 fileInfo encoding
-                          
-                        (FormFailure a,FormFailure b) -> error $ "Form failure : " ++  show a ++ ", " ++ show b
+                        (formA, formB) -> error $ showForm formA ++ ", " ++ showForm formB
+ 
   either id defaultLayout $ do
     rawRows <- parseSpreadsheet columnMap Nothing spreadSheet <|&>  renderGLEnterReceiptSheet 422 "Invalid file or columns missing." . render
     let receiptRows = map analyseReceiptRow rawRows
@@ -109,15 +112,22 @@ renderReceiptSheet receipts =  do
     ^{render (i, receipt)}
 |]
 
-t = id :: Text -> Text
+t :: Text -> Text
+t = id
 
+setMessage' :: (ToMarkup a, MonadHandler m) => a -> m ()
 setMessage' msg = {-trace ("set message : " ++ show msg)-} (setMessage $ toHtml msg)
 -- ** Widgets
-instance Renderable (ReceiptRow ValidRowT) where render = renderReceiptRow ValidRowT
-instance Renderable (ReceiptRow InvalidRowT) where render = renderReceiptRow InvalidRowT
+instance Renderable (ReceiptRow 'ValidRowT) where render = renderReceiptRow ValidRowT
+instance Renderable (ReceiptRow 'InvalidRowT) where render = renderReceiptRow InvalidRowT
 
--- renderReceipt :: (ReceiptRow header, [ReceiptRow row]) -> Widget
-renderReceiptRow rowType ReceiptRow{..}= do
+renderReceiptRow :: (Renderable (HeaderFieldTF t Text),
+                     Renderable (HeaderFieldTF t Double),
+                     Renderable (RowFieldTF t (Maybe Int)),
+                     Renderable (RowFieldTF t (Maybe Double)),
+                     Renderable (RowFieldTF t (Maybe Text)))
+                 => ReceiptRowType -> ReceiptRow t -> Widget
+renderReceiptRow rowType_ ReceiptRow{..}= do
   let groupIndicator ValidHeaderT = ">" :: Text
       groupIndicator InvalidHeaderT = ">"
       groupIndicator _ = ""
@@ -127,7 +137,7 @@ renderReceiptRow rowType ReceiptRow{..}= do
   font-weight: bold
 |]
   [whamlet|
-<td.receiptGroup>#{groupIndicator rowType}
+<td.receiptGroup>#{groupIndicator rowType_}
 <td.date>^{render rowDate}
 <td.counterparty>^{render rowCounterparty}
 <td.bankAccount>^{render rowBankAccount}
@@ -137,8 +147,8 @@ renderReceiptRow rowType ReceiptRow{..}= do
 <td.tax>^{render rowTax}
 |]
 
-instance Renderable (ReceiptRow ValidHeaderT) where render = renderReceiptRow ValidHeaderT
-instance Renderable (ReceiptRow InvalidHeaderT) where render = renderReceiptRow InvalidHeaderT
+instance Renderable (ReceiptRow 'ValidHeaderT) where render = renderReceiptRow ValidHeaderT
+instance Renderable (ReceiptRow 'InvalidHeaderT) where render = renderReceiptRow InvalidHeaderT
 
 
 instance ( ReceiptRowTypeClass h, Renderable h
@@ -155,6 +165,7 @@ $forall (row, j) <- zip rows is
          class_ InvalidHeaderT = "receipt-header invalid bg-danger"
          class_ ValidRowT = "receipt-row valid"
          class_ InvalidRowT = "receipt-row invalid bg-warning"
+         class_ RawT = error "Shouldn't happend"
 -- <span.rowTax>#{render rowTax}
 
 columnMap :: Map String [String]
@@ -177,7 +188,7 @@ columnMap = Map.fromList
   ]
                           
 -- Represents a row of the spreadsheet.
-instance Csv.FromNamedRecord (ReceiptRow RawT)where
+instance Csv.FromNamedRecord (ReceiptRow 'RawT)where
   parseNamedRecord m = pure ReceiptRow
     <*> m `parse` "date"
     <*> m `parse` "counterparty" 
@@ -211,7 +222,8 @@ makeReceipt rows =
   let (orphans:groups) =  S.split (S.keepDelimsL $ S.whenElt  isRight) rows
       -- we know header are right and rows are left
 
-      go (Right header:rows) = (header , lefts rows)
+      go (Right header:rows__) = (header , lefts rows__)
+      go _ = error "Shouldn't not happend"
 
       headerToRowE :: (Either InvalidHeader ValidHeader) -> (Either InvalidRow ValidRow)
       headerToRowE = either (Left . transformRow) (Right . transformRow)
@@ -220,10 +232,10 @@ makeReceipt rows =
 
       toMaybe = either (const Nothing) Just
       -- to valid a 'receipt' we traverse all of its constituent rows
-      validReceipt (header, rows) =
+      validReceipt (header, rows2) =
         liftA2 (,)
         (toMaybe header)
-        (traverse toMaybe (headerToRowE header : rows))
+        (traverse toMaybe (headerToRowE header : rows2))
         
         
   in case traverse validReceipt receipts of

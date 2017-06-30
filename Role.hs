@@ -55,7 +55,7 @@ authorizeFromAttributes role attrs wreq = null $ (filterPermissions wreq) attrs 
 authorizeFromPath :: Role -> URL -> WriteRequest-> Bool
 authorizeFromPath Administrator _ _ = True
 authorizeFromPath (RoleGroup roles) route wreq = or [authorizeFromPath role route wreq | role <- roles]
-authorizeFromPath (RolePermission _) route wreq = False
+authorizeFromPath (RolePermission _) _ _ = False
 authorizeFromPath (RoleRoute route' wreq') route wreq = route == route' && wreq' >= wreq
 
 
@@ -66,11 +66,10 @@ instance FromJSON Role where
   parseJSON (Array os) = do
     roles <- mapM parseJSON (toList os)
     return $ RoleGroup roles
-
   parseJSON Null = return $ RoleGroup []
   parseJSON (String s) = case (Text.splitAt 1 s) of
     ("/", _) -> let (route, wreq) = isWriteReq s in return $ RoleRoute route wreq
     _ -> return . RolePermission . setFromList $ map (isWriteReq) (words s)
-    where isWriteReq s | not (null s)  = if Text.last s == '+'
-                                       then (initEx s, WriteRequest)
-                                       else  (s, ReadRequest)
+    where isWriteReq r | not (null r), Text.last r == '+' = (initEx r, WriteRequest)
+                       | otherwise = (r, ReadRequest)
+  parseJSON _ = error "Can't parse Role"

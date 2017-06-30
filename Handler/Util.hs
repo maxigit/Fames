@@ -1,3 +1,5 @@
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 -- | Miscellaneous functions to help rendering
 -- | and/or accessing the database
 module Handler.Util
@@ -5,7 +7,6 @@ module Handler.Util
 , getDBName
 , getHaskellName
 , entityTableHandler
-, entitiesToTable
 , uploadFileForm
 , uploadFileFormWithComment
 , Encoding(..)
@@ -17,38 +18,35 @@ module Handler.Util
 , badgeSpan
 ) where
 
--- import Foundation
+import Foundation
 import Import.NoFoundation
-import Database.Persist
 import Data.Conduit.List (consume)
 import Data.Text.Encoding(decodeLatin1)
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
-                              withSmallInput)
+                              ) -- withSmallInput)
 import qualified Crypto.Hash as Crypto
 import qualified Data.Conduit.Binary as CB
-import Data.Conduit.List (consume)
+-- import Data.Conduit.List (consume)
 import System.Directory (removeFile)
 import System.IO.Temp (openTempFile)
-import System.Exit (ExitCode(..))
+-- import System.Exit (ExitCode(..))
 import Data.Streaming.Process (streamingProcess, proc, Inherited(..), waitForStreamingProcess, env)
-import Text.Blaze.Html (ToMarkup)
+import qualified Data.Text.Lazy as LT
+import Text.Blaze.Html (Markup)
 -- import Data.IOData (IOData)
 
 -- * Display entities
 -- | Display Persist entities as paginated table
 -- the filter is mainly there as a proxy to indicate
 -- the entity type to display
--- entityTableHandler :: (Yesod site, YesodPersist site
---                       , PersistQuery (YesodPersistBackend site)
---                       , PersistEntity a
---                       , YesodPersistBackend site ~ PersistEntityBackend a)
---                    => Route site -> [Filter a] -> HandlerT site IO Html
-entityTableHandler route filter = do
+entityTableHandler :: (PersistEntityBackend a ~ BaseBackend (YesodPersistBackend site), Yesod site, YesodPersist site, PersistQueryRead (YesodPersistBackend site), PersistEntity a)
+  => Route site -> [Filter a] -> HandlerT site IO Html
+entityTableHandler route filter_ = do
   let page_ = "page"
       pageSize_ = "pageSize_"
   pageSizeM <- lookupGetParam pageSize_
   pageM <- lookupGetParam page_
-  count_ <- runDB $ count filter
+  count_ <- runDB $ count filter_
   let pageSize = fromMaybe 200 (readMay =<< unpack <$> pageSizeM)
       lastPage = (count_ + pageSize - 1) `div` pageSize
       page = fromMaybe 1 (readMay =<< unpack <$> pageM)
@@ -56,7 +54,7 @@ entityTableHandler route filter = do
       previous = page -1
       next = page +1
       one = 1 :: Int
-  entities <- runDB $ selectList filter [LimitTo pageSize, OffsetBy offset]
+  entities <- runDB $ selectList filter_ [LimitTo pageSize, OffsetBy offset]
   -- let typed = entities :: [Entity FA.ItemRequest]
   let navBar = [whamlet|
 <nav.navbar.navbar-default>
@@ -110,6 +108,15 @@ renderPersistValue pvalue = case (fromPersistValueText pvalue) of
 -- * Forms
 -- | Encoding of the file being uploaded.
 data Encoding = UTF8 | Latin1 deriving (Show, Read, Eq, Enum, Bounded)
+
+uploadFileForm :: _ a
+                        -> Markup
+                        -> _
+                             (Maybe (Env, FileEnv), App, [Lang])
+                             Enctype
+                             Ints
+                             Handler
+                             (FormResult (FileInfo, Encoding, a), Widget) 
 uploadFileForm fields = renderBootstrap3 BootstrapBasicForm
   ((,,)
    <$> areq fileField "upload" Nothing
@@ -117,6 +124,13 @@ uploadFileForm fields = renderBootstrap3 BootstrapBasicForm
    <*> fields
   )
 
+uploadFileFormWithComment :: Markup
+                          -> _
+                          (Maybe (Env, FileEnv), App, [Lang])
+                          Enctype
+                          Ints
+                          Handler
+                          (FormResult (FileInfo, Encoding, Maybe Textarea), Widget)
 uploadFileFormWithComment = uploadFileForm (aopt textareaField "comment" Nothing)
 computeDocumentKey :: ByteString -> Text
 computeDocumentKey bs = let
@@ -136,6 +150,7 @@ decode UTF8 bs = bs
 decode Latin1 bs = encodeUtf8 . decodeLatin1 $ bs
 
 
+setAttachment :: MonadHandler m => LT.Text -> m ()
 setAttachment path = 
   addHeader "Content-Disposition" (toStrict ("attachment; filename=\"barcodes-"<>path<>"\"") )
 
@@ -147,7 +162,7 @@ generateLabelsResponse ::
   -> Conduit () (HandlerT site IO) Text
   -> HandlerT site IO TypedContent
 generateLabelsResponse outputName template labelSource = do
-  let types = (outputName, template) :: (Text, Text)
+  -- let types = (outputName, template) :: (Text, Text)
   (tmp, thandle) <- liftIO $ openTempFile "/tmp" (unpack outputName)
   (pin, Inherited, perr, phandle ) <- streamingProcess (proc "glabels-3-batch"
                                                         ["--input=-"
@@ -157,7 +172,7 @@ generateLabelsResponse outputName template labelSource = do
                                                         ]
                                                   ) {env = Just [("LANG", "C.UTF-8")]}
   runConduit $ labelSource =$= encodeUtf8C =$= sinkHandle pin
-  exitCode <- waitForStreamingProcess phandle
+  _exitCode <- waitForStreamingProcess phandle
   -- we would like to check the exitCode, unfortunately
   -- glabels doesn't set the exit code.
   -- we need to stderr instead 
@@ -169,7 +184,7 @@ generateLabelsResponse outputName template labelSource = do
         hClose thandle
 
   case errorMessage of
-    _ ->  do
+    [] ->  do
       setAttachment (fromStrict outputName)
       respondSource "application/pdf"
                     (const cleanUp `addCleanup` CB.sourceHandle thandle =$= mapC (toFlushBuilder))
@@ -182,6 +197,7 @@ generateLabelsResponse outputName template labelSource = do
 -- | Returns the first active operator.
 -- This is the default operator which will be used in batch mode if  required.
 --- We should have at least one operator, so we don't need the Maybe
+firstOperator :: (BaseBackend (YesodPersistBackend site) ~ SqlBackend, YesodPersist site, PersistQueryRead (YesodPersistBackend site)) => HandlerT site IO (Entity Operator)
 firstOperator = do
   operator <- runDB $ selectFirst [OperatorActive ==. True] [Asc OperatorId]
   maybe (error "No active operators found. Please contact your administrator") return operator

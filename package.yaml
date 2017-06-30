@@ -84,6 +84,7 @@ default-extensions:
 - PatternGuards
 - PatternSynonyms
 - StandaloneDeriving
+- PartialTypeSignatures
 
 library:
   source-dirs:
@@ -103,9 +104,10 @@ library:
       cpp-options: -DDEVELOPMENT
     else:
       ghc-options:
-      - -w
+      - -Wall 
       - -fwarn-tabs
-      - -O2
+      - -Wno-type-defaults
+      - -O0
       - -j6
 
 executables:

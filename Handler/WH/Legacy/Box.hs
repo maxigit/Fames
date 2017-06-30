@@ -1,14 +1,13 @@
+{-# OPTIONS_GHC -Wno-all #-}
 module Handler.WH.Legacy.Box where
 
 import Prelude
 import Data.List.Split (splitOn)
 import Data.List (sortBy, partition)
 import Data.Function (on)
-import Control.Monad (forM, forM_)
 import System.Environment (getArgs)
 import Numeric (showFFloat)
 import qualified Data.Map as Map
-import Data.Map(Map)
 import Control.Monad.State --  (execWriter)
 import Text.Printf (printf)
 
@@ -25,10 +24,10 @@ tiltForward :: Dimension -> Dimension
 tiltForward (Dimension l w h) = Dimension l h w
 
 area :: Dimension -> Double
-area (Dimension l w h) = l*h
+area (Dimension l _ h) = l*h
 
 (//) :: Dimension -> Dimension -> Int
-(Dimension l w h) // (Dimension l' w' h') = (fdiv l l') * (fdiv h h') where
+(Dimension l _ h) // (Dimension l' _ h') = (fdiv l l') * (fdiv h h') where
     fdiv x y = floor (x/y)
 
 class Dimensionable a where
@@ -60,7 +59,7 @@ lineToBox line = let
     splits = splitOn "," line
     in case splits of
         [style, n, quantity, l, w, h] ->  Box (Dimension (read l) (read w) (read h)) style (read n) (read quantity)
-        otherwise -> error $ "line '"++line++"' not well formatted"
+        _ -> error $ "line '"++line++"' not well formatted"
 ----------------------------------------------------------------------
 data Bay = Bay {
         bayName :: String,

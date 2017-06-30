@@ -10,7 +10,6 @@ import Import.NoFoundation
 import Database.Persist.Sql (ConnectionPool, runSqlPool)
 import Text.Hamlet          (hamletFile)
 import Text.Jasmine         (minifym)
-import Yesod.Auth.OpenId    (authOpenId, IdentifierType (Claimed))
 import qualified Yesod.Auth.Message    as Msg
 import Yesod.Form (ireq, runInputPost, textField)
 import Yesod.Default.Util   (addStaticContentExternal)
@@ -21,7 +20,7 @@ import qualified Data.CaseInsensitive as CI
 import qualified Data.Text.Encoding as TE
 import qualified FA as FA
 import qualified Crypto.Hash as Crypto
-import Crypto.Hash (MD5, Digest, hash)
+import Crypto.Hash (MD5, Digest)
 import Role
 import RoutePiece
 
@@ -113,7 +112,6 @@ instance Yesod App where
     isAuthorized route r = do
        let wreq = if r then WriteRequest else ReadRequest
        settings <- appSettings <$> getYesod
-       urlRender <- getUrlRender 
        mu <- maybeAuth
        -- anonymous users are given the role <anonymous>, which might
        -- give them access to the route.
@@ -224,6 +222,7 @@ unsafeHandler = Unsafe.fakeHandlerGetLogger appLogger
 -- https://github.com/yesodweb/yesod/wiki/Serve-static-files-from-a-separate-domain
 -- https://github.com/yesodweb/yesod/wiki/i18n-messages-in-the-scaffolding
 
+authFA :: AuthPlugin App
 authFA = AuthPlugin "fa" dispatch loginWidget
   where
     -- dispatch _ _ = undefined
