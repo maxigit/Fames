@@ -3,15 +3,12 @@ module Handler.Items.History where
 
 import Import
 import Handler.Table
-import Yesod.Form.Bootstrap3
 import qualified FA as FA
 import Database.Persist.MySQL(unSqlBackendKey, rawSql, Single(..))
 import Data.List (mapAccumL, cycle)
-import Text.Blaze.Html (ToMarkup)
-import Text.Blaze.Renderer.Text (renderHtml)
 import qualified Data.Map as Map
-import Data.Time(addDays)
 import Data.Text(splitOn)
+import Text.Blaze(Markup, ToMarkup)
 
 data FormParams = FormParams
   { pStart :: Maybe Day
@@ -94,11 +91,15 @@ historyToTable (faUrl, renderUrl) events = let
   in displayTable columns colDisplay rows
   
   
+-- inlineAll' ::  [Text] -> Markup
+inlineAll' :: (ToMarkup a, IsString a) => [a] -> Markup
 inlineAll' = inlineAll'' "..." (\(v,k) -> [shamlet|<div class="#{k}">#{v}|])
+inlineAll'' :: Applicative m => a -> ((a, Text) -> m ()) -> [a] -> m ()
 inlineAll'' ellipsis render values = let
   v'ks = case values of
            [x] -> [(x,"")]
            (x:xs) -> [(x, "" :: Text), (ellipsis, "total")] ++ zip xs (cycle ["split"])
+           [] -> []
   in mapM_ render v'ks
 
 displayPkers :: Text -> Maybe Text -> Html
@@ -129,19 +130,19 @@ valueFor faUrl ie "InOut" = let
   (in_, k) = fromM (valueFor faUrl ie "In")
   (out, _) = fromM (valueFor faUrl ie "Out")
   in Just (in_ >> out, k)
-valueFor _ (ItemEvent ie qoh stake mod) "Quantity On Hand" =
-  let found = (fromMaybe 0 stake + mod - qoh)
+valueFor _ (ItemEvent ie qoh stake mod_) "Quantity On Hand" =
+  let found = (fromMaybe 0 stake + mod_ - qoh)
   -- if a stock adjustment result in matching the stocktake  : badge
   in case ie of
        (Left move) | (toEnum . FA.stockMoveType $ tMove move) `elem` [ST_LOCTRANSFER, ST_INVADJUST]
                       && found == 0
-                      && mod == 0 -> Just (badgeSpan' okBadge qoh "", [])
+                      && mod_ == 0 -> Just (badgeSpan' okBadge qoh "", [])
        _ -> Just ( -- toHtml (formatQuantity qoh)
                   badgeSpan' qohBadge qoh ""
-                  >> badgeSpan' modBadge (- mod) ""
+                  >> badgeSpan' modBadge (- mod_) ""
                   >> badgeSpan' inBadge found "", ["qoh"])
-valueFor _ (ItemEvent ie qoh (Just stake) mod) "Stocktake" =
-  let lost = (qoh - stake - mod)
+valueFor _ (ItemEvent ie qoh (Just stake) mod_) "Stocktake" =
+  let lost = (qoh - stake - mod_)
       stake' = case ie of
         Left _ -> if stake == qoh
                   then [shamlet|<span style="color:#29abe0;"> #{formatQuantity stake}|]
@@ -153,9 +154,9 @@ valueFor _ (ItemEvent ie qoh (Just stake) mod) "Stocktake" =
           -- splits 
           mapM_ (\t -> let badge = badgeSpan' bg (fromIntegral . stocktakeQuantity . entityVal . fst $ t) ""
                        in [shamlet|<div.split>#{badge}|]) (aTakes adj)
-  in Just (stake' >> badgeSpan' modBadge mod "" >>  badgeSpan' outBadge lost "", [])
+  in Just (stake' >> badgeSpan' modBadge mod_ "" >>  badgeSpan' outBadge lost "", [])
 valueFor _ (ItemEvent _ _ Nothing _) "Stocktake" = Nothing
-valueFor (urlForFA', renderUrl) (ItemEvent (Left (Move FA.StockMove{..} _ info adjM pickers packers)) qoh stake _)  col = case col of
+valueFor (urlForFA', renderUrl) (ItemEvent (Left (Move FA.StockMove{..} _ info adjM pickers packers)) __qoh __stake _)  col = case col of
   "Type" -> Just (showTransType $ toEnum stockMoveType, [])
   "#" -> Just ([shamlet|<a href="#{urlForFA' (toEnum stockMoveType) stockMoveTransNo}" target=_blank>#{stockMoveTransNo}|], [])
   "Reference" -> Just (case adjM of
@@ -172,16 +173,17 @@ valueFor (urlForFA', renderUrl) (ItemEvent (Left (Move FA.StockMove{..} _ info a
   "Out" -> Just (badgeSpan' outBadge (-stockMoveQty) "", [])
   "Operator" -> Just (displayPkers "Pickers" pickers >> displayPkers "Packers" packers, [])
   "Info" -> Just (toHtml info, [])
+  _ -> Nothing
 
-valueFor (_, renderUrl) (ItemEvent (Right adj ) qoh stake _) col = let
+valueFor (_, renderUrl) (ItemEvent (Right adj ) __qoh __stake _) col = let
   inlineAll f = inlineAll' (map (f . entityVal . fst) (aTakes adj))
   diff = 0 -- qoh - fromIntegral stocktakeQuantity
   lost = max 0 diff
   found = max 0 (-diff)
   in case col of
   "Type" -> Just ("Stocktake", [])
-  "#" -> ( \a -> let adj =  stockAdjustmentDetailAdjustment a
-                     adjId =  unSqlBackendKey $ unStockAdjustmentKey adj
+  "#" -> ( \a -> let adj_ =  stockAdjustmentDetailAdjustment a
+                     adjId =  unSqlBackendKey $ unStockAdjustmentKey adj_
                  in ([hamlet|<a href="@{WarehouseR (WHStockAdjustmentViewR adjId)}" target=_blank>#{adjId}|] renderUrl
                      , [])
          ) <$> headMay (aAdj adj)
@@ -192,7 +194,7 @@ valueFor (_, renderUrl) (ItemEvent (Right adj ) qoh stake _) col = let
                            docKey = unSqlBackendKey $ unDocumentKeyKey (stocktakeDocumentKey stock)
                                         in [hamlet|
 <div class="#{k}">
-  <a href="@{WarehouseR WHStocktakeR}?doc_key=#{docKey}" target=_blank>##{docKey}|] renderUrl
+  <a href="@{WarehouseR WHStocktakeR}?doc_key=#{docKey}" target=_blank>##{barcode}|] renderUrl
                                             
                  in Just (inlineAll'' Nothing barWithRef (map (Just . entityVal .fst) (aTakes adj)) , [])
   "Location" -> Just (inlineAll  (FA.unLocationKey . stocktakeFaLocation), [])
@@ -203,6 +205,7 @@ valueFor (_, renderUrl) (ItemEvent (Right adj ) qoh stake _) col = let
   "Info" -> case mapMaybe (stocktakeComment . entityVal . fst) (aTakes adj) of
                   [] -> Nothing
                   _ ->  Just (inlineAll (\e -> fromMaybe "" $ decodeHtmlEntities <$> stocktakeComment e), [])
+  _ -> Nothing
 
 
 
@@ -211,22 +214,29 @@ badgeSpan' :: Maybe String -> Double -> String -> Html
 badgeSpan' bgM qty klass =
   badgeSpan badgeWidth qty bgM klass
 
+okBadge :: IsString a => Maybe a
 okBadge = Just "#29abe0"
+qohBadge :: IsString a => Maybe a
 qohBadge = Just "#ccccff"
+inBadge :: Maybe a
 inBadge = Nothing
+outBadge :: IsString a => Maybe a
 outBadge = Just "#d9534f"
+negBadge :: IsString a => Maybe a
 negBadge = Just "#000000"
+modBadge :: IsString a => Maybe a
 modBadge = Just "#cccccc"
 
 
 
+badgeWidth :: (Integral a, RealFrac t) => t -> Maybe a
 badgeWidth q | q <= 0 = Nothing
              | otherwise = Just . (max 2) . floor $ (min q  12) 
 
 makeEvents :: [(Key FA.StockMove, Move)] -> [Adjustment] -> [ItemEvent]
 makeEvents moves takes = let
-  lines =  interleaveEvents moves takes
-  events = snd $  mapAccumL accumEvent (0, Nothing) lines 
+  lines_ =  interleaveEvents moves takes
+  events = snd $  mapAccumL accumEvent (0, Nothing) lines_ 
   accumEvent (qoh, stake) e@(Left move') = ((newQoh, newTake), ItemEvent e newQoh newTake 0) where
     move = tMove move'
     newQoh = qoh + FA.stockMoveQty move
@@ -240,15 +250,15 @@ makeEvents moves takes = let
                (True, False ) ->  stake
                (False, False)  | FA.stockMoveQty move < 24 -> stake
                _ -> (+FA.stockMoveQty move) <$> stake
-  accumEvent (qoh, _) e@(Right takes ) =
-    ((qoh, (+mod) <$> newTake), ItemEvent e qoh newTake mod) where
-    newTake0 = fromIntegral . sum $ map (stocktakeQuantity . entityVal . fst) (aTakes takes)
+  accumEvent (qoh, _) e@(Right takes0 ) =
+    ((qoh, (+mod_) <$> newTake), ItemEvent e qoh newTake mod_) where
+    newTake0 = fromIntegral . sum $ map (stocktakeQuantity . entityVal . fst) (aTakes takes0)
     newTake = Just newTake0
-    mod = case aAdj takes of
+    mod_ = case aAdj takes0 of
             -- no adjustment can be there is no adj or
             -- the stocktake generated 0 adujstment. in that case
             -- this mean the stocktake is correct
-            [] -> case stocktakeAdjustment (entityVal . fst . headEx $ aTakes takes) of
+            [] -> case stocktakeAdjustment (entityVal . fst . headEx $ aTakes takes0) of
               Nothing -> 0
               Just _ ->  qoh - newTake0
               
@@ -260,7 +270,7 @@ makeEvents moves takes = let
                               ]
 
 
-                  -- lost = qoh - stocktake - mod
+                  -- lost = qoh - stocktake - mod_
                   in qoh - newTake0 - fromIntegral lost
     
   in events
@@ -277,7 +287,7 @@ interleaveEvents moves takes =  let
            | (key, move) <- moves
            ]
   takes' = [ ((date, 1, (maybe 0 (fromIntegral . unStockAdjustmentKey) $ stocktakeAdjustment  . entityVal . fst $ headEx ts)), Right a)
-           | a@(Adjustment adj ts) <- takes
+           | a@(Adjustment __adj ts) <- takes
            , let date = maximumEx $ map (stocktakeDate . entityVal . fst) ts
            ]
   in map snd $ sortBy (comparing fst) (moves' ++ takes')
@@ -313,8 +323,8 @@ loadMoves sku = do
         
   -- traceShowM sql
   moves <- rawSql sql [PersistText sku]
-  return [(key, Move move Nothing (fromMaybe "" (fmap decodeHtmlEntities info)) adj picker packer)
-         | (Entity key move, Single info, Single adj, Single picker, Single packer) <- moves ]
+  return [(key, Move move Nothing (fromMaybe "" (fmap decodeHtmlEntities info)) adj0 picker packer)
+         | (Entity key move, Single info, Single adj0, Single picker, Single packer) <- moves ]
 
 loadTakes :: (MonadIO m) => Text -> ReaderT SqlBackend m [Adjustment]
 loadTakes sku = do
@@ -324,8 +334,8 @@ loadTakes sku = do
   takes <- rawSql sql [PersistText sku]
   -- join manual with the adjustment if any
   details <- selectList [StockAdjustmentDetailStockId ==. sku] [Asc StockAdjustmentDetailId]
-  let takesByKey = Map.fromListWith (++) [(stocktakeAdjustment (entityVal take), [(take, operator)])
-                                         | (take, Single operator) <- takes
+  let takesByKey = Map.fromListWith (++) [(stocktakeAdjustment (entityVal take0), [(take0, operator)])
+                                         | (take0, Single operator) <- takes
                                          ]
       detailsByKey = Map.fromListWith (++) [(stockAdjustmentDetailAdjustment d, [d]) | (Entity _ d) <- details]
 

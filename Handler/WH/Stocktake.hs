@@ -9,6 +9,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 -- TODO remove:
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
+
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 module Handler.WH.Stocktake
 ( getWHStocktakeR
