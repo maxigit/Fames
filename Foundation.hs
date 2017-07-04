@@ -82,6 +82,7 @@ instance Yesod App where
         master <- getYesod
         msgs <- getMessages
         currentRoute <- getCurrentRoute
+        mainNavLinks <- mainLinks
 
         -- We break up the default layout into two components:
         -- default-layout is the contents of the body tag, and
@@ -277,10 +278,18 @@ cryptFAPassword text = let digest = Crypto.hash (encodeUtf8 text)  :: Digest MD5
             in tshow digest
 
 
-mainLinks :: [(Text, Route App)]
-mainLinks = [ ("Warehouse", WarehouseR WHStockAdjustmentR)
-            , ("Items", ItemsR ItemsIndexR)
-            ]
+mainLinks :: Handler [(Text, Route App)]
+mainLinks = do
+  let links= [ ("General Ledger", GLEnterReceiptSheetR)
+             , ("Items", ItemsR ItemsIndexR)
+             , ("Warehouse", WarehouseR WHStockAdjustmentR)
+             , ("Admin", AdministratorR AIndexR)
+             ]
+      authorised (_, r) = do
+        auth <- isAuthorized r False
+        return $ auth == Authorized
+  filterM authorised links
+
 
 sideLinks :: Maybe (Route App) -> [(Text, Route App)]
 sideLinks _ = [ ("Items", ItemsR ItemsIndexR)

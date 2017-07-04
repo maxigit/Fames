@@ -50,7 +50,7 @@ $newline never
             <a.navbar-brand href=@{HomeR}>Fames
           <div.collapse.navbar-collapse>
             <ul.nav.navbar-nav>
-              $forall (title, route) <- mainLinks
+              $forall (title, route) <- mainNavLinks
                 <li><a href="@{route}">#{title}
         <div.col-md-2.navbar.navbar-default style="min-height:100">
           <div.list-group.table-of-contents>
