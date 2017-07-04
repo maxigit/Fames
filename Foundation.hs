@@ -81,6 +81,7 @@ instance Yesod App where
     defaultLayout widget = do
         master <- getYesod
         msgs <- getMessages
+        currentRoute <- getCurrentRoute
 
         -- We break up the default layout into two components:
         -- default-layout is the contents of the body tag, and
@@ -276,3 +277,16 @@ cryptFAPassword text = let digest = Crypto.hash (encodeUtf8 text)  :: Digest MD5
             in tshow digest
 
 
+mainLinks :: [(Text, Route App)]
+mainLinks = [ ("Warehouse", WarehouseR WHStockAdjustmentR)
+            , ("Items", ItemsR ItemsIndexR)
+            ]
+
+sideLinks :: Maybe (Route App) -> [(Text, Route App)]
+sideLinks _ = [ ("Items", ItemsR ItemsIndexR)
+              , ("Barcodes", WarehouseR WHBarcodeR)
+              , ("Packing List",             WarehouseR WHPackingListR)
+              , ("Stock Adjustement",             WarehouseR WHStockAdjustmentR)
+              , ("Stocktake", WarehouseR WHStocktakeR)
+              , ("Validate Stocktake",             WarehouseR WHStocktakeValidateR)
+              ]
