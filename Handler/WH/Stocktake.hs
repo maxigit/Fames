@@ -7,13 +7,8 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
--- TODO remove:
-{-# OPTIONS_GHC -Wno-name-shadowing #-}
-
-{-# OPTIONS_GHC -Wno-unused-matches #-}
 module Handler.WH.Stocktake
 ( getWHStocktakeR
-, postWHStocktakeSaveR
 , postWHStocktakeSaveR
 , postWHStocktakeCollectMOPR
 , getWHStocktakeSaveR
@@ -35,13 +30,12 @@ import System.Directory (doesFileExist)
 import Database.Persist.Sql
 import qualified Data.Csv as Csv
 import Yesod.Form.Bootstrap3 
-import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
-                              withSmallInput)
 import qualified System.FilePath.Glob as Glob
 import qualified Data.Map.Strict as Map
 
 import qualified FA as FA
 import qualified Data.Set as Set
+import Text.Blaze(Markup)
 
 -- * Requests
 
@@ -143,6 +137,7 @@ data FormParam = FormParam
  , pOveridde :: Bool
  }
 
+uploadForm :: SavingMode -> Maybe FormParam -> Markup ->  _ (FormResult FormParam, Widget)
 uploadForm mode paramM = 
   let form' Save = FormParam
                    <$> pure Nothing -- areq hiddenField "upload" (fmap pFileInfo paramM)
@@ -401,6 +396,7 @@ $maybe u <- uploader
                                  (return ())
        
 quickPrefix = "ZT" :: Text
+quickPrefix :: Text
      
 insertQuickTakes :: MonadIO m => Key DocumentKey -> [FinalQuickRow] -> ReaderT SqlBackend m ()
 -- insertQuickTakes _ [] = return ()
@@ -1046,6 +1042,7 @@ lookupBarcode row = return . return $ return row
 
 deriving instance Show PackingListDetail
 -- | Fetch box content information from a packing list 
+lookupPackingListDetail :: (MonadIO m) => (Text -> [t] -> Maybe a) -> Text -> ReaderT SqlBackend m (Either a [(Text, Int)])
 lookupPackingListDetail checkStyle barcode = do
   detailE <- getBy (UniquePLB barcode)
   -- traceShowM (barcode, detailE)
@@ -1059,6 +1056,7 @@ lookupPackingListDetail checkStyle barcode = do
 -- 
 -- * Transform instance Related
 
+-- transformRow :: TakeRow t -> TakeRow s
 transformRow TakeRow{..} = TakeRow
   (transform rowStyle)
   (transform rowColour)
@@ -1107,11 +1105,13 @@ transformValid' (BLookupST TakeRow{..}) = TakeRow
               (transform rowOperator)
               (transform rowComment)
 
+finalizeRow :: ValidRow -> FinalRow
 finalizeRow (FullST row) = FinalFull (transformRow row)
 finalizeRow (QuickST row) = FinalQuick (transformRow row)
 finalizeRow (BLookupST row) = error "Shouldn't happend"
 finalizeRow (BLookedupST row) = FinalBarcodeLookup (transformRow row)
 
+styleFor :: ValidRow -> ValidField Text
 styleFor (FullST row) = rowStyle row
 styleFor (QuickST row) = rowStyle row
 styleFor (BLookupST row) = rowStyle row
@@ -1222,7 +1222,7 @@ mopToFinalRow user day (Single style, Single variation , Single quantity, Single
   in QuickST $ TakeRow {..}
 
   
--- cleanupTopick:: ValidRow -> Handler ()
+cleanupTopick :: (MonadIO m) => ValidRow -> ReaderT SqlBackend m ()
 cleanupTopick (QuickST TakeRow{..}) = do
   let sku = makeSku (validValue rowStyle) (validValue rowColour)
   deleteWhere [FA.TopickSku ==. Just sku, FA.TopickType ==. Just "lost"]
@@ -1230,6 +1230,7 @@ cleanupTopick (QuickST TakeRow{..}) = do
 
 -- * Rendering
 
+-- renderRow :: TakeRow _ -> Widget
 renderRow TakeRow{..} = do
   [whamlet|
 <td.stocktakeStyle>^{render rowStyle}
@@ -1276,6 +1277,7 @@ classForRaw raw = case validateRaw (const Nothing) (const Nothing) raw of
     Left _ -> "bg-warning"
     Right _ -> ""
 
+-- renderRows :: (Renderable r) => (r -> _ -> [r] -> Widget)
 renderRows classFor rows = do
   [whamlet|
 <table.table.table-bordered.table-hover>
