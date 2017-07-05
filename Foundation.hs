@@ -1,8 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE StandaloneDeriving #-}
 module Foundation
 ( module Foundation
 , module RoutePiece
 , module Role
+, A(..)
 ) where
 
 
@@ -23,6 +26,8 @@ import qualified Crypto.Hash as Crypto
 import Crypto.Hash (MD5, Digest)
 import Role
 import RoutePiece
+import Util.SameCons-- (SameCons, sameCons)
+import GHC.Generics(Generic)
 
 -- | The foundation datatype for your application. This can be a good place to
 -- keep settings and values requiring initialization before your application
@@ -50,6 +55,11 @@ data App = App
 -- type Handler = HandlerT App IO
 -- type Widget = WidgetT App IO ()
 mkYesodData "App" $(parseRoutesFile "config/routes.gen")
+deriving instance Generic (Route App)
+instance SameCons (Route App)
+
+data A = A Int | B Int deriving (Show, Generic)
+instance SameCons (A)
 
 -- | A convenient synonym for creating forms.
 type Form x = Html -> MForm (HandlerT App IO) (FormResult x, Widget)
@@ -278,8 +288,9 @@ cryptFAPassword text = let digest = Crypto.hash (encodeUtf8 text)  :: Digest MD5
             in tshow digest
 
 
-mainLinks :: Handler [(Text, Route App)]
+mainLinks :: Handler [(Text, Route App, Bool)]
 mainLinks = do
+  currentRoute <- getCurrentRoute
   let links= [ ("General Ledger", GLEnterReceiptSheetR)
              , ("Items", ItemsR ItemsIndexR)
              , ("Warehouse", WarehouseR WHStockAdjustmentR)
@@ -288,7 +299,15 @@ mainLinks = do
       authorised (_, r) = do
         auth <- isAuthorized r False
         return $ auth == Authorized
-  filterM authorised links
+      active = traceShowId . maybe (const False) sameCons currentRoute . traceShowId
+  allowed <- filterM authorised links
+  return [ (title, route, active route)
+         | (title, route) <- allowed
+         ]
+
+
+  
+
 
 warehouseLinks :: [(Text, [(Text, Route App)])]
 warehouseLinks = [ ( "Barcodes", barcodes)
