@@ -52,7 +52,7 @@ $newline never
             <ul.nav.navbar-nav>
               $forall (title, route) <- mainNavLinks
                 <li><a href="@{route}">#{title}
-        <div.col-md-2.navbar.navbar-default style="min-height:100">
+        <div.col-md-2 style="min-height:100">
           $forall (group, links) <- sideLinks currentRoute
             <div.list-group.table-of-contents>
               <a.list-group-item.list-group-item-success>#{group}

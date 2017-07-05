@@ -315,11 +315,11 @@ adminLinks = [ ("Info", infoLinks)
                 
 
 sideLinks :: Maybe (Route App)  -> [(Text, [(Text, Route App)])]
-sideLinks Nothing = []
 sideLinks (Just (GLEnterReceiptSheetR)) = glLinks
 sideLinks (Just (ItemsR _)) = itemLinks
 sideLinks (Just (WarehouseR _)) = warehouseLinks
 sideLinks (Just (AdministratorR _)) = adminLinks
+sideLinks _ = []
 
 sideLinks' :: Maybe (Route App) -> [(Text, Route App)]
 sideLinks' _ = [ ("Items", ItemsR ItemsIndexR)
