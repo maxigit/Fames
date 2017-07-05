@@ -290,9 +290,39 @@ mainLinks = do
         return $ auth == Authorized
   filterM authorised links
 
+warehouseLinks :: [(Text, [(Text, Route App)])]
+warehouseLinks = [ ( "Barcodes", barcodes)
+                 , ( "Packing List", packingLists)
+                 , ( "Stock", stocks)
+                 ] where
+  barcodes = [("Barcodes", WarehouseR WHBarcodeR)]
+  packingLists = [("Packing List", WarehouseR WHPackingListR)]
+  stocks = [ ("Stock Adjustement", WarehouseR WHStockAdjustmentR)
+           , ("Stocktake", WarehouseR WHStocktakeR)
+           , ("Validate Stocktake", WarehouseR WHStocktakeValidateR)
+           ]
+itemLinks :: [(Text, [(Text, Route App)])]
+itemLinks = [("Maintenance",  [("Index", ItemsR ItemsIndexR)])]
+glLinks :: [(Text, [(Text, Route App)])]
+glLinks = [("Receipts", [("Enter", GLEnterReceiptSheetR)])]
 
-sideLinks :: Maybe (Route App) -> [(Text, Route App)]
-sideLinks _ = [ ("Items", ItemsR ItemsIndexR)
+adminLinks :: [(Text, [(Text, Route App)])]
+adminLinks = [ ("Info", infoLinks)
+               , ("Test", testLinks )
+               ] where
+  infoLinks = [("Index", AdministratorR AIndexR)]
+  testLinks = [("FA connection", AdministratorR ATestFAR)]
+                
+
+sideLinks :: Maybe (Route App)  -> [(Text, [(Text, Route App)])]
+sideLinks Nothing = []
+sideLinks (Just (GLEnterReceiptSheetR)) = glLinks
+sideLinks (Just (ItemsR _)) = itemLinks
+sideLinks (Just (WarehouseR _)) = warehouseLinks
+sideLinks (Just (AdministratorR _)) = adminLinks
+
+sideLinks' :: Maybe (Route App) -> [(Text, Route App)]
+sideLinks' _ = [ ("Items", ItemsR ItemsIndexR)
               , ("Barcodes", WarehouseR WHBarcodeR)
               , ("Packing List",             WarehouseR WHPackingListR)
               , ("Stock Adjustement",             WarehouseR WHStockAdjustmentR)
