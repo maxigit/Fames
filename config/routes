@@ -8,33 +8,33 @@
 / HomeR GET POST
 
 /comments CommentR POST
-/gl/enter_receipts_sheet GLEnterReceiptSheetR GET POST !gl
+/gl/enter_receipts_sheet GLEnterReceiptSheetR GET POST !gl !group=Receipts !title=Enter
 
 /warehouse WarehouseR !warehouse:
-  /barcodes WHBarcodeR GET POST
+  /barcodes WHBarcodeR GET POST !group=Barcodes !title=Generate
 
-  /stocktake WHStocktakeR GET !stocktake
+  /stocktake WHStocktakeR GET !stocktake !group=Stock !title=Stocktake
   /stocktake/save WHStocktakeSaveR GET POST !stocktake/save
-  /stocktake/validate WHStocktakeValidateR GET POST !stocktake
+  /stocktake/validate WHStocktakeValidateR GET POST !stocktake !title=Validate_Stocktake
   /stocktake/collect WHStocktakeCollectMOPR POST !stocktake/collect
 
-  /stock_adjustment WHStockAdjustmentR GET POST !stock_adj
+  /stock_adjustment WHStockAdjustmentR GET POST !stock_adj !title=Stock_Adjustment
   !/stock_adjustment/#Int64 WHStockAdjustmentViewR GET !stock_adj
   !/stock_adjustment/tofa/#Int64 WHStockAdjustmentToFAR POST !stock_adj/tofa
   !/stock_adjustment/reject/#Int64 WHStockAdjustmentRejectR POST !stock_adj/reject
 
-  /stocktake/locations WHStocktakeLocationR GET
+  /stocktake/locations WHStocktakeLocationR GET !group=Maintenance !title=Locations
 
-  /packinglist WHPackingListR  GET POST !pl
+  /packinglist WHPackingListR  GET POST !pl !group=Packing_List !title=Packing_List
   !/packinglist/#Int64/#Maybe-PLViewMode WHPackingListViewR GET !pl
   !/packinglist/#Int64 WHPackingListEditR POST !pl
   !/packinglist/#Int64/edit_details WHPackingListEditDetailsR POST !pl
   !/packinglist/#Int64/deliver WHPackingListDeliverR POST !pl
 
 /items ItemsR !items:
-  /index ItemsIndexR GET !items/index
+  /index ItemsIndexR GET !items/index !group=Maintenance !title=Index
   /history/#Text ItemsHistoryR GET !items/history
 
 /administrator AdministratorR !administrator:
-  / AIndexR GET
-  /testfa  ATestFAR GET
+  / AIndexR GET !group=Info !title=Index
+  /testfa  ATestFAR GET !group=Test !title=FA_Connection

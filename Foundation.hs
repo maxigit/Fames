@@ -9,7 +9,7 @@ module Foundation
 ) where
 
 
-import Import.NoFoundation
+import Import.NoFoundation hiding(toList)
 import Database.Persist.Sql (ConnectionPool, runSqlPool)
 import Text.Hamlet          (hamletFile)
 import Text.Jasmine         (minifym)
@@ -27,7 +27,12 @@ import Crypto.Hash (MD5, Digest)
 import Role
 import RoutePiece
 import Util.SameCons-- (SameCons, sameCons)
+import Util.EnumTree
 import GHC.Generics(Generic)
+import Data.Foldable(toList)
+import qualified Data.List as List
+import Data.Maybe
+import qualified Data.Text as Text
 
 -- | The foundation datatype for your application. This can be a good place to
 -- keep settings and values requiring initialization before your application
@@ -58,6 +63,32 @@ mkYesodData "App" $(parseRoutesFile "config/routes.gen")
 deriving instance Generic (Route App)
 instance SameCons (Route App)
 
+instance EnumTreeable Text where enumTree = EnumTree []
+instance EnumTreeable Int64 where enumTree = EnumTree []
+
+instance EnumTreeable (Route Static) where enumTree = EnumTree []
+instance EnumTreeable (Route Auth) where enumTree = EnumTree []
+instance EnumTreeable (Route FaySite) where enumTree = EnumTree []
+deriving instance Generic (WarehouseR)
+instance EnumTreeable (WarehouseR) 
+deriving instance Generic (ItemsR)
+instance EnumTreeable (ItemsR) 
+deriving instance Generic (AdministratorR)
+instance EnumTreeable (AdministratorR) 
+deriving instance Generic (FA'R)
+instance EnumTreeable (FA'R) 
+deriving instance Generic (FAX'R)
+instance EnumTreeable (FAX'R) 
+deriving instance Generic (FAMES'R)
+instance EnumTreeable (FAMES'R) 
+
+instance EnumTreeable (Route App)
+
+-- | Generate a tree of all possible (and sensible) routes
+-- Using Generic instead of TH means we have to derive each subsites routes manually.
+-- However, it's not really a problem, as forgetting it generate a compile error, which is
+-- much better than having to manage the list manually and forget to add new routes.
+routeTree = enumTree  :: EnumTree (Route App)
 data A = A Int | B Int deriving (Show, Generic)
 instance SameCons (A)
 
@@ -295,56 +326,58 @@ mainLinks = do
              , ("Items", ItemsR ItemsIndexR)
              , ("Warehouse", WarehouseR WHStockAdjustmentR)
              , ("Admin", AdministratorR AIndexR)
+             , ("FA",  FA'R FADebtorsMasterR)
+             , ("FAX",  FAX'R FAXItemRequestsR)
+             , ("FAMES",  FAMES'R FAMESFamesBarcodeSeedR)
              ]
       authorised (_, r) = do
         auth <- isAuthorized r False
         return $ auth == Authorized
-      active = traceShowId . maybe (const False) sameCons currentRoute . traceShowId
+      active = maybe (const False) sameCons currentRoute
   allowed <- filterM authorised links
   return [ (title, route, active route)
          | (title, route) <- allowed
          ]
 
-
-  
-
-
-warehouseLinks :: [(Text, [(Text, Route App)])]
-warehouseLinks = [ ( "Barcodes", barcodes)
-                 , ( "Packing List", packingLists)
-                 , ( "Stock", stocks)
-                 ] where
-  barcodes = [("Barcodes", WarehouseR WHBarcodeR)]
-  packingLists = [("Packing List", WarehouseR WHPackingListR)]
-  stocks = [ ("Stock Adjustement", WarehouseR WHStockAdjustmentR)
-           , ("Stocktake", WarehouseR WHStocktakeR)
-           , ("Validate Stocktake", WarehouseR WHStocktakeValidateR)
-           ]
-itemLinks :: [(Text, [(Text, Route App)])]
-itemLinks = [("Maintenance",  [("Index", ItemsR ItemsIndexR)])]
-glLinks :: [(Text, [(Text, Route App)])]
-glLinks = [("Receipts", [("Enter", GLEnterReceiptSheetR)])]
-
-adminLinks :: [(Text, [(Text, Route App)])]
-adminLinks = [ ("Info", infoLinks)
-               , ("Test", testLinks )
-               ] where
-  infoLinks = [("Index", AdministratorR AIndexR)]
-  testLinks = [("FA connection", AdministratorR ATestFAR)]
-                
-
 sideLinks :: Maybe (Route App)  -> [(Text, [(Text, Route App)])]
-sideLinks (Just (GLEnterReceiptSheetR)) = glLinks
-sideLinks (Just (ItemsR _)) = itemLinks
-sideLinks (Just (WarehouseR _)) = warehouseLinks
-sideLinks (Just (AdministratorR _)) = adminLinks
+
+sideLinks (Just route) = let
+  tree = routeTree
+  routes = filter (sameCons route) (Data.Foldable.toList tree)
+  titles0 = map routeTitle routes
+  -- filter routes without a title
+  route'titles = mapMaybe sequence  (zip routes titles0)
+  -- group title is given in config/route using @title
+  -- The group title is given only once for each  group
+  groups0 = map (routeGroup.fst) route'titles
+  groupNames = snd $ List.mapAccumL (\last title -> let new = title <|> last
+                                                in (new, new)
+                                )
+                               Nothing groups0
+  groups = List.groupBy ((==) `on` snd) (zip route'titles groupNames)
+  in [ ( fromJust name
+       , map (\((r,title),_) -> (title, r)) group_)
+     | (group_@((_,name):_)) <- groups
+     , isJust name
+     ]
 sideLinks _ = []
 
-sideLinks' :: Maybe (Route App) -> [(Text, Route App)]
-sideLinks' _ = [ ("Items", ItemsR ItemsIndexR)
-              , ("Barcodes", WarehouseR WHBarcodeR)
-              , ("Packing List",             WarehouseR WHPackingListR)
-              , ("Stock Adjustement",             WarehouseR WHStockAdjustmentR)
-              , ("Stocktake", WarehouseR WHStocktakeR)
-              , ("Validate Stocktake",             WarehouseR WHStocktakeValidateR)
-              ]
+routeValue :: Text -> Route App -> Maybe Text
+routeValue prefix route = let
+  attrs = mapMaybe (stripPrefix prefix) (toList $ routeAttrs route)
+  in headMay attrs
+-- | Find the group name of a route, used to group link on the side bar
+routeGroup :: Route App -> Maybe Text
+routeGroup route = let
+  in decodeTitle <$> routeValue "group=" route
+
+-- | Find the title of a route, used to display links
+routeTitle :: Route App -> Maybe Text
+routeTitle route = let
+  in decodeTitle <$> routeValue "title=" route
+  
+-- | Decode title (replace _ by blank)
+decodeTitle :: Text -> Text
+decodeTitle = Text.replace "_" " " 
+    
+

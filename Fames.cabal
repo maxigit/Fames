@@ -131,6 +131,7 @@ library
       RoutePiece
       Settings
       Settings.StaticFiles
+      Util.EnumTree
       Util.SameCons
       SharedStockAdjustment
       SharedTypes

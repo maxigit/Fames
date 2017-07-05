@@ -23,6 +23,12 @@ getFAMESFamesEmailR = entityTableHandler (FAMES'R FAMESFamesEmailR) ([] :: [Filt
 getFAMESFamesOperatorR :: Handler Html 
 getFAMESFamesOperatorR = entityTableHandler (FAMES'R FAMESFamesOperatorR) ([] :: [Filter FAMES.FamesOperator]) 
 
+getFAMESFamesPackinglistR :: Handler Html 
+getFAMESFamesPackinglistR = entityTableHandler (FAMES'R FAMESFamesPackinglistR) ([] :: [Filter FAMES.FamesPackinglist]) 
+
+getFAMESFamesPackinglistDetailR :: Handler Html 
+getFAMESFamesPackinglistDetailR = entityTableHandler (FAMES'R FAMESFamesPackinglistDetailR) ([] :: [Filter FAMES.FamesPackinglistDetail]) 
+
 getFAMESFamesStocktakeR :: Handler Html 
 getFAMESFamesStocktakeR = entityTableHandler (FAMES'R FAMESFamesStocktakeR) ([] :: [Filter FAMES.FamesStocktake]) 
 
@@ -31,6 +37,9 @@ getFAMESFamesStockAdjustmentR = entityTableHandler (FAMES'R FAMESFamesStockAdjus
 
 getFAMESFamesStockAdjDetailR :: Handler Html 
 getFAMESFamesStockAdjDetailR = entityTableHandler (FAMES'R FAMESFamesStockAdjDetailR) ([] :: [Filter FAMES.FamesStockAdjDetail]) 
+
+getFAMESFamesTransactionMapR :: Handler Html 
+getFAMESFamesTransactionMapR = entityTableHandler (FAMES'R FAMESFamesTransactionMapR) ([] :: [Filter FAMES.FamesTransactionMap]) 
 
 getFAMESFamesUserR :: Handler Html 
 getFAMESFamesUserR = entityTableHandler (FAMES'R FAMESFamesUserR) ([] :: [Filter FAMES.FamesUser]) 

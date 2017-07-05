@@ -24,11 +24,11 @@ BoxDimension sql=box_dimensions
     iHeight Double Maybe sql=iHeight
     date Day Maybe sql=date
     source Text  sql=source
-    comment Text Maybe sql=comment
+    comment Text Maybe sql=comment default=NULL
     volume Double  sql=volume
 
 Dispatched sql=dispatched
-    location Text Maybe sql=location
+    location Text Maybe sql=location default=NULL
     stockId Text  sql=stock_id
     take Text  sql=take
     padding Text  sql=padding
@@ -72,7 +72,7 @@ MyVat sql=my_vat
     netAmount Double Maybe sql=net_amount
 
 StocktakePriority sql=stocktake_priority
-    location Text Maybe sql=location
+    location Text Maybe sql=location default=NULL
     stockId Text  sql=stock_id
     take Text  sql=take
     padding Text  sql=padding
@@ -87,7 +87,7 @@ StockAudit sql=stock_audit
     tranDate Day Maybe sql=tran_date
     account Text  sql=account
     amount Double  sql=amount
-    memo Text Maybe sql=memo
+    memo Text Maybe sql=memo default=NULL
 
 StockTake sql=stock_take
     stockId Text  sql=stock_id

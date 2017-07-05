@@ -2,14 +2,14 @@
 
 -- Route
 /db/fax FAX'R !db !fax:
-  /item_requests FAXItemRequestsR GET
-  /box_dimensions FAXBoxDimensionsR GET
-  /dispatched FAXDispatchedR GET
-  /my_big_order FAXMyBigOrderR GET
-  /my_pickup FAXMyPickupR GET
-  /my_rates FAXMyRatesR GET
-  /my_vat FAXMyVatR GET
-  /stocktake_priority FAXStocktakePriorityR GET
-  /stock_audit FAXStockAuditR GET
-  /stock_take FAXStockTakeR GET
-  /volumes FAXVolumesR GET
+  /item_requests FAXItemRequestsR GET !title=item_requests !group=Tables
+  /box_dimensions FAXBoxDimensionsR GET !title=box_dimensions 
+  /dispatched FAXDispatchedR GET !title=dispatched 
+  /my_big_order FAXMyBigOrderR GET !title=my_big_order 
+  /my_pickup FAXMyPickupR GET !title=my_pickup 
+  /my_rates FAXMyRatesR GET !title=my_rates 
+  /my_vat FAXMyVatR GET !title=my_vat 
+  /stocktake_priority FAXStocktakePriorityR GET !title=stocktake_priority 
+  /stock_audit FAXStockAuditR GET !title=stock_audit 
+  /stock_take FAXStockTakeR GET !title=stock_take 
+  /volumes FAXVolumesR GET !title=volumes 

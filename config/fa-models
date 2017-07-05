@@ -705,7 +705,6 @@ StockMaster sql=0_stock_master
     inactive Bool  sql=inactive
     noSale Bool  sql=no_sale
     editable Bool  sql=editable
-    deriving Show
 
 StockMove sql=0_stock_moves
     Id Int  sql=trans_id
