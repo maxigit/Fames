@@ -50,16 +50,14 @@ $newline never
             <a.navbar-brand href=@{HomeR}>Fames
           <div.collapse.navbar-collapse>
             <ul.nav.navbar-nav>
-              <li> Warehouse
-              <li> General Ledger
-        <div.col-md-2.navbar.navbar-default style="min-height:100">
-          <div.list-group.table-of-contents>
-            <a.list-group-item href=@{ItemsR ItemsIndexR}>Items
-            <a.list-group-item href=@{WarehouseR WHBarcodeR}>Barcodes
-            <a.list-group-item href=@{WarehouseR WHPackingListR}>Packing List
-            <a.list-group-item href=@{WarehouseR WHStockAdjustmentR}>Stock Adjustement
-            <a.list-group-item href=@{WarehouseR WHStocktakeR}>Stocktake
-            <a.list-group-item href=@{WarehouseR WHStocktakeValidateR}>Validate Stocktake
+              $forall (title, route, active) <- mainNavLinks
+                <li :active:class=active><a href="@{route}">#{title}
+        <div.col-md-2 style="min-height:100">
+          $forall (group, links) <- sideLinks currentRoute
+            <div.list-group.table-of-contents>
+              <a.list-group-item.list-group-item-success>#{group}
+                $forall (title, route) <- links
+                  <a.list-group-item href=@{route}>#{title}
         <div.col-md-8 id="main" role="main">
           ^{pageBody pc}
       <div.row>

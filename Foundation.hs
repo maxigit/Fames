@@ -1,12 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE StandaloneDeriving #-}
 module Foundation
 ( module Foundation
 , module RoutePiece
 , module Role
+, A(..)
 ) where
 
 
-import Import.NoFoundation
+import Import.NoFoundation hiding(toList)
 import Database.Persist.Sql (ConnectionPool, runSqlPool)
 import Text.Hamlet          (hamletFile)
 import Text.Jasmine         (minifym)
@@ -23,6 +26,13 @@ import qualified Crypto.Hash as Crypto
 import Crypto.Hash (MD5, Digest)
 import Role
 import RoutePiece
+import Util.SameCons-- (SameCons, sameCons)
+import Util.EnumTree
+import GHC.Generics(Generic)
+import Data.Foldable(toList)
+import qualified Data.List as List
+import Data.Maybe
+import qualified Data.Text as Text
 
 -- | The foundation datatype for your application. This can be a good place to
 -- keep settings and values requiring initialization before your application
@@ -50,6 +60,37 @@ data App = App
 -- type Handler = HandlerT App IO
 -- type Widget = WidgetT App IO ()
 mkYesodData "App" $(parseRoutesFile "config/routes.gen")
+deriving instance Generic (Route App)
+instance SameCons (Route App)
+
+instance EnumTreeable Text where enumTree = EnumTree []
+instance EnumTreeable Int64 where enumTree = EnumTree []
+
+instance EnumTreeable (Route Static) where enumTree = EnumTree []
+instance EnumTreeable (Route Auth) where enumTree = EnumTree []
+instance EnumTreeable (Route FaySite) where enumTree = EnumTree []
+deriving instance Generic (WarehouseR)
+instance EnumTreeable (WarehouseR) 
+deriving instance Generic (ItemsR)
+instance EnumTreeable (ItemsR) 
+deriving instance Generic (AdministratorR)
+instance EnumTreeable (AdministratorR) 
+deriving instance Generic (FA'R)
+instance EnumTreeable (FA'R) 
+deriving instance Generic (FAX'R)
+instance EnumTreeable (FAX'R) 
+deriving instance Generic (FAMES'R)
+instance EnumTreeable (FAMES'R) 
+
+instance EnumTreeable (Route App)
+
+-- | Generate a tree of all possible (and sensible) routes
+-- Using Generic instead of TH means we have to derive each subsites routes manually.
+-- However, it's not really a problem, as forgetting it generate a compile error, which is
+-- much better than having to manage the list manually and forget to add new routes.
+routeTree = enumTree  :: EnumTree (Route App)
+data A = A Int | B Int deriving (Show, Generic)
+instance SameCons (A)
 
 -- | A convenient synonym for creating forms.
 type Form x = Html -> MForm (HandlerT App IO) (FormResult x, Widget)
@@ -81,6 +122,8 @@ instance Yesod App where
     defaultLayout widget = do
         master <- getYesod
         msgs <- getMessages
+        currentRoute <- getCurrentRoute
+        mainNavLinks <- mainLinks
 
         -- We break up the default layout into two components:
         -- default-layout is the contents of the body tag, and
@@ -275,4 +318,66 @@ cryptFAPassword :: Text -> Text
 cryptFAPassword text = let digest = Crypto.hash (encodeUtf8 text)  :: Digest MD5
             in tshow digest
 
+
+mainLinks :: Handler [(Text, Route App, Bool)]
+mainLinks = do
+  currentRoute <- getCurrentRoute
+  let links= [ ("General Ledger", GLEnterReceiptSheetR)
+             , ("Items", ItemsR ItemsIndexR)
+             , ("Warehouse", WarehouseR WHStockAdjustmentR)
+             , ("Admin", AdministratorR AIndexR)
+             , ("FA",  FA'R FADebtorsMasterR)
+             , ("FAX",  FAX'R FAXItemRequestsR)
+             , ("FAMES",  FAMES'R FAMESFamesBarcodeSeedR)
+             ]
+      authorised (_, r) = do
+        auth <- isAuthorized r False
+        return $ auth == Authorized
+      active = maybe (const False) sameCons currentRoute
+  allowed <- filterM authorised links
+  return [ (title, route, active route)
+         | (title, route) <- allowed
+         ]
+
+sideLinks :: Maybe (Route App)  -> [(Text, [(Text, Route App)])]
+
+sideLinks (Just route) = let
+  tree = routeTree
+  routes = filter (sameCons route) (Data.Foldable.toList tree)
+  titles0 = map routeTitle routes
+  -- filter routes without a title
+  route'titles = mapMaybe sequence  (zip routes titles0)
+  -- group title is given in config/route using @title
+  -- The group title is given only once for each  group
+  groups0 = map (routeGroup.fst) route'titles
+  groupNames = snd $ List.mapAccumL (\last title -> let new = title <|> last
+                                                in (new, new)
+                                )
+                               Nothing groups0
+  groups = List.groupBy ((==) `on` snd) (zip route'titles groupNames)
+  in [ ( fromJust name
+       , map (\((r,title),_) -> (title, r)) group_)
+     | (group_@((_,name):_)) <- groups
+     , isJust name
+     ]
+sideLinks _ = []
+
+routeValue :: Text -> Route App -> Maybe Text
+routeValue prefix route = let
+  attrs = mapMaybe (stripPrefix prefix) (toList $ routeAttrs route)
+  in headMay attrs
+-- | Find the group name of a route, used to group link on the side bar
+routeGroup :: Route App -> Maybe Text
+routeGroup route = let
+  in decodeTitle <$> routeValue "group=" route
+
+-- | Find the title of a route, used to display links
+routeTitle :: Route App -> Maybe Text
+routeTitle route = let
+  in decodeTitle <$> routeValue "title=" route
+  
+-- | Decode title (replace _ by blank)
+decodeTitle :: Text -> Text
+decodeTitle = Text.replace "_" " " 
+    
 

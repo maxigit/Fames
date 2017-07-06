@@ -145,3 +145,64 @@ Generates prefilled spreadsheet with qoh 2 columns:
 - [ ] post => csv
 
 
+
+* Graph
+#+BEGIN_SRC dot :file dependencies.png :cmdline -Kdot -Tpng
+digraph {
+Foundation [shape="record"
+           , label="{Foundation.hs|data App| data Route|type Handler|type Widget|authFa|defaultLayout}"
+           ];
+Foundation -> NoFoundation;
+Foundation -> Role
+Foundation -> RoutePiece
+Foundation -> routeGen
+routeGen [label="config/routes.gen"]
+
+NoFoundation [shape="record"
+             , label="{NoFoundation.hs|setMessage|showTransType|<&>}"
+             ]
+NoFoundation -> Model;
+NoFoundation -> Settings;
+
+Role [shape="record", label="Role.hs"]
+RoutePiece [shape="record", label="RoutePiece.hs"]
+Model [shape="record", label="Model.hs"]
+Model -> ModelField;
+Model -> configModel;
+configModel [label="config/models"]
+ModelField [shape="record", label="ModelField.hs"]
+
+Import [shape="record"
+       , label = "Import.hs"]
+Import -> Foundation;
+Import -> NoFoundation;
+Import -> HandlerUtil;
+
+Application [shape="record"
+            ,label="{Application.hs|instance Yesod App}"]
+Application -> Import
+Application -> HandlerWH
+Application -> HandlerItems
+  
+HandlerWH [shape="record",label="Handler.WH"]
+HandlerWH -> HandlerStocktake
+HandlerWH -> HandlerStocktakeAdjustment
+HandlerWH -> HandlerPackingList
+
+HandlerStocktake [shape="record"]
+HandlerStocktake -> Import;
+HandlerStocktake -> HandlerUtil;
+HandlerStocktake -> HandlerCsvUtil;
+
+HandlerCsvUtil [shape="record"
+              label="Hander.CsvUtils"]
+HandlerCsvUtil -> Import
+
+Settings [shape="record"
+         ,label="{Settings.hs|AppSettings}"]
+
+}
+#+END_SRC
+
+#+RESULTS:
+[[file:dependencies.png]]

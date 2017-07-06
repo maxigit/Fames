@@ -117,7 +117,7 @@ main = do
     ++ "'R !db !"
     ++ moduleLower
     ++ ":"
-  mapM_ (generateRoute outRoute module_) tables
+  zipWithM (generateRoute outRoute module_) tables ("!group=Tables":repeat [])
   hClose outRoute
 
 
@@ -170,9 +170,9 @@ generateModel out Table {..} = do
   hPutStrLn out ""
 
 
-generateRoute :: Handle -> String -> Table -> IO ()
-generateRoute out module_ Table {..} = do
-  hPrintf out "  /%s %s GET\n" tableName (handler module_ tableName)
+generateRoute :: Handle -> String -> Table -> String -> IO ()
+generateRoute out module_ Table {..} group = do
+  hPrintf out "  /%s %s GET !title=%s %s\n" tableName (handler module_ tableName)  tableName group
 
 handler :: String -> String -> String
 handler module_ s = printf "%s%sR" module_ (capitalize $ camelCase s)

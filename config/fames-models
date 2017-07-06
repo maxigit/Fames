@@ -7,7 +7,7 @@ FamesBarcodeSeed sql=fames_barcode_seed
 
 FamesBoxtake sql=fames_boxtake
     Id Int  sql=boxtake_id
-    description Text Maybe sql=description
+    description Text Maybe sql=description default=NULL
     reference Text  sql=reference
     length Double  sql=length
     width Double  sql=width
@@ -18,6 +18,7 @@ FamesBoxtake sql=fames_boxtake
     active Bool  sql=active
     operatorId Int  sql=operator_id
     documentKeyId Int  sql=document_key_id
+    locationHistory Text  sql=location_history
 
 FamesComment sql=fames_comment
     Id Int  sql=id
@@ -37,7 +38,7 @@ FamesEmail sql=fames_email
     Id Int  sql=id
     email Text  sql=email
     userId Int Maybe sql=user_id
-    verkey Text Maybe sql=verkey
+    verkey Text Maybe sql=verkey default=NULL
 
 FamesOperator sql=fames_operator
     Id Int  sql=operator_id
@@ -45,6 +46,30 @@ FamesOperator sql=fames_operator
     surname Text  sql=surname
     nickname Text  sql=nickname
     active Bool  sql=active
+
+FamesPackinglist sql=fames_packinglist
+    Id Int  sql=packinglist_id
+    invoiceRef Text  sql=invoice_ref
+    vessel Text Maybe sql=vessel default=NULL
+    container Text Maybe sql=container default=NULL
+    documentKeyId Int  sql=document_key_id
+    boxesToDeliverD Int  sql=boxes_to_deliver_d
+    departure Day Maybe sql=departure
+    arriving Day Maybe sql=arriving
+
+FamesPackinglistDetail sql=fames_packinglist_detail
+    Id Int  sql=id
+    packinglistId Int  sql=packinglist_id
+    style Text  sql=style
+    content Text  sql=content
+    reference Text  sql=reference
+    boxNumber Int  sql=box_number
+    barcode Text  sql=barcode
+    length Double  sql=length
+    width Double  sql=width
+    height Double  sql=height
+    weight Double  sql=weight
+    delivered Bool  sql=delivered
 
 FamesStocktake sql=fames_stocktake
     Id Int  sql=stocktake_id
@@ -58,12 +83,14 @@ FamesStocktake sql=fames_stocktake
     operatorId Int  sql=operator_id
     stockAdjId Int Maybe sql=stock_adj_id
     documentKeyId Int  sql=document_key_id
+    history Text  sql=history
+    comment Text Maybe sql=comment default=NULL
 
 FamesStockAdjustment sql=fames_stock_adjustment
     Id Int  sql=stock_adj_id
     comment Text  sql=comment
-    date Day  sql=date
-    status Int  sql=status
+    date UTCTime  sql=date
+    status Text  sql=status
     user Int  sql=user
 
 FamesStockAdjDetail sql=fames_stock_adj_detail
@@ -71,11 +98,18 @@ FamesStockAdjDetail sql=fames_stock_adj_detail
     stockAdjId Int  sql=stock_adj_id
     stockId Text  sql=stock_id
     quantity Int  sql=quantity
-    locFrom Text  sql=loc_from
-    locTo Text  sql=loc_to
+    locFrom Text Maybe sql=loc_from default=NULL
+    locTo Text Maybe sql=loc_to default=NULL
+
+FamesTransactionMap sql=fames_transaction_map
+    Id Int  sql=id
+    faTransType Int  sql=fa_trans_type
+    faTransNo Int  sql=fa_trans_no
+    eventType Int  sql=event_type
+    eventNo Int  sql=event_no
 
 FamesUser sql=fames_user
     Id Int  sql=user_id
     ident Text  sql=ident
-    password Text Maybe sql=password
+    password Text Maybe sql=password default=NULL
 
