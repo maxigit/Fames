@@ -53,11 +53,19 @@ $newline never
               $forall (title, route, active) <- mainNavLinks
                 <li :active:class=active><a href="@{route}">#{title}
         <div.col-md-2 style="min-height:100">
-          $forall (group, links) <- sideLinks currentRoute
+          $if (not (null suggested))
+            <div.list-group.table-of-contents>
+              <a.list-group-item.list-group-item-info>Suggested
+                $forall ((title, route, params), denied) <- suggested
+                  <a.list-group-item href=@?{(route, params)}
+                   :denied:class="disabled"
+                  >
+                    #{title}
+          $forall (group, links) <- sideLinks'
             <div.list-group.table-of-contents>
               <a.list-group-item.list-group-item-success>#{group}
-                $forall (title, route) <- links
-                  <a.list-group-item href=@{route}>#{title}
+                $forall ((title, route), denied) <- links
+                  <a.list-group-item href=@{route} :denied:class="disabled">#{title}
         <div.col-md-8 id="main" role="main">
           ^{pageBody pc}
       <div.row>

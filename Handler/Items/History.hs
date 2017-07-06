@@ -47,7 +47,9 @@ span.badge.Packers
   color: black
                 |]
         historyToTable (faUrl, renderUrl) history
-  defaultLayout tableW
+  html <- defaultLayout tableW
+  pushLinks sku (ItemsR (ItemsHistoryR sku)) []
+  return html
 
 
 -- data ItemEvent = ItemEvent deriving Show

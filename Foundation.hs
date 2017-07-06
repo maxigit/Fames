@@ -124,6 +124,19 @@ instance Yesod App where
         msgs <- getMessages
         currentRoute <- getCurrentRoute
         mainNavLinks <- mainLinks
+        suggested0 <- getSuggestedLinks
+        suggested <- mapM (\l@(_,r,_) -> do
+                                 a <- isAuthorized r False
+                                 return $ (l, a /= Authorized))
+                             suggested0
+        let sideLinks0 = sideLinks currentRoute
+        sideLinks' <- mapM (mapM (mapM (\l@(_,r) -> do
+                                 a <- isAuthorized r False
+                                 return $ (l, a /= Authorized))))
+                             sideLinks0
+
+
+        
 
         -- We break up the default layout into two components:
         -- default-layout is the contents of the body tag, and
@@ -350,7 +363,7 @@ sideLinks (Just route) = let
   -- group title is given in config/route using @title
   -- The group title is given only once for each  group
   groups0 = map (routeGroup.fst) route'titles
-  groupNames = snd $ List.mapAccumL (\last title -> let new = title <|> last
+  groupNames = snd $ List.mapAccumL (\last_ title -> let new = title <|> last_
                                                 in (new, new)
                                 )
                                Nothing groups0
@@ -380,4 +393,25 @@ routeTitle route = let
 decodeTitle :: Text -> Text
 decodeTitle = Text.replace "_" " " 
     
+
+-- * Add suggested links to the suggested links sidebar
+linksKey :: Text
+linksKey = "links"
+
+pushLinks :: Text -> (Route App) -> [(Text, Text)] -> Handler ()
+pushLinks title route params = do
+  oldLinks <- getSuggestedLinks
+  
+  let new = (title, route, params)
+      links = take 5  $ new: filter (/= new) oldLinks
+  setSession linksKey (tshow links)
+
+
+getSuggestedLinks :: Handler [(Text, Route App, [(Text, Text)])]
+getSuggestedLinks = do
+  text <- lookupSession linksKey
+  let links = text >>= readMay
+  return $ fromMaybe [] links
+
+
 
