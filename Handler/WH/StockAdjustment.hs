@@ -422,6 +422,10 @@ saveStockAdj FormParam{..} pres' = do
                                [StocktakeAdjustment =. Just adjKey])
                                pres
     setSuccess "Stock adjustment saved"
+    let adjId = unSqlBackendKey (unStockAdjustmentKey adjKey)
+    lift $ pushLinks ("View Adjustment #" <> tshow adjId)
+                     (WarehouseR $ WHStockAdjustmentViewR adjId )
+                     []
     return ""
 
 -- | Delete stocktakes  because they are probably wrong.

@@ -385,6 +385,11 @@ $maybe u <- uploader
                 insertMany_ stocktakes
                 insertMany_ boxtakes
 
+            let key' = tshow $ unSqlBackendKey (unDocumentKeyKey keyId)
+            lift $ do
+              pushLinks ("View Stocktake #" <> key') (WarehouseR (WHStocktakeR)) [("doc_key", key' )]
+              pushLinks ("Create Stocktake Adjustment") (WarehouseR (WHStockAdjustmentR)) []
+
             finalizer
            ) >> renderWHStocktake Validate
                                  Nothing
