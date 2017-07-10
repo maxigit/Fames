@@ -62,6 +62,7 @@ filterE conv field (Just (RegexFilter regex)) =
 itemsTable :: Maybe FilterExpression -> Maybe FilterExpression -> Bool ->  Handler Widget
 itemsTable styleF varF showInactive = do
   renderUrl <- getUrlRenderParams
+  adjustBase <- getAdjustBase
   runDB $ do
     let conv = StockMasterKey
     styles <- case styleF of
@@ -159,7 +160,7 @@ itemsTable styleF varF showInactive = do
                     var = drop 9 sku
         itemStyles = map stockMasterToItem styles
         itemVars =  map stockMasterToItem variations
-        itemGroups = joinStyleVariations itemStyles itemVars
+        itemGroups = joinStyleVariations adjustBase itemStyles itemVars
 
     return $ displayTable columns
                           (\c -> (toHtml c, []))
@@ -203,6 +204,10 @@ renderIndex param0 status = do
 
   
 
+getAdjustBase :: Handler (ItemInfo StockMaster -> Text -> ItemInfo StockMaster)
+getAdjustBase = do
+  let go item0 __var = item0
+  return go
 
 
 
