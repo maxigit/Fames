@@ -169,7 +169,7 @@ itemsTable styleF varF showInactive = do
                         --     VarMissing -> ["danger"]
                         --     VarExtra -> ["info"]
                       ++ if var == iiVariation item0
-                          then ["bg-info", "base"]
+                          then ["base"]
                           else ["variation"]
 
           in (\col -> fmap (\(fieldClasses, v)
@@ -233,6 +233,9 @@ renderIndex param0 status = do
     writing-mode: sideways-lr
   .clickable
     cursor: crosshair
+  .base
+    border: 1px solid black
+    box-shadow: 0px 5px 10px #888
 |]
   let widget = [whamlet|
 <div #items-index>

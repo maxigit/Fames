@@ -28,8 +28,10 @@ installC :: Double -> JQ.Element -> Fay JQuery
 installC index el = do
   row <- select el
   onclickBase row
+  onSelectBase row
 
 
+-- | install onclick event to expand/collapse base
 onclickBase base = do
   dklasses <- JQ.getAttr "class" base
   case dklasses of
@@ -48,6 +50,22 @@ onclickBase base = do
                         ) cell
                 JQ.addClass "clickable" cell
             _ -> return base
+
+-- | install  :Change base based on radio
+onSelectBase base = do
+  radio <- findSelector "input[type=radio]" base
+  Defined name <- JQ.getAttr "name" radio
+  JQ.onChange ( do
+
+    let selector = ("tr.base input[type=radio][name='"`FT.append` name `FT.append` "']")
+    oldRadio <- select selector
+    oldBase <- JQ.closestSelector "tr.base" oldRadio 
+    JQ.removeClass "base" oldBase
+    JQ.addClass "base" base
+    return ()
+    ) radio
+  return base
+
 
 
 findInClasses prefix [] = []
