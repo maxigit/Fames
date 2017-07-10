@@ -104,15 +104,23 @@ itemsTable styleF varF showInactive = do
 
     -- Church encoding ?
     let itemToF :: ItemInfo StockMaster
+                -> Bool
                 -> (VariationStatus, ItemInfo (StockMasterInfo ((,) [Text])))
                 -> (Text -> Maybe (Html, [Text]) -- Html + classes per column
                   , [Text]) -- classes for row
 
-        itemToF item0 (status , ItemInfo style var stock) =
+        itemToF item0 diffs (status , ItemInfo style var stock) =
           let val col = case col of
                 "stock_id" -> let sku =  style <> "-" <> var
                                   route = ItemsR $ ItemsHistoryR sku
-                              in Just ([], [hamlet|<a href=@{route} target="_blank">#{sku}|] renderUrl )
+                                  label = case status of
+                                    VarMissing -> [shamlet| <span.label.label-danger> Missing |]
+                                    VarExtra -> [shamlet| <span.label.label-info> Extra |]
+                                    VarOk -> [shamlet||]
+                                  label' = case diffs of
+                                    True -> [shamlet| <span.label.label-warning> Diff |]
+                                    _ -> [shamlet|<span.label.label-success> OK|]
+                              in Just ([], [hamlet|<a href=@{route} target="_blank">#{sku}#{label}#{label'}|] renderUrl )
                 "categoryId" -> Just (toHtml . tshow <$> smiCategoryId stock )
                 "taxTypeId" -> Just $ toHtml <$> smiTaxTypeId stock 
                 "description" -> Just $ toHtml <$>  smiDescription stock 
@@ -140,10 +148,10 @@ itemsTable styleF varF showInactive = do
                 case smiInactive stock of
                             (_, True) -> ["text-muted"]
                             _ -> []
-                        ++ case status of
-                            VarOk -> []
-                            VarMissing -> ["danger"]
-                            VarExtra -> ["info"]
+                        -- ++ case status of
+                        --     VarOk -> []
+                        --     VarMissing -> ["danger"]
+                        --     VarExtra -> ["info"]
                       ++ if var == iiVariation item0
                           then ["bg-info", "base"]
                           else ["variation"]
@@ -164,7 +172,7 @@ itemsTable styleF varF showInactive = do
 
     return $ displayTable columns
                           (\c -> (toHtml c, []))
-                          (concatMap (\(base, _, vars) -> map (itemToF base) vars) itemGroups)
+                          (concatMap (\(base, _, vars) -> map (itemToF base (not $ null (drop 1  $ vars ))) vars) itemGroups)
                       
 
 -- * Rendering
