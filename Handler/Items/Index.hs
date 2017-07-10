@@ -18,6 +18,7 @@ data FilterExpression = LikeFilter Text  | RegexFilter Text deriving (Eq, Show, 
 data IndexParam = IndexParam
   { ipStyles :: Maybe FilterExpression
   , ipVariations :: Maybe FilterExpression
+  , ipVariationGroup :: Maybe Text -- ^ Alternative to variations
   , ipShowInactive :: Bool
   } deriving (Eq, Show, Read)
 
@@ -62,10 +63,11 @@ filterE conv field (Just (RegexFilter regex)) =
   ]
   
 
-itemsTable :: Maybe FilterExpression -> Maybe FilterExpression -> Bool ->  Handler Widget
+itemsTable :: Maybe FilterExpression -> Either FilterExpression (Maybe Text) -> Bool ->  Handler Widget
 itemsTable styleF varF showInactive = do
   renderUrl <- getUrlRenderParams
   adjustBase <- getAdjustBase
+  varGroupMap <- appVariationGroups <$> appSettings <$> getYesod
   runDB $ do
     let conv = StockMasterKey
     styles <- case styleF of
@@ -77,9 +79,12 @@ itemsTable styleF varF showInactive = do
                           )
                           [Asc FA.StockMasterId]
     variations <- case varF of
-      Nothing -> return styles
-      Just _  -> selectList (filterE conv FA.StockMasterId varF <> [FA.StockMasterInactive ==. False ])
-                  [Asc FA.StockMasterId]
+      (Right Nothing) -> return (Left styles)
+      (Left filter_)  -> Left <$> selectList (filterE conv FA.StockMasterId (Just filter_)
+                                            <> [FA.StockMasterInactive ==. False ]
+                                            )
+                                            [Asc FA.StockMasterId]
+      (Right (Just group_)) -> return $ Right (Map.findWithDefault [] group_ varGroupMap)
 
     let columns = [ "stock_id"
                   , "status"
@@ -171,7 +176,9 @@ itemsTable styleF varF showInactive = do
                     style = take 8 sku
                     var = drop 9 sku
         itemStyles = map stockMasterToItem styles
-        itemVars =  map stockMasterToItem variations
+        itemVars =  case variations of
+          Left entities -> map (iiVariation . stockMasterToItem) entities
+          Right vars -> vars
         itemGroups = joinStyleVariations adjustBase itemStyles itemVars
 
     return $ displayTable columns
@@ -181,27 +188,34 @@ itemsTable styleF varF showInactive = do
 
 -- * Rendering
 getItemsIndexR :: Handler Html
-getItemsIndexR = renderIndex (IndexParam Nothing Nothing False) ok200
+getItemsIndexR = renderIndex (IndexParam Nothing Nothing Nothing False) ok200
 
-indexForm :: (MonadHandler m,
-              RenderMessage (HandlerSite m) FormMessage)
-          => IndexParam
-          -> Markup
-          -> MForm m (FormResult IndexParam, WidgetT (HandlerSite m) IO ())
-indexForm param = renderBootstrap3 BootstrapBasicForm form
+-- indexForm :: (MonadHandler m,
+--               RenderMessage (HandlerSite m) FormMessage)
+--           => [Text]
+--           -> IndexParam
+--           -> Markup
+--           -> MForm m (FormResult IndexParam, WidgetT (HandlerSite m) IO ())
+indexForm groups param = renderBootstrap3 BootstrapBasicForm form
   where form = IndexParam
           <$> (aopt filterEField "styles" (Just $ ipStyles param))
           <*> (aopt filterEField "variations" (Just $ ipVariations param))
+          <*> (aopt (selectFieldList groups') "variation group" (Just $ ipVariationGroup param))
           <*> (areq boolField "Show Inactive" (Just $ ipShowInactive param))
+        groups' =  map (\g -> (g,g)) groups
 
 renderIndex :: IndexParam -> Status -> Handler Html
 renderIndex param0 status = do
-  ((resp, form), encType) <- runFormGet (indexForm param0)
+  varGroup <- appVariationGroups <$> getsYesod appSettings
+  ((resp, form), encType) <- runFormGet (indexForm (Map.keys varGroup) param0)
   let param = case resp of
         FormMissing -> param0
         FormSuccess par -> par
         FormFailure _ -> param0
-  ix <- itemsTable (ipStyles param) (ipVariations param) (ipShowInactive param)
+      varP = case (ipVariations param, ipVariationGroup param) of
+        (Just var, Nothing) -> Left var
+        (_, group_) -> Right group_
+  ix <- itemsTable (ipStyles param) varP (ipShowInactive param)
   let widget = [whamlet|
 <div #items-index>
   <div.well>

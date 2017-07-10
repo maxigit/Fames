@@ -44,12 +44,12 @@ minMax a = MinMax a a
 -- the description to "Red T-Shirt" for the Red variation. 
 computeItemsStatus :: (ItemInfo StockMaster -> Text -> ItemInfo StockMaster )
                    -> ItemInfo StockMaster
-                   -> Map Text a
+                   -> [Text]
                    -> [ItemInfo StockMaster]
                    -> [(VariationStatus, ItemInfo (StockMasterInfo ((,) [Text])))]
 computeItemsStatus adjustItem0 item0 varMap items = let
   styleMap = mapFromList [(iiVariation i, i) | i <- items ]
-  varMap' = Map.mapWithKey (\var _ -> adjustItemBase var) varMap
+  varMap' = mapFromList [(var, adjustItemBase var) | var <- varMap]
   joineds = align varMap' styleMap
   ok _ item = (VarOk,  item)
   r = map (these (VarMissing,) (VarExtra,) ok) (Map.elems joineds)
@@ -71,13 +71,13 @@ computeDiff item0 item@(ItemInfo style var _) = let
 -- variations
 -- joinStyleVariations :: [ItemInfo a] -> [ItemInfo b] -> [(VariationStatus , ItemInfo a)]
 joinStyleVariations :: (ItemInfo StockMaster -> Text -> ItemInfo StockMaster)
-                    -> [ItemInfo StockMaster] -> [ItemInfo StockMaster]
+                    -> [ItemInfo StockMaster]
+                    -> [Text] -- ^ all possible variations
                     -> [( ItemInfo StockMaster
                         , ItemInfo (StockMasterInfo MinMax)
                         , [(VariationStatus, ItemInfo (StockMasterInfo ((,) [Text])))]
                         )]
 joinStyleVariations adjustBase items vars = let
-  varMap = mapFromList $ map ((,()) . iiVariation) vars
   styles = Map.fromListWith (flip (<>))  [(iiStyle item, [item]) | item <- items]
 
   in map (\(_, variations) -> let base = headEx variations
@@ -85,7 +85,7 @@ joinStyleVariations adjustBase items vars = let
                                          , minMaxFor base variations
                                          , computeItemsStatus adjustBase
                                                               (headEx variations)
-                                                              varMap
+                                                              vars
                                                               variations
                                          )
          )

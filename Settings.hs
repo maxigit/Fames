@@ -85,6 +85,8 @@ data AppSettings = AppSettings
     , appFAPassword :: String -- ^ User passwrod to connect to FA to post transactions.
     , appFAExternalURL :: String -- ^ User passwrod to connect to FA to post transactions.
     , appVariations :: Map Text Text -- ^ Variation description. Used to adjust item description in index.
+    , appVariationGroups :: Map Text [Text] -- ^ group of variations. Can intersect
+
     } deriving Show
 
 -- TODO clean
@@ -150,6 +152,7 @@ instance FromJSON AppSettings  where
         appFAPassword <- o .:? "fa-password" .!= "password"  
 
         appVariations <- o .:? "variations" .!= Map.fromList []
+        appVariationGroups <- o .:? "variationGroups" .!= Map.fromList []
         
 
         -- This code enables MySQL's strict mode, without which MySQL will truncate data.
