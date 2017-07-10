@@ -41,10 +41,12 @@ onclickBase base = do
 
       case styles of
             [style] ->  do
+                cell <- findSelector "td.description" base
                 onClick (\ev -> do
                             hideShow =<< select ("#items-index table > tbody > tr.variation.style-" `FT.append` style )
-                            return True
-                        ) base
+                            return False
+                        ) cell
+                JQ.addClass "clickable" cell
             _ -> return base
 
 

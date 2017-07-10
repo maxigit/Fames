@@ -86,7 +86,7 @@ itemsTable styleF varF showInactive = do
                                             [Asc FA.StockMasterId]
       (Right (Just group_)) -> return $ Right (Map.findWithDefault [] group_ varGroupMap)
 
-    let columns = [ "stock_id"
+    let columns' = [ "stock_id"
                   , "status"
                   , "categoryId"
                   , "taxTypeId"
@@ -110,6 +110,7 @@ itemsTable styleF varF showInactive = do
                   , "noSale"
                   , "editable"
                   ] :: [Text]
+        columns = ["check", "radio"] ++ columns'
 
     -- Church encoding ?
     let itemToF :: ItemInfo StockMaster
@@ -118,9 +119,15 @@ itemsTable styleF varF showInactive = do
                   , [Text]) -- classes for row
 
         itemToF item0 (status , ItemInfo style var stock) =
-          let val col = case col of
-                "stock_id" -> let sku =  style <> "-" <> var
-                                  route = ItemsR $ ItemsHistoryR sku
+          let sku =  style <> "-" <> var
+              val col = case col of
+                "check" -> Just ([], [shamlet|<input type=checkbox id=check-#{sku}>|])
+                "radio" -> let checked = var == iiVariation item0
+                           in Just ([], [shamlet|<input type=radio name=#{style} id=radio#{sku}
+                                                  :checked:checked
+                                             >|])
+
+                "stock_id" -> let route = ItemsR $ ItemsHistoryR sku
                               in Just ([], [hamlet|<a href=@{route} target="_blank">#{sku}|] renderUrl )
                 "status" -> let label = case status of
                                     VarMissing -> [shamlet| <span.label.label-danger> Missing |]
@@ -182,7 +189,11 @@ itemsTable styleF varF showInactive = do
         itemGroups = joinStyleVariations adjustBase itemStyles itemVars
 
     return $ displayTable columns
-                          (\c -> (toHtml c, []))
+                          (\c -> case c of
+                              "check" -> ("", [])
+                              "radio" -> ("", [])
+                              _ -> (toHtml c, [])
+                          )
                           (concatMap (\(base, _, vars) -> map (itemToF base) vars) itemGroups)
                       
 
@@ -217,8 +228,11 @@ renderIndex param0 status = do
         (_, group_) -> Right group_
   ix <- itemsTable (ipStyles param) varP (ipShowInactive param)
   let css = [cassius|
-#items-index th
-  writing-mode: sideways-lr
+#items-index
+  th
+    writing-mode: sideways-lr
+  .clickable
+    cursor: crosshair
 |]
   let widget = [whamlet|
 <div #items-index>
