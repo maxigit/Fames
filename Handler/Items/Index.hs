@@ -216,6 +216,10 @@ renderIndex param0 status = do
         (Just var, Nothing) -> Left var
         (_, group_) -> Right group_
   ix <- itemsTable (ipStyles param) varP (ipShowInactive param)
+  let css = [cassius|
+#items-index th
+  writing-mode: sideways-lr
+|]
   let widget = [whamlet|
 <div #items-index>
   <div.well>
@@ -225,7 +229,7 @@ renderIndex param0 status = do
   ^{ix}
 |]
       fay = $(fayFile "ItemsIndex")
-  sendResponseStatus status =<< defaultLayout (widget >> fay)
+  sendResponseStatus status =<< defaultLayout (widget >> fay >> toWidget css)
 
 
   
