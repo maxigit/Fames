@@ -20,6 +20,7 @@ import FA
 diffField :: Eq a => Identity a -> Identity a -> ((,) [Text]) a
 diffField (Identity a) (Identity b) = if a == b then ([], a) else (["text-danger"], b)
 
+-- Generates diffFieldStockMasterInfo 
 $(mmZip "diffField" ''StockMasterInfo)
 
 -- -- * MinMax
@@ -31,6 +32,9 @@ minMax a = MinMax a a
   -- mappend = mappendStockMasterInfo
 
 
+-- | Check the status of an item variation given a list of expected variation
+-- As well as checking if the variation exists, or is extra is also compares it
+-- to a reference items, to check if the information are the same.
 computeItemsStatus :: ItemInfo StockMaster
                    -> Map Text a
                    -> [ItemInfo StockMaster]
@@ -41,7 +45,7 @@ computeItemsStatus item0 varMap items = let
   joineds = align varMap' styleMap
   ok _ item = (VarOk,  item)
   r = map (these (VarMissing,) (VarExtra,) ok) (Map.elems joineds)
-  in map (\(s, i) -> (s, computeDiff item0 i)) r
+  in map (\(s, i) -> (s, computeDiff (adjustItemBase item0 i) i)) r
 
 computeDiff :: ItemInfo StockMaster -> ItemInfo StockMaster -> ItemInfo (StockMasterInfo ((,) [Text]))
 computeDiff item0 item | iiStyle item0 == iiStyle item  && iiVariation item0 == iiVariation item
@@ -53,6 +57,16 @@ computeDiff item0 item@(ItemInfo style var _) = let
   diff = diffFieldStockMasterInfo i0 i 
 
   in ItemInfo style var (diff)
+
+-- | The reference item used to check if fields are different between the current variation
+-- and the reference needs to be adjusted depending on the variation to take into account
+-- fields which actual depends on the variation itself. For example, the description might
+-- contain the name of the variation. In that case, we need to adjust the description field
+-- to match the expected result (not the reference one)
+-- For example, if base is Black and the description is "Black T-Shirt". We will need to change
+-- the description to "Red T-Shirt" for the Red variation. 
+adjustItemBase :: ItemInfo StockMaster -> ItemInfo StockMaster -> ItemInfo StockMaster
+adjustItemBase base item = item
 
 -- | Computes the VariationStatus ie if variations are present
 -- or not in the given map. "Missing" .i.e where the variation
