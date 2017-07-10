@@ -49,7 +49,7 @@ computeItemsStatus :: (ItemInfo StockMaster -> Text -> ItemInfo StockMaster )
                    -> [(VariationStatus, ItemInfo (StockMasterInfo ((,) [Text])))]
 computeItemsStatus adjustItem0 item0 varMap items = let
   styleMap = mapFromList [(iiVariation i, i) | i <- items ]
-  varMap' = Map.mapWithKey (\var _ -> item0 { iiVariation = var }) varMap
+  varMap' = Map.mapWithKey (\var _ -> adjustItemBase var) varMap
   joineds = align varMap' styleMap
   ok _ item = (VarOk,  item)
   r = map (these (VarMissing,) (VarExtra,) ok) (Map.elems joineds)
@@ -57,10 +57,6 @@ computeItemsStatus adjustItem0 item0 varMap items = let
   in map (\(s, i) -> (s, computeDiff (adjustItemBase (iiVariation i)) i)) r
 
 computeDiff :: ItemInfo StockMaster -> ItemInfo StockMaster -> ItemInfo (StockMasterInfo ((,) [Text]))
--- computeDiff item0 item | iiStyle item0 == iiStyle item  && iiVariation item0 == iiVariation item
---       = ItemInfo (iiStyle item)
---                  (iiVariation item)
---                  (runIdentity . aStockMasterToStockMasterInfo . iiInfo $ item)
 computeDiff item0 item@(ItemInfo style var _) = let
   [i0, i] = (map (runIdentity . aStockMasterToStockMasterInfo . iiInfo ) [item0, item]) :: [StockMasterInfo Identity]
   diff = diffFieldStockMasterInfo i0 i 

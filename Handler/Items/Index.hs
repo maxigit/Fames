@@ -1,12 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Handler.Items.Index where
 
-import Import
+import Import hiding(replace)
 import Handler.Table
 import Yesod.Form.Bootstrap3
 import FA
 import Items
 import Text.Blaze (Markup)
+import qualified Data.Map as Map
+import Data.Monoid(Endo(..), appEndo)
+import Data.Text(toTitle, replace, splitOn)
 
 -- * Types
 -- | SQL text filter expression. Can be use either the LIKE syntax or the Regex one.
@@ -79,6 +82,7 @@ itemsTable styleF varF showInactive = do
                   [Asc FA.StockMasterId]
 
     let columns = [ "stock_id"
+                  , "status"
                   , "categoryId"
                   , "taxTypeId"
                   , "description"
@@ -104,23 +108,23 @@ itemsTable styleF varF showInactive = do
 
     -- Church encoding ?
     let itemToF :: ItemInfo StockMaster
-                -> Bool
                 -> (VariationStatus, ItemInfo (StockMasterInfo ((,) [Text])))
                 -> (Text -> Maybe (Html, [Text]) -- Html + classes per column
                   , [Text]) -- classes for row
 
-        itemToF item0 diffs (status , ItemInfo style var stock) =
+        itemToF item0 (status , ItemInfo style var stock) =
           let val col = case col of
                 "stock_id" -> let sku =  style <> "-" <> var
                                   route = ItemsR $ ItemsHistoryR sku
-                                  label = case status of
+                              in Just ([], [hamlet|<a href=@{route} target="_blank">#{sku}|] renderUrl )
+                "status" -> let label = case status of
                                     VarMissing -> [shamlet| <span.label.label-danger> Missing |]
                                     VarExtra -> [shamlet| <span.label.label-info> Extra |]
                                     VarOk -> [shamlet||]
-                                  label' = case diffs of
+                                label' = case False of
                                     True -> [shamlet| <span.label.label-warning> Diff |]
-                                    _ -> [shamlet|<span.label.label-success> OK|]
-                              in Just ([], [hamlet|<a href=@{route} target="_blank">#{sku}#{label}#{label'}|] renderUrl )
+                                    _ -> [shamlet||]
+                            in Just ([], [hamlet|#{label}#{label'}|] renderUrl )
                 "categoryId" -> Just (toHtml . tshow <$> smiCategoryId stock )
                 "taxTypeId" -> Just $ toHtml <$> smiTaxTypeId stock 
                 "description" -> Just $ toHtml <$>  smiDescription stock 
@@ -172,7 +176,7 @@ itemsTable styleF varF showInactive = do
 
     return $ displayTable columns
                           (\c -> (toHtml c, []))
-                          (concatMap (\(base, _, vars) -> map (itemToF base (not $ null (drop 1  $ vars ))) vars) itemGroups)
+                          (concatMap (\(base, _, vars) -> map (itemToF base) vars) itemGroups)
                       
 
 -- * Rendering
@@ -214,8 +218,40 @@ renderIndex param0 status = do
 
 getAdjustBase :: Handler (ItemInfo StockMaster -> Text -> ItemInfo StockMaster)
 getAdjustBase = do
-  let go item0 __var = item0
+  settings <- appSettings <$> getYesod 
+  let varMap = appVariations settings
+      go item0@(ItemInfo _ _ stock ) var = let
+        description = adjustDescription varMap (iiVariation item0) var (stockMasterDescription stock)
+        in item0 {iiInfo = stock {stockMasterDescription=description}}
+  when (null varMap ) $ do
+       setWarning "No variations have been defined. Pleasec contact your adminstrator."
   return go
 
+-- Replace all occurrences of a variation name in the description
+-- for example "Red" "Black T-Shirt" => "Red T-Shirt"
+adjustDescription :: Map Text Text -> Text -> Text -> Text -> Text
+adjustDescription varMap var0 var desc =
+  case (lookupVars varMap var0, lookupVars varMap var) of
+    ([],_) -> desc
+    (_, []) -> desc
+    (vnames0, vnames) -> let
+      -- replace' a b c = traceShow (a,b,c,d) d where d = replace a b c
+      endos = [ (Endo $ replace (f vnames0) (f vnames))
+              | f0 <- [toTitle, toUpper, toLower ]
+              , let f vs = varsToVariation (map f0 vs)
+              ]
+      in appEndo (mconcat endos) desc
+
+-- | Split a variation name to variations
+-- ex: A/B -> [A,B]
+variationToVars :: Text -> [Text]
+variationToVars var = splitOn "/" var
 
 
+-- | Inverse of variationToVars
+varsToVariation :: [Text] -> Text
+varsToVariation vars = intercalate "/" vars
+
+-- | Lookup for list of variation code
+lookupVars :: Map Text Text -> Text -> [Text]
+lookupVars varMap = mapMaybe (flip Map.lookup varMap) . variationToVars

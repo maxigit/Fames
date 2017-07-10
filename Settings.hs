@@ -84,6 +84,7 @@ data AppSettings = AppSettings
     , appFAUser :: String -- ^ User to connect to FrontAcounting
     , appFAPassword :: String -- ^ User passwrod to connect to FA to post transactions.
     , appFAExternalURL :: String -- ^ User passwrod to connect to FA to post transactions.
+    , appVariations :: Map Text Text -- ^ Variation description. Used to adjust item description in index.
     } deriving Show
 
 -- TODO clean
@@ -146,7 +147,9 @@ instance FromJSON AppSettings  where
         appFAExternalURL <- o .:? "fa-x-url" .!= "http://127.0.0.1" -- for outsideworld 
         appFAURL <- o .:? "fa-url" .!= "http://127.0.0.1" -- from inside the Fames container
         appFAUser <- o .:? "fa-user" .!= "admin"
-        appFAPassword <- o .:? "fa-password" .!= "password"
+        appFAPassword <- o .:? "fa-password" .!= "password"  
+
+        appVariations <- o .:? "variations" .!= Map.fromList []
         
 
         -- This code enables MySQL's strict mode, without which MySQL will truncate data.
