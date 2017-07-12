@@ -52,7 +52,7 @@ onclickBase base = do
             _ -> return base
 
 -- | install  :Change base based on radio
-onSelectBase base = do
+onSelectBase' base = do
   radio <- findSelector "input[type=radio]" base
   Defined name <- JQ.getAttr "name" radio
   JQ.onChange ( do
@@ -65,7 +65,31 @@ onSelectBase base = do
     return ()
     ) radio
   return base
+-- | ajax call to handle base change
+onSelectBase base = do
+  radio <- findSelector "input[type=radio]" base
+  table <- select "div#items-index table"
+  form <- select "#items-form"
+  JQ.onChange (do
+                  -- ajax call
+                  updateWithAjax form (\html -> do
+                                          alert(html)
+                                          JQ.setHtml (FT.pack $ show html) table
+                                          return ()
+                                      )
+               ) radio
+  return base
 
+updateWithAjax :: JQuery -- ^ form
+               -> (a -> Fay()) -- ^ success handler
+               -> Fay ()
+updateWithAjax =
+  ffi "$.ajax({url:%1[0].action, data:%1.serialize(), dataType:'json', type:'GET',success:%2})"
+updateWithAjax' :: JQuery -- ^ form
+               -> (a -> Fay()) -- ^ success handler
+               -> Fay ()
+updateWithAjax' =
+  ffi "alert(JSON.stringify({url:%1[0].action, data:%1.serialize(), dataType:'json', type:'POST',success:%2}))"
 
 
 findInClasses prefix [] = []

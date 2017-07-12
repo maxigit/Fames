@@ -239,11 +239,11 @@ renderIndex param0 status = do
 |]
   let widget = [whamlet|
 <div #items-index>
-  <div.well>
-    <form #items-form role=form method=get action=@{ItemsR ItemsIndexR} enctype=#{encType}>
+  <form #items-form role=form method=get action=@{ItemsR ItemsIndexR} enctype=#{encType}>
+    <div.well>
       ^{form}
       <button type="submit" name="search" class="btn btn-default">Search
-  ^{ix}
+    ^{ix}
 |]
       fay = $(fayFile "ItemsIndex")
   sendResponseStatus status =<< defaultLayout (widget >> fay >> toWidget css)
