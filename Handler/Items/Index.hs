@@ -10,7 +10,7 @@ import Text.Blaze (Markup)
 import qualified Data.Map as Map
 import Data.Monoid(Endo(..), appEndo)
 import Data.Text(toTitle, replace, splitOn)
-
+import Text.Blaze.Html.Renderer.Text(renderHtml)
 -- * Types
 -- | SQL text filter expression. Can be use either the LIKE syntax or the Regex one.
 -- Regex one starts with '/'.
@@ -121,9 +121,9 @@ itemsTable styleF varF showInactive = do
         itemToF item0 (status , ItemInfo style var stock) =
           let sku =  style <> "-" <> var
               val col = case col of
-                "check" -> Just ([], [shamlet|<input type=checkbox id=check-#{sku}>|])
+                "check" -> Just ([], [shamlet|<input type=checkbox name="check-#{sku}">|])
                 "radio" -> let checked = var == iiVariation item0
-                           in Just ([], [shamlet|<input type=radio name=#{style} id=radio#{sku}
+                           in Just ([], [shamlet|<input type=radio name="base-#{style}" value="#{sku}"
                                                   :checked:checked
                                              >|])
 
@@ -198,7 +198,7 @@ itemsTable styleF varF showInactive = do
                       
 
 -- * Rendering
-getItemsIndexR :: Handler Html
+getItemsIndexR :: Handler TypedContent
 getItemsIndexR = renderIndex (IndexParam Nothing Nothing Nothing False) ok200
 
 -- indexForm :: (MonadHandler m,
@@ -215,7 +215,7 @@ indexForm groups param = renderBootstrap3 BootstrapBasicForm form
           <*> (areq boolField "Show Inactive" (Just $ ipShowInactive param))
         groups' =  map (\g -> (g,g)) groups
 
-renderIndex :: IndexParam -> Status -> Handler Html
+renderIndex :: IndexParam -> Status -> Handler TypedContent
 renderIndex param0 status = do
   varGroup <- appVariationGroups <$> getsYesod appSettings
   ((resp, form), encType) <- runFormGet (indexForm (Map.keys varGroup) param0)
@@ -243,10 +243,19 @@ renderIndex param0 status = do
     <div.well>
       ^{form}
       <button type="submit" name="search" class="btn btn-default">Search
-    ^{ix}
+    <div#items-table>
+      ^{ix}
 |]
       fay = $(fayFile "ItemsIndex")
-  sendResponseStatus status =<< defaultLayout (widget >> fay >> toWidget css)
+  selectRep $ do
+    provideRep  $ do
+      html <- sendResponseStatus status =<< defaultLayout (widget >> fay >> toWidget css)
+      return (html :: Html)
+    provideRep $ do -- Ajax. return table
+      table <- widgetToPageContent ix
+      html <- withUrlRenderer (pageBody table)
+      returnJson (renderHtml html)
+      
 
 
   

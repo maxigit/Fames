@@ -68,14 +68,13 @@ onSelectBase' base = do
 -- | ajax call to handle base change
 onSelectBase base = do
   radio <- findSelector "input[type=radio]" base
-  table <- select "div#items-index table"
+  table <- select "#items-table"
   form <- select "#items-form"
   JQ.onChange (do
                   -- ajax call
                   updateWithAjax form (\html -> do
-                                          alert(html)
-                                          JQ.setHtml (FT.pack $ show html) table
-                                          return ()
+                                          JQ.setHtml (FT.pack $ T.unpack html) table
+                                          main
                                       )
                ) radio
   return base
