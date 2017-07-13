@@ -194,14 +194,21 @@ itemsTable bases checkedItems styleF varF showInactive = do
           Right vars -> vars
         itemGroups = joinStyleVariations (skuToStyleVar <$> bases) adjustBase itemStyles itemVars
 
+        -- We keep row grouped so we can change the style of the first one of every group.
+        rowGroup = map (\(base, _, vars) -> map (itemToF base) vars) itemGroups
+        styleFirst ((fn, klasses):rs) = (fn, "style-start":klasses):rs
+        styleFirst [] = error "Shouldn't happend"
+        
+
     return $ displayTable columns
                           (\c -> case c of
                               "check" -> ("", [])
                               "radio" -> ("", [])
                               _ -> (toHtml c, [])
                           )
-                          (concatMap (\(base, _, vars) -> map (itemToF base) vars) itemGroups)
+                          (concat (map styleFirst rowGroup))
                       
+
 -- | Fill the parameters which are not in the form but have to be extracted
 -- from the request parameters
 fillTableParams :: IndexParam -> Handler IndexParam
@@ -261,10 +268,15 @@ renderIndex param0 status = do
     writing-mode: sideways-lr
   .clickable
     cursor: crosshair
+  tr.style-start.base 
+    border-top: 3px solid black
+      box-shadow: 0px 5px 5px #29abe0
   .base
     border: 1px solid black
     box-shadow: 0px 0px 5px #29abe0
     font-weight: 500
+  tr.style-start
+    border-top: 3px solid black
 |]
   let widget = [whamlet|
 <div #items-index>
