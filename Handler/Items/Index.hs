@@ -66,8 +66,8 @@ filterE conv field (Just (RegexFilter regex)) =
   ]
   
 
-itemsTable :: Map Text Text -> Maybe FilterExpression -> Either FilterExpression (Maybe Text) -> Bool ->  Handler Widget
-itemsTable bases styleF varF showInactive = do
+itemsTable :: Map Text Text -> Maybe [Text] -> Maybe FilterExpression -> Either FilterExpression (Maybe Text) -> Bool ->  Handler Widget
+itemsTable bases checkedItems styleF varF showInactive = do
   renderUrl <- getUrlRenderParams
   adjustBase <- getAdjustBase
   varGroupMap <- appVariationGroups <$> appSettings <$> getYesod
@@ -124,7 +124,8 @@ itemsTable bases styleF varF showInactive = do
         itemToF item0 (status , ItemInfo style var stock) =
           let sku =  style <> "-" <> var
               val col = case col of
-                "check" -> Just ([], [shamlet|<input type=checkbox name="check-#{sku}">|])
+                "check" -> let checked = maybe False (sku `elem`) checkedItems
+                           in Just ([], [shamlet|<input type=checkbox name="check-#{sku}" :checked:checked>|])
                 "radio" -> let checked = var == iiVariation item0
                            in Just ([], [shamlet|<input type=radio name="base-#{style}" value="#{sku}"
                                                   :checked:checked
@@ -205,7 +206,8 @@ itemsTable bases styleF varF showInactive = do
 -- from the request parameters
 fillTableParams :: IndexParam -> Handler IndexParam
 fillTableParams params0 = do
-  params <- reqGetParams <$> getRequest
+  (params,_) <- runRequestBody
+  traceShowM params
   let checked = mapMaybe (stripPrefix "check-" . fst)  params
       bases = Map.fromList $ mapMaybe (\(k,v) -> stripPrefix "base-" k <&> (\b -> (b, v))
                                      ) params
@@ -216,9 +218,13 @@ fillTableParams params0 = do
 getItemsIndexR :: Handler TypedContent
 getItemsIndexR = do
   let param0 = IndexParam Nothing Nothing Nothing False mempty empty empty
+  renderIndex param0 ok200
+
+postItemsIndexR :: Handler TypedContent
+postItemsIndexR = do
+  let param0 = IndexParam Nothing Nothing Nothing False mempty empty empty
   param <- fillTableParams param0
   renderIndex param ok200
-
 -- indexForm :: (MonadHandler m,
 --               RenderMessage (HandlerSite m) FormMessage)
 --           => [Text]
@@ -239,7 +245,7 @@ indexForm groups param = renderBootstrap3 BootstrapBasicForm form
 renderIndex :: IndexParam -> Status -> Handler TypedContent
 renderIndex param0 status = do
   varGroup <- appVariationGroups <$> getsYesod appSettings
-  ((resp, form), encType) <- runFormGet (indexForm (Map.keys varGroup) param0)
+  ((resp, form), encType) <- runFormPost (indexForm (Map.keys varGroup) param0)
   let param = case resp of
         FormMissing -> param0
         FormSuccess par -> par
@@ -247,7 +253,8 @@ renderIndex param0 status = do
       varP = case (ipVariations param, ipVariationGroup param) of
         (Just var, Nothing) -> Left var
         (_, group_) -> Right group_
-  ix <- itemsTable (ipBases param) (ipStyles param) varP (ipShowInactive param)
+      checkedItems = if null (ipChecked param) then Nothing else Just (ipChecked param)
+  ix <- itemsTable (ipBases param) checkedItems (ipStyles param) varP (ipShowInactive param)
   let css = [cassius|
 #items-index
   th
@@ -256,11 +263,12 @@ renderIndex param0 status = do
     cursor: crosshair
   .base
     border: 1px solid black
-    box-shadow: 0px 5px 10px #888
+    box-shadow: 0px 0px 5px #29abe0
+    font-weight: 500
 |]
   let widget = [whamlet|
 <div #items-index>
-  <form #items-form role=form method=get action=@{ItemsR ItemsIndexR} enctype=#{encType}>
+  <form #items-form role=form method=post action=@{ItemsR ItemsIndexR} enctype=#{encType}>
     <div.well>
       ^{form}
       <button type="submit" name="search" class="btn btn-default">Search

@@ -83,7 +83,7 @@ updateWithAjax :: JQuery -- ^ form
                -> (a -> Fay()) -- ^ success handler
                -> Fay ()
 updateWithAjax =
-  ffi "$.ajax({url:%1[0].action, data:%1.serialize(), dataType:'json', type:'GET',success:%2})"
+  ffi "$.ajax({url:%1[0].action, data:%1.serialize(), dataType:'json', type:'POST',success:%2})"
 updateWithAjax' :: JQuery -- ^ form
                -> (a -> Fay()) -- ^ success handler
                -> Fay ()
