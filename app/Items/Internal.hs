@@ -70,24 +70,29 @@ computeDiff item0 item@(ItemInfo style var _) = let
 -- | Check for each styles if they all variations present in variations
 -- variations
 -- joinStyleVariations :: [ItemInfo a] -> [ItemInfo b] -> [(VariationStatus , ItemInfo a)]
-joinStyleVariations :: (ItemInfo StockMaster -> Text -> ItemInfo StockMaster)
+joinStyleVariations :: Map Text (Text, Text)
+                    -> (ItemInfo StockMaster -> Text -> ItemInfo StockMaster)
                     -> [ItemInfo StockMaster]
                     -> [Text] -- ^ all possible variations
                     -> [( ItemInfo StockMaster
                         , ItemInfo (StockMasterInfo MinMax)
                         , [(VariationStatus, ItemInfo (StockMasterInfo ((,) [Text])))]
                         )]
-joinStyleVariations adjustBase items vars = let
+joinStyleVariations bases adjustBase items vars = let
   styles = Map.fromListWith (flip (<>))  [(iiStyle item, [item]) | item <- items]
 
-  in map (\(_, variations) -> let base = headEx variations
-                                      in ( base
-                                         , minMaxFor base variations
-                                         , computeItemsStatus adjustBase
-                                                              (headEx variations)
-                                                              vars
-                                                              variations
-                                         )
+  in map (\(_, variations@(var:_)) -> let
+             -- bases Map a style to the base sku. We need to find the sku then item
+             varMap = mapFromList [((iiStyle v, iiVariation v), v) | v <- variations ]
+             base = fromMaybe var $ Map.lookup (iiStyle var) bases
+               >>= flip Map.lookup varMap
+             in ( base
+                , minMaxFor base variations
+                , computeItemsStatus adjustBase
+                  base
+                  vars
+                  variations
+                )
          )
          (mapToList styles)
 

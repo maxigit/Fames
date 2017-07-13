@@ -20,6 +20,9 @@ data IndexParam = IndexParam
   , ipVariations :: Maybe FilterExpression
   , ipVariationGroup :: Maybe Text -- ^ Alternative to variations
   , ipShowInactive :: Bool
+  , ipBases :: Map Text Text -- ^ style -> selected base
+  , ipChecked :: [Text] -- ^ styles to act upon
+  , ipColumns :: [Text] -- ^ columns to act upon
   } deriving (Eq, Show, Read)
 
 -- * Utils
@@ -63,8 +66,8 @@ filterE conv field (Just (RegexFilter regex)) =
   ]
   
 
-itemsTable :: Maybe FilterExpression -> Either FilterExpression (Maybe Text) -> Bool ->  Handler Widget
-itemsTable styleF varF showInactive = do
+itemsTable :: Map Text Text -> Maybe FilterExpression -> Either FilterExpression (Maybe Text) -> Bool ->  Handler Widget
+itemsTable bases styleF varF showInactive = do
   renderUrl <- getUrlRenderParams
   adjustBase <- getAdjustBase
   varGroupMap <- appVariationGroups <$> appSettings <$> getYesod
@@ -178,15 +181,17 @@ itemsTable styleF varF showInactive = do
             , classes
             )
 
+        skuToStyleVar sku = (style, var) where
+          style = take 8 sku
+          var = drop 9 sku
         stockMasterToItem (Entity key val) = ItemInfo  style var val where
                     sku = unStockMasterKey key
-                    style = take 8 sku
-                    var = drop 9 sku
+                    (style, var) = skuToStyleVar sku
         itemStyles = map stockMasterToItem styles
         itemVars =  case variations of
           Left entities -> map (iiVariation . stockMasterToItem) entities
           Right vars -> vars
-        itemGroups = joinStyleVariations adjustBase itemStyles itemVars
+        itemGroups = joinStyleVariations (skuToStyleVar <$> bases) adjustBase itemStyles itemVars
 
     return $ displayTable columns
                           (\c -> case c of
@@ -196,10 +201,23 @@ itemsTable styleF varF showInactive = do
                           )
                           (concatMap (\(base, _, vars) -> map (itemToF base) vars) itemGroups)
                       
+-- | Fill the parameters which are not in the form but have to be extracted
+-- from the request parameters
+fillTableParams :: IndexParam -> Handler IndexParam
+fillTableParams params0 = do
+  params <- reqGetParams <$> getRequest
+  let checked = mapMaybe (stripPrefix "check-" . fst)  params
+      bases = Map.fromList $ mapMaybe (\(k,v) -> stripPrefix "base-" k <&> (\b -> (b, v))
+                                     ) params
+  return $ traceShowId $ params0 {ipChecked = checked, ipBases=bases}
+   
 
 -- * Rendering
 getItemsIndexR :: Handler TypedContent
-getItemsIndexR = renderIndex (IndexParam Nothing Nothing Nothing False) ok200
+getItemsIndexR = do
+  let param0 = IndexParam Nothing Nothing Nothing False mempty empty empty
+  param <- fillTableParams param0
+  renderIndex param ok200
 
 -- indexForm :: (MonadHandler m,
 --               RenderMessage (HandlerSite m) FormMessage)
@@ -213,6 +231,9 @@ indexForm groups param = renderBootstrap3 BootstrapBasicForm form
           <*> (aopt filterEField "variations" (Just $ ipVariations param))
           <*> (aopt (selectFieldList groups') "variation group" (Just $ ipVariationGroup param))
           <*> (areq boolField "Show Inactive" (Just $ ipShowInactive param))
+          <*> pure (ipBases param)
+          <*> pure (ipChecked param)
+          <*> pure (ipColumns param)
         groups' =  map (\g -> (g,g)) groups
 
 renderIndex :: IndexParam -> Status -> Handler TypedContent
@@ -226,7 +247,7 @@ renderIndex param0 status = do
       varP = case (ipVariations param, ipVariationGroup param) of
         (Just var, Nothing) -> Left var
         (_, group_) -> Right group_
-  ix <- itemsTable (ipStyles param) varP (ipShowInactive param)
+  ix <- itemsTable (ipBases param) (ipStyles param) varP (ipShowInactive param)
   let css = [cassius|
 #items-index
   th
