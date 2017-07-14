@@ -18,13 +18,17 @@ import qualified Data.List as List
 data FilterExpression = LikeFilter Text  | RegexFilter Text deriving (Eq, Show, Read)
 data IndexParam = IndexParam
   { ipStyles :: Maybe FilterExpression
-  , ipVariations :: Maybe FilterExpression
+  , ipVariationsF :: Maybe FilterExpression
   , ipVariationGroup :: Maybe Text -- ^ Alternative to variations
   , ipShowInactive :: Bool
+  , ipShowExtra :: Bool
   , ipBases :: Map Text Text -- ^ style -> selected base
   , ipChecked :: [Text] -- ^ styles to act upon
   , ipColumns :: [Text] -- ^ columns to act upon
   } deriving (Eq, Show, Read)
+ipVariations param = case (ipVariationsF param, ipVariationGroup param) of
+        (Just var, Nothing) -> Left var
+        (_, group_) -> Right group_
 
 -- * Utils
 
@@ -67,8 +71,13 @@ filterE conv field (Just (RegexFilter regex)) =
   ]
   
 
-itemsTable :: Map Text Text -> Maybe [Text] -> Maybe FilterExpression -> Either FilterExpression (Maybe Text) -> Bool ->  Handler Widget
-itemsTable bases checkedItems styleF varF showInactive = do
+itemsTable :: IndexParam ->  Handler Widget
+itemsTable param = do
+  let bases = ipBases param
+      checkedItems = if null (ipChecked param) then Nothing else Just (ipChecked param)
+      styleF = ipStyles param
+      varF = ipVariations param
+      showInactive = ipShowInactive param
   renderUrl <- getUrlRenderParams
   adjustBase <- getAdjustBase
   varGroupMap <- appVariationGroups <$> appSettings <$> getYesod
@@ -203,9 +212,13 @@ itemsTable bases checkedItems styleF varF showInactive = do
           Left entities -> map (iiVariation . stockMasterToItem) entities
           Right vars -> vars
         itemGroups = joinStyleVariations (skuToStyleVar <$> bases) adjustBase itemStyles itemVars
+        filterExtra = if ipShowExtra param
+                      then id
+                      else (List.filter ((/= VarExtra) . fst))
+          
 
         -- We keep row grouped so we can change the style of the first one of every group.
-        rowGroup = map (\(base, _, vars) -> map (itemToF base) vars) itemGroups
+        rowGroup = map (\(base, _, vars) -> map (itemToF base) (filterExtra vars)) itemGroups
         styleFirst ((fn, klasses):rs) = (fn, "style-start":klasses):rs
         styleFirst [] = error "Shouldn't happend"
 
@@ -238,12 +251,12 @@ fillTableParams params0 = do
 -- * Rendering
 getItemsIndexR :: Handler TypedContent
 getItemsIndexR = do
-  let param0 = IndexParam Nothing Nothing Nothing False mempty empty empty
+  let param0 = IndexParam Nothing Nothing Nothing False True mempty empty empty
   renderIndex param0 ok200
 
 postItemsIndexR :: Handler TypedContent
 postItemsIndexR = do
-  let param0 = IndexParam Nothing Nothing Nothing False mempty empty empty
+  let param0 = IndexParam Nothing Nothing Nothing False True mempty empty empty
   param <- fillTableParams param0
   renderIndex param ok200
 -- indexForm :: (MonadHandler m,
@@ -255,9 +268,10 @@ postItemsIndexR = do
 indexForm groups param = renderBootstrap3 BootstrapBasicForm form
   where form = IndexParam
           <$> (aopt filterEField "styles" (Just $ ipStyles param))
-          <*> (aopt filterEField "variations" (Just $ ipVariations param))
+          <*> (aopt filterEField "variations" (Just $ ipVariationsF param))
           <*> (aopt (selectFieldList groups') "variation group" (Just $ ipVariationGroup param))
           <*> (areq boolField "Show Inactive" (Just $ ipShowInactive param))
+          <*> (areq boolField "Show Extra" (Just $ ipShowExtra param))
           <*> pure (ipBases param)
           <*> pure (ipChecked param)
           <*> pure (ipColumns param)
@@ -271,11 +285,7 @@ renderIndex param0 status = do
         FormMissing -> param0
         FormSuccess par -> par
         FormFailure _ -> param0
-      varP = case (ipVariations param, ipVariationGroup param) of
-        (Just var, Nothing) -> Left var
-        (_, group_) -> Right group_
-      checkedItems = if null (ipChecked param) then Nothing else Just (ipChecked param)
-  ix <- itemsTable (ipBases param) checkedItems (ipStyles param) varP (ipShowInactive param)
+  ix <- itemsTable param
   let css = [cassius|
 #items-index
   tr.unchecked
@@ -318,6 +328,8 @@ renderIndex param0 status = do
       <button type="submit" name="search" class="btn btn-default">Search
     <div#items-table>
       ^{ix}
+    <div.well>
+      <button.btn.btn-danger type="submit" name="create">Create Missings
 |]
       fay = $(fayFile "ItemsIndex")
   selectRep $ do
