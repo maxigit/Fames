@@ -174,7 +174,7 @@ itemsTable bases checkedItems styleF varF showInactive = do
               classes :: [Text]
               classes = ("style-" <> iiStyle item0)
                         : (if differs then ["differs"] else ["no-diff"])
-                        <> (if checked then [] else ["disabled"])
+                        <> (if checked then [] else ["unchecked"])
                         <> case smiInactive stock of
                             (_, True) -> ["text-muted"]
                             _ -> []
@@ -214,7 +214,7 @@ itemsTable bases checkedItems styleF varF showInactive = do
 
     return $ displayTable columns
                           (\c -> case c of
-                              "check" -> ("", [])
+                              "check" -> ("", ["checkall"])
                               "radio" -> ("", [])
                               _ -> (toHtml c, [])
                           )
@@ -278,7 +278,7 @@ renderIndex param0 status = do
   ix <- itemsTable (ipBases param) checkedItems (ipStyles param) varP (ipShowInactive param)
   let css = [cassius|
 #items-index
-  tr.disabled
+  tr.unchecked
     opacity: 0.5
     font-weight: normal
   th

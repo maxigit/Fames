@@ -18,6 +18,10 @@ import           SharedTypes
 partition f xs = (Prelude.filter f xs, Prelude.filter (Prelude.not . f) xs)
 main :: Fay ()
 main = do
+  installCallbacks
+  addCheckAll
+  return ()
+installCallbacks = do
     rows <- select "#items-index table > tbody > tr"
     jQueryMap installC rows
     return  ()
@@ -109,7 +113,7 @@ stripPrefix pre s = let
     
 
                             
--- | Install callback so that unchecked row are disabled
+-- | Install callback so that unchecked row are unchecked
 onCheckRow :: JQuery -> Fay JQuery
 onCheckRow row = do
   checkbox <- findSelector "input[type=checkbox]" row
@@ -117,10 +121,36 @@ onCheckRow row = do
                checkedStr <- JQ.getProp "checked" checkbox
                checked <- jIsTrue checkedStr
                if checked
-                 then JQ.removeClass "disabled" row
-                 else JQ.addClass "disabled" row
-
+                 then JQ.removeClass "unchecked" row
+                 else JQ.addClass "unchecked" row
+               updateCheckAllStatus
                return ()
                ) checkbox
   return row
+
+
+addCheckAll = do
+  td <- select "#items-index table th.checkall"
+  JQ.setHtml "<input type=checkbox id=items-checkall>" td
+  checkall <- select "#items-checkall"
+  JQ.onChange (do
+              boxes <- select "#items-index .stock-master-check input"
+              checked <- JQ.getProp "checked" checkall
+              JQ.setProp "checked" checked boxes
+              -- update manually unchecked status
+              checked' <- jIsTrue checked
+              rows <- select "#items-index table tbody tr"
+              if checked'
+                 then JQ.removeClass "unchecked" rows
+                 else JQ.addClass "unchecked" rows
+              return ()
+           ) checkall
+  updateCheckAllStatus
+
+updateCheckAllStatus = do
+  checked <- select "#items-index .stock-master-check :checked"
+  size <- jsize checked
+  checkall <- select "#items-checkall"
+  JQ.setProp "checked" (if size /= 0 then "true" else "false") checkall
+
 
