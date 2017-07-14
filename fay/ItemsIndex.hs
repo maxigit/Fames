@@ -29,6 +29,7 @@ installC index el = do
   row <- select el
   onclickBase row
   onSelectBase row
+  onCheckRow row
 
 
 -- | install onclick event to expand/collapse base
@@ -108,3 +109,18 @@ stripPrefix pre s = let
     
 
                             
+-- | Install callback so that unchecked row are disabled
+onCheckRow :: JQuery -> Fay JQuery
+onCheckRow row = do
+  checkbox <- findSelector "input[type=checkbox]" row
+  JQ.onChange (do
+               checkedStr <- JQ.getProp "checked" checkbox
+               checked <- jIsTrue checkedStr
+               if checked
+                 then JQ.removeClass "disabled" row
+                 else JQ.addClass "disabled" row
+
+               return ()
+               ) checkbox
+  return row
+

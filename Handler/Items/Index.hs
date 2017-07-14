@@ -124,13 +124,13 @@ itemsTable bases checkedItems styleF varF showInactive = do
 
         itemToF item0 (status , ItemInfo style var stock) =
           let sku =  style <> "-" <> var
+              checked = maybe True (sku `elem`) checkedItems
               missingLabel = case status of
                                     VarMissing -> [shamlet| <span.label.label-warning> Missing |]
                                     VarExtra -> [shamlet| <span.label.label-info> Extra |]
                                     VarOk -> [shamlet||]
               val col = case col of
-                "check" -> let checked = maybe False (sku `elem`) checkedItems
-                           in Just ([], [shamlet|<input type=checkbox name="check-#{sku}" :checked:checked>|])
+                "check" -> Just ([], [shamlet|<input type=checkbox name="check-#{sku}" :checked:checked>|])
                 "radio" -> let checked = var == iiVariation item0
                            in if status == VarMissing
                               then Just ([], missingLabel)
@@ -174,6 +174,7 @@ itemsTable bases checkedItems styleF varF showInactive = do
               classes :: [Text]
               classes = ("style-" <> iiStyle item0)
                         : (if differs then ["differs"] else ["no-diff"])
+                        <> (if checked then [] else ["disabled"])
                         <> case smiInactive stock of
                             (_, True) -> ["text-muted"]
                             _ -> []
@@ -277,6 +278,9 @@ renderIndex param0 status = do
   ix <- itemsTable (ipBases param) checkedItems (ipStyles param) varP (ipShowInactive param)
   let css = [cassius|
 #items-index
+  tr.disabled
+    opacity: 0.5
+    font-weight: normal
   th
     writing-mode: sideways-lr
   .clickable
