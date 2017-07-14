@@ -26,6 +26,8 @@ data IndexParam = IndexParam
   , ipChecked :: [Text] -- ^ styles to act upon
   , ipColumns :: [Text] -- ^ columns to act upon
   } deriving (Eq, Show, Read)
+
+ipVariations :: IndexParam -> Either FilterExpression (Maybe Text)
 ipVariations param = case (ipVariationsF param, ipVariationGroup param) of
         (Just var, Nothing) -> Left var
         (_, group_) -> Right group_
@@ -70,15 +72,19 @@ filterE conv field (Just (RegexFilter regex)) =
          (BackendSpecificFilter "RLIKE")
   ]
   
-
-itemsTable :: IndexParam ->  Handler Widget
-itemsTable param = do
-  let bases = ipBases param
-      checkedItems = if null (ipChecked param) then Nothing else Just (ipChecked param)
-      styleF = ipStyles param
+loadVariations :: IndexParam
+               -> Handler [ (ItemInfo StockMaster -- base
+                            , ItemInfo (StockMasterInfo MinMax) -- minmax
+                            , [ ( VariationStatus
+                                , ItemInfo (StockMasterInfo ((,) [Text]))
+                                )
+                              ] -- all variations, including base
+                            )
+                          ]
+loadVariations param = do
+  let styleF = ipStyles param
       varF = ipVariations param
-      showInactive = ipShowInactive param
-  renderUrl <- getUrlRenderParams
+      bases =  ipBases param
   adjustBase <- getAdjustBase
   varGroupMap <- appVariationGroups <$> appSettings <$> getYesod
   runDB $ do
@@ -88,7 +94,7 @@ itemsTable param = do
                 setWarning "Please enter a styles filter expression (SQL like expression or regexp starting with '/'')"
                 return []
       Just _ -> selectList (filterE conv FA.StockMasterId styleF
-                            ++ if showInactive then [] else [FA.StockMasterInactive ==. False]
+                            ++ if (ipShowInactive param) then [] else [FA.StockMasterInactive ==. False]
                           )
                           [Asc FA.StockMasterId]
     variations <- case varF of
@@ -99,115 +105,7 @@ itemsTable param = do
                                             [Asc FA.StockMasterId]
       (Right (Just group_)) -> return $ Right (Map.findWithDefault [] group_ varGroupMap)
 
-    let columns' = [ "stock_id"
-                  , "status"
-                  , "categoryId"
-                  , "taxTypeId"
-                  , "description"
-                  , "longDescription"
-                  , "units"
-                  , "mbFlag"
-                  , "salesAccount"
-                  , "cogsAccount"
-                  , "inventoryAccount"
-                  , "adjustmentAccount"
-                  , "assemblyAccount"
-                  , "dimensionId"
-                  , "dimension2Id"
-                  -- , "actualCost"
-                  -- , "lastCost"
-                  -- , "materialCost"
-                  -- , "labourCost"
-                  -- , "overheadCost"
-                  , "inactive"
-                  , "noSale"
-                  , "editable"
-                  ] :: [Text]
-        columns = ["check", "radio"] ++ columns'
-
-    -- Church encoding ?
-    let itemToF :: ItemInfo StockMaster
-                -> (VariationStatus, ItemInfo (StockMasterInfo ((,) [Text])))
-                -> (Text -> Maybe (Html, [Text]) -- Html + classes per column
-                  , [Text]) -- classes for row
-
-        itemToF item0 (status , ItemInfo style var stock) =
-          let sku =  style <> "-" <> var
-              checked = maybe True (sku `elem`) checkedItems
-              missingLabel = case status of
-                                    VarMissing -> [shamlet| <span.label.label-warning> Missing |]
-                                    VarExtra -> [shamlet| <span.label.label-info> Extra |]
-                                    VarOk -> [shamlet||]
-              val col = case col of
-                "check" -> Just ([], [shamlet|<input type=checkbox name="check-#{sku}" :checked:checked>|])
-                "radio" -> let checked = var == iiVariation item0
-                           in if status == VarMissing
-                              then Just ([], missingLabel)
-                              else Just ([], [shamlet|<input type=radio name="base-#{style}" value="#{sku}"
-                                                  :checked:checked
-                                             >|] >> missingLabel)
-
-                "stock_id" -> let route = ItemsR $ ItemsHistoryR sku
-                              in Just ([], [hamlet|<a href=@{route} target="_blank">#{sku}|] renderUrl )
-                "status" -> let label = case differs of
-                                    True -> [shamlet| <span.label.label-danger> Diff |]
-                                    _ -> [shamlet||]
-                            in Just ([], [hamlet|#{label}|] renderUrl )
-                "categoryId" -> Just (toHtml . tshow <$> smiCategoryId stock )
-                "taxTypeId" -> Just $ toHtml <$> smiTaxTypeId stock 
-                "description" -> Just $ toHtml <$>  smiDescription stock 
-                "longDescription" -> Just $ toHtml <$> smiLongDescription stock 
-                "units" -> Just $ toHtml <$>  smiUnits stock 
-                "mbFlag" -> Just $ toHtml <$>  smiMbFlag stock 
-                "salesAccount" -> Just $ toHtml <$>  smiSalesAccount stock 
-                "cogsAccount" -> Just $ toHtml <$>  smiCogsAccount stock 
-                "inventoryAccount" -> Just $ toHtml <$>  smiInventoryAccount stock 
-                "adjustmentAccount" -> Just $ toHtml <$>  smiAdjustmentAccount stock 
-                "assemblyAccount" -> Just $ toHtml <$>  smiAssemblyAccount stock 
-                "dimensionId" -> Just $ toHtml . tshow  <$> smiDimensionId stock 
-                "dimension2Id" -> Just $ toHtml . tshow <$> smiDimension2Id stock 
-                "actualCost" -> Just $ toHtml <$> smiActualCost stock 
-                "lastCost" -> Just $ toHtml <$> smiLastCost stock 
-                "materialCost" -> Just $ toHtml <$> smiMaterialCost stock 
-                "labourCost" -> Just $ toHtml <$> smiLabourCost stock 
-                "overheadCost" -> Just $ toHtml <$> smiOverheadCost stock 
-                "inactive" -> Just $ toHtml <$> smiInactive stock 
-                "noSale" -> Just $ toHtml <$> smiNoSale stock 
-                "editable" -> Just $ toHtml <$> smiEditable stock 
-                _ -> Nothing
-              differs = or diffs where
-                diffs = [ "text-danger" `elem `kls
-                        | col <- columns
-                        , let kls = maybe [] fst (val col)
-                        ]
-              classes :: [Text]
-              classes = ("style-" <> iiStyle item0)
-                        : (if differs then ["differs"] else ["no-diff"])
-                        <> (if checked then [] else ["unchecked"])
-                        <> case smiInactive stock of
-                            (_, True) -> ["text-muted"]
-                            _ -> []
-                        -- ++ case status of
-                        --     VarOk -> []
-                        --     VarMissing -> ["danger"]
-                        --     VarExtra -> ["info"]
-                      ++ if var == iiVariation item0
-                          then ["base"]
-                          else ["variation"]
-
-          in (\col -> fmap (\(fieldClasses, v)
-                      -> (v, ("stock-master-"<>col):fieldClasses)
-                        ) (val col)
-            , classes
-            )
-
-        skuToStyleVar sku = (style, var) where
-          style = take 8 sku
-          var = drop 9 sku
-        stockMasterToItem (Entity key val) = ItemInfo  style var val where
-                    sku = unStockMasterKey key
-                    (style, var) = skuToStyleVar sku
-        itemStyles = map stockMasterToItem styles
+    let itemStyles = map stockMasterToItem styles
         itemVars =  case variations of
           Left entities -> map (iiVariation . stockMasterToItem) entities
           Right vars -> vars
@@ -215,24 +113,147 @@ itemsTable param = do
         filterExtra = if ipShowExtra param
                       then id
                       else (List.filter ((/= VarExtra) . fst))
-          
+    return  $ map (\(base, minmax, vars)
+                   -> (base, minmax, filterExtra vars)
+                  ) itemGroups
 
-        -- We keep row grouped so we can change the style of the first one of every group.
-        rowGroup = map (\(base, _, vars) -> map (itemToF base) (filterExtra vars)) itemGroups
-        styleFirst ((fn, klasses):rs) = (fn, "style-start":klasses):rs
-        styleFirst [] = error "Shouldn't happend"
+    
+  
 
-        styleGroup klass rs = [(fn, klass:klasses) | (fn,klasses) <- rs]
+skuToStyleVar :: Text -> (Text, Text)
+skuToStyleVar sku = (style, var) where
+  style = take 8 sku
+  var = drop 9 sku
+
+stockMasterToItem :: (Entity FA.StockMaster) -> ItemInfo FA.StockMaster
+stockMasterToItem (Entity key val) = ItemInfo  style var val where
+            sku = unStockMasterKey key
+            (style, var) = skuToStyleVar sku
+
+itemsTable :: IndexParam ->  Handler Widget
+itemsTable param = do
+  let checkedItems = if null (ipChecked param) then Nothing else Just (ipChecked param)
+  renderUrl <- getUrlRenderParams
+  itemGroups <- loadVariations param
+
+  let columns' = [ "stock_id"
+                , "status"
+                , "categoryId"
+                , "taxTypeId"
+                , "description"
+                , "longDescription"
+                , "units"
+                , "mbFlag"
+                , "salesAccount"
+                , "cogsAccount"
+                , "inventoryAccount"
+                , "adjustmentAccount"
+                , "assemblyAccount"
+                , "dimensionId"
+                , "dimension2Id"
+                -- , "actualCost"
+                -- , "lastCost"
+                -- , "materialCost"
+                -- , "labourCost"
+                -- , "overheadCost"
+                , "inactive"
+                , "noSale"
+                , "editable"
+                ] :: [Text]
+      columns = ["check", "radio"] ++ columns'
+
+  -- Church encoding ?
+  let itemToF :: ItemInfo StockMaster
+              -> (VariationStatus, ItemInfo (StockMasterInfo ((,) [Text])))
+              -> (Text -> Maybe (Html, [Text]) -- Html + classes per column
+                , [Text]) -- classes for row
+
+      itemToF item0 (status , ItemInfo style var stock) =
+        let sku =  style <> "-" <> var
+            checked = maybe True (sku `elem`) checkedItems
+            missingLabel = case status of
+                                  VarMissing -> [shamlet| <span.label.label-warning> Missing |]
+                                  VarExtra -> [shamlet| <span.label.label-info> Extra |]
+                                  VarOk -> [shamlet||]
+            val col = case col of
+              "check" -> Just ([], [shamlet|<input type=checkbox name="check-#{sku}" :checked:checked>|])
+              "radio" -> let rchecked = var == iiVariation item0
+                          in if status == VarMissing
+                            then Just ([], missingLabel)
+                            else Just ([], [shamlet|<input type=radio name="base-#{style}" value="#{sku}"
+                                                :rchecked:checked
+                                            >|] >> missingLabel)
+
+              "stock_id" -> let route = ItemsR $ ItemsHistoryR sku
+                            in Just ([], [hamlet|<a href=@{route} target="_blank">#{sku}|] renderUrl )
+              "status" -> let label = case differs of
+                                  True -> [shamlet| <span.label.label-danger> Diff |]
+                                  _ -> [shamlet||]
+                          in Just ([], [hamlet|#{label}|] renderUrl )
+              "categoryId" -> Just (toHtml . tshow <$> smiCategoryId stock )
+              "taxTypeId" -> Just $ toHtml <$> smiTaxTypeId stock 
+              "description" -> Just $ toHtml <$>  smiDescription stock 
+              "longDescription" -> Just $ toHtml <$> smiLongDescription stock 
+              "units" -> Just $ toHtml <$>  smiUnits stock 
+              "mbFlag" -> Just $ toHtml <$>  smiMbFlag stock 
+              "salesAccount" -> Just $ toHtml <$>  smiSalesAccount stock 
+              "cogsAccount" -> Just $ toHtml <$>  smiCogsAccount stock 
+              "inventoryAccount" -> Just $ toHtml <$>  smiInventoryAccount stock 
+              "adjustmentAccount" -> Just $ toHtml <$>  smiAdjustmentAccount stock 
+              "assemblyAccount" -> Just $ toHtml <$>  smiAssemblyAccount stock 
+              "dimensionId" -> Just $ toHtml . tshow  <$> smiDimensionId stock 
+              "dimension2Id" -> Just $ toHtml . tshow <$> smiDimension2Id stock 
+              "actualCost" -> Just $ toHtml <$> smiActualCost stock 
+              "lastCost" -> Just $ toHtml <$> smiLastCost stock 
+              "materialCost" -> Just $ toHtml <$> smiMaterialCost stock 
+              "labourCost" -> Just $ toHtml <$> smiLabourCost stock 
+              "overheadCost" -> Just $ toHtml <$> smiOverheadCost stock 
+              "inactive" -> Just $ toHtml <$> smiInactive stock 
+              "noSale" -> Just $ toHtml <$> smiNoSale stock 
+              "editable" -> Just $ toHtml <$> smiEditable stock 
+              _ -> Nothing
+            differs = or diffs where
+              diffs = [ "text-danger" `elem `kls
+                      | col <- columns
+                      , let kls = maybe [] fst (val col)
+                      ]
+            classes :: [Text]
+            classes = ("style-" <> iiStyle item0)
+                      : (if differs then ["differs"] else ["no-diff"])
+                      <> (if checked then [] else ["unchecked"])
+                      <> case smiInactive stock of
+                          (_, True) -> ["text-muted"]
+                          _ -> []
+                      -- ++ case status of
+                      --     VarOk -> []
+                      --     VarMissing -> ["danger"]
+                      --     VarExtra -> ["info"]
+                    ++ if var == iiVariation item0
+                        then ["base"]
+                        else ["variation"]
+
+        in (\col -> fmap (\(fieldClasses, v)
+                    -> (v, ("stock-master-"<>col):fieldClasses)
+                      ) (val col)
+          , classes
+          )
+
+
+      -- We keep row grouped so we can change the style of the first one of every group.
+      rowGroup = map (\(base, _, vars) -> map (itemToF base) vars) itemGroups
+      styleFirst ((fn, klasses):rs) = (fn, "style-start":klasses):rs
+      styleFirst [] = error "Shouldn't happend"
+
+      styleGroup klass rs = [(fn, klass:klasses) | (fn,klasses) <- rs]
         
 
-    return $ displayTable columns
-                          (\c -> case c of
+  return $ displayTable columns
+                        (\c -> case c of
                               "check" -> ("", ["checkall"])
                               "radio" -> ("", [])
                               _ -> (toHtml c, [])
-                          )
-                          -- (concat  (zipWith styleGroup (List.cycle ["group-1","group-2","group-3","group-4"])
-                          (concat  (zipWith styleGroup (List.cycle ["group-2","group-3"])
+                        )
+                        (concat  (zipWith styleGroup (List.cycle ["group-2","group-3"])
                                     .map styleFirst $ rowGroup))
                       
 
@@ -241,7 +262,6 @@ itemsTable param = do
 fillTableParams :: IndexParam -> Handler IndexParam
 fillTableParams params0 = do
   (params,_) <- runRequestBody
-  traceShowM params
   let checked = mapMaybe (stripPrefix "check-" . fst)  params
       bases = Map.fromList $ mapMaybe (\(k,v) -> stripPrefix "base-" k <&> (\b -> (b, v))
                                      ) params
@@ -257,8 +277,11 @@ getItemsIndexR = do
 postItemsIndexR :: Handler TypedContent
 postItemsIndexR = do
   let param0 = IndexParam Nothing Nothing Nothing False True mempty empty empty
+  action <- lookupPostParam "action"
   param <- fillTableParams param0
-  renderIndex param ok200
+  case action of
+    Just "create" -> createMissing param
+    _ -> renderIndex param ok200
 -- indexForm :: (MonadHandler m,
 --               RenderMessage (HandlerSite m) FormMessage)
 --           => [Text]
@@ -325,11 +348,11 @@ renderIndex param0 status = do
   <form #items-form role=form method=post action=@{ItemsR ItemsIndexR} enctype=#{encType}>
     <div.well>
       ^{form}
-      <button type="submit" name="search" class="btn btn-default">Search
+      <button type="submit" name="action" value="search" class="btn btn-default">Search
     <div#items-table>
       ^{ix}
     <div.well>
-      <button.btn.btn-danger type="submit" name="create">Create Missings
+      <button.btn.btn-danger type="submit" name="action" value="create">Create Missings
 |]
       fay = $(fayFile "ItemsIndex")
   selectRep $ do
@@ -384,3 +407,8 @@ varsToVariation vars = intercalate "/" vars
 -- | Lookup for list of variation code
 lookupVars :: Map Text Text -> Text -> [Text]
 lookupVars varMap = mapMaybe (flip Map.lookup varMap) . variationToVars
+
+
+-- * Actions
+createMissing :: IndexParam -> Handler TypedContent
+createMissing params = undefined
