@@ -124,26 +124,26 @@ itemsTable bases checkedItems styleF varF showInactive = do
 
         itemToF item0 (status , ItemInfo style var stock) =
           let sku =  style <> "-" <> var
+              missingLabel = case status of
+                                    VarMissing -> [shamlet| <span.label.label-warning> Missing |]
+                                    VarExtra -> [shamlet| <span.label.label-info> Extra |]
+                                    VarOk -> [shamlet||]
               val col = case col of
                 "check" -> let checked = maybe False (sku `elem`) checkedItems
                            in Just ([], [shamlet|<input type=checkbox name="check-#{sku}" :checked:checked>|])
                 "radio" -> let checked = var == iiVariation item0
                            in if status == VarMissing
-                              then Nothing
+                              then Just ([], missingLabel)
                               else Just ([], [shamlet|<input type=radio name="base-#{style}" value="#{sku}"
                                                   :checked:checked
-                                             >|])
+                                             >|] >> missingLabel)
 
                 "stock_id" -> let route = ItemsR $ ItemsHistoryR sku
                               in Just ([], [hamlet|<a href=@{route} target="_blank">#{sku}|] renderUrl )
-                "status" -> let label = case status of
-                                    VarMissing -> [shamlet| <span.label.label-danger> Missing |]
-                                    VarExtra -> [shamlet| <span.label.label-info> Extra |]
-                                    VarOk -> [shamlet||]
-                                label' = case False of
-                                    True -> [shamlet| <span.label.label-warning> Diff |]
+                "status" -> let label = case differs of
+                                    True -> [shamlet| <span.label.label-danger> Diff |]
                                     _ -> [shamlet||]
-                            in Just ([], [hamlet|#{label}#{label'}|] renderUrl )
+                            in Just ([], [hamlet|#{label}|] renderUrl )
                 "categoryId" -> Just (toHtml . tshow <$> smiCategoryId stock )
                 "taxTypeId" -> Just $ toHtml <$> smiTaxTypeId stock 
                 "description" -> Just $ toHtml <$>  smiDescription stock 
@@ -166,9 +166,15 @@ itemsTable bases checkedItems styleF varF showInactive = do
                 "noSale" -> Just $ toHtml <$> smiNoSale stock 
                 "editable" -> Just $ toHtml <$> smiEditable stock 
                 _ -> Nothing
+              differs = or diffs where
+                diffs = [ "text-danger" `elem `kls
+                        | col <- columns
+                        , let kls = maybe [] fst (val col)
+                        ]
               classes :: [Text]
-              classes = "style-" <> iiStyle item0:
-                case smiInactive stock of
+              classes = ("style-" <> iiStyle item0)
+                        : (if differs then ["differs"] else ["no-diff"])
+                        <> case smiInactive stock of
                             (_, True) -> ["text-muted"]
                             _ -> []
                         -- ++ case status of
@@ -295,6 +301,10 @@ renderIndex param0 status = do
     border-left: solid #29abe0
   tr.group-4
     border-left: solid #f47c3c
+  td.text-danger
+    font-weight: bold
+  td.stock-master-radio span.label-info
+    font-size: 60%
 |]
   let widget = [whamlet|
 <div #items-index>
