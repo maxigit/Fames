@@ -11,6 +11,7 @@ import qualified Data.Map as Map
 import Data.Monoid(Endo(..), appEndo)
 import Data.Text(toTitle, replace, splitOn)
 import Text.Blaze.Html.Renderer.Text(renderHtml)
+import qualified Data.List as List
 -- * Types
 -- | SQL text filter expression. Can be use either the LIKE syntax or the Regex one.
 -- Regex one starts with '/'.
@@ -127,7 +128,9 @@ itemsTable bases checkedItems styleF varF showInactive = do
                 "check" -> let checked = maybe False (sku `elem`) checkedItems
                            in Just ([], [shamlet|<input type=checkbox name="check-#{sku}" :checked:checked>|])
                 "radio" -> let checked = var == iiVariation item0
-                           in Just ([], [shamlet|<input type=radio name="base-#{style}" value="#{sku}"
+                           in if status == VarMissing
+                              then Nothing
+                              else Just ([], [shamlet|<input type=radio name="base-#{style}" value="#{sku}"
                                                   :checked:checked
                                              >|])
 
@@ -198,6 +201,8 @@ itemsTable bases checkedItems styleF varF showInactive = do
         rowGroup = map (\(base, _, vars) -> map (itemToF base) vars) itemGroups
         styleFirst ((fn, klasses):rs) = (fn, "style-start":klasses):rs
         styleFirst [] = error "Shouldn't happend"
+
+        styleGroup klass rs = [(fn, klass:klasses) | (fn,klasses) <- rs]
         
 
     return $ displayTable columns
@@ -206,7 +211,9 @@ itemsTable bases checkedItems styleF varF showInactive = do
                               "radio" -> ("", [])
                               _ -> (toHtml c, [])
                           )
-                          (concat (map styleFirst rowGroup))
+                          -- (concat  (zipWith styleGroup (List.cycle ["group-1","group-2","group-3","group-4"])
+                          (concat  (zipWith styleGroup (List.cycle ["group-2","group-3"])
+                                    .map styleFirst $ rowGroup))
                       
 
 -- | Fill the parameters which are not in the form but have to be extracted
@@ -268,15 +275,26 @@ renderIndex param0 status = do
     writing-mode: sideways-lr
   .clickable
     cursor: crosshair
-  tr.style-start.base 
-    border-top: 3px solid black
-      box-shadow: 0px 5px 5px #29abe0
+  tr.base.group-1 
+    background: #f2dede
+  tr.base.group-2 
+    background: #dff0d8
+  tr.base.group-3 
+    background: #d0edf7
+  tr.base.group-4 
+    background: #fcf8e3
   .base
-    border: 1px solid black
-    box-shadow: 0px 0px 5px #29abe0
     font-weight: 500
   tr.style-start
     border-top: 3px solid black
+  tr.group-1
+    border-left: solid #d0534f
+  tr.group-2
+    border-left: solid #93c54b
+  tr.group-3
+    border-left: solid #29abe0
+  tr.group-4
+    border-left: solid #f47c3c
 |]
   let widget = [whamlet|
 <div #items-index>
