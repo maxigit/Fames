@@ -15,6 +15,9 @@ import Data.Align(align)
 import qualified Data.Map as Map
 import Metamorphosis
 import FA
+import qualified Data.IntMap.Strict as IntMap
+import qualified Data.IntSet as IntSet
+import qualified Data.Monoid as Monoid
 
 
 diffField :: Eq a => Identity a -> Identity a -> ((,) [Text]) a
@@ -57,10 +60,14 @@ computeItemsStatus adjustItem0 computeDiff_ item0 varMap items = let
   adjustItemBase var = (adjustItem0 item0 var) {iiVariation = var} -- | Force variation
   in map (\(s, i) -> (s, computeDiff_ (adjustItemBase (iiVariation i)) i)) r
 
-computeDiff :: ItemInfo StockMaster -> ItemInfo StockMaster -> ItemInfo (StockMasterF ((,) [Text]))
+computeDiff :: ItemInfo (ItemMasterAndPrices Identity)
+            -> ItemInfo (ItemMasterAndPrices Identity)
+            -> ItemInfo (ItemMasterAndPrices ((,) [Text]))
 computeDiff item0 item@(ItemInfo style var _) = let
-  [i0, i] = (map (runIdentity . aStockMasterToStockMasterF . iiInfo ) [item0, item]) :: [StockMasterF Identity]
-  diff = diffFieldStockMasterF i0 i 
+  [i0, i] = (map (impMaster . iiInfo)  [item0, item]) :: [Maybe (StockMasterF Identity)]
+  diff = ItemMasterAndPrices (diffFieldStockMasterF <$>  i0 <*> i)
+                             Nothing 
+                             Nothing 
 
   in ItemInfo style var (diff)
 
@@ -74,14 +81,12 @@ computeDiff item0 item@(ItemInfo style var _) = let
 joinStyleVariations :: Map Text (Text, Text)
                     -> (ItemInfo a -> Text -> ItemInfo a)
                     -> (ItemInfo a -> ItemInfo a -> ItemInfo diff)
-                    -> (ItemInfo a -> [ItemInfo a] -> agg)
                     -> [ItemInfo a]
                     -> [Text] -- ^ all possible variations
                     -> [( ItemInfo a
-                        , agg
                         , [(VariationStatus, ItemInfo diff)]
                         )]
-joinStyleVariations bases adjustBase computeDiff_ aggregateFor items vars = let
+joinStyleVariations bases adjustBase computeDiff_ items vars = let
   styles = Map.fromListWith (flip (<>))  [(iiStyle item, [item]) | item <- items]
 
   in map (\(_, variations@(var:_)) -> let
@@ -90,7 +95,6 @@ joinStyleVariations bases adjustBase computeDiff_ aggregateFor items vars = let
              base = fromMaybe var $ Map.lookup (iiStyle var) bases
                >>= flip Map.lookup varMap
              in ( base
-                , aggregateFor base variations
                 , computeItemsStatus adjustBase computeDiff_
                   base
                   vars
@@ -99,7 +103,24 @@ joinStyleVariations bases adjustBase computeDiff_ aggregateFor items vars = let
          )
          (mapToList styles)
 
-minMaxFor :: ItemInfo StockMaster -> [ItemInfo StockMaster]  -> ItemInfo (StockMasterF MinMax)
-minMaxFor (ItemInfo st var _) infos = let
- infos' = map (runIdentity . aStockMasterToStockMasterF . iiInfo) infos
- in ItemInfo st var (mconcat infos')
+
+mergeInfoSources :: Monoid a => [[ItemInfo a]] -> [ItemInfo a]
+mergeInfoSources sources = let
+  maps :: [Map (ItemInfo ()) _]
+  maps = map (\source -> mapFromList [ ( fmap (const ()) info
+                                       ,  iiInfo info 
+                                       )
+                                     | info <- source
+                                     ]
+             ) sources
+  merged = foldl' (unionWith (Monoid.<>)) (mempty) maps
+  in [ ItemInfo style var i | (ItemInfo style var (), i) <- Map.toList merged]
+  
+
+salesPricesColumns ::  [ItemMasterAndPrices f] -> [Text]
+salesPricesColumns masters =
+  let colSetFor (ItemPriceF m)  = keysSet m
+      cols = mapMaybe (fmap colSetFor . impSalesPrices) masters
+      colSet = mconcat cols
+  in map tshow (sort $ IntSet.toList colSet)
+  

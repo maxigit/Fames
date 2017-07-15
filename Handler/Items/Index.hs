@@ -12,6 +12,8 @@ import Data.Monoid(Endo(..), appEndo)
 import Data.Text(toTitle, replace, splitOn)
 import Text.Blaze.Html.Renderer.Text(renderHtml)
 import qualified Data.List as List
+import Database.Persist.MySQL hiding(replace)
+import qualified Data.IntMap.Strict as IntMap
 -- * Types
 -- | SQL text filter expression. Can be use either the LIKE syntax or the Regex one.
 -- Regex one starts with '/'.
@@ -73,11 +75,14 @@ filterE conv field (Just (RegexFilter regex)) =
          (BackendSpecificFilter "RLIKE")
   ]
   
+filterEKeyword ::  FilterExpression -> (Text, Text)
+filterEKeyword (LikeFilter f) = ("LIKE", f)
+filterEKeyword (RegexFilter f) = ("RLIKE", f)
+
 loadVariations :: IndexParam
-               -> Handler [ (ItemInfo StockMaster -- base
-                            , ItemInfo (StockMasterF MinMax) -- minmax
+               -> Handler [ (ItemInfo (ItemMasterAndPrices Identity) -- base
                             , [ ( VariationStatus
-                                , ItemInfo (StockMasterF ((,) [Text]))
+                                , ItemInfo (ItemMasterAndPrices ((,) [Text]))
                                 )
                               ] -- all variations, including base
                             )
@@ -105,29 +110,62 @@ loadVariations param = do
                                             )
                                             [Asc FA.StockMasterId]
       (Right (Just group_)) -> return $ Right (Map.findWithDefault [] group_ varGroupMap)
+    salesPrices <- loadSalesPrices param
+    purchasePrices <- loadPurchasePrices param
 
-    let itemStyles = map stockMasterToItem styles
+    let itemStyles = mergeInfoSources [map stockItemMasterToItem styles, salesPrices] -- , purchasePrices]
         itemVars =  case variations of
           Left keys -> map (unStockMasterKey) keys
           Right vars -> vars
         itemGroups = joinStyleVariations (skuToStyleVar <$> bases)
-                                         adjustBase computeDiff minMaxFor
+                                         adjustBase computeDiff
                                          itemStyles itemVars
         filterExtra = if ipShowExtra param
                       then id
                       else (List.filter ((/= VarExtra) . fst))
-    return  $ map (\(base, minmax, vars)
-                   -> (base, minmax, filterExtra vars)
+    return  $ map (\(base, vars)
+                   -> (base, filterExtra vars)
                   ) itemGroups
 
     
-loadSalesPrices :: IndexParam -> Handler ([Text], [ItemInfo (Map Text Double) ])
+-- | Load sales prices 
+-- loadSalesPrices :: IndexParam -> Handler [ItemInfo (ItemMasterAndPrices Identity)]
 loadSalesPrices param = do
-  undefined
+  case (ipMode param, ipStyles param) of
+     (ItemPriceView, Just styleF) -> do
+       let sql = "SELECT ?? FROM 0_prices JOIN 0_stock_master USING(stock_id)"
+            <> "WHERE curr_abrev = 'GBP' AND " <> stockF
+            <> "ORDER BY stock_id"
+           (fKeyword, p) = filterEKeyword styleF
+           stockF = "stock_id " <> fKeyword <> "?"
+           inactive =  if ipShowInactive param
+                       then ""
+                       else "AND inactive = 0"
+       do
+           prices <- rawSql sql [PersistText p]
 
-loadPurchasePrices :: IndexParam -> Handler ([Text], [ItemInfo (Map Text Double) ])
+           let group_ = groupBy ((==) `on `priceStockId) (map entityVal prices)
+               maps = map (\priceGroup@(one:_) -> let
+                              pricesF = ItemPriceF $
+                                  mapFromList [ ( priceSalesTypeId p
+                                                , (Identity $ pricePrice p )
+                                                )
+                                              | p <- priceGroup
+                                              ]
+                              (style, var) = skuToStyleVar (priceStockId one)
+                              master = mempty { impSalesPrices = Just pricesF }
+                              in ItemInfo style var master
+                          ) group_
+
+           return maps
+          
+
+            
+     _ -> return []
+
+-- loadPurchasePrices :: IndexParam -> Handler [ ItemInfo (Map Text Double) ]
 loadPurchasePrices param = do
-  undefined
+  return []
   
 
 skuToStyleVar :: Text -> (Text, Text)
@@ -138,16 +176,15 @@ skuToStyleVar sku = (style, var) where
 styleVarToSku :: Text -> Text -> Text
 styleVarToSku style var = style <> "-" <> var
 
-stockMasterToItem :: (Entity FA.StockMaster) -> ItemInfo FA.StockMaster
-stockMasterToItem (Entity key val) = ItemInfo  style var val where
+stockItemMasterToItem :: (Entity FA.StockMaster) -> ItemInfo (ItemMasterAndPrices Identity)
+stockItemMasterToItem (Entity key val) = ItemInfo  style var master where
             sku = unStockMasterKey key
             (style, var) = skuToStyleVar sku
+            master = mempty { impMaster = Just (runIdentity (aStockMasterToStockMasterF val)) }
 
 -- | List or columns for a given mode
-columnsFor :: ItemViewMode -> [Text]
-columnsFor ItemGLView = [ "stock_id"
-                        , "status"
-                        , "categoryId"
+columnsFor :: ItemViewMode -> [ItemInfo (ItemMasterAndPrices f)] -> [Text]
+columnsFor ItemGLView _ = [ "categoryId"
                         , "taxTypeId"
                         , "description"
                         , "longDescription"
@@ -169,7 +206,8 @@ columnsFor ItemGLView = [ "stock_id"
                         , "noSale"
                         , "editable"
                         ] :: [Text]
-columnsFor _ = []
+columnsFor ItemPriceView infos =
+    salesPricesColumns $ map  iiInfo  infos
 
 itemsTable :: IndexParam ->  Handler Widget
 itemsTable param = do
@@ -177,15 +215,16 @@ itemsTable param = do
   renderUrl <- getUrlRenderParams
   itemGroups <- loadVariations param
 
-  let columns = ["check", "radio"] ++ columnsFor (ipMode param)
+  let allItems = [ items | (_, varStatus) <- itemGroups  , (_, items) <- varStatus]
+  let columns = ["check", "radio", "stock_id", "status"] ++ columnsFor (ipMode param) allItems
 
   -- Church encoding ?
-  let itemToF :: ItemInfo StockMaster
-              -> (VariationStatus, ItemInfo (StockMasterF ((,) [Text])))
+  let itemToF :: ItemInfo (ItemMasterAndPrices Identity)
+              -> (VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text])))
               -> (Text -> Maybe (Html, [Text]) -- Html + classes per column
                 , [Text]) -- classes for row
 
-      itemToF item0 (status , ItemInfo style var stock) =
+      itemToF item0 (status , ItemInfo style var master) =
         let sku =  styleVarToSku style var
             checked = maybe True (sku `elem`) checkedItems
             missingLabel = case status of
@@ -206,7 +245,10 @@ itemsTable param = do
                                                 True -> [shamlet| <span.label.label-danger> Diff |]
                                                 _    -> [shamlet||]
                           in Just ([], [hamlet|#{label}|] renderUrl )
-              _ -> columnForSMI stock col
+              _ -> asum [ columnForSMI col =<< impMaster master
+                        , columnForPrices col =<< impSalesPrices master 
+                        , columnForPrices col =<< impPurchasePrices master 
+                        ]
 
             differs = or diffs where
               diffs = [ "text-danger" `elem `kls
@@ -217,8 +259,8 @@ itemsTable param = do
             classes = ("style-" <> iiStyle item0)
                       : (if differs then ["differs"] else ["no-diff"])
                       <> (if checked then [] else ["unchecked"])
-                      <> case smiInactive stock of
-                          (_, True) -> ["text-muted"]
+                      <> case smiInactive <$> impMaster master of
+                          Just (_, True) -> ["text-muted"]
                           _ -> []
                       -- ++ case status of
                       --     VarOk -> []
@@ -236,7 +278,7 @@ itemsTable param = do
 
 
       -- We keep row grouped so we can change the style of the first one of every group.
-      rowGroup = map (\(base, _, vars) -> map (itemToF base) vars) itemGroups
+      rowGroup = map (\(base, vars) -> map (itemToF base) vars) itemGroups
       styleFirst ((fn, klasses):rs) = (fn, "style-start":klasses):rs
       styleFirst [] = error "Shouldn't happend"
 
@@ -390,13 +432,17 @@ renderIndex param0 status = do
 
   
 
-getAdjustBase :: Handler (ItemInfo StockMaster -> Text -> ItemInfo StockMaster)
+getAdjustBase :: Handler (ItemInfo (ItemMasterAndPrices Identity) -> Text -> ItemInfo (ItemMasterAndPrices Identity))
 getAdjustBase = do
   settings <- appSettings <$> getYesod 
   let varMap = appVariations settings
-      go item0@(ItemInfo _ _ stock ) var = let
-        description = adjustDescription varMap (iiVariation item0) var (stockMasterDescription stock)
-        in item0 {iiInfo = stock {stockMasterDescription=description}}
+      go item0@(ItemInfo _ _ master ) var = let
+        stock = impMaster master
+        adj = adjustDescription varMap (iiVariation item0) var
+        in item0  { iiInfo = master
+                    { impMaster = (\s -> s {smiDescription = smiDescription s <&> adj}) <$> stock
+                    }
+                  }
   when (null varMap ) $ do
        setWarning "No variations have been defined. Pleasec contact your adminstrator."
   return go
@@ -445,11 +491,11 @@ createMissing params = do
 
   traceShowM ("Create Missing" :: Text)
   let toCreate = [ Entity (StockMasterKey sku) var
-                 | (_,_, vars) <- itemGroups
+                 | (_, vars) <- itemGroups
                  , (status, info) <- vars
                  , let sku = styleVarToSku (iiStyle info) (iiVariation info)
                  , traceShow (status, sku) $ status == VarMissing
-                 , let (t,var) = aStockMasterFToStockMaster (iiInfo info)
+                 , let Just (t,var) = aStockMasterFToStockMaster <$> (impMaster $ iiInfo info)
                  , toKeep sku
                  , let _types = t :: [Text] -- to help the compiler
                  ]
@@ -458,8 +504,8 @@ createMissing params = do
   setSuccess (toHtml $ tshow (length toCreate) <> " items succesfully created.")
   return ()
 -- * columns
-columnForSMI :: (StockMasterF ((,) [Text])) -> Text -> Maybe ([Text], Html)
-columnForSMI stock col =
+columnForSMI :: Text -> (StockMasterF ((,) [Text])) -> Maybe ([Text], Html)
+columnForSMI col stock =
   case col of 
     "categoryId"             -> Just (toHtml . tshow <$> smiCategoryId stock )
     "taxTypeId"              -> Just $ toHtml <$> smiTaxTypeId stock 
@@ -483,3 +529,10 @@ columnForSMI stock col =
     "noSale"                 -> Just $ toHtml <$> smiNoSale stock 
     "editable"               -> Just $ toHtml <$> smiEditable stock 
     _ -> Nothing
+
+columnForPrices :: Text -> (ItemPriceF ((,) [Text])) -> Maybe ([Text], Html)
+columnForPrices col _ = Just  ([], toHtml col)
+columnForPrices col (ItemPriceF prices) = do -- Maybe
+  colInt <- readMay col
+  value <- IntMap.lookup colInt prices
+  return $ toHtml . tshow <$> value where
