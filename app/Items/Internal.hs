@@ -20,16 +20,16 @@ import FA
 diffField :: Eq a => Identity a -> Identity a -> ((,) [Text]) a
 diffField (Identity a) (Identity b) = if a == b then ([], a) else (["text-danger"], b)
 
--- Generates diffFieldStockMasterInfo 
-$(mmZip "diffField" ''StockMasterInfo)
+-- Generates diffFieldStockMasterF 
+$(mmZip "diffField" ''StockMasterF)
 
 -- -- * MinMax
 minMax :: a -> MinMax a
 minMax a = MinMax a a
  
--- $(mmZip "mappend" ''StockMasterInfo)
+-- $(mmZip "mappend" ''StockMasterF)
 
-  -- mappend = mappendStockMasterInfo
+  -- mappend = mappendStockMasterF
 
 
 -- | Check the status of an item variation given a list of expected variation
@@ -57,10 +57,10 @@ computeItemsStatus adjustItem0 computeDiff_ item0 varMap items = let
   adjustItemBase var = (adjustItem0 item0 var) {iiVariation = var} -- | Force variation
   in map (\(s, i) -> (s, computeDiff_ (adjustItemBase (iiVariation i)) i)) r
 
-computeDiff :: ItemInfo StockMaster -> ItemInfo StockMaster -> ItemInfo (StockMasterInfo ((,) [Text]))
+computeDiff :: ItemInfo StockMaster -> ItemInfo StockMaster -> ItemInfo (StockMasterF ((,) [Text]))
 computeDiff item0 item@(ItemInfo style var _) = let
-  [i0, i] = (map (runIdentity . aStockMasterToStockMasterInfo . iiInfo ) [item0, item]) :: [StockMasterInfo Identity]
-  diff = diffFieldStockMasterInfo i0 i 
+  [i0, i] = (map (runIdentity . aStockMasterToStockMasterF . iiInfo ) [item0, item]) :: [StockMasterF Identity]
+  diff = diffFieldStockMasterF i0 i 
 
   in ItemInfo style var (diff)
 
@@ -99,7 +99,7 @@ joinStyleVariations bases adjustBase computeDiff_ aggregateFor items vars = let
          )
          (mapToList styles)
 
-minMaxFor :: ItemInfo StockMaster -> [ItemInfo StockMaster]  -> ItemInfo (StockMasterInfo MinMax)
+minMaxFor :: ItemInfo StockMaster -> [ItemInfo StockMaster]  -> ItemInfo (StockMasterF MinMax)
 minMaxFor (ItemInfo st var _) infos = let
- infos' = map (runIdentity . aStockMasterToStockMasterInfo . iiInfo) infos
+ infos' = map (runIdentity . aStockMasterToStockMasterF . iiInfo) infos
  in ItemInfo st var (mconcat infos')

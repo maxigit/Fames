@@ -75,9 +75,9 @@ filterE conv field (Just (RegexFilter regex)) =
   
 loadVariations :: IndexParam
                -> Handler [ (ItemInfo StockMaster -- base
-                            , ItemInfo (StockMasterInfo MinMax) -- minmax
+                            , ItemInfo (StockMasterF MinMax) -- minmax
                             , [ ( VariationStatus
-                                , ItemInfo (StockMasterInfo ((,) [Text]))
+                                , ItemInfo (StockMasterF ((,) [Text]))
                                 )
                               ] -- all variations, including base
                             )
@@ -181,7 +181,7 @@ itemsTable param = do
 
   -- Church encoding ?
   let itemToF :: ItemInfo StockMaster
-              -> (VariationStatus, ItemInfo (StockMasterInfo ((,) [Text])))
+              -> (VariationStatus, ItemInfo (StockMasterF ((,) [Text])))
               -> (Text -> Maybe (Html, [Text]) -- Html + classes per column
                 , [Text]) -- classes for row
 
@@ -449,7 +449,7 @@ createMissing params = do
                  , (status, info) <- vars
                  , let sku = styleVarToSku (iiStyle info) (iiVariation info)
                  , traceShow (status, sku) $ status == VarMissing
-                 , let (t,var) = aStockMasterInfoToStockMaster (iiInfo info)
+                 , let (t,var) = aStockMasterFToStockMaster (iiInfo info)
                  , toKeep sku
                  , let _types = t :: [Text] -- to help the compiler
                  ]
@@ -458,7 +458,7 @@ createMissing params = do
   setSuccess (toHtml $ tshow (length toCreate) <> " items succesfully created.")
   return ()
 -- * columns
-columnForSMI :: (StockMasterInfo ((,) [Text])) -> Text -> Maybe ([Text], Html)
+columnForSMI :: (StockMasterF ((,) [Text])) -> Text -> Maybe ([Text], Html)
 columnForSMI stock col =
   case col of 
     "categoryId"             -> Just (toHtml . tshow <$> smiCategoryId stock )

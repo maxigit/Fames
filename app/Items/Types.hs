@@ -32,15 +32,15 @@ $(metamorphosis
  . (fdTypes %~ ("f":))
  . (fdFieldName . mapped %~ ("smi"++). drop 11)
  . (fdBang .~ Bang NoSourceUnpackedness NoSourceStrictness)
- . (fdTConsName .~ "StockMasterInfo")
+ . (fdTConsName .~ "StockMasterF")
  )
  [''StockMaster]
  (const $ Just applicativeBCR)
  (const [''GHC.Generic])
  )
-deriving instance Monoid (StockMasterInfo MinMax)
+deriving instance Monoid (StockMasterF MinMax)
 
--- instance Generic (StockMasterInfo f)
+-- instance Generic (StockMasterF f)
 
 
 -- MinMax Min and Max functor
@@ -52,3 +52,16 @@ instance Ord a => Semigroup (MinMax a) where
 instance Applicative MinMax where
   pure x = MinMax x x
   (MinMax fx fy) <*> (MinMax x y) = MinMax (fx x) (fy y)
+
+data ItemPriceF f = ItemPriceF (Map Text (f Double))
+
+data ItemMasterAndPrices f = ItemMasterAndPrices
+  { impMaster :: Maybe (StockMasterF f)
+  , impSalesPrices :: Maybe (ItemPriceF f)
+  , impPurchasePrices :: Maybe (ItemPriceF f)
+  }
+ 
+instance Monoid (ItemMasterAndPrices f) where
+  mempty = ItemMasterAndPrices Nothing Nothing Nothing
+  (ItemMasterAndPrices m s p) `mappend` (ItemMasterAndPrices m' s' p')
+     = ItemMasterAndPrices (m <|> m') (s <|> s') (p <|> p')
