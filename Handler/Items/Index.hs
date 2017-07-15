@@ -110,7 +110,9 @@ loadVariations param = do
         itemVars =  case variations of
           Left entities -> map (iiVariation . stockMasterToItem) entities
           Right vars -> vars
-        itemGroups = joinStyleVariations (skuToStyleVar <$> bases) adjustBase itemStyles itemVars
+        itemGroups = joinStyleVariations (skuToStyleVar <$> bases)
+                                         adjustBase computeDiff minMaxFor
+                                         itemStyles itemVars
         filterExtra = if ipShowExtra param
                       then id
                       else (List.filter ((/= VarExtra) . fst))
@@ -134,37 +136,41 @@ stockMasterToItem (Entity key val) = ItemInfo  style var val where
             sku = unStockMasterKey key
             (style, var) = skuToStyleVar sku
 
+-- | List or columns for a given mode
+columnsFor :: ItemViewMode -> [Text]
+columnsFor ItemGLView = [ "stock_id"
+                        , "status"
+                        , "categoryId"
+                        , "taxTypeId"
+                        , "description"
+                        , "longDescription"
+                        , "units"
+                        , "mbFlag"
+                        , "salesAccount"
+                        , "cogsAccount"
+                        , "inventoryAccount"
+                        , "adjustmentAccount"
+                        , "assemblyAccount"
+                        , "dimensionId"
+                        , "dimension2Id"
+                        -- , "actualCost"
+                        -- , "lastCost"
+                        -- , "materialCost"
+                        -- , "labourCost"
+                        -- , "overheadCost"
+                        , "inactive"
+                        , "noSale"
+                        , "editable"
+                        ] :: [Text]
+columnsFor _ = []
+
 itemsTable :: IndexParam ->  Handler Widget
 itemsTable param = do
   let checkedItems = if null (ipChecked param) then Nothing else Just (ipChecked param)
   renderUrl <- getUrlRenderParams
   itemGroups <- loadVariations param
 
-  let columns' = [ "stock_id"
-                , "status"
-                , "categoryId"
-                , "taxTypeId"
-                , "description"
-                , "longDescription"
-                , "units"
-                , "mbFlag"
-                , "salesAccount"
-                , "cogsAccount"
-                , "inventoryAccount"
-                , "adjustmentAccount"
-                , "assemblyAccount"
-                , "dimensionId"
-                , "dimension2Id"
-                -- , "actualCost"
-                -- , "lastCost"
-                -- , "materialCost"
-                -- , "labourCost"
-                -- , "overheadCost"
-                , "inactive"
-                , "noSale"
-                , "editable"
-                ] :: [Text]
-      columns = ["check", "radio"] ++ columns'
+  let columns = ["check", "radio"] ++ columnsFor (ipMode param)
 
   -- Church encoding ?
   let itemToF :: ItemInfo StockMaster
@@ -172,7 +178,7 @@ itemsTable param = do
               -> (Text -> Maybe (Html, [Text]) -- Html + classes per column
                 , [Text]) -- classes for row
 
-      itemToF item0 (status , ItemInfo style var stock) =
+      itemToF item0 (status , info@(ItemInfo style var stock)) =
         let sku =  styleVarToSku style var
             checked = maybe True (sku `elem`) checkedItems
             missingLabel = case status of
@@ -187,35 +193,14 @@ itemsTable param = do
                             else Just ([], [shamlet|<input type=radio name="base-#{style}" value="#{sku}"
                                                 :rchecked:checked
                                             >|] >> missingLabel)
-
-              "stock_id" -> let route = ItemsR $ ItemsHistoryR sku
+              "stock_id"               -> let route = ItemsR $ ItemsHistoryR sku
                             in Just ([], [hamlet|<a href=@{route} target="_blank">#{sku}|] renderUrl )
-              "status" -> let label = case differs of
-                                  True -> [shamlet| <span.label.label-danger> Diff |]
-                                  _ -> [shamlet||]
+              "status"                 -> let label = case differs of
+                                                True -> [shamlet| <span.label.label-danger> Diff |]
+                                                _    -> [shamlet||]
                           in Just ([], [hamlet|#{label}|] renderUrl )
-              "categoryId" -> Just (toHtml . tshow <$> smiCategoryId stock )
-              "taxTypeId" -> Just $ toHtml <$> smiTaxTypeId stock 
-              "description" -> Just $ toHtml <$>  smiDescription stock 
-              "longDescription" -> Just $ toHtml <$> smiLongDescription stock 
-              "units" -> Just $ toHtml <$>  smiUnits stock 
-              "mbFlag" -> Just $ toHtml <$>  smiMbFlag stock 
-              "salesAccount" -> Just $ toHtml <$>  smiSalesAccount stock 
-              "cogsAccount" -> Just $ toHtml <$>  smiCogsAccount stock 
-              "inventoryAccount" -> Just $ toHtml <$>  smiInventoryAccount stock 
-              "adjustmentAccount" -> Just $ toHtml <$>  smiAdjustmentAccount stock 
-              "assemblyAccount" -> Just $ toHtml <$>  smiAssemblyAccount stock 
-              "dimensionId" -> Just $ toHtml . tshow  <$> smiDimensionId stock 
-              "dimension2Id" -> Just $ toHtml . tshow <$> smiDimension2Id stock 
-              "actualCost" -> Just $ toHtml <$> smiActualCost stock 
-              "lastCost" -> Just $ toHtml <$> smiLastCost stock 
-              "materialCost" -> Just $ toHtml <$> smiMaterialCost stock 
-              "labourCost" -> Just $ toHtml <$> smiLabourCost stock 
-              "overheadCost" -> Just $ toHtml <$> smiOverheadCost stock 
-              "inactive" -> Just $ toHtml <$> smiInactive stock 
-              "noSale" -> Just $ toHtml <$> smiNoSale stock 
-              "editable" -> Just $ toHtml <$> smiEditable stock 
-              _ -> Nothing
+              _ -> columnForSMI stock col
+
             differs = or diffs where
               diffs = [ "text-danger" `elem `kls
                       | col <- columns
@@ -465,3 +450,29 @@ createMissing params = do
   runDB (insertEntityMany toCreate)
   setSuccess (toHtml $ tshow (length toCreate) <> " items succesfully created.")
   return ()
+-- * columns
+columnForSMI :: (StockMasterInfo ((,) [Text])) -> Text -> Maybe ([Text], Html)
+columnForSMI stock col =
+  case col of 
+    "categoryId"             -> Just (toHtml . tshow <$> smiCategoryId stock )
+    "taxTypeId"              -> Just $ toHtml <$> smiTaxTypeId stock 
+    "description"            -> Just $ toHtml <$>  smiDescription stock 
+    "longDescription"        -> Just $ toHtml <$> smiLongDescription stock 
+    "units"                  -> Just $ toHtml <$>  smiUnits stock 
+    "mbFlag"                 -> Just $ toHtml <$>  smiMbFlag stock 
+    "salesAccount"           -> Just $ toHtml <$>  smiSalesAccount stock 
+    "cogsAccount"            -> Just $ toHtml <$>  smiCogsAccount stock 
+    "inventoryAccount"       -> Just $ toHtml <$>  smiInventoryAccount stock 
+    "adjustmentAccount"      -> Just $ toHtml <$>  smiAdjustmentAccount stock 
+    "assemblyAccount"        -> Just $ toHtml <$>  smiAssemblyAccount stock 
+    "dimensionId"            -> Just $ toHtml . tshowM  <$> smiDimensionId stock 
+    "dimension2Id"           -> Just $ toHtml . tshowM <$> smiDimension2Id stock 
+    "actualCost"             -> Just $ toHtml <$> smiActualCost stock 
+    "lastCost"               -> Just $ toHtml <$> smiLastCost stock 
+    "materialCost"           -> Just $ toHtml <$> smiMaterialCost stock 
+    "labourCost"             -> Just $ toHtml <$> smiLabourCost stock 
+    "overheadCost"           -> Just $ toHtml <$> smiOverheadCost stock 
+    "inactive"               -> Just $ toHtml <$> smiInactive stock 
+    "noSale"                 -> Just $ toHtml <$> smiNoSale stock 
+    "editable"               -> Just $ toHtml <$> smiEditable stock 
+    _ -> Nothing

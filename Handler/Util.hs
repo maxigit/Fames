@@ -16,6 +16,7 @@ module Handler.Util
 , generateLabelsResponse
 , firstOperator
 , badgeSpan
+, tshowM
 ) where
 
 import Foundation
@@ -215,3 +216,7 @@ badgeSpan badgeWidth qty bgM klass = do
       qs = tshow qty
       q = fromMaybe qs $  stripSuffix ".0" qs
   [shamlet|<span.badge class=#{klass} style="#{style}; #{bg}">#{q}|]
+
+-- * Html
+tshowM :: Show a => Maybe a -> Text
+tshowM = maybe "" tshow

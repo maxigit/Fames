@@ -42,19 +42,20 @@ minMax a = MinMax a a
 -- to match the expected result (not the reference one)
 -- For example, if base is Black and the description is "Black T-Shirt". We will need to change
 -- the description to "Red T-Shirt" for the Red variation. 
-computeItemsStatus :: (ItemInfo StockMaster -> Text -> ItemInfo StockMaster )
-                   -> ItemInfo StockMaster
+computeItemsStatus :: (ItemInfo a -> Text -> ItemInfo a )
+                   -> (ItemInfo a -> ItemInfo a -> ItemInfo diff)
+                   -> ItemInfo a
                    -> [Text]
-                   -> [ItemInfo StockMaster]
-                   -> [(VariationStatus, ItemInfo (StockMasterInfo ((,) [Text])))]
-computeItemsStatus adjustItem0 item0 varMap items = let
+                   -> [ItemInfo a]
+                   -> [(VariationStatus, ItemInfo diff)]
+computeItemsStatus adjustItem0 computeDiff_ item0 varMap items = let
   styleMap = mapFromList [(iiVariation i, i) | i <- items ]
   varMap' = mapFromList [(var, adjustItemBase var) | var <- varMap]
   joineds = align varMap' styleMap
   ok _ item = (VarOk,  item)
   r = map (these (VarMissing,) (VarExtra,) ok) (Map.elems joineds)
   adjustItemBase var = (adjustItem0 item0 var) {iiVariation = var} -- | Force variation
-  in map (\(s, i) -> (s, computeDiff (adjustItemBase (iiVariation i)) i)) r
+  in map (\(s, i) -> (s, computeDiff_ (adjustItemBase (iiVariation i)) i)) r
 
 computeDiff :: ItemInfo StockMaster -> ItemInfo StockMaster -> ItemInfo (StockMasterInfo ((,) [Text]))
 computeDiff item0 item@(ItemInfo style var _) = let
@@ -71,14 +72,16 @@ computeDiff item0 item@(ItemInfo style var _) = let
 -- variations
 -- joinStyleVariations :: [ItemInfo a] -> [ItemInfo b] -> [(VariationStatus , ItemInfo a)]
 joinStyleVariations :: Map Text (Text, Text)
-                    -> (ItemInfo StockMaster -> Text -> ItemInfo StockMaster)
-                    -> [ItemInfo StockMaster]
+                    -> (ItemInfo a -> Text -> ItemInfo a)
+                    -> (ItemInfo a -> ItemInfo a -> ItemInfo diff)
+                    -> (ItemInfo a -> [ItemInfo a] -> agg)
+                    -> [ItemInfo a]
                     -> [Text] -- ^ all possible variations
-                    -> [( ItemInfo StockMaster
-                        , ItemInfo (StockMasterInfo MinMax)
-                        , [(VariationStatus, ItemInfo (StockMasterInfo ((,) [Text])))]
+                    -> [( ItemInfo a
+                        , agg
+                        , [(VariationStatus, ItemInfo diff)]
                         )]
-joinStyleVariations bases adjustBase items vars = let
+joinStyleVariations bases adjustBase computeDiff_ aggregateFor items vars = let
   styles = Map.fromListWith (flip (<>))  [(iiStyle item, [item]) | item <- items]
 
   in map (\(_, variations@(var:_)) -> let
@@ -87,8 +90,8 @@ joinStyleVariations bases adjustBase items vars = let
              base = fromMaybe var $ Map.lookup (iiStyle var) bases
                >>= flip Map.lookup varMap
              in ( base
-                , minMaxFor base variations
-                , computeItemsStatus adjustBase
+                , aggregateFor base variations
+                , computeItemsStatus adjustBase computeDiff_
                   base
                   vars
                   variations
