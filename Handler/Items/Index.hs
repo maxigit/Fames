@@ -99,8 +99,8 @@ loadVariations param = do
                           )
                           [Asc FA.StockMasterId]
     variations <- case varF of
-      (Right Nothing) -> return (Left styles)
-      (Left filter_)  -> Left <$> selectList (filterE conv FA.StockMasterId (Just filter_)
+      (Right Nothing) -> return (Left $ map  entityKey styles)
+      (Left filter_)  -> Left <$> selectKeysList (filterE conv FA.StockMasterId (Just filter_)
                                             <> [FA.StockMasterInactive ==. False ]
                                             )
                                             [Asc FA.StockMasterId]
@@ -108,7 +108,7 @@ loadVariations param = do
 
     let itemStyles = map stockMasterToItem styles
         itemVars =  case variations of
-          Left entities -> map (iiVariation . stockMasterToItem) entities
+          Left keys -> map (unStockMasterKey) keys
           Right vars -> vars
         itemGroups = joinStyleVariations (skuToStyleVar <$> bases)
                                          adjustBase computeDiff minMaxFor
@@ -121,6 +121,13 @@ loadVariations param = do
                   ) itemGroups
 
     
+loadSalesPrices :: IndexParam -> Handler ([Text], [ItemInfo (Map Text Double) ])
+loadSalesPrices param = do
+  undefined
+
+loadPurchasePrices :: IndexParam -> Handler ([Text], [ItemInfo (Map Text Double) ])
+loadPurchasePrices param = do
+  undefined
   
 
 skuToStyleVar :: Text -> (Text, Text)
@@ -178,7 +185,7 @@ itemsTable param = do
               -> (Text -> Maybe (Html, [Text]) -- Html + classes per column
                 , [Text]) -- classes for row
 
-      itemToF item0 (status , info@(ItemInfo style var stock)) =
+      itemToF item0 (status , ItemInfo style var stock) =
         let sku =  styleVarToSku style var
             checked = maybe True (sku `elem`) checkedItems
             missingLabel = case status of
