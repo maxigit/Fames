@@ -18,6 +18,11 @@ import           SharedTypes
 partition f xs = (Prelude.filter f xs, Prelude.filter (Prelude.not . f) xs)
 main :: Fay ()
 main = do
+  main'
+  installNav
+  return ()
+main' :: Fay ()
+main' = do
   installCallbacks
   addCheckAll
   return ()
@@ -79,7 +84,7 @@ onSelectBase base = do
                   -- ajax call
                   updateWithAjax form (\html -> do
                                           JQ.setHtml (FT.pack $ T.unpack html) table
-                                          main
+                                          main'
                                       )
                ) radio
   return base
@@ -95,6 +100,35 @@ updateWithAjax' :: JQuery -- ^ form
 updateWithAjax' =
   ffi "alert(JSON.stringify({url:%1[0].action, data:%1.serialize(), dataType:'json', type:'POST',success:%2}))"
 
+installNav = do
+  navs <- select "a.view-mode[data-url]"
+  jQueryMap (\_ el -> do
+               nav <- select el
+               onClick (\ev -> do
+                   url' <- JQ.getAttr "data-url" nav
+                   let Defined url = url'
+                   ajaxReload url
+                   -- update nav tab state manually
+                   -- because or ajax doesn't render the navbar
+                   JQ.removeClass "active" =<< closestSelector "li" navs
+                   JQ.addClass "active" =<< closestSelector "li" nav
+                   return False
+                           ) nav
+            ) navs
+
+
+
+ajaxReload url = do
+  form <- select "#items-form"
+  table <- select "#items-table"
+  ajaxReloadFFI url form (\html -> do
+                            JQ.setHtml (FT.pack $ T.unpack html) table
+                            main'
+                            )
+  return ()
+
+ajaxReloadFFI :: FT.Text -> JQuery -> (a -> Fay ()) ->  Fay ()
+ajaxReloadFFI = ffi "$.ajax({url:%1, data:%2.serialize(), dataType:'json', type:'POST',success:%3})"
 
 findInClasses prefix [] = []
 findInClasses prefix (c:cs) =

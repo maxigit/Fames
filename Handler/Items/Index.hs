@@ -25,6 +25,7 @@ data IndexParam = IndexParam
   , ipBases :: Map Text Text -- ^ style -> selected base
   , ipChecked :: [Text] -- ^ styles to act upon
   , ipColumns :: [Text] -- ^ columns to act upon
+  , ipMode :: ItemViewMode
   } deriving (Eq, Show, Read)
 
 ipVariations :: IndexParam -> Either FilterExpression (Maybe Text)
@@ -125,6 +126,9 @@ skuToStyleVar sku = (style, var) where
   style = take 8 sku
   var = drop 9 sku
 
+styleVarToSku :: Text -> Text -> Text
+styleVarToSku style var = style <> "-" <> var
+
 stockMasterToItem :: (Entity FA.StockMaster) -> ItemInfo FA.StockMaster
 stockMasterToItem (Entity key val) = ItemInfo  style var val where
             sku = unStockMasterKey key
@@ -169,7 +173,7 @@ itemsTable param = do
                 , [Text]) -- classes for row
 
       itemToF item0 (status , ItemInfo style var stock) =
-        let sku =  style <> "-" <> var
+        let sku =  styleVarToSku style var
             checked = maybe True (sku `elem`) checkedItems
             missingLabel = case status of
                                   VarMissing -> [shamlet| <span.label.label-warning> Missing |]
@@ -268,20 +272,38 @@ fillTableParams params0 = do
   return $ traceShowId $ params0 {ipChecked = checked, ipBases=bases}
    
 
+-- getPostIndexParam :: IndexParam -> Handler (IndexParam, _
+getPostIndexParam param0 = do
+  varGroup <- appVariationGroups <$> getsYesod appSettings
+  ((resp, form), encType) <- runFormPost (indexForm (Map.keys varGroup) param0)
+  let param1 = case resp of
+        FormMissing -> traceShow "Missing" param0
+        FormSuccess par -> traceShow "Success" par
+        FormFailure err -> traceShow ("erre", err) param0
+  param <- fillTableParams param1
+  traceShowM param
+  return (param, form, encType)
+  
 -- * Rendering
-getItemsIndexR :: Handler TypedContent
-getItemsIndexR = do
-  let param0 = IndexParam Nothing Nothing Nothing False True mempty empty empty
-  renderIndex param0 ok200
+paramDef :: Maybe ItemViewMode -> IndexParam
+paramDef mode = IndexParam Nothing Nothing Nothing False True
+                           mempty empty empty
+                           (fromMaybe ItemGLView mode)
+getItemsIndexR :: Maybe ItemViewMode -> Handler TypedContent
+getItemsIndexR mode = do
+  renderIndex (paramDef mode) ok200
 
-postItemsIndexR :: Handler TypedContent
-postItemsIndexR = do
-  let param0 = IndexParam Nothing Nothing Nothing False True mempty empty empty
-  action <- lookupPostParam "action"
-  param <- fillTableParams param0
+postItemsIndexR :: Maybe ItemViewMode -> Handler TypedContent
+postItemsIndexR mode = do
+  action <- lookupPostParam "button"
+  traceShowM ("POST",mode, paramDef mode)
+  (param,_,_) <- getPostIndexParam (paramDef mode)
+  traceShowM ("button", action)
   case action of
-    Just "create" -> createMissing param
-    _ -> renderIndex param ok200
+    Just "create" ->  do
+        createMissing param
+    _ -> return ()
+  renderIndex param ok200
 -- indexForm :: (MonadHandler m,
 --               RenderMessage (HandlerSite m) FormMessage)
 --           => [Text]
@@ -298,16 +320,12 @@ indexForm groups param = renderBootstrap3 BootstrapBasicForm form
           <*> pure (ipBases param)
           <*> pure (ipChecked param)
           <*> pure (ipColumns param)
+          <*> pure (ipMode param)
         groups' =  map (\g -> (g,g)) groups
 
 renderIndex :: IndexParam -> Status -> Handler TypedContent
 renderIndex param0 status = do
-  varGroup <- appVariationGroups <$> getsYesod appSettings
-  ((resp, form), encType) <- runFormPost (indexForm (Map.keys varGroup) param0)
-  let param = case resp of
-        FormMissing -> param0
-        FormSuccess par -> par
-        FormFailure _ -> param0
+  (param, form, encType) <- getPostIndexParam param0
   ix <- itemsTable param
   let css = [cassius|
 #items-index
@@ -343,16 +361,28 @@ renderIndex param0 status = do
   td.stock-master-radio span.label-info
     font-size: 60%
 |]
+  let navs = [minBound..maxBound] :: [ItemViewMode]
+      mode = ipMode param
+      navClass nav = if mode == nav then "active" else "" :: Html
   let widget = [whamlet|
 <div #items-index>
-  <form #items-form role=form method=post action=@{ItemsR ItemsIndexR} enctype=#{encType}>
+  <form #items-form role=form method=post action=@{ItemsR (ItemsIndexR (Just mode))} enctype=#{encType}>
     <div.well>
       ^{form}
-      <button type="submit" name="action" value="search" class="btn btn-default">Search
-    <div#items-table>
-      ^{ix}
+      <button type="submit" name="button" value="search" class="btn btn-default">Search
+    <ul.nav.nav-tabs>
+      $forall nav <- navs
+        <li class="#{navClass nav}">
+          <a.view-mode href="#" data-url="@{ItemsR (ItemsIndexR (Just nav))}">#{drop 4 $ tshow nav}
+      <div#items-table>
+        ^{ix}
     <div.well>
-      <button.btn.btn-danger type="submit" name="action" value="create">Create Missings
+      $if (ipShowInactive param)
+        <button.btn.btn-danger type="submit" name="button" value="create">Create Missings
+      $else
+        <a href="#" data-toggle="tooltip" title="Please show unactive before creating missing items.">
+          <div.btn.btn-danger.disabled type="submit" name="button" value="create">
+            Create Missings
 |]
       fay = $(fayFile "ItemsIndex")
   selectRep $ do
@@ -409,6 +439,29 @@ lookupVars :: Map Text Text -> Text -> [Text]
 lookupVars varMap = mapMaybe (flip Map.lookup varMap) . variationToVars
 
 
+-- deriving instance Show FA.StockMaster
 -- * Actions
-createMissing :: IndexParam -> Handler TypedContent
-createMissing params = undefined
+createMissing :: IndexParam -> Handler ()
+createMissing params = do
+  -- load inactive as well to avoid trying to create missing product
+  itemGroups <- loadVariations (params {ipShowInactive = True})
+  let toKeep sku = case ipChecked params of
+        [] -> True
+        cs -> let set = setFromList cs :: Set Text
+              in  traceShow ("lookup", sku, set) $ sku `member` set
+
+
+  traceShowM ("Create Missing" :: Text)
+  let toCreate = [ Entity (StockMasterKey sku) var
+                 | (_,_, vars) <- itemGroups
+                 , (status, info) <- vars
+                 , let sku = styleVarToSku (iiStyle info) (iiVariation info)
+                 , traceShow (status, sku) $ status == VarMissing
+                 , let (t,var) = aStockMasterInfoToStockMaster (iiInfo info)
+                 , toKeep sku
+                 , let types_ = t :: [Text] -- to help the compiler
+                 ]
+  traceShowM ("tocreate", toCreate)
+  runDB (insertEntityMany toCreate)
+  setSuccess (toHtml $ tshow (length toCreate) <> " items succesfully created.")
+  return ()

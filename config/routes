@@ -32,7 +32,7 @@
   !/packinglist/#Int64/deliver WHPackingListDeliverR POST !pl
 
 /items ItemsR !items:
-  /index ItemsIndexR GET POST !items/index !group=Maintenance !title=Index
+  /index/#Maybe-ItemViewMode ItemsIndexR GET POST !items/index !group=Maintenance !title=Index
   /history/#Text ItemsHistoryR GET !items/history
 
 /administrator AdministratorR !administrator:
