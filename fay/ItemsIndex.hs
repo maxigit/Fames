@@ -112,6 +112,11 @@ installNav = do
                    -- because or ajax doesn't render the navbar
                    JQ.removeClass "active" =<< closestSelector "li" navs
                    JQ.addClass "active" =<< closestSelector "li" nav
+                   -- update the url on the form, so that next form submit
+                   -- keep the actual tab
+                   form <- select "#items-form"
+                   JQ.setAttr "action" url form
+                   -- setLocation (T.pack $ FT.unpack url)
                    return False
                            ) nav
             ) navs

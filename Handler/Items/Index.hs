@@ -459,7 +459,7 @@ createMissing params = do
                  , traceShow (status, sku) $ status == VarMissing
                  , let (t,var) = aStockMasterInfoToStockMaster (iiInfo info)
                  , toKeep sku
-                 , let types_ = t :: [Text] -- to help the compiler
+                 , let _types = t :: [Text] -- to help the compiler
                  ]
   traceShowM ("tocreate", toCreate)
   runDB (insertEntityMany toCreate)
