@@ -131,8 +131,8 @@ loadVariations param = do
 -- | Load sales prices 
 -- loadSalesPrices :: IndexParam -> Handler [ItemInfo (ItemMasterAndPrices Identity)]
 loadSalesPrices param = do
-  case (ipMode param, ipStyles param) of
-     (ItemPriceView, Just styleF) -> do
+  case (ipStyles param) of
+     Just styleF |  ipMode param `elem` [ItemPriceView, ItemAllView] -> do
        let sql = "SELECT ?? FROM 0_prices JOIN 0_stock_master USING(stock_id)"
             <> "WHERE curr_abrev = 'GBP' AND " <> stockF
             <> "ORDER BY stock_id"
@@ -208,6 +208,7 @@ columnsFor ItemGLView _ = [ "categoryId"
 columnsFor ItemPriceView infos =
     let res = salesPricesColumns $ map  iiInfo  infos
     in res -- traceShow ("Column Fo rPrive", res) res
+columnsFor ItemAllView _ = []
 
 itemsTable :: IndexParam ->  Handler Widget
 itemsTable param = do
@@ -436,11 +437,15 @@ getAdjustBase :: Handler (ItemInfo (ItemMasterAndPrices Identity) -> Text -> Ite
 getAdjustBase = do
   settings <- appSettings <$> getYesod 
   let varMap = appVariations settings
-      go item0@(ItemInfo _ _ master ) var = let
+      go item0@(ItemInfo style _ master ) var = let
         stock = impMaster master
+        salesPrices = impSalesPrices master
         adj = adjustDescription varMap (iiVariation item0) var
+        sku = styleVarToSku style var
         in item0  { iiInfo = master
                     { impMaster = (\s -> s {smfDescription = smfDescription s <&> adj}) <$> stock
+                    , impSalesPrices = (fmap (\p -> p { pfStockId = Identity sku })
+                                       ) <$> salesPrices
                     }
                   }
   when (null varMap ) $ do
@@ -477,31 +482,47 @@ lookupVars :: Map Text Text -> Text -> [Text]
 lookupVars varMap = mapMaybe (flip Map.lookup varMap) . variationToVars
 
 
--- deriving instance Show FA.StockMaster
 -- * Actions
 createMissing :: IndexParam -> Handler ()
 createMissing params = do
   -- load inactive as well to avoid trying to create missing product
-  itemGroups <- loadVariations (params {ipShowInactive = True})
+  itemGroups <- loadVariations (params {ipShowInactive = True, ipMode = ItemAllView})
   let toKeep sku = case ipChecked params of
         [] -> True
         cs -> let set = setFromList cs :: Set Text
               in  traceShow ("lookup", sku, set) $ sku `member` set
 
 
-  -- traceShowM ("Create Missing" :: Text)
-  let toCreate = [ Entity (StockMasterKey sku) var
+      missings = [ (sku, iiInfo info)
                  | (_, vars) <- itemGroups
                  , (status, info) <- vars
                  , let sku = styleVarToSku (iiStyle info) (iiVariation info)
                  , traceShow (status, sku) $ status == VarMissing
-                 , let Just (t,var) = aStockMasterFToStockMaster <$> (impMaster $ iiInfo info)
                  , toKeep sku
-                 , let _types = t :: [Text] -- to help the compiler
                  ]
-  traceShowM ("tocreate", toCreate)
-  runDB (insertEntityMany toCreate)
-  setSuccess (toHtml $ tshow (length toCreate) <> " items succesfully created.")
+  let stockMasters = [ Entity (StockMasterKey sku) var
+                     | (sku, info) <- missings
+                     , let tvarM = aStockMasterFToStockMaster <$> (impMaster info)
+                     , isJust tvarM
+                     , let Just (t,var) = tvarM
+                     , let _types = t :: [Text] -- to help the compiler
+                     ]
+      prices = do -- []
+        (_, info) <- missings
+        case impSalesPrices info of
+          Nothing -> []
+          Just mprices -> do
+            price <- IntMap.elems mprices
+            let (t,p) = aPriceFToPrice price
+                _types = t :: [Text]
+            [p]
+        
+  traceShowM ("tocreate ", (stockMasters, prices))
+  runDB $ do
+    insertEntityMany stockMasters
+    insertMany_ prices
+
+  setSuccess (toHtml $ tshow (length stockMasters) <> " items succesfully created.")
   return ()
 -- * columns
 columnForSMI :: Text -> (StockMasterF ((,) [Text])) -> Maybe ([Text], Html)
