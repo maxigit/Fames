@@ -35,12 +35,35 @@ $(metamorphosis
  )
  [''StockMaster]
  (const $ Just applicativeBCR)
- (const [''GHC.Generic])
+ (const []) 
  )
-deriving instance Monoid (StockMasterF MinMax)
 
 -- instance Generic (StockMasterF f)
 
+-- | Functor parametrized version of Price
+$(metamorphosis
+ ( (return)
+ . (fdTypes %~ ("f":))
+ . (fdFieldName . mapped %~ ("pf"++). drop 5)
+ . (fdBang .~ Bang NoSourceUnpackedness NoSourceStrictness)
+ . (fdTConsName .~ "PriceF")
+ )
+ [''Price]
+ (const $ Just applicativeBCR)
+ (const [])
+ )
+-- | Functor parametrized version of PurchData
+$(metamorphosis
+ ( (return)
+ . (fdTypes %~ ("f":))
+ . (fdFieldName . mapped %~ ("pdf"++). drop 9)
+ . (fdBang .~ Bang NoSourceUnpackedness NoSourceStrictness)
+ . (fdTConsName .~ "PurchDataF")
+ )
+ [''PurchData]
+ (const $ Just applicativeBCR)
+ (const [])
+ )
 
 -- MinMax Min and Max functor
 data MinMax a = MinMax a a deriving Functor
@@ -56,7 +79,7 @@ data ItemPriceF f = ItemPriceF (IntMap (f Double))
 
 data ItemMasterAndPrices f = ItemMasterAndPrices
   { impMaster :: Maybe (StockMasterF f)
-  , impSalesPrices :: Maybe (ItemPriceF f)
+  , impSalesPrices :: Maybe (IntMap (PriceF f))
   , impPurchasePrices :: Maybe (ItemPriceF f)
   }
  

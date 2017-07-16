@@ -146,12 +146,11 @@ loadSalesPrices param = do
 
            let group_ = groupBy ((==) `on `priceStockId) (map entityVal prices)
                maps = map (\priceGroup@(one:_) -> let
-                              pricesF = ItemPriceF $
-                                  mapFromList [ ( priceSalesTypeId p
-                                                , (Identity $ pricePrice p )
-                                                )
-                                              | p <- priceGroup
-                                              ]
+                              pricesF = mapFromList [ ( priceSalesTypeId p
+                                                      , runIdentity $ aPriceToPriceF p
+                                                      )
+                                                    | p <- priceGroup
+                                                    ]
                               (style, var) = traceShowId $ skuToStyleVar (priceStockId one)
                               master = mempty { impSalesPrices = Just pricesF }
                               in ItemInfo style var master
@@ -248,7 +247,7 @@ itemsTable param = do
                           in Just ([], [hamlet|#{label}|] renderUrl )
               _ -> asum [ columnForSMI col =<< impMaster master
                         , columnForPrices col =<< impSalesPrices master 
-                        , columnForPrices col =<< impPurchasePrices master 
+                        -- , columnForPrices col =<< impPurchasePrices master 
                         ]
 
             differs = or diffs where
@@ -331,9 +330,9 @@ getItemsIndexR mode = do
 postItemsIndexR :: Maybe ItemViewMode -> Handler TypedContent
 postItemsIndexR mode = do
   action <- lookupPostParam "button"
-  traceShowM ("POST",mode, paramDef mode)
+  -- traceShowM ("POST",mode, paramDef mode)
   (param,_,_) <- getPostIndexParam (paramDef mode)
-  traceShowM ("button", action)
+  -- traceShowM ("button", action)
   case action of
     Just "create" ->  do
         createMissing param
@@ -490,7 +489,7 @@ createMissing params = do
               in  traceShow ("lookup", sku, set) $ sku `member` set
 
 
-  traceShowM ("Create Missing" :: Text)
+  -- traceShowM ("Create Missing" :: Text)
   let toCreate = [ Entity (StockMasterKey sku) var
                  | (_, vars) <- itemGroups
                  , (status, info) <- vars
@@ -531,9 +530,8 @@ columnForSMI col stock =
     "editable"               -> Just $ toHtml <$> smfEditable stock 
     _ -> Nothing
 
-columnForPrices :: Text -> (ItemPriceF ((,) [Text])) -> Maybe ([Text], Html)
-columnForPrices col _ = Just  ([], toHtml col)
-columnForPrices col (ItemPriceF prices) = do -- Maybe
+columnForPrices :: Text -> (IntMap (PriceF ((,) [Text]))) -> Maybe ([Text], Html)
+columnForPrices col prices = do -- Maybe
   colInt <- readMay col
   value <- IntMap.lookup colInt prices
-  return $ toHtml . tshow <$> value where
+  return $ toHtml . tshow <$> pfPrice value where

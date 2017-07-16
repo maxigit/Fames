@@ -23,8 +23,19 @@ import qualified Data.Monoid as Monoid
 diffField :: Eq a => Identity a -> Identity a -> ((,) [Text]) a
 diffField (Identity a) (Identity b) = if a == b then ([], a) else (["text-danger"], b)
 
+setDanger :: Identity a -> ((,) [Text]) a
+setDanger (Identity a) = (["text-danger"], a)
+setInfo :: Identity a -> ((,) [Text]) a
+setInfo (Identity a) = (["text-info"], a)
+setWarn :: Identity a -> ((,) [Text]) a
+setWarn (Identity a) = (["text-warning"], a)
 -- Generates diffFieldStockMasterF 
 $(mmZip "diffField" ''StockMasterF)
+$(mmZip "diffField" ''PriceF)
+$(mmZipN 1 "setDanger" ''PriceF Nothing)
+$(mmZipN 1 "setInfo" ''PriceF Nothing)
+$(mmZipN 1 "setWarn" ''PriceF Nothing)
+
 
 -- -- * MinMax
 minMax :: a -> MinMax a
@@ -65,15 +76,19 @@ computeDiff :: ItemInfo (ItemMasterAndPrices Identity)
             -> ItemInfo (ItemMasterAndPrices ((,) [Text]))
 computeDiff item0 item@(ItemInfo style var _) = let
   [i0, i] = (map (impMaster . iiInfo)  [item0, item]) :: [Maybe (StockMasterF Identity)]
-  [s0, s] = (map (impSalesPrices . iiInfo)  [item0, item]) :: [Maybe (ItemPriceF Identity)]
+  [s0, s] = (map (fromMaybe mempty .impSalesPrices . iiInfo)  [item0, item]) :: [(IntMap (PriceF Identity))]
   diff = ItemMasterAndPrices (diffFieldStockMasterF <$>  i0 <*> i)
-                             (diffPrices <$> s0 <*> s)
+                             (Just $ diffPriceMap s0 s )
                              Nothing 
 
   in ItemInfo style var (diff)
 
-diffPrices :: ItemPriceF Identity -> ItemPriceF Identity -> ItemPriceF ((,) [Text])
-diffPrices p0 (ItemPriceF m) = ItemPriceF $ (([], ) . runIdentity) <$> m
+-- diffMap ::((f Identity) -> (f Identity) -> (f ((,) [Text])))
+        -- -> IntMap (f Identity) -> IntMap (f Identity) -> IntMap (f ((,) [Text]))
+diffPriceMap a b = let
+  aligned = align a b
+  in these setWarnPriceF1 setInfoPriceF1 diffFieldPriceF <$> aligned
+
   
 -- | Computes the VariationStatus ie if variations are present
 -- or not in the given map. "Missing" .i.e where the variation
@@ -123,7 +138,7 @@ mergeInfoSources sources = let
 
 salesPricesColumns ::  [ItemMasterAndPrices f] -> [Text]
 salesPricesColumns masters =
-  let colSetFor (ItemPriceF m)  = keysSet m
+  let colSetFor m  = keysSet m
       cols = mapMaybe (fmap colSetFor . impSalesPrices) masters
       colSet = mconcat cols
   in map tshow (sort $ IntSet.toList colSet)
