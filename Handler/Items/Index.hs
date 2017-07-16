@@ -115,7 +115,7 @@ loadVariations param = do
 
     let itemStyles = mergeInfoSources [map stockItemMasterToItem styles, salesPrices] -- , purchasePrices]
         itemVars =  case variations of
-          Left keys -> map (unStockMasterKey) keys
+          Left keys -> map (snd . skuToStyleVar . unStockMasterKey) keys
           Right vars -> vars
         itemGroups = joinStyleVariations (skuToStyleVar <$> bases)
                                          adjustBase computeDiff
@@ -152,7 +152,7 @@ loadSalesPrices param = do
                                                 )
                                               | p <- priceGroup
                                               ]
-                              (style, var) = skuToStyleVar (priceStockId one)
+                              (style, var) = traceShowId $ skuToStyleVar (priceStockId one)
                               master = mempty { impSalesPrices = Just pricesF }
                               in ItemInfo style var master
                           ) group_
