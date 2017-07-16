@@ -80,7 +80,7 @@ data ItemPriceF f = ItemPriceF (IntMap (f Double))
 data ItemMasterAndPrices f = ItemMasterAndPrices
   { impMaster :: Maybe (StockMasterF f)
   , impSalesPrices :: Maybe (IntMap (PriceF f))
-  , impPurchasePrices :: Maybe (ItemPriceF f)
+  , impPurchasePrices :: Maybe (IntMap (PurchDataF f))
   }
  
 instance Monoid (ItemMasterAndPrices f) where

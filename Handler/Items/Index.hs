@@ -113,7 +113,10 @@ loadVariations param = do
     salesPrices <- loadSalesPrices param
     purchasePrices <- loadPurchasePrices param
 
-    let itemStyles = mergeInfoSources [map stockItemMasterToItem styles, salesPrices] -- , purchasePrices]
+    let itemStyles = mergeInfoSources [ map stockItemMasterToItem styles
+                                      , salesPrices
+                                      , purchasePrices
+                                      ]
         itemVars =  case variations of
           Left keys -> map (snd . skuToStyleVar . unStockMasterKey) keys
           Right vars -> vars
@@ -134,13 +137,13 @@ loadSalesPrices param = do
   case (ipStyles param) of
      Just styleF |  ipMode param `elem` [ItemPriceView, ItemAllView] -> do
        let sql = "SELECT ?? FROM 0_prices JOIN 0_stock_master USING(stock_id)"
-            <> "WHERE curr_abrev = 'GBP' AND " <> stockF
-            <> "ORDER BY stock_id"
+            <> "WHERE curr_abrev = 'GBP' AND " <> stockF <> inactive
+            <> " ORDER BY stock_id"
            (fKeyword, p) = filterEKeyword styleF
            stockF = "stock_id " <> fKeyword <> "?"
            inactive =  if ipShowInactive param
                        then ""
-                       else "AND inactive = 0"
+                       else " AND inactive = 0"
        do
            prices <- rawSql sql [PersistText p]
 
@@ -164,7 +167,37 @@ loadSalesPrices param = do
 
 -- loadPurchasePrices :: IndexParam -> Handler [ ItemInfo (Map Text Double) ]
 loadPurchasePrices param = do
-  return []
+  case (ipStyles param) of
+     Just styleF |  ipMode param `elem` [ItemPurchaseView, ItemAllView] -> do
+       let sql = "SELECT ?? FROM 0_purch_data JOIN 0_stock_master USING(stock_id)"
+            <> "WHERE " <> stockF <> inactive
+            <> " ORDER BY stock_id"
+           (fKeyword, p) = filterEKeyword styleF
+           stockF = "stock_id " <> fKeyword <> "?"
+           inactive =  if ipShowInactive param
+                       then ""
+                       else "AND inactive = 0"
+       do
+           prices <- rawSql sql [PersistText p]
+           traceShowM("PURCH_DATA", sql, prices)
+
+           let group_ = groupBy ((==) `on `purchDataSupplierId) (map entityVal prices)
+               maps = map (\priceGroup@(one:_) -> let
+                              pricesF = mapFromList [ ( purchDataSupplierId p
+                                                      , runIdentity $ aPurchDataToPurchDataF p
+                                                      )
+                                                    | p <- priceGroup
+                                                    ]
+                              (style, var) = traceShowId $ skuToStyleVar (purchDataStockId one)
+                              master = mempty { impPurchasePrices = Just pricesF }
+                              in ItemInfo style var master
+                          ) group_
+
+           return maps
+          
+
+            
+     _ -> return []
   
 
 skuToStyleVar :: Text -> (Text, Text)
@@ -205,9 +238,8 @@ columnsFor ItemGLView _ = [ "categoryId"
                         , "noSale"
                         , "editable"
                         ] :: [Text]
-columnsFor ItemPriceView infos =
-    let res = salesPricesColumns $ map  iiInfo  infos
-    in res -- traceShow ("Column Fo rPrive", res) res
+columnsFor ItemPriceView infos = salesPricesColumns $ map  iiInfo  infos
+columnsFor ItemPurchaseView infos = purchasePricesColumns $ map  iiInfo  infos
 columnsFor ItemAllView _ = []
 
 itemsTable :: IndexParam ->  Handler Widget
@@ -248,7 +280,7 @@ itemsTable param = do
                           in Just ([], [hamlet|#{label}|] renderUrl )
               _ -> asum [ columnForSMI col =<< impMaster master
                         , columnForPrices col =<< impSalesPrices master 
-                        -- , columnForPrices col =<< impPurchasePrices master 
+                        , columnForPurchData col =<< impPurchasePrices master 
                         ]
 
             differs = or diffs where
@@ -516,11 +548,21 @@ createMissing params = do
             let (t,p) = aPriceFToPrice price
                 _types = t :: [Text]
             [p]
+      purchData = do -- []
+        (_, info) <- missings
+        case impPurchasePrices info of
+          Nothing -> []
+          Just mpurchDatas -> do
+            purchData <- IntMap.elems mpurchDatas
+            let (t,p) = aPurchDataFToPurchData purchData
+                _types = t :: [Text]
+            [p]
         
   traceShowM ("tocreate ", (stockMasters, prices))
   runDB $ do
     insertEntityMany stockMasters
     insertMany_ prices
+    insertMany_ purchData
 
   setSuccess (toHtml $ tshow (length stockMasters) <> " items succesfully created.")
   return ()
@@ -556,3 +598,9 @@ columnForPrices col prices = do -- Maybe
   colInt <- readMay col
   value <- IntMap.lookup colInt prices
   return $ toHtml . tshow <$> pfPrice value where
+
+columnForPurchData :: Text -> (IntMap (PurchDataF ((,) [Text]))) -> Maybe ([Text], Html)
+columnForPurchData col purchData = do -- Maybe
+  colInt <- readMay col
+  value <- IntMap.lookup colInt purchData
+  return $ toHtml . tshow <$> pdfPrice value where

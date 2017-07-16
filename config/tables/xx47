@@ -7,3 +7,4 @@ PurchData sql=0_purch_data
     conversionFactor Double  sql=conversion_factor
     supplierDescription Text  sql=supplier_description
     Primary supplierId stockId
+    deriving Show

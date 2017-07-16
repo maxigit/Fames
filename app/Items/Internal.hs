@@ -136,10 +136,15 @@ mergeInfoSources sources = let
   in [ ItemInfo style var i | (ItemInfo style var (), i) <- Map.toList merged]
   
 
-salesPricesColumns ::  [ItemMasterAndPrices f] -> [Text]
-salesPricesColumns masters =
+pricesColumns field masters =
   let colSetFor m  = keysSet m
-      cols = mapMaybe (fmap colSetFor . impSalesPrices) masters
+      cols = mapMaybe (fmap colSetFor . field ) masters
       colSet = mconcat cols
   in map tshow (sort $ IntSet.toList colSet)
+
+salesPricesColumns ::  [ItemMasterAndPrices f] -> [Text]
+salesPricesColumns masters = pricesColumns impSalesPrices masters
+
+purchasePricesColumns ::  [ItemMasterAndPrices f] -> [Text]
+purchasePricesColumns masters = pricesColumns impPurchasePrices masters
   
