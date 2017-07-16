@@ -207,7 +207,8 @@ columnsFor ItemGLView _ = [ "categoryId"
                         , "editable"
                         ] :: [Text]
 columnsFor ItemPriceView infos =
-    salesPricesColumns $ map  iiInfo  infos
+    let res = salesPricesColumns $ map  iiInfo  infos
+    in res -- traceShow ("Column Fo rPrive", res) res
 
 itemsTable :: IndexParam ->  Handler Widget
 itemsTable param = do

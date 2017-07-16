@@ -65,12 +65,16 @@ computeDiff :: ItemInfo (ItemMasterAndPrices Identity)
             -> ItemInfo (ItemMasterAndPrices ((,) [Text]))
 computeDiff item0 item@(ItemInfo style var _) = let
   [i0, i] = (map (impMaster . iiInfo)  [item0, item]) :: [Maybe (StockMasterF Identity)]
+  [s0, s] = (map (impSalesPrices . iiInfo)  [item0, item]) :: [Maybe (ItemPriceF Identity)]
   diff = ItemMasterAndPrices (diffFieldStockMasterF <$>  i0 <*> i)
-                             Nothing 
+                             (diffPrices <$> s0 <*> s)
                              Nothing 
 
   in ItemInfo style var (diff)
 
+diffPrices :: ItemPriceF Identity -> ItemPriceF Identity -> ItemPriceF ((,) [Text])
+diffPrices p0 (ItemPriceF m) = ItemPriceF $ (([], ) . runIdentity) <$> m
+  
 -- | Computes the VariationStatus ie if variations are present
 -- or not in the given map. "Missing" .i.e where the variation
 -- is not present in the variation map will be created from item0
