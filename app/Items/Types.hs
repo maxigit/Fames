@@ -29,7 +29,7 @@ type FieldWithClasses a = ([Text], a)
 $(metamorphosis
  ( (return)
  . (fdTypes %~ ("f":))
- . (fdFieldName . mapped %~ ("smi"++). drop 11)
+ . (fdFieldName . mapped %~ ("smf"++). drop 11)
  . (fdBang .~ Bang NoSourceUnpackedness NoSourceStrictness)
  . (fdTConsName .~ "StockMasterF")
  )

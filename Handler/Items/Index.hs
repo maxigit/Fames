@@ -260,7 +260,7 @@ itemsTable param = do
             classes = ("style-" <> iiStyle item0)
                       : (if differs then ["differs"] else ["no-diff"])
                       <> (if checked then [] else ["unchecked"])
-                      <> case smiInactive <$> impMaster master of
+                      <> case smfInactive <$> impMaster master of
                           Just (_, True) -> ["text-muted"]
                           _ -> []
                       -- ++ case status of
@@ -441,7 +441,7 @@ getAdjustBase = do
         stock = impMaster master
         adj = adjustDescription varMap (iiVariation item0) var
         in item0  { iiInfo = master
-                    { impMaster = (\s -> s {smiDescription = smiDescription s <&> adj}) <$> stock
+                    { impMaster = (\s -> s {smfDescription = smfDescription s <&> adj}) <$> stock
                     }
                   }
   when (null varMap ) $ do
@@ -508,27 +508,27 @@ createMissing params = do
 columnForSMI :: Text -> (StockMasterF ((,) [Text])) -> Maybe ([Text], Html)
 columnForSMI col stock =
   case col of 
-    "categoryId"             -> Just (toHtml . tshow <$> smiCategoryId stock )
-    "taxTypeId"              -> Just $ toHtml <$> smiTaxTypeId stock 
-    "description"            -> Just $ toHtml <$>  smiDescription stock 
-    "longDescription"        -> Just $ toHtml <$> smiLongDescription stock 
-    "units"                  -> Just $ toHtml <$>  smiUnits stock 
-    "mbFlag"                 -> Just $ toHtml <$>  smiMbFlag stock 
-    "salesAccount"           -> Just $ toHtml <$>  smiSalesAccount stock 
-    "cogsAccount"            -> Just $ toHtml <$>  smiCogsAccount stock 
-    "inventoryAccount"       -> Just $ toHtml <$>  smiInventoryAccount stock 
-    "adjustmentAccount"      -> Just $ toHtml <$>  smiAdjustmentAccount stock 
-    "assemblyAccount"        -> Just $ toHtml <$>  smiAssemblyAccount stock 
-    "dimensionId"            -> Just $ toHtml . tshowM  <$> smiDimensionId stock 
-    "dimension2Id"           -> Just $ toHtml . tshowM <$> smiDimension2Id stock 
-    "actualCost"             -> Just $ toHtml <$> smiActualCost stock 
-    "lastCost"               -> Just $ toHtml <$> smiLastCost stock 
-    "materialCost"           -> Just $ toHtml <$> smiMaterialCost stock 
-    "labourCost"             -> Just $ toHtml <$> smiLabourCost stock 
-    "overheadCost"           -> Just $ toHtml <$> smiOverheadCost stock 
-    "inactive"               -> Just $ toHtml <$> smiInactive stock 
-    "noSale"                 -> Just $ toHtml <$> smiNoSale stock 
-    "editable"               -> Just $ toHtml <$> smiEditable stock 
+    "categoryId"             -> Just (toHtml . tshow <$> smfCategoryId stock )
+    "taxTypeId"              -> Just $ toHtml <$> smfTaxTypeId stock 
+    "description"            -> Just $ toHtml <$>  smfDescription stock 
+    "longDescription"        -> Just $ toHtml <$> smfLongDescription stock 
+    "units"                  -> Just $ toHtml <$>  smfUnits stock 
+    "mbFlag"                 -> Just $ toHtml <$>  smfMbFlag stock 
+    "salesAccount"           -> Just $ toHtml <$>  smfSalesAccount stock 
+    "cogsAccount"            -> Just $ toHtml <$>  smfCogsAccount stock 
+    "inventoryAccount"       -> Just $ toHtml <$>  smfInventoryAccount stock 
+    "adjustmentAccount"      -> Just $ toHtml <$>  smfAdjustmentAccount stock 
+    "assemblyAccount"        -> Just $ toHtml <$>  smfAssemblyAccount stock 
+    "dimensionId"            -> Just $ toHtml . tshowM  <$> smfDimensionId stock 
+    "dimension2Id"           -> Just $ toHtml . tshowM <$> smfDimension2Id stock 
+    "actualCost"             -> Just $ toHtml <$> smfActualCost stock 
+    "lastCost"               -> Just $ toHtml <$> smfLastCost stock 
+    "materialCost"           -> Just $ toHtml <$> smfMaterialCost stock 
+    "labourCost"             -> Just $ toHtml <$> smfLabourCost stock 
+    "overheadCost"           -> Just $ toHtml <$> smfOverheadCost stock 
+    "inactive"               -> Just $ toHtml <$> smfInactive stock 
+    "noSale"                 -> Just $ toHtml <$> smfNoSale stock 
+    "editable"               -> Just $ toHtml <$> smfEditable stock 
     _ -> Nothing
 
 columnForPrices :: Text -> (ItemPriceF ((,) [Text])) -> Maybe ([Text], Html)
