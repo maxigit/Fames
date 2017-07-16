@@ -137,7 +137,7 @@ loadSalesPrices param = do
   case (ipStyles param) of
      Just styleF |  ipMode param `elem` [ItemPriceView, ItemAllView] -> do
        let sql = "SELECT ?? FROM 0_prices JOIN 0_stock_master USING(stock_id)"
-            <> "WHERE curr_abrev = 'GBP' AND " <> stockF <> inactive
+            <> " WHERE curr_abrev = 'GBP' AND " <> stockF <> inactive
             <> " ORDER BY stock_id"
            (fKeyword, p) = filterEKeyword styleF
            stockF = "stock_id " <> fKeyword <> "?"
@@ -170,18 +170,18 @@ loadPurchasePrices param = do
   case (ipStyles param) of
      Just styleF |  ipMode param `elem` [ItemPurchaseView, ItemAllView] -> do
        let sql = "SELECT ?? FROM 0_purch_data JOIN 0_stock_master USING(stock_id)"
-            <> "WHERE " <> stockF <> inactive
+            <> " WHERE " <> stockF <> inactive
             <> " ORDER BY stock_id"
            (fKeyword, p) = filterEKeyword styleF
            stockF = "stock_id " <> fKeyword <> "?"
            inactive =  if ipShowInactive param
                        then ""
-                       else "AND inactive = 0"
+                       else " AND inactive = 0"
        do
            prices <- rawSql sql [PersistText p]
            traceShowM("PURCH_DATA", sql, prices)
 
-           let group_ = groupBy ((==) `on `purchDataSupplierId) (map entityVal prices)
+           let group_ = groupBy ((==) `on `purchDataStockId) (map entityVal prices)
                maps = map (\priceGroup@(one:_) -> let
                               pricesF = mapFromList [ ( purchDataSupplierId p
                                                       , runIdentity $ aPurchDataToPurchDataF p
@@ -428,7 +428,7 @@ renderIndex param0 status = do
   td.stock-master-radio span.label-info
     font-size: 60%
 |]
-  let navs = [minBound..maxBound] :: [ItemViewMode]
+  let navs = filter (/= ItemAllView) [minBound..maxBound] :: [ItemViewMode]
       mode = ipMode param
       navClass nav = if mode == nav then "active" else "" :: Html
   let widget = [whamlet|
