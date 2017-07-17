@@ -1,3 +1,25 @@
+* TODO to finish Items creation update
+** TODO fix bug check button not working
+ When refreshing a page "Search" checkbox and style are not in synck
+ The easiest would probably be to reset the checkboxes
+ It makes sense, since if we change the filter, the already checked box are not
+ relevant anymore.
+** TODO display price column name
+** TODO display purchase information
+as supplier description
+** TODO fill 0_items table on item creation
+** TODO add update button
+Update existing item to match base.
+Only on visible panel
+** TODO select column to update
+** TODO add disable/enable button
+*** TODO Needs running status
+** TODO add delete button
+** TODO Web status
+Only work if nothing has been entered
+*** TODO create
+*** TODO update
+*** TODO enable/disable
 * Todo History [4/9] <2017-06-24 Sat> 
 - [ ] bug bd1-sir ...
 - [X] Group Adjustment details
