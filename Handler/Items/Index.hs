@@ -472,12 +472,15 @@ getAdjustBase = do
       go item0@(ItemInfo style _ master ) var = let
         stock = impMaster master
         salesPrices = impSalesPrices master
+        purchasePrices = impPurchasePrices master
         adj = adjustDescription varMap (iiVariation item0) var
         sku = styleVarToSku style var
         in item0  { iiInfo = master
                     { impMaster = (\s -> s {smfDescription = smfDescription s <&> adj}) <$> stock
                     , impSalesPrices = (fmap (\p -> p { pfStockId = Identity sku })
                                        ) <$> salesPrices
+                    , impPurchasePrices = (fmap (\p -> p { pdfStockId = Identity sku })
+                                       ) <$> purchasePrices
                     }
                   }
   when (null varMap ) $ do
@@ -558,7 +561,7 @@ createMissing params = do
                 _types = t :: [Text]
             [p]
         
-  traceShowM ("tocreate ", (stockMasters, prices))
+  -- traceShowM ("tocreate ", (stockMasters, prices, purchData))
   runDB $ do
     insertEntityMany stockMasters
     insertMany_ prices

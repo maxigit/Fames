@@ -32,9 +32,13 @@ setWarn (Identity a) = (["text-warning"], a)
 -- Generates diffFieldStockMasterF 
 $(mmZip "diffField" ''StockMasterF)
 $(mmZip "diffField" ''PriceF)
+$(mmZip "diffField" ''PurchDataF)
 $(mmZipN 1 "setDanger" ''PriceF Nothing)
 $(mmZipN 1 "setInfo" ''PriceF Nothing)
 $(mmZipN 1 "setWarn" ''PriceF Nothing)
+$(mmZipN 1 "setDanger" ''PurchDataF Nothing)
+$(mmZipN 1 "setInfo" ''PurchDataF Nothing)
+$(mmZipN 1 "setWarn" ''PurchDataF Nothing)
 
 
 -- -- * MinMax
@@ -77,9 +81,10 @@ computeDiff :: ItemInfo (ItemMasterAndPrices Identity)
 computeDiff item0 item@(ItemInfo style var _) = let
   [i0, i] = (map (impMaster . iiInfo)  [item0, item]) :: [Maybe (StockMasterF Identity)]
   [s0, s] = (map (fromMaybe mempty .impSalesPrices . iiInfo)  [item0, item]) :: [(IntMap (PriceF Identity))]
+  [p0, p] = (map (fromMaybe mempty .impPurchasePrices . iiInfo)  [item0, item]) :: [(IntMap (PurchDataF Identity))]
   diff = ItemMasterAndPrices (diffFieldStockMasterF <$>  i0 <*> i)
                              (Just $ diffPriceMap s0 s )
-                             Nothing 
+                             (Just $ diffPurchMap p0 p )
 
   in ItemInfo style var (diff)
 
@@ -88,6 +93,9 @@ computeDiff item0 item@(ItemInfo style var _) = let
 diffPriceMap a b = let
   aligned = align a b
   in these setWarnPriceF1 setInfoPriceF1 diffFieldPriceF <$> aligned
+diffPurchMap a b = let
+  aligned = align a b
+  in these setWarnPurchDataF1 setInfoPurchDataF1 diffFieldPurchDataF <$> aligned
 
   
 -- | Computes the VariationStatus ie if variations are present

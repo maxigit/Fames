@@ -81,7 +81,15 @@ data ItemMasterAndPrices f = ItemMasterAndPrices
   { impMaster :: Maybe (StockMasterF f)
   , impSalesPrices :: Maybe (IntMap (PriceF f))
   , impPurchasePrices :: Maybe (IntMap (PurchDataF f))
-  }
+  } 
+deriving instance Show (StockMasterF Identity)
+deriving instance Show (PriceF Identity)
+deriving instance Show (PurchDataF Identity)
+deriving instance Show (StockMasterF ((,) [Text]))
+deriving instance Show (PriceF ((,) [Text]))
+deriving instance Show (PurchDataF ((,) [Text]))
+deriving instance Show (ItemMasterAndPrices Identity)
+deriving instance Show (ItemMasterAndPrices ((,) [Text]))
  
 instance Monoid (ItemMasterAndPrices f) where
   mempty = ItemMasterAndPrices Nothing Nothing Nothing
