@@ -10,6 +10,7 @@ as supplier description
 ** TODO fill 0_items table on item creation
 ** TODO add update button
 Update existing item to match base.
+**Important** don't forget to not update cost prices !!!
 Only on visible panel
 ** TODO select column to update
 ** TODO add disable/enable button
