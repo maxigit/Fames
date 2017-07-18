@@ -35,6 +35,15 @@ ipVariations param = case (ipVariationsF param, ipVariationGroup param) of
         (Just var, Nothing) -> Left var
         (_, group_) -> Right group_
 
+data IndexColumn = GLColumn Text
+            | PriceColumn Int
+            | PurchaseColumn Int
+            | CheckColumn
+            | RadioColumn
+            | StockIdColumn
+            | StatusColumn
+            deriving Show
+
 -- * Utils
 
 showFilterExpression :: FilterExpression -> Text
@@ -215,31 +224,34 @@ stockItemMasterToItem (Entity key val) = ItemInfo  style var master where
             master = mempty { impMaster = Just (runIdentity (aStockMasterToStockMasterF val)) }
 
 -- | List or columns for a given mode
-columnsFor :: ItemViewMode -> [ItemInfo (ItemMasterAndPrices f)] -> [Text]
-columnsFor ItemGLView _ = [ "categoryId"
-                        , "taxTypeId"
-                        , "description"
-                        , "longDescription"
-                        , "units"
-                        , "mbFlag"
-                        , "salesAccount"
-                        , "cogsAccount"
-                        , "inventoryAccount"
-                        , "adjustmentAccount"
-                        , "assemblyAccount"
-                        , "dimensionId"
-                        , "dimension2Id"
-                        -- , "actualCost"
-                        -- , "lastCost"
-                        -- , "materialCost"
-                        -- , "labourCost"
-                        -- , "overheadCost"
-                        , "inactive"
-                        , "noSale"
-                        , "editable"
-                        ] :: [Text]
-columnsFor ItemPriceView infos = salesPricesColumns $ map  iiInfo  infos
-columnsFor ItemPurchaseView infos = purchasePricesColumns $ map  iiInfo  infos
+columnsFor :: ItemViewMode -> [ItemInfo (ItemMasterAndPrices f)] -> [IndexColumn]
+columnsFor ItemGLView _ = map GLColumn cols where
+  cols = [ "categoryId"
+         , "taxTypeId"
+         , "description"
+         , "longDescription"
+         , "units"
+         , "mbFlag"
+         , "salesAccount"
+         , "cogsAccount"
+         , "inventoryAccount"
+         , "adjustmentAccount"
+         , "assemblyAccount"
+         , "dimensionId"
+         , "dimension2Id"
+           -- , "actualCost"
+           -- , "lastCost"
+           -- , "materialCost"
+           -- , "labourCost"
+           -- , "overheadCost"
+         , "inactive"
+         , "noSale"
+         , "editable"
+         ] :: [Text]
+columnsFor ItemPriceView infos = map PriceColumn cols where
+  cols = salesPricesColumns $ map  iiInfo  infos
+columnsFor ItemPurchaseView infos = map PurchaseColumn cols where
+  cols = purchasePricesColumns $ map  iiInfo  infos
 columnsFor ItemAllView _ = []
 
 itemsTable :: IndexParam ->  Handler Widget
@@ -249,12 +261,12 @@ itemsTable param = do
   itemGroups <- loadVariations param
 
   let allItems = [ items | (_, varStatus) <- itemGroups  , (_, items) <- varStatus]
-  let columns = ["check", "radio", "stock_id", "status"] ++ columnsFor (ipMode param) allItems
+  let columns = [CheckColumn, RadioColumn, StockIdColumn, StockIdColumn] ++ columnsFor (ipMode param) allItems
 
   -- Church encoding ?
   let itemToF :: ItemInfo (ItemMasterAndPrices Identity)
               -> (VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text])))
-              -> (Text -> Maybe (Html, [Text]) -- Html + classes per column
+              -> (IndexColumn -> Maybe (Html, [Text]) -- Html + classes per column
                 , [Text]) -- classes for row
 
       itemToF item0 (status , ItemInfo style var master) =
@@ -265,23 +277,27 @@ itemsTable param = do
                                   VarExtra -> [shamlet| <span.label.label-info> Extra |]
                                   VarOk -> [shamlet||]
             val col = case col of
-              "check" -> Just ([], [shamlet|<input type=checkbox name="check-#{sku}" :checked:checked>|])
-              "radio" -> let rchecked = var == iiVariation item0
+                        CheckColumn ->
+                          Just ([], [shamlet|<input type=checkbox name="check-#{sku}" :checked:checked>|])
+                        RadioColumn ->
+                          let rchecked = var == iiVariation item0
                           in if status == VarMissing
                             then Just ([], missingLabel)
                             else Just ([], [shamlet|<input type=radio name="base-#{style}" value="#{sku}"
                                                 :rchecked:checked
                                             >|] >> missingLabel)
-              "stock_id"               -> let route = ItemsR $ ItemsHistoryR sku
-                            in Just ([], [hamlet|<a href=@{route} target="_blank">#{sku}|] renderUrl )
-              "status"                 -> let label = case differs of
+                        StockIdColumn               ->
+                          let route = ItemsR $ ItemsHistoryR sku
+                          in Just ([], [hamlet|<a href=@{route} target="_blank">#{sku}|] renderUrl )
+                        StatusColumn ->
+                          let label = case differs of
                                                 True -> [shamlet| <span.label.label-danger> Diff |]
                                                 _    -> [shamlet||]
                           in Just ([], [hamlet|#{label}|] renderUrl )
-              _ -> asum [ columnForSMI col =<< impMaster master
-                        , columnForPrices col =<< impSalesPrices master 
-                        , columnForPurchData col =<< impPurchasePrices master 
-                        ]
+              
+                        GLColumn name ->  columnForSMI name =<< impMaster master
+                        PriceColumn i -> columnForPrices i =<< impSalesPrices master 
+                        PurchaseColumn i -> columnForPurchData i =<< impPurchasePrices master 
 
             differs = or diffs where
               diffs = [ "text-danger" `elem `kls
@@ -304,7 +320,7 @@ itemsTable param = do
                         else ["variation"]
 
         in (\col -> fmap (\(fieldClasses, v)
-                    -> (v, ("stock-master-"<>col):fieldClasses)
+                    -> (v, ("stock-master-"<> columnClass col):fieldClasses)
                       ) (val col)
           , classes
           )
@@ -316,14 +332,11 @@ itemsTable param = do
       styleFirst [] = error "Shouldn't happend"
 
       styleGroup klass rs = [(fn, klass:klasses) | (fn,klasses) <- rs]
+
+  columnToTitle <- getColumnToTitle param
         
 
-  return $ displayTable columns
-                        (\c -> case c of
-                              "check" -> ("", ["checkall"])
-                              "radio" -> ("", [])
-                              _ -> (toHtml c, [])
-                        )
+  return $ displayTable columns columnToTitle
                         (concat  (zipWith styleGroup (List.cycle ["group-2","group-3"])
                                     .map styleFirst $ rowGroup))
                       
@@ -517,6 +530,33 @@ lookupVars :: Map Text Text -> Text -> [Text]
 lookupVars varMap = mapMaybe (flip Map.lookup varMap) . variationToVars
 
 
+getColumnToTitle :: IndexParam -> Handler (IndexColumn -> (Html, [Text]))
+getColumnToTitle param = do
+  runDB $ do
+    -- TODO only loads map if needed
+    priceListNames <- do
+        entities <- selectList [] [] -- [Entity SalesType]
+        return $ mapFromList [(k, salesTypeSalesType t) | (Entity (SalesTypeKey k) t) <- entities]
+    supplierNames <- do
+        entities <- selectList [] []
+        return $ mapFromList [(k, supplierSuppName s) | (Entity (SupplierKey k) s) <- entities]
+    let toh (Left r) = r
+        toh (Right s) = (toHtml s, [])
+        go column = let
+          title = case column of
+            CheckColumn -> Left ("", ["checkall"])
+            RadioColumn -> Right ""
+            StockIdColumn -> Right "Stock Id"
+            StatusColumn -> Right "Status"
+            GLColumn gl -> Right gl
+            PriceColumn i -> Right $ findWithDefault "" i (priceListNames :: IntMap Text)
+            PurchaseColumn i -> Right $ findWithDefault "" i (supplierNames :: IntMap Text)
+          in toh title
+    return go
+
+columnClass :: IndexColumn -> Text
+columnClass col = filter (/= ' ') (tshow col)
+
 -- * Actions
 createMissing :: IndexParam -> Handler ()
 createMissing params = do
@@ -599,15 +639,13 @@ columnForSMI col stock =
     "editable"               -> Just $ toHtml <$> smfEditable stock 
     _ -> Nothing
 
-columnForPrices :: Text -> (IntMap (PriceF ((,) [Text]))) -> Maybe ([Text], Html)
-columnForPrices col prices = do -- Maybe
-  colInt <- readMay col
+columnForPrices :: Int -> (IntMap (PriceF ((,) [Text]))) -> Maybe ([Text], Html)
+columnForPrices colInt prices = do -- Maybe
   value <- IntMap.lookup colInt prices
   return $ toHtml . tshow <$> pfPrice value where
 
-columnForPurchData :: Text -> (IntMap (PurchDataF ((,) [Text]))) -> Maybe ([Text], Html)
-columnForPurchData col purchData = do -- Maybe
-  colInt <- readMay col
+columnForPurchData :: Int -> (IntMap (PurchDataF ((,) [Text]))) -> Maybe ([Text], Html)
+columnForPurchData colInt purchData = do -- Maybe
   value <- IntMap.lookup colInt purchData
   return $ toHtml . tshow <$> pdfPrice value where
 
@@ -625,3 +663,5 @@ stockMasterToItemCode (Entity stockIdKey StockMaster{..}) = let
   itemCodeInactive = stockMasterInactive
   in ItemCode{..}
   
+
+

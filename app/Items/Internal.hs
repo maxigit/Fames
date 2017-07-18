@@ -148,11 +148,11 @@ pricesColumns field masters =
   let colSetFor m  = keysSet m
       cols = mapMaybe (fmap colSetFor . field ) masters
       colSet = mconcat cols
-  in map tshow (sort $ IntSet.toList colSet)
+  in sort $ IntSet.toList colSet
 
-salesPricesColumns ::  [ItemMasterAndPrices f] -> [Text]
+salesPricesColumns ::  [ItemMasterAndPrices f] -> [Int]
 salesPricesColumns masters = pricesColumns impSalesPrices masters
 
-purchasePricesColumns ::  [ItemMasterAndPrices f] -> [Text]
+purchasePricesColumns ::  [ItemMasterAndPrices f] -> [Int]
 purchasePricesColumns masters = pricesColumns impPurchasePrices masters
   

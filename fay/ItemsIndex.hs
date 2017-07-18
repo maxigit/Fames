@@ -173,7 +173,7 @@ addCheckAll = do
   JQ.setHtml "<input type=checkbox id=items-checkall>" td
   checkall <- select "#items-checkall"
   JQ.onChange (do
-              boxes <- select "#items-index .stock-master-check input"
+              boxes <- select "#items-index .stock-master-CheckColumn input"
               checked <- JQ.getProp "checked" checkall
               JQ.setProp "checked" checked boxes
               -- update manually unchecked status
@@ -187,7 +187,7 @@ addCheckAll = do
   updateCheckAllStatus
 
 updateCheckAllStatus = do
-  checked <- select "#items-index .stock-master-check :checked"
+  checked <- select "#items-index .stock-master-CheckColumn :checked"
   size <- jsize checked
   checkall <- select "#items-checkall"
   JQ.setProp "checked" (if size /= 0 then "true" else "false") checkall
