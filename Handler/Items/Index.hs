@@ -560,10 +560,13 @@ createMissing params = do
             let (t,p) = aPurchDataFToPurchData purchData
                 _types = t :: [Text]
             [p]
+      -- new items also need an items codes
+      itemCodes = map stockMasterToItemCode stockMasters
         
   -- traceShowM ("tocreate ", (stockMasters, prices, purchData))
   runDB $ do
     insertEntityMany stockMasters
+    insertMany itemCodes
     insertMany_ prices
     insertMany_ purchData
 
@@ -607,3 +610,18 @@ columnForPurchData col purchData = do -- Maybe
   colInt <- readMay col
   value <- IntMap.lookup colInt purchData
   return $ toHtml . tshow <$> pdfPrice value where
+
+
+
+stockMasterToItemCode :: Entity StockMaster -> ItemCode
+stockMasterToItemCode (Entity stockIdKey StockMaster{..}) = let
+  sku = unStockMasterKey stockIdKey
+  itemCodeItemCode = sku
+  itemCodeStockId = sku
+  itemCodeDescription=stockMasterDescription
+  itemCodeCategoryId = stockMasterCategoryId
+  itemCodeQuantity = 1
+  itemCodeIsForeign = False
+  itemCodeInactive = stockMasterInactive
+  in ItemCode{..}
+  
