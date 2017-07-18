@@ -15,45 +15,89 @@ import Data.Align(align)
 import qualified Data.Map as Map
 import Metamorphosis
 import FA
+import qualified Data.IntMap.Strict as IntMap
+import qualified Data.IntSet as IntSet
+import qualified Data.Monoid as Monoid
 
 
 diffField :: Eq a => Identity a -> Identity a -> ((,) [Text]) a
 diffField (Identity a) (Identity b) = if a == b then ([], a) else (["text-danger"], b)
 
-$(mmZip "diffField" ''StockMasterInfo)
+setDanger :: Identity a -> ((,) [Text]) a
+setDanger (Identity a) = (["text-danger"], a)
+setInfo :: Identity a -> ((,) [Text]) a
+setInfo (Identity a) = (["text-info"], a)
+setWarn :: Identity a -> ((,) [Text]) a
+setWarn (Identity a) = (["text-warning"], a)
+-- Generates diffFieldStockMasterF 
+$(mmZip "diffField" ''StockMasterF)
+$(mmZip "diffField" ''PriceF)
+$(mmZip "diffField" ''PurchDataF)
+$(mmZipN 1 "setDanger" ''PriceF Nothing)
+$(mmZipN 1 "setInfo" ''PriceF Nothing)
+$(mmZipN 1 "setWarn" ''PriceF Nothing)
+$(mmZipN 1 "setDanger" ''PurchDataF Nothing)
+$(mmZipN 1 "setInfo" ''PurchDataF Nothing)
+$(mmZipN 1 "setWarn" ''PurchDataF Nothing)
+
 
 -- -- * MinMax
 minMax :: a -> MinMax a
 minMax a = MinMax a a
  
--- $(mmZip "mappend" ''StockMasterInfo)
+-- $(mmZip "mappend" ''StockMasterF)
 
-  -- mappend = mappendStockMasterInfo
+  -- mappend = mappendStockMasterF
 
 
-computeItemsStatus :: ItemInfo StockMaster
-                   -> Map Text a
-                   -> [ItemInfo StockMaster]
-                   -> [(VariationStatus, ItemInfo (StockMasterInfo ((,) [Text])))]
-computeItemsStatus item0 varMap items = let
+-- | Check the status of an item variation given a list of expected variation
+-- As well as checking if the variation exists, or is extra is also compares it
+-- to a reference items, to check if the information are the same.
+-- | The reference item used to check if fields are different between the current variation
+-- and the reference needs to be adjusted depending on the variation to take into account
+-- fields which actual depends on the variation itself. For example, the description might
+-- contain the name of the variation. In that case, we need to adjust the description field
+-- to match the expected result (not the reference one)
+-- For example, if base is Black and the description is "Black T-Shirt". We will need to change
+-- the description to "Red T-Shirt" for the Red variation. 
+computeItemsStatus :: (ItemInfo a -> Text -> ItemInfo a )
+                   -> (ItemInfo a -> ItemInfo a -> ItemInfo diff)
+                   -> ItemInfo a
+                   -> [Text]
+                   -> [ItemInfo a]
+                   -> [(VariationStatus, ItemInfo diff)]
+computeItemsStatus adjustItem0 computeDiff_ item0 varMap items = let
   styleMap = mapFromList [(iiVariation i, i) | i <- items ]
-  varMap' = Map.mapWithKey (\var _ -> item0 { iiVariation = var }) varMap
+  varMap' = mapFromList [(var, adjustItemBase var) | var <- varMap]
   joineds = align varMap' styleMap
   ok _ item = (VarOk,  item)
   r = map (these (VarMissing,) (VarExtra,) ok) (Map.elems joineds)
-  in map (\(s, i) -> (s, computeDiff item0 i)) r
+  adjustItemBase var = (adjustItem0 item0 var) {iiVariation = var} -- | Force variation
+  in map (\(s, i) -> (s, computeDiff_ (adjustItemBase (iiVariation i)) i)) r
 
-computeDiff :: ItemInfo StockMaster -> ItemInfo StockMaster -> ItemInfo (StockMasterInfo ((,) [Text]))
-computeDiff item0 item | iiStyle item0 == iiStyle item  && iiVariation item0 == iiVariation item
-      = ItemInfo (iiStyle item0)
-                 (iiVariation item0)
-                 (runIdentity . aStockMasterToStockMasterInfo . iiInfo $ item0)
+computeDiff :: ItemInfo (ItemMasterAndPrices Identity)
+            -> ItemInfo (ItemMasterAndPrices Identity)
+            -> ItemInfo (ItemMasterAndPrices ((,) [Text]))
 computeDiff item0 item@(ItemInfo style var _) = let
-  [i0, i] = (map (runIdentity . aStockMasterToStockMasterInfo . iiInfo ) [item0, item]) :: [StockMasterInfo Identity]
-  diff = diffFieldStockMasterInfo i0 i 
+  [i0, i] = (map (impMaster . iiInfo)  [item0, item]) :: [Maybe (StockMasterF Identity)]
+  [s0, s] = (map (fromMaybe mempty .impSalesPrices . iiInfo)  [item0, item]) :: [(IntMap (PriceF Identity))]
+  [p0, p] = (map (fromMaybe mempty .impPurchasePrices . iiInfo)  [item0, item]) :: [(IntMap (PurchDataF Identity))]
+  diff = ItemMasterAndPrices (diffFieldStockMasterF <$>  i0 <*> i)
+                             (Just $ diffPriceMap s0 s )
+                             (Just $ diffPurchMap p0 p )
 
   in ItemInfo style var (diff)
 
+-- diffMap ::((f Identity) -> (f Identity) -> (f ((,) [Text])))
+        -- -> IntMap (f Identity) -> IntMap (f Identity) -> IntMap (f ((,) [Text]))
+diffPriceMap a b = let
+  aligned = align a b
+  in these setWarnPriceF1 setInfoPriceF1 diffFieldPriceF <$> aligned
+diffPurchMap a b = let
+  aligned = align a b
+  in these setWarnPurchDataF1 setInfoPurchDataF1 diffFieldPurchDataF <$> aligned
+
+  
 -- | Computes the VariationStatus ie if variations are present
 -- or not in the given map. "Missing" .i.e where the variation
 -- is not present in the variation map will be created from item0
@@ -61,26 +105,54 @@ computeDiff item0 item@(ItemInfo style var _) = let
 -- | Check for each styles if they all variations present in variations
 -- variations
 -- joinStyleVariations :: [ItemInfo a] -> [ItemInfo b] -> [(VariationStatus , ItemInfo a)]
-joinStyleVariations :: [ItemInfo StockMaster] -> [ItemInfo StockMaster]
-                    -> [( ItemInfo StockMaster
-                        , ItemInfo (StockMasterInfo MinMax)
-                        , [(VariationStatus, ItemInfo (StockMasterInfo ((,) [Text])))]
+joinStyleVariations :: Map Text (Text, Text)
+                    -> (ItemInfo a -> Text -> ItemInfo a)
+                    -> (ItemInfo a -> ItemInfo a -> ItemInfo diff)
+                    -> [ItemInfo a]
+                    -> [Text] -- ^ all possible variations
+                    -> [( ItemInfo a
+                        , [(VariationStatus, ItemInfo diff)]
                         )]
-joinStyleVariations items vars = let
-  varMap = mapFromList $ map ((,()) . iiVariation) vars
+joinStyleVariations bases adjustBase computeDiff_ items vars = let
   styles = Map.fromListWith (flip (<>))  [(iiStyle item, [item]) | item <- items]
 
-  in map (\(_, variations) -> let base = headEx variations
-                                      in ( base
-                                         , minMaxFor base variations
-                                         , computeItemsStatus (headEx variations)
-                                                              varMap
-                                                              variations
-                                         )
+  in map (\(_, variations@(var:_)) -> let
+             -- bases Map a style to the base sku. We need to find the sku then item
+             varMap = mapFromList [((iiStyle v, iiVariation v), v) | v <- variations ]
+             base = fromMaybe var $ Map.lookup (iiStyle var) bases
+               >>= flip Map.lookup varMap
+             in ( base
+                , computeItemsStatus adjustBase computeDiff_
+                  base
+                  vars
+                  variations
+                )
          )
          (mapToList styles)
 
-minMaxFor :: ItemInfo StockMaster -> [ItemInfo StockMaster]  -> ItemInfo (StockMasterInfo MinMax)
-minMaxFor (ItemInfo st var _) infos = let
- infos' = map (runIdentity . aStockMasterToStockMasterInfo . iiInfo) infos
- in ItemInfo st var (mconcat infos')
+
+mergeInfoSources :: Monoid a => [[ItemInfo a]] -> [ItemInfo a]
+mergeInfoSources sources = let
+  maps :: [Map (ItemInfo ()) _]
+  maps = map (\source -> mapFromList [ ( fmap (const ()) info
+                                       ,  iiInfo info 
+                                       )
+                                     | info <- source
+                                     ]
+             ) sources
+  merged = foldl' (unionWith (Monoid.<>)) (mempty) maps
+  in [ ItemInfo style var i | (ItemInfo style var (), i) <- Map.toList merged]
+  
+
+pricesColumns field masters =
+  let colSetFor m  = keysSet m
+      cols = mapMaybe (fmap colSetFor . field ) masters
+      colSet = mconcat cols
+  in sort $ IntSet.toList colSet
+
+salesPricesColumns ::  [ItemMasterAndPrices f] -> [Int]
+salesPricesColumns masters = pricesColumns impSalesPrices masters
+
+purchasePricesColumns ::  [ItemMasterAndPrices f] -> [Int]
+purchasePricesColumns masters = pricesColumns impPurchasePrices masters
+  

@@ -5,3 +5,4 @@ Price sql=0_prices
     salesTypeId Int  sql=sales_type_id
     currAbrev Text  sql=curr_abrev
     price Double  sql=price
+    deriving Show

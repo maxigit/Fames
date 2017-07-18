@@ -336,7 +336,7 @@ mainLinks :: Handler [(Text, Route App, Bool)]
 mainLinks = do
   currentRoute <- getCurrentRoute
   let links= [ ("General Ledger", GLEnterReceiptSheetR)
-             , ("Items", ItemsR ItemsIndexR)
+             , ("Items", ItemsR (ItemsIndexR Nothing))
              , ("Warehouse", WarehouseR WHStockAdjustmentR)
              , ("Admin", AdministratorR AIndexR)
              , ("FA",  FA'R FADebtorsMasterR)
