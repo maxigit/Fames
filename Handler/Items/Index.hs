@@ -14,6 +14,7 @@ import Text.Blaze.Html.Renderer.Text(renderHtml)
 import qualified Data.List as List
 import Database.Persist.MySQL hiding(replace)
 import qualified Data.IntMap.Strict as IntMap
+import Data.Maybe
 -- * Types
 -- | SQL text filter expression. Can be use either the LIKE syntax or the Regex one.
 -- Regex one starts with '/'.
@@ -261,7 +262,7 @@ itemsTable param = do
   itemGroups <- loadVariations param
 
   let allItems = [ items | (_, varStatus) <- itemGroups  , (_, items) <- varStatus]
-  let columns = [CheckColumn, RadioColumn, StockIdColumn, StockIdColumn] ++ columnsFor (ipMode param) allItems
+  let columns = [CheckColumn, RadioColumn, StockIdColumn, StatusColumn] ++ columnsFor (ipMode param) allItems
 
   -- Church encoding ?
   let itemToF :: ItemInfo (ItemMasterAndPrices Identity)
@@ -561,7 +562,13 @@ columnClass col = filter (/= ' ') (tshow col)
 createMissing :: IndexParam -> Handler ()
 createMissing params = do
   -- load inactive as well to avoid trying to create missing product
-  itemGroups <- loadVariations (params {ipShowInactive = True, ipMode = ItemAllView})
+  -- If on the GL tab, create prices as well as items
+  -- Otherwise, only create the data corresponding to the current tab (eg. sales/purchase prices)
+  let newMode = case ipMode params of
+                  ItemGLView -> ItemAllView
+                  mode -> mode
+  traceShowM ("CREATE", newMode)
+  itemGroups <- loadVariations (params {ipShowInactive = True, ipMode = newMode})
   let toKeep sku = case ipChecked params of
         [] -> True
         cs -> let set = setFromList cs :: Set Text
@@ -582,35 +589,61 @@ createMissing params = do
                      , let Just (t,var) = tvarM
                      , let _types = t :: [Text] -- to help the compiler
                      ]
+      -- prices = do -- []
+      --   (_, info) <- missings
+      --   case impSalesPrices info of
+      --     Nothing -> []
+      --     Just mprices -> do
+      --       price <- IntMap.elems mprices
+      --       let (t,p) = aPriceFToPrice price
+      --           _types = t :: [Text]
+      --       [p]
+      -- for prices we need missing variations but also missing prices for existing variations
       prices = do -- []
-        (_, info) <- missings
-        case impSalesPrices info of
-          Nothing -> []
-          Just mprices -> do
-            price <- IntMap.elems mprices
-            let (t,p) = aPriceFToPrice price
-                _types = t :: [Text]
-            [p]
+         (_, vars) <- itemGroups
+         (status, info) <- vars
+         let sku = styleVarToSku (iiStyle info) (iiVariation info)
+         guard (toKeep sku)
+         mprices <- maybeToList (impSalesPrices $ iiInfo info)
+         -- only keep prices if they are missing or new
+         -- traceShowM ("prices", mprices)
+         priceF <- IntMap.elems mprices
+         let (t,price) = aPriceFToPrice priceF
+             _types = t :: [Text]
+         -- keep only new prices
+         guard (status == VarMissing || "text-warning"  `elem` t)
+         [price]
+            
+            -- keep 
+        
+      -- TODO factorize with salesPrices
       purchData = do -- []
-        (_, info) <- missings
-        case impPurchasePrices info of
-          Nothing -> []
-          Just mpurchDatas -> do
-            purchData <- IntMap.elems mpurchDatas
-            let (t,p) = aPurchDataFToPurchData purchData
-                _types = t :: [Text]
-            [p]
+         (_, vars) <- itemGroups
+         (status, info) <- vars
+         let sku = styleVarToSku (iiStyle info) (iiVariation info)
+         guard (toKeep sku)
+         mprices <- maybeToList (impPurchasePrices $ iiInfo info)
+         -- only keep prices if they are missing or new
+         -- traceShowM ("purch", mprices)
+         priceF <- IntMap.elems mprices
+         let (t,price) = aPurchDataFToPurchData priceF
+             _types = t :: [Text]
+         -- keep only new prices
+         guard (status == VarMissing || "text-warning"  `elem` t)
+         [price]
+
       -- new items also need an items codes
       itemCodes = map stockMasterToItemCode stockMasters
+  traceShowM ("NEW PRICES", prices)
         
   -- traceShowM ("tocreate ", (stockMasters, prices, purchData))
   runDB $ do
     insertEntityMany stockMasters
-    insertMany itemCodes
+    insertMany_ itemCodes
     insertMany_ prices
     insertMany_ purchData
 
-  setSuccess (toHtml $ tshow (length stockMasters) <> " items succesfully created.")
+  setSuccess (toHtml $ tshow (maximumEx [length stockMasters, length prices, length purchData]) <> " items succesfully created.")
   return ()
 -- * columns
 columnForSMI :: Text -> (StockMasterF ((,) [Text])) -> Maybe ([Text], Html)
