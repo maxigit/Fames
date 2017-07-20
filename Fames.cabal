@@ -91,7 +91,7 @@ library
     ghc-options: -w -fwarn-tabs -O0 -j6
     cpp-options: -DDEVELOPMENT
   else
-    ghc-options: -Wall -fwarn-tabs -Wno-type-defaults -O0 -j6
+    ghc-options: -Wall -fwarn-tabs -Wno-type-defaults -O2 -j6
   exposed-modules:
       Application
       FA

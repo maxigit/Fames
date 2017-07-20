@@ -9,6 +9,7 @@ import Data.Time (addDays)
 import Data.Time.Calendar.WeekDate (toWeekDate)
 import qualified Data.Set as Set
 import qualified Data.Map as Map
+import qualified Data.Text as Text
 
 import SharedStockAdjustment
 import qualified FA as FA
@@ -218,11 +219,11 @@ postWHStockAdjustmentR = do
     $forall pre <- rows
       $with ((qties, badges, before), mainMoves, lostMoves) <- (toOrigAndBadges' pre, (movesAt $ main pre), movesAt $ lost pre)
         <tr class="#{classesFor mainMoves}"
-            id="#{sku pre}-row"
-            data-sku="#{sku pre}"
+            id="#{encodedSku pre}-row"
+            data-sku="#{encodedSku pre}"
             data-hidden="true"
             >
-          <td.active><input type="checkbox" name="active-#{sku pre}" checked>
+          <td.active><input type="checkbox" name="active-#{encodedSku pre}" checked>
           <td.style><a href=@{route pre} target="_blank">#{sku pre}
           <td.quantity data-original=#{qtake qties}>#{qtake qties}
             ^{badgeSpan' (bMissing badges) (Just "#d9534f") "missing"}
@@ -239,8 +240,8 @@ postWHStockAdjustmentR = do
           $forall move <- mainMoves
             $with before <- moveDate move <= takeDate pre
               $with after <- not before
-                <tr :before:.bg-info class="move sku-#{sku pre}" style="display:none">
-                  <td> <select name="#{sku pre}">
+                <tr :before:.bg-info class="move sku-#{encodedSku pre}" style="display:none">
+                  <td> <select name="#{encodedSku pre}">
                       <option :before:selected value="#{movePickedQty move}" >Before
                       <option :after:selected value="0">After
                   <td>
@@ -260,7 +261,9 @@ postWHStockAdjustmentR = do
   ^{response}
 |]
 
-
+-- | Escape sku to be JQuery friendly
+encodedSku :: PreAdjust -> Text
+encodedSku pre = Text.replace "/" "_" (sku pre)
 -- | Temporary data holding stock adjustment information (to display)
 data LocationInfo = LocationInfo
   { location :: !Text

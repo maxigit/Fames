@@ -107,7 +107,7 @@ library:
       - -Wall 
       - -fwarn-tabs
       - -Wno-type-defaults
-      - -O0
+      - -O2
       - -j6
 
 executables:
