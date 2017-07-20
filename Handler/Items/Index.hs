@@ -164,7 +164,7 @@ loadSalesPrices param = do
                                                       )
                                                     | p <- priceGroup
                                                     ]
-                              (style, var) = traceShowId $ skuToStyleVar (priceStockId one)
+                              (style, var) = skuToStyleVar (priceStockId one)
                               master = mempty { impSalesPrices = Just pricesF }
                               in ItemInfo style var master
                           ) group_
@@ -189,7 +189,7 @@ loadPurchasePrices param = do
                        else " AND inactive = 0"
        do
            prices <- rawSql sql [PersistText p]
-           traceShowM("PURCH_DATA", sql, prices)
+           -- traceShowM("PURCH_DATA", sql, prices)
 
            let group_ = groupBy ((==) `on `purchDataStockId) (map entityVal prices)
                maps = map (\priceGroup@(one:_) -> let
@@ -198,7 +198,7 @@ loadPurchasePrices param = do
                                                       )
                                                     | p <- priceGroup
                                                     ]
-                              (style, var) = traceShowId $ skuToStyleVar (purchDataStockId one)
+                              (style, var) = skuToStyleVar (purchDataStockId one)
                               master = mempty { impPurchasePrices = Just pricesF }
                               in ItemInfo style var master
                           ) group_
@@ -350,7 +350,7 @@ fillTableParams params0 = do
   let checked = mapMaybe (stripPrefix "check-" . fst)  params
       bases = Map.fromList $ mapMaybe (\(k,v) -> stripPrefix "base-" k <&> (\b -> (b, v))
                                      ) params
-  return $ traceShowId $ params0 {ipChecked = checked, ipBases=bases}
+  return $ params0 {ipChecked = checked, ipBases=bases}
    
 
 -- getPostIndexParam :: IndexParam -> Handler (IndexParam, _
@@ -358,11 +358,10 @@ getPostIndexParam param0 = do
   varGroup <- appVariationGroups <$> getsYesod appSettings
   ((resp, form), encType) <- runFormPost (indexForm (Map.keys varGroup) param0)
   let param1 = case resp of
-        FormMissing -> traceShow "Missing" param0
-        FormSuccess par -> traceShow "Success" par
-        FormFailure err -> traceShow ("erre", err) param0
+        FormMissing -> param0
+        FormSuccess par -> par
+        FormFailure err ->  param0
   param <- fillTableParams param1
-  traceShowM param
   return (param, form, encType)
   
 -- * Rendering
@@ -634,7 +633,6 @@ createMissing params = do
 
       -- new items also need an items codes
       itemCodes = map stockMasterToItemCode stockMasters
-  traceShowM ("NEW PRICES", prices)
         
   -- traceShowM ("tocreate ", (stockMasters, prices, purchData))
   runDB $ do
