@@ -241,7 +241,7 @@ postWHStockAdjustmentR = do
             $with before <- moveDate move <= takeDate pre
               $with after <- not before
                 <tr :before:.bg-info class="move sku-#{encodedSku pre}" style="display:none">
-                  <td> <select name="#{encodedSku pre}">
+                  <td> <select name="#{sku pre}">
                       <option :before:selected value="#{movePickedQty move}" >Before
                       <option :after:selected value="0">After
                   <td>
