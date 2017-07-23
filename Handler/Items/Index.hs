@@ -43,6 +43,7 @@ data IndexColumn = GLColumn Text
             | RadioColumn
             | StockIdColumn
             | StatusColumn
+            | FAStatusColumn Text
             deriving Show
 
 -- * Handlers
@@ -223,10 +224,12 @@ loadVariations param = do
       (Right (Just group_)) -> return $ Right (Map.findWithDefault [] group_ varGroupMap)
     salesPrices <- loadSalesPrices param
     purchasePrices <- loadPurchasePrices param
+    itemStatus <- loadStatus param
 
     let itemStyles = mergeInfoSources [ map stockItemMasterToItem styles
                                       , salesPrices
                                       , purchasePrices
+                                      , itemStatus
                                       ]
         itemVars =  case variations of
           Left keys -> map (snd . skuToStyleVar . unStockMasterKey) keys
@@ -317,6 +320,43 @@ loadPurchasePrices param = do
             
      _ -> return []
   
+-- ** Status
+-- | Load item status, needed to know if an item can be deactivated or deleted safely
+-- This includes if items have been even ran, still in stock, on demand (sales) or on order (purchase)
+loadStatus :: (MonadIO m)
+           => IndexParam ->  ReaderT SqlBackend m [ItemInfo (ItemMasterAndPrices Identity)]
+loadStatus param = do 
+  case (ipStyles param) of
+    Just styleF | ipMode param `elem` [ItemWebStatusView] -> do
+      let sql = "SELECT stock_id, COALESCE(qoh, 0), COALESCE(on_demand, 0), 0 " -- ,  on_demand, on_order"
+              <> " FROM 0_stock_master  "
+              <> " LEFT  JOIN (SELECT stock_id, SUM(qty*stock_weight) as qoh"
+              <> "       FROM 0_stock_moves JOIN 0_locations USING(loc_code) "
+              <> "       GROUP BY stock_id"
+              <> "      ) qoh USING(stock_id)"
+              <> " LEFT JOIN (SELECT stk_code stock_id, SUM((quantity-qty_sent)*order_weight) as on_demand "
+              <> "       FROM 0_sales_order_details "
+              <> "       JOIN 0_sales_orders USING (order_no, trans_type)"
+              <> "       JOIN 0_locations ON(from_stk_loc = loc_code) "
+              <> "       WHERE trans_type = 30 "
+              <> "              AND expiry_date > (NOW()- INTERVAL 7 DAY)" -- filter expired order
+              <> "       GROUP BY stk_code"
+              <> "      ) demand USING (stock_id)"
+              <> " WHERE stock_id " <> fKeyword <> "?"
+              <> inactive
+          (fKeyword, p) = filterEKeyword styleF
+          inactive =  if ipShowInactive param
+                       then ""
+                       else " AND inactive = 0"
+      rows <- rawSql sql [PersistText p]
+      return [ ItemInfo style var master
+             | (Single sku, Single qoh, Single on_demand, Single on_order) <- rows
+             , let (style, var) = skuToStyleVar sku
+             , let status = ItemStatus (pure qoh) (pure on_demand) (pure on_order)
+             , let master = mempty { impFAStatus = Just status}
+             ]
+    _ -> return []
+
 -- * Misc
 -- ** Style names conversion
 
@@ -345,6 +385,17 @@ stockItemMasterToItem (Entity key val) = ItemInfo  style var master where
             (style, var) = skuToStyleVar sku
             master = mempty { impMaster = Just (runIdentity (aStockMasterToStockMasterF val)) }
 
+stockMasterToItemCode :: Entity StockMaster -> ItemCode
+stockMasterToItemCode (Entity stockIdKey StockMaster{..}) = let
+  sku = unStockMasterKey stockIdKey
+  itemCodeItemCode = sku
+  itemCodeStockId = sku
+  itemCodeDescription=stockMasterDescription
+  itemCodeCategoryId = stockMasterCategoryId
+  itemCodeQuantity = 1
+  itemCodeIsForeign = False
+  itemCodeInactive = stockMasterInactive
+  in ItemCode{..}
 
 -- ** Helpers
 -- | Lookup for list of variation code
@@ -382,6 +433,12 @@ columnsFor ItemPriceView infos = map PriceColumn cols where
   cols = salesPricesColumns $ map  iiInfo  infos
 columnsFor ItemPurchaseView infos = map PurchaseColumn cols where
   cols = purchasePricesColumns $ map  iiInfo  infos
+columnsFor ItemWebStatusView _ = map FAStatusColumn fas where
+  fas = [ "Quantity On Hand"
+        , "On Demand"
+        , "On Order"
+        ]
+
 columnsFor ItemAllView _ = []
 
 itemsTable :: IndexParam ->  Handler Widget
@@ -428,6 +485,7 @@ itemsTable param = do
                         GLColumn name ->  columnForSMI name =<< impMaster master
                         PriceColumn i -> columnForPrices i =<< impSalesPrices master 
                         PurchaseColumn i -> columnForPurchData i =<< impPurchasePrices master 
+                        FAStatusColumn name -> columnForFAStatus name =<< impFAStatus master
 
             differs = or diffs where
               diffs = [ "text-danger" `elem `kls
@@ -508,23 +566,14 @@ columnForPurchData colInt purchData = do -- Maybe
   value <- IntMap.lookup colInt purchData
   return $ toHtml . tshow <$> pdfPrice value where
 
+columnForFAStatus :: Text -> (ItemStatusF ((,) [Text])) -> Maybe ([Text], Html)
+columnForFAStatus col ItemStatus{..} =
+  case col of
+    "Quantity On Hand" -> Just (toHtml . tshow <$> isfQoh)
+    "On Demand" -> Just (toHtml . tshow <$> isfOnDemand)
+    "On Order" -> Just (toHtml . tshow <$> isfOnOrder)
+    _ -> Nothing
 
-
-stockMasterToItemCode :: Entity StockMaster -> ItemCode
-stockMasterToItemCode (Entity stockIdKey StockMaster{..}) = let
-  sku = unStockMasterKey stockIdKey
-  itemCodeItemCode = sku
-  itemCodeStockId = sku
-  itemCodeDescription=stockMasterDescription
-  itemCodeCategoryId = stockMasterCategoryId
-  itemCodeQuantity = 1
-  itemCodeIsForeign = False
-  itemCodeInactive = stockMasterInactive
-  in ItemCode{..}
-  
-
-
-  
 -- * Rendering
 renderIndex :: IndexParam -> Status -> Handler TypedContent
 renderIndex param0 status = do
@@ -622,6 +671,7 @@ getColumnToTitle param = do
             GLColumn gl -> Right gl
             PriceColumn i -> Right $ findWithDefault "" i (priceListNames :: IntMap Text)
             PurchaseColumn i -> Right $ findWithDefault "" i (supplierNames :: IntMap Text)
+            FAStatusColumn t -> Right t
           in toh title
     return go
 

@@ -29,6 +29,8 @@ setInfo :: Identity a -> ((,) [Text]) a
 setInfo (Identity a) = (["text-info"], a)
 setWarn :: Identity a -> ((,) [Text]) a
 setWarn (Identity a) = (["text-warning"], a)
+setPure :: Identity a -> ((,) [Text] a)
+setPure (Identity a) = ([], a)
 -- Generates diffFieldStockMasterF 
 $(mmZip "diffField" ''StockMasterF)
 $(mmZip "diffField" ''PriceF)
@@ -39,6 +41,7 @@ $(mmZipN 1 "setWarn" ''PriceF Nothing)
 $(mmZipN 1 "setDanger" ''PurchDataF Nothing)
 $(mmZipN 1 "setInfo" ''PurchDataF Nothing)
 $(mmZipN 1 "setWarn" ''PurchDataF Nothing)
+$(mmZipN 1 "setPure" ''ItemStatusF Nothing)
 
 
 -- -- * MinMax
@@ -78,13 +81,14 @@ computeItemsStatus adjustItem0 computeDiff_ item0 varMap items = let
 computeDiff :: ItemInfo (ItemMasterAndPrices Identity)
             -> ItemInfo (ItemMasterAndPrices Identity)
             -> ItemInfo (ItemMasterAndPrices ((,) [Text]))
-computeDiff item0 item@(ItemInfo style var _) = let
+computeDiff item0 item@(ItemInfo style var master) = let
   [i0, i] = (map (impMaster . iiInfo)  [item0, item]) :: [Maybe (StockMasterF Identity)]
   [s0, s] = (map (fromMaybe mempty .impSalesPrices . iiInfo)  [item0, item]) :: [(IntMap (PriceF Identity))]
   [p0, p] = (map (fromMaybe mempty .impPurchasePrices . iiInfo)  [item0, item]) :: [(IntMap (PurchDataF Identity))]
   diff = ItemMasterAndPrices (diffFieldStockMasterF <$>  i0 <*> i)
                              (Just $ diffPriceMap s0 s )
                              (Just $ diffPurchMap p0 p )
+                             (setPureItemStatusF1 <$> impFAStatus master)
 
   in ItemInfo style var (diff)
 
