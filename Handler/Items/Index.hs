@@ -45,8 +45,25 @@ data IndexColumn = GLColumn Text
             | StatusColumn
             deriving Show
 
--- * Utils
+-- * Handlers
+getItemsIndexR :: Maybe ItemViewMode -> Handler TypedContent
+getItemsIndexR mode = do
+  renderIndex (paramDef mode) ok200
 
+postItemsIndexR :: Maybe ItemViewMode -> Handler TypedContent
+postItemsIndexR mode = do
+  action <- lookupPostParam "button"
+  -- traceShowM ("POST",mode, paramDef mode)
+  (param,_,_) <- getPostIndexParam (paramDef mode)
+  -- traceShowM ("button", action)
+  case action of
+    Just "create" ->  do
+        createMissing param
+    _ -> return ()
+  renderIndex param ok200
+
+-- * Utils
+-- ** Filtering Expressions (Like or Regexp)
 showFilterExpression :: FilterExpression -> Text
 showFilterExpression (LikeFilter t) = t
 showFilterExpression (RegexFilter t) = "/" <> t
@@ -88,7 +105,91 @@ filterE conv field (Just (RegexFilter regex)) =
 filterEKeyword ::  FilterExpression -> (Text, Text)
 filterEKeyword (LikeFilter f) = ("LIKE", f)
 filterEKeyword (RegexFilter f) = ("RLIKE", f)
+-- ** Params and Forms
+paramDef :: Maybe ItemViewMode -> IndexParam
+paramDef mode = IndexParam Nothing Nothing Nothing False True
+                           mempty empty empty
+                           (fromMaybe ItemGLView mode)
+-- indexForm :: (MonadHandler m,
+--               RenderMessage (HandlerSite m) FormMessage)
+--           => [Text]
+--           -> IndexParam
+--           -> Markup
+--           -> MForm m (FormResult IndexParam, WidgetT (HandlerSite m) IO ())
+indexForm groups param = renderBootstrap3 BootstrapBasicForm form
+  where form = IndexParam
+          <$> (aopt filterEField "styles" (Just $ ipStyles param))
+          <*> (aopt filterEField "variations" (Just $ ipVariationsF param))
+          <*> (aopt (selectFieldList groups') "variation group" (Just $ ipVariationGroup param))
+          <*> (areq boolField "Show Inactive" (Just $ ipShowInactive param))
+          <*> (areq boolField "Show Extra" (Just $ ipShowExtra param))
+          <*> pure (ipBases param)
+          <*> pure (ipChecked param)
+          <*> pure (ipColumns param)
+          <*> pure (ipMode param)
+        groups' =  map (\g -> (g,g)) groups
 
+-- | Fill the parameters which are not in the form but have to be extracted
+-- from the request parameters
+fillTableParams :: IndexParam -> Handler IndexParam
+fillTableParams params0 = do
+  (params,_) <- runRequestBody
+  let checked = mapMaybe (stripPrefix "check-" . fst)  params
+      bases = Map.fromList $ mapMaybe (\(k,v) -> stripPrefix "base-" k <&> (\b -> (b, v))
+                                     ) params
+  return $ params0 {ipChecked = checked, ipBases=bases}
+   
+
+-- getPostIndexParam :: IndexParam -> Handler (IndexParam, _
+getPostIndexParam param0 = do
+  varGroup <- appVariationGroups <$> getsYesod appSettings
+  ((resp, form), encType) <- runFormPost (indexForm (Map.keys varGroup) param0)
+  let param1 = case resp of
+        FormMissing -> param0
+        FormSuccess par -> par
+        FormFailure err ->  param0
+  param <- fillTableParams param1
+  return (param, form, encType)
+
+-- ** StyleAdjustment
+getAdjustBase :: Handler (ItemInfo (ItemMasterAndPrices Identity) -> Text -> ItemInfo (ItemMasterAndPrices Identity))
+getAdjustBase = do
+  settings <- appSettings <$> getYesod 
+  let varMap = appVariations settings
+      go item0@(ItemInfo style _ master ) var = let
+        stock = impMaster master
+        salesPrices = impSalesPrices master
+        purchasePrices = impPurchasePrices master
+        adj = adjustDescription varMap (iiVariation item0) var
+        sku = styleVarToSku style var
+        in item0  { iiInfo = master
+                    { impMaster = (\s -> s {smfDescription = smfDescription s <&> adj}) <$> stock
+                    , impSalesPrices = (fmap (\p -> p { pfStockId = Identity sku })
+                                       ) <$> salesPrices
+                    , impPurchasePrices = (fmap (\p -> p { pdfStockId = Identity sku })
+                                       ) <$> purchasePrices
+                    }
+                  }
+  when (null varMap ) $ do
+       setWarning "No variations have been defined. Pleasec contact your adminstrator."
+  return go
+
+-- Replace all occurrences of a variation name in the description
+-- for example "Red" "Black T-Shirt" => "Red T-Shirt"
+adjustDescription :: Map Text Text -> Text -> Text -> Text -> Text
+adjustDescription varMap var0 var desc =
+  case (lookupVars varMap var0, lookupVars varMap var) of
+    ([],_) -> desc
+    (_, []) -> desc
+    (vnames0, vnames) -> let
+      -- replace' a b c = traceShow (a,b,c,d) d where d = replace a b c
+      endos = [ (Endo $ replace (f vnames0) (f vnames))
+              | f0 <- [toTitle, toUpper, toLower ]
+              , let f vs = varsToVariation (map f0 vs)
+              ]
+      in appEndo (mconcat endos) desc
+-- * Load DB 
+-- ** StockMaster info
 loadVariations :: IndexParam
                -> Handler [ (ItemInfo (ItemMasterAndPrices Identity) -- base
                             , [ ( VariationStatus
@@ -141,8 +242,11 @@ loadVariations param = do
                   ) itemGroups
 
     
+-- ** Sales prices
 -- | Load sales prices 
 -- loadSalesPrices :: IndexParam -> Handler [ItemInfo (ItemMasterAndPrices Identity)]
+loadSalesPrices :: (MonadIO m)
+  => IndexParam -> ReaderT SqlBackend m [ItemInfo (ItemMasterAndPrices Identity)]
 loadSalesPrices param = do
   case (ipStyles param) of
      Just styleF |  ipMode param `elem` [ItemPriceView, ItemAllView] -> do
@@ -175,7 +279,11 @@ loadSalesPrices param = do
             
      _ -> return []
 
+-- ** Purchase prices
+-- | Load purchase prices
 -- loadPurchasePrices :: IndexParam -> Handler [ ItemInfo (Map Text Double) ]
+loadPurchasePrices :: (MonadIO m)
+  => IndexParam -> ReaderT SqlBackend m [ItemInfo (ItemMasterAndPrices Identity)]
 loadPurchasePrices param = do
   case (ipStyles param) of
      Just styleF |  ipMode param `elem` [ItemPurchaseView, ItemAllView] -> do
@@ -209,6 +317,8 @@ loadPurchasePrices param = do
             
      _ -> return []
   
+-- * Misc
+-- ** Style names conversion
 
 skuToStyleVar :: Text -> (Text, Text)
 skuToStyleVar sku = (style, var) where
@@ -218,12 +328,31 @@ skuToStyleVar sku = (style, var) where
 styleVarToSku :: Text -> Text -> Text
 styleVarToSku style var = style <> "-" <> var
 
+-- | Split a variation name to variations
+-- ex: A/B -> [A,B]
+variationToVars :: Text -> [Text]
+variationToVars var = splitOn "/" var
+
+
+-- | Inverse of variationToVars
+varsToVariation :: [Text] -> Text
+varsToVariation vars = intercalate "/" vars
+
+-- ** Type conversions
 stockItemMasterToItem :: (Entity FA.StockMaster) -> ItemInfo (ItemMasterAndPrices Identity)
 stockItemMasterToItem (Entity key val) = ItemInfo  style var master where
             sku = unStockMasterKey key
             (style, var) = skuToStyleVar sku
             master = mempty { impMaster = Just (runIdentity (aStockMasterToStockMasterF val)) }
 
+
+-- ** Helpers
+-- | Lookup for list of variation code
+lookupVars :: Map Text Text -> Text -> [Text]
+lookupVars varMap = mapMaybe (flip Map.lookup varMap) . variationToVars
+
+
+-- ** Table Infos
 -- | List or columns for a given mode
 columnsFor :: ItemViewMode -> [ItemInfo (ItemMasterAndPrices f)] -> [IndexColumn]
 columnsFor ItemGLView _ = map GLColumn cols where
@@ -342,67 +471,61 @@ itemsTable param = do
                                     .map styleFirst $ rowGroup))
                       
 
--- | Fill the parameters which are not in the form but have to be extracted
--- from the request parameters
-fillTableParams :: IndexParam -> Handler IndexParam
-fillTableParams params0 = do
-  (params,_) <- runRequestBody
-  let checked = mapMaybe (stripPrefix "check-" . fst)  params
-      bases = Map.fromList $ mapMaybe (\(k,v) -> stripPrefix "base-" k <&> (\b -> (b, v))
-                                     ) params
-  return $ params0 {ipChecked = checked, ipBases=bases}
-   
+-- *** columns
+columnForSMI :: Text -> (StockMasterF ((,) [Text])) -> Maybe ([Text], Html)
+columnForSMI col stock =
+  case col of 
+    "categoryId"             -> Just (toHtml . tshow <$> smfCategoryId stock )
+    "taxTypeId"              -> Just $ toHtml <$> smfTaxTypeId stock 
+    "description"            -> Just $ toHtml <$>  smfDescription stock 
+    "longDescription"        -> Just $ toHtml <$> smfLongDescription stock 
+    "units"                  -> Just $ toHtml <$>  smfUnits stock 
+    "mbFlag"                 -> Just $ toHtml <$>  smfMbFlag stock 
+    "salesAccount"           -> Just $ toHtml <$>  smfSalesAccount stock 
+    "cogsAccount"            -> Just $ toHtml <$>  smfCogsAccount stock 
+    "inventoryAccount"       -> Just $ toHtml <$>  smfInventoryAccount stock 
+    "adjustmentAccount"      -> Just $ toHtml <$>  smfAdjustmentAccount stock 
+    "assemblyAccount"        -> Just $ toHtml <$>  smfAssemblyAccount stock 
+    "dimensionId"            -> Just $ toHtml . tshowM  <$> smfDimensionId stock 
+    "dimension2Id"           -> Just $ toHtml . tshowM <$> smfDimension2Id stock 
+    "actualCost"             -> Just $ toHtml <$> smfActualCost stock 
+    "lastCost"               -> Just $ toHtml <$> smfLastCost stock 
+    "materialCost"           -> Just $ toHtml <$> smfMaterialCost stock 
+    "labourCost"             -> Just $ toHtml <$> smfLabourCost stock 
+    "overheadCost"           -> Just $ toHtml <$> smfOverheadCost stock 
+    "inactive"               -> Just $ toHtml <$> smfInactive stock 
+    "noSale"                 -> Just $ toHtml <$> smfNoSale stock 
+    "editable"               -> Just $ toHtml <$> smfEditable stock 
+    _ -> Nothing
 
--- getPostIndexParam :: IndexParam -> Handler (IndexParam, _
-getPostIndexParam param0 = do
-  varGroup <- appVariationGroups <$> getsYesod appSettings
-  ((resp, form), encType) <- runFormPost (indexForm (Map.keys varGroup) param0)
-  let param1 = case resp of
-        FormMissing -> param0
-        FormSuccess par -> par
-        FormFailure err ->  param0
-  param <- fillTableParams param1
-  return (param, form, encType)
+columnForPrices :: Int -> (IntMap (PriceF ((,) [Text]))) -> Maybe ([Text], Html)
+columnForPrices colInt prices = do -- Maybe
+  value <- IntMap.lookup colInt prices
+  return $ toHtml . tshow <$> pfPrice value where
+
+columnForPurchData :: Int -> (IntMap (PurchDataF ((,) [Text]))) -> Maybe ([Text], Html)
+columnForPurchData colInt purchData = do -- Maybe
+  value <- IntMap.lookup colInt purchData
+  return $ toHtml . tshow <$> pdfPrice value where
+
+
+
+stockMasterToItemCode :: Entity StockMaster -> ItemCode
+stockMasterToItemCode (Entity stockIdKey StockMaster{..}) = let
+  sku = unStockMasterKey stockIdKey
+  itemCodeItemCode = sku
+  itemCodeStockId = sku
+  itemCodeDescription=stockMasterDescription
+  itemCodeCategoryId = stockMasterCategoryId
+  itemCodeQuantity = 1
+  itemCodeIsForeign = False
+  itemCodeInactive = stockMasterInactive
+  in ItemCode{..}
+  
+
+
   
 -- * Rendering
-paramDef :: Maybe ItemViewMode -> IndexParam
-paramDef mode = IndexParam Nothing Nothing Nothing False True
-                           mempty empty empty
-                           (fromMaybe ItemGLView mode)
-getItemsIndexR :: Maybe ItemViewMode -> Handler TypedContent
-getItemsIndexR mode = do
-  renderIndex (paramDef mode) ok200
-
-postItemsIndexR :: Maybe ItemViewMode -> Handler TypedContent
-postItemsIndexR mode = do
-  action <- lookupPostParam "button"
-  -- traceShowM ("POST",mode, paramDef mode)
-  (param,_,_) <- getPostIndexParam (paramDef mode)
-  -- traceShowM ("button", action)
-  case action of
-    Just "create" ->  do
-        createMissing param
-    _ -> return ()
-  renderIndex param ok200
--- indexForm :: (MonadHandler m,
---               RenderMessage (HandlerSite m) FormMessage)
---           => [Text]
---           -> IndexParam
---           -> Markup
---           -> MForm m (FormResult IndexParam, WidgetT (HandlerSite m) IO ())
-indexForm groups param = renderBootstrap3 BootstrapBasicForm form
-  where form = IndexParam
-          <$> (aopt filterEField "styles" (Just $ ipStyles param))
-          <*> (aopt filterEField "variations" (Just $ ipVariationsF param))
-          <*> (aopt (selectFieldList groups') "variation group" (Just $ ipVariationGroup param))
-          <*> (areq boolField "Show Inactive" (Just $ ipShowInactive param))
-          <*> (areq boolField "Show Extra" (Just $ ipShowExtra param))
-          <*> pure (ipBases param)
-          <*> pure (ipChecked param)
-          <*> pure (ipColumns param)
-          <*> pure (ipMode param)
-        groups' =  map (\g -> (g,g)) groups
-
 renderIndex :: IndexParam -> Status -> Handler TypedContent
 renderIndex param0 status = do
   (param, form, encType) <- getPostIndexParam param0
@@ -475,60 +598,8 @@ renderIndex param0 status = do
       returnJson (renderHtml html)
       
 
-
+-- ** css classes
   
-
-getAdjustBase :: Handler (ItemInfo (ItemMasterAndPrices Identity) -> Text -> ItemInfo (ItemMasterAndPrices Identity))
-getAdjustBase = do
-  settings <- appSettings <$> getYesod 
-  let varMap = appVariations settings
-      go item0@(ItemInfo style _ master ) var = let
-        stock = impMaster master
-        salesPrices = impSalesPrices master
-        purchasePrices = impPurchasePrices master
-        adj = adjustDescription varMap (iiVariation item0) var
-        sku = styleVarToSku style var
-        in item0  { iiInfo = master
-                    { impMaster = (\s -> s {smfDescription = smfDescription s <&> adj}) <$> stock
-                    , impSalesPrices = (fmap (\p -> p { pfStockId = Identity sku })
-                                       ) <$> salesPrices
-                    , impPurchasePrices = (fmap (\p -> p { pdfStockId = Identity sku })
-                                       ) <$> purchasePrices
-                    }
-                  }
-  when (null varMap ) $ do
-       setWarning "No variations have been defined. Pleasec contact your adminstrator."
-  return go
-
--- Replace all occurrences of a variation name in the description
--- for example "Red" "Black T-Shirt" => "Red T-Shirt"
-adjustDescription :: Map Text Text -> Text -> Text -> Text -> Text
-adjustDescription varMap var0 var desc =
-  case (lookupVars varMap var0, lookupVars varMap var) of
-    ([],_) -> desc
-    (_, []) -> desc
-    (vnames0, vnames) -> let
-      -- replace' a b c = traceShow (a,b,c,d) d where d = replace a b c
-      endos = [ (Endo $ replace (f vnames0) (f vnames))
-              | f0 <- [toTitle, toUpper, toLower ]
-              , let f vs = varsToVariation (map f0 vs)
-              ]
-      in appEndo (mconcat endos) desc
-
--- | Split a variation name to variations
--- ex: A/B -> [A,B]
-variationToVars :: Text -> [Text]
-variationToVars var = splitOn "/" var
-
-
--- | Inverse of variationToVars
-varsToVariation :: [Text] -> Text
-varsToVariation vars = intercalate "/" vars
-
--- | Lookup for list of variation code
-lookupVars :: Map Text Text -> Text -> [Text]
-lookupVars varMap = mapMaybe (flip Map.lookup varMap) . variationToVars
-
 
 getColumnToTitle :: IndexParam -> Handler (IndexColumn -> (Html, [Text]))
 getColumnToTitle param = do
@@ -558,6 +629,7 @@ columnClass :: IndexColumn -> Text
 columnClass col = filter (/= ' ') (tshow col)
 
 -- * Actions
+-- ** Missings
 createMissing :: IndexParam -> Handler ()
 createMissing params = do
   -- load inactive as well to avoid trying to create missing product
@@ -643,56 +715,3 @@ createMissing params = do
 
   setSuccess (toHtml $ tshow (maximumEx [length stockMasters, length prices, length purchData]) <> " items succesfully created.")
   return ()
--- * columns
-columnForSMI :: Text -> (StockMasterF ((,) [Text])) -> Maybe ([Text], Html)
-columnForSMI col stock =
-  case col of 
-    "categoryId"             -> Just (toHtml . tshow <$> smfCategoryId stock )
-    "taxTypeId"              -> Just $ toHtml <$> smfTaxTypeId stock 
-    "description"            -> Just $ toHtml <$>  smfDescription stock 
-    "longDescription"        -> Just $ toHtml <$> smfLongDescription stock 
-    "units"                  -> Just $ toHtml <$>  smfUnits stock 
-    "mbFlag"                 -> Just $ toHtml <$>  smfMbFlag stock 
-    "salesAccount"           -> Just $ toHtml <$>  smfSalesAccount stock 
-    "cogsAccount"            -> Just $ toHtml <$>  smfCogsAccount stock 
-    "inventoryAccount"       -> Just $ toHtml <$>  smfInventoryAccount stock 
-    "adjustmentAccount"      -> Just $ toHtml <$>  smfAdjustmentAccount stock 
-    "assemblyAccount"        -> Just $ toHtml <$>  smfAssemblyAccount stock 
-    "dimensionId"            -> Just $ toHtml . tshowM  <$> smfDimensionId stock 
-    "dimension2Id"           -> Just $ toHtml . tshowM <$> smfDimension2Id stock 
-    "actualCost"             -> Just $ toHtml <$> smfActualCost stock 
-    "lastCost"               -> Just $ toHtml <$> smfLastCost stock 
-    "materialCost"           -> Just $ toHtml <$> smfMaterialCost stock 
-    "labourCost"             -> Just $ toHtml <$> smfLabourCost stock 
-    "overheadCost"           -> Just $ toHtml <$> smfOverheadCost stock 
-    "inactive"               -> Just $ toHtml <$> smfInactive stock 
-    "noSale"                 -> Just $ toHtml <$> smfNoSale stock 
-    "editable"               -> Just $ toHtml <$> smfEditable stock 
-    _ -> Nothing
-
-columnForPrices :: Int -> (IntMap (PriceF ((,) [Text]))) -> Maybe ([Text], Html)
-columnForPrices colInt prices = do -- Maybe
-  value <- IntMap.lookup colInt prices
-  return $ toHtml . tshow <$> pfPrice value where
-
-columnForPurchData :: Int -> (IntMap (PurchDataF ((,) [Text]))) -> Maybe ([Text], Html)
-columnForPurchData colInt purchData = do -- Maybe
-  value <- IntMap.lookup colInt purchData
-  return $ toHtml . tshow <$> pdfPrice value where
-
-
-
-stockMasterToItemCode :: Entity StockMaster -> ItemCode
-stockMasterToItemCode (Entity stockIdKey StockMaster{..}) = let
-  sku = unStockMasterKey stockIdKey
-  itemCodeItemCode = sku
-  itemCodeStockId = sku
-  itemCodeDescription=stockMasterDescription
-  itemCodeCategoryId = stockMasterCategoryId
-  itemCodeQuantity = 1
-  itemCodeIsForeign = False
-  itemCodeInactive = stockMasterInactive
-  in ItemCode{..}
-  
-
-
