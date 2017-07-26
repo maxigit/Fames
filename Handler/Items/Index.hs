@@ -217,9 +217,10 @@ loadVariations param = do
                           [Asc FA.StockMasterId]
     variations <- case varF of
       (Right Nothing) -> return (Left $ map  entityKey styles)
-      (Left filter_)  -> Left <$> selectKeysList (filterE conv FA.StockMasterId (Just filter_)
-                                            <> [FA.StockMasterInactive ==. False ]
-                                            )
+      (Left filter_)  -> (Left . map entityKey) <$> selectList -- selectKeysList bug. fixed but not in current LTS
+                                 (filterE conv FA.StockMasterId (Just filter_)
+                                 <> [FA.StockMasterInactive ==. False ]
+                                 )
                                             [Asc FA.StockMasterId]
       (Right (Just group_)) -> return $ Right (Map.findWithDefault [] group_ varGroupMap)
     salesPrices <- loadSalesPrices param
