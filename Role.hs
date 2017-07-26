@@ -3,7 +3,7 @@ module Role where
 
 import ClassyPrelude.Yesod
 import qualified Data.Text as Text
-
+import qualified Data.Set as Set
 -- * Types
 -- | Read or Write request
 data WriteRequest = ReadRequest | WriteRequest deriving (Eq, Read, Show, Ord)
@@ -50,7 +50,8 @@ filterPermissions _ perms (RoleRoute _ _) = perms
 
 authorizeFromAttributes :: Role -> Set Text -> WriteRequest -> Bool
 authorizeFromAttributes _ attrs _ | null attrs = False
-authorizeFromAttributes role attrs wreq = null $ (filterPermissions wreq) attrs role
+authorizeFromAttributes role attrs wreq = null $ (filterPermissions wreq) attrs' role
+  where attrs'= Set.filter ('=' `notElem`) attrs -- remove key=value attributes
 
 authorizeFromPath :: Role -> URL -> WriteRequest-> Bool
 authorizeFromPath Administrator _ _ = True
