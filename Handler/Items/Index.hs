@@ -595,8 +595,14 @@ columnForFAStatus col iStatus@ItemStatusF{..} =
     "On Demand" -> Just (toHtml . tshow <$> isfOnDemand)
     "On Demand (all)" -> Just (toHtml . tshow <$> isfAllOnDemand)
     "On Order" -> Just (toHtml . tshow <$> isfOnOrder)
-    "Status" -> Just (toHtml . drop 2 . tshow <$> faRunningStatus iStatus )
+    "Status" -> Just (statusBadge <$> faRunningStatus iStatus )
     _ -> Nothing
+  where statusBadge st = case st of
+          FARunning ->  [shamlet|<span.label.label-success>Running|]
+          FAAsleep ->  [shamlet|<span.label.label-warning>Asleep|]
+          FADead ->  [shamlet|<span.label.label-danger>Dead|]
+          FAGhost ->  [shamlet|<span.label.label-info>Ghost|]
+
 
 -- * Rendering
 renderIndex :: IndexParam -> Status -> Handler TypedContent
