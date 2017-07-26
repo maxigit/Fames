@@ -330,8 +330,8 @@ loadStatus param = do
     Just styleF | ipMode param `elem` [ItemWebStatusView] -> do
       let sql = "SELECT stock_id, COALESCE(qoh, 0), COALESCE(all_qoh, 0)"
               <> " , COALESCE(on_demand, 0), COALESCE(all_on_demand, 0) "
-              <> ", 0 " -- ,  on_demand, on_order"
-              <> ", 1 " -- , used
+              <> " , COALESCE(on_order,0) "
+              <> " , ordered, demanded "
               <> " FROM 0_stock_master  "
               <> " LEFT  JOIN (SELECT stock_id, SUM(qty*stock_weight) as qoh, SUM(qty) as all_qoh"
               <> "       FROM 0_stock_moves JOIN 0_locations USING(loc_code) "
@@ -339,13 +339,20 @@ loadStatus param = do
               <> "      ) qoh USING(stock_id)"
               <> " LEFT JOIN (SELECT stk_code stock_id, SUM((quantity-qty_sent)*order_weight) as on_demand "
               <> "                                    , SUM((quantity-qty_sent)) as all_on_demand "
+              <> "                                    , 1 AS demanded "
               <> "       FROM 0_sales_order_details "
               <> "       JOIN 0_sales_orders USING (order_no, trans_type)"
               <> "       JOIN 0_locations ON(from_stk_loc = loc_code) "
               <> "       WHERE trans_type = 30 "
-              <> "              AND expiry_date > (NOW()- INTERVAL 7 DAY)" -- filter expired order
+              <> "              AND expiry_date > (NOW())" -- filter expired order
               <> "       GROUP BY stk_code"
               <> "      ) demand USING (stock_id)"
+              <> " LEFT JOIN (SELECT item_code AS stock_id "
+              <> "                   , SUM(quantity_ordered-quantity_received) on_order"
+              <> "                   , 1 AS ordered "
+              <> "            FROM 0_purch_order_details "
+              <> "            GROUP BY stock_id"
+              <> "           ) on_order USING (stock_id)"
               <> " WHERE stock_id " <> fKeyword <> "?"
               <> inactive
           (fKeyword, p) = filterEKeyword styleF
@@ -356,9 +363,10 @@ loadStatus param = do
       return [ ItemInfo style var master
              | (Single sku, Single qoh, Single allQoh
                , Single onDemand, Single allOnDemand, Single onOrder
-               , Single used
+               , Single ordered, Single demanded
                ) <- rows
              , let (style, var) = skuToStyleVar sku
+             , let used = (demanded <|> ordered) == Just True
              , let status = ItemStatusF (pure qoh) (pure allQoh)
                                        (pure onDemand) (pure allOnDemand)
                                        (pure onOrder)
@@ -449,6 +457,7 @@ columnsFor ItemWebStatusView _ = map FAStatusColumn fas where
         , "On Demand"
         , "On Demand (all)"
         , "On Order"
+        , "Status"
         ]
 
 columnsFor ItemAllView _ = []
@@ -579,13 +588,14 @@ columnForPurchData colInt purchData = do -- Maybe
   return $ toHtml . tshow <$> pdfPrice value where
 
 columnForFAStatus :: Text -> (ItemStatusF ((,) [Text])) -> Maybe ([Text], Html)
-columnForFAStatus col ItemStatusF{..} =
+columnForFAStatus col iStatus@ItemStatusF{..} =
   case col of
     "Quantity On Hand" -> Just (toHtml . tshow <$> isfQoh)
     "Quantity On Hand (all)" -> Just (toHtml . tshow <$> isfAllQoh)
     "On Demand" -> Just (toHtml . tshow <$> isfOnDemand)
     "On Demand (all)" -> Just (toHtml . tshow <$> isfAllOnDemand)
     "On Order" -> Just (toHtml . tshow <$> isfOnOrder)
+    "Status" -> Just (toHtml . drop 2 . tshow <$> faRunningStatus iStatus )
     _ -> Nothing
 
 -- * Rendering

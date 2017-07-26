@@ -164,11 +164,13 @@ purchasePricesColumns masters = pricesColumns impPurchasePrices masters
   
 
 -- * Status
-faRunningStatus :: ItemStatusF Identity -> FARunninStatus
-faRunningStatus ItemStatusF{..} = case () of
-  _ | isfQoh  > 0 || isfOnOrder > 0 -> FARunning
-  _ | isfAllQoh /= 0 || isfOnOrder > 0 || isfAllOnDemand > 0 -> FAAsleep
-  _ | isfUsed == Identity True -> FADead
-  _ -> FAGhost -- nothing is using it. It can be deleted
+faRunningStatus :: Applicative f => ItemStatusF f -> f FARunninStatus
+faRunningStatus ItemStatusF{..} = let
+  go qoh onOrder_  allQoh  onOrder  allOnDemand  used = case () of
+    _ | qoh  > 0 || onOrder_ > 0 -> FARunning
+    _ | allQoh /= 0 || onOrder > 0 || allOnDemand > 0 -> FAAsleep
+    _ | used == True -> FADead
+    _ -> FAGhost -- nothing is using it. It can be deleted
+  in go <$> isfQoh <*> isfOnOrder <*> isfAllQoh <*> isfOnOrder <*> isfAllOnDemand <*> isfUsed 
       
   
