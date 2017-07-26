@@ -44,7 +44,7 @@ $(mmZipN 1 "setWarn" ''PurchDataF Nothing)
 $(mmZipN 1 "setPure" ''ItemStatusF Nothing)
 
 
--- -- * MinMax
+-- * MinMax
 minMax :: a -> MinMax a
 minMax a = MinMax a a
  
@@ -52,7 +52,7 @@ minMax a = MinMax a a
 
   -- mappend = mappendStockMasterF
 
-
+-- * Diff
 -- | Check the status of an item variation given a list of expected variation
 -- As well as checking if the variation exists, or is extra is also compares it
 -- to a reference items, to check if the information are the same.
@@ -102,6 +102,7 @@ diffPurchMap a b = let
   in these setWarnPurchDataF1 setInfoPurchDataF1 diffFieldPurchDataF <$> aligned
 
   
+-- * Join variations
 -- | Computes the VariationStatus ie if variations are present
 -- or not in the given map. "Missing" .i.e where the variation
 -- is not present in the variation map will be created from item0
@@ -148,6 +149,7 @@ mergeInfoSources sources = let
   in [ ItemInfo style var i | (ItemInfo style var (), i) <- Map.toList merged]
   
 
+-- * Columns
 pricesColumns field masters =
   let colSetFor m  = keysSet m
       cols = mapMaybe (fmap colSetFor . field ) masters
@@ -159,4 +161,14 @@ salesPricesColumns masters = pricesColumns impSalesPrices masters
 
 purchasePricesColumns ::  [ItemMasterAndPrices f] -> [Int]
 purchasePricesColumns masters = pricesColumns impPurchasePrices masters
+  
+
+-- * Status
+faRunningStatus :: ItemStatusF Identity -> FARunninStatus
+faRunningStatus ItemStatusF{..} = case () of
+  _ | isfQoh  > 0 || isfOnOrder > 0 -> FARunning
+  _ | isfAllQoh /= 0 || isfOnOrder > 0 || isfAllOnDemand > 0 -> FAAsleep
+  _ | isfUsed == Identity True -> FADead
+  _ -> FAGhost -- nothing is using it. It can be deleted
+      
   

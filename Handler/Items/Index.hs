@@ -328,13 +328,17 @@ loadStatus :: (MonadIO m)
 loadStatus param = do 
   case (ipStyles param) of
     Just styleF | ipMode param `elem` [ItemWebStatusView] -> do
-      let sql = "SELECT stock_id, COALESCE(qoh, 0), COALESCE(on_demand, 0), 0 " -- ,  on_demand, on_order"
+      let sql = "SELECT stock_id, COALESCE(qoh, 0), COALESCE(all_qoh, 0)"
+              <> " , COALESCE(on_demand, 0), COALESCE(all_on_demand, 0) "
+              <> ", 0 " -- ,  on_demand, on_order"
+              <> ", 1 " -- , used
               <> " FROM 0_stock_master  "
-              <> " LEFT  JOIN (SELECT stock_id, SUM(qty*stock_weight) as qoh"
+              <> " LEFT  JOIN (SELECT stock_id, SUM(qty*stock_weight) as qoh, SUM(qty) as all_qoh"
               <> "       FROM 0_stock_moves JOIN 0_locations USING(loc_code) "
               <> "       GROUP BY stock_id"
               <> "      ) qoh USING(stock_id)"
               <> " LEFT JOIN (SELECT stk_code stock_id, SUM((quantity-qty_sent)*order_weight) as on_demand "
+              <> "                                    , SUM((quantity-qty_sent)) as all_on_demand "
               <> "       FROM 0_sales_order_details "
               <> "       JOIN 0_sales_orders USING (order_no, trans_type)"
               <> "       JOIN 0_locations ON(from_stk_loc = loc_code) "
@@ -350,9 +354,15 @@ loadStatus param = do
                        else " AND inactive = 0"
       rows <- rawSql sql [PersistText p]
       return [ ItemInfo style var master
-             | (Single sku, Single qoh, Single on_demand, Single on_order) <- rows
+             | (Single sku, Single qoh, Single allQoh
+               , Single onDemand, Single allOnDemand, Single onOrder
+               , Single used
+               ) <- rows
              , let (style, var) = skuToStyleVar sku
-             , let status = ItemStatus (pure qoh) (pure on_demand) (pure on_order)
+             , let status = ItemStatusF (pure qoh) (pure allQoh)
+                                       (pure onDemand) (pure allOnDemand)
+                                       (pure onOrder)
+                                       (pure used)
              , let master = mempty { impFAStatus = Just status}
              ]
     _ -> return []
@@ -435,7 +445,9 @@ columnsFor ItemPurchaseView infos = map PurchaseColumn cols where
   cols = purchasePricesColumns $ map  iiInfo  infos
 columnsFor ItemWebStatusView _ = map FAStatusColumn fas where
   fas = [ "Quantity On Hand"
+        , "Quantity On Hand (all)"
         , "On Demand"
+        , "On Demand (all)"
         , "On Order"
         ]
 
@@ -567,10 +579,12 @@ columnForPurchData colInt purchData = do -- Maybe
   return $ toHtml . tshow <$> pdfPrice value where
 
 columnForFAStatus :: Text -> (ItemStatusF ((,) [Text])) -> Maybe ([Text], Html)
-columnForFAStatus col ItemStatus{..} =
+columnForFAStatus col ItemStatusF{..} =
   case col of
     "Quantity On Hand" -> Just (toHtml . tshow <$> isfQoh)
+    "Quantity On Hand (all)" -> Just (toHtml . tshow <$> isfAllQoh)
     "On Demand" -> Just (toHtml . tshow <$> isfOnDemand)
+    "On Demand (all)" -> Just (toHtml . tshow <$> isfAllOnDemand)
     "On Order" -> Just (toHtml . tshow <$> isfOnOrder)
     _ -> Nothing
 
@@ -646,7 +660,7 @@ renderIndex param0 status = do
       html <- withUrlRenderer (pageBody table)
       returnJson (renderHtml html)
       
-
+  
 -- ** css classes
   
 

@@ -79,10 +79,13 @@ instance Applicative MinMax where
 data ItemPriceF f = ItemPriceF (IntMap (f Double))
 
 -- | FA status
-data ItemStatusF f = ItemStatus
-  { isfQoh :: f Int
-  , isfOnDemand :: f Int -- sales
+data ItemStatusF f = ItemStatusF
+  { isfQoh :: f Int -- real Qoh 
+  , isfAllQoh :: f Int -- Qoh including lost location 
+  , isfOnDemand :: f Int -- active sales
+  , isfAllOnDemand :: f Int -- sales including cancelled or expired
   , isfOnOrder :: f Int -- coming
+  , isfUsed :: f Bool -- has been used
   } 
 -- | Information hold in item index
 -- aggregate of stock master table, sales and purchase prices
@@ -109,3 +112,12 @@ instance Monoid (ItemMasterAndPrices f) where
   mempty = ItemMasterAndPrices Nothing Nothing Nothing Nothing
   (ItemMasterAndPrices m s p st) `mappend` (ItemMasterAndPrices m' s' p' st')
      = ItemMasterAndPrices (m <|> m') (s <|> s') (p <|> p') (st <|> st')
+
+-- | Whereas an item is running or not.
+data FARunninStatus = FARunning -- ^ can and need to be sold
+                    | FAAsleep -- ^ Not used but still present in cancelled or expired order/location. Probably needs cleaning up before set to inactive.
+
+                    | FADead -- ^ Not used anymore but can't be deleted because of exists in previous trans.
+                    | FAGhost -- ^ In the system but can be deleted.
+                    deriving (Show, Read, Eq)
+
