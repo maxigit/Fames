@@ -63,6 +63,14 @@ postItemsIndexR mode = do
     _ -> return ()
   renderIndex param ok200
 
+-- | User authorized to see purchase prices or not ?
+purchaseAuth :: Handler Bool
+purchaseAuth = do
+  settings <- appSettings <$> getYesod
+  mu <- maybeAuth
+  let role = roleFor (appRoleFor settings) (userIdent . entityVal <$> mu)
+  return $ null (filterPermissions ReadRequest (setFromList ["purchase/prices"]) role)
+
 -- * Utils
 -- ** Filtering Expressions (Like or Regexp)
 showFilterExpression :: FilterExpression -> Text
@@ -470,6 +478,19 @@ itemsTable param = do
   itemGroups <- loadVariations param
 
   let allItems = [ items | (_, varStatus) <- itemGroups  , (_, items) <- varStatus]
+  -- don't display purchase prices if the user is not authorized
+  when (ipMode param == ItemPurchaseView) $ do
+    settings <- appSettings <$> getYesod
+    mu <- maybeAuth
+    let role = roleFor (appRoleFor settings) (userIdent . entityVal <$> mu)
+    when (not . null $ filterPermissions ReadRequest (setFromList ["purchase"]) role) $ do
+      permissionDenied "Can't acces Purchase prices"
+
+
+
+
+
+
   let columns = [CheckColumn, RadioColumn, StockIdColumn, StatusColumn] ++ columnsFor (ipMode param) allItems
 
   -- Church encoding ?
@@ -610,6 +631,10 @@ renderIndex :: IndexParam -> Status -> Handler TypedContent
 renderIndex param0 status = do
   (param, form, encType) <- getPostIndexParam param0
   ix <- itemsTable param
+  purchAuth <- purchaseAuth
+  if (ipMode param == ItemPurchaseView && not purchAuth)
+    then permissionDenied "Contact your system administrator"
+    else return ()
   let css = [cassius|
 #items-index
   tr.unchecked
@@ -644,7 +669,10 @@ renderIndex param0 status = do
   td.stock-master-radio span.label-info
     font-size: 60%
 |]
-  let navs = filter (/= ItemAllView) [minBound..maxBound] :: [ItemViewMode]
+  let navs = filter (\n -> n /= ItemAllView
+                           && ( n /= ItemPurchaseView || purchAuth -- don't display tab if not authorized
+                              )
+                    ) [minBound..maxBound] :: [ItemViewMode]
       mode = ipMode param
       navClass nav = if mode == nav then "active" else "" :: Html
   let widget = [whamlet|
