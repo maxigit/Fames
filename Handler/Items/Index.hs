@@ -661,8 +661,9 @@ renderIndex param0 status = do
   let css = [cassius|
 #items-index
   tr.unchecked
-    opacity: 0.5
     font-weight: normal
+  tr
+    font-weight: bold
   th
     writing-mode: sideways-lr
   .clickable
