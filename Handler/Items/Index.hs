@@ -6,7 +6,6 @@ import Handler.Table
 import Yesod.Form.Bootstrap3
 import FA
 import Items
-import Text.Blaze (Markup)
 import qualified Data.Map as Map
 import Data.Monoid(Endo(..), appEndo)
 import Data.Text(toTitle, replace, splitOn)
@@ -14,7 +13,7 @@ import Text.Blaze.Html.Renderer.Text(renderHtml)
 import qualified Data.List as List
 import Database.Persist.MySQL hiding(replace)
 import qualified Data.IntMap.Strict as IntMap
-import Data.Maybe
+
 -- * Types
 -- | SQL text filter expression. Can be use either the LIKE syntax or the Regex one.
 -- Regex one starts with '/'.
@@ -60,6 +59,10 @@ postItemsIndexR mode = do
   case action of
     Just "create" ->  do
         createMissing param
+    Just "activate" -> do
+        activate param
+    Just "deactivate" -> do
+        deactivate param
     _ -> return ()
   renderIndex param ok200
 
@@ -150,15 +153,39 @@ fillTableParams params0 = do
    
 
 -- getPostIndexParam :: IndexParam -> Handler (IndexParam, _
+getPostIndexParam :: IndexParam -> HandlerT App IO (IndexParam, WidgetT App IO (), Enctype)
 getPostIndexParam param0 = do
   varGroup <- appVariationGroups <$> getsYesod appSettings
   ((resp, form), encType) <- runFormPost (indexForm (Map.keys varGroup) param0)
   let param1 = case resp of
         FormMissing -> param0
         FormSuccess par -> par
-        FormFailure err ->  param0
+        FormFailure _ ->  param0
   param <- fillTableParams param1
   return (param, form, encType)
+
+-- | Generates the filter which loads the variations corresponding to the given
+-- parameters.
+-- styleFilter.
+styleFilter :: IsString a => IndexParam -> Either a [Filter StockMaster]
+styleFilter param = 
+  let styleF = ipStyles param
+  in case styleF of
+      Nothing -> Left "Please enter a styles filter expression (SQL like expression or regexp starting with '/'')"
+      Just _ -> Right (filterE StockMasterKey FA.StockMasterId styleF
+                            ++ if (ipShowInactive param)
+                               then []
+                               else [FA.StockMasterInactive ==. False]
+                      )
+
+-- | Generates function to filter sku based on items which have been checked (checkbox)
+checkFilter :: IndexParam -> Text -> Bool
+checkFilter param sku = 
+  let set = setFromList (ipChecked param) :: Set Text
+      toKeep sku = case ipChecked param of
+        [] -> True
+        cs -> sku `member` set
+  in toKeep sku
 
 -- ** StyleAdjustment
 getAdjustBase :: Handler (ItemInfo (ItemMasterAndPrices Identity) -> Text -> ItemInfo (ItemMasterAndPrices Identity))
@@ -208,25 +235,21 @@ loadVariations :: IndexParam
                             )
                           ]
 loadVariations param = do
-  let styleF = ipStyles param
-      varF = ipVariations param
+  let varF = ipVariations param
       bases =  ipBases param
   adjustBase <- getAdjustBase
   varGroupMap <- appVariationGroups <$> appSettings <$> getYesod
   runDB $ do
-    let conv = StockMasterKey
-    styles <- case styleF of
-      Nothing -> do
-                setWarning "Please enter a styles filter expression (SQL like expression or regexp starting with '/'')"
+    styles <- case styleFilter param of
+      Left err -> do
+                setWarning err
                 return []
-      Just _ -> selectList (filterE conv FA.StockMasterId styleF
-                            ++ if (ipShowInactive param) then [] else [FA.StockMasterInactive ==. False]
-                          )
+      Right styleF -> selectList styleF
                           [Asc FA.StockMasterId]
     variations <- case varF of
       (Right Nothing) -> return (Left $ map  entityKey styles)
       (Left filter_)  -> (Left . map entityKey) <$> selectList -- selectKeysList bug. fixed but not in current LTS
-                                 (filterE conv FA.StockMasterId (Just filter_)
+                                 (filterE StockMasterKey FA.StockMasterId (Just filter_)
                                  <> [FA.StockMasterInactive ==. False ]
                                  )
                                             [Asc FA.StockMasterId]
@@ -692,8 +715,13 @@ renderIndex param0 status = do
         <button.btn.btn-danger type="submit" name="button" value="create">Create Missings
       $else
         <a href="#" data-toggle="tooltip" title="Please show unactive before creating missing items.">
-          <div.btn.btn-danger.disabled type="submit" name="button" value="create">
-            Create Missings
+          <div.btn.btn-danger.disabled type="submit" name="button" value="create"> Create Missings
+      $if (ipMode param == ItemWebStatusView)
+        <button.btn.btn-danger type="submit" name="button" value="activate">Activate
+        <button.btn.btn-warning type="submit" name="button" value="deactivate">Deactivate
+      $else
+          <div.btn.btn-warning.disabled type="submit" name="button" value=""> Activate
+          <div.btn.btn-warning.disabled type="submit" name="button" value=""> Deactivate
 |]
       fay = $(fayFile "ItemsIndex")
   selectRep $ do
@@ -749,17 +777,13 @@ createMissing params = do
                   mode -> mode
   traceShowM ("CREATE", newMode)
   itemGroups <- loadVariations (params {ipShowInactive = True, ipMode = newMode})
-  let toKeep sku = case ipChecked params of
-        [] -> True
-        cs -> let set = setFromList cs :: Set Text
-              in  traceShow ("lookup", sku, set) $ sku `member` set
-
+  let toKeep = checkFilter params
 
       missings = [ (sku, iiInfo info)
                  | (_, vars) <- itemGroups
                  , (status, info) <- vars
                  , let sku = styleVarToSku (iiStyle info) (iiVariation info)
-                 , traceShow (status, sku) $ status == VarMissing
+                 , {-traceShow (status, sku) $-} status == VarMissing
                  , toKeep sku
                  ]
   let stockMasters = [ Entity (StockMasterKey sku) var
@@ -793,7 +817,6 @@ createMissing params = do
          -- keep only new prices
          guard (status == VarMissing || "text-warning"  `elem` t)
          [price]
-            
             -- keep 
         
       -- TODO factorize with salesPrices
@@ -824,3 +847,28 @@ createMissing params = do
 
   setSuccess (toHtml $ tshow (maximumEx [length stockMasters, length prices, length purchData]) <> " items succesfully created.")
   return ()
+
+-- ** Activation
+changeActivation :: Bool -> IndexParam -> Handler ()
+changeActivation activate param =  runDB $ do
+  -- we set ShowInactive to true to not filter anything yet using (StockMasterInactive)
+  -- as it will be done before
+  entities <- case styleFilter param {ipMode = ItemGLView, ipShowInactive = True } of
+    Left err -> error err >> return []
+    Right filter_ ->  selectList ((StockMasterInactive ==. activate) : filter_) []
+  let toKeep = checkFilter param
+      keys_ = [ key
+             | (Entity key _) <- entities
+             , toKeep (unStockMasterKey key)
+             ] :: [Key StockMaster]
+  mapM_ (flip update [StockMasterInactive =. not activate]) keys_
+
+activate :: IndexParam -> Handler ()
+activate = changeActivation True
+
+
+
+
+deactivate :: IndexParam -> Handler ()
+deactivate = changeActivation False
+  
