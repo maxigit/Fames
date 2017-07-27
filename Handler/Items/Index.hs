@@ -563,7 +563,7 @@ itemsTable param = do
                       : (if differs then ["differs"] else ["no-diff"])
                       <> (if checked then [] else ["unchecked"])
                       <> case smfInactive <$> impMaster master of
-                          Just (_, True) -> ["text-muted"]
+                          Just (_, True) -> ["fa-inactive"] -- , "text-muted"]
                           _ -> []
                       -- ++ case status of
                       --     VarOk -> []
@@ -691,6 +691,9 @@ renderIndex param0 status = do
     font-weight: bold
   td.stock-master-radio span.label-info
     font-size: 60%
+  tr.fa-inactive
+    font-style: italic
+    background: #eee
 |]
   let navs = filter (\n -> n /= ItemAllView
                            && ( n /= ItemPurchaseView || purchAuth -- don't display tab if not authorized
