@@ -11,6 +11,30 @@ ItemRequest sql=0_item_requests
     coming Double Maybe sql=coming
     until Day Maybe sql=until
 
+Accesslog sql=accesslog
+    Id Int  sql=aid
+    sid Text  sql=sid
+    title Text Maybe sql=title default=NULL
+    path Text Maybe sql=path default=NULL
+    url Text Maybe sql=url default=NULL
+    hostname Text Maybe sql=hostname default=NULL
+    uid Int Maybe sql=uid
+    timer Int  sql=timer
+    timestamp Int  sql=timestamp
+
+Action sql=actions
+    Id Text  sql=aid
+    type Text  sql=type
+    callback Text  sql=callback
+    parameters ByteString  sql=parameters
+    label Text  sql=label
+
+AdvancedHelpIndex sql=advanced_help_index
+    Id Int  sql=sid
+    module Text  sql=module
+    topic Text  sql=topic
+    language Text  sql=language
+
 BoxDimension sql=box_dimensions
     style Text  sql=style
     numberOfBoxes Int  sql=numberOfBoxes

@@ -3,6 +3,9 @@
 -- Route
 /db/fax FAX'R !db !fax:
   /item_requests FAXItemRequestsR GET !title=item_requests !group=Tables
+  /accesslog FAXAccesslogR GET !title=accesslog 
+  /actions FAXActionsR GET !title=actions 
+  /advanced_help_index FAXAdvancedHelpIndexR GET !title=advanced_help_index 
   /box_dimensions FAXBoxDimensionsR GET !title=box_dimensions 
   /dispatched FAXDispatchedR GET !title=dispatched 
   /my_big_order FAXMyBigOrderR GET !title=my_big_order 

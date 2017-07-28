@@ -8,6 +8,15 @@ import FAX
 getFAXItemRequestsR :: Handler Html 
 getFAXItemRequestsR = entityTableHandler (FAX'R FAXItemRequestsR) ([] :: [Filter FAX.ItemRequest]) 
 
+getFAXAccesslogR :: Handler Html 
+getFAXAccesslogR = entityTableHandler (FAX'R FAXAccesslogR) ([] :: [Filter FAX.Accesslog]) 
+
+getFAXActionsR :: Handler Html 
+getFAXActionsR = entityTableHandler (FAX'R FAXActionsR) ([] :: [Filter FAX.Action]) 
+
+getFAXAdvancedHelpIndexR :: Handler Html 
+getFAXAdvancedHelpIndexR = entityTableHandler (FAX'R FAXAdvancedHelpIndexR) ([] :: [Filter FAX.AdvancedHelpIndex]) 
+
 getFAXBoxDimensionsR :: Handler Html 
 getFAXBoxDimensionsR = entityTableHandler (FAX'R FAXBoxDimensionsR) ([] :: [Filter FAX.BoxDimension]) 
 

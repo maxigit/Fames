@@ -81,6 +81,8 @@ deriving instance Generic (FAX'R)
 instance EnumTreeable (FAX'R) 
 deriving instance Generic (FAMES'R)
 instance EnumTreeable (FAMES'R) 
+deriving instance Generic (DC'R)
+instance EnumTreeable (DC'R) 
 
 instance EnumTreeable (Route App)
 
@@ -343,6 +345,7 @@ mainLinks = do
              , ("FA",  FA'R FADebtorsMasterR)
              , ("FAX",  FAX'R FAXItemRequestsR)
              , ("FAMES",  FAMES'R FAMESFamesBarcodeSeedR)
+             , ("DC",  DC'R DCNodeR)
              ]
       authorised (_, r) = do
         auth <- isAuthorized r False

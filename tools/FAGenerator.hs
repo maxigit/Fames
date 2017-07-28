@@ -33,7 +33,7 @@ data Column = Column
   } deriving (Show, Read, Eq, Ord)
 
 
-data FilterMode = All | OnlyFA | ExcludeFA | Fames deriving (Eq, Read, Show)
+data FilterMode = All | OnlyFA | ExcludeFA | Fames | DC deriving (Eq, Read, Show)
 
 -- loadSchema :: SQL IO [Table]
 loadSchema mode connectInfo database = do
@@ -42,8 +42,9 @@ loadSchema mode connectInfo database = do
       All    -> ""
       OnlyFA -> " AND " ++ faTables
       ExcludeFA ->
-        " AND NOT (" ++ faTables ++ ") AND table_name not like 'fames_%' "
+        " AND NOT (" ++ faTables ++ ") AND table_name not like 'fames_%' AND table_name not like 'dcx_%'"
       Fames -> "AND table_name like 'fames_%'"
+      DC -> ""
      where
       faTables = "table_name like '0_%' and table_name != '0_item_requests' "
   conn <- SQL.connect connectInfo
@@ -73,7 +74,10 @@ loadSchema mode connectInfo database = do
   makeTable rows =
     let name         = (fst . head $ rows)
         tableName    = dropNonLetterPrefix name
-        sqlName      = {-database ++ "." ++ -} name
+        sqlName      = (if mode == DC
+                       then ("dcx_" ++)
+                       else id
+                       ) {-database ++ "." ++ -} name
         tableColumns = (map makeColumn rows)
     in  Table {..}
   makeColumn (_, (name, dtype, nullable, primary)) =
@@ -89,11 +93,16 @@ main = do
   let (db, module_, mode) = case args of
         ["fax"] -> ("fa", "FAX", ExcludeFA)
         ["fames"] -> ("fa", "FAMES", Fames)
+        -- For the federated table, we need to get the information
+        -- from the federated table but not the view, as the view
+        -- lacks some columns information (like primary)
+        ["dc"] -> ("commerceX", "DC", DC)
         _       -> ("fa", "FA", OnlyFA)
       connectInfo         = SQL.defaultConnectInfo
          { SQL.connectHost = "127.0.0.1"
          , SQL.connectUser = "root"
          , SQL.connectPassword = "stag"
+         , SQL.connectPort = 3308
          , SQL.connectDatabase = db
          }
       moduleLower         = map toLower module_
@@ -103,7 +112,7 @@ main = do
   outModel <- openFile (printf "config/%s-models" moduleLower) WriteMode 
   hPutStrLn outModel "-- Warning ! This code has been generated !"
   hPutStrLn outModel "-- Model"
-  mapM_ (generateModel outModel) tables
+  mapM_ (generateModel mode outModel) tables
   hClose outModel
 
   outRoute <- openFile (printf "config/%s-routes" moduleLower) WriteMode
@@ -136,17 +145,17 @@ main = do
     ++ "\n\
 \\n"
 
-  mapM_ (generateHandler outHandler module_) tables
+  mapM_ (generateHandler mode outHandler module_) tables
   hClose outHandler
 
 
-generateModel :: Handle -> Table -> IO ()
-generateModel out Table {..} = do
-  hPrintf out "%s sql=%s\n" (model $ tableName) sqlName
+generateModel :: FilterMode -> Handle -> Table -> IO ()
+generateModel mode out Table {..} = do
+  hPrintf out "%s sql=%s\n" (model mode $ tableName) sqlName
   -- generate primary keys if composite
   let composites = filter ((==True) . columnIsPrimary) tableColumns
       -- fieldName' = show
-      fieldName Column{..} = if (columnIsPrimary  || columnName == "id") && length composites == 1
+      fieldName Column{..} = if (columnIsPrimary) && length composites == 1
                              then "Id"
                              else if columnName == "id"
                                   then "id_"
@@ -177,11 +186,14 @@ generateRoute out module_ Table {..} group = do
 handler :: String -> String -> String
 handler module_ s = printf "%s%sR" module_ (capitalize $ camelCase s)
 
-model :: String -> String
-model = capitalize . camelCase . singularize .sanitize
+model :: FilterMode -> String -> String
+model mode = capitalize . camelCase . singularize' .sanitize where
+  singularize' = case mode of
+    DC -> (++"T")
+    _ -> singularize
 
-generateHandler :: Handle -> String -> Table -> IO ()
-generateHandler out module_ Table {..} = do
+generateHandler :: FilterMode -> Handle -> String -> Table -> IO ()
+generateHandler mode out module_ Table {..} = do
   let handlerName = "get" ++ handler module_ tableName
   hPrintf out
     "\
@@ -193,7 +205,7 @@ generateHandler out module_ Table {..} = do
     module_
     (handler module_ tableName)
     module_
-    (model tableName)
+    (model mode tableName)
 
 
 

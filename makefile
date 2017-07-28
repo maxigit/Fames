@@ -39,7 +39,7 @@ devel:
 
 # From DB Handler and routes generatio
 .PHONY: config/routes.gen
-config/routes.gen: config/routes config/fa-routes config/fax-routes config/fames-routes
+config/routes.gen: config/routes config/fa-routes config/fax-routes config/fames-routes config/dc-routes
 	cat $^ > $@
 
 
