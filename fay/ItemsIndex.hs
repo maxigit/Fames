@@ -24,6 +24,7 @@ main = do
 main' :: Fay ()
 main' = do
   installCallbacks
+  installLabelCallbacks
   addCheckAll
   return ()
 installCallbacks = do
@@ -191,5 +192,42 @@ updateCheckAllStatus = do
   size <- jsize checked
   checkall <- select "#items-checkall"
   JQ.setProp "checked" (if size /= 0 then "true" else "false") checkall
+
+
+
+installLabelCallbacks = do
+  labels <- select "[data-label]"
+  jQueryMap installL labels
+  return ()
+
+-- | Install label callback to select or deselect row with similar label
+installL :: Double -> JQ.Element -> Fay JQuery
+installL index el = do
+  label <- select el
+  parentRow <- JQ.closestSelector "tr" label
+  checkBox <- findSelector "input[type=checkbox]" parentRow
+  valueDef <- JQ.getAttr "data-label" label
+  case valueDef of
+    Defined value ->  do
+        JQ.addClass "clickable" label -- change mouse pointer
+      -- find rows matching the same label
+        others <- select ("[data-label=" `FT.append` value  `FT.append` "]")
+        targets <- JQ.closestSelector "tr" others
+
+        onClick (\ev -> do
+                    -- depending on the value of the current row
+                    -- we either select or unselect all the targets
+                    checkedStr <- JQ.getProp "checked" checkBox
+                    checked <- jIsTrue checkedStr
+                    checkBoxes <- findSelector "input[type=checkbox]" targets
+                    JQ.setProp "checked" (if checked then "" else "checked") checkBoxes
+                    if checked -- need unchecking
+                      then JQ.addClass "unchecked" targets
+                      else JQ.removeClass "unchecked" targets
+                    updateCheckAllStatus
+                    return False
+                  ) label
+
+    _ -> return label
 
 

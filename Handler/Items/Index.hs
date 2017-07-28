@@ -526,8 +526,8 @@ itemsTable param = do
         let sku =  styleVarToSku style var
             checked = maybe True (sku `elem`) checkedItems
             missingLabel = case status of
-                                  VarMissing -> [shamlet| <span.label.label-warning> Missing |]
-                                  VarExtra -> [shamlet| <span.label.label-info> Extra |]
+                                  VarMissing -> [shamlet| <span.label.label-warning data-label=missing> Missing |]
+                                  VarExtra -> [shamlet| <span.label.label-info data-label=extra> Extra |]
                                   VarOk -> [shamlet||]
             val col = case col of
                         CheckColumn ->
@@ -544,7 +544,7 @@ itemsTable param = do
                           in Just ([], [hamlet|<a href=@{route} target="_blank">#{sku}|] renderUrl )
                         StatusColumn ->
                           let label = case differs of
-                                                True -> [shamlet| <span.label.label-danger> Diff |]
+                                                True -> [shamlet| <span.label.label-danger data-label=diff> Diff |]
                                                 _    -> [shamlet||]
                           in Just ([], [hamlet|#{label}|] renderUrl )
               
@@ -605,22 +605,27 @@ columnForSMI col stock =
     "longDescription"        -> Just $ toHtml <$> smfLongDescription stock 
     "units"                  -> Just $ toHtml <$>  smfUnits stock 
     "mbFlag"                 -> Just $ toHtml <$>  smfMbFlag stock 
-    "salesAccount"           -> Just $ toHtml <$>  smfSalesAccount stock 
-    "cogsAccount"            -> Just $ toHtml <$>  smfCogsAccount stock 
-    "inventoryAccount"       -> Just $ toHtml <$>  smfInventoryAccount stock 
-    "adjustmentAccount"      -> Just $ toHtml <$>  smfAdjustmentAccount stock 
-    "assemblyAccount"        -> Just $ toHtml <$>  smfAssemblyAccount stock 
-    "dimensionId"            -> Just $ toHtml . tshowM  <$> smfDimensionId stock 
-    "dimension2Id"           -> Just $ toHtml . tshowM <$> smfDimension2Id stock 
+    "salesAccount"           -> Just $ badgify "saccount" <$>  smfSalesAccount stock 
+    "cogsAccount"            -> Just $ badgify "caccount" <$>  smfCogsAccount stock 
+    "inventoryAccount"       -> Just $ badgify "siaccount" <$>  smfInventoryAccount stock 
+    "adjustmentAccount"      -> Just $ badgify "aaccount" <$>  smfAdjustmentAccount stock 
+    "assemblyAccount"        -> Just $ badgify "asaccount" <$>  smfAssemblyAccount stock 
+    "dimensionId"            -> Just $ badgify "dim1" . tshowM  <$> smfDimensionId stock 
+    "dimension2Id"           -> Just $ badgify "dim2" . tshowM <$> smfDimension2Id stock 
     "actualCost"             -> Just $ toHtml <$> smfActualCost stock 
     "lastCost"               -> Just $ toHtml <$> smfLastCost stock 
     "materialCost"           -> Just $ toHtml <$> smfMaterialCost stock 
     "labourCost"             -> Just $ toHtml <$> smfLabourCost stock 
     "overheadCost"           -> Just $ toHtml <$> smfOverheadCost stock 
-    "inactive"               -> Just $ toHtml <$> smfInactive stock 
+    "inactive"               -> Just $ badgify "active" . toActive <$> smfInactive stock 
     "noSale"                 -> Just $ toHtml <$> smfNoSale stock 
     "editable"               -> Just $ toHtml <$> smfEditable stock 
     _ -> Nothing
+  where
+    badgify :: Text -> Text -> Html
+    badgify label str = [shamlet|<span data-label=#{label}-#{str}>#{str}|]
+    toActive True = "Active"
+    toActive False = "Inactive"
 
 columnForPrices :: Int -> (IntMap (PriceF ((,) [Text]))) -> Maybe ([Text], Html)
 columnForPrices colInt prices = do -- Maybe
@@ -643,10 +648,10 @@ columnForFAStatus col iStatus@ItemStatusF{..} =
     "Status" -> Just (statusBadge <$> faRunningStatus iStatus )
     _ -> Nothing
   where statusBadge st = case st of
-          FARunning ->  [shamlet|<span.label.label-success>Running|]
-          FAAsleep ->  [shamlet|<span.label.label-warning>Asleep|]
-          FADead ->  [shamlet|<span.label.label-danger>Dead|]
-          FAGhost ->  [shamlet|<span.label.label-info>Ghost|]
+          FARunning ->  [shamlet|<span.label.label-success data-label=running>Running|]
+          FAAsleep ->  [shamlet|<span.label.label-warning data-label=asleep>Asleep|]
+          FADead ->  [shamlet|<span.label.label-danger data-label=dead>Dead|]
+          FAGhost ->  [shamlet|<span.label.label-info data-label=ghost>Ghost|]
 
 
 -- * Rendering
@@ -667,7 +672,7 @@ renderIndex param0 status = do
   th
     writing-mode: sideways-lr
   .clickable
-    cursor: crosshair
+    cursor: pointer
   tr.base.group-1 
     background: #f2dede
   tr.base.group-2 
