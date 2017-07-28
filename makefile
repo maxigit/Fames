@@ -61,7 +61,7 @@ test: up
 
 .PHONY: install
 install:
-	rsync -z .stack-work/install/x86_64-linux/lts-8.13/8.0.2/bin/Fames sinbad:prod/fames-config/bin/Fames
+	rsync -z .stack-work/install/x86_64-linux/lts-8.24/8.0.2/bin/Fames sinbad:prod/fames-config/bin/Fames
 
 install_local:
 	rsync -z .stack-work/install/x86_64-linux/lts-8.13/8.0.2/bin/Fames ../fames-config/bin/Fames
