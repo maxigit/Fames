@@ -52,6 +52,12 @@ $newline never
             <ul.nav.navbar-nav>
               $forall (title, route, active) <- mainNavLinks
                 <li :active:class=active><a href="@{route}">#{title}
+            <ul.nav.navbar-nav.navbar-right>
+              $case userM 
+                $of Nothing
+                  <li><a href="@{AuthR LoginR}">Login
+                $of Just user
+                  <li><a href="@{AuthR LogoutR}">#{userIdent user} Logout
         <div.col-md-2 style="min-height:100">
           $if (not (null suggested))
             <div.list-group.table-of-contents>

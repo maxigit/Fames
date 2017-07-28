@@ -120,6 +120,7 @@ instance Yesod App where
     yesodMiddleware = defaultYesodMiddleware
 
     defaultLayout widget = do
+        userM <- entityVal <$$> maybeAuth
         master <- getYesod
         msgs <- getMessages
         currentRoute <- getCurrentRoute
