@@ -42,6 +42,7 @@ $(mmZipN 1 "setDanger" ''PurchDataF Nothing)
 $(mmZipN 1 "setInfo" ''PurchDataF Nothing)
 $(mmZipN 1 "setWarn" ''PurchDataF Nothing)
 $(mmZipN 1 "setPure" ''ItemStatusF Nothing)
+$(mmZipN 1 "setPure" ''ItemWebStatusF Nothing)
 
 
 -- * MinMax
@@ -89,6 +90,7 @@ computeDiff item0 item@(ItemInfo style var master) = let
                              (Just $ diffPriceMap s0 s )
                              (Just $ diffPurchMap p0 p )
                              (setPureItemStatusF1 <$> impFAStatus master)
+                             (setPureItemWebStatusF1 <$> impWebStatus master)
 
   in ItemInfo style var (diff)
 

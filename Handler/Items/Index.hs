@@ -43,6 +43,7 @@ data IndexColumn = GLColumn Text
             | StockIdColumn
             | StatusColumn
             | FAStatusColumn Text
+            | WebStatusColumn Text
             deriving Show
 
 -- * Handlers
@@ -257,11 +258,13 @@ loadVariations param = do
     salesPrices <- loadSalesPrices param
     purchasePrices <- loadPurchasePrices param
     itemStatus <- loadStatus param
+    webStatus <- loadWebStatus param
 
     let itemStyles = mergeInfoSources [ map stockItemMasterToItem styles
                                       , salesPrices
                                       , purchasePrices
                                       , itemStatus
+                                      , webStatus
                                       ]
         itemVars =  case variations of
           Left keys -> map (snd . skuToStyleVar . unStockMasterKey) keys
@@ -352,7 +355,7 @@ loadPurchasePrices param = do
             
      _ -> return []
   
--- ** Status
+-- ** FA Status
 -- | Load item status, needed to know if an item can be deactivated or deleted safely
 -- This includes if items have been even ran, still in stock, on demand (sales) or on order (purchase)
 loadStatus :: (MonadIO m)
@@ -406,6 +409,33 @@ loadStatus param = do
              , let master = mempty { impFAStatus = Just status}
              ]
     _ -> return []
+
+-- ** Web Status
+    
+-- | Load Web Status, if item exists, have a product display, activated and the prices
+loadWebStatus ::  (MonadIO m)
+              => IndexParam -> ReaderT SqlBackend m [ItemInfo (ItemMasterAndPrices Identity)]
+loadWebStatus param = do
+  case (ipStyles param) of
+    Just styleF | ipMode param `elem` [ItemWebStatusView] -> do
+      let sql = "SELECT sku, product.status" -- , node.title"
+             <> " FROM dcx_commerce_product AS product "
+             -- <> " LEFT JOIN field_data_field_product ON (product_id = field_product_product_id"
+             -- <> "                                                     AND  entity_type = 'node')"
+             -- <> "         LEFT JOIN node ON (entity_id = nid)') "
+             <> " WHERE sku " <> fKeyword <> " ?"
+          (fKeyword, p) = filterEKeyword styleF
+      rows <- rawSql sql [PersistText p]
+      traceShowM rows
+      return [ItemInfo style var master
+             | (Single sku, Single active) <- rows
+             , let (style, var) = skuToStyleVar sku
+             , let webStatus = ItemWebStatusF  (pure active)
+             , let master = mempty { impWebStatus = Just webStatus}
+             ]
+    
+         
+    Nothing -> return []
 
 -- * Misc
 -- ** Style names conversion
@@ -483,7 +513,8 @@ columnsFor ItemPriceView infos = map PriceColumn cols where
   cols = salesPricesColumns $ map  iiInfo  infos
 columnsFor ItemPurchaseView infos = map PurchaseColumn cols where
   cols = purchasePricesColumns $ map  iiInfo  infos
-columnsFor ItemWebStatusView _ = map FAStatusColumn fas where
+columnsFor ItemWebStatusView _ = map FAStatusColumn fas <>
+                                 map WebStatusColumn webs where
   fas = [ "Quantity On Hand"
         , "Quantity On Hand (all)"
         , "On Demand"
@@ -491,8 +522,10 @@ columnsFor ItemWebStatusView _ = map FAStatusColumn fas where
         , "On Order"
         , "Status"
         ]
+  webs = ["Web Status"]
 
 columnsFor ItemAllView _ = []
+
 
 itemsTable :: IndexParam ->  Handler Widget
 itemsTable param = do
@@ -552,6 +585,7 @@ itemsTable param = do
                         PriceColumn i -> columnForPrices i =<< impSalesPrices master 
                         PurchaseColumn i -> columnForPurchData i =<< impPurchasePrices master 
                         FAStatusColumn name -> columnForFAStatus name =<< impFAStatus master
+                        WebStatusColumn name -> columnForWebStatus name (impWebStatus master)
 
             differs = or diffs where
               diffs = [ "text-danger" `elem `kls
@@ -653,6 +687,17 @@ columnForFAStatus col iStatus@ItemStatusF{..} =
           FADead ->  [shamlet|<span.label.label-danger data-label=dead>Dead|]
           FAGhost ->  [shamlet|<span.label.label-info data-label=ghost>Ghost|]
 
+columnForWebStatus :: Text -> Maybe (ItemWebStatusF ((,) [Text])) -> Maybe ([Text], Html)
+columnForWebStatus col wStatusM =
+  case col of
+    "Web Status" -> let
+      w  = (iwfActive `traverse` wStatusM)
+      in  Just (showActive <$>  w)
+    _ -> Nothing
+  where showActive (Just True) = [shamlet|<span.label.label-success data-label="web-enabled">Enabled|]
+        showActive (Just False) = [shamlet|<span.label.label-warning data-label="web-disabled">Disabled|]
+        showActive Nothing = [shamlet|<span.label.label-danger data-label="web-missing">Missing|]
+ 
 
 -- * Rendering
 renderIndex :: IndexParam -> Status -> Handler TypedContent
@@ -768,6 +813,7 @@ getColumnToTitle param = do
             PriceColumn i -> Right $ findWithDefault "" i (priceListNames :: IntMap Text)
             PurchaseColumn i -> Right $ findWithDefault "" i (supplierNames :: IntMap Text)
             FAStatusColumn t -> Right t
+            WebStatusColumn t -> Right t
           in toh title
     return go
 

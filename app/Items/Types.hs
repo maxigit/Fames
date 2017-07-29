@@ -87,6 +87,12 @@ data ItemStatusF f = ItemStatusF
   , isfOnOrder :: f Int -- coming
   , isfUsed :: f Bool -- has been used
   } 
+
+-- | Web Status
+data ItemWebStatusF f = ItemWebStatusF
+  { {- iwfProductDisplay :: f Text
+  -} iwfActive :: f Bool
+  }
 -- | Information hold in item index
 -- aggregate of stock master table, sales and purchase prices
 -- as well as FA and web status
@@ -95,23 +101,26 @@ data ItemMasterAndPrices f = ItemMasterAndPrices
   , impSalesPrices :: Maybe (IntMap (PriceF f))
   , impPurchasePrices :: Maybe (IntMap (PurchDataF f))
   , impFAStatus :: Maybe (ItemStatusF f)
+  , impWebStatus :: Maybe (ItemWebStatusF f)
   } 
 
 deriving instance Show (StockMasterF Identity)
 deriving instance Show (PriceF Identity)
 deriving instance Show (PurchDataF Identity)
 deriving instance Show (ItemStatusF Identity)
+deriving instance Show (ItemWebStatusF Identity)
 deriving instance Show (StockMasterF ((,) [Text]))
 deriving instance Show (PriceF ((,) [Text]))
 deriving instance Show (PurchDataF ((,) [Text]))
 deriving instance Show (ItemStatusF ((,) [Text]))
+deriving instance Show (ItemWebStatusF ((,) [Text]))
 deriving instance Show (ItemMasterAndPrices Identity)
 deriving instance Show (ItemMasterAndPrices ((,) [Text]))
  
 instance Monoid (ItemMasterAndPrices f) where
-  mempty = ItemMasterAndPrices Nothing Nothing Nothing Nothing
-  (ItemMasterAndPrices m s p st) `mappend` (ItemMasterAndPrices m' s' p' st')
-     = ItemMasterAndPrices (m <|> m') (s <|> s') (p <|> p') (st <|> st')
+  mempty = ItemMasterAndPrices Nothing Nothing Nothing Nothing Nothing
+  (ItemMasterAndPrices m s p st ws) `mappend` (ItemMasterAndPrices m' s' p' st' ws')
+     = ItemMasterAndPrices (m <|> m') (s <|> s') (p <|> p') (st <|> st') (ws <|> ws')
 
 -- | Whereas an item is running or not.
 data FARunninStatus = FARunning -- ^ can and need to be sold
