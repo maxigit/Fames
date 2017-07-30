@@ -418,24 +418,24 @@ loadWebStatus ::  (MonadIO m)
 loadWebStatus param = do
   case (ipStyles param) of
     Just styleF | ipMode param `elem` [ItemWebStatusView] -> do
-      let sql = "SELECT sku, product.status" -- , node.title"
+      let sql = "SELECT sku, product.status, dcx_node.title"
              <> " FROM dcx_commerce_product AS product "
-             -- <> " LEFT JOIN field_data_field_product ON (product_id = field_product_product_id"
-             -- <> "                                                     AND  entity_type = 'node')"
-             -- <> "         LEFT JOIN node ON (entity_id = nid)') "
+             <> " LEFT JOIN dcx_field_data_field_product ON (product_id = field_product_product_id"
+             <> "                                                     AND  entity_type = 'node')"
+             <> " LEFT JOIN dcx_node ON (entity_id = nid) "
              <> " WHERE sku " <> fKeyword <> " ?"
           (fKeyword, p) = filterEKeyword styleF
       rows <- rawSql sql [PersistText p]
       traceShowM rows
       return [ItemInfo style var master
-             | (Single sku, Single active) <- rows
+             | (Single sku, Single active, Single display) <- rows
              , let (style, var) = skuToStyleVar sku
-             , let webStatus = ItemWebStatusF  (pure active)
+             , let webStatus = ItemWebStatusF (pure display)  (pure active)
              , let master = mempty { impWebStatus = Just webStatus}
              ]
     
          
-    Nothing -> return []
+    _ -> return []
 
 -- * Misc
 -- ** Style names conversion
@@ -522,7 +522,7 @@ columnsFor ItemWebStatusView _ = map FAStatusColumn fas <>
         , "On Order"
         , "Status"
         ]
-  webs = ["Web Status"]
+  webs = ["Web Status", "Product Display"]
 
 columnsFor ItemAllView _ = []
 
@@ -693,6 +693,9 @@ columnForWebStatus col wStatusM =
     "Web Status" -> let
       w  = (iwfActive `traverse` wStatusM)
       in  Just (showActive <$>  w)
+    "Product Display" -> Just $ maybe ([], [shamlet|<span.label.label-danger data-label="unliked">Unlinked|])
+                                      (fmap toHtml)
+                                      (sequence . iwfProductDisplay =<<  wStatusM) 
     _ -> Nothing
   where showActive (Just True) = [shamlet|<span.label.label-success data-label="web-enabled">Enabled|]
         showActive (Just False) = [shamlet|<span.label.label-warning data-label="web-disabled">Disabled|]

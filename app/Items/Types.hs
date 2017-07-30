@@ -90,8 +90,8 @@ data ItemStatusF f = ItemStatusF
 
 -- | Web Status
 data ItemWebStatusF f = ItemWebStatusF
-  { {- iwfProductDisplay :: f Text
-  -} iwfActive :: f Bool
+  { iwfProductDisplay :: f (Maybe Text)
+  , iwfActive :: f Bool
   }
 -- | Information hold in item index
 -- aggregate of stock master table, sales and purchase prices
