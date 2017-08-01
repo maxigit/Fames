@@ -13,6 +13,7 @@ import Text.Blaze.Html.Renderer.Text(renderHtml)
 import qualified Data.List as List
 import Database.Persist.MySQL hiding(replace)
 import qualified Data.IntMap.Strict as IntMap
+import Text.Printf (printf)
 
 -- * Types
 -- | SQL text filter expression. Can be use either the LIKE syntax or the Regex one.
@@ -44,6 +45,7 @@ data IndexColumn = GLColumn Text
             | StatusColumn
             | FAStatusColumn Text
             | WebStatusColumn Text
+            | WebPriceColumn Int
             deriving Show
 
 -- * Handlers
@@ -255,17 +257,16 @@ loadVariations param = do
                                  )
                                             [Asc FA.StockMasterId]
       (Right (Just group_)) -> return $ Right (Map.findWithDefault [] group_ varGroupMap)
-    salesPrices <- loadSalesPrices param
-    purchasePrices <- loadPurchasePrices param
-    itemStatus <- loadStatus param
-    webStatus <- loadWebStatus param
+    infoSources <- mapM ($ param) [ loadSalesPrices
+                                , loadPurchasePrices
+                                , loadStatus
+                                , loadWebStatus
+                                , loadWebPrices
+                               ]
 
-    let itemStyles = mergeInfoSources [ map stockItemMasterToItem styles
-                                      , salesPrices
-                                      , purchasePrices
-                                      , itemStatus
-                                      , webStatus
-                                      ]
+    let itemStyles = mergeInfoSources ( map stockItemMasterToItem styles
+                                      : infoSources
+                                      )
         itemVars =  case variations of
           Left keys -> map (snd . skuToStyleVar . unStockMasterKey) keys
           Right vars -> vars
@@ -437,6 +438,43 @@ loadWebStatus param = do
          
     _ -> return []
 
+-- ** Web Prices
+loadWebPrices :: (MonadIO m)
+              => IndexParam -> ReaderT SqlBackend m [ItemInfo (ItemMasterAndPrices Identity)]
+loadWebPrices param = do
+  case (ipStyles param) of
+    Just styleF | ipMode param `elem` [ItemWebStatusView] ->  do
+       priceEntities <- selectList [] []
+       -- individual prices For each sku
+       sku'prices <- mapM (loadWebPriceFor (filterEKeyword styleF)) (take 14 priceEntities)
+       traceShowM ("sku'prices",sku'prices)
+       let style'var'pricesMap  :: Map Text (ItemPriceF Identity)
+           style'var'pricesMap  = Map.fromListWith (<>) (concat sku'prices)
+       return [ ItemInfo style var (mempty {impWebPrices = Just prices})
+              | (sku, prices) <- Map.toList style'var'pricesMap
+              , let (style, var) = skuToStyleVar sku
+              ]
+
+    _ -> return []
+
+
+-- webPriceList :: Int -> Text
+webPriceList pId = pack $ printf "pl_%0.2d" pId
+loadWebPriceFor :: MonadIO m => _ -> Entity SalesType  -> ReaderT SqlBackend m [(Text, ItemPriceF Identity )]
+loadWebPriceFor (fKeyword, p) (Entity key _priceList) = do 
+  let pId = (unSalesTypeKey key)  :: Int
+  let sql =  " SELECT sku, field_price_" <> webPriceList pId <> "_amount"
+          <> " FROM dcx_commerce_product AS product "
+          <> " JOIN dcx_field_data_field_price_" <> webPriceList pId <> " AS price"
+          <> "      ON (price.entity_id = product_id AND type = 'product')"
+          <> " WHERE sku " <> fKeyword <> " ?"
+  rows <- rawSql sql [PersistText p]
+  return [ (sku, webPrices)
+         | (Single sku, Single price) <- rows
+         , let webPrices = ItemPriceF (mapFromList [(fromIntegral pId, Identity (price /100))])
+         ]
+  
+
 -- * Misc
 -- ** Style names conversion
 
@@ -513,8 +551,11 @@ columnsFor ItemPriceView infos = map PriceColumn cols where
   cols = salesPricesColumns $ map  iiInfo  infos
 columnsFor ItemPurchaseView infos = map PurchaseColumn cols where
   cols = purchasePricesColumns $ map  iiInfo  infos
-columnsFor ItemWebStatusView _ = map FAStatusColumn fas <>
-                                 map WebStatusColumn webs where
+columnsFor ItemWebStatusView _ =
+  map FAStatusColumn fas
+  <> map WebStatusColumn webs
+  <> map WebPriceColumn webPrices
+  where
   fas = [ "Quantity On Hand"
         , "Quantity On Hand (all)"
         , "On Demand"
@@ -523,6 +564,7 @@ columnsFor ItemWebStatusView _ = map FAStatusColumn fas <>
         , "Status"
         ]
   webs = ["Web Status", "Product Display"]
+  webPrices = [1..16]
 
 columnsFor ItemAllView _ = []
 
@@ -586,6 +628,7 @@ itemsTable param = do
                         PurchaseColumn i -> columnForPurchData i =<< impPurchasePrices master 
                         FAStatusColumn name -> columnForFAStatus name =<< impFAStatus master
                         WebStatusColumn name -> columnForWebStatus name (impWebStatus master)
+                        WebPriceColumn i -> columnForWebPrice i =<< impWebPrices master
 
             differs = or diffs where
               diffs = [ "text-danger" `elem `kls
@@ -701,6 +744,10 @@ columnForWebStatus col wStatusM =
         showActive (Just False) = [shamlet|<span.label.label-warning data-label="web-disabled">Disabled|]
         showActive Nothing = [shamlet|<span.label.label-danger data-label="web-missing">Missing|]
  
+columnForWebPrice :: Int -> ItemPriceF ((,) [Text]) -> Maybe ([Text], Html)
+columnForWebPrice colInt (ItemPriceF priceMap) = do
+  value <- IntMap.lookup colInt priceMap
+  return $  toHtml  <$> value
 
 -- * Rendering
 renderIndex :: IndexParam -> Status -> Handler TypedContent
@@ -817,6 +864,7 @@ getColumnToTitle param = do
             PurchaseColumn i -> Right $ findWithDefault "" i (supplierNames :: IntMap Text)
             FAStatusColumn t -> Right t
             WebStatusColumn t -> Right t
+            WebPriceColumn i -> Right $ findWithDefault "" i priceListNames
           in toh title
     return go
 

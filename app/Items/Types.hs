@@ -77,6 +77,11 @@ instance Applicative MinMax where
 
 -- | Sales Price information
 data ItemPriceF f = ItemPriceF (IntMap (f Double))
+instance Semigroup (ItemPriceF f) where
+   (ItemPriceF a) <> (ItemPriceF b) = ItemPriceF $ a <> b
+instance Monoid (ItemPriceF f) where
+  mempty = ItemPriceF mempty
+  mappend = (<>)
 
 -- | FA status
 data ItemStatusF f = ItemStatusF
@@ -102,6 +107,7 @@ data ItemMasterAndPrices f = ItemMasterAndPrices
   , impPurchasePrices :: Maybe (IntMap (PurchDataF f))
   , impFAStatus :: Maybe (ItemStatusF f)
   , impWebStatus :: Maybe (ItemWebStatusF f)
+  , impWebPrices :: Maybe (ItemPriceF f)
   } 
 
 deriving instance Show (StockMasterF Identity)
@@ -109,18 +115,21 @@ deriving instance Show (PriceF Identity)
 deriving instance Show (PurchDataF Identity)
 deriving instance Show (ItemStatusF Identity)
 deriving instance Show (ItemWebStatusF Identity)
+deriving instance Show (ItemPriceF Identity)
 deriving instance Show (StockMasterF ((,) [Text]))
 deriving instance Show (PriceF ((,) [Text]))
 deriving instance Show (PurchDataF ((,) [Text]))
 deriving instance Show (ItemStatusF ((,) [Text]))
+deriving instance Show (ItemPriceF ((,) [Text]))
 deriving instance Show (ItemWebStatusF ((,) [Text]))
 deriving instance Show (ItemMasterAndPrices Identity)
 deriving instance Show (ItemMasterAndPrices ((,) [Text]))
  
 instance Monoid (ItemMasterAndPrices f) where
-  mempty = ItemMasterAndPrices Nothing Nothing Nothing Nothing Nothing
-  (ItemMasterAndPrices m s p st ws) `mappend` (ItemMasterAndPrices m' s' p' st' ws')
-     = ItemMasterAndPrices (m <|> m') (s <|> s') (p <|> p') (st <|> st') (ws <|> ws')
+  mempty = ItemMasterAndPrices Nothing Nothing Nothing Nothing Nothing Nothing
+  mappend (ItemMasterAndPrices m s p st ws wp)
+          (ItemMasterAndPrices m' s' p' st' ws' wp')
+     = ItemMasterAndPrices (m <|> m') (s <|> s') (p <|> p') (st <|> st') (ws <|> ws') (wp <|> wp')
 
 -- | Whereas an item is running or not.
 data FARunninStatus = FARunning -- ^ can and need to be sold

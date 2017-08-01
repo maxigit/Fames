@@ -86,11 +86,13 @@ computeDiff item0 item@(ItemInfo style var master) = let
   [i0, i] = (map (impMaster . iiInfo)  [item0, item]) :: [Maybe (StockMasterF Identity)]
   [s0, s] = (map (fromMaybe mempty .impSalesPrices . iiInfo)  [item0, item]) :: [(IntMap (PriceF Identity))]
   [p0, p] = (map (fromMaybe mempty .impPurchasePrices . iiInfo)  [item0, item]) :: [(IntMap (PurchDataF Identity))]
+  [ws0, ItemPriceF ws] = (map (fromMaybe mempty .impWebPrices . iiInfo)  [item0, item]) :: [ItemPriceF Identity]
   diff = ItemMasterAndPrices (diffFieldStockMasterF <$>  i0 <*> i)
                              (Just $ diffPriceMap s0 s )
                              (Just $ diffPurchMap p0 p )
                              (setPureItemStatusF1 <$> impFAStatus master)
                              (setPureItemWebStatusF1 <$> impWebStatus master)
+                             (Just $ ItemPriceF (pure . runIdentity <$> ws))
 
   in ItemInfo style var (diff)
 
