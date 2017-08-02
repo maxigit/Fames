@@ -18,7 +18,7 @@ import FA
 import qualified Data.IntMap.Strict as IntMap
 import qualified Data.IntSet as IntSet
 import qualified Data.Monoid as Monoid
-
+import Database.Persist
 
 diffField :: Eq a => Identity a -> Identity a -> ((,) [Text]) a
 diffField (Identity a) (Identity b) = if a == b then ([], a) else (["text-danger"], b)
@@ -86,13 +86,13 @@ computeDiff item0 item@(ItemInfo style var master) = let
   [i0, i] = (map (impMaster . iiInfo)  [item0, item]) :: [Maybe (StockMasterF Identity)]
   [s0, s] = (map (fromMaybe mempty .impSalesPrices . iiInfo)  [item0, item]) :: [(IntMap (PriceF Identity))]
   [p0, p] = (map (fromMaybe mempty .impPurchasePrices . iiInfo)  [item0, item]) :: [(IntMap (PurchDataF Identity))]
-  [ws0, ItemPriceF ws] = (map (fromMaybe mempty .impWebPrices . iiInfo)  [item0, item]) :: [ItemPriceF Identity]
+  [ItemPriceF ws0, ItemPriceF ws] = (map (fromMaybe mempty .impWebPrices . iiInfo)  [item0, item]) :: [ItemPriceF Identity]
   diff = ItemMasterAndPrices (diffFieldStockMasterF <$>  i0 <*> i)
                              (Just $ diffPriceMap s0 s )
                              (Just $ diffPurchMap p0 p )
                              (setPureItemStatusF1 <$> impFAStatus master)
                              (setPureItemWebStatusF1 <$> impWebStatus master)
-                             (Just $ ItemPriceF (pure . runIdentity <$> ws))
+                             (Just . ItemPriceF $ diffWebPriceMap ws0 ws)
 
   in ItemInfo style var (diff)
 
@@ -104,6 +104,9 @@ diffPriceMap a b = let
 diffPurchMap a b = let
   aligned = align a b
   in these setWarnPurchDataF1 setInfoPurchDataF1 diffFieldPurchDataF <$> aligned
+diffWebPriceMap a b = let
+  aligned = align a b
+  in these setWarn setInfo diffField <$> aligned
 
   
 -- * Join variations
@@ -178,3 +181,30 @@ faRunningStatus ItemStatusF{..} = let
   in go <$> isfQoh <*> isfOnOrder <*> isfAllQoh <*> isfOnOrder <*> isfAllOnDemand <*> isfUsed 
       
   
+
+-- * Prices
+-- | Computes  theoretical prices based on default price and price list info.
+-- | Doesn't touch prices if given
+computeTheoreticalPrices :: Int -> [Entity SalesType] -> IntMap Double -> IntMap Double
+computeTheoreticalPrices baseId priceLists priceMap = let
+  go base (Entity key pl) = let
+    pId = unSalesTypeKey key
+    in ( pId
+       ,
+         if pId == baseId
+         then base
+         else fromMaybe (fromInteger (round (base * salesTypeFactor pl * 100))/100) (lookup pId priceMap)
+       )
+   in case lookup baseId priceMap of
+        Nothing -> priceMap -- nothing we can do, return the current mag
+        Just base -> mapFromList (map (go base) priceLists)
+
+
+computeTheoreticalPricesF :: Int -> [Entity SalesType] -> IntMap (PriceF Identity) -> ItemPriceF Identity
+computeTheoreticalPricesF baseId priceLists priceMap = let
+  priceMap' = fmap (runIdentity . pfPrice ) priceMap
+  result =  computeTheoreticalPrices  baseId priceLists priceMap'
+  in ItemPriceF (fmap Identity result)
+
+
+

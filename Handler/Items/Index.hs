@@ -83,7 +83,7 @@ purchaseAuth = do
   mu <- maybeAuth
   let role = roleFor (appRoleFor settings) (userIdent . entityVal <$> mu)
   return $ null (filterPermissions ReadRequest (setFromList ["purchase/prices"]) role)
-
+    
 -- * Utils
 -- ** Filtering Expressions (Like or Regexp)
 showFilterExpression :: FilterExpression -> Text
@@ -221,14 +221,19 @@ fillIndexCache = runDB $ do
 
   
 -- ** StyleAdjustment
-getAdjustBase :: Handler (ItemInfo (ItemMasterAndPrices Identity) -> Text -> ItemInfo (ItemMasterAndPrices Identity))
+getAdjustBase :: Handler (IndexCache -> ItemInfo (ItemMasterAndPrices Identity) -> Text -> ItemInfo (ItemMasterAndPrices Identity))
 getAdjustBase = do
   settings <- appSettings <$> getYesod 
+  [Entity _ prefs  ] <- runDB $ selectList [SysPrefId ==. SysPrefKey "base_sales"] []
+  let Just basePl = readMay =<< sysPrefValue prefs
   let varMap = appVariations settings
-      go item0@(ItemInfo style _ master ) var = let
+      go cache item0@(ItemInfo style _ master ) var = let
         stock = impMaster master
         salesPrices = impSalesPrices master
         purchasePrices = impPurchasePrices master
+        theoreticalPrices = computeTheoreticalPricesF basePl -- (icBasePriceList cache)
+                                                    (icPriceLists cache)
+                                                    <$> salesPrices 
         adj = adjustDescription varMap (iiVariation item0) var
         sku = styleVarToSku style var
         in item0  { iiInfo = master
@@ -237,6 +242,10 @@ getAdjustBase = do
                                        ) <$> salesPrices
                     , impPurchasePrices = (fmap (\p -> p { pdfStockId = Identity sku })
                                        ) <$> purchasePrices
+                    -- web prices should be base not on the web prices
+                    -- but on the price list
+                    , impWebPrices = Just $ (fromMaybe mempty theoreticalPrices)
+                                          <>  (fromMaybe mempty (impWebPrices master))
                     }
                   }
   when (null varMap ) $ do
@@ -301,7 +310,7 @@ loadVariations cache param = do
           Left keys -> map (snd . skuToStyleVar . unStockMasterKey) keys
           Right vars -> vars
         itemGroups = joinStyleVariations (skuToStyleVar <$> bases)
-                                         adjustBase computeDiff
+                                         (adjustBase cache) computeDiff
                                          itemStyles itemVars
         filterExtra = if ipShowExtra param
                       then id
@@ -318,7 +327,7 @@ loadSalesPrices :: (MonadIO m)
   => IndexParam -> ReaderT SqlBackend m [ItemInfo (ItemMasterAndPrices Identity)]
 loadSalesPrices param = do
   case (ipStyles param) of
-     Just styleF |  ipMode param `elem` [ItemPriceView, ItemAllView] -> do
+     Just styleF |  ipMode param `elem` [ItemPriceView, ItemAllView, ItemWebStatusView] -> do
        let sql = "SELECT ?? FROM 0_prices JOIN 0_stock_master USING(stock_id)"
             <> " WHERE curr_abrev = 'GBP' AND " <> stockF <> inactive
             <> " ORDER BY stock_id"
@@ -777,7 +786,7 @@ columnForWebStatus col wStatusM =
 columnForWebPrice :: Int -> ItemPriceF ((,) [Text]) -> Maybe ([Text], Html)
 columnForWebPrice colInt (ItemPriceF priceMap) = do
   value <- IntMap.lookup colInt priceMap
-  return $  toHtml  <$> value
+  return $  toHtml . (\x -> x :: String) . printf "%.2f"  <$> value
 
 -- * Rendering
 renderIndex :: IndexParam -> Status -> Handler TypedContent
