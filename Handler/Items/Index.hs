@@ -208,7 +208,15 @@ fillIndexCache = runDB $ do
         entities <- selectList [] []
         return $ mapFromList [(k, supplierSuppName s) | (Entity (SupplierKey k) s) <- entities]
 
-  return $ IndexCache salesTypes priceListNames supplierNames []
+  rows <- rawSql "SHOW TABLES LIKE 'dcx_field_data_field_price%'" []
+  let webPriceList = [ pId :: Int
+                  | (Single table) <- rows
+                  , Just pId <- return $ readMay =<< stripPrefix "dcx_field_data_field_price_pl_" (table :: Text)
+
+                  ]
+  -- traceShowM webPriceList
+
+  return $ IndexCache salesTypes priceListNames supplierNames webPriceList
   
 
   
@@ -251,7 +259,7 @@ adjustDescription varMap var0 var desc =
       in appEndo (mconcat endos) desc
 -- * Load DB 
 -- ** StockMaster info
-loadVariations :: IndexParam
+loadVariations :: IndexCache -> IndexParam
                -> Handler [ (ItemInfo (ItemMasterAndPrices Identity) -- base
                             , [ ( VariationStatus
                                 , ItemInfo (ItemMasterAndPrices ((,) [Text]))
@@ -259,7 +267,7 @@ loadVariations :: IndexParam
                               ] -- all variations, including base
                             )
                           ]
-loadVariations param = do
+loadVariations cache param = do
   let varF = ipVariations param
       bases =  ipBases param
   adjustBase <- getAdjustBase
@@ -283,7 +291,7 @@ loadVariations param = do
                                 , loadPurchasePrices
                                 , loadStatus
                                 , loadWebStatus
-                                , loadWebPrices
+                                , loadWebPrices cache
                                ]
 
     let itemStyles = mergeInfoSources ( map stockItemMasterToItem styles
@@ -449,7 +457,7 @@ loadWebStatus param = do
              <> " WHERE sku " <> fKeyword <> " ?"
           (fKeyword, p) = filterEKeyword styleF
       rows <- rawSql sql [PersistText p]
-      traceShowM rows
+      -- traceShowM rows
       return [ItemInfo style var master
              | (Single sku, Single active, Single display) <- rows
              , let (style, var) = skuToStyleVar sku
@@ -462,14 +470,13 @@ loadWebStatus param = do
 
 -- ** Web Prices
 loadWebPrices :: (MonadIO m)
-              => IndexParam -> ReaderT SqlBackend m [ItemInfo (ItemMasterAndPrices Identity)]
-loadWebPrices param = do
+              => IndexCache -> IndexParam -> ReaderT SqlBackend m [ItemInfo (ItemMasterAndPrices Identity)]
+loadWebPrices cache param = do
   case (ipStyles param) of
     Just styleF | ipMode param `elem` [ItemWebStatusView] ->  do
-       priceEntities <- selectList [] []
        -- individual prices For each sku
-       sku'prices <- mapM (loadWebPriceFor (filterEKeyword styleF)) (take 14 priceEntities)
-       traceShowM ("sku'prices",sku'prices)
+       sku'prices <- mapM (loadWebPriceFor (filterEKeyword styleF)) (icWebPriceList cache)
+       -- traceShowM ("sku'prices",sku'prices, icWebPriceList cache)
        let style'var'pricesMap  :: Map Text (ItemPriceF Identity)
            style'var'pricesMap  = Map.fromListWith (<>) (concat sku'prices)
        return [ ItemInfo style var (mempty {impWebPrices = Just prices})
@@ -482,9 +489,8 @@ loadWebPrices param = do
 
 -- webPriceList :: Int -> Text
 webPriceList pId = pack $ printf "pl_%0.2d" pId
-loadWebPriceFor :: MonadIO m => _ -> Entity SalesType  -> ReaderT SqlBackend m [(Text, ItemPriceF Identity )]
-loadWebPriceFor (fKeyword, p) (Entity key _priceList) = do 
-  let pId = (unSalesTypeKey key)  :: Int
+loadWebPriceFor :: MonadIO m => _ -> Int -> ReaderT SqlBackend m [(Text, ItemPriceF Identity )]
+loadWebPriceFor (fKeyword, p) pId = do 
   let sql =  " SELECT sku, field_price_" <> webPriceList pId <> "_amount"
           <> " FROM dcx_commerce_product AS product "
           <> " JOIN dcx_field_data_field_price_" <> webPriceList pId <> " AS price"
@@ -545,8 +551,8 @@ lookupVars varMap = mapMaybe (flip Map.lookup varMap) . variationToVars
 
 -- ** Table Infos
 -- | List or columns for a given mode
-columnsFor :: ItemViewMode -> [ItemInfo (ItemMasterAndPrices f)] -> [IndexColumn]
-columnsFor ItemGLView _ = map GLColumn cols where
+columnsFor :: IndexCache -> ItemViewMode -> [ItemInfo (ItemMasterAndPrices f)] -> [IndexColumn]
+columnsFor _ ItemGLView _ = map GLColumn cols where
   cols = [ "categoryId"
          , "taxTypeId"
          , "description"
@@ -569,11 +575,11 @@ columnsFor ItemGLView _ = map GLColumn cols where
          , "noSale"
          , "editable"
          ] :: [Text]
-columnsFor ItemPriceView infos = map PriceColumn cols where
+columnsFor _ ItemPriceView infos = map PriceColumn cols where
   cols = salesPricesColumns $ map  iiInfo  infos
-columnsFor ItemPurchaseView infos = map PurchaseColumn cols where
+columnsFor _ ItemPurchaseView infos = map PurchaseColumn cols where
   cols = purchasePricesColumns $ map  iiInfo  infos
-columnsFor ItemWebStatusView _ =
+columnsFor cache ItemWebStatusView _ =
   map FAStatusColumn fas
   <> map WebStatusColumn webs
   <> map WebPriceColumn webPrices
@@ -586,16 +592,18 @@ columnsFor ItemWebStatusView _ =
         , "Status"
         ]
   webs = ["Web Status", "Product Display"]
-  webPrices = [1..16]
+  -- union of FA prices list AND web prices
+  -- so we also show missing prices list
+  webPrices = List.nub . sort $ (keys (icPriceListNames cache)) <> (icWebPriceList cache)
 
-columnsFor ItemAllView _ = []
+columnsFor _ ItemAllView _ = []
 
 
 itemsTable :: IndexCache -> IndexParam ->  Handler Widget
 itemsTable cache param = do
   let checkedItems = if null (ipChecked param) then Nothing else Just (ipChecked param)
   renderUrl <- getUrlRenderParams
-  itemGroups <- loadVariations param
+  itemGroups <- loadVariations cache param
 
   let allItems = [ items | (_, varStatus) <- itemGroups  , (_, items) <- varStatus]
   -- don't display purchase prices if the user is not authorized
@@ -611,7 +619,7 @@ itemsTable cache param = do
 
 
 
-  let columns = [CheckColumn, RadioColumn, StockIdColumn, StatusColumn] ++ columnsFor (ipMode param) allItems
+  let columns = [CheckColumn, RadioColumn, StockIdColumn, StatusColumn] ++ columnsFor cache (ipMode param) allItems
 
   -- Church encoding ?
   let itemToF :: ItemInfo (ItemMasterAndPrices Identity)
@@ -883,7 +891,12 @@ getColumnToTitle cache param = do
             PurchaseColumn i -> Right $ findWithDefault "" i (supplierNames :: IntMap Text)
             FAStatusColumn t -> Right t
             WebStatusColumn t -> Right t
-            WebPriceColumn i -> Right $ findWithDefault "" i priceListNames
+            WebPriceColumn i -> -- check if the prices list exists in FA or Web
+              case lookup i priceListNames of
+                Nothing -> Left (toHtml $ "#" <> tshow i, ["text-danger"]) -- only web
+                Just name -> if i `List.elem` icWebPriceList cache
+                             then Right name
+                             else Left (toHtml name, ["text-danger"])
           in toh title
     return go
 
@@ -900,8 +913,9 @@ createMissing params = do
   let newMode = case ipMode params of
                   ItemGLView -> ItemAllView
                   mode -> mode
-  traceShowM ("CREATE", newMode)
-  itemGroups <- loadVariations (params {ipShowInactive = True, ipMode = newMode})
+  cache <- fillIndexCache
+  -- traceShowM ("CREATE", newMode)
+  itemGroups <- loadVariations cache (params {ipShowInactive = True, ipMode = newMode})
   let toKeep = checkFilter params
 
       missings = [ (sku, iiInfo info)
