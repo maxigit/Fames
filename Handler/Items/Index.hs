@@ -48,6 +48,13 @@ data IndexColumn = GLColumn Text
             | WebPriceColumn Int
             deriving Show
 
+-- | Preloaded data to be used by the handler
+data IndexCache = IndexCache
+  { icPriceLists :: [Entity SalesType]
+  , icPriceListNames :: IntMap Text
+  , icSupplierNames :: IntMap Text
+  , icWebPriceList :: [Int] -- price list ids
+  }
 -- * Handlers
 getItemsIndexR :: Maybe ItemViewMode -> Handler TypedContent
 getItemsIndexR mode = do
@@ -190,6 +197,21 @@ checkFilter param sku =
         cs -> sku `member` set
   in toKeep sku
 
+-- ** Preloaded Cache
+fillIndexCache :: Handler IndexCache
+fillIndexCache = runDB $ do
+  salesTypes <- selectList [] [] -- [Entity SalesType]
+  let priceListNames = mapFromList [ (k, salesTypeSalesType t)
+                                   | (Entity (SalesTypeKey k) t) <- salesTypes
+                                   ]
+  supplierNames <- do
+        entities <- selectList [] []
+        return $ mapFromList [(k, supplierSuppName s) | (Entity (SupplierKey k) s) <- entities]
+
+  return $ IndexCache salesTypes priceListNames supplierNames []
+  
+
+  
 -- ** StyleAdjustment
 getAdjustBase :: Handler (ItemInfo (ItemMasterAndPrices Identity) -> Text -> ItemInfo (ItemMasterAndPrices Identity))
 getAdjustBase = do
@@ -569,8 +591,8 @@ columnsFor ItemWebStatusView _ =
 columnsFor ItemAllView _ = []
 
 
-itemsTable :: IndexParam ->  Handler Widget
-itemsTable param = do
+itemsTable :: IndexCache -> IndexParam ->  Handler Widget
+itemsTable cache param = do
   let checkedItems = if null (ipChecked param) then Nothing else Just (ipChecked param)
   renderUrl <- getUrlRenderParams
   itemGroups <- loadVariations param
@@ -664,7 +686,7 @@ itemsTable param = do
 
       styleGroup klass rs = [(fn, klass:klasses) | (fn,klasses) <- rs]
 
-  columnToTitle <- getColumnToTitle param
+  columnToTitle <- getColumnToTitle cache param
         
 
   return $ displayTable columns columnToTitle
@@ -753,7 +775,8 @@ columnForWebPrice colInt (ItemPriceF priceMap) = do
 renderIndex :: IndexParam -> Status -> Handler TypedContent
 renderIndex param0 status = do
   (param, form, encType) <- getPostIndexParam param0
-  ix <- itemsTable param
+  cache <- fillIndexCache
+  ix <- itemsTable cache param
   purchAuth <- purchaseAuth
   if (ipMode param == ItemPurchaseView && not purchAuth)
     then permissionDenied "Contact your system administrator"
@@ -841,16 +864,12 @@ renderIndex param0 status = do
 -- ** css classes
   
 
-getColumnToTitle :: IndexParam -> Handler (IndexColumn -> (Html, [Text]))
-getColumnToTitle param = do
+getColumnToTitle :: IndexCache -> IndexParam -> Handler (IndexColumn -> (Html, [Text]))
+getColumnToTitle cache param = do
   runDB $ do
     -- TODO only loads map if needed
-    priceListNames <- do
-        entities <- selectList [] [] -- [Entity SalesType]
-        return $ mapFromList [(k, salesTypeSalesType t) | (Entity (SalesTypeKey k) t) <- entities]
-    supplierNames <- do
-        entities <- selectList [] []
-        return $ mapFromList [(k, supplierSuppName s) | (Entity (SupplierKey k) s) <- entities]
+    let priceListNames = icPriceListNames cache
+        supplierNames = icSupplierNames cache
     let toh (Left r) = r
         toh (Right s) = (toHtml s, [])
         go column = let
