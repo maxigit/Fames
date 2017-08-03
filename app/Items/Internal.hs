@@ -35,6 +35,7 @@ setPure (Identity a) = ([], a)
 $(mmZip "diffField" ''StockMasterF)
 $(mmZip "diffField" ''PriceF)
 $(mmZip "diffField" ''PurchDataF)
+$(mmZip "diffField" ''ItemWebStatusF)
 $(mmZipN 1 "setDanger" ''PriceF Nothing)
 $(mmZipN 1 "setInfo" ''PriceF Nothing)
 $(mmZipN 1 "setWarn" ''PriceF Nothing)
@@ -86,13 +87,17 @@ computeDiff item0 item@(ItemInfo style var master) = let
   [i0, i] = (map (impMaster . iiInfo)  [item0, item]) :: [Maybe (StockMasterF Identity)]
   [s0, s] = (map (fromMaybe mempty .impSalesPrices . iiInfo)  [item0, item]) :: [(IntMap (PriceF Identity))]
   [p0, p] = (map (fromMaybe mempty .impPurchasePrices . iiInfo)  [item0, item]) :: [(IntMap (PurchDataF Identity))]
-  [ItemPriceF ws0, ItemPriceF ws] = (map (fromMaybe mempty .impWebPrices . iiInfo)  [item0, item]) :: [ItemPriceF Identity]
+  [ItemPriceF wp0, ItemPriceF wp] = (map (fromMaybe mempty .impWebPrices . iiInfo)  [item0, item]) :: [ItemPriceF Identity]
+  [ws0, ws] = (map (impWebStatus . iiInfo)  [item0, item]) :: [Maybe (ItemWebStatusF Identity)]
+  -- we don't want to compare the web status to the base item, but to the FA Status
+  -- if something is running, it should be available on the website
+  ws0' = faToWebStatus style <$> impFAStatus master
   diff = ItemMasterAndPrices (diffFieldStockMasterF <$>  i0 <*> i)
                              (Just $ diffPriceMap s0 s )
                              (Just $ diffPurchMap p0 p )
                              (setPureItemStatusF1 <$> impFAStatus master)
-                             (setPureItemWebStatusF1 <$> impWebStatus master)
-                             (Just . ItemPriceF $ diffWebPriceMap ws0 ws)
+                             (diffFieldItemWebStatusF <$> ws0' <*> ws)
+                             (Just . ItemPriceF $ diffWebPriceMap wp0 wp)
 
   in ItemInfo style var (diff)
 
@@ -108,6 +113,11 @@ diffWebPriceMap a b = let
   aligned = align a b
   in these setWarn setInfo diffField <$> aligned
 
+  
+faToWebStatus :: Text -> ItemStatusF Identity -> ItemWebStatusF Identity
+faToWebStatus style fa = case faRunningStatus fa of
+  Identity FARunning -> ItemWebStatusF (pure (Just style)) (pure True)
+  _ -> ItemWebStatusF (pure Nothing) (pure False)
   
 -- * Join variations
 -- | Computes the VariationStatus ie if variations are present
@@ -171,7 +181,7 @@ purchasePricesColumns masters = pricesColumns impPurchasePrices masters
   
 
 -- * Status
-faRunningStatus :: Applicative f => ItemStatusF f -> f FARunninStatus
+faRunningStatus :: Applicative f => ItemStatusF f -> f FARunningStatus
 faRunningStatus ItemStatusF{..} = let
   go qoh onOrder_  allQoh  onOrder  allOnDemand  used = case () of
     _ | qoh  > 0 || onOrder_ > 0 -> FARunning

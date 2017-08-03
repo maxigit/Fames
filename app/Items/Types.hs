@@ -132,7 +132,7 @@ instance Monoid (ItemMasterAndPrices f) where
      = ItemMasterAndPrices (m <|> m') (s <|> s') (p <|> p') (st <|> st') (ws <|> ws') (wp <|> wp')
 
 -- | Whereas an item is running or not.
-data FARunninStatus = FARunning -- ^ can and need to be sold
+data FARunningStatus = FARunning -- ^ can and need to be sold
                     | FAAsleep -- ^ Not used but still present in cancelled or expired order/location. Probably needs cleaning up before set to inactive.
 
                     | FADead -- ^ Not used anymore but can't be deleted because of exists in previous trans.

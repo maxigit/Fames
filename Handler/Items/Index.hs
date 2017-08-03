@@ -773,17 +773,23 @@ columnForFAStatus col iStatus@ItemStatusF{..} =
 
 columnForWebStatus :: Text -> Maybe (ItemWebStatusF ((,) [Text])) -> Maybe ([Text], Html)
 columnForWebStatus col wStatusM =
-  case col of
+  let w  = (iwfActive `traverse` wStatusM)
+  in case col of
     "Web Status" -> let
-      w  = (iwfActive `traverse` wStatusM)
       in  Just (showActive <$>  w)
-    "Product Display" -> Just $ maybe ([], [shamlet|<span.label.label-danger data-label="unliked">Unlinked|])
+    "Product Display" ->
+      case sequence w of
+        Just (_, True) ->  Just $ maybe ([], [shamlet|<span.label.label-danger data-label="unliked">Unlinked|])
                                       (fmap toHtml)
                                       (sequence . iwfProductDisplay =<<  wStatusM) 
+        Nothing -> Nothing
     _ -> Nothing
-  where showActive (Just True) = [shamlet|<span.label.label-success data-label="web-enabled">Enabled|]
-        showActive (Just False) = [shamlet|<span.label.label-warning data-label="web-disabled">Disabled|]
-        showActive Nothing = [shamlet|<span.label.label-danger data-label="web-missing">Missing|]
+  where showActive (Just True) = [shamlet|<span data-label="web-enabled">Enabled|]
+        showActive (Just False) = [shamlet|<span data-label="web-disabled">Disabled|]
+        showActive Nothing = [shamlet|<span data-label="web-missing">Missing|]
+  -- where showActive (Just True) = "Enabled"
+  --       showActive (Just False) = "Disabled"
+  --       showActive Nothing = "Missing"
  
 columnForWebPrice :: Int -> ItemPriceF ((,) [Text]) -> Maybe ([Text], Html)
 columnForWebPrice colInt (ItemPriceF priceMap) = do
@@ -879,7 +885,7 @@ renderIndex param0 status = do
       html <- withUrlRenderer (pageBody table)
       returnJson (renderHtml html)
       
-  
+        
 -- ** css classes
   
 
