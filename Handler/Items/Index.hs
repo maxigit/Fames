@@ -5,6 +5,7 @@ import Import hiding(replace)
 import Handler.Table
 import Yesod.Form.Bootstrap3
 import FA
+import qualified DC as DC
 import Items
 import qualified Data.Map as Map
 import Data.Monoid(Endo(..), appEndo)
@@ -14,6 +15,7 @@ import qualified Data.List as List
 import Database.Persist.MySQL hiding(replace)
 import qualified Data.IntMap.Strict as IntMap
 import Text.Printf (printf)
+import Data.Time.Clock.POSIX (getPOSIXTime)
 
 -- * Types
 -- | SQL text filter expression. Can be use either the LIKE syntax or the Regex one.
@@ -997,26 +999,81 @@ createMissing params = do
   return ()
 
 -- ** Activation
-changeActivation :: Bool -> IndexParam -> Handler ()
-changeActivation activate param =  runDB $ do
+-- | Activates/deactivate and item in FrontAccounting.
+changeFAActivation :: Bool -> IndexParam -> Handler ()
+changeFAActivation activate param =
+  changeActivation activate param
+                   [StockMasterInactive ==. activate]
+                   (flip update [StockMasterInactive =. not activate])
+
+changeActivation :: Bool -> IndexParam -> _ -> _ -> Handler ()
+changeActivation activate param activeFilter updateFn =  runDB $ do
   -- we set ShowInactive to true to not filter anything yet using (StockMasterInactive)
   -- as it will be done before
   entities <- case styleFilter param {ipMode = ItemGLView, ipShowInactive = True } of
     Left err -> error err >> return []
-    Right filter_ ->  selectList ((StockMasterInactive ==. activate) : filter_) []
+    Right filter_ ->  selectList ( activeFilter ++ filter_) []
   let toKeep = checkFilter param
       keys_ = [ key
              | (Entity key _) <- entities
              , toKeep (unStockMasterKey key)
              ] :: [Key StockMaster]
-  mapM_ (flip update [StockMasterInactive =. not activate]) keys_
+  mapM_ updateFn keys_
 
+-- | Activated and item in  FrontAccounting or the Website
 activate :: IndexParam -> Handler ()
-activate = changeActivation True
+activate param = case (ipMode param ) of
+  ItemWebStatusView -> changeWebActivation True param
+  _ -> changeFAActivation True param
 
-
-
-
+-- | deactivate and item in  FrontAccounting or the Website
 deactivate :: IndexParam -> Handler ()
-deactivate = changeActivation False
+deactivate param = case (ipMode param ) of
+  ItemWebStatusView -> changeWebActivation False param
+  _ -> changeFAActivation False param
+  
+changeWebActivation :: Bool -> IndexParam -> Handler ()
+changeWebActivation activate param = do
+  muser <- maybeAuth
+  timestamp <- round <$> liftIO getPOSIXTime
+  let usertext = maybe "" (\u -> " by user:" <> userIdent (entityVal u)) muser
+  changeActivation activate param [] $ \key -> do
+    let sku = unStockMasterKey key
+    --     sql = " UPDATE dcx_commerce_product p "
+    --        <> " SET p.status = ?, p.changed = ?"
+    --        <> " WHERE p.sku = ? "
+    --     pactivate = PersistBool activate
+    --     ptimestamp = PersistInt64 timestamp
+
+    -- rawExecute sql [ pactivate, ptimestamp, PersistText sku]
+
+    -- -- let sql_rev = " UPDATE dcx_commerce_product_revision r "
+    -- --        <> " JOIN dcx_commerce_product p "
+    -- --        <> " USING (product_id, revision_id) "
+    -- --        <> " SET r.status = ? "
+    -- --        <> "   , r.log = ?, r.revision_timestamp = ? "
+    -- --        <> " WHERE p.sku = ? "
+
+    -- -- rawExecute sql_rev [ pactivate
+    -- --                , PersistText ("Updated by Fames" <> usertext)
+    -- --                , ptimestamp 
+    -- --                , PersistText sku
+    -- --                ]
+    products <- selectList [DC.CommerceProductTSku ==. sku] []
+    let updateProduct (Entity pKey product) = do
+          let pId = DC.unCommerceProductTKey pKey
+          update pKey [ DC.CommerceProductTStatus =. activate
+                     , DC.CommerceProductTChanged =. timestamp
+                     ]
+
+          -- update revision if any
+          forM_ (DC.commerceProductTRevisionId product) $ \revId -> 
+                updateWhere [ DC.CommerceProductRevisionTProductId ==. pId 
+                            , DC.CommerceProductRevisionTId ==. DC.CommerceProductRevisionTKey revId
+                            ]
+                            [ DC.CommerceProductRevisionTStatus =. activate
+                            , DC.CommerceProductRevisionTLog =. ("Updated by Fames" <> usertext)
+                            , DC.CommerceProductRevisionTRevisionTimestamp =. timestamp
+                            ]
+    mapM_ updateProduct products
   
