@@ -87,7 +87,7 @@ library
     , curl >= 1.3.8 && < 1.4
     , tagsoup >=  0.14.1 && < 0.15
     , regex-tdfa >= 1.2.2 && < 1.3
-    , async
+    , lifted-async
   if (flag(dev)) || (flag(library-only))
     ghc-options: -w -fwarn-tabs -O0 -j6
     cpp-options: -DDEVELOPMENT
@@ -317,7 +317,7 @@ executable FAGenerator
     , curl >= 1.3.8 && < 1.4
     , tagsoup >=  0.14.1 && < 0.15
     , regex-tdfa >= 1.2.2 && < 1.3
-    , async
+    , lifted-async
     , base
     , mysql-simple
     , split
@@ -395,7 +395,7 @@ executable Fames
     , curl >= 1.3.8 && < 1.4
     , tagsoup >=  0.14.1 && < 0.15
     , regex-tdfa >= 1.2.2 && < 1.3
-    , async
+    , lifted-async
     , Fames
   if flag(library-only)
     buildable: False
@@ -479,7 +479,7 @@ executable TextcartHelper
     , curl >= 1.3.8 && < 1.4
     , tagsoup >=  0.14.1 && < 0.15
     , regex-tdfa >= 1.2.2 && < 1.3
-    , async
+    , lifted-async
     , base
     , mysql-simple
   other-modules:
@@ -555,7 +555,7 @@ test-suite test
     , curl >= 1.3.8 && < 1.4
     , tagsoup >=  0.14.1 && < 0.15
     , regex-tdfa >= 1.2.2 && < 1.3
-    , async
+    , lifted-async
     , base
     , Fames
     , yesod-test >=1.5.0.1 && <1.6

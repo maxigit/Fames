@@ -5,44 +5,47 @@ import Data.Dynamic
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict(Map)
 import Control.Concurrent
-import Control.Concurrent.Async
+import Control.Concurrent.Async.Lifted
 import Data.Time
+import Control.Monad.IO.Class
+import Control.Monad.Trans.Control(StM, MonadBaseControl)
 
 -- * Delayed
 -- | A syncronous actions, which can be started from another thread.
 -- Usefull to get value pre-cached for the next request.
-data Delayed a = Delayed
+data Delayed m a = Delayed
   { blocker :: MVar ()
-  , action :: Async a
+  , action :: Async (StM m a)
   } deriving Typeable
 
 data DelayedStatus = Waiting | InProgress | Finished | OnError deriving Show
   
   
+deriving instance Typeable Async
 
-createDelayed :: IO a -> IO (Delayed a)
+createDelayed :: (MonadBaseControl IO io, MonadIO io) =>  io a -> io (Delayed io a)
 createDelayed a = do
-   mvar <- newEmptyMVar
+   mvar <- liftIO newEmptyMVar
    -- don't actually start the action until mvar has been set
-   as <- async (takeMVar mvar >> a)
+   as <- async (liftIO (takeMVar mvar) >> a)
    return (Delayed mvar as)
 
 -- | Start the delayed action
-startDelayed :: Delayed a -> IO ()
-startDelayed d = do
+startDelayed :: MonadIO io =>  Delayed io a -> io ()
+startDelayed d = liftIO $ do
   _ <- tryPutMVar (blocker d) ()
   return ()
 
 
 -- | Get the actual value
-getDelayed :: Delayed a -> IO a
+getDelayed :: (MonadBaseControl IO io, MonadIO io) => Delayed io a -> io a
 getDelayed d = do
   startDelayed d
   wait (action d)
 
 -- | Check if the job status
-statusDelayed :: Delayed a -> IO DelayedStatus
-statusDelayed d = do
+statusDelayed :: (MonadBaseControl IO io, MonadIO io) => Delayed io a -> io DelayedStatus
+statusDelayed d = liftIO $ do
   empty_ <- isEmptyMVar (blocker d)
   if empty_
      then return Waiting
@@ -66,36 +69,36 @@ newExpiryCache = newMVar mempty
 -- There is no way to get a value from the cache without actually
 -- specifying the way to compute value. This is to make sure
 -- the retrieved value is of the correct type.
-expCache :: (Show k, Typeable v) => MVar ExpiryCache -> k -> IO v -> Int -> IO v
+expCache :: (Show k, Typeable v, MonadIO io) => MVar ExpiryCache -> k -> io v -> Int -> io v
 expCache cvar key vio seconds  = do
   let k = show key
   -- we release cvar as soon as possible
   let putV mvar = do
                   v <- vio
-                  now <- getCurrentTime
-                  putMVar mvar (toDyn v, addUTCTime (fromIntegral seconds) now)
+                  now <- liftIO $ getCurrentTime
+                  liftIO $ putMVar mvar (toDyn v, addUTCTime (fromIntegral seconds) now)
                   return v
   let getCachedMVar cache = do
         case Map.lookup k cache of
-          Nothing -> do -- key need creating
+          Nothing -> liftIO $ do -- key need creating
             mvar <- newEmptyMVar
             let todo = putV mvar
             return (Map.insert k mvar cache, Left todo)
           Just mvar -> do
             return (cache, Right mvar)
-  (todo'mvar) <- modifyMVar cvar getCachedMVar 
+  (todo'mvar) <- liftIO $ modifyMVar cvar getCachedMVar 
   case todo'mvar of
     Left todo -> do
       todo
     Right mvar -> do
-      (d, t) <- takeMVar mvar
-      now <- getCurrentTime
+      (d, t) <- liftIO $ takeMVar mvar
+      now <- liftIO $ getCurrentTime
       if now <= t
         then return $ fromDyn d (error "Wrong type for cached key.")
         else putV mvar
 
-purgeKey :: Show k => MVar ExpiryCache -> k -> IO ()
-purgeKey cvar key = modifyMVar_ cvar go
+purgeKey :: (MonadIO io, Show k) => MVar ExpiryCache -> k -> io ()
+purgeKey cvar key = liftIO $ modifyMVar_ cvar go
   where go cache = do
           let k = show key
           return $ Map.delete k cache
@@ -109,10 +112,11 @@ purgeKey cvar key = modifyMVar_ cvar go
 -- but not when it's actually started. We assume there, that the
 -- start delay is small. When precaching, we delay the start of the computation
 -- only to be started once the HTTP query has processed.
-preCache :: (Show k, Typeable a) => MVar ExpiryCache -> k -> IO a -> Int -> IO (Delayed a)
+preCache :: (MonadBaseControl IO io, MonadIO io, Show k, Typeable a, Typeable io)
+         => MVar ExpiryCache -> k -> io a -> Int -> io (Delayed io a)
 preCache cvar key vio delay = do
   d <- createDelayed vio
-  _ <- async $ purgeKey cvar (show key)
-  expCache cvar key (return d) delay 
+  _ <- async $ error "add deleay" >> purgeKey cvar (show key)
+  expCache cvar key (undefined d) delay 
   
 

@@ -6,6 +6,7 @@ module Foundation
 , module RoutePiece
 , module Role
 , A(..)
+, preCache
 ) where
 
 
@@ -421,3 +422,10 @@ getSuggestedLinks = do
 
 
 
+-- * Caching
+preCache0 :: (Show k, Typeable a) => Int -> k -> Handler a -> Handler (Delayed Handler a)
+preCache0 delay key action = do
+  cache <- getsYesod appCache
+  preCache cache key action delay
+ 
+preCache1 delay param action = preCache0 delay param (action param)

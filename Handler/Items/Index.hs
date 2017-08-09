@@ -16,6 +16,7 @@ import Database.Persist.MySQL hiding(replace)
 import qualified Data.IntMap.Strict as IntMap
 import Text.Printf (printf)
 import Data.Time.Clock.POSIX (getPOSIXTime)
+import Util.Cache
 
 -- * Types
 -- | SQL text filter expression. Can be use either the LIKE syntax or the Regex one.
@@ -279,6 +280,20 @@ loadVariations :: IndexCache -> IndexParam
                             )
                           ]
 loadVariations cache param = do
+  -- pre cache variations parts
+  delayeds <- mapM (\a -> preCache0 30 param (runDB $ a param)) [ loadSalesPrices
+                                                                , loadPurchasePrices
+                                                                , loadStatus
+                                                                , loadWebStatus
+                                                                , loadWebPrices cache
+                                                                ]
+  let [ delayedSalesPrices , delayedPurchasePrices
+        , delayedStatus
+        , delayedWebStatus
+        , delayedWebPrices 
+        ] = delayeds
+
+                        
   let varF = ipVariations param
       bases =  ipBases param
   adjustBase <- getAdjustBase
@@ -298,12 +313,12 @@ loadVariations cache param = do
                                  )
                                             [Asc FA.StockMasterId]
       (Right (Just group_)) -> return $ Right (Map.findWithDefault [] group_ varGroupMap)
-    infoSources <- mapM ($ param) [ loadSalesPrices
-                                , loadPurchasePrices
-                                , loadStatus
-                                , loadWebStatus
-                                , loadWebPrices cache
-                               ]
+    infoSources <- mapM (lift . getDelayed) (case ipMode param of
+      ItemPriceView -> [delayedSalesPrices]
+      ItemPurchaseView -> [delayedPurchasePrices]
+      ItemAllView -> [delayedSalesPrices, delayedPurchasePrices]
+      ItemWebStatusView -> [delayedSalesPrices, delayedStatus, delayedWebStatus, delayedWebPrices]
+      )
 
     let itemStyles = mergeInfoSources ( map stockItemMasterToItem styles
                                       : infoSources
@@ -317,19 +332,22 @@ loadVariations cache param = do
         filterExtra = if ipShowExtra param
                       then id
                       else (List.filter ((/= VarExtra) . fst))
-    return  $ map (\(base, vars)
+
+    let result =  map (\(base, vars)
                    -> (base, filterExtra vars)
                   ) itemGroups
+    mapM_ (lift . startDelayed) delayeds
+    return result
 
     
 -- ** Sales prices
 -- | Load sales prices 
--- loadSalesPrices :: IndexParam -> Handler [ItemInfo (ItemMasterAndPrices Identity)]
+    -- loadSalesPrices :: IndexParam -> Handler [ItemInfo (ItemMasterAndPrices Identity)]
 loadSalesPrices :: (MonadIO m)
   => IndexParam -> ReaderT SqlBackend m [ItemInfo (ItemMasterAndPrices Identity)]
 loadSalesPrices param = do
   case (ipStyles param) of
-     Just styleF |  ipMode param `elem` [ItemPriceView, ItemAllView, ItemWebStatusView] -> do
+     Just styleF -> do
        let sql = "SELECT ?? FROM 0_prices JOIN 0_stock_master USING(stock_id)"
             <> " WHERE curr_abrev = 'GBP' AND " <> stockF <> inactive
             <> " ORDER BY stock_id"
@@ -366,7 +384,7 @@ loadPurchasePrices :: (MonadIO m)
   => IndexParam -> ReaderT SqlBackend m [ItemInfo (ItemMasterAndPrices Identity)]
 loadPurchasePrices param = do
   case (ipStyles param) of
-     Just styleF |  ipMode param `elem` [ItemPurchaseView, ItemAllView] -> do
+     Just styleF -> do
        let sql = "SELECT ?? FROM 0_purch_data JOIN 0_stock_master USING(stock_id)"
             <> " WHERE " <> stockF <> inactive
             <> " ORDER BY stock_id"
@@ -404,7 +422,7 @@ loadStatus :: (MonadIO m)
            => IndexParam ->  ReaderT SqlBackend m [ItemInfo (ItemMasterAndPrices Identity)]
 loadStatus param = do 
   case (ipStyles param) of
-    Just styleF | ipMode param `elem` [ItemWebStatusView] -> do
+    Just styleF -> do
       let sql = "SELECT stock_id, COALESCE(qoh, 0), COALESCE(all_qoh, 0)"
               <> " , COALESCE(on_demand, 0), COALESCE(all_on_demand, 0) "
               <> " , COALESCE(on_order,0) "
@@ -459,7 +477,7 @@ loadWebStatus ::  (MonadIO m)
               => IndexParam -> ReaderT SqlBackend m [ItemInfo (ItemMasterAndPrices Identity)]
 loadWebStatus param = do
   case (ipStyles param) of
-    Just styleF | ipMode param `elem` [ItemWebStatusView] -> do
+    Just styleF -> do
       let sql = "SELECT sku, product.status, dcx_node.title"
              <> " FROM dcx_commerce_product AS product "
              <> " LEFT JOIN dcx_field_data_field_product ON (product_id = field_product_product_id"
@@ -484,7 +502,7 @@ loadWebPrices :: (MonadIO m)
               => IndexCache -> IndexParam -> ReaderT SqlBackend m [ItemInfo (ItemMasterAndPrices Identity)]
 loadWebPrices cache param = do
   case (ipStyles param) of
-    Just styleF | ipMode param `elem` [ItemWebStatusView] ->  do
+    Just styleF ->  do
        -- individual prices For each sku
        sku'prices <- mapM (loadWebPriceFor (filterEKeyword styleF)) (icWebPriceList cache)
        -- traceShowM ("sku'prices",sku'prices, icWebPriceList cache)
