@@ -63,6 +63,7 @@ dependencies:
 - curl >= 1.3.8 && < 1.4
 - tagsoup >=  0.14.1 && < 0.15
 - regex-tdfa >= 1.2.2 && < 1.3
+- async 
 default-extensions:
 - TemplateHaskell
 - QuasiQuotes

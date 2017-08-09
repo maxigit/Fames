@@ -33,6 +33,7 @@ import Data.Foldable(toList)
 import qualified Data.List as List
 import Data.Maybe
 import qualified Data.Text as Text
+import Util.Cache
 
 -- | The foundation datatype for your application. This can be a good place to
 -- keep settings and values requiring initialization before your application
@@ -45,6 +46,7 @@ data App = App
     , appHttpManager :: Manager
     , appLogger      :: Logger
     , appFayCommandHandler :: CommandHandler App
+    , appCache :: MVar ExpiryCache
     }
 
 -- This is where we define all of the routes in our application. For a full
