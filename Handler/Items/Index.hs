@@ -202,7 +202,7 @@ checkFilter param sku =
 
 -- ** Preloaded Cache
 fillIndexCache :: Handler IndexCache
-fillIndexCache = runDB $ do
+fillIndexCache = cache0 (3600) "index/static"  $ runDB $ do
   salesTypes <- selectList [] [] -- [Entity SalesType]
   let priceListNames = mapFromList [ (k, salesTypeSalesType t)
                                    | (Entity (SalesTypeKey k) t) <- salesTypes
@@ -1035,6 +1035,7 @@ createMissing params = do
       itemCodes = map stockMasterToItemCode stockMasters
         
   -- traceShowM ("tocreate ", (stockMasters, prices, purchData))
+  clearAppCache
   runDB $ do
     insertEntityMany stockMasters
     insertMany_ itemCodes

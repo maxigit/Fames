@@ -14,8 +14,10 @@ import Debug.Trace
 -- * Delayed
 -- | A syncronous actions, which can be started from another thread.
 -- Usefull to get value pre-cached for the next request.
+
+data DAction = DStart | DCancel deriving Show
 data Delayed m a = Delayed
-  { blocker :: MVar ()
+  { blocker :: MVar DAction
   , action :: Async (StM m a)
   } deriving Typeable
 
@@ -29,17 +31,33 @@ createDelayed a = do
    mvar <- liftIO newEmptyMVar
    -- don't actually start the action until mvar has been set
    as <- async (do
-                   liftIO $ (traceShowM "Reading" >> readMVar mvar >> traceShowM "Starting")
-                   v <- a
-                   traceShowM "done"
-                   return v
+                   act <- liftIO $ do
+                     traceShowM "Reading"
+                     act <- readMVar mvar
+                     traceShowM $ "read done - Starting" ++ show act
+                     return act
+                   case act of
+                     DStart -> do
+                       v <- a
+                       traceShowM "done"
+                       return v
+                     DCancel -> do
+                       traceShowM "cancelling"
+                       error "delayed cancelled"
+                       
+
                )
    return (Delayed mvar as)
 
 -- | Start the delayed action
 startDelayed :: MonadIO io =>  Delayed io a -> io ()
 startDelayed d = liftIO $ do
-  _ <- tryPutMVar (blocker d) ()
+  _ <- tryPutMVar (blocker d) DStart
+  return ()
+
+cancelDelayed :: MonadIO io =>  Delayed io a -> io ()
+cancelDelayed d = liftIO $ do
+  _ <- tryPutMVar (blocker d) DCancel
   return ()
 
 
@@ -68,9 +86,12 @@ statusDelayed d = liftIO $ do
 type ExpiryCache = Map String (MVar (Dynamic, UTCTime))
 
 -- ** Standard cache
-newExpiryCache :: Monoid a => IO (MVar a)
+newExpiryCache :: IO (MVar ExpiryCache)
 newExpiryCache = newMVar mempty
 
+clearExpiryCache :: MVar ExpiryCache -> IO ()
+clearExpiryCache cvar =
+  putMVar cvar mempty
 -- Compute or use the cached value.
 -- There is no way to get a value from the cache without actually
 -- specifying the way to compute value. This is to make sure
@@ -134,9 +155,9 @@ purgeKey cvar key = liftIO $ modifyMVar_ cvar go
 preCache :: (MonadBaseControl IO io, MonadIO io, Show k, Typeable a, Typeable io)
          => MVar ExpiryCache -> k -> io a -> Int -> io (Delayed io a)
 preCache cvar key vio delay = do
-  let d = createDelayed vio
-  -- _ <- async $ error "add deleay" >> purgeKey cvar (show key)
-  traceShowM ("A", show key)
-  expCache cvar key (d) delay 
-  
-
+  d <- createDelayed vio
+  _ <- async $ do
+    liftIO $ threadDelay ((delay+1)*1000000)
+    cancelDelayed d
+    purgeKey cvar key
+  expCache cvar key (return d) delay 

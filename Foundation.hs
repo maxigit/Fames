@@ -436,3 +436,8 @@ cache0 delay key action = do
   cache <- getsYesod appCache
   expCache cache key action delay
 
+
+clearAppCache :: Handler ()
+clearAppCache = do
+  cache <- getsYesod appCache
+  lift $ clearExpiryCache cache
