@@ -772,15 +772,15 @@ columnForSMI col stock =
     "materialCost"           -> Just $ toHtml <$> smfMaterialCost stock 
     "labourCost"             -> Just $ toHtml <$> smfLabourCost stock 
     "overheadCost"           -> Just $ toHtml <$> smfOverheadCost stock 
-    "inactive"               -> Just $ badgify "active" . toActive <$> smfInactive stock 
+    "inactive"               -> Just $ badgify "active" . toInactive <$> smfInactive stock 
     "noSale"                 -> Just $ toHtml <$> smfNoSale stock 
     "editable"               -> Just $ toHtml <$> smfEditable stock 
     _ -> Nothing
   where
     badgify :: Text -> Text -> Html
     badgify label str = [shamlet|<span data-label=#{label}-#{str}>#{str}|]
-    toActive True = "Active"
-    toActive False = "Inactive"
+    toInactive False = "Active"
+    toInactive True = "Inactive"
 
 columnForPrices :: Int -> (IntMap (PriceF ((,) [Text]))) -> Maybe ([Text], Html)
 columnForPrices colInt prices = do -- Maybe
