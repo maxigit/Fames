@@ -1,9 +1,19 @@
-* TODO Web status  price
-- [ ] pass salesTypes as argument and use it to count column
-- [ ] don't fail if price table doesn't existing
-- [ ] implement diff and create webprice from FA Prices list
+* Web status missing
+Web items need 
+- product variation
+- prices
+- link
+When creating missing, we need of course
+to create all, but prices only can be missing,
+or link only 
+
+* DONE Web status  price
+  CLOSED: [2017-08-14 Mon 18:54]
+- [X] pass salesTypes as argument and use it to count column
+- [X] don't fail if price table doesn't existing
+- [X] implement diff and create webprice from FA Prices list
 and set it to base
-- [ ] filter inactive price list?
+- [X] filter inactive price list?
 * TODO to finish Items creation update
 ** TODO fix bug check button not working
  When refreshing a page "Search" checkbox and style are not in synck

@@ -281,12 +281,20 @@ loadVariations :: IndexCache -> IndexParam
                           ]
 loadVariations cache param = do
   -- pre cache variations parts
-  delayeds <- mapM (\a -> preCache0 30 param (runDB $ a param)) [ loadSalesPrices
-                                                                , loadPurchasePrices
-                                                                , loadStatus
-                                                                , loadWebStatus
-                                                                , loadWebPrices cache
-                                                                ]
+  traceShowM "loading variation"
+  delayeds <- mapM (\(a,p) -> preCache0 30 (param { ipMode = ItemPriceView
+                                                  , ipChecked = []
+                                                  , ipColumns = []
+                                                  }
+                                           , p) (runDB $ a param))
+           [ (loadSalesPrices, "prices")
+           , (loadPurchasePrices, "purchase")
+           , (loadStatus, "fa status")
+           , (loadWebStatus, "web status")
+           , (loadWebPrices cache, "web prices")
+           ]
+  traceShowM "=================== cached variation =================== "
+  -- mapM_ startDelayed delayeds
   let [ delayedSalesPrices , delayedPurchasePrices
         , delayedStatus
         , delayedWebStatus
@@ -298,46 +306,48 @@ loadVariations cache param = do
       bases =  ipBases param
   adjustBase <- getAdjustBase
   varGroupMap <- appVariationGroups <$> appSettings <$> getYesod
-  runDB $ do
-    styles <- case styleFilter param of
-      Left err -> do
-                setWarning err
-                return []
-      Right styleF -> selectList styleF
-                          [Asc FA.StockMasterId]
-    variations <- case varF of
-      (Right Nothing) -> return (Left $ map  entityKey styles)
-      (Left filter_)  -> (Left . map entityKey) <$> selectList -- selectKeysList bug. fixed but not in current LTS
-                                 (filterE StockMasterKey FA.StockMasterId (Just filter_)
-                                 <> [FA.StockMasterInactive ==. False ]
-                                 )
-                                            [Asc FA.StockMasterId]
-      (Right (Just group_)) -> return $ Right (Map.findWithDefault [] group_ varGroupMap)
-    infoSources <- mapM (lift . getDelayed) (case ipMode param of
-      ItemPriceView -> [delayedSalesPrices]
-      ItemPurchaseView -> [delayedPurchasePrices]
-      ItemAllView -> [delayedSalesPrices, delayedPurchasePrices]
-      ItemWebStatusView -> [delayedSalesPrices, delayedStatus, delayedWebStatus, delayedWebPrices]
-      )
+  
+  styles <- case styleFilter param of
+    Left err -> do
+              setWarning err
+              return []
+    Right styleF -> let select = selectList styleF [Asc FA.StockMasterId]
+                    in cache0 30 (ipStyles param, "load styles") (runDB select)
+  variations <- case varF of
+    (Right Nothing) -> return (Left $ map  entityKey styles)
+    (Left filter_)  -> let select = (Left . map entityKey) <$> runDB (selectList -- selectKeysList bug. fixed but not in current LTS
+                                    (filterE StockMasterKey FA.StockMasterId (Just filter_)
+                                     <> [FA.StockMasterInactive ==. False ]
+                                    )
+                                          [Asc FA.StockMasterId])
+                       in cache0 30 (filter_, "load variations") select
+    (Right (Just group_)) -> return $ Right (Map.findWithDefault [] group_ varGroupMap)
+  infoSources <- mapM getDelayed (case ipMode param of
+    ItemGLView -> []
+    ItemPriceView -> [delayedSalesPrices]
+    ItemPurchaseView -> [delayedPurchasePrices]
+    ItemAllView -> [delayedSalesPrices, delayedPurchasePrices]
+    ItemWebStatusView -> [delayedSalesPrices, delayedStatus, delayedWebStatus, delayedWebPrices]
+    )
 
-    let itemStyles = mergeInfoSources ( map stockItemMasterToItem styles
-                                      : infoSources
-                                      )
-        itemVars =  case variations of
-          Left keys -> map (snd . skuToStyleVar . unStockMasterKey) keys
-          Right vars -> vars
-        itemGroups = joinStyleVariations (skuToStyleVar <$> bases)
-                                         (adjustBase cache) computeDiff
-                                         itemStyles itemVars
-        filterExtra = if ipShowExtra param
-                      then id
-                      else (List.filter ((/= VarExtra) . fst))
+  let itemStyles = mergeInfoSources ( map stockItemMasterToItem styles
+                                    : infoSources
+                                    )
+      itemVars =  case variations of
+        Left keys -> map (snd . skuToStyleVar . unStockMasterKey) keys
+        Right vars -> vars
+      itemGroups = joinStyleVariations (skuToStyleVar <$> bases)
+                                        (adjustBase cache) computeDiff
+                                        itemStyles itemVars
+      filterExtra = if ipShowExtra param
+                    then id
+                    else (List.filter ((/= VarExtra) . fst))
 
-    let result =  map (\(base, vars)
-                   -> (base, filterExtra vars)
-                  ) itemGroups
-    mapM_ (lift . startDelayed) delayeds
-    return result
+  let result =  map (\(base, vars)
+                  -> (base, filterExtra vars)
+                ) itemGroups
+  mapM_ startDelayed delayeds
+  return result
 
     
 -- ** Sales prices
@@ -346,6 +356,7 @@ loadVariations cache param = do
 loadSalesPrices :: (MonadIO m)
   => IndexParam -> ReaderT SqlBackend m [ItemInfo (ItemMasterAndPrices Identity)]
 loadSalesPrices param = do
+  traceShowM "loading prices"
   case (ipStyles param) of
      Just styleF -> do
        let sql = "SELECT ?? FROM 0_prices JOIN 0_stock_master USING(stock_id)"
@@ -371,6 +382,7 @@ loadSalesPrices param = do
                               in ItemInfo style var master
                           ) group_
 
+           traceShowM "prices loaded"
            return maps
           
 
@@ -394,8 +406,9 @@ loadPurchasePrices param = do
                        then ""
                        else " AND inactive = 0"
        do
+           traceShowM "load purchases prices"
            prices <- rawSql sql [PersistText p]
-           -- traceShowM("PURCH_DATA", sql, prices)
+           traceShowM("PURCH_DATA") -- , sql, prices)
 
            let group_ = groupBy ((==) `on `purchDataStockId) (map entityVal prices)
                maps = map (\priceGroup@(one:_) -> let
@@ -454,7 +467,9 @@ loadStatus param = do
           inactive =  if ipShowInactive param
                        then ""
                        else " AND inactive = 0"
+      traceShowM "load FA status"
       rows <- rawSql sql [PersistText p]
+      traceShowM "FA status loaded"
       return [ ItemInfo style var master
              | (Single sku, Single qoh, Single allQoh
                , Single onDemand, Single allOnDemand, Single onOrder
@@ -485,7 +500,9 @@ loadWebStatus param = do
              <> " LEFT JOIN dcx_node ON (entity_id = nid) "
              <> " WHERE sku " <> fKeyword <> " ?"
           (fKeyword, p) = filterEKeyword styleF
+      traceShowM "loading web status"
       rows <- rawSql sql [PersistText p]
+      traceShowM "loaded web status"
       -- traceShowM rows
       return [ItemInfo style var master
              | (Single sku, Single active, Single display) <- rows
@@ -501,6 +518,7 @@ loadWebStatus param = do
 loadWebPrices :: (MonadIO m)
               => IndexCache -> IndexParam -> ReaderT SqlBackend m [ItemInfo (ItemMasterAndPrices Identity)]
 loadWebPrices cache param = do
+  traceShowM "loading web prices"
   case (ipStyles param) of
     Just styleF ->  do
        -- individual prices For each sku
@@ -508,6 +526,7 @@ loadWebPrices cache param = do
        -- traceShowM ("sku'prices",sku'prices, icWebPriceList cache)
        let style'var'pricesMap  :: Map Text (ItemPriceF Identity)
            style'var'pricesMap  = Map.fromListWith (<>) (concat sku'prices)
+       traceShowM "web prices loaded"
        return [ ItemInfo style var (mempty {impWebPrices = Just prices})
               | (sku, prices) <- Map.toList style'var'pricesMap
               , let (style, var) = skuToStyleVar sku
@@ -797,7 +816,10 @@ columnForWebStatus col wStatusM =
       in  Just (showActive <$>  w)
     "Product Display" ->
       case sequence w of
-        Just (_, True) ->  Just $ maybe ([], [shamlet|<span.label.label-danger data-label="unliked">Unlinked|])
+        Just (_, True) ->  Just $ maybe ([], [shamlet|<span.label.label-danger data-label="unlinked">Unlinked|])
+                                      (fmap toHtml)
+                                      (sequence . iwfProductDisplay =<<  wStatusM) 
+        Just (_, False) ->  Just $ maybe ([], [shamlet|<span.label.label-warning data-label="unliked-a">Inactive|])
                                       (fmap toHtml)
                                       (sequence . iwfProductDisplay =<<  wStatusM) 
         Nothing -> Nothing

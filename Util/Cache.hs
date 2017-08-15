@@ -9,6 +9,7 @@ import Control.Concurrent.Async.Lifted
 import Data.Time
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Control(StM, MonadBaseControl)
+import Debug.Trace
 
 -- * Delayed
 -- | A syncronous actions, which can be started from another thread.
@@ -27,7 +28,12 @@ createDelayed :: (MonadBaseControl IO io, MonadIO io) =>  io a -> io (Delayed io
 createDelayed a = do
    mvar <- liftIO newEmptyMVar
    -- don't actually start the action until mvar has been set
-   as <- async (liftIO (takeMVar mvar) >> a)
+   as <- async (do
+                   liftIO $ (traceShowM "Reading" >> readMVar mvar >> traceShowM "Starting")
+                   v <- a
+                   traceShowM "done"
+                   return v
+               )
    return (Delayed mvar as)
 
 -- | Start the delayed action
@@ -74,28 +80,41 @@ expCache cvar key vio seconds  = do
   let k = show key
   -- we release cvar as soon as possible
   let putV mvar = do
+                  traceShowM $ "starting computation for key " ++ k
                   v <- vio
+                  traceShowM $ "finishind computation for key " ++ k
                   now <- liftIO $ getCurrentTime
+                  traceShowM $ "putMVar"
                   liftIO $ putMVar mvar (toDyn v, addUTCTime (fromIntegral seconds) now)
                   return v
   let getCachedMVar cache = do
         case Map.lookup k cache of
           Nothing -> liftIO $ do -- key need creating
+            traceShowM $ "Create mvar for" ++ k
             mvar <- newEmptyMVar
             let todo = putV mvar
             return (Map.insert k mvar cache, Left todo)
           Just mvar -> do
             return (cache, Right mvar)
+  traceShowM $ "acquiring cache for" ++ k
   (todo'mvar) <- liftIO $ modifyMVar cvar getCachedMVar 
+  traceShowM $ "releasing cache for" ++ k
   case todo'mvar of
     Left todo -> do
+      traceShowM "doing"
       todo
     Right mvar -> do
       (d, t) <- liftIO $ takeMVar mvar
       now <- liftIO $ getCurrentTime
+      traceShowM ("NOW", now)
       if now <= t
-        then return $ fromDyn d (error "Wrong type for cached key.")
-        else putV mvar
+        then do
+          traceShowM "use cache value"
+          liftIO $ putMVar mvar (d, t)
+          return $ fromDyn d (error "Wrong type for cached key.")
+        else do
+          traceShowM $ "use cached version for" ++ k
+          putV mvar
 
 purgeKey :: (MonadIO io, Show k) => MVar ExpiryCache -> k -> io ()
 purgeKey cvar key = liftIO $ modifyMVar_ cvar go
@@ -115,8 +134,9 @@ purgeKey cvar key = liftIO $ modifyMVar_ cvar go
 preCache :: (MonadBaseControl IO io, MonadIO io, Show k, Typeable a, Typeable io)
          => MVar ExpiryCache -> k -> io a -> Int -> io (Delayed io a)
 preCache cvar key vio delay = do
-  d <- createDelayed vio
-  _ <- async $ error "add deleay" >> purgeKey cvar (show key)
-  expCache cvar key (undefined d) delay 
+  let d = createDelayed vio
+  -- _ <- async $ error "add deleay" >> purgeKey cvar (show key)
+  traceShowM ("A", show key)
+  expCache cvar key (d) delay 
   
 
