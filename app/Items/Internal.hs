@@ -91,12 +91,14 @@ computeDiff item0 item@(ItemInfo style var master) = let
   [ws0, ws] = (map (impWebStatus . iiInfo)  [item0, item]) :: [Maybe (ItemWebStatusF Identity)]
   -- we don't want to compare the web status to the base item, but to the FA Status
   -- if something is running, it should be available on the website
-  ws0' = faToWebStatus style <$> impFAStatus master
+  -- However, if FAStatus is not present (ie, product doesn't exits) should be equivalent
+  -- to disabled
+  ws0' = faToWebStatus style (impFAStatus master)
   diff = ItemMasterAndPrices (diffFieldStockMasterF <$>  i0 <*> i)
                              (Just $ diffPriceMap s0 s )
                              (Just $ diffPurchMap p0 p )
                              (setPureItemStatusF1 <$> impFAStatus master)
-                             (diffFieldItemWebStatusF <$> ws0' <*> ws)
+                             (diffFieldItemWebStatusF <$> Just ws0' <*> ws)
                              (Just . ItemPriceF $ diffWebPriceMap wp0 wp)
 
   in ItemInfo style var (diff)
@@ -113,10 +115,10 @@ diffWebPriceMap a b = let
   aligned = align a b
   in these setWarn setInfo diffField <$> aligned
 
-  
-faToWebStatus :: Text -> ItemStatusF Identity -> ItemWebStatusF Identity
-faToWebStatus style fa = case faRunningStatus fa of
-  Identity FARunning -> ItemWebStatusF (pure (Just style)) (pure True)
+-- | Convert a FrontAccounting status to the expected Status on the Website  
+faToWebStatus :: Text -> Maybe (ItemStatusF Identity) -> ItemWebStatusF Identity
+faToWebStatus style fa = case faRunningStatus <$> fa of
+  Just (Identity FARunning) -> ItemWebStatusF (pure (Just style)) (pure True)
   _ -> ItemWebStatusF (pure Nothing) (pure False)
   
 -- * Join variations

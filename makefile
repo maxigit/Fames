@@ -67,7 +67,7 @@ install_local:
 	rsync -z .stack-work/install/x86_64-linux/lts-8.24/8.0.2/bin/Fames ../fames-config/bin/Fames
 
 ghcid:
-	ghcid --command="stack exec ghci --test -- -iapp -i. -ifay-shared -itest -hide-package=cryptonite  -w test/Spec.hs"   --test ":main --rerun --color"
+	ghcid --command="stack exec ghci --test -- -iapp -i. -ifay-shared -itest -iconfig/fa -hide-package=cryptonite  -w test/Spec.hs"   --test ":main --rerun --color"
 
 config/tables/xx%: config/fa-models
 

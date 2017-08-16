@@ -281,7 +281,7 @@ loadVariations :: IndexCache -> IndexParam
                           ]
 loadVariations cache param = do
   -- pre cache variations parts
-  traceShowM "loading variation"
+  -- traceShowM "loading variation"
   delayeds <- mapM (\(a,p) -> preCache0 30 (param { ipMode = ItemPriceView
                                                   , ipChecked = []
                                                   , ipColumns = []
@@ -293,7 +293,7 @@ loadVariations cache param = do
            , (loadWebStatus, "web status")
            , (loadWebPrices cache, "web prices")
            ]
-  traceShowM "=================== cached variation =================== "
+  -- traceShowM "=================== cached variation =================== "
   -- mapM_ startDelayed delayeds
   let [ delayedSalesPrices , delayedPurchasePrices
         , delayedStatus
@@ -356,7 +356,7 @@ loadVariations cache param = do
 loadSalesPrices :: (MonadIO m)
   => IndexParam -> ReaderT SqlBackend m [ItemInfo (ItemMasterAndPrices Identity)]
 loadSalesPrices param = do
-  traceShowM "loading prices"
+  -- traceShowM "loading prices"
   case (ipStyles param) of
      Just styleF -> do
        let sql = "SELECT ?? FROM 0_prices JOIN 0_stock_master USING(stock_id)"
@@ -382,7 +382,7 @@ loadSalesPrices param = do
                               in ItemInfo style var master
                           ) group_
 
-           traceShowM "prices loaded"
+           -- traceShowM "prices loaded"
            return maps
           
 
@@ -406,9 +406,9 @@ loadPurchasePrices param = do
                        then ""
                        else " AND inactive = 0"
        do
-           traceShowM "load purchases prices"
+           -- traceShowM "load purchases prices"
            prices <- rawSql sql [PersistText p]
-           traceShowM("PURCH_DATA") -- , sql, prices)
+           -- traceShowM("PURCH_DATA") -- , sql, prices)
 
            let group_ = groupBy ((==) `on `purchDataStockId) (map entityVal prices)
                maps = map (\priceGroup@(one:_) -> let
@@ -467,9 +467,9 @@ loadStatus param = do
           inactive =  if ipShowInactive param
                        then ""
                        else " AND inactive = 0"
-      traceShowM "load FA status"
+      -- traceShowM "load FA status"
       rows <- rawSql sql [PersistText p]
-      traceShowM "FA status loaded"
+      -- traceShowM "FA status loaded"
       return [ ItemInfo style var master
              | (Single sku, Single qoh, Single allQoh
                , Single onDemand, Single allOnDemand, Single onOrder
@@ -962,8 +962,20 @@ columnClass col = filter (/= ' ') (tshow col)
 
 -- * Actions
 -- ** Missings
+-- ** Actions
 createMissing :: IndexParam -> Handler ()
 createMissing params = do
+   resp <- (case ipMode params of
+              ItemWebStatusView -> createDCMissings
+              _ -> createGLMissings
+           ) params
+
+   clearAppCache
+   return resp
+
+-- ***  Gl
+createGLMissings :: IndexParam -> Handler ()
+createGLMissings params = do
   -- load inactive as well to avoid trying to create missing product
   -- If on the GL tab, create prices as well as items
   -- Otherwise, only create the data corresponding to the current tab (eg. sales/purchase prices)
@@ -1044,6 +1056,67 @@ createMissing params = do
 
   setSuccess (toHtml $ tshow (maximumEx [length stockMasters, length prices, length purchData]) <> " items succesfully created.")
   return ()
+
+-- *** Website
+createDCMissings :: IndexParam -> Handler ()
+createDCMissings params = do
+  -- we need to create everything which is missing in the correct order
+  createMissingProducts params
+  createMissingDCLinks params
+  createMissingWebPrices params
+  
+createMissingProducts params = do
+  cache <- fillIndexCache
+  timestamp <- round <$> liftIO getPOSIXTime
+  itemGroups <- loadVariations cache (params {ipShowInactive = True})
+  traceShowM itemGroups
+  -- find items with no product information in DC
+  -- ie, ItemWebStatusF not present 
+  -- let missingProduct group = isJust (_ group)
+  let toKeep = checkFilter params
+
+  let missings = [ sku
+                 | (_, group ) <- itemGroups 
+                 , (status, info) <-  group
+                 , let sku = styleVarToSku (iiStyle info) (iiVariation info)
+                 , toKeep sku
+                 , let mm = traceShowId $ iiInfo info
+                 , isNothing (impWebStatus mm)
+                 ]
+      newProduct sku = DC.CommerceProductT{..} where
+        commerceProductTRevisionId = Nothing
+        commerceProductTSku = sku
+        commerceProductTTitle = sku
+        commerceProductTType = "product"
+        commerceProductTLanguage = ""
+        commerceProductTUid = 1
+        commerceProductTStatus = True -- Active
+        commerceProductTCreated = timestamp
+        commerceProductTChanged = timestamp
+        commerceProductTData = Nothing -- "b:0;" -- Empty PHP encoding
+  traceShowM missings
+        
+      -- newProductRev sku = DC.CommerceProductRevisionT{..} where
+      --   commerceProductRevisionTProductId = Nothing
+      --   commerceProductRevisionTSku = sku
+      --   commerceProductRevisionTTitle = sku
+      --   commerceProductRevisionTType = "product"
+      --   commerceProductRevisionTLanguage = ""
+      --   commerceProductRevisionTUid = 1
+      --   commerceProductRevisionTStatus = True -- Active
+      --   commerceProductRevisionTCreated = timestamp
+      --   commerceProductRevisionTChanged = timestamp
+      --   commerceProductRevisionTData = Nothing -- "b:0;" -- Empty PHP encoding
+
+  mapM_ traceShowM ("Inserting", length missings)
+  runDB $ do
+    ids <- insertMany (map newProduct missings)
+    return ()
+    -- insertMany_ (map newProductRev missings)
+      
+  
+createMissingDCLinks params = return ()
+createMissingWebPrices params = return ()
 
 -- ** Activation
 -- | Activates/deactivate and item in FrontAccounting.

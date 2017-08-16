@@ -589,6 +589,7 @@ test-suite test
       Handler.WHPackingListSpec
       Handler.WHStockAdjustmentSpec
       Handler.WHStocktakeSpec
+      Items.InternalSpec
       RoleSpec
       TestImport
   default-language: Haskell2010
