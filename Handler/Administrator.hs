@@ -4,8 +4,10 @@ import Import
 import WH.FA.Curl (testFAConnection)
 import WH.FA.Types (FAConnectInfo(..))
 import Data.Yaml.Pretty(encodePretty, defConfig)
-import Data.Dynamic (dynTypeRep)
+import Data.Dynamic (dynTypeRep, Dynamic, fromDynamic)
+import Util.Cache
 import qualified Data.Map as Map
+import Items.Types
 
 
 -- | Page to test administrator authentication.
@@ -57,27 +59,46 @@ getACacheR = do
   cvar <- getsYesod appCache
   now <- liftIO $ getCurrentTime
   cache <- readMVar cvar
-  let expired t = t < now
+  let expired t = t > now
   -- sort by expiry date desc
   info <- mapM (\km ->traverse readMVar km) (Map.toList cache) 
+  let blockerH :: Delayed Handler a -> MVar DAction
+      blockerH = blocker
   let sorted = sortBy (comparing (\(k, (_, t)) -> (Down t,k))) info
-      extra _ = ""
-  defaultLayout $ [whamlet|
+      extra :: Dynamic -> UTCTime -> Handler Html
+      extra dyn t = case castToDelayed blockerH dyn of
+        Nothing -> return ""
+        Just block -> do
+            mvarM <- liftIO $ tryReadMVar (block)
+            let status = case (mvarM, expired t) of
+                            (Nothing, True) -> [shamlet|<span.label.label-info>Waiting|]
+                            (Nothing, False) -> [shamlet|<span.label.label-danger>Waiting|]
+                            (Just DCancel, _) -> [shamlet|<span.label.label-warning>Cancelled|]
+                            (Just DStart, True) -> [shamlet|<span.label.label-success>Started|]
+                            (Just DStart, _) -> [shamlet|<span.label.label-warning>Started|]
+            return $ status
+      getExtra (k, (dyn, t)) = do
+        x <- extra dyn t
+        return (k, dyn, t, x)
+  withExtra <- mapM getExtra sorted
+  defaultLayout $ do
+    toWidgetHead [shamlet|<meta http-equiv="refresh" content="1">|]
+    [whamlet|
 <h1>Cache
 <h2>Expiry Cache
-<table.table.table-striped,table-hover>
-  <td>
+<table.table.table-striped.table-hover>
+  <tr>
     <theader>Time
     <theader>Key
     <theader>Value
     <theader>Extra
-  $forall (k, (dyn, t)) <- sorted
+  $forall (k, dyn, t, ex) <- withExtra
     $with exp <- expired t
       <tr :exp:.txt-muted>
         <td>#{tshow $ t}
-        <td>#{tshow k}
+        <td>#{k}
         <td>#{tshow $ dynTypeRep dyn}
-        <td>#{tshow $ extra dyn}
+        <td>#{ex}
 <form action=@{AdministratorR ACacheR} method=post>
   <button.btn.btn-danger type="submit">Clear 
                           |]

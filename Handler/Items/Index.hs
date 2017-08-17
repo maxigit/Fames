@@ -282,16 +282,17 @@ loadVariations :: IndexCache -> IndexParam
 loadVariations cache param = do
   -- pre cache variations parts
   -- traceShowM "loading variation"
-  delayeds <- mapM (\(a,p) -> preCache0 30 (param { ipMode = ItemPriceView
+  delayeds <- mapM (\(p,a) -> preCache0 30 (p
+                                           , param { ipMode = ItemPriceView
                                                   , ipChecked = []
-                                                  , ipColumns = []
+                                                  , ipBases = mempty
                                                   }
-                                           , p) (runDB $ a param))
-           [ (loadSalesPrices, "prices")
-           , (loadPurchasePrices, "purchase")
-           , (loadStatus, "fa status")
-           , (loadWebStatus, "web status")
-           , (loadWebPrices cache, "web prices")
+                                           ) (runDB $ a param))
+           [ ("prices", loadSalesPrices)
+           , ("purchase", loadPurchasePrices)
+           , ("fa status", loadStatus)
+           , ("web status", loadWebStatus)
+           , ("web prices", loadWebPrices cache)
            ]
   -- traceShowM "=================== cached variation =================== "
   -- mapM_ startDelayed delayeds
@@ -312,7 +313,7 @@ loadVariations cache param = do
               setWarning err
               return []
     Right styleF -> let select = selectList styleF [Asc FA.StockMasterId]
-                    in cache0 30 (ipStyles param, "load styles") (runDB select)
+                    in cache0 30 ("load styles", ipStyles param) (runDB select)
   variations <- case varF of
     (Right Nothing) -> return (Left $ map  entityKey styles)
     (Left filter_)  -> let select = (Left . map entityKey) <$> runDB (selectList -- selectKeysList bug. fixed but not in current LTS
@@ -1068,8 +1069,7 @@ createDCMissings params = do
 createMissingProducts params = do
   cache <- fillIndexCache
   timestamp <- round <$> liftIO getPOSIXTime
-  itemGroups <- loadVariations cache (params {ipShowInactive = True})
-  traceShowM itemGroups
+  itemGroups <- loadVariations cache (params {ipShowInactive = True, ipBases = mempty, ipChecked=[]})
   -- find items with no product information in DC
   -- ie, ItemWebStatusF not present 
   -- let missingProduct group = isJust (_ group)
@@ -1080,7 +1080,7 @@ createMissingProducts params = do
                  , (status, info) <-  group
                  , let sku = styleVarToSku (iiStyle info) (iiVariation info)
                  , toKeep sku
-                 , let mm = traceShowId $ iiInfo info
+                 , let mm = iiInfo info
                  , isNothing (impWebStatus mm)
                  ]
       newProduct sku = DC.CommerceProductT{..} where
@@ -1094,7 +1094,6 @@ createMissingProducts params = do
         commerceProductTCreated = timestamp
         commerceProductTChanged = timestamp
         commerceProductTData = Nothing -- "b:0;" -- Empty PHP encoding
-  traceShowM missings
         
       -- newProductRev sku = DC.CommerceProductRevisionT{..} where
       --   commerceProductRevisionTProductId = Nothing

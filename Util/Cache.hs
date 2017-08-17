@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns, PolyKinds, MagicHash, ScopedTypeVariables, DataKinds #-}
 module Util.Cache where
 
 import Prelude
@@ -10,6 +11,10 @@ import Data.Time
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Control(StM, MonadBaseControl)
 import Debug.Trace
+import Unsafe.Coerce(unsafeCoerce)
+import Data.Proxy
+import GHC.Prim (Any, Proxy#)
+import Data.Typeable
 
 -- * Delayed
 -- | A syncronous actions, which can be started from another thread.
@@ -67,6 +72,39 @@ getDelayed d = do
   startDelayed d
   wait (action d)
 
+-- From Stackoverflow
+
+-- This part reifies a `Typeable' dictionary from a `TypeRep'.
+-- This works because `Typeable' is a class with a single field, so 
+-- operationally `Typeable a => r' is the same as `(Proxy# a -> TypeRep) -> r'
+newtype MagicTypeable r (kp :: KProxy k) =
+  MagicTypeable (forall (a :: k) . Typeable a => Proxy a -> r)
+
+withTypeRep :: MagicTypeable r (kp :: KProxy k)
+            -> forall a . TypeRep -> Proxy a -> r
+withTypeRep d t = unsafeCoerce d ((\_ -> t) :: Proxy# a -> TypeRep)
+
+withTypeable :: forall r . TypeRep -> (forall (a :: k) . Typeable a => Proxy a -> r) -> r
+withTypeable t k = withTypeRep (MagicTypeable k) t Proxy
+
+-- The type constructor for Delayed
+delayed_tycon = fst $ splitTyConApp $ typeRep (Proxy :: Proxy Delayed)
+-- This is needed because Dynamic doesn't export its constructortraceShowId $ , and
+-- we need to pattern match on it.
+data DYNAMIC = Dynamic TypeRep Any
+
+unsafeViewDynamic :: Dynamic -> DYNAMIC
+unsafeViewDynamic = unsafeCoerce
+
+-- The actual implementation, much the same as the one on GHC 8.2, but more 
+-- 'unsafe' things
+castToDelayed :: Monad m => (forall a . Typeable a => Delayed m a -> r) -> Dynamic -> Maybe r
+castToDelayed k (unsafeViewDynamic -> Dynamic t x) =
+  case splitTyConApp t of
+    (((== delayed_tycon) -> True), [_,a]) -> Just $
+      withTypeable a $ \(_ :: Proxy (a :: *)) -> k (unsafeCoerce x :: Delayed m a)
+    _ -> Nothing
+
 -- | Check if the job status
 statusDelayed :: (MonadBaseControl IO io, MonadIO io) => Delayed io a -> io DelayedStatus
 statusDelayed d = liftIO $ do
@@ -90,8 +128,7 @@ newExpiryCache :: IO (MVar ExpiryCache)
 newExpiryCache = newMVar mempty
 
 clearExpiryCache :: MVar ExpiryCache -> IO ()
-clearExpiryCache cvar =
-  putMVar cvar mempty
+clearExpiryCache cvar = swapMVar cvar mempty >> return ()
 -- Compute or use the cached value.
 -- There is no way to get a value from the cache without actually
 -- specifying the way to compute value. This is to make sure
