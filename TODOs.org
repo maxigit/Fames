@@ -7,6 +7,22 @@ When creating missing, we need of course
 to create all, but prices only can be missing,
 or link only 
 
+** Updating dC manualy
+*** insert
+- commerce_product with revision
+- commerce_product_revision
+- field_data_commerce_price
+- field_data_field_colour : ID of the colour
+- field_data_field_product
+- field_data_field_stock_status
+- field_revision_commerce_price
+- field_revision_field_colour
+- field_revision_field_product
+- field_revision_field_stock_status
+*** updated
+- node
+- node_counter
+- xmlsitemap
 * DONE Web status  price
   CLOSED: [2017-08-14 Mon 18:54]
 - [X] pass salesTypes as argument and use it to count column

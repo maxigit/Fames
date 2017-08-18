@@ -17,6 +17,7 @@ import qualified Data.IntMap.Strict as IntMap
 import Text.Printf (printf)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Util.Cache
+import Control.Monad(zipWithM_)
 
 -- * Types
 -- | SQL text filter expression. Can be use either the LIKE syntax or the Regex one.
@@ -1082,6 +1083,7 @@ createMissingProducts params = do
                  , toKeep sku
                  , let mm = iiInfo info
                  , isNothing (impWebStatus mm)
+                 , not (isNothing (impMaster mm)) -- don't create product which doesn't exist
                  ]
       newProduct sku = DC.CommerceProductT{..} where
         commerceProductTRevisionId = Nothing
@@ -1107,14 +1109,81 @@ createMissingProducts params = do
       --   commerceProductRevisionTChanged = timestamp
       --   commerceProductRevisionTData = Nothing -- "b:0;" -- Empty PHP encoding
 
+      newFieldProduct productDisplayId productId delta = DC.FieldDataFieldProductT{..} where
+       fieldDataFieldProductTEntityType = "node"
+       fieldDataFieldProductTBundle = "product_display"
+       fieldDataFieldProductTDeleted = False
+       fieldDataFieldProductTEntityId = productDisplayId
+       fieldDataFieldProductTRevisionId = Nothing
+       fieldDataFieldProductTLanguage = "und"
+       fieldDataFieldProductTDelta = delta
+       fieldDataFieldProductTFieldProductProductId = productId
+
   mapM_ traceShowM ("Inserting", length missings)
   runDB $ do
-    ids <- insertMany (map newProduct missings)
+    ids <- insertMany $ trace "new product" (map newProduct missings)
     return ()
     -- insertMany_ (map newProductRev missings)
-      
   
-createMissingDCLinks params = return ()
+-- | Create missing link between product and product display.
+createMissingDCLinks :: IndexParam -> Handler ()
+createMissingDCLinks params = do
+  cache <- fillIndexCache
+  timestamp <- round <$> liftIO getPOSIXTime
+  itemGroups <- loadVariations cache (params {ipShowInactive = True, ipBases = mempty, ipChecked=[]})
+  -- find items with no product information in DC
+  -- ie, ItemWebStatusF not present 
+  -- let missingProduct group = isJust (_ group)
+  let toKeep = checkFilter params
+  mapM_ (createMissingDCLinksForStyle toKeep) itemGroups
+
+
+createMissingDCLinksForStyle :: _ -> _ -> Handler ()
+createMissingDCLinksForStyle toKeep (base, items) = runDB $ do
+  let missings = [ sku
+                 | (status, info) <-  items
+                 , let sku = styleVarToSku (iiStyle info) (iiVariation info)
+                 , toKeep sku
+                 , let mm = iiInfo info
+                 , isNothing $ join $ snd (iwfProductDisplay `traverse` impWebStatus mm) 
+                 ]
+  traceShowM ("Missing", missings)
+  -- Get product display id
+  pdKeys <- selectKeysList [DC.NodeTTitle ==. iiStyle base] []
+  case pdKeys of
+    [] -> setError (toHtml $ "Product display " ++ (iiStyle base) ++ " missing from node table") >> return ()
+    [DC.NodeTKey pdId] -> do
+      let newFieldProduct productId delta = DC.FieldDataFieldProductT{..} where
+            fieldDataFieldProductTEntityType = "node"
+            fieldDataFieldProductTBundle = "product_display"
+            fieldDataFieldProductTDeleted = False
+            fieldDataFieldProductTEntityId = pdId
+            fieldDataFieldProductTRevisionId = Nothing
+            fieldDataFieldProductTLanguage = "und"
+            fieldDataFieldProductTDelta = delta
+            fieldDataFieldProductTFieldProductProductId = productId
+      pIds' <- forM missings $ \sku -> do
+        entities <- selectKeysList [DC.CommerceProductTSku ==. sku] []
+        case traceShowId entities of
+          [DC.CommerceProductTKey pId] -> return (Just pId)
+          _ -> return Nothing
+      let pIds = map Just $ catMaybes pIds'
+      last_delta <- rawSql "SELECT MAX(delta) FROM dcx_field_data_field_product where entity_id = ?" [toPersistValue pdId]
+      let delta = case last_delta of
+            [Single (Just d)] -> d + 1
+            _ -> 1
+           
+            
+
+      zipWithM_  (\pId delta -> do
+                     insert_ $ trace ("inserting product field" ++ show (pId, delta)) (newFieldProduct pId delta)
+                 ) pIds [delta..]
+        
+
+
+      
+    
+
 createMissingWebPrices params = return ()
 
 -- ** Activation
