@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -fdefer-typed-holes #-}
 module Handler.Items.Index where
 
 import Import hiding(replace)
@@ -552,6 +553,19 @@ loadWebPriceFor (fKeyword, p) pId = do
          , let webPrices = ItemPriceF (mapFromList [(fromIntegral pId, Identity (price /100))])
          ]
   
+loadVariationsToKeep :: IndexCache -> IndexParam
+               -> Handler [ (ItemInfo (ItemMasterAndPrices Identity) -- base
+                            , [ ( VariationStatus
+                                , ItemInfo (ItemMasterAndPrices ((,) [Text]))
+                                )
+                              ] -- all variations, including base
+                            )
+                          ]
+loadVariationsToKeep cache params = do
+  itemGroups <- loadVariations cache params
+  let checkSku = checkFilter params 
+      toKeep (_,info) = checkSku sku where sku = styleVarToSku (iiStyle info) (iiVariation info)
+  return $  (filter toKeep) <$$> itemGroups
 
 -- * Misc
 -- ** Style names conversion
@@ -1062,80 +1076,173 @@ createGLMissings params = do
 -- *** Website
 createDCMissings :: IndexParam -> Handler ()
 createDCMissings params = do
-  -- we need to create everything which is missing in the correct order
-  createMissingProducts params
-  createMissingDCLinks params
-  createMissingWebPrices params
-  
-createMissingProducts params = do
   cache <- fillIndexCache
   timestamp <- round <$> liftIO getPOSIXTime
-  itemGroups <- loadVariations cache (params {ipShowInactive = True, ipBases = mempty, ipChecked=[]})
+  itemGroups <- loadVariationsToKeep cache (params {ipShowInactive = True, ipBases = mempty, ipChecked=[]})
+  -- we need to create everything which is missing in the correct order
+  let go (baseInfo, group) = do
+          product'revMap <- createMissingProducts cache group
+          -- _createMissingDCLinks cache group product'revMap
+          -- _createMissingWebPrices cache group
+          return ()
+  mapM_ go itemGroups
+  createMissingDCLinks params
+  
+createMissingProducts :: IndexCache -> [(VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text])))] -> Handler [(DC.CommerceProductTId, DC.CommerceProductRevisionTId)]
+createMissingProducts cache group = runDB $ do
+  timestamp <- round <$> liftIO getPOSIXTime
   -- find items with no product information in DC
   -- ie, ItemWebStatusF not present 
   -- let missingProduct group = isJust (_ group)
-  let toKeep = checkFilter params
-
-  let missings = [ sku
-                 | (_, group ) <- itemGroups 
-                 , (status, info) <-  group
-                 , let sku = styleVarToSku (iiStyle info) (iiVariation info)
-                 , toKeep sku
-                 , let mm = iiInfo info
-                 , isNothing (impWebStatus mm)
-                 , not (isNothing (impMaster mm)) -- don't create product which doesn't exist
-                 ]
-      newProduct sku = DC.CommerceProductT{..} where
-        commerceProductTRevisionId = Nothing
-        commerceProductTSku = sku
-        commerceProductTTitle = sku
-        commerceProductTType = "product"
-        commerceProductTLanguage = ""
-        commerceProductTUid = 1
-        commerceProductTStatus = True -- Active
-        commerceProductTCreated = timestamp
-        commerceProductTChanged = timestamp
-        commerceProductTData = Nothing -- "b:0;" -- Empty PHP encoding
+  let skuEs = [ (if toKeep then Right else Left) sku
+              | (status, info) <-  group
+              , let sku = styleVarToSku (iiStyle info) (iiVariation info)
+              , let mm = iiInfo info
+              -- don't create product which doesn't exist
+              , let toKeep = isNothing (impWebStatus mm)
+                           && not (isNothing (impMaster mm))
+              ]
+  let skus = rights skuEs
+  mapM (\sku -> lift $ setWarning (toHtml $ "Can't create " ++ sku ++ "as it doesn't exist in FA. Please create it first")
+       ) (lefts skuEs)
+  productEntities <- createAndInsertNewProducts timestamp skus
+  prod'revKeys <- createAndInsertNewProductRevisions timestamp productEntities
+  createAndInsertProductPrices prod'revKeys
+  createAndInsertProductColours prod'revKeys
+  createAndInsertProductStockStatus prod'revKeys
+  return $ mapFromList prod'revKeys
         
-      -- newProductRev sku = DC.CommerceProductRevisionT{..} where
-      --   commerceProductRevisionTProductId = Nothing
-      --   commerceProductRevisionTSku = sku
-      --   commerceProductRevisionTTitle = sku
-      --   commerceProductRevisionTType = "product"
-      --   commerceProductRevisionTLanguage = ""
-      --   commerceProductRevisionTUid = 1
-      --   commerceProductRevisionTStatus = True -- Active
-      --   commerceProductRevisionTCreated = timestamp
-      --   commerceProductRevisionTChanged = timestamp
-      --   commerceProductRevisionTData = Nothing -- "b:0;" -- Empty PHP encoding
+createAndInsertFields mk p'rKeys = do
+  let p'rIds = [(pId, Just rId)
+               | (DC.CommerceProductTKey pId, DC.CommerceProductRevisionTKey rId) <- p'rKeys
+               ]
+  insertMany_ $ map mk p'rIds
 
-      newFieldProduct productDisplayId productId delta = DC.FieldDataFieldProductT{..} where
-       fieldDataFieldProductTEntityType = "node"
-       fieldDataFieldProductTBundle = "product_display"
-       fieldDataFieldProductTDeleted = False
-       fieldDataFieldProductTEntityId = productDisplayId
-       fieldDataFieldProductTRevisionId = Nothing
-       fieldDataFieldProductTLanguage = "und"
-       fieldDataFieldProductTDelta = delta
-       fieldDataFieldProductTFieldProductProductId = productId
+createAndInsertRevFields mk p'rKeys = do
+  let p'rIds = [(pId, rId)
+               | (DC.CommerceProductTKey pId, DC.CommerceProductRevisionTKey rId) <- p'rKeys
+               ]
+  insertMany_ $ map mk p'rIds
 
-  mapM_ traceShowM ("Inserting", length missings)
-  runDB $ do
-    ids <- insertMany $ trace "new product" (map newProduct missings)
-    return ()
-    -- insertMany_ (map newProductRev missings)
+newProductField f (pId, revId) = f
+ "commerce_product"
+ "product"
+ False
+ pId
+ revId
+ "und"
+ 0
+
+-- **** commerce_product
+-- | Create and insert a new product in the corresponding table
+createAndInsertNewProducts :: (MonadIO m)
+  => Int -> [Text] -> ReaderT SqlBackend m [Entity DC.CommerceProductT]
+createAndInsertNewProducts timestamp skus =  do
+      let products = map (newProduct timestamp) skus
+      pIds <- insertMany products
+      return $ zipWith Entity pIds products
+
+-- | Create and insert a new product revision. Update the product table
+-- accordingly
+createAndInsertNewProductRevisions
+  :: (MonadIO m)
+  => Int -> [Entity DC.CommerceProductT]
+  -> ReaderT SqlBackend m [(DC.CommerceProductTId, DC.CommerceProductRevisionTId)]
+createAndInsertNewProductRevisions timestamp pEntities = do
+  let revs = map newProductRev  pEntities
+  revIds <- insertMany revs
+  let product'revIds = zip (map entityKey pEntities) revIds
+  mapM_ updateProductWithRevision product'revIds
+  return product'revIds
+
+updateProductWithRevision
+  :: MonadIO m
+  => (DC.CommerceProductTId, DC.CommerceProductRevisionTId)
+  -> ReaderT SqlBackend m ()
+updateProductWithRevision (pId, DC.CommerceProductRevisionTKey revId) = do
+  update pId [DC.CommerceProductTRevisionId =. Just (revId)]
+     
+
+newProduct :: Int -> Text -> DC.CommerceProductT
+
+newProduct timestamp sku = DC.CommerceProductT{..} where
+  commerceProductTRevisionId = Nothing
+  commerceProductTSku = sku
+  commerceProductTTitle = sku
+  commerceProductTType = "product"
+  commerceProductTLanguage = ""
+  commerceProductTUid = 1
+  commerceProductTStatus = True -- Active
+  commerceProductTCreated = timestamp
+  commerceProductTChanged = timestamp
+  commerceProductTData = Nothing -- "b:0;" -- Empty PHP encoding
+        
+newProductRev :: Entity DC.CommerceProductT -> DC.CommerceProductRevisionT
+newProductRev (Entity pId DC.CommerceProductT{..}) = DC.CommerceProductRevisionT{..} where
+  commerceProductRevisionTProductId = DC.unCommerceProductTKey pId
+  commerceProductRevisionTSku = commerceProductTSku
+  commerceProductRevisionTTitle = commerceProductTTitle
+  commerceProductRevisionTRevisionUid = commerceProductTUid
+  commerceProductRevisionTStatus = commerceProductTStatus
+  commerceProductRevisionTLog = "Created by Fames"
+  commerceProductRevisionTRevisionTimestamp = commerceProductTChanged
+  commerceProductRevisionTData = commerceProductTData
+
+-- **** field_*_field_price : main price. Should be Retail price
+createAndInsertProductPrices :: [(DC.CommerceProductTId, DC.CommerceProductRevisionTId)] -> _
+createAndInsertProductPrices p'rKeys = do
+  createAndInsertFields  (newProductPrice 34 DC.FieldDataCommercePriceT)  p'rKeys
+  createAndInsertRevFields  (newProductPrice 34 DC.FieldRevisionCommercePriceT)  p'rKeys
+    
+
+newProductPrice price mkPrice pr = newProductField mkPrice pr
+ (round $ price * 100)
+ "GBP"
+ (Just  "a:1:{s:10:\"components\";a:0:{}}")
+
+-- **** field*_field_colour
+createAndInsertProductColours p'rKeys = do
+  createAndInsertFields (newProductColour 27 DC.FieldDataFieldColourT) p'rKeys
+  createAndInsertRevFields (newProductColour 27 DC.FieldRevisionFieldColourT) p'rKeys
+
+newProductColour colId mkColour pId'revId =
+  newProductField mkColour pId'revId (Just colId)
+
+-- **** field_*_field_stock_status 
+createAndInsertProductStockStatus p'rKeys = do
+  createAndInsertFields (newProductStockStatus (Just 69) DC.FieldDataFieldStockStatusT) p'rKeys
+  createAndInsertRevFields (newProductStockStatus (Just 69) DC.FieldRevisionFieldStockStatusT) p'rKeys
+
+newProductStockStatus status  mkStatus pId'revId =
+  newProductField mkStatus pId'revId status
+                      --       newFieldProduct productDisplayId productId delta = DC.FieldDataFieldProductT{..} where
+          --        fieldDataFieldProductTEntityType = "node"
+--        fieldDataFieldProductTBundle = "product_display"
+--        fieldDataFieldProductTDeleted = False
+--        fieldDataFieldProductTEntityId = productDisplayId
+--        fieldDataFieldProductTRevisionId = Nothing
+--        fieldDataFieldProductTLanguage = "und"
+--        fieldDataFieldProductTDelta = delta
+--        fieldDataFieldProductTFieldProductProductId = productId
+
+--   mapM_ traceShowM ("Inserting", length missings)
+--   runDB $ do
+--     ids <- insertMany $ trace "new product" (map newProduct missings)
+--     return ()
+--     -- insertMany_ (map newProductRev missings)
   
+-- **** field_*_field_product : link to product displaty
 -- | Create missing link between product and product display.
 createMissingDCLinks :: IndexParam -> Handler ()
 createMissingDCLinks params = do
-  cache <- fillIndexCache
-  timestamp <- round <$> liftIO getPOSIXTime
-  itemGroups <- loadVariations cache (params {ipShowInactive = True, ipBases = mempty, ipChecked=[]})
+    cache <- fillIndexCache
+    timestamp <- round <$> liftIO getPOSIXTime
+    itemGroups <- loadVariations cache (params {ipShowInactive = True, ipBases = mempty, ipChecked=[]})
   -- find items with no product information in DC
   -- ie, ItemWebStatusF not present 
   -- let missingProduct group = isJust (_ group)
-  let toKeep = checkFilter params
-  mapM_ (createMissingDCLinksForStyle toKeep) itemGroups
+    let toKeep = checkFilter params
+    mapM_ (createMissingDCLinksForStyle toKeep) itemGroups
 
 
 createMissingDCLinksForStyle :: _ -> _ -> Handler ()
@@ -1183,6 +1290,7 @@ createMissingDCLinksForStyle toKeep (base, items) = runDB $ do
 
       
     
+-- **** Web Prices : different price lists
 
 createMissingWebPrices params = return ()
 

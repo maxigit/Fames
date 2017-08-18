@@ -6,6 +6,26 @@ Web items need
 When creating missing, we need of course
 to create all, but prices only can be missing,
 or link only 
+** Added manually to make it work
+- set revision_id in field_data_field_product
+Revision is for the product display 
+#+BEGIN_SRC sql
+ update field_data_field_product set revision_id = 208 where field_product_product_id = 211943
+
+#+END_SRC
+#+BEGIN_SRC  sql
+  insert into field_revision_field_product
+  value ('node', 'product_display', 0, 207, 208, 'und', 24, 211943)
+
+#+END_SRC
+
+#+BEGIN_SRC sql
+ insert into commerce_product_revision 
+ (product_id, sku, title, revision_uid, status)
+ VALUE (211943,'ML16-CF9-CAO', 'ML16-CF9 (Cameo)', 1, 1)
+
+#+END_SRC
+
 
 ** Updating dC manualy
 *** insert
@@ -213,3 +233,4 @@ However Cap-Blue is not displayed as blue is not an expected colors
 
 
 * Bugs
+
