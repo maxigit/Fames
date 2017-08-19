@@ -218,5 +218,8 @@ computeTheoreticalPricesF baseId priceLists priceMap = let
   result =  computeTheoreticalPrices  baseId priceLists priceMap'
   in ItemPriceF (fmap Identity result)
 
-
-
+masterPriceF :: Int -> ItemMasterAndPrices f -> Maybe (f Double)
+masterPriceF baseId master = do -- Maybe
+  prices <- impSalesPrices master
+  priceF <- lookup baseId prices
+  return $ pfPrice priceF

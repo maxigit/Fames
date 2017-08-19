@@ -17,6 +17,7 @@ module Handler.Util
 , firstOperator
 , badgeSpan
 , tshowM
+, basePriceList
 ) where
 
 import Foundation
@@ -34,6 +35,7 @@ import System.IO.Temp (openTempFile)
 import Data.Streaming.Process (streamingProcess, proc, Inherited(..), waitForStreamingProcess, env)
 import qualified Data.Text.Lazy as LT
 import Text.Blaze.Html (Markup)
+import FA
 -- import Data.IOData (IOData)
 
 -- * Display entities
@@ -220,3 +222,14 @@ badgeSpan badgeWidth qty bgM klass = do
 -- * Html
 tshowM :: Show a => Maybe a -> Text
 tshowM = maybe "" tshow
+
+-- * Cached Value accross session
+-- ** From Front Accounting
+-- Price list used as base to calculate other.
+-- Found it FA system preferecense
+basePriceList :: Handler Int
+basePriceList = cache0 cacheForEver "base-price-list" $ do
+  [Entity _ prefs  ] <- runDB $ selectList [FA.SysPrefId ==. FA.SysPrefKey "base_sales"] []
+  let Just basePl = readMay =<< FA.sysPrefValue prefs
+  return basePl
+  

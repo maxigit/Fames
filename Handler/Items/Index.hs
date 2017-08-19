@@ -18,6 +18,7 @@ import Text.Printf (printf)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Util.Cache
 import Control.Monad(zipWithM_)
+import Handler.Util
 
 -- * Types
 -- | SQL text filter expression. Can be use either the LIKE syntax or the Regex one.
@@ -203,7 +204,7 @@ checkFilter param sku =
 
 -- ** Preloaded Cache
 fillIndexCache :: Handler IndexCache
-fillIndexCache = cache0 (3600) "index/static"  $ runDB $ do
+fillIndexCache = cache0 (cacheHour 1) "index/static"  $ runDB $ do
   salesTypes <- selectList [] [] -- [Entity SalesType]
   let priceListNames = mapFromList [ (k, salesTypeSalesType t)
                                    | (Entity (SalesTypeKey k) t) <- salesTypes
@@ -227,9 +228,8 @@ fillIndexCache = cache0 (3600) "index/static"  $ runDB $ do
 -- ** StyleAdjustment
 getAdjustBase :: Handler (IndexCache -> ItemInfo (ItemMasterAndPrices Identity) -> Text -> ItemInfo (ItemMasterAndPrices Identity))
 getAdjustBase = do
-  settings <- appSettings <$> getYesod 
-  [Entity _ prefs  ] <- runDB $ selectList [SysPrefId ==. SysPrefKey "base_sales"] []
-  let Just basePl = readMay =<< sysPrefValue prefs
+  settings <- appSettings <$> getYesod
+  basePl <- basePriceList
   let varMap = appVariations settings
       go cache item0@(ItemInfo style _ master ) var = let
         stock = impMaster master
@@ -283,7 +283,7 @@ loadVariations :: IndexCache -> IndexParam
 loadVariations cache param = do
   -- pre cache variations parts
   -- traceShowM "loading variation"
-  delayeds <- mapM (\(p,a) -> preCache0 30 (p
+  delayeds <- mapM (\(p,a) -> preCache0 (cacheSecond 30) (p
                                            , param { ipMode = ItemPriceView
                                                   , ipChecked = []
                                                   , ipBases = mempty
@@ -314,7 +314,7 @@ loadVariations cache param = do
               setWarning err
               return []
     Right styleF -> let select = selectList styleF [Asc FA.StockMasterId]
-                    in cache0 30 ("load styles", ipStyles param) (runDB select)
+                    in cache0 (cacheSecond 30) ("load styles", ipStyles param) (runDB select)
   variations <- case varF of
     (Right Nothing) -> return (Left $ map  entityKey styles)
     (Left filter_)  -> let select = (Left . map entityKey) <$> runDB (selectList -- selectKeysList bug. fixed but not in current LTS
@@ -322,7 +322,7 @@ loadVariations cache param = do
                                      <> [FA.StockMasterInactive ==. False ]
                                     )
                                           [Asc FA.StockMasterId])
-                       in cache0 30 (filter_, "load variations") select
+                       in cache0 (cacheSecond 30) (filter_, "load variations") select
     (Right (Just group_)) -> return $ Right (Map.findWithDefault [] group_ varGroupMap)
   infoSources <- mapM getDelayed (case ipMode param of
     ItemGLView -> []
@@ -1116,10 +1116,11 @@ createMissingProducts cache group = do
   -- find items with no product information in DC
   -- ie, ItemWebStatusF not present 
   -- let missingProduct group = isJust (_ group)
-  let skus = [ iiSku info
-             | (_, info) <- group
-             , isNothing (impWebStatus (iiInfo info))
-             ]
+  let infos  = [ info
+              | (_, info) <- group
+              , isNothing (impWebStatus (iiInfo info))
+              ]
+  let skus = map iiSku infos
   productEntities <- createAndInsertNewProducts timestamp skus
   prod'revKeys <- createAndInsertNewProductRevisions timestamp productEntities
   let prod'revMKeys = Just <$$> prod'revKeys

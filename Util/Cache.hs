@@ -1,5 +1,24 @@
 {-# LANGUAGE ViewPatterns, PolyKinds, MagicHash, ScopedTypeVariables, DataKinds #-}
-module Util.Cache where
+module Util.Cache
+( DAction(..)
+, Delayed(..)
+, getDelayed
+, startDelayed
+, DelayedStatus
+, CacheDelay
+, ExpiryCache
+, cacheSecond
+, cacheHour
+, cacheDay
+, cacheForEver
+, preCache
+, expCache
+, newExpiryCache
+, clearExpiryCache
+, purgeKey
+, castToDelayed
+)
+where
 
 import Prelude
 import Data.Dynamic
@@ -28,6 +47,9 @@ data Delayed m a = Delayed
 
 data DelayedStatus = Waiting | InProgress | Finished | OnError deriving Show
   
+-- | Delay in second. No Num instance as the point
+-- is to avoid implicit convertion to second.
+newtype CacheDelay = CacheDelay Int
   
 deriving instance Typeable Async
 
@@ -133,8 +155,8 @@ clearExpiryCache cvar = swapMVar cvar mempty >> return ()
 -- There is no way to get a value from the cache without actually
 -- specifying the way to compute value. This is to make sure
 -- the retrieved value is of the correct type.
-expCache :: (Show k, Typeable v, MonadIO io) => MVar ExpiryCache -> k -> io v -> Int -> io v
-expCache cvar key vio seconds  = do
+expCache :: (Show k, Typeable v, MonadIO io) => MVar ExpiryCache -> k -> io v -> CacheDelay -> io v
+expCache cvar key vio (CacheDelay seconds)  = do
   let k = show key
   -- we release cvar as soon as possible
   let putV mvar = do
@@ -182,6 +204,16 @@ purgeKey cvar key = liftIO $ modifyMVar_ cvar go
     
 -- ** Delayed cache
 
+cacheSecond, cacheHour, cacheDay :: Int -> CacheDelay
+cacheSecond second = CacheDelay second
+cacheMinute minute = cacheSecond (60*minute)
+cacheHour hour = cacheMinute (60*hour)
+cacheDay day = cacheHour (24*day)
+-- | used for value which normally don't change,
+-- user preferences, price lists.
+-- If those value change, just reset the cache.
+cacheForEver :: CacheDelay
+cacheForEver = cacheDay 365
 -- | pre-cache a value, ie cache it but delayed its computation
 -- The value will be purged from the cached after expiring delay.
 -- This delay needs to be long enough to leave the time for the value
@@ -190,11 +222,11 @@ purgeKey cvar key = liftIO $ modifyMVar_ cvar go
 -- start delay is small. When precaching, we delay the start of the computation
 -- only to be started once the HTTP query has processed.
 preCache :: (MonadBaseControl IO io, MonadIO io, Show k, Typeable a, Typeable io)
-         => MVar ExpiryCache -> k -> io a -> Int -> io (Delayed io a)
-preCache cvar key vio delay = do
+         => MVar ExpiryCache -> k -> io a -> CacheDelay -> io (Delayed io a)
+preCache cvar key vio (CacheDelay delay) = do
   d <- createDelayed vio
   _ <- async $ do
     liftIO $ threadDelay ((delay+1)*1000000)
     cancelDelayed d
     purgeKey cvar key
-  expCache cvar key (return d) delay 
+  expCache cvar key (return d) (CacheDelay delay) 
