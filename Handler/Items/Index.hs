@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -fdefer-typed-holes #-}
 module Handler.Items.Index where
 
 import Import hiding(replace)
@@ -578,6 +577,10 @@ skuToStyleVar sku = (style, var) where
 styleVarToSku :: Text -> Text -> Text
 styleVarToSku style var = style <> "-" <> var
 
+-- ** Sku form info
+
+iiSku (ItemInfo style var _ ) = styleVarToSku style var
+
 -- | Split a variation name to variations
 -- ex: A/B -> [A,B]
 variationToVars :: Text -> [Text]
@@ -1080,47 +1083,63 @@ createDCMissings params = do
   timestamp <- round <$> liftIO getPOSIXTime
   itemGroups <- loadVariationsToKeep cache (params {ipShowInactive = True, ipBases = mempty, ipChecked=[]})
   -- we need to create everything which is missing in the correct order
-  let go (baseInfo, group) = do
+  let go (baseInfo, group') = runDB $ do
+        -- find items with no product information in DC
+        -- ie, ItemWebStatusF not present 
+        -- let missingProduct group = isJust (_ group)
+          let groupE = [ if toKeep
+                         then Right s'i
+                         else Left (iiSku info)
+                       | s'i@(_, info) <- group'
+                       , let mm = iiInfo info
+                       , let toKeep = isNothing (impWebStatus mm)
+                                      -- && not (isNothing (impMaster mm)) -- only to create new product
+                       ]
+          let group = rights groupE
+          mapM (\sku -> lift $ setWarning (toHtml $ "Can't create " ++ sku ++ "as it doesn't exist in FA. Please create it first")
+               ) (lefts groupE)
+             
+
+           
           product'revMap <- createMissingProducts cache group
-          -- _createMissingDCLinks cache group product'revMap
+          createMissingDCLinks cache (iiStyle $ baseInfo) group product'revMap
           -- _createMissingWebPrices cache group
           return ()
   mapM_ go itemGroups
-  createMissingDCLinks params
   
-createMissingProducts :: IndexCache -> [(VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text])))] -> Handler [(DC.CommerceProductTId, DC.CommerceProductRevisionTId)]
-createMissingProducts cache group = runDB $ do
+createMissingProducts
+  :: IndexCache
+  -> [(VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text])))]
+  -> _ (Map Text (DC.CommerceProductTId, DC.CommerceProductRevisionTId))
+createMissingProducts cache group = do
   timestamp <- round <$> liftIO getPOSIXTime
   -- find items with no product information in DC
   -- ie, ItemWebStatusF not present 
   -- let missingProduct group = isJust (_ group)
-  let skuEs = [ (if toKeep then Right else Left) sku
-              | (status, info) <-  group
-              , let sku = styleVarToSku (iiStyle info) (iiVariation info)
-              , let mm = iiInfo info
-              -- don't create product which doesn't exist
-              , let toKeep = isNothing (impWebStatus mm)
-                           && not (isNothing (impMaster mm))
-              ]
-  let skus = rights skuEs
-  mapM (\sku -> lift $ setWarning (toHtml $ "Can't create " ++ sku ++ "as it doesn't exist in FA. Please create it first")
-       ) (lefts skuEs)
+  let skus = [ iiSku info
+             | (_, info) <- group
+             , isNothing (impWebStatus (iiInfo info))
+             ]
   productEntities <- createAndInsertNewProducts timestamp skus
   prod'revKeys <- createAndInsertNewProductRevisions timestamp productEntities
-  createAndInsertProductPrices prod'revKeys
-  createAndInsertProductColours prod'revKeys
-  createAndInsertProductStockStatus prod'revKeys
-  return $ mapFromList prod'revKeys
+  let prod'revMKeys = Just <$$> prod'revKeys
+  createAndInsertProductPrices prod'revMKeys
+  createAndInsertProductColours prod'revMKeys
+  createAndInsertProductStockStatus prod'revMKeys
+  return $ mapFromList (zip skus prod'revKeys)
         
 createAndInsertFields mk p'rKeys = do
-  let p'rIds = [(pId, Just rId)
-               | (DC.CommerceProductTKey pId, DC.CommerceProductRevisionTKey rId) <- p'rKeys
+  let p'rIds = [(pId, rId)
+               | (DC.CommerceProductTKey pId, rM) <- p'rKeys
+               , let rId = DC.unCommerceProductRevisionTKey <$> rM
                ]
   insertMany_ $ map mk p'rIds
 
 createAndInsertRevFields mk p'rKeys = do
+  -- filter revision key == Nothing
   let p'rIds = [(pId, rId)
-               | (DC.CommerceProductTKey pId, DC.CommerceProductRevisionTKey rId) <- p'rKeys
+               | (DC.CommerceProductTKey pId, rIdM) <- p'rKeys
+               , Just (DC.CommerceProductRevisionTKey rId) <- return rIdM
                ]
   insertMany_ $ map mk p'rIds
 
@@ -1189,7 +1208,7 @@ newProductRev (Entity pId DC.CommerceProductT{..}) = DC.CommerceProductRevisionT
   commerceProductRevisionTData = commerceProductTData
 
 -- **** field_*_field_price : main price. Should be Retail price
-createAndInsertProductPrices :: [(DC.CommerceProductTId, DC.CommerceProductRevisionTId)] -> _
+createAndInsertProductPrices :: [(DC.CommerceProductTId, Maybe DC.CommerceProductRevisionTId)] -> _
 createAndInsertProductPrices p'rKeys = do
   createAndInsertFields  (newProductPrice 34 DC.FieldDataCommercePriceT)  p'rKeys
   createAndInsertRevFields  (newProductPrice 34 DC.FieldRevisionCommercePriceT)  p'rKeys
@@ -1231,60 +1250,130 @@ newProductStockStatus status  mkStatus pId'revId =
 --     return ()
 --     -- insertMany_ (map newProductRev missings)
   
--- **** field_*_field_product : link to product displaty
--- | Create missing link between product and product display.
-createMissingDCLinks :: IndexParam -> Handler ()
-createMissingDCLinks params = do
-    cache <- fillIndexCache
-    timestamp <- round <$> liftIO getPOSIXTime
-    itemGroups <- loadVariations cache (params {ipShowInactive = True, ipBases = mempty, ipChecked=[]})
-  -- find items with no product information in DC
-  -- ie, ItemWebStatusF not present 
-  -- let missingProduct group = isJust (_ group)
-    let toKeep = checkFilter params
-    mapM_ (createMissingDCLinksForStyle toKeep) itemGroups
+-- **** field_*_field_product : link to product display
+-- | Create product display link for all variations of a given style
+createMissingDCLinks
+  :: MonadIO m
+  => IndexCache
+  -> Text -- ^ Style name, common to all variations
+  -> [(VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text])))] -- ^ variations
+  -> Map Text (DC.CommerceProductTId, DC.CommerceProductRevisionTId)
+  -> ReaderT SqlBackend m ()
+createMissingDCLinks cache style group p'rMap = do
+  -- only keep item which doesn't have a produc display
+  let skus = [ iiSku info
+             | (status, info) <-  group
+             , let mm = iiInfo info
+             , isNothing $ join $ snd (iwfProductDisplay `traverse` impWebStatus mm) 
+             ]
+  -- the sku, pId , revId needs to be loaded from the database
+  -- the one passed as argument are only there as cache but 
+  (displayId, displayRev) <- loadProductDisplayInfo style
+  lastDelta <- loadLastProductDelta displayId
+  sku'p'rs0 <- loadSkuProductRevisions p'rMap skus
+  -- let sku'p'rs = zip [lastDelta + 1   ..] sku'p'rs0
+  -- createAndInsertDCLinks displayId displayRev _sku'p'rs
+  return ()
+  
 
+loadSkuProductRevisions
+  :: MonadIO m
+  => Map Text (DC.CommerceProductTId, DC.CommerceProductRevisionTId)
+  -> [Text]
+  -> ReaderT SqlBackend m [(Text, DC.CommerceProductTId, Maybe DC.CommerceProductRevisionTId)]
+loadSkuProductRevisions p'rMap skus  = do
+  let go sku = do
+        case Map.lookup sku p'rMap of
+          Nothing -> do -- Find it from the database
+            entities <- selectList [DC.CommerceProductTSku ==. sku] [LimitTo 1]
+            return $ case entities of
+                          [Entity pId product] -> let rev = DC.commerceProductTRevisionId product
+                                                  in Just ( sku
+                                                          , pId
+                                                          , DC.CommerceProductRevisionTKey <$> rev )
+                          _ -> Nothing
 
-createMissingDCLinksForStyle :: _ -> _ -> Handler ()
-createMissingDCLinksForStyle toKeep (base, items) = runDB $ do
-  let missings = [ sku
-                 | (status, info) <-  items
-                 , let sku = styleVarToSku (iiStyle info) (iiVariation info)
-                 , toKeep sku
-                 , let mm = iiInfo info
-                 , isNothing $ join $ snd (iwfProductDisplay `traverse` impWebStatus mm) 
-                 ]
-  traceShowM ("Missing", missings)
-  -- Get product display id
-  pdKeys <- selectKeysList [DC.NodeTTitle ==. iiStyle base] []
+  resultMaybes <- mapM go skus
+  return (catMaybes resultMaybes)
+
+loadProductDisplayInfo
+  :: MonadIO m
+  => Text -> ReaderT SqlBackend m (DC.NodeTId, Maybe DC.NodeRevisionTId)
+loadProductDisplayInfo style = do
+  pdKeys <- selectList [DC.NodeTTitle ==. style ] []
   case pdKeys of
-    [] -> setError (toHtml $ "Product display " ++ (iiStyle base) ++ " missing from node table") >> return ()
-    [DC.NodeTKey pdId] -> do
-      let newFieldProduct productId delta = DC.FieldDataFieldProductT{..} where
-            fieldDataFieldProductTEntityType = "node"
-            fieldDataFieldProductTBundle = "product_display"
-            fieldDataFieldProductTDeleted = False
-            fieldDataFieldProductTEntityId = pdId
-            fieldDataFieldProductTRevisionId = Nothing
-            fieldDataFieldProductTLanguage = "und"
-            fieldDataFieldProductTDelta = delta
-            fieldDataFieldProductTFieldProductProductId = productId
-      pIds' <- forM missings $ \sku -> do
-        entities <- selectKeysList [DC.CommerceProductTSku ==. sku] []
-        case traceShowId entities of
-          [DC.CommerceProductTKey pId] -> return (Just pId)
-          _ -> return Nothing
-      let pIds = map Just $ catMaybes pIds'
-      last_delta <- rawSql "SELECT MAX(delta) FROM dcx_field_data_field_product where entity_id = ?" [toPersistValue pdId]
-      let delta = case last_delta of
-            [Single (Just d)] -> d + 1
-            _ -> 1
+    [Entity nodeKey node] -> let nodeId = nodeKey
+                                 revId = DC.NodeRevisionTKey <$> DC.nodeTVid node
+                             in return (nodeId, revId)
+    [] -> error $ "Product display not found for style :" ++ unpack style
+  
+loadLastProductDelta
+  :: MonadIO m
+  => DC.NodeTId
+  -> ReaderT SqlBackend m Int
+loadLastProductDelta displayId = do
+      [(Single lastDelta)] <- rawSql "SELECT MAX(delta) \
+                           \FROM dcx_field_data_field_product \
+                           \WHERE entity_id = ?"
+                           [toPersistValue displayId]
+      return (fromMaybe 0 lastDelta)
+
+createAndInsertDCLinks displayId displayRev d's'p'r = do
+  createAndInsertFields (newProductDCLink displayId displayRev DC.FieldDataFieldProductT) d's'p'r
+  -- TODO createAndInsertRevFields (newProductDCLink displayId displayRev DC.FieldRevisionFieldProductT) d's'p'r
+  
+  
+newProductDCLink displayId displayRev mk (delta, (sku, pId, revId)) = mk 
+  "node"
+  "product_display"
+  False
+  (DC.unNodeTKey displayId)
+  (DC.unNodeRevisionTKey <$> displayRev)
+  "und"
+  delta
+  pId
+
+-- | Create missing link between product and product display.
+-- createMissingDCLinksOldForStyle :: _ -> _ -> Handler ()
+-- createMissingDCLinksOldForStyle toKeep (base, items) = runDB $ do
+--   let missings = [ sku
+--                  | (status, info) <-  items
+--                  , let sku = styleVarToSku (iiStyle info) (iiVariation info)
+--                  , toKeep sku
+--                  , let mm = iiInfo info
+--                  , isNothing $ join $ snd (iwfProductDisplay `traverse` impWebStatus mm) 
+--                  ]
+--   traceShowM ("Missing", missings)
+--   -- Get product display id
+--   pdKeys <- selectKeysList [DC.NodeTTitle ==. iiStyle base] []
+--   case pdKeys of
+--     [] -> setError (toHtml $ "Product display " ++ (iiStyle base) ++ " missing from node table") >> return ()
+--     [DC.NodeTKey pdId] -> do
+--       let newFieldProduct productId delta = DC.FieldDataFieldProductT{..} where
+--             fieldDataFieldProductTEntityType = "node"
+--             fieldDataFieldProductTBundle = "product_display"
+--             fieldDataFieldProductTDeleted = False
+--             fieldDataFieldProductTEntityId = pdId
+--             fieldDataFieldProductTRevisionId = Nothing
+--             fieldDataFieldProductTLanguage = "und"
+--             fieldDataFieldProductTDelta = delta
+--             fieldDataFieldProductTFieldProductProductId = productId
+--       pIds' <- forM missings $ \sku -> do
+--         entities <- selectKeysList [DC.CommerceProductTSku ==. sku] []
+--         case traceShowId entities of
+--           [DC.CommerceProductTKey pId] -> return (Just pId)
+--           _ -> return Nothing
+--       let pIds = map Just $ catMaybes pIds'
+--       last_delta <- rawSql "SELECT MAX(delta) FROM dcx_field_data_field_product where entity_id = ?" [toPersistValue pdId]
+--       let delta = case last_delta of
+--             [Single (Just d)] -> d + 1
+--             _ -> 1
            
             
 
-      zipWithM_  (\pId delta -> do
-                     insert_ $ trace ("inserting product field" ++ show (pId, delta)) (newFieldProduct pId delta)
-                 ) pIds [delta..]
+--       zipWithM_  (\pId delta -> do
+--                      insert_ $ trace ("inserting product field" ++ show (pId, delta)) (newFieldProduct pId delta)
+--                  ) pIds [delta..]
         
 
 
