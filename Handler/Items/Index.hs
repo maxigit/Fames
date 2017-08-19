@@ -19,6 +19,7 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 import Util.Cache
 import Control.Monad(zipWithM_)
 import Handler.Util
+import Control.Monad.Reader(mapReaderT)
 
 -- * Types
 -- | SQL text filter expression. Can be use either the LIKE syntax or the Regex one.
@@ -576,7 +577,7 @@ skuToStyleVar sku = (style, var) where
 
 styleVarToSku :: Text -> Text -> Text
 styleVarToSku style var = style <> "-" <> var
-
+  
 -- ** Sku form info
 
 iiSku (ItemInfo style var _ ) = styleVarToSku style var
@@ -854,7 +855,7 @@ columnForWebPrice :: Int -> ItemPriceF ((,) [Text]) -> Maybe ([Text], Html)
 columnForWebPrice colInt (ItemPriceF priceMap) = do
   value <- IntMap.lookup colInt priceMap
   return $  toHtml . (\x -> x :: String) . printf "%.2f"  <$> value
-
+  
 -- * Rendering
 renderIndex :: IndexParam -> Status -> Handler TypedContent
 renderIndex param0 status = do
@@ -978,7 +979,7 @@ getColumnToTitle cache param = do
 
 columnClass :: IndexColumn -> Text
 columnClass col = filter (/= ' ') (tshow col)
-
+  
 -- * Actions
 -- ** Missings
 -- ** Actions
@@ -1080,52 +1081,71 @@ createGLMissings params = do
 createDCMissings :: IndexParam -> Handler ()
 createDCMissings params = do
   cache <- fillIndexCache
+  basePl <- basePriceList
   timestamp <- round <$> liftIO getPOSIXTime
-  itemGroups <- loadVariationsToKeep cache (params {ipShowInactive = True, ipBases = mempty, ipChecked=[]})
+  itemGroups <- loadVariationsToKeep cache (params {ipShowInactive = True, ipBases = mempty}) 
   -- we need to create everything which is missing in the correct order
   let go (baseInfo, group') = runDB $ do
         -- find items with no product information in DC
         -- ie, ItemWebStatusF not present 
+        -- also we can't create product which doesn't have a price
         -- let missingProduct group = isJust (_ group)
           let groupE = [ if toKeep
-                         then Right s'i
+                         then Right (s'i, price)
                          else Left (iiSku info)
                        | s'i@(_, info) <- group'
                        , let mm = iiInfo info
                        , let toKeep = isNothing (impWebStatus mm)
                                       -- && not (isNothing (impMaster mm)) -- only to create new product
+                       -- filter item with no base price
+                       , Just price <- return $ masterPrice basePl mm
                        ]
           let group = rights groupE
-          mapM (\sku -> lift $ setWarning (toHtml $ "Can't create " ++ sku ++ "as it doesn't exist in FA. Please create it first")
+          -- traceShowM groupE
+          mapM (\sku -> lift $ setWarning (toHtml $ "Can't create " ++ sku ++ "as it doesn't exist in FA, or doesn't have a sale price. Please create it first.")
                ) (lefts groupE)
              
 
            
           product'revMap <- createMissingProducts cache group
-          createMissingDCLinks cache (iiStyle $ baseInfo) group product'revMap
+          createMissingDCLinks cache (iiStyle $ baseInfo) (map fst group) product'revMap
           -- _createMissingWebPrices cache group
           return ()
   mapM_ go itemGroups
   
 createMissingProducts
   :: IndexCache
-  -> [(VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text])))]
+  -> [((VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text]))), Double)]
   -> _ (Map Text (DC.CommerceProductTId, DC.CommerceProductRevisionTId))
 createMissingProducts cache group = do
   timestamp <- round <$> liftIO getPOSIXTime
+  colorMap <- lift loadDCColorMap
   -- find items with no product information in DC
   -- ie, ItemWebStatusF not present 
   -- let missingProduct group = isJust (_ group)
-  let infos  = [ info
-              | (_, info) <- group
+  let infos  = [ (info, price)
+              | ((_, info), price) <- group
               , isNothing (impWebStatus (iiInfo info))
               ]
-  let skus = map iiSku infos
+  let skus = map (iiSku.fst) infos
+      prices = map snd infos
+      colors = [ (fromMaybe (error "missing color") baseId, trimId)
+               | (info, _) <- infos
+               , let (base, trim ) = case variationToVars $ iiVariation info of
+                                              [b] -> (b, Nothing)
+                                              (b:trim:_) -> (b, Just trim)
+               , let baseId = Map.lookup base colorMap
+               , let trimId = flip Map.lookup colorMap <$> trim
+               ]
+      bases = map fst colors
+      trims = map snd colors
+  traceShowM prices
   productEntities <- createAndInsertNewProducts timestamp skus
   prod'revKeys <- createAndInsertNewProductRevisions timestamp productEntities
   let prod'revMKeys = Just <$$> prod'revKeys
-  createAndInsertProductPrices prod'revMKeys
-  createAndInsertProductColours prod'revMKeys
+  createAndInsertProductPrices prices prod'revMKeys
+  createAndInsertProductColours bases prod'revMKeys
+  -- _createAndInsertProductTrimColours prod'revMKeys
   createAndInsertProductStockStatus prod'revMKeys
   return $ mapFromList (zip skus prod'revKeys)
         
@@ -1148,7 +1168,7 @@ createAndInsertRevFields' mks p'rKeys = do
                , Just (DC.CommerceProductRevisionTKey rId) <- return rIdM
                ]
   insertMany_ $ zipWith ($) mks p'rIds
-
+  
 createAndInsertFields mk = createAndInsertFields' (repeat mk) 
 createAndInsertRevFields mk = createAndInsertRevFields' (repeat mk) 
 
@@ -1217,10 +1237,18 @@ newProductRev (Entity pId DC.CommerceProductT{..}) = DC.CommerceProductRevisionT
   commerceProductRevisionTData = commerceProductTData
 
 -- **** field_*_field_price : main price. Should be Retail price
-createAndInsertProductPrices :: [(DC.CommerceProductTId, Maybe DC.CommerceProductRevisionTId)] -> _
-createAndInsertProductPrices p'rKeys = do
-  createAndInsertFields  (newProductPrice 34 DC.FieldDataCommercePriceT)  p'rKeys
-  createAndInsertRevFields  (newProductPrice 34 DC.FieldRevisionCommercePriceT)  p'rKeys
+createAndInsertProductPrices :: [Double]
+                             -> [(DC.CommerceProductTId, Maybe DC.CommerceProductRevisionTId)]
+                             -> _
+createAndInsertProductPrices prices p'rKeys = do
+  let go mk = [ newProductPrice price mk
+              | price <- prices
+              ]
+  let go' mk = [ newProductPrice price mk
+              | price <- prices
+              ]
+  createAndInsertFields'  (go DC.FieldDataCommercePriceT)  p'rKeys
+  createAndInsertRevFields'  (go' DC.FieldRevisionCommercePriceT)  p'rKeys
     
 
 newProductPrice price mkPrice pr = newProductField mkPrice pr
@@ -1229,9 +1257,24 @@ newProductPrice price mkPrice pr = newProductField mkPrice pr
  (Just  "a:1:{s:10:\"components\";a:0:{}}")
 
 -- **** field*_field_colour
-createAndInsertProductColours p'rKeys = do
-  createAndInsertFields (newProductColour 27 DC.FieldDataFieldColourT) p'rKeys
-  createAndInsertRevFields (newProductColour 27 DC.FieldRevisionFieldColourT) p'rKeys
+loadDCColorMap :: Handler (Map Text Int)
+loadDCColorMap = cache0 cacheForEver "dc-color-map" $ do
+  let sql = "SELECT field_colour_code_value, entity_id "
+          <>  "FROM dcx_field_data_field_colour_code "
+          <>  "WHERE bundle = 'colours' "
+          <>  "AND deleted = 0 "
+  rows <- runDB $ rawSql sql []
+  return $ mapFromList [ ( col, eid ) | ( Single col, Single eid ) <- rows ]
+
+createAndInsertProductColours colours p'rKeys = do
+  let go mk = [ newProductColour col mk
+              | col <- colours
+              ]
+  let go' mk = [ newProductColour col mk
+              | col <- colours
+              ]
+  createAndInsertFields' (go DC.FieldDataFieldColourT) p'rKeys
+  createAndInsertRevFields' (go' DC.FieldRevisionFieldColourT) p'rKeys
 
 newProductColour colId mkColour pId'revId =
   newProductField mkColour pId'revId (Just colId)
@@ -1301,6 +1344,7 @@ loadSkuProductRevisions p'rMap skus  = do
                                                           , pId
                                                           , DC.CommerceProductRevisionTKey <$> rev )
                           _ -> Nothing
+          Just (pId, revId) -> return $ Just (sku, pId, Just revId)
 
   resultMaybes <- mapM go skus
   return (catMaybes resultMaybes)

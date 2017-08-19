@@ -19,6 +19,7 @@ import qualified Data.IntMap.Strict as IntMap
 import qualified Data.IntSet as IntSet
 import qualified Data.Monoid as Monoid
 import Database.Persist
+import Data.Copointed(Copointed,copoint)
 
 diffField :: Eq a => Identity a -> Identity a -> ((,) [Text]) a
 diffField (Identity a) (Identity b) = if a == b then ([], a) else (["text-danger"], b)
@@ -218,8 +219,10 @@ computeTheoreticalPricesF baseId priceLists priceMap = let
   result =  computeTheoreticalPrices  baseId priceLists priceMap'
   in ItemPriceF (fmap Identity result)
 
-masterPriceF :: Int -> ItemMasterAndPrices f -> Maybe (f Double)
-masterPriceF baseId master = do -- Maybe
+masterPrice :: Copointed f => Int -> ItemMasterAndPrices f -> Maybe Double
+masterPrice baseId master = do -- Maybe
   prices <- impSalesPrices master
   priceF <- lookup baseId prices
-  return $ pfPrice priceF
+  return . copoint $ pfPrice priceF
+
+
