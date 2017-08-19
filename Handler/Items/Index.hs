@@ -1135,7 +1135,7 @@ createMissingProducts cache group = do
                                               [b] -> (b, Nothing)
                                               (b:trim:_) -> (b, Just trim)
                , let baseId = Map.lookup base colorMap
-               , let trimId = flip Map.lookup colorMap <$> trim
+               , let trimId = flip Map.lookup colorMap =<< trim
                ]
       bases = map fst colors
       trims = map snd colors
@@ -1145,7 +1145,7 @@ createMissingProducts cache group = do
   let prod'revMKeys = Just <$$> prod'revKeys
   createAndInsertProductPrices prices prod'revMKeys
   createAndInsertProductColours bases prod'revMKeys
-  -- _createAndInsertProductTrimColours prod'revMKeys
+  createAndInsertProductTrimColours (trims) prod'revMKeys
   createAndInsertProductStockStatus prod'revMKeys
   return $ mapFromList (zip skus prod'revKeys)
         
@@ -1275,6 +1275,20 @@ createAndInsertProductColours colours p'rKeys = do
               ]
   createAndInsertFields' (go DC.FieldDataFieldColourT) p'rKeys
   createAndInsertRevFields' (go' DC.FieldRevisionFieldColourT) p'rKeys
+
+createAndInsertProductTrimColours colourMs p'rKeys0 = do
+  -- we need to skip colours which are not present
+  let (colours, p'rKeys) = unzip [(col, p'r)
+                                 | (Just col, p'r) <- zip colourMs p'rKeys0
+                                 ]
+  let go mk = [ newProductColour col mk
+              | col <- colours
+              ]
+  let go' mk = [ newProductColour col mk
+              | col <- colours
+              ]
+  createAndInsertFields' (go DC.FieldDataFieldTrimColourT) p'rKeys
+  createAndInsertRevFields' (go' DC.FieldRevisionFieldTrimColourT) p'rKeys
 
 newProductColour colId mkColour pId'revId =
   newProductField mkColour pId'revId (Just colId)
