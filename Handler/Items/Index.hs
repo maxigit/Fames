@@ -1128,20 +1128,28 @@ createMissingProducts cache group = do
   createAndInsertProductStockStatus prod'revMKeys
   return $ mapFromList (zip skus prod'revKeys)
         
-createAndInsertFields mk p'rKeys = do
+createAndInsertFields'
+  :: _
+  => [(Int, Maybe Int) -> r]
+  -> [(DC.CommerceProductTId, Maybe DC.CommerceProductRevisionTId)]
+  -> ReaderT SqlBackend m ()
+createAndInsertFields' mks p'rKeys = do
   let p'rIds = [(pId, rId)
                | (DC.CommerceProductTKey pId, rM) <- p'rKeys
                , let rId = DC.unCommerceProductRevisionTKey <$> rM
                ]
-  insertMany_ $ map mk p'rIds
+  insertMany_ $ zipWith ($) mks p'rIds
 
-createAndInsertRevFields mk p'rKeys = do
-  -- filter revision key == Nothing
+createAndInsertRevFields' mks p'rKeys = do
   let p'rIds = [(pId, rId)
                | (DC.CommerceProductTKey pId, rIdM) <- p'rKeys
+               -- filter revision key == Nothing
                , Just (DC.CommerceProductRevisionTKey rId) <- return rIdM
                ]
-  insertMany_ $ map mk p'rIds
+  insertMany_ $ zipWith ($) mks p'rIds
+
+createAndInsertFields mk = createAndInsertFields' (repeat mk) 
+createAndInsertRevFields mk = createAndInsertRevFields' (repeat mk) 
 
 newProductField f (pId, revId) = f
  "commerce_product"
@@ -1271,8 +1279,8 @@ createMissingDCLinks cache style group p'rMap = do
   (displayId, displayRev) <- loadProductDisplayInfo style
   lastDelta <- loadLastProductDelta displayId
   sku'p'rs0 <- loadSkuProductRevisions p'rMap skus
-  -- let sku'p'rs = zip [lastDelta + 1   ..] sku'p'rs0
-  -- createAndInsertDCLinks displayId displayRev _sku'p'rs
+  let sku'p'rs = zip [lastDelta + 1   ..] sku'p'rs0
+  createAndInsertDCLinks displayId displayRev sku'p'rs
   return ()
   
 
@@ -1318,12 +1326,33 @@ loadLastProductDelta displayId = do
                            [toPersistValue displayId]
       return (fromMaybe 0 lastDelta)
 
+createAndInsertDCLinks
+  :: MonadIO m
+  => DC.NodeTId
+  -> Maybe DC.NodeRevisionTId
+  -> [(Int, (Text, DC.CommerceProductTId, Maybe DC.CommerceProductRevisionTId))]
+  -> ReaderT SqlBackend m ()
 createAndInsertDCLinks displayId displayRev d's'p'r = do
-  createAndInsertFields (newProductDCLink displayId displayRev DC.FieldDataFieldProductT) d's'p'r
-  -- TODO createAndInsertRevFields (newProductDCLink displayId displayRev DC.FieldRevisionFieldProductT) d's'p'r
+  let go mk = [ newProductDCLink displayId displayRev mk d 
+              | (d, _) <- d's'p'r
+              ]
+  let go' mk = [ newProductDCLink' displayId displayRev' mk d 
+              | (d, _) <- d's'p'r
+              , Just displayRev' <- return displayRev
+              ]
+      p'rS = [(p,r) | (_, (_,p,r)) <- d's'p'r]
+  createAndInsertFields' (go DC.FieldDataFieldProductT) p'rS
+  createAndInsertRevFields' (go' DC.FieldRevisionFieldProductT) p'rS
   
   
-newProductDCLink displayId displayRev mk (delta, (sku, pId, revId)) = mk 
+-- newProductDCLink
+--   ::  DC.NodeTId
+--   -> (Maybe DC.NodeRevisionTId)
+--   -> (_)
+--   -> Int
+--   -> (Int, _ )
+--   -> b
+newProductDCLink displayId displayRev mk delta (pId, revId) = mk
   "node"
   "product_display"
   False
@@ -1331,8 +1360,17 @@ newProductDCLink displayId displayRev mk (delta, (sku, pId, revId)) = mk
   (DC.unNodeRevisionTKey <$> displayRev)
   "und"
   delta
-  pId
+  (Just pId)
 
+newProductDCLink' displayId displayRev mk delta (pId, revId) = mk
+  "node"
+  "product_display"
+  False
+  (DC.unNodeTKey displayId)
+  (DC.unNodeRevisionTKey displayRev)
+  "und"
+  delta
+  (Just pId)
 -- | Create missing link between product and product display.
 -- createMissingDCLinksOldForStyle :: _ -> _ -> Handler ()
 -- createMissingDCLinksOldForStyle toKeep (base, items) = runDB $ do
