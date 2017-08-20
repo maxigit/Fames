@@ -1161,12 +1161,13 @@ createAndInsertFields' mks p'rKeys = do
                ]
   insertMany_ $ zipWith ($) mks p'rIds
 
-createAndInsertRevFields' mks p'rKeys = do
-  let p'rIds = [(pId, rId)
-               | (DC.CommerceProductTKey pId, rIdM) <- p'rKeys
-               -- filter revision key == Nothing
-               , Just (DC.CommerceProductRevisionTKey rId) <- return rIdM
-               ]
+createAndInsertRevFields' mks0 p'rKeys = do
+  let (mks, p'rIds) = unzip [(mk, (pId, rId))
+                            | (DC.CommerceProductTKey pId, rIdM) <- p'rKeys
+                            , mk <- mks0
+                            -- filter revision key == Nothing
+                            , Just (DC.CommerceProductRevisionTKey rId) <- return rIdM
+                            ]
   insertMany_ $ zipWith ($) mks p'rIds
   
 createAndInsertFields mk = createAndInsertFields' (repeat mk) 
