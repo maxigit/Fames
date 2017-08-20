@@ -1109,7 +1109,7 @@ createDCMissings params = do
            
           product'revMap <- createMissingProducts cache group
           createMissingDCLinks cache (iiStyle $ baseInfo) (map fst group) product'revMap
-          -- _createMissingWebPrices cache group
+          createMissingWebPrices cache (map fst group) product'revMap
           return ()
   mapM_ go itemGroups
   
@@ -1236,7 +1236,7 @@ newProductRev (Entity pId DC.CommerceProductT{..}) = DC.CommerceProductRevisionT
   commerceProductRevisionTLog = "Created by Fames"
   commerceProductRevisionTRevisionTimestamp = commerceProductTChanged
   commerceProductRevisionTData = commerceProductTData
-
+  
 -- **** field_*_field_price : main price. Should be Retail price
 createAndInsertProductPrices :: [Double]
                              -> [(DC.CommerceProductTId, Maybe DC.CommerceProductRevisionTId)]
@@ -1479,7 +1479,60 @@ newProductDCLink' displayId displayRev mk delta (pId, revId) = mk
     
 -- **** Web Prices : different price lists
 
-createMissingWebPrices params = return ()
+createMissingWebPrices
+  :: IndexCache
+  -> [(VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text])))] -- ^ variations
+  -> Map Text (DC.CommerceProductTId, DC.CommerceProductRevisionTId)
+  -> ReaderT SqlBackend Handler ()
+createMissingWebPrices cache group p'revMap = do
+  basePl <- lift basePriceList
+
+  let sku'prices = [ (sku, priceMap)
+           | (status, info) <- group
+           , Just priceMap <- return $ impSalesPrices (iiInfo info)
+           , let sku = iiSku info
+           ]
+      priceList = icPriceLists cache -- TODO move in global cache
+      prices = map (computeTheoreticalPricesP basePl priceList . snd)  sku'prices
+  sku'p'rs0 <- loadSkuProductRevisions p'revMap (map fst sku'prices)
+
+  createAndInsertDCPrices prices sku'p'rs0
+  
+createAndInsertDCPrices priceMaps sku'p'rs = do
+  let creators =
+        [ createAndInsertDCPriceFor 1 DC.FieldDataFieldPricePl01T (DC.FieldRevisionFieldPricePl01T)
+        , createAndInsertDCPriceFor 2 DC.FieldDataFieldPricePl02T DC.FieldRevisionFieldPricePl02T
+        , createAndInsertDCPriceFor 3 DC.FieldDataFieldPricePl03T DC.FieldRevisionFieldPricePl03T
+        , createAndInsertDCPriceFor 4 DC.FieldDataFieldPricePl04T DC.FieldRevisionFieldPricePl04T
+        , createAndInsertDCPriceFor 5 DC.FieldDataFieldPricePl05T DC.FieldRevisionFieldPricePl05T
+        , createAndInsertDCPriceFor 6 DC.FieldDataFieldPricePl06T DC.FieldRevisionFieldPricePl06T
+        , createAndInsertDCPriceFor 7 DC.FieldDataFieldPricePl07T DC.FieldRevisionFieldPricePl07T
+        , createAndInsertDCPriceFor 8 DC.FieldDataFieldPricePl08T DC.FieldRevisionFieldPricePl08T
+        , createAndInsertDCPriceFor 9 DC.FieldDataFieldPricePl09T DC.FieldRevisionFieldPricePl09T
+        , createAndInsertDCPriceFor 10 DC.FieldDataFieldPricePl10T DC.FieldRevisionFieldPricePl10T
+        , createAndInsertDCPriceFor 11 DC.FieldDataFieldPricePl11T DC.FieldRevisionFieldPricePl11T
+        , createAndInsertDCPriceFor 12 DC.FieldDataFieldPricePl12T DC.FieldRevisionFieldPricePl12T
+        , createAndInsertDCPriceFor 13 DC.FieldDataFieldPricePl13T DC.FieldRevisionFieldPricePl13T
+        , createAndInsertDCPriceFor 14 DC.FieldDataFieldPricePl14T DC.FieldRevisionFieldPricePl14T
+        ]
+      go creator = creator priceMaps sku'p'rs
+        
+  mapM_ go creators
+
+createAndInsertDCPriceFor index mk mkRev priceMaps sku'p'rs = do
+  let (prices, p'rs) = unzip [(price, (p,r))
+                                 | (priceMap,  (_, p, r)) <- zip priceMaps sku'p'rs
+                                 , Just price <- return $ lookup index priceMap
+                                 ]
+  createAndInsertFields' (map (newProductFieldPrice mk) prices) p'rs
+  createAndInsertRevFields' (map (newProductFieldPrice mkRev) prices) p'rs
+
+    
+-- newProductFieldPrice :: Double ->
+--   (Text -> Text -> Bool -> Int -> rev -> Text -> Int -> Int -> Maybe Text -> Maybe Text -> a) -> a
+newProductFieldPrice mk price p'r = 
+  newProductField mk p'r (round $ 100* price) ("GBP") Nothing
+  
 
 -- ** Activation
 -- | Activates/deactivate and item in FrontAccounting.

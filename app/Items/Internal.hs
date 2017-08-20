@@ -219,6 +219,12 @@ computeTheoreticalPricesF baseId priceLists priceMap = let
   result =  computeTheoreticalPrices  baseId priceLists priceMap'
   in ItemPriceF (fmap Identity result)
 
+computeTheoreticalPricesP :: Copointed f =>
+  Int -> [Entity SalesType] -> IntMap (PriceF f) -> IntMap Double
+computeTheoreticalPricesP baseId priceLists priceMap = let
+  priceMap' = fmap (copoint . pfPrice) priceMap
+  in computeTheoreticalPrices baseId priceLists priceMap'
+
 masterPrice :: Copointed f => Int -> ItemMasterAndPrices f -> Maybe Double
 masterPrice baseId master = do -- Maybe
   prices <- impSalesPrices master
