@@ -1108,7 +1108,9 @@ createDCMissings params = do
 
            
           product'revMap <- createMissingProducts cache group
+          traceShowM "Product created"
           createMissingDCLinks cache (iiStyle $ baseInfo) (map fst group) product'revMap
+          traceShowM "DC created"
           createMissingWebPrices cache (map fst group) product'revMap
           return ()
   mapM_ go itemGroups
@@ -1141,12 +1143,18 @@ createMissingProducts cache group = do
       trims = map snd colors
   traceShowM prices
   productEntities <- createAndInsertNewProducts timestamp skus
+  traceShowM "new product created"
   prod'revKeys <- createAndInsertNewProductRevisions timestamp productEntities
+  traceShowM "new revision created"
   let prod'revMKeys = Just <$$> prod'revKeys
   createAndInsertProductPrices prices prod'revMKeys
+  traceShowM "new prices created"
   createAndInsertProductColours bases prod'revMKeys
+  traceShowM "new colour "
   createAndInsertProductTrimColours (trims) prod'revMKeys
+  traceShowM "new trim "
   createAndInsertProductStockStatus prod'revMKeys
+  traceShowM "new status created "
   return $ mapFromList (zip skus prod'revKeys)
         
 createAndInsertFields'
@@ -1163,9 +1171,7 @@ createAndInsertFields' mks p'rKeys = do
 
 createAndInsertRevFields' mks0 p'rKeys = do
   let (mks, p'rIds) = unzip [(mk, (pId, rId))
-                            | (DC.CommerceProductTKey pId, rIdM) <- p'rKeys
-                            , mk <- mks0
-                            -- filter revision key == Nothing
+                            | (mk, (DC.CommerceProductTKey pId, rIdM)) <- zip mks0 p'rKeys
                             , Just (DC.CommerceProductRevisionTKey rId) <- return rIdM
                             ]
   insertMany_ $ zipWith ($) mks p'rIds
@@ -1296,8 +1302,12 @@ newProductColour colId mkColour pId'revId =
 
 -- **** field_*_field_stock_status 
 createAndInsertProductStockStatus p'rKeys = do
+  traceShowM "setting status"
+  traceShowM p'rKeys
   createAndInsertFields (newProductStockStatus (Just 69) DC.FieldDataFieldStockStatusT) p'rKeys
+  traceShowM "setting revisions status"
   createAndInsertRevFields (newProductStockStatus (Just 69) DC.FieldRevisionFieldStockStatusT) p'rKeys
+  traceShowM "pone"
 
 newProductStockStatus status  mkStatus pId'revId =
   newProductField mkStatus pId'revId status
@@ -1486,14 +1496,16 @@ createMissingWebPrices
   -> ReaderT SqlBackend Handler ()
 createMissingWebPrices cache group p'revMap = do
   basePl <- lift basePriceList
+  traceShowM "basePrice got"
 
   let sku'prices = [ (sku, priceMap)
            | (status, info) <- group
            , Just priceMap <- return $ impSalesPrices (iiInfo info)
            , let sku = iiSku info
            ]
-      priceList = icPriceLists cache -- TODO move in global cache
-      prices = map (computeTheoreticalPricesP basePl priceList . snd)  sku'prices
+      priceList = trace "got price list from cache " $ icPriceLists cache -- TODO move in global cache
+      prices = traceShowId $ map (computeTheoreticalPricesP basePl priceList . snd)  sku'prices
+  traceShowM ("PRICES", prices)
   sku'p'rs0 <- loadSkuProductRevisions p'revMap (map fst sku'prices)
 
   createAndInsertDCPrices prices sku'p'rs0
@@ -1524,6 +1536,7 @@ createAndInsertDCPriceFor index mk mkRev priceMaps sku'p'rs = do
                                  | (priceMap,  (_, p, r)) <- zip priceMaps sku'p'rs
                                  , Just price <- return $ lookup index priceMap
                                  ]
+  traceShowM ("INserting")
   createAndInsertFields' (map (newProductFieldPrice mk) prices) p'rs
   createAndInsertRevFields' (map (newProductFieldPrice mkRev) prices) p'rs
 
