@@ -100,14 +100,14 @@ library:
   - condition: (flag(dev)) || (flag(library-only))
     then:
       ghc-options:
-      - -w
+      - -Wall 
       - -fwarn-tabs
       - -O0
       - -j6
       cpp-options: -DDEVELOPMENT
     else:
       ghc-options:
-      - -Wall 
+      - -w
       - -fwarn-tabs
       - -Wno-type-defaults
       - -O2
@@ -124,9 +124,18 @@ executables:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - -j6
     when:
     - condition: flag(library-only)
       buildable: false
+    - condition: (flag(dev))
+      then:
+        ghc-options:
+        - -O0
+      else:
+        ghc-options:
+        - -O2
+
 
 #k  FAGenerator:
 #k    main: FAGenerator.hs
