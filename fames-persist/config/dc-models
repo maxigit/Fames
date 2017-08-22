@@ -1,0 +1,3059 @@
+-- Warning ! This code has been generated !
+-- Model
+AccesslogT sql=dcx_accesslog
+    Id Int  sql=aid
+    sid Text  sql=sid
+    title Text Maybe sql=title default=NULL
+    path Text Maybe sql=path default=NULL
+    url Text Maybe sql=url default=NULL
+    hostname Text Maybe sql=hostname default=NULL
+    uid Int Maybe sql=uid
+    timer Int  sql=timer
+    timestamp Int  sql=timestamp
+
+ActionsT sql=dcx_actions
+    Id Text  sql=aid
+    type Text  sql=type
+    callback Text  sql=callback
+    parameters ByteString  sql=parameters
+    label Text  sql=label
+
+AdvancedHelpIndexT sql=dcx_advanced_help_index
+    Id Int  sql=sid
+    module Text  sql=module
+    topic Text  sql=topic
+    language Text  sql=language
+
+AuthcacheP13nKeyValueT sql=dcx_authcache_p13n_key_value
+    name Text  sql=name
+    collection Text  sql=collection
+    value ByteString Maybe sql=value
+    Primary name collection
+
+AuthmapT sql=dcx_authmap
+    Id Int  sql=aid
+    uid Int  sql=uid
+    authname Text  sql=authname
+    module Text  sql=module
+
+BatchT sql=dcx_batch
+    Id Int  sql=bid
+    token Text  sql=token
+    timestamp Int  sql=timestamp
+    batch ByteString Maybe sql=batch
+
+BlockT sql=dcx_block
+    Id Int  sql=bid
+    module Text  sql=module
+    delta Text  sql=delta
+    theme Text  sql=theme
+    status Bool  sql=status
+    weight Int  sql=weight
+    region Text  sql=region
+    custom Bool  sql=custom
+    visibility Bool  sql=visibility
+    pages Text  sql=pages
+    title Text  sql=title
+    cache Bool  sql=cache
+
+BlockedIpsT sql=dcx_blocked_ips
+    Id Int  sql=iid
+    ip Text  sql=ip
+
+BlockCurrentSearchT sql=dcx_block_current_search
+    Id Text  sql=delta
+    searcher Text  sql=searcher
+
+BlockCustomT sql=dcx_block_custom
+    Id Int  sql=bid
+    body Text Maybe sql=body default=NULL
+    info Text  sql=info
+    format Text Maybe sql=format default=NULL
+
+BlockNodeTypeT sql=dcx_block_node_type
+    module Text  sql=module
+    delta Text  sql=delta
+    type Text  sql=type
+    Primary module delta type
+
+BlockRoleT sql=dcx_block_role
+    module Text  sql=module
+    delta Text  sql=delta
+    rid Int  sql=rid
+    Primary module delta rid
+
+CacheT sql=dcx_cache
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheAdminMenuT sql=dcx_cache_admin_menu
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheAuthcacheDebugT sql=dcx_cache_authcache_debug
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheAuthcacheKeyT sql=dcx_cache_authcache_key
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheAuthcacheP13nT sql=dcx_cache_authcache_p13n
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheBlockT sql=dcx_cache_block
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheBootstrapT sql=dcx_cache_bootstrap
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheCommerceShippingRatesT sql=dcx_cache_commerce_shipping_rates
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheDisplayCacheT sql=dcx_cache_display_cache
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheEntityCommentT sql=dcx_cache_entity_comment
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheEntityFileT sql=dcx_cache_entity_file
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheEntityMessageT sql=dcx_cache_entity_message
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheEntityMessageTypeT sql=dcx_cache_entity_message_type
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheEntityMessageTypeCategoryT sql=dcx_cache_entity_message_type_category
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheEntityNodeT sql=dcx_cache_entity_node
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheEntityTaxonomyTermT sql=dcx_cache_entity_taxonomy_term
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheEntityTaxonomyVocabularyT sql=dcx_cache_entity_taxonomy_vocabulary
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheEntityUserT sql=dcx_cache_entity_user
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheFieldT sql=dcx_cache_field
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheFilterT sql=dcx_cache_filter
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheFormT sql=dcx_cache_form
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheImageT sql=dcx_cache_image
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheLibrariesT sql=dcx_cache_libraries
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheMenuT sql=dcx_cache_menu
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheMetatagT sql=dcx_cache_metatag
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CachePageT sql=dcx_cache_page
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CachePathT sql=dcx_cache_path
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CachePathAliasT sql=dcx_cache_path_alias
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CachePathSourceT sql=dcx_cache_path_source
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheRulesT sql=dcx_cache_rules
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheTokenT sql=dcx_cache_token
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheUpdateT sql=dcx_cache_update
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheViewsT sql=dcx_cache_views
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CacheViewsDataT sql=dcx_cache_views_data
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized
+
+CmpMenuPermsT sql=dcx_cmp_menu_perms
+    Id Text  sql=menu_path
+    cmpPermissionKey Text Maybe sql=cmp_permission_key default=NULL
+
+CmpPermissionsT sql=dcx_cmp_permissions
+    Id Text  sql=perm_key
+    permName Text  sql=perm_name
+    description Text Maybe sql=description default=NULL
+
+CommentT sql=dcx_comment
+    Id Int  sql=cid
+    pid Int  sql=pid
+    nid Int  sql=nid
+    uid Int  sql=uid
+    subject Text  sql=subject
+    hostname Text  sql=hostname
+    created Int  sql=created
+    changed Int  sql=changed
+    status Bool  sql=status
+    thread Text  sql=thread
+    name Text Maybe sql=name default=NULL
+    mail Text Maybe sql=mail default=NULL
+    homepage Text Maybe sql=homepage default=NULL
+    language Text  sql=language
+
+CommerceAddressbookDefaultsT sql=dcx_commerce_addressbook_defaults
+    Id Int  sql=cad_id
+    profileId Int  sql=profile_id
+    type Text  sql=type
+    uid Int  sql=uid
+
+CommerceAutoskuPatternsT sql=dcx_commerce_autosku_patterns
+    Id Text  sql=product_type
+    pattern Text  sql=pattern
+    advanced ByteString Maybe sql=advanced
+
+CommerceCalculatedPriceT sql=dcx_commerce_calculated_price
+    module Text  sql=module
+    moduleKey Text  sql=module_key
+    entityType Text  sql=entity_type
+    entityId Int  sql=entity_id
+    fieldName Text  sql=field_name
+    language Text  sql=language
+    delta Int  sql=delta
+    amount Int  sql=amount
+    currencyCode Text  sql=currency_code
+    data Text Maybe sql=data default=NULL
+    created Int  sql=created
+
+CommerceCheckoutPaneT sql=dcx_commerce_checkout_pane
+    Id Text  sql=pane_id
+    page Text  sql=page
+    fieldset Bool  sql=fieldset
+    collapsible Bool  sql=collapsible
+    collapsed Bool  sql=collapsed
+    weight Int  sql=weight
+    enabled Bool  sql=enabled
+    review Bool  sql=review
+
+CommerceCustomerProfileT sql=dcx_commerce_customer_profile
+    Id Int  sql=profile_id
+    revisionId Int Maybe sql=revision_id
+    type Text  sql=type
+    uid Int  sql=uid
+    status Int  sql=status
+    created Int  sql=created
+    changed Int  sql=changed
+    data ByteString Maybe sql=data
+
+CommerceCustomerProfileRevisionT sql=dcx_commerce_customer_profile_revision
+    profileId Int  sql=profile_id
+    Id Int  sql=revision_id
+    revisionUid Int  sql=revision_uid
+    status Int  sql=status
+    log Text  sql=log
+    revisionTimestamp Int  sql=revision_timestamp
+    data ByteString Maybe sql=data
+
+CommerceDiscountT sql=dcx_commerce_discount
+    Id Int  sql=discount_id
+    name Text  sql=name
+    label Text  sql=label
+    type Text  sql=type
+    status Bool  sql=status
+    exportStatus Bool  sql=export_status
+    module Text Maybe sql=module default=NULL
+    componentTitle Text Maybe sql=component_title default=NULL
+
+CommerceDiscountOfferT sql=dcx_commerce_discount_offer
+    Id Int  sql=discount_offer_id
+    type Text  sql=type
+
+CommerceFlatRateServiceT sql=dcx_commerce_flat_rate_service
+    Id Text  sql=name
+    title Text  sql=title
+    displayTitle Text  sql=display_title
+    description Text  sql=description
+    rulesComponent Bool  sql=rules_component
+    amount Int  sql=amount
+    currencyCode Text  sql=currency_code
+    data Text Maybe sql=data default=NULL
+
+CommerceLineItemT sql=dcx_commerce_line_item
+    Id Int  sql=line_item_id
+    orderId Int  sql=order_id
+    type Text  sql=type
+    lineItemLabel Text  sql=line_item_label
+    quantity Rational  sql=quantity
+    created Int  sql=created
+    changed Int  sql=changed
+    data ByteString Maybe sql=data
+
+CommerceOrderT sql=dcx_commerce_order
+    Id Int  sql=order_id
+    orderNumber Text Maybe sql=order_number default=NULL
+    revisionId Int Maybe sql=revision_id
+    type Text  sql=type
+    uid Int  sql=uid
+    mail Text  sql=mail
+    status Text  sql=status
+    created Int  sql=created
+    changed Int  sql=changed
+    hostname Text  sql=hostname
+    data ByteString Maybe sql=data
+
+CommerceOrderRevisionT sql=dcx_commerce_order_revision
+    orderId Int  sql=order_id
+    orderNumber Text Maybe sql=order_number default=NULL
+    Id Int  sql=revision_id
+    revisionUid Int  sql=revision_uid
+    mail Text  sql=mail
+    status Text  sql=status
+    log Text  sql=log
+    revisionTimestamp Int  sql=revision_timestamp
+    revisionHostname Text  sql=revision_hostname
+    data ByteString Maybe sql=data
+
+CommercePaymentTransactionT sql=dcx_commerce_payment_transaction
+    Id Int  sql=transaction_id
+    revisionId Int Maybe sql=revision_id
+    uid Int  sql=uid
+    orderId Int  sql=order_id
+    paymentMethod Text  sql=payment_method
+    instanceId Text  sql=instance_id
+    remoteId Text  sql=remote_id
+    message Text  sql=message
+    messageVariables ByteString  sql=message_variables
+    amount Int  sql=amount
+    currencyCode Text  sql=currency_code
+    status Text  sql=status
+    remoteStatus Text  sql=remote_status
+    payload ByteString  sql=payload
+    created Int  sql=created
+    changed Int  sql=changed
+    data ByteString Maybe sql=data
+
+CommercePaymentTransactionRevisionT sql=dcx_commerce_payment_transaction_revision
+    transactionId Int  sql=transaction_id
+    Id Int  sql=revision_id
+    revisionUid Int  sql=revision_uid
+    remoteId Text  sql=remote_id
+    message Text  sql=message
+    messageVariables ByteString  sql=message_variables
+    amount Int  sql=amount
+    currencyCode Text  sql=currency_code
+    status Text  sql=status
+    remoteStatus Text  sql=remote_status
+    log Text  sql=log
+    revisionTimestamp Int  sql=revision_timestamp
+    data ByteString Maybe sql=data
+
+CommerceProductT sql=dcx_commerce_product
+    Id Int  sql=product_id
+    revisionId Int Maybe sql=revision_id
+    sku Text  sql=sku
+    title Text  sql=title
+    type Text  sql=type
+    language Text  sql=language
+    uid Int  sql=uid
+    status Bool  sql=status
+    created Int  sql=created
+    changed Int  sql=changed
+    data ByteString Maybe sql=data
+
+CommerceProductRevisionT sql=dcx_commerce_product_revision
+    productId Int  sql=product_id
+    Id Int  sql=revision_id
+    sku Text  sql=sku
+    title Text  sql=title
+    revisionUid Int  sql=revision_uid
+    status Bool  sql=status
+    log Text  sql=log
+    revisionTimestamp Int  sql=revision_timestamp
+    data ByteString Maybe sql=data
+
+CommerceProductTypeT sql=dcx_commerce_product_type
+    Id Text  sql=type
+    name Text  sql=name
+    description Text  sql=description
+    help Text  sql=help
+    revision Bool  sql=revision
+
+CommerceTaxRateT sql=dcx_commerce_tax_rate
+    Id Text  sql=name
+    title Text  sql=title
+    displayTitle Text  sql=display_title
+    description Text  sql=description
+    rate Text  sql=rate
+    type Text  sql=type
+    defaultRulesComponent Bool  sql=default_rules_component
+    module Text  sql=module
+
+CommerceTaxTypeT sql=dcx_commerce_tax_type
+    Id Text  sql=name
+    title Text  sql=title
+    displayTitle Text  sql=display_title
+    description Text  sql=description
+    displayInclusive Bool  sql=display_inclusive
+    roundMode Bool  sql=round_mode
+    module Text  sql=module
+
+ContactT sql=dcx_contact
+    Id Int  sql=cid
+    category Text  sql=category
+    recipients Text  sql=recipients
+    reply Text  sql=reply
+    weight Int  sql=weight
+    selected Bool  sql=selected
+
+CtoolsCssCacheT sql=dcx_ctools_css_cache
+    Id Text  sql=cid
+    filename Text Maybe sql=filename default=NULL
+    css Text Maybe sql=css default=NULL
+    filter Bool Maybe sql=filter
+
+CtoolsObjectCacheT sql=dcx_ctools_object_cache
+    sid Text  sql=sid
+    name Text  sql=name
+    obj Text  sql=obj
+    updated Int  sql=updated
+    data ByteString Maybe sql=data
+    Primary sid name obj
+
+CurrentSearchT sql=dcx_current_search
+    Id Text  sql=name
+    label Text  sql=label
+    settings Text Maybe sql=settings default=NULL
+
+DateFormatsT sql=dcx_date_formats
+    Id Int  sql=dfid
+    format Text  sql=format
+    type Text  sql=type
+    locked Bool  sql=locked
+
+DateFormatLocaleT sql=dcx_date_format_locale
+    format Text  sql=format
+    type Text  sql=type
+    language Text  sql=language
+    Primary type language
+
+DateFormatTypeT sql=dcx_date_format_type
+    Id Text  sql=type
+    title Text  sql=title
+    locked Bool  sql=locked
+
+FacetapiT sql=dcx_facetapi
+    Id Text  sql=name
+    searcher Text  sql=searcher
+    realm Text  sql=realm
+    facet Text  sql=facet
+    enabled Bool  sql=enabled
+    settings ByteString Maybe sql=settings
+
+FeedsImporterT sql=dcx_feeds_importer
+    Id Text  sql=id
+    config ByteString Maybe sql=config
+
+FeedsItemT sql=dcx_feeds_item
+    entityType Text  sql=entity_type
+    entityId Int  sql=entity_id
+    id_ Text  sql=id
+    feedNid Int  sql=feed_nid
+    imported Int  sql=imported
+    url Text  sql=url
+    guid Text  sql=guid
+    hash Text  sql=hash
+    Primary entityType entityId
+
+FeedsLogT sql=dcx_feeds_log
+    Id Int  sql=flid
+    id_ Text  sql=id
+    feedNid Int  sql=feed_nid
+    logTime Int  sql=log_time
+    requestTime Int  sql=request_time
+    type Text  sql=type
+    message Text  sql=message
+    variables ByteString  sql=variables
+    severity Bool  sql=severity
+
+FeedsPushSubscriptionsT sql=dcx_feeds_push_subscriptions
+    domain Text  sql=domain
+    subscriberId Int  sql=subscriber_id
+    timestamp Int  sql=timestamp
+    hub Text  sql=hub
+    topic Text  sql=topic
+    secret Text  sql=secret
+    status Text  sql=status
+    postFields Text Maybe sql=post_fields default=NULL
+    Primary domain subscriberId
+
+FeedsSourceT sql=dcx_feeds_source
+    id_ Text  sql=id
+    feedNid Int  sql=feed_nid
+    config ByteString Maybe sql=config
+    source Text  sql=source
+    state ByteString Maybe sql=state
+    fetcherResult ByteString Maybe sql=fetcher_result
+    imported Int  sql=imported
+    Primary id_ feedNid
+
+FeedsTamperT sql=dcx_feeds_tamper
+    Id Text  sql=id
+    importer Text  sql=importer
+    source Text  sql=source
+    pluginId Text  sql=plugin_id
+    settings Text Maybe sql=settings default=NULL
+    weight Int  sql=weight
+    description Text  sql=description
+
+FieldConfigT sql=dcx_field_config
+    Id Int  sql=id
+    fieldName Text  sql=field_name
+    type Text  sql=type
+    module Text  sql=module
+    active Bool  sql=active
+    storageType Text  sql=storage_type
+    storageModule Text  sql=storage_module
+    storageActive Bool  sql=storage_active
+    locked Bool  sql=locked
+    data ByteString  sql=data
+    cardinality Bool  sql=cardinality
+    translatable Bool  sql=translatable
+    deleted Bool  sql=deleted
+
+FieldConfigInstanceT sql=dcx_field_config_instance
+    Id Int  sql=id
+    fieldId Int  sql=field_id
+    fieldName Text  sql=field_name
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    data ByteString  sql=data
+    deleted Bool  sql=deleted
+
+FieldDataBodyT sql=dcx_field_data_body
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    bodyValue Text Maybe sql=body_value default=NULL
+    bodyFormat Text Maybe sql=body_format default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataCommentBodyT sql=dcx_field_data_comment_body
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commentBodyValue Text Maybe sql=comment_body_value default=NULL
+    commentBodyFormat Text Maybe sql=comment_body_format default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataCommerceCustomerAddressT sql=dcx_field_data_commerce_customer_address
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceCustomerAddressCountry Text Maybe sql=commerce_customer_address_country default=NULL
+    commerceCustomerAddressAdministrativeArea Text Maybe sql=commerce_customer_address_administrative_area default=NULL
+    commerceCustomerAddressSubAdministrativeArea Text Maybe sql=commerce_customer_address_sub_administrative_area default=NULL
+    commerceCustomerAddressLocality Text Maybe sql=commerce_customer_address_locality default=NULL
+    commerceCustomerAddressDependentLocality Text Maybe sql=commerce_customer_address_dependent_locality default=NULL
+    commerceCustomerAddressPostalCode Text Maybe sql=commerce_customer_address_postal_code default=NULL
+    commerceCustomerAddressThoroughfare Text Maybe sql=commerce_customer_address_thoroughfare default=NULL
+    commerceCustomerAddressPremise Text Maybe sql=commerce_customer_address_premise default=NULL
+    commerceCustomerAddressSubPremise Text Maybe sql=commerce_customer_address_sub_premise default=NULL
+    commerceCustomerAddressOrganisationName Text Maybe sql=commerce_customer_address_organisation_name default=NULL
+    commerceCustomerAddressNameLine Text Maybe sql=commerce_customer_address_name_line default=NULL
+    commerceCustomerAddressFirstName Text Maybe sql=commerce_customer_address_first_name default=NULL
+    commerceCustomerAddressLastName Text Maybe sql=commerce_customer_address_last_name default=NULL
+    commerceCustomerAddressData Text Maybe sql=commerce_customer_address_data default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataCommerceCustomerBillingT sql=dcx_field_data_commerce_customer_billing
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceCustomerBillingProfileId Int Maybe sql=commerce_customer_billing_profile_id
+    Primary entityType deleted entityId language delta
+
+FieldDataCommerceCustomerShippingT sql=dcx_field_data_commerce_customer_shipping
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceCustomerShippingProfileId Int Maybe sql=commerce_customer_shipping_profile_id
+    Primary entityType deleted entityId language delta
+
+FieldDataCommerceDiscountsT sql=dcx_field_data_commerce_discounts
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceDiscountsTargetId Int  sql=commerce_discounts_target_id
+    Primary entityType deleted entityId language delta
+
+FieldDataCommerceDiscountDateT sql=dcx_field_data_commerce_discount_date
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceDiscountDateValue Int Maybe sql=commerce_discount_date_value
+    commerceDiscountDateValue2 Int Maybe sql=commerce_discount_date_value2
+    Primary entityType deleted entityId language delta
+
+FieldDataCommerceDiscountOfferT sql=dcx_field_data_commerce_discount_offer
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceDiscountOfferTargetId Int  sql=commerce_discount_offer_target_id
+    Primary entityType deleted entityId language delta
+
+FieldDataCommerceDisplayPathT sql=dcx_field_data_commerce_display_path
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceDisplayPathValue Text Maybe sql=commerce_display_path_value default=NULL
+    commerceDisplayPathFormat Text Maybe sql=commerce_display_path_format default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataCommerceFixedAmountT sql=dcx_field_data_commerce_fixed_amount
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceFixedAmountAmount Int  sql=commerce_fixed_amount_amount
+    commerceFixedAmountCurrencyCode Text  sql=commerce_fixed_amount_currency_code
+    commerceFixedAmountData Text Maybe sql=commerce_fixed_amount_data default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataCommerceFreeProductsT sql=dcx_field_data_commerce_free_products
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceFreeProductsProductId Int Maybe sql=commerce_free_products_product_id
+    Primary entityType deleted entityId language delta
+
+FieldDataCommerceFreeShippingT sql=dcx_field_data_commerce_free_shipping
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceFreeShippingValue Text Maybe sql=commerce_free_shipping_value default=NULL
+    commerceFreeShippingFormat Text Maybe sql=commerce_free_shipping_format default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataCommerceLineItemsT sql=dcx_field_data_commerce_line_items
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceLineItemsLineItemId Int Maybe sql=commerce_line_items_line_item_id
+    Primary entityType deleted entityId language delta
+
+FieldDataCommerceOrderTotalT sql=dcx_field_data_commerce_order_total
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceOrderTotalAmount Int  sql=commerce_order_total_amount
+    commerceOrderTotalCurrencyCode Text  sql=commerce_order_total_currency_code
+    commerceOrderTotalData Text Maybe sql=commerce_order_total_data default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataCommercePercentageT sql=dcx_field_data_commerce_percentage
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commercePercentageValue Rational Maybe sql=commerce_percentage_value
+    Primary entityType deleted entityId language delta
+
+FieldDataCommercePriceT sql=dcx_field_data_commerce_price
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commercePriceAmount Int  sql=commerce_price_amount
+    commercePriceCurrencyCode Text  sql=commerce_price_currency_code
+    commercePriceData Text Maybe sql=commerce_price_data default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataCommerceProductT sql=dcx_field_data_commerce_product
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceProductProductId Int Maybe sql=commerce_product_product_id
+    Primary entityType deleted entityId language delta
+
+FieldDataCommerceShippingServiceT sql=dcx_field_data_commerce_shipping_service
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceShippingServiceValue Text Maybe sql=commerce_shipping_service_value default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataCommerceTotalT sql=dcx_field_data_commerce_total
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceTotalAmount Int  sql=commerce_total_amount
+    commerceTotalCurrencyCode Text  sql=commerce_total_currency_code
+    commerceTotalData Text Maybe sql=commerce_total_data default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataCommerceUnitPriceT sql=dcx_field_data_commerce_unit_price
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceUnitPriceAmount Int  sql=commerce_unit_price_amount
+    commerceUnitPriceCurrencyCode Text  sql=commerce_unit_price_currency_code
+    commerceUnitPriceData Text Maybe sql=commerce_unit_price_data default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldBrandT sql=dcx_field_data_field_brand
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldBrandTid Int Maybe sql=field_brand_tid
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldCollectionT sql=dcx_field_data_field_collection
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldCollectionTid Int Maybe sql=field_collection_tid
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldColourT sql=dcx_field_data_field_colour
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldColourTid Int Maybe sql=field_colour_tid
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldColourCodeT sql=dcx_field_data_field_colour_code
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldColourCodeValue Text Maybe sql=field_colour_code_value default=NULL
+    fieldColourCodeFormat Text Maybe sql=field_colour_code_format default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldHeadlineT sql=dcx_field_data_field_headline
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldHeadlineValue Text Maybe sql=field_headline_value default=NULL
+    fieldHeadlineFormat Text Maybe sql=field_headline_format default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldImageT sql=dcx_field_data_field_image
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldImageFid Int Maybe sql=field_image_fid
+    fieldImageAlt Text Maybe sql=field_image_alt default=NULL
+    fieldImageTitle Text Maybe sql=field_image_title default=NULL
+    fieldImageWidth Int Maybe sql=field_image_width
+    fieldImageHeight Int Maybe sql=field_image_height
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldImagesT sql=dcx_field_data_field_images
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldImagesFid Int Maybe sql=field_images_fid
+    fieldImagesAlt Text Maybe sql=field_images_alt default=NULL
+    fieldImagesTitle Text Maybe sql=field_images_title default=NULL
+    fieldImagesWidth Int Maybe sql=field_images_width
+    fieldImagesHeight Int Maybe sql=field_images_height
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldLinkT sql=dcx_field_data_field_link
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldLinkUrl Text Maybe sql=field_link_url default=NULL
+    fieldLinkTitle Text Maybe sql=field_link_title default=NULL
+    fieldLinkAttributes Text Maybe sql=field_link_attributes default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldPricePl01T sql=dcx_field_data_field_price_pl_01
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl01Amount Int  sql=field_price_pl_01_amount
+    fieldPricePl01CurrencyCode Text  sql=field_price_pl_01_currency_code
+    fieldPricePl01Data Text Maybe sql=field_price_pl_01_data default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldPricePl02T sql=dcx_field_data_field_price_pl_02
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl02Amount Int  sql=field_price_pl_02_amount
+    fieldPricePl02CurrencyCode Text  sql=field_price_pl_02_currency_code
+    fieldPricePl02Data Text Maybe sql=field_price_pl_02_data default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldPricePl03T sql=dcx_field_data_field_price_pl_03
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl03Amount Int  sql=field_price_pl_03_amount
+    fieldPricePl03CurrencyCode Text  sql=field_price_pl_03_currency_code
+    fieldPricePl03Data Text Maybe sql=field_price_pl_03_data default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldPricePl04T sql=dcx_field_data_field_price_pl_04
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl04Amount Int  sql=field_price_pl_04_amount
+    fieldPricePl04CurrencyCode Text  sql=field_price_pl_04_currency_code
+    fieldPricePl04Data Text Maybe sql=field_price_pl_04_data default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldPricePl05T sql=dcx_field_data_field_price_pl_05
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl05Amount Int  sql=field_price_pl_05_amount
+    fieldPricePl05CurrencyCode Text  sql=field_price_pl_05_currency_code
+    fieldPricePl05Data Text Maybe sql=field_price_pl_05_data default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldPricePl06T sql=dcx_field_data_field_price_pl_06
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl06Amount Int  sql=field_price_pl_06_amount
+    fieldPricePl06CurrencyCode Text  sql=field_price_pl_06_currency_code
+    fieldPricePl06Data Text Maybe sql=field_price_pl_06_data default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldPricePl07T sql=dcx_field_data_field_price_pl_07
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl07Amount Int  sql=field_price_pl_07_amount
+    fieldPricePl07CurrencyCode Text  sql=field_price_pl_07_currency_code
+    fieldPricePl07Data Text Maybe sql=field_price_pl_07_data default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldPricePl08T sql=dcx_field_data_field_price_pl_08
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl08Amount Int  sql=field_price_pl_08_amount
+    fieldPricePl08CurrencyCode Text  sql=field_price_pl_08_currency_code
+    fieldPricePl08Data Text Maybe sql=field_price_pl_08_data default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldPricePl09T sql=dcx_field_data_field_price_pl_09
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl09Amount Int  sql=field_price_pl_09_amount
+    fieldPricePl09CurrencyCode Text  sql=field_price_pl_09_currency_code
+    fieldPricePl09Data Text Maybe sql=field_price_pl_09_data default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldPricePl10T sql=dcx_field_data_field_price_pl_10
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl10Amount Int  sql=field_price_pl_10_amount
+    fieldPricePl10CurrencyCode Text  sql=field_price_pl_10_currency_code
+    fieldPricePl10Data Text Maybe sql=field_price_pl_10_data default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldPricePl11T sql=dcx_field_data_field_price_pl_11
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl11Amount Int  sql=field_price_pl_11_amount
+    fieldPricePl11CurrencyCode Text  sql=field_price_pl_11_currency_code
+    fieldPricePl11Data Text Maybe sql=field_price_pl_11_data default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldPricePl12T sql=dcx_field_data_field_price_pl_12
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl12Amount Int  sql=field_price_pl_12_amount
+    fieldPricePl12CurrencyCode Text  sql=field_price_pl_12_currency_code
+    fieldPricePl12Data Text Maybe sql=field_price_pl_12_data default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldPricePl13T sql=dcx_field_data_field_price_pl_13
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl13Amount Int  sql=field_price_pl_13_amount
+    fieldPricePl13CurrencyCode Text  sql=field_price_pl_13_currency_code
+    fieldPricePl13Data Text Maybe sql=field_price_pl_13_data default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldPricePl14T sql=dcx_field_data_field_price_pl_14
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl14Amount Int  sql=field_price_pl_14_amount
+    fieldPricePl14CurrencyCode Text  sql=field_price_pl_14_currency_code
+    fieldPricePl14Data Text Maybe sql=field_price_pl_14_data default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldProductT sql=dcx_field_data_field_product
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldProductProductId Int Maybe sql=field_product_product_id
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldProductCategoryT sql=dcx_field_data_field_product_category
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldProductCategoryTid Int Maybe sql=field_product_category_tid
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldRequiredDeliveryDateT sql=dcx_field_data_field_required_delivery_date
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldRequiredDeliveryDateValue UTCTime Maybe sql=field_required_delivery_date_value
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldRgbT sql=dcx_field_data_field_rgb
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldRgbValue Text Maybe sql=field_rgb_value default=NULL
+    fieldRgbFormat Text Maybe sql=field_rgb_format default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldSpecialRequestT sql=dcx_field_data_field_special_request
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldSpecialRequestValue Text Maybe sql=field_special_request_value default=NULL
+    fieldSpecialRequestFormat Text Maybe sql=field_special_request_format default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldStockStatusT sql=dcx_field_data_field_stock_status
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldStockStatusTid Int Maybe sql=field_stock_status_tid
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldTaglineT sql=dcx_field_data_field_tagline
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldTaglineValue Text Maybe sql=field_tagline_value default=NULL
+    fieldTaglineFormat Text Maybe sql=field_tagline_format default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldTrimColourT sql=dcx_field_data_field_trim_colour
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldTrimColourTid Int Maybe sql=field_trim_colour_tid
+    Primary entityType deleted entityId language delta
+
+FieldDataFieldWholesalePriceT sql=dcx_field_data_field_wholesale_price
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldWholesalePriceAmount Int  sql=field_wholesale_price_amount
+    fieldWholesalePriceCurrencyCode Text  sql=field_wholesale_price_currency_code
+    fieldWholesalePriceData Text Maybe sql=field_wholesale_price_data default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataInlineConditionsT sql=dcx_field_data_inline_conditions
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    inlineConditionsConditionName Text  sql=inline_conditions_condition_name
+    inlineConditionsConditionSettings ByteString Maybe sql=inline_conditions_condition_settings
+    Primary entityType deleted entityId language delta
+
+FieldDataMessageCommerceBodyT sql=dcx_field_data_message_commerce_body
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageCommerceBodyValue Text Maybe sql=message_commerce_body_value default=NULL
+    messageCommerceBodyFormat Text Maybe sql=message_commerce_body_format default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataMessageCommerceLineItemT sql=dcx_field_data_message_commerce_line_item
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageCommerceLineItemTargetId Int  sql=message_commerce_line_item_target_id
+    Primary entityType deleted entityId language delta
+
+FieldDataMessageCommerceOrderT sql=dcx_field_data_message_commerce_order
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageCommerceOrderTargetId Int  sql=message_commerce_order_target_id
+    Primary entityType deleted entityId language delta
+
+FieldDataMessageCommercePaymentT sql=dcx_field_data_message_commerce_payment
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageCommercePaymentTargetId Int  sql=message_commerce_payment_target_id
+    Primary entityType deleted entityId language delta
+
+FieldDataMessageOrderDisplayNameT sql=dcx_field_data_message_order_display_name
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageOrderDisplayNameValue Text Maybe sql=message_order_display_name_value default=NULL
+    messageOrderDisplayNameFormat Text Maybe sql=message_order_display_name_format default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataMessageTextT sql=dcx_field_data_message_text
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageTextValue Text Maybe sql=message_text_value default=NULL
+    messageTextFormat Text Maybe sql=message_text_format default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataMessageTextSubjectT sql=dcx_field_data_message_text_subject
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageTextSubjectValue Text Maybe sql=message_text_subject_value default=NULL
+    messageTextSubjectFormat Text Maybe sql=message_text_subject_format default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDataTitleFieldT sql=dcx_field_data_title_field
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    titleFieldValue Text Maybe sql=title_field_value default=NULL
+    titleFieldFormat Text Maybe sql=title_field_format default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDeletedData11T sql=dcx_field_deleted_data_11
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageOrderDisplayNameValue Text Maybe sql=message_order_display_name_value default=NULL
+    messageOrderDisplayNameFormat Text Maybe sql=message_order_display_name_format default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDeletedData22T sql=dcx_field_deleted_data_22
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageCommerceOrderTargetId Int  sql=message_commerce_order_target_id
+    Primary entityType deleted entityId language delta
+
+FieldDeletedData23T sql=dcx_field_deleted_data_23
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageCommerceLineItemTargetId Int  sql=message_commerce_line_item_target_id
+    Primary entityType deleted entityId language delta
+
+FieldDeletedData24T sql=dcx_field_deleted_data_24
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageCommercePaymentTargetId Int  sql=message_commerce_payment_target_id
+    Primary entityType deleted entityId language delta
+
+FieldDeletedData25T sql=dcx_field_deleted_data_25
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageCommerceBodyValue Text Maybe sql=message_commerce_body_value default=NULL
+    messageCommerceBodyFormat Text Maybe sql=message_commerce_body_format default=NULL
+    Primary entityType deleted entityId language delta
+
+FieldDeletedRevision11T sql=dcx_field_deleted_revision_11
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageOrderDisplayNameValue Text Maybe sql=message_order_display_name_value default=NULL
+    messageOrderDisplayNameFormat Text Maybe sql=message_order_display_name_format default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldDeletedRevision22T sql=dcx_field_deleted_revision_22
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageCommerceOrderTargetId Int  sql=message_commerce_order_target_id
+    Primary entityType deleted entityId revisionId language delta
+
+FieldDeletedRevision23T sql=dcx_field_deleted_revision_23
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageCommerceLineItemTargetId Int  sql=message_commerce_line_item_target_id
+    Primary entityType deleted entityId revisionId language delta
+
+FieldDeletedRevision24T sql=dcx_field_deleted_revision_24
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageCommercePaymentTargetId Int  sql=message_commerce_payment_target_id
+    Primary entityType deleted entityId revisionId language delta
+
+FieldDeletedRevision25T sql=dcx_field_deleted_revision_25
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageCommerceBodyValue Text Maybe sql=message_commerce_body_value default=NULL
+    messageCommerceBodyFormat Text Maybe sql=message_commerce_body_format default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldGroupT sql=dcx_field_group
+    Id Int  sql=id
+    identifier Text  sql=identifier
+    groupName Text  sql=group_name
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    mode Text  sql=mode
+    parentName Text  sql=parent_name
+    data ByteString  sql=data
+
+FieldRevisionBodyT sql=dcx_field_revision_body
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    bodyValue Text Maybe sql=body_value default=NULL
+    bodyFormat Text Maybe sql=body_format default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionCommentBodyT sql=dcx_field_revision_comment_body
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commentBodyValue Text Maybe sql=comment_body_value default=NULL
+    commentBodyFormat Text Maybe sql=comment_body_format default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionCommerceCustomerAddressT sql=dcx_field_revision_commerce_customer_address
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceCustomerAddressCountry Text Maybe sql=commerce_customer_address_country default=NULL
+    commerceCustomerAddressAdministrativeArea Text Maybe sql=commerce_customer_address_administrative_area default=NULL
+    commerceCustomerAddressSubAdministrativeArea Text Maybe sql=commerce_customer_address_sub_administrative_area default=NULL
+    commerceCustomerAddressLocality Text Maybe sql=commerce_customer_address_locality default=NULL
+    commerceCustomerAddressDependentLocality Text Maybe sql=commerce_customer_address_dependent_locality default=NULL
+    commerceCustomerAddressPostalCode Text Maybe sql=commerce_customer_address_postal_code default=NULL
+    commerceCustomerAddressThoroughfare Text Maybe sql=commerce_customer_address_thoroughfare default=NULL
+    commerceCustomerAddressPremise Text Maybe sql=commerce_customer_address_premise default=NULL
+    commerceCustomerAddressSubPremise Text Maybe sql=commerce_customer_address_sub_premise default=NULL
+    commerceCustomerAddressOrganisationName Text Maybe sql=commerce_customer_address_organisation_name default=NULL
+    commerceCustomerAddressNameLine Text Maybe sql=commerce_customer_address_name_line default=NULL
+    commerceCustomerAddressFirstName Text Maybe sql=commerce_customer_address_first_name default=NULL
+    commerceCustomerAddressLastName Text Maybe sql=commerce_customer_address_last_name default=NULL
+    commerceCustomerAddressData Text Maybe sql=commerce_customer_address_data default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionCommerceCustomerBillingT sql=dcx_field_revision_commerce_customer_billing
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceCustomerBillingProfileId Int Maybe sql=commerce_customer_billing_profile_id
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionCommerceCustomerShippingT sql=dcx_field_revision_commerce_customer_shipping
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceCustomerShippingProfileId Int Maybe sql=commerce_customer_shipping_profile_id
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionCommerceDiscountsT sql=dcx_field_revision_commerce_discounts
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceDiscountsTargetId Int  sql=commerce_discounts_target_id
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionCommerceDiscountDateT sql=dcx_field_revision_commerce_discount_date
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceDiscountDateValue Int Maybe sql=commerce_discount_date_value
+    commerceDiscountDateValue2 Int Maybe sql=commerce_discount_date_value2
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionCommerceDiscountOfferT sql=dcx_field_revision_commerce_discount_offer
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceDiscountOfferTargetId Int  sql=commerce_discount_offer_target_id
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionCommerceDisplayPathT sql=dcx_field_revision_commerce_display_path
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceDisplayPathValue Text Maybe sql=commerce_display_path_value default=NULL
+    commerceDisplayPathFormat Text Maybe sql=commerce_display_path_format default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionCommerceFixedAmountT sql=dcx_field_revision_commerce_fixed_amount
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceFixedAmountAmount Int  sql=commerce_fixed_amount_amount
+    commerceFixedAmountCurrencyCode Text  sql=commerce_fixed_amount_currency_code
+    commerceFixedAmountData Text Maybe sql=commerce_fixed_amount_data default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionCommerceFreeProductsT sql=dcx_field_revision_commerce_free_products
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceFreeProductsProductId Int Maybe sql=commerce_free_products_product_id
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionCommerceFreeShippingT sql=dcx_field_revision_commerce_free_shipping
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceFreeShippingValue Text Maybe sql=commerce_free_shipping_value default=NULL
+    commerceFreeShippingFormat Text Maybe sql=commerce_free_shipping_format default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionCommerceLineItemsT sql=dcx_field_revision_commerce_line_items
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceLineItemsLineItemId Int Maybe sql=commerce_line_items_line_item_id
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionCommerceOrderTotalT sql=dcx_field_revision_commerce_order_total
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceOrderTotalAmount Int  sql=commerce_order_total_amount
+    commerceOrderTotalCurrencyCode Text  sql=commerce_order_total_currency_code
+    commerceOrderTotalData Text Maybe sql=commerce_order_total_data default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionCommercePercentageT sql=dcx_field_revision_commerce_percentage
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commercePercentageValue Rational Maybe sql=commerce_percentage_value
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionCommercePriceT sql=dcx_field_revision_commerce_price
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commercePriceAmount Int  sql=commerce_price_amount
+    commercePriceCurrencyCode Text  sql=commerce_price_currency_code
+    commercePriceData Text Maybe sql=commerce_price_data default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionCommerceProductT sql=dcx_field_revision_commerce_product
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceProductProductId Int Maybe sql=commerce_product_product_id
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionCommerceShippingServiceT sql=dcx_field_revision_commerce_shipping_service
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceShippingServiceValue Text Maybe sql=commerce_shipping_service_value default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionCommerceTotalT sql=dcx_field_revision_commerce_total
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceTotalAmount Int  sql=commerce_total_amount
+    commerceTotalCurrencyCode Text  sql=commerce_total_currency_code
+    commerceTotalData Text Maybe sql=commerce_total_data default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionCommerceUnitPriceT sql=dcx_field_revision_commerce_unit_price
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceUnitPriceAmount Int  sql=commerce_unit_price_amount
+    commerceUnitPriceCurrencyCode Text  sql=commerce_unit_price_currency_code
+    commerceUnitPriceData Text Maybe sql=commerce_unit_price_data default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldBrandT sql=dcx_field_revision_field_brand
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldBrandTid Int Maybe sql=field_brand_tid
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldCollectionT sql=dcx_field_revision_field_collection
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldCollectionTid Int Maybe sql=field_collection_tid
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldColourT sql=dcx_field_revision_field_colour
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldColourTid Int Maybe sql=field_colour_tid
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldColourCodeT sql=dcx_field_revision_field_colour_code
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldColourCodeValue Text Maybe sql=field_colour_code_value default=NULL
+    fieldColourCodeFormat Text Maybe sql=field_colour_code_format default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldHeadlineT sql=dcx_field_revision_field_headline
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldHeadlineValue Text Maybe sql=field_headline_value default=NULL
+    fieldHeadlineFormat Text Maybe sql=field_headline_format default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldImageT sql=dcx_field_revision_field_image
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldImageFid Int Maybe sql=field_image_fid
+    fieldImageAlt Text Maybe sql=field_image_alt default=NULL
+    fieldImageTitle Text Maybe sql=field_image_title default=NULL
+    fieldImageWidth Int Maybe sql=field_image_width
+    fieldImageHeight Int Maybe sql=field_image_height
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldImagesT sql=dcx_field_revision_field_images
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldImagesFid Int Maybe sql=field_images_fid
+    fieldImagesAlt Text Maybe sql=field_images_alt default=NULL
+    fieldImagesTitle Text Maybe sql=field_images_title default=NULL
+    fieldImagesWidth Int Maybe sql=field_images_width
+    fieldImagesHeight Int Maybe sql=field_images_height
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldLinkT sql=dcx_field_revision_field_link
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldLinkUrl Text Maybe sql=field_link_url default=NULL
+    fieldLinkTitle Text Maybe sql=field_link_title default=NULL
+    fieldLinkAttributes Text Maybe sql=field_link_attributes default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldPricePl01T sql=dcx_field_revision_field_price_pl_01
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl01Amount Int  sql=field_price_pl_01_amount
+    fieldPricePl01CurrencyCode Text  sql=field_price_pl_01_currency_code
+    fieldPricePl01Data Text Maybe sql=field_price_pl_01_data default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldPricePl02T sql=dcx_field_revision_field_price_pl_02
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl02Amount Int  sql=field_price_pl_02_amount
+    fieldPricePl02CurrencyCode Text  sql=field_price_pl_02_currency_code
+    fieldPricePl02Data Text Maybe sql=field_price_pl_02_data default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldPricePl03T sql=dcx_field_revision_field_price_pl_03
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl03Amount Int  sql=field_price_pl_03_amount
+    fieldPricePl03CurrencyCode Text  sql=field_price_pl_03_currency_code
+    fieldPricePl03Data Text Maybe sql=field_price_pl_03_data default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldPricePl04T sql=dcx_field_revision_field_price_pl_04
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl04Amount Int  sql=field_price_pl_04_amount
+    fieldPricePl04CurrencyCode Text  sql=field_price_pl_04_currency_code
+    fieldPricePl04Data Text Maybe sql=field_price_pl_04_data default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldPricePl05T sql=dcx_field_revision_field_price_pl_05
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl05Amount Int  sql=field_price_pl_05_amount
+    fieldPricePl05CurrencyCode Text  sql=field_price_pl_05_currency_code
+    fieldPricePl05Data Text Maybe sql=field_price_pl_05_data default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldPricePl06T sql=dcx_field_revision_field_price_pl_06
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl06Amount Int  sql=field_price_pl_06_amount
+    fieldPricePl06CurrencyCode Text  sql=field_price_pl_06_currency_code
+    fieldPricePl06Data Text Maybe sql=field_price_pl_06_data default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldPricePl07T sql=dcx_field_revision_field_price_pl_07
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl07Amount Int  sql=field_price_pl_07_amount
+    fieldPricePl07CurrencyCode Text  sql=field_price_pl_07_currency_code
+    fieldPricePl07Data Text Maybe sql=field_price_pl_07_data default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldPricePl08T sql=dcx_field_revision_field_price_pl_08
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl08Amount Int  sql=field_price_pl_08_amount
+    fieldPricePl08CurrencyCode Text  sql=field_price_pl_08_currency_code
+    fieldPricePl08Data Text Maybe sql=field_price_pl_08_data default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldPricePl09T sql=dcx_field_revision_field_price_pl_09
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl09Amount Int  sql=field_price_pl_09_amount
+    fieldPricePl09CurrencyCode Text  sql=field_price_pl_09_currency_code
+    fieldPricePl09Data Text Maybe sql=field_price_pl_09_data default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldPricePl10T sql=dcx_field_revision_field_price_pl_10
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl10Amount Int  sql=field_price_pl_10_amount
+    fieldPricePl10CurrencyCode Text  sql=field_price_pl_10_currency_code
+    fieldPricePl10Data Text Maybe sql=field_price_pl_10_data default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldPricePl11T sql=dcx_field_revision_field_price_pl_11
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl11Amount Int  sql=field_price_pl_11_amount
+    fieldPricePl11CurrencyCode Text  sql=field_price_pl_11_currency_code
+    fieldPricePl11Data Text Maybe sql=field_price_pl_11_data default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldPricePl12T sql=dcx_field_revision_field_price_pl_12
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl12Amount Int  sql=field_price_pl_12_amount
+    fieldPricePl12CurrencyCode Text  sql=field_price_pl_12_currency_code
+    fieldPricePl12Data Text Maybe sql=field_price_pl_12_data default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldPricePl13T sql=dcx_field_revision_field_price_pl_13
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl13Amount Int  sql=field_price_pl_13_amount
+    fieldPricePl13CurrencyCode Text  sql=field_price_pl_13_currency_code
+    fieldPricePl13Data Text Maybe sql=field_price_pl_13_data default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldPricePl14T sql=dcx_field_revision_field_price_pl_14
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl14Amount Int  sql=field_price_pl_14_amount
+    fieldPricePl14CurrencyCode Text  sql=field_price_pl_14_currency_code
+    fieldPricePl14Data Text Maybe sql=field_price_pl_14_data default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldProductT sql=dcx_field_revision_field_product
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldProductProductId Int Maybe sql=field_product_product_id
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldProductCategoryT sql=dcx_field_revision_field_product_category
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldProductCategoryTid Int Maybe sql=field_product_category_tid
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldRequiredDeliveryDateT sql=dcx_field_revision_field_required_delivery_date
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldRequiredDeliveryDateValue UTCTime Maybe sql=field_required_delivery_date_value
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldRgbT sql=dcx_field_revision_field_rgb
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldRgbValue Text Maybe sql=field_rgb_value default=NULL
+    fieldRgbFormat Text Maybe sql=field_rgb_format default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldSpecialRequestT sql=dcx_field_revision_field_special_request
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldSpecialRequestValue Text Maybe sql=field_special_request_value default=NULL
+    fieldSpecialRequestFormat Text Maybe sql=field_special_request_format default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldStockStatusT sql=dcx_field_revision_field_stock_status
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldStockStatusTid Int Maybe sql=field_stock_status_tid
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldTaglineT sql=dcx_field_revision_field_tagline
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldTaglineValue Text Maybe sql=field_tagline_value default=NULL
+    fieldTaglineFormat Text Maybe sql=field_tagline_format default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldTrimColourT sql=dcx_field_revision_field_trim_colour
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldTrimColourTid Int Maybe sql=field_trim_colour_tid
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionFieldWholesalePriceT sql=dcx_field_revision_field_wholesale_price
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldWholesalePriceAmount Int  sql=field_wholesale_price_amount
+    fieldWholesalePriceCurrencyCode Text  sql=field_wholesale_price_currency_code
+    fieldWholesalePriceData Text Maybe sql=field_wholesale_price_data default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionInlineConditionsT sql=dcx_field_revision_inline_conditions
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    inlineConditionsConditionName Text  sql=inline_conditions_condition_name
+    inlineConditionsConditionSettings ByteString Maybe sql=inline_conditions_condition_settings
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionMessageCommerceBodyT sql=dcx_field_revision_message_commerce_body
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageCommerceBodyValue Text Maybe sql=message_commerce_body_value default=NULL
+    messageCommerceBodyFormat Text Maybe sql=message_commerce_body_format default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionMessageCommerceLineItemT sql=dcx_field_revision_message_commerce_line_item
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageCommerceLineItemTargetId Int  sql=message_commerce_line_item_target_id
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionMessageCommerceOrderT sql=dcx_field_revision_message_commerce_order
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageCommerceOrderTargetId Int  sql=message_commerce_order_target_id
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionMessageCommercePaymentT sql=dcx_field_revision_message_commerce_payment
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageCommercePaymentTargetId Int  sql=message_commerce_payment_target_id
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionMessageOrderDisplayNameT sql=dcx_field_revision_message_order_display_name
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageOrderDisplayNameValue Text Maybe sql=message_order_display_name_value default=NULL
+    messageOrderDisplayNameFormat Text Maybe sql=message_order_display_name_format default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionMessageTextT sql=dcx_field_revision_message_text
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageTextValue Text Maybe sql=message_text_value default=NULL
+    messageTextFormat Text Maybe sql=message_text_format default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionMessageTextSubjectT sql=dcx_field_revision_message_text_subject
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageTextSubjectValue Text Maybe sql=message_text_subject_value default=NULL
+    messageTextSubjectFormat Text Maybe sql=message_text_subject_format default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FieldRevisionTitleFieldT sql=dcx_field_revision_title_field
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    titleFieldValue Text Maybe sql=title_field_value default=NULL
+    titleFieldFormat Text Maybe sql=title_field_format default=NULL
+    Primary entityType deleted entityId revisionId language delta
+
+FileManagedT sql=dcx_file_managed
+    Id Int  sql=fid
+    uid Int  sql=uid
+    filename Text  sql=filename
+    uri Text  sql=uri
+    filemime Text  sql=filemime
+    filesize Int  sql=filesize
+    status Bool  sql=status
+    timestamp Int  sql=timestamp
+
+FileUsageT sql=dcx_file_usage
+    fid Int  sql=fid
+    module Text  sql=module
+    type Text  sql=type
+    id_ Int  sql=id
+    count Int  sql=count
+    Primary fid module type id_
+
+FilterT sql=dcx_filter
+    format Text  sql=format
+    module Text  sql=module
+    name Text  sql=name
+    weight Int  sql=weight
+    status Int  sql=status
+    settings ByteString Maybe sql=settings
+    Primary format name
+
+FilterFormatT sql=dcx_filter_format
+    Id Text  sql=format
+    name Text  sql=name
+    cache Bool  sql=cache
+    status Bool  sql=status
+    weight Int  sql=weight
+
+FloodT sql=dcx_flood
+    Id Int  sql=fid
+    event Text  sql=event
+    identifier Text  sql=identifier
+    timestamp Int  sql=timestamp
+    expiration Int  sql=expiration
+
+HistoryT sql=dcx_history
+    uid Int  sql=uid
+    nid Int  sql=nid
+    timestamp Int  sql=timestamp
+    Primary uid nid
+
+HoneypotUserT sql=dcx_honeypot_user
+    uid Int  sql=uid
+    timestamp Int  sql=timestamp
+
+ImageEffectsT sql=dcx_image_effects
+    Id Int  sql=ieid
+    isid Int  sql=isid
+    weight Int  sql=weight
+    name Text  sql=name
+    data ByteString  sql=data
+
+ImageStylesT sql=dcx_image_styles
+    Id Int  sql=isid
+    name Text  sql=name
+    label Text  sql=label
+
+JobScheduleT sql=dcx_job_schedule
+    Id Int  sql=item_id
+    name Text  sql=name
+    type Text  sql=type
+    id_ Int  sql=id
+    period Int  sql=period
+    crontab Text  sql=crontab
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    last Int  sql=last
+    periodic Int  sql=periodic
+    next Int  sql=next
+    scheduled Int  sql=scheduled
+
+MasqueradeT sql=dcx_masquerade
+    sid Text  sql=sid
+    uidFrom Int  sql=uid_from
+    uidAs Int  sql=uid_as
+
+MasqueradeUsersT sql=dcx_masquerade_users
+    uidFrom Int  sql=uid_from
+    uidTo Int  sql=uid_to
+    Primary uidFrom uidTo
+
+MegamenuT sql=dcx_megamenu
+    Id Text  sql=menu_name
+    enabled Bool Maybe sql=enabled
+    skin Text  sql=skin
+    menuOrientation Text  sql=menu_orientation
+    slotOrientation Text  sql=slot_orientation
+    slotAttributes Text Maybe sql=slot_attributes default=NULL
+
+MenuCustomT sql=dcx_menu_custom
+    Id Text  sql=menu_name
+    title Text  sql=title
+    description Text Maybe sql=description default=NULL
+
+MenuLinksT sql=dcx_menu_links
+    menuName Text  sql=menu_name
+    Id Int  sql=mlid
+    plid Int  sql=plid
+    linkPath Text  sql=link_path
+    routerPath Text  sql=router_path
+    linkTitle Text  sql=link_title
+    options ByteString Maybe sql=options
+    module Text  sql=module
+    hidden Int  sql=hidden
+    external Int  sql=external
+    hasChildren Int  sql=has_children
+    expanded Int  sql=expanded
+    weight Int  sql=weight
+    depth Int  sql=depth
+    customized Int  sql=customized
+    p1 Int  sql=p1
+    p2 Int  sql=p2
+    p3 Int  sql=p3
+    p4 Int  sql=p4
+    p5 Int  sql=p5
+    p6 Int  sql=p6
+    p7 Int  sql=p7
+    p8 Int  sql=p8
+    p9 Int  sql=p9
+    updated Int  sql=updated
+
+MenuRouterT sql=dcx_menu_router
+    Id Text  sql=path
+    loadFunctions ByteString  sql=load_functions
+    toArgFunctions ByteString  sql=to_arg_functions
+    accessCallback Text  sql=access_callback
+    accessArguments ByteString Maybe sql=access_arguments
+    pageCallback Text  sql=page_callback
+    pageArguments ByteString Maybe sql=page_arguments
+    deliveryCallback Text  sql=delivery_callback
+    fit Int  sql=fit
+    numberParts Int  sql=number_parts
+    context Int  sql=context
+    tabParent Text  sql=tab_parent
+    tabRoot Text  sql=tab_root
+    title Text  sql=title
+    titleCallback Text  sql=title_callback
+    titleArguments Text  sql=title_arguments
+    themeCallback Text  sql=theme_callback
+    themeArguments Text  sql=theme_arguments
+    type Int  sql=type
+    description Text  sql=description
+    position Text  sql=position
+    weight Int  sql=weight
+    includeFile Text Maybe sql=include_file default=NULL
+
+MessageT sql=dcx_message
+    Id Int  sql=mid
+    type Text  sql=type
+    arguments Text Maybe sql=arguments default=NULL
+    uid Int Maybe sql=uid
+    timestamp Int  sql=timestamp
+    language Text  sql=language
+
+MessageTypeT sql=dcx_message_type
+    Id Int  sql=id
+    name Text  sql=name
+    category Text  sql=category
+    description Text  sql=description
+    argumentKeys Text Maybe sql=argument_keys default=NULL
+    language Text  sql=language
+    status Bool  sql=status
+    module Text Maybe sql=module default=NULL
+    arguments Text Maybe sql=arguments default=NULL
+    data Text Maybe sql=data default=NULL
+
+MessageTypeCategoryT sql=dcx_message_type_category
+    Id Int  sql=id
+    category Text  sql=category
+    description Text  sql=description
+    language Text  sql=language
+    status Bool  sql=status
+    module Text Maybe sql=module default=NULL
+
+MetatagT sql=dcx_metatag
+    entityType Text  sql=entity_type
+    entityId Int  sql=entity_id
+    data ByteString  sql=data
+    language Text  sql=language
+    revisionId Int  sql=revision_id
+    Primary entityType entityId language revisionId
+
+MetatagConfigT sql=dcx_metatag_config
+    Id Int  sql=cid
+    instance Text  sql=instance
+    config ByteString  sql=config
+
+MigrateLogT sql=dcx_migrate_log
+    Id Int  sql=mlid
+    machineName Text  sql=machine_name
+    processType Bool  sql=process_type
+    starttime Int  sql=starttime
+    endtime Int Maybe sql=endtime
+    initialhighwater Text  sql=initialhighwater
+    finalhighwater Text Maybe sql=finalhighwater default=NULL
+    numprocessed Int Maybe sql=numprocessed
+
+MigrateMapCommercekickstartadpushT sql=dcx_migrate_map_commercekickstartadpush
+    Id Text  sql=sourceid1
+    destid1 Int Maybe sql=destid1
+    needsUpdate Bool  sql=needs_update
+    lastImported Int  sql=last_imported
+    rollbackAction Bool  sql=rollback_action
+
+MigrateMapCommercekickstartnodeT sql=dcx_migrate_map_commercekickstartnode
+    Id Text  sql=sourceid1
+    destid1 Int Maybe sql=destid1
+    needsUpdate Bool  sql=needs_update
+    lastImported Int  sql=last_imported
+    rollbackAction Bool  sql=rollback_action
+
+MigrateMapCommercekickstartpagesT sql=dcx_migrate_map_commercekickstartpages
+    Id Text  sql=sourceid1
+    destid1 Int Maybe sql=destid1
+    needsUpdate Bool  sql=needs_update
+    lastImported Int  sql=last_imported
+    rollbackAction Bool  sql=rollback_action
+
+MigrateMapCommercekickstartproductT sql=dcx_migrate_map_commercekickstartproduct
+    Id Text  sql=sourceid1
+    destid1 Int Maybe sql=destid1
+    destid2 Int Maybe sql=destid2
+    needsUpdate Bool  sql=needs_update
+    lastImported Int  sql=last_imported
+    rollbackAction Bool  sql=rollback_action
+
+MigrateMapCommercekickstartslideshowT sql=dcx_migrate_map_commercekickstartslideshow
+    Id Text  sql=sourceid1
+    destid1 Int Maybe sql=destid1
+    needsUpdate Bool  sql=needs_update
+    lastImported Int  sql=last_imported
+    rollbackAction Bool  sql=rollback_action
+
+MigrateMessageCommercekickstartadpushT sql=dcx_migrate_message_commercekickstartadpush
+    Id Int  sql=msgid
+    sourceid1 Text  sql=sourceid1
+    level Int  sql=level
+    message Text  sql=message
+
+MigrateMessageCommercekickstartnodeT sql=dcx_migrate_message_commercekickstartnode
+    Id Int  sql=msgid
+    sourceid1 Text  sql=sourceid1
+    level Int  sql=level
+    message Text  sql=message
+
+MigrateMessageCommercekickstartpagesT sql=dcx_migrate_message_commercekickstartpages
+    Id Int  sql=msgid
+    sourceid1 Text  sql=sourceid1
+    level Int  sql=level
+    message Text  sql=message
+
+MigrateMessageCommercekickstartproductT sql=dcx_migrate_message_commercekickstartproduct
+    Id Int  sql=msgid
+    sourceid1 Text  sql=sourceid1
+    level Int  sql=level
+    message Text  sql=message
+
+MigrateMessageCommercekickstartslideshowT sql=dcx_migrate_message_commercekickstartslideshow
+    Id Int  sql=msgid
+    sourceid1 Text  sql=sourceid1
+    level Int  sql=level
+    message Text  sql=message
+
+MigrateStatusT sql=dcx_migrate_status
+    Id Text  sql=machine_name
+    className Text  sql=class_name
+    status Bool  sql=status
+    highwater Text  sql=highwater
+    arguments ByteString Maybe sql=arguments
+
+NodeT sql=dcx_node
+    Id Int  sql=nid
+    vid Int Maybe sql=vid
+    type Text  sql=type
+    language Text  sql=language
+    title Text  sql=title
+    uid Int  sql=uid
+    status Int  sql=status
+    created Int  sql=created
+    changed Int  sql=changed
+    comment Int  sql=comment
+    promote Int  sql=promote
+    sticky Int  sql=sticky
+    tnid Int  sql=tnid
+    translate Int  sql=translate
+
+NodeAccessT sql=dcx_node_access
+    nid Int  sql=nid
+    gid Int  sql=gid
+    realm Text  sql=realm
+    grantView Bool  sql=grant_view
+    grantUpdate Bool  sql=grant_update
+    grantDelete Bool  sql=grant_delete
+    Primary nid gid realm
+
+NodeCommentStatisticsT sql=dcx_node_comment_statistics
+    Id Int  sql=nid
+    cid Int  sql=cid
+    lastCommentTimestamp Int  sql=last_comment_timestamp
+    lastCommentName Text Maybe sql=last_comment_name default=NULL
+    lastCommentUid Int  sql=last_comment_uid
+    commentCount Int  sql=comment_count
+
+NodeCounterT sql=dcx_node_counter
+    Id Int  sql=nid
+    totalcount Int  sql=totalcount
+    daycount Int  sql=daycount
+    timestamp Int  sql=timestamp
+
+NodeRevisionT sql=dcx_node_revision
+    nid Int  sql=nid
+    Id Int  sql=vid
+    uid Int  sql=uid
+    title Text  sql=title
+    log Text  sql=log
+    timestamp Int  sql=timestamp
+    status Int  sql=status
+    comment Int  sql=comment
+    promote Int  sql=promote
+    sticky Int  sql=sticky
+
+NodeSpambotT sql=dcx_node_spambot
+    Id Int  sql=nid
+    uid Int  sql=uid
+    hostname Text Maybe sql=hostname default=NULL
+
+NodeTypeT sql=dcx_node_type
+    Id Text  sql=type
+    name Text  sql=name
+    base Text  sql=base
+    module Text  sql=module
+    description Text  sql=description
+    help Text  sql=help
+    hasTitle Bool  sql=has_title
+    titleLabel Text  sql=title_label
+    custom Bool  sql=custom
+    modified Bool  sql=modified
+    locked Bool  sql=locked
+    disabled Bool  sql=disabled
+    origType Text  sql=orig_type
+
+PageTitleT sql=dcx_page_title
+    type Text  sql=type
+    id_ Int  sql=id
+    pageTitle Text  sql=page_title
+    Primary type id_
+
+QueueT sql=dcx_queue
+    Id Int  sql=item_id
+    name Text  sql=name
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+
+RedirectT sql=dcx_redirect
+    Id Int  sql=rid
+    hash Text  sql=hash
+    type Text  sql=type
+    uid Int  sql=uid
+    source Text  sql=source
+    sourceOptions Text  sql=source_options
+    redirect Text  sql=redirect
+    redirectOptions Text  sql=redirect_options
+    language Text  sql=language
+    statusCode Int  sql=status_code
+    count Int  sql=count
+    access Int  sql=access
+
+RegistryT sql=dcx_registry
+    name Text  sql=name
+    type Text  sql=type
+    filename Text  sql=filename
+    module Text  sql=module
+    weight Int  sql=weight
+    Primary name type
+
+RegistryFileT sql=dcx_registry_file
+    Id Text  sql=filename
+    hash Text  sql=hash
+
+RoleT sql=dcx_role
+    Id Int  sql=rid
+    name Text  sql=name
+    weight Int  sql=weight
+
+RolePermissionT sql=dcx_role_permission
+    rid Int  sql=rid
+    permission Text  sql=permission
+    module Text  sql=module
+    Primary rid permission
+
+RulesConfigT sql=dcx_rules_config
+    Id Int  sql=id
+    name Text  sql=name
+    label Text  sql=label
+    plugin Text  sql=plugin
+    active Int  sql=active
+    weight Bool  sql=weight
+    status Bool  sql=status
+    dirty Bool  sql=dirty
+    module Text Maybe sql=module default=NULL
+    accessExposed Bool  sql=access_exposed
+    data ByteString Maybe sql=data
+    owner Text  sql=owner
+
+RulesDependenciesT sql=dcx_rules_dependencies
+    id_ Int  sql=id
+    module Text  sql=module
+    Primary id_ module
+
+RulesTagsT sql=dcx_rules_tags
+    id_ Int  sql=id
+    tag Text  sql=tag
+    Primary id_ tag
+
+RulesTriggerT sql=dcx_rules_trigger
+    id_ Int  sql=id
+    event Text  sql=event
+    Primary id_ event
+
+SearchApiDbCustomProductDisplayFieldProductCommercePriT sql=dcx_search_api_db_custom_product_display_field_product_commerce_pri
+    itemId Int  sql=item_id
+    value Double  sql=value
+    Primary itemId value
+
+SearchApiDbCustomProductDisplaySearchApiLanguageT sql=dcx_search_api_db_custom_product_display_search_api_language
+    Id Int  sql=item_id
+    value Text Maybe sql=value default=NULL
+
+SearchApiDbProductDisplayT sql=dcx_search_api_db_product_display
+    Id Int  sql=item_id
+    fieldProductFieldPricePl01AmountDecimalAsc Double Maybe sql=field_product_field_price_pl_01_amount_decimal_asc
+    fieldProductFieldPricePl01AmountDecimalDesc Double Maybe sql=field_product_field_price_pl_01_amount_decimal_desc
+    fieldProductFieldPricePl02AmountDecimalAsc Int Maybe sql=field_product_field_price_pl_02_amount_decimal_asc
+    fieldProductFieldPricePl02AmountDecimalDesc Int Maybe sql=field_product_field_price_pl_02_amount_decimal_desc
+    fieldProductFieldPricePl03AmountDecimalAsc Text Maybe sql=field_product_field_price_pl_03_amount_decimal_asc default=NULL
+    fieldProductFieldPricePl03AmountDecimalDesc Text Maybe sql=field_product_field_price_pl_03_amount_decimal_desc default=NULL
+    views Int Maybe sql=views
+    dayViews Int Maybe sql=day_views
+    changed Int Maybe sql=changed
+
+SearchApiDbProductDisplayCreatedT sql=dcx_search_api_db_product_display_created
+    Id Int  sql=item_id
+    value Int Maybe sql=value
+
+SearchApiDbProductDisplayFieldBrandT sql=dcx_search_api_db_product_display_field_brand
+    Id Int  sql=item_id
+    value Int Maybe sql=value
+
+SearchApiDbProductDisplayFieldCollectionT sql=dcx_search_api_db_product_display_field_collection
+    Id Int  sql=item_id
+    value Int Maybe sql=value
+
+SearchApiDbProductDisplayFieldProductCategoryT sql=dcx_search_api_db_product_display_field_product_category
+    Id Int  sql=item_id
+    value Int Maybe sql=value
+
+SearchApiDbProductDisplayFieldProductFieldColourT sql=dcx_search_api_db_product_display_field_product_field_colour
+    itemId Int  sql=item_id
+    value Int  sql=value
+    Primary itemId value
+
+SearchApiDbProductDisplayFieldProductFieldPricePl06T sql=dcx_search_api_db_product_display_field_product_field_price_pl_06_
+    itemId Int  sql=item_id
+    value Double  sql=value
+    Primary itemId value
+
+SearchApiDbProductDisplayFieldProductFieldPricePl06AT sql=dcx_search_api_db_product_display_field_product_field_price_pl_06_a
+    itemId Int  sql=item_id
+    value Text  sql=value
+    Primary itemId value
+
+SearchApiDbProductDisplayFieldProductFieldPricePl12AT sql=dcx_search_api_db_product_display_field_product_field_price_pl_12_a
+    itemId Int  sql=item_id
+    value Double  sql=value
+    Primary itemId value
+
+SearchApiDbProductDisplayFieldProductFieldStockStatusT sql=dcx_search_api_db_product_display_field_product_field_stock_status
+    itemId Int  sql=item_id
+    value Int  sql=value
+    Primary itemId value
+
+SearchApiDbProductDisplayFieldProductFieldTrimColourT sql=dcx_search_api_db_product_display_field_product_field_trim_colour
+    itemId Int  sql=item_id
+    value Int  sql=value
+    Primary itemId value
+
+SearchApiDbProductDisplayFieldProductTitleT sql=dcx_search_api_db_product_display_field_product_title
+    itemId Int  sql=item_id
+    word Text  sql=word
+    score Double  sql=score
+    Primary itemId word
+
+SearchApiDbProductDisplayFieldProductTitle1T sql=dcx_search_api_db_product_display_field_product_title_1
+    itemId Int  sql=item_id
+    word Text  sql=word
+    score Double  sql=score
+    Primary itemId word
+
+SearchApiDbProductDisplayFieldProductTitle2T sql=dcx_search_api_db_product_display_field_product_title_2
+    itemId Int  sql=item_id
+    word Text  sql=word
+    score Double  sql=score
+    Primary itemId word
+
+SearchApiDbProductDisplayFieldProductTitle3T sql=dcx_search_api_db_product_display_field_product_title_3
+    itemId Int  sql=item_id
+    word Text  sql=word
+    score Double  sql=score
+    Primary itemId word
+
+SearchApiDbProductDisplaySearchApiAggregation1T sql=dcx_search_api_db_product_display_search_api_aggregation_1
+    itemId Int  sql=item_id
+    word Text  sql=word
+    score Double  sql=score
+    Primary itemId word
+
+SearchApiDbProductDisplaySearchApiLanguageT sql=dcx_search_api_db_product_display_search_api_language
+    Id Int  sql=item_id
+    value Text Maybe sql=value default=NULL
+
+SearchApiDbProductDisplayStatusT sql=dcx_search_api_db_product_display_status
+    Id Int  sql=item_id
+    value Int Maybe sql=value
+
+SearchApiDbProductDisplayTextT sql=dcx_search_api_db_product_display_text
+    itemId Int  sql=item_id
+    fieldName Text  sql=field_name
+    word Text  sql=word
+    score Int  sql=score
+    Primary itemId fieldName word
+
+SearchApiDbProductDisplayTitleT sql=dcx_search_api_db_product_display_title
+    Id Int  sql=item_id
+    value Text Maybe sql=value default=NULL
+
+SearchApiDbProductSearchFieldProductFieldColourT sql=dcx_search_api_db_product_search_field_product_field_colour
+    itemId Int  sql=item_id
+    value Int  sql=value
+    Primary itemId value
+
+SearchApiDbProductSearchSearchApiLanguageT sql=dcx_search_api_db_product_search_search_api_language
+    Id Int  sql=item_id
+    value Text Maybe sql=value default=NULL
+
+SearchApiDbProductSearchTitleFieldT sql=dcx_search_api_db_product_search_title_field
+    itemId Int  sql=item_id
+    word Text  sql=word
+    score Double  sql=score
+    Primary itemId word
+
+SearchApiIndexT sql=dcx_search_api_index
+    Id Int  sql=id
+    name Text  sql=name
+    machineName Text  sql=machine_name
+    description Text Maybe sql=description default=NULL
+    server Text Maybe sql=server default=NULL
+    itemType Text  sql=item_type
+    options Text  sql=options
+    enabled Bool  sql=enabled
+    readOnly Bool  sql=read_only
+    status Bool  sql=status
+    module Text Maybe sql=module default=NULL
+
+SearchApiItemT sql=dcx_search_api_item
+    itemId Int  sql=item_id
+    indexId Int  sql=index_id
+    changed Int  sql=changed
+    Primary itemId indexId
+
+SearchApiServerT sql=dcx_search_api_server
+    Id Int  sql=id
+    name Text  sql=name
+    machineName Text  sql=machine_name
+    description Text Maybe sql=description default=NULL
+    class Text  sql=class
+    options Text  sql=options
+    enabled Bool  sql=enabled
+    status Bool  sql=status
+    module Text Maybe sql=module default=NULL
+
+SearchApiSortT sql=dcx_search_api_sort
+    Id Int  sql=id
+    identifier Text  sql=identifier
+    indexId Text  sql=index_id
+    field Text  sql=field
+    name Text  sql=name
+    enabled Bool  sql=enabled
+    defaultSort Bool  sql=default_sort
+    defaultSortNoTerms Bool  sql=default_sort_no_terms
+    defaultOrder Text  sql=default_order
+    weight Bool  sql=weight
+    status Bool  sql=status
+    module Text Maybe sql=module default=NULL
+
+SearchApiTaskT sql=dcx_search_api_task
+    Id Int  sql=id
+    serverId Text  sql=server_id
+    type Text  sql=type
+    indexId Text Maybe sql=index_id default=NULL
+    data Text Maybe sql=data default=NULL
+
+SecurityReviewT sql=dcx_security_review
+    namespace Text  sql=namespace
+    reviewcheck Text  sql=reviewcheck
+    result Int  sql=result
+    lastrun Int  sql=lastrun
+    skip Int  sql=skip
+    skiptime Int  sql=skiptime
+    skipuid Int Maybe sql=skipuid
+    Primary namespace reviewcheck
+
+SemaphoreT sql=dcx_semaphore
+    Id Text  sql=name
+    value Text  sql=value
+    expire Double  sql=expire
+
+SequencesT sql=dcx_sequences
+    Id Int  sql=value
+
+SessionsT sql=dcx_sessions
+    uid Int  sql=uid
+    sid Text  sql=sid
+    ssid Text  sql=ssid
+    hostname Text  sql=hostname
+    timestamp Int  sql=timestamp
+    cache Int  sql=cache
+    session ByteString Maybe sql=session
+    Primary sid ssid
+
+SiteVerifyT sql=dcx_site_verify
+    Id Int  sql=svid
+    engine Text  sql=engine
+    file Text Maybe sql=file default=NULL
+    fileContents Text  sql=file_contents
+    meta Text  sql=meta
+
+SystemT sql=dcx_system
+    Id Text  sql=filename
+    name Text  sql=name
+    type Text  sql=type
+    owner Text  sql=owner
+    status Int  sql=status
+    bootstrap Int  sql=bootstrap
+    schemaVersion Int  sql=schema_version
+    weight Int  sql=weight
+    info ByteString Maybe sql=info
+
+TaxonomyIndexT sql=dcx_taxonomy_index
+    nid Int  sql=nid
+    tid Int  sql=tid
+    sticky Bool Maybe sql=sticky
+    created Int  sql=created
+
+TaxonomyMenuT sql=dcx_taxonomy_menu
+    mlid Int  sql=mlid
+    tid Int  sql=tid
+    vid Int  sql=vid
+    Primary mlid tid
+
+TaxonomyTermDataT sql=dcx_taxonomy_term_data
+    Id Int  sql=tid
+    vid Int  sql=vid
+    name Text  sql=name
+    description Text Maybe sql=description default=NULL
+    format Text Maybe sql=format default=NULL
+    weight Int  sql=weight
+
+TaxonomyTermHierarchyT sql=dcx_taxonomy_term_hierarchy
+    tid Int  sql=tid
+    parent Int  sql=parent
+    Primary tid parent
+
+TaxonomyToolsRoleAccessT sql=dcx_taxonomy_tools_role_access
+    Id Int  sql=entry_id
+    tid Int  sql=tid
+    rid Int  sql=rid
+
+TaxonomyVocabularyT sql=dcx_taxonomy_vocabulary
+    Id Int  sql=vid
+    name Text  sql=name
+    machineName Text  sql=machine_name
+    description Text Maybe sql=description default=NULL
+    hierarchy Bool  sql=hierarchy
+    module Text  sql=module
+    weight Int  sql=weight
+
+UrlAliasT sql=dcx_url_alias
+    Id Int  sql=pid
+    source Text  sql=source
+    alias Text  sql=alias
+    language Text  sql=language
+
+UsersT sql=dcx_users
+    Id Int  sql=uid
+    name Text  sql=name
+    pass Text  sql=pass
+    mail Text Maybe sql=mail default=NULL
+    theme Text  sql=theme
+    signature Text  sql=signature
+    signatureFormat Text Maybe sql=signature_format default=NULL
+    created Int  sql=created
+    access Int  sql=access
+    login Int  sql=login
+    status Bool  sql=status
+    timezone Text Maybe sql=timezone default=NULL
+    language Text  sql=language
+    picture Int  sql=picture
+    init Text Maybe sql=init default=NULL
+    data ByteString Maybe sql=data
+
+UsersRolesT sql=dcx_users_roles
+    uid Int  sql=uid
+    rid Int  sql=rid
+    Primary uid rid
+
+VariableT sql=dcx_variable
+    Id Text  sql=name
+    value ByteString  sql=value
+
+ViewsDisplayT sql=dcx_views_display
+    vid Int  sql=vid
+    id_ Text  sql=id
+    displayTitle Text  sql=display_title
+    displayPlugin Text  sql=display_plugin
+    position Int Maybe sql=position
+    displayOptions Text Maybe sql=display_options default=NULL
+    Primary vid id_
+
+ViewsViewT sql=dcx_views_view
+    Id Int  sql=vid
+    name Text  sql=name
+    description Text Maybe sql=description default=NULL
+    tag Text Maybe sql=tag default=NULL
+    baseTable Text  sql=base_table
+    humanName Text Maybe sql=human_name default=NULL
+    core Int Maybe sql=core
+
+WatchdogT sql=dcx_watchdog
+    Id Int  sql=wid
+    uid Int  sql=uid
+    type Text  sql=type
+    message Text  sql=message
+    variables ByteString  sql=variables
+    severity Bool  sql=severity
+    link Text Maybe sql=link default=NULL
+    location Text  sql=location
+    referer Text Maybe sql=referer default=NULL
+    hostname Text  sql=hostname
+    timestamp Int  sql=timestamp
+
+XmlsitemapT sql=dcx_xmlsitemap
+    id_ Int  sql=id
+    type Text  sql=type
+    subtype Text  sql=subtype
+    loc Text  sql=loc
+    language Text  sql=language
+    access Bool  sql=access
+    status Bool  sql=status
+    statusOverride Bool  sql=status_override
+    lastmod Int  sql=lastmod
+    priority Double Maybe sql=priority
+    priorityOverride Bool  sql=priority_override
+    changefreq Int  sql=changefreq
+    changecount Int  sql=changecount
+    Primary id_ type
+
+XmlsitemapSitemapT sql=dcx_xmlsitemap_sitemap
+    Id Text  sql=smid
+    context Text  sql=context
+    updated Int  sql=updated
+    links Int  sql=links
+    chunks Int  sql=chunks
+    maxFilesize Int  sql=max_filesize
+
