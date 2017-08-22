@@ -1095,15 +1095,15 @@ createDCMissings params = do
                          else Left (iiSku info)
                        | s'i@(_, info) <- group'
                        , let mm = iiInfo info
-                       , let toKeep = isNothing (impWebStatus mm)
+                       , let toKeep = isNothing . join $ snd (iwfProductDisplay `traverse` impWebStatus mm)
                                       -- && not (isNothing (impMaster mm)) -- only to create new product
                        -- filter item with no base price
                        , Just price <- return $ masterPrice basePl mm
                        ]
           let group = rights groupE
           -- traceShowM groupE
-          mapM (\sku -> lift $ setWarning (toHtml $ "Can't create " ++ sku ++ "as it doesn't exist in FA, or doesn't have a sale price. Please create it first.")
-               ) (lefts groupE)
+          -- mapM (\sku -> lift $ setWarning (toHtml $ "Can't create " ++ sku ++ "as it doesn't exist in FA, or doesn't have a sale price. Please create it first.")
+          --      ) (lefts groupE)
              
 
            
@@ -1303,7 +1303,7 @@ newProductColour colId mkColour pId'revId =
 -- **** field_*_field_stock_status 
 createAndInsertProductStockStatus p'rKeys = do
   traceShowM "setting status"
-  traceShowM p'rKeys
+  -- traceShowM p'rKeys
   createAndInsertFields (newProductStockStatus (Just 69) DC.FieldDataFieldStockStatusT) p'rKeys
   traceShowM "setting revisions status"
   createAndInsertRevFields (newProductStockStatus (Just 69) DC.FieldRevisionFieldStockStatusT) p'rKeys
@@ -1625,4 +1625,5 @@ changeWebActivation activate param = do
                             , DC.CommerceProductRevisionTRevisionTimestamp =. timestamp
                             ]
     mapM_ updateProduct products
+  
   
