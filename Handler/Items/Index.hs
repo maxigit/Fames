@@ -1378,12 +1378,13 @@ loadProductDisplayInfo
   :: MonadIO m
   => Text -> ReaderT SqlBackend m (DC.NodeTId, Maybe DC.NodeRevisionTId)
 loadProductDisplayInfo style = do
-  pdKeys <- selectList [DC.NodeTTitle ==. style ] []
+  pdKeys <- selectList [DC.NodeTTitle ==. style, DC.NodeTType ==. "product_display" ] []
   case pdKeys of
     [Entity nodeKey node] -> let nodeId = nodeKey
                                  revId = DC.NodeRevisionTKey <$> DC.nodeTVid node
                              in return (nodeId, revId)
     [] -> error $ "Product display not found for style :" ++ unpack style
+    _ -> error $ "Too many nodes for style :" ++ unpack style
   
 loadLastProductDelta
   :: MonadIO m
