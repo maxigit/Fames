@@ -1304,9 +1304,9 @@ newProductColour colId mkColour pId'revId =
 createAndInsertProductStockStatus p'rKeys = do
   traceShowM "setting status"
   -- traceShowM p'rKeys
-  createAndInsertFields (newProductStockStatus (Just 69) DC.FieldDataFieldStockStatusT) p'rKeys
+  createAndInsertFields (newProductStockStatus (Just 70) DC.FieldDataFieldStockStatusT) p'rKeys
   traceShowM "setting revisions status"
-  createAndInsertRevFields (newProductStockStatus (Just 69) DC.FieldRevisionFieldStockStatusT) p'rKeys
+  createAndInsertRevFields (newProductStockStatus (Just 70) DC.FieldRevisionFieldStockStatusT) p'rKeys
   traceShowM "pone"
 
 newProductStockStatus status  mkStatus pId'revId =
