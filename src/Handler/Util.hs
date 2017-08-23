@@ -175,6 +175,7 @@ generateLabelsResponse outputName template labelSource = do
                                                         ]
                                                   ) {env = Just [("LANG", "C.UTF-8")]}
   runConduit $ labelSource =$= encodeUtf8C =$= sinkHandle pin
+  liftIO $ hClose pin
   _exitCode <- waitForStreamingProcess phandle
   -- we would like to check the exitCode, unfortunately
   -- glabels doesn't set the exit code.
@@ -187,14 +188,14 @@ generateLabelsResponse outputName template labelSource = do
         hClose thandle
 
   case errorMessage of
-    [] ->  do
+    _ ->  do
       setAttachment (fromStrict outputName)
       respondSource "application/pdf"
                     (const cleanUp `addCleanup` CB.sourceHandle thandle =$= mapC (toFlushBuilder))
 
-    _ -> do
-        cleanUp
-        sendResponseStatus (toEnum 422) (mconcat (map decodeUtf8 errorMessage :: [Text]))
+    -- _ -> do
+    --     cleanUp
+    --     sendResponseStatus (toEnum 422) (mconcat (map decodeUtf8 errorMessage :: [Text]))
 
 -- * Operator
 -- | Returns the first active operator.
