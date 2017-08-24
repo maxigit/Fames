@@ -1391,9 +1391,10 @@ loadLastProductDelta
   => DC.NodeTId
   -> ReaderT SqlBackend m Int
 loadLastProductDelta displayId = do
-      [(Single lastDelta)] <- rawSql "SELECT MAX(delta) \
-                           \FROM dcx_field_data_field_product \
-                           \WHERE entity_id = ?"
+      [(Single lastDelta)] <- rawSql ("SELECT MAX(delta) "
+                           <> "FROM dcx_field_data_field_product "
+                           <> "WHERE entity_id = ?"
+                           )
                            [toPersistValue displayId]
       return (fromMaybe 0 lastDelta)
 

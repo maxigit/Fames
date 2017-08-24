@@ -73,6 +73,11 @@ ghcid-test:
 	ghcid --command="stack ghci :test" --test ":main --color"
 ghcid:
 	ghcid --command="stack ghci"
+ghcid-run:
+	ghcid --command="stack ghci" --test "appMain"
+ghcid-now:
+	ghcid --command="stack ghci --ghc-options=-w" --test "appMain"
+
 config/tables/xx%: config/fa-models
 
 config/fa/FAxx%.hs: config/tables/xx%

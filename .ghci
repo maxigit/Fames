@@ -21,3 +21,6 @@
 :set -XPartialTypeSignatures 
 :set -XStandaloneDeriving
 :set -hide-package cryptonite
+:set args ../fames-config/development.yml ../fames-config/staging.yml ../fames-config/variations.yml ../fames-config/default.yml
+:set prompt "> "
+:set +m
