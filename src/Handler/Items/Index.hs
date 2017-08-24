@@ -920,8 +920,8 @@ renderIndex param0 status = do
       $forall nav <- navs
         <li class="#{navClass nav}">
           <a.view-mode href="#" data-url="@{ItemsR (ItemsIndexR (Just nav))}">#{drop 4 $ tshow nav}
-      <div#items-table>
-        ^{ix}
+    <div#items-table>
+      ^{ix}
     <div.well>
       $if (ipShowInactive param)
         <button.btn.btn-danger type="submit" name="button" value="create">Create Missings

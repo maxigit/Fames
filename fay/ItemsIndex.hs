@@ -127,6 +127,7 @@ installNav = do
 ajaxReload url = do
   form <- select "#items-form"
   table <- select "#items-table"
+  JQ.setHtml ("<p>Loading...</p>") table
   ajaxReloadFFI url form (\html -> do
                             JQ.setHtml (FT.pack $ T.unpack html) table
                             main'
