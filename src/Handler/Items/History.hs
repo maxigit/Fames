@@ -323,7 +323,6 @@ loadMoves sku = do
                 <> "group by debtor_trans_no "
         
         
-  -- traceShowM sql
   moves <- rawSql sql [PersistText sku]
   return [(key, Move move Nothing (fromMaybe "" (fmap decodeHtmlEntities info)) adj0 picker packer)
          | (Entity key move, Single info, Single adj0, Single picker, Single packer) <- moves ]

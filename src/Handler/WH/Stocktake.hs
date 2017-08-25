@@ -965,8 +965,6 @@ generateMissingsFor rows@(row:_) = do
   let missingVars = vars \\ usedVars
       row' = transformValid row :: QuickRow
 
-  -- traceShowM (length rows)
-  -- traceShowM ("variations", vars
   --            , "takes", usedVars
   --            , "missing", missingVars
   --            )
@@ -1050,7 +1048,6 @@ deriving instance Show PackingListDetail
 lookupPackingListDetail :: (MonadIO m) => (Text -> [t] -> Maybe a) -> Text -> ReaderT SqlBackend m (Either a [(Text, Int)])
 lookupPackingListDetail checkStyle barcode = do
   detailE <- getBy (UniquePLB barcode)
-  -- traceShowM (barcode, detailE)
   return $ case detailE of
     Just (Entity _ detail) -> case checkStyle (packingListDetailStyle detail) [] of
                                  Nothing -> Right [ ( colour , quantity)
@@ -1191,7 +1188,6 @@ collectFromMOP = do
             <> " LEFT JOIN fames_operator op ON (op.nickname = mop.name)" 
             <> " WHERE `type` IN ('lost', 'stocktake')"
             <> " GROUP BY base, variation "
-  traceShowM sql
   losts <- runDB $ rawSql sql []
   -- let types = losts :: [(Text, Text, Int, Maybe Day, Maybe Text)]
   if null losts

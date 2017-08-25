@@ -101,7 +101,7 @@ postStockAdjustment connectInfo stockAdj = do
 extractAddedId :: [Tag String] -> Either Text Int
 extractAddedId tags = let
   metas = sections (~== TagOpen ("meta" :: String) [("http-equiv","Refresh"), ("content","")]) tags
-  in case (traceShowId metas) of
+  in case metas of
       [meta:_] -> let
         url = fromAttrib "content" meta
         in case mrSubList $ url =~ ("AddedID=([0-9]+)$" :: String) of

@@ -150,7 +150,6 @@ postWHStockAdjustmentR = do
         
 
   (pp, _) <- runRequestBody
-  -- traceShowM pp
   ((resp, view), encType) <- runFormPost (paramForm mode)
   case resp of
     FormMissing -> error "Form missing"
@@ -353,7 +352,6 @@ quantitiesFor loc (Single sku, Single take, Single date, Single comment) = do
     return (results , moves)
 
 
-  -- traceShowM(sqlForMoves, moves)
   return $ case results of
     [] -> LocationInfo loc Nothing 0 0 Nothing []
     [(Single qoh, Single at, Single last)] -> LocationInfo loc (Just take) (fromMaybe 0 at) (fromMaybe 0 qoh) (last) (map toMove moves)

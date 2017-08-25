@@ -69,9 +69,7 @@ getItemsIndexR mode = do
 postItemsIndexR :: Maybe ItemViewMode -> Handler TypedContent
 postItemsIndexR mode = do
   action <- lookupPostParam "button"
-  -- traceShowM ("POST",mode, paramDef mode)
   (param,_,_) <- getPostIndexParam (paramDef mode)
-  -- traceShowM ("button", action)
   case action of
     Just "create" ->  do
         createMissing param
@@ -220,7 +218,6 @@ fillIndexCache = cache0 (cacheHour 1) "index/static"  $ runDB $ do
                   , Just pId <- return $ readMay =<< stripPrefix "dcx_field_data_field_price_pl_" (table :: Text)
 
                   ]
-  -- traceShowM webPriceList
 
   return $ IndexCache salesTypes priceListNames supplierNames webPriceList
   
@@ -265,7 +262,6 @@ adjustDescription varMap var0 var desc =
     ([],_) -> desc
     (_, []) -> desc
     (vnames0, vnames) -> let
-      -- replace' a b c = traceShow (a,b,c,d) d where d = replace a b c
       endos = [ (Endo $ replace (f vnames0) (f vnames))
               | f0 <- [toTitle, toUpper, toLower ]
               , let f vs = varsToVariation (map f0 vs)
@@ -283,7 +279,6 @@ loadVariations :: IndexCache -> IndexParam
                           ]
 loadVariations cache param = do
   -- pre cache variations parts
-  -- traceShowM "loading variation"
   delayeds <- mapM (\(p,a) -> preCache0 (cacheSecond 30) (p
                                            , param { ipMode = ItemPriceView
                                                   , ipChecked = []
@@ -296,7 +291,6 @@ loadVariations cache param = do
            , ("web status", loadWebStatus)
            , ("web prices", loadWebPrices cache)
            ]
-  -- traceShowM "=================== cached variation =================== "
   -- mapM_ startDelayed delayeds
   let [ delayedSalesPrices , delayedPurchasePrices
         , delayedStatus
@@ -359,7 +353,6 @@ loadVariations cache param = do
 loadSalesPrices :: (MonadIO m)
   => IndexParam -> ReaderT SqlBackend m [ItemInfo (ItemMasterAndPrices Identity)]
 loadSalesPrices param = do
-  -- traceShowM "loading prices"
   case (ipStyles param) of
      Just styleF -> do
        let sql = "SELECT ?? FROM 0_prices JOIN 0_stock_master USING(stock_id)"
@@ -385,7 +378,6 @@ loadSalesPrices param = do
                               in ItemInfo style var master
                           ) group_
 
-           -- traceShowM "prices loaded"
            return maps
           
 
@@ -409,9 +401,7 @@ loadPurchasePrices param = do
                        then ""
                        else " AND inactive = 0"
        do
-           -- traceShowM "load purchases prices"
            prices <- rawSql sql [PersistText p]
-           -- traceShowM("PURCH_DATA") -- , sql, prices)
 
            let group_ = groupBy ((==) `on `purchDataStockId) (map entityVal prices)
                maps = map (\priceGroup@(one:_) -> let
@@ -470,9 +460,7 @@ loadStatus param = do
           inactive =  if ipShowInactive param
                        then ""
                        else " AND inactive = 0"
-      -- traceShowM "load FA status"
       rows <- rawSql sql [PersistText p]
-      -- traceShowM "FA status loaded"
       return [ ItemInfo style var master
              | (Single sku, Single qoh, Single allQoh
                , Single onDemand, Single allOnDemand, Single onOrder
@@ -503,10 +491,7 @@ loadWebStatus param = do
              <> " LEFT JOIN dcx_node ON (entity_id = nid) "
              <> " WHERE sku " <> fKeyword <> " ?"
           (fKeyword, p) = filterEKeyword styleF
-      traceShowM "loading web status"
       rows <- rawSql sql [PersistText p]
-      traceShowM "loaded web status"
-      -- traceShowM rows
       return [ItemInfo style var master
              | (Single sku, Single active, Single display) <- rows
              , let (style, var) = skuToStyleVar sku
@@ -521,15 +506,12 @@ loadWebStatus param = do
 loadWebPrices :: (MonadIO m)
               => IndexCache -> IndexParam -> ReaderT SqlBackend m [ItemInfo (ItemMasterAndPrices Identity)]
 loadWebPrices cache param = do
-  traceShowM "loading web prices"
   case (ipStyles param) of
     Just styleF ->  do
        -- individual prices For each sku
        sku'prices <- mapM (loadWebPriceFor (filterEKeyword styleF)) (icWebPriceList cache)
-       -- traceShowM ("sku'prices",sku'prices, icWebPriceList cache)
        let style'var'pricesMap  :: Map Text (ItemPriceF Identity)
            style'var'pricesMap  = Map.fromListWith (<>) (concat sku'prices)
-       traceShowM "web prices loaded"
        return [ ItemInfo style var (mempty {impWebPrices = Just prices})
               | (sku, prices) <- Map.toList style'var'pricesMap
               , let (style, var) = skuToStyleVar sku
@@ -1003,7 +985,6 @@ createGLMissings params = do
                   ItemGLView -> ItemAllView
                   mode -> mode
   cache <- fillIndexCache
-  -- traceShowM ("CREATE", newMode)
   itemGroups <- loadVariations cache (params {ipShowInactive = True, ipMode = newMode})
   let toKeep = checkFilter params
 
@@ -1011,7 +992,7 @@ createGLMissings params = do
                  | (_, vars) <- itemGroups
                  , (status, info) <- vars
                  , let sku = styleVarToSku (iiStyle info) (iiVariation info)
-                 , {-traceShow (status, sku) $-} status == VarMissing
+                 ,  status == VarMissing
                  , toKeep sku
                  ]
   let stockMasters = [ Entity (StockMasterKey sku) var
@@ -1038,7 +1019,6 @@ createGLMissings params = do
          guard (toKeep sku)
          mprices <- maybeToList (impSalesPrices $ iiInfo info)
          -- only keep prices if they are missing or new
-         -- traceShowM ("prices", mprices)
          priceF <- IntMap.elems mprices
          let (t,price) = aPriceFToPrice priceF
              _types = t :: [Text]
@@ -1055,7 +1035,6 @@ createGLMissings params = do
          guard (toKeep sku)
          mprices <- maybeToList (impPurchasePrices $ iiInfo info)
          -- only keep prices if they are missing or new
-         -- traceShowM ("purch", mprices)
          priceF <- IntMap.elems mprices
          let (t,price) = aPurchDataFToPurchData priceF
              _types = t :: [Text]
@@ -1066,7 +1045,6 @@ createGLMissings params = do
       -- new items also need an items codes
       itemCodes = map stockMasterToItemCode stockMasters
         
-  -- traceShowM ("tocreate ", (stockMasters, prices, purchData))
   clearAppCache
   runDB $ do
     insertEntityMany stockMasters
@@ -1101,16 +1079,13 @@ createDCMissings params = do
                        , Just price <- return $ masterPrice basePl mm
                        ]
           let group = rights groupE
-          -- traceShowM groupE
           -- mapM (\sku -> lift $ setWarning (toHtml $ "Can't create " ++ sku ++ "as it doesn't exist in FA, or doesn't have a sale price. Please create it first.")
           --      ) (lefts groupE)
              
 
            
           product'revMap <- createMissingProducts cache group
-          traceShowM "Product created"
           createMissingDCLinks cache (iiStyle $ baseInfo) (map fst group) product'revMap
-          traceShowM "DC created"
           createMissingWebPrices cache (map fst group) product'revMap
           return ()
   mapM_ go itemGroups
@@ -1141,20 +1116,13 @@ createMissingProducts cache group = do
                ]
       bases = map fst colors
       trims = map snd colors
-  traceShowM prices
   productEntities <- createAndInsertNewProducts timestamp skus
-  traceShowM "new product created"
   prod'revKeys <- createAndInsertNewProductRevisions timestamp productEntities
-  traceShowM "new revision created"
   let prod'revMKeys = Just <$$> prod'revKeys
   createAndInsertProductPrices prices prod'revMKeys
-  traceShowM "new prices created"
   createAndInsertProductColours bases prod'revMKeys
-  traceShowM "new colour "
   createAndInsertProductTrimColours (trims) prod'revMKeys
-  traceShowM "new trim "
   createAndInsertProductStockStatus prod'revMKeys
-  traceShowM "new status created "
   return $ mapFromList (zip skus prod'revKeys)
         
 createAndInsertFields'
@@ -1302,12 +1270,8 @@ newProductColour colId mkColour pId'revId =
 
 -- **** field_*_field_stock_status 
 createAndInsertProductStockStatus p'rKeys = do
-  traceShowM "setting status"
-  -- traceShowM p'rKeys
   createAndInsertFields (newProductStockStatus (Just 70) DC.FieldDataFieldStockStatusT) p'rKeys
-  traceShowM "setting revisions status"
   createAndInsertRevFields (newProductStockStatus (Just 70) DC.FieldRevisionFieldStockStatusT) p'rKeys
-  traceShowM "pone"
 
 newProductStockStatus status  mkStatus pId'revId =
   newProductField mkStatus pId'revId status
@@ -1321,7 +1285,6 @@ newProductStockStatus status  mkStatus pId'revId =
 --        fieldDataFieldProductTDelta = delta
 --        fieldDataFieldProductTFieldProductProductId = productId
 
---   mapM_ traceShowM ("Inserting", length missings)
 --   runDB $ do
 --     ids <- insertMany $ trace "new product" (map newProduct missings)
 --     return ()
@@ -1453,7 +1416,6 @@ newProductDCLink' displayId displayRev mk delta (pId, revId) = mk
 --                  , let mm = iiInfo info
 --                  , isNothing $ join $ snd (iwfProductDisplay `traverse` impWebStatus mm) 
 --                  ]
---   traceShowM ("Missing", missings)
 --   -- Get product display id
 --   pdKeys <- selectKeysList [DC.NodeTTitle ==. iiStyle base] []
 --   case pdKeys of
@@ -1470,7 +1432,7 @@ newProductDCLink' displayId displayRev mk delta (pId, revId) = mk
 --             fieldDataFieldProductTFieldProductProductId = productId
 --       pIds' <- forM missings $ \sku -> do
 --         entities <- selectKeysList [DC.CommerceProductTSku ==. sku] []
---         case traceShowId entities of
+--         case entities of
 --           [DC.CommerceProductTKey pId] -> return (Just pId)
 --           _ -> return Nothing
 --       let pIds = map Just $ catMaybes pIds'
@@ -1498,7 +1460,6 @@ createMissingWebPrices
   -> ReaderT SqlBackend Handler ()
 createMissingWebPrices cache group p'revMap = do
   basePl <- lift basePriceList
-  traceShowM "basePrice got"
 
   let sku'prices = [ (sku, priceMap)
            | (status, info) <- group
@@ -1506,8 +1467,7 @@ createMissingWebPrices cache group p'revMap = do
            , let sku = iiSku info
            ]
       priceList = trace "got price list from cache " $ icPriceLists cache -- TODO move in global cache
-      prices = traceShowId $ map (computeTheoreticalPricesP basePl priceList . snd)  sku'prices
-  traceShowM ("PRICES", prices)
+      prices = map (computeTheoreticalPricesP basePl priceList . snd)  sku'prices
   sku'p'rs0 <- loadSkuProductRevisions p'revMap (map fst sku'prices)
 
   createAndInsertDCPrices prices sku'p'rs0
@@ -1538,7 +1498,6 @@ createAndInsertDCPriceFor index mk mkRev priceMaps sku'p'rs = do
                                  | (priceMap,  (_, p, r)) <- zip priceMaps sku'p'rs
                                  , Just price <- return $ lookup index priceMap
                                  ]
-  traceShowM ("INserting")
   createAndInsertFields' (map (newProductFieldPrice mk) prices) p'rs
   createAndInsertRevFields' (map (newProductFieldPrice mkRev) prices) p'rs
 

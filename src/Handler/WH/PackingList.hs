@@ -310,7 +310,7 @@ deliverPackingList key param = do
 
 
 detailToBoxtake :: DeliveryParam -> DocumentKeyId -> PackingListDetail -> Boxtake
-detailToBoxtake param docKey detail = traceShowId $ Boxtake
+detailToBoxtake param docKey detail = Boxtake
   (Just $ packingListDetailStyle detail)
   reference
   (packingListDetailLength detail)
@@ -1030,7 +1030,6 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
                     go order (OrderRef order':rows0) [] groups = ((order, groups) :) <$> go order' rows0 [] []
                     go order (OrderRef order':rows0) _ _ = Left [(transformOrder order') {plColour = Left (InvalidValueError "Box not closed" "") } ]
                     go _ _ _ _ = error "PackingList::groupRow should not append"
-                -- go rows partials = traceShow (rows, partials) undefined
               validateGroup :: PLBoxGroup -> Either [PLRaw] PLBoxGroup 
               validateGroup grp@(partials, main) = let
                 final = transformRow main :: PLFinal

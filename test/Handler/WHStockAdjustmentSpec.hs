@@ -31,7 +31,6 @@ prepareDB = do
 
 lengthShouldBe' filter all expected = do
   adjs <- runDB $ selectList [] []
-  -- traceShowM adjs
   liftIO $ length (adjs :: [Entity StockAdjustmentDetail]) `shouldBe` all
   l <- runDB $ count filter
   liftIO $ l `shouldBe` expected

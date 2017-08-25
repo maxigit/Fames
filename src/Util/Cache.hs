@@ -59,17 +59,13 @@ createDelayed a = do
    -- don't actually start the action until mvar has been set
    as <- async (do
                    act <- liftIO $ do
-                     -- traceShowM "Reading"
                      act <- readMVar mvar
-                     -- traceShowM $ "read done - Starting" ++ show act
                      return act
                    case act of
                      DStart -> do
                        v <- a
-                       -- traceShowM "done"
                        return v
                      DCancel -> do
-                       -- traceShowM "cancelling"
                        error "delayed cancelled"
                        
 
@@ -160,40 +156,30 @@ expCache cvar key vio (CacheDelay seconds)  = do
   let k = show key
   -- we release cvar as soon as possible
   let putV mvar = do
-                  -- traceShowM $ "starting computation for key " ++ k
                   v <- vio
-                  -- traceShowM $ "finishind computation for key " ++ k
                   now <- liftIO $ getCurrentTime
-                  -- traceShowM $ "putMVar"
                   liftIO $ putMVar mvar (toDyn v, addUTCTime (fromIntegral seconds) now)
                   return v
   let getCachedMVar cache = do
         case Map.lookup k cache of
           Nothing -> liftIO $ do -- key need creating
-            -- traceShowM $ "Create mvar for" ++ k
             mvar <- newEmptyMVar
             let todo = putV mvar
             return (Map.insert k mvar cache, Left todo)
           Just mvar -> do
             return (cache, Right mvar)
-  -- traceShowM $ "acquiring cache for" ++ k
   (todo'mvar) <- liftIO $ modifyMVar cvar getCachedMVar 
-  -- traceShowM $ "releasing cache for" ++ k
   case todo'mvar of
     Left todo -> do
-      -- traceShowM "doing"
       todo
     Right mvar -> do
       (d, t) <- liftIO $ takeMVar mvar
       now <- liftIO $ getCurrentTime
-      -- traceShowM ("NOW", now)
       if now <= t
         then do
-          -- traceShowM "use cache value"
           liftIO $ putMVar mvar (d, t)
           return $ fromDyn d (error "Wrong type for cached key.")
         else do
-          -- traceShowM $ "use cached version for" ++ k
           putV mvar
 
 purgeKey :: (MonadIO io, Show k) => MVar ExpiryCache -> k -> io ()

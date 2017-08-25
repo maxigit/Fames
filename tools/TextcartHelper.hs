@@ -51,7 +51,6 @@ go reader connectInfo = do
       uniques = filter (\(_, bs) -> length bs == 1) (Map.toList groups)
       duplicates = filter (\(_, bs) -> length bs > 1) (Map.toList groups)
 
-  traceShowM duplicates
 
   forM_ uniques (\(style, [base]) -> printf "%%s/^%s/:%s&-#/ie\n" style base)
   
