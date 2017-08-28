@@ -37,11 +37,43 @@ import qualified FA as FA
 import qualified Data.Set as Set
 import Text.Blaze(Markup)
 
--- * Requests
 
+-- * Types
 -- | Validate spreadsheet, save , collect and save partial stocktakes generated from lost items
 data SavingMode = Validate | Save | CollectMOP deriving (Eq, Read, Show)
 
+-- | Which stocktake items to display.
+-- Complete stocktake can be quite big so displaying in the browser can be skipped if not needed.
+data DisplayMode = DisplayAll | DisplayMissingOnly | HideMissing
+  deriving (Eq, Read, Show, Enum, Bounded)
+
+-- | Whether a style is complete or not, i.e. we need to generate zerotake for variations
+-- not present in the stocktake (only for style present)
+-- StyleComplete: means that every items of a given style is complete.
+-- This will reset all previous stocktake information relative to this style
+-- and generate 0 takes for variations not present
+-- StyleIncomplete: The stock stake is complete but only for each variation.
+-- We reset previous information corresponding to a color but doens't create
+-- 0 takes form missing variations
+-- StyleAddition just add new boxes to the actual stock take.
+-- Should be used ideally for delivery 
+
+data StyleComplete = StyleComplete | StyleIncomplete | StyleAddition
+  deriving (Eq, Read, Show, Enum, Bounded)
+
+-- | Should be Either FileInfo (Text, Text)
+data FormParam = FormParam
+ { pFileInfo :: Maybe FileInfo
+ , pFileKey :: Maybe Text
+ , pFilePath :: Maybe Text
+ , pEncoding :: Encoding
+ , pComment :: Maybe Textarea
+ , pStyleComplete :: StyleComplete
+ , pDisplayMode :: DisplayMode
+ , pOveridde :: Bool
+ }
+
+-- * Requests
 getWHStocktakeR :: Handler Html
 getWHStocktakeR = do
   sId <- lookupGetParam "id"
@@ -75,24 +107,6 @@ getWHStocktakeValidateR = do
 |]
   renderWHStocktake Validate Nothing 200 (setInfo "Enter Stocktake") widget
 
-renderWHStocktake :: SavingMode -> Maybe FormParam -> Int -> Handler () -> Widget -> Handler Html
-renderWHStocktake mode paramM status message pre = do
-  let (action, button,btn) = case mode of
-        Validate -> (WHStocktakeValidateR, "validate" :: Text, "primary" :: Text)
-        Save -> (WHStocktakeSaveR, "save", "danger")
-  (uploadFileFormW, upEncType) <- generateFormPost $ uploadForm mode paramM
-  message
-  sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
-  <div>
-    <p>
-      <a href=@{WarehouseR WHStocktakeLocationR}>Available locations
-  <div .pre> ^{pre}
-  <div.well>
-    <form #upload-form role=form method=post action=@{WarehouseR action} enctype=#{upEncType}>
-      ^{uploadFileFormW}
-      <button type="submit" name="#{button}" .btn class="btn-#{btn}">#{button}
-|]
-
 
 postWHStocktakeValidateR :: Handler Html
 postWHStocktakeValidateR = processStocktakeSheet Validate
@@ -106,37 +120,8 @@ postWHStocktakeSaveR = processStocktakeSheet Save
 
 postWHStocktakeCollectMOPR :: Handler Html
 postWHStocktakeCollectMOPR = processStocktakeSheet CollectMOP
--- | Which stocktake items to display.
--- Complete stocktake can be quite big so displaying in the browser can be skipped if not needed.
-data DisplayMode = DisplayAll | DisplayMissingOnly | HideMissing
-  deriving (Eq, Read, Show, Enum, Bounded)
 
--- | Whether a style is complete or not, i.e. we need to generate zerotake for variations
--- not present in the stocktake (only for style present)
--- StyleComplete: means that every items of a given style is complete.
--- This will reset all previous stocktake information relative to this style
--- and generate 0 takes for variations not present
--- StyleIncomplete: The stock stake is complete but only for each variation.
--- We reset previous information corresponding to a color but doens't create
--- 0 takes form missing variations
--- StyleAddition just add new boxes to the actual stock take.
--- Should be used ideally for delivery 
-
-data StyleComplete = StyleComplete | StyleIncomplete | StyleAddition
-  deriving (Eq, Read, Show, Enum, Bounded)
-
--- | Should be Either FileInfo (Text, Text)
-data FormParam = FormParam
- { pFileInfo :: Maybe FileInfo
- , pFileKey :: Maybe Text
- , pFilePath :: Maybe Text
- , pEncoding :: Encoding
- , pComment :: Maybe Textarea
- , pStyleComplete :: StyleComplete
- , pDisplayMode :: DisplayMode
- , pOveridde :: Bool
- }
-
+-- * Form
 uploadForm :: SavingMode -> Maybe FormParam -> Markup ->  _ (FormResult FormParam, Widget)
 uploadForm mode paramM = 
   let form' Save = FormParam
@@ -168,6 +153,25 @@ uploadForm mode paramM =
                    <*> pure False
   in renderBootstrap3 BootstrapBasicForm . form' $ mode
 
+-- * Rendering
+renderWHStocktake :: SavingMode -> Maybe FormParam -> Int -> Handler () -> Widget -> Handler Html
+renderWHStocktake mode paramM status message pre = do
+  let (action, button,btn) = case mode of
+        Validate -> (WHStocktakeValidateR, "validate" :: Text, "primary" :: Text)
+        Save -> (WHStocktakeSaveR, "save", "danger")
+  (uploadFileFormW, upEncType) <- generateFormPost $ uploadForm mode paramM
+  message
+  sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
+  <div>
+    <p>
+      <a href=@{WarehouseR WHStocktakeLocationR}>Available locations
+  <div .pre> ^{pre}
+  <div.well>
+    <form #upload-form role=form method=post action=@{WarehouseR action} enctype=#{upEncType}>
+      ^{uploadFileFormW}
+      <button type="submit" name="#{button}" .btn class="btn-#{btn}">#{button}
+|]
+
 renderValidRows :: FormParam -> [ValidRow] -> Handler Widget
 renderValidRows param rows = do
   missings <- case pStyleComplete param of
@@ -193,6 +197,8 @@ renderValidRows param rows = do
           DisplayMissingOnly -> missingW
           HideMissing -> render rows
   
+-- * Processing
+
 -- | Display or save the uploaded spreadsheet
 -- At the moment saving a spreadsheet involves having to upload it twice.
 -- Once for validation and once for processing. We could use a session or similar
@@ -565,6 +571,10 @@ data FinalRow = FinalFull FinalFullRow
               | FinalBarcodeLookup FinalFullRow
               deriving Show
 
+
+data ValidationMode = CheckBarcode | NoCheckBarcode deriving Eq
+
+-- ** Parsing
 -- | Validates if a raw row has been parsed properly. ie cell are well formatted
 validateRaw :: OpFinder -> LocFinder ->  RawRow -> Either RawRow PartialRow
 validateRaw ops locs raw= do
@@ -638,9 +648,6 @@ validateRows skus (row:rows) = do
                       
                            in Left $ (initEx errors) ++ [l']
     _ -> Right valids
-
-
-data ValidationMode = CheckBarcode | NoCheckBarcode deriving Eq
 
 -- | The big parsing method which detect depending on the available value
 -- which type of row we are having.
@@ -836,25 +843,6 @@ fillBarcode new prevE =
                    Nothing -> Left $ ParsingError ("Previous barcode invalid" <> prev) ""
                    Just barcode -> Right (Guessed $ toStrict barcode)
     
--- | Expand a location pattern to the matching locations
--- ex : ["AB" "AC" "BD"] "A?" -> AB AC
--- expandLocation :: [String] -> String -> [String]
--- expandLocation [] pat = [pat]
--- expandLocation locations pat = let
---   pat' = Glob.compile pat
---   in filter (Glob.match pat') locations
-
-expandLocation :: Text -> [Text]
-expandLocation name = let
-  (fix, vars) = break (=='[') name
-  in case stripPrefix "[" vars of
-    Nothing -> [fix]
-    (Just vars) -> case break (==']') vars of
-        (_ ,rest) | null rest -> [] --  Left $ "unbalanced brackets in " <> name
-        (elements, rest) -> do
-              e <- toList elements
-              expanded <- expandLocation (drop 1 rest)
-              return $ (fix<> singleton e)<>expanded
 
 validateLocation :: Map Text Text -> Text -> Maybe Location'
 validateLocation locMap t =
@@ -1300,6 +1288,7 @@ renderRows classFor rows = do
 
 
 
+-- * Locations
 -- | Displays the list of locations
 getWHStocktakeLocationR :: Handler Html
 getWHStocktakeLocationR = do

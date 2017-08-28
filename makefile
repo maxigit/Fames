@@ -72,7 +72,7 @@ ghcid-old:
 ghcid-test:
 	ghcid --command="stack ghci :test" --test ":main --color"
 ghcid:
-	ghcid --command="stack ghci"
+	ghcid --command="stack ghci --ghc-options=-w"
 ghcid-run:
 	ghcid --command="stack ghci" --test "appMain"
 ghcid-now:
@@ -113,3 +113,6 @@ restart:
 brestart: build restart
 build:
 	stack build
+
+run:
+	stack exec  Fames -- ../fames-config/development.yml ../fames-config/staging.yml ../fames-config/variations.yml ../fames-config/default.yml
