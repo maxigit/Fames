@@ -14,7 +14,6 @@ module Handler.WH.Stocktake
 , getWHStocktakeSaveR
 , postWHStocktakeValidateR
 , getWHStocktakeValidateR
-, getWHStocktakeLocationR
 ) where
 
 import Import hiding(length, (\\), Null)
@@ -1284,23 +1283,6 @@ renderRows classFor rows = do
     <th>Comment
     $forall row  <- rows
       <tr class=#{classFor row}> ^{render row}
-|]
-
-
-
--- * Locations
--- | Displays the list of locations
-getWHStocktakeLocationR :: Handler Html
-getWHStocktakeLocationR = do
-  locations <- appStockLocationsInverse . appSettings <$> getYesod
-  defaultLayout [whamlet|
-<h1> Stock locations
-  <table.table.table-striped> 
-    <tr>
-      <th> Name
-    $forall (shelf, location) <- Map.toList locations
-      <tr>
-        <td> #{location}: #{shelf}
 |]
 
 getStockIds :: Handler (Set Text)

@@ -124,6 +124,7 @@ library
       Handler.WH
       Handler.WH.Barcode
       Handler.WH.Legacy.Box
+      Handler.WH.Location
       Handler.WH.PackingList
       Handler.WH.StockAdjustment
       Handler.WH.Stocktake

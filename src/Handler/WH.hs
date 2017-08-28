@@ -7,4 +7,5 @@ import Handler.WH.Barcode as X
 import Handler.WH.PackingList as X
 import Handler.WH.Stocktake as X
 import Handler.WH.StockAdjustment as X
+import Handler.WH.Location as X
   

@@ -23,6 +23,7 @@ instance PathPiece PLViewMode where
   toPathPiece = showToPathPiece
 
 
+-- ** ItemIndex
 data ItemViewMode = ItemGLView
                    | ItemPriceView
                    | ItemPurchaseView

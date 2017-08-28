@@ -24,6 +24,8 @@
   !/stock_adjustment/reject/#Int64 WHStockAdjustmentRejectR POST !stock_adj/reject
 
   /stocktake/locations WHStocktakeLocationR GET !group=Maintenance !title=Locations
+  !/stocktake/locations/list WHLocationListR GET
+  !/stocktake/locations/stickers WHLocationStickersR GET
 
   /packinglist WHPackingListR  GET POST !pl !group=Packing_List !title=Packing_List
   !/packinglist/#Int64/#Maybe-PLViewMode WHPackingListViewR GET !pl
