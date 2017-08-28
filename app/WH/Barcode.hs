@@ -84,3 +84,22 @@ nextBarcode barcode | null barcode = Nothing
 nextBarcode barcode = do
   (prefix, n,_) <- splitBarcode barcode
   Just $ formatBarcode prefix (n+1 :: Int)
+
+-- * Location
+-- | Expand a location pattern by using all character in brackets.
+-- Also accepts simple ranges (w't)
+-- This doesn't use globbing, but just generate all possible combination.
+-- ex : "A[BC]" -> AB AC
+expandLocation :: Text -> [Text]
+expandLocation name = let
+  (fix, varsM) = break (=='[') name
+  in case stripPrefix "[" varsM of
+    Nothing -> [fix]
+    (Just vars) -> case break (==']') vars of
+        (_ ,rest) | null rest -> [] --  Left $ "unbalanced brackets in " <> name
+        (elements, rest) -> do
+              e <- case toList elements of
+                     [start,'-',end] -> [start..end]
+                     es -> es
+              expanded <- expandLocation (drop 1 rest)
+              return $ (fix<> singleton e)<>expanded

@@ -138,7 +138,8 @@ instance FromJSON AppSettings  where
                                          | u <- (maybeToList user >>= \u -> [u, "<authenticated>"]) ++ ["<anonymous>"]
                                          ]
                                    )
-        appStockLocations      <- o .:? "stock-locations" .!= Map.fromList []
+        stockLocations      <- o .:? "stock-locations" .!= Map.fromList []
+        let appStockLocations = fmap (concatMap expandLocation) (stockLocations :: Map Text [Text])
         let appStockLocationsInverse = Map.fromList [(shelf, fa)
                                                     | (fa, shelves) <- Map.toList appStockLocations
                                                     , shelf <- shelves
