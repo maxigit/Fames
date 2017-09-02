@@ -93,7 +93,6 @@ library
     , yesod-media-simple
     , diagrams-lib >= 1.4.1.2 && < 1.5
     , diagrams-cairo >= 1.4 && < 1.5
-    , linear
   if (flag(dev)) || (flag(library-only))
     ghc-options: -Wall -fwarn-tabs -O0 -j6
     cpp-options: -DDEVELOPMENT
@@ -233,7 +232,6 @@ executable Fames
     , yesod-media-simple
     , diagrams-lib >= 1.4.1.2 && < 1.5
     , diagrams-cairo >= 1.4 && < 1.5
-    , linear
     , Fames
   if flag(library-only)
     buildable: False
@@ -330,7 +328,6 @@ test-suite test
     , yesod-media-simple
     , diagrams-lib >= 1.4.1.2 && < 1.5
     , diagrams-cairo >= 1.4 && < 1.5
-    , linear
     , base
     , Fames
     , yesod-test >=1.5.0.1 && <1.6
