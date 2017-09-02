@@ -33,6 +33,8 @@
   !/packinglist/#Int64/edit_details WHPackingListEditDetailsR POST !pl
   !/packinglist/#Int64/deliver WHPackingListDeliverR POST !pl
 
+  /dimensions WHDimensionR GET !dimension !group=Dimensions !title=Box_Dimensions
+
 /items ItemsR !items:
   /index/#Maybe-ItemViewMode ItemsIndexR GET POST !items/index !group=Maintenance !title=Index
   /history/#Text ItemsHistoryR GET !items/history
