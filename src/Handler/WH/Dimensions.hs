@@ -63,7 +63,7 @@ displayBox outer innerm   = let
                middle = mconcat $ map innerPToFacets inners
                in (foreground , middle <> background)
   sortF = sortBy (comparing (facetZ)) 
-  in mconcat $ (disp fg_  # lc (blend 0.5 outerColourNY black) )
+  in mconcat $ (disp fg_  # lc (blend 0.5 outerColourNY black) # dashing [13, 5] 0 )
                <> disp facets
 
 -- | Calculate 
