@@ -59,7 +59,7 @@ up = Orientation Vertical Depth
 tiltedForward = Orientation Depth Vertical
 tiltedRight = Orientation Horizontal Depth
 tiltedFR = Orientation Depth Horizontal
-rotatedSide = Orientation Vertical Horizontal
+rotatedSide = Orientation Horizontal Vertical
 rotatedUp = Orientation Vertical Horizontal
 
 showOrientation o | o == up             =  "^ "
@@ -67,6 +67,7 @@ showOrientation o | o == up             =  "^ "
                   | o == tiltedRight    =  "> "
                   | o == tiltedFR       =  "| "
                   | o == rotatedUp      =  "' "
+                  | o == rotatedSide      =  "@ "
                   | otherwise           =  "tA "
 
 readOrientation c = case c of
@@ -84,6 +85,7 @@ allOrientations = [ up
                   , tiltedFR
                   , tiltedRight 
                   , rotatedSide
+                  , rotatedUp
                   ] 
 
 rotate :: Orientation -> Dimension -> Dimension

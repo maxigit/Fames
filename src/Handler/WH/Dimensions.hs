@@ -71,7 +71,7 @@ innerBoxes :: Dimension -> Dimension -> [PDimension]
 innerBoxes outer inner =
   let orientations = zip allOrientations (repeat 6)
       best = bestArrangement orientations [(outer, ())] inner
-      (ori, nl, nw, nh, _) = traceShow ("BEST", best) best
+      (ori, nl, nw, nh, _) = traceShow ("BEST-new", outer, inner, best) best
       (Dimension l w h) = W.rotate ori inner
   in reverse $ [ PDimension (Dimension l0 w0 h0) inner ori
                | iw <- [1..nw]
@@ -125,10 +125,10 @@ innerBoxToFacets opening (Dimension l w h) = let
 
   go (Orientation Vertical Depth) = front 1 1 1 ++  side 1 1 1  ++ top 1 2 1
   go (Orientation Vertical Horizontal) = front 1 1 1 ++  side 1 1 1 ++ top 2 1 1
-  go (Orientation Horizontal Depth) = front 1 1 1 ++  side 1 1 2 ++ top 1 1 1
-  go (Orientation Horizontal Vertical) = front 1 1 1 ++  side 1 2 1 ++ top 1 1 1
+  go (Orientation Horizontal Depth) = front 1 1 1 ++  side 1 2 1 ++ top 1 1 1
+  go (Orientation Horizontal Vertical) = front 1 1 1 ++  side 1 1 2 ++ top 1 1 1
   go (Orientation Depth Vertical) = front 1 1 2 ++  side 1 1 1 ++ top 1 1 1
-  in go opening
+  in go $ traceShowId opening
 
 -- halfL f@(Dimension l w h) = let
 --   f' = f { gg
@@ -136,8 +136,8 @@ innerBoxToFacets opening (Dimension l w h) = let
 
 innerPToFacets :: PDimension -> [Facet]
 innerPToFacets (PDimension  off dim ori) = let
-  facets = innerBoxToFacets ori dim
-  in map (rotateFacet ori . translateFacet off) facets
+  facets = innerBoxToFacets ori (W.rotate ori dim)
+  in map (translateFacet off) facets
   
 
  
