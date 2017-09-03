@@ -2,7 +2,7 @@ module Handler.WH.Dimensions (
 getWHDimensionR
 ) where
 
-import Handler.WH.Legacy.Box
+import WarehousePlanner.Base
 import Import
 import qualified Yesod.Media.Simple as M
 import Diagrams.Prelude hiding(iso)
@@ -15,12 +15,6 @@ data Facet = Facet
   , background :: Maybe (Colour Double)
   , points :: [Dimension]
   }
-
--- * Orphan instances
-instance Monoid Dimension where
-  mempty = Dimension 0 0 0
-  mappend (Dimension l w h) (Dimension l' w' h') =
-    Dimension (l+l') (w+w') (h+h')
 
 -- * Requests
 

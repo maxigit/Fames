@@ -21,6 +21,7 @@ flag library-only
 library
   hs-source-dirs:
       src
+      legacy
       app
       fay-shared
   default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures
@@ -93,6 +94,9 @@ library
     , yesod-media-simple
     , diagrams-lib >= 1.4.1.2 && < 1.5
     , diagrams-cairo >= 1.4 && < 1.5
+    , diagrams-svg >= 1.4 && < 1.5
+    , tabular >= 2.2.7 && <2.3
+    , parsec >= 3.1 && < 3.2
   if (flag(dev)) || (flag(library-only))
     ghc-options: -Wall -fwarn-tabs -O0 -j6
     cpp-options: -DDEVELOPMENT
@@ -143,6 +147,10 @@ library
       Util.Cache
       Util.EnumTree
       Util.SameCons
+      WarehousePlanner.Base
+      WarehousePlanner.Csv
+      WarehousePlanner.Display
+      WarehousePlanner.Optimum
       GL
       GL.FA
       GL.Receipt
@@ -232,6 +240,9 @@ executable Fames
     , yesod-media-simple
     , diagrams-lib >= 1.4.1.2 && < 1.5
     , diagrams-cairo >= 1.4 && < 1.5
+    , diagrams-svg >= 1.4 && < 1.5
+    , tabular >= 2.2.7 && <2.3
+    , parsec >= 3.1 && < 3.2
     , Fames
   if flag(library-only)
     buildable: False
@@ -328,6 +339,9 @@ test-suite test
     , yesod-media-simple
     , diagrams-lib >= 1.4.1.2 && < 1.5
     , diagrams-cairo >= 1.4 && < 1.5
+    , diagrams-svg >= 1.4 && < 1.5
+    , tabular >= 2.2.7 && <2.3
+    , parsec >= 3.1 && < 3.2
     , base
     , Fames
     , yesod-test >=1.5.0.1 && <1.6
