@@ -29,15 +29,26 @@ data PDimension = PDimension
 
 getWHDimensionR :: Handler TypedContent
 getWHDimensionR = do
-  let size = mkWidth 800
+  l0 <- lookupGetParam "length"
+  w0 <- lookupGetParam "width"
+  h0 <- lookupGetParam "height"
+  l1 <- lookupGetParam "ilength"
+  w1 <- lookupGetParam "iwidth"
+  h1 <- lookupGetParam "iheight"
+  imgW <- lookupGetParam "imgW"
+
+  let [l,w,h] =  zipWith (fromMaybe) [60,40,20] (map (>>= readMay) [l0,w0,h0] )
+      outer = Dimension l w h
+  
+  let is@[li,wi,hi] =  (map (>>= readMay) [l1,w1,h1] )
+      inner = liftA3 Dimension li wi hi
+  traceShowM ("INNER", inner, is )
+  let size = mkWidth (fromMaybe 800 $ imgW >>= readMay)
+      diag = displayBox outer inner
   M.renderContent (M.SizedDiagram size diag)
 
 
 -- * Diagrams
-
-diag :: Diagram Cairo
-diag  = displayBox (Dimension 60 40 20 ) (Just $ Dimension  35 18 8) <> circle 5
-
 
 displayBox :: Dimension -> Maybe Dimension -> Diagram Cairo
 displayBox outer innerm   = let
