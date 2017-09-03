@@ -84,8 +84,8 @@ innerBoxes outer inner =
 outerBoxToFacets :: Dimension -> [Facet]
 outerBoxToFacets (Dimension l w h) = let
   bottom = Facet mempty (Just outerColourNZ)  $ toDims [(0,0,0), (l,0,0), (l,w,0), (0,w,0)]
-  backside = Facet mempty (Just outerColourNX)  $ toDims [(l,0,0), (l,w,0), (l,w,h), (l,0,h)]
-  back = Facet mempty (Just outerColourNY) $ toDims [(0,w,0), (l,w,0), (l,w,h), (0,w,h)]
+  backside = Facet mempty (Just outerColourNY)  $ toDims [(l,0,0), (l,w,0), (l,w,h), (l,0,h)]
+  back = Facet mempty (Just outerColourNX) $ toDims [(0,w,0), (l,w,0), (l,w,h), (0,w,h)]
   front = Facet mempty Nothing $ toDims [(0,w,0), (l,w,0), (l,w,h), (0,w,h)]
   frontside = Facet mempty Nothing  $ toDims [(l,0,0), (l,w,0), (l,w,h), (l,0,h)]
   up = Facet (Dimension 0 0 h) Nothing  $ toDims [(0,0,0), (l,0,0), (l,w/2,0), (0,w/2,0)]
@@ -103,9 +103,9 @@ outerBoxToFacets' (Dimension l w h) = let
 
 innerBoxToFacets :: Orientation -> Dimension -> [Facet]
 innerBoxToFacets opening (Dimension l w h) = let
-  top = facet (Dimension 0 0 h) (Just innerColourNX) [(0,0,0), (l,0,0), (l,w,0), (0,w,0)]
-  front = facet (Dimension 0 w 0) (Just innerColourNY) [(0,w,0), (l,w,0), (l,w,h), (0,w,h)]
-  side = facet (Dimension l 0 0) (Just innerColourNZ)  [(l,0,0), (l,w,0), (l,w,h), (l,0,h)]
+  top = facet (Dimension 0 0 h) (Just innerColourNZ) [(0,0,0), (l,0,0), (l,w,0), (0,w,0)]
+  front = facet (Dimension 0 w 0) (Just innerColourNX) [(0,w,0), (l,w,0), (l,w,h), (0,w,h)]
+  side = facet (Dimension l 0 0) (Just innerColourNY)  [(l,0,0), (l,w,0), (l,w,h), (l,0,h)]
   facet off col points im jm km = [ Facet (off `mappend` offset)  col
                                           [ Dimension  (l'/ls) (w'/ws) (h'/hs)
                                           | (l',w',h') <- points
@@ -163,12 +163,13 @@ displayFacetISO (Facet offset_ bg_ points) = let
   in stroke trail # translate (iso offset_ .-. origin) # (maybe id fc  bg_)
 
 -- ** Colours
-outerColourNX = sRGB24 158 221 225
+-- outerColourNX = sRGB24 158 221 225
 outerColourNY = sRGB24 60 183 192
+outerColourNX = blend 0.5 outerColourNY outerColourNZ -- sRGB24 224 201 153
 outerColourNZ = sRGB24 224 244 245
 
 innerColourNY = sRGB24 192 148 59
-innerColourNX = sRGB24 224 201 153
+innerColourNX = blend 0.5 innerColourNY innerColourNZ -- sRGB24 224 201 153
 innerColourNZ = sRGB24 235 219 189
 
 cos30 = cos (pi/6)
