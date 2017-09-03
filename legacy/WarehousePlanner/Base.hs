@@ -67,7 +67,7 @@ showOrientation o | o == up             =  "^ "
                   | o == tiltedRight    =  "> "
                   | o == tiltedFR       =  "| "
                   | o == rotatedUp      =  "' "
-                  | otherwise           =  "@ "
+                  | otherwise           =  "tA "
 
 readOrientation c = case c of
     '^' -> up

@@ -2,11 +2,13 @@ module Handler.WH.Dimensions (
 getWHDimensionR
 ) where
 
-import WarehousePlanner.Base
+import WarehousePlanner.Base hiding(rotate)
+import qualified WarehousePlanner.Base as W
 import Import
 import qualified Yesod.Media.Simple as M
 import Diagrams.Prelude hiding(iso)
 import Diagrams.Backend.Cairo
+import Data.Ord(comparing)
 -- import Linear.Affine ((.-.))
 
 -- * Types
@@ -14,6 +16,13 @@ data Facet = Facet
   { offset :: Dimension
   , background :: Maybe (Colour Double)
   , points :: [Dimension]
+  }
+
+-- | Positionated Dimension (+ offset and orientation)
+data PDimension = PDimension
+  { poffset :: Dimension
+  , pDim :: Dimension
+  , pOr :: Orientation 
   }
 
 -- * Requests
@@ -27,20 +36,43 @@ getWHDimensionR = do
 -- * Diagrams
 
 diag :: Diagram Cairo
-diag  = displayBox (Dimension 31 34 77) (Just $ Dimension 29 23 30)
+diag  = displayBox (Dimension 60 40 20 ) (Just $ Dimension  18 29 10) <> circle 5
 
 
 displayBox :: Dimension -> Maybe Dimension -> Diagram Cairo
-displayBox outer inner   = let
-  facets = outerBoxToFacets' outer <> maybe [] innerBoxToFacets inner <> outerBoxToFacets outer 
+displayBox outer innerm   = let
+  facets = case innerm of
+             -- no inner, or in fact no outer ...
+             Nothing -> innerBoxToFacets outer
+             Just inner -> let
+               background = outerBoxToFacets outer
+               foreground = outerBoxToFacets' outer
+               inners = innerBoxes outer inner
+               middle = mconcat $ map innerPToFacets inners
+               in foreground <> middle <> background
+  sortF = sortBy (comparing (facetZ)) 
   in mconcat $ map displayFacetISO facets
+
+-- | Calculate 
+innerBoxes :: Dimension -> Dimension -> [PDimension]
+innerBoxes outer inner =
+  let orientations = zip allOrientations (repeat 6)
+      best = bestArrangement orientations [(outer, ())] inner
+      (ori, nl, nw, nh, _) = traceShow ("BEST", best) best
+      (Dimension l w h) = W.rotate ori inner
+  in reverse $ [ PDimension (Dimension l0 w0 h0) inner ori
+               | iw <- [1..nw]
+               , ih <- [1..nh]
+               , il <- [1..nl]
+               , let [l0, w0, h0] = zipWith (\d i -> d* fromIntegral (i-1)) [l,w,h] [il, iw, ih]
+               ]
 
 
 outerBoxToFacets :: Dimension -> [Facet]
 outerBoxToFacets (Dimension l w h) = let
   bottom = Facet mempty (Just outerColourNZ)  $ toDims [(0,0,0), (l,0,0), (l,w,0), (0,w,0)]
-  backside = Facet (Dimension l 0 0 ) (Just outerColourNX)  $ toDims [(l,0,0), (l,w,0), (l,w,h), (l,0,h)]
-  back = Facet (Dimension 0 w 0 ) (Just outerColourNY) $ toDims [(0,w,0), (l,w,0), (l,w,h), (0,w,h)]
+  backside = Facet mempty (Just outerColourNX)  $ toDims [(l,0,0), (l,w,0), (l,w,h), (l,0,h)]
+  back = Facet mempty (Just outerColourNY) $ toDims [(0,w,0), (l,w,0), (l,w,h), (0,w,h)]
   front = Facet mempty Nothing $ toDims [(0,w,0), (l,w,0), (l,w,h), (0,w,h)]
   frontside = Facet mempty Nothing  $ toDims [(l,0,0), (l,w,0), (l,w,h), (l,0,h)]
   up = Facet (Dimension 0 0 h) Nothing  $ toDims [(0,0,0), (l,0,0), (l,w/2,0), (0,w/2,0)]
@@ -49,21 +81,40 @@ outerBoxToFacets (Dimension l w h) = let
 outerBoxToFacets' :: Dimension -> [Facet]
 outerBoxToFacets' (Dimension l w h) = let
   bottom = Facet mempty (Just outerColourNZ)  $ toDims [(0,0,0), (l,0,0), (l,w,0), (0,w,0)]
-  backside = Facet (Dimension l 0 0 ) (Just outerColourNX)  $ toDims [(l,0,0), (l,w,0), (l,w,h), (l,0,h)]
-  back = Facet (Dimension 0 w 0 ) (Just outerColourNY) $ toDims [(0,w,0), (l,w,0), (l,w,h), (0,w,h)]
-  front = Facet mempty Nothing $ toDims [(0,w,0), (l,w,0), (l,w,h), (0,w,h)]
-  frontside = Facet mempty Nothing  $ toDims [(l,0,0), (l,w,0), (l,w,h), (l,0,h)]
+  backside = Facet (Dimension 0 0 0 ) (Just outerColourNX)  $ toDims [(l,0,0), (l,w,0), (l,w,h), (l,0,h)]
+  back = Facet mempty (Just outerColourNY) $ toDims [(0,w,0), (l,w,0), (l,w,h), (0,w,h)]
+  front = Facet (Dimension 0 w 0) Nothing $ toDims [(0,w,0), (l,w,0), (l,w,h), (0,w,h)]
+  frontside = Facet (Dimension l 0 0 ) Nothing  $ toDims [(l,0,0), (l,w,0), (l,w,h), (l,0,h)]
   up = Facet (Dimension 0 0 h) Nothing  $ toDims [(0,0,0), (l,0,0), (l,w/2,0), (0,w/2,0)]
   in  reverse [front, frontside, up]
 
 innerBoxToFacets :: Dimension -> [Facet]
 innerBoxToFacets (Dimension l w h) = let
-  front = Facet mempty (Just innerColourNY) $ toDims [(0,w,0), (l,w,0), (l,w,h), (0,w,h)]
-  frontside = Facet mempty (Just innerColourNZ)  $ toDims [(l,0,0), (l,w,0), (l,w,h), (l,0,h)]
+  front = Facet (Dimension 0 w 0) (Just innerColourNY) $ toDims [(0,w,0), (l,w,0), (l,w,h), (0,w,h)]
+  frontside = Facet (Dimension l 0 0) (Just innerColourNZ)  $ toDims [(l,0,0), (l,w,0), (l,w,h), (l,0,h)]
   up = Facet (Dimension 0 0 h) (Just innerColourNX)  $ toDims [(0,0,0), (l,0,0), (l,w/2,0), (0,w/2,0)]
   up' = Facet (Dimension 0 (w/2) h) (Just innerColourNX)  $ toDims [(0,0,0), (l,0,0), (l,w/2,0), (0,w/2,0)]
-  in  reverse [front, frontside, up, up']
+  in  [front, frontside, up, up']
 
+innerPToFacets :: PDimension -> [Facet]
+innerPToFacets (PDimension off dim ori) = let
+  facets = innerBoxToFacets (W.rotate ori dim)
+  in map (translateFacet off) facets
+  
+
+ 
+rotateFacet ori (Facet off bg dims) = Facet (W.rotate ori off) bg (map (W.rotate ori) dims)
+translateFacet off0 (Facet off1 bg dims) = Facet (off0 `mappend` off1) bg dims
+
+facetCenter (Facet offset _ points) = let
+  Dimension gl gw gh = mconcat points 
+  n = fromIntegral (length points)
+  in offset `mappend` (Dimension (gl/n) (gw/n) (gh/n))
+
+facetZ f =
+  let Dimension l w h = facetCenter f
+  in (l+w)
+  
 toDim (x,y,z) = Dimension x y z
 toDims = map toDim
 
@@ -80,7 +131,7 @@ outerColourNZ = sRGB24 224 244 245
 
 innerColourNY = sRGB24 192 148 59
 innerColourNX = sRGB24 224 201 153
-innerColourNZ = sRGB24 235 219 189
+innerColourNZ = white --  sRGB24 235 219 189
 
 cos30 = cos (pi/6)
 sin30 = sin (pi/6)
@@ -88,5 +139,6 @@ cos60 = cos (pi/3)
 sin60 = sin (pi/3)
 iso :: Dimension -> Point V2 Double 
 iso (Dimension l w h) = x ^& y  where
-  x = l * cos30 - w * cos30
-  y = w * sin30 + l * sin30 + h
+  x =  0 - l * cos30 + w * cos30
+  y = 0 - w * sin30 - l * sin30 + h
+
