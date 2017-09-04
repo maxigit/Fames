@@ -7,6 +7,7 @@ module Handler.WH.Dimensions
 ) where
 
 import Yesod.Form.Bootstrap3
+import Database.Persist.MySQL
 import WarehousePlanner.Base hiding(rotate)
 import qualified WarehousePlanner.Base as W
 import Import
@@ -142,6 +143,7 @@ renderBoxes boxes = [whamlet|
         <th> Length
         <th> Width
         <th> Length
+        <th> Volume
         <th> Image
     <tbody>
       $forall (style, outer, inner) <- boxes
@@ -159,14 +161,27 @@ renderBoxes boxes = [whamlet|
              $maybe ih <- fmap dHeight inner
                <br>
                #{formatDouble ih}
+          <td> #{formatDouble (volume outer / 1000000)}
+             $maybe i <- inner
+               <br> #{formatDouble (volume i / 1000000)}
           <td><a href="@{routeFor outer inner}" ><img src=@?{(routeFor outer inner, [("width", "128")])}>
 |]
   
 
 -- * Misc
-loadBoxForStyles style = return [ ("a", Dimension 31 34 77, Nothing)
-                         , ("b", Dimension 60 39 25, Just (Dimension 38 23 10))
-                         ]
+loadBoxForStyles :: Text -> Handler [(Text, Dimension, Maybe Dimension)]
+loadBoxForStyles style =  do
+  let sql = "SELECT LEFT(description,8) as style, count(width) n, `length` l, width w , height h"
+          <> " FROM fames_boxtake"
+          <> " WHERE description like ?"
+          <> " GROUP BY style, l, w, h "
+          <> " ORDER by n DESC "
+          <> " LIMIT 200" :: Text
+      go (Single s, Single c, Single l, Single w, Single h)
+        = (s <> " ("  <> tshow (c::Int) <> ")" , Dimension l w h, Nothing)
+  takes <- runDB $ rawSql sql [PersistText style]
+  return $ map go (traceShowId takes)
+  
 
 parseBoxList :: Text -> [(Text, Dimension, Maybe Dimension)]
 parseBoxList text = mapMaybe go (traceShowId $ lines text)
@@ -199,8 +214,12 @@ displayBox outer innerm   = let
                middle = mconcat $ map innerPToFacets inners
                in (foreground , middle <> background)
   sortF = sortBy (comparing (facetZ)) 
-  in mconcat $ (disp fg_  # lc (blend 0.5 outerColourNY black) # dashing [13, 5] 0 )
+  d = mconcat $ (disp fg_  # lc (blend 0.5 outerColourNY black) # dashing [13, 5] 0 )
                <> disp facets
+  z = [ lineFromVertices (map iso [(Dimension 0 0 0), o])
+      | o <- [Dimension 100 0 0, Dimension 0 100 0, Dimension 0 0 100 ]
+      ]
+  in d <> (mconcat $ map stroke z) # lc red
 
 -- | Calculate 
 innerBoxes :: Dimension -> Dimension -> [PDimension]
