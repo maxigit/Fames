@@ -33,6 +33,11 @@
   !/packinglist/#Int64/edit_details WHPackingListEditDetailsR POST !pl
   !/packinglist/#Int64/deliver WHPackingListDeliverR POST !pl
 
+  /dimensions WHDimensionR GET !dimension !group=Dimensions !title=Box_Dimensions
+  /dimensions/bulk WHDimensionBulkR GET POST !title=Box_Dimensions_Bulk
+  /dimensions/outer/#Int64/#Int64/#Int64/ WHDimensionOuterR GET
+  /dimensions/inner/#Int64/#Int64/#Int64/#Int64/#Int64/#Int64/ WHDimensionInnerR GET
+
 /items ItemsR !items:
   /index/#Maybe-ItemViewMode ItemsIndexR GET POST !items/index !group=Maintenance !title=Index
   /history/#Text ItemsHistoryR GET !items/history
