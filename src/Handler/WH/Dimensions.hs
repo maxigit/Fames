@@ -2,6 +2,8 @@ module Handler.WH.Dimensions
 ( getWHDimensionR
 , getWHDimensionOuterR
 , getWHDimensionInnerR
+, getWHDimensionBulkR
+, postWHDimensionBulkR
 ) where
 
 import Yesod.Form.Bootstrap3
@@ -12,6 +14,8 @@ import qualified Yesod.Media.Simple as M
 import Diagrams.Prelude hiding(iso)
 import Diagrams.Backend.Cairo
 import Data.Ord(comparing)
+import Data.Text (splitOn, strip)
+import Data.Maybe (fromJust)
 -- import Linear.Affine ((.-.))
 
 -- * Types
@@ -29,7 +33,7 @@ data PDimension = PDimension
   }
 
 -- * Forms
-dimForm outer inner = renderBootstrap3 BootstrapBasicForm form
+singleForm outer inner = renderBootstrap3 BootstrapBasicForm form
   where
     form = (,,,,,,) <$> (areq intField "outer length" Nothing)
               <*> (areq intField "outer width" Nothing)
@@ -48,6 +52,9 @@ validateParam (l,w,h,il,iw,ih,style) =
       Just style -> Right style
 
 
+bulkForm text = renderBootstrap3 BootstrapBasicForm form where
+  form = unTextarea <$> areq textareaField "dimensions" (fmap Textarea text)
+  
 -- * Requests
 
 mkDimension l w h = Dimension (c l) (c w) (c h) where
@@ -75,7 +82,7 @@ getWHDimensionR :: Handler Html
 getWHDimensionR = renderDimensionR Nothing Nothing
 
 renderDimensionR outer0 inner0 = do
-  ((resp, form), encType) <- runFormGet (dimForm outer0 inner0)
+  ((resp, form), encType) <- runFormGet (singleForm outer0 inner0)
   boxes <- case resp of
     FormMissing -> return []
     FormFailure a -> do
@@ -85,17 +92,50 @@ renderDimensionR outer0 inner0 = do
       (Left  (outer, inner)) -> return [("" :: Text, outer, inner)]
       (Right style) -> loadBoxForStyles style
 
-  let routeFor (Dimension l w h) Nothing = WarehouseR $ WHDimensionOuterR ((fromIntegral.round) l) (round w) (round h)
-      routeFor (Dimension l w h) (Just (Dimension il iw ih))
-       =WarehouseR $ WHDimensionInnerR (round l) (round w) (round h) (round il) (round iw) (round ih)
 
   defaultLayout [whamlet|
 <div.well>
-  <form#get-dimensions role=form methog=get action=@{WarehouseR WHDimensionR} enctype=#{encType}>
+  <form#get-dimensions role=form method=get action=@{WarehouseR WHDimensionR} enctype=#{encType}>
     ^{form}
     <button.btn.btn-default type="submit" name> Process
 <div.well>
-  <table.table.table-striped.table-hover>
+  ^{renderBoxes boxes}
+|]
+
+getWHDimensionBulkR :: Handler Html
+getWHDimensionBulkR = do
+  renderBulk Nothing
+
+
+postWHDimensionBulkR :: Handler Html
+postWHDimensionBulkR = do
+  ((resp, view), _encType) <- runFormPost (bulkForm Nothing)
+  case resp of
+    FormMissing -> error "Form Missing"
+    FormFailure a -> do
+      setError $ "FormFailure:" >> mapM_ toHtml a
+      sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
+    FormSuccess text -> do
+      renderBulk (Just text)
+     
+  
+renderBulk :: Maybe Text -> Handler Html
+renderBulk text = do
+  (form, encType) <- generateFormPost (bulkForm text)
+  let boxes = maybe [] parseBoxList text
+  defaultLayout [whamlet|
+<div.well>
+  <form#get-dimensions role=form method=POST action=@{WarehouseR WHDimensionBulkR} enctype=#{encType}>
+    ^{form}
+    <button.btn.btn-default type="submit" name> Process
+<div.well>
+  ^{renderBoxes boxes}
+|]
+
+renderBoxes :: [(Text, Dimension, Maybe Dimension)] -> Widget
+renderBoxes boxes = [whamlet|
+<div>
+  <table.table.table-striped.table-border.table-hover>
     <thead>
       <tr>
         <th> Style
@@ -107,18 +147,43 @@ renderDimensionR outer0 inner0 = do
       $forall (style, outer, inner) <- boxes
         <tr>
           <td> #{style}
-          <td>
-          <td>
-          <td>
-          <td><img src=@{routeFor outer inner}>
+          <td> #{formatDouble (dLength outer)}
+             $maybe il <- fmap dLength inner
+               <br>
+               #{formatDouble il}
+          <td> #{formatDouble (dWidth outer)}
+             $maybe iw <- fmap dWidth inner
+               <br>
+               #{formatDouble iw}
+          <td> #{formatDouble (dHeight outer)}
+             $maybe ih <- fmap dHeight inner
+               <br>
+               #{formatDouble ih}
+          <td><a href="@{routeFor outer inner}" ><img src=@?{(routeFor outer inner, [("width", "128")])}>
 |]
-{-
--}
+  
 
--- * Loading
+-- * Misc
 loadBoxForStyles style = return [ ("a", Dimension 31 34 77, Nothing)
                          , ("b", Dimension 60 39 25, Just (Dimension 38 23 10))
                          ]
+
+parseBoxList :: Text -> [(Text, Dimension, Maybe Dimension)]
+parseBoxList text = mapMaybe go (traceShowId $ lines text)
+  where go line =
+          case splitOn "," (strip line) of
+            [l,w,h] -> Just ("", mkDim0 l w h, Nothing)
+            [s,l,w,h] -> Just (s, mkDim0 l w h, Nothing)
+            [l,w,h, il, iw, ih] -> Just ("", mkDim0 l w h, (mkDimM il iw ih))
+            [s,l,w,h, il, iw, ih] -> Just (s, mkDim0 l w h, (mkDimM il iw ih))
+            _ -> Nothing
+        c = readMay :: Text -> Maybe Double
+        mkDim0 l w h = fromJust $ mkDimM l w h
+        mkDimM l w h = liftA3 Dimension (c l) (c w) (c h)
+
+routeFor (Dimension l w h) Nothing = WarehouseR $ WHDimensionOuterR ((fromIntegral.round) l) (round w) (round h)
+routeFor (Dimension l w h) (Just (Dimension il iw ih))
+       =WarehouseR $ WHDimensionInnerR (round l) (round w) (round h) (round il) (round iw) (round ih)
 -- * Diagrams
 
 displayBox :: Dimension -> Maybe Dimension -> Diagram Cairo
