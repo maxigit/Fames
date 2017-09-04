@@ -34,6 +34,8 @@
   !/packinglist/#Int64/deliver WHPackingListDeliverR POST !pl
 
   /dimensions WHDimensionR GET !dimension !group=Dimensions !title=Box_Dimensions
+  /dimensions/outer/#Int64/#Int64/#Int64/ WHDimensionOuterR GET
+  /dimensions/inner/#Int64/#Int64/#Int64/#Int64/#Int64/#Int64/ WHDimensionInnerR GET
 
 /items ItemsR !items:
   /index/#Maybe-ItemViewMode ItemsIndexR GET POST !items/index !group=Maintenance !title=Index

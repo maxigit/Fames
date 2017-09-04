@@ -1,7 +1,10 @@
-module Handler.WH.Dimensions (
-getWHDimensionR
+module Handler.WH.Dimensions
+( getWHDimensionR
+, getWHDimensionOuterR
+, getWHDimensionInnerR
 ) where
 
+import Yesod.Form.Bootstrap3
 import WarehousePlanner.Base hiding(rotate)
 import qualified WarehousePlanner.Base as W
 import Import
@@ -25,29 +28,97 @@ data PDimension = PDimension
   , pOr :: Orientation 
   }
 
+-- * Forms
+dimForm outer inner = renderBootstrap3 BootstrapBasicForm form
+  where
+    form = (,,,,,,) <$> (areq intField "outer length" Nothing)
+              <*> (areq intField "outer width" Nothing)
+              <*> (areq intField "outer height" Nothing)
+              <*> (aopt intField "inner length" Nothing)
+              <*> (aopt intField "inner width" Nothing)
+              <*> (aopt intField "inner height" Nothing)
+              <*> (aopt textField "style" (Nothing))
+validateParam :: (Int64, Int64, Int64, Maybe Int64, Maybe Int64, Maybe Int64, Maybe Text)
+              -> Either (Dimension, Maybe Dimension) Text
+validateParam (l,w,h,il,iw,ih,style) =
+  case style of
+      Nothing -> Left ( Dimension (fromIntegral l) (fromIntegral w) (fromIntegral h)
+                      , Dimension <$> (fromIntegral <$> il) <*> (fromIntegral <$> iw) <*> (fromIntegral <$> ih)
+                      )
+      Just style -> Right style
+
+
 -- * Requests
 
-getWHDimensionR :: Handler TypedContent
-getWHDimensionR = do
-  l0 <- lookupGetParam "length"
-  w0 <- lookupGetParam "width"
-  h0 <- lookupGetParam "height"
-  l1 <- lookupGetParam "ilength"
-  w1 <- lookupGetParam "iwidth"
-  h1 <- lookupGetParam "iheight"
-  imgW <- lookupGetParam "imgW"
+mkDimension l w h = Dimension (c l) (c w) (c h) where
+  c = fromIntegral
+getWHDimensionOuterR :: Int64 -> Int64 -> Int64 -> Handler TypedContent
+getWHDimensionOuterR l w h = renderImage (mkDimension l w h) Nothing
 
-  let [l,w,h] =  zipWith (fromMaybe) [60,40,20] (map (>>= readMay) [l0,w0,h0] )
-      outer = Dimension l w h
-  
-  let is@[li,wi,hi] =  (map (>>= readMay) [l1,w1,h1] )
-      inner = liftA3 Dimension li wi hi
-  traceShowM ("INNER", inner, is )
-  let size = mkWidth (fromMaybe 800 $ imgW >>= readMay)
+getWHDimensionInnerR :: Int64 -> Int64 -> Int64
+                    ->Int64 -> Int64 -> Int64
+                    ->  Handler TypedContent
+getWHDimensionInnerR l w h il iw ih = renderImage (mkDimension l w h) (Just $ mkDimension il iw ih)
+
+
+
+renderImage :: Dimension -> Maybe Dimension -> Handler TypedContent
+renderImage outer inner = do
+  imgW <- lookupGetParam "width"
+  -- let size = mkWidth (fromMaybe 800 $ imgW >>= readMay)
+  let w = fromMaybe 800 $ imgW >>= readMay 
+      size = dims2D w w
       diag = displayBox outer inner
   M.renderContent (M.SizedDiagram size diag)
 
+getWHDimensionR :: Handler Html
+getWHDimensionR = renderDimensionR Nothing Nothing
 
+renderDimensionR outer0 inner0 = do
+  ((resp, form), encType) <- runFormGet (dimForm outer0 inner0)
+  boxes <- case resp of
+    FormMissing -> return []
+    FormFailure a -> do
+      setError $ "FormFailure:" >> mapM_ toHtml a
+      sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{form}|]
+    FormSuccess param -> case validateParam param of
+      (Left  (outer, inner)) -> return [("" :: Text, outer, inner)]
+      (Right style) -> loadBoxForStyles style
+
+  let routeFor (Dimension l w h) Nothing = WarehouseR $ WHDimensionOuterR ((fromIntegral.round) l) (round w) (round h)
+      routeFor (Dimension l w h) (Just (Dimension il iw ih))
+       =WarehouseR $ WHDimensionInnerR (round l) (round w) (round h) (round il) (round iw) (round ih)
+
+  defaultLayout [whamlet|
+<div.well>
+  <form#get-dimensions role=form methog=get action=@{WarehouseR WHDimensionR} enctype=#{encType}>
+    ^{form}
+    <button.btn.btn-default type="submit" name> Process
+<div.well>
+  <table.table.table-striped.table-hover>
+    <thead>
+      <tr>
+        <th> Style
+        <th> Length
+        <th> Width
+        <th> Length
+        <th> Image
+    <tbody>
+      $forall (style, outer, inner) <- boxes
+        <tr>
+          <td> #{style}
+          <td>
+          <td>
+          <td>
+          <td><img src=@{routeFor outer inner}>
+|]
+{-
+-}
+
+-- * Loading
+loadBoxForStyles style = return [ ("a", Dimension 31 34 77, Nothing)
+                         , ("b", Dimension 60 39 25, Just (Dimension 38 23 10))
+                         ]
 -- * Diagrams
 
 displayBox :: Dimension -> Maybe Dimension -> Diagram Cairo
