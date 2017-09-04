@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 module Handler.WH.Dimensions
 ( getWHDimensionR
 , getWHDimensionOuterR
@@ -83,6 +84,7 @@ getWHDimensionR :: Handler Html
 getWHDimensionR = renderDimensionR Nothing Nothing
 
 renderDimensionR outer0 inner0 = do
+  setInfo ("Start style with  ! or < to use inner boxes")
   ((resp, form), encType) <- runFormGet (singleForm outer0 inner0)
   boxes <- case resp of
     FormMissing -> return []
@@ -169,7 +171,32 @@ renderBoxes boxes = [whamlet|
   
 
 -- * Misc
+-- TODO  remove quick hack 
 loadBoxForStyles :: Text -> Handler [(Text, Dimension, Maybe Dimension)]
+loadBoxForStyles (stripPrefix "!" -> Just style) = do
+  let sql = "SELECT style, count(owidth) n, `oLength` l, oWidth w , oHeight h"
+          <> " , iLength il, iWidth iw, iHeight ih"
+          <> " FROM box_dimensions"
+          <> " WHERE style like ?"
+          <> " GROUP BY style, l, w, h, il, iw, ih "
+          <> " ORDER by n DESC "
+          <> " LIMIT 200" :: Text
+      go (Single s, Single c, Single l, Single w, Single h, Single il, Single iw, Single ih)
+        = (s <> " ("  <> tshow (c::Int) <> ")" , Dimension l w h, liftA3 Dimension il iw ih )
+  takes <- runDB $ rawSql sql [PersistText style]
+  return $ map go (traceShowId takes)
+loadBoxForStyles (stripPrefix "<" -> Just vol) = do
+  let sql = "SELECT style, count(owidth) n, `oLength` l, oWidth w , oHeight h"
+          <> " , iLength il, iWidth iw, iHeight ih"
+          <> " FROM box_dimensions"
+          <> " WHERE IF(iLength=0, oLength*oWidth*oHeight,iLength*iWidth*iHeight)/1000000 <= ?"
+          <> " GROUP BY style, l, w, h, il, iw, ih "
+          <> " ORDER by (itemPerBox*volume) DESC "
+          <> " LIMIT 200" :: Text
+      go (Single s, Single c, Single l, Single w, Single h, Single il, Single iw, Single ih)
+        = (s <> " ("  <> tshow (c::Int) <> ")" , Dimension l w h, liftA3 Dimension il iw ih )
+  takes <- runDB $ rawSql sql [PersistDouble (fromJust $ readMay vol)]
+  return $ map go (traceShowId takes)
 loadBoxForStyles style =  do
   let sql = "SELECT LEFT(description,8) as style, count(width) n, `length` l, width w , height h"
           <> " FROM fames_boxtake"
@@ -202,6 +229,7 @@ routeFor (Dimension l w h) (Just (Dimension il iw ih))
 -- * Diagrams
 
 displayBox :: Dimension -> Maybe Dimension -> Diagram Cairo
+displayBox outer (Just (Dimension 0 0 0))   = displayBox outer Nothing
 displayBox outer innerm   = let
   disp = map displayFacetISO
   (fg_ , facets) = case innerm of
@@ -283,6 +311,7 @@ innerBoxToFacets opening (Dimension l w h) = let
   go (Orientation Horizontal Depth) = front 1 1 1 ++  side 1 2 1 ++ top 1 1 1
   go (Orientation Horizontal Vertical) = front 1 1 1 ++  side 1 1 2 ++ top 1 1 1
   go (Orientation Depth Vertical) = front 1 1 2 ++  side 1 1 1 ++ top 1 1 1
+  go (Orientation Depth Horizontal) = front 2 1 1 ++  side 1 1 1 ++ top 1 1 1
   in go $ traceShowId opening
 
 -- halfL f@(Dimension l w h) = let
