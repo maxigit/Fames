@@ -84,7 +84,7 @@ getWHDimensionR :: Handler Html
 getWHDimensionR = renderDimensionR Nothing Nothing
 
 renderDimensionR outer0 inner0 = do
-  setInfo ("Start style with  ! or < to use inner boxes")
+  setInfo ("Start style with  ! or < (inner box volume) to use inner boxes")
   ((resp, form), encType) <- runFormGet (singleForm outer0 inner0)
   boxes <- case resp of
     FormMissing -> return []
@@ -144,7 +144,7 @@ renderBoxes boxes = [whamlet|
         <th> Style
         <th> Length
         <th> Width
-        <th> Length
+        <th> Height
         <th> Volume
         <th> Image
     <tbody>
