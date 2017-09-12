@@ -166,7 +166,7 @@ findSlices boxes = let
                                         + (totalQuantity b' `divup` quantity b)
                                 }
 
-    maxHeigh = 300
+    maxHeigh = 240
     maxLength = 200
     toSlice b = let d = boxDimension b
                     h = floor $ maxHeigh / bHeigth d
@@ -183,19 +183,21 @@ findSlices boxes = let
     priority (s, _, _, _, _, _) = drop 5 s
     
     run sorted =  evalState (mapM (\(s, n, nh, w, nd, l) -> do
-                                acc <- get
-                                let acc' = resetif 8 (acc+w+0.1)
+                                (acc, breaks) <- get
+                                let (acc', breaks') = resetif breaks (acc+w+0.1)
                                 
-                                put acc'
+                                put (acc', breaks)
                                 return $ (s, n, nh, w, nd, l, acc)
                         ) sorted
-                    ) 0
+                    ) (0, [7.5,5.5,4])
     in concatMap run [narrowS++ wideS]
     
 
-resetif threshold v = if v >= threshold 
-                         then 0
-                         else v
+resetif :: (Num t, Ord t) => [t] -> t -> (t, [t])
+resetif [] v = (v, [])
+resetif breaks@(break:bs) v = if v >= break
+                         then (0, bs)
+                         else (v, breaks)
                 
 printSlice :: Slice -> IO ()
 printSlice (st, n, nh, w, nd, d ,cw) = printf "%-15s x %2d  |  %5.2f - %5.2f (%2.0f) \n"
