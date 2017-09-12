@@ -1,8 +1,8 @@
-dist*
+/dist*
 static/tmp/
 static/combined/
 static/fay-runtime.js
-static/faygen*.js
+/static/faygen*.js
 config/client_session_key.aes
 *.hi
 *.o
