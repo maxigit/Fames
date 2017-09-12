@@ -1,3 +1,38 @@
+* TODO Delete from item index
+** TODO Website 
+  - [ ] createAndInsertProductPrices prices prod'revMKeys
+    - [ ] (go DC.FieldDataCommercePriceT)  p'rKeys
+    - [ ] (go' DC.FieldRevisionCommercePriceT)  p'rKeys
+  - [ ] createAndInsertProductColours bases prod'revMKeys
+    - [ ] (go DC.FieldDataFieldColourT) p'rKeys
+    - [ ] (go' DC.FieldRevisionFieldColourT) p'rKeys
+  - [ ] createAndInsertProductTrimColours (trims) prod'revMKeys
+    - [ ] (go DC.FieldDataFieldTrimColourT) p'rKeys
+    - [ ] (go' DC.FieldRevisionFieldTrimColourT) p'rKeys
+  - [ ] createAndInsertProductStockStatus prod'revMKeys
+    - [ ] (newProductStockStatus (Just 70) DC.FieldDataFieldStockStatusT) p'rKeys
+    - [ ] (newProductStockStatus (Just 70) DC.FieldRevisionFieldStockStatusT) p'rKeys
+   - [ ] createAndInsertDCLinks displayId displayRev sku'p'rs
+    - [ ] (go DC.FieldDataFieldProductT) p'rS
+    - [ ] (go' DC.FieldRevisionFieldProductT) p'rS
+  - [ ] createAndInsertDCPrices priceMaps sku'p'rs = do
+        - [ ]  createAndInsertDCPriceFor 1 DC.FieldDataFieldPricePl01T (DC.FieldRevisionFieldPricePl01T)
+        - [ ] reateAndInsertDCPriceFor 2 DC.FieldDataFieldPricePl02T DC.FieldRevisionFieldPricePl02T
+        - [ ] reateAndInsertDCPriceFor 3 DC.FieldDataFieldPricePl03T DC.FieldRevisionFieldPricePl03T
+        - [ ] reateAndInsertDCPriceFor 4 DC.FieldDataFieldPricePl04T DC.FieldRevisionFieldPricePl04T
+        - [ ] reateAndInsertDCPriceFor 5 DC.FieldDataFieldPricePl05T DC.FieldRevisionFieldPricePl05T
+        - [ ] reateAndInsertDCPriceFor 6 DC.FieldDataFieldPricePl06T DC.FieldRevisionFieldPricePl06T
+        - [ ] reateAndInsertDCPriceFor 7 DC.FieldDataFieldPricePl07T DC.FieldRevisionFieldPricePl07T
+        - [ ] reateAndInsertDCPriceFor 8 DC.FieldDataFieldPricePl08T DC.FieldRevisionFieldPricePl08T
+        - [ ] reateAndInsertDCPriceFor 9 DC.FieldDataFieldPricePl09T DC.FieldRevisionFieldPricePl09T
+        - [ ] reateAndInsertDCPriceFor 10 DC.FieldDataFieldPricePl10T DC.FieldRevisionFieldPricePl10T
+        - [ ] reateAndInsertDCPriceFor 11 DC.FieldDataFieldPricePl11T DC.FieldRevisionFieldPricePl11T
+        - [ ] reateAndInsertDCPriceFor 12 DC.FieldDataFieldPricePl12T DC.FieldRevisionFieldPricePl12T
+        - [ ] reateAndInsertDCPriceFor 13 DC.FieldDataFieldPricePl13T DC.FieldRevisionFieldPricePl13T
+        - [ ] reateAndInsertDCPriceFor 14 DC.FieldDataFieldPricePl14T DC.FieldRevisionFieldPricePl14T
+** TODO - [ ] Prices
+** TODO PO PRices
+** TODO All
 * Web status missing
 Web items need 
 - product variation

@@ -77,6 +77,8 @@ postItemsIndexR mode = do
         activate param
     Just "deactivate" -> do
         deactivate param
+    Just "delete" -> do
+        deleteItems param
     _ -> return ()
   renderIndex param ok200
 
@@ -906,16 +908,18 @@ renderIndex param0 status = do
       ^{ix}
     <div.well>
       $if (ipShowInactive param)
-        <button.btn.btn-danger type="submit" name="button" value="create">Create Missings
+        <button.btn.btn-primary type="submit" name="button" value="create">Create Missings
       $else
         <a href="#" data-toggle="tooltip" title="Please show unactive before creating missing items.">
-          <div.btn.btn-danger.disabled type="submit" name="button" value="create"> Create Missings
+          <div.btn.btn-primary.disabled type="submit" name="button" value="create"> Create Missings
       $if (ipMode param == ItemWebStatusView)
-        <button.btn.btn-danger type="submit" name="button" value="activate">Activate
+        <button.btn.btn-primary type="submit" name="button" value="activate">Activate
         <button.btn.btn-warning type="submit" name="button" value="deactivate">Deactivate
+        <button.btn.btn-danger type="submit" name="button" value="delete">Delete
       $else
           <div.btn.btn-warning.disabled type="submit" name="button" value=""> Activate
           <div.btn.btn-warning.disabled type="submit" name="button" value=""> Deactivate
+          <div.btn.btn-danger.disabled type="submit" name="button" value=""> Delete
 |]
       fay = $(fayFile "ItemsIndex")
   selectRep $ do
@@ -974,6 +978,15 @@ createMissing params = do
 
    clearAppCache
    return resp
+
+deleteItems :: IndexParam -> Handler ()
+deleteItems params = do
+  resp <- ( case ipMode params of
+              ItemWebStatusView -> deleteDC params
+          )
+  clearAppCache
+  return resp
+
 
 -- ***  Gl
 createGLMissings :: IndexParam -> Handler ()
@@ -1090,6 +1103,29 @@ createDCMissings params = do
           return ()
   mapM_ go itemGroups
   
+deleteDC :: IndexParam -> Handler ()
+deleteDC params = do
+  cache <- fillIndexCache
+  basePl <- basePriceList
+  timestamp <- round <$> liftIO getPOSIXTime
+  itemGroups <- loadVariationsToKeep cache (params {ipShowInactive = True, ipBases = mempty}) 
+
+  let skus = [ iiSku info
+             | (_, group) <- itemGroups
+             , (_, info) <- group
+             ] 
+
+      go pId'revId = do
+        -- skip deleteWebPrices
+        -- skip deleteDCLinks
+        deleteProduct pId'revId
+
+  runDB $ do
+        sku'pId'revIds <- loadSkuProductRevisions mempty skus
+        let pId'revIds = [ (p,r) | (_, p, r) <- sku'pId'revIds ]
+        mapM_ go pId'revIds
+  
+  
 createMissingProducts
   :: IndexCache
   -> [((VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text]))), Double)]
@@ -1125,6 +1161,16 @@ createMissingProducts cache group = do
   createAndInsertProductStockStatus prod'revMKeys
   return $ mapFromList (zip skus prod'revKeys)
         
+-- deleteProduct :: (DC.CommerceProductTId, Maybe DC.CommerceProductRevisionTId) -> _ ()
+deleteProduct p'r = do
+  deleteProductStockStatus p'r
+  deleteProductTrimColour p'r
+  deleteProductColour p'r
+  deleteProductPrice p'r
+  deleteCommerceProduct p'r
+  return ()
+
+
 createAndInsertFields'
   :: _
   => [(Int, Maybe Int) -> r]
@@ -1211,6 +1257,12 @@ newProductRev (Entity pId DC.CommerceProductT{..}) = DC.CommerceProductRevisionT
   commerceProductRevisionTRevisionTimestamp = commerceProductTChanged
   commerceProductRevisionTData = commerceProductTData
   
+deleteCommerceProduct (pId, mrevId) = do
+  delete pId
+  forM mrevId (\revId ->
+
+                 delete revId
+              )
 -- **** field_*_field_price : main price. Should be Retail price
 createAndInsertProductPrices :: [Double]
                              -> [(DC.CommerceProductTId, Maybe DC.CommerceProductRevisionTId)]
@@ -1231,6 +1283,15 @@ newProductPrice price mkPrice pr = newProductField mkPrice pr
  "GBP"
  (Just  "a:1:{s:10:\"components\";a:0:{}}")
 
+deleteProductPrice (pId,mrevId) = do
+  deleteWhere  [ DC.FieldDataCommercePriceTEntityId ==. DC.unCommerceProductTKey pId
+               , DC.FieldDataCommercePriceTEntityType ==. "commerce_product"
+               ]
+  forM mrevId (\revId -> 
+                deleteWhere  [ DC.FieldRevisionCommercePriceTEntityId ==. DC.unCommerceProductRevisionTKey revId
+                             , DC.FieldRevisionCommercePriceTEntityType ==. "commerce_product"
+                             ]
+             )
 -- **** field*_field_colour
 loadDCColorMap :: Handler (Map Text Int)
 loadDCColorMap = cache0 cacheForEver "dc-color-map" $ do
@@ -1251,6 +1312,16 @@ createAndInsertProductColours colours p'rKeys = do
   createAndInsertFields' (go DC.FieldDataFieldColourT) p'rKeys
   createAndInsertRevFields' (go' DC.FieldRevisionFieldColourT) p'rKeys
 
+deleteProductColour (pId,mrevId) = do
+  deleteWhere  [ DC.FieldDataFieldColourTEntityId ==. DC.unCommerceProductTKey pId
+               , DC.FieldDataFieldColourTEntityType ==. "commerce_product"
+               ]
+  forM mrevId (\revId -> 
+                deleteWhere  [ DC.FieldRevisionFieldColourTEntityId ==. DC.unCommerceProductRevisionTKey revId
+                             , DC.FieldRevisionFieldColourTEntityType ==. "commerce_product"
+                             ]
+             )
+
 createAndInsertProductTrimColours colourMs p'rKeys0 = do
   -- we need to skip colours which are not present
   let (colours, p'rKeys) = unzip [(col, p'r)
@@ -1264,6 +1335,16 @@ createAndInsertProductTrimColours colourMs p'rKeys0 = do
               ]
   createAndInsertFields' (go DC.FieldDataFieldTrimColourT) p'rKeys
   createAndInsertRevFields' (go' DC.FieldRevisionFieldTrimColourT) p'rKeys
+
+deleteProductTrimColour (pId,mrevId) = do
+  deleteWhere  [ DC.FieldDataFieldTrimColourTEntityId ==. DC.unCommerceProductTKey pId
+               , DC.FieldDataFieldTrimColourTEntityType ==. "commerce_product"
+               ]
+  forM mrevId (\revId -> 
+                deleteWhere  [ DC.FieldRevisionFieldTrimColourTEntityId ==. DC.unCommerceProductRevisionTKey revId
+                             , DC.FieldRevisionFieldTrimColourTEntityType ==. "commerce_product"
+                             ]
+             )
 
 newProductColour colId mkColour pId'revId =
   newProductField mkColour pId'revId (Just colId)
@@ -1289,6 +1370,16 @@ newProductStockStatus status  mkStatus pId'revId =
 --     ids <- insertMany $ trace "new product" (map newProduct missings)
 --     return ()
 --     -- insertMany_ (map newProductRev missings)
+  
+deleteProductStockStatus (pId,mrevId) = do
+  deleteWhere  [ DC.FieldDataFieldStockStatusTEntityId ==. DC.unCommerceProductTKey pId
+               , DC.FieldDataFieldStockStatusTEntityType ==. "commerce_product"
+               ]
+  forM mrevId (\revId -> 
+                deleteWhere  [ DC.FieldRevisionFieldStockStatusTEntityId ==. DC.unCommerceProductRevisionTKey revId
+                             , DC.FieldRevisionFieldStockStatusTEntityType ==. "commerce_product"
+                             ]
+             )
   
 -- **** field_*_field_product : link to product display
 -- | Create product display link for all variations of a given style
