@@ -279,7 +279,7 @@ loadVariations :: IndexCache -> IndexParam
                           ]
 loadVariations cache param = do
   -- pre cache variations parts
-  delayeds <- mapM (\(p,a) -> preCache0 (cacheSecond 30) (p
+  delayeds <- mapM (\(p,a) -> preCache0 (cacheSecond 300) (p
                                            , param { ipMode = ItemPriceView
                                                   , ipChecked = []
                                                   , ipBases = mempty
@@ -309,7 +309,7 @@ loadVariations cache param = do
               setWarning err
               return []
     Right styleF -> let select = selectList styleF [Asc FA.StockMasterId]
-                    in cache0 (cacheSecond 30) ("load styles", ipStyles param) (runDB select)
+                    in cache0 (cacheSecond 300) ("load styles", ipStyles param) (runDB select)
   variations <- case varF of
     (Right Nothing) -> return (Left $ map  entityKey styles)
     (Left filter_)  -> let select = (Left . map entityKey) <$> runDB (selectList -- selectKeysList bug. fixed but not in current LTS
@@ -317,7 +317,7 @@ loadVariations cache param = do
                                      <> [FA.StockMasterInactive ==. False ]
                                     )
                                           [Asc FA.StockMasterId])
-                       in cache0 (cacheSecond 30) (filter_, "load variations") select
+                       in cache0 (cacheSecond 300) (filter_, "load variations") select
     (Right (Just group_)) -> return $ Right (Map.findWithDefault [] group_ varGroupMap)
   infoSources <- mapM getDelayed (case ipMode param of
     ItemGLView -> []
