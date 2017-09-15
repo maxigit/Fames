@@ -52,7 +52,7 @@ tiltBoxForward box = box {boxDimension = (tiltForward.boxDimension) box}
 readBoxes :: String -> IO [Box]
 readBoxes filename = do
     file <- readFile filename
-    return $ map lineToBox (tail $ lines file) 
+    return $ map lineToBox (tail $ lines file)
 
 lineToBox :: String -> Box
 lineToBox line = let
@@ -85,19 +85,19 @@ data Bulk = Bulk {
         ,bulk :: Double
     } deriving (Show, Eq)
 
-    
+
 instance Ord Bulk where
     compare a b = compare (bulk a) (bulk b)
 
 bestOrientation :: Box -> Bay -> Bulk
-bestOrientation box bay = let 
+bestOrientation box bay = let
     boxDim = dimension box
     bayDim = dimension bay
     areaRatio = area boxDim / (area bayDim)
     normalNumber = bayDim // boxDim
     turnedNumber = bayDim // (rotate boxDim)
     in if (turnedNumber > normalNumber)
-        then Bulk Turned turnedNumber ((fromIntegral turnedNumber)*areaRatio) 
+        then Bulk Turned turnedNumber ((fromIntegral turnedNumber)*areaRatio)
         else Bulk Flat normalNumber  ((fromIntegral normalNumber)*areaRatio)
 
 bestBay :: [Bay] -> Box -> [(Bay, Bulk)]
@@ -108,7 +108,7 @@ bestBay bays box = reverse $ sortBy (compare `on` snd) $ zip bays $ map (bestOri
 report :: Box -> IO ()
 report box =
     let bulks = bestBay bays box
-    in do 
+    in do
         putStr $ (style box) ++","++(show $ number box)
         mapM_ (reportBulk (number box)) (bestBay bays box)
         putStrLn ""
@@ -120,9 +120,9 @@ reportBulk n (bay, bulk_) = do
         ++(show $ orientation bulk_)
         ++","
         ++(show $ perBay bulk_)
-        ++" [" 
+        ++" ["
         ++(show $ n `divp` (perBay bulk_))
-        ++"]," 
+        ++"],"
         ++(showFFloat (Just 0)  (100*(bulk bulk_)) "%")
     where divp _ 0 = 0
           divp p q = (p+q-1) `div` q
@@ -133,17 +133,17 @@ main' = do
         [filename] ->  do
             boxes' <- readBoxes filename
             let boxes = map tiltBoxForward boxes'
-            
+
             mapM_ report boxes
         otherwise -> error "please supply an file as argument"
 
 main = do
     args <- getArgs
-    case args of 
+    case args of
         [filename] -> do
             boxes <- readBoxes filename
             mapM_ printSlice (findSlices boxes)
-        
+
         otherwise -> error "please supply a file as argument"
 
 -- | Find how to unload a container by "slices"
@@ -157,7 +157,7 @@ type Slice = ( Style
              , Double -- ^ cumulative Widt
              )
 findSlices :: [Box] -> [Slice]
-findSlices boxes = let  
+findSlices boxes = let
     byStyle = foldr insertWith (Map.empty) boxes
     insertWith box m = Map.insertWith append (style box) box m
     -- add boxes and keep the dimensions of the most numerous one
@@ -175,34 +175,34 @@ findSlices boxes = let
                     l' = number b `divup` (h*w)
                 in (style b, w, h, bWidth d * fromIntegral w/100, l', fromIntegral l'*bLength d)
     preSlices = map toSlice $ Map.elems byStyle
-    -- splitNarrow
+    -- split Narrow
     (narrow, wide) = partition (\(_,_,_,_,_,l)  -> l< 120) preSlices
     -- we need slices to be sorteb by
     [narrowS, wideS]= map (sortBy (compare `on` priority))
                           [narrow, wide]
     priority (s, _, _, _, _, _) = drop 5 s
-    
+
     run sorted =  evalState (mapM (\(s, n, nh, w, nd, l) -> do
                                 (acc, breaks) <- get
                                 let (acc', breaks') = resetif breaks (acc+w+0.1)
-                                
+
                                 put (acc', breaks)
                                 return $ (s, n, nh, w, nd, l, acc)
                         ) sorted
                     ) (0, [7.5,5.5,4])
     in concatMap run [narrowS++ wideS]
-    
+
 
 resetif :: (Num t, Ord t) => [t] -> t -> (t, [t])
 resetif [] v = (v, [])
 resetif breaks@(break:bs) v = if v >= break
                          then (0, bs)
                          else (v, breaks)
-                
+
 printSlice :: Slice -> IO ()
 printSlice (st, n, nh, w, nd, d ,cw) = printf "%-15s x %2d  |  %5.2f - %5.2f (%2.0f) \n"
                                       st n cw (cw + w) d
-                                                 
-        
-        
+
+
+
 divup p q = (p + q-1) `div` q
