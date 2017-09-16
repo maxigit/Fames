@@ -378,5 +378,5 @@ test-suite test
       Items.InternalSpec
       RoleSpec
       TestImport
-      WH.Barcode
+      WH.BarcodeSpec
   default-language: Haskell2010
