@@ -10,6 +10,23 @@ import qualified Data.Map as Map
 
 -- * Types
 type Style = Text
+-- | A slice of boxes in a  unloading zone.
+-- Boxes are unloaded in the unloaded area in a rectangular zone.
+-- Each boxes of the same stiles are together using the full depth (width) of the zone
+-- example
+-- Lest's say we have 9 boxes of A, 30 Bs , 24 C and one 1
+--  ****************** Wall ***************************
+--  +-------+-----------------------+----------------+
+--  + A     +    B                  + C              +
+--  + 1x3x3 +    5x3x2              + 2x4x3          +  Zone 1
+--  +-------+-----------------------+----------------+
+--       path
+--  +------------------------------------------------+
+--  + D                                              + Zone 2
+--  + 1x1x1                                          +
+--  +------------------------------------------------+
+--  Each section of similar style box is called a slice.
+
 data Slice = Slice
              { slBox :: Box -- ^ style and box information
              , slNL :: Int -- ^ width in boxes
@@ -24,14 +41,27 @@ data Box = Box
   , boxNumber :: Int -- number of similar boxes
   } deriving (Show, Eq)
 
+-- | Zone description + slices
+data Zone = Zone
+  { zoneName :: Text
+  , zoneDimension :: Dimension
+  , zoneSlices :: [Slice]
+  } deriving (Show, Eq)
+
 -- * Slices for Chalk
 -- helps how to unload a container by finding "slices" of boxes of the same style
-findSlices :: [Box] -> [Slice]
-findSlices boxes = []
+findSlices :: [Zone] -> [Box] -> [Slice]
+findSlices zones0 boxes = let
+  styles0 = groupByStyle boxes
+  -- first, we need to see if all boxes of a given style
+  -- fits in any zone in only on row. Those styles are put in priority in the best fitting zone.
+  (zone1, boxes1) = fitOneRow zones0 (toList styles0)
+  in []
+
 
 
 -- | Group boxes by style and ignore somehow, pathological dimension.
-groupByStyle :: [Box] -> Map Style Box 
+groupByStyle :: [Box] -> Map Style Box
 groupByStyle boxes = let
   -- collect all boxes of same style
   groups = Map.fromListWith (<>) [ (boxStyle box, opoint box)
@@ -49,5 +79,54 @@ aggregateGroupBox (boxes) = let
   number = sum (impureNonNull $ map snd dim'countz)
   in  (head boxes) { boxDimension = dim, boxNumber = number }
 
-  
 
+ -- | Try to fit style occupying one row
+-- One of the problem, is to find the best fit.
+-- However, we don't try to find the best fit but just an acceptable.
+-- We try all boxes in order, and try to find the best zone.
+fitOneRow :: [Zone] -> [Box] -> ([Zone], [Box])
+fitOneRow [] boxes =  ([], boxes)
+fitOneRow zones [] =  (zones, [])
+fitOneRow zones (box:boxes) = let
+  -- find best zone if any
+  tries = catMaybes $ map (tryFitOne'  box) (holes zones)
+  tryFitOne' box (z, zs) = fmap (,zones) (tryFitOne box z)
+  in ([], [])
+
+
+
+
+
+-- | Can a full style in the given zone within a single row ?
+tryFitOne :: Box -> Zone -> Maybe Zone
+tryFitOne box zone = let
+  bDim = boxDimension box
+  zDim = zoneDimension zone
+  in case howMany bDim zDim of
+       (1, nw, nh)  | dLength bDim <= lengthLeft zone -> let
+                        slice = Slice { slBox = box
+                                      , slNL = 1
+                                      , slNW = nw
+                                      , slNH = nh
+                                      , slLength  = dLength bDim
+                                      , slWidth = dWidth bDim * fromIntegral nw
+                                      }
+                   in Just $ zone {zoneSlices = slice : zoneSlices zone}
+       _ -> Nothing
+
+-- | Computes the length left in the zone, given the slices already in it.
+lengthLeft :: Zone -> Double
+lengthLeft zone =  dLength (zoneDimension zone) - usedLength zone
+
+usedLength :: Zone -> Double
+usedLength zone = foldr (+) 0 (map slLength (zoneSlices zone))
+
+
+
+-- |  computes a pair of elements, other elements in the list
+-- ex: [1,2,3] -> [(1, [2,3]), (2, [1,3]), (3, [1,2])
+holes :: [a] -> [(a, [a])]
+holes xs = go [] xs where
+  go lefts [] = []
+  go xs0 (x:xs) = (x, reverse xs0++xs) : go (x:xs0) xs
+  
