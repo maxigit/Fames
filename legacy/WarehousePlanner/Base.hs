@@ -466,7 +466,10 @@ os = [tiltedForward, tiltedFR]
 -}
 
 
-howMany :: Dimension -> Dimension -> (Int, Int, Int)
+-- | How many inner rectangle can fit in the outer one ?
+howMany :: Dimension -- ^ Outer
+        -> Dimension -- ^ Inner
+        -> (Int, Int, Int)
 howMany (Dimension l w h) (Dimension lb wb hb) = ( fit l lb
                                                  , fit w wb
                                                  , fit h hb

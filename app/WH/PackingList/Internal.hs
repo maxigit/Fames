@@ -95,21 +95,52 @@ fitOneRow zones (box:boxes) = let
 
 
 
+divUp p q = (p+q-1) `div` q
 
+-- | Arrange boxes into a slice to fit the given zone
+slice :: Box -> Zone -> (Maybe Slice, Maybe Box)
+slice box zone = let
+  bDim = boxDimension box
+  zDim = freeZoneDimension zone
+  n = boxNumber box
+  in case howMany zDim bDim  of
+      (lmax, wmax, hmax) | lmax >0, wmax >0, hmax >0 -> let
+                          -- we fill boxes verticaly first, then the depth,
+                          -- to end with the length, so that we keep length minimal
+                          nh = min (hmax+1) n -- we use all height possible . We allow boxes to stick out up
+                                              -- this is because the height in the zone correspond
+                                              -- to the bottom of the highest box
+                          nw = min wmax (n `divUp`  nh)
+                          nl = min lmax (n `divUp` (nh*nw))
+                          slice = Slice { slBox = box {boxNumber = fitted}
+                                        , slNL = nl
+                                        , slNW = nw
+                                        , slNH = nh
+                                        , slLength  = dLength bDim * fromIntegral nl
+                                        , slWidth = dWidth bDim * fromIntegral nw
+                                        }
+                          fitted = min (nl*nw*nh) n
+                          leftOver = n - fitted
+                          boxm = if leftOver <= 0
+                                then Nothing
+                                else Just $ box { boxNumber = leftOver}
+                          in (Just slice, boxm)
+      _ -> (Nothing, Just box)
 
 -- | Can a full style in the given zone within a single row ?
 tryFitOne :: Box -> Zone -> Maybe Zone
 tryFitOne box zone = let
   bDim = boxDimension box
   zDim = zoneDimension zone
-  in case howMany bDim zDim of
+  in case traceShowId $ howMany zDim bDim of
        (1, nw, nh)  | dLength bDim <= lengthLeft zone -> let
+                        wUsed = (boxNumber box + nh-1) `div` nh
                         slice = Slice { slBox = box
                                       , slNL = 1
-                                      , slNW = nw
+                                      , slNW = wUsed
                                       , slNH = nh
                                       , slLength  = dLength bDim
-                                      , slWidth = dWidth bDim * fromIntegral nw
+                                      , slWidth = dWidth bDim * fromIntegral wUsed
                                       }
                    in Just $ zone {zoneSlices = slice : zoneSlices zone}
        _ -> Nothing
@@ -120,6 +151,10 @@ lengthLeft zone =  dLength (zoneDimension zone) - usedLength zone
 
 usedLength :: Zone -> Double
 usedLength zone = foldr (+) 0 (map slLength (zoneSlices zone))
+
+-- | Dimension left in the zone after removing the space occupied by the slices
+freeZoneDimension :: Zone -> Dimension
+freeZoneDimension zone = (zoneDimension zone) { dLength = lengthLeft zone}
 
 
 
