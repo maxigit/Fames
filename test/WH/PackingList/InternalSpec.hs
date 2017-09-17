@@ -64,7 +64,7 @@ pureSpec  = do
     it "returns correct slice" $ do
       let box = Box dim1 "A" 4
           zone = Zone "Z1" (Dimension 200 200 200 ) [] 
-          slice  = Slice box 1 2 4 31 34
+          slice  = Slice box 1 2 3 31 (2*34)
       tryFitOne (Box dim1 "A" 4) (Zone "Z1" (Dimension 200 200 200 ) [] ) `shouldBe`
           Just zone { zoneSlices = [slice]}
   

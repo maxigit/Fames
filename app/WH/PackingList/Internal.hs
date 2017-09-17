@@ -132,17 +132,8 @@ tryFitOne :: Box -> Zone -> Maybe Zone
 tryFitOne box zone = let
   bDim = boxDimension box
   zDim = zoneDimension zone
-  in case traceShowId $ howMany zDim bDim of
-       (1, nw, nh)  | dLength bDim <= lengthLeft zone -> let
-                        wUsed = (boxNumber box + nh-1) `div` nh
-                        slice = Slice { slBox = box
-                                      , slNL = 1
-                                      , slNW = wUsed
-                                      , slNH = nh
-                                      , slLength  = dLength bDim
-                                      , slWidth = dWidth bDim * fromIntegral wUsed
-                                      }
-                   in Just $ zone {zoneSlices = slice : zoneSlices zone}
+  in case slice box zone of
+       (Just slice, Nothing) | slNL slice == 1 -> Just $ zone {zoneSlices = slice : zoneSlices zone}
        _ -> Nothing
 
 -- | Computes the length left in the zone, given the slices already in it.
