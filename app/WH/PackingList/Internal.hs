@@ -85,13 +85,26 @@ aggregateGroupBox (boxes) = let
 -- However, we don't try to find the best fit but just an acceptable.
 -- We try all boxes in order, and try to find the best zone.
 fitOneRow :: [Zone] -> [Box] -> ([Zone], [Box])
-fitOneRow [] boxes =  ([], boxes)
-fitOneRow zones [] =  (zones, [])
-fitOneRow zones (box:boxes) = let
+fitOneRow = fitOneRow' []
+fitOneRow' :: [Box] -> [Zone] -> [Box] -> ([Zone], [Box])
+fitOneRow' triedBoxes [] boxes =  ([], triedBoxes ++ boxes)
+fitOneRow' triedBoxes zones [] =  (zones, triedBoxes)
+fitOneRow' triedBoxes zones (box:boxes) = let
   -- find best zone if any
   tries = catMaybes $ map (tryFitOne'  box) (holes zones)
   tryFitOne' box (z, zs) = fmap (,zones) (tryFitOne box z)
-  in ([], [])
+  -- minimize width left
+  rank (Zone _ zdim [slice], _) = Down $ width - usedWidth where
+    width = dWidth zdim
+    usedWidth = slWidth slice
+  in case fromNullable tries of
+        Nothing -> fitOneRow' (box:triedBoxes) zones boxes
+        Just tries' -> let (bestZone, otherZones) = head $ sortOn rank tries'
+             in fitOneRow' triedBoxes (bestZone:otherZones) boxes
+                
+                
+                
+     
 
 
 
