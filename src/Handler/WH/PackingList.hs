@@ -33,7 +33,7 @@ import qualified Data.Map as Map
 import Data.Time (diffDays, addGregorianMonthsClip)
 import Handler.WH.Barcode
 import WH.Barcode
-import Handler.WH.Legacy.Box hiding(main)
+import WH.PackingList.Internal
 import Text.Printf(printf)
 import Data.Conduit.List (consume)
 import Data.Text(splitOn)
@@ -600,13 +600,14 @@ renderChalk _ _ details = let
                                                            packingListDetailWidth
                                                            packingListDetailHeight
                                                )
-                                               (unpack packingListDetailStyle)
-                                               1
+                                               packingListDetailStyle
                                                1
   --
   boxes = map toBox details
   --
-  slices = findSlices boxes
+  convertSlice Slice{..} = (boxStyle slBox, slNL, slNH, slLength, slNW, slWidth, 0)
+  slices = map convertSlice $  findSlices boxes
+
   --
   showf = (\x -> x :: String) . printf "%5.2f"
   --
