@@ -55,8 +55,9 @@ findSlices zones0 boxes = let
   styles0 = groupByStyle boxes
   -- first, we need to see if all boxes of a given style
   -- fits in any zone in only on row. Those styles are put in priority in the best fitting zone.
-  (zone1, boxes1) = fitOneRow zones0 (toList styles0)
-  in []
+  (zones1, boxes1) = fitOneRow zones0 (toList styles0)
+  (zones2, boxes2) = fitAllRow zones1 boxes1
+  in concatMap zoneSlices zones2
 
 
 
@@ -103,10 +104,15 @@ fitOneRow' triedBoxes zones (box:boxes) = let
              in fitOneRow' triedBoxes (bestZone:otherZones) boxes
                 
                 
-                
-     
-
-
+fitAllRow :: [Zone] -> [Box] -> ([Zone], [Box])
+fitAllRow = fitAllRow' []
+fitAllRow' :: [Zone] -> [Zone] -> [Box] -> ([Zone], [Box])
+fitAllRow' usedZones zones [] = (usedZones ++ zones, [])
+fitAllRow' usedZones [] boxes = ([], boxes) 
+fitAllRow' usedZones (zone:zones) bs@(box:boxes) = case slice box zone of
+  (Nothing, Just _) -> fitAllRow' (zone:usedZones) zones bs
+  (Just slice, boxm) -> fitAllRow' usedZones (addSlice zone slice: zones) ((maybe id (:) boxm) boxes)
+  
 
 divUp p q = (p+q-1) `div` q
 
@@ -140,13 +146,16 @@ slice box zone = let
                           in (Just slice, boxm)
       _ -> (Nothing, Just box)
 
+addSlice :: Zone -> Slice -> Zone
+addSlice zone slice = zone {zoneSlices = slice : zoneSlices zone}
+  
 -- | Can a full style in the given zone within a single row ?
 tryFitOne :: Box -> Zone -> Maybe Zone
 tryFitOne box zone = let
   bDim = boxDimension box
   zDim = zoneDimension zone
   in case slice box zone of
-       (Just slice, Nothing) | slNL slice == 1 -> Just $ zone {zoneSlices = slice : zoneSlices zone}
+       (Just slice, Nothing) | slNL slice == 1 -> Just $ addSlice zone slice
        _ -> Nothing
 
 -- | Computes the length left in the zone, given the slices already in it.

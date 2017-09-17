@@ -604,7 +604,10 @@ renderChalk _ _ details = let
                                                1
   --
   boxes = map toBox details
-  zones = [Zone "P01.01/0" (Dimension 800 200 200) []]
+  zones = [ Zone "P01.01/0" (Dimension 800 200 200) []
+          , Zone "P01.02/0" (Dimension 800 120 200) []
+          , Zone "P02.01/0" (Dimension 800 200 200) []
+          ]
   --
   convertSlice Slice{..} = (boxStyle slBox, slNL, slNH, slLength, slNW, slWidth, 0)
   slices = map convertSlice $  findSlices zones boxes
