@@ -57,14 +57,14 @@ data Zone = Zone
 
 -- * Slices for Chalk
 -- helps how to unload a container by finding "slices" of boxes of the same style
-findSlices :: [Zone] -> [Box] -> [(Slice, Double)]
+findSlices :: [Zone] -> [Box] -> [Zone]
 findSlices zones0 boxes = let
   styles0 = groupByStyle boxes
   -- first, we need to see if all boxes of a given style
   -- fits in any zone in only on row. Those styles are put in priority in the best fitting zone.
   (zones1, boxes1) = fitOneRow zones0 (toList styles0)
   (zones2, boxes2) = fitAllRow zones1 boxes1
-  in concatMap (sortSlices . zoneSlices) zones2
+  in sortOn zoneName zones2
 
 
 -- | Sort slices and calculate offset

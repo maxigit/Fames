@@ -612,26 +612,30 @@ renderChalk _ _ details = let
           ]
   --
   convertSlice (Slice{..}, offset) = (boxStyle slBox, slNL, slNH, slLength, slNW, slWidth, offset)
-  slices = map convertSlice $  findSlices zones boxes
+  processSlices slices = map convertSlice (sortSlices slices)
+  sliced = findSlices zones boxes
 
   --
   showf = (\x -> x :: String) . printf "%5.2f"
   --
   in [shamlet|
-<table.table.table-striped>
-  <tr>
-    <th> Style
-    <th> Number of Boxes
-    <th> Total Width (cm)
-    <th> Position
-    <th> Depth
-  $forall (st, n, nh, w, nd,d, cw ) <- slices
-    <tr>
-      <td> #{st}
-      <td> #{tshow n} x #{tshow nh} (up)
-      <td> #{showf w}
-      <td> #{showf cw} - #{ showf (cw + w)}
-      <td> #{tshow nd} (#{showf d})
+$forall zone <- sliced
+  <div.panel.panel-primary>
+    <div.panel-heading> #{zoneName zone}
+    <table.table.table-striped>
+      <tr>
+        <th> Style
+        <th> Number of Boxes
+        <th> Total Width (cm)
+        <th> Position
+        <th> Depth
+      $forall (st, n, nh, w, nd,d, cw ) <- processSlices (zoneSlices zone)
+        <tr>
+          <td> #{st}
+          <td> #{tshow n} x #{tshow nh} (up)
+          <td> #{showf w}
+          <td> #{showf cw} - #{ showf (cw + w)}
+          <td> #{tshow nd} (#{showf d})
 |]
 
 -- | CSV compatible with WarehousePlanner
