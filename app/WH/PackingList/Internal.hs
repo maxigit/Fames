@@ -63,8 +63,9 @@ findSlices zones0 boxes = let
   -- first, we need to see if all boxes of a given style
   -- fits in any zone in only on row. Those styles are put in priority in the best fitting zone.
   (zones1, boxes1) = fitOneRow zones0 (toList styles0)
-  (zones2, boxes2) = fitAllRow zones1 boxes1
-  in sortOn zoneName zones2
+  (zones2, boxes2) = fitAllRow (sortOn zoneName zones1) boxes1
+  r =  sortOn zoneName zones2
+  in traceShow ("SLICES", r) r
 
 
 -- | Sort slices and calculate offset
@@ -110,6 +111,7 @@ fitOneRow' triedBoxes zones (box:boxes) = let
   tries = catMaybes $ map (tryFitOne'  box) (holes zones)
   tryFitOne' box (z, zs) = fmap (,zs) (tryFitOne box z)
   -- minimize width left
+  -- rank zone = traceShow ("TO RANK", (fst zone)) (rank' zone)
   rank (Zone _ zdim (slice:_), _) = Down $ width - usedWidth where
     -- we know there is at least one slice and the one we need is the first one.
     width = dWidth zdim
@@ -124,7 +126,7 @@ fitAllRow :: [Zone] -> [Box] -> ([Zone], [Box])
 fitAllRow = fitAllRow' []
 fitAllRow' :: [Zone] -> [Zone] -> [Box] -> ([Zone], [Box])
 fitAllRow' usedZones zones [] = (usedZones ++ zones, [])
-fitAllRow' usedZones [] boxes = ([], boxes) 
+fitAllRow' usedZones [] boxes = (usedZones, boxes) 
 fitAllRow' usedZones (zone:zones) bs@(box:boxes) = case slice box zone of
   (Nothing, Just _) -> fitAllRow' (zone:usedZones) zones bs
   (Just slice, Nothing) -> fitAllRow' usedZones (addSlice zone slice: zones) (boxes)
@@ -156,7 +158,7 @@ slice box zone = let
                                         , slNL = nl
                                         , slNW = nw
                                         , slNH = nh
-                                        , slLength  = dLength bDim * fromIntegral nl
+                                        , slLength  = dLength bDim * fromIntegral nl + 5  --  margin
                                         , slWidth = dWidth bDim * fromIntegral nw
                                         }
                           fitted = min (nl*nw*nh) n
