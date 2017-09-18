@@ -28,8 +28,13 @@ pureSpec  = do
       `shouldBe` mapFromList [("A", newBox dim1 "A" 13), ("B", newBox dim2 "B" 7 )]
   describe "#utils" $ do
     context "works" $ do
-      it "holes" $ do
-        holes [1,2,3] `shouldBe` [(1, [2,3]), (2, [1,3]), (3, [1,2])]
+      context "holes" $ do
+        it "works for 0" $ do
+          holes ([] :: [Int]) `shouldBe` []
+        it "works for 1" $ do
+          holes [1] `shouldBe` [(1,[])]
+        it "works for 3" $ do
+          holes [1,2,3] `shouldBe` [(1, [2,3]), (2, [1,3]), (3, [1,2])]
     context "#divUp" $ do
       it "divides" $ do
         (2 `divUp` 2) `shouldBe` 1
@@ -68,6 +73,12 @@ pureSpec  = do
           slice  = Slice box 1 2 3 31 (2*34)
       tryFitOne (newBox dim1 "A" 4) (Zone "Z1" (Dimension 200 200 200 ) [] ) `shouldBe`
           Just zone { zoneSlices = [slice]}
-  
+  describe "#findSlices" $ do
+    context "one zone" $ do
+       let box = newBox dim1 "A" 4
+           zone = Zone "Z1" (Dimension 200 200 200 ) [] 
+       let slices = [ Slice box 1 2 3 31 68]
+       it "fits" $ do
+          findSlices [zone] [box] `shouldBe` [zone {zoneSlices = slices}]
 
 

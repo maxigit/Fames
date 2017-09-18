@@ -108,7 +108,7 @@ fitOneRow' triedBoxes zones [] =  (zones, triedBoxes)
 fitOneRow' triedBoxes zones (box:boxes) = let
   -- find best zone if any
   tries = catMaybes $ map (tryFitOne'  box) (holes zones)
-  tryFitOne' box (z, zs) = fmap (,zones) (tryFitOne box z)
+  tryFitOne' box (z, zs) = fmap (,zs) (tryFitOne box z)
   -- minimize width left
   rank (Zone _ zdim (slice:_), _) = Down $ width - usedWidth where
     -- we know there is at least one slice and the one we need is the first one.
