@@ -12,19 +12,20 @@ dim1 = Dimension 31 34 78
 dim2 = Dimension 60 40 50
 dim1' = Dimension 32 34 78
 
+newBox dim name n = Box dim name n Middle
 
 pureSpec  = do
   describe "#groupByStyle" $ do
     it "aggregate quantites" $ do
-      groupByStyle [(Box dim1 "A" 10), (Box dim1 "A" 3)] `shouldBe` mapFromList [("A", Box dim1 "A" 13)]
+      groupByStyle [(newBox dim1 "A" 10), (newBox dim1 "A" 3)] `shouldBe` mapFromList [("A", newBox dim1 "A" 13)]
     it "split different styles" $ do
-      groupByStyle [(Box dim1 "A" 10), (Box dim1 "B" 3), (Box dim1 "A" 2)]
-        `shouldBe` mapFromList [("A", Box dim1 "A" 12), ("B", Box dim1 "B" 3)]
+      groupByStyle [(newBox dim1 "A" 10), (newBox dim1 "B" 3), (newBox dim1 "A" 2)]
+        `shouldBe` mapFromList [("A", newBox dim1 "A" 12), ("B", newBox dim1 "B" 3)]
     it "keep most numerous boxes" $ do
-      groupByStyle [(Box dim1 "A" 10), (Box dim2 "A" 43)] `shouldBe` mapFromList [("A", Box dim2 "A" 53)]
+      groupByStyle [(newBox dim1 "A" 10), (newBox dim2 "A" 43)] `shouldBe` mapFromList [("A", newBox dim2 "A" 53)]
     it "group everything" $ do
-      groupByStyle [(Box dim1 "A" 10), (Box dim1' "A" 3), (Box dim2 "B" 7)]
-      `shouldBe` mapFromList [("A", Box dim1 "A" 13), ("B", Box dim2 "B" 7 )]
+      groupByStyle [(newBox dim1 "A" 10), (newBox dim1' "A" 3), (newBox dim2 "B" 7)]
+      `shouldBe` mapFromList [("A", newBox dim1 "A" 13), ("B", newBox dim2 "B" 7 )]
   describe "#utils" $ do
     context "works" $ do
       it "holes" $ do
@@ -39,7 +40,7 @@ pureSpec  = do
       it "divides 0" $ do
         (0 `divUp` 2) `shouldBe` 0
   describe "#slice" $ do
-    let box = Box dim1 "A"
+    let box = newBox dim1 "A"
         zone = Zone "Z1" (Dimension 70  160 200 ) []  -- fix 2 4 3
     it "fits" $ do
       slice (box 11)  zone `shouldBe` ( Just $ Slice (box 11) 1 4 3 31 (4*34)
@@ -55,17 +56,17 @@ pureSpec  = do
 
   describe "#tryFitOne" $ do
     it "rejects if too many row" $ do
-      tryFitOne (Box dim1 "A" 100) (Zone "Z1" (Dimension 200 200 200 ) [] ) `shouldBe` Nothing
+      tryFitOne (newBox dim1 "A" 100) (Zone "Z1" (Dimension 200 200 200 ) [] ) `shouldBe` Nothing
     it "reject if not enough space too wide" $ do
-      tryFitOne (Box dim1 "A" 4) (Zone "Z1" (Dimension 200 200 200 )
+      tryFitOne (newBox dim1 "A" 4) (Zone "Z1" (Dimension 200 200 200 )
                                        [ Slice {slLength = 100}
                                        , Slice {slLength = 80}
                                        ] ) `shouldBe` Nothing
     it "returns correct slice" $ do
-      let box = Box dim1 "A" 4
+      let box = newBox dim1 "A" 4
           zone = Zone "Z1" (Dimension 200 200 200 ) [] 
           slice  = Slice box 1 2 3 31 (2*34)
-      tryFitOne (Box dim1 "A" 4) (Zone "Z1" (Dimension 200 200 200 ) [] ) `shouldBe`
+      tryFitOne (newBox dim1 "A" 4) (Zone "Z1" (Dimension 200 200 200 ) [] ) `shouldBe`
           Just zone { zoneSlices = [slice]}
   
 

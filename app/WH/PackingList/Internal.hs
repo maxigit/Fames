@@ -7,6 +7,7 @@ where
 import ClassyPrelude.Yesod
 import WarehousePlanner.Base hiding(Box(..))
 import qualified Data.Map as Map
+import Data.List(scanl')
 
 -- * Types
 type Style = Text
@@ -35,11 +36,17 @@ data Slice = Slice
              , slLength :: Double -- ^ width
              , slWidth :: Double -- ^ Depth
              } deriving (Show, Eq)
+data Placement = Begining | Middle | End deriving(Show, Eq, Ord)
 data Box = Box
   { boxDimension :: Dimension
   , boxStyle :: Style
   , boxNumber :: Int -- number of similar boxes
+  , boxPlacement :: Placement
   } deriving (Show, Eq)
+
+instance Ord Box where
+  compare a b = compare (key a) (key b) where
+    key box = (boxPlacement box, boxDimension box) 
 
 -- | Zone description + slices
 data Zone = Zone
@@ -50,14 +57,22 @@ data Zone = Zone
 
 -- * Slices for Chalk
 -- helps how to unload a container by finding "slices" of boxes of the same style
-findSlices :: [Zone] -> [Box] -> [Slice]
+findSlices :: [Zone] -> [Box] -> [(Slice, Double)]
 findSlices zones0 boxes = let
   styles0 = groupByStyle boxes
   -- first, we need to see if all boxes of a given style
   -- fits in any zone in only on row. Those styles are put in priority in the best fitting zone.
   (zones1, boxes1) = fitOneRow zones0 (toList styles0)
   (zones2, boxes2) = fitAllRow zones1 boxes1
-  in concatMap zoneSlices zones2
+  in concatMap (sortSlices . zoneSlices) zones2
+
+
+-- | Sort slices and calculate offset
+sortSlices :: [Slice] -> [(Slice, Double)]
+sortSlices slices = let
+  sorted = sortOn slBox slices
+  lengths = scanl' (+) 0 (map slLength sorted)
+  in zip sorted lengths
 
 
 
@@ -95,7 +110,8 @@ fitOneRow' triedBoxes zones (box:boxes) = let
   tries = catMaybes $ map (tryFitOne'  box) (holes zones)
   tryFitOne' box (z, zs) = fmap (,zones) (tryFitOne box z)
   -- minimize width left
-  rank (Zone _ zdim [slice], _) = Down $ width - usedWidth where
+  rank (Zone _ zdim (slice:_), _) = Down $ width - usedWidth where
+    -- we know there is at least one slice and the one we need is the first one.
     width = dWidth zdim
     usedWidth = slWidth slice
   in case fromNullable tries of
@@ -111,7 +127,12 @@ fitAllRow' usedZones zones [] = (usedZones ++ zones, [])
 fitAllRow' usedZones [] boxes = ([], boxes) 
 fitAllRow' usedZones (zone:zones) bs@(box:boxes) = case slice box zone of
   (Nothing, Just _) -> fitAllRow' (zone:usedZones) zones bs
-  (Just slice, boxm) -> fitAllRow' usedZones (addSlice zone slice: zones) ((maybe id (:) boxm) boxes)
+  (Just slice, Nothing) -> fitAllRow' usedZones (addSlice zone slice: zones) (boxes)
+  (Just slice, Just box') -> let -- the box is split, we need to change the placement to end and beging
+    box'' = box' {boxPlacement = Begining}
+    lastBox = slBox slice
+    slice' = slice {slBox = lastBox { boxPlacement = End}}
+    in fitAllRow' usedZones (addSlice zone slice': zones) (box'':boxes)
   
 
 divUp p q = (p+q-1) `div` q

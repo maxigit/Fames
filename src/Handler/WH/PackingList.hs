@@ -596,12 +596,14 @@ generateStickers pl details = do
 renderChalk  :: [(Double, Double, Double)] -> PackingList -> [Entity PackingListDetail] -> Html
 renderChalk _ _ details = let
   -- convert details into Box.box
-  toBox (Entity _ PackingListDetail{..}) = Box ( Dimension packingListDetailLength
-                                                           packingListDetailWidth
+  -- we rotate the box so that the slice are as small as possible. Maybe not a good choice
+  toBox (Entity _ PackingListDetail{..}) = Box ( Dimension packingListDetailWidth
+                                                           packingListDetailLength
                                                            packingListDetailHeight
                                                )
                                                packingListDetailStyle
                                                1
+                                               Middle
   --
   boxes = map toBox details
   zones = [ Zone "P01.01/0" (Dimension 800 200 200) []
@@ -609,7 +611,7 @@ renderChalk _ _ details = let
           , Zone "P02.01/0" (Dimension 800 200 200) []
           ]
   --
-  convertSlice Slice{..} = (boxStyle slBox, slNL, slNH, slLength, slNW, slWidth, 0)
+  convertSlice (Slice{..}, offset) = (boxStyle slBox, slNL, slNH, slLength, slNW, slWidth, offset)
   slices = map convertSlice $  findSlices zones boxes
 
   --
