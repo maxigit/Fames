@@ -607,7 +607,7 @@ renderChalk _ _ details = let
   --
   boxes = map toBox details
   zones = [ Zone "P01.01/0" (Dimension 391 128 200) []
-          , Zone "P01.02/0" (Dimension 319 184 200) []
+          , Zone "P01.02/0" (Dimension 319 186 200) []
           , Zone "P02.01/0" (Dimension 238 265 200) []
           , Zone "P02.02/0" (Dimension 358 350 200) []
           , Zone "Xtra" (Dimension 900 200 200) []

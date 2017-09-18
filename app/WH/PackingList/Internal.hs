@@ -112,7 +112,7 @@ fitOneRow' triedBoxes zones (box:boxes) = let
   tryFitOne' box (z, zs) = fmap (,zs) (tryFitOne box z)
   -- minimize width left
   -- rank zone = traceShow ("TO RANK", (fst zone)) (rank' zone)
-  rank (Zone _ zdim (slice:_), _) = Down $ width - usedWidth where
+  rank (Zone _ zdim (slice:_), _) = width - usedWidth where
     -- we know there is at least one slice and the one we need is the first one.
     width = dWidth zdim
     usedWidth = slWidth slice

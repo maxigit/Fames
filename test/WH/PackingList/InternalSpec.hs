@@ -15,6 +15,7 @@ dim1' = Dimension 32 34 78
 newBox dim name n = Box dim name n Middle
 
 pureSpec  = do
+  let margin = 5 -- hardcoded in findSlices
   describe "#groupByStyle" $ do
     it "aggregate quantites" $ do
       groupByStyle [(newBox dim1 "A" 10), (newBox dim1 "A" 3)] `shouldBe` mapFromList [("A", newBox dim1 "A" 13)]
@@ -73,12 +74,29 @@ pureSpec  = do
           slice  = Slice box 1 2 3 31 (2*34)
       tryFitOne (newBox dim1 "A" 4) (Zone "Z1" (Dimension 200 200 200 ) [] ) `shouldBe`
           Just zone { zoneSlices = [slice]}
+  describe "#fitOneRow" $ do
+    let box = newBox dim1 "A" 4
+        zone1 = Zone "Z1" (Dimension 200 200 200 ) [] 
+        zone2 = Zone "Z2" (Dimension 200 100 200 ) [] 
+        slice  = Slice box 1 2 3 (31+margin) (2*34)
+    it "finds the best zone" $ do
+      fitOneRow [zone2, zone1] [box]  `shouldBe`
+        ([zone2 {zoneSlices = [slice]}, zone1], [])
+    it "finds the best zone" $ do
+      fitOneRow [zone1, zone2] [box]  `shouldBe`
+        ([zone2 {zoneSlices = [slice]}, zone1], [])
   describe "#findSlices" $ do
+    let box = newBox dim1 "A" 4
+        zone1 = Zone "Z1" (Dimension 200 200 200 ) [] 
+        zone2 = Zone "Z2" (Dimension 200 100 200 ) [] 
     context "one zone" $ do
-       let box = newBox dim1 "A" 4
-           zone = Zone "Z1" (Dimension 200 200 200 ) [] 
-       let slices = [ Slice box 1 2 3 31 68]
+       let slices = [ Slice box 1 2 3 (31+margin) 68]
        it "fits" $ do
-          findSlices [zone] [box] `shouldBe` [zone {zoneSlices = slices}]
+          findSlices [zone1] [box] `shouldBe` [zone1 {zoneSlices = slices}]
+    context "two zones" $ do
+      it "finds the better one" $ do
+       let slices = [ Slice box 1 2 3 (31+margin) 68]
+       findSlices [zone1, zone2] [box] `shouldBe` [zone1, zone2 {zoneSlices = slices}]
+    
 
 
