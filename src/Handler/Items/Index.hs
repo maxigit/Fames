@@ -386,6 +386,11 @@ loadSalesPrices param = do
             
      _ -> return []
 
+-- | get selected price list ids
+priceListsToKeep :: IndexCache -> IndexParam -> Handler [Key SalesType]
+priceListsToKeep cache params = do
+  return $ map entityKey (icPriceLists cache)
+  
 -- ** Purchase prices
 -- | Load purchase prices
 -- loadPurchasePrices :: IndexParam -> Handler [ ItemInfo (Map Text Double) ]
@@ -916,6 +921,10 @@ renderIndex param0 status = do
         <button.btn.btn-primary type="submit" name="button" value="activate">Activate
         <button.btn.btn-warning type="submit" name="button" value="deactivate">Deactivate
         <button.btn.btn-danger type="submit" name="button" value="delete">Delete
+      $if (ipMode param == ItemPriceView)
+          <div.btn.btn-warning.disabled type="submit" name="button" value=""> Activate
+          <div.btn.btn-warning.disabled type="submit" name="button" value=""> Deactivate
+        <button.btn.btn-danger type="submit" name="button" value="delete">Delete
       $else
           <div.btn.btn-warning.disabled type="submit" name="button" value=""> Activate
           <div.btn.btn-warning.disabled type="submit" name="button" value=""> Deactivate
@@ -983,6 +992,7 @@ deleteItems :: IndexParam -> Handler ()
 deleteItems params = do
   resp <- ( case ipMode params of
               ItemWebStatusView -> deleteDC params
+              ItemPriceView -> deleteSalesPrices params
           )
   clearAppCache
   return resp
@@ -1067,6 +1077,23 @@ createGLMissings params = do
 
   setSuccess (toHtml $ tshow (maximumEx [length stockMasters, length prices, length purchData]) <> " items succesfully created.")
   return ()
+
+deleteSalesPrices :: IndexParam -> Handler ()
+deleteSalesPrices params = do
+  cache <- fillIndexCache
+  timestamp <- round <$> liftIO getPOSIXTime
+  itemGroups <- loadVariationsToKeep cache (params {ipBases = mempty}) 
+  plIds <- priceListsToKeep cache params
+  -- delete all prices selected by the user for all given variations
+  let deletePairs =
+        [ [FA.PriceStockId ==. iiSku info, PriceSalesTypeId ==. unSalesTypeKey plId]
+        | plId <- plIds
+        , (_, items) <- itemGroups
+        , (_, info) <- items
+        ]
+
+  runDB $ mapM_ deleteWhere deletePairs
+
 
 -- *** Website
 createDCMissings :: IndexParam -> Handler ()
