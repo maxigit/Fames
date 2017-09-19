@@ -3,7 +3,10 @@ module Handler.Table where
 
 import Import
 
-displayTable :: [col] -> (col -> (Html, [Text])) -> [(col -> Maybe (Html, [Text]), [Text])] -> Widget
+displayTable :: [col] -- ^ index of columns to display
+             -> (col -> (Html, [Text])) -- ^ column index to header and class
+             -> [(col -> Maybe (Html, [Text]), [Text])] -- ^ rows, given column index, return a value and classes
+             -> Widget
 displayTable columns colDisplay rows = do
   [whamlet|
 <table.table.table-bordered>
@@ -19,7 +22,7 @@ displayTable columns colDisplay rows = do
             $of Nothing
               <td.empty class="#{fst (colDisplay col)}">
             $of Just (cellH, cellA)
-              <td class="#{fst (colDisplay col)} #{intercalate " " cellA}"> #{cellH}
+              <td class="#{intercalate " " ((snd (colDisplay col)) <> cellA)}"> #{cellH}
 |]
  
  

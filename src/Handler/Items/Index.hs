@@ -165,7 +165,8 @@ fillTableParams params0 = do
   let checked = mapMaybe (stripPrefix "check-" . fst)  params
       bases = Map.fromList $ mapMaybe (\(k,v) -> stripPrefix "base-" k <&> (\b -> (b, v))
                                      ) params
-  return $ params0 {ipChecked = checked, ipBases=bases}
+      columns = mapMaybe (stripPrefix "col-check-" . fst) params
+  return $ params0 {ipChecked = checked, ipBases=bases, ipColumns=columns}
    
 
 -- getPostIndexParam :: IndexParam -> Handler (IndexParam, _
@@ -389,7 +390,8 @@ loadSalesPrices param = do
 -- | get selected price list ids
 priceListsToKeep :: IndexCache -> IndexParam -> Handler [Key SalesType]
 priceListsToKeep cache params = do
-  return $ map entityKey (icPriceLists cache)
+  let plIds =  map (entityKey) (icPriceLists cache)
+  return filter (\(SalesTypeKey i) -> (priceColumnCheckId i) `elem` ipColumns params) plIds
   
 -- ** Purchase prices
 -- | Load purchase prices
@@ -943,6 +945,7 @@ renderIndex param0 status = do
         
 -- ** css classes
   
+priceColumnCheckId i = tshow i
 
 getColumnToTitle :: IndexCache -> IndexParam -> Handler (IndexColumn -> (Html, [Text]))
 getColumnToTitle cache param = do
@@ -959,7 +962,13 @@ getColumnToTitle cache param = do
             StockIdColumn -> Right "Stock Id"
             StatusColumn -> Right "Status"
             GLColumn gl -> Right gl
-            PriceColumn i -> Right $ findWithDefault "" i (priceListNames :: IntMap Text)
+            PriceColumn i -> case lookup i priceListNames of
+                Nothing -> Right ""
+                Just name -> let
+                  checked = priceColumnCheckId i `elem` (ipColumns param)
+                  in Left ([shamlet|#{name}<input type="checkbox" name="col-check-#{priceColumnCheckId i}" :checked:checked>|]
+                          , ["price"]
+                          )
             PurchaseColumn i -> Right $ findWithDefault "" i (supplierNames :: IntMap Text)
             FAStatusColumn t -> Right t
             WebStatusColumn t -> Right t
