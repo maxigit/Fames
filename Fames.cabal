@@ -161,6 +161,7 @@ library
       WH.FA
       WH.FA.Curl
       WH.FA.Types
+      WH.PackingList.Internal
       SharedStockAdjustment
       SharedTypes
   default-language: Haskell2010
@@ -261,6 +262,7 @@ executable Fames
       WH.FA
       WH.FA.Curl
       WH.FA.Types
+      WH.PackingList.Internal
   default-language: Haskell2010
 
 test-suite test

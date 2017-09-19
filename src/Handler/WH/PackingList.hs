@@ -33,7 +33,7 @@ import qualified Data.Map as Map
 import Data.Time (diffDays, addGregorianMonthsClip)
 import Handler.WH.Barcode
 import WH.Barcode
-import Handler.WH.Legacy.Box hiding(main)
+import WH.PackingList.Internal
 import Text.Printf(printf)
 import Data.Conduit.List (consume)
 import Data.Text(splitOn)
@@ -596,35 +596,49 @@ generateStickers pl details = do
 renderChalk  :: [(Double, Double, Double)] -> PackingList -> [Entity PackingListDetail] -> Html
 renderChalk _ _ details = let
   -- convert details into Box.box
-  toBox (Entity _ PackingListDetail{..}) = Box ( Dimension packingListDetailLength
-                                                           packingListDetailWidth
+  -- we rotate the box so that the slice are as small as possible. Maybe not a goinod choice
+  toBox (Entity _ PackingListDetail{..}) = Box ( Dimension packingListDetailWidth
+                                                           packingListDetailLength
                                                            packingListDetailHeight
                                                )
-                                               (unpack packingListDetailStyle)
+                                               packingListDetailStyle
                                                1
-                                               1
+                                               Middle
   --
   boxes = map toBox details
+  zones = [ Zone "P01.01/0" (Dimension 391 128 200) []
+          , Zone "P01.02/0" (Dimension 319 186 200) []
+          , Zone "P02.01/0" (Dimension 238 265 200) []
+          , Zone "P02.02/0" (Dimension 358 350 200) []
+          , Zone "Xtra" (Dimension 900 200 200) []
+
+          ]
   --
-  slices = findSlices boxes
+  convertSlice (Slice{..}, offset) = (boxStyle slBox, slNL, slNH, slLength, slNW, slWidth, offset)
+  processSlices slices = map convertSlice (sortSlices slices)
+  sliced = findSlices zones boxes
+
   --
   showf = (\x -> x :: String) . printf "%5.2f"
   --
   in [shamlet|
-<table.table.table-striped>
-  <tr>
-    <th> Style
-    <th> Number of Boxes
-    <th> Total Width (cm)
-    <th> Position
-    <th> Depth
-  $forall (st, n, nh, w, nd,d, cw ) <- slices
-    <tr>
-      <td> #{st}
-      <td> #{tshow n} x #{tshow nh} (up)
-      <td> #{showf w}
-      <td> #{showf cw} - #{ showf (cw + w)}
-      <td> #{tshow nd} (#{showf d})
+$forall zone <- sliced
+  <div.panel.panel-primary>
+    <div.panel-heading> #{zoneName zone}
+    <table.table.table-striped>
+      <tr>
+        <th> Style
+        <th> Number of Boxes
+        <th> Total Width (cm)
+        <th> Position
+        <th> Depth
+      $forall (st, n, nh, w, nd,d, cw ) <- processSlices (zoneSlices zone)
+        <tr>
+          <td> #{st}
+          <td> #{tshow n} x #{tshow nh} (up)
+          <td> #{showf w}
+          <td> #{showf cw} - #{ showf (cw + w)}
+          <td> #{tshow nd} (#{showf d})
 |]
 
 -- | CSV compatible with WarehousePlanner

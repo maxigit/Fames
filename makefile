@@ -71,6 +71,8 @@ ghcid-old:
 
 ghcid-test:
 	ghcid --command="stack ghci :test" --test ":main --color"
+ghcid-force:
+	ghcid --command="stack ghci :test --ghc-options=-w --ghc-options=-fdefer-type-errors" --test ":main --color"
 ghcid:
 	ghcid --command="stack ghci --ghc-options=-w"
 ghcid-run:
