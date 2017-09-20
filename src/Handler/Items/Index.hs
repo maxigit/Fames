@@ -391,7 +391,7 @@ loadSalesPrices param = do
 priceListsToKeep :: IndexCache -> IndexParam -> Handler [Key SalesType]
 priceListsToKeep cache params = do
   let plIds =  map (entityKey) (icPriceLists cache)
-  return filter (\(SalesTypeKey i) -> (priceColumnCheckId i) `elem` ipColumns params) plIds
+  return $ filter (\(SalesTypeKey i) -> (priceColumnCheckId i) `elem` ipColumns params) plIds
   
 -- ** Purchase prices
 -- | Load purchase prices

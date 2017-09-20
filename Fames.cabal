@@ -131,7 +131,6 @@ library
       Handler.WH
       Handler.WH.Barcode
       Handler.WH.Dimensions
-      Handler.WH.Legacy.Box
       Handler.WH.Location
       Handler.WH.PackingList
       Handler.WH.StockAdjustment
@@ -381,4 +380,5 @@ test-suite test
       RoleSpec
       TestImport
       WH.BarcodeSpec
+      WH.PackingList.InternalSpec
   default-language: Haskell2010
