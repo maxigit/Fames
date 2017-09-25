@@ -155,7 +155,7 @@ decode Latin1 bs = encodeUtf8 . decodeLatin1 $ bs
 
 setAttachment :: MonadHandler m => LT.Text -> m ()
 setAttachment path = 
-  addHeader "Content-Disposition" (toStrict ("attachment; filename=\"barcodes-"<>path<>"\"") )
+  addHeader "Content-Disposition" (toStrict ("attachment; filename=\""<>path<>"\"") )
 
 
 -- * Labels

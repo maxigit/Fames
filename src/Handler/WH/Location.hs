@@ -31,13 +31,14 @@ getWHStocktakeLocationR = do
 getWHLocationListR :: HandlerT App IO TypedContent
 getWHLocationListR = do
   source <- csvSource
+  setAttachment "location-barcodes.csv"
   respondSource "text/csv" (source =$= mapC toFlushBuilder)
   
   
 getWHLocationStickersR :: HandlerT App IO TypedContent
 getWHLocationStickersR = do
   source <- csvSource
-  generateLabelsResponse "location.csv" "config/locations-qr.glabels" source
+  generateLabelsResponse "location.pdf" "config/locations-qr.glabels" source
   
 
 -- * Render
@@ -45,8 +46,10 @@ getWHLocationStickersR = do
 csvSource :: Monad m => Handler (ConduitM () (Text) m ())
 csvSource = do
   locations <- appStockLocationsInverse . appSettings <$> getYesod
+  let barcode sub = "LC" <> sub
   return $ do
-    yieldMany [ loc <> "," <> sub <> "\n"
-              |  (loc, sub) <- ("Location", "Sublocation") : Map.toList locations
+    yield "Location,Sublocation,Barcode\n"
+    yieldMany [ loc <> "," <> sub <> "," <> barcode sub <> "\n"
+              |  (sub, loc) <- Map.toList locations
               ]
   

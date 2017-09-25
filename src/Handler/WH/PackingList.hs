@@ -589,7 +589,7 @@ stickerSource today pl entities = do
 generateStickers :: PackingList -> [Entity PackingListDetail] -> Handler TypedContent
 generateStickers pl details = do
   today <- utctDay <$> liftIO getCurrentTime
-  generateLabelsResponse ("label" <> ( maybe "" ("-" <>) (packingListContainer pl)) )
+  generateLabelsResponse ("label" <> ( maybe "" ("-" <>) (packingListContainer pl) <> ".pdf") )
                          "/config/delivery-stickers.glabels"
                          (stickerSource today pl details)
 
