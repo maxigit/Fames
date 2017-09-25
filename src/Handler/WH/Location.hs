@@ -38,7 +38,7 @@ getWHLocationListR = do
 getWHLocationStickersR :: HandlerT App IO TypedContent
 getWHLocationStickersR = do
   source <- csvSource
-  generateLabelsResponse "location.pdf" "config/locations-qr.glabels" source
+  generateLabelsResponse "location-stickers.pdf" "config/locations-qr.glabels" source
   
 
 -- * Render
