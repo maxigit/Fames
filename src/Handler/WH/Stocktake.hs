@@ -26,6 +26,7 @@ import WH.Barcode
 import Data.List(scanl, init, length, head, (\\), nub)
 import Data.Either
 import System.Directory (doesFileExist)
+import Data.Time(fromGregorian)
 
 import Database.Persist.Sql
 import qualified Data.Csv as Csv
@@ -124,25 +125,35 @@ getWHStocktakeValidateR = do
 getWHStocktakeHistoryR :: Handler Html
 getWHStocktakeHistoryR = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
-  let sql =  " SELECT left(stock_id, 8) as style, min(stock_take) take_date, max(alltake)"
+  defaultLocation <- appFADefaultLocation . appSettings <$> getYesod
+  let sql =  " SELECT left(last_stocktake.stock_id, 8) as style, min(stock_take) take_date, max(alltake) latest"
+          <> "        , SUM(quantity) quantity"
           <> " FROM "
           <> " ("
-          <> " SELECT sm.stock_id"
-          <> " , max(IF(name = 'collectMOP', NULL, date)) stock_take"
-          <> " , max(date) alltake"
-          <> " FROM 0_stock_master sm"
-          <> " LEFT JOIN fames_stocktake st on (sm.stock_id = st.stock_id"
-          <> "      AND active = true"
-          <> " )  "
-          <> " LEFT JOIN fames_document_key doc USING(document_key_id)"
-          <> " WHERE inactive = false"
-          <> " AND sm.stock_id like ?"
-          <> " GROUP BY sm.stock_id"
+          <> "    SELECT sm.stock_id"
+          <> "    , max(IF(name = 'collectMOP', '2011-11-11', date)) stock_take"
+          <> "    , max(date) alltake"
+          <> "    , GREATEST(0, qoh.quantity) quantity"
+          <> "    FROM 0_stock_master sm"
+          <> "    LEFT JOIN fames_stocktake st on (sm.stock_id = st.stock_id"
+          <> "         AND active = true"
+          <> "    ) "
+          <> "    LEFT JOIN fames_document_key doc USING(document_key_id)"
+          <> "    JOIN 0_denorm_qoh qoh ON (sm.stock_id = qoh.stock_id)"
+          <> "    WHERE inactive = false"
+          <> "    AND sm.stock_id like ?"
+          <> "    AND sm.stock_id like 'M%'" -- TODO configuration
+          <> "    AND qoh.loc_code = ?"
+          <> "    GROUP BY sm.stock_id"
           <> " ) last_stocktake"
           <> " GROUP BY style"
-          <> " ORDER BY take_date"
-  style'dates <- runDB $ rawSql sql [PersistText stockLike]
-  let types = style'dates :: [(Single Text, Single (Maybe Day), Single (Maybe Day))]
+          <> " HAVING NOT (quantity = 0 AND take_date is NULL AND latest is NULL)"
+          <> " ORDER BY take_date, latest, style"
+      showDate Nothing = ""
+      showDate (Just d) | d ==  fromGregorian 2011 11 11 = ""
+      showDate (Just d) = tshow d
+  style'dates <- runDB $ rawSql sql [PersistText stockLike, PersistText defaultLocation ]
+  let types = style'dates :: [(Single Text, Single (Maybe Day), Single (Maybe Day), Single Double)]
   defaultLayout [whamlet|
 <div.panel.panel-info>
   <div.panel-heading><h3>Stocktake History
@@ -150,13 +161,15 @@ getWHStocktakeHistoryR = do
     <table.table.table-bordered>
       <tr>
          <th> Style
+         <th> QOH
          <th> Last Stocktacke
          <th> Last Individual
-      $forall (Single style, Single mindate, Single latest) <- style'dates
+      $forall (Single style, Single mindate, Single latest, Single quantity) <- style'dates
         <tr>
           <td><a href="@?{(WarehouseR WHStocktakeR, [("style", style), ("active", "True")])}" > #{style}
-          <td><a href="@?{(WarehouseR WHStocktakeR, [("date", tshow mindate)])}"> #{tshow mindate}
-          <td><a href="@?{(WarehouseR WHStocktakeR, [("date", tshow latest)])}"> #{tshow latest}
+          <td>#{tshow $ floor quantity}
+          <td><a href="@?{(WarehouseR WHStocktakeR, [("date", tshow mindate)])}"> #{showDate mindate}
+          <td><a href="@?{(WarehouseR WHStocktakeR, [("date", tshow latest)])}"> #{showDate latest}
 |]
 
 
