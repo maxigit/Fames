@@ -7,6 +7,7 @@ module Handler.Util
 , getDBName
 , getHaskellName
 , entityTableHandler
+, entityTableHandler'
 , uploadFileForm
 , uploadFileFormWithComment
 , Encoding(..)
@@ -44,7 +45,10 @@ import FA
 -- the entity type to display
 entityTableHandler :: (PersistEntityBackend a ~ BaseBackend (YesodPersistBackend site), Yesod site, YesodPersist site, PersistQueryRead (YesodPersistBackend site), PersistEntity a)
   => Route site -> [Filter a] -> HandlerT site IO Html
-entityTableHandler route filter_ = do
+entityTableHandler route filter_ = entityTableHandler' route filter_ []
+entityTableHandler' :: (PersistEntityBackend a ~ BaseBackend (YesodPersistBackend site), Yesod site, YesodPersist site, PersistQueryRead (YesodPersistBackend site), PersistEntity a)
+  => Route site -> [Filter a] -> [SelectOpt a] -> HandlerT site IO Html
+entityTableHandler' route filter_ orders = do
   let page_ = "page"
       pageSize_ = "pageSize_"
   pageSizeM <- lookupGetParam pageSize_
@@ -57,7 +61,7 @@ entityTableHandler route filter_ = do
       previous = page -1
       next = page +1
       one = 1 :: Int
-  entities <- runDB $ selectList filter_ [LimitTo pageSize, OffsetBy offset]
+  entities <- runDB $ selectList filter_ (orders ++ [LimitTo pageSize, OffsetBy offset])
   -- let typed = entities :: [Entity FA.ItemRequest]
   let navBar = [whamlet|
 <nav.navbar.navbar-default>

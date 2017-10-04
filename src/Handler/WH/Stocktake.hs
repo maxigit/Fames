@@ -76,15 +76,27 @@ data FormParam = FormParam
 -- * Requests
 getWHStocktakeR :: Handler Html
 getWHStocktakeR = do
+  stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   sId <- lookupGetParam "id"
   stockId <- lookupGetParam "stock_id"
+  style <- lookupGetParam "style"
+  active <- lookupGetParam "active"
   docId <- lookupGetParam "doc_key"
+  date <- lookupGetParam "date"
   let filter = catMaybes
         [ (\i -> StocktakeId ==. StocktakeKey (SqlBackendKey i)) <$> (sId >>= readMay)
         , (StocktakeStockId ==. ) <$> stockId
+        , (\like -> Filter StocktakeStockId (Left $ like <> "%") (BackendSpecificFilter "LIKE")) <$> style
+        , (StocktakeActive ==.) <$> (active >>= readMay)
+        , (StocktakeDate ==.) <$> (date >>= readMay)
         , (\k -> StocktakeDocumentKey ==. DocumentKeyKey' (SqlBackendKey k) ) <$> (docId >>= readMay)
         ]
-  entityTableHandler (WarehouseR WHStocktakeR) (filter :: [Filter Stocktake])
+  let orderBy = concat $ catMaybes
+          [ style <&> (\_ -> [Asc StocktakeStockId, Asc StocktakeDate] )
+          , date <&> (\_ -> [Asc StocktakeStockId])
+          ]
+
+  entityTableHandler' (WarehouseR WHStocktakeR) (filter :: [Filter Stocktake]) orderBy
 
 getWHStocktakeValidateR :: Handler Html
 getWHStocktakeValidateR = do
@@ -120,6 +132,7 @@ getWHStocktakeHistoryR = do
           <> " where active = true"
           <> " and inactive = false"
           <> " and stock_id like ?"
+          <> " and barcode not like 'ZT%'"
           <> " group by stock_id"
           <> " ) last_stocktake"
           <> " group by style"
@@ -136,8 +149,8 @@ getWHStocktakeHistoryR = do
          <th> Last
       $forall (Single style, Single date) <- style'dates
         <tr>
-          <td> #{style}
-          <td> #{tshow date}
+          <td><a href="@?{(WarehouseR WHStocktakeR, [("style", style), ("active", "True")])}" > #{style}
+          <td><a href="@?{(WarehouseR WHStocktakeR, [("date", tshow date)])}"> #{tshow date}
 |]
 
 
