@@ -124,21 +124,25 @@ getWHStocktakeValidateR = do
 getWHStocktakeHistoryR :: Handler Html
 getWHStocktakeHistoryR = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
-  let sql =  " select left(stock_id, 8) as style, min(stock_take) take_date"
-          <> " from "
+  let sql =  " SELECT left(stock_id, 8) as style, min(stock_take) take_date, max(alltake)"
+          <> " FROM "
           <> " ("
-          <> " select stock_id, max(date) stock_take from 0_stock_master"
-          <> " left join fames_stocktake using(stock_id)"
-          <> " where active = true"
-          <> " and inactive = false"
-          <> " and stock_id like ?"
-          <> " and barcode not like 'ZT%'"
-          <> " group by stock_id"
+          <> " SELECT sm.stock_id"
+          <> " , max(IF(name = 'collectMOP', NULL, date)) stock_take"
+          <> " , max(date) alltake"
+          <> " FROM 0_stock_master sm"
+          <> " LEFT JOIN fames_stocktake st on (sm.stock_id = st.stock_id"
+          <> "      AND active = true"
+          <> " )  "
+          <> " LEFT JOIN fames_document_key doc USING(document_key_id)"
+          <> " WHERE inactive = false"
+          <> " AND sm.stock_id like ?"
+          <> " GROUP BY sm.stock_id"
           <> " ) last_stocktake"
-          <> " group by style"
-          <> " order by take_date"
+          <> " GROUP BY style"
+          <> " ORDER BY take_date"
   style'dates <- runDB $ rawSql sql [PersistText stockLike]
-  let types = style'dates :: [(Single Text, Single Day)]
+  let types = style'dates :: [(Single Text, Single (Maybe Day), Single (Maybe Day))]
   defaultLayout [whamlet|
 <div.panel.panel-info>
   <div.panel-heading><h3>Stocktake History
@@ -146,11 +150,13 @@ getWHStocktakeHistoryR = do
     <table.table.table-bordered>
       <tr>
          <th> Style
-         <th> Last
-      $forall (Single style, Single date) <- style'dates
+         <th> Last Stocktacke
+         <th> Last Individual
+      $forall (Single style, Single mindate, Single latest) <- style'dates
         <tr>
           <td><a href="@?{(WarehouseR WHStocktakeR, [("style", style), ("active", "True")])}" > #{style}
-          <td><a href="@?{(WarehouseR WHStocktakeR, [("date", tshow date)])}"> #{tshow date}
+          <td><a href="@?{(WarehouseR WHStocktakeR, [("date", tshow mindate)])}"> #{tshow mindate}
+          <td><a href="@?{(WarehouseR WHStocktakeR, [("date", tshow latest)])}"> #{tshow latest}
 |]
 
 
