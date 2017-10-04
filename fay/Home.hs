@@ -14,7 +14,7 @@ import           SharedTypes
 
 main :: Fay ()
 main = do
-    alert "Index Main"
+    -- alert "Index Main"
     input <- getElementById "fibindex"
     result <- getElementById "fibresult"
     onKeyUp input $ do
