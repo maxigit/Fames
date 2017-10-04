@@ -14,6 +14,7 @@
   /barcodes WHBarcodeR GET POST !group=Barcodes !title=Generate
 
   /stocktake WHStocktakeR GET !stocktake !group=Stock !title=Stocktake
+  /stocktake/history WHStocktakeHistoryR GET !stocktake !group=Stock !title=Stocktake_History
   /stocktake/save WHStocktakeSaveR GET POST !stocktake/save
   /stocktake/validate WHStocktakeValidateR GET POST !stocktake !title=Validate_Stocktake
   /stocktake/collect WHStocktakeCollectMOPR POST !stocktake/collect

@@ -9,6 +9,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 module Handler.WH.Stocktake
 ( getWHStocktakeR
+, getWHStocktakeHistoryR
 , postWHStocktakeSaveR
 , postWHStocktakeCollectMOPR
 , getWHStocktakeSaveR
@@ -105,6 +106,40 @@ getWHStocktakeValidateR = do
       <button type="submit" name="Collect" .btn class="btn-danger">Collect
 |]
   renderWHStocktake Validate Nothing 200 (setInfo "Enter Stocktake") widget
+
+-- | Returns the latest stocktake date
+-- for a given style
+getWHStocktakeHistoryR :: Handler Html
+getWHStocktakeHistoryR = do
+  stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
+  let sql =  " select left(stock_id, 8) as style, min(stock_take) take_date"
+          <> " from "
+          <> " ("
+          <> " select stock_id, max(date) stock_take from 0_stock_master"
+          <> " left join fames_stocktake using(stock_id)"
+          <> " where active = true"
+          <> " and inactive = false"
+          <> " and stock_id like ?"
+          <> " group by stock_id"
+          <> " ) last_stocktake"
+          <> " group by style"
+          <> " order by take_date"
+  style'dates <- runDB $ rawSql sql [PersistText stockLike]
+  let types = style'dates :: [(Single Text, Single Day)]
+  defaultLayout [whamlet|
+<div.panel.panel-info>
+  <div.panel-heading><h3>Stocktake History
+  <div.panel-body>
+    <table.table.table-bordered>
+      <tr>
+         <th> Style
+         <th> Last
+      $forall (Single style, Single date) <- style'dates
+        <tr>
+          <td> #{style}
+          <td> #{tshow date}
+|]
+
 
 
 postWHStocktakeValidateR :: Handler Html
