@@ -1094,14 +1094,23 @@ generateMissingsFor :: [ValidRow] -> Handler [QuickRow]
 generateMissingsFor [] = return []
 generateMissingsFor rows@(row:_) = do
   let day = validValue . rowDate $ (transformValid row :: QuickRow) -- max date, rows are sorted by date DESC
-  -- find all items which have been in stock
-  let sql = "SELECT stock_id FROM (SELECT stock_id, SUM(qty) quantity "
+  -- find all items which are in stock
+  -- which have been in stock and are active.
+  -- We need to a zero takes for items when a complete stock take have been done
+  -- even though the stocktake (0) is correct would not generate a stock adjustment.
+  -- This is needed to get a correct stocktake history and decide which date was the latest stocktake
+  -- for a given style. If not, it appears that the missing style haven't been stocktake since the last
+  -- non-zero take.
+  let sql = "SELECT stock_id FROM (SELECT stock_id, SUM(qty) quantity, NOT inactive AS active "
             <> "FROM 0_stock_moves "
+            <> "JOIN 0_stock_master USING(stock_id) "
             <> "WHERE LEFT(stock_id,8)  = ? "
+            <> " AND inactive = False "
             <> " AND tran_date <= ? "
             <> " AND loc_code = \"DEF\" "
-            <> "GROUP BY stock_id "
-            <> "HAVING quantity != 0 ) variations"
+            <> " GROUP BY stock_id "
+            <> " ) variations "
+            <> "WHERE quantity != 0 OR active = True"
       style = validValue (styleFor row) :: Text
       getColour = drop 9
 

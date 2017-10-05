@@ -17,7 +17,7 @@
   /stocktake/history WHStocktakeHistoryR GET !stocktake !group=Stock !title=Stocktake_History
   /stocktake/history/#Text WHStocktakeHistoryStyleR GET !stocktake
   /stocktake/save WHStocktakeSaveR GET POST !stocktake/save
-  /stocktake/validate WHStocktakeValidateR GET POST !stocktake !title=Validate_Stocktake
+  /stocktake/validate WHStocktakeValidateR GET POST !stocktake !title=Process_Stocktake
   /stocktake/collect WHStocktakeCollectMOPR POST !stocktake/collect
 
   /stock_adjustment WHStockAdjustmentR GET POST !stock_adj !title=Stock_Adjustment
