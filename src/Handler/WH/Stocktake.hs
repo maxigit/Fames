@@ -27,7 +27,7 @@ import WH.Barcode
 import Data.List(scanl, init, length, head, (\\), nub)
 import Data.Either
 import System.Directory (doesFileExist)
-import Data.Time(fromGregorian)
+import Data.Time(fromGregorian, addDays)
 
 import Database.Persist.Sql
 import qualified Data.Csv as Csv
@@ -137,7 +137,7 @@ getWHStocktakeHistoryR = do
           <> "    , GREATEST(0, qoh.quantity) quantity"
           <> "    FROM 0_stock_master sm"
           <> "    LEFT JOIN fames_stocktake st on (sm.stock_id = st.stock_id"
-          <> "         AND active = true"
+          -- <> "         AND active = true"
           <> "    ) "
           <> "    LEFT JOIN fames_document_key doc USING(document_key_id)"
           <> "    JOIN 0_denorm_qoh qoh ON (sm.stock_id = qoh.stock_id)"
@@ -150,11 +150,30 @@ getWHStocktakeHistoryR = do
           <> " GROUP BY style"
           <> " HAVING NOT (quantity = 0 AND take_date is NULL AND latest is NULL)"
           <> " ORDER BY take_date, latest, style"
+      nullDate = fromGregorian 2011 11 11
       showDate Nothing = ""
-      showDate (Just d) | d ==  fromGregorian 2011 11 11 = ""
+      showDate (Just d) | d ==  nullDate = ""
       showDate (Just d) = tshow d
   style'dates <- runDB $ rawSql sql [PersistText stockLike, PersistText defaultLocation ]
   let types = style'dates :: [(Single Text, Single (Maybe Day), Single (Maybe Day), Single Double)]
+  today <- utctDay <$> liftIO getCurrentTime
+  let (allMinDates, allMaxDates) = unzip [(mindate, maxdate) | (_, Single mindate, Single maxdate, _) <- style'dates]
+      minAllDate = case catMaybes allMinDates of
+        [] -> Nothing
+        dates -> Just $ minimumEx (filter (/= nullDate) dates)
+      maxAllDate = case catMaybes allMaxDates of
+        [] -> Nothing
+        dates -> Just $ maximumEx dates
+      tp mindate latest = timeProgress minAllDate maxAllDate today
+                                       (do -- Maybe
+                                          mi <- mindate
+                                          l <- latest
+                                          return $ min mi (addDays (-10) l) -- so we can see 
+                                        )
+                                       latest
+                                       (mindate >= Just recent)
+      recent = addDays (-30) today 
+
   defaultLayout [whamlet|
 <div.panel.panel-info>
   <div.panel-heading><h3>Stocktake History
@@ -163,12 +182,14 @@ getWHStocktakeHistoryR = do
       <tr>
          <th> Style
          <th> QOH
-         <th> Last Stocktacke
-         <th> Last Individual
+         <th style="opacity:0;"> _____ Date Range _____
+         <th> Last Full
+         <th> Last Partial
       $forall (Single style, Single mindate, Single latest, Single quantity) <- style'dates
         <tr>
           <td><a href="@{WarehouseR (WHStocktakeHistoryStyleR style)}" > #{style}
           <td>#{tshow $ floor quantity}
+          <td>^{tp mindate latest }
           <td><a href="@?{(WarehouseR WHStocktakeR, [("date", showDate mindate)])}"> #{showDate mindate}
           <td><a href="@?{(WarehouseR WHStocktakeR, [("date", showDate latest)])}"> #{showDate latest}
 |]
@@ -189,7 +210,7 @@ getWHStocktakeHistoryStyleR style = do
           <> "    , GREATEST(0, qoh.quantity) quantity"
           <> "    FROM 0_stock_master sm"
           <> "    LEFT JOIN fames_stocktake st on (sm.stock_id = st.stock_id"
-          <> "         AND active = true"
+          -- <> "         AND active = true"
           <> "    ) "
           <> "    LEFT JOIN fames_document_key doc USING(document_key_id)"
           <> "    JOIN 0_denorm_qoh qoh ON (sm.stock_id = qoh.stock_id)"
@@ -202,11 +223,30 @@ getWHStocktakeHistoryStyleR style = do
           <> " GROUP BY stock_id"
           <> " HAVING NOT (quantity = 0 AND take_date is NULL AND latest is NULL)"
           <> " ORDER BY stock_id"
+      nullDate = fromGregorian 2011 11 11
       showDate Nothing = ""
-      showDate (Just d) | d ==  fromGregorian 2011 11 11 = ""
+      showDate (Just d) | d ==  nullDate = ""
       showDate (Just d) = tshow d
   style'dates <- runDB $ rawSql sql [PersistText stockLike, PersistText defaultLocation ]
   let types = style'dates :: [(Single Text, Single (Maybe Day), Single (Maybe Day), Single Double)]
+  today <- utctDay <$> liftIO getCurrentTime
+  let (allMinDates, allMaxDates) = unzip [(mindate, maxdate) | (_, Single mindate, Single maxdate, _) <- style'dates]
+      -- for recent, what which decide what to display in red or green
+      -- we use the latest real stocktake
+      (minAllDate, recent) = case catMaybes (filter (/= (Just nullDate)) allMinDates) of
+        [] -> (Nothing, addDays (-30) today)
+        dates -> (Just $ minimumEx  dates, maximumEx dates)
+      maxAllDate = case catMaybes allMaxDates of
+        [] -> Nothing
+        dates -> Just $ maximumEx dates
+      tp mindate latest = timeProgress minAllDate maxAllDate today
+                                       (do -- Maybe
+                                          mi <- mindate
+                                          l <- latest
+                                          return $ min mi (addDays (-10) l) -- so we can see 
+                                        )
+                                       latest
+                                       (mindate >= Just recent)
   defaultLayout [whamlet|
 <div.panel.panel-info>
   <div.panel-heading><h3>Stocktake History
@@ -215,12 +255,14 @@ getWHStocktakeHistoryStyleR style = do
       <tr>
          <th> Style
          <th> QOH
-         <th> Last Stocktacke
-         <th> Last Individual
+         <th style="opacity:0;"> _____ Date Range _____
+         <th> Last Complete 
+         <th> Last Partial
       $forall (Single stockId, Single mindate, Single latest, Single quantity) <- style'dates
         <tr>
           <td><a href="@?{(WarehouseR WHStocktakeR, [("stock_id", stockId)])}" > #{stockId}
           <td>#{tshow $ floor quantity}
+          <td>^{tp mindate latest }
           <td><a href="@?{(WarehouseR WHStocktakeR, [("style", style), ("date", showDate mindate)])}"> #{showDate mindate}
           <td><a href="@?{(WarehouseR WHStocktakeR, [("style", style), ("date", showDate latest)])}"> #{showDate latest}
 |]

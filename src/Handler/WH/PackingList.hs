@@ -775,7 +775,7 @@ renderEdit key pl doc = do
 -- In order to normalize progress bars when displaying different packing list
 -- we need some "bounds"
 deliveryProgress :: Maybe Day -> Maybe Day -> Day -> PackingList -> Widget
-deliveryProgress minDateM maxDateM today pl = let delivered = packingListBoxesToDeliver_d pl > 0
+deliveryProgress minDateM maxDateM today pl = let delivered = packingListBoxesToDeliver_d pl <= 0
   in timeProgress minDateM maxDateM today (packingListDeparture pl) (packingListArriving pl) delivered
 
 -- | A row in the spreasheet

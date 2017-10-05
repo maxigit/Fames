@@ -237,7 +237,7 @@ timeProgress minDateM maxDateM today startm endm done = do
       [start, end] = map (fromMaybe today) [startm, endm]
       maxWidth = max 1 (diffDays maxDate minDate) :: Integer
 
-      bars = traceShowId [ (col, 100 * fromIntegral w / fromIntegral maxWidth) | (col,w) <-
+      bars = [ (col, 100 * fromIntegral w / fromIntegral maxWidth) | (col,w) <-
                 case () of
                  _ | today < start -> [ ("none" :: Text, diffDays today minDate)
                                           , ("primary" , 1)
@@ -249,7 +249,7 @@ timeProgress minDateM maxDateM today startm endm done = do
                                                                , ("info", diffDays end today)
                                                                ]
                  -- end < tody
-                 _ | done == False -> [ ("none", diffDays start minDate)
+                 _ | done -> [ ("none", diffDays start minDate)
                                       , ("success", diffDays end start )
                                       , ("none", diffDays today end)
                                       , ("primary", 1)
