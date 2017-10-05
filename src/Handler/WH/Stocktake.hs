@@ -279,7 +279,7 @@ getWHStocktakeHistoryStyleR style = do
       $forall (Single stockId, Single mindate, Single latest, Single quantity) <- style'dates
         <tr>
           <td><a href="@?{(WarehouseR WHStocktakeR, [("stock_id", stockId)])}" > #{stockId}
-          <td>#{tshow $ floor quantity}
+          <td><a href="@{ItemsR (ItemsHistoryR stockId)}">#{tshow $ floor quantity}
           <td>^{tp mindate latest }
           <td><a href="@?{(WarehouseR WHStocktakeR, [("style", style), ("date", showDate mindate)])}"> #{showDate mindate}
           <td><a href="@?{(WarehouseR WHStocktakeR, [("style", style), ("date", showDate latest)])}"> #{showDate latest}
