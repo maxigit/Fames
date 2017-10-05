@@ -10,6 +10,7 @@
 module Handler.WH.Stocktake
 ( getWHStocktakeR
 , getWHStocktakeHistoryR
+, getWHStocktakeHistoryStyleR
 , postWHStocktakeSaveR
 , postWHStocktakeCollectMOPR
 , getWHStocktakeSaveR
@@ -89,7 +90,7 @@ getWHStocktakeR = do
         , (StocktakeStockId ==. ) <$> stockId
         , (\like -> Filter StocktakeStockId (Left $ like <> "%") (BackendSpecificFilter "LIKE")) <$> style
         , (StocktakeActive ==.) <$> (active >>= readMay)
-        , (StocktakeDate ==.) <$> (date >>= readMay)
+        , (StocktakeDate ==.) <$> (let d = date >>= readMay in traceShow ("DATE",date,d) d)
         , (\k -> StocktakeDocumentKey ==. DocumentKeyKey' (SqlBackendKey k) ) <$> (docId >>= readMay)
         ]
   let orderBy = concat $ catMaybes
@@ -121,7 +122,7 @@ getWHStocktakeValidateR = do
   renderWHStocktake Validate Nothing 200 (setInfo "Enter Stocktake") widget
 
 -- | Returns the latest stocktake date
--- for a given style
+-- for each sytle
 getWHStocktakeHistoryR :: Handler Html
 getWHStocktakeHistoryR = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
@@ -166,12 +167,64 @@ getWHStocktakeHistoryR = do
          <th> Last Individual
       $forall (Single style, Single mindate, Single latest, Single quantity) <- style'dates
         <tr>
-          <td><a href="@?{(WarehouseR WHStocktakeR, [("style", style), ("active", "True")])}" > #{style}
+          <td><a href="@{WarehouseR (WHStocktakeHistoryStyleR style)}" > #{style}
           <td>#{tshow $ floor quantity}
-          <td><a href="@?{(WarehouseR WHStocktakeR, [("date", tshow mindate)])}"> #{showDate mindate}
-          <td><a href="@?{(WarehouseR WHStocktakeR, [("date", tshow latest)])}"> #{showDate latest}
+          <td><a href="@?{(WarehouseR WHStocktakeR, [("date", showDate mindate)])}"> #{showDate mindate}
+          <td><a href="@?{(WarehouseR WHStocktakeR, [("date", showDate latest)])}"> #{showDate latest}
 |]
 
+-- | Returns the lastest stocktake date
+-- for each variation of a give style.
+getWHStocktakeHistoryStyleR :: Text -> Handler Html
+getWHStocktakeHistoryStyleR style = do
+  let stockLike = style <> "-%"
+  defaultLocation <- appFADefaultLocation . appSettings <$> getYesod
+  let sql =  " SELECT stock_id, min(stock_take) take_date, max(alltake) latest"
+          <> "        , SUM(quantity) quantity"
+          <> " FROM "
+          <> " ("
+          <> "    SELECT sm.stock_id"
+          <> "    , max(IF(name = 'collectMOP', '2011-11-11', date)) stock_take"
+          <> "    , max(date) alltake"
+          <> "    , GREATEST(0, qoh.quantity) quantity"
+          <> "    FROM 0_stock_master sm"
+          <> "    LEFT JOIN fames_stocktake st on (sm.stock_id = st.stock_id"
+          <> "         AND active = true"
+          <> "    ) "
+          <> "    LEFT JOIN fames_document_key doc USING(document_key_id)"
+          <> "    JOIN 0_denorm_qoh qoh ON (sm.stock_id = qoh.stock_id)"
+          <> "    WHERE inactive = false"
+          <> "    AND sm.stock_id like ?"
+          <> "    AND sm.stock_id like 'M%'" -- TODO configuration
+          <> "    AND qoh.loc_code = ?"
+          <> "    GROUP BY sm.stock_id"
+          <> " ) last_stocktake"
+          <> " GROUP BY stock_id"
+          <> " HAVING NOT (quantity = 0 AND take_date is NULL AND latest is NULL)"
+          <> " ORDER BY stock_id"
+      showDate Nothing = ""
+      showDate (Just d) | d ==  fromGregorian 2011 11 11 = ""
+      showDate (Just d) = tshow d
+  style'dates <- runDB $ rawSql sql [PersistText stockLike, PersistText defaultLocation ]
+  let types = style'dates :: [(Single Text, Single (Maybe Day), Single (Maybe Day), Single Double)]
+  defaultLayout [whamlet|
+<div.panel.panel-info>
+  <div.panel-heading><h3>Stocktake History
+  <div.panel-body>
+    <table.table.table-bordered>
+      <tr>
+         <th> Style
+         <th> QOH
+         <th> Last Stocktacke
+         <th> Last Individual
+      $forall (Single stockId, Single mindate, Single latest, Single quantity) <- style'dates
+        <tr>
+          <td><a href="@?{(WarehouseR WHStocktakeR, [("stock_id", stockId)])}" > #{stockId}
+          <td>#{tshow $ floor quantity}
+          <td><a href="@?{(WarehouseR WHStocktakeR, [("style", style), ("date", showDate mindate)])}"> #{showDate mindate}
+          <td><a href="@?{(WarehouseR WHStocktakeR, [("style", style), ("date", showDate latest)])}"> #{showDate latest}
+|]
+  
 
 
 postWHStocktakeValidateR :: Handler Html
