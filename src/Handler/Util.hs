@@ -19,6 +19,7 @@ module Handler.Util
 , badgeSpan
 , tshowM
 , basePriceList
+, timeProgress
 ) where
 
 import Foundation
@@ -37,6 +38,7 @@ import Data.Streaming.Process (streamingProcess, proc, Inherited(..), waitForStr
 import qualified Data.Text.Lazy as LT
 import Text.Blaze.Html (Markup)
 import FA
+import Data.Time (diffDays, addGregorianMonthsClip)
 -- import Data.IOData (IOData)
 
 -- * Display entities
@@ -223,6 +225,53 @@ badgeSpan badgeWidth qty bgM klass = do
       qs = tshow qty
       q = fromMaybe qs $  stripSuffix ".0" qs
   [shamlet|<span.badge class=#{klass} style="#{style}; #{bg}">#{q}|]
+
+-- * Progress bars
+-- Display a time range within a global time range
+-- (so that, all time range within the same page matches)
+-- The done parameter specifys how to display date in the past (success or failure)
+timeProgress :: Maybe Day -> Maybe Day -> Day -> Maybe Day -> Maybe Day -> Bool -> Widget
+timeProgress minDateM maxDateM today startm endm done = do
+  let minDate = minimumEx . (\x -> x :: [Day]) $ catMaybes [Just (addGregorianMonthsClip (-1) today), minDateM , startm]
+      maxDate = maximumEx . (\x -> x :: [Day]) $ catMaybes [Just (addGregorianMonthsClip 1 today), maxDateM, endm]
+      [start, end] = map (fromMaybe today) [startm, endm]
+      maxWidth = max 1 (diffDays maxDate minDate) :: Integer
+
+      bars = traceShowId [ (col, 100 * fromIntegral w / fromIntegral maxWidth) | (col,w) <-
+                case () of
+                 _ | today < start -> [ ("none" :: Text, diffDays today minDate)
+                                          , ("primary" , 1)
+                                          , ("none", (diffDays start today) -1)
+                                          , ("info", diffDays end start)
+                                          ]
+                 _ | today >= start && today <= end -> [ ("none", diffDays start minDate)
+                                                               , ("success", diffDays today start)
+                                                               , ("info", diffDays end today)
+                                                               ]
+                 -- end < tody
+                 _ | done == False -> [ ("none", diffDays start minDate)
+                                      , ("success", diffDays end start )
+                                      , ("none", diffDays today end)
+                                      , ("primary", 1)
+                                      ] 
+                 _ | True -> [ ("none", diffDays start minDate)
+                             , ("danger", diffDays end start )
+                             , ("none", diffDays today end)
+                             , ("primary", 1)
+                             ] 
+             ]
+
+  [whamlet|
+<div.progress>
+  $forall (style, width) <- bars
+    <div.progress-bar class="progress-bar-#{style}"
+                      role="progressbar"
+                      style="min-width:0%; width:#{tshow width}%">&nbsp;<span class="sr-only"> #{tshow width}%
+|]
+  toWidget [cassius|
+.progress-bar-none
+  opacity:0
+                   |]
 
 -- * Html
 tshowM :: Show a => Maybe a -> Text

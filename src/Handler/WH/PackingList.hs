@@ -24,13 +24,12 @@ module Handler.WH.PackingList
 import Import
 import Yesod.Form.Bootstrap3
 import Handler.CsvUtils
-import Handler.Util(generateLabelsResponse)
+import Handler.Util(generateLabelsResponse, timeProgress)
 import qualified Data.Csv as Csv
 import Data.List (transpose)
 import qualified Data.List as List
 import Database.Persist.MySQL
 import qualified Data.Map as Map
-import Data.Time (diffDays, addGregorianMonthsClip)
 import Handler.WH.Barcode
 import WH.Barcode
 import WH.PackingList.Internal
@@ -137,7 +136,7 @@ viewPLLists = do
       <td> #{fromMaybe "" $ packingListContainer pl}
       <td> #{packingListBoxesToDeliver_d pl}
       <td> #{maybe "" tshow (packingListDeparture pl) }
-      <td> ^{timeProgress minDate maxDate today pl}
+      <td> ^{deliveryProgress minDate maxDate today pl}
       <td> #{maybe "" tshow (packingListArriving pl) }
           |]
 
@@ -442,7 +441,7 @@ viewPackingList mode key pre = do
                      #{value}
             <div.panel-body>
               <div.pl-time.col-xs-12>
-                ^{timeProgress Nothing Nothing today pl}
+                ^{deliveryProgress Nothing Nothing today pl}
 
 
               $forall fields <- fieldsS
@@ -775,54 +774,9 @@ renderEdit key pl doc = do
 -- | Generates a progress bar to track the delivery timing
 -- In order to normalize progress bars when displaying different packing list
 -- we need some "bounds"
-timeProgress :: Maybe Day -> Maybe Day -> Day -> PackingList -> Widget
-timeProgress minDateM maxDateM today pl = do
-  let minDate = List.minimum . (\x -> x :: [Day]) $ catMaybes [Just (addGregorianMonthsClip (-1) today), minDateM , packingListDeparture pl]
-      maxDate = List.maximum . (\x -> x :: [Day]) $ catMaybes [Just (addGregorianMonthsClip 1 today), maxDateM, packingListArriving pl]
-  -- let minDate = minimum $ mlcons today ( toMinLenZero $ catMaybes [minDateM , packingListDeparture pl])
-  --     maxDate = maximum $ mlcons today (toMinLenZero $ catMaybes [Just today, maxDateM, packingListArriving pl])
-      departure = fromMaybe today (packingListDeparture pl)
-      arriving = fromMaybe today (packingListArriving pl)
-      maxWidth = max 1 (diffDays maxDate minDate) :: Integer
-
-      bars = traceShowId [ (col, 100 * fromIntegral w / fromIntegral maxWidth) | (col,w) <-
-                case () of
-                 _ | today < departure -> [ ("none" :: Text, diffDays today minDate)
-                                          , ("primary" , 1)
-                                          , ("none", (diffDays departure today) -1)
-                                          , ("info", diffDays arriving departure)
-                                          ]
-                 _ | today >= departure && today <= arriving -> [ ("none", diffDays departure minDate)
-                                                               , ("success", diffDays today departure)
-                                                               , ("info", diffDays arriving today)
-                                                               ]
-                 -- arriving < tody
-                 _ | packingListBoxesToDeliver_d pl <= 0 -> [ ("none", diffDays departure minDate)
-                                                          , ("success", diffDays arriving departure )
-                                                          , ("none", diffDays today arriving)
-                                                          , ("primary", 1)
-                                                          ] 
-                 _ | True -> [ ("none", diffDays departure minDate)
-                             , ("danger", diffDays arriving departure )
-                             , ("none", diffDays today arriving)
-                             , ("primary", 1)
-                             ] 
-             ]
-
-  [whamlet|
-<div.progress>
-  $forall (style, width) <- bars
-    <div.progress-bar class="progress-bar-#{style}"
-                      role="progressbar"
-                      style="min-width:0%; width:#{tshow width}%">&nbsp;<span class="sr-only"> #{tshow width}%
-|]
-  toWidget [cassius|
-.progress-bar-none
-  opacity:0
-                   |]
-
-
-
+deliveryProgress :: Maybe Day -> Maybe Day -> Day -> PackingList -> Widget
+deliveryProgress minDateM maxDateM today pl = let delivered = packingListBoxesToDeliver_d pl > 0
+  in timeProgress minDateM maxDateM today (packingListDeparture pl) (packingListArriving pl) delivered
 
 -- | A row in the spreasheet
 -- Depending on the type of box, the order quantity can represent the quantity
