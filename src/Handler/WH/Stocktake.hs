@@ -100,6 +100,24 @@ getWHStocktakeR = do
 
   entityTableHandler' (WarehouseR WHStocktakeR) (filter :: [Filter Stocktake]) orderBy
 
+help :: Html
+help = [shamlet|
+<p>
+  Empty cells are automatically filled with depending on the previous value.
+  However, the FIRST line MUST contains all the required fields.
+<p>
+  Normally stocktake must include styles quantities as well as box information (location, barcode and dimensions)
+  However, a <i>quick take</i> can be entered which doesn't require box information or barcode. See the 0 in the
+  list of possible barcode value.
+<p>
+  The barcode column should contains either
+  <ul>
+    <li> a full barcode with a quantity. This is a normal row.
+    <li> the last characters of a barcode. The first ones will be filled according to the previous line
+    <li> 0 : this mean there is no box, therefore no barcode. In that case, the box dimension needs to be left
+    blank and the date and operator MUST be filled.
+    <li> a barcode WITHOUT colour AND quantity : this indicates a barcode lookup. In this case, the content (variations and corresponding quantities) as well as the box dimensions would be filled using the information in the database provided previously for the given barcode. To not be confused with a line where the barcode quantity has been forgotten, it is required that both the quantity and the colour are left blank.
+|]
 getWHStocktakeValidateR :: Handler Html
 getWHStocktakeValidateR = do
   mop0 <- collectFromMOP
@@ -119,7 +137,7 @@ getWHStocktakeValidateR = do
       ^{formW}
       <button type="submit" name="Collect" .btn class="btn-danger">Collect
 |]
-  renderWHStocktake Validate Nothing 200 (setInfo "Enter Stocktake") widget
+  renderWHStocktake Validate Nothing 200 (setInfo ([shamlet|<h3>Enter Stocktake|] >> help)) widget
 
 -- | Returns the latest stocktake date
 -- for each sytle
