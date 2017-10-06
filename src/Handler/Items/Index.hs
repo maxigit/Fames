@@ -919,14 +919,18 @@ renderIndex param0 status = do
       $else
         <a href="#" data-toggle="tooltip" title="Please show unactive before creating missing items.">
           <div.btn.btn-primary.disabled type="submit" name="button" value="create"> Create Missings
-      $if (ipMode param == ItemWebStatusView)
+      $if (ipMode param == ItemWebStatusView) 
         <button.btn.btn-primary type="submit" name="button" value="activate">Activate
         <button.btn.btn-warning type="submit" name="button" value="deactivate">Deactivate
         <button.btn.btn-danger type="submit" name="button" value="delete">Delete
-      $if (ipMode param == ItemPriceView)
+      $elseif (ipMode param == ItemGLView) 
+        <button.btn.btn-primary type="submit" name="button" value="activate">Activate
+        <button.btn.btn-warning type="submit" name="button" value="deactivate">Deactivate
+        <div.btn.btn-danger.disabled type="submit" name="button" value=""> Delete
+      $elseif (ipMode param == ItemPriceView)
           <div.btn.btn-warning.disabled type="submit" name="button" value=""> Activate
           <div.btn.btn-warning.disabled type="submit" name="button" value=""> Deactivate
-        <button.btn.btn-danger type="submit" name="button" value="delete">Delete
+          <button.btn.btn-danger type="submit" name="button" value="delete">Delete
       $else
           <div.btn.btn-warning.disabled type="submit" name="button" value=""> Activate
           <div.btn.btn-warning.disabled type="submit" name="button" value=""> Deactivate
@@ -1638,10 +1642,11 @@ newProductFieldPrice mk price p'r =
 -- ** Activation
 -- | Activates/deactivate and item in FrontAccounting.
 changeFAActivation :: Bool -> IndexParam -> Handler ()
-changeFAActivation activate param =
+changeFAActivation activate param = do
   changeActivation activate param
                    [StockMasterInactive ==. activate]
                    (flip update [StockMasterInactive =. not activate])
+  clearAppCache
 
 changeActivation :: Bool -> IndexParam -> _ -> _ -> Handler ()
 changeActivation activate param activeFilter updateFn =  runDB $ do
