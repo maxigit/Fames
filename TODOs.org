@@ -269,3 +269,21 @@ However Cap-Blue is not displayed as blue is not an expected colors
 
 * Bugs
 
+** Drupal Commerce borked
+Delete Website items doesn't work if people have a pending order
+There is a link between commerce_line_item and the product
+via field_data_commerce_product
+The following query shouldn't return anything
+#+BEGIN_SRC sql
+select * from dcx_field_data_commerce_product where commerce_product_product_id = 75661 limit 10
+select dcx_commerce_line_item.* from dcx_field_data_commerce_product
+left join dcx_commerce_product p on(product_id = commerce_product_product_id)
+left join dcx_commerce_line_item on(entity_id = line_item_id)
+where p.sku is NULL
+#+END_SRC
+
+If the database is corrupted we can either fix field_data_commerce_product manually
+by looking at the sku in commerce_line_item and find the correct product_id in commerce_product.
+
+The easiest however, is just to delete all commerce_line_item and then delete the order from the 
+DC order interface.
