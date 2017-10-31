@@ -430,6 +430,11 @@ loadPurchasePrices param = do
             
      _ -> return []
   
+suppliersToKeep :: IndexCache -> IndexParam -> Handler [Key Supplier]
+suppliersToKeep cache params = do
+  let suppIds = keys (icSupplierNames cache)
+  return $ (map SupplierKey) (filter (\i -> (supplierColumnCheckId i) `elem` ipColumns params) (suppIds))
+
 -- ** FA Status
 -- | Load item status, needed to know if an item can be deactivated or deleted safely
 -- This includes if items have been even ran, still in stock, on demand (sales) or on order (purchase)
@@ -931,6 +936,10 @@ renderIndex param0 status = do
           <div.btn.btn-warning.disabled type="submit" name="button" value=""> Activate
           <div.btn.btn-warning.disabled type="submit" name="button" value=""> Deactivate
           <button.btn.btn-danger type="submit" name="button" value="delete">Delete
+      $elseif (ipMode param == ItemPurchaseView)
+          <div.btn.btn-warning.disabled type="submit" name="button" value=""> Activate
+          <div.btn.btn-warning.disabled type="submit" name="button" value=""> Deactivate
+          <button.btn.btn-danger type="submit" name="button" value="delete">Delete
       $else
           <div.btn.btn-warning.disabled type="submit" name="button" value=""> Activate
           <div.btn.btn-warning.disabled type="submit" name="button" value=""> Deactivate
@@ -950,6 +959,7 @@ renderIndex param0 status = do
 -- ** css classes
   
 priceColumnCheckId i = tshow i
+supplierColumnCheckId i = tshow i
 
 getColumnToTitle :: IndexCache -> IndexParam -> Handler (IndexColumn -> (Html, [Text]))
 getColumnToTitle cache param = do
@@ -973,7 +983,13 @@ getColumnToTitle cache param = do
                   in Left ([shamlet|#{name}<input type="checkbox" name="col-check-#{priceColumnCheckId i}" :checked:checked>|]
                           , ["price"]
                           )
-            PurchaseColumn i -> Right $ findWithDefault "" i (supplierNames :: IntMap Text)
+            PurchaseColumn i -> case lookup i supplierNames of
+                Nothing -> Right ""
+                Just name -> let
+                  checked = supplierColumnCheckId i `elem` (ipColumns param)
+                  in Left ([shamlet|#{name}<input type="checkbox" name="col-check-#{supplierColumnCheckId i}" :checked:checked>|]
+                          , ["purch_price"]
+                          )
             FAStatusColumn t -> Right t
             WebStatusColumn t -> Right t
             WebPriceColumn i -> -- check if the prices list exists in FA or Web
@@ -1006,6 +1022,7 @@ deleteItems params = do
   resp <- ( case ipMode params of
               ItemWebStatusView -> deleteDC params
               ItemPriceView -> deleteSalesPrices params
+              ItemPurchaseView -> deletePurchasePrices params
           )
   clearAppCache
   return resp
@@ -1094,7 +1111,7 @@ createGLMissings params = do
 deleteSalesPrices :: IndexParam -> Handler ()
 deleteSalesPrices params = do
   cache <- fillIndexCache
-  timestamp <- round <$> liftIO getPOSIXTime
+  -- timestamp <- round <$> liftIO getPOSIXTime
   itemGroups <- loadVariationsToKeep cache (params {ipBases = mempty}) 
   plIds <- priceListsToKeep cache params
   -- delete all prices selected by the user for all given variations
@@ -1107,6 +1124,21 @@ deleteSalesPrices params = do
 
   runDB $ mapM_ deleteWhere deletePairs
 
+deletePurchasePrices :: IndexParam -> Handler ()
+deletePurchasePrices  params = do
+  cache <- fillIndexCache
+  -- timestamp <- round <$> liftIO getPOSIXTime
+  itemGroups <- loadVariationsToKeep cache (params {ipBases = mempty}) 
+  supplierIds <- suppliersToKeep cache params
+  -- delete all prices selected by the user for all given variations
+  let deletePairs =
+        [ [FA.PurchDataStockId ==. iiSku info, PurchDataSupplierId ==. supplierId]
+        | (SupplierKey supplierId) <- supplierIds
+        , (_, items) <- itemGroups
+        , (_, info) <- items
+        ]
+
+  runDB $ mapM_ deleteWhere deletePairs
 
 -- *** Website
 createDCMissings :: IndexParam -> Handler ()
