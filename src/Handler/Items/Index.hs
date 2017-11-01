@@ -723,7 +723,9 @@ itemsTable cache param = do
                           in Just ([], [hamlet|<a href=@{route} target="_blank">#{sku}|] renderUrl )
                         StatusColumn ->
                           let label = case differs of
-                                                True -> [shamlet| <span.label.label-danger data-label=diff> Diff |]
+                                                True -> [shamlet| <span.label.label-danger data-label=diff
+                                                                  data-toggle="tooltip" title="The item differs from its selected base or expected state."
+                                                                  > Diff |]
                                                 _    -> [shamlet||]
                           in Just ([], [hamlet|#{label}|] renderUrl )
               
@@ -829,10 +831,23 @@ columnForFAStatus col iStatus@ItemStatusF{..} =
     "Status" -> Just (statusBadge <$> faRunningStatus iStatus )
     _ -> Nothing
   where statusBadge st = case st of
-          FARunning ->  [shamlet|<span.label.label-success data-label=running>Running|]
-          FAAsleep ->  [shamlet|<span.label.label-warning data-label=asleep>Asleep|]
-          FADead ->  [shamlet|<span.label.label-danger data-label=dead>Dead|]
-          FAGhost ->  [shamlet|<span.label.label-info data-label=ghost>Ghost|]
+          FARunning ->  [shamlet|<span.label.label-success data-label=running
+                              data-toggle="tooltip" title="#{running}"
+                                >Running|]
+          FAAsleep ->  [shamlet|<span.label.label-warning data-label=asleep
+                              data-toggle="tooltip" title="#{asleep}"
+                               >Asleep|]
+          FADead ->  [shamlet|<span.label.label-danger data-label=dead
+                              data-toggle="tooltip" title="#{dead}"
+                              >Dead|]
+          FAGhost ->  [shamlet|<span.label.label-info data-label=ghost
+                              data-toggle="tooltip" title="#{ghost}"
+                              >Ghost|]
+        running = "The item is used, in stock, on demand or and order." :: Text
+        asleep = "Not used but still present in cancelled or expired order/location. Probably needs tidying up before being deleted." :: Text
+        dead = "Not used anymore but can't be deleted because it has been used in previous transaction." :: Text
+        ghost = "The item exists in the system but is not used whatsoever. It could be safely deleted" :: Text
+
 
 columnForWebStatus :: Text -> Maybe (ItemWebStatusF ((,) [Text])) -> Maybe ([Text], Html)
 columnForWebStatus col wStatusM =
@@ -842,7 +857,9 @@ columnForWebStatus col wStatusM =
       in  Just (showActive <$>  w)
     "Product Display" ->
       case sequence w of
-        Just (_, True) ->  Just $ maybe ([], [shamlet|<span.label.label-danger data-label="unlinked">Unlinked|])
+        Just (_, True) ->  Just $ maybe ([], [shamlet|<span.label.label-danger data-label="unlinked"
+                                                      data-toggle="tooltip" title="The variation exists but is not linked to a product display."
+                                                     >Unlinked|])
                                       (fmap toHtml)
                                       (sequence . iwfProductDisplay =<<  wStatusM) 
         Just (_, False) ->  Just $ maybe ([], [shamlet|<span.label.label-warning data-label="unliked-a">Inactive|])
@@ -850,9 +867,15 @@ columnForWebStatus col wStatusM =
                                       (sequence . iwfProductDisplay =<<  wStatusM) 
         Nothing -> Nothing
     _ -> Nothing
-  where showActive (Just True) = [shamlet|<span data-label="web-enabled">Enabled|]
-        showActive (Just False) = [shamlet|<span data-label="web-disabled">Disabled|]
-        showActive Nothing = [shamlet|<span data-label="web-missing">Missing|]
+  where showActive (Just True) = [shamlet|<span data-label="web-enabled"
+                                          data-toggle="tooltip" title="The variation exists and will show on the product display page (if any)."
+                                          >Enabled|]
+        showActive (Just False) = [shamlet|<span data-label="web-disabled"
+                                          data-toggle="tooltip" title="The variation exists but is hidden. It won't show on the product display page."
+                                           >Disabled|]
+        showActive Nothing = [shamlet|<span data-label="web-missing"
+                                          data-toggle="tooltip" title="The variation doesn't exist. Can be created using <Create Missings> if needed."
+                                      >Missing|]
   -- where showActive (Just True) = "Enabled"
   --       showActive (Just False) = "Disabled"
   --       showActive Nothing = "Missing"
@@ -910,6 +933,9 @@ renderIndex param0 status = do
     font-style: italic
     background: #eee
 |]
+  let js = [julius|
+$('[data-toggle="tooltip"]').tooltip();
+|]
   let navs = filter (\n -> n /= ItemAllView
                            && ( n /= ItemPurchaseView || purchAuth -- don't display tab if not authorized
                               )
@@ -959,7 +985,7 @@ renderIndex param0 status = do
       fay = $(fayFile "ItemsIndex")
   selectRep $ do
     provideRep  $ do
-      html <- sendResponseStatus status =<< defaultLayout (widget >> fay >> toWidget css)
+      html <- sendResponseStatus status =<< defaultLayout (widget >> fay >> toWidget css >> toWidget js)
       return (html :: Html)
     provideRep $ do -- Ajax. return table
       table <- widgetToPageContent ix
