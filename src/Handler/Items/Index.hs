@@ -62,6 +62,13 @@ data IndexCache = IndexCache
   , icSupplierNames :: IntMap Text
   , icWebPriceList :: [Int] -- price list ids
   }
+
+data Button = CreateMissingBtn
+            | ActivateBtn
+            | DeactivateBtn
+            | DeleteBtn
+            deriving (Read, Show)
+data ButtonStatus = BtnActive | BtnInactive Text | BtnHidden deriving Show
 -- * Handlers
 getItemsIndexR :: Maybe ItemViewMode -> Handler TypedContent
 getItemsIndexR mode = do
@@ -873,7 +880,7 @@ columnForWebStatus col wStatusM =
         showActive (Just False) = [shamlet|<span data-label="web-disabled"
                                           data-toggle="tooltip" title="The variation exists but is hidden. It won't show on the product display page."
                                            >Disabled|]
-        showActive Nothing = [shamlet|<span data-label="web-missing"
+        showActive Nothing = [shamlet|<span data-●●●●●●label="web-missing"
                                           data-toggle="tooltip" title="The variation doesn't exist. Can be created using <Create Missings> if needed."
                                       >Missing|]
   -- where showActive (Just True) = "Enabled"
@@ -886,6 +893,42 @@ columnForWebPrice colInt (ItemPriceF priceMap) = do
   return $  toHtml . (\x -> x :: String) . printf "%.2f"  <$> value
   
 -- * Rendering
+renderButton :: IndexParam -> Text -> Button -> Html
+renderButton param bclass button = case buttonStatus param button of
+  BtnActive ->  [shamlet|
+               <button.btn class="btn-#{bclass}" type="submit" name="button" value="#{tshow button}">#{buttonName button}
+               |]
+  BtnInactive tooltip ->  [shamlet|
+                 <a href="#" data-toggle="tooltip" title="#{tooltip}">
+                    <div.btn.disabled class="btn-#{bclass} type="submit" name="button" value="#{tshow button}">#{buttonName button}
+               |]
+  BtnHidden ->  [shamlet||]
+
+buttonStatus :: IndexParam -> Button -> ButtonStatus
+buttonStatus param CreateMissingBtn = case (ipMode param, ipShowInactive param) of
+  (ItemGLView, False) -> BtnInactive "Please show inactive item before creating items. This is to avoid trying to create disabled items."
+  _ -> BtnActive
+ 
+buttonStatus param ActivateBtn = case ipMode param of
+  ItemPriceView -> BtnHidden
+  ItemPurchaseView -> BtnHidden
+  _ -> BtnActive
+buttonStatus param DeactivateBtn = case ipMode param of
+  ItemPriceView -> BtnHidden
+  ItemPurchaseView -> BtnHidden
+  _ -> BtnActive
+  
+buttonStatus param DeleteBtn = BtnActive
+
+buttonName :: Button -> Text
+buttonName CreateMissingBtn = "Create Missings"
+buttonName ActivateBtn = "Activate"
+buttonName DeactivateBtn = "Deactivate"
+buttonName DeleteBtn = "Delete"
+
+  
+
+
 renderIndex :: IndexParam -> Status -> Handler TypedContent
 renderIndex param0 status = do
   (param, form, encType) <- getPostIndexParam param0
@@ -942,6 +985,14 @@ $('[data-toggle="tooltip"]').tooltip();
                     ) [minBound..maxBound] :: [ItemViewMode]
       mode = ipMode param
       navClass nav = if mode == nav then "active" else "" :: Html
+  let main = [whamlet|
+      ^{ix}
+      <div.well>
+        #{renderButton param "primary" CreateMissingBtn}
+        #{renderButton param "primary" ActivateBtn}
+        #{renderButton param "warning" DeactivateBtn}
+        #{renderButton param "danger" DeleteBtn}
+        |]
   let widget = [whamlet|
 <div #items-index>
   <form #items-form role=form method=post action=@{ItemsR (ItemsIndexR (Just mode))} enctype=#{encType}>
@@ -954,33 +1005,7 @@ $('[data-toggle="tooltip"]').tooltip();
         <li class="#{navClass nav}">
           <a.view-mode href="#" data-url="@{ItemsR (ItemsIndexR (Just nav))}">#{drop 4 $ tshow nav}
     <div#items-table>
-      ^{ix}
-    <div.well>
-      $if (ipShowInactive param)
-        <button.btn.btn-primary type="submit" name="button" value="create">Create Missings
-      $else
-        <a href="#" data-toggle="tooltip" title="Please show unactive before creating missing items.">
-          <div.btn.btn-primary.disabled type="submit" name="button" value="create"> Create Missings
-      $if (ipMode param == ItemWebStatusView) 
-        <button.btn.btn-primary type="submit" name="button" value="activate">Activate
-        <button.btn.btn-warning type="submit" name="button" value="deactivate">Deactivate
-        <button.btn.btn-danger type="submit" name="button" value="delete">Delete
-      $elseif (ipMode param == ItemGLView) 
-        <button.btn.btn-primary type="submit" name="button" value="activate">Activate
-        <button.btn.btn-warning type="submit" name="button" value="deactivate">Deactivate
-        <div.btn.btn-danger.disabled type="submit" name="button" value=""> Delete
-      $elseif (ipMode param == ItemPriceView)
-          <div.btn.btn-warning.disabled type="submit" name="button" value=""> Activate
-          <div.btn.btn-warning.disabled type="submit" name="button" value=""> Deactivate
-          <button.btn.btn-danger type="submit" name="button" value="delete">Delete
-      $elseif (ipMode param == ItemPurchaseView)
-          <div.btn.btn-warning.disabled type="submit" name="button" value=""> Activate
-          <div.btn.btn-warning.disabled type="submit" name="button" value=""> Deactivate
-          <button.btn.btn-danger type="submit" name="button" value="delete">Delete
-      $else
-          <div.btn.btn-warning.disabled type="submit" name="button" value=""> Activate
-          <div.btn.btn-warning.disabled type="submit" name="button" value=""> Deactivate
-          <div.btn.btn-danger.disabled type="submit" name="button" value=""> Delete
+      ^{main}
 |]
       fay = $(fayFile "ItemsIndex")
   selectRep $ do
@@ -988,7 +1013,7 @@ $('[data-toggle="tooltip"]').tooltip();
       html <- sendResponseStatus status =<< defaultLayout (widget >> fay >> toWidget css >> toWidget js)
       return (html :: Html)
     provideRep $ do -- Ajax. return table
-      table <- widgetToPageContent ix
+      table <- widgetToPageContent main
       html <- withUrlRenderer (pageBody table)
       returnJson (renderHtml html)
       
