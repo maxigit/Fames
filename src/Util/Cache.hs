@@ -151,8 +151,8 @@ clearExpiryCache cvar = swapMVar cvar mempty >> return ()
 -- There is no way to get a value from the cache without actually
 -- specifying the way to compute value. This is to make sure
 -- the retrieved value is of the correct type.
-expCache :: (Show k, Typeable v, MonadIO io) => MVar ExpiryCache -> k -> io v -> CacheDelay -> io v
-expCache cvar key vio (CacheDelay seconds)  = do
+expCache :: (Show k, Typeable v, MonadIO io) => Bool -> MVar ExpiryCache -> k -> io v -> CacheDelay -> io v
+expCache force cvar key vio (CacheDelay seconds)  = do
   let k = show key
   -- we release cvar as soon as possible
   let putV mvar = do
@@ -175,7 +175,7 @@ expCache cvar key vio (CacheDelay seconds)  = do
     Right mvar -> do
       (d, t) <- liftIO $ takeMVar mvar
       now <- liftIO $ getCurrentTime
-      if now <= t
+      if now <= t && not force
         then do
           liftIO $ putMVar mvar (d, t)
           return $ fromDyn d (error "Wrong type for cached key.")
@@ -208,11 +208,11 @@ cacheForEver = cacheDay 365
 -- start delay is small. When precaching, we delay the start of the computation
 -- only to be started once the HTTP query has processed.
 preCache :: (MonadBaseControl IO io, MonadIO io, Show k, Typeable a, Typeable io)
-         => MVar ExpiryCache -> k -> io a -> CacheDelay -> io (Delayed io a)
-preCache cvar key vio (CacheDelay delay) = do
+         => Bool -> MVar ExpiryCache -> k -> io a -> CacheDelay -> io (Delayed io a)
+preCache force cvar key vio (CacheDelay delay) = do
   d <- createDelayed vio
   _ <- async $ do
     liftIO $ threadDelay ((delay+1)*1000000)
     cancelDelayed d
     purgeKey cvar key
-  expCache cvar key (return d) (CacheDelay delay) 
+  expCache force cvar key (return d) (CacheDelay delay) 

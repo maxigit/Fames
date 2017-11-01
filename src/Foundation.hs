@@ -425,18 +425,18 @@ getSuggestedLinks = do
 
 
 -- * Caching
-preCache0 :: (Show k, Typeable a) => CacheDelay -> k -> Handler a -> Handler (Delayed Handler a)
-preCache0 delay key action = do
+preCache0 :: (Show k, Typeable a) => Bool -> CacheDelay -> k -> Handler a -> Handler (Delayed Handler a)
+preCache0 force delay key action = do
   cache <- getsYesod appCache
-  preCache cache key action delay
+  preCache force cache key action delay
  
-preCache1 :: (Show k, Typeable a) => CacheDelay -> k -> (k -> Handler a) -> Handler (Delayed Handler a)
-preCache1 delay param action = preCache0 delay param (action param)
+preCache1 :: (Show k, Typeable a) => Bool -> CacheDelay -> k -> (k -> Handler a) -> Handler (Delayed Handler a)
+preCache1 force delay param action = preCache0 force delay param (action param)
 
-cache0 :: (Show k, Typeable a) => CacheDelay -> k -> Handler a -> Handler a
-cache0 delay key action = do
+cache0 :: (Show k, Typeable a) => Bool -> CacheDelay -> k -> Handler a -> Handler a
+cache0 force delay key action = do
   cache <- getsYesod appCache
-  expCache cache key action delay
+  expCache force cache key action delay
 
 clearAppCache :: Handler ()
 clearAppCache = do

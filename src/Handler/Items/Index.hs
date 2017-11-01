@@ -35,6 +35,7 @@ data IndexParam = IndexParam
   , ipChecked :: [Text] -- ^ styles to act upon
   , ipColumns :: [Text] -- ^ columns to act upon
   , ipMode :: ItemViewMode
+  , ipClearCache :: Bool -- ^ Clear cache
   } deriving (Eq, Show, Read)
 
 ipVariations :: IndexParam -> Either FilterExpression (Maybe Text)
@@ -91,6 +92,10 @@ purchaseAuth = do
   return $ null (filterPermissions ReadRequest (setFromList ["purchase/prices"]) role)
     
 -- * Utils
+-- ** Constants
+-- | Default cached delay. 1 day. Can be refreshed using the refresh cache button if needed.
+cacheDelay :: CacheDelay
+cacheDelay = cacheDay 1
 -- ** Filtering Expressions (Like or Regexp)
 showFilterExpression :: FilterExpression -> Text
 showFilterExpression (LikeFilter t) = t
@@ -138,6 +143,7 @@ paramDef :: Maybe ItemViewMode -> IndexParam
 paramDef mode = IndexParam Nothing Nothing Nothing False True
                            mempty empty empty
                            (fromMaybe ItemGLView mode)
+                           False
 -- indexForm :: (MonadHandler m,
 --               RenderMessage (HandlerSite m) FormMessage)
 --           => [Text]
@@ -155,6 +161,7 @@ indexForm groups param = renderBootstrap3 BootstrapBasicForm form
           <*> pure (ipChecked param)
           <*> pure (ipColumns param)
           <*> pure (ipMode param)
+          <*> pure False
         groups' =  map (\g -> (g,g)) groups
 
 -- | Fill the parameters which are not in the form but have to be extracted
@@ -166,7 +173,8 @@ fillTableParams params0 = do
       bases = Map.fromList $ mapMaybe (\(k,v) -> stripPrefix "base-" k <&> (\b -> (b, v))
                                      ) params
       columns = mapMaybe (stripPrefix "col-check-" . fst) params
-  return $ params0 {ipChecked = checked, ipBases=bases, ipColumns=columns}
+      clearCache = lookup "button" params == Just "refresh"
+  return $ params0 {ipChecked = checked, ipBases=bases, ipColumns=columns, ipClearCache = clearCache}
    
 
 -- getPostIndexParam :: IndexParam -> Handler (IndexParam, _
@@ -206,7 +214,7 @@ checkFilter param sku =
 
 -- ** Preloaded Cache
 fillIndexCache :: Handler IndexCache
-fillIndexCache = cache0 (cacheHour 1) "index/static"  $ runDB $ do
+fillIndexCache = cache0 False (cacheHour 1) "index/static"  $ runDB $ do
   salesTypes <- selectList [] [] -- [Entity SalesType]
   let priceListNames = mapFromList [ (k, salesTypeSalesType t)
                                    | (Entity (SalesTypeKey k) t) <- salesTypes
@@ -282,7 +290,9 @@ loadVariations :: IndexCache -> IndexParam
                           ]
 loadVariations cache param = do
   -- pre cache variations parts
-  delayeds <- mapM (\(p,a) -> preCache0 (cacheSecond 300) (p
+  let forceCache = ipClearCache param
+  delayeds <- mapM (\(p,a) -> preCache0 forceCache
+                                        (cacheDelay) (p
                                            , param { ipMode = ItemPriceView
                                                   , ipChecked = []
                                                   , ipBases = mempty
@@ -312,7 +322,7 @@ loadVariations cache param = do
               setWarning err
               return []
     Right styleF -> let select = selectList styleF [Asc FA.StockMasterId]
-                    in cache0 (cacheSecond 300) ("load styles", ipStyles param) (runDB select)
+                    in cache0 forceCache (cacheDelay) ("load styles", ipStyles param) (runDB select)
   variations <- case varF of
     (Right Nothing) -> return (Left $ map  entityKey styles)
     (Left filter_)  -> let select = (Left . map entityKey) <$> runDB (selectList -- selectKeysList bug. fixed but not in current LTS
@@ -320,7 +330,7 @@ loadVariations cache param = do
                                      <> [FA.StockMasterInactive ==. False ]
                                     )
                                           [Asc FA.StockMasterId])
-                       in cache0 (cacheSecond 300) (filter_, "load variations") select
+                       in cache0 forceCache (cacheDelay) (filter_, "load variations") select
     (Right (Just group_)) -> return $ Right (Map.findWithDefault [] group_ varGroupMap)
   infoSources <- mapM getDelayed (case ipMode param of
     ItemGLView -> []
@@ -912,6 +922,7 @@ renderIndex param0 status = do
     <div.well>
       ^{form}
       <button type="submit" name="button" value="search" class="btn btn-default">Search
+      <button type="submit" name="button" value="refresh" class="btn btn-info">Refresh Cache
     <ul.nav.nav-tabs>
       $forall nav <- navs
         <li class="#{navClass nav}">
@@ -1006,7 +1017,7 @@ columnClass col = filter (/= ' ') (tshow col)
   
 -- * Actions
 -- ** Missings
--- ** Actions
+-- *** Actions
 createMissing :: IndexParam -> Handler ()
 createMissing params = do
    resp <- (case ipMode params of
@@ -1366,7 +1377,7 @@ deleteProductPrice (pId,mrevId) = do
              )
 -- **** field*_field_colour
 loadDCColorMap :: Handler (Map Text Int)
-loadDCColorMap = cache0 cacheForEver "dc-color-map" $ do
+loadDCColorMap = cache0 False cacheForEver "dc-color-map" $ do
   let sql = "SELECT field_colour_code_value, entity_id "
           <>  "FROM dcx_field_data_field_colour_code "
           <>  "WHERE bundle = 'colours' "
