@@ -7,6 +7,7 @@ import Text.Shakespeare.Text (st)
 import ModelField
 import Yesod.Auth (requireAuthId)
 import Database.Persist.Sql (toSqlKey)
+import qualified Data.List as List
 
 spec :: Spec
 spec = appSpec
@@ -60,6 +61,30 @@ lengthShouldBe filter expected = do
   l <- runDB $ count filter
   liftIO $ l `shouldBe` expected
 
+boxtakeStatusShouldBe barcode'statusz = do
+  let (barcodes, status) = List.unzip barcode'statusz
+
+  realStatusz <- forM barcodes $ \barcode ->  do
+    res <- runDB (selectList [BoxtakeBarcode ==. barcode] [])
+    return $ (barcode, case res of
+      [Entity _ box ] -> Just (boxtakeActive box)
+      _ -> Nothing
+      )
+
+  liftIO $ realStatusz `shouldBe` zip barcodes (map Just status)
+
+      
+stocktakeStatusShouldBe barcode'statusz = do
+  let (barcodes, status) = List.unzip barcode'statusz
+
+  realStatusz <- forM barcodes $ \barcode ->  do
+    res <- runDB (selectList [StocktakeBarcode ==. barcode] [])
+    return $ (barcode, case res of
+      [Entity _ stocktake ] -> Just (stocktakeActive stocktake)
+      _ -> Nothing
+      )
+
+  liftIO $ realStatusz `shouldBe` zip barcodes (map Just status)
 
 -- write the sheet to a temporary file and upload it.
 -- more convenient for testing
@@ -443,7 +468,11 @@ t-shirt#1,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack,
           saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment
 t-shirt#1,black,120,shelf-1,ST16NV00400E,34,20,17,2017/05/19,Jack,
 |]
-          lengthShouldBe [BoxtakeDescription ==. Just "t-shirt#1-black", BoxtakeActive ==. False] 1
+          boxtakeStatusShouldBe [ ("ST16NV00399X", False) -- unchanged
+                                , ("ST16NV00400E", True) -- in the past
+                                ]
+
+          -- lengthShouldBe [BoxtakeDescription ==. Just "t-shirt#1-black", BoxtakeActive ==. False] 1
 
         it "does invalidate previous stocktakes" $ do
           saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment
@@ -452,8 +481,9 @@ t-shirt#2,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack,
           saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment
 t-shirt#2,black,120,shelf-1,ST16NV00400E,34,20,17,2017/05/19,Jack,
 |]
-          stocktakeLengthShouldBe 2
-          lengthShouldBe [StocktakeStockId ==. "t-shirt#2-black", StocktakeActive ==. False] 1
+          stocktakeStatusShouldBe [ ("ST16NV00399X", False) -- unchanged
+                                , ("ST16NV00400E", True) -- in the past
+                                ]
 
       context "zero take" $ do
         it "does invalidate previous boxes" $ do
@@ -464,7 +494,9 @@ t-shirt#3,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack,
 t-shirt#3,black,0,,,,,,2017/05/19,Jack,
 |]
 
-          lengthShouldBe [BoxtakeDescription ==. Just "t-shirt#3-black", BoxtakeActive ==. False] 1
+          -- lengthShouldBe [BoxtakeDescription ==. Just "t-shirt#3-black", BoxtakeActive ==. False] 1
+          boxtakeStatusShouldBe [ ("ST16NV00399X", False) -- changed
+                                ]
 
         it "does invalidate previous stocktakes" $ do
           saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment
@@ -473,5 +505,56 @@ t-shirt#4,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack,
           saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment
 t-shirt#4,black,0,,,,,,2017/05/19,Jack,
 |]
+          stocktakeStatusShouldBe [ ("ST16NV00399X", False) -- changed
+                                ]
           stocktakeLengthShouldBe 2
-          lengthShouldBe [StocktakeStockId ==. "t-shirt#4-black", StocktakeActive ==. False] 1
+          -- lengthShouldBe [StocktakeStockId ==. "t-shirt#4-black", StocktakeActive ==. False] 1
+
+    describe "Does not invalidate old takes" $ do
+    -- stocktakes older than exisiting should invalidates anything
+      context "full take" $ do
+        it "does NOT invalidate previous boxes" $ do
+          saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment
+t-shirt#11,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack,
+|]
+          saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment
+t-shirt#11,black,120,shelf-1,ST16NV00400E,34,20,17,2015/05/19,Jack,
+|]
+          boxtakeStatusShouldBe [ ("ST16NV00399X", True) -- unchanged
+                                , ("ST16NV00400E", False) -- in the past
+                                ]
+
+        it "does NOT invalidate previous stocktakes" $ do
+          saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment
+t-shirt#12,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack,
+|]
+          saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment
+t-shirt#12,black,120,shelf-1,ST16NV00400E,34,20,17,2015/05/19,Jack,
+|]
+          stocktakeStatusShouldBe [ ("ST16NV00399X", True)
+                                  , ("ST16NV00400E", False)
+                                  ]
+
+
+      context "zero take" $ do
+        it "does NOT invalidate previous boxes" $ do
+          saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment
+t-shirt#13,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack,
+|]
+          saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment
+t-shirt#13,black,0,,,,,,2015/05/19,Jack,
+|]
+
+          boxtakeStatusShouldBe [ ("ST16NV00399X", True) -- unchanged
+                                ]
+
+        it "does NOT invalidate previous stocktakes" $ do
+          saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment
+t-shirt#14,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack,
+|]
+          saveSTSheet 200 [st|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment
+t-shirt#14,black,0,,,,,,2015/05/19,Jack,
+|]
+          stocktakeStatusShouldBe [ ("ST16NV00399X", True) -- unchanged
+                                ]
+          stocktakeLengthShouldBe 1 -- no takes

@@ -25,6 +25,7 @@ import qualified Handler.CsvUtils as CU
 import Handler.WH.Barcode
 import WH.Barcode
 import Data.List(scanl, init, length, head, (\\), nub)
+import qualified Data.List as List
 import Data.Either
 import System.Directory (doesFileExist)
 import Data.Time(fromGregorian, addDays)
@@ -467,9 +468,11 @@ $maybe u <- uploader
             -- quick takes needs to be associated with a new barcodes
             -- and don't have box information.
                 fulls = [(i, full) | (i, FinalFull full) <- finals]
-                quicks = [ quick | (_, FinalQuick quick) <- finals]
+                quicks0 = [ quick | (_, FinalQuick quick) <- finals]
                 fromBarcodes = [(i, lookedup) | (i, FinalBarcodeLookup lookedup) <- finals]
                 override = pOveridde param
+            quicks <- filterOldQuicktakes quicks0
+            -- traceShowM("QUICK", quicks0, quicks)
 
             -- rows can't be converted straight away to stocktakes and boxtakes
             -- if in case of many row for the same barcodes, stocktakes needs to be indexed
@@ -485,18 +488,22 @@ $maybe u <- uploader
                 Just (Entity k _ ) -> replace k doc >> return k
 
 
-            let stocktakes =  concatMap (groupToStocktakes keyId) groups
-                boxtakes = do
+            let stocktakes0 =  concatMap (groupToStocktakes keyId) groups
+            stocktakes <- deactivateOldStocktakes stocktakes0
+            let boxtakes0 = do
                   group <- groups
                   let descriptionF = case group of
                                         [row] -> id
                                         (_:_) -> (<> "*")
                                         _ -> error "shouldn't happen"
                   take 1 $ mapMaybe (toBoxtake keyId descriptionF) group
+                boxtakes = deactivateOldBoxtakes stocktakes boxtakes0
+            -- traceShowM("ST", stocktakes, boxtakes)
           
-            -- Unless we are doing "addition" .We assume that when doing a stock take
+            -- Unless we are doing "addition", we assume that when doing a new stock take
             -- ALL boxes of a given style are withing the stock take
             -- Therefore we can inactivated the previous for a given style
+            -- (only if the new stocktakes are active, which is not the case for OLD ones.)
             -- However, for quick take which are not null 
             -- which corresponds to a partial check
             -- we don't invalid the boxes are they are probably still there.
@@ -513,7 +520,7 @@ $maybe u <- uploader
             -- it is legitimate to also inacite the boxes. We know (or think) the boxes
             -- have disappeared.
             when (pStyleComplete param /= StyleAddition) (do
-              let skusForFull = map stocktakeStockId stocktakes
+              let skusForFull = map stocktakeStockId (filter stocktakeActive stocktakes)
                   (zeros, nonZeros)= partition (\r -> rowQuantity r == Known 0)  quicks
                   skusForZeros = zipWith makeSku (map rowStyle quicks) (map rowColour zeros)
                   skusForNonZeros = zipWith makeSku (map rowStyle quicks) (map rowColour nonZeros)
@@ -1156,7 +1163,54 @@ generateMissingsFor rows@(row:_) = do
            | var <- missingVars
            ]
 
--- 
+-- | Stock done in the past, .i.e before an existing one for the same style
+-- shouldn't be active and shouldn't trigger deactivation of other stocktakes.
+-- To do, we need to check the latest stocktakes for each stock_id
+deactivateOldStocktakes :: [Stocktake] -> _ [Stocktake]
+deactivateOldStocktakes sts = do
+  latests <- findLatestActiveStocktakes (map stocktakeStockId sts)
+  let activate st = if Just (stocktakeDate st) < Map.lookup (stocktakeStockId st) latests
+                    -- Nothing will go to the else
+                    then st {stocktakeActive = False}
+                    else st
+  return $ map activate sts
+ 
+-- find the earliest date of the latest stocktake for each style
+findLatestActiveStocktakes :: [Text] -> _ (Map Text Day)
+findLatestActiveStocktakes [] = return mempty
+findLatestActiveStocktakes stockIds = do
+  let skus = toList stockIds
+      questionmarks = intercalate ", " (List.replicate (length skus) "?")
+      sub = "SELECT stock_id, MIN(date) AS DATE FROM fames_stocktake"
+       <> " WHERE stock_id IN (" <> questionmarks  <> ") GROUP BY stock_id, document_key_id"
+      sql = "SELECT stock_id, MAX(date) AS DATE FROM (" <> sub <>") sub GROUP BY stock_id"
+  pairs <- rawSql (sql :: Text) (map PersistText $ toList skus)
+  return $ mapFromList [(sku, date) | (Single sku, Single date) <- pairs]
+
+-- | At the moment we just filter quicktakes made in the past.
+-- setting them as inactive is currently not possible, and would probably not bu
+-- necessary. An inactive quicktake doesn't do anything (doesn't generate stock adjustment)
+-- neither tell us where the box was ...
+filterOldQuicktakes qus = do
+  let skus = [makeSku (rowStyle q) (rowColour q) | q <- qus]
+  latests <- findLatestActiveStocktakes skus
+  let activate q sku = if Just (rowDate q) < Map.lookup sku latests
+                         then Nothing
+                         else Just q
+                    -- Nothing will go to the else
+  return $ catMaybes (zipWith activate qus skus)
+
+-- | Similar to deactivateOldStocktakes but instead of looking up in the database
+--  which we can because the content of a box is not know, we use the active field of the
+-- corresponding stocktake (join by barcode)
+deactivateOldBoxtakes :: [Stocktake] -> [Boxtake] -> [Boxtake]
+deactivateOldBoxtakes sts bxs = let
+  unactivateBarcodes = toList (map stocktakeBarcode (filter (not . stocktakeActive) sts))
+  activate bt = if boxtakeBarcode bt `elem` unactivateBarcodes
+                then bt { boxtakeActive = False}
+                else bt
+  in map activate bxs
+
 lookupBarcodes :: ParsingResult RawRow [ValidRow] -> Handler (ParsingResult RawRow [ValidRow])
 lookupBarcodes (ParsingCorrect rows) = do
   finalizeds <- runDB $ mapM lookupBarcode rows
@@ -1286,6 +1340,7 @@ transformValid' (BLookupST TakeRow{..}) = TakeRow
 finalizeRow :: ValidRow -> FinalRow
 finalizeRow (FullST row) = FinalFull (transformRow row)
 finalizeRow (QuickST row) = FinalQuick (transformRow row)
+
 finalizeRow (BLookupST row) = error "Shouldn't happend"
 finalizeRow (BLookedupST row) = FinalBarcodeLookup (transformRow row)
 

@@ -293,11 +293,12 @@ deliverPackingList key param = do
             details <- selectList [PackingListDetailId <-. delivers] []
             let boxtakes = map (detailToBoxtake param docKey . entityVal) details
             insertMany_ boxtakes
-            -- undeliver
+            -- undeliver delete boxtakes and stocktakes
             forM_ undelivers $ \k -> update k [PackingListDetailDelivered =. False]
             undetails <- selectList [PackingListDetailId <-. undelivers] []
             let unbarcodes = map (packingListDetailBarcode . entityVal) undetails
             mapM_ (deleteBy <$> UniqueBB) unbarcodes
+            mapM_ (\b -> deleteWhere [StocktakeBarcode ==. b]) unbarcodes
 
             updateDenorm plKey
             setSuccess "Packing List Delivered"
