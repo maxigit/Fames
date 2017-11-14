@@ -412,10 +412,11 @@ viewPackingList mode key pre = do
           corridors :: [(Double, Double, Double)] -- TODO extract from config
           corridors = [(8, 1.9, 3 ), (5, 1.5, 3), (4, 1.2, 3)]
 
-      if mode == Stickers
-         then generateStickers pl entities
-         else do
-           entitiesWidget <-case mode of
+      case mode of
+        Stickers  -> generateStickers pl entities
+        StocktakePL  -> generateStocktake key pl entities
+        _ -> do
+           entitiesWidget <- case mode of
              EditDetails -> renderEditDetails Nothing key entities
              Edit -> renderEdit key pl docKey
              Deliver -> renderDeliver Nothing key entities
@@ -426,6 +427,7 @@ viewPackingList mode key pre = do
                                  Chalk -> renderChalk corridors
                                  Planner -> renderPlanner
                                  PlannerColourless -> renderPlannerColourless
+                                 -- StocktakePL -> renderStocktake
                                  Stickers ->  error "Shoudn't happen"
                                  EditDetails ->  error "Shoudn't happen"
                                  Edit ->  error "Shoudn't happen"
@@ -455,7 +457,7 @@ viewPackingList mode key pre = do
               [whamlet|
                       ^{pre}
           <ul.nav.nav-tabs>
-            $forall nav <-[Details, Edit, EditDetails, Textcart,Stickers, StickerCsv, Chalk, Planner, PlannerColourless,Deliver]
+            $forall nav <-[Details, Edit, EditDetails, Textcart,Stickers, StickerCsv, Chalk, Planner, PlannerColourless,Deliver, StocktakePL]
               <li class="#{navClass nav}">
                 <a href="@{WarehouseR (WHPackingListViewR key (Just nav)) }">#{tshow nav}
           ^{entitiesWidget}
@@ -674,6 +676,63 @@ renderPlannerColourless pl details = renderPlanner pl (map removeColour details)
   removeColour (Entity key detail) = Entity  key detail {packingListDetailContent = Map.fromList []}
 
 
+-- Generate a CSV compatible with stocktake upload.
+stocktakeSource :: Monad m
+                => Int64 -> PackingList ->  [PackingListDetail] -> ConduitM i Text m ()
+stocktakeSource key pl details = do
+  yield "Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment\n"
+  let date = maybe "" tshow (packingListArriving pl)
+      firsts = True: List.repeat False
+  forM_ details $ \PackingListDetail{..} -> do
+    forM_ (zip (Map.toList packingListDetailContent) firsts) $ \((var, qty), ifF) -> do
+      let ife yes no = if ifF then yes else no
+      yieldMany [packingListDetailStyle
+                <> "," <> var
+                <> "," <> tshow qty
+                <> "," -- location
+                <> "," <> ife packingListDetailBarcode "-" -- Barcode
+                <> "," <> ife (tshow packingListDetailLength) ""
+                <> "," <> ife (tshow packingListDetailWidth) ""
+                <> "," <> ife (tshow packingListDetailHeight) ""
+                <> "," <> date -- Date
+                <> "," -- Operator
+                <> ", From PL #" <> (tshow key) -- Comment
+                <> "\n"
+                ]
+
+generateStocktake :: Int64 -> PackingList -> [Entity PackingListDetail] -> Handler TypedContent
+generateStocktake key pl entities = do
+  let source = stocktakeSource key pl (map entityVal entities)
+  setAttachment (fromStrict $ "stocktake" <> ( maybe "" ("-" <>) (packingListContainer pl) <> ".csv") )
+  respondSource "text/csv" (source =$= mapC toFlushBuilder)
+
+renderStocktake :: PackingList -> [Entity PackingListDetail] -> Html
+renderStocktake pl entities = 
+  -- we need a monad to use the conduit. Let's use Maybe ...
+  let Just csv = stocktakeSource 0 pl (map entityVal entities) $$ consume
+  in [shamlet|
+<p>
+  $forall row <- csv
+    <div>#{row}
+|]
+
+f details = 
+  [shamlet|
+$forall (Entity _ detail) <- details
+  $forall (var, qty) <- Map.toList (packingListDetailContent detail)
+    <br>
+    #{packingListDetailStyle detail}
+    , #{var}
+    , #{tshow qty}
+    , 
+    , #{packingListDetailBarcode detail}
+    , #{packingListDetailLength detail}
+    , #{packingListDetailWidth detail}
+    , #{packingListDetailHeight detail}
+    ,
+    ,
+    ,
+|]
 
 editDetailsForm :: Maybe Text -> Markup -> _ (FormResult Textarea, Widget)
 editDetailsForm defCart  = renderBootstrap3 BootstrapBasicForm form

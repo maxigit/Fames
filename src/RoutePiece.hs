@@ -16,6 +16,7 @@ data PLViewMode = Details
                 | EditDetails 
                 | Edit
                 | Deliver
+                | StocktakePL
   deriving (Eq, Read, Show, Enum, Bounded)
 
 instance PathPiece PLViewMode where
