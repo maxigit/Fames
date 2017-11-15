@@ -415,7 +415,7 @@ viewPackingList mode key pre = do
 
       case mode of
         Stickers  -> generateStickers pl entities
-        StocktakePL  -> generateStocktake key pl entities
+        StocktakePL  -> generateStocktake key pl
         _ -> do
            entitiesWidget <- case mode of
              EditDetails -> renderEditDetails Nothing key entities
@@ -428,7 +428,6 @@ viewPackingList mode key pre = do
                                  Chalk -> renderChalk corridors
                                  Planner -> renderPlanner
                                  PlannerColourless -> renderPlannerColourless
-                                 -- StocktakePL -> renderStocktake
                                  Stickers ->  error "Shoudn't happen"
                                  EditDetails ->  error "Shoudn't happen"
                                  Edit ->  error "Shoudn't happen"
@@ -679,12 +678,11 @@ renderPlannerColourless pl details = renderPlanner pl (map removeColour details)
 
 -- Generate a CSV compatible with stocktake upload.
 stocktakeSource :: Monad m
-                => Int64 -> PackingList ->  [PackingListDetail] -> ConduitM i Text m ()
-stocktakeSource key pl details = do
+                => Int64 -> [(Entity PackingListDetail, Entity Boxtake)] -> ConduitM i Text m ()
+stocktakeSource key detail'boxS = do
   yield "Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment\n"
-  let date = maybe "" tshow (packingListArriving pl)
-      firsts = True: List.repeat False
-  forM_ details $ \PackingListDetail{..} -> do
+  let firsts = True: List.repeat False
+  forM_ detail'boxS $ \(Entity _ PackingListDetail{..}, Entity _ Boxtake{..}) -> do
     forM_ (zip (Map.toList packingListDetailContent) firsts) $ \((var, qty), ifF) -> do
       let ife yes no = if ifF then yes else no
       yieldMany [packingListDetailStyle
@@ -695,45 +693,26 @@ stocktakeSource key pl details = do
                 <> "," <> ife (tshow packingListDetailLength) ""
                 <> "," <> ife (tshow packingListDetailWidth) ""
                 <> "," <> ife (tshow packingListDetailHeight) ""
-                <> "," <> date -- Date
+                <> "," <> tshow boxtakeDate -- Date
                 <> "," -- Operator
                 <> ", From PL #" <> (tshow key) -- Comment
                 <> "\n"
                 ]
 
-generateStocktake :: Int64 -> PackingList -> [Entity PackingListDetail] -> Handler TypedContent
-generateStocktake key pl entities = do
-  let source = stocktakeSource key pl (map entityVal entities)
-  setAttachment (fromStrict $ "stocktake" <> ( maybe "" ("-" <>) (packingListContainer pl) <> ".csv") )
+loadForStocktake :: Int64 -> Handler [(Entity PackingListDetail, Entity Boxtake)]
+loadForStocktake key = do
+  let plKey = PackingListKey (SqlBackendKey key)
+      sql = "SELECT ??,?? FROM fames_packinglist_detail JOIN fames_boxtake USING (barcode)"
+         <> " WHERE packinglist_id = ? "
+  runDB $ rawSql sql [toPersistValue key]
+  
+
+generateStocktake :: Int64 -> PackingList -> Handler TypedContent
+generateStocktake key pl = do
+  detail'boxS <- loadForStocktake key
+  let source = stocktakeSource key detail'boxS 
+  setAttachment (fromStrict $ "st-ADDITION" <> ( maybe "" ("-" <>) (packingListContainer pl) <> ".csv") )
   respondSource "text/csv" (source =$= mapC toFlushBuilder)
-
-renderStocktake :: PackingList -> [Entity PackingListDetail] -> Html
-renderStocktake pl entities = 
-  -- we need a monad to use the conduit. Let's use Maybe ...
-  let Just csv = stocktakeSource 0 pl (map entityVal entities) $$ consume
-  in [shamlet|
-<p>
-  $forall row <- csv
-    <div>#{row}
-|]
-
-f details = 
-  [shamlet|
-$forall (Entity _ detail) <- details
-  $forall (var, qty) <- Map.toList (packingListDetailContent detail)
-    <br>
-    #{packingListDetailStyle detail}
-    , #{var}
-    , #{tshow qty}
-    , 
-    , #{packingListDetailBarcode detail}
-    , #{packingListDetailLength detail}
-    , #{packingListDetailWidth detail}
-    , #{packingListDetailHeight detail}
-    ,
-    ,
-    ,
-|]
 
 editDetailsForm :: Maybe Text -> Markup -> _ (FormResult Textarea, Widget)
 editDetailsForm defCart  = renderBootstrap3 BootstrapBasicForm form
