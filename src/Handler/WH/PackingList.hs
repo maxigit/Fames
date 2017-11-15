@@ -680,6 +680,8 @@ renderPlannerColourless pl details = renderPlanner pl (map removeColour details)
 stocktakeSource :: Monad m
                 => Int64 -> [(Entity PackingListDetail, Entity Boxtake)] -> ConduitM i Text m ()
 stocktakeSource key detail'boxS = do
+  yield "!!! This file need to be processed as an Addition and override !!!\n"
+  yield "Please remove this line and above and don't forget to fill the location and operator field.\n"
   yield "Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment\n"
   let firsts = True: List.repeat False
   forM_ detail'boxS $ \(Entity _ PackingListDetail{..}, Entity _ Boxtake{..}) -> do
@@ -711,7 +713,7 @@ generateStocktake :: Int64 -> PackingList -> Handler TypedContent
 generateStocktake key pl = do
   detail'boxS <- loadForStocktake key
   let source = stocktakeSource key detail'boxS 
-  setAttachment (fromStrict $ "st-ADDITION" <> ( maybe "" ("-" <>) (packingListContainer pl) <> ".csv") )
+  setAttachment (fromStrict $ "stocktake" <> ( maybe "" ("-" <>) (packingListContainer pl) <> ".csv") )
   respondSource "text/csv" (source =$= mapC toFlushBuilder)
 
 editDetailsForm :: Maybe Text -> Markup -> _ (FormResult Textarea, Widget)
