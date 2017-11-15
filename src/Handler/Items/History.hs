@@ -281,10 +281,17 @@ makeEvents moves takes = let
 -- | Moves coming from FrontAccounting and stocktakes from Fames
 -- needs to be interleaved.  Normally, we just need to sort moves by date and by id
 -- however, within the same day, adjustment needs to be move after the corresponding stocktakes.
+-- But, delivery needs to be done prior to stocktake. We normally dont do stock take on delivery day
+-- therefore, the stocktake is probably the result of the delivery itself.
 interleaveEvents :: [(Key FA.StockMove, Move)] -> [Adjustment] -> [Either Move Adjustment]
 interleaveEvents moves takes =  let
   moves' = [ (( FA.stockMoveTranDate (tMove move)
-              , if isJust (tAdjId move)  then 3 else 2
+              , case(isJust (tAdjId move), toEnum $ FA.stockMoveType (tMove move)) of
+                (True, _ ) ->  3
+                -- But, delivery needs to be done prior to stocktake. We normally dont do stock take on delivery day
+                -- therefore, the stocktake is probably the result of the delivery itself.
+                (_, ST_SUPPRECEIVE) -> -1
+                _ -> 2
               , fromIntegral $ FA.unStockMoveKey key), Left move)
            | (key, move) <- moves
            ]
