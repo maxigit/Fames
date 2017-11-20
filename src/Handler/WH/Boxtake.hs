@@ -22,21 +22,22 @@ postWHBoxtakeR = undefined
 getWHBoxtakeDetailR :: Text -> Handler Html
 getWHBoxtakeDetailR barcode = do
   boxtakem <- runDB $ getBy  (UniqueBB barcode)
+  stocktakes<- runDB $ selectList [StocktakeBarcode ==. barcode] [Desc StocktakeDate, Asc StocktakeIndex]
   operatorsMap <- allOperators
   defaultLayout =<< case boxtakem of
       Nothing -> setError (toHtml ("Can't find any box with barcode '" <> barcode <> "'")) >> return ""
-      Just boxtake -> return $ renderBoxtakeDetail operatorsMap boxtake
-  
+      Just boxtake -> return $ renderBoxtakeDetail operatorsMap boxtake stocktakes
+   
 
 -- * Rendering
 -- ** Detail
 
-renderBoxtakeDetail :: (Map (Key Operator) Operator) -> Entity Boxtake -> Widget
-renderBoxtakeDetail opMap (Entity _ Boxtake{..}) = do
+renderBoxtakeDetail :: (Map (Key Operator) Operator) -> Entity Boxtake  -> [Entity Stocktake] -> Widget
+renderBoxtakeDetail opMap (Entity _ Boxtake{..}) stocktakes = do
   let dimRoute = WarehouseR $ WHDimensionOuterR (round boxtakeLength) (round boxtakeWidth) (round boxtakeLength)
-      (displayActive, panelClass) = if boxtakeActive
-                                   then ("Active", "success") :: (Text, Text)
-                                   else ("Inactive", "danger")
+      panelClass = if boxtakeActive
+                   then  "success" :: Text
+                   else  "danger"
       day'locS = nub $ (boxtakeDate, boxtakeLocation) : boxtakeLocationHistory
       opName key = maybe "" operatorNickname (lookup key opMap)
       history = [whamlet|
@@ -49,6 +50,9 @@ renderBoxtakeDetail opMap (Entity _ Boxtake{..}) = do
         <td> #{tshow day}
         <td> #{loc}
                              |]
+      content = case stocktakes of
+        [] -> return ()
+        _ -> renderStocktakes opMap stocktakes
   [whamlet|
 <div.panel class="panel-#{panelClass}">
   <div.panel-heading> #{boxtakeBarcode}
@@ -66,7 +70,7 @@ renderBoxtakeDetail opMap (Entity _ Boxtake{..}) = do
           <td> #{boxtakeReference}
         <tr>
           <td> Active
-          <td> #{displayActive}
+          <td> #{displayActive boxtakeActive}
         <tr>
           <td> Dimensions
           <td> #{boxtakeLength} x #{boxtakeWidth} x #{boxtakeHeight}
@@ -78,6 +82,31 @@ renderBoxtakeDetail opMap (Entity _ Boxtake{..}) = do
            <td> #{opName boxtakeOperator}, the #{tshow boxtakeDate}
         ^{history}
     <div.col-sm-6>
+      ^{content}
       <a href="@{dimRoute}" ><img src=@?{(dimRoute , [("width", "400")])}>
           |]
+  
+
+renderStocktakes :: (Map (Key Operator) Operator) -> [Entity Stocktake]  -> Widget
+renderStocktakes opMap stocktakes = do
+  [whamlet|
+<table.table.table-bordered.table.striped.table.hover>
+  <tr>
+     <th> Stock Id
+     <th> Quantity
+     <th> Date
+     <th> Active
+  $forall (Entity _ stocktake) <- stocktakes
+    <tr>
+      <td> #{stocktakeStockId stocktake}
+      <td> #{tshow (stocktakeQuantity stocktake)}
+      <td> #{tshow (stocktakeDate stocktake)}
+      <td> #{displayActive (stocktakeActive stocktake)}
+          |]
+
+
+-- ** Util
+displayActive :: Bool -> Text
+displayActive act = if act then "Active" else "Inactive"
+
   
