@@ -40,6 +40,9 @@
   /dimensions/outer/#Int64/#Int64/#Int64/ WHDimensionOuterR GET
   /dimensions/inner/#Int64/#Int64/#Int64/#Int64/#Int64/#Int64/ WHDimensionInnerR GET
 
+  /boxtake WHBoxtakeR GET POST !boxtake !group=Box !title=Boxtakes
+  /boxtake/detail/#Text  WHBoxtakeDetailR GET !boxtake
+
 /items ItemsR !items:
   /index/#Maybe-ItemViewMode ItemsIndexR GET POST !items/index !group=Maintenance !title=Index
   /history/#Text ItemsHistoryR GET !items/history
