@@ -20,6 +20,7 @@ module Handler.Util
 , tshowM
 , basePriceList
 , timeProgress
+, allOperators
 ) where
 
 import Foundation
@@ -286,4 +287,10 @@ basePriceList = cache0 False cacheForEver "base-price-list" $ do
   [Entity _ prefs  ] <- runDB $ selectList [FA.SysPrefId ==. FA.SysPrefKey "base_sales"] []
   let Just basePl = readMay =<< FA.sysPrefValue prefs
   return basePl
+  
+-- ** Fames
+allOperators :: Handler (Map (Key Operator) Operator)
+allOperators = cache0 False cacheForEver "all-operators" $ do
+  operators <- runDB $ selectList [] []
+  return $ mapFromList [ (key, operator) | (Entity key operator) <- operators ]
   
