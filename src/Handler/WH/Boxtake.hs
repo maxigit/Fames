@@ -10,6 +10,7 @@ import Import
 import Yesod.Form.Bootstrap3
 import Handler.CsvUtils
 import Data.List(nub)
+import Text.Printf(printf)
 
 -- * Types
 data FormParam  = FormParam
@@ -70,6 +71,9 @@ renderBoxtakes param = do
   ^{formW}
   <button type="submit" name="Search" .btn.btn-primary> Search
 <div>
+  <div.panel.panel-info>
+    <div.panel-heading><h2> Summary
+    <div.panel-body> ^{renderSummary boxtakes}
   ^{body}
           |]
   
@@ -82,7 +86,7 @@ renderBoxtakeTable opMap boxtakes = do
       <th> Barcode 
       <th> Description 
       <th> Dimensions
-      <th> Reference 
+      <th> Volume
       <th> Location
       <th> Date 
       <th> Operator
@@ -93,7 +97,7 @@ renderBoxtakeTable opMap boxtakes = do
       <td> #{fromMaybe "" (boxtakeDescription boxtake)}
       <td> #{tshow (boxtakeLength boxtake)} x #{tshow (boxtakeWidth boxtake)} x #{tshow (boxtakeHeight boxtake)}
             ^{dimensionPicture 64 boxtake}
-      <td> #{boxtakeReference boxtake}
+      <td> #{formatVolume (boxtakeVolume boxtake)}
       <td> #{boxtakeLocation boxtake}
       <td> #{tshow (boxtakeDate boxtake)}
       <td> #{opName opMap (boxtakeOperator boxtake)}
@@ -177,6 +181,20 @@ renderStocktakes opMap stocktakes = do
       <td> #{displayActive (stocktakeActive stocktake)}
           |]
 
+renderSummary :: [Entity Boxtake] -> Widget
+renderSummary boxtakes =  do
+  let n = length boxtakes
+      volume = sum (map (boxtakeVolume . entityVal) boxtakes)
+  [whamlet|
+<table.table>
+  <tr>
+     <td> Number of Boxes
+     <td> #{tshow n}
+  <tr>
+     <td> Total Volume
+     <td> #{formatVolume volume} m<sup>3
+          |]
+
 
 -- ** DB Access
 loadBoxtakes :: FormParam -> Handler [Entity Boxtake]
@@ -197,3 +215,9 @@ dimensionPicture width Boxtake{..} =  do
 
 opName :: (Map (Key Operator) Operator) -> Key Operator -> Text
 opName opMap key = maybe "" operatorNickname (lookup key opMap)
+
+boxtakeVolume :: Boxtake -> Double
+boxtakeVolume Boxtake{..} = boxtakeLength * boxtakeWidth * boxtakeHeight / 1e6
+
+formatVolume :: Double -> String
+formatVolume v = printf "%0.3f" v
