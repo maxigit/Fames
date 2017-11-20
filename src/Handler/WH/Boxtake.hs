@@ -62,10 +62,11 @@ renderBoxtakes param = do
   boxtakes <- loadBoxtakes param
   (formW, encType) <- generateFormPost $ paramForm (Just param)
   opMap <- allOperators
-  let body = case pCompactView param  of
-        True -> renderBoxtakeTable opMap boxtakes
+  body <- case pCompactView param  of
+        True -> return $ renderBoxtakeTable opMap boxtakes
         False -> do
-          renderBoxtakeList opMap boxtakes
+          withStocktakes <- loadStocktakes boxtakes
+          return $ renderBoxtakeList opMap withStocktakes
   defaultLayout $ [whamlet|
 <form #boxtakes role=form method=post action=@{WarehouseR WHBoxtakeR} encType="#{encType}"}>
   ^{formW}
@@ -105,17 +106,18 @@ renderBoxtakeTable opMap boxtakes = do
           |]
   
 -- *** List
-renderBoxtakeList :: (Map (Key Operator) Operator) ->  [Entity Boxtake] -> Widget
-renderBoxtakeList opMap boxtakes = do
-  mapM_ (\box -> renderBoxtakeDetail opMap box [] ) boxtakes
+renderBoxtakeList :: (Map (Key Operator) Operator) ->  [(Entity Boxtake, [Entity Stocktake])] -> Widget
+renderBoxtakeList opMap boxtake'stocktakesS = do
+  mapM_ (\(box, sts) -> renderBoxtakeDetail opMap box sts ) boxtake'stocktakesS
 
 -- ** Detail
 
 renderBoxtakeDetail :: (Map (Key Operator) Operator) -> Entity Boxtake  -> [Entity Stocktake] -> Widget
 renderBoxtakeDetail opMap (Entity _ boxtake@Boxtake{..}) stocktakes = do
-  let panelClass = if boxtakeActive
-                   then  "success" :: Text
-                   else  "danger"
+  let panelClass = case (boxtakeActive, stocktakes) of
+                       (True, []) -> "warning" :: Text
+                       (True, _) -> "success" :: Text
+                       (False, _ ) ->   "danger"
       day'locS = nub $ (boxtakeDate, boxtakeLocation) : boxtakeLocationHistory
       history = [whamlet|
 <table.table.table-bordered.table-striped.table-hover>
@@ -215,6 +217,12 @@ loadBoxtakes param = do
                else [BoxtakeActive ==. True]
   runDB $ selectList (active <> filter) opts
   
+loadStocktakes :: [Entity Boxtake] -> Handler [(Entity Boxtake , [Entity Stocktake])]
+loadStocktakes boxtakes = 
+  -- slow version
+  forM boxtakes $ \e@(Entity _ box) -> do
+     stocktakes <- runDB $ selectList [StocktakeBarcode ==. boxtakeBarcode box] []
+     return (e, stocktakes)
 -- ** Util
 displayActive :: Bool -> Text
 displayActive act = if act then "Active" else "Inactive"
