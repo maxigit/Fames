@@ -10,17 +10,23 @@ import Import
 import Yesod.Form.Bootstrap3
 import Handler.CsvUtils
 import Data.List(nub)
+import qualified Data.Map.Strict as Map
 import Text.Printf(printf)
 
 -- * Types
+data RuptureMode = BarcodeRupture | LocationRupture | DescriptionRupture
+  deriving (Eq, Read, Show, Enum, Bounded)
+
 data FormParam  = FormParam
   { pBarcode :: Maybe FilterExpression
   , pLocation :: Maybe FilterExpression
   , pDescription :: Maybe FilterExpression
+  , pRuptureMode :: RuptureMode
+  , pRuptureLength :: Maybe Int
   , pShowInactive :: Bool
   , pCompactView :: Bool
   }
-defaultParam = FormParam Nothing Nothing Nothing False True
+defaultParam = FormParam Nothing Nothing Nothing LocationRupture Nothing  False True
 
 -- * Handlers
 getWHBoxtakeR :: Handler Html
@@ -52,6 +58,8 @@ paramForm param0 = renderBootstrap3 BootstrapBasicForm form
           <$> aopt filterEField "Barcode" (pBarcode <$> param0)
           <*> aopt filterEField "Location" (pLocation <$> param0)
           <*> aopt filterEField "Description" (pDescription <$> param0)
+          <*> areq (selectField optionsEnum) "Rupture" (pRuptureMode <$> param0)
+          <*> aopt intField "Rupture length" (pRuptureLength <$> param0)
           <*> areq boolField "Show Inactive" ((pShowInactive) <$> param0)
           <*> areq boolField "Compact mode" (pCompactView <$> param0 <|> Just True)
 
@@ -74,7 +82,7 @@ renderBoxtakes param = do
 <div>
   <div.panel.panel-info>
     <div.panel-heading><h2> Summary
-    <div.panel-body> ^{renderSummary boxtakes}
+    <div.panel-body> ^{renderSummary param boxtakes}
   ^{body}
           |]
   
@@ -183,18 +191,28 @@ renderStocktakes opMap stocktakes = do
       <td> #{displayActive (stocktakeActive stocktake)}
           |]
 
-renderSummary :: [Entity Boxtake] -> Widget
-renderSummary boxtakes =  do
-  let n = length boxtakes
-      volume = sum (map (boxtakeVolume . entityVal) boxtakes)
+renderSummary :: FormParam -> [Entity Boxtake] -> Widget
+renderSummary param boxtakes =  do
+  let (n, volume) = summary boxtakes
+      groups = case pRuptureLength  param of
+                Just l | l /= 0 -> rupture (pRuptureMode param) l boxtakes
+                _ -> []
   [whamlet|
 <table.table>
   <tr>
-     <td> Number of Boxes
-     <td> #{tshow n}
+     <th>
+     <th> Number of Boxes
+     <th> Volume
+  $forall (key, group) <- groups
+    $with (n1, v1) <- summary group
+     <tr>
+       <td> #{key}
+       <td> #{tshow n1}
+       <td> #{formatVolume v1}
   <tr>
-     <td> Total Volume
-     <td> #{formatVolume volume} m<sup>3
+     <th> Total
+     <th> #{tshow n}
+     <th> #{formatVolume volume} m<sup>3
           |]
 
 
@@ -243,3 +261,19 @@ boxtakeVolume Boxtake{..} = boxtakeLength * boxtakeWidth * boxtakeHeight / 1e6
 
 formatVolume :: Double -> String
 formatVolume v = printf "%0.3f" v
+
+summary :: [Entity Boxtake] -> (Int, Double)
+summary bs = (length bs, sum (map (boxtakeVolume . entityVal) bs))
+
+-- | Regroup boxtakes according to rupture mode
+rupture :: RuptureMode -> Int -> [Entity Boxtake] -> [(Text, [Entity Boxtake])]
+rupture mode l boxtakes = let
+  field = case mode of
+    BarcodeRupture -> boxtakeBarcode
+    LocationRupture -> boxtakeLocation
+    DescriptionRupture -> fromMaybe "" . boxtakeDescription
+  key = (take l) . field
+  groups = Map.fromListWith (<>) [ (key b, [e]) | e@(Entity _ b) <- boxtakes ]
+  in mapToList groups
+
+  
