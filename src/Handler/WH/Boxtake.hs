@@ -14,9 +14,9 @@ import Text.Printf(printf)
 
 -- * Types
 data FormParam  = FormParam
-  { pBarcode :: Maybe Text
-  , pLocation :: Maybe Text
-  , pDescription :: Maybe Text
+  { pBarcode :: Maybe FilterExpression
+  , pLocation :: Maybe FilterExpression
+  , pDescription :: Maybe FilterExpression
   , pShowInactive :: Bool
   , pCompactView :: Bool
   }
@@ -49,9 +49,9 @@ getWHBoxtakeDetailR barcode = do
 paramForm :: Maybe FormParam -> _
 paramForm param0 = renderBootstrap3 BootstrapBasicForm form
   where form = FormParam
-          <$> aopt textField "Barcode" (pBarcode <$> param0)
-          <*> aopt textField "Location" (pLocation <$> param0)
-          <*> aopt textField "Description" (pDescription <$> param0)
+          <$> aopt filterEField "Barcode" (pBarcode <$> param0)
+          <*> aopt filterEField "Location" (pLocation <$> param0)
+          <*> aopt filterEField "Description" (pDescription <$> param0)
           <*> areq boolField "Show Inactive" ((pShowInactive) <$> param0)
           <*> areq boolField "Compact mode" (pCompactView <$> param0 <|> Just True)
 
@@ -199,7 +199,21 @@ renderSummary boxtakes =  do
 -- ** DB Access
 loadBoxtakes :: FormParam -> Handler [Entity Boxtake]
 loadBoxtakes param = do
-  runDB $ selectList [] [Desc BoxtakeId, LimitTo 50]
+  let filter = filterE id BoxtakeBarcode (pBarcode param)
+            <> filterE id BoxtakeLocation (pLocation param)
+            <> filterE Just BoxtakeDescription (pDescription param)
+      opts = case filter of
+        [] -> -- no filter, we want the last ones
+             [Desc BoxtakeId, LimitTo 50]
+        _ -> -- filter, we use the filter to sort as well
+          catMaybes [ pBarcode param <&> (const $ Asc BoxtakeBarcode)
+                    , pLocation param <&> (const $ Asc BoxtakeLocation)
+                    , pDescription param <&> (const $ Asc BoxtakeDescription)
+                    ] <> [Asc BoxtakeDescription]
+      active = if pShowInactive param
+               then []
+               else [BoxtakeActive ==. True]
+  runDB $ selectList (active <> filter) opts
   
 -- ** Util
 displayActive :: Bool -> Text

@@ -21,6 +21,10 @@ module Handler.Util
 , basePriceList
 , timeProgress
 , allOperators
+, FilterExpression
+, filterE
+, filterEField
+, filterEKeyword
 ) where
 
 import Foundation
@@ -213,6 +217,55 @@ firstOperator = do
   operator <- runDB $ selectFirst [OperatorActive ==. True] [Asc OperatorId]
   maybe (error "No active operators found. Please contact your administrator") return operator
 
+
+-- * SQl
+-- ** Filtering Expressions (Like or Regexp)
+-- | Generate a like or rlike statement
+data FilterExpression = LikeFilter Text  | RegexFilter Text deriving (Eq, Show, Read)
+showFilterExpression :: FilterExpression -> Text
+showFilterExpression (LikeFilter t) = t
+showFilterExpression (RegexFilter t) = "/" <> t
+
+
+readFilterExpression :: Text -> FilterExpression
+readFilterExpression t = case stripPrefix "/" t of
+  Nothing -> LikeFilter t
+  Just regex -> RegexFilter regex
+
+
+instance IsString FilterExpression where
+  fromString = readFilterExpression . fromString
+
+
+-- | Creates a form field for a FilterExpression
+filterEField :: (RenderMessage (HandlerSite m) FormMessage,
+                  Monad m) =>
+                Field m FilterExpression
+filterEField = convertField readFilterExpression showFilterExpression textField
+
+
+-- | Create a persistent filter from a maybe filter expression
+filterE :: PersistField a =>
+           (Text -> a) -- ^ how to convert the expression to the value of the field.
+        -> EntityField record a -- ^ Persistent field
+        -> Maybe FilterExpression
+        -> [Filter record]
+filterE _ _ Nothing = []
+filterE conv field (Just (LikeFilter like)) = 
+  [ Filter field
+         (Left $ conv like)
+         (BackendSpecificFilter "LIKE")
+  ]
+filterE conv field (Just (RegexFilter regex)) =
+  [ Filter field
+         (Left $ conv regex)
+         (BackendSpecificFilter "RLIKE")
+  ]
+  
+-- | SQL keyword.
+filterEKeyword ::  FilterExpression -> (Text, Text)
+filterEKeyword (LikeFilter f) = ("LIKE", f)
+filterEKeyword (RegexFilter f) = ("RLIKE", f)
 
 -- * Badges
 badgeSpan :: (Num a,  Show a) => (a -> Maybe Int) -> a -> Maybe String -> String -> Html
