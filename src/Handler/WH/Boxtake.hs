@@ -86,9 +86,10 @@ renderBoxtakeTable boxtakes = do
       <th> Active
   $forall (Entity _ boxtake) <- boxtakes
     <tr>
-      <td> #{boxtakeBarcode boxtake}
+      <td> <a href=@{WarehouseR (WHBoxtakeDetailR (boxtakeBarcode boxtake))}>#{boxtakeBarcode boxtake}
       <td> #{fromMaybe "" (boxtakeDescription boxtake)}
       <td> #{tshow (boxtakeLength boxtake)} x #{tshow (boxtakeWidth boxtake)} x #{tshow (boxtakeHeight boxtake)}
+            ^{dimensionPicture 64 boxtake}
       <td> #{boxtakeReference boxtake}
       <td> #{boxtakeLocation boxtake}
       <td> #{tshow (boxtakeDate boxtake)}
@@ -102,9 +103,8 @@ renderBoxtakeList = return "list"
 -- ** Detail
 
 renderBoxtakeDetail :: (Map (Key Operator) Operator) -> Entity Boxtake  -> [Entity Stocktake] -> Widget
-renderBoxtakeDetail opMap (Entity _ Boxtake{..}) stocktakes = do
-  let dimRoute = WarehouseR $ WHDimensionOuterR (round boxtakeLength) (round boxtakeWidth) (round boxtakeLength)
-      panelClass = if boxtakeActive
+renderBoxtakeDetail opMap (Entity _ boxtake@Boxtake{..}) stocktakes = do
+  let panelClass = if boxtakeActive
                    then  "success" :: Text
                    else  "danger"
       day'locS = nub $ (boxtakeDate, boxtakeLocation) : boxtakeLocationHistory
@@ -152,7 +152,7 @@ renderBoxtakeDetail opMap (Entity _ Boxtake{..}) stocktakes = do
         ^{content}
     <div.col-sm-6>
       ^{history}
-      <a href="@{dimRoute}" ><img src=@?{(dimRoute , [("width", "400")])}>
+      ^{dimensionPicture 400 boxtake}
           |]
   
 
@@ -177,10 +177,16 @@ renderStocktakes opMap stocktakes = do
 -- ** DB Access
 loadBoxtakes :: FormParam -> Handler [Entity Boxtake]
 loadBoxtakes param = do
-  runDB $ selectList [] [LimitTo 10]
+  runDB $ selectList [] [Desc BoxtakeId, LimitTo 50]
   
 -- ** Util
 displayActive :: Bool -> Text
 displayActive act = if act then "Active" else "Inactive"
 
   
+dimensionPicture :: Int -> Boxtake -> Widget
+dimensionPicture width Boxtake{..} =  do
+  let dimRoute = WarehouseR $ WHDimensionOuterR (round boxtakeLength) (round boxtakeWidth) (round boxtakeLength)
+  [whamlet|
+      <a href="@{dimRoute}" ><img src=@?{(dimRoute , [("width", tshow width)])}>
+         |]
