@@ -24,7 +24,6 @@ import Control.Monad.Reader(mapReaderT)
 -- * Types
 -- | SQL text filter expression. Can be use either the LIKE syntax or the Regex one.
 -- Regex one starts with '/'.
-data FilterExpression = LikeFilter Text  | RegexFilter Text deriving (Eq, Show, Read)
 data IndexParam = IndexParam
   { ipStyles :: Maybe FilterExpression
   , ipVariationsF :: Maybe FilterExpression
@@ -103,48 +102,6 @@ purchaseAuth = do
 -- | Default cached delay. 1 day. Can be refreshed using the refresh cache button if needed.
 cacheDelay :: CacheDelay
 cacheDelay = cacheDay 1
--- ** Filtering Expressions (Like or Regexp)
-showFilterExpression :: FilterExpression -> Text
-showFilterExpression (LikeFilter t) = t
-showFilterExpression (RegexFilter t) = "/" <> t
-
-
-readFilterExpression :: Text -> FilterExpression
-readFilterExpression t = case stripPrefix "/" t of
-  Nothing -> LikeFilter t
-  Just regex -> RegexFilter regex
-
-
-instance IsString FilterExpression where
-  fromString = readFilterExpression . fromString
-
-
-filterEField :: (RenderMessage (HandlerSite m) FormMessage,
-                  Monad m) =>
-                Field m FilterExpression
-filterEField = convertField readFilterExpression showFilterExpression textField
-
-
-filterE :: PersistField a =>
-           (Text -> a)
-        -> EntityField record a
-        -> Maybe FilterExpression
-        -> [Filter record]
-filterE _ _ Nothing = []
-filterE conv field (Just (LikeFilter like)) = 
-  [ Filter field
-         (Left $ conv like)
-         (BackendSpecificFilter "LIKE")
-  ]
-filterE conv field (Just (RegexFilter regex)) =
-  [ Filter field
-         (Left $ conv regex)
-         (BackendSpecificFilter "RLIKE")
-  ]
-  
-filterEKeyword ::  FilterExpression -> (Text, Text)
-filterEKeyword (LikeFilter f) = ("LIKE", f)
-filterEKeyword (RegexFilter f) = ("RLIKE", f)
 -- ** Params and Forms
 paramDef :: Maybe ItemViewMode -> IndexParam
 paramDef mode = IndexParam Nothing Nothing Nothing False True

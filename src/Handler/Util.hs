@@ -20,6 +20,11 @@ module Handler.Util
 , tshowM
 , basePriceList
 , timeProgress
+, allOperators
+, FilterExpression
+, filterE
+, filterEField
+, filterEKeyword
 ) where
 
 import Foundation
@@ -213,6 +218,55 @@ firstOperator = do
   maybe (error "No active operators found. Please contact your administrator") return operator
 
 
+-- * SQl
+-- ** Filtering Expressions (Like or Regexp)
+-- | Generate a like or rlike statement
+data FilterExpression = LikeFilter Text  | RegexFilter Text deriving (Eq, Show, Read)
+showFilterExpression :: FilterExpression -> Text
+showFilterExpression (LikeFilter t) = t
+showFilterExpression (RegexFilter t) = "/" <> t
+
+
+readFilterExpression :: Text -> FilterExpression
+readFilterExpression t = case stripPrefix "/" t of
+  Nothing -> LikeFilter t
+  Just regex -> RegexFilter regex
+
+
+instance IsString FilterExpression where
+  fromString = readFilterExpression . fromString
+
+
+-- | Creates a form field for a FilterExpression
+filterEField :: (RenderMessage (HandlerSite m) FormMessage,
+                  Monad m) =>
+                Field m FilterExpression
+filterEField = convertField readFilterExpression showFilterExpression textField
+
+
+-- | Create a persistent filter from a maybe filter expression
+filterE :: PersistField a =>
+           (Text -> a) -- ^ how to convert the expression to the value of the field.
+        -> EntityField record a -- ^ Persistent field
+        -> Maybe FilterExpression
+        -> [Filter record]
+filterE _ _ Nothing = []
+filterE conv field (Just (LikeFilter like)) = 
+  [ Filter field
+         (Left $ conv like)
+         (BackendSpecificFilter "LIKE")
+  ]
+filterE conv field (Just (RegexFilter regex)) =
+  [ Filter field
+         (Left $ conv regex)
+         (BackendSpecificFilter "RLIKE")
+  ]
+  
+-- | SQL keyword.
+filterEKeyword ::  FilterExpression -> (Text, Text)
+filterEKeyword (LikeFilter f) = ("LIKE", f)
+filterEKeyword (RegexFilter f) = ("RLIKE", f)
+
 -- * Badges
 badgeSpan :: (Num a,  Show a) => (a -> Maybe Int) -> a -> Maybe String -> String -> Html
 badgeSpan badgeWidth qty bgM klass = do
@@ -286,4 +340,10 @@ basePriceList = cache0 False cacheForEver "base-price-list" $ do
   [Entity _ prefs  ] <- runDB $ selectList [FA.SysPrefId ==. FA.SysPrefKey "base_sales"] []
   let Just basePl = readMay =<< FA.sysPrefValue prefs
   return basePl
+  
+-- ** Fames
+allOperators :: Handler (Map (Key Operator) Operator)
+allOperators = cache0 False cacheForEver "all-operators" $ do
+  operators <- runDB $ selectList [] []
+  return $ mapFromList [ (key, operator) | (Entity key operator) <- operators ]
   

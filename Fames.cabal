@@ -130,6 +130,7 @@ library
       Handler.Util
       Handler.WH
       Handler.WH.Barcode
+      Handler.WH.Boxtake
       Handler.WH.Dimensions
       Handler.WH.Location
       Handler.WH.PackingList
