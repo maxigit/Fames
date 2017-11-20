@@ -55,7 +55,7 @@ renderBoxtakeDetail opMap (Entity _ Boxtake{..}) stocktakes = do
         _ -> renderStocktakes opMap stocktakes
   [whamlet|
 <div.panel class="panel-#{panelClass}">
-  <div.panel-heading> #{boxtakeBarcode}
+  <div.panel-heading> Box: #{boxtakeBarcode}
   <div.panel-body>
     <div.col-sm-6>
       <table.table>
@@ -80,9 +80,9 @@ renderBoxtakeDetail opMap (Entity _ Boxtake{..}) stocktakes = do
         <tr>
            <td> Last scan
            <td> #{opName boxtakeOperator}, the #{tshow boxtakeDate}
-        ^{history}
+        ^{content}
     <div.col-sm-6>
-      ^{content}
+      ^{history}
       <a href="@{dimRoute}" ><img src=@?{(dimRoute , [("width", "400")])}>
           |]
   
@@ -90,7 +90,7 @@ renderBoxtakeDetail opMap (Entity _ Boxtake{..}) stocktakes = do
 renderStocktakes :: (Map (Key Operator) Operator) -> [Entity Stocktake]  -> Widget
 renderStocktakes opMap stocktakes = do
   [whamlet|
-<table.table.table-bordered.table.striped.table.hover>
+<table.table.table-bordered.table-striped.table.hover>
   <tr>
      <th> Stock Id
      <th> Quantity
