@@ -60,9 +60,11 @@ renderBoxtakes :: FormParam -> Handler Html
 renderBoxtakes param = do
   boxtakes <- loadBoxtakes param
   (formW, encType) <- generateFormPost $ paramForm (Just param)
+  opMap <- allOperators
   let body = case pCompactView param  of
-        True -> renderBoxtakeTable boxtakes
-        False -> renderBoxtakeList boxtakes
+        True -> renderBoxtakeTable opMap boxtakes
+        False -> do
+          renderBoxtakeList opMap boxtakes
   defaultLayout $ [whamlet|
 <form #boxtakes role=form method=post action=@{WarehouseR WHBoxtakeR} encType="#{encType}"}>
   ^{formW}
@@ -72,8 +74,8 @@ renderBoxtakes param = do
           |]
   
 -- *** Table
-renderBoxtakeTable :: [Entity Boxtake] -> Widget
-renderBoxtakeTable boxtakes = do
+renderBoxtakeTable :: (Map (Key Operator) Operator) -> [Entity Boxtake] -> Widget
+renderBoxtakeTable opMap boxtakes = do
   [whamlet|
 <table.table.table-bordered.table-striped.table-hover>
   <tr>
@@ -83,6 +85,7 @@ renderBoxtakeTable boxtakes = do
       <th> Reference 
       <th> Location
       <th> Date 
+      <th> Operator
       <th> Active
   $forall (Entity _ boxtake) <- boxtakes
     <tr>
@@ -93,12 +96,14 @@ renderBoxtakeTable boxtakes = do
       <td> #{boxtakeReference boxtake}
       <td> #{boxtakeLocation boxtake}
       <td> #{tshow (boxtakeDate boxtake)}
+      <td> #{opName opMap (boxtakeOperator boxtake)}
       <td> #{displayActive (boxtakeActive boxtake)}
           |]
   
 -- *** List
-renderBoxtakeList :: [Entity Boxtake] -> Widget
-renderBoxtakeList = return "list"
+renderBoxtakeList :: (Map (Key Operator) Operator) ->  [Entity Boxtake] -> Widget
+renderBoxtakeList opMap boxtakes = do
+  mapM_ (\box -> renderBoxtakeDetail opMap box [] ) boxtakes
 
 -- ** Detail
 
@@ -108,7 +113,6 @@ renderBoxtakeDetail opMap (Entity _ boxtake@Boxtake{..}) stocktakes = do
                    then  "success" :: Text
                    else  "danger"
       day'locS = nub $ (boxtakeDate, boxtakeLocation) : boxtakeLocationHistory
-      opName key = maybe "" operatorNickname (lookup key opMap)
       history = [whamlet|
 <table.table.table-bordered.table-striped.table-hover>
     <tr>
@@ -148,7 +152,7 @@ renderBoxtakeDetail opMap (Entity _ boxtake@Boxtake{..}) stocktakes = do
           <td> #{boxtakeLocation}
         <tr>
            <td> Last scan
-           <td> #{opName boxtakeOperator}, the #{tshow boxtakeDate}
+           <td> #{opName opMap boxtakeOperator}, the #{tshow boxtakeDate}
         ^{content}
     <div.col-sm-6>
       ^{history}
@@ -190,3 +194,6 @@ dimensionPicture width Boxtake{..} =  do
   [whamlet|
       <a href="@{dimRoute}" ><img src=@?{(dimRoute , [("width", tshow width)])}>
          |]
+
+opName :: (Map (Key Operator) Operator) -> Key Operator -> Text
+opName opMap key = maybe "" operatorNickname (lookup key opMap)
