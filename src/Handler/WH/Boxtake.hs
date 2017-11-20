@@ -11,12 +11,28 @@ import Yesod.Form.Bootstrap3
 import Handler.CsvUtils
 import Data.List(nub)
 
+-- * Types
+data FormParam  = FormParam
+  { pBarcode :: Maybe Text
+  , pLocation :: Maybe Text
+  , pDescription :: Maybe Text
+  , pShowInactive :: Bool
+  , pCompactView :: Bool
+  }
+defaultParam = FormParam Nothing Nothing Nothing False True
+
 -- * Handlers
 getWHBoxtakeR :: Handler Html
-getWHBoxtakeR = undefined
+getWHBoxtakeR = do
+  renderBoxtakes defaultParam
 
 postWHBoxtakeR :: Handler Html
-postWHBoxtakeR = undefined
+postWHBoxtakeR = do
+  ((resp, _), _) <- runFormPost (paramForm Nothing)
+  case resp of
+    FormMissing -> error "form missing"
+    FormFailure a -> error $ "Form failure : " ++ show a
+    FormSuccess param -> renderBoxtakes param
 
 -- | Display the detail of a box given a barcode.
 getWHBoxtakeDetailR :: Text -> Handler Html
@@ -27,9 +43,62 @@ getWHBoxtakeDetailR barcode = do
   defaultLayout =<< case boxtakem of
       Nothing -> setError (toHtml ("Can't find any box with barcode '" <> barcode <> "'")) >> return ""
       Just boxtake -> return $ renderBoxtakeDetail operatorsMap boxtake stocktakes
-   
+  
+-- * Forms
+paramForm :: Maybe FormParam -> _
+paramForm param0 = renderBootstrap3 BootstrapBasicForm form
+  where form = FormParam
+          <$> aopt textField "Barcode" (pBarcode <$> param0)
+          <*> aopt textField "Location" (pLocation <$> param0)
+          <*> aopt textField "Description" (pDescription <$> param0)
+          <*> areq boolField "Show Inactive" ((pShowInactive) <$> param0)
+          <*> areq boolField "Compact mode" (pCompactView <$> param0 <|> Just True)
 
 -- * Rendering
+-- ** Main
+renderBoxtakes :: FormParam -> Handler Html
+renderBoxtakes param = do
+  boxtakes <- loadBoxtakes param
+  (formW, encType) <- generateFormPost $ paramForm (Just param)
+  let body = case pCompactView param  of
+        True -> renderBoxtakeTable boxtakes
+        False -> renderBoxtakeList boxtakes
+  defaultLayout $ [whamlet|
+<form #boxtakes role=form method=post action=@{WarehouseR WHBoxtakeR} encType="#{encType}"}>
+  ^{formW}
+  <button type="submit" name="Search" .btn.btn-primary> Search
+<div>
+  ^{body}
+          |]
+  
+-- *** Table
+renderBoxtakeTable :: [Entity Boxtake] -> Widget
+renderBoxtakeTable boxtakes = do
+  [whamlet|
+<table.table.table-bordered.table-striped.table-hover>
+  <tr>
+      <th> Barcode 
+      <th> Description 
+      <th> Dimensions
+      <th> Reference 
+      <th> Location
+      <th> Date 
+      <th> Active
+  $forall (Entity _ boxtake) <- boxtakes
+    <tr>
+      <td> #{boxtakeBarcode boxtake}
+      <td> #{fromMaybe "" (boxtakeDescription boxtake)}
+      <td> #{tshow (boxtakeLength boxtake)} x #{tshow (boxtakeWidth boxtake)} x #{tshow (boxtakeHeight boxtake)}
+      <td> #{boxtakeReference boxtake}
+      <td> #{boxtakeLocation boxtake}
+      <td> #{tshow (boxtakeDate boxtake)}
+      <td> #{displayActive (boxtakeActive boxtake)}
+          |]
+  
+-- *** List
+renderBoxtakeList :: [Entity Boxtake] -> Widget
+renderBoxtakeList = return "list"
+
 -- ** Detail
 
 renderBoxtakeDetail :: (Map (Key Operator) Operator) -> Entity Boxtake  -> [Entity Stocktake] -> Widget
@@ -105,6 +174,11 @@ renderStocktakes opMap stocktakes = do
           |]
 
 
+-- ** DB Access
+loadBoxtakes :: FormParam -> Handler [Entity Boxtake]
+loadBoxtakes param = do
+  runDB $ selectList [] [LimitTo 10]
+  
 -- ** Util
 displayActive :: Bool -> Text
 displayActive act = if act then "Active" else "Inactive"
