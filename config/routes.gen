@@ -36,12 +36,12 @@
   !/packinglist/#Int64/deliver WHPackingListDeliverR POST !pl
 
 
-  /boxtake WHBoxtakeR GET POST !boxtake !group=Boxes !title=Boxtakes
+  /boxtake WHBoxtakeR GET POST !boxtake !group=Boxes !title=Boxtakes !boxtake
   /boxtake/detail/#Text  WHBoxtakeDetailR GET !boxtake
 
   /dimensions WHDimensionR GET !dimension !title=Dimensions
-  /dimensions/bulk WHDimensionBulkR GET POST !title=Dimensions_Bulk
-  /dimensions/outer/#Int64/#Int64/#Int64/ WHDimensionOuterR GET
+  /dimensions/bulk WHDimensionBulkR GET POST !title=Dimensions_Bulk !dimension
+  /dimensions/outer/#Int64/#Int64/#Int64/ WHDimensionOuterR GET 
   /dimensions/inner/#Int64/#Int64/#Int64/#Int64/#Int64/#Int64/ WHDimensionInnerR GET
 
 /items ItemsR !items:
