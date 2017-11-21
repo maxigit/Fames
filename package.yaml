@@ -95,6 +95,7 @@ default-extensions:
 - PatternSynonyms
 - StandaloneDeriving
 - PartialTypeSignatures
+- NamedWildCards
 
 library:
   source-dirs:
