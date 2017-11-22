@@ -26,7 +26,7 @@ module Handler.Util
 , filterE
 , filterEField
 , filterEKeyword
-, readUploadOrCache
+, readUploadOrCacheUTF8
 , locationSet
 ) where
 
@@ -183,14 +183,15 @@ setAttachment path =
 -- on the second time. The key and path will need to be set to the form (as hidden parameter)
 -- readUploadOrCache.
 -- Returns the content and the tempory key and path or nothing if nothing is present.
-readUploadOrCache
+-- The resulting file is converted in UTF8 
+readUploadOrCacheUTF8
   :: (MonadIO m, MonadResource m)
   => Encoding
   -> Maybe FileInfo -- file to upload
   -> Maybe Text -- Key if already uploaded
   -> Maybe Text -- Path if already uploaded
   -> m (Maybe (ByteString, Text, Text))
-readUploadOrCache  encoding fileInfoM keyM pathM = do
+readUploadOrCacheUTF8  encoding fileInfoM keyM pathM = do
       let tmp file = "/tmp" </> (unpack file)
       case (fileInfoM, keyM, pathM) of
         -- key and path set. Reuse the temporary file

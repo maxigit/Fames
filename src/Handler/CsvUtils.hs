@@ -431,7 +431,10 @@ instance Renderable InvalidSpreadsheet where
              
 
 renderParsingResult :: (Renderable [row], MonadHandler m)
-  => (m () -> Widget -> out) -> (result -> out) -> ParsingResult row result -> out
+                    => (m () -> Widget -> out)
+                    -> (result -> out)
+                    -> ParsingResult row result
+                    -> out
 renderParsingResult onError onSuccess result = 
         case result of
           WrongHeader invalid -> onError (setError "Invalid file or columns missing") (render invalid)

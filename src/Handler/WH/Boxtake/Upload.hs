@@ -1,8 +1,10 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Handler.WH.Boxtake.Upload where
 
 import Import
 import Handler.CsvUtils
 import Data.List(mapAccumR)
+import Handler.Table
 
 -- * Type
 -- | The raw result of a scanned row
@@ -29,7 +31,7 @@ parseRawScan :: Text -> [RawScanRow]
 parseRawScan = map parseScanRow  . lines
   where
     parseScanRow line = case  () of
-      () | Just location <- stripPrefix "LO" line -> RawLocation location
+      () | Just location <- stripPrefix "LC" line -> RawLocation location
       () | isPrefixOf "DL" line || isPrefixOf "ST" line -> RawBarcode line
       () | Just day <- readMay line -> RawDate day
       _ -> RawOperator line
@@ -93,4 +95,20 @@ startData rows = case sortBy (comparing cons) (take 3 rows) of
         cons (LocationRow _) = 3
         cons _ = 4
 
+
+
+
+
+-- ** Rendering
+instance Renderable [Either InvalidField ScanRow] where
+  render rows = displayTable indexes colnameF (map mkRowF rows) where
+    indexes = [1]
+    colnameF _ = ("Barcode", [])
+    mkRowF (Left e) = (const $ Just (toHtml (tshow e),[]) , ["error"])
+    mkRowF (Right row) = case row of
+      DateRow day -> (const $ Just (toHtml $ tshow day, []), ["day-row"])
+      OperatorRow (Entity _ op) -> (const $ Just (toHtml $ operatorNickname op, []), ["operator-row"])
+      LocationRow loc -> (const $ Just (toHtml $ loc, []),["location-row"])
+      BoxRow (Entity _ box) -> (const $ Just (toHtml $  boxtakeBarcode box, []), ["box-row"])
+    mkRowF _ = (const Nothing, ["error"])
 

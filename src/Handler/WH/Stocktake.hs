@@ -391,7 +391,7 @@ processStocktakeSheet mode = do
     FormFailure a -> error $ "Form failure : " ++ show (mode, a)
     FormSuccess param@(FormParam fileInfoM keyM pathM encoding commentM complete display override) -> do
       let tmp file = "/tmp" </> (unpack file)
-      skpM <- readUploadOrCache encoding fileInfoM keyM pathM
+      skpM <- readUploadOrCacheUTF8 encoding fileInfoM keyM pathM
       (spreadsheet, key, path) <- case skpM of
         Just s'k'p -> return s'k'p
         Nothing -> do

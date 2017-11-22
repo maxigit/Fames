@@ -16,6 +16,7 @@ import Handler.CsvUtils
 import Data.List(nub)
 import qualified Data.Map.Strict as Map
 import Text.Printf(printf)
+import Handler.WH.Boxtake.Upload
 
 -- * Types
 data RuptureMode = BarcodeRupture | LocationRupture | DescriptionRupture
@@ -295,7 +296,7 @@ processBoxtakeSheet mode = do
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show (mode, a)
     FormSuccess param0@UploadParam{..} -> do
-      skpM <- readUploadOrCache uEncoding uFileInfo uFileKey uFilePath
+      skpM <- readUploadOrCacheUTF8 uEncoding uFileInfo uFileKey uFilePath
       case skpM of
         Nothing -> do
           let msg = setError "No file provided."
@@ -305,8 +306,12 @@ processBoxtakeSheet mode = do
                               msg
                               (return ())
         Just (spreadsheet, key , path) -> do
-          let param = param0 {uFileInfo=Nothing, uFileKey=Just key, uFilePath=Just path}
-          return ""
+          let paramWithKey = param0 {uFileInfo=Nothing, uFileKey=Just key, uFilePath=Just path}
+          rows <- parseScan (decodeUtf8 spreadsheet)
+          renderParsingResult (renderBoxtakeSheet Validate (Just paramWithKey) 422 )
+                              (saveBoxtakeMove paramWithKey)
+                              rows
+saveBoxtakeMove = undefined
 
 -- * DB Access
 loadBoxtakes :: FormParam -> Handler [Entity Boxtake]
