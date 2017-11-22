@@ -307,7 +307,7 @@ processBoxtakeSheet mode = do
                               (return ())
         Just (spreadsheet, key , path) -> do
           let paramWithKey = param0 {uFileInfo=Nothing, uFileKey=Just key, uFilePath=Just path}
-          rows <- parseScan (decodeUtf8 spreadsheet)
+          rows <- parseScan spreadsheet
           renderParsingResult (renderBoxtakeSheet Validate (Just paramWithKey) 422 )
                               (saveBoxtakeMove paramWithKey)
                               rows

@@ -5,6 +5,7 @@ import Import
 import Handler.CsvUtils
 import Data.List(mapAccumR)
 import Handler.Table
+import qualified Data.Csv as Csv
 
 -- * Type
 -- | The raw result of a scanned row
@@ -27,10 +28,8 @@ data Row = Row
   }
 -- * Boxtakes scanning parsing
 
-parseRawScan :: Text -> [RawScanRow]
-parseRawScan = map parseScanRow  . lines
-  where
-    parseScanRow line = case  () of
+parseRawScan :: Text -> RawScanRow
+parseRawScan line = case  () of
       () | Just location <- stripPrefix "LC" line -> RawLocation location
       () | isPrefixOf "DL" line || isPrefixOf "ST" line -> RawBarcode line
       () | Just day <- readMay line -> RawDate day
@@ -62,20 +61,49 @@ loadRow isLocationValid findOperator row = do
                                                     barcode)
 
 -- parseScan :: Text -> Handler (ParsingResult I-(Either ))
-parseScan spreadsheet = do
-  locations <- locationSet 
-  findOperator <- operatorFinder
-  let isLocationValid loc  = loc `member` locations
-  rows <- mapM (loadRow isLocationValid findOperator) (parseRawScan spreadsheet)
-  case sequence rows of
-    Left _ -> -- there is some error
-      return $ InvalidData [] rows
-    Right rights -> do
-      case startData rights of
-        Nothing -> return $ InvalidData ["File should set an operator, a date and a location."]rows
-        Just start ->  do
-          let (_, fulls) = mapAccumR makeRow start rights
-          return $ ParsingCorrect fulls
+
+parseScan ::
+  ByteString
+  -> HandlerT
+       App IO (ParsingResult (Either InvalidField ScanRow) [Maybe Row])
+parseScan spreadsheet = do -- Either
+      let rawsE = parseSpreadsheet (mapFromList [("Barcode", [])]) Nothing spreadsheet
+      case rawsE of
+        Left inv -> return $ WrongHeader inv
+        Right raws -> do
+          locations <- locationSet 
+          findOperator <- operatorFinder
+          let isLocationValid loc  = loc `member` locations
+          rows <- mapM (loadRow isLocationValid findOperator) raws
+          case sequence rows of
+            Left _ -> -- there is some error
+              return $ InvalidData [] rows
+            Right rights -> do
+              case startData rights of
+                Nothing -> return $ InvalidData ["File should set an operator, a date and a location."]rows
+                Just start ->  do
+                  let (_, fulls) = mapAccumR makeRow start rights
+                  return $ ParsingCorrect fulls
+      
+     
+
+        
+ 
+
+-- parseScan' spreadsheet = do
+--   locations <- locationSet 
+--   findOperator <- operatorFinder
+--   let isLocationValid loc  = loc `member` locations
+--   rows <- mapM (loadRow isLocationValid findOperator) (parseRawScan spreadsheet)
+--   case sequence rows of
+--     Left _ -> -- there is some error
+--       return $ InvalidData [] rows
+--     Right rights -> do
+--       case startData rights of
+--         Nothing -> return $ InvalidData ["File should set an operator, a date and a location."]rows
+--         Just start ->  do
+--           let (_, fulls) = mapAccumR makeRow start rights
+--           return $ ParsingCorrect fulls
 
 -- makeRow :: ScanRow -> (Day , (Entity Operator)) -> (Maybe Row, (Day, (Entity Operator))
 makeRow start@(day0 ,op0, loc0) row = case row of
@@ -101,14 +129,21 @@ startData rows = case sortBy (comparing cons) (take 3 rows) of
 
 -- ** Rendering
 instance Renderable [Either InvalidField ScanRow] where
-  render rows = displayTable indexes colnameF (map mkRowF rows) where
-    indexes = [1]
-    colnameF _ = ("Barcode", [])
-    mkRowF (Left e) = (const $ Just (toHtml (tshow e),[]) , ["error"])
-    mkRowF (Right row) = case row of
-      DateRow day -> (const $ Just (toHtml $ tshow day, []), ["day-row"])
-      OperatorRow (Entity _ op) -> (const $ Just (toHtml $ operatorNickname op, []), ["operator-row"])
-      LocationRow loc -> (const $ Just (toHtml $ loc, []),["location-row"])
-      BoxRow (Entity _ box) -> (const $ Just (toHtml $  boxtakeBarcode box, []), ["box-row"])
-    mkRowF _ = (const Nothing, ["error"])
+  render rows = do
+    displayTable indexes colnameF (map mkRowF rows)
+    invFieldEmptyWidget
+    where
+      indexes = [1]
+      colnameF _ = ("Barcode", [])
+      mkRowF (Left inv) = (const $ Just (invFieldToHtml inv, []) , ["error"])
+      mkRowF (Right row) = case row of
+        DateRow day -> (const $ Just (toHtml $ tshow day, []), ["day-row"])
+        OperatorRow (Entity _ op) -> (const $ Just (toHtml $ operatorNickname op, []), ["operator-row"])
+        LocationRow loc -> (const $ Just (toHtml $ loc, []),["location-row"])
+        BoxRow (Entity _ box) -> (const $ Just (toHtml $  boxtakeBarcode box, []), ["box-row"])
+      mkRowF _ = (const Nothing, ["error"])
 
+
+-- ** Csv
+instance Csv.FromNamedRecord RawScanRow where
+  parseNamedRecord m = m Csv..: "Barcode" <&> parseRawScan

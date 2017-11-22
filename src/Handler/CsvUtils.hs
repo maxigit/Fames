@@ -351,10 +351,23 @@ instance (Renderable l, Renderable r) => Renderable (Either l r) where
 
 instance Renderable InvalidField where
   render invField = do
+    toWidget (invFieldToHtml invField)
+    invFieldEmptyWidget
+
+invFieldToHtml invField = 
     let (class_, value) = case invField of
           ParsingError _ v -> ("parsing-error" :: Text, v)
           MissingValueError _ -> ("missing-value" :: Text,"<Empty>")
-          InvalidValueError e v -> ("invalid-value:" <> e :: Text, v)
+          InvalidValueError e v -> ("invalid-value e" <> e :: Text, v)
+    in [shamlet|
+<span class="#{class_}">
+  <span.description>#{invalidFieldError invField}
+  <span.message.text-danger data-toggle="tooltip" title="#{invalidFieldError invField}">#{value}
+|]
+
+
+-- | Basic css and js for InvalidField
+invFieldEmptyWidget =  do
     toWidget [cassius|
 .parsing-error, .missing-value, .invalid-value
   .description
@@ -363,16 +376,11 @@ instance Renderable InvalidField where
   .message
     font-style: italic
 |]
-    [whamlet|
-<span class="#{class_}">
-  <span.description>#{invalidFieldError invField}
-  <span.message.text-danger data-toggle="tooltip" title="#{invalidFieldError invField}">#{value}
-|]
     toWidget [julius|
 $('[data-toggle="tooltip"]').tooltip();
 |]
     addScriptRemote "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"
-  
+
 instance Renderable a => Renderable (ValidField a) where
   render (Provided x) = render x
   render (Guessed x) = do
