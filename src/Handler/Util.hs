@@ -25,6 +25,7 @@ module Handler.Util
 , filterE
 , filterEField
 , filterEKeyword
+, readUploadOrCache
 ) where
 
 import Foundation
@@ -44,6 +45,7 @@ import qualified Data.Text.Lazy as LT
 import Text.Blaze.Html (Markup)
 import FA
 import Data.Time (diffDays, addGregorianMonthsClip)
+import System.Directory (doesFileExist)
 -- import Data.IOData (IOData)
 
 -- * Display entities
@@ -169,6 +171,40 @@ setAttachment path =
   addHeader "Content-Disposition" (toStrict ("attachment; filename=\""<>path<>"\"") )
 
 
+-- ** Read and reload file
+-- | When validating a file, the file needs to be uploaded once for validating.
+-- In order to be sure that we are processing the file which has been validated
+-- (and because it's not possible to preset the upload parameter on the new form)
+-- we save the first time, the file to a temporary file and use the key to reload it
+-- on the second time. The key and path will need to be set to the form (as hidden parameter)
+-- readUploadOrCache.
+-- Returns the content and the tempory key and path or nothing if nothing is present.
+readUploadOrCache
+  :: (MonadIO m, MonadResource m)
+  => Encoding
+  -> Maybe FileInfo -- file to upload
+  -> Maybe Text -- Key if already uploaded
+  -> Maybe Text -- Path if already uploaded
+  -> m (Maybe (ByteString, Text, Text))
+readUploadOrCache  encoding fileInfoM keyM pathM = do
+      let tmp file = "/tmp" </> (unpack file)
+      case (fileInfoM, keyM, pathM) of
+        -- key and path set. Reuse the temporary file
+        (_, Just key, Just path) -> do
+          ss <- readFile (tmp key)
+          return $ Just (ss, key, path)
+        (Just fileInfo, _, _) -> do
+        -- File to upload. upload and save it If needed.
+        -- If it already exist, the key guarantie that
+        -- it is the same content.
+          (ss, key) <- readUploadUTF8 fileInfo encoding
+          let path = tmp key
+          exist <- liftIO $ doesFileExist path
+          unless exist $ do
+            writeFile (tmp key) ss
+          return $ Just (ss, key, fileName fileInfo)
+        (_,_,_) -> return Nothing
+  
 -- * Labels
 generateLabelsResponse ::
   Text

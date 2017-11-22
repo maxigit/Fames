@@ -391,21 +391,12 @@ processStocktakeSheet mode = do
     FormFailure a -> error $ "Form failure : " ++ show (mode, a)
     FormSuccess param@(FormParam fileInfoM keyM pathM encoding commentM complete display override) -> do
       let tmp file = "/tmp" </> (unpack file)
-      (spreadsheet, key, path) <- case (fileInfoM, keyM, pathM) of
-        (_, Just key, Just path) -> do
-          ss <- readFile (tmp key)
-          return (ss, key, path)
-        (Just fileInfo, _, _) -> do
-          (ss, key) <- readUploadUTF8 fileInfo encoding
-          let path = tmp key
-          exist <- liftIO $ doesFileExist path
-          unless exist $ do
-            writeFile (tmp key) ss
-          return (ss, key, fileName fileInfo)
-        (_,_,_) -> do -- CollectMOP
+      skpM <- readUploadOrCache encoding fileInfoM keyM pathM
+      (spreadsheet, key, path) <- case skpM of
+        Just s'k'p -> return s'k'p
+        Nothing -> do
           time <- liftIO getCurrentTime
           return ("", computeDocumentKey (encodeUtf8 (tshow time)), "collectMOP" )
-          
 
       -- TODO move to reuse
       -- check if the document has already been uploaded

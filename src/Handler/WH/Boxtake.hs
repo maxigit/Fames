@@ -290,7 +290,23 @@ renderBoxtakeSheet mode paramM status message pre = do
 
 processBoxtakeSheet :: SavingMode -> Handler Html
 processBoxtakeSheet mode = do
-  return ""
+  ((fileResp, postFileW), enctype) <- runFormPost (uploadForm mode Nothing)
+  case fileResp of
+    FormMissing -> error "form missing"
+    FormFailure a -> error $ "Form failure : " ++ show (mode, a)
+    FormSuccess param0@UploadParam{..} -> do
+      skpM <- readUploadOrCache uEncoding uFileInfo uFileKey uFilePath
+      case skpM of
+        Nothing -> do
+          let msg = setError "No file provided."
+          renderBoxtakeSheet  Validate
+                              (Just $ param0{uFileInfo=Nothing, uFileKey=Nothing, uFilePath=Nothing})
+                              422
+                              msg
+                              (return ())
+        Just (spreadsheet, key , path) -> do
+          let param = param0 {uFileInfo=Nothing, uFileKey=Just key, uFilePath=Just path}
+          return ""
 
 -- * DB Access
 loadBoxtakes :: FormParam -> Handler [Entity Boxtake]
