@@ -41,7 +41,7 @@ data RowTypes = RawT -- raw row, everything is text
 data ParsingResult row result
   = WrongHeader InvalidSpreadsheet
   | InvalidFormat [row]-- some cells can't be parsed
-  | InvalidData [row]-- each row is well formatted but invalid as a whole
+  | InvalidData [Text] [row]-- each row is well formatted but invalid as a whole
   | ParsingCorrect result -- Ok
 
 deriving instance (Eq a, Eq b) => Eq (ParsingResult a b)
@@ -218,7 +218,11 @@ parseMulti columnMap m colname =  do
             return res
 
 -- | Parse a spread sheet 
-parseSpreadsheet :: (Csv.FromNamedRecord a, Show a) => Map String [String] ->  Maybe String -> ByteString -> Either InvalidSpreadsheet [a]
+parseSpreadsheet :: (Csv.FromNamedRecord a, Show a)
+                 => Map String [String] -- ^ Columns (what to display, possible names)
+                 ->  Maybe String -- ^ separtors
+                 -> ByteString
+                 -> Either InvalidSpreadsheet [a]
 parseSpreadsheet columnMap seps bytes = do
   let lbytes = fromStrict bytes
       options = [Csv.DecodeOptions (fromIntegral (ord sep)) | sep <- fromMaybe ",;\t" seps ]
@@ -432,8 +436,14 @@ renderParsingResult onError onSuccess result =
         case result of
           WrongHeader invalid -> onError (setError "Invalid file or columns missing") (render invalid)
           InvalidFormat raws -> onError (setError "Invalid cell format") (render raws)
-          InvalidData raws ->  onError (setError "Invalid data") (render raws)
+          InvalidData errors raws ->  onError (setError (formatErrors errors "Invalid data")) (render raws)
           ParsingCorrect rows -> onSuccess rows
+  where formatErrors [] title = title
+        formatErrors errors _ = [shamlet|
+<ul>
+$forall err <- errors
+  <li> err
+|]
 
 
 topBorder :: Widget

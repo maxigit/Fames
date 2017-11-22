@@ -417,16 +417,10 @@ $maybe u <- uploader
       locations <- appStockLocationsInverse . appSettings <$> getYesod
       skus <- getStockIds
     -- get all operators and generate a map name, firstname  -> operator, operator id
-      operators <- runDB $ selectList [OperatorActive ==. True] [] 
-      let operatorKeys = Map.fromListWith (++) $
-                   [ (toLower $ operatorNickname op, [Operator' opId op] ) | op'@(Entity opId op) <- operators ]
-                <> [ (toLower $ operatorFirstname op <> operatorSurname op, [Operator' opId op] )
-                   | op'@(Entity opId op) <- operators
-                   ] :: Map Text [Operator']
-           -- we need to filter operators key with more than one solution
-          pks = Map.map (Data.List.head)  (Map.filter (\ops -> Data.List.length ops ==1) operatorKeys)
-          -- findOps = Map.lookup (Map.map (Data.List.head)  (Map.filter (\ops -> Data.List.length ops /=1) operatorKeys)) . toLower :: Text -> Entity Operator
-          findOps = (flip Map.lookup) pks  . toLower . (filter (/= ' '))
+      opF <- operatorFinder
+      let findOps op = case opF op of
+            Just (Entity opId operator) | operatorActive operator -> Just (Operator' opId operator)
+            Nothing -> Nothing
           findLocs = validateLocation locations
 
       userId <- requireAuthId
@@ -1039,7 +1033,7 @@ parseTakes skus opf locf bytes = either id ParsingCorrect $ do
     
   raws <- parseSpreadsheet mempty Nothing bytes <|&> WrongHeader
   rows <- validateAll (validateRaw opf locf) raws <|&> InvalidFormat
-  valids <- validateRows skus rows <|&> InvalidData 
+  valids <- validateRows skus rows <|&> InvalidData []
   Right valids
 
   where -- validateAll :: (a-> Either b c) -> [a] -> Either [b] [c]
@@ -1207,7 +1201,7 @@ lookupBarcodes (ParsingCorrect rows) = do
   finalizeds <- runDB $ mapM lookupBarcode rows
   case sequence finalizeds of
     Right valids -> return (ParsingCorrect (concat valids))
-    Left invalids -> return (InvalidData (concatMap (either return
+    Left invalids -> return (InvalidData [] (concatMap (either return
                                                             (map transformValid')
                                                     )
                                                     finalizeds

@@ -21,11 +21,13 @@ module Handler.Util
 , basePriceList
 , timeProgress
 , allOperators
+, operatorFinder
 , FilterExpression
 , filterE
 , filterEField
 , filterEKeyword
 , readUploadOrCache
+, locationSet
 ) where
 
 import Foundation
@@ -46,6 +48,8 @@ import Text.Blaze.Html (Markup)
 import FA
 import Data.Time (diffDays, addGregorianMonthsClip)
 import System.Directory (doesFileExist)
+import qualified Data.Map.Strict as Map
+import qualified Data.List as Data.List
 -- import Data.IOData (IOData)
 
 -- * Display entities
@@ -378,8 +382,30 @@ basePriceList = cache0 False cacheForEver "base-price-list" $ do
   return basePl
   
 -- ** Fames
+-- *** Operators
 allOperators :: Handler (Map (Key Operator) Operator)
 allOperators = cache0 False cacheForEver "all-operators" $ do
   operators <- runDB $ selectList [] []
   return $ mapFromList [ (key, operator) | (Entity key operator) <- operators ]
+  
+operatorFinder :: Handler (Text -> Maybe (Entity Operator))
+operatorFinder = cache0 False cacheForEver "operator-finder" $ do
+      operators <- runDB $ selectList [] []
+      let operatorKeys = Map.fromListWith (++) $ concat
+                   [ [ (toLower $ operatorNickname op, [e] ) 
+                     , (toLower $ operatorFirstname op <> operatorSurname op, [e] )
+                     ]
+                   | e@(Entity _ op) <- operators
+                   ]
+           -- we need to filter operators key with more than one solution
+          pks = Map.map (Data.List.head)  (Map.filter (\ops -> Data.List.length ops ==1) operatorKeys)
+          -- findOps = Map.lookup (Map.map (Data.List.head)  (Map.filter (\ops -> Data.List.length ops /=1) operatorKeys)) . toLower :: Text -> Entity Operator
+      return $ (flip Map.lookup) pks  . toLower . (filter (/= ' '))
+
+-- *** Location
+locationSet :: Handler (Set Text)
+locationSet = cache0 False cacheForEver "location-set" $ do
+    locations <- appStockLocationsInverse . appSettings <$> getYesod
+    return . setFromList $ keys locations
+
   

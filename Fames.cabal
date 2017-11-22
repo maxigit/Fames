@@ -131,6 +131,7 @@ library
       Handler.WH
       Handler.WH.Barcode
       Handler.WH.Boxtake
+      Handler.WH.Boxtake.Upload
       Handler.WH.Dimensions
       Handler.WH.Location
       Handler.WH.PackingList

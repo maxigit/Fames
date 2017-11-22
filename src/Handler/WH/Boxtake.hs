@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wno-warn-partial-type-signatures #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 module Handler.WH.Boxtake
 ( getWHBoxtakeR
 , postWHBoxtakeR
