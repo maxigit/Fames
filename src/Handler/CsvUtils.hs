@@ -293,6 +293,29 @@ instance Csv.FromField AllFormatsDay where
                   , "%a %d %b %0Y"
                   ]
 
+parseDay :: MonadPlus m => String -> m AllFormatsDay
+parseDay str = 
+    case  concat [parseTimeM True defaultTimeLocale f str | f <- formats] of
+      [day] -> return $ AllFormatsDay day
+      (d:ds) -> error (show (d:ds))
+      _ -> mzero
+    where
+        -- formats to try. Normally there shouldn't be any overlap bettween the different format.
+        -- The 0 in %0Y is important. It guarantes that only 4 digits are accepted.
+        -- without 11/01/01 will be parsed by %Y/%m/%d and %d/%m/%y
+        formats = [ "%0Y/%m/%d"
+                  , "%d/%m/%0Y"
+                  , "%d/%m/%y"
+                  , "%0Y-%m-%d"
+                  , "%d %b %0Y"
+                  , "%d-%b-%0Y"
+                  , "%d %b %y"
+                  , "%d-%b-%y"
+                  , "%0Y %b %d"
+                  , "%0Y-%b-%d"
+                  , "%a %d %b %0Y"
+                  ]
+
 instance (Csv.FromField a) => Csv.FromField (ValidField a) where
   parseField bs = do
     val <- Csv.parseField bs
@@ -358,7 +381,7 @@ invFieldToHtml invField =
     let (class_, value) = case invField of
           ParsingError _ v -> ("parsing-error" :: Text, v)
           MissingValueError _ -> ("missing-value" :: Text,"<Empty>")
-          InvalidValueError e v -> ("invalid-value e" <> e :: Text, v)
+          InvalidValueError e v -> ("invalid-value" :: Text, v)
     in [shamlet|
 <span class="#{class_}">
   <span.description>#{invalidFieldError invField}
@@ -452,8 +475,8 @@ renderParsingResult onError onSuccess result =
   where formatErrors [] title = title
         formatErrors errors _ = [shamlet|
 <ul>
-$forall err <- errors
-  <li> #{err}
+  $forall err <- errors
+    <li> #{err}
 |]
 
 

@@ -5,6 +5,7 @@ import Import
 import Handler.CsvUtils
 import Data.List(mapAccumR)
 import Handler.Table
+import WH.Barcode (isBarcodeValid)
 import qualified Data.Csv as Csv
 
 -- * Type
@@ -29,13 +30,13 @@ data Row = Row
 -- * Boxtakes scanning parsing
 
 parseRawScan :: Text -> RawScanRow
-parseRawScan line = case  () of
+parseRawScan line = case () of
       () | Just location <- stripPrefix "LC" line -> RawLocation location
-      () | isPrefixOf "DL" line || isPrefixOf "ST" line -> RawBarcode line
-      () | Just day <- readMay line -> RawDate day
+      () | (isPrefixOf "DL" line || isPrefixOf "ST" line)
+           && isBarcodeValid (fromStrict line)  -> RawBarcode line
+      () | Just day <- parseDay (unpack line) -> RawDate (allFormatsDay day)
       _ -> RawOperator line
 
-  
 loadRow :: (Text -> Bool) -- ^ Location validator
         -> (Text -> Maybe (Entity Operator)) -- ^ Operator finder
         -> RawScanRow -> Handler (Either InvalidField ScanRow)
@@ -50,7 +51,7 @@ loadRow isLocationValid findOperator row = do
        RawOperator operator -> return $ case findOperator operator of
                                  Just entity -> Right (OperatorRow entity)
                                  Nothing -> Left (InvalidValueError ("Operator " <> operator
-                                                                                 <> " doesn't exist.")
+                                                                                 <> " doesn't exist. Maybe it is an invalid barcode.")
                                                                     operator
                                                  )
        RawBarcode barcode -> do
@@ -81,7 +82,7 @@ parseScan spreadsheet = do -- Either
               return $ InvalidData [] rows
             Right rights -> do
               case startData rights of
-                _ -> return $ InvalidData ["File should set an operator, a date and a location."]rows
+                Nothing -> return $ InvalidData ["File should set an operator, a date and a location."] rows
                 Just start ->  do
                   let (_, fulls) = mapAccumR makeRow start rights
                   return $ ParsingCorrect fulls
@@ -119,9 +120,9 @@ instance Renderable [Either InvalidField ScanRow] where
       colnameF _ = ("Barcode", [])
       mkRowF (Left inv) = (const $ Just (invFieldToHtml inv, []) , ["error"])
       mkRowF (Right row) = case row of
-        DateRow day -> (const $ Just (toHtml $ tshow day, []), ["day-row"])
-        OperatorRow (Entity _ op) -> (const $ Just (toHtml $ operatorNickname op, []), ["operator-row"])
-        LocationRow loc -> (const $ Just (toHtml $ loc, []),["location-row"])
+        DateRow day -> (const $ Just (toHtml $ tshow day, []), ["day-row", "bg-info"])
+        OperatorRow (Entity _ op) -> (const $ Just (toHtml $ operatorNickname op, []), ["operator-row", "bg-info"])
+        LocationRow loc -> (const $ Just (toHtml $ loc, []),["location-row", "bg-success"])
         BoxRow (Entity _ box) -> (const $ Just (toHtml $  boxtakeBarcode box, []), ["box-row"])
       mkRowF _ = (const Nothing, ["error"])
 
