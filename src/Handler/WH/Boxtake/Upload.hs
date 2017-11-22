@@ -77,35 +77,17 @@ parseScan spreadsheet = do -- Either
           rows <- mapM (loadRow isLocationValid findOperator) raws
           case sequence rows of
             Left _ -> -- there is some error
+
               return $ InvalidData [] rows
             Right rights -> do
               case startData rights of
-                Nothing -> return $ InvalidData ["File should set an operator, a date and a location."]rows
+                _ -> return $ InvalidData ["File should set an operator, a date and a location."]rows
                 Just start ->  do
                   let (_, fulls) = mapAccumR makeRow start rights
                   return $ ParsingCorrect fulls
-      
-     
 
-        
- 
 
--- parseScan' spreadsheet = do
---   locations <- locationSet 
---   findOperator <- operatorFinder
---   let isLocationValid loc  = loc `member` locations
---   rows <- mapM (loadRow isLocationValid findOperator) (parseRawScan spreadsheet)
---   case sequence rows of
---     Left _ -> -- there is some error
---       return $ InvalidData [] rows
---     Right rights -> do
---       case startData rights of
---         Nothing -> return $ InvalidData ["File should set an operator, a date and a location."]rows
---         Just start ->  do
---           let (_, fulls) = mapAccumR makeRow start rights
---           return $ ParsingCorrect fulls
-
--- makeRow :: ScanRow -> (Day , (Entity Operator)) -> (Maybe Row, (Day, (Entity Operator))
+makeRow :: (Day, Entity Operator, Text) -> ScanRow -> ((Day, Entity Operator, Text), Maybe Row)
 makeRow start@(day0 ,op0, loc0) row = case row of
   DateRow day -> ((day, op0, loc0), Nothing)
   OperatorRow op -> ((day0, op, loc0), Nothing)

@@ -453,7 +453,7 @@ renderParsingResult onError onSuccess result =
         formatErrors errors _ = [shamlet|
 <ul>
 $forall err <- errors
-  <li> err
+  <li> #{err}
 |]
 
 
