@@ -3,7 +3,7 @@ module Handler.WH.Boxtake.Upload where
 
 import Import
 import Handler.CsvUtils
-import Data.List(mapAccumR)
+import Data.List(mapAccumL)
 import Handler.Table
 import WH.Barcode (isBarcodeValid)
 import qualified Data.Csv as Csv
@@ -21,13 +21,14 @@ data ScanRow = DateRow Day
              | OperatorRow (Entity Operator)
              | LocationRow Text
              | BoxRow (Entity Boxtake)
+             deriving (Eq, Show)
 
 data Row = Row
   { rowBoxtake :: (Entity Boxtake)
   , rowLocation :: Text
   , rowDate :: Day
   , rowOperator :: (Entity Operator)
-  }
+  } deriving (Eq, Show)
 -- * Util
 
 -- | Reverse op parseRawScan
@@ -89,7 +90,7 @@ parseScan spreadsheet = do -- Either
 
               return $ InvalidData [] rows
             Right rights -> do
-              let (_, fullEs) = mapAccumR makeRow (Nothing, Nothing, Nothing, Nothing) rights
+              let (_, fullEs) = mapAccumL makeRow (Nothing, Nothing, Nothing, Nothing) rights
               case  sequence (catMaybes fullEs) of
                 Left _ -> let -- errors, we need to join them with initial rows
                   joinError raw _ (Just (Left e)) = Left (InvalidValueError e (rawText raw))
@@ -119,13 +120,14 @@ makeRow (daym ,opm, locm, lastbox) row = case (row, lastbox) of
   (LocationRow loc, lastbox) -> ((daym, opm, Just loc, lastbox), Nothing)
   (BoxRow box, _) | (Just day, Just op, Just loc) <- (daym, opm, locm)
                     -> ((daym, opm, locm, Just box), Just $ Right (Row box loc day op))
-  (BoxRow box, _)   -> let messages = execWriter $ do
+  (BoxRow _  , _)   -> let messages = execWriter $ do
                              tell ["Barcode not expected there."]
+                             tell [tshow (daym, opm, locm)]
                              when (isNothing daym) (tell ["Date is missing."])
                              when (isNothing opm) (tell ["Operator is missing)."])
                              when (isNothing locm) (tell ["Location is missing."])
                            msg = unlines messages
-                       in ((daym, opm, locm, Just box), Just $ Left  msg)
+                       in ((daym, opm, locm, Nothing), Just $ Left  msg)
 
 -- ** Validation
 -- We need to validate that the file starts with a date an, a operator and a location.

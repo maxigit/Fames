@@ -375,6 +375,7 @@ test-suite test
       Handler.GLEnterReceiptSheetSpec
       Handler.HomeSpec
       Handler.WHBarcodeSpec
+      Handler.WHBoxtake.UploadSpec
       Handler.WHPackingListSpec
       Handler.WHStockAdjustmentSpec
       Handler.WHStocktakeSpec
