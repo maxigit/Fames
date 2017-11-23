@@ -270,6 +270,15 @@ renderSummary param boxtakes =  do
           |]
 
 
+renderSessions :: [Session] -> Widget
+renderSessions sessions = do
+  let rowsW = mapM_ (render . sessionRows) sessions
+  [whamlet|
+<div.panel.panel-primary>
+  <div.panel-heading> Heading
+  <div.panel-body>
+    ^{rowsW}
+|]
 -- ** Upload 
 -- | Displays the main form to upload a boxtake spreadsheet.
 -- It is also use to display the result of the validation (the 'pre' Widget)
@@ -307,13 +316,13 @@ processBoxtakeSheet mode = do
                               (return ())
         Just (spreadsheet, key , path) -> do
           let paramWithKey = param0 {uFileInfo=Nothing, uFileKey=Just key, uFilePath=Just path}
-          rows <- parseScan spreadsheet
+          sessions <- parseScan spreadsheet
           renderParsingResult (renderBoxtakeSheet Validate (Just paramWithKey) 422 )
                               (processBoxtakeMove paramWithKey)
-                              rows
-processBoxtakeMove :: UploadParam -> [Row] -> Handler Html
-processBoxtakeMove param rows = do
-  defaultLayout $ render rows
+                              sessions
+processBoxtakeMove :: UploadParam -> [Session] -> Handler Html
+processBoxtakeMove param sessions = do
+  defaultLayout $ renderSessions sessions
 
 
 -- * DB Access

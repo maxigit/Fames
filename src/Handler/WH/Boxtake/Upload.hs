@@ -89,7 +89,7 @@ loadRow isLocationValid findOperator row = do
 parseScan ::
   ByteString
   -> HandlerT
-       App IO (ParsingResult (Either InvalidField ScanRow) [Row])
+       App IO (ParsingResult (Either InvalidField ScanRow) [Session])
 parseScan spreadsheet = do -- Either
       let rawsE = parseSpreadsheet (mapFromList [("Barcode", [])]) Nothing spreadsheet
       case rawsE of
@@ -111,7 +111,9 @@ parseScan spreadsheet = do -- Either
                   row'fullS = zipWith3 joinError raws rows fullEs
                   in return $ InvalidData ["Some sections are not complete. Please check that each new scan section has a date an operator and a location"] row'fullS
                 Right fulls ->  do
-                  return $ ParsingCorrect fulls
+                  case groupBySession fulls of
+                    Left errs -> return $ InvalidData errs rows
+                    Right sessions ->  return $ ParsingCorrect sessions
 
 
 -- | Make a row and check that date and operator, and location are provided.
@@ -164,13 +166,13 @@ extractLocations rows = let
                                         
                                         
 
-groupBySession :: [Row] -> Either Text [Session]
+groupBySession :: [Row] -> Either [Text] [Session]
 groupBySession rows = do -- Either
   let rowByLocs = Map.fromListWith (<>) [(rowLocation row, [row]) | row <- rows]
       sessionEs = map makeSession (toList rowByLocs)
   case sequence sessionEs of
-    Left _ -> Left $ concat (lefts sessionEs)
-    sessions -> sessions
+    Left _ -> Left $ lefts sessionEs
+    Right sessions -> Right sessions
 
 
 -- | Create a session from the given rows. Rows are supposed
@@ -179,11 +181,13 @@ makeSession :: [Row] -> Either Text Session
 makeSession rows = do
   location <- extractUnique "location" id id rowLocation  rows
   date <- extractUnique "date" (tshow) id rowDate rows
+    <|&> (<> ("For location" <> location))
   operator <- extractUnique "operator" (operatorNickname . entityVal)  entityKey rowOperator rows
+    <|&> (<> ("For location" <> location))
   -- check if shelve is empty or not
   rows' <- case partition (isNothing . rowBoxtake) rows of
     ([], _) -> Right rows
-    ([empty], []) -> Right []
+    (_, []) -> Right []
     _ -> Left $ "Shelf " <> location <> " is at the same time empty and contains boxes"
 
   Right $ Session date operator location rows' []
