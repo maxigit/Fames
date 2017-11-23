@@ -2,7 +2,7 @@ module Handler.WHBoxtake.UploadSpec where
 
 import TestImport
 import Handler.WH.Boxtake.Upload
-import Data.List(mapAccumR,mapAccumL)
+import Data.List(mapAccumL)
 import Database.Persist.MySQL
 spec :: Spec
 spec = parallel pureSpec
@@ -74,7 +74,7 @@ pureSpec = do
         -- last step before 2 previous test
         -- let (state, rows) = mapAccumR makeRow (Just d1, Just oe1, Just "E00.01/1", Nothing) [br1]
         -- state `shouldBe` (Just d1, Just oe1, Just "E00.01/1", Just be1)
-        let (state,rows) = mapAccumR makeRow state1 extraStep
+        let (state,rows) = mapAccumL makeRow state1 extraStep
         state `shouldBe` state2
 
       it "close section after error. process barcode" $ do
@@ -89,12 +89,7 @@ pureSpec = do
     it "open new on date" $ do
       [or1,lr1,br1,dr1,br1, dr1] `shouldMake` ((Just d1 , Nothing, Nothing, Nothing)
                          , [Nothing, Nothing, Just "Error", Nothing, Just "Right", Nothing])
-
     it "continue on location new on date" $ do
       [or1,lr1,br1,dr1,br1, lr2] `shouldMake` ((Just d1 , Just oe1 , Just "E00.02/1", Just be1)
                          , [Nothing, Nothing, Just "Error", Nothing, Just "Right", Nothing])
-
-    
-
-
 

@@ -87,7 +87,6 @@ parseScan spreadsheet = do -- Either
           rows <- mapM (loadRow isLocationValid findOperator) raws
           case sequence rows of
             Left _ -> -- there is some error
-
               return $ InvalidData [] rows
             Right rights -> do
               let (_, fullEs) = mapAccumL makeRow (Nothing, Nothing, Nothing, Nothing) rights
@@ -122,7 +121,6 @@ makeRow (daym ,opm, locm, lastbox) row = case (row, lastbox) of
                     -> ((daym, opm, locm, Just box), Just $ Right (Row box loc day op))
   (BoxRow _  , _)   -> let messages = execWriter $ do
                              tell ["Barcode not expected there."]
-                             tell [tshow (daym, opm, locm)]
                              when (isNothing daym) (tell ["Date is missing."])
                              when (isNothing opm) (tell ["Operator is missing)."])
                              when (isNothing locm) (tell ["Location is missing."])
