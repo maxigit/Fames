@@ -7,6 +7,7 @@ import Data.List(mapAccumR)
 import Handler.Table
 import WH.Barcode (isBarcodeValid)
 import qualified Data.Csv as Csv
+import Control.Monad.Writer hiding((<>))
 
 -- * Type
 -- | The raw result of a scanned row
@@ -27,6 +28,13 @@ data Row = Row
   , rowDate :: Day
   , rowOperator :: (Entity Operator)
   }
+-- * Util
+
+-- | Reverse op parseRawScan
+rawText (RawDate d) = tshow d
+rawText (RawOperator o) = o
+rawText (RawLocation l) = "LC" <> l
+rawText (RawBarcode b) = b
 -- * Boxtakes scanning parsing
 
 parseRawScan :: Text -> RawScanRow
@@ -66,7 +74,7 @@ loadRow isLocationValid findOperator row = do
 parseScan ::
   ByteString
   -> HandlerT
-       App IO (ParsingResult (Either InvalidField ScanRow) [Maybe Row])
+       App IO (ParsingResult (Either InvalidField ScanRow) [Row])
 parseScan spreadsheet = do -- Either
       let rawsE = parseSpreadsheet (mapFromList [("Barcode", [])]) Nothing spreadsheet
       case rawsE of
@@ -81,19 +89,43 @@ parseScan spreadsheet = do -- Either
 
               return $ InvalidData [] rows
             Right rights -> do
-              case startData rights of
-                Nothing -> return $ InvalidData ["File should set an operator, a date and a location."] rows
-                Just start ->  do
-                  let (_, fulls) = mapAccumR makeRow start rights
+              let (_, fullEs) = mapAccumR makeRow (Nothing, Nothing, Nothing, Nothing) rights
+              case  sequence (catMaybes fullEs) of
+                Left _ -> let -- errors, we need to join them with initial rows
+                  joinError raw _ (Just (Left e)) = Left (InvalidValueError e (rawText raw))
+                  joinError _ row _ = row
+                  row'fullS = zipWith3 joinError raws rows fullEs
+                  in return $ InvalidData ["Some sections are not complete. Please check that each new scan section has a date an operator and a location"] row'fullS
+                Right fulls ->  do
                   return $ ParsingCorrect fulls
 
 
-makeRow :: (Day, Entity Operator, Text) -> ScanRow -> ((Day, Entity Operator, Text), Maybe Row)
-makeRow start@(day0 ,op0, loc0) row = case row of
-  DateRow day -> ((day, op0, loc0), Nothing)
-  OperatorRow op -> ((day0, op, loc0), Nothing)
-  LocationRow loc -> ((day0, op0, loc), Nothing)
-  BoxRow box -> (start, Just (Row box loc0 day0 op0))
+-- | Make a row and check that date and operator, and location are provided.
+-- Each new operator or date requires and a new operator or date.
+-- The last box parameter is used to RESEST the location operartor and date.
+-- As they can be set in any order we need to know if a new date (for example)
+-- complete a new section or should reset everything
+makeRow :: (Maybe Day, Maybe (Entity Operator), Maybe Text, Maybe (Entity Boxtake)) -- ^ last day, operator , and location and barcode (last box)
+        -> ScanRow
+        -> ((Maybe Day, Maybe (Entity Operator), Maybe Text, Maybe (Entity Boxtake))
+           , Maybe (Either Text Row))
+makeRow (daym ,opm, locm, lastbox) row = case (row, lastbox) of
+  -- start new section Reset
+  (DateRow day, Just _) -> ((Just day, Nothing, Nothing, Nothing), Nothing) -- reset
+  (OperatorRow op, Just _) -> ((Nothing, Just op, Nothing, Nothing), Nothing) -- reset
+  -- append to new section
+  (DateRow day, Nothing) -> ((Just day, opm, locm, Nothing), Nothing) -- append
+  (OperatorRow op, Nothing) -> ((daym, Just op, locm, Nothing), Nothing)
+  (LocationRow loc, lastbox) -> ((daym, opm, Just loc, lastbox), Nothing)
+  (BoxRow box, _) | (Just day, Just op, Just loc) <- (daym, opm, locm)
+                    -> ((daym, opm, locm, Just box), Just $ Right (Row box loc day op))
+  (BoxRow box, _)   -> let messages = execWriter $ do
+                             tell ["Barcode not expected there."]
+                             when (isNothing daym) (tell ["Date is missing."])
+                             when (isNothing opm) (tell ["Operator is missing)."])
+                             when (isNothing locm) (tell ["Location is missing."])
+                           msg = unlines messages
+                       in ((daym, opm, locm, Just box), Just $ Left  msg)
 
 -- ** Validation
 -- We need to validate that the file starts with a date an, a operator and a location.
@@ -125,6 +157,21 @@ instance Renderable [Either InvalidField ScanRow] where
         LocationRow loc -> (const $ Just (toHtml $ loc, []),["location-row", "bg-success"])
         BoxRow (Entity _ box) -> (const $ Just (toHtml $  boxtakeBarcode box, []), ["box-row"])
       mkRowF _ = (const Nothing, ["error"])
+
+
+-- instance Renderable [Row] where
+--   render rows = do
+--     displayTable indexes colnameF (map mkRowF rows)
+--     where
+--       indexes = [1]
+--       colnameF _ = [""]
+--       mkRowF (Left inv) = (const $ Just (invFieldToHtml inv, []) , ["error"])
+--       mkRowF (Right row) = case row of
+--         DateRow day -> (const $ Just (toHtml $ tshow day, []), ["day-row", "bg-info"])
+--         OperatorRow (Entity _ op) -> (const $ Just (toHtml $ operatorNickname op, []), ["operator-row", "bg-info"])
+--         LocationRow loc -> (const $ Just (toHtml $ loc, []),["location-row", "bg-success"])
+--         BoxRow (Entity _ box) -> (const $ Just (toHtml $  boxtakeBarcode box, []), ["box-row"])
+--       mkRowF _ = (const Nothing, ["error"])
 
 
 -- ** Csv

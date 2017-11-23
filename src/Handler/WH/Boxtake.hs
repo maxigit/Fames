@@ -309,9 +309,13 @@ processBoxtakeSheet mode = do
           let paramWithKey = param0 {uFileInfo=Nothing, uFileKey=Just key, uFilePath=Just path}
           rows <- parseScan spreadsheet
           renderParsingResult (renderBoxtakeSheet Validate (Just paramWithKey) 422 )
-                              (saveBoxtakeMove paramWithKey)
+                              (processBoxtakeMove paramWithKey)
                               rows
-saveBoxtakeMove = undefined
+processBoxtakeMove :: UploadParam -> [Row] -> Handler Html
+processBoxtakeMove param rows = do
+  -- render rows
+  return ""
+
 
 -- * DB Access
 loadBoxtakes :: FormParam -> Handler [Entity Boxtake]
