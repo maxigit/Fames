@@ -9,7 +9,7 @@ import WH.Barcode (isBarcodeValid)
 import qualified Data.Csv as Csv
 import Control.Monad.Writer hiding((<>))
 import Data.Text(strip)
-
+import qualified Data.Map as Map
 -- * Type
 -- | The raw result of a scanned row
 data RawScanRow = RawDate Day
@@ -49,6 +49,7 @@ rawText (RawDate d) = tshow d
 rawText (RawOperator o) = o
 rawText (RawLocation l) = "LC" <> l
 rawText (RawBarcode b) = b
+
 -- * Boxtakes scanning parsing
 
 parseRawScan :: Text -> RawScanRow
@@ -147,14 +148,54 @@ makeRow (daym ,opm, locm, lastbox) row = case (row, lastbox) of
                            msg = unlines messages
                        in ((daym, opm, locm, Nothing), Just $ Left  msg)
 
+{- Obsolete
 -- | Extract all expanded location. As well as a empty one.
 -- | An empty location is a location which has been scanned twice in a row.
+extractLocations :: [Row] -> Either Text ([Text] , [Text])
+extractLocations rows = let
+  (emptys, nonEmptys) = partition (isNothing . rowBoxtake) rows
+  [fromEmpty, fromNonEmpty] = map (setFromList . map rowLocation) [emptys, nonEmptys] :: [Set Text]
+  -- detect if there are collision 
+  common = fromEmpty \\ fromNonEmpty
+  in case toList common of
+    [] -> Right (toList fromNonEmpty, toList fromEmpty)
+    commons -> Left $ "The following locations are empty and non empty : " <> intercalate ", " commons
+-}
+                                        
+                                        
 
--- | Group all rows by session. We needs the original rows
--- because 
-groupBySession :: [ScanRow] -> Either Text [Session]
-groupBySession = undefined
-  
+groupBySession :: [Row] -> Either Text [Session]
+groupBySession rows = do -- Either
+  let rowByLocs = Map.fromListWith (<>) [(rowLocation row, [row]) | row <- rows]
+      sessionEs = map makeSession (toList rowByLocs)
+  case sequence sessionEs of
+    Left _ -> Left $ concat (lefts sessionEs)
+    sessions -> sessions
+
+
+-- | Create a session from the given rows. Rows are supposed
+-- to belong to the same session/shelf , ie same location , date
+makeSession :: [Row] -> Either Text Session
+makeSession rows = do
+  location <- extractUnique "location" id id rowLocation  rows
+  date <- extractUnique "date" (tshow) id rowDate rows
+  operator <- extractUnique "operator" (operatorNickname . entityVal)  entityKey rowOperator rows
+  -- check if shelve is empty or not
+  rows' <- case partition (isNothing . rowBoxtake) rows of
+    ([], _) -> Right rows
+    ([empty], []) -> Right []
+    _ -> Left $ "Shelf " <> location <> " is at the same time empty and contains boxes"
+
+  Right $ Session date operator location rows' []
+    
+    
+
+-- extractUnique :: Ord b => Text -> (b -> Text) -> (a -> b) -> [a] -> Either Text b
+extractUnique fieldname toText toKey field rows = let
+  all = Map.fromList $ [(toKey f, f) | r <- rows, let f = field r ]
+  in case toList all of
+       [unique] -> Right unique
+       elems -> Left $ fieldname <> "s are not unique : " <> unlines (map toText elems) 
 
 -- ** Validation
 -- ** Rendering
