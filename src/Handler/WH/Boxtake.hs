@@ -313,8 +313,7 @@ processBoxtakeSheet mode = do
                               rows
 processBoxtakeMove :: UploadParam -> [Row] -> Handler Html
 processBoxtakeMove param rows = do
-  -- render rows
-  return ""
+  defaultLayout $ render rows
 
 
 -- * DB Access
