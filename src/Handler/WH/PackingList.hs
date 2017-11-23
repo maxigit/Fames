@@ -994,10 +994,10 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
         raws <- parseSpreadsheet columnNameMap Nothing bytes <|&> WrongHeader
         let rawsE = map validate raws
         rows <- sequence rawsE <|&> const (InvalidFormat . lefts $ rawsE)
-        groups <-  groupRow orderRef rows <|&> InvalidData ["A Box might not be closed"]
+        groups <-  groupRow orderRef rows <|&> InvalidData ["A Box might not be closed"] []
         let validGroups = concatMap (map validateGroup . snd) groups
         -- sequence validGroups <|&> const (InvalidData [] $ concatMap (either id (\(partials,main) -> transformRow main : map transformPartial partials )) validGroups)
-        _ <- sequence validGroups <|&> const (InvalidData [] . concat $ lefts validGroups)
+        _ <- sequence validGroups <|&> const (InvalidData [] [] . concat $ lefts validGroups)
         Right $  map (map reverse) groups
         -- Right $  valids
 

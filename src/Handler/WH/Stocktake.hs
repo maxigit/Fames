@@ -1033,7 +1033,7 @@ parseTakes skus opf locf bytes = either id ParsingCorrect $ do
     
   raws <- parseSpreadsheet mempty Nothing bytes <|&> WrongHeader
   rows <- validateAll (validateRaw opf locf) raws <|&> InvalidFormat
-  valids <- validateRows skus rows <|&> InvalidData []
+  valids <- validateRows skus rows <|&> InvalidData [] []
   Right valids
 
   where -- validateAll :: (a-> Either b c) -> [a] -> Either [b] [c]
@@ -1201,7 +1201,8 @@ lookupBarcodes (ParsingCorrect rows) = do
   finalizeds <- runDB $ mapM lookupBarcode rows
   case sequence finalizeds of
     Right valids -> return (ParsingCorrect (concat valids))
-    Left invalids -> return (InvalidData [] (concatMap (either return
+    Left invalids -> return (InvalidData [] (lefts finalizeds)
+                                         (concatMap (either return
                                                             (map transformValid')
                                                     )
                                                     finalizeds

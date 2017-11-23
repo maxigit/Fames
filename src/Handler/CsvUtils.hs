@@ -41,7 +41,8 @@ data RowTypes = RawT -- raw row, everything is text
 data ParsingResult row result
   = WrongHeader InvalidSpreadsheet
   | InvalidFormat [row]-- some cells can't be parsed
-  | InvalidData [Text] [row]-- each row is well formatted but invalid as a whole
+  | InvalidData [Text] [row] [row]-- each row is well formatted but invalid as a whole.
+                      -- ^ errors to be displayed first
   | ParsingCorrect result -- Ok
 
 deriving instance (Eq a, Eq b) => Eq (ParsingResult a b)
@@ -470,13 +471,19 @@ renderParsingResult onError onSuccess result =
         case result of
           WrongHeader invalid -> onError (setError "Invalid file or columns missing") (render invalid)
           InvalidFormat raws -> onError (setError "Invalid cell format") (render raws)
-          InvalidData errors raws ->  onError (setError (formatErrors errors "Invalid data")) (render raws)
+          InvalidData errors rerrors raws ->  onError (setError (formatErrors errors "Invalid data"))
+                                            (renderInvalids rerrors >> render raws)
           ParsingCorrect rows -> onSuccess rows
   where formatErrors [] title = title
         formatErrors errors _ = [shamlet|
 <ul>
   $forall err <- errors
     <li> #{err}
+|]
+        renderInvalids errors = [whamlet|
+<div.panel.panel-danger.invalid-errors>
+  <div.panel-heading> Errors
+  ^{render errors}
 |]
 
 

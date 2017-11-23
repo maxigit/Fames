@@ -10,6 +10,7 @@ import qualified Data.Csv as Csv
 import Control.Monad.Writer hiding((<>))
 import Data.Text(strip)
 import qualified Data.Map as Map
+import Data.Either
 -- * Type
 -- | The raw result of a scanned row
 data RawScanRow = RawDate Day
@@ -101,7 +102,7 @@ parseScan spreadsheet = do -- Either
           rows <- mapM (loadRow isLocationValid findOperator) raws
           case sequence rows of
             Left _ -> -- there is some error
-              return $ InvalidData [] rows
+              return $ InvalidData [] (filter isLeft rows) rows
             Right rights -> do
               let (_, fullEs) = mapAccumL makeRow (Nothing, Nothing, Nothing, Nothing) rights
               case  sequence (catMaybes fullEs) of
@@ -109,10 +110,10 @@ parseScan spreadsheet = do -- Either
                   joinError raw _ (Just (Left e)) = Left (InvalidValueError e (rawText raw))
                   joinError _ row _ = row
                   row'fullS = zipWith3 joinError raws rows fullEs
-                  in return $ InvalidData ["Some sections are not complete. Please check that each new scan section has a date an operator and a location"] row'fullS
+                  in return $ InvalidData ["Some sections are not complete. Please check that each new scan section has a date an operator and a location"] (filter isLeft row'fullS) row'fullS
                 Right fulls ->  do
                   case groupBySession fulls of
-                    Left errs -> return $ InvalidData errs rows
+                    Left errs -> return $ InvalidData errs [] rows
                     Right sessions ->  return $ ParsingCorrect sessions
 
 
