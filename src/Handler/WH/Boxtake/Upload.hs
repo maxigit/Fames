@@ -51,6 +51,10 @@ rawText (RawOperator o) = o
 rawText (RawLocation l) = "LC" <> l
 rawText (RawBarcode b) = b
 
+rowVolume row = maybe 0 volume (rowBoxtake row) where
+  volume (Entity _ box) = boxVolume box
+
+boxVolume Boxtake{..} = boxtakeLength*boxtakeWidth*boxtakeHeight/1000000
 -- * Boxtakes scanning parsing
 
 parseRawScan :: Text -> RawScanRow

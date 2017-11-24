@@ -272,12 +272,49 @@ renderSummary param boxtakes =  do
 
 renderSessions :: [Session] -> Widget
 renderSessions sessions = do
-  let rowsW = mapM_ (render . sessionRows) sessions
+  let allRows = concatMap sessionRows sessions
+      rowCount = length allRows
+      volume = sum (map rowVolume allRows)
+      missingRows = concatMap sessionMissings sessions
+      missing = length missingRows
+      volumeMissing = sum (map (boxVolume . entityVal) missingRows)
+      mainW = mapM_ renderSession sessions
   [whamlet|
-<div.panel.panel-primary>
-  <div.panel-heading> Heading
-  <div.panel-body>
-    ^{rowsW}
+<div.panel.panel-info>
+  <div.panel-heading><h2>Summary
+  <table.table.table-striped.table-hover>
+    <tr>
+      <th>
+      <th> Count
+      <th> Volume
+    <tr>
+      <td> Scanned
+      <td> #{rowCount}
+      <td> #{formatDouble volume} m<sup>3
+    <tr>
+      <td> Missing
+      <td> #{missing}
+      <td> #{formatDouble volumeMissing} m<sup>3
+^{mainW}
+          |]
+  
+
+renderSession :: Session -> Widget
+renderSession Session{..} = do
+  let rowsW = render sessionRows
+      class_ = case (sessionRows, sessionMissings) of
+                 (_, []) -> "success" :: Text
+                 (_,_:_) -> "danger" -- some missing
+                 ([], _)-> "warning"
+      volume = sum (map rowVolume sessionRows)
+  [whamlet|
+<div.panel class="panel-#{class_}">
+  <div.panel-heading>
+    <table style="width:100%;"><tr>
+      <td> #{sessionLocation}
+      <td> #{formatDouble volume} m<sup>3
+      <td><span style="float:right">  #{operatorNickname (entityVal sessionOperator)} - #{tshow sessionDate}
+  ^{rowsW}
 |]
 -- ** Upload 
 -- | Displays the main form to upload a boxtake spreadsheet.
