@@ -10,6 +10,7 @@ import qualified Data.Csv as Csv
 import Control.Monad.Writer hiding((<>))
 import Data.Text(strip)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.Either
 -- * Type
 -- | The raw result of a scanned row
@@ -55,6 +56,7 @@ rowVolume row = maybe 0 volume (rowBoxtake row) where
   volume (Entity _ box) = boxVolume box
 
 boxVolume Boxtake{..} = boxtakeLength*boxtakeWidth*boxtakeHeight/1000000
+
 -- * Boxtakes scanning parsing
 
 parseRawScan :: Text -> RawScanRow
@@ -91,11 +93,12 @@ loadRow isLocationValid findOperator row = do
 
 -- parseScan :: Text -> Handler (ParsingResult I-(Either ))
 
-parseScan ::
-  ByteString
+parseScan
+  :: Bool
+  -> ByteString
   -> HandlerT
        App IO (ParsingResult (Either InvalidField ScanRow) [Session])
-parseScan spreadsheet = do -- Either
+parseScan addMissings spreadsheet = do -- Either
       let rawsE = parseSpreadsheet (mapFromList [("Barcode", [])]) Nothing spreadsheet
       case rawsE of
         Left inv -> return $ WrongHeader inv
@@ -118,7 +121,11 @@ parseScan spreadsheet = do -- Either
                 Right fulls ->  do
                   case groupBySession fulls of
                     Left errs -> return $ InvalidData errs [] rows
-                    Right sessions ->  return $ ParsingCorrect sessions
+                    Right sessions0 -> do
+                      sessions <- if addMissings
+                                    then loadMissing sessions0
+                                    else return sessions0
+                      return $ ParsingCorrect sessions
 
 
 -- | Make a row and check that date and operator, and location are provided.
@@ -207,7 +214,7 @@ extractUnique fieldname toText toKey field rows = let
        elems -> Left $ fieldname <> "s are not unique : " <> unlines (map toText elems) 
 
 -- ** Validation
--- ** Rendering
+-- * Rendering
 instance Renderable [Either InvalidField ScanRow] where
   render rows = do
     displayTable indexes colnameF (map mkRowF rows)
@@ -225,8 +232,11 @@ instance Renderable [Either InvalidField ScanRow] where
 
 
 instance Renderable [Row] where
-  render rows = do
-    displayTable indexes colnameF (map mkRowF rows)
+  render rows = renderRows rows
+
+renderRows :: [Row] -> Widget
+renderRows rows  =
+    displayTableRows indexes colnameF (map mkRowF rows)
     where
       indexes = [1..4]
       colnameF i = map (,[]) ["Barcode", "Description", "Old Location", "New Location"] !! (i-1)
@@ -249,6 +259,23 @@ instance Renderable [Row] where
             in (((,[]) <$>) . value, ["bg-danger"])
 
 
--- ** Csv
+-- * Csv
 instance Csv.FromNamedRecord RawScanRow where
   parseNamedRecord m = m Csv..: "Barcode" <&> parseRawScan
+  
+
+-- * DB
+-- | Load boxes from scanned location which have not been moved elsewhere.
+loadMissing :: [Session] -> Handler [Session]
+loadMissing sessions = do
+  let barcodeSet = Set.fromList ( mapMaybe ( (fmap $ boxtakeBarcode . entityVal) . rowBoxtake) $ concatMap sessionRows sessions)
+  runDB $ mapM (loadMissingForSession barcodeSet) sessions
+
+
+-- loadMissingForSession :: (Set Text) -> Session -> Session
+loadMissingForSession barcodes session = do
+  allboxes <- selectList [BoxtakeLocation ==. sessionLocation session, BoxtakeActive ==. True ] []
+  let missings = filter missing allboxes
+      missing (Entity _ Boxtake{..}) = boxtakeBarcode `notElem` barcodes
+  return session {sessionMissings = missings}
+  

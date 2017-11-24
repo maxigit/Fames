@@ -278,7 +278,8 @@ renderSessions sessions = do
       missingRows = concatMap sessionMissings sessions
       missing = length missingRows
       volumeMissing = sum (map (boxVolume . entityVal) missingRows)
-      mainW = mapM_ renderSession sessions
+      ids = ["session-" <> tshow i | i <- [1..]]
+      mainW = mapM_ (uncurry renderSession) (zip ids sessions)
   [whamlet|
 <div.panel.panel-info>
   <div.panel-heading><h2>Summary
@@ -299,22 +300,33 @@ renderSessions sessions = do
           |]
   
 
-renderSession :: Session -> Widget
-renderSession Session{..} = do
-  let rowsW = render sessionRows
+renderSession :: Text -> Session -> Widget
+renderSession sessionId Session{..} = do
+  let rowsW = renderRows sessionRows
       class_ = case (sessionRows, sessionMissings) of
+                 ([], _)-> "warning"
                  (_, []) -> "success" :: Text
                  (_,_:_) -> "danger" -- some missing
-                 ([], _)-> "warning"
       volume = sum (map rowVolume sessionRows)
+  toWidget [cassius|
+table.collapse.in
+  display: table
+|]
   [whamlet|
-<div.panel class="panel-#{class_}">
+<div.panel class="panel-#{class_}" data-toggle="collapse" data-target="##{sessionId}">
   <div.panel-heading>
     <table style="width:100%;"><tr>
       <td> #{sessionLocation}
       <td> #{formatDouble volume} m<sup>3
       <td><span style="float:right">  #{operatorNickname (entityVal sessionOperator)} - #{tshow sessionDate}
-  ^{rowsW}
+  <table.table.table-hover.collapse id="#{sessionId}">
+    ^{rowsW}
+    $forall (Entity _ missing) <- sessionMissings
+      <tr.bg-danger>
+        <td> #{boxtakeBarcode missing}
+        <td> #{fromMaybe "" (boxtakeDescription missing)}
+        <td.text-danger> #{boxtakeLocation missing}
+        <td> ∅
 |]
 -- ** Upload 
 -- | Displays the main form to upload a boxtake spreadsheet.
@@ -353,7 +365,8 @@ processBoxtakeSheet mode = do
                               (return ())
         Just (spreadsheet, key , path) -> do
           let paramWithKey = param0 {uFileInfo=Nothing, uFileKey=Just key, uFilePath=Just path}
-          sessions <- parseScan spreadsheet
+          sessions <- parseScan (uWipeMode == WipeShelves) spreadsheet
+
           renderParsingResult (renderBoxtakeSheet Validate (Just paramWithKey) 422 )
                               (processBoxtakeMove paramWithKey)
                               sessions
