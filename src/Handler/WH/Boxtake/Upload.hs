@@ -44,6 +44,17 @@ data Session = Session
   , sessionRows :: [Row]
   , sessionMissings :: [Entity Boxtake] -- ^ boxes not present
   }
+
+data StyleMissing = StyleMissing
+  { missingStyle :: Text
+  , missingBoxes :: [Entity Boxtake] }
+-- | If a boxtake has been done on a full shelf, we should
+-- be able to inactivate all the box previously on this shelf.
+data WipeMode = WipeShelves -- ^ Wipe all boxes previously on the scanned location.
+              | WipeStyles -- ^ Considers the styles as complete. Wipe all previous boxes from the scanned
+                  -- styles, regardless of their location.
+              | Addition -- ^ Don't wipe anything. Just add new boxes 
+  deriving (Eq, Read, Show, Enum, Bounded)
 -- * Util
 
 -- | Reverse op parseRawScan
@@ -94,11 +105,11 @@ loadRow isLocationValid findOperator row = do
 -- parseScan :: Text -> Handler (ParsingResult I-(Either ))
 
 parseScan
-  :: Bool
+  :: WipeMode
   -> ByteString
   -> HandlerT
-       App IO (ParsingResult (Either InvalidField ScanRow) [Session])
-parseScan addMissings spreadsheet = do -- Either
+       App IO (ParsingResult (Either InvalidField ScanRow) ([Session], [StyleMissing]))
+parseScan wipeMode spreadsheet = do -- Either
       let rawsE = parseSpreadsheet (mapFromList [("Barcode", [])]) Nothing spreadsheet
       case rawsE of
         Left inv -> return $ WrongHeader inv
@@ -122,9 +133,10 @@ parseScan addMissings spreadsheet = do -- Either
                   case groupBySession fulls of
                     Left errs -> return $ InvalidData errs [] rows
                     Right sessions0 -> do
-                      sessions <- if addMissings
-                                    then loadMissing sessions0
-                                    else return sessions0
+                      sessions <- case wipeMode of
+                        WipeShelves -> loadMissing sessions0
+                        WipeStyles -> loadMissingFromStyles sessions0
+                        Addition -> return (sessions0, [])
                       return $ ParsingCorrect sessions
 
 
@@ -268,16 +280,52 @@ instance Csv.FromNamedRecord RawScanRow where
 
 -- * DB
 -- | Load boxes from scanned location which have not been moved elsewhere.
-loadMissing :: [Session] -> Handler [Session]
+barcodeSetFor :: [Session] -> Set Text
+barcodeSetFor sessions = Set.fromList ( mapMaybe ( (fmap $ boxtakeBarcode . entityVal) . rowBoxtake) $ concatMap sessionRows sessions)
+
+-- ** From locations
+loadMissing :: [Session] -> Handler ([Session], [StyleMissing])
 loadMissing sessions = do
-  let barcodeSet = Set.fromList ( mapMaybe ( (fmap $ boxtakeBarcode . entityVal) . rowBoxtake) $ concatMap sessionRows sessions)
-  runDB $ mapM (loadMissingForSession barcodeSet) sessions
+  let barcodeSet = barcodeSetFor sessions
+  new <- runDB $ mapM (loadMissingForSession barcodeSet) sessions
+  return (new, [])
 
 
--- loadMissingForSession :: (Set Text) -> Session -> Session
+loadMissingForSession :: (Set Text) -> Session -> _ Session
 loadMissingForSession barcodes session = do
   allboxes <- selectList [BoxtakeLocation ==. sessionLocation session, BoxtakeActive ==. True ] []
   let missings = filter missing allboxes
       missing (Entity _ Boxtake{..}) = boxtakeBarcode `notElem` barcodes
   return session {sessionMissings = missings}
   
+
+-- ** From styles
+-- | Loads all boxes from given styles which haven't been moved elsewhere.
+-- Create session for each of those styles
+loadMissingFromStyles :: [Session] -> Handler ([Session], [StyleMissing])
+loadMissingFromStyles sessions = do
+  let styles = mconcat (map sessionStyles sessions)
+      barcodeSet = barcodeSetFor sessions
+
+  missingMs <- runDB $ mapM (loadMissingFromStyle barcodeSet) (toList styles)
+  return $ (sessions, catMaybes missingMs)
+
+sessionStyles :: Session -> Set Text
+sessionStyles Session{..} = let
+  descriptions = mapMaybe (boxtakeDescription . entityVal <=< rowBoxtake ) sessionRows
+  -- TODO: remove hardcoded value
+  styles = map (take 8) descriptions
+  in Set.fromList styles
+
+loadMissingFromStyle :: Set Text -> Text -> _ (Maybe StyleMissing)
+loadMissingFromStyle barcodeSet style = do
+  today <- utctDay <$> liftIO getCurrentTime
+  allboxes <- selectList ( (BoxtakeActive ==. True)
+                           :(filterE Just BoxtakeDescription (Just $ LikeFilter (style <> "%")))
+                         )
+                         [Asc BoxtakeLocation, Asc BoxtakeDescription]
+  let missings = filter missing allboxes
+      missing (Entity _ Boxtake{..}) = boxtakeBarcode `notElem` barcodeSet
+  return $ case missings of
+    [] -> Nothing
+    _ -> Just $ StyleMissing style missings

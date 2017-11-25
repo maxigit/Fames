@@ -37,11 +37,6 @@ defaultParam = FormParam Nothing Nothing Nothing LocationRupture Nothing  False 
 -- | Validate or save spreadsheet.
 data SavingMode = Validate | Save deriving (Eq, Read, Show)
 
--- | If a boxtake has been done on a full shelf, we should
--- be able to inactivate all the box previously on this shelf.
-data WipeMode = WipeShelves | Addition
-  deriving (Eq, Read, Show, Enum, Bounded)
-
 -- | Parameters to upload box moves/scans.
 data UploadParam = UploadParam
   { uFileInfo :: Maybe FileInfo
@@ -270,12 +265,12 @@ renderSummary param boxtakes =  do
           |]
 
 
-renderSessions :: [Session] -> Widget
-renderSessions sessions = do
+renderSessions :: [Session] -> [StyleMissing] -> Widget
+renderSessions sessions missingStyles = do
   let allRows = concatMap sessionRows sessions
       rowCount = length allRows
       volume = sum (map rowVolume allRows)
-      missingRows = concatMap sessionMissings sessions
+      missingRows = concatMap sessionMissings sessions <> concatMap missingBoxes missingStyles
       missing = length missingRows
       volumeMissing = sum (map (boxVolume . entityVal) missingRows)
       ids = ["session-" <> tshow i | i <- [1..]]
@@ -296,9 +291,32 @@ renderSessions sessions = do
       <td> Missing
       <td> #{missing}
       <td> #{formatDouble volumeMissing} m<sup>3
+^{mapM_ renderMissingStylesPanel missingStyles}
 ^{mainW}
           |]
   
+renderMissingStylesPanel :: StyleMissing -> Widget
+renderMissingStylesPanel StyleMissing{..} = do
+  let rowCount = length missingBoxes
+      volume = sum (map (boxVolume . entityVal) missingBoxes)
+      collapseId = "missing-" <> missingStyle
+  [whamlet|
+<div.panel.panel-danger data-toggle="collapse" data-target="##{collapseId}">
+  <div.panel-heading>
+    <table style="width:100%;"><tr>
+      <td> missing #{missingStyle} from non-scanned locations
+      <td> #{tshow rowCount} boxes
+      <td> #{formatDouble volume} m<sup>3
+  <table.table.table-hover.collapse id="#{collapseId}">
+    $forall missing <- missingBoxes
+      ^{renderMissingBoxRow missing}
+|]
+
+  
+-- or wipe full style ?
+-- or both ?
+-- - add link to boxtake
+-- - add like to location boxtake
 
 renderSession :: Text -> Session -> Widget
 renderSession sessionId Session{..} = do
@@ -322,12 +340,16 @@ table.collapse.in
       <td><span style="float:right">  #{operatorNickname (entityVal sessionOperator)} - #{tshow sessionDate}
   <table.table.table-hover.collapse id="#{sessionId}">
     ^{rowsW}
-    $forall (Entity _ missing) <- sessionMissings
+    $forall missing <- sessionMissings
+      ^{renderMissingBoxRow missing}
+|]
+
+renderMissingBoxRow :: Entity Boxtake -> Widget
+renderMissingBoxRow (Entity _ missing) = [whamlet|
       <tr.bg-danger>
         <td> #{boxtakeBarcode missing}
         <td> #{fromMaybe "" (boxtakeDescription missing)}
         <td.text-danger> #{boxtakeLocation missing}
-        <td> ∅
 |]
 -- ** Upload 
 -- | Displays the main form to upload a boxtake spreadsheet.
@@ -366,14 +388,14 @@ processBoxtakeSheet mode = do
                               (return ())
         Just (spreadsheet, key , path) -> do
           let paramWithKey = param0 {uFileInfo=Nothing, uFileKey=Just key, uFilePath=Just path}
-          sessions <- parseScan (uWipeMode == WipeShelves) spreadsheet
+          sessions <- parseScan uWipeMode spreadsheet
 
           renderParsingResult (renderBoxtakeSheet Validate (Just paramWithKey) 422 )
                               (processBoxtakeMove paramWithKey)
                               sessions
-processBoxtakeMove :: UploadParam -> [Session] -> Handler Html
-processBoxtakeMove param sessions = do
-  defaultLayout $ renderSessions sessions
+processBoxtakeMove :: UploadParam -> ([Session], [StyleMissing]) -> Handler Html
+processBoxtakeMove param (sessions, styleMissings) = do
+  defaultLayout $ renderSessions sessions styleMissings
 
 
 -- * DB Access

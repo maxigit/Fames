@@ -22,7 +22,7 @@ module Handler.Util
 , timeProgress
 , allOperators
 , operatorFinder
-, FilterExpression
+, FilterExpression(..)
 , filterE
 , filterEField
 , filterEKeyword
