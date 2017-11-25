@@ -7,7 +7,7 @@ import Data.List(mapAccumL, (!!))
 import Handler.Table
 import WH.Barcode (isBarcodeValid)
 import qualified Data.Csv as Csv
-import Control.Monad.Writer hiding((<>))
+import Control.Monad.Writer hiding((<>), foldM)
 import Data.Text(strip, splitOn)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -289,19 +289,30 @@ barcodeSetFor sessions = let
   in Set.fromList $ map (boxtakeBarcode . entityVal) boxtakes
 
 -- ** From locations
+-- In order to load multiple location (boxtake can have A|B) as a location
+-- we need to use a like '%B%' filter. Doing that results on the same
+-- boxes being loaded twice for A and B. To avoid this, we expand the barcodeSet
+-- with the new loaded boxes
 loadMissing :: [Session] -> Handler ([Session], [StyleMissing])
 loadMissing sessions = do
   let barcodeSet = barcodeSetFor sessions
-  new <- runDB $ mapM (loadMissingForSession barcodeSet) sessions
-  return (new, [])
+  (_, new) <- runDB $ foldM loadMissingForSession (barcodeSet, []) sessions
+  return (reverse new, [])
 
 
-loadMissingForSession :: (Set Text) -> Session -> _ Session
-loadMissingForSession barcodes session = do
-  allboxes <- selectList [BoxtakeLocation ==. sessionLocation session, BoxtakeActive ==. True ] []
+loadMissingForSession :: ((Set Text), [Session]) -> Session -> _ (Set Text, [Session])
+loadMissingForSession (barcodes, sessions) session = do
+  let location = sessionLocation session
+  allboxes <- selectList ( (BoxtakeActive ==. True)
+                           :(filterE id BoxtakeLocation (Just $ LikeFilter (location <> "%")))
+                         )
+                         []
   let missings = filter missing allboxes
-      missing (Entity _ Boxtake{..}) = boxtakeBarcode `notElem` barcodes
-  return session {sessionMissings = missings}
+      missing (Entity _ Boxtake{..}) = boxtakeBarcode `notElem` barcodes || location `elem` (splitOn "|" boxtakeLocation)
+
+      missingBarcodes = Set.fromList $ map (boxtakeBarcode . entityVal) missings
+      newSession = session {sessionMissings = missings}
+  return (barcodes <> missingBarcodes, newSession:sessions)
   
 
 -- ** From styles
