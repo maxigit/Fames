@@ -304,6 +304,7 @@ renderSession :: Text -> Session -> Widget
 renderSession sessionId Session{..} = do
   let rowsW = renderRows sessionRows
       class_ = case (sessionRows, sessionMissings) of
+                 ([], []) -> "success" :: Text
                  ([], _)-> "warning"
                  (_, []) -> "success" :: Text
                  (_,_:_) -> "danger" -- some missing

@@ -8,7 +8,7 @@ import Handler.Table
 import WH.Barcode (isBarcodeValid)
 import qualified Data.Csv as Csv
 import Control.Monad.Writer hiding((<>))
-import Data.Text(strip)
+import Data.Text(strip, splitOn)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Either
@@ -249,8 +249,10 @@ renderRows rows  =
             value 4 = Just . toHtml $ newLocation
             value _ = Nothing
             oldLocation = boxtakeLocation 
+            locationSet = Set.fromList $ (splitOn "|" oldLocation)
+            inOld = newLocation `elem` locationSet  || oldLocation == "DEF"
             newLocation = rowLocation
-            rowClasses = if oldLocation == newLocation then [] else ["bg-warning"]
+            rowClasses = if inOld then [] else ["bg-warning"]
             in (((,[]) <$>) . value, rowClasses )
           Nothing -> let -- empty shelve
             value 1 = Just "∅"
