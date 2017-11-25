@@ -265,16 +265,18 @@ renderSummary param boxtakes =  do
           |]
 
 
-renderSessions :: [Session] -> [StyleMissing] -> Widget
-renderSessions sessions missingStyles = do
+renderSessions :: _ -> [Session] -> [StyleMissing] -> Widget
+renderSessions renderUrl sessions missingStyles = do
   let allRows = concatMap sessionRows sessions
       rowCount = length allRows
       volume = sum (map rowVolume allRows)
       missingRows = concatMap sessionMissings sessions <> concatMap missingBoxes missingStyles
       missing = length missingRows
       volumeMissing = sum (map (boxVolume . entityVal) missingRows)
+      founds = filter rowIsFound allRows
+      volumeFound = sum (map rowVolume founds)
       ids = ["session-" <> tshow i | i <- [1..]]
-      mainW = mapM_ (uncurry renderSession) (zip ids sessions)
+      mainW = mapM_ (uncurry $ renderSession renderUrl) (zip ids sessions)
   [whamlet|
 <div.panel.panel-info>
   <div.panel-heading><h2>Summary
@@ -292,16 +294,20 @@ renderSessions sessions missingStyles = do
       <td> #{missing}
       <td> #{formatDouble volumeMissing} m<sup>3
     <tr>
+      <td> Found
+      <td> #{length founds}
+      <td> #{formatDouble volumeFound} m<sup>3
+    <tr>
       <td>
       <td>
       <td.panel-heading data-toggle="collapse" data-target="#main .collapse">
         <span.badge.badge-info>Collapse/Expand All
-^{mapM_ renderMissingStylesPanel missingStyles}
+^{mapM_ (renderMissingStylesPanel renderUrl) missingStyles}
 ^{mainW}
           |]
   
-renderMissingStylesPanel :: StyleMissing -> Widget
-renderMissingStylesPanel StyleMissing{..} = do
+renderMissingStylesPanel :: _ -> StyleMissing -> Widget
+renderMissingStylesPanel renderUrl StyleMissing{..} = do
   let rowCount = length missingBoxes
       volume = sum (map (boxVolume . entityVal) missingBoxes)
       collapseId = "missing-" <> missingStyle
@@ -314,7 +320,7 @@ renderMissingStylesPanel StyleMissing{..} = do
       <td> #{formatDouble volume} m<sup>3
   <table.table.table-hover.collapse id="#{collapseId}">
     $forall missing <- missingBoxes
-      ^{renderMissingBoxRow missing}
+      ^{renderMissingBoxRow renderUrl missing}
 |]
 
   
@@ -323,14 +329,16 @@ renderMissingStylesPanel StyleMissing{..} = do
 -- - add link to boxtake
 -- - add like to location boxtake
 
-renderSession :: Text -> Session -> Widget
-renderSession sessionId Session{..} = do
-  let rowsW = renderRows sessionRows
-      class_ = case (sessionRows, sessionMissings) of
-                 ([], []) -> "success" :: Text
-                 ([], _)-> "warning"
-                 (_, []) -> "success" :: Text
-                 (_,_:_) -> "danger" -- some missing
+renderSession :: _ -> Text -> Session -> Widget
+renderSession renderUrl sessionId Session{..} = do
+  let rowsW = renderRows renderUrl sessionRows
+      hasFound =  any rowIsFound sessionRows
+      class_ = case (sessionRows, sessionMissings, hasFound) of
+                 (_, _, True) -> "info" :: Text
+                 ([], [], _) -> "success" :: Text
+                 ([], _, _)-> "warning"
+                 (_, [], _) -> "success" :: Text
+                 (_,_:_, _) -> "danger" -- some missing
       volume = sum (map rowVolume sessionRows)
   toWidget [cassius|
 table.collapse.in
@@ -346,16 +354,18 @@ table.collapse.in
   <table.table.table-hover.collapse id="#{sessionId}">
     ^{rowsW}
     $forall missing <- sessionMissings
-      ^{renderMissingBoxRow missing}
+      ^{renderMissingBoxRow renderUrl missing}
 |]
 
-renderMissingBoxRow :: Entity Boxtake -> Widget
-renderMissingBoxRow (Entity _ missing) = [whamlet|
+renderMissingBoxRow :: _ -> Entity Boxtake -> Widget
+renderMissingBoxRow renderUrl (Entity _ missing) = [whamlet|
       <tr.bg-danger>
-        <td> #{boxtakeBarcode missing}
+        <td> #{renderBarcode renderUrl (boxtakeBarcode missing)}
         <td> #{fromMaybe "" (boxtakeDescription missing)}
         <td.text-danger> #{boxtakeLocation missing}
         <td> ∅
+        <td> #{boxtakeActive missing}
+        <td> #{tshow (boxtakeDate missing)}
         |]
 -- ** Upload 
 -- | Displays the main form to upload a boxtake spreadsheet.
@@ -401,7 +411,8 @@ processBoxtakeSheet mode = do
                               sessions
 processBoxtakeMove :: UploadParam -> ([Session], [StyleMissing]) -> Handler Html
 processBoxtakeMove param (sessions, styleMissings) = do
-  defaultLayout $ renderSessions sessions styleMissings
+  renderUrl <- getUrlRenderParams
+  defaultLayout $ renderSessions renderUrl sessions styleMissings
 
 
 -- * DB Access

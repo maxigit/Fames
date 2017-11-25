@@ -55,7 +55,7 @@ data WipeMode = FullShelves -- ^ Wipe all boxes previously on the scanned locati
                   -- styles, regardless of their location.
               | FullStylesAndShelves
               | Addition -- ^ Don't wipe anything. Just add new boxes 
-  deriving (Eq, Read, Show, Enum, Bounded)
+              deriving (Eq, Read, Show, Enum, Bounded)
 -- * Util
 
 -- | Reverse op parseRawScan
@@ -69,6 +69,8 @@ rowVolume row = maybe 0 volume (rowBoxtake row) where
 
 boxVolume Boxtake{..} = boxtakeLength*boxtakeWidth*boxtakeHeight/1000000
 
+rowIsFound :: Row -> Bool
+rowIsFound row = not $ maybe False (boxtakeActive . entityVal) (rowBoxtake row)
 -- * Boxtakes scanning parsing
 
 parseRawScan :: Text -> RawScanRow
@@ -245,34 +247,40 @@ instance Renderable [Either InvalidField ScanRow] where
       mkRowF _ = (const Nothing, ["error"])
 
 
-instance Renderable [Row] where
-  render rows = renderRows rows
-
-renderRows :: [Row] -> Widget
-renderRows rows  =
+renderBarcode :: (Route App -> [(Text, Text)] -> Text) -> Text -> Html
+renderBarcode renderUrl barcode =
+  [hamlet|<a href="@{WarehouseR (WHBoxtakeDetailR barcode)}" target=_blank> #{barcode}
+         |] renderUrl
+renderRows :: _ -> [Row] -> Widget
+renderRows renderUrl rows  =
     displayTableRows indexes colnameF (map mkRowF rows)
     where
-      indexes = [1..4]
-      colnameF i = map (,[]) ["Barcode", "Description", "Old Location", "New Location"] !! (i-1)
-      mkRowF Row{..}  =
+      indexes = [1..6]
+      colnameF i = map (,[]) ["Barcode", "Description", "Old Location", "New Location", "Active", "Date"] !! (i-1)
+      mkRowF row@Row{..}  =
         case rowBoxtake of 
           Just (Entity _ Boxtake{..}) -> let
-            value 1 = Just . toHtml $ boxtakeBarcode 
-            value 2 = Just . toHtml $ fromMaybe "" $ boxtakeDescription
-            value 3 = Just . toHtml $ oldLocation
-            value 4 = Just . toHtml $ newLocation
+            value 1 = Just ( renderBarcode renderUrl boxtakeBarcode , [])
+            value 2 = Just ( toHtml $ fromMaybe "" $ boxtakeDescription, [])
+            value 3 = Just ( toHtml $ oldLocation, if inOld then [] else ["text-danger"])
+            value 4 = Just ( toHtml $ newLocation, [])
+            value 5 = Just ( toHtml $ boxtakeActive, if rowIsFound row then ["text-danger"] else [])
+            value 6 = Just ( toHtml . tshow $ boxtakeDate, [])
             value _ = Nothing
             oldLocation = boxtakeLocation 
             locationSet = Set.fromList $ (splitOn "|" oldLocation)
             inOld = newLocation `elem` locationSet  || oldLocation == "DEF"
             newLocation = rowLocation
-            rowClasses = if inOld then [] else ["bg-warning"]
-            in (((,[]) <$>) . value, rowClasses )
+            rowClasses = case (inOld, rowIsFound row ) of
+                         (_, True) -> ["bg-info"]
+                         (False, _) -> ["bg-warning"]
+                         _ -> []
+            in ( value, rowClasses )
           Nothing -> let -- empty shelve
             value 1 = Just "∅"
             value 4 = Just . toHtml $ rowLocation
             value _ = Nothing
-            in (((,[]) <$>) . value, ["bg-danger"])
+            in ( ((,[]) <$>) .value, ["bg-danger"])
 
 
 -- * Csv
