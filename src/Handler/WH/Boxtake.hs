@@ -104,13 +104,13 @@ uploadForm mode paramM = renderBootstrap3 BootstrapBasicForm (form mode)
              <*> areq hiddenField "key" (Just $ uFileKey =<< paramM)
              <*> areq hiddenField "path" (Just $ uFilePath =<< paramM)
              <*> areq (selectField optionsEnum ) "encoding" (fmap uEncoding paramM <|> Just UTF8)
-             <*> areq (selectField optionsEnum ) "wipe mode " (fmap uWipeMode paramM <|> Just WipeShelves)
+             <*> areq (selectField optionsEnum ) "wipe mode " (fmap uWipeMode paramM <|> Just FullStylesAndShelves)
         form Validate = UploadParam
              <$> (Just <$> areq fileField "upload" (uFileInfo =<< paramM))
              <*> pure Nothing
              <*> pure Nothing
              <*> areq (selectField optionsEnum ) "encoding" (uEncoding <$> paramM <|> Just UTF8)
-             <*> areq (selectField optionsEnum ) "wipe mode" (uWipeMode <$> paramM <|> Just WipeShelves)
+             <*> areq (selectField optionsEnum ) "wipe mode" (uWipeMode <$> paramM <|> Just FullStylesAndShelves)
             
 -- * Rendering
 -- ** Boxtake history
@@ -291,6 +291,11 @@ renderSessions sessions missingStyles = do
       <td> Missing
       <td> #{missing}
       <td> #{formatDouble volumeMissing} m<sup>3
+    <tr>
+      <td>
+      <td>
+      <td.panel-heading data-toggle="collapse" data-target="#main .collapse">
+        <span.badge.badge-info>Collapse/Expand All
 ^{mapM_ renderMissingStylesPanel missingStyles}
 ^{mainW}
           |]
@@ -350,7 +355,8 @@ renderMissingBoxRow (Entity _ missing) = [whamlet|
         <td> #{boxtakeBarcode missing}
         <td> #{fromMaybe "" (boxtakeDescription missing)}
         <td.text-danger> #{boxtakeLocation missing}
-|]
+        <td> ∅
+        |]
 -- ** Upload 
 -- | Displays the main form to upload a boxtake spreadsheet.
 -- It is also use to display the result of the validation (the 'pre' Widget)

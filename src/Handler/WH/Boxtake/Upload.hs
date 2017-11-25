@@ -50,9 +50,10 @@ data StyleMissing = StyleMissing
   , missingBoxes :: [Entity Boxtake] }
 -- | If a boxtake has been done on a full shelf, we should
 -- be able to inactivate all the box previously on this shelf.
-data WipeMode = WipeShelves -- ^ Wipe all boxes previously on the scanned location.
-              | WipeStyles -- ^ Considers the styles as complete. Wipe all previous boxes from the scanned
+data WipeMode = FullShelves -- ^ Wipe all boxes previously on the scanned location.
+              | FullStyles -- ^ Considers the styles as complete. Wipe all previous boxes from the scanned
                   -- styles, regardless of their location.
+              | FullStylesAndShelves
               | Addition -- ^ Don't wipe anything. Just add new boxes 
   deriving (Eq, Read, Show, Enum, Bounded)
 -- * Util
@@ -134,8 +135,9 @@ parseScan wipeMode spreadsheet = do -- Either
                     Left errs -> return $ InvalidData errs [] rows
                     Right sessions0 -> do
                       sessions <- case wipeMode of
-                        WipeShelves -> loadMissing sessions0
-                        WipeStyles -> loadMissingFromStyles sessions0
+                        FullShelves -> loadMissing sessions0
+                        FullStyles -> loadMissingFromStyles sessions0
+                        FullStylesAndShelves -> loadMissingFromStyleAndShelves sessions0
                         Addition -> return (sessions0, [])
                       return $ ParsingCorrect sessions
 
@@ -281,7 +283,10 @@ instance Csv.FromNamedRecord RawScanRow where
 -- * DB
 -- | Load boxes from scanned location which have not been moved elsewhere.
 barcodeSetFor :: [Session] -> Set Text
-barcodeSetFor sessions = Set.fromList ( mapMaybe ( (fmap $ boxtakeBarcode . entityVal) . rowBoxtake) $ concatMap sessionRows sessions)
+barcodeSetFor sessions = let
+  boxtakes = mapMaybe rowBoxtake (concatMap sessionRows sessions)
+            <> concatMap sessionMissings sessions
+  in Set.fromList $ map (boxtakeBarcode . entityVal) boxtakes
 
 -- ** From locations
 loadMissing :: [Session] -> Handler ([Session], [StyleMissing])
@@ -329,3 +334,9 @@ loadMissingFromStyle barcodeSet style = do
   return $ case missings of
     [] -> Nothing
     _ -> Just $ StyleMissing style missings
+
+-- ** From styles and shelves
+loadMissingFromStyleAndShelves :: [Session] -> Handler ([Session], [StyleMissing])
+loadMissingFromStyleAndShelves sessions0 = do
+  (sessions1, _) <- loadMissing sessions0
+  loadMissingFromStyles sessions1
