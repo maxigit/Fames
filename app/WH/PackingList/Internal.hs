@@ -116,6 +116,7 @@ fitOneRow' triedBoxes zones (box:boxes) = let
     -- we know there is at least one slice and the one we need is the first one.
     width = dWidth zdim
     usedWidth = slWidth slice
+  rank _ = error "never happen"
   in case fromNullable tries of
         Nothing -> fitOneRow' (box:triedBoxes) zones boxes
         Just tries' -> let (bestZone, otherZones) = head $ sortOn rank tries'
@@ -135,6 +136,7 @@ fitAllRow' usedZones (zone:zones) bs@(box:boxes) = case slice box zone of
     lastBox = slBox slice
     slice' = slice {slBox = lastBox { boxPlacement = End}}
     in fitAllRow' usedZones (addSlice zone slice': zones) (box'':boxes)
+  _ -> error "should not happen"
   
 
 divUp p q = (p+q-1) `div` q

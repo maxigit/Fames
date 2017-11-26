@@ -96,6 +96,7 @@ rotate o (Dimension l w h)
     | o == tiltedFR       =  Dimension w h l
     | o == rotatedUp    =  Dimension w l h
     | o == rotatedSide    =  Dimension h l w
+    | True  = error $ "Unexpected rotation" <> show o
  
 -- | Every box belongs to a shelf.
 -- Non placed boxes belongs to the special default shelf
@@ -113,6 +114,7 @@ data Box s = Box { _boxId      :: BoxId s
                , boxBoxOrientations :: [Orientation]  -- ^ allowed orientation
                } deriving (Show, Eq)
 
+boxKey :: Box s -> [Char]
 boxKey b = (boxStyle b) ++ (boxContent b)
 boxSku b = boxStyle b ++ "-" ++ boxContent b
 

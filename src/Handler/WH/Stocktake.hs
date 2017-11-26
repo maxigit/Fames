@@ -123,7 +123,10 @@ getWHStocktakeValidateR :: Handler Html
 getWHStocktakeValidateR = do
   mop0 <- collectFromMOP
   (formW, encType) <- generateFormPost $ uploadForm CollectMOP Nothing
-  let param0 = FormParam {pStyleComplete = StyleIncomplete, pDisplayMode = HideMissing }
+  let param0 = FormParam {pStyleComplete = StyleIncomplete, pDisplayMode = HideMissing
+                         -- unused
+                         , pFilePath = Nothing, pFileInfo = Nothing, pFileKey = Nothing
+                         , pComment = Nothing, pOveridde = False, pEncoding = UTF8 }
   widget <- if null mop0
     then return $ return ()
     else do 
@@ -339,6 +342,7 @@ renderWHStocktake mode paramM status message pre = do
   let (action, button,btn) = case mode of
         Validate -> (WHStocktakeValidateR, "validate" :: Text, "primary" :: Text)
         Save -> (WHStocktakeSaveR, "save", "danger")
+        CollectMOP -> error "nothing to display"
   (uploadFileFormW, upEncType) <- generateFormPost $ uploadForm mode paramM
   message
   sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
@@ -420,6 +424,9 @@ $maybe u <- uploader
       opF <- operatorFinder
       let findOps op = case opF op of
             Just (Entity opId operator) | operatorActive operator -> Just (Operator' opId operator)
+            Just (Entity _ operator ) -> error $ "Should not happend. Operator "
+                                               <> unpack (operatorNickname operator)
+                                               <> " should be active"
             Nothing -> Nothing
           findLocs = validateLocation locations
 
@@ -576,6 +583,8 @@ $maybe u <- uploader
                                                        <> " processed")
                                  )
                                  (return ())
+        process _ _ Save _ _ = error "Already caught. Remove warning" 
+        process _ _ CollectMOP _ _ = error "Already caught. Remove warning" 
        
 quickPrefix = "ZT" :: Text
 quickPrefix :: Text
@@ -1445,7 +1454,9 @@ cleanupTopick (QuickST TakeRow{..}) = do
   let sku = makeSku (validValue rowStyle) (validValue rowColour)
   deleteWhere [FA.TopickSku ==. Just sku, FA.TopickType ==. Just "lost"]
   deleteWhere [FA.TopickSku ==. Just sku, FA.TopickType ==. Just "stocktake"]
-
+cleanupTopick  (FullST _) = error "Should not happen"
+cleanupTopick (BLookedupST _) = error "Should not happen"
+cleanupTopick (BLookupST _) = error "Should not happen"
 -- * Rendering
 
 -- renderRow :: TakeRow _ -> Widget
@@ -1489,11 +1500,11 @@ instance Renderable Location' where
 
 classForRaw :: RawRow -> Text                                 
 classForRaw raw = ""
-classForRaw raw = case validateRaw (const Nothing) (const Nothing) raw of
-  Left _ -> "invalid bg-danger"
-  Right row -> case validateRow mempty NoCheckBarcode row of
-    Left _ -> "bg-warning"
-    Right _ -> ""
+-- classForRaw raw = case validateRaw (const Nothing) (const Nothing) raw of
+--   Left _ -> "invalid bg-danger"
+--   Right row -> case validateRow mempty NoCheckBarcode row of
+--     Left _ -> "bg-warning"
+-- Right _ -> ""
 
 -- renderRows :: (Renderable r) => (r -> _ -> [r] -> Widget)
 renderRows classFor rows = do

@@ -1037,6 +1037,7 @@ deleteItems params = do
               ItemWebStatusView -> deleteDC params
               ItemPriceView -> deleteSalesPrices params
               ItemPurchaseView -> deletePurchasePrices params
+              _ -> error "Should not happen"
           )
   clearAppCache
   return resp
@@ -1233,6 +1234,7 @@ createMissingProducts cache group = do
                , let (base, trim ) = case variationToVars $ iiVariation info of
                                               [b] -> (b, Nothing)
                                               (b:trim:_) -> (b, Just trim)
+                                              _ -> error "should not happen"
                , let baseId = Map.lookup base colorMap
                , let trimId = flip Map.lookup colorMap =<< trim
                ]

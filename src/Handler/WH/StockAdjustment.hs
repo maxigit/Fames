@@ -355,6 +355,7 @@ quantitiesFor loc (Single sku, Single take, Single date, Single comment) = do
   return $ case results of
     [] -> LocationInfo loc Nothing 0 0 Nothing []
     [(Single qoh, Single at, Single last)] -> LocationInfo loc (Just take) (fromMaybe 0 at) (fromMaybe 0 qoh) (last) (map toMove moves)
+    _ -> error "query should return 1 value at the most"
 
 
 -- | Computes the date range when a stock take can be unsure or not.
@@ -762,7 +763,7 @@ findMaxQuantity date detail = do
       
       -- to generate negative quantities, we can move more than the qoh at date
       -- as well as qoh now. qoh after the moves would be qoh-adj and should be >= 0
-      let qmax = minimum $ nonNull [qty , quantityAt locInfo, quantityNow locInfo]
+      let qmax = minimum $ impureNonNull [qty , quantityAt locInfo, quantityNow locInfo]
       return (detail, qmax)
 
 -- | Post a stock adjusmtent to FrontAccounting and update

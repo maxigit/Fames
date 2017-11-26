@@ -108,8 +108,12 @@ library:
   - condition: (flag(dev)) || (flag(library-only))
     then:
       ghc-options:
-      - -Wall 
       - -fwarn-tabs
+      - -fwarn-incomplete-patterns
+      - -fwarn-incomplete-record-updates
+      - -fwarn-missing-fields
+      - -Werror
+      - -fno-warn-partial-type-signatures
       - -O0
       - -j6
       cpp-options: -DDEVELOPMENT

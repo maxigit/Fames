@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 module Handler.WH.Boxtake.Upload where
 
 import Import
@@ -244,7 +245,6 @@ instance Renderable [Either InvalidField ScanRow] where
         OperatorRow (Entity _ op) -> (const $ Just (toHtml $ operatorNickname op, []), ["operator-row", "bg-info"])
         LocationRow loc -> (const $ Just (toHtml $ loc, []),["location-row", "bg-success"])
         BoxRow (Entity _ box) -> (const $ Just (toHtml $  boxtakeBarcode box, []), ["box-row"])
-      mkRowF _ = (const Nothing, ["error"])
 
 
 renderBarcode :: (Route App -> [(Text, Text)] -> Text) -> Text -> Html
@@ -341,7 +341,7 @@ sessionStyles Session{..} = let
   styles = map (take 8) descriptions
   in Set.fromList styles
 
-loadMissingFromStyle :: Set Text -> Text -> _ (Maybe StyleMissing)
+loadMissingFromStyle :: Set Text -> Text -> SqlHandler (Maybe StyleMissing)
 loadMissingFromStyle barcodeSet style = do
   today <- utctDay <$> liftIO getCurrentTime
   allboxes <- selectList ( (BoxtakeActive ==. True)

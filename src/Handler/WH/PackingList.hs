@@ -432,6 +432,7 @@ viewPackingList mode key pre = do
                                  EditDetails ->  error "Shoudn't happen"
                                  Edit ->  error "Shoudn't happen"
                                  Deliver ->  error "Shoudn't happen"
+                                 StocktakePL -> error "Shoudn't happen"
                            ) pl entities
            selectRep $ provideRep $ defaultLayout $ do
               [whamlet|
@@ -1038,7 +1039,7 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
                     go order (PartialBox partial:rows0) partials groups = go order rows0 (partials++[partial]) groups
                     go order (OrderRef order':rows0) [] groups = ((order, groups) :) <$> go order' rows0 [] []
                     go order (OrderRef order':rows0) _ _ = Left [(transformOrder order') {plColour = Left (InvalidValueError "Box not closed" "") } ]
-                    go _ _ _ _ = error "PackingList::groupRow should not append"
+                    -- go _ _ _ _ = error "PackingList::groupRow should not append"
               validateGroup :: PLBoxGroup -> Either [PLRaw] PLBoxGroup 
               validateGroup grp@(partials, main) = let
                 final = transformRow main :: PLFinal
@@ -1123,7 +1124,14 @@ parseDeliverList cart = let
 
 
 -- * Render
-instance Num ()
+instance Num () where
+  a + b = ()
+  a * b = ()
+  abs () = ()
+  signum () = 1
+  fromInteger _ = 0
+  negate () = ()
+
 renderRow :: (MonadIO m, MonadThrow m, MonadBaseControl IO m, Renderable (PLFieldTF t Text Identity Identity), Renderable (PLFieldTF t Text Identity Maybe), Renderable (PLFieldTF t Int Identity Null), Renderable (PLFieldTF t Int Null Null), Renderable (PLFieldTF t Double Maybe Null)) => PLRow t -> WidgetT App m ()
 renderRow PLRow{..} = do
   [whamlet|

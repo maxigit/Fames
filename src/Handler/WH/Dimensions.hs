@@ -312,6 +312,9 @@ innerBoxToFacets opening (Dimension l w h) = let
   go (Orientation Horizontal Vertical) = front 1 1 1 ++  side 1 1 2 ++ top 1 1 1
   go (Orientation Depth Vertical) = front 1 1 2 ++  side 1 1 1 ++ top 1 1 1
   go (Orientation Depth Horizontal) = front 2 1 1 ++  side 1 1 1 ++ top 1 1 1
+  go (Orientation Vertical Vertical) = error "should not happen"
+  go (Orientation Depth Depth ) = error "should not happen"
+  go (Orientation Horizontal Horizontal ) = error "should not happen"
   in go $ traceShowId opening
 
 -- halfL f@(Dimension l w h) = let
