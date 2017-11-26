@@ -8,7 +8,7 @@ import Data.List(mapAccumL, (!!))
 import Handler.Table
 import WH.Barcode (isBarcodeValid)
 import qualified Data.Csv as Csv
-import Control.Monad.Writer hiding((<>), foldM)
+import Control.Monad.Writer (tell, execWriter)
 import Data.Text(strip, splitOn)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -361,16 +361,16 @@ loadMissingFromStyleAndShelves sessions0 = do
   loadMissingFromStyles sessions1
   
 -- ** Save boxtake
--- | Update boxtake to the new location or disable them if missing.
--- saveFromSession :: Session -> Handler ()
--- saveFromSession Session{..} = do
---   mapM_ saveLocation (catMaybes rowBoxtake sessionRows)
---   mapM_ disableMissing sessionMissings
+-- | Update boxtake to the new location or disable them if missing. wwkk 1k
+saveFromSession :: DocumentKeyId -> Session -> Handler ()
+saveFromSession docKey Session{..} = runDB $ do
+  mapM_ (saveLocation docKey) (sessionRows)
+  mapM_ (deactivateBoxtake sessionDate) sessionMissings
 
--- saveLocation :: Row  -> SqlHandler ()
--- saveLocation Row{..} = undefined
-
-
--- disableMissing :: (Enter)
--- disableMissing = undefined
+saveLocation :: DocumentKeyId -> Row  -> SqlHandler ()
+saveLocation docKey Row{..} = do
+  forM_ rowBoxtake $ updateBoxtakeLocation docKey
+                                           rowLocation
+                                           (entityKey rowOperator)
+                                           rowDate
 

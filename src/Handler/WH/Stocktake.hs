@@ -516,7 +516,8 @@ $maybe u <- uploader
                   (zeros, nonZeros)= partition (\r -> rowQuantity r == Known 0)  quicks
                   skusForZeros = zipWith makeSku (map rowStyle quicks) (map rowColour zeros)
                   skusForNonZeros = zipWith makeSku (map rowStyle quicks) (map rowColour nonZeros)
-              invalidPreviousTakes (skusForFull ++ skusForZeros)
+              -- invalidPreviousTakes (skusForFull ++ skusForZeros)
+              -- We don't deactivate boxes at the moment.
               invalidPreviousStocktakes  skusForNonZeros
               return ()
               )
@@ -623,14 +624,18 @@ isBarcodeQuick = isPrefixOf quickPrefix
 --                                      [StocktakeActive =. False ]
 --   mapM_ invalid skus
    
-invalidPreviousTakes :: [Text] -> SqlHandler ()
-invalidPreviousTakes skus0 = do
-  let skus = nub $ sort skus0
-      sql = "UPDATE fames_stocktake st " <>
-            "LEFT JOIN fames_boxtake bt USING (barcode) " <>
-            "SET st.active = 0, bt.active = 0 " <>
-            "WHERE st.stock_id = ?"
-  mapM_ (rawExecute sql) (map (return .toPersistValue) skus)
+
+-- Should update the location history
+-- using deactivateBoxt function.
+-- invalidPreviousTakes :: [Text] -> SqlHandler ()
+-- invalidPreviousTakes skus0 = do
+--   return ()
+--   let skus = nub $ sort skus0
+--       sql = "UPDATE fames_stocktake st " <>
+--             "LEFT JOIN fames_boxtake bt USING (barcode) " <>
+--             "SET st.active = 0, bt.active = 0 " <>
+--             "WHERE st.stock_id = ?"
+--   mapM_ (rawExecute sql) (map (return .toPersistValue) skus)
 -- @TODO factorize with invalidPreviousTakes
 invalidPreviousStocktakes :: [Text] -> SqlHandler ()
 invalidPreviousStocktakes skus0 = do
@@ -669,17 +674,10 @@ updateLookedUp docKey i'rows = do
   -- reactivate box if needed and update location history
   -- only if index = 0
   boxtakeM <- getBy (UniqueBB barcode)
-  case boxtakeM of
-     Nothing -> return ()
-     Just (Entity key old) -> update key [ BoxtakeLocation =. expanded (rowLocation s)
-                                         , BoxtakeDate =. rowDate s
-                                         , BoxtakeOperator =. opId (rowOperator s)
-                                         , BoxtakeDocumentKey =. docKey
-                                         , BoxtakeLocationHistory =. (boxtakeDate old
-                                                             , boxtakeLocation old
-                                                             ) : boxtakeLocationHistory old
-                                         , BoxtakeActive =. True
-                                         ]
+  forM_ boxtakeM $ updateBoxtakeLocation docKey
+                                         (expanded $ rowLocation s)
+                                         (opId (rowOperator s))
+                                         (rowDate s)
 
 -- * Csv
 
