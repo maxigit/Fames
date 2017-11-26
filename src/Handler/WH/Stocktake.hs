@@ -580,7 +580,7 @@ $maybe u <- uploader
 quickPrefix = "ZT" :: Text
 quickPrefix :: Text
      
-insertQuickTakes :: MonadIO m => Key DocumentKey -> [FinalQuickRow] -> ReaderT SqlBackend m ()
+insertQuickTakes :: Key DocumentKey -> [FinalQuickRow] -> SqlHandler ()
 -- insertQuickTakes _ [] = return ()
 insertQuickTakes docId quicks = do
   let count = length quicks
@@ -614,7 +614,7 @@ isBarcodeQuick = isPrefixOf quickPrefix
 --                                      [StocktakeActive =. False ]
 --   mapM_ invalid skus
    
-invalidPreviousTakes :: MonadIO m => [Text] -> ReaderT SqlBackend m ()
+invalidPreviousTakes :: [Text] -> SqlHandler ()
 invalidPreviousTakes skus0 = do
   let skus = nub $ sort skus0
       sql = "UPDATE fames_stocktake st " <>
@@ -623,7 +623,7 @@ invalidPreviousTakes skus0 = do
             "WHERE st.stock_id = ?"
   mapM_ (rawExecute sql) (map (return .toPersistValue) skus)
 -- @TODO factorize with invalidPreviousTakes
-invalidPreviousStocktakes :: MonadIO m => [Text] -> ReaderT SqlBackend m ()
+invalidPreviousStocktakes :: [Text] -> SqlHandler ()
 invalidPreviousStocktakes skus0 = do
   let skus = nub $ sort skus0
       sql = "UPDATE fames_stocktake st " <>
@@ -635,7 +635,7 @@ invalidPreviousStocktakes skus0 = do
 -- We can just scan it's barcode and assume it's content
 -- is identical to when it's been scanned (and sealed) the last time
 -- We just need to update the operator and date (and pop the old one to history)
-updateLookedUp :: MonadIO m => DocumentKeyId -> [(Int, FinalFullRow)] -> ReaderT SqlBackend m ()
+updateLookedUp :: DocumentKeyId -> [(Int, FinalFullRow)] -> SqlHandler ()
 updateLookedUp docKey i'rows = do
   let s = snd (headEx i'rows)
   let barcode = rowBarcode s
@@ -1212,7 +1212,7 @@ lookupBarcodes (ParsingCorrect rows) = do
   
 lookupBarcodes result = return result
 
-lookupBarcode :: MonadIO m => ValidRow -> ReaderT SqlBackend m (Either RawRow [ValidRow])
+lookupBarcode :: ValidRow -> SqlHandler (Either RawRow [ValidRow])
 lookupBarcode valid@(BLookupST row@TakeRow{..}) = do
   let barcode = validValue rowBarcode
       style = validValue rowStyle
@@ -1261,7 +1261,7 @@ lookupBarcode row = return . return $ return row
 
 deriving instance Show PackingListDetail
 -- | Fetch box content information from a packing list 
-lookupPackingListDetail :: (MonadIO m) => (Text -> [t] -> Maybe a) -> Text -> ReaderT SqlBackend m (Either a [(Text, Int)])
+lookupPackingListDetail :: (Text -> [t] -> Maybe a) -> Text -> SqlHandler (Either a [(Text, Int)])
 lookupPackingListDetail checkStyle barcode = do
   detailE <- getBy (UniquePLB barcode)
   return $ case detailE of
@@ -1440,7 +1440,7 @@ mopToFinalRow user day (Single style, Single variation , Single quantity, Single
   in QuickST $ TakeRow {..}
 
   
-cleanupTopick :: (MonadIO m) => ValidRow -> ReaderT SqlBackend m ()
+cleanupTopick :: ValidRow -> SqlHandler ()
 cleanupTopick (QuickST TakeRow{..}) = do
   let sku = makeSku (validValue rowStyle) (validValue rowColour)
   deleteWhere [FA.TopickSku ==. Just sku, FA.TopickType ==. Just "lost"]

@@ -327,8 +327,7 @@ loadVariations cache param = do
 -- ** Sales prices
 -- | Load sales prices 
     -- loadSalesPrices :: IndexParam -> Handler [ItemInfo (ItemMasterAndPrices Identity)]
-loadSalesPrices :: (MonadIO m)
-  => IndexParam -> ReaderT SqlBackend m [ItemInfo (ItemMasterAndPrices Identity)]
+loadSalesPrices :: IndexParam -> SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
 loadSalesPrices param = do
   case (ipStyles param) of
      Just styleF -> do
@@ -370,8 +369,7 @@ priceListsToKeep cache params = do
 -- ** Purchase prices
 -- | Load purchase prices
 -- loadPurchasePrices :: IndexParam -> Handler [ ItemInfo (Map Text Double) ]
-loadPurchasePrices :: (MonadIO m)
-  => IndexParam -> ReaderT SqlBackend m [ItemInfo (ItemMasterAndPrices Identity)]
+loadPurchasePrices :: IndexParam -> SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
 loadPurchasePrices param = do
   case (ipStyles param) of
      Just styleF -> do
@@ -412,8 +410,7 @@ suppliersToKeep cache params = do
 -- ** FA Status
 -- | Load item status, needed to know if an item can be deactivated or deleted safely
 -- This includes if items have been even ran, still in stock, on demand (sales) or on order (purchase)
-loadStatus :: (MonadIO m)
-           => IndexParam ->  ReaderT SqlBackend m [ItemInfo (ItemMasterAndPrices Identity)]
+loadStatus :: IndexParam ->  SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
 loadStatus param = do 
   case (ipStyles param) of
     Just styleF -> do
@@ -467,8 +464,7 @@ loadStatus param = do
 -- ** Web Status
     
 -- | Load Web Status, if item exists, have a product display, activated and the prices
-loadWebStatus ::  (MonadIO m)
-              => IndexParam -> ReaderT SqlBackend m [ItemInfo (ItemMasterAndPrices Identity)]
+loadWebStatus :: IndexParam -> SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
 loadWebStatus param = do
   case (ipStyles param) of
     Just styleF -> do
@@ -491,8 +487,7 @@ loadWebStatus param = do
     _ -> return []
 
 -- ** Web Prices
-loadWebPrices :: (MonadIO m)
-              => IndexCache -> IndexParam -> ReaderT SqlBackend m [ItemInfo (ItemMasterAndPrices Identity)]
+loadWebPrices :: IndexCache -> IndexParam -> SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
 loadWebPrices cache param = do
   case (ipStyles param) of
     Just styleF ->  do
@@ -510,7 +505,7 @@ loadWebPrices cache param = do
 
 -- webPriceList :: Int -> Text
 webPriceList pId = pack $ printf "pl_%0.2d" pId
-loadWebPriceFor :: MonadIO m => _ -> Int -> ReaderT SqlBackend m [(Text, ItemPriceF Identity )]
+loadWebPriceFor ::  _ -> Int -> SqlHandler [(Text, ItemPriceF Identity )]
 loadWebPriceFor (fKeyword, p) pId = do 
   let sql =  " SELECT sku, field_price_" <> webPriceList pId <> "_amount"
           <> " FROM dcx_commerce_product AS product "
@@ -1266,7 +1261,7 @@ createAndInsertFields'
   :: _
   => [(Int, Maybe Int) -> r]
   -> [(DC.CommerceProductTId, Maybe DC.CommerceProductRevisionTId)]
-  -> ReaderT SqlBackend m ()
+  -> SqlHandler ()
 createAndInsertFields' mks p'rKeys = do
   let p'rIds = [(pId, rId)
                | (DC.CommerceProductTKey pId, rM) <- p'rKeys
@@ -1295,8 +1290,7 @@ newProductField f (pId, revId) = f
 
 -- **** commerce_product
 -- | Create and insert a new product in the corresponding table
-createAndInsertNewProducts :: (MonadIO m)
-  => Int -> [Text] -> ReaderT SqlBackend m [Entity DC.CommerceProductT]
+createAndInsertNewProducts :: Int -> [Text] -> SqlHandler [Entity DC.CommerceProductT]
 createAndInsertNewProducts timestamp skus =  do
       let products = map (newProduct timestamp) skus
       pIds <- insertMany products
@@ -1305,9 +1299,8 @@ createAndInsertNewProducts timestamp skus =  do
 -- | Create and insert a new product revision. Update the product table
 -- accordingly
 createAndInsertNewProductRevisions
-  :: (MonadIO m)
-  => Int -> [Entity DC.CommerceProductT]
-  -> ReaderT SqlBackend m [(DC.CommerceProductTId, DC.CommerceProductRevisionTId)]
+  :: Int -> [Entity DC.CommerceProductT]
+  -> SqlHandler [(DC.CommerceProductTId, DC.CommerceProductRevisionTId)]
 createAndInsertNewProductRevisions timestamp pEntities = do
   let revs = map newProductRev  pEntities
   revIds <- insertMany revs
@@ -1316,9 +1309,8 @@ createAndInsertNewProductRevisions timestamp pEntities = do
   return product'revIds
 
 updateProductWithRevision
-  :: MonadIO m
-  => (DC.CommerceProductTId, DC.CommerceProductRevisionTId)
-  -> ReaderT SqlBackend m ()
+  :: (DC.CommerceProductTId, DC.CommerceProductRevisionTId)
+  -> SqlHandler ()
 updateProductWithRevision (pId, DC.CommerceProductRevisionTKey revId) = do
   update pId [DC.CommerceProductTRevisionId =. Just (revId)]
      
@@ -1475,12 +1467,11 @@ deleteProductStockStatus (pId,mrevId) = do
 -- **** field_*_field_product : link to product display
 -- | Create product display link for all variations of a given style
 createMissingDCLinks
-  :: MonadIO m
-  => IndexCache
+  :: IndexCache
   -> Text -- ^ Style name, common to all variations
   -> [(VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text])))] -- ^ variations
   -> Map Text (DC.CommerceProductTId, DC.CommerceProductRevisionTId)
-  -> ReaderT SqlBackend m ()
+  -> SqlHandler ()
 createMissingDCLinks cache style group p'rMap = do
   -- only keep item which doesn't have a produc display
   let skus = [ iiSku info
@@ -1499,10 +1490,9 @@ createMissingDCLinks cache style group p'rMap = do
   
 
 loadSkuProductRevisions
-  :: MonadIO m
-  => Map Text (DC.CommerceProductTId, DC.CommerceProductRevisionTId)
+  :: Map Text (DC.CommerceProductTId, DC.CommerceProductRevisionTId)
   -> [Text]
-  -> ReaderT SqlBackend m [(Text, DC.CommerceProductTId, Maybe DC.CommerceProductRevisionTId)]
+  -> SqlHandler [(Text, DC.CommerceProductTId, Maybe DC.CommerceProductRevisionTId)]
 loadSkuProductRevisions p'rMap skus  = do
   let go sku = do
         case Map.lookup sku p'rMap of
@@ -1520,8 +1510,7 @@ loadSkuProductRevisions p'rMap skus  = do
   return (catMaybes resultMaybes)
 
 loadProductDisplayInfo
-  :: MonadIO m
-  => Text -> ReaderT SqlBackend m (DC.NodeTId, Maybe DC.NodeRevisionTId)
+  :: Text -> SqlHandler (DC.NodeTId, Maybe DC.NodeRevisionTId)
 loadProductDisplayInfo style = do
   pdKeys <- selectList [DC.NodeTTitle ==. style, DC.NodeTType ==. "product_display" ] []
   case pdKeys of
@@ -1532,9 +1521,8 @@ loadProductDisplayInfo style = do
     _ -> error $ "Too many nodes for style :" ++ unpack style
   
 loadLastProductDelta
-  :: MonadIO m
-  => DC.NodeTId
-  -> ReaderT SqlBackend m Int
+  :: DC.NodeTId
+  -> SqlHandler Int
 loadLastProductDelta displayId = do
       [(Single lastDelta)] <- rawSql ("SELECT MAX(delta) "
                            <> "FROM dcx_field_data_field_product "
@@ -1544,11 +1532,10 @@ loadLastProductDelta displayId = do
       return (fromMaybe 0 lastDelta)
 
 createAndInsertDCLinks
-  :: MonadIO m
-  => DC.NodeTId
+  :: DC.NodeTId
   -> Maybe DC.NodeRevisionTId
   -> [(Int, (Text, DC.CommerceProductTId, Maybe DC.CommerceProductRevisionTId))]
-  -> ReaderT SqlBackend m ()
+  -> SqlHandler ()
 createAndInsertDCLinks displayId displayRev d's'p'r = do
   let go mk = [ newProductDCLink displayId displayRev mk d 
               | (d, _) <- d's'p'r
@@ -1639,7 +1626,7 @@ createMissingWebPrices
   :: IndexCache
   -> [(VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text])))] -- ^ variations
   -> Map Text (DC.CommerceProductTId, DC.CommerceProductRevisionTId)
-  -> ReaderT SqlBackend Handler ()
+  -> SqlHandler ()
 createMissingWebPrices cache group p'revMap = do
   basePl <- lift basePriceList
 

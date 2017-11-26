@@ -65,8 +65,13 @@ data App = App
 -- type Handler = HandlerT App IO
 -- type Widget = WidgetT App IO ()
 mkYesodData "App" $(parseRoutesFile "config/routes.gen")
+
 deriving instance Generic (Route App)
 instance SameCons (Route App)
+
+-- | Handler within an SQL transaction
+-- or code already within a runDB.
+type SqlHandler = ReaderT SqlBackend Handler 
 
 instance EnumTreeable Text where enumTree = EnumTree []
 instance EnumTreeable Int64 where enumTree = EnumTree []

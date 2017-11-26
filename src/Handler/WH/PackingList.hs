@@ -220,7 +220,7 @@ $maybe u <- uploader
                       (parsePackingList (orderRef param) bytes)
 
   -- | Update denormalized fields, ie boxesToDeliver_d
-updateDenorm :: (BaseBackend backend ~ SqlBackend, PersistStoreWrite backend, MonadIO m, PersistQueryRead backend) => Key PackingList -> ReaderT backend m ()
+updateDenorm :: Key PackingList -> SqlHandler ()
 updateDenorm plKey = do
   boxesToDeliver <- count [ PackingListDetailPackingList ==. plKey
                           , PackingListDetailDelivered ==. False
@@ -1199,7 +1199,7 @@ instance Renderable [ParseDeliveryError] where
 |]
 
 -- * Saving
-createDocumentKey :: (BaseBackend backend ~ SqlBackend, AuthId master ~ Key User, PersistStoreWrite backend, YesodAuth master) => Text -> Text -> Text -> ReaderT backend (HandlerT master IO) (Key DocumentKey)
+createDocumentKey ::  Text -> Text -> Text -> SqlHandler (Key DocumentKey)
 createDocumentKey key reference comment = do
   userId <- lift requireAuthId
   processedAt <- liftIO getCurrentTime
@@ -1273,7 +1273,7 @@ createDetails pKey orderRef (partials, main') = do
     )
    | n <- ns]
 
-updateDocumentKey :: (AuthId master ~ Key User, BaseBackend backend ~ SqlBackend, YesodAuth master, PersistStoreWrite backend, PersistUniqueRead backend) => Key PackingList -> ByteString -> ReaderT backend (HandlerT master IO) ()
+updateDocumentKey ::  Key PackingList -> ByteString -> SqlHandler ()
 updateDocumentKey plKey bytes  = do
   let key = computeDocumentKey bytes
 
@@ -1292,7 +1292,7 @@ updateDocumentKey plKey bytes  = do
 
   update plKey [PackingListDocumentKey =. docKey ]
 
-replacePLDetails :: (Element mono ~ (PLOrderRef, [PLBoxGroup]), BaseBackend backend ~ SqlBackend, AuthId master ~ Key User, MonoFoldable mono, PersistQueryWrite backend, PersistUniqueRead backend, YesodAuth master) => Key PackingList -> mono -> ByteString -> ReaderT backend (HandlerT master IO) ()
+replacePLDetails ::  Key PackingList -> [(PLOrderRef, [PLBoxGroup])] -> ByteString -> SqlHandler ()
 replacePLDetails plKey sections cart = do
   -- As we total discard the content of the previous document
   -- There is no need to keep a link to the old document key.
@@ -1304,7 +1304,7 @@ replacePLDetails plKey sections cart = do
               ]
   insertPLDetails plKey sections
 
-insertPLDetails :: (Element mono ~ (PLOrderRef, [PLBoxGroup]), BaseBackend backend ~ SqlBackend, MonoFoldable mono, PersistStoreWrite backend, PersistUniqueRead backend, MonadIO m) => Key PackingList -> mono -> ReaderT backend m ()
+insertPLDetails ::  Key PackingList -> [(PLOrderRef, [PLBoxGroup])] -> SqlHandler ()
 insertPLDetails plKey sections = do
   pl <- getJust plKey
   barcodes <- generateBarcodes "DL" (packingListArriving pl) (packingListBoxesToDeliver_d pl)
@@ -1316,7 +1316,7 @@ insertPLDetails plKey sections = do
 
 
 
-deletePLDetails :: (BaseBackend backend ~ SqlBackend, Element mono ~ (PLOrderRef, [PLBoxGroup]), MonadIO m, PersistUniqueWrite backend, MonoFoldable mono) => PackingListId -> mono -> ReaderT backend m ()
+deletePLDetails ::  PackingListId -> [(PLOrderRef, [PLBoxGroup])] -> SqlHandler ()
 deletePLDetails plKey sections = do
   let detailFns = concatMap (createDetailsFromSection plKey) sections
       details = zipWith ($) detailFns (repeat "<dummy>")

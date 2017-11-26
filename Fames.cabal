@@ -140,6 +140,7 @@ library
       Import
       Import.NoFoundation
       Model
+      Model.Boxtake
       ModelField
       Role
       RoutePiece

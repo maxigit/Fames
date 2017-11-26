@@ -359,3 +359,18 @@ loadMissingFromStyleAndShelves :: [Session] -> Handler ([Session], [StyleMissing
 loadMissingFromStyleAndShelves sessions0 = do
   (sessions1, _) <- loadMissing sessions0
   loadMissingFromStyles sessions1
+  
+-- ** Save boxtake
+-- | Update boxtake to the new location or disable them if missing.
+-- saveFromSession :: Session -> Handler ()
+-- saveFromSession Session{..} = do
+--   mapM_ saveLocation (catMaybes rowBoxtake sessionRows)
+--   mapM_ disableMissing sessionMissings
+
+-- saveLocation :: Row  -> SqlHandler ()
+-- saveLocation Row{..} = undefined
+
+
+-- disableMissing :: (Enter)
+-- disableMissing = undefined
+
