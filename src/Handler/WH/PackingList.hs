@@ -187,16 +187,8 @@ processUpload mode param = do
 
       key = computeDocumentKey bytes
 
-  documentKey <- runDB $ getDocumentKeyByHash key
-      -- TODO used in Stocktake factorize
-  _ <- forM documentKey $ \(Entity _ doc) -> do
-    uploader <- runDB $ get (documentKeyUserId doc)
-    let msg = [shamlet|Document has already been uploaded 
-$maybe u <- uploader
-  as "#{documentKeyName doc}"
-  by #{userIdent u}
-  on the #{tshow $ documentKeyProcessedAt doc}.
-|]
+  (documentKey'msgM) <- runDB $ loadAndCheckDocumentKey key
+  forM documentKey'msgM  $ \(Entity _ doc, msg) -> do
     case mode of
       Validate -> setWarning msg >> return ""
       Save -> renderWHPackingList Save (Just param) expectationFailed417 (setError msg) (return ()) -- should exit

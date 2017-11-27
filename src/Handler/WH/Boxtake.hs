@@ -44,6 +44,7 @@ data UploadParam = UploadParam
   , uFilePath :: Maybe Text
   , uEncoding :: Encoding
   , uWipeMode :: WipeMode
+  , uComment :: Textarea
   }
 
 -- defaultUploadParam = UploadParam Nothing Nothing Nothing UTF8 WipeShelves
@@ -80,10 +81,10 @@ postWHBoxtakeValidateR :: Handler Html
 postWHBoxtakeValidateR = processBoxtakeSheet Validate
 
 getWHBoxtakeSaveR :: Handler Html
-getWHBoxtakeSaveR = renderBoxtakeSheet Save Nothing 202 (return ()) (return ())
+getWHBoxtakeSaveR =  getWHBoxtakeValidateR -- renderBoxtakeSheet Validate Nothing 202 (return ()) (return ())
 
 postWHBoxtakeSaveR :: Handler Html
-postWHBoxtakeSaveR = processBoxtakeSheet Validate
+postWHBoxtakeSaveR = processBoxtakeSheet Save
 
 -- * Forms
 paramForm :: Maybe FormParam -> _
@@ -105,12 +106,14 @@ uploadForm mode paramM = renderBootstrap3 BootstrapBasicForm (form mode)
              <*> areq hiddenField "path" (Just $ uFilePath =<< paramM)
              <*> areq (selectField optionsEnum ) "encoding" (fmap uEncoding paramM <|> Just UTF8)
              <*> areq (selectField optionsEnum ) "wipe mode " (fmap uWipeMode paramM <|> Just FullStylesAndShelves)
+             <*> areq textareaField "Comment mode " (uComment  <$> paramM)
         form Validate = UploadParam
              <$> (Just <$> areq fileField "upload" (uFileInfo =<< paramM))
              <*> pure Nothing
              <*> pure Nothing
              <*> areq (selectField optionsEnum ) "encoding" (uEncoding <$> paramM <|> Just UTF8)
              <*> areq (selectField optionsEnum ) "wipe mode" (uWipeMode <$> paramM <|> Just FullStylesAndShelves)
+             <*> areq textareaField "Comment mode " (uComment  <$> paramM)
             
 -- * Rendering
 -- ** Boxtake history
@@ -403,23 +406,49 @@ processBoxtakeSheet mode = do
                               msg
                               (return ())
         Just (spreadsheet, key , path) -> do
-          let paramWithKey = param0 {uFileInfo=Nothing, uFileKey=Just key, uFilePath=Just path}
+          let paramWithKey = param0 {uFileKey=Just key, uFilePath=Just path}
           sessions <- parseScan uWipeMode spreadsheet
+          documentKey'msgM <- runDB $ loadAndCheckDocumentKey key
+          docM <- forM documentKey'msgM $  \(entity,  msg) -> do
+              setWarning msg
+              return entity
 
           renderParsingResult (renderBoxtakeSheet Validate (Just paramWithKey) 422 )
-                              (processBoxtakeMove mode paramWithKey)
+                              (processBoxtakeMove  mode docM paramWithKey)
                               sessions
-processBoxtakeMove :: _ -> UploadParam -> ([Session], [StyleMissing]) -> Handler Html
-processBoxtakeMove Validate param (sessions, styleMissings) = do
+processBoxtakeMove :: SavingMode
+                   -> (Maybe (Entity DocumentKey))
+                   -> UploadParam
+                   -> ([Session], [StyleMissing])
+                   -> Handler Html
+processBoxtakeMove Validate _ param (sessions, styleMissings) = do
+  renderUrl <- getUrlRenderParams
   sessionW <- do
-    renderUrl <- getUrlRenderParams
     return $ renderSessions renderUrl sessions styleMissings
-    
   renderBoxtakeSheet Save (Just param) (fromEnum ok200) (setSuccess "Spreadsheet valid") sessionW
-processBoxtakeMove Save param (sessions, styleMissings) = do
-  -- create document
-  setInfo "Not implemented yet"
-  processBoxtakeMove Validate param (sessions, styleMissings)
+
+processBoxtakeMove Save docM param (sessions, styleMissings) = do
+  runDB $ do
+        -- create document if need
+        doc <- case (docM, uFileKey param) of
+                (Nothing, Just key) -> do  
+                    createDocumentKey (DocumentType "boxtake")
+                                      key
+                                      (maybe "" fileName (uFileInfo param))
+                                      (unTextarea $ uComment param)
+                (Just e, _) -> return (entityKey e)
+                (Nothing, Nothing) -> error "Should happen"
+
+        today <- utctDay <$> liftIO getCurrentTime
+        let maxDate = fromMaybe today $ maximumMay (map sessionDate sessions)
+              
+        mapM_ (saveFromSession doc) sessions
+        mapM_ (deactivateBoxtake maxDate) (concatMap missingBoxes styleMissings)
+  renderBoxtakeSheet Validate Nothing (fromEnum created201) (setSuccess "Boxtake uploaded successfully") (return ())
+  
+  
+                                       
+
 
 
 -- * DB Access

@@ -32,3 +32,17 @@ createDocumentKey (DocumentType docType) (DocumentHash key) reference comment = 
 
 getDocumentKeyByHash :: DocumentHash -> SqlHandler (Maybe (Entity DocumentKey))
 getDocumentKeyByHash (DocumentHash key) = getBy (UniqueSK key)
+
+
+loadAndCheckDocumentKey :: DocumentHash -> SqlHandler (Maybe (Entity DocumentKey, Html))
+loadAndCheckDocumentKey  key = do
+  documentKey <- getDocumentKeyByHash key
+  forM documentKey $ \justDoc@(Entity _ doc) -> do
+    uploader <- get (documentKeyUserId doc)
+    return (justDoc, [shamlet|Document has already been uploaded 
+$maybe u <- uploader
+  as "#{documentKeyName doc}"
+  by #{userIdent u}
+  on the #{tshow $ documentKeyProcessedAt doc}.
+|]
+               )

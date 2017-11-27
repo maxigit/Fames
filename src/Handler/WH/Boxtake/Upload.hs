@@ -362,8 +362,8 @@ loadMissingFromStyleAndShelves sessions0 = do
   
 -- ** Save boxtake
 -- | Update boxtake to the new location or disable them if missing. wwkk 1k
-saveFromSession :: DocumentKeyId -> Session -> Handler ()
-saveFromSession docKey Session{..} = runDB $ do
+saveFromSession :: DocumentKeyId -> Session -> SqlHandler ()
+saveFromSession docKey Session{..} = do
   mapM_ (saveLocation docKey) (sessionRows)
   mapM_ (deactivateBoxtake sessionDate) sessionMissings
 
