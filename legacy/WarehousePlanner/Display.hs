@@ -24,6 +24,7 @@ renderGroup (ShelfGroup gs direction) = do
     return $ pad (1.05) $ cat direction (map alignB rendered)
     where cat  Vertical = vcat 
           cat  Horizontal = hcat
+          cat  Depth = hcat -- should not happen
     
 
 renderGroup (ShelfProxy i) = do

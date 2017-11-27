@@ -4,6 +4,10 @@ module Handler.WH.Boxtake
 ( getWHBoxtakeR
 , postWHBoxtakeR
 , getWHBoxtakeDetailR
+, getWHBoxtakeValidateR
+, postWHBoxtakeValidateR
+, getWHBoxtakeSaveR
+, postWHBoxtakeSaveR
 ) where
 
 import Import
@@ -12,11 +16,13 @@ import Handler.CsvUtils
 import Data.List(nub)
 import qualified Data.Map.Strict as Map
 import Text.Printf(printf)
+import Handler.WH.Boxtake.Upload
 
 -- * Types
 data RuptureMode = BarcodeRupture | LocationRupture | DescriptionRupture
   deriving (Eq, Read, Show, Enum, Bounded)
 
+-- | Parameters for boxtake history,lookup,
 data FormParam  = FormParam
   { pBarcode :: Maybe FilterExpression
   , pLocation :: Maybe FilterExpression
@@ -28,7 +34,22 @@ data FormParam  = FormParam
   }
 defaultParam = FormParam Nothing Nothing Nothing LocationRupture Nothing  False True
 
--- * Handlers
+-- | Validate or save spreadsheet.
+data SavingMode = Validate | Save deriving (Eq, Read, Show)
+
+-- | Parameters to upload box moves/scans.
+data UploadParam = UploadParam
+  { uFileInfo :: Maybe FileInfo
+  , uFileKey :: Maybe DocumentHash
+  , uFilePath :: Maybe Text
+  , uEncoding :: Encoding
+  , uWipeMode :: WipeMode
+  }
+
+-- defaultUploadParam = UploadParam Nothing Nothing Nothing UTF8 WipeShelves
+
+-- * Requests
+-- ** Boxtake history
 getWHBoxtakeR :: Handler Html
 getWHBoxtakeR = do
   renderBoxtakes defaultParam
@@ -51,6 +72,19 @@ getWHBoxtakeDetailR barcode = do
       Nothing -> setError (toHtml ("Can't find any box with barcode '" <> barcode <> "'")) >> return ""
       Just boxtake -> return $ renderBoxtakeDetail operatorsMap boxtake stocktakes
   
+-- ** Upload
+getWHBoxtakeValidateR :: Handler Html
+getWHBoxtakeValidateR = renderBoxtakeSheet Validate Nothing 202 (return ()) (return ())
+
+postWHBoxtakeValidateR :: Handler Html
+postWHBoxtakeValidateR = processBoxtakeSheet Validate
+
+getWHBoxtakeSaveR :: Handler Html
+getWHBoxtakeSaveR = renderBoxtakeSheet Save Nothing 202 (return ()) (return ())
+
+postWHBoxtakeSaveR :: Handler Html
+postWHBoxtakeSaveR = processBoxtakeSheet Validate
+
 -- * Forms
 paramForm :: Maybe FormParam -> _
 paramForm param0 = renderBootstrap3 BootstrapBasicForm form
@@ -63,8 +97,23 @@ paramForm param0 = renderBootstrap3 BootstrapBasicForm form
           <*> areq boolField "Show Inactive" ((pShowInactive) <$> param0)
           <*> areq boolField "Compact mode" (pCompactView <$> param0 <|> Just True)
 
+uploadForm :: SavingMode -> Maybe UploadParam -> _ -> _ (FormResult UploadParam, Widget)
+uploadForm mode paramM = renderBootstrap3 BootstrapBasicForm (form mode)
+  where form Save = UploadParam
+             <$> pure Nothing -- hidden field
+             <*> areq hiddenField "key" (Just $ uFileKey =<< paramM)
+             <*> areq hiddenField "path" (Just $ uFilePath =<< paramM)
+             <*> areq (selectField optionsEnum ) "encoding" (fmap uEncoding paramM <|> Just UTF8)
+             <*> areq (selectField optionsEnum ) "wipe mode " (fmap uWipeMode paramM <|> Just FullStylesAndShelves)
+        form Validate = UploadParam
+             <$> (Just <$> areq fileField "upload" (uFileInfo =<< paramM))
+             <*> pure Nothing
+             <*> pure Nothing
+             <*> areq (selectField optionsEnum ) "encoding" (uEncoding <$> paramM <|> Just UTF8)
+             <*> areq (selectField optionsEnum ) "wipe mode" (uWipeMode <$> paramM <|> Just FullStylesAndShelves)
+            
 -- * Rendering
--- ** Main
+-- ** Boxtake history
 renderBoxtakes :: FormParam -> Handler Html
 renderBoxtakes param = do
   boxtakes <- loadBoxtakes param
@@ -216,7 +265,164 @@ renderSummary param boxtakes =  do
           |]
 
 
--- ** DB Access
+renderSessions :: _ -> [Session] -> [StyleMissing] -> Widget
+renderSessions renderUrl sessions missingStyles = do
+  let allRows = concatMap sessionRows sessions
+      rowCount = length allRows
+      volume = sum (map rowVolume allRows)
+      missingRows = concatMap sessionMissings sessions <> concatMap missingBoxes missingStyles
+      missing = length missingRows
+      volumeMissing = sum (map (boxVolume . entityVal) missingRows)
+      founds = filter rowIsFound allRows
+      volumeFound = sum (map rowVolume founds)
+      ids = ["session-" <> tshow i | i <- [1..]]
+      mainW = mapM_ (uncurry $ renderSession renderUrl) (zip ids sessions)
+  [whamlet|
+<div.panel.panel-info>
+  <div.panel-heading><h2>Summary
+  <table.table.table-striped.table-hover>
+    <tr>
+      <th>
+      <th> Count
+      <th> Volume
+    <tr>
+      <td> Scanned
+      <td> #{rowCount}
+      <td> #{formatDouble volume} m<sup>3
+    <tr>
+      <td> Missing
+      <td> #{missing}
+      <td> #{formatDouble volumeMissing} m<sup>3
+    <tr>
+      <td> Found
+      <td> #{length founds}
+      <td> #{formatDouble volumeFound} m<sup>3
+    <tr>
+      <td>
+      <td>
+      <td.panel-heading data-toggle="collapse" data-target="#main .collapse">
+        <span.badge.badge-info>Collapse/Expand All
+^{mapM_ (renderMissingStylesPanel renderUrl) missingStyles}
+^{mainW}
+          |]
+  
+renderMissingStylesPanel :: _ -> StyleMissing -> Widget
+renderMissingStylesPanel renderUrl StyleMissing{..} = do
+  let rowCount = length missingBoxes
+      volume = sum (map (boxVolume . entityVal) missingBoxes)
+      collapseId = "missing-" <> missingStyle
+  [whamlet|
+<div.panel.panel-danger data-toggle="collapse" data-target="##{collapseId}">
+  <div.panel-heading>
+    <table style="width:100%;"><tr>
+      <td> missing #{missingStyle} from non-scanned locations
+      <td> #{tshow rowCount} boxes
+      <td> #{formatDouble volume} m<sup>3
+  <table.table.table-hover.collapse id="#{collapseId}">
+    $forall missing <- missingBoxes
+      ^{renderMissingBoxRow renderUrl missing}
+|]
+
+  
+-- or wipe full style ?
+-- or both ?
+-- - add link to boxtake
+-- - add like to location boxtake
+
+renderSession :: _ -> Text -> Session -> Widget
+renderSession renderUrl sessionId Session{..} = do
+  let rowsW = renderRows renderUrl sessionRows
+      hasFound =  any rowIsFound sessionRows
+      class_ = case (sessionRows, sessionMissings, hasFound) of
+                 (_, _, True) -> "info" :: Text
+                 ([], [], _) -> "success" :: Text
+                 ([], _, _)-> "warning"
+                 (_, [], _) -> "success" :: Text
+                 (_,_:_, _) -> "danger" -- some missing
+      volume = sum (map rowVolume sessionRows)
+  toWidget [cassius|
+table.collapse.in
+  display: table
+|]
+  [whamlet|
+<div.panel class="panel-#{class_}" data-toggle="collapse" data-target="##{sessionId}">
+  <div.panel-heading>
+    <table style="width:100%;"><tr>
+      <td> #{sessionLocation}
+      <td> #{formatDouble volume} m<sup>3
+      <td><span style="float:right">  #{operatorNickname (entityVal sessionOperator)} - #{tshow sessionDate}
+  <table.table.table-hover.collapse id="#{sessionId}">
+    ^{rowsW}
+    $forall missing <- sessionMissings
+      ^{renderMissingBoxRow renderUrl missing}
+|]
+
+renderMissingBoxRow :: _ -> Entity Boxtake -> Widget
+renderMissingBoxRow renderUrl (Entity _ missing) = [whamlet|
+      <tr.bg-danger>
+        <td> #{renderBarcode renderUrl (boxtakeBarcode missing)}
+        <td> #{fromMaybe "" (boxtakeDescription missing)}
+        <td.text-danger> #{boxtakeLocation missing}
+        <td> ∅
+        <td> #{boxtakeActive missing}
+        <td> #{tshow (boxtakeDate missing)}
+        |]
+-- ** Upload 
+-- | Displays the main form to upload a boxtake spreadsheet.
+-- It is also use to display the result of the validation (the 'pre' Widget)
+renderBoxtakeSheet :: SavingMode -> Maybe UploadParam -> Int -> Handler() -> Widget -> Handler Html
+renderBoxtakeSheet mode paramM status message pre = do
+  let (action, button, btn) = case mode of
+        Validate -> (WHBoxtakeValidateR, "validate" :: Text, "primary" :: Text)
+        Save -> (WHBoxtakeSaveR, "save", "danger")
+
+  (uploadFileFormW, encType) <- generateFormPost $ uploadForm mode paramM
+  message
+  sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
+  <div.pre> ^{pre}
+  <div.well>
+    <form #upload-form role=form method=post action=@{WarehouseR action} enctype=#{encType}>
+      ^{uploadFileFormW}
+      <button type="submit" name="#{button}" .btn class="btn-#{btn}">#{button}
+|]
+
+processBoxtakeSheet :: SavingMode -> Handler Html
+processBoxtakeSheet mode = do
+  ((fileResp, postFileW), enctype) <- runFormPost (uploadForm mode Nothing)
+  case fileResp of
+    FormMissing -> error "form missing"
+    FormFailure a -> error $ "Form failure : " ++ show (mode, a)
+    FormSuccess param0@UploadParam{..} -> do
+      skpM <- readUploadOrCacheUTF8 uEncoding uFileInfo uFileKey uFilePath
+      case skpM of
+        Nothing -> do
+          let msg = setError "No file provided."
+          renderBoxtakeSheet  Validate
+                              (Just $ param0{uFileInfo=Nothing, uFileKey=Nothing, uFilePath=Nothing})
+                              422
+                              msg
+                              (return ())
+        Just (spreadsheet, key , path) -> do
+          let paramWithKey = param0 {uFileInfo=Nothing, uFileKey=Just key, uFilePath=Just path}
+          sessions <- parseScan uWipeMode spreadsheet
+
+          renderParsingResult (renderBoxtakeSheet Validate (Just paramWithKey) 422 )
+                              (processBoxtakeMove mode paramWithKey)
+                              sessions
+processBoxtakeMove :: _ -> UploadParam -> ([Session], [StyleMissing]) -> Handler Html
+processBoxtakeMove Validate param (sessions, styleMissings) = do
+  sessionW <- do
+    renderUrl <- getUrlRenderParams
+    return $ renderSessions renderUrl sessions styleMissings
+    
+  renderBoxtakeSheet Save (Just param) (fromEnum ok200) (setSuccess "Spreadsheet valid") sessionW
+processBoxtakeMove Save param (sessions, styleMissings) = do
+  -- create document
+  setInfo "Not implemented yet"
+  processBoxtakeMove Validate param (sessions, styleMissings)
+
+
+-- * DB Access
 loadBoxtakes :: FormParam -> Handler [Entity Boxtake]
 loadBoxtakes param = do
   let filter = filterE id BoxtakeBarcode (pBarcode param)
@@ -241,7 +447,7 @@ loadStocktakes boxtakes =
   forM boxtakes $ \e@(Entity _ box) -> do
      stocktakes <- runDB $ selectList [StocktakeBarcode ==. boxtakeBarcode box] []
      return (e, stocktakes)
--- ** Util
+-- * Util
 displayActive :: Bool -> Text
 displayActive act = if act then "Active" else "Inactive"
 

@@ -3,6 +3,8 @@ module RoutePiece where
 import ClassyPrelude
 import Web.PathPieces
 
+-- * General
+
 -- * Warehouse
 -- ** PackingList
 -- | Different way of viewing a packing list.

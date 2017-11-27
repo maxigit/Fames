@@ -12,7 +12,6 @@ module Handler.Util
 , uploadFileFormWithComment
 , Encoding(..)
 , readUploadUTF8
-, computeDocumentKey
 , setAttachment
 , generateLabelsResponse
 , firstOperator
@@ -21,10 +20,13 @@ module Handler.Util
 , basePriceList
 , timeProgress
 , allOperators
-, FilterExpression
+, operatorFinder
+, FilterExpression(..)
 , filterE
 , filterEField
 , filterEKeyword
+, readUploadOrCacheUTF8
+, locationSet
 ) where
 
 import Foundation
@@ -33,7 +35,6 @@ import Data.Conduit.List (consume)
 import Data.Text.Encoding(decodeLatin1)
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               ) -- withSmallInput)
-import qualified Crypto.Hash as Crypto
 import qualified Data.Conduit.Binary as CB
 -- import Data.Conduit.List (consume)
 import System.Directory (removeFile)
@@ -44,6 +45,10 @@ import qualified Data.Text.Lazy as LT
 import Text.Blaze.Html (Markup)
 import FA
 import Data.Time (diffDays, addGregorianMonthsClip)
+import System.Directory (doesFileExist)
+import qualified Data.Map.Strict as Map
+import qualified Data.List as Data.List
+import Model.DocumentKey
 -- import Data.IOData (IOData)
 
 -- * Display entities
@@ -146,13 +151,9 @@ uploadFileFormWithComment :: Markup
                           Handler
                           (FormResult (FileInfo, Encoding, Maybe Textarea), Widget)
 uploadFileFormWithComment = uploadFileForm (aopt textareaField "comment" Nothing)
-computeDocumentKey :: ByteString -> Text
-computeDocumentKey bs = let
-  digest = Crypto.hash bs :: Crypto.Digest Crypto.SHA256
-  in tshow digest
 
 -- | Retrieve the content of an uploaded file.
-readUploadUTF8 :: MonadResource m => FileInfo -> Encoding -> m (ByteString, Text)
+readUploadUTF8 :: MonadResource m => FileInfo -> Encoding -> m (ByteString, DocumentHash)
 readUploadUTF8  fileInfo encoding = do
   c <- fileSource fileInfo $$ consume
   let bs = decode encoding (concat c)
@@ -169,6 +170,41 @@ setAttachment path =
   addHeader "Content-Disposition" (toStrict ("attachment; filename=\""<>path<>"\"") )
 
 
+-- ** Read and reload file
+-- | When validating a file, the file needs to be uploaded once for validating.
+-- In order to be sure that we are processing the file which has been validated
+-- (and because it's not possible to preset the upload parameter on the new form)
+-- we save the first time, the file to a temporary file and use the key to reload it
+-- on the second time. The key and path will need to be set to the form (as hidden parameter)
+-- readUploadOrCache.
+-- Returns the content and the tempory key and path or nothing if nothing is present.
+-- The resulting file is converted in UTF8 
+readUploadOrCacheUTF8
+  :: (MonadIO m, MonadResource m)
+  => Encoding
+  -> Maybe FileInfo -- file to upload
+  -> Maybe DocumentHash -- Key if already uploaded
+  -> Maybe Text -- Path if already uploaded
+  -> m (Maybe (ByteString, DocumentHash, Text))
+readUploadOrCacheUTF8  encoding fileInfoM keyM pathM = do
+      let tmp (DocumentHash file) = "/tmp" </> (unpack file)
+      case (fileInfoM, keyM, pathM) of
+        -- key and path set. Reuse the temporary file
+        (_, Just (key), Just path) -> do
+          ss <- readFile (tmp key)
+          return $ Just (ss, key, path)
+        (Just fileInfo, _, _) -> do
+        -- File to upload. upload and save it If needed.
+        -- If it already exist, the key guarantie that
+        -- it is the same content.
+          (ss, key) <- readUploadUTF8 fileInfo encoding
+          let path = tmp key
+          exist <- liftIO $ doesFileExist path
+          unless exist $ do
+            writeFile (tmp key) ss
+          return $ Just (ss, key, fileName fileInfo)
+        (_,_,_) -> return Nothing
+  
 -- * Labels
 generateLabelsResponse ::
   Text
@@ -342,8 +378,30 @@ basePriceList = cache0 False cacheForEver "base-price-list" $ do
   return basePl
   
 -- ** Fames
+-- *** Operators
 allOperators :: Handler (Map (Key Operator) Operator)
 allOperators = cache0 False cacheForEver "all-operators" $ do
   operators <- runDB $ selectList [] []
   return $ mapFromList [ (key, operator) | (Entity key operator) <- operators ]
+  
+operatorFinder :: Handler (Text -> Maybe (Entity Operator))
+operatorFinder = cache0 False cacheForEver "operator-finder" $ do
+      operators <- runDB $ selectList [] []
+      let operatorKeys = Map.fromListWith (++) $ concat
+                   [ [ (toLower $ operatorNickname op, [e] ) 
+                     , (toLower $ operatorFirstname op <> operatorSurname op, [e] )
+                     ]
+                   | e@(Entity _ op) <- operators
+                   ]
+           -- we need to filter operators key with more than one solution
+          pks = Map.map (Data.List.head)  (Map.filter (\ops -> Data.List.length ops ==1) operatorKeys)
+          -- findOps = Map.lookup (Map.map (Data.List.head)  (Map.filter (\ops -> Data.List.length ops /=1) operatorKeys)) . toLower :: Text -> Entity Operator
+      return $ (flip Map.lookup) pks  . toLower . (filter (/= ' '))
+
+-- *** Location
+locationSet :: Handler (Set Text)
+locationSet = cache0 False cacheForEver "location-set" $ do
+    locations <- appStockLocationsInverse . appSettings <$> getYesod
+    return . setFromList $ keys locations
+
   

@@ -41,7 +41,8 @@ data RowTypes = RawT -- raw row, everything is text
 data ParsingResult row result
   = WrongHeader InvalidSpreadsheet
   | InvalidFormat [row]-- some cells can't be parsed
-  | InvalidData [row]-- each row is well formatted but invalid as a whole
+  | InvalidData [Text] [row] [row]-- each row is well formatted but invalid as a whole.
+                      -- ^ errors to be displayed first
   | ParsingCorrect result -- Ok
 
 deriving instance (Eq a, Eq b) => Eq (ParsingResult a b)
@@ -218,7 +219,11 @@ parseMulti columnMap m colname =  do
             return res
 
 -- | Parse a spread sheet 
-parseSpreadsheet :: (Csv.FromNamedRecord a, Show a) => Map String [String] ->  Maybe String -> ByteString -> Either InvalidSpreadsheet [a]
+parseSpreadsheet :: (Csv.FromNamedRecord a, Show a)
+                 => Map String [String] -- ^ Columns (what to display, possible names)
+                 ->  Maybe String -- ^ separtors
+                 -> ByteString
+                 -> Either InvalidSpreadsheet [a]
 parseSpreadsheet columnMap seps bytes = do
   let lbytes = fromStrict bytes
       options = [Csv.DecodeOptions (fromIntegral (ord sep)) | sep <- fromMaybe ",;\t" seps ]
@@ -268,6 +273,29 @@ newtype AllFormatsDay = AllFormatsDay {allFormatsDay :: Day} deriving Show
 instance Csv.FromField AllFormatsDay where
   parseField bs = do
     str <- Csv.parseField bs
+    case  concat [parseTimeM True defaultTimeLocale f str | f <- formats] of
+      [day] -> return $ AllFormatsDay day
+      (d:ds) -> error (show (d:ds))
+      _ -> mzero
+    where
+        -- formats to try. Normally there shouldn't be any overlap bettween the different format.
+        -- The 0 in %0Y is important. It guarantes that only 4 digits are accepted.
+        -- without 11/01/01 will be parsed by %Y/%m/%d and %d/%m/%y
+        formats = [ "%0Y/%m/%d"
+                  , "%d/%m/%0Y"
+                  , "%d/%m/%y"
+                  , "%0Y-%m-%d"
+                  , "%d %b %0Y"
+                  , "%d-%b-%0Y"
+                  , "%d %b %y"
+                  , "%d-%b-%y"
+                  , "%0Y %b %d"
+                  , "%0Y-%b-%d"
+                  , "%a %d %b %0Y"
+                  ]
+
+parseDay :: MonadPlus m => String -> m AllFormatsDay
+parseDay str = 
     case  concat [parseTimeM True defaultTimeLocale f str | f <- formats] of
       [day] -> return $ AllFormatsDay day
       (d:ds) -> error (show (d:ds))
@@ -347,10 +375,23 @@ instance (Renderable l, Renderable r) => Renderable (Either l r) where
 
 instance Renderable InvalidField where
   render invField = do
+    toWidget (invFieldToHtml invField)
+    invFieldEmptyWidget
+
+invFieldToHtml invField = 
     let (class_, value) = case invField of
           ParsingError _ v -> ("parsing-error" :: Text, v)
           MissingValueError _ -> ("missing-value" :: Text,"<Empty>")
-          InvalidValueError e v -> ("invalid-value:" <> e :: Text, v)
+          InvalidValueError e v -> ("invalid-value" :: Text, v)
+    in [shamlet|
+<span class="#{class_}">
+  <span.description>#{invalidFieldError invField}
+  <span.message.text-danger data-toggle="tooltip" title="#{invalidFieldError invField}">#{value}
+|]
+
+
+-- | Basic css and js for InvalidField
+invFieldEmptyWidget =  do
     toWidget [cassius|
 .parsing-error, .missing-value, .invalid-value
   .description
@@ -359,16 +400,11 @@ instance Renderable InvalidField where
   .message
     font-style: italic
 |]
-    [whamlet|
-<span class="#{class_}">
-  <span.description>#{invalidFieldError invField}
-  <span.message.text-danger data-toggle="tooltip" title="#{invalidFieldError invField}">#{value}
-|]
     toWidget [julius|
 $('[data-toggle="tooltip"]').tooltip();
 |]
     addScriptRemote "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js"
-  
+
 instance Renderable a => Renderable (ValidField a) where
   render (Provided x) = render x
   render (Guessed x) = do
@@ -427,13 +463,28 @@ instance Renderable InvalidSpreadsheet where
              
 
 renderParsingResult :: (Renderable [row], MonadHandler m)
-  => (m () -> Widget -> out) -> (result -> out) -> ParsingResult row result -> out
+                    => (m () -> Widget -> out)
+                    -> (result -> out)
+                    -> ParsingResult row result
+                    -> out
 renderParsingResult onError onSuccess result = 
         case result of
           WrongHeader invalid -> onError (setError "Invalid file or columns missing") (render invalid)
           InvalidFormat raws -> onError (setError "Invalid cell format") (render raws)
-          InvalidData raws ->  onError (setError "Invalid data") (render raws)
+          InvalidData errors rerrors raws ->  onError (setError (formatErrors errors "Invalid data"))
+                                            (renderInvalids rerrors >> render raws)
           ParsingCorrect rows -> onSuccess rows
+  where formatErrors [] title = title
+        formatErrors errors _ = [shamlet|
+<ul>
+  $forall err <- errors
+    <li> #{err}
+|]
+        renderInvalids errors = [whamlet|
+<div.panel.panel-danger.invalid-errors>
+  <div.panel-heading> Errors
+  ^{render errors}
+|]
 
 
 topBorder :: Widget

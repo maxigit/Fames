@@ -95,6 +95,7 @@ expand name = let
               (e,i) <- zip elements [1..n]
               (expanded, exTag) <- expand (drop 1 rest)
               return (fix++e:expanded, exTag <|> if i == n then tag else Nothing)
+    _ -> error "Should not happen" -- We've been breaking on [
 
 
 -- | Shelve or box name can have a tag, which is
@@ -147,6 +148,8 @@ parseOp accessor = do
           '-' -> SubE
           '*' -> MulE
           '/' -> DivE
+          _ -> error "should not happen"
+
 
   return $ c e1 e2
 

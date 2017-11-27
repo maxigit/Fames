@@ -303,7 +303,7 @@ interleaveEvents moves takes =  let
 
 
 
-loadMoves :: MonadIO m => Text -> ReaderT SqlBackend m [(Key FA.StockMove, Move)]
+loadMoves :: Text -> SqlHandler [(Key FA.StockMove, Move)]
 loadMoves sku = do
   let sql = "SELECT ??, COALESCE(br_name, supp_name), event_no, pickers, packers FROM 0_stock_moves"
             <> supp <> customer <> adj
@@ -334,7 +334,7 @@ loadMoves sku = do
   return [(key, Move move Nothing (fromMaybe "" (fmap decodeHtmlEntities info)) adj0 picker packer)
          | (Entity key move, Single info, Single adj0, Single picker, Single packer) <- moves ]
 
-loadTakes :: (MonadIO m) => Text -> ReaderT SqlBackend m [Adjustment]
+loadTakes :: Text -> SqlHandler [Adjustment]
 loadTakes sku = do
   let sql = "SELECT ??, nickname FROM fames_stocktake "
             <> " JOIN fames_operator USING (operator_id) "

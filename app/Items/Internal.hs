@@ -158,7 +158,7 @@ joinStyleVariations bases adjustBase computeDiff_ items vars = let
 
 mergeInfoSources :: Monoid a => [[ItemInfo a]] -> [ItemInfo a]
 mergeInfoSources sources = let
-  maps :: [Map (ItemInfo ()) _]
+  maps :: [Map (ItemInfo ()) _a]
   maps = map (\source -> mapFromList [ ( fmap (const ()) info
                                        ,  iiInfo info 
                                        )

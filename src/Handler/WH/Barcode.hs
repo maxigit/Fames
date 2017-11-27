@@ -216,6 +216,7 @@ postWHBarcodeR = do
                         setAttachment (outputFile prefix start end "csv")
                         respondSource "text/csv" $ do
                             barcodeSource =$= mapC toFlushBuilder
+                  (GLabels, Nothing) -> error "SHOULD NOT HAPPEN!. Call to glabels without template." 
 
 
 -- outputFile :: Text -> Int -> Int -> Text -> Text

@@ -67,7 +67,7 @@ data StyleComplete = StyleComplete | StyleIncomplete | StyleAddition
 -- | Should be Either FileInfo (Text, Text)
 data FormParam = FormParam
  { pFileInfo :: Maybe FileInfo
- , pFileKey :: Maybe Text
+ , pFileKey :: Maybe DocumentHash
  , pFilePath :: Maybe Text
  , pEncoding :: Encoding
  , pComment :: Maybe Textarea
@@ -123,7 +123,10 @@ getWHStocktakeValidateR :: Handler Html
 getWHStocktakeValidateR = do
   mop0 <- collectFromMOP
   (formW, encType) <- generateFormPost $ uploadForm CollectMOP Nothing
-  let param0 = FormParam {pStyleComplete = StyleIncomplete, pDisplayMode = HideMissing }
+  let param0 = FormParam {pStyleComplete = StyleIncomplete, pDisplayMode = HideMissing
+                         -- unused
+                         , pFilePath = Nothing, pFileInfo = Nothing, pFileKey = Nothing
+                         , pComment = Nothing, pOveridde = False, pEncoding = UTF8 }
   widget <- if null mop0
     then return $ return ()
     else do 
@@ -339,6 +342,7 @@ renderWHStocktake mode paramM status message pre = do
   let (action, button,btn) = case mode of
         Validate -> (WHStocktakeValidateR, "validate" :: Text, "primary" :: Text)
         Save -> (WHStocktakeSaveR, "save", "danger")
+        CollectMOP -> error "nothing to display"
   (uploadFileFormW, upEncType) <- generateFormPost $ uploadForm mode paramM
   message
   sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
@@ -391,26 +395,17 @@ processStocktakeSheet mode = do
     FormFailure a -> error $ "Form failure : " ++ show (mode, a)
     FormSuccess param@(FormParam fileInfoM keyM pathM encoding commentM complete display override) -> do
       let tmp file = "/tmp" </> (unpack file)
-      (spreadsheet, key, path) <- case (fileInfoM, keyM, pathM) of
-        (_, Just key, Just path) -> do
-          ss <- readFile (tmp key)
-          return (ss, key, path)
-        (Just fileInfo, _, _) -> do
-          (ss, key) <- readUploadUTF8 fileInfo encoding
-          let path = tmp key
-          exist <- liftIO $ doesFileExist path
-          unless exist $ do
-            writeFile (tmp key) ss
-          return (ss, key, fileName fileInfo)
-        (_,_,_) -> do -- CollectMOP
+      skpM <- readUploadOrCacheUTF8 encoding fileInfoM keyM pathM
+      (spreadsheet, key, path) <- case skpM of
+        Just s'k'p -> return s'k'p
+        Nothing -> do
           time <- liftIO getCurrentTime
           return ("", computeDocumentKey (encodeUtf8 (tshow time)), "collectMOP" )
-          
 
       -- TODO move to reuse
       -- check if the document has already been uploaded
       -- and reject it.
-      documentKey <- runDB $ getBy (UniqueSK key)
+      documentKey <- runDB $ getDocumentKeyByHash key
       forM documentKey $ \(Entity _ doc) -> do
         uploader <- runDB $ get (documentKeyUserId doc)
         let msg = [shamlet|Document has already been uploaded
@@ -426,22 +421,19 @@ $maybe u <- uploader
       locations <- appStockLocationsInverse . appSettings <$> getYesod
       skus <- getStockIds
     -- get all operators and generate a map name, firstname  -> operator, operator id
-      operators <- runDB $ selectList [OperatorActive ==. True] [] 
-      let operatorKeys = Map.fromListWith (++) $
-                   [ (toLower $ operatorNickname op, [Operator' opId op] ) | op'@(Entity opId op) <- operators ]
-                <> [ (toLower $ operatorFirstname op <> operatorSurname op, [Operator' opId op] )
-                   | op'@(Entity opId op) <- operators
-                   ] :: Map Text [Operator']
-           -- we need to filter operators key with more than one solution
-          pks = Map.map (Data.List.head)  (Map.filter (\ops -> Data.List.length ops ==1) operatorKeys)
-          -- findOps = Map.lookup (Map.map (Data.List.head)  (Map.filter (\ops -> Data.List.length ops /=1) operatorKeys)) . toLower :: Text -> Entity Operator
-          findOps = (flip Map.lookup) pks  . toLower . (filter (/= ' '))
+      opF <- operatorFinder
+      let findOps op = case opF op of
+            Just (Entity opId operator) | operatorActive operator -> Just (Operator' opId operator)
+            Just (Entity _ operator ) -> error $ "Should not happend. Operator "
+                                               <> unpack (operatorNickname operator)
+                                               <> " should be active"
+            Nothing -> Nothing
           findLocs = validateLocation locations
 
       userId <- requireAuthId
       processedAt <- liftIO getCurrentTime
 
-      let docKey = DocumentKey "stocktake" path (maybe "" unTextarea commentM) key (userId) processedAt
+      let docKey = DocumentKey "stocktake" path (maybe "" unTextarea commentM) (unDocumentHash key) (userId) processedAt
           newParam = param {pFileKey = Just key, pFilePath = Just path}
 
       (parsed, finalizer) <- case mode of
@@ -524,7 +516,8 @@ $maybe u <- uploader
                   (zeros, nonZeros)= partition (\r -> rowQuantity r == Known 0)  quicks
                   skusForZeros = zipWith makeSku (map rowStyle quicks) (map rowColour zeros)
                   skusForNonZeros = zipWith makeSku (map rowStyle quicks) (map rowColour nonZeros)
-              invalidPreviousTakes (skusForFull ++ skusForZeros)
+              -- invalidPreviousTakes (skusForFull ++ skusForZeros)
+              -- We don't deactivate boxes at the moment.
               invalidPreviousStocktakes  skusForNonZeros
               return ()
               )
@@ -591,11 +584,13 @@ $maybe u <- uploader
                                                        <> " processed")
                                  )
                                  (return ())
+        process _ _ Save _ _ = error "Already caught. Remove warning" 
+        process _ _ CollectMOP _ _ = error "Already caught. Remove warning" 
        
 quickPrefix = "ZT" :: Text
 quickPrefix :: Text
      
-insertQuickTakes :: MonadIO m => Key DocumentKey -> [FinalQuickRow] -> ReaderT SqlBackend m ()
+insertQuickTakes :: Key DocumentKey -> [FinalQuickRow] -> SqlHandler ()
 -- insertQuickTakes _ [] = return ()
 insertQuickTakes docId quicks = do
   let count = length quicks
@@ -629,16 +624,20 @@ isBarcodeQuick = isPrefixOf quickPrefix
 --                                      [StocktakeActive =. False ]
 --   mapM_ invalid skus
    
-invalidPreviousTakes :: MonadIO m => [Text] -> ReaderT SqlBackend m ()
-invalidPreviousTakes skus0 = do
-  let skus = nub $ sort skus0
-      sql = "UPDATE fames_stocktake st " <>
-            "LEFT JOIN fames_boxtake bt USING (barcode) " <>
-            "SET st.active = 0, bt.active = 0 " <>
-            "WHERE st.stock_id = ?"
-  mapM_ (rawExecute sql) (map (return .toPersistValue) skus)
+
+-- Should update the location history
+-- using deactivateBoxt function.
+-- invalidPreviousTakes :: [Text] -> SqlHandler ()
+-- invalidPreviousTakes skus0 = do
+--   return ()
+--   let skus = nub $ sort skus0
+--       sql = "UPDATE fames_stocktake st " <>
+--             "LEFT JOIN fames_boxtake bt USING (barcode) " <>
+--             "SET st.active = 0, bt.active = 0 " <>
+--             "WHERE st.stock_id = ?"
+--   mapM_ (rawExecute sql) (map (return .toPersistValue) skus)
 -- @TODO factorize with invalidPreviousTakes
-invalidPreviousStocktakes :: MonadIO m => [Text] -> ReaderT SqlBackend m ()
+invalidPreviousStocktakes :: [Text] -> SqlHandler ()
 invalidPreviousStocktakes skus0 = do
   let skus = nub $ sort skus0
       sql = "UPDATE fames_stocktake st " <>
@@ -650,7 +649,7 @@ invalidPreviousStocktakes skus0 = do
 -- We can just scan it's barcode and assume it's content
 -- is identical to when it's been scanned (and sealed) the last time
 -- We just need to update the operator and date (and pop the old one to history)
-updateLookedUp :: MonadIO m => DocumentKeyId -> [(Int, FinalFullRow)] -> ReaderT SqlBackend m ()
+updateLookedUp :: DocumentKeyId -> [(Int, FinalFullRow)] -> SqlHandler ()
 updateLookedUp docKey i'rows = do
   let s = snd (headEx i'rows)
   let barcode = rowBarcode s
@@ -675,17 +674,10 @@ updateLookedUp docKey i'rows = do
   -- reactivate box if needed and update location history
   -- only if index = 0
   boxtakeM <- getBy (UniqueBB barcode)
-  case boxtakeM of
-     Nothing -> return ()
-     Just (Entity key old) -> update key [ BoxtakeLocation =. expanded (rowLocation s)
-                                         , BoxtakeDate =. rowDate s
-                                         , BoxtakeOperator =. opId (rowOperator s)
-                                         , BoxtakeDocumentKey =. docKey
-                                         , BoxtakeLocationHistory =. (boxtakeDate old
-                                                             , boxtakeLocation old
-                                                             ) : boxtakeLocationHistory old
-                                         , BoxtakeActive =. True
-                                         ]
+  forM_ boxtakeM $ updateBoxtakeLocation docKey
+                                         (expanded $ rowLocation s)
+                                         (opId (rowOperator s))
+                                         (rowDate s)
 
 -- * Csv
 
@@ -1048,7 +1040,7 @@ parseTakes skus opf locf bytes = either id ParsingCorrect $ do
     
   raws <- parseSpreadsheet mempty Nothing bytes <|&> WrongHeader
   rows <- validateAll (validateRaw opf locf) raws <|&> InvalidFormat
-  valids <- validateRows skus rows <|&> InvalidData 
+  valids <- validateRows skus rows <|&> InvalidData [] []
   Right valids
 
   where -- validateAll :: (a-> Either b c) -> [a] -> Either [b] [c]
@@ -1216,7 +1208,8 @@ lookupBarcodes (ParsingCorrect rows) = do
   finalizeds <- runDB $ mapM lookupBarcode rows
   case sequence finalizeds of
     Right valids -> return (ParsingCorrect (concat valids))
-    Left invalids -> return (InvalidData (concatMap (either return
+    Left invalids -> return (InvalidData [] (lefts finalizeds)
+                                         (concatMap (either return
                                                             (map transformValid')
                                                     )
                                                     finalizeds
@@ -1226,7 +1219,7 @@ lookupBarcodes (ParsingCorrect rows) = do
   
 lookupBarcodes result = return result
 
-lookupBarcode :: MonadIO m => ValidRow -> ReaderT SqlBackend m (Either RawRow [ValidRow])
+lookupBarcode :: ValidRow -> SqlHandler (Either RawRow [ValidRow])
 lookupBarcode valid@(BLookupST row@TakeRow{..}) = do
   let barcode = validValue rowBarcode
       style = validValue rowStyle
@@ -1275,7 +1268,7 @@ lookupBarcode row = return . return $ return row
 
 deriving instance Show PackingListDetail
 -- | Fetch box content information from a packing list 
-lookupPackingListDetail :: (MonadIO m) => (Text -> [t] -> Maybe a) -> Text -> ReaderT SqlBackend m (Either a [(Text, Int)])
+lookupPackingListDetail :: (Text -> [t] -> Maybe a) -> Text -> SqlHandler (Either a [(Text, Int)])
 lookupPackingListDetail checkStyle barcode = do
   detailE <- getBy (UniquePLB barcode)
   return $ case detailE of
@@ -1454,12 +1447,14 @@ mopToFinalRow user day (Single style, Single variation , Single quantity, Single
   in QuickST $ TakeRow {..}
 
   
-cleanupTopick :: (MonadIO m) => ValidRow -> ReaderT SqlBackend m ()
+cleanupTopick :: ValidRow -> SqlHandler ()
 cleanupTopick (QuickST TakeRow{..}) = do
   let sku = makeSku (validValue rowStyle) (validValue rowColour)
   deleteWhere [FA.TopickSku ==. Just sku, FA.TopickType ==. Just "lost"]
   deleteWhere [FA.TopickSku ==. Just sku, FA.TopickType ==. Just "stocktake"]
-
+cleanupTopick  (FullST _) = error "Should not happen"
+cleanupTopick (BLookedupST _) = error "Should not happen"
+cleanupTopick (BLookupST _) = error "Should not happen"
 -- * Rendering
 
 -- renderRow :: TakeRow _ -> Widget
@@ -1503,11 +1498,11 @@ instance Renderable Location' where
 
 classForRaw :: RawRow -> Text                                 
 classForRaw raw = ""
-classForRaw raw = case validateRaw (const Nothing) (const Nothing) raw of
-  Left _ -> "invalid bg-danger"
-  Right row -> case validateRow mempty NoCheckBarcode row of
-    Left _ -> "bg-warning"
-    Right _ -> ""
+-- classForRaw raw = case validateRaw (const Nothing) (const Nothing) raw of
+--   Left _ -> "invalid bg-danger"
+--   Right row -> case validateRow mempty NoCheckBarcode row of
+--     Left _ -> "bg-warning"
+-- Right _ -> ""
 
 -- renderRows :: (Renderable r) => (r -> _ -> [r] -> Widget)
 renderRows classFor rows = do

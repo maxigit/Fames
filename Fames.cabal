@@ -24,7 +24,7 @@ library
       legacy
       app
       fay-shared
-  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures
+  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures NamedWildCards
   build-depends:
       containers
     , base >=4 && <5
@@ -98,7 +98,7 @@ library
     , tabular >= 2.2.7 && <2.3
     , parsec >= 3.1 && < 3.2
   if (flag(dev)) || (flag(library-only))
-    ghc-options: -Wall -fwarn-tabs -O0 -j6
+    ghc-options: -fwarn-tabs -fwarn-incomplete-patterns -fwarn-incomplete-record-updates -fwarn-missing-fields -Werror -fno-warn-partial-type-signatures -O0 -j6
     cpp-options: -DDEVELOPMENT
   else
     ghc-options: -w -fwarn-tabs -Wno-type-defaults -O2 -j6
@@ -131,6 +131,7 @@ library
       Handler.WH
       Handler.WH.Barcode
       Handler.WH.Boxtake
+      Handler.WH.Boxtake.Upload
       Handler.WH.Dimensions
       Handler.WH.Location
       Handler.WH.PackingList
@@ -139,6 +140,8 @@ library
       Import
       Import.NoFoundation
       Model
+      Model.Boxtake
+      Model.DocumentKey
       ModelField
       Role
       RoutePiece
@@ -170,7 +173,7 @@ executable Fames
   main-is: main.hs
   hs-source-dirs:
       app
-  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures
+  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures NamedWildCards
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -j6
   build-depends:
       containers
@@ -270,7 +273,7 @@ test-suite test
   main-is: Spec.hs
   hs-source-dirs:
       test
-  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures
+  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures NamedWildCards
   ghc-options: -w -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       containers
@@ -374,6 +377,7 @@ test-suite test
       Handler.GLEnterReceiptSheetSpec
       Handler.HomeSpec
       Handler.WHBarcodeSpec
+      Handler.WHBoxtake.UploadSpec
       Handler.WHPackingListSpec
       Handler.WHStockAdjustmentSpec
       Handler.WHStocktakeSpec
