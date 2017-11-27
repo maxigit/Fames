@@ -364,15 +364,14 @@ loadMissingFromStyleAndShelves sessions0 = do
   
 -- ** Save boxtake
 -- | Update boxtake to the new location or disable them if missing. wwkk 1k
-saveFromSession :: DocumentKeyId -> Session -> SqlHandler ()
-saveFromSession docKey Session{..} = do
-  mapM_ (saveLocation docKey) (sessionRows)
+saveFromSession :: Session -> SqlHandler ()
+saveFromSession Session{..} = do
+  mapM_ saveLocation (sessionRows)
   mapM_ (deactivateBoxtake sessionDate) sessionMissings
 
-saveLocation :: DocumentKeyId -> Row  -> SqlHandler ()
-saveLocation docKey Row{..} = do
-  forM_ rowBoxtake $ updateBoxtakeLocation docKey
-                                           rowLocation
+saveLocation :: Row  -> SqlHandler ()
+saveLocation Row{..} = do
+  forM_ rowBoxtake $ updateBoxtakeLocation rowLocation
                                            (entityKey rowOperator)
                                            rowDate
 

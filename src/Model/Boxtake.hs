@@ -8,12 +8,15 @@ import Handler.Util
 -- * Util
 -- * DB
 -- | Update the location of a boxtake and reactivate if needed
-updateBoxtakeLocation :: DocumentKeyId -> Text -> OperatorId -> Day -> Entity Boxtake -> SqlHandler ()
-updateBoxtakeLocation docKey location operatorId date (Entity key Boxtake{..}) = do
+-- We don't update the document key to keep the original one.
+-- In fact we can't, as there is a unique (reference, document_key).
+-- Changing the document key will require to change the reference as well
+-- to avoid collision.
+updateBoxtakeLocation :: Text -> OperatorId -> Day -> Entity Boxtake -> SqlHandler ()
+updateBoxtakeLocation location operatorId date (Entity key Boxtake{..}) = do
      update key [ BoxtakeLocation =. location
                 , BoxtakeDate =. date
                 , BoxtakeOperator =. operatorId
-                , BoxtakeDocumentKey =. docKey
                 , BoxtakeLocationHistory =. (boxtakeDate
                                     , boxtakeLocation
                                     ) : boxtakeLocationHistory

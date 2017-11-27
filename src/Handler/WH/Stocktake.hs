@@ -666,8 +666,7 @@ updateLookedUp docKey i'rows = do
   -- reactivate box if needed and update location history
   -- only if index = 0
   boxtakeM <- getBy (UniqueBB barcode)
-  forM_ boxtakeM $ updateBoxtakeLocation docKey
-                                         (expanded $ rowLocation s)
+  forM_ boxtakeM $ updateBoxtakeLocation (expanded $ rowLocation s)
                                          (opId (rowOperator s))
                                          (rowDate s)
 
