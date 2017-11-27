@@ -352,6 +352,8 @@ table.collapse.in
   <div.panel-heading>
     <table style="width:100%;"><tr>
       <td> #{sessionLocation}
+      <td> #{tshow $ length sessionRows} Boxes
+      <td> #{tshow $ length sessionMissings } Missings
       <td> #{formatDouble volume} m<sup>3
       <td><span style="float:right">  #{operatorNickname (entityVal sessionOperator)} - #{tshow sessionDate}
   <table.table.table-hover.collapse id="#{sessionId}">
