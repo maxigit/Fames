@@ -78,14 +78,10 @@ postItemsIndexR mode = do
   action <- lookupPostParam "button"
   (param,_,_) <- getPostIndexParam (paramDef mode)
   case action >>= readMay of
-    Just CreateMissingBtn ->  do
-        createMissing param
-    Just ActivateBtn-> do
-        activate param
-    Just DeactivateBtn -> do
-        deactivate param
-    Just DeleteBtn
-        deleteItems param
+    Just CreateMissingBtn -> createMissing param
+    Just ActivateBtn      -> activate param
+    Just DeactivateBtn    -> deactivate param
+    Just DeleteBtn        -> deleteItems param
     _ -> return ()
   renderIndex param ok200
 
