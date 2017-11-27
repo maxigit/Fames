@@ -77,14 +77,14 @@ postItemsIndexR :: Maybe ItemViewMode -> Handler TypedContent
 postItemsIndexR mode = do
   action <- lookupPostParam "button"
   (param,_,_) <- getPostIndexParam (paramDef mode)
-  case action of
-    Just "create" ->  do
+  case action >>= readMay of
+    Just CreateMissingBtn ->  do
         createMissing param
-    Just "activate" -> do
+    Just ActivateBtn-> do
         activate param
-    Just "deactivate" -> do
+    Just DeactivateBtn -> do
         deactivate param
-    Just "delete" -> do
+    Just DeleteBtn
         deleteItems param
     _ -> return ()
   renderIndex param ok200
