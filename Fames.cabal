@@ -141,6 +141,7 @@ library
       Import.NoFoundation
       Model
       Model.Boxtake
+      Model.DocumentKey
       ModelField
       Role
       RoutePiece

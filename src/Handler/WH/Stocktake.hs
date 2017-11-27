@@ -67,7 +67,7 @@ data StyleComplete = StyleComplete | StyleIncomplete | StyleAddition
 -- | Should be Either FileInfo (Text, Text)
 data FormParam = FormParam
  { pFileInfo :: Maybe FileInfo
- , pFileKey :: Maybe Text
+ , pFileKey :: Maybe DocumentHash
  , pFilePath :: Maybe Text
  , pEncoding :: Encoding
  , pComment :: Maybe Textarea
@@ -405,7 +405,7 @@ processStocktakeSheet mode = do
       -- TODO move to reuse
       -- check if the document has already been uploaded
       -- and reject it.
-      documentKey <- runDB $ getBy (UniqueSK key)
+      documentKey <- runDB $ getDocumentKeyByHash key
       forM documentKey $ \(Entity _ doc) -> do
         uploader <- runDB $ get (documentKeyUserId doc)
         let msg = [shamlet|Document has already been uploaded
@@ -433,7 +433,7 @@ $maybe u <- uploader
       userId <- requireAuthId
       processedAt <- liftIO getCurrentTime
 
-      let docKey = DocumentKey "stocktake" path (maybe "" unTextarea commentM) key (userId) processedAt
+      let docKey = DocumentKey "stocktake" path (maybe "" unTextarea commentM) (unDocumentHash key) (userId) processedAt
           newParam = param {pFileKey = Just key, pFilePath = Just path}
 
       (parsed, finalizer) <- case mode of

@@ -187,7 +187,7 @@ processUpload mode param = do
 
       key = computeDocumentKey bytes
 
-  documentKey <- runDB $ (getBy (UniqueSK key))
+  documentKey <- runDB $ getDocumentKeyByHash key
       -- TODO used in Stocktake factorize
   _ <- forM documentKey $ \(Entity _ doc) -> do
     uploader <- runDB $ get (documentKeyUserId doc)
@@ -1207,21 +1207,10 @@ instance Renderable [ParseDeliveryError] where
 |]
 
 -- * Saving
-createDocumentKey ::  Text -> Text -> Text -> SqlHandler (Key DocumentKey)
-createDocumentKey key reference comment = do
-  userId <- lift requireAuthId
-  processedAt <- liftIO getCurrentTime
-  let documentKey = DocumentKey "packinglist" reference
-                                comment
-                                key userId processedAt
-  insert documentKey
-
-
-
-savePLFromRows :: Text -> UploadParam -> [(PLOrderRef, [PLBoxGroup])] -> Handler (PackingList, [PackingListDetail])
+savePLFromRows :: DocumentHash -> UploadParam -> [(PLOrderRef, [PLBoxGroup])] -> Handler (PackingList, [PackingListDetail])
 savePLFromRows key param sections = do
   runDB $ do
-    docKey <- createDocumentKey key (invoiceRef param) (maybe "" unTextarea (comment param))
+    docKey <- createDocumentKey (DocumentType "packinglist") key (invoiceRef param) (maybe "" unTextarea (comment param))
     let nOfCartons (_, groups) = sum (map (validValue . plNumberOfCarton . snd) groups)
         pl = createPLFromForm docKey (sum (map nOfCartons sections)) param
     pKey <- insert pl
@@ -1285,7 +1274,7 @@ updateDocumentKey ::  Key PackingList -> ByteString -> SqlHandler ()
 updateDocumentKey plKey bytes  = do
   let key = computeDocumentKey bytes
 
-  documentKey <- getBy (UniqueSK key)
+  documentKey <- getDocumentKeyByHash key
 
 
   pl <- getJust plKey
@@ -1295,7 +1284,7 @@ updateDocumentKey plKey bytes  = do
       comment = documentKeyComment oldKey ++ "\nedited"
 
   docKey <- case documentKey of
-    Nothing -> createDocumentKey key reference comment
+    Nothing -> createDocumentKey (DocumentType "packinglist") key reference comment
     Just k -> return $ entityKey k
 
   update plKey [PackingListDocumentKey =. docKey ]

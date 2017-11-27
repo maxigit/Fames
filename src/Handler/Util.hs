@@ -12,7 +12,6 @@ module Handler.Util
 , uploadFileFormWithComment
 , Encoding(..)
 , readUploadUTF8
-, computeDocumentKey
 , setAttachment
 , generateLabelsResponse
 , firstOperator
@@ -36,7 +35,6 @@ import Data.Conduit.List (consume)
 import Data.Text.Encoding(decodeLatin1)
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               ) -- withSmallInput)
-import qualified Crypto.Hash as Crypto
 import qualified Data.Conduit.Binary as CB
 -- import Data.Conduit.List (consume)
 import System.Directory (removeFile)
@@ -50,6 +48,7 @@ import Data.Time (diffDays, addGregorianMonthsClip)
 import System.Directory (doesFileExist)
 import qualified Data.Map.Strict as Map
 import qualified Data.List as Data.List
+import Model.DocumentKey
 -- import Data.IOData (IOData)
 
 -- * Display entities
@@ -152,13 +151,9 @@ uploadFileFormWithComment :: Markup
                           Handler
                           (FormResult (FileInfo, Encoding, Maybe Textarea), Widget)
 uploadFileFormWithComment = uploadFileForm (aopt textareaField "comment" Nothing)
-computeDocumentKey :: ByteString -> Text
-computeDocumentKey bs = let
-  digest = Crypto.hash bs :: Crypto.Digest Crypto.SHA256
-  in tshow digest
 
 -- | Retrieve the content of an uploaded file.
-readUploadUTF8 :: MonadResource m => FileInfo -> Encoding -> m (ByteString, Text)
+readUploadUTF8 :: MonadResource m => FileInfo -> Encoding -> m (ByteString, DocumentHash)
 readUploadUTF8  fileInfo encoding = do
   c <- fileSource fileInfo $$ consume
   let bs = decode encoding (concat c)
@@ -188,14 +183,14 @@ readUploadOrCacheUTF8
   :: (MonadIO m, MonadResource m)
   => Encoding
   -> Maybe FileInfo -- file to upload
-  -> Maybe Text -- Key if already uploaded
+  -> Maybe DocumentHash -- Key if already uploaded
   -> Maybe Text -- Path if already uploaded
-  -> m (Maybe (ByteString, Text, Text))
+  -> m (Maybe (ByteString, DocumentHash, Text))
 readUploadOrCacheUTF8  encoding fileInfoM keyM pathM = do
-      let tmp file = "/tmp" </> (unpack file)
+      let tmp (DocumentHash file) = "/tmp" </> (unpack file)
       case (fileInfoM, keyM, pathM) of
         -- key and path set. Reuse the temporary file
-        (_, Just key, Just path) -> do
+        (_, Just (key), Just path) -> do
           ss <- readFile (tmp key)
           return $ Just (ss, key, path)
         (Just fileInfo, _, _) -> do

@@ -40,7 +40,7 @@ data SavingMode = Validate | Save deriving (Eq, Read, Show)
 -- | Parameters to upload box moves/scans.
 data UploadParam = UploadParam
   { uFileInfo :: Maybe FileInfo
-  , uFileKey :: Maybe Text
+  , uFileKey :: Maybe DocumentHash
   , uFilePath :: Maybe Text
   , uEncoding :: Encoding
   , uWipeMode :: WipeMode
@@ -407,12 +407,19 @@ processBoxtakeSheet mode = do
           sessions <- parseScan uWipeMode spreadsheet
 
           renderParsingResult (renderBoxtakeSheet Validate (Just paramWithKey) 422 )
-                              (processBoxtakeMove paramWithKey)
+                              (processBoxtakeMove mode paramWithKey)
                               sessions
-processBoxtakeMove :: UploadParam -> ([Session], [StyleMissing]) -> Handler Html
-processBoxtakeMove param (sessions, styleMissings) = do
-  renderUrl <- getUrlRenderParams
-  defaultLayout $ renderSessions renderUrl sessions styleMissings
+processBoxtakeMove :: _ -> UploadParam -> ([Session], [StyleMissing]) -> Handler Html
+processBoxtakeMove Validate param (sessions, styleMissings) = do
+  sessionW <- do
+    renderUrl <- getUrlRenderParams
+    return $ renderSessions renderUrl sessions styleMissings
+    
+  renderBoxtakeSheet Save (Just param) (fromEnum ok200) (setSuccess "Spreadsheet valid") sessionW
+processBoxtakeMove Save param (sessions, styleMissings) = do
+  -- create document
+  setInfo "Not implemented yet"
+  processBoxtakeMove Validate param (sessions, styleMissings)
 
 
 -- * DB Access
