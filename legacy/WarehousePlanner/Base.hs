@@ -49,8 +49,7 @@ instance Monoid Dimension where
 
 data Direction = Vertical | Depth | Horizontal deriving (Show, Eq, Ord, Enum)
 
-m
-
+data Flow = LeftToRight | RightToLeft deriving (Show, Eq, Ord, Enum)
 defaultFlow = LeftToRight
 
 -- | How something is oriented. It indicates  the direction of 

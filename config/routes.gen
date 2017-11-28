@@ -57,7 +57,8 @@
   /cache ACacheR GET POST !group=Cache !title=Cache
 
 /planner PlannerR !planner:
-  /view PViewR GET !group=Planner !title=View
+  /view PViewR GET POST !group=Planner !title=View
+  /image/#Text/#Int64 PImageR GET
   -- Warning ! This code has been generated !}
 
 -- Route
