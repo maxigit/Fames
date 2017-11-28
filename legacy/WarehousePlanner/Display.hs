@@ -5,7 +5,7 @@ import Prelude
 import WarehousePlanner.Base
 import Diagrams.Prelude hiding(Box)
 import Control.Monad.State
-import Diagrams.Backend.SVG 
+import Diagrams.Backend.Cairo 
 import Data.Maybe
 
 display :: WH (Diagram B) s
@@ -16,7 +16,6 @@ display = do
     base <- renderGroup (ShelfProxy (s0))
     return $ g === base
     
-
 
 renderGroup :: ShelfGroup s -> WH (Diagram B) s
 renderGroup (ShelfGroup gs direction) = do

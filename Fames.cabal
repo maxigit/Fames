@@ -126,6 +126,8 @@ library
       Handler.Items
       Handler.Items.History
       Handler.Items.Index
+      Handler.Planner
+      Handler.Planner.View
       Handler.Table
       Handler.Util
       Handler.WH
@@ -160,6 +162,8 @@ library
       Items
       Items.Internal
       Items.Types
+      Planner.Internal
+      Planner.Types
       WH.Barcode
       WH.FA
       WH.FA.Curl
@@ -261,6 +265,8 @@ executable Fames
       Items
       Items.Internal
       Items.Types
+      Planner.Internal
+      Planner.Types
       WH.Barcode
       WH.FA
       WH.FA.Curl

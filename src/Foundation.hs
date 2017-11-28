@@ -93,6 +93,8 @@ deriving instance Generic (FAMES'R)
 instance EnumTreeable (FAMES'R) 
 deriving instance Generic (DC'R)
 instance EnumTreeable (DC'R) 
+deriving instance Generic (PlannerR)
+instance EnumTreeable PlannerR
 
 instance EnumTreeable (Route App)
 
@@ -351,6 +353,7 @@ mainLinks = do
   let links= [ ("General Ledger", GLEnterReceiptSheetR)
              , ("Items", ItemsR (ItemsIndexR Nothing))
              , ("Warehouse", WarehouseR WHStockAdjustmentR)
+             , ("Planner", PlannerR PViewR)
              , ("Admin", AdministratorR AIndexR)
              , ("FA",  FA'R FADebtorsMasterR)
              , ("FAX",  FAX'R FAXItemRequestsR)
