@@ -14,6 +14,8 @@ import Diagrams.Backend.Cairo
 import qualified Yesod.Media.Simple as M
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 
+import WarehousePlanner.Display
+import Unsafe.Coerce (unsafeCoerce)
 -- * Type
 data FormParam = FormParam
   { pOrgfile :: Textarea
@@ -21,7 +23,8 @@ data FormParam = FormParam
 
 defaultParam = FormParam (Textarea "")
 
-data WarehouseCache = forall s . WarehouseCache (Warehouse s) deriving Typeable
+-- data WarehouseCache = forall s . WarehouseCache (Warehouse s, ShelfGroup s) deriving Typeable
+data WarehouseCache = WarehouseCache (Warehouse (), ShelfGroup ()) deriving Typeable
 data DiagCache = DiagCache (Diagram Cairo) deriving Typeable
 -- * Handler
 getPViewR :: Handler Html
@@ -37,7 +40,10 @@ postPViewR = do
 
 getPImageR :: Text -> Int64 -> Handler TypedContent
 getPImageR sha width = do
-  diag <- cacheWarehouse $ {-error "not there !" -- -}  warehouseFromOrg "" -- hack use the last cached warehouse
+  -- diag <- cacheWarehouse $ {-error "not there !" -- -}  warehouseFromOrg "" -- hack use the last cached warehouse
+  WarehouseCache (w0, groups0) <- cacheWarehouse $ error "not there !" 
+
+  diag <- execWH (unsafeCoerce w0) (renderGroup (unsafeCoerce groups0))
   sendResponseDiag width diag
   
 -- * Form
@@ -51,7 +57,7 @@ paramForm param = renderBootstrap3 BootstrapBasicForm form
 
 renderView :: FormParam -> Handler Html
 renderView param = do
-  diag <- cacheWarehouse $ warehouseFromOrg "" -- hack use the last cached warehouse
+  warehouse <- cacheWarehouse $ warehouseFromOrg "" -- hack use the last cached warehouse
   (formW, encType) <- generateFormPost $ paramForm (Just param)
 
   let imgRoute width = PlannerR (PImageR "pipo" width)
@@ -72,9 +78,8 @@ sendResponseDiag width diag =  do
   M.renderContent (M.SizedDiagram size diag)
 
 cacheWarehouse warehouse = do
-  let d0 = warehouseToDiagram warehouse
-  (DiagCache d) <- cached $ (DiagCache <$> d0)
+  cache0 False cacheForEver "titi" $ do
+    (groups, w) <- runWH warehouse emptyWarehouse
+    return $ WarehouseCache (unsafeCoerce w, unsafeCoerce groups)
   -- let d = d0
-  return d
-
 

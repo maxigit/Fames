@@ -4,23 +4,22 @@ import ClassyPrelude.Yesod
 import WarehousePlanner.Display
 import WarehousePlanner.Base
 import Control.Monad.ST (runST, stToIO, RealWorld)
-import Control.Monad.State (evalStateT)
+import Control.Monad.State (evalStateT,runStateT)
+
+import Unsafe.Coerce (unsafeCoerce)
 
 
 -- * Example
 warehouseExamble  = do
   let dim0 = Dimension 270 80 145
   let dim1 = Dimension 31 34 72
-  shelf <- newShelf "A1" Nothing dim0  dim0 DefaultOrientation ColumnFirst
-  shelf2 <- newShelf "A2" Nothing dim0  dim0 DefaultOrientation ColumnFirst
-  let shelfid = shelfId shelf
-  boxes <- mapM (\i -> newBox "style" (show i) dim1 up shelf [up] ) [1..30]
-  moveBoxes boxes [shelf2]
-  rearrangeShelves [shelf, shelf2]
+  shelves <- mapM (  \i -> newShelf ("A1" <> show i) Nothing dim0  dim0 DefaultOrientation ColumnFirst ) [1..50]
+  let shelfid = shelfId (headEx shelves)
+  boxes <- mapM (\i -> newBox "style" (show i) dim1 up shelfid [up] ) [1..300]
+  moveBoxes boxes shelves
+  -- rearrangeShelves [shelf, shelf2]
   
-  return (ShelfGroup [ShelfProxy shelfid, ShelfProxy (shelfId shelf2)]
-                                   Vertical
-                       )
+  return $ ShelfGroup (map (ShelfProxy .shelfId) shelves) Vertical
 
 -- * Parsing
 -- warehouseFromOrg :: WH (ShelfGroup s)
@@ -38,3 +37,12 @@ warehouseToDiagram warehouse = do
 
 execWH0 wh = execWH emptyWarehouse
 execWH warehouse0 wh = lift $ stToIO $ evalStateT wh warehouse0
+
+runWH wh warehouse0= lift . stToIO $ runStateT wh warehouse0
+
+
+freeze :: Warehouse s -> Warehouse ()
+freeze = unsafeCoerce
+
+unfreeze :: Warehouse () -> Warehouse s
+unfreeze = unsafeCoerce
