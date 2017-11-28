@@ -6,17 +6,18 @@ module Handler.WH.Boxtake
 , getWHBoxtakeDetailR
 , getWHBoxtakeValidateR
 , postWHBoxtakeValidateR
-, getWHBoxtakeSaveR
 , postWHBoxtakeSaveR
+, getWHBoxtakePlannerR
 ) where
 
-import Import
+import Import hiding(Planner)
 import Yesod.Form.Bootstrap3
 import Handler.CsvUtils
 import Data.List(nub)
 import qualified Data.Map.Strict as Map
 import Text.Printf(printf)
 import Handler.WH.Boxtake.Upload
+import Data.Conduit.List(sourceList)
 
 -- * Types
 data RuptureMode = BarcodeRupture | LocationRupture | DescriptionRupture
@@ -76,15 +77,56 @@ getWHBoxtakeDetailR barcode = do
 getWHBoxtakeValidateR :: Handler Html
 getWHBoxtakeValidateR = renderBoxtakeSheet Validate Nothing 202 (return ()) (return ())
 
-postWHBoxtakeValidateR :: Handler Html
+postWHBoxtakeValidateR :: Handler TypedContent
 postWHBoxtakeValidateR = processBoxtakeSheet Validate
 
-getWHBoxtakeSaveR :: Handler Html
-getWHBoxtakeSaveR = renderBoxtakeSheet Save Nothing 202 (return ()) (return ())
+postWHBoxtakeSaveR :: Handler TypedContent
+postWHBoxtakeSaveR = do
+  actionM <- lookupPostParam "action"
+  case actionM of
+    Just "Planner" -> spreadSheetToCsv
+    _ -> processBoxtakeSheet Save
 
-postWHBoxtakeSaveR :: Handler Html
-postWHBoxtakeSaveR = processBoxtakeSheet Validate
+-- * Planner
+getWHBoxtakePlannerR :: Handler TypedContent
+getWHBoxtakePlannerR = do
+  let source = plannerSource
+  renderPlannerCsv source
+  
+renderPlannerCsv boxSources = do
+  let source = boxSourceToCsv boxSources
+  today <- utctDay <$> liftIO getCurrentTime
+  setAttachment ("Planner-" <> fromStrict (tshow today) <> ".csv")
+  respondSourceDB "text/csv" (source =$= mapC (toFlushBuilder))
 
+-- plannerSource :: _ => Source m Text
+plannerSource = selectSource [BoxtakeActive ==. True] [Asc BoxtakeLocation, Asc BoxtakeDescription]
+  -- yield "Bay No,Style,QTY,Length,Width,Height,Orientations\n"
+  -- boxes =$= mapC toPlanner
+  
+toPlanner :: (Entity Boxtake) -> Text
+toPlanner (Entity boxId Boxtake{..}) = 
+  boxtakeLocation
+  <> "," <> (fromMaybe ("#" <> tshow boxId) boxtakeDescription)
+  <> ",1"
+  <> "," <> tshow boxtakeLength
+  <> "," <> tshow boxtakeWidth
+  <> "," <> tshow boxtakeHeight
+  <> "," -- orientation
+  <> "\n"
+
+boxSourceToCsv boxSources = do
+  yield ("Bay No,Style,QTY,Length,Width,Height,Orientations\n" :: Text)
+  boxSources =$= mapC toPlanner
+
+  
+spreadSheetToCsv :: Handler TypedContent
+spreadSheetToCsv = processBoxtakeSheet' Save go
+  where go _ _ (sessions, _) = do
+          let boxSources = sourceList (mapMaybe rowBoxtake (concatMap sessionRows sessions))
+          renderPlannerCsv boxSources
+
+          
 -- * Forms
 paramForm :: Maybe FormParam -> _
 paramForm param0 = renderBootstrap3 BootstrapBasicForm form
@@ -349,6 +391,8 @@ table.collapse.in
   <div.panel-heading>
     <table style="width:100%;"><tr>
       <td> #{sessionLocation}
+      <td> #{tshow $ length sessionRows} Boxes
+      <td> #{tshow $ length sessionMissings } Missings
       <td> #{formatDouble volume} m<sup>3
       <td><span style="float:right">  #{operatorNickname (entityVal sessionOperator)} - #{tshow sessionDate}
   <table.table.table-hover.collapse id="#{sessionId}">
@@ -375,7 +419,6 @@ renderBoxtakeSheet mode paramM status message pre = do
   let (action, button, btn) = case mode of
         Validate -> (WHBoxtakeValidateR, "validate" :: Text, "primary" :: Text)
         Save -> (WHBoxtakeSaveR, "save", "danger")
-
   (uploadFileFormW, encType) <- generateFormPost $ uploadForm mode paramM
   message
   sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
@@ -384,10 +427,14 @@ renderBoxtakeSheet mode paramM status message pre = do
     <form #upload-form role=form method=post action=@{WarehouseR action} enctype=#{encType}>
       ^{uploadFileFormW}
       <button type="submit" name="#{button}" .btn class="btn-#{btn}">#{button}
+      $if (mode == Save) 
+        <button type="submit" name="action" value="Planner" .btn.btn-info>Export
 |]
 
-processBoxtakeSheet :: SavingMode -> Handler Html
-processBoxtakeSheet mode = do
+processBoxtakeSheet' :: SavingMode
+                     -> (SavingMode -> UploadParam -> ([Session], [StyleMissing]) -> Handler TypedContent)
+                     -> Handler TypedContent
+processBoxtakeSheet' mode onSuccess = do
   ((fileResp, postFileW), enctype) <- runFormPost (uploadForm mode Nothing)
   case fileResp of
     FormMissing -> error "form missing"
@@ -397,30 +444,46 @@ processBoxtakeSheet mode = do
       case skpM of
         Nothing -> do
           let msg = setError "No file provided."
-          renderBoxtakeSheet  Validate
+          selectRep . provideRep $ renderBoxtakeSheet  Validate
                               (Just $ param0{uFileInfo=Nothing, uFileKey=Nothing, uFilePath=Nothing})
                               422
                               msg
                               (return ())
         Just (spreadsheet, key , path) -> do
-          let paramWithKey = param0 {uFileInfo=Nothing, uFileKey=Just key, uFilePath=Just path}
+          let paramWithKey = param0 {uFileKey=Just key, uFilePath=Just path}
           sessions <- parseScan uWipeMode spreadsheet
+          documentKey'msgM <- runDB $ loadAndCheckDocumentKey key
+          docM <- forM documentKey'msgM $  \(entity,  msg) -> do
+              setWarning msg
+              return entity
 
-          renderParsingResult (renderBoxtakeSheet Validate (Just paramWithKey) 422 )
-                              (processBoxtakeMove mode paramWithKey)
+          let convert f w = toTypedContent <$> (f w)
+          renderParsingResult (convert .  renderBoxtakeSheet Validate (Just paramWithKey) 422 )
+                              (onSuccess mode paramWithKey)
                               sessions
-processBoxtakeMove :: _ -> UploadParam -> ([Session], [StyleMissing]) -> Handler Html
-processBoxtakeMove Validate param (sessions, styleMissings) = do
-  sessionW <- do
-    renderUrl <- getUrlRenderParams
-    return $ renderSessions renderUrl sessions styleMissings
-    
-  renderBoxtakeSheet Save (Just param) (fromEnum ok200) (setSuccess "Spreadsheet valid") sessionW
-processBoxtakeMove Save param (sessions, styleMissings) = do
-  -- create document
-  setInfo "Not implemented yet"
-  processBoxtakeMove Validate param (sessions, styleMissings)
 
+processBoxtakeSheet :: SavingMode -> Handler TypedContent
+processBoxtakeSheet mode = processBoxtakeSheet' mode go where
+  go mode param sessions = fmap toTypedContent $ processBoxtakeMove mode param sessions
+
+processBoxtakeMove :: SavingMode
+                   -> UploadParam
+                   -> ([Session], [StyleMissing])
+                   -> Handler Html
+processBoxtakeMove Validate param (sessions, styleMissings) = do
+  renderUrl <- getUrlRenderParams
+  sessionW <- do
+    return $ renderSessions renderUrl sessions styleMissings
+  renderBoxtakeSheet Save (Just param) (fromEnum ok200) (setSuccess "Spreadsheet valid") sessionW
+
+processBoxtakeMove Save param (sessions, styleMissings) = do
+  runDB $ do
+        today <- utctDay <$> liftIO getCurrentTime
+        let maxDate = fromMaybe today $ maximumMay (map sessionDate sessions)
+              
+        mapM_ saveFromSession sessions
+        mapM_ (deactivateBoxtake maxDate) (concatMap missingBoxes styleMissings)
+  renderBoxtakeSheet Validate Nothing (fromEnum created201) (setSuccess "Boxtake uploaded successfully") (return ())
 
 -- * DB Access
 loadBoxtakes :: FormParam -> Handler [Entity Boxtake]

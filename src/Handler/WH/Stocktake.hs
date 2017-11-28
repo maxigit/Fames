@@ -402,18 +402,10 @@ processStocktakeSheet mode = do
           time <- liftIO getCurrentTime
           return ("", computeDocumentKey (encodeUtf8 (tshow time)), "collectMOP" )
 
-      -- TODO move to reuse
       -- check if the document has already been uploaded
       -- and reject it.
-      documentKey <- runDB $ getDocumentKeyByHash key
-      forM documentKey $ \(Entity _ doc) -> do
-        uploader <- runDB $ get (documentKeyUserId doc)
-        let msg = [shamlet|Document has already been uploaded
-$maybe u <- uploader
-  as "#{documentKeyName doc}"
-  by #{userIdent u}
-  on the #{tshow $ documentKeyProcessedAt doc}.
-|]
+      (documentKey'msgM) <- runDB $ loadAndCheckDocumentKey key
+      forM documentKey'msgM  $ \(Entity _ doc, msg) -> do
         case (mode, pOveridde param) of
           (Save, False) -> renderWHStocktake Validate Nothing  422 (setError msg) (return ()) -- should exit
           _ -> setWarning msg >> return ""
@@ -674,8 +666,7 @@ updateLookedUp docKey i'rows = do
   -- reactivate box if needed and update location history
   -- only if index = 0
   boxtakeM <- getBy (UniqueBB barcode)
-  forM_ boxtakeM $ updateBoxtakeLocation docKey
-                                         (expanded $ rowLocation s)
+  forM_ boxtakeM $ updateBoxtakeLocation (expanded $ rowLocation s)
                                          (opId (rowOperator s))
                                          (rowDate s)
 

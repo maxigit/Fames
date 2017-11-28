@@ -307,7 +307,6 @@ loadMissing sessions = do
   (_, new) <- runDB $ foldM loadMissingForSession (barcodeSet, []) sessions
   return (reverse new, [])
 
-
 loadMissingForSession :: ((Set Text), [Session]) -> Session -> _ (Set Text, [Session])
 loadMissingForSession (barcodes, sessions) session = do
   let location = sessionLocation session
@@ -316,7 +315,10 @@ loadMissingForSession (barcodes, sessions) session = do
                          )
                          []
   let missings = filter missing allboxes
-      missing (Entity _ Boxtake{..}) = boxtakeBarcode `notElem` barcodes || location `elem` (splitOn "|" boxtakeLocation)
+      missing (Entity _ Boxtake{..}) = boxtakeBarcode `notElem` barcodes
+        && location `elem` (splitOn "|" boxtakeLocation)
+      -- ^ The LIKE filter might result in loading boxes not from the current locations
+      -- They need NOT to be shown as missing
 
       missingBarcodes = Set.fromList $ map (boxtakeBarcode . entityVal) missings
       newSession = session {sessionMissings = missings}
@@ -362,15 +364,14 @@ loadMissingFromStyleAndShelves sessions0 = do
   
 -- ** Save boxtake
 -- | Update boxtake to the new location or disable them if missing. wwkk 1k
-saveFromSession :: DocumentKeyId -> Session -> Handler ()
-saveFromSession docKey Session{..} = runDB $ do
-  mapM_ (saveLocation docKey) (sessionRows)
+saveFromSession :: Session -> SqlHandler ()
+saveFromSession Session{..} = do
+  mapM_ saveLocation (sessionRows)
   mapM_ (deactivateBoxtake sessionDate) sessionMissings
 
-saveLocation :: DocumentKeyId -> Row  -> SqlHandler ()
-saveLocation docKey Row{..} = do
-  forM_ rowBoxtake $ updateBoxtakeLocation docKey
-                                           rowLocation
+saveLocation :: Row  -> SqlHandler ()
+saveLocation Row{..} = do
+  forM_ rowBoxtake $ updateBoxtakeLocation rowLocation
                                            (entityKey rowOperator)
                                            rowDate
 
