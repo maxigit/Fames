@@ -6,8 +6,8 @@ module Handler.WH.Boxtake
 , getWHBoxtakeDetailR
 , getWHBoxtakeValidateR
 , postWHBoxtakeValidateR
-, getWHBoxtakeSaveR
 , postWHBoxtakeSaveR
+, getWHBoxtakePlannerR
 ) where
 
 import Import
@@ -79,11 +79,35 @@ getWHBoxtakeValidateR = renderBoxtakeSheet Validate Nothing 202 (return ()) (ret
 postWHBoxtakeValidateR :: Handler Html
 postWHBoxtakeValidateR = processBoxtakeSheet Validate
 
-getWHBoxtakeSaveR :: Handler Html
-getWHBoxtakeSaveR =  getWHBoxtakeValidateR -- renderBoxtakeSheet Validate Nothing 202 (return ()) (return ())
-
 postWHBoxtakeSaveR :: Handler Html
 postWHBoxtakeSaveR = processBoxtakeSheet Save
+
+-- * Planner
+getWHBoxtakePlannerR :: Handler TypedContent
+getWHBoxtakePlannerR = do
+  let source = plannerSource
+  today <- utctDay <$> liftIO getCurrentTime
+  setAttachment ("Planner-" <> fromStrict (tshow today) <> ".csv")
+  respondSourceDB "text/csv" (source =$= mapC (toFlushBuilder))
+  
+
+plannerSource :: _ => Source m Text
+plannerSource = do
+  let boxes = selectSource [BoxtakeActive ==. True] [Asc BoxtakeLocation, Asc BoxtakeDescription]
+  yield "Bay No,Style,QTY,Length,Width,Height,Orientations\n"
+  yield "Bay No,Style,QTY,Length,Width,Height,Orientations\n"
+  -- boxes =$= mapC toPlanner
+  
+toPlanner :: (Entity Boxtake) -> Text
+toPlanner (Entity boxId Boxtake{..}) = 
+  boxtakeLocation
+  <> "," <> (fromMaybe ("#" <> tshow boxId) boxtakeDescription)
+  <> ",1"
+  <> "," <> tshow boxtakeLength
+  <> "," <> tshow boxtakeWidth
+  <> "," <> tshow boxtakeHeight
+  <> "," -- orientation
+  <> "\n"
 
 -- * Forms
 paramForm :: Maybe FormParam -> _

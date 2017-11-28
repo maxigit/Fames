@@ -40,6 +40,7 @@
   /boxtake/detail/#Text  WHBoxtakeDetailR GET !boxtake
   /boxtake/validate WHBoxtakeValidateR GET POST !boxtake !title=Upload_Box_Scans
   /boxtake/save WHBoxtakeSaveR POST !boxtake_save
+  /boxtake/planner WHBoxtakePlannerR GET !title=Planner
 
   /dimensions WHDimensionR GET !dimension !title=Dimensions
   /dimensions/bulk WHDimensionBulkR GET POST !title=Dimensions_Bulk !dimension
