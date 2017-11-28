@@ -123,8 +123,12 @@ boxSourceToCsv boxSources = do
 spreadSheetToCsv :: Handler TypedContent
 spreadSheetToCsv = processBoxtakeSheet' Save go
   where go _ _ (sessions, _) = do
-          let boxSources = sourceList (mapMaybe rowBoxtake (concatMap sessionRows sessions))
+          let boxSources = sourceList (concatMap sessionBoxesWithNewLocation sessions)
           renderPlannerCsv boxSources
+        sessionBoxesWithNewLocation Session{..} = do -- []
+                 row <- sessionRows
+                 Just (Entity bId box) <- return $ rowBoxtake row -- skip Nothing
+                 return $ Entity bId box {boxtakeLocation = sessionLocation}
 
           
 -- * Forms
