@@ -8,6 +8,7 @@ import ModelField
 import Yesod.Auth (requireAuthId)
 import Database.Persist.Sql (toSqlKey)
 import qualified Data.List as List
+import Model.DocumentKey
 
 spec :: Spec
 spec = appSpec
@@ -41,9 +42,9 @@ uploadSTSheet route status path overrideM = do
       Just over -> do
         sheet <- liftIO $ readFile path
         let key = computeDocumentKey  sheet
-        liftIO  $ writeFile ("/tmp/" <> unpack key) sheet
+        liftIO  $ writeFile ("/tmp/" <> unpack (unDocumentHash key)) sheet
         addToken_ "form#upload-form"
-        addPostParam "f1" ("Just "<> key)
+        addPostParam "f1" (tshow $ Just key)
         addPostParam "f2" (tshow $ Just (path))
         addPostParam "f7" $ if over then "yes" else "no"
 

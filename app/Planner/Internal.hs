@@ -6,7 +6,10 @@ import WarehousePlanner.Base
 import Planner.Types
 import Control.Monad.ST (runST, stToIO, RealWorld)
 import Control.Monad.State (evalStateT,runStateT)
+import Control.Monad.Except
 import Data.Text(strip)
+import qualified Data.Text as Text
+import System.Directory (doesFileExist)
 
 import Unsafe.Coerce (unsafeCoerce)
 import Model.DocumentKey
@@ -44,29 +47,20 @@ parseLine line | "-- END " `isPrefixOf` line          = Right EndL
 
 -- | Regroup lines into section
 linesToSections :: [TypedLine] -> [Either Text Section]
-linesToSections lines = reverse $ go lines MovesH [] [] where
-  go :: [TypedLine] -> HeaderType -> Content -> [Either Text Section] -> [Either Text Section]
+linesToSections lines = reverse $ go lines MovesH ([]) [] where
+  go :: [TypedLine] -> HeaderType -> [Text] -> [Either Text Section] -> [Either Text Section]
   go [] header current sections = merge header current sections
   go ((CommentL):ls) header current sections = go ls header current sections
   go ((EndL):_) header current sections = go [] header current sections
   go ((HeaderL newHeader):ls) header current sections = -- start new section
         go ls newHeader [] (merge header current sections)
-  go ((TextL txt):ls) header current sections = go ls header (Right txt:current) sections
+  go ((TextL txt):ls) header current sections = go ls header (txt:current) sections
   -- Only one hash can be in a section. Close the previous section and open a new one at the same time
-  go ((HashL sha):ls) header [] sections = go ls header [] ((makeSection header [Left sha]) :sections)
+  go ((HashL sha):ls) header [] sections = go ls header [] (Right (Section header (Left sha)) :sections)
   go ls@((HashL _):_) header current sections = go ls header [] (go [] header current sections)
-  merge :: HeaderType  -> Content -> [Either Text Section] -> [Either Text Section]
+  merge :: HeaderType  -> [Text] -> [Either Text Section] -> [Either Text Section]
   merge header [] sections = sections
-  merge header current sections = (makeSection header (reverse current)) : sections
-
-makeSection :: HeaderType -> Content -> Either Text Section
-makeSection InitialH [Left sha] = Right (InitialS sha)
-makeSection InitialH  _         = Left "Initial section should be made of one and only one SHA"
-makeSection LayoutH content     = Right $ LayoutS content
-makeSection ShelvesH content    = Right $ ShelvesS content
-makeSection StocktakeH content  = Right $ ShelvesS content
-makeSection BoxesH content      = Right $ BoxesS content
-makeSection MovesH content      = Right $ MovesS content
+  merge header current sections = Right (Section header (Right (reverse current))) : sections
 
 
 parseHeader :: Text -> Maybe HeaderType
@@ -79,6 +73,64 @@ parseHeader h = case toLower (strip h) of
   "moves" -> Just MovesH
   _ -> Nothing
   
+-- | Read a scenario text file. Needs IO to cache the section to
+-- tempory file
+readScenario :: MonadIO m => Text -> m (Either Text Scenario)
+readScenario text = do
+  runExceptT $ do
+    sections <-   ExceptT . return $ (parseScenarioFile text)
+    steps' <- mapM (\s -> ExceptT $ cacheSection s) sections
+    ExceptT . return $ makeScenario steps'
+  
+-- | Save a content to a temporary file if needed
+cacheContent :: MonadIO m => Content -> m (Either Text DocumentHash)
+cacheContent (Left sha) = do
+  -- check it exists
+  exist <- liftIO $ doesFileExist (contentPath sha)
+  return $ if exist
+           then Right sha
+           else Left $ "No file found for SHA: " <> (unDocumentHash sha)
+cacheContent (Right texts) = do
+  let bs = encodeUtf8 $ Text.unlines texts
+      key = computeDocumentKey bs
+  writeFile (contentPath key) bs
+
+  return (Right key)
+
+contentPath :: DocumentHash -> FilePath
+contentPath (DocumentHash file) = "/tmp/" <> unpack file
+
+
+cacheSection :: MonadIO m => Section -> m (Either Text (HeaderType, DocumentHash))
+cacheSection Section{..} = runExceptT $ do
+  sha <- ExceptT $ cacheContent sectionContent
+  return $ (sectionType, sha)
+  
+
+retrieveContent :: MonadIO m => DocumentHash -> m (Maybe Text)
+retrieveContent key = do
+  let path = contentPath key
+  exist <- liftIO $ doesFileExist  path
+  if exist
+    then (Just . decodeUtf8) <$> readFile path
+    else return Nothing
+
+
+makeScenario :: [(HeaderType, DocumentHash)]  -> Either Text Scenario
+makeScenario sections0 = do -- Either
+  let (initials, sections1) = partition (( InitialH==). fst) sections0
+      (layouts, sections2) = partition (( LayoutH==). fst) sections1
+      firstOrNone _ [] = Right Nothing
+      firstOrNone _ [x] = Right (Just $ snd x)
+      firstOrNone err _ = Left err
+
+  initial <- firstOrNone "Too many INITIAL sections" initials
+  layout <- firstOrNone "Too many LAYOUT sections" layouts
+
+  let steps = map (uncurry Step) sections2
+
+  Right $ Scenario initial steps layout
+
 -- warehouseFromOrg :: WH (ShelfGroup s)
 warehouseFromOrg text = warehouseExamble
 

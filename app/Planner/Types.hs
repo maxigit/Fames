@@ -5,22 +5,28 @@ import Model.DocumentKey
 import WarehousePlanner.Base
 
 
-type Content = [Either DocumentHash Text]
+type Content = Either DocumentHash [Text]
+
+data Section = Section
+   { sectionType :: HeaderType
+   , sectionContent :: Content
+   } deriving (Show, Read, Eq)
+
 -- * Content Types
 -- | AST-ish of a parsed document
-data Section = LayoutS Content -- describe the layout of the shelves. How to display them
-             | ShelvesS Content -- shelves description
-             | InitialS DocumentHash -- Initial state
-             | StocktakeS Content -- list of boxes and their location
-             | BoxesS Content -- list of boxes without location
-             | MovesS Content -- list of moves : boxes -> shelves
+-- data Section = LayoutS Content -- describe the layout of the shelves. How to display them
+--              | ShelvesS Content -- shelves description
+--              | InitialS DocumentHash -- Initial state
+--              | StocktakeS Content -- list of boxes and their location
+--              | BoxesS Content -- list of boxes without location
+--              | MovesS Content -- list of moves : boxes -> shelves
        
 data TypedLine = CommentL 
               | HeaderL HeaderType
               | TextL Text
               | EndL
               | HashL DocumentHash
-              deriving (Show, Read)
+              deriving (Show, Read, Eq, Ord)
 
 
 data HeaderType = LayoutH | ShelvesH | InitialH | StocktakeH | BoxesH | MovesH
@@ -32,10 +38,10 @@ data HeaderType = LayoutH | ShelvesH | InitialH | StocktakeH | BoxesH | MovesH
 data Scenario = Scenario
   { sInitialState :: Maybe DocumentHash
   , sSteps        :: [Step]
-  -- , sLayout ::  Either DocumentHash ByteString
+  , sLayout ::  Maybe DocumentHash
   } deriving (Read, Show)
 
-data Step = Step deriving (Read, Show)
+data Step = Step HeaderType DocumentHash deriving (Show, Read)
 
 
 

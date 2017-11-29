@@ -7,7 +7,7 @@ import Web.PathPieces
 
 -- | TODO: Needs to be an enum and used as such in DocumentKey model
 newtype DocumentType = DocumentType Text
-newtype DocumentHash = DocumentHash {unDocumentHash :: Text } deriving (Show, Read)
+newtype DocumentHash = DocumentHash {unDocumentHash :: Text } deriving (Show, Read, Eq, Ord)
 
 instance PathPiece DocumentHash where
   fromPathPiece = DocumentHash <$$>  fromPathPiece

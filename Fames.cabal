@@ -388,6 +388,7 @@ test-suite test
       Handler.WHStockAdjustmentSpec
       Handler.WHStocktakeSpec
       Items.InternalSpec
+      Planner.InternalSpec
       RoleSpec
       TestImport
       WH.BarcodeSpec

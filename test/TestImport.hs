@@ -85,7 +85,7 @@ wipeDB toKeep app = runDBWithApp app $ do
     forM_ queries (\q -> rawExecute q [])
     rawExecute "SET foreign_key_checks = 1;" []
 
-getTables ::  SqlHandler [Text]
+-- getTables ::  SqlHandler [Text]
 getTables = do
     tables <- rawSql "SHOW TABLES;" []
     return $ map unSingle tables
