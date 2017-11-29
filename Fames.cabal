@@ -127,6 +127,7 @@ library
       Handler.Items.History
       Handler.Items.Index
       Handler.Planner
+      Handler.Planner.Exec
       Handler.Planner.View
       Handler.Table
       Handler.Util

@@ -3,10 +3,12 @@ module Planner.Internal where
 import ClassyPrelude.Yesod hiding (Content)
 import WarehousePlanner.Display
 import WarehousePlanner.Base
+import WarehousePlanner.Csv
 import Planner.Types
 import Control.Monad.ST (runST, stToIO, RealWorld)
 import Control.Monad.State (evalStateT,runStateT)
-import Control.Monad.Except
+import Control.Monad.Except (ExceptT(..), runExceptT)
+import Control.Monad.Writer (tell, execWriter)
 import Data.Text(strip)
 import qualified Data.Text as Text
 import System.Directory (doesFileExist)
@@ -15,6 +17,7 @@ import Unsafe.Coerce (unsafeCoerce)
 import Model.DocumentKey
 
 -- * Example
+warehouseExamble :: WH (ShelfGroup s) s
 warehouseExamble  = do
   let dim0 = Dimension 270 80 145
   let dim1 = Dimension 31 34 72
@@ -73,6 +76,11 @@ parseHeader h = case toLower (strip h) of
   "moves" -> Just MovesH
   _ -> Nothing
   
+writeHeader :: HeaderType -> Text
+writeHeader header = let
+  u = toUpper (tshow header)
+  in Text.init u
+
 -- | Read a scenario text file. Needs IO to cache the section to
 -- tempory file
 readScenario :: MonadIO m => Text -> m (Either Text Scenario)
@@ -134,9 +142,34 @@ makeScenario sections0 = do -- Either
 -- warehouseFromOrg :: WH (ShelfGroup s)
 warehouseFromOrg text = warehouseExamble
 
+-- * Pretty Printing
+scenarioToTextWithHash :: Scenario -> Text
+scenarioToTextWithHash Scenario{..} = execWriter $ do -- []
+  let printSha (DocumentHash key) = tell ("@" <> key)
+  forM sInitialState $ \state -> do
+    tell $ "* INITIAL"
+    printSha state
+
+  forM sLayout $ \layout -> do
+    tell "* LAYOUT"
+    printSha layout
+
+  forM sSteps $ \(Step header step) -> do
+    tell $ "* " <> writeHeader header
+    printSha step
+  
+
+-- | Key identifying the scenario
+scenarioKey :: Scenario -> DocumentHash
+scenarioKey sc = computeDocumentKey .  encodeUtf8 $ scenarioToTextWithHash  sc {sLayout = Nothing}
+
+-- | Key indentifying the warehouse scenario, i.e. not taking the layout into account
+warehouseScenarioKey ::  Scenario -> DocumentHash
+warehouseScenarioKey sc = scenarioKey (sc {sLayout = Nothing})
 
 
 -- * Rendering
+
 
 warehouseToDiagram warehouse = do
   let exec = do
@@ -146,13 +179,23 @@ warehouseToDiagram warehouse = do
   return diag
 
 execWH0 wh = execWH emptyWarehouse
+
 execWH warehouse0 wh = lift $ stToIO $ evalStateT wh warehouse0
 
-runWH wh warehouse0= lift . stToIO $ runStateT wh warehouse0
+-- runWH :: MonadIO m => Warehouse s -> WH a s -> m (a, Warehouse s)
+runWH warehouse0 wh = lift $ stToIO $ runStateT wh warehouse0
 
-
-freeze :: Warehouse s -> Warehouse ()
-freeze = unsafeCoerce
-
-unfreeze :: Warehouse () -> Warehouse s
-unfreeze = unsafeCoerce
+executeStep :: Step -> IO (WH () s)
+executeStep (Step header sha) =
+  let path = contentPath sha
+      defaultOrientations = [tiltedForward, tiltedFR]
+      splitStyle s = let (style, colour) = splitAt 8 s
+                       in (style, drop 1 colour)
+      r_ = return (return ())
+  in case header of
+          LayoutH -> r_
+          ShelvesH -> readShelves2 BoxOrientations path  >> r_ 
+          InitialH -> r_
+          StocktakeH -> readStockTake defaultOrientations splitStyle path >> r_
+          BoxesH -> readBoxes defaultOrientations splitStyle path >> r_
+          MovesH -> readMoves path >> r_
