@@ -12,16 +12,33 @@ import Control.Monad.State (put)
 
 -- * Type
 -- | Typeable version of Warehouse. Needed to be cached.
-data WarehouseCache = WarehouseCache (Warehouse ()) deriving Typeable
+
+instance Show (Warehouse s) where
+  show wh = "Warehouse : " ++ "\nBOXES:" ++ show (length $ boxes wh)
+                           ++ "\nSHELVES:\n" ++ show (length $ shelves wh)
+                           -- ++ "\nGROUPS\n" ++ show (length $ shelfGroup wh)
+data WarehouseCache = WarehouseCache (Warehouse ()) deriving (Show, Typeable)
 -- * Caching
 
-        
 
-cacheWarehouseIn (DocumentHash key) warehouse =
+cacheWarehouseIn (DocumentHash key) warehouse = do
+  traceShowM ("CACHE WAREHOUSE IN", key, freeze warehouse)
+
   cache0 False (cacheDay 1) ("warehouse", key) (return . Just $ freeze warehouse)
+
+cacheWarehouseOut :: DocumentHash -> Handler (Maybe WarehouseCache)
 cacheWarehouseOut (DocumentHash key) = do
-  wcache <- cache0 False (cacheDay 1) ("warehouse", key) (return Nothing)
-  return $ unfreeze <$> wcache
+  traceShowM ("CACHE WAREHOUSE OUT", key)
+  wcache <- cache0 False (cacheDay 1) ("warehouse", key) (traceShowM "wh not found" >> return Nothing)
+  traceShowM wcache
+  -- This hack creates a key if the warehouse doesn't exists
+  case wcache of
+    Nothing -> do
+      cache <- getsYesod appCache
+      purgeKey cache ("warehouse", key) -- can occur in concurrency probleme FIXME
+      return ()
+    _ -> return ()
+  return $ wcache
 
 freeze :: Warehouse s -> WarehouseCache
 freeze = WarehouseCache . unsafeCoerce
@@ -31,31 +48,39 @@ unfreeze (WarehouseCache warehouse)= unsafeCoerce warehouse
 
 cacheScenarioIn sc = do
   let (DocumentHash key) = scenarioKey sc
+  traceShowM ("CACHE Scenario IN", key)
   cache0 False (cacheDay 1) ("scenario", key) (return . Just $ sc)
   return key
 
 cacheScenarioOut key = do
+  traceShowM ("CACHE Scenario OUT", key)
   cache0 False (cacheDay 1) ("scenario", key) (return Nothing)
   
 
 -- * Exec
 
 execScenario sc@Scenario{..} = do
-  initialM <- traverse cacheWarehouseOut sInitialState
+  initialM <- join <$> cacheWarehouseOut `mapM` sInitialState
+  traceShowM ("EXEC" ,
+          case initialM of
+            Nothing -> "no initial state found"
+            _  -> "INITIAL FOUND" 
+    )
   stepsW <- lift $ mapM executeStep sSteps
         -- put (fromMaybe emptyWarehouse (unsafeCoerce initialM))
   -- execute and store the resulting warehouse
-  (_, warehouse) <- runWH (fromMaybe emptyWarehouse (unsafeCoerce initialM)) (sequence stepsW >> return ())
+  (_, warehouse) <- runWH (maybe emptyWarehouse unfreeze initialM) (sequence stepsW >> return ())
   let key = warehouseScenarioKey sc
   cacheWarehouseIn key warehouse
   return warehouse
 
 execWithCache sc = do
   let key = warehouseScenarioKey sc
+  traceShowM ("Scenario KEY:", key)
   wM <- cacheWarehouseOut key
   case wM of
-    Nothing -> execScenario sc
-    Just wh -> return wh
+    Nothing -> traceShow "Exec with cache new" execScenario sc
+    Just wh -> traceShow "USE cached" $ return  $ unfreeze wh
 
 
 renderScenario sc layoutM = do
