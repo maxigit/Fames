@@ -60,7 +60,7 @@ execWithCache sc = do
 
 renderScenario sc layoutM = do
   case layoutM <|> (sLayout sc) of
-    Nothing -> return $ Left "No default "
+    Nothing -> return $ Left "No layout provided"
     Just layout -> do
         wh0 <- execWithCache sc
         groupW <- lift $ readWarehouse (contentPath layout)
