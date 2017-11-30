@@ -261,9 +261,8 @@ rackUp ss = ShelfGroup (reverse g) Vertical where
 
 buildWarehouse :: [[[String]]] -> WH (ShelfGroup s) s
 buildWarehouse xsss = do
-    s0 <- defaultShelf
     bays <- mapM buildBay xsss
-    return $ ShelfGroup (bays ++ [ShelfProxy s0]) Vertical
+    return $ ShelfGroup bays  Vertical
 
 buildBay :: [[String]] -> WH (ShelfGroup s) s
 buildBay xss = do

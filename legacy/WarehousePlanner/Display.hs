@@ -25,10 +25,15 @@ renderGroup (ShelfGroup gs direction) = do
           cat  Horizontal = hcat
           cat  Depth = hcat -- should not happen
     
-
 renderGroup (ShelfProxy i) = do
     shelf <- findShelf i
     renderShelf shelf
+
+renderSlices :: ShelfGroup s -> WH [Diagram B] s
+renderSlices (ShelfGroup gs direction) = mapM renderGroup gs
+renderSlices shelf@(ShelfProxy _) = do
+    diag <- renderGroup shelf
+    return [diag]
 
 renderShelf :: Shelf s -> WH (Diagram B) s
 renderShelf shelf = do            

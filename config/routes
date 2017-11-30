@@ -58,5 +58,5 @@
 
 /planner PlannerR !planner:
   /view PViewR GET POST !group=Planner !title=View
-  /image/#Text/#Int64 PImageR GET
+  /image/#Text/#Int64/#Int64 PImageR GET
   

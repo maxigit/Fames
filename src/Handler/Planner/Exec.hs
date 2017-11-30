@@ -89,11 +89,11 @@ renderScenario sc layoutM = do
     Just layout -> do
         wh0 <- execWithCache sc
         groupW <- lift $ readWarehouse (contentPath layout)
-        diag <- execWH wh0 ( do
+        diags <- execWH wh0 ( do
                                 group <- groupW
-                                renderGroup group
+                                renderSlices group
                            )
-        return (Right diag)
+        return (Right diags)
 
 
 

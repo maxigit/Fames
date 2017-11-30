@@ -16,6 +16,7 @@ import Diagrams.Backend.Cairo
 import qualified Yesod.Media.Simple as M
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import Util.Cache
+import Data.List((!!))
 
 -- * Type
 data ScenarioDisplayMode = NormalM | CompactM | InitialM | ExpandedM deriving (Eq, Show, Read)
@@ -38,8 +39,8 @@ postPViewR = do
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess param -> renderView param
 
-getPImageR :: Text -> Int64 -> Handler TypedContent
-getPImageR sha width = do
+getPImageR :: Text -> Int64 -> Int64 -> Handler TypedContent
+getPImageR sha i width = do
   scenarioM <- cacheScenarioOut sha
   traceShowM ("IMAGE", scenarioM)
   case scenarioM of
@@ -49,7 +50,8 @@ getPImageR sha width = do
         diagE <- renderScenario scenario Nothing
         case diagE of
           Left e -> error e
-          Right diag -> cache0 False (cacheHour 1) ("DIAG", width, sha) $ sendResponseDiag width diag
+          Right diags -> cache0 False (cacheHour 1) ("DIAG", width, i, sha) $
+                                sendResponseDiag width (diags !! fromIntegral i)
   
 -- * Form
 
@@ -73,12 +75,13 @@ renderView param0 = do
           sha <- cacheScenarioIn scenario
           param <- expandScenario (param0 {pDisplayMode = mode}) scenario
 
-          return $ (Just (\width -> PlannerR (PImageR (sha) width))
+          return $ (Just (\i width -> PlannerR (PImageR (sha) i width))
                    , Just param
                    )
 
   (formW, encType) <- generateFormPost $ paramForm param
 
+  let is = [0..30]
   defaultLayout $ [whamlet|
 <form #planner-view role=form method=post action="@{PlannerR PViewR}" encType="#{encType}">
   ^{formW}
@@ -88,7 +91,9 @@ renderView param0 = do
   <button type="submit" .btn .btn-primary name="mode" value="ExpandedM">Expand
 $maybe imgRoute <- imgRouteM
   <div.well>
-    <a href="@{imgRoute 2000}" ><img src=@{imgRoute 800} style="width:800;">
+    <table>
+    $forall i <- is
+      <tr><td><a href="@{imgRoute i 20000}" ><img src=@{imgRoute i 800} style="width:800;">
 |]
 
   
@@ -106,6 +111,6 @@ expandScenario param scenario = do
 
 sendResponseDiag :: Int64 -> _ -> Handler TypedContent
 sendResponseDiag width diag =  do
-  let size = dims2D w w 
+  let size = dims2D w (w/10)
       w = fromIntegral width
   M.renderContent (M.SizedDiagram size diag)
