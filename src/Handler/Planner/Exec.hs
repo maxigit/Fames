@@ -48,9 +48,10 @@ unfreeze (WarehouseCache warehouse)= unsafeCoerce warehouse
 
 cacheScenarioIn sc = do
   let (DocumentHash key) = scenarioKey sc
+  layoutSize <- scenarioLayoutSize sc
   traceShowM ("CACHE Scenario IN", key)
-  cache0 False (cacheDay 1) ("scenario", key) (return . Just $ sc)
-  return key
+  cache0 False (cacheDay 1) ("scenario", key) (return $ Just (sc, layoutSize))
+  return (key, layoutSize)
 
 cacheScenarioOut key = do
   traceShowM ("CACHE Scenario OUT", key)

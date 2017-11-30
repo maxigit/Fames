@@ -230,3 +230,12 @@ executeStep (Step header sha) =
           StocktakeH -> execute $ readStockTake defaultOrientations splitStyle path
           BoxesH -> execute $ readBoxes defaultOrientations splitStyle path
           MovesH -> execute $ readMoves path
+
+-- | Retrieve the number of line in the layout file
+scenarioLayoutSize :: MonadIO m => Scenario -> m Int
+scenarioLayoutSize Scenario{..} = 
+  case sLayout of
+    Nothing -> return 0
+    Just layout -> do
+      l <- retrieveContent layout
+      return (maybe 0 (length . lines) l)

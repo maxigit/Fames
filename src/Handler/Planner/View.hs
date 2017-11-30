@@ -46,12 +46,12 @@ getPImageR sha i width = do
   case scenarioM of
     Nothing -> do
       error "No matching scenario"
-    Just scenario -> do
+    Just (scenario, layoutSize) -> do
         diagE <- renderScenario scenario Nothing
         case diagE of
           Left e -> error e
           Right diags -> cache0 False (cacheHour 1) ("DIAG", width, i, sha) $
-                                sendResponseDiag width (diags !! fromIntegral i)
+                                sendResponseDiag width (diags !! min (fromIntegral i) (layoutSize-1))
   
 -- * Form
 
@@ -69,19 +69,20 @@ renderView param0 = do
   let mode = modeS >>=readMay
   scenarioE <- readScenario (unTextarea $ pOrgfile param0)
   traceShowM ("VIEW", scenarioE)
-  (imgRouteM, param) <- case scenarioE of
-      Left err -> setError (toHtml err) >> return (Nothing, Nothing)
+  (imgRouteM, param, layoutSize) <- case scenarioE of
+      Left err -> setError (toHtml err) >> return (Nothing, Nothing,0)
       Right scenario ->  do
-          sha <- cacheScenarioIn scenario
+          (sha, lSize) <- cacheScenarioIn scenario
           param <- expandScenario (param0 {pDisplayMode = mode}) scenario
 
           return $ (Just (\i width -> PlannerR (PImageR (sha) i width))
                    , Just param
+                   , lSize
                    )
 
   (formW, encType) <- generateFormPost $ paramForm param
 
-  let is = [0..30]
+  let is = [0..fromIntegral (layoutSize-1)]
   defaultLayout $ [whamlet|
 <form #planner-view role=form method=post action="@{PlannerR PViewR}" encType="#{encType}">
   ^{formW}
@@ -93,7 +94,7 @@ $maybe imgRoute <- imgRouteM
   <div.well>
     <table>
     $forall i <- is
-      <tr><td><a href="@{imgRoute i 20000}" ><img src=@{imgRoute i 800} style="width:800;">
+      <tr><td><a href="@{imgRoute i 8000}" ><img src=@{imgRoute i 350} style="width:800;">
 |]
 
   
@@ -111,6 +112,6 @@ expandScenario param scenario = do
 
 sendResponseDiag :: Int64 -> _ -> Handler TypedContent
 sendResponseDiag width diag =  do
-  let size = dims2D w (w/10)
+  let size = dims2D w (w/4)
       w = fromIntegral width
   M.renderContent (M.SizedDiagram size diag)
