@@ -37,6 +37,7 @@ postPViewR = do
 getPImageR :: Text -> Int64 -> Handler TypedContent
 getPImageR sha width = do
   scenarioM <- cacheScenarioOut sha
+  traceShowM ("IMAGE", scenarioM)
   case scenarioM of
     Nothing -> do
       error "No matching scenario"
@@ -58,6 +59,7 @@ paramForm param = renderBootstrap3 BootstrapBasicForm form
 renderView :: FormParam -> Handler Html
 renderView param = do
   scenarioE <- readScenario (unTextarea $ pOrgfile param)
+  traceShowM ("VIEW", scenarioE)
   (formW, encType) <- generateFormPost $ paramForm (Just param)
   imgRouteM <- case scenarioE of
       Left err -> setError (toHtml err) >> return Nothing
