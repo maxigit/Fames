@@ -33,7 +33,7 @@ warehouseExamble  = do
 -- | Read and cut a scenario file into different component
 parseScenarioFile :: Text -> Either Text [Section]
 parseScenarioFile text = do -- Either
-  lineTypes <- traverse parseLine (lines text) 
+  lineTypes <- traverse parseLine (map strip $ lines text) 
   sequence $ linesToSections lineTypes
   
 
@@ -41,7 +41,7 @@ parseScenarioFile text = do -- Either
 parseLine :: Text -> Either Text TypedLine
 parseLine line | "-- END " `isPrefixOf` line          = Right EndL
                | "-- " `isPrefixOf` line              = Right $ CommentL
-               | Just sha <- stripPrefix "@" line = Right $ HashL (DocumentHash sha)
+               | Just sha <- stripPrefix "@" line = Right $ HashL (DocumentHash $ strip sha)
                | Just header <- stripPrefix "* " line  = case parseHeader header of
                    Nothing -> Left $ line <> " is an invalid header type."
                    Just h -> Right (HeaderL h)
@@ -106,11 +106,20 @@ cacheContent (Right texts) = do
   return (Right key)
 
 contentPath :: DocumentHash -> FilePath
-contentPath (DocumentHash file) = "/tmp/" <> unpack file
+contentPath (DocumentHash file) = "/tmp/planner-" <> unpack file
 
 
 -- | Saves files and replace them by their hash
 cacheSection :: MonadIO m => Section -> m (Either Text (HeaderType, DocumentHash))
+cacheSection (Section InitialH content) = do
+  case content of
+    Left sha -> do
+      -- TODO: 
+      -- wh <- cacheWarehouseOut sha
+      -- return $ case wh of
+        -- Nothing -> Left "Initial state doesn't exits anymore"
+        return $ Right (InitialH, sha)
+    Right  _ -> return $ Left "Initial section needs a SHA (@...)"
 cacheSection Section{..} = runExceptT $ do
   sha <- ExceptT $ cacheContent sectionContent
   return $ (sectionType, sha)
