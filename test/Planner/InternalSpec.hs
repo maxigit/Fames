@@ -60,8 +60,7 @@ ioSpec = describe "Reading scenario @planner" $ do
 
   it "computes different SHA for different layout scenario" $ do
     let text = unlines [ "* Layout"
-                       , "A|B|C"
-                       , ""
+                       , "A"
                        , "*   Moves  "
                        , "move 1"
                        , "move 2"
@@ -70,7 +69,7 @@ ioSpec = describe "Reading scenario @planner" $ do
                        , "move 4"
                        ]
     let text2 = unlines [ "* Layout"
-                       , "A|B|C" -- only layout changes
+                       , "B" -- only layout changes
                        , "*   Moves  "
                        , "move 1"
                        , "move 20" -- only changes
@@ -86,7 +85,7 @@ ioSpec = describe "Reading scenario @planner" $ do
                        [text, text2]
     sha1 `shouldNotBe` sha2
 
-  it "computes same SHA for different layout scenario" $ do
+  it "computes same SHA for similar scenarios" $ do
     let text = unlines [ "* Layout"
                        , "A|B|C"
                        , "*   Moves  "
@@ -117,8 +116,7 @@ ioSpec = describe "Reading scenario @planner" $ do
 
   it "computes different SHA for different moves scenario" $ do
     let text = unlines [ "* Layout"
-                       , "A|B|C"
-                       , ""
+                       , "A"
                        , "*   Moves  "
                        , "move 1"
                        , "move 2"
@@ -130,7 +128,7 @@ ioSpec = describe "Reading scenario @planner" $ do
                        , "A"
                        , "*   Moves  "
                        , "move 1"
-                       , "move 2"
+                       , "move 20" -- Change
                        , "*   Moves  "
                        , "move 3"
                        , "move 4"

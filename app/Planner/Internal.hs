@@ -161,7 +161,7 @@ scenarioToTextWithHash Scenario{..} = execWriter $ do -- []
 
 -- | Key identifying the scenario
 scenarioKey :: Scenario -> DocumentHash
-scenarioKey sc = computeDocumentKey .  encodeUtf8 $ scenarioToTextWithHash  sc {sLayout = Nothing}
+scenarioKey sc = computeDocumentKey .  encodeUtf8 $ scenarioToTextWithHash  sc
 
 -- | Key indentifying the warehouse scenario, i.e. not taking the layout into account
 warehouseScenarioKey ::  Scenario -> DocumentHash
