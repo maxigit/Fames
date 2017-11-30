@@ -14,6 +14,7 @@ import Diagrams.Prelude hiding(iso)
 import Diagrams.Backend.Cairo
 import qualified Yesod.Media.Simple as M
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
+import Util.Cache
 
 -- * Type
 data FormParam = FormParam
@@ -45,7 +46,7 @@ getPImageR sha width = do
         diagE <- renderScenario scenario Nothing
         case diagE of
           Left e -> error e
-          Right diag -> sendResponseDiag width diag
+          Right diag -> cache0 False (cacheHour 1) ("DIAG", width, sha) $ sendResponseDiag width diag
   
 -- * Form
 
