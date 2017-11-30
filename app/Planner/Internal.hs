@@ -109,11 +109,21 @@ contentPath :: DocumentHash -> FilePath
 contentPath (DocumentHash file) = "/tmp/" <> unpack file
 
 
+-- | Saves files and replace them by their hash
 cacheSection :: MonadIO m => Section -> m (Either Text (HeaderType, DocumentHash))
 cacheSection Section{..} = runExceptT $ do
   sha <- ExceptT $ cacheContent sectionContent
   return $ (sectionType, sha)
   
+-- | Load files and replace them by their text content
+unCacheSection :: MonadIO m => Section -> m Section
+unCacheSection section = do
+  content <- case sectionContent section of
+                Right text -> return $ Right text
+                Left sha -> do
+                  contentM <- retrieveContent sha
+                  return $ maybe (Left sha) (Right . lines) contentM
+  return $ section{sectionContent=content}
 
 retrieveContent :: MonadIO m => DocumentHash -> m (Maybe Text)
 retrieveContent key = do
@@ -139,25 +149,33 @@ makeScenario sections0 = do -- Either
 
   Right $ Scenario initial steps layout
 
--- warehouseFromOrg :: WH (ShelfGroup s)
-warehouseFromOrg text = warehouseExamble
-
 -- * Pretty Printing
 scenarioToTextWithHash :: Scenario -> Text
-scenarioToTextWithHash Scenario{..} = execWriter $ do -- []
-  let printSha (DocumentHash key) = tell ("@" <> key)
-  forM sInitialState $ \state -> do
-    tell $ "* INITIAL"
-    printSha state
+scenarioToTextWithHash scenario = sectionsToText $ scenarioToSections scenario
 
-  forM sLayout $ \layout -> do
-    tell "* LAYOUT"
-    printSha layout
+sectionsToText :: [Section] -> Text
+sectionsToText sections = unlines $ concatMap sectionToText sections
 
-  forM sSteps $ \(Step header step) -> do
-    tell $ "* " <> writeHeader header
-    printSha step
-  
+sectionToText :: Section -> [Text]
+sectionToText Section{..} = execWriter $ do
+    tell $ ["* " <> writeHeader sectionType]
+    case sectionContent of
+       Left (DocumentHash key) -> tell ["@" <> key]
+       Right texts -> tell texts
+    return ()
+
+scenarioToFullText :: MonadIO m => Scenario -> m Text
+scenarioToFullText scenario =  do
+  let sections = scenarioToSections scenario
+  expanded <- mapM unCacheSection sections
+  return $ sectionsToText expanded
+
+
+scenarioToSections :: Scenario -> [Section]
+scenarioToSections Scenario{..} = execWriter $ do  -- []
+  forM sInitialState (\state -> tell [Section InitialH (Left state)])
+  forM sLayout (\layout -> tell [Section LayoutH (Left layout)])
+  forM sSteps (\(Step header sha) -> tell [Section header (Left sha)])
 
 -- | Key identifying the scenario
 scenarioKey :: Scenario -> DocumentHash

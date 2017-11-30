@@ -8,6 +8,7 @@ where
 
 import Import
 import Planner.Internal
+import Planner.Types
 import Handler.Planner.Exec
 import WarehousePlanner.Base
 import Diagrams.Prelude hiding(iso)
@@ -17,11 +18,13 @@ import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import Util.Cache
 
 -- * Type
+data ScenarioDisplayMode = NormalM | CompactM | InitialM | ExpandedM deriving (Eq, Show, Read)
 data FormParam = FormParam
   { pOrgfile :: Textarea
+  , pDisplayMode :: Maybe ScenarioDisplayMode
   } deriving (Show, Read)
 
-defaultParam = FormParam (Textarea "")
+defaultParam = FormParam (Textarea "") Nothing
 
 -- * Handler
 getPViewR :: Handler Html
@@ -54,33 +57,52 @@ paramForm :: Maybe FormParam -> _
 paramForm param = renderBootstrap3 BootstrapBasicForm form
   where form = FormParam
           <$> areq textareaField "org" (pOrgfile <$> param)
+          <*> pure (pDisplayMode =<< param)
 
 -- * Rendering
 
 renderView :: FormParam -> Handler Html
-renderView param = do
-  scenarioE <- readScenario (unTextarea $ pOrgfile param)
+renderView param0 = do
+  modeS <- lookupPostParam "mode"
+  let mode = modeS >>=readMay
+  scenarioE <- readScenario (unTextarea $ pOrgfile param0)
   traceShowM ("VIEW", scenarioE)
-  (formW, encType) <- generateFormPost $ paramForm (Just param)
-  imgRouteM <- case scenarioE of
-      Left err -> setError (toHtml err) >> return Nothing
+  (imgRouteM, param) <- case scenarioE of
+      Left err -> setError (toHtml err) >> return (Nothing, Nothing)
       Right scenario ->  do
           sha <- cacheScenarioIn scenario
+          param <- expandScenario (param0 {pDisplayMode = mode}) scenario
 
-          return $ Just (\width -> PlannerR (PImageR (sha) width))
+          return $ (Just (\width -> PlannerR (PImageR (sha) width))
+                   , Just param
+                   )
+
+  (formW, encType) <- generateFormPost $ paramForm param
 
   defaultLayout $ [whamlet|
 <form #planner-view role=form method=post action="@{PlannerR PViewR}" encType="#{encType}">
   ^{formW}
-  <button type="submit" .btn .btn-default>Submit
+  <button type="submit" .btn .btn-default name="mode" value="NormalM">Submit
+  <button type="submit" .btn .btn-default name="mode" value="CompactM">Compact
+  <button type="submit" .btn .btn-danger name="mode" value="InitialM">Save
+  <button type="submit" .btn .btn-primary name="mode" value="ExpandedM">Expand
 $maybe imgRoute <- imgRouteM
-  <div.well>
-    #{tshow (fmap scenarioToTextWithHash scenarioE)}
   <div.well>
     <a href="@{imgRoute 2000}" ><img src=@{imgRoute 800} style="width:800;">
 |]
 
   
+expandScenario :: FormParam -> Scenario -> Handler FormParam
+expandScenario param scenario = do
+    text <- case pDisplayMode param of
+            Just CompactM -> return $ scenarioToTextWithHash scenario 
+            Just InitialM -> let s' = Scenario (Just (warehouseScenarioKey scenario))
+                                               []
+                                               (sLayout scenario)
+                             in return $ scenarioToTextWithHash s'
+            Just ExpandedM -> liftIO $ scenarioToFullText scenario
+            _ -> return $ unTextarea (pOrgfile param)
+    return $ param {pOrgfile = Textarea text} 
 
 sendResponseDiag :: Int64 -> _ -> Handler TypedContent
 sendResponseDiag width diag =  do
