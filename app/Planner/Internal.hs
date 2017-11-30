@@ -191,11 +191,13 @@ executeStep (Step header sha) =
       defaultOrientations = [tiltedForward, tiltedFR]
       splitStyle s = let (style, colour) = splitAt 8 s
                        in (style, drop 1 colour)
-      r_ = return (return ())
+      execute step = do
+        s <- step
+        return (s >> return ())
   in case header of
-          LayoutH -> r_
-          ShelvesH -> readShelves2 BoxOrientations path  >> r_ 
-          InitialH -> r_
-          StocktakeH -> readStockTake defaultOrientations splitStyle path >> r_
-          BoxesH -> readBoxes defaultOrientations splitStyle path >> r_
-          MovesH -> readMoves path >> r_
+          LayoutH -> return $ return ()
+          ShelvesH -> execute $ readShelves2 BoxOrientations path
+          InitialH -> return $ return ()
+          StocktakeH -> execute $ readStockTake defaultOrientations splitStyle path
+          BoxesH -> execute $ readBoxes defaultOrientations splitStyle path
+          MovesH -> execute $ readMoves path
