@@ -186,8 +186,10 @@ scenarioToSections Scenario{..} = execWriter $ do  -- []
   forM sLayout (\layout -> tell [Section LayoutH (Left layout)])
   forM sSteps (\(Step header sha) -> tell [Section header (Left sha)])
 
--- | Key identifying the scenario
+-- | Key identifying the scenario. Takes all document and has them.
 scenarioKey :: Scenario -> DocumentHash
+-- if a scenario is an empty initial state we use the same key as the original warehouse/scenario
+scenarioKey (Scenario (Just key) [] Nothing) = key
 scenarioKey sc = computeDocumentKey .  encodeUtf8 $ scenarioToTextWithHash  sc
 
 -- | Key indentifying the warehouse scenario, i.e. not taking the layout into account
