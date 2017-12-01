@@ -42,7 +42,7 @@ volume (Dimension l w h) = l*w*h
 floorSpace :: Dimension -> Double
 floorSpace (Dimension l w _) = l*w
 
- 
+
 instance Monoid Dimension where
     mempty = Dimension 0 0 0
     mappend (Dimension l w h) (Dimension l' w' h') =
@@ -53,7 +53,7 @@ data Direction = Vertical | Depth | Horizontal deriving (Show, Eq, Ord, Enum)
 data Flow = LeftToRight | RightToLeft deriving (Show, Eq, Ord, Enum)
 defaultFlow = LeftToRight
 
--- | How something is oriented. It indicates  the direction of 
+-- | How something is oriented. It indicates  the direction of
 -- the normal of the given face.
 data Orientation = Orientation {  top :: !Direction, front :: !Direction } deriving (Show, Eq, Ord)
 up = Orientation Vertical Depth
@@ -84,10 +84,10 @@ allOrientations = [ up
                   , rotatedUp
                   , tiltedForward
                   , tiltedFR
-                  , tiltedRight 
+                  , tiltedRight
                   , rotatedSide
                   , rotatedUp
-                  ] 
+                  ]
 
 rotate :: Orientation -> Dimension -> Dimension
 rotate o (Dimension l w h)
@@ -98,7 +98,7 @@ rotate o (Dimension l w h)
     | o == rotatedUp    =  Dimension w l h
     | o == rotatedSide    =  Dimension h l w
     | True  = error $ "Unexpected rotation" <> show o
- 
+
 -- | Every box belongs to a shelf.
 -- Non placed boxes belongs to the special default shelf
 data BoxId s = BoxId (STRef s (Box s)) deriving (Eq)
@@ -113,7 +113,7 @@ data Box s = Box { _boxId      :: BoxId s
                , boxOffset   :: !Dimension
                , orientation :: !Orientation -- ^ orientation of the box
                , boxBoxOrientations :: [Orientation]  -- ^ allowed orientation
-               , boxTags :: [String] -- 
+               , boxTags :: [String] --
                } deriving (Show, Eq)
 
 boxKey :: Box s -> [Char]
@@ -144,7 +144,7 @@ instance BoxIdable Box where
 class (BoxIdable b) => Box' b where
   findBox :: b s  -> WH (Box s) s
 instance Box' Box where
-  findBox b = findBox (boxId b) -- "reload" the box in caes it has been modified 
+  findBox b = findBox (boxId b) -- "reload" the box in caes it has been modified
 instance Box' BoxId where
   findBox (BoxId ref) = lift $ readSTRef ref
 
@@ -172,7 +172,7 @@ instance Referable (ShelfId s) where
 
 
 -- | Shelf have a min and max dimension. This allows shelf to be overloaded
--- or boxes to stick out. 
+-- or boxes to stick out.
 data ShelfId s = ShelfId (STRef s (Shelf s))  deriving (Eq)
 instance Show (ShelfId s) where
   show _ = "<<ShelfId>>"
@@ -282,7 +282,7 @@ buildRack xs = do
     let sorted = sortBy (comparing shelfName) shelves
 
     return $ rackUp sorted
-    
+
 -- | State containing bays of boxes
 -- boxOrientations : function returning a list
 -- of possible box orientiations within a shelf for a given box.
@@ -307,10 +307,10 @@ incomingShelf = do
 
 findBoxByShelf :: Shelf' shelf => shelf s -> WH [Box s] s
 findBoxByShelf shelf = do
-  boxIds <- _shelfBoxes <$> findShelf shelf  
+  boxIds <- _shelfBoxes <$> findShelf shelf
   mapM findBox boxIds
 
-        
+
 findBoxByStyle :: String -> WH [BoxId s] s
 findBoxByStyle style = do
   boxIds <- toList <$> gets boxes
@@ -324,12 +324,27 @@ findShelfByBox b = do
 findShelvesByBoxes :: Box' b => [b s] -> WH ([ShelfId s]) s
 findShelvesByBoxes boxes = fmap catMaybes (mapM findShelfByBox boxes)
 
+-- | find shelf by name and tag
 findShelfByName :: String -> WH [ShelfId s] s
-findShelfByName name = do
+findShelfByName name' = do
+  let (name, tagM) = extractTag name'
   shelfIds <- toList <$> gets shelves
-  fmap (map shelfId) (findByName (mapM findShelf shelfIds) shelfName  name)
+  shelves0 <-  findByName (mapM findShelf shelfIds) shelfName  name
+  let shelves1 = filter (filterShelfByTag tagM) shelves0
+  return $ map shelfId shelves1
+
+filterShelfByTag Nothing shelf = True
+filterShelfByTag (Just tag) shelf = let
+  tags = splitOn "#" tag
+  ok ('-':t) st = t /= st
+  ok t st = t == st
+  in case shelfTag shelf of
+    Nothing -> False
+    Just sTag -> all (ok sTag) tags
+
 
 findByName :: WH [a s] s -> (a s -> String) -> String -> WH [a s] s
+findByName objects objectName "" = objects
 findByName objects objectName name = do
    let matchers = map (Glob.match . Glob.compile) (splitOn "|" name) :: [String -> Bool]
    filter (\o -> any ($ (objectName o)) matchers) <$> objects
@@ -364,27 +379,23 @@ findBoxByStyleAndShelfNames style'' = do
   let boxes = case readMaybe (drop 1 nMax) of
         Nothing -> allBoxes
         Just n -> take n (allBoxes)
-        
+
   boxesWithShelfName <- mapM ( \b -> do
       shelfIdM <- findShelfByBox b
-      shelf' <- traverse findShelf shelfIdM
-      let shelf = case locTag of
-                    Nothing -> shelf'
-                    Just ('-':tag) -> if Just tag /= (shelfTag =<< shelf')
-                                then shelf'
-                                else Nothing
-                 
-                    Just tag -> if Just tag == (shelfTag =<< shelf')
-                                then shelf'
-                                else Nothing
-                 
+      shelfM <- traverse findShelf shelfIdM
+      let shelf = case shelfM of
+                    Just shelf'  -> if filterShelfByTag locTag shelf'
+                                              then shelfM
+                                              else Nothing
+                    _ -> shelfM
+
       return $ sequenceA (b, shelfName <$> shelf)
       ) boxes
 
-                  
-  return $ [boxId | (boxId, shelfName) <- catMaybes boxesWithShelfName, any (inShelves shelfName) locations] 
-  
-    
+
+  return $ [boxId | (boxId, shelfName) <- catMaybes boxesWithShelfName, any (inShelves shelfName) locations]
+
+
 emptyWarehouse = Warehouse mempty mempty mempty (const white) (const (Nothing, Nothing)) defaultBoxOrientations
 defaultBoxOrientations box shelf =
     let orientations = case (shelfBoxOrientator shelf)  of
@@ -406,7 +417,7 @@ newShelf name tag minD maxD boxOrientator fillStrat = do
         let shelf = Shelf (ShelfId ref) [] name tag minD maxD LeftToRight boxOrientator fillStrat
         lift $ writeSTRef ref shelf
 
-        put warehouse { shelves = shelves warehouse  |> ShelfId ref } 
+        put warehouse { shelves = shelves warehouse  |> ShelfId ref }
         return shelf
 
 newBox :: Shelf' shelf => String -> String ->  Dimension -> Orientation -> shelf s  -> [Orientation]-> [String] -> WH (Box s) s
@@ -433,7 +444,7 @@ assignShelf s b = do
     -- if box belong to a shelf
     -- we need to update the shelf to remove the link to the box
     when (oldShelfM /= newShelfM) $ do
-      traverse (unlinkBox (boxId box)) oldShelfM 
+      traverse (unlinkBox (boxId box)) oldShelfM
       traverse (linkBox (boxId box)) newShelfM
       updateBox (\b -> b { boxShelf = shelfId `fmap` s }) box
       return ()
@@ -443,12 +454,12 @@ assignShelf s b = do
 unlinkBox :: BoxId s -> Shelf s -> WH () s
 unlinkBox box shelf = do
   let boxes = _shelfBoxes shelf
-      boxes' = delete box boxes 
+      boxes' = delete box boxes
 
       shelf' = shelf { _shelfBoxes = boxes' }
   updateShelf (const shelf') shelf'
   return ()
-  
+
 -- | link a box from a shelf without
 -- checking anything. Shoudn't be exported
 linkBox :: BoxId s -> Shelf s -> WH () s
@@ -540,12 +551,12 @@ fillShelf exitMode  s (Similar bs) = do
                                           [ (Dimension (max 0 (shelfL -l)) shelfW (max 0 (shelfH-h)), (l,h))
                                           | (Dimension shelfL shelfW shelfH) <- [ minDim shelf, maxDim shelf ]
                                         -- try min and max. Choose min if  possible
-                                          -- , (l,h) <- extremeCorners  boxesIn -- alternative algo 
+                                          -- , (l,h) <- extremeCorners  boxesIn -- alternative algo
                                           , (l,h) <- [(lused,0), (0,hused)] -- simplified algorithm
-                                          ] dim  
+                                          ] dim
         nl = if exitMode == ExitLeft then nl_ else min 1 nl_
         Dimension l' w' h' = rotate bestO dim
-        
+
         offsets = [Dimension (lused' + l'*fromIntegral il)
                              (w'* fromIntegral iw)
                              (hused' + h'*fromIntegral ih)
@@ -573,18 +584,18 @@ fillShelf exitMode  s (Similar bs) = do
        else fillShelf exitMode  s (Similar (map boxId left))
 
     where shiftBox ori box offset = do
-            updateBox (\b -> b { orientation = ori 
+            updateBox (\b -> b { orientation = ori
                                , boxOffset = offset}) box
             assignShelf (Just s) box
 
-    
-                                        
 
-    
+
+
+
 
 -- Try to Move a block of boxes  into a block of shelves.
--- Boxes are move in sequence and and try to fill shelve 
--- in sequence. If they are not enough space the left boxes 
+-- Boxes are move in sequence and and try to fill shelve
+-- in sequence. If they are not enough space the left boxes
 -- are returned.
 moveBoxes :: (Box' b , Shelf' shelf) => [b s] -> [shelf s] -> WH [Box s] s
 moveBoxes bs ss = do
@@ -592,7 +603,7 @@ moveBoxes bs ss = do
   let groups = map Similar (groupBy ((==) `on` boxDim) boxes)
   lefts <- mapM (\g -> moveSimilarBoxes g ss) groups
   return $ concat lefts
-  
+
 
 moveSimilarBoxes :: (Box' b , Shelf' shelf) => Similar (b s) -> [shelf s] -> WH [Box s] s
 moveSimilarBoxes (Similar bs) [] = mapM findBox bs
@@ -602,8 +613,8 @@ moveSimilarBoxes (Similar bs) (s:ss') = do
     case left of
         [] -> return []
         bs' -> moveSimilarBoxes (Similar bs') ss'
-        
-        
+
+
 -- | Rearrange boxes within their own shelves
 -- left over are put back to 0
 rearrangeShelves :: Shelf' shelf => [shelf s] -> WH [Box s] s
@@ -615,12 +626,12 @@ rearrangeShelves ss = do
     left <- moveBoxes boxes ss
     s0 <- defaultShelf
     mapM (assignShelf (Just s0)) left
-    
+
     return left
 
 -- | Remove boxes for shelvese and rearrange
 -- shelves before doing any move
--- aroundArrangement  :: WH a -> WH a 
+-- aroundArrangement  :: WH a -> WH a
 aroundArrangement arrangement boxes shelves = do
     let shelfIds = map shelfId shelves
     oldShelveIds <- findShelvesByBoxes boxes
@@ -639,14 +650,14 @@ aroundArrangement arrangement boxes shelves = do
     mapM (assignShelf (Just s0)) left
     return left
 
-    
-    
-    
-    
-     
-    
-    
-    
+
+
+
+
+
+
+
+
 updateBox :: (Box' b) =>  (Box s ->  Box s) -> b s-> WH (Box s) s
 updateBox f b = do
     box <- findBox b
@@ -669,17 +680,17 @@ updateShelfByName f n = findShelfByName n >>= mapM (updateShelf f)
 
 -- | Add or remove the given tags to the give box
 updateBoxTags' tags box = let
-  btags = Set.fromList $ boxTags box
+  btags = boxTags box
   parse ('-':tag) = Left tag
   parse tag = Right tag
   parsed = map parse tags
-  to_add = Set.fromList (rights parsed)
-  to_remove = Set.fromList (lefts parsed)
-  new = Set.toList $ (btags <> to_add) `Set.difference` to_remove
+  to_add = rights parsed
+  to_remove = lefts parsed
+  new = (btags <> to_add) \\ to_remove
   in box {boxTags = new}
 
 updateBoxTags tags = updateBox (updateBoxTags' tags)
-  
+
 -- * Misc
 -- | reorder box so they are ordered by column across all
 -- the given shelves.
@@ -700,7 +711,7 @@ sortAccross ss = do
               if Prelude.length left == Prelude.length oldLeft
               then return left
               else iteration ss left
-              
+
 usedDepth :: Shelf' shelf => shelf s -> WH (String, Double) s
 usedDepth s = do
   boxes <- findBoxByShelf s
@@ -711,7 +722,7 @@ usedDepth s = do
 
 
 
-        
+
 -- * Denormalizing
 --
 shelfBoxes :: WH [(Shelf s, Box s)] s
@@ -729,21 +740,21 @@ extremeCorners boxes = let
                         , let Dimension l _ h = boxDim b
                         , let Dimension ol _ oh = boxOffset b
            ]
-    -- sort corner by 
+    -- sort corner by
     cs'  = reverse cs
     in foldr (addCorner) [(0,0)] cs'
-    
-        
+
+
 type Corner = (Double, Double)
 -- | Intersect a corner to list of corner
 -- The corner is "hidden" if it's smaller than the existing one
 addCorner :: Corner -> [Corner] -> [Corner]
 addCorner c cs = concatMap (splitCorner c) cs
 
--- | equivalent to the intersection of 2 rectangles with 
+-- | equivalent to the intersection of 2 rectangles with
 -- a top right corner at the infinite
 splitCorner :: Corner -> Corner -> [Corner]
-splitCorner (cx,cy) (cx',cy') 
+splitCorner (cx,cy) (cx',cy')
     | cx <= cx' || cy <= cy' = [(cx', cy')] -- corner shadowed
     | otherwise = [ (cx', cy), (cx,cy')]
 
@@ -758,5 +769,3 @@ extractTag name = let (prefix, suffix) = break (=='#') name
              in case suffix of
                   '#':tag -> (prefix, Just tag)
                   _ -> (prefix, Nothing)
-
-
