@@ -341,23 +341,43 @@ findByName objects objectName name = do
 -- We can also specify a maximum number to pick
 -- it needs to be before the shelf condition
 --
--- syntax is  Box^3/shelf : 3 box from shelf shelf
+-- syntax is  Box#tag^3/shelf#tag : 3 box from shelf shelf
 findBoxByStyleAndShelfNames :: String -> WH [BoxId s] s
-findBoxByStyleAndShelfNames style' = do
-  let (styleMax, location) = break (=='/') style'
-      (style, nMax) = break (=='^') styleMax
+findBoxByStyleAndShelfNames style'' = do
+  let (styleMax, location') = break (=='/') style''
+      (style', nMax) = break (=='^') styleMax
+      (style, boxtag) = extractTag style'
+      (location, locTag) = extractTag location'
       locations = splitOn "|" (drop 1 location)
       inShelves _ [] = True
       inShelves shelfName ('!':pattern_) = not $  Glob.match (Glob.compile pattern_) shelfName
       inShelves shelfName pattern_ = Glob.match (Glob.compile pattern_) shelfName
-  allBoxes <- findBoxByStyle style
+  -- all boxes matching name
+  allBoxesBeforeTag <- findBoxByStyle style
+  -- filter by tag if any
+  allBoxes <- case boxtag of
+                  Nothing -> return allBoxesBeforeTag
+                  Just tag -> do
+                    bs <- mapM findBox allBoxesBeforeTag
+                    let bs' = filter (\b -> tag `elem` boxTags b) bs
+                    return $ map boxId bs'
   let boxes = case readMaybe (drop 1 nMax) of
         Nothing -> allBoxes
         Just n -> take n (allBoxes)
         
   boxesWithShelfName <- mapM ( \b -> do
       shelfIdM <- findShelfByBox b
-      shelf <- traverse findShelf shelfIdM
+      shelf' <- traverse findShelf shelfIdM
+      let shelf = case locTag of
+                    Nothing -> shelf'
+                    Just ('-':tag) -> if Just tag /= (shelfTag =<< shelf')
+                                then shelf'
+                                else Nothing
+                 
+                    Just tag -> if Just tag == (shelfTag =<< shelf')
+                                then shelf'
+                                else Nothing
+                 
       return $ sequenceA (b, shelfName <$> shelf)
       ) boxes
 
@@ -726,5 +746,17 @@ splitCorner :: Corner -> Corner -> [Corner]
 splitCorner (cx,cy) (cx',cy') 
     | cx <= cx' || cy <= cy' = [(cx', cy')] -- corner shadowed
     | otherwise = [ (cx', cy), (cx,cy')]
+
+
+-- * Misc
+
+-- | Shelve or box name can have a tag, which is
+-- a prefix starting with :
+-- example T-shirt#shirt
+extractTag :: String -> (String, Maybe String)
+extractTag name = let (prefix, suffix) = break (=='#') name
+             in case suffix of
+                  '#':tag -> (prefix, Just tag)
+                  _ -> (prefix, Nothing)
 
 

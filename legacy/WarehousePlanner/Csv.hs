@@ -99,17 +99,6 @@ expand name = let
     _ -> error "Should not happen" -- We've been breaking on [
 
 
--- | Shelve or box name can have a tag, which is
--- a prefix starting with :
--- example T-shirt#shirt
-extractTag :: String -> (String, Maybe String)
-extractTag name = let (prefix, suffix) = break (=='#') name
-             in case suffix of
-                  '#':tag -> (prefix, Just tag)
-                  _ -> (prefix, Nothing)
-
-
-
 
 data Expr = AddE Expr Expr
           | SubE Expr Expr
