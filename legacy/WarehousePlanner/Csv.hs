@@ -327,7 +327,7 @@ readStockTake newBoxOrientations splitStyle filename = do
                                     (head boxOrs)
                                    s0
                                    boxOrs -- create box in the "ERROR self)
-                                   (maybeToList tagM)
+                                   ("take" : maybeToList tagM)
                         let boxes = concat boxesS
                         shelves <- (mapM findShelf) =<< findShelfByName shelf
                         leftOvers <- moveBoxes boxes shelves
