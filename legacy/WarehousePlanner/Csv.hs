@@ -238,7 +238,7 @@ readBoxes boxOrientations splitter filename = do
                         let dim = Dimension l w h
                             types = qty :: Int
                             (style, content) = splitter style'
-                        s0 <- defaultShelf
+                        s0 <- incomingShelf
 
                         forM [1..qty] $   \i -> newBox style content dim (head boxOrientations) s0 boxOrientations
 

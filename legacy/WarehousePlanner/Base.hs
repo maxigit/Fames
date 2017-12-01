@@ -293,8 +293,15 @@ data Warehouse s = Warehouse { boxes :: Seq (BoxId s)
                            , boxOrientations :: Box s -> Shelf s -> [(Orientation, Int)]
              } -- deriving Show
 
+ -- | shelf use as error, ie everything not fitting anywhere
 defaultShelf :: WH (ShelfId s) s
 defaultShelf = (flip Seq.index) 0 <$> gets shelves
+
+-- | shelf use to put incoming boxes
+incomingShelf :: WH (ShelfId s) s
+incomingShelf = do
+  shelves <- gets shelves
+  return $ Seq.index shelves (min 1 (length shelves -1))
 
 findBoxByShelf :: Shelf' shelf => shelf s -> WH [Box s] s
 findBoxByShelf shelf = do
