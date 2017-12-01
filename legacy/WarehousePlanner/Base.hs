@@ -423,8 +423,12 @@ newShelf name tag minD maxD boxOrientator fillStrat = do
 newBox :: Shelf' shelf => String -> String ->  Dimension -> Orientation -> shelf s  -> [Orientation]-> [String] -> WH (Box s) s
 newBox style content dim or shelf ors tags = do
     warehouse <- get
+    let tags' = case content of
+          "" -> tags
+          _ -> ('\'':content):tags
+
     ref <- lift $ newSTRef (error "should never been called. undefined. Base.hs:338")
-    let box = Box (BoxId ref) (Just $ shelfId shelf) style content dim mempty or ors tags
+    let box = Box (BoxId ref) (Just $ shelfId shelf) style content dim mempty or ors tags'
     shelf' <- findShelf shelf
     linkBox (BoxId ref) shelf'
     lift $ writeSTRef ref box
