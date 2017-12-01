@@ -9,6 +9,8 @@ import WarehousePlanner.Display
 import Util.Cache
 import Unsafe.Coerce (unsafeCoerce)
 import Control.Monad.State (put)
+import Data.Colour (Colour,blend)
+import Data.Colour.Names (readColourName,wheat)
 
 -- * Type
 -- | Typeable version of Warehouse. Needed to be cached.
@@ -56,9 +58,14 @@ cacheScenarioIn sc = do
 cacheScenarioOut key = do
   traceShowM ("CACHE Scenario OUT", key)
   cache0 False (cacheDay 1) ("scenario", key) (return Nothing)
-  
 
 -- * Exec
+colorFromTag :: Box s -> Colour Double
+colorFromTag box = let
+  colors = mapMaybe readColourName (boxTags box)
+  in case colors of
+  [] -> wheat
+  (col:_) -> blend 0.2 wheat col
 
 execScenario sc@Scenario{..} = do
   initialM <- join <$> cacheWarehouseOut `mapM` sInitialState
@@ -70,7 +77,7 @@ execScenario sc@Scenario{..} = do
   stepsW <- lift $ mapM executeStep sSteps
         -- put (fromMaybe emptyWarehouse (unsafeCoerce initialM))
   -- execute and store the resulting warehouse
-  (_, warehouse) <- runWH (maybe emptyWarehouse unfreeze initialM) (sequence stepsW >> return ())
+  (_, warehouse) <- runWH (maybe emptyWarehouse unfreeze initialM) {colors = colorFromTag} (sequence stepsW >> return ())
   let key = warehouseScenarioKey sc
   cacheWarehouseIn key warehouse
   return warehouse

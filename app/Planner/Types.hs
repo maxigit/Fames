@@ -20,6 +20,7 @@ data Section = Section
 --              | StocktakeS Content -- list of boxes and their location
 --              | BoxesS Content -- list of boxes without location
 --              | MovesS Content -- list of moves : boxes -> shelves
+--              | TagsS Content -- list of tags : boxes -> new tags
        
 data TypedLine = CommentL 
               | HeaderL HeaderType
@@ -29,7 +30,7 @@ data TypedLine = CommentL
               deriving (Show, Read, Eq, Ord)
 
 
-data HeaderType = LayoutH | ShelvesH | InitialH | StocktakeH | BoxesH | MovesH
+data HeaderType = LayoutH | ShelvesH | InitialH | StocktakeH | BoxesH | MovesH | TagsH
   deriving (Show, Read, Eq, Ord)
 
 -- * Scenario

@@ -24,6 +24,7 @@ import qualified Data.Traversable as T
 import qualified Data.Sequence as Seq
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Either(lefts,rights)
 
 import qualified System.FilePath.Glob as Glob
 import Text.Read (readMaybe)
@@ -112,6 +113,7 @@ data Box s = Box { _boxId      :: BoxId s
                , boxOffset   :: !Dimension
                , orientation :: !Orientation -- ^ orientation of the box
                , boxBoxOrientations :: [Orientation]  -- ^ allowed orientation
+               , boxTags :: [String] -- 
                } deriving (Show, Eq)
 
 boxKey :: Box s -> [Char]
@@ -387,12 +389,11 @@ newShelf name tag minD maxD boxOrientator fillStrat = do
         put warehouse { shelves = shelves warehouse  |> ShelfId ref } 
         return shelf
 
-
-newBox :: Shelf' shelf => String -> String ->  Dimension -> Orientation -> shelf s  -> [Orientation]-> WH (Box s) s
-newBox style content dim or shelf ors = do
+newBox :: Shelf' shelf => String -> String ->  Dimension -> Orientation -> shelf s  -> [Orientation]-> [String] -> WH (Box s) s
+newBox style content dim or shelf ors tags = do
     warehouse <- get
     ref <- lift $ newSTRef (error "should never been called. undefined. Base.hs:338")
-    let box = Box (BoxId ref) (Just $ shelfId shelf) style content dim mempty or ors
+    let box = Box (BoxId ref) (Just $ shelfId shelf) style content dim mempty or ors tags
     shelf' <- findShelf shelf
     linkBox (BoxId ref) shelf'
     lift $ writeSTRef ref box
@@ -645,6 +646,20 @@ updateShelf f s =  do
 updateShelfByName :: (Shelf s -> Shelf s) -> String -> WH [Shelf s] s
 updateShelfByName f n = findShelfByName n >>= mapM (updateShelf f)
 
+
+-- | Add or remove the given tags to the give box
+updateBoxTags' tags box = let
+  btags = Set.fromList $ boxTags box
+  parse ('-':tag) = Left tag
+  parse tag = Right tag
+  parsed = map parse tags
+  to_add = Set.fromList (rights parsed)
+  to_remove = Set.fromList (lefts parsed)
+  new = Set.toList $ (btags <> to_add) `Set.difference` to_remove
+  in box {boxTags = new}
+
+updateBoxTags tags = updateBox (updateBoxTags' tags)
+  
 -- * Misc
 -- | reorder box so they are ordered by column across all
 -- the given shelves.

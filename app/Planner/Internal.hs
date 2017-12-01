@@ -23,7 +23,7 @@ warehouseExamble  = do
   let dim1 = Dimension 31 34 72
   shelves <- mapM (  \i -> newShelf ("A1" <> show i) Nothing dim0  dim0 DefaultOrientation ColumnFirst ) [1..50]
   let shelfid = shelfId (headEx shelves)
-  boxes <- mapM (\i -> newBox "style" (show i) dim1 up shelfid [up] ) [1..300]
+  boxes <- mapM (\i -> newBox "style" (show i) dim1 up shelfid [up] []) [1..300]
   moveBoxes boxes shelves
   -- rearrangeShelves [shelf, shelf2]
   
@@ -74,6 +74,7 @@ parseHeader h = case toLower (strip h) of
   "stocktake" -> Just StocktakeH
   "boxes" -> Just BoxesH
   "moves" -> Just MovesH
+  "tags" -> Just TagsH
   _ -> Nothing
   
 writeHeader :: HeaderType -> Text
@@ -230,6 +231,7 @@ executeStep (Step header sha) =
           StocktakeH -> execute $ readStockTake defaultOrientations splitStyle path
           BoxesH -> execute $ readBoxes defaultOrientations splitStyle path
           MovesH -> execute $ readMoves path
+          TagsH -> execute $ readTags path
 
 -- | Retrieve the number of line in the layout file
 scenarioLayoutSize :: MonadIO m => Scenario -> m Int

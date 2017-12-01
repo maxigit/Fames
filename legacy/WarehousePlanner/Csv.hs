@@ -16,6 +16,7 @@ import qualified Text.Parsec as P
 import qualified Text.Parsec.String as P
 import qualified Text.ParserCombinators.Parsec.Token as P
 import Control.Applicative
+import Data.Maybe(maybeToList)
 
 import Debug.Trace
 readShelves :: String -> IO (WH [Shelf s] s)
@@ -237,10 +238,11 @@ readBoxes boxOrientations splitter filename = do
             let v = Vec.forM rows $ \(style', qty, l, w, h) -> do
                         let dim = Dimension l w h
                             types = qty :: Int
-                            (style, content) = splitter style'
+                            (name, tagM) = extractTag style'
+                            (style, content) = splitter name
                         s0 <- incomingShelf
 
-                        forM [1..qty] $   \i -> newBox style content dim (head boxOrientations) s0 boxOrientations
+                        forM [1..qty] $   \i -> newBox style content dim (head boxOrientations) s0 boxOrientations ("new" : maybeToList tagM)
 
             concat `fmap` (Vec.toList `fmap` v)
 
@@ -282,6 +284,21 @@ readMoves filename = do
 
             concat `fmap` (Vec.toList `fmap` v)
 
+-- | read a file assigning tags to styles
+-- returns left boxes
+readTags :: String -> IO ( WH [Box s] s)
+readTags filename = do
+    csvData <- BL.readFile filename
+    case Csv.decode  Csv.HasHeader csvData of
+        Left err ->  do putStrLn err; return (return [])
+        Right (rows) -> return $ do
+            let v = Vec.forM rows $ \ (style, tag) -> do
+                        let tags = splitOn "#" tag
+                        boxes <- findBoxByStyleAndShelfNames style
+                        shelvesS <- mapM findShelfByName tags
+                        mapM (updateBoxTags tags) boxes
+
+            concat `fmap` (Vec.toList `fmap` v)
 readOrientations :: [Orientation] -> String -> [Orientation]
 readOrientations def os = case os of
     [] -> []
@@ -298,17 +315,18 @@ readStockTake newBoxOrientations splitStyle filename = do
         Left err ->  do putStrLn err; return (return ([], []))
         Right (rowsV) -> return $ do
             -- we get bigger box first : -l*w*h
-            let rows = [ ((qty, content),  (-(l*w*h), shelf, style', l,w,h, if null os then "%" else os))
+            let rows = [ ((qty, content),  (-(l*w*h), shelf, style', tagM, l,w,h, if null os then "%" else os))
                        | (shelf, style, qty, l, w, h, os)
                        <- Vec.toList (rowsV ::  Vec.Vector (String, String, Int, Double, Double, Double, String))
-                       , let (style', content) = splitStyle style
+                       , let (name, tagM) = extractTag style
+                       , let (style', content) = splitStyle name
                        ]
             -- groups similar
                 groups = groupBy (\a b -> snd a == snd b)
                        $ sortBy (comparing snd) rows
 
 
-            v <- forM groups $ \rows@((_, (_,shelf, style, l, w, h, os)):_) -> do
+            v <- forM groups $ \rows@((_, (_,shelf, style, tagM, l, w, h, os)):_) -> do
                         s0 <- defaultShelf
                         let dim = Dimension l w h
                             boxOrs = readOrientations newBoxOrientations os
@@ -320,6 +338,7 @@ readStockTake newBoxOrientations splitStyle filename = do
                                     (head boxOrs)
                                    s0
                                    boxOrs -- create box in the "ERROR self)
+                                   (maybeToList tagM)
                         let boxes = concat boxesS
                         shelves <- (mapM findShelf) =<< findShelfByName shelf
                         leftOvers <- moveBoxes boxes shelves
