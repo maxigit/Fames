@@ -367,8 +367,12 @@ splitBoxSelector pat = let
   (style', nMax) = break (=='^') styleMax
   (style, boxtag) = extractTag style'
   (location, locTag) = extractTag location'
-  in  (style, boxtag, readMaybe (drop 1 nMax), location, locTag)
+  in  (style, boxtag, readMaybe (drop 1 nMax), drop 1 location, locTag)
 
+-- | TODO Should be true be seems to work like that
+-- this will mean, that we need a normal or 
+orTrue [] = False
+orTrue bs = or bs
 -- | Find box for a given style but only belonging
 -- to the given shelves. This allows to only move
 -- boxes in error or coming and leave the current box

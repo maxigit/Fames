@@ -366,8 +366,8 @@ readOrientationRules defOrs filename = do
                               locPatterns = patternToMatchers location
                               ors = parseOrientationRule defOrs orientations
 
-                              in if and [ or $ boxPatterns <*> [boxStyle box]
-                                        , or $ locPatterns <*> [shelfName shelf]
+                              in if and [ orTrue $ boxPatterns <*> [boxStyle box]
+                                        , orTrue $ locPatterns <*> [shelfName shelf]
                                         , filterShelfByTag locationTagM shelf
                                         , filterBoxByTag boxTagM box
                                         ]
