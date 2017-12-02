@@ -333,21 +333,41 @@ findShelfByName name' = do
   let shelves1 = filter (filterShelfByTag tagM) shelves0
   return $ map shelfId shelves1
 
-filterShelfByTag Nothing shelf = True
-filterShelfByTag (Just tag) shelf = let
+filterShelfByTag :: Maybe String -> Shelf s -> Bool
+filterShelfByTag tagM shelf = filterByTag  tagM (shelfTag shelf)
+
+filterBoxByTag :: Maybe String -> Box s -> Bool
+filterBoxByTag tagM box = any (filterByTag tagM . Just) (boxTags box)
+
+filterByTag Nothing name = True
+filterByTag (Just tag) nameM = let
   tags = splitOn "#" tag
   ok ('-':t) st = t /= st
   ok t st = t == st
-  in case shelfTag shelf of
+  in case nameM of
     Nothing -> False
-    Just sTag -> all (ok sTag) tags
+    Just name -> all (ok name) tags
 
+
+patternToMatchers :: String -> [(String -> Bool)]
+patternToMatchers "" = [const True]
+patternToMatchers pat = map mkGlob (splitOn "|" pat) where
+  mkGlob ('!':pat) = not . mkGlob pat
+  mkGlob pat = Glob.match $ Glob.compile pat
 
 findByName :: WH [a s] s -> (a s -> String) -> String -> WH [a s] s
 findByName objects objectName "" = objects
 findByName objects objectName name = do
-   let matchers = map (Glob.match . Glob.compile) (splitOn "|" name) :: [String -> Bool]
+   let matchers = patternToMatchers name --  map (Glob.match . Glob.compile) (splitOn "|" name) :: [String -> Bool]
    filter (\o -> any ($ (objectName o)) matchers) <$> objects
+
+splitBoxSelector :: String -> (String, Maybe String, Maybe Int, String, Maybe String)
+splitBoxSelector pat = let
+  (styleMax, location') = break (=='/') pat
+  (style', nMax) = break (=='^') styleMax
+  (style, boxtag) = extractTag style'
+  (location, locTag) = extractTag location'
+  in  (style, boxtag, readMaybe (drop 1 nMax), location, locTag)
 
 -- | Find box for a given style but only belonging
 -- to the given shelves. This allows to only move
@@ -359,14 +379,12 @@ findByName objects objectName name = do
 -- syntax is  Box#tag^3/shelf#tag : 3 box from shelf shelf
 findBoxByStyleAndShelfNames :: String -> WH [BoxId s] s
 findBoxByStyleAndShelfNames style'' = do
-  let (styleMax, location') = break (=='/') style''
-      (style', nMax) = break (=='^') styleMax
-      (style, boxtag) = extractTag style'
-      (location, locTag) = extractTag location'
-      locations = splitOn "|" (drop 1 location)
-      inShelves _ [] = True
-      inShelves shelfName ('!':pattern_) = not $  Glob.match (Glob.compile pattern_) shelfName
-      inShelves shelfName pattern_ = Glob.match (Glob.compile pattern_) shelfName
+  let (style, boxtag, nMax, location, locTag) = splitBoxSelector style''
+      inShelves name  = or $ patternToMatchers location <*> [name]
+      -- locations = splitOn "|" (drop 1 location)
+      -- inShelves _ [] = True
+      -- inShelves shelfName ('!':pattern_) = not $  Glob.match (Glob.compile pattern_) shelfName
+      -- inShelves shelfName pattern_ = Glob.match (Glob.compile pattern_) shelfName
   -- all boxes matching name
   allBoxesBeforeTag <- findBoxByStyle style
   -- filter by tag if any
@@ -376,7 +394,7 @@ findBoxByStyleAndShelfNames style'' = do
                     bs <- mapM findBox allBoxesBeforeTag
                     let bs' = filter (\b -> tag `elem` boxTags b) bs
                     return $ map boxId bs'
-  let boxes = case readMaybe (drop 1 nMax) of
+  let boxes = case nMax of
         Nothing -> allBoxes
         Just n -> take n (allBoxes)
 
@@ -393,7 +411,7 @@ findBoxByStyleAndShelfNames style'' = do
       ) boxes
 
 
-  return $ [boxId | (boxId, shelfName) <- catMaybes boxesWithShelfName, any (inShelves shelfName) locations]
+  return $ [ boxId | (boxId, shelfName) <- catMaybes boxesWithShelfName, inShelves shelfName ]
 
 
 emptyWarehouse = Warehouse mempty mempty mempty (const white) (const (Nothing, Nothing)) defaultBoxOrientations

@@ -75,6 +75,7 @@ parseHeader h = case toLower (strip h) of
   "boxes" -> Just BoxesH
   "moves" -> Just MovesH
   "tags" -> Just TagsH
+  "orientations" -> Just OrientationsH
   _ -> Nothing
   
 writeHeader :: HeaderType -> Text
@@ -232,6 +233,7 @@ executeStep (Step header sha) =
           BoxesH -> execute $ readBoxes defaultOrientations splitStyle path
           MovesH -> execute $ readMoves path
           TagsH -> execute $ readTags path
+          OrientationsH -> execute $ setOrientationRules defaultOrientations path
 
 -- | Retrieve the number of line in the layout file
 scenarioLayoutSize :: MonadIO m => Scenario -> m Int

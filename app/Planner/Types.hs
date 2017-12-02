@@ -13,15 +13,6 @@ data Section = Section
    } deriving (Show, Read, Eq)
 
 -- * Content Types
--- | AST-ish of a parsed document
--- data Section = LayoutS Content -- describe the layout of the shelves. How to display them
---              | ShelvesS Content -- shelves description
---              | InitialS DocumentHash -- Initial state
---              | StocktakeS Content -- list of boxes and their location
---              | BoxesS Content -- list of boxes without location
---              | MovesS Content -- list of moves : boxes -> shelves
---              | TagsS Content -- list of tags : boxes -> new tags
-       
 data TypedLine = CommentL 
               | HeaderL HeaderType
               | TextL Text
@@ -30,7 +21,7 @@ data TypedLine = CommentL
               deriving (Show, Read, Eq, Ord)
 
 
-data HeaderType = LayoutH | ShelvesH | InitialH | StocktakeH | BoxesH | MovesH | TagsH
+data HeaderType = LayoutH | ShelvesH | InitialH | StocktakeH | BoxesH | MovesH | TagsH | OrientationsH
   deriving (Show, Read, Eq, Ord)
 
 -- * Scenario

@@ -16,7 +16,8 @@ import qualified Text.Parsec as P
 import qualified Text.Parsec.String as P
 import qualified Text.ParserCombinators.Parsec.Token as P
 import Control.Applicative
-import Data.Maybe(maybeToList)
+import Data.Maybe(maybeToList, catMaybes)
+import Control.Monad.State
 
 import Debug.Trace
 readShelves :: String -> IO (WH [Shelf s] s)
@@ -350,3 +351,62 @@ readStockTake newBoxOrientations splitStyle filename = do
 
             return (concat boxes, concat errors)
 
+
+-- * read orientation rules
+readOrientationRules :: [Orientation] -> String -> IO (Box s -> Shelf s -> Maybe [(Orientation, Int)])
+readOrientationRules defOrs filename = do
+    csvData <- BL.readFile filename
+    case Csv.decode  Csv.HasHeader csvData of
+        Left err ->  do putStrLn err; return (\s b -> Nothing)
+        Right (rows) -> do
+            let rules = fmap (\ (boxSelectors, orientations) ->
+                        let (style, boxTagM, _, location, locationTagM) = splitBoxSelector boxSelectors
+                            validate shelf box = let
+                              boxPatterns = patternToMatchers style
+                              locPatterns = patternToMatchers location
+                              ors = parseOrientationRule defOrs orientations
+
+                              in if and [ or $ boxPatterns <*> [boxStyle box]
+                                        , or $ locPatterns <*> [shelfName shelf]
+                                        , filterShelfByTag locationTagM shelf
+                                        , filterBoxByTag boxTagM box
+                                        ]
+                                  then Just ors
+                                  else Nothing
+                         in validate
+                        ) (Vec.toList rows)
+                fn box shelf = case catMaybes $ [rule shelf box | rule <- rules ] of
+                                  [] -> Nothing
+                                  (result:_) -> Just result
+            return fn
+                           
+
+setOrientationRules :: [Orientation] -> String -> IO (WH () s)
+setOrientationRules defOrs filename = do
+  fn <- readOrientationRules defOrs filename
+
+  return $ do
+    old <- gets boxOrientations
+    let new box shelf = case fn box shelf of
+          Nothing ->  old box shelf
+          Just or -> or
+
+    wh <- get
+    put wh {boxOrientations = new}
+    return ()
+                              
+
+-- orientationFromTag defOrs box shelf = let
+--   fromTags = do -- []
+--     tag <- boxTags box
+--     parseOrientationRule tag
+--   in
+--   case fromTags of
+--     [] -> map (,9) defOrs
+--     _ -> fromTags
+
+  
+parseOrientationRule:: [Orientation] -> String -> [(Orientation, Int)]
+parseOrientationRule defOrs (c:[]) | Just i <- readMaybe [c] = map (,i) defOrs
+parseOrientationRule defOrs (c:cs) | Just i <- readMaybe [c] = map (,i) (readOrientations defOrs  cs)
+parseOrientationRule _ _ = []
