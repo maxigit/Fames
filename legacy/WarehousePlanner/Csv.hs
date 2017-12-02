@@ -227,11 +227,11 @@ readBoxes boxOrientations splitter filename = do
             let v = Vec.forM rows $ \(style', qty, l, w, h) -> do
                         let dim = Dimension l w h
                             types = qty :: Int
-                            (name, tagM) = extractTag style'
+                            (name, tags) = extractTags style'
                             (style, content) = splitter name
                         s0 <- incomingShelf
 
-                        forM [1..qty] $   \i -> newBox style content dim (head boxOrientations) s0 boxOrientations ("new" : maybeToList tagM)
+                        forM [1..qty] $   \i -> newBox style content dim (head boxOrientations) s0 boxOrientations ("new" : tags)
 
             concat `fmap` (Vec.toList `fmap` v)
 
@@ -304,10 +304,10 @@ readStockTake newBoxOrientations splitStyle filename = do
         Left err ->  do putStrLn err; return (return ([], []))
         Right (rowsV) -> return $ do
             -- we get bigger box first : -l*w*h
-            let rows = [ ((qty, content),  (-(l*w*h), shelf, style', tagM, l,w,h, if null os then "%" else os))
+            let rows = [ ((qty, content),  (-(l*w*h), shelf, style', tags, l,w,h, if null os then "%" else os))
                        | (shelf, style, qty, l, w, h, os)
                        <- Vec.toList (rowsV ::  Vec.Vector (String, String, Int, Double, Double, Double, String))
-                       , let (name, tagM) = extractTag style
+                       , let (name, tags) = extractTags style
                        , let (style', content) = splitStyle name
                        ]
             -- groups similar
@@ -315,7 +315,7 @@ readStockTake newBoxOrientations splitStyle filename = do
                        $ sortBy (comparing snd) rows
 
 
-            v <- forM groups $ \rows@((_, (_,shelf, style, tagM, l, w, h, os)):_) -> do
+            v <- forM groups $ \rows@((_, (_,shelf, style, tags, l, w, h, os)):_) -> do
                         s0 <- defaultShelf
                         let dim = Dimension l w h
                             boxOrs = readOrientations newBoxOrientations os
@@ -327,7 +327,7 @@ readStockTake newBoxOrientations splitStyle filename = do
                                     (head boxOrs)
                                    s0
                                    boxOrs -- create box in the "ERROR self)
-                                   ("take" : maybeToList tagM)
+                                   ("take" : tags)
                         let boxes = concat boxesS
                         shelves <- (mapM findShelf) =<< findShelfByName shelf
                         leftOvers <- moveBoxes boxes shelves

@@ -773,3 +773,7 @@ extractTag name = let (prefix, suffix) = break (=='#') name
              in case suffix of
                   '#':tag -> (prefix, Just tag)
                   _ -> (prefix, Nothing)
+
+extractTags :: String -> (String, [String])
+extractTags name = (style, maybe [] (splitOn "#") tagM) where
+  (style, tagM) = extractTag name
