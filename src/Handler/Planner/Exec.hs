@@ -65,10 +65,23 @@ colorFromTag box = let
 defOrs = [ tiltedForward, tiltedFR ]                       
 
                             
+-- some steps need to be done before other to make sense
+-- shelves first, then orientations rules, then in inital order
+sSortedSteps Scenario{..} = let
+  steps = zipWith key sSteps  [1..]
+  key step@(Step header hash) i = ((priority header, i), step)
+  priority header = case header of
+                         ShelvesH  -> 1
+                         OrientationsH -> 2
+                         _ -> 3
+               
+
+  sorted = sortBy (comparing fst) steps
+  in  map snd sorted
   
 execScenario sc@Scenario{..} = do
   initialM <- join <$> cacheWarehouseOut `mapM` sInitialState
-  stepsW <- lift $ mapM executeStep sSteps
+  stepsW <- lift $ mapM executeStep (sSortedSteps sc)
         -- put (fromMaybe emptyWarehouse (unsafeCoerce initialM))
   -- execute and store the resulting warehouse
   (_, warehouse) <- runWH (maybe emptyWarehouse unfreeze initialM) { colors = colorFromTag}
