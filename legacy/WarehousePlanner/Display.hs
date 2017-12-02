@@ -43,13 +43,16 @@ renderShelf shelf = do
     let (Dimension l w h) = maxDim shelf
         (Dimension ln wn hn) = minDim shelf
         rmax = rect l h # lc royalblue # lwL 2 -- # fc white
-        rmin = rect ln hn # fc (fromMaybe (if wn < 10 then white else lightsteelblue) fgM)
+        isSeparator = wn < 10
+        rmin = rect ln hn # fc (fromMaybe (if isSeparator then white else lightsteelblue) fgM)
                           # lwL 0
                           # translate (r2 (- (l-ln)/2, -(h-hn)/2))
         -- r = rmin `atop` rmax
         r = t' `atop` rmax`atop` rmin  
         t = scaledText 50 20 (shelfName shelf) `atop` rect l 15 # fc (fromMaybe darkorange bgM) # lc royalblue # lwL 2
-        bar = depthBar wn used
+        -- display the depth bar relative to the full length,as that's what we are losing
+        wn' = ln
+        bar = if not isSeparator then depthBar wn' (used*wn'/wn) else mempty
         bar' = (alignL bar # translateX 5) `atop` alignL t
         t' = scaledText ln hn (shelfName shelf) #lc darkblue
         diagram = r -- t `atop` r
@@ -72,19 +75,30 @@ renderBoxes shelf = let
 
 depthBar :: Double -> Double -> Diagram B
 depthBar w used = let
-  shelfBar = depthBar' w 0 green -- rect (w/3) 5 # fc green # lwL 0
-  usedBar = depthBar' used 0 lightsteelblue -- rect (used/3) 5 # fc lightsteelblue # lwL 0
-  threshold1 = depthBar' (w*0.70) 0 red -- rect (w/3*0.70) 5 # fc red # lwL 0
-  threshold2 = depthBar' (w*0.85) 0 orange -- rect (w/3*0.85) 5 # fc orange # lwL 0
+  shelfBar = depthBar'' (lc black . lwL 1) w 0 lightsteelblue
+  usedBar = depthBar'' (lc black . lwL 1)  used 0 darkorange
+  -- threshold1 = depthBar' (w*0.70) 0 red 
+  -- threshold2 = depthBar' (w*0.85) 0 orange 
   in mconcat ( map alignL [ usedBar
-                          , threshold1 
-                          , threshold2 
+                          -- , threshold1 
+                          -- , threshold2 
                           , shelfBar 
                           ]
              )
 
+gaugeBar :: Double -> Diagram B
+gaugeBar w = let
+  shelfBar = depthBar' w 0 green
+  threshold1 = depthBar' (w*0.70) 0 red 
+  threshold2 = depthBar' (w*0.85) 0 orange 
+  in mconcat ( map alignL [ threshold1 
+                          , threshold2 
+                          , shelfBar 
+                          ]
+             )
 depthBar' :: Double -> Double -> Colour Double -> Diagram B
 depthBar' width offset colour = depthBar'' (lwL 1 . lc colour) width offset colour
+-- depthBar' = depthBar'' (lwL 1) --  . lc colour) width offset colour
 depthBar'' :: (Diagram B -> Diagram B) -> Double -> Double -> Colour Double -> Diagram B
 depthBar'' up l l0 colour = translate (r2 (scale l0, 0)) . alignBL $ rect (scale l) 4 # fc colour # up
   where scale x = x /3
@@ -94,15 +108,15 @@ depthBar'' up l l0 colour = translate (r2 (scale l0, 0)) . alignBL $ rect (scale
 -- to do so, we need to keep track of the postion of the last 
 -- box
 
-offsetBox :: Shelf s -> Box s -> Diagram B -> Diagram B
-offsetBox shelf box diagram  = let
+offsetBox :: Bool -> Shelf s -> Box s -> Diagram B -> Diagram B
+offsetBox fromBoxCenter shelf box diagram  = let
     Dimension xn yn zn = minDim shelf
     Dimension xx yx zx = maxDim shelf
-    Dimension l w h = boxDim box
+    Dimension l w h = if fromBoxCenter then boxDim box else Dimension 0 0 0
     Dimension ox oy oz = boxOffset box
 
     offset LeftToRight =  (ox+l/2, oz+h/2)
-    offset RightToLeft = (xn -ox-l/2, oz+h/2) 
+    offset RightToLeft = (xn -ox+l/2, oz+h/2) 
 
           
     in diagram # translate (r2 (offset (flow shelf)))
@@ -114,18 +128,18 @@ renderBox shelf box = do
           Dimension l w h = boxDim box
           Dimension ox oy oz = boxOffset box
           foreground = if (ox+l) > xn || (oy+w) > yn || (oz+h) > zn
-                  then firebrick
+                  then firebrick -- stick out
                   else black
     background <-  gets colors `ap` return box
     let   r = rect l h  # lc foreground # fc background # lwL 2 #scale 0.95 # pad 1.05
           t = scaledText l h (showOrientation (orientation box) ++ boxSku box)
           diagram_ = t `atop` r
-          diagram = offsetBox shelf box diagram_
+          diagram = offsetBox True shelf box diagram_
 
           boxBar =  renderBoxBar box background
           backBag = renderBoxBarBg shelf
 
-          offsetBar bar = bar # translate (r2 (5,5) ) # translate (r2 (ox, oz))
+          offsetBar bar = offsetBox False shelf box $ bar # translate (r2 (5,5) ) 
     return $ [(3, diagram),
               (2, offsetBar backBag),
               (1, offsetBar boxBar)]
@@ -134,11 +148,12 @@ renderBoxBar :: Box s -> Colour Double -> Diagram B
 renderBoxBar box background =
   let Dimension l w h = boxDim box
       Dimension ox oy oz = boxOffset box
-  in depthBar'' (lwL 1 . lc $ blend 0.5  black background ) w oy (blend 0.5 white background)
+  in depthBar'' (lwL 1 . lc $ blend 0.5  black background ) w oy (background)
+  -- in depthBar'  w oy (background)
 
     
 renderBoxBarBg :: Shelf s -> Diagram B
-renderBoxBarBg shelf = depthBar yn 0
+renderBoxBarBg shelf = gaugeBar yn
     where   Dimension xn yn zn = minDim shelf
     
 -- | draw text scaled to fit given rectangle
