@@ -61,12 +61,35 @@ colorFromTag box = let
   [] -> wheat
   (col:_) -> blend 0.2 wheat col
 
+
+orientationFromTag box shelf = let
+  fromTags = do -- []
+    tag <- boxTags box
+    tagToOrientation tag
+  in
+  case fromTags of
+    [] -> map (,9) defOrs
+    _ -> fromTags
+
+  
+tagToOrientation :: String -> [(Orientation, Int)]
+tagToOrientation (c:[]) | Just i <- readMay [c] = map (,i) defOrs
+tagToOrientation (c:cs) | Just i <- readMay [c] = map (,i) (readOrientations defOrs  cs)
+tagToOrientation _ = []
+
+defOrs = [ tiltedForward, tiltedFR ]                       
+
+                            
+  
 execScenario sc@Scenario{..} = do
   initialM <- join <$> cacheWarehouseOut `mapM` sInitialState
   stepsW <- lift $ mapM executeStep sSteps
         -- put (fromMaybe emptyWarehouse (unsafeCoerce initialM))
   -- execute and store the resulting warehouse
-  (_, warehouse) <- runWH (maybe emptyWarehouse unfreeze initialM) {colors = colorFromTag} (sequence stepsW >> return ())
+  (_, warehouse) <- runWH (maybe emptyWarehouse unfreeze initialM) { colors = colorFromTag
+                                                                   , boxOrientations = orientationFromTag
+                                                                   }
+                          (sequence stepsW >> return ())
   let key = warehouseScenarioKey sc
   cacheWarehouseIn key warehouse
   return warehouse
