@@ -54,9 +54,12 @@ cacheScenarioOut key = do
   cache0 False (cacheDay 1) ("scenario", key) (return Nothing)
 
 -- * Exec
+-- underscores are stripped before looking for the color name
+-- this allow the same colours to be used more that once
+-- example, navy#_navy#white,  will use navy twice
 colorFromTag :: Box s -> Colour Double
 colorFromTag box = let
-  colors = mapMaybe readColourName (boxTags box)
+  colors = mapMaybe readColourName (map (dropWhile (=='_')) (boxTags box))
   in case colors of
   [] -> wheat
   [col] -> col
