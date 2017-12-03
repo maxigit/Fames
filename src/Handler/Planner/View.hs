@@ -20,6 +20,7 @@ import WarehousePlanner.Base
 import WarehousePlanner.Report
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import qualified Yesod.Media.Simple as M
+import Data.Text(strip, splitOn)
 
 -- * Type
 data ScenarioDisplayMode = NormalM | CompactM | InitialM | ExpandedM deriving (Eq, Show, Read)
@@ -79,10 +80,10 @@ renderView param0 = do
       Right scenario ->  do
           param <- expandScenario (param0 {pDisplayMode = mode}) scenario
           w <- case fromMaybe PlannerSummaryView (pViewMode param) of
-              PlannerSummaryView-> renderSummaryView scenario
+              PlannerSummaryView-> renderSummaryReport scenario
               PlannerGraphicCompactView-> renderGraphicCompactView scenario
               PlannerGraphicBigView-> renderGraphicBigView scenario
-              PlannerSummaryReport-> renderSummaryReport scenario
+              PlannerShelvesReport-> renderShelvesReport scenario
           return (param, w)
     
   (formW, encType) <- generateFormPost $ paramForm (Just param)
@@ -131,9 +132,6 @@ sendResponseDiag width diag =  do
       w = fromIntegral width
   M.renderContent (M.SizedDiagram size diag)
 
--- ** Summary View
-renderSummaryView :: Scenario -> Handler Widget
-renderSummaryView scenario = return "Summary"
 -- ** Graphical View
 renderGraphicCompactView :: Scenario -> Handler Widget
 renderGraphicCompactView scenario = do
@@ -157,6 +155,7 @@ renderGraphicBigView scenario = do
     <tr><td><a href="@{imgRoute i 8000}" ><img src=@{imgRoute i 750} style="width:800;">
 |]
 
+-- ** Summary report
 renderSummaryReport :: Scenario -> Handler Widget
 renderSummaryReport scenario = do
   (header:rows, total) <- renderReport scenario summary
@@ -176,3 +175,18 @@ renderSummaryReport scenario = do
                  |]
 
   
+renderShelvesReport :: Scenario -> Handler Widget
+renderShelvesReport scenario = do
+  (header':rows') <- renderReport scenario shelvesReport
+  let header = splitOn "," (pack header')
+      rows = map (splitOn "," . pack) rows'
+  return [whamlet|
+<table.table.table-striged.table-hover>
+  <tr>
+    $forall h <- header
+        <th> #{h}
+  $forall row <- rows
+    <tr>
+      $forall col <- row 
+        <td> #{col}
+                 |]

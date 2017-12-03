@@ -271,7 +271,7 @@ summary = do
                                    , (maybe "" f) . siUsedPercent
                                    , (maybe "" f) . siFloor
                                    ] <*> [si]
-                      in ("SI", si, values) values
+                      in values
 
         table = Table (Group NoLine (Header . fst <$> Map'.toList infos))
                       (Group SingleLine (map Header (words "used total free %used floor")))
@@ -302,14 +302,14 @@ occupiedVolume s = do
 -- * Shelve report
 -- | Display shelf information including, depth really used
 --
-shelvesReport :: WH (IO ()) s
+shelvesReport :: WH [String] s
 shelvesReport = do
   ss <- toList <$> gets shelves >>= mapM findShelf
-  ios <- mapM  report ss
+  ls <- mapM  report ss
 
-  return $ sequence_ ( (putStrLn "name,comment,length,width,height,depthLeft,usedRatio"):ios)
+  return $ ("name,comment,length,width,height,depthLeft,usedRatio") : ls
 
-  where report :: Shelf s -> WH (IO ()) s
+  where report :: Shelf s -> WH String s
         report shelf = do
           let (Dimension l w h) = minDim shelf
           (name, depth) <- usedDepth shelf
