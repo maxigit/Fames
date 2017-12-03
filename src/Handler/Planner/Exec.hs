@@ -9,7 +9,7 @@ import WarehousePlanner.Display
 import Util.Cache
 import Unsafe.Coerce (unsafeCoerce)
 import Control.Monad.State (put)
-import Data.Colour (Colour,blend)
+import Data.Colour (Colour,blend,over, affineCombo)
 import Data.Colour.Names (readColourName,wheat)
 
 -- * Type
@@ -59,7 +59,14 @@ colorFromTag box = let
   colors = mapMaybe readColourName (boxTags box)
   in case colors of
   [] -> wheat
-  (col:_) -> blend 0.2 wheat col
+  [col] -> col
+  (col:cols) -> let w = 1/fromIntegral (length colors) -- ALL colors
+                in affineCombo (map (w,) cols) col
+
+-- | blend all colours equaly.
+-- folding using normal blend would not work as
+-- the weight of the last colour would count for half of everything
+
 
 
 defOrs = [ tiltedForward, tiltedFR ]                       

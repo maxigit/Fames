@@ -754,7 +754,7 @@ updateBoxTags' tags box = let
   new = (btags <> to_add) \\ to_remove
   in box {boxTags = new}
 
-updateBoxTags tags = updateBox (updateBoxTags' tags)
+updateBoxTags tags = updateBox (updateBoxTags' $ filter (not . null) tags)
 
 -- * Misc
 -- | reorder box so they are ordered by column across all

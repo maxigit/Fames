@@ -285,7 +285,7 @@ readTags filename = do
             let v = Vec.forM rows $ \ (style, tag) -> do
                         let tags = splitOn "#" tag
                         boxes <- findBoxByStyleAndShelfNames style
-                        shelvesS <- mapM findShelfByName tags
+                        -- shelvesS <- mapM findShelfByName tags
                         mapM (updateBoxTags tags) boxes
 
             concat `fmap` (Vec.toList `fmap` v)
