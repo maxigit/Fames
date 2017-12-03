@@ -57,6 +57,6 @@
   /cache ACacheR GET POST !group=Cache !title=Cache
 
 /planner PlannerR !planner:
-  /view PViewR GET POST !group=Planner !title=View
+  /view/#Maybe-PlannerViewMode PViewR GET POST !group=Planner !title=View
   /image/#Text/#Int64/#Int64 PImageR GET
   

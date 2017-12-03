@@ -36,3 +36,12 @@ data ItemViewMode = ItemGLView
 instance PathPiece ItemViewMode where
   fromPathPiece = readFromPathPiece
   toPathPiece = showToPathPiece
+
+
+-- * Planner
+data PlannerViewMode = PlannerSummaryView
+                     | PlannerGraphicView
+  deriving (Eq, Read, Show, Enum, Bounded)
+instance PathPiece PlannerViewMode where
+  fromPathPiece = readFromPathPiece
+  toPathPiece = showToPathPiece

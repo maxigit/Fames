@@ -353,7 +353,7 @@ mainLinks = do
   let links= [ ("General Ledger", GLEnterReceiptSheetR)
              , ("Items", ItemsR (ItemsIndexR Nothing))
              , ("Warehouse", WarehouseR WHStockAdjustmentR)
-             , ("Planner", PlannerR PViewR)
+             , ("Planner", PlannerR (PViewR Nothing))
              , ("Admin", AdministratorR AIndexR)
              , ("FA",  FA'R FADebtorsMasterR)
              , ("FAX",  FAX'R FAXItemRequestsR)

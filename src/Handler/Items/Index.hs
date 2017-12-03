@@ -937,7 +937,7 @@ $('[data-toggle="tooltip"]').tooltip();
       ^{ix}
       <div.well>
         #{renderButton param "primary" CreateMissingBtn}
-        #{renderButton param "primary" ActivateBtn}
+        #{renderButton param "primary" ActivateBtn} 
         #{renderButton param "warning" DeactivateBtn}
         #{renderButton param "danger" DeleteBtn}
         |]
