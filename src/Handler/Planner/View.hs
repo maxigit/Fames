@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module Handler.Planner.View
 ( getPViewR
 , postPViewR
@@ -16,6 +17,7 @@ import Planner.Types
 import Text.Blaze.Html.Renderer.Text(renderHtml)
 import Util.Cache
 import WarehousePlanner.Base
+import WarehousePlanner.Report
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import qualified Yesod.Media.Simple as M
 
@@ -80,6 +82,7 @@ renderView param0 = do
               PlannerSummaryView-> renderSummaryView scenario
               PlannerGraphicCompactView-> renderGraphicCompactView scenario
               PlannerGraphicBigView-> renderGraphicBigView scenario
+              PlannerSummaryReport-> renderSummaryReport scenario
           return (param, w)
     
   (formW, encType) <- generateFormPost $ paramForm (Just param)
@@ -153,3 +156,23 @@ renderGraphicBigView scenario = do
   $forall i <- is
     <tr><td><a href="@{imgRoute i 8000}" ><img src=@{imgRoute i 750} style="width:800;">
 |]
+
+renderSummaryReport :: Scenario -> Handler Widget
+renderSummaryReport scenario = do
+  (header:rows, total) <- renderReport scenario summary
+  return [whamlet|
+<table.table.table-striged.table-hover>
+  <tr>
+    $forall h <- header
+        <th> #{h}
+  $forall row <- rows
+    <tr>
+      $forall col <- row 
+        <td> #{col}
+  <tr>
+    <th> Total
+    $forall col <- total 
+      <th> #{col}
+                 |]
+
+  
