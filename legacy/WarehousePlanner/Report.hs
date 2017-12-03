@@ -411,14 +411,13 @@ groupShelves exclude = do
 
 
 -- | Displays shelf groups summary
-groupShelvesReport :: WH (IO ()) s
+groupShelvesReport :: WH [String] s
 groupShelvesReport = do
   groups <- groupShelves (const False)
   let sorted = sortBy (comparing ( head . snd  )) groups
-  return $ do
-    forM_ sorted $ \(s, names) -> do
+  forM sorted $ \(s, names) -> do
       let d = maxDim s
-      putStrLn $ show (length names) ++ " x " ++ (head names) ++ " -- " ++ (last names)
+      return $ show (length names) ++ " x " ++ (head names) ++ " -- " ++ (last names)
         ++ " " ++ printDim d
 
 

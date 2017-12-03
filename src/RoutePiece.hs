@@ -43,6 +43,7 @@ data PlannerViewMode = PlannerSummaryView
                      | PlannerGraphicCompactView
                      | PlannerGraphicBigView
                      | PlannerShelvesReport
+                     | PlannerShelvesGroupReport
   deriving (Eq, Read, Show, Enum, Bounded)
 instance PathPiece PlannerViewMode where
   fromPathPiece = readFromPathPiece

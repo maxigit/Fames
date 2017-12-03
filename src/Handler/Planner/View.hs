@@ -84,6 +84,8 @@ renderView param0 = do
               PlannerGraphicCompactView-> renderGraphicCompactView scenario
               PlannerGraphicBigView-> renderGraphicBigView scenario
               PlannerShelvesReport-> renderShelvesReport scenario
+  
+              PlannerShelvesGroupReport-> renderShelvesGroupReport scenario
           return (param, w)
     
   (formW, encType) <- generateFormPost $ paramForm (Just param)
@@ -159,6 +161,7 @@ renderGraphicBigView scenario = do
 renderSummaryReport :: Scenario -> Handler Widget
 renderSummaryReport scenario = do
   (header:rows, total) <- renderReport scenario summary
+  
   return [whamlet|
 <table.table.table-striged.table-hover>
   <tr>
@@ -189,4 +192,13 @@ renderShelvesReport scenario = do
     <tr>
       $forall col <- row 
         <td> #{col}
+                 |]
+
+renderShelvesGroupReport :: Scenario -> Handler Widget
+renderShelvesGroupReport scenario = do
+  (rows) <- renderReport scenario groupShelvesReport
+  return [whamlet|
+$forall row <- rows
+  <samp>
+    <p> #{row}
                  |]
