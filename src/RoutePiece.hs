@@ -40,7 +40,8 @@ instance PathPiece ItemViewMode where
 
 -- * Planner
 data PlannerViewMode = PlannerSummaryView
-                     | PlannerGraphicView
+                     | PlannerGraphicCompactView
+                     | PlannerGraphicBigView
   deriving (Eq, Read, Show, Enum, Bounded)
 instance PathPiece PlannerViewMode where
   fromPathPiece = readFromPathPiece

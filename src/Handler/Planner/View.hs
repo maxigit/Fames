@@ -78,11 +78,12 @@ renderView param0 = do
           param <- expandScenario (param0 {pDisplayMode = mode}) scenario
           w <- case fromMaybe PlannerSummaryView (pViewMode param) of
               PlannerSummaryView-> renderSummaryView scenario
-              PlannerGraphicView-> renderGraphicView scenario
+              PlannerGraphicCompactView-> renderGraphicCompactView scenario
+              PlannerGraphicBigView-> renderGraphicBigView scenario
           return (param, w)
     
   (formW, encType) <- generateFormPost $ paramForm (Just param)
-  let navs = [PlannerSummaryView, PlannerGraphicView]
+  let navs = [PlannerSummaryView .. ]
       navClass nav = if vmode == Just nav then "active" else "" :: Html
       fay = $(fayFile "PlannerView") -- js to post form when tab change
       mainW = [whamlet|
@@ -131,8 +132,8 @@ sendResponseDiag width diag =  do
 renderSummaryView :: Scenario -> Handler Widget
 renderSummaryView scenario = return "Summary"
 -- ** Graphical View
-renderGraphicView :: Scenario -> Handler Widget
-renderGraphicView scenario = do
+renderGraphicCompactView :: Scenario -> Handler Widget
+renderGraphicCompactView scenario = do
   (sha, layoutSize) <- cacheScenarioIn scenario
   let imgRoute i width = PlannerR (PImageR (sha) i width)
       is = [0..fromIntegral (layoutSize-1)]
@@ -142,3 +143,13 @@ renderGraphicView scenario = do
     <tr><td><a href="@{imgRoute i 8000}" ><img src=@{imgRoute i 350} style="width:800;">
 |]
 
+renderGraphicBigView :: Scenario -> Handler Widget
+renderGraphicBigView scenario = do
+  (sha, layoutSize) <- cacheScenarioIn scenario
+  let imgRoute i width = PlannerR (PImageR (sha) i width)
+      is = [0..fromIntegral (layoutSize-1)]
+  return [whamlet|
+<table>
+  $forall i <- is
+    <tr><td><a href="@{imgRoute i 8000}" ><img src=@{imgRoute i 750} style="width:800;">
+|]
