@@ -249,10 +249,10 @@ instance Shelf' ShelfId where
 
 
 -- | Nested groups of shelves, used for display
-data ShelfGroup s = ShelfGroup [ShelfGroup s] Direction
-                | ShelfProxy (ShelfId s)
+data ShelfGroup' s = ShelfGroup [ShelfGroup' s] Direction
+                | ShelfProxy (s)
                 deriving (Show)
-
+type ShelfGroup s = ShelfGroup' (ShelfId s)
 
 groupToShelfIds :: ShelfGroup s -> [ShelfId s]
 groupToShelfIds (ShelfProxy sid) = [sid]
