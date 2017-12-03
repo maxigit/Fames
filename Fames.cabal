@@ -158,6 +158,7 @@ library
       WarehousePlanner.Csv
       WarehousePlanner.Display
       WarehousePlanner.Optimum
+      WarehousePlanner.Report
       GL
       GL.FA
       GL.Receipt

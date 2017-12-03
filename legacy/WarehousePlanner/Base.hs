@@ -75,6 +75,7 @@ tiltedFR = Orientation Depth Horizontal
 rotatedSide = Orientation Horizontal Vertical
 rotatedUp = Orientation Vertical Horizontal
 
+showOrientation :: Orientation -> String
 showOrientation o | o == up             =  "^ "
                   | o == tiltedForward  =  "= "
                   | o == tiltedRight    =  "> "

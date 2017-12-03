@@ -121,5 +121,9 @@ renderScenario sc layoutM = do
         return (Right diags)
 
 
+renderReport sc report = do
+  wh0 <- execWithCache sc
+  execWH wh0 report
+
 
 

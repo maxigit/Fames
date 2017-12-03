@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 module Handler.Planner.View
 ( getPViewR
 , postPViewR
@@ -16,8 +17,10 @@ import Planner.Types
 import Text.Blaze.Html.Renderer.Text(renderHtml)
 import Util.Cache
 import WarehousePlanner.Base
+import WarehousePlanner.Report
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import qualified Yesod.Media.Simple as M
+import Data.Text(strip, splitOn)
 
 -- * Type
 data ScenarioDisplayMode = NormalM | CompactM | InitialM | ExpandedM deriving (Eq, Show, Read)
@@ -25,9 +28,10 @@ data FormParam = FormParam
   { pOrgfile :: Textarea
   , pDisplayMode :: Maybe ScenarioDisplayMode -- ^ How to re-render the scenario in the textarea field
   , pViewMode :: Maybe PlannerViewMode -- ^ How to view the warehouse
+  , pParameter :: Maybe Text
   } deriving (Show, Read)
 
-defaultParam = FormParam (Textarea "") Nothing Nothing
+defaultParam = FormParam (Textarea "") Nothing Nothing Nothing
 
 -- * Handler
 getPViewR :: Maybe PlannerViewMode -> Handler TypedContent
@@ -63,6 +67,7 @@ paramForm param = renderBootstrap3 BootstrapBasicForm form
           <$> areq textareaField "Scenario" (pOrgfile <$> param)
           <*> pure (pDisplayMode =<< param)
           <*> pure (pViewMode =<< param)
+          <*> aopt textField "report parameter" (pParameter <$> param)
 
 -- * Rendering
 -- ** General
@@ -77,9 +82,16 @@ renderView param0 = do
       Right scenario ->  do
           param <- expandScenario (param0 {pDisplayMode = mode}) scenario
           w <- case fromMaybe PlannerSummaryView (pViewMode param) of
-              PlannerSummaryView-> renderSummaryView scenario
+              PlannerSummaryView-> renderSummaryReport scenario
               PlannerGraphicCompactView-> renderGraphicCompactView scenario
               PlannerGraphicBigView-> renderGraphicBigView scenario
+              PlannerShelvesReport-> renderShelvesReport scenario
+              PlannerShelvesGroupReport-> renderShelvesGroupReport scenario
+              PlannerAllReport -> renderConsoleReport reportAll scenario
+              PlannerBestBoxesFor -> renderConsoleReport (bestBoxesFor (unpack $ fromMaybe "" (pParameter param))) scenario
+              PlannerBestShelvesFor -> renderConsoleReport (bestShelvesFor (unpack $ fromMaybe "" (pParameter param))) scenario
+              PlannerBestAvailableShelvesFor -> renderConsoleReport (bestAvailableShelvesFor (unpack $ fromMaybe "" (pParameter param))) scenario
+              PlannerGenerateMoves -> renderConsoleReport generateMoves scenario
           return (param, w)
     
   (formW, encType) <- generateFormPost $ paramForm (Just param)
@@ -128,9 +140,6 @@ sendResponseDiag width diag =  do
       w = fromIntegral width
   M.renderContent (M.SizedDiagram size diag)
 
--- ** Summary View
-renderSummaryView :: Scenario -> Handler Widget
-renderSummaryView scenario = return "Summary"
 -- ** Graphical View
 renderGraphicCompactView :: Scenario -> Handler Widget
 renderGraphicCompactView scenario = do
@@ -153,3 +162,52 @@ renderGraphicBigView scenario = do
   $forall i <- is
     <tr><td><a href="@{imgRoute i 8000}" ><img src=@{imgRoute i 750} style="width:800;">
 |]
+
+-- ** Summary report
+renderSummaryReport :: Scenario -> Handler Widget
+renderSummaryReport scenario = do
+  (header:rows, total) <- renderReport scenario summary
+  
+  return [whamlet|
+<table.table.table-striged.table-hover>
+  <tr>
+    $forall h <- header
+        <th> #{h}
+  $forall row <- rows
+    <tr>
+      $forall col <- row 
+        <td> #{col}
+  <tr>
+    <th> Total
+    $forall col <- total 
+      <th> #{col}
+                 |]
+
+  
+renderShelvesReport :: Scenario -> Handler Widget
+renderShelvesReport scenario = do
+  (header':rows') <- renderReport scenario shelvesReport
+  let header = splitOn "," (pack header')
+      rows = map (splitOn "," . pack) rows'
+  return [whamlet|
+<table.table.table-striged.table-hover>
+  <tr>
+    $forall h <- header
+        <th> #{h}
+  $forall row <- rows
+    <tr>
+      $forall col <- row 
+        <td> #{col}
+                 |]
+
+renderShelvesGroupReport :: Scenario -> Handler Widget
+renderShelvesGroupReport = renderConsoleReport groupShelvesReport
+
+-- renderConsoleReport :: Scenario )Scenario -> Handler Widget
+renderConsoleReport report scenario = do
+  (rows) <- renderReport scenario report
+  return [whamlet|
+$forall row <- rows
+  <samp>
+    <p> #{row}
+                 |]
