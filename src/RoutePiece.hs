@@ -44,6 +44,11 @@ data PlannerViewMode = PlannerSummaryView
                      | PlannerGraphicBigView
                      | PlannerShelvesReport
                      | PlannerShelvesGroupReport
+                     | PlannerAllReport
+                     | PlannerBestBoxesFor 
+                     | PlannerBestShelvesFor 
+                     | PlannerBestAvailableShelvesFor 
+                     | PlannerGenerateMoves
   deriving (Eq, Read, Show, Enum, Bounded)
 instance PathPiece PlannerViewMode where
   fromPathPiece = readFromPathPiece

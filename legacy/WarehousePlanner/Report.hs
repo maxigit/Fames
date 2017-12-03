@@ -48,18 +48,18 @@ import qualified Text.Tabular.Csv as TCsv
 
 import Debug.Trace
 
-reportAll :: WH (IO()) s
+reportAll :: WH [String] s
 reportAll = do
     sb <- shelfBoxes
     let groups =  Map'.fromListWith (+) (map (\(s,b) -> ((shelfName s, boxDim b, orientation b, boxStyle b), (1::Int))) sb)
-    return  $ mapM_ (putStrLn . toString) (Map'.toList groups)
+    return $ map toString (Map'.toList groups)
     where toString ((name, dim, o, style), count) =
             name
                 ++ ", " ++ style
                 ++ ", " ++ show count  ++ ", " ++ showOrientation o
 
 -- | Find the box which fit a given shelf  the best
-bestBoxesFor :: String -> WH (IO ()) s
+bestBoxesFor :: String -> WH [String] s
 bestBoxesFor shelf = do
     boxIds <- toList <$> gets boxes
     boxes' <- mapM findBox boxIds
@@ -80,8 +80,7 @@ bestBoxesFor shelf = do
 
         bests = sortBy (compare `on` fst) tries
 
-    ios <- mapM (report s) (map snd bests)
-    return $ sequence_ ios
+    mapM (report s) (map snd bests)
 
 -- | Find best boxes ignoring the shelve height
 bestHeightForShelf :: String -> WH (IO ()) s
@@ -153,7 +152,7 @@ bestArrangement' orientations shelves box = let
         (snd . head) bests
 
 
-report :: Shelf s -> Box s -> WH (IO ()) s
+report :: Shelf s -> Box s -> WH String s
 report shelf box = do
     getOr <- gets boxOrientations
     similarBoxes <- findBoxByStyle (boxStyle box)
@@ -161,7 +160,7 @@ report shelf box = do
         ratio = boxVolume box * fromIntegral (n * k * m) / shelfVolume shelf
         numberOfBoxes = length similarBoxes
         shelvesNeeded = fromIntegral numberOfBoxes / fromIntegral (n*m*k)
-    return $ putStrLn $ "box: " ++ boxStyle box ++ ", shelf: " ++ shelfName shelf
+    return $ "box: " ++ boxStyle box ++ ", shelf: " ++ shelfName shelf
                         ++ " " ++ showOrientation or
                         ++  printf " %0.1f%%" (ratio*100)
                         ++ printf " %dx%dx%d" n k m
@@ -174,7 +173,7 @@ report shelf box = do
 
 -- | find the best shelf for a given style
 -- Doesn't take into account boxes already there.
-bestShelvesFor :: String -> WH (IO ()) s
+bestShelvesFor :: String -> WH [String]s
 bestShelvesFor style = do
     boxes <- findBoxByStyle  style >>= mapM findBox
     shelves <- toList <$> gets shelves >>= mapM findShelf
@@ -183,12 +182,11 @@ bestShelvesFor style = do
     let box = head boxes
         bests = bestShelves box (or box) shelves
 
-    ios <- mapM (flip report $ box) bests
-    return $ sequence_ ios
+    mapM (flip report $ box) bests
 
 -- | find the best shelf for a given style
 -- depends on what's already there.
-bestAvailableShelvesFor :: String -> WH (IO ()) s
+bestAvailableShelvesFor :: String -> WH [String] s
 bestAvailableShelvesFor style = do
     boxes <- findBoxByStyle  style >>= mapM findBox
     or <- gets boxOrientations
@@ -204,14 +202,11 @@ bestAvailableShelvesFor style = do
     shelfInfos <- mapM getInfo bests
     let go (shelf, n) = do
             r <- report shelf  (head boxes)
-            return ( (putStr $ printf "%d/%d => " n (length boxes))
-                   >> r
-                   )
-    ios <- mapM go ( sortBy (comparing (Down . snd))
+            return $  printf "%d/%d => " n (length boxes) ++ r
+    mapM go ( sortBy (comparing (Down . snd))
                      (filter ((/=0).snd) shelfInfos)
                    )
 
-    return $ sequence_ ios
 
 
 
@@ -364,16 +359,16 @@ groupNames names = let
   in map toName (Map'.toList groups)
 
  
-generateMoves :: WH (IO ()) s
+generateMoves :: WH [String] s
 generateMoves = do
  s'bS <- shelfBoxes
  let groups = Map'.fromListWith (<>) [ (boxStyle b, [shelfName s]) | (s,b) <- s'bS]
- return $ do
-   putStrLn $ "stock_id,location"
-   mapM_ printGroup (Map'.toList groups)
- where printGroup (box, shelves) = do
+ return ("stock_id,location"
+        : map printGroup (Map'.toList groups)
+        )
+ where printGroup (box, shelves) =
            let names = nub shelves :: [String]
-           putStrLn $ box ++ "," ++ (intercalate "|" (sort $ groupNames names))
+           in box ++ "," ++ (intercalate "|" (sort $ groupNames names))
 
 -- * Optimizer
 -- find optimal way to rearrange the warehouse.
