@@ -25,6 +25,7 @@ import qualified Data.Sequence as Seq
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Either(lefts,rights)
+import Data.Maybe(maybeToList)
 
 import qualified System.FilePath.Glob as Glob
 import Text.Read (readMaybe)
@@ -345,19 +346,23 @@ findShelfByName name' = do
   return $ map shelfId shelves1
 
 filterShelfByTag :: Maybe String -> Shelf s -> Bool
-filterShelfByTag tagM shelf = filterByTag  tagM (shelfTag shelf)
+filterShelfByTag tagM shelf = filterByTag  tagM (maybeToList $ shelfTag shelf)
 
 filterBoxByTag :: Maybe String -> Box s -> Bool
-filterBoxByTag tagM box = any (filterByTag tagM . Just) (boxTags box)
+filterBoxByTag tagM box =  filterByTag tagM (boxTags box)
 
-filterByTag Nothing name = True
-filterByTag (Just tag) nameM = let
-  tags = splitOn "#" tag
-  ok ('-':t) st = t /= st
-  ok t st = t == st
-  in case nameM of
-    Nothing -> False
-    Just name -> all (ok name) tags
+-- | all tags from the left must belong to the right
+-- ex if box as tag A B C, A#B should match but not A#E
+filterByTag Nothing names = True
+filterByTag _ [] = False
+filterByTag (Just tag) names = let
+  tags = map ok $ splitOn "#" tag
+  ok ('-':t) = Left t
+  ok t = Right t
+  on = rights tags
+  off = lefts tags
+  in  length (on \\ names) == 0 -- all tags are found
+     && length (off \\ names) == length off -- not negative tags are found
 
 
 patternToMatchers :: String -> [(String -> Bool)]
@@ -415,8 +420,8 @@ findBoxByStyleAndShelfNames style'' = do
   -- filter by tag if any
   let allBoxes = case boxtag of
                   Nothing -> allBoxesBeforeTag
-                  Just tag -> do
-                    filter (\b -> tag `elem` boxTags b) allBoxesBeforeTag
+                  Just _ -> do
+                    filter (filterBoxByTag boxtag) allBoxesBeforeTag
 
   boxesWithShelfName <- mapM ( \b -> do
       shelfIdM <- findShelfByBox (boxId b)
