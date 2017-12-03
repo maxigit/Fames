@@ -53,6 +53,17 @@ data Direction = Vertical | Depth | Horizontal deriving (Show, Eq, Ord, Enum)
 data Flow = LeftToRight | RightToLeft deriving (Show, Eq, Ord, Enum)
 defaultFlow = LeftToRight
 
+-- | How to filter box by number.
+-- When selecting boxes, we first limit the number of boxes per content, then shelves then total
+-- Filtering by content means only n boxes of the same style content will be selected.
+-- This is use full to for example only keep one box of each variations and move them on top
+data BoxNumberSelector = BoxNumberSelector
+   { nsPerContent :: Maybe Int
+   , nsPerShelf :: Maybe Int
+   , nsTotal :: Maybe Int
+   } deriving (Show, Read)
+           
+
 -- | How something is oriented. It indicates  the direction of
 -- the normal of the given face.
 data Orientation = Orientation {  top :: !Direction, front :: !Direction } deriving (Show, Eq, Ord)
@@ -361,13 +372,22 @@ findByName objects objectName name = do
    let matchers = patternToMatchers name --  map (Glob.match . Glob.compile) (splitOn "|" name) :: [String -> Bool]
    filter (\o -> any ($ (objectName o)) matchers) <$> objects
 
-splitBoxSelector :: String -> (String, Maybe String, Maybe Int, String, Maybe String)
+splitBoxSelector :: String -> (String, Maybe String,  BoxNumberSelector, String, Maybe String)
 splitBoxSelector pat = let
   (styleMax, location') = break (=='/') pat
   (style', nMax) = break (=='^') styleMax
   (style, boxtag) = extractTag style'
   (location, locTag) = extractTag location'
-  in  (style, boxtag, readMaybe (drop 1 nMax), drop 1 location, locTag)
+  in  (style, boxtag, parseBoxNumberSelector (drop 1 nMax), drop 1 location, locTag)
+
+-- | Syntax content^shelf^total
+parseBoxNumberSelector :: String -> BoxNumberSelector
+parseBoxNumberSelector "" = BoxNumberSelector Nothing Nothing Nothing
+parseBoxNumberSelector s = let
+  splits = splitOn "^" s
+  parsed = map readMaybe splits 
+  [content, shelves, total] = take 3 $ parsed <> cycle [Nothing]
+  in BoxNumberSelector content shelves total
 
 -- | TODO Should be true be seems to work like that
 -- this will mean, that we need a normal or 
@@ -390,20 +410,16 @@ findBoxByStyleAndShelfNames style'' = do
       -- inShelves shelfName ('!':pattern_) = not $  Glob.match (Glob.compile pattern_) shelfName
       -- inShelves shelfName pattern_ = Glob.match (Glob.compile pattern_) shelfName
   -- all boxes matching name
-  allBoxesBeforeTag <- findBoxByStyle style
+  allBoxesBeforeTag' <- findBoxByStyle style
+  allBoxesBeforeTag <- mapM findBox allBoxesBeforeTag'
   -- filter by tag if any
-  allBoxes <- case boxtag of
-                  Nothing -> return allBoxesBeforeTag
+  let allBoxes = case boxtag of
+                  Nothing -> allBoxesBeforeTag
                   Just tag -> do
-                    bs <- mapM findBox allBoxesBeforeTag
-                    let bs' = filter (\b -> tag `elem` boxTags b) bs
-                    return $ map boxId bs'
-  let boxes = case nMax of
-        Nothing -> allBoxes
-        Just n -> take n (allBoxes)
+                    filter (\b -> tag `elem` boxTags b) allBoxesBeforeTag
 
   boxesWithShelfName <- mapM ( \b -> do
-      shelfIdM <- findShelfByBox b
+      shelfIdM <- findShelfByBox (boxId b)
       shelfM <- traverse findShelf shelfIdM
       let shelf = case shelfM of
                     Just shelf'  -> if filterShelfByTag locTag shelf'
@@ -412,10 +428,28 @@ findBoxByStyleAndShelfNames style'' = do
                     _ -> shelfM
 
       return $ sequenceA (b, shelfName <$> shelf)
-      ) boxes
+      ) allBoxes
 
 
-  return $ [ boxId | (boxId, shelfName) <- catMaybes boxesWithShelfName, inShelves shelfName ]
+  let box'nameS =  [ bs | bs@(_, shelfName) <- catMaybes boxesWithShelfName, inShelves shelfName ]
+  -- filter boxes by number
+  return . map (boxId  . fst) $ limitByNumber nMax box'nameS
+
+
+-- | Limit a box selections by numbers
+limitByNumber :: BoxNumberSelector -> [(Box s, String)] -> [(Box s, String)]
+limitByNumber bn@(BoxNumberSelector contentN shelfN totalN) boxes0 = let
+  boxes1 = maybe id (limitBy (boxSku . fst)) contentN $ boxes0
+  boxes2 = maybe id (limitBy snd) shelfN $ boxes1
+  boxes3 = maybe id take totalN $ boxes2
+  in traceShow ("SELECTOR",bn) boxes3
+
+
+limitBy key n boxes = let
+  group = Map'.fromListWith (<>) [(key box, [box]) | box <- boxes]
+  limited = fmap (take n) group
+  in concat (Map'.elems limited)
+  
 
 
 emptyWarehouse = Warehouse mempty mempty mempty (const white) (const (Nothing, Nothing)) defaultBoxOrientations
