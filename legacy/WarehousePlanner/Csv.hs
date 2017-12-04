@@ -266,11 +266,14 @@ readMoves filename = do
     case Csv.decode  Csv.HasHeader csvData of
         Left err ->  do putStrLn err; return (return [])
         Right (rows) -> return $ do
-            let v = Vec.forM rows $ \ (style, location) -> do
+            let v = Vec.forM rows $ \ (style, location') -> do
+                        let (location, exitMode) = case location' of
+                              ('^':loc) -> (loc, ExitOnTop)
+                              _ -> (location', ExitLeft)
                         let locations = splitOn "|" location
                         boxes <- findBoxByStyleAndShelfNames style
                         shelvesS <- mapM findShelfByName locations
-                        aroundArrangement moveBoxes boxes ((nub.concat) shelvesS)
+                        aroundArrangement (moveBoxes exitMode) boxes ((nub.concat) shelvesS)
 
             concat `fmap` (Vec.toList `fmap` v)
 
@@ -331,7 +334,7 @@ readStockTake newBoxOrientations splitStyle filename = do
                                    ("take" : tags)
                         let boxes = concat boxesS
                         shelves <- (mapM findShelf) =<< findShelfByName shelf
-                        leftOvers <- moveBoxes boxes shelves
+                        leftOvers <- moveBoxes ExitLeft boxes shelves
 
                         let errs = if not (null leftOvers)
                                       then map (\b -> "ERROR: box " ++ show b ++ " doesn't fit in " ++ shelf) leftOvers

@@ -24,10 +24,11 @@ warehouseExamble  = do
   shelves <- mapM (  \i -> newShelf ("A1" <> show i) Nothing dim0  dim0 DefaultOrientation ColumnFirst ) [1..50]
   let shelfid = shelfId (headEx shelves)
   boxes <- mapM (\i -> newBox "style" (show i) dim1 up shelfid [up] []) [1..300]
-  moveBoxes boxes shelves
+  moveBoxes ExitLeft boxes shelves
   -- rearrangeShelves [shelf, shelf2]
   
   return $ ShelfGroup (map (ShelfProxy .shelfId) shelves) Vertical
+
 
 -- * Parsing
 -- | Read and cut a scenario file into different component

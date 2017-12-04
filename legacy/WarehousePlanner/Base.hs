@@ -594,9 +594,10 @@ data ExitMode = ExitOnTop | ExitLeft deriving (Show, Eq, Ord, Enum)
 -- | List of "similar" object. In case of boxes of the same dimension.
 -- This type is just for information.
 -- There is nothign to enforce the object similarity.
+-- return the shelf itself if not empty
 newtype Similar b = Similar [b]
-fillShelf :: (Box' b, Shelf' shelf) => ExitMode -> shelf s -> Similar (b s) -> WH [Box s] s
-fillShelf _ _ (Similar []) = return []
+fillShelf :: (Box' b, Shelf' shelf) => ExitMode -> shelf s -> Similar (b s) -> WH ([Box s], Maybe (Shelf s))  s
+fillShelf _ _ (Similar []) = return ([], Nothing)
 fillShelf exitMode  s (Similar bs) = do
     shelf <- findShelf s
     boxes <- T.mapM findBox bs
@@ -645,9 +646,10 @@ fillShelf exitMode  s (Similar bs) = do
 
         left = (drop (nl*nh*nw)) orderedBox  ++ otherBoxes
 
-    if nl*nh*nw == 0 || exitMode == ExitOnTop
-       then  return left
-       else fillShelf exitMode  s (Similar (map boxId left))
+    case (nl*nw*nh, exitMode) of
+         (0, _ ) -> return (left, Nothing)
+         (_ , ExitOnTop) -> return (left, Just shelf)
+         _ ->  fillShelf exitMode  s (Similar (map boxId left))
 
     where shiftBox ori box offset = do
             updateBox (\b -> b { orientation = ori
@@ -663,22 +665,27 @@ fillShelf exitMode  s (Similar bs) = do
 -- Boxes are move in sequence and and try to fill shelve
 -- in sequence. If they are not enough space the left boxes
 -- are returned.
-moveBoxes :: (Box' b , Shelf' shelf) => [b s] -> [shelf s] -> WH [Box s] s
-moveBoxes bs ss = do
+moveBoxes :: (Box' b , Shelf' shelf) => ExitMode -> [b s] -> [shelf s] -> WH [Box s] s
+moveBoxes exitMode bs ss = do
   boxes <- mapM findBox bs
   let groups = map Similar (groupBy ((==) `on` boxDim) boxes)
-  lefts <- mapM (\g -> moveSimilarBoxes g ss) groups
+  lefts <- mapM (\g -> moveSimilarBoxes exitMode g ss) groups
   return $ concat lefts
 
 
-moveSimilarBoxes :: (Box' b , Shelf' shelf) => Similar (b s) -> [shelf s] -> WH [Box s] s
-moveSimilarBoxes (Similar bs) [] = mapM findBox bs
-moveSimilarBoxes (Similar []) _  = return []
-moveSimilarBoxes (Similar bs) (s:ss') = do
-    left <- fillShelf ExitLeft s (Similar bs)
+moveSimilarBoxes :: (Box' b , Shelf' shelf) => ExitMode -> Similar (b s) -> [shelf s] -> WH [Box s] s
+moveSimilarBoxes exitMode bs ss = moveSimilarBoxes' exitMode bs ss []
+
+moveSimilarBoxes' :: (Box' b , Shelf' shelf) => ExitMode -> Similar (b s) -> [shelf s] -> [shelf s] -> WH [Box s] s
+moveSimilarBoxes' _ (Similar bs) [] [] = mapM findBox bs
+moveSimilarBoxes' exitMode bs [] ss = moveSimilarBoxes' exitMode bs (reverse ss) [] -- can loop but normal ss is null
+moveSimilarBoxes' exitMode (Similar []) _  _ = return []
+moveSimilarBoxes' exitMode (Similar bs) (s:ss') ss'' = do
+    left <- fillShelf exitMode s (Similar bs)
     case left of
-        [] -> return []
-        bs' -> moveSimilarBoxes (Similar bs') ss'
+        ([], Nothing) -> return []
+        (bs', Nothing)  -> moveSimilarBoxes' exitMode (Similar bs') (ss') ss'' -- discard current box
+        (bs', Just _)  -> moveSimilarBoxes' exitMode (Similar bs') ss' (s:ss'')
 
 
 -- | Rearrange boxes within their own shelves
@@ -689,7 +696,7 @@ rearrangeShelves ss = do
     boxes <- concat `fmap` mapM findBoxByShelf ss
     let nothing = head $ Nothing: map Just ss -- trick to force type
     mapM_ (\b -> assignShelf  nothing b ) boxes
-    left <- moveBoxes boxes ss
+    left <- moveBoxes ExitLeft boxes ss
     s0 <- defaultShelf
     mapM (assignShelf (Just s0)) left
 
@@ -760,23 +767,23 @@ updateBoxTags tags = updateBox (updateBoxTags' $ filter (not . null) tags)
 -- * Misc
 -- | reorder box so they are ordered by column across all
 -- the given shelves.
-sortAccross :: Shelf' shelf => [shelf s] -> WH [Box s] s
-sortAccross ss = do
-    -- first we need to remove the boxes from their current location
-    boxes <- concat `fmap` mapM findBoxByShelf ss
-    let nothing = head $ Nothing : map Just ss -- trick to typecheck
-    mapM (assignShelf  nothing) boxes
-    left <- iteration ss boxes
-    s0 <- defaultShelf
-    mapM (assignShelf  (Just s0)) left
-    return (error "FIXME") --  left
-    -- Similar is not
+-- sortAccross :: Shelf' shelf => [shelf s] -> WH [Box s] s
+-- sortAccross ss = do
+--     -- first we need to remove the boxes from their current location
+--     boxes <- concat `fmap` mapM findBoxByShelf ss
+--     let nothing = head $ Nothing : map Just ss -- trick to typecheck
+--     mapM (assignShelf  nothing) boxes
+--     left <- iteration ss boxes
+--     s0 <- defaultShelf
+--     mapM (assignShelf  (Just s0)) left
+--     return (error "FIXME") --  left
+--     -- Similar is not
 
-    where iteration ss oldLeft = do
-              left <- foldM (\left s -> fillShelf ExitOnTop s (Similar left)) oldLeft  ss
-              if Prelude.length left == Prelude.length oldLeft
-              then return left
-              else iteration ss left
+--     where iteration ss oldLeft = do
+--               left <- foldM (\left s -> undefined) -- fillShelf ExitOnTop s (Similar left)) oldLeft  ss
+--               if Prelude.length left == Prelude.length oldLeft
+--               then return left
+--               else iteration ss left
 
 usedDepth :: Shelf' shelf => shelf s -> WH (String, Double) s
 usedDepth s = do
