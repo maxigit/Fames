@@ -132,13 +132,14 @@ renderBox shelf box = do
                   else black
     background <-  gets colors `ap` return box
     let   r = rect l h  # lc foreground # fc background # lwL 2 #scale 0.95 # pad 1.05
-          t = scaledText l h (showOrientation (orientation box) ++ boxSku box)
+          t = scaledText l h (boxStyle box ++ "\n" ++ showOrientation (orientation box) ++ " " ++ boxContent box)
           diagram_ = t `atop` r
           diagram = offsetBox True shelf box diagram_
 
           boxBar =  renderBoxBar box background
           backBag = renderBoxBarBg shelf
 
+          -- offset and scale to 
           offsetBar bar = offsetBox False shelf box $ bar # translate (r2 (5,5) ) 
     return $ [(3, diagram),
               (2, offsetBar backBag),
