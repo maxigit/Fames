@@ -127,10 +127,10 @@ bestHeightForShelf shelf = do
     return $ sequence_ ios
 
 -- | Like best arrangement but only take the
-bestArrangement' :: Show a => [(Orientation, Int)] -> [(Dimension, a)] -> Dimension -> (Orientation, Int, Int, Int, a)
+bestArrangement' :: Show a => [(Orientation, Int, Int)] -> [(Dimension, a)] -> Dimension -> (Orientation, Int, Int, Int, a)
 bestArrangement' orientations shelves box = let
-    options = [ (o, extra, (nl, (min nw maxW), 1), sl*sw*sh)
-              | (o, maxW) <-   orientations
+    options = [ (o, extra, (nl, max minW (min nw maxW), 1), sl*sw*sh)
+              | (o, minW, maxW) <-   orientations
               , (shelf, extra) <- shelves
               , let Dimension sl sw sh =  shelf
               , let (nl, nw, nh) = howMany shelf (rotate o box)
@@ -478,7 +478,7 @@ rVolumeLeftForAllFull r = rVolumeLeftForFull r * (fromIntegral $ rUsedShelves r)
 -- | Define Ord for residuals so that "best" residuals are first
 -- best minimize the wasted space
 
-findResidual :: [(Orientation, Int)] -> Shelf s -> Box s -> Int -> Int -> Maybe (Residual s)
+findResidual :: [(Orientation, Int, Int)] -> Shelf s -> Box s -> Int -> Int -> Maybe (Residual s)
 findResidual orientations shelf box qty nbOfShelf = let
   sdim = maxDim shelf
   bdim = _boxDim box

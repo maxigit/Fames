@@ -9,7 +9,7 @@ import Control.Monad.State
 
 -- | find shelves allowing the less waste
 -- if it were filled with the same box
-bestShelves :: Box s -> (Shelf s -> [(Orientation, Int)]) -> [Shelf s] ->  [Shelf s]
+bestShelves :: Box s -> (Shelf s -> [(Orientation, Int, Int)]) -> [Shelf s] ->  [Shelf s]
 bestShelves box ors ss  = let
     tries = [ (-((fromIntegral (n*k*m))*boxVolume box / shelfVolume s), s)
             | s <- ss
@@ -17,7 +17,7 @@ bestShelves box ors ss  = let
             ]
     in map snd $ sortBy (compare `on` fst) tries
 
-fillBest :: (Box s -> [(Orientation, Int)] -> [Shelf s] -> [Shelf s])
+fillBest :: (Box s -> [(Orientation, Int, Int)] -> [Shelf s] -> [Shelf s])
           -> [Box s] 
           -> [Shelf s]
           -> WH [Box s] s

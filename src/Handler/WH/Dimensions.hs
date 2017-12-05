@@ -252,7 +252,7 @@ displayBox outer innerm   = let
 -- | Calculate 
 innerBoxes :: Dimension -> Dimension -> [PDimension]
 innerBoxes outer inner =
-  let orientations = zip allOrientations (repeat 6)
+  let orientations = zip3 allOrientations (repeat 0) (repeat 6)
       best = bestArrangement orientations [(outer, ())] inner
       (ori, nl, nw, nh, _) = traceShow ("BEST-new", outer, inner, best) best
       (Dimension l w h) = W.rotate ori inner

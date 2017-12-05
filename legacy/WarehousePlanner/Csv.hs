@@ -8,7 +8,7 @@ import qualified Data.Vector as Vec
 import Control.Monad
 import Data.List.Split (splitOn)
 import Data.List(nub, union, groupBy, sortBy)
-import Data.Char(toLower)
+import Data.Char(toLower, isDigit)
 import Data.Ord(comparing)
 import Prelude
 import Text.Read(readMaybe)
@@ -356,7 +356,7 @@ readStockTake newBoxOrientations splitStyle filename = do
 
 
 -- * read orientation rules
-readOrientationRules :: [Orientation] -> String -> IO (Box s -> Shelf s -> Maybe [(Orientation, Int)])
+readOrientationRules :: [Orientation] -> String -> IO (Box s -> Shelf s -> Maybe [(Orientation, Int, Int)])
 readOrientationRules defOrs filename = do
     csvData <- BL.readFile filename
     case Csv.decode  Csv.HasHeader csvData of
@@ -409,7 +409,26 @@ setOrientationRules defOrs filename = do
 --     _ -> fromTags
 
   
-parseOrientationRule:: [Orientation] -> String -> [(Orientation, Int)]
-parseOrientationRule defOrs (c:[]) | Just i <- readMaybe [c] = map (,i) defOrs
-parseOrientationRule defOrs (c:cs) | Just i <- readMaybe [c] = map (,i) (readOrientations defOrs  cs)
-parseOrientationRule _ _ = []
+-- | Orientation rules follow this syntax
+-- [min : ][max] [or1] [or2] ...
+-- example:
+-- 9 -- max 9
+-- 1:9 -- min 1
+parseOrientationRule:: [Orientation] -> String -> [(Orientation, Int, Int)]
+parseOrientationRule defOrs cs = let
+  (ns, cs') = span (isDigit) cs
+  n0 = read ns
+  (nM, cs'') = case cs' of
+                  (':':s) -> let (ns', leftover) = span (isDigit) s
+                             in (Just ( readMaybe ns' :: Maybe Int), leftover)
+                  _ -> (Nothing, cs')
+  -- if only one number, use it as the maximum
+  (min_, max_) = case nM of
+    Nothing -> (0, n0)
+    Just Nothing -> (n0, n0)
+    Just (Just n) -> (n0, n)
+
+  ors = case cs'' of
+    [] -> defOrs
+    s -> readOrientations defOrs s
+  in [(o, min_, max_) | o <- ors ]

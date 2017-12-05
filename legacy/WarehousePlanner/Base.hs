@@ -299,13 +299,14 @@ buildRack xs = do
 -- | State containing bays of boxes
 -- boxOrientations : function returning a list
 -- of possible box orientiations within a shelf for a given box.
--- as well as the number of boxes which can be used for the depth
+-- as well as the number of boxes which can be used for the depth (min and max)
+-- setting min to 1, allow forcing boxes stick out
 data Warehouse s = Warehouse { boxes :: Seq (BoxId s)
                            , shelves :: Seq (ShelfId s)
                            , shelfGroup :: ShelfGroup s
                            , colors :: Box s -> Colour Double
                            , shelfColors :: Shelf s -> (Maybe (Colour Double), Maybe (Colour Double))
-                           , boxOrientations :: Box s -> Shelf s -> [(Orientation, Int)]
+                           , boxOrientations :: Box s -> Shelf s -> [(Orientation, Int, Int)]
              } -- deriving Show
 
  -- | shelf use as error, ie everything not fitting anywhere
@@ -468,7 +469,7 @@ defaultBoxOrientations box shelf =
                                     ors -> ors
             FilterOrientations orientations -> boxBoxOrientations box \\ orientations
             AddOrientations lefts rights -> lefts `union` boxBoxOrientations box `union` rights
-    in map (,1) orientations
+    in map (\o -> (o,0,1)) orientations
 
 
 type WH a s = StateT  (Warehouse s) (ST s) a
@@ -538,10 +539,10 @@ linkBox box shelf = do
   return ()
 -- | find the best way to arrange some boxes within the given space
 -- For the same number of boxes. use the biggest diagonal first, then  the smallest shelf
-bestArrangement :: Show a => [(Orientation, Int)] -> [(Dimension, a)] -> Dimension -> (Orientation, Int, Int, Int, a)
+bestArrangement :: Show a => [(Orientation, Int, Int)] -> [(Dimension, a)] -> Dimension -> (Orientation, Int, Int, Int, a)
 bestArrangement orientations shelves box = let
-    options = [ (o, extra, (nl, (min nw maxW), nh), sl*sw*sh)
-              | (o, maxW) <-   orientations
+    options = [ (o, extra, (nl, max minW (min nw maxW), nh), sl*sw*sh)
+              | (o, minW, maxW) <-   orientations
               , (shelf, extra) <- shelves
               , let Dimension sl sw sh =  shelf
               , let (nl, nw, nh) = howMany shelf (rotate o box)
