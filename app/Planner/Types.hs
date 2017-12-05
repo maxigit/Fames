@@ -10,18 +10,19 @@ type Content = Either DocumentHash [Text]
 data Section = Section
    { sectionType :: HeaderType
    , sectionContent :: Content
+   , sectionTitle :: Text
    } deriving (Show, Read, Eq)
 
 -- * Content Types
 data TypedLine = CommentL 
-              | HeaderL HeaderType
+              | HeaderL HeaderType Text
               | TextL Text
               | EndL
               | HashL DocumentHash
               deriving (Show, Read, Eq, Ord)
 
 
-data HeaderType = LayoutH | ShelvesH | InitialH | StocktakeH | BoxesH | MovesH | TagsH | OrientationsH
+data HeaderType = LayoutH | ShelvesH | InitialH | StocktakeH | BoxesH | MovesH | TagsH | OrientationsH | TitleH
   deriving (Show, Read, Eq, Ord)
 
 -- * Scenario
@@ -33,7 +34,9 @@ data Scenario = Scenario
   , sLayout ::  Maybe DocumentHash
   } deriving (Read, Show)
 
-data Step = Step HeaderType DocumentHash deriving (Show, Read)
+-- | Text is the original line.
+-- usefull to reconstruct the orignal file
+data Step = Step HeaderType DocumentHash Text deriving (Show, Read)
 
 
 

@@ -43,41 +43,46 @@ parseLine :: Text -> Either Text TypedLine
 parseLine line | "-- END " `isPrefixOf` line          = Right EndL
                | "-- " `isPrefixOf` line              = Right $ CommentL
                | Just sha <- stripPrefix "@" line = Right $ HashL (DocumentHash $ strip sha)
-               | Just header <- stripPrefix "* " line  = case parseHeader header of
-                   Nothing -> Left $ line <> " is an invalid header type."
-                   Just h -> Right (HeaderL h)
+               | Just headerType <-  extractHeader line =  Right $ HeaderL headerType line
                | strip line                 == "" = Right $ CommentL
                | otherwise                        = Right $ TextL line
 
+
 -- | Regroup lines into section
 linesToSections :: [TypedLine] -> [Either Text Section]
-linesToSections lines = reverse $ go lines MovesH ([]) [] where
-  go :: [TypedLine] -> HeaderType -> [Text] -> [Either Text Section] -> [Either Text Section]
+linesToSections lines = reverse $ go lines (MovesH, "") ([]) [] where
+  go :: [TypedLine] -> (HeaderType, Text) -> [Text] -> [Either Text Section] -> [Either Text Section]
   go [] header current sections = merge header current sections
   go ((CommentL):ls) header current sections = go ls header current sections
   go ((EndL):_) header current sections = go [] header current sections
-  go ((HeaderL newHeader):ls) header current sections = -- start new section
-        go ls newHeader [] (merge header current sections)
+  go ((HeaderL newHeader title):ls) header current sections = -- start new section
+        go ls (newHeader, title) [] (merge header current sections)
   go ((TextL txt):ls) header current sections = go ls header (txt:current) sections
   -- Only one hash can be in a section. Close the previous section and open a new one at the same time
-  go ((HashL sha):ls) header [] sections = go ls header [] (Right (Section header (Left sha)) :sections)
+  go ((HashL sha):ls) header@(ht,title) [] sections = go ls header [] (Right (Section ht (Left sha) title) :sections)
   go ls@((HashL _):_) header current sections = go ls header [] (go [] header current sections)
-  merge :: HeaderType  -> [Text] -> [Either Text Section] -> [Either Text Section]
+  merge :: (HeaderType, Text)  -> [Text] -> [Either Text Section] -> [Either Text Section]
   merge header [] sections = sections
-  merge header current sections = Right (Section header (Right (reverse current))) : sections
+  merge header@(ht,title) current sections = Right (Section ht (Right (reverse current)) title) : sections
 
-
-parseHeader :: Text -> Maybe HeaderType
-parseHeader h = case toLower (strip h) of
-  "layout" -> Just LayoutH
-  "shelves" -> Just ShelvesH
-  "initial" -> Just InitialH
-  "stocktake" -> Just StocktakeH
-  "boxes" -> Just BoxesH
-  "moves" -> Just MovesH
-  "tags" -> Just TagsH
-  "orientations" -> Just OrientationsH
+-- | Header is like "*** [HEADER] title"
+extractHeader :: Text -> Maybe HeaderType
+extractHeader line = case words line of
+  (stars:section:_) | isStars stars -> Just $ parseHeader section
   _ -> Nothing
+  where isStars = all ((==) '*') 
+  
+parseHeader :: Text -> HeaderType
+parseHeader h = case toLower (strip h) of
+  "layout" -> LayoutH
+  "shelves" -> ShelvesH
+  "initial" -> InitialH
+  "stocktake" -> StocktakeH
+  "boxes" -> BoxesH
+  "moves" -> MovesH
+  "tags" -> TagsH
+  "orientations" -> OrientationsH
+  _ -> error "title found " -- TitleH
   
 writeHeader :: HeaderType -> Text
 writeHeader header = let
@@ -113,19 +118,19 @@ contentPath (DocumentHash file) = "/tmp/planner-" <> unpack file
 
 
 -- | Saves files and replace them by their hash
-cacheSection :: MonadIO m => Section -> m (Either Text (HeaderType, DocumentHash))
-cacheSection (Section InitialH content) = do
+cacheSection :: MonadIO m => Section -> m (Either Text (HeaderType, (DocumentHash, Text)))
+cacheSection (Section InitialH content _) = do
   case content of
     Left sha -> do
       -- TODO: 
       -- wh <- cacheWarehouseOut sha
       -- return $ case wh of
         -- Nothing -> Left "Initial state doesn't exits anymore"
-        return $ Right (InitialH, sha)
+        return $ Right (InitialH, (sha, ""))
     Right  _ -> return $ Left "Initial section needs a SHA (@...)"
 cacheSection Section{..} = runExceptT $ do
   sha <- ExceptT $ cacheContent sectionContent
-  return $ (sectionType, sha)
+  return $ (sectionType, (sha, sectionTitle))
   
 -- | Load files and replace them by their text content
 unCacheSection :: MonadIO m => Section -> m Section
@@ -146,7 +151,7 @@ retrieveContent key = do
     else return Nothing
 
 
-makeScenario :: [(HeaderType, DocumentHash)]  -> Either Text Scenario
+makeScenario :: [(HeaderType, (DocumentHash, Text))]  -> Either Text Scenario
 makeScenario sections0 = do -- Either
   let (initials, sections1) = partition (( InitialH==). fst) sections0
       (layouts, sections2) = partition (( LayoutH==). fst) sections1
@@ -157,9 +162,9 @@ makeScenario sections0 = do -- Either
   initial <- firstOrNone "Too many INITIAL sections" initials
   layout <- firstOrNone "Too many LAYOUT sections" layouts
 
-  let steps = map (uncurry Step) sections2
+  let steps = map (\(header , (sha, title)) ->  Step header sha title) sections2
 
-  Right $ Scenario initial steps layout
+  Right $ Scenario (map fst initial) steps (map fst layout)
 
 -- * Pretty Printing
 scenarioToTextWithHash :: Scenario -> Text
@@ -170,7 +175,7 @@ sectionsToText sections = unlines $ concatMap sectionToText sections
 
 sectionToText :: Section -> [Text]
 sectionToText Section{..} = execWriter $ do
-    tell $ ["* " <> writeHeader sectionType]
+    tell [sectionTitle] --  $ ["* " <> writeHeader sectionType]
     case sectionContent of
        Left (DocumentHash key) -> tell ["@" <> key]
        Right texts -> tell texts
@@ -185,9 +190,9 @@ scenarioToFullText scenario =  do
 
 scenarioToSections :: Scenario -> [Section]
 scenarioToSections Scenario{..} = execWriter $ do  -- []
-  forM sInitialState (\state -> tell [Section InitialH (Left state)])
-  forM sLayout (\layout -> tell [Section LayoutH (Left layout)])
-  forM sSteps (\(Step header sha) -> tell [Section header (Left sha)])
+  forM sInitialState (\state -> tell [Section InitialH (Left state) ""])
+  forM sLayout (\layout -> tell [Section LayoutH (Left layout) ""])
+  forM sSteps (\(Step header sha title) -> tell [Section header (Left sha) title])
 
 -- | Key identifying the scenario. Takes all document and has them.
 scenarioKey :: Scenario -> DocumentHash
@@ -218,7 +223,7 @@ execWH warehouse0 wh = lift $ stToIO $ evalStateT wh warehouse0
 runWH warehouse0 wh = lift $ stToIO $ runStateT wh warehouse0
 
 executeStep :: Step -> IO (WH () s)
-executeStep (Step header sha) =
+executeStep (Step header sha _) =
   let path = contentPath sha
       defaultOrientations = [tiltedForward, tiltedFR]
       splitStyle s = let (style, colour) = splitAt 8 s
@@ -235,6 +240,7 @@ executeStep (Step header sha) =
           MovesH -> execute $ readMoves path
           TagsH -> execute $ readTags path
           OrientationsH -> execute $ setOrientationRules defaultOrientations path
+          TitleH -> return $ return ()
 
 -- | Retrieve the number of line in the layout file
 scenarioLayoutSize :: MonadIO m => Scenario -> m Int

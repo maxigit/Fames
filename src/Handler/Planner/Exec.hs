@@ -79,7 +79,7 @@ defOrs = [ tiltedForward, tiltedFR ]
 -- shelves first, then orientations rules, then in inital order
 sSortedSteps Scenario{..} = let
   steps = zipWith key sSteps  [1..]
-  key step@(Step header hash) i = ((priority header, i), step)
+  key step@(Step header hash _) i = ((priority header, i), step)
   priority header = case header of
                          ShelvesH  -> 1
                          OrientationsH -> 2
