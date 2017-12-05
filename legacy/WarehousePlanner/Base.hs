@@ -446,15 +446,18 @@ findBoxByStyleAndShelfNames style'' = do
 -- | Limit a box selections by numbers
 limitByNumber :: BoxNumberSelector -> [(Box s, String)] -> [(Box s, String)]
 limitByNumber bn@(BoxNumberSelector contentN shelfN totalN) boxes0 = let
-  boxes1 = maybe id (limitBy (boxSku . fst)) contentN $ boxes0
+  sorted = sortBy (comparing  $ ((,) <$> boxGlobalPriority <*> boxRank) . fst ) boxes0
+  boxes1 = maybe id (limitBy (boxSku . fst)) contentN $ sorted
   boxes2 = maybe id (limitBy snd) shelfN $ boxes1
-  boxes3 = maybe id take totalN $ boxes2
+  boxes3 = maybe id take totalN $ sortBy (comparing  $ ((,) <$> boxGlobalPriority <*> boxRank) . fst ) boxes2
   in boxes3
 
 
+-- limitBy :: Ord k => (Box s -> k) -> Int -> [Box s] -> [a]
 limitBy key n boxes = let
-  group = Map'.fromListWith (<>) [(key box, [box]) | box <- boxes]
-  limited = fmap (take n) group
+  sorted = sortBy (comparing  $ ((,) <$> boxGlobalPriority <*> boxRank) . fst ) boxes
+  group = Map'.fromListWith (flip(<>)) [(key box, [box]) | box <- sorted]
+  limited = fmap (take n . sortBy (comparing $ boxRank . fst) ) group
   in concat (Map'.elems limited)
   
 
@@ -607,7 +610,7 @@ fillShelf exitMode  s (Similar bs) = do
     lused <- lengthUsed shelf
     hused <- heightUsed shelf
 
-    let groups = reverse . Map'.toList $ Map'.fromListWith (++) [(_boxDim b, [b]) | b <- boxes]
+    let groups = Map'.toList $ Map'.fromListWith (flip(<>)) [(_boxDim b, [b]) | b <- boxes]
         -- we assume here that all boxes with the same dimension share the same orientation policy.
 
         (dim, firstGroup) = head groups
