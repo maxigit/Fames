@@ -492,9 +492,12 @@ newBox style content dim or shelf ors tags = do
     let tags' = case content of
           "" -> tags
           _ -> ('\'':content):tags
+    -- create tag of dimension
+        dtags = [dshow 'l' dLength, dshow 'w' dWidth, dshow 'h' dHeight]
+        dshow c f = '\'' : c : show (floor $ 100 * f dim)
 
     ref <- lift $ newSTRef (error "should never been called. undefined. Base.hs:338")
-    let box = Box (BoxId ref) (Just $ shelfId shelf) style content dim mempty or ors tags'
+    let box = Box (BoxId ref) (Just $ shelfId shelf) style content dim mempty or ors (tags' <> dtags)
     shelf' <- findShelf shelf
     linkBox (BoxId ref) shelf'
     lift $ writeSTRef ref box
