@@ -308,7 +308,7 @@ readStockTake newBoxOrientations splitStyle filename = do
         Left err ->  do putStrLn err; return (return ([], []))
         Right (rowsV) -> return $ do
             -- we get bigger box first : -l*w*h
-            let rows = [ ((qty, content),  (-(l*w*h), shelf, style', tags, l,w,h, if null os then "%" else os))
+            let rows = [ ((qty, content, tags),  (-(l*w*h), shelf, style', l,w,h, if null os then "%" else os))
                        | (shelf, style, qty, l, w, h, os)
                        <- Vec.toList (rowsV ::  Vec.Vector (String, String, Int, Double, Double, Double, String))
                        , let (name, tags) = extractTags style
@@ -318,12 +318,11 @@ readStockTake newBoxOrientations splitStyle filename = do
                 groups = groupBy (\a b -> snd a == snd b)
                        $ sortBy (comparing snd) rows
 
-
-            v <- forM groups $ \rows@((_, (_,shelf, style, tags, l, w, h, os)):_) -> do
+            v <- forM groups $ \rows@((_, (_,shelf, style, l, w, h, os)):_) -> do
                         s0 <- defaultShelf
                         let dim = Dimension l w h
                             boxOrs = readOrientations newBoxOrientations os
-                        boxesS <- forM rows $ \((qty, content),_) ->
+                        boxesS <- forM rows $ \((qty, content, tags),_) ->
                           forM [1..qty] $   \i -> do
                             newBox style
                                     content
