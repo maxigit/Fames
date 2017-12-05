@@ -672,7 +672,7 @@ moveBoxes exitMode bs ss = do
   boxes <- mapM findBox bs
   let layers = groupBy ((==)  `on` boxGlobalPriority) $ sortBy (comparing boxGlobalPriority) boxes
   lefts <- forM layers $ \layer -> do
-    let groups = map Similar (groupBy ((==) `on` (roundDim . _boxDim)) layer)
+    let groups = map Similar (groupBy ((==) `on` _boxDim) $ sortBy (comparing _boxDim) layer )
     -- traceShowM ("GRoups", length groups, map (\(Similar g@(g1:_)) -> (show $ length g, show $ _boxDim g1, show . roundDim $ boxDim g1 )) groups)
     lefts <- mapM (\g -> moveSimilarBoxes exitMode g ss) groups
     return $ concat lefts
