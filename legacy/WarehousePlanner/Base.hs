@@ -25,7 +25,7 @@ import qualified Data.Sequence as Seq
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Either(lefts,rights)
-import Data.Maybe(maybeToList)
+import Data.Maybe(maybeToList, mapMaybe)
 
 import qualified System.FilePath.Glob as Glob
 import Text.Read (readMaybe)
@@ -448,7 +448,7 @@ limitByNumber bn@(BoxNumberSelector contentN shelfN totalN) boxes0 = let
   boxes1 = maybe id (limitBy (boxSku . fst)) contentN $ boxes0
   boxes2 = maybe id (limitBy snd) shelfN $ boxes1
   boxes3 = maybe id take totalN $ boxes2
-  in traceShow ("SELECTOR",bn) boxes3
+  in boxes3
 
 
 limitBy key n boxes = let
@@ -640,7 +640,7 @@ fillShelf exitMode  s (Similar bs) = do
                                     ]
                   ]
      --  turn all boxes
-        orderedBox = sortBy (compare `on` boxKey) firstGroup
+        orderedBox = sortBy (compare `on` boxRank) firstGroup
     zipWithM (shiftBox bestO) orderedBox offsets
     let otherBoxes = concat [bs | (_, bs) <- tail groups ]
 
@@ -666,15 +666,52 @@ fillShelf exitMode  s (Similar bs) = do
 -- in sequence. If they are not enough space the left boxes
 -- are returned.
 moveBoxes :: (Box' b , Shelf' shelf) => ExitMode -> [b s] -> [shelf s] -> WH [Box s] s
+
 moveBoxes exitMode bs ss = do
   boxes <- mapM findBox bs
-  let groups = map Similar (groupBy ((==) `on` boxDim) boxes)
-  lefts <- mapM (\g -> moveSimilarBoxes exitMode g ss) groups
+  let layers = groupBy ((==)  `on` boxGlobalPriority) $ sortBy (comparing boxGlobalPriority) boxes
+  lefts <- forM layers $ \layer -> do
+    let groups = map Similar (groupBy ((==) `on` (roundDim . _boxDim)) layer)
+    -- traceShowM ("GRoups", length groups, map (\(Similar g@(g1:_)) -> (show $ length g, show $ _boxDim g1, show . roundDim $ boxDim g1 )) groups)
+    lefts <- mapM (\g -> moveSimilarBoxes exitMode g ss) groups
+    return $ concat lefts
   return $ concat lefts
 
+roundDim :: Dimension -> [Int]
+roundDim (Dimension l w h) = map (round . (*100)) [l,w,h]
+
+ 
 
 moveSimilarBoxes :: (Box' b , Shelf' shelf) => ExitMode -> Similar (b s) -> [shelf s] -> WH [Box s] s
 moveSimilarBoxes exitMode bs ss = moveSimilarBoxes' exitMode bs ss []
+
+
+boxRank :: Box s -> (String, Int, String, Int)
+boxRank box = ( boxStyle box , boxStylePriority box, boxContent box, boxContentPriority box)
+-- | get the priority of a box. At the moment it is extracted from the tag.
+-- we might set it as an attribute to speed things up
+-- extract number from tag
+boxContentPriority :: Box s -> Int
+boxContentPriority box = extractPriority readMaybe (boxTags box)
+
+boxStylePriority  :: Box s -> Int
+boxStylePriority  box = extractPriority readPriority (boxTags box) where
+  readPriority ('@':s) = readMaybe s
+  readPriority _ = Nothing
+
+extractPriority :: (a -> Maybe Int) -> [a] -> Int
+extractPriority readPriority xs =  let
+  priorities = mapMaybe readPriority xs
+  in case priorities of
+      [] -> 100
+      ps -> minimum ps
+
+-- | Same as boxPriority but used before grouping box by styles
+-- look at @n in tags
+boxGlobalPriority  :: Box s -> Int
+boxGlobalPriority  box = extractPriority readPriority (boxTags box) where
+  readPriority ('@':'@':s) = readMaybe s
+  readPriority _ = Nothing
 
 moveSimilarBoxes' :: (Box' b , Shelf' shelf) => ExitMode -> Similar (b s) -> [shelf s] -> [shelf s] -> WH [Box s] s
 moveSimilarBoxes' _ (Similar bs) [] [] = mapM findBox bs
