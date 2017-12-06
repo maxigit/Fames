@@ -62,6 +62,7 @@ linesToSections lines = reverse $ go lines (MovesH, "") ([]) [] where
   go ((HashL sha):ls) header@(ht,title) [] sections = go ls header [] (Right (Section ht (Left sha) title) :sections)
   go ls@((HashL _):_) header current sections = go ls header [] (go [] header current sections)
   merge :: (HeaderType, Text)  -> [Text] -> [Either Text Section] -> [Either Text Section]
+  merge (TitleH, title) [] sections = Right (Section TitleH (Right []) title): sections
   merge header [] sections = sections
   merge header@(ht,title) current sections = Right (Section ht (Right (reverse current)) title) : sections
 
@@ -82,7 +83,7 @@ parseHeader h = case toLower (strip h) of
   "moves" -> MovesH
   "tags" -> TagsH
   "orientations" -> OrientationsH
-  _ -> error "title found " -- TitleH
+  _ -> TitleH
   
 writeHeader :: HeaderType -> Text
 writeHeader header = let
@@ -173,11 +174,12 @@ scenarioToTextWithHash scenario = sectionsToText $ scenarioToSections scenario
 sectionsToText :: [Section] -> Text
 sectionsToText sections = unlines $ concatMap sectionToText sections
 
+emptyHash = computeDocumentKey ""
 sectionToText :: Section -> [Text]
 sectionToText Section{..} = execWriter $ do
     tell [sectionTitle] --  $ ["* " <> writeHeader sectionType]
     case sectionContent of
-       Left (DocumentHash key) -> tell ["@" <> key]
+       Left k@(DocumentHash key) -> if k /= emptyHash then tell ["@" <> key] else return ()
        Right texts -> tell texts
     return ()
 
