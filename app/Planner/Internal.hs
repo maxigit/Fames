@@ -126,7 +126,7 @@ cacheSection (Section InitialH content _) = do
       -- wh <- cacheWarehouseOut sha
       -- return $ case wh of
         -- Nothing -> Left "Initial state doesn't exits anymore"
-        return $ Right (InitialH, (sha, ""))
+        return $ Right (InitialH, (sha, "* Initial"))
     Right  _ -> return $ Left "Initial section needs a SHA (@...)"
 cacheSection Section{..} = runExceptT $ do
   sha <- ExceptT $ cacheContent sectionContent
@@ -190,8 +190,8 @@ scenarioToFullText scenario =  do
 
 scenarioToSections :: Scenario -> [Section]
 scenarioToSections Scenario{..} = execWriter $ do  -- []
-  forM sInitialState (\state -> tell [Section InitialH (Left state) ""])
-  forM sLayout (\layout -> tell [Section LayoutH (Left layout) ""])
+  forM sInitialState (\state -> tell [Section InitialH (Left state) "* INITIAL"])
+  forM sLayout (\layout -> tell [Section LayoutH (Left layout) "* LAYOUT"])
   forM sSteps (\(Step header sha title) -> tell [Section header (Left sha) title])
 
 -- | Key identifying the scenario. Takes all document and has them.

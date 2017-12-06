@@ -8,6 +8,7 @@ module Handler.Planner.View
 where
 
 import Data.List((!!))
+import Data.Dynamic
 import Diagrams.Backend.Cairo
 import Diagrams.Prelude hiding(iso)
 import Handler.Planner.Exec
@@ -21,6 +22,7 @@ import WarehousePlanner.Report
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import qualified Yesod.Media.Simple as M
 import Data.Text(strip, splitOn)
+import qualified Data.Map as Map
 
 -- * Type
 data ScenarioDisplayMode = NormalM | CompactM | InitialM | ExpandedM deriving (Eq, Show, Read)
@@ -92,6 +94,7 @@ renderView param0 = do
               PlannerBestShelvesFor -> renderConsoleReport (bestShelvesFor (unpack $ fromMaybe "" (pParameter param))) scenario
               PlannerBestAvailableShelvesFor -> renderConsoleReport (bestAvailableShelvesFor (unpack $ fromMaybe "" (pParameter param))) scenario
               PlannerGenerateMoves -> renderConsoleReport generateMoves scenario
+              PlannerScenarioHistory -> renderHistory
           return (param, w)
     
   (formW, encType) <- generateFormPost $ paramForm (Just param)
@@ -168,7 +171,7 @@ renderSummaryReport :: Scenario -> Handler Widget
 renderSummaryReport scenario = do
   (header:rows, total) <- renderReport scenario summary
   
-  return [whamlet|
+  return $ [whamlet|
 <table.table.table-striged.table-hover>
   <tr>
     $forall h <- header
@@ -211,3 +214,31 @@ $forall row <- rows
   <samp>
     <p> #{row}
                  |]
+
+-- | Show scenario in cache
+renderHistory :: Handler Widget
+renderHistory = do
+  cvar <- getsYesod appCache
+  cache <- readMVar cvar
+  info <- mapM (\km ->traverse readMVar km) (Map.toList cache)
+  let sorted = sortBy (comparing $ Down . fst) info
+      scenarios = [ (t,s)
+                  | (k, (d, t)) <- sorted
+                  , let smm = Data.Dynamic.fromDynamic d :: Maybe (Maybe (Scenario, Int))
+                  , Just (Just (s, _)) <- return $ traceShow (k, smm) smm
+                  ]
+                           
+
+  return [whamlet|
+<table.table.table-striped.table-hover>
+  <tr>
+    <th> Expiry time
+    <th> Scenario
+  $forall (t, scenario) <- scenarios
+    <tr>
+      <td> #{tshow t}
+      <td> <samp>
+        $forall l <- lines (scenarioToTextWithHash scenario)
+          #{l}<br>
+|]
+

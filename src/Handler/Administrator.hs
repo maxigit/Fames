@@ -88,10 +88,10 @@ getACacheR = do
 <h2>Expiry Cache
 <table.table.table-striped.table-hover>
   <tr>
-    <theader>Time
-    <theader>Key
-    <theader>Value
-    <theader>Extra
+    <th>Time
+    <th>Key
+    <th>Value
+    <th>Extra
   $forall (k, dyn, t, ex) <- withExtra
     $with exp <- expired t
       <tr :exp:.txt-muted>
