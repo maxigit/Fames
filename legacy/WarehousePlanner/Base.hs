@@ -637,10 +637,10 @@ fillShelf exitMode  s (Similar bs) = do
                   | (il, iw ,ih) <-  case (shelfFillingStrategy shelf) of
                                 ColumnFirst -> [(il, iw, ih)
                                     | il <- [0..nl-1]
-                                    , iw <- [0..nw-1]
                                     , ih <- [0..nh-1]
+                                    , iw <- [0..nw-1]
                                     ]
-                                RowFirst -> [(ih, iw, il)
+                                RowFirst -> [(il, iw, ih)
                                     | ih <- [0..nh-1]
                                     , iw <- [0..nw-1]
                                     , il <- [0..nl-1]
