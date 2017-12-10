@@ -640,9 +640,9 @@ fillShelf exitMode  s (Similar bs) = do
                                     , iw <- [0..nw-1]
                                     , ih <- [0..nh-1]
                                     ]
-                                RowFirst -> [(ih, iw, il)
-                                    | ih <- [0..nh-1]
-                                    , iw <- [0..nw-1]
+                                RowFirst -> [(iw, ih, il)
+                                    | iw <- [0..nw-1]
+                                    , ih <- [0..nh-1]
                                     , il <- [0..nl-1]
                                     ]
                   ]
