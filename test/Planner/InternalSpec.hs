@@ -30,9 +30,9 @@ pureSpec = describe "Parsing Scenario file @planner" $ do
 
     parseScenarioFile text `shouldBe` Right [ Section LayoutH (Right ["A|B|C"]) "* Layout"
                                            , Section MovesH (Left (DocumentHash "sha1")) "*   Moves"
-                                           , Section MovesH (Right ["move 1", "move 2"]) ""
-                                           , Section MovesH (Left (DocumentHash "sha2")) ""
-                                           , Section MovesH (Right ["move 3", "move 4"]) ""
+                                           , Section MovesH (Right ["move 1", "move 2"]) "*   Moves"
+                                           , Section MovesH (Left (DocumentHash "sha2")) "*   Moves"
+                                           , Section MovesH (Right ["move 3", "move 4"]) "*   Moves"
                                            ]
 
 
@@ -51,11 +51,11 @@ ioSpec = describe "Reading scenario @planner" $ do
                        , "move 4"
                        ]
 
-    parseScenarioFile text `shouldBe` Right [ Section LayoutH (Right ["A|B|C"]) ""
-                                           , Section MovesH (Left (DocumentHash "sha1")) ""
-                                           , Section MovesH (Right ["move 1", "move 2"]) ""
-                                           , Section MovesH (Left (DocumentHash "sha2")) ""
-                                           , Section MovesH (Right ["move 3", "move 4"]) ""
+    parseScenarioFile text `shouldBe` Right [ Section LayoutH (Right ["A|B|C"]) "* Layout"
+                                           , Section MovesH (Left (DocumentHash "sha1")) "*   Moves"
+                                           , Section MovesH (Right ["move 1", "move 2"]) "*   Moves"
+                                           , Section MovesH (Left (DocumentHash "sha2")) "*   Moves"
+                                           , Section MovesH (Right ["move 3", "move 4"]) "*   Moves"
                                            ]
 
   it "computes different SHA for different layout scenario" $ do
