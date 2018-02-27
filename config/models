@@ -15,7 +15,7 @@ Comment sql=fames_comment json -- Adding "json" causes ToJSON and FromJSON insta
     deriving Eq
     deriving Show
 
- -- By default this file is used in Model.hs (which is imported by Foundation.hs)
+-- By default this file is used in Model.hs (which is imported by Foundation.hs)
 
 BarcodeSeed sql=fames_barcode_seed
     prefix Text 
@@ -23,7 +23,9 @@ BarcodeSeed sql=fames_barcode_seed
     UniqueBCSeed prefix
     deriving Eq
     deriving Show
-
+-- | Anybody working in the company
+-- Used to record how has done a stocktake
+-- or manage payroll
 Operator  sql=fames_operator
   Id sql=operator_id
   firstname Text
@@ -49,6 +51,8 @@ DocumentKey sql=fames_document_key
   UniqueSK key
   deriving Eq
   deriving Show
+-- * Stocktake
+-- ** Stocktake Adustment
 -- | A stock adjustment. can generate one more real (FA) adjustemnt and transfer
 StockAdjustment sql=fames_stock_adjustment
   Id sql=stock_adj_id
@@ -67,6 +71,7 @@ StockAdjustmentDetail sql=fames_stock_adj_detail
   deriving Show
 
 
+-- ** Stocktake
 -- Stocktake. How many items are in a box.
 -- index allows to have multiple variations in the same box.
 -- The link to Boxtake is a "soft" link via barcode.
@@ -94,6 +99,7 @@ Stocktake sql=fames_stocktake
   deriving Eq
   deriving Show
 
+-- ** Boxtake
 -- Similar to stocktake but doesn't care about the content.
 Boxtake sql=fames_boxtake
   Id sql=boxtake_id
@@ -114,6 +120,7 @@ Boxtake sql=fames_boxtake
   deriving Eq
   deriving Show
 
+-- ** Packing list
 -- | A Packing lista (box descriptions: dimension + content)
 PackingList sql=fames_packinglist
   Id sql=packinglist_id
@@ -144,6 +151,42 @@ PackingListDetail sql=fames_packinglist_detail
   UniquePLD packingList reference style boxNumber
   UniquePLB barcode
 
+-- * Payroll
+
+--| A timesheet corresponds to a full payroll "invoice"a.
+-- It includes all the shift per operator, but also extra costs and deductions.
+Timesheet sql=fames_timesheet
+  Id sql=timesheet_id
+  reference Text -- unique, used to 
+  start Day
+  end Day
+  frequency PayrollFrequency -- weekly, monthly
+  Unique TSR reference
+  Unique TSD start frequency
+
+-- | A homogenous set of work by an operator.
+-- Should normally be done day, but could also span multiple days
+-- (for monthly pay for example)
+Shift sql=fames_shift
+  timesheet TimesheetId sql=timesheet_id
+  duration Double
+  cost Double Maybe
+  operator OperatorId sql=operator_id
+  date Day Maybe
+  type Text -- normal, holidays etc ...
+  
+-- | Any extra expenses 
+-- Costs are added to the bill, whereas deduction are deducted from the operator wages
+PayrollItem sql=fames_payroll_item
+  timesheet TimesheetId sql=timesheet_id
+  amount Double
+  type CostOrDeduction
+  operator OperatorId sql=operator_id
+  payee Text -- who to pay at the end, example PAYE or HMCTS (court order)
+  glAccount Text -- might allow to find payee
+
+
+-- * FrontAccounting
 -- FrontAccounting Fames many to many relation table
 -- Link Fames "event" to FA Transaction
 TransactionMap sql=fames_transaction_map

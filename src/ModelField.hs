@@ -3,19 +3,28 @@ module ModelField where
 
 import ClassyPrelude.Yesod
 import Text.Printf(printf)
+-- * Warehouse
 -- | Where as a transaction has been processed or not.
 data PendingStatus = Pending | Process deriving (Eq, Read, Show, Enum, Bounded, Ord)
 
 derivePersistField "PendingStatus"
 
+-- * Payroll
+-- | Wether a payroll cost is a added to the employer bill (cost) or paid by the employee (deduction)
+data CostOrDeduction = Cost | Deduction deriving(Eq, Read, Show, Enum, Bounded, Ord)
+derivePersistField "CostOrDeduction"
 
+data PayrollFrequency = Weekly | Monthy deriving (Eq, Read, Show, Enum, Bounded, Ord)
+derivePersistField "PayrollFrequency"
 
+-- * Miscelaneous
 -- Trick to use in Persistent model declaration
 -- as using normal tuples doesn't seem to work
 type Pair a b = (a,b)
 type Pairs a b = [(a,b)]
 
 
+-- * FrontAccounting
 -- | Type of Fames "event" To be used in TransactionMap
 data EventType = StockAdjustmentE
   deriving (Eq, Show, Enum)
