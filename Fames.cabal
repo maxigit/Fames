@@ -85,6 +85,7 @@ library
     , Metamorphosis >= 0.1.0.1
     , fames-persist
     , microlens >= 0.4.8.0 && < 0.5
+    , microlens-th >= 0.4.8.0 && < 0.5
     , curl >= 1.3.8 && < 1.4
     , tagsoup >=  0.14.1 && < 0.15
     , regex-tdfa >= 1.2.2 && < 1.3
@@ -98,6 +99,9 @@ library
     , tabular >= 2.2.7 && <2.3
     , parsec >= 3.1 && < 3.2
     , colour >= 2.3.3 && < 2.4
+    , Decimal >= 0.4.2 && < 0.5
+    , reducers >= 0.3.12 && < 0.4
+    , filepath >= 1.4.1.1  && < 1.5
   if (flag(dev)) || (flag(library-only))
     ghc-options: -fwarn-tabs -fwarn-incomplete-patterns -fwarn-incomplete-record-updates -fwarn-missing-fields -Werror -fno-warn-partial-type-signatures -O0 -j6
     cpp-options: -DDEVELOPMENT
@@ -163,6 +167,9 @@ library
       WarehousePlanner.Report
       GL
       GL.FA
+      GL.Payroll.Parser
+      GL.Payroll.Report
+      GL.Payroll.Timesheet
       GL.Receipt
       Items
       Items.Internal
@@ -244,6 +251,7 @@ executable Fames
     , Metamorphosis >= 0.1.0.1
     , fames-persist
     , microlens >= 0.4.8.0 && < 0.5
+    , microlens-th >= 0.4.8.0 && < 0.5
     , curl >= 1.3.8 && < 1.4
     , tagsoup >=  0.14.1 && < 0.15
     , regex-tdfa >= 1.2.2 && < 1.3
@@ -257,6 +265,9 @@ executable Fames
     , tabular >= 2.2.7 && <2.3
     , parsec >= 3.1 && < 3.2
     , colour >= 2.3.3 && < 2.4
+    , Decimal >= 0.4.2 && < 0.5
+    , reducers >= 0.3.12 && < 0.4
+    , filepath >= 1.4.1.1  && < 1.5
     , Fames
   if flag(library-only)
     buildable: False
@@ -267,6 +278,9 @@ executable Fames
   other-modules:
       GL
       GL.FA
+      GL.Payroll.Parser
+      GL.Payroll.Report
+      GL.Payroll.Timesheet
       GL.Receipt
       Items
       Items.Internal
@@ -347,6 +361,7 @@ test-suite test
     , Metamorphosis >= 0.1.0.1
     , fames-persist
     , microlens >= 0.4.8.0 && < 0.5
+    , microlens-th >= 0.4.8.0 && < 0.5
     , curl >= 1.3.8 && < 1.4
     , tagsoup >=  0.14.1 && < 0.15
     , regex-tdfa >= 1.2.2 && < 1.3
@@ -360,6 +375,9 @@ test-suite test
     , tabular >= 2.2.7 && <2.3
     , parsec >= 3.1 && < 3.2
     , colour >= 2.3.3 && < 2.4
+    , Decimal >= 0.4.2 && < 0.5
+    , reducers >= 0.3.12 && < 0.4
+    , filepath >= 1.4.1.1  && < 1.5
     , base
     , Fames
     , yesod-test >=1.5.0.1 && <1.6
