@@ -400,6 +400,7 @@ test-suite test
     , temporary
     , http-types >=0.9
   other-modules:
+      GL.Payroll.ParserSpec
       GL.ReceiptProcessingSpec
       Handler.AuthSpec
       Handler.CommentSpec

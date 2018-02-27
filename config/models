@@ -160,7 +160,7 @@ Timesheet sql=fames_timesheet
   reference Text -- unique, used to 
   start Day
   end Day
-  frequency PayrollFrequency -- weekly, monthly
+  frequency Text -- weekly, monthly
   Unique TSR reference
   Unique TSD start frequency
 
