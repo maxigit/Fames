@@ -147,7 +147,7 @@ token :: String -> Token
 token s = case mapMaybe match cases of
             [] -> error $ "Can't parse " ++ s
             (h:_) -> h
-        where cases = [ ("[a-zA-Z]\\S*", 
+        where cases = [ ("[[:alpha:]][[:alnum:]]*", 
                         \(name, _) -> case parseWeekDay name of
                                         Nothing -> NameT name
                                         Just w -> WeekDayT w
@@ -166,13 +166,19 @@ token s = case mapMaybe match cases of
                                                 0)
                                                 )
                         )
-                      , ("(\\d{1,2})h(\\d{2})", \(_, [hh, mm]) -> DurationT Work (roundTo 2 (read hh + read mm / 60)))
-                      , ("!(\\S+)", (\(DurationT _ d) -> DurationT Holiday d) . token . head . snd)
-                      , ("#(\\d+)", PayrollIdT . read . head. snd)
-                      , ("\\d+(.\\d+)?", DurationT Work . read .fst)
-                      , ("\\$(\\d+(.\\d+)?)", RateT . read . head. snd)
-                      , ( "(\\d{4})([/-])(\\d{2})\\2(\\d{2})"
-                            , \(_, [y,_,m,d]) -> DayT (Time.fromGregorian 
+                      , ("([0-9]{1,2})h([0-9]{2})", \(_, [hh, mm]) -> DurationT Work (roundTo 2 (read hh + read mm / 60)))
+                      , ("!([^[:space:]]+)", (\(DurationT _ d) -> DurationT Holiday d) . token . head . snd)
+                      , ("#([0-9]+)", PayrollIdT . read . head. snd)
+                      , ("[0-9]+(.[0-9]+)?", DurationT Work . read .fst)
+                      , ("\\$([0-9]+(.[0-9]+)?)", RateT . read . head. snd)
+                      , ( "([0-9]{4})/([0-9]{2})/([0-9]{2})"
+                            , \(_, [y,m,d]) -> DayT (Time.fromGregorian 
+                                                     (read y)
+                                                     (read m)
+                                                     (read d))
+                        )
+                      , ( "([0-9]{4})-([0-9]{2})-([0-9]{2})"
+                            , \(_, [y,m,d]) -> DayT (Time.fromGregorian 
                                                      (read y)
                                                      (read m)
                                                      (read d))
@@ -181,7 +187,7 @@ token s = case mapMaybe match cases of
                       , ("\\|", const PipeT)
 
                       ]
-              hhmm = "(\\d{1,2}):(\\d{2})"
+              hhmm = "([0-9]{1,2}):([0-9]{2})"
 
               match (r,f) = case s =~ ("^"++r++"$") of
                     (_,[],_,_) -> Nothing
@@ -218,9 +224,9 @@ parseFastTimesheet lines = let
                                    )
                                    (setEmployeByNickname name u)
         [NameT name, PayrollIdT pid] -> 
-            addNewEmployee' name "" name Nothing pid
+            addNewEmployee' name name "" Nothing pid
         [NameT name, PayrollIdT pid, RateT rate] -> 
-            addNewEmployee' name "" name (Just rate) pid
+            addNewEmployee' name name "" (Just rate) pid
         [ NameT alias , NameT firstname , NameT surname
             , PayrollIdT pid ] -> 
             addNewEmployee' alias firstname surname Nothing pid

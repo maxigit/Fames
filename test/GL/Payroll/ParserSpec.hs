@@ -2,6 +2,7 @@ module GL.Payroll.ParserSpec(spec) where
 import Prelude
 import GL.Payroll.Parser
 import GL.Payroll.Timesheet
+import Data.Maybe
 
 import Test.Hspec
 
@@ -20,6 +21,27 @@ spec = describe "@Payroll" $ do
 
         it "parses name" $ do
             token "Hello" `shouldBe` NameT "Hello"
+
+        it "parses simple duration" $ do
+            token "4.5" `shouldBe` DurationT Work 4.5
+
+        it "parses holiday" $ do
+            token "!4.5" `shouldBe` DurationT Holiday 4.5
+
+        it "parses duration with minute" $ do
+            token "4h30" `shouldBe` DurationT Work 4.5
+  
+        it "parses range" $ do
+            token "9:30-11:00" `shouldBe` RangeT (fromJust $ Time.makeTimeOfDayValid 9 30 0)
+                                                 (fromJust $ Time.makeTimeOfDayValid 11 0 0)
+        it "parses rate" $ do
+            token "$7.50" `shouldBe` RateT 7.5
+   
+        it "parses Date" $ do
+            token "2015/12/31" `shouldBe` DayT (Time.fromGregorian 2015 12 31)
+
+        it "parses Date" $ do
+            token "2015-12-31" `shouldBe` DayT (Time.fromGregorian 2015 12 31)
     describe "#Parsing" $ do
         it "one shift per line"  $ do
             let content = "\
