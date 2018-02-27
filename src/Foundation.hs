@@ -79,6 +79,8 @@ instance EnumTreeable Int64 where enumTree = EnumTree []
 instance EnumTreeable (Route Static) where enumTree = EnumTree []
 instance EnumTreeable (Route Auth) where enumTree = EnumTree []
 instance EnumTreeable (Route FaySite) where enumTree = EnumTree []
+deriving instance Generic (GLR)
+instance EnumTreeable (GLR) 
 deriving instance Generic (WarehouseR)
 instance EnumTreeable (WarehouseR) 
 deriving instance Generic (ItemsR)
@@ -350,7 +352,7 @@ cryptFAPassword text = let digest = Crypto.hash (encodeUtf8 text)  :: Digest MD5
 mainLinks :: Handler [(Text, Route App, Bool)]
 mainLinks = do
   currentRoute <- getCurrentRoute
-  let links= [ ("General Ledger", GLEnterReceiptSheetR)
+  let links= [ ("General Ledger", GLR GLEnterReceiptSheetR)
              , ("Items", ItemsR (ItemsIndexR Nothing))
              , ("Warehouse", WarehouseR WHStockAdjustmentR)
              , ("Planner", PlannerR (PViewR Nothing))

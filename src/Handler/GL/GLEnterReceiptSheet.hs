@@ -3,11 +3,11 @@
 {-# LANGUAGE TypeFamilies, DataKinds #-}
 {-# LANGUAGE DeriveFunctor, GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
-module Handler.GLEnterReceiptSheet where
+module Handler.GL.GLEnterReceiptSheet where
 
 import Import hiding(InvalidHeader)
 -- import GL.Receipt
-import Handler.GLEnterReceiptSheet.ReceiptRow
+import Handler.GL.GLEnterReceiptSheet.ReceiptRow
 
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import Handler.CsvUtils hiding(RawT)
@@ -45,11 +45,11 @@ renderGLEnterReceiptSheet status title pre = do
 <ul>
    <li #gl-enter-receipt-sheet-pre> ^{pre}
    <li>
-     <form #text-form role=form method=post action=@{GLEnterReceiptSheetR} enctype=#{postEncType}>
+     <form #text-form role=form method=post action=@{GLR GLEnterReceiptSheetR} enctype=#{postEncType}>
          ^{postTextFormW}
           <button type="submit" .btn .btn-default>Process
    <li> Or Upload a document
-      <form #upload-form role=form method=post action=@{GLEnterReceiptSheetR} enctype=#{upEncType}>
+      <form #upload-form role=form method=post action=@{GLR GLEnterReceiptSheetR} enctype=#{upEncType}>
          ^{uploadFileFormW}
          <button type="submit" .btn .btn-default>Process
    <li> Or use an existing document

@@ -121,8 +121,10 @@ library
       Handler.FAX
       Handler.FAX.Def
       Handler.Fay
-      Handler.GLEnterReceiptSheet
-      Handler.GLEnterReceiptSheet.ReceiptRow
+      Handler.GL
+      Handler.GL.GLEnterReceiptSheet
+      Handler.GL.GLEnterReceiptSheet.ReceiptRow
+      Handler.GL.Payroll
       Handler.Home
       Handler.Items
       Handler.Items.History

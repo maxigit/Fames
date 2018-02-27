@@ -1,7 +1,7 @@
 {-# LANGUAGE TypeFamilies, DataKinds #-}
 {-# LANGUAGE LiberalTypeSynonyms #-}
 {-# LANGUAGE PatternSynonyms #-}
-module Handler.GLEnterReceiptSheet.ReceiptRow where
+module Handler.GL.GLEnterReceiptSheet.ReceiptRow where
 
 
 import Import hiding(InvalidHeader)

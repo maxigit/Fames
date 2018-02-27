@@ -4,7 +4,7 @@ module Handler.GLEnterReceiptSheetSpec (spec) where
 
 import TestImport
 
-import Handler.GLEnterReceiptSheet
+import Handler.GL.GLEnterReceiptSheet
 import Handler.CsvUtils
 import Data.Csv (decode, HasHeader(NoHeader))
 import Text.Shakespeare.Text (st)
@@ -13,12 +13,12 @@ spec :: Spec
 spec = pureSpec >> storiesSpec >> appSpec
 
 postReceiptSheet status sheet = do
-  get GLEnterReceiptSheetR
+  get (GLR GLEnterReceiptSheetR)
   statusIs 200
 
   request $ do
     setMethod "POST"
-    setUrl GLEnterReceiptSheetR
+    setUrl (GLR GLEnterReceiptSheetR)
     addToken_ "form#text-form " --"" "#text-form"
     byLabel "Sheet name" "test 1"
     byLabel "Receipts" sheet
@@ -27,12 +27,12 @@ postReceiptSheet status sheet = do
   statusIs status
 
 uploadReceiptSheet status encoding path = do
-  get GLEnterReceiptSheetR
+  get (GLR GLEnterReceiptSheetR)
   statusIs 200
 
   request $ do
     setMethod "POST"
-    setUrl GLEnterReceiptSheetR
+    setUrl (GLR GLEnterReceiptSheetR)
     addToken_ "form#upload-form "
     fileByLabel "upload" ("test/Handler/GLEnterReceiptSheetSpec/" ++ path) "text/plain"
     byLabel "encoding" (tshow $ 1) -- fromEnum encoding)
@@ -43,7 +43,7 @@ appSpec :: Spec
 appSpec = withAppNoDB BypassAuth $ do
     describe "getGLEnterReceiptSheetR" $ do
 	it "proposes to upload a file" $ do
-	  get GLEnterReceiptSheetR
+	  get (GLR GLEnterReceiptSheetR)
           statusIs 200
    
    	  bodyContains "upload" -- to transform

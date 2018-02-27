@@ -3,7 +3,7 @@
 
 <.page-header><h2>GL
 <pan.list-group>
-  <a href=@{GLEnterReceiptSheetR}>Enter receipts spreadsheet
+  <a href=@{GLR GLEnterReceiptSheetR}>Enter receipts spreadsheet
 
 <.page-header><h2>Starting
 
