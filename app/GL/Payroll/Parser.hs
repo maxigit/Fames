@@ -146,7 +146,7 @@ data Token = NameT String
 
 token :: String -> Either String Token
 token s = case mapMaybe match cases of
-            [] -> Left $ "Can't tokenize " ++ s
+            [] -> Left $ "Can't tokenize `" ++ show s ++ "`"
             (h:_) -> h
         where cases = [ ("[[:alpha:]][[:alnum:]]*", 
                         \(name, _) -> Right $ case parseWeekDay name of

@@ -13,6 +13,7 @@ import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 import qualified GL.Payroll.Timesheet as TS
 import GL.Payroll.Parser
+import Data.Text (strip)
 
 -- * Types
 data Mode = Validate | Save deriving (Eq, Read, Show)
@@ -33,10 +34,10 @@ postGLPayrollValidateR :: Handler Html
 postGLPayrollValidateR = processTimesheet Validate go
   where go param = do
           case parseTimesheet (upTimesheet param) of
-            Left e -> setError (toHtml e) >> renderMain Save (Just param) ok200 (setInfo "Enter a timesheet") (return ())
+            Left e -> setError (toHtml e) >> renderMain Validate (Just param) ok200 (setInfo "Enter a timesheet") (return ())
             Right timesheet -> do
                   renderMain Save (Just param) ok200 (setInfo "Enter a timesheet")
-                             [whamlet|#{show timesheet}|]
+                             [whamlet|#{show (timesheet)}|]
 
 postGLPayrollSaveR = postGLPayrollValidateR
 
@@ -81,7 +82,7 @@ processTimesheet mode post = do
      
 parseTimesheet :: Textarea -> (Either String TS.Timesheet)
 parseTimesheet ts = parseFastTimesheet strings where
-  strings = map unpack . lines $ unTextarea ts
+  strings = map (unpack . strip) . lines $ unTextarea $ traceShowId ts
 
 
 -- * DB access
