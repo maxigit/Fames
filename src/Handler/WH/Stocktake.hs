@@ -359,6 +359,7 @@ renderWHStocktake mode paramM status message pre = do
 renderValidRows :: FormParam -> [ValidRow] -> Handler Widget
 renderValidRows param rows = do
   missings <- case pStyleComplete param of
+
     StyleComplete -> QuickST <$$> generateMissings rows
     _ -> return []
 

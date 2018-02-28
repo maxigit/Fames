@@ -9,15 +9,17 @@
 
 /comments CommentR POST
 /gl GLR !GL !gl:
-  /enter_receipts_sheet GLEnterReceiptSheetR GET POST !group=Receipts !title=Enter
+  /enter_receipts_sheet GLEnterReceiptSheetR GET POST !group=Receipts !title=Enter_Receipt
 
-  /payroll GLPayroll GET POST !payroll !group=Payroll
+  /payroll GLPayrollR GET !payroll !group=Payroll !title=Payroll
+  /payroll/validate GLPayrollValidateR POST !payroll
+  /payroll/save GLPayrollSaveR POST !payroll
   /payroll/view/#Int64 GLPayrollViewR GET
   /payroll/edit/#Int64 GLPayrollEditR GET POST !payroll/edit
   !/payroll/#Int64/reject GLPayrollRejectR POST !payroll/reject
   -- !/payroll/#Int64/tofa GLPayrollToFAR POST !payroll/tofa
   -- /payroll/full/view/#Int64 GLPayrollFullView GET !payroll/full
-  -- /payroll/full/edit/#Int64 GLPayrollFullEditR GET POST !payroll/edit !payroll/full
+  -- /payroll/full/edit/#Int64 GLPayrollFullEditR GET POST !payroll/edit !payro ll/full
 
 /warehouse WarehouseR !warehouse:
   /barcodes WHBarcodeR GET POST !group=Barcodes !title=Generate
