@@ -11,6 +11,8 @@ module Handler.GL.Payroll
 import Import
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
+import qualified GL.Payroll.Timesheet as TS
+import GL.Payroll.Parser
 
 -- * Types
 data Mode = Validate | Save deriving (Eq, Read, Show)
@@ -28,8 +30,13 @@ uploadForm mode paramM = let
 getGLPayrollR :: Handler Html
 getGLPayrollR = renderMain Validate Nothing ok200 (setInfo "Enter a timesheet") (return ())
 postGLPayrollValidateR :: Handler Html
-postGLPayrollValidateR = extractTimesheet Validate go
-  where go param = renderMain Save (Just param) ok200 (setInfo "Enter a timesheet") (return ())
+postGLPayrollValidateR = processTimesheet Validate go
+  where go param = do
+          case parseTimesheet (upTimesheet param) of
+            Left e -> setError (toHtml e) >> renderMain Save (Just param) ok200 (setInfo "Enter a timesheet") (return ())
+            Right timesheet -> do
+                  renderMain Save (Just param) ok200 (setInfo "Enter a timesheet")
+                             [whamlet|#{show timesheet}|]
 
 postGLPayrollSaveR = postGLPayrollValidateR
 
@@ -57,21 +64,24 @@ renderMain mode paramM status message pre = do
   message
   sendResponseStatus status =<< defaultLayout
      [whamlet|
+     ^{pre}
      <div.well>
        <form #upload-form role=form method=post action=@{GLR action} enctype=#{upEncType}>
          ^{upFormW}
         <button type="submit" name="#{button}" value="#{tshow mode}" class="btn btn-#{btn}">#{button}
              |]
 -- * Processing
-extractTimesheet :: Mode -> (UploadParam -> Handler r) -> Handler r
-extractTimesheet mode post = do
+processTimesheet :: Mode -> (UploadParam -> Handler r) -> Handler r
+processTimesheet mode post = do
   ((resp, formW), enctype) <- runFormPost (uploadForm mode Nothing)
   case resp of 
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show (mode, a)
     FormSuccess param -> post param
      
-
+parseTimesheet :: Textarea -> (Either String TS.Timesheet)
+parseTimesheet ts = parseFastTimesheet strings where
+  strings = map unpack . lines $ unTextarea ts
 
 
 -- * DB access
