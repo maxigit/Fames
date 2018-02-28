@@ -28,7 +28,7 @@ uploadForm mode paramM = let
   form _ = UploadParam <$> areq textareaField (disableOnSave "Timesheet") (upTimesheet <$> paramM)
   disableOnSave fsettings = case mode of
     Validate -> fsettings
-    Save -> fsettings {fsAttrs = [("disabled", "")]}
+    Save -> fsettings {fsAttrs = [("readonly", "")]}
   in renderBootstrap3 BootstrapBasicForm . form $ mode
 -- * Handlers
 -- ** upload and show timesheets
@@ -38,13 +38,22 @@ postGLPayrollValidateR :: Handler Html
 postGLPayrollValidateR = processTimesheet Validate go
   where go param = do
           case parseTimesheet (upTimesheet param) of
-            Left e -> setError (toHtml e) >> renderMain Validate (Just param) ok200 (setInfo "Enter a timesheet") (return ())
+            Left e -> setError (toHtml e) >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a timesheet") (return ())
             Right timesheet -> do
                   let report = TS.display $ TS._shifts timesheet
                   renderMain Save (Just param) ok200 (setInfo "Enter a timesheet")
-                             [whamlet|<p>#{report}|]
+                             [whamlet|<div.well>
+                                         <p>#{report}|]
 
-postGLPayrollSaveR = postGLPayrollValidateR
+postGLPayrollSaveR = processTimesheet Save go where
+  go param = do
+     case parseTimesheet (upTimesheet param) of
+         Left e -> setError (toHtml e)
+                   >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a timesheet") (return ())
+         Right timesheet -> do
+              saveTimeSheet timesheet
+              renderMain Validate Nothing created201 (setInfo "Timesheet saved sucessfully") (return ())
+
 
 -- ** Individual timesheet
 getGLPayrollViewR :: Int64 -> Handler Html
@@ -91,3 +100,29 @@ parseTimesheet ts = parseFastTimesheet strings where
 
 
 -- * DB access
+saveTimeSheet :: TS.Timesheet -> Handler TimesheetId
+saveTimeSheet timesheet = do
+  let (model, shiftsFn) =  timesheetToModel timesheet
+  runDB $ do
+    modelId <- insert model
+    insertMany_ (shiftsFn modelId)
+    return modelId
+
+-- * Converter
+-- | Convert a Payroll Timesheet to it's DB model.
+-- It doesn't return a list of Shift but a function creating them
+-- as we are missing the Timesheet id.
+timesheetToModel :: TS.Timesheet -> (Timesheet, TimesheetId -> [Shift])
+timesheetToModel ts = (model, shiftsFn) where
+  start = TS._weekStart ts
+  model = Timesheet "todo" start (TS.period start) "weekly"
+  shiftsFn i = map (mkShift i) (TS._shifts ts)
+  mkShift i shift= Shift i
+                    (TS._duration shift)
+                    (TS._cost shift)
+                    (OperatorKey 1)
+                    (Just day)
+                    (tshow shiftType)
+             where (employee, day, shiftType) = TS._shiftKey shift
+    
+

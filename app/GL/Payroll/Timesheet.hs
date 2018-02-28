@@ -32,9 +32,9 @@ import Data.Ord(comparing)
 import Data.Function(on)
 
 -- * Type alias
-type Amount = Decimal
-type Duration = Decimal
-type Hour = Decimal
+type Amount = Double
+type Duration = Double
+type Hour = Double
 -- * Data
 -- | An employee.
 data Employee = Employee

@@ -167,7 +167,7 @@ token s = case mapMaybe match cases of
                                                 0)
                                                 )
                         )
-                      , ("([0-9]{1,2})h([0-9]{2})", \(_, [hh, mm]) -> Right $ DurationT Work (roundTo 2 (read hh + read mm / 60)))
+                      , ("([0-9]{1,2})h([0-9]{2})", \(_, [hh, mm]) -> Right $ DurationT Work ((read hh + read mm / 60)))
                       , ("!([^[:space:]]+)", (\(_, groups) -> do -- Either
                                               subtokens <- mapM token groups 
                                               case subtokens of
@@ -325,4 +325,4 @@ tokeninize s = filter (not.null) $ go [] [] (stripL s) where
     
 
 diffTime :: TimeOfDay -> TimeOfDay -> Duration
-diffTime a b  = (realFracToDecimal 2 $ (timeOfDayToTime a - timeOfDayToTime b) / 3600)
+diffTime a b  = realToFrac (timeOfDayToTime a - timeOfDayToTime b / 3600)

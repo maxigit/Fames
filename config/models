@@ -170,7 +170,7 @@ Timesheet sql=fames_timesheet
 Shift sql=fames_shift
   timesheet TimesheetId sql=timesheet_id
   duration Double
-  cost Double Maybe
+  cost Double
   operator OperatorId sql=operator_id
   date Day Maybe
   type Text -- normal, holidays etc ...
