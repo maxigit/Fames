@@ -12,6 +12,7 @@ import Import
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 import qualified GL.Payroll.Timesheet as TS
+import qualified GL.Payroll.Report as TS
 import GL.Payroll.Parser
 import Data.Text (strip)
 
@@ -39,8 +40,9 @@ postGLPayrollValidateR = processTimesheet Validate go
           case parseTimesheet (upTimesheet param) of
             Left e -> setError (toHtml e) >> renderMain Validate (Just param) ok200 (setInfo "Enter a timesheet") (return ())
             Right timesheet -> do
+                  let report = TS.display $ TS._shifts timesheet
                   renderMain Save (Just param) ok200 (setInfo "Enter a timesheet")
-                             [whamlet|#{show (timesheet)}|]
+                             [whamlet|<p>#{report}|]
 
 postGLPayrollSaveR = postGLPayrollValidateR
 
