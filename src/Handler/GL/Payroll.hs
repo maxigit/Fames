@@ -24,7 +24,10 @@ data UploadParam = UploadParam {
 -- * Form
 uploadForm :: Mode -> Maybe UploadParam -> _Markup -> _ (FormResult UploadParam, Widget)
 uploadForm mode paramM = let
-  form _ = UploadParam <$> areq textareaField "Timesheet" (upTimesheet <$> paramM)
+  form _ = UploadParam <$> areq textareaField (disableOnSave "Timesheet") (upTimesheet <$> paramM)
+  disableOnSave fsettings = case mode of
+    Validate -> fsettings
+    Save -> fsettings {fsAttrs = [("disabled", "")]}
   in renderBootstrap3 BootstrapBasicForm . form $ mode
 -- * Handlers
 -- ** upload and show timesheets
