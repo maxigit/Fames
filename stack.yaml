@@ -21,7 +21,6 @@ packages:
 extra-deps:
 - say-0.1.0.0
 - typed-process-0.1.0.0
-- intero-0.1.20
 - hspec-stack-rerun-0.1.0.3
 - Metamorphosis-0.1.0.1
 - fames-persist-0.0.0.0
