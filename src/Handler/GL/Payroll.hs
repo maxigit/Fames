@@ -69,7 +69,14 @@ postGLPayrollSaveR = processTimesheet Save go where
 
 -- ** Individual timesheet
 getGLPayrollViewR :: Int64 -> Handler Html
-getGLPayrollViewR key = return "todo"
+getGLPayrollViewR key = do
+  operatorMap <- allOperators
+  modelE <- loadTimesheet key
+  case modelE of
+    Nothing -> error $ "Can't load Timesheet with id #" ++ show key
+    Just (ts, shifts, _) -> do
+      let ts' = modelToTimesheet operatorMap ts shifts
+      return $ toHtml (tshow ts')
 
 getGLPayrollEditR :: Int64 -> Handler Html
 getGLPayrollEditR key = return "todo"
@@ -165,6 +172,18 @@ saveTimeSheet key ref timesheet = do
     insertMany_ (shiftsFn modelId)
     return modelId
 
+loadTimesheet :: Int64 -> Handler (Maybe (Entity Timesheet, [Entity Shift], [Entity PayrollItem]))
+loadTimesheet key64 = do
+  let key = TimesheetKey (SqlBackendKey key64)
+  runDB $ do
+    tsM <- get key
+    case tsM of
+      Nothing -> return Nothing
+      Just ts -> do
+        shifts <- selectList [ShiftTimesheet ==. key] []
+        items <- selectList [PayrollItemTimesheet ==. key] []
+        return $ Just (Entity key ts, shifts, items)
+
 -- * Converter
 -- | Convert a Payroll Timesheet to it's DB model.
 -- It doesn't return a list of Shift but a function creating them
@@ -185,6 +204,23 @@ timesheetToModel opFinder ts = (model, shiftsFn) where
                     (Just day)
                     (tshow shiftType)
 
+modelToTimesheet :: (Map (Key Operator) Operator) -> Entity Timesheet -> [Entity Shift] -> TS.Timesheet
+modelToTimesheet operatorMap (Entity _ timesheet) shiftEs = let
+  -- TODO create employee only once
+  -- and use settings
+  readType "Holiday" = TS.Holiday
+  readType _ = TS.Work
+  mkShift (Entity _ shift) = TS.Shift  (mkShiftKey shift) Nothing (shiftDuration shift) (shiftCost shift)
+  mkShiftKey shift = let
+     employee = case lookup (shiftOperator shift) operatorMap of
+       Nothing -> error "Should not happen. Operator not found. "
+       Just op -> TS.Employee (unpack $ operatorFirstname op)
+                              (unpack $ operatorSurname op)
+                              (unpack $ operatorNickname op)
+                     Nothing 1
+     in (employee, fromMaybe (error "TODO") (shiftDate shift), readType (shiftType shift))
+  in TS.Timesheet (map mkShift shiftEs) (timesheetStart timesheet)
+    
 -- * Configuration
 
 -- | A returns a list of employees from the payroll settings
