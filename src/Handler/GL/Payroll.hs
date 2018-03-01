@@ -16,6 +16,7 @@ import qualified GL.Payroll.Report as TS
 import GL.Payroll.Parser
 import GL.Payroll.Settings
 import Data.Text (strip)
+import Database.Persist.MySQL
 
 -- * Types
 data Mode = Validate | Save deriving (Eq, Read, Show)
@@ -34,7 +35,9 @@ uploadForm mode paramM = let
 -- * Handlers
 -- ** upload and show timesheets
 getGLPayrollR :: Handler Html
-getGLPayrollR = renderMain Validate Nothing ok200 (setInfo "Enter a timesheet") (return ())
+getGLPayrollR = do
+  pendingW <-displayPendingSheets
+  renderMain Validate Nothing ok200 (setInfo "Enter a timesheet") pendingW
 postGLPayrollValidateR :: Handler Html
 postGLPayrollValidateR = processTimesheet Validate go
   where go param key = do
@@ -120,6 +123,35 @@ parseTimesheetH param = do
   header <- headerFromSettings
   return $ parseTimesheet header (upTimesheet param)
 
+-- * Rendering
+displayPendingSheets :: Handler Widget
+displayPendingSheets = do
+  timesheets <- runDB $ selectList [TimesheetStatus ==. Pending] []
+  return [whamlet|
+     <div.panel.panel-info>
+       <div.panel-heading> Pending Timesheets
+       ^{displayTimesheetList timesheets}
+          |]
+displayTimesheetList :: [Entity Timesheet] -> Widget
+displayTimesheetList timesheets = [whamlet|
+<table.table.table-hover.table-striped>
+  <tr>
+    <th> Id
+    <th> Reference
+    <th> Period Type
+    <th> Start
+    <th> End
+    <th> Status
+  $forall (Entity key ts) <- timesheets
+    <tr>
+      <td> <a href="@{GLR (GLPayrollViewR (unSqlBackendKey $ unTimesheetKey key))}">
+            ##{tshow $ unSqlBackendKey $ unTimesheetKey key}
+      <td> #{timesheetReference ts}
+      <td> #{timesheetFrequency ts}
+      <td> #{tshow $ timesheetStart ts}
+      <td> #{tshow $ timesheetEnd ts}
+      <td> #{tshow $ timesheetStatus ts}
+|]
 -- * DB access
 -- | Save a timesheet.
 saveTimeSheet :: DocumentHash -> Text -> TS.Timesheet -> Handler TimesheetId
