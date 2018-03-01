@@ -124,7 +124,8 @@ parseTimesheetH param = do
 -- | Save a timesheet.
 saveTimeSheet :: DocumentHash -> Text -> TS.Timesheet -> Handler TimesheetId
 saveTimeSheet key ref timesheet = do
-  let (model, shiftsFn) =  timesheetToModel timesheet
+  opFinder <- operatorFinder
+  let (model, shiftsFn) =  timesheetToModel opFinder timesheet
   runDB $ do
     docKey <- createDocumentKey (DocumentType "timesheet") key ref ""
 
@@ -136,18 +137,21 @@ saveTimeSheet key ref timesheet = do
 -- | Convert a Payroll Timesheet to it's DB model.
 -- It doesn't return a list of Shift but a function creating them
 -- as we are missing the Timesheet id.
-timesheetToModel :: TS.Timesheet -> (_ -> Timesheet, TimesheetId -> [Shift])
-timesheetToModel ts = (model, shiftsFn) where
+timesheetToModel :: _ -> TS.Timesheet -> (_ -> Timesheet, TimesheetId -> [Shift])
+timesheetToModel opFinder ts = (model, shiftsFn) where
   start = TS._weekStart ts
   model dockKey = Timesheet "todo" dockKey start (TS.period start) "Weekly" Pending
   shiftsFn i = map (mkShift i) (TS._shifts ts)
-  mkShift i shift= Shift i
+  mkShift i shift= let
+    (employee, day, shiftType) = TS._shiftKey shift
+    Entity operatorKey _ = fromMaybe (error $ "Operator " ++ TS._nickName employee ++ " not found")
+                            (opFinder  (pack $ TS._nickName employee))
+    in Shift i
                     (TS._duration shift)
                     (TS._cost shift)
-                    (OperatorKey 1)
+                    operatorKey
                     (Just day)
                     (tshow shiftType)
-             where (employee, day, shiftType) = TS._shiftKey shift
 
 -- * Configuration
 
