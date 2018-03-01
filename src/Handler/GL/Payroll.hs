@@ -44,9 +44,12 @@ postGLPayrollValidateR = processTimesheet Validate go
                   forM documentKey'msgM  $ \(Entity _ doc, msg) -> do
                                  setWarning msg >> return ""
                   let report = TS.display $ TS._shifts timesheet
+                      reportLines = lines $ pack report  :: [Text]
                   renderMain Save (Just param) ok200 (setInfo "Enter a timesheet")
                              [whamlet|<div.well>
-                                         <p>#{report}|]
+                                         $forall line <- reportLines
+                                           <p> #{line}
+                                     |]
 
 postGLPayrollSaveR = processTimesheet Save go where
   go param key = do
