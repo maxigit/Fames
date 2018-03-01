@@ -36,22 +36,25 @@ getGLPayrollR :: Handler Html
 getGLPayrollR = renderMain Validate Nothing ok200 (setInfo "Enter a timesheet") (return ())
 postGLPayrollValidateR :: Handler Html
 postGLPayrollValidateR = processTimesheet Validate go
-  where go param = do
+  where go param key = do
           case parseTimesheet (upTimesheet param) of
             Left e -> setError (toHtml e) >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a timesheet") (return ())
             Right timesheet -> do
+                  (documentKey'msgM) <- runDB $ loadAndCheckDocumentKey key
+                  forM documentKey'msgM  $ \(Entity _ doc, msg) -> do
+                                 setWarning msg >> return ""
                   let report = TS.display $ TS._shifts timesheet
                   renderMain Save (Just param) ok200 (setInfo "Enter a timesheet")
                              [whamlet|<div.well>
                                          <p>#{report}|]
 
 postGLPayrollSaveR = processTimesheet Save go where
-  go param = do
+  go param key = do
      case parseTimesheet (upTimesheet param) of
          Left e -> setError (toHtml e)
                    >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a timesheet") (return ())
          Right timesheet -> do
-              saveTimeSheet timesheet
+              saveTimeSheet key "todo" timesheet
               renderMain Validate Nothing created201 (setInfo "Timesheet saved sucessfully") (return ())
 
 
@@ -86,13 +89,16 @@ renderMain mode paramM status message pre = do
         <button type="submit" name="#{button}" value="#{tshow mode}" class="btn btn-#{btn}">#{button}
              |]
 -- * Processing
-processTimesheet :: Mode -> (UploadParam -> Handler r) -> Handler r
+processTimesheet :: Mode -> (UploadParam -> DocumentHash -> Handler r) -> Handler r
 processTimesheet mode post = do
   ((resp, formW), enctype) <- runFormPost (uploadForm mode Nothing)
   case resp of 
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show (mode, a)
-    FormSuccess param -> post param
+    FormSuccess param -> do
+      let bytes = encodeUtf8 . unTextarea $ upTimesheet param
+          key = computeDocumentKey bytes
+      post param key
      
 parseTimesheet :: Textarea -> (Either String TS.Timesheet)
 parseTimesheet ts = parseFastTimesheet strings where
@@ -100,11 +106,14 @@ parseTimesheet ts = parseFastTimesheet strings where
 
 
 -- * DB access
-saveTimeSheet :: TS.Timesheet -> Handler TimesheetId
-saveTimeSheet timesheet = do
+-- | Save a timesheet.
+saveTimeSheet :: DocumentHash -> Text -> TS.Timesheet -> Handler TimesheetId
+saveTimeSheet key ref timesheet = do
   let (model, shiftsFn) =  timesheetToModel timesheet
   runDB $ do
-    modelId <- insert model
+    docKey <- createDocumentKey (DocumentType "timesheet") key ref ""
+
+    modelId <- insert (model docKey)
     insertMany_ (shiftsFn modelId)
     return modelId
 
@@ -112,10 +121,10 @@ saveTimeSheet timesheet = do
 -- | Convert a Payroll Timesheet to it's DB model.
 -- It doesn't return a list of Shift but a function creating them
 -- as we are missing the Timesheet id.
-timesheetToModel :: TS.Timesheet -> (Timesheet, TimesheetId -> [Shift])
+timesheetToModel :: TS.Timesheet -> (_ -> Timesheet, TimesheetId -> [Shift])
 timesheetToModel ts = (model, shiftsFn) where
   start = TS._weekStart ts
-  model = Timesheet "todo" start (TS.period start) "weekly"
+  model dockKey = Timesheet "todo" dockKey start (TS.period start) "Weekly" Pending
   shiftsFn i = map (mkShift i) (TS._shifts ts)
   mkShift i shift= Shift i
                     (TS._duration shift)
@@ -124,5 +133,3 @@ timesheetToModel ts = (model, shiftsFn) where
                     (Just day)
                     (tshow shiftType)
              where (employee, day, shiftType) = TS._shiftKey shift
-    
-

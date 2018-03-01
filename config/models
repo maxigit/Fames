@@ -158,9 +158,11 @@ PackingListDetail sql=fames_packinglist_detail
 Timesheet sql=fames_timesheet
   Id sql=timesheet_id
   reference Text -- unique, used to 
+  documentKey DocumentKeyId sql=document_key_id
   start Day
   end Day
   frequency Text -- weekly, monthly
+  status PendingStatus
   Unique TSR reference
   Unique TSD start frequency
 
