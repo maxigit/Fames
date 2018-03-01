@@ -13,7 +13,7 @@ import Control.Exception          (throw)
 import Data.Aeson                 (Result (..), fromJSON, withObject, (.!=),
                                    (.:?))
 import qualified Data.Aeson as JSON
-import Data.Aeson.TH(deriveToJSON, defaultOptions)
+import Data.Aeson.TH(deriveToJSON, deriveJSON, defaultOptions)
 import Data.FileEmbed             (embedFile)
 import Data.Yaml                  (decodeEither')
 import Database.Persist.MySQL     (MySQLConf (..))
@@ -26,6 +26,7 @@ import qualified Database.MySQL.Base as MySQL
 import Yesod.Fay
 import  Role
 import WH.Barcode
+import GL.Payroll.Settings
 import qualified Data.Map as Map
 
 data AuthMode = BypassAuth | CheckAuth deriving (Read, Show, Eq)
@@ -86,7 +87,7 @@ data AppSettings = AppSettings
     , appFAExternalURL :: String -- ^ User passwrod to connect to FA to post transactions.
     , appVariations :: Map Text Text -- ^ Variation description. Used to adjust item description in index.
     , appVariationGroups :: Map Text [Text] -- ^ group of variations. Can intersect
-
+    , appPayroll :: PayrollSettings
     } deriving Show
 
 -- TODO clean
@@ -154,6 +155,7 @@ instance FromJSON AppSettings  where
 
         appVariations <- o .:? "variations" .!= Map.fromList []
         appVariationGroups <- o .:? "variationGroups" .!= Map.fromList []
+        appPayroll <- o .:? "payroll" .!= PayrollSettings (Map.fromList [])
         
 
         -- This code enables MySQL's strict mode, without which MySQL will truncate data.

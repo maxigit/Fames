@@ -25,4 +25,6 @@ stock-locations:
   - LOST
   "Container 1":
   - shelf-3
+payroll:
+  employees: []
 

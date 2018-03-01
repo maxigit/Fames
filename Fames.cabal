@@ -169,6 +169,7 @@ library
       GL.FA
       GL.Payroll.Parser
       GL.Payroll.Report
+      GL.Payroll.Settings
       GL.Payroll.Timesheet
       GL.Receipt
       Items
@@ -280,6 +281,7 @@ executable Fames
       GL.FA
       GL.Payroll.Parser
       GL.Payroll.Report
+      GL.Payroll.Settings
       GL.Payroll.Timesheet
       GL.Receipt
       Items

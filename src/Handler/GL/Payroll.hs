@@ -14,6 +14,7 @@ import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
 import qualified GL.Payroll.Timesheet as TS
 import qualified GL.Payroll.Report as TS
 import GL.Payroll.Parser
+import GL.Payroll.Settings
 import Data.Text (strip)
 
 -- * Types
@@ -37,7 +38,8 @@ getGLPayrollR = renderMain Validate Nothing ok200 (setInfo "Enter a timesheet") 
 postGLPayrollValidateR :: Handler Html
 postGLPayrollValidateR = processTimesheet Validate go
   where go param key = do
-          case parseTimesheet (upTimesheet param) of
+          timesheetE <- parseTimesheetH param
+          case timesheetE of
             Left e -> setError (toHtml e) >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a timesheet") (return ())
             Right timesheet -> do
                   (documentKey'msgM) <- runDB $ loadAndCheckDocumentKey key
@@ -53,8 +55,9 @@ postGLPayrollValidateR = processTimesheet Validate go
 
 postGLPayrollSaveR = processTimesheet Save go where
   go param key = do
-     case parseTimesheet (upTimesheet param) of
-         Left e -> setError (toHtml e)
+       timesheetE <- parseTimesheetH param
+       case timesheetE of
+         Left e -> setError (toHtml e) 
                    >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a timesheet") (return ())
          Right timesheet -> do
               saveTimeSheet key "todo" timesheet
@@ -103,10 +106,19 @@ processTimesheet mode post = do
           key = computeDocumentKey bytes
       post param key
      
-parseTimesheet :: Textarea -> (Either String TS.Timesheet)
-parseTimesheet ts = parseFastTimesheet strings where
-  strings = map (unpack . strip) . lines $ unTextarea $ traceShowId ts
+parseTimesheet :: [Text] -> Textarea -> (Either String TS.Timesheet)
+parseTimesheet header0 ts = parseFastTimesheet strings where
+  header = map unpack header0
+  strings' = map (unpack . strip) . lines $ unTextarea $ ts
+  -- insert the header after the first line which should be the period definition
+  strings = case strings' of
+    (x:xs) -> x : header ++ xs
+    [] -> header
 
+parseTimesheetH :: UploadParam -> Handler (Either String TS.Timesheet)
+parseTimesheetH param = do
+  header <- headerFromSettings
+  return $ parseTimesheet header (upTimesheet param)
 
 -- * DB access
 -- | Save a timesheet.
@@ -136,3 +148,34 @@ timesheetToModel ts = (model, shiftsFn) where
                     (Just day)
                     (tshow shiftType)
              where (employee, day, shiftType) = TS._shiftKey shift
+
+-- * Configuration
+
+-- | A returns a list of employees from the payroll settings
+-- completed with the operator information (from table)
+-- joined by nickname
+-- Only employees present in both list are returned
+getEmployeeInfo:: Handler [(Entity Operator, EmployeeSettings)]
+getEmployeeInfo = do
+  opFinder <- operatorFinder
+  payrollSettings <- getsYesod (appPayroll . appSettings)
+  return   [(op, emp) | (nickname, emp) <- mapToList (employees payrollSettings)
+                      , Just op <- return $ opFinder nickname
+                      ]
+
+-- | Employees description to insert at the beginnig of the timesheet
+headerFromSettings :: Handler [Text]
+headerFromSettings = do
+  infos <- getEmployeeInfo
+  return $ map employeeDescription infos
+  
+-- | Line describing an employee in a timesheet format
+employeeDescription :: (Entity Operator, EmployeeSettings) -> Text
+employeeDescription (Entity _ op, emp) = intercalate " "
+  [ operatorNickname op 
+  , operatorFirstname op
+  , operatorSurname op
+  , timesheet emp
+  ]
+
+

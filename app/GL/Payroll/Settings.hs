@@ -6,6 +6,8 @@ import ClassyPrelude
 import Data.Aeson.TH(deriveJSON, defaultOptions)
 
 
+-- * Types
+-- ** For config
 data EmployeeSettings = EmployeeSettings
   { timesheet :: Text -- To add to 
   } deriving (Show, Read)
@@ -18,3 +20,5 @@ data PayrollSettings = PayrollSettings
 -- * JSON
 $(deriveJSON defaultOptions ''EmployeeSettings)
 $(deriveJSON defaultOptions ''PayrollSettings)
+
+-- * Utils
