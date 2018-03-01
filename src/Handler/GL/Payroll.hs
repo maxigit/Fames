@@ -70,8 +70,19 @@ getGLPayrollViewR key = do
     Nothing -> error $ "Can't load Timesheet with id #" ++ show key
     Just (ts, shifts, _) -> do
       let ts' = modelToTimesheet operatorMap ts shifts
-      defaultLayout (displayTimesheet ts')
-
+          shifts' = TS._shifts ts'
+          reports = [ ("Timesheet" :: Text, displayShifts)
+                    , ("By Employees", displayShifts . (TS.groupShiftsBy id))
+                    , ("By Week", displayShifts . (TS.groupShiftsBy (\(e,_,_) -> e)))
+                    , ("ByDay" , displayShifts . ( TS.groupShiftsBy (\(a,b,h) -> (h,b,a))))
+                    ] 
+      defaultLayout $ [whamlet|
+          $forall (name, trans) <- reports
+             <div.panel.panel-info>
+               <div.panel-heading> #{name}
+               <div.panel-body> ^{trans shifts'}
+                              |]
+        
 getGLPayrollEditR :: Int64 -> Handler Html
 getGLPayrollEditR key = return "todo"
 postGLPayrollEditR :: Int64 -> Handler Html
@@ -79,6 +90,7 @@ postGLPayrollEditR key = return "todo"
 
 postGLPayrollRejectR :: Int64 -> Handler Html
 postGLPayrollRejectR key = return "todo"
+
 
 -- ** Renders
 -- | Renders the main page. It displays recent timesheet and also allows to upload a new one.
@@ -156,12 +168,14 @@ displayTimesheetList timesheets = [whamlet|
 |]
 
 displayTimesheet :: TS.Timesheet -> Widget
-displayTimesheet timesheet = let
-  report = TS.display $ TS._shifts timesheet
+displayTimesheet timesheet = displayShifts $ TS._shifts timesheet
+displayShifts shifts = let
+  report = TS.display shifts
   reportLines = lines $ pack report  :: [Text]
   in [whamlet|<div.well>
         $forall line <- reportLines
           <p> #{line}
+
      |]
 -- * DB access
 -- | Save a timesheet.
@@ -195,7 +209,7 @@ loadTimesheet key64 = do
 timesheetToModel :: _ -> TS.Timesheet -> (_ -> Timesheet, TimesheetId -> [Shift])
 timesheetToModel opFinder ts = (model, shiftsFn) where
   start = TS._weekStart ts
-  model dockKey = Timesheet "todo" dockKey start (TS.period start) "Weekly" Pending
+  model dockKey = Timesheet "todo1" dockKey start (TS.period start) "Weekly" Pending
   shiftsFn i = map (mkShift i) (TS._shifts ts)
   mkShift i shift= let
     (employee, day, shiftType) = TS._shiftKey shift
