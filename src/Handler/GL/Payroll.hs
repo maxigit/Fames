@@ -48,13 +48,7 @@ postGLPayrollValidateR = processTimesheet Validate go
                   (documentKey'msgM) <- runDB $ loadAndCheckDocumentKey key
                   forM documentKey'msgM  $ \(Entity _ doc, msg) -> do
                                  setWarning msg >> return ""
-                  let report = TS.display $ TS._shifts timesheet
-                      reportLines = lines $ pack report  :: [Text]
-                  renderMain Save (Just param) ok200 (setInfo "Enter a timesheet")
-                             [whamlet|<div.well>
-                                         $forall line <- reportLines
-                                           <p> #{line}
-                                     |]
+                  renderMain Save (Just param) ok200 (setInfo "Enter a timesheet") (displayTimesheet timesheet)
 
 postGLPayrollSaveR = processTimesheet Save go where
   go param key = do
@@ -76,7 +70,7 @@ getGLPayrollViewR key = do
     Nothing -> error $ "Can't load Timesheet with id #" ++ show key
     Just (ts, shifts, _) -> do
       let ts' = modelToTimesheet operatorMap ts shifts
-      return $ toHtml (tshow ts')
+      defaultLayout (displayTimesheet ts')
 
 getGLPayrollEditR :: Int64 -> Handler Html
 getGLPayrollEditR key = return "todo"
@@ -139,6 +133,7 @@ displayPendingSheets = do
        <div.panel-heading> Pending Timesheets
        ^{displayTimesheetList timesheets}
           |]
+
 displayTimesheetList :: [Entity Timesheet] -> Widget
 displayTimesheetList timesheets = [whamlet|
 <table.table.table-hover.table-striped>
@@ -159,6 +154,15 @@ displayTimesheetList timesheets = [whamlet|
       <td> #{tshow $ timesheetEnd ts}
       <td> #{tshow $ timesheetStatus ts}
 |]
+
+displayTimesheet :: TS.Timesheet -> Widget
+displayTimesheet timesheet = let
+  report = TS.display $ TS._shifts timesheet
+  reportLines = lines $ pack report  :: [Text]
+  in [whamlet|<div.well>
+        $forall line <- reportLines
+          <p> #{line}
+     |]
 -- * DB access
 -- | Save a timesheet.
 saveTimeSheet :: DocumentHash -> Text -> TS.Timesheet -> Handler TimesheetId
