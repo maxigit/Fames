@@ -7,6 +7,7 @@ module WH.FA.Curl
 , testFAConnection
 ) where
 
+-- * Import
 import ClassyPrelude
 import WH.FA.Types
 import Network.Curl
@@ -16,18 +17,15 @@ import qualified Prelude as Prelude
 import Text.HTML.TagSoup 
 import Text.Regex.TDFA
 
+-- * Misc
+-- ** FA specific
 faDateFormat :: String
 faDateFormat = "%Y/%m/%d"
 -- faURL = "http://172.18.0.1"
-inventoryAdjustmentURL :: (?baseURL :: URLString) => URLString
-inventoryAdjustmentURL = ?baseURL <> "/inventory/adjustments.php"
-newAdjustmentURL ::  (?baseURL :: URLString) => URLString
-newAdjustmentURL = inventoryAdjustmentURL <> "?NewAdjustment=1"
 toAjax :: URLString -> URLString
 toAjax url = url <> "?jsHttpRequest=0-xml"
-ajaxInventoryAdjustmentURL  :: (?baseURL :: URLString) => URLString
-ajaxInventoryAdjustmentURL = toAjax inventoryAdjustmentURL
 
+-- ** Curl
 docurl:: (?curl :: Curl) => URLString -> [CurlOption] -> ExceptT Text IO CurlResponse
 docurl url opts = lift $ do_curl_ ?curl url opts
 
@@ -48,16 +46,6 @@ curlSoup url opts status msg = do
 withCurl :: ExceptT e' IO b -> ExceptT e' IO b
 withCurl = mapExceptT withCurlDo
   
-addAdjustmentDetail :: (?curl :: Curl, ?baseURL:: String)
-                    => StockAdjustmentDetail -> ExceptT Text IO [Tag String]
-addAdjustmentDetail StockAdjustmentDetail{..} = do
-  let items = CurlPostFields [ "AddItem=Add%20Item"
-                             , "stock_id="<> unpack adjSku
-                             , "std_cost=" <> show adjCost
-                             , "qty=" <> show adjQuantity
-                             ] : method_POST
-  curlSoup ajaxInventoryAdjustmentURL items 200 "add items"
-  
 
 -- | Open a Session  to FrontAccounting an execute curl statement
 withFACurlDo :: (?baseURL :: URLString)
@@ -77,26 +65,7 @@ withFACurlDo user password m = do
                   200 "log in FrontAccounting"
     lift $ setopts curl [CurlCookieFile "cookies"]
     m
-
-postStockAdjustment :: FAConnectInfo -> StockAdjustment -> IO (Either Text Int)
-postStockAdjustment connectInfo stockAdj = do
-  let ?baseURL = faURL connectInfo
-  runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
-    _ <- curlSoup newAdjustmentURL method_GET 200 "Problem trying to create a new inventory adjustment"
-    _ <- mapM addAdjustmentDetail (adjDetails (stockAdj :: StockAdjustment))
-    let process = CurlPostFields [ "ref="<> (unpack $ adjReference (stockAdj :: StockAdjustment))
-                                 , "Process=Process"
-                                 , "AdjDate=" <>  formatTime defaultTimeLocale faDateFormat (adjDate stockAdj)
-                                 , "StockLocation=" <> unpack (adjLocation stockAdj) 
-                                 , "type=1" -- Adjustment @TODO config file
-                                 , "Increase=" <> if adjAdjType stockAdj == PositiveAdjustment 
-                                                     then "1" else "0"
-                                 ] : method_POST
-    tags <- curlSoup ajaxInventoryAdjustmentURL process 200 "process inventory adjustment"
-    case extractAddedId tags  of
-            Left e -> throwError $ "Inventory Adjustment creation failed:" <> e
-            Right faId -> return faId
-
+-- ** Util
 -- | Extract the Id from the process adjustment response
 extractAddedId :: [Tag String] -> Either Text Int
 extractAddedId tags = let
@@ -118,6 +87,52 @@ extractErrorMsgFromSoup tags = let
     [] -> Nothing
     _ -> Just . pack $ unlines (mapMaybe maybeTagText msgs)
 
+-- ** Test
+testFAConnection :: FAConnectInfo -> IO (Either Text ())
+testFAConnection connectInfo = do
+  let ?baseURL = faURL connectInfo
+  runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
+    return ()
+-- * Transactions
+-- ** Urls
+inventoryAdjustmentURL :: (?baseURL :: URLString) => URLString
+inventoryAdjustmentURL = ?baseURL <> "/inventory/adjustments.php"
+newAdjustmentURL ::  (?baseURL :: URLString) => URLString
+newAdjustmentURL = inventoryAdjustmentURL <> "?NewAdjustment=1"
+ajaxInventoryAdjustmentURL  :: (?baseURL :: URLString) => URLString
+ajaxInventoryAdjustmentURL = toAjax inventoryAdjustmentURL
+-- ** Stock Adjustment
+addAdjustmentDetail :: (?curl :: Curl, ?baseURL:: String)
+                    => StockAdjustmentDetail -> ExceptT Text IO [Tag String]
+addAdjustmentDetail StockAdjustmentDetail{..} = do
+  let items = CurlPostFields [ "AddItem=Add%20Item"
+                             , "stock_id="<> unpack adjSku
+                             , "std_cost=" <> show adjCost
+                             , "qty=" <> show adjQuantity
+                             ] : method_POST
+  curlSoup ajaxInventoryAdjustmentURL items 200 "add items"
+  
+
+postStockAdjustment :: FAConnectInfo -> StockAdjustment -> IO (Either Text Int)
+postStockAdjustment connectInfo stockAdj = do
+  let ?baseURL = faURL connectInfo
+  runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
+    _ <- curlSoup newAdjustmentURL method_GET 200 "Problem trying to create a new inventory adjustment"
+    _ <- mapM addAdjustmentDetail (adjDetails (stockAdj :: StockAdjustment))
+    let process = CurlPostFields [ "ref="<> (unpack $ adjReference (stockAdj :: StockAdjustment))
+                                 , "Process=Process"
+                                 , "AdjDate=" <>  formatTime defaultTimeLocale faDateFormat (adjDate stockAdj)
+                                 , "StockLocation=" <> unpack (adjLocation stockAdj) 
+                                 , "type=1" -- Adjustment @TODO config file
+                                 , "Increase=" <> if adjAdjType stockAdj == PositiveAdjustment 
+                                                     then "1" else "0"
+                                 ] : method_POST
+    tags <- curlSoup ajaxInventoryAdjustmentURL process 200 "process inventory adjustment"
+    case extractAddedId tags  of
+            Left e -> throwError $ "Inventory Adjustment creation failed:" <> e
+            Right faId -> return faId
+
+-- ** Location Transfer
 
 postLocationTransfer :: FAConnectInfo -> LocationTransfer -> IO (Either Text Int)
 postLocationTransfer connectInfo locTrans = do
@@ -152,10 +167,3 @@ addLocationTransferDetail LocationTransferDetail{..} = do
                              ] : method_POST
   curlSoup (toAjax locationTransferURL) items 200 "add items"
 
-testFAConnection :: FAConnectInfo -> IO (Either Text ())
-testFAConnection connectInfo = do
-  let ?baseURL = faURL connectInfo
-  runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
-    return ()
-
-  
