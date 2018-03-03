@@ -1,4 +1,5 @@
 module Handler.GL.Payroll
+-- * Export
 ( getGLPayrollR
 , postGLPayrollValidateR
 , postGLPayrollSaveR
@@ -7,7 +8,7 @@ module Handler.GL.Payroll
 , postGLPayrollEditR
 , postGLPayrollRejectR
 ) where
-
+-- * Import
 import Import
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
@@ -17,6 +18,10 @@ import GL.Payroll.Parser
 import GL.Payroll.Settings
 import Data.Text (strip)
 import Database.Persist.MySQL
+
+import  qualified WH.FA.Types as WFA
+import  qualified WH.FA.Curl as WFA
+
 
 -- * Types
 data Mode = Validate | Save deriving (Eq, Read, Show)

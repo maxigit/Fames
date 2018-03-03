@@ -6,6 +6,7 @@ module WH.FA.Curl
 ( postStockAdjustment
 , postLocationTransfer
 , testFAConnection
+, postGRN
 ) where
 
 import ClassyPrelude
@@ -38,9 +39,12 @@ curlSoup url opts status msg = do
   r <- docurl url opts
   let tags = parseTags (respBody r)
   when (respCurlCode r /= CurlOK || respStatus r /= status) $ do
-      throwError $ "Failed to : " <> msg
-                   <> tshow (respCurlCode r)
-                   <> tshow (respStatusLine r)
+      throwError $ unlines [ "Failed to : " <> msg
+                           , "CURL status: " <> tshow (respCurlCode r)
+                           , "HTTP status :" <> pack (respStatusLine r)
+                           , "when accessing URL: '" <> tshow url <> "'"
+                           , "If the problem persits, contact your administrator."
+                           ]
   case (extractErrorMsgFromSoup tags) of
     Nothing -> return tags
     Just err -> throwError err
@@ -184,7 +188,7 @@ postGRN connectInfo grn = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
     _ <- curlSoup newGRNURL method_GET 200 "Problem trying to create a new GRN"
-    _ <- mapM addGRNDetail (grnDetails grn)
+    ds <- mapM addGRNDetail (grnDetails grn)
     let process = CurlPostFields [ "supplier_id=" <> show (grnSupplier grn)
                                  , "due_date=" <> toFADate (grnDeliveryDate grn)
                                  , maybe "" (("ref=" <>) . unpack) (grnReference grn)
@@ -192,6 +196,7 @@ postGRN connectInfo grn = do
                                  , maybe "" (("delivery_address=" <>) . unpack) (grnDeliveryInformation grn)
                                  , "StkLocation=" <> unpack (grnLocation grn)
                                  , "Comments=" <> unpack (grnMemo grn)
+                                 , "Commit=Process%20GRN" -- Pressing commit button
                                  ] : method_POST
     tags <- curlSoup (ajaxGRNURL) process 200 "Create GRN"
     case extractAddedId tags of
