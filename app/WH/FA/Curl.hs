@@ -7,6 +7,7 @@ module WH.FA.Curl
 , postLocationTransfer
 , testFAConnection
 , postGRN
+, postPurchaseInvoice
 ) where
 
 import ClassyPrelude
@@ -188,7 +189,7 @@ postStockAdjustment connectInfo stockAdj = do
                                                      then "1" else "0" :: String
                                  ] : method_POST
     tags <- curlSoup ajaxInventoryAdjustmentURL process 200 "process inventory adjustment"
-    case extractAddedId' "AddedId" "adjustment" tags  of
+    case extractAddedId' "AddedID" "adjustment" tags  of
             Left e -> throwError $ "Inventory Adjustment creation failed:" <> e
             Right faId -> return faId
 
@@ -207,7 +208,7 @@ postLocationTransfer connectInfo locTrans = do
                                  , "ToStockLocation" <=> unpack (ltrLocationTo locTrans) 
                                  ] : method_POST
     tags <- curlSoup (toAjax locationTransferURL) process 200 "process location transfer"
-    case extractAddedId' "AddedId" "location transfer" tags  of
+    case extractAddedId' "AddedID" "location transfer" tags  of
             Left e -> throwError $ "Location Transfer creation failed:" <> e
             Right faId -> return faId
 
@@ -270,6 +271,7 @@ postPurchaseInvoice connectInfo PurchaseInvoice{..} = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
     new <- curlSoup newPurchaseInvoiceURL method_GET 200 "Problem trying to create a new GRN"
+    _ <- mapM addPurchaseInvoiceDetail poiGLItems
     ref <- case extractInputValue "reference" new of
                   Nothing -> throwError "Can't find Invoice reference"
                   Just r -> return r
@@ -281,8 +283,20 @@ postPurchaseInvoice connectInfo PurchaseInvoice{..} = do
                                  , "Comments" <=> poiMemo
                                  , Just "PostInvoice=Enter%20Invoice" -- Pressing commit button
                                  ] : method_POST
-    tags <- curlSoup (ajaxGRNURL) process 200 "Create Purchase Invoice"
-    case extractAddedId' "AddedId" "purchase invoice" tags of
-      Left e -> throwError $ "GRN creation failed:" <> e
+    tags <- curlSoup (ajaxPurchaseInvoiceURL) process 200 "Create Purchase Invoice"
+    traceShowM tags
+    case extractAddedId' "AddedID" "purchase invoice" tags of
+      Left e -> throwError $ "Purchase invoice creation failed:\n" <> e
       Right faId -> return faId
 
+addPurchaseInvoiceDetail:: (?baseURL :: URLString, ?curl :: Curl)
+             => GLItem-> ExceptT Text IO [Tag String]
+addPurchaseInvoiceDetail GLItem{..} = do
+  let fields = curlPostFields [  "gl_code" <=> gliAccount
+                              , "amount" <=> gliAmount
+                              , "dimension_id" <=> gliDimension1
+                              , "dimension2_id" <=> gliDimension2
+                              , "memo_" <=> gliMemo
+                              , Just "AddGLCodeToTrans=1"
+                              ] :method_POST
+  curlSoup (ajaxPurchaseInvoiceURL) fields 200 "add GL items"

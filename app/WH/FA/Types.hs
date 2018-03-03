@@ -69,15 +69,15 @@ data GRNDetail = GRNDetail
 data PurchaseInvoice = PurchaseInvoice
   { poiSupplier :: !Int
   , poiReference :: !(Maybe Text)
-  , poiSupplierReference :: !(Maybe Text)
+  , poiSupplierReference :: !Text
   , poiDate :: !Day
   , poiDueDate :: !Day
   , poiMemo :: !Text
   , poiDeliveryIds :: ![Int]
-  , poiGLItems :: ![GLItems]
+  , poiGLItems :: ![GLItem]
   } deriving (Eq, Show)
 
-data GLItems = GLItems
+data GLItem = GLItem
   { gliAccount :: !Int
   , gliDimension1 :: !(Maybe Int)
   , gliDimension2 :: !(Maybe Int)
