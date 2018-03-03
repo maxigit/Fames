@@ -58,9 +58,9 @@ withFACurlDo :: (?baseURL :: URLString)
              => String -> String -> ((?curl :: Curl) => ExceptT Text IO a) -> ExceptT Text IO a
 withFACurlDo user password m = do
   let opts = [{-CurlCookieJar "cookies" ,-} CurlUserAgent "curl/7.47.0", CurlVerbose True ]
-  let loginOptions = CurlPostFields [ "user_name_entry_field="<>user
-                                    , "password=" <> password
-                                    , "company_login_name=0"
+  let loginOptions = curlPostFields [ "user_name_entry_field" <=> user
+                                    , "password" <=> password
+                                    , "company_login_name" <=>  (0 :: Int)
                                     ] : method_POST
   withCurl $ do
     curl <- lift initialize
@@ -71,6 +71,37 @@ withFACurlDo user password m = do
                   200 "log in FrontAccounting"
     lift $ setopts curl [CurlCookieFile "cookies"]
     m
+
+-- *** Post Paramters
+class CurlPostField a where
+  toCurlPostField :: a -> Maybe String
+
+
+instance CurlPostField String where
+  toCurlPostField = Just
+
+instance CurlPostField Text where
+  toCurlPostField = Just . unpack
+
+instance CurlPostField Day where 
+  toCurlPostField = Just . toFADate
+
+instance CurlPostField Double where
+  toCurlPostField  = Just . show
+
+instance CurlPostField Int where
+  toCurlPostField  = Just . show
+
+instance CurlPostField a => CurlPostField (Maybe a) where
+  toCurlPostField = (>>= toCurlPostField)
+  
+curlPostFields :: [Maybe String] -> CurlOption
+curlPostFields = CurlPostFields . catMaybes
+
+-- | Creates a 
+(<=>) :: CurlPostField a => String -> a -> Maybe String
+field <=> value = fmap ((field <> "=") <> ) (toCurlPostField value)
+
 -- ** Util
 -- | Extract the Id from the process adjustment response
 extractAddedId :: [Tag String] -> Either Text Int
@@ -130,10 +161,10 @@ ajaxGRNURL = toAjax grnURL
 addAdjustmentDetail :: (?curl :: Curl, ?baseURL:: String)
                     => StockAdjustmentDetail -> ExceptT Text IO [Tag String]
 addAdjustmentDetail StockAdjustmentDetail{..} = do
-  let items = CurlPostFields [ "AddItem=Add%20Item"
-                             , "stock_id="<> unpack adjSku
-                             , "std_cost=" <> show adjCost
-                             , "qty=" <> show adjQuantity
+  let items = curlPostFields [ Just "AddItem=Add%20Item"
+                             , "stock_id" <=> adjSku
+                             , "std_cost" <=> adjCost
+                             , "qty" <=> adjQuantity
                              ] : method_POST
   curlSoup ajaxInventoryAdjustmentURL items 200 "add items"
   
@@ -144,13 +175,13 @@ postStockAdjustment connectInfo stockAdj = do
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
     _ <- curlSoup newAdjustmentURL method_GET 200 "Problem trying to create a new inventory adjustment"
     _ <- mapM addAdjustmentDetail (adjDetails (stockAdj :: StockAdjustment))
-    let process = CurlPostFields [ "ref="<> (unpack $ adjReference (stockAdj :: StockAdjustment))
-                                 , "Process=Process"
-                                 , "AdjDate=" <>  toFADate (adjDate stockAdj)
-                                 , "StockLocation=" <> unpack (adjLocation stockAdj) 
-                                 , "type=1" -- Adjustment @TODO config file
-                                 , "Increase=" <> if adjAdjType stockAdj == PositiveAdjustment 
-                                                     then "1" else "0"
+    let process = curlPostFields [ "ref" <=> (unpack $ adjReference (stockAdj :: StockAdjustment))
+                                 , Just "Process=Process"
+                                 , "AdjDate" <=>  toFADate (adjDate stockAdj)
+                                 , "StockLocation" <=> adjLocation stockAdj 
+                                 , Just "type=1" -- Adjustment @TODO config file
+                                 , "Increase" <=> if adjAdjType stockAdj == PositiveAdjustment 
+                                                     then "1" else "0" :: String
                                  ] : method_POST
     tags <- curlSoup ajaxInventoryAdjustmentURL process 200 "process inventory adjustment"
     case extractAddedId tags  of
@@ -165,11 +196,11 @@ postLocationTransfer connectInfo locTrans = do
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
     _ <- curlSoup newLocationTransferURL method_GET 200 "Problem trying to create a new location transfer"
     _ <- mapM addLocationTransferDetail (ltrDetails (locTrans :: LocationTransfer))
-    let process = CurlPostFields [ "ref="<> (unpack $ ltrReference (locTrans :: LocationTransfer))
-                                 , "Process=Process"
-                                 , "AdjDate=" <>  toFADate (ltrDate locTrans)
-                                 , "FromStockLocation=" <> unpack (ltrLocationFrom locTrans) 
-                                 , "ToStockLocation=" <> unpack (ltrLocationTo locTrans) 
+    let process = curlPostFields [ "ref" <=> ltrReference locTrans
+                                 , Just "Process=Process"
+                                 , "AdjDate" <=>  toFADate (ltrDate locTrans)
+                                 , "FromStockLocation" <=> unpack (ltrLocationFrom locTrans) 
+                                 , "ToStockLocation" <=> unpack (ltrLocationTo locTrans) 
                                  ] : method_POST
     tags <- curlSoup (toAjax locationTransferURL) process 200 "process location transfer"
     case extractAddedId tags  of
@@ -185,10 +216,10 @@ newLocationTransferURL = locationTransferURL <> "?NewTransfer=1"
 addLocationTransferDetail  :: (?baseURL :: URLString, ?curl :: Curl)
                            => LocationTransferDetail -> ExceptT Text IO [Tag String]
 addLocationTransferDetail LocationTransferDetail{..} = do
-  let items = CurlPostFields [ "AddItem=Add%20Item"
-                             , "stock_id="<> unpack ltrSku
-                             , "std_cost=0"
-                             , "qty=" <> show ltrQuantity
+  let items = curlPostFields [ Just "AddItem=Add%20Item"
+                             , "stock_id" <=> unpack ltrSku
+                             , Just "std_cost=0"
+                             , "qty" <=> show ltrQuantity
                              ] : method_POST
   curlSoup (toAjax locationTransferURL) items 200 "add items"
 
@@ -205,14 +236,14 @@ postGRN connectInfo grn = do
     let ref = case extractInputValue "ref" new of
                   Nothing -> error "Can't find GRN reference"
                   Just r -> r
-    let process = CurlPostFields [ "supplier_id=" <> show (grnSupplier grn)
-                                 , "OrderDate=" <> toFADate (grnDeliveryDate grn)
-                                 , "ref=" <> (unpack $ fromMaybe ref (grnReference grn))
-                                 , maybe "" (("supp_ref=" <>) . unpack) (grnSupplierReference grn)
-                                 , maybe "" (("delivery_address=" <>) . unpack) (grnDeliveryInformation grn)
-                                 , "StkLocation=" <> unpack (grnLocation grn)
-                                 , "Comments=" <> unpack (grnMemo grn)
-                                 , "Commit=Process%20GRN" -- Pressing commit button
+    let process = curlPostFields [ "supplier_id" <=> grnSupplier grn
+                                 , "OrderDate" <=> grnDeliveryDate grn
+                                 , "ref" <=> (fromMaybe ref (grnReference grn))
+                                 , "supp_ref" <=> grnSupplierReference grn
+                                 , "delivery_address" <=> grnDeliveryInformation grn
+                                 , "StkLocation" <=> grnLocation grn
+                                 , "Comments" <=> grnMemo grn
+                                 , Just "Commit=Process%20GRN" -- Pressing commit button
                                  ] : method_POST
     tags <- curlSoup (ajaxGRNURL) process 200 "Create GRN"
     case extractAddedId' "AddedGRN" "grn" tags of
@@ -222,9 +253,10 @@ postGRN connectInfo grn = do
 addGRNDetail :: (?baseURL :: URLString, ?curl :: Curl)
              => GRNDetail -> ExceptT Text IO [Tag String]
 addGRNDetail GRNDetail{..} = do
-  let fields = CurlPostFields [ "EnterLine=Ad%20Item"
-                             , "stock_id=" <> unpack grnSku
-                             , "qty=" <> show grnQuantity
-                             , "price=" <> show grnPrice
-                             ] : method_POST
+  let fields = curlPostFields [ Just "EnterLine=Ad%20Item"
+                              , "stock_id" <=> unpack grnSku
+                              , "qty" <=> show grnQuantity
+                              , "price" <=> show grnPrice
+                              ] : method_POST
   curlSoup ajaxGRNURL fields 200 "add items"
+  
