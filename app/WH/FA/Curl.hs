@@ -74,14 +74,15 @@ withFACurlDo user password m = do
 -- ** Util
 -- | Extract the Id from the process adjustment response
 extractAddedId :: [Tag String] -> Either Text Int
-extractAddedId tags = let
+extractAddedId = extractAddedId' "AddedId" "adjustment"
+extractAddedId' addedTag info tags = let
   metas = sections (~== TagOpen ("meta" :: String) [("http-equiv","Refresh"), ("content","")]) tags
   in case metas of
       [meta:_] -> let
         url = fromAttrib "content" meta
-        in case mrSubList $ url =~ ("AddedID=([0-9]+)$" :: String) of
+        in case mrSubList $ url =~ (addedTag <> "=([0-9]+)$" :: String) of
              [s] -> Right $ Prelude.read  (traceId s)
-             _ -> Left (pack "Error, can't find adjustment Id.")
+             _ -> Left (pack "Error, can't find " ++ info ++ " Id.")
       _ -> Left (fromMaybe "" $ extractErrorMsgFromSoup tags)
         
   
@@ -188,9 +189,9 @@ postGRN connectInfo grn = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
     _ <- curlSoup newGRNURL method_GET 200 "Problem trying to create a new GRN"
-    ds <- mapM addGRNDetail (grnDetails grn)
+    _ <- mapM addGRNDetail (grnDetails grn)
     let process = CurlPostFields [ "supplier_id=" <> show (grnSupplier grn)
-                                 , "due_date=" <> toFADate (grnDeliveryDate grn)
+                                 , "OrderDate=" <> toFADate (grnDeliveryDate grn)
                                  , maybe "" (("ref=" <>) . unpack) (grnReference grn)
                                  , maybe "" (("supp_ref=" <>) . unpack) (grnSupplierReference grn)
                                  , maybe "" (("delivery_address=" <>) . unpack) (grnDeliveryInformation grn)
@@ -199,7 +200,7 @@ postGRN connectInfo grn = do
                                  , "Commit=Process%20GRN" -- Pressing commit button
                                  ] : method_POST
     tags <- curlSoup (ajaxGRNURL) process 200 "Create GRN"
-    case extractAddedId tags of
+    case extractAddedId' "AddedGRN" "grn" tags of
       Left e -> throwError $ "GRN creation failed:" <> e
       Right faId -> return faId
 
