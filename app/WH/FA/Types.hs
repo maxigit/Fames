@@ -64,3 +64,25 @@ data GRNDetail = GRNDetail
   , grnQuantity :: !Double
   , grnPrice :: !Double
   } deriving (Eq, Show)
+
+-- ** Invoice
+data PurchaseInvoice = PurchaseInvoice
+  { poiSupplier :: !Int
+  , poiReference :: !(Maybe Text)
+  , poiSupplierReference :: !(Maybe Text)
+  , poiDate :: !Day
+  , poiDueDate :: !Day
+  , poiMemo :: !Text
+  , poiDeliveryIds :: ![Int]
+  , poiGLItems :: ![GLItems]
+  } deriving (Eq, Show)
+
+data GLItems = GLItems
+  { gliAccount :: !Int
+  , gliDimension1 :: !(Maybe Int)
+  , gliDimension2 :: !(Maybe Int)
+  , gliAmount :: !Double 
+  , gliMemo :: !(Maybe Text) 
+  } deriving (Eq, Show)
+
+  

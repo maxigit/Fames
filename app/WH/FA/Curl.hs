@@ -104,8 +104,7 @@ field <=> value = fmap ((field <> "=") <> ) (toCurlPostField value)
 
 -- ** Util
 -- | Extract the Id from the process adjustment response
-extractAddedId :: [Tag String] -> Either Text Int
-extractAddedId = extractAddedId' "AddedId" "adjustment"
+extractAddedId' :: String -> String -> [Tag String] -> Either Text Int
 extractAddedId' addedTag info tags = let
   metas = sections (~== TagOpen ("meta" :: String) [("http-equiv","Refresh"), ("content","")]) tags
   in case metas of
@@ -113,7 +112,7 @@ extractAddedId' addedTag info tags = let
         url = fromAttrib "content" meta
         in case mrSubList $ url =~ (addedTag <> "=([0-9]+)$" :: String) of
              [s] -> Right $ Prelude.read  (traceId s)
-             _ -> Left (pack "Error, can't find " ++ info ++ " Id.")
+             _ -> Left (pack $ "Error, can't find " ++ info ++ " Id.")
       _ -> Left (fromMaybe "" $ extractErrorMsgFromSoup tags)
         
   
@@ -156,6 +155,11 @@ grnURL :: (?baseURL :: URLString) => URLString
 grnURL = ?baseURL <> "/purchasing/po_entry_items.php"
 newGRNURL = grnURL <> "?NewGRN=Yes"
 ajaxGRNURL = toAjax grnURL
+
+purchaseInvoiceURL :: (?baseURL :: URLString) => URLString
+purchaseInvoiceURL = ?baseURL <> "/purchasing/supplier_invoice.php"
+newPurchaseInvoiceURL = purchaseInvoiceURL <> "?New=Yes"
+ajaxPurchaseInvoiceURL = toAjax purchaseInvoiceURL
 -- ** Items
 -- *** Stock Adjustment
 addAdjustmentDetail :: (?curl :: Curl, ?baseURL:: String)
@@ -184,7 +188,7 @@ postStockAdjustment connectInfo stockAdj = do
                                                      then "1" else "0" :: String
                                  ] : method_POST
     tags <- curlSoup ajaxInventoryAdjustmentURL process 200 "process inventory adjustment"
-    case extractAddedId tags  of
+    case extractAddedId' "AddedId" "adjustment" tags  of
             Left e -> throwError $ "Inventory Adjustment creation failed:" <> e
             Right faId -> return faId
 
@@ -203,7 +207,7 @@ postLocationTransfer connectInfo locTrans = do
                                  , "ToStockLocation" <=> unpack (ltrLocationTo locTrans) 
                                  ] : method_POST
     tags <- curlSoup (toAjax locationTransferURL) process 200 "process location transfer"
-    case extractAddedId tags  of
+    case extractAddedId' "AddedId" "location transfer" tags  of
             Left e -> throwError $ "Location Transfer creation failed:" <> e
             Right faId -> return faId
 
@@ -260,3 +264,25 @@ addGRNDetail GRNDetail{..} = do
                               ] : method_POST
   curlSoup ajaxGRNURL fields 200 "add items"
   
+--- *** Invoice
+postPurchaseInvoice :: FAConnectInfo -> PurchaseInvoice -> IO (Either Text Int)
+postPurchaseInvoice connectInfo PurchaseInvoice{..} = do
+  let ?baseURL = faURL connectInfo
+  runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
+    new <- curlSoup newPurchaseInvoiceURL method_GET 200 "Problem trying to create a new GRN"
+    ref <- case extractInputValue "reference" new of
+                  Nothing -> throwError "Can't find Invoice reference"
+                  Just r -> return r
+    let process = curlPostFields [ "supplier_id" <=> poiSupplier
+                                 , "reference" <=> fromMaybe ref poiReference
+                                 , "supp_reference" <=> poiSupplierReference
+                                 , "tran_date" <=> poiDate
+                                 , "due_date" <=> poiDate
+                                 , "Comments" <=> poiMemo
+                                 , Just "PostInvoice=Enter%20Invoice" -- Pressing commit button
+                                 ] : method_POST
+    tags <- curlSoup (ajaxGRNURL) process 200 "Create Purchase Invoice"
+    case extractAddedId' "AddedId" "purchase invoice" tags of
+      Left e -> throwError $ "GRN creation failed:" <> e
+      Right faId -> return faId
+
