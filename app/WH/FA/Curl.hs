@@ -94,6 +94,17 @@ extractErrorMsgFromSoup tags = let
     [] -> Nothing
     _ -> Just . pack $ unlines (mapMaybe maybeTagText msgs)
 
+-- | Extract value from a input field. This allows for example to use the generated
+-- reference instead of having to specify one.
+extractInputValue :: String -> [Tag String] -> Maybe Text
+extractInputValue inputName tags = let
+  inputs = sections (~== TagOpen ("input" :: String) [ ("name", inputName), ("value","") ] ) tags
+  r = case inputs of
+    [input:_] -> case fromAttrib "value" input of
+                       "" -> Nothing
+                       value -> Just $ pack value
+    _ -> Nothing -- 0 or to many matches
+  in r
 -- ** Test
 testFAConnection :: FAConnectInfo -> IO (Either Text ())
 testFAConnection connectInfo = do
@@ -188,11 +199,15 @@ postGRN :: FAConnectInfo -> GRN -> IO (Either Text Int)
 postGRN connectInfo grn = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
-    _ <- curlSoup newGRNURL method_GET 200 "Problem trying to create a new GRN"
+    new <- curlSoup newGRNURL method_GET 200 "Problem trying to create a new GRN"
     _ <- mapM addGRNDetail (grnDetails grn)
+    
+    let ref = case extractInputValue "ref" new of
+                  Nothing -> error "Can't find GRN reference"
+                  Just r -> r
     let process = CurlPostFields [ "supplier_id=" <> show (grnSupplier grn)
                                  , "OrderDate=" <> toFADate (grnDeliveryDate grn)
-                                 , maybe "" (("ref=" <>) . unpack) (grnReference grn)
+                                 , "ref=" <> (unpack $ fromMaybe ref (grnReference grn))
                                  , maybe "" (("supp_ref=" <>) . unpack) (grnSupplierReference grn)
                                  , maybe "" (("delivery_address=" <>) . unpack) (grnDeliveryInformation grn)
                                  , "StkLocation=" <> unpack (grnLocation grn)
