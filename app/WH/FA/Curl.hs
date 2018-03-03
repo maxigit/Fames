@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ImplicitParams #-}
+-- * Import
 -- | Post event to FA using Curl
 module WH.FA.Curl
 ( postStockAdjustment
@@ -7,7 +8,6 @@ module WH.FA.Curl
 , testFAConnection
 ) where
 
--- * Import
 import ClassyPrelude
 import WH.FA.Types
 import Network.Curl
@@ -25,6 +25,8 @@ faDateFormat = "%Y/%m/%d"
 toAjax :: URLString -> URLString
 toAjax url = url <> "?jsHttpRequest=0-xml"
 
+toFADate :: Day -> String
+toFADate = formatTime defaultTimeLocale faDateFormat
 -- ** Curl
 docurl:: (?curl :: Curl) => URLString -> [CurlOption] -> ExceptT Text IO CurlResponse
 docurl url opts = lift $ do_curl_ ?curl url opts
@@ -95,13 +97,20 @@ testFAConnection connectInfo = do
     return ()
 -- * Transactions
 -- ** Urls
+-- *** Items
 inventoryAdjustmentURL :: (?baseURL :: URLString) => URLString
 inventoryAdjustmentURL = ?baseURL <> "/inventory/adjustments.php"
 newAdjustmentURL ::  (?baseURL :: URLString) => URLString
 newAdjustmentURL = inventoryAdjustmentURL <> "?NewAdjustment=1"
 ajaxInventoryAdjustmentURL  :: (?baseURL :: URLString) => URLString
 ajaxInventoryAdjustmentURL = toAjax inventoryAdjustmentURL
--- ** Stock Adjustment
+-- *** Purchases
+grnURL :: (?baseURL :: URLString) => URLString
+grnURL = ?baseURL <> "/purchasing/po_entry_items.php"
+newGRNURL = grnURL <> "?NewGRN=Yes"
+ajaxGRNURL = toAjax grnURL
+-- ** Items
+-- *** Stock Adjustment
 addAdjustmentDetail :: (?curl :: Curl, ?baseURL:: String)
                     => StockAdjustmentDetail -> ExceptT Text IO [Tag String]
 addAdjustmentDetail StockAdjustmentDetail{..} = do
@@ -121,7 +130,7 @@ postStockAdjustment connectInfo stockAdj = do
     _ <- mapM addAdjustmentDetail (adjDetails (stockAdj :: StockAdjustment))
     let process = CurlPostFields [ "ref="<> (unpack $ adjReference (stockAdj :: StockAdjustment))
                                  , "Process=Process"
-                                 , "AdjDate=" <>  formatTime defaultTimeLocale faDateFormat (adjDate stockAdj)
+                                 , "AdjDate=" <>  toFADate (adjDate stockAdj)
                                  , "StockLocation=" <> unpack (adjLocation stockAdj) 
                                  , "type=1" -- Adjustment @TODO config file
                                  , "Increase=" <> if adjAdjType stockAdj == PositiveAdjustment 
@@ -132,7 +141,7 @@ postStockAdjustment connectInfo stockAdj = do
             Left e -> throwError $ "Inventory Adjustment creation failed:" <> e
             Right faId -> return faId
 
--- ** Location Transfer
+-- *** Location Transfer
 
 postLocationTransfer :: FAConnectInfo -> LocationTransfer -> IO (Either Text Int)
 postLocationTransfer connectInfo locTrans = do
@@ -142,7 +151,7 @@ postLocationTransfer connectInfo locTrans = do
     _ <- mapM addLocationTransferDetail (ltrDetails (locTrans :: LocationTransfer))
     let process = CurlPostFields [ "ref="<> (unpack $ ltrReference (locTrans :: LocationTransfer))
                                  , "Process=Process"
-                                 , "AdjDate=" <>  formatTime defaultTimeLocale faDateFormat (ltrDate locTrans)
+                                 , "AdjDate=" <>  toFADate (ltrDate locTrans)
                                  , "FromStockLocation=" <> unpack (ltrLocationFrom locTrans) 
                                  , "ToStockLocation=" <> unpack (ltrLocationTo locTrans) 
                                  ] : method_POST
@@ -167,3 +176,34 @@ addLocationTransferDetail LocationTransferDetail{..} = do
                              ] : method_POST
   curlSoup (toAjax locationTransferURL) items 200 "add items"
 
+
+-- ** Purchase
+--- *** GRN
+postGRN :: FAConnectInfo -> GRN -> IO (Either Text Int)
+postGRN connectInfo grn = do
+  let ?baseURL = faURL connectInfo
+  runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
+    _ <- curlSoup newGRNURL method_GET 200 "Problem trying to create a new GRN"
+    _ <- mapM addGRNDetail (grnDetails grn)
+    let process = CurlPostFields [ "supplier_id=" <> show (grnSupplier grn)
+                                 , "due_date=" <> toFADate (grnDeliveryDate grn)
+                                 , maybe "" (("ref=" <>) . unpack) (grnReference grn)
+                                 , maybe "" (("supp_ref=" <>) . unpack) (grnSupplierReference grn)
+                                 , maybe "" (("delivery_address=" <>) . unpack) (grnDeliveryInformation grn)
+                                 , "StkLocation=" <> unpack (grnLocation grn)
+                                 , "Comments=" <> unpack (grnMemo grn)
+                                 ] : method_POST
+    tags <- curlSoup (ajaxGRNURL) process 200 "Create GRN"
+    case extractAddedId tags of
+      Left e -> throwError $ "GRN creation failed:" <> e
+      Right faId -> return faId
+
+addGRNDetail :: (?baseURL :: URLString, ?curl :: Curl)
+             => GRNDetail -> ExceptT Text IO [Tag String]
+addGRNDetail GRNDetail{..} = do
+  let fields = CurlPostFields [ "EnterLine=Ad%20Item"
+                             , "stock_id=" <> unpack grnSku
+                             , "qty=" <> show grnQuantity
+                             , "price=" <> show grnPrice
+                             ] : method_POST
+  curlSoup ajaxGRNURL fields 200 "add items"

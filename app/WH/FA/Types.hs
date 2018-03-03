@@ -10,7 +10,8 @@ data FAConnectInfo = FAConnectInfo
   , faPassword :: String
   }  deriving (Eq, Show)
 
--- * StockAdjustment
+-- * Items
+-- ** StockAdjustment
 -- | Information needed to post a FA stock adjustment
 data StockAdjustment = StockAdjustment
   { adjReference :: !Text
@@ -29,7 +30,7 @@ data StockAdjustmentDetail = StockAdjustmentDetail
 data AdjustmentType = PositiveAdjustment  | NegativeAdjustment
   deriving (Eq, Show, Enum)
 
--- * Location Transfer
+-- ** Location Transfer
 -- | needed to post a FA stock adjustment
 data LocationTransfer = LocationTransfer
   { ltrReference:: !Text
@@ -42,4 +43,24 @@ data LocationTransfer = LocationTransfer
 data LocationTransferDetail = LocationTransferDetail
   { ltrSku :: !Text
   , ltrQuantity :: !Int
+  } deriving (Eq, Show)
+
+-- * Purchases
+-- ** GRN
+data GRN = GRN
+  { grnSupplier :: !Int
+  , grnDeliveryDate :: !Day
+  , grnReference :: !(Maybe Text)
+  , grnSupplierReference :: !(Maybe Text)
+  , grnLocation :: !Text
+  , grnDeliveryInformation :: !(Maybe Text)
+  , grnMemo :: !Text
+  , grnDetails :: [GRNDetail]
+  } deriving (Eq, Show)
+
+data GRNDetail = GRNDetail
+  { grnSku :: !Text
+  -- , grnDescription :: !(Maybe Text)
+  , grnQuantity :: !Double
+  , grnPrice :: !Double
   } deriving (Eq, Show)
