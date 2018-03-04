@@ -37,7 +37,7 @@ docurl url opts = lift $ do_curl_ ?curl url opts
 curlSoup :: (?curl :: Curl)
          => URLString -> [CurlOption] -> Int -> Text -> ExceptT Text IO [Tag String]
 curlSoup url opts status msg = do
-  r <- docurl url opts
+  r <- docurl url (mergePostFields opts)
   let tags = parseTags (respBody r)
   when (respCurlCode r /= CurlOK || respStatus r /= status) $ do
       throwError $ unlines [ "Failed to : " <> msg
@@ -53,6 +53,20 @@ curlSoup url opts status msg = do
 withCurl :: ExceptT e' IO b -> ExceptT e' IO b
 withCurl = mapExceptT withCurlDo
   
+-- | Merge all CurlPostFields option into one
+-- Otherewise, only the last one is kept, which can cause problem
+mergePostFields :: [CurlOption] -> [CurlOption]
+mergePostFields opts = let
+  getPostFields (CurlPostFields fields) = Just fields
+  getPostFields _ = Nothing
+
+  (posts, normals) = partition (isJust . getPostFields) opts
+  fields = mapMaybe getPostFields posts
+  in CurlPostFields (concat fields) : normals
+
+
+  
+
 
 -- | Open a Session  to FrontAccounting an execute curl statement
 withFACurlDo :: (?baseURL :: URLString)
@@ -136,6 +150,53 @@ extractInputValue inputName tags = let
                        value -> Just $ pack value
     _ -> Nothing -- 0 or to many matches
   in r
+-- |
+extractAllInputValues :: [Tag String] -> [(String, String)]
+extractAllInputValues tags = mapMaybe extractInputValue' tags
+
+extractInputValue' :: Tag String -> Maybe (String, String)
+extractInputValue' tag | (tag ~== TagOpen ("input" :: String) [("name", ""), ("value", "")]) =
+  Just (fromAttrib "name" tag, fromAttrib "value" tag)
+extractInputValue' _ = Nothing
+
+extractInputsToCurl :: [Tag String] -> CurlOption
+extractInputsToCurl tags = curlPostFields $ [name <=> value | (name, value) <- extractAllInputValues tags]
+
+
+-- | Like TagSoup.partitions but uses open AND close tag as separator (even though their are removed)
+-- This allow for example to only what's within a form
+-- @
+-- partitionWithClone (=="form") <form><div>A</div><div>B</div></form><form>C
+-- >  <form><div>A</div><div>B</div>
+--    <form>C
+-- @
+partitionWithClose :: (Tag String) -> [Tag String] -> [[Tag String]]
+partitionWithClose tag tags = let
+  parts = partitions isOk tags
+  (isOk, filterClose) = case tag of
+           TagOpen name attrs -> let
+               close = TagClose name
+               ok t = t ~== tag || t ~== close
+               -- create filter to remove close tags
+               -- after partitioning, each partitions should start with either an open
+               -- or a closed tag. we keep the one
+               toKeep (t:_) = t ~/=  close
+               toKeep _ = True
+               in (ok, toKeep)
+                   
+           _ -> ((~== tag), const True)
+  in filter filterClose parts
+  
+                         
+-- | remove blank tags
+cleanTags :: [Tag String] -> [Tag String]
+cleanTags tags = filter (not . blank) tags where
+  blank (TagText t) = case t of
+    "" -> True
+    "\n" -> True
+    _ -> False
+  blank _ = False
+
 -- ** Test
 testFAConnection :: FAConnectInfo -> IO (Either Text ())
 testFAConnection connectInfo = do
@@ -270,9 +331,15 @@ postPurchaseInvoice :: FAConnectInfo -> PurchaseInvoice -> IO (Either Text Int)
 postPurchaseInvoice connectInfo PurchaseInvoice{..} = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
-    new <- curlSoup newPurchaseInvoiceURL method_GET 200 "Problem trying to create a new GRN"
+    -- we need to pass the supplier id to get the appropriate deliveries
+    _ <- curlSoup newPurchaseInvoiceURL (curlPostFields [ "supplier_id" <=> poiSupplier] : method_GET)
+                         200 "Problem trying to create a new GRN"
+     
+    response <- curlSoup ajaxPurchaseInvoiceURL (curlPostFields [ "supplier_id" <=> poiSupplier] : method_POST)
+                        200 "Problem changing supplier"
+    del <- addPurchaseInvoiceDeliveries response poiDeliveryIds
     _ <- mapM addPurchaseInvoiceDetail poiGLItems
-    ref <- case extractInputValue "reference" new of
+    ref <- case extractInputValue "reference" response of
                   Nothing -> throwError "Can't find Invoice reference"
                   Just r -> return r
     let process = curlPostFields [ "supplier_id" <=> poiSupplier
@@ -284,7 +351,6 @@ postPurchaseInvoice connectInfo PurchaseInvoice{..} = do
                                  , Just "PostInvoice=Enter%20Invoice" -- Pressing commit button
                                  ] : method_POST
     tags <- curlSoup (ajaxPurchaseInvoiceURL) process 200 "Create Purchase Invoice"
-    traceShowM tags
     case extractAddedId' "AddedID" "purchase invoice" tags of
       Left e -> throwError $ "Purchase invoice creation failed:\n" <> e
       Right faId -> return faId
@@ -300,3 +366,38 @@ addPurchaseInvoiceDetail GLItem{..} = do
                               , Just "AddGLCodeToTrans=1"
                               ] :method_POST
   curlSoup (ajaxPurchaseInvoiceURL) fields 200 "add GL items"
+
+-- **** Invoice Purchase Order Delivery
+-- | Find all the fields corresponding to the invoicable delivery
+-- and post then required one. We cheat a bit by simulated a press
+-- to Add All GRN whereas we are in fact only supplying the items we want to deliver.
+-- This works, because sending 'InvGRNAll' doesn't process All available items,
+-- but only the ones provided in the POST parameters.
+addPurchaseInvoiceDeliveries :: (?baseURL :: URLString, ?curl :: Curl)
+                             => [Tag String] -> [Int] -> ExceptT Text IO [Tag String]
+addPurchaseInvoiceDeliveries tags deliveryIds = do
+  let fields = extractDeliveryItems tags deliveryIds 
+      extra = curlPostFields [ Just "InvGRNAll=1"
+                             ] : method_POST
+  curlSoup (ajaxPurchaseInvoiceURL) (fields ++ extra) 200 "add delivery items"
+
+extractDeliveryItems :: [Tag String] -> [Int] -> [CurlOption]
+extractDeliveryItems tags deliveryIds = let
+  -- the description of the deliverable items are found in
+  -- table row containing the delivery number in the first column
+  -- so we need first, to get all <tr>.. block, and keep the one corresponding
+  -- to the desired delivery
+  idSet = setFromList deliveryIds :: Set Int
+  allRows = partitionWithClose (TagOpen "tr" []) (cleanTags tags)
+  goodRows = filter matchDelivery allRows
+  -- we match "<tr><td><a ..>deiveryId"
+  matchDelivery row =  case row of
+    ( TagOpen "tr"  _ :
+      TagOpen "td" [] :
+      TagOpen "a" _   :
+      TagText delivery :
+      _) | Just d <- readMay (delivery :: String) -> d `elem` idSet
+    _ -> False
+  r = map extractInputsToCurl goodRows
+  in traceShow ("goods", deliveryIds, goodRows,  r ) r
+
