@@ -73,7 +73,7 @@ data PurchaseInvoice = PurchaseInvoice
   , poiDate :: !Day
   , poiDueDate :: !Day
   , poiMemo :: !Text
-  , poiDeliveryIds :: ![Int]
+  , poiDeliveryIds :: ![(Int, Maybe Int)] -- Id + number of expected items
   , poiGLItems :: ![GLItem]
   } deriving (Eq, Show)
 

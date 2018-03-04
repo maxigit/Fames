@@ -374,30 +374,43 @@ addPurchaseInvoiceDetail GLItem{..} = do
 -- This works, because sending 'InvGRNAll' doesn't process All available items,
 -- but only the ones provided in the POST parameters.
 addPurchaseInvoiceDeliveries :: (?baseURL :: URLString, ?curl :: Curl)
-                             => [Tag String] -> [Int] -> ExceptT Text IO [Tag String]
+                             => [Tag String] -> [(Int, Maybe Int)] -> ExceptT Text IO [Tag String]
 addPurchaseInvoiceDeliveries tags deliveryIds = do
-  let fields = extractDeliveryItems tags deliveryIds 
-      extra = curlPostFields [ Just "InvGRNAll=1"
+  let extra = curlPostFields [ Just "InvGRNAll=1"
                              ] : method_POST
+  fields <- ExceptT $ return $ extractDeliveryItems tags deliveryIds 
   curlSoup (ajaxPurchaseInvoiceURL) (fields ++ extra) 200 "add delivery items"
 
-extractDeliveryItems :: [Tag String] -> [Int] -> [CurlOption]
-extractDeliveryItems tags deliveryIds = let
+extractDeliveryItems :: [Tag String] -> [(Int, Maybe Int)] -> Either Text [CurlOption]
+extractDeliveryItems tags deliveryId'ns = do -- Either
   -- the description of the deliverable items are found in
   -- table row containing the delivery number in the first column
   -- so we need first, to get all <tr>.. block, and keep the one corresponding
   -- to the desired delivery
-  idSet = setFromList deliveryIds :: Set Int
-  allRows = partitionWithClose (TagOpen "tr" []) (cleanTags tags)
-  goodRows = filter matchDelivery allRows
-  -- we match "<tr><td><a ..>deiveryId"
-  matchDelivery row =  case row of
-    ( TagOpen "tr"  _ :
-      TagOpen "td" [] :
-      TagOpen "a" _   :
-      TagText delivery :
-      _) | Just d <- readMay (delivery :: String) -> d `elem` idSet
-    _ -> False
-  r = map extractInputsToCurl goodRows
-  in traceShow ("goods", deliveryIds, goodRows,  r ) r
+  let allRows = partitionWithClose (TagOpen "tr" []) (cleanTags tags)
+      -- we match "<tr><td><a ..>deliveryId
+      matchDelivery :: Int -> [Tag String] -> Bool
+      matchDelivery deliveryId row =  case row of
+        ( TagOpen "tr"  _ :
+          TagOpen "td" [] :
+          TagOpen "a" _   :
+          TagText delivery :
+          _) | Just d <- readMay (delivery :: String) -> d == deliveryId
+        _ -> False
+      findForDelivery :: [[Tag String ]] -> (Int, Maybe Int) -> Either Text [[Tag String]]
+      findForDelivery rows (deliveryId, n)  = let
+        found = filter (matchDelivery deliveryId) rows
+        in case (found, n) of
+                  (_, Just n) -> if n == length found
+                                 then Right found
+                                 else Left . pack $  "Found " ++ show (length found) ++ " items in delivery "
+                                                     ++ " for delivery #" ++ show deliveryId
+                                                     ++ ": " ++ show n ++ " expected."
+                  ([] , _ ) -> Left . pack $ "Can't find any items for delivery #"  ++ show deliveryId
+                  (_, _ ) -> Right found
+      
+  fields <- mapM (findForDelivery allRows) deliveryId'ns
+  return $ map extractInputsToCurl (concat fields)
+   
+  
 
