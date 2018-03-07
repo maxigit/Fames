@@ -27,6 +27,7 @@ import           Data.Time ( Day
                            , formatTime
                            )
 import qualified Data.Time as Time
+import Data.Time.Calendar.WeekDate (toWeekDate)
 import Data.Time.Format    ( defaultTimeLocale, wDays)
 import qualified Data.Map as Map
 import Data.Map(Map)
@@ -96,7 +97,11 @@ findWeekDay u wday = case dayToWeekDay sday of
 
 
 skipDay :: Current -> Current
-skipDay u = u & currentDay.mapped %~ addDays 1
+skipDay u = u & currentDay.mapped %~ skip where
+  skip d = addDays (case toWeekDate d of
+    (_,_,5) -> 3 -- Friday -> Sunday
+    _ -> 1
+    ) d
 
 -- Go back to the same day as the previous shift
 -- Needs to be the same employe
