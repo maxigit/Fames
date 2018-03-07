@@ -18,9 +18,13 @@ import GL.Payroll.Parser
 import GL.Payroll.Settings
 import Data.Text (strip)
 import Database.Persist.MySQL
+import Data.Time.Calendar
+import Lens.Micro.Extras (view)
 
 import  qualified WH.FA.Types as WFA
 import  qualified WH.FA.Curl as WFA
+import Control.Monad.Except
+import Text.Printf(printf)
 
 
 -- * Types
@@ -28,6 +32,10 @@ data Mode = Validate | Save deriving (Eq, Read, Show)
 data UploadParam = UploadParam {
   upTimesheet :: Textarea
   } deriving (Eq, Read, Show)
+
+-- ** Orphan Instances
+instance TS.Display Text where
+  display = unpack
 
 -- * Form
 uploadForm :: Mode -> Maybe UploadParam -> _Markup -> _ (FormResult UploadParam, Widget)
@@ -62,7 +70,7 @@ postGLPayrollSaveR = processTimesheet Save go where
          Left e -> setError (toHtml e) 
                    >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a timesheet") (return ())
          Right timesheet -> do
-              saveTimeSheet key "todo" timesheet
+              saveTimeSheet key timesheet
               renderMain Validate Nothing created201 (setInfo "Timesheet saved sucessfully") (return ())
 
 
@@ -74,7 +82,8 @@ getGLPayrollViewR key = do
   case modelE of
     Nothing -> error $ "Can't load Timesheet with id #" ++ show key
     Just (ts, shifts, _) -> do
-      let ts' = modelToTimesheet operatorMap ts shifts
+      let tsOId = modelToTimesheetOpId ts shifts
+          ts' = map (\op -> maybe (tshow op) operatorNickname (lookup op operatorMap)) tsOId
           shifts' = TS._shifts ts'
           reports = [ ("Timesheet" :: Text, displayShifts)
                     , ("By Employees", displayShifts . (TS.groupShiftsBy id))
@@ -127,7 +136,7 @@ processTimesheet mode post = do
           key = computeDocumentKey bytes
       post param key
      
-parseTimesheet :: [Text] -> Textarea -> (Either String TS.Timesheet)
+parseTimesheet :: [Text] -> Textarea -> (Either String (TS.Timesheet TS.PayrooEmployee))
 parseTimesheet header0 ts = parseFastTimesheet strings where
   header = map unpack header0
   strings' = map (unpack . strip) . lines $ unTextarea $ ts
@@ -136,7 +145,7 @@ parseTimesheet header0 ts = parseFastTimesheet strings where
     (x:xs) -> x : header ++ xs
     [] -> header
 
-parseTimesheetH :: UploadParam -> Handler (Either String TS.Timesheet)
+parseTimesheetH :: UploadParam -> Handler (Either String (TS.Timesheet TS.PayrooEmployee))
 parseTimesheetH param = do
   header <- headerFromSettings
   return $ parseTimesheet header (upTimesheet param)
@@ -166,13 +175,13 @@ displayTimesheetList timesheets = [whamlet|
       <td> <a href="@{GLR (GLPayrollViewR (unSqlBackendKey $ unTimesheetKey key))}">
             ##{tshow $ unSqlBackendKey $ unTimesheetKey key}
       <td> #{timesheetReference ts}
-      <td> #{timesheetFrequency ts}
+      <td> #{tshow $ timesheetFrequency ts}
       <td> #{tshow $ timesheetStart ts}
       <td> #{tshow $ timesheetEnd ts}
       <td> #{tshow $ timesheetStatus ts}
 |]
 
-displayTimesheet :: TS.Timesheet -> Widget
+displayTimesheet :: (TS.Timesheet TS.PayrooEmployee) -> Widget
 displayTimesheet timesheet = displayShifts $ TS._shifts timesheet
 displayShifts shifts = let
   report = TS.display shifts
@@ -184,16 +193,22 @@ displayShifts shifts = let
      |]
 -- * DB access
 -- | Save a timesheet.
-saveTimeSheet :: DocumentHash -> Text -> TS.Timesheet -> Handler TimesheetId
-saveTimeSheet key ref timesheet = do
-  opFinder <- operatorFinder
-  let (model, shiftsFn) =  timesheetToModel opFinder timesheet
-  runDB $ do
-    docKey <- createDocumentKey (DocumentType "timesheet") key ref ""
-
-    modelId <- insert (model docKey)
-    insertMany_ (shiftsFn modelId)
-    return modelId
+saveTimeSheet :: DocumentHash -> (TS.Timesheet TS.PayrooEmployee) -> Handler TimesheetId
+saveTimeSheet key timesheet = do
+  opFinder <- operatorFinderWithError
+  payrollSettings <- getsYesod (appPayroll . appSettings)
+  let period' = period payrollSettings
+      ref = pack $ timesheetRef period' timesheet
+  case timesheetOpIdToModel period' <$> timesheetEmployeeToOpId opFinder timesheet of
+      Left e ->  do
+        setError (toHtml e)
+        invalidArgs ["Some Operators doesn't exists in the database or in the configuration file"]
+        error "Should't go there"
+      Right (model, shiftsFn) -> runDB $ do
+          docKey <- createDocumentKey (DocumentType "timesheet") key ref ""
+          modelId <- insert (model docKey)
+          insertMany_ (shiftsFn modelId)
+          return modelId
 
 loadTimesheet :: Int64 -> Handler (Maybe (Entity Timesheet, [Entity Shift], [Entity PayrollItem]))
 loadTimesheet key64 = do
@@ -211,39 +226,43 @@ loadTimesheet key64 = do
 -- | Convert a Payroll Timesheet to it's DB model.
 -- It doesn't return a list of Shift but a function creating them
 -- as we are missing the Timesheet id.
-timesheetToModel :: _ -> TS.Timesheet -> (_ -> Timesheet, TimesheetId -> [Shift])
-timesheetToModel opFinder ts = (model, shiftsFn) where
-  start = TS._weekStart ts
-  model dockKey = Timesheet "todo1" dockKey start (TS.period start) "Weekly" Pending
+-- ** Timesheet conversion
+timesheetOpIdToModel :: (PayrollFrequency -> Day -> (Integer, Int, String, Day))
+                 -> (TS.Timesheet OperatorId)
+                 -> (_ -> Timesheet, TimesheetId -> [Shift])
+timesheetOpIdToModel period' ts = (model, shiftsFn) where
+  start = TS._periodStart ts
+  (y, _, s, end) = period' (TS._frequency ts )start
+  ref = show y ++ "-" ++ s
+  model dockKey = Timesheet (pack ref) dockKey start end (TS._frequency ts) Pending
   shiftsFn i = map (mkShift i) (TS._shifts ts)
   mkShift i shift= let
-    (employee, day, shiftType) = TS._shiftKey shift
-    Entity operatorKey _ = fromMaybe (error $ "Operator " ++ TS._nickName employee ++ " not found")
-                            (opFinder  (pack $ TS._nickName employee))
+    (operator, day, shiftType) = TS._shiftKey shift
     in Shift i
                     (TS._duration shift)
                     (TS._cost shift)
-                    operatorKey
+                    operator
                     (Just day)
                     (tshow shiftType)
 
-modelToTimesheet :: (Map (Key Operator) Operator) -> Entity Timesheet -> [Entity Shift] -> TS.Timesheet
-modelToTimesheet operatorMap (Entity _ timesheet) shiftEs = let
-  -- TODO create employee only once
-  -- and use settings
+modelToTimesheetOpId :: Entity Timesheet -> [Entity Shift] -> (TS.Timesheet OperatorId)
+modelToTimesheetOpId (Entity _ timesheet) shiftEs = let
   readType "Holiday" = TS.Holiday
   readType _ = TS.Work
   mkShift (Entity _ shift) = TS.Shift  (mkShiftKey shift) Nothing (shiftDuration shift) (shiftCost shift)
-  mkShiftKey shift = let
-     employee = case lookup (shiftOperator shift) operatorMap of
-       Nothing -> error "Should not happen. Operator not found. "
-       Just op -> TS.Employee (unpack $ operatorFirstname op)
-                              (unpack $ operatorSurname op)
-                              (unpack $ operatorNickname op)
-                     Nothing 1
-     in (employee, fromMaybe (error "TODO") (shiftDate shift), readType (shiftType shift))
-  in TS.Timesheet (map mkShift shiftEs) (timesheetStart timesheet)
-    
+  mkShiftKey shift = ( shiftOperator shift
+                     , fromMaybe (error "TODO") (shiftDate shift)
+                     , readType (shiftType shift)
+                     )
+  in TS.Timesheet (map mkShift shiftEs) (timesheetStart timesheet) (timesheetFrequency timesheet)
+
+timesheetEmployeeToOpId :: (Monad m , TS.HasEmployee e)
+                      => (Text -> m (Entity Operator))
+                      -> TS.Timesheet e
+                      -> m (TS.Timesheet OperatorId)
+timesheetEmployeeToOpId opFinder ts = 
+  entityKey <$$> traverse (opFinder . pack . view TS.nickName) ts
+
 -- * Configuration
 
 -- | A returns a list of employees from the payroll settings
@@ -274,3 +293,16 @@ employeeDescription (Entity _ op, emp) = intercalate " "
   ]
 
 
+period :: PayrollSettings -> PayrollFrequency -> Day -> (Integer, Int, String, Day)
+period settings TS.Weekly day = let
+  (y, w) = TS.weekNumber (firstTaxWeek settings) day
+  w' = printf "W0.2d%" w
+  in (y, w, w', addDays 6 day )
+period settings TS.Monthly day = let
+  (y, m) = TS.monthNumber (firstTaxMonth settings) day
+  m' = printf "M0.2d%" m
+  in (y, m, m', addDays (-1) (addGregorianMonthsClip 1 day ))
+
+timesheetRef period' ts = let
+  (year, periodN, periodS, start) = period' (TS._frequency ts) (TS._periodStart ts)
+  in show year  <> periodS

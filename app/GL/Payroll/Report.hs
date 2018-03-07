@@ -34,6 +34,9 @@ class Display a where
 instance Display Employee where
     display  e = e ^. nickName
 
+instance Display PayrooEmployee where
+    display  e = e ^. nickName
+
 instance Display Day where
     display d = formatTime local "%A %d %b %Y" d where
         local = defaultTimeLocale
@@ -55,7 +58,7 @@ instance (Display a, Display b, Display c) => Display (a,b, c) where
 
 instance (Display a) => Display [a] where
     display as = unlines $ map display as
-instance Display Timesheet where
+instance (Display e) => Display (Timesheet e) where
     display ts = display (ts^.shifts)
 
 instance Display ShiftType where
@@ -78,7 +81,7 @@ groupBy key as =
     
 -- **  Textcart
 newtype Textcart = Textcart (Day, ShiftType, [Shift Employee])
-textcarts :: ShiftType -> Timesheet -> [Textcart]
+textcarts :: ShiftType -> Timesheet Employee -> [Textcart]
 textcarts st ts = let 
     filtered = filter ((== st) . view shiftType) (ts ^. shifts)
     byDays = groupBy (^.day) filtered
@@ -95,7 +98,7 @@ instance Display Textcart where
 
        ]
        ++ map renderShift ss
-       where renderShift  s = (s^.shiftKey.to sku) -- sku
+       where renderShift  s = (s ^. nickName) -- sku
                           ++ "\t +" ++ show (s ^. duration) -- quantity
                           ++ "\t $" ++ show (s ^. hourlyRate) -- price
              renderShiftType Work = "DEF"
@@ -115,13 +118,13 @@ writeTextcart dir cart@(Textcart (d, st, ss)) = do
 
 -- ** PAYROO
 -- 
-payroo :: Timesheet -> [String]
+payroo :: Timesheet PayrooEmployee -> [String]
 payroo ts = 
     [ "Pay Period End Date,,,,,,,,"
-    , (formatDay . period) (ts ^. weekStart) ++ ",,,,,,,,"
+    , (formatDay . period) (ts ^. periodStart) ++ ",,,,,,,,"
     , "Employer / Client / Branch Reference,Employee's Works Number,Employee's Name,Item code,Item Name,Item Indicator,Quantity,Rate,Payslip Message"
     ]++ map formatShift (groupShiftsBy (pure (,)
-                                        <*> (view employee)
+                                        <*> (view payrooEmployee)
                                         <*> (view shiftType)
                                        )
                                        (filter ((== Work) . view shiftType) (ts ^. shifts))
@@ -132,12 +135,11 @@ period = addDays 6
 
 formatDay = formatTime defaultTimeLocale "%d/%m/%y"
 
-
-formatShift ::  Shift (Employee, ShiftType) -> String
+formatShift ::  Shift (PayrooEmployee, ShiftType) -> String
 formatShift s = "Employer" -- Employer / Client / Branch Reference
-                ++ "," ++ (show $ s^.employee.payrollId) -- Employee's Works Number
-                ++ "," ++ (s^.employee.firstName) -- Employee's Name
-                       ++ " " ++ s^.employee.surname
+                ++ "," ++ (show $ s ^. payrollId) -- Employee's Works Number
+                ++ "," ++ (s ^. firstName) -- Employee's Name
+                       ++ " " ++ s^.surname
                 ++ ",BASIC" -- Item code
                 ++ ",BASIC PAY" -- Item Name
                 ++ ",P" -- Item Indicator
@@ -146,9 +148,9 @@ formatShift s = "Employer" -- Employer / Client / Branch Reference
                 ++ "," -- Payslip Message"
 
 writePayroo dir ts = do
-    let path = formatTime defaultTimeLocale "%F" (ts ^. weekStart)
+    let path = formatTime defaultTimeLocale "%F" (ts ^. periodStart)
            ++ "-"
-           ++ formatTime defaultTimeLocale "%F" (period (ts ^. weekStart))
+           ++ formatTime defaultTimeLocale "%F" (period (ts ^. periodStart))
            ++ ".csv"
 
     writeFile (dir </> path) (unlines (payroo ts))

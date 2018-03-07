@@ -27,4 +27,6 @@ stock-locations:
   - shelf-3
 payroll:
   employees: []
+  firstTaxWeek: 2017/03/31
+  firstTaxMonth: 2017/03/26
 

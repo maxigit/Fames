@@ -161,7 +161,7 @@ Timesheet sql=fames_timesheet
   documentKey DocumentKeyId sql=document_key_id
   start Day
   end Day
-  frequency Text -- weekly, monthly
+  frequency PayrollFrequency
   status PendingStatus
   Unique TSR reference
   Unique TSD start frequency

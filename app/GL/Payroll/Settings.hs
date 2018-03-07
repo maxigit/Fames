@@ -15,6 +15,8 @@ data EmployeeSettings = EmployeeSettings
 
 data PayrollSettings = PayrollSettings
   { employees :: Map Text EmployeeSettings
+  , firstTaxWeek :: Day -- ^ first day of the first week of the tax year
+  , firstTaxMonth :: Day -- ^ first day of the first month of the taxk year
   } deriving (Show, Read)
 
 -- * JSON

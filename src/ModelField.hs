@@ -1,8 +1,12 @@
 -- | For TH stage problem
-module ModelField where
+module ModelField
+( module ModelField
+, PayrollFrequency(..)
+) where 
 
 import ClassyPrelude.Yesod
 import Text.Printf(printf)
+import GL.Payroll.Timesheet (PayrollFrequency)
 -- * Warehouse
 -- | Where as a transaction has been processed or not.
 data PendingStatus = Pending | Process deriving (Eq, Read, Show, Enum, Bounded, Ord)
@@ -14,7 +18,6 @@ derivePersistField "PendingStatus"
 data CostOrDeduction = Cost | Deduction deriving(Eq, Read, Show, Enum, Bounded, Ord)
 derivePersistField "CostOrDeduction"
 
-data PayrollFrequency = Weekly | Monthy deriving (Eq, Read, Show, Enum, Bounded, Ord)
 derivePersistField "PayrollFrequency"
 
 -- * Miscelaneous

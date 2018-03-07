@@ -32,19 +32,19 @@ import qualified Data.Map as Map
 import Data.Map(Map)
 
 data Current = Current
-        { _currentEmployee :: Maybe Employee
+        { _currentEmployee :: Maybe PayrooEmployee
         , _currentDay :: Maybe Day
         , _currentHourlyRate :: Maybe Amount
-        , _currentTimesheet :: Timesheet
-        , _currentEmployeeMap :: Map String Employee
+        , _currentTimesheet :: Timesheet PayrooEmployee
+        , _currentEmployeeMap :: Map String PayrooEmployee
         } deriving (Show)
 
 makeClassy ''Current
 
-initCurrent weekDay = Current Nothing Nothing Nothing  (newTimesheet weekDay) (Map.empty)
-currentWeekStart =  currentTimesheet . weekStart 
+initCurrent weekDay = Current Nothing Nothing Nothing  (newTimesheet Weekly weekDay) (Map.empty)
+currentWeekStart =  currentTimesheet . periodStart 
 
-setEmploye :: Employee -> Current -> Current
+setEmploye :: PayrooEmployee -> Current -> Current
 setEmploye emp u = u & currentEmployee ?~  emp
                      & currentDay ?~ u ^. currentWeekStart
 
@@ -56,11 +56,11 @@ setEmployeByNickname name u = do
     e <- Map.lookup name (u^.currentEmployeeMap)
     return $ setEmploye e u
 
--- | Add an Employee to Current and check all the payrollId are unique
-addNewEmployee :: Employee -> Current -> Maybe Current
+-- | Add an PayrooEmployee to Current and check all the payrollId are unique
+addNewEmployee :: PayrooEmployee -> Current -> Maybe Current
 addNewEmployee emp u =  do
     if isJust (Map.lookup (emp^.nickName) (u^.currentEmployeeMap))
-    then (error $ "Employee " ++ emp^.nickName ++ " already exists" )
+    then (error $ "PayrooEmployee " ++ emp^.nickName ++ " already exists" )
     else if emp^.payrollId `elem` (u^..currentEmployeeMap.traversed.payrollId) 
          then error $ "Payroll id " ++ (show $ emp^.payrollId ) ++ " already used"
          else Just $  u & currentEmployeeMap %~
@@ -104,7 +104,7 @@ backDay :: Current -> Maybe Current
 backDay u = do
     e <- u ^. currentEmployee
     s <- u ^? lastShift
-    if e == s ^. employee 
+    if e == s ^. payrooEmployee 
     then return $ u & currentDay ?~ s ^. day 
     else return u
 
@@ -204,7 +204,7 @@ data Parser a = Parser
 
 -- | Read a csv and produce a timesheet
 -- It will also insert employee definition if provided
-readFastTimesheet :: Maybe String -> String -> IO Timesheet
+readFastTimesheet :: Maybe String -> String -> IO (Timesheet PayrooEmployee)
 readFastTimesheet epath path = do
     content <- readFile path
     content' <- case (epath, lines content) of
@@ -219,10 +219,10 @@ readFastTimesheet epath path = do
       
 
 
-parseFastTimesheet :: [String] -> Either String Timesheet
+parseFastTimesheet :: [String] -> Either String (Timesheet PayrooEmployee)
 parseFastTimesheet lines = do -- Either
     tokenss <- mapM (mapM token . tokeninize) lines -- :: [[Either Token]]
-    let go :: Current -> [[Token]] -> Either String Timesheet
+    let go :: Current -> [[Token]] -> Either String (Timesheet PayrooEmployee)
         go current tss = (^.currentTimesheet) <$> foldM processLine current tss
     case tokenss of
         ([DayT weekDay]:tokenss') -> go (initCurrent weekDay) tokenss'
@@ -271,17 +271,18 @@ processLine u toks = case toks of
         where addNewEmployee' alias firstname surname rate pid =
                 maybe (Left $ "Couldn't create new employee" ++ show (alias, firstname, surname))
                       Right
-                      (addNewEmployee (Employee firstname
+                      ( addNewEmployee (PayrooEmployee firstname
                                                surname
-                                               alias
-                                               rate
-                                               pid)
-                                               u)
+                                               pid
+                                               (Employee alias rate)
+                                      )
+                        u
+                      )
 
 -- | update the current state accordingly to the given token
 processShift :: Current -> Token -> Either String Current
 processShift u t =  case t of
-        (NameT name) -> maybe (Left $ "Employee "
+        (NameT name) -> maybe (Left $ "PayrooEmployee "
                                     ++ name 
                                     ++ " doesn't exist"
                               )

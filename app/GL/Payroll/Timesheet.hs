@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE MultiParamTypeClasses , FunctionalDependencies , FlexibleInstances #-}
+{-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 -- | This script read a "fast" time sheet format
 -- and convert it FA textcart, PAYROO timesheet.csv
 -- and generate report.
@@ -14,8 +15,10 @@ import           Data.Time ( Day
                            , addDays
                            , timeOfDayToTime
                            , formatTime
+                           ,fromGregorian
+                           , toGregorian
+                           , diffDays
                            )
-
 import qualified Data.Time as Time
 import           Control.Applicative
 
@@ -38,17 +41,24 @@ type Hour = Double
 -- * Data
 -- | An employee.
 data Employee = Employee
-    { _firstName :: String
-    , _surname   :: String
-    , _nickName  :: String -- ^ use to designate an Employee. Must be unique
+    { _nickName  :: String -- ^ use to designate an Employee. Must be unique
     , _defaultHourlyRate :: Maybe Amount
-    , _payrollId :: Int
     } deriving (Show, Eq, Ord)
 
-sku :: Employee -> String
-sku e = "NW-"++ _nickName e
 makeClassy ''Employee
 
+-- ** Payroo
+-- | Add Payroo information to employee *inherits* from Employee
+data PayrooEmployee = PayrooEmployee
+    { _firstName :: String
+    , _surname   :: String
+    , _payrollId :: Int
+    , _payrooEmployee' :: Employee
+    } deriving (Show, Eq, Ord)
+makeClassy ''PayrooEmployee
+instance HasEmployee PayrooEmployee where
+  employee = payrooEmployee'
+  
 -- | The main data is a shift, ie a continous amount of time worked
 -- The key represent a way to identify a shift (Employe/Employe,Day) ...
 data ShiftType = Work | Holiday deriving (Show, Eq, Ord)
@@ -58,20 +68,30 @@ data Shift k = Shift
     , _startTime :: Maybe TimeOfDay
     , _duration :: Duration
     , _cost :: Amount
-    } deriving (Show, Eq)
+    } deriving (Show, Eq, Functor, Foldable, Traversable)
 
 
 makeClassy ''Shift
 instance HasEmployee k => HasEmployee (Shift k) where
     employee =  shiftKey . employee
 
-type ShiftDE = Shift (Employee, Day, ShiftType)
 
 instance HasEmployee e => HasEmployee (e, a) where
     employee = _1.employee
 
 instance HasEmployee e => HasEmployee (e, a, b) where
     employee = _1.employee
+
+
+instance HasPayrooEmployee k => HasPayrooEmployee (Shift k) where
+    payrooEmployee =  shiftKey . payrooEmployee
+
+
+instance HasPayrooEmployee e => HasPayrooEmployee (e, a) where
+    payrooEmployee = _1.payrooEmployee
+
+instance HasPayrooEmployee e => HasPayrooEmployee (e, a, b) where
+    payrooEmployee = _1.payrooEmployee
 
 makeClassy ''Day
 
@@ -97,17 +117,49 @@ instance HasShiftType k => HasShiftType (Shift k) where
 -- hourlyRate :: Getter (Shift k) Amount
 hourlyRate = to $ (/) <$> (^.cost) <*> (^.duration)
 
--- |
-data Timesheet = Timesheet
-    { _shifts :: [ShiftDE]
-    , _weekStart :: Day
+data PayrollFrequency = Weekly | Monthly deriving (Eq, Read, Show, Enum, Bounded, Ord)
+-- | A Timesheet. A functor over employee : allows
+-- to easily modify the information relative to an employee
+data Timesheet e = Timesheet
+    { _shifts :: [Shift (e, Day, ShiftType)]
+    , _periodStart :: Day
+    , _frequency :: PayrollFrequency
     }
-    deriving (Show, Eq)
+    deriving (Show, Eq, Functor, Foldable, Traversable)
 
 makeClassy ''Timesheet
+    
 
-newTimesheet :: Day -> Timesheet
-newTimesheet day = Timesheet [] day
+newTimesheet :: PayrollFrequency -> Day -> Timesheet e
+newTimesheet frequency day = Timesheet [] day frequency
+
+-- * Period Calculator
+-- Adjust the start tax year to be in the
+-- same tax year as the given day
+adjustTaxYear :: Day -> Day -> Day
+adjustTaxYear taxStart start = let
+  (taxYear, taxMonth, taxDay) = toGregorian taxStart
+  (startYear, startMonth, startDay) = toGregorian start
+  newYear = if (startMonth, startDay) > (taxMonth, taxDay)
+            then startYear
+            else startYear - 1
+  in fromGregorian newYear taxMonth taxDay
+
+weekNumber :: Day -> Day -> (Integer, Int)
+weekNumber taxStart start = let
+  -- first we need to adjust 
+  adjusted = adjustTaxYear taxStart start
+  days = diffDays start adjusted
+  in (toYear adjusted , fromIntegral $ days  `mod` 7 +1)
+
+monthNumber :: Day -> Day -> (Integer, Int)
+monthNumber taxStart start = let
+  (taxYear, taxMonth, taxDay) = toGregorian (adjustTaxYear taxStart start)
+  (startYear, startMonth, startDay) = toGregorian start
+  in (taxYear, startMonth - taxMonth + 1)
+
+toYear :: Day -> Integer
+toYear d = y where (y, _, _ ) = toGregorian d
 
 -- * Summarize
 -- ** Group by Key
@@ -117,4 +169,3 @@ instance Semigroup k =>  Semigroup (Shift k) where
         (reduceWith1 getMin <$> nonEmpty ([a,b] ^.. each.startTime._Just))
         (a^.duration + b^.duration)
         (a^.cost + b^.cost)
-

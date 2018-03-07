@@ -21,6 +21,7 @@ module Handler.Util
 , timeProgress
 , allOperators
 , operatorFinder
+, operatorFinderWithError
 , FilterExpression(..)
 , filterE
 , filterEField
@@ -384,12 +385,15 @@ allOperators = cache0 False cacheForEver "all-operators" $ do
   operators <- runDB $ selectList [] []
   return $ mapFromList [ (key, operator) | (Entity key operator) <- operators ]
   
+-- | Find an operator by string, can be a mix of nickname, firstname, surname ...
 operatorFinder :: Handler (Text -> Maybe (Entity Operator))
 operatorFinder = cache0 False cacheForEver "operator-finder" $ do
       operators <- runDB $ selectList [] []
       let operatorKeys = Map.fromListWith (++) $ concat
                    [ [ (toLower $ operatorNickname op, [e] ) 
                      , (toLower $ operatorFirstname op <> operatorSurname op, [e] )
+                     , (toLower $ operatorFirstname op <> " " <> operatorSurname op, [e] )
+                     , (toLower $ operatorFirstname op <> take 1 (operatorSurname op), [e] )
                      ]
                    | e@(Entity _ op) <- operators
                    ]
@@ -397,6 +401,15 @@ operatorFinder = cache0 False cacheForEver "operator-finder" $ do
           pks = Map.map (Data.List.head)  (Map.filter (\ops -> Data.List.length ops ==1) operatorKeys)
           -- findOps = Map.lookup (Map.map (Data.List.head)  (Map.filter (\ops -> Data.List.length ops /=1) operatorKeys)) . toLower :: Text -> Entity Operator
       return $ (flip Map.lookup) pks  . toLower . (filter (/= ' '))
+
+-- | Similar to operatorFinder but return an error instead of Nothing
+operatorFinderWithError :: Handler (Text -> Either Text (Entity Operator))
+operatorFinderWithError = do
+  opFinder <- operatorFinder
+  let go name = maybe (Left $ "Can't find operator with name '" <> name <> "'")
+                      Right
+                      (opFinder name)
+  return go
 
 -- *** Location
 locationSet :: Handler (Set Text)

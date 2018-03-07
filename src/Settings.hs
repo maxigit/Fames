@@ -156,6 +156,8 @@ instance FromJSON AppSettings  where
         appVariations <- o .:? "variations" .!= Map.fromList []
         appVariationGroups <- o .:? "variationGroups" .!= Map.fromList []
         appPayroll <- o .:? "payroll" .!= PayrollSettings (Map.fromList [])
+                                                          (fromGregorian 2017 03 31)
+                                                          (fromGregorian 2017 03 26)
         
 
         -- This code enables MySQL's strict mode, without which MySQL will truncate data.
