@@ -61,7 +61,7 @@ instance HasEmployee PayrooEmployee where
   
 -- | The main data is a shift, ie a continous amount of time worked
 -- The key represent a way to identify a shift (Employe/Employe,Day) ...
-data ShiftType = Work | Holiday deriving (Show, Eq, Ord)
+data ShiftType = Work | Holiday deriving (Show, Eq, Ord, Bounded, Enum)
 makeClassy ''ShiftType
 data Shift k = Shift
     { _shiftKey :: k

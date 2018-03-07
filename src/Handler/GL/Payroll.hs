@@ -7,6 +7,7 @@ module Handler.GL.Payroll
 , getGLPayrollEditR
 , postGLPayrollEditR
 , postGLPayrollRejectR
+, postGLPayrollToFAR
 ) where
 -- * Import
 import Import
@@ -74,6 +75,21 @@ postGLPayrollSaveR = processTimesheet Save go where
               renderMain Validate Nothing created201 (setInfo "Timesheet saved sucessfully") (return ())
 
 
+postGLPayrollToFAR :: Int64 -> Handler Html
+postGLPayrollToFAR key = do
+  setting <- appSettings <$> getYesod
+  modelE <- loadTimesheet key
+  case modelE of
+    Nothing -> error $ "Can't load Timesheet with id #" ++ show key
+    Just (ts, shifts, _) -> do
+      r <- postTimesheetToFA ts shifts
+      case r of
+        Left e -> setError (toHtml e) >> getGLPayrollViewR key
+        Right e -> do
+          setSuccess (toHtml $ tshow e)
+
+          renderMain Validate Nothing created201 (setInfo "Timesheet saved to Front Account sucessfully") (return ())
+
 -- ** Individual timesheet
 getGLPayrollViewR :: Int64 -> Handler Html
 getGLPayrollViewR key = do
@@ -95,6 +111,9 @@ getGLPayrollViewR key = do
              <div.panel.panel-info>
                <div.panel-heading> #{name}
                <div.panel-body> ^{trans shifts'}
+          $if (timesheetStatus (entityVal ts) /= Process)
+            <form role=form method=post action=@{GLR $ GLPayrollToFAR key}>
+              <button type="submit" .btn.btn-danger>Save To FrontAccounting
                               |]
         
 getGLPayrollEditR :: Int64 -> Handler Html
@@ -149,6 +168,50 @@ parseTimesheetH :: UploadParam -> Handler (Either String (TS.Timesheet TS.Payroo
 parseTimesheetH param = do
   header <- headerFromSettings
   return $ parseTimesheet header (upTimesheet param)
+
+-- * To Front Accounting
+postTimesheetToFA timesheet shifts = do
+      settings <- appSettings <$> getYesod
+      let tsOId = modelToTimesheetOpId timesheet shifts
+      runExceptT $ do
+         ts <- ExceptT $ timesheetOpIdToO'SH tsOId
+      -- Right ts <- timesheetOpIdToO'SH tsOId
+         let tsSkus = TS.Sku . unpack . faSKU . snd <$> ts
+         grnIds <- saveGRNs settings tsSkus
+         traceShowM ("GRN",grnIds)
+         return grnIds
+
+saveGRNs :: AppSettings -> TS.Timesheet TS.Sku -> ExceptT Text Handler [Int]
+saveGRNs settings timesheet = do
+  let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
+      psettings = appPayroll settings
+      textcarts = concat [TS.textcarts typ timesheet | typ <- [minBound..maxBound]]
+      mkDetail shift = WFA.GRNDetail (pack . TS.sku $ TS._shiftKey shift)
+                                     (TS._duration shift)
+                                     (view TS.hourlyRate shift)
+      mkGRN (TS.Textcart (day, shiftType, shifts))  = let
+        location = (case shiftType of
+                      TS.Holiday -> grnHolidayLocation 
+                      TS.Work -> grnWorkLocation
+                   ) psettings
+        ref = Just $ tshow day <> "-" <> (tshow shiftType)
+        in WFA.GRN (grnSupplier psettings)
+                   day
+                   ref
+                   Nothing
+                   location
+                   Nothing -- delivery
+                   ""
+                   (map mkDetail shifts)
+      grns = map mkGRN textcarts
+  mapM (\grn -> ExceptT . liftIO $ WFA.postGRN connectInfo grn) grns
+
+     
+      
+        
+
+      
+  -- group text cart by date and type
 
 -- * Rendering
 displayPendingSheets :: Handler Widget
@@ -263,6 +326,27 @@ timesheetEmployeeToOpId :: (Monad m , TS.HasEmployee e)
 timesheetEmployeeToOpId opFinder ts = 
   entityKey <$$> traverse (opFinder . pack . view TS.nickName) ts
 
+timesheetOpIdToOp opFinder ts = 
+  entityVal <$$> traverse (opFinder . pack . view TS.nickName) ts
+
+timesheetOpIdToO'S :: [(Entity Operator, EmployeeSettings)]
+                        -> TS.Timesheet OperatorId
+                        -> Either Text (TS.Timesheet (Entity Operator, EmployeeSettings ))
+timesheetOpIdToO'S employeeInfos ts = let
+  m :: Map OperatorId (Entity Operator, EmployeeSettings)
+  m = mapFromList [(entityKey oe, oe'emp) | oe'emp@(oe, _) <- employeeInfos ]
+  findInfo :: OperatorId -> Either Text (Entity Operator, EmployeeSettings)
+  findInfo key = maybe (Left $ "Can't find settings or operator info for operator #" <> tshow key )
+                       Right
+                       (lookup key m)
+  in traverse findInfo ts
+  
+
+timesheetOpIdToO'SH :: TS.Timesheet OperatorId
+                   -> Handler (Either Text (TS.Timesheet (Entity Operator, EmployeeSettings)))
+timesheetOpIdToO'SH ts = do
+  employeeInfos <- getEmployeeInfo
+  return $ timesheetOpIdToO'S employeeInfos ts
 -- * Configuration
 
 -- | A returns a list of employees from the payroll settings
