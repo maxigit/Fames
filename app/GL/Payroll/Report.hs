@@ -80,8 +80,9 @@ groupBy key as =
     
     
 -- **  Textcart
-newtype Textcart = Textcart (Day, ShiftType, [Shift Employee])
-textcarts :: ShiftType -> Timesheet Employee -> [Textcart]
+newtype Sku = Sku { sku :: String } deriving (Eq, Ord, Read, Show)
+newtype Textcart = Textcart (Day, ShiftType, [Shift Sku])
+textcarts :: ShiftType -> Timesheet Sku -> [Textcart]
 textcarts st ts = let 
     filtered = filter ((== st) . view shiftType) (ts ^. shifts)
     byDays = groupBy (^.day) filtered
@@ -98,7 +99,7 @@ instance Display Textcart where
 
        ]
        ++ map renderShift ss
-       where renderShift  s = (s ^. nickName) -- sku
+       where renderShift  s = (sku $ s ^. shiftKey) -- sku
                           ++ "\t +" ++ show (s ^. duration) -- quantity
                           ++ "\t $" ++ show (s ^. hourlyRate) -- price
              renderShiftType Work = "DEF"
