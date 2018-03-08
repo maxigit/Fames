@@ -140,7 +140,7 @@ adjustTaxYear :: Day -> Day -> Day
 adjustTaxYear taxStart start = let
   (taxYear, taxMonth, taxDay) = toGregorian taxStart
   (startYear, startMonth, startDay) = toGregorian start
-  newYear = if (startMonth, startDay) > (taxMonth, taxDay)
+  newYear = if (startMonth, startDay) >= (taxMonth, taxDay)
             then startYear
             else startYear - 1
   in fromGregorian newYear taxMonth taxDay
@@ -150,7 +150,7 @@ weekNumber taxStart start = let
   -- first we need to adjust 
   adjusted = adjustTaxYear taxStart start
   days = diffDays start adjusted
-  in (toYear adjusted , fromIntegral $ days  `mod` 7 +1)
+  in (toYear adjusted , fromIntegral $ days  `div` 7 +1)
 
 monthNumber :: Day -> Day -> (Integer, Int)
 monthNumber taxStart start = let

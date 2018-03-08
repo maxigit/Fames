@@ -71,7 +71,11 @@ postGLPayrollSaveR = processTimesheet Save go where
          Left e -> setError (toHtml e) 
                    >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a timesheet") (return ())
          Right timesheet -> do
-              saveTimeSheet key timesheet
+              tKey <- saveTimeSheet key timesheet
+              let tId = unSqlBackendKey (unTimesheetKey tKey)
+              pushLinks ("View Timesheet #" <> tshow tId)
+                        (GLR $ GLPayrollViewR tId)
+                        []
               renderMain Validate Nothing created201 (setInfo "Timesheet saved sucessfully") (return ())
 
 
@@ -180,8 +184,9 @@ postTimesheetToFA timesheet shifts = do
          grnIds <- saveGRNs settings tsSkus
          traceShowM ("GRN",grnIds)
          return grnIds
+         saveInvoice settings tsSkus grnIds
 
-saveGRNs :: AppSettings -> TS.Timesheet TS.Sku -> ExceptT Text Handler [Int]
+saveGRNs :: AppSettings -> TS.Timesheet TS.Sku -> ExceptT Text Handler [(Int, Maybe Int)]
 saveGRNs settings timesheet = do
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       psettings = appPayroll settings
@@ -204,13 +209,26 @@ saveGRNs settings timesheet = do
                    ""
                    (map mkDetail shifts)
       grns = map mkGRN textcarts
-  mapM (\grn -> ExceptT . liftIO $ WFA.postGRN connectInfo grn) grns
+  ids <- mapM (\grn -> ExceptT . liftIO $ WFA.postGRN connectInfo grn) grns
+  return $ zip ids [Just $ length (WFA.grnDetails grn) | grn <- grns]
 
-     
-      
-        
+saveInvoice settings timesheet deliveries = do
+  today <- utctDay <$> liftIO getCurrentTime
+  let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
+      psettings = appPayroll settings
+      invoice = WFA.PurchaseInvoice  (grnSupplier psettings)
+                                     Nothing -- reference
+                                     (tshow today)
+                                     today
+                                     (addDays 10 today)
+                                     "Todo"
+                                     deliveries
+                                     []
+  ExceptT $ liftIO $ WFA.postPurchaseInvoice connectInfo invoice
 
-      
+
+
+  
   -- group text cart by date and type
 
 -- * Rendering

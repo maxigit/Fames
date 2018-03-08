@@ -403,6 +403,7 @@ test-suite test
     , http-types >=0.9
   other-modules:
       GL.Payroll.ParserSpec
+      GL.Payroll.TimesheetSpec
       GL.ReceiptProcessingSpec
       Handler.AuthSpec
       Handler.CommentSpec

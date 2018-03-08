@@ -331,11 +331,11 @@ postPurchaseInvoice :: FAConnectInfo -> PurchaseInvoice -> IO (Either Text Int)
 postPurchaseInvoice connectInfo PurchaseInvoice{..} = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
-    -- we need to pass the supplier id to get the appropriate deliveries
-    _ <- curlSoup newPurchaseInvoiceURL (curlPostFields [ "supplier_id" <=> poiSupplier] : method_GET)
+    _ <- curlSoup newPurchaseInvoiceURL  method_GET
                          200 "Problem trying to create a new GRN"
-     
-    response <- curlSoup ajaxPurchaseInvoiceURL (curlPostFields [ "supplier_id" <=> poiSupplier] : method_POST)
+    -- we need to change the supplier id
+    response <- curlSoup ajaxPurchaseInvoiceURL (curlPostFields [ "supplier_id" <=> poiSupplier
+                                                                , "tran_date" <=> poiDate] : method_POST)
                         200 "Problem changing supplier"
     del <- addPurchaseInvoiceDeliveries response poiDeliveryIds
     _ <- mapM addPurchaseInvoiceDetail poiGLItems
