@@ -21,11 +21,13 @@ import Data.Text (strip)
 import Database.Persist.MySQL
 import Data.Time.Calendar
 import Lens.Micro.Extras (view)
+import Lens.Micro
 
 import  qualified WH.FA.Types as WFA
 import  qualified WH.FA.Curl as WFA
 import Control.Monad.Except
 import Text.Printf(printf)
+import qualified Data.Map as Map
 
 
 -- * Types
@@ -86,7 +88,7 @@ postGLPayrollToFAR key = do
   case modelE of
     Nothing -> error $ "Can't load Timesheet with id #" ++ show key
     Just (ts, shifts, _) -> do
-      r <- postTimesheetToFA ts shifts
+      r <- postTimesheetToFA (TimesheetKey $ SqlBackendKey key) ts shifts
       case r of
         Left e -> setError (toHtml e) >> getGLPayrollViewR key
         Right e -> do
@@ -103,7 +105,7 @@ getGLPayrollViewR key = do
     Nothing -> error $ "Can't load Timesheet with id #" ++ show key
     Just (ts, shifts, _) -> do
       let tsOId = modelToTimesheetOpId ts shifts
-          ts' = map (\op -> maybe (tshow op) operatorNickname (lookup op operatorMap)) tsOId
+          ts' = map (\(op, _) -> maybe (tshow op) operatorNickname (lookup op operatorMap)) tsOId
           shifts' = TS._shifts ts'
           reports = [ ("Timesheet" :: Text, displayShifts)
                     , ("By Employees", displayShifts . (TS.groupShiftsBy id))
@@ -174,43 +176,76 @@ parseTimesheetH param = do
   return $ parseTimesheet header (upTimesheet param)
 
 -- * To Front Accounting
-postTimesheetToFA timesheet shifts = do
+postTimesheetToFA key timesheet shifts = do
       settings <- appSettings <$> getYesod
       let tsOId = modelToTimesheetOpId timesheet shifts
       runExceptT $ do
          ts <- ExceptT $ timesheetOpIdToO'SH tsOId
       -- Right ts <- timesheetOpIdToO'SH tsOId
-         let tsSkus = TS.Sku . unpack . faSKU . snd <$> ts
-         grnIds <- saveGRNs settings tsSkus
+         let tsSkus = ( \(op,setting, shiftKey) -> ( TS.Sku . unpack . faSKU $  setting
+                                                 , shiftKey
+                                                 )
+                      ) <$> ts
+         grnIds <- saveGRNs settings key tsSkus
          traceShowM ("GRN",grnIds)
          return grnIds
          saveInvoice settings tsSkus grnIds
 
-saveGRNs :: AppSettings -> TS.Timesheet TS.Sku -> ExceptT Text Handler [(Int, Maybe Int)]
-saveGRNs settings timesheet = do
+saveGRNs :: AppSettings -> TimesheetId -> TS.Timesheet (TS.Sku, PayrollShiftId) -> ExceptT Text Handler [(Int, Maybe Int)]
+saveGRNs settings key timesheet = do
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       psettings = appPayroll settings
-      textcarts = concat [TS.textcarts typ timesheet | typ <- [minBound..maxBound]]
+      -- in order to know which shifts go into which textcarts
+      -- we need to group all shifts so that each groug generate only one textcarts
+      -- This sort of defeats the object of using the textcarts function.
+      -- shifts are grouped by day and work type
+      cartShiftsMap = TS.groupBy (\shift -> let (_, day, stype) = TS._shiftKey shift
+                                            in (day, stype)
+                                 )
+                                 (TS._shifts timesheet)
+      carts :: [(TS.Textcart, [PayrollShiftId])]
+      carts = [ ( textcart
+                , pKeys
+                )
+              | ((_, stype), shifts) <- Map.toList cartShiftsMap
+              , let pKeys = map (snd . view _1 . TS._shiftKey) shifts
+              , let shiftsSku = (\((a,_), b, c) -> (a,b,c)) <$$> shifts
+              -- normal we should have exactly 1 textcart
+              , textcart <- TS.textcarts stype (TS.Timesheet shiftsSku
+                                                             (TS._periodStart timesheet)
+                                                             (TS._frequency timesheet)
+                                               )
+              ]
       mkDetail shift = WFA.GRNDetail (pack . TS.sku $ TS._shiftKey shift)
                                      (TS._duration shift)
                                      (view TS.hourlyRate shift)
-      mkGRN (TS.Textcart (day, shiftType, shifts))  = let
+      mkGRN (TS.Textcart (day, shiftType, shifts), pKeys)  = let
         location = (case shiftType of
                       TS.Holiday -> grnHolidayLocation 
                       TS.Work -> grnWorkLocation
                    ) psettings
         ref = Just $ tshow day <> "-" <> (tshow shiftType)
-        in WFA.GRN (grnSupplier psettings)
-                   day
-                   ref
-                   Nothing
-                   location
-                   Nothing -- delivery
-                   ""
-                   (map mkDetail shifts)
-      grns = map mkGRN textcarts
-  ids <- mapM (\grn -> ExceptT . liftIO $ WFA.postGRN connectInfo grn) grns
-  return $ zip ids [Just $ length (WFA.grnDetails grn) | grn <- grns]
+        in ( WFA.GRN (grnSupplier psettings)
+                     day
+                     ref
+                     Nothing
+                     location
+                     Nothing -- delivery
+                     ""
+                     (map mkDetail shifts)
+           , pKeys
+           )
+      grns = map mkGRN carts
+  mapM ( \(grn, keys) -> do
+           faId <- ExceptT . liftIO $ WFA.postGRN connectInfo grn
+           -- save payroll details instead of timesheet
+           ExceptT $ runDB $ do
+             insertMany_ [ TransactionMap ST_SUPPRECEIVE faId PayrollShiftE (fromIntegral $ unSqlBackendKey $ unPayrollShiftKey key)
+                         | key <- keys
+                         ]
+             return (Right ())
+           return (faId, Just $ length (WFA.grnDetails grn))
+       ) grns
 
 saveInvoice settings timesheet deliveries = do
   today <- utctDay <$> liftIO getCurrentTime
@@ -226,9 +261,6 @@ saveInvoice settings timesheet deliveries = do
                                      []
   ExceptT $ liftIO $ WFA.postPurchaseInvoice connectInfo invoice
 
-
-
-  
   -- group text cart by date and type
 
 -- * Rendering
@@ -291,7 +323,7 @@ saveTimeSheet key timesheet = do
           insertMany_ (shiftsFn modelId)
           return modelId
 
-loadTimesheet :: Int64 -> Handler (Maybe (Entity Timesheet, [Entity Shift], [Entity PayrollItem]))
+loadTimesheet :: Int64 -> Handler (Maybe (Entity Timesheet, [Entity PayrollShift], [Entity PayrollItem]))
 loadTimesheet key64 = do
   let key = TimesheetKey (SqlBackendKey key64)
   runDB $ do
@@ -299,7 +331,7 @@ loadTimesheet key64 = do
     case tsM of
       Nothing -> return Nothing
       Just ts -> do
-        shifts <- selectList [ShiftTimesheet ==. key] []
+        shifts <- selectList [PayrollShiftTimesheet ==. key] []
         items <- selectList [PayrollItemTimesheet ==. key] []
         return $ Just (Entity key ts, shifts, items)
 
@@ -310,7 +342,7 @@ loadTimesheet key64 = do
 -- ** Timesheet conversion
 timesheetOpIdToModel :: (PayrollFrequency -> Day -> (Integer, Int, String, Day))
                  -> (TS.Timesheet OperatorId)
-                 -> (_ -> Timesheet, TimesheetId -> [Shift])
+                 -> (_ -> Timesheet, TimesheetId -> [PayrollShift])
 timesheetOpIdToModel period' ts = (model, shiftsFn) where
   start = TS._periodStart ts
   (y, _, s, end) = period' (TS._frequency ts )start
@@ -319,21 +351,24 @@ timesheetOpIdToModel period' ts = (model, shiftsFn) where
   shiftsFn i = map (mkShift i) (TS._shifts ts)
   mkShift i shift= let
     (operator, day, shiftType) = TS._shiftKey shift
-    in Shift i
+    in PayrollShift i
                     (TS._duration shift)
                     (TS._cost shift)
                     operator
                     (Just day)
                     (tshow shiftType)
 
-modelToTimesheetOpId :: Entity Timesheet -> [Entity Shift] -> (TS.Timesheet OperatorId)
+modelToTimesheetOpId :: Entity Timesheet
+                     -> [Entity PayrollShift]
+                     -> (TS.Timesheet (OperatorId, PayrollShiftId))
 modelToTimesheetOpId (Entity _ timesheet) shiftEs = let
   readType "Holiday" = TS.Holiday
   readType _ = TS.Work
-  mkShift (Entity _ shift) = TS.Shift  (mkShiftKey shift) Nothing (shiftDuration shift) (shiftCost shift)
-  mkShiftKey shift = ( shiftOperator shift
-                     , fromMaybe (error "TODO") (shiftDate shift)
-                     , readType (shiftType shift)
+  mkShift (Entity key shift) = TS.Shift  (mkShiftKey key shift) Nothing (payrollShiftDuration shift) (payrollShiftCost shift)
+  mkShiftKey key shift = ( (payrollShiftOperator shift, key)
+
+                     , fromMaybe (error "TODO") (payrollShiftDate shift)
+                     , readType (payrollShiftType shift)
                      )
   in TS.Timesheet (map mkShift shiftEs) (timesheetStart timesheet) (timesheetFrequency timesheet)
 
@@ -348,20 +383,20 @@ timesheetOpIdToOp opFinder ts =
   entityVal <$$> traverse (opFinder . pack . view TS.nickName) ts
 
 timesheetOpIdToO'S :: [(Entity Operator, EmployeeSettings)]
-                        -> TS.Timesheet OperatorId
-                        -> Either Text (TS.Timesheet (Entity Operator, EmployeeSettings ))
+                        -> TS.Timesheet (OperatorId, PayrollShiftId)
+                        -> Either Text (TS.Timesheet (Entity Operator, EmployeeSettings, PayrollShiftId ))
 timesheetOpIdToO'S employeeInfos ts = let
   m :: Map OperatorId (Entity Operator, EmployeeSettings)
   m = mapFromList [(entityKey oe, oe'emp) | oe'emp@(oe, _) <- employeeInfos ]
-  findInfo :: OperatorId -> Either Text (Entity Operator, EmployeeSettings)
-  findInfo key = maybe (Left $ "Can't find settings or operator info for operator #" <> tshow key )
-                       Right
-                       (lookup key m)
+  findInfo :: (OperatorId, PayrollShiftId) -> Either Text (Entity Operator, EmployeeSettings, PayrollShiftId)
+  findInfo (opKey, shiftKey  ) = maybe (Left $ "Can't find settings or operator info for operator #" <> tshow opKey )
+                                 (\(o,e) -> Right (o, e, shiftKey))
+                                 (lookup opKey m)
   in traverse findInfo ts
   
 
-timesheetOpIdToO'SH :: TS.Timesheet OperatorId
-                   -> Handler (Either Text (TS.Timesheet (Entity Operator, EmployeeSettings)))
+timesheetOpIdToO'SH :: TS.Timesheet (OperatorId, PayrollShiftId)
+                   -> Handler (Either Text (TS.Timesheet (Entity Operator, EmployeeSettings, PayrollShiftId)))
 timesheetOpIdToO'SH ts = do
   employeeInfos <- getEmployeeInfo
   return $ timesheetOpIdToO'S employeeInfos ts

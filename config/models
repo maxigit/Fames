@@ -169,7 +169,7 @@ Timesheet sql=fames_timesheet
 -- | A homogenous set of work by an operator.
 -- Should normally be done day, but could also span multiple days
 -- (for monthly pay for example)
-Shift sql=fames_shift
+PayrollShift sql=fames_payroll_shift
   timesheet TimesheetId sql=timesheet_id
   duration Double
   cost Double

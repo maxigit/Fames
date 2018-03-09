@@ -30,6 +30,8 @@ type Pairs a b = [(a,b)]
 -- * FrontAccounting
 -- | Type of Fames "event" To be used in TransactionMap
 data EventType = StockAdjustmentE
+               | PayrollShiftE
+               | PayrollItemE
   deriving (Eq, Show, Enum)
 
 -- | derivePersistField uses String instead of an INt
