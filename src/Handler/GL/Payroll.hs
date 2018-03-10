@@ -191,7 +191,7 @@ postTimesheetToFA key timesheet shifts = do
          return grnIds
          saveInvoice settings tsSkus grnIds
 
-saveGRNs :: AppSettings -> TimesheetId -> TS.Timesheet (TS.Sku, PayrollShiftId) -> ExceptT Text Handler [(Int, Maybe Int)]
+saveGRNs :: AppSettings -> TimesheetId -> TS.Timesheet (TS.Sku, PayrollShiftId) -> ExceptT Text Handler [(Int, [PayrollShiftId])]
 saveGRNs settings key timesheet = do
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       psettings = appPayroll settings
@@ -244,9 +244,10 @@ saveGRNs settings key timesheet = do
                          | key <- keys
                          ]
              return (Right ())
-           return (faId, Just $ length (WFA.grnDetails grn))
+           return (faId, keys)
        ) grns
 
+saveInvoice :: AppSettings -> TimesheetId -> TS.Timesheet (TS.Sku, PayrollShiftId) -> ExceptT Text Handler Int
 saveInvoice settings timesheet deliveries = do
   today <- utctDay <$> liftIO getCurrentTime
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
@@ -257,9 +258,17 @@ saveInvoice settings timesheet deliveries = do
                                      today
                                      (addDays 10 today)
                                      "Todo"
-                                     deliveries
+                                     [(id, Just (length keys)) | (id, keys) <- deliveries]
                                      []
-  ExceptT $ liftIO $ WFA.postPurchaseInvoice connectInfo invoice
+  faId <- ExceptT $ liftIO $ WFA.postPurchaseInvoice connectInfo invoice
+  ExceptT $ runDB $ do
+    insertMany_ [ TransactionMap ST_SUPPINVOICE faId PayrollShiftE (fromIntegral $ unSqlBackendKey $ unPayrollShiftKey key)
+                | (_, keys) <- deliveries
+                , key <- keys
+                ]
+    return (Right ())
+    
+  return faId
 
   -- group text cart by date and type
 
