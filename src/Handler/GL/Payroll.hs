@@ -228,7 +228,7 @@ saveGRNs settings key timesheet = do
         in ( WFA.GRN (grnSupplier psettings)
                      day
                      (Just ref)
-                     Nothing
+                     (Just ref)
                      location
                      Nothing -- delivery
                      ""
@@ -255,9 +255,10 @@ saveInvoice settings timesheet deliveries = do
   today <- utctDay <$> liftIO getCurrentTime
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       psettings = appPayroll settings
+      ref = invoiceRef (appPayroll settings) timesheet
       invoice = WFA.PurchaseInvoice  (grnSupplier psettings)
-                                     Nothing -- reference
-                                     (tshow today)
+                                     (Just ref)
+                                     ref -- supplier ref
                                      today
                                      (addDays 10 today)
                                      "Todo"
@@ -461,6 +462,11 @@ grnRef settings timesheet day = let
   periodRef =  TS.shortRef period day
   in pack $ periodRef <> "-" <> TS.dayRef period day
 
+
+invoiceRef settings timesheet = let
+  period = timesheetPeriod settings timesheet
+  TS.Start day = TS._pStart period
+  in pack $ TS.longRef period day
 
 timesheetPeriod settings timesheet = let
   frequency = TS._frequency timesheet
