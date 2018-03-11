@@ -33,6 +33,7 @@ import Data.Semigroup.Generator(reduceWith1)
 import Data.Semigroup.Reducer(Reducer(..))
 import Data.Ord(comparing)
 import Data.Function(on)
+import Text.Printf(printf)
 
 -- * Type alias
 type Amount = Double
@@ -133,11 +134,21 @@ makeClassy ''Timesheet
 newTimesheet :: PayrollFrequency -> Day -> Timesheet e
 newTimesheet frequency day = Timesheet [] day frequency
 
+-- ** Period
+-- | Argument type to not mixup adjustTAxYear arguments
+newtype Start = Start Day -- to mixup adjustTaxYear
+  deriving (Show, Eq, Ord)
+data Period = Period
+  { _periodFrequency :: PayrollFrequency
+  , _pStart :: Start
+  } deriving (Show, Eq, Ord)
+makeLenses ''Period
+
 -- * Period Calculator
 -- Adjust the start tax year to be in the
 -- same tax year as the given day
-adjustTaxYear :: Day -> Day -> Day
-adjustTaxYear taxStart start = let
+adjustTaxYear :: Start -> Day -> Day
+adjustTaxYear (Start taxStart) start = let
   (taxYear, taxMonth, taxDay) = toGregorian taxStart
   (startYear, startMonth, startDay) = toGregorian start
   newYear = if (startMonth, startDay) >= (taxMonth, taxDay)
@@ -145,14 +156,14 @@ adjustTaxYear taxStart start = let
             else startYear - 1
   in fromGregorian newYear taxMonth taxDay
 
-weekNumber :: Day -> Day -> (Integer, Int)
+weekNumber :: Start -> Day -> (Integer, Int)
 weekNumber taxStart start = let
   -- first we need to adjust 
   adjusted = adjustTaxYear taxStart start
   days = diffDays start adjusted
   in (toYear adjusted , fromIntegral $ days  `div` 7 +1)
 
-monthNumber :: Day -> Day -> (Integer, Int)
+monthNumber :: Start -> Day -> (Integer, Int)
 monthNumber taxStart start = let
   (taxYear, taxMonth, taxDay) = toGregorian (adjustTaxYear taxStart start)
   (startYear, startMonth, startDay) = toGregorian start
@@ -161,6 +172,37 @@ monthNumber taxStart start = let
 toYear :: Day -> Integer
 toYear d = y where (y, _, _ ) = toGregorian d
 
+-- | Adjust period year so it includes the given date
+adjustPeriodYearFor :: Day -> Period -> Period
+adjustPeriodYearFor day period = let
+  newStart = adjustTaxYear (period ^. pStart) day
+  in period & pStart .~ Start newStart
+
+
+periodNameFor :: Day -> Period ->  String
+periodNameFor day period = let
+  (format, n) = case _periodFrequency period of 
+    Weekly -> ("%02d", snd $ weekNumber (_pStart period ) day )
+    Monthly ->  ("M%02d", snd $  monthNumber (_pStart period ) day)
+  in printf format n
+  
+refFormatter :: (Integer -> String -> String)
+             -> Period
+             -> Day
+             -> String
+refFormatter formatter period day = let
+  period' = adjustPeriodYearFor day period
+  Start start =  period' ^. pStart
+  (year, _, _) = toGregorian start
+  in formatter year (periodNameFor day period')
+
+shortRef :: Period -> Day -> String
+shortRef = refFormatter go where
+  go year name = printf "%02d%s" (year `mod` 100) name
+
+longRef :: Period -> Day -> String
+longRef = refFormatter go where
+  go year name = printf "%d/%s" year name
 -- * Summarize
 -- ** Group by Key
 instance Semigroup k =>  Semigroup (Shift k) where

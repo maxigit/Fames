@@ -105,8 +105,6 @@ instance Display Textcart where
              renderShiftType Work = "DEF"
              renderShiftType Holiday = "LOST"
              formatDate = formatTime defaultTimeLocale "%Y/%m/%d"
-
-
 -- ***
 -- | Write a textcart into a file
 -- The name depend on the date

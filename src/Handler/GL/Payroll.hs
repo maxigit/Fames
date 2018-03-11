@@ -247,7 +247,10 @@ saveGRNs settings key timesheet = do
            return (faId, keys)
        ) grns
 
-saveInvoice :: AppSettings -> TimesheetId -> TS.Timesheet (TS.Sku, PayrollShiftId) -> ExceptT Text Handler Int
+saveInvoice :: AppSettings
+            -> TS.Timesheet (TS.Sku, PayrollShiftId)
+            -> [(Int, [PayrollShiftId])]
+            -> ExceptT Text Handler Int
 saveInvoice settings timesheet deliveries = do
   today <- utctDay <$> liftIO getCurrentTime
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
@@ -441,11 +444,11 @@ employeeDescription (Entity _ op, emp) = intercalate " "
 
 period :: PayrollSettings -> PayrollFrequency -> Day -> (Integer, Int, String, Day)
 period settings TS.Weekly day = let
-  (y, w) = TS.weekNumber (firstTaxWeek settings) day
+  (y, w) = TS.weekNumber (TS.Start $ firstTaxWeek settings) day
   w' = printf "W%02d" w
   in (y, w, w', addDays 6 day )
 period settings TS.Monthly day = let
-  (y, m) = TS.monthNumber (firstTaxMonth settings) day
+  (y, m) = TS.monthNumber (TS.Start $ firstTaxMonth settings) day
   m' = printf "M%02d" m
   in (y, m, m', addDays (-1) (addGregorianMonthsClip 1 day ))
 
