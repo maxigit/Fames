@@ -224,10 +224,10 @@ saveGRNs settings key timesheet = do
                       TS.Holiday -> grnHolidayLocation 
                       TS.Work -> grnWorkLocation
                    ) psettings
-        ref = Just $ tshow day <> "-" <> (tshow shiftType)
+        ref = grnRef (appPayroll settings) timesheet day
         in ( WFA.GRN (grnSupplier psettings)
                      day
-                     ref
+                     (Just ref)
                      Nothing
                      location
                      Nothing -- delivery
@@ -455,3 +455,18 @@ period settings TS.Monthly day = let
 timesheetRef period' ts = let
   (year, periodN, periodS, start) = period' (TS._frequency ts) (TS._periodStart ts)
   in show year  <> periodS
+
+grnRef settings timesheet day = let
+  period = timesheetPeriod settings timesheet
+  periodRef =  TS.shortRef period day
+  in pack $ periodRef <> "-" <> TS.dayRef period day
+
+
+timesheetPeriod settings timesheet = let
+  frequency = TS._frequency timesheet
+  day = TS._periodStart timesheet
+  start = TS.Start $ case frequency of
+    TS.Weekly -> firstTaxWeek settings
+    TS.Monthly -> firstTaxMonth settings
+  original = TS.Period frequency start
+  in TS.adjustPeriodYearFor day original

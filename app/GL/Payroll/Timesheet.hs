@@ -19,6 +19,7 @@ import           Data.Time ( Day
                            , toGregorian
                            , diffDays
                            )
+import Data.Time.Calendar.WeekDate (toWeekDate)
 import qualified Data.Time as Time
 import           Control.Applicative
 
@@ -203,6 +204,25 @@ shortRef = refFormatter go where
 longRef :: Period -> Day -> String
 longRef = refFormatter go where
   go year name = printf "%d/%s" year name
+
+
+dayRef period day = let
+  (_, _, weekDay) = toWeekDate day
+  (_, _, monthDay) = toGregorian day
+  dayS = case weekDay of
+          1 -> "Mon" :: String
+          2 -> "Tue"
+          3 -> "Wed"
+          4 -> "Thu"
+          5 -> "Fri"
+          6 -> "Sat"
+          7 -> "Sun"
+          _ -> error "Week day > 7"
+  in case _periodFrequency period of
+       Weekly -> dayS
+       Monthly -> printf "%s-%02d" dayS monthDay
+      
+
 -- * Summarize
 -- ** Group by Key
 instance Semigroup k =>  Semigroup (Shift k) where

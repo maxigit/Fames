@@ -30,6 +30,11 @@ spec = describe "@Timesheet" $ do
         it "long Month" $ do
           longRef (mkPeriod Monthly 2018 01 01) (fromGregorian 2018 01 01) `shouldBe` "2018/M01"
   
+      context "dayRef" $ do
+        it "short Month" $ do
+          dayRef (mkPeriod Weekly 2018 01 01) (fromGregorian 2018 01 04 ) `shouldBe` "Thu"
+        it "long Month" $ do
+          dayRef (mkPeriod Monthly 2018 01 01) (fromGregorian 2018 01 11) `shouldBe` "Thu-11"
         -- it "for GRN" $ do
         --   pending $ "grnRef (Period Weekly $ fromGregorian 2018 01 01) (fromGregorian 2018 ) `shouldBe` '1801/Mon'"
 
