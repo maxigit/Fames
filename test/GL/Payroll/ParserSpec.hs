@@ -42,6 +42,19 @@ spec = describe "@Payroll" $ do
 
         it "parses Date" $ do
             token "2015-12-31" `shouldBe` (Right $ DayT (Time.fromGregorian 2015 12 31))
+        it "parses external party"  $ do
+            token "@a" `shouldBe` (Right $ ExternalT "a")
+            token "@a1" `shouldBe` (Right $ ExternalT "a1")
+        it "parses integer costs" $ do
+            token "1^" `shouldBe` (Right $ CostAndDeductionT (Just 1) Nothing)
+        it "parses real costs" $ do
+            token "1.5^" `shouldBe` (Right $ CostAndDeductionT (Just 1.5) Nothing)
+        it "parses integer deductions" $ do
+            token "^1" `shouldBe` (Right $ CostAndDeductionT Nothing (Just 1))
+        it "parses real deductions" $ do
+            token "^1.5" `shouldBe` (Right $ CostAndDeductionT Nothing (Just 1.5))
+        it "parses costs and deductions" $ do
+            token "2.3^1.5" `shouldBe` (Right $ CostAndDeductionT (Just 2.3) (Just 1.5))
     describe "#Parsing" $ do
         it "one shift per line"  $ do
             let content = "\

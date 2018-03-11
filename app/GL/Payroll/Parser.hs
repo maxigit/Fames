@@ -31,6 +31,8 @@ import Data.Time.Calendar.WeekDate (toWeekDate)
 import Data.Time.Format    ( defaultTimeLocale, wDays)
 import qualified Data.Map as Map
 import Data.Map(Map)
+import Text.Read (readMaybe)
+import Debug.Trace
 
 data Current = Current
         { _currentEmployee :: Maybe PayrooEmployee
@@ -147,6 +149,8 @@ data Token = NameT String
            | SkipT
            | PipeT
            | WeekDayT WeekDay
+           | CostAndDeductionT (Maybe Amount) (Maybe Amount)
+           | ExternalT String
            deriving (Show, Eq)
 
 token :: String -> Either String Token
@@ -196,8 +200,10 @@ token s = case mapMaybe match cases of
                         )
                       , ("_", \_ -> Right SkipT)
                       , ("\\|", \_ -> Right PipeT)
-
+                      , ("@([[:alpha:]][[:alnum:]]*)" , \(_, [name]) -> Right $ ExternalT name )
+                      , ( "(" ++ amount ++ ")?\\^(" ++ amount ++ ")?" , \r@(_, [deduction, _dec,  cost, _dec']) -> traceShow r $  Right $ CostAndDeductionT (readMaybe deduction) (readMaybe cost) )
                       ]
+              amount = "[0-9]+(.[0-9]+)?"
               hhmm = "([0-9]{1,2}):([0-9]{2})"
 
               match (r,f) = case s =~ ("^"++r++"$") of
@@ -307,6 +313,7 @@ processShift u t =  case t of
         -- allow 2 shifts to be in the same day ex : 4|14:00-18:00 => 8.00
         PipeT  ->  Right $ fromMaybe u $ backDay u
         PayrollIdT _ -> Left "unexpected payroll Id"
+        _ -> error "todo"
 
 -- | Split a line into usefull tokens.
 -- Basically split on spaces but also deals with '-' and '|'
