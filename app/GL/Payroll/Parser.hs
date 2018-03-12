@@ -32,7 +32,8 @@ import Data.Time.Format    ( defaultTimeLocale, wDays)
 import qualified Data.Map as Map
 import Data.Map(Map)
 import Text.Read (readMaybe)
-import Debug.Trace
+import Data.These
+import Data.Align (align)
 
 data Current = Current
         { _currentEmployee :: Maybe PayrooEmployee
@@ -40,11 +41,12 @@ data Current = Current
         , _currentHourlyRate :: Maybe Amount
         , _currentTimesheet :: Timesheet PayrooEmployee
         , _currentEmployeeMap :: Map String PayrooEmployee
+        , _currentExternal :: Maybe String
         } deriving (Show)
 
 makeClassy ''Current
 
-initCurrent weekDay = Current Nothing Nothing Nothing  (newTimesheet Weekly weekDay) (Map.empty)
+initCurrent weekDay = Current Nothing Nothing Nothing  (newTimesheet Weekly weekDay) (Map.empty) Nothing
 currentWeekStart =  currentTimesheet . periodStart 
 
 setEmploye :: PayrooEmployee -> Current -> Current
@@ -73,7 +75,7 @@ addNewEmployee emp u =  do
 
 
 
--- Create a new shift and add it at the end of the timeshhet
+-- Create a new shift and add it at the end of the timesheet
 -- if all requireid information are present
 addShift :: Duration -> Maybe TimeOfDay ->  Current -> Maybe Current
 addShift = addShift' Work
@@ -84,9 +86,7 @@ addShift' shiftType duration start u = do
     day <- u ^. currentDay
     let s = Shift (emp, day, shiftType) start duration (duration*rate)
         ts = u ^. currentTimesheet
-
-
-    return $  u & currentTimesheet. shifts %~ (++ [s])
+    return $  u & currentTimesheet . shifts %~ (++ [s])
 
 findWeekDay :: Current -> WeekDay -> Day
 findWeekDay u wday = case dayToWeekDay sday of
@@ -119,6 +119,13 @@ backDay u = do
 -- lastShift :: Current -> Maybe Shift
 lastShift = currentTimesheet.shifts._last
     
+addDeductionAndCost :: Current -> (Maybe Amount) -> (Maybe  Amount) -> Maybe Current
+addDeductionAndCost u costM deductionM = do
+  e <- u ^. currentEmployee
+  ext <- u ^. currentExternal
+  cad <- align costM deductionM
+  return $ u & currentTimesheet . deductionAndCosts %~ (++ [ DeductionAndCost (ext, e) cad])
+  
 -- ** Days
 data WeekDay = WeekDay { shortName :: String
                        , fullName :: String
@@ -149,7 +156,7 @@ data Token = NameT String
            | SkipT
            | PipeT
            | WeekDayT WeekDay
-           | CostAndDeductionT (Maybe Amount) (Maybe Amount)
+           | DeductionAndCostT (Maybe Amount) (Maybe Amount)
            | ExternalT String
            deriving (Show, Eq)
 
@@ -201,7 +208,7 @@ token s = case mapMaybe match cases of
                       , ("_", \_ -> Right SkipT)
                       , ("\\|", \_ -> Right PipeT)
                       , ("@([[:alpha:]][[:alnum:]]*)" , \(_, [name]) -> Right $ ExternalT name )
-                      , ( "(" ++ amount ++ ")?\\^(" ++ amount ++ ")?" , \r@(_, [deduction, _dec,  cost, _dec']) -> traceShow r $  Right $ CostAndDeductionT (readMaybe deduction) (readMaybe cost) )
+                      , ( "(" ++ amount ++ ")?\\^(" ++ amount ++ ")?" , \r@(_, [cost, _dec,  deduction, _dec']) -> Right $ DeductionAndCostT (readMaybe cost) (readMaybe deduction) )
                       ]
               amount = "[0-9]+(.[0-9]+)?"
               hhmm = "([0-9]{1,2}):([0-9]{2})"
@@ -272,12 +279,13 @@ processLine u toks = case toks of
               -- only update the current day if the user has changed
               Right $ u & currentTimesheet.shifts
                              .~ u'^.currentTimesheet.shifts
-                           & currentDay
+                        & currentDay
                              .~ ( if u^.currentEmployee  == u'^.currentEmployee
                                   then u'
                                   else u
                                  ) ^. currentDay
-                           & currentEmployee .~ u'^.currentEmployee
+                        & currentEmployee .~ u'^.currentEmployee
+                        & currentTimesheet.deductionAndCosts .~ u' ^. currentTimesheet.deductionAndCosts
 
         where addNewEmployee' alias firstname surname rate pid =
                 maybe (Left $ "Couldn't create new employee" ++ show (alias, firstname, surname))
@@ -313,7 +321,10 @@ processShift u t =  case t of
         -- allow 2 shifts to be in the same day ex : 4|14:00-18:00 => 8.00
         PipeT  ->  Right $ fromMaybe u $ backDay u
         PayrollIdT _ -> Left "unexpected payroll Id"
-        _ -> error "todo"
+        ExternalT name -> Right $ u & currentExternal ?~ name
+        DeductionAndCostT deductionM costM  -> maybe (Left "Can't assign Deduction and Costs if current employee and external are not set")
+                                       Right
+                                       (addDeductionAndCost u deductionM costM)
 
 -- | Split a line into usefull tokens.
 -- Basically split on spaces but also deals with '-' and '|'

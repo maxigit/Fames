@@ -35,6 +35,7 @@ import Data.Semigroup.Reducer(Reducer(..))
 import Data.Ord(comparing)
 import Data.Function(on)
 import Text.Printf(printf)
+import Data.These
 
 -- * Type alias
 type Amount = Double
@@ -61,6 +62,7 @@ makeClassy ''PayrooEmployee
 instance HasEmployee PayrooEmployee where
   employee = payrooEmployee'
   
+-- ** Shift
 -- | The main data is a shift, ie a continous amount of time worked
 -- The key represent a way to identify a shift (Employe/Employe,Day) ...
 data ShiftType = Work | Holiday deriving (Show, Eq, Ord, Bounded, Enum)
@@ -119,6 +121,11 @@ instance HasShiftType k => HasShiftType (Shift k) where
 -- hourlyRate :: Getter (Shift k) Amount
 hourlyRate = to $ (/) <$> (^.cost) <*> (^.duration)
 
+-- | Deduction and costs
+data DeductionAndCost key = DeductionAndCost
+  { _dacKey :: key
+  , _dacDac :: These Amount Amount
+  } deriving (Eq, Read, Show, Functor, Foldable, Traversable)
 data PayrollFrequency = Weekly | Monthly deriving (Eq, Read, Show, Enum, Bounded, Ord)
 -- | A Timesheet. A functor over employee : allows
 -- to easily modify the information relative to an employee
@@ -126,6 +133,7 @@ data Timesheet e = Timesheet
     { _shifts :: [Shift (e, Day, ShiftType)]
     , _periodStart :: Day
     , _frequency :: PayrollFrequency
+    , _deductionAndCosts :: [DeductionAndCost (String, e)]
     }
     deriving (Show, Eq, Functor, Foldable, Traversable)
 
@@ -133,7 +141,7 @@ makeClassy ''Timesheet
     
 
 newTimesheet :: PayrollFrequency -> Day -> Timesheet e
-newTimesheet frequency day = Timesheet [] day frequency
+newTimesheet frequency day = Timesheet [] day frequency []
 
 -- ** Period
 -- | Argument type to not mixup adjustTAxYear arguments

@@ -214,6 +214,7 @@ saveGRNs settings key timesheet = do
               , textcart <- TS.textcarts stype (TS.Timesheet shiftsSku
                                                              (TS._periodStart timesheet)
                                                              (TS._frequency timesheet)
+                                                             []
                                                )
               ]
       mkDetail shift = WFA.GRNDetail (pack . TS.sku $ TS._shiftKey shift)
@@ -383,7 +384,7 @@ modelToTimesheetOpId (Entity _ timesheet) shiftEs = let
                      , fromMaybe (error "TODO") (payrollShiftDate shift)
                      , readType (payrollShiftType shift)
                      )
-  in TS.Timesheet (map mkShift shiftEs) (timesheetStart timesheet) (timesheetFrequency timesheet)
+  in TS.Timesheet (map mkShift shiftEs) (timesheetStart timesheet) (timesheetFrequency timesheet) []
 
 timesheetEmployeeToOpId :: (Monad m , TS.HasEmployee e)
                       => (Text -> m (Entity Operator))

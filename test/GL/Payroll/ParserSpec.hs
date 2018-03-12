@@ -8,6 +8,7 @@ import Test.Hspec
 
 import Data.Time (Day)
 import qualified Data.Time as Time
+import Data.These
 
 day0 = Time.fromGregorian 2015 06 01
 makeDay :: Integer -> Day
@@ -46,15 +47,15 @@ spec = describe "@Payroll" $ do
             token "@a" `shouldBe` (Right $ ExternalT "a")
             token "@a1" `shouldBe` (Right $ ExternalT "a1")
         it "parses integer costs" $ do
-            token "1^" `shouldBe` (Right $ CostAndDeductionT (Just 1) Nothing)
+            token "1^" `shouldBe` (Right $ DeductionAndCostT (Just 1) Nothing)
         it "parses real costs" $ do
-            token "1.5^" `shouldBe` (Right $ CostAndDeductionT (Just 1.5) Nothing)
+            token "1.5^" `shouldBe` (Right $ DeductionAndCostT (Just 1.5) Nothing)
         it "parses integer deductions" $ do
-            token "^1" `shouldBe` (Right $ CostAndDeductionT Nothing (Just 1))
+            token "^1" `shouldBe` (Right $ DeductionAndCostT Nothing (Just 1))
         it "parses real deductions" $ do
-            token "^1.5" `shouldBe` (Right $ CostAndDeductionT Nothing (Just 1.5))
+            token "^1.5" `shouldBe` (Right $ DeductionAndCostT Nothing (Just 1.5))
         it "parses costs and deductions" $ do
-            token "2.3^1.5" `shouldBe` (Right $ CostAndDeductionT (Just 2.3) (Just 1.5))
+            token "2.3^1.5" `shouldBe` (Right $ DeductionAndCostT (Just 2.3) (Just 1.5))
     describe "#Parsing" $ do
         it "one shift per line"  $ do
             let content = "\
@@ -66,7 +67,7 @@ spec = describe "@Payroll" $ do
                           \3\n\
                           \"
 
-                expected = Right $ Timesheet ss day0 Weekly
+                expected = Right $ Timesheet ss day0 Weekly []
                 ss = [
                     Shift (alice, makeDay (i-1), Work)
                           Nothing
@@ -85,7 +86,7 @@ spec = describe "@Payroll" $ do
 \Alice 1 2 3\n\
 \"
 
-                expected = Right $Timesheet ss day0 Weekly
+                expected = Right $Timesheet ss day0 Weekly []
                 ss = [
                     Shift (alice, makeDay (i-1), Work)
                           Nothing
@@ -94,6 +95,20 @@ spec = describe "@Payroll" $ do
                         | i <- [1..3]
                     ]
 
+            parseFastTimesheet (lines content)
+                `shouldBe` expected
+        it "parses deduction and costs"  $ do
+            let content = "\
+\2015/06/01\n\
+\$10\n\
+\Alice #1\n\
+\Alice\n\
+\@PAYE ^5\n\
+\@Pension 1.5^1.87\n\
+\"
+                expected = Right $Timesheet [] day0 Weekly [ DeductionAndCost ("PAYE", alice) (That 5)
+                                                           , DeductionAndCost ("Pension", alice) (These 1.5 1.87)
+                                                           ]
             parseFastTimesheet (lines content)
                 `shouldBe` expected
 
