@@ -208,7 +208,7 @@ token s = case mapMaybe match cases of
                       , ("_", \_ -> Right SkipT)
                       , ("\\|", \_ -> Right PipeT)
                       , ("@([[:alpha:]][[:alnum:]]*)" , \(_, [name]) -> Right $ ExternalT name )
-                      , ( "(" ++ amount ++ ")?\\^(" ++ amount ++ ")?" , \r@(_, [cost, _dec,  deduction, _dec']) -> Right $ DeductionAndCostT (readMaybe cost) (readMaybe deduction) )
+                      , ( "(" ++ amount ++ ")?\\^(" ++ amount ++ ")?" , \r@(_, [deduction, _dec,  cost, _dec']) -> Right $ DeductionAndCostT (readMaybe deduction) (readMaybe cost) )
                       ]
               amount = "[0-9]+(.[0-9]+)?"
               hhmm = "([0-9]{1,2}):([0-9]{2})"

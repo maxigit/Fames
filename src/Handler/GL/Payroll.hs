@@ -22,6 +22,7 @@ import Database.Persist.MySQL
 import Data.Time.Calendar
 import Lens.Micro.Extras (view)
 import Lens.Micro
+import Data.These
 
 import  qualified WH.FA.Types as WFA
 import  qualified WH.FA.Curl as WFA
@@ -87,8 +88,8 @@ postGLPayrollToFAR key = do
   modelE <- loadTimesheet key
   case modelE of
     Nothing -> error $ "Can't load Timesheet with id #" ++ show key
-    Just (ts, shifts, _) -> do
-      r <- postTimesheetToFA (TimesheetKey $ SqlBackendKey key) ts shifts
+    Just (ts, shifts, items) -> do
+      r <- postTimesheetToFA (TimesheetKey $ SqlBackendKey key) ts shifts items
       case r of
         Left e -> setError (toHtml e) >> getGLPayrollViewR key
         Right e -> do
@@ -103,20 +104,23 @@ getGLPayrollViewR key = do
   modelE <- loadTimesheet key
   case modelE of
     Nothing -> error $ "Can't load Timesheet with id #" ++ show key
-    Just (ts, shifts, _) -> do
-      let tsOId = modelToTimesheetOpId ts shifts
+    Just (ts, shifts, items) -> do
+      let tsOId = modelToTimesheetOpId ts shifts items
           ts' = map (\(op, _) -> maybe (tshow op) operatorNickname (lookup op operatorMap)) tsOId
           shifts' = TS._shifts ts'
-          reports = [ ("Timesheet" :: Text, displayShifts)
+          reports' = [ ("Timesheet" :: Text, displayShifts)
                     , ("By Employees", displayShifts . (TS.groupShiftsBy id))
                     , ("By Week", displayShifts . (TS.groupShiftsBy (\(e,_,_) -> e)))
-                    , ("ByDay" , displayShifts . ( TS.groupShiftsBy (\(a,b,h) -> (h,b,a))))
+                    , ("By Day" , displayShifts . ( TS.groupShiftsBy (\(a,b,h) -> (h,b,a))))
                     ] 
+          dacs =  TS._deductionAndCosts ts'
+          dacsReport = ("Deductions and Costs", displayShifts dacs)
+          reports = [(name, report shifts') | (name, report) <- reports'] ++ [dacsReport]
       defaultLayout $ [whamlet|
           $forall (name, trans) <- reports
              <div.panel.panel-info>
                <div.panel-heading> #{name}
-               <div.panel-body> ^{trans shifts'}
+               <div.panel-body> ^{trans}
           $if (timesheetStatus (entityVal ts) /= Process)
             <form role=form method=post action=@{GLR $ GLPayrollToFAR key}>
               <button type="submit" .btn.btn-danger>Save To FrontAccounting
@@ -176,18 +180,17 @@ parseTimesheetH param = do
   return $ parseTimesheet header (upTimesheet param)
 
 -- * To Front Accounting
-postTimesheetToFA key timesheet shifts = do
+postTimesheetToFA key timesheet shifts items = do
       settings <- appSettings <$> getYesod
-      let tsOId = modelToTimesheetOpId timesheet shifts
+      let tsOId = modelToTimesheetOpId timesheet shifts items
       runExceptT $ do
-         ts <- ExceptT $ timesheetOpIdToO'SH tsOId
+         ts <- ExceptT $ timesheetOpIdToO'SH tsOId 
       -- Right ts <- timesheetOpIdToO'SH tsOId
          let tsSkus = ( \(op,setting, shiftKey) -> ( TS.Sku . unpack . faSKU $  setting
                                                  , shiftKey
                                                  )
                       ) <$> ts
          grnIds <- saveGRNs settings key tsSkus
-         traceShowM ("GRN",grnIds)
          return grnIds
          saveInvoice settings tsSkus grnIds
 
@@ -309,32 +312,38 @@ displayTimesheetList timesheets = [whamlet|
 |]
 
 displayTimesheet :: (TS.Timesheet TS.PayrooEmployee) -> Widget
-displayTimesheet timesheet = displayShifts $ TS._shifts timesheet
+displayTimesheet timesheet = do
+  displayShifts $ TS._shifts timesheet
+  displayShifts $ TS._deductionAndCosts timesheet
+
 displayShifts shifts = let
   report = TS.display shifts
   reportLines = lines $ pack report  :: [Text]
   in [whamlet|<div.well>
         $forall line <- reportLines
           <p> #{line}
-
      |]
+
+
+
 -- * DB access
 -- | Save a timesheet.
 saveTimeSheet :: DocumentHash -> (TS.Timesheet TS.PayrooEmployee) -> Handler TimesheetId
 saveTimeSheet key timesheet = do
   opFinder <- operatorFinderWithError
   payrollSettings <- getsYesod (appPayroll . appSettings)
-  let period' = period payrollSettings
+  let period' = timesheetPeriod payrollSettings timesheet
       ref = pack $ timesheetRef period' timesheet
-  case timesheetOpIdToModel period' <$> timesheetEmployeeToOpId opFinder timesheet of
+  case timesheetOpIdToModel ref <$> timesheetEmployeeToOpId opFinder timesheet of
       Left e ->  do
         setError (toHtml e)
         invalidArgs ["Some Operators doesn't exists in the database or in the configuration file"]
         error "Should't go there"
-      Right (model, shiftsFn) -> runDB $ do
+      Right (model, shiftsFn, itemsFn) -> runDB $ do
           docKey <- createDocumentKey (DocumentType "timesheet") key ref ""
           modelId <- insert (model docKey)
           insertMany_ (shiftsFn modelId)
+          insertMany_ (itemsFn modelId)
           return modelId
 
 loadTimesheet :: Int64 -> Handler (Maybe (Entity Timesheet, [Entity PayrollShift], [Entity PayrollItem]))
@@ -354,14 +363,12 @@ loadTimesheet key64 = do
 -- It doesn't return a list of Shift but a function creating them
 -- as we are missing the Timesheet id.
 -- ** Timesheet conversion
-timesheetOpIdToModel :: (PayrollFrequency -> Day -> (Integer, Int, String, Day))
+timesheetOpIdToModel :: Text
                  -> (TS.Timesheet OperatorId)
-                 -> (_ -> Timesheet, TimesheetId -> [PayrollShift])
-timesheetOpIdToModel period' ts = (model, shiftsFn) where
+                 -> (_ -> Timesheet, TimesheetId -> [PayrollShift], TimesheetId -> [PayrollItem])
+timesheetOpIdToModel ref ts = (model, shiftsFn, itemsFn) where
   start = TS._periodStart ts
-  (y, _, s, end) = period' (TS._frequency ts )start
-  ref = show y ++ "-" ++ s
-  model dockKey = Timesheet (pack ref) dockKey start end (TS._frequency ts) Pending
+  model dockKey = Timesheet ref dockKey start (TS.periodEnd ts) (TS._frequency ts) Pending
   shiftsFn i = map (mkShift i) (TS._shifts ts)
   mkShift i shift= let
     (operator, day, shiftType) = TS._shiftKey shift
@@ -371,11 +378,17 @@ timesheetOpIdToModel period' ts = (model, shiftsFn) where
                     operator
                     (Just day)
                     (tshow shiftType)
+  itemsFn i = concatMap (mkItem i) (TS._deductionAndCosts ts)
+  mkItem :: TimesheetId -> TS.DeductionAndCost (String, OperatorId) -> [PayrollItem]
+  mkItem i dac = mergeTheseWith (mkDAC Deduction) (mkDAC Cost) (<>) (TS._dacDac dac) where
+                  (payee, op) = TS._dacKey dac
+                  mkDAC dacType amount = [ PayrollItem i amount dacType op (pack payee) "" ]
 
 modelToTimesheetOpId :: Entity Timesheet
                      -> [Entity PayrollShift]
+                     -> [Entity PayrollItem]
                      -> (TS.Timesheet (OperatorId, PayrollShiftId))
-modelToTimesheetOpId (Entity _ timesheet) shiftEs = let
+modelToTimesheetOpId (Entity _ timesheet) shiftEs itemEs = let
   readType "Holiday" = TS.Holiday
   readType _ = TS.Work
   mkShift (Entity key shift) = TS.Shift  (mkShiftKey key shift) Nothing (payrollShiftDuration shift) (payrollShiftCost shift)
@@ -384,7 +397,14 @@ modelToTimesheetOpId (Entity _ timesheet) shiftEs = let
                      , fromMaybe (error "TODO") (payrollShiftDate shift)
                      , readType (payrollShiftType shift)
                      )
-  in TS.Timesheet (map mkShift shiftEs) (timesheetStart timesheet) (timesheetFrequency timesheet) []
+  mkItems = (TS.groupDacsBy id) . (map mkItem)
+  mkItem (Entity _ i) = TS.DeductionAndCost (unpack $ payrollItemPayee i, (payrollItemOperator i, PayrollShiftKey (SqlBackendKey 1)))
+                                 ((case payrollItemType  i of
+                                     Cost -> That
+                                     Deduction -> This)
+                                   (payrollItemAmount i)
+                                 )
+  in TS.Timesheet (map mkShift shiftEs) (timesheetStart timesheet) (timesheetFrequency timesheet) (mkItems itemEs)
 
 timesheetEmployeeToOpId :: (Monad m , TS.HasEmployee e)
                       => (Text -> m (Entity Operator))
@@ -454,9 +474,9 @@ period settings TS.Monthly day = let
   m' = printf "M%02d" m
   in (y, m, m', addDays (-1) (addGregorianMonthsClip 1 day ))
 
-timesheetRef period' ts = let
-  (year, periodN, periodS, start) = period' (TS._frequency ts) (TS._periodStart ts)
-  in show year  <> periodS
+timesheetRef period ts = let
+  start = TS._periodStart ts
+  in TS.longRef period start
 
 grnRef settings timesheet day = let
   period = timesheetPeriod settings timesheet

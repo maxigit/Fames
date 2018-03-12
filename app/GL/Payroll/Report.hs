@@ -22,6 +22,7 @@ import Data.Semigroup.Generator(reduceWith1)
 import Data.Semigroup.Reducer(Reducer(..))
 import Data.Ord(comparing)
 import Data.Function(on)
+import Data.These
 
 import System.Directory(createDirectory)
 import System.FilePath((</>))
@@ -41,12 +42,9 @@ instance Display Day where
     display d = formatTime local "%A %d %b %Y" d where
         local = defaultTimeLocale
 
-instance Display k =>  Display (Shift k) where
-    display s = display (s ^. shiftKey)
-                    ++  "\t" ++ show (s ^. duration)
-                    ++ "\t@" ++ show (s ^. hourlyRate)
-                    ++ "\t= " ++ show (s ^. cost)
-
+instance {-# OVERLAPPING  #-} Display String where
+  display c = c
+-- *** Misc
 instance (Display a, Display b) => Display (a,b) where
     display (a,b) = display a
                     ++ "\t" ++ display b
@@ -63,11 +61,37 @@ instance (Display e) => Display (Timesheet e) where
 
 instance Display ShiftType where
   display st = show st
+
+-- *** Deduction and Costs
+instance Display k =>  Display (Shift k) where
+    display s = display (s ^. shiftKey)
+                    ++  "\t" ++ show (s ^. duration)
+                    ++ "\t@" ++ show (s ^. hourlyRate)
+                    ++ "\t= " ++ show (s ^. cost)
+
+-- *** Deduction and Costs
+instance Display k => Display (DeductionAndCost k) where
+  display dac = "@" ++ display (dac ^. dacKey) ++ " "
+                 ++ maybe "" show duration
+                 ++ "^"
+                 ++ maybe "" show cost where
+                        (duration, cost) = these (\a -> (Just a, Nothing))
+                                                 (\b -> (Nothing, Just b))
+                                                 (\a b -> (Just a , Just b))
+                                                 (dac ^. dacDac)
+
+
 groupShiftsBy :: (Ord b) => (a-> b) -> [Shift a] -> [Shift b]
 groupShiftsBy f ss = let
     ss' = [(f $ s^.shiftKey, s {_shiftKey = () } ) | s <- ss]
     groups = Map.fromListWith (<>) ss'
     in [s { _shiftKey = k } | (k,s) <- Map.toList groups]
+
+groupDacsBy :: (Ord b) => (a-> b) -> [DeductionAndCost a] -> [DeductionAndCost b]
+groupDacsBy f ss = let
+    ss' = [(f $ s^.dacKey, s {_dacKey = () } ) | s <- ss]
+    groups = Map.fromListWith (<>) ss'
+    in [s { _dacKey = k } | (k,s) <- Map.toList groups]
 
 instance Display () where
   display st = ""

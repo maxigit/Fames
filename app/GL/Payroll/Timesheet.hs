@@ -18,6 +18,7 @@ import           Data.Time ( Day
                            ,fromGregorian
                            , toGregorian
                            , diffDays
+                           , addGregorianMonthsClip
                            )
 import Data.Time.Calendar.WeekDate (toWeekDate)
 import qualified Data.Time as Time
@@ -36,6 +37,7 @@ import Data.Ord(comparing)
 import Data.Function(on)
 import Text.Printf(printf)
 import Data.These
+import Data.Bifunctor (bimap)
 
 -- * Type alias
 type Amount = Double
@@ -126,6 +128,8 @@ data DeductionAndCost key = DeductionAndCost
   { _dacKey :: key
   , _dacDac :: These Amount Amount
   } deriving (Eq, Read, Show, Functor, Foldable, Traversable)
+makeClassy ''DeductionAndCost
+
 data PayrollFrequency = Weekly | Monthly deriving (Eq, Read, Show, Enum, Bounded, Ord)
 -- | A Timesheet. A functor over employee : allows
 -- to easily modify the information relative to an employee
@@ -180,6 +184,13 @@ monthNumber taxStart start = let
 
 toYear :: Day -> Integer
 toYear d = y where (y, _, _ ) = toGregorian d
+-- | End of a period
+periodEnd :: Timesheet e -> Day
+periodEnd ts = let
+  day = _periodStart ts
+  in case _frequency ts of
+       Weekly -> addDays 6 day
+       Monthly -> addDays (-1) (addGregorianMonthsClip 1 day )
 
 -- | Adjust period year so it includes the given date
 adjustPeriodYearFor :: Day -> Period -> Period
@@ -239,3 +250,8 @@ instance Semigroup k =>  Semigroup (Shift k) where
         (reduceWith1 getMin <$> nonEmpty ([a,b] ^.. each.startTime._Just))
         (a^.duration + b^.duration)
         (a^.cost + b^.cost)
+
+instance Semigroup k => Semigroup (DeductionAndCost k) where
+  a <> b = DeductionAndCost
+                    (a ^. dacKey <> b ^. dacKey)
+                    (bimap getSum getSum $ bimap Sum Sum (a ^. dacDac) <> bimap Sum Sum (b ^. dacDac))
