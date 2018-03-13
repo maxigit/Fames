@@ -11,8 +11,23 @@ import Data.Aeson.TH(deriveJSON, defaultOptions)
 data EmployeeSettings = EmployeeSettings
   { timesheet :: Text -- To add to 
   , faSKU :: Text
+  , dimension1 :: Maybe Int
+  , dimension2 :: Maybe Int
   } deriving (Show, Read)
   
+
+-- | External party associated with deductions and costs
+data PayrollExternalSettings = PayrollExternalSettings
+  {  supplier :: Maybe Int
+  ,  cost :: Maybe DACSettings
+  ,  deduction :: Maybe DACSettings
+  ,  glAccount :: Int
+  } deriving (Show, Read)
+
+data DACSettings = DACSettings
+  { invoiceAccount :: Int
+  , creditAccount :: Int
+  } deriving (Show,Read)
 
 data PayrollSettings = PayrollSettings
   { employees :: Map Text EmployeeSettings
@@ -21,10 +36,13 @@ data PayrollSettings = PayrollSettings
   , grnSupplier :: Int
   , grnHolidayLocation :: Text
   , grnWorkLocation :: Text
+  , externals :: Map Text PayrollExternalSettings
   } deriving (Show, Read)
 
 -- * JSON
 $(deriveJSON defaultOptions ''EmployeeSettings)
+$(deriveJSON defaultOptions ''DACSettings)
+$(deriveJSON defaultOptions ''PayrollExternalSettings)
 $(deriveJSON defaultOptions ''PayrollSettings)
 
 -- * Utils

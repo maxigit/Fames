@@ -56,8 +56,8 @@ instance (Display a, Display b, Display c) => Display (a,b, c) where
 
 instance (Display a) => Display [a] where
     display as = unlines $ map display as
-instance (Display e) => Display (Timesheet e) where
-    display ts = display (ts^.shifts)
+instance (Display p, Display e) => Display (Timesheet p e) where
+    display ts = display (ts^.shifts) <> "\n" <> display  (ts^.deductionAndCosts)
 
 instance Display ShiftType where
   display st = show st
@@ -106,7 +106,7 @@ groupBy key as =
 -- **  Textcart
 newtype Sku = Sku { sku :: String } deriving (Eq, Ord, Read, Show)
 newtype Textcart = Textcart (Day, ShiftType, [Shift Sku])
-textcarts :: ShiftType -> Timesheet Sku -> [Textcart]
+textcarts :: ShiftType -> Timesheet p Sku -> [Textcart]
 textcarts st ts = let 
     filtered = filter ((== st) . view shiftType) (ts ^. shifts)
     byDays = groupBy (^.day) filtered
@@ -141,7 +141,7 @@ writeTextcart dir cart@(Textcart (d, st, ss)) = do
 
 -- ** PAYROO
 -- 
-payroo :: Timesheet PayrooEmployee -> [String]
+payroo :: Timesheet p PayrooEmployee -> [String]
 payroo ts = 
     [ "Pay Period End Date,,,,,,,,"
     , (formatDay . period) (ts ^. periodStart) ++ ",,,,,,,,"
@@ -177,4 +177,3 @@ writePayroo dir ts = do
            ++ ".csv"
 
     writeFile (dir </> path) (unlines (payroo ts))
-

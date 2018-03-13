@@ -159,6 +159,7 @@ instance FromJSON AppSettings  where
                                                           (fromGregorian 2017 03 31)
                                                           (fromGregorian 2017 03 26)
                                                           0 "" ""
+                                                          (Map.fromList [])
           
         
 

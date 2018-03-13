@@ -20,7 +20,7 @@ import GL.Payroll.Settings
 import Data.Text (strip)
 import Database.Persist.MySQL
 import Data.Time.Calendar
-import Lens.Micro.Extras (view)
+import Lens.Micro.Extras (view, preview)
 import Lens.Micro
 import Data.These
 
@@ -165,7 +165,7 @@ processTimesheet mode post = do
           key = computeDocumentKey bytes
       post param key
      
-parseTimesheet :: [Text] -> Textarea -> (Either String (TS.Timesheet TS.PayrooEmployee))
+parseTimesheet :: [Text] -> Textarea -> (Either String (TS.Timesheet String TS.PayrooEmployee))
 parseTimesheet header0 ts = parseFastTimesheet strings where
   header = map unpack header0
   strings' = map (unpack . strip) . lines $ unTextarea $ ts
@@ -174,12 +174,17 @@ parseTimesheet header0 ts = parseFastTimesheet strings where
     (x:xs) -> x : header ++ xs
     [] -> header
 
-parseTimesheetH :: UploadParam -> Handler (Either String (TS.Timesheet TS.PayrooEmployee))
+parseTimesheetH :: UploadParam -> Handler (Either String (TS.Timesheet String TS.PayrooEmployee))
 parseTimesheetH param = do
   header <- headerFromSettings
   return $ parseTimesheet header (upTimesheet param)
 
 -- * To Front Accounting
+postTimesheetToFA :: TimesheetId
+                  -> Entity Timesheet
+                  -> [Entity PayrollShift]
+                  -> [Entity PayrollItem]
+                  -> HandlerT App IO (Either Text Int)
 postTimesheetToFA key timesheet shifts items = do
       settings <- appSettings <$> getYesod
       let tsOId = modelToTimesheetOpId timesheet shifts items
@@ -192,9 +197,9 @@ postTimesheetToFA key timesheet shifts items = do
                       ) <$> ts
          grnIds <- saveGRNs settings key tsSkus
          return grnIds
-         saveInvoice settings tsSkus grnIds
-
-saveGRNs :: AppSettings -> TimesheetId -> TS.Timesheet (TS.Sku, PayrollShiftId) -> ExceptT Text Handler [(Int, [PayrollShiftId])]
+         saveInvoice settings ts grnIds
+-- ** GRN
+saveGRNs :: AppSettings -> TimesheetId -> TS.Timesheet _ (TS.Sku, PayrollShiftId) -> ExceptT Text Handler [(Int, [PayrollShiftId])]
 saveGRNs settings key timesheet = do
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       psettings = appPayroll settings
@@ -251,8 +256,9 @@ saveGRNs settings key timesheet = do
            return (faId, keys)
        ) grns
 
+-- ** Invoice
 saveInvoice :: AppSettings
-            -> TS.Timesheet (TS.Sku, PayrollShiftId)
+            -> TS.Timesheet (Text, PayrollExternalSettings) _
             -> [(Int, [PayrollShiftId])]
             -> ExceptT Text Handler Int
 saveInvoice settings timesheet deliveries = do
@@ -261,13 +267,14 @@ saveInvoice settings timesheet deliveries = do
       psettings = appPayroll settings
       ref = invoiceRef (appPayroll settings) timesheet
       invoice = WFA.PurchaseInvoice  (grnSupplier psettings)
+
                                      (Just ref)
                                      ref -- supplier ref
                                      today
                                      (addDays 10 today)
-                                     "Todo"
+                                     "Todo" -- memo
                                      [(id, Just (length keys)) | (id, keys) <- deliveries]
-                                     []
+                                     (itemsForCosts timesheet)
   faId <- ExceptT $ liftIO $ WFA.postPurchaseInvoice connectInfo invoice
   ExceptT $ runDB $ do
     insertMany_ [ TransactionMap ST_SUPPINVOICE faId PayrollShiftE (fromIntegral $ unSqlBackendKey $ unPayrollShiftKey key)
@@ -275,10 +282,37 @@ saveInvoice settings timesheet deliveries = do
                 , key <- keys
                 ]
     return (Right ())
-    
   return faId
 
-  -- group text cart by date and type
+
+-- | Computes the GL Items corresponding to the extra costs.
+-- Only the costs are added to the invoice, as the invoice reflects
+-- what the employer has to pay  in total.
+-- The deduction are paid by the employees and so are not releveant for the final invoice.
+itemsForCosts :: TS.Timesheet (Text, PayrollExternalSettings)
+                              (Entity Operator, EmployeeSettings, PayrollShiftId)
+              -> [WFA.GLItem]
+itemsForCosts timesheet = let
+  costs = filter (isJust . preview TS.dacCost) (TS._deductionAndCosts timesheet)
+  mkItem dac = let
+   ((payee, payeeSettings), (opE, opSettings, _)) = TS._dacKey dac
+   Just amount = preview TS.dacCost dac
+   account = glAccount payeeSettings
+   memo = payee <> " " <> (operatorNickname $ entityVal opE)
+   in  WFA.GLItem account
+                  (dimension1 opSettings)
+                  (dimension2 opSettings)
+                  amount
+                  (Just memo)
+  in map mkItem costs
+                          
+
+  
+                   
+
+ 
+
+
 
 -- * Rendering
 displayPendingSheets :: Handler Widget
@@ -311,7 +345,7 @@ displayTimesheetList timesheets = [whamlet|
       <td> #{tshow $ timesheetStatus ts}
 |]
 
-displayTimesheet :: (TS.Timesheet TS.PayrooEmployee) -> Widget
+displayTimesheet :: (TS.Timesheet String TS.PayrooEmployee) -> Widget
 displayTimesheet timesheet = do
   displayShifts $ TS._shifts timesheet
   displayShifts $ TS._deductionAndCosts timesheet
@@ -328,7 +362,7 @@ displayShifts shifts = let
 
 -- * DB access
 -- | Save a timesheet.
-saveTimeSheet :: DocumentHash -> (TS.Timesheet TS.PayrooEmployee) -> Handler TimesheetId
+saveTimeSheet :: DocumentHash -> (TS.Timesheet String TS.PayrooEmployee) -> Handler TimesheetId
 saveTimeSheet key timesheet = do
   opFinder <- operatorFinderWithError
   payrollSettings <- getsYesod (appPayroll . appSettings)
@@ -364,11 +398,14 @@ loadTimesheet key64 = do
 -- as we are missing the Timesheet id.
 -- ** Timesheet conversion
 timesheetOpIdToModel :: Text
-                 -> (TS.Timesheet OperatorId)
-                 -> (_ -> Timesheet, TimesheetId -> [PayrollShift], TimesheetId -> [PayrollItem])
+                 -> (TS.Timesheet String OperatorId)
+                 -> ( Key DocumentKey -> Timesheet
+                    , TimesheetId -> [PayrollShift]
+                    , TimesheetId -> [PayrollItem]
+                    )
 timesheetOpIdToModel ref ts = (model, shiftsFn, itemsFn) where
   start = TS._periodStart ts
-  model dockKey = Timesheet ref dockKey start (TS.periodEnd ts) (TS._frequency ts) Pending
+  model dockKey = Timesheet ref dockKey start (TS.periodEnd ts) (TS._frequency ts) Pending 
   shiftsFn i = map (mkShift i) (TS._shifts ts)
   mkShift i shift= let
     (operator, day, shiftType) = TS._shiftKey shift
@@ -387,7 +424,7 @@ timesheetOpIdToModel ref ts = (model, shiftsFn, itemsFn) where
 modelToTimesheetOpId :: Entity Timesheet
                      -> [Entity PayrollShift]
                      -> [Entity PayrollItem]
-                     -> (TS.Timesheet (OperatorId, PayrollShiftId))
+                     -> (TS.Timesheet Text (OperatorId, PayrollShiftId))
 modelToTimesheetOpId (Entity _ timesheet) shiftEs itemEs = let
   readType "Holiday" = TS.Holiday
   readType _ = TS.Work
@@ -398,7 +435,7 @@ modelToTimesheetOpId (Entity _ timesheet) shiftEs itemEs = let
                      , readType (payrollShiftType shift)
                      )
   mkItems = (TS.groupDacsBy id) . (map mkItem)
-  mkItem (Entity _ i) = TS.DeductionAndCost (unpack $ payrollItemPayee i, (payrollItemOperator i, PayrollShiftKey (SqlBackendKey 1)))
+  mkItem (Entity _ i) = TS.DeductionAndCost (payrollItemPayee i, (payrollItemOperator i, PayrollShiftKey (SqlBackendKey 1)))
                                  ((case payrollItemType  i of
                                      Cost -> That
                                      Deduction -> This)
@@ -408,8 +445,8 @@ modelToTimesheetOpId (Entity _ timesheet) shiftEs itemEs = let
 
 timesheetEmployeeToOpId :: (Monad m , TS.HasEmployee e)
                       => (Text -> m (Entity Operator))
-                      -> TS.Timesheet e
-                      -> m (TS.Timesheet OperatorId)
+                      -> TS.Timesheet p e
+                      -> m (TS.Timesheet p OperatorId)
 timesheetEmployeeToOpId opFinder ts = 
   entityKey <$$> traverse (opFinder . pack . view TS.nickName) ts
 
@@ -417,23 +454,38 @@ timesheetOpIdToOp opFinder ts =
   entityVal <$$> traverse (opFinder . pack . view TS.nickName) ts
 
 timesheetOpIdToO'S :: [(Entity Operator, EmployeeSettings)]
-                        -> TS.Timesheet (OperatorId, PayrollShiftId)
-                        -> Either Text (TS.Timesheet (Entity Operator, EmployeeSettings, PayrollShiftId ))
-timesheetOpIdToO'S employeeInfos ts = let
+                   -> Map Text PayrollExternalSettings
+                   -> TS.Timesheet Text (OperatorId, PayrollShiftId)
+                   -> Either Text ( TS.Timesheet (Text, PayrollExternalSettings)
+                                                 ( Entity Operator
+                                                 , EmployeeSettings
+                                                 , PayrollShiftId
+                                                 )
+                                  )
+timesheetOpIdToO'S employeeInfos payeeMap ts = let
   m :: Map OperatorId (Entity Operator, EmployeeSettings)
   m = mapFromList [(entityKey oe, oe'emp) | oe'emp@(oe, _) <- employeeInfos ]
   findInfo :: (OperatorId, PayrollShiftId) -> Either Text (Entity Operator, EmployeeSettings, PayrollShiftId)
   findInfo (opKey, shiftKey  ) = maybe (Left $ "Can't find settings or operator info for operator #" <> tshow opKey )
                                  (\(o,e) -> Right (o, e, shiftKey))
                                  (lookup opKey m)
-  in traverse findInfo ts
-  
+  findPayee :: Text -> Either Text (Text, PayrollExternalSettings)
+  findPayee payee =  maybe (Left $ "Can't find settings for payee '" <> payee <>"''")
+                           (Right . (payee,))
+                           (lookup payee payeeMap)
+  -- in TS.traversePayee findPayee <$> traverse findInfo ts
+  in traverse findInfo ts >>= TS.traversePayee findPayee
 
-timesheetOpIdToO'SH :: TS.Timesheet (OperatorId, PayrollShiftId)
-                   -> Handler (Either Text (TS.Timesheet (Entity Operator, EmployeeSettings, PayrollShiftId)))
+timesheetOpIdToO'SH :: TS.Timesheet Text (OperatorId, PayrollShiftId)
+                   -> Handler ( Either Text
+                                       (TS.Timesheet (Text, PayrollExternalSettings)
+                                                     (Entity Operator, EmployeeSettings, PayrollShiftId)
+                                       )
+                              )
 timesheetOpIdToO'SH ts = do
   employeeInfos <- getEmployeeInfo
-  return $ timesheetOpIdToO'S employeeInfos ts
+  payrollSettings <- getsYesod (appPayroll . appSettings)
+  return $ timesheetOpIdToO'S employeeInfos (externals payrollSettings) ts
 -- * Configuration
 
 -- | A returns a list of employees from the payroll settings
@@ -486,7 +538,7 @@ grnRef settings timesheet day = let
 
 invoiceRef settings timesheet = let
   period = timesheetPeriod settings timesheet
-  TS.Start day = TS._pStart period
+  day = TS._periodStart timesheet
   in pack $ TS.longRef period day
 
 timesheetPeriod settings timesheet = let

@@ -39,7 +39,7 @@ data Current = Current
         { _currentEmployee :: Maybe PayrooEmployee
         , _currentDay :: Maybe Day
         , _currentHourlyRate :: Maybe Amount
-        , _currentTimesheet :: Timesheet PayrooEmployee
+        , _currentTimesheet :: Timesheet String PayrooEmployee
         , _currentEmployeeMap :: Map String PayrooEmployee
         , _currentExternal :: Maybe String
         } deriving (Show)
@@ -222,7 +222,7 @@ data Parser a = Parser
 
 -- | Read a csv and produce a timesheet
 -- It will also insert employee definition if provided
-readFastTimesheet :: Maybe String -> String -> IO (Timesheet PayrooEmployee)
+readFastTimesheet :: Maybe String -> String -> IO (Timesheet String PayrooEmployee)
 readFastTimesheet epath path = do
     content <- readFile path
     content' <- case (epath, lines content) of
@@ -237,10 +237,10 @@ readFastTimesheet epath path = do
       
 
 
-parseFastTimesheet :: [String] -> Either String (Timesheet PayrooEmployee)
+parseFastTimesheet :: [String] -> Either String (Timesheet String PayrooEmployee)
 parseFastTimesheet lines = do -- Either
     tokenss <- mapM (mapM token . tokeninize) lines -- :: [[Either Token]]
-    let go :: Current -> [[Token]] -> Either String (Timesheet PayrooEmployee)
+    let go :: Current -> [[Token]] -> Either String (Timesheet String PayrooEmployee)
         go current tss = (^.currentTimesheet) <$> foldM processLine current tss
     case tokenss of
         ([DayT weekDay]:tokenss') -> go (initCurrent weekDay) tokenss'

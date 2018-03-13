@@ -130,21 +130,33 @@ data DeductionAndCost key = DeductionAndCost
   } deriving (Eq, Read, Show, Functor, Foldable, Traversable)
 makeClassy ''DeductionAndCost
 
+dacDeduction = dacDac . here  
+dacCost = dacDac . there  
+
 data PayrollFrequency = Weekly | Monthly deriving (Eq, Read, Show, Enum, Bounded, Ord)
 -- | A Timesheet. A functor over employee : allows
 -- to easily modify the information relative to an employee
-data Timesheet e = Timesheet
+-- like replacing an operatorId by an Operator
+data Timesheet p e = Timesheet
     { _shifts :: [Shift (e, Day, ShiftType)]
     , _periodStart :: Day
     , _frequency :: PayrollFrequency
-    , _deductionAndCosts :: [DeductionAndCost (String, e)]
+    , _deductionAndCosts :: [DeductionAndCost (p, e)]
     }
     deriving (Show, Eq, Functor, Foldable, Traversable)
 
 makeClassy ''Timesheet
-    
+traversePayee :: Monad m => (p -> m p' ) -> Timesheet p e -> m (Timesheet p' e)
+traversePayee f ts = do
+  let dacs = _deductionAndCosts ts
+      f' dac =  do
+        let (p, e) = _dacKey dac
+        p' <- f p
+        return $ dac { _dacKey = (p', e) }
+  dacs' <- traverse f' dacs
+  return $ ts { _deductionAndCosts = dacs'}
 
-newTimesheet :: PayrollFrequency -> Day -> Timesheet e
+newTimesheet :: PayrollFrequency -> Day -> Timesheet p e
 newTimesheet frequency day = Timesheet [] day frequency []
 
 -- ** Period
@@ -185,7 +197,7 @@ monthNumber taxStart start = let
 toYear :: Day -> Integer
 toYear d = y where (y, _, _ ) = toGregorian d
 -- | End of a period
-periodEnd :: Timesheet e -> Day
+periodEnd :: Timesheet p e -> Day
 periodEnd ts = let
   day = _periodStart ts
   in case _frequency ts of
