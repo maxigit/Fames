@@ -233,7 +233,7 @@ saveGRNs settings key timesheet = do
                       TS.Holiday -> grnHolidayLocation 
                       TS.Work -> grnWorkLocation
                    ) psettings
-        ref = grnRef (appPayroll settings) timesheet day
+        ref = grnRef (appPayroll settings) timesheet day shiftType
         in ( WFA.GRN (grnSupplier psettings)
                      day
                      (Just ref)
@@ -272,7 +272,7 @@ saveInvoice settings timesheet deliveries = do
                                      ref -- supplier ref
                                      today
                                      (addDays 10 today)
-                                     "Todo" -- memo
+                                     "" -- memo
                                      [(id, Just (length keys)) | (id, keys) <- deliveries]
                                      (itemsForCosts timesheet)
   faId <- ExceptT $ liftIO $ WFA.postPurchaseInvoice connectInfo invoice
@@ -530,10 +530,10 @@ timesheetRef period ts = let
   start = TS._periodStart ts
   in TS.longRef period start
 
-grnRef settings timesheet day = let
+grnRef settings timesheet day shiftType = let
   period = timesheetPeriod settings timesheet
-  periodRef =  TS.shortRef period day
-  in pack $ periodRef <> "-" <> TS.dayRef period day
+  periodRef =  TS.shortRef period day 
+  in pack $ periodRef <> "-" <> TS.dayRef period day <> "-" <> show shiftType
 
 
 invoiceRef settings timesheet = let
