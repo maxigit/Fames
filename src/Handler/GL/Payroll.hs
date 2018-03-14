@@ -71,7 +71,7 @@ postGLPayrollSaveR = processTimesheet Save go where
   go param key = do
        timesheetE <- parseTimesheetH param
        case timesheetE of
-         Left e -> setError (toHtml e) 
+         Left e -> setError (toHtml e)
                    >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a timesheet") (return ())
          Right timesheet -> do
               tKey <- saveTimeSheet key timesheet
@@ -112,7 +112,7 @@ getGLPayrollViewR key = do
                     , ("By Employees", displayShifts . (TS.groupShiftsBy id))
                     , ("By Week", displayShifts . (TS.groupShiftsBy (\(e,_,_) -> e)))
                     , ("By Day" , displayShifts . ( TS.groupShiftsBy (\(a,b,h) -> (h,b,a))))
-                    ] 
+                    ]
           dacs =  TS._deductionAndCosts ts'
           dacsReport = ("Deductions and Costs", displayShifts dacs)
           reports = [(name, report shifts') | (name, report) <- reports'] ++ [dacsReport]
@@ -125,7 +125,7 @@ getGLPayrollViewR key = do
             <form role=form method=post action=@{GLR $ GLPayrollToFAR key}>
               <button type="submit" .btn.btn-danger>Save To FrontAccounting
                               |]
-        
+
 getGLPayrollEditR :: Int64 -> Handler Html
 getGLPayrollEditR key = return "todo"
 postGLPayrollEditR :: Int64 -> Handler Html
@@ -157,14 +157,14 @@ renderMain mode paramM status message pre = do
 processTimesheet :: Mode -> (UploadParam -> DocumentHash -> Handler r) -> Handler r
 processTimesheet mode post = do
   ((resp, formW), enctype) <- runFormPost (uploadForm mode Nothing)
-  case resp of 
+  case resp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show (mode, a)
     FormSuccess param -> do
       let bytes = encodeUtf8 . unTextarea $ upTimesheet param
           key = computeDocumentKey bytes
       post param key
-     
+
 parseTimesheet :: [Text] -> Textarea -> (Either String (TS.Timesheet String TS.PayrooEmployee))
 parseTimesheet header0 ts = parseFastTimesheet strings where
   header = map unpack header0
@@ -189,7 +189,7 @@ postTimesheetToFA key timesheet shifts items = do
       settings <- appSettings <$> getYesod
       let tsOId = modelToTimesheetOpId timesheet shifts items
       runExceptT $ do
-         ts <- ExceptT $ timesheetOpIdToO'SH tsOId 
+         ts <- ExceptT $ timesheetOpIdToO'SH tsOId
       -- Right ts <- timesheetOpIdToO'SH tsOId
          let tsSkus = ( \(op,setting, shiftKey) -> ( TS.Sku . unpack . faSKU $  setting
                                                  , shiftKey
@@ -230,7 +230,7 @@ saveGRNs settings key timesheet = do
                                      (view TS.hourlyRate shift)
       mkGRN (TS.Textcart (day, shiftType, shifts), pKeys)  = let
         location = (case shiftType of
-                      TS.Holiday -> grnHolidayLocation 
+                      TS.Holiday -> grnHolidayLocation
                       TS.Work -> grnWorkLocation
                    ) psettings
         ref = grnRef (appPayroll settings) timesheet day shiftType
@@ -305,12 +305,12 @@ itemsForCosts timesheet = let
                   amount
                   (Just memo)
   in map mkItem costs
-                          
 
-  
-                   
 
- 
+
+
+
+
 
 
 
@@ -405,7 +405,7 @@ timesheetOpIdToModel :: Text
                     )
 timesheetOpIdToModel ref ts = (model, shiftsFn, itemsFn) where
   start = TS._periodStart ts
-  model dockKey = Timesheet ref dockKey start (TS.periodEnd ts) (TS._frequency ts) Pending 
+  model dockKey = Timesheet ref dockKey start (TS.periodEnd ts) (TS._frequency ts) Pending
   shiftsFn i = map (mkShift i) (TS._shifts ts)
   mkShift i shift= let
     (operator, day, shiftType) = TS._shiftKey shift
@@ -447,10 +447,10 @@ timesheetEmployeeToOpId :: (Monad m , TS.HasEmployee e)
                       => (Text -> m (Entity Operator))
                       -> TS.Timesheet p e
                       -> m (TS.Timesheet p OperatorId)
-timesheetEmployeeToOpId opFinder ts = 
+timesheetEmployeeToOpId opFinder ts =
   entityKey <$$> traverse (opFinder . pack . view TS.nickName) ts
 
-timesheetOpIdToOp opFinder ts = 
+timesheetOpIdToOp opFinder ts =
   entityVal <$$> traverse (opFinder . pack . view TS.nickName) ts
 
 timesheetOpIdToO'S :: [(Entity Operator, EmployeeSettings)]
@@ -505,11 +505,11 @@ headerFromSettings :: Handler [Text]
 headerFromSettings = do
   infos <- getEmployeeInfo
   return $ map employeeDescription infos
-  
+
 -- | Line describing an employee in a timesheet format
 employeeDescription :: (Entity Operator, EmployeeSettings) -> Text
 employeeDescription (Entity _ op, emp) = intercalate " "
-  [ operatorNickname op 
+  [ operatorNickname op
   , operatorFirstname op
   , operatorSurname op
   , timesheet emp
@@ -532,7 +532,7 @@ timesheetRef period ts = let
 
 grnRef settings timesheet day shiftType = let
   period = timesheetPeriod settings timesheet
-  periodRef =  TS.shortRef period day 
+  periodRef =  TS.shortRef period day
   in pack $ periodRef <> "-" <> TS.dayRef period day <> "-" <> show shiftType
 
 
