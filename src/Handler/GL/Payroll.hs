@@ -370,6 +370,9 @@ displayEmployeeSummary timesheet = let
   deductions =  toCols TS._deductions
   netDeductions =  toCols TS._netDeductions
   costs =  toCols TS._costs
+  hours = toCols convertHours
+  convertHours s = Map.fromList [(tshow k <> "\n(hrs)", h) | (k,h)  <- Map.toList (TS._totalHours s)]
+    
   -- | Columns are either straight field (Nothing)
   -- or the name of a payee in in the given dacs map (Just ...)
   columns = [(Nothing,) "Employee", (Nothing,) ("To Pay" :: Text) ]
@@ -377,6 +380,7 @@ displayEmployeeSummary timesheet = let
             ++ [(Nothing,) "Net"]
             ++ deductions
             ++ [(Nothing,) "Gross"]
+            ++ hours
             ++ costs
             ++ [ (Nothing,) "Total Cost"] --  :: [ (Maybe (Text -> Map String TS.Amount), Text) ]
   colFns = map mkColFn summaries
@@ -403,7 +407,7 @@ displayEmployeeSummary timesheet = let
                                     in (formatDouble') <$> value
               _ -> Nothing
     in (, []) <$> value
-  colNames (_, col) = (toHtml col, [])
+  colNames (_, col) = (toHtmlWithBreak col, [])
   in displayTable columns colNames rows >> toWidget [cassius|
          table tr.total
             font-weight: 700

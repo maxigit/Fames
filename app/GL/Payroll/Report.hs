@@ -184,15 +184,18 @@ writePayroo dir ts = do
 paymentSummary :: (Ord e, Ord p) => Timesheet p e -> [EmployeeSummary p e]
 paymentSummary timesheet = let
   -- group shifts and dacs per operators
-  employeeTotal = Map.fromList $ map (\s -> (s^.shiftKey, s)) (groupShiftsBy (^._1)  (timesheet ^. shifts))
+  employeeTotal' = groupBy (^.shiftKey._1) (timesheet ^. shifts)
+  -- group shifts w
+  employeeTotal'' = fmap (groupBy _shiftKey . groupShiftsBy (^._3)) employeeTotal'
+  employeeTotal = fmap (fmap (map $ fmap (const ()))) employeeTotal'' -- replace ShifKey with ()
   employeeDACS' = groupBy (^.dacKey._2)  (timesheet ^. deductionAndCosts)
   employeeDACS = fmap (fmap (fmap fst)) employeeDACS'
   employeeMap = align employeeTotal employeeDACS
   in map mkSummary (Map.toList employeeMap)
   
-mkSummary :: Ord p => (e, These (Shift e) [DeductionAndCost p]) -> EmployeeSummary p e
-mkSummary (emp, These s dacs) = let
-  gross = s ^. cost
+mkSummary :: Ord p => (e, These (Map ShiftType [Shift ()]) [DeductionAndCost p]) -> EmployeeSummary p e
+mkSummary (emp, These shiftMap dacs) = let
+  gross = sum $ concatMap (map _cost) (Map.elems shiftMap)
   net = gross - deduction
   final = net  - netDeduction
   totalCost = gross + cost_
@@ -207,7 +210,7 @@ mkSummary (emp, These s dacs) = let
   deduction = sum (Map.elems deductions)
   cost_ = sum (Map.elems costs)
   netDeduction = sum (Map.elems netDeductions)
-  in EmployeeSummary emp final totalCost net gross deductions netDeductions costs
+  hours = fmap (sum . (map _duration)) shiftMap
+  in EmployeeSummary emp final totalCost net gross deductions netDeductions costs hours
 mkSummary (emp, This s) = mkSummary (emp , These s [])
-mkSummary (emp, That dacs) = mkSummary (emp , These s dacs) where
-  s = Shift emp Nothing 0 0
+mkSummary (emp, That dacs) = mkSummary (emp , These Map.empty dacs)

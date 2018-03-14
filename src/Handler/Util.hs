@@ -1,5 +1,6 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+-- * Overview
 -- | Miscellaneous functions to help rendering
 -- | and/or accessing the database
 module Handler.Util
@@ -28,8 +29,9 @@ module Handler.Util
 , filterEKeyword
 , readUploadOrCacheUTF8
 , locationSet
+, toHtmlWithBreak
 ) where
-
+-- ** Import
 import Foundation
 import Import.NoFoundation
 import Data.Conduit.List (consume)
@@ -368,6 +370,13 @@ timeProgress minDateM maxDateM today startm endm done = do
 tshowM :: Show a => Maybe a -> Text
 tshowM = maybe "" tshow
 
+toHtmlWithBreak :: Text -> Html
+toHtmlWithBreak t  = [shamlet|
+<span>
+  $forall l <- lines t
+    <p>#{l}
+|]
+  
 -- * Cached Value accross session
 -- ** From Front Accounting
 -- Price list used as base to calculate other.

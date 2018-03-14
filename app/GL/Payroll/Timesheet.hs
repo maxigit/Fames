@@ -174,6 +174,7 @@ data EmployeeSummary p e = EmployeeSummary
   , _deductions :: Map p Amount -- dedk
   , _netDeductions :: Map p Amount
   , _costs :: Map p Amount
+  , _totalHours :: Map ShiftType Duration
   } deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
 makeClassy ''EmployeeSummary
 
@@ -297,3 +298,4 @@ instance (Ord p, Semigroup e) => Semigroup (EmployeeSummary p e) where
               (Map.unionWith (+) (a ^. deductions) (b ^. deductions))
               (Map.unionWith (+) (a ^. netDeductions) (b ^. deductions))
               (Map.unionWith (+) (a ^. costs) (b ^. costs))
+              (Map.unionWith (+) (a ^. totalHours) (b ^. totalHours))
