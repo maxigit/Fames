@@ -85,4 +85,25 @@ data GLItem = GLItem
   , gliMemo :: !(Maybe Text) 
   } deriving (Eq, Show)
 
+-- ** Credit Note
+type PurchaseCreditNote = PurchaseInvoice
+
+-- ** Payment
+-- | Payment to a supplier. Items are the 
+data SupplierPayment = SupplierPayment
+  { spSupplier :: !Int
+  , spBankAccount :: !Int
+  , spTotalAmount :: !Double
+  , spDate :: !Day
+  , spReference :: !(Maybe Int)
+  , spBankCharge :: !(Maybe Double)
+  , spAllocatedTransactions :: ![PaymentTransaction]
+  } deriving (Eq, Show)
+
+-- |  A transaction to allocate a payment to
+data PaymentTransaction = PaymentTransaction
+  {ptTransactionNo :: !Int
+  , ptTransactionType :: !Int
+  , ptTransactionAmount :: !Double
+  } deriving (Eq, Show)
   

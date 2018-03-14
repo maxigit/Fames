@@ -38,12 +38,15 @@ import Data.Function(on)
 import Text.Printf(printf)
 import Data.These
 import Data.Bifunctor (bimap)
+import qualified Data.Map as Map
+import Data.Map(Map)
 
 -- * Type alias
 type Amount = Double
 type Duration = Double
 type Hour = Double
 -- * Data
+-- ** Employee
 -- | An employee.
 data Employee = Employee
     { _nickName  :: String -- ^ use to designate an Employee. Must be unique
@@ -52,7 +55,7 @@ data Employee = Employee
 
 makeClassy ''Employee
 
--- ** Payroo
+-- *** Payroo
 -- | Add Payroo information to employee *inherits* from Employee
 data PayrooEmployee = PayrooEmployee
     { _firstName :: String
@@ -63,7 +66,7 @@ data PayrooEmployee = PayrooEmployee
 makeClassy ''PayrooEmployee
 instance HasEmployee PayrooEmployee where
   employee = payrooEmployee'
-  
+
 -- ** Shift
 -- | The main data is a shift, ie a continous amount of time worked
 -- The key represent a way to identify a shift (Employe/Employe,Day) ...
@@ -130,8 +133,8 @@ data DeductionAndCost key = DeductionAndCost
   } deriving (Eq, Read, Show, Functor, Foldable, Traversable)
 makeClassy ''DeductionAndCost
 
-dacDeduction = dacDac . here  
-dacCost = dacDac . there  
+dacDeduction = dacDac . here
+dacCost = dacDac . there
 
 data PayrollFrequency = Weekly | Monthly deriving (Eq, Read, Show, Enum, Bounded, Ord)
 -- | A Timesheet. A functor over employee : allows
@@ -160,6 +163,22 @@ newTimesheet :: PayrollFrequency -> Day -> Timesheet p e
 newTimesheet frequency day = Timesheet [] day frequency []
 
 -- ** Period
+-- ** EmployeeSummary
+-- Summary of payment, deductions and cost for a given Employee
+data EmployeeSummary p e = EmployeeSummary
+  { _sumEmployee :: e 
+  , _finalPayment :: Amount  -- NET minus AFTER net deductions
+  , _totalCost :: Amount  -- Gross + costs
+  , _net :: Amount -- gross minus normal deductions
+  , _gross :: Amount
+  , _deductions :: Map p Amount -- dedk
+  , _netDeductions :: Map p Amount
+  , _costs :: Map p Amount
+  } deriving (Show, Eq, Ord, Functor, Foldable, Traversable)
+makeClassy ''EmployeeSummary
+
+  
+
 -- | Argument type to not mixup adjustTAxYear arguments
 newtype Start = Start Day -- to mixup adjustTaxYear
   deriving (Show, Eq, Ord)
@@ -183,7 +202,7 @@ adjustTaxYear (Start taxStart) start = let
 
 weekNumber :: Start -> Day -> (Integer, Int)
 weekNumber taxStart start = let
-  -- first we need to adjust 
+  -- first we need to adjust
   adjusted = adjustTaxYear taxStart start
   days = diffDays start adjusted
   in (toYear adjusted , fromIntegral $ days  `div` 7 +1)
@@ -213,11 +232,11 @@ adjustPeriodYearFor day period = let
 
 periodNameFor :: Day -> Period ->  String
 periodNameFor day period = let
-  (format, n) = case _periodFrequency period of 
+  (format, n) = case _periodFrequency period of
     Weekly -> ("%02d", snd $ weekNumber (_pStart period ) day )
     Monthly ->  ("M%02d", snd $  monthNumber (_pStart period ) day)
   in printf format n
-  
+
 refFormatter :: (Integer -> String -> String)
              -> Period
              -> Day
@@ -252,12 +271,12 @@ dayRef period day = let
   in case _periodFrequency period of
        Weekly -> dayS
        Monthly -> printf "%s-%02d" dayS monthDay
-      
+
 
 -- * Summarize
 -- ** Group by Key
 instance Semigroup k =>  Semigroup (Shift k) where
-    a <> b = Shift 
+    a <> b = Shift
         (a^.shiftKey <> b^.shiftKey)
         (reduceWith1 getMin <$> nonEmpty ([a,b] ^.. each.startTime._Just))
         (a^.duration + b^.duration)
@@ -267,3 +286,14 @@ instance Semigroup k => Semigroup (DeductionAndCost k) where
   a <> b = DeductionAndCost
                     (a ^. dacKey <> b ^. dacKey)
                     (bimap getSum getSum $ bimap Sum Sum (a ^. dacDac) <> bimap Sum Sum (b ^. dacDac))
+
+instance (Ord p, Semigroup e) => Semigroup (EmployeeSummary p e) where
+  a <> b = EmployeeSummary
+              (a ^. sumEmployee <> b ^. sumEmployee )
+              (a ^. finalPayment + b ^. finalPayment )
+              (a ^. totalCost + b ^. totalCost )
+              (a ^. net + b ^. net )
+              (a ^. gross + b ^. gross )
+              (Map.unionWith (+) (a ^. deductions) (b ^. deductions))
+              (Map.unionWith (+) (a ^. netDeductions) (b ^. deductions))
+              (Map.unionWith (+) (a ^. costs) (b ^. costs))

@@ -23,6 +23,8 @@ import Data.Semigroup.Reducer(Reducer(..))
 import Data.Ord(comparing)
 import Data.Function(on)
 import Data.These
+import Data.Align
+
 
 import System.Directory(createDirectory)
 import System.FilePath((</>))
@@ -177,3 +179,35 @@ writePayroo dir ts = do
            ++ ".csv"
 
     writeFile (dir </> path) (unlines (payroo ts))
+
+-- * Payment summary
+paymentSummary :: (Ord e, Ord p) => Timesheet p e -> [EmployeeSummary p e]
+paymentSummary timesheet = let
+  -- group shifts and dacs per operators
+  employeeTotal = Map.fromList $ map (\s -> (s^.shiftKey, s)) (groupShiftsBy (^._1)  (timesheet ^. shifts))
+  employeeDACS' = groupBy (^.dacKey._2)  (timesheet ^. deductionAndCosts)
+  employeeDACS = fmap (fmap (fmap fst)) employeeDACS'
+  employeeMap = align employeeTotal employeeDACS
+  in map mkSummary (Map.toList employeeMap)
+  
+mkSummary :: Ord p => (e, These (Shift e) [DeductionAndCost p]) -> EmployeeSummary p e
+mkSummary (emp, These s dacs) = let
+  gross = s ^. cost
+  net = gross - deduction
+  final = net  - netDeduction
+  totalCost = gross + cost_
+  netDeductions = Map.empty
+  mkMap getter  = Map.fromList [(payee, amount)
+                               | dac <- dacs
+                               , Just amount <- return (dac ^? getter)
+                               , let payee = dac ^. dacKey
+                               ]
+  deductions = mkMap dacDeduction
+  costs = mkMap dacCost
+  deduction = sum (Map.elems deductions)
+  cost_ = sum (Map.elems costs)
+  netDeduction = sum (Map.elems netDeductions)
+  in EmployeeSummary emp final totalCost net gross deductions netDeductions costs
+mkSummary (emp, This s) = mkSummary (emp , These s [])
+mkSummary (emp, That dacs) = mkSummary (emp , These s dacs) where
+  s = Shift emp Nothing 0 0

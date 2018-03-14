@@ -13,6 +13,7 @@ module Handler.GL.Payroll
 import Import
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
+import Handler.Table
 import qualified GL.Payroll.Timesheet as TS
 import qualified GL.Payroll.Report as TS
 import GL.Payroll.Parser
@@ -23,7 +24,7 @@ import Data.Time.Calendar
 import Lens.Micro.Extras (view, preview)
 import Lens.Micro
 import Data.These
-
+import Data.List.NonEmpty (NonEmpty(..))
 import  qualified WH.FA.Types as WFA
 import  qualified WH.FA.Curl as WFA
 import Control.Monad.Except
@@ -115,7 +116,8 @@ getGLPayrollViewR key = do
                     ]
           dacs =  TS._deductionAndCosts ts'
           dacsReport = ("Deductions and Costs", displayShifts dacs)
-          reports = [(name, report shifts') | (name, report) <- reports'] ++ [dacsReport]
+          summaryReport = ("Summary", displayEmployeeSummary ts')
+          reports = [(name, report shifts') | (name, report) <- reports'] ++ [dacsReport, summaryReport]
       defaultLayout $ [whamlet|
           $forall (name, trans) <- reports
              <div.panel.panel-info>
@@ -152,7 +154,7 @@ renderMain mode paramM status message pre = do
        <form #upload-form role=form method=post action=@{GLR action} enctype=#{upEncType}>
          ^{upFormW}
         <button type="submit" name="#{button}" value="#{tshow mode}" class="btn btn-#{btn}">#{button}
-             |]
+        |]
 -- * Processing
 processTimesheet :: Mode -> (UploadParam -> DocumentHash -> Handler r) -> Handler r
 processTimesheet mode post = do
@@ -314,6 +316,8 @@ itemsForCosts timesheet = let
 
 
 
+-- ** Payment
+-- ** Credit Note
 -- * Rendering
 displayPendingSheets :: Handler Widget
 displayPendingSheets = do
@@ -358,7 +362,48 @@ displayShifts shifts = let
           <p> #{line}
      |]
 
-
+ -- | Displays a table with all payment information for each employee t
+displayEmployeeSummary :: TS.Timesheet Text Text -> Widget
+displayEmployeeSummary timesheet = let
+  summaries = TS.paymentSummary timesheet
+  toCols getter = map (Just getter,)  .  Map.keys $ mconcat $ map getter summaries
+  deductions =  toCols TS._deductions
+  netDeductions =  toCols TS._netDeductions
+  costs =  toCols TS._costs
+  -- | Columns are either straight field (Nothing)
+  -- or the name of a payee in in the given dacs map (Just ...)
+  columns = [(Nothing,) "Employee", (Nothing,) ("To Pay" :: Text) ]
+            ++ netDeductions
+            ++ [(Nothing,) "Net"]
+            ++ deductions
+            ++ [(Nothing,) "Gross"]
+            ++ costs
+            ++ [ (Nothing,) "Total Cost"] --  :: [ (Maybe (Text -> Map String TS.Amount), Text) ]
+  colFns = map mkColFn summaries
+  rows = (zip colFns (map (const []) summaries)) ++ totalRows
+  -- we computes total rows as a list, as it could be empty
+  totalRows = case map (\s -> s { TS._sumEmployee = ()}) summaries of
+             [] -> []
+             (x:xs) -> let
+               total = (sconcat (x :| xs)) { TS._sumEmployee = "Total"}
+               totalRow col = mkColFn total col
+               in [(totalRow, ["total"])]
+  mkColFn summary@TS.EmployeeSummary{..}  col = let
+    value = case col of
+              (Nothing, "Employee") -> Just (toHtml $ _sumEmployee)
+              (Nothing, "Net") -> Just (toHtml $ tshow _net)
+              (Nothing, "Gross") -> Just (toHtml $ tshow _gross)
+              (Nothing, "To Pay") -> Just (toHtml $ tshow _finalPayment)
+              (Nothing, "Total Cost") -> Just (toHtml $ tshow _totalCost)
+              (Just getter, payee) -> let value =  lookup payee (getter summary)
+                                    in (toHtml) <$> value
+              _ -> Nothing
+    in (, []) <$> value
+  colNames (_, col) = (toHtml col, [])
+  in displayTable columns colNames rows >> toWidget [cassius|
+         table tr.total
+            font-weight: 700
+            |]
 
 -- * DB access
 -- | Save a timesheet.

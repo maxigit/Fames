@@ -8,6 +8,7 @@ module WH.FA.Curl
 , testFAConnection
 , postGRN
 , postPurchaseInvoice
+, postSupplierPayment
 ) where
 
 import ClassyPrelude
@@ -213,15 +214,20 @@ newAdjustmentURL = inventoryAdjustmentURL <> "?NewAdjustment=1"
 ajaxInventoryAdjustmentURL  :: (?baseURL :: URLString) => URLString
 ajaxInventoryAdjustmentURL = toAjax inventoryAdjustmentURL
 -- *** Purchases
-grnURL :: (?baseURL :: URLString) => URLString
+grnURL, newGRNURL, ajaxGRNURL :: (?baseURL :: URLString) => URLString
 grnURL = ?baseURL <> "/purchasing/po_entry_items.php"
 newGRNURL = grnURL <> "?NewGRN=Yes"
 ajaxGRNURL = toAjax grnURL
 
-purchaseInvoiceURL :: (?baseURL :: URLString) => URLString
+purchaseInvoiceURL, newPurchaseInvoiceURL, ajaxPurchaseInvoiceURL :: (?baseURL :: URLString) => URLString
 purchaseInvoiceURL = ?baseURL <> "/purchasing/supplier_invoice.php"
 newPurchaseInvoiceURL = purchaseInvoiceURL <> "?New=Yes"
 ajaxPurchaseInvoiceURL = toAjax purchaseInvoiceURL
+
+supplierPaymentURL, newSupplierURL, ajaxSupplierPaymentURL :: (?baseURL :: URLString) => URLString
+supplierPaymentURL = ?baseURL <> "/purchasing/supplier_payment.php"
+newSupplierURL = supplierPaymentURL
+ajaxSupplierPaymentURL = toAjax supplierPaymentURL
 -- ** Items
 -- *** Stock Adjustment
 addAdjustmentDetail :: (?curl :: Curl, ?baseURL:: String)
@@ -291,7 +297,7 @@ addLocationTransferDetail LocationTransferDetail{..} = do
 
 
 -- ** Purchase
---- *** GRN
+-- *** GRN
 postGRN :: FAConnectInfo -> GRN -> IO (Either Text Int)
 postGRN connectInfo grn = do
   let ?baseURL = faURL connectInfo
@@ -326,7 +332,7 @@ addGRNDetail GRNDetail{..} = do
                               ] : method_POST
   curlSoup ajaxGRNURL fields 200 "add items"
   
---- *** Invoice
+-- *** Invoice
 postPurchaseInvoice :: FAConnectInfo -> PurchaseInvoice -> IO (Either Text Int)
 postPurchaseInvoice connectInfo PurchaseInvoice{..} = do
   let ?baseURL = faURL connectInfo
@@ -414,3 +420,32 @@ extractDeliveryItems tags deliveryId'ns = do -- Either
    
   
 
+  
+-- *** Payment
+postSupplierPayment :: FAConnectInfo -> SupplierPayment -> IO (Either Text Int)
+postSupplierPayment connectInfo SupplierPayment{..} = do
+  let ?baseURL = faURL connectInfo
+  runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
+    _ <- curlSoup newSupplierURL method_GET
+                  200 "Problem creating supplier payment"
+    -- we need to change the supplier and reception date to
+    -- make correct transactions appears
+    response <- curlSoup ajaxSupplierPaymentURL (curlPostFields [ "supplier_id" <=> spSupplier
+                                                                , "bank_account" <=> spBankAccount
+                                                                , "DatePaid" <=> spDate
+                                                                ] : method_POST)
+                        200 "Problem setting payment parameters"
+    trans <- addSupplierPaymentTransactionAllocations spAllocatedTransactions
+    let process = curlPostFields [ "supplier_id" <=> spSupplier
+                                 , "bank_account" <=> spBankAccount
+                                 , "DatePaid" <=> spDate
+                                 , "amount" <=> spTotalAmount
+                                 , "ref" <=> spReference
+                                 ] : method_POST
+    tags <- curlSoup (ajaxSupplierPaymentURL) process 200 "Create Supplier Payment"
+    case extractAddedId' "AddedID" "purchase invoice" tags of
+      Left e -> throwError $ "Purchase invoice creation failed:\n" <> e
+      Right faId -> return faId
+    
+-- | Allocate given transaction to the current payment
+addSupplierPaymentTransactionAllocations = undefined
