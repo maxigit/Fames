@@ -30,6 +30,7 @@ import  qualified WH.FA.Curl as WFA
 import Control.Monad.Except
 import Text.Printf(printf)
 import qualified Data.Map as Map
+import Handler.Util
 
 
 -- * Types
@@ -122,7 +123,8 @@ getGLPayrollViewR key = do
           $forall (name, trans) <- reports
              <div.panel.panel-info>
                <div.panel-heading> #{name}
-               <div.panel-body> ^{trans}
+               <div.panel-body>
+                <div>^{trans}
           $if (timesheetStatus (entityVal ts) /= Process)
             <form role=form method=post action=@{GLR $ GLPayrollToFAR key}>
               <button type="submit" .btn.btn-danger>Save To FrontAccounting
@@ -380,9 +382,9 @@ displayEmployeeSummary timesheet = let
             ++ [(Nothing,) "Net"]
             ++ deductions
             ++ [(Nothing,) "Gross"]
-            ++ hours
             ++ costs
             ++ [ (Nothing,) "Total Cost"] --  :: [ (Maybe (Text -> Map String TS.Amount), Text) ]
+            ++ hours
   colFns = map mkColFn summaries
   formatDouble' x | abs x < 1e-2 = ""
                   | x < 0 = [shamlet|<span.text-danger>#{formatDouble x}|]
@@ -398,17 +400,22 @@ displayEmployeeSummary timesheet = let
                in [(totalRow, ["total"])]
   mkColFn summary@TS.EmployeeSummary{..}  col = let
     value = case col of
-              (Nothing, "Employee") -> Just (toHtml $ _sumEmployee)
-              (Nothing, "Net") -> Just (formatDouble' _net)
-              (Nothing, "Gross") -> Just (formatDouble' _gross)
-              (Nothing, "To Pay") -> Just (formatDouble' _finalPayment)
-              (Nothing, "Total Cost") -> Just (formatDouble' _totalCost)
+              (Nothing, "Employee") -> Just (toHtml $ _sumEmployee, [])
+              (Nothing, "Net") -> Just (formatDouble' _net, ["text-right"])
+              (Nothing, "Gross") -> Just (formatDouble' _gross, ["text-right"])
+              (Nothing, "To Pay") -> Just (formatDouble' _finalPayment, ["text-right"])
+              (Nothing, "Total Cost") -> Just (formatDouble' _totalCost, ["text-right"])
               (Just getter, payee) -> let value =  lookup payee (getter summary)
-                                    in (formatDouble') <$> value
+                                    in ((, ["text-right"]).formatDouble') <$> value
               _ -> Nothing
-    in (, []) <$> value
+    in value
   colNames (_, col) = (toHtmlWithBreak col, [])
-  in displayTable columns colNames rows >> toWidget [cassius|
+  table =  displayTableRowsAndHeader columns colNames rows 
+  in [whamlet|
+            <table.table.table-bordered.table-striped.table-hover>
+             ^{table}
+            |]
+     >> toWidget [cassius|
          table tr.total
             font-weight: 700
             |]
