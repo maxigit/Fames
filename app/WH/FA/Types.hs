@@ -95,7 +95,7 @@ data SupplierPayment = SupplierPayment
   , spBankAccount :: !Int
   , spTotalAmount :: !Double
   , spDate :: !Day
-  , spReference :: !(Maybe Int)
+  , spReference :: !(Maybe Text)
   , spBankCharge :: !(Maybe Double)
   , spAllocatedTransactions :: ![PaymentTransaction]
   } deriving (Eq, Show)

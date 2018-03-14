@@ -126,8 +126,8 @@ extractAddedId' addedTag info tags = let
   in case metas of
       [meta:_] -> let
         url = fromAttrib "content" meta
-        in case mrSubList $ url =~ (addedTag <> "=([0-9]+)$" :: String) of
-             [s] -> Right $ Prelude.read  (traceId s)
+        in case mrSubList $ url =~ (addedTag <> "=([0-9]+)(&|$)" :: String) of
+             [s,_] -> Right $ Prelude.read  (traceId s)
              _ -> Left (pack $ "Error, can't find " ++ info ++ " Id.")
       _ -> Left (fromMaybe "" $ extractErrorMsgFromSoup tags)
         
@@ -224,9 +224,9 @@ purchaseInvoiceURL = ?baseURL <> "/purchasing/supplier_invoice.php"
 newPurchaseInvoiceURL = purchaseInvoiceURL <> "?New=Yes"
 ajaxPurchaseInvoiceURL = toAjax purchaseInvoiceURL
 
-supplierPaymentURL, newSupplierURL, ajaxSupplierPaymentURL :: (?baseURL :: URLString) => URLString
+supplierPaymentURL, newSupplierPaymentURL, ajaxSupplierPaymentURL :: (?baseURL :: URLString) => URLString
 supplierPaymentURL = ?baseURL <> "/purchasing/supplier_payment.php"
-newSupplierURL = supplierPaymentURL
+newSupplierPaymentURL = supplierPaymentURL
 ajaxSupplierPaymentURL = toAjax supplierPaymentURL
 -- ** Items
 -- *** Stock Adjustment
@@ -426,26 +426,33 @@ postSupplierPayment :: FAConnectInfo -> SupplierPayment -> IO (Either Text Int)
 postSupplierPayment connectInfo SupplierPayment{..} = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
-    _ <- curlSoup newSupplierURL method_GET
+    _ <- curlSoup newSupplierPaymentURL method_GET
                   200 "Problem creating supplier payment"
     -- we need to change the supplier and reception date to
     -- make correct transactions appears
     response <- curlSoup ajaxSupplierPaymentURL (curlPostFields [ "supplier_id" <=> spSupplier
+                                                                , Just "_supplier_id_update=1"
                                                                 , "bank_account" <=> spBankAccount
+                                                                , Just "_bank_account_update=1"
                                                                 , "DatePaid" <=> spDate
                                                                 ] : method_POST)
-                        200 "Problem setting payment parameters"
-    trans <- addSupplierPaymentTransactionAllocations spAllocatedTransactions
+                  200 "Problem  setting payment supplier"
+    let ref = case extractInputValue "ref" response of
+                  Nothing -> error "Can't find Payment reference"
+                  Just r -> r
+    -- trans <- addSupplierPaymentTransactionAllocations spAllocatedTransactions
     let process = curlPostFields [ "supplier_id" <=> spSupplier
                                  , "bank_account" <=> spBankAccount
                                  , "DatePaid" <=> spDate
                                  , "amount" <=> spTotalAmount
-                                 , "ref" <=> spReference
+                                 , "ref" <=> fromMaybe ref spReference
+                                 , "charge" <=> spBankCharge
+                                 , Just "ProcessSuppPayment=1"
                                  ] : method_POST
     tags <- curlSoup (ajaxSupplierPaymentURL) process 200 "Create Supplier Payment"
-    case extractAddedId' "AddedID" "purchase invoice" tags of
-      Left e -> throwError $ "Purchase invoice creation failed:\n" <> e
+    case extractAddedId' "AddedID" "supplier payment" tags of
+      Left e -> throwError $ "Supplier payment creation failed:\n" <> e
       Right faId -> return faId
     
 -- | Allocate given transaction to the current payment
-addSupplierPaymentTransactionAllocations = undefined
+-- addSupplierPaymentTransactionAllocations = return ([])
