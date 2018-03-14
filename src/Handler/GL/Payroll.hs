@@ -380,6 +380,10 @@ displayEmployeeSummary timesheet = let
             ++ costs
             ++ [ (Nothing,) "Total Cost"] --  :: [ (Maybe (Text -> Map String TS.Amount), Text) ]
   colFns = map mkColFn summaries
+  formatDouble' x | abs x < 1e-2 = ""
+                  | x < 0 = [shamlet|<span.text-danger>#{formatDouble x}|]
+                  | otherwise = toHtml $ formatDouble x
+          
   rows = (zip colFns (map (const []) summaries)) ++ totalRows
   -- we computes total rows as a list, as it could be empty
   totalRows = case map (\s -> s { TS._sumEmployee = ()}) summaries of
@@ -391,12 +395,12 @@ displayEmployeeSummary timesheet = let
   mkColFn summary@TS.EmployeeSummary{..}  col = let
     value = case col of
               (Nothing, "Employee") -> Just (toHtml $ _sumEmployee)
-              (Nothing, "Net") -> Just (toHtml $ tshow _net)
-              (Nothing, "Gross") -> Just (toHtml $ tshow _gross)
-              (Nothing, "To Pay") -> Just (toHtml $ tshow _finalPayment)
-              (Nothing, "Total Cost") -> Just (toHtml $ tshow _totalCost)
+              (Nothing, "Net") -> Just (formatDouble' _net)
+              (Nothing, "Gross") -> Just (formatDouble' _gross)
+              (Nothing, "To Pay") -> Just (formatDouble' _finalPayment)
+              (Nothing, "Total Cost") -> Just (formatDouble' _totalCost)
               (Just getter, payee) -> let value =  lookup payee (getter summary)
-                                    in (toHtml) <$> value
+                                    in (formatDouble') <$> value
               _ -> Nothing
     in (, []) <$> value
   colNames (_, col) = (toHtml col, [])
