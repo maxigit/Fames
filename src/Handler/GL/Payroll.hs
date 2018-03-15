@@ -60,8 +60,9 @@ getGLPayrollR = do
 postGLPayrollValidateR :: Handler Html
 postGLPayrollValidateR = processTimesheet Validate go
   where go param key = do
+          settings <- appSettings <$> getYesod
           timesheetE <- parseTimesheetH param
-          case timesheetE of
+          case validateTimesheet (appPayroll settings) =<< timesheetE of
             Left e -> setError (toHtml e) >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a timesheet") (return ())
             Right timesheet -> do
                   (documentKey'msgM) <- runDB $ loadAndCheckDocumentKey key
@@ -664,7 +665,7 @@ employeePaymentRef settings timesheet name = let
   in pack (TS.shortRef period day) <> "/" <> name
 
 invoiceRef settings timesheet = let
-  period = timesheetPeriod settings timesheet
+  period = timesheetPeriod settings timesheet 
   day = TS._periodStart timesheet
   in pack $ TS.longRef period day
 
@@ -676,3 +677,17 @@ timesheetPeriod settings timesheet = let
     TS.Monthly -> firstTaxMonth settings
   original = TS.Period frequency start
   in TS.adjustPeriodYearFor day original
+
+-- check the timesheet date matchs the beginning of a period
+validateTimesheet settings timesheet = let
+  start = TS._periodStart timesheet
+  valid = case TS._frequency timesheet of
+    TS.Weekly -> diffDays start (firstTaxWeek settings) `mod` 7 == 0
+    TS.Monthly -> let (_,_,day) = toGregorian start
+                      (_,_,day') = toGregorian (firstTaxMonth settings)
+                  in day == day' 
+  in if valid
+     then Right timesheet
+     else Left "Timesheet start doesn't match  beginning of a period"
+
+  
