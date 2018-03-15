@@ -13,7 +13,7 @@ data EmployeeSettings = EmployeeSettings
   , faSKU :: Text
   , dimension1 :: Maybe Int
   , dimension2 :: Maybe Int
-  } deriving (Show, Read)
+  } deriving (Show, Read , Eq, Ord)
   
 
 -- | External party associated with deductions and costs
@@ -22,12 +22,12 @@ data PayrollExternalSettings = PayrollExternalSettings
   ,  cost :: Maybe DACSettings
   ,  deduction :: Maybe DACSettings
   ,  glAccount :: Int
-  } deriving (Show, Read)
+  } deriving (Show, Read, Eq, Ord)
 
 data DACSettings = DACSettings
   { invoiceAccount :: Int
   , creditAccount :: Int
-  } deriving (Show,Read)
+  } deriving (Show,Read, Eq, Ord)
 
 data PayrollSettings = PayrollSettings
   { employees :: Map Text EmployeeSettings
@@ -36,8 +36,9 @@ data PayrollSettings = PayrollSettings
   , grnSupplier :: Int
   , grnHolidayLocation :: Text
   , grnWorkLocation :: Text
+  , wagesBankAccount :: Int
   , externals :: Map Text PayrollExternalSettings
-  } deriving (Show, Read)
+  } deriving (Show, Read, Eq, Ord)
 
 -- * JSON
 $(deriveJSON defaultOptions ''EmployeeSettings)

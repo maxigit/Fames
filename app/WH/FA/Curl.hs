@@ -445,7 +445,7 @@ postSupplierPayment connectInfo SupplierPayment{..} = do
     let ref = case extractInputValue "ref" response of
                   Nothing -> error "Can't find Payment reference"
                   Just r -> r
-    allocFields <-  ExceptT . return $ makeSupplierPaymentAlloctionFields response spAllocatedTransactions
+    (allocFields, maxAllocated) <-  ExceptT . return $ makeSupplierPaymentAlloctionFields response spAllocatedTransactions
     let process = curlPostFields [ "supplier_id" <=> spSupplier
                                  , "bank_account" <=> spBankAccount
                                  , "DatePaid" <=> spDate
@@ -453,7 +453,7 @@ postSupplierPayment connectInfo SupplierPayment{..} = do
                                  , "ref" <=> fromMaybe ref spReference
                                  , "charge" <=> spBankCharge
                                  , Just "ProcessSuppPayment=1"
-                                 , Just "TotalNumberOfAllocs=5"
+                                 , "TotalNumberOfAllocs" <=> maxAllocated
                                  ] : method_POST
     tags <- curlSoup (ajaxSupplierPaymentURL) (process ++ allocFields) 200 "Create Supplier Payment"
     case extractAddedId' "AddedID" "supplier payment" tags of
@@ -461,7 +461,6 @@ postSupplierPayment connectInfo SupplierPayment{..} = do
       Right faId -> return faId
     
 -- | extracts the field name and the amount left to allocate corresponding to the given invoice
--- extractSupplierPaymentToAllocateInformation :: TagSoup -> Int -> FATransType -> Either Text (Text, Amount) 
 extractSupplierPaymentToAllocateInformation :: [Tag String]
                                             ->  Map (Int, FATransType)  (Text, Double) 
 extractSupplierPaymentToAllocateInformation tags =
@@ -513,12 +512,19 @@ tagTextToAmount tag = let
 
 -- | In order to not over allocate many payments to the same transaction
 -- all allocation need to be done in one go
-makeSupplierPaymentAlloctionFields :: [Tag String] -> [PaymentTransaction] -> Either Text [CurlOption]
+makeSupplierPaymentAlloctionFields :: [Tag String] -> [PaymentTransaction] -> Either Text ([CurlOption], Int)
 makeSupplierPaymentAlloctionFields tags transactions = do
   let allocMap = extractSupplierPaymentToAllocateInformation tags
-  flip evalStateT allocMap $ do
+      ns = [ n+1
+           | (fieldname, _) <- toList allocMap
+           , Just n' <- return $ stripPrefix "amount" fieldname
+           , Just n  <- return $ readMay n'
+           ]
+      maxAlloc = maximum $ ncons 0 ns
+  fields <- flip evalStateT allocMap $ do
     fields <- mapM makeSupplierPaymentAlloctionField  (groupPaymentTransactions transactions)
     return $ mergePostFields fields
+  return (fields, maxAlloc)
 -- | In order to not over allocate many payments to one invoice
 -- we need to update the available amount for each transaction.
 -- Thus the state monad

@@ -42,6 +42,7 @@ payroll:
   grnSupplier: 65
   grnHolidayLocation: LOST
   grnWorkLocation: DEF
+  wagesBankAccount: 1
   externals: {}
       
 

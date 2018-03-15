@@ -32,6 +32,7 @@ type Pairs a b = [(a,b)]
 data EventType = StockAdjustmentE
                | PayrollShiftE
                | PayrollItemE
+               | TimesheetE
   deriving (Eq, Show, Enum)
 
 -- | derivePersistField uses String instead of an INt

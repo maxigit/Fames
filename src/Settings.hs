@@ -158,7 +158,7 @@ instance FromJSON AppSettings  where
         appPayroll <- o .:? "payroll" .!= PayrollSettings (Map.fromList [])
                                                           (fromGregorian 2017 03 31)
                                                           (fromGregorian 2017 03 26)
-                                                          0 "" ""
+                                                          0 "" "" 0
                                                           (Map.fromList [])
           
         

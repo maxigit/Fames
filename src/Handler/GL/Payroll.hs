@@ -22,7 +22,7 @@ import Data.Text (strip)
 import Database.Persist.MySQL
 import Data.Time.Calendar
 import Lens.Micro.Extras (view, preview)
-import Lens.Micro
+import Lens.Micro hiding ((<&>))
 import Data.These
 import Data.List.NonEmpty (NonEmpty(..))
 import  qualified WH.FA.Types as WFA
@@ -194,14 +194,17 @@ postTimesheetToFA key timesheet shifts items = do
       let tsOId = modelToTimesheetOpId timesheet shifts items
       runExceptT $ do
          ts <- ExceptT $ timesheetOpIdToO'SH tsOId
-      -- Right ts <- timesheetOpIdToO'SH tsOId
          let tsSkus = ( \(op,setting, shiftKey) -> ( TS.Sku . unpack . faSKU $  setting
                                                  , shiftKey
                                                  )
                       ) <$> ts
+             tsPayment =  (\(Entity _ op, settings, shiftKey) -> operatorNickname op) <$> ts
          grnIds <- saveGRNs settings key tsSkus
          return grnIds
-         saveInvoice settings ts grnIds
+         invoiceId <- saveInvoice settings ts grnIds
+         paymentIds <- savePayments settings key tsPayment invoiceId
+         traceShowM ("PAYMENTS", paymentIds)
+         return invoiceId
 -- ** GRN
 saveGRNs :: AppSettings -> TimesheetId -> TS.Timesheet _ (TS.Sku, PayrollShiftId) -> ExceptT Text Handler [(Int, [PayrollShiftId])]
 saveGRNs settings key timesheet = do
@@ -310,15 +313,64 @@ itemsForCosts timesheet = let
                   (Just memo)
   in map mkItem costs
 
-
-
-
-
-
-
-
-
 -- ** Payment
+savePayments :: Ord p
+             => AppSettings
+             -> TimesheetId
+             -> TS.Timesheet p Text
+             -> Int
+             -> ExceptT Text Handler [Int]
+savePayments settings key timesheet invoiceId = do
+  today <- utctDay <$> liftIO getCurrentTime
+  let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
+      psettings = appPayroll settings
+      ref = employeePaymentRef psettings timesheet
+      payments = employeePayments ref today psettings timesheet (Just invoiceId)
+
+  paymentIds <- mapM (ExceptT . liftIO . WFA.postSupplierPayment  connectInfo) payments
+  ExceptT $ runDB $ do
+    insertMany_ [TransactionMap ST_SUPPAYMENT faId TimesheetE (fromIntegral $ unSqlBackendKey $ unTimesheetKey key)
+                | faId <- paymentIds
+                ]
+  return  paymentIds
+
+-- | Create employee payments and allocated them
+-- to the given invoice if given
+employeePayments :: Ord p
+                 => (Text -> Text)
+                 -> Day
+                 -> PayrollSettings
+                 -> (TS.Timesheet p Text)
+                 -> Maybe Int
+                 -> [WFA.SupplierPayment]
+employeePayments ref paymentDate settings timesheet invoiceM =
+  let summaries =  TS.paymentSummary timesheet
+  in mapMaybe (employeePayment ref paymentDate settings invoiceM) summaries
+  
+
+employeePayment :: Ord p
+                => (Text -> Text)
+                -> Day
+                -> PayrollSettings
+                -> Maybe Int
+                -> TS.EmployeeSummary p Text
+                -> Maybe WFA.SupplierPayment
+employeePayment _ _ _ _ summary | TS._finalPayment summary <= 0 = Nothing
+employeePayment ref paymentDate settings invM summary = let 
+  amount = TS._finalPayment summary
+  allocations = maybeToList $ invM <&> \inv -> WFA.PaymentTransaction inv ST_SUPPINVOICE amount
+  payment = WFA.SupplierPayment (grnSupplier settings)
+                                (wagesBankAccount settings)
+                                amount
+                                paymentDate
+                                (Just $ ref $ TS._sumEmployee summary)
+                                (Just 0) -- charge
+                                allocations
+  in Just payment
+
+
+  
+
 -- ** Credit Note
 -- * Rendering
 displayPendingSheets :: Handler Widget
@@ -595,6 +647,11 @@ grnRef settings timesheet day shiftType = let
   periodRef =  TS.shortRef period day
   in pack $ periodRef <> "-" <> TS.dayRef period day <> "-" <> show shiftType
 
+
+employeePaymentRef settings timesheet name = let
+  period = timesheetPeriod settings timesheet
+  day = TS._periodStart timesheet
+  in pack (TS.shortRef period day) <> "/" <> name
 
 invoiceRef settings timesheet = let
   period = timesheetPeriod settings timesheet
