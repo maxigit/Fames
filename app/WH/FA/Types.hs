@@ -1,7 +1,11 @@
 --  | Types corresponding to stock related Frontaccounting concepts.
-module WH.FA.Types where
+module WH.FA.Types
+( module WH.FA.Types
+, FATransType(..)
+) where
 
 import ClassyPrelude
+import ModelField
 
 -- * Connection parametes
 data FAConnectInfo = FAConnectInfo
@@ -103,7 +107,7 @@ data SupplierPayment = SupplierPayment
 -- |  A transaction to allocate a payment to
 data PaymentTransaction = PaymentTransaction
   {ptTransactionNo :: !Int
-  , ptTransactionType :: !Int
+  , ptTransactionType :: !FATransType
   , ptTransactionAmount :: !Double
   } deriving (Eq, Show)
   

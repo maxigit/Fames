@@ -68,7 +68,7 @@ data FATransType
   | ST_SALESQUOTE
   | ST_COSTUPDATE
   | ST_DIMENSION
-  deriving (Eq, Show)
+  deriving (Eq, Show, Read, Ord, Bounded)
 
 instance Enum FATransType where
   fromEnum ST_JOURNAL = 0

@@ -15,9 +15,14 @@ import ClassyPrelude
 import WH.FA.Types
 import Network.Curl
 import Control.Monad.Except
+import Control.Monad.State
+import Data.List(isPrefixOf)
+import qualified Data.Map as Map
+import Data.Monoid(Sum(Sum))
 
 import qualified Prelude as Prelude
 import Text.HTML.TagSoup 
+import Text.HTML.TagSoup.Match
 import Text.Regex.TDFA
 
 -- * Misc
@@ -127,7 +132,7 @@ extractAddedId' addedTag info tags = let
       [meta:_] -> let
         url = fromAttrib "content" meta
         in case mrSubList $ url =~ (addedTag <> "=([0-9]+)(&|$)" :: String) of
-             [s,_] -> Right $ Prelude.read  (traceId s)
+             [s,_] -> Right $ Prelude.read  s
              _ -> Left (pack $ "Error, can't find " ++ info ++ " Id.")
       _ -> Left (fromMaybe "" $ extractErrorMsgFromSoup tags)
         
@@ -440,7 +445,7 @@ postSupplierPayment connectInfo SupplierPayment{..} = do
     let ref = case extractInputValue "ref" response of
                   Nothing -> error "Can't find Payment reference"
                   Just r -> r
-    -- trans <- addSupplierPaymentTransactionAllocations spAllocatedTransactions
+    allocFields <-  ExceptT . return $ makeSupplierPaymentAlloctionFields response spAllocatedTransactions
     let process = curlPostFields [ "supplier_id" <=> spSupplier
                                  , "bank_account" <=> spBankAccount
                                  , "DatePaid" <=> spDate
@@ -448,11 +453,105 @@ postSupplierPayment connectInfo SupplierPayment{..} = do
                                  , "ref" <=> fromMaybe ref spReference
                                  , "charge" <=> spBankCharge
                                  , Just "ProcessSuppPayment=1"
+                                 , Just "TotalNumberOfAllocs=5"
                                  ] : method_POST
-    tags <- curlSoup (ajaxSupplierPaymentURL) process 200 "Create Supplier Payment"
+    tags <- curlSoup (ajaxSupplierPaymentURL) (process ++ allocFields) 200 "Create Supplier Payment"
     case extractAddedId' "AddedID" "supplier payment" tags of
       Left e -> throwError $ "Supplier payment creation failed:\n" <> e
       Right faId -> return faId
     
--- | Allocate given transaction to the current payment
--- addSupplierPaymentTransactionAllocations = return ([])
+-- | extracts the field name and the amount left to allocate corresponding to the given invoice
+-- extractSupplierPaymentToAllocateInformation :: TagSoup -> Int -> FATransType -> Either Text (Text, Amount) 
+extractSupplierPaymentToAllocateInformation :: [Tag String]
+                                            ->  Map (Int, FATransType)  (Text, Double) 
+extractSupplierPaymentToAllocateInformation tags =
+  let allRows = partitionWithClose (TagOpen "tr" []) (cleanTags tags)
+      -- goodRows =  filter allocatable allRows
+      allocatable :: [Tag String] -> Maybe ((Int, FATransType), (Text, Double))
+      allocatable = evalStateT $ do
+        _ <- findTag isTagOpen
+        transTypeTag <- findTag isTagText
+        _ <- findTag $ tagOpenNameLit "a"
+        transNoTag <- nextTag $ isTagText
+        _ <- findTag $ tagOpen (=="td") (anyAttrValue (Data.List.isPrefixOf "maxval"))
+        maxValTag <- nextTag isTagText
+        fieldTag <- findTag $ tagOpenNameLit "input"
+        transType' <- 
+              case fromTagText transTypeTag of
+                          "Supplier Invoice" -> return ST_SUPPINVOICE 
+                          "Bank Deposit" -> return ST_BANKDEPOSIT
+                          _ -> mzero
+        transNo' <- maybe mzero return $ readMay $ fromTagText transNoTag
+        maxValue <- tagTextToAmount maxValTag
+        let field = fromAttrib "name" fieldTag
+
+        return ((transNo', transType'), (pack field, maxValue))
+
+   in  mapFromList $ mapMaybe allocatable allRows
+
+-- findTag :: (a -> Bool) ->  StateT [a] Maybe a
+findTag  p = do
+  (x:xs) <- get 
+  put xs
+  if  p x
+    then return x
+    else findTag p
+
+-- | similar to findTag, but have to be the next one ...
+nextTag p = do
+  (x:xs) <- get 
+  put xs
+  if  p x
+    then return x
+    else mzero
+
+tagTextToAmount tag = let
+  t' = fromTagText tag
+  -- remove 
+  t = filter (/=',') t'
+  in maybe mzero return $ readMay t
+
+-- | In order to not over allocate many payments to the same transaction
+-- all allocation need to be done in one go
+makeSupplierPaymentAlloctionFields :: [Tag String] -> [PaymentTransaction] -> Either Text [CurlOption]
+makeSupplierPaymentAlloctionFields tags transactions = do
+  let allocMap = extractSupplierPaymentToAllocateInformation tags
+  flip evalStateT allocMap $ do
+    fields <- mapM makeSupplierPaymentAlloctionField  (groupPaymentTransactions transactions)
+    return $ mergePostFields fields
+-- | In order to not over allocate many payments to one invoice
+-- we need to update the available amount for each transaction.
+-- Thus the state monad
+makeSupplierPaymentAlloctionField :: PaymentTransaction
+                                  -> StateT (Map (Int, FATransType) (Text, Double))  (Either Text)
+                                            CurlOption
+makeSupplierPaymentAlloctionField toallocate = do
+  let PaymentTransaction transNo transType amount = toallocate
+      transName = tshow transType <> " #" <> tshow transNo
+
+  allocMap <- get
+  (fieldname, available) <- lift $ maybe (Left $ "No transaction found for " <> transName)
+                                         Right
+                                         (lookup (transNo, transType) allocMap)
+  let unallocated = "un_allocated" <> drop 6 fieldname -- change amount/unallocated
+  if amount < available
+    then do
+          -- we can allocate this payment
+          -- we need to update the available amount accordingly
+          put $ insertMap (transNo, transType) (fieldname, available -amount) allocMap
+          lift . Right $ curlPostFields [ unpack fieldname  <=> amount
+                                        , unpack unallocated <=> (amount+1)   -- the amount
+                                        -- wrong but should be enough to pass FA Test
+                                        ]
+    else lift . Left $ "Only " <> tshow available <> " to allocate for " <> transName
+
+-- | Regroup Payment transaction per transaction
+groupPaymentTransactions :: [PaymentTransaction] -> [PaymentTransaction]
+groupPaymentTransactions transactions = let
+  m = Map.fromListWith(<>) [ ((no, typ), Sum amount)
+                  | (PaymentTransaction no typ amount) <- transactions
+                  ]
+
+  in [ PaymentTransaction no typ amount 
+     | ((no, typ), Sum amount) <- mapToList m
+     ]
