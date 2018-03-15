@@ -67,7 +67,10 @@ postGLPayrollValidateR = processTimesheet Validate go
                   (documentKey'msgM) <- runDB $ loadAndCheckDocumentKey key
                   forM documentKey'msgM  $ \(Entity _ doc, msg) -> do
                                  setWarning msg >> return ""
-                  renderMain Save (Just param) ok200 (setInfo "Enter a timesheet") (displayTimesheet timesheet)
+                  renderMain Save (Just param) ok200 (setInfo "Enter a timesheet") (do
+                        displayTimesheet timesheet
+                        displayEmployeeSummary (timesheetPayrooForSummary timesheet)
+                        )
 
 postGLPayrollSaveR = processTimesheet Save go where
   go param key = do
@@ -76,9 +79,9 @@ postGLPayrollSaveR = processTimesheet Save go where
          Left e -> setError (toHtml e)
                    >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a timesheet") (return ())
          Right timesheet -> do
-              tKey <- saveTimeSheet key timesheet
+              (tKey, ref) <- saveTimeSheet key timesheet
               let tId = unSqlBackendKey (unTimesheetKey tKey)
-              pushLinks ("View Timesheet #" <> tshow tId)
+              pushLinks ("View Timesheet " <> ref)
                         (GLR $ GLPayrollViewR tId)
                         []
               renderMain Validate Nothing created201 (setInfo "Timesheet saved sucessfully") (return ())
@@ -332,6 +335,7 @@ savePayments settings key timesheet invoiceId = do
     insertMany_ [TransactionMap ST_SUPPAYMENT faId TimesheetE (fromIntegral $ unSqlBackendKey $ unTimesheetKey key)
                 | faId <- paymentIds
                 ]
+    return (Right())
   return  paymentIds
 
 -- | Create employee payments and allocated them
@@ -474,7 +478,7 @@ displayEmployeeSummary timesheet = let
 
 -- * DB access
 -- | Save a timesheet.
-saveTimeSheet :: DocumentHash -> (TS.Timesheet String TS.PayrooEmployee) -> Handler TimesheetId
+saveTimeSheet :: DocumentHash -> (TS.Timesheet String TS.PayrooEmployee) -> Handler (TimesheetId, Text)
 saveTimeSheet key timesheet = do
   opFinder <- operatorFinderWithError
   payrollSettings <- getsYesod (appPayroll . appSettings)
@@ -490,7 +494,7 @@ saveTimeSheet key timesheet = do
           modelId <- insert (model docKey)
           insertMany_ (shiftsFn modelId)
           insertMany_ (itemsFn modelId)
-          return modelId
+          return (modelId, ref)
 
 loadTimesheet :: Int64 -> Handler (Maybe (Entity Timesheet, [Entity PayrollShift], [Entity PayrollItem]))
 loadTimesheet key64 = do
@@ -598,6 +602,12 @@ timesheetOpIdToO'SH ts = do
   employeeInfos <- getEmployeeInfo
   payrollSettings <- getsYesod (appPayroll . appSettings)
   return $ timesheetOpIdToO'S employeeInfos (externals payrollSettings) ts
+
+timesheetPayrooForSummary :: TS.Timesheet String TS.PayrooEmployee
+                          -> TS.Timesheet Text Text
+timesheetPayrooForSummary timesheet = let
+  ts = (pack . TS._nickName . TS._payrooEmployee' ) <$> timesheet
+  in runIdentity $ TS.traversePayee (Identity . pack) ts
 -- * Configuration
 
 -- | A returns a list of employees from the payroll settings
