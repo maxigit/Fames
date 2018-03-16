@@ -65,10 +65,11 @@ postGLPayrollValidateR = processTimesheet Validate go
           case validateTimesheet (appPayroll settings) =<< timesheetE of
             Left e -> setError (toHtml e) >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a timesheet") (return ())
             Right timesheet -> do
+                  let ref = invoiceRef (appPayroll settings) timesheet :: String
                   (documentKey'msgM) <- runDB $ loadAndCheckDocumentKey key
                   forM documentKey'msgM  $ \(Entity _ doc, msg) -> do
                                  setWarning msg >> return ""
-                  renderMain Save (Just param) ok200 (setInfo "Enter a timesheet") (do
+                  renderMain Save (Just param) ok200 (setInfo . toHtml $ "Timesheet " <> ref  <> " is valid.") (do
                         displayTimesheet timesheet
                         displayEmployeeSummary (timesheetPayrooForSummary timesheet)
                         )
