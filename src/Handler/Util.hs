@@ -401,8 +401,9 @@ operatorFinder = cache0 False cacheForEver "operator-finder" $ do
       let operatorKeys = Map.fromListWith (++) $ concat
                    [ [ (toLower $ operatorNickname op, [e] ) 
                      , (toLower $ operatorFirstname op <> operatorSurname op, [e] )
-                     , (toLower $ operatorFirstname op <> " " <> operatorSurname op, [e] )
+                     -- , (toLower $ operatorFirstname op <> " " <> operatorSurname op, [e] )
                      , (toLower $ operatorFirstname op <> take 1 (operatorSurname op), [e] )
+                     , (toLower $ operatorNickname op <> take 1 (operatorSurname op), [e] )
                      ]
                    | e@(Entity _ op) <- operators
                    ]
