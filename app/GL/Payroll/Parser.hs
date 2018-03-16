@@ -77,16 +77,33 @@ addNewEmployee emp u =  do
 
 -- Create a new shift and add it at the end of the timesheet
 -- if all requireid information are present
+-- we need to round the duration so that duration AND *hourly rate is a multiple * 0.01
+--  we do a complicated formula :
 addShift :: Duration -> Maybe TimeOfDay ->  Current -> Maybe Current
 addShift = addShift' Work
 addShift' :: ShiftType -> Duration -> Maybe TimeOfDay ->  Current -> Maybe Current
 addShift' shiftType duration start u = do
     emp <- u ^. currentEmployee
     rate <- emp ^. defaultHourlyRate <|> u ^. currentHourlyRate
+    let adjustedDuration = roundDuration rate duration
+        cost = rate * adjustedDuration
     day <- u ^. currentDay
-    let s = Shift (emp, day, shiftType) start duration (duration*rate)
+    let s = Shift (emp, day, shiftType) start adjustedDuration cost
         ts = u ^. currentTimesheet
     return $  u & currentTimesheet . shifts %~ (++ [s])
+
+roundDuration rate duration = let
+  -- let take a rate of 7.48
+  pences = floor (rate * 100) `mod` 100 -- 48
+  -- we need to find x so, that x*.48  is multiple of 1
+  -- gcd 100 48 = 4
+  m = gcd 100 pences -- gcd 4 we need to round at .25
+  -- 0.25 * 0.48 = 0.12. every multiple of 0.25 will give a whole number of pences
+  -- worth case scenario, gcd = 1
+  m' = fromIntegral m
+  -- we have to round up so that the employee is not loosing out
+  in fromIntegral (ceiling (duration * m')) / m'
+
 
 findWeekDay :: Current -> WeekDay -> Day
 findWeekDay u wday = case dayToWeekDay sday of
