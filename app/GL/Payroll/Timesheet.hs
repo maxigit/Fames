@@ -159,6 +159,13 @@ traversePayee f ts = do
   dacs' <- traverse f' dacs
   return $ ts { _deductionAndCosts = dacs'}
 
+mapPayee :: (p -> p') -> Timesheet p e -> Timesheet p' e
+mapPayee f ts =  ts { _deductionAndCosts = map f' (_deductionAndCosts ts) }
+  where f' dac = let
+          (p, e) = _dacKey dac
+          p' = f p
+          in dac { _dacKey = (p', e) }
+
 newTimesheet :: PayrollFrequency -> Day -> Timesheet p e
 newTimesheet frequency day = Timesheet [] day frequency []
 
