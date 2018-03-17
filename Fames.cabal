@@ -129,6 +129,8 @@ library
       Handler.GL.GLEnterReceiptSheet
       Handler.GL.GLEnterReceiptSheet.ReceiptRow
       Handler.GL.Payroll
+      Handler.GL.Payroll.Common
+      Handler.GL.Payroll.Summary
       Handler.Home
       Handler.Items
       Handler.Items.History

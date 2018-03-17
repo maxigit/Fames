@@ -11,6 +11,7 @@ module Import.NoFoundation
     , (<|&>)
     , (<&>)
     , (<$$>), (<$$$>), (<$$$$>)
+    , (?:)
     , formatAmount
     , formatDouble
     , formatQuantity
@@ -83,6 +84,12 @@ infixl 4 <$$>, <$$$>, <$$$$>
 (<$$$$>) :: (Functor f, Functor f1, Functor f2, Functor f3) =>
             (a -> b) -> f3 (f2 (f1 (f a))) -> f3 (f2 (f1 (f b)))
 (<$$$$>) = fmap . fmap . fmap . fmap
+
+-- | cons a Maybe
+infixr 1 ?:
+(?:)  :: Maybe a -> [a] -> [a]
+Nothing ?: xs = xs 
+(Just x) ?: xs = x:xs
 
 -- * Format
 -- formatAmount :: Amount -> Text
