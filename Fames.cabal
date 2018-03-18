@@ -103,7 +103,7 @@ library
     , reducers >= 3.12 && < 3.13
     , filepath >= 1.4.1.1  && < 1.5
   if (flag(dev)) || (flag(library-only))
-    ghc-options: -fwarn-tabs -fwarn-incomplete-patterns -fwarn-incomplete-record-updates -fwarn-missing-fields -Werror -fno-warn-partial-type-signatures -O0 -j6
+    ghc-options: -fwarn-tabs -fwarn-incomplete-patterns -fwarn-incomplete-record-updates -fwarn-missing-fields -fwarn-unused-binds -Werror -fno-warn-partial-type-signatures -O0 -j6
     cpp-options: -DDEVELOPMENT
   else
     ghc-options: -w -fwarn-tabs -Wno-type-defaults -O2 -j6

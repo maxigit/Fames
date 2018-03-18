@@ -13,8 +13,7 @@ import GL.Payroll.Settings
 import qualified GL.Payroll.Timesheet as TS
 import qualified GL.Payroll.Report as TS
 import Data.Maybe
-
-
+import Data.List.NonEmpty (NonEmpty(..))
 -- * Forms
 -- ** Type
 data SummaryParam = SummaryParam
@@ -67,11 +66,17 @@ processSummary :: SummaryParam -> Handler Widget
 processSummary param =  do
   settings <- appSettings <$> getYesod
   timesheets <- loadTimesheet' param
+  let psettings = appPayroll settings
+      timesheetDues  = map (withDueDate psettings param) timesheets
+      groups = makeSummaries timesheetDues
+      totals = [total | (_,_, total) <- groups]
+      (cols, colnames) = employeeSummaryColumns totals
   return [whamlet|
-    <div.well>
-      <ul>
-      $forall ts <- timesheets
-         <li> #{tshow $ ts}
+   $forall (day, ss, total) <- groups
+     <div.panel.panel-info>
+       <div.panel-heading> #{tshow day}
+       <div.panel-body>
+           ^{employeeSummaryTable cols colnames (employeeSummaryRows ss)}
           |]
 
 -- * Misc
@@ -83,13 +88,30 @@ withDueDate psettings params ts = let
   key = invoiceRef psettings ts
   def = computeDueDate ts
   found = lookup key (dueDateMap params) 
-  in (ts, fromMaybe def found)
+  in (ts, fromGregorian 2018 01 01) --  fromMaybe def found)
 
 setDueDateMap :: SummaryParam -> Handler SummaryParam
 setDueDateMap param = do
   return param
+
+
+-- Groups shifts by due date and summarize each one, as well as 
+makeSummaries :: [(TS.Timesheet Text Text, Day)] -> [ (Day
+                                                      , [TS.EmployeeSummary Text Text]
+                                                      , TS.EmployeeSummary Text Text)]
+makeSummaries timesheets = let
+  byDue = fst <$$> TS.groupBy snd timesheets
+  summaries = [ (day, summaries, total)
+              | (day, tss) <- mapToList byDue
+              , let summaries@(s:ss) = [ (lastEx summary) {TS._sumEmployee = "<TODO>ref"}
+                                       |  summary <- map TS.paymentSummary tss
+                                       ]
+              , let total =  sconcat (s :| ss)
+              ]
+  in summaries
+  
 -- * DBAccess
--- loadTimesheet' :: SummaryParam -> Handler [(TS.Timesheet p e , Day)]
+loadTimesheet' :: SummaryParam -> Handler [TS.Timesheet Text Text]
 loadTimesheet' param = do
   let filter =  from param <&> (TimesheetStart >=.)  ?:
                 to param <&> (TimesheetStart <=. ) ?:
@@ -99,4 +121,8 @@ loadTimesheet' param = do
     [] -> return []
     _ -> do
       modelEs <- loadTimesheets filter
-      return $ map (\(e,ss, is) -> modelToTimesheetOpId e ss is) modelEs
+      let timesheetOpIds = map (\(e,ss, is) -> modelToTimesheetOpId e ss is) modelEs
+      ts' <- mapM timesheetOpIdToTextH timesheetOpIds
+      case sequence ts' of
+        Left e -> error $ unpack e
+        Right s -> return s

@@ -122,18 +122,13 @@ timesheetEmployeeToOpId :: (Monad m , TS.HasEmployee e)
 timesheetEmployeeToOpId opFinder ts =
   entityKey <$$> traverse (opFinder . pack . view TS.nickName) ts
 
-timesheetOpIdToOp opFinder ts =
-  entityVal <$$> traverse (opFinder . pack . view TS.nickName) ts
-
 timesheetOpIdToO'S :: [(Entity Operator, EmployeeSettings)]
                    -> Map Text PayrollExternalSettings
                    -> TS.Timesheet Text (OperatorId, PayrollShiftId)
                    -> Either Text ( TS.Timesheet (Text, PayrollExternalSettings)
                                                  ( Entity Operator
                                                  , EmployeeSettings
-                                                 , PayrollShiftId
-                                                 )
-                                  )
+                                                 , PayrollShiftId))
 timesheetOpIdToO'S employeeInfos payeeMap ts = let
   m :: Map OperatorId (Entity Operator, EmployeeSettings)
   m = mapFromList [(entityKey oe, oe'emp) | oe'emp@(oe, _) <- employeeInfos ]
@@ -154,6 +149,30 @@ timesheetOpIdToO'SH :: TS.Timesheet Text (OperatorId, PayrollShiftId)
                                                      (Entity Operator, EmployeeSettings, PayrollShiftId)
                                        )
                               )
+
+timesheetOpIdToOSettings :: [(Entity Operator, EmployeeSettings)]
+                   -> TS.Timesheet p (OperatorId, PayrollShiftId)
+                   -> Either Text ( TS.Timesheet p
+                                                 ( Entity Operator
+                                                 , EmployeeSettings
+                                                 , PayrollShiftId))
+timesheetOpIdToOSettings employeeInfos ts = let
+  m :: Map OperatorId (Entity Operator, EmployeeSettings)
+  m = mapFromList [(entityKey oe, oe'emp) | oe'emp@(oe, _) <- employeeInfos ]
+  findInfo :: (OperatorId, PayrollShiftId) -> Either Text (Entity Operator, EmployeeSettings, PayrollShiftId)
+  findInfo (opKey, shiftKey  ) = maybe (Left $ "Can't find settings or operator info for operator #" <> tshow opKey )
+                                 (\(o,e) -> Right (o, e, shiftKey))
+                                 (lookup opKey m)
+  in traverse findInfo ts
+
+timesheetPayeeToPSettings payeeMap = let
+  findPayee :: Text -> Either Text (Text, PayrollExternalSettings)
+  findPayee payee =  maybe (Left $ "Can't find settings for payee '" <> payee <>"''")
+                           (Right . (payee,))
+                           (lookup payee payeeMap)
+  -- in TS.traversePayee findPayee <$> traverse findInfo ts
+  in TS.traversePayee findPayee
+  
 timesheetOpIdToO'SH ts = do
   employeeInfos <- getEmployeeInfo
   payrollSettings <- getsYesod (appPayroll . appSettings)
@@ -164,6 +183,18 @@ timesheetPayrooForSummary :: TS.Timesheet String TS.PayrooEmployee
 timesheetPayrooForSummary timesheet = let
   ts = (pack . TS._nickName . TS._payrooEmployee' ) <$> timesheet
   in runIdentity $ TS.traversePayee (Identity . pack) ts
+
+timesheetOpIdToText employeeInfos ts = do
+  tsO <- timesheetOpIdToOSettings employeeInfos ts
+  return $ fmap (\(o,_,_) -> operatorNickname (entityVal o)) tsO
+
+timesheetOpIdToTextH :: TS.Timesheet p (OperatorId, PayrollShiftId)
+  -> HandlerT App IO (Either Text (TS.Timesheet p Text))
+timesheetOpIdToTextH ts = do
+  employeeInfos <- getEmployeeInfo
+  return $ timesheetOpIdToText employeeInfos ts
+
+
 -- * Configuration
 
 -- | A returns a list of employees from the payroll settings
@@ -295,6 +326,16 @@ displayShifts shifts = let
 displayEmployeeSummary :: TS.Timesheet Text Text -> Widget
 displayEmployeeSummary timesheet = let
   summaries = TS.paymentSummary timesheet
+  (cols, colnames) = employeeSummaryColumns summaries
+  rows = employeeSummaryRows summaries
+  in employeeSummaryTable cols colnames rows
+
+-- | Display a table with all payment informaiton
+-- the rows are different from the summaries. This allows
+-- the header to generate different column that then one actually needed.
+-- this is usefull when displaying different timesheet in different tables
+-- but with all the table  having the same header.
+employeeSummaryColumns summaries = let 
   toCols getter = map (Just getter,)  .  Map.keys $ mconcat $ map getter summaries
   deductions =  toCols TS._deductions
   netDeductions =  toCols TS._netDeductions
@@ -312,6 +353,23 @@ displayEmployeeSummary timesheet = let
             ++ costs
             ++ [ (Nothing,) "Total Cost"] --  :: [ (Maybe (Text -> Map String TS.Amount), Text) ]
             ++ hours
+  colNames (_, col) = (toHtmlWithBreak col, [])
+  in (columns, colNames)
+
+employeeSummaryTable columns colNames rows = let 
+  table =  displayTableRowsAndHeader columns colNames rows 
+  in [whamlet|
+            <table.table.table-bordered.table-striped.table-hover>
+             ^{table}
+            |]
+     >> toWidget [cassius|
+         table tr.total
+            font-weight: 700
+            |]
+
+employeeSummaryRows summaries = let 
+  -- | Columns are either straight field (Nothing)
+  -- or the name of a payee in in the given dacs map (Just ...)
   colFns = map mkColFn summaries
   formatDouble' x | abs x < 1e-2 = ""
                   | x < 0 = [shamlet|<span.text-danger>#{formatDouble x}|]
@@ -336,16 +394,7 @@ displayEmployeeSummary timesheet = let
                                     in ((, ["text-right"]).formatDouble') <$> value
               _ -> Nothing
     in value
-  colNames (_, col) = (toHtmlWithBreak col, [])
-  table =  displayTableRowsAndHeader columns colNames rows 
-  in [whamlet|
-            <table.table.table-bordered.table-striped.table-hover>
-             ^{table}
-            |]
-     >> toWidget [cassius|
-         table tr.total
-            font-weight: 700
-            |]
+  in rows
 
 -- * To Front Accounting
 -- ** GRN

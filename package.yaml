@@ -117,6 +117,7 @@ library:
       - -fwarn-incomplete-patterns
       - -fwarn-incomplete-record-updates
       - -fwarn-missing-fields
+      - -fwarn-unused-binds
       - -Werror
       - -fno-warn-partial-type-signatures
       - -O0
