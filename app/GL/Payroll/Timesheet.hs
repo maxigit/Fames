@@ -303,6 +303,6 @@ instance (Ord p, Semigroup e) => Semigroup (EmployeeSummary p e) where
               (a ^. net + b ^. net )
               (a ^. gross + b ^. gross )
               (Map.unionWith (+) (a ^. deductions) (b ^. deductions))
-              (Map.unionWith (+) (a ^. netDeductions) (b ^. deductions))
+              (Map.unionWith (+) (a ^. netDeductions) (b ^. netDeductions))
               (Map.unionWith (+) (a ^. costs) (b ^. costs))
               (Map.unionWith (+) (a ^. totalHours) (b ^. totalHours))

@@ -14,6 +14,7 @@ import qualified GL.Payroll.Timesheet as TS
 import qualified GL.Payroll.Report as TS
 import Data.Maybe
 import Data.List.NonEmpty (NonEmpty(..))
+import Data.Time (addGregorianMonthsClip)
 -- * Forms
 -- ** Type
 data SummaryParam = SummaryParam
@@ -53,12 +54,12 @@ renderMain paramM = do
   (formW, encType) <- generateFormPost (filterForm paramM)
   resultM <- mapM processSummary paramM
   defaultLayout [whamlet|
-    <div.well>
-      <form #payroll-summary role=form method=post action=@{GLR GLPayrollSummaryR} enctype=#{encType}>
+    <form #payroll-summary role=form method=post action=@{GLR GLPayrollSummaryR} enctype=#{encType}>
+      <div.well>
         ^{formW}
         <button.btn type="submit" >Search
-    $maybe result <- resultM
-      ^{result}
+      $maybe result <- resultM
+        ^{result}
       |]
 
 -- ** Process
@@ -68,7 +69,8 @@ processSummary param =  do
   timesheets <- loadTimesheet' param
   let psettings = appPayroll settings
       timesheetDues  = map (withDueDate psettings param) timesheets
-      groups = makeSummaries timesheetDues
+      withRef = (\(ts, d) -> ((ts, invoiceRef psettings ts), d)) <$> timesheetDues
+      groups = makeSummaries withRef
       totals = [total | (_,_, total) <- groups]
       (cols, colnames) = employeeSummaryColumns totals
   return [whamlet|
@@ -76,35 +78,66 @@ processSummary param =  do
      <div.panel.panel-info>
        <div.panel-heading> #{tshow day}
        <div.panel-body>
-           ^{employeeSummaryTable cols colnames (employeeSummaryRows ss)}
+           ^{employeeSummaryTable' day cols colnames (employeeSummaryRows ss)}
           |]
 
+-- | Modify columns and row to add due date boxes
+employeeSummaryTable' day cols0 colnames rows0 = let
+  cols = cols0 ++ [(Nothing, "Due Date" )]
+  rows = map addDueDate rows0
+  -- for total row, don't change anything
+  addDueDate (fn, ["total"])= (fn, ["total"]) 
+  addDueDate (fn, klass)= (fn', klass) where
+      fn' (Nothing, "Due Date") =  let
+        Just (ref, _ ) = fn (Nothing, "Employee")
+        in Just ([shamlet|
+                         <input name="#{ref}" type="date" value="#{tshow day}">
+                         |], [])
+      fn' col = fn col
+  in employeeSummaryTable cols colnames rows
+
 -- * Misc
-computeDueDate :: TS.Timesheet p e -> Day
-computeDueDate ts = TS._periodStart ts 
+computeDueDate :: PayrollSettings -> TS.Timesheet p e -> Day
+computeDueDate settings ts = let
+  (year, month, day) = toGregorian $  TS._periodStart ts 
+  (year', month', day') = toGregorian $ firstTaxMonth settings
+  period = fromGregorian year month day'
+  in if day' > day
+     then period
+     else addGregorianMonthsClip 1 period -- next month
+
+
+
+
 
 withDueDate :: PayrollSettings -> SummaryParam -> TS.Timesheet p e ->  (TS.Timesheet p e, Day)
 withDueDate psettings params ts = let
   key = invoiceRef psettings ts
-  def = computeDueDate ts
+  def = computeDueDate psettings ts
   found = lookup key (dueDateMap params) 
-  in (ts, fromGregorian 2018 01 01) --  fromMaybe def found)
+  in (ts, fromMaybe def found)
 
 setDueDateMap :: SummaryParam -> Handler SummaryParam
 setDueDateMap param = do
-  return param
+  (pp, _) <- runRequestBody
+  let dueMap = mapFromList [(ref, day)
+                           | (ref, dayS) <- pp
+                           , Just day <- return $ readMay dayS
+                           ]
+  return param { dueDateMap = dueMap }
 
 
 -- Groups shifts by due date and summarize each one, as well as 
-makeSummaries :: [(TS.Timesheet Text Text, Day)] -> [ (Day
+makeSummaries :: [((TS.Timesheet Text Text, Text), Day)] -> [ (Day
                                                       , [TS.EmployeeSummary Text Text]
                                                       , TS.EmployeeSummary Text Text)]
 makeSummaries timesheets = let
   byDue = fst <$$> TS.groupBy snd timesheets
   summaries = [ (day, summaries, total)
               | (day, tss) <- mapToList byDue
-              , let summaries@(s:ss) = [ (lastEx summary) {TS._sumEmployee = "<TODO>ref"}
-                                       |  summary <- map TS.paymentSummary tss
+              , let summaries@(s:ss) = [ (lastEx summary) {TS._sumEmployee = ref}
+                                       |  (ts, ref) <- tss
+                                       , let summary = TS.paymentSummary ts
                                        ]
               , let total =  sconcat (s :| ss)
               ]
