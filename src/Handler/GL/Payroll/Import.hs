@@ -199,3 +199,66 @@ selectInvoice param = do
                            [])
                          [Asc FA.SuppTranTranDate, Asc FA.SuppTranReference]
   return invoices
+
+-- * Converters
+invoiceToModel :: (Text -> OperatorId)
+               -> Invoice
+               -> ( DocumentKeyId -> Timesheet
+                  , TimesheetId -> [PayrollShift]
+                  , TimesheetId -> [PayrollItem]
+                  )
+invoiceToModel opFinder invoice = let
+  inv = trans invoice
+  ref = FA.suppTranSuppReference inv
+  start = FA.suppTranTranDate inv
+  frequency = if 'M' `elem` ref then TS.Monthly else TS.Weekly
+  timesheet' = TS.Timesheet [] start frequency []
+  timesheet docKey = Timesheet ref
+                               docKey
+                               start
+                               (TS.periodEnd timesheet') -- recursif !!
+                               frequency
+                               Pending
+
+  x fns i = map ($ i) fns
+  shifts = x $ map (mkShift opFinder) (items invoice)
+  costs = x $ mapMaybe (mkCost opFinder) (glTrans invoice)
+
+  in (timesheet, shifts, costs)
+
+mkShift
+  :: (Text -> Key Operator)
+     -> (FA.SuppInvoiceItem, t, FA.GrnBatch)
+     -> Key Timesheet
+     -> PayrollShift
+mkShift opFinder (item, grn, batch) tId = let
+  duration = FA.suppInvoiceItemQuantity item
+  cost = duration * FA.suppInvoiceItemUnitPrice item
+  typ = case unpack $ fromJust $ FA.grnBatchLocCode batch of
+              "LOST" -> TS.Holiday
+              _ -> TS.Work
+  
+  operator = opFinder (FA.suppInvoiceItemStockId item)
+  in PayrollShift tId duration cost operator (Just $ FA.grnBatchDeliveryDate batch) (tshow typ)
+  
+mkCost :: (Text -> Key Operator) -> FA.GlTran -> Maybe (Key Timesheet -> PayrollItem)
+mkCost opFinder gl = do -- Maybe
+  stockId <-  FA.glTranStockId gl
+  let  amount = FA.glTranAmount gl
+       account = FA.glTranAccount gl
+       payee = case unpack account of
+         "7006" -> "NI"
+         "7007" -> "NEST"
+         _ -> error $ "no payee for " <> show account
+       operator = opFinder stockId
+     
+  return $ \tId -> PayrollItem  tId amount Cost operator payee account
+ 
+dummyModel :: ( DocumentKeyId -> Timesheet
+              , TimesheetId -> [PayrollShift]
+              , TimesheetId -> [PayrollItem]
+              ) -> (Timesheet, [PayrollShift], [PayrollItem])
+dummyModel (t, ss, is)= let
+  docKey = DocumentKeyKey' 0
+  tId = TimesheetKey 0
+  in (t docKey, ss tId, is tId)
