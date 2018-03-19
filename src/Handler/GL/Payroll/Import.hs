@@ -48,8 +48,9 @@ importForm paramM = let
 getGLPayrollImportR :: Handler Html
 getGLPayrollImportR = do
   settings <- appSettings <$> getYesod
-  renderMain (Just $ ImportParam (Just . firstTaxWeek $ appPayroll settings)
-                                 Nothing
+  let day = Just . firstTaxWeek $ appPayroll settings
+  renderMain (Just $ ImportParam day
+                                 day
                                  Nothing
                                  mempty)
 
@@ -71,7 +72,7 @@ process param = do
   invoices' <- runDB $ selectInvoice param
   invoices <- mapM (loadInvoice param) invoices'
 
-  return $ [whamlet|
+  let main=  [whamlet|
     <div.well>
       <table.table.table-hover.table-border.table-striped>
           <tr>
@@ -84,39 +85,81 @@ process param = do
             <th>
         $forall ( Invoice inv _ _ selected tsM ) <- invoices
           <tr>
-            <td>#{FA.suppTranTransNo inv}
+            <td>
+              <button.btn.btn-default data-toggle=modal data-target=#Modal-#{FA.suppTranReference inv} type=button>
+                #{FA.suppTranTransNo inv}
             <td>#{FA.suppTranReference inv}
             <td>#{FA.suppTranSuppReference inv}
             <td>#{tshow $ FA.suppTranTranDate inv}
-            <td>#{tshow $ FA.suppTranOvAmount inv}
+            <td> #{tshow $ FA.suppTranOvAmount inv}
             <td>
               <input type=checkbox name="selected-#{tshow $ FA.suppTranTransNo inv}" :selected:checked>
             <td>
               $maybe ts <- tsM
                 #{timesheetReference ts}
                    |]
+  let modals = concatMap modalInvoice invoices
+  return $ main <> modals
 
-loadInvoice param (Entity _ inv) = do
+modalInvoice :: Invoice -> Widget
+modalInvoice invoice =  let
+  inv = trans invoice
+  -- transW = [whamlet|
+  --     <table>
+  --       $forall tr <- glTrans inv
+  --                  |]
+  transH = entitiesToTable getHaskellName  (map (Entity (FA.GlTranKey 0)) (glTrans invoice))
+  itemsW = [whamlet|
+   <table.table.table-border.table-striped.table-hover>
+     $forall (item, grn, batch) <- items invoice
+       <tr>
+         <td>#{tshow $ FA.grnBatchDeliveryDate batch}
+         <td>#{FA.grnItemItemCode grn}
+         <td>#{fromMaybe "" $ FA.grnBatchLocCode batch}
+         <td>#{tshow $ FA.suppInvoiceItemQuantity item}
+         <td>#{tshow $ FA.suppInvoiceItemQuantity item * FA.suppInvoiceItemUnitPrice item}
+                   |]
+  
+  in  [whamlet|
+                  <div.modal id=Modal-#{FA.suppTranReference inv} role=dialog>
+                    <div.modal-dialog style="width:80%">
+                      <div.modal-content>
+                        <div.modal-header>
+                          <table.table><tr>
+                            <td>#{FA.suppTranReference inv}
+                            <td>#{FA.suppTranSuppReference inv}
+                            <td>#{tshow $ FA.suppTranTranDate inv}
+                            <td> #{tshow $ FA.suppTranOvAmount inv}
+                        <div.modal-body>
+                          #{transH}
+                          ^{itemsW}
+                        <div.modal-footer>
+                          <button.btn.bnt-default data-dismiss=modal type=button>Close
+                  |]
+loadInvoice param (Entity invKey inv) = do
   -- find timesheet
+  traceShowM ("loading invoice", invKey)
   let no = FA.suppTranTransNo inv
   timesheet <- runDB$ selectFirst [TimesheetReference ==. (FA.suppTranReference inv)] []
   trans <- runDB $ selectList [ FA.GlTranType ==. fromEnum ST_SUPPINVOICE
                               , FA.GlTranTypeNo ==. no
-                              , FA.GlTranStockId ==. Nothing
+                              -- , FA.GlTranStockId ==. Nothing
+                              , FA.GlTranAmount >. 0
                               ] []
 
   items <- runDB $ selectList [ FA.SuppInvoiceItemSuppTransNo ==. Just no
                               , FA.SuppInvoiceItemSuppTransType ==. Just (fromEnum ST_SUPPINVOICE)
                               , FA.SuppInvoiceItemGrnItemId !=. Nothing
+                              , FA.SuppInvoiceItemGrnItemId !=. Just 0
                               ]
                               []
   items'batch <- runDB $ forM items $ \iteme -> do
+          traceShowM ("loading", FA.suppTranReference inv, "item#", entityKey iteme, FA.suppInvoiceItemGrnItemId (entityVal iteme))
           let grnId = FA.GrnItemKey $ fromJust  (FA.suppInvoiceItemGrnItemId (entityVal iteme))
           grn <- getJust grnId
           let batchId = FA.GrnBatchKey $ fromJust (FA.grnItemGrnBatchId grn)
           batch <- getJust batchId
           return (entityVal iteme, grn, batch)
-        
 
   return $ Invoice inv
                    (map entityVal trans)
