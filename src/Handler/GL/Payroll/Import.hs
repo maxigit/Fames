@@ -315,11 +315,13 @@ mkCost opFinder gl = do -- Maybe
   stockId <-  FA.glTranStockId gl
   let  amount = FA.glTranAmount gl
        account = FA.glTranAccount gl
-       payee = case unpack account of
-         "7006" -> "NI"
-         "7007" -> "NEST"
-         _ -> error $ "no payee for " <> show account
-       operator = opFinder stockId
+  payee <- case unpack account of
+              "7006" -> Just "NI"
+              "7007" -> Just "NEST"
+              "7000" -> Nothing
+              "7002" -> Nothing
+              _ -> error $ "no payee for " <> show account
+  let operator = opFinder stockId
      
   return $ \tId -> PayrollItem  tId amount Cost operator payee account
  

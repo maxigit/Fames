@@ -35,6 +35,8 @@ Operator  sql=fames_operator
   UniqueNickname nickname
   deriving Eq
   deriving Show
+  deriving Ord
+
 
 -- Represent the key of a document which has been processed.
 -- We use a key SHA1 or SHA256 so we can detect if a document
