@@ -154,6 +154,12 @@ modalInvoice invoice =  let
   --       $forall tr <- glTrans inv
   --                  |]
   transH = entitiesToTable getHaskellName  (map (Entity (FA.GlTranKey 0)) (glTrans invoice))
+  (shifts, its) = case model invoice of
+                         Nothing -> ([], [])
+                         Just (_, ss, is) -> ( map (Entity (PayrollShiftKey 0)) ss
+                                              , map (Entity (PayrollItemKey 0)) is
+                                              )
+
   itemsW = [whamlet|
    <table.table.table-border.table-striped.table-hover>
      $forall (item, grn, batch) <- items invoice
@@ -176,8 +182,13 @@ modalInvoice invoice =  let
                             <td>#{tshow $ FA.suppTranTranDate inv}
                             <td> #{tshow $ FA.suppTranOvAmount inv}
                         <div.modal-body>
+                          <h3> GL Transactions
                           #{transH}
+                          <h3> Shifts Transactions
                           ^{itemsW}
+                          <h3> Timesheet
+                          ^{entitiesToTable getHaskellName shifts }
+                          ^{entitiesToTable getHaskellName its }
                         <div.modal-footer>
                           <button.btn.bnt-default data-dismiss=modal type=button>Close
                   |]
