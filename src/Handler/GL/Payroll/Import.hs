@@ -16,6 +16,8 @@ import Data.Maybe
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Time (addGregorianMonthsClip)
 import qualified FA as FA
+import Database.Persist.MySQL(unSqlBackendKey) -- , rawSql, Single(..))
+
 -- * Type
 data ImportParam = ImportParam
    { from :: Maybe Day
@@ -25,6 +27,8 @@ data ImportParam = ImportParam
    } deriving Show
 data Invoice = Invoice
   { trans :: FA.SuppTran
+  , glTrans :: [FA.GlTran]
+  , items :: [(FA.SuppInvoiceItem, FA.GrnItem, FA.GrnBatch)]
   , selected :: Bool
   , timesheet :: Maybe Timesheet
   }
@@ -78,7 +82,7 @@ process param = do
             <th>Amount
             <th>Timesheet
             <th>
-        $forall ( Invoice inv selected tsM ) <- invoices
+        $forall ( Invoice inv _ _ selected tsM ) <- invoices
           <tr>
             <td>#{FA.suppTranTransNo inv}
             <td>#{FA.suppTranReference inv}
@@ -94,9 +98,29 @@ process param = do
 
 loadInvoice param (Entity _ inv) = do
   -- find timesheet
+  let no = FA.suppTranTransNo inv
   timesheet <- runDB$ selectFirst [TimesheetReference ==. (FA.suppTranReference inv)] []
+  trans <- runDB $ selectList [ FA.GlTranType ==. fromEnum ST_SUPPINVOICE
+                              , FA.GlTranTypeNo ==. no
+                              , FA.GlTranStockId ==. Nothing
+                              ] []
+
+  items <- runDB $ selectList [ FA.SuppInvoiceItemSuppTransNo ==. Just no
+                              , FA.SuppInvoiceItemSuppTransType ==. Just (fromEnum ST_SUPPINVOICE)
+                              , FA.SuppInvoiceItemGrnItemId !=. Nothing
+                              ]
+                              []
+  items'batch <- runDB $ forM items $ \iteme -> do
+          let grnId = FA.GrnItemKey $ fromJust  (FA.suppInvoiceItemGrnItemId (entityVal iteme))
+          grn <- getJust grnId
+          let batchId = FA.GrnBatchKey $ fromJust (FA.grnItemGrnBatchId grn)
+          batch <- getJust batchId
+          return (entityVal iteme, grn, batch)
+        
 
   return $ Invoice inv
+                   (map entityVal trans)
+                   items'batch
                    (FA.suppTranTransNo inv `elem` (toImport param))
                    (entityVal <$> timesheet)
 
@@ -126,7 +150,7 @@ setParams param = do
 -- * 
 selectInvoice param = do
   invoices <- selectList ( Just (FA.SuppTranSupplierId ==. Just 27) ?:
-                           Just (FA.SuppTranType ==. 20) ?:
+                           Just (FA.SuppTranType ==. fromEnum ST_SUPPINVOICE) ?:
                            from param <&> (FA.SuppTranTranDate >=.) ?:
                            to param <&> (FA.SuppTranTranDate <=.) ?:
                            [])
