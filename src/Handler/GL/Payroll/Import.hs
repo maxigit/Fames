@@ -220,6 +220,7 @@ loadInvoice param (Entity invKey inv) = do
           batch <- getJust batchId
           return (entityVal iteme, grn, batch)
 
+  opF' <- dim2Finder
   opF <- skuFinder
 
 
@@ -233,10 +234,13 @@ loadInvoice param (Entity invKey inv) = do
                   [(Entity key ts, shifts, items)] -> ( Just (ts, map entityVal shifts, map entityVal items)
                                                       , Just key
                                                       )
-                  _ -> (Just . dummyModel $ invoiceToModel opFinder invoice0, Nothing)
+                  _ -> (Just . dummyModel $ invoiceToModel opFinder opFinder' invoice0, Nothing)
       opFinder name = maybe (error $ "Can't find operator with name " <> unpack name)
                             entityKey
                            (opF name <|> opF (drop 3 name))
+      opFinder' dim2 = maybe (error $ "Can't find operator with dimension2 " <> show dim2)
+                            entityKey
+                           (opF' dim2)
   return  invoice0 {model=ts, key = tkey}
 
   
@@ -246,6 +250,16 @@ skuFinder = do
   let bySku = mapFromList [(faSKU emp, opE ) | (opE, emp) <- info ] :: Map Text (Entity Operator)
   traceShowM bySku
   return $ flip lookup bySku
+
+dim2Finder :: Handler (Int -> Maybe (Entity Operator))
+dim2Finder = do
+  info <- getEmployeeInfo
+  let byDim2 = mapFromList [ (d2, opE )
+                           | (opE, emp) <- info
+                           , Just d2 <- return $ dimension2 emp
+                           ] :: Map Int (Entity Operator)
+  traceShowM byDim2
+  return $ flip lookup byDim2
   
 
 postGLPayrollImportR :: Handler Html
@@ -282,12 +296,13 @@ selectInvoice param = do
 
 -- * Converters
 invoiceToModel :: (Text -> OperatorId)
+               -> (Int -> OperatorId)
                -> Invoice
                -> ( DocumentKeyId -> Timesheet
                   , TimesheetId -> [PayrollShift]
                   , TimesheetId -> [PayrollItem]
                   )
-invoiceToModel opFinder invoice = let
+invoiceToModel opFinder opFinder' invoice = let
   inv = trans invoice
   ref = FA.suppTranSuppReference inv
   start = FA.suppTranTranDate inv
@@ -302,7 +317,7 @@ invoiceToModel opFinder invoice = let
 
   x fns i = map ($ i) fns
   shifts = x $ map (mkShift opFinder) (items invoice)
-  costs = x $ mapMaybe (mkCost opFinder) (glTrans invoice)
+  costs = x $ mapMaybe (mkCost opFinder opFinder') (glTrans invoice)
 
   in (timesheet, shifts, costs)
 
@@ -321,18 +336,22 @@ mkShift opFinder (item, grn, batch) tId = let
   operator = opFinder (FA.suppInvoiceItemStockId item)
   in PayrollShift tId duration cost operator (Just $ FA.grnBatchDeliveryDate batch) (tshow typ)
   
-mkCost :: (Text -> Key Operator) -> FA.GlTran -> Maybe (Key Timesheet -> PayrollItem)
-mkCost opFinder gl = do -- Maybe
-  stockId <-  FA.glTranStockId gl
+mkCost :: (Text -> Key Operator) -> (Int -> Key Operator) -> FA.GlTran -> Maybe (Key Timesheet -> PayrollItem)
+mkCost opFinder opFinder' gl = do -- Maybe
   let  amount = FA.glTranAmount gl
        account = FA.glTranAccount gl
+       dim2' = FA.glTranDimension2Id gl
+       dim2 = guard (dim2' /= 0) >> Just dim2'
+       stockId = FA.glTranStockId gl
   payee <- case unpack account of
               "7006" -> Just "NI"
               "7007" -> Just "NEST"
+              "0011" -> Just "NEST"
               "7000" -> Nothing
               "7002" -> Nothing
+              "4920" -> Nothing
               _ -> error $ "no payee for " <> show account
-  let operator = opFinder stockId
+  operator <- listToMaybe $ Import.catMaybes [ opFinder' <$> dim2, opFinder <$> stockId ]
      
   return $ \tId -> PayrollItem  tId amount Cost operator payee account
  
