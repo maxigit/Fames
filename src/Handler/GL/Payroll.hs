@@ -9,6 +9,7 @@ module Handler.GL.Payroll
 , postGLPayrollRejectR
 , postGLPayrollToFAR
 , module Handler.GL.Payroll.Summary
+, module Handler.GL.Payroll.Import
 ) where
 -- * Import
 import Import
@@ -19,6 +20,7 @@ import qualified GL.Payroll.Timesheet as TS
 import qualified GL.Payroll.Report as TS
 import Handler.GL.Payroll.Common
 import Handler.GL.Payroll.Summary
+import Handler.GL.Payroll.Import
 import GL.Payroll.Parser
 import GL.Payroll.Settings
 import Data.Text (strip)
