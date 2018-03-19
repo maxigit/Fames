@@ -209,6 +209,7 @@ getEmployeeInfo = do
                       , Just op <- return $ opFinder nickname
                       ]
 
+
 -- | Employees description to insert at the beginnig of the timesheet
 headerFromSettings :: Handler [Text]
 headerFromSettings = do

@@ -14,7 +14,7 @@ import qualified GL.Payroll.Timesheet as TS
 import qualified GL.Payroll.Report as TS
 import Data.Maybe
 import Data.List.NonEmpty (NonEmpty(..))
-import Data.Time (addGregorianMonthsClip)
+import Data.Time (addDays, addGregorianMonthsClip)
 import qualified FA as FA
 import Database.Persist.MySQL(unSqlBackendKey) -- , rawSql, Single(..))
 
@@ -25,12 +25,14 @@ data ImportParam = ImportParam
    , refRegex :: Maybe Text -- regulax expressions
    , toImport :: Set Int 
    } deriving Show
+
 data Invoice = Invoice
   { trans :: FA.SuppTran
   , glTrans :: [FA.GlTran]
   , items :: [(FA.SuppInvoiceItem, FA.GrnItem, FA.GrnBatch)]
   , selected :: Bool
-  , timesheet :: Maybe Timesheet
+  , model :: Maybe (Timesheet, [PayrollShift], [PayrollItem])
+  , key :: Maybe TimesheetId
   }
 
 -- * Form
@@ -48,9 +50,9 @@ importForm paramM = let
 getGLPayrollImportR :: Handler Html
 getGLPayrollImportR = do
   settings <- appSettings <$> getYesod
-  let day = Just . firstTaxWeek $ appPayroll settings
-  renderMain (Just $ ImportParam day
-                                 day
+  let day = firstTaxWeek $ appPayroll settings
+  renderMain (Just $ ImportParam (Just day)
+                                 (Just $ addDays (-1) day)
                                  Nothing
                                  mempty)
 
@@ -80,27 +82,70 @@ process param = do
             <th>Reference
             <th>Supp Reference
             <th>Trans Date
-            <th>Amount
-            <th>Timesheet
+            <th>Deductions
+            <th>Costs
+            <th>Shifts
+            <th>Total
             <th>
-        $forall ( Invoice inv _ _ selected tsM ) <- invoices
+        $forall invoice@( Invoice inv _ _ selected ts tidM ) <- invoices
           <tr>
             <td>
-              <button.btn.btn-default data-toggle=modal data-target=#Modal-#{FA.suppTranReference inv} type=button>
+              <button.btn.btn-default data-toggle=modal data-target="##{invoiceModalRef invoice}" type=button>
                 #{FA.suppTranTransNo inv}
             <td>#{FA.suppTranReference inv}
             <td>#{FA.suppTranSuppReference inv}
             <td>#{tshow $ FA.suppTranTranDate inv}
-            <td> #{tshow $ FA.suppTranOvAmount inv}
+            <td> #{showAmountM (invoiceFADeductions invoice) (invoiceTimesheetDeductions invoice)}
+            <td> #{showAmountM (invoiceFACosts invoice) (invoiceTimesheetCosts invoice)}
+            <td> #{showAmountM (invoiceFAShiftCost invoice) (invoiceTimesheetShiftCost invoice)}
+            <td> #{showAmountM (FA.suppTranOvAmount inv) (invoiceTimesheetTotal invoice)}
             <td>
               <input type=checkbox name="selected-#{tshow $ FA.suppTranTransNo inv}" :selected:checked>
             <td>
-              $maybe ts <- tsM
-                #{timesheetReference ts}
+              $maybe tid' <- tidM
+                $with tid <- unSqlBackendKey (unTimesheetKey tid')
+                  <a href=@{GLR $GLPayrollViewR tid}>#{tshow tid}
+              
                    |]
   let modals = concatMap modalInvoice invoices
   return $ main <> modals
 
+showAmountM :: Double -> Maybe Double -> Html
+showAmountM fa Nothing = toHtml $ tshow fa
+showAmountM fa (Just ts) | fa == ts = [shamlet|<span.badge.badge-success>#{tshow fa}|]
+                         | otherwise = [shamlet|
+        <p>
+          <span.bg-info.text-info>#{tshow fa}
+        <p>
+          <span.bg-danger.text-danger>#{tshow ts}
+        |]
+
+invoiceTimesheetCosts invoice = do
+  (_, _, dacs) <- model invoice
+  let costs = filter ((== Cost). payrollItemType) dacs
+  return $ sum $ map payrollItemAmount costs
+
+invoiceTimesheetDeductions invoice = do
+  (_, _, dacs) <- model invoice
+  let costs = filter ((== Deduction). payrollItemType) dacs
+  return $ sum $ map payrollItemAmount costs
+
+invoiceTimesheetShiftCost invoice = do
+  (_, shifts, _) <- model invoice
+  return $ sum $ map payrollShiftCost shifts
+
+invoiceTimesheetTotal inv = liftA2 (+) (invoiceTimesheetShiftCost inv) (invoiceTimesheetCosts inv)
+
+
+invoiceFACosts invoice = let
+  costs = filter (isNothing . FA.glTranStockId) (glTrans invoice)
+  in sum $ map FA.glTranAmount costs
+
+invoiceFAShiftCost invoice = let
+  costs = filter (isJust . FA.glTranStockId) (glTrans invoice)
+  in sum $ map FA.glTranAmount costs
+
+invoiceFADeductions invoice = 0
 modalInvoice :: Invoice -> Widget
 modalInvoice invoice =  let
   inv = trans invoice
@@ -121,7 +166,7 @@ modalInvoice invoice =  let
                    |]
   
   in  [whamlet|
-                  <div.modal id=Modal-#{FA.suppTranReference inv} role=dialog>
+                  <div.modal id="#{invoiceModalRef invoice}" role=dialog>
                     <div.modal-dialog style="width:80%">
                       <div.modal-content>
                         <div.modal-header>
@@ -136,11 +181,14 @@ modalInvoice invoice =  let
                         <div.modal-footer>
                           <button.btn.bnt-default data-dismiss=modal type=button>Close
                   |]
+invoiceModalRef inv = "modal-" <> tshow (FA.suppTranTransNo (trans inv))
+                                        
+loadInvoice :: ImportParam -> Entity FA.SuppTran -> Handler Invoice
 loadInvoice param (Entity invKey inv) = do
   -- find timesheet
   traceShowM ("loading invoice", invKey)
   let no = FA.suppTranTransNo inv
-  timesheet <- runDB$ selectFirst [TimesheetReference ==. (FA.suppTranReference inv)] []
+  timesheetM <- loadTimesheets [TimesheetReference ==. (FA.suppTranReference inv)]
   trans <- runDB $ selectList [ FA.GlTranType ==. fromEnum ST_SUPPINVOICE
                               , FA.GlTranTypeNo ==. no
                               -- , FA.GlTranStockId ==. Nothing
@@ -161,13 +209,34 @@ loadInvoice param (Entity invKey inv) = do
           batch <- getJust batchId
           return (entityVal iteme, grn, batch)
 
-  return $ Invoice inv
-                   (map entityVal trans)
-                   items'batch
-                   (FA.suppTranTransNo inv `elem` (toImport param))
-                   (entityVal <$> timesheet)
+  opF <- skuFinder
+
+
+  let invoice0  = Invoice inv
+                    (map entityVal trans)
+                    items'batch
+                    (FA.suppTranTransNo inv `elem` (toImport param))
+                    Nothing
+                    Nothing
+      (ts, tkey) = case timesheetM of
+                  [(Entity key ts, shifts, items)] -> ( Just (ts, map entityVal shifts, map entityVal items)
+                                                      , Just key
+                                                      )
+                  _ -> (Just . dummyModel $ invoiceToModel opFinder invoice0, Nothing)
+      opFinder name = maybe (error $ "Can't find operator with name " <> unpack name)
+                            entityKey
+                           (opF name <|> opF (drop 3 name))
+  return  invoice0 {model=ts, key = tkey}
 
   
+skuFinder :: Handler (Text -> Maybe (Entity Operator))
+skuFinder = do
+  info <- getEmployeeInfo
+  let bySku = mapFromList [(faSKU emp, opE ) | (opE, emp) <- info ] :: Map Text (Entity Operator)
+  traceShowM bySku
+  return $ flip lookup bySku
+  
+
 postGLPayrollImportR :: Handler Html
 postGLPayrollImportR =  do
   ((resp, formW), encType) <- runFormPost (importForm Nothing)
