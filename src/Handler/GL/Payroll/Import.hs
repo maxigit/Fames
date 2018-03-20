@@ -30,6 +30,7 @@ data Invoice = Invoice
   { trans :: FA.SuppTran
   , glTrans :: [FA.GlTran]
   , items :: [(FA.SuppInvoiceItem, FA.GrnItem, FA.GrnBatch)]
+  , payments :: [FA.SuppAllocation]
   , selected :: Bool
   , model :: Maybe (Timesheet, [PayrollShift], [PayrollItem])
   , key :: Maybe TimesheetId
@@ -88,7 +89,7 @@ process param = do
             <th>Shifts
             <th>Total
             <th>
-        $forall invoice@( Invoice inv _ _ selected ts tidM ) <- invoices
+        $forall invoice@( Invoice inv _gls _items _allocs selected ts tidM ) <- invoices
           <tr>
             <td>
               <button.btn.btn-default data-toggle=modal data-target="##{invoiceModalRef invoice}" type=button>
@@ -121,6 +122,7 @@ showAmountM fa (Just ts) | abs (fa - ts) < 1e-6 = [shamlet|<span.badge.badge-suc
           <span.bg-danger.text-danger>#{tshow ts}
         |]
 
+-- ** Summary function
 invoiceTimesheetCosts invoice = do
   (_, _, dacs) <- model invoice
   let costs = filter ((== Cost). payrollItemType) dacs
@@ -146,7 +148,15 @@ invoiceFAShiftCost invoice = let
   costs = filter (isJust . FA.glTranStockId) (glTrans invoice)
   in sum $ map FA.glTranAmount costs
 
-invoiceFADeductions invoice = 0
+-- | Payments made to staff
+invoiceStaffPayments invoice = let
+  inv = trans invoice
+  isStaff alloc = FA.suppAllocationDateAlloc alloc == FA.suppTranTranDate inv
+  in filter isStaff (payments invoice)
+
+invoiceTotalStaff invoice = sum $ mapMaybe FA.suppAllocationAmt (invoiceStaffPayments invoice)
+invoiceFADeductions invoice = invoiceFAShiftCost invoice - invoiceTotalStaff invoice
+
 modalInvoice :: Invoice -> Widget
 modalInvoice invoice =  let
   inv = trans invoice
@@ -221,16 +231,21 @@ loadInvoice param (Entity invKey inv) = do
           batch <- getJust batchId
           return (entityVal iteme, grn, batch)
 
+  allocs <- runDB $ selectList [ FA.SuppAllocationTransNoTo ==. Just no
+                               , FA.SuppAllocationTransTypeTo ==. Just (fromEnum ST_SUPPINVOICE)
+                               ]
+                               []
   opF' <- dim2Finder
   opF <- skuFinder
 
 
-  let invoice0  = Invoice inv
-                    (map entityVal trans)
-                    items'batch
-                    (FA.suppTranTransNo inv `elem` (toImport param))
-                    Nothing
-                    Nothing
+  let invoice0  = Invoice inv -- trans
+                    (map entityVal trans) -- glTrans
+                    items'batch -- items
+                    (map entityVal allocs) -- payments
+                    (FA.suppTranTransNo inv `elem` (toImport param)) -- selected
+                    Nothing -- timesheet
+                    Nothing -- timesheet key
       (ts, tkey) = case timesheetM of
                   [(Entity key ts, shifts, items)] -> ( Just (ts, map entityVal shifts, map entityVal items)
                                                       , Just key
