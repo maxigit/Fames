@@ -17,6 +17,7 @@ import Data.List.NonEmpty (NonEmpty(..))
 import Data.Time (addDays, addGregorianMonthsClip)
 import qualified FA as FA
 import Database.Persist.MySQL(unSqlBackendKey) -- , rawSql, Single(..))
+import Text.Printf(printf) 
 
 -- * Type
 data ImportParam = ImportParam
@@ -112,14 +113,17 @@ process param = do
   let modals = concatMap modalInvoice invoices
   return $ main <> modals
 
+
+showDouble :: Double -> Html
+showDouble x = toHtml $ ( (printf "%.4f" x) :: String )
 showAmountM :: Double -> Maybe Double -> Html
-showAmountM fa Nothing = toHtml $ tshow fa
-showAmountM fa (Just ts) | abs (fa - ts) < 1e-6 = [shamlet|<span.badge.badge-success>#{tshow fa}|]
+showAmountM fa Nothing = showDouble fa
+showAmountM fa (Just ts) | abs (fa - ts) < 1e-6 = [shamlet|<span.badge.badge-success>#{showDouble fa}|]
                          | otherwise = [shamlet|
         <p>
-          <span.bg-info.text-info>#{tshow fa}
+          <span.bg-info.text-info>#{showDouble fa}
         <p>
-          <span.bg-danger.text-danger>#{tshow ts}
+          <span.bg-danger.text-danger>#{showDouble ts}
         |]
 
 -- ** Summary function
