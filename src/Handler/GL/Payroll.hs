@@ -176,6 +176,7 @@ renderMain mode paramM status message pre = do
        <form #upload-form role=form method=post action=@{GLR action} enctype=#{upEncType}>
          ^{upFormW}
         <button type="submit" name="#{button}" value="#{tshow mode}" class="btn btn-#{btn}">#{button}
+        <button type="submit" name="action" value="quickadd" class="btn btn-danger">Quick Add
         |]
 -- * Processing
 processTimesheet :: Mode -> (UploadParam -> DocumentHash -> Handler r) -> Handler r
