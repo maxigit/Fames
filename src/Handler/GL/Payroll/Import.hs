@@ -235,7 +235,7 @@ loadInvoice param (Entity invKey inv) = do
   -- find timesheet
   traceShowM ("loading invoice", invKey)
   let no = FA.suppTranTransNo inv
-  timesheetM <- loadTimesheets [TimesheetReference ==. (FA.suppTranReference inv)]
+  timesheetM <- loadTimesheets [TimesheetReference ==. (FA.suppTranSuppReference inv)]
   trans <- runDB $ selectList [ FA.GlTranType ==. fromEnum ST_SUPPINVOICE
                               , FA.GlTranTypeNo ==. no
                               -- , FA.GlTranStockId ==. Nothing
@@ -349,7 +349,7 @@ invoiceToModel opFinder opFinder' invoice = let
                                start
                                (TS.periodEnd timesheet') -- recursif !!
                                frequency
-                               Pending
+                               Process
 
   x fns i = map ($ i) fns
   shifts = x $ map (mkShift opFinder) (items invoice)
