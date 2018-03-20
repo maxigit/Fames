@@ -112,7 +112,7 @@ process param = do
 
 showAmountM :: Double -> Maybe Double -> Html
 showAmountM fa Nothing = toHtml $ tshow fa
-showAmountM fa (Just ts) | fa == ts = [shamlet|<span.badge.badge-success>#{tshow fa}|]
+showAmountM fa (Just ts) | abs (fa - ts) < 1e-6 = [shamlet|<span.badge.badge-success>#{tshow fa}|]
                          | otherwise = [shamlet|
         <p>
           <span.bg-info.text-info>#{tshow fa}
@@ -328,7 +328,7 @@ mkShift
      -> PayrollShift
 mkShift opFinder (item, grn, batch) tId = let
   duration = FA.suppInvoiceItemQuantity item
-  cost = duration * FA.suppInvoiceItemUnitPrice item
+  cost = (fromIntegral $  round (100 * duration * FA.suppInvoiceItemUnitPrice item) )/ 100
   typ = case unpack $ fromJust $ FA.grnBatchLocCode batch of
               "LOST" -> TS.Holiday
               _ -> TS.Work
