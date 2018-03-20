@@ -81,19 +81,24 @@ postGLPayrollValidateR = do
                         displayEmployeeSummary (timesheetPayrooForSummary timesheet)
                         )
 
-postGLPayrollSaveR = processTimesheet Save go where
-  go param key = do
-       timesheetE <- parseTimesheetH param
-       case timesheetE of
-         Left e -> setError (toHtml e)
-                   >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a timesheet") (return ())
-         Right timesheet -> do
-              (tKey, ref) <- saveTimeSheet key timesheet
-              let tId = unSqlBackendKey (unTimesheetKey tKey)
-              pushLinks ("View Timesheet " <> ref)
-                        (GLR $ GLPayrollViewR tId)
-                        []
-              renderMain Validate Nothing created201 (setInfo "Timesheet saved sucessfully") (return ())
+postGLPayrollSaveR = do
+  actionM <- lookupPostParam "action"
+  case actionM of
+   Just "quickadd" -> processTimesheet Validate saveQuickadd
+   _ -> processTimesheet Save save
+   where
+      save param key = do
+          timesheetE <- parseTimesheetH param
+          case timesheetE of
+            Left e -> setError (toHtml e)
+                      >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a timesheet") (return ())
+            Right timesheet -> do
+                  (tKey, ref) <- saveTimeSheet key timesheet
+                  let tId = unSqlBackendKey (unTimesheetKey tKey)
+                  pushLinks ("View Timesheet " <> ref)
+                            (GLR $ GLPayrollViewR tId)
+                            []
+                  renderMain Validate Nothing created201 (setInfo "Timesheet saved sucessfully") (return ())
 
 
 postGLPayrollToFAR :: Int64 -> Handler Html
@@ -150,14 +155,26 @@ postGLPayrollEditR key = return "todo"
 postGLPayrollRejectR :: Int64 -> Handler Html
 postGLPayrollRejectR key = return "todo"
 
-
 -- ** Quick Add
 quickadd :: UploadParam -> DocumentHash -> Handler Html
 quickadd  param key = do
-  wE <- saveQuickAdd (unTextarea $ upTimesheet param) key
+  wE <- saveQuickAdd False (unTextarea $ upTimesheet param) key
   case wE of
     Left e -> setError (toHtml e) >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a valid timesheet") (return ())
-    Right w -> defaultLayout w
+    Right w -> renderMain Save (Just param) ok200 (return()) w
+    -- Right w -> defaultLayout [whamlet|
+    --    <form #quick-form role=form method=post action=@{GLR GLPayrollSaveR }> 
+    --      <input type=hidden name=quickadd value="#{unTextarea $ upTimesheet param}">
+    --      ^{w}
+    --      <button type="submit" name="action" value="quickadd" class="btn btn-danger">Quick Add
+saveQuickadd :: UploadParam -> DocumentHash -> Handler Html
+saveQuickadd  param key = do
+  wE <- saveQuickAdd True (unTextarea $ upTimesheet param) key
+  case wE of
+    Left e -> setError (toHtml e) >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a valid timesheet") (return ())
+    Right w -> do
+      let msg = setSuccess "Quickadds processed properly"
+      renderMain Save (Just param) created201 msg w
 
 -- ** Renders
 -- | Renders the main page. It displays recent timesheet and also allows to upload a new one.

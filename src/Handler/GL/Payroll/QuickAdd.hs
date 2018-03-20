@@ -17,8 +17,8 @@ import Data.List.Split
 import Control.Monad.Except (ExceptT(..), runExceptT)
 import Data.Text (strip)
 -- * Quick Add
-saveQuickAdd :: Text -> DocumentHash -> Handler (Either Text Widget)
-saveQuickAdd  text key = do
+saveQuickAdd :: Bool -> Text -> DocumentHash -> Handler (Either Text Widget)
+saveQuickAdd  save text key  = do
   header <- headerFromSettings
   opFinder <- operatorFinderWithError
   operatorMap <- allOperators
@@ -43,6 +43,7 @@ saveQuickAdd  text key = do
               mergedOId = modelToTimesheetOpId oldE (oldShifts <> shifts0) (oldItems <> items0)
               mergedTts' = map (\(op, _) -> maybe (tshow op) operatorNickname (lookup op operatorMap)) mergedOId
 
+          when save (setWarning ("saving disabled"))
           return [whamlet|
               <div.panel>
                 <div.panel-header><h3>#{ref}
@@ -58,7 +59,6 @@ saveQuickAdd  text key = do
                      <h3> Final
                      ^{displayEmployeeSummary mergedTts'}
                          |]
-
           -- insertMany_ shifts
           -- insertMany_ items
         _ -> ExceptT . return $ Left $ "No timesheet with reference '"  <> ref <> "''"
