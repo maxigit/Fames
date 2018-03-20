@@ -51,7 +51,6 @@ importForm paramM = let
 -- * Handler
 getGLPayrollImportR :: Handler Html
 getGLPayrollImportR = do
-  settings <- appSettings <$> getYesod
   today <- utctDay <$> liftIO getCurrentTime
   let lastMonth = addGregorianMonthsClip (-1) today
   renderMain (Just $ ImportParam (Just lastMonth)
@@ -233,7 +232,7 @@ invoiceModalRef inv = "modal-" <> tshow (FA.suppTranTransNo (trans inv))
 loadInvoice :: ImportParam -> Entity FA.SuppTran -> Handler Invoice
 loadInvoice param (Entity invKey inv) = do
   -- find timesheet
-  traceShowM ("loading invoice", invKey)
+  -- traceShowM ("loading invoice", invKey)
   let no = FA.suppTranTransNo inv
   timesheetM <- loadTimesheets [TimesheetReference ==. (FA.suppTranSuppReference inv)]
   trans <- runDB $ selectList [ FA.GlTranType ==. fromEnum ST_SUPPINVOICE
@@ -249,7 +248,7 @@ loadInvoice param (Entity invKey inv) = do
                               ]
                               []
   items'batch <- runDB $ forM items $ \iteme -> do
-          traceShowM ("loading", FA.suppTranReference inv, "item#", entityKey iteme, FA.suppInvoiceItemGrnItemId (entityVal iteme))
+          -- traceShowM ("loading", FA.suppTranReference inv, "item#", entityKey iteme, FA.suppInvoiceItemGrnItemId (entityVal iteme))
           let grnId = FA.GrnItemKey $ fromJust  (FA.suppInvoiceItemGrnItemId (entityVal iteme))
           grn <- getJust grnId
           let batchId = FA.GrnBatchKey $ fromJust (FA.grnItemGrnBatchId grn)
@@ -281,7 +280,6 @@ skuFinder :: Handler (Text -> Maybe (Entity Operator))
 skuFinder = do
   info <- getEmployeeInfo
   let bySku = mapFromList [(faSKU emp, opE ) | (opE, emp) <- info ] :: Map Text (Entity Operator)
-  traceShowM bySku
   return $ flip lookup bySku
 
 dim2Finder :: Handler (Int -> Maybe (Entity Operator))
@@ -291,7 +289,6 @@ dim2Finder = do
                            | (opE, emp) <- info
                            , Just d2 <- return $ dimension2 emp
                            ] :: Map Int (Entity Operator)
-  traceShowM byDim2
   return $ flip lookup byDim2
   
 
@@ -317,7 +314,6 @@ setParams param = do
                  , Just inv <- return $ readMay =<<  stripPrefix "selected-" key
                  , val == "on"
                  ]
-  traceShowM("PP", pp, selected)
   return param { toImport = setFromList selected }
   
 -- * 

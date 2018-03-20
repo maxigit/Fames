@@ -35,7 +35,13 @@ filterForm paramM = let
 
 -- * Handler
 getGLPayrollSummaryR :: Handler Html
-getGLPayrollSummaryR = renderMain Nothing
+getGLPayrollSummaryR = do
+  today <- utctDay <$> liftIO getCurrentTime
+  let lastMonth = addGregorianMonthsClip (-1) today
+  renderMain (Just $ SummaryParam (Just lastMonth)
+                                 (Just today)
+                                 Nothing
+                                 mempty)
 
 postGLPayrollSummaryR :: Handler Html
 postGLPayrollSummaryR = do
