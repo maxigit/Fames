@@ -50,9 +50,10 @@ importForm paramM = let
 getGLPayrollImportR :: Handler Html
 getGLPayrollImportR = do
   settings <- appSettings <$> getYesod
-  let day = firstTaxWeek $ appPayroll settings
-  renderMain (Just $ ImportParam (Just day)
-                                 (Just $ addDays (-1) day)
+  today <- utctDay <$> liftIO getCurrentTime
+  let lastMonth = addGregorianMonthsClip (-1) today
+  renderMain (Just $ ImportParam (Just lastMonth)
+                                 (Just today)
                                  Nothing
                                  mempty)
 
