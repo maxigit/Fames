@@ -91,39 +91,56 @@ process param = do
             <th>Total
             <th>
         $forall invoice@( Invoice inv _gls _items _allocs selected ts tidM ) <- invoices
-          <tr>
-            <td>
-              <button.btn.btn-default data-toggle=modal data-target="##{invoiceModalRef invoice}" type=button>
-                #{FA.suppTranTransNo inv}
-            <td>#{FA.suppTranReference inv}
-            <td>#{FA.suppTranSuppReference inv}
-            <td>#{tshow $ FA.suppTranTranDate inv}
-            <td> #{showAmountM (invoiceFADeductions invoice) (invoiceTimesheetDeductions invoice)}
-            <td> #{showAmountM (invoiceFACosts invoice) (invoiceTimesheetCosts invoice)}
-            <td> #{showAmountM (invoiceFAShiftCost invoice) (invoiceTimesheetShiftCost invoice)}
-            <td> #{showAmountM (FA.suppTranOvAmount inv) (invoiceTimesheetTotal invoice)}
-            <td>
-              <input type=checkbox name="selected-#{tshow $ FA.suppTranTransNo inv}" :selected:checked>
-            <td>
-              $maybe tid' <- tidM
-                $with tid <- unSqlBackendKey (unTimesheetKey tid')
-                  <a href=@{GLR $GLPayrollViewR tid}>#{tshow tid}
-              
+          $with hasTimesheet <- isJust tidM
+            <tr :hasTimesheet:.has-timesheet>
+              <td>
+                <button.btn.btn-default data-toggle=modal data-target="##{invoiceModalRef invoice}" type=button >
+                  #{FA.suppTranTransNo inv}
+              <td>#{FA.suppTranReference inv}
+              <td>#{FA.suppTranSuppReference inv}
+              <td>#{tshow $ FA.suppTranTranDate inv}
+              <td> #{showAmountM (invoiceFADeductions invoice) (invoiceTimesheetDeductions invoice)}
+              <td> #{showAmountM (invoiceFACosts invoice) (invoiceTimesheetCosts invoice)}
+              <td> #{showAmountM (invoiceFAShiftCost invoice) (invoiceTimesheetShiftCost invoice)}
+              <td> #{showAmountM (FA.suppTranOvAmount inv) (invoiceTimesheetTotal invoice)}
+              <td>
+                <input type=checkbox name="selected-#{tshow $ FA.suppTranTransNo inv}" :selected:checked>
+              <td>
+                $maybe tid' <- tidM
+                  $with tid <- unSqlBackendKey (unTimesheetKey tid')
+                    <a href=@{GLR $GLPayrollViewR tid}>#{tshow tid}
                    |]
+      css = toWidget [cassius|
+             .has-timesheet
+               .correct
+                 font-weight: 700
+                 color: darkgreen
+               .incorrect.timesheet
+                  background: red
+                  color: white
+             .incorrect.timesheet
+                  background: orange
+                  color: white
+             .fa.incorrect
+                  background: lightblue
+             .correct
+                  color: darkorange
+            |]
+      
   let modals = concatMap modalInvoice invoices
-  return $ main <> modals
+  return $ main <> modals <> css
 
 
 showDouble :: Double -> Html
 showDouble x = toHtml $ ( (printf "%.4f" x) :: String )
 showAmountM :: Double -> Maybe Double -> Html
-showAmountM fa Nothing = showDouble fa
-showAmountM fa (Just ts) | abs (fa - ts) < 1e-6 = [shamlet|<span.badge.badge-success>#{showDouble fa}|]
+showAmountM fa Nothing = [shamlet|<span.fa.incorrect>#{showDouble fa}|]
+showAmountM fa (Just ts) | abs (fa - ts) < 1e-6 = [shamlet|<span.correct>#{showDouble fa}|]
                          | otherwise = [shamlet|
         <p>
-          <span.bg-info.text-info>#{showDouble fa}
+          <span.fa.incorrect>#{showDouble fa}
         <p>
-          <span.bg-danger.text-danger>#{showDouble ts}
+          <span.timesheet.incorrect>#{showDouble ts}
         |]
 
 -- ** Summary function
