@@ -140,9 +140,9 @@ makeSummaries :: [((TS.Timesheet Text Text, Text), Day)] -> [ (Day
 makeSummaries timesheets = let
   byDue = fst <$$> TS.groupBy snd timesheets
   summaries = [ (day, summaries, total)
-              | (day, tss) <- mapToList byDue
+              | (day, tss) <- mapToList  byDue
               , let summaries@(s:ss) = [ (lastEx summary) {TS._sumEmployee = ref}
-                                       |  (ts, ref) <- tss
+                                       |  (ts, ref) <- sortWith (TS._periodStart . fst) tss
                                        , let summary = TS.paymentSummary ts
                                        ]
               , let total =  sconcat (s :| ss)
