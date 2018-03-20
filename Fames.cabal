@@ -131,6 +131,7 @@ library
       Handler.GL.Payroll
       Handler.GL.Payroll.Common
       Handler.GL.Payroll.Import
+      Handler.GL.Payroll.QuickAdd
       Handler.GL.Payroll.Summary
       Handler.Home
       Handler.Items

@@ -20,6 +20,7 @@ import qualified GL.Payroll.Timesheet as TS
 import qualified GL.Payroll.Report as TS
 import Handler.GL.Payroll.Common
 import Handler.GL.Payroll.Summary
+import Handler.GL.Payroll.QuickAdd
 import Handler.GL.Payroll.Import
 import GL.Payroll.Parser
 import GL.Payroll.Settings
@@ -60,8 +61,12 @@ getGLPayrollR = do
   pendingW <-displayPendingSheets
   renderMain Validate Nothing ok200 (setInfo "Enter a timesheet") pendingW
 postGLPayrollValidateR :: Handler Html
-postGLPayrollValidateR = processTimesheet Validate go
-  where go param key = do
+postGLPayrollValidateR = do
+  actionM <- lookupPostParam "action"
+  case actionM of
+   Just "quickadd" -> processTimesheet Validate quickadd
+   _ -> processTimesheet Validate validate
+  where validate param key = do
           settings <- appSettings <$> getYesod
           timesheetE <- parseTimesheetH param
           case validateTimesheet (appPayroll settings) =<< timesheetE of
@@ -145,6 +150,14 @@ postGLPayrollEditR key = return "todo"
 postGLPayrollRejectR :: Int64 -> Handler Html
 postGLPayrollRejectR key = return "todo"
 
+
+-- ** Quick Add
+quickadd :: UploadParam -> DocumentHash -> Handler Html
+quickadd  param key = do
+  wE <- saveQuickAdd (unTextarea $ upTimesheet param) key
+  case wE of
+    Left e -> setError (toHtml e) >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a valid timesheet") (return ())
+    Right w -> defaultLayout w
 
 -- ** Renders
 -- | Renders the main page. It displays recent timesheet and also allows to upload a new one.
