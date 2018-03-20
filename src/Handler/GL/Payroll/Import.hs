@@ -62,20 +62,24 @@ getGLPayrollImportR = do
 renderMain :: Maybe ImportParam -> Handler Html
 renderMain paramM = do
   (formW, encType) <- generateFormPost (importForm paramM)
-  resultM <- mapM process paramM
+  resultM <- mapM importSummary paramM
   defaultLayout [whamlet|
     <form #payroll-summary role=form method=post action=@{GLR GLPayrollImportR} enctype=#{encType}>
       <div.well>
         ^{formW}
-        <button.btn type="submit" >Search
+        <button.btn type="submit" name=action value=search>Search
       $maybe result <- resultM
         ^{result}
+        <button.btn.btn-danger type="submit" name=action value=save>Save
       |]
 
-process :: ImportParam -> Handler Widget
-process param = do
+importSummary :: ImportParam -> Handler Widget
+importSummary param = do
   invoices' <- runDB $ selectInvoice param
-  invoices <- mapM (loadInvoice param) invoices'
+  invoices'' <- mapM (loadInvoice param) invoices'
+
+  (opF,opF') <- getOperatorFinders
+  let invoices = map (computeDummyModel opF opF') invoices''
 
   let main=  [whamlet|
     <div.well>
@@ -256,8 +260,6 @@ loadInvoice param (Entity invKey inv) = do
                                , FA.SuppAllocationTransTypeTo ==. Just (fromEnum ST_SUPPINVOICE)
                                ]
                                []
-  opF' <- dim2Finder
-  opF <- skuFinder
 
 
   let invoice0  = Invoice inv -- trans
@@ -271,13 +273,7 @@ loadInvoice param (Entity invKey inv) = do
                   [(Entity key ts, shifts, items)] -> ( Just (ts, map entityVal shifts, map entityVal items)
                                                       , Just key
                                                       )
-                  _ -> (Just . dummyModel $ invoiceToModel opFinder opFinder' invoice0, Nothing)
-      opFinder name = maybe (error $ "Can't find operator with name " <> unpack name)
-                            entityKey
-                           (opF name <|> opF (drop 3 name))
-      opFinder' dim2 = maybe (error $ "Can't find operator with dimension2 " <> show dim2)
-                            entityKey
-                           (opF' dim2)
+                  _ -> (Nothing , Nothing)
   return  invoice0 {model=ts, key = tkey}
 
   
@@ -307,6 +303,9 @@ postGLPayrollImportR =  do
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess param' -> do
       param <- setParams param'
+      actionM <- lookupPostParam "action"
+      when (actionM == Just "save") (importTimesheets param >> return ())
+
       renderMain (Just param)
 
 
@@ -320,7 +319,7 @@ setParams param = do
                  ]
   traceShowM("PP", pp, selected)
   return param { toImport = setFromList selected }
-
+  
 -- * 
 selectInvoice param = do
   invoices <- selectList ( Just (FA.SuppTranSupplierId ==. Just 27) ?:
@@ -400,3 +399,60 @@ dummyModel (t, ss, is)= let
   docKey = DocumentKeyKey' 0
   tId = TimesheetKey 0
   in (t docKey, ss tId, is tId)
+
+computeDummyModel :: (Text -> OperatorId) -> (Int -> OperatorId) -> Invoice -> Invoice
+computeDummyModel opFinder opFinder' invoice = case model invoice of
+  Nothing -> invoice { model = Just . dummyModel $ invoiceToModel opFinder opFinder' invoice}
+  Just _ -> invoice
+
+getOperatorFinders :: Handler (Text -> Key Operator, Int -> Key Operator)
+getOperatorFinders = do
+  opF' <- dim2Finder
+  opF <- skuFinder
+  let opFinder name = maybe (error $ "Can't find operator with name " <> unpack name)
+                            entityKey
+                           (opF name <|> opF (drop 3 name))
+      opFinder' dim2 = maybe (error $ "Can't find operator with dimension2 " <> show dim2)
+                            entityKey
+                           (opF' dim2)
+  return (opFinder, opFinder')
+
+-- * Saving
+importTimesheets :: ImportParam -> Handler [TimesheetId]
+importTimesheets param = do
+  invoices' <- runDB $ selectInvoice param
+  invoices <- mapM (loadInvoice param) invoices'
+
+  -- import only selected invoice by the user. At the moment
+  -- we can't import already existing timesheet.
+  let toImports = filter toImport invoices
+      toImport invoice = selected invoice && isNothing (key invoice)
+
+  (opF,opF') <- getOperatorFinders
+  let  model'docS = [ (model, doc)
+                    | inv <- toImports
+                    , let model = invoiceToModel opF opF' inv
+                    , let doc = "Import from FA invoice #" <> tshow (FA.suppTranTransNo (trans inv))
+                    ]
+  runDB $ forM model'docS $ \(model,doc) -> do
+    let bytes = encodeUtf8 doc
+        key  = computeDocumentKey bytes
+    (tKey, ref) <- saveTimeSheetModel key doc model
+    let tId = unSqlBackendKey (unTimesheetKey tKey)
+    lift $ pushLinks ("View Timesheet " <> ref)
+              (GLR $ GLPayrollViewR tId)
+              []
+    return tId
+
+
+  
+
+                    
+ 
+
+
+  
+
+
+  
+  return []

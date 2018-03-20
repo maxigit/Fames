@@ -42,6 +42,16 @@ saveTimeSheet key timesheet = do
         invalidArgs ["Some Operators doesn't exists in the database or in the configuration file"]
         error "Should't go there"
       Right (model, shiftsFn, itemsFn) -> runDB $ do
+          saveTimeSheetModel key ref (model, shiftsFn, itemsFn)
+
+-- saveTimeSheetModel :: DocumentHash -> (TS.Timesheet String TS.PayrooEmployee) -> Handler (TimesheetId, Text)
+saveTimeSheetModel :: DocumentHash
+                   -> Text
+                   -> ( Key DocumentKey -> Timesheet
+                      , Key Timesheet -> [PayrollShift],
+                       Key Timesheet -> [PayrollItem])
+                   -> ReaderT SqlBackend Handler (Key Timesheet, Text)
+saveTimeSheetModel key ref (model, shiftsFn, itemsFn) = do
           docKey <- createDocumentKey (DocumentType "timesheet") key ref ""
           modelId <- insert (model docKey)
           insertMany_ (shiftsFn modelId)
