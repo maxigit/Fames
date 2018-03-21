@@ -43,7 +43,10 @@ saveQuickAdd  save text key  = do
               mergedOId = modelToTimesheetOpId oldE (oldShifts <> shifts0) (oldItems <> items0)
               mergedTts' = map (\(op, _) -> maybe (tshow op) operatorNickname (lookup op operatorMap)) mergedOId
 
-          when save (setWarning ("saving disabled"))
+          when save ( lift . runDB $ do
+                        insertMany_ shifts
+                        insertMany_ items
+                    )
           return [whamlet|
               <div.panel>
                 <div.panel-header><h3>#{ref}
@@ -59,8 +62,6 @@ saveQuickAdd  save text key  = do
                      <h3> Final
                      ^{displayEmployeeSummary mergedTts'}
                          |]
-          -- insertMany_ shifts
-          -- insertMany_ items
         _ -> ExceptT . return $ Left $ "No timesheet with reference '"  <> ref <> "''"
 
     return (mconcat ws)
