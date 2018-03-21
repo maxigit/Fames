@@ -34,6 +34,7 @@ import Data.Map(Map)
 import Text.Read (readMaybe)
 import Data.These
 import Data.Align (align)
+import Debug.Trace
 
 data Current = Current
         { _currentEmployee :: Maybe PayrooEmployee
@@ -227,7 +228,7 @@ token s = case mapMaybe match cases of
                       , ("@([[:alpha:]][[:alnum:]]*)" , \(_, [name]) -> Right $ ExternalT name )
                       , ( "(" ++ amount ++ ")?\\^(" ++ amount ++ ")?" , \r@(_, [deduction, _dec,  cost, _dec']) -> Right $ DeductionAndCostT (readMaybe deduction) (readMaybe cost) )
                       ]
-              amount = "[0-9]+(.[0-9]+)?"
+              amount = "-?[0-9]+(.[0-9]+)?"
               hhmm = "([0-9]{1,2}):([0-9]{2})"
 
               match (r,f) = case s =~ ("^"++r++"$") of
@@ -352,10 +353,11 @@ tokeninize s = filter (not.null) $ go [] [] (stripL s) where
         | c == '|' = go (words ++ [word]++[[c]]) "" (s)
         -- don't break on - and remove trailing space and stick
         -- it to the previous word
-        | c == '-' =  let (words', word') = if null word
-                                            then (init words, last words)
-                                            else (words, word)
-                      in go words' (word'++[c]) (stripL s)
+        -- colides with negative amount, so we removed it.
+        -- | c == '-' =  let (words', word') = if null word
+        --                                     then (init words, last words)
+        --                                     else (words, word)
+        --               in go words' (word'++[c]) (stripL s)
         | c == ' ' || c == '\t' = go (words ++ [word ]) []           (stripL s)
         | otherwise = go words              (word++[c])  s
     go words word [] = words ++ [word]
@@ -366,4 +368,4 @@ tokeninize s = filter (not.null) $ go [] [] (stripL s) where
     
 
 diffTime :: TimeOfDay -> TimeOfDay -> Duration
-diffTime a b  = realToFrac (timeOfDayToTime a - timeOfDayToTime b / 3600)
+diffTime a b  = realToFrac ((timeOfDayToTime a - timeOfDayToTime b) / 3600)
