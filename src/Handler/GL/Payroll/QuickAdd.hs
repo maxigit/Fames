@@ -48,8 +48,8 @@ saveQuickAdd  save text key  = do
                         insertMany_ items
                     )
           return [whamlet|
-              <div.panel>
-                <div.panel-header><h3>#{ref}
+              <div.panel.panel-success>
+                <div.panel-heading><h3>#{ref}
                 <div.panel-body>
                    <div.well>
                      <h3> Existing
