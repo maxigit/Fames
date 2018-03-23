@@ -90,7 +90,6 @@ addShift' shiftType duration start u = do
         cost = rate * adjustedDuration
     day <- u ^. currentDay
     let s = Shift (emp, day, shiftType) start adjustedDuration cost
-        ts = u ^. currentTimesheet
     return $  u & currentTimesheet . shifts %~ (++ [s])
 
 roundDuration rate duration = let
@@ -233,7 +232,7 @@ token s = case mapMaybe match cases of
 
               match (r,f) = case s =~ ("^"++r++"$") of
                     (_,[],_,_) -> Nothing
-                    (p,m,s,captures) -> let types = (p, s) :: (String, String)
+                    (p,m,s,captures) -> let _types = (p, s) :: (String, String)
                                             in Just (f (m,captures))
 
 data Parser a = Parser
