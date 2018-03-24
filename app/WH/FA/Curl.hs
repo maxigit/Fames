@@ -445,11 +445,11 @@ postPurchaseCreditNote connectInfo PurchaseCreditNote{..} = do
     -- we need to change the supplier id
     response <- curlSoup ajaxPurchaseCreditNoteURL (curlPostFields [ "supplier_id" <=> pcnSupplier
                                                                    , "tran_date" <=> pcnDate
-                                                                   , "invoice__no" <=> pcnInvoiceNo
+                                                                   , "invoice_no" <=> pcnInvoiceNo
                                                                    ] : method_POST)
                         200 "Problem changing supplier"
     -- del <- addPurchaseCreditNoteDeliveries response pcnDeliveryIds
-    -- _ <- mapM addPurchaseCreditNoteDetail pcnGLItems
+    _ <- mapM addPurchaseCreditNoteDetail pcnGLItems
     ref <- case extractInputValue "reference" response of
                   Nothing -> throwError "Can't find CreditNote reference"
                   Just r -> return r
@@ -458,6 +458,7 @@ postPurchaseCreditNote connectInfo PurchaseCreditNote{..} = do
                                  , "supp_reference" <=> pcnSupplierReference
                                  , "tran_date" <=> pcnDate
                                  , "due_date" <=> pcnDate
+                                 , "invoice_no" <=> pcnInvoiceNo
                                  , "Comments" <=> pcnMemo
                                  , Just "PostCreditNote=Enter%20CreditNote" -- Pressing commit button
                                  ] : method_POST
@@ -627,3 +628,4 @@ groupPaymentTransactions transactions = let
   in [ PaymentTransaction no typ amount 
      | ((no, typ), Sum amount) <- mapToList m
      ]
+  

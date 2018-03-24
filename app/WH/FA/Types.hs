@@ -98,7 +98,7 @@ data PurchaseCreditNote = PurchaseCreditNote
   , pcnDueDate :: !Day
   , pcnMemo :: !Text
   , pcnInvoiceNo :: !(Maybe Int) -- invoice to allocate credit note too
-  , pcnDeliveryIds :: ![(Int, Maybe Int)] -- Id + number of expected items
+  , pcnDeliveryIds :: ![()] -- Not saved yet (Int, Maybe Int)] -- Id + number of expected items
   , pcnGLItems :: ![GLItem]
   } deriving (Eq,Show)
 
