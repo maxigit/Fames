@@ -343,7 +343,7 @@ postPurchaseInvoice connectInfo PurchaseInvoice{..} = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
     _ <- curlSoup newPurchaseInvoiceURL  method_GET
-                         200 "Problem trying to create a new GRN"
+                         200 "Problem trying to create a new purchase invoice"
     -- we need to change the supplier id
     response <- curlSoup ajaxPurchaseInvoiceURL (curlPostFields [ "supplier_id" <=> poiSupplier
                                                                 , "tran_date" <=> poiDate] : method_POST)
