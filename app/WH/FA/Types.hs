@@ -90,7 +90,17 @@ data GLItem = GLItem
   } deriving (Eq, Show)
 
 -- ** Credit Note
-type PurchaseCreditNote = PurchaseInvoice
+data PurchaseCreditNote = PurchaseCreditNote
+  { pcnSupplier :: !Int
+  , pcnReference :: !(Maybe Text)
+  , pcnSupplierReference :: !Text
+  , pcnDate :: !Day
+  , pcnDueDate :: !Day
+  , pcnMemo :: !Text
+  , pcnInvoiceNo :: !(Maybe Int) -- invoice to allocate credit note too
+  , pcnDeliveryIds :: ![(Int, Maybe Int)] -- Id + number of expected items
+  , pcnGLItems :: ![GLItem]
+  } deriving (Eq,Show)
 
 -- ** Payment
 -- | Payment to a supplier. Items are the 

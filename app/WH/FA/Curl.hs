@@ -9,6 +9,7 @@ module WH.FA.Curl
 , postGRN
 , postPurchaseInvoice
 , postSupplierPayment
+, postPurchaseCreditNote
 ) where
 
 import ClassyPrelude
@@ -229,6 +230,14 @@ purchaseInvoiceURL = ?baseURL <> "/purchasing/supplier_invoice.php"
 newPurchaseInvoiceURL = purchaseInvoiceURL <> "?New=Yes"
 ajaxPurchaseInvoiceURL = toAjax purchaseInvoiceURL
 
+purchaseCreditNoteURL, ajaxPurchaseCreditNoteURL :: (?baseURL :: URLString) => URLString
+purchaseCreditNoteURL = ?baseURL <> "/purchasing/supplier_credit.php"
+ajaxPurchaseCreditNoteURL = toAjax purchaseCreditNoteURL
+newPurchaseCreditNoteURL :: (?baseURL :: URLString) => Maybe Int -> URLString
+newPurchaseCreditNoteURL Nothing = purchaseCreditNoteURL <> "?New=1"
+newPurchaseCreditNoteURL (Just invoiceNo) = newPurchaseCreditNoteURL Nothing <> "&invoice_no=" <> show invoiceNo
+  
+
 supplierPaymentURL, newSupplierPaymentURL, ajaxSupplierPaymentURL :: (?baseURL :: URLString) => URLString
 supplierPaymentURL = ?baseURL <> "/purchasing/supplier_payment.php"
 newSupplierPaymentURL = supplierPaymentURL
@@ -426,6 +435,63 @@ extractDeliveryItems tags deliveryId'ns = do -- Either
   
 
   
+-- *** CreditNote
+postPurchaseCreditNote :: FAConnectInfo -> PurchaseCreditNote -> IO (Either Text Int)
+postPurchaseCreditNote connectInfo PurchaseCreditNote{..} = do
+  let ?baseURL = faURL connectInfo
+  runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
+    _ <- curlSoup (newPurchaseCreditNoteURL pcnInvoiceNo )  method_GET
+                         200 "Problem trying to create a new Credit Note"
+    -- we need to change the supplier id
+    response <- curlSoup ajaxPurchaseCreditNoteURL (curlPostFields [ "supplier_id" <=> pcnSupplier
+                                                                   , "tran_date" <=> pcnDate
+                                                                   , "invoice__no" <=> pcnInvoiceNo
+                                                                   ] : method_POST)
+                        200 "Problem changing supplier"
+    -- del <- addPurchaseCreditNoteDeliveries response pcnDeliveryIds
+    -- _ <- mapM addPurchaseCreditNoteDetail pcnGLItems
+    ref <- case extractInputValue "reference" response of
+                  Nothing -> throwError "Can't find CreditNote reference"
+                  Just r -> return r
+    let process = curlPostFields [ "supplier_id" <=> pcnSupplier
+                                 , "reference" <=> fromMaybe ref pcnReference
+                                 , "supp_reference" <=> pcnSupplierReference
+                                 , "tran_date" <=> pcnDate
+                                 , "due_date" <=> pcnDate
+                                 , "Comments" <=> pcnMemo
+                                 , Just "PostCreditNote=Enter%20CreditNote" -- Pressing commit button
+                                 ] : method_POST
+    tags <- curlSoup (ajaxPurchaseCreditNoteURL) process 200 "Create Purchase CreditNote"
+    case extractAddedId' "AddedID" "purchase invoice" tags of
+      Left e -> throwError $ "Purchase invoice creation failed:\n" <> e
+      Right faId -> return faId
+
+addPurchaseCreditNoteDetail:: (?baseURL :: URLString, ?curl :: Curl)
+             => GLItem-> ExceptT Text IO [Tag String]
+addPurchaseCreditNoteDetail GLItem{..} = do
+  let fields = curlPostFields [  "gl_code" <=> gliAccount
+                              , "amount" <=> gliAmount
+                              , "dimension_id" <=> gliDimension1
+                              , "dimension2_id" <=> gliDimension2
+                              , "memo_" <=> gliMemo
+                              , Just "AddGLCodeToTrans=1"
+                              ] :method_POST
+  curlSoup (ajaxPurchaseCreditNoteURL) fields 200 "add GL items"
+
+-- **** Credit Items from Invoice
+-- | Find all the fields corresponding to the invoicable delivery
+-- and post then required one. We cheat a bit by simulated a press
+-- to Add All GRN whereas we are in fact only supplying the items we want to deliver.
+-- This works, because sending 'InvGRNAll' doesn't process All available items,
+-- but only the ones provided in the POST parameters.
+addPurchaseCreditNoteDeliveries :: (?baseURL :: URLString, ?curl :: Curl)
+                             => [Tag String] -> [(Int, Maybe Int)] -> ExceptT Text IO [Tag String]
+addPurchaseCreditNoteDeliveries tags deliveryIds = do
+  let extra = curlPostFields [ Just "InvGRNAll=1"
+                             ] : method_POST
+  fields <- ExceptT $ return $ extractDeliveryItems tags deliveryIds 
+  curlSoup (ajaxPurchaseCreditNoteURL) (fields ++ extra) 200 "add delivery items"
+
 -- *** Payment
 postSupplierPayment :: FAConnectInfo -> SupplierPayment -> IO (Either Text Int)
 postSupplierPayment connectInfo SupplierPayment{..} = do

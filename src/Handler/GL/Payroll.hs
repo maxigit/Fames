@@ -242,4 +242,5 @@ postTimesheetToFA key timesheet shifts items = do
          invoiceId <- saveInvoice settings ts grnIds
          paymentIds <- savePayments settings key tsPayment invoiceId
          traceShowM ("PAYMENTS", paymentIds)
+         credits <- saveExternalPayments settings
          return invoiceId

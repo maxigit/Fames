@@ -573,4 +573,32 @@ employeePayment ref paymentDate settings invM summary = let
   in Just payment
 
 
--- ** Credit Note
+-- ** External payments
+-- Payments to external entities can be either stored as a direct payment using the main Wages supplier
+-- or by a pair of credit note/invoice. The credit note being made on the main wages supplier
+-- and the invoice on the external supplier. This is a way of "transfering part of an invoice" from a
+-- supplier to another one.
+saveExternalPayments :: AppSettings ->  ExceptT Text Handler [(Int, Maybe Int)]
+saveExternalPayments settings = do
+  now <- liftIO getCurrentTime
+  let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
+      fake = WFA.PurchaseCreditNote (grnSupplier psettings )
+                                    Nothing -- reference
+                                    (tshow now) -- supp reference
+                                    (utctDay now) -- date
+                                    (utctDay now) -- due
+                                    ("Test dummy")
+                                    (Just 2044) -- against invoice
+                                    []
+                                    [WFA.GLItem 2200 Nothing Nothing 1.4 (Just "Nest test")]
+                         
+                                    
+      psettings = appPayroll settings
+
+  ExceptT . liftIO $ WFA.postPurchaseCreditNote connectInfo fake
+  return []
+
+
+
+
+ 
