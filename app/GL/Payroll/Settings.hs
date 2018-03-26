@@ -48,6 +48,7 @@ data PayrollSettings = PayrollSettings
   , externals :: Map Text PayrollExternalSettings
   } deriving (Show, Read, Eq, Ord)
 
+
 -- ** Date Calculator
 data DateCalculator
   = DayOfMonth Int Int -- day , cut off
@@ -60,10 +61,10 @@ data DayOfWeek = Monday | Tuesday | Wednesday | Thursday | Friday | Saturday | S
   deriving (Show, Read, Eq, Ord, Enum, Bounded)
           
 -- * JSON
-$(deriveJSON defaultOptions ''DayOfWeek)
+$(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField}''DayOfWeek)
 $(deriveJSON defaultOptions ''EmployeeSettings)
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField} ''DateCalculator)
-$(deriveJSON defaultOptions ''DACPaymentSettings)
+$(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField}''DACPaymentSettings)
 $(deriveJSON defaultOptions ''PayrollExternalSettings)
 $(deriveJSON defaultOptions ''PayrollSettings)
 

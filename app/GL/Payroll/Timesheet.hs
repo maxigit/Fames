@@ -135,6 +135,7 @@ makeClassy ''DeductionAndCost
 
 dacDeduction = dacDac . here
 dacCost = dacDac . there
+dacTotal dac =  go dacDeduction +  go dacCost where go f = fromMaybe 0 (dac ^? f)
 
 data PayrollFrequency = Weekly | Monthly deriving (Eq, Read, Show, Enum, Bounded, Ord)
 -- | A Timesheet. A functor over employee : allows

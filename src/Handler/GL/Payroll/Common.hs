@@ -580,45 +580,65 @@ employeePayment ref paymentDate settings invM summary = let
 -- and the invoice on the external supplier. This is a way of "transfering part of an invoice" from a
 -- supplier to another one.
 saveExternalPayments :: AppSettings
+                     -> TimesheetId
                      -> Int -- ^ Invoice num
                      -> Day -- ^ transaction date
                      -> TS.Timesheet (Text, PayrollExternalSettings) emp 
-                     ->  ExceptT Text Handler [(Int, Maybe Int)]
-saveExternalPayments settings invoiceNo day timesheet = do
+                     ->  ExceptT Text Handler [Either (Int, Maybe Int) Int]
+saveExternalPayments settings key invoiceNo day timesheet = do
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
-      reference = invoiceRef (appPayroll settings) timesheet
-      pairs = (makeExternalPayments (Just invoiceNo) day reference timesheet) :: [( WFA.PurchaseCreditNote, WFA.PurchaseInvoice)]
+      psettings = appPayroll settings
+      reference = invoiceRef psettings timesheet
+      pairs = (makeExternalPayments psettings (Just invoiceNo) day reference timesheet) -- :: [( WFA.PurchaseCreditNote, WFA.PurchaseInvoice)]
+      tId = fromIntegral . unSqlBackendKey $ unTimesheetKey key
 
-  mapExceptT lift $ forM pairs $ \(credit, inv) ->  do
+  ids <- mapExceptT lift $ forM pairs $ either
+      (\(credit, inv) ->  do
         crId <- ExceptT $ WFA.postPurchaseCreditNote connectInfo credit
         invId <- ExceptT $ WFA.postPurchaseInvoice connectInfo inv
-        return (crId, Just invId)
+        return $ Left  (crId, Just invId)
+      )
+      (\payment ->  do
+        pId <- ExceptT $ WFA.postSupplierPayment connectInfo payment
+        return $ Right pId
+      )
+  lift $ runDB $ insertMany_ $ concatMap
+        (\x -> case x of
+                 Left (crId, Nothing) -> error "Should not happend" --  [ TransactionMap ST_SUPPCREDIT crId TimesheetE tId
+                 Left (crId, Just invId) -> [ TransactionMap ST_SUPPCREDIT crId TimesheetE tId
+                                            , TransactionMap ST_SUPPINVOICE invId TimesheetE tId
+                                            ]
+                 Right pId -> [ TransactionMap ST_SUPPAYMENT pId TimesheetE tId ]
+        ) ids
+  return ids
 
-makeExternalPayments :: Maybe Int  -- ^ Invoice number
+
+makeExternalPayments :: PayrollSettings
+                     -> Maybe Int  -- ^ Invoice number
                      -> Day -- ^ transaction date
                      -> Text -- ^ invoice reference
                      -> TS.Timesheet (Text, PayrollExternalSettings) emp
-                     -> [(WFA.PurchaseCreditNote, WFA.PurchaseInvoice)]
-makeExternalPayments invoiceNo day ref ts = let
+                     -> [Either (WFA.PurchaseCreditNote, WFA.PurchaseInvoice)
+                                 WFA.SupplierPayment]
+makeExternalPayments psettings invoiceNo day ref ts = let
   -- group by Settings (supplier)
   groups = TS.groupDacsBy fst (TS._deductionAndCosts ts)
-  ref = undefined
-  in map (makeExternalPair invoiceNo day ref) groups
+  in map (makeExternalPair psettings invoiceNo day ref) groups
 
-
-
-
-makeExternalPair :: Maybe Int
+makeExternalPair :: PayrollSettings
+                 -> Maybe Int
                  -> Day
                  -> Text
                  -> TS.DeductionAndCost (Text, PayrollExternalSettings)
-                 ->   (WFA.PurchaseCreditNote, WFA.PurchaseInvoice )
-makeExternalPair invoiceNo day tsReference (TS.DeductionAndCost (payee, settings) dac) =
-  case paymentSettings settings of
-    DACSupplierSettings supplier glAccount -> let
+                 -> Either (WFA.PurchaseCreditNote, WFA.PurchaseInvoice )
+                           WFA.SupplierPayment
+makeExternalPair psettings invoiceNo day tsReference dac@(TS.DeductionAndCost (payee, settings) _) =
+  let amount = TS.dacTotal  dac
       reference = tsReference <> "-" <> payee
       dueDate = calculateDate (paymentTerm settings) day
-      glItems = [WFA.GLItem glAccount Nothing Nothing 1.4 Nothing]
+  in case paymentSettings settings of
+    DACSupplierSettings supplier glAccount -> let
+      glItems = [WFA.GLItem glAccount Nothing Nothing amount Nothing]
       credit = WFA.PurchaseCreditNote (supplier)
                                     Nothing
                                     reference -- supp reference
@@ -636,7 +656,20 @@ makeExternalPair invoiceNo day tsReference (TS.DeductionAndCost (payee, settings
                                     ("")
                                     []
                                     glItems
-      in (credit, invoice)
+      in Left (credit, invoice)
+    DACPaymentSettings bankAccount -> let
+      allocations = [ WFA.PaymentTransaction inv ST_SUPPINVOICE amount | inv <- maybeToList invoiceNo ]
+      payment = WFA.SupplierPayment (grnSupplier psettings)
+                                    bankAccount
+                                    amount
+                                    dueDate
+                                    (Just reference)
+                                    (Nothing)
+                                    allocations
+      in Right payment
+
+
+
 
 
 
