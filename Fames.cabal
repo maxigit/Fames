@@ -176,6 +176,7 @@ library
       GL.Payroll.Settings
       GL.Payroll.Timesheet
       GL.Receipt
+      GL.Utils
       Items
       Items.Internal
       Items.Types
@@ -288,6 +289,7 @@ executable Fames
       GL.Payroll.Settings
       GL.Payroll.Timesheet
       GL.Receipt
+      GL.Utils
       Items
       Items.Internal
       Items.Types

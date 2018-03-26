@@ -10,6 +10,7 @@ import qualified GL.Payroll.Timesheet as TS
 import qualified GL.Payroll.Report as TS
 import GL.Payroll.Parser
 import GL.Payroll.Settings
+import GL.Utils
 import Data.Text (strip)
 import Database.Persist.MySQL
 import Data.Time.Calendar
@@ -507,7 +508,7 @@ itemsForCosts timesheet = let
   mkItem dac = let
    ((payee, payeeSettings), (opE, opSettings, _)) = TS._dacKey dac
    Just amount = preview TS.dacCost dac
-   account = glAccount payeeSettings
+   account = costGlAccount payeeSettings
    memo = payee <> " " <> (operatorNickname $ entityVal opE)
    in  WFA.GLItem account
                   (dimension1 opSettings)
@@ -578,25 +579,64 @@ employeePayment ref paymentDate settings invM summary = let
 -- or by a pair of credit note/invoice. The credit note being made on the main wages supplier
 -- and the invoice on the external supplier. This is a way of "transfering part of an invoice" from a
 -- supplier to another one.
-saveExternalPayments :: AppSettings ->  ExceptT Text Handler [(Int, Maybe Int)]
-saveExternalPayments settings = do
-  now <- liftIO getCurrentTime
+saveExternalPayments :: AppSettings
+                     -> Int -- ^ Invoice num
+                     -> Day -- ^ transaction date
+                     -> TS.Timesheet (Text, PayrollExternalSettings) emp 
+                     ->  ExceptT Text Handler [(Int, Maybe Int)]
+saveExternalPayments settings invoiceNo day timesheet = do
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
-      fake = WFA.PurchaseCreditNote (grnSupplier psettings )
-                                    Nothing -- reference
-                                    (tshow now) -- supp reference
-                                    (utctDay now) -- date
-                                    (utctDay now) -- due
-                                    ("Test dummy")
-                                    (Just 2044) -- against invoice
-                                    []
-                                    [WFA.GLItem 2200 Nothing Nothing 1.4 (Just "Nest test")]
-                         
-                                    
-      psettings = appPayroll settings
+      reference = invoiceRef (appPayroll settings) timesheet
+      pairs = (makeExternalPayments (Just invoiceNo) day reference timesheet) :: [( WFA.PurchaseCreditNote, WFA.PurchaseInvoice)]
 
-  ExceptT . liftIO $ WFA.postPurchaseCreditNote connectInfo fake
-  return []
+  mapExceptT lift $ forM pairs $ \(credit, inv) ->  do
+        crId <- ExceptT $ WFA.postPurchaseCreditNote connectInfo credit
+        invId <- ExceptT $ WFA.postPurchaseInvoice connectInfo inv
+        return (crId, Just invId)
+
+makeExternalPayments :: Maybe Int  -- ^ Invoice number
+                     -> Day -- ^ transaction date
+                     -> Text -- ^ invoice reference
+                     -> TS.Timesheet (Text, PayrollExternalSettings) emp
+                     -> [(WFA.PurchaseCreditNote, WFA.PurchaseInvoice)]
+makeExternalPayments invoiceNo day ref ts = let
+  -- group by Settings (supplier)
+  groups = TS.groupDacsBy fst (TS._deductionAndCosts ts)
+  ref = undefined
+  in map (makeExternalPair invoiceNo day ref) groups
+
+
+
+
+makeExternalPair :: Maybe Int
+                 -> Day
+                 -> Text
+                 -> TS.DeductionAndCost (Text, PayrollExternalSettings)
+                 ->   (WFA.PurchaseCreditNote, WFA.PurchaseInvoice )
+makeExternalPair invoiceNo day tsReference (TS.DeductionAndCost (payee, settings) dac) =
+  case paymentSettings settings of
+    DACSupplierSettings supplier glAccount -> let
+      reference = tsReference <> "-" <> payee
+      dueDate = calculateDate (paymentTerm settings) day
+      glItems = [WFA.GLItem glAccount Nothing Nothing 1.4 Nothing]
+      credit = WFA.PurchaseCreditNote (supplier)
+                                    Nothing
+                                    reference -- supp reference
+                                    day -- date
+                                    dueDate  -- due
+                                    ("")
+                                    invoiceNo -- against invoice
+                                    []
+                                    glItems
+      invoice = WFA.PurchaseInvoice (supplier)
+                                    Nothing
+                                    reference -- supp reference
+                                    day -- date
+                                    dueDate  -- due
+                                    ("")
+                                    []
+                                    glItems
+      in (credit, invoice)
 
 
 

@@ -229,6 +229,7 @@ postTimesheetToFA :: TimesheetId
                   -> HandlerT App IO (Either Text Int)
 postTimesheetToFA key timesheet shifts items = do
       settings <- appSettings <$> getYesod
+      today <- utctTime <$> liftIO getCurrentTime
       let tsOId = modelToTimesheetOpId timesheet shifts items
       runExceptT $ do
          ts <- ExceptT $ timesheetOpIdToO'SH tsOId
@@ -243,4 +244,5 @@ postTimesheetToFA key timesheet shifts items = do
          paymentIds <- savePayments settings key tsPayment invoiceId
          traceShowM ("PAYMENTS", paymentIds)
          credits <- saveExternalPayments settings
+         credits <- saveExternalPayments settings invoiceId today ts
          return invoiceId

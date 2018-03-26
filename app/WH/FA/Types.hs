@@ -77,7 +77,7 @@ data PurchaseInvoice = PurchaseInvoice
   , poiDate :: !Day
   , poiDueDate :: !Day
   , poiMemo :: !Text
-  , poiDeliveryIds :: ![(Int, Maybe Int)] -- Id + number of expected items
+  , poiDeliveryIds :: ![(Int, Maybe Int)] -- Id + number of expected items. invoice all available quantity
   , poiGLItems :: ![GLItem]
   } deriving (Eq, Show)
 
@@ -95,7 +95,7 @@ data PurchaseCreditNote = PurchaseCreditNote
   , pcnReference :: !(Maybe Text)
   , pcnSupplierReference :: !Text
   , pcnDate :: !Day
-  , pcnDueDate :: !Day
+  , pcnDueDate :: !Day 
   , pcnMemo :: !Text
   , pcnInvoiceNo :: !(Maybe Int) -- invoice to allocate credit note too
   , pcnDeliveryIds :: ![()] -- Not saved yet (Int, Maybe Int)] -- Id + number of expected items
