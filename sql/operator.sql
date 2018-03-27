@@ -9,4 +9,6 @@ select name as nickname
      , active
      from mop.operator
      where active = 1
+     and name not in
+(select nickname from fames_operator)
 
