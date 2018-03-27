@@ -202,7 +202,7 @@ makeLenses ''Period
 -- same tax year as the given day
 adjustTaxYear :: Start -> Day -> Day
 adjustTaxYear (Start taxStart) start = let
-  (taxYear, taxMonth, taxDay) = toGregorian taxStart
+  (_taxYear, taxMonth, taxDay) = toGregorian taxStart
   (startYear, startMonth, startDay) = toGregorian start
   newYear = if (startMonth, startDay) >= (taxMonth, taxDay)
             then startYear
@@ -218,8 +218,8 @@ weekNumber taxStart start = let
 
 monthNumber :: Start -> Day -> (Integer, Int)
 monthNumber taxStart start = let
-  (taxYear, taxMonth, taxDay) = toGregorian (adjustTaxYear taxStart start)
-  (startYear, startMonth, startDay) = toGregorian start
+  (taxYear, taxMonth, _taxDay) = toGregorian (adjustTaxYear taxStart start)
+  (_startYear, startMonth, _startDay) = toGregorian start
   in (taxYear, startMonth - taxMonth + 1)
 
 toYear :: Day -> Integer
@@ -256,13 +256,14 @@ refFormatter formatter period day = let
   (year, _, _) = toGregorian start
   in formatter year (periodNameFor day period')
 
+d = "" :: String
 shortRef :: Period -> Day -> String
 shortRef = refFormatter go where
-  go year name = printf "%02d%s" (year `mod` 100) name
+  go year name = printf "%s%02d%s" d (year `mod` 100) name
 
 longRef :: Period -> Day -> String
 longRef = refFormatter go where
-  go year name = printf "%d/%s" year name
+  go year name = printf "%s%d/%s" d year name
 
 
 dayRef period day = let

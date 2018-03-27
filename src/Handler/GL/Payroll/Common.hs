@@ -641,7 +641,7 @@ makeExternalPair psettings invoiceNo day tsReference dac@(TS.DeductionAndCost (p
       glItems = [WFA.GLItem glAccount Nothing Nothing amount Nothing]
       credit = WFA.PurchaseCreditNote (supplier)
                                     Nothing
-                                    reference -- supp reference
+                                    (reference <> "-REV") -- supp reference
                                     day -- date
                                     dueDate  -- due
                                     ("")

@@ -4,6 +4,7 @@ module Util.Cache
 , Delayed(..)
 , getDelayed
 , startDelayed
+, statusDelayed
 , DelayedStatus
 , CacheDelay
 , ExpiryCache

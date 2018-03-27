@@ -366,7 +366,7 @@ postPurchaseInvoice connectInfo PurchaseInvoice{..} = do
                                  , "reference" <=> fromMaybe ref poiReference
                                  , "supp_reference" <=> poiSupplierReference
                                  , "tran_date" <=> poiDate
-                                 , "due_date" <=> poiDate
+                                 , "due_date" <=> poiDueDate
                                  , "Comments" <=> poiMemo
                                  , Just "PostInvoice=Enter%20Invoice" -- Pressing commit button
                                  ] : method_POST
@@ -457,7 +457,7 @@ postPurchaseCreditNote connectInfo PurchaseCreditNote{..} = do
                                  , "reference" <=> fromMaybe ref pcnReference
                                  , "supp_reference" <=> pcnSupplierReference
                                  , "tran_date" <=> pcnDate
-                                 , "due_date" <=> pcnDate
+                                 , "due_date" <=> pcnDueDate
                                  , "invoice_no" <=> pcnInvoiceNo
                                  , "Comments" <=> pcnMemo
                                  , Just "PostCreditNote=Enter%20CreditNote" -- Pressing commit button
