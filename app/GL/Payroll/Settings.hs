@@ -1,4 +1,5 @@
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 -- | Defines types for AppSettings
 module GL.Payroll.Settings where
 
@@ -17,9 +18,15 @@ data EmployeeSettings = EmployeeSettings
 
 -- | External party associated with deductions and costs
 data PayrollExternalSettings = PayrollExternalSettings
-  {  paymentSettings :: DACPaymentSettings
+  {  costPaymentSettings :: Maybe DACSettings
+  ,  deductionsPaymentSettings :: Maybe DACSettings
   ,  costGlAccount:: Int
-  ,  paymentTerm :: DateCalculator
+  } deriving (Show, Read, Eq, Ord)
+
+data DACSettings = DACSettings
+  { paymentRef :: Maybe Text
+  , paymentTerm :: DateCalculator
+  , paymentSettings :: DACPaymentSettings
   } deriving (Show, Read, Eq, Ord)
 
 -- | dacs payments can be either entered in FA
@@ -30,7 +37,10 @@ data PayrollExternalSettings = PayrollExternalSettings
 data DACPaymentSettings
   = DACSupplierSettings
     { supplier :: Int
-    , glAccount :: Int
+    , glAccount :: Int	
+    , dimension1 :: Maybe Int
+    , dimension2 :: Maybe Int
+    , memo :: Maybe Text
     }
   | DACPaymentSettings
     { bankAccount :: Int
@@ -41,7 +51,7 @@ data PayrollSettings = PayrollSettings
   { employees :: Map Text EmployeeSettings
   , firstTaxWeek :: Day -- ^ first day of the first week of the tax year
   , firstTaxMonth :: Day -- ^ first day of the first month of the taxk year
-  , grnSupplier :: Int
+  , wagesSupplier :: Int
   , grnHolidayLocation :: Text
   , grnWorkLocation :: Text
   , wagesBankAccount :: Int
@@ -51,9 +61,9 @@ data PayrollSettings = PayrollSettings
 
 -- ** Date Calculator
 data DateCalculator
-  = DayOfMonth Int Int -- day , cut off
+  = DayOfMonth { day :: Int, cutoff :: Int } -- day , cut off
   | AddDays Int
-  | NextDayOfWeek DayOfWeek DayOfWeek -- day, cut off
+  | NextDayOfWeek { weekDay :: DayOfWeek, weekCutoff:: DayOfWeek } -- day, cut off
   | AddMonths Int
   deriving (Show, Read, Eq, Ord)
 
@@ -64,6 +74,7 @@ data DayOfWeek = Monday | Tuesday | Wednesday | Thursday | Friday | Saturday | S
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField}''DayOfWeek)
 $(deriveJSON defaultOptions ''EmployeeSettings)
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField} ''DateCalculator)
+$(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField} ''DACSettings)
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField}''DACPaymentSettings)
 $(deriveJSON defaultOptions ''PayrollExternalSettings)
 $(deriveJSON defaultOptions ''PayrollSettings)

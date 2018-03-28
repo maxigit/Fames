@@ -256,14 +256,17 @@ refFormatter formatter period day = let
   (year, _, _) = toGregorian start
   in formatter year (periodNameFor day period')
 
-d = "" :: String
+-- | Only there for testing reason
+-- Allows to resave transactions even if they already exists
+-- in front accountin
+referencePrefix = "" :: String
 shortRef :: Period -> Day -> String
 shortRef = refFormatter go where
-  go year name = printf "%s%02d%s" d (year `mod` 100) name
+  go year name = printf "%s%02d%s" referencePrefix (year `mod` 100) name
 
 longRef :: Period -> Day -> String
 longRef = refFormatter go where
-  go year name = printf "%s%d/%s" d year name
+  go year name = printf "%s%d/%s" referencePrefix year name
 
 
 dayRef period day = let

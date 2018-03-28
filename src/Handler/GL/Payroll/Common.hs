@@ -1,3 +1,4 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 module Handler.GL.Payroll.Common
 where
 
@@ -445,7 +446,7 @@ saveGRNs settings key timesheet = do
                       TS.Work -> grnWorkLocation
                    ) psettings
         ref = grnRef (appPayroll settings) timesheet day shiftType
-        in ( WFA.GRN (grnSupplier psettings)
+        in ( WFA.GRN (wagesSupplier psettings)
                      day
                      (Just ref)
                      (Just ref)
@@ -477,7 +478,7 @@ saveInvoice settings timesheet deliveries = do
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       psettings = appPayroll settings
       ref = invoiceRef (appPayroll settings) timesheet
-      invoice = WFA.PurchaseInvoice  (grnSupplier psettings)
+      invoice = WFA.PurchaseInvoice  (wagesSupplier psettings)
 
                                      (Just ref)
                                      ref -- supplier ref
@@ -511,8 +512,8 @@ itemsForCosts timesheet = let
    account = costGlAccount payeeSettings
    memo = payee <> " " <> (operatorNickname $ entityVal opE)
    in  WFA.GLItem account
-                  (dimension1 opSettings)
-                  (dimension2 opSettings)
+                  (dimension1 (opSettings :: EmployeeSettings ))
+                  (dimension2 (opSettings :: EmployeeSettings))
                   amount
                   (Just memo)
   in map mkItem costs
@@ -564,7 +565,7 @@ employeePayment _ _ _ _ summary | TS._finalPayment summary <= 0 = Nothing
 employeePayment ref paymentDate settings invM summary = let 
   amount = TS._finalPayment summary
   allocations = maybeToList $ invM <&> \inv -> WFA.PaymentTransaction inv ST_SUPPINVOICE amount
-  payment = WFA.SupplierPayment (grnSupplier settings)
+  payment = WFA.SupplierPayment (wagesSupplier settings)
                                 (wagesBankAccount settings)
                                 amount
                                 paymentDate
@@ -621,52 +622,109 @@ makeExternalPayments :: PayrollSettings
                      -> [Either (WFA.PurchaseCreditNote, WFA.PurchaseInvoice)
                                  WFA.SupplierPayment]
 makeExternalPayments psettings invoiceNo day ref ts = let
+  -- We need to group payments by type, ie supplier, reference and due date
+  -- Then payments  needs to be group by GLAccount, dimensions
   -- group by Settings (supplier)
-  groups = TS.groupDacsBy fst (TS._deductionAndCosts ts)
-  in map (makeExternalPair psettings invoiceNo day ref) groups
+  externalItems = concatMap (dacToExternalItems day ref . fmap fst) (TS._deductionAndCosts ts)
+  (pairs, payments) = partitionEithers externalItems
+  pairMap = unifiesRef pairs
+  paymentMap = unifiesRef payments
 
-makeExternalPair :: PayrollSettings
-                 -> Maybe Int
-                 -> Day
-                 -> Text
-                 -> TS.DeductionAndCost (Text, PayrollExternalSettings)
-                 -> Either (WFA.PurchaseCreditNote, WFA.PurchaseInvoice )
-                           WFA.SupplierPayment
-makeExternalPair psettings invoiceNo day tsReference dac@(TS.DeductionAndCost (payee, settings) _) =
-  let amount = TS.dacTotal  dac
-      reference = tsReference <> "-" <> payee
-      dueDate = calculateDate (paymentTerm settings) day
-  in case paymentSettings settings of
-    DACSupplierSettings supplier glAccount -> let
-      glItems = [WFA.GLItem glAccount Nothing Nothing amount Nothing]
-      credit = WFA.PurchaseCreditNote (supplier)
-                                    Nothing
-                                    (reference <> "-REV") -- supp reference
-                                    day -- date
-                                    dueDate  -- due
-                                    ("")
-                                    invoiceNo -- against invoice
-                                    []
-                                    glItems
-      invoice = WFA.PurchaseInvoice (supplier)
-                                    Nothing
-                                    reference -- supp reference
-                                    day -- date
-                                    dueDate  -- due
-                                    ("")
-                                    []
-                                    glItems
-      in Left (credit, invoice)
-    DACPaymentSettings bankAccount -> let
-      allocations = [ WFA.PaymentTransaction inv ST_SUPPINVOICE amount | inv <- maybeToList invoiceNo ]
-      payment = WFA.SupplierPayment (grnSupplier psettings)
-                                    bankAccount
-                                    amount
-                                    dueDate
-                                    (Just reference)
-                                    (Nothing)
-                                    allocations
-      in Right payment
+  in map (Left . makeExternalPair day invoiceNo) (mapToList pairMap)
+     <>  map (Right . makeExternalPayment (wagesSupplier psettings) invoiceNo) (mapToList paymentMap)
+
+-- regroup items by reference (supplier/account, ref, date).
+-- We don't want to date to be part of the reference, so we need
+-- to make sure that each ref as only one date. If not, we need to tweak the ref so they are unique
+unifiesRef :: Ord key => [((key, Text, Day), item)] -> Map (key, Text, Day)  [item]
+unifiesRef xs = let
+  -- group by r
+  ref ((k,r,_), _) = (k,r)
+  groupByRef = TS.groupBy ref xs
+  -- change the ref in case of multiple day
+  groupByDay gs = let
+    byDay = TS.groupBy (\((_,_,d), _) -> d) gs
+    suffixes = "": ["-" <> tshow i | i <- [2..] ]
+    -- flatten and add suffix
+    in [ ((k, r <> suffix, d), i)
+       | (items, suffix) <- zip (toList byDay) suffixes
+       , ((k, r, d) , i) <- items
+       ]
+
+
+  xs' = fmap groupByDay groupByRef
+  -- regroup using the new ref
+  -- could probably optimised
+  in  fmap (fmap snd) $ TS.groupBy fst (concat $ toList xs')
+  
+
+  
+
+-- | Return a list of either payment to be made or GL Item to be credited and invoiced
+dacToExternalItems :: Day
+             -> Text 
+             -> TS.DeductionAndCost (Text, PayrollExternalSettings)
+             -> [ Either ((Int, Text, Day), WFA.GLItem) -- credit/invoice
+                         -- ^ -- supplier
+                         ((Int, Text, Day), Double) -- payment
+                         -- ^ Bank Account
+                ] 
+dacToExternalItems day tsReference dac = let
+    (payee, settings) = dac ^. TS.dacKey
+    extract memo_ amountPrism settingsFn = case (dac ^? amountPrism,  settingsFn settings) of
+      (Just amount, Just set) | amount > 1e-2 -> let
+                             ref = tsReference <> "-" <> fromMaybe payee (paymentRef set)
+                             due = calculateDate (paymentTerm set) day 
+                             in case paymentSettings set of
+                               (DACSupplierSettings supplier glAccount dim1 dim2 memo)  -> 
+                                     let item = WFA.GLItem glAccount dim1 dim2 amount (memo <|> Just memo_)
+                                     in [Left ((supplier, ref, due), item)]
+                               (DACPaymentSettings bankAccount)  ->  [Right ((bankAccount, ref, due), amount )]
+      _ -> []
+  in extract (payee <> "^") TS.dacDeduction deductionsPaymentSettings
+     <>  extract ("^" <> payee) TS.dacCost costPaymentSettings
+  
+makeExternalPair :: Day -- ^ Transactioin date
+                 -> Maybe Int -- ^ Invoice number to allocate Credit note
+                 -> ((Int, Text, Day), [WFA.GLItem])
+                 -> (WFA.PurchaseCreditNote, WFA.PurchaseInvoice)
+makeExternalPair day invoiceNo ((supplier, reference, dueDate), glItems) = let
+    credit = WFA.PurchaseCreditNote (supplier)
+                                  Nothing
+                                  (reference <> "-REV") -- supp reference
+                                  day -- date
+                                  dueDate  -- due
+                                  ("")
+                                  invoiceNo -- against invoice
+                                  []
+                                  glItems
+    invoice = WFA.PurchaseInvoice (supplier)
+                                  Nothing
+                                  reference -- supp reference
+                                  day -- date
+                                  dueDate  -- due
+                                  ("")
+                                  []
+                                  glItems
+    in (credit, invoice)
+
+
+
+makeExternalPayment :: Int
+                    -> Maybe Int
+                    -> ((Int, Text, Day), [Double])
+                    -> WFA.SupplierPayment
+makeExternalPayment supplier invoiceNo ((bankAccount, reference, dueDate), amounts) = let
+  amount = sum amounts
+  allocations = [ WFA.PaymentTransaction inv ST_SUPPINVOICE amount | inv <- maybeToList invoiceNo ]
+  payment = WFA.SupplierPayment supplier
+                                bankAccount
+                                amount
+                                dueDate
+                                (Just reference)
+                                (Nothing)
+                                allocations
+  in payment
 
 
 

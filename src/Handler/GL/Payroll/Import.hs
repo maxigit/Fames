@@ -1,3 +1,4 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 module Handler.GL.Payroll.Import
 ( getGLPayrollImportR
 , postGLPayrollImportR
@@ -287,7 +288,7 @@ dim2Finder = do
   info <- getEmployeeInfo
   let byDim2 = mapFromList [ (d2, opE )
                            | (opE, emp) <- info
-                           , Just d2 <- return $ dimension2 emp
+                           , Just d2 <- return $ dimension2 (emp :: EmployeeSettings)
                            ] :: Map Int (Entity Operator)
   return $ flip lookup byDim2
   

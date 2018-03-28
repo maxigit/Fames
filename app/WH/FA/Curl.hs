@@ -607,7 +607,7 @@ makeSupplierPaymentAlloctionField toallocate = do
                                          Right
                                          (lookup (transNo, transType) allocMap)
   let unallocated = "un_allocated" <> drop 6 fieldname -- change amount/unallocated
-  if amount < available
+  if amount <= available
     then do
           -- we can allocate this payment
           -- we need to update the available amount accordingly

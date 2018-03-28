@@ -410,6 +410,7 @@ test-suite test
   other-modules:
       GL.Payroll.ParserSpec
       GL.Payroll.TimesheetSpec
+      GL.Payroll.UtilsSpec
       GL.ReceiptProcessingSpec
       Handler.AuthSpec
       Handler.CommentSpec

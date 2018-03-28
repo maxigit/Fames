@@ -8,7 +8,6 @@ select name as nickname
      , surname
      , active
      from mop.operator
-     where active = 1
+     where 1 -- active = 0
      and name not in
 (select nickname from fames_operator)
-
