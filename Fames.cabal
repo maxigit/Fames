@@ -102,6 +102,7 @@ library
     , Decimal >= 0.4.2 && < 0.5
     , reducers >= 3.12 && < 3.13
     , filepath >= 1.4.1.1  && < 1.5
+    , pretty-simple
   if (flag(dev)) || (flag(library-only))
     ghc-options: -fwarn-tabs -fwarn-incomplete-patterns -fwarn-incomplete-record-updates -fwarn-missing-fields -fwarn-unused-binds -Werror -fno-warn-partial-type-signatures -O0 -j6
     cpp-options: -DDEVELOPMENT
@@ -274,6 +275,7 @@ executable Fames
     , Decimal >= 0.4.2 && < 0.5
     , reducers >= 3.12 && < 3.13
     , filepath >= 1.4.1.1  && < 1.5
+    , pretty-simple
     , Fames
   if flag(library-only)
     buildable: False
@@ -386,6 +388,7 @@ test-suite test
     , Decimal >= 0.4.2 && < 0.5
     , reducers >= 3.12 && < 3.13
     , filepath >= 1.4.1.1  && < 1.5
+    , pretty-simple
     , base
     , Fames
     , yesod-test >=1.5.0.1 && <1.6
