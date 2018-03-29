@@ -19,6 +19,7 @@ import Data.Time (addDays, addGregorianMonthsClip)
 import qualified FA as FA
 import Database.Persist.MySQL(unSqlBackendKey) -- , rawSql, Single(..))
 import Text.Printf(printf) 
+import Control.Monad.Except
 
 -- * Type
 data ImportParam = ImportParam
@@ -71,6 +72,7 @@ renderMain paramM = do
       $maybe result <- resultM
         ^{result}
         <button.btn.btn-danger type="submit" name=action value=save>Save
+        <button.btn.btn-danger type="submit" name=action value=credit>Credit
       |]
 
 importSummary :: ImportParam -> Handler Widget
@@ -310,7 +312,12 @@ postGLPayrollImportR =  do
     FormSuccess param' -> do
       param <- setParams param'
       actionM <- lookupPostParam "action"
-      when (actionM == Just "save") (importTimesheets param >> return ())
+      when (actionM == Just "save") $ do
+        rs <- importTimesheets param
+        setSuccess . toHtml $ show (length rs) <> " Timesheets imported successfully"
+      when (actionM == Just "credit") $ do
+        rs <- importCredits param
+        setSuccess . toHtml $ show (length rs) <> " Credit Notes/Invoices pairs saved successfully"
 
       renderMain (Just param)
 
@@ -423,20 +430,25 @@ getOperatorFinders = do
                            (opF' dim2)
   return (opFinder, opFinder')
 
--- * Saving
-importTimesheets :: ImportParam -> Handler [TimesheetId]
-importTimesheets param = do
+-- * Importing
+loadSelectedInvoices param = do
   invoices' <- runDB $ selectInvoice param
   invoices <- mapM (loadInvoice param) invoices'
 
   -- import only selected invoice by the user. At the moment
   -- we can't import already existing timesheet.
-  let toImports = filter toImport invoices
-      toImport invoice = selected invoice && isNothing (key invoice)
+  return $ filter selected invoices
+
+-- * Saving
+importTimesheets :: ImportParam -> Handler [TimesheetId]
+importTimesheets param = do
+  invoices' <- loadSelectedInvoices param
+  -- only import invoice which doesn't have a corresponding timesheet
+  let invoices = filter (isNothing . key) invoices'
 
   (opF,opF') <- getOperatorFinders
   let  model'docS = [ (model, doc)
-                    | inv <- toImports
+                    | inv <- invoices
                     , let model = invoiceToModel opF opF' inv
                     , let doc = "Import from FA invoice #" <> tshow (FA.suppTranTransNo (trans inv))
                     ]
@@ -448,10 +460,49 @@ importTimesheets param = do
     lift $ pushLinks ("View Timesheet " <> ref)
               (GLR $ GLPayrollViewR tId)
               []
-    return tId
+    return tKey
 
 
   
+-- * Credit
+-- importCredits :: ImportParam -> Handler [TimesheetId]
+importCredits param = do
+  invoices <- loadSelectedInvoices param
+  traceShowM ("loaded invoices"  <> show (length invoices))
+  r <- runExceptT $ mapM importExternalPayment invoices
+  case r of
+    Left e -> setError (toHtml e) >> return []
+    Right rs -> return rs
+
+-- save external payments if the timesheet exists
+-- payments haven't been already made
+importExternalPayment :: _ -> ExceptT Text Handler _
+importExternalPayment invoice = do
+  settings <- appSettings <$> getYesod
+  let inv = trans invoice
+      invoiceNo = FA.suppTranTransNo inv
+      day = FA.suppTranTranDate inv
+      psettings = appPayroll settings
+  traceShowM $ "Saving invoice" <> show invoiceNo
+  tId <- case key invoice of
+    Nothing -> fail $ "No timesheet corresponding to invoice #" <> show invoiceNo
+    Just tId -> return tId
+  ts <- case model invoice of
+    Nothing -> fail $ "No timesheet corresponding to invoice #" <> show invoiceNo
+    Just (timesheet, shifts, items) -> let
+      tsOpId = modelToTimesheetOpId (Entity tId timesheet)
+                                    (map (Entity $ PayrollShiftKey 0) shifts)
+                                    (map (Entity $ PayrollItemKey 0) items)
+      ts = timesheetPayeeToPSettings (externals psettings) tsOpId
+      in ExceptT . return $ ts
+
+  saveExternalPayments settings
+                       tId
+                       invoiceNo
+                       day
+                       ts
+
+
 
                     
  

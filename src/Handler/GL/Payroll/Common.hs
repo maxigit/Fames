@@ -155,13 +155,6 @@ timesheetOpIdToO'S employeeInfos payeeMap ts = let
   -- in TS.traversePayee findPayee <$> traverse findInfo ts
   in traverse findInfo ts >>= TS.traversePayee findPayee
 
-timesheetOpIdToO'SH :: TS.Timesheet Text (OperatorId, PayrollShiftId)
-                   -> Handler ( Either Text
-                                       (TS.Timesheet (Text, PayrollExternalSettings)
-                                                     (Entity Operator, EmployeeSettings, PayrollShiftId)
-                                       )
-                              )
-
 timesheetOpIdToOSettings :: [(Entity Operator, EmployeeSettings)]
                    -> TS.Timesheet p (OperatorId, PayrollShiftId)
                    -> Either Text ( TS.Timesheet p
@@ -177,6 +170,9 @@ timesheetOpIdToOSettings employeeInfos ts = let
                                  (lookup opKey m)
   in traverse findInfo ts
 
+timesheetPayeeToPSettings :: Map Text PayrollExternalSettings
+                          -> TS.Timesheet Text e
+                          -> Either Text (TS.Timesheet (Text, PayrollExternalSettings) e)
 timesheetPayeeToPSettings payeeMap = let
   findPayee :: Text -> Either Text (Text, PayrollExternalSettings)
   findPayee payee =  maybe (Left $ "Can't find settings for payee '" <> payee <>"''")
@@ -185,6 +181,12 @@ timesheetPayeeToPSettings payeeMap = let
   -- in TS.traversePayee findPayee <$> traverse findInfo ts
   in TS.traversePayee findPayee
   
+timesheetOpIdToO'SH :: TS.Timesheet Text (OperatorId, PayrollShiftId)
+                    -> Handler (Either Text
+                                       (TS.Timesheet (Text, PayrollExternalSettings)
+                                       (Entity Operator, EmployeeSettings, PayrollShiftId)
+                                       )
+                               )
 timesheetOpIdToO'SH ts = do
   employeeInfos <- getEmployeeInfo
   payrollSettings <- getsYesod (appPayroll . appSettings)
