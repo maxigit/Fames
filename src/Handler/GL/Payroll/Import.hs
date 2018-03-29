@@ -165,8 +165,16 @@ invoiceTimesheetShiftCost invoice = do
 invoiceTimesheetTotal inv = liftA2 (+) (invoiceTimesheetShiftCost inv) (invoiceTimesheetCosts inv)
 
 
-invoiceFACosts invoice = let
+-- Difference between GL trans and supp_inv
+-- can come because of rounding error.
+-- FA generates some GL Trans for rounding which doesn't appear on the FA invoice view
+-- but on the GL view
+_invoiceFAGLCosts invoice = let
   costs = filter (isNothing . FA.glTranStockId) (glTrans invoice)
+  in sum $ map FA.glTranAmount costs
+
+invoiceFACosts invoice = let
+  costs = filter ((/= "4920") . FA.glTranAccount)  $ filter (isNothing . FA.glTranStockId) (glTrans invoice)
   in sum $ map FA.glTranAmount costs
 
 invoiceFAShiftCost invoice = let
@@ -383,6 +391,7 @@ mkCost opFinder opFinder' gl = do -- Maybe
               "7000" -> Nothing
               "7002" -> Nothing
               "4920" -> Nothing
+              "2215" -> Nothing
               _ -> error $ "no payee for " <> show account
   operator <- listToMaybe $ Import.catMaybes [ opFinder' <$> dim2, opFinder <$> stockId ]
      
