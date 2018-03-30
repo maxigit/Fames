@@ -111,5 +111,22 @@ spec = describe "@Payroll" $ do
                                                            ]
             parseFastTimesheet (lines content)
                 `shouldBe` expected
+        it "parses half multiplier"  $ do
+            let content = "\
+\2015/06/01\n\
+\$10\n\
+\Alice #1\n\
+\Alice\n\
+\2.5x8|!4\n\
+\"
+                ss = [ Shift (alice, makeDay 0, Work) Nothing 8 80 
+                     , Shift (alice, makeDay 1, Work) Nothing 8 80
+                     , Shift (alice, makeDay 2, Work) Nothing 4 40
+                     , Shift (alice, makeDay 2, Holiday) Nothing 4 40
+                     ]
+                expected = Right $Timesheet ss day0 Weekly []
+            parseFastTimesheet (lines content)
+                `shouldBe` expected
+
 
 

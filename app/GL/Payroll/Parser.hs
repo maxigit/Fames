@@ -177,6 +177,7 @@ data Token = NameT String
            | SkipT
            | FrequencyT PayrollFrequency 
            | PipeT
+           | MultiplierT Duration ShiftType Duration
            | WeekDayT WeekDay
            | DeductionAndCostT (Maybe Amount) (Maybe Amount)
            | ExternalT String
@@ -205,6 +206,12 @@ token s = case mapMaybe match cases of
                                                 (read mm')
                                                 0)
                                                 )
+                        )
+                      , ("([0-9]+(.[0-9+])?)x([^[:space:]]+)", \(_, [mul, _, leftover]) -> do -- Either
+                                              subtoken <- token leftover
+                                              case subtoken of
+                                                    DurationT typ duration -> Right $ MultiplierT (read mul) typ duration
+                                                    _ -> Left $ s ++ " is not a valid duration"
                         )
                       , ("([0-9]{1,2})h([0-9]{2})", \(_, [hh, mm]) -> Right $ DurationT Work ((read hh + read mm / 60)))
                       , ("!([^[:space:]]+)", (\(_, groups) -> do -- Either
@@ -349,6 +356,13 @@ processShift u t =  case t of
         DeductionAndCostT deductionM costM  -> maybe (Left "Can't assign Deduction and Costs if current employee and external are not set")
                                        Right
                                        (addDeductionAndCost u deductionM costM)
+        -- many days, apply it many times
+        MultiplierT n stype dur | n <= 0 -> Right u
+                                | n < 1 -> processShift u (DurationT stype (n*dur))
+                                | otherwise -> do
+                                    u' <- processShift u (DurationT stype dur)
+                                    processShift u' ((MultiplierT (n-1) stype dur))
+        FrequencyT freq -> Right $ u & currentTimesheet . frequency .~ freq
 
 -- | Split a line into usefull tokens.
 -- Basically split on spaces but also deals with '-' and '|'
