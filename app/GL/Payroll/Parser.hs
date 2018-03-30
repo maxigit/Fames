@@ -47,7 +47,7 @@ data Current = Current
 
 makeClassy ''Current
 
-initCurrent weekDay = Current Nothing Nothing Nothing  (newTimesheet Weekly weekDay) (Map.empty) Nothing
+initCurrent period start = Current Nothing Nothing Nothing  (newTimesheet period start) (Map.empty) Nothing
 currentWeekStart =  currentTimesheet . periodStart 
 
 setEmploye :: PayrooEmployee -> Current -> Current
@@ -105,12 +105,16 @@ roundDuration rate duration = let
   in fromIntegral (ceiling (duration * m')) / m'
 
 
+-- | Find the given week day (Mon, Sun) within the current week (in Week mode)
+-- | or the following the current day in Month mode
 findWeekDay :: Current -> WeekDay -> Day
 findWeekDay u wday = case dayToWeekDay sday of
     Nothing -> error ("can't find day of the week" ++ show (formatTime defaultTimeLocale "%a" sday))
     Just wstart -> let offset = (index wday - index wstart) `mod` 7
-                   in  addDays (fromIntegral offset) (u ^. currentWeekStart)
-    where sday = u ^. currentWeekStart 
+                   in  addDays (fromIntegral offset) sday
+    where sday = case u ^. currentTimesheet . frequency of
+            Weekly -> u ^. currentWeekStart -- next day from start
+            Monthly -> fromMaybe (u^.currentWeekStart) (u ^. currentDay) -- next day from current one
 
                     
 
@@ -171,6 +175,7 @@ data Token = NameT String
            | DurationT ShiftType Duration
            | RangeT TimeOfDay TimeOfDay
            | SkipT
+           | FrequencyT PayrollFrequency 
            | PipeT
            | WeekDayT WeekDay
            | DeductionAndCostT (Maybe Amount) (Maybe Amount)
@@ -182,9 +187,10 @@ token s = case mapMaybe match cases of
             [] -> Left $ "Can't tokenize `" ++ show s ++ "`"
             (h:_) -> h
         where cases = [ ("[[:alpha:]][[:alnum:]]*", 
-                        \(name, _) -> Right $ case parseWeekDay name of
-                                                Nothing -> NameT name
-                                                Just w -> WeekDayT w
+                        \(name, _) -> Right $ case (parseWeekDay name, readMaybe name) of
+                                                (_, Just frequency) -> FrequencyT frequency
+                                                (Just w, _) -> WeekDayT w
+                                                (Nothing, Nothing) -> NameT name
                                         )
                       , ( hhmm ++ "-" ++ hhmm,
                            \(_,[hh,mm,hh',mm']) ->
@@ -260,7 +266,8 @@ parseFastTimesheet lines = do -- Either
     let go :: Current -> [[Token]] -> Either String (Timesheet String PayrooEmployee)
         go current tss = (^.currentTimesheet) <$> foldM processLine current tss
     case tokenss of
-        ([DayT weekDay]:tokenss') -> go (initCurrent weekDay) tokenss'
+        ([DayT start]:tokenss') -> go (initCurrent Weekly start) tokenss'
+        ([FrequencyT frequency, DayT start]:tokenss') -> go (initCurrent frequency start) tokenss'
         otherwise -> Left $ "File should start with the week start date"
 
 -- | Process a full line of tokens.
