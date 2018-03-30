@@ -40,7 +40,7 @@ renderShelf :: Shelf s -> WH (Diagram B) s
 renderShelf shelf = do            
     (_, used) <- usedDepth shelf
     (fgM, bgM) <- gets shelfColors `ap` return shelf 
-    let (Dimension l w h) = maxDim shelf
+    let (Dimension l _w h) = maxDim shelf
         (Dimension ln wn hn) = minDim shelf
         rmax = rect l h # lc royalblue # lwL 2 -- # fc white
         isSeparator = wn < 10
@@ -110,10 +110,10 @@ depthBar'' up l l0 colour = translate (r2 (scale l0, 0)) . alignBL $ rect (scale
 
 offsetBox :: Bool -> Shelf s -> Box s -> Diagram B -> Diagram B
 offsetBox fromBoxCenter shelf box diagram  = let
-    Dimension xn yn zn = minDim shelf
-    Dimension xx yx zx = maxDim shelf
-    Dimension l w h = if fromBoxCenter then boxDim box else Dimension 0 0 0
-    Dimension ox oy oz = boxOffset box
+    Dimension xn _yn _zn = minDim shelf
+    -- Dimension xx yx zx = maxDim shelf
+    Dimension l _w h = if fromBoxCenter then boxDim box else Dimension 0 0 0
+    Dimension ox _oy oz = boxOffset box
 
     offset LeftToRight =  (ox+l/2, oz+h/2)
     offset RightToLeft = (xn -ox+l/2, oz+h/2) 
@@ -124,7 +124,7 @@ offsetBox fromBoxCenter shelf box diagram  = let
 renderBox :: Shelf s -> Box s -> WH [(Int, Diagram B)] s
 renderBox shelf box = do
     let   Dimension xn yn zn = minDim shelf
-          Dimension xx yx zx = maxDim shelf
+          -- Dimension xx yx zx = maxDim shelf
           Dimension l w h = boxDim box
           Dimension ox oy oz = boxOffset box
           foreground = if (ox+l) > xn || (oy+w) > yn || (oz+h) > zn
@@ -147,15 +147,15 @@ renderBox shelf box = do
 
 renderBoxBar :: Box s -> Colour Double -> Diagram B
 renderBoxBar box background =
-  let Dimension l w h = boxDim box
-      Dimension ox oy oz = boxOffset box
+  let Dimension _l w _h = boxDim box
+      Dimension _ox oy _oz = boxOffset box
   in depthBar'' (lwL 1 . lc $ blend 0.5  black background ) w oy (background)
   -- in depthBar'  w oy (background)
 
     
 renderBoxBarBg :: Shelf s -> Diagram B
 renderBoxBarBg shelf = gaugeBar yn
-    where   Dimension xn yn zn = minDim shelf
+    where   Dimension _xn yn _zn = minDim shelf
     
 -- | draw text scaled to fit given rectangle
 -- scaledText :: Double -> Double-> String -> Diagram b

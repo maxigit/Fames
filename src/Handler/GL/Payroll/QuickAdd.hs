@@ -34,7 +34,6 @@ saveQuickAdd  save text key  = do
           let tsOId = modelToTimesheetOpId oldE oldShifts oldItems
               oldTts' = map (\(op, _) -> maybe (tshow op) operatorNickname (lookup op operatorMap)) tsOId
           timesheet <- ExceptT. return $ generateAdds header key start texts
-          let period' = timesheetPeriod payrollSettings timesheet
           (model, shiftsFn, itemsFn) <- ExceptT . return $ timesheetOpIdToModel ref <$> timesheetEmployeeToOpId opFinder timesheet
           let shifts = shiftsFn key
               items = itemsFn key

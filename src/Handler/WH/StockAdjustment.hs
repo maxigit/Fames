@@ -190,7 +190,7 @@ postWHStockAdjustmentR = do
           
 
       -- use conduit ? TODO
-      let classFor' qty qoh = case compare qty qoh of
+      let _unused_classFor' qty qoh = case compare qty qoh of
             GT -> "success"
             EQ -> ""
             LT -> "danger" :: Text

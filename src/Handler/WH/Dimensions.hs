@@ -22,16 +22,16 @@ import Data.Maybe (fromJust)
 
 -- * Types
 data Facet = Facet
-  { offset :: Dimension
-  , background :: Maybe (Colour Double)
-  , points :: [Dimension]
+  { _unused_offset :: Dimension
+  , _unused_background :: Maybe (Colour Double)
+  , _unused_points :: [Dimension]
   }
 
 -- | Positionated Dimension (+ offset and orientation)
 data PDimension = PDimension
-  { poffset :: Dimension
-  , pDim :: Dimension
-  , pOr :: Orientation 
+  { _unused_poffset :: Dimension
+  , _unused_pDim :: Dimension
+  , _unused_pOr :: Orientation 
   }
 
 -- * Forms
@@ -241,7 +241,6 @@ displayBox outer innerm   = let
                inners = innerBoxes outer inner
                middle = mconcat $ map innerPToFacets inners
                in (foreground , middle <> background)
-  sortF = sortBy (comparing (facetZ)) 
   d = mconcat $ (disp fg_  # lc (blend 0.5 outerColourNY black) # dashing [13, 5] 0 )
                <> disp facets
   z = [ lineFromVertices (map iso [(Dimension 0 0 0), o])
@@ -269,16 +268,16 @@ outerBoxToFacets (Dimension l w h) = let
   bottom = Facet mempty (Just outerColourNZ)  $ toDims [(0,0,0), (l,0,0), (l,w,0), (0,w,0)]
   backside = Facet mempty (Just outerColourNY)  $ toDims [(l,0,0), (l,w,0), (l,w,h), (l,0,h)]
   back = Facet mempty (Just outerColourNX) $ toDims [(0,w,0), (l,w,0), (l,w,h), (0,w,h)]
-  front = Facet mempty Nothing $ toDims [(0,w,0), (l,w,0), (l,w,h), (0,w,h)]
-  frontside = Facet mempty Nothing  $ toDims [(l,0,0), (l,w,0), (l,w,h), (l,0,h)]
-  up = Facet (Dimension 0 0 h) Nothing  $ toDims [(0,0,0), (l,0,0), (l,w/2,0), (0,w/2,0)]
+  _unused_front = Facet mempty Nothing $ toDims [(0,w,0), (l,w,0), (l,w,h), (0,w,h)]
+  _unused_frontside = Facet mempty Nothing  $ toDims [(l,0,0), (l,w,0), (l,w,h), (l,0,h)]
+  _unused_up = Facet (Dimension 0 0 h) Nothing  $ toDims [(0,0,0), (l,0,0), (l,w/2,0), (0,w/2,0)]
   in  reverse [bottom, backside, back]
 
 outerBoxToFacets' :: Dimension -> [Facet]
 outerBoxToFacets' (Dimension l w h) = let
-  bottom = Facet mempty (Just outerColourNZ)  $ toDims [(0,0,0), (l,0,0), (l,w,0), (0,w,0)]
-  backside = Facet (Dimension 0 0 0 ) (Just outerColourNX)  $ toDims [(l,0,0), (l,w,0), (l,w,h), (l,0,h)]
-  back = Facet mempty (Just outerColourNY) $ toDims [(0,w,0), (l,w,0), (l,w,h), (0,w,h)]
+  _unused_bottom = Facet mempty (Just outerColourNZ)  $ toDims [(0,0,0), (l,0,0), (l,w,0), (0,w,0)]
+  _unused_backside = Facet (Dimension 0 0 0 ) (Just outerColourNX)  $ toDims [(l,0,0), (l,w,0), (l,w,h), (l,0,h)]
+  _unused_back = Facet mempty (Just outerColourNY) $ toDims [(0,w,0), (l,w,0), (l,w,h), (0,w,h)]
   front = Facet (Dimension 0 w 0) Nothing $ toDims [(0,w,0), (l,w,0), (l,w,h), (0,w,h)]
   frontside = Facet (Dimension l 0 0 ) Nothing  $ toDims [(l,0,0), (l,w,0), (l,w,h), (l,0,h)]
   up = Facet (Dimension 0 0 h) Nothing  $ toDims [(0,0,0), (l,0,0), (l,w/2,0), (0,w/2,0)]
@@ -328,7 +327,7 @@ innerPToFacets (PDimension  off dim ori) = let
   
 
  
-rotateFacet ori (Facet off bg dims) = Facet (W.rotate ori off) bg (map (W.rotate ori) dims)
+_unused_rotateFacet ori (Facet off bg dims) = Facet (W.rotate ori off) bg (map (W.rotate ori) dims)
 translateFacet off0 (Facet off1 bg dims) = Facet (off0 `mappend` off1) bg dims
 
 facetCenter (Facet offset _ points) = let
@@ -336,8 +335,8 @@ facetCenter (Facet offset _ points) = let
   n = fromIntegral (length points)
   in offset `mappend` (Dimension (gl/n) (gw/n) (gh/n))
 
-facetZ f =
-  let Dimension l w h = facetCenter f
+_unused_facetZ f =
+  let Dimension l w _h = facetCenter f
   in (l+w)
   
 toDim (x,y,z) = Dimension x y z
@@ -361,8 +360,8 @@ innerColourNZ = sRGB24 235 219 189
 
 cos30 = cos (pi/6)
 sin30 = sin (pi/6)
-cos60 = cos (pi/3)
-sin60 = sin (pi/3)
+_unused_cos60 = cos (pi/3)
+_unused_sin60 = sin (pi/3)
 iso :: Dimension -> Point V2 Double 
 iso (Dimension l w h) = x ^& y  where
   x =  0 - l * cos30 + w * cos30

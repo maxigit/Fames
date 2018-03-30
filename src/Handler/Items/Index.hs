@@ -990,14 +990,16 @@ getColumnToTitle cache param = do
                 Nothing -> Right ""
                 Just name -> let
                   checked = priceColumnCheckId i `elem` (ipColumns param)
-                  in Left ([shamlet|#{name}<input type="checkbox" name="col-check-#{priceColumnCheckId i}" :checked:checked>|]
+                  in Left ([shamlet|#{name}
+                                   <input type="checkbox" name="col-check-#{priceColumnCheckId i}" :checked:checked>|]
                           , ["price"]
                           )
             PurchaseColumn i -> case lookup i supplierNames of
                 Nothing -> Right ""
                 Just name -> let
                   checked = supplierColumnCheckId i `elem` (ipColumns param)
-                  in Left ([shamlet|#{name}<input type="checkbox" name="col-check-#{supplierColumnCheckId i}" :checked:checked>|]
+                  in Left ([shamlet|#{name}
+                                   <input type="checkbox" name="col-check-#{supplierColumnCheckId i}" :checked:checked>|]
                           , ["purch_price"]
                           )
             FAStatusColumn t -> Right t

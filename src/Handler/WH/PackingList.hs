@@ -696,8 +696,7 @@ stocktakeSource key detail'boxS = do
 
 loadForStocktake :: Int64 -> Handler [(Entity PackingListDetail, Entity Boxtake)]
 loadForStocktake key = do
-  let plKey = PackingListKey (SqlBackendKey key)
-      sql = "SELECT ??,?? FROM fames_packinglist_detail JOIN fames_boxtake USING (barcode)"
+  let sql = "SELECT ??,?? FROM fames_packinglist_detail JOIN fames_boxtake USING (barcode)"
          <> " WHERE packinglist_id = ? "
   runDB $ rawSql sql [toPersistValue key]
   

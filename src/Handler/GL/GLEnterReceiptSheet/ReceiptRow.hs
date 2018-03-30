@@ -129,8 +129,6 @@ analyseReceiptRow ReceiptRow{..}
                              rowGLDimension1
                              rowGLDimension2
 
-  where row = ReceiptRow () () () () () () ()
-
 transformRow ReceiptRow{..} = ReceiptRow
   (transform rowDate)
   (transform rowCounterparty)

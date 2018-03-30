@@ -89,7 +89,7 @@ computeDiff item0 item@(ItemInfo style var master) = let
   [s0, s] = (map (fromMaybe mempty .impSalesPrices . iiInfo)  [item0, item]) :: [(IntMap (PriceF Identity))]
   [p0, p] = (map (fromMaybe mempty .impPurchasePrices . iiInfo)  [item0, item]) :: [(IntMap (PurchDataF Identity))]
   [ItemPriceF wp0, ItemPriceF wp] = (map (fromMaybe mempty .impWebPrices . iiInfo)  [item0, item]) :: [ItemPriceF Identity]
-  [ws0, ws] = (map (impWebStatus . iiInfo)  [item0, item]) :: [Maybe (ItemWebStatusF Identity)]
+  [_ws0, ws] = (map (impWebStatus . iiInfo)  [item0, item]) :: [Maybe (ItemWebStatusF Identity)]
   -- we don't want to compare the web status to the base item, but to the FA Status
   -- if something is running, it should be available on the website
   -- However, if FAStatus is not present (ie, product doesn't exits) should be equivalent

@@ -485,9 +485,9 @@ addPurchaseCreditNoteDetail GLItem{..} = do
 -- to Add All GRN whereas we are in fact only supplying the items we want to deliver.
 -- This works, because sending 'InvGRNAll' doesn't process All available items,
 -- but only the ones provided in the POST parameters.
-addPurchaseCreditNoteDeliveries :: (?baseURL :: URLString, ?curl :: Curl)
+_addPurchaseCreditNoteDeliveries :: (?baseURL :: URLString, ?curl :: Curl)
                              => [Tag String] -> [(Int, Maybe Int)] -> ExceptT Text IO [Tag String]
-addPurchaseCreditNoteDeliveries tags deliveryIds = do
+_addPurchaseCreditNoteDeliveries tags deliveryIds = do
   let extra = curlPostFields [ Just "InvGRNAll=1"
                              ] : method_POST
   fields <- ExceptT $ return $ extractDeliveryItems tags deliveryIds 

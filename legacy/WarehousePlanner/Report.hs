@@ -133,7 +133,7 @@ bestArrangement' orientations shelves box = let
               | (o, minW, maxW) <-   orientations
               , (shelf, extra) <- shelves
               , let Dimension sl sw sh =  shelf
-              , let (nl, nw, nh) = howMany shelf (rotate o box)
+              , let (nl, nw, _nh) = howMany shelf (rotate o box)
               ]
 
     bests = sortBy (compare `on` fst)
@@ -145,7 +145,7 @@ bestArrangement' orientations shelves box = let
 
                   )
                  | (ori, extra, (nl, nw, nh), vol ) <- options
-                 , let Dimension bl bh bw = rotate ori box
+                 , let Dimension bl bh _bw = rotate ori box
                  ]
     in
         -- trace ({-show shelves ++ show box ++-}  show bests) $
@@ -268,7 +268,7 @@ summary = do
                                    ] <*> [si]
                       in values
 
-        table = Table (Group NoLine (Header . fst <$> Map'.toList infos))
+        _unused_table = Table (Group NoLine (Header . fst <$> Map'.toList infos))
                       (Group SingleLine (map Header (words "used total free %used floor")))
                       (map renderSI $ Map'.elems infos)
                 +----+ row (Just "Total") (renderSI total)
@@ -282,10 +282,10 @@ summary = do
 
 
 
-isShelfEmpty s = null `fmap` findBoxByShelf s
+_unused_isShelfEmpty s = null `fmap` findBoxByShelf s
 -- @todo optimize
-seqFilterM :: (Functor m, Monad m) => (a -> m Bool) -> Seq a -> m (Seq a)
-seqFilterM test s = fmap Seq.fromList (filterM test (toList s))
+_unused_seqFilterM :: (Functor m, Monad m) => (a -> m Bool) -> Seq a -> m (Seq a)
+_unused_seqFilterM test s = fmap Seq.fromList (filterM test (toList s))
 
 occupiedVolume :: Shelf' shelf => shelf s -> WH Double s
 occupiedVolume s = do
@@ -677,5 +677,3 @@ showPair pair = let res = pRes1 pair
                   ++ printDim (boxDim $ rBox res) ++ (printf "(%d)" $ rBoxPerShelf res)
 
 printDim  (Dimension l w h) = printf "%0.1fx%0.1fx%0.1f" l w h
-
-showMixed = undefined

@@ -106,7 +106,7 @@ employeeSummaryTable' day cols0 colnames rows0 = let
 computeDueDate :: PayrollSettings -> TS.Timesheet p e -> Day
 computeDueDate settings ts = let
   (year, month, day) = toGregorian $  TS._periodStart ts 
-  (year', month', day') = toGregorian $ firstTaxMonth settings
+  (_year', _month', day') = toGregorian $ firstTaxMonth settings
   period = fromGregorian year month day'
   in if day' > day
      then period

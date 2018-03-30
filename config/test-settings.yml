@@ -26,7 +26,28 @@ stock-locations:
   "Container 1":
   - shelf-3
 payroll:
-  employees: []
-  firstTaxWeek: 2017/03/31
-  firstTaxMonth: 2017/03/26
+  employees: {}
+  firstTaxWeek: "2017-03-31"
+  firstTaxMonth: "2017-03-26"
+  wagesSupplier: 65
+  grnHolidayLocation: LOST
+  grnWorkLocation: DEF
+  wagesBankAccount: 1
+  externals:
+    NI-Example: 
+      costGlAccount: 7006
+      deductionsPaymentSettings: &PAYE
+        paymentRef: PAYE
+        paymentTerm:
+          DayOfMonth:
+            day: 19
+            cutoff: 6
+        paymentSettings:
+          DACSupplierSettings:
+            supplier: 66
+            glAccount: 2200
+      costPaymentSettings: *PAYE
+    PAYE-Example:
+      costGlAccount: 7001
+      deductionsPaymentSettings: *PAYE
 

@@ -63,7 +63,7 @@ findSlices zones0 boxes = let
   -- first, we need to see if all boxes of a given style
   -- fits in any zone in only on row. Those styles are put in priority in the best fitting zone.
   (zones1, boxes1) = fitOneRow zones0 (toList styles0)
-  (zones2, boxes2) = fitAllRow (sortOn zoneName zones1) boxes1
+  (zones2, _boxes2) = fitAllRow (sortOn zoneName zones1) boxes1
   r =  sortOn zoneName zones2
   in traceShow ("SLICES", r) r
 
@@ -177,8 +177,8 @@ addSlice zone slice = zone {zoneSlices = slice : zoneSlices zone}
 -- | Can a full style in the given zone within a single row ?
 tryFitOne :: Box -> Zone -> Maybe Zone
 tryFitOne box zone = let
-  bDim = boxDimension box
-  zDim = zoneDimension zone
+  _bDim = boxDimension box
+  _zDim = zoneDimension zone
   in case slice box zone of
        (Just slice, Nothing) | slNL slice == 1 -> Just $ addSlice zone slice
        _ -> Nothing

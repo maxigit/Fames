@@ -31,7 +31,7 @@ readShelves filename = do
                         let dim = Dimension l w h
                             dim' = Dimension l (w+10) h
                             last' = maybe first id last
-                            types = (first, description) :: (Int, String)
+                            _types = (first, description) :: (Int, String)
                         in forM [first..last'] $ \i ->
                                         let shelfName = name ++ "." ++ show i
                                         in newShelf shelfName Nothing dim dim' DefaultOrientation ColumnFirst
@@ -58,8 +58,8 @@ readShelves2 defaultOrientator filename = do
             v <- Vec.forM rows $ \(name, description, l, w, h, shelfType) ->
                         let dim = (,,) l w h
                             dim' = (,,) l w h
-                            types = description :: String
-                            (shelfO, fillStrat) = case map toLower shelfType of
+                            _types = description :: String
+                            (_shelfO, fillStrat) = case map toLower shelfType of
                                 "deadzone" ->  (AddOrientations [] [up, rotatedUp ], RowFirst)
                                 "shelf" -> (ForceOrientations [tiltedForward, tiltedFR], ColumnFirst)
                                 _ -> (defaultOrientator, ColumnFirst)
@@ -227,7 +227,7 @@ readBoxes boxOrientations splitter filename = do
         Right (rows) -> return $ do
             let v = Vec.forM rows $ \(style', qty, l, w, h) -> do
                         let dim = Dimension l w h
-                            types = qty :: Int
+                            _types = qty :: Int
                             (name, tags) = extractTags style'
                             (style, content) = splitter name
                         s0 <- incomingShelf

@@ -177,7 +177,7 @@ getWHStocktakeHistoryR = do
       showDate (Just d) | d ==  nullDate = ""
       showDate (Just d) = tshow d
   style'dates <- runDB $ rawSql sql [PersistText stockLike, PersistText defaultLocation ]
-  let types = style'dates :: [(Single Text, Single (Maybe Day), Single (Maybe Day), Single Double)]
+  let _types = style'dates :: [(Single Text, Single (Maybe Day), Single (Maybe Day), Single Double)]
   today <- utctDay <$> liftIO getCurrentTime
   let (allMinDates, allMaxDates) = unzip [(mindate, maxdate) | (_, Single mindate, Single maxdate, _) <- style'dates]
       minAllDate = case catMaybes allMinDates of
@@ -250,7 +250,7 @@ getWHStocktakeHistoryStyleR style = do
       showDate (Just d) | d ==  nullDate = ""
       showDate (Just d) = tshow d
   style'dates <- runDB $ rawSql sql [PersistText stockLike, PersistText defaultLocation ]
-  let types = style'dates :: [(Single Text, Single (Maybe Day), Single (Maybe Day), Single Double)]
+  let _types = style'dates :: [(Single Text, Single (Maybe Day), Single (Maybe Day), Single Double)]
   today <- utctDay <$> liftIO getCurrentTime
   let (allMinDates, allMaxDates) = unzip [(mindate, maxdate) | (_, Single mindate, Single maxdate, _) <- style'dates]
       -- for recent, what which decide what to display in red or green
@@ -395,7 +395,6 @@ processStocktakeSheet mode = do
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show (mode, a)
     FormSuccess param@(FormParam fileInfoM keyM pathM encoding commentM complete display override) -> do
-      let tmp file = "/tmp" </> (unpack file)
       skpM <- readUploadOrCacheUTF8 encoding fileInfoM keyM pathM
       (spreadsheet, key, path) <- case skpM of
         Just s'k'p -> return s'k'p
@@ -505,9 +504,9 @@ processStocktakeSheet mode = do
             -- it is legitimate to also inacite the boxes. We know (or think) the boxes
             -- have disappeared.
             when (pStyleComplete param /= StyleAddition) (do
-              let skusForFull = map stocktakeStockId (filter stocktakeActive stocktakes)
-                  (zeros, nonZeros)= partition (\r -> rowQuantity r == Known 0)  quicks
-                  skusForZeros = zipWith makeSku (map rowStyle quicks) (map rowColour zeros)
+              let -- skusForFull = map stocktakeStockId (filter stocktakeActive stocktakes)
+                  (_zeros, nonZeros)= partition (\r -> rowQuantity r == Known 0)  quicks
+                  -- skusForZeros = zipWith makeSku (map rowStyle quicks) (map rowColour zeros)
                   skusForNonZeros = zipWith makeSku (map rowStyle quicks) (map rowColour nonZeros)
               -- invalidPreviousTakes (skusForFull ++ skusForZeros)
               -- We don't deactivate boxes at the moment.
@@ -608,8 +607,8 @@ insertQuickTakes docId quicks = do
 
   insertMany_ quicktakes
 
-isBarcodeQuick :: Text -> Bool
-isBarcodeQuick = isPrefixOf quickPrefix
+_isBarcodeQuick :: Text -> Bool
+_isBarcodeQuick = isPrefixOf quickPrefix
 -- invalidPreviousStockTakes :: [Stocktake]
 -- invalidPreviousStockTakes stocktakes = do
 --   let skus = nub $ sort (map stocktakeStockId stocktakes)
@@ -675,7 +674,7 @@ updateLookedUp docKey i'rows = do
 
 -- | Wrapper around Operators
 -- ** Temporary types for parsing
-data Operator' = Operator' {opId :: OperatorId, op :: Operator} deriving (Eq, Show)
+data Operator' = Operator' {opId :: OperatorId, _unused_op :: Operator} deriving (Eq, Show)
 type OpFinder = Text -> Maybe Operator'
 
 
@@ -1361,7 +1360,7 @@ instance Csv.FromNamedRecord RawRow where
 instance Csv.FromField (Either InvalidField (Maybe (ValidField (Operator')))) where
   parseField bs = do
     t <- Csv.parseField bs
-    let types = t :: Maybe Text 
+    let _types = t :: Maybe Text 
     case t of
       Nothing -> return $ Right Nothing
       Just t' -> return $ Left (ParsingError "Operator doesn't exist" t')
@@ -1370,7 +1369,7 @@ instance Csv.FromField (Either InvalidField (Maybe (ValidField (Operator')))) wh
 instance Csv.FromField (Either InvalidField (Maybe (ValidField (Location')))) where
   parseField bs = do
     t <- Csv.parseField bs
-    let types = t :: Maybe Text 
+    let _types = t :: Maybe Text 
     case t of
       Nothing -> return $ Right Nothing
       Just t' -> return $ Left (ParsingError "Location doesn't exist" t')

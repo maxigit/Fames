@@ -563,7 +563,7 @@ bestArrangement orientations shelves box = let
 
                   )
                  | (ori, extra, (nl, nw, nh), vol ) <- options
-                 , let Dimension bl bh bw = rotate ori box
+                 , let Dimension bl bh _bw = rotate ori box
                  ]
     in
         -- trace ({-show shelves ++ show box ++-}  show bests) $
@@ -779,7 +779,6 @@ updateBox :: (Box' b) =>  (Box s ->  Box s) -> b s-> WH (Box s) s
 updateBox f b = do
     box <- findBox b
     let box' = f box
-    let BoxId ref = boxId b
     lift $ writeSTRef (getRef box') box'
     return box'
 

@@ -37,7 +37,7 @@ data DACSettings = DACSettings
 data DACPaymentSettings
   = DACSupplierSettings
     { supplier :: Int
-    , glAccount :: Int	
+    , glAccount :: Int
     , dimension1 :: Maybe Int
     , dimension2 :: Maybe Int
     , memo :: Maybe Text
