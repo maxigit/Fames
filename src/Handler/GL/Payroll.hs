@@ -79,6 +79,7 @@ postGLPayrollValidateR = do
                   renderMain Save (Just param) ok200 (setInfo . toHtml $ "Timesheet " <> ref  <> " is valid.") (do
                         displayTimesheet timesheet
                         displayEmployeeSummary (timesheetPayrooForSummary timesheet)
+                        displayTimesheetCalendar (timesheetPayrooForSummary timesheet)
                         )
 
 postGLPayrollSaveR = do
