@@ -448,23 +448,24 @@ displayCalendar start end firstActive lastActive shiftMap = do
                                Sunday -> ["weekend"]
                                _ -> [])
       operators =  keys shiftMap
-      rows = [ (calendarFn shiftMap op week, [])
-             | op <- operators
-             , week <- weekStarts
-             ]
+      rows = concatMap (rowsForWeek firstActive lastActive shiftMap operators) weekStarts
       css = [cassius|
              td.Saturday, td.Sunday
                 background: #fee
              span.Holiday
                 color: white
                 background: red
+             .dayOfMonth
+                text-align:right
+                &.weekend
+                   color: red
                   |]
   displayTable columns colDisplay rows >> toWidget css
 
 calendarFn shiftMap operator weekStart Nothing = Just $ (toHtml operator, [])
 calendarFn shiftMap operator weekStart (Just col) = do -- Maybe
   let day = addDays col weekStart
-      maxDuration = 9
+      maxDuration = 9 -- TODO pass as parameter
       durationWidth d =  formatDouble $ d / maxDuration * 100
   dateMap <- lookup operator shiftMap
   shifts <- lookup day dateMap
@@ -477,6 +478,24 @@ calendarFn shiftMap operator weekStart (Just col) = do -- Maybe
                  |]
   return (html, [])
 
+-- Display a week. The first line is the day of month
+-- then each operator
+rowsForWeek firstActive lastActive shiftMap operators weekStart  = let
+  header = (headFn, [])
+  headFn Nothing = Just (toHtml $ show weekStart, [])
+  headFn (Just offset) = let
+    day = addDays offset weekStart 
+    (_, _, dayOfMonth) = toGregorian day
+    active = day >= firstActive && day <= lastActive
+    activeClass = if active
+                  then "active" :: Text
+                  else "inactive"
+    in Just (toHtml  ((printf "%02d" dayOfMonth) :: String) , ["dayOfMonth", activeClass])
+
+  rows = [ (calendarFn shiftMap op weekStart, [])
+         | op <- operators
+         ]
+  in header:rows
 
 
 -- * To Front Accounting
