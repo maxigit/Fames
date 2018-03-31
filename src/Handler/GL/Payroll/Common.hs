@@ -294,6 +294,7 @@ validateTimesheet settings timesheet = let
   
           
 -- * Rendering
+-- ** Pending Sheet
 displayPendingSheets :: Handler Widget
 displayPendingSheets = do
   timesheets <- runDB $ selectList [TimesheetStatus ==. Pending] []
@@ -303,6 +304,7 @@ displayPendingSheets = do
        ^{displayTimesheetList timesheets}
           |]
 
+-- ** Timesheet list
 displayTimesheetList :: [Entity Timesheet] -> Widget
 displayTimesheetList timesheets = [whamlet|
 <table.table.table-hover.table-striped>
@@ -324,6 +326,7 @@ displayTimesheetList timesheets = [whamlet|
       <td> #{tshow $ timesheetStatus ts}
 |]
 
+-- ** Timesheet
 displayTimesheet :: (TS.Timesheet String TS.PayrooEmployee) -> Widget
 displayTimesheet timesheet = do
   displayShifts $ TS._shifts timesheet
@@ -337,7 +340,8 @@ displayShifts shifts = let
           <p> #{line}
      |]
 
- -- | Displays a table with all payment information for each employee t
+-- ** Employee Summary
+-- | Displays a table with all payment information for each employee t
 displayEmployeeSummary :: TS.Timesheet Text Text -> Widget
 displayEmployeeSummary timesheet = let
   summaries = TS.paymentSummary timesheet
