@@ -25,6 +25,7 @@ import Control.Monad.Except
 import Text.Printf(printf)
 import qualified Data.Map as Map
 import Handler.Util
+import Data.List(iterate)
 
 -- ** Orphan Instances
 instance TS.Display Text where
@@ -414,6 +415,69 @@ employeeSummaryRows summaries = let
               _ -> Nothing
     in value
   in rows
+
+-- ** Calendar
+-- | Display timesheet as a calendar
+displayTimesheetCalendar :: (TS.Timesheet payee Text) -> Widget
+displayTimesheetCalendar timesheet = do
+  let periodStart = TS._periodStart timesheet
+      periodEnd = TS.periodEnd timesheet
+      -- get start and end of displayed calendar
+      -- for weekly, it's just the week
+      -- for month, we start on Sunday
+      (start, end) = case TS._frequency timesheet of
+        TS.Weekly -> (periodStart, periodEnd)
+        TS.Monthly -> ( previousWeekDay Sunday periodStart
+                   , nextWeekDay Saturday periodEnd)
+      shifts = TS._shifts timesheet
+      shiftMap' = TS.groupBy (^. TS.shiftKey . _1 ) shifts
+      shiftMap = TS.groupBy (^. TS.day) <$> shiftMap'
+  displayCalendar start end periodStart periodEnd shiftMap
+
+-- displayCalendar :: Show emp =>  Day -> Day -> Day -> Day
+--                 -> Map Text (Map Day [TS.Shift emp])
+--                 -> Widget
+displayCalendar start end firstActive lastActive shiftMap = do
+  let columns = Nothing : map Just [0..6]
+      -- columns = map dayOfWeek (take 7  $ iterate (addDays 1) start )
+      weekStarts = takeWhile (<end) (iterate  (addDays 7) start)
+      colDisplay Nothing = ("Operator", [])
+      colDisplay (Just index) = let weekDay = dayOfWeek (addDays index start)
+                         in (toHtml $ show weekDay , case weekDay of
+                               Saturday -> ["weekend"]
+                               Sunday -> ["weekend"]
+                               _ -> [])
+      operators =  keys shiftMap
+      rows = [ (calendarFn shiftMap op week, [])
+             | op <- operators
+             , week <- weekStarts
+             ]
+      css = [cassius|
+             td.Saturday, td.Sunday
+                background: #fee
+             span.Holiday
+                color: white
+                background: red
+                  |]
+  displayTable columns colDisplay rows >> toWidget css
+
+calendarFn shiftMap operator weekStart Nothing = Just $ (toHtml operator, [])
+calendarFn shiftMap operator weekStart (Just col) = do -- Maybe
+  let day = addDays col weekStart
+      maxDuration = 9
+      durationWidth d =  formatDouble $ d / maxDuration * 100
+  dateMap <- lookup operator shiftMap
+  shifts <- lookup day dateMap
+  let types = TS.groupShiftsBy (^. TS.shiftType ) shifts
+      html = [shamlet|
+    $forall shift <-  types
+      $with duration <- TS._duration shift
+        <span.badge class=#{show $ TS._shiftKey shift} style="width:#{durationWidth duration}%">
+          #{duration}
+                 |]
+  return (html, [])
+
+
 
 -- * To Front Accounting
 -- ** GRN

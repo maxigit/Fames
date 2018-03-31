@@ -30,3 +30,14 @@ calculateDate (NextDayOfWeek target cutoff) day = let
 
 dayOfWeek :: Day -> DayOfWeek
 dayOfWeek day = toEnum . (`mod` 7) $ fromEnum day + 2
+
+-- | Find the first day of week prior the given  date
+-- Return the actual date if the possible
+previousWeekDay :: DayOfWeek -> Day -> Day
+previousWeekDay weekDay day = calculateDate (NextDayOfWeek weekDay weekDay) (addDays (-7) day)
+
+-- | Find the first day of week after the given  date
+-- Return the actual date if it matches
+nextWeekDay :: DayOfWeek -> Day -> Day
+nextWeekDay  weekDay day = calculateDate (NextDayOfWeek weekDay weekDay) (addDays (-1) day)
+  

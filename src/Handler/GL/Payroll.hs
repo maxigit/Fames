@@ -135,7 +135,9 @@ getGLPayrollViewR key = do
           dacs =  TS._deductionAndCosts ts'
           dacsReport = ("Deductions and Costs", displayShifts dacs)
           summaryReport = ("Summary", displayEmployeeSummary ts')
-          reports = [(name, report shifts') | (name, report) <- reports'] ++ [dacsReport, summaryReport]
+          calendar = ("Calendar", displayTimesheetCalendar ts')
+          reports = [(name, report shifts') | (name, report) <- reports']
+            ++ [dacsReport, summaryReport, calendar]
       defaultLayout $ [whamlet|
           $forall (name, trans) <- reports
              <div.panel.panel-info>
