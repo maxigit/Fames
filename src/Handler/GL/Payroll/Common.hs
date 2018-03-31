@@ -25,7 +25,7 @@ import Control.Monad.Except
 import Text.Printf(printf)
 import qualified Data.Map as Map
 import Handler.Util
-import Data.List(iterate)
+import Data.List(iterate, cycle)
 
 -- ** Orphan Instances
 instance TS.Display Text where
@@ -448,11 +448,13 @@ displayCalendar start end firstActive lastActive shiftMap = do
                                Sunday -> ["weekend"]
                                _ -> [])
       operators =  keys shiftMap
-      rows = concatMap (rowsForWeek firstActive lastActive shiftMap operators) weekStarts
+      rows = concatMap (rowsForWeek firstActive lastActive shiftMap operator'colors) weekStarts
+      colors = ["green", "blue", "orange", "purple", "brown"] :: [Text]
+      operator'colors = zip operators (cycle colors)
       css = [cassius|
              td.Saturday, td.Sunday
                 background: #fee
-             span.Holiday
+             span.badge.Holiday
                 color: white
                 background: red
              .dayOfMonth
@@ -462,18 +464,22 @@ displayCalendar start end firstActive lastActive shiftMap = do
                   |]
   displayTable columns colDisplay rows >> toWidget css
 
-calendarFn shiftMap operator weekStart Nothing = Just $ (toHtml operator, [])
-calendarFn shiftMap operator weekStart (Just col) = do -- Maybe
+calendarFn shiftMap (operator,color) weekStart Nothing = Just $ ([shamlet|<span style="color:#{color}">#{operator}|], [])
+calendarFn shiftMap (operator,color) weekStart (Just col) = do -- Maybe
   let day = addDays col weekStart
       maxDuration = 9 -- TODO pass as parameter
       durationWidth d =  formatDouble $ d / maxDuration * 100
+      bg shift = case TS._shiftKey shift of
+        TS.Work -> "background:" <> color
+        TS.Holiday -> ""
+
   dateMap <- lookup operator shiftMap
   shifts <- lookup day dateMap
   let types = TS.groupShiftsBy (^. TS.shiftType ) shifts
       html = [shamlet|
     $forall shift <-  types
       $with duration <- TS._duration shift
-        <span.badge class=#{show $ TS._shiftKey shift} style="width:#{durationWidth duration}%">
+        <span.badge class=#{show $ TS._shiftKey shift} style="width:#{durationWidth duration}%;#{bg shift}">
           #{duration}
                  |]
   return (html, [])
