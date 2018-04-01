@@ -20,7 +20,8 @@ import Data.Time (addGregorianMonthsClip)
 data SummaryParam = SummaryParam
   { from :: Maybe Day
   , to :: Maybe Day
-  , refRegex :: Maybe Text -- regulax expressions
+  , reference :: Maybe FilterExpression 
+  , frequency :: Maybe PayrollFrequency 
   , dueDateMap :: Map Text Day -- override expected due date for a give timesheet
   }
 -- ** Form
@@ -29,7 +30,8 @@ filterForm paramM = let
   form = SummaryParam
                  <$> aopt dayField "From" (from <$> paramM)
                  <*> aopt dayField "To" (to <$> paramM)
-                 <*> aopt textField "Reference" (refRegex <$> paramM)
+                 <*> aopt filterEField "Reference" (reference <$> paramM)
+                 <*> aopt (selectField optionsEnum)  "Frequency" (frequency <$> paramM)
                  <*> pure (mempty :: Map Text Day)
   in renderBootstrap3 BootstrapBasicForm form
 
@@ -40,6 +42,7 @@ getGLPayrollSummaryR = do
   let lastMonth = addGregorianMonthsClip (-1) today
   renderMain (Just $ SummaryParam (Just lastMonth)
                                  (Just today)
+                                 Nothing
                                  Nothing
                                  mempty)
 
@@ -154,8 +157,8 @@ loadTimesheet' :: SummaryParam -> Handler [TS.Timesheet Text Text]
 loadTimesheet' param = do
   let filter =  from param <&> (TimesheetStart >=.)  ?:
                 to param <&> (TimesheetStart <=. ) ?:
-                refRegex param <&> (TimesheetReference <=. ) ?:
-                []
+                frequency param <&> (TimesheetFrequency ==. ) ?:
+                (filterE id TimesheetReference (reference param))
   case filter of
     [] -> return []
     _ -> do

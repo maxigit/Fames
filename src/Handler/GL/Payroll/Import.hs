@@ -25,7 +25,7 @@ import Control.Monad.Except
 data ImportParam = ImportParam
    { from :: Maybe Day
    , to :: Maybe Day
-   , refRegex :: Maybe Text -- regulax expressions
+   , reference :: Maybe FilterExpression -- regulax expressions
    , toImport :: Set Int 
    } deriving Show
 
@@ -47,7 +47,7 @@ importForm paramM = let
   form = ImportParam
                  <$> aopt dayField "From" (from <$> paramM)
                  <*> aopt dayField "To" (to <$> paramM)
-                 <*> aopt textField "Reference" (refRegex <$> paramM)
+                 <*> aopt filterEField "Reference" (reference <$> paramM)
                  <*> pure (mempty)
   in renderBootstrap3 BootstrapBasicForm form
 -- * Handler
@@ -338,7 +338,8 @@ selectInvoice param = do
                            Just (FA.SuppTranType ==. fromEnum ST_SUPPINVOICE) ?:
                            from param <&> (FA.SuppTranTranDate >=.) ?:
                            to param <&> (FA.SuppTranTranDate <=.) ?:
-                           [])
+                           (filterE id FA.SuppTranSuppReference (reference param))
+                         )
                          [Asc FA.SuppTranTranDate, Asc FA.SuppTranReference]
   return invoices
 

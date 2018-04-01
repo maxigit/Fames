@@ -22,7 +22,8 @@ import Lens.Micro ((^.))
 data CalendarParam = CalendarParam
   { from :: Maybe Day
   , to :: Maybe Day
-  , refRegex :: Maybe Text -- regulax expressions
+  , reference :: Maybe FilterExpression 
+  , frequency :: Maybe PayrollFrequency 
   }
 -- ** Form
 filterForm :: Maybe CalendarParam -> _ -- (FormResult CalendarParam, Widget)
@@ -30,7 +31,8 @@ filterForm paramM = let
   form = CalendarParam
                  <$> aopt dayField "From" (from <$> paramM)
                  <*> aopt dayField "To" (to <$> paramM)
-                 <*> aopt textField "Reference" (refRegex <$> paramM)
+                 <*> aopt filterEField "Reference" (reference <$> paramM)
+                 <*> aopt (selectField optionsEnum)  "Frequency" (frequency <$> paramM)
   in renderBootstrap3 BootstrapBasicForm form
 
 -- * Handler
@@ -40,6 +42,7 @@ getGLPayrollCalendarR = do
   let lastMonth = addGregorianMonthsClip (-1) today
   renderMain (Just $ CalendarParam (Just lastMonth)
                                    (Just today)
+                                   Nothing
                                    Nothing
              )
 
@@ -81,7 +84,7 @@ processCalendar param =  do
                   maxDay0 = maximum (ncons d ds)
                   firstActive = fromMaybe minDay0 (from param)
                   lastActive = fromMaybe maxDay0 (to param)
-                  minDay = previousWeekDay Sunday (min minDay0 firstActive)
+                  minDay = previousWeekDay Monday (min minDay0 firstActive)
                   maxDay = nextWeekDay Saturday (max maxDay0 lastActive)
               in return $ displayCalendar minDay maxDay firstActive lastActive allShifts
 
@@ -91,8 +94,9 @@ loadTimesheet' param = do
   -- TODO factorize
   let filter =  from param <&> (TimesheetStart >=.)  ?:
                 to param <&> (TimesheetStart <=. ) ?:
-                refRegex param <&> (TimesheetReference <=. ) ?:
-                []
+                frequency param <&> (TimesheetFrequency ==. ) ?:
+                (filterE id TimesheetReference (reference param))
+                -- []
   case filter of
     [] -> return []
     _ -> do
