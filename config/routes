@@ -21,6 +21,7 @@
   -- /payroll/full/view/#Int64 GLPayrollFullView GET !payroll/full
   -- /payroll/full/edit/#Int64 GLPayrollFullEditR GET POST !payroll/edit !payroll/full
   /payroll/summary GLPayrollSummaryR GET POST !payroll/full !title=Summary
+  /payroll/calendar GLPayrollCalendarR GET POST !payroll/full !title=Calendar
   /payroll/import GLPayrollImportR GET POST !payroll/import !title=Import
 
 /warehouse WarehouseR !warehouse:

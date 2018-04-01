@@ -429,16 +429,15 @@ displayTimesheetCalendar timesheet = do
         TS.Weekly -> (periodStart, periodEnd)
         TS.Monthly -> ( previousWeekDay Sunday periodStart
                    , nextWeekDay Saturday periodEnd)
-      shifts = TS._shifts timesheet
-      shiftMap' = TS.groupBy (^. TS.shiftKey . _1 ) shifts
-      shiftMap = TS.groupBy (^. TS.day) <$> shiftMap'
-  displayCalendar start end periodStart periodEnd shiftMap
+  displayCalendar start end periodStart periodEnd (TS._shifts timesheet)
 
 -- displayCalendar :: Show emp =>  Day -> Day -> Day -> Day
 --                 -> Map Text (Map Day [TS.Shift emp])
 --                 -> Widget
-displayCalendar start end firstActive lastActive shiftMap = do
-  let columns = Nothing : map Just [0..6]
+displayCalendar start end firstActive lastActive shifts = do
+  let shiftMap' = TS.groupBy (^. TS.shiftKey . _1 ) shifts
+      shiftMap = TS.groupBy (^. TS.day) <$> shiftMap'
+      columns = Nothing : map Just [0..6]
       -- columns = map dayOfWeek (take 7  $ iterate (addDays 1) start )
       weekStarts = takeWhile (<end) (iterate  (addDays 7) start)
       colDisplay Nothing = ("Operator", [])

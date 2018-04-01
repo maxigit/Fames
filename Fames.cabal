@@ -130,6 +130,7 @@ library
       Handler.GL.GLEnterReceiptSheet
       Handler.GL.GLEnterReceiptSheet.ReceiptRow
       Handler.GL.Payroll
+      Handler.GL.Payroll.Calendar
       Handler.GL.Payroll.Common
       Handler.GL.Payroll.Import
       Handler.GL.Payroll.QuickAdd
