@@ -459,8 +459,12 @@ displayCalendar start end firstActive lastActive shiftMap = do
                 background: red
              .dayOfMonth
                 text-align:right
+                font-size: 1.2em
+                font-style: italic
                 &.weekend
                    color: red
+                &.inactive
+                  color: gray
                   |]
   displayTable columns colDisplay rows >> toWidget css
 
