@@ -437,11 +437,12 @@ displayTimesheetCalendar timesheet = do
 displayCalendar start end firstActive lastActive shifts = do
   let shiftMap' = TS.groupBy (^. TS.shiftKey . _1 ) shifts
       shiftMap = TS.groupBy (^. TS.day) <$> shiftMap'
-      columns = Nothing : map Just [0..6]
+      columns = ((Left False) : (map Right [0..6])) <> [Left True]
       -- columns = map dayOfWeek (take 7  $ iterate (addDays 1) start )
       weekStarts = takeWhile (<end) (iterate  (addDays 7) start)
-      colDisplay Nothing = ("Operator", [])
-      colDisplay (Just index) = let weekDay = dayOfWeek (addDays index start)
+      colDisplay (Left False) = ("Operator", [])
+      colDisplay (Left True) = ("Total", ["total"])
+      colDisplay (Right index) = let weekDay = dayOfWeek (addDays index start)
                          in (toHtml $ show weekDay , case weekDay of
                                Saturday -> ["weekend"]
                                Sunday -> ["weekend"]
@@ -464,35 +465,53 @@ displayCalendar start end firstActive lastActive shifts = do
                    color: red
                 &.inactive
                   color: gray
+             td.total
+                background: darkgray
                   |]
   displayTable columns colDisplay rows >> toWidget css
 
-calendarFn shiftMap (operator,color) weekStart Nothing = Just $ ([shamlet|<span style="color:#{color}">#{operator}|], [])
-calendarFn shiftMap (operator,color) weekStart (Just col) = do -- Maybe
+-- calendarFn :: (Map Text -- (Map Day [TS.Shift TS.ShiftType]))
+  --          -> (Text, Text)
+  --             -> Day
+  -- -> Either Bool Integer
+  -- -> Maybe (Html, [Text])
+calendarFn shiftMap (operator,color) weekStart (Left False) = Just $ ([shamlet|<span style="color:#{color}">#{operator}|], [])
+calendarFn shiftMap (operator,color) weekStart (Left True) = do -- Maybe
+  -- display total, for that we need all the shifts for the given week
+  let days = map (`addDays` weekStart) [0..6]
+  dateMap <- lookup operator shiftMap
+  let shifts = concat $ mapMaybe (flip lookup dateMap) days
+      types = TS.groupShiftsBy (^. TS.shiftType ) shifts
+  Just (displayTimeBadges color (9*5) types, ["total"])
+
+calendarFn shiftMap (operator,color) weekStart (Right col) = do -- Maybe
   let day = addDays col weekStart
       maxDuration = 9 -- TODO pass as parameter
-      durationWidth d =  formatDouble $ d / maxDuration * 100
-      bg shift = case TS._shiftKey shift of
-        TS.Work -> "background:" <> color
-        TS.Holiday -> ""
 
   dateMap <- lookup operator shiftMap
   shifts <- lookup day dateMap
   let types = TS.groupShiftsBy (^. TS.shiftType ) shifts
-      html = [shamlet|
-    $forall shift <-  types
+      html = displayTimeBadges color maxDuration types
+  return (html, [])
+
+displayTimeBadges color maxDuration durations = 
+  let durationWidth d =  formatDouble $ d / maxDuration * 100
+      bg shift = case TS._shiftKey shift of
+        TS.Work -> "background:" <> color
+        TS.Holiday -> ""
+  in [shamlet|
+    $forall shift <-  durations
       $with duration <- TS._duration shift
         <span.badge class=#{show $ TS._shiftKey shift} style="width:#{durationWidth duration}%;#{bg shift}">
           #{duration}
                  |]
-  return (html, [])
-
 -- Display a week. The first line is the day of month
 -- then each operator
 rowsForWeek firstActive lastActive shiftMap operators weekStart  = let
   header = (headFn, [])
-  headFn Nothing = Just (toHtml $ show weekStart, [])
-  headFn (Just offset) = let
+  headFn (Left False) = Just (toHtml $ formatTime defaultTimeLocale "%d %B %Y"  weekStart, [])
+  headFn (Left True) = Nothing
+  headFn (Right offset) = let
     day = addDays offset weekStart 
     (_, _, dayOfMonth) = toGregorian day
     active = day >= firstActive && day <= lastActive

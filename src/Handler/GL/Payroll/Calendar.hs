@@ -96,7 +96,6 @@ loadTimesheet' param = do
                 to param <&> (TimesheetStart <=. ) ?:
                 frequency param <&> (TimesheetFrequency ==. ) ?:
                 (filterE id TimesheetReference (reference param))
-                -- []
   case filter of
     [] -> return []
     _ -> do
