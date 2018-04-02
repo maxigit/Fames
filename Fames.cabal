@@ -1,6 +1,8 @@
--- This file has been generated from package.yaml by hpack version 0.17.1.
+-- This file has been generated from package.yaml by hpack version 0.20.0.
 --
 -- see: https://github.com/sol/hpack
+--
+-- hash: 3b81364a321cecdea41e08d25423f6cf647d91932101c29e60dd1d3d131b6d5f
 
 name:           Fames
 version:        0.0.0
@@ -26,83 +28,83 @@ library
       fay-shared
   default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures NamedWildCards
   build-depends:
-      containers
+      Decimal >=0.4.2 && <0.5
+    , Glob
+    , Metamorphosis >=0.1.0.1
+    , aeson >=0.6 && <1.1
     , base >=4 && <5
-    , text >=0.11 && <2.0
-    , yesod >=1.4.1 && <1.5
-    , yesod-core >=1.4.17 && <1.5
-    , yesod-auth >=1.4.0 && <1.5
-    , yesod-static >=1.4.0.3 && <1.6
-    , yesod-form >=1.4.0 && <1.5
-    , yesod-fay >=0.7 && <0.9
-    , fay >=0.21.2.1 && <0.24
-    , fay-jquery >=0.6 && <0.7
-    , fay-text >=0.3 && <0.4
+    , blaze-html
+    , blaze-markup
+    , bytestring >=0.9 && <0.11
+    , case-insensitive
     , cassava >=0.4.5 && <0.5
     , classy-prelude >=0.10.2
     , classy-prelude-conduit >=0.10.2
     , classy-prelude-yesod >=0.10.2
-    , bytestring >=0.9 && <0.11
-    , persistent >=2.0 && <2.7
-    , persistent-mysql >=2.1.2 && <2.7
-    , mysql
-    , persistent-template >=2.0 && <2.6
-    , template-haskell
-    , shakespeare >=2.0 && <2.1
-    , hjsmin >=0.1 && <0.3
-    , monad-control >=0.3 && <1.1
-    , wai-extra >=3.0 && <3.1
-    , yaml >=0.8 && <0.9
-    , http-conduit >=2.1 && <2.3
-    , directory >=1.1 && <1.4
-    , warp >=3.0 && <3.3
-    , data-default
-    , aeson >=0.6 && <1.1
+    , colour >=2.3.3 && <2.4
     , conduit >=1.0 && <2.0
     , conduit-extra
-    , streaming-commons
-    , monad-logger >=0.3 && <0.4
+    , containers
+    , cryptohash
+    , curl >=1.3.8 && <1.4
+    , data-default
+    , diagrams-cairo >=1.4 && <1.5
+    , diagrams-lib >=1.4.1.2 && <1.5
+    , diagrams-svg >=1.4 && <1.5
+    , directory >=1.1 && <1.4
+    , fames-persist
     , fast-logger >=2.2 && <2.5
-    , wai-logger >=2.2 && <2.4
+    , fay >=0.21.2.1 && <0.24
+    , fay-jquery >=0.6 && <0.7
+    , fay-text >=0.3 && <0.4
     , file-embed
+    , filepath >=1.4.1.1 && <1.5
+    , formatting
+    , generics-sop
+    , ghc-prim
+    , hjsmin >=0.1 && <0.3
+    , http-conduit >=2.1 && <2.3
+    , lifted-async
+    , microlens >=0.4.1.1 && <0.5
+    , microlens-th >=0.4.1.1 && <0.5
+    , monad-control >=0.3 && <1.1
+    , monad-logger >=0.3 && <0.4
+    , mtl >=2.2 && <2.3
+    , mysql
+    , parsec >=3.1 && <3.2
+    , path-pieces >=0.2 && <0.3
+    , persistent >=2.0 && <2.7
+    , persistent-mysql >=2.1.2 && <2.7
+    , persistent-template >=2.0 && <2.6
+    , pointed >=5
+    , pretty-simple
+    , reducers >=3.12 && <3.13
+    , regex-tdfa >=1.2.2 && <1.3
     , safe
+    , shakespeare >=2.0 && <2.1
+    , split
+    , streaming-commons
+    , tabular >=0.2.2.7 && <0.3
+    , tagsoup >=0.14.1 && <0.15
+    , template-haskell
+    , temporary
+    , text >=0.11 && <2.0
+    , these
+    , time
     , unordered-containers
     , vector
-    , time
-    , case-insensitive
     , wai
-    , blaze-html
-    , blaze-markup
-    , split
-    , cryptohash
-    , formatting
-    , temporary
-    , these
-    , Glob
-    , mtl >=2.2 && <2.3
-    , path-pieces >=0.2 && <0.3
-    , generics-sop
-    , Metamorphosis >= 0.1.0.1
-    , fames-persist
-    , microlens >= 0.4.1.1 && < 0.5
-    , microlens-th >= 0.4.1.1 && < 0.5
-    , curl >= 1.3.8 && < 1.4
-    , tagsoup >=  0.14.1 && < 0.15
-    , regex-tdfa >= 1.2.2 && < 1.3
-    , lifted-async
-    , ghc-prim
-    , pointed >= 5
+    , wai-extra >=3.0 && <3.1
+    , wai-logger >=2.2 && <2.4
+    , warp >=3.0 && <3.3
+    , yaml >=0.8 && <0.9
+    , yesod >=1.4.1 && <1.5
+    , yesod-auth >=1.4.0 && <1.5
+    , yesod-core >=1.4.17 && <1.5
+    , yesod-fay >=0.7 && <0.9
+    , yesod-form >=1.4.0 && <1.5
     , yesod-media-simple
-    , diagrams-lib >= 1.4.1.2 && < 1.5
-    , diagrams-cairo >= 1.4 && < 1.5
-    , diagrams-svg >= 1.4 && < 1.5
-    , tabular >= 0.2.2.7 && < 0.3
-    , parsec >= 3.1 && < 3.2
-    , colour >= 2.3.3 && < 2.4
-    , Decimal >= 0.4.2 && < 0.5
-    , reducers >= 3.12 && < 3.13
-    , filepath >= 1.4.1.1  && < 1.5
-    , pretty-simple
+    , yesod-static >=1.4.0.3 && <1.6
   if (flag(dev)) || (flag(library-only))
     ghc-options: -fwarn-tabs -fwarn-incomplete-patterns -fwarn-incomplete-record-updates -fwarn-missing-fields -fwarn-unused-binds -Werror -fno-warn-partial-type-signatures -O0 -j6
     cpp-options: -DDEVELOPMENT
@@ -191,6 +193,8 @@ library
       WH.PackingList.Internal
       SharedStockAdjustment
       SharedTypes
+  other-modules:
+      Paths_Fames
   default-language: Haskell2010
 
 executable Fames
@@ -200,84 +204,84 @@ executable Fames
   default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures NamedWildCards
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -j6
   build-depends:
-      containers
+      Decimal >=0.4.2 && <0.5
+    , Fames
+    , Glob
+    , Metamorphosis >=0.1.0.1
+    , aeson >=0.6 && <1.1
     , base >=4 && <5
-    , text >=0.11 && <2.0
-    , yesod >=1.4.1 && <1.5
-    , yesod-core >=1.4.17 && <1.5
-    , yesod-auth >=1.4.0 && <1.5
-    , yesod-static >=1.4.0.3 && <1.6
-    , yesod-form >=1.4.0 && <1.5
-    , yesod-fay >=0.7 && <0.9
-    , fay >=0.21.2.1 && <0.24
-    , fay-jquery >=0.6 && <0.7
-    , fay-text >=0.3 && <0.4
+    , blaze-html
+    , blaze-markup
+    , bytestring >=0.9 && <0.11
+    , case-insensitive
     , cassava >=0.4.5 && <0.5
     , classy-prelude >=0.10.2
     , classy-prelude-conduit >=0.10.2
     , classy-prelude-yesod >=0.10.2
-    , bytestring >=0.9 && <0.11
-    , persistent >=2.0 && <2.7
-    , persistent-mysql >=2.1.2 && <2.7
-    , mysql
-    , persistent-template >=2.0 && <2.6
-    , template-haskell
-    , shakespeare >=2.0 && <2.1
-    , hjsmin >=0.1 && <0.3
-    , monad-control >=0.3 && <1.1
-    , wai-extra >=3.0 && <3.1
-    , yaml >=0.8 && <0.9
-    , http-conduit >=2.1 && <2.3
-    , directory >=1.1 && <1.4
-    , warp >=3.0 && <3.3
-    , data-default
-    , aeson >=0.6 && <1.1
+    , colour >=2.3.3 && <2.4
     , conduit >=1.0 && <2.0
     , conduit-extra
-    , streaming-commons
-    , monad-logger >=0.3 && <0.4
+    , containers
+    , cryptohash
+    , curl >=1.3.8 && <1.4
+    , data-default
+    , diagrams-cairo >=1.4 && <1.5
+    , diagrams-lib >=1.4.1.2 && <1.5
+    , diagrams-svg >=1.4 && <1.5
+    , directory >=1.1 && <1.4
+    , fames-persist
     , fast-logger >=2.2 && <2.5
-    , wai-logger >=2.2 && <2.4
+    , fay >=0.21.2.1 && <0.24
+    , fay-jquery >=0.6 && <0.7
+    , fay-text >=0.3 && <0.4
     , file-embed
+    , filepath >=1.4.1.1 && <1.5
+    , formatting
+    , generics-sop
+    , ghc-prim
+    , hjsmin >=0.1 && <0.3
+    , http-conduit >=2.1 && <2.3
+    , lifted-async
+    , microlens >=0.4.1.1 && <0.5
+    , microlens-th >=0.4.1.1 && <0.5
+    , monad-control >=0.3 && <1.1
+    , monad-logger >=0.3 && <0.4
+    , mtl >=2.2 && <2.3
+    , mysql
+    , parsec >=3.1 && <3.2
+    , path-pieces >=0.2 && <0.3
+    , persistent >=2.0 && <2.7
+    , persistent-mysql >=2.1.2 && <2.7
+    , persistent-template >=2.0 && <2.6
+    , pointed >=5
+    , pretty-simple
+    , reducers >=3.12 && <3.13
+    , regex-tdfa >=1.2.2 && <1.3
     , safe
+    , shakespeare >=2.0 && <2.1
+    , split
+    , streaming-commons
+    , tabular >=0.2.2.7 && <0.3
+    , tagsoup >=0.14.1 && <0.15
+    , template-haskell
+    , temporary
+    , text >=0.11 && <2.0
+    , these
+    , time
     , unordered-containers
     , vector
-    , time
-    , case-insensitive
     , wai
-    , blaze-html
-    , blaze-markup
-    , split
-    , cryptohash
-    , formatting
-    , temporary
-    , these
-    , Glob
-    , mtl >=2.2 && <2.3
-    , path-pieces >=0.2 && <0.3
-    , generics-sop
-    , Metamorphosis >= 0.1.0.1
-    , fames-persist
-    , microlens >= 0.4.1.1 && < 0.5
-    , microlens-th >= 0.4.1.1 && < 0.5
-    , curl >= 1.3.8 && < 1.4
-    , tagsoup >=  0.14.1 && < 0.15
-    , regex-tdfa >= 1.2.2 && < 1.3
-    , lifted-async
-    , ghc-prim
-    , pointed >= 5
+    , wai-extra >=3.0 && <3.1
+    , wai-logger >=2.2 && <2.4
+    , warp >=3.0 && <3.3
+    , yaml >=0.8 && <0.9
+    , yesod >=1.4.1 && <1.5
+    , yesod-auth >=1.4.0 && <1.5
+    , yesod-core >=1.4.17 && <1.5
+    , yesod-fay >=0.7 && <0.9
+    , yesod-form >=1.4.0 && <1.5
     , yesod-media-simple
-    , diagrams-lib >= 1.4.1.2 && < 1.5
-    , diagrams-cairo >= 1.4 && < 1.5
-    , diagrams-svg >= 1.4 && < 1.5
-    , tabular >= 0.2.2.7 && < 0.3
-    , parsec >= 3.1 && < 3.2
-    , colour >= 2.3.3 && < 2.4
-    , Decimal >= 0.4.2 && < 0.5
-    , reducers >= 3.12 && < 3.13
-    , filepath >= 1.4.1.1  && < 1.5
-    , pretty-simple
-    , Fames
+    , yesod-static >=1.4.0.3 && <1.6
   if flag(library-only)
     buildable: False
   if (flag(dev))
@@ -303,6 +307,7 @@ executable Fames
       WH.FA.Curl
       WH.FA.Types
       WH.PackingList.Internal
+      Paths_Fames
   default-language: Haskell2010
 
 test-suite test
@@ -313,104 +318,90 @@ test-suite test
   default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures NamedWildCards
   ghc-options: -w -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      containers
-    , base >=4 && <5
-    , text >=0.11 && <2.0
-    , yesod >=1.4.1 && <1.5
-    , yesod-core >=1.4.17 && <1.5
-    , yesod-auth >=1.4.0 && <1.5
-    , yesod-static >=1.4.0.3 && <1.6
-    , yesod-form >=1.4.0 && <1.5
-    , yesod-fay >=0.7 && <0.9
+      Decimal >=0.4.2 && <0.5
+    , Fames
+    , Glob
+    , Metamorphosis >=0.1.0.1
+    , aeson
+    , base
+    , blaze-html
+    , blaze-markup
+    , bytestring >=0.9 && <0.11
+    , case-insensitive
+    , cassava
+    , classy-prelude
+    , classy-prelude-conduit >=0.10.2
+    , classy-prelude-yesod
+    , colour >=2.3.3 && <2.4
+    , conduit >=1.0 && <2.0
+    , conduit-extra
+    , containers
+    , cryptohash
+    , curl >=1.3.8 && <1.4
+    , data-default
+    , diagrams-cairo >=1.4 && <1.5
+    , diagrams-lib >=1.4.1.2 && <1.5
+    , diagrams-svg >=1.4 && <1.5
+    , directory >=1.1 && <1.4
+    , fames-persist
+    , fast-logger >=2.2 && <2.5
     , fay >=0.21.2.1 && <0.24
     , fay-jquery >=0.6 && <0.7
     , fay-text >=0.3 && <0.4
-    , cassava >=0.4.5 && <0.5
-    , classy-prelude >=0.10.2
-    , classy-prelude-conduit >=0.10.2
-    , classy-prelude-yesod >=0.10.2
-    , bytestring >=0.9 && <0.11
-    , persistent >=2.0 && <2.7
-    , persistent-mysql >=2.1.2 && <2.7
-    , mysql
-    , persistent-template >=2.0 && <2.6
-    , template-haskell
-    , shakespeare >=2.0 && <2.1
-    , hjsmin >=0.1 && <0.3
-    , monad-control >=0.3 && <1.1
-    , wai-extra >=3.0 && <3.1
-    , yaml >=0.8 && <0.9
-    , http-conduit >=2.1 && <2.3
-    , directory >=1.1 && <1.4
-    , warp >=3.0 && <3.3
-    , data-default
-    , aeson >=0.6 && <1.1
-    , conduit >=1.0 && <2.0
-    , conduit-extra
-    , streaming-commons
-    , monad-logger >=0.3 && <0.4
-    , fast-logger >=2.2 && <2.5
-    , wai-logger >=2.2 && <2.4
     , file-embed
-    , safe
-    , unordered-containers
-    , vector
-    , time
-    , case-insensitive
-    , wai
-    , blaze-html
-    , blaze-markup
-    , split
-    , cryptohash
+    , filepath >=1.4.1.1 && <1.5
     , formatting
-    , temporary
-    , these
-    , Glob
-    , mtl >=2.2 && <2.3
-    , path-pieces >=0.2 && <0.3
     , generics-sop
-    , Metamorphosis >= 0.1.0.1
-    , fames-persist
-    , microlens >= 0.4.1.1 && < 0.5
-    , microlens-th >= 0.4.1.1 && < 0.5
-    , curl >= 1.3.8 && < 1.4
-    , tagsoup >=  0.14.1 && < 0.15
-    , regex-tdfa >= 1.2.2 && < 1.3
-    , lifted-async
     , ghc-prim
-    , pointed >= 5
-    , yesod-media-simple
-    , diagrams-lib >= 1.4.1.2 && < 1.5
-    , diagrams-cairo >= 1.4 && < 1.5
-    , diagrams-svg >= 1.4 && < 1.5
-    , tabular >= 0.2.2.7 && < 0.3
-    , parsec >= 3.1 && < 3.2
-    , colour >= 2.3.3 && < 2.4
-    , Decimal >= 0.4.2 && < 0.5
-    , reducers >= 3.12 && < 3.13
-    , filepath >= 1.4.1.1  && < 1.5
-    , pretty-simple
-    , base
-    , Fames
-    , yesod-test >=1.5.0.1 && <1.6
-    , yesod-core
-    , yesod
-    , yesod-auth
-    , persistent
-    , persistent-mysql
-    , resourcet
-    , monad-logger
-    , shakespeare
-    , transformers
+    , hjsmin >=0.1 && <0.3
     , hspec >=2.0.0
     , hspec-stack-rerun
-    , classy-prelude
-    , classy-prelude-yesod
-    , aeson
-    , cassava
-    , yaml
-    , temporary
+    , http-conduit >=2.1 && <2.3
     , http-types >=0.9
+    , lifted-async
+    , microlens >=0.4.1.1 && <0.5
+    , microlens-th >=0.4.1.1 && <0.5
+    , monad-control >=0.3 && <1.1
+    , monad-logger
+    , mtl >=2.2 && <2.3
+    , mysql
+    , parsec >=3.1 && <3.2
+    , path-pieces >=0.2 && <0.3
+    , persistent
+    , persistent-mysql
+    , persistent-template >=2.0 && <2.6
+    , pointed >=5
+    , pretty-simple
+    , reducers >=3.12 && <3.13
+    , regex-tdfa >=1.2.2 && <1.3
+    , resourcet
+    , safe
+    , shakespeare
+    , split
+    , streaming-commons
+    , tabular >=0.2.2.7 && <0.3
+    , tagsoup >=0.14.1 && <0.15
+    , template-haskell
+    , temporary
+    , text >=0.11 && <2.0
+    , these
+    , time
+    , transformers
+    , unordered-containers
+    , vector
+    , wai
+    , wai-extra >=3.0 && <3.1
+    , wai-logger >=2.2 && <2.4
+    , warp >=3.0 && <3.3
+    , yaml
+    , yesod
+    , yesod-auth
+    , yesod-core
+    , yesod-fay >=0.7 && <0.9
+    , yesod-form >=1.4.0 && <1.5
+    , yesod-media-simple
+    , yesod-static >=1.4.0.3 && <1.6
+    , yesod-test >=1.5.0.1 && <1.6
   other-modules:
       GL.Payroll.ParserSpec
       GL.Payroll.TimesheetSpec
@@ -433,4 +424,5 @@ test-suite test
       TestImport
       WH.BarcodeSpec
       WH.PackingList.InternalSpec
+      Paths_Fames
   default-language: Haskell2010

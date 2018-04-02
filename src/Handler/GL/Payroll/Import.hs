@@ -11,6 +11,7 @@ import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 import Handler.GL.Payroll.Common
 import GL.Payroll.Settings
+import GL.Utils
 import qualified GL.Payroll.Timesheet as TS
 import qualified GL.Payroll.Report as TS
 import Data.Maybe
@@ -79,9 +80,9 @@ importSummary :: ImportParam -> Handler Widget
 importSummary param = do
   invoices' <- runDB $ selectInvoice param
   invoices'' <- mapM (loadInvoice param) invoices'
-
+  psettings <- appPayroll <$> getsYesod appSettings
   (opF,opF') <- getOperatorFinders
-  let invoices = map (computeDummyModel opF opF') invoices''
+  let invoices = map (computeDummyModel psettings opF opF') invoices''
 
   let main=  [whamlet|
     <div.well>
@@ -344,18 +345,24 @@ selectInvoice param = do
   return invoices
 
 -- * Converters
-invoiceToModel :: (Text -> OperatorId)
+invoiceToModel :: PayrollSettings
+               -> (Text -> OperatorId)
                -> (Int -> OperatorId)
                -> Invoice
                -> ( DocumentKeyId -> Timesheet
                   , TimesheetId -> [PayrollShift]
                   , TimesheetId -> [PayrollItem]
                   )
-invoiceToModel opFinder opFinder' invoice = let
+invoiceToModel psettings opFinder opFinder' invoice = let
   inv = trans invoice
   ref = FA.suppTranSuppReference inv
-  start = FA.suppTranTranDate inv
+  minDay = minimumEx [ FA.grnBatchDeliveryDate batch | (_,_, batch) <- items invoice ]
   frequency = if 'M' `elem` ref then TS.Monthly else TS.Weekly
+  start = case frequency of
+    TS.Weekly -> let weekStart = dayOfWeek (firstTaxWeek psettings)
+              in previousWeekDay weekStart minDay
+    TS.Monthly -> let (_,_, day) = toGregorian (firstTaxMonth psettings)
+              in previousMonthStartingAt day minDay
   timesheet' = TS.Timesheet [] start frequency []
   timesheet docKey = Timesheet ref
                                docKey
@@ -414,9 +421,9 @@ dummyModel (t, ss, is)= let
   tId = TimesheetKey 0
   in (t docKey, ss tId, is tId)
 
-computeDummyModel :: (Text -> OperatorId) -> (Int -> OperatorId) -> Invoice -> Invoice
-computeDummyModel opFinder opFinder' invoice = case model invoice of
-  Nothing -> invoice { model = Just . dummyModel $ invoiceToModel opFinder opFinder' invoice}
+computeDummyModel :: PayrollSettings -> (Text -> OperatorId) -> (Int -> OperatorId) -> Invoice -> Invoice
+computeDummyModel psettings opFinder opFinder' invoice = case model invoice of
+  Nothing -> invoice { model = Just . dummyModel $ invoiceToModel psettings opFinder opFinder' invoice}
   Just _ -> invoice
 
 getOperatorFinders :: Handler (Text -> Key Operator, Int -> Key Operator)
@@ -444,13 +451,14 @@ loadSelectedInvoices param = do
 importTimesheets :: ImportParam -> Handler [TimesheetId]
 importTimesheets param = do
   invoices' <- loadSelectedInvoices param
+  psettings <- appPayroll <$> getsYesod appSettings
   -- only import invoice which doesn't have a corresponding timesheet
   let invoices = filter (isNothing . key) invoices'
 
   (opF,opF') <- getOperatorFinders
   let  model'docS = [ (model, doc)
                     | inv <- invoices
-                    , let model = invoiceToModel opF opF' inv
+                    , let model = invoiceToModel psettings opF opF' inv
                     , let doc = "Import from FA invoice #" <> tshow (FA.suppTranTransNo (trans inv))
                     ]
   runDB $ forM model'docS $ \(model,doc) -> do

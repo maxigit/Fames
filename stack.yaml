@@ -3,10 +3,10 @@
 
 # Specifies the GHC version and set of packages available (e.g., lts-3.5, nightly-2015-09-21, ghc-7.10.2)
 resolver: lts-8.24
+require-stack-version: ">= 1.6.5"
 
 # Local packages, usually specified by relative directory name
 packages:
-- '.'
 - location:
     git: https://github.com/yesodweb/yesod
     commit: f3fc735a25eb3d5c051c761b59070eb9a0e4e156
@@ -17,14 +17,15 @@ packages:
   extra-dep: true
 - location: fames-persist
   extra-dep: true
+- '.'
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
 - say-0.1.0.0
 - typed-process-0.1.0.0
 - hspec-stack-rerun-0.1.0.3
-- Metamorphosis-0.1.0.1
-- fames-persist-0.0.0.0
+#- fames-persist-0.0.0.0
 - yesod-media-simple-0.2.0.0
+#- Metamorphosis-0.1.0.1
 
 # Override default flag values for local packages and extra-deps
 flags:

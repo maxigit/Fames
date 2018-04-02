@@ -7,7 +7,10 @@ import Data.Time.Calendar(addDays, addGregorianMonthsClip)
 calculateDate :: DateCalculator -> Day -> Day
 calculateDate (DayOfMonth target cutoff) day = let
   (y, m, d) = toGregorian day
-  new = fromGregorian y m target
+  new' = fromGregorian y m target
+  new = if cutoff > target
+        then addGregorianMonthsClip 1 new'
+        else new'
   in if d >= cutoff -- next month
      then addGregorianMonthsClip 1 new
      else new
@@ -41,3 +44,9 @@ previousWeekDay weekDay day = calculateDate (NextDayOfWeek weekDay weekDay) (add
 nextWeekDay :: DayOfWeek -> Day -> Day
 nextWeekDay  weekDay day = calculateDate (NextDayOfWeek weekDay weekDay) (addDays (-1) day)
   
+
+-- | beginning of month period starting at given day
+-- Ex : 5 (07 Mar) -> 5 Mar
+--    5 (03 Mar) -> 5 Feb
+previousMonthStartingAt :: Int -> Day -> Day
+previousMonthStartingAt d day = addGregorianMonthsClip (-1) $  calculateDate (DayOfMonth d d) day
