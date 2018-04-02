@@ -10,6 +10,7 @@ import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 import Handler.GL.Payroll.Common
 import GL.Payroll.Settings
+import GL.Utils
 import qualified GL.Payroll.Timesheet as TS
 import qualified GL.Payroll.Report as TS
 import Data.Maybe
@@ -108,16 +109,9 @@ employeeSummaryTable' day cols0 colnames rows0 = let
 -- * Misc
 computeDueDate :: PayrollSettings -> TS.Timesheet p e -> Day
 computeDueDate settings ts = let
-  (year, month, day) = toGregorian $  TS._periodStart ts 
-  (_year', _month', day') = toGregorian $ firstTaxMonth settings
-  period = fromGregorian year month day'
-  in if day' > day
-     then period
-     else addGregorianMonthsClip 1 period -- next month
-
-
-
-
+  start = TS._periodStart ts
+  (_year', _month', day') = toGregorian $ firstTaxWeek settings
+  in calculateDate (DayOfMonth day' day') start
 
 withDueDate :: PayrollSettings -> SummaryParam -> TS.Timesheet p e ->  (TS.Timesheet p e, Day)
 withDueDate psettings params ts = let
