@@ -218,9 +218,16 @@ weekNumber taxStart start = let
 
 monthNumber :: Start -> Day -> (Integer, Int)
 monthNumber taxStart start = let
-  (taxYear, taxMonth, _taxDay) = toGregorian (adjustTaxYear taxStart start)
-  (_startYear, startMonth, _startDay) = toGregorian start
-  in (taxYear, startMonth - taxMonth + 1)
+  (taxYear, taxMonth, taxDay) = toGregorian (adjustTaxYear taxStart start)
+  (_startYear, startMonth, startDay) = toGregorian start
+  deltaMonth =  startMonth - taxMonth
+  plusOneIf (y,d) = if startDay < taxDay
+            then (y,d)
+            else (y,d+1)
+  adjust12 (y,d) = if d < 1
+               then (y, d +12)
+               else (y,d)
+  in adjust12 $ plusOneIf (taxYear, deltaMonth)
 
 toYear :: Day -> Integer
 toYear d = y where (y, _, _ ) = toGregorian d

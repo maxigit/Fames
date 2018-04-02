@@ -29,7 +29,25 @@ spec = describe "@Timesheet" $ do
           shortRef (mkPeriod Monthly 2018 01 01) (fromGregorian 2018 01 01 ) `shouldBe` "18M01"
         it "long Month" $ do
           longRef (mkPeriod Monthly 2018 01 01) (fromGregorian 2018 01 01) `shouldBe` "2018/M01"
-  
+        context "for corner case" $ do
+          context "#week" $ do
+            it "first long week" $ do
+              longRef (mkPeriod Weekly 2018 04 06) (fromGregorian 2018 04 08 ) `shouldBe` "2018/01"
+            it "first long week (same day)" $ do
+              longRef (mkPeriod Weekly 2018 04 06) (fromGregorian 2018 04 06 ) `shouldBe` "2018/01"
+            it "last long week (53)" $ do
+              longRef (mkPeriod Weekly 2018 04 06) (fromGregorian 2018 04 05 ) `shouldBe` "2017/53"
+            it "last long week (52)" $ do
+              longRef (mkPeriod Weekly 2018 04 06) (fromGregorian 2018 04 04 ) `shouldBe` "2017/52"
+          context "#Month" $ do
+            it "first long month" $ do
+              longRef (mkPeriod Monthly 2018 04 06) (fromGregorian 2018 04 08 ) `shouldBe` "2018/M01"
+
+            it "first long month" $ do
+              longRef (mkPeriod Monthly 2018 04 06) (fromGregorian 2018 04 06 ) `shouldBe` "2018/M01"
+            it "last long month" $ do
+              longRef (mkPeriod Monthly 2018 04 06) (fromGregorian 2018 04 01 ) `shouldBe` "2017/M12"
+
       context "dayRef" $ do
         it "short Month" $ do
           dayRef (mkPeriod Weekly 2018 01 01) (fromGregorian 2018 01 04 ) `shouldBe` "Thu"
@@ -38,3 +56,22 @@ spec = describe "@Timesheet" $ do
         -- it "for GRN" $ do
         --   pending $ "grnRef (Period Weekly $ fromGregorian 2018 01 01) (fromGregorian 2018 ) `shouldBe` '1801/Mon'"
 
+      describe "date splitter" $ do
+        context "weekNumber" $ do
+          it "find same day" $ do
+            weekNumber (Start $ fromGregorian 2018 04 06) (fromGregorian 2018 04 06) `shouldBe` (2018, 01)
+          it "find last day" $ do
+            weekNumber (Start $ fromGregorian 2018 04 06) (fromGregorian 2018 04 12) `shouldBe` (2018, 01)
+          it "find previous day" $ do
+            weekNumber (Start $ fromGregorian 2018 04 06) (fromGregorian 2018 04 05) `shouldBe` (2017, 53)
+          it "find next period" $ do
+            weekNumber (Start $ fromGregorian 2018 04 06) (fromGregorian 2018 04 13) `shouldBe` (2018, 2)
+        context "monthNumber" $ do
+          it "find same day" $ do
+            monthNumber (Start $ fromGregorian 2018 04 06) (fromGregorian 2018 04 06) `shouldBe` (2018, 01)
+          it "find last day" $ do
+            monthNumber (Start $ fromGregorian 2018 04 06) (fromGregorian 2018 05 05) `shouldBe` (2018, 01)
+          it "find previous day" $ do
+            monthNumber (Start $ fromGregorian 2018 04 06) (fromGregorian 2018 04 05) `shouldBe` (2017, 12)
+          it "find next period" $ do
+            monthNumber (Start $ fromGregorian 2018 04 06) (fromGregorian 2018 05 06) `shouldBe` (2018, 2)
