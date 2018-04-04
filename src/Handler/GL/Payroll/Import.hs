@@ -21,6 +21,7 @@ import qualified FA as FA
 import Database.Persist.MySQL(unSqlBackendKey) -- , rawSql, Single(..))
 import Text.Printf(printf) 
 import Control.Monad.Except
+import qualified Data.Map as Map
 
 -- * Type
 data ImportParam = ImportParam
@@ -184,10 +185,16 @@ invoiceFAShiftCost invoice = let
   costs = filter (isJust . FA.glTranStockId) (glTrans invoice)
   in sum $ map FA.glTranAmount costs
 
--- | Payments made to staff
+-- | Payments made to staff, we consider payment on the invoice day to
+-- be made to staff unless they match external paye amount
 invoiceStaffPayments invoice = let
   inv = trans invoice
+  amounts = case model invoice of
+    Just (_, _, items) -> let group = Map.fromListWith (+) [ (payrollItemPayee item, payrollItemAmount item ) | item <- items]
+                          in setFromList (Map.elems group)
+    Nothing -> setFromList [] :: Set Double
   isStaff alloc = FA.suppAllocationDateAlloc alloc == FA.suppTranTranDate inv
+                    && (fromMaybe 0 $ FA.suppAllocationAmt alloc) `notElem` amounts 
   in filter isStaff (payments invoice)
 
 invoiceTotalStaff invoice = sum $ mapMaybe FA.suppAllocationAmt (invoiceStaffPayments invoice)
