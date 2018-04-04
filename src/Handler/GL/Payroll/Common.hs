@@ -422,13 +422,28 @@ displayTimesheetCalendar :: (TS.Timesheet payee Text) -> Widget
 displayTimesheetCalendar timesheet = do
   let periodStart = TS._periodStart timesheet
       periodEnd = TS.periodEnd timesheet
+      -- some timesheet might have for some reason shift outside of the authorized period
+      -- we need to be able to display it anyway.
+  let allShifts = TS._shifts timesheet
+      days = map (^. TS.day) allShifts
+      (start, end) = case days of
+          [] -> case TS._frequency timesheet of
+                         TS.Weekly -> (periodStart, periodEnd)
+                         TS.Monthly -> ( previousWeekDay Sunday periodStart
+                                       , nextWeekDay Saturday periodEnd)
+          (d:ds) -> let minDay0 = minimum (ncons d ds)
+                        maxDay0 = maximum (ncons d ds)
+                        startDay = case TS._frequency timesheet of
+                                      TS.Weekly -> dayOfWeek periodStart
+                                      TS.Monthly -> Monday
+                        endDay = predCyclic startDay 
+                        minDay = previousWeekDay startDay (min minDay0 periodStart)
+                        maxDay = nextWeekDay endDay (max maxDay0 periodEnd)
+                    in (minDay, maxDay)
+
       -- get start and end of displayed calendar
       -- for weekly, it's just the week
       -- for month, we start on Sunday
-      (start, end) = case TS._frequency timesheet of
-        TS.Weekly -> (periodStart, periodEnd)
-        TS.Monthly -> ( previousWeekDay Sunday periodStart
-                   , nextWeekDay Saturday periodEnd)
   displayCalendar start end periodStart periodEnd (TS._shifts timesheet)
 
 -- displayCalendar :: Show emp =>  Day -> Day -> Day -> Day

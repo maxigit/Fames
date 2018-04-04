@@ -70,6 +70,12 @@ data DateCalculator
 data DayOfWeek = Monday | Tuesday | Wednesday | Thursday | Friday | Saturday | Sunday
   deriving (Show, Read, Eq, Ord, Enum, Bounded)
           
+predCyclic Monday = Sunday
+predCyclic d = pred d
+
+succCyclic Sunday = Monday
+succCyclic d = succ d
+
 -- * JSON
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField}''DayOfWeek)
 $(deriveJSON defaultOptions ''EmployeeSettings)
