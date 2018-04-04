@@ -30,6 +30,15 @@ module Handler.Util
 , readUploadOrCacheUTF8
 , locationSet
 , toHtmlWithBreak
+, hxtoHe
+, ioeToIox
+, heToHx
+, ioxToHx
+, ioeToHx
+, eToHx
+, ioToHx
+, ioToH
+, hToHx
 ) where
 -- ** Import
 import Foundation
@@ -52,6 +61,8 @@ import System.Directory (doesFileExist)
 import qualified Data.Map.Strict as Map
 import qualified Data.List as Data.List
 import Model.DocumentKey
+import Control.Monad.Except
+
 -- import Data.IOData (IOData)
 
 -- * Display entities
@@ -430,3 +441,42 @@ locationSet = cache0 False cacheForEver "location-set" $ do
     return . setFromList $ keys locations
 
   
+
+-- * ExceptT 
+
+type HandlerX = ExceptT Text Handler
+
+hToHx :: Handler a -> HandlerX a
+hToHx = lift
+
+-- | as an excersise
+ioToH :: IO a -> Handler a
+ioToH = lift
+
+ioToHx :: IO a -> HandlerX a
+ioToHx = liftIO
+
+eToHx :: Text -> HandlerX a
+eToHx = throwError --  heToHx . return . Left
+
+ioeToHx :: IO (Either Text a) -> HandlerX a
+ioeToHx = ioxToHx . ioeToIox 
+
+ioxToHx :: ExceptT Text IO a -> HandlerX  a
+-- ioXtoHX = ExceptT . lift  . runExceptT
+ioxToHx = mapExceptT lift
+
+heToHx :: Handler (Either Text a)  -> HandlerX a
+heToHx = ExceptT
+
+ioeToIox:: IO (Either Text a) -> ExceptT Text IO a
+ioeToIox = ExceptT
+
+hxtoHe :: HandlerX a -> Handler (Either Text a)
+hxtoHe = runExceptT 
+
+
+x :: Monad m => Either e a -> ExceptT e m a
+-- x =  ExceptT. return
+x =  either throwError return
+
