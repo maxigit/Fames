@@ -384,7 +384,7 @@ mkShift
      -> PayrollShift
 mkShift opFinder (item, grn, batch) tId = let
   duration = FA.suppInvoiceItemQuantity item
-  cost = (fromIntegral $  round (100 * duration * FA.suppInvoiceItemUnitPrice item) )/ 100
+  cost = (fromIntegral $  ceiling (100 * duration * FA.suppInvoiceItemUnitPrice item) )/ 100
   typ = case unpack $ fromJust $ FA.grnBatchLocCode batch of
               "LOST" -> TS.Holiday
               _ -> TS.Work
