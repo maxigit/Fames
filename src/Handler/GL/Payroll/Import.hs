@@ -463,15 +463,16 @@ importTimesheets param = do
   let invoices = filter (isNothing . key) invoices'
 
   (opF,opF') <- getOperatorFinders
-  let  model'docS = [ (model, doc)
+  let  model'docS = [ (model, doc, inv)
                     | inv <- invoices
                     , let model = invoiceToModel psettings opF opF' inv
                     , let doc = "Import from FA invoice #" <> tshow (FA.suppTranTransNo (trans inv))
                     ]
-  runDB $ forM model'docS $ \(model,doc) -> do
+  runDB $ forM model'docS $ \(model,doc, inv) -> do
     let bytes = encodeUtf8 doc
         key  = computeDocumentKey bytes
-    (tKey, ref) <- saveTimeSheetModel key doc model
+        faId = FA.suppTranTransNo (trans inv)
+    (tKey, ref) <- saveTimeSheetModel (Just faId) key doc model
     let tId = unSqlBackendKey (unTimesheetKey tKey)
     lift $ pushLinks ("View Timesheet " <> ref)
               (GLR $ GLPayrollViewR tId)
