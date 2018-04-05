@@ -15,7 +15,7 @@ import qualified GL.Payroll.Timesheet as TS
 import qualified GL.Payroll.Report as TS
 import Data.Maybe
 import Data.List.NonEmpty (NonEmpty(..))
-import Data.Time (addGregorianMonthsClip)
+import Data.Time (addGregorianMonthsClip, addDays)
 -- * Forms
 -- ** Type
 data SummaryParam = SummaryParam
@@ -79,7 +79,8 @@ processSummary param =  do
   timesheets <- loadTimesheet' param
   let psettings = appPayroll settings
       timesheetDues  = map (withDueDate psettings param) timesheets
-      withRef = (\(ts, d) -> ((ts, invoiceRef psettings ts), d)) <$> timesheetDues
+      timesheetName ts = invoiceRef psettings ts <> " -- <" <> tshow (TS._periodStart ts) <> "> - <" <> tshow (TS.periodEnd ts) <> ">"
+      withRef = (\(ts, d) -> ((ts, timesheetName ts), d)) <$> timesheetDues
       groups = makeSummaries withRef
       totals = [total | (_,_, total) <- groups]
       (cols, colnames) = employeeSummaryColumns totals
@@ -109,8 +110,8 @@ employeeSummaryTable' day cols0 colnames rows0 = let
 -- * Misc
 computeDueDate :: PayrollSettings -> TS.Timesheet p e -> Day
 computeDueDate settings ts = let
-  start = TS._periodStart ts
-  (_year', _month', day') = toGregorian $ firstTaxWeek settings
+  start = TS.periodEnd ts
+  (_year', _month', day') = toGregorian $ addDays 6 (firstTaxWeek settings) -- get end period
   in calculateDate (DayOfMonth day' day') start
 
 withDueDate :: PayrollSettings -> SummaryParam -> TS.Timesheet p e ->  (TS.Timesheet p e, Day)
@@ -123,7 +124,7 @@ withDueDate psettings params ts = let
 setDueDateMap :: SummaryParam -> Handler SummaryParam
 setDueDateMap param = do
   (pp, _) <- runRequestBody
-  let dueMap = mapFromList [(ref, day)
+  let dueMap = mapFromList [(takeWhile (/=' ') ref, day)
                            | (ref, dayS) <- pp
                            , Just day <- return $ readMay dayS
                            ]
@@ -138,9 +139,9 @@ makeSummaries timesheets = let
   byDue = fst <$$> TS.groupBy snd timesheets
   summaries = [ (day, summaries, total)
               | (day, tss) <- mapToList  byDue
-              , let summaries@(s:ss) = [ (lastEx summary) {TS._sumEmployee = ref}
+              , let summaries@(s:ss) = [ (sconcat $ s :| ss ) {TS._sumEmployee = ref}
                                        |  (ts, ref) <- sortWith (TS._periodStart . fst) tss
-                                       , let summary = TS.paymentSummary ts
+                                       , let (s:ss) = TS.paymentSummary ts
                                        ]
               , let total =  sconcat (s :| ss)
               ]
