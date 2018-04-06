@@ -537,6 +537,7 @@ skuToStyleVar sku = (style, var) where
   var = drop 9 sku
 
 styleVarToSku :: Text -> Text -> Text
+styleVarToSku style "" = style
 styleVarToSku style var = style <> "-" <> var
   
 -- ** Sku form info
@@ -1693,6 +1694,7 @@ changeActivation activate param activeFilter updateFn =  runDB $ do
   entities <- case styleFilter param {ipMode = ItemGLView, ipShowInactive = True } of
     Left err -> error err >> return []
     Right filter_ ->  selectList ( activeFilter ++ filter_) []
+  traceShowM ("ACTI", param, entities)
   let toKeep = checkFilter param
       keys_ = [ key
              | (Entity key _) <- entities
