@@ -2,9 +2,9 @@ module Locker
 ( Locker
 , lock
 , unlock
-, Granted
 , restrict
 , permissions
+, unsafeUnlock
 )
 
 where
@@ -12,6 +12,7 @@ where
 import ClassyPrelude.Yesod
 import qualified Data.Text as Text
 import qualified Data.Set as Set
+import Debug.Trace
 
 -- * Types
 
@@ -35,6 +36,8 @@ permissions (Locker rs _)  = rs
 restrict :: [r] ->  Locker r a -> Locker r a
 restrict rs' (Locker rs x) = Locker (rs <> rs') x
 
+-- * Unsafe
+unsafeUnlock (Locker rs x) = traceShow ("Unsafe UNLOCK requiring " <> show rs) x
 -- * Instances
 
 instance Functor (Locker r) where

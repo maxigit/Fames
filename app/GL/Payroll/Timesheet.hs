@@ -44,9 +44,10 @@ import Locker
 import Data.Text (Text)
 
 -- * Type alias
-type Amount = Locker [Text] Double
+type Amount = Locker Text Double
 type Duration = Double
 type Hour = Double
+
 -- * Data
 -- ** Employee
 -- | An employee.

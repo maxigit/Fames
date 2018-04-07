@@ -26,6 +26,7 @@ import Text.Printf(printf)
 import qualified Data.Map as Map
 import Handler.Util
 import Data.List(iterate, cycle)
+import Locker
 
 -- ** Orphan Instances
 instance TS.Display Text where
@@ -100,13 +101,13 @@ timesheetOpIdToModel ref ts = (model, shiftsFn, itemsFn) where
     (operator, day, shiftType) = TS._shiftKey shift
     in PayrollShift i
                     (TS._duration shift)
-                    (TS._cost shift)
+                    (unsafeUnlock $ TS._cost shift)
                     operator
                     (Just day)
                     (tshow shiftType)
   itemsFn i = concatMap (mkItem i) (TS._deductionAndCosts ts)
   mkItem :: TimesheetId -> TS.DeductionAndCost (String, OperatorId) -> [PayrollItem]
-  mkItem i dac = mergeTheseWith (mkDAC Deduction) (mkDAC Cost) (<>) (TS._dacDac dac) where
+  mkItem i dac = mergeTheseWith (mkDAC Deduction) (mkDAC Cost) (<>) (bimap unsafeUnlock unsafeUnlock $ TS._dacDac dac) where
                   (payee, op) = TS._dacKey dac
                   mkDAC dacType amount = [ PayrollItem i amount dacType op (pack payee) "" ]
 
@@ -117,19 +118,20 @@ modelToTimesheetOpId :: Entity Timesheet
 modelToTimesheetOpId (Entity _ timesheet) shiftEs itemEs = let
   readType "Holiday" = TS.Holiday
   readType _ = TS.Work
-  mkShift (Entity key shift) = TS.Shift  (mkShiftKey key shift) Nothing (payrollShiftDuration shift) (payrollShiftCost shift)
+  mkShift (Entity key shift) = TS.Shift  (mkShiftKey key shift) Nothing (payrollShiftDuration shift) (lock [tshow . unSqlBackendKey . unOperatorKey $ payrollShiftOperator shift] $ payrollShiftCost shift)
   mkShiftKey key shift = ( (payrollShiftOperator shift, key)
 
                      , fromMaybe (error "TODO") (payrollShiftDate shift)
                      , readType (payrollShiftType shift)
                      )
   mkItems = (TS.groupDacsBy id) . (map mkItem)
-  mkItem (Entity _ i) = TS.DeductionAndCost (payrollItemPayee i, (payrollItemOperator i, PayrollShiftKey (SqlBackendKey 1)))
-                                 ((case payrollItemType  i of
-                                     Cost -> That
-                                     Deduction -> This)
-                                   (payrollItemAmount i)
-                                 )
+  mkItem (Entity _ i) = TS.DeductionAndCost
+                        (payrollItemPayee i, (payrollItemOperator i, PayrollShiftKey (SqlBackendKey 1)))
+                        ( ( case payrollItemType  i of
+                            Cost -> That
+                            Deduction -> This
+                          ) (lock [tshow . unSqlBackendKey . unOperatorKey $ payrollItemOperator i, payrollItemPayee i] $ payrollItemAmount i)
+                        )
   in TS.Timesheet (map mkShift shiftEs) (timesheetStart timesheet) (timesheetFrequency timesheet) (mkItems itemEs)
 
 timesheetEmployeeToOpId :: (Monad m , TS.HasEmployee e)
@@ -363,9 +365,9 @@ employeeSummaryColumns summaries = let
   toCols getter = map (Just getter,)  .  Map.keys $ mconcat $ map getter summaries
   deductions =  toCols TS._deductions
   netDeductions =  toCols TS._netDeductions
-  costs =  toCols TS._costs
+  costs =  toCols (TS._costs)
   hours = toCols convertHours
-  convertHours s = Map.fromList [(tshow k <> "\n(hrs)", h) | (k,h)  <- Map.toList (TS._totalHours s)]
+  convertHours s = Map.fromList [(tshow k <> "\n(hrs)", pure h) | (k,h)  <- Map.toList (TS._totalHours s)]
     
   -- | Columns are either straight field (Nothing)
   -- or the name of a payee in in the given dacs map (Just ...)
@@ -395,7 +397,8 @@ employeeSummaryRows summaries = let
   -- | Columns are either straight field (Nothing)
   -- or the name of a payee in in the given dacs map (Just ...)
   colFns = map mkColFn summaries
-  formatDouble' x | abs x < 1e-2 = ""
+  formatDouble' = formatDoubl'' . unsafeUnlock
+  formatDoubl'' x | abs x < 1e-2 = ""
                   | x < 0 = [shamlet|<span.text-danger>#{formatDouble x}|]
                   | otherwise = toHtml $ formatDouble x
           
@@ -575,7 +578,7 @@ saveGRNs settings key timesheet = do
               ]
       mkDetail shift = WFA.GRNDetail (pack . TS.sku $ TS._shiftKey shift)
                                      (TS._duration shift)
-                                     (view TS.hourlyRate shift)
+                                     (unsafeUnlock $ view TS.hourlyRate shift)
       mkGRN (TS.Textcart (day, shiftType, shifts), pKeys)  = let
         location = (case shiftType of
                       TS.Holiday -> grnHolidayLocation
@@ -650,7 +653,7 @@ itemsForCosts timesheet = let
    in  WFA.GLItem account
                   (dimension1 (opSettings :: EmployeeSettings ))
                   (dimension2 (opSettings :: EmployeeSettings))
-                  amount
+                  (unsafeUnlock amount)
                   (Just memo)
   in map mkItem costs
 
@@ -700,10 +703,10 @@ employeePayment :: Ord p
 employeePayment _ _ _ _ summary | TS._finalPayment summary <= 0 = Nothing
 employeePayment ref paymentDate settings invM summary = let 
   amount = TS._finalPayment summary
-  allocations = maybeToList $ invM <&> \inv -> WFA.PaymentTransaction inv ST_SUPPINVOICE amount
+  allocations = maybeToList $ invM <&> \inv -> WFA.PaymentTransaction inv ST_SUPPINVOICE (unsafeUnlock amount)
   payment = WFA.SupplierPayment (wagesSupplier settings)
                                 (wagesBankAccount settings)
-                                amount
+                                (unsafeUnlock amount)
                                 paymentDate
                                 (Just $ ref $ TS._sumEmployee summary)
                                 (Just 0) -- charge
@@ -807,7 +810,7 @@ dacToExternalItems :: Day
                 ] 
 dacToExternalItems day tsReference dac = let
     (payee, settings) = dac ^. TS.dacKey
-    extract memo_ amountPrism settingsFn = case (dac ^? amountPrism,  settingsFn settings) of
+    extract memo_ amountPrism settingsFn = case (unsafeUnlock <$> dac ^? amountPrism,  settingsFn settings) of
       (Just amount, Just set) | amount > 1e-2 -> let
                              ref = tsReference <> "-" <> fromMaybe payee (paymentRef set)
                              due = calculateDate (paymentTerm set) day 
