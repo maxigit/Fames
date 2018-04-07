@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3b81364a321cecdea41e08d25423f6cf647d91932101c29e60dd1d3d131b6d5f
+-- hash: 9ade3b1291f520a244fa3d51351ceb18f5f1f5c865e5f11b8400560dcc514f59
 
 name:           Fames
 version:        0.0.0
@@ -157,6 +157,7 @@ library
       Handler.WH.Stocktake
       Import
       Import.NoFoundation
+      Locker
       Model
       Model.Boxtake
       Model.DocumentKey

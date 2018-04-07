@@ -40,9 +40,11 @@ import Data.These
 import Data.Bifunctor (bimap)
 import qualified Data.Map as Map
 import Data.Map(Map)
+import Locker
+import Data.Text (Text)
 
 -- * Type alias
-type Amount = Double
+type Amount = Locker [Text] Double
 type Duration = Double
 type Hour = Double
 -- * Data
@@ -78,7 +80,6 @@ data Shift k = Shift
     , _duration :: Duration
     , _cost :: Amount
     } deriving (Show, Eq, Functor, Foldable, Traversable)
-
 
 makeClassy ''Shift
 instance HasEmployee k => HasEmployee (Shift k) where
@@ -124,7 +125,7 @@ instance HasShiftType k => HasShiftType (Shift k) where
   shiftType = shiftKey.shiftType
 
 -- hourlyRate :: Getter (Shift k) Amount
-hourlyRate = to $ (/) <$> (^.cost) <*> (^.duration)
+hourlyRate = to $ (/) <$> (^.cost) <*> (pure . (^.duration))
 
 -- | Deduction and costs
 data DeductionAndCost key = DeductionAndCost

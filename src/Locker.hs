@@ -1,9 +1,10 @@
 module Locker
-(Locker
+( Locker
 , lock
 , unlock
 , Granted
 , restrict
+, permissions
 )
 
 where
@@ -15,7 +16,7 @@ import qualified Data.Set as Set
 -- * Types
 
 -- | The locker Monad. A value which can't be accessed without a key
-data Locker r a = Locker [r] a deriving (Eq, Ord) -- we don't want show
+data Locker r a = Locker [r] a deriving (Eq, Ord, Read) -- 
 
 data Granted = Granted | Forbidden deriving (Eq, Ord, Show, Read)
 
@@ -41,14 +42,14 @@ instance Functor (Locker r) where
 
 instance Applicative (Locker r) where
   pure x = Locker [] x
-  Locker rfs f <*> Locker rxs x = Locker (rfs <> rfs) (f x)
+  Locker rfs f <*> Locker rxs x = Locker (rfs <> rxs) (f x)
   
 instance Monad (Locker r) where
   Locker rs x >>= f = let (Locker rs' x') = f x in Locker (rs <> rs') x'
   
   
 
-instance (Monoid r , Num a) => Num (Locker r a) where
+instance Num a => Num (Locker r a) where
   (+) = liftA2 (+) 
   (-) = liftA2 (-)
   (*) = liftA2 (*)
@@ -57,9 +58,17 @@ instance (Monoid r , Num a) => Num (Locker r a) where
   signum = fmap signum
   fromInteger = pure . fromInteger
 
+instance Fractional a => Fractional (Locker r a) where
+  (/) = liftA2 (/)
+  fromRational = pure . fromRational
 
-instance Show r => Show (Locker r a) where
-  show = showLock (const Forbidden) . fmap (const ())
+
+-- Show Instance which is readable if there is no permission required
+-- but not otherwise
+instance (Show r, Show a) => Show (Locker r a) where
+  show l@(Locker rs v) = "Locker " <> show rs <> " ("
+                         <> (showLock (const Forbidden) l)
+                         <>  ")" 
 
 showLock  :: (Show r, Show a) => (r -> Granted) ->  (Locker r a ) -> String
 showLock  unlocker lock = case unlock unlocker lock of
