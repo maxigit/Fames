@@ -5,6 +5,7 @@ module Locker
 , restrict
 , permissions
 , unsafeUnlock
+, Granted(..)
 )
 
 where

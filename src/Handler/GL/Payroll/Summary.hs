@@ -1,3 +1,4 @@
+{-# LANGUAGE ImplicitParams #-}
 -- | Displays a summary of all the timesheet
 module Handler.GL.Payroll.Summary
 ( getGLPayrollSummaryR
@@ -16,6 +17,8 @@ import qualified GL.Payroll.Report as TS
 import Data.Maybe
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Time (addGregorianMonthsClip, addDays)
+import Locker
+
 -- * Forms
 -- ** Type
 data SummaryParam = SummaryParam
@@ -62,6 +65,7 @@ postGLPayrollSummaryR = do
 renderMain :: Maybe SummaryParam -> Handler Html
 renderMain paramM = do
   (formW, encType) <- generateFormPost (filterForm paramM)
+  let ?viewPayrollAmountPermissions = (const Forbidden)
   resultM <- mapM processSummary paramM
   defaultLayout [whamlet|
     <form #payroll-summary role=form method=post action=@{GLR GLPayrollSummaryR} enctype=#{encType}>
@@ -73,7 +77,8 @@ renderMain paramM = do
       |]
 
 -- ** Process
-processSummary :: SummaryParam -> Handler Widget
+processSummary :: (?viewPayrollAmountPermissions :: (Text -> Granted))
+               => SummaryParam -> Handler Widget
 processSummary param =  do
   settings <- appSettings <$> getYesod
   timesheets <- loadTimesheet' param

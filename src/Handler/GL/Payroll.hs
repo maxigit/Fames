@@ -1,3 +1,4 @@
+{-# LANGUAGE ImplicitParams #-}
 module Handler.GL.Payroll
 -- * Export
 ( getGLPayrollR
@@ -39,6 +40,7 @@ import Control.Monad.Except
 import Text.Printf(printf)
 import qualified Data.Map as Map
 import Handler.Util
+import Locker
 
 
 
@@ -65,6 +67,7 @@ getGLPayrollR = do
 postGLPayrollValidateR :: Handler Html
 postGLPayrollValidateR = do
   actionM <- lookupPostParam "action"
+  let ?viewPayrollAmountPermissions = (const Forbidden)
   case actionM of
    Just "quickadd" -> processTimesheet Validate quickadd
    _ -> processTimesheet Validate validate
@@ -124,6 +127,7 @@ getGLPayrollViewR :: Int64 -> Handler Html
 getGLPayrollViewR key = do
   operatorMap <- allOperators
   modelE <- loadTimesheet key
+  let ?viewPayrollAmountPermissions = (const Forbidden)
   case modelE of
     Nothing -> error $ "Can't load Timesheet with id #" ++ show key
     Just (ts, shifts, items) -> do

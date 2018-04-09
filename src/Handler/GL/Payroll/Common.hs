@@ -1,4 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE ImplicitParams #-}
 module Handler.GL.Payroll.Common
 where
 
@@ -349,7 +350,8 @@ displayShifts shifts = let
 
 -- ** Employee Summary
 -- | Displays a table with all payment information for each employee t
-displayEmployeeSummary :: TS.Timesheet Text Text -> Widget
+displayEmployeeSummary :: (?viewPayrollAmountPermissions :: (Text -> Granted))
+                       => TS.Timesheet Text Text -> Widget
 displayEmployeeSummary timesheet = let
   summaries = TS.paymentSummary timesheet
   (cols, colnames) = employeeSummaryColumns summaries
@@ -397,7 +399,7 @@ employeeSummaryRows summaries = let
   -- | Columns are either straight field (Nothing)
   -- or the name of a payee in in the given dacs map (Just ...)
   colFns = map mkColFn summaries
-  formatDouble' = formatDoubl'' . unsafeUnlock
+  formatDouble' x = either (return "") formatDoubl'' $ unlock ?viewPayrollAmountPermissions x
   formatDoubl'' x | abs x < 1e-2 = ""
                   | x < 0 = [shamlet|<span.text-danger>#{formatDouble x}|]
                   | otherwise = toHtml $ formatDouble x
