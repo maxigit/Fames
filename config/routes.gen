@@ -8,8 +8,8 @@
 / HomeR GET POST
 
 /comments CommentR POST
-/gl GLR !GL !gl:
-  /enter_receipts_sheet GLEnterReceiptSheetR GET POST !group=Receipts !title=Enter_Receipt
+/gl GLR !GL:
+  /enter_receipts_sheet GLEnterReceiptSheetR GET POST !gl !group=Receipts !title=Enter_Receipt
 
   /payroll GLPayrollR GET !payroll !group=Payroll !title=Payroll
   /payroll/validate GLPayrollValidateR POST !payroll

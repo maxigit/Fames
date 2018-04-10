@@ -382,6 +382,7 @@ cryptFAPassword text = let digest = Crypto.hash (encodeUtf8 text)  :: Digest MD5
 mainLinks :: Handler [(Text, Route App, Bool)]
 mainLinks = do
   currentRoute <- getCurrentRoute
+  let allRoutes = Data.Foldable.toList routeTree
   let links= [ ("General Ledger", GLR GLEnterReceiptSheetR)
              , ("Items", ItemsR (ItemsIndexR Nothing))
              , ("Warehouse", WarehouseR WHStockAdjustmentR)
@@ -393,8 +394,10 @@ mainLinks = do
              , ("DC",  DC'R DCNodeR)
              ]
       authorised (_, r) = do
-        auth <- isAuthorized r False
-        return $ auth == Authorized
+        -- and menu is allowed if only one of its children is allowed
+        let siblings = filter (sameCons r) allRoutes
+        auths <- mapM (flip isAuthorized False) siblings
+        return $ any (== Authorized) auths
       active = maybe (const False) sameCons currentRoute
   allowed <- filterM authorised links
   return [ (title, route, active route)
