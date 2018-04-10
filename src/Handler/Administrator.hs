@@ -108,3 +108,26 @@ postACacheR :: Handler Html
 postACacheR = do
   clearAppCache
   getACacheR
+
+-- * Masquerade
+masquerade = "masquerade-user" :: Text
+getAMasqueradeR :: Handler Html
+getAMasqueradeR = do
+  defaultLayout $ do
+    [whamlet|
+  <h2> Masquerade as
+     <form action=@{AdministratorR AMasqueradeR} method=post>
+       <input type=text name="#{masquerade}">
+       <button.btn.btn-danger type="Submit">Submit
+            |]
+  
+
+postAMasqueradeR :: Handler Html
+postAMasqueradeR = do
+  userM <- lookupPostParam masquerade
+  case userM of
+    Nothing -> deleteSession masquerade
+    Just user -> do
+      traceShowM ("Masquerading to " <> user)
+      setSession masquerade user
+  getAMasqueradeR

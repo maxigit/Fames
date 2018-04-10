@@ -111,6 +111,26 @@ instance SameCons (A)
 -- | A convenient synonym for creating forms.
 type Form x = Html -> MForm (HandlerT App IO) (FormResult x, Widget)
 
+currentRole :: HandlerT App IO Role
+currentRole = do
+       settings <- appSettings <$> getYesod
+       mu <- maybeAuth
+       -- anonymous users are given the role <anonymous>, which might
+       -- give them access to the route.
+       -- However, if it's not the error message is different :
+       -- They are not "unauthorized", they need to log on.
+       -- replaces user by masqueraded if needed 
+       masqueradeM <- masqueradeUser
+       -- we only masquerade if we are logged in
+       let userM = case (userIdent . entityVal <$> mu, masqueradeM) of
+             (Nothing, _) -> Nothing
+             (u@(Just _), _ ) -> masqueradeM <|> u
+
+         
+       -- traceShowM ("Mask", masqueradeM, masqueradeM <|> (userIdent . entityVal <$> mu))
+       return $ roleFor (appRoleFor settings) userM
+
+masqueradeUser = lookupSession "masquerade-user"
 -- Please see the documentation for the Yesod typeclass. There are a number
 -- of settings which can be configured by overriding methods here.
 instance Yesod App where
@@ -137,6 +157,7 @@ instance Yesod App where
 
     defaultLayout widget = do
         userM <- entityVal <$$> maybeAuth
+        masqueradeM <- masqueradeUser
         master <- getYesod
         msgs <- getMessages
         currentRoute <- getCurrentRoute
@@ -184,8 +205,8 @@ instance Yesod App where
 
     isAuthorized route r = do
        let wreq = if r then WriteRequest else ReadRequest
-       settings <- appSettings <$> getYesod
        mu <- maybeAuth
+       role <- currentRole
        -- anonymous users are given the role <anonymous>, which might
        -- give them access to the route.
        -- However, if it's not the error message is different :
@@ -193,13 +214,20 @@ instance Yesod App where
        let denied = case mu of
                         Nothing -> AuthenticationRequired
                         Just _  -> Unauthorized "Permissions required"
-           role = roleFor (appRoleFor settings) (userIdent . entityVal <$> mu)
            routeUrl = mconcat [ "/" <> p | p <- fst (renderRoute route)]
        
        if authorizeFromPath role routeUrl wreq
           || authorizeFromAttributes role (routeAttrs route) wreq
           then return Authorized
-          else return denied
+          else do
+            masqueradeM <- masqueradeUser
+            -- in Masquerade mode, log the reason why it is not authorized
+            case (mu, masqueradeM ) of
+              (Just _, Just _) -> do
+                let privileges = authorizeFromAttributes' role (routeAttrs route) wreq
+                $(logWarn) (tshow (routeUrl,  privileges))
+              _ -> return ()
+            return denied
 
     -- This function creates static content files in the static folder
     -- and names them based on a hash of their content. This allows
@@ -330,7 +358,9 @@ postLoginR = do
                                )
   isValid <- lift $ validatePassword username password
   if isValid
-    then lift (setCredsRedirect (Creds "fa" username []))
+    then do
+      deleteSession "masquerade-user"
+      lift (setCredsRedirect (Creds "fa" username []))
     else do
        userExists <- lift $ doesUserNameExist username
        loginErrorMessageI LoginR ( if userExists

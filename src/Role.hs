@@ -49,9 +49,19 @@ filterPermissions wreq perms (RolePermission grants) = perms \\ setFromList [g |
 filterPermissions _ perms (RoleRoute _ _) = perms
 
 authorizeFromAttributes :: Role -> Set Text -> WriteRequest -> Bool
-authorizeFromAttributes _ attrs _ | null attrs = False
-authorizeFromAttributes role attrs wreq = null $ (filterPermissions wreq) attrs' role
-  where attrs'= Set.filter ('=' `notElem`) attrs -- remove key=value attributes
+authorizeFromAttributes role attrs wreq = isNothing $ authorizeFromAttributes' role attrs wreq
+
+-- | Returns nothing if authorized, the set of missing privileges otherwise
+authorizeFromAttributes' :: Role -> Set Text -> WriteRequest -> Maybe (Set Text)
+authorizeFromAttributes' _ attrs _ | null attrs = Just attrs
+authorizeFromAttributes' role attrs wreq = let
+  notAuthorizeds = (filterPermissions wreq) attrs' role
+  attrs'= Set.filter ('=' `notElem`) attrs -- remove key=value attributes
+  in if null notAuthorizeds
+     then Nothing
+     else Just notAuthorizeds
+ 
+  
 
 authorizeFromPath :: Role -> URL -> WriteRequest-> Bool
 authorizeFromPath Administrator _ _ = True

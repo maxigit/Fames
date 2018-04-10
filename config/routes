@@ -69,6 +69,7 @@
   / AIndexR GET !group=Info !title=Index
   /testfa  ATestFAR GET !group=Test !title=FA_Connection
   /cache ACacheR GET POST !group=Cache !title=Cache
+  /masquerade AMasqueradeR GET POST !group=Masquerade !title=Masquerade
 
 /planner PlannerR !planner:
   /view/#Maybe-PlannerViewMode PViewR GET POST !group=Planner !title=View
