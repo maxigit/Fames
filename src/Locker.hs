@@ -18,24 +18,24 @@ import Debug.Trace
 -- * Types
 
 -- | The locker Monad. A value which can't be accessed without a key
-data Locker r a = Locker [r] a deriving (Eq, Ord, Read) -- 
+data Locker r a = Locker (Set r) a deriving (Eq, Ord, Read) -- 
 
 data Granted = Granted | Forbidden deriving (Eq, Ord, Show, Read)
 
 -- * Manipulators
-lock :: [r] -> a -> Locker r a
-lock rs x = Locker rs x
+lock :: Ord r => [r] -> a -> Locker r a
+lock rs x = Locker (setFromList rs) x
 
 unlock :: (r -> Granted) ->  Locker r a -> Either [r] a
-unlock unlocker (Locker roles value) = case filter ((== Forbidden). unlocker) roles of
+unlock unlocker (Locker roles value) = case filter ((== Forbidden). unlocker) (toList roles) of
     [] -> Right value
     missings -> Left missings
   
 permissions :: Locker r a -> [r]
-permissions (Locker rs _)  = rs
+permissions (Locker rs _)  = toList rs
 
-restrict :: [r] ->  Locker r a -> Locker r a
-restrict rs' (Locker rs x) = Locker (rs <> rs') x
+restrict :: Ord r => [r] ->  Locker r a -> Locker r a
+restrict rs' (Locker rs x) = Locker (rs <> setFromList rs') x
 
 -- * Unsafe
 unsafeUnlock (Locker rs x) = traceShow ("Unsafe UNLOCK requiring " <> show rs) x
@@ -44,16 +44,16 @@ unsafeUnlock (Locker rs x) = traceShow ("Unsafe UNLOCK requiring " <> show rs) x
 instance Functor (Locker r) where
   fmap f (Locker r x)  = Locker r (f x)
 
-instance Applicative (Locker r) where
-  pure x = Locker [] x
+instance Ord r => Applicative (Locker r) where
+  pure x = Locker mempty x
   Locker rfs f <*> Locker rxs x = Locker (rfs <> rxs) (f x)
   
-instance Monad (Locker r) where
+instance Ord r => Monad (Locker r) where
   Locker rs x >>= f = let (Locker rs' x') = f x in Locker (rs <> rs') x'
   
   
 
-instance Num a => Num (Locker r a) where
+instance (Ord r, Num a) => Num (Locker r a) where
   (+) = liftA2 (+) 
   (-) = liftA2 (-)
   (*) = liftA2 (*)
@@ -62,7 +62,7 @@ instance Num a => Num (Locker r a) where
   signum = fmap signum
   fromInteger = pure . fromInteger
 
-instance Fractional a => Fractional (Locker r a) where
+instance (Ord r, Fractional a) => Fractional (Locker r a) where
   (/) = liftA2 (/)
   fromRational = pure . fromRational
 
