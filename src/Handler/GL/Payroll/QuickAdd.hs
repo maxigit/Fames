@@ -27,7 +27,9 @@ saveQuickAdd  save text key  = do
   operatorMap <- allOperators
   payrollSettings <- getsYesod (appPayroll . appSettings)
   viewPayrollAmountPermissions' <- viewPayrollAmountPermissions
+  viewPayrollDurationPermissions' <- viewPayrollAmountPermissions
   let ?viewPayrollAmountPermissions = viewPayrollAmountPermissions'
+      ?viewPayrollDurationPermissions = viewPayrollDurationPermissions'
   runExceptT $ do
     timesheets <- ExceptT . return $ splitTimesheet text
 

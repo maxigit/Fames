@@ -89,7 +89,7 @@ postGLPayrollValidateR = do
                              ok200
                              (setInfo . toHtml $ "Timesheet " <> ref  <> " is valid.")
                              (do
-                                 TS.filterTimesheet isShiftDurationUnlocked (const True) timesheet `forM` displayTimesheet
+                                 -- TS.filterTimesheet isShiftDurationUnlocked (const True) timesheet `forM` displayTimesheet
                                  TS.filterTimesheet isShiftUnlocked isDACUnlocked timesheet `forM` (displayEmployeeSummary . timesheetPayrooForSummary)
                                  displayTimesheetCalendar (timesheetPayrooForSummary timesheet)
                              )
@@ -143,16 +143,16 @@ getGLPayrollViewR key = do
     Just (ts, shifts, items) -> do
       let tsOId = modelToTimesheetOpId ts shifts items
           ts' = map (\(op, _) -> maybe (tshow op) operatorNickname (lookup op operatorMap)) tsOId
-          reports' = [ ("Timesheet" :: Text, displayShifts)
-                    , ("By Employees", displayShifts . (TS.groupShiftsBy id))
-                    , ("By Week", displayShifts . (TS.groupShiftsBy (\(e,_,_) -> e)))
-                    , ("By Day" , displayShifts . ( TS.groupShiftsBy (\(a,b,h) -> (h,b,a))))
-                    ]
-          dacsReport = ("Deductions and Costs", displayShifts . TS._deductionAndCosts, TS.filterTimesheet (const False) isDACUnlocked )
+          -- reports' = [ ("Timesheet" :: Text, displayShifts)
+          --           , ("By Employees", displayShifts . (TS.groupShiftsBy id))
+          --           , ("By Week", displayShifts . (TS.groupShiftsBy (\(e,_,_) -> e)))
+          --           , ("By Day" , displayShifts . ( TS.groupShiftsBy (\(a,b,h) -> (h,b,a))))
+          --           ]
+          dacsReport = ("Deductions and Costs" :: Text, displayShifts displayDAC . TS._deductionAndCosts, TS.filterTimesheet (const False) isDACUnlocked )
           summaryReport = ("Summary", displayEmployeeSummary , TS.filterTimesheet isShiftViewable isDACUnlocked)
           calendar = ("Calendar", displayTimesheetCalendar, TS.filterTimesheet isShiftDurationUnlocked (const False) )
-          reports = [(name, report  . TS._shifts, TS.filterTimesheet isShiftViewable (const False) ) | (name, report)  <- reports']
-            ++ [dacsReport, summaryReport, calendar]
+          -- reports = [(name, report  . TS._shifts, TS.filterTimesheet isShiftViewable (const False) ) | (name, report)  <- reports']
+          reports = [calendar, dacsReport, summaryReport]
       defaultLayout $ [whamlet|
           $forall (name, trans, filter') <- reports
              $maybe object <- filter' ts'

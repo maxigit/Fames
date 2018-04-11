@@ -77,6 +77,7 @@ renderMain paramM = do
         ^{result}
       |]
 
+
 -- ** Process
 processSummary :: (?viewPayrollAmountPermissions :: (Text -> Granted))
                => SummaryParam -> Handler Widget

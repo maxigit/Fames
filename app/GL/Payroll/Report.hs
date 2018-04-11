@@ -24,6 +24,8 @@ import Data.Ord(comparing)
 import Data.Function(on)
 import Data.These
 import Data.Align
+import Locker
+import Data.Text (Text)
 
 
 import System.Directory(createDirectory)
@@ -66,17 +68,23 @@ instance Display ShiftType where
 
 -- *** Deduction and Costs
 instance Display k =>  Display (Shift k) where
-    display s = display (s ^. shiftKey)
-                    ++  "\t" ++ show (s ^. duration)
-                    ++ "\t@" ++ show (s ^. hourlyRate)
-                    ++ "\t= " ++ show (s ^. cost)
+    display s = displayShift show show s
+
+displayShift amountF durationF s = display (s ^. shiftKey)
+                    ++  "\t" ++ (durationF $ s ^. duration)
+                    ++ "\t@" ++ (amountF $ s ^. hourlyRate)
+                    ++ "\t= " ++ (amountF $ s ^. cost)
+
+
 
 -- *** Deduction and Costs
 instance Display k => Display (DeductionAndCost k) where
-  display dac = "@" ++ display (dac ^. dacKey) ++ " "
-                 ++ maybe "" show duration
+  display = displayDAC show show 
+
+displayDAC amountF durationF dac = "@" ++ display (dac ^. dacKey) ++ " "
+                 ++ maybe "" durationF duration
                  ++ "^"
-                 ++ maybe "" show cost where
+                 ++ maybe "" amountF cost where
                         (duration, cost) = these (\a -> (Just a, Nothing))
                                                  (\b -> (Nothing, Just b))
                                                  (\a b -> (Just a , Just b))

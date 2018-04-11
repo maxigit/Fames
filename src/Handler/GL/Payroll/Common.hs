@@ -338,18 +338,31 @@ displayTimesheetList timesheets = [whamlet|
 |]
 
 -- ** Timesheet
-displayTimesheet :: (TS.Timesheet String TS.PayrooEmployee) -> Widget
+displayTimesheet :: ( ?viewPayrollAmountPermissions :: (Text -> Granted)
+                    , ?viewPayrollDurationPermissions :: (Text -> Granted))
+                 => (TS.Timesheet String TS.PayrooEmployee) -> Widget
 displayTimesheet timesheet = do
-  displayShifts $ TS._shifts timesheet
-  displayShifts $ TS._deductionAndCosts timesheet
+  let e g = either (return "") show . unlock g 
+      amountF = e ?viewPayrollAmountPermissions
+      durationF = e ?viewPayrollDurationPermissions
+  
+  displayShifts (TS.displayShift amountF durationF) $ TS._shifts timesheet
+  displayShifts (TS.displayDAC amountF durationF) $ TS._deductionAndCosts timesheet
 
-displayShifts shifts = let
-  report = TS.display shifts
-  reportLines = lines $ pack report  :: [Text]
+displayShifts display shifts = let
+  reportLines = map display shifts
+  -- reportLines = lines $ pack report  :: [Text]
   in [whamlet|<div.well>
         $forall line <- reportLines
           <p> #{line}
      |]
+
+e g = either (return "") show . unlock g 
+
+displayDAC = let
+  amountF = e ?viewPayrollAmountPermissions
+  durationF = e ?viewPayrollDurationPermissions
+  in TS.displayDAC amountF durationF
 
 -- ** Employee Summary
 -- | Displays a table with all payment information for each employee t
