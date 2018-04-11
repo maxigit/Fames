@@ -101,7 +101,7 @@ timesheetOpIdToModel ref ts = (model, shiftsFn, itemsFn) where
   mkShift i shift= let
     (operator, day, shiftType) = TS._shiftKey shift
     in PayrollShift i
-                    (TS._duration shift)
+                    (unsafeUnlock $ TS._duration shift)
                     (unsafeUnlock $ TS._cost shift)
                     operator
                     (Just day)
@@ -119,7 +119,11 @@ modelToTimesheetOpId :: Entity Timesheet
 modelToTimesheetOpId (Entity _ timesheet) shiftEs itemEs = let
   readType "Holiday" = TS.Holiday
   readType _ = TS.Work
-  mkShift (Entity key shift) = TS.Shift  (mkShiftKey key shift) Nothing (payrollShiftDuration shift) (lock ["Payroll/amount/" <> (tshow . unSqlBackendKey . unOperatorKey $ payrollShiftOperator shift)] $ payrollShiftCost shift)
+  makeLock name opKey = lock $ makeLock' name (tshow . unSqlBackendKey . unOperatorKey $  opKey)
+  makeLock' name extra = ["Payroll/" <> name <> "/" <> extra]
+  mkShift (Entity key shift) = TS.Shift  (mkShiftKey key shift) Nothing
+                                         (makeLock "duration" (payrollShiftOperator shift) $ payrollShiftDuration shift)
+                                         (makeLock "amount" (payrollShiftOperator shift) $ payrollShiftCost shift)
   mkShiftKey key shift = ( (payrollShiftOperator shift, key)
 
                      , fromMaybe (error "TODO") (payrollShiftDate shift)
@@ -131,9 +135,7 @@ modelToTimesheetOpId (Entity _ timesheet) shiftEs itemEs = let
                         ( ( case payrollItemType  i of
                             Cost -> That
                             Deduction -> This
-                          ) (lock ["Payroll/amount/" <> (tshow . unSqlBackendKey . unOperatorKey $ payrollItemOperator i)
-                                  , "Payroll/external/" <> payrollItemPayee i
-                                  ] $ payrollItemAmount i)
+                          ) (restrict (makeLock' "external" (payrollItemPayee i)) $ makeLock  "amount" (payrollItemOperator i) (payrollItemAmount i))
                         )
   in TS.Timesheet (map mkShift shiftEs) (timesheetStart timesheet) (timesheetFrequency timesheet) (mkItems itemEs)
 
@@ -369,8 +371,11 @@ employeeSummaryColumns summaries = let
   deductions =  toCols TS._deductions
   netDeductions =  toCols TS._netDeductions
   costs =  toCols (TS._costs)
+  -- hours = toCols (_ . unlock ?viewPayrollAmountPermissions . convertHours)
   hours = toCols convertHours
-  convertHours s = Map.fromList [(tshow k <> "\n(hrs)", pure h) | (k,h)  <- Map.toList (TS._totalHours s)]
+  convertHours s = Map.fromList [(tshow k <> "\n(hrs)", h)
+                                | (k,h)  <- Map.toList (TS._totalHours s)
+                                ]
     
   -- | Columns are either straight field (Nothing)
   -- or the name of a payee in in the given dacs map (Just ...)
@@ -428,7 +433,8 @@ employeeSummaryRows summaries = let
 
 -- ** Calendar
 -- | Display timesheet as a calendar
-displayTimesheetCalendar :: (TS.Timesheet payee Text) -> Widget
+displayTimesheetCalendar :: (?viewPayrollAmountPermissions:: Text -> Granted)
+                         => (TS.Timesheet payee Text) -> Widget
 displayTimesheetCalendar timesheet = do
   let periodStart = TS._periodStart timesheet
       periodEnd = TS.periodEnd timesheet
@@ -524,11 +530,15 @@ displayTimeBadges color maxDuration durations =
       bg shift = case TS._shiftKey shift of
         TS.Work -> "background:" <> color
         TS.Holiday -> ""
+      unlock' = unlock ?viewPayrollAmountPermissions
   in [shamlet|
     $forall shift <-  durations
-      $with duration <- TS._duration shift
-        <span.badge class=#{show $ TS._shiftKey shift} style="width:#{durationWidth duration}%;#{bg shift}">
-          #{duration}
+      $with durationE <- unlock' (TS._duration shift)
+         $case durationE
+           $of Left _ 
+           $of Right duration
+              <span.badge class=#{show $ TS._shiftKey shift} style="width:#{durationWidth duration}%;#{bg shift}">
+                #{duration}
                  |]
 -- Display a week. The first line is the day of month
 -- then each operator
@@ -580,7 +590,7 @@ saveGRNs settings key timesheet = do
                                                )
               ]
       mkDetail shift = WFA.GRNDetail (pack . TS.sku $ TS._shiftKey shift)
-                                     (TS._duration shift)
+                                     (unsafeUnlock $ TS._duration shift)
                                      (unsafeUnlock $ view TS.hourlyRate shift)
       mkGRN (TS.Textcart (day, shiftType, shifts), pKeys)  = let
         location = (case shiftType of

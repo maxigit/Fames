@@ -45,7 +45,7 @@ import Data.Text (Text)
 
 -- * Type alias
 type Amount = Locker Text Double
-type Duration = Double
+type Duration = Locker Text Double
 type Hour = Double
 
 -- * Data
@@ -126,7 +126,7 @@ instance HasShiftType k => HasShiftType (Shift k) where
   shiftType = shiftKey.shiftType
 
 -- hourlyRate :: Getter (Shift k) Amount
-hourlyRate = to $ (/) <$> (^.cost) <*> (pure . (^.duration))
+hourlyRate = to $ (/) <$> (^.cost) <*> (^.duration)
 
 -- | Deduction and costs
 data DeductionAndCost key = DeductionAndCost

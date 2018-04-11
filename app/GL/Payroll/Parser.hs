@@ -87,8 +87,8 @@ addShift' :: ShiftType -> Duration -> Maybe TimeOfDay ->  Current -> Maybe Curre
 addShift' shiftType duration start u = do
     emp <- u ^. currentEmployee
     rate <- emp ^. defaultHourlyRate <|> u ^. currentHourlyRate
-    let adjustedDuration = roundDuration (unsafeUnlock rate) duration
-        cost = rate * pure adjustedDuration
+    let adjustedDuration = roundDuration (unsafeUnlock rate) <$> duration
+        cost = rate * adjustedDuration
     day <- u ^. currentDay
     let s = Shift (emp, day, shiftType) start adjustedDuration cost
     return $  u & currentTimesheet . shifts %~ (++ [s])
