@@ -67,8 +67,10 @@ getGLPayrollR = do
 postGLPayrollValidateR :: Handler Html
 postGLPayrollValidateR = do
   actionM <- lookupPostParam "action"
-  viewPayrollAmountPermission' <- viewPayrollAmountPermission
-  let ?viewPayrollAmountPermissions = viewPayrollAmountPermission'
+  viewPayrollAmountPermissions' <- viewPayrollAmountPermissions
+  viewPayrollDurationPermissions' <- viewPayrollDurationPermissions
+  let ?viewPayrollAmountPermissions = viewPayrollAmountPermissions'
+      ?viewPayrollDurationPermissions = viewPayrollDurationPermissions'
   case actionM of
    Just "quickadd" -> processTimesheet Validate quickadd
    _ -> processTimesheet Validate validate
@@ -82,11 +84,15 @@ postGLPayrollValidateR = do
                   (documentKey'msgM) <- runDB $ loadAndCheckDocumentKey key
                   forM documentKey'msgM  $ \(Entity _ doc, msg) -> do
                                  setWarning msg >> return ""
-                  renderMain Save (Just param) ok200 (setInfo . toHtml $ "Timesheet " <> ref  <> " is valid.") (do
-                        displayTimesheet timesheet
-                        displayEmployeeSummary (timesheetPayrooForSummary timesheet)
-                        displayTimesheetCalendar (timesheetPayrooForSummary timesheet)
-                        )
+                  renderMain Save
+                             (Just param)
+                             ok200
+                             (setInfo . toHtml $ "Timesheet " <> ref  <> " is valid.")
+                             (do
+                                 TS.filterTimesheet isShiftDurationUnlocked (const True) timesheet `forM` displayTimesheet
+                                 TS.filterTimesheet isShiftUnlocked isDACUnlocked timesheet `forM` (displayEmployeeSummary . timesheetPayrooForSummary)
+                                 displayTimesheetCalendar (timesheetPayrooForSummary timesheet)
+                             )
 
 postGLPayrollSaveR = do
   actionM <- lookupPostParam "action"
@@ -122,37 +128,38 @@ postGLPayrollToFAR key = do
           setSuccess (toHtml $ tshow e)
 
           renderMain Validate Nothing created201 (setInfo "Timesheet saved to Front Account sucessfully") (return ())
-  
+
 -- ** Individual timesheet
 getGLPayrollViewR :: Int64 -> Handler Html
 getGLPayrollViewR key = do
   operatorMap <- allOperators
   modelE <- loadTimesheet key
-  viewPayrollAmountPermission' <- viewPayrollAmountPermission
-  let ?viewPayrollAmountPermissions = viewPayrollAmountPermission'
+  viewPayrollAmountPermissions' <- viewPayrollAmountPermissions
+  viewPayrollDurationPermissions' <- viewPayrollDurationPermissions
+  let ?viewPayrollAmountPermissions = viewPayrollAmountPermissions'
+      ?viewPayrollDurationPermissions = viewPayrollDurationPermissions'
   case modelE of
     Nothing -> error $ "Can't load Timesheet with id #" ++ show key
     Just (ts, shifts, items) -> do
       let tsOId = modelToTimesheetOpId ts shifts items
           ts' = map (\(op, _) -> maybe (tshow op) operatorNickname (lookup op operatorMap)) tsOId
-          shifts' = TS._shifts ts'
           reports' = [ ("Timesheet" :: Text, displayShifts)
                     , ("By Employees", displayShifts . (TS.groupShiftsBy id))
                     , ("By Week", displayShifts . (TS.groupShiftsBy (\(e,_,_) -> e)))
                     , ("By Day" , displayShifts . ( TS.groupShiftsBy (\(a,b,h) -> (h,b,a))))
                     ]
-          dacs =  TS._deductionAndCosts ts'
-          dacsReport = ("Deductions and Costs", displayShifts dacs)
-          summaryReport = ("Summary", displayEmployeeSummary ts')
-          calendar = ("Calendar", displayTimesheetCalendar ts')
-          reports = [(name, report shifts') | (name, report) <- reports']
+          dacsReport = ("Deductions and Costs", displayShifts . TS._deductionAndCosts, TS.filterTimesheet (const False) isDACUnlocked )
+          summaryReport = ("Summary", displayEmployeeSummary , TS.filterTimesheet isShiftViewable isDACUnlocked)
+          calendar = ("Calendar", displayTimesheetCalendar, TS.filterTimesheet isShiftDurationUnlocked (const False) )
+          reports = [(name, report  . TS._shifts, TS.filterTimesheet isShiftViewable (const False) ) | (name, report)  <- reports']
             ++ [dacsReport, summaryReport, calendar]
       defaultLayout $ [whamlet|
-          $forall (name, trans) <- reports
-             <div.panel.panel-info>
-               <div.panel-heading> #{name}
-               <div.panel-body>
-                <div>^{trans}
+          $forall (name, trans, filter') <- reports
+             $maybe object <- filter' ts'
+              <div.panel.panel-info>
+                <div.panel-heading> #{name}
+                <div.panel-body>
+                  <div>^{trans object }
           $if (timesheetStatus (entityVal ts) /= Process)
             <form role=form method=post action=@{GLR $ GLPayrollToFAR key}>
               <button type="submit" .btn.btn-danger>Save To FrontAccounting

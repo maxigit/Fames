@@ -433,7 +433,7 @@ employeeSummaryRows summaries = let
 
 -- ** Calendar
 -- | Display timesheet as a calendar
-displayTimesheetCalendar :: (?viewPayrollAmountPermissions:: Text -> Granted)
+displayTimesheetCalendar :: (?viewPayrollDurationPermissions:: Text -> Granted)
                          => (TS.Timesheet payee Text) -> Widget
 displayTimesheetCalendar timesheet = do
   let periodStart = TS._periodStart timesheet
@@ -530,7 +530,7 @@ displayTimeBadges color maxDuration durations =
       bg shift = case TS._shiftKey shift of
         TS.Work -> "background:" <> color
         TS.Holiday -> ""
-      unlock' = unlock ?viewPayrollAmountPermissions
+      unlock' = unlock ?viewPayrollDurationPermissions
   in [shamlet|
     $forall shift <-  durations
       $with durationE <- unlock' (TS._duration shift)
@@ -886,8 +886,18 @@ makeExternalPayment supplier invoiceNo ((bankAccount, reference, dueDate), amoun
 
  
 
-viewPayrollAmountPermission = do
+viewPayrollAmountPermissions = do
   role <- currentRole
   let unlocker operator = granter role (ViewPriv, operator)
   return unlocker
  
+viewPayrollDurationPermissions = do
+  role <- currentRole
+  let unlocker operator = granter role (ViewPriv, operator)
+  return unlocker
+
+isShiftDurationUnlocked = isUnlocked ?viewPayrollDurationPermissions . TS._duration
+isShiftAmountUnlocked = isUnlocked ?viewPayrollDurationPermissions . TS._duration
+isShiftUnlocked = liftA2 (&&) isShiftDurationUnlocked isShiftAmountUnlocked
+isDACUnlocked = isUnlocked ?viewPayrollAmountPermissions . TS.dacTotal 
+isShiftViewable = liftA2 (||) isShiftAmountUnlocked isShiftDurationUnlocked

@@ -42,6 +42,7 @@ import qualified Data.Map as Map
 import Data.Map(Map)
 import Locker
 import Data.Text (Text)
+import Data.Either(isRight)
 
 -- * Type alias
 type Amount = Locker Text Double
@@ -320,3 +321,13 @@ instance (Ord p, Semigroup e) => Semigroup (EmployeeSummary p e) where
               (Map.unionWith (+) (a ^. netDeductions) (b ^. netDeductions))
               (Map.unionWith (+) (a ^. costs) (b ^. costs))
               (Map.unionWith (+) (a ^. totalHours) (b ^. totalHours))
+
+-- * Locking
+
+
+filterTimesheet sFilter iFilter ts = 
+  case  ( filter sFilter (_shifts ts)
+        , filter iFilter (_deductionAndCosts ts)
+        ) of
+    ([], []) -> Nothing
+    (ss, dacs) -> Just ts {_shifts = ss, _deductionAndCosts = dacs}

@@ -76,10 +76,10 @@ processCalendar :: CalendarParam -> Handler Widget
 processCalendar param =  do
   settings <- appSettings <$> getYesod
   timesheets <- loadTimesheet' param
-  viewPayrollAmountPermission' <- viewPayrollAmountPermission
-  let ?viewPayrollAmountPermissions = viewPayrollAmountPermission'
+  viewPayrollDurationPermissions' <- viewPayrollDurationPermissions
+  let ?viewPayrollDurationPermissions = viewPayrollDurationPermissions'
   -- group all shifts
-  let allShifts = concatMap TS._shifts timesheets
+  let allShifts = filter isShiftUnlocked $ concatMap TS._shifts timesheets
       days = map (^. TS.day) allShifts
   case days of
     [] -> setWarning "No timesheet selected. Please amend the range" >> return ""

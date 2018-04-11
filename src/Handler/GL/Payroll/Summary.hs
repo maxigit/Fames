@@ -65,8 +65,8 @@ postGLPayrollSummaryR = do
 renderMain :: Maybe SummaryParam -> Handler Html
 renderMain paramM = do
   (formW, encType) <- generateFormPost (filterForm paramM)
-  viewPayrollAmountPermission' <- viewPayrollAmountPermission
-  let ?viewPayrollAmountPermissions = viewPayrollAmountPermission'
+  viewPayrollAmountPermissions' <- viewPayrollAmountPermissions
+  let ?viewPayrollAmountPermissions = viewPayrollAmountPermissions'
   resultM <- mapM processSummary paramM
   defaultLayout [whamlet|
     <form #payroll-summary role=form method=post action=@{GLR GLPayrollSummaryR} enctype=#{encType}>

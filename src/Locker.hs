@@ -8,6 +8,7 @@ module Locker
 , Granted
 , granter
 , Privilege(..)
+, isUnlocked
 )
 
 where
@@ -17,6 +18,7 @@ import qualified Data.Text as Text
 import qualified Data.Set as Set
 import Role
 import Debug.Trace
+import Data.Either(isRight)
 
 -- * Types
 
@@ -33,6 +35,8 @@ unlock :: (r -> Granted) ->  Locker r a -> Either [r] a
 unlock unlocker (Locker roles value) = case filter ((== Forbidden). unlocker) (toList roles) of
     [] -> Right value
     missings -> Left missings
+
+isUnlocked granter = isRight . unlock granter
   
 permissions :: Locker r a -> [r]
 permissions (Locker rs _)  = toList rs
