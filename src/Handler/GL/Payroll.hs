@@ -46,17 +46,16 @@ import Locker
 
 -- * Types
 data Mode = Validate | Save deriving (Eq, Read, Show)
-data UploadParam = UploadParam {
-  upTimesheet :: Textarea
+data UploadParam = UploadParam
+  { upTimesheet :: Textarea
+  , upPreviousKey :: Maybe DocumentHash
   } deriving (Eq, Read, Show)
 
 -- * Form
 uploadForm :: Mode -> Maybe UploadParam -> _Markup -> _ (FormResult UploadParam, Widget)
 uploadForm mode paramM = let
-  form _ = UploadParam <$> areq textareaField (disableOnSave "Timesheet") (upTimesheet <$> paramM)
-  disableOnSave fsettings = case mode of
-    Validate -> fsettings
-    Save -> fsettings {fsAttrs = [("readonly", "")]}
+  form _ = UploadParam <$> areq textareaField "Timesheet" (upTimesheet <$> paramM)
+                       <*> areq hiddenField "key" (Just $ upPreviousKey =<< paramM)
   in renderBootstrap3 BootstrapBasicForm . form $ mode
 -- * Handlers
 -- ** upload and show timesheets
@@ -67,14 +66,16 @@ getGLPayrollR = do
 postGLPayrollValidateR :: Handler Html
 postGLPayrollValidateR = do
   actionM <- lookupPostParam "action"
-  viewPayrollAmountPermissions' <- viewPayrollAmountPermissions
-  viewPayrollDurationPermissions' <- viewPayrollDurationPermissions
-  let ?viewPayrollAmountPermissions = viewPayrollAmountPermissions'
-      ?viewPayrollDurationPermissions = viewPayrollDurationPermissions'
   case actionM of
    Just "quickadd" -> processTimesheet Validate quickadd
    _ -> processTimesheet Validate validate
-  where validate param key = do
+
+validate :: UploadParam -> DocumentHash -> Handler Html
+validate param key = do
+          viewPayrollAmountPermissions' <- viewPayrollAmountPermissions
+          viewPayrollDurationPermissions' <- viewPayrollDurationPermissions
+          let ?viewPayrollAmountPermissions = viewPayrollAmountPermissions'
+              ?viewPayrollDurationPermissions = viewPayrollDurationPermissions'
           settings <- appSettings <$> getYesod
           timesheetE <- parseTimesheetH param
           case validateTimesheet (appPayroll settings) =<< timesheetE of
@@ -85,7 +86,7 @@ postGLPayrollValidateR = do
                   forM documentKey'msgM  $ \(Entity _ doc, msg) -> do
                                  setWarning msg >> return ""
                   renderMain Save
-                             (Just param)
+                             (Just param {upPreviousKey = Just key})
                              ok200
                              (setInfo . toHtml $ "Timesheet " <> ref  <> " is valid.")
                              (do
@@ -103,17 +104,21 @@ postGLPayrollSaveR = do
    _ -> processTimesheet Save save
    where
       save param key = do
-          timesheetE <- parseTimesheetH param
-          case timesheetE of
-            Left e -> setError (toHtml e)
-                      >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a timesheet") (return ())
-            Right timesheet -> do
-                  (tKey, ref) <- saveTimeSheet key timesheet
-                  let tId = unSqlBackendKey (unTimesheetKey tKey)
-                  pushLinks ("View Timesheet " <> ref)
-                            (GLR $ GLPayrollViewR tId)
-                            []
-                  renderMain Validate Nothing created201 (setInfo "Timesheet saved sucessfully") (return ())
+          -- if the document has been modified we need to validate it instead of saving it
+          if Just key == upPreviousKey param
+          then do
+            timesheetE <- parseTimesheetH param
+            case timesheetE of
+              Left e -> setError (toHtml e)
+                        >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a timesheet") (return ())
+              Right timesheet -> do
+                    (tKey, ref) <- saveTimeSheet key timesheet
+                    let tId = unSqlBackendKey (unTimesheetKey tKey)
+                    pushLinks ("View Timesheet " <> ref)
+                              (GLR $ GLPayrollViewR tId)
+                              []
+                    renderMain Validate Nothing created201 (setInfo "Timesheet saved sucessfully") (return ())
+          else validate (param { upPreviousKey = Nothing}) key
 
 
 postGLPayrollToFAR :: Int64 -> Handler Html
@@ -181,7 +186,7 @@ quickadd  param key = do
   wE <- saveQuickAdd False (unTextarea $ upTimesheet param) key
   case wE of
     Left e -> setError (toHtml e) >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a valid timesheet") (return ())
-    Right w -> renderMain Save (Just param) ok200 (return()) w
+    Right w -> renderMain Save (Just $ param { upPreviousKey = Just key}) ok200 (return()) w
     -- Right w -> defaultLayout [whamlet|
     --    <form #quick-form role=form method=post action=@{GLR GLPayrollSaveR }> 
     --      <input type=hidden name=quickadd value="#{unTextarea $ upTimesheet param}">
@@ -189,12 +194,16 @@ quickadd  param key = do
     --      <button type="submit" name="action" value="quickadd" class="btn btn-danger">Quick Add
 saveQuickadd :: UploadParam -> DocumentHash -> Handler Html
 saveQuickadd  param key = do
-  wE <- saveQuickAdd True (unTextarea $ upTimesheet param) key
-  case wE of
-    Left e -> setError (toHtml e) >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a valid timesheet") (return ())
-    Right w -> do
-      let msg = setSuccess "Quickadds processed properly"
-      renderMain Save (Just param) created201 msg w
+  if   Just key /= upPreviousKey param
+      then quickadd param key
+      else do
+        wE <- saveQuickAdd True (unTextarea $ upTimesheet param) key
+        case wE of
+          Left e -> setError (toHtml e) >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a valid timesheet") (return ())
+          Right w -> do
+            setSuccess "Quickadds processed properly"
+            getGLPayrollR
+            -- renderMain Validate Nothing created201 msg w
 
 -- ** Renders
 -- | Renders the main page. It displays recent timesheet and also allows to upload a new one.
