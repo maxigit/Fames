@@ -119,7 +119,7 @@ modelToTimesheetOpId :: Entity Timesheet
 modelToTimesheetOpId (Entity _ timesheet) shiftEs itemEs = let
   readType "Holiday" = TS.Holiday
   readType _ = TS.Work
-  mkShift (Entity key shift) = TS.Shift  (mkShiftKey key shift) Nothing (payrollShiftDuration shift) (lock ["Payroll/amount/#" <> (tshow . unSqlBackendKey . unOperatorKey $ payrollShiftOperator shift)] $ payrollShiftCost shift)
+  mkShift (Entity key shift) = TS.Shift  (mkShiftKey key shift) Nothing (payrollShiftDuration shift) (lock ["Payroll/amount/" <> (tshow . unSqlBackendKey . unOperatorKey $ payrollShiftOperator shift)] $ payrollShiftCost shift)
   mkShiftKey key shift = ( (payrollShiftOperator shift, key)
 
                      , fromMaybe (error "TODO") (payrollShiftDate shift)
@@ -131,7 +131,7 @@ modelToTimesheetOpId (Entity _ timesheet) shiftEs itemEs = let
                         ( ( case payrollItemType  i of
                             Cost -> That
                             Deduction -> This
-                          ) (lock ["Payroll/amount/#" <> (tshow . unSqlBackendKey . unOperatorKey $ payrollItemOperator i)
+                          ) (lock ["Payroll/amount/" <> (tshow . unSqlBackendKey . unOperatorKey $ payrollItemOperator i)
                                   , "Payroll/external/" <> payrollItemPayee i
                                   ] $ payrollItemAmount i)
                         )

@@ -90,13 +90,14 @@ showLock  unlocker lock = case unlock unlocker lock of
 data Privilege = ViewPriv | CreatePriv | DeletePriv | SavePriv deriving (Eq, Read, Show, Ord, Enum ,Bounded)
 granter :: Role -> (Privilege, Text) -> Granted
 granter Administrator _ = Granted
-granter role (priv, r) = roleToGranted role wreq (r <> suffix ) where
-  -- TODO Replace with real type
-  (suffix, wreq)  =case priv of
-    ViewPriv -> ("#view", ReadRequest )
-    SavePriv -> ("#save", WriteRequest )
-    DeletePriv -> ("#delete", WriteRequest )
-    CreatePriv -> ("#create", WriteRequest )
+granter role0 (priv, r) = let
+  (attribute, wreq)  = case priv of
+    ViewPriv -> ("view", ReadRequest )
+    SavePriv -> ("save", WriteRequest )
+    DeletePriv -> ("delete", WriteRequest )
+    CreatePriv -> ("create", WriteRequest )
+  role = filterRole attribute role0
+  in roleToGranted role wreq r
 
 roleToGranted role wreq r = if null  (filterPermissions wreq (setFromList [r])  role)
   then Granted
