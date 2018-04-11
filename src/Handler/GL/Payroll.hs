@@ -89,9 +89,11 @@ postGLPayrollValidateR = do
                              ok200
                              (setInfo . toHtml $ "Timesheet " <> ref  <> " is valid.")
                              (do
-                                 -- TS.filterTimesheet isShiftDurationUnlocked (const True) timesheet `forM` displayTimesheet
-                                 TS.filterTimesheet isShiftUnlocked isDACUnlocked timesheet `forM` (displayEmployeeSummary . timesheetPayrooForSummary)
+                                 TS.filterTimesheet (const False) isDACUnlocked timesheet  `forM` (displayShifts displayDAC . TS._deductionAndCosts)
                                  displayTimesheetCalendar (timesheetPayrooForSummary timesheet)
+                                 -- TS.filterTimesheet isShiftDurationUnlocked (const True) timesheet `forM` displayTimesheet
+                                 TS.filterTimesheet isShiftViewable isDACUnlocked timesheet `forM` (displayEmployeeSummary . timesheetPayrooForSummary)
+                                 return ()
                              )
 
 postGLPayrollSaveR = do
