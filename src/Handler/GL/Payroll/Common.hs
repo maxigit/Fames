@@ -119,7 +119,7 @@ modelToTimesheetOpId :: Entity Timesheet
 modelToTimesheetOpId (Entity _ timesheet) shiftEs itemEs = let
   readType "Holiday" = TS.Holiday
   readType _ = TS.Work
-  mkShift (Entity key shift) = TS.Shift  (mkShiftKey key shift) Nothing (payrollShiftDuration shift) (lock [tshow . unSqlBackendKey . unOperatorKey $ payrollShiftOperator shift] $ payrollShiftCost shift)
+  mkShift (Entity key shift) = TS.Shift  (mkShiftKey key shift) Nothing (payrollShiftDuration shift) (lock ["Payroll/amount/#" <> (tshow . unSqlBackendKey . unOperatorKey $ payrollShiftOperator shift)] $ payrollShiftCost shift)
   mkShiftKey key shift = ( (payrollShiftOperator shift, key)
 
                      , fromMaybe (error "TODO") (payrollShiftDate shift)
@@ -131,7 +131,9 @@ modelToTimesheetOpId (Entity _ timesheet) shiftEs itemEs = let
                         ( ( case payrollItemType  i of
                             Cost -> That
                             Deduction -> This
-                          ) (lock [tshow . unSqlBackendKey . unOperatorKey $ payrollItemOperator i, payrollItemPayee i] $ payrollItemAmount i)
+                          ) (lock ["Payroll/amount/#" <> (tshow . unSqlBackendKey . unOperatorKey $ payrollItemOperator i)
+                                  , "Payroll/external/" <> payrollItemPayee i
+                                  ] $ payrollItemAmount i)
                         )
   in TS.Timesheet (map mkShift shiftEs) (timesheetStart timesheet) (timesheetFrequency timesheet) (mkItems itemEs)
 
@@ -215,7 +217,6 @@ timesheetOpIdToTextH :: TS.Timesheet p (OperatorId, PayrollShiftId)
 timesheetOpIdToTextH ts = do
   employeeInfos <- getEmployeeInfo
   return $ timesheetOpIdToText employeeInfos ts
-
 
 -- * Configuration
 
@@ -399,7 +400,7 @@ employeeSummaryRows summaries = let
   -- | Columns are either straight field (Nothing)
   -- or the name of a payee in in the given dacs map (Just ...)
   colFns = map mkColFn summaries
-  formatDouble' x = either (return "") formatDoubl'' $ unlock ?viewPayrollAmountPermissions x
+  formatDouble' x = either (\m -> traceShow ("Lock required", m) ("" :: Html)) formatDoubl'' $ unlock ?viewPayrollAmountPermissions x
   formatDoubl'' x | abs x < 1e-2 = ""
                   | x < 0 = [shamlet|<span.text-danger>#{formatDouble x}|]
                   | otherwise = toHtml $ formatDouble x
@@ -873,4 +874,10 @@ makeExternalPayment supplier invoiceNo ((bankAccount, reference, dueDate), amoun
 
 
 
+ 
+
+viewPayrollAmountPermission = do
+  role <- currentRole
+  let unlocker operator = granter role (ViewPriv, operator)
+  return unlocker
  

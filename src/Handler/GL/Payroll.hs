@@ -67,7 +67,8 @@ getGLPayrollR = do
 postGLPayrollValidateR :: Handler Html
 postGLPayrollValidateR = do
   actionM <- lookupPostParam "action"
-  let ?viewPayrollAmountPermissions = (const Forbidden)
+  viewPayrollAmountPermission' <- viewPayrollAmountPermission
+  let ?viewPayrollAmountPermissions = viewPayrollAmountPermission'
   case actionM of
    Just "quickadd" -> processTimesheet Validate quickadd
    _ -> processTimesheet Validate validate
@@ -121,13 +122,14 @@ postGLPayrollToFAR key = do
           setSuccess (toHtml $ tshow e)
 
           renderMain Validate Nothing created201 (setInfo "Timesheet saved to Front Account sucessfully") (return ())
-
+  
 -- ** Individual timesheet
 getGLPayrollViewR :: Int64 -> Handler Html
 getGLPayrollViewR key = do
   operatorMap <- allOperators
   modelE <- loadTimesheet key
-  let ?viewPayrollAmountPermissions = (const Forbidden)
+  viewPayrollAmountPermission' <- viewPayrollAmountPermission
+  let ?viewPayrollAmountPermissions = viewPayrollAmountPermission'
   case modelE of
     Nothing -> error $ "Can't load Timesheet with id #" ++ show key
     Just (ts, shifts, items) -> do

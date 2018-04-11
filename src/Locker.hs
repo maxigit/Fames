@@ -5,7 +5,9 @@ module Locker
 , restrict
 , permissions
 , unsafeUnlock
-, Granted(..)
+, Granted
+, granter
+, Privilege(..)
 )
 
 where
@@ -13,6 +15,7 @@ where
 import ClassyPrelude.Yesod
 import qualified Data.Text as Text
 import qualified Data.Set as Set
+import Role
 import Debug.Trace
 
 -- * Types
@@ -36,6 +39,8 @@ permissions (Locker rs _)  = toList rs
 
 restrict :: Ord r => [r] ->  Locker r a -> Locker r a
 restrict rs' (Locker rs x) = Locker (rs <> setFromList rs') x
+
+unlock' unlocker privilege (Locker roles value) = unlock unlocker $ Locker (setFromList $ map (privilege,) (toList roles)) value
 
 -- * Unsafe
 unsafeUnlock (Locker rs x) = traceShow ("Unsafe UNLOCK requiring " <> show rs) x
@@ -79,3 +84,20 @@ showLock  unlocker lock = case unlock unlocker lock of
   Left required -> "Requires: " <> show required
   Right value -> show value
   
+
+-- * Roles Granter
+
+data Privilege = ViewPriv | CreatePriv | DeletePriv | SavePriv deriving (Eq, Read, Show, Ord, Enum ,Bounded)
+granter :: Role -> (Privilege, Text) -> Granted
+granter Administrator _ = Granted
+granter role (priv, r) = roleToGranted role wreq (r <> suffix ) where
+  -- TODO Replace with real type
+  (suffix, wreq)  =case priv of
+    ViewPriv -> ("#view", ReadRequest )
+    SavePriv -> ("#save", WriteRequest )
+    DeletePriv -> ("#delete", WriteRequest )
+    CreatePriv -> ("#create", WriteRequest )
+
+roleToGranted role wreq r = if null  (filterPermissions wreq (setFromList [r])  role)
+  then Granted
+  else Forbidden
