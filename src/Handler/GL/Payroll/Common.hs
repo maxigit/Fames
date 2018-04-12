@@ -548,7 +548,8 @@ displayTimeBadges color maxDuration durations =
     $forall shift <-  durations
       $with durationE <- unlock' (TS._duration shift)
          $case durationE
-           $of Left _ 
+           $of Left e 
+             <.invisible>LOCK #{tshow e}
            $of Right duration
               <span.badge class=#{show $ TS._shiftKey shift} style="width:#{durationWidth duration}%;#{bg shift}">
                 #{duration}

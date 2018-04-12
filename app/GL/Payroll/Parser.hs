@@ -185,8 +185,10 @@ data Token = NameT String
            deriving (Show, Eq)
 
 read msg s = fromMaybe (error $ "can't read " ++ show s ++ " to " ++ msg ) $ readMaybe s
-readLock msg s = lockI (read msg s)
-lockI = lock ["Payroll/internal"]
+readLockD msg s = lockD (read msg s)
+readLockA msg s = lockA (read msg s)
+lockA = lock ["Payroll/internal/amount"]
+lockD = lock ["Payroll/internal/duration"]
 token :: String -> Either String Token
 token s = case mapMaybe match cases of
             [] -> Left $ "Can't tokenize `" ++ show s ++ "`"
@@ -217,7 +219,7 @@ token s = case mapMaybe match cases of
                                                     DurationT typ duration -> Right $ MultiplierT (read "mul" mul) typ duration
                                                     _ -> Left $ s ++ " is not a valid duration"
                         )
-                      , ("([0-9]{1,2})h([0-9]{2})", \(_, [hh, mm]) -> Right $ DurationT Work ((readLock "Dur:hh" hh + readLock "Dur:mm" mm / 60)))
+                      , ("([0-9]{1,2})h([0-9]{2})", \(_, [hh, mm]) -> Right $ DurationT Work ((readLockD "Dur:hh" hh + readLockD "Dur:mm" mm / 60)))
                       , ("!([^[:space:]]+)", (\(_, groups) -> do -- Either
                                               subtokens <- mapM token groups 
                                               case subtokens of
@@ -225,8 +227,8 @@ token s = case mapMaybe match cases of
                                                    _ -> Left $ s ++ " is not a valid duration"
                                              ))
                       , ("#([0-9]+)", Right . PayrollIdT . read "payrollId" . head. snd)
-                      , ("[0-9]+(.[0-9]+)?", Right . DurationT Work . readLock "duration" .fst)
-                      , ("\\$([0-9]+(.[0-9]+)?)", Right . RateT . readLock "rate" . head. snd)
+                      , ("[0-9]+(.[0-9]+)?", Right . DurationT Work . readLockD "duration" .fst)
+                      , ("\\$([0-9]+(.[0-9]+)?)", Right . RateT . readLockA "rate" . head. snd)
                       , ( "([0-9]{4})/([0-9]{2})/([0-9]{2})"
                             , \(_, [y,m,d]) -> Right $ DayT (Time.fromGregorian 
                                                      (read "year/" y)
@@ -242,7 +244,7 @@ token s = case mapMaybe match cases of
                       , ("_", \_ -> Right SkipT)
                       , ("\\|", \_ -> Right PipeT)
                       , ("@([[:alpha:]][[:alnum:]]*)" , \(_, [name]) -> Right $ ExternalT name )
-                      , ( "(" ++ amount ++ ")?\\^(" ++ amount ++ ")?" , \r@(_, [deduction, _dec,  cost, _dec']) -> Right $ DeductionAndCostT (lockI <$> readMaybe deduction) (lockI <$> readMaybe cost) )
+                      , ( "(" ++ amount ++ ")?\\^(" ++ amount ++ ")?" , \r@(_, [deduction, _dec,  cost, _dec']) -> Right $ DeductionAndCostT (lockA <$> readMaybe deduction) (lockA <$> readMaybe cost) )
                       ]
               amount = "-?[0-9]+(.[0-9]+)?"
               hhmm = "([0-9]{1,2}):([0-9]{2})"
