@@ -8,7 +8,7 @@
 
 -- | Parsing state. Keep default values which can be used over different lines.
 module GL.Payroll.Parser where
-import Prelude
+import Prelude hiding(read)
 import Lens.Micro hiding(index)
 import Lens.Micro.TH
 import Control.Applicative
@@ -35,6 +35,7 @@ import Text.Read (readMaybe)
 import Data.These
 import Data.Align (align)
 import Debug.Trace
+import Locker
 
 data Current = Current
         { _currentEmployee :: Maybe PayrooEmployee
@@ -86,7 +87,7 @@ addShift' :: ShiftType -> Duration -> Maybe TimeOfDay ->  Current -> Maybe Curre
 addShift' shiftType duration start u = do
     emp <- u ^. currentEmployee
     rate <- emp ^. defaultHourlyRate <|> u ^. currentHourlyRate
-    let adjustedDuration = roundDuration rate duration
+    let adjustedDuration = roundDuration (unsafeUnlock rate) <$> duration
         cost = rate * adjustedDuration
     day <- u ^. currentDay
     let s = Shift (emp, day, shiftType) start adjustedDuration cost
@@ -183,6 +184,9 @@ data Token = NameT String
            | ExternalT String
            deriving (Show, Eq)
 
+read msg s = fromMaybe (error $ "can't read " ++ show s ++ " to " ++ msg ) $ readMaybe s
+readLock msg s = lockI (read msg s)
+lockI = lock ["Payroll/internal"]
 token :: String -> Either String Token
 token s = case mapMaybe match cases of
             [] -> Left $ "Can't tokenize `" ++ show s ++ "`"
@@ -198,47 +202,47 @@ token s = case mapMaybe match cases of
                                 maybe (Left $ "Invalid Time format for " ++ show s) Right
                                 (do RangeT
                                  <$> (makeTimeOfDayValid
-                                                (read hh)
-                                                (read mm)
+                                                (read "hh" hh)
+                                                (read "mm" mm)
                                                 0)
                                  <*> (makeTimeOfDayValid
-                                                (read hh')
-                                                (read mm')
+                                                (read "hh'" hh')
+                                                (read "mm'" mm')
                                                 0)
                                                 )
                         )
                       , ("([0-9]+(.[0-9+])?)x([^[:space:]]+)", \(_, [mul, _, leftover]) -> do -- Either
                                               subtoken <- token leftover
                                               case subtoken of
-                                                    DurationT typ duration -> Right $ MultiplierT (read mul) typ duration
+                                                    DurationT typ duration -> Right $ MultiplierT (readLock "mul" mul) typ duration
                                                     _ -> Left $ s ++ " is not a valid duration"
                         )
-                      , ("([0-9]{1,2})h([0-9]{2})", \(_, [hh, mm]) -> Right $ DurationT Work ((read hh + read mm / 60)))
+                      , ("([0-9]{1,2})h([0-9]{2})", \(_, [hh, mm]) -> Right $ DurationT Work ((readLock "Dur:hh" hh + readLock "Dur:mm" mm / 60)))
                       , ("!([^[:space:]]+)", (\(_, groups) -> do -- Either
                                               subtokens <- mapM token groups 
                                               case subtokens of
                                                    [DurationT _ duration] -> Right (DurationT Holiday duration)
                                                    _ -> Left $ s ++ " is not a valid duration"
                                              ))
-                      , ("#([0-9]+)", Right . PayrollIdT . read . head. snd)
-                      , ("[0-9]+(.[0-9]+)?", Right . DurationT Work . read .fst)
-                      , ("\\$([0-9]+(.[0-9]+)?)", Right . RateT . read . head. snd)
+                      , ("#([0-9]+)", Right . PayrollIdT . read "payrollId" . head. snd)
+                      , ("[0-9]+(.[0-9]+)?", Right . DurationT Work . readLock "duration" .fst)
+                      , ("\\$([0-9]+(.[0-9]+)?)", Right . RateT . readLock "rate" . head. snd)
                       , ( "([0-9]{4})/([0-9]{2})/([0-9]{2})"
                             , \(_, [y,m,d]) -> Right $ DayT (Time.fromGregorian 
-                                                     (read y)
-                                                     (read m)
-                                                     (read d))
+                                                     (read "year/" y)
+                                                     (read "mont/" m)
+                                                     (read "day" d))
                         )
                       , ( "([0-9]{4})-([0-9]{2})-([0-9]{2})"
                             , \(_, [y,m,d]) -> Right $ DayT (Time.fromGregorian 
-                                                     (read y)
-                                                     (read m)
-                                                     (read d))
+                                                     (read "year-"y)
+                                                     (read "month-" m)
+                                                     (read "day-" d))
                         )
                       , ("_", \_ -> Right SkipT)
                       , ("\\|", \_ -> Right PipeT)
                       , ("@([[:alpha:]][[:alnum:]]*)" , \(_, [name]) -> Right $ ExternalT name )
-                      , ( "(" ++ amount ++ ")?\\^(" ++ amount ++ ")?" , \r@(_, [deduction, _dec,  cost, _dec']) -> Right $ DeductionAndCostT (readMaybe deduction) (readMaybe cost) )
+                      , ( "(" ++ amount ++ ")?\\^(" ++ amount ++ ")?" , \r@(_, [deduction, _dec,  cost, _dec']) -> Right $ DeductionAndCostT (lockI <$> readMaybe deduction) (lockI <$> readMaybe cost) )
                       ]
               amount = "-?[0-9]+(.[0-9]+)?"
               hhmm = "([0-9]{1,2}):([0-9]{2})"

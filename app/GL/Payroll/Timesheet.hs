@@ -40,11 +40,15 @@ import Data.These
 import Data.Bifunctor (bimap)
 import qualified Data.Map as Map
 import Data.Map(Map)
+import Locker
+import Data.Text (Text)
+import Data.Either(isRight)
 
 -- * Type alias
-type Amount = Double
-type Duration = Double
+type Amount = Locker Text Double
+type Duration = Locker Text Double
 type Hour = Double
+
 -- * Data
 -- ** Employee
 -- | An employee.
@@ -78,7 +82,6 @@ data Shift k = Shift
     , _duration :: Duration
     , _cost :: Amount
     } deriving (Show, Eq, Functor, Foldable, Traversable)
-
 
 makeClassy ''Shift
 instance HasEmployee k => HasEmployee (Shift k) where
@@ -318,3 +321,13 @@ instance (Ord p, Semigroup e) => Semigroup (EmployeeSummary p e) where
               (Map.unionWith (+) (a ^. netDeductions) (b ^. netDeductions))
               (Map.unionWith (+) (a ^. costs) (b ^. costs))
               (Map.unionWith (+) (a ^. totalHours) (b ^. totalHours))
+
+-- * Locking
+
+
+filterTimesheet sFilter iFilter ts = 
+  case  ( filter sFilter (_shifts ts)
+        , filter iFilter (_deductionAndCosts ts)
+        ) of
+    ([], []) -> Nothing
+    (ss, dacs) -> Just ts {_shifts = ss, _deductionAndCosts = dacs}

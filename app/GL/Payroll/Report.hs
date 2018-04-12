@@ -1,3 +1,4 @@
+{-# LANGUAGE ImplicitParams #-}
 module GL.Payroll.Report where
 
 import Prelude
@@ -24,6 +25,8 @@ import Data.Ord(comparing)
 import Data.Function(on)
 import Data.These
 import Data.Align
+import Locker
+import Data.Text (Text)
 
 
 import System.Directory(createDirectory)
@@ -66,17 +69,23 @@ instance Display ShiftType where
 
 -- *** Deduction and Costs
 instance Display k =>  Display (Shift k) where
-    display s = display (s ^. shiftKey)
-                    ++  "\t" ++ show (s ^. duration)
-                    ++ "\t@" ++ show (s ^. hourlyRate)
-                    ++ "\t= " ++ show (s ^. cost)
+    display s = displayShift show show s
+
+displayShift amountF durationF s = display (s ^. shiftKey)
+                    ++  "\t" ++ (durationF $ s ^. duration)
+                    ++ "\t@" ++ (amountF $ s ^. hourlyRate)
+                    ++ "\t= " ++ (amountF $ s ^. cost)
+
+
 
 -- *** Deduction and Costs
 instance Display k => Display (DeductionAndCost k) where
-  display dac = "@" ++ display (dac ^. dacKey) ++ " "
-                 ++ maybe "" show duration
+  display = displayDAC show show 
+
+displayDAC amountF durationF dac = "@" ++ display (dac ^. dacKey) ++ " "
+                 ++ maybe "" durationF duration
                  ++ "^"
-                 ++ maybe "" show cost where
+                 ++ maybe "" amountF cost where
                         (duration, cost) = these (\a -> (Just a, Nothing))
                                                  (\b -> (Nothing, Just b))
                                                  (\a b -> (Just a , Just b))
@@ -143,7 +152,10 @@ writeTextcart dir cart@(Textcart (d, st, ss)) = do
 
 -- ** PAYROO
 -- 
-payroo :: Timesheet p PayrooEmployee -> [String]
+payroo :: ( ?viewPayrollAmountPermissions :: (Text -> Granted)
+          , ?viewPayrollDurationPermissions :: (Text -> Granted)
+          )
+       => Timesheet p PayrooEmployee -> [String]
 payroo ts = 
     [ "Pay Period End Date,,,,,,,,"
     , (formatDay . period) (ts ^. periodStart) ++ ",,,,,,,,"
@@ -160,7 +172,10 @@ period = addDays 6
 
 formatDay = formatTime defaultTimeLocale "%d/%m/%y"
 
-formatShift ::  Shift (PayrooEmployee, ShiftType) -> String
+formatShift :: ( ?viewPayrollAmountPermissions :: (Text -> Granted)
+               , ?viewPayrollDurationPermissions :: (Text -> Granted)
+               )
+            => Shift (PayrooEmployee, ShiftType) -> String
 formatShift s = "Employer" -- Employer / Client / Branch Reference
                 ++ "," ++ (show $ s ^. payrollId) -- Employee's Works Number
                 ++ "," ++ (s ^. firstName) -- Employee's Name
@@ -168,8 +183,8 @@ formatShift s = "Employer" -- Employer / Client / Branch Reference
                 ++ ",BASIC" -- Item code
                 ++ ",BASIC PAY" -- Item Name
                 ++ ",P" -- Item Indicator
-                ++ "," ++ show (s^.duration) -- Quantity
-                ++ "," ++ show (s^.hourlyRate)-- Rate
+                ++ "," ++ either (const "") show (unlock ?viewPayrollDurationPermissions (s^.duration)) -- Quantity
+                ++ "," ++ either (const "") show (unlock ?viewPayrollAmountPermissions (s^.hourlyRate))-- Rate
                 ++ "," -- Payslip Message"
 
 writePayroo dir ts = do

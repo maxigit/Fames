@@ -1,3 +1,4 @@
+{-# LANGUAGE ImplicitParams #-}
 module Handler.GL.Payroll
 -- * Export
 ( getGLPayrollR
@@ -8,6 +9,7 @@ module Handler.GL.Payroll
 , postGLPayrollEditR
 , postGLPayrollRejectR
 , postGLPayrollToFAR
+, postGLPayrollToPayrooR
 , module Handler.GL.Payroll.Summary
 , module Handler.GL.Payroll.Calendar
 , module Handler.GL.Payroll.Import
@@ -39,36 +41,42 @@ import Control.Monad.Except
 import Text.Printf(printf)
 import qualified Data.Map as Map
 import Handler.Util
+import Locker
 
 
 
 -- * Types
 data Mode = Validate | Save deriving (Eq, Read, Show)
-data UploadParam = UploadParam {
-  upTimesheet :: Textarea
+data UploadParam = UploadParam
+  { upTimesheet :: Textarea
+  , upPreviousKey :: Maybe DocumentHash
   } deriving (Eq, Read, Show)
 
 -- * Form
 uploadForm :: Mode -> Maybe UploadParam -> _Markup -> _ (FormResult UploadParam, Widget)
 uploadForm mode paramM = let
-  form _ = UploadParam <$> areq textareaField (disableOnSave "Timesheet") (upTimesheet <$> paramM)
-  disableOnSave fsettings = case mode of
-    Validate -> fsettings
-    Save -> fsettings {fsAttrs = [("readonly", "")]}
+  form _ = UploadParam <$> areq textareaField "Timesheet" (upTimesheet <$> paramM)
+                       <*> areq hiddenField "key" (Just $ upPreviousKey =<< paramM)
   in renderBootstrap3 BootstrapBasicForm . form $ mode
 -- * Handlers
 -- ** upload and show timesheets
 getGLPayrollR :: Handler Html
 getGLPayrollR = do
   pendingW <-displayPendingSheets
-  renderMain Validate Nothing ok200 (setInfo "Enter a timesheet") pendingW
+  renderMain Validate Nothing ok200 (setInfo ([shamlet|<h3>Enter a timesheet|] >> timesheetStyleCheat)) pendingW
 postGLPayrollValidateR :: Handler Html
 postGLPayrollValidateR = do
   actionM <- lookupPostParam "action"
   case actionM of
    Just "quickadd" -> processTimesheet Validate quickadd
    _ -> processTimesheet Validate validate
-  where validate param key = do
+
+validate :: UploadParam -> DocumentHash -> Handler Html
+validate param key = do
+          viewPayrollAmountPermissions' <- viewPayrollAmountPermissions
+          viewPayrollDurationPermissions' <- viewPayrollDurationPermissions
+          let ?viewPayrollAmountPermissions = viewPayrollAmountPermissions'
+              ?viewPayrollDurationPermissions = viewPayrollDurationPermissions'
           settings <- appSettings <$> getYesod
           timesheetE <- parseTimesheetH param
           case validateTimesheet (appPayroll settings) =<< timesheetE of
@@ -78,11 +86,17 @@ postGLPayrollValidateR = do
                   (documentKey'msgM) <- runDB $ loadAndCheckDocumentKey key
                   forM documentKey'msgM  $ \(Entity _ doc, msg) -> do
                                  setWarning msg >> return ""
-                  renderMain Save (Just param) ok200 (setInfo . toHtml $ "Timesheet " <> ref  <> " is valid.") (do
-                        displayTimesheet timesheet
-                        displayEmployeeSummary (timesheetPayrooForSummary timesheet)
-                        displayTimesheetCalendar (timesheetPayrooForSummary timesheet)
-                        )
+                  renderMain Save
+                             (Just param {upPreviousKey = Just key})
+                             ok200
+                             (setInfo . toHtml $ "Timesheet " <> ref  <> " is valid.")
+                             (do
+                                 TS.filterTimesheet (const False) isDACUnlocked timesheet  `forM` (displayShifts displayDAC . TS._deductionAndCosts)
+                                 displayTimesheetCalendar (timesheetPayrooForSummary timesheet)
+                                 -- TS.filterTimesheet isShiftDurationUnlocked (const True) timesheet `forM` displayTimesheet
+                                 TS.filterTimesheet isShiftViewable isDACUnlocked timesheet `forM` (displayEmployeeSummary . timesheetPayrooForSummary)
+                                 return ()
+                             )
 
 postGLPayrollSaveR = do
   actionM <- lookupPostParam "action"
@@ -91,17 +105,21 @@ postGLPayrollSaveR = do
    _ -> processTimesheet Save save
    where
       save param key = do
-          timesheetE <- parseTimesheetH param
-          case timesheetE of
-            Left e -> setError (toHtml e)
-                      >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a timesheet") (return ())
-            Right timesheet -> do
-                  (tKey, ref) <- saveTimeSheet key timesheet
-                  let tId = unSqlBackendKey (unTimesheetKey tKey)
-                  pushLinks ("View Timesheet " <> ref)
-                            (GLR $ GLPayrollViewR tId)
-                            []
-                  renderMain Validate Nothing created201 (setInfo "Timesheet saved sucessfully") (return ())
+          -- if the document has been modified we need to validate it instead of saving it
+          if Just key == upPreviousKey param
+          then do
+            timesheetE <- parseTimesheetH param
+            case timesheetE of
+              Left e -> setError (toHtml e)
+                        >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a timesheet") (return ())
+              Right timesheet -> do
+                    (tKey, ref) <- saveTimeSheet key timesheet
+                    let tId = unSqlBackendKey (unTimesheetKey tKey)
+                    pushLinks ("View Timesheet " <> ref)
+                              (GLR $ GLPayrollViewR tId)
+                              []
+                    renderMain Validate Nothing created201 (setInfo "Timesheet saved sucessfully") (return ())
+          else validate (param { upPreviousKey = Nothing}) key
 
 
 postGLPayrollToFAR :: Int64 -> Handler Html
@@ -124,32 +142,37 @@ getGLPayrollViewR :: Int64 -> Handler Html
 getGLPayrollViewR key = do
   operatorMap <- allOperators
   modelE <- loadTimesheet key
+  viewPayrollAmountPermissions' <- viewPayrollAmountPermissions
+  viewPayrollDurationPermissions' <- viewPayrollDurationPermissions
+  let ?viewPayrollAmountPermissions = viewPayrollAmountPermissions'
+      ?viewPayrollDurationPermissions = viewPayrollDurationPermissions'
   case modelE of
     Nothing -> error $ "Can't load Timesheet with id #" ++ show key
     Just (ts, shifts, items) -> do
       let tsOId = modelToTimesheetOpId ts shifts items
           ts' = map (\(op, _) -> maybe (tshow op) operatorNickname (lookup op operatorMap)) tsOId
-          shifts' = TS._shifts ts'
-          reports' = [ ("Timesheet" :: Text, displayShifts)
-                    , ("By Employees", displayShifts . (TS.groupShiftsBy id))
-                    , ("By Week", displayShifts . (TS.groupShiftsBy (\(e,_,_) -> e)))
-                    , ("By Day" , displayShifts . ( TS.groupShiftsBy (\(a,b,h) -> (h,b,a))))
-                    ]
-          dacs =  TS._deductionAndCosts ts'
-          dacsReport = ("Deductions and Costs", displayShifts dacs)
-          summaryReport = ("Summary", displayEmployeeSummary ts')
-          calendar = ("Calendar", displayTimesheetCalendar ts')
-          reports = [(name, report shifts') | (name, report) <- reports']
-            ++ [dacsReport, summaryReport, calendar]
+          -- reports' = [ ("Timesheet" :: Text, displayShifts)
+          --           , ("By Employees", displayShifts . (TS.groupShiftsBy id))
+          --           , ("By Week", displayShifts . (TS.groupShiftsBy (\(e,_,_) -> e)))
+          --           , ("By Day" , displayShifts . ( TS.groupShiftsBy (\(a,b,h) -> (h,b,a))))
+          --           ]
+          dacsReport = ("Deductions and Costs" :: Text, displayShifts displayDAC . TS._deductionAndCosts, TS.filterTimesheet (const False) isDACUnlocked )
+          summaryReport = ("Summary", displayEmployeeSummary , TS.filterTimesheet isShiftViewable isDACUnlocked)
+          calendar = ("Calendar", displayTimesheetCalendar, TS.filterTimesheet isShiftDurationUnlocked (const False) )
+          -- reports = [(name, report  . TS._shifts, TS.filterTimesheet isShiftViewable (const False) ) | (name, report)  <- reports']
+          reports = [calendar, dacsReport, summaryReport]
       defaultLayout $ [whamlet|
-          $forall (name, trans) <- reports
-             <div.panel.panel-info>
-               <div.panel-heading> #{name}
-               <div.panel-body>
-                <div>^{trans}
+          $forall (name, trans, filter') <- reports
+             $maybe object <- filter' ts'
+              <div.panel.panel-info>
+                <div.panel-heading> #{name}
+                <div.panel-body>
+                  <div>^{trans object }
           $if (timesheetStatus (entityVal ts) /= Process)
             <form role=form method=post action=@{GLR $ GLPayrollToFAR key}>
               <button type="submit" .btn.btn-danger>Save To FrontAccounting
+            <form role=form method=post action=@{GLR $ GLPayrollToPayrooR key}>
+              <button type="submit" .btn.btn-info>Download Payroo 
                               |]
 
 getGLPayrollEditR :: Int64 -> Handler Html
@@ -160,13 +183,47 @@ postGLPayrollEditR key = return "todo"
 postGLPayrollRejectR :: Int64 -> Handler Html
 postGLPayrollRejectR key = return "todo"
 
+postGLPayrollToPayrooR :: Int64 -> Handler TypedContent
+postGLPayrollToPayrooR key = do
+  header <- headerFromSettings
+  operatorMap <- allOperators
+  opFinder <- operatorFinderWithError
+  modelE <- loadTimesheet key
+  viewPayrollAmountPermissions' <- viewPayrollAmountPermissions
+  viewPayrollDurationPermissions' <- viewPayrollDurationPermissions
+  let ?viewPayrollAmountPermissions = viewPayrollAmountPermissions'
+      ?viewPayrollDurationPermissions = viewPayrollDurationPermissions'
+  case modelE of
+    Nothing -> error $ "Can't load Timesheet with id #" ++ show key
+    Just (tsE, shifts, items) -> do
+      let tsOId = modelToTimesheetOpId tsE shifts items
+          ts = entityVal tsE
+          start = timesheetStart ts
+          end = timesheetEnd ts
+      tsE <- timesheetOpIdToO'SH tsOId
+      case tsE of
+        Right ts' ->  do
+            let payroos = TS.payroo timesheet
+                source = yieldMany (map (<>"\n") payroos)
+                timesheet = fmap ( \(Entity _ Operator{..} ,empS,_)
+                                   -> TS.PayrooEmployee 
+                                          (unpack operatorFirstname)
+                                          (unpack operatorSurname)
+                                          (payrollId empS)
+                                          (TS.Employee (unpack operatorNickname) Nothing)
+                                  ) ts'
+            setAttachment (fromStrict $ "payroo" <> tshow start <> "--" <> tshow end  <> ".csv")
+            respondSource "text/csv" (source =$= mapC toFlushBuilder)
+        Left e -> error $ "Problem generating payroo csv: " <> unpack e
+
+
 -- ** Quick Add
 quickadd :: UploadParam -> DocumentHash -> Handler Html
 quickadd  param key = do
   wE <- saveQuickAdd False (unTextarea $ upTimesheet param) key
   case wE of
     Left e -> setError (toHtml e) >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a valid timesheet") (return ())
-    Right w -> renderMain Save (Just param) ok200 (return()) w
+    Right w -> renderMain Save (Just $ param { upPreviousKey = Just key}) ok200 (return()) w
     -- Right w -> defaultLayout [whamlet|
     --    <form #quick-form role=form method=post action=@{GLR GLPayrollSaveR }> 
     --      <input type=hidden name=quickadd value="#{unTextarea $ upTimesheet param}">
@@ -174,12 +231,16 @@ quickadd  param key = do
     --      <button type="submit" name="action" value="quickadd" class="btn btn-danger">Quick Add
 saveQuickadd :: UploadParam -> DocumentHash -> Handler Html
 saveQuickadd  param key = do
-  wE <- saveQuickAdd True (unTextarea $ upTimesheet param) key
-  case wE of
-    Left e -> setError (toHtml e) >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a valid timesheet") (return ())
-    Right w -> do
-      let msg = setSuccess "Quickadds processed properly"
-      renderMain Save (Just param) created201 msg w
+  if   Just key /= upPreviousKey param
+      then quickadd param key
+      else do
+        wE <- saveQuickAdd True (unTextarea $ upTimesheet param) key
+        case wE of
+          Left e -> setError (toHtml e) >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a valid timesheet") (return ())
+          Right w -> do
+            setSuccess "Quickadds processed properly"
+            getGLPayrollR
+            -- renderMain Validate Nothing created201 msg w
 
 -- ** Renders
 -- | Renders the main page. It displays recent timesheet and also allows to upload a new one.
@@ -200,6 +261,50 @@ renderMain mode paramM status message pre = do
         <button type="submit" name="#{button}" value="#{tshow mode}" class="btn btn-#{btn}">#{button}
         <button type="submit" name="action" value="quickadd" class="btn btn-danger">Quick Add
         |]
+-- | Quick documentation to remind the timesheet syntax
+timesheetStyleCheat :: Html
+timesheetStyleCheat = [shamlet|
+<p>
+  The timesheet is made of a sections, each one representing an operator
+  The timesheet <b>MUST</b> start with the first date of the related period and the followed
+  by many operator sections.
+  An operator section starts with the operator name and be followed by it's <b>shift</b> or cost and deductions
+  on the same or a different line.
+
+<p>
+  The <b>shift</b> represents a amount of time an can be either
+  <ul>
+    <li> A duration in (decimal)hour, example
+      <code>7.5</code> corresponds to 7 hours and 30 min
+    <li> A duration in hour,minute, example
+      <code>7h30</code>.
+    <li> A time range, example
+      <code>09:30-13:00</code>
+    <li> Holidays must be preceeded by <code>!</code>
+      example, <code>!7.5</code> corresponds to 7h30 of holidays
+    <li> A day can also been skipped using <code>_</code>
+      This mean that the next duration will concern the next days
+      example
+    
+<p> In each section, <b>shifts</b>  represents one day starting at the beginning of the period.
+  A day (3 first letter in uppercase) can be specified to specify the day, example:
+    <code> Alice Wed 4
+<p>
+  Means, Alice worked 4 hours on Wednesday.
+    <code> Alice Wed 4 3 
+<p>
+  Means Alice workd 4 hours on Wednesday and 3 on Thursday
+  But <code> Alice Wed 4 _ 3 </code>
+  Means Alice workd 4 hours on Wednesday and 3 on <b>Friday</b>
+<p> A multiplicator can be used to repeat a shift, example
+  <code>Alice 5x8</code>
+  Will be equivalent to <code>Alice 8 8 8 8 8</code>
+<p> Finally, <code>|</code> can be use to specify two shifts on the same day
+Example, <code>Alice Wed 4|!4</code>
+Means, that Alice worked 4 hours on Wednesday morning on took her afternoon off.
+                                
+|]
+
 -- * Processing
 processTimesheet :: Mode -> (UploadParam -> DocumentHash -> Handler r) -> Handler r
 processTimesheet mode post = do

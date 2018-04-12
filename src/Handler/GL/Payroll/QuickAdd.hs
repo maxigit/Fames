@@ -1,3 +1,4 @@
+{-# LANGUAGE ImplicitParams #-}
 module Handler.GL.Payroll.QuickAdd
 where
 -- * Import
@@ -16,6 +17,8 @@ import Data.Either
 import Data.List.Split
 import Control.Monad.Except (ExceptT(..), runExceptT)
 import Data.Text (strip)
+import Locker
+
 -- * Quick Add
 saveQuickAdd :: Bool -> Text -> DocumentHash -> Handler (Either Text Widget)
 saveQuickAdd  save text key  = do
@@ -23,6 +26,10 @@ saveQuickAdd  save text key  = do
   opFinder <- operatorFinderWithError
   operatorMap <- allOperators
   payrollSettings <- getsYesod (appPayroll . appSettings)
+  viewPayrollAmountPermissions' <- viewPayrollAmountPermissions
+  viewPayrollDurationPermissions' <- viewPayrollAmountPermissions
+  let ?viewPayrollAmountPermissions = viewPayrollAmountPermissions'
+      ?viewPayrollDurationPermissions = viewPayrollDurationPermissions'
   runExceptT $ do
     timesheets <- ExceptT . return $ splitTimesheet text
 

@@ -8,6 +8,7 @@ import Data.Dynamic (dynTypeRep, Dynamic, fromDynamic)
 import Util.Cache
 import qualified Data.Map as Map
 import Items.Types
+import Text.Pretty.Simple
 
 
 -- | Page to test administrator authentication.
@@ -130,4 +131,7 @@ postAMasqueradeR = do
     Just user -> do
       traceShowM ("Masquerading to " <> user)
       setSession masquerade user
+      role <- currentRole
+      $(logWarn) . toStrict $ pShow ("NEW ROLE", role)
   getAMasqueradeR
+

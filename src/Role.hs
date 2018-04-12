@@ -8,7 +8,8 @@ import qualified Data.Set as Set
 -- | Read or Write request
 data WriteRequest = ReadRequest | WriteRequest deriving (Eq, Read, Show, Ord)
 
-type Permissions = Set (Text, WriteRequest)
+type Permissions = Set (Text, WriteRequest, Set Text)
+
 type URL = Text
 
 newtype RoleFor = RoleFor {roleFor :: (Maybe Text -> Role) }
@@ -45,7 +46,7 @@ data Role = Administrator -- ^ As access to everything
 filterPermissions :: WriteRequest -> Set Text -> Role -> Set Text
 filterPermissions _ _ Administrator = mempty
 filterPermissions wreq perms (RoleGroup roles) = foldl' (filterPermissions wreq) perms roles
-filterPermissions wreq perms (RolePermission grants) = perms \\ setFromList [g | (g, w) <- toList grants, w >= wreq]
+filterPermissions wreq perms (RolePermission grants) = perms \\ setFromList [g | (g, w, atts) <- toList grants, w >= wreq]
 filterPermissions _ perms (RoleRoute _ _) = perms
 
 authorizeFromAttributes :: Role -> Set Text -> WriteRequest -> Bool
@@ -80,7 +81,25 @@ instance FromJSON Role where
   parseJSON Null = return $ RoleGroup []
   parseJSON (String s) = case (Text.splitAt 1 s) of
     ("/", _) -> let (route, wreq) = isWriteReq s in return $ RoleRoute route wreq
-    _ -> return . RolePermission . setFromList $ map (isWriteReq) (words s)
-    where isWriteReq r | not (null r), Text.last r == '+' = (initEx r, WriteRequest)
-                       | otherwise = (r, ReadRequest)
+    _ -> return . RolePermission . setFromList $ map (parseRequest) (words s)
+    where parseRequest s0 = let (s', wreq) = isWriteReq s0
+                                (s, attrs) = case Text.splitOn "#" s' of
+                                               [] -> ("", [])
+                                               (prefix:attrs) -> (prefix, attrs)
+                            in (s, wreq, setFromList attrs)
+          isWriteReq r | not (null r), Text.last r == '+' = (initEx r, WriteRequest)
+                                | otherwise = (r, ReadRequest)
   parseJSON _ = error "Can't parse Role"
+
+-- * Filtering
+-- | Filter role by attributes
+filterRole ::  Text -> Role -> Role
+filterRole att (RoleGroup roles) = RoleGroup (map (filterRole att) roles)
+filterRole att (RolePermission perms)  = RolePermission perms' where
+   perms' = setFromList [(p, req, atts)
+                        | (p,req,atts) <- toList perms
+                        , att `elem` atts
+                        ]
+filterRole _ role = role
+
+

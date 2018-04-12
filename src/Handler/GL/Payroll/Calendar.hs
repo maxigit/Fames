@@ -1,3 +1,4 @@
+{-# LANGUAGE ImplicitParams #-}
 -- | Displays a calendar view of the selected shifts
 module Handler.GL.Payroll.Calendar
 ( getGLPayrollCalendarR
@@ -75,8 +76,10 @@ processCalendar :: CalendarParam -> Handler Widget
 processCalendar param =  do
   settings <- appSettings <$> getYesod
   timesheets <- loadTimesheet' param
+  viewPayrollDurationPermissions' <- viewPayrollDurationPermissions
+  let ?viewPayrollDurationPermissions = viewPayrollDurationPermissions'
   -- group all shifts
-  let allShifts = concatMap TS._shifts timesheets
+  let allShifts = filter isShiftUnlocked $ concatMap TS._shifts timesheets
       days = map (^. TS.day) allShifts
   case days of
     [] -> setWarning "No timesheet selected. Please amend the range" >> return ""
@@ -105,4 +108,3 @@ loadTimesheet' param = do
       case sequence ts' of
         Left e -> error $ unpack e
         Right s -> return s
-
