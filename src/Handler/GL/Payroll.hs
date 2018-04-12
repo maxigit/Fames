@@ -62,7 +62,7 @@ uploadForm mode paramM = let
 getGLPayrollR :: Handler Html
 getGLPayrollR = do
   pendingW <-displayPendingSheets
-  renderMain Validate Nothing ok200 (setInfo "Enter a timesheet") pendingW
+  renderMain Validate Nothing ok200 (setInfo ([shamlet|<h3>Enter a timesheet|] >> timesheetStyleCheat)) pendingW
 postGLPayrollValidateR :: Handler Html
 postGLPayrollValidateR = do
   actionM <- lookupPostParam "action"
@@ -224,6 +224,50 @@ renderMain mode paramM status message pre = do
         <button type="submit" name="#{button}" value="#{tshow mode}" class="btn btn-#{btn}">#{button}
         <button type="submit" name="action" value="quickadd" class="btn btn-danger">Quick Add
         |]
+-- | Quick documentation to remind the timesheet syntax
+timesheetStyleCheat :: Html
+timesheetStyleCheat = [shamlet|
+<p>
+  The timesheet is made of a sections, each one representing an operator
+  The timesheet <b>MUST</b> start with the first date of the related period and the followed
+  by many operator sections.
+  An operator section starts with the operator name and be followed by it's <b>shift</b> or cost and deductions
+  on the same or a different line.
+
+<p>
+  The <b>shift</b> represents a amount of time an can be either
+  <ul>
+    <li> A duration in (decimal)hour, example
+      <code>7.5</code> corresponds to 7 hours and 30 min
+    <li> A duration in hour,minute, example
+      <code>7h30</code>.
+    <li> A time range, example
+      <code>09:30-13:00</code>
+    <li> Holidays must be preceeded by <code>!</code>
+      example, <code>!7.5</code> corresponds to 7h30 of holidays
+    <li> A day can also been skipped using <code>_</code>
+      This mean that the next duration will concern the next days
+      example
+    
+<p> In each section, <b>shifts</b>  represents one day starting at the beginning of the period.
+  A day (3 first letter in uppercase) can be specified to specify the day, example:
+    <code> Alice Wed 4
+<p>
+  Means, Alice worked 4 hours on Wednesday.
+    <code> Alice Wed 4 3 
+<p>
+  Means Alice workd 4 hours on Wednesday and 3 on Thursday
+  But <code> Alice Wed 4 _ 3 </code>
+  Means Alice workd 4 hours on Wednesday and 3 on <b>Friday</b>
+<p> A multiplicator can be used to repeat a shift, example
+  <code>Alice 5x8</code>
+  Will be equivalent to <code>Alice 8 8 8 8 8</code>
+<p> Finally, <code>|</code> can be use to specify two shifts on the same day
+Example, <code>Alice Wed 4|!4</code>
+Means, that Alice worked 4 hours on Wednesday morning on took her afternoon off.
+                                
+|]
+
 -- * Processing
 processTimesheet :: Mode -> (UploadParam -> DocumentHash -> Handler r) -> Handler r
 processTimesheet mode post = do
