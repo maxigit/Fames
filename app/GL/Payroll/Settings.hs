@@ -9,12 +9,12 @@ import Data.Aeson.TH(deriveJSON, defaultOptions, sumEncoding, SumEncoding(..))
 -- * Types
 -- ** For config
 data EmployeeSettings = EmployeeSettings
-  { timesheet :: Text -- To add to 
+  { payrollId :: Int -- To add to 
+  , hourlyRate :: Double
   , faSKU :: Text
   , dimension1 :: Maybe Int
   , dimension2 :: Maybe Int
   } deriving (Show, Read , Eq, Ord)
-  
 
 -- | External party associated with deductions and costs
 data PayrollExternalSettings = PayrollExternalSettings

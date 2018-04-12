@@ -9,6 +9,7 @@ module Handler.GL.Payroll
 , postGLPayrollEditR
 , postGLPayrollRejectR
 , postGLPayrollToFAR
+, postGLPayrollToPayrooR
 , module Handler.GL.Payroll.Summary
 , module Handler.GL.Payroll.Calendar
 , module Handler.GL.Payroll.Import
@@ -170,6 +171,8 @@ getGLPayrollViewR key = do
           $if (timesheetStatus (entityVal ts) /= Process)
             <form role=form method=post action=@{GLR $ GLPayrollToFAR key}>
               <button type="submit" .btn.btn-danger>Save To FrontAccounting
+            <form role=form method=post action=@{GLR $ GLPayrollToPayrooR key}>
+              <button type="submit" .btn.btn-info>Download Payroo 
                               |]
 
 getGLPayrollEditR :: Int64 -> Handler Html
@@ -179,6 +182,40 @@ postGLPayrollEditR key = return "todo"
 
 postGLPayrollRejectR :: Int64 -> Handler Html
 postGLPayrollRejectR key = return "todo"
+
+postGLPayrollToPayrooR :: Int64 -> Handler TypedContent
+postGLPayrollToPayrooR key = do
+  header <- headerFromSettings
+  operatorMap <- allOperators
+  opFinder <- operatorFinderWithError
+  modelE <- loadTimesheet key
+  viewPayrollAmountPermissions' <- viewPayrollAmountPermissions
+  viewPayrollDurationPermissions' <- viewPayrollDurationPermissions
+  let ?viewPayrollAmountPermissions = viewPayrollAmountPermissions'
+      ?viewPayrollDurationPermissions = viewPayrollDurationPermissions'
+  case modelE of
+    Nothing -> error $ "Can't load Timesheet with id #" ++ show key
+    Just (tsE, shifts, items) -> do
+      let tsOId = modelToTimesheetOpId tsE shifts items
+          ts = entityVal tsE
+          start = timesheetStart ts
+          end = timesheetEnd ts
+      tsE <- timesheetOpIdToO'SH tsOId
+      case tsE of
+        Right ts' ->  do
+            let payroos = TS.payroo timesheet
+                source = yieldMany (map (<>"\n") payroos)
+                timesheet = fmap ( \(Entity _ Operator{..} ,empS,_)
+                                   -> TS.PayrooEmployee 
+                                          (unpack operatorFirstname)
+                                          (unpack operatorSurname)
+                                          (payrollId empS)
+                                          (TS.Employee (unpack operatorNickname) Nothing)
+                                  ) ts'
+            setAttachment (fromStrict $ "payroo" <> tshow start <> "--" <> tshow end  <> ".csv")
+            respondSource "text/csv" (source =$= mapC toFlushBuilder)
+        Left e -> error $ "Problem generating payroo csv: " <> unpack e
+
 
 -- ** Quick Add
 quickadd :: UploadParam -> DocumentHash -> Handler Html

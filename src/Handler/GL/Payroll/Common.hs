@@ -247,9 +247,9 @@ employeeDescription (Entity _ op, emp) = intercalate " "
   [ operatorNickname op
   , operatorFirstname op
   , operatorSurname op
-  , timesheet emp
+  , "#" <> tshow (payrollId emp)
+  , "$" <> tshow (hourlyRate emp)
   ]
-
 
 period :: PayrollSettings -> PayrollFrequency -> Day -> (Integer, Int, String, Day)
 period settings TS.Weekly day = let
