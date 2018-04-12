@@ -909,6 +909,7 @@ viewPayrollDurationPermissions = do
   let unlocker operator = granter role (ViewPriv, operator)
   return unlocker
 
+
 isShiftDurationUnlocked = isUnlocked ?viewPayrollDurationPermissions . TS._duration
 isShiftAmountUnlocked = isUnlocked ?viewPayrollDurationPermissions . TS._duration
 isShiftUnlocked = liftA2 (&&) isShiftDurationUnlocked isShiftAmountUnlocked

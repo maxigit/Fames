@@ -178,7 +178,7 @@ data Token = NameT String
            | SkipT
            | FrequencyT PayrollFrequency 
            | PipeT
-           | MultiplierT Duration ShiftType Duration
+           | MultiplierT Double ShiftType Duration
            | WeekDayT WeekDay
            | DeductionAndCostT (Maybe Amount) (Maybe Amount)
            | ExternalT String
@@ -214,7 +214,7 @@ token s = case mapMaybe match cases of
                       , ("([0-9]+(.[0-9+])?)x([^[:space:]]+)", \(_, [mul, _, leftover]) -> do -- Either
                                               subtoken <- token leftover
                                               case subtoken of
-                                                    DurationT typ duration -> Right $ MultiplierT (readLock "mul" mul) typ duration
+                                                    DurationT typ duration -> Right $ MultiplierT (read "mul" mul) typ duration
                                                     _ -> Left $ s ++ " is not a valid duration"
                         )
                       , ("([0-9]{1,2})h([0-9]{2})", \(_, [hh, mm]) -> Right $ DurationT Work ((readLock "Dur:hh" hh + readLock "Dur:mm" mm / 60)))
@@ -362,7 +362,7 @@ processShift u t =  case t of
                                        (addDeductionAndCost u deductionM costM)
         -- many days, apply it many times
         MultiplierT n stype dur | n <= 0 -> Right u
-                                | n < 1 -> processShift u (DurationT stype (n*dur))
+                                | n < 1 -> processShift u (DurationT stype (pure n*dur))
                                 | otherwise -> do
                                     u' <- processShift u (DurationT stype dur)
                                     processShift u' ((MultiplierT (n-1) stype dur))
