@@ -70,17 +70,20 @@ saveTimeSheetModel invM key ref (model, shiftsFn, itemsFn) = do
 loadTimesheet :: Int64 -> Handler (Maybe (Entity Timesheet, [Entity PayrollShift], [Entity PayrollItem]))
 loadTimesheet key64 = do
   let key = TimesheetKey (SqlBackendKey key64)
-  es <- loadTimesheets [TimesheetId ==. key]
+  es <- loadTimesheets [TimesheetId ==. key] [] []
   return $ listToMaybe es
 
-loadTimesheets :: [Filter Timesheet] -> Handler [ (Entity Timesheet, [Entity PayrollShift], [Entity PayrollItem])]
-loadTimesheets criteria = do
+loadTimesheets :: [Filter Timesheet]
+               -> [Filter PayrollShift]
+               -> [Filter PayrollItem]
+               -> Handler [ (Entity Timesheet, [Entity PayrollShift], [Entity PayrollItem])]
+loadTimesheets criteria shiftCriteria itemCriteria = do
   runDB $ do
     tss <- selectList criteria []
     forM tss $ \ts -> do
         let key = entityKey ts
-        shifts <- selectList [PayrollShiftTimesheet ==. key] []
-        items <- selectList [PayrollItemTimesheet ==. key] []
+        shifts <- selectList ((PayrollShiftTimesheet ==. key) : shiftCriteria) []
+        items <- selectList ((PayrollItemTimesheet ==. key) : itemCriteria) []
         return (ts, shifts, items)
 
 -- * Converter

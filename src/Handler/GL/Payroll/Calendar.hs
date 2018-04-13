@@ -25,6 +25,7 @@ data CalendarParam = CalendarParam
   , to :: Maybe Day
   , reference :: Maybe FilterExpression 
   , frequency :: Maybe PayrollFrequency 
+  , shiftType :: Maybe TS.ShiftType
   }
 -- ** Form
 filterForm :: Maybe CalendarParam -> _ -- (FormResult CalendarParam, Widget)
@@ -34,6 +35,7 @@ filterForm paramM = let
                  <*> aopt dayField "To" (to <$> paramM)
                  <*> aopt filterEField "Reference" (reference <$> paramM)
                  <*> aopt (selectField optionsEnum)  "Frequency" (frequency <$> paramM)
+                 <*> aopt (selectField optionsEnum)  "Type" (shiftType <$> paramM)
   in renderBootstrap3 BootstrapBasicForm form
 
 -- * Handler
@@ -43,6 +45,7 @@ getGLPayrollCalendarR = do
   let lastMonth = addGregorianMonthsClip (-1) today
   renderMain (Just $ CalendarParam (Just lastMonth)
                                    (Just today)
+                                   Nothing
                                    Nothing
                                    Nothing
              )
@@ -99,10 +102,11 @@ loadTimesheet' param = do
                 to param <&> (TimesheetStart <=. ) ?:
                 frequency param <&> (TimesheetFrequency ==. ) ?:
                 (filterE id TimesheetReference (reference param))
+      shiftCriteria = shiftType param <&> ((PayrollShiftType ==.) . tshow) ?: []
   case filter of
     [] -> return []
     _ -> do
-      modelEs <- loadTimesheets filter
+      modelEs <- loadTimesheets filter shiftCriteria []
       let timesheetOpIds = map (\(e,ss, is) -> modelToTimesheetOpId e ss is) modelEs
       ts' <- mapM timesheetOpIdToTextH timesheetOpIds
       case sequence ts' of

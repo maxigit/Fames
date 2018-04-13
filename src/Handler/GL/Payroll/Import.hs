@@ -253,7 +253,7 @@ loadInvoice param (Entity invKey inv) = do
   -- find timesheet
   -- traceShowM ("loading invoice", invKey)
   let no = FA.suppTranTransNo inv
-  timesheetM <- loadTimesheets [TimesheetReference ==. (FA.suppTranSuppReference inv)]
+  timesheetM <- loadTimesheets [TimesheetReference ==. (FA.suppTranSuppReference inv)] [] []
   trans <- runDB $ selectList [ FA.GlTranType ==. fromEnum ST_SUPPINVOICE
                               , FA.GlTranTypeNo ==. no
                               -- , FA.GlTranStockId ==. Nothing

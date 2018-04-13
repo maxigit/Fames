@@ -34,7 +34,7 @@ saveQuickAdd  save text key  = do
     timesheets <- ExceptT . return $ splitTimesheet text
 
     ws <- forM timesheets $ \(ref, texts) -> do
-      tEs <- lift $ loadTimesheets [TimesheetReference ==. ref]
+      tEs <- lift $ loadTimesheets [TimesheetReference ==. ref] [] []
       case tEs of
         [ (oldE@(Entity key oldT), oldShifts, oldItems) ] -> do
           let start = timesheetStart oldT

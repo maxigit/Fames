@@ -164,7 +164,7 @@ loadTimesheet' param = do
   case filter of
     [] -> return []
     _ -> do
-      modelEs <- loadTimesheets filter
+      modelEs <- loadTimesheets filter [] []
       let timesheetOpIds = map (\(e,ss, is) -> modelToTimesheetOpId e ss is) modelEs
       ts' <- mapM timesheetOpIdToTextH timesheetOpIds
       case sequence ts' of
