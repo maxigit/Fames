@@ -39,6 +39,7 @@ module Handler.Util
 , ioToHx
 , ioToH
 , hToHx
+, eToX
 ) where
 -- ** Import
 import Foundation
@@ -459,6 +460,7 @@ ioToHx = liftIO
 eToHx :: Text -> HandlerX a
 eToHx = throwError --  heToHx . return . Left
 
+
 ioeToHx :: IO (Either Text a) -> HandlerX a
 ioeToHx = ioxToHx . ioeToIox 
 
@@ -476,7 +478,6 @@ hxtoHe :: HandlerX a -> Handler (Either Text a)
 hxtoHe = runExceptT 
 
 
-x :: Monad m => Either e a -> ExceptT e m a
--- x =  ExceptT. return
-x =  either throwError return
+eToX :: Monad m => Either e a -> ExceptT e m a
+eToX =  either throwError return
 
