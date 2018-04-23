@@ -2,10 +2,10 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 37fae058512ad3e3e673073b5a16e00ba255dc01ab193924b9d287e3b0a55c5f
+-- hash: 08975fc80f5906cc0b1ef5196ef3f591a6ed01931e348b1dacd1ad4110ba391e
 
 name:           fames-persist
-version:        0.0.0
+version:        0.0.1
 license:        UnspecifiedLicense
 build-type:     Simple
 cabal-version:  >= 1.10
@@ -28,7 +28,7 @@ library
   build-depends:
       Glob
     , Metamorphosis >=0.1.0.1
-    , aeson >=0.6 && <1.1
+    , aeson >=0.6 && <1.4
     , base >=4 && <5
     , blaze-html
     , blaze-markup
@@ -62,7 +62,7 @@ library
     , mtl >=2.2 && <2.3
     , mysql
     , path-pieces >=0.2 && <0.3
-    , persistent >=2.0 && <2.7
+    , persistent >=2.0 && <2.8
     , persistent-mysql >=2.1.2 && <2.7
     , persistent-template >=2.0 && <2.6
     , pointed >=5
