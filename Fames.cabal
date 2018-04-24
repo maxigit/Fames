@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4e1171e6f741bd8eacaa592598fe88c9ea73ee1ccaca9337d8638d951ae2e6a1
+-- hash: e88d481754bd0b9abdcf0e636bfc532811ff792626f5047857045f82c9cf5a13
 
 name:           Fames
 version:        0.0.1
@@ -141,6 +141,7 @@ library
       Handler.Items
       Handler.Items.History
       Handler.Items.Index
+      Handler.Items.Report
       Handler.Planner
       Handler.Planner.Exec
       Handler.Planner.View

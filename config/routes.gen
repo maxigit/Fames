@@ -57,12 +57,14 @@
   /boxtake/save WHBoxtakeSaveR POST !boxtake_save
   /boxtake/planner WHBoxtakePlannerR GET !title=Export_Planner
 
-  /dimensions WHDimensionR GET !dimension !title=Dimensions
+  /dimensions WHDimensionR GET !dimension !title=Dimension 
   /dimensions/bulk WHDimensionBulkR GET POST !title=Dimensions_Bulk !dimension
   /dimensions/outer/#Int64/#Int64/#Int64/ WHDimensionOuterR GET 
   /dimensions/inner/#Int64/#Int64/#Int64/#Int64/#Int64/#Int64/ WHDimensionInnerR GET
 
 /items ItemsR !items:
+  /report/#Maybe-ReportMode ItemsReportR GET POST !report !group=Report !title=Reporting
+
   /index/#Maybe-ItemViewMode ItemsIndexR GET POST !items/index !group=Maintenance !title=Index
   /history/#Text ItemsHistoryR GET !items/history
 

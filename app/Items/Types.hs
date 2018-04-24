@@ -24,7 +24,7 @@ deriving instance (Eq a) => Eq (ItemInfo a)
 deriving instance (Ord a) => Ord (ItemInfo a)
 
 -- | MinMax Min and Max functor
-data MinMax a = MinMax a a deriving Functor
+data MinMax a = MinMax a a deriving (Functor, Eq, Ord, Show)
 
 instance Ord a => Semigroup (MinMax a) where
   (MinMax x y) <> (MinMax x' y') = MinMax (min x x') (max y y')
@@ -33,12 +33,14 @@ instance Applicative MinMax where
   pure x = MinMax x x
   (MinMax fx fy) <*> (MinMax x y) = MinMax (fx x) (fy y)
 
+-- * Index
 -- | Status of a variation within a group
 -- Given a group of items and a list of variations
 -- tells if the current items belongs , is missing or is extra
 data VariationStatus= VarOk | VarMissing | VarExtra deriving (Eq, Show, Read, Ord)
 
 type FieldWithClasses a = ([Text], a)
+-- ** Functor parametrize data types
 -- | Functor parameterized version of StockMaster
 $(metamorphosis
  ( (return)
@@ -52,7 +54,6 @@ $(metamorphosis
  (const []) 
  )
 
--- * Functor parametrize data types
 -- instance Generic (StockMasterF f)
 
 -- | Functor parametrized version of Price
@@ -115,7 +116,7 @@ data ItemMasterAndPrices f = ItemMasterAndPrices
   , impWebPrices :: Maybe (ItemPriceF f)
   } 
 
--- * Instances
+-- ** Instances
 deriving instance Show (StockMasterF Identity)
 deriving instance Show (PriceF Identity)
 deriving instance Show (PurchDataF Identity)
@@ -159,3 +160,19 @@ data FARunningStatus = FARunning -- ^ can and need to be sold
                     | FAGhost -- ^ In the system but can be deleted.
                     deriving (Show, Read, Eq)
 
+
+-- * Reporting
+-- | Quantity and Price
+-- to make it a semigroup we need to also store the amount
+type Quantity = Double
+type Amount = Double
+data QPrice = QPrice
+  { qpQty :: Quantity
+  , qpAmount :: Amount
+  , qpPrice :: MinMax Amount
+  } deriving (Eq, Ord, Show)
+
+qpFromPrice price = QPrice 1 price (pure price)
+
+instance Semigroup (QPrice) where
+  (QPrice q a mm) <> (QPrice q' a' mm') = QPrice (q+q') (a+a') (mm <> mm')

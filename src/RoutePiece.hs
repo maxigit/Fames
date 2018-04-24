@@ -26,6 +26,7 @@ instance PathPiece PLViewMode where
   toPathPiece = showToPathPiece
 
 
+-- * Items
 -- ** ItemIndex
 data ItemViewMode = ItemGLView
                    | ItemPriceView
@@ -36,6 +37,15 @@ data ItemViewMode = ItemGLView
 instance PathPiece ItemViewMode where
   fromPathPiece = readFromPathPiece
   toPathPiece = showToPathPiece
+-- ** Reports
+data ReportMode = ReportTable
+                | ReportChart
+                | ReportCsv
+     deriving (Eq, Read, Show, Enum, Bounded)
+instance PathPiece ReportMode where
+  fromPathPiece = readFromPathPiece
+  toPathPiece = showToPathPiece
+                
 
 
 -- * Planner
