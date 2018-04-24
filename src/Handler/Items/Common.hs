@@ -66,5 +66,5 @@ slidingYearShow today day =  let
   y = year today
   s = slidingYear today day
   y' = y + s
-  in show (y'-1) <> "-" <> show y
+  in show (y'-1) <> "-" <> show y'
 
