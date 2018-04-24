@@ -23,8 +23,8 @@ loadItemTransactions = do
                                 ]
                                 <> filterE id FA.StockMoveStockId (Just . LikeFilter $ stockLike)
                               )
-                              -- []
-                               [LimitTo 1000]
+                              []
+                               -- [LimitTo 1000]
 
   let info = mapMaybe (moveToTransInfo . entityVal) moves
   -- set category
@@ -84,7 +84,7 @@ itemReport rowGrouper colGrouper= do
                                   <td> #{showDouble qpMin}
                                   <td> #{showDouble qpMax}
                                   |] where (MinMax qpMin qpMax ) = qpPrice
-  return [whamlet|
+      widget =  [whamlet|
     $forall (h1, group) <- Map.toList grouped'
       <div.panel.panel-info>
         <div.panel-heading>
@@ -118,7 +118,42 @@ itemReport rowGrouper colGrouper= do
                   ^{showQp $ purchQPrice qp}
                   ^{showQp $ adjQPrice qp}
                   |]
+  return (widget, grouped')
 
+
+-- *** Csv
+toCsv grouped' = let
+  showQp Nothing = []
+  showQp (Just QPrice{..}) = [ tshow qpQty
+                              , tshow qpAmount
+                              , tshow qpMin
+                              , tshow qpMax
+                              ] where (MinMax qpMin qpMax ) = qpPrice
+  header = intercalate "," [ "Category"
+                          , "Period"
+                          ,  "Sales Qty"
+                          ,  "Sales Amount"
+                          ,  "Sales Min Price"
+                          ,  "Sales max Price"
+                          ,  "Purch Qty"
+                          ,  "Purch Amount"
+                          ,  "Purch Min Price"
+                          ,  "Purch max Price"
+                          ,  "Adjustment Qty"
+                          ,  "Adjustment Amount"
+                          ,  "Adjustment Min Price"
+                          ,  "Adjustment max Price"
+                          ]
+  in header : do
+    (h1, group) <- Map.toList grouped'
+    (h2,qp) <- Map.toList group
+    return $ intercalate "," $  [ tshowM h1
+                      , tshowM h2
+                      ]
+                      <> (showQp $ salesQPrice qp)
+                      <> (showQp $ purchQPrice qp)
+                      <> (showQp $ adjQPrice qp)
+  
 -- ** Utils
 -- splitToGroups :: (a -> k) -> (a -> a') ->   [(a,b)] -> [(k, (a',b))]
 groupAsMap :: (Semigroup a, Ord k) => (t -> k) -> (t -> a) -> [t] -> Map k a

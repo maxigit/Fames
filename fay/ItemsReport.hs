@@ -19,6 +19,7 @@ import           SharedTypes
 main :: Fay ()
 main = do
   installNav ajaxReload
+  return ()
 
 ajaxReload url = do
   form <- select "#items-report-form"
@@ -26,5 +27,6 @@ ajaxReload url = do
   JQ.setHtml ("<p>Loading...</p>") table
   ajaxReloadFFI url form (\html -> do
                             JQ.setHtml (FT.pack $ T.unpack html) table
+                            return ()
                             )
   return ()

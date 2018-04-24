@@ -17,13 +17,13 @@ import           SharedTypes
 main :: Fay ()
 main = do
   main' -- redone after ajax update
-  installNav
+  installNav'
   return ()
 
 main :: Fay ()
 main' = return ()
 
-installNav = do
+installNav' = do
   navs <- select "a.view-mode[data-url]"
   jQueryMap (\_ el -> do
                nav <- select el
@@ -53,6 +53,3 @@ ajaxReload url = do
                             main'
                             )
   return ()
-
-ajaxReloadFFI :: FT.Text -> JQuery -> (a -> Fay ()) ->  Fay ()
-ajaxReloadFFI = ffi "$.ajax({url:%1, data:%2.serialize(), dataType:'json', type:'POST',success:%3})"

@@ -31,8 +31,13 @@ postItemsReportR mode = do
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess param -> do
-      report <- itemReport tkCategory (Just . slidingYearShow today . tkDay)
-      renderReportForm mode (Just param) ok200 (Just report)
+      (report, result) <- itemReport tkCategory (Just . slidingYearShow today . tkDay)
+      case mode of
+        Just ReportCsv -> do
+              let source = yieldMany (map (<> "\n") (toCsv result))
+              respondSource "text/csv" (source =$= mapC toFlushBuilder)
+        _ -> do
+              renderReportForm mode (Just param) ok200 (Just report)
 
 
 -- ** Renders
@@ -53,7 +58,10 @@ renderReportForm  modeM paramM status resultM = do
           <ul.nav.nav-tabs>
             $forall nav <- navs
               <li class=#{navClass nav}>
-                <a.view-mode href="#" data-url="@{ItemsR (ItemsReportR (Just nav))}"> #{drop 6 $ tshow nav}
+                $if nav == ReportCsv
+                  <a href="@{ItemsR (ItemsReportR (Just nav))}"> #{drop 6 $ tshow nav}
+                $else
+                  <a.view-mode href="#" data-url="@{ItemsR (ItemsReportR (Just nav))}"> #{drop 6 $ tshow nav}
           <div#items-report-result>
             ^{result}
                         |]
