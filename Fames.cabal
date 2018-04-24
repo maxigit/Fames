@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 12769d3213b48062555f27aef6aea7bd41ce211c0cc7d3e9980dcb42ec85c0db
+-- hash: a77d966351ad52fe8158590f411732e5b84d0e143171df5f665f948046228e23
 
 name:           Fames
 version:        0.0.1
@@ -54,7 +54,7 @@ library
     , directory >=1.1 && <1.4
     , fames-persist
     , fast-logger >=2.2 && <2.5
-    , fay >=0.21.2.1 && <0.25
+    , fay >=0.21.2.1 && <0.24
     , fay-jquery >=0.6 && <0.7
     , fay-text >=0.3 && <0.4
     , file-embed
@@ -235,7 +235,7 @@ executable Fames
     , directory >=1.1 && <1.4
     , fames-persist
     , fast-logger >=2.2 && <2.5
-    , fay >=0.21.2.1 && <0.25
+    , fay >=0.21.2.1 && <0.24
     , fay-jquery >=0.6 && <0.7
     , fay-text >=0.3 && <0.4
     , file-embed
@@ -349,7 +349,7 @@ test-suite test
     , directory >=1.1 && <1.4
     , fames-persist
     , fast-logger >=2.2 && <2.5
-    , fay >=0.21.2.1 && <0.25
+    , fay >=0.21.2.1 && <0.24
     , fay-jquery >=0.6 && <0.7
     , fay-text >=0.3 && <0.4
     , file-embed

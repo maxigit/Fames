@@ -43,16 +43,17 @@ renderReportForm  modeM paramM status resultM = do
       navClass nav = if mode == nav then "active" else "" :: Html
       fay = $(fayFile "ItemsReport")
   defaultLayout $ fay >> [whamlet|
-    <form #item-report role=form method=post action="@{ItemsR (ItemsReportR modeM)}" enctype="#{repEncType}">
+    <form #items-report-form role=form method=post action="@{ItemsR (ItemsReportR modeM)}" enctype="#{repEncType}">
       <div.well>
         ^{repForm}
         <button.btn type="submit">Submit
       <ul.nav.nav-tabs>
-      $maybe result <- resultM
-        $forall nav <- navs
-          <li class=#{navClass nav}>
-             <a.view-mode href="#" data-url="@{ItemsR (ItemsReportR (Just nav))}"> #{drop 6 $ tshow nav}
-        ^{result}
+      <div#items-report-result>
+        $maybe result <- resultM
+          $forall nav <- navs
+            <li class=#{navClass nav}>
+              <a.view-mode href="#" data-url="@{ItemsR (ItemsReportR (Just nav))}"> #{drop 6 $ tshow nav}
+          ^{result}
                         |]
 
 

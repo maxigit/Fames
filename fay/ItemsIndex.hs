@@ -19,7 +19,7 @@ partition f xs = (Prelude.filter f xs, Prelude.filter (Prelude.not . f) xs)
 main :: Fay ()
 main = do
   main'
-  installNav
+  installNav ajaxReload
   return ()
 main' :: Fay ()
 main' = do
@@ -113,8 +113,6 @@ ajaxReload url = do
                             )
   return ()
 
-ajaxReloadFFI :: FT.Text -> JQuery -> (a -> Fay ()) ->  Fay ()
-ajaxReloadFFI = ffi "$.ajax({url:%1, data:%2.serialize(), dataType:'json', type:'POST',success:%3})"
 
 findInClasses prefix [] = []
 findInClasses prefix (c:cs) =

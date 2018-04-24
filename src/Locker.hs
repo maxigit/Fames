@@ -31,20 +31,20 @@ data Granted = Granted | Forbidden deriving (Eq, Ord, Show, Read)
 lock :: Ord r => [r] -> a -> Locker r a
 lock rs x = Locker (setFromList rs) x
 
-unlock :: Ord r => (r -> Granted) ->  Locker r a -> Either [r] a
+unlock :: (r -> Granted) ->  Locker r a -> Either [r] a
 unlock unlocker (Locker roles value) = case filter ((== Forbidden). unlocker) (toList roles) of
     [] -> Right value
     missings -> Left missings
 
 isUnlocked granter = isRight . unlock granter
   
-permissions :: Ord r => Locker r a -> [r]
+permissions :: Locker r a -> [r]
 permissions (Locker rs _)  = toList rs
 
 restrict :: Ord r => [r] ->  Locker r a -> Locker r a
 restrict rs' (Locker rs x) = Locker (rs <> setFromList rs') x
 
--- unlock' unlocker privilege (Locker roles value) = unlock unlocker $ Locker (setFromList $ map (privilege,) (toList roles)) value
+unlock' unlocker privilege (Locker roles value) = unlock unlocker $ Locker (setFromList $ map (privilege,) (toList roles)) value
 
 -- * Unsafe
 unsafeUnlock (Locker rs x) = traceShow ("Unsafe UNLOCK requiring " <> show rs) x
@@ -78,12 +78,12 @@ instance (Ord r, Fractional a) => Fractional (Locker r a) where
 
 -- Show Instance which is readable if there is no permission required
 -- but not otherwise
-instance (Show r, Show a, Ord r) => Show (Locker r a) where
+instance (Show r, Show a) => Show (Locker r a) where
   show l@(Locker rs v) = "Locker " <> show rs <> " ("
                          <> (showLock (const Forbidden) l)
                          <>  ")" 
 
-showLock  :: (Show r, Show a, Ord r) => (r -> Granted) ->  (Locker r a ) -> String
+showLock  :: (Show r, Show a) => (r -> Granted) ->  (Locker r a ) -> String
 showLock  unlocker lock = case unlock unlocker lock of
   Left required -> "Requires: " <> show required
   Right value -> show value

@@ -92,7 +92,7 @@ jUncheck = ffi "%1.prop('checked', false)"
 
 -- * Install navigation callback
 
-installNav = do
+installNav ajaxReload = do
   navs <- select "a.view-mode[data-url]"
   jQueryMap (\_ el -> do
                nav <- select el
@@ -112,3 +112,6 @@ installNav = do
                    return False
                            ) nav
             ) navs
+
+ajaxReloadFFI :: FT.Text -> JQuery -> (a -> Fay ()) ->  Fay ()
+ajaxReloadFFI = ffi "$.ajax({url:%1, data:%2.serialize(), dataType:'json', type:'POST',success:%3})"
