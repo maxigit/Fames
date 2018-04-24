@@ -1,6 +1,10 @@
 module Handler.Items.Report
 ( getItemsReportR
 , postItemsReportR
+, getItemsReport2R
+, postItemsReport2R
+, getItemsReport3R
+, postItemsReport3R
 ) where
 
 import Import
@@ -23,7 +27,11 @@ getItemsReportR :: Maybe ReportMode -> Handler TypedContent
 getItemsReportR mode = do
   renderReportForm mode Nothing ok200 Nothing
 
-postItemsReportR :: Maybe ReportMode -> Handler TypedContent
+getItemsReport2R mode = do
+  renderReportForm mode Nothing ok200 Nothing
+
+getItemsReport3R = getItemsReport2R
+
 postItemsReportR mode = do
   today <- utctDay <$> liftIO getCurrentTime
   ((resp, formW), enctype) <- runFormPost (reportForm Nothing)
@@ -39,7 +47,37 @@ postItemsReportR mode = do
         _ -> do
               renderReportForm mode (Just param) ok200 (Just report)
 
+postItemsReport2R :: Maybe ReportMode -> Handler TypedContent
+postItemsReport2R mode = do
+  today <- utctDay <$> liftIO getCurrentTime
+  ((resp, formW), enctype) <- runFormPost (reportForm Nothing)
+  case resp of
+    FormMissing -> error "form missing"
+    FormFailure a -> error $ "Form failure : " ++ show a
+    FormSuccess param -> do
+      (report, result) <- itemReport tkStyle (Just . slidingYearShow today . tkDay)
+      case mode of
+        Just ReportCsv -> do
+              let source = yieldMany (map (<> "\n") (toCsv result))
+              respondSource "text/csv" (source =$= mapC toFlushBuilder)
+        _ -> do
+              renderReportForm mode (Just param) ok200 (Just report)
 
+postItemsReport3R :: Maybe ReportMode -> Handler TypedContent
+postItemsReport3R mode = do
+  today <- utctDay <$> liftIO getCurrentTime
+  ((resp, formW), enctype) <- runFormPost (reportForm Nothing)
+  case resp of
+    FormMissing -> error "form missing"
+    FormFailure a -> error $ "Form failure : " ++ show a
+    FormSuccess param -> do
+      (report, result) <- itemReport tkStyle tkVar
+      case mode of
+        Just ReportCsv -> do
+              let source = yieldMany (map (<> "\n") (toCsv result))
+              respondSource "text/csv" (source =$= mapC toFlushBuilder)
+        _ -> do
+              renderReportForm mode (Just param) ok200 (Just report)
 -- ** Renders
 
 renderReportForm  :: Maybe ReportMode -> Maybe ReportParam  -> Status -> Maybe Widget -> Handler TypedContent

@@ -64,6 +64,8 @@
 
 /items ItemsR !items:
   /report/#Maybe-ReportMode ItemsReportR GET POST !report !group=Reporting !title=Report
+  /report2/#Maybe-ReportMode ItemsReport2R GET POST !report !group=Reporting !title=Styles_by_Year
+  /report3/#Maybe-ReportMode ItemsReport3R GET POST !report !group=Reporting !title=Styles_by_Colour
 
   /index/#Maybe-ItemViewMode ItemsIndexR GET POST !items/index !group=Maintenance !title=Index
   /history/#Text ItemsHistoryR GET !items/history
