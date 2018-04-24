@@ -25,12 +25,13 @@ reportForm paramM = let
 -- * Handler
 getItemsReportR :: Maybe ReportMode -> Handler TypedContent
 getItemsReportR mode = do
-  renderReportForm mode Nothing ok200 Nothing
+  renderReportForm ItemsReportR mode Nothing ok200 Nothing
 
 getItemsReport2R mode = do
-  renderReportForm mode Nothing ok200 Nothing
+  renderReportForm ItemsReport2R mode Nothing ok200 Nothing
 
-getItemsReport3R = getItemsReport2R
+getItemsReport3R mode = do 
+  renderReportForm ItemsReport3R mode Nothing ok200 Nothing
 
 postItemsReportR mode = do
   today <- utctDay <$> liftIO getCurrentTime
@@ -45,7 +46,7 @@ postItemsReportR mode = do
               let source = yieldMany (map (<> "\n") (toCsv result))
               respondSource "text/csv" (source =$= mapC toFlushBuilder)
         _ -> do
-              renderReportForm mode (Just param) ok200 (Just report)
+              renderReportForm ItemsReportR mode (Just param) ok200 (Just report)
 
 postItemsReport2R :: Maybe ReportMode -> Handler TypedContent
 postItemsReport2R mode = do
@@ -61,7 +62,7 @@ postItemsReport2R mode = do
               let source = yieldMany (map (<> "\n") (toCsv result))
               respondSource "text/csv" (source =$= mapC toFlushBuilder)
         _ -> do
-              renderReportForm mode (Just param) ok200 (Just report)
+              renderReportForm ItemsReport2R mode (Just param) ok200 (Just report)
 
 postItemsReport3R :: Maybe ReportMode -> Handler TypedContent
 postItemsReport3R mode = do
@@ -77,18 +78,18 @@ postItemsReport3R mode = do
               let source = yieldMany (map (<> "\n") (toCsv result))
               respondSource "text/csv" (source =$= mapC toFlushBuilder)
         _ -> do
-              renderReportForm mode (Just param) ok200 (Just report)
+              renderReportForm ItemsReport3R mode (Just param) ok200 (Just report)
 -- ** Renders
 
-renderReportForm  :: Maybe ReportMode -> Maybe ReportParam  -> Status -> Maybe Widget -> Handler TypedContent
-renderReportForm  modeM paramM status resultM = do
+-- renderReportForm  :: _ Maybe ReportMode -> Maybe ReportParam  -> Status -> Maybe Widget -> Handler TypedContent
+renderReportForm  route modeM paramM status resultM = do
   (repForm, repEncType) <- generateFormPost $ reportForm paramM
   let navs = [minBound..maxBound] :: [ReportMode]
       mode = fromMaybe ReportChart modeM
       navClass nav = if mode == nav then "active" else "" :: Html
       fay = $(fayFile "ItemsReport")
       widget = [whamlet|
-    <form #items-report-form role=form method=post action="@{ItemsR (ItemsReportR modeM)}" enctype="#{repEncType}">
+    <form #items-report-form role=form method=post action="@{ItemsR (route modeM)}" enctype="#{repEncType}">
       <div.well>
         ^{repForm}
         <button.btn type="submit">Submit
