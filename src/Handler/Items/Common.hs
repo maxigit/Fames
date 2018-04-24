@@ -3,6 +3,8 @@ module Handler.Items.Common where
 import Import
 import Items
 import Data.Text(splitOn)
+import qualified Data.Map as Map 
+import Text.Regex.TDFA ((=~))
 
 -- * Style names conversion
 -- Those function are in handler and not in app
@@ -17,6 +19,7 @@ styleVarToSku :: Text -> Text -> Text
 styleVarToSku style "" = style
 styleVarToSku style var = style <> "-" <> var
   
+
 -- ** Sku form info
 
 iiSku (ItemInfo style var _ ) = styleVarToSku style var
@@ -29,3 +32,15 @@ variationToVars var = splitOn "/" var
 -- | Inverse of variationToVars
 varsToVariation :: [Text] -> Text
 varsToVariation vars = intercalate "/" vars
+
+-- * Category
+-- | Return a function finding the category given a style
+categoryFinder :: Handler (Text -> Maybe Text)
+categoryFinder = do
+  catRules <- appCategoryRules <$> getsYesod appSettings
+  let rules = concatMap (Map.toList) catRules
+      finder s = asum [ Just result
+                      | (regex, result) <- rules
+                      , unpack s =~ regex
+                      ]
+  return finder

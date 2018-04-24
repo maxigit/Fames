@@ -14,6 +14,7 @@ import Data.List.NonEmpty (NonEmpty(..))
 loadItemTransactions :: Handler [(TranKey, TranQP)]
 loadItemTransactions = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
+  catFinder <- categoryFinder
   today <- utctDay <$> liftIO getCurrentTime
   let to = today
       from = addDays (-3650) to
@@ -23,7 +24,10 @@ loadItemTransactions = do
                                 <> filterE id FA.StockMoveStockId (Just . LikeFilter $ stockLike)
                               )
                               [] -- LimitTo 100]
-  return $ mapMaybe (moveToTransInfo . entityVal) moves
+
+  let info = mapMaybe (moveToTransInfo . entityVal) moves
+  -- set category
+  return [ (k { tkCategory = catFinder =<< tkStyle k }, qp) | (k, qp) <- info]
 
 -- * Converter
 moveToTransInfo :: StockMove -> Maybe (TranKey, TranQP)
@@ -65,6 +69,8 @@ itemReport rowGrouper colGrouper= do
   let grouped = groupAsMap (rowGrouper . fst) (:[]) trans
       grouped' = groupAsMap (colGrouper . fst) snd <$> grouped
       summarize group = sconcat (q :| qp) where  (q:qp) = toList group
+      profit qp = maybe 0 qpAmount (salesQPrice qp)
+                  -  maybe 0 qpAmount (purchQPrice qp)
       showQp Nothing = [whamlet|
                                   <td>
                                   <td>
@@ -106,7 +112,7 @@ itemReport rowGrouper colGrouper= do
                 ^{showQp $ adjQPrice qp}
             $with (qp) <- summarize group
                 <tr.total>
-                  <td> Total
+                  <td> #{showDouble $ profit qp }
                   ^{showQp $ salesQPrice qp}
                   ^{showQp $ purchQPrice qp}
                   ^{showQp $ adjQPrice qp}

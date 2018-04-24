@@ -27,7 +27,7 @@ postItemsReportR mode = do
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess param -> do
-      report <- itemReport tkStyle tkVar
+      report <- itemReport tkCategory tkStyle
       renderReportForm mode (Just param) ok200 (Just report)
 
 

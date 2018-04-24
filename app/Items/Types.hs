@@ -191,7 +191,6 @@ instance Semigroup TranQP where
     go a Nothing = a
     go (Just a) (Just b) = Just $ a <> b
 
-
 -- | Key to hold TranQP information
 data TranKey = TranKey
   { tkDay :: Day
@@ -199,5 +198,5 @@ data TranKey = TranKey
   , tkSupplier :: Maybe Int
   , tkStyle :: Maybe Text
   , tkVar :: Maybe Text
-  , tkCaterogy :: Maybe Text
+  , tkCategory :: Maybe Text
   } deriving (Show, Eq, Ord)
