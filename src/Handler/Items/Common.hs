@@ -5,6 +5,7 @@ import Items
 import Data.Text(splitOn)
 import qualified Data.Map as Map 
 import Text.Regex.TDFA ((=~))
+import Data.Time.Calendar
 
 -- * Style names conversion
 -- Those function are in handler and not in app
@@ -44,3 +45,26 @@ categoryFinder = do
                       , unpack s =~ regex
                       ]
   return finder
+-- ** Date
+-- Year of the given date
+year :: Day -> Integer
+year day = y where (y,_,_) = toGregorian day
+
+
+-- Year as if next year was starting tomorrow
+slidingYear :: Day -> Day -> Integer
+slidingYear today day = let
+  (y,m,d) = toGregorian day
+  (y0,m0,d0) = toGregorian today
+  before = if (m,d) < (m0,d0) then 0 else 1
+  in y - y0 + before
+
+-- | showing sliding year give a string
+-- which is not sort frienly (as negative number comes before 0)
+slidingYearShow :: Day -> Day -> String
+slidingYearShow today day =  let
+  y = year today
+  s = slidingYear today day
+  y' = y + s
+  in show (y'-1) <> "-" <> show y
+

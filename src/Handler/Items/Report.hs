@@ -6,6 +6,7 @@ module Handler.Items.Report
 import Import
 import Items.Types
 import Handler.Items.Reports.Common
+import Handler.Items.Common
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,)
 
 -- * Type
@@ -22,12 +23,13 @@ getItemsReportR mode = do
   renderReportForm mode Nothing ok200 Nothing
 
 postItemsReportR mode = do
+  today <- utctDay <$> liftIO getCurrentTime
   ((resp, formW), enctype) <- runFormPost (reportForm Nothing)
   case resp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess param -> do
-      report <- itemReport tkCategory tkStyle
+      report <- itemReport tkCategory (Just . slidingYearShow today . tkDay)
       renderReportForm mode (Just param) ok200 (Just report)
 
 
