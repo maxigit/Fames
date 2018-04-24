@@ -89,3 +89,26 @@ jIsTrue = ffi "%1 === true"
 jUncheck :: JQuery -> Fay JQuery
 jUncheck = ffi "%1.prop('checked', false)"
   
+
+-- * Install navigation callback
+
+installNav = do
+  navs <- select "a.view-mode[data-url]"
+  jQueryMap (\_ el -> do
+               nav <- select el
+               onClick (\ev -> do
+                   url' <- JQ.getAttr "data-url" nav
+                   let Defined url = url'
+                   ajaxReload url
+                   -- update nav tab state manually
+                   -- because or ajax doesn't render the navbar
+                   JQ.removeClass "active" =<< closestSelector "li" navs
+                   JQ.addClass "active" =<< closestSelector "li" nav
+                   -- update the url on the form, so that next form submit
+                   -- keep the actual tab
+                   form <- select "#items-form"
+                   JQ.setAttr "action" url form
+                   -- setLocation (T.pack $ FT.unpack url)
+                   return False
+                           ) nav
+            ) navs

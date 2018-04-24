@@ -23,7 +23,8 @@ loadItemTransactions = do
                                 ]
                                 <> filterE id FA.StockMoveStockId (Just . LikeFilter $ stockLike)
                               )
-                              [] -- LimitTo 100]
+                              -- []
+                               [LimitTo 100]
 
   let info = mapMaybe (moveToTransInfo . entityVal) moves
   -- set category

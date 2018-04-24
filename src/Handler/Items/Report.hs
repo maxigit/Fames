@@ -41,7 +41,8 @@ renderReportForm  modeM paramM status resultM = do
   let navs = [minBound..maxBound] :: [ReportMode]
       mode = fromMaybe ReportChart modeM
       navClass nav = if mode == nav then "active" else "" :: Html
-  defaultLayout [whamlet|
+      fay = $(fayFile "ItemsReport")
+  defaultLayout $ fay >> [whamlet|
     <form #item-report role=form method=post action="@{ItemsR (ItemsReportR modeM)}" enctype="#{repEncType}">
       <div.well>
         ^{repForm}
@@ -50,8 +51,7 @@ renderReportForm  modeM paramM status resultM = do
       $maybe result <- resultM
         $forall nav <- navs
           <li class=#{navClass nav}>
-             <!-- --> <a.view-mode href="#" data-url="@{ItemsR (ItemsReportR (Just nav))}">#{drop 6 $ tshow nav}
-             <a.view-mode href="@{ItemsR (ItemsReportR (Just nav))}">#{drop 6 $ tshow nav}
+             <a.view-mode href="#" data-url="@{ItemsR (ItemsReportR (Just nav))}"> #{drop 6 $ tshow nav}
         ^{result}
                         |]
 
