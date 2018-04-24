@@ -7,6 +7,7 @@ import Handler.Items.Common
 import FA
 import Data.Time(addDays)
 import qualified Data.Map as Map
+import Data.List.NonEmpty (NonEmpty(..))
 
 
 -- * DB
@@ -58,16 +59,58 @@ moveToTransInfo FA.StockMove{..} = (key,) <$> tqp where
 
 -- * Reports
 -- Display sales and purchase of an item
-itemReport = do
-  let grouper = tkStyle
+itemReport rowGrouper colGrouper= do
   trans <- loadItemTransactions
   -- let grouped = Map.fromListWith(<>) [(grouper k, qp) | (k,qp) <- trans]
-  let grouped = groupAsMap (grouper . fst) snd trans
-      trans' = Map.toList grouped
+  let grouped = groupAsMap (rowGrouper . fst) (:[]) trans
+      grouped' = groupAsMap (colGrouper . fst) snd <$> grouped
+      summarize group = sconcat (q :| qp) where  (q:qp) = toList group
+      showQp Nothing = [whamlet|
+                                  <td>
+                                  <td>
+                                  <td>
+                                  <td>
+                                  |]
+      showQp (Just QPrice{..}) = [whamlet|
+                                  <td> #{show $ round qpQty}
+                                  <td> #{showDouble qpAmount}
+                                  <td> #{showDouble qpMin}
+                                  <td> #{showDouble qpMax}
+                                  |] where (MinMax qpMin qpMax ) = qpPrice
   return [whamlet|
-    $forall tran <- trans'
-      <p>#{tshow tran}
-                 |]
+    $forall (h1, group) <- Map.toList grouped'
+      <div.panel.panel-info>
+        <div.panel-heading>
+          <h2>#{fromMaybe "" h1}
+        <div.panel-body>
+          <table.table.table-hover.table-striped>
+            <tr>
+              <th>
+              <th> Sales Qty
+              <th> Sales Amount
+              <th> Sales Min Price
+              <th> Sales max Price
+              <th> Purch Qty
+              <th> Purch Amount
+              <th> Purch Min Price
+              <th> Purch max Price
+              <th> Adjustment Qty
+              <th> Adjustment Amount
+              <th> Adjustment Min Price
+              <th> Adjustment max Price
+            $forall (h2,qp) <- Map.toList group
+              <tr>
+                <td> #{fromMaybe "" h2}
+                ^{showQp $ salesQPrice qp}
+                ^{showQp $ purchQPrice qp}
+                ^{showQp $ adjQPrice qp}
+            $with (qp) <- summarize group
+                <tr.total>
+                  <td> Total
+                  ^{showQp $ salesQPrice qp}
+                  ^{showQp $ purchQPrice qp}
+                  ^{showQp $ adjQPrice qp}
+                  |]
 
 -- ** Utils
 -- splitToGroups :: (a -> k) -> (a -> a') ->   [(a,b)] -> [(k, (a',b))]

@@ -18,6 +18,7 @@ module Handler.Util
 , firstOperator
 , badgeSpan
 , tshowM
+, showDouble
 , basePriceList
 , timeProgress
 , allOperators
@@ -63,6 +64,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.List as Data.List
 import Model.DocumentKey
 import Control.Monad.Except
+import Text.Printf(printf) 
 
 -- import Data.IOData (IOData)
 
@@ -388,6 +390,10 @@ toHtmlWithBreak t  = [shamlet|
   $forall l <- lines t
     <p>#{l}
 |]
+
+
+showDouble :: Double -> Html
+showDouble x = toHtml $ ( (printf "%.4f" x) :: String )
   
 -- * Cached Value accross session
 -- ** From Front Accounting

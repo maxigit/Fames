@@ -4,6 +4,7 @@ module Handler.Items.Report
 ) where
 
 import Import
+import Items.Types
 import Handler.Items.Reports.Common
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,)
 
@@ -26,7 +27,7 @@ postItemsReportR mode = do
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess param -> do
-      report <- itemReport 
+      report <- itemReport tkStyle tkVar
       renderReportForm mode (Just param) ok200 (Just report)
 
 

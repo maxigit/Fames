@@ -19,7 +19,6 @@ import Data.List.NonEmpty (NonEmpty(..))
 import Data.Time (addDays, addGregorianMonthsClip)
 import qualified FA as FA
 import Database.Persist.MySQL(unSqlBackendKey) -- , rawSql, Single(..))
-import Text.Printf(printf) 
 import Control.Monad.Except
 import qualified Data.Map as Map
 
@@ -138,9 +137,6 @@ importSummary param = do
   let modals = concatMap modalInvoice invoices
   return $ main <> modals <> css
 
-
-showDouble :: Double -> Html
-showDouble x = toHtml $ ( (printf "%.4f" x) :: String )
 showAmountM :: Double -> Maybe Double -> Html
 showAmountM fa Nothing = [shamlet|<span.fa.incorrect>#{showDouble fa}|]
 showAmountM fa (Just ts) | abs (fa - ts) < 1e-6 = [shamlet|<span.correct>#{showDouble fa}|]
