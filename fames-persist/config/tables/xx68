@@ -13,3 +13,4 @@ StockMove sql=0_stock_moves
     discountPercent Double  sql=discount_percent
     standardCost Double  sql=standard_cost
     visible Bool  sql=visible
+    deriving Show

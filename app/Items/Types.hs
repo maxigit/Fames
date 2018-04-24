@@ -172,7 +172,7 @@ data QPrice = QPrice
   , qpPrice :: MinMax Amount
   } deriving (Eq, Ord, Show)
 
-qpFromPrice price = QPrice 1 price (pure price)
+qprice qty price = QPrice qty (qty*price) (pure price)
 
 instance Semigroup (QPrice) where
   (QPrice q a mm) <> (QPrice q' a' mm') = QPrice (q+q') (a+a') (mm <> mm')

@@ -7,9 +7,10 @@ import Yesod.Form.Bootstrap3
 import FA
 import qualified DC as DC
 import Items
+import Handler.Items.Common
 import qualified Data.Map as Map
 import Data.Monoid(Endo(..), appEndo)
-import Data.Text(toTitle, replace, splitOn)
+import Data.Text(toTitle, replace)
 import Text.Blaze.Html.Renderer.Text(renderHtml)
 import qualified Data.List as List
 import Database.Persist.MySQL hiding(replace)
@@ -529,31 +530,6 @@ loadVariationsToKeep cache params = do
   return $  (filter toKeep) <$$> itemGroups
 
 -- * Misc
--- ** Style names conversion
-
-skuToStyleVar :: Text -> (Text, Text)
-skuToStyleVar sku = (style, var) where
-  style = take 8 sku
-  var = drop 9 sku
-
-styleVarToSku :: Text -> Text -> Text
-styleVarToSku style "" = style
-styleVarToSku style var = style <> "-" <> var
-  
--- ** Sku form info
-
-iiSku (ItemInfo style var _ ) = styleVarToSku style var
-
--- | Split a variation name to variations
--- ex: A/B -> [A,B]
-variationToVars :: Text -> [Text]
-variationToVars var = splitOn "/" var
-
-
--- | Inverse of variationToVars
-varsToVariation :: [Text] -> Text
-varsToVariation vars = intercalate "/" vars
-
 -- ** Type conversions
 stockItemMasterToItem :: (Entity FA.StockMaster) -> ItemInfo (ItemMasterAndPrices Identity)
 stockItemMasterToItem (Entity key val) = ItemInfo  style var master where

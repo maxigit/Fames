@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e88d481754bd0b9abdcf0e636bfc532811ff792626f5047857045f82c9cf5a13
+-- hash: 12769d3213b48062555f27aef6aea7bd41ce211c0cc7d3e9980dcb42ec85c0db
 
 name:           Fames
 version:        0.0.1
@@ -139,9 +139,11 @@ library
       Handler.GL.Payroll.Summary
       Handler.Home
       Handler.Items
+      Handler.Items.Common
       Handler.Items.History
       Handler.Items.Index
       Handler.Items.Report
+      Handler.Items.Reports.Common
       Handler.Planner
       Handler.Planner.Exec
       Handler.Planner.View

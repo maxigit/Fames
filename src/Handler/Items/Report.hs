@@ -4,10 +4,8 @@ module Handler.Items.Report
 ) where
 
 import Import
-import Handler.Table
+import Handler.Items.Reports.Common
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,)
-import Items
-import FA
 
 -- * Type
 data ReportParam = ReportParam
@@ -28,7 +26,7 @@ postItemsReportR mode = do
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess param -> do
-      report <- return $ return ()
+      report <- itemReport 
       renderReportForm mode (Just param) ok200 (Just report)
 
 
@@ -37,13 +35,21 @@ postItemsReportR mode = do
 renderReportForm  :: Maybe ReportMode -> Maybe ReportParam  -> Status -> Maybe Widget -> Handler Html
 renderReportForm  modeM paramM status resultM = do
   (repForm, repEncType) <- generateFormPost $ reportForm paramM
+  let navs = [minBound..maxBound] :: [ReportMode]
+      mode = fromMaybe ReportChart modeM
+      navClass nav = if mode == nav then "active" else "" :: Html
   defaultLayout [whamlet|
     <form #item-report role=form method=post action="@{ItemsR (ItemsReportR modeM)}" enctype="#{repEncType}">
       <div.well>
         ^{repForm}
         <button.btn type="submit">Submit
-        $maybe result <- resultM
-          ^{result}
+      <ul.nav.nav-tabs>
+      $maybe result <- resultM
+        $forall nav <- navs
+          <li class=#{navClass nav}>
+             <!-- --> <a.view-mode href="#" data-url="@{ItemsR (ItemsReportR (Just nav))}">#{drop 6 $ tshow nav}
+             <a.view-mode href="@{ItemsR (ItemsReportR (Just nav))}">#{drop 6 $ tshow nav}
+        ^{result}
                         |]
 
 
