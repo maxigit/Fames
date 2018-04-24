@@ -174,5 +174,30 @@ data QPrice = QPrice
 
 qprice qty price = QPrice qty (qty*price) (pure price)
 
-instance Semigroup (QPrice) where
+instance Semigroup QPrice where
   (QPrice q a mm) <> (QPrice q' a' mm') = QPrice (q+q') (a+a') (mm <> mm')
+
+
+-- | Quantity price for a transaction, either sales or purch
+data TranQP = TranQP
+  { salesQPrice :: Maybe QPrice
+  , purchQPrice :: Maybe QPrice
+  , adjQPrice :: Maybe QPrice
+  } deriving (Show, Ord, Eq)
+
+instance Semigroup TranQP where
+  (TranQP s p a) <> (TranQP s' p' a') = TranQP (go s s') (go p p') (go a a') where
+    go Nothing b = b
+    go a Nothing = a
+    go (Just a) (Just b) = Just $ a <> b
+
+
+-- | Key to hold TranQP information
+data TranKey = TranKey
+  { tkDay :: Day
+  , tkCustomer :: Maybe Int
+  , tkSupplier :: Maybe Int
+  , tkStyle :: Maybe Text
+  , tkVar :: Maybe Text
+  , tkCaterogy :: Maybe Text
+  } deriving (Show, Eq, Ord)

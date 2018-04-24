@@ -63,7 +63,7 @@
   /dimensions/inner/#Int64/#Int64/#Int64/#Int64/#Int64/#Int64/ WHDimensionInnerR GET
 
 /items ItemsR !items:
-  /report/#Maybe-ReportMode ItemsReportR GET POST !report !group=Report !title=Reporting
+  /report/#Maybe-ReportMode ItemsReportR GET POST !report !group=Reporting !title=Report
 
   /index/#Maybe-ItemViewMode ItemsIndexR GET POST !items/index !group=Maintenance !title=Index
   /history/#Text ItemsHistoryR GET !items/history
