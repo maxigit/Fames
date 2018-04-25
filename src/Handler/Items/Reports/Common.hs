@@ -38,7 +38,8 @@ getCols = do
            | (name, format) <- [ ("Year", "%Y")
                                , ("Year-Month", "%Y-M%m")
                                , ("Month", "%M%m %B")
-                               , ("Year-Week ", "%Y-%m-W%W")
+                               , ("Year-Week", "%Y-%m-W%W")
+                               , ("Week", "W%W")
                                ]
              
            ] <>
