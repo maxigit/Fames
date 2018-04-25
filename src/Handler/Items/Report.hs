@@ -53,7 +53,7 @@ postItemsReportFor route mode = do
       (report, result) <- itemReport param (rpRowRupture param) (rpColumnRupture param)
       case readMay =<< actionM of
         Just ReportCsv -> do
-              let source = yieldMany (map (<> "\n") (toCsv result))
+              let source = yieldMany (map (<> "\n") (toCsv param result))
               respondSource "text/csv" (source =$= mapC toFlushBuilder)
         _ -> do
               renderReportForm route mode (Just param) ok200 (Just report)

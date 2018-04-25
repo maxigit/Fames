@@ -272,15 +272,15 @@ itemReport param rowGrouper colGrouper= do
 
 
 -- *** Csv
-toCsv grouped' = let
+toCsv param grouped' = let
   showQp Nothing = []
   showQp (Just QPrice{..}) = [ tshow qpQty
                               , tshow qpAmount
                               , tshow qpMin
                               , tshow qpMax
                               ] where (MinMax qpMin qpMax ) = qpPrice
-  header = intercalate "," [ "Category"
-                          , "Period"
+  header = intercalate "," [ colName $ rpRowRupture param
+                          , colName $ rpColumnRupture param
                           ,  "Sales Qty"
                           ,  "Sales Amount"
                           ,  "Sales Min Price"
