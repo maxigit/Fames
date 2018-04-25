@@ -198,5 +198,5 @@ data TranKey = TranKey
   , tkSupplier :: Maybe Int
   , tkStyle :: Maybe Text
   , tkVar :: Maybe Text
-  , tkCategory :: Maybe Text
+  , tkCategory :: Map Text Text
   } deriving (Show, Eq, Ord)

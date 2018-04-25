@@ -21,18 +21,20 @@ data ReportParam = ReportParam
   , rpTo :: Maybe Day
   -- , rpCatFilter :: Map Text (Maybe Text)
   , rpStockFilter :: Maybe FilterExpression
-  , rpRowRupture :: Maybe Text
-  } deriving Show
+  , rpRowRupture :: Column
+  , rpColumnRupture :: Column
+  }  --deriving Show
 
 -- * Form
-reportForm :: [Text] -> Maybe ReportParam -> _
+reportForm :: [Column] -> Maybe ReportParam -> _
 reportForm cols paramM = let
-  colOptions = [(c,c) | c <- cols]
+  colOptions = [(colName c,c) | c <- cols]
   form = ReportParam
     <$> (aopt dayField "from" (Just $ rpFrom =<< paramM ))
     <*> (aopt dayField "to" (Just $ rpTo =<< paramM))
     <*> (aopt filterEField  "sku" (Just $ rpStockFilter =<< paramM))
-    <*> (aopt (selectFieldList colOptions)  "row rupture" (Just $ rpRowRupture =<< paramM) )
+    <*> (areq (selectFieldList colOptions)  "row rupture" (rpRowRupture <$> paramM) )
+    <*> (areq (selectFieldList colOptions)  "column rupture" (rpColumnRupture <$> paramM) )
   in  renderBootstrap3 BootstrapBasicForm form
  
 paramToCriteria :: ReportParam -> [Filter FA.StockMove]
@@ -41,12 +43,6 @@ paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
                                   (filterE id FA.StockMoveStockId  rpStockFilter)
 
 -- * Handler
-getCols :: Handler [Text]
-getCols = do
-  let basic = ["Style", "Sku", "Variation", "Week", "Month", "Quarter", "52W", "Year", "Season"]
-  categories <- categoriesH
-  return $ basic ++ ["category:" <>  cat | cat <- categories]
-
 
 getItemsReportR :: Maybe ReportMode -> Handler TypedContent
 getItemsReportR mode = do
@@ -58,7 +54,8 @@ getItemsReport2R mode = do
 getItemsReport3R mode = do 
   renderReportForm ItemsReport3R mode Nothing ok200 Nothing
 
-postItemsReportR mode = do
+postItemsReportR = postItemsReportFor ItemsReportR 
+postItemsReportFor route mode = do
   today <- utctDay <$> liftIO getCurrentTime
   cols <- getCols
   ((resp, formW), enctype) <- runFormPost (reportForm cols Nothing)
@@ -66,47 +63,19 @@ postItemsReportR mode = do
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess param -> do
-      (report, result) <- itemReport (paramToCriteria param) tkCategory (Just . slidingYearShow today . tkDay)
+      (report, result) <- itemReport (paramToCriteria param) (rpRowRupture param) (rpColumnRupture param)
       case mode of
         Just ReportCsv -> do
               let source = yieldMany (map (<> "\n") (toCsv result))
               respondSource "text/csv" (source =$= mapC toFlushBuilder)
         _ -> do
-              renderReportForm ItemsReportR mode (Just param) ok200 (Just report)
+              renderReportForm route mode (Just param) ok200 (Just report)
 
 postItemsReport2R :: Maybe ReportMode -> Handler TypedContent
-postItemsReport2R mode = do
-  today <- utctDay <$> liftIO getCurrentTime
-  cols <- getCols
-  ((resp, formW), enctype) <- runFormPost (reportForm cols Nothing)
-  case resp of
-    FormMissing -> error "form missing"
-    FormFailure a -> error $ "Form failure : " ++ show a
-    FormSuccess param -> do
-      (report, result) <- itemReport (paramToCriteria param) tkStyle (Just . slidingYearShow today . tkDay)
-      case mode of
-        Just ReportCsv -> do
-              let source = yieldMany (map (<> "\n") (toCsv result))
-              respondSource "text/csv" (source =$= mapC toFlushBuilder)
-        _ -> do
-              renderReportForm ItemsReport2R mode (Just param) ok200 (Just report)
+postItemsReport2R = postItemsReportFor ItemsReport2R 
 
 postItemsReport3R :: Maybe ReportMode -> Handler TypedContent
-postItemsReport3R mode = do
-  cols <- getCols
-  today <- utctDay <$> liftIO getCurrentTime
-  ((resp, formW), enctype) <- runFormPost (reportForm cols Nothing)
-  case resp of
-    FormMissing -> error "form missing"
-    FormFailure a -> error $ "Form failure : " ++ show a
-    FormSuccess param -> do
-      (report, result) <- itemReport (paramToCriteria param) tkStyle tkVar
-      case mode of
-        Just ReportCsv -> do
-              let source = yieldMany (map (<> "\n") (toCsv result))
-              respondSource "text/csv" (source =$= mapC toFlushBuilder)
-        _ -> do
-              renderReportForm ItemsReport3R mode (Just param) ok200 (Just report)
+postItemsReport3R = postItemsReportFor ItemsReport3R 
 -- ** Renders
 
 renderReportForm :: (Maybe ReportMode -> ItemsR)

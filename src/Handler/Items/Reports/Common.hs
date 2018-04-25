@@ -9,10 +9,49 @@ import Data.Time(addDays)
 import qualified Data.Map as Map
 import Data.List.NonEmpty (NonEmpty(..))
 
+-- * Columns
+data Column = Column
+  { colName :: Text
+  , colFn :: TranKey -> Maybe Text
+  } 
+
+instance Eq Column where
+  a == b = colName a == colName b
+
+-- Heterogenous type
+data ColumnValue = ColumnValue
+  { cvHtml :: Html
+  , cvText :: Text
+    
+  }
+
+getCols :: Handler [Column]
+getCols = do
+  today <- utctDay <$> liftIO getCurrentTime
+  categories <- categoriesH
+
+  return $ [ Column "Style" (tkStyle)
+           , Column "Variation" tkVar
+           , Column "52W" (Just . pack . slidingYearShow today . tkDay)
+           ] <>
+           [ Column name (Just . pack . formatTime defaultTimeLocale format . tkDay)
+           | (name, format) <- [ ("Year", "%Y")
+                               , ("Year-Month", "%Y-M%m")
+                               , ("Month", "%M%m %B")
+                               , ("Year-Week ", "%Y-%m-W%W")
+                               ]
+             
+           ] <>
+           [ Column ("Category:" <> cat) (\tk -> Map.lookup cat (tkCategory tk))
+           | cat <- categories
+           ]
+           
+  -- return $ map Column $ basic ++ ["category:" <>  cat | cat <- categories]
 
 -- * DB
 loadItemTransactions :: [Filter FA.StockMove] -> Handler [(TranKey, TranQP)]
 loadItemTransactions criteria = do
+  categories <- categoriesH
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   catFinder <- categoryFinderCached
   moves <- runDB $ selectList ( criteria
@@ -21,13 +60,17 @@ loadItemTransactions criteria = do
                               []
                                -- [LimitTo 1000]
 
-  return $ mapMaybe (moveToTransInfo (catFinder "shape") . entityVal) moves
+  return $ mapMaybe (moveToTransInfo categories catFinder . entityVal) moves
 
 -- * Converter
-moveToTransInfo :: (Text -> Maybe Text) -> StockMove -> Maybe (TranKey, TranQP)
-moveToTransInfo catFinder FA.StockMove{..} = (key,) <$> tqp where
+moveToTransInfo :: [Text] -> (Text -> Text -> Maybe Text) -> StockMove -> Maybe (TranKey, TranQP)
+moveToTransInfo categories catFinder FA.StockMove{..} = (key,) <$> tqp where
   (style, var) = skuToStyleVar stockMoveStockId
-  key = TranKey stockMoveTranDate customer supplier (Just style) (Just var) (catFinder stockMoveStockId)
+  categorieValues = [(heading, cat)
+                    | heading <- categories
+                    , Just cat <- return $ catFinder heading stockMoveStockId
+                    ]
+  key = TranKey stockMoveTranDate customer supplier (Just style) (Just var) (mapFromList categorieValues)
   (customer, supplier, tqp) = case toEnum stockMoveType of
     ST_CUSTDELIVERY -> ( stockMovePersonId
                        , Nothing
@@ -57,11 +100,16 @@ moveToTransInfo catFinder FA.StockMove{..} = (key,) <$> tqp where
 
 -- * Reports
 -- Display sales and purchase of an item
+itemReport
+  :: [Filter StockMove]
+     -> Column
+     -> Column
+     -> Handler (Widget, Map (Maybe Text) (Map (Maybe Text) TranQP))
 itemReport criteria rowGrouper colGrouper= do
   trans <- loadItemTransactions criteria
   -- let grouped = Map.fromListWith(<>) [(grouper k, qp) | (k,qp) <- trans]
-  let grouped = groupAsMap (rowGrouper . fst) (:[]) trans
-      grouped' = groupAsMap (colGrouper . fst) snd <$> grouped
+  let grouped = groupAsMap (colFn rowGrouper . fst) (:[]) trans
+      grouped' = groupAsMap (colFn colGrouper . fst) snd <$> grouped
       summarize group = sconcat (q :| qp) where  (q:qp) = toList group
       profit qp = maybe 0 qpAmount (salesQPrice qp)
                   -  maybe 0 qpAmount (purchQPrice qp)
