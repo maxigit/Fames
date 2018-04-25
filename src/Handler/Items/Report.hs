@@ -43,6 +43,7 @@ getItemsReport3R mode = do
 postItemsReportR = postItemsReportFor ItemsReportR 
 postItemsReportFor route mode = do
   today <- utctDay <$> liftIO getCurrentTime
+  actionM <- lookupPostParam "action"
   cols <- getCols
   ((resp, formW), enctype) <- runFormPost (reportForm cols Nothing)
   case resp of
@@ -50,7 +51,7 @@ postItemsReportFor route mode = do
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess param -> do
       (report, result) <- itemReport param (rpRowRupture param) (rpColumnRupture param)
-      case mode of
+      case readMay =<< actionM of
         Just ReportCsv -> do
               let source = yieldMany (map (<> "\n") (toCsv result))
               respondSource "text/csv" (source =$= mapC toFlushBuilder)
@@ -73,7 +74,8 @@ renderReportForm :: (Maybe ReportMode -> ItemsR)
 renderReportForm  route modeM paramM status resultM = do
   cols <- getCols
   (repForm, repEncType) <- generateFormPost $ reportForm cols paramM
-  let navs = [minBound..maxBound] :: [ReportMode]
+  let navs = filter (/= ReportCsv) [minBound..maxBound] :: [ReportMode]
+      -- ^ We use a button instead for the CSV
       mode = fromMaybe ReportChart modeM
       navClass nav = if mode == nav then "active" else "" :: Html
       fay = $(fayFile "ItemsReport")
@@ -81,7 +83,8 @@ renderReportForm  route modeM paramM status resultM = do
     <form #items-report-form role=form method=post action="@{ItemsR (route modeM)}" enctype="#{repEncType}">
       <div.well>
         ^{repForm}
-        <button.btn type="submit">Submit
+        <button.btn type="submit" name="action" value="Submit"> Submit
+        <button.btn.btn-info type="submit" name="action" value="#{tshow ReportCsv}">Export to CSv
         $maybe result <- resultM
           <ul.nav.nav-tabs>
             $forall nav <- navs
