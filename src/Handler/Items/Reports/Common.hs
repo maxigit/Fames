@@ -47,6 +47,8 @@ getCols = do
 
   return $ [ Column "Style" (const tkStyle)
            , Column "Variation" (const tkVar)
+           , Column "Sku" (const $ Just . tkSku)
+           , Column "Date" (const $ Just . tshow . tkDay)
            , Column "52W" (\p -> let day0 = addDays 1 $ fromMaybe today (rpTo p)
                                  in Just . pack . slidingYearShow day0 . tkDay
                           )
@@ -272,13 +274,13 @@ itemReport param rowGrouper colGrouper= do
 
 
 -- *** Csv
+qpToCsv Nothing = ["", "", "", ""]
+qpToCsv (Just QPrice{..}) = [ tshow qpQty
+                            , tshow qpAmount
+                            , tshow qpMin
+                            , tshow qpMax
+                            ] where (MinMax qpMin qpMax ) = qpPrice
 toCsv param grouped' = let
-  showQp Nothing = []
-  showQp (Just QPrice{..}) = [ tshow qpQty
-                              , tshow qpAmount
-                              , tshow qpMin
-                              , tshow qpMax
-                              ] where (MinMax qpMin qpMax ) = qpPrice
   header = intercalate "," [ colName $ rpRowRupture param
                           , colName $ rpColumnRupture param
                           ,  "Sales Qty"
@@ -300,9 +302,49 @@ toCsv param grouped' = let
     return $ intercalate "," $  [ tshowM h1
                       , tshowM h2
                       ]
-                      <> (showQp $ salesQPrice qp)
-                      <> (showQp $ purchQPrice qp)
-                      <> (showQp $ adjQPrice qp)
+                      <> (qpToCsv $ salesQPrice qp)
+                      <> (qpToCsv $ purchQPrice qp)
+                      <> (qpToCsv $ adjQPrice qp)
+  
+itemToCsv param = do
+  -- no need to group, we display everything, including all category and columns
+  cols <- getCols
+  categories <- categoriesH
+  trans <- loadItemTransactions param
+  let qpCols = [  "Sales Qty"
+               ,  "Sales Amount"
+               ,  "Sales Min Price"
+               ,  "Sales max Price"
+               ,  "Purch Qty"
+               ,  "Purch Amount"
+               ,  "Purch Min Price"
+               ,  "Purch max Price"
+               ,  "Adjustment Qty"
+               ,  "Adjustment Amount"
+               ,  "Adjustment Min Price"
+               ,  "Adjustment max Price"
+               ]
+      extraCols = map colName cols
+      header = intercalate "," $ extraCols <> qpCols <> categories
+
+      csvLines = header : do  -- []
+        (key, qp) <- trans
+        return $ intercalate "," (
+          [tshowM $ colFn col param key | col <- cols]
+            <> (qpToCsv $ salesQPrice qp)
+            <> (qpToCsv $ purchQPrice qp)
+            <> (qpToCsv $ adjQPrice qp)
+            <> (map (tshowM . flip Map.lookup (tkCategory key)) categories)
+                                 )
+      source = yieldMany (map (<> "\n") csvLines)
+  setAttachment  "items-report.csv"
+  respondSource "text/csv" (source =$= mapC toFlushBuilder)
+                 
+
+
+
+
+  
   
 -- ** Utils
 -- splitToGroups :: (a -> k) -> (a -> a') ->   [(a,b)] -> [(k, (a',b))]

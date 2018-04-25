@@ -13,6 +13,7 @@ import Handler.Items.Reports.Common
 import Handler.Items.Common
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,)
 import Text.Blaze.Html.Renderer.Text(renderHtml)
+import qualified Data.List as List
 import qualified FA as FA
 
 
@@ -50,12 +51,17 @@ postItemsReportFor route mode = do
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess param -> do
-      (report, result) <- itemReport param (rpRowRupture param) (rpColumnRupture param)
       case readMay =<< actionM of
         Just ReportCsv -> do
+              (report, result) <- itemReport param (rpRowRupture param) (rpColumnRupture param)
               let source = yieldMany (map (<> "\n") (toCsv param result))
+              setAttachment . fromStrict $ "items-report-" <> colName (rpRowRupture param) <> "-"
+                                              <> colName (rpColumnRupture param) <> ".csv"
               respondSource "text/csv" (source =$= mapC toFlushBuilder)
+        Just ReportRaw -> do
+             itemToCsv param
         _ -> do
+              (report, result) <- itemReport param (rpRowRupture param) (rpColumnRupture param)
               renderReportForm route mode (Just param) ok200 (Just report)
 
 postItemsReport2R :: Maybe ReportMode -> Handler TypedContent
@@ -74,7 +80,8 @@ renderReportForm :: (Maybe ReportMode -> ItemsR)
 renderReportForm  route modeM paramM status resultM = do
   cols <- getCols
   (repForm, repEncType) <- generateFormPost $ reportForm cols paramM
-  let navs = filter (/= ReportCsv) [minBound..maxBound] :: [ReportMode]
+  let buttons = [(ReportCsv, "Export To Csv" :: Text), (ReportRaw, "Export Raw CSV")]
+      navs = ([minBound..maxBound] :: [ReportMode]) List.\\ map fst buttons
       -- ^ We use a button instead for the CSV
       mode = fromMaybe ReportChart modeM
       navClass nav = if mode == nav then "active" else "" :: Html
@@ -84,7 +91,8 @@ renderReportForm  route modeM paramM status resultM = do
       <div.well>
         ^{repForm}
         <button.btn type="submit" name="action" value="Submit"> Submit
-        <button.btn.btn-info type="submit" name="action" value="#{tshow ReportCsv}">Export to CSv
+        $forall (btn, title) <- buttons
+          <button.btn.btn-info type="submit" name="action" value="#{tshow btn}">#{title}
         $maybe result <- resultM
           <ul.nav.nav-tabs>
             $forall nav <- navs
