@@ -15,15 +15,6 @@ import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,)
 import Text.Blaze.Html.Renderer.Text(renderHtml)
 import qualified FA as FA
 
--- * Type
-data ReportParam = ReportParam
-  { rpFrom :: Maybe Day
-  , rpTo :: Maybe Day
-  -- , rpCatFilter :: Map Text (Maybe Text)
-  , rpStockFilter :: Maybe FilterExpression
-  , rpRowRupture :: Column
-  , rpColumnRupture :: Column
-  }  --deriving Show
 
 -- * Form
 reportForm :: [Column] -> Maybe ReportParam -> _
@@ -37,11 +28,6 @@ reportForm cols paramM = let
     <*> (areq (selectFieldList colOptions)  "column rupture" (rpColumnRupture <$> paramM) )
   in  renderBootstrap3 BootstrapBasicForm form
  
-paramToCriteria :: ReportParam -> [Filter FA.StockMove]
-paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
-                                  (rpTo <&> (FA.StockMoveTranDate <=.)) ?:
-                                  (filterE id FA.StockMoveStockId  rpStockFilter)
-
 -- * Handler
 
 getItemsReportR :: Maybe ReportMode -> Handler TypedContent
@@ -63,7 +49,7 @@ postItemsReportFor route mode = do
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess param -> do
-      (report, result) <- itemReport (paramToCriteria param) (rpRowRupture param) (rpColumnRupture param)
+      (report, result) <- itemReport param (rpRowRupture param) (rpColumnRupture param)
       case mode of
         Just ReportCsv -> do
               let source = yieldMany (map (<> "\n") (toCsv result))

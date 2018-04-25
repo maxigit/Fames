@@ -10,6 +10,20 @@ import qualified Data.Map as Map
 import Data.List.NonEmpty (NonEmpty(..))
 import Database.Persist.MySQL(unSqlBackendKey, rawSql, Single(..))
 
+-- * Param
+data ReportParam = ReportParam
+  { rpFrom :: Maybe Day
+  , rpTo :: Maybe Day
+  -- , rpCatFilter :: Map Text (Maybe Text)
+  , rpStockFilter :: Maybe FilterExpression
+  , rpRowRupture :: Column
+  , rpColumnRupture :: Column
+  }  --deriving Show
+paramToCriteria :: ReportParam -> [Filter FA.StockMove]
+paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
+                                  (rpTo <&> (FA.StockMoveTranDate <=.)) ?:
+                                  (filterE id FA.StockMoveStockId  rpStockFilter)
+
 -- * Columns
 data Column = Column
   { colName :: Text
@@ -35,6 +49,7 @@ getCols = do
            , Column "Variation" tkVar
            , Column "52W" (Just . pack . slidingYearShow today . tkDay)
            , Column "Customer" tkCustomer
+           , Column "Supplier" tkSupplier
            ] <>
            [ Column name (Just . pack . formatTime defaultTimeLocale format . tkDay)
            | (name, format) <- [ ("Year", "%Y")
@@ -52,8 +67,8 @@ getCols = do
   -- return $ map Column $ basic ++ ["category:" <>  cat | cat <- categories]
 
 -- * DB
-loadItemTransactions :: [Filter FA.StockMove] -> Handler [(TranKey, TranQP)]
-loadItemTransactions criteria = do
+loadItemTransactions :: ReportParam -> Handler [(TranKey, TranQP)]
+loadItemTransactions param = do
   categories <- categoriesH
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   catFinder <- categoryFinderCached
@@ -62,9 +77,10 @@ loadItemTransactions criteria = do
   --                             )
   --                             []
 
-  sales <- loadItemSales [] 
+  sales <- loadItemSales param
+  purchases <- loadItemPurchases param
 
-  return $ map (computeCategory categories catFinder) sales
+  return $ map (computeCategory categories catFinder) (sales <> purchases)
   -- return $ mapMaybe (moveToTransInfo categories catFinder . entityVal) moves
 
 computeCategory categories catFinder (key, tpq) = let
@@ -73,8 +89,8 @@ computeCategory categories catFinder (key, tpq) = let
   (style, var) = skuToStyleVar sku
   in (key { tkCategory = mapFromList cats, tkStyle = Just style, tkVar = Just var}, tpq)
 
-loadItemSales :: [Filter FA.DebtorTransDetail] -> Handler [(TranKey, TranQP)]
-loadItemSales criteria = do
+loadItemSales :: ReportParam -> Handler [(TranKey, TranQP)]
+loadItemSales param = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   let sql = intercalate " " $
           "SELECT ??, ??, ?? FROM 0_debtor_trans_details " :
@@ -89,18 +105,40 @@ loadItemSales criteria = do
           ("AND stock_id LIKE '" <> stockLike <> "'") : -- we don't want space between ' and stockLike
           -- " LIMIT 100" :
           []
-  sales <- runDB $ rawSql sql []
+      (w,p) = unzip $ rpFrom param <&> (\d -> (" AND tran_date >= ?", PersistDay d)) ?:
+                       rpTo param <&> (\d -> (" AND tran_date <= ?", PersistDay d)) ?:
+                       rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+                                                      in (" AND stock_id " <> keyw <> " ?", PersistText v)
+                                               ) ?:
+                       []
+        
+  sales <- runDB $ rawSql (sql <> intercalate " "w) p
   return $ map (detailToTransInfo) sales
 
--- loadItemPurchases :: [Filter FA.PurchData] -> handler [(TranKey, TranQP)]
--- loadItemPurchases criteria = do
---   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
---   moves <- runDB $ selectList ( criteria
---                                 <> filterE id FA.PurchDataStockId (Just . LikeFilter $ stockLike)
---                               )
---                               []
-  
---   return $ mapMaybe (purchDataToTransInfo categories catFinder . entityVal) moves
+loadItemPurchases :: ReportParam -> Handler [(TranKey, TranQP)]
+loadItemPurchases param = do
+  stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
+  let sql = intercalate " " $
+          "SELECT ??, ??, ?? FROM 0_supp_invoice_items " :
+          "JOIN 0_supp_trans ON (0_supp_invoice_items.supp_trans_no = 0_supp_trans.trans_no " :
+          " AND 0_supp_invoice_items.supp_trans_type = 0_supp_trans.type)  " :
+          "JOIN 0_suppliers ON (0_supp_trans.supplier_id =  0_suppliers.supplier_id)" :
+          "WHERE type IN ("  :
+          (tshow $ fromEnum ST_SUPPINVOICE) :
+          ",":
+          (tshow $ fromEnum ST_SUPPCREDIT) :
+          ") " :
+          ("AND stock_id LIKE '" <> stockLike <> "'") : -- we don't want space between ' and stockLike
+          -- " LIMIT 100" :
+          []
+      (w,p) = unzip $ rpFrom param <&> (\d -> (" AND tran_date >= ?", PersistDay d)) ?:
+                       rpTo param <&> (\d -> (" AND tran_date <= ?", PersistDay d)) ?:
+                       rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+                                                      in (" AND stock_id " <> keyw <> " ?", PersistText v)
+                                               ) ?:
+                       []
+  purch <- runDB $ rawSql (sql <> intercalate " " w) p
+  return $ map (purchToTransInfo) purch
 
 -- * Converter
 -- ** StockMove
@@ -153,15 +191,28 @@ detailToTransInfo ( Entity _ FA.DebtorTransDetail{..}
   qpNeg = qprice (-debtorTransDetailQuantity) price
   price = debtorTransDetailUnitPrice*(1-debtorTransDetailDiscountPercent/100)
 
+purchToTransInfo ( Entity _ FA.SuppInvoiceItem{..}
+                  , Entity _ FA.SuppTran{..}
+                  , Entity _ FA.Supplier{..}) = (key, tqp) where
+  key = TranKey suppTranTranDate Nothing (Just $ decodeHtmlEntities supplierSuppName)
+                suppInvoiceItemStockId Nothing Nothing  (mempty)
+  tqp = case toEnum suppTranType of
+    ST_SUPPINVOICE -> TranQP Nothing (Just qp) Nothing
+    ST_SUPPCREDIT -> TranQP Nothing (Just qpNeg) Nothing
+    else_ -> error $ "Shouldn't process transaction of type " <> show else_
+  qp = qprice suppInvoiceItemQuantity price
+  qpNeg = qprice (-suppInvoiceItemQuantity) price
+  price = suppInvoiceItemUnitPrice*suppTranRate
+
 -- * Reports
 -- Display sales and purchase of an item
 itemReport
-  :: [Filter StockMove]
+  :: ReportParam
      -> Column
      -> Column
      -> Handler (Widget, Map (Maybe Text) (Map (Maybe Text) TranQP))
-itemReport criteria rowGrouper colGrouper= do
-  trans <- loadItemTransactions criteria
+itemReport param rowGrouper colGrouper= do
+  trans <- loadItemTransactions param
   -- let grouped = Map.fromListWith(<>) [(grouper k, qp) | (k,qp) <- trans]
   let grouped = groupAsMap (colFn rowGrouper . fst) (:[]) trans
       grouped' = groupAsMap (colFn colGrouper . fst) snd <$> grouped
