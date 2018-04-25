@@ -26,6 +26,7 @@ extra-deps:
 #- fames-persist-0.0.0.0
 - yesod-media-simple-0.2.0.0
 #- Metamorphosis-0.1.0.1
+- text-regex-replace-0.1.1.2
 
 # Override default flag values for local packages and extra-deps
 flags:

@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: a77d966351ad52fe8158590f411732e5b84d0e143171df5f665f948046228e23
+-- hash: 53169dd08e995730dd8a7286a427ce94dd560b0ce1b74849d886cadef8f35c87
 
 name:           Fames
 version:        0.0.1
@@ -89,6 +89,8 @@ library
     , template-haskell
     , temporary
     , text >=0.11 && <2.0
+    , text-icu
+    , text-regex-replace
     , these
     , time
     , unordered-containers
@@ -270,6 +272,8 @@ executable Fames
     , template-haskell
     , temporary
     , text >=0.11 && <2.0
+    , text-icu
+    , text-regex-replace
     , these
     , time
     , unordered-containers
@@ -388,6 +392,8 @@ test-suite test
     , template-haskell
     , temporary
     , text >=0.11 && <2.0
+    , text-icu
+    , text-regex-replace
     , these
     , time
     , transformers

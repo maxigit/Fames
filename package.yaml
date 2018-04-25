@@ -79,6 +79,8 @@ dependencies:
 - reducers >= 3.12 && < 3.13
 - filepath >= 1.4.1.1  && < 1.5
 - pretty-simple
+- text-regex-replace
+- text-icu
 default-extensions:
 - TemplateHaskell
 - QuasiQuotes

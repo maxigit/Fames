@@ -68,7 +68,10 @@ import qualified Data.List as Data.List
 import Model.DocumentKey
 import Control.Monad.Except
 import Text.Printf(printf) 
-import Text.Regex.TDFA ((=~))
+-- import Text.Regex.TDFA ((=~))
+-- import Text.Regex.TDFA ((=~))
+import qualified Data.Text.ICU.Replace as ICU
+import qualified Data.Text.ICU as ICU
 
 -- import Data.IOData (IOData)
 
@@ -499,14 +502,16 @@ eToX =  either throwError return
 -- which are pretty so we cache it into a big map
 categoryFinder :: Handler (Text -> Text -> Maybe Text)
 categoryFinder = do
-  -- each entry in the correspond to a caterogy heading
   catRulesMap <- appCategoryRules <$> getsYesod appSettings
-  let flattenRules rules = concatMap (Map.toList) rules
+  let flattenRules rules = [ (fromString $ unpack reg, fromString $ unpack rep)
+                           | (reg, rep) <- concatMap (Map.toList) rules
+                           ]
       rulesMap = fmap flattenRules catRulesMap
-      finderFor rules s = asum [ Just result
-                            | (regex, result) <- rules
-                            , unpack s =~ unpack regex
-                            ]
+      finderFor rules s = asum [ Just $ ICU.replace' replace match
+                               | (regex, replace) <- rules
+                               , Just match <- return $ ICU.find regex s
+                               ]
+
       finder category item = do -- Maybe
         rules <- lookup category rulesMap
         finderFor rules item 
