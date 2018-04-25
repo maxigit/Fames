@@ -11,6 +11,7 @@ import Language.Haskell.TH.Syntax
 import Lens.Micro
 import qualified GHC.Generics as GHC
 import Data.IntMap.Strict (IntMap)
+import ModelField
 -- * General
 -- | Holder for miscellaneous information relative to an item.
 -- Allows mainly to call operation which need to group by style and or variations.
@@ -200,4 +201,5 @@ data TranKey = TranKey
   , tkStyle :: Maybe Text
   , tkVar :: Maybe Text
   , tkCategory :: Map Text Text
+  , tkType :: FATransType
   } deriving (Show, Eq, Ord)

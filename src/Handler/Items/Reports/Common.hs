@@ -40,6 +40,13 @@ data ColumnValue = ColumnValue
     
   }
 
+tkType' tk = case tkType tk of
+  ST_SALESINVOICE -> Just "Invoice"
+  ST_SUPPINVOICE -> Just "Invoice"
+  ST_CUSTCREDIT -> Just "Credit"
+  ST_SUPPCREDIT -> Just "Credit"
+  ST_SUPPCREDIT -> Just "Credit"
+  _ -> Nothing
 getCols :: Handler [Column]
 getCols = do
   today <- utctDay <$> liftIO getCurrentTime
@@ -54,6 +61,8 @@ getCols = do
                           )
            , Column "Customer" (const tkCustomer)
            , Column "Supplier" (const tkSupplier)
+           , Column "TransactionType" (const $ Just . tshow . tkType)
+           , Column "Invoice/Credit" (const tkType')
            ] <>
            [ Column name (const $ Just . pack . formatTime defaultTimeLocale format . tkDay)
            | (name, format) <- [ ("Year", "%Y")
@@ -154,7 +163,7 @@ moveToTransInfo categories catFinder FA.StockMove{..} = (key,) <$> tqp where
                     | heading <- categories
                     , Just cat <- return $ catFinder heading stockMoveStockId
                     ]
-  key = TranKey stockMoveTranDate customer supplier  stockMoveStockId (Just style) (Just var) (mapFromList categorieValues)
+  key = TranKey stockMoveTranDate customer supplier  stockMoveStockId (Just style) (Just var) (mapFromList categorieValues) (toEnum stockMoveType)
   (customer, supplier, tqp) = case toEnum stockMoveType of
     ST_CUSTDELIVERY -> ( tshow <$> stockMovePersonId
                        , Nothing
@@ -188,9 +197,10 @@ detailToTransInfo ( Entity _ FA.DebtorTransDetail{..}
                   , Entity _ FA.CustBranch{..}) = (key, tqp) where
   key = TranKey debtorTranTranDate (Just $ decodeHtmlEntities custBranchBrName) Nothing
                 debtorTransDetailStockId Nothing Nothing  (mempty)
-  tqp = case toEnum <$> debtorTransDetailDebtorTransType of
-    Just ST_SALESINVOICE -> TranQP (Just qp) Nothing Nothing
-    Just ST_CUSTCREDIT -> TranQP (Just qpNeg) Nothing Nothing
+                transType
+  (tqp, transType) = case toEnum <$> debtorTransDetailDebtorTransType of
+    Just ST_SALESINVOICE -> (TranQP (Just qp) Nothing Nothing, ST_SALESINVOICE)
+    Just ST_CUSTCREDIT -> (TranQP (Just qpNeg) Nothing Nothing, ST_CUSTCREDIT)
     else_ -> error $ "Shouldn't process transaction of type " <> show else_
   qp = qprice debtorTransDetailQuantity price
   qpNeg = qprice (-debtorTransDetailQuantity) price
@@ -201,6 +211,8 @@ purchToTransInfo ( Entity _ FA.SuppInvoiceItem{..}
                   , Entity _ FA.Supplier{..}) = (key, tqp) where
   key = TranKey suppTranTranDate Nothing (Just $ decodeHtmlEntities supplierSuppName)
                 suppInvoiceItemStockId Nothing Nothing  (mempty)
+                (toEnum suppTranType)
+                   
   tqp = case toEnum suppTranType of
     ST_SUPPINVOICE -> TranQP Nothing (Just qp) Nothing
     ST_SUPPCREDIT -> TranQP Nothing (Just qpNeg) Nothing
