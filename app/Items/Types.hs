@@ -194,8 +194,9 @@ instance Semigroup TranQP where
 -- | Key to hold TranQP information
 data TranKey = TranKey
   { tkDay :: Day
-  , tkCustomer :: Maybe Int
-  , tkSupplier :: Maybe Int
+  , tkCustomer :: Maybe Text
+  , tkSupplier :: Maybe Text
+  , tkSku :: Text
   , tkStyle :: Maybe Text
   , tkVar :: Maybe Text
   , tkCategory :: Map Text Text

@@ -8,6 +8,7 @@ import FA
 import Data.Time(addDays)
 import qualified Data.Map as Map
 import Data.List.NonEmpty (NonEmpty(..))
+import Database.Persist.MySQL(unSqlBackendKey, rawSql, Single(..))
 
 -- * Columns
 data Column = Column
@@ -33,6 +34,7 @@ getCols = do
   return $ [ Column "Style" (tkStyle)
            , Column "Variation" tkVar
            , Column "52W" (Just . pack . slidingYearShow today . tkDay)
+           , Column "Customer" tkCustomer
            ] <>
            [ Column name (Just . pack . formatTime defaultTimeLocale format . tkDay)
            | (name, format) <- [ ("Year", "%Y")
@@ -55,15 +57,53 @@ loadItemTransactions criteria = do
   categories <- categoriesH
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   catFinder <- categoryFinderCached
-  moves <- runDB $ selectList ( criteria
-                                <> filterE id FA.StockMoveStockId (Just . LikeFilter $ stockLike)
-                              )
-                              []
-                               -- [LimitTo 1000]
+  -- moves <- runDB $ selectList ( criteria
+  --                               <> filterE id FA.StockMoveStockId (Just . LikeFilter $ stockLike)
+  --                             )
+  --                             []
 
-  return $ mapMaybe (moveToTransInfo categories catFinder . entityVal) moves
+  sales <- loadItemSales [] 
+
+  return $ map (computeCategory categories catFinder) sales
+  -- return $ mapMaybe (moveToTransInfo categories catFinder . entityVal) moves
+
+computeCategory categories catFinder (key, tpq) = let
+  sku = tkSku key
+  cats = mapFromList [(cat, found) | cat <-  categories, Just found <- return $ catFinder cat sku ]
+  (style, var) = skuToStyleVar sku
+  in (key { tkCategory = mapFromList cats, tkStyle = Just style, tkVar = Just var}, tpq)
+
+loadItemSales :: [Filter FA.DebtorTransDetail] -> Handler [(TranKey, TranQP)]
+loadItemSales criteria = do
+  stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
+  let sql = intercalate " " $
+          "SELECT ??, ??, ?? FROM 0_debtor_trans_details " :
+          "JOIN 0_debtor_trans ON (0_debtor_trans_details.debtor_trans_no = 0_debtor_trans.trans_no " :
+          " AND 0_debtor_trans_details.debtor_trans_type = 0_debtor_trans.type)  " :
+          "JOIN 0_cust_branch USING (debtor_no, branch_code)" :
+          "WHERE type IN ("  :
+          (tshow $ fromEnum ST_SALESINVOICE) :
+          ",":
+          (tshow $ fromEnum ST_CUSTCREDIT) :
+          ") " :
+          ("AND stock_id LIKE '" <> stockLike <> "'") : -- we don't want space between ' and stockLike
+          -- " LIMIT 100" :
+          []
+  sales <- runDB $ rawSql sql []
+  return $ map (detailToTransInfo) sales
+
+-- loadItemPurchases :: [Filter FA.PurchData] -> handler [(TranKey, TranQP)]
+-- loadItemPurchases criteria = do
+--   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
+--   moves <- runDB $ selectList ( criteria
+--                                 <> filterE id FA.PurchDataStockId (Just . LikeFilter $ stockLike)
+--                               )
+--                               []
+  
+--   return $ mapMaybe (purchDataToTransInfo categories catFinder . entityVal) moves
 
 -- * Converter
+-- ** StockMove
 moveToTransInfo :: [Text] -> (Text -> Text -> Maybe Text) -> StockMove -> Maybe (TranKey, TranQP)
 moveToTransInfo categories catFinder FA.StockMove{..} = (key,) <$> tqp where
   (style, var) = skuToStyleVar stockMoveStockId
@@ -71,22 +111,22 @@ moveToTransInfo categories catFinder FA.StockMove{..} = (key,) <$> tqp where
                     | heading <- categories
                     , Just cat <- return $ catFinder heading stockMoveStockId
                     ]
-  key = TranKey stockMoveTranDate customer supplier (Just style) (Just var) (mapFromList categorieValues)
+  key = TranKey stockMoveTranDate customer supplier  stockMoveStockId (Just style) (Just var) (mapFromList categorieValues)
   (customer, supplier, tqp) = case toEnum stockMoveType of
-    ST_CUSTDELIVERY -> ( stockMovePersonId
+    ST_CUSTDELIVERY -> ( tshow <$> stockMovePersonId
                        , Nothing
                        , Just $ TranQP (Just qpNeg) Nothing Nothing
                        )
-    ST_CUSTCREDIT -> ( stockMovePersonId
+    ST_CUSTCREDIT -> ( tshow <$> stockMovePersonId
                      , Nothing
                      , Just $ TranQP (Just qpNeg) Nothing Nothing
                      )
     ST_SUPPRECEIVE -> ( Nothing
-                      , stockMovePersonId
+                      , tshow <$> stockMovePersonId
                       , Just $ TranQP Nothing (Just qp) Nothing
                       )
     ST_SUPPCREDIT -> ( Nothing
-                     , stockMovePersonId
+                     , tshow <$> stockMovePersonId
                      , Just $ TranQP Nothing (Just qp) Nothing
                      )
     ST_INVADJUST -> ( Nothing
@@ -98,6 +138,20 @@ moveToTransInfo categories catFinder FA.StockMove{..} = (key,) <$> tqp where
   qpNeg = qprice (-stockMoveQty) price
   price = stockMovePrice*(1-stockMoveDiscountPercent/100)
   
+-- ** Sales Details
+-- detailToTransInfo :: [Text] -> (Text -> Text -> Maybe Text) -> StockMove -> Maybe (TranKey, TranQP)
+detailToTransInfo ( Entity _ FA.DebtorTransDetail{..}
+                  , Entity _ FA.DebtorTran{..}
+                  , Entity _ FA.CustBranch{..}) = (key, tqp) where
+  key = TranKey debtorTranTranDate (Just $ decodeHtmlEntities custBranchBrName) Nothing
+                debtorTransDetailStockId Nothing Nothing  (mempty)
+  tqp = case toEnum <$> debtorTransDetailDebtorTransType of
+    Just ST_SALESINVOICE -> TranQP (Just qp) Nothing Nothing
+    Just ST_CUSTCREDIT -> TranQP (Just qpNeg) Nothing Nothing
+    else_ -> error $ "Shouldn't process transaction of type " <> show else_
+  qp = qprice debtorTransDetailQuantity price
+  qpNeg = qprice (-debtorTransDetailQuantity) price
+  price = debtorTransDetailUnitPrice*(1-debtorTransDetailDiscountPercent/100)
 
 -- * Reports
 -- Display sales and purchase of an item

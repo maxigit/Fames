@@ -28,6 +28,7 @@ module Handler.Util
 , filterE
 , filterEField
 , filterEKeyword
+, filterEToSQL
 , readUploadOrCacheUTF8
 , locationSet
 , toHtmlWithBreak
@@ -274,7 +275,7 @@ firstOperator = do
   maybe (error "No active operators found. Please contact your administrator") return operator
 
 
--- * SQl
+-- * SQL
 -- ** Filtering Expressions (Like or Regexp)
 -- | Generate a like or rlike statement
 data FilterExpression = LikeFilter Text  | RegexFilter Text deriving (Eq, Show, Read)
@@ -322,7 +323,8 @@ filterE conv field (Just (RegexFilter regex)) =
 filterEKeyword ::  FilterExpression -> (Text, Text)
 filterEKeyword (LikeFilter f) = ("LIKE", f)
 filterEKeyword (RegexFilter f) = ("RLIKE", f)
-
+filterEToSQL :: FilterExpression -> Text
+filterEToSQL exp = let (key, v) = filterEKeyword exp in key <> " '" <> v <> "''"
 -- * Badges
 badgeSpan :: (Num a,  Show a) => (a -> Maybe Int) -> a -> Maybe String -> String -> Html
 badgeSpan badgeWidth qty bgM klass = do
