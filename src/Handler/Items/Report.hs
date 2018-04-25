@@ -13,16 +13,41 @@ import Handler.Items.Reports.Common
 import Handler.Items.Common
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,)
 import Text.Blaze.Html.Renderer.Text(renderHtml)
+import qualified FA as FA
 
 -- * Type
 data ReportParam = ReportParam
+  { rpFrom :: Maybe Day
+  , rpTo :: Maybe Day
+  -- , rpCatFilter :: Map Text (Maybe Text)
+  , rpStockFilter :: Maybe FilterExpression
+  , rpRowRupture :: Maybe Text
+  } deriving Show
 
 -- * Form
-reportForm paramM = let
-  form = pure ReportParam
+reportForm :: [Text] -> Maybe ReportParam -> _
+reportForm cols paramM = let
+  colOptions = [(c,c) | c <- cols]
+  form = ReportParam
+    <$> (aopt dayField "from" (Just $ rpFrom =<< paramM ))
+    <*> (aopt dayField "to" (Just $ rpTo =<< paramM))
+    <*> (aopt filterEField  "sku" (Just $ rpStockFilter =<< paramM))
+    <*> (aopt (selectFieldList colOptions)  "row rupture" (Just $ rpRowRupture =<< paramM) )
   in  renderBootstrap3 BootstrapBasicForm form
  
+paramToCriteria :: ReportParam -> [Filter FA.StockMove]
+paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
+                                  (rpTo <&> (FA.StockMoveTranDate <=.)) ?:
+                                  (filterE id FA.StockMoveStockId  rpStockFilter)
+
 -- * Handler
+getCols :: Handler [Text]
+getCols = do
+  let basic = ["Style", "Sku", "Variation", "Week", "Month", "Quarter", "52W", "Year", "Season"]
+  categories <- categoriesH
+  return $ basic ++ ["category:" <>  cat | cat <- categories]
+
+
 getItemsReportR :: Maybe ReportMode -> Handler TypedContent
 getItemsReportR mode = do
   renderReportForm ItemsReportR mode Nothing ok200 Nothing
@@ -35,12 +60,13 @@ getItemsReport3R mode = do
 
 postItemsReportR mode = do
   today <- utctDay <$> liftIO getCurrentTime
-  ((resp, formW), enctype) <- runFormPost (reportForm Nothing)
+  cols <- getCols
+  ((resp, formW), enctype) <- runFormPost (reportForm cols Nothing)
   case resp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess param -> do
-      (report, result) <- itemReport tkCategory (Just . slidingYearShow today . tkDay)
+      (report, result) <- itemReport (paramToCriteria param) tkCategory (Just . slidingYearShow today . tkDay)
       case mode of
         Just ReportCsv -> do
               let source = yieldMany (map (<> "\n") (toCsv result))
@@ -51,12 +77,13 @@ postItemsReportR mode = do
 postItemsReport2R :: Maybe ReportMode -> Handler TypedContent
 postItemsReport2R mode = do
   today <- utctDay <$> liftIO getCurrentTime
-  ((resp, formW), enctype) <- runFormPost (reportForm Nothing)
+  cols <- getCols
+  ((resp, formW), enctype) <- runFormPost (reportForm cols Nothing)
   case resp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess param -> do
-      (report, result) <- itemReport tkStyle (Just . slidingYearShow today . tkDay)
+      (report, result) <- itemReport (paramToCriteria param) tkStyle (Just . slidingYearShow today . tkDay)
       case mode of
         Just ReportCsv -> do
               let source = yieldMany (map (<> "\n") (toCsv result))
@@ -66,13 +93,14 @@ postItemsReport2R mode = do
 
 postItemsReport3R :: Maybe ReportMode -> Handler TypedContent
 postItemsReport3R mode = do
+  cols <- getCols
   today <- utctDay <$> liftIO getCurrentTime
-  ((resp, formW), enctype) <- runFormPost (reportForm Nothing)
+  ((resp, formW), enctype) <- runFormPost (reportForm cols Nothing)
   case resp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess param -> do
-      (report, result) <- itemReport tkStyle tkVar
+      (report, result) <- itemReport (paramToCriteria param) tkStyle tkVar
       case mode of
         Just ReportCsv -> do
               let source = yieldMany (map (<> "\n") (toCsv result))
@@ -81,9 +109,15 @@ postItemsReport3R mode = do
               renderReportForm ItemsReport3R mode (Just param) ok200 (Just report)
 -- ** Renders
 
--- renderReportForm  :: _ Maybe ReportMode -> Maybe ReportParam  -> Status -> Maybe Widget -> Handler TypedContent
+renderReportForm :: (Maybe ReportMode -> ItemsR)
+                 -> Maybe ReportMode
+                 -> Maybe ReportParam
+                 -> Status
+                 -> Maybe Widget
+                 -> Handler TypedContent
 renderReportForm  route modeM paramM status resultM = do
-  (repForm, repEncType) <- generateFormPost $ reportForm paramM
+  cols <- getCols
+  (repForm, repEncType) <- generateFormPost $ reportForm cols paramM
   let navs = [minBound..maxBound] :: [ReportMode]
       mode = fromMaybe ReportChart modeM
       navClass nav = if mode == nav then "active" else "" :: Html

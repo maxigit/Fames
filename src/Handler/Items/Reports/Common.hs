@@ -11,16 +11,11 @@ import Data.List.NonEmpty (NonEmpty(..))
 
 
 -- * DB
-loadItemTransactions :: Handler [(TranKey, TranQP)]
-loadItemTransactions = do
+loadItemTransactions :: [Filter FA.StockMove] -> Handler [(TranKey, TranQP)]
+loadItemTransactions criteria = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   catFinder <- categoryFinderCached
-  today <- utctDay <$> liftIO getCurrentTime
-  let to = today
-      from = addDays (-3650) to
-  moves <- runDB $ selectList ( [ FA.StockMoveTranDate >=. from
-                                , FA.StockMoveTranDate <=. to
-                                ]
+  moves <- runDB $ selectList ( criteria
                                 <> filterE id FA.StockMoveStockId (Just . LikeFilter $ stockLike)
                               )
                               []
@@ -62,8 +57,8 @@ moveToTransInfo catFinder FA.StockMove{..} = (key,) <$> tqp where
 
 -- * Reports
 -- Display sales and purchase of an item
-itemReport rowGrouper colGrouper= do
-  trans <- loadItemTransactions
+itemReport criteria rowGrouper colGrouper= do
+  trans <- loadItemTransactions criteria
   -- let grouped = Map.fromListWith(<>) [(grouper k, qp) | (k,qp) <- trans]
   let grouped = groupAsMap (rowGrouper . fst) (:[]) trans
       grouped' = groupAsMap (colGrouper . fst) snd <$> grouped

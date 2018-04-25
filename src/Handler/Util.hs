@@ -42,6 +42,7 @@ module Handler.Util
 , hToHx
 , eToX
 , categoryFinderCached
+, categoriesH
 ) where
 -- ** Import
 import Foundation
