@@ -26,8 +26,7 @@ loadItemTransactions = do
                               []
                                -- [LimitTo 1000]
 
-
-  return $ mapMaybe (moveToTransInfo catFinder . entityVal) moves
+  return $ mapMaybe (moveToTransInfo (catFinder "shape") . entityVal) moves
 
 -- * Converter
 moveToTransInfo :: (Text -> Maybe Text) -> StockMove -> Maybe (TranKey, TranQP)

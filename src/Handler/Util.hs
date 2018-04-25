@@ -490,29 +490,52 @@ eToX :: Monad m => Either e a -> ExceptT e m a
 eToX =  either throwError return
 
 
--- * Category
+-- * Categories
 -- | Return a function finding the category given a style
 -- The current implementation is based on TDFA regex
 -- which are pretty so we cache it into a big map
-categoryFinder :: Handler (Text -> Maybe Text)
+categoryFinder :: Handler (Text -> Text -> Maybe Text)
 categoryFinder = do
-  catRules <- appCategoryRules <$> getsYesod appSettings
-  let rules = concatMap (Map.toList) catRules
-      finder s = asum [ Just result
-                      | (regex, result) <- rules
-                      , unpack s =~ regex
-                      ]
+  -- each entry in the correspond to a caterogy heading
+  catRulesMap <- appCategoryRules <$> getsYesod appSettings
+  let flattenRules rules = concatMap (Map.toList) rules
+      rulesMap = fmap flattenRules catRulesMap
+      finderFor rules s = asum [ Just result
+                            | (regex, result) <- rules
+                            , unpack s =~ unpack regex
+                            ]
+      finder category item = do -- Maybe
+        rules <- lookup category rulesMap
+        finderFor rules item 
+
+
 
   return finder
 
-categoryFinderCached :: Handler (Text -> Maybe Text)
+categoriesH :: Handler [Text]
+categoriesH = do 
+  catRulesMap <- appCategoryRules <$> getsYesod appSettings
+  return $ keys catRulesMap
+
+categoryFinderCached :: Handler (Text -> Text -> Maybe Text)
 categoryFinderCached = do
   sku'cat <- cache0 False cacheForEver "category-map" $ do
+    categories <- categoriesH
     catFinder <- categoryFinder
     stockKeys <- allSkus
     let allSkus = map FA.unStockMasterKey stockKeys
-    return $ mapFromList [(sku, cat) | sku <- allSkus, Just cat <- return $ catFinder sku ]
-  return $ flip Map.lookup sku'cat
+    return $ mapFromList [ (heading, submap)
+                         | heading <- categories
+                         , let submap = mapFromList [(sku, cat)
+                                                    | sku <- allSkus
+                                                    , Just cat <- return $ catFinder heading sku
+                                                    ]
+                         ]
+    
+  let finder category item = do -- Maybe
+        m <- Map.lookup category sku'cat
+        Map.lookup item m
+  return finder
 
 allSkus :: Handler [Key FA.StockMaster]
 allSkus = do
