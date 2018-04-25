@@ -41,6 +41,7 @@ module Handler.Util
 , ioToH
 , hToHx
 , eToX
+, categoryFinderCached
 ) where
 -- ** Import
 import Foundation
@@ -57,7 +58,7 @@ import System.IO.Temp (openTempFile)
 import Data.Streaming.Process (streamingProcess, proc, Inherited(..), waitForStreamingProcess, env)
 import qualified Data.Text.Lazy as LT
 import Text.Blaze.Html (Markup)
-import FA
+import FA as FA
 import Data.Time (diffDays, addGregorianMonthsClip)
 import System.Directory (doesFileExist)
 import qualified Data.Map.Strict as Map
@@ -65,6 +66,7 @@ import qualified Data.List as Data.List
 import Model.DocumentKey
 import Control.Monad.Except
 import Text.Printf(printf) 
+import Text.Regex.TDFA ((=~))
 
 -- import Data.IOData (IOData)
 
@@ -487,3 +489,34 @@ hxtoHe = runExceptT
 eToX :: Monad m => Either e a -> ExceptT e m a
 eToX =  either throwError return
 
+
+-- * Category
+-- | Return a function finding the category given a style
+-- The current implementation is based on TDFA regex
+-- which are pretty so we cache it into a big map
+categoryFinder :: Handler (Text -> Maybe Text)
+categoryFinder = do
+  catRules <- appCategoryRules <$> getsYesod appSettings
+  let rules = concatMap (Map.toList) catRules
+      finder s = asum [ Just result
+                      | (regex, result) <- rules
+                      , unpack s =~ regex
+                      ]
+
+  return finder
+
+categoryFinderCached :: Handler (Text -> Maybe Text)
+categoryFinderCached = do
+  sku'cat <- cache0 False cacheForEver "category-map" $ do
+    catFinder <- categoryFinder
+    stockKeys <- allSkus
+    let allSkus = map FA.unStockMasterKey stockKeys
+    return $ mapFromList [(sku, cat) | sku <- allSkus, Just cat <- return $ catFinder sku ]
+  return $ flip Map.lookup sku'cat
+
+allSkus :: Handler [Key FA.StockMaster]
+allSkus = do
+  stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
+  -- selectKeysList doesn't work with non Integer KEy : Bug reported
+  entities <- runDB $ selectList (filterE FA.StockMasterKey FA.StockMasterId (Just . LikeFilter $ stockLike) ) []
+  return $ map entityKey entities

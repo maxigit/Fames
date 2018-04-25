@@ -14,7 +14,7 @@ import Data.List.NonEmpty (NonEmpty(..))
 loadItemTransactions :: Handler [(TranKey, TranQP)]
 loadItemTransactions = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
-  catFinder <- categoryFinder
+  catFinder <- categoryFinderCached
   today <- utctDay <$> liftIO getCurrentTime
   let to = today
       from = addDays (-3650) to
@@ -26,15 +26,14 @@ loadItemTransactions = do
                               []
                                -- [LimitTo 1000]
 
-  let info = mapMaybe (moveToTransInfo . entityVal) moves
-  -- set category
-  return [ (k { tkCategory = catFinder =<< tkStyle k }, qp) | (k, qp) <- info]
+
+  return $ mapMaybe (moveToTransInfo catFinder . entityVal) moves
 
 -- * Converter
-moveToTransInfo :: StockMove -> Maybe (TranKey, TranQP)
-moveToTransInfo FA.StockMove{..} = (key,) <$> tqp where
+moveToTransInfo :: (Text -> Maybe Text) -> StockMove -> Maybe (TranKey, TranQP)
+moveToTransInfo catFinder FA.StockMove{..} = (key,) <$> tqp where
   (style, var) = skuToStyleVar stockMoveStockId
-  key = TranKey stockMoveTranDate customer supplier (Just style) (Just var) Nothing
+  key = TranKey stockMoveTranDate customer supplier (Just style) (Just var) (catFinder stockMoveStockId)
   (customer, supplier, tqp) = case toEnum stockMoveType of
     ST_CUSTDELIVERY -> ( stockMovePersonId
                        , Nothing

@@ -4,8 +4,8 @@ import Import
 import Items
 import Data.Text(splitOn)
 import qualified Data.Map as Map 
-import Text.Regex.TDFA ((=~))
 import Data.Time.Calendar
+import qualified FA as FA
 
 -- * Style names conversion
 -- Those function are in handler and not in app
@@ -34,17 +34,8 @@ variationToVars var = splitOn "/" var
 varsToVariation :: [Text] -> Text
 varsToVariation vars = intercalate "/" vars
 
--- * Category
--- | Return a function finding the category given a style
-categoryFinder :: Handler (Text -> Maybe Text)
-categoryFinder = do
-  catRules <- appCategoryRules <$> getsYesod appSettings
-  let rules = concatMap (Map.toList) catRules
-      finder s = asum [ Just result
-                      | (regex, result) <- rules
-                      , unpack s =~ regex
-                      ]
-  return finder
+
+
 -- ** Date
 -- Year of the given date
 year :: Day -> Integer
