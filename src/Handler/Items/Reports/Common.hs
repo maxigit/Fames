@@ -103,6 +103,7 @@ loadItemSales param = do
           ",":
           (tshow $ fromEnum ST_CUSTCREDIT) :
           ") " :
+          "AND quantity != 0" :
           ("AND stock_id LIKE '" <> stockLike <> "'") : -- we don't want space between ' and stockLike
           -- " LIMIT 100" :
           []
@@ -129,6 +130,7 @@ loadItemPurchases param = do
           ",":
           (tshow $ fromEnum ST_SUPPCREDIT) :
           ") " :
+          "AND quantity != 0" :
           ("AND stock_id LIKE '" <> stockLike <> "'") : -- we don't want space between ' and stockLike
           -- " LIMIT 100" :
           []
