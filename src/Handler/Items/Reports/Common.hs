@@ -27,7 +27,7 @@ paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
 -- * Columns
 data Column = Column
   { colName :: Text
-  , colFn :: TranKey -> Maybe Text
+  , colFn :: ReportParam -> TranKey -> Maybe Text
   } 
 
 instance Eq Column where
@@ -45,13 +45,15 @@ getCols = do
   today <- utctDay <$> liftIO getCurrentTime
   categories <- categoriesH
 
-  return $ [ Column "Style" (tkStyle)
-           , Column "Variation" tkVar
-           , Column "52W" (Just . pack . slidingYearShow today . tkDay)
-           , Column "Customer" tkCustomer
-           , Column "Supplier" tkSupplier
+  return $ [ Column "Style" (const tkStyle)
+           , Column "Variation" (const tkVar)
+           , Column "52W" (\p -> let day0 = addDays 1 $ fromMaybe today (rpTo p)
+                                 in Just . pack . slidingYearShow day0 . tkDay
+                          )
+           , Column "Customer" (const tkCustomer)
+           , Column "Supplier" (const tkSupplier)
            ] <>
-           [ Column name (Just . pack . formatTime defaultTimeLocale format . tkDay)
+           [ Column name (const $ Just . pack . formatTime defaultTimeLocale format . tkDay)
            | (name, format) <- [ ("Year", "%Y")
                                , ("Year-Month", "%Y-M%m")
                                , ("Month", "%M%m %B")
@@ -60,12 +62,11 @@ getCols = do
                                ]
              
            ] <>
-           [ Column ("Category:" <> cat) (\tk -> Map.lookup cat (tkCategory tk))
+           [ Column ("Category:" <> cat) (\_ tk -> Map.lookup cat (tkCategory tk))
            | cat <- categories
            ]
            
   -- return $ map Column $ basic ++ ["category:" <>  cat | cat <- categories]
-
 -- * DB
 loadItemTransactions :: ReportParam -> Handler [(TranKey, TranQP)]
 loadItemTransactions param = do
@@ -214,8 +215,8 @@ itemReport
 itemReport param rowGrouper colGrouper= do
   trans <- loadItemTransactions param
   -- let grouped = Map.fromListWith(<>) [(grouper k, qp) | (k,qp) <- trans]
-  let grouped = groupAsMap (colFn rowGrouper . fst) (:[]) trans
-      grouped' = groupAsMap (colFn colGrouper . fst) snd <$> grouped
+  let grouped = groupAsMap (colFn rowGrouper param . fst) (:[]) trans
+      grouped' = groupAsMap (colFn colGrouper param . fst) snd <$> grouped
       summarize group = sconcat (q :| qp) where  (q:qp) = toList group
       profit qp = maybe 0 qpAmount (salesQPrice qp)
                   -  maybe 0 qpAmount (purchQPrice qp)
