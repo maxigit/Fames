@@ -503,7 +503,7 @@ eToX =  either throwError return
 categoryFinder :: Handler (Text -> Text -> Maybe Text)
 categoryFinder = do
   catRulesMap <- appCategoryRules <$> getsYesod appSettings
-  let flattenRules rules = [ (fromString $ unpack reg, fromString $ unpack rep)
+  let flattenRules rules = [ (fromString $ unpack reg ++ ".*" , fromString $ unpack rep)
                            | (reg, rep) <- concatMap (Map.toList) rules
                            ]
       rulesMap = fmap flattenRules catRulesMap
