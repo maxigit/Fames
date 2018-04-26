@@ -32,6 +32,7 @@ data ItemViewMode = ItemGLView
                    | ItemPriceView
                    | ItemPurchaseView
                    | ItemWebStatusView
+                   | ItemCategoryView
                    | ItemAllView -- Not supposed to be used as a view
   deriving (Eq, Read, Show, Enum, Bounded)
 instance PathPiece ItemViewMode where

@@ -10,7 +10,7 @@ import Items
 import Handler.Items.Common
 import qualified Data.Map as Map
 import Data.Monoid(Endo(..), appEndo)
-import Data.Text(toTitle, replace)
+import Data.Text(toTitle, replace, strip)
 import Text.Blaze.Html.Renderer.Text(renderHtml)
 import qualified Data.List as List
 import Database.Persist.MySQL hiding(replace)
@@ -21,7 +21,7 @@ import Util.Cache
 import Control.Monad(zipWithM_)
 import Handler.Util
 import Control.Monad.Reader(mapReaderT)
-
+import qualified Data.Map as Map
 -- * Types
 -- | SQL text filter expression. Can be use either the LIKE syntax or the Regex one.
 -- Regex one starts with '/'.
@@ -53,6 +53,7 @@ data IndexColumn = GLColumn Text
             | FAStatusColumn Text
             | WebStatusColumn Text
             | WebPriceColumn Int
+            | CategoryColumn Text -- (Text -> Maybe Text)
             deriving Show
 
 -- | Preloaded data to be used by the handler
@@ -61,6 +62,8 @@ data IndexCache = IndexCache
   , icPriceListNames :: IntMap Text
   , icSupplierNames :: IntMap Text
   , icWebPriceList :: [Int] -- price list ids
+  , icCategoryFinder :: Text -> Text -> Maybe Text
+  , icCategories :: [Text]
   }
 
 data Button = CreateMissingBtn
@@ -175,23 +178,26 @@ checkFilter param sku =
 
 -- ** Preloaded Cache
 fillIndexCache :: Handler IndexCache
-fillIndexCache = cache0 False (cacheHour 1) "index/static"  $ runDB $ do
-  salesTypes <- selectList [] [] -- [Entity SalesType]
-  let priceListNames = mapFromList [ (k, salesTypeSalesType t)
-                                   | (Entity (SalesTypeKey k) t) <- salesTypes
-                                   ]
-  supplierNames <- do
-        entities <- selectList [] []
-        return $ mapFromList [(k, supplierSuppName s) | (Entity (SupplierKey k) s) <- entities]
+fillIndexCache = do
+  categories <- categoriesH
+  catFinder <- categoryFinderCached
+  cache0 False (cacheHour 1) "index/static"  $ runDB $ do
+      salesTypes <- selectList [] [] -- [Entity SalesType]
+      let priceListNames = mapFromList [ (k, salesTypeSalesType t)
+                                      | (Entity (SalesTypeKey k) t) <- salesTypes
+                                      ]
+      supplierNames <- do
+            entities <- selectList [] []
+            return $ mapFromList [(k, supplierSuppName s) | (Entity (SupplierKey k) s) <- entities]
 
-  rows <- rawSql "SHOW TABLES LIKE 'dcx_field_data_field_price%'" []
-  let webPriceList = [ pId :: Int
-                  | (Single table) <- rows
-                  , Just pId <- return $ readMay =<< stripPrefix "dcx_field_data_field_price_pl_" (table :: Text)
+      rows <- rawSql "SHOW TABLES LIKE 'dcx_field_data_field_price%'" []
+      let webPriceList = [ pId :: Int
+                      | (Single table) <- rows
+                      , Just pId <- return $ readMay =<< stripPrefix "dcx_field_data_field_price_pl_" (table :: Text)
 
-                  ]
+                      ]
 
-  return $ IndexCache salesTypes priceListNames supplierNames webPriceList
+      return $ IndexCache salesTypes priceListNames supplierNames webPriceList catFinder categories
   
 
   
@@ -299,6 +305,7 @@ loadVariations cache param = do
     ItemPurchaseView -> [delayedPurchasePrices]
     ItemAllView -> [delayedSalesPrices, delayedPurchasePrices]
     ItemWebStatusView -> [delayedSalesPrices, delayedStatus, delayedWebStatus, delayedWebPrices]
+    ItemCategoryView -> []
     )
 
   let itemStyles = mergeInfoSources ( map stockItemMasterToItem styles
@@ -319,7 +326,6 @@ loadVariations cache param = do
                 ) itemGroups
   mapM_ startDelayed delayeds
   return result
-
     
 -- ** Sales prices
 -- | Load sales prices 
@@ -603,6 +609,7 @@ columnsFor cache ItemWebStatusView _ =
   webPrices = List.nub . sort $ (keys (icPriceListNames cache)) <> (icWebPriceList cache)
 
 columnsFor _ ItemAllView _ = []
+columnsFor cache ItemCategoryView _ = map CategoryColumn (icCategories cache)
 
 
 itemsTable :: IndexCache -> IndexParam ->  Handler Widget
@@ -667,6 +674,8 @@ itemsTable cache param = do
                         FAStatusColumn name -> columnForFAStatus name =<< impFAStatus master
                         WebStatusColumn name -> columnForWebStatus name (impWebStatus master)
                         WebPriceColumn i -> columnForWebPrice i =<< impWebPrices master
+                        CategoryColumn catName -> columnForCategory catName <$> icCategoryFinder cache catName sku
+
 
             differs = or diffs where
               diffs = [ "text-danger" `elem `kls
@@ -736,11 +745,12 @@ columnForSMI col stock =
     "noSale"                 -> Just $ toHtml <$> smfNoSale stock 
     "editable"               -> Just $ toHtml <$> smfEditable stock 
     _ -> Nothing
-  where
-    badgify :: Text -> Text -> Html
-    badgify label str = [shamlet|<span data-label=#{label}-#{str}>#{str}|]
-    toInactive False = "Active"
-    toInactive True = "Inactive"
+toInactive :: Bool -> Text
+toInactive False = "Active"
+toInactive True = "Inactive"
+
+badgify :: Text -> Text -> Html
+badgify label str = [shamlet|<span data-label="#{strip label}-#{strip str}">#{str}|]
 
 columnForPrices :: Int -> (IntMap (PriceF ((,) [Text]))) -> Maybe ([Text], Html)
 columnForPrices colInt prices = do -- Maybe
@@ -817,6 +827,8 @@ columnForWebPrice colInt (ItemPriceF priceMap) = do
   value <- IntMap.lookup colInt priceMap
   return $  toHtml . (\x -> x :: String) . printf "%.2f"  <$> value
   
+columnForCategory :: Text -> Text -> ([Text], Html)
+columnForCategory catName category = ([], badgify catName category)
 -- * Rendering
 renderButton :: IndexParam -> Text -> Button -> Html
 renderButton param bclass button = case buttonStatus param button of
@@ -987,6 +999,7 @@ getColumnToTitle cache param = do
                 Just name -> if i `List.elem` icWebPriceList cache
                              then Right name
                              else Left (toHtml name, ["text-danger"])
+            CategoryColumn t -> Right t
           in toh title
     return go
 
