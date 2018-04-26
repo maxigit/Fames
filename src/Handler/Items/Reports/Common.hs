@@ -265,26 +265,27 @@ itemReport param rowGrouper colGrouper= do
               <th> Purch Amount
               <th> Purch Min Price
               <th> Purch max Price
-              <th> Adjustment Qty
-              <th> Adjustment Amount
-              <th> Adjustment Min Price
-              <th> Adjustment max Price
+              <th> Summary Qty
+              <th> Summary Amount
+              <th> Summary Min Price
+              <th> Summary max Price
             $forall (h2,qp) <- Map.toList group
               <tr>
                 <td> #{fromMaybe "" h2}
                 ^{showQp $ salesQPrice qp}
                 ^{showQp $ purchQPrice qp}
-                ^{showQp $ adjQPrice qp}
+                ^{showQp $ salesQPrice qp <> (negQP <$> purchQPrice qp)}
             $with (qp) <- summarize group
                 <tr.total>
-                  <td> #{showDouble $ profit qp }
+                  <td> Total
                   ^{showQp $ salesQPrice qp}
                   ^{showQp $ purchQPrice qp}
-                  ^{showQp $ adjQPrice qp}
+                  ^{showQp $ salesQPrice qp <> (negQP <$> purchQPrice qp)}
                   |]
   return (widget, grouped')
 
 
+negQP  QPrice{..} = QPrice (- qpQty) (-qpAmount) (MinMax (-mn) (-mx)) where MinMax mn mx = qpPrice
 -- *** Csv
 qpToCsv Nothing = ["", "", "", ""]
 qpToCsv (Just QPrice{..}) = [ tshow qpQty
