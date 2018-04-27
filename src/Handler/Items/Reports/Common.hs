@@ -66,7 +66,9 @@ getCols = do
            [ Column name (const $ Just . pack . formatTime defaultTimeLocale format . tkDay)
            | (name, format) <- [ ("Year", "%Y")
                                , ("Year-Month", "%Y-M%m")
+                               , ("Year-1-month", "%Y-%m-01")
                                , ("Month", "%M%m %B")
+                               , ("1-Month", "2001-%m-01")
                                , ("Year-Week", "%Y-%m-W%W")
                                , ("Week", "W%W")
                                ]
@@ -324,14 +326,15 @@ toCsv param grouped' = let
 chartProcessor :: Map (Maybe Text) (Map (Maybe Text) TranQP) -> Widget 
 chartProcessor grouped = do
      let plotId = "items-report-plot" :: Text
-         xsFor g = map (toJSON .fst) (Map.toList g)
-         ysFor g = map (toJSON . fmap qpAmount . salesQPrice . snd)  (Map.toList g)
-         traceFor (name, g) = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g)
+         -- all x values must be 
+         xsFor g = map (toJSON .fst) g
+         ysFor g = map (toJSON . fmap qpAmount . salesQPrice . snd) g
+         traceFor (name, g') = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g)
                                      , ("y",  toJSON $ ysFor g)
                                      , ("name", toJSON name )
                                      , ("connectgaps", toJSON False )
                                      , ("type", "bar" )
-                                     ]
+                                     ] where g = sortOn fst (Map.toList g')
          jsData = traceShowId $ map traceFor (Map.toList grouped)
      [whamlet|<div id=#{plotId} style="height:800px">
              |]
