@@ -25,7 +25,9 @@ reportForm cols paramM = let
     <$> (aopt dayField "from" (Just $ rpFrom =<< paramM ))
     <*> (aopt dayField "to" (Just $ rpTo =<< paramM))
     <*> (aopt filterEField  "sku" (Just $ rpStockFilter =<< paramM))
-    <*> (areq (selectFieldList colOptions)  "row rupture" (rpRowRupture <$> paramM) )
+    <*> (aopt (selectFieldList colOptions)  "Panel" (rpPanelRupture <$> paramM) )
+    <*> (aopt (selectFieldList colOptions)  "Band" (rpBand <$> paramM) )
+    <*> (aopt (selectFieldList colOptions)  "Series" (rpSerie <$> paramM) )
     <*> (areq (selectFieldList colOptions)  "column rupture" (rpColumnRupture <$> paramM) )
   in  renderBootstrap3 BootstrapBasicForm form
  
@@ -53,10 +55,10 @@ postItemsReportFor route mode = do
     FormSuccess param -> do
       case readMay =<< actionM of
         Just ReportCsv -> do
-              result <- itemReport param (rpRowRupture param) (rpColumnRupture param) id
+              result <- itemReport param (rpPanelRupture param) (rpBand param) id
               let source = yieldMany (map (<> "\n") (toCsv param result))
-              setAttachment . fromStrict $ "items-report-" <> colName (rpRowRupture param) <> "-"
-                                              <> colName (rpColumnRupture param) <> ".csv"
+              setAttachment . fromStrict $ "items-report-" <> (tshowM $ colName <$> (rpPanelRupture param)) <> "-"
+                                              <> (tshowM $ colName <$> rpBand param) <> ".csv"
               respondSource "text/csv" (source =$= mapC toFlushBuilder)
         Just ReportRaw -> do
              itemToCsv param
@@ -65,7 +67,7 @@ postItemsReportFor route mode = do
                     Just ReportTable -> tableProcessor
                     Just ReportChart -> chartProcessor
                     _ -> chartProcessor
-              report <- itemReport param (rpRowRupture param) (rpColumnRupture param) processor
+              report <- itemReport param (rpPanelRupture param) (rpBand param) processor
               renderReportForm route mode (Just param) ok200 (Just report)
 
 
