@@ -25,7 +25,9 @@ reportForm cols paramM = let
     <$> (aopt dayField "from" (Just $ rpFrom =<< paramM ))
     <*> (aopt dayField "to" (Just $ rpTo =<< paramM))
     <*> (aopt filterEField  "sku" (Just $ rpStockFilter =<< paramM))
-    <*> (areq (selectFieldList colOptions)  "row rupture" (rpRowRupture <$> paramM) )
+    <*> (aopt (selectFieldList colOptions)  "Panel" (rpPanelRupture <$> paramM) )
+    <*> (aopt (selectFieldList colOptions)  "Band" (rpBand <$> paramM) )
+    <*> (aopt (selectFieldList colOptions)  "Series" (rpSerie <$> paramM) )
     <*> (areq (selectFieldList colOptions)  "column rupture" (rpColumnRupture <$> paramM) )
   in  renderBootstrap3 BootstrapBasicForm form
  
@@ -35,8 +37,10 @@ getItemsReportR :: Maybe ReportMode -> Handler TypedContent
 getItemsReportR mode = do
   renderReportForm ItemsReportR mode Nothing ok200 Nothing
 
+getItemsReport2R :: Maybe ReportMode -> Handler Html
 getItemsReport2R mode = do
-  renderReportForm ItemsReport2R mode Nothing ok200 Nothing
+  redirect $ ItemsR (ItemsReportR (Just ReportChart))
+  -- renderReportForm ItemsReport2R mode Nothing ok200 Nothing
 
 getItemsReport3R mode = do 
   renderReportForm ItemsReport3R mode Nothing ok200 Nothing
@@ -53,19 +57,24 @@ postItemsReportFor route mode = do
     FormSuccess param -> do
       case readMay =<< actionM of
         Just ReportCsv -> do
-              (report, result) <- itemReport param (rpRowRupture param) (rpColumnRupture param)
+              result <- itemReport param (rpPanelRupture param) (rpBand param) (fmap (fmap (summarize . map snd)))
               let source = yieldMany (map (<> "\n") (toCsv param result))
-              setAttachment . fromStrict $ "items-report-" <> colName (rpRowRupture param) <> "-"
-                                              <> colName (rpColumnRupture param) <> ".csv"
+              setAttachment . fromStrict $ "items-report-" <> (tshowM $ colName <$> (rpPanelRupture param)) <> "-"
+                                              <> (tshowM $ colName <$> rpBand param) <> ".csv"
               respondSource "text/csv" (source =$= mapC toFlushBuilder)
         Just ReportRaw -> do
-             itemToCsv param
+             undefined -- itemToCsv param
         _ -> do
-              (report, result) <- itemReport param (rpRowRupture param) (rpColumnRupture param)
+              let processor = case mode of
+                    Just ReportTable -> tableProcessor
+                    Just ReportChart -> chartProcessor param
+                    _ -> tableProcessor
+              report <- itemReport param (rpPanelRupture param) (rpBand param) processor
               renderReportForm route mode (Just param) ok200 (Just report)
 
+
 postItemsReport2R :: Maybe ReportMode -> Handler TypedContent
-postItemsReport2R = postItemsReportFor ItemsReport2R 
+postItemsReport2R mode = postItemsReportFor ItemsReport2R  (mode <|> Just ReportCsv)
 
 postItemsReport3R :: Maybe ReportMode -> Handler TypedContent
 postItemsReport3R = postItemsReportFor ItemsReport3R 
@@ -83,7 +92,7 @@ renderReportForm  route modeM paramM status resultM = do
   let buttons = [(ReportCsv, "Export To Csv" :: Text), (ReportRaw, "Export Raw CSV")]
       navs = ([minBound..maxBound] :: [ReportMode]) List.\\ map fst buttons
       -- ^ We use a button instead for the CSV
-      mode = fromMaybe ReportChart modeM
+      mode = fromMaybe ReportTable modeM
       navClass nav = if mode == nav then "active" else "" :: Html
       fay = $(fayFile "ItemsReport")
       widget = [whamlet|
