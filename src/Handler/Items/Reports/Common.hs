@@ -330,14 +330,33 @@ toCsv param grouped' = let
 chartProcessor :: ReportParam -> Map (Maybe Text) (Map (Maybe Text) [(TranKey, TranQP)]) -> Widget 
 chartProcessor param grouped = do
   addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
-  forM_ (zip (Map.toList grouped) [1 :: Int]) $ \((panelName, group), i) -> do
+  forM_ (zip (Map.toList grouped) [1 :: Int ..]) $ \((panelName, group), i) -> do
      let plotId = "items-report-plot-" <> tshow i 
-         bySerie = fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) group
-     panelChartProcessor (fromMaybe "All" panelName) plotId bySerie
+         bySerie = fmap (groupAsMap (mkGrouper param (rpSerie param) . fst) (:[])) group
+     panelChartProcessor param (fromMaybe "All" panelName) plotId bySerie
         
   
-panelChartProcessor :: Text -> Text -> Map (Maybe Text) (Map (Maybe Text) TranQP) -> Widget 
-panelChartProcessor name plotId grouped = do
+panelChartProcessor :: ReportParam -> Text -> Text -> Map (Maybe Text) (Map (Maybe Text) [(TranKey, TranQP)]) -> Widget 
+panelChartProcessor param name plotId0 grouped = do
+  let plots = forM_ (zip (Map.toList grouped) [1:: Int ..]) $ \((bandName, bands), i) ->
+        do
+          let byColumn = fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) bands
+              plot = seriesChartProcessor (fromMaybe "<All>" bandName) plotId byColumn 
+              plotId = plotId0 <> "-" <> tshow i
+          [whamlet|
+            <div id=#{plotId} style="height:#{tshow $ 200 * 1}px">
+                ^{plot}
+                  |]
+  [whamlet|
+      <div.panel.panel-info>
+        <div.panel-heading>
+          <h2>#{name}
+        <div.panel-body>
+          ^{plots}
+            |]
+    
+seriesChartProcessor :: Text -> Text -> Map (Maybe Text) (Map (Maybe Text) TranQP) -> Widget 
+seriesChartProcessor name plotId grouped = do
      let xsFor g = map (toJSON . fromMaybe "ALL" . fst) g
          ysFor g = map (toJSON . fmap qpAmount . salesQPrice . snd) g
          traceFor (name, g') = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g)
@@ -346,14 +365,7 @@ panelChartProcessor name plotId grouped = do
                                      , ("connectgaps", toJSON False )
                                      , ("type", "bar" )
                                      ] where g = sortOn fst (Map.toList g')
-         jsData = traceShowId $ map traceFor (Map.toList grouped)
-     [whamlet|
-      <div.panel.panel-info>
-        <div.panel-heading>
-          <h2>#{name}
-        <div.panel-body>
-             <div id=#{plotId} style="height:800px">
-             |]
+         jsData = map traceFor (Map.toList grouped)
      toWidget [julius|
           Plotly.plot( #{toJSON plotId}
                     , #{toJSON jsData} 
