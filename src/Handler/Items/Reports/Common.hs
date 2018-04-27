@@ -344,9 +344,11 @@ panelChartProcessor param name plotId0 grouped = do
               plot = seriesChartProcessor (fromMaybe "<All>" bandName) plotId byColumn 
               plotId = plotId0 <> "-" <> tshow i
           [whamlet|
-            <div id=#{plotId} style="height:#{tshow $ 200 * 1}px">
+            <div id=#{plotId} style="height:#{tshow plotHeight }px">
                 ^{plot}
                   |]
+      numberOfBands = length grouped
+      plotHeight = max 200 (800 `div` numberOfBands)
   [whamlet|
       <div.panel.panel-info>
         <div.panel-heading>
