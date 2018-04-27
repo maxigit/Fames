@@ -53,7 +53,7 @@ postItemsReportFor route mode = do
     FormSuccess param -> do
       case readMay =<< actionM of
         Just ReportCsv -> do
-              (report, result) <- itemReport param (rpRowRupture param) (rpColumnRupture param)
+              result <- itemReport param (rpRowRupture param) (rpColumnRupture param) id
               let source = yieldMany (map (<> "\n") (toCsv param result))
               setAttachment . fromStrict $ "items-report-" <> colName (rpRowRupture param) <> "-"
                                               <> colName (rpColumnRupture param) <> ".csv"
@@ -61,8 +61,13 @@ postItemsReportFor route mode = do
         Just ReportRaw -> do
              itemToCsv param
         _ -> do
-              (report, result) <- itemReport param (rpRowRupture param) (rpColumnRupture param)
+              let processor = case mode of
+                    Just ReportTable -> tableProcessor
+                    Just ReportChart -> chartProcessor
+                    _ -> chartProcessor
+              report <- itemReport param (rpRowRupture param) (rpColumnRupture param) processor
               renderReportForm route mode (Just param) ok200 (Just report)
+
 
 postItemsReport2R :: Maybe ReportMode -> Handler TypedContent
 postItemsReport2R = postItemsReportFor ItemsReport2R 

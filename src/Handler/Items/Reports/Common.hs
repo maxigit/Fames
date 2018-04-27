@@ -45,7 +45,6 @@ tkType' tk = case tkType tk of
   ST_SUPPINVOICE -> Just "Invoice"
   ST_CUSTCREDIT -> Just "Credit"
   ST_SUPPCREDIT -> Just "Credit"
-  ST_SUPPCREDIT -> Just "Credit"
   _ -> Nothing
 getCols :: Handler [Column]
 getCols = do
@@ -222,34 +221,24 @@ purchToTransInfo ( Entity _ FA.SuppInvoiceItem{..}
   price = suppInvoiceItemUnitPrice*suppTranRate
 
 -- * Reports
--- Display sales and purchase of an item
+-- | Display sales and purchase of an item
 itemReport
   :: ReportParam
      -> Column
      -> Column
-     -> Handler (Widget, Map (Maybe Text) (Map (Maybe Text) TranQP))
-itemReport param rowGrouper colGrouper= do
+     -> (Map (Maybe Text) (Map (Maybe Text) TranQP) -> a )
+     -> Handler a
+itemReport param rowGrouper colGrouper processor = do
   trans <- loadItemTransactions param
   -- let grouped = Map.fromListWith(<>) [(grouper k, qp) | (k,qp) <- trans]
   let grouped = groupAsMap (colFn rowGrouper param . fst) (:[]) trans
       grouped' = groupAsMap (colFn colGrouper param . fst) snd <$> grouped
-      summarize group = sconcat (q :| qp) where  (q:qp) = toList group
-      profit qp = maybe 0 qpAmount (salesQPrice qp)
-                  -  maybe 0 qpAmount (purchQPrice qp)
-      showQp Nothing = [whamlet|
-                                  <td>
-                                  <td>
-                                  <td>
-                                  <td>
-                                  |]
-      showQp (Just QPrice{..}) = [whamlet|
-                                  <td> #{show $ round qpQty}
-                                  <td> #{showDouble qpAmount}
-                                  <td> #{showDouble qpMin}
-                                  <td> #{showDouble qpMax}
-                                  |] where (MinMax qpMin qpMax ) = qpPrice
-      widget =  [whamlet|
-    $forall (h1, group) <- Map.toList grouped'
+  return $ processor grouped'
+
+
+tableProcessor :: Map (Maybe Text) (Map (Maybe Text) TranQP) -> Widget 
+tableProcessor grouped = [whamlet|
+    $forall (h1, group) <- Map.toList grouped
       <div.panel.panel-info>
         <div.panel-heading>
           <h2>#{fromMaybe "" h1}
@@ -282,9 +271,22 @@ itemReport param rowGrouper colGrouper= do
                   ^{showQp $ purchQPrice qp}
                   ^{showQp $ salesQPrice qp <> (negQP <$> purchQPrice qp)}
                   |]
-  return (widget, grouped')
+  where
+      showQp Nothing = [whamlet|
+                                  <td>
+                                  <td>
+                                  <td>
+                                  <td>
+                                  |]
+      showQp (Just QPrice{..}) = [whamlet|
+                                  <td> #{show $ round qpQty}
+                                  <td> #{showDouble qpAmount}
+                                  <td> #{showDouble qpMin}
+                                  <td> #{showDouble qpMax}
+                                  |] where (MinMax qpMin qpMax ) = qpPrice
 
 
+summarize group = sconcat (q :| qp) where  (q:qp) = toList group
 negQP  QPrice{..} = QPrice (- qpQty) (-qpAmount) (MinMax (-mn) (-mx)) where MinMax mn mx = qpPrice
 -- *** Csv
 qpToCsv Nothing = ["", "", "", ""]
@@ -318,6 +320,23 @@ toCsv param grouped' = let
                       <> (qpToCsv $ salesQPrice qp)
                       <> (qpToCsv $ purchQPrice qp)
                       <> (qpToCsv $ adjQPrice qp)
+-- ** Plot
+chartProcessor :: Map (Maybe Text) (Map (Maybe Text) TranQP) -> Widget 
+chartProcessor grouped = do
+     let plotId = "items-report-plot" :: Text
+         xs =  [1..50] :: [Int]
+         ys =  map (`mod` 7) xs
+     [whamlet|<div id=#{plotId}>
+             |]
+     addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
+     toWidget [julius|
+	Plotly.plot( #{toJSON plotId},  [{
+          x: #{toJSON xs},
+          y: #{toJSON ys} }], {
+          margin: { t: 0 } } );
+               |]
+  
+-- ** Csv
   
 itemToCsv param = do
   -- no need to group, we display everything, including all category and columns
@@ -359,6 +378,8 @@ itemToCsv param = do
 
   
   
+-- *** Plot
+
 -- ** Utils
 -- splitToGroups :: (a -> k) -> (a -> a') ->   [(a,b)] -> [(k, (a',b))]
 groupAsMap :: (Semigroup a, Ord k) => (t -> k) -> (t -> a) -> [t] -> Map k a
