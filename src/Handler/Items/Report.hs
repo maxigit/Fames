@@ -37,8 +37,10 @@ getItemsReportR :: Maybe ReportMode -> Handler TypedContent
 getItemsReportR mode = do
   renderReportForm ItemsReportR mode Nothing ok200 Nothing
 
+getItemsReport2R :: Maybe ReportMode -> Handler Html
 getItemsReport2R mode = do
-  renderReportForm ItemsReport2R mode Nothing ok200 Nothing
+  redirect $ ItemsR (ItemsReportR (Just ReportChart))
+  -- renderReportForm ItemsReport2R mode Nothing ok200 Nothing
 
 getItemsReport3R mode = do 
   renderReportForm ItemsReport3R mode Nothing ok200 Nothing
@@ -63,16 +65,16 @@ postItemsReportFor route mode = do
         Just ReportRaw -> do
              undefined -- itemToCsv param
         _ -> do
-              let processor = case fromMaybe ReportCsv mode of
-                    ReportTable -> tableProcessor
-                    ReportChart -> chartProcessor param
-                    _ -> chartProcessor param
+              let processor = case mode of
+                    Just ReportTable -> tableProcessor
+                    Just ReportChart -> chartProcessor param
+                    _ -> tableProcessor
               report <- itemReport param (rpPanelRupture param) (rpBand param) processor
               renderReportForm route mode (Just param) ok200 (Just report)
 
 
 postItemsReport2R :: Maybe ReportMode -> Handler TypedContent
-postItemsReport2R = postItemsReportFor ItemsReport2R 
+postItemsReport2R mode = postItemsReportFor ItemsReport2R  (mode <|> Just ReportCsv)
 
 postItemsReport3R :: Maybe ReportMode -> Handler TypedContent
 postItemsReport3R = postItemsReportFor ItemsReport3R 
@@ -90,7 +92,7 @@ renderReportForm  route modeM paramM status resultM = do
   let buttons = [(ReportCsv, "Export To Csv" :: Text), (ReportRaw, "Export Raw CSV")]
       navs = ([minBound..maxBound] :: [ReportMode]) List.\\ map fst buttons
       -- ^ We use a button instead for the CSV
-      mode = fromMaybe ReportChart modeM
+      mode = fromMaybe ReportTable modeM
       navClass nav = if mode == nav then "active" else "" :: Html
       fay = $(fayFile "ItemsReport")
       widget = [whamlet|
