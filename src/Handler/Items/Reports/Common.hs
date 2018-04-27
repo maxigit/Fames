@@ -324,17 +324,25 @@ toCsv param grouped' = let
 chartProcessor :: Map (Maybe Text) (Map (Maybe Text) TranQP) -> Widget 
 chartProcessor grouped = do
      let plotId = "items-report-plot" :: Text
-         xs =  [1..50] :: [Int]
-         ys =  map (`mod` 7) xs
+         xsFor g = map (toJSON .fst) (Map.toList g)
+         ysFor g = map (toJSON . fmap qpAmount . salesQPrice . snd)  (Map.toList g)
+         traceFor (name, g) = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g)
+                                     , ("y",  toJSON $ ysFor g)
+                                     , ("name", toJSON name )
+                                     , ("connectgaps", toJSON False )
+                                     ]
+         jsData = traceShowId $ map traceFor (Map.toList grouped)
      [whamlet|<div id=#{plotId}>
              |]
      addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
      toWidget [julius|
-	Plotly.plot( #{toJSON plotId},  [{
-          x: #{toJSON xs},
-          y: #{toJSON ys} }], {
-          margin: { t: 0 } } );
-               |]
+          Plotly.plot( #{toJSON plotId}
+                    , #{toJSON jsData} 
+                    , { margin: { t: 0 }
+                      , barmode: 'stack'
+                      }
+                    );
+                |]
   
 -- ** Csv
   
