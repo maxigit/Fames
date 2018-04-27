@@ -330,16 +330,28 @@ chartProcessor grouped = do
                                      , ("y",  toJSON $ ysFor g)
                                      , ("name", toJSON name )
                                      , ("connectgaps", toJSON False )
+                                     , ("type", "bar" )
                                      ]
          jsData = traceShowId $ map traceFor (Map.toList grouped)
-     [whamlet|<div id=#{plotId}>
+     [whamlet|<div id=#{plotId} style="height:800px">
              |]
      addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
      toWidget [julius|
           Plotly.plot( #{toJSON plotId}
                     , #{toJSON jsData} 
                     , { margin: { t: 0 }
-                      , barmode: 'stack'
+                      , updatemenus:
+                         [ { buttons: [ { method: 'restyle'
+                                        , args: [{type: 'scatter' }]
+                                        , label: "Line"
+                                        }
+                                      , { method: 'restyle'
+                                        , args: [{type: 'bar' }]
+                                        , label: "Bar"
+                                        }
+                                  ]
+                           }
+                         ]
                       }
                     );
                 |]
