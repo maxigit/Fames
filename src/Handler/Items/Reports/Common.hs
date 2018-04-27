@@ -363,13 +363,14 @@ seriesChartProcessor name plotId grouped = do
                                      , ("y",  toJSON $ ysFor g)
                                      , ("name", toJSON name )
                                      , ("connectgaps", toJSON False )
-                                     , ("type", "bar" )
+                                     , ("type", "scatter" )
                                      ] where g = sortOn fst (Map.toList g')
          jsData = map traceFor (Map.toList grouped)
      toWidget [julius|
           Plotly.plot( #{toJSON plotId}
                     , #{toJSON jsData} 
                     , { margin: { t: 0 }
+                      , title: #{toJSON name}
                       , updatemenus:
                          [ { buttons: [ { method: 'restyle'
                                         , args: [{type: 'scatter', fill: 'none' }]
