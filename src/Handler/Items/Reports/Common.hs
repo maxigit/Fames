@@ -16,7 +16,9 @@ data ReportParam = ReportParam
   , rpTo :: Maybe Day
   -- , rpCatFilter :: Map Text (Maybe Text)
   , rpStockFilter :: Maybe FilterExpression
-  , rpRowRupture :: Column
+  , rpPanelRupture :: Maybe Column
+  , rpBand :: Maybe Column
+  , rpSerie :: Maybe Column
   , rpColumnRupture :: Column
   }  --deriving Show
 paramToCriteria :: ReportParam -> [Filter FA.StockMove]
@@ -226,53 +228,55 @@ purchToTransInfo ( Entity _ FA.SuppInvoiceItem{..}
 -- | Display sales and purchase of an item
 itemReport
   :: ReportParam
-     -> Column
-     -> Column
-     -> (Map (Maybe Text) (Map (Maybe Text) TranQP) -> a )
+     -> Maybe Column
+     -> Maybe Column
+     -> (Map (Maybe Text) (Map (Maybe Text) [(TranKey, TranQP)]) -> a )
      -> Handler a
-itemReport param rowGrouper colGrouper processor = do
+itemReport param panelGrouperM colGrouper processor = do
   trans <- loadItemTransactions param
-  -- let grouped = Map.fromListWith(<>) [(grouper k, qp) | (k,qp) <- trans]
-  let grouped = groupAsMap (colFn rowGrouper param . fst) (:[]) trans
-      grouped' = groupAsMap (colFn colGrouper param . fst) snd <$> grouped
+  let grouped = groupAsMap (mkGrouper param panelGrouperM . fst) (:[]) trans
+      grouped' = groupAsMap (mkGrouper param colGrouper. fst) (:[]) <$> grouped
   return $ processor grouped'
 
 
-tableProcessor :: Map (Maybe Text) (Map (Maybe Text) TranQP) -> Widget 
+mkGrouper param = maybe (const Nothing) (flip colFn param)
+
+tableProcessor :: Map (Maybe Text) (Map (Maybe Text) [(TranKey, TranQP)]) -> Widget 
 tableProcessor grouped = [whamlet|
     $forall (h1, group) <- Map.toList grouped
-      <div.panel.panel-info>
-        <div.panel-heading>
-          <h2>#{fromMaybe "" h1}
-        <div.panel-body>
-          <table.table.table-hover.table-striped>
-            <tr>
-              <th>
-              <th> Sales Qty
-              <th> Sales Amount
-              <th> Sales Min Price
-              <th> Sales max Price
-              <th> Purch Qty
-              <th> Purch Amount
-              <th> Purch Min Price
-              <th> Purch max Price
-              <th> Summary Qty
-              <th> Summary Amount
-              <th> Summary Min Price
-              <th> Summary max Price
-            $forall (h2,qp) <- Map.toList group
+        <div.panel.panel-info>
+          <div.panel-heading>
+            <h2>#{fromMaybe "<All>" h1}
+          <div.panel-body>
+            <table.table.table-hover.table-striped>
               <tr>
-                <td> #{fromMaybe "" h2}
-                ^{showQp $ salesQPrice qp}
-                ^{showQp $ purchQPrice qp}
-                ^{showQp $ salesQPrice qp <> (negQP <$> purchQPrice qp)}
-            $with (qp) <- summarize group
-                <tr.total>
-                  <td> Total
-                  ^{showQp $ salesQPrice qp}
-                  ^{showQp $ purchQPrice qp}
-                  ^{showQp $ salesQPrice qp <> (negQP <$> purchQPrice qp)}
-                  |]
+                <th>
+                <th> Sales Qty
+                <th> Sales Amount
+                <th> Sales Min Price
+                <th> Sales max Price
+                <th> Purch Qty
+                <th> Purch Amount
+                <th> Purch Min Price
+                <th> Purch max Price
+                <th> Summary Qty
+                <th> Summary Amount
+                <th> Summary Min Price
+                <th> Summary max Price
+              $forall (h2,qps) <- Map.toList group
+                 $with qp <- summarize (map snd qps)
+                    <tr>
+                      <td> #{fromMaybe "" h2}
+                      ^{showQp $ salesQPrice qp}
+                      ^{showQp $ purchQPrice qp}
+                      ^{showQp $ salesQPrice qp <> (negQP <$> purchQPrice qp)}
+              $with (qp) <- summarize (fmap (summarize . map snd) group)
+                  <tr.total>
+                    <td> Total
+                    ^{showQp $ salesQPrice qp}
+                    ^{showQp $ purchQPrice qp}
+                    ^{showQp $ salesQPrice qp <> (negQP <$> purchQPrice qp)}
+                    |]
   where
       showQp Nothing = [whamlet|
                                   <td>
@@ -298,7 +302,7 @@ qpToCsv (Just QPrice{..}) = [ tshow qpQty
                             , tshow qpMax
                             ] where (MinMax qpMin qpMax ) = qpPrice
 toCsv param grouped' = let
-  header = intercalate "," [ colName $ rpRowRupture param
+  header = intercalate "," [ tshowM $ colName <$> rpPanelRupture param
                           , colName $ rpColumnRupture param
                           ,  "Sales Qty"
                           ,  "Sales Amount"
@@ -323,11 +327,18 @@ toCsv param grouped' = let
                       <> (qpToCsv $ purchQPrice qp)
                       <> (qpToCsv $ adjQPrice qp)
 -- ** Plot
-chartProcessor :: Map (Maybe Text) (Map (Maybe Text) TranQP) -> Widget 
-chartProcessor grouped = do
-     let plotId = "items-report-plot" :: Text
-         -- all x values must be 
-         xsFor g = map (toJSON .fst) g
+chartProcessor :: ReportParam -> Map (Maybe Text) (Map (Maybe Text) [(TranKey, TranQP)]) -> Widget 
+chartProcessor param grouped = do
+  addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
+  forM_ (zip (Map.toList grouped) [1 :: Int]) $ \((panelName, group), i) -> do
+     let plotId = "items-report-plot-" <> tshow i 
+         bySerie = fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) group
+     panelChartProcessor (fromMaybe "All" panelName) plotId bySerie
+        
+  
+panelChartProcessor :: Text -> Text -> Map (Maybe Text) (Map (Maybe Text) TranQP) -> Widget 
+panelChartProcessor name plotId grouped = do
+     let xsFor g = map (toJSON . fromMaybe "ALL" . fst) g
          ysFor g = map (toJSON . fmap qpAmount . salesQPrice . snd) g
          traceFor (name, g') = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g)
                                      , ("y",  toJSON $ ysFor g)
@@ -336,9 +347,13 @@ chartProcessor grouped = do
                                      , ("type", "bar" )
                                      ] where g = sortOn fst (Map.toList g')
          jsData = traceShowId $ map traceFor (Map.toList grouped)
-     [whamlet|<div id=#{plotId} style="height:800px">
+     [whamlet|
+      <div.panel.panel-info>
+        <div.panel-heading>
+          <h2>#{name}
+        <div.panel-body>
+             <div id=#{plotId} style="height:800px">
              |]
-     addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
      toWidget [julius|
           Plotly.plot( #{toJSON plotId}
                     , #{toJSON jsData} 

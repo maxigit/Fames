@@ -55,18 +55,18 @@ postItemsReportFor route mode = do
     FormSuccess param -> do
       case readMay =<< actionM of
         Just ReportCsv -> do
-              result <- itemReport param (rpPanelRupture param) (rpBand param) id
+              result <- itemReport param (rpPanelRupture param) (rpBand param) (fmap (fmap (summarize . map snd)))
               let source = yieldMany (map (<> "\n") (toCsv param result))
               setAttachment . fromStrict $ "items-report-" <> (tshowM $ colName <$> (rpPanelRupture param)) <> "-"
                                               <> (tshowM $ colName <$> rpBand param) <> ".csv"
               respondSource "text/csv" (source =$= mapC toFlushBuilder)
         Just ReportRaw -> do
-             itemToCsv param
+             undefined -- itemToCsv param
         _ -> do
-              let processor = case mode of
-                    Just ReportTable -> tableProcessor
-                    Just ReportChart -> chartProcessor
-                    _ -> chartProcessor
+              let processor = case fromMaybe ReportCsv mode of
+                    ReportTable -> tableProcessor
+                    ReportChart -> chartProcessor param
+                    _ -> chartProcessor param
               report <- itemReport param (rpPanelRupture param) (rpBand param) processor
               renderReportForm route mode (Just param) ok200 (Just report)
 
