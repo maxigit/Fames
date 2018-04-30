@@ -170,27 +170,27 @@ moveToTransInfo categories catFinder FA.StockMove{..} = (key,) <$> tqp where
   (customer, supplier, tqp) = case toEnum stockMoveType of
     ST_CUSTDELIVERY -> ( tshow <$> stockMovePersonId
                        , Nothing
-                       , Just $ TranQP (Just qpNeg) Nothing Nothing
+                       , Just $ TranQP (Just $ qpNeg Outward) Nothing Nothing
                        )
     ST_CUSTCREDIT -> ( tshow <$> stockMovePersonId
                      , Nothing
-                     , Just $ TranQP (Just qpNeg) Nothing Nothing
+                     , Just $ TranQP (Just $ qpNeg Outward) Nothing Nothing
                      )
     ST_SUPPRECEIVE -> ( Nothing
                       , tshow <$> stockMovePersonId
-                      , Just $ TranQP Nothing (Just qp) Nothing
+                      , Just $ TranQP Nothing (Just $ qp Inward) Nothing
                       )
     ST_SUPPCREDIT -> ( Nothing
                      , tshow <$> stockMovePersonId
-                     , Just $ TranQP Nothing (Just qp) Nothing
+                     , Just $ TranQP Nothing (Just $ qp Inward) Nothing
                      )
     ST_INVADJUST -> ( Nothing
                     , Nothing
-                    , Just $ TranQP Nothing Nothing (Just $ qprice stockMoveQty stockMoveStandardCost)
+                    , Just $ TranQP Nothing Nothing (Just $ qp Inward)
                     )
     _ -> (Nothing, Nothing, Nothing)
-  qp = qprice stockMoveQty price
-  qpNeg = qprice (-stockMoveQty) price
+  qp io = mkQPrice io stockMoveQty price
+  qpNeg io = mkQPrice io (-stockMoveQty) price
   price = stockMovePrice*(1-stockMoveDiscountPercent/100)
   
 -- ** Sales Details
@@ -202,11 +202,10 @@ detailToTransInfo ( Entity _ FA.DebtorTransDetail{..}
                 debtorTransDetailStockId Nothing Nothing  (mempty)
                 transType
   (tqp, transType) = case toEnum <$> debtorTransDetailDebtorTransType of
-    Just ST_SALESINVOICE -> (TranQP (Just qp) Nothing Nothing, ST_SALESINVOICE)
-    Just ST_CUSTCREDIT -> (TranQP (Just qpNeg) Nothing Nothing, ST_CUSTCREDIT)
+    Just ST_SALESINVOICE -> (TranQP (Just $ qp Outward) Nothing Nothing, ST_SALESINVOICE)
+    Just ST_CUSTCREDIT -> (TranQP (Just $ qp Inward) Nothing Nothing, ST_CUSTCREDIT)
     else_ -> error $ "Shouldn't process transaction of type " <> show else_
-  qp = qprice debtorTransDetailQuantity price
-  qpNeg = qprice (-debtorTransDetailQuantity) price
+  qp io = mkQPrice io debtorTransDetailQuantity price
   price = debtorTransDetailUnitPrice*(1-debtorTransDetailDiscountPercent/100)
 
 purchToTransInfo ( Entity _ FA.SuppInvoiceItem{..}
@@ -217,11 +216,10 @@ purchToTransInfo ( Entity _ FA.SuppInvoiceItem{..}
                 (toEnum suppTranType)
                    
   tqp = case toEnum suppTranType of
-    ST_SUPPINVOICE -> TranQP Nothing (Just qp) Nothing
-    ST_SUPPCREDIT -> TranQP Nothing (Just qpNeg) Nothing
+    ST_SUPPINVOICE -> TranQP Nothing (Just $ qp Inward) Nothing
+    ST_SUPPCREDIT -> TranQP Nothing (Just $ qp Outward) Nothing
     else_ -> error $ "Shouldn't process transaction of type " <> show else_
-  qp = qprice suppInvoiceItemQuantity price
-  qpNeg = qprice (-suppInvoiceItemQuantity) price
+  qp io = mkQPrice io suppInvoiceItemQuantity price
   price = suppInvoiceItemUnitPrice*suppTranRate
 
 -- * Reports
@@ -255,52 +253,56 @@ tableProcessor grouped = [whamlet|
                 <th> Sales Amount
                 <th> Sales Min Price
                 <th> Sales max Price
+                <th> Sales Average Price
                 <th> Purch Qty
                 <th> Purch Amount
                 <th> Purch Min Price
-                <th> Purch max Price
+                <th> Purch Max Price
+                <th> Purch Average Price
                 <th> Summary Qty
                 <th> Summary Amount
                 <th> Summary Min Price
                 <th> Summary max Price
+                <th> Summary Average Price
               $forall (h2,qps) <- Map.toList group
                  $with qp <- summarize (map snd qps)
                     <tr>
                       <td> #{fromMaybe "" h2}
-                      ^{showQp $ salesQPrice qp}
-                      ^{showQp $ purchQPrice qp}
-                      ^{showQp $ salesQPrice qp <> (negQP <$> purchQPrice qp)}
+                      ^{showQp Outward $ salesQPrice qp}
+                      ^{showQp Inward $ purchQPrice qp}
+                      ^{showQp Outward $ mconcat [salesQPrice qp , purchQPrice qp]}
               $with (qp) <- summarize (fmap (summarize . map snd) group)
                   <tr.total>
                     <td> Total
-                    ^{showQp $ salesQPrice qp}
-                    ^{showQp $ purchQPrice qp}
-                    ^{showQp $ salesQPrice qp <> (negQP <$> purchQPrice qp)}
+                    ^{showQp Outward $ salesQPrice qp}
+                    ^{showQp Inward $ purchQPrice qp}
+                    ^{showQp Outward $ mconcat [salesQPrice qp , purchQPrice qp]}
                     |]
   where
-      showQp Nothing = [whamlet|
+      showQp _ Nothing = [whamlet|
+                                  <td>
                                   <td>
                                   <td>
                                   <td>
                                   <td>
                                   |]
-      showQp (Just QPrice{..}) = [whamlet|
-                                  <td> #{show $ round qpQty}
-                                  <td> #{showDouble qpAmount}
-                                  <td> #{showDouble qpMin}
-                                  <td> #{showDouble qpMax}
-                                  |] where (MinMax qpMin qpMax ) = qpPrice
+      showQp io (Just qp) = [whamlet|
+                                  <td> #{show $ round (qpQty io qp)}
+                                  <td> #{showDouble (qpAmount io qp)}
+                                  <td> #{showDouble qpMin }
+                                  <td> #{showDouble qpMax }
+                                  <td> #{showDouble (qpAverage qp)}
+                                  |] where (MinMax qpMin qpMax ) = qpPrice qp
 
 
 summarize group = sconcat (q :| qp) where  (q:qp) = toList group
-negQP  QPrice{..} = QPrice (- qpQty) (-qpAmount) (MinMax (-mn) (-mx)) where MinMax mn mx = qpPrice
 -- *** Csv
-qpToCsv Nothing = ["", "", "", ""]
-qpToCsv (Just QPrice{..}) = [ tshow qpQty
-                            , tshow qpAmount
-                            , tshow qpMin
-                            , tshow qpMax
-                            ] where (MinMax qpMin qpMax ) = qpPrice
+qpToCsv io Nothing = ["", "", "", ""]
+qpToCsv io (Just qp) = [ tshow (qpQty io qp)
+                       , tshow (qpAmount io qp)
+                       , tshow qpMin
+                       , tshow qpMax
+                       ] where (MinMax qpMin qpMax ) = qpPrice qp
 toCsv param grouped' = let
   header = intercalate "," [ tshowM $ colName <$> rpPanelRupture param
                           , colName $ rpColumnRupture param
@@ -323,9 +325,9 @@ toCsv param grouped' = let
     return $ intercalate "," $  [ tshowM h1
                       , tshowM h2
                       ]
-                      <> (qpToCsv $ salesQPrice qp)
-                      <> (qpToCsv $ purchQPrice qp)
-                      <> (qpToCsv $ adjQPrice qp)
+                      <> (qpToCsv Outward $ salesQPrice qp)
+                      <> (qpToCsv Inward $ purchQPrice qp)
+                      <> (qpToCsv Inward $ adjQPrice qp)
 -- ** Plot
 chartProcessor :: ReportParam -> Map (Maybe Text) (Map (Maybe Text) [(TranKey, TranQP)]) -> Widget 
 chartProcessor param grouped = do
@@ -361,7 +363,7 @@ panelChartProcessor param name plotId0 grouped = do
 seriesChartProcessor :: Text -> Text -> Map (Maybe Text) (Map (Maybe Text) TranQP) -> Widget 
 seriesChartProcessor name plotId grouped = do
      let xsFor g = map (toJSON . fromMaybe "ALL" . fst) g
-         ysFor g = map (toJSON . fmap qpAmount . salesQPrice . snd) g
+         ysFor g = map (toJSON . fmap (qpAmount Outward) . salesQPrice . snd) g
          traceFor (name, g') = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g)
                                      , ("y",  toJSON $ ysFor g)
                                      , ("name", toJSON name )
@@ -429,9 +431,9 @@ itemToCsv param = do
         (key, qp) <- trans
         return $ intercalate "," (
           [tshowM $ colFn col param key | col <- cols]
-            <> (qpToCsv $ salesQPrice qp)
-            <> (qpToCsv $ purchQPrice qp)
-            <> (qpToCsv $ adjQPrice qp)
+            <> (qpToCsv Outward $ salesQPrice qp)
+            <> (qpToCsv Inward $ purchQPrice qp)
+            <> (qpToCsv Inward $ adjQPrice qp)
             <> (map (tshowM . flip Map.lookup (tkCategory key)) categories)
                                  )
       source = yieldMany (map (<> "\n") csvLines)

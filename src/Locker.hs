@@ -44,7 +44,7 @@ permissions (Locker rs _)  = toList rs
 restrict :: Ord r => [r] ->  Locker r a -> Locker r a
 restrict rs' (Locker rs x) = Locker (rs <> setFromList rs') x
 
-unlock' unlocker privilege (Locker roles value) = unlock unlocker $ Locker (setFromList $ map (privilege,) (toList roles)) value
+_unlock' unlocker privilege (Locker roles value) = unlock unlocker $ Locker (setFromList $ map (privilege,) (toList roles)) value
 
 -- * Unsafe
 unsafeUnlock (Locker rs x) = traceShow ("Unsafe UNLOCK requiring " <> show rs) x

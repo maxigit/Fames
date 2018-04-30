@@ -34,6 +34,10 @@ instance Applicative MinMax where
   pure x = MinMax x x
   (MinMax fx fy) <*> (MinMax x y) = MinMax (fx x) (fy y)
 
+instance (Ord a, Num a) => Monoid (MinMax a) where
+  mempty = MinMax 0 0
+  mappend = (<>)
+
 -- * Index
 -- | Status of a variation within a group
 -- Given a group of items and a list of variations
@@ -163,21 +167,41 @@ data FARunningStatus = FARunning -- ^ can and need to be sold
 
 
 -- * Reporting
--- | Quantity and Price
--- to make it a semigroup we need to also store the amount
 type Quantity = Double
 type Amount = Double
+-- | Quantity and Price
+-- to make it a semigroup we need to also store the amount
 data QPrice = QPrice
-  { qpQty :: Quantity
-  , qpAmount :: Amount
+  { qpIO :: InOutward
+  , _qpQty :: Quantity
+  , _qpAmount :: Amount
   , qpPrice :: MinMax Amount
   } deriving (Eq, Ord, Show)
 
-qprice qty price = QPrice qty (qty*price) (pure price)
+mkQPrice io qty price = QPrice io qty (qty*price) (pure $ abs price)
+qpQty io qp = _qpQty (qpTo io qp)
+qpAmount io qp = _qpAmount (qpTo io qp)
+qpAverage qp = _qpAmount qp / _qpQty qp
+
+
+
+-- | Change the in/ouward field and update other values accordingly
+qpTo :: InOutward -> QPrice -> QPrice
+qpTo io qp | io == qpIO qp = qp
+           | otherwise = QPrice io (- (_qpQty qp)) (-(_qpAmount qp)) (qpPrice qp)
 
 instance Semigroup QPrice where
-  (QPrice q a mm) <> (QPrice q' a' mm') = QPrice (q+q') (a+a') (mm <> mm')
+  (QPrice io q a mm) <> qp' = QPrice io (q+q') (a+a') (mm <> mm')
+    where (QPrice _ q' a' mm') = qpTo io qp'
 
+instance Monoid QPrice where
+  mempty = QPrice Inward 0 0 mempty 
+  mappend = (<>)
+
+-- | Specifies whether the quantities are seen  as inward or outward (from the company point of view)
+-- Positive quantities for Inward transaction means we are getting more in
+-- For example, a Sales is outward, whereas a customer credit note in inward (<0) or (outward <0)
+data InOutward = Inward | Outward deriving (Show, Read, Eq, Ord, Enum, Bounded) 
 
 -- | Quantity price for a transaction, either sales or purch
 data TranQP = TranQP

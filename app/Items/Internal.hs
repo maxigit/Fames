@@ -47,7 +47,8 @@ $(mmZipN 1 "setPure" ''ItemStatusF Nothing)
 $(mmZipN 1 "setPure" ''ItemWebStatusF Nothing)
 
 
--- * MinMax
+-- * For Types
+-- ** MinMax
 minMax :: a -> MinMax a
 minMax a = MinMax a a
  
@@ -55,7 +56,9 @@ minMax a = MinMax a a
 
   -- mappend = mappendStockMasterF
 
--- * Diff
+-- ** QP
+-- * Index
+-- ** Diff
 -- | Check the status of an item variation given a list of expected variation
 -- As well as checking if the variation exists, or is extra is also compares it
 -- to a reference items, to check if the information are the same.
@@ -122,7 +125,7 @@ faToWebStatus style fa = case faRunningStatus <$> fa of
   Just (Identity FARunning) -> ItemWebStatusF (pure (Just style)) (pure True)
   _ -> ItemWebStatusF (pure Nothing) (pure False)
   
--- * Join variations
+-- ** Join variations
 -- | Computes the VariationStatus ie if variations are present
 -- or not in the given map. "Missing" .i.e where the variation
 -- is not present in the variation map will be created from item0
@@ -169,7 +172,7 @@ mergeInfoSources sources = let
   in [ ItemInfo style var i | (ItemInfo style var (), i) <- Map.toList merged]
   
 
--- * Columns
+-- ** Columns
 pricesColumns field masters =
   let colSetFor m  = keysSet m
       cols = mapMaybe (fmap colSetFor . field ) masters
@@ -183,7 +186,7 @@ purchasePricesColumns ::  [ItemMasterAndPrices f] -> [Int]
 purchasePricesColumns masters = pricesColumns impPurchasePrices masters
   
 
--- * Status
+-- ** Status
 faRunningStatus :: Applicative f => ItemStatusF f -> f FARunningStatus
 faRunningStatus ItemStatusF{..} = let
   go qoh onOrder_  allQoh  onOrder  allOnDemand  used = case () of
@@ -195,7 +198,7 @@ faRunningStatus ItemStatusF{..} = let
       
   
 
--- * Prices
+-- ** Prices
 -- | Computes  theoretical prices based on default price and price list info.
 -- | Doesn't touch prices if given
 computeTheoreticalPrices :: Int -> [Entity SalesType] -> IntMap Double -> IntMap Double

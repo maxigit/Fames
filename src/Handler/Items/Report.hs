@@ -63,7 +63,7 @@ postItemsReportFor route mode = do
                                               <> (tshowM $ colName <$> rpBand param) <> ".csv"
               respondSource "text/csv" (source =$= mapC toFlushBuilder)
         Just ReportRaw -> do
-             undefined -- itemToCsv param
+             error "FIXME" -- itemToCsv param
         _ -> do
               let processor = case mode of
                     Just ReportTable -> tableProcessor
