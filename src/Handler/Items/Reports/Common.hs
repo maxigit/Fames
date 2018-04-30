@@ -329,7 +329,8 @@ toCsv param grouped' = let
 -- ** Plot
 chartProcessor :: ReportParam -> Map (Maybe Text) (Map (Maybe Text) [(TranKey, TranQP)]) -> Widget 
 chartProcessor param grouped = do
-  addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
+  -- addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
+  -- done add report level to fix ajax issue.
   forM_ (zip (Map.toList grouped) [1 :: Int ..]) $ \((panelName, group), i) -> do
      let plotId = "items-report-plot-" <> tshow i 
          bySerie = fmap (groupAsMap (mkGrouper param (rpSerie param) . fst) (:[])) group

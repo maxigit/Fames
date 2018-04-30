@@ -19,7 +19,7 @@ partition f xs = (Prelude.filter f xs, Prelude.filter (Prelude.not . f) xs)
 main :: Fay ()
 main = do
   main'
-  installNav ajaxReload
+  installNav "#items-form" ajaxReload
   return ()
 main' :: Fay ()
 main' = do

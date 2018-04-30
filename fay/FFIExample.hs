@@ -90,9 +90,11 @@ jUncheck :: JQuery -> Fay JQuery
 jUncheck = ffi "%1.prop('checked', false)"
   
 
--- * Install navigation callback
+-- | Install navigation callback
+-- update the tabs as well as the form action (the URL
+-- which for next submit will apply to)
 
-installNav ajaxReload = do
+installNav formSelector ajaxReload = do
   navs <- select "a.view-mode[data-url]"
   jQueryMap (\_ el -> do
                nav <- select el
@@ -106,7 +108,7 @@ installNav ajaxReload = do
                    JQ.addClass "active" =<< closestSelector "li" nav
                    -- update the url on the form, so that next form submit
                    -- keep the actual tab
-                   form <- select "#items-form"
+                   form <- select formSelector -- "#items-form"
                    JQ.setAttr "action" url form
                    -- setLocation (T.pack $ FT.unpack url)
                    return False
@@ -115,3 +117,6 @@ installNav ajaxReload = do
 
 ajaxReloadFFI :: FT.Text -> JQuery -> (a -> Fay ()) ->  Fay ()
 ajaxReloadFFI = ffi "$.ajax({url:%1, data:%2.serialize(), dataType:'json', type:'POST',success:%3})"
+
+replaceUrlInBar :: FT.Text -> Fay ()
+replaceUrlInBar = ffi "history.pushState(null,null,%1)"
