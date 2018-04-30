@@ -57,6 +57,9 @@ minMax a = MinMax a a
   -- mappend = mappendStockMasterF
 
 -- ** QP
+promoteQP :: QPType -> (QPType, QPrice) -> Maybe (QPType, QPrice)
+promoteQP qtype' (qtype, qp) | qtype' == qtype = Just (qtype, qp)
+                           | otherwise = Nothing
 -- * Index
 -- ** Diff
 -- | Check the status of an item variation given a list of expected variation

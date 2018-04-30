@@ -129,7 +129,7 @@ loadItemSales param = do
                        []
         
   sales <- runDB $ rawSql (sql <> intercalate " "w) p
-  return $ map (detailToTransInfo) sales
+  return $ map detailToTransInfo sales
 
 loadItemPurchases :: ReportParam -> Handler [(TranKey, TranQP)]
 loadItemPurchases param = do
@@ -155,7 +155,7 @@ loadItemPurchases param = do
                                                ) ?:
                        []
   purch <- runDB $ rawSql (sql <> intercalate " " w) p
-  return $ map (purchToTransInfo) purch
+  return $ map purchToTransInfo purch
 
 -- * Converter
 -- ** StockMove
@@ -167,34 +167,36 @@ moveToTransInfo categories catFinder FA.StockMove{..} = (key,) <$> tqp where
                     , Just cat <- return $ catFinder heading stockMoveStockId
                     ]
   key = TranKey stockMoveTranDate customer supplier  stockMoveStockId (Just style) (Just var) (mapFromList categorieValues) (toEnum stockMoveType)
-  (customer, supplier, tqp) = case toEnum stockMoveType of
-    ST_CUSTDELIVERY -> ( tshow <$> stockMovePersonId
-                       , Nothing
-                       , Just $ TranQP (Just $ qpNeg Outward) Nothing Nothing
-                       )
-    ST_CUSTCREDIT -> ( tshow <$> stockMovePersonId
-                     , Nothing
-                     , Just $ TranQP (Just $ qpNeg Outward) Nothing Nothing
-                     )
-    ST_SUPPRECEIVE -> ( Nothing
-                      , tshow <$> stockMovePersonId
-                      , Just $ TranQP Nothing (Just $ qp Inward) Nothing
-                      )
-    ST_SUPPCREDIT -> ( Nothing
-                     , tshow <$> stockMovePersonId
-                     , Just $ TranQP Nothing (Just $ qp Inward) Nothing
-                     )
-    ST_INVADJUST -> ( Nothing
-                    , Nothing
-                    , Just $ TranQP Nothing Nothing (Just $ qp Inward)
-                    )
-    _ -> (Nothing, Nothing, Nothing)
-  qp io = mkQPrice io stockMoveQty price
-  qpNeg io = mkQPrice io (-stockMoveQty) price
-  price = stockMovePrice*(1-stockMoveDiscountPercent/100)
+  (customer, supplier, tqp) =
+    -- case toEnum stockMoveType of
+    -- ST_CUSTDELIVERY -> ( tshow <$> stockMovePersonId
+    --                    , Nothing
+    --                    , Just $ singletonMap  QPSalesInvoice (Just $ qpNeg Outward) Nothing Nothing
+    --                    )
+    -- ST_CUSTCREDIT -> ( tshow <$> stockMovePersonId
+    --                  , Nothing
+    --                  , Just $ TranQP (Just $ qpNeg Outward) Nothing Nothing
+    --                  )
+    -- ST_SUPPRECEIVE -> ( Nothing
+    --                   , tshow <$> stockMovePersonId
+    --                   , Just $ TranQP Nothing (Just $ qp Inward) Nothing
+    --                   )
+    -- ST_SUPPCREDIT -> ( Nothing
+    --                  , tshow <$> stockMovePersonId
+    --                  , Just $ TranQP Nothing (Just $ qp Inward) Nothing
+    --                  )
+    -- ST_INVADJUST -> ( Nothing
+    --                 , Nothing
+    --                 , Just $ TranQP Nothing Nothing (Just $ qp Inward)
+    --                 )
+    -- _ ->
+    (Nothing, Nothing, Nothing)
+  -- qp io = mkQPrice io stockMoveQty price
+  -- qpNeg io = mkQPrice io (-stockMoveQty) price
+  -- price = stockMovePrice*(1-stockMoveDiscountPercent/100)
   
 -- ** Sales Details
--- detailToTransInfo :: [Text] -> (Text -> Text -> Maybe Text) -> StockMove -> Maybe (TranKey, TranQP)
+-- detailToTransInfo :: [Text] -> (Text -> Text -> Maybe Text) -> StockMove -> (TranKey, Maybe TranQP)
 detailToTransInfo ( Entity _ FA.DebtorTransDetail{..}
                   , Entity _ FA.DebtorTran{..}
                   , Entity _ FA.CustBranch{..}) = (key, tqp) where
@@ -202,8 +204,8 @@ detailToTransInfo ( Entity _ FA.DebtorTransDetail{..}
                 debtorTransDetailStockId Nothing Nothing  (mempty)
                 transType
   (tqp, transType) = case toEnum <$> debtorTransDetailDebtorTransType of
-    Just ST_SALESINVOICE -> (TranQP (Just $ qp Outward) Nothing Nothing, ST_SALESINVOICE)
-    Just ST_CUSTCREDIT -> (TranQP (Just $ qp Inward) Nothing Nothing, ST_CUSTCREDIT)
+    Just ST_SALESINVOICE -> (tranQP QPSalesInvoice  (qp Outward), ST_SALESINVOICE)
+    Just ST_CUSTCREDIT -> (tranQP QPSalesCredit (qp Inward), ST_CUSTCREDIT)
     else_ -> error $ "Shouldn't process transaction of type " <> show else_
   qp io = mkQPrice io debtorTransDetailQuantity price
   price = debtorTransDetailUnitPrice*(1-debtorTransDetailDiscountPercent/100)
@@ -216,8 +218,8 @@ purchToTransInfo ( Entity _ FA.SuppInvoiceItem{..}
                 (toEnum suppTranType)
                    
   tqp = case toEnum suppTranType of
-    ST_SUPPINVOICE -> TranQP Nothing (Just $ qp Inward) Nothing
-    ST_SUPPCREDIT -> TranQP Nothing (Just $ qp Outward) Nothing
+    ST_SUPPINVOICE -> tranQP QPPurchInvoice (qp Inward)
+    ST_SUPPCREDIT -> tranQP QPPurchCredit (qp Outward)
     else_ -> error $ "Shouldn't process transaction of type " <> show else_
   qp io = mkQPrice io suppInvoiceItemQuantity price
   price = suppInvoiceItemUnitPrice*suppTranRate
@@ -240,7 +242,8 @@ itemReport param panelGrouperM colGrouper processor = do
 mkGrouper param = maybe (const Nothing) (flip colFn param)
 
 tableProcessor :: Map (Maybe Text) (Map (Maybe Text) [(TranKey, TranQP)]) -> Widget 
-tableProcessor grouped = [whamlet|
+tableProcessor grouped = 
+  [whamlet|
     $forall (h1, group) <- Map.toList grouped
         <div.panel.panel-info>
           <div.panel-heading>
@@ -452,3 +455,4 @@ itemToCsv param = do
 -- splitToGroups :: (a -> k) -> (a -> a') ->   [(a,b)] -> [(k, (a',b))]
 groupAsMap :: (Semigroup a, Ord k) => (t -> k) -> (t -> a) -> [t] -> Map k a
 groupAsMap key f xs = Map.fromListWith (<>) [(key x, f x ) | x <- xs]
+

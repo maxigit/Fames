@@ -11,6 +11,7 @@ import Language.Haskell.TH.Syntax
 import Lens.Micro
 import qualified GHC.Generics as GHC
 import Data.IntMap.Strict (IntMap)
+import qualified Data.Map as Map
 import ModelField
 -- * General
 -- | Holder for miscellaneous information relative to an item.
@@ -34,8 +35,8 @@ instance Applicative MinMax where
   pure x = MinMax x x
   (MinMax fx fy) <*> (MinMax x y) = MinMax (fx x) (fy y)
 
-instance (Ord a, Num a) => Monoid (MinMax a) where
-  mempty = MinMax 0 0
+instance (Ord a, Num a, Fractional a) => Monoid (MinMax a) where
+  mempty = MinMax (1/0) 0
   mappend = (<>)
 
 -- * Index
@@ -203,18 +204,74 @@ instance Monoid QPrice where
 -- For example, a Sales is outward, whereas a customer credit note in inward (<0) or (outward <0)
 data InOutward = Inward | Outward deriving (Show, Read, Eq, Ord, Enum, Bounded) 
 
--- | Quantity price for a transaction, either sales or purch
-data TranQP = TranQP
-  { salesQPrice :: Maybe QPrice
-  , purchQPrice :: Maybe QPrice
-  , adjQPrice :: Maybe QPrice
-  } deriving (Show, Ord, Eq)
+-- | Type of transaction corresponding to a QPrice
+-- Types are actually not disjoint, and can be converted from one (sub)type to another one.
+-- | example Sales Credit -> Credit ,or Sales Credit to Sales
+data QPType = QPSales | QPPurchase | QPAdjstument | QPCredit | QPInvoice 
+            | QPSalesInvoice | QPSalesCredit | QPPurchInvoice | QPPurchCredit
+            | QPSummary
+  deriving(Read, Show, Eq, Ord, Enum, Bounded)
+
+-- | Quantity price for a transaction, either sales or purchase
+newtype TranQP = TranQP (Map QPType  QPrice)
+ deriving (Ord, Eq)
+
+instance Show TranQP where
+  show (TranQP tmap) = "TranQP (" <> show tmap <> ")"
 
 instance Semigroup TranQP where
-  (TranQP s p a) <> (TranQP s' p' a') = TranQP (go s s') (go p p') (go a a') where
-    go Nothing b = b
-    go a Nothing = a
-    go (Just a) (Just b) = Just $ a <> b
+  (TranQP tqp) <> (TranQP tqp') = TranQP (unionWith (<>) tqp tqp')
+  -- (TranQP s p a) <> (TranQP s' p' a') = TranQP (go s s') (go p p') (go a a') where
+  --   go Nothing b = b
+  --   go a Nothing = a
+  --   go (Just a) (Just b) = Just $ a <> b
+instance Monoid TranQP where
+  mempty = TranQP mempty
+  mappend = (<>)
+-- type TranQP = Map QPType QPrice
+tranQP :: QPType -> QPrice -> TranQP
+tranQP qtype qp = TranQP (singletonMap qtype qp)
+
+-- | Projection
+lookupGrouped qtype tranQP = do
+  TranQP tmap <- regroupQP [qtype] tranQP
+  lookup qtype tmap
+
+salesQPrice = lookupGrouped QPSales
+purchQPrice = lookupGrouped QPPurchase
+summaryQPPrice = lookupGrouped QPPurchase
+adjQPrice = lookupGrouped QPAdjstument
+
+
+promotable :: QPType -> QPType -> Bool
+promotable fromType toType = let
+  m = mapFromList [ (QPSales, [QPSalesCredit, QPSalesInvoice])
+                  , (QPPurchase, [QPPurchCredit, QPPurchInvoice])
+                  , (QPInvoice, [QPSalesInvoice, QPPurchInvoice])
+                  , (QPCredit, [QPSalesCredit, QPPurchInvoice])
+                  , (QPSummary, [minBound..maxBound])
+                  ]
+  in fromType `elem`  (toType: fromMaybe [] (Map.lookup toType m))
+  
+promoteQPTo :: QPType -> TranQP -> Maybe QPrice
+promoteQPTo toType  (TranQP tranQP) =
+  case [qp | (fromType, qp) <- Map.toList tranQP , promotable fromType toType ] of
+    [] -> Nothing
+    qs -> Just $ mconcat qs
+
+
+-- | Create a TranQP from list of QPType QPrice
+groupTranQPs :: [(QPType, QPrice)] -> Maybe TranQP
+groupTranQPs [] = Nothing
+groupTranQPs tqs = Just . mconcat $ map (uncurry tranQP) tqs
+  
+-- | Regroup a TranQP map to the given key )
+regroupQP :: [QPType] -> TranQP -> Maybe TranQP
+regroupQP keys tranQP = groupTranQPs [(k, promoted )
+                                     | k <- keys
+                                     , Just promoted <- return $ promoteQPTo k tranQP -- filter Nothing
+                                     ]
+
 
 -- | Key to hold TranQP information
 data TranKey = TranKey
