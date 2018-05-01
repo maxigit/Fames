@@ -81,6 +81,7 @@ getCols = do
                                , ("Year-1-month", "%Y-%m-01")
                                , ("Month", "%M%m %B")
                                , ("1-Month", "2001-%m-01")
+                               , ("1-Day", "2001-%m-%d")
                                , ("Year-Week", "%Y-%m-W%W")
                                , ("Week", "W%W")
                                ]
