@@ -1,3 +1,12 @@
+* TODO Chart
+  - Regroup Customer/Supplier in one
+  - Create table for categories and use it
+  - display quantity and amount in graph tooltip
+  - add global button (tab) to use bar, scatter etc ...
+  - add rank
+  - add running sum
+  - perf 
+    - are some Map strict (categorie ?) instead of being lazy
 * TODO Delete from item index
 ** TODO Website 
   - [ ] createAndInsertProductPrices prices prod'revMKeys

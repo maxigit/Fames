@@ -51,6 +51,12 @@ tkType' tk = case tkType tk of
   ST_CUSTCREDIT -> Just "Credit"
   ST_SUPPCREDIT -> Just "Credit"
   _ -> Nothing
+tkType'' tk = case tkType tk of
+  ST_SALESINVOICE -> Just "Sales"
+  ST_SUPPINVOICE -> Just "Purchase"
+  ST_CUSTCREDIT -> Just "Sales"
+  ST_SUPPCREDIT -> Just "Purchase"
+  _ -> Nothing
 getCols :: Handler [Column]
 getCols = do
   today <- utctDay <$> liftIO getCurrentTime
@@ -66,6 +72,7 @@ getCols = do
            , Column "Customer" (const tkCustomer)
            , Column "Supplier" (const tkSupplier)
            , Column "TransactionType" (const $ Just . tshow . tkType)
+           , Column "Sales/Purchase" (const tkType'')
            , Column "Invoice/Credit" (const tkType')
            ] <>
            [ Column name (const $ Just . pack . formatTime defaultTimeLocale format . tkDay)
