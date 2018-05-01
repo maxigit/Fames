@@ -44,6 +44,7 @@ module Handler.Util
 , eToX
 , categoryFinderCached
 , categoriesH
+, Identifiable(..)
 ) where
 -- ** Import
 import Foundation
@@ -70,6 +71,8 @@ import Control.Monad.Except
 import Text.Printf(printf) 
 import Text.Regex.TDFA ((=~))
 import qualified Text.Regex as Rg
+
+import Text.Read(Read,readPrec)
 
 
 -- import Data.IOData (IOData)
@@ -193,6 +196,24 @@ setAttachment path =
   addHeader "Content-Disposition" (toStrict ("attachment; filename=\""<>path<>"\"") )
 
 
+-- | Pair when only the first part of the t-uple is used for all the common instance
+-- Ideal to be used in a form a select options when the desired object doesn't have
+-- an EQ instance or label objects which doesn't have a show instance
+newtype Identifiable a = Identifiable {unIdentifiable :: (Text, a)} deriving Functor
+
+instance Show (Identifiable a)  where
+  show (Identifiable(i,_)) = unpack i
+instance Eq (Identifiable a) where
+  (Identifiable(i,_)) == (Identifiable(i',_)) = i == i'
+instance Ord (Identifiable a) where
+  (Identifiable(i,_)) `compare`  (Identifiable(i',_)) = i `compare` i'
+
+instance Read (Identifiable ()) where
+  readPrec = do
+          name <- readPrec
+          return $ Identifiable (name, ())
+
+ 
 -- ** Read and reload file
 -- | When validating a file, the file needs to be uploaded once for validating.
 -- In order to be sure that we are processing the file which has been validated

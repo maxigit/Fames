@@ -182,7 +182,9 @@ data QPrice = QPrice
 mkQPrice io qty price = QPrice io qty (qty*price) (pure $ abs price)
 qpQty io qp = _qpQty (qpTo io qp)
 qpAmount io qp = _qpAmount (qpTo io qp)
-qpAverage qp = _qpAmount qp / _qpQty qp
+qpAveragePrice qp = _qpAmount qp / _qpQty qp
+qpMinPrice qp = m where (MinMax m _) = qpPrice qp
+qpMaxPrice qp = m where (MinMax _ m ) = qpPrice qp
 
 
 

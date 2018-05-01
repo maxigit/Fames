@@ -21,6 +21,18 @@ import qualified FA as FA
 reportForm :: [Column] -> Maybe ReportParam -> _
 reportForm cols paramM = let
   colOptions = [(colName c,c) | c <- cols]
+  dataTypeOptions = optionsPairs [(drop 2 (tshow qtype), qtype) | qtype <- [minBound..maxBound]]
+  dataValueOptions = map (\(t,f) -> (t, Identifiable (t,f)))
+                                  [ ("Amount (Out)" :: Text, qpAmount Outward)
+                                  , ("Amount (In)", qpAmount Inward)
+                                  , ("Amount (Bare)", _qpAmount )
+                                  , ("Quantity (Out)", qpQty Outward)
+                                  , ("Quantity (In)", qpQty Inward)
+                                  , ("Quantity (Bare)", _qpQty )
+                                  , ("Avg Price", qpAveragePrice)
+                                  , ("Min Price", qpMinPrice)
+                                  , ("Max Price", qpMaxPrice)
+                                  ]
   form = ReportParam
     <$> (aopt dayField "from" (Just $ rpFrom =<< paramM ))
     <*> (aopt dayField "to" (Just $ rpTo =<< paramM))
@@ -29,6 +41,8 @@ reportForm cols paramM = let
     <*> (aopt (selectFieldList colOptions)  "Band" (rpBand <$> paramM) )
     <*> (aopt (selectFieldList colOptions)  "Series" (rpSerie <$> paramM) )
     <*> (areq (selectFieldList colOptions)  "column rupture" (rpColumnRupture <$> paramM) )
+    <*> (areq (selectField dataTypeOptions)  "data type" (rpDataType <$> paramM) )
+    <*> (areq (selectFieldList dataValueOptions)  "data value" (rpDataValue <$> paramM) )
   in  renderBootstrap3 BootstrapBasicForm form
  
 -- * Handler

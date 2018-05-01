@@ -4,6 +4,7 @@ import Import
 import Handler.Table
 import Items.Types
 import Handler.Items.Common
+import Handler.Util
 import FA
 import Data.Time(addDays)
 import qualified Data.Map as Map
@@ -20,6 +21,8 @@ data ReportParam = ReportParam
   , rpBand :: Maybe Column
   , rpSerie :: Maybe Column
   , rpColumnRupture :: Column
+  , rpDataType :: QPType
+  , rpDataValue :: Identifiable (QPrice -> Double)
   }  --deriving Show
 paramToCriteria :: ReportParam -> [Filter FA.StockMove]
 paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
@@ -292,10 +295,10 @@ tableProcessor grouped =
       showQp io (Just qp) = [whamlet|
                                   <td> #{show $ round (qpQty io qp)}
                                   <td> #{showDouble (qpAmount io qp)}
-                                  <td> #{showDouble qpMin }
-                                  <td> #{showDouble qpMax }
-                                  <td> #{showDouble (qpAverage qp)}
-                                  |] where (MinMax qpMin qpMax ) = qpPrice qp
+                                  <td> #{showDouble (qpMinPrice qp) }
+                                  <td> #{showDouble (qpMaxPrice qp) }
+                                  <td> #{showDouble (qpAveragePrice qp)}
+                                  |]
 
 
 summarize group = sconcat (q :| qp) where  (q:qp) = toList group
@@ -303,9 +306,9 @@ summarize group = sconcat (q :| qp) where  (q:qp) = toList group
 qpToCsv io Nothing = ["", "", "", ""]
 qpToCsv io (Just qp) = [ tshow (qpQty io qp)
                        , tshow (qpAmount io qp)
-                       , tshow qpMin
-                       , tshow qpMax
-                       ] where (MinMax qpMin qpMax ) = qpPrice qp
+                       , tshow (qpMinPrice qp)
+                       , tshow (qpMaxPrice qp)
+                       ]
 toCsv param grouped' = let
   header = intercalate "," [ tshowM $ colName <$> rpPanelRupture param
                           , colName $ rpColumnRupture param
@@ -347,7 +350,7 @@ panelChartProcessor param name plotId0 grouped = do
   let plots = forM_ (zip (Map.toList grouped) [1:: Int ..]) $ \((bandName, bands), i) ->
         do
           let byColumn = fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) bands
-              plot = seriesChartProcessor (fromMaybe "<All>" bandName) plotId byColumn 
+              plot = seriesChartProcessor param (fromMaybe "<All>" bandName) plotId byColumn 
               plotId = plotId0 <> "-" <> tshow i
           [whamlet|
             <div id=#{plotId} style="height:#{tshow plotHeight }px">
@@ -363,10 +366,11 @@ panelChartProcessor param name plotId0 grouped = do
           ^{plots}
             |]
     
-seriesChartProcessor :: Text -> Text -> Map (Maybe Text) (Map (Maybe Text) TranQP) -> Widget 
-seriesChartProcessor name plotId grouped = do
+seriesChartProcessor :: ReportParam -> Text -> Text -> Map (Maybe Text) (Map (Maybe Text) TranQP) -> Widget 
+seriesChartProcessor param name plotId grouped = do
      let xsFor g = map (toJSON . fromMaybe "ALL" . fst) g
-         ysFor g = map (toJSON . fmap (qpAmount Outward) . salesQPrice . snd) g
+         ysFor g = map (toJSON . fmap valueFn . (lookupGrouped (rpDataType param)) . snd) g
+         Identifiable (_, valueFn) = rpDataValue param
          traceFor (name, g') = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g)
                                      , ("y",  toJSON $ ysFor g)
                                      , ("name", toJSON name )
