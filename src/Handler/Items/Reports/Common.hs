@@ -9,7 +9,7 @@ import FA
 import Data.Time(addDays)
 import qualified Data.Map as Map
 import Data.List.NonEmpty (NonEmpty(..))
-import Data.List(cycle)
+import Data.List(cycle,scanl1,scanr1)
 import Database.Persist.MySQL(unSqlBackendKey, rawSql, Single(..))
 import Data.Aeson.QQ(aesonQQ)
 
@@ -37,15 +37,26 @@ data TraceParams = TraceParams
   { tpDataType :: QPType
   , tpDataParams :: Identifiable [TraceParam]
   } 
-newtype TraceParam = TraceParam ((QPrice -> Double), Text {- Color-} -> [(Text, Value)])
+newtype TraceParam = TraceParam ((QPrice -> Double), Text {- Color-} -> [(Text, Value)], RunSum )
+data RunSum = RunSum | RunSumBack | RSNormal
 -- ** Default  style
 amountStyle color = [("type", String "scatter")
+                    ,("name", String "Amount")
                     ,("line", [aesonQQ|{
                                color: #{color}
                                 }|])
                     ]
+-- cumulAmountStyle color = [("type", String "scatter")
+--                     ,("name", String "Amount")
+--                     ,("fill", "tonextx")
+--                     ,("connectgaps", toJSON True)
+--                     ,("line", [aesonQQ|{
+--                                color: #{color}
+--                                 }|])
+cumulAmountStyle = amountStyle
 quantityStyle color = [("type", String "scatter")
-                ,("line", [aesonQQ|{
+                      ,("name", String "Quantity")
+                      ,("line", [aesonQQ|{
                                shape:"hvh",
                                color: #{color},
                                dash: "dash"
@@ -55,41 +66,43 @@ quantityStyle color = [("type", String "scatter")
                 , ("showlegend", toJSON False)
               ]
 
-quantityAmountStyle :: InOutward -> [(QPrice -> Amount, Text -> [(Text, Value)])]
-quantityAmountStyle io = [ (qpQty io, quantityStyle)
+quantityAmountStyle :: InOutward -> [(QPrice -> Amount, Text -> [(Text, Value)], RunSum)]
+quantityAmountStyle io = [ (qpQty io, quantityStyle, RSNormal)
                          , (qpAmount io, \color -> [("type", String "scatter")
-                                         ,("line", [aesonQQ|{
+                                                   ,("name", String "Amount")
+                                                   ,("line", [aesonQQ|{
                                                            color: #{color},
                                                            shape: "spline",
                                                            width: 1
                                                            }|])
-                                         ])
+                                         ], RSNormal)
                          ]
 priceStyle color = [("type", String "scatter")
                 , ("marker", [aesonQQ|{symbol: "diamond"}|])
                 , ("yaxis", "y3")
+                , ("name", "price")
                 , ("line", [aesonQQ|{dash:"dash", color:#{color}}|])
               ]
-pricesStyle :: [(QPrice -> Amount, Text -> [(Text, Value)])]
+pricesStyle :: [(QPrice -> Amount, Text -> [(Text, Value)], RunSum)]
 pricesStyle = [(qpMinPrice , const [ ("style", String "scatter")
                              , ("fill", String "tonexty")
                              , ("fillcolor", String "transparent")
                              , ("mode", String "markers")
                              , ("connectgaps", toJSON True )
                              , ("showlegend", toJSON False )
-                             ])
+                             ], RSNormal)
                ,(qpAveragePrice , \color -> [ ("style", String "scatter")
                              , ("fill", String "tonexty")
                              , ("connectgaps", toJSON True )
                              , ("line", [aesonQQ|{color:#{color}}|])
-                             ])
+                             ], RSNormal)
                ,(qpMaxPrice , \color -> [ ("style", String "scatter")
                              , ("fill", String "tonexty")
                              , ("connectgaps", toJSON True )
                              -- , ("mode", String "markers")
                              , ("line", [aesonQQ|{color:#{color}}|])
                              -- , ("line", [aesonQQ|{width:0}|])
-                             ])
+                             ], RSNormal)
                  ]
 -- * Columns
 data Column = Column
@@ -133,6 +146,7 @@ getCols = do
                           )
            , Column "Customer" (const tkCustomer)
            , Column "Supplier" (const tkSupplier)
+           , Column "Supplier/Customer" (const (\t -> tkSupplier t <|> tkCustomer t))
            , Column "TransactionType" (const $ Just . tshow . tkType)
            , Column "Sales/Purchase" (const tkType'')
            , Column "Invoice/Credit" (const tkType')
@@ -462,15 +476,22 @@ seriesChartProcessor mono params name plotId grouped = do
          ysFor f g = map (toJSON . f . snd) g
          traceFor param ((name, g'), color,groupId) = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g) 
                                                     , ("y",  toJSON $ ysFor fn g)
-                                                    , ("name", toJSON name )
+                                                    -- , ("name", toJSON name )
                                                     , ("connectgaps", toJSON False )
                                                     , ("type", "scatter" ) 
                                                     , ("legendgroup", String (tshow groupId))
                                                     ]
                                                     -- <> maybe [] (\color -> [("color", String color)]) colorM
                                                     <> options color
-                                                       where g = sortOn fst (Map.toList g')
-                                                             (qtype, TraceParam (valueFn, options)) = param
+                                                    <> (if fromMaybe "" name == "" then [] else [("name", toJSON name)])
+                                                       where g'' = sortOn fst (Map.toList g')
+                                                             g = case runsum of
+                                                                 RunSum -> let (keys, tqs) = unzip g''
+                                                                           in zip keys (scanl1 (<>) tqs)
+                                                                 RunSumBack -> let (keys, tqs) = unzip g''
+                                                                           in zip keys (scanr1 (<>) tqs)
+                                                                 RSNormal -> g''
+                                                             (qtype, TraceParam (valueFn, options, runsum)) = param
                                                              fn = fmap valueFn . lookupGrouped qtype
                        
                                                                     
