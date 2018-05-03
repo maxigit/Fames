@@ -27,6 +27,7 @@ reportForm cols paramM = let
                                   , ("QA-Sales", quantityAmountStyle Outward)
                                   , ("CumulAmount (Out)" ,   [(qpAmount Outward, cumulAmountStyle, RunSum)] )
                                   , ("CumulAmount Backward (Out)" ,   [(qpAmount Outward, cumulAmountStyle, RunSumBack)] )
+                                  , ("Stock" ,   [(qpQty Inward, quantityStyle, RunSum)] )
                                   , ("Amount (Out)" ,   [(qpAmount Outward, amountStyle, RSNormal)] )
                                   , ("Amount (In)",     [(qpAmount Inward,  amountStyle, RSNormal)])
                                   , ("Amount (Bare)",   [(_qpAmount,        amountStyle, RSNormal)])
