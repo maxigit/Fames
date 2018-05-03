@@ -22,18 +22,20 @@ reportForm :: [Column] -> Maybe ReportParam -> _
 reportForm cols paramM = let
   colOptions = [(colName c,c) | c <- cols]
   dataTypeOptions = optionsPairs [(drop 2 (tshow qtype), qtype) | qtype <- [minBound..maxBound]]
-  dataValueOptions = map (\(t,f) -> (t, Identifiable (t,f)))
-                                  [ ("Amount (Out)" :: Text, qpAmount Outward)
-                                  , ("Amount (In)", qpAmount Inward)
-                                  , ("Amount (Bare)", _qpAmount )
-                                  , ("Quantity (Out)", qpQty Outward)
-                                  , ("Quantity (In)", qpQty Inward)
-                                  , ("Quantity (Bare)", _qpQty )
-                                  , ("Avg Price", qpAveragePrice)
-                                  , ("Min Price", qpMinPrice)
-                                  , ("Max Price", qpMaxPrice)
+  dataValueOptions = map (\(t, f, op) -> (t, Identifiable (t,(f, op))))
+                                  [ ("Amount (Out)" :: Text, qpAmount Outward, amountStyle )
+                                  , ("Amount (In)", qpAmount Inward, amountStyle)
+                                  , ("Amount (Bare)", _qpAmount, amountStyle)
+                                  , ("Quantity (Out)", qpQty Outward, quantityStyle)
+                                  , ("Quantity (In)", qpQty Inward, quantityStyle)
+                                  , ("Quantity (Bare)", _qpQty, quantityStyle )
+                                  , ("Avg Price", qpAveragePrice, priceStyle)
+                                  , ("Min Price", qpMinPrice, priceStyle)
+                                  , ("Max Price", qpMaxPrice, priceStyle)
                                   ]
-  form = ReportParam
+  reportParam rpFrom rpTo rpStockFilter rpPanelRupture rpBand rpSerie rpColumnRupture tpDataType tpDataValue =
+    ReportParam{rpTraceParam = TraceParam{..},..}
+  form = reportParam
     <$> (aopt dayField "from" (Just $ rpFrom =<< paramM ))
     <*> (aopt dayField "to" (Just $ rpTo =<< paramM))
     <*> (aopt filterEField  "sku" (Just $ rpStockFilter =<< paramM))
@@ -41,8 +43,8 @@ reportForm cols paramM = let
     <*> (aopt (selectFieldList colOptions)  "Band" (rpBand <$> paramM) )
     <*> (aopt (selectFieldList colOptions)  "Series" (rpSerie <$> paramM) )
     <*> (areq (selectFieldList colOptions)  "column rupture" (rpColumnRupture <$> paramM) )
-    <*> (areq (selectField dataTypeOptions)  "data type" (rpDataType <$> paramM) )
-    <*> (areq (selectFieldList dataValueOptions)  "data value" (rpDataValue <$> paramM) )
+    <*> (areq (selectField dataTypeOptions)  "data type" (tpDataType . rpTraceParam  <$> paramM) )
+    <*> (areq (selectFieldList dataValueOptions)  "data value" (tpDataValue . rpTraceParam <$> paramM) )
   in  renderBootstrap3 BootstrapBasicForm form
  
 -- * Handler

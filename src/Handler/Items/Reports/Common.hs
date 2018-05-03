@@ -10,6 +10,7 @@ import Data.Time(addDays)
 import qualified Data.Map as Map
 import Data.List.NonEmpty (NonEmpty(..))
 import Database.Persist.MySQL(unSqlBackendKey, rawSql, Single(..))
+import Data.Aeson.QQ(aesonQQ)
 
 -- * Param
 data ReportParam = ReportParam
@@ -21,14 +22,32 @@ data ReportParam = ReportParam
   , rpBand :: Maybe Column
   , rpSerie :: Maybe Column
   , rpColumnRupture :: Column
-  , rpDataType :: QPType
-  , rpDataValue :: Identifiable (QPrice -> Double)
+  , rpTraceParam :: TraceParam
   }  --deriving Show
 paramToCriteria :: ReportParam -> [Filter FA.StockMove]
 paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
                                   (rpTo <&> (FA.StockMoveTranDate <=.)) ?:
                                   (filterE id FA.StockMoveStockId  rpStockFilter)
-
+ 
+-- | Trace parameter for plotting 
+data TraceParam = TraceParam
+  { tpDataType :: QPType
+  , tpDataValue :: Identifiable (QPrice -> Double, [(Text, Value)])
+  } 
+-- ** Default  style
+amountStyle = [("type", String "scatter")]
+quantityStyle = [("type", String "scatter")
+                ,("line", [aesonQQ|{
+                               shape:"hvh"
+                                }|])
+                , ("marker", [aesonQQ|{symbol: "square"}|])
+                , ("yaxis", "y2")
+              ]
+priceStyle = [("type", String "scatter")
+                , ("marker", [aesonQQ|{symbol: "diamond"}|])
+                , ("yaxis", "y3")
+                , ("line", [aesonQQ|{dash:"dash"}|])
+              ]
 -- * Columns
 data Column = Column
   { colName :: Text
@@ -358,7 +377,7 @@ panelChartProcessor param name plotId0 grouped = do
   let plots = forM_ (zip (Map.toList grouped) [1:: Int ..]) $ \((bandName, bands), i) ->
         do
           let byColumn = fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) bands
-              plot = seriesChartProcessor param (fromMaybe "<All>" bandName) plotId byColumn 
+              plot = seriesChartProcessor [rpTraceParam param] (fromMaybe "<All>" bandName) plotId byColumn 
               plotId = plotId0 <> "-" <> tshow i
           [whamlet|
             <div id=#{plotId} style="height:#{tshow plotHeight }px">
@@ -374,23 +393,31 @@ panelChartProcessor param name plotId0 grouped = do
           ^{plots}
             |]
     
-seriesChartProcessor :: ReportParam -> Text -> Text -> Map (Maybe Text) (Map (Maybe Text) TranQP) -> Widget 
-seriesChartProcessor param name plotId grouped = do
+seriesChartProcessor ::[TraceParam]-> Text -> Text -> Map (Maybe Text) (Map (Maybe Text) TranQP) -> Widget 
+seriesChartProcessor params name plotId grouped = do
      let xsFor g = map (toJSON . fromMaybe "ALL" . fst) g
-         ysFor g = map (toJSON . fmap valueFn . (lookupGrouped (rpDataType param)) . snd) g
-         Identifiable (_, valueFn) = rpDataValue param
-         traceFor (name, g') = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g)
-                                     , ("y",  toJSON $ ysFor g)
-                                     , ("name", toJSON name )
-                                     , ("connectgaps", toJSON False )
-                                     , ("type", "scatter" )
-                                     ] where g = sortOn fst (Map.toList g')
-         jsData = map traceFor (Map.toList grouped)
+         ysFor f g = map (toJSON . f . snd) g
+         traceFor param (name, g') = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g) 
+                                                    , ("y",  toJSON $ ysFor fn g)
+                                                    , ("name", toJSON name )
+                                                    , ("connectgaps", toJSON False )
+                                                    , ("type", "scatter" ) 
+                                                    ]
+                                                    <> options
+                                                       where g = sortOn fst (Map.toList g')
+                                                             Identifiable (_, (valueFn, options)) = tpDataValue param
+                                                             fn = fmap valueFn . lookupGrouped (tpDataType param)
+                       
+         
+                                                                    
+         jsData = map traceFor params <*> (Map.toList grouped)
      toWidget [julius|
           Plotly.plot( #{toJSON plotId}
                     , #{toJSON jsData} 
                     , { margin: { t: 0 }
                       , title: #{toJSON name}
+                      , yaxis2 : {overlaying: 'y', title: "Quantities"}
+                      , yaxis3 : {overlaying: 'y', title: "Price"}
                       , updatemenus:
                          [ { buttons: [ { method: 'restyle'
                                         , args: [{type: 'scatter', fill: 'none' }]
