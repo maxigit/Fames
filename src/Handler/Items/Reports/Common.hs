@@ -446,11 +446,12 @@ seriesChartProcessor ::[(QPType, TraceParam)]-> Text -> Text -> Map (Maybe Text)
 seriesChartProcessor params name plotId grouped = do
      let xsFor g = map (toJSON . fromMaybe "ALL" . fst) g
          ysFor f g = map (toJSON . f . snd) g
-         traceFor param ((name, g'), color) = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g) 
+         traceFor param ((name, g'), color,groupId) = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g) 
                                                     , ("y",  toJSON $ ysFor fn g)
                                                     , ("name", toJSON name )
                                                     , ("connectgaps", toJSON False )
                                                     , ("type", "scatter" ) 
+                                                    , ("legendgroup", String (tshow groupId))
                                                     ]
                                                     -- <> maybe [] (\color -> [("color", String color)]) colorM
                                                     <> options color
@@ -459,13 +460,19 @@ seriesChartProcessor params name plotId grouped = do
                                                              fn = fmap valueFn . lookupGrouped qtype
                        
                                                                     
-         jsData = map traceFor params <*> (zip (Map.toList grouped) (cycle defaultColors))
+         colorIds = zip (cycle defaultColors) [1::Int ..]
+         jsData = [ traceFor param (name'group, color :: Text, groupId :: Int)
+                  | (param, pcId) <- zip params colorIds
+                  , (name'group, gcId) <- zip (Map.toList grouped) colorIds
+         -- if there is only one series, we don't need to group legend and colour by serie
+                  , let (color, groupId) = if length grouped == 1 then pcId else gcId
+                  ] -- ) (cycle defaultColors) [1 :: Int ..])
      toWidget [julius|
           Plotly.plot( #{toJSON plotId}
                     , #{toJSON jsData} 
                     , { margin: { t: 0 }
                       , title: #{toJSON name}
-                      , yaxis2 : {overlaying: 'y', title: "Quantities"}
+                      , yaxis2 : {overlaying: 'y', title: "Quantities", side: "right"}
                       , yaxis3 : {overlaying: 'y', title: "Price"}
                       , updatemenus:
                          [ { buttons: [ { method: 'restyle'
