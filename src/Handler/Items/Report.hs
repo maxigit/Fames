@@ -24,6 +24,7 @@ reportForm cols paramM = let
   dataTypeOptions = optionsPairs [(drop 2 (tshow qtype), qtype) | qtype <- [minBound..maxBound]]
   dataValueOptions = map (\(t, tps) -> (t, Identifiable (t, (map TraceParam tps))))
                                   [ ("None" :: Text, [])
+                                  , ("QA-Sales", quantityAmountStyle Outward)
                                   , ("Amount (Out)" ,   [(qpAmount Outward, amountStyle)] )
                                   , ("Amount (In)",     [(qpAmount Inward,  amountStyle)])
                                   , ("Amount (Bare)",   [(_qpAmount,        amountStyle)])

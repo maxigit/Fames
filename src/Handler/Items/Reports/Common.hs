@@ -47,16 +47,30 @@ amountStyle color = [("type", String "scatter")
 quantityStyle color = [("type", String "scatter")
                 ,("line", [aesonQQ|{
                                shape:"hvh",
-                               color: #{color}
+                               color: #{color},
+                               dash: "dash"
                                 }|])
                 , ("marker", [aesonQQ|{symbol: "square-open"}|])
                 , ("yaxis", "y2")
+                , ("showlegend", toJSON False)
               ]
+
+quantityAmountStyle :: InOutward -> [(QPrice -> Amount, Text -> [(Text, Value)])]
+quantityAmountStyle io = [ (qpQty io, quantityStyle)
+                         , (qpAmount io, \color -> [("type", String "scatter")
+                                         ,("line", [aesonQQ|{
+                                                           color: #{color},
+                                                           shape: "spline",
+                                                           width: 1
+                                                           }|])
+                                         ])
+                         ]
 priceStyle color = [("type", String "scatter")
                 , ("marker", [aesonQQ|{symbol: "diamond"}|])
                 , ("yaxis", "y3")
                 , ("line", [aesonQQ|{dash:"dash", color:#{color}}|])
               ]
+pricesStyle :: [(QPrice -> Amount, Text -> [(Text, Value)])]
 pricesStyle = [(qpMinPrice , const [ ("style", String "scatter")
                              , ("fill", String "tonexty")
                              , ("fillcolor", String "transparent")
@@ -411,7 +425,7 @@ panelChartProcessor param name plotId0 grouped = do
                                                                <*> [param]
                             , tparam <- getIdentified tparams
                             ]
-              plot = seriesChartProcessor traceParams (fromMaybe "<All>" bandName) plotId byColumn 
+              plot = seriesChartProcessor (isNothing $ rpSerie param) traceParams (fromMaybe "<All>" bandName) plotId byColumn 
               plotId = plotId0 <> "-" <> tshow i
           [whamlet|
             <div id=#{plotId} style="height:#{tshow plotHeight }px">
@@ -442,8 +456,8 @@ defaultColors = defaultPlottly where
               "#17becf"   -- blue-teal
              ]
 
-seriesChartProcessor ::[(QPType, TraceParam)]-> Text -> Text -> Map (Maybe Text) (Map (Maybe Text) TranQP) -> Widget 
-seriesChartProcessor params name plotId grouped = do
+seriesChartProcessor :: Bool -> [(QPType, TraceParam)]-> Text -> Text -> Map (Maybe Text) (Map (Maybe Text) TranQP) -> Widget 
+seriesChartProcessor mono params name plotId grouped = do
      let xsFor g = map (toJSON . fromMaybe "ALL" . fst) g
          ysFor f g = map (toJSON . f . snd) g
          traceFor param ((name, g'), color,groupId) = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g) 
@@ -465,7 +479,7 @@ seriesChartProcessor params name plotId grouped = do
                   | (param, pcId) <- zip params colorIds
                   , (name'group, gcId) <- zip (Map.toList grouped) colorIds
          -- if there is only one series, we don't need to group legend and colour by serie
-                  , let (color, groupId) = if length grouped == 1 then pcId else gcId
+                  , let (color, groupId) = if mono {-length grouped == 1-} then pcId else gcId
                   ] -- ) (cycle defaultColors) [1 :: Int ..])
      toWidget [julius|
           Plotly.plot( #{toJSON plotId}
