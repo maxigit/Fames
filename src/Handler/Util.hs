@@ -45,6 +45,7 @@ module Handler.Util
 , categoryFinderCached
 , categoriesH
 , Identifiable(..)
+, getIdentified
 ) where
 -- ** Import
 import Foundation
@@ -200,6 +201,8 @@ setAttachment path =
 -- Ideal to be used in a form a select options when the desired object doesn't have
 -- an EQ instance or label objects which doesn't have a show instance
 newtype Identifiable a = Identifiable {unIdentifiable :: (Text, a)} deriving Functor
+getIdentified :: Identifiable a -> a
+getIdentified (Identifiable (_, a)) = a
 
 instance Show (Identifiable a)  where
   show (Identifiable(i,_)) = unpack i

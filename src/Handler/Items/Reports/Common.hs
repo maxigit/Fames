@@ -22,7 +22,9 @@ data ReportParam = ReportParam
   , rpBand :: Maybe Column
   , rpSerie :: Maybe Column
   , rpColumnRupture :: Column
-  , rpTraceParam :: TraceParam
+  , rpTraceParam :: TraceParams
+  , rpTraceParam2 :: TraceParams
+  , rpTraceParam3 :: TraceParams
   }  --deriving Show
 paramToCriteria :: ReportParam -> [Filter FA.StockMove]
 paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
@@ -30,17 +32,18 @@ paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
                                   (filterE id FA.StockMoveStockId  rpStockFilter)
  
 -- | Trace parameter for plotting 
-data TraceParam = TraceParam
+data TraceParams = TraceParams
   { tpDataType :: QPType
-  , tpDataValue :: Identifiable (QPrice -> Double, [(Text, Value)])
+  , tpDataParams :: Identifiable [TraceParam]
   } 
+newtype TraceParam = TraceParam ((QPrice -> Double), [(Text, Value)])
 -- ** Default  style
 amountStyle = [("type", String "scatter")]
 quantityStyle = [("type", String "scatter")
                 ,("line", [aesonQQ|{
                                shape:"hvh"
                                 }|])
-                , ("marker", [aesonQQ|{symbol: "square"}|])
+                , ("marker", [aesonQQ|{symbol: "square-open"}|])
                 , ("yaxis", "y2")
               ]
 priceStyle = [("type", String "scatter")
@@ -48,6 +51,23 @@ priceStyle = [("type", String "scatter")
                 , ("yaxis", "y3")
                 , ("line", [aesonQQ|{dash:"dash"}|])
               ]
+pricesStyle = [(qpMinPrice , [ ("style", String "scatter")
+                             , ("fill", String "tonexty")
+                             , ("mode", String "markers")
+                             , ("connectgaps", toJSON True )
+                             , ("showlegend", toJSON False )
+                             ])
+               ,(qpAveragePrice , [ ("style", String "scatter")
+                             , ("fill", String "tonexty")
+                             , ("connectgaps", toJSON True )
+                             ])
+               ,(qpMaxPrice , [ ("style", String "scatter")
+                             , ("fill", String "tonexty")
+                             , ("connectgaps", toJSON True )
+                             , ("mode", String "markers")
+                             -- , ("line", [aesonQQ|{width:0}|])
+                             ])
+                 ]
 -- * Columns
 data Column = Column
   { colName :: Text
@@ -377,7 +397,12 @@ panelChartProcessor param name plotId0 grouped = do
   let plots = forM_ (zip (Map.toList grouped) [1:: Int ..]) $ \((bandName, bands), i) ->
         do
           let byColumn = fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) bands
-              plot = seriesChartProcessor [rpTraceParam param] (fromMaybe "<All>" bandName) plotId byColumn 
+              traceParams = [(qtype, tparam )
+                            | (TraceParams qtype tparams ) <- [rpTraceParam,  rpTraceParam2 , rpTraceParam3]
+                                                               <*> [param]
+                            , tparam <- getIdentified tparams
+                            ]
+              plot = seriesChartProcessor traceParams (fromMaybe "<All>" bandName) plotId byColumn 
               plotId = plotId0 <> "-" <> tshow i
           [whamlet|
             <div id=#{plotId} style="height:#{tshow plotHeight }px">
@@ -393,7 +418,7 @@ panelChartProcessor param name plotId0 grouped = do
           ^{plots}
             |]
     
-seriesChartProcessor ::[TraceParam]-> Text -> Text -> Map (Maybe Text) (Map (Maybe Text) TranQP) -> Widget 
+seriesChartProcessor ::[(QPType, TraceParam)]-> Text -> Text -> Map (Maybe Text) (Map (Maybe Text) TranQP) -> Widget 
 seriesChartProcessor params name plotId grouped = do
      let xsFor g = map (toJSON . fromMaybe "ALL" . fst) g
          ysFor f g = map (toJSON . f . snd) g
@@ -405,8 +430,8 @@ seriesChartProcessor params name plotId grouped = do
                                                     ]
                                                     <> options
                                                        where g = sortOn fst (Map.toList g')
-                                                             Identifiable (_, (valueFn, options)) = tpDataValue param
-                                                             fn = fmap valueFn . lookupGrouped (tpDataType param)
+                                                             (qtype, TraceParam (valueFn, options)) = param
+                                                             fn = fmap valueFn . lookupGrouped qtype
                        
          
                                                                     

@@ -22,20 +22,26 @@ reportForm :: [Column] -> Maybe ReportParam -> _
 reportForm cols paramM = let
   colOptions = [(colName c,c) | c <- cols]
   dataTypeOptions = optionsPairs [(drop 2 (tshow qtype), qtype) | qtype <- [minBound..maxBound]]
-  dataValueOptions = map (\(t, f, op) -> (t, Identifiable (t,(f, op))))
-                                  [ ("Amount (Out)" :: Text, qpAmount Outward, amountStyle )
-                                  , ("Amount (In)", qpAmount Inward, amountStyle)
-                                  , ("Amount (Bare)", _qpAmount, amountStyle)
-                                  , ("Quantity (Out)", qpQty Outward, quantityStyle)
-                                  , ("Quantity (In)", qpQty Inward, quantityStyle)
-                                  , ("Quantity (Bare)", _qpQty, quantityStyle )
-                                  , ("Avg Price", qpAveragePrice, priceStyle)
-                                  , ("Min Price", qpMinPrice, priceStyle)
-                                  , ("Max Price", qpMaxPrice, priceStyle)
+  dataValueOptions = map (\(t, tps) -> (t, Identifiable (t, (map TraceParam tps))))
+                                  [ ("None" :: Text, [])
+                                  , ("Amount (Out)" ,   [(qpAmount Outward, amountStyle)] )
+                                  , ("Amount (In)",     [(qpAmount Inward,  amountStyle)])
+                                  , ("Amount (Bare)",   [(_qpAmount,        amountStyle)])
+                                  , ("Quantity (Out)",  [(qpQty Outward,    quantityStyle)])
+                                  , ("Quantity (In)",   [(qpQty Inward,     quantityStyle)])
+                                  , ("Quantity (Bare)", [(_qpQty,           quantityStyle)] )
+                                  , ("Avg Price",       [(qpAveragePrice,   priceStyle)])
+                                  , ("Min Price",       [(qpMinPrice,       priceStyle)])
+                                  , ("Max Price",       [(qpMaxPrice,       priceStyle)])
+                                  , ("Price Band",          pricesStyle)
                                   ]
-  reportParam rpFrom rpTo rpStockFilter rpPanelRupture rpBand rpSerie rpColumnRupture tpDataType tpDataValue =
-    ReportParam{rpTraceParam = TraceParam{..},..}
-  form = reportParam
+  traceForm suffix p = TraceParams <$> (areq (selectField dataTypeOptions)
+                                             (fromString $ "data type" <> suffix)
+                                             (tpDataType <$> p) )
+                                   <*> (areq (selectFieldList dataValueOptions)
+                                             (fromString $ "data value" <> suffix)
+                                             (tpDataParams <$> p) )
+  form = ReportParam
     <$> (aopt dayField "from" (Just $ rpFrom =<< paramM ))
     <*> (aopt dayField "to" (Just $ rpTo =<< paramM))
     <*> (aopt filterEField  "sku" (Just $ rpStockFilter =<< paramM))
@@ -43,8 +49,9 @@ reportForm cols paramM = let
     <*> (aopt (selectFieldList colOptions)  "Band" (rpBand <$> paramM) )
     <*> (aopt (selectFieldList colOptions)  "Series" (rpSerie <$> paramM) )
     <*> (areq (selectFieldList colOptions)  "column rupture" (rpColumnRupture <$> paramM) )
-    <*> (areq (selectField dataTypeOptions)  "data type" (tpDataType . rpTraceParam  <$> paramM) )
-    <*> (areq (selectFieldList dataValueOptions)  "data value" (tpDataValue . rpTraceParam <$> paramM) )
+    <*> traceForm "" (rpTraceParam <$> paramM)
+    <*> traceForm " 2" (rpTraceParam2 <$> paramM)
+    <*> traceForm " 3"(rpTraceParam3 <$> paramM)
   in  renderBootstrap3 BootstrapBasicForm form
  
 -- * Handler
