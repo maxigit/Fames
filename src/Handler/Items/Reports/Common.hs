@@ -9,6 +9,7 @@ import FA
 import Data.Time(addDays)
 import qualified Data.Map as Map
 import Data.List.NonEmpty (NonEmpty(..))
+import Data.List(cycle)
 import Database.Persist.MySQL(unSqlBackendKey, rawSql, Single(..))
 import Data.Aeson.QQ(aesonQQ)
 
@@ -36,35 +37,43 @@ data TraceParams = TraceParams
   { tpDataType :: QPType
   , tpDataParams :: Identifiable [TraceParam]
   } 
-newtype TraceParam = TraceParam ((QPrice -> Double), [(Text, Value)])
+newtype TraceParam = TraceParam ((QPrice -> Double), Text {- Color-} -> [(Text, Value)])
 -- ** Default  style
-amountStyle = [("type", String "scatter")]
-quantityStyle = [("type", String "scatter")
+amountStyle color = [("type", String "scatter")
+                    ,("line", [aesonQQ|{
+                               color: #{color}
+                                }|])
+                    ]
+quantityStyle color = [("type", String "scatter")
                 ,("line", [aesonQQ|{
-                               shape:"hvh"
+                               shape:"hvh",
+                               color: #{color}
                                 }|])
                 , ("marker", [aesonQQ|{symbol: "square-open"}|])
                 , ("yaxis", "y2")
               ]
-priceStyle = [("type", String "scatter")
+priceStyle color = [("type", String "scatter")
                 , ("marker", [aesonQQ|{symbol: "diamond"}|])
                 , ("yaxis", "y3")
-                , ("line", [aesonQQ|{dash:"dash"}|])
+                , ("line", [aesonQQ|{dash:"dash", color:#{color}}|])
               ]
-pricesStyle = [(qpMinPrice , [ ("style", String "scatter")
+pricesStyle = [(qpMinPrice , const [ ("style", String "scatter")
                              , ("fill", String "tonexty")
+                             , ("fillcolor", String "transparent")
                              , ("mode", String "markers")
                              , ("connectgaps", toJSON True )
                              , ("showlegend", toJSON False )
                              ])
-               ,(qpAveragePrice , [ ("style", String "scatter")
+               ,(qpAveragePrice , \color -> [ ("style", String "scatter")
                              , ("fill", String "tonexty")
                              , ("connectgaps", toJSON True )
+                             , ("line", [aesonQQ|{color:#{color}}|])
                              ])
-               ,(qpMaxPrice , [ ("style", String "scatter")
+               ,(qpMaxPrice , \color -> [ ("style", String "scatter")
                              , ("fill", String "tonexty")
                              , ("connectgaps", toJSON True )
-                             , ("mode", String "markers")
+                             -- , ("mode", String "markers")
+                             , ("line", [aesonQQ|{color:#{color}}|])
                              -- , ("line", [aesonQQ|{width:0}|])
                              ])
                  ]
@@ -417,25 +426,40 @@ panelChartProcessor param name plotId0 grouped = do
         <div.panel-body>
           ^{plots}
             |]
+
     
+defaultColors :: [Text]
+defaultColors = defaultPlottly where
+  defaultPlottly  = ["#1f77b4",  -- muted blue
+              "#ff7f0e",  -- safety orange
+              "#2ca02c",  -- cooked asparagus green
+              "#d62728",  -- brick red
+              "#9467bd",  -- muted purple
+              "#8c564b",  -- chestnut brown
+              "#e377c2",  -- raspberry yogurt pink
+              "#7f7f7f",  -- middle gray
+              "#bcbd22",  -- curry yellow-green
+              "#17becf"   -- blue-teal
+             ]
+
 seriesChartProcessor ::[(QPType, TraceParam)]-> Text -> Text -> Map (Maybe Text) (Map (Maybe Text) TranQP) -> Widget 
 seriesChartProcessor params name plotId grouped = do
      let xsFor g = map (toJSON . fromMaybe "ALL" . fst) g
          ysFor f g = map (toJSON . f . snd) g
-         traceFor param (name, g') = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g) 
+         traceFor param ((name, g'), color) = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g) 
                                                     , ("y",  toJSON $ ysFor fn g)
                                                     , ("name", toJSON name )
                                                     , ("connectgaps", toJSON False )
                                                     , ("type", "scatter" ) 
                                                     ]
-                                                    <> options
+                                                    -- <> maybe [] (\color -> [("color", String color)]) colorM
+                                                    <> options color
                                                        where g = sortOn fst (Map.toList g')
                                                              (qtype, TraceParam (valueFn, options)) = param
                                                              fn = fmap valueFn . lookupGrouped qtype
                        
-         
                                                                     
-         jsData = map traceFor params <*> (Map.toList grouped)
+         jsData = map traceFor params <*> (zip (Map.toList grouped) (cycle defaultColors))
      toWidget [julius|
           Plotly.plot( #{toJSON plotId}
                     , #{toJSON jsData} 
