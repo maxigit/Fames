@@ -1,0 +1,5 @@
+
+RulesTriggerT sql=dcx_rules_trigger
+    id_ Int  sql=id
+    event Text  sql=event
+    Primary id_ event

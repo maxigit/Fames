@@ -1,0 +1,13 @@
+
+SearchApiIndexT sql=dcx_search_api_index
+    Id Int  sql=id
+    name Text  sql=name
+    machineName Text  sql=machine_name
+    description Text Maybe sql=description default=NULL
+    server Text Maybe sql=server default=NULL
+    itemType Text  sql=item_type
+    options Text  sql=options
+    enabled Bool  sql=enabled
+    readOnly Bool  sql=read_only
+    status Bool  sql=status
+    module Text Maybe sql=module default=NULL

@@ -1,0 +1,7 @@
+
+CacheEntityTaxonomyVocabularyT sql=dcx_cache_entity_taxonomy_vocabulary
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized

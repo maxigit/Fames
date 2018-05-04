@@ -1,0 +1,11 @@
+
+FieldDataFieldBrandT sql=dcx_field_data_field_brand
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldBrandTid Int Maybe sql=field_brand_tid
+    Primary entityType deleted entityId language delta

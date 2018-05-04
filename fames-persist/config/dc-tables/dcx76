@@ -1,0 +1,4 @@
+
+FeedsImporterT sql=dcx_feeds_importer
+    Id Text  sql=id
+    config ByteString Maybe sql=config

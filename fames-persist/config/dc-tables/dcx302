@@ -1,0 +1,6 @@
+
+TaxonomyIndexT sql=dcx_taxonomy_index
+    nid Int  sql=nid
+    tid Int  sql=tid
+    sticky Bool Maybe sql=sticky
+    created Int  sql=created

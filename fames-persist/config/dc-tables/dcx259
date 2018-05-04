@@ -1,0 +1,4 @@
+
+RegistryFileT sql=dcx_registry_file
+    Id Text  sql=filename
+    hash Text  sql=hash

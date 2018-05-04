@@ -1,0 +1,11 @@
+
+FieldRevisionCommerceShippingServiceT sql=dcx_field_revision_commerce_shipping_service
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceShippingServiceValue Text Maybe sql=commerce_shipping_service_value default=NULL
+    Primary entityType deleted entityId revisionId language delta

@@ -1,0 +1,10 @@
+
+CommerceCustomerProfileT sql=dcx_commerce_customer_profile
+    Id Int  sql=profile_id
+    revisionId Int Maybe sql=revision_id
+    type Text  sql=type
+    uid Int  sql=uid
+    status Int  sql=status
+    created Int  sql=created
+    changed Int  sql=changed
+    data ByteString Maybe sql=data

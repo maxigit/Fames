@@ -1,0 +1,13 @@
+
+CommerceProductT sql=dcx_commerce_product
+    Id Int  sql=product_id
+    revisionId Int Maybe sql=revision_id
+    sku Text  sql=sku
+    title Text  sql=title
+    type Text  sql=type
+    language Text  sql=language
+    uid Int  sql=uid
+    status Bool  sql=status
+    created Int  sql=created
+    changed Int  sql=changed
+    data ByteString Maybe sql=data

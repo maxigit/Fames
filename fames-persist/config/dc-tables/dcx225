@@ -1,0 +1,5 @@
+
+MasqueradeT sql=dcx_masquerade
+    sid Text  sql=sid
+    uidFrom Int  sql=uid_from
+    uidAs Int  sql=uid_as

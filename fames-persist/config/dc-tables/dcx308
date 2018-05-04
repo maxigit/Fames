@@ -1,0 +1,6 @@
+
+UrlAliasT sql=dcx_url_alias
+    Id Int  sql=pid
+    source Text  sql=source
+    alias Text  sql=alias
+    language Text  sql=language

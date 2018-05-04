@@ -1,0 +1,6 @@
+
+BatchT sql=dcx_batch
+    Id Int  sql=bid
+    token Text  sql=token
+    timestamp Int  sql=timestamp
+    batch ByteString Maybe sql=batch

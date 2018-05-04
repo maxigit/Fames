@@ -1,0 +1,11 @@
+
+FeedsLogT sql=dcx_feeds_log
+    Id Int  sql=flid
+    id_ Text  sql=id
+    feedNid Int  sql=feed_nid
+    logTime Int  sql=log_time
+    requestTime Int  sql=request_time
+    type Text  sql=type
+    message Text  sql=message
+    variables ByteString  sql=variables
+    severity Bool  sql=severity

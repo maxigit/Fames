@@ -1,0 +1,12 @@
+
+FieldDataBodyT sql=dcx_field_data_body
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    bodyValue Text Maybe sql=body_value default=NULL
+    bodyFormat Text Maybe sql=body_format default=NULL
+    Primary entityType deleted entityId language delta

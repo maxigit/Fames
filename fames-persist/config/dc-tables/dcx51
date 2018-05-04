@@ -1,0 +1,13 @@
+
+CommerceCalculatedPriceT sql=dcx_commerce_calculated_price
+    module Text  sql=module
+    moduleKey Text  sql=module_key
+    entityType Text  sql=entity_type
+    entityId Int  sql=entity_id
+    fieldName Text  sql=field_name
+    language Text  sql=language
+    delta Int  sql=delta
+    amount Int  sql=amount
+    currencyCode Text  sql=currency_code
+    data Text Maybe sql=data default=NULL
+    created Int  sql=created

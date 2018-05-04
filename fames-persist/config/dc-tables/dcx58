@@ -1,0 +1,10 @@
+
+CommerceLineItemT sql=dcx_commerce_line_item
+    Id Int  sql=line_item_id
+    orderId Int  sql=order_id
+    type Text  sql=type
+    lineItemLabel Text  sql=line_item_label
+    quantity Rational  sql=quantity
+    created Int  sql=created
+    changed Int  sql=changed
+    data ByteString Maybe sql=data

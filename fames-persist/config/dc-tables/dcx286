@@ -1,0 +1,7 @@
+
+SearchApiDbProductDisplayTextT sql=dcx_search_api_db_product_display_text
+    itemId Int  sql=item_id
+    fieldName Text  sql=field_name
+    word Text  sql=word
+    score Int  sql=score
+    Primary itemId fieldName word

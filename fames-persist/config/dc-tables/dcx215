@@ -1,0 +1,10 @@
+
+FileManagedT sql=dcx_file_managed
+    Id Int  sql=fid
+    uid Int  sql=uid
+    filename Text  sql=filename
+    uri Text  sql=uri
+    filemime Text  sql=filemime
+    filesize Int  sql=filesize
+    status Bool  sql=status
+    timestamp Int  sql=timestamp

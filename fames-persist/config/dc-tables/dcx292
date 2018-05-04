@@ -1,0 +1,6 @@
+
+SearchApiItemT sql=dcx_search_api_item
+    itemId Int  sql=item_id
+    indexId Int  sql=index_id
+    changed Int  sql=changed
+    Primary itemId indexId

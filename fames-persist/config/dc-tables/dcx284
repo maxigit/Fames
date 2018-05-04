@@ -1,0 +1,4 @@
+
+SearchApiDbProductDisplaySearchApiLanguageT sql=dcx_search_api_db_product_display_search_api_language
+    Id Int  sql=item_id
+    value Text Maybe sql=value default=NULL

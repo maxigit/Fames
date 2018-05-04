@@ -1,0 +1,7 @@
+
+ImageEffectsT sql=dcx_image_effects
+    Id Int  sql=ieid
+    isid Int  sql=isid
+    weight Int  sql=weight
+    name Text  sql=name
+    data ByteString  sql=data

@@ -1,0 +1,6 @@
+
+TaxonomyMenuT sql=dcx_taxonomy_menu
+    mlid Int  sql=mlid
+    tid Int  sql=tid
+    vid Int  sql=vid
+    Primary mlid tid

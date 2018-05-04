@@ -1,0 +1,5 @@
+
+SemaphoreT sql=dcx_semaphore
+    Id Text  sql=name
+    value Text  sql=value
+    expire Double  sql=expire

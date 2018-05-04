@@ -1,0 +1,10 @@
+
+CommerceCheckoutPaneT sql=dcx_commerce_checkout_pane
+    Id Text  sql=pane_id
+    page Text  sql=page
+    fieldset Bool  sql=fieldset
+    collapsible Bool  sql=collapsible
+    collapsed Bool  sql=collapsed
+    weight Int  sql=weight
+    enabled Bool  sql=enabled
+    review Bool  sql=review

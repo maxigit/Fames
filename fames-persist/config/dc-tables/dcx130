@@ -1,0 +1,12 @@
+
+FieldDataFieldSpecialRequestT sql=dcx_field_data_field_special_request
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldSpecialRequestValue Text Maybe sql=field_special_request_value default=NULL
+    fieldSpecialRequestFormat Text Maybe sql=field_special_request_format default=NULL
+    Primary entityType deleted entityId language delta

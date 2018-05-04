@@ -1,0 +1,6 @@
+
+AdvancedHelpIndexT sql=dcx_advanced_help_index
+    Id Int  sql=sid
+    module Text  sql=module
+    topic Text  sql=topic
+    language Text  sql=language

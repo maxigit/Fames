@@ -1,0 +1,8 @@
+
+FacetapiT sql=dcx_facetapi
+    Id Text  sql=name
+    searcher Text  sql=searcher
+    realm Text  sql=realm
+    facet Text  sql=facet
+    enabled Bool  sql=enabled
+    settings ByteString Maybe sql=settings

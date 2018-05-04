@@ -1,0 +1,9 @@
+
+ViewsViewT sql=dcx_views_view
+    Id Int  sql=vid
+    name Text  sql=name
+    description Text Maybe sql=description default=NULL
+    tag Text Maybe sql=tag default=NULL
+    baseTable Text  sql=base_table
+    humanName Text Maybe sql=human_name default=NULL
+    core Int Maybe sql=core

@@ -1,0 +1,10 @@
+
+CommerceFlatRateServiceT sql=dcx_commerce_flat_rate_service
+    Id Text  sql=name
+    title Text  sql=title
+    displayTitle Text  sql=display_title
+    description Text  sql=description
+    rulesComponent Bool  sql=rules_component
+    amount Int  sql=amount
+    currencyCode Text  sql=currency_code
+    data Text Maybe sql=data default=NULL

@@ -1,0 +1,15 @@
+
+JobScheduleT sql=dcx_job_schedule
+    Id Int  sql=item_id
+    name Text  sql=name
+    type Text  sql=type
+    id_ Int  sql=id
+    period Int  sql=period
+    crontab Text  sql=crontab
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    last Int  sql=last
+    periodic Int  sql=periodic
+    next Int  sql=next
+    scheduled Int  sql=scheduled

@@ -1,0 +1,12 @@
+
+MessageTypeT sql=dcx_message_type
+    Id Int  sql=id
+    name Text  sql=name
+    category Text  sql=category
+    description Text  sql=description
+    argumentKeys Text Maybe sql=argument_keys default=NULL
+    language Text  sql=language
+    status Bool  sql=status
+    module Text Maybe sql=module default=NULL
+    arguments Text Maybe sql=arguments default=NULL
+    data Text Maybe sql=data default=NULL

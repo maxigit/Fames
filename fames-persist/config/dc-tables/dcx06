@@ -1,0 +1,14 @@
+
+BlockT sql=dcx_block
+    Id Int  sql=bid
+    module Text  sql=module
+    delta Text  sql=delta
+    theme Text  sql=theme
+    status Bool  sql=status
+    weight Int  sql=weight
+    region Text  sql=region
+    custom Bool  sql=custom
+    visibility Bool  sql=visibility
+    pages Text  sql=pages
+    title Text  sql=title
+    cache Bool  sql=cache

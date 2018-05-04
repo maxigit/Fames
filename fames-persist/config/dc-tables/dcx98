@@ -1,0 +1,11 @@
+
+FieldDataCommercePercentageT sql=dcx_field_data_commerce_percentage
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commercePercentageValue Rational Maybe sql=commerce_percentage_value
+    Primary entityType deleted entityId language delta

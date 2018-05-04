@@ -1,0 +1,10 @@
+
+SessionsT sql=dcx_sessions
+    uid Int  sql=uid
+    sid Text  sql=sid
+    ssid Text  sql=ssid
+    hostname Text  sql=hostname
+    timestamp Int  sql=timestamp
+    cache Int  sql=cache
+    session ByteString Maybe sql=session
+    Primary sid ssid

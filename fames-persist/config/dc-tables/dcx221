@@ -1,0 +1,4 @@
+
+HoneypotUserT sql=dcx_honeypot_user
+    uid Int  sql=uid
+    timestamp Int  sql=timestamp

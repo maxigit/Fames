@@ -1,0 +1,5 @@
+
+CurrentSearchT sql=dcx_current_search
+    Id Text  sql=name
+    label Text  sql=label
+    settings Text Maybe sql=settings default=NULL

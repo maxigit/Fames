@@ -1,0 +1,13 @@
+
+FieldRevisionFieldPricePl09T sql=dcx_field_revision_field_price_pl_09
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldPricePl09Amount Int  sql=field_price_pl_09_amount
+    fieldPricePl09CurrencyCode Text  sql=field_price_pl_09_currency_code
+    fieldPricePl09Data Text Maybe sql=field_price_pl_09_data default=NULL
+    Primary entityType deleted entityId revisionId language delta

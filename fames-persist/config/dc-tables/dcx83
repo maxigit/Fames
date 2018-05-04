@@ -1,0 +1,9 @@
+
+FieldConfigInstanceT sql=dcx_field_config_instance
+    Id Int  sql=id
+    fieldId Int  sql=field_id
+    fieldName Text  sql=field_name
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    data ByteString  sql=data
+    deleted Bool  sql=deleted

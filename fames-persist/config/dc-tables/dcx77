@@ -1,0 +1,11 @@
+
+FeedsItemT sql=dcx_feeds_item
+    entityType Text  sql=entity_type
+    entityId Int  sql=entity_id
+    id_ Text  sql=id
+    feedNid Int  sql=feed_nid
+    imported Int  sql=imported
+    url Text  sql=url
+    guid Text  sql=guid
+    hash Text  sql=hash
+    Primary entityType entityId

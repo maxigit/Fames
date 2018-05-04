@@ -1,0 +1,8 @@
+
+MigrateMapCommercekickstartproductT sql=dcx_migrate_map_commercekickstartproduct
+    Id Text  sql=sourceid1
+    destid1 Int Maybe sql=destid1
+    destid2 Int Maybe sql=destid2
+    needsUpdate Bool  sql=needs_update
+    lastImported Int  sql=last_imported
+    rollbackAction Bool  sql=rollback_action

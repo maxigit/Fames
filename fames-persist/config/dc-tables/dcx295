@@ -1,0 +1,7 @@
+
+SearchApiTaskT sql=dcx_search_api_task
+    Id Int  sql=id
+    serverId Text  sql=server_id
+    type Text  sql=type
+    indexId Text Maybe sql=index_id default=NULL
+    data Text Maybe sql=data default=NULL

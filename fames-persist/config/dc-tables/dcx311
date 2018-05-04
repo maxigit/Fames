@@ -1,0 +1,4 @@
+
+VariableT sql=dcx_variable
+    Id Text  sql=name
+    value ByteString  sql=value

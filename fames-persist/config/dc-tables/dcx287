@@ -1,0 +1,4 @@
+
+SearchApiDbProductDisplayTitleT sql=dcx_search_api_db_product_display_title
+    Id Int  sql=item_id
+    value Text Maybe sql=value default=NULL

@@ -1,0 +1,11 @@
+
+FieldDataMessageCommercePaymentT sql=dcx_field_data_message_commerce_payment
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageCommercePaymentTargetId Int  sql=message_commerce_payment_target_id
+    Primary entityType deleted entityId language delta

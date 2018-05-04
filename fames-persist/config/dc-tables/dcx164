@@ -1,0 +1,13 @@
+
+FieldRevisionCommerceFixedAmountT sql=dcx_field_revision_commerce_fixed_amount
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceFixedAmountAmount Int  sql=commerce_fixed_amount_amount
+    commerceFixedAmountCurrencyCode Text  sql=commerce_fixed_amount_currency_code
+    commerceFixedAmountData Text Maybe sql=commerce_fixed_amount_data default=NULL
+    Primary entityType deleted entityId revisionId language delta

@@ -1,0 +1,9 @@
+
+ViewsDisplayT sql=dcx_views_display
+    vid Int  sql=vid
+    id_ Text  sql=id
+    displayTitle Text  sql=display_title
+    displayPlugin Text  sql=display_plugin
+    position Int Maybe sql=position
+    displayOptions Text Maybe sql=display_options default=NULL
+    Primary vid id_

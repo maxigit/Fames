@@ -1,0 +1,6 @@
+
+MigrateMessageCommercekickstartpagesT sql=dcx_migrate_message_commercekickstartpages
+    Id Int  sql=msgid
+    sourceid1 Text  sql=sourceid1
+    level Int  sql=level
+    message Text  sql=message

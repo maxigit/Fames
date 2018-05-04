@@ -1,0 +1,10 @@
+
+SecurityReviewT sql=dcx_security_review
+    namespace Text  sql=namespace
+    reviewcheck Text  sql=reviewcheck
+    result Int  sql=result
+    lastrun Int  sql=lastrun
+    skip Int  sql=skip
+    skiptime Int  sql=skiptime
+    skipuid Int Maybe sql=skipuid
+    Primary namespace reviewcheck

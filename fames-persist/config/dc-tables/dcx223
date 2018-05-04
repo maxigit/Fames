@@ -1,0 +1,5 @@
+
+ImageStylesT sql=dcx_image_styles
+    Id Int  sql=isid
+    name Text  sql=name
+    label Text  sql=label

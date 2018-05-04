@@ -1,0 +1,6 @@
+
+BlockRoleT sql=dcx_block_role
+    module Text  sql=module
+    delta Text  sql=delta
+    rid Int  sql=rid
+    Primary module delta rid

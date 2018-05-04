@@ -1,0 +1,4 @@
+
+BlockCurrentSearchT sql=dcx_block_current_search
+    Id Text  sql=delta
+    searcher Text  sql=searcher

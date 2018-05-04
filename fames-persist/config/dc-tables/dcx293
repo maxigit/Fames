@@ -1,0 +1,11 @@
+
+SearchApiServerT sql=dcx_search_api_server
+    Id Int  sql=id
+    name Text  sql=name
+    machineName Text  sql=machine_name
+    description Text Maybe sql=description default=NULL
+    class Text  sql=class
+    options Text  sql=options
+    enabled Bool  sql=enabled
+    status Bool  sql=status
+    module Text Maybe sql=module default=NULL

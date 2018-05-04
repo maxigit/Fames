@@ -1,0 +1,5 @@
+
+MetatagConfigT sql=dcx_metatag_config
+    Id Int  sql=cid
+    instance Text  sql=instance
+    config ByteString  sql=config

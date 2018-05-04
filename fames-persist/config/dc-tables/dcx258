@@ -1,0 +1,8 @@
+
+RegistryT sql=dcx_registry
+    name Text  sql=name
+    type Text  sql=type
+    filename Text  sql=filename
+    module Text  sql=module
+    weight Int  sql=weight
+    Primary name type

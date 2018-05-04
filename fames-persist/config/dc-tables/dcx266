@@ -1,0 +1,5 @@
+
+SearchApiDbCustomProductDisplayFieldProductCommercePriT sql=dcx_search_api_db_custom_product_display_field_product_commerce_pri
+    itemId Int  sql=item_id
+    value Double  sql=value
+    Primary itemId value

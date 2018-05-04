@@ -1,0 +1,15 @@
+
+CommercePaymentTransactionRevisionT sql=dcx_commerce_payment_transaction_revision
+    transactionId Int  sql=transaction_id
+    Id Int  sql=revision_id
+    revisionUid Int  sql=revision_uid
+    remoteId Text  sql=remote_id
+    message Text  sql=message
+    messageVariables ByteString  sql=message_variables
+    amount Int  sql=amount
+    currencyCode Text  sql=currency_code
+    status Text  sql=status
+    remoteStatus Text  sql=remote_status
+    log Text  sql=log
+    revisionTimestamp Int  sql=revision_timestamp
+    data ByteString Maybe sql=data

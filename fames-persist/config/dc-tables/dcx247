@@ -1,0 +1,7 @@
+
+MigrateStatusT sql=dcx_migrate_status
+    Id Text  sql=machine_name
+    className Text  sql=class_name
+    status Bool  sql=status
+    highwater Text  sql=highwater
+    arguments ByteString Maybe sql=arguments

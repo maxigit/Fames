@@ -1,0 +1,7 @@
+
+CacheFieldT sql=dcx_cache_field
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized

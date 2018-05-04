@@ -1,0 +1,7 @@
+
+QueueT sql=dcx_queue
+    Id Int  sql=item_id
+    name Text  sql=name
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created

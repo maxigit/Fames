@@ -1,0 +1,15 @@
+
+NodeTypeT sql=dcx_node_type
+    Id Text  sql=type
+    name Text  sql=name
+    base Text  sql=base
+    module Text  sql=module
+    description Text  sql=description
+    help Text  sql=help
+    hasTitle Bool  sql=has_title
+    titleLabel Text  sql=title_label
+    custom Bool  sql=custom
+    modified Bool  sql=modified
+    locked Bool  sql=locked
+    disabled Bool  sql=disabled
+    origType Text  sql=orig_type

@@ -1,0 +1,8 @@
+
+NodeCommentStatisticsT sql=dcx_node_comment_statistics
+    Id Int  sql=nid
+    cid Int  sql=cid
+    lastCommentTimestamp Int  sql=last_comment_timestamp
+    lastCommentName Text Maybe sql=last_comment_name default=NULL
+    lastCommentUid Int  sql=last_comment_uid
+    commentCount Int  sql=comment_count

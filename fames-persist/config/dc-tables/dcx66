@@ -1,0 +1,10 @@
+
+CommerceTaxRateT sql=dcx_commerce_tax_rate
+    Id Text  sql=name
+    title Text  sql=title
+    displayTitle Text  sql=display_title
+    description Text  sql=description
+    rate Text  sql=rate
+    type Text  sql=type
+    defaultRulesComponent Bool  sql=default_rules_component
+    module Text  sql=module

@@ -1,0 +1,7 @@
+
+CommerceProductTypeT sql=dcx_commerce_product_type
+    Id Text  sql=type
+    name Text  sql=name
+    description Text  sql=description
+    help Text  sql=help
+    revision Bool  sql=revision

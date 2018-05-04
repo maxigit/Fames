@@ -1,0 +1,6 @@
+
+BlockNodeTypeT sql=dcx_block_node_type
+    module Text  sql=module
+    delta Text  sql=delta
+    type Text  sql=type
+    Primary module delta type

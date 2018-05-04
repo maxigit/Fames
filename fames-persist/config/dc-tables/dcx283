@@ -1,0 +1,6 @@
+
+SearchApiDbProductDisplaySearchApiAggregation1T sql=dcx_search_api_db_product_display_search_api_aggregation_1
+    itemId Int  sql=item_id
+    word Text  sql=word
+    score Double  sql=score
+    Primary itemId word

@@ -1,0 +1,6 @@
+
+BlockCustomT sql=dcx_block_custom
+    Id Int  sql=bid
+    body Text Maybe sql=body default=NULL
+    info Text  sql=info
+    format Text Maybe sql=format default=NULL

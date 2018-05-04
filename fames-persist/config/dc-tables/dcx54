@@ -1,0 +1,9 @@
+
+CommerceCustomerProfileRevisionT sql=dcx_commerce_customer_profile_revision
+    profileId Int  sql=profile_id
+    Id Int  sql=revision_id
+    revisionUid Int  sql=revision_uid
+    status Int  sql=status
+    log Text  sql=log
+    revisionTimestamp Int  sql=revision_timestamp
+    data ByteString Maybe sql=data

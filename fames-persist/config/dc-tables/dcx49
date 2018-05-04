@@ -1,0 +1,6 @@
+
+CommerceAddressbookDefaultsT sql=dcx_commerce_addressbook_defaults
+    Id Int  sql=cad_id
+    profileId Int  sql=profile_id
+    type Text  sql=type
+    uid Int  sql=uid

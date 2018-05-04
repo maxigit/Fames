@@ -1,0 +1,9 @@
+
+CommerceTaxTypeT sql=dcx_commerce_tax_type
+    Id Text  sql=name
+    title Text  sql=title
+    displayTitle Text  sql=display_title
+    description Text  sql=description
+    displayInclusive Bool  sql=display_inclusive
+    roundMode Bool  sql=round_mode
+    module Text  sql=module

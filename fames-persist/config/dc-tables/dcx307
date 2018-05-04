@@ -1,0 +1,9 @@
+
+TaxonomyVocabularyT sql=dcx_taxonomy_vocabulary
+    Id Int  sql=vid
+    name Text  sql=name
+    machineName Text  sql=machine_name
+    description Text Maybe sql=description default=NULL
+    hierarchy Bool  sql=hierarchy
+    module Text  sql=module
+    weight Int  sql=weight

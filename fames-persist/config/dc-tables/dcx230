@@ -1,0 +1,25 @@
+
+MenuRouterT sql=dcx_menu_router
+    Id Text  sql=path
+    loadFunctions ByteString  sql=load_functions
+    toArgFunctions ByteString  sql=to_arg_functions
+    accessCallback Text  sql=access_callback
+    accessArguments ByteString Maybe sql=access_arguments
+    pageCallback Text  sql=page_callback
+    pageArguments ByteString Maybe sql=page_arguments
+    deliveryCallback Text  sql=delivery_callback
+    fit Int  sql=fit
+    numberParts Int  sql=number_parts
+    context Int  sql=context
+    tabParent Text  sql=tab_parent
+    tabRoot Text  sql=tab_root
+    title Text  sql=title
+    titleCallback Text  sql=title_callback
+    titleArguments Text  sql=title_arguments
+    themeCallback Text  sql=theme_callback
+    themeArguments Text  sql=theme_arguments
+    type Int  sql=type
+    description Text  sql=description
+    position Text  sql=position
+    weight Int  sql=weight
+    includeFile Text Maybe sql=include_file default=NULL

@@ -1,0 +1,5 @@
+
+CommerceAutoskuPatternsT sql=dcx_commerce_autosku_patterns
+    Id Text  sql=product_type
+    pattern Text  sql=pattern
+    advanced ByteString Maybe sql=advanced

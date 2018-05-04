@@ -1,0 +1,10 @@
+
+MigrateLogT sql=dcx_migrate_log
+    Id Int  sql=mlid
+    machineName Text  sql=machine_name
+    processType Bool  sql=process_type
+    starttime Int  sql=starttime
+    endtime Int Maybe sql=endtime
+    initialhighwater Text  sql=initialhighwater
+    finalhighwater Text Maybe sql=finalhighwater default=NULL
+    numprocessed Int Maybe sql=numprocessed

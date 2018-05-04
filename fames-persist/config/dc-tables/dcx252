@@ -1,0 +1,12 @@
+
+NodeRevisionT sql=dcx_node_revision
+    nid Int  sql=nid
+    Id Int  sql=vid
+    uid Int  sql=uid
+    title Text  sql=title
+    log Text  sql=log
+    timestamp Int  sql=timestamp
+    status Int  sql=status
+    comment Int  sql=comment
+    promote Int  sql=promote
+    sticky Int  sql=sticky

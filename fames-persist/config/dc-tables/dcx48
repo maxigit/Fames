@@ -1,0 +1,16 @@
+
+CommentT sql=dcx_comment
+    Id Int  sql=cid
+    pid Int  sql=pid
+    nid Int  sql=nid
+    uid Int  sql=uid
+    subject Text  sql=subject
+    hostname Text  sql=hostname
+    created Int  sql=created
+    changed Int  sql=changed
+    status Bool  sql=status
+    thread Text  sql=thread
+    name Text Maybe sql=name default=NULL
+    mail Text Maybe sql=mail default=NULL
+    homepage Text Maybe sql=homepage default=NULL
+    language Text  sql=language

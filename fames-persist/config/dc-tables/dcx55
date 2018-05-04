@@ -1,0 +1,10 @@
+
+CommerceDiscountT sql=dcx_commerce_discount
+    Id Int  sql=discount_id
+    name Text  sql=name
+    label Text  sql=label
+    type Text  sql=type
+    status Bool  sql=status
+    exportStatus Bool  sql=export_status
+    module Text Maybe sql=module default=NULL
+    componentTitle Text Maybe sql=component_title default=NULL

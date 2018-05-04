@@ -1,0 +1,8 @@
+
+TaxonomyTermDataT sql=dcx_taxonomy_term_data
+    Id Int  sql=tid
+    vid Int  sql=vid
+    name Text  sql=name
+    description Text Maybe sql=description default=NULL
+    format Text Maybe sql=format default=NULL
+    weight Int  sql=weight

@@ -1,0 +1,27 @@
+
+MenuLinksT sql=dcx_menu_links
+    menuName Text  sql=menu_name
+    Id Int  sql=mlid
+    plid Int  sql=plid
+    linkPath Text  sql=link_path
+    routerPath Text  sql=router_path
+    linkTitle Text  sql=link_title
+    options ByteString Maybe sql=options
+    module Text  sql=module
+    hidden Int  sql=hidden
+    external Int  sql=external
+    hasChildren Int  sql=has_children
+    expanded Int  sql=expanded
+    weight Int  sql=weight
+    depth Int  sql=depth
+    customized Int  sql=customized
+    p1 Int  sql=p1
+    p2 Int  sql=p2
+    p3 Int  sql=p3
+    p4 Int  sql=p4
+    p5 Int  sql=p5
+    p6 Int  sql=p6
+    p7 Int  sql=p7
+    p8 Int  sql=p8
+    p9 Int  sql=p9
+    updated Int  sql=updated

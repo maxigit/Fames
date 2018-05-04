@@ -1,0 +1,12 @@
+
+FieldRevisionCommerceDiscountDateT sql=dcx_field_revision_commerce_discount_date
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceDiscountDateValue Int Maybe sql=commerce_discount_date_value
+    commerceDiscountDateValue2 Int Maybe sql=commerce_discount_date_value2
+    Primary entityType deleted entityId revisionId language delta

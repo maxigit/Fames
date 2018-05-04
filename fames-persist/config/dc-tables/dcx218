@@ -1,0 +1,7 @@
+
+FilterFormatT sql=dcx_filter_format
+    Id Text  sql=format
+    name Text  sql=name
+    cache Bool  sql=cache
+    status Bool  sql=status
+    weight Int  sql=weight

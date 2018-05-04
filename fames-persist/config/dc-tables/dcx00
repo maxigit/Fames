@@ -1,0 +1,12 @@
+-- Warning ! This code has been generated !
+-- Model
+AccesslogT sql=dcx_accesslog
+    Id Int  sql=aid
+    sid Text  sql=sid
+    title Text Maybe sql=title default=NULL
+    path Text Maybe sql=path default=NULL
+    url Text Maybe sql=url default=NULL
+    hostname Text Maybe sql=hostname default=NULL
+    uid Int Maybe sql=uid
+    timer Int  sql=timer
+    timestamp Int  sql=timestamp

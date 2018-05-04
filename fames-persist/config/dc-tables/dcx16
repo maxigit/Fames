@@ -1,0 +1,7 @@
+
+CacheAuthcacheP13nT sql=dcx_cache_authcache_p13n
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized

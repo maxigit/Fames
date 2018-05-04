@@ -1,0 +1,4 @@
+
+CmpMenuPermsT sql=dcx_cmp_menu_perms
+    Id Text  sql=menu_path
+    cmpPermissionKey Text Maybe sql=cmp_permission_key default=NULL

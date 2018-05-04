@@ -1,0 +1,8 @@
+
+XmlsitemapSitemapT sql=dcx_xmlsitemap_sitemap
+    Id Text  sql=smid
+    context Text  sql=context
+    updated Int  sql=updated
+    links Int  sql=links
+    chunks Int  sql=chunks
+    maxFilesize Int  sql=max_filesize

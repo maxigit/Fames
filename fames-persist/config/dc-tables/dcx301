@@ -1,0 +1,11 @@
+
+SystemT sql=dcx_system
+    Id Text  sql=filename
+    name Text  sql=name
+    type Text  sql=type
+    owner Text  sql=owner
+    status Int  sql=status
+    bootstrap Int  sql=bootstrap
+    schemaVersion Int  sql=schema_version
+    weight Int  sql=weight
+    info ByteString Maybe sql=info

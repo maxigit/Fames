@@ -1,0 +1,13 @@
+
+WatchdogT sql=dcx_watchdog
+    Id Int  sql=wid
+    uid Int  sql=uid
+    type Text  sql=type
+    message Text  sql=message
+    variables ByteString  sql=variables
+    severity Bool  sql=severity
+    link Text Maybe sql=link default=NULL
+    location Text  sql=location
+    referer Text Maybe sql=referer default=NULL
+    hostname Text  sql=hostname
+    timestamp Int  sql=timestamp

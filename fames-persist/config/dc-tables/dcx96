@@ -1,0 +1,11 @@
+
+FieldDataCommerceLineItemsT sql=dcx_field_data_commerce_line_items
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceLineItemsLineItemId Int Maybe sql=commerce_line_items_line_item_id
+    Primary entityType deleted entityId language delta

@@ -1,0 +1,5 @@
+
+CmpPermissionsT sql=dcx_cmp_permissions
+    Id Text  sql=perm_key
+    permName Text  sql=perm_name
+    description Text Maybe sql=description default=NULL

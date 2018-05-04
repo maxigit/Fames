@@ -1,0 +1,11 @@
+
+FieldDeletedRevision22T sql=dcx_field_deleted_revision_22
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageCommerceOrderTargetId Int  sql=message_commerce_order_target_id
+    Primary entityType deleted entityId revisionId language delta

@@ -1,0 +1,8 @@
+
+MessageTypeCategoryT sql=dcx_message_type_category
+    Id Int  sql=id
+    category Text  sql=category
+    description Text  sql=description
+    language Text  sql=language
+    status Bool  sql=status
+    module Text Maybe sql=module default=NULL

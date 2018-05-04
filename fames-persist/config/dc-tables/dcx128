@@ -1,0 +1,11 @@
+
+FieldDataFieldRequiredDeliveryDateT sql=dcx_field_data_field_required_delivery_date
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldRequiredDeliveryDateValue UTCTime Maybe sql=field_required_delivery_date_value
+    Primary entityType deleted entityId language delta

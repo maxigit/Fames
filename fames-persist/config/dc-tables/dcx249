@@ -1,0 +1,9 @@
+
+NodeAccessT sql=dcx_node_access
+    nid Int  sql=nid
+    gid Int  sql=gid
+    realm Text  sql=realm
+    grantView Bool  sql=grant_view
+    grantUpdate Bool  sql=grant_update
+    grantDelete Bool  sql=grant_delete
+    Primary nid gid realm

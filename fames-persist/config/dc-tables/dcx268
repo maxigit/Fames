@@ -1,0 +1,12 @@
+
+SearchApiDbProductDisplayT sql=dcx_search_api_db_product_display
+    Id Int  sql=item_id
+    fieldProductFieldPricePl01AmountDecimalAsc Double Maybe sql=field_product_field_price_pl_01_amount_decimal_asc
+    fieldProductFieldPricePl01AmountDecimalDesc Double Maybe sql=field_product_field_price_pl_01_amount_decimal_desc
+    fieldProductFieldPricePl02AmountDecimalAsc Int Maybe sql=field_product_field_price_pl_02_amount_decimal_asc
+    fieldProductFieldPricePl02AmountDecimalDesc Int Maybe sql=field_product_field_price_pl_02_amount_decimal_desc
+    fieldProductFieldPricePl03AmountDecimalAsc Text Maybe sql=field_product_field_price_pl_03_amount_decimal_asc default=NULL
+    fieldProductFieldPricePl03AmountDecimalDesc Text Maybe sql=field_product_field_price_pl_03_amount_decimal_desc default=NULL
+    views Int Maybe sql=views
+    dayViews Int Maybe sql=day_views
+    changed Int Maybe sql=changed

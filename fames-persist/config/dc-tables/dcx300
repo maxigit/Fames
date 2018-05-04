@@ -1,0 +1,7 @@
+
+SiteVerifyT sql=dcx_site_verify
+    Id Int  sql=svid
+    engine Text  sql=engine
+    file Text Maybe sql=file default=NULL
+    fileContents Text  sql=file_contents
+    meta Text  sql=meta

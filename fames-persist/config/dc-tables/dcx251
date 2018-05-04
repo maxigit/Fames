@@ -1,0 +1,6 @@
+
+NodeCounterT sql=dcx_node_counter
+    Id Int  sql=nid
+    totalcount Int  sql=totalcount
+    daycount Int  sql=daycount
+    timestamp Int  sql=timestamp

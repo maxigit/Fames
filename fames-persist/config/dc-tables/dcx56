@@ -1,0 +1,4 @@
+
+CommerceDiscountOfferT sql=dcx_commerce_discount_offer
+    Id Int  sql=discount_offer_id
+    type Text  sql=type

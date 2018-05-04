@@ -1,0 +1,6 @@
+
+RolePermissionT sql=dcx_role_permission
+    rid Int  sql=rid
+    permission Text  sql=permission
+    module Text  sql=module
+    Primary rid permission

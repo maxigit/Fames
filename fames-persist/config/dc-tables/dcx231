@@ -1,0 +1,8 @@
+
+MessageT sql=dcx_message
+    Id Int  sql=mid
+    type Text  sql=type
+    arguments Text Maybe sql=arguments default=NULL
+    uid Int Maybe sql=uid
+    timestamp Int  sql=timestamp
+    language Text  sql=language

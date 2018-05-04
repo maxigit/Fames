@@ -1,0 +1,5 @@
+
+TaxonomyTermHierarchyT sql=dcx_taxonomy_term_hierarchy
+    tid Int  sql=tid
+    parent Int  sql=parent
+    Primary tid parent

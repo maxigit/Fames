@@ -1,0 +1,14 @@
+
+SearchApiSortT sql=dcx_search_api_sort
+    Id Int  sql=id
+    identifier Text  sql=identifier
+    indexId Text  sql=index_id
+    field Text  sql=field
+    name Text  sql=name
+    enabled Bool  sql=enabled
+    defaultSort Bool  sql=default_sort
+    defaultSortNoTerms Bool  sql=default_sort_no_terms
+    defaultOrder Text  sql=default_order
+    weight Bool  sql=weight
+    status Bool  sql=status
+    module Text Maybe sql=module default=NULL

@@ -1,0 +1,14 @@
+
+RedirectT sql=dcx_redirect
+    Id Int  sql=rid
+    hash Text  sql=hash
+    type Text  sql=type
+    uid Int  sql=uid
+    source Text  sql=source
+    sourceOptions Text  sql=source_options
+    redirect Text  sql=redirect
+    redirectOptions Text  sql=redirect_options
+    language Text  sql=language
+    statusCode Int  sql=status_code
+    count Int  sql=count
+    access Int  sql=access

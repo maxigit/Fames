@@ -1,0 +1,5 @@
+
+MasqueradeUsersT sql=dcx_masquerade_users
+    uidFrom Int  sql=uid_from
+    uidTo Int  sql=uid_to
+    Primary uidFrom uidTo

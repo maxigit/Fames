@@ -1,0 +1,15 @@
+
+FieldConfigT sql=dcx_field_config
+    Id Int  sql=id
+    fieldName Text  sql=field_name
+    type Text  sql=type
+    module Text  sql=module
+    active Bool  sql=active
+    storageType Text  sql=storage_type
+    storageModule Text  sql=storage_module
+    storageActive Bool  sql=storage_active
+    locked Bool  sql=locked
+    data ByteString  sql=data
+    cardinality Bool  sql=cardinality
+    translatable Bool  sql=translatable
+    deleted Bool  sql=deleted

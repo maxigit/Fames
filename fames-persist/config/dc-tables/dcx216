@@ -1,0 +1,8 @@
+
+FileUsageT sql=dcx_file_usage
+    fid Int  sql=fid
+    module Text  sql=module
+    type Text  sql=type
+    id_ Int  sql=id
+    count Int  sql=count
+    Primary fid module type id_

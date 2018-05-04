@@ -1,0 +1,19 @@
+
+CommercePaymentTransactionT sql=dcx_commerce_payment_transaction
+    Id Int  sql=transaction_id
+    revisionId Int Maybe sql=revision_id
+    uid Int  sql=uid
+    orderId Int  sql=order_id
+    paymentMethod Text  sql=payment_method
+    instanceId Text  sql=instance_id
+    remoteId Text  sql=remote_id
+    message Text  sql=message
+    messageVariables ByteString  sql=message_variables
+    amount Int  sql=amount
+    currencyCode Text  sql=currency_code
+    status Text  sql=status
+    remoteStatus Text  sql=remote_status
+    payload ByteString  sql=payload
+    created Int  sql=created
+    changed Int  sql=changed
+    data ByteString Maybe sql=data

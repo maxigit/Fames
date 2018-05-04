@@ -1,0 +1,4 @@
+
+SearchApiDbProductDisplayFieldBrandT sql=dcx_search_api_db_product_display_field_brand
+    Id Int  sql=item_id
+    value Int Maybe sql=value

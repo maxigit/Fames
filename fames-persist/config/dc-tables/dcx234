@@ -1,0 +1,8 @@
+
+MetatagT sql=dcx_metatag
+    entityType Text  sql=entity_type
+    entityId Int  sql=entity_id
+    data ByteString  sql=data
+    language Text  sql=language
+    revisionId Int  sql=revision_id
+    Primary entityType entityId language revisionId

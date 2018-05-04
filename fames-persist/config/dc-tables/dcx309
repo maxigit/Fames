@@ -1,0 +1,18 @@
+
+UsersT sql=dcx_users
+    Id Int  sql=uid
+    name Text  sql=name
+    pass Text  sql=pass
+    mail Text Maybe sql=mail default=NULL
+    theme Text  sql=theme
+    signature Text  sql=signature
+    signatureFormat Text Maybe sql=signature_format default=NULL
+    created Int  sql=created
+    access Int  sql=access
+    login Int  sql=login
+    status Bool  sql=status
+    timezone Text Maybe sql=timezone default=NULL
+    language Text  sql=language
+    picture Int  sql=picture
+    init Text Maybe sql=init default=NULL
+    data ByteString Maybe sql=data

@@ -1,0 +1,12 @@
+
+FieldRevisionMessageTextT sql=dcx_field_revision_message_text
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageTextValue Text Maybe sql=message_text_value default=NULL
+    messageTextFormat Text Maybe sql=message_text_format default=NULL
+    Primary entityType deleted entityId revisionId language delta

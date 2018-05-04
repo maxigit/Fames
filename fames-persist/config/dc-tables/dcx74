@@ -1,0 +1,5 @@
+
+DateFormatTypeT sql=dcx_date_format_type
+    Id Text  sql=type
+    title Text  sql=title
+    locked Bool  sql=locked

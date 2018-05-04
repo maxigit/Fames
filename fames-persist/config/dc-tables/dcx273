@@ -1,0 +1,5 @@
+
+SearchApiDbProductDisplayFieldProductFieldColourT sql=dcx_search_api_db_product_display_field_product_field_colour
+    itemId Int  sql=item_id
+    value Int  sql=value
+    Primary itemId value

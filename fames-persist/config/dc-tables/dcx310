@@ -1,0 +1,5 @@
+
+UsersRolesT sql=dcx_users_roles
+    uid Int  sql=uid
+    rid Int  sql=rid
+    Primary uid rid

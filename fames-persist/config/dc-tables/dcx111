@@ -1,0 +1,13 @@
+
+FieldDataFieldLinkT sql=dcx_field_data_field_link
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldLinkUrl Text Maybe sql=field_link_url default=NULL
+    fieldLinkTitle Text Maybe sql=field_link_title default=NULL
+    fieldLinkAttributes Text Maybe sql=field_link_attributes default=NULL
+    Primary entityType deleted entityId language delta

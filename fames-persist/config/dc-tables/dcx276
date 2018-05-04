@@ -1,0 +1,5 @@
+
+SearchApiDbProductDisplayFieldProductFieldPricePl12AT sql=dcx_search_api_db_product_display_field_product_field_price_pl_12_a
+    itemId Int  sql=item_id
+    value Double  sql=value
+    Primary itemId value

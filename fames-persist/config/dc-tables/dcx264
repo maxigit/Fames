@@ -1,0 +1,5 @@
+
+RulesTagsT sql=dcx_rules_tags
+    id_ Int  sql=id
+    tag Text  sql=tag
+    Primary id_ tag

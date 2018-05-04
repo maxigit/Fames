@@ -1,0 +1,11 @@
+
+FieldDataFieldProductT sql=dcx_field_data_field_product
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldProductProductId Int Maybe sql=field_product_product_id
+    Primary entityType deleted entityId language delta

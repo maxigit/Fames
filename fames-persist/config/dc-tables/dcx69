@@ -1,0 +1,6 @@
+
+CtoolsCssCacheT sql=dcx_ctools_css_cache
+    Id Text  sql=cid
+    filename Text Maybe sql=filename default=NULL
+    css Text Maybe sql=css default=NULL
+    filter Bool Maybe sql=filter

@@ -1,0 +1,12 @@
+
+FieldDataTitleFieldT sql=dcx_field_data_title_field
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    titleFieldValue Text Maybe sql=title_field_value default=NULL
+    titleFieldFormat Text Maybe sql=title_field_format default=NULL
+    Primary entityType deleted entityId language delta

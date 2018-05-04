@@ -1,0 +1,5 @@
+
+TaxonomyToolsRoleAccessT sql=dcx_taxonomy_tools_role_access
+    Id Int  sql=entry_id
+    tid Int  sql=tid
+    rid Int  sql=rid

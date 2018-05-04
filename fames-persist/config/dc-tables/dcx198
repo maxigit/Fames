@@ -1,0 +1,11 @@
+
+FieldRevisionFieldProductCategoryT sql=dcx_field_revision_field_product_category
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldProductCategoryTid Int Maybe sql=field_product_category_tid
+    Primary entityType deleted entityId revisionId language delta

@@ -1,0 +1,16 @@
+
+NodeT sql=dcx_node
+    Id Int  sql=nid
+    vid Int Maybe sql=vid
+    type Text  sql=type
+    language Text  sql=language
+    title Text  sql=title
+    uid Int  sql=uid
+    status Int  sql=status
+    created Int  sql=created
+    changed Int  sql=changed
+    comment Int  sql=comment
+    promote Int  sql=promote
+    sticky Int  sql=sticky
+    tnid Int  sql=tnid
+    translate Int  sql=translate

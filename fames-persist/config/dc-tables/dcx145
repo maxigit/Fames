@@ -1,0 +1,11 @@
+
+FieldDeletedData22T sql=dcx_field_deleted_data_22
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageCommerceOrderTargetId Int  sql=message_commerce_order_target_id
+    Primary entityType deleted entityId language delta

@@ -1,0 +1,11 @@
+
+FieldDataCommerceCustomerBillingT sql=dcx_field_data_commerce_customer_billing
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceCustomerBillingProfileId Int Maybe sql=commerce_customer_billing_profile_id
+    Primary entityType deleted entityId language delta

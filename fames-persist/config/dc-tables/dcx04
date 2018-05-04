@@ -1,0 +1,6 @@
+
+AuthmapT sql=dcx_authmap
+    Id Int  sql=aid
+    uid Int  sql=uid
+    authname Text  sql=authname
+    module Text  sql=module

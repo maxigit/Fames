@@ -1,0 +1,5 @@
+
+RoleT sql=dcx_role
+    Id Int  sql=rid
+    name Text  sql=name
+    weight Int  sql=weight

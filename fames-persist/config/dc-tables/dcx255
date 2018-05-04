@@ -1,0 +1,6 @@
+
+PageTitleT sql=dcx_page_title
+    type Text  sql=type
+    id_ Int  sql=id
+    pageTitle Text  sql=page_title
+    Primary type id_

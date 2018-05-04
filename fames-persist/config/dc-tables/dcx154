@@ -1,0 +1,10 @@
+
+FieldGroupT sql=dcx_field_group
+    Id Int  sql=id
+    identifier Text  sql=identifier
+    groupName Text  sql=group_name
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    mode Text  sql=mode
+    parentName Text  sql=parent_name
+    data ByteString  sql=data

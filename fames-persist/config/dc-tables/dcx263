@@ -1,0 +1,5 @@
+
+RulesDependenciesT sql=dcx_rules_dependencies
+    id_ Int  sql=id
+    module Text  sql=module
+    Primary id_ module

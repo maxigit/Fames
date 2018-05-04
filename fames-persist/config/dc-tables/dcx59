@@ -1,0 +1,13 @@
+
+CommerceOrderT sql=dcx_commerce_order
+    Id Int  sql=order_id
+    orderNumber Text Maybe sql=order_number default=NULL
+    revisionId Int Maybe sql=revision_id
+    type Text  sql=type
+    uid Int  sql=uid
+    mail Text  sql=mail
+    status Text  sql=status
+    created Int  sql=created
+    changed Int  sql=changed
+    hostname Text  sql=hostname
+    data ByteString Maybe sql=data

@@ -1,0 +1,6 @@
+
+HistoryT sql=dcx_history
+    uid Int  sql=uid
+    nid Int  sql=nid
+    timestamp Int  sql=timestamp
+    Primary uid nid

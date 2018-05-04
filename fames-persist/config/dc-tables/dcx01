@@ -1,0 +1,7 @@
+
+ActionsT sql=dcx_actions
+    Id Text  sql=aid
+    type Text  sql=type
+    callback Text  sql=callback
+    parameters ByteString  sql=parameters
+    label Text  sql=label

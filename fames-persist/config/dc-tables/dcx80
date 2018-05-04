@@ -1,0 +1,10 @@
+
+FeedsSourceT sql=dcx_feeds_source
+    id_ Text  sql=id
+    feedNid Int  sql=feed_nid
+    config ByteString Maybe sql=config
+    source Text  sql=source
+    state ByteString Maybe sql=state
+    fetcherResult ByteString Maybe sql=fetcher_result
+    imported Int  sql=imported
+    Primary id_ feedNid

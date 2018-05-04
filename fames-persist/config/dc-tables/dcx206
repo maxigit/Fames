@@ -1,0 +1,12 @@
+
+FieldRevisionInlineConditionsT sql=dcx_field_revision_inline_conditions
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    inlineConditionsConditionName Text  sql=inline_conditions_condition_name
+    inlineConditionsConditionSettings ByteString Maybe sql=inline_conditions_condition_settings
+    Primary entityType deleted entityId revisionId language delta

@@ -1,0 +1,15 @@
+
+FieldRevisionFieldImageT sql=dcx_field_revision_field_image
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldImageFid Int Maybe sql=field_image_fid
+    fieldImageAlt Text Maybe sql=field_image_alt default=NULL
+    fieldImageTitle Text Maybe sql=field_image_title default=NULL
+    fieldImageWidth Int Maybe sql=field_image_width
+    fieldImageHeight Int Maybe sql=field_image_height
+    Primary entityType deleted entityId revisionId language delta

@@ -1,0 +1,16 @@
+
+XmlsitemapT sql=dcx_xmlsitemap
+    id_ Int  sql=id
+    type Text  sql=type
+    subtype Text  sql=subtype
+    loc Text  sql=loc
+    language Text  sql=language
+    access Bool  sql=access
+    status Bool  sql=status
+    statusOverride Bool  sql=status_override
+    lastmod Int  sql=lastmod
+    priority Double Maybe sql=priority
+    priorityOverride Bool  sql=priority_override
+    changefreq Int  sql=changefreq
+    changecount Int  sql=changecount
+    Primary id_ type

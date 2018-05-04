@@ -1,0 +1,12 @@
+
+FieldDataMessageTextSubjectT sql=dcx_field_data_message_text_subject
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    messageTextSubjectValue Text Maybe sql=message_text_subject_value default=NULL
+    messageTextSubjectFormat Text Maybe sql=message_text_subject_format default=NULL
+    Primary entityType deleted entityId language delta

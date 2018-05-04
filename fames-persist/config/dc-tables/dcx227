@@ -1,0 +1,8 @@
+
+MegamenuT sql=dcx_megamenu
+    Id Text  sql=menu_name
+    enabled Bool Maybe sql=enabled
+    skin Text  sql=skin
+    menuOrientation Text  sql=menu_orientation
+    slotOrientation Text  sql=slot_orientation
+    slotAttributes Text Maybe sql=slot_attributes default=NULL

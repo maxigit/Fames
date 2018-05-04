@@ -1,0 +1,9 @@
+
+FilterT sql=dcx_filter
+    format Text  sql=format
+    module Text  sql=module
+    name Text  sql=name
+    weight Int  sql=weight
+    status Int  sql=status
+    settings ByteString Maybe sql=settings
+    Primary format name

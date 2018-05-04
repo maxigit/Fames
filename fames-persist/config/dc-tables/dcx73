@@ -1,0 +1,6 @@
+
+DateFormatLocaleT sql=dcx_date_format_locale
+    format Text  sql=format
+    type Text  sql=type
+    language Text  sql=language
+    Primary type language

@@ -1,0 +1,5 @@
+
+MenuCustomT sql=dcx_menu_custom
+    Id Text  sql=menu_name
+    title Text  sql=title
+    description Text Maybe sql=description default=NULL

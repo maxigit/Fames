@@ -1,0 +1,8 @@
+
+CtoolsObjectCacheT sql=dcx_ctools_object_cache
+    sid Text  sql=sid
+    name Text  sql=name
+    obj Text  sql=obj
+    updated Int  sql=updated
+    data ByteString Maybe sql=data
+    Primary sid name obj

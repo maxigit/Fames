@@ -1,0 +1,7 @@
+
+CachePageT sql=dcx_cache_page
+    Id Text  sql=cid
+    data ByteString Maybe sql=data
+    expire Int  sql=expire
+    created Int  sql=created
+    serialized Int  sql=serialized

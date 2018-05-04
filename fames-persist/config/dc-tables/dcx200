@@ -1,0 +1,12 @@
+
+FieldRevisionFieldRgbT sql=dcx_field_revision_field_rgb
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int  sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    fieldRgbValue Text Maybe sql=field_rgb_value default=NULL
+    fieldRgbFormat Text Maybe sql=field_rgb_format default=NULL
+    Primary entityType deleted entityId revisionId language delta

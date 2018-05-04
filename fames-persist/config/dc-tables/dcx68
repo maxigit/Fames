@@ -1,0 +1,8 @@
+
+ContactT sql=dcx_contact
+    Id Int  sql=cid
+    category Text  sql=category
+    recipients Text  sql=recipients
+    reply Text  sql=reply
+    weight Int  sql=weight
+    selected Bool  sql=selected

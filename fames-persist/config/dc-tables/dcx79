@@ -1,0 +1,11 @@
+
+FeedsPushSubscriptionsT sql=dcx_feeds_push_subscriptions
+    domain Text  sql=domain
+    subscriberId Int  sql=subscriber_id
+    timestamp Int  sql=timestamp
+    hub Text  sql=hub
+    topic Text  sql=topic
+    secret Text  sql=secret
+    status Text  sql=status
+    postFields Text Maybe sql=post_fields default=NULL
+    Primary domain subscriberId

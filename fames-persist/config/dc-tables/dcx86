@@ -1,0 +1,24 @@
+
+FieldDataCommerceCustomerAddressT sql=dcx_field_data_commerce_customer_address
+    entityType Text  sql=entity_type
+    bundle Text  sql=bundle
+    deleted Bool  sql=deleted
+    entityId Int  sql=entity_id
+    revisionId Int Maybe sql=revision_id
+    language Text  sql=language
+    delta Int  sql=delta
+    commerceCustomerAddressCountry Text Maybe sql=commerce_customer_address_country default=NULL
+    commerceCustomerAddressAdministrativeArea Text Maybe sql=commerce_customer_address_administrative_area default=NULL
+    commerceCustomerAddressSubAdministrativeArea Text Maybe sql=commerce_customer_address_sub_administrative_area default=NULL
+    commerceCustomerAddressLocality Text Maybe sql=commerce_customer_address_locality default=NULL
+    commerceCustomerAddressDependentLocality Text Maybe sql=commerce_customer_address_dependent_locality default=NULL
+    commerceCustomerAddressPostalCode Text Maybe sql=commerce_customer_address_postal_code default=NULL
+    commerceCustomerAddressThoroughfare Text Maybe sql=commerce_customer_address_thoroughfare default=NULL
+    commerceCustomerAddressPremise Text Maybe sql=commerce_customer_address_premise default=NULL
+    commerceCustomerAddressSubPremise Text Maybe sql=commerce_customer_address_sub_premise default=NULL
+    commerceCustomerAddressOrganisationName Text Maybe sql=commerce_customer_address_organisation_name default=NULL
+    commerceCustomerAddressNameLine Text Maybe sql=commerce_customer_address_name_line default=NULL
+    commerceCustomerAddressFirstName Text Maybe sql=commerce_customer_address_first_name default=NULL
+    commerceCustomerAddressLastName Text Maybe sql=commerce_customer_address_last_name default=NULL
+    commerceCustomerAddressData Text Maybe sql=commerce_customer_address_data default=NULL
+    Primary entityType deleted entityId language delta

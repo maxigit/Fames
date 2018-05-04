@@ -1,0 +1,7 @@
+
+FloodT sql=dcx_flood
+    Id Int  sql=fid
+    event Text  sql=event
+    identifier Text  sql=identifier
+    timestamp Int  sql=timestamp
+    expiration Int  sql=expiration

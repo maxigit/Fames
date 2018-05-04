@@ -1,0 +1,9 @@
+
+FeedsTamperT sql=dcx_feeds_tamper
+    Id Text  sql=id
+    importer Text  sql=importer
+    source Text  sql=source
+    pluginId Text  sql=plugin_id
+    settings Text Maybe sql=settings default=NULL
+    weight Int  sql=weight
+    description Text  sql=description

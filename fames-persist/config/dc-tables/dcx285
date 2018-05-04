@@ -1,0 +1,4 @@
+
+SearchApiDbProductDisplayStatusT sql=dcx_search_api_db_product_display_status
+    Id Int  sql=item_id
+    value Int Maybe sql=value

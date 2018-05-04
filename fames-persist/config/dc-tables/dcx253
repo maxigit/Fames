@@ -1,0 +1,5 @@
+
+NodeSpambotT sql=dcx_node_spambot
+    Id Int  sql=nid
+    uid Int  sql=uid
+    hostname Text Maybe sql=hostname default=NULL

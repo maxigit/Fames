@@ -1,0 +1,14 @@
+
+RulesConfigT sql=dcx_rules_config
+    Id Int  sql=id
+    name Text  sql=name
+    label Text  sql=label
+    plugin Text  sql=plugin
+    active Int  sql=active
+    weight Bool  sql=weight
+    status Bool  sql=status
+    dirty Bool  sql=dirty
+    module Text Maybe sql=module default=NULL
+    accessExposed Bool  sql=access_exposed
+    data ByteString Maybe sql=data
+    owner Text  sql=owner
