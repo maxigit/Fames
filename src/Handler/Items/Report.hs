@@ -135,11 +135,6 @@ renderReportForm  route modeM paramM status resultM = do
       plotly = addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
       widget = [whamlet|
     <form #items-report-form role=form method=post action="@{ItemsR (route modeM)}" enctype="#{repEncType}">
-      <div.well>
-        ^{repForm}
-        <button.btn type="submit" name="action" value="Submit"> Submit
-        $forall (btn, title) <- buttons
-          <button.btn.btn-info type="submit" name="action" value="#{tshow btn}">#{title}
         $maybe result <- resultM
           <ul.nav.nav-tabs>
             $forall nav <- navs
@@ -150,6 +145,11 @@ renderReportForm  route modeM paramM status resultM = do
                   <a.view-mode href="#" data-url="@{ItemsR (ItemsReportR (Just nav))}"> #{drop 6 $ tshow nav}
           <div#items-report-result>
             ^{result}
+      <div.well>
+        ^{repForm}
+        <button.btn type="submit" name="action" value="Submit"> Submit
+        $forall (btn, title) <- buttons
+          <button.btn.btn-info type="submit" name="action" value="#{tshow btn}">#{title}
                         |]
   selectRep $ do
     provideRep $ do
