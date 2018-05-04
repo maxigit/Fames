@@ -1,22 +1,24 @@
 * TODO Chart
-** today 
-   - display margin in EVERY band as average (and or max)  (and possibly adjust all band the
-   - style graph (line and marker) per field quantity, min-price etc ...
-   - setup two axes on for quantity and the other for amount (margin ?) (runsum q and runsum amount)
-   - instead of having 2nd field-value : tick-them all and use the correct axis
-   - use same colour for 
-** tasks 
-  - Regroup Customer/Supplier in one
-  - Create table for categories and use it
-  - display quantity and amount in graph tooltip
-  - add global button (tab) to use bar, scatter etc ...
-  - add rank
-  - add running sum
-  - perf 
+** today [2/4] 
+   - [ ] sort/limit band/serie/panel
+   - [ ] display margin in EVERY band as average (and or max)  (and possibly adjust all band the
+   - [ ] style graph (line and marker) per field quantity, min-price etc ...
+   - [X] setup two axes on for quantity and the other for amount (margin ?) (runsum q and runsum amount)
+   - [X]instead of having 2nd field-value : tick-them all and use the correct axis
+   - [X] use same colour for 
+** tasks [2/9]
+  - [X] Regroup Customer/Supplier in one
+  - [ ] Create table for categories and use it
+  - [ ] display quantity and amount in graph tooltip
+  - [ ] add global button (tab) to use bar, scatter etc ...
+  - [ ] add rank
+  - [X] add running sum
+  - [ ] perf 
     - are some Map strict (categorie ?) instead of being lazy
-  - display margin (total)
+  - [ ] display margin (total)
     - add it as on of the value so it appears in a separate serie or band etc ...
-  - add QPType as virtual field
+  - [ ] add QPType as virtual field
+  - [ ] Add option to use TraceParam as panel/band instead of serie
   - csv pivot (use column rupture)
 * TODO Delete from item index
 ** TODO Website 

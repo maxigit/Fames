@@ -21,43 +21,48 @@ import qualified FA as FA
 reportForm :: [Column] -> Maybe ReportParam -> _
 reportForm cols paramM = let
   colOptions = [(colName c,c) | c <- cols]
-  dataTypeOptions = optionsPairs [(drop 2 (tshow qtype), qtype) | qtype <- [minBound..maxBound]]
-  dataValueOptions = map (\(t, tps'runsum) -> (t, Identifiable (t, (map TraceParam tps'runsum))))
-                                  [ ("None" :: Text, [])
-                                  , ("QA-Sales", quantityAmountStyle Outward)
-                                  , ("CumulAmount (Out)" ,   [(qpAmount Outward, cumulAmountStyle, RunSum)] )
-                                  , ("CumulAmount Backward (Out)" ,   [(qpAmount Outward, cumulAmountStyle, RunSumBack)] )
-                                  , ("Stock" ,   [(qpQty Inward, quantityStyle, RunSum)] )
-                                  , ("Amount (Out)" ,   [(qpAmount Outward, amountStyle, RSNormal)] )
-                                  , ("Amount (In)",     [(qpAmount Inward,  amountStyle, RSNormal)])
-                                  , ("Amount (Bare)",   [(_qpAmount,        amountStyle, RSNormal)])
-                                  , ("Quantity (Out)",  [(qpQty Outward,    quantityStyle, RSNormal)])
-                                  , ("Quantity (In)",   [(qpQty Inward,     quantityStyle, RSNormal)])
-                                  , ("Quantity (Bare)", [(_qpQty,           quantityStyle, RSNormal)] )
-                                  , ("Avg Price",       [(qpAveragePrice,   priceStyle, RSNormal)])
-                                  , ("Min Price",       [(qpMinPrice,       priceStyle, RSNormal)])
-                                  , ("Max Price",       [(qpMaxPrice,       priceStyle, RSNormal)])
-                                  , ("Price Band",          pricesStyle)
-                                  ]
-  traceForm suffix p = TraceParams <$> (areq (selectField dataTypeOptions)
-                                             (fromString $ "data type" <> suffix)
-                                             (tpDataType <$> p) )
-                                   <*> (areq (selectFieldList dataValueOptions)
-                                             (fromString $ "data value" <> suffix)
-                                             (tpDataParams <$> p) )
   form = ReportParam
     <$> (aopt dayField "from" (Just $ rpFrom =<< paramM ))
     <*> (aopt dayField "to" (Just $ rpTo =<< paramM))
     <*> (aopt filterEField  "sku" (Just $ rpStockFilter =<< paramM))
-    <*> (aopt (selectFieldList colOptions)  "Panel" (rpPanelRupture <$> paramM) )
-    <*> (aopt (selectFieldList colOptions)  "Band" (rpBand <$> paramM) )
-    <*> (aopt (selectFieldList colOptions)  "Series" (rpSerie <$> paramM) )
+    <*> ruptureForm colOptions "Panel" (rpPanelRupture <$> paramM)
+    <*> ruptureForm colOptions "Band" (rpBand <$> paramM)
+    <*> ruptureForm colOptions "Series" (rpSerie <$> paramM)
     <*> (areq (selectFieldList colOptions)  "column rupture" (rpColumnRupture <$> paramM) )
     <*> traceForm "" (rpTraceParam <$> paramM)
     <*> traceForm " 2" (rpTraceParam2 <$> paramM)
     <*> traceForm " 3"(rpTraceParam3 <$> paramM)
   in  renderBootstrap3 BootstrapBasicForm form
  
+traceForm suffix p = TraceParams <$> (areq (selectField dataTypeOptions)
+                                            (fromString $ "data type" <> suffix)
+                                            (tpDataType <$> p) )
+                                  <*> (areq (selectFieldList dataValueOptions)
+                                            (fromString $ "data value" <> suffix)
+                                            (tpDataParams <$> p) )
+  where 
+    dataTypeOptions = optionsPairs [(drop 2 (tshow qtype), qtype) | qtype <- [minBound..maxBound]]
+    dataValueOptions = map (\(t, tps'runsum) -> (t, Identifiable (t, (map TraceParam tps'runsum))))
+                                    [ ("None" :: Text, [])
+                                    , ("QA-Sales", quantityAmountStyle Outward)
+                                    , ("CumulAmount (Out)" ,   [(qpAmount Outward, cumulAmountStyle, RunSum)] )
+                                    , ("CumulAmount Backward (Out)" ,   [(qpAmount Outward, cumulAmountStyle, RunSumBack)] )
+                                    , ("Stock" ,   [(qpQty Inward, quantityStyle, RunSum)] )
+                                    , ("Amount (Out)" ,   [(qpAmount Outward, amountStyle, RSNormal)] )
+                                    , ("Amount (In)",     [(qpAmount Inward,  amountStyle, RSNormal)])
+                                    , ("Amount (Bare)",   [(_qpAmount,        amountStyle, RSNormal)])
+                                    , ("Quantity (Out)",  [(qpQty Outward,    quantityStyle, RSNormal)])
+                                    , ("Quantity (In)",   [(qpQty Inward,     quantityStyle, RSNormal)])
+                                    , ("Quantity (Bare)", [(_qpQty,           quantityStyle, RSNormal)] )
+                                    , ("Avg Price",       [(qpAveragePrice,   priceStyle, RSNormal)])
+                                    , ("Min Price",       [(qpMinPrice,       priceStyle, RSNormal)])
+                                    , ("Max Price",       [(qpMaxPrice,       priceStyle, RSNormal)])
+                                    , ("Price Band",          pricesStyle)
+                                    ]
+ruptureForm colOptions suffix paramM = ColumnRupture
+    <$> (aopt (selectFieldList colOptions) (fromString suffix)  (cpColumn <$> paramM) )
+    <*> traceForm (" sort " <> suffix <> " by" ) (cpSortBy <$> paramM)
+    <*> (aopt intField " limit to" (Just $ cpLimitTo =<< paramM))
 -- * Handler
 
 getItemsReportR :: Maybe ReportMode -> Handler TypedContent
@@ -84,10 +89,11 @@ postItemsReportFor route mode = do
     FormSuccess param -> do
       case readMay =<< actionM of
         Just ReportCsv -> do
-              result <- itemReport param (rpPanelRupture param) (rpBand param) (fmap (fmap (summarize . map snd)))
+              result <- itemReport param (cpColumn $ rpPanelRupture param)
+                                         (cpColumn $ rpBand param) (fmap (fmap (summarize . map snd)))
               let source = yieldMany (map (<> "\n") (toCsv param result))
-              setAttachment . fromStrict $ "items-report-" <> (tshowM $ colName <$> (rpPanelRupture param)) <> "-"
-                                              <> (tshowM $ colName <$> rpBand param) <> ".csv"
+              setAttachment . fromStrict $ "items-report-" <> (tshowM $ colName <$> (cpColumn $ rpPanelRupture param)) <> "-"
+                                              <> (tshowM $ colName <$> (cpColumn $ rpBand param)) <> ".csv"
               respondSource "text/csv" (source =$= mapC toFlushBuilder)
         Just ReportRaw -> do
              error "FIXME" -- itemToCsv param
@@ -96,7 +102,8 @@ postItemsReportFor route mode = do
                     Just ReportTable -> tableProcessor
                     Just ReportChart -> chartProcessor param
                     _ -> tableProcessor
-              report <- itemReport param (rpPanelRupture param) (rpBand param) processor
+              report <- itemReport param (cpColumn $ rpPanelRupture param)
+                                         (cpColumn $ rpBand param) processor
               renderReportForm route mode (Just param) ok200 (Just report)
 
 

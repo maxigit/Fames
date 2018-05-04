@@ -19,9 +19,9 @@ data ReportParam = ReportParam
   , rpTo :: Maybe Day
   -- , rpCatFilter :: Map Text (Maybe Text)
   , rpStockFilter :: Maybe FilterExpression
-  , rpPanelRupture :: Maybe Column
-  , rpBand :: Maybe Column
-  , rpSerie :: Maybe Column
+  , rpPanelRupture :: ColumnRupture
+  , rpBand :: ColumnRupture
+  , rpSerie :: ColumnRupture
   , rpColumnRupture :: Column
   , rpTraceParam :: TraceParams
   , rpTraceParam2 :: TraceParams
@@ -32,6 +32,12 @@ paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
                                   (rpTo <&> (FA.StockMoveTranDate <=.)) ?:
                                   (filterE id FA.StockMoveStockId  rpStockFilter)
  
+-- TODO could it be merged with Column ?
+data ColumnRupture = ColumnRupture
+   { cpColumn :: Maybe Column
+   , cpSortBy :: TraceParams
+   , cpLimitTo :: Maybe Int
+   }
 -- | Trace parameter for plotting 
 data TraceParams = TraceParams
   { tpDataType :: QPType
@@ -394,7 +400,7 @@ qpToCsv io (Just qp) = [ tshow (qpQty io qp)
                        , tshow (qpMaxPrice qp)
                        ]
 toCsv param grouped' = let
-  header = intercalate "," [ tshowM $ colName <$> rpPanelRupture param
+  header = intercalate "," [ tshowM $ colName <$> (cpColumn $ rpPanelRupture param)
                           , colName $ rpColumnRupture param
                           ,  "Sales Qty"
                           ,  "Sales Amount"
@@ -418,20 +424,33 @@ toCsv param grouped' = let
                       <> (qpToCsv Outward $ salesQPrice qp)
                       <> (qpToCsv Inward $ purchQPrice qp)
                       <> (qpToCsv Inward $ adjQPrice qp)
+-- ** Sort and limit
+sortAndLimit :: (val -> TranQP) -> ColumnRupture -> Map key val -> [(key, val)]
+sortAndLimit collapse ColumnRupture{..} grouped = let
+  qtype = tpDataType cpSortBy
+  asList = Map.toList grouped
+  sorted = case getIdentified (tpDataParams cpSortBy) of
+     [] -> asList
+     (TraceParam (fn, _, _):_) -> let
+                    sortFn (key, val) =  fn <$> lookupGrouped qtype (collapse val)
+                    in sortOn sortFn asList
+  in maybe id take cpLimitTo sorted
 -- ** Plot
 chartProcessor :: ReportParam -> Map (Maybe Text) (Map (Maybe Text) [(TranKey, TranQP)]) -> Widget 
 chartProcessor param grouped = do
   -- addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
   -- done add report level to fix ajax issue.
-  forM_ (zip (Map.toList grouped) [1 :: Int ..]) $ \((panelName, group), i) -> do
+  let asList = sortAndLimit (mconcat . map snd . concatMap toList) (rpPanelRupture param) grouped
+  forM_ (zip asList [1 :: Int ..]) $ \((panelName, group), i) -> do
      let plotId = "items-report-plot-" <> tshow i 
-         bySerie = fmap (groupAsMap (mkGrouper param (rpSerie param) . fst) (:[])) group
+         bySerie = fmap (groupAsMap (mkGrouper param (cpColumn $ rpSerie param) . fst) (:[])) group
      panelChartProcessor param (fromMaybe "All" panelName) plotId bySerie
         
   
 panelChartProcessor :: ReportParam -> Text -> Text -> Map (Maybe Text) (Map (Maybe Text) [(TranKey, TranQP)]) -> Widget 
 panelChartProcessor param name plotId0 grouped = do
-  let plots = forM_ (zip (Map.toList grouped) [1:: Int ..]) $ \((bandName, bands), i) ->
+  let asList = sortAndLimit (mconcat . map snd . concatMap toList) (rpBand param) grouped
+  let plots = forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
         do
           let byColumn = fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) bands
               traceParams = [(qtype, tparam )
@@ -439,7 +458,7 @@ panelChartProcessor param name plotId0 grouped = do
                                                                <*> [param]
                             , tparam <- getIdentified tparams
                             ]
-              plot = seriesChartProcessor (isNothing $ rpSerie param) traceParams (fromMaybe "<All>" bandName) plotId byColumn 
+              plot = seriesChartProcessor (rpSerie param) (isNothing $ cpColumn $ rpSerie param) traceParams (fromMaybe "<All>" bandName) plotId byColumn 
               plotId = plotId0 <> "-" <> tshow i
           [whamlet|
             <div id=#{plotId} style="height:#{tshow plotHeight }px">
@@ -470,8 +489,8 @@ defaultColors = defaultPlottly where
               "#17becf"   -- blue-teal
              ]
 
-seriesChartProcessor :: Bool -> [(QPType, TraceParam)]-> Text -> Text -> Map (Maybe Text) (Map (Maybe Text) TranQP) -> Widget 
-seriesChartProcessor mono params name plotId grouped = do
+seriesChartProcessor :: ColumnRupture -> Bool -> [(QPType, TraceParam)]-> Text -> Text -> Map (Maybe Text) (Map (Maybe Text) TranQP) -> Widget 
+seriesChartProcessor rupture mono params name plotId grouped = do
      let xsFor g = map (toJSON . fromMaybe "ALL" . fst) g
          ysFor f g = map (toJSON . f . snd) g
          traceFor param ((name, g'), color,groupId) = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g) 
@@ -496,9 +515,10 @@ seriesChartProcessor mono params name plotId grouped = do
                        
                                                                     
          colorIds = zip (cycle defaultColors) [1::Int ..]
+         asList = sortAndLimit (mconcat .  toList) rupture  grouped
          jsData = [ traceFor param (name'group, color :: Text, groupId :: Int)
                   | (param, pcId) <- zip params colorIds
-                  , (name'group, gcId) <- zip (Map.toList grouped) colorIds
+                  , (name'group, gcId) <- zip asList colorIds
          -- if there is only one series, we don't need to group legend and colour by serie
                   , let (color, groupId) = if mono {-length grouped == 1-} then pcId else gcId
                   ] -- ) (cycle defaultColors) [1 :: Int ..])
