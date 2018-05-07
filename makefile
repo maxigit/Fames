@@ -149,5 +149,15 @@ brestart: build restart
 build:
 	stack build
 
+RUN_CONFIG= ../fames-config/development.yml ../fames-config/staging.yml ../fames-config/variations.yml ../fames-config/default.yml
 run:
-	stack exec  Fames -- ../fames-config/development.yml ../fames-config/staging.yml ../fames-config/variations.yml ../fames-config/default.yml
+	stack exec  Fames -- ${RUN_CONFIG}
+
+build_profile:
+	stack build --profile --work-dir .stack-profile
+
+profile: build_profile
+	stack exec --work-dir .stack-profile Fames -- $(RUN_CONFIG) +RTS -hy -p
+	mkdir -p .prof
+	mv Fames.hp Fames.prof  .prof
+
