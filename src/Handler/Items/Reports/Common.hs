@@ -193,7 +193,14 @@ loadItemTransactions param grouper = do
   purchases <- loadItemPurchases param
   let salesGroups = grouper' sales
       purchaseGroups = grouper' purchases
-      grouper' = grouper . fmap (computeCategory categories catFinder) 
+      grouper' = squash . grouper . fmap (computeCategory categories catFinder) 
+      -- we squash the third level already, so that we don't keep too many things in memory
+      squash = fmap (fmap $ groupT ) :: QPGroup2 -> QPGroup2
+      groupT ts = let
+        g = groupAsMap fst (:[]) ts
+        in Map.toList $ fmap (mconcat . map snd) g
+
+        
 
   return $ salesGroups <> purchaseGroups
 
