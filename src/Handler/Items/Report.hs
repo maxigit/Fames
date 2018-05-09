@@ -87,16 +87,17 @@ postItemsReportFor route mode = do
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess param -> do
+      let panel = cpColumn $ rpPanelRupture param
+          band = cpColumn $ rpBand param
       case readMay =<< actionM of
         Just ReportCsv -> do
-              result <- itemReport param (cpColumn $ rpPanelRupture param)
-                                         (cpColumn $ rpBand param) (fmap (fmap (summarize . map snd)))
+              result <- itemReport param panel band (fmap (fmap (summarize . map snd)))
               let source = yieldMany (map (<> "\n") (toCsv param result))
               setAttachment . fromStrict $ "items-report-" <> (tshowM $ colName <$> (cpColumn $ rpPanelRupture param)) <> "-"
                                               <> (tshowM $ colName <$> (cpColumn $ rpBand param)) <> ".csv"
               respondSource "text/csv" (source =$= mapC toFlushBuilder)
         Just ReportRaw -> do
-             error "FIXME" -- itemToCsv param
+             error "FIXME" -- itemToCsv param panel band
         _ -> do
               let processor = case mode of
                     Just ReportTable -> tableProcessor

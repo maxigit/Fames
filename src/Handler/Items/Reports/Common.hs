@@ -175,8 +175,10 @@ getCols = do
            
   -- return $ map Column $ basic ++ ["category:" <>  cat | cat <- categories]
 -- * DB
-loadItemTransactions :: ReportParam -> Handler [(TranKey, TranQP)]
-loadItemTransactions param = do
+loadItemTransactions :: ReportParam
+                     -> ([(TranKey, TranQP)] -> QPGroup2)
+                     -> Handler QPGroup2 
+loadItemTransactions param grouper = do
   categories <- categoriesH
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   catFinder <- categoryFinderCached
@@ -185,12 +187,20 @@ loadItemTransactions param = do
   --                             )
   --                             []
 
+  -- for efficiency reason
+  -- it is better to group sales and purchase separately and then merge them
   sales <- loadItemSales param
   purchases <- loadItemPurchases param
+  let salesGroups = grouper' sales
+      purchaseGroups = grouper' purchases
+      grouper' = grouper . fmap (computeCategory categories catFinder) 
 
-  return $ map (computeCategory categories catFinder) (sales <> purchases)
-  -- return $ mapMaybe (moveToTransInfo categories catFinder . entityVal) moves
+  return $ salesGroups <> purchaseGroups
 
+computeCategory :: [Text]
+                -> (Text -> Text -> Maybe Text)
+                -> (TranKey, t)
+                -> (TranKey, t)
 computeCategory categories catFinder (key, tpq) = let
   sku = tkSku key
   cats = mapFromList [(cat, found) | cat <-  categories, Just found <- return $ catFinder cat sku ]
@@ -328,21 +338,29 @@ itemReport
   :: ReportParam
      -> Maybe Column
      -> Maybe Column
-     -> (Map (Maybe Text) (Map (Maybe Text) [(TranKey, TranQP)]) -> a )
+     -> (QPGroup2 -> a )
      -> Handler a
 itemReport param panelGrouperM colGrouper processor = do
-  trans <- loadItemTransactions param
-  let grouped = groupAsMap (mkGrouper param panelGrouperM . fst) (:[]) trans
-      grouped' = groupAsMap (mkGrouper param colGrouper. fst) (:[]) <$> grouped
-  return $ processor grouped'
+  let grouper =  groupTranQPs param panelGrouperM colGrouper
+  grouped <- loadItemTransactions param grouper
+  return $ processor grouped
+
+groupTranQPs :: ReportParam
+             -> Maybe Column
+             -> Maybe Column
+             -> [(TranKey, TranQP)]
+             -> QPGroup2
+groupTranQPs param panelGrouperM colGrouper trans = let
+  grouped = groupAsMap (mkGrouper param panelGrouperM . fst) (:[]) trans
+  in QPGroup' $ fmap QPGroup' $ groupAsMap (mkGrouper param colGrouper. fst) (:[]) <$> grouped
 
 
 mkGrouper param = maybe (const Nothing) (flip colFn param)
 
-tableProcessor :: Map (Maybe Text) (Map (Maybe Text) [(TranKey, TranQP)]) -> Widget 
+tableProcessor :: QPGroup2 -> Widget 
 tableProcessor grouped = 
   [whamlet|
-    $forall (h1, group) <- Map.toList grouped
+    $forall (h1, group) <- qpGroupToList grouped
         <div.panel.panel-info>
           <div.panel-heading>
             <h2>#{fromMaybe "<All>" h1}
@@ -365,19 +383,19 @@ tableProcessor grouped =
                 <th> Summary Min Price
                 <th> Summary max Price
                 <th> Summary Average Price
-              $forall (h2,qps) <- Map.toList group
+              $forall (h2,qps) <- qpGroupToList group
                  $with qp <- summarize (map snd qps)
                     <tr>
                       <td> #{fromMaybe "" h2}
                       ^{showQp Outward $ salesQPrice qp}
                       ^{showQp Inward $ purchQPrice qp}
                       ^{showQp Outward $ mconcat [salesQPrice qp , purchQPrice qp]}
-              $with (qp) <- summarize (fmap (summarize . map snd) group)
+              $with (qpt) <- summarize (fmap (summarize . map snd) group)
                   <tr.total>
                     <td> Total
-                    ^{showQp Outward $ salesQPrice qp}
-                    ^{showQp Inward $ purchQPrice qp}
-                    ^{showQp Outward $ mconcat [salesQPrice qp , purchQPrice qp]}
+                    ^{showQp Outward $ salesQPrice qpt}
+                    ^{showQp Inward $ purchQPrice qpt}
+                    ^{showQp Outward $ mconcat [salesQPrice qpt , purchQPrice qpt]}
                     |]
   where
       showQp _ Nothing = [whamlet|
@@ -421,8 +439,8 @@ toCsv param grouped' = let
                           ,  "Adjustment max Price"
                           ]
   in header : do
-    (h1, group) <- Map.toList grouped'
-    (h2,qp) <- Map.toList group
+    (h1, group) <- qpGroupToList grouped'
+    (h2,qp) <- qpGroupToList group
     return $ intercalate "," $  [ tshowM h1
                       , tshowM h2
                       ]
@@ -440,24 +458,30 @@ sortAndLimit collapse ColumnRupture{..} grouped = let
                     sortFn (key, val) =  fn <$> lookupGrouped qtype (collapse val)
                     in sortOn sortFn asList
   in maybe id take cpLimitTo sorted
+
+sortAndLimitGroup :: (val -> TranQP)
+                  -> ColumnRupture
+                  -> QPGroup' val
+                  -> [(Maybe Text, val)]
+sortAndLimitGroup  collapse  rupture (QPGroup' grouped) = sortAndLimit collapse rupture grouped
 -- ** Plot
-chartProcessor :: ReportParam -> Map (Maybe Text) (Map (Maybe Text) [(TranKey, TranQP)]) -> Widget 
+chartProcessor :: ReportParam -> QPGroup2 -> Widget 
 chartProcessor param grouped = do
   -- addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
   -- done add report level to fix ajax issue.
-  let asList = sortAndLimit (mconcat . map snd . concatMap toList) (rpPanelRupture param) grouped
+  let asList = sortAndLimitGroup (mconcat . map snd . concatMap toList) (rpPanelRupture param) grouped
   forM_ (zip asList [1 :: Int ..]) $ \((panelName, group), i) -> do
      let plotId = "items-report-plot-" <> tshow i 
          bySerie = fmap (groupAsMap (mkGrouper param (cpColumn $ rpSerie param) . fst) (:[])) group
-     panelChartProcessor param (fromMaybe "All" panelName) plotId bySerie
+     panelChartProcessor param (fromMaybe "All" panelName) plotId (fmap QPGroup' bySerie)
         
   
-panelChartProcessor :: ReportParam -> Text -> Text -> Map (Maybe Text) (Map (Maybe Text) [(TranKey, TranQP)]) -> Widget 
+panelChartProcessor :: ReportParam -> Text -> Text -> QPGroup2 -> Widget 
 panelChartProcessor param name plotId0 grouped = do
-  let asList = sortAndLimit (mconcat . map snd . concatMap toList) (rpBand param) grouped
+  let asList = sortAndLimitGroup (mconcat . map snd . concatMap toList) (rpBand param) grouped
   let plots = forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
         do
-          let byColumn = fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) bands
+          let byColumn = fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) (unQPGroup' bands)
               traceParams = [(qtype, tparam )
                             | (TraceParams qtype tparams ) <- [rpTraceParam,  rpTraceParam2 , rpTraceParam3]
                                                                <*> [param]
@@ -564,11 +588,14 @@ seriesChartProcessor rupture mono params name plotId grouped = do
   
 -- ** Csv
   
-itemToCsv param = do
+itemToCsv param panelGrouperM colGrouper = do
+  let grouper =  groupTranQPs param panelGrouperM colGrouper
   -- no need to group, we display everything, including all category and columns
   cols <- getCols
   categories <- categoriesH
-  trans <- loadItemTransactions param
+  grouped <- loadItemTransactions param grouper
+  let trans :: [(TranKey, TranQP)]
+      trans = foldMap concat $ fmap toList grouped
   let qpCols = [  "Sales Qty"
                ,  "Sales Amount"
                ,  "Sales Min Price"

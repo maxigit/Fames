@@ -13,6 +13,7 @@ import qualified GHC.Generics as GHC
 import Data.IntMap.Strict (IntMap)
 import qualified Data.Map as Map
 import ModelField
+import qualified Data.Foldable as Foldable
 -- * General
 -- | Holder for miscellaneous information relative to an item.
 -- Allows mainly to call operation which need to group by style and or variations.
@@ -263,13 +264,13 @@ promoteQPTo toType  (TranQP tranQP) =
 
 
 -- | Create a TranQP from list of QPType QPrice
-groupTranQPs :: [(QPType, QPrice)] -> Maybe TranQP
-groupTranQPs [] = Nothing
-groupTranQPs tqs = Just . mconcat $ map (uncurry tranQP) tqs
+collapseQPs :: [(QPType, QPrice)] -> Maybe TranQP
+collapseQPs [] = Nothing
+collapseQPs tqs = Just . mconcat $ map (uncurry tranQP) tqs
   
 -- | Regroup a TranQP map to the given key )
 regroupQP :: [QPType] -> TranQP -> Maybe TranQP
-regroupQP keys tranQP = groupTranQPs [(k, promoted )
+regroupQP keys tranQP = collapseQPs [(k, promoted )
                                      | k <- keys
                                      , Just promoted <- return $ promoteQPTo k tranQP -- filter Nothing
                                      ]
@@ -286,3 +287,33 @@ data TranKey = TranKey
   , tkCategory :: Map Text Text
   , tkType :: FATransType
   } deriving (Show, Eq, Ord)
+
+-- Group of transactions
+-- We don't use the normal Map, because it's monoid implementation is broken
+-- TODO rename to MonoidMap and move in utils
+newtype QPGroup' a = QPGroup' {unQPGroup' :: Map (Maybe Text) a}
+
+type QPGroup =  QPGroup' [(TranKey, TranQP)]
+type QPGroup2 =  QPGroup' QPGroup
+
+instance Semigroup a => Semigroup (QPGroup' a) where
+   (QPGroup' m1) <> (QPGroup' m2) = QPGroup' (unionWith (<>) m1 m2 )
+
+instance (Monoid a, Semigroup a) => Monoid (QPGroup' a) where
+   mappend = (<>)
+   mempty = QPGroup' mempty
+
+instance Functor QPGroup' where
+  fmap f (QPGroup' m) = QPGroup' (fmap f m)
+
+type instance Element (QPGroup' a) = a
+instance MonoFunctor (QPGroup' a) 
+instance MonoFoldable (QPGroup' a) 
+instance Foldable.Foldable QPGroup' where
+  foldr f b (QPGroup' m) = foldr f b m
+-- instance Traversable (QPGroup' a) where
+--   traverse f (QPGroup' m) = QPGroup' (foldMap m)
+
+qpGroupToList :: QPGroup' a -> [(Maybe Text, a)]
+qpGroupToList = Map.toList . unQPGroup'
+
