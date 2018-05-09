@@ -201,10 +201,10 @@ loadItemSales :: ReportParam -> Handler [(TranKey, TranQP)]
 loadItemSales param = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   let sql = intercalate " " $
-          "SELECT ??, ??, ?? FROM 0_debtor_trans_details " :
+          "SELECT ??, 0_debtor_trans.tran_date, 0_debtor_trans.debtor_no, 0_debtor_trans.branch_code" :
+          " FROM 0_debtor_trans_details " :
           "JOIN 0_debtor_trans ON (0_debtor_trans_details.debtor_trans_no = 0_debtor_trans.trans_no " :
           " AND 0_debtor_trans_details.debtor_trans_type = 0_debtor_trans.type)  " :
-          "JOIN 0_cust_branch USING (debtor_no, branch_code)" :
           "WHERE type IN ("  :
           (tshow $ fromEnum ST_SALESINVOICE) :
           ",":
@@ -228,10 +228,9 @@ loadItemPurchases :: ReportParam -> Handler [(TranKey, TranQP)]
 loadItemPurchases param = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   let sql = intercalate " " $
-          "SELECT ??, ??, ?? FROM 0_supp_invoice_items " :
+          "SELECT ??, 0_supp_trans.tran_date, 0_supp_trans.rate, 0_supp_trans.supplier_id  FROM 0_supp_invoice_items " :
           "JOIN 0_supp_trans ON (0_supp_invoice_items.supp_trans_no = 0_supp_trans.trans_no " :
           " AND 0_supp_invoice_items.supp_trans_type = 0_supp_trans.type)  " :
-          "JOIN 0_suppliers ON (0_supp_trans.supplier_id =  0_suppliers.supplier_id)" :
           "WHERE type IN ("  :
           (tshow $ fromEnum ST_SUPPINVOICE) :
           ",":
@@ -289,11 +288,13 @@ moveToTransInfo categories catFinder FA.StockMove{..} = (key,) <$> tqp where
   -- price = stockMovePrice*(1-stockMoveDiscountPercent/100)
   
 -- ** Sales Details
--- detailToTransInfo :: [Text] -> (Text -> Text -> Maybe Text) -> StockMove -> (TranKey, Maybe TranQP)
+detailToTransInfo :: (Entity FA.DebtorTransDetail, Single Day, Single (Maybe Int), Single Int) -> (TranKey, TranQP)
 detailToTransInfo ( Entity _ FA.DebtorTransDetail{..}
-                  , Entity _ FA.DebtorTran{..}
-                  , Entity _ FA.CustBranch{..}) = (key, tqp) where
-  key = TranKey debtorTranTranDate (Just $ decodeHtmlEntities custBranchBrName) Nothing
+                  , Single debtorTranTranDate
+                  , Single debtorNo, Single branchCode)  = (key, tqp) where
+  key = TranKey debtorTranTranDate
+                (Just $ tshow debtorNo <> "-" <> tshow branchCode   )
+                Nothing
                 debtorTransDetailStockId Nothing Nothing  (mempty)
                 transType
   (tqp, transType) = case toEnum <$> debtorTransDetailDebtorTransType of
@@ -303,10 +304,14 @@ detailToTransInfo ( Entity _ FA.DebtorTransDetail{..}
   qp io = mkQPrice io debtorTransDetailQuantity price
   price = debtorTransDetailUnitPrice*(1-debtorTransDetailDiscountPercent/100)
 
+purchToTransInfo :: (Entity SuppInvoiceItem, Single Day, Single Double, Single Int)
+                 -> (TranKey, TranQP)
 purchToTransInfo ( Entity _ FA.SuppInvoiceItem{..}
-                  , Entity _ FA.SuppTran{..}
-                  , Entity _ FA.Supplier{..}) = (key, tqp) where
-  key = TranKey suppTranTranDate Nothing (Just $ decodeHtmlEntities supplierSuppName)
+                  , Single suppTranTranDate
+                  , Single suppTranRate
+                  , Single supplierId) = (key, tqp) where
+  suppTranType = fromMaybe (error "supplier transaction should have a ty B") suppInvoiceItemSuppTransType
+  key = TranKey suppTranTranDate Nothing (Just $ tshow supplierId)
                 suppInvoiceItemStockId Nothing Nothing  (mempty)
                 (toEnum suppTranType)
                    
