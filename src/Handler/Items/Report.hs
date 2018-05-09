@@ -133,7 +133,7 @@ renderReportForm  route modeM paramM status resultM = do
       -- in theory we only need plotly when display a chart
       -- but it is need to be loaded on the first page, otherwise
       -- Ajax call with plot won't work
-      plotly = addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
+      -- plotly = addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
       widget = [whamlet|
     <form #items-report-form role=form method=post action="@{ItemsR (route modeM)}" enctype="#{repEncType}">
         $maybe result <- resultM
@@ -154,7 +154,7 @@ renderReportForm  route modeM paramM status resultM = do
                         |]
   selectRep $ do
     provideRep $ do
-      html <- sendResponseStatus status =<< defaultLayout (widget >> fay >> plotly) 
+      html <- sendResponseStatus status =<< defaultLayout (widget >> fay) 
       return (html :: Html)
     provideRep $ do -- Ajax. return result
       div <- widgetToPageContent (fromMaybe (return ()) resultM)

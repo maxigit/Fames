@@ -558,7 +558,7 @@ seriesChartProcessor rupture mono params name plotId grouped = do
          -- if there is only one series, we don't need to group legend and colour by serie
                   , let (color, groupId) = if mono {-length grouped == 1-} then pcId else gcId
                   ] -- ) (cycle defaultColors) [1 :: Int ..])
-     toWidget [julius|
+     toWidgetBody [julius|
           Plotly.plot( #{toJSON plotId}
                     , #{toJSON jsData} 
                     , { margin: { t: 0 }
