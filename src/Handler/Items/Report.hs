@@ -16,7 +16,7 @@ import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,)
 import Text.Blaze.Html.Renderer.Text(renderHtml)
 import qualified Data.List as List
 import qualified FA as FA
-
+import Data.Time (addGregorianMonthsClip)
 
 -- * Form
 reportForm :: [Column] -> Maybe ReportParam -> Html -> MForm Handler (FormResult ReportParam, Widget)
@@ -42,18 +42,25 @@ reportForm cols paramM extra = do
                            <*> fColRupture <*> fTrace1 <*> fTrace2 <*> fTrace3
   return (report, form)
  
+-- noneOption, amountOutOption, amountInOption :: ToJSON a =>  (Text, [(QPrice -> Amount, a -> [(Text, Value)], RunSum)])
+noneOption = ("None" :: Text, [])
+amountOutOption = ("Amount (Out)" ,   [(qpAmount Outward, amountStyle, RSNormal)] )
+amountInOption = ("Amount (In)",     [(qpAmount Inward,  amountStyle, RSNormal)])
+mkIdentifialParam  (t, tp'runsumS) = Identifiable (t, map TraceParam tp'runsumS)
+
+
 traceForm :: String -> Maybe TraceParams -> MForm Handler (FormResult TraceParams, Widget)
 traceForm suffix p = do
   let
     dataTypeOptions = optionsPairs [(drop 2 (tshow qtype), qtype) | qtype <- [minBound..maxBound]]
     dataValueOptions = map (\(t, tps'runsum) -> (t, Identifiable (t, (map TraceParam tps'runsum))))
-                                    [ ("None" :: Text, [])
+                                    [ noneOption
                                     , ("QA-Sales", quantityAmountStyle Outward)
                                     , ("CumulAmount (Out)" ,   [(qpAmount Outward, cumulAmountStyle, RunSum)] )
                                     , ("CumulAmount Backward (Out)" ,   [(qpAmount Outward, cumulAmountStyle, RunSumBack)] )
                                     , ("Stock" ,   [(qpQty Inward, quantityStyle, RunSum)] )
-                                    , ("Amount (Out)" ,   [(qpAmount Outward, amountStyle, RSNormal)] )
-                                    , ("Amount (In)",     [(qpAmount Inward,  amountStyle, RSNormal)])
+                                    , amountOutOption
+                                    , amountInOption
                                     , ("Amount (Bare)",   [(_qpAmount,        amountStyle, RSNormal)])
                                     , ("Quantity (Out)",  [(qpQty Outward,    quantityStyle, RSNormal)])
                                     , ("Quantity (In)",   [(qpQty Inward,     quantityStyle, RSNormal)])
@@ -88,7 +95,39 @@ ruptureForm colOptions title paramM = do
 
 getItemsReportR :: Maybe ReportMode -> Handler TypedContent
 getItemsReportR mode = do
-  renderReportForm ItemsReportR mode Nothing ok200 Nothing
+  today <- utctDay <$> liftIO getCurrentTime
+  (_, (band, serie, timeColumn)) <- getColsWithDefault
+  let emptyRupture = ColumnRupture Nothing emptyTrace Nothing
+      bestSales = TraceParams QPSales (mkIdentifialParam amountInOption)
+      sales = TraceParams QPSales (mkIdentifialParam amountOutOption)
+      emptyTrace = TraceParams QPSales (mkIdentifialParam noneOption)
+      past = addGregorianMonthsClip (-6) today
+  
+      defaultReportParam = case mode of
+        Just ReportChart -> ReportParam
+                           (Just past) --  rpFrom :: Maybe Day
+                           Nothing --  rpTo :: Maybe Day
+                           Nothing --  rpStockFilter :: Maybe FilterExpression
+                           emptyRupture   -- rpPanelRupture :: ColumnRupture
+                           (ColumnRupture (Just band) bestSales (Just 20))--  rpBand :: ColumnRupture
+                           (ColumnRupture (Just serie) bestSales (Just 20))--  rpSerie :: ColumnRupture
+                           timeColumn --  rpColumnRupture :: Column
+                           sales --  rpTraceParam :: TraceParams
+                           emptyTrace --  rpTraceParam2 :: TraceParams
+                           emptyTrace --  rpTraceParam3 :: TraceParams
+        _ -> ReportParam
+                           (Just past) --  rpFrom :: Maybe Day
+                           Nothing --  rpTo :: Maybe Day
+                           Nothing --  rpStockFilter :: Maybe FilterExpression
+                           (ColumnRupture (Just band) bestSales (Just 20))--  rpBand :: ColumnRupture
+                           (ColumnRupture (Just serie) bestSales (Just 20))--  rpSerie :: ColumnRupture
+                           emptyRupture   -- rpPanelRupture :: ColumnRupture
+                           timeColumn --  rpColumnRupture :: Column
+                           sales --  rpTraceParam :: TraceParams
+                           emptyTrace --  rpTraceParam2 :: TraceParams
+                           emptyTrace --  rpTraceParam3 :: TraceParams
+
+  renderReportForm ItemsReportR mode (Just defaultReportParam) ok200 Nothing
 
 getItemsReport2R :: Maybe ReportMode -> Handler Html
 getItemsReport2R mode = do

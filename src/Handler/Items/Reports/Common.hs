@@ -140,38 +140,50 @@ tkType'' tk = case tkType tk of
   _ -> Nothing
 getCols :: Handler [Column]
 getCols = do
+  (cols, _) <- getColsWithDefault
+  return cols
+getColsWithDefault :: Handler ([Column], (Column, Column, Column))
+getColsWithDefault = do
   today <- utctDay <$> liftIO getCurrentTime
   categories <- categoriesH
 
-  return $ [ Column "Style" (const tkStyle)
-           , Column "Variation" (const tkVar)
-           , Column "Sku" (const $ Just . tkSku)
-           , Column "Date" (const $ Just . tshow . tkDay)
-           , Column "52W" (\p -> let day0 = addDays 1 $ fromMaybe today (rpTo p)
+  let style = Column "Style" (const tkStyle)
+      variation = Column "Variation" (const tkVar)
+      w52 = Column "52W" (\p -> let day0 = addDays 1 $ fromMaybe today (rpTo p)
                                  in Just . pack . slidingYearShow day0 . tkDay
                           )
-           , Column "Customer" (const tkCustomer)
-           , Column "Supplier" (const tkSupplier)
-           , Column "Supplier/Customer" (const (\t -> tkSupplier t <|> tkCustomer t))
-           , Column "TransactionType" (const $ Just . tshow . tkType)
-           , Column "Sales/Purchase" (const tkType'')
-           , Column "Invoice/Credit" (const tkType')
-           ] <>
-           [ Column name (const $ Just . pack . formatTime defaultTimeLocale format . tkDay)
-           | (name, format) <- [ ("Year", "%Y")
+      defaultBand =  style
+      defaultSerie = variation
+      defaultTime = mkDateColumn monthly -- w52
+      monthly =  ("Year-1-month", "%Y-%m-01")
+      mkDateColumn (name, format) = Column name (const $ Just . pack . formatTime defaultTimeLocale format . tkDay)
+
+      cols = [ style
+            , variation
+            , Column "Sku" (const $ Just . tkSku)
+            , Column "Date" (const $ Just . tshow . tkDay)
+            , w52
+            , Column "Customer" (const tkCustomer)
+            , Column "Supplier" (const tkSupplier)
+            , Column "Supplier/Customer" (const (\t -> tkSupplier t <|> tkCustomer t))
+            , Column "TransactionType" (const $ Just . tshow . tkType)
+            , Column "Sales/Purchase" (const tkType'')
+            , Column "Invoice/Credit" (const tkType')
+            ] <>
+            ( map mkDateColumn [ ("Year", "%Y")
                                , ("Year-Month", "%Y-M%m")
-                               , ("Year-1-month", "%Y-%m-01")
+                               , monthly
                                , ("Month", "%M%m %B")
                                , ("1-Month", "2001-%m-01")
                                , ("1-Day", "2001-%m-%d")
                                , ("Year-Week", "%Y-%m-W%W")
                                , ("Week", "W%W")
                                ]
-             
-           ] <>
-           [ Column ("Category:" <> cat) (\_ tk -> Map.lookup cat (tkCategory tk))
-           | cat <- categories
-           ]
+            ) <>
+            [ Column ("Category:" <> cat) (\_ tk -> Map.lookup cat (tkCategory tk))
+            | cat <- categories
+            ]
+  return (cols, (defaultBand, defaultSerie, defaultTime))
            
   -- return $ map Column $ basic ++ ["category:" <>  cat | cat <- categories]
 -- * DB

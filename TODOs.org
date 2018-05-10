@@ -1,9 +1,9 @@
 * TODO Chart
-** Today [0/4] 
-   - [ ] Update Form
+** Today [1/4] 
+   - [X] Update Form
      This is important to speed up testing
-     - [ ] One line for rupture
-     - [ ] sensible Default
+     - [X] One line for rupture
+     - [X] sensible Default
    - [ ] Replace supplier /customer with supplierCustmenr Either Int Int
    - [ ] Make generic map level Map (Dynamic) (Either Map Value)
      - [ ] with probably custom Dynamic type as key
