@@ -32,11 +32,12 @@ reportForm cols paramM extra = do
   (fTrace1, wTrace1) <- traceForm "" (rpTraceParam <$> paramM)
   (fTrace2, wTrace2) <- traceForm " 2" (rpTraceParam2 <$> paramM)
   (fTrace3, wTrace3) <- traceForm " 3"(rpTraceParam3 <$> paramM)
-  let fields = [ Left vFrom, Left vTo, Left vStockFilter
+  let fields = [ Right (renderField vFrom >>  renderField vTo >> renderField vStockFilter)
                , Right wPanel, Right wBand, Right wSerie
                , Left vColRupture
                , Right wTrace1, Right wTrace2, Right wTrace3]
-  let form = [whamlet|#{extra}|] >> mapM_ (either renderField id) fields
+  let form = [whamlet|#{extra}|] >> mapM_ (either renderField inline) fields
+      inline w = [whamlet| <div.form-inline>^{w}|]
       report = ReportParam <$> fFrom <*> fTo <*> fStockFilter <*> fPanel <*> fBand <*> fSerie
                            <*> fColRupture <*> fTrace1 <*> fTrace2 <*> fTrace3
   return (report, form)
@@ -63,21 +64,24 @@ traceForm suffix p = do
                                     , ("Price Band",          pricesStyle)
                                     ]
   (tType, vType) <-  mreq (selectField dataTypeOptions)
-                           (fromString $ "data type" <> suffix)
+                           (fromString $ "type" <> suffix)
                            (tpDataType <$> p) 
   (tParam, vParam) <- mreq (selectFieldList dataValueOptions)
-                                            (fromString $ "data value" <> suffix)
+                                            (fromString $ "value" <> suffix)
                                             (tpDataParams <$> p) 
   let form =  mapM_ renderField [vType, vParam]
   return (TraceParams <$> tType <*> tParam, form )
 
 ruptureForm :: [(Text, Column)] -> String -> Maybe ColumnRupture -> MForm Handler (FormResult ColumnRupture, Widget)
-ruptureForm colOptions suffix paramM = do
-  (fColumn, vColumn) <- mopt (selectFieldList colOptions) (fromString suffix)  (cpColumn <$> paramM) 
-  (fSortBy, wSortBy) <- traceForm (" sort " <> suffix <> " by" ) (cpSortBy <$> paramM)
-  (fLimitTo, vLimitTo) <- mopt intField " limit to" (Just $ cpLimitTo =<< paramM)
+ruptureForm colOptions title paramM = do
+  (fColumn, vColumn) <- mopt (selectFieldList colOptions) (fromString title)  (cpColumn <$> paramM) 
+  (fSortBy, wSortBy) <- traceForm ("" ) (cpSortBy <$> paramM)
+  (fLimitTo, vLimitTo) <- mopt intField "Limit To" (Just $ cpLimitTo =<< paramM)
 
-  let form = mapM_ (either renderField id) [Left vColumn, Right wSortBy, Left vLimitTo]
+  let form = mapM_ (either renderField id) [Left vColumn, Right [whamlet|<div.form-group style="margin-bottom: 5px">
+                                                                             <label style="width:100%; text-align:center">Sort By
+                                                                             <div.form-group>^{wSortBy}
+                                                                             |], Left vLimitTo]
   return (ColumnRupture <$> fColumn <*>  fSortBy <*> fLimitTo, form)
   
 -- * Handler

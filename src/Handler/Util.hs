@@ -262,7 +262,7 @@ renderField view = let
     False -> "optional" :: Text
     True -> "required"
   in [whamlet|
-<div .form-group#{class_}>
+<div .form-group class="#{class_}">
   <label for=#{fvId view}> #{fvLabel view}
   ^{fvInput view}
   $maybe err <- fvErrors view
