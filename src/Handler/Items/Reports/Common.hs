@@ -113,7 +113,7 @@ pricesStyle = [(qpMinPrice , const [ ("style", String "scatter")
 -- * Columns
 data Column = Column
   { colName :: Text
-  , colFn :: ReportParam -> TranKey -> Maybe Text
+  , colFn :: ReportParam -> TranKey -> NMapKey
   } 
 
 instance Eq Column where
@@ -147,29 +147,31 @@ getColsWithDefault = do
   today <- utctDay <$> liftIO getCurrentTime
   categories <- categoriesH
 
-  let style = Column "Style" (const tkStyle)
-      variation = Column "Variation" (const tkVar)
+  let style = Column "Style" (const $ maybe PersistNull PersistText . tkStyle)
+      variation = Column "Variation" (const $ maybe PersistNull PersistText . tkVar)
       w52 = Column "52W" (\p -> let day0 = addDays 1 $ fromMaybe today (rpTo p)
-                                 in Just . pack . slidingYearShow day0 . tkDay
+                                 in PersistText . pack . slidingYearShow day0 . tkDay
                           )
       defaultBand =  style
       defaultSerie = variation
       defaultTime = mkDateColumn monthly -- w52
       monthly =  ("Year-1-month", "%Y-%m-01")
-      mkDateColumn (name, format) = Column name (const $ Just . pack . formatTime defaultTimeLocale format . tkDay)
+      mkDateColumn (name, format) = Column name (const $ PersistText . pack . formatTime defaultTimeLocale format . tkDay)
 
       cols = [ style
             , variation
-            , Column "Sku" (const $ Just . tkSku)
-            , Column "Date" (const $ Just . tshow . tkDay)
+            , Column "Sku" (const $ PersistText . tkSku)
+            , Column "Date" (const $ PersistDay . tkDay)
             , w52
-            , Column "Customer" (const $ fmap tshow . tkCustomer)
-            , Column "Supplier" (const $ fmap tshow . tkSupplier)
-            , Column "Supplier/Customer" (const $ fmap tshow . tkCustomerSupplier)
-            , Column "TransactionType" (const $ Just . tshow . tkType)
-            , Column "Sales/Purchase" (const tkType'')
-            , Column "Invoice/Credit" (const tkType')
-            ] <>
+            , Column "Customer" (const $ maybe PersistNull (PersistInt64. fst) . tkCustomer)
+            , Column "Supplier" (const $ maybe PersistNull  PersistInt64 . tkSupplier)
+            , Column "Supplier/Customer" (const $ maybe PersistNull (either (PersistInt64 . fst)
+                                                                             PersistInt64
+                                                                    ). tkCustomerSupplier)
+            , Column "TransactionType" (const $ PersistInt64 . fromIntegral . fromEnum . tkType)
+            , Column "Sales/Purchase" (const $ maybe PersistNull PersistText . tkType'')
+            , Column "Invoice/Credit" (const $ maybe PersistNull PersistText . tkType')
+            ]  <>
             ( map mkDateColumn [ ("Year", "%Y")
                                , ("Year-Month", "%Y-M%m")
                                , monthly
@@ -180,7 +182,7 @@ getColsWithDefault = do
                                , ("Week", "W%W")
                                ]
             ) <>
-            [ Column ("Category:" <> cat) (\_ tk -> Map.lookup cat (tkCategory tk))
+            [ Column ("Category:" <> cat) (\_ tk -> maybe PersistNull PersistText $ Map.lookup cat (tkCategory tk))
             | cat <- categories
             ]
   return (cols, (defaultBand, defaultSerie, defaultTime))
@@ -188,8 +190,8 @@ getColsWithDefault = do
   -- return $ map Column $ basic ++ ["category:" <>  cat | cat <- categories]
 -- * DB
 loadItemTransactions :: ReportParam
-                     -> ([(TranKey, TranQP)] -> QPGroup2)
-                     -> Handler QPGroup2 
+                     -> ([(TranKey, TranQP)] -> QPGroup)
+                     -> Handler QPGroup 
 loadItemTransactions param grouper = do
   categories <- categoriesH
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
@@ -205,13 +207,7 @@ loadItemTransactions param grouper = do
   purchases <- loadItemPurchases param
   let salesGroups = grouper' sales
       purchaseGroups = grouper' purchases
-      grouper' = squash . grouper . fmap (computeCategory categories catFinder) 
-      -- we squash the third level already, so that we don't keep too many things in memory
-      squash = fmap (fmap $ groupT ) :: QPGroup2 -> QPGroup2
-      groupT ts = let
-        g = groupAsMap fst (:[]) ts
-        in Map.toList $ fmap (mconcat . map snd) g
-
+      grouper' = grouper . fmap (computeCategory categories catFinder) 
         
 
   return $ salesGroups <> purchaseGroups
@@ -317,7 +313,7 @@ moveToTransInfo categories catFinder FA.StockMove{..} = (key,) <$> tqp where
   -- price = stockMovePrice*(1-stockMoveDiscountPercent/100)
   
 -- ** Sales Details
-detailToTransInfo :: (Entity FA.DebtorTransDetail, Single Day, Single ({- Maybe -} Int), Single Int) -> (TranKey, TranQP)
+detailToTransInfo :: (Entity FA.DebtorTransDetail, Single Day, Single ({- Maybe -} Int64), Single Int64) -> (TranKey, TranQP)
 detailToTransInfo ( Entity _ FA.DebtorTransDetail{..}
                   , Single debtorTranTranDate
                   , Single debtorNo, Single branchCode)  = (key, tqp) where
@@ -332,7 +328,7 @@ detailToTransInfo ( Entity _ FA.DebtorTransDetail{..}
   qp io = mkQPrice io debtorTransDetailQuantity price
   price = debtorTransDetailUnitPrice*(1-debtorTransDetailDiscountPercent/100)
 
-purchToTransInfo :: (Entity SuppInvoiceItem, Single Day, Single Double, Single Int)
+purchToTransInfo :: (Entity SuppInvoiceItem, Single Day, Single Double, Single Int64)
                  -> (TranKey, TranQP)
 purchToTransInfo ( Entity _ FA.SuppInvoiceItem{..}
                   , Single suppTranTranDate
@@ -354,38 +350,43 @@ purchToTransInfo ( Entity _ FA.SuppInvoiceItem{..}
 -- | Display sales and purchase of an item
 itemReport
   :: ReportParam
-     -> Maybe Column
-     -> Maybe Column
-     -> (QPGroup2 -> a )
+     -> [Maybe Column]
+     -> (QPGroup -> a )
      -> Handler a
-itemReport param panelGrouperM colGrouper processor = do
-  let grouper =  groupTranQPs param panelGrouperM colGrouper
+itemReport param cols processor = do
+  let grouper =  groupTranQPs param cols
   grouped <- loadItemTransactions param grouper
   return $ processor grouped
 
 groupTranQPs :: ReportParam
-             -> Maybe Column
-             -> Maybe Column
+             -> [Maybe Column]
              -> [(TranKey, TranQP)]
-             -> QPGroup2
-groupTranQPs param panelGrouperM colGrouper trans = let
-  grouped = groupAsMap (mkGrouper param panelGrouperM . fst) (:[]) trans
-  in QPGroup' $ fmap QPGroup' $ groupAsMap (mkGrouper param colGrouper. fst) (:[]) <$> grouped
+             -> QPGroup
+groupTranQPs param [] trans = NLeaf (mconcat $ map snd trans)
+groupTranQPs param gs@(grouper:groupers) trans = let
+  grouped = groupAsMap (mkGrouper param grouper . fst) (:[]) trans
+  m = fmap (groupTranQPs param groupers) grouped
+  in NMap (map (fmap colName) gs) m
 
 
-mkGrouper param = maybe (const Nothing) (flip colFn param)
+mkGrouper :: ReportParam -> Maybe Column -> TranKey -> NMapKey
+mkGrouper param = maybe (const PersistNull) (flip colFn param)
 
-tableProcessor :: QPGroup2 -> Widget 
+pvToText :: PersistValue -> Text
+pvToText = either id id . fromPersistValueText
+  
+tableProcessor :: QPGroup -> Widget 
 tableProcessor grouped = 
   [whamlet|
-    $forall (h1, group) <- qpGroupToList grouped
+    $forall (h1, group1) <- nmapToNMapList grouped
         <div.panel.panel-info>
           <div.panel-heading>
-            <h2>#{fromMaybe "<All>" h1}
+            <h2>#{pvToText h1}
           <div.panel-body>
             <table.table.table-hover.table-striped>
               <tr>
-                <th>
+                $forall level <-  nmapLevels group1
+                  <th> #{fromMaybe "" level}
                 <th> Sales Qty
                 <th> Sales Amount
                 <th> Sales Min Price
@@ -401,14 +402,14 @@ tableProcessor grouped =
                 <th> Summary Min Price
                 <th> Summary max Price
                 <th> Summary Average Price
-              $forall (h2,qps) <- qpGroupToList group
-                 $with qp <- summarize (map snd qps)
+              $forall (keys, qp) <- nmapToList group1
                     <tr>
-                      <td> #{fromMaybe "" h2}
+                      $forall key <- keys
+                        <td> #{pvToText key}
                       ^{showQp Outward $ salesQPrice qp}
                       ^{showQp Inward $ purchQPrice qp}
                       ^{showQp Outward $ mconcat [salesQPrice qp , purchQPrice qp]}
-              $with (qpt) <- summarize (fmap (summarize . map snd) group)
+              $with (qpt) <- summarize (toList group1)
                   <tr.total>
                     <td> Total
                     ^{showQp Outward $ salesQPrice qpt}
@@ -441,9 +442,8 @@ qpToCsv io (Just qp) = [ tshow (qpQty io qp)
                        , tshow (qpMaxPrice qp)
                        ]
 toCsv param grouped' = let
-  header = intercalate "," [ tshowM $ colName <$> (cpColumn $ rpPanelRupture param)
-                          , colName $ rpColumnRupture param
-                          ,  "Sales Qty"
+  header = intercalate "," $ (map tshowM $ nmapLevels grouped') <>
+                          [  "Sales Qty"
                           ,  "Sales Amount"
                           ,  "Sales Min Price"
                           ,  "Sales max Price"
@@ -457,14 +457,11 @@ toCsv param grouped' = let
                           ,  "Adjustment max Price"
                           ]
   in header : do
-    (h1, group) <- qpGroupToList grouped'
-    (h2,qp) <- qpGroupToList group
-    return $ intercalate "," $  [ tshowM h1
-                      , tshowM h2
-                      ]
-                      <> (qpToCsv Outward $ salesQPrice qp)
-                      <> (qpToCsv Inward $ purchQPrice qp)
-                      <> (qpToCsv Inward $ adjQPrice qp)
+    (keys, qp) <- nmapToList grouped'
+    return $ intercalate "," $  ( map  pvToText keys )
+                             <> (qpToCsv Outward $ salesQPrice qp)
+                             <> (qpToCsv Inward $ purchQPrice qp)
+                             <> (qpToCsv Inward $ adjQPrice qp)
 -- ** Sort and limit
 sortAndLimit :: (val -> TranQP) -> ColumnRupture -> Map key val -> [(key, val)]
 sortAndLimit collapse ColumnRupture{..} grouped = let
@@ -479,39 +476,42 @@ sortAndLimit collapse ColumnRupture{..} grouped = let
 
 sortAndLimitGroup :: (val -> TranQP)
                   -> ColumnRupture
-                  -> QPGroup' val
-                  -> [(Maybe Text, val)]
-sortAndLimitGroup  collapse  rupture (QPGroup' grouped) = sortAndLimit collapse rupture grouped
+                  -> NMap val
+                  -> [(NMapKey, val)]
+sortAndLimitGroup  collapse  rupture nmap = -- TODO sortAndLimit collapse rupture
+  map firstKey $ nmapToList nmap
+  where firstKey (ks, v) = (fromMaybe PersistNull (headMay ks) , v)
+
 -- ** Plot
-chartProcessor :: ReportParam -> QPGroup2 -> Widget 
+chartProcessor :: ReportParam -> QPGroup -> Widget 
 chartProcessor param grouped = do
   -- addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
   -- done add report level to fix ajax issue.
-  let asList = sortAndLimitGroup (mconcat . map snd . concatMap toList) (rpPanelRupture param) grouped
-  forM_ (zip asList [1 :: Int ..]) $ \((panelName, group), i) -> do
+  let asList = nmapToNMapList grouped  -- sortAndLimitGroup (mconcat . map snd . concatMap toList) (rpPanelRupture param) grouped
+  forM_ (zip asList [1 :: Int ..]) $ \((panelName, nmap), i) -> do
      let plotId = "items-report-plot-" <> tshow i 
-         bySerie = fmap (groupAsMap (mkGrouper param (cpColumn $ rpSerie param) . fst) (:[])) group
-     panelChartProcessor param (fromMaybe "All" panelName) plotId (fmap QPGroup' bySerie)
+         -- bySerie = fmap (groupAsMap (mkGrouper param (cpColumn $ rpSerie param) . fst) (:[])) group
+     panelChartProcessor param (pvToText panelName) plotId nmap
         
   
-panelChartProcessor :: ReportParam -> Text -> Text -> QPGroup2 -> Widget 
+panelChartProcessor :: ReportParam -> Text -> Text -> QPGroup -> Widget 
 panelChartProcessor param name plotId0 grouped = do
-  let asList = sortAndLimitGroup (mconcat . map snd . concatMap toList) (rpBand param) grouped
+  let asList = nmapToNMapList grouped --  sortAndLimitGroup (mconcat . map snd . concatMap toList) (rpBand param) grouped
   let plots = forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
         do
-          let byColumn = fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) (unQPGroup' bands)
+          let -- byColumn = nmapToNMapList grouped -- fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) (unQPGroup' bands)
               traceParams = [(qtype, tparam )
                             | (TraceParams qtype tparams ) <- [rpTraceParam,  rpTraceParam2 , rpTraceParam3]
                                                                <*> [param]
                             , tparam <- getIdentified tparams
                             ]
-              plot = seriesChartProcessor (rpSerie param) (isNothing $ cpColumn $ rpSerie param) traceParams (fromMaybe "<All>" bandName) plotId byColumn 
+              plot = seriesChartProcessor (rpSerie param) (isNothing $ cpColumn $ rpSerie param) traceParams (pvToText bandName) plotId bands 
               plotId = plotId0 <> "-" <> tshow i
           [whamlet|
             <div id=#{plotId} style="height:#{tshow plotHeight }px">
                 ^{plot}
                   |]
-      numberOfBands = length grouped
+      numberOfBands = length asList
       plotHeight = max 200 (800 `div` numberOfBands)
   [whamlet|
       <div.panel.panel-info>
@@ -536,9 +536,9 @@ defaultColors = defaultPlottly where
               "#17becf"   -- blue-teal
              ]
 
-seriesChartProcessor :: ColumnRupture -> Bool -> [(QPType, TraceParam)]-> Text -> Text -> Map (Maybe Text) (Map (Maybe Text) TranQP) -> Widget 
+seriesChartProcessor :: ColumnRupture -> Bool -> [(QPType, TraceParam)]-> Text -> Text -> QPGroup  -> Widget 
 seriesChartProcessor rupture mono params name plotId grouped = do
-     let xsFor g = map (toJSON . fromMaybe "ALL" . fst) g
+     let xsFor g = map (toJSON . fst) g
          ysFor f g = map (toJSON . f . snd) g
          traceFor param ((name, g'), color,groupId) = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g) 
                                                     , ("y",  toJSON $ ysFor fn g)
@@ -549,8 +549,8 @@ seriesChartProcessor rupture mono params name plotId grouped = do
                                                     ]
                                                     -- <> maybe [] (\color -> [("color", String color)]) colorM
                                                     <> options color
-                                                    <> (if fromMaybe "" name == "" then [] else [("name", toJSON name)])
-                                                       where g'' = sortOn fst (Map.toList g')
+                                                    <> (if name == PersistNull then [] else [("name", toJSON name)])
+                                                       where g'' = [ (pvToText n, mconcat (toList nmap))  | (n, nmap) <- nmapToNMapList g' ] -- flatten everything if needed
                                                              g = case runsum of
                                                                  RunSum -> let (keys, tqs) = unzip g''
                                                                            in zip keys (scanl1 (<>) tqs)
@@ -562,7 +562,7 @@ seriesChartProcessor rupture mono params name plotId grouped = do
                        
                                                                     
          colorIds = zip (cycle defaultColors) [1::Int ..]
-         asList = sortAndLimit (mconcat .  toList) rupture  grouped
+         asList = nmapToNMapList grouped-- sortAndLimit (mconcat .  toList) rupture  grouped
          jsData = [ traceFor param (name'group, color :: Text, groupId :: Int)
                   | (param, pcId) <- zip params colorIds
                   , (name'group, gcId) <- zip asList colorIds
@@ -607,13 +607,13 @@ seriesChartProcessor rupture mono params name plotId grouped = do
 -- ** Csv
   
 itemToCsv param panelGrouperM colGrouper = do
-  let grouper =  groupTranQPs param panelGrouperM colGrouper
+  let grouper =  groupTranQPs param [panelGrouperM, colGrouper]
   -- no need to group, we display everything, including all category and columns
   cols <- getCols
   categories <- categoriesH
   grouped <- loadItemTransactions param grouper
-  let trans :: [(TranKey, TranQP)]
-      trans = foldMap concat $ fmap toList grouped
+  let -- trans :: [(TranKey, TranQP)]
+      trans = map snd $ nmapToList grouped
   let qpCols = [  "Sales Qty"
                ,  "Sales Amount"
                ,  "Sales Min Price"
@@ -631,13 +631,13 @@ itemToCsv param panelGrouperM colGrouper = do
       header = intercalate "," $ extraCols <> qpCols <> categories
 
       csvLines = header : do  -- []
-        (key, qp) <- trans
+        (qp) <- trans
         return $ intercalate "," (
-          [tshowM $ colFn col param key | col <- cols]
-            <> (qpToCsv Outward $ salesQPrice qp)
+          -- [pvToText $ colFn col param key | col <- cols]
+            (qpToCsv Outward $ salesQPrice qp)
             <> (qpToCsv Inward $ purchQPrice qp)
             <> (qpToCsv Inward $ adjQPrice qp)
-            <> (map (tshowM . flip Map.lookup (tkCategory key)) categories)
+            -- <> (map (tshowM . flip Map.lookup (tkCategory key)) categories)
                                  )
       source = yieldMany (map (<> "\n") csvLines)
   setAttachment  "items-report.csv"

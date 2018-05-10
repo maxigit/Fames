@@ -5,8 +5,12 @@
      - [X] One line for rupture
      - [X] sensible Default
    - [X] Replace supplier /customer with supplierCustmenr Either Int Int
-   - [ ] Make generic map level Map (Dynamic) (Either Map Value)
-     - [ ] with probably custom Dynamic type as key
+   - [-] Make generic map level Map (Dynamic) (Either Map Value)
+     - [X]  use serie
+     - [X] with probably custom Dynamic type as key
+     - [ ]  readd sorted and limit
+     - [ ] get date working as date not text
+     - [ ]  Remove semigroup constraints on NMap
    - [ ] load customer/supplier
 ** previous [2/4] 
    - [] sort/limit band/serie/panel

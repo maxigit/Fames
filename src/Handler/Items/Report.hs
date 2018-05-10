@@ -149,9 +149,13 @@ postItemsReportFor route mode = do
     FormSuccess param -> do
       let panel = cpColumn $ rpPanelRupture param
           band = cpColumn $ rpBand param
+          serie = cpColumn $ rpSerie param
+          col = rpColumnRupture param
+          grouper = [panel, band, serie, Just col]
       case readMay =<< actionM of
+
         Just ReportCsv -> do
-              result <- itemReport param panel band (fmap (fmap (summarize . map snd)))
+              result <- itemReport param grouper id --  (fmap (fmap (summarize . map snd)))
               let source = yieldMany (map (<> "\n") (toCsv param result))
               setAttachment . fromStrict $ "items-report-" <> (tshowM $ colName <$> (cpColumn $ rpPanelRupture param)) <> "-"
                                               <> (tshowM $ colName <$> (cpColumn $ rpBand param)) <> ".csv"
@@ -163,8 +167,7 @@ postItemsReportFor route mode = do
                     Just ReportTable -> tableProcessor
                     Just ReportChart -> chartProcessor param
                     _ -> tableProcessor
-              report <- itemReport param (cpColumn $ rpPanelRupture param)
-                                         (cpColumn $ rpBand param) processor
+              report <- itemReport param grouper processor
               renderReportForm route mode (Just param) ok200 (Just report)
 
 

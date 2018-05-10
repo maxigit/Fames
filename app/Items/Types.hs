@@ -14,6 +14,7 @@ import Data.IntMap.Strict (IntMap)
 import qualified Data.Map as Map
 import ModelField
 import qualified Data.Foldable as Foldable
+import Database.Persist.Types
 -- * General
 -- | Holder for miscellaneous information relative to an item.
 -- Allows mainly to call operation which need to group by style and or variations.
@@ -279,7 +280,7 @@ regroupQP keys tranQP = collapseQPs [(k, promoted )
 -- | Key to hold TranQP information
 data TranKey = TranKey
   { tkDay :: Day
-  , tkCustomerSupplier :: Maybe (Either (Int, Int) Int)
+  , tkCustomerSupplier :: Maybe (Either (Int64, Int64) Int64)
   , tkSku :: Text
   , tkStyle :: Maybe Text
   , tkVar :: Maybe Text
@@ -287,36 +288,93 @@ data TranKey = TranKey
   , tkType :: FATransType
   } deriving (Show, Eq, Ord)
 
-tkCustomer :: TranKey -> Maybe (Int, Int)
+tkCustomer :: TranKey -> Maybe (Int64, Int64)
 tkCustomer = (either Just (const Nothing)) <=< tkCustomerSupplier
-tkSupplier :: TranKey -> Maybe Int
+tkSupplier :: TranKey -> Maybe Int64
 tkSupplier = (either (const Nothing) Just) <=< tkCustomerSupplier
+
+-- * Nested Map with pseudo-heterogenous key
+-- we use here PersistValue as a Sum type containing
+-- the main basic types as well hav having an Ord instance
+-- This should be much more efficient than converting everything to Text
+type NMapKey = PersistValue
+data NMap a = NMap [Maybe Text] (Map NMapKey (NMap a))
+            | NLeaf a
+            deriving Show
+
+nmapToMap (NMap _ m) = m
+nmapToMap nmap@(NLeaf _) = Map.singleton PersistNull nmap
+
+nmapLevels (NMap levels _) = levels
+nmapLevels (NLeaf _) = []
+
+m,n :: NMap Text
+m = NMap [Just "level1"] (mapFromList [(PersistText "x", NLeaf "1")])
+n = NLeaf "a"
+
+instance Semigroup a=> Semigroup (NMap a) where
+  (NLeaf x) <> (NLeaf y) =  NLeaf (x <> y)
+  (NMap ls m) <> (NMap ls' m') = NMap (mergeLevels ls ls') (unionWith (<>) m m') where
+    mergeLevels ls ls' = take (max (length ls) (length ls')) $ zipWith mergeLevel (ls <> repeat Nothing) (ls' <> repeat Nothing)
+    mergeLevel Nothing l = l
+    mergeLevel l Nothing = l
+    mergeLevel (Just l) (Just l') | l == l' = Just l
+                    | otherwise = Just $ l <> "|" <> l'
+  n <> n' = NMap (nmapLevels n) (nmapToMap n) <> NMap (nmapLevels n') (nmapToMap n')
+
+instance Semigroup a => Monoid (NMap a) where
+  mappend = (<>)
+le  mempty = NMap [Nothing] mempty
+
+instance Functor NMap where
+  fmap f (NMap ls m) = NMap ls (fmap (fmap f) m)
+  fmap f (NLeaf x) = NLeaf (f x)
+
+-- Monotraversable
+type instance Element (NMap a) = a
+instance MonoFunctor (NMap a)
+instance MonoFoldable (NMap a)
+instance Foldable.Foldable NMap where
+  foldr f b (NMap _ m) = foldr (flip (foldr f) ) b m
+  foldr f b (NLeaf l) = f l b
+
+
+nmapToNMapList :: NMap a -> [(NMapKey, NMap a)]
+nmapToNMapList = Map.toList . nmapToMap
+
+nmapToList :: NMap a -> [([NMapKey], a)]
+nmapToList (NLeaf x) = [([], x)] 
+nmapToList (NMap _ m) = [ (key : subkeys, es)
+                      | (key, nmap) <- Map.toList m
+                      , (subkeys, es)<- nmapToList nmap
+                      ]
+  
 -- Group of transactions
 -- We don't use the normal Map, because it's monoid implementation is broken
 -- TODO rename to MonoidMap and move in utils
-newtype QPGroup' a = QPGroup' {unQPGroup' :: Map (Maybe Text) a}
+-- newtype QPGroup' a = QPGroup' {unQPGroup' :: Map (Maybe Text) a}
 
-type QPGroup =  QPGroup' [(TranKey, TranQP)]
-type QPGroup2 =  QPGroup' QPGroup
+type QPGroup = NMap TranQP
+-- type QPGroup2 =  QPGroup' QPGroup
 
-instance Semigroup a => Semigroup (QPGroup' a) where
-   (QPGroup' m1) <> (QPGroup' m2) = QPGroup' (unionWith (<>) m1 m2 )
+-- instance Semigroup a => Semigroup (QPGroup' a) where
+--    (QPGroup' m1) <> (QPGroup' m2) = QPGroup' (unionWith (<>) m1 m2 )
 
-instance (Monoid a, Semigroup a) => Monoid (QPGroup' a) where
-   mappend = (<>)
-   mempty = QPGroup' mempty
+-- instance (Monoid a, Semigroup a) => Monoid (QPGroup' a) where
+--    mappend = (<>)
+--    mempty = QPGroup' mempty
 
-instance Functor QPGroup' where
-  fmap f (QPGroup' m) = QPGroup' (fmap f m)
+-- instance Functor QPGroup' where
+--   fmap f (QPGroup' m) = QPGroup' (fmap f m)
 
-type instance Element (QPGroup' a) = a
-instance MonoFunctor (QPGroup' a) 
-instance MonoFoldable (QPGroup' a) 
-instance Foldable.Foldable QPGroup' where
-  foldr f b (QPGroup' m) = foldr f b m
--- instance Traversable (QPGroup' a) where
---   traverse f (QPGroup' m) = QPGroup' (foldMap m)
+-- type instance Element (QPGroup' a) = a
+-- instance MonoFunctor (QPGroup' a) 
+-- instance MonoFoldable (QPGroup' a) 
+-- instance Foldable.Foldable QPGroup' where
+--   foldr f b (QPGroup' m) = foldr f b m
+-- -- instance Traversable (QPGroup' a) where
+-- --   traverse f (QPGroup' m) = QPGroup' (foldMap m)
 
-qpGroupToList :: QPGroup' a -> [(Maybe Text, a)]
-qpGroupToList = Map.toList . unQPGroup'
+-- qpGroupToList :: QPGroup' a -> [(Maybe Text, a)]
+-- qpGroupToList = Map.toList . unQPGroup'
 
