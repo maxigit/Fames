@@ -1,6 +1,15 @@
 * TODO Chart
-** today [2/4] 
-   - [ ] sort/limit band/serie/panel
+** Today [0/4] 
+   - [ ] Update Form
+     This is important to speed up testing
+     - [ ] One line for rupture
+     - [ ] sensible Default
+   - [ ] Replace supplier /customer with supplierCustmenr Either Int Int
+   - [ ] Make generic map level Map (Dynamic) (Either Map Value)
+     - [ ] with probably custom Dynamic type as key
+   - [ ] load customer/supplier
+** previous [2/4] 
+   - [] sort/limit band/serie/panel
    - [ ] display margin in EVERY band as average (and or max)  (and possibly adjust all band the
    - [ ] style graph (line and marker) per field quantity, min-price etc ...
    - [X] setup two axes on for quantity and the other for amount (margin ?) (runsum q and runsum amount)
