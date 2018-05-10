@@ -279,8 +279,7 @@ regroupQP keys tranQP = collapseQPs [(k, promoted )
 -- | Key to hold TranQP information
 data TranKey = TranKey
   { tkDay :: Day
-  , tkCustomer :: Maybe Text
-  , tkSupplier :: Maybe Text
+  , tkCustomerSupplier :: Maybe (Either (Int, Int) Int)
   , tkSku :: Text
   , tkStyle :: Maybe Text
   , tkVar :: Maybe Text
@@ -288,6 +287,10 @@ data TranKey = TranKey
   , tkType :: FATransType
   } deriving (Show, Eq, Ord)
 
+tkCustomer :: TranKey -> Maybe (Int, Int)
+tkCustomer = (either Just (const Nothing)) <=< tkCustomerSupplier
+tkSupplier :: TranKey -> Maybe Int
+tkSupplier = (either (const Nothing) Just) <=< tkCustomerSupplier
 -- Group of transactions
 -- We don't use the normal Map, because it's monoid implementation is broken
 -- TODO rename to MonoidMap and move in utils

@@ -163,9 +163,9 @@ getColsWithDefault = do
             , Column "Sku" (const $ Just . tkSku)
             , Column "Date" (const $ Just . tshow . tkDay)
             , w52
-            , Column "Customer" (const tkCustomer)
-            , Column "Supplier" (const tkSupplier)
-            , Column "Supplier/Customer" (const (\t -> tkSupplier t <|> tkCustomer t))
+            , Column "Customer" (const $ fmap tshow . tkCustomer)
+            , Column "Supplier" (const $ fmap tshow . tkSupplier)
+            , Column "Supplier/Customer" (const $ fmap tshow . tkCustomerSupplier)
             , Column "TransactionType" (const $ Just . tshow . tkType)
             , Column "Sales/Purchase" (const tkType'')
             , Column "Invoice/Credit" (const tkType')
@@ -287,8 +287,8 @@ moveToTransInfo categories catFinder FA.StockMove{..} = (key,) <$> tqp where
                     | heading <- categories
                     , Just cat <- return $ catFinder heading stockMoveStockId
                     ]
-  key = TranKey stockMoveTranDate customer supplier  stockMoveStockId (Just style) (Just var) (mapFromList categorieValues) (toEnum stockMoveType)
-  (customer, supplier, tqp) =
+  key = TranKey stockMoveTranDate Nothing  stockMoveStockId (Just style) (Just var) (mapFromList categorieValues) (toEnum stockMoveType)
+  (_customer, _supplier, tqp) =
     -- case toEnum stockMoveType of
     -- ST_CUSTDELIVERY -> ( tshow <$> stockMovePersonId
     --                    , Nothing
@@ -317,13 +317,12 @@ moveToTransInfo categories catFinder FA.StockMove{..} = (key,) <$> tqp where
   -- price = stockMovePrice*(1-stockMoveDiscountPercent/100)
   
 -- ** Sales Details
-detailToTransInfo :: (Entity FA.DebtorTransDetail, Single Day, Single (Maybe Int), Single Int) -> (TranKey, TranQP)
+detailToTransInfo :: (Entity FA.DebtorTransDetail, Single Day, Single ({- Maybe -} Int), Single Int) -> (TranKey, TranQP)
 detailToTransInfo ( Entity _ FA.DebtorTransDetail{..}
                   , Single debtorTranTranDate
                   , Single debtorNo, Single branchCode)  = (key, tqp) where
   key = TranKey debtorTranTranDate
-                (Just $ tshow debtorNo <> "-" <> tshow branchCode   )
-                Nothing
+                (Just $ Left (debtorNo,  branchCode))
                 debtorTransDetailStockId Nothing Nothing  (mempty)
                 transType
   (tqp, transType) = case toEnum <$> debtorTransDetailDebtorTransType of
@@ -340,7 +339,7 @@ purchToTransInfo ( Entity _ FA.SuppInvoiceItem{..}
                   , Single suppTranRate
                   , Single supplierId) = (key, tqp) where
   suppTranType = fromMaybe (error "supplier transaction should have a ty B") suppInvoiceItemSuppTransType
-  key = TranKey suppTranTranDate Nothing (Just $ tshow supplierId)
+  key = TranKey suppTranTranDate (Just $ Right supplierId)
                 suppInvoiceItemStockId Nothing Nothing  (mempty)
                 (toEnum suppTranType)
                    
