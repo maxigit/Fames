@@ -46,6 +46,7 @@ module Handler.Util
 , categoriesH
 , Identifiable(..)
 , getIdentified
+, renderField
 ) where
 -- ** Import
 import Foundation
@@ -252,6 +253,22 @@ readUploadOrCacheUTF8  encoding fileInfoM keyM pathM = do
           return $ Just (ss, key, fileName fileInfo)
         (_,_,_) -> return Nothing
   
+-- ** Form builder
+renderField :: (MonadIO m, MonadBaseControl IO m, MonadThrow m)
+            => FieldView site
+            -> WidgetT site m ()
+renderField view = let
+  class_ = case fvRequired view of
+    False -> "optional" :: Text
+    True -> "required"
+  in [whamlet|
+<div .form-group#{class_}>
+  <label for=#{fvId view}> #{fvLabel view}
+  ^{fvInput view}
+  $maybe err <- fvErrors view
+    <div .errors>#{err}
+|]
+
 -- * Labels
 generateLabelsResponse ::
   Text

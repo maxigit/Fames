@@ -26,7 +26,7 @@ import Formatting
 import Formatting.Time
 import WH.Barcode
 import Data.List((!!))
-import Handler.Util(setAttachment, generateLabelsResponse)
+import Handler.Util(setAttachment, generateLabelsResponse, renderField)
 -- import Data.Streaming.Process (streamingProcess, proc, ClosedStream(..), waitForStreamingProcess)
 -- import System.IO.Temp (openTempFile)
 -- import System.Exit (ExitCode(..))
@@ -37,19 +37,6 @@ import qualified Data.Text.Lazy as LT
  
 barcodeFayWidget = return () --  $(fayFile "WH/Barcode")
 
-data ReqOpt = Optional | Required deriving (Eq, Read, Show)
-renderField ::
-  (MonadIO m, MonadBaseControl IO m, MonadThrow m)
-  => Text-> FieldView site -> ReqOpt -> WidgetT site m ()
-renderField label view fieldType = let
-  class_ = case fieldType of
-    Optional -> "optional" :: Text
-    Required -> "required"
-  in [whamlet|
-<div .form-group#{class_}>
-  <label for=#{fvLabel view}> #{label}
-  ^{fvInput view}
-|]
 withAngularApp :: Maybe Text -> Widget -> Widget
 withAngularApp modM widget = do
   case modM of
@@ -101,12 +88,12 @@ barcodeForm bparams date start extra = do
          <input class="template template-#{bi}" name="#{templateName}" type="radio" value="#{i}">
             #{btPath template} - #{btNbPerPage template}
 
-^{renderField "Start" startView Optional}
-^{renderField "Number" numberView Required}
+^{renderField startView}
+^{renderField numberView}
 <div .form-grouprequired<div .form-grouprequired>
   <label for=#{fvLabel dateView }> Date
   <input ##{fvId dateView} readonly="readonly" name="#{dateName}" type="date" value="#{maybe "" tshow date}">
-^{renderField "Only Data" onlyView Required}
+^{renderField onlyView}
 |]
 
       result = (,,,,,) <$> prefixRes

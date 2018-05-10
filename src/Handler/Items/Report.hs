@@ -11,6 +11,7 @@ import Import
 import Items.Types
 import Handler.Items.Reports.Common
 import Handler.Items.Common
+import Handler.Util
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,)
 import Text.Blaze.Html.Renderer.Text(renderHtml)
 import qualified Data.List as List
@@ -18,29 +19,31 @@ import qualified FA as FA
 
 
 -- * Form
-reportForm :: [Column] -> Maybe ReportParam -> _
-reportForm cols paramM = let
-  colOptions = [(colName c,c) | c <- cols]
-  form = ReportParam
-    <$> (aopt dayField "from" (Just $ rpFrom =<< paramM ))
-    <*> (aopt dayField "to" (Just $ rpTo =<< paramM))
-    <*> (aopt filterEField  "sku" (Just $ rpStockFilter =<< paramM))
-    <*> ruptureForm colOptions "Panel" (rpPanelRupture <$> paramM)
-    <*> ruptureForm colOptions "Band" (rpBand <$> paramM)
-    <*> ruptureForm colOptions "Series" (rpSerie <$> paramM)
-    <*> (areq (selectFieldList colOptions)  "column rupture" (rpColumnRupture <$> paramM) )
-    <*> traceForm "" (rpTraceParam <$> paramM)
-    <*> traceForm " 2" (rpTraceParam2 <$> paramM)
-    <*> traceForm " 3"(rpTraceParam3 <$> paramM)
-  in  renderBootstrap3 BootstrapBasicForm form
+reportForm :: [Column] -> Maybe ReportParam -> Html -> MForm Handler (FormResult ReportParam, Widget)
+reportForm cols paramM extra = do
+  let colOptions = [(colName c,c) | c <- cols]
+  (fFrom, vFrom) <- mopt dayField "from" (Just $ rpFrom =<< paramM )
+  (fTo, vTo) <- mopt dayField "to" (Just $ rpTo =<< paramM)
+  (fStockFilter, vStockFilter) <- mopt filterEField  "sku" (Just $ rpStockFilter =<< paramM)
+  (fPanel, wPanel) <- ruptureForm colOptions "Panel" (rpPanelRupture <$> paramM)
+  (fBand, wBand) <- ruptureForm colOptions "Band" (rpBand <$> paramM)
+  (fSerie, wSerie) <- ruptureForm colOptions "Series" (rpSerie <$> paramM)
+  (fColRupture, vColRupture) <- mreq (selectFieldList colOptions)  "column rupture" (rpColumnRupture <$> paramM) 
+  (fTrace1, wTrace1) <- traceForm "" (rpTraceParam <$> paramM)
+  (fTrace2, wTrace2) <- traceForm " 2" (rpTraceParam2 <$> paramM)
+  (fTrace3, wTrace3) <- traceForm " 3"(rpTraceParam3 <$> paramM)
+  let fields = [ Left vFrom, Left vTo, Left vStockFilter
+               , Right wPanel, Right wBand, Right wSerie
+               , Left vColRupture
+               , Right wTrace1, Right wTrace2, Right wTrace3]
+  let form = [whamlet|#{extra}|] >> mapM_ (either renderField id) fields
+      report = ReportParam <$> fFrom <*> fTo <*> fStockFilter <*> fPanel <*> fBand <*> fSerie
+                           <*> fColRupture <*> fTrace1 <*> fTrace2 <*> fTrace3
+  return (report, form)
  
-traceForm suffix p = TraceParams <$> (areq (selectField dataTypeOptions)
-                                            (fromString $ "data type" <> suffix)
-                                            (tpDataType <$> p) )
-                                  <*> (areq (selectFieldList dataValueOptions)
-                                            (fromString $ "data value" <> suffix)
-                                            (tpDataParams <$> p) )
-  where 
+traceForm :: String -> Maybe TraceParams -> MForm Handler (FormResult TraceParams, Widget)
+traceForm suffix p = do
+  let
     dataTypeOptions = optionsPairs [(drop 2 (tshow qtype), qtype) | qtype <- [minBound..maxBound]]
     dataValueOptions = map (\(t, tps'runsum) -> (t, Identifiable (t, (map TraceParam tps'runsum))))
                                     [ ("None" :: Text, [])
@@ -59,10 +62,24 @@ traceForm suffix p = TraceParams <$> (areq (selectField dataTypeOptions)
                                     , ("Max Price",       [(qpMaxPrice,       priceStyle, RSNormal)])
                                     , ("Price Band",          pricesStyle)
                                     ]
-ruptureForm colOptions suffix paramM = ColumnRupture
-    <$> (aopt (selectFieldList colOptions) (fromString suffix)  (cpColumn <$> paramM) )
-    <*> traceForm (" sort " <> suffix <> " by" ) (cpSortBy <$> paramM)
-    <*> (aopt intField " limit to" (Just $ cpLimitTo =<< paramM))
+  (tType, vType) <-  mreq (selectField dataTypeOptions)
+                           (fromString $ "data type" <> suffix)
+                           (tpDataType <$> p) 
+  (tParam, vParam) <- mreq (selectFieldList dataValueOptions)
+                                            (fromString $ "data value" <> suffix)
+                                            (tpDataParams <$> p) 
+  let form =  mapM_ renderField [vType, vParam]
+  return (TraceParams <$> tType <*> tParam, form )
+
+ruptureForm :: [(Text, Column)] -> String -> Maybe ColumnRupture -> MForm Handler (FormResult ColumnRupture, Widget)
+ruptureForm colOptions suffix paramM = do
+  (fColumn, vColumn) <- mopt (selectFieldList colOptions) (fromString suffix)  (cpColumn <$> paramM) 
+  (fSortBy, wSortBy) <- traceForm (" sort " <> suffix <> " by" ) (cpSortBy <$> paramM)
+  (fLimitTo, vLimitTo) <- mopt intField " limit to" (Just $ cpLimitTo =<< paramM)
+
+  let form = mapM_ (either renderField id) [Left vColumn, Right wSortBy, Left vLimitTo]
+  return (ColumnRupture <$> fColumn <*>  fSortBy <*> fLimitTo, form)
+  
 -- * Handler
 
 getItemsReportR :: Maybe ReportMode -> Handler TypedContent
