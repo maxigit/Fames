@@ -9,7 +9,9 @@
      - [X]  use serie
      - [X] with probably custom Dynamic type as key
      - [ ]  readd sorted and limit
-     - [ ] get date working as date not text
+     - [X] get date working as date not text
+     - [ ] move sliding year function to date calculator
+     - [ ] date `mod` year
      - [ ]  Remove semigroup constraints on NMap
    - [ ] load customer/supplier
 ** previous [2/4] 

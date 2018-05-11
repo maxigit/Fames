@@ -65,6 +65,9 @@ data DateCalculator
   | AddDays Int
   | NextDayOfWeek { weekDay :: DayOfWeek, weekCutoff:: DayOfWeek } -- day, cut off
   | AddMonths Int
+  | EndOfMonth 
+  | EndOfWeek { weekDay :: DayOfWeek}
+  | EndOfYear
   deriving (Show, Read, Eq, Ord)
 
 data DayOfWeek = Monday | Tuesday | Wednesday | Thursday | Friday | Saturday | Sunday

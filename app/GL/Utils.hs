@@ -1,7 +1,7 @@
 module GL.Utils where
 import ClassyPrelude
 import GL.Payroll.Settings
-import Data.Time.Calendar(addDays, addGregorianMonthsClip)
+import Data.Time.Calendar(addDays, addGregorianMonthsClip, gregorianMonthLength)
 
 -- * Date calculator
 calculateDate :: DateCalculator -> Day -> Day
@@ -29,6 +29,11 @@ calculateDate (NextDayOfWeek target cutoff) day = let
   in if offset <= cutoffOffset
      then addDays (fromIntegral $ offset + 7) day
      else addDays (fromIntegral $ offset) day
+calculateDate EndOfMonth day = let
+  (y, m, _) = toGregorian day
+  in fromGregorian y m (gregorianMonthLength y m)
+calculateDate (EndOfWeek target) day = nextWeekDay target day
+calculateDate EndOfYear day = fromGregorian year 12 31 where (year,_,_) = toGregorian day
 
 
 dayOfWeek :: Day -> DayOfWeek

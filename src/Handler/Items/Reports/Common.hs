@@ -12,6 +12,8 @@ import Data.List.NonEmpty (NonEmpty(..))
 import Data.List(cycle,scanl1,scanr1)
 import Database.Persist.MySQL(unSqlBackendKey, rawSql, Single(..))
 import Data.Aeson.QQ(aesonQQ)
+import GL.Utils(calculateDate)
+import GL.Payroll.Settings
 
 -- * Param
 data ReportParam = ReportParam
@@ -149,14 +151,15 @@ getColsWithDefault = do
 
   let style = Column "Style" (const $ maybe PersistNull PersistText . tkStyle)
       variation = Column "Variation" (const $ maybe PersistNull PersistText . tkVar)
-      w52 = Column "52W" (\p -> let day0 = addDays 1 $ fromMaybe today (rpTo p)
-                                 in PersistText . pack . slidingYearShow day0 . tkDay
+      w52 = Column "52W" (\p tk -> let day0 = addDays 1 $ fromMaybe today (rpTo p)
+                                       year = slidingYear day0 (tkDay tk)
+                                   in PersistDay $ fromGregorian year 1 1
                           )
       defaultBand =  style
       defaultSerie = variation
       defaultTime = mkDateColumn monthly -- w52
-      monthly =  ("Year-1-month", "%Y-%m-01")
-      mkDateColumn (name, format) = Column name (const $ PersistText . pack . formatTime defaultTimeLocale format . tkDay)
+      monthly =  ("End of Month", calculateDate EndOfMonth)
+      mkDateColumn (name, fn) = Column name (const $ PersistDay . fn . tkDay)
 
       cols = [ style
             , variation
@@ -172,14 +175,9 @@ getColsWithDefault = do
             , Column "Sales/Purchase" (const $ maybe PersistNull PersistText . tkType'')
             , Column "Invoice/Credit" (const $ maybe PersistNull PersistText . tkType')
             ]  <>
-            ( map mkDateColumn [ ("Year", "%Y")
-                               , ("Year-Month", "%Y-M%m")
+            ( map mkDateColumn [ ("End of Year", calculateDate EndOfYear)
+                               , ("End of Week", calculateDate (EndOfWeek Sunday))
                                , monthly
-                               , ("Month", "%M%m %B")
-                               , ("1-Month", "2001-%m-01")
-                               , ("1-Day", "2001-%m-%d")
-                               , ("Year-Week", "%Y-%m-W%W")
-                               , ("Week", "W%W")
                                ]
             ) <>
             [ Column ("Category:" <> cat) (\_ tk -> maybe PersistNull PersistText $ Map.lookup cat (tkCategory tk))
