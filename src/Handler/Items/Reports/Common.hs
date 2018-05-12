@@ -149,38 +149,39 @@ getColsWithDefault = do
   today <- utctDay <$> liftIO getCurrentTime
   categories <- categoriesH
 
-  let style = Column "Style" (const $ maybe PersistNull PersistText . tkStyle)
-      variation = Column "Variation" (const $ maybe PersistNull PersistText . tkVar)
+  let style = Column "Style" (const' $ maybe PersistNull PersistText . tkStyle)
+      variation = Column "Variation" (const' $ maybe PersistNull PersistText . tkVar)
       w52 = Column "52W" (\p tk -> let day0 = addDays 1 $ fromMaybe today (rpTo p)
                                        year = slidingYear day0 (tkDay tk)
-                                   in PersistDay $ fromGregorian year 1 1
+                                   in mkNMapKey . PersistDay $ fromGregorian year 1 1
                           )
       defaultBand =  style
       defaultSerie = variation
       defaultTime = mkDateColumn monthly -- w52
       monthly =  ("End of Month", calculateDate EndOfMonth)
-      mkDateColumn (name, fn) = Column name (const $ PersistDay . fn . tkDay)
+      mkDateColumn (name, fn) = Column name (const' $ PersistDay . fn . tkDay)
+      const' fn = const ( mkNMapKey . fn)
 
       cols = [ style
             , variation
-            , Column "Sku" (const $ PersistText . tkSku)
-            , Column "Date" (const $ PersistDay . tkDay)
+            , Column "Sku" (const' $ PersistText . tkSku)
+            , Column "Date" (const' $ PersistDay . tkDay)
             , w52
-            , Column "Customer" (const $ maybe PersistNull (PersistInt64. fst) . tkCustomer)
-            , Column "Supplier" (const $ maybe PersistNull  PersistInt64 . tkSupplier)
-            , Column "Supplier/Customer" (const $ maybe PersistNull (either (PersistInt64 . fst)
+            , Column "Customer" (const' $ maybe PersistNull (PersistInt64. fst) . tkCustomer)
+            , Column "Supplier" (const' $ maybe PersistNull  PersistInt64 . tkSupplier)
+            , Column "Supplier/Customer" (const' $ maybe PersistNull (either (PersistInt64 . fst)
                                                                              PersistInt64
                                                                     ). tkCustomerSupplier)
-            , Column "TransactionType" (const $ PersistInt64 . fromIntegral . fromEnum . tkType)
-            , Column "Sales/Purchase" (const $ maybe PersistNull PersistText . tkType'')
-            , Column "Invoice/Credit" (const $ maybe PersistNull PersistText . tkType')
+            , Column "TransactionType" (const' $ PersistInt64 . fromIntegral . fromEnum . tkType)
+            , Column "Sales/Purchase" (const' $ maybe PersistNull PersistText . tkType'')
+            , Column "Invoice/Credit" (const' $ maybe PersistNull PersistText . tkType')
             ]  <>
             ( map mkDateColumn [ ("End of Year", calculateDate EndOfYear)
                                , ("End of Week", calculateDate (EndOfWeek Sunday))
                                , monthly
                                ]
             ) <>
-            [ Column ("Category:" <> cat) (\_ tk -> maybe PersistNull PersistText $ Map.lookup cat (tkCategory tk))
+            [ Column ("Category:" <> cat) (const' $ \tk -> maybe PersistNull PersistText $ Map.lookup cat (tkCategory tk))
             | cat <- categories
             ]
   return (cols, (defaultBand, defaultSerie, defaultTime))
@@ -368,7 +369,7 @@ groupTranQPs param gs@(grouper:groupers) trans = let
 
 
 mkGrouper :: ReportParam -> Maybe Column -> TranKey -> NMapKey
-mkGrouper param = maybe (const PersistNull) (flip colFn param)
+mkGrouper param = maybe (const $ mkNMapKey PersistNull) (flip colFn param)
 
 pvToText :: PersistValue -> Text
 pvToText = either id id . fromPersistValueText
@@ -379,7 +380,7 @@ tableProcessor grouped =
     $forall (h1, group1) <- nmapToNMapList grouped
         <div.panel.panel-info>
           <div.panel-heading>
-            <h2>#{pvToText h1}
+            <h2>#{pvToText $ nkKey h1}
           <div.panel-body>
             <table.table.table-hover.table-striped>
               <tr>
@@ -403,7 +404,7 @@ tableProcessor grouped =
               $forall (keys, qp) <- nmapToList group1
                     <tr>
                       $forall key <- keys
-                        <td> #{pvToText key}
+                        <td> #{pvToText $ nkKey key}
                       ^{showQp Outward $ salesQPrice qp}
                       ^{showQp Inward $ purchQPrice qp}
                       ^{showQp Outward $ mconcat [salesQPrice qp , purchQPrice qp]}
@@ -456,29 +457,29 @@ toCsv param grouped' = let
                           ]
   in header : do
     (keys, qp) <- nmapToList grouped'
-    return $ intercalate "," $  ( map  pvToText keys )
+    return $ intercalate "," $  ( map  (pvToText . nkKey) keys )
                              <> (qpToCsv Outward $ salesQPrice qp)
                              <> (qpToCsv Inward $ purchQPrice qp)
                              <> (qpToCsv Inward $ adjQPrice qp)
 -- ** Sort and limit
-sortAndLimit :: (val -> TranQP) -> ColumnRupture -> Map key val -> [(key, val)]
-sortAndLimit collapse ColumnRupture{..} grouped = let
-  qtype = tpDataType cpSortBy
-  asList = Map.toList grouped
-  sorted = case getIdentified (tpDataParams cpSortBy) of
-     [] -> asList
-     (TraceParam (fn, _, _):_) -> let
-                    sortFn (key, val) =  fn <$> lookupGrouped qtype (collapse val)
-                    in sortOn sortFn asList
-  in maybe id take cpLimitTo sorted
+-- sortAndLimit :: (val -> TranQP) -> ColumnRupture -> Map key val -> [(key, val)]
+-- sortAndLimit collapse ColumnRupture{..} grouped = let
+--   qtype = tpDataType cpSortBy
+--   asList = Map.toList grouped
+--   sorted = case getIdentified (tpDataParams cpSortBy) of
+--      [] -> asList
+--      (TraceParam (fn, _, _):_) -> let
+--                     sortFn (key, val) =  fn <$> lookupGrouped qtype (collapse val)
+--                     in sortOn sortFn asList
+--   in maybe id take cpLimitTo sorted
 
-sortAndLimitGroup :: (val -> TranQP)
-                  -> ColumnRupture
-                  -> NMap val
-                  -> [(NMapKey, val)]
-sortAndLimitGroup  collapse  rupture nmap = -- TODO sortAndLimit collapse rupture
-  map firstKey $ nmapToList nmap
-  where firstKey (ks, v) = (fromMaybe PersistNull (headMay ks) , v)
+-- sortAndLimitGroup :: (val -> TranQP)
+--                   -> ColumnRupture
+--                   -> NMap val
+--                   -> [(NMapKey, val)]
+-- sortAndLimitGroup  collapse  rupture nmap = -- TODO sortAndLimit collapse rupture
+--   map firstKey $ nmapToList nmap
+--   where firstKey (ks, v) = (fromMaybe PersistNull (headMay ks) , v)
 
 -- ** Plot
 chartProcessor :: ReportParam -> QPGroup -> Widget 
@@ -489,7 +490,7 @@ chartProcessor param grouped = do
   forM_ (zip asList [1 :: Int ..]) $ \((panelName, nmap), i) -> do
      let plotId = "items-report-plot-" <> tshow i 
          -- bySerie = fmap (groupAsMap (mkGrouper param (cpColumn $ rpSerie param) . fst) (:[])) group
-     panelChartProcessor param (pvToText panelName) plotId nmap
+     panelChartProcessor param (pvToText $ nkKey panelName) plotId nmap
         
   
 panelChartProcessor :: ReportParam -> Text -> Text -> QPGroup -> Widget 
@@ -503,7 +504,7 @@ panelChartProcessor param name plotId0 grouped = do
                                                                <*> [param]
                             , tparam <- getIdentified tparams
                             ]
-              plot = seriesChartProcessor (rpSerie param) (isNothing $ cpColumn $ rpSerie param) traceParams (pvToText bandName) plotId bands 
+              plot = seriesChartProcessor (rpSerie param) (isNothing $ cpColumn $ rpSerie param) traceParams (pvToText $ nkKey bandName) plotId bands 
               plotId = plotId0 <> "-" <> tshow i
           [whamlet|
             <div id=#{plotId} style="height:#{tshow plotHeight }px">
@@ -538,7 +539,7 @@ seriesChartProcessor :: ColumnRupture -> Bool -> [(QPType, TraceParam)]-> Text -
 seriesChartProcessor rupture mono params name plotId grouped = do
      let xsFor g = map (toJSON . fst) g
          ysFor f g = map (toJSON . f . snd) g
-         traceFor param ((name, g'), color,groupId) = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g) 
+         traceFor param ((name', g'), color,groupId) = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g) 
                                                     , ("y",  toJSON $ ysFor fn g)
                                                     -- , ("name", toJSON name )
                                                     , ("connectgaps", toJSON False )
@@ -548,7 +549,7 @@ seriesChartProcessor rupture mono params name plotId grouped = do
                                                     -- <> maybe [] (\color -> [("color", String color)]) colorM
                                                     <> options color
                                                     <> (if name == PersistNull then [] else [("name", toJSON name)])
-                                                       where g'' = [ (pvToText n, mconcat (toList nmap))  | (n, nmap) <- nmapToNMapList g' ] -- flatten everything if needed
+                                                       where g'' = [ (pvToText $ nkKey n, mconcat (toList nmap))  | (n, nmap) <- nmapToNMapList g' ] -- flatten everything if needed
                                                              g = case runsum of
                                                                  RunSum -> let (keys, tqs) = unzip g''
                                                                            in zip keys (scanl1 (<>) tqs)
@@ -557,6 +558,8 @@ seriesChartProcessor rupture mono params name plotId grouped = do
                                                                  RSNormal -> g''
                                                              (qtype, TraceParam (valueFn, options, runsum)) = param
                                                              fn = fmap valueFn . lookupGrouped qtype
+                                                             name = nkKey name'
+                          
                        
                                                                     
          colorIds = zip (cycle defaultColors) [1::Int ..]

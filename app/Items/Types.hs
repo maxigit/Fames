@@ -296,21 +296,38 @@ tkSupplier = (either (const Nothing) Just) <=< tkCustomerSupplier
 -- * Nested Map with pseudo-heterogenous key
 -- we use here PersistValue as a Sum type containing
 -- the main basic types as well hav having an Ord instance
--- This should be much more efficient than converting everything to Text
-type NMapKey = PersistValue
+-- This should be much more efficient than converting everything to Text.
+-- The key holds an optional rank part, which allows to the Map to be sorted
+-- by something different from the actual key.
+data NMapKey = NMapKey { nkRank :: Maybe PersistValue
+                       , nkKey :: PersistValue
+                       } deriving (Eq, Ord, Show)
+
+mkNMapKey :: PersistValue -> NMapKey
+mkNMapKey v = NMapKey Nothing v
+
 data NMap a = NMap [Maybe Text] (Map NMapKey (NMap a))
             | NLeaf a
             deriving Show
 
+nmapToMap :: NMap a -> Map NMapKey (NMap a)
 nmapToMap (NMap _ m) = m
-nmapToMap nmap@(NLeaf _) = Map.singleton PersistNull nmap
+nmapToMap nmap@(NLeaf _) = Map.singleton (mkNMapKey PersistNull) nmap
 
+-- | Names of the different keys of a NMap
+nmapLevels :: NMap a -> [Maybe Text]
 nmapLevels (NMap levels _) = levels
 nmapLevels (NLeaf _) = []
 
-m,n :: NMap Text
-m = NMap [Just "level1"] (mapFromList [(PersistText "x", NLeaf "1")])
-n = NLeaf "a"
+nmapFromList :: Semigroup a => Maybe Text -> [(NMapKey, a)] -> NMap a
+nmapFromList level xs = NMap [level] $ Map.fromListWith (<>) (map (fmap NLeaf) xs)
+
+-- nmapFromNMaps :: Semigroup a => Maybe Text -> [(NMapKey, NMap a)] -> NMap a
+-- nmapFromNMaps level nmaps = NMap 
+
+-- m,n :: NMap Text
+-- m = NMap [Just "level1"] (mapFromList [(PersistText "x", NLeaf "1")])
+-- n = NLeaf "a"
 
 instance Semigroup a=> Semigroup (NMap a) where
   (NLeaf x) <> (NLeaf y) =  NLeaf (x <> y)
