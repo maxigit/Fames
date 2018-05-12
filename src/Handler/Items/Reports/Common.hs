@@ -28,7 +28,7 @@ data ReportParam = ReportParam
   , rpTraceParam :: TraceParams
   , rpTraceParam2 :: TraceParams
   , rpTraceParam3 :: TraceParams
-  }  --deriving Show
+  }  deriving Show
 paramToCriteria :: ReportParam -> [Filter FA.StockMove]
 paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
                                   (rpTo <&> (FA.StockMoveTranDate <=.)) ?:
@@ -39,14 +39,16 @@ data ColumnRupture = ColumnRupture
    { cpColumn :: Maybe Column
    , cpSortBy :: TraceParams
    , cpLimitTo :: Maybe Int
-   }
+   } deriving Show
 -- | Trace parameter for plotting 
 data TraceParams = TraceParams
   { tpDataType :: QPType
   , tpDataParams :: Identifiable [TraceParam]
-  } 
-newtype TraceParam = TraceParam ((QPrice -> Double), Text {- Color-} -> [(Text, Value)], RunSum )
-data RunSum = RunSum | RunSumBack | RSNormal
+  }  deriving Show
+newtype TraceParam = TraceParam ((QPrice -> Double), Text {- Color-} -> [(Text, Value)], RunSum ) 
+instance Show TraceParam where
+  show _ = "<trace param>"
+data RunSum = RunSum | RunSumBack | RSNormal deriving Show
 -- ** Default  style
 amountStyle color = [("type", String "scatter")
                     ,("name", String "Amount")
@@ -121,6 +123,8 @@ data Column = Column
 instance Eq Column where
   a == b = colName a == colName b
 
+instance Show Column where
+  show c = "Column " ++ show (colName c)
 -- Heterogenous type
 data ColumnValue = ColumnValue
   { cvHtml :: Html
@@ -349,13 +353,15 @@ purchToTransInfo ( Entity _ FA.SuppInvoiceItem{..}
 -- | Display sales and purchase of an item
 itemReport
   :: ReportParam
-     -> [Maybe Column]
+     -> [ColumnRupture]
      -> (QPGroup -> a )
      -> Handler a
 itemReport param cols processor = do
-  let grouper =  groupTranQPs param cols
+  let grouper =  groupTranQPs param ((map cpColumn cols))
   grouped <- loadItemTransactions param grouper
-  return $ processor grouped
+  -- ranke
+  let ranked = sortAndLimit cols grouped
+  return $ processor ranked
 
 groupTranQPs :: ReportParam
              -> [Maybe Column]
@@ -372,16 +378,18 @@ mkGrouper :: ReportParam -> Maybe Column -> TranKey -> NMapKey
 mkGrouper param = maybe (const $ mkNMapKey PersistNull) (flip colFn param)
 
 pvToText :: PersistValue -> Text
-pvToText = either id id . fromPersistValueText
+pvToText PersistNull = ""
+pvToText pv = either id id . fromPersistValueText $ pv
   
 tableProcessor :: QPGroup -> Widget 
 tableProcessor grouped = 
   [whamlet|
     $forall (h1, group1) <- nmapToNMapList grouped
         <div.panel.panel-info>
-          <div.panel-heading>
+         $with name <- pvToText $ nkKey h1
+          <div.panel-heading data-toggle="collapse" data-target="#report-panel-#{name}">
             <h2>#{pvToText $ nkKey h1}
-          <div.panel-body>
+          <div.panel-body.collapse.in id="report-panel-#{name}">
             <table.table.table-hover.table-striped>
               <tr>
                 $forall level <-  nmapLevels group1
@@ -432,7 +440,7 @@ tableProcessor grouped =
                                   |]
 
 
-summarize group = sconcat (q :| qp) where  (q:qp) = toList group
+summarize group = mconcat group --  sconcat (q :| qp) where  (q:qp) = toList group
 -- *** Csv
 qpToCsv io Nothing = ["", "", "", ""]
 qpToCsv io (Just qp) = [ tshow (qpQty io qp)
@@ -481,6 +489,44 @@ toCsv param grouped' = let
 --   map firstKey $ nmapToList nmap
 --   where firstKey (ks, v) = (fromMaybe PersistNull (headMay ks) , v)
 
+sortAndLimit :: [ColumnRupture] -> QPGroup -> QPGroup
+sortAndLimit _ leaf@(NLeaf _) = leaf
+sortAndLimit [] nmap = nmap
+sortAndLimit (r@ColumnRupture{..}:ruptures) n@(NMap levels m)
+  | cpColumn == Nothing = n
+  | otherwise = let
+  qtype = tpDataType cpSortBy 
+  -- use the sorting function to compute the rank
+  rankFn qp = case getIdentified (tpDataParams cpSortBy) of
+              [] -> Nothing
+              (TraceParam (fn, _, _):_) -> Just . PersistDouble  $ fromMaybe 0 $ fn <$> (lookupGrouped qtype qp)
+      
+  nmaps = sortOn fst [(NMapKey rank key, nmap)
+                     | (NMapKey _ key, nmap0) <- Map.toList m
+                     , let nmap = sortAndLimit ruptures nmap0
+                     , let rank = rankFn (mconcat $ map snd $  nmapToList nmap)
+                     ]
+
+  truncated = case cpLimitTo of
+    Nothing -> nmaps
+    Just n -> let (bests, residuals)  = splitAt n nmaps
+              -- replace value with actual rank
+              in bests
+                 <> case length residuals of
+                      0 -> []
+                      len -> let res = mconcat $ map snd $ residuals
+                                 rank = rankFn (mconcat $ map snd $ nmapToList res)
+                             in [( NMapKey rank (PersistText $ "Res(" <> tshow len <> ")" )
+                                 , res
+                                 )]
+
+  -- sort including residuals and rank
+  ranked = [ (NMapKey (Just  $ PersistInt64  $ rank) key, val)
+                 | ((NMapKey _ key, val), rank)  <- zip (sortOn fst truncated) [1..]
+                 ]
+  in NMap levels (Map.fromList ranked)
+
+  
 -- ** Plot
 chartProcessor :: ReportParam -> QPGroup -> Widget 
 chartProcessor param grouped = do
@@ -514,9 +560,9 @@ panelChartProcessor param name plotId0 grouped = do
       plotHeight = max 200 (800 `div` numberOfBands)
   [whamlet|
       <div.panel.panel-info>
-        <div.panel-heading>
+        <div.panel-heading data-toggle="collapse" data-target="#report-panel-#{name}">
           <h2>#{name}
-        <div.panel-body>
+        <div.panel-body.collapse.in id="report-panel-#{name}">
           ^{plots}
             |]
 

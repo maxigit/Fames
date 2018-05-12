@@ -147,11 +147,15 @@ postItemsReportFor route mode = do
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess param -> do
-      let panel = cpColumn $ rpPanelRupture param
-          band = cpColumn $ rpBand param
-          serie = cpColumn $ rpSerie param
+      let panel = rpPanelRupture param
+          band = rpBand param
+          serie = rpSerie param
           col = rpColumnRupture param
-          grouper = [panel, band, serie, Just col]
+          -- for table, the exact meaning of the rupture doesn't matter
+          tableGrouper = filter (isJust . cpColumn) [panel, band, serie]
+          grouper = [ panel, band, serie
+                    , ColumnRupture  (Just col) (TraceParams QPSummary (Identifiable ("Column", []))) Nothing
+                    ]
       case readMay =<< actionM of
 
         Just ReportCsv -> do
@@ -163,11 +167,9 @@ postItemsReportFor route mode = do
         Just ReportRaw -> do
              error "FIXME" -- itemToCsv param panel band
         _ -> do
-              let processor = case mode of
-                    Just ReportTable -> tableProcessor
-                    Just ReportChart -> chartProcessor param
-                    _ -> tableProcessor
-              report <- itemReport param grouper processor
+              report <- case mode of
+                    Just ReportChart -> itemReport param grouper (chartProcessor param)
+                    _ -> itemReport param tableGrouper tableProcessor
               renderReportForm route mode (Just param) ok200 (Just report)
 
 

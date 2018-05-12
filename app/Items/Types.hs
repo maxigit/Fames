@@ -341,7 +341,7 @@ instance Semigroup a=> Semigroup (NMap a) where
 
 instance Semigroup a => Monoid (NMap a) where
   mappend = (<>)
-le  mempty = NMap [Nothing] mempty
+  mempty = NMap [Nothing] mempty
 
 instance Functor NMap where
   fmap f (NMap ls m) = NMap ls (fmap (fmap f) m)
