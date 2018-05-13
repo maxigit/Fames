@@ -1,38 +1,41 @@
 * TODO Chart
-** Today [2/4] 
+** Today [0/5] 
+   - [ ] Finish margin
+     - [ ] add max, total and average  option to residual
+     - [ ]  fixes bug, showing an extra "level" when residual
+   - [ ] memoize TranQP virtual fieed
+   - [ ] add QPType as virtual field
+     - [ ] date `mod` year
+     - [ ]  Remove semigroup constraints on NMap
+     - [ ] load customer/supplier
+** previous [6/7] 
+   - [X] Make generic map level Map (Dynamic) (Either Map Value)
+     - [X]  use serie
+     - [X] with probably custom Dynamic type as key
+     - [X]  readd sorted and limit
+     - [X] get date working as date not text
+     - [X] move sliding year function to date calculator
    - [X] Update Form
      This is important to speed up testing
      - [X] One line for rupture
      - [X] sensible Default
    - [X] Replace supplier /customer with supplierCustmenr Either Int Int
-   - [-] Make generic map level Map (Dynamic) (Either Map Value)
-     - [X]  use serie
-     - [X] with probably custom Dynamic type as key
-     - [ ]  readd sorted and limit
-     - [X] get date working as date not text
-     - [ ] move sliding year function to date calculator
-     - [ ] date `mod` year
-     - [ ]  Remove semigroup constraints on NMap
-   - [ ] load customer/supplier
-** previous [2/4] 
-   - [] sort/limit band/serie/panel
    - [ ] display margin in EVERY band as average (and or max)  (and possibly adjust all band the
-   - [ ] style graph (line and marker) per field quantity, min-price etc ...
+   - [X] style graph (line and marker) per field quantity, min-price etc ...
    - [X] setup two axes on for quantity and the other for amount (margin ?) (runsum q and runsum amount)
    - [X]instead of having 2nd field-value : tick-them all and use the correct axis
    - [X] use same colour for 
-** tasks [2/9]
+** tasks [3/10]
   - [X] Regroup Customer/Supplier in one
   - [ ] Create table for categories and use it
   - [ ] display quantity and amount in graph tooltip
   - [ ] add global button (tab) to use bar, scatter etc ...
-  - [ ] add rank
+  - [X] add rank
   - [X] add running sum
   - [ ] perf 
     - are some Map strict (categorie ?) instead of being lazy
   - [ ] display margin (total)
     - add it as on of the value so it appears in a separate serie or band etc ...
-  - [ ] add QPType as virtual field
   - [ ] Add option to use TraceParam as panel/band instead of serie
   - csv pivot (use column rupture)
 * TODO Delete from item index

@@ -38,6 +38,7 @@ paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
 data ColumnRupture = ColumnRupture
    { cpColumn :: Maybe Column
    , cpSortBy :: TraceParams
+   , cpRankMode :: Maybe RankMode
    , cpLimitTo :: Maybe Int
    } deriving Show
 -- | Trace parameter for plotting 
@@ -49,6 +50,7 @@ newtype TraceParam = TraceParam ((QPrice -> Double), Text {- Color-} -> [(Text, 
 instance Show TraceParam where
   show _ = "<trace param>"
 data RunSum = RunSum | RunSumBack | RSNormal deriving Show
+data RankMode = IncludeRank | AsAverage deriving (Eq, Ord, Show, Enum, Bounded)
 -- ** Default  style
 amountStyle color = [("type", String "scatter")
                     ,("name", String "Amount")
@@ -513,11 +515,13 @@ sortAndLimit (r@ColumnRupture{..}:ruptures) n@(NMap levels m) = let
               in bests
                  <> case length residuals of
                       0 -> []
-                      len -> let res = mconcat $ map snd $ residuals
+                      len -> let res = sortAndLimit ruptures (mconcat $ map snd $ residuals)
                                  rank = rankFn (mconcat $ map snd $ nmapToList res)
-                             in [( NMapKey rank (PersistText $ "Res-" <> tshow len)
-                                 , sortAndLimit ruptures res
-                                 )]
+                                 rankKey prefix = NMapKey rank (PersistText $ prefix <> tshow len)
+                             in case cpRankMode of
+                                  Just IncludeRank -> [( rankKey "Res-" , res)]
+                                  Nothing ->  []
+                                  Just AsAverage -> [(rankKey "Res/", (fmap ) (mulTranQP (1/fromIntegral len)) res )]
 
   sortIf = id -- set to (sortOn fst) to include residuals in the sort and therefore rank it.
   ranked = [ (NMapKey (Just  $ PersistInt64  $ rank) key, val)

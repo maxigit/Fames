@@ -190,6 +190,9 @@ qpMaxPrice qp = m where (MinMax _ m ) = qpPrice qp
 
 
 
+mulQP :: Double -> QPrice  -> QPrice
+mulQP m (QPrice io qty amount price  ) =  QPrice io (qty*m) (amount*m) price
+
 -- | Change the in/ouward field and update other values accordingly
 qpTo :: InOutward -> QPrice -> QPrice
 qpTo io qp | io == qpIO qp = qp
@@ -263,6 +266,7 @@ promoteQPTo toType  (TranQP tranQP) =
     [] -> Nothing
     qs -> Just $ mconcat qs
 
+mulTranQP m (TranQP qmap) = TranQP (fmap (mulQP m) qmap)
 
 -- | Create a TranQP from list of QPType QPrice
 collapseQPs :: [(QPType, QPrice)] -> Maybe TranQP

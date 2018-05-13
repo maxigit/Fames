@@ -83,13 +83,17 @@ ruptureForm :: [(Text, Column)] -> String -> Maybe ColumnRupture -> MForm Handle
 ruptureForm colOptions title paramM = do
   (fColumn, vColumn) <- mopt (selectFieldList colOptions) (fromString title)  (cpColumn <$> paramM) 
   (fSortBy, wSortBy) <- traceForm ("" ) (cpSortBy <$> paramM)
+  (fRankMode, vRankMode) <- mopt (selectField optionsEnum) ("" ) (cpRankMode <$> paramM)
   (fLimitTo, vLimitTo) <- mopt intField "Limit To" (Just $ cpLimitTo =<< paramM)
 
-  let form = mapM_ (either renderField id) [Left vColumn, Right [whamlet|<div.form-group style="margin-bottom: 5px">
+  let form = mapM_ (either renderField id) [ Left vColumn
+                                           , Right [whamlet|<div.form-group style="margin-bottom: 5px">
                                                                              <label style="width:100%; text-align:center">Sort By
                                                                              <div.form-group>^{wSortBy}
-                                                                             |], Left vLimitTo]
-  return (ColumnRupture <$> fColumn <*>  fSortBy <*> fLimitTo, form)
+                                                                             |]
+                                           , Left vRankMode
+                                           , Left vLimitTo]
+  return (ColumnRupture <$> fColumn <*>  fSortBy <*> fRankMode <*> fLimitTo, form)
   
 -- * Handler
 
@@ -97,7 +101,7 @@ getItemsReportR :: Maybe ReportMode -> Handler TypedContent
 getItemsReportR mode = do
   today <- utctDay <$> liftIO getCurrentTime
   (_, (band, serie, timeColumn)) <- getColsWithDefault
-  let emptyRupture = ColumnRupture Nothing emptyTrace Nothing
+  let emptyRupture = ColumnRupture Nothing emptyTrace Nothing Nothing
       bestSales = TraceParams QPSales (mkIdentifialParam amountInOption)
       sales = TraceParams QPSales (mkIdentifialParam amountOutOption)
       emptyTrace = TraceParams QPSales (mkIdentifialParam noneOption)
@@ -109,8 +113,8 @@ getItemsReportR mode = do
                            Nothing --  rpTo :: Maybe Day
                            Nothing --  rpStockFilter :: Maybe FilterExpression
                            emptyRupture   -- rpPanelRupture :: ColumnRupture
-                           (ColumnRupture (Just band) bestSales (Just 20))--  rpBand :: ColumnRupture
-                           (ColumnRupture (Just serie) bestSales (Just 20))--  rpSerie :: ColumnRupture
+                           (ColumnRupture (Just band)  bestSales (Just AsAverage) (Just 20))--  rpBand :: ColumnRupture
+                           (ColumnRupture (Just serie)  bestSales (Just AsAverage) (Just 20))--  rpSerie :: ColumnRupture
                            timeColumn --  rpColumnRupture :: Column
                            sales --  rpTraceParam :: TraceParams
                            emptyTrace --  rpTraceParam2 :: TraceParams
@@ -119,8 +123,8 @@ getItemsReportR mode = do
                            (Just past) --  rpFrom :: Maybe Day
                            Nothing --  rpTo :: Maybe Day
                            Nothing --  rpStockFilter :: Maybe FilterExpression
-                           (ColumnRupture (Just band) bestSales (Just 20))--  rpBand :: ColumnRupture
-                           (ColumnRupture (Just serie) bestSales (Just 20))--  rpSerie :: ColumnRupture
+                           (ColumnRupture (Just band) bestSales (Just AsAverage) (Just 20))--  rpBand :: ColumnRupture
+                           (ColumnRupture (Just serie) bestSales (Just AsAverage)  (Just 20))--  rpSerie :: ColumnRupture
                            emptyRupture   -- rpPanelRupture :: ColumnRupture
                            timeColumn --  rpColumnRupture :: Column
                            sales --  rpTraceParam :: TraceParams
@@ -154,7 +158,7 @@ postItemsReportFor route mode = do
           -- for table, the exact meaning of the rupture doesn't matter
           tableGrouper = panel : filter (isJust . cpColumn) [band, serie]
           grouper = [ panel, band, serie
-                    , ColumnRupture  (Just col) (TraceParams QPSummary (Identifiable ("Column", []))) Nothing
+                    , ColumnRupture  (Just col) (TraceParams QPSummary (Identifiable ("Column", []))) Nothing Nothing
                     ]
       case readMay =<< actionM of
 
