@@ -152,7 +152,7 @@ postItemsReportFor route mode = do
           serie = rpSerie param
           col = rpColumnRupture param
           -- for table, the exact meaning of the rupture doesn't matter
-          tableGrouper = filter (isJust . cpColumn) [panel, band, serie]
+          tableGrouper = panel : filter (isJust . cpColumn) [band, serie]
           grouper = [ panel, band, serie
                     , ColumnRupture  (Just col) (TraceParams QPSummary (Identifiable ("Column", []))) Nothing
                     ]

@@ -520,9 +520,9 @@ sortAndLimit (r@ColumnRupture{..}:ruptures) n@(NMap levels m)
                                  , res
                                  )]
 
-  -- sort including residuals and rank
+  sortIf = id -- set to (sortOn fst) to include residuals in the sort and therefore rank it.
   ranked = [ (NMapKey (Just  $ PersistInt64  $ rank) key, val)
-                 | ((NMapKey _ key, val), rank)  <- zip (sortOn fst truncated) [1..]
+                 | ((NMapKey _ key, val), rank)  <- zip (sortIf truncated) [1..]
                  ]
   in NMap levels (Map.fromList ranked)
 
