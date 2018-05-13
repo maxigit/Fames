@@ -492,14 +492,13 @@ toCsv param grouped' = let
 sortAndLimit :: [ColumnRupture] -> QPGroup -> QPGroup
 sortAndLimit _ leaf@(NLeaf _) = leaf
 sortAndLimit [] nmap = nmap
-sortAndLimit (r@ColumnRupture{..}:ruptures) n@(NMap levels m)
-  | cpColumn == Nothing = n
-  | otherwise = let
+sortAndLimit (r@ColumnRupture{..}:ruptures) n@(NMap levels m) = let
   qtype = tpDataType cpSortBy 
   -- use the sorting function to compute the rank
-  rankFn qp = case getIdentified (tpDataParams cpSortBy) of
-              [] -> Nothing
-              (TraceParam (fn, _, _):_) -> Just . PersistDouble  $ fromMaybe 0 $ fn <$> (lookupGrouped qtype qp)
+  rankFn qp = case (getIdentified (tpDataParams cpSortBy), cpColumn) of
+              (_, Nothing) -> Nothing
+              ([], _) -> Nothing
+              ((TraceParam (fn, _, _):_), _) -> Just . PersistDouble  $ fromMaybe 0 $ fn <$> (lookupGrouped qtype qp)
       
   nmaps = sortOn fst [(NMapKey rank key, nmap)
                      | (NMapKey _ key, nmap0) <- Map.toList m
@@ -516,8 +515,8 @@ sortAndLimit (r@ColumnRupture{..}:ruptures) n@(NMap levels m)
                       0 -> []
                       len -> let res = mconcat $ map snd $ residuals
                                  rank = rankFn (mconcat $ map snd $ nmapToList res)
-                             in [( NMapKey rank (PersistText $ "Res(" <> tshow len <> ")" )
-                                 , res
+                             in [( NMapKey rank (PersistText $ "Res-" <> tshow len)
+                                 , sortAndLimit ruptures res
                                  )]
 
   sortIf = id -- set to (sortOn fst) to include residuals in the sort and therefore rank it.
