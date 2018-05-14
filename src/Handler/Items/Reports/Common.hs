@@ -50,7 +50,7 @@ newtype TraceParam = TraceParam ((QPrice -> Double), Text {- Color-} -> [(Text, 
 instance Show TraceParam where
   show _ = "<trace param>"
 data RunSum = RunSum | RunSumBack | RSNormal deriving Show
-data RankMode = IncludeRank | AsAverage deriving (Eq, Ord, Show, Enum, Bounded)
+data RankMode = RMResidual | RMResidualAvg | RMTop | RMTotal | RMAverage | RMBests | RMBestAvg | RMBestAndRes deriving (Eq, Ord, Show, Enum, Bounded)
 -- ** Default  style
 amountStyle color = [("type", String "scatter")
                     ,("name", String "Amount")
@@ -508,20 +508,27 @@ sortAndLimit (r@ColumnRupture{..}:ruptures) n@(NMap levels m) = let
                      , let rank = rankFn (mconcat $ map snd $  nmapToList nmap)
                      ]
 
-  truncated = case cpLimitTo of
+  truncated = case cpColumn *> cpLimitTo of
     Nothing -> nmaps
     Just n -> let (bests, residuals)  = splitAt n nmaps
               -- replace value with actual rank
-              in bests
-                 <> case length residuals of
-                      0 -> []
-                      len -> let res = sortAndLimit ruptures (mconcat $ map snd $ residuals)
-                                 rank = rankFn (mconcat $ map snd $ nmapToList res)
-                                 rankKey prefix = NMapKey rank (PersistText $ prefix <> tshow len)
-                             in case cpRankMode of
-                                  Just IncludeRank -> [( rankKey "Res-" , res)]
-                                  Nothing ->  []
-                                  Just AsAverage -> [(rankKey "Res/", (fmap ) (mulTranQP (1/fromIntegral len)) res )]
+                  resFor res = sortAndLimit ruptures (mconcat $ map snd $ res)
+                  resRank = rankFn (mconcat $ map snd $ nmapToList $ resFor residuals)
+                  rankKey rk prefix = NMapKey rk (PersistText prefix)
+                  forBests = [( rankKey  Nothing ("Best-" <> tshow (length bests)) ,  resFor bests)]
+                  forResiduals = [( rankKey resRank ("Res-" <> tshow (length residuals)) , resFor residuals)]
+                  average prefix nms = [( rankKey Nothing (prefix <> "-" <> tshow (length nms)) , fmap (mulTranQP  (1 / fromIntegral (length nms))) (resFor nms))]
+
+              in case cpRankMode of
+                                  Nothing ->  bests
+                                  Just RMResidual -> bests <> forResiduals
+                                  Just RMTotal -> bests <> [( rankKey Nothing "Total" , resFor nmaps)]
+                                  Just RMAverage -> bests <> average "Avg" nmaps
+                                  Just RMTop -> bests <> [( rankKey  Nothing "Top" ,  resFor [headEx bests])]
+                                  Just RMBests -> forBests
+                                  Just RMBestAvg -> bests <> average "AvgBest" bests
+                                  Just RMResidualAvg -> bests <> average "AvgRes" residuals
+                                  Just RMBestAndRes -> forBests <> forResiduals
 
   sortIf = id -- set to (sortOn fst) to include residuals in the sort and therefore rank it.
   ranked = [ (NMapKey (Just  $ PersistInt64  $ rank) key, val)
