@@ -515,11 +515,16 @@ sortAndLimit (r@ColumnRupture{..}:ruptures) n@(NMap levels m) = let
                   -- As we are reinserting the result with i
                   -- we need also to get rid of a level (the first ones.)
                   resFor :: [(NMapKey, QPGroup)] -> NMap TranQP
-                  -- resFor res = case sortAndLimit ruptures (mconcat $ map snd $ res) of
-                  --                NMap levels nm -> NMap (drop 1 levels) nm
-                  --                nm -> nm
-                  resFor res = let grouped = mconcat $ map snd $ concatMap nmapToList (map snd res)
-                               in NLeaf $ grouped
+                  resFor res =
+                               if length levels >1
+                               then
+                                 case sortAndLimit ruptures (mconcat $ map snd $ res) of
+                                 -- case mconcat [(qpgroup) | (k, qpgroup) <- res  ] of
+                                   NMap levels nm -> NMap (drop 0 levels) nm
+                                   nm -> nm
+                               else
+                                 let grouped = mconcat $ map snd $ concatMap nmapToList (map snd res)
+                                 in NLeaf $ grouped
                   resRank = rankFn (mconcat $ map snd $ nmapToList $ resFor residuals)
                   rankKey rk prefix = NMapKey rk (PersistText prefix)
                   forBests = [( rankKey  Nothing ("Best-" <> tshow (length bests)) ,  resFor bests)]
