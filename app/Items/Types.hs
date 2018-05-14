@@ -266,6 +266,7 @@ promoteQPTo toType  (TranQP tranQP) =
     [] -> Nothing
     qs -> Just $ mconcat qs
 
+mulTranQP :: Double -> TranQP -> TranQP
 mulTranQP m (TranQP qmap) = TranQP (fmap (mulQP m) qmap)
 
 -- | Create a TranQP from list of QPType QPrice
@@ -312,7 +313,7 @@ mkNMapKey v = NMapKey Nothing v
 
 data NMap a = NMap [Maybe Text] (Map NMapKey (NMap a))
             | NLeaf a
-            deriving Show
+            deriving (Show, Eq)
 
 nmapToMap :: NMap a -> Map NMapKey (NMap a)
 nmapToMap (NMap _ m) = m

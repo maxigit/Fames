@@ -20,29 +20,29 @@ pureSpec = do
           attrs = setFromList [fa, gl]
 
       it "doesn't authorize if missing roles" $ do
-        authorizeFromAttributes (RolePermission (setFromList [(fa, ReadRequest)])) attrs ReadRequest
+        authorizeFromAttributes (RolePermission (setFromList [(fa, ReadRequest, mempty)])) attrs ReadRequest
         `shouldBe` False
       it "from one role" $ do
-        authorizeFromAttributes (RolePermission (setFromList [(fa, ReadRequest)
-                                                             , (gl, ReadRequest)
+        authorizeFromAttributes (RolePermission (setFromList [(fa, ReadRequest, mempty)
+                                                             , (gl, ReadRequest, mempty)
                                                              ])) attrs ReadRequest
         `shouldBe` True
       it "from many roles" $ do
-        authorizeFromAttributes (RoleGroup [RolePermission (setFromList [(fa, ReadRequest)])
-                                           , RolePermission (setFromList [(gl, ReadRequest)])
+        authorizeFromAttributes (RoleGroup [RolePermission (setFromList [(fa, ReadRequest, mempty)])
+                                           , RolePermission (setFromList [(gl, ReadRequest, mempty)])
                                            ]) attrs ReadRequest
         `shouldBe` True
       it "authorizes Administrator" $ do
         authorizeFromAttributes Administrator attrs ReadRequest `shouldBe` True
 
       it "authorizes Read If Write" $ do
-        authorizeFromAttributes (RolePermission $ setFromList [(fa, WriteRequest)]) [fa] ReadRequest
+        authorizeFromAttributes (RolePermission $ setFromList [(fa, WriteRequest, mempty)]) [fa] ReadRequest
         `shouldBe` True
       it "authorizes Write If Write" $ do
-        authorizeFromAttributes (RolePermission $ setFromList [(fa, WriteRequest)]) [fa] WriteRequest
+        authorizeFromAttributes (RolePermission $ setFromList [(fa, WriteRequest, mempty)]) [fa] WriteRequest
         `shouldBe` True
       it "doesn't Write If Read" $ do
-        authorizeFromAttributes (RolePermission $ setFromList [(fa, ReadRequest)]) [fa] WriteRequest
+        authorizeFromAttributes (RolePermission $ setFromList [(fa, ReadRequest, mempty)]) [fa] WriteRequest
         `shouldBe` False
                                             
 
@@ -69,19 +69,19 @@ pureSpec = do
       "/fa/gl+" `shouldDecodeTo` RoleRoute "/fa/gl" WriteRequest
 
     it "decodes route attribute" $ do
-      "fa" `shouldDecodeTo` RolePermission [("fa", ReadRequest)]
+      "fa" `shouldDecodeTo` RolePermission [("fa", ReadRequest, mempty)]
     it "decodes route attributes" $ do
-      "fa gl" `shouldDecodeTo` RolePermission [("fa", ReadRequest), ("gl", ReadRequest)]
+      "fa gl" `shouldDecodeTo` RolePermission [("fa", ReadRequest, mempty), ("gl", ReadRequest, mempty)]
     it "decodes writable route attributes" $ do
-      "fa+ db gl+" `shouldDecodeTo` RolePermission [("fa", WriteRequest)
-                                                   , ("db", ReadRequest)
-                                                   , ("gl", WriteRequest)
+      "fa+ db gl+" `shouldDecodeTo` RolePermission [("fa", WriteRequest, mempty)
+                                                   , ("db", ReadRequest, mempty)
+                                                   , ("gl", WriteRequest, mempty)
                                                    ]
     it "decodes group" $ do
       [st|
 - fa gl
 - /web/admin+
-       |] `shouldDecodeTo` RoleGroup [ RolePermission [("fa", ReadRequest), ("gl", ReadRequest)]
+       |] `shouldDecodeTo` RoleGroup [ RolePermission [("fa", ReadRequest, mempty), ("gl", ReadRequest, mempty)]
                                      , RoleRoute "/web/admin" WriteRequest
                                      ]
   
@@ -91,7 +91,7 @@ pureSpec = do
 - &Web
   - /web+
   - /web/admin
-       |] `shouldDecodeTo` RoleGroup [ RolePermission [("fa", ReadRequest), ("gl", ReadRequest)]
+       |] `shouldDecodeTo` RoleGroup [ RolePermission [("fa", ReadRequest, mempty), ("gl", ReadRequest, mempty)]
                                      , RoleGroup [ RoleRoute "/web" WriteRequest
                                                  , RoleRoute "/web/admin" ReadRequest
                                                  ]

@@ -511,8 +511,15 @@ sortAndLimit (r@ColumnRupture{..}:ruptures) n@(NMap levels m) = let
   truncated = case cpColumn *> cpLimitTo of
     Nothing -> nmaps
     Just n -> let (bests, residuals)  = splitAt n nmaps
-              -- replace value with actual rank
-                  resFor res = sortAndLimit ruptures (mconcat $ map snd $ res)
+                  -- replace value with actual rank
+                  -- As we are reinserting the result with i
+                  -- we need also to get rid of a level (the first ones.)
+                  resFor :: [(NMapKey, QPGroup)] -> NMap TranQP
+                  -- resFor res = case sortAndLimit ruptures (mconcat $ map snd $ res) of
+                  --                NMap levels nm -> NMap (drop 1 levels) nm
+                  --                nm -> nm
+                  resFor res = let grouped = mconcat $ map snd $ concatMap nmapToList (map snd res)
+                               in NLeaf $ grouped
                   resRank = rankFn (mconcat $ map snd $ nmapToList $ resFor residuals)
                   rankKey rk prefix = NMapKey rk (PersistText prefix)
                   forBests = [( rankKey  Nothing ("Best-" <> tshow (length bests)) ,  resFor bests)]
