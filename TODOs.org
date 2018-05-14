@@ -1,12 +1,12 @@
 * TODO Chart
-** Today [0/3] 
-   - [ ] Finish margin
-     - [ ] add max, total and average  option to residual
+** Today [1/5] 
+   - [-] Finish margin
+     - [X] add max, total and average  option to residual
      - [ ]  fixes bug, showing an extra "level" when residual
-   - [ ] memoize TranQP virtual fieed
+   - [X] memoize TranQP virtual fieed
    - [ ] add QPType as virtual field
-     - [ ] date `mod` year
-     - [ ]  Remove semigroup constraints on NMap
+   - [ ] date `mod` year
+   - [ ]  Remove semigroup constraints on NMap
      - [ ] load customer/supplier
 ** previous [6/7] 
    - [X] Make generic map level Map (Dynamic) (Either Map Value)

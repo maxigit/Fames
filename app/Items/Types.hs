@@ -15,6 +15,7 @@ import qualified Data.Map as Map
 import ModelField
 import qualified Data.Foldable as Foldable
 import Database.Persist.Types
+import qualified Data.Map.Lazy as LMap
 -- * General
 -- | Holder for miscellaneous information relative to an item.
 -- Allows mainly to call operation which need to group by style and or variations.
@@ -214,20 +215,24 @@ data InOutward = Inward | Outward deriving (Show, Read, Eq, Ord, Enum, Bounded)
 -- | Type of transaction corresponding to a QPrice
 -- Types are actually not disjoint, and can be converted from one (sub)type to another one.
 -- | example Sales Credit -> Credit ,or Sales Credit to Sales
-data QPType = QPSales | QPPurchase | QPAdjstument | QPCredit | QPInvoice 
+data QPType = QPSales | QPPurchase | QPAdjustment | QPCredit | QPInvoice 
             | QPSalesInvoice | QPSalesCredit | QPPurchInvoice | QPPurchCredit
             | QPSummary
   deriving(Read, Show, Eq, Ord, Enum, Bounded)
 
 -- | Quantity price for a transaction, either sales or purchase
-newtype TranQP = TranQP (Map QPType  QPrice)
+-- A lazy map depending on the QPType.
+-- The same price can correspond to differnt QPTypes
+-- example Sales, Invoice, Summary
+-- the map is created at construction (but only calculated on demand)
+newtype TranQP = TranQP (LMap.Map QPType  QPrice)
  deriving (Ord, Eq)
 
 instance Show TranQP where
   show (TranQP tmap) = "TranQP (" <> show tmap <> ")"
 
 instance Semigroup TranQP where
-  (TranQP tqp) <> (TranQP tqp') = TranQP (unionWith (<>) tqp tqp')
+  (TranQP tqp) <> (TranQP tqp') = TranQP (LMap.unionWith (<>) tqp tqp')
   -- (TranQP s p a) <> (TranQP s' p' a') = TranQP (go s s') (go p p') (go a a') where
   --   go Nothing b = b
   --   go a Nothing = a
@@ -237,34 +242,26 @@ instance Monoid TranQP where
   mappend = (<>)
 -- type TranQP = Map QPType QPrice
 tranQP :: QPType -> QPrice -> TranQP
-tranQP qtype qp = TranQP (singletonMap qtype qp)
+tranQP qtype qp = let
+  qtypes = case qtype of
+                   QPSalesInvoice -> [QPSales, QPInvoice ]
+                   QPSalesCredit -> [QPSales, QPCredit]
+                   QPPurchInvoice -> [QPPurchase, QPInvoice]
+                   QPPurchCredit -> [QPPurchase, QPCredit]
+                   QPAdjustment -> [QPAdjustment]
+                   QPSummary -> [minBound..maxBound]
+                   _ -> error $ "Fix ME: creating with TranQP with " <> show qtype
+  in TranQP $ LMap.fromList (map (, qp) (qtype:QPSummary:qtypes))
+                   
 
 -- | Projection
-lookupGrouped qtype tranQP = do
-  TranQP tmap <- regroupQP [qtype] tranQP
-  lookup qtype tmap
+lookupGrouped qtype (TranQP tmap) = LMap.lookup qtype tmap
 
 salesQPrice = lookupGrouped QPSales
 purchQPrice = lookupGrouped QPPurchase
 summaryQPPrice = lookupGrouped QPPurchase
-adjQPrice = lookupGrouped QPAdjstument
+adjQPrice = lookupGrouped QPAdjustment
 
-
-promotable :: QPType -> QPType -> Bool
-promotable fromType toType = let
-  m = mapFromList [ (QPSales, [QPSalesCredit, QPSalesInvoice])
-                  , (QPPurchase, [QPPurchCredit, QPPurchInvoice])
-                  , (QPInvoice, [QPSalesInvoice, QPPurchInvoice])
-                  , (QPCredit, [QPSalesCredit, QPPurchInvoice])
-                  , (QPSummary, [minBound..maxBound])
-                  ]
-  in fromType `elem`  (toType: fromMaybe [] (Map.lookup toType m))
-  
-promoteQPTo :: QPType -> TranQP -> Maybe QPrice
-promoteQPTo toType  (TranQP tranQP) =
-  case [qp | (fromType, qp) <- Map.toList tranQP , promotable fromType toType ] of
-    [] -> Nothing
-    qs -> Just $ mconcat qs
 
 mulTranQP :: Double -> TranQP -> TranQP
 mulTranQP m (TranQP qmap) = TranQP (fmap (mulQP m) qmap)
@@ -274,13 +271,6 @@ collapseQPs :: [(QPType, QPrice)] -> Maybe TranQP
 collapseQPs [] = Nothing
 collapseQPs tqs = Just . mconcat $ map (uncurry tranQP) tqs
   
--- | Regroup a TranQP map to the given key )
-regroupQP :: [QPType] -> TranQP -> Maybe TranQP
-regroupQP keys tranQP = collapseQPs [(k, promoted )
-                                     | k <- keys
-                                     , Just promoted <- return $ promoteQPTo k tranQP -- filter Nothing
-                                     ]
-
 
 -- | Key to hold TranQP information
 data TranKey = TranKey
