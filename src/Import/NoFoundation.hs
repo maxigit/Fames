@@ -17,6 +17,7 @@ module Import.NoFoundation
     , formatQuantity
     , showTransType
     , decodeHtmlEntities
+    , groupAsMap
     ) where
 
 import ClassyPrelude.Yesod as Import
@@ -31,6 +32,7 @@ import Yesod.Core.Types as Import (loggerSet)
 import Yesod.Default.Config2 as Import
 import Text.Blaze.Html (Markup)
 import qualified Text.HTML.TagSoup as TS
+import qualified Data.Map as Map
 
 
 import Text.Printf(printf)
@@ -129,3 +131,7 @@ showTransType ST_DIMENSION = "Dimensions"
 -- * Html 
 decodeHtmlEntities :: Text -> Text
 decodeHtmlEntities s = TS.fromTagText $ headEx $ TS.parseTags s
+  
+-- * Util
+groupAsMap :: (Semigroup a, Ord k) => (t -> k) -> (t -> a) -> [t] -> Map k a
+groupAsMap key f xs = Map.fromListWith (<>) [(key x, f x ) | x <- xs]

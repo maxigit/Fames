@@ -16,6 +16,8 @@ import ModelField
 import qualified Data.Foldable as Foldable
 import Database.Persist.Types
 import qualified Data.Map.Lazy as LMap
+import Import.NoFoundation
+
 -- * General
 -- | Holder for miscellaneous information relative to an item.
 -- Allows mainly to call operation which need to group by style and or variations.
@@ -317,6 +319,13 @@ nmapLevels (NLeaf _) = []
 nmapFromList :: Semigroup a => Maybe Text -> [(NMapKey, a)] -> NMap a
 nmapFromList level xs = NMap [level] $ Map.fromListWith (<>) (map (fmap NLeaf) xs)
 
+groupAsNMap :: Monoid v => [(Maybe Text, k -> NMapKey)] -> [(k, v)] -> NMap v
+groupAsNMap [] trans  = NLeaf (mconcat $ map snd trans)
+groupAsNMap gs@((_level, grouper):groupers) trans = let
+  grouped = groupAsMap (grouper . fst) (:[]) trans
+  m = fmap (groupAsNMap groupers) grouped
+  in NMap (map fst gs) m
+ 
 -- nmapFromNMaps :: Semigroup a => Maybe Text -> [(NMapKey, NMap a)] -> NMap a
 -- nmapFromNMaps level nmaps = NMap 
 

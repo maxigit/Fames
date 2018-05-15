@@ -369,11 +369,11 @@ groupTranQPs :: ReportParam
              -> [Maybe Column]
              -> [(TranKey, TranQP)]
              -> QPGroup
-groupTranQPs param [] trans = NLeaf (mconcat $ map snd trans)
-groupTranQPs param gs@(grouper:groupers) trans = let
-  grouped = groupAsMap (mkGrouper param grouper . fst) (:[]) trans
-  m = fmap (groupTranQPs param groupers) grouped
-  in NMap (map (fmap colName) gs) m
+groupTranQPs param columns trans = let
+  go column =  (colName <$> column -- level name
+               , mkGrouper param (column) -- TranKey -> NMap Key
+               )
+  in groupAsNMap (map go columns) trans
 
 
 mkGrouper :: ReportParam -> Maybe Column -> TranKey -> NMapKey
@@ -722,6 +722,4 @@ itemToCsv param panelGrouperM colGrouper = do
 
 -- ** Utils
 -- splitToGroups :: (a -> k) -> (a -> a') ->   [(a,b)] -> [(k, (a',b))]
-groupAsMap :: (Semigroup a, Ord k) => (t -> k) -> (t -> a) -> [t] -> Map k a
-groupAsMap key f xs = Map.fromListWith (<>) [(key x, f x ) | x <- xs]
 
