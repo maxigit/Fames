@@ -616,7 +616,7 @@ seriesChartProcessor rupture mono params name plotId grouped = do
                                                     ]
                                                     -- <> maybe [] (\color -> [("color", String color)]) colorM
                                                     <> options color
-                                                    <> (if name == PersistNull then [] else [("name", toJSON name)])
+                                                    <> (if name == PersistNull then [] else [("name", toJSON $ pvToText name)])
                                                        where g'' = [ (pvToText $ nkKey n, mconcat (toList nmap))  | (n, nmap) <- nmapToNMapList g' ] -- flatten everything if needed
                                                              g = case runsum of
                                                                  RunSum -> let (keys, tqs) = unzip g''
