@@ -386,17 +386,22 @@ aggregateResiduals title key'nmaps = ( NMapKey Nothing (PersistText $ title <> "
 
 instance Semigroup a=> Semigroup (NMap a) where
   (NLeaf x) <> (NLeaf y) =  NLeaf (x <> y)
-  (NMap ls m) <> (NMap ls' m') = NMap (mergeLevels ls ls') (unionWith (<>) m m') where
+  (NMap ls m) <> (NMap ls' m') = normalizeNMap $ NMap (mergeLevels ls ls') (unionWith (<>) m m') where
     mergeLevels ls ls' = take (max (length ls) (length ls')) $ zipWith mergeLevel (ls <> repeat Nothing) (ls' <> repeat Nothing)
     mergeLevel Nothing l = l
     mergeLevel l Nothing = l
     mergeLevel (Just l) (Just l') | l == l' = Just l
                     | otherwise = Just $ l <> "|" <> l'
-  n <> n' = NMap (nmapLevels n) (nmapToMap n) <> NMap (nmapLevels n') (nmapToMap n')
+  n <> n' = normalizeNMap $ NMap (nmapLevels n) (nmapToMap n) <> NMap (nmapLevels n') (nmapToMap n')
+
+normalizeNMap n@(NMap [] m) = case Map.toList m of
+  [(_,  n')] -> normalizeNMap n'
+  _ -> n
+normalizeNMap n = n 
 
 instance Semigroup a => Monoid (NMap a) where
   mappend = (<>)
-  mempty = NMap [Nothing] mempty
+  mempty = NMap [] mempty
 
 instance Functor NMap where
   fmap f (NMap ls m) = NMap ls (fmap (fmap f) m)
