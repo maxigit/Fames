@@ -58,14 +58,14 @@ spec = describe "@Payroll" $ do
             token "2.3^1.5" `shouldBe` (Right $ DeductionAndCostT (Just 2.3) (Just 1.5))
     describe "#Parsing" $ do
         it "one shift per line"  $ do
-            let content = "\
-                          \2015/06/01\n\
-                          \$10\n\
-                          \Alice #1\n\
-                          \1\n\
-                          \2\n\
-                          \3\n\
-                          \"
+            let content = unlines
+                          [ "2015/06/01"
+                          , "$10"
+                          , "Alice #1"
+                          , "1"
+                          , "2"
+                          , "3"
+                          ]
 
                 expected = Right $ Timesheet ss day0 Weekly []
                 ss = [
@@ -79,12 +79,12 @@ spec = describe "@Payroll" $ do
             parseFastTimesheet (lines content)
                 `shouldBe` expected
         it "all shift in one line"  $ do
-            let content = "\
-\2015/06/01\n\
-\$10\n\
-\Alice #1\n\
-\Alice 1 2 3\n\
-\"
+            let content = unlines
+                            [ "2015/06/01"
+                            , "$10"
+                            , "Alice #1"
+                            , "Alice 1 2 3"
+                            ]
 
                 expected = Right $Timesheet ss day0 Weekly []
                 ss = [
@@ -98,27 +98,26 @@ spec = describe "@Payroll" $ do
             parseFastTimesheet (lines content)
                 `shouldBe` expected
         it "parses deduction and costs"  $ do
-            let content = "\
-\2015/06/01\n\
-\$10\n\
-\Alice #1\n\
-\Alice\n\
-\@PAYE ^5\n\
-\@Pension 1.5^1.87\n\
-\"
+            let content = unlines
+                            [ "2015/06/01"
+                            , "$10"
+                            , "Alice #1"
+                            , "Alice"
+                            , "@PAYE ^5"
+                            , "@Pension 1.5^1.87"
+                            ]
                 expected = Right $Timesheet [] day0 Weekly [ DeductionAndCost ("PAYE", alice) (That 5)
                                                            , DeductionAndCost ("Pension", alice) (These 1.5 1.87)
                                                            ]
             parseFastTimesheet (lines content)
                 `shouldBe` expected
         it "parses half multiplier"  $ do
-            let content = "\
-\2015/06/01\n\
-\$10\n\
-\Alice #1\n\
-\Alice\n\
-\2.5x8|!4\n\
-\"
+            let content = unlines [ "2015/06/01"
+                                  , "$10"
+                                  , "Alice #1"
+                                  , "Alice"
+                                  , "2.5x8|!4"
+                                  ]
                 ss = [ Shift (alice, makeDay 0, Work) Nothing 8 80 
                      , Shift (alice, makeDay 1, Work) Nothing 8 80
                      , Shift (alice, makeDay 2, Work) Nothing 4 40
