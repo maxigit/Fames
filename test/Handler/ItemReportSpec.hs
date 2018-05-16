@@ -306,6 +306,73 @@ pureSpec = describe "@Report @parallel @pure" $ do
 
                 [])
     context "#residuals" $ do
+      it "group the last level without creating an extar NMap level " $ do
+        sortAndLimit' [("Blue Shirt 1-Jan", 2, 7)] [Nothing, Nothing, Just (salesAmount, Just RMResidual, Just 0)] `shouldLookLike`  [("Blue Shirt Last-1", 2, 7)]
+      it "group first level but keep children " $ do
+        -- first blue say unchanged
+        -- everything else is aggregated but separated by color and period
+
+        sortAndLimit' trans [Just (salesAmount, Just RMResidual, Just 1)] `shouldLookLike` 
+              (
+                 ("Blue Cap 1-Jan", 35,420):
+                 ("Blue Cap 2-Feb", 28, 326):
+                 ("Blue Cap 3-Mar", 15, 150):
+                 ("Blue Shirt 1-Jan", 1, 3):
+                 ("Blue Shirt 2-Feb", 5, 15):
+                 ("Blue Shirt 3-Mar", 15, 45):
+
+                 ("Last-2 Cap 1-Jan", 3,36):
+                 ("Last-2 Cap 2-Feb", 8, 96):
+                 ("Last-2 Cap 3-Mar", 5, 50):
+
+                 ("Last-2 Dress 1-Jan", 2,15):
+                 ("Last-2 Dress 2-Feb", 8, 56):
+                 ("Last-2 Dress 3-Mar", 25, 175):
+
+                 ("Last-2 Shirt 1-Jan", 10, 25):
+                 ("Last-2 Shirt 2-Feb", 2, 5):
+                 ("Last-2 Shirt 3-Mar", 6, 18):
+
+
+                 []
+              )
+
+      it "group the snd level of residuals keeping third level" $ do
+        sortAndLimit' trans [Nothing, Just (salesAmount, Just RMResidual, Just 0)] `shouldLookLike` 
+                (
+                 -- ("Blue Cap 1-Jan", 35,420):
+                 -- ("Blue Shirt 1-Jan", 1, 3):
+                 ("Blue Last-2 1-Jan", 36, 423):
+
+                 -- ("Blue Cap 2-Feb", 28, 326):
+                 -- ("Blue Shirt 2-Feb", 5, 15):
+                 ("Blue Last-2 2-Feb", 33, 341):
+
+                 -- ("Blue Cap 3-Mar", 15, 150):
+                 -- ("Blue Shirt 3-Mar", 15, 45):
+                 ("Blue Last-2 3-Mar", 30, 195):
+
+                 -- ("Red Shirt 1-Jan", 10, 25):
+                 ("Red Last-1 1-Jan", 10, 25):
+                 -- ("Red Shirt 2-Feb", 2, 5):
+                 ("Red Last-1 2-Feb", 2, 5):
+                 -- ("Red Shirt 3-Mar", 6, 18):
+                 ("Red Last-1 3-Mar", 6, 18):
+
+
+                 -- ("White Dress 1-Jan", 2,15):
+                 -- ("White Cap 1-Jan", 3,36):
+                 ("White Last-2 1-Jan", 5,51):
+
+                 -- ("White Cap 2-Feb", 8, 96):
+                 -- ("White Dress 2-Feb", 8, 56):
+                 ("White Last-2 2-Feb", 16, 152):
+
+                 -- ("White Dress 3-Mar", 25, 175):
+                 -- ("White Cap 3-Mar", 5, 50):
+                 ("White Last-2 3-Mar", 30, 225):
+
+                [])
       it "group the last level of residuals as one" $ do
         sortAndLimit' trans [Nothing, Nothing, Just (salesAmount, Just RMResidual, Just 1)] `shouldLookLike` 
                 (
@@ -335,6 +402,48 @@ pureSpec = describe "@Report @parallel @pure" $ do
                  ("White Dress Last-2", 10, 71):
 
                 [])
+      it "group all level last level of residuals " $ do
+        {- first group is Blue and everything else
+                 ("Blue Cap 1-Jan", 35,420):
+                 ("Blue Cap 2-Feb", 28, 326):
+                 ("Blue Cap 3-Mar", 15, 150):
+                 ("Blue Cap Last-2", 43,476):
+
+                 ("Blue Shirt 3-Mar", 15, 45):
+                 ("Blue Shirt 1-Jan", 1, 3):
+                 ("Blue Shirt 2-Feb", 5, 15):
+                 ("Blue Shirt Last-2", 6, 18):
+
+
+                 ("Red Shirt 1-Jan", 10, 25):
+                 ("Red Shirt 2-Feb", 2, 5):
+                 ("Red Shirt 3-Mar", 6, 18):
+                 ("Red Shirt Last-2", 8, 23):
+
+
+                 ("White Cap 2-Feb", 8, 96):
+                 ("White Cap 1-Jan", 3,36):
+                 ("White Cap 3-Mar", 5, 50):
+                 ("White Cap Last-2", 8, 86):
+                 ("White Dress 3-Mar", 25, 175):
+                 ("White Dress 1-Jan", 2,15):
+                 ("White Dress 2-Feb", 8, 56):
+                 ("White Dress Last-2", 10, 71):
+          -}
+        sortAndLimit' trans (replicate 3 (Just (salesAmount, Just RMResidual, Just 1))) `shouldLookLike` 
+                (
+                 ("Blue Cap 1-Jan",35.0,420.0):
+                 ("Blue Cap Last-2",43.0,476.0):
+                 ---------------------
+                 ("Blue Last-1 3-Mar",15.0,45.0):
+                 ("Blue Last-1 Last-2",6.0,18.0):
+
+                 ("Last-2 Dress 3-Mar",25.0,175.0):
+                 ("Last-2 Dress Last-2",10.0,71.0):
+                 ---------------
+                 ("Last-2 Last-2 2-Feb",10.0,101.0):
+                 ("Last-2 Last-2 Last-2",24.0,129.0):
+                 [])
 
 
     
