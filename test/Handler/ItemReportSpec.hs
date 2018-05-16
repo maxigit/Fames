@@ -116,8 +116,8 @@ pureSpec = describe "@Report @parallel @pure" $ do
                 , ("Blue Shirt 2-Feb", 5, 15)
                 , ("Blue Shirt 3-Mar", 15, 45)
                     
-                , ("Blue Cap 1-Jan", 35,35*12)
-                , ("Blue Cap 2-Feb", 28, 28*12)
+                , ("Blue Cap 1-Jan", 35,420)
+                , ("Blue Cap 2-Feb", 28, 326)
                 , ("Blue Cap 3-Mar", 15, 150)
                     
                 , ("White Cap 1-Jan", 3,36)
@@ -133,8 +133,8 @@ pureSpec = describe "@Report @parallel @pure" $ do
     it "should keep original (map) order' if there is nothing to" $ do
       sortAndLimit' trans ([] :: [EmptySort]) `shouldLookLike` 
                 (
-                 ("Blue Cap 1-Jan", 35,35*12):
-                 ("Blue Cap 2-Feb", 28, 28*12):
+                 ("Blue Cap 1-Jan", 35,420):
+                 ("Blue Cap 2-Feb", 28, 326):
                  ("Blue Cap 3-Mar", 15, 150):
                  ("Blue Shirt 1-Jan", 1, 3):
                  ("Blue Shirt 2-Feb", 5, 15):
@@ -157,8 +157,8 @@ pureSpec = describe "@Report @parallel @pure" $ do
     it "doesn't do anything if there is nothing to" $ do
       sortAndLimit' trans [Nothing :: EmptySort, Nothing] `shouldLookLike` 
                 (
-                 ("Blue Cap 1-Jan", 35,35*12):
-                 ("Blue Cap 2-Feb", 28, 28*12):
+                 ("Blue Cap 1-Jan", 35,420):
+                 ("Blue Cap 2-Feb", 28, 326):
                  ("Blue Cap 3-Mar", 15, 150):
                  ("Blue Shirt 1-Jan", 1, 3):
                  ("Blue Shirt 2-Feb", 5, 15):
@@ -180,8 +180,8 @@ pureSpec = describe "@Report @parallel @pure" $ do
     it "limits the first level - ie two first colours" $ do
       sortAndLimit' trans [Just (id . const , Nothing, Just 2 )] `shouldLookLike` 
                 (
-                 ("Blue Cap 1-Jan", 35,35*12):
-                 ("Blue Cap 2-Feb", 28, 28*12):
+                 ("Blue Cap 1-Jan", 35,420):
+                 ("Blue Cap 2-Feb", 28, 326):
                  ("Blue Cap 3-Mar", 15, 150):
                  ("Blue Shirt 1-Jan", 1, 3):
                  ("Blue Shirt 2-Feb", 5, 15):
@@ -203,8 +203,8 @@ pureSpec = describe "@Report @parallel @pure" $ do
     it "limits the second level - ie the first style" $ do
       sortAndLimit' trans [Nothing, Just (id . const, Nothing, Just 1 )] `shouldLookLike` 
                 (
-                 ("Blue Cap 1-Jan", 35,35*12):
-                 ("Blue Cap 2-Feb", 28, 28*12):
+                 ("Blue Cap 1-Jan", 35,420):
+                 ("Blue Cap 2-Feb", 28, 326):
                  ("Blue Cap 3-Mar", 15, 150):
                  -- ("Blue Shirt 1-Jan", 1, 3):
                  -- ("Blue Shirt 2-Feb", 5, 15):
@@ -226,8 +226,8 @@ pureSpec = describe "@Report @parallel @pure" $ do
     it "limits the third level - ie two first months" $ do
       sortAndLimit' trans [Nothing, Nothing, Just (id . const, Nothing, Just 2 )] `shouldLookLike` 
                 (
-                 ("Blue Cap 1-Jan", 35,35*12):
-                 ("Blue Cap 2-Feb", 28, 28*12):
+                 ("Blue Cap 1-Jan", 35,420):
+                 ("Blue Cap 2-Feb", 28, 326):
                  -- ("Blue Cap 3-Mar", 15, 150):
                  ("Blue Shirt 1-Jan", 1, 3):
                  ("Blue Shirt 2-Feb", 5, 15):
@@ -251,8 +251,8 @@ pureSpec = describe "@Report @parallel @pure" $ do
       -- blue first
       sortAndLimit' trans [Just (salesAmount, Nothing, Nothing)] `shouldLookLike` 
                 (
-                 ("Blue Cap 1-Jan", 35,35*12):
-                 ("Blue Cap 2-Feb", 28, 28*12):
+                 ("Blue Cap 1-Jan", 35,420):
+                 ("Blue Cap 2-Feb", 28, 326):
                  ("Blue Cap 3-Mar", 15, 150):
                  ("Blue Shirt 1-Jan", 1, 3):
                  ("Blue Shirt 2-Feb", 5, 15):
@@ -274,8 +274,8 @@ pureSpec = describe "@Report @parallel @pure" $ do
       -- blue first
       sortAndLimit' trans [Nothing, Just (salesAmount, Nothing, Nothing)] `shouldLookLike` 
                 (
-                 ("Blue Cap 1-Jan", 35,35*12):
-                 ("Blue Cap 2-Feb", 28, 28*12):
+                 ("Blue Cap 1-Jan", 35,420):
+                 ("Blue Cap 2-Feb", 28, 326):
                  ("Blue Cap 3-Mar", 15, 150):
                  ("Blue Shirt 1-Jan", 1, 3):
                  ("Blue Shirt 2-Feb", 5, 15):
@@ -298,8 +298,8 @@ pureSpec = describe "@Report @parallel @pure" $ do
       -- blue first
       sortAndLimit' trans [Nothing, Nothing, Just (salesAmount, Nothing, Just 1)] `shouldLookLike` 
                 (
-                 ("Blue Cap 1-Jan", 35,35*12):
-                 -- ("Blue Cap 2-Feb", 28, 28*12):
+                 ("Blue Cap 1-Jan", 35,420):
+                 -- ("Blue Cap 2-Feb", 28, 326):
                  -- ("Blue Cap 3-Mar", 15, 150):
                  -- ("Blue Shirt 1-Jan", 1, 3):
                  -- ("Blue Shirt 2-Feb", 5, 15):
@@ -318,4 +318,34 @@ pureSpec = describe "@Report @parallel @pure" $ do
                  -- ("White Cap 3-Mar", 5, 50):
 
                 [])
+    context "#residuals" $ do
+      it "group the last level of residuals as one" $ do
+      sortAndLimit' trans [Nothing, Nothing, Just (salesAmount, Just RMResidual, Just 1)] `shouldLookLike` 
+                (
+                 ("Blue Cap 1-Jan", 35,420):
+                 -- ("Blue Cap 2-Feb", 28, 326):
+                 -- ("Blue Cap 3-Mar", 15, 150):
+                 ("Blue Cap Res-2", 53,476):
+
+                 ("Blue Shirt 3-Mar", 15, 45):
+                 -- ("Blue Shirt 1-Jan", 1, 3):
+                 -- ("Blue Shirt 2-Feb", 5, 15):
+                 ("Blue Shirt Res-2", 6, 18):
+
+                 ("Red Shirt 1-Jan", 10, 25):
+                 -- ("Red Shirt 2-Feb", 2, 5):
+                 -- ("Red Shirt 3-Mar", 6, 18):
+                 ("Red Shirt Res-2", 8, 23):
+
+
+                 ("White Cap 2-Feb", 8, 96):
+                 -- ("White Dress 1-Jan", 2,15):
+                 -- ("White Dress 2-Feb", 8, 56):
+                 ("White Dress 3-Mar", 25, 175):
+                 -- ("White Cap 1-Jan", 3,36):
+                 -- ("White Cap 3-Mar", 5, 50):
+
+                [])
+
+
     
