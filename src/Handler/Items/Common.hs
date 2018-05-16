@@ -11,10 +11,23 @@ import qualified FA as FA
 -- Those function are in handler and not in app
 -- because  ultimately they should depend on the configuration file
 
-skuToStyleVar :: Text -> (Text, Text)
-skuToStyleVar sku = (style, var) where
-  style = take 8 sku
-  var = drop 9 sku
+-- construct the function depending on the category setting
+skuToStyleVarH :: Handler (Text -> (Text, Text))
+skuToStyleVarH = do
+  catFinder <- categoryFinderCached
+  categories <- categoriesH
+  -- check style and colour categories exists
+  let style = "style"
+      var = "colour"
+  when (style `notElem` categories) $ do
+    setWarning ("Style category not set. Please contact your Administrator.")
+  when (var `notElem` categories) $ do
+    setWarning ("Variation category not set. Please contact your Administrator.")
+  let styleFn = catFinder style
+      varFn = catFinder var
+  return $ (,) <$> (\sku -> fromMaybe sku $ styleFn sku) <*> (fromMaybe "" . varFn)
+
+
 
 styleVarToSku :: Text -> Text -> Text
 styleVarToSku style "" = style

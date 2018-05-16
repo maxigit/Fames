@@ -201,6 +201,7 @@ loadItemTransactions param grouper = do
   categories <- categoriesH
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   catFinder <- categoryFinderCached
+  skuToStyleVar <- skuToStyleVarH
   -- moves <- runDB $ selectList ( criteria
   --                               <> filterE id FA.StockMoveStockId (Just . LikeFilter $ stockLike)
   --                             )
@@ -212,16 +213,17 @@ loadItemTransactions param grouper = do
   purchases <- loadItemPurchases param
   let salesGroups = grouper' sales
       purchaseGroups = grouper' purchases
-      grouper' = grouper . fmap (computeCategory categories catFinder) 
+      grouper' = grouper . fmap (computeCategory skuToStyleVar categories catFinder) 
         
 
   return $ salesGroups <> purchaseGroups
 
-computeCategory :: [Text]
+computeCategory :: (Text -> (Text, Text))
+                -> [Text]
                 -> (Text -> Text -> Maybe Text)
                 -> (TranKey, t)
                 -> (TranKey, t)
-computeCategory categories catFinder (key, tpq) = let
+computeCategory skuToStyleVar categories catFinder (key, tpq) = let
   sku = tkSku key
   cats = mapFromList [(cat, found) | cat <-  categories, Just found <- return $ catFinder cat sku ]
   (style, var) = skuToStyleVar sku
@@ -281,8 +283,8 @@ loadItemPurchases param = do
 
 -- * Converter
 -- ** StockMove
-moveToTransInfo :: [Text] -> (Text -> Text -> Maybe Text) -> StockMove -> Maybe (TranKey, TranQP)
-moveToTransInfo categories catFinder FA.StockMove{..} = (key,) <$> tqp where
+moveToTransInfo :: (Text -> (Text, Text)) -> [Text] -> (Text -> Text -> Maybe Text) -> StockMove -> Maybe (TranKey, TranQP)
+moveToTransInfo skuToStyleVar categories catFinder FA.StockMove{..} = (key,) <$> tqp where
   (style, var) = skuToStyleVar stockMoveStockId
   categorieValues = [(heading, cat)
                     | heading <- categories

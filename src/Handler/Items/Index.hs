@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, ImplicitParams #-}
 module Handler.Items.Index where
 
 import Import hiding(replace)
@@ -75,11 +75,15 @@ data ButtonStatus = BtnActive | BtnInactive Text | BtnHidden deriving Show
 -- * Handlers
 getItemsIndexR :: Maybe ItemViewMode -> Handler TypedContent
 getItemsIndexR mode = do
+  skuToStyleVar <- skuToStyleVarH
+  let ?skuToStyleVar = skuToStyleVar
   renderIndex (paramDef mode) ok200
 
 postItemsIndexR :: Maybe ItemViewMode -> Handler TypedContent
 postItemsIndexR mode = do
   action <- lookupPostParam "button"
+  skuToStyleVar <- skuToStyleVarH
+  let ?skuToStyleVar = skuToStyleVar
   (param,_,_) <- getPostIndexParam (paramDef mode)
   case action >>= readMay of
     Just CreateMissingBtn -> createMissing param
@@ -247,7 +251,8 @@ adjustDescription varMap var0 var desc =
       in appEndo (mconcat endos) desc
 -- * Load DB 
 -- ** StockMaster info
-loadVariations :: IndexCache -> IndexParam
+loadVariations :: (?skuToStyleVar :: Text -> (Text, Text))
+                => IndexCache -> IndexParam
                -> Handler [ (ItemInfo (ItemMasterAndPrices Identity) -- base
                             , [ ( VariationStatus
                                 , ItemInfo (ItemMasterAndPrices ((,) [Text]))
@@ -312,9 +317,9 @@ loadVariations cache param = do
                                     : infoSources
                                     )
       itemVars =  case variations of
-        Left keys -> map (snd . skuToStyleVar . unStockMasterKey) keys
+        Left keys -> map (snd . ?skuToStyleVar . unStockMasterKey) keys
         Right vars -> vars
-      itemGroups = joinStyleVariations (skuToStyleVar <$> bases)
+      itemGroups = joinStyleVariations (?skuToStyleVar <$> bases)
                                         (adjustBase cache) computeDiff
                                         itemStyles itemVars
       filterExtra = if ipShowExtra param
@@ -330,7 +335,8 @@ loadVariations cache param = do
 -- ** Sales prices
 -- | Load sales prices 
     -- loadSalesPrices :: IndexParam -> Handler [ItemInfo (ItemMasterAndPrices Identity)]
-loadSalesPrices :: IndexParam -> SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
+loadSalesPrices :: (?skuToStyleVar :: Text -> (Text, Text))
+                => IndexParam -> SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
 loadSalesPrices param = do
   case (ipStyles param) of
      Just styleF -> do
@@ -352,7 +358,7 @@ loadSalesPrices param = do
                                                       )
                                                     | p <- priceGroup
                                                     ]
-                              (style, var) = skuToStyleVar (priceStockId one)
+                              (style, var) = ?skuToStyleVar (priceStockId one)
                               master = mempty { impSalesPrices = Just pricesF }
                               in ItemInfo style var master
                           ) group_
@@ -364,7 +370,8 @@ loadSalesPrices param = do
      _ -> return []
 
 -- | get selected price list ids
-priceListsToKeep :: IndexCache -> IndexParam -> Handler [Key SalesType]
+priceListsToKeep :: (?skuToStyleVar :: Text -> (Text,Text))
+              => IndexCache -> IndexParam -> Handler [Key SalesType]
 priceListsToKeep cache params = do
   let plIds =  map (entityKey) (icPriceLists cache)
   return $ filter (\(SalesTypeKey i) -> (priceColumnCheckId i) `elem` ipColumns params) plIds
@@ -372,7 +379,8 @@ priceListsToKeep cache params = do
 -- ** Purchase prices
 -- | Load purchase prices
 -- loadPurchasePrices :: IndexParam -> Handler [ ItemInfo (Map Text Double) ]
-loadPurchasePrices :: IndexParam -> SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
+loadPurchasePrices :: (?skuToStyleVar :: Text -> (Text,Text))
+              => IndexParam -> SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
 loadPurchasePrices param = do
   case (ipStyles param) of
      Just styleF -> do
@@ -394,7 +402,7 @@ loadPurchasePrices param = do
                                                       )
                                                     | p <- priceGroup
                                                     ]
-                              (style, var) = skuToStyleVar (purchDataStockId one)
+                              (style, var) = ?skuToStyleVar (purchDataStockId one)
                               master = mempty { impPurchasePrices = Just pricesF }
                               in ItemInfo style var master
                           ) group_
@@ -405,7 +413,8 @@ loadPurchasePrices param = do
             
      _ -> return []
   
-suppliersToKeep :: IndexCache -> IndexParam -> Handler [Key Supplier]
+suppliersToKeep :: (?skuToStyleVar :: Text -> (Text,Text))
+              => IndexCache -> IndexParam -> Handler [Key Supplier]
 suppliersToKeep cache params = do
   let suppIds = keys (icSupplierNames cache)
   return $ (map SupplierKey) (filter (\i -> (supplierColumnCheckId i) `elem` ipColumns params) (suppIds))
@@ -413,7 +422,8 @@ suppliersToKeep cache params = do
 -- ** FA Status
 -- | Load item status, needed to know if an item can be deactivated or deleted safely
 -- This includes if items have been even ran, still in stock, on demand (sales) or on order (purchase)
-loadStatus :: IndexParam ->  SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
+loadStatus :: (?skuToStyleVar :: Text -> (Text,Text))
+              => IndexParam ->  SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
 loadStatus param = do 
   case (ipStyles param) of
     Just styleF -> do
@@ -454,7 +464,7 @@ loadStatus param = do
                , Single onDemand, Single allOnDemand, Single onOrder
                , Single ordered, Single demanded
                ) <- rows
-             , let (style, var) = skuToStyleVar sku
+             , let (style, var) = ?skuToStyleVar sku
              , let used = (demanded <|> ordered) == Just True
              , let status = ItemStatusF (pure qoh) (pure allQoh)
                                        (pure onDemand) (pure allOnDemand)
@@ -467,7 +477,8 @@ loadStatus param = do
 -- ** Web Status
     
 -- | Load Web Status, if item exists, have a product display, activated and the prices
-loadWebStatus :: IndexParam -> SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
+loadWebStatus :: (?skuToStyleVar :: Text -> (Text,Text))
+              => IndexParam -> SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
 loadWebStatus param = do
   case (ipStyles param) of
     Just styleF -> do
@@ -481,7 +492,7 @@ loadWebStatus param = do
       rows <- rawSql sql [PersistText p]
       return [ItemInfo style var master
              | (Single sku, Single active, Single display) <- rows
-             , let (style, var) = skuToStyleVar sku
+             , let (style, var) = ?skuToStyleVar sku
              , let webStatus = ItemWebStatusF (pure display)  (pure active)
              , let master = mempty { impWebStatus = Just webStatus}
              ]
@@ -490,7 +501,8 @@ loadWebStatus param = do
     _ -> return []
 
 -- ** Web Prices
-loadWebPrices :: IndexCache -> IndexParam -> SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
+loadWebPrices :: (?skuToStyleVar :: Text -> (Text, Text))
+              => IndexCache -> IndexParam -> SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
 loadWebPrices cache param = do
   case (ipStyles param) of
     Just styleF ->  do
@@ -500,7 +512,7 @@ loadWebPrices cache param = do
            style'var'pricesMap  = Map.fromListWith (<>) (concat sku'prices)
        return [ ItemInfo style var (mempty {impWebPrices = Just prices})
               | (sku, prices) <- Map.toList style'var'pricesMap
-              , let (style, var) = skuToStyleVar sku
+              , let (style, var) = ?skuToStyleVar sku
               ]
 
     _ -> return []
@@ -521,7 +533,8 @@ loadWebPriceFor (fKeyword, p) pId = do
          , let webPrices = ItemPriceF (mapFromList [(fromIntegral pId, Identity (price /100))])
          ]
   
-loadVariationsToKeep :: IndexCache -> IndexParam
+loadVariationsToKeep :: (?skuToStyleVar :: Text -> (Text, Text))
+                => IndexCache -> IndexParam
                -> Handler [ (ItemInfo (ItemMasterAndPrices Identity) -- base
                             , [ ( VariationStatus
                                 , ItemInfo (ItemMasterAndPrices ((,) [Text]))
@@ -537,10 +550,11 @@ loadVariationsToKeep cache params = do
 
 -- * Misc
 -- ** Type conversions
-stockItemMasterToItem :: (Entity FA.StockMaster) -> ItemInfo (ItemMasterAndPrices Identity)
+stockItemMasterToItem :: (?skuToStyleVar :: Text -> (Text,Text))
+              => (Entity FA.StockMaster) -> ItemInfo (ItemMasterAndPrices Identity)
 stockItemMasterToItem (Entity key val) = ItemInfo  style var master where
             sku = unStockMasterKey key
-            (style, var) = skuToStyleVar sku
+            (style, var) = ?skuToStyleVar sku
             master = mempty { impMaster = Just (runIdentity (aStockMasterToStockMasterF val)) }
 
 stockMasterToItemCode :: Entity StockMaster -> ItemCode
@@ -612,7 +626,8 @@ columnsFor _ ItemAllView _ = []
 columnsFor cache ItemCategoryView _ = map CategoryColumn (icCategories cache)
 
 
-itemsTable :: IndexCache -> IndexParam ->  Handler Widget
+itemsTable :: (?skuToStyleVar :: Text -> (Text, Text))
+                => IndexCache -> IndexParam ->  Handler Widget
 itemsTable cache param = do
   let checkedItems = if null (ipChecked param) then Nothing else Just (ipChecked param)
   renderUrl <- getUrlRenderParams
@@ -866,7 +881,8 @@ buttonName DeleteBtn = "Delete"
   
 
 
-renderIndex :: IndexParam -> Status -> Handler TypedContent
+renderIndex :: (?skuToStyleVar :: Text -> (Text, Text))
+                => IndexParam -> Status -> Handler TypedContent
 renderIndex param0 status = do
   (param, form, encType) <- getPostIndexParam param0
   cache <- fillIndexCache
@@ -1009,7 +1025,8 @@ columnClass col = filter (/= ' ') (tshow col)
 -- * Actions
 -- ** Missings
 -- *** Actions
-createMissing :: IndexParam -> Handler ()
+createMissing :: (?skuToStyleVar :: Text -> (Text, Text))
+                  => IndexParam -> Handler ()
 createMissing params = do
    resp <- (case ipMode params of
               ItemWebStatusView -> createDCMissings
@@ -1019,7 +1036,8 @@ createMissing params = do
    clearAppCache
    return resp
 
-deleteItems :: IndexParam -> Handler ()
+deleteItems :: (?skuToStyleVar :: Text -> (Text, Text))
+                  => IndexParam -> Handler ()
 deleteItems params = do
   resp <- ( case ipMode params of
               ItemWebStatusView -> deleteDC params
@@ -1032,7 +1050,8 @@ deleteItems params = do
 
 
 -- ***  Gl
-createGLMissings :: IndexParam -> Handler ()
+createGLMissings :: (?skuToStyleVar :: Text -> (Text, Text))
+                => IndexParam -> Handler ()
 createGLMissings params = do
   -- load inactive as well to avoid trying to create missing product
   -- If on the GL tab, create prices as well as items
@@ -1111,7 +1130,8 @@ createGLMissings params = do
   setSuccess (toHtml $ tshow (maximumEx [length stockMasters, length prices, length purchData]) <> " items succesfully created.")
   return ()
 
-deleteSalesPrices :: IndexParam -> Handler ()
+deleteSalesPrices :: (?skuToStyleVar :: Text -> (Text, Text))
+                  => IndexParam -> Handler ()
 deleteSalesPrices params = do
   cache <- fillIndexCache
   -- timestamp <- round <$> liftIO getPOSIXTime
@@ -1127,7 +1147,8 @@ deleteSalesPrices params = do
 
   runDB $ mapM_ deleteWhere deletePairs
 
-deletePurchasePrices :: IndexParam -> Handler ()
+deletePurchasePrices :: (?skuToStyleVar :: Text -> (Text, Text))
+                  => IndexParam -> Handler ()
 deletePurchasePrices  params = do
   cache <- fillIndexCache
   -- timestamp <- round <$> liftIO getPOSIXTime
@@ -1144,7 +1165,8 @@ deletePurchasePrices  params = do
   runDB $ mapM_ deleteWhere deletePairs
 
 -- *** Website
-createDCMissings :: IndexParam -> Handler ()
+createDCMissings :: (?skuToStyleVar :: Text -> (Text, Text))
+                  => IndexParam -> Handler ()
 createDCMissings params = do
   cache <- fillIndexCache
   basePl <- basePriceList
@@ -1178,7 +1200,8 @@ createDCMissings params = do
           return ()
   mapM_ go itemGroups
   
-deleteDC :: IndexParam -> Handler ()
+deleteDC :: (?skuToStyleVar :: Text -> (Text, Text))
+                => IndexParam -> Handler ()
 deleteDC params = do
   cache <- fillIndexCache
   basePl <- basePriceList
