@@ -326,6 +326,57 @@ groupAsNMap gs@((_level, grouper):groupers) trans = let
   m = fmap (groupAsNMap groupers) grouped
   in NMap (map fst gs) m
  
+data RankMode = RMResidual -- replace residuals with concat
+              -- | RMResidualAvg -- replace residuals with avg
+              -- | RMTotal -- add concat everything
+              -- | RMAverage -- add avg everything
+              -- | RMBests -- replace best with concat
+              -- | RMBestAvg -- replace best with average
+              | RMBestAndRes -- replace best and tops with
+              deriving (Eq, Ord, Show, Enum, Bounded)
+
+sortAndLimit :: (Ord r, Semigroup a)
+             => [Maybe ( NMapKey ->  [a] -> r
+                       , Maybe RankMode
+                       , Maybe Int)
+                ]  -> NMap a -> NMap a
+sortAndLimit  [] nmap = nmap
+sortAndLimit  _ (NLeaf a) = NLeaf a
+sortAndLimit  (Nothing:cols) (NMap levels m) = NMap levels (fmap (sortAndLimit cols) m)
+sortAndLimit  (Just (sortFn, modeM, limitM):cols) (NMap levels m) = let
+  sorted = map snd $ sortOn fst [ ((sortFn key qps),  (key, nmap))
+                                | (key, nmap) <- Map.toList m
+                                , let qps = map snd (nmapToList nmap)
+                                ]
+  (bests, residuals) = case limitM of
+    Nothing -> (sorted, [])
+    Just limit ->  splitAt limit sorted
+
+  limited = makeResidual modeM bests residuals
+  ranked = [ (NMapKey (Just $ PersistInt64 i) key, sortAndLimit cols n)
+           | (i, (NMapKey _ key, n)) <- zip [1..] limited
+           ]
+  in NMap (levels) (Map.fromList $ ranked)
+
+
+-- makeResidual :: Maybe RankMode -> [NMap ] -> []
+makeResidual :: Semigroup a
+             => Maybe RankMode
+             -> [(NMapKey, NMap a)] -- bests
+             -> [(NMapKey, NMap a)] -- last
+             -> [(NMapKey, NMap a)]
+makeResidual Nothing bests residuals = bests
+makeResidual (Just RMResidual) bests residuals = bests <> [aggregateResiduals "Last" residuals]
+makeResidual (Just RMBestAndRes) bests residuals =
+  [aggregateResiduals "Top" bests] <> [aggregateResiduals "Last" residuals]
+
+
+
+aggregateResiduals :: Semigroup a
+                   => Text  -> [(NMapKey, NMap a)] -> (NMapKey, NMap a)
+aggregateResiduals title key'nmaps = ( NMapKey Nothing (PersistText $ title <> "-" <> tshow (length key'nmaps))
+                                     , mconcat $ map snd key'nmaps
+                                     )
 -- nmapFromNMaps :: Semigroup a => Maybe Text -> [(NMapKey, NMap a)] -> NMap a
 -- nmapFromNMaps level nmaps = NMap 
 

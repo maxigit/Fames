@@ -113,8 +113,8 @@ getItemsReportR mode = do
                            Nothing --  rpTo :: Maybe Day
                            Nothing --  rpStockFilter :: Maybe FilterExpression
                            emptyRupture   -- rpPanelRupture :: ColumnRupture
-                           (ColumnRupture (Just band)  bestSales (Just RMResidualAvg) (Just 20))--  rpBand :: ColumnRupture
-                           (ColumnRupture (Just serie)  bestSales (Just RMResidualAvg) (Just 20))--  rpSerie :: ColumnRupture
+                           (ColumnRupture (Just band)  bestSales (Just RMResidual) (Just 20))--  rpBand :: ColumnRupture
+                           (ColumnRupture (Just serie)  bestSales (Just RMResidual) (Just 20))--  rpSerie :: ColumnRupture
                            timeColumn --  rpColumnRupture :: Column
                            sales --  rpTraceParam :: TraceParams
                            emptyTrace --  rpTraceParam2 :: TraceParams
@@ -123,8 +123,8 @@ getItemsReportR mode = do
                            (Just past) --  rpFrom :: Maybe Day
                            Nothing --  rpTo :: Maybe Day
                            Nothing --  rpStockFilter :: Maybe FilterExpression
-                           (ColumnRupture (Just band) bestSales (Just RMResidualAvg) (Just 20))--  rpBand :: ColumnRupture
-                           (ColumnRupture (Just serie) bestSales (Just RMResidualAvg)  (Just 20))--  rpSerie :: ColumnRupture
+                           (ColumnRupture (Just band) bestSales (Just RMResidual) (Just 20))--  rpBand :: ColumnRupture
+                           (ColumnRupture (Just serie) bestSales (Just RMResidual)  (Just 20))--  rpSerie :: ColumnRupture
                            emptyRupture   -- rpPanelRupture :: ColumnRupture
                            timeColumn --  rpColumnRupture :: Column
                            sales --  rpTraceParam :: TraceParams

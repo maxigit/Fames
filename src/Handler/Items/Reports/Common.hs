@@ -50,7 +50,6 @@ newtype TraceParam = TraceParam ((QPrice -> Double), Text {- Color-} -> [(Text, 
 instance Show TraceParam where
   show _ = "<trace param>"
 data RunSum = RunSum | RunSumBack | RSNormal deriving Show
-data RankMode = RMResidual | RMResidualAvg | RMTop | RMTotal | RMAverage | RMBests | RMBestAvg | RMBestAndRes deriving (Eq, Ord, Show, Enum, Bounded)
 -- ** Default  style
 amountStyle color = [("type", String "scatter")
                     ,("name", String "Amount")
@@ -364,7 +363,7 @@ itemReport param cols processor = do
   let grouper =  groupTranQPs param ((map cpColumn cols))
   grouped <- loadItemTransactions param grouper
   -- ranke
-  let ranked = sortAndLimit cols grouped
+  let ranked = sortAndLimitTranQP cols grouped
   return $ processor ranked
 
 groupTranQPs :: ReportParam
@@ -474,89 +473,24 @@ toCsv param grouped' = let
                              <> (qpToCsv Inward $ purchQPrice qp)
                              <> (qpToCsv Inward $ adjQPrice qp)
 -- ** Sort and limit
--- sortAndLimit :: (val -> TranQP) -> ColumnRupture -> Map key val -> [(key, val)]
--- sortAndLimit collapse ColumnRupture{..} grouped = let
---   qtype = tpDataType cpSortBy
---   asList = Map.toList grouped
---   sorted = case getIdentified (tpDataParams cpSortBy) of
---      [] -> asList
---      (TraceParam (fn, _, _):_) -> let
---                     sortFn (key, val) =  fn <$> lookupGrouped qtype (collapse val)
---                     in sortOn sortFn asList
---   in maybe id take cpLimitTo sorted
-
--- sortAndLimitGroup :: (val -> TranQP)
---                   -> ColumnRupture
---                   -> NMap val
---                   -> [(NMapKey, val)]
--- sortAndLimitGroup  collapse  rupture nmap = -- TODO sortAndLimit collapse rupture
---   map firstKey $ nmapToList nmap
---   where firstKey (ks, v) = (fromMaybe PersistNull (headMay ks) , v)
-
-sortAndLimit :: [ColumnRupture] -> QPGroup -> QPGroup
-sortAndLimit _ leaf@(NLeaf _) = leaf
-sortAndLimit [] nmap = nmap
-sortAndLimit (r@ColumnRupture{..}:ruptures) n@(NMap levels m) = let
-  qtype = tpDataType cpSortBy 
-  -- use the sorting function to compute the rank
-  rankFn qp = case (getIdentified (tpDataParams cpSortBy), cpColumn) of
-              (_, Nothing) -> Nothing
-              ([], _) -> Nothing
-              ((TraceParam (fn, _, _):_), _) -> Just . PersistDouble  $ fromMaybe 0 $ fn <$> (lookupGrouped qtype qp)
-      
-  nmaps = sortOn fst [(NMapKey rank key, nmap)
-                     | (NMapKey _ key, nmap0) <- Map.toList m
-                     , let nmap = sortAndLimit ruptures nmap0
-                     , let rank = rankFn (mconcat $ map snd $  nmapToList nmap)
-                     ]
-
-  truncated = case cpColumn *> cpLimitTo of
-    Nothing -> nmaps
-    Just n -> let (bests, residuals)  = splitAt n nmaps
-                  -- replace value with actual rank
-                  -- As we are reinserting the result with i
-                  -- we need also to get rid of a level (the first ones.)
-                  resFor :: [(NMapKey, QPGroup)] -> NMap TranQP
-                  resFor res =
-                               if length levels >1
-                               then
-                                 case sortAndLimit ruptures (mconcat $ map snd $ res) of
-                                 -- case mconcat [(qpgroup) | (k, qpgroup) <- res  ] of
-                                   NMap levels nm -> NMap (drop 0 levels) nm
-                                   nm -> nm
-                               else
-                                 let grouped = mconcat $ map snd $ concatMap nmapToList (map snd res)
-                                 in NLeaf $ grouped
-                  resRank = rankFn (mconcat $ map snd $ nmapToList $ resFor residuals)
-                  rankKey rk prefix = NMapKey rk (PersistText prefix)
-                  forBests = [( rankKey  Nothing ("Best-" <> tshow (length bests)) ,  resFor bests)]
-                  forResiduals = [( rankKey resRank ("Res-" <> tshow (length residuals)) , resFor residuals)]
-                  average prefix nms = [( rankKey Nothing (prefix <> "-" <> tshow (length nms)) , fmap (mulTranQP  (1 / fromIntegral (length nms))) (resFor nms))]
-
-              in case cpRankMode of
-                                  Nothing ->  bests
-                                  Just RMResidual -> bests <> forResiduals
-                                  Just RMTotal -> bests <> [( rankKey Nothing "Total" , resFor nmaps)]
-                                  Just RMAverage -> bests <> average "Avg" nmaps
-                                  Just RMTop -> bests <> [( rankKey  Nothing "Top" ,  resFor [headEx bests])]
-                                  Just RMBests -> forBests
-                                  Just RMBestAvg -> bests <> average "AvgBest" bests
-                                  Just RMResidualAvg -> bests <> average "AvgRes" residuals
-                                  Just RMBestAndRes -> forBests <> forResiduals
-
-  sortIf = id -- set to (sortOn fst) to include residuals in the sort and therefore rank it.
-  ranked = [ (NMapKey (Just  $ PersistInt64  $ rank) key, val)
-                 | ((NMapKey _ key, val), rank)  <- zip (sortIf truncated) [1..]
-                 ]
-  in NMap levels (Map.fromList ranked)
-
+sortAndLimitTranQP :: [ColumnRupture] -> QPGroup -> QPGroup
+sortAndLimitTranQP ruptures nmap = let
+  mkCol :: ColumnRupture ->  Maybe (NMapKey ->  [TranQP] -> Double, Maybe RankMode, Maybe Int)
+  mkCol (ColumnRupture{..}) = case (getIdentified (tpDataParams cpSortBy), cpColumn) of
+    (_, Nothing) -> Nothing
+    ([], _) -> Nothing
+    ((TraceParam (fn, _, _):_), _) -> Just ( \k qps -> maybe 0 fn $ lookupGrouped (tpDataType cpSortBy) $ mconcat qps
+                                           , cpRankMode
+                                           , cpLimitTo
+                                           )
+  in sortAndLimit (map mkCol ruptures) nmap
   
 -- ** Plot
 chartProcessor :: ReportParam -> QPGroup -> Widget 
 chartProcessor param grouped = do
   -- addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
   -- done add report level to fix ajax issue.
-  let asList = nmapToNMapList grouped  -- sortAndLimitGroup (mconcat . map snd . concatMap toList) (rpPanelRupture param) grouped
+  let asList = nmapToNMapList grouped
   forM_ (zip asList [1 :: Int ..]) $ \((panelName, nmap), i) -> do
      let plotId = "items-report-plot-" <> tshow i 
          -- bySerie = fmap (groupAsMap (mkGrouper param (cpColumn $ rpSerie param) . fst) (:[])) group
@@ -565,7 +499,7 @@ chartProcessor param grouped = do
   
 panelChartProcessor :: ReportParam -> Text -> Text -> QPGroup -> Widget 
 panelChartProcessor param name plotId0 grouped = do
-  let asList = nmapToNMapList grouped --  sortAndLimitGroup (mconcat . map snd . concatMap toList) (rpBand param) grouped
+  let asList = nmapToNMapList grouped
   let plots = forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
         do
           let -- byColumn = nmapToNMapList grouped -- fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) (unQPGroup' bands)
@@ -633,7 +567,7 @@ seriesChartProcessor rupture mono params name plotId grouped = do
                        
                                                                     
          colorIds = zip (cycle defaultColors) [1::Int ..]
-         asList = nmapToNMapList grouped-- sortAndLimit (mconcat .  toList) rupture  grouped
+         asList = nmapToNMapList grouped
          jsData = [ traceFor param (name'group, color :: Text, groupId :: Int)
                   | (param, pcId) <- zip params colorIds
                   , (name'group, gcId) <- zip asList colorIds

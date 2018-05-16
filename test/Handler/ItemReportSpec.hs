@@ -46,23 +46,6 @@ shouldLookLike a b = pretty a `shouldBe` b
 f = n                   [ ("Red Shirt 3-Mar", 6, 18)
                    , ("Blue Shirt 1-Jan", 1, 3)
                    ]
-sortAndLimit :: (Ord r) => [Maybe (NMapKey ->  [a] -> r, Maybe RankMode, Maybe Int)]  -> NMap a -> NMap a
-sortAndLimit  [] nmap = nmap
-sortAndLimit  _ (NLeaf a) = NLeaf a
-sortAndLimit  (Nothing:cols) (NMap levels m) = NMap levels (fmap (sortAndLimit cols) m)
-sortAndLimit  (Just (sortFn, modeM, limitM):cols) (NMap levels m) = let
-  ranked = sortOn fst [ ((sortFn key qps),  (key, nmap))
-                      | (key, nmap) <- Map.toList m
-                      , let qps = map snd (nmapToList nmap)
-                      ]
-  ranked' = [ (NMapKey (Just $ PersistInt64 i) key, sortAndLimit cols n)
-            | (i, (NMapKey _ key, n)) <- zip [1..] (map snd ranked)
-            ]
-  limited = (maybe id take limitM)  ranked'
-  in NMap (levels) (Map.fromList $  limited)
-
-
-
 
 sortAndLimit' inputs limits = sortAndLimit limits (n inputs)
 
@@ -320,30 +303,32 @@ pureSpec = describe "@Report @parallel @pure" $ do
                 [])
     context "#residuals" $ do
       it "group the last level of residuals as one" $ do
-      sortAndLimit' trans [Nothing, Nothing, Just (salesAmount, Just RMResidual, Just 1)] `shouldLookLike` 
+        sortAndLimit' trans [Nothing, Nothing, Just (salesAmount, Just RMResidual, Just 1)] `shouldLookLike` 
                 (
                  ("Blue Cap 1-Jan", 35,420):
                  -- ("Blue Cap 2-Feb", 28, 326):
                  -- ("Blue Cap 3-Mar", 15, 150):
-                 ("Blue Cap Res-2", 53,476):
+                 ("Blue Cap Last-2", 43,476):
 
                  ("Blue Shirt 3-Mar", 15, 45):
                  -- ("Blue Shirt 1-Jan", 1, 3):
                  -- ("Blue Shirt 2-Feb", 5, 15):
-                 ("Blue Shirt Res-2", 6, 18):
+                 ("Blue Shirt Last-2", 6, 18):
 
                  ("Red Shirt 1-Jan", 10, 25):
                  -- ("Red Shirt 2-Feb", 2, 5):
                  -- ("Red Shirt 3-Mar", 6, 18):
-                 ("Red Shirt Res-2", 8, 23):
+                 ("Red Shirt Last-2", 8, 23):
 
 
                  ("White Cap 2-Feb", 8, 96):
-                 -- ("White Dress 1-Jan", 2,15):
-                 -- ("White Dress 2-Feb", 8, 56):
-                 ("White Dress 3-Mar", 25, 175):
                  -- ("White Cap 1-Jan", 3,36):
                  -- ("White Cap 3-Mar", 5, 50):
+                 ("White Cap Last-2", 8, 86):
+                 ("White Dress 3-Mar", 25, 175):
+                 -- ("White Dress 1-Jan", 2,15):
+                 -- ("White Dress 2-Feb", 8, 56):
+                 ("White Dress Last-2", 10, 71):
 
                 [])
 
