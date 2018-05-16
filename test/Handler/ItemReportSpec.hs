@@ -129,7 +129,7 @@ pureSpec = describe "@Report @parallel @pure" $ do
                 , ("White Dress 3-Mar", 25, 175)
                     
                 ]
-        salesAmount _ qps = qpAmount Outward (mconcat qps)
+        salesAmount _ qps = qpAmount Inward (mconcat qps) -- reverse to we get top first
     it "should keep original (map) order' if there is nothing to" $ do
       sortAndLimit' trans ([] :: [EmptySort]) `shouldLookLike` 
                 (
@@ -177,7 +177,7 @@ pureSpec = describe "@Report @parallel @pure" $ do
                  ("White Dress 3-Mar", 25, 175):
 
                 [])
-    it "limits the first level" $ do
+    it "limits the first level - ie two first colours" $ do
       sortAndLimit' trans [Just (id . const , Nothing, Just 2 )] `shouldLookLike` 
                 (
                  ("Blue Cap 1-Jan", 35,35*12):
@@ -200,30 +200,30 @@ pureSpec = describe "@Report @parallel @pure" $ do
                  -- ("White Dress 3-Mar", 25, 175):
 
                 [])
-    it "limits the second level" $ do
-      sortAndLimit' trans [Nothing, Just (id . const, Nothing, Just 2 )] `shouldLookLike` 
+    it "limits the second level - ie the first style" $ do
+      sortAndLimit' trans [Nothing, Just (id . const, Nothing, Just 1 )] `shouldLookLike` 
                 (
                  ("Blue Cap 1-Jan", 35,35*12):
                  ("Blue Cap 2-Feb", 28, 28*12):
-                 -- ("Blue Cap 3-Mar", 15, 150):
+                 ("Blue Cap 3-Mar", 15, 150):
                  -- ("Blue Shirt 1-Jan", 1, 3):
                  -- ("Blue Shirt 2-Feb", 5, 15):
                  -- ("Blue Shirt 3-Mar", 15, 45):
 
                  ("Red Shirt 1-Jan", 10, 25):
                  ("Red Shirt 2-Feb", 2, 5):
-                 -- ("Red Shirt 3-Mar", 6, 18):
+                 ("Red Shirt 3-Mar", 6, 18):
 
 
                  ("White Cap 1-Jan", 3,36):
                  ("White Cap 2-Feb", 8, 96):
-                 -- ("White Cap 3-Mar", 5, 50):
+                 ("White Cap 3-Mar", 5, 50):
                  -- ("White Dress 1-Jan", 2,15):
                  -- ("White Dress 2-Feb", 8, 56):
                  -- ("White Dress 3-Mar", 25, 175):
 
                 [])
-    it "limits the third level" $ do
+    it "limits the third level - ie two first months" $ do
       sortAndLimit' trans [Nothing, Nothing, Just (id . const, Nothing, Just 2 )] `shouldLookLike` 
                 (
                  ("Blue Cap 1-Jan", 35,35*12):
@@ -247,7 +247,7 @@ pureSpec = describe "@Report @parallel @pure" $ do
 
                 [])
 
-    it "sort the first level by sales amount" $ do
+    it "sorts the first level by sales amount" $ do
       -- blue first
       sortAndLimit' trans [Just (salesAmount, Nothing, Nothing)] `shouldLookLike` 
                 (
@@ -268,6 +268,54 @@ pureSpec = describe "@Report @parallel @pure" $ do
                  ("Red Shirt 1-Jan", 10, 25):
                  ("Red Shirt 2-Feb", 2, 5):
                  ("Red Shirt 3-Mar", 6, 18):
+
+                [])
+    it "sorts the second level by sales amount" $ do
+      -- blue first
+      sortAndLimit' trans [Nothing, Just (salesAmount, Nothing, Nothing)] `shouldLookLike` 
+                (
+                 ("Blue Cap 1-Jan", 35,35*12):
+                 ("Blue Cap 2-Feb", 28, 28*12):
+                 ("Blue Cap 3-Mar", 15, 150):
+                 ("Blue Shirt 1-Jan", 1, 3):
+                 ("Blue Shirt 2-Feb", 5, 15):
+                 ("Blue Shirt 3-Mar", 15, 45):
+
+                 ("Red Shirt 1-Jan", 10, 25):
+                 ("Red Shirt 2-Feb", 2, 5):
+                 ("Red Shirt 3-Mar", 6, 18):
+
+
+                 ("White Dress 1-Jan", 2,15):
+                 ("White Dress 2-Feb", 8, 56):
+                 ("White Dress 3-Mar", 25, 175):
+                 ("White Cap 1-Jan", 3,36):
+                 ("White Cap 2-Feb", 8, 96):
+                 ("White Cap 3-Mar", 5, 50):
+
+                [])
+    it "sorts and limit third level by sales amount - ie top month" $ do
+      -- blue first
+      sortAndLimit' trans [Nothing, Nothing, Just (salesAmount, Nothing, Just 1)] `shouldLookLike` 
+                (
+                 ("Blue Cap 1-Jan", 35,35*12):
+                 -- ("Blue Cap 2-Feb", 28, 28*12):
+                 -- ("Blue Cap 3-Mar", 15, 150):
+                 -- ("Blue Shirt 1-Jan", 1, 3):
+                 -- ("Blue Shirt 2-Feb", 5, 15):
+                 ("Blue Shirt 3-Mar", 15, 45):
+
+                 ("Red Shirt 1-Jan", 10, 25):
+                 -- ("Red Shirt 2-Feb", 2, 5):
+                 -- ("Red Shirt 3-Mar", 6, 18):
+
+
+                 -- ("White Dress 1-Jan", 2,15):
+                 -- ("White Dress 2-Feb", 8, 56):
+                 ("White Cap 2-Feb", 8, 96):
+                 ("White Dress 3-Mar", 25, 175):
+                 -- ("White Cap 1-Jan", 3,36):
+                 -- ("White Cap 3-Mar", 5, 50):
 
                 [])
     
