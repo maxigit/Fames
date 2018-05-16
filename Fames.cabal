@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e5dbc7bbedc0ee749237a5f9399c5e3c98f04eebdc4894b90a0764a2218b16da
+-- hash: 1952f3f42f2bc25f34bf89c372f26c1a4dd4954ab0d379398de20adb587a7b5d
 
 name:           Fames
 version:        0.0.1
@@ -297,6 +297,215 @@ executable Fames
   else
     ghc-options: -O2
   other-modules:
+      GL
+      GL.FA
+      GL.Payroll.Parser
+      GL.Payroll.Report
+      GL.Payroll.Settings
+      GL.Payroll.Timesheet
+      GL.Receipt
+      GL.Utils
+      Items
+      Items.Internal
+      Items.Types
+      Planner.Internal
+      Planner.Types
+      WH.Barcode
+      WH.FA
+      WH.FA.Curl
+      WH.FA.Types
+      WH.PackingList.Internal
+      Paths_Fames
+  default-language: Haskell2010
+
+test-suite ghcid
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  hs-source-dirs:
+      test
+      legacy
+      fay-shared
+      src
+      app
+  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures NamedWildCards
+  ghc-options: -w -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      Decimal >=0.4.2 && <0.5
+    , Glob
+    , Metamorphosis >=0.1.0.1
+    , aeson
+    , aeson-qq
+    , base
+    , blaze-html
+    , blaze-markup
+    , bytestring >=0.9 && <0.11
+    , case-insensitive
+    , cassava
+    , classy-prelude
+    , classy-prelude-conduit >=0.10.2
+    , classy-prelude-yesod
+    , colour >=2.3.3 && <2.4
+    , conduit >=1.0 && <2.0
+    , conduit-extra
+    , containers
+    , cryptohash
+    , curl >=1.3.8 && <1.4
+    , data-default
+    , diagrams-cairo >=1.4 && <1.5
+    , diagrams-lib >=1.4.1.2 && <1.5
+    , diagrams-svg >=1.4 && <1.5
+    , directory >=1.1 && <1.4
+    , fames-persist
+    , fast-logger >=2.2 && <2.5
+    , fay >=0.21.2.1 && <0.24
+    , fay-jquery >=0.6 && <0.7
+    , fay-text >=0.3 && <0.4
+    , file-embed
+    , filepath >=1.4.1.1 && <1.5
+    , formatting
+    , generics-sop
+    , ghc-prim
+    , hjsmin >=0.1 && <0.3
+    , hspec >=2.0.0
+    , hspec-stack-rerun
+    , http-conduit >=2.1 && <2.3
+    , http-types >=0.9
+    , lifted-async
+    , microlens >=0.4.1.1 && <0.5
+    , microlens-th >=0.4.1.1 && <0.5
+    , monad-control >=0.3 && <1.1
+    , monad-logger
+    , mtl >=2.2 && <2.3
+    , mysql
+    , parsec >=3.1 && <3.2
+    , path-pieces >=0.2 && <0.3
+    , persistent
+    , persistent-mysql
+    , persistent-template >=2.0 && <2.6
+    , pointed >=5
+    , pretty-simple
+    , reducers >=3.12 && <3.13
+    , regex-compat-tdfa
+    , regex-tdfa >=1.2.2 && <1.3
+    , resourcet
+    , safe
+    , shakespeare
+    , split
+    , streaming-commons
+    , tabular >=0.2.2.7 && <0.3
+    , tagsoup >=0.14.1 && <0.15
+    , template-haskell
+    , temporary
+    , text >=0.11 && <2.0
+    , these
+    , time
+    , transformers
+    , unordered-containers
+    , vector
+    , wai
+    , wai-extra >=3.0 && <3.1
+    , wai-logger >=2.2 && <2.4
+    , warp >=3.0 && <3.3
+    , yaml
+    , yesod
+    , yesod-auth
+    , yesod-core
+    , yesod-fay >=0.7 && <0.9
+    , yesod-form >=1.4.0 && <1.5
+    , yesod-media-simple >=0.2.0.1 && <0.2.1
+    , yesod-static >=1.4.0.3 && <1.6
+    , yesod-test >=1.5.0.1 && <1.6
+  other-modules:
+      GL.Payroll.ParserSpec
+      GL.Payroll.TimesheetSpec
+      GL.Payroll.UtilsSpec
+      GL.ReceiptProcessingSpec
+      Handler.AuthSpec
+      Handler.CommentSpec
+      Handler.CommonSpec
+      Handler.FaSpec
+      Handler.GLEnterReceiptSheetSpec
+      Handler.HomeSpec
+      Handler.ItemReportSpec
+      Handler.WHBarcodeSpec
+      Handler.WHBoxtake.UploadSpec
+      Handler.WHPackingListSpec
+      Handler.WHStockAdjustmentSpec
+      Handler.WHStocktakeSpec
+      Items.InternalSpec
+      Planner.InternalSpec
+      RoleSpec
+      TestImport
+      WH.BarcodeSpec
+      WH.PackingList.InternalSpec
+      WarehousePlanner.Base
+      WarehousePlanner.Csv
+      WarehousePlanner.Display
+      WarehousePlanner.Optimum
+      WarehousePlanner.Report
+      SharedStockAdjustment
+      SharedTypes
+      Application
+      FAMES
+      FAX
+      Foundation
+      Handler.Administrator
+      Handler.Comment
+      Handler.Common
+      Handler.CsvUtils
+      Handler.DC
+      Handler.DC.Def
+      Handler.FA
+      Handler.FA.Def
+      Handler.FAMES
+      Handler.FAMES.Def
+      Handler.FAX
+      Handler.FAX.Def
+      Handler.Fay
+      Handler.GL
+      Handler.GL.GLEnterReceiptSheet
+      Handler.GL.GLEnterReceiptSheet.ReceiptRow
+      Handler.GL.Payroll
+      Handler.GL.Payroll.Calendar
+      Handler.GL.Payroll.Common
+      Handler.GL.Payroll.Import
+      Handler.GL.Payroll.QuickAdd
+      Handler.GL.Payroll.Summary
+      Handler.Home
+      Handler.Items
+      Handler.Items.Common
+      Handler.Items.History
+      Handler.Items.Index
+      Handler.Items.Report
+      Handler.Items.Reports.Common
+      Handler.Planner
+      Handler.Planner.Exec
+      Handler.Planner.View
+      Handler.Table
+      Handler.Util
+      Handler.WH
+      Handler.WH.Barcode
+      Handler.WH.Boxtake
+      Handler.WH.Boxtake.Upload
+      Handler.WH.Dimensions
+      Handler.WH.Location
+      Handler.WH.PackingList
+      Handler.WH.StockAdjustment
+      Handler.WH.Stocktake
+      Import
+      Import.NoFoundation
+      Locker
+      Model
+      Model.Boxtake
+      Model.DocumentKey
+      ModelField
+      Role
+      RoutePiece
+      Settings
+      Settings.StaticFiles
+      Util.Cache
+      Util.EnumTree
+      Util.SameCons
       GL
       GL.FA
       GL.Payroll.Parser

@@ -171,10 +171,10 @@ postWHStockAdjustmentR = do
 
       stocktakes <- runDB $ rawSql sql p
       results <- catMaybes <$> mapM qohFor stocktakes
-      let withDiff = [(abs (quantityTake0 (main pre) - quantityAt (main pre)), pre) |  pre <- results]
+      let withDiff = [(abs (quantityTake0 (mainLocation pre) - quantityAt (mainLocation pre)), pre) |  pre <- results]
           f  (q, pre) = (maybe True (q >=) (minQty param))
                    &&  (maybe True (q <=) (maxQty param))
-                   && let isUnsure = not . null $  concatMap (\loc -> movesAt $ loc pre) [main, lost]
+                   && let isUnsure = not . null $  concatMap (\loc -> movesAt $ loc pre) [mainLocation, lost]
                       in case unsure param of
                         All -> True
                         Unsure -> isUnsure
@@ -216,8 +216,8 @@ postWHStockAdjustmentR = do
       <th> Last move
       <th> Comment
     $forall pre <- rows
-      $with ((qties, badges, before), mainMoves, lostMoves) <- (toOrigAndBadges' pre, (movesAt $ main pre), movesAt $ lost pre)
-        <tr class="#{classesFor mainMoves}"
+      $with ((qties, badges, before), mainLocationMoves, lostMoves) <- (toOrigAndBadges' pre, (movesAt $ mainLocation pre), movesAt $ lost pre)
+        <tr class="#{classesFor mainLocationMoves}"
             id="#{encodedSku pre}-row"
             data-sku="#{encodedSku pre}"
             data-hidden="true"
@@ -236,7 +236,7 @@ postWHStockAdjustmentR = do
           <td.lost data-original=#{qlost qties}>#{qlost qties}
           <td.last_move>#{fromMaybe "" (tshow <$> (lastMove pre))}
           <td.comment_move>#{fromMaybe "" (tshow <$> (preComment pre))}
-          $forall move <- mainMoves
+          $forall move <- mainLocationMoves
             $with before <- moveDate move <= takeDate pre
               $with after <- not before
                 <tr :before:.bg-info class="move sku-#{encodedSku pre}" style="display:none">
@@ -279,14 +279,14 @@ noInfo locInfo = (quantityTake locInfo == Nothing) && (quantityAt locInfo == 0)
 
 data PreAdjust = PreAdjust
   { sku :: !Text
-  , main :: !LocationInfo
+  , mainLocation :: !LocationInfo
   , lost :: !LocationInfo
   , takeDate :: !Day
   , preComment :: Maybe Text
   } deriving (Eq, Read, Show)
 
 adjustInfos :: PreAdjust -> [LocationInfo]
-adjustInfos adj  = [main, lost] <*> [adj]
+adjustInfos adj  = [mainLocation, lost] <*> [adj]
 
 route pre = ItemsR $ ItemsHistoryR (sku pre)
 
@@ -297,7 +297,7 @@ data MoveInfo = MoveInfo
  , movePickedQty :: !Int
  } deriving (Eq, Read, Show)
 
-lastMove pre = max (date (main pre)) (date (lost pre)) 
+lastMove pre = max (date (mainLocation pre)) (date (lost pre)) 
 -- | Returns the qoh at the date of the stocktake.
 -- return also the date of the last move (the one corresponding to given quantity).
 -- Needed to detect if the stocktake is sure or not.
@@ -391,13 +391,13 @@ computeAdj qBefores modulo key pre =
       (orig, _) = preToOriginal modulo pre
       BadgeQuantities{..} = computeBadges orig { qoh = qoh orig + qBefore }
       lostLoc = Just . FA.LocationKey . location . lost $ pre 
-      mainLoc = Just . FA.LocationKey . location . main $ pre 
+      mainLocationLoc = Just . FA.LocationKey . location . mainLocation $ pre 
       stock_id = sku pre
 
       adjs = [ StockAdjustmentDetail key stock_id qty fromTo toTo
-             | (qty, fromTo, toTo) <- [ (bMissing, mainLoc, lostLoc )
-                                      , (bFound, lostLoc, mainLoc)
-                                      , (bNew, Nothing, mainLoc)
+             | (qty, fromTo, toTo) <- [ (bMissing, mainLocationLoc, lostLoc )
+                                      , (bFound, lostLoc, mainLocationLoc)
+                                      , (bNew, Nothing, mainLocationLoc)
                                       ]
             ]
   in filter ((/= 0) . stockAdjustmentDetailQuantity) adjs
@@ -539,7 +539,7 @@ loadAdjustmentTakes key = do
   
 getWHStockAdjustmentViewR :: Int64 -> Handler Html
 getWHStockAdjustmentViewR key = do
-  let mainLoc = Just (FA.LocationKey "DEF")
+  let mainLocationLoc = Just (FA.LocationKey "DEF")
       lostLoc = Just (FA.LocationKey "LOST")
 
   
@@ -551,7 +551,7 @@ getWHStockAdjustmentViewR key = do
   -- let date = utctDay $  stockAdjustmentDate adj
   date <- utctDay <$> liftIO getCurrentTime
   
-  Carts{..} <- adjustCarts date $ splitDetails mainLoc lostLoc details 
+  Carts{..} <- adjustCarts date $ splitDetails mainLocationLoc lostLoc details 
 
   let renderStockId stockId = [whamlet|<a href="@{route}" target="_blank">#{stockId}|]
         where route = ItemsR (ItemsHistoryR stockId)
@@ -625,7 +625,7 @@ getWHStockAdjustmentViewR key = do
 -- in FA might persists. They might needs to be cleaned manually
 postWHStockAdjustmentToFAR ::  Int64 -> Handler Html
 postWHStockAdjustmentToFAR key = do
-  let mainLoc = Just (FA.LocationKey "DEF")
+  let mainLocationLoc = Just (FA.LocationKey "DEF")
       lostLoc = Just (FA.LocationKey "LOST")
       baseref = "FamesAdj#" <> tshow key
   date <- utctDay <$> liftIO getCurrentTime
@@ -634,7 +634,7 @@ postWHStockAdjustmentToFAR key = do
   when (stockAdjustmentStatus adj == Process) $ do
     setError "The adjustment has already been processed. It can't be processed twice."
     sendResponseStatus (toEnum 412) =<< getWHStockAdjustmentViewR key
-  carts <- adjustCarts date $ splitDetails mainLoc lostLoc details
+  carts <- adjustCarts date $ splitDetails mainLocationLoc lostLoc details
   let Carts{..} = detailsToCartFA baseref date carts
   setting <- appSettings <$> getYesod
   let connectInfo = WFA.FAConnectInfo (appFAURL setting) (appFAUser setting) (appFAPassword setting)
@@ -669,7 +669,7 @@ badgeSpan' :: Int -> Maybe String -> String -> Widget
 badgeSpan' qty bgM klass = toWidget $ badgeSpan badgeWidth qty bgM klass
 
 preToOriginal modulo pre = (OriginalQuantities qtake (qoh-before) qlost modulo , before) where
-  m = main pre
+  m = mainLocation pre
   qtake = quantityTake0 m
   qoh = quantityAt m
   qlost = quantityNow (lost pre)
@@ -689,8 +689,8 @@ toOrigAndBadges modulo pre = (orig, computeBadges orig {qoh = qoh orig + before}
 -- * To FA
 
 splitDetails :: Maybe FA.LocationId -> Maybe FA.LocationId -> [StockAdjustmentDetail] -> DetailCarts
-splitDetails mainLoc lostLoc details = let
-  cLost = filter ((== mainLoc) . stockAdjustmentDetailFrom ) details
+splitDetails mainLocationLoc lostLoc details = let
+  cLost = filter ((== mainLocationLoc) . stockAdjustmentDetailFrom ) details
   cFound = filter ((== lostLoc) . stockAdjustmentDetailFrom ) details
   cNew = filter ((== Nothing) . stockAdjustmentDetailFrom ) details
   in Carts{..}

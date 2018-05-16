@@ -7,6 +7,7 @@ import Handler.Items.Reports.Common hiding(sortAndLimit)
 import Items.Types
 import Data.List((!!))
 import Data.Monoid(Sum(..))
+import Control.Monad(zipWithM)
 
 import qualified Data.Map as Map
 
@@ -36,16 +37,19 @@ groupAsNMap' :: [(Text, Text -> Text)] -> [(Text, Double, Double)] -> NMap QPric
 groupAsNMap' groups inputs = groupAsNMap (map mkGroup groups) (withPrices inputs) 
 
 pretty :: NMap QPrice -> [(Text, Double, Double)]
-pretty grouped = [ (unwords (map (pvToText . nkKey) keys), qty, amount)
+pretty grouped = [ (unwords (map (pvToText' . nkKey) keys), qty, amount)
                  | (keys, qprice) <- nmapToList grouped
                  , let qty = qpQty Outward qprice
                  , let amount = qpAmount Outward qprice
                  ]
+pvToText' PersistNull = "<null>"
+pvToText' pv = pvToText pv
 
-shouldLookLike a b = pretty a `shouldBe` b
-f = n                   [ ("Red Shirt 3-Mar", 6, 18)
-                   , ("Blue Shirt 1-Jan", 1, 3)
-                   ]
+-- shouldLookLike a b = pretty a `shouldBe` b
+shouldLookLike a b = do
+  let a' = pretty a
+  zipWithM shouldBe a' b -- compare one by one
+  a' `shouldBe` b -- and the all
 
 sortAndLimit' inputs limits = sortAndLimit limits (n inputs)
 
