@@ -46,10 +46,28 @@ shouldLookLike a b = pretty a `shouldBe` b
 f = n                   [ ("Red Shirt 3-Mar", 6, 18)
                    , ("Blue Shirt 1-Jan", 1, 3)
                    ]
-sortAndLimit :: (Monoid r, Ord r) => [Maybe (a -> r, Maybe RankMode, Maybe Int)]  -> NMap a -> NMap a
-sortAndLimit _ inputs = inputs
-sortAndLimit' inputs limits = sortAndLimit (map (fmap summize) limits) (n inputs)
-  where summize (fn, rank, limit) = (Sum . fn, rank, limit)
+sortAndLimit :: (Ord r) => [Maybe (NMapKey ->  [a] -> r, Maybe RankMode, Maybe Int)]  -> NMap a -> NMap a
+sortAndLimit  [] nmap = nmap
+sortAndLimit  _ (NLeaf a) = NLeaf a
+sortAndLimit  (Nothing:cols) (NMap levels m) = NMap levels (fmap (sortAndLimit cols) m)
+sortAndLimit  (Just (sortFn, modeM, limitM):cols) (NMap levels m) = let
+  ranked = sortOn fst [ ((sortFn key qps),  (key, nmap))
+                      | (key, nmap) <- Map.toList m
+                      , let qps = map snd (nmapToList nmap)
+                      ]
+  ranked' = [ (NMapKey (Just $ PersistInt64 i) key, sortAndLimit cols n)
+            | (i, (NMapKey _ key, n)) <- zip [1..] (map snd ranked)
+            ]
+  limited = (maybe id take limitM)  ranked'
+  in NMap (levels) (Map.fromList $  limited)
+
+
+
+
+sortAndLimit' inputs limits = sortAndLimit limits (n inputs)
+
+-- to help type resolves constraints on empty list
+type EmptySort = Maybe (NMapKey -> [QPrice] -> (), Maybe RankMode, Maybe Int)
 -- * Specs
 pureSpec :: Spec
 pureSpec = describe "@Report @parallel @pure" $ do
@@ -111,8 +129,9 @@ pureSpec = describe "@Report @parallel @pure" $ do
                 , ("White Dress 3-Mar", 25, 175)
                     
                 ]
+        salesAmount _ qps = qpAmount Outward (mconcat qps)
     it "should keep original (map) order' if there is nothing to" $ do
-      sortAndLimit' trans [] `shouldLookLike` 
+      sortAndLimit' trans ([] :: [EmptySort]) `shouldLookLike` 
                 (
                  ("Blue Cap 1-Jan", 35,35*12):
                  ("Blue Cap 2-Feb", 28, 28*12):
@@ -136,11 +155,101 @@ pureSpec = describe "@Report @parallel @pure" $ do
                 [])
 
     it "doesn't do anything if there is nothing to" $ do
-      sortAndLimit' trans [Nothing, Nothing] `shouldBe` n trans
+      sortAndLimit' trans [Nothing :: EmptySort, Nothing] `shouldLookLike` 
+                (
+                 ("Blue Cap 1-Jan", 35,35*12):
+                 ("Blue Cap 2-Feb", 28, 28*12):
+                 ("Blue Cap 3-Mar", 15, 150):
+                 ("Blue Shirt 1-Jan", 1, 3):
+                 ("Blue Shirt 2-Feb", 5, 15):
+                 ("Blue Shirt 3-Mar", 15, 45):
+
+                 ("Red Shirt 1-Jan", 10, 25):
+                 ("Red Shirt 2-Feb", 2, 5):
+                 ("Red Shirt 3-Mar", 6, 18):
+
+
+                 ("White Cap 1-Jan", 3,36):
+                 ("White Cap 2-Feb", 8, 96):
+                 ("White Cap 3-Mar", 5, 50):
+                 ("White Dress 1-Jan", 2,15):
+                 ("White Dress 2-Feb", 8, 56):
+                 ("White Dress 3-Mar", 25, 175):
+
+                [])
+    it "limits the first level" $ do
+      sortAndLimit' trans [Just (id . const , Nothing, Just 2 )] `shouldLookLike` 
+                (
+                 ("Blue Cap 1-Jan", 35,35*12):
+                 ("Blue Cap 2-Feb", 28, 28*12):
+                 ("Blue Cap 3-Mar", 15, 150):
+                 ("Blue Shirt 1-Jan", 1, 3):
+                 ("Blue Shirt 2-Feb", 5, 15):
+                 ("Blue Shirt 3-Mar", 15, 45):
+
+                 ("Red Shirt 1-Jan", 10, 25):
+                 ("Red Shirt 2-Feb", 2, 5):
+                 ("Red Shirt 3-Mar", 6, 18):
+
+
+                 -- ("White Cap 1-Jan", 3,36):
+                 -- ("White Cap 2-Feb", 8, 96):
+                 -- ("White Cap 3-Mar", 5, 50):
+                 -- ("White Dress 1-Jan", 2,15):
+                 -- ("White Dress 2-Feb", 8, 56):
+                 -- ("White Dress 3-Mar", 25, 175):
+
+                [])
+    it "limits the second level" $ do
+      sortAndLimit' trans [Nothing, Just (id . const, Nothing, Just 2 )] `shouldLookLike` 
+                (
+                 ("Blue Cap 1-Jan", 35,35*12):
+                 ("Blue Cap 2-Feb", 28, 28*12):
+                 -- ("Blue Cap 3-Mar", 15, 150):
+                 -- ("Blue Shirt 1-Jan", 1, 3):
+                 -- ("Blue Shirt 2-Feb", 5, 15):
+                 -- ("Blue Shirt 3-Mar", 15, 45):
+
+                 ("Red Shirt 1-Jan", 10, 25):
+                 ("Red Shirt 2-Feb", 2, 5):
+                 -- ("Red Shirt 3-Mar", 6, 18):
+
+
+                 ("White Cap 1-Jan", 3,36):
+                 ("White Cap 2-Feb", 8, 96):
+                 -- ("White Cap 3-Mar", 5, 50):
+                 -- ("White Dress 1-Jan", 2,15):
+                 -- ("White Dress 2-Feb", 8, 56):
+                 -- ("White Dress 3-Mar", 25, 175):
+
+                [])
+    it "limits the third level" $ do
+      sortAndLimit' trans [Nothing, Nothing, Just (id . const, Nothing, Just 2 )] `shouldLookLike` 
+                (
+                 ("Blue Cap 1-Jan", 35,35*12):
+                 ("Blue Cap 2-Feb", 28, 28*12):
+                 -- ("Blue Cap 3-Mar", 15, 150):
+                 ("Blue Shirt 1-Jan", 1, 3):
+                 ("Blue Shirt 2-Feb", 5, 15):
+                 -- ("Blue Shirt 3-Mar", 15, 45):
+
+                 ("Red Shirt 1-Jan", 10, 25):
+                 ("Red Shirt 2-Feb", 2, 5):
+                 -- ("Red Shirt 3-Mar", 6, 18):
+
+
+                 ("White Cap 1-Jan", 3,36):
+                 ("White Cap 2-Feb", 8, 96):
+                 -- ("White Cap 3-Mar", 5, 50):
+                 ("White Dress 1-Jan", 2,15):
+                 ("White Dress 2-Feb", 8, 56):
+                 -- ("White Dress 3-Mar", 25, 175):
+
+                [])
 
     it "sort the first level by sales amount" $ do
       -- blue first
-      sortAndLimit' trans [Just (qpAmount Outward, Nothing, Nothing)] `shouldLookLike` 
+      sortAndLimit' trans [Just (salesAmount, Nothing, Nothing)] `shouldLookLike` 
                 (
                  ("Blue Cap 1-Jan", 35,35*12):
                  ("Blue Cap 2-Feb", 28, 28*12):
@@ -161,3 +270,4 @@ pureSpec = describe "@Report @parallel @pure" $ do
                  ("Red Shirt 3-Mar", 6, 18):
 
                 [])
+    
