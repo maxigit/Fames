@@ -13,5 +13,8 @@ import qualified FA as FA
 -- at:
 -- http://www.yesodweb.com/book/persistent/
 
-share [mkPersist sqlSettings, mkMigrate "migrateAll"]
+share [ mkPersist sqlSettings
+      , mkMigrate "migrateAll"
+      , mkDeleteCascade sqlSettings
+      ]
     $(persistFileWith lowerCaseSettings "config/models")

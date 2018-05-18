@@ -174,6 +174,8 @@ getGLPayrollViewR key = do
           $if (timesheetStatus (entityVal ts) /= Process)
             <form role=form method=post action=@{GLR $ GLPayrollToFAR key}>
               <button type="submit" .btn.btn-danger>Save To FrontAccounting
+            <form role=form method=post action=@{GLR $ GLPayrollRejectR key}>
+              <button type="submit" .btn.btn-warning>Reject 
             <form role=form method=post action=@{GLR $ GLPayrollToPayrooR key}>
               <button type="submit" .btn.btn-info>Download Payroo 
                               |]
@@ -184,7 +186,21 @@ postGLPayrollEditR :: Int64 -> Handler Html
 postGLPayrollEditR key = return "todo"
 
 postGLPayrollRejectR :: Int64 -> Handler Html
-postGLPayrollRejectR key = return "todo"
+postGLPayrollRejectR tId = do
+  let key = TimesheetKey $ SqlBackendKey tId
+  timesheetM <- runDB $ get key
+  case timesheetM of
+    Nothing -> do
+      renderMain Validate Nothing gone410 (setError $ toHtml $  "Timesheet #" <> tshow tId <> " doesn't exists.") (return ())
+    Just timesheet -> case timesheetStatus timesheet of
+      Process  -> renderMain Validate Nothing badRequest400 (setError $ toHtml $ "Timesheet #" <> tshow tId <> " has already been processed.") (return ())
+      Pending -> do
+            runDB $ deleteCascade key 
+            renderMain Validate Nothing ok200 (setSuccess $ toHtml $ "Timesheet #" <> tshow tId <> " has been deleted sucessfully" ) (return ())
+            
+      -- _  -> renderMain Validate Nothing preconditionFailed412 (setError $ toHtml $ "Timesheet #" <> tshow tId <> " is not pending.") (return ())
+
+  
 
 postGLPayrollToPayrooR :: Int64 -> Handler TypedContent
 postGLPayrollToPayrooR key = do
