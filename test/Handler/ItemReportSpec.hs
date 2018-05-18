@@ -54,7 +54,7 @@ shouldLookLike a b = do
 sortAndLimit' inputs limits = sortAndLimit limits (n inputs)
 
 -- to help type resolves constraints on empty list
-type EmptySort = Maybe (NMapKey -> [QPrice] -> (), Maybe RankMode, Maybe Int)
+type EmptySort = Maybe (NMapKey -> QPrice -> (), Maybe RankMode, Maybe Int)
 -- * Specs
 pureSpec :: Spec
 pureSpec = describe "@Report @parallel @pure" $ do
@@ -116,7 +116,7 @@ pureSpec = describe "@Report @parallel @pure" $ do
                 , ("White Dress 3-Mar", 25, 175)
                     
                 ]
-        salesAmount _ qps = qpAmount Inward (mconcat qps) -- reverse to we get top first
+        salesAmount _ = qpAmount Inward -- reverse to we get top first
     it "should keep original (map) order' if there is nothing to" $ do
       sortAndLimit' trans ([] :: [EmptySort]) `shouldLookLike` 
                 (

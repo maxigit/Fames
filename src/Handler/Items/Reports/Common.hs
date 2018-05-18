@@ -475,11 +475,11 @@ toCsv param grouped' = let
 -- ** Sort and limit
 sortAndLimitTranQP :: [ColumnRupture] -> QPGroup -> QPGroup
 sortAndLimitTranQP ruptures nmap = let
-  mkCol :: ColumnRupture ->  Maybe (NMapKey ->  [TranQP] -> Double, Maybe RankMode, Maybe Int)
+  mkCol :: ColumnRupture ->  Maybe (NMapKey ->  TranQP -> Double, Maybe RankMode, Maybe Int)
   mkCol (ColumnRupture{..}) = case (getIdentified (tpDataParams cpSortBy), cpColumn) of
     (_, Nothing) -> Nothing
     ([], _) -> Nothing
-    ((TraceParam (fn, _, _):_), _) -> Just ( \k qps -> maybe 0 fn $ lookupGrouped (tpDataType cpSortBy) $ mconcat qps
+    ((TraceParam (fn, _, _):_), _) -> Just ( \k mr -> maybe 0 fn $ lookupGrouped (tpDataType cpSortBy) $ mr
                                            , cpRankMode
                                            , cpLimitTo
                                            )

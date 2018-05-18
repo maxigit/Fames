@@ -303,28 +303,34 @@ data NMapKey = NMapKey { nkRank :: Maybe PersistValue
 mkNMapKey :: PersistValue -> NMapKey
 mkNMapKey v = NMapKey Nothing v
 
-data NMap a = NMap [Maybe Text] (Map NMapKey (NMap a))
+data NMap a = NMap a [Maybe Text] (Map NMapKey (NMap a))
             | NLeaf a
             deriving (Show, Eq)
 
 nmapToMap :: NMap a -> Map NMapKey (NMap a)
-nmapToMap (NMap _ m) = m
+nmapToMap (NMap _ _ m) = m
 nmapToMap nmap@(NLeaf _) = Map.singleton (mkNMapKey PersistNull) nmap
 
 -- | Names of the different keys of a NMap
 nmapLevels :: NMap a -> [Maybe Text]
-nmapLevels (NMap levels _) = levels
+nmapLevels (NMap _ levels _) = levels
 nmapLevels (NLeaf _) = []
 
-nmapFromList :: Semigroup a => Maybe Text -> [(NMapKey, a)] -> NMap a
-nmapFromList level xs = NMap [level] $ Map.fromListWith (<>) (map (fmap NLeaf) xs)
+nmapMargin :: NMap a -> a
+nmapMargin (NLeaf x) = x
+nmapMargin (NMap x _ _) = x
+
+nmapFromList :: (Monoid a) => Maybe Text -> [(NMapKey, a)] -> NMap a
+nmapFromList level xs = let
+  m = Map.fromListWith mappend (map (fmap NLeaf) xs)
+  in NMap (mconcat $ map nmapMargin $ toList m) [level] m
 
 groupAsNMap :: Monoid v => [(Maybe Text, k -> NMapKey)] -> [(k, v)] -> NMap v
 groupAsNMap [] trans  = NLeaf (mconcat $ map snd trans)
-groupAsNMap gs@((_level, grouper):groupers) trans = let
+groupAsNMap gs@((level, grouper):groupers) trans = let
   grouped = groupAsMap (grouper . fst) (:[]) trans
   m = fmap (groupAsNMap groupers) grouped
-  in NMap (map fst gs) m
+  in NMap (mconcat $ map nmapMargin $ toList m)(map fst gs) m
  
 data RankMode = RMResidual -- replace residuals with concat
               -- | RMResidualAvg -- replace residuals with avg
@@ -335,18 +341,17 @@ data RankMode = RMResidual -- replace residuals with concat
               | RMBestAndRes -- replace best and tops with
               deriving (Eq, Ord, Show, Enum, Bounded)
 
-sortAndLimit :: (Ord r, Semigroup a)
-             => [Maybe ( NMapKey ->  [a] -> r
+sortAndLimit :: (Ord r, Monoid a)
+             => [Maybe ( NMapKey ->  a -> r
                        , Maybe RankMode
                        , Maybe Int)
                 ]  -> NMap a -> NMap a
 sortAndLimit  [] nmap = nmap
 sortAndLimit  _ (NLeaf a) = NLeaf a
-sortAndLimit  (Nothing:cols) (NMap levels m) = NMap levels (fmap (sortAndLimit cols) m)
-sortAndLimit  (Just (sortFn, modeM, limitM):cols) (NMap levels m) = let
-  sorted = map snd $ sortOn fst [ ((sortFn key qps),  (key, nmap))
+sortAndLimit  (Nothing:cols) (NMap mr levels m) = NMap mr levels (fmap (sortAndLimit cols) m)
+sortAndLimit  (Just (sortFn, modeM, limitM):cols) (NMap mr levels m) = let
+  sorted = map snd $ sortOn fst [ ((sortFn key (nmapMargin nmap)),  (key, nmap))
                                 | (key, nmap) <- Map.toList m
-                                , let qps = map snd (nmapToList nmap)
                                 ]
   (bests, residuals) = case limitM of
     Nothing -> (sorted, [])
@@ -356,11 +361,11 @@ sortAndLimit  (Just (sortFn, modeM, limitM):cols) (NMap levels m) = let
   ranked = [ (NMapKey (Just $ PersistInt64 i) key, sortAndLimit cols n)
            | (i, (NMapKey _ key, n)) <- zip [1..] limited
            ]
-  in NMap (levels) (Map.fromList $ ranked)
+  in NMap mr (levels) (Map.fromList $ ranked)
 
 
 -- makeResidual :: Maybe RankMode -> [NMap ] -> []
-makeResidual :: Semigroup a
+makeResidual :: Monoid a
              => Maybe RankMode
              -> [(NMapKey, NMap a)] -- bests
              -> [(NMapKey, NMap a)] -- last
@@ -372,7 +377,7 @@ makeResidual (Just RMBestAndRes) bests residuals =
 
 
 
-aggregateResiduals :: Semigroup a
+aggregateResiduals :: Monoid a
                    => Text  -> [(NMapKey, NMap a)] -> (NMapKey, NMap a)
 aggregateResiduals title key'nmaps = ( NMapKey Nothing (PersistText $ title <> "-" <> tshow (length key'nmaps))
                                      , mconcat $ map snd key'nmaps
@@ -384,27 +389,40 @@ aggregateResiduals title key'nmaps = ( NMapKey Nothing (PersistText $ title <> "
 -- m = NMap [Just "level1"] (mapFromList [(PersistText "x", NLeaf "1")])
 -- n = NLeaf "a"
 
-instance Semigroup a=> Semigroup (NMap a) where
-  (NLeaf x) <> (NLeaf y) =  NLeaf (x <> y)
-  (NMap ls m) <> (NMap ls' m') = normalizeNMap $ NMap (mergeLevels ls ls') (unionWith (<>) m m') where
-    mergeLevels ls ls' = take (max (length ls) (length ls')) $ zipWith mergeLevel (ls <> repeat Nothing) (ls' <> repeat Nothing)
-    mergeLevel Nothing l = l
-    mergeLevel l Nothing = l
-    mergeLevel (Just l) (Just l') | l == l' = Just l
-                    | otherwise = Just $ l <> "|" <> l'
-  n <> n' = normalizeNMap $ NMap (nmapLevels n) (nmapToMap n) <> NMap (nmapLevels n') (nmapToMap n')
+appendNMap :: (a -> a -> a) -> NMap a -> NMap a -> NMap a
+appendNMap appN (NLeaf x) (NLeaf y) =  NLeaf (x `appN` y)
+appendNMap appN (NMap mr ls m) (NMap mr' ls' m') = let
+  mergeLevels ls ls' = take (max (length ls) (length ls'))
+                      $ zipWith mergeLevel (ls <> repeat Nothing) (ls' <> repeat Nothing)
+  mergeLevel Nothing l = l
+  mergeLevel l Nothing = l
+  mergeLevel (Just l) (Just l') | l == l' = Just l
+                                | otherwise = Just $ l <> "|" <> l'
+  in normalizeNMap $ NMap (mr `appN` mr')
+                       (mergeLevels ls ls')
+                       (unionWith (appendNMap appN) m m')
+appendNMap appN  n n' = normalizeNMap $ appendNMap appN 
+  (NMap (nmapMargin n)
+        (nmapLevels n)
+        (nmapToMap n))
+  (NMap (nmapMargin n')
+        (nmapLevels n')
+        (nmapToMap n'))
 
-normalizeNMap n@(NMap [] m) = case Map.toList m of
+instance Semigroup a=> Semigroup (NMap a) where
+  (<>) = appendNMap (<>)
+
+normalizeNMap n@(NMap _ [] m) = case Map.toList m of
   [(_,  n')] -> normalizeNMap n'
   _ -> n
 normalizeNMap n = n 
 
-instance Semigroup a => Monoid (NMap a) where
-  mappend = (<>)
-  mempty = NMap [] mempty
+instance Monoid a => Monoid (NMap a) where
+  mappend = appendNMap mappend
+  mempty = NMap mempty [] mempty
 
 instance Functor NMap where
-  fmap f (NMap ls m) = NMap ls (fmap (fmap f) m)
+  fmap f (NMap mr ls m) = NMap (f mr) ls (fmap (fmap f) m)
   fmap f (NLeaf x) = NLeaf (f x)
 
 -- Monotraversable
@@ -412,7 +430,7 @@ type instance Element (NMap a) = a
 instance MonoFunctor (NMap a)
 instance MonoFoldable (NMap a)
 instance Foldable.Foldable NMap where
-  foldr f b (NMap _ m) = foldr (flip (foldr f) ) b m
+  foldr f b (NMap _ _ m) = foldr (flip (foldr f) ) b m
   foldr f b (NLeaf l) = f l b
 
 
@@ -421,7 +439,7 @@ nmapToNMapList = Map.toList . nmapToMap
 
 nmapToList :: NMap a -> [([NMapKey], a)]
 nmapToList (NLeaf x) = [([], x)] 
-nmapToList (NMap _ m) = [ (key : subkeys, es)
+nmapToList (NMap _ _ m) = [ (key : subkeys, es)
                       | (key, nmap) <- Map.toList m
                       , (subkeys, es)<- nmapToList nmap
                       ]
