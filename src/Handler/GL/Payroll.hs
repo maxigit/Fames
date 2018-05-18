@@ -63,7 +63,8 @@ uploadForm mode paramM = let
 getGLPayrollR :: Handler Html
 getGLPayrollR = do
   pendingW <-displayPendingSheets
-  renderMain Validate Nothing ok200 (setInfo ([shamlet|<h3>Enter a timesheet|] >> timesheetStyleCheat)) pendingW
+  lastW <-displayLastSheets 10
+  renderMain Validate Nothing ok200 (setInfo ([shamlet|<h3>Enter a timesheet|] >> timesheetStyleCheat)) (pendingW >> lastW)
 postGLPayrollValidateR :: Handler Html
 postGLPayrollValidateR = do
   actionM <- lookupPostParam "action"
@@ -133,6 +134,8 @@ postGLPayrollToFAR key = do
       case r of
         Left e -> setError (toHtml e) >> getGLPayrollViewR key
         Right e -> do
+          -- update status
+          runDB $ update (TimesheetKey $ SqlBackendKey key) [TimesheetStatus =. Process]
           setSuccess (toHtml $ tshow e)
 
           renderMain Validate Nothing created201 (setInfo "Timesheet saved to Front Account sucessfully") (return ())

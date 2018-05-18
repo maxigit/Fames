@@ -318,6 +318,15 @@ displayPendingSheets = do
        ^{displayTimesheetList timesheets}
           |]
 
+displayLastSheets :: Int -> Handler Widget
+displayLastSheets n = do
+  timesheets <- runDB $ selectList [TimesheetStatus !=. Pending] [LimitTo n, Desc TimesheetId ]
+  return [whamlet|
+     <div.panel.panel-primary>
+       <div.panel-heading> Last Timesheets
+       ^{displayTimesheetList timesheets}
+          |]
+
 -- ** Timesheet list
 displayTimesheetList :: [Entity Timesheet] -> Widget
 displayTimesheetList timesheets = [whamlet|
