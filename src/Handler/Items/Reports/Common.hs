@@ -384,14 +384,18 @@ pvToText :: PersistValue -> Text
 pvToText PersistNull = ""
 pvToText pv = either id id . fromPersistValueText $ pv
   
+nkeyWithRank :: NMapKey -> Text
+nkeyWithRank (NMapKey (Just i) key) = tshow i <> "-" <> pvToText key
+nkeyWithRank (NMapKey Nothing key) = pvToText key
+
 tableProcessor :: NMap TranQP -> Widget 
 tableProcessor grouped = 
   [whamlet|
     $forall (h1, group1) <- nmapToNMapList grouped
         <div.panel.panel-info>
-         $with name <- pvToText $ nkKey h1
+         $with name <- nkeyWithRank h1
           <div.panel-heading data-toggle="collapse" data-target="#report-panel-#{name}">
-            <h2>#{pvToText $ nkKey h1}
+            <h2>#{nkeyWithRank h1}
           <div.panel-body.collapse.in id="report-panel-#{name}">
             <table.table.table-hover.table-striped>
               <tr>
@@ -406,7 +410,7 @@ tableProcessor grouped =
                 <th> Purch Amount
                 <th> Purch Min Price
                 <th> Purch Max Price
-                <th> Purch Average Price
+                <th> Purch Average Price/
                 <th> Summary Qty
                 <th> Summary Amount
                 <th> Summary Min Price
@@ -415,7 +419,8 @@ tableProcessor grouped =
               $forall (keys, qp) <- nmapToList group1
                     <tr>
                       $forall key <- keys
-                        <td> #{pvToText $ nkKey key}
+                        <td>
+                           #{nkeyWithRank key}
                       ^{showQp Outward $ salesQPrice qp}
                       ^{showQp Inward $ purchQPrice qp}
                       ^{showQp Outward $ mconcat [salesQPrice qp , purchQPrice qp]}
@@ -494,7 +499,7 @@ chartProcessor param grouped = do
   forM_ (zip asList [1 :: Int ..]) $ \((panelName, nmap), i) -> do
      let plotId = "items-report-plot-" <> tshow i 
          -- bySerie = fmap (groupAsMap (mkGrouper param (cpColumn $ rpSerie param) . fst) (:[])) group
-     panelChartProcessor param (pvToText $ nkKey panelName) plotId nmap
+     panelChartProcessor param (nkeyWithRank panelName) plotId nmap
         
   
 panelChartProcessor :: ReportParam -> Text -> Text -> NMap TranQP -> Widget 
@@ -508,7 +513,7 @@ panelChartProcessor param name plotId0 grouped = do
                                                                <*> [param]
                             , tparam <- getIdentified tparams
                             ]
-              plot = seriesChartProcessor (rpSerie param) (isNothing $ cpColumn $ rpSerie param) traceParams (pvToText $ nkKey bandName) plotId bands 
+              plot = seriesChartProcessor (rpSerie param) (isNothing $ cpColumn $ rpSerie param) traceParams (nkeyWithRank bandName) plotId bands 
               plotId = plotId0 <> "-" <> tshow i
           [whamlet|
             <div id=#{plotId} style="height:#{tshow plotHeight }px">
@@ -552,8 +557,8 @@ seriesChartProcessor rupture mono params name plotId grouped = do
                                                     ]
                                                     -- <> maybe [] (\color -> [("color", String color)]) colorM
                                                     <> options color
-                                                    <> (if name == PersistNull then [] else [("name", toJSON $ pvToText name)])
-                                                       where g'' = [ (pvToText $ nkKey n, mconcat (toList nmap))  | (n, nmap) <- nmapToNMapList g' ] -- flatten everything if needed
+                                                    <> (if name == PersistNull then [] else [("name", toJSON $ nkeyWithRank name')])
+                                                       where g'' = [ (nkeyWithRank n, mconcat (toList nmap))  | (n, nmap) <- nmapToNMapList g' ] -- flatten everything if needed
                                                              g = case runsum of
                                                                  RunSum -> let (keys, tqs) = unzip g''
                                                                            in zip keys (scanl1 (<>) tqs)
