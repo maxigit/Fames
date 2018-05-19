@@ -194,8 +194,8 @@ getColsWithDefault = do
   -- return $ map Column $ basic ++ ["category:" <>  cat | cat <- categories]
 -- * DB
 loadItemTransactions :: ReportParam
-                     -> ([(TranKey, TranQP)] -> QPGroup)
-                     -> Handler QPGroup 
+                     -> ([(TranKey, TranQP)] -> NMap TranQP)
+                     -> Handler (NMap TranQP) 
 loadItemTransactions param grouper = do
   categories <- categoriesH
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
@@ -357,7 +357,7 @@ purchToTransInfo ( Entity _ FA.SuppInvoiceItem{..}
 itemReport
   :: ReportParam
      -> [ColumnRupture]
-     -> (QPGroup -> a )
+     -> (NMap TranQP -> a )
      -> Handler a
 itemReport param cols processor = do
   let grouper =  groupTranQPs param ((map cpColumn cols))
@@ -369,7 +369,7 @@ itemReport param cols processor = do
 groupTranQPs :: ReportParam
              -> [Maybe Column]
              -> [(TranKey, TranQP)]
-             -> QPGroup
+             -> NMap TranQP
 groupTranQPs param columns trans = let
   go column =  (colName <$> column -- level name
                , mkGrouper param (column) -- TranKey -> NMap Key
@@ -384,7 +384,7 @@ pvToText :: PersistValue -> Text
 pvToText PersistNull = ""
 pvToText pv = either id id . fromPersistValueText $ pv
   
-tableProcessor :: QPGroup -> Widget 
+tableProcessor :: NMap TranQP -> Widget 
 tableProcessor grouped = 
   [whamlet|
     $forall (h1, group1) <- nmapToNMapList grouped
@@ -419,7 +419,7 @@ tableProcessor grouped =
                       ^{showQp Outward $ salesQPrice qp}
                       ^{showQp Inward $ purchQPrice qp}
                       ^{showQp Outward $ mconcat [salesQPrice qp , purchQPrice qp]}
-              $with (qpt) <- summarize (toList group1)
+              $with (qpt) <- (nmapMargin group1)
                   <tr.total>
                     <td> Total
                     ^{showQp Outward $ salesQPrice qpt}
@@ -443,7 +443,6 @@ tableProcessor grouped =
                                   |]
 
 
-summarize group = mconcat group --  sconcat (q :| qp) where  (q:qp) = toList group
 -- *** Csv
 qpToCsv io Nothing = ["", "", "", ""]
 qpToCsv io (Just qp) = [ tshow (qpQty io qp)
@@ -473,7 +472,7 @@ toCsv param grouped' = let
                              <> (qpToCsv Inward $ purchQPrice qp)
                              <> (qpToCsv Inward $ adjQPrice qp)
 -- ** Sort and limit
-sortAndLimitTranQP :: [ColumnRupture] -> QPGroup -> QPGroup
+sortAndLimitTranQP :: [ColumnRupture] -> NMap TranQP -> NMap TranQP
 sortAndLimitTranQP ruptures nmap = let
   mkCol :: ColumnRupture ->  Maybe (NMapKey ->  TranQP -> Double, Maybe RankMode, Maybe Int)
   mkCol (ColumnRupture{..}) = case (getIdentified (tpDataParams cpSortBy), cpColumn) of
@@ -485,8 +484,9 @@ sortAndLimitTranQP ruptures nmap = let
                                            )
   in sortAndLimit (map mkCol ruptures) nmap
   
+
 -- ** Plot
-chartProcessor :: ReportParam -> QPGroup -> Widget 
+chartProcessor :: ReportParam -> NMap TranQP -> Widget 
 chartProcessor param grouped = do
   -- addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
   -- done add report level to fix ajax issue.
@@ -497,12 +497,12 @@ chartProcessor param grouped = do
      panelChartProcessor param (pvToText $ nkKey panelName) plotId nmap
         
   
-panelChartProcessor :: ReportParam -> Text -> Text -> QPGroup -> Widget 
+panelChartProcessor :: ReportParam -> Text -> Text -> NMap TranQP -> Widget 
 panelChartProcessor param name plotId0 grouped = do
   let asList = nmapToNMapList grouped
   let plots = forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
         do
-          let -- byColumn = nmapToNMapList grouped -- fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) (unQPGroup' bands)
+          let -- byColumn = nmapToNMapList grouped -- fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) (unNMap TranQP' bands)
               traceParams = [(qtype, tparam )
                             | (TraceParams qtype tparams ) <- [rpTraceParam,  rpTraceParam2 , rpTraceParam3]
                                                                <*> [param]
@@ -539,7 +539,7 @@ defaultColors = defaultPlottly where
               "#17becf"   -- blue-teal
              ]
 
-seriesChartProcessor :: ColumnRupture -> Bool -> [(QPType, TraceParam)]-> Text -> Text -> QPGroup  -> Widget 
+seriesChartProcessor :: ColumnRupture -> Bool -> [(QPType, TraceParam)]-> Text -> Text -> NMap TranQP  -> Widget 
 seriesChartProcessor rupture mono params name plotId grouped = do
      let xsFor g = map (toJSON . fst) g
          ysFor f g = map (toJSON . f . snd) g

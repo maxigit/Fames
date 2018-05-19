@@ -443,33 +443,3 @@ nmapToList (NMap _ _ m) = [ (key : subkeys, es)
                       | (key, nmap) <- Map.toList m
                       , (subkeys, es)<- nmapToList nmap
                       ]
-  
--- Group of transactions
--- We don't use the normal Map, because it's monoid implementation is broken
--- TODO rename to MonoidMap and move in utils
--- newtype QPGroup' a = QPGroup' {unQPGroup' :: Map (Maybe Text) a}
-
-type QPGroup = NMap TranQP
--- type QPGroup2 =  QPGroup' QPGroup
-
--- instance Semigroup a => Semigroup (QPGroup' a) where
---    (QPGroup' m1) <> (QPGroup' m2) = QPGroup' (unionWith (<>) m1 m2 )
-
--- instance (Monoid a, Semigroup a) => Monoid (QPGroup' a) where
---    mappend = (<>)
---    mempty = QPGroup' mempty
-
--- instance Functor QPGroup' where
---   fmap f (QPGroup' m) = QPGroup' (fmap f m)
-
--- type instance Element (QPGroup' a) = a
--- instance MonoFunctor (QPGroup' a) 
--- instance MonoFoldable (QPGroup' a) 
--- instance Foldable.Foldable QPGroup' where
---   foldr f b (QPGroup' m) = foldr f b m
--- -- instance Traversable (QPGroup' a) where
--- --   traverse f (QPGroup' m) = QPGroup' (foldMap m)
-
--- qpGroupToList :: QPGroup' a -> [(Maybe Text, a)]
--- qpGroupToList = Map.toList . unQPGroup'
-
