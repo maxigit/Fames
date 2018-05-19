@@ -296,7 +296,7 @@ tkSupplier = (either (const Nothing) Just) <=< tkCustomerSupplier
 -- This should be much more efficient than converting everything to Text.
 -- The key holds an optional rank part, which allows to the Map to be sorted
 -- by something different from the actual key.
-data NMapKey = NMapKey { nkRank :: Maybe PersistValue
+data NMapKey = NMapKey { nkRank :: Maybe Int
                        , nkKey :: PersistValue
                        } deriving (Eq, Ord, Show)
 
@@ -333,19 +333,20 @@ groupAsNMap gs@((level, grouper):groupers) trans = let
   in NMap (mconcat $ map nmapMargin $ toList m)(map fst gs) m
  
 data RankMode = RMResidual -- replace residuals with concat
-              -- | RMResidualAvg -- replace residuals with avg
-              -- | RMTotal -- add concat everything
-              -- | RMAverage -- add avg everything
-              -- | RMBests -- replace best with concat
-              -- | RMBestAvg -- replace best with average
+              | RMResidualAvg -- replace residuals with avg
+              | RMTotal -- add concat everything
+              | RMAverage -- add avg everything
+              | RMBest -- replace best with concat
+              | RMBestAvg -- replace best with average
               | RMBestAndRes -- replace best and tops with
+              | RMBestAndResAvg -- replace best and tops with
               deriving (Eq, Ord, Show, Enum, Bounded)
 
-sortAndLimit :: (Ord r, Monoid a)
-             => [Maybe ( NMapKey ->  a -> r
+sortAndLimit :: (Ord r)
+             => [Maybe ( NMapKey ->  TranQP -> r
                        , Maybe RankMode
                        , Maybe Int)
-                ]  -> NMap a -> NMap a
+                ]  -> NMap TranQP -> NMap TranQP
 sortAndLimit  [] nmap = nmap
 sortAndLimit  _ (NLeaf a) = NLeaf a
 sortAndLimit  (Nothing:cols) (NMap mr levels m) = NMap mr levels (fmap (sortAndLimit cols) m)
@@ -358,30 +359,42 @@ sortAndLimit  (Just (sortFn, modeM, limitM):cols) (NMap mr levels m) = let
     Just limit ->  splitAt limit sorted
 
   limited = makeResidual modeM bests residuals
-  ranked = [ (NMapKey (Just $ PersistInt64 i) key, sortAndLimit cols n)
+  ranked = [ (NMapKey (Just i) key, sortAndLimit cols n)
            | (i, (NMapKey _ key, n)) <- zip [1..] limited
            ]
   in NMap mr (levels) (Map.fromList $ ranked)
 
 
 -- makeResidual :: Maybe RankMode -> [NMap ] -> []
-makeResidual :: Monoid a
-             => Maybe RankMode
-             -> [(NMapKey, NMap a)] -- bests
-             -> [(NMapKey, NMap a)] -- last
-             -> [(NMapKey, NMap a)]
+makeResidual :: Maybe RankMode
+             -> [(NMapKey, NMap TranQP)] -- bests
+             -> [(NMapKey, NMap TranQP)] -- last
+             -> [(NMapKey, NMap TranQP)]
 makeResidual Nothing bests residuals = bests
 makeResidual (Just RMResidual) bests residuals = bests <> [aggregateResiduals "Last" residuals]
+makeResidual (Just RMResidualAvg) bests residuals = bests <> averageResiduals "Last" residuals
+makeResidual (Just RMTotal) bests residuals = averageResiduals "All" (bests <> residuals)
+makeResidual (Just RMAverage) bests residuals = averageResiduals "All" (bests <> residuals)
+makeResidual (Just RMBest) bests residuals = [aggregateResiduals "Top" bests] <> residuals
+makeResidual (Just RMBestAvg) bests residuals = averageResiduals "Top" bests <> residuals
 makeResidual (Just RMBestAndRes) bests residuals =
   [aggregateResiduals "Top" bests] <> [aggregateResiduals "Last" residuals]
+makeResidual (Just RMBestAndResAvg) bests residuals =
+  averageResiduals "Top" bests <> averageResiduals "Last" residuals
 
 
 
-aggregateResiduals :: Monoid a
-                   => Text  -> [(NMapKey, NMap a)] -> (NMapKey, NMap a)
+aggregateResiduals :: Text  -> [(NMapKey, NMap TranQP)] -> (NMapKey, NMap TranQP)
 aggregateResiduals title key'nmaps = ( NMapKey Nothing (PersistText $ title <> "-" <> tshow (length key'nmaps))
                                      , mconcat $ map snd key'nmaps
                                      )
+averageResiduals :: Text  -> [(NMapKey, NMap TranQP)] -> [(NMapKey, NMap TranQP)]
+averageResiduals title [] = []
+averageResiduals title key'nmaps = let
+  n = length key'nmaps
+  in [( NMapKey Nothing (PersistText $ title <> "/" <> tshow (length key'nmaps))
+                                     , fmap (mulTranQP (1/fromIntegral n)) . mconcat $ map snd key'nmaps
+                                     )]
 -- nmapFromNMaps :: Semigroup a => Maybe Text -> [(NMapKey, NMap a)] -> NMap a
 -- nmapFromNMaps level nmaps = NMap 
 
