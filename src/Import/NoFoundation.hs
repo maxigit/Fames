@@ -18,6 +18,7 @@ module Import.NoFoundation
     , showTransType
     , decodeHtmlEntities
     , groupAsMap
+    , wordize
     ) where
 
 import ClassyPrelude.Yesod as Import
@@ -33,6 +34,8 @@ import Yesod.Default.Config2 as Import
 import Text.Blaze.Html (Markup)
 import qualified Text.HTML.TagSoup as TS
 import qualified Data.Map as Map
+import qualified Data.List.Split as Split
+import Data.Char (isUpper)
 
 
 import Text.Printf(printf)
@@ -135,3 +138,16 @@ decodeHtmlEntities s = TS.fromTagText $ headEx $ TS.parseTags s
 -- * Util
 groupAsMap :: (Semigroup a, Ord k) => (t -> k) -> (t -> a) -> [t] -> Map k a
 groupAsMap key f xs = Map.fromListWith (<>) [(key x, f x ) | x <- xs]
+
+-- * Text
+-- | Transform camel case to word and remove prefix and suffix
+-- use full to make menu from data type
+wordize :: Maybe Text -> Maybe Text -> Text -> Text
+wordize prefixM suffixM s0 = let
+  withoutPrefix  x = fromMaybe x  (join $ stripPrefix <$> prefixM  <*> Just x)
+  withoutSuffix x = fromMaybe x (join $ stripSuffix <$> suffixM  <*> Just x)
+  titles = Split.split (Split.keepDelimsL $ Split.whenElt isUpper) (unpack . withoutSuffix $ withoutPrefix s0)
+  in intercalate " " (map pack titles)
+
+
+  

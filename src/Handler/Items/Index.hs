@@ -309,6 +309,7 @@ loadVariations cache param = do
     ItemPriceView -> [delayedSalesPrices]
     ItemPurchaseView -> [delayedPurchasePrices]
     ItemAllView -> [delayedSalesPrices, delayedPurchasePrices]
+    ItemFAStatusView -> [delayedStatus]
     ItemWebStatusView -> [delayedSalesPrices, delayedStatus, delayedWebStatus, delayedWebPrices]
     ItemCategoryView -> []
     )
@@ -605,11 +606,8 @@ columnsFor _ ItemPriceView infos = map PriceColumn cols where
   cols = salesPricesColumns $ map  iiInfo  infos
 columnsFor _ ItemPurchaseView infos = map PurchaseColumn cols where
   cols = purchasePricesColumns $ map  iiInfo  infos
-columnsFor cache ItemWebStatusView _ =
-  map FAStatusColumn fas
-  <> map WebStatusColumn webs
-  <> map WebPriceColumn webPrices
-  where
+columnsFor cache ItemFAStatusView _ =
+  map FAStatusColumn fas where
   fas = [ "Quantity On Hand"
         , "Quantity On Hand (all)"
         , "On Demand"
@@ -617,6 +615,11 @@ columnsFor cache ItemWebStatusView _ =
         , "On Order"
         , "Status"
         ]
+columnsFor cache ItemWebStatusView infos =
+  columnsFor cache ItemFAStatusView infos
+  <> map WebStatusColumn webs
+  <> map WebPriceColumn webPrices
+  where
   webs = ["Web Status", "Product Display"]
   -- union of FA prices list AND web prices
   -- so we also show missing prices list
@@ -956,7 +959,7 @@ $('[data-toggle="tooltip"]').tooltip();
     <ul.nav.nav-tabs>
       $forall nav <- navs
         <li class="#{navClass nav}">
-          <a.view-mode href="#" data-url="@{ItemsR (ItemsIndexR (Just nav))}">#{drop 4 $ tshow nav}
+          <a.view-mode href="#" data-url="@{ItemsR (ItemsIndexR (Just nav))}">#{wordize (Just "Item") (Just "View") $ tshow nav}
     <div#items-table>
       ^{main}
 |]
