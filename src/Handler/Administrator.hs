@@ -9,6 +9,7 @@ import Util.Cache
 import qualified Data.Map as Map
 import Items.Types
 import Text.Pretty.Simple
+import Development.GitRev
 
 
 -- | Page to test administrator authentication.
@@ -17,6 +18,12 @@ getAIndexR :: Handler Html
 getAIndexR = do
   args <- getArgs
   settings <- appSettings <$>  getYesod
+  let gitbranch = $gitBranch :: Text
+      gitcommitDate = $gitCommitDate :: Text
+      -- gitdescribe = $gitDescribe :: Text
+      githash = $gitHash :: Text
+      gitdirty = $gitDirtyTracked :: Bool
+      gitdirtyStar = if gitdirty then "*" else "" :: Text
   -- we don't show the settings for security reason
   -- however we can dump it to the console
   putStrLn $ decodeUtf8 $ encodePretty defConfig settings
@@ -25,14 +32,34 @@ getAIndexR = do
 <h1> Administrator
 You are logged as Administrator !
 <ul>
-  <li><a href="@{AdministratorR ATestFAR}"> Test FrontAccounting Connection
-<div.panel>
-  <div.panel-heading.panel-primary>
-    <h3> Arguments
+  <li>
+    <a href="@{AdministratorR ATestFAR}">
+      Test FrontAccounting Connection
+<div.panel.panel-info>
+  <div.panel-heading>
+    <h3> executables arguments
   <div.panel-body>
     <ul>
       $forall arg <- args
         <li> #{arg}
+<div.panel.panel-info>
+  <div.panel-heading>
+    <h3> build version
+  <table.table.panel-body>
+    <tr>
+       <td> Branch
+       <td> #{gitbranch}
+    <tr>
+       <td> Commit
+       <td>
+         <span :gitdirty:.text-danger :gitdirty:.bg-danger> #{githash}#{gitdirtyStar}
+    <tr>
+       <td> Dirty
+       <td :gitdirty:.text-danger :(not gitdirty):.text-success> #{tshow gitdirty}
+    <tr>
+       <td> Commit Date
+       <td> #{gitcommitDate}
+
 |]
 
 

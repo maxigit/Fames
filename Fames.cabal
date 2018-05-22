@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1952f3f42f2bc25f34bf89c372f26c1a4dd4954ab0d379398de20adb587a7b5d
+-- hash: 7f69762d47bd34e878b135067868083b80531256c3d590564166245f6009fcf2
 
 name:           Fames
 version:        0.0.1
@@ -63,6 +63,7 @@ library
     , formatting
     , generics-sop
     , ghc-prim
+    , gitrev >=0.1.3.1 && <1.4
     , hjsmin >=0.1 && <0.3
     , http-conduit >=2.1 && <2.3
     , lifted-async
@@ -246,6 +247,7 @@ executable Fames
     , formatting
     , generics-sop
     , ghc-prim
+    , gitrev >=0.1.3.1 && <1.4
     , hjsmin >=0.1 && <0.3
     , http-conduit >=2.1 && <2.3
     , lifted-async
@@ -365,6 +367,7 @@ test-suite ghcid
     , formatting
     , generics-sop
     , ghc-prim
+    , gitrev >=0.1.3.1 && <1.4
     , hjsmin >=0.1 && <0.3
     , hspec >=2.0.0
     , hspec-stack-rerun
@@ -571,6 +574,7 @@ test-suite test
     , formatting
     , generics-sop
     , ghc-prim
+    , gitrev >=0.1.3.1 && <1.4
     , hjsmin >=0.1 && <0.3
     , hspec >=2.0.0
     , hspec-stack-rerun
