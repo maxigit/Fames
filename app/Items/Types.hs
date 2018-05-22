@@ -296,9 +296,19 @@ tkSupplier = (either (const Nothing) Just) <=< tkCustomerSupplier
 -- This should be much more efficient than converting everything to Text.
 -- The key holds an optional rank part, which allows to the Map to be sorted
 -- by something different from the actual key.
+-- If the rank is present, we ignore the key
 data NMapKey = NMapKey { nkRank :: Maybe Int
                        , nkKey :: PersistValue
-                       } deriving (Eq, Ord, Show)
+                       } deriving (Show)
+
+
+instance Eq NMapKey where
+  NMapKey (Just r)  _ == NMapKey (Just r') _ = r == r'
+  (NMapKey r k) == (NMapKey r' k') = (r, k) == (r', k')
+
+instance Ord NMapKey where
+  NMapKey (Just r)  _ <= NMapKey (Just r') _ = r <= r'
+  (NMapKey r k) <= (NMapKey r' k') = (r, k) <= (r', k')
 
 mkNMapKey :: PersistValue -> NMapKey
 mkNMapKey v = NMapKey Nothing v
