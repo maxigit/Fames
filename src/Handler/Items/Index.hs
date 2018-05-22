@@ -827,13 +827,13 @@ columnForWebStatus col wStatusM =
                                       (sequence . iwfProductDisplay =<<  wStatusM) 
         Nothing -> Nothing
     _ -> Nothing
-  where showActive (Just True) = [shamlet|<span data-label="web-enabled"
+  where showActive (Just True) = [shamlet|<span data-label="web-active"
                                           data-toggle="tooltip" title="The variation exists and will show on the product display page (if any)."
-                                          >Enabled|]
-        showActive (Just False) = [shamlet|<span data-label="web-disabled"
+                                          >Active|]
+        showActive (Just False) = [shamlet|<span data-label="web-inactive"
                                           data-toggle="tooltip" title="The variation exists but is hidden. It won't show on the product display page."
-                                           >Disabled|]
-        showActive Nothing = [shamlet|<span data-●●●●●●label="web-missing"
+                                           >Inactive|]
+        showActive Nothing = [shamlet|<span data-label="web-missing"
                                           data-toggle="tooltip" title="The variation doesn't exist. Can be created using <Create Missings> if needed."
                                       >Missing|]
   -- where showActive (Just True) = "Enabled"
