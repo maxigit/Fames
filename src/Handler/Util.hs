@@ -47,6 +47,8 @@ module Handler.Util
 , Identifiable(..)
 , getIdentified
 , renderField
+, allCustomers
+, allSuppliers
 ) where
 -- ** Import
 import Foundation
@@ -444,6 +446,11 @@ showDouble :: Double -> Html
 showDouble x = toHtml $ ( (printf "%.4f" x) :: String )
   
 -- * Cached Value accross session
+-- cacheEntities :: PersistEntity e => Text -> Bool -> Handler (Map (Key e) e )
+cacheEntities cacheKey force = cache0 force cacheForEver cacheKey $ do
+  entities <- runDB $ selectList [] []
+  return $ mapFromList [(key, entity) | (Entity key entity) <- entities ]
+
 -- ** From Front Accounting
 -- Price list used as base to calculate other.
 -- Found it FA system preferecense
@@ -453,12 +460,17 @@ basePriceList = cache0 False cacheForEver "base-price-list" $ do
   let Just basePl = readMay =<< FA.sysPrefValue prefs
   return basePl
   
+-- *** Customer and Supplier map
+allCustomers :: Bool -> Handler (Map (Key  FA.DebtorsMaster) FA.DebtorsMaster)
+allCustomers force = cacheEntities "all-customer-list" force
+
+allSuppliers :: Bool -> Handler (Map (Key  FA.Supplier) FA.Supplier)
+allSuppliers force = cacheEntities "all-supplier-list" force
+
 -- ** Fames
 -- *** Operators
 allOperators :: Handler (Map (Key Operator) Operator)
-allOperators = cache0 False cacheForEver "all-operators" $ do
-  operators <- runDB $ selectList [] []
-  return $ mapFromList [ (key, operator) | (Entity key operator) <- operators ]
+allOperators = cacheEntities "all-operators" False
   
 -- | Find an operator by string, can be a mix of nickname, firstname, surname ...
 operatorFinder :: Handler (Text -> Maybe (Entity Operator))

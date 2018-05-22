@@ -14,6 +14,7 @@ import Database.Persist.MySQL(unSqlBackendKey, rawSql, Single(..))
 import Data.Aeson.QQ(aesonQQ)
 import GL.Utils(calculateDate)
 import GL.Payroll.Settings
+import Database.Persist.Sql hiding (Column)
 
 -- * Param
 data ReportParam = ReportParam
@@ -153,6 +154,8 @@ getColsWithDefault :: Handler ([Column], (Column, Column, Column))
 getColsWithDefault = do
   today <- utctDay <$> liftIO getCurrentTime
   categories <- categoriesH
+  customerMap <- allCustomers False
+  supplierMap <- allSuppliers False
 
   let style = Column "Style" (const' $ maybe PersistNull PersistText . tkStyle)
       variation = Column "Variation" (const' $ maybe PersistNull PersistText . tkVar)
@@ -166,17 +169,39 @@ getColsWithDefault = do
       monthly =  ("End of Month", calculateDate EndOfMonth)
       mkDateColumn (name, fn) = Column name (const' $ PersistDay . fn . tkDay)
       const' fn = const ( mkNMapKey . fn)
+      -- For the supplier and customer key
+      -- we want the Map to use the id instead of the map for performance reason
+      -- but we need to store the name somewhere.
+      -- The easiest way (to be consistent with the other key)
+      -- we set the id to the rank but the name to the key.
+      -- this doesn't stop the name to be compare when building the map
+      -- but at lest the id have been matched beforehand, which should reduce
+      -- the number of Text comparison significantly.
+      mkCustomerSupplierKey _ tkey = case tkCustomerSupplier tkey of
+        Nothing -> NMapKey Nothing PersistNull
+        Just (Left (custId, _)) ->
+          NMapKey (Just $ fromIntegral custId)
+                  (case lookup (FA.DebtorsMasterKey $ fromIntegral custId) customerMap of
+                                   Nothing -> PersistNull 
+                                   Just cust -> PersistText (decodeHtmlEntities $ FA.debtorsMasterName cust)
+                  )
+        Just (Right suppId) -> 
+          NMapKey (Just $ fromIntegral suppId)
+                  (case lookup (FA.SupplierKey $ fromIntegral suppId) supplierMap of
+                     Nothing -> PersistNull 
+                     Just supp -> PersistText (decodeHtmlEntities $ FA.supplierSuppName supp )
+                  )
 
       cols = [ style
             , variation
             , Column "Sku" (const' $ PersistText . tkSku)
             , Column "Date" (const' $ PersistDay . tkDay)
             , w52
-            , Column "Customer" (const' $ maybe PersistNull (PersistInt64. fst) . tkCustomer)
-            , Column "Supplier" (const' $ maybe PersistNull  PersistInt64 . tkSupplier)
-            , Column "Supplier/Customer" (const' $ maybe PersistNull (either (PersistInt64 . fst)
-                                                                             PersistInt64
-                                                                    ). tkCustomerSupplier)
+            -- , Column "Customer" (const' $ maybe PersistNull (PersistInt64. fst) . tkCustomer)
+            -- , Column "Supplier" (const' $ maybe PersistNull  PersistInt64 . tkSupplier)
+            , Column "Supplier/Customer" mkCustomerSupplierKey --  (const' $ maybe PersistNull (either (PersistInt64 . fst)
+                                                               --              PersistInt64
+                                                               --     ). tkCustomerSupplier)
             , Column "TransactionType" (const' $ PersistInt64 . fromIntegral . fromEnum . tkType)
             , Column "Sales/Purchase" (const' $ maybe PersistNull PersistText . tkType'')
             , Column "Invoice/Credit" (const' $ maybe PersistNull PersistText . tkType')
