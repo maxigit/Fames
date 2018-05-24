@@ -29,6 +29,9 @@ data ReportParam = ReportParam
   , rpTraceParam :: TraceParams
   , rpTraceParam2 :: TraceParams
   , rpTraceParam3 :: TraceParams
+  , rpLoadSales :: Bool
+  , rpLoadPurchases :: Bool
+  , rpLoadAdjustment :: Bool
   }  deriving Show
 paramToCriteria :: ReportParam -> [Filter FA.StockMove]
 paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
@@ -225,15 +228,16 @@ loadItemTransactions :: ReportParam
                      -> ([(TranKey, TranQP)] -> NMap TranQP)
                      -> Handler (NMap TranQP) 
 loadItemTransactions param grouper = do
+  let loadIf f loader = if f param then loader else return []
   categories <- categoriesH
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   catFinder <- categoryFinderCached
   skuToStyleVar <- skuToStyleVarH
-  adjustments <- loadStockAdjustments param
+  adjustments <- loadIf rpLoadAdjustment $ loadStockAdjustments param
   -- for efficiency reason
   -- it is better to group sales and purchase separately and then merge them
-  sales <- loadItemSales param
-  purchases <- loadItemPurchases param
+  sales <- loadIf rpLoadSales $ loadItemSales param
+  purchases <- loadIf rpLoadPurchases $ loadItemPurchases param
   let salesGroups = grouper' sales
       purchaseGroups = grouper  purchases
       adjGroups = grouper' adjustments

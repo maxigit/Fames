@@ -32,14 +32,20 @@ reportForm cols paramM extra = do
   (fTrace1, wTrace1) <- traceForm "" (rpTraceParam <$> paramM)
   (fTrace2, wTrace2) <- traceForm " 2" (rpTraceParam2 <$> paramM)
   (fTrace3, wTrace3) <- traceForm " 3"(rpTraceParam3 <$> paramM)
+  (fSales, vSales) <- mreq checkBoxField "Sales" (rpLoadSales <$> paramM)
+  (fPurchases, vPurchases) <- mreq checkBoxField "Purchases" (rpLoadPurchases <$> paramM)
+  (fAdjustment, vAdjustment) <- mreq checkBoxField "Adjustment" (rpLoadAdjustment <$> paramM)
   let fields = [ Right (renderField vFrom >>  renderField vTo >> renderField vStockFilter)
                , Right wPanel, Right wBand, Right wSerie
                , Left vColRupture
-               , Right wTrace1, Right wTrace2, Right wTrace3]
+               , Right wTrace1, Right wTrace2, Right wTrace3
+               , Right $ mapM_ renderField [vSales, vPurchases, vAdjustment]
+               ]
   let form = [whamlet|#{extra}|] >> mapM_ (either renderField inline) fields
       inline w = [whamlet| <div.form-inline>^{w}|]
       report = ReportParam <$> fFrom <*> fTo <*> fStockFilter <*> fPanel <*> fBand <*> fSerie
                            <*> fColRupture <*> fTrace1 <*> fTrace2 <*> fTrace3
+                           <*> fSales <*> fPurchases <*> fAdjustment
   return (report, form)
  
 -- noneOption, amountOutOption, amountInOption :: ToJSON a =>  (Text, [(QPrice -> Amount, a -> [(Text, Value)], RunSum)])
@@ -119,6 +125,7 @@ getItemsReportR mode = do
                            sales --  rpTraceParam :: TraceParams
                            emptyTrace --  rpTraceParam2 :: TraceParams
                            emptyTrace --  rpTraceParam3 :: TraceParams
+                           True True True
         _ -> ReportParam
                            (Just past) --  rpFrom :: Maybe Day
                            Nothing --  rpTo :: Maybe Day
@@ -130,6 +137,7 @@ getItemsReportR mode = do
                            sales --  rpTraceParam :: TraceParams
                            emptyTrace --  rpTraceParam2 :: TraceParams
                            emptyTrace --  rpTraceParam3 :: TraceParams
+                           True True True
 
   renderReportForm ItemsReportR mode (Just defaultReportParam) ok200 Nothing
 
