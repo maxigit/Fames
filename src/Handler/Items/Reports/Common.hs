@@ -191,6 +191,9 @@ getColsWithDefault = do
                      Nothing -> PersistNull 
                      Just supp -> PersistText (decodeHtmlEntities $ FA.supplierSuppName supp )
                   )
+      mkTransactionType _ tkey = let ktype = tkType tkey
+       in NMapKey (Just $ fromEnum ktype)
+                  (PersistText $ showTransType ktype)
 
       cols = [ style
             , variation
@@ -202,7 +205,7 @@ getColsWithDefault = do
             , Column "Supplier/Customer" mkCustomerSupplierKey --  (const' $ maybe PersistNull (either (PersistInt64 . fst)
                                                                --              PersistInt64
                                                                --     ). tkCustomerSupplier)
-            , Column "TransactionType" (const' $ PersistInt64 . fromIntegral . fromEnum . tkType)
+            , Column "TransactionType" mkTransactionType
             , Column "Sales/Purchase" (const' $ maybe PersistNull PersistText . tkType'')
             , Column "Invoice/Credit" (const' $ maybe PersistNull PersistText . tkType')
             ]  <>
@@ -226,21 +229,18 @@ loadItemTransactions param grouper = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   catFinder <- categoryFinderCached
   skuToStyleVar <- skuToStyleVarH
-  -- moves <- runDB $ selectList ( criteria
-  --                               <> filterE id FA.StockMoveStockId (Just . LikeFilter $ stockLike)
-  --                             )
-  --                             []
-
+  adjustments <- loadStockAdjustments param
   -- for efficiency reason
   -- it is better to group sales and purchase separately and then merge them
   sales <- loadItemSales param
   purchases <- loadItemPurchases param
   let salesGroups = grouper' sales
-      purchaseGroups = grouper' purchases
+      purchaseGroups = grouper  purchases
+      adjGroups = grouper' adjustments
       grouper' = grouper . fmap (computeCategory skuToStyleVar categories catFinder) 
         
 
-  return $ salesGroups <> purchaseGroups
+  return $ salesGroups <> purchaseGroups <> adjGroups
 
 computeCategory :: (Text -> (Text, Text))
                 -> [Text]
@@ -305,43 +305,54 @@ loadItemPurchases param = do
   purch <- runDB $ rawSql (sql <> intercalate " " w) p
   return $ map purchToTransInfo purch
 
+
+loadStockAdjustments :: ReportParam -> Handler [(TranKey, TranQP)]
+loadStockAdjustments param = do
+  -- We are only interested in what's going in or out of the LOST location
+  -- checking what's in DEF doesn't work, as it mixes
+  -- transfers from incoming containers  with real adjusment
+  lostLocation <- appFALostLocation . appSettings <$> getYesod
+  stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
+  let sql = intercalate " " $
+          "SELECT ??" :
+          "FROM 0_stock_moves" :
+          ("WHERE ( (type = " <> tshow  (fromEnum ST_INVADJUST)) :
+                 (      "AND loc_code != '" <> lostLocation <> "'") : -- lost items are already lost,
+                 -- we don't need to kno wif they are written off
+                  ")" :
+                 (" OR ( type = " <> tshow (fromEnum ST_LOCTRANSFER)) :
+                 (      "AND loc_code = '" <> lostLocation <> "'") : --  lost of found item
+                 "    )" :
+                 ")" :
+          " AND qty != 0" :
+          ("AND stock_id LIKE '" <> stockLike <> "'") : 
+          []
+
+      (w,p) = unzip $ rpFrom param <&> (\d -> (" AND tran_date >= ?", PersistDay d)) ?:
+                       rpTo param <&> (\d -> (" AND tran_date <= ?", PersistDay d)) ?:
+                       rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+                                                      in (" AND stock_id " <> keyw <> " ?", PersistText v)
+                                               ) ?:
+                       []
+
+  moves <- runDB $ rawSql (sql <> intercalate " " w) p
+  return $ map moveToTransInfo moves
+
 -- * Converter
 -- ** StockMove
-moveToTransInfo :: (Text -> (Text, Text)) -> [Text] -> (Text -> Text -> Maybe Text) -> StockMove -> Maybe (TranKey, TranQP)
-moveToTransInfo skuToStyleVar categories catFinder FA.StockMove{..} = (key,) <$> tqp where
-  (style, var) = skuToStyleVar stockMoveStockId
-  categorieValues = [(heading, cat)
-                    | heading <- categories
-                    , Just cat <- return $ catFinder heading stockMoveStockId
-                    ]
-  key = TranKey stockMoveTranDate Nothing  stockMoveStockId (Just style) (Just var) (mapFromList categorieValues) (toEnum stockMoveType)
-  (_customer, _supplier, tqp) =
-    -- case toEnum stockMoveType of
-    -- ST_CUSTDELIVERY -> ( tshow <$> stockMovePersonId
-    --                    , Nothing
-    --                    , Just $ singletonMap  QPSalesInvoice (Just $ qpNeg Outward) Nothing Nothing
-    --                    )
-    -- ST_CUSTCREDIT -> ( tshow <$> stockMovePersonId
-    --                  , Nothing
-    --                  , Just $ TranQP (Just $ qpNeg Outward) Nothing Nothing
-    --                  )
-    -- ST_SUPPRECEIVE -> ( Nothing
-    --                   , tshow <$> stockMovePersonId
-    --                   , Just $ TranQP Nothing (Just $ qp Inward) Nothing
-    --                   )
-    -- ST_SUPPCREDIT -> ( Nothing
-    --                  , tshow <$> stockMovePersonId
-    --                  , Just $ TranQP Nothing (Just $ qp Inward) Nothing
-    --                  )
-    -- ST_INVADJUST -> ( Nothing
-    --                 , Nothing
-    --                 , Just $ TranQP Nothing Nothing (Just $ qp Inward)
-    --                 )
-    -- _ ->
-    (Nothing, Nothing, Nothing)
-  -- qp io = mkQPrice io stockMoveQty price
-  -- qpNeg io = mkQPrice io (-stockMoveQty) price
-  -- price = stockMovePrice*(1-stockMoveDiscountPercent/100)
+moveToTransInfo (Entity _ FA.StockMove{..}) = (key, tqp) where
+  key = TranKey stockMoveTranDate
+                Nothing
+                stockMoveStockId
+                Nothing
+                Nothing
+                mempty
+                (toEnum stockMoveType)
+  tqp = case toEnum stockMoveType of
+    ST_INVADJUST -> tranQP QPAdjustment (mkQPrice Inward stockMoveQty stockMoveStandardCost)
+  -- transfers are relative to the LOST location so should be taking as Outward : +ve quantity = loss
+    ST_LOCTRANSFER -> tranQP QPAdjustment (mkQPrice Outward stockMoveQty 0)
+    _ -> error $ "unexpected transaction type " ++ show (toEnum stockMoveType :: FATransType) ++ " for stock adjustment "
   
 -- ** Sales Details
 detailToTransInfo :: (Entity FA.DebtorTransDetail, Single Day, Single ({- Maybe -} Int64), Single Int64) -> (TranKey, TranQP)
@@ -359,6 +370,7 @@ detailToTransInfo ( Entity _ FA.DebtorTransDetail{..}
   qp io = mkQPrice io debtorTransDetailQuantity price
   price = debtorTransDetailUnitPrice*(1-debtorTransDetailDiscountPercent/100)
 
+-- ** Purchase info
 purchToTransInfo :: (Entity SuppInvoiceItem, Single Day, Single Double, Single Int64)
                  -> (TranKey, TranQP)
 purchToTransInfo ( Entity _ FA.SuppInvoiceItem{..}
@@ -436,6 +448,11 @@ tableProcessor grouped =
                 <th> Purch Min Price
                 <th> Purch Max Price
                 <th> Purch Average Price/
+                <th> Adjust Qty
+                <th> Adjust Amount
+                <th> Adjust Min Price
+                <th> Adjust Max Price
+                <th> Adjust Average Price/
                 <th> Summary Qty
                 <th> Summary Amount
                 <th> Summary Min Price
@@ -448,13 +465,15 @@ tableProcessor grouped =
                            #{nkeyWithRank key}
                       ^{showQp Outward $ salesQPrice qp}
                       ^{showQp Inward $ purchQPrice qp}
-                      ^{showQp Outward $ mconcat [salesQPrice qp , purchQPrice qp]}
+                      ^{showQp Inward $ adjQPrice qp}
+                      ^{showQp Outward $ summaryQPrice qp}
               $with (qpt) <- (nmapMargin group1)
                   <tr.total>
                     <td> Total
                     ^{showQp Outward $ salesQPrice qpt}
-                    ^{showQp Inward $ purchQPrice qpt}
-                    ^{showQp Outward $ mconcat [salesQPrice qpt , purchQPrice qpt]}
+                    ^{showQp Outward $ purchQPrice qpt}
+                      ^{showQp Inward $ adjQPrice qpt}
+                      ^{showQp Outward $ summaryQPrice qpt}
                     |]
   where
       showQp _ Nothing = [whamlet|

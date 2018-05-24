@@ -261,7 +261,7 @@ lookupGrouped qtype (TranQP tmap) = LMap.lookup qtype tmap
 
 salesQPrice = lookupGrouped QPSales
 purchQPrice = lookupGrouped QPPurchase
-summaryQPPrice = lookupGrouped QPPurchase
+summaryQPrice = lookupGrouped QPSummary
 adjQPrice = lookupGrouped QPAdjustment
 
 
