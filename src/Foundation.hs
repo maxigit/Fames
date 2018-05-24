@@ -5,6 +5,7 @@ module Foundation
 ( module Foundation
 , module RoutePiece
 , module Role
+, module CategoryRule
 , A(..)
 , preCache
 , cacheForEver
@@ -28,6 +29,7 @@ import qualified FA as FA
 import qualified Crypto.Hash as Crypto
 import Crypto.Hash (MD5, Digest)
 import Role
+import CategoryRule
 import RoutePiece
 import Util.SameCons-- (SameCons, sameCons)
 import Util.EnumTree

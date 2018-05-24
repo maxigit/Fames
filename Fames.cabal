@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7f69762d47bd34e878b135067868083b80531256c3d590564166245f6009fcf2
+-- hash: a153850d116f0531e0d1a42bdf60c91c538c52a71ccf5469dd7a9f5fc5aded3e
 
 name:           Fames
 version:        0.0.1
@@ -115,6 +115,7 @@ library
     ghc-options: -w -fwarn-tabs -Wno-type-defaults -O2 -j6
   exposed-modules:
       Application
+      CategoryRule
       FAMES
       FAX
       Foundation
@@ -449,6 +450,7 @@ test-suite ghcid
       SharedStockAdjustment
       SharedTypes
       Application
+      CategoryRule
       FAMES
       FAX
       Foundation

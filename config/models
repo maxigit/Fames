@@ -190,6 +190,16 @@ PayrollItem sql=fames_payroll_item
   glAccount Text -- might allow to find payee
 
 
+-- Precalculate the categories  for all items
+-- so that we can join on it and use categories in direct sql
+-- we double the unique field to generate indexes in both way
+ItemCategory sql=fames_item_caterogy_cache
+  stockId Text 
+  category Text
+  value Text
+  Unique ICSC stockId category
+  Unique ICCS category stockId
+
 -- * FrontAccounting
 -- FrontAccounting Fames many to many relation table
 -- Link Fames "event" to FA Transaction
@@ -199,6 +209,7 @@ TransactionMap sql=fames_transaction_map
   eventType EventType sqltype=Int
   eventNo Int
 
+  
 
 
 
