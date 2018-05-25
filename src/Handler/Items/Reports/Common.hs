@@ -288,7 +288,7 @@ loadItemSales param = do
                             Just (catToFilter, catFilter) ->
                                  let (keyw, v) = filterEKeyword catFilter
                                  in [ (" AND category.value " <> keyw <> " ?", PersistText v)
-                                    , (" AND category.category = ? ", PersistText v)
+                                    , (" AND category.category = ? ", PersistText catToFilter)
                                     ]
         
   sales <- runDB $ rawSql (sql <> intercalate " "w) p
@@ -322,7 +322,7 @@ loadItemPurchases param = do
                             Just (catToFilter, catFilter) ->
                                  let (keyw, v) = filterEKeyword catFilter
                                  in [ (" AND category.value " <> keyw <> " ?", PersistText v)
-                                    , (" AND category.category = ? ", PersistText v)
+                                    , (" AND category.category = ? ", PersistText catToFilter)
                                     ]
   purch <- runDB $ rawSql (sql <> intercalate " " w) p
   return $ map purchToTransInfo purch
@@ -362,7 +362,7 @@ loadStockAdjustments param = do
                             Just (catToFilter, catFilter) ->
                                  let (keyw, v) = filterEKeyword catFilter
                                  in [ (" AND category.value " <> keyw <> " ?", PersistText v)
-                                    , (" AND category.category = ? ", PersistText v)
+                                    , (" AND category.category = ? ", PersistText catToFilter)
                                     ]
 
   moves <- runDB $ rawSql (sql <> intercalate " " w) p
