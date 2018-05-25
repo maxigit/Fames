@@ -62,7 +62,7 @@ data IndexCache = IndexCache
   , icPriceListNames :: IntMap Text
   , icSupplierNames :: IntMap Text
   , icWebPriceList :: [Int] -- price list ids
-  , icCategoryFinder :: Text -> Text -> Maybe Text
+  , icCategoryFinder :: Text -> FA.StockMasterId -> Maybe Text
   , icCategories :: [Text]
   }
 
@@ -692,7 +692,7 @@ itemsTable cache param = do
                         FAStatusColumn name -> columnForFAStatus name =<< impFAStatus master
                         WebStatusColumn name -> columnForWebStatus name (impWebStatus master)
                         WebPriceColumn i -> columnForWebPrice i =<< impWebPrices master
-                        CategoryColumn catName -> columnForCategory catName <$> icCategoryFinder cache catName sku
+                        CategoryColumn catName -> columnForCategory catName <$> icCategoryFinder cache catName (FA.StockMasterKey sku)
 
 
             differs = or diffs where

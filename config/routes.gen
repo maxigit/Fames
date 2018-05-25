@@ -74,6 +74,7 @@
   / AIndexR GET !group=Info !title=Index
   /testfa  ATestFAR GET !group=Test !title=FA_Connection
   /cache ACacheR GET POST !group=Cache !title=Cache
+  /reset-category-cache AResetCategoryCacheR GET !title=Refresh_Category_Cache
   /masquerade AMasqueradeR GET POST !group=Masquerade !title=Masquerade
 
 /planner PlannerR !planner:

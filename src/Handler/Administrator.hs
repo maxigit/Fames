@@ -137,6 +137,12 @@ postACacheR = do
   clearAppCache
   getACacheR
 
+getAResetCategoryCacheR :: Handler Html
+getAResetCategoryCacheR = do
+  refreshCategoryCache True
+  setSuccess ("Category cache successfully refreshed")
+  getAIndexR
+
 -- * Masquerade
 masquerade = "masquerade-user" :: Text
 getAMasqueradeR :: Handler Html

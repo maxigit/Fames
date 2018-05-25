@@ -21,6 +21,8 @@ data ReportParam = ReportParam
   { rpFrom :: Maybe Day
   , rpTo :: Maybe Day
   -- , rpCatFilter :: Map Text (Maybe Text)
+  , rpCategoryToFilter :: Maybe Text
+  , rpCategoryFilter :: Maybe FilterExpression
   , rpStockFilter :: Maybe FilterExpression
   , rpPanelRupture :: ColumnRupture
   , rpBand :: ColumnRupture
@@ -248,12 +250,12 @@ loadItemTransactions param grouper = do
 
 computeCategory :: (Text -> (Text, Text))
                 -> [Text]
-                -> (Text -> Text -> Maybe Text)
+                -> (Text -> FA.StockMasterId -> Maybe Text)
                 -> (TranKey, t)
                 -> (TranKey, t)
 computeCategory skuToStyleVar categories catFinder (key, tpq) = let
   sku = tkSku key
-  cats = mapFromList [(cat, found) | cat <-  categories, Just found <- return $ catFinder cat sku ]
+  cats = mapFromList [(cat, found) | cat <-  categories, Just found <- return $ catFinder cat (FA.StockMasterKey sku) ]
   (style, var) = skuToStyleVar sku
   in (key { tkCategory = mapFromList cats, tkStyle = Just style, tkVar = Just var}, tpq)
 

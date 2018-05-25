@@ -21,9 +21,14 @@ import Data.Time (addGregorianMonthsClip)
 -- * Form
 reportForm :: [Column] -> Maybe ReportParam -> Html -> MForm Handler (FormResult ReportParam, Widget)
 reportForm cols paramM extra = do
+  categories <- lift $ categoriesH
+
   let colOptions = [(colName c,c) | c <- cols]
+      categoryOptions = [(cat, cat) | cat <-categories ]
   (fFrom, vFrom) <- mopt dayField "from" (Just $ rpFrom =<< paramM )
   (fTo, vTo) <- mopt dayField "to" (Just $ rpTo =<< paramM)
+  (fCategoryToFilter, vCategoryToFilter) <- mopt (selectFieldList categoryOptions ) "category" (Just $ rpCategoryToFilter =<< paramM)
+  (fCategoryFilter, vCategoryFilter) <- mopt filterEField  "filter" (Just $ rpCategoryFilter =<< paramM)
   (fStockFilter, vStockFilter) <- mopt filterEField  "sku" (Just $ rpStockFilter =<< paramM)
   (fPanel, wPanel) <- ruptureForm colOptions "Panel" (rpPanelRupture <$> paramM)
   (fBand, wBand) <- ruptureForm colOptions "Band" (rpBand <$> paramM)
@@ -36,6 +41,7 @@ reportForm cols paramM extra = do
   (fPurchases, vPurchases) <- mreq checkBoxField "Purchases" (rpLoadPurchases <$> paramM)
   (fAdjustment, vAdjustment) <- mreq checkBoxField "Adjustment" (rpLoadAdjustment <$> paramM)
   let fields = [ Right (renderField vFrom >>  renderField vTo >> renderField vStockFilter)
+               , Right $ mapM_ renderField [vCategoryToFilter, vCategoryFilter]
                , Right wPanel, Right wBand, Right wSerie
                , Left vColRupture
                , Right wTrace1, Right wTrace2, Right wTrace3
@@ -43,7 +49,9 @@ reportForm cols paramM extra = do
                ]
   let form = [whamlet|#{extra}|] >> mapM_ (either renderField inline) fields
       inline w = [whamlet| <div.form-inline>^{w}|]
-      report = ReportParam <$> fFrom <*> fTo <*> fStockFilter <*> fPanel <*> fBand <*> fSerie
+      report = ReportParam <$> fFrom <*> fTo
+                           <*> fCategoryToFilter <*> fCategoryFilter
+                           <*> fStockFilter <*> fPanel <*> fBand <*> fSerie
                            <*> fColRupture <*> fTrace1 <*> fTrace2 <*> fTrace3
                            <*> fSales <*> fPurchases <*> fAdjustment
   return (report, form)
@@ -117,6 +125,8 @@ getItemsReportR mode = do
         Just ReportChart -> ReportParam
                            (Just past) --  rpFrom :: Maybe Day
                            Nothing --  rpTo :: Maybe Day
+                           Nothing -- rpToCategoryToFilter
+                           Nothing -- rpToCategoryFilter
                            Nothing --  rpStockFilter :: Maybe FilterExpression
                            emptyRupture   -- rpPanelRupture :: ColumnRupture
                            (ColumnRupture (Just band)  bestSales (Just RMResidual) (Just 20))--  rpBand :: ColumnRupture
@@ -129,6 +139,8 @@ getItemsReportR mode = do
         _ -> ReportParam
                            (Just past) --  rpFrom :: Maybe Day
                            Nothing --  rpTo :: Maybe Day
+                           Nothing -- rpToCategoryToFilter
+                           Nothing -- rpToCategoryFilter
                            Nothing --  rpStockFilter :: Maybe FilterExpression
                            (ColumnRupture (Just band) bestSales (Just RMResidual) (Just 20))--  rpBand :: ColumnRupture
                            (ColumnRupture (Just serie) bestSales (Just RMResidual)  (Just 20))--  rpSerie :: ColumnRupture

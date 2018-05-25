@@ -25,7 +25,7 @@ skuToStyleVarH = do
     setWarning ("Variation category not set. Please contact your Administrator.")
   let styleFn = catFinder style
       varFn = catFinder var
-  return $ (,) <$> (\sku -> fromMaybe sku $ styleFn sku) <*> (fromMaybe "" . varFn)
+  return $ (,) <$> (\sku -> fromMaybe sku $ styleFn (FA.StockMasterKey sku)) <*> (fromMaybe "" . varFn . FA.StockMasterKey)
 
 
 
