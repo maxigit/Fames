@@ -5,3 +5,4 @@ module Handler.Items
 import Handler.Items.Index as X
 import Handler.Items.History as X
 import Handler.Items.Report as X
+import Handler.Items.Category as X

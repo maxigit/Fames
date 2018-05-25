@@ -68,6 +68,8 @@
   /report3/#Maybe-ReportMode ItemsReport3R GET POST !report !group=Reporting !title=Styles_by_Colour
 
   /index/#Maybe-ItemViewMode ItemsIndexR GET POST !items/index !group=Maintenance !title=Index
+  /category ItemsCategoryR GET !title=Categories
+  /category/terms/#Text ItemsCategoryTermsR GET
   /history/#Text ItemsHistoryR GET !items/history
 
 /administrator AdministratorR !administrator:
