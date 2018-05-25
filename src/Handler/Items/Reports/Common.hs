@@ -267,6 +267,7 @@ loadItemSales param = do
           " FROM 0_debtor_trans_details " :
           "JOIN 0_debtor_trans ON (0_debtor_trans_details.debtor_trans_no = 0_debtor_trans.trans_no " :
           " AND 0_debtor_trans_details.debtor_trans_type = 0_debtor_trans.type)  " :
+          "JOIN fames_item_category_cache AS category USING (stock_id)" :
           "WHERE type IN ("  :
           (tshow $ fromEnum ST_SALESINVOICE) :
           ",":
@@ -281,6 +282,11 @@ loadItemSales param = do
                        rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
                                                       in (" AND stock_id " <> keyw <> " ?", PersistText v)
                                                ) ?:
+                       rpCategoryFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+                                                      in (" AND category.value " <> keyw <> " ?", PersistText v)
+                                               ) ?:
+                       rpCategoryToFilter param <&> (\v -> (" AND category.category = ? ", PersistText v)
+                                               ) ?:
                        []
         
   sales <- runDB $ rawSql (sql <> intercalate " "w) p
@@ -293,6 +299,7 @@ loadItemPurchases param = do
           "SELECT ??, 0_supp_trans.tran_date, 0_supp_trans.rate, 0_supp_trans.supplier_id  FROM 0_supp_invoice_items " :
           "JOIN 0_supp_trans ON (0_supp_invoice_items.supp_trans_no = 0_supp_trans.trans_no " :
           " AND 0_supp_invoice_items.supp_trans_type = 0_supp_trans.type)  " :
+          "JOIN fames_item_category_cache AS category USING (stock_id)" :
           "WHERE type IN ("  :
           (tshow $ fromEnum ST_SUPPINVOICE) :
           ",":
@@ -306,6 +313,11 @@ loadItemPurchases param = do
                        rpTo param <&> (\d -> (" AND tran_date <= ?", PersistDay d)) ?:
                        rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
                                                       in (" AND stock_id " <> keyw <> " ?", PersistText v)
+                                               ) ?:
+                       rpCategoryFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+                                                      in (" AND category.value " <> keyw <> " ?", PersistText v)
+                                               ) ?:
+                       rpCategoryToFilter param <&> (\v -> (" AND category.category = ? ", PersistText v)
                                                ) ?:
                        []
   purch <- runDB $ rawSql (sql <> intercalate " " w) p
@@ -322,6 +334,7 @@ loadStockAdjustments param = do
   let sql = intercalate " " $
           "SELECT ??" :
           "FROM 0_stock_moves" :
+          "JOIN fames_item_category_cache AS category USING (stock_id)" :
           ("WHERE ( (type = " <> tshow  (fromEnum ST_INVADJUST)) :
                  (      "AND loc_code != '" <> lostLocation <> "'") : -- lost items are already lost,
                  -- we don't need to kno wif they are written off
@@ -338,6 +351,11 @@ loadStockAdjustments param = do
                        rpTo param <&> (\d -> (" AND tran_date <= ?", PersistDay d)) ?:
                        rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
                                                       in (" AND stock_id " <> keyw <> " ?", PersistText v)
+                                               ) ?:
+                       rpCategoryFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+                                                      in (" AND category.value " <> keyw <> " ?", PersistText v)
+                                               ) ?:
+                       rpCategoryToFilter param <&> (\v -> (" AND category.category = ? ", PersistText v)
                                                ) ?:
                        []
 

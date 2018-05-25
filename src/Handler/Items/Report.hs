@@ -40,8 +40,7 @@ reportForm cols paramM extra = do
   (fSales, vSales) <- mreq checkBoxField "Sales" (rpLoadSales <$> paramM)
   (fPurchases, vPurchases) <- mreq checkBoxField "Purchases" (rpLoadPurchases <$> paramM)
   (fAdjustment, vAdjustment) <- mreq checkBoxField "Adjustment" (rpLoadAdjustment <$> paramM)
-  let fields = [ Right (renderField vFrom >>  renderField vTo >> renderField vStockFilter)
-               , Right $ mapM_ renderField [vCategoryToFilter, vCategoryFilter]
+  let fields = [ Right $ mapM_ renderField [vFrom, vTo, vStockFilter, vCategoryToFilter, vCategoryFilter]
                , Right wPanel, Right wBand, Right wSerie
                , Left vColRupture
                , Right wTrace1, Right wTrace2, Right wTrace3
