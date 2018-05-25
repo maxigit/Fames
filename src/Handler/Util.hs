@@ -44,6 +44,7 @@ module Handler.Util
 , eToX
 , categoryFinderCached
 , categoriesH
+, refreshCategoryCache
 , Identifiable(..)
 , getIdentified
 , renderField
@@ -71,14 +72,13 @@ import System.Directory (doesFileExist)
 import qualified Data.Map.Strict as Map
 import qualified Data.List as Data.List
 import Model.DocumentKey
-import Control.Monad.Except
+import Control.Monad.Except hiding(mapM_)
 import Text.Printf(printf) 
 import Text.Regex.TDFA ((=~))
 import qualified Text.Regex as Rg
 
 import Text.Read(Read,readPrec)
-
-
+import qualified Data.Map as LMap
 -- import Data.IOData (IOData)
 
 -- * Display entities
@@ -549,57 +549,98 @@ eToX =  either throwError return
 
 
 -- * Categories
--- | Return a function finding the category given a style
--- The current implementation is based on TDFA regex
--- which are pretty so we cache it into a big map
-categoryFinder :: Handler (Text -> Text -> Maybe Text)
-categoryFinder = do
-  catRulesMap <- appCategoryRules <$> getsYesod appSettings
-  let flattenRules rules = [ (Rg.mkRegex (unpack reg ++ ".*") , unpack rep)
-                           | (reg, rep) <- concatMap (Map.toList) rules
-                           ]
-      rulesMap = fmap flattenRules catRulesMap
-      finderFor rules s' = asum [ Just . pack $ Rg.subRegex regex s replace
-                               | (regex, replace) <- rules
-                               , isJust $ Rg.matchRegex regex s
-                               ] where s = unpack s'
 
-      finder category item = do -- Maybe
-        rules <- lookup category rulesMap
-        finderFor rules item 
+subRegex (RegexSub regexS replace) s = let
+  regex =Rg.mkRegex regexS
+  in if isJust $ Rg.matchRegex regex s
+     then Just . pack $ Rg.subRegex regex s replace
+     else Nothing
 
 
-
-  return finder
+  -- return finder
 
 categoriesH :: Handler [Text]
 categoriesH = do 
   catRulesMap <- appCategoryRules <$> getsYesod appSettings
   return $ keys catRulesMap
 
-categoryFinderCached :: Handler (Text -> Text -> Maybe Text)
-categoryFinderCached = do
-  sku'cat <- cache0 False cacheForEver "category-map" $ do
-    categories <- categoriesH
-    catFinder <- categoryFinder
-    stockKeys <- allSkus
-    let allSkus = map FA.unStockMasterKey stockKeys
-    return $ mapFromList [ (heading, submap)
-                         | heading <- categories
-                         , let submap = mapFromList [(sku, cat)
-                                                    | sku <- allSkus
-                                                    , Just cat <- return $ catFinder heading sku
-                                                    ]
-                         ]
-    
-  let finder category item = do -- Maybe
-        m <- Map.lookup category sku'cat
-        Map.lookup item m
+-- | Return a function finding the category given a style
+-- The current implementation is based on TDFA regex
+-- which are pretty so we cache it into a big map
+categoryFinderCached :: Handler (Text -> FA.StockMasterId -> Maybe Text)
+categoryFinderCached = cache0 False cacheForEver "category-finder" $ do
+  refreshCategoryCache False
+  itemCategories <- runDB $ selectList [] []
+  let sku'catMap = mapFromList [((itemCategoryStockId , itemCategoryCategory ), itemCategoryValue )
+                           | (Entity _ ItemCategory{..}) <- itemCategories
+                           ]
+      finder category (FA.StockMasterKey sku) = Map.lookup (sku, category) sku'catMap
   return finder
 
-allSkus :: Handler [Key FA.StockMaster]
-allSkus = do
+_allSkus :: Handler [Key FA.StockMaster]
+_allSkus = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   -- selectKeysList doesn't work with non Integer KEy : Bug reported
   entities <- runDB $ selectList (filterE FA.StockMasterKey FA.StockMasterId (Just . LikeFilter $ stockLike) ) []
   return $ map entityKey entities
+
+-- ** Category caches
+refreshCategoryCache0 :: Handler ()
+refreshCategoryCache0 = do
+  stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
+  rulesMap <- appCategoryRules <$> getsYesod appSettings
+  runDB $ do
+    stockMasters <- selectList (filterE FA.StockMasterKey FA.StockMasterId (Just . LikeFilter $ stockLike) ) []
+    let categories = categoriesFor <$> Map.toList rulesMap <*> stockMasters
+    -- replace ta
+    deleteWhere ([] ::[Filter ItemCategory])
+    -- mapM_ insert_ (catMaybes categories)
+    insertMany_ (catMaybes categories)
+
+refreshCategoryCache :: Bool -> Handler ()
+refreshCategoryCache force = do
+  -- check if the datbase is empty
+  -- clear it if needed
+  c <- runDB $ do
+    when force (deleteWhere ([] ::[Filter ItemCategory]))
+    count ([] ::[Filter ItemCategory]) 
+  when (c == 0) refreshCategoryCache0
+  
+
+
+-- We use string to be compatible with regex substitution
+applyCategoryRule :: Entity FA.StockMaster -> CategoryRule -> Maybe String
+applyCategoryRule e@(Entity stockId FA.StockMaster{..}) rule =
+  let apply = applyCategoryRule e
+  in case rule of
+      SkuTransformer rsub -> subRegex rsub (unpack $ FA.unStockMasterKey stockId)
+      CategoryDisjunction rules -> asum $ map apply rules
+      CategoryConjunction rules' rsub -> do -- Maybe
+        subs <- mapM apply rules'
+        let grouped = case subs of
+              [sub] -> sub
+              _ -> join [ "{" ++ show i ++ "}" ++ sub
+                        | (i, sub) <- zip [1..] subs
+                        ]
+        subRegex rsub (grouped)
+
+categoriesFor :: (Text, CategoryRule) -> Entity FA.StockMaster  -> Maybe ItemCategory
+categoriesFor (key, rule) entity = go <$> applyCategoryRule entity rule where
+  go cat= ItemCategory (FA.unStockMasterKey $ entityKey entity) key (pack cat)
+
+  
+  
+  
+  
+
+
+
+  
+
+  
+
+
+
+  
+
+  

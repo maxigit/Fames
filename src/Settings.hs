@@ -25,6 +25,7 @@ import Yesod.Default.Util         (WidgetFileSettings, widgetFileNoReload,
 import qualified Database.MySQL.Base as MySQL
 import Yesod.Fay
 import  Role
+import  CategoryRule
 import WH.Barcode
 import GL.Payroll.Settings
 import qualified Data.Map as Map
@@ -80,9 +81,7 @@ data AppSettings = AppSettings
     , appFADefaultLocation :: Text
     , appFAStockLikeFilter :: Text
     -- ^ SQL LIKE expression to filter what's is considered stock
-    , appCategoryRules :: Map Text [Map Text Text]  
-    -- ^ rules : regexp -> category, can use standard group replace (\1  etc ...) not implemented yet ;
-    -- rules are tried in order. The Map is only there to make the json nicer
+    , appCategoryRules :: Map Text CategoryRule  
     , appBarcodeParams :: [BarcodeParams]
     , appFAURL :: String -- ^ URL to connect to FrontAccounting to post transactions
     , appFAUser :: String -- ^ User to connect to FrontAcounting
