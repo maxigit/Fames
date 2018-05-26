@@ -44,6 +44,7 @@ module Handler.Util
 , eToX
 , categoryFinderCached
 , categoriesH
+, categoriesFor
 , refreshCategoryCache
 , Identifiable(..)
 , getIdentified

@@ -112,7 +112,6 @@ library:
   - legacy
   - app
   - fay-shared
-  exposed-modules:
   when:
   - condition: (flag(dev)) || (flag(library-only))
     then:
