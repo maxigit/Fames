@@ -39,7 +39,7 @@ applyJSONRules stock json =
   case decodeEither $ encodeUtf8 json of
     Right rulesMap ->  let
       categories = categoriesFor <$> Map.toList rulesMap <*> [stock]
-      in sort [(itemCategoryCategory, itemCategoryValue) | ItemCategory{..} <- catMaybes categories]
+      in traceShow ("RULES", rulesMap) $ sort [(itemCategoryCategory, itemCategoryValue) | ItemCategory{..} <- catMaybes categories]
     Left err -> error (show err)
   
 spec = describe "@Category StockMaster to category" $ do
@@ -47,23 +47,33 @@ spec = describe "@Category StockMaster to category" $ do
   describe "#toJSON" $ it "" pending
   context "applying rules" $ do
     let stock = Entity (FA.StockMasterKey "T-Shirt Blue") defStock
-        rules = [sbt|
-                    |style:                   
-                    |  - "(.*) (.*)": "\\1"
-                    |colour:                   
-                    |  - "(.*) (.*)": "\\2"
-                    |]
     it "finds all category" $ do
-       applyJSONRules stock rules `shouldBe` sort [("style", "T-Shirt"), ("colour", "Blue"), ("PriceBand", "A")]
+       let rules = [sbt|
+                    |style:                   
+                    |  - "\\1": "(.*) (.*)"
+                    |colour:                   
+                    |  - "\\2": "(.*) (.*)"
+                    |]
+       applyJSONRules stock rules `shouldBe` sort [("style", "T-Shirt"), ("colour", "Blue")]
+    it "finds all prices" $ do
+       let rules = [sbt|
+                    |price:                   
+                    |- A:
+                    |    source: sales_price
+                    |    from: 5
+                    |]
+       applyJSONRules stock rules `shouldBe` sort [("PriceBand", "A")]
     it "finds composed  category" $ do
        let rules = [sbt|
                        |style:                   
-                       |  - "(.*) (.*)": "\\1"
+                       |  - "\\1": "(.*) (.*)"
                        |colour:                   
-                       |    source: sku
-                       |    rules:
-                       |    - "(.*) (.*)": "\\2"
-                       |"colour-style":
-                       |  source: "($colour) {$style}"
+                       | - "\\2":
+                       |    - source: sku
+                       |      match: "(.*) (.*)"
                        |]
+                       -- |"colour-style":
+                       -- |  source: "($colour) {$style}"
+                       -- |  rules:
+                       -- |  - "(.*) (.*)": "\\2"
        applyJSONRules stock rules `shouldBe` sort [("style", "T-Shirt"), ("colour", "Blue"), ("colour-style", "(Blue) {T-shirt}")]
