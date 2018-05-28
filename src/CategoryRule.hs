@@ -4,13 +4,16 @@ import ClassyPrelude.Yesod
 import qualified Data.Text as Text
 import Data.Aeson
 import Data.Aeson.Types(Parser, typeMismatch)
+import qualified Data.Map.Lazy as LMap  
+import Text.Regex.TDFA ((=~))
+import qualified Text.Regex as Rg
 
 data PriceRanger = PriceRanger (Maybe Double) (Maybe Double) String deriving Show
 data RegexSub = RegexSub { rsRegex, rsReplace :: String } deriving Show
 -- | 
 data CategoryRule
   = SkuTransformer RegexSub
-  | CategoryConjunction [CategoryRule] RegexSub -- regex on the result of all concatenation split by [an number]
+  -- | CategoryConjunction [CategoryRule] RegexSub -- regex on the result of all concatenation split by [an number]
   -- if only one elements, doesn't 
   | CategoryDisjunction [CategoryRule] -- match first categories
   | SalesPriceRanger PriceRanger
@@ -78,4 +81,64 @@ instance ToJSON CategoryRule where
 
 
 
+-- | Computes the value of all category in the category map.
+-- We can't compute the value of each category individually because
+-- a category can depend on another.
+computeCategories :: Map String CategoryRule -> LMap.Map String String -> LMap.Map String String
+computeCategories rulesMap inputMap = let
+  outputMap = inputMap `LMap.union` (LMap.fromList $ mapMaybe (\(cat, rule) -> (cat,) <$> computeCategory inputMap  rule ) (mapToList rulesMap))
+  in outputMap
 
+computeCategory :: LMap.Map String String -> CategoryRule -> Maybe String
+computeCategory inputMap rule = case rule of
+      SkuTransformer rsub -> lookup "sku" inputMap >>= subRegex rsub
+      SalesPriceRanger ranger -> checkPriceRange 15  ranger
+      SourceTransformer source subrule -> computeCategory (expandSource inputMap source) subrule
+      CategoryDisjunction rules -> asum $ map (computeCategory inputMap) rules
+      -- CategoryConjunction rules' rsub -> do -- Maybe
+      --   subs <- mapM apply rules'
+      --   let grouped = case subs of
+      --         [sub] -> sub
+      --         _ -> join [ "{" ++ show i ++ "}" ++ sub
+      --                   | (i, sub) <- zip [1..] subs
+      --                   ]
+      --   subRegex rsub (grouped)
+
+subRegex :: RegexSub -> String -> Maybe String
+subRegex (RegexSub regexS replace) s = let
+  regex =Rg.mkRegex regexS
+  in if isJust $ Rg.matchRegex regex s
+     then Just . pack $ Rg.subRegex regex s replace
+     else Nothing
+
+
+  
+checkPriceRange :: Double -> PriceRanger -> Maybe String
+checkPriceRange price (PriceRanger from to target) =
+  if maybe True (<=price) from && maybe True (>price) to 
+  then Just target
+  else Nothing
+  
+  
+-- | set the current text source to the target expanded with category
+expandSource :: LMap.Map String String -> String -> LMap.Map String String
+expandSource inputMap format = let
+  expanded = foldl' sub format (LMap.toList inputMap)
+  sub s (category, value) = let regex = Rg.mkRegex $ "\\$" ++ category
+                            in Rg.subRegex regex s value
+  in inputMap <> LMap.singleton "_current" expanded
+  
+
+  
+
+
+
+  
+
+  
+
+
+
+  
+
+  

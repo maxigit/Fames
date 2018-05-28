@@ -75,8 +75,6 @@ import qualified Data.List as Data.List
 import Model.DocumentKey
 import Control.Monad.Except hiding(mapM_)
 import Text.Printf(printf) 
-import Text.Regex.TDFA ((=~))
-import qualified Text.Regex as Rg
 
 import Text.Read(Read,readPrec)
 import qualified Data.Map as LMap
@@ -551,12 +549,6 @@ eToX =  either throwError return
 
 -- * Categories
 
-subRegex (RegexSub regexS replace) s = let
-  regex =Rg.mkRegex regexS
-  in if isJust $ Rg.matchRegex regex s
-     then Just . pack $ Rg.subRegex regex s replace
-     else Nothing
-
 
   -- return finder
 
@@ -611,37 +603,9 @@ refreshCategoryCache force = do
 
 -- We use string to be compatible with regex substitution
 applyCategoryRule :: Entity FA.StockMaster -> CategoryRule -> Maybe String
-applyCategoryRule e@(Entity stockId FA.StockMaster{..}) rule =
-  let apply = applyCategoryRule e
-  in case rule of
-      SkuTransformer rsub -> subRegex rsub (unpack $ FA.unStockMasterKey stockId)
-      CategoryDisjunction rules -> asum $ map apply rules
-      CategoryConjunction rules' rsub -> do -- Maybe
-        subs <- mapM apply rules'
-        let grouped = case subs of
-              [sub] -> sub
-              _ -> join [ "{" ++ show i ++ "}" ++ sub
-                        | (i, sub) <- zip [1..] subs
-                        ]
-        subRegex rsub (grouped)
+applyCategoryRule e@(Entity stockId sm@FA.StockMaster{..}) rule = undefined
+
 
 categoriesFor :: (Text, CategoryRule) -> Entity FA.StockMaster  -> Maybe ItemCategory
 categoriesFor (key, rule) entity = go <$> applyCategoryRule entity rule where
   go cat= ItemCategory (FA.unStockMasterKey $ entityKey entity) key (pack cat)
-
-  
-  
-  
-  
-
-
-
-  
-
-  
-
-
-
-  
-
-  

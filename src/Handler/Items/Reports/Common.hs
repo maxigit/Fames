@@ -1,6 +1,6 @@
 module Handler.Items.Reports.Common where
 
-import Import
+import Import hiding(computeCategory)
 import Handler.Table
 import Items.Types
 import Handler.Items.Common

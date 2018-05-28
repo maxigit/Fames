@@ -11,6 +11,7 @@ import CategoryRule
 import Handler.Util
 import Data.Yaml(decodeEither)
 import Text.Shakespeare.Text (sbt)
+import qualified Data.Map.Lazy as LMap  
 
 defStock = FA.StockMaster{..} where
   stockMasterCategoryId =  1
@@ -38,13 +39,22 @@ defStock = FA.StockMaster{..} where
 applyJSONRules stock json = 
   case decodeEither $ encodeUtf8 json of
     Right rulesMap ->  let
-      categories = categoriesFor <$> Map.toList rulesMap <*> [stock]
-      in traceShow ("RULES", rulesMap) $ sort [(itemCategoryCategory, itemCategoryValue) | ItemCategory{..} <- catMaybes categories]
+      (FA.StockMasterKey sku) = entityKey stock
+      resultMap = computeCategories rulesMap (LMap.singleton "sku" (unpack sku))
+      in traceShow ("RULES", rulesMap) $ LMap.toList resultMap
     Left err -> error (show err)
   
 spec = describe "@Category StockMaster to category" $ do
   describe "#fromJSON" $ it "" pending
   describe "#toJSON" $ it "" pending
+  describe "expand source" $ do
+    it "LazyMap" $ do
+      let m = LMap.singleton "x" "1" <> undefined :: LMap.Map String String
+      lookup ("x" :: String) m `shouldBe` (Just "1" :: Maybe String)
+    it "leaves everything if nothing to replace" $ do
+      expandSource (LMap.fromList [("A", "3")]) "A" `shouldBe` LMap.fromList [("A", "3"), ("_current", "A")]
+    it "replace category between <>" $ do
+      expandSource (LMap.fromList [("A", "3")]) "$A" `shouldBe` LMap.fromList [("A", "3"), ("_current", "3")]
   context "applying rules" $ do
     let stock = Entity (FA.StockMasterKey "T-Shirt Blue") defStock
     it "finds all category" $ do
@@ -67,7 +77,7 @@ spec = describe "@Category StockMaster to category" $ do
        applyJSONRules stock rules `shouldBe` sort [("style", "T-Shirt"), ("colour", "Bluuue")]
     it "finds all prices" $ do
        let rules = [sbt|
-                    |price:                   
+                    |PriceBand:                   
                     |- A:
                     |    source: sales_price
                     |    from: 5
