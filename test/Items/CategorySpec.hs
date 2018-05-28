@@ -55,6 +55,16 @@ spec = describe "@Category StockMaster to category" $ do
                     |  - "\\2": "(.*) (.*)"
                     |]
        applyJSONRules stock rules `shouldBe` sort [("style", "T-Shirt"), ("colour", "Blue")]
+    it "check matches in order" $ do
+       let rules = [sbt|
+                    |style:                   
+                    |  - "Dress": "Drss (.*)"
+                    |  - "\\1": "(.*) (.*)"
+                    |colour:                   
+                    |  - "Bluuue": "(.*) Blue"
+                    |  - "\\2": "(.*) (.*)"
+                    |]
+       applyJSONRules stock rules `shouldBe` sort [("style", "T-Shirt"), ("colour", "Bluuue")]
     it "finds all prices" $ do
        let rules = [sbt|
                     |price:                   
@@ -71,9 +81,10 @@ spec = describe "@Category StockMaster to category" $ do
                        | - "\\2":
                        |    - source: sku
                        |      match: "(.*) (.*)"
+                       |"colour-style":
+                       |  source: "($colour) {$style}"
+                       |  rules:
+                       |  - "\\2": "(.*) (.*)"
                        |]
-                       -- |"colour-style":
-                       -- |  source: "($colour) {$style}"
-                       -- |  rules:
-                       -- |  - "(.*) (.*)": "\\2"
+
        applyJSONRules stock rules `shouldBe` sort [("style", "T-Shirt"), ("colour", "Blue"), ("colour-style", "(Blue) {T-shirt}")]

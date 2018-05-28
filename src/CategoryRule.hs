@@ -3,7 +3,7 @@ module CategoryRule where
 import ClassyPrelude.Yesod
 import qualified Data.Text as Text
 import Data.Aeson
-import Data.Aeson.Types(Parser)
+import Data.Aeson.Types(Parser, typeMismatch)
 
 data PriceRanger = PriceRanger (Maybe Double) (Maybe Double) String deriving Show
 data RegexSub = RegexSub { rsRegex, rsReplace :: String } deriving Show
@@ -14,6 +14,7 @@ data CategoryRule
   -- if only one elements, doesn't 
   | CategoryDisjunction [CategoryRule] -- match first categories
   | SalesPriceRanger PriceRanger
+  | SourceTransformer String CategoryRule
   -- | FACategory RegexSub
   deriving Show
 
@@ -46,13 +47,23 @@ parseJSON' key0 v = let
                           <|> parseJSON' key v
 
     parseMatcher :: Text -> Object -> Parser CategoryRule
+
+
     parseMatcher key o = do
       traceShowM ("MATCHER", key0, key, o)
+
+      let parseRegex = (SkuTransformer <$> (RegexSub <$> (unpackT <$> o .: "match")  <*> pure (unpack key)))
+                       <|> (parseDisjunction key =<< o .: "rules")
+        
+
       source <- fmap unpackT <$> o .:? "source"
       case source of
-        Just "sku" -> SkuTransformer <$> (RegexSub <$> (unpackT <$> o .: "match")  <*> pure (unpack key))
+        Just "sku" -> parseRegex 
         Just "sales_price"  -> SalesPriceRanger <$> (PriceRanger <$> (o .:? "from") <*> (o .:? "to") <*> pure (unpack key))
-        _ -> parseObject o
+        -- Just other -> typeMismatch ("source " ++ other ++ " invalid" ) (Object o)
+        -- Just s -> SourceTransformer s . SkuTransformer <$> (RegexSub <$> (unpackT <$> o .: "match")  <*> pure (unpack key))
+        Just s -> SourceTransformer s <$> parseRegex  
+        Nothing -> parseObject o
                                              
     in withText "sub string" parseSkuString v
        <|> withArray "rule list" (parseDisjunction key0) v
