@@ -555,7 +555,7 @@ eToX =  either throwError return
 categoriesH :: Handler [Text]
 categoriesH = do 
   catRulesMap <- appCategoryRules <$> getsYesod appSettings
-  return $ keys catRulesMap
+  return $ concatMap keys catRulesMap
 
 -- | Return a function finding the category given a style
 -- The current implementation is based on TDFA regex
@@ -584,7 +584,7 @@ refreshCategoryCache0 = do
   rulesMap <- appCategoryRules <$> getsYesod appSettings
   runDB $ do
     stockMasters <- selectList (filterE FA.StockMasterKey FA.StockMasterId (Just . LikeFilter $ stockLike) ) []
-    let categories = categoriesFor <$> Map.toList rulesMap <*> stockMasters
+    let categories = categoriesFor <$> (join $ map Map.toList rulesMap) <*> stockMasters
     -- replace ta
     deleteWhere ([] ::[Filter ItemCategory])
     -- mapM_ insert_ (catMaybes categories)

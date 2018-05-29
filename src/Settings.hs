@@ -81,7 +81,7 @@ data AppSettings = AppSettings
     , appFADefaultLocation :: Text
     , appFAStockLikeFilter :: Text
     -- ^ SQL LIKE expression to filter what's is considered stock
-    , appCategoryRules :: Map Text CategoryRule  
+    , appCategoryRules :: [Map Text CategoryRule]  
     , appBarcodeParams :: [BarcodeParams]
     , appFAURL :: String -- ^ URL to connect to FrontAccounting to post transactions
     , appFAUser :: String -- ^ User to connect to FrontAcounting
@@ -150,7 +150,7 @@ instance FromJSON AppSettings  where
         appFALostLocation  <- o .:? "fa-lost-location" .!= "LOST"
         appFADefaultLocation  <- o .:? "fa-default-location" .!= "DEF"
         appFAStockLikeFilter  <- o .:? "fa-stock-like-filter" .!= "%"
-        appCategoryRules <- o .:? "category-rules" .!= Map.fromList []
+        appCategoryRules <- o .:? "category-rules" .!= []
         appFAExternalURL <- o .:? "fa-x-url" .!= "http://127.0.0.1" -- for outsideworld 
         appFAURL <- o .:? "fa-url" .!= "http://127.0.0.1" -- from inside the Fames container
         appFAUser <- o .:? "fa-user" .!= "admin"
