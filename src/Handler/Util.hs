@@ -79,6 +79,7 @@ import Text.Printf(printf)
 import Text.Read(Read,readPrec)
 import qualified Data.Map as LMap
 -- import Data.IOData (IOData)
+import Database.Persist.MySQL(rawSql, Single(..))
 
 -- * Display entities
 -- | Display Persist entities as paginated table
@@ -578,17 +579,46 @@ _allSkus = do
   return $ map entityKey entities
 
 -- ** Category caches
+type StockMasterRuleInfo = (Key StockMaster
+                           , (Single String, Single String, Single String, Single String)
+                           , (Single String, Single String, Single String, Single String)
+                           , (Single String, Single String, Single String, Single String)
+                           , Single (Maybe Double))
 refreshCategoryCache0 :: Handler ()
 refreshCategoryCache0 = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   rulesMap <- appCategoryRules <$> getsYesod appSettings
+  let sql = " "
+            <> "select sm.stock_id "
+            <> "     , sm.description "
+            <> "     , sm.long_description "
+            <> "     , sm.units "
+            <> "     , sm.mb_flag "
+            <> "     , sm.sales_account "
+            <> "     , sm.cogs_account "
+            <> "     , sm.inventory_account "
+            <> "     , sm.adjustment_account "
+            <> "     , dim1.name as dim1 "
+            <> "     , dim2.name As dim2 "
+            <> "     , cat.description as category "
+            <> "     , tt.name "
+            <> "     , sales.price "
+            <> "from 0_stock_master as sm "
+            <> "left join 0_tax_types  AS tt on (sm.tax_type_id = tt.id) "
+            <> "left join 0_dimensions as dim1 on (sm.dimension_id = dim1.id) "
+            <> "left join 0_dimensions as dim2 on (sm.dimension2_id = dim2.id) "
+            <> "left join 0_stock_category as cat on (sm.category_id = cat.category_id) "
+            <> "left join 0_prices as sales on (sm.stock_id = sales.stock_id AND sales.sales_type_id = 16) "
+            <> "where sm.stock_id "<> keyw <> "?"
+      (keyw, p) = filterEKeyword (LikeFilter stockLike)
+
   runDB $ do
-    stockMasters <- selectList (filterE FA.StockMasterKey FA.StockMasterId (Just . LikeFilter $ stockLike) ) []
-    let categories = categoriesFor <$> (join $ map Map.toList rulesMap) <*> stockMasters
+    stockMasters <- rawSql sql [PersistText p]
+    let categories = concatMap (categoriesFor (map (first unpack) $ concatMap mapToList rulesMap)) stockMasters
     -- replace ta
     deleteWhere ([] ::[Filter ItemCategory])
     -- mapM_ insert_ (catMaybes categories)
-    insertMany_ (catMaybes categories)
+    insertMany_ categories
 
 refreshCategoryCache :: Bool -> Handler ()
 refreshCategoryCache force = do
@@ -602,10 +632,41 @@ refreshCategoryCache force = do
 
 
 -- We use string to be compatible with regex substitution
-applyCategoryRule :: Entity FA.StockMaster -> CategoryRule -> Maybe String
-applyCategoryRule e@(Entity stockId sm@FA.StockMaster{..}) rule = undefined
+-- applyCategoryRules :: [(String, CategoryRule)]
+--                    -> StockMasterRuleInfo -> Map String String
+applyCategoryRules
+  :: [(String, CategoryRule)]
+     -> StockMasterRuleInfo
+     -> (Key StockMaster, Map String String)
+applyCategoryRules rules (stockId
+                         , (Single description, Single longDescription, Single units, Single mbFlag)
+                         , (Single taxType, Single category, Single dimension1, Single dimension2 )
+                         , (Single salesAccount, Single cogsAccount, Single inventoryAccount, Single adjustmentAccount)
+                         , Single salesPrice )  =
+  (stockId, computeCategories rules ruleInput (unpack sku)) where
+  sku = unStockMasterKey stockId
+  ruleInput = RuleInput ( mapFromList 
+                          [ ("sku", unpack sku)
+                          , ("description", description)
+                          , ("longDescription", longDescription)
+                          , ("unit", units)
+                          , ("mbFlag", mbFlag)
+                          , ("taxType", taxType)
+                          , ("category", category)
+                          , ("dimension1", dimension1)
+                          , ("dimension2", dimension2)
+                          , ("salesAccount", salesAccount)
+                          , ("cogsAccount", cogsAccount)
+                          , ("inventoryAccount", inventoryAccount)
+                          , ("adjustmentAccount", adjustmentAccount)
+                          ]
+                        )
+                        salesPrice
 
 
-categoriesFor :: (Text, CategoryRule) -> Entity FA.StockMaster  -> Maybe ItemCategory
-categoriesFor (key, rule) entity = go <$> applyCategoryRule entity rule where
-  go cat= ItemCategory (FA.unStockMasterKey $ entityKey entity) key (pack cat)
+categoriesFor :: [(String, CategoryRule)] -> StockMasterRuleInfo   -> [ItemCategory]
+categoriesFor rules info = let
+  (sku, categories ) = applyCategoryRules rules info
+  in [ ItemCategory (FA.unStockMasterKey sku) (pack key) (pack value)
+     | (key, value) <- mapToList categories
+     ]

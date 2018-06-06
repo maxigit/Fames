@@ -21,6 +21,10 @@ data CategoryRule
   -- | FACategory RegexSub
   deriving Show
 
+data RuleInput = RuleInput
+  { categoryMap :: Map String String
+  , salesPrice :: Maybe Double
+  }
 regexSub regex replace = RegexSub (regex ++ ".*") replace
 instance FromJSON CategoryRule where
   parseJSON v = parseJSON' "" v 
@@ -84,28 +88,24 @@ instance ToJSON CategoryRule where
 -- | Computes the value of all category in the category map.
 -- We can't compute the value of each category individually because
 -- a category can depend on another.
-computeCategories :: [(String, CategoryRule)] -> Map String String -> String -> Map String String
-computeCategories rules inputMap source = let
-  x = foldl' go inputMap  rules
-  go iMap (category, rule) = maybe mempty (Map.singleton category) (computeCategory source iMap rule) <> iMap
+computeCategories :: [(String, CategoryRule)] -> RuleInput -> String -> Map String String
+computeCategories rules input source = let
+  x = foldl' go input  rules
+  go i (category, rule) = i { categoryMap = maybe mempty
+                                                  (Map.singleton category)
+                                                  (computeCategory source i rule)
+                                            <> categoryMap i
+                            }
 
 
-  in x
+  in categoryMap x
 
-computeCategory :: String -> Map String String -> CategoryRule -> Maybe String
-computeCategory source inputMap rule = case rule of
+computeCategory :: String -> RuleInput -> CategoryRule -> Maybe String
+computeCategory source input rule = case rule of
       SkuTransformer rsub -> subRegex rsub source
-      SalesPriceRanger ranger -> checkPriceRange 15  ranger
-      SourceTransformer source subrule -> computeCategory (expandSource inputMap source) inputMap subrule
-      CategoryDisjunction rules -> asum $ map (computeCategory source inputMap) rules
-      -- CategoryConjunction rules' rsub -> do -- Maybe
-      --   subs <- mapM apply rules'
-      --   let grouped = case subs of
-      --         [sub] -> sub
-      --         _ -> join [ "{" ++ show i ++ "}" ++ sub
-      --                   | (i, sub) <- zip [1..] subs
-      --                   ]
-      --   subRegex rsub (grouped)
+      SalesPriceRanger ranger ->  salesPrice input >>= flip checkPriceRange ranger
+      SourceTransformer source subrule -> computeCategory (expandSource (categoryMap input) source) input subrule
+      CategoryDisjunction rules -> asum $ map (computeCategory source input) rules
 
 subRegex :: RegexSub -> String -> Maybe String
 subRegex (RegexSub regexS replace) s = let
