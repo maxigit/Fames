@@ -81,9 +81,9 @@ unpackT = unpack
 instance ToJSON CategoryRule where
   toJSON (SkuTransformer (RegexSub regex replace)) = toJSON $ regex <> "/" <> replace
   toJSON (CategoryDisjunction rules) = toJSON  rules
-  toJSON (SalesPriceRanger (PriceRanger fromM toM target)) = object [pack target .= object ["price" .= priceJ]] where
+  toJSON (SalesPriceRanger (PriceRanger fromM toM target)) = object [pack target .= object ["sales_price" .= priceJ]] where
     priceJ = object ["from" .= fromM, "to" .= toM]
-  toJSON (SourceTransformer target rule) = object [pack target .= rule]
+  toJSON (SourceTransformer source rule) = object ["source" .= source, "rules" .= rule ]
   
 
 

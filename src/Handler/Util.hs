@@ -610,18 +610,22 @@ loadStockMasterRuleInfos :: FilterExpression -> Handler [StockMasterRuleInfo]
 loadStockMasterRuleInfos stockFilter = do
   let sql = " "
             <> "select sm.stock_id "
+
             <> "     , sm.description "
             <> "     , sm.long_description "
             <> "     , sm.units "
             <> "     , sm.mb_flag "
+
+            <> "     , tt.name "
+            <> "     , cat.description as category "
+            <> "     , dim1.name as dim1 "
+            <> "     , dim2.name As dim2 "
+
             <> "     , sm.sales_account "
             <> "     , sm.cogs_account "
             <> "     , sm.inventory_account "
             <> "     , sm.adjustment_account "
-            <> "     , dim1.name as dim1 "
-            <> "     , dim2.name As dim2 "
-            <> "     , cat.description as category "
-            <> "     , tt.name "
+
             <> "     , sales.price "
             <> "from 0_stock_master as sm "
             <> "left join 0_tax_types  AS tt on (sm.tax_type_id = tt.id) "
