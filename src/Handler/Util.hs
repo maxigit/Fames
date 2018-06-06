@@ -583,7 +583,7 @@ _allSkus = do
 -- ** Category caches
 type StockMasterRuleInfo = (Key StockMaster
                            , (Single String, Single String, Single String, Single String)
-                           , (Single String, Single String, Single String, Single String)
+                           , (Single (Maybe String), Single (Maybe String), Single (Maybe String), Single (Maybe String))
                            , (Single String, Single String, Single String, Single String)
                            , Single (Maybe Double))
 refreshCategoryCache0 :: Handler ()
@@ -638,10 +638,10 @@ loadStockMasterRuleInfos stockFilter = do
 -- We use string to be compatible with regex substitution
 -- applyCategoryRules :: [(String, CategoryRule)]
 --                    -> StockMasterRuleInfo -> Map String String
-applyCategoryRules
-  :: [(String, CategoryRule)]
-     -> StockMasterRuleInfo
-     -> (Key StockMaster, Map String String)
+-- applyCategoryRules
+--   :: [(String, CategoryRule)]
+--      -> StockMasterRuleInfo
+--      -> (Key StockMaster, Map String String)
 applyCategoryRules rules (stockId
                          , (Single description, Single longDescription, Single units, Single mbFlag)
                          , (Single taxType, Single category, Single dimension1, Single dimension2 )
@@ -650,20 +650,21 @@ applyCategoryRules rules (stockId
   (stockId, computeCategories rules ruleInput (unpack sku)) where
   sku = unStockMasterKey stockId
   ruleInput = RuleInput ( mapFromList 
-                          [ ("sku", unpack sku)
-                          , ("description", description)
-                          , ("longDescription", longDescription)
-                          , ("unit", units)
-                          , ("mbFlag", mbFlag)
-                          , ("taxType", taxType)
-                          , ("category", category)
-                          , ("dimension1", dimension1)
-                          , ("dimension2", dimension2)
-                          , ("salesAccount", salesAccount)
-                          , ("cogsAccount", cogsAccount)
-                          , ("inventoryAccount", inventoryAccount)
-                          , ("adjustmentAccount", adjustmentAccount)
-                          ]
+                          ( ("sku", unpack sku) :
+                            ("description", description) :
+                            ("longDescription", longDescription) :
+                            ("unit", units) :
+                            ("mbFlag", mbFlag) :
+                            (("taxType",) <$> taxType) ?:
+                            (("category",) <$> category) ?:
+                            (("dimension1",) <$> dimension1) ?:
+                            (("dimension2",) <$> dimension2) ?:
+                            ("salesAccount", salesAccount) :
+                            ("cogsAccount", cogsAccount) :
+                            ("inventoryAccount", inventoryAccount) :
+                            ("adjustmentAccount", adjustmentAccount) :
+                          []
+                          )
                         )
                         salesPrice
 

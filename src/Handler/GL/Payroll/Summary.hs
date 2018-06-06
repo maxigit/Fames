@@ -157,9 +157,9 @@ makeSummaries timesheets = let
 -- * DBAccess
 loadTimesheet' :: SummaryParam -> Handler [TS.Timesheet Text Text]
 loadTimesheet' param = do
-  let filter =  from param <&> (TimesheetStart >=.)  ?:
-                to param <&> (TimesheetStart <=. ) ?:
-                frequency param <&> (TimesheetFrequency ==. ) ?:
+  let filter =  (from param <&> (TimesheetStart >=.) ) ?:
+                (to param <&> (TimesheetStart <=. )) ?:
+                (frequency param <&> (TimesheetFrequency ==. )) ?:
                 (filterE id TimesheetReference (reference param))
   case filter of
     [] -> return []

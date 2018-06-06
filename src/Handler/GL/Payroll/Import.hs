@@ -338,10 +338,10 @@ setParams param = do
   
 -- * 
 selectInvoice param = do
-  invoices <- selectList ( Just (FA.SuppTranSupplierId ==. Just 27) ?:
-                           Just (FA.SuppTranType ==. fromEnum ST_SUPPINVOICE) ?:
-                           from param <&> (FA.SuppTranTranDate >=.) ?:
-                           to param <&> (FA.SuppTranTranDate <=.) ?:
+  invoices <- selectList ( (Just (FA.SuppTranSupplierId ==. Just 27)) ?:
+                           (Just (FA.SuppTranType ==. fromEnum ST_SUPPINVOICE)) ?:
+                           (from param <&> (FA.SuppTranTranDate >=.)) ?:
+                           (to param <&> (FA.SuppTranTranDate <=.)) ?:
                            (filterE id FA.SuppTranSuppReference (reference param))
                          )
                          [Asc FA.SuppTranTranDate, Asc FA.SuppTranReference]

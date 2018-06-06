@@ -98,11 +98,11 @@ processCalendar param =  do
 loadTimesheet' :: CalendarParam -> Handler [TS.Timesheet Text Text]
 loadTimesheet' param = do
   -- TODO factorize
-  let filter =  from param <&> (TimesheetStart >=.)  ?:
-                to param <&> (TimesheetStart <=. ) ?:
-                frequency param <&> (TimesheetFrequency ==. ) ?:
+  let filter =  (from param <&> (TimesheetStart >=.))  ?:
+                (to param <&> (TimesheetStart <=. )) ?:
+                (frequency param <&> (TimesheetFrequency ==. )) ?:
                 (filterE id TimesheetReference (reference param))
-      shiftCriteria = shiftType param <&> ((PayrollShiftType ==.) . tshow) ?: []
+      shiftCriteria = (shiftType param <&> ((PayrollShiftType ==.) . tshow)) ?: []
   case filter of
     [] -> return []
     _ -> do

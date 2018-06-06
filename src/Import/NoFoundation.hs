@@ -91,7 +91,7 @@ infixl 4 <$$>, <$$$>, <$$$$>
 (<$$$$>) = fmap . fmap . fmap . fmap
 
 -- | cons a Maybe
-infixr 1 ?:
+infixr 5 ?:
 (?:)  :: Maybe a -> [a] -> [a]
 Nothing ?: xs = xs 
 (Just x) ?: xs = x:xs

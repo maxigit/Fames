@@ -74,12 +74,14 @@ renderCategoryTester param resultM = do
 
 loadCategoriesWidget :: TesterParam -> Handler Widget
 loadCategoriesWidget (TesterParam stockFilter configuration) = do 
+  traceShowM ("CONF", configuration)
   let rulesE = decodeEither (encodeUtf8 $ unTextarea configuration) :: Either String [Map String CategoryRule]
+  traceShowM ("RULES", rulesE)
   case rulesE of
     Left err -> setError "Error in configuration" >> return [whamlet|<div.well>#{err}|]
     Right ruleMaps -> do
       stockMasters <- loadStockMasterRuleInfos stockFilter
-      let sku'categories = map (applyCategoryRules rules) stockMasters
+      let sku'categories = map (applyCategoryRules rules) (take 100 stockMasters)
           rules = map (first unpack) (concatMap mapToList ruleMaps)
           categories = Nothing :  map (Just . fst) rules 
           headerFn = (,[]) . maybe "sku" toHtml

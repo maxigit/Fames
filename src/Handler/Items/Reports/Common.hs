@@ -278,11 +278,11 @@ loadItemSales param = do
           ("AND stock_id LIKE '" <> stockLike <> "'") : -- we don't want space between ' and stockLike
           -- " LIMIT 100" :
           []
-      (w,p) = unzip $ rpFrom param <&> (\d -> (" AND tran_date >= ?", PersistDay d)) ?:
-                       rpTo param <&> (\d -> (" AND tran_date <= ?", PersistDay d)) ?:
-                       rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+      (w,p) = unzip $ (rpFrom param <&> (\d -> (" AND tran_date >= ?", PersistDay d))) ?:
+                      (rpTo param <&> (\d -> (" AND tran_date <= ?", PersistDay d))) ?:
+                      (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
                                                       in (" AND stock_id " <> keyw <> " ?", PersistText v)
-                                               ) ?:
+                                               )) ?:
                        case catFilterM of
                             Nothing -> []
                             Just (catToFilter, catFilter) ->
@@ -312,11 +312,11 @@ loadItemPurchases param = do
           ("AND stock_id LIKE '" <> stockLike <> "'") : -- we don't want space between ' and stockLike
           -- " LIMIT 100" :
           []
-      (w,p) = unzip $ rpFrom param <&> (\d -> (" AND tran_date >= ?", PersistDay d)) ?:
-                       rpTo param <&> (\d -> (" AND tran_date <= ?", PersistDay d)) ?:
-                       rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+      (w,p) = unzip $ (rpFrom param <&> (\d -> (" AND tran_date >= ?", PersistDay d))) ?:
+                      (rpTo param <&> (\d -> (" AND tran_date <= ?", PersistDay d))) ?:
+                      (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
                                                       in (" AND stock_id " <> keyw <> " ?", PersistText v)
-                                               ) ?:
+                                               )) ?:
                        case catFilterM of
                             Nothing -> []
                             Just (catToFilter, catFilter) ->
@@ -352,11 +352,11 @@ loadStockAdjustments param = do
           ("AND stock_id LIKE '" <> stockLike <> "'") : 
           []
 
-      (w,p) = unzip $ rpFrom param <&> (\d -> (" AND tran_date >= ?", PersistDay d)) ?:
-                       rpTo param <&> (\d -> (" AND tran_date <= ?", PersistDay d)) ?:
-                       rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+      (w,p) = unzip $ (rpFrom param <&> (\d -> (" AND tran_date >= ?", PersistDay d))) ?:
+                      (rpTo param <&> (\d -> (" AND tran_date <= ?", PersistDay d))) ?:
+                      (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
                                                       in (" AND stock_id " <> keyw <> " ?", PersistText v)
-                                               ) ?:
+                                               )) ?:
                        case catFilterM of
                             Nothing -> []
                             Just (catToFilter, catFilter) ->
