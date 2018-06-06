@@ -26,6 +26,12 @@ getItemsCategoryTermsR name = do
   let sql = "select value, count(*) FROM fames_item_category_cache WHERE category = ? GROUP BY value"
   terms <- runDB $ rawSql sql [PersistText name]
   let _types = terms :: [(Single Text, Single Int)]
+  setInfo [shamlet|
+    Available fields are
+    <ul>
+      $forall field <- allFields
+        <li>#{field}
+                  |]
   defaultLayout [whamlet|
       <div.well>
           <ul>
@@ -35,20 +41,21 @@ getItemsCategoryTermsR name = do
 
 
 -- * Test and previous category configuration
-data TesterParam = TesterParam {tpStockFilter :: FilterExpression, tpConfiguration :: Textarea} deriving Show
+data TesterParam = TesterParam {tpStockFilter :: FilterExpression, tpConfiguration :: Textarea, tpShowFields :: Bool} deriving Show
 
 categoryTesterForm :: Maybe TesterParam -> _
 categoryTesterForm param = renderBootstrap3 BootstrapBasicForm form
   where form = TesterParam
          <$> areq filterEField "styles" (tpStockFilter <$> param)
          <*> areq textareaField "configuration" (tpConfiguration <$> param)
+         <*> areq boolField "show fields" (tpShowFields <$> param)
 
 getItemsCategoryTesterR :: Handler Html
 getItemsCategoryTesterR = do
   rulesMaps <- appCategoryRules <$> getsYesod appSettings
   let configuration = Textarea . decodeUtf8 $ encode rulesMaps
       filter = ""
-  renderCategoryTester (TesterParam filter configuration) Nothing
+  renderCategoryTester (TesterParam filter configuration False) Nothing
 
 postItemsCategoryTesterR :: Handler Html
 postItemsCategoryTesterR = do
@@ -72,8 +79,22 @@ renderCategoryTester param resultM = do
       ^{result}
                         |]
 
+allFields :: [String]
+allFields = [ "description"
+            , "longDescription"
+            , "unit"
+            , "mbFlag"
+            , "taxType"
+            , "category"
+            , "dimension1"
+            , "dimension2"
+            , "salesAccount"
+            , "cogsAccount"
+            , "inventoryAccount"
+            , "adjustmentAccount"
+            ]
 loadCategoriesWidget :: TesterParam -> Handler Widget
-loadCategoriesWidget (TesterParam stockFilter configuration) = do 
+loadCategoriesWidget (TesterParam stockFilter configuration showFields) = do 
   traceShowM ("CONF", configuration)
   let rulesE = decodeEither (encodeUtf8 $ unTextarea configuration) :: Either String [Map String CategoryRule]
   traceShowM ("RULES", rulesE)
@@ -83,7 +104,8 @@ loadCategoriesWidget (TesterParam stockFilter configuration) = do
       stockMasters <- loadStockMasterRuleInfos stockFilter
       let sku'categories = map (applyCategoryRules rules) (take 100 stockMasters)
           rules = map (first unpack) (concatMap mapToList ruleMaps)
-          categories = Nothing :  map (Just . fst) rules 
+          all = if showFields then  allFields else []
+          categories = Nothing : map Just all <>   map (Just . fst) rules 
           headerFn = (,[]) . maybe "sku" toHtml
           makeRow :: (Key FA.StockMaster, Map String String) -> (Maybe String -> (Maybe (Html, [Text])), [Text])
           makeRow (sku, cats) = let
