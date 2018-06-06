@@ -70,6 +70,8 @@
   /index/#Maybe-ItemViewMode ItemsIndexR GET POST !items/index !group=Maintenance !title=Index
   /category ItemsCategoryR GET !title=Categories
   /category/terms/#Text ItemsCategoryTermsR GET
+  /category/tester ItemsCategoryTesterR GET POST !title=Configuration_Tester
+
   /history/#Text ItemsHistoryR GET !items/history
 
 /administrator AdministratorR !administrator:

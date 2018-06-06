@@ -51,6 +51,8 @@ module Handler.Util
 , renderField
 , allCustomers
 , allSuppliers
+, loadStockMasterRuleInfos
+, applyCategoryRules
 ) where
 -- ** Import
 import Foundation
@@ -587,7 +589,25 @@ type StockMasterRuleInfo = (Key StockMaster
 refreshCategoryCache0 :: Handler ()
 refreshCategoryCache0 = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
-  rulesMap <- appCategoryRules <$> getsYesod appSettings
+  rulesMaps <- appCategoryRules <$> getsYesod appSettings
+  stockMasters <- loadStockMasterRuleInfos (LikeFilter stockLike)
+  let categories = concatMap (categoriesFor rules) stockMasters
+      rules = map (first unpack) $ concatMap mapToList rulesMaps
+  runDB $ do
+    deleteWhere ([] ::[Filter ItemCategory])
+    insertMany_ categories
+
+refreshCategoryCache :: Bool -> Handler ()
+refreshCategoryCache force = do
+  -- check if the datbase is empty
+  -- clear it if needed
+  c <- runDB $ do
+    when force (deleteWhere ([] ::[Filter ItemCategory]))
+    count ([] ::[Filter ItemCategory]) 
+  when (c == 0) refreshCategoryCache0
+  
+loadStockMasterRuleInfos :: FilterExpression -> Handler [StockMasterRuleInfo]
+loadStockMasterRuleInfos stockFilter = do
   let sql = " "
             <> "select sm.stock_id "
             <> "     , sm.description "
@@ -610,25 +630,9 @@ refreshCategoryCache0 = do
             <> "left join 0_stock_category as cat on (sm.category_id = cat.category_id) "
             <> "left join 0_prices as sales on (sm.stock_id = sales.stock_id AND sales.sales_type_id = 16) "
             <> "where sm.stock_id "<> keyw <> "?"
-      (keyw, p) = filterEKeyword (LikeFilter stockLike)
+      (keyw, p) = filterEKeyword stockFilter
 
-  runDB $ do
-    stockMasters <- rawSql sql [PersistText p]
-    let categories = concatMap (categoriesFor (map (first unpack) $ concatMap mapToList rulesMap)) stockMasters
-    -- replace ta
-    deleteWhere ([] ::[Filter ItemCategory])
-    -- mapM_ insert_ (catMaybes categories)
-    insertMany_ categories
-
-refreshCategoryCache :: Bool -> Handler ()
-refreshCategoryCache force = do
-  -- check if the datbase is empty
-  -- clear it if needed
-  c <- runDB $ do
-    when force (deleteWhere ([] ::[Filter ItemCategory]))
-    count ([] ::[Filter ItemCategory]) 
-  when (c == 0) refreshCategoryCache0
-  
+  runDB $ rawSql sql [PersistText p]
 
 
 -- We use string to be compatible with regex substitution

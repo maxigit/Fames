@@ -42,7 +42,7 @@ parseJSON' key0 v = let
       return $ CategoryDisjunction dis 
 
     parseDisjunction key as = do
-      traceShowM ("Dis", key, as)
+      -- traceShowM ("Dis", key, as)
       rules <- mapM (parseJSON' key ) (toList as)
       return $ CategoryDisjunction rules
     -- parse pair either a disjunction, we throw the name away
@@ -57,7 +57,7 @@ parseJSON' key0 v = let
 
 
     parseMatcher key o = do
-      traceShowM ("MATCHER", key0, key, o)
+      -- traceShowM ("MATCHER", key0, key, o)
 
       let parseRegex = (SkuTransformer <$> (RegexSub <$> (unpackT <$> o .: "match")  <*> pure (unpack key)))
                        <|> (parseDisjunction key =<< o .: "rules")
@@ -76,11 +76,14 @@ parseJSON' key0 v = let
        <|> withArray "rule list" (parseDisjunction key0) v
        <|> withObject "rule object" (parseMatcher key0) v
 
-  
 unpackT :: Text -> String
 unpackT = unpack
 instance ToJSON CategoryRule where
-  toJSON v = toJSON ([] :: [Int])
+  toJSON (SkuTransformer (RegexSub regex replace)) = toJSON $ regex <> "/" <> replace
+  toJSON (CategoryDisjunction rules) = toJSON  rules
+  toJSON (SalesPriceRanger (PriceRanger fromM toM target)) = object [pack target .= object ["price" .= priceJ]] where
+    priceJ = object ["from" .= fromM, "to" .= toM]
+  toJSON (SourceTransformer target rule) = object [pack target .= rule]
   
 
 
