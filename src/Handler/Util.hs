@@ -46,6 +46,7 @@ module Handler.Util
 , categoriesH
 , categoriesFor
 , refreshCategoryCache
+, refreshCategoryFor
 , Identifiable(..)
 , getIdentified
 , renderField
@@ -586,18 +587,21 @@ type StockMasterRuleInfo = (Key StockMaster
                            , (Single (Maybe String), Single (Maybe String), Single (Maybe String), Single (Maybe String))
                            , (Single String, Single String, Single String, Single String)
                            , Single (Maybe Double))
-refreshCategoryCache0 :: Handler ()
-refreshCategoryCache0 = do
-  stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
+refreshCategoryFor :: Maybe FilterExpression -> Handler ()
+refreshCategoryFor stockFilterM = do
+  stockFilter <- case stockFilterM of
+    Just sf -> return sf
+    Nothing -> LikeFilter <$> appFAStockLikeFilter . appSettings <$> getYesod
   rulesMaps <- appCategoryRules <$> getsYesod appSettings
-  stockMasters <- loadStockMasterRuleInfos (LikeFilter stockLike)
+  stockMasters <- loadStockMasterRuleInfos stockFilter 
   let categories = concatMap (categoriesFor rules) stockMasters
       rules = map (first unpack) $ concatMap mapToList rulesMaps
   runDB $ do
-    deleteWhere ([] ::[Filter ItemCategory])
+    deleteWhere (filterE id ItemCategoryStockId (Just stockFilter))
     -- insertMany_ categories
     mapM_ insert_ categories
 
+-- Populates the item category cache table if needed
 refreshCategoryCache :: Bool -> Handler ()
 refreshCategoryCache force = do
   -- check if the datbase is empty
@@ -605,7 +609,7 @@ refreshCategoryCache force = do
   c <- runDB $ do
     when force (deleteWhere ([] ::[Filter ItemCategory]))
     count ([] ::[Filter ItemCategory]) 
-  when (c == 0) refreshCategoryCache0
+  when (c == 0) (refreshCategoryFor Nothing)
   
 loadStockMasterRuleInfos :: FilterExpression -> Handler [StockMasterRuleInfo]
 loadStockMasterRuleInfos stockFilter = do

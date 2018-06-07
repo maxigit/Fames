@@ -1125,12 +1125,13 @@ createGLMissings params = do
       -- new items also need an items codes
       itemCodes = map stockMasterToItemCode stockMasters
         
-  clearAppCache
   runDB $ do
     insertEntityMany stockMasters
     insertMany_ itemCodes
     insertMany_ prices
     insertMany_ purchData
+  refreshCategoryFor (ipStyles params)
+  clearAppCache
 
   setSuccess (toHtml $ tshow (maximumEx [length stockMasters, length prices, length purchData]) <> " items succesfully created.")
   return ()
