@@ -595,7 +595,8 @@ refreshCategoryCache0 = do
       rules = map (first unpack) $ concatMap mapToList rulesMaps
   runDB $ do
     deleteWhere ([] ::[Filter ItemCategory])
-    insertMany_ categories
+    -- insertMany_ categories
+    mapM_ insert_ categories
 
 refreshCategoryCache :: Bool -> Handler ()
 refreshCategoryCache force = do
