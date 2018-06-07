@@ -221,7 +221,9 @@ getAdjustBase = do
         adj = adjustDescription varMap (iiVariation item0) var
         sku = styleVarToSku style var
         in item0  { iiInfo = master
-                    { impMaster = (\s -> s {smfDescription = smfDescription s <&> adj}) <$> stock
+                    { impMaster = (\s -> s {smfDescription = smfDescription s <&> adj
+                                           ,smfLongDescription = smfLongDescription s <&> adj}
+                                  ) <$> stock
                     , impSalesPrices = (fmap (\p -> p { pfStockId = Identity sku })
                                        ) <$> salesPrices
                     , impPurchasePrices = (fmap (\p -> p { pdfStockId = Identity sku })
