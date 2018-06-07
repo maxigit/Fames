@@ -1,13 +1,13 @@
 * TODO Chart
-** Today [0/1] 
-   - [ ] Stock category
-     - [ ]  add prices and categories
-     - [ ]  conjunction
-     - [ ] to JSON
-     - [ ] Display categories
-       - [ ]  in pages
-       - [ ]  As modal window ?
-** previous [10/12] 
+** Today [0/0] 
+** previous [11/13] 
+   - [X] Stock category
+     - [X]  add prices and categories
+     - [X]  conjunction
+     - [X] to JSON
+     - [X] Display categories
+       - [X]  in pages
+       - [X]  As modal window ?
    - [X] Finish margin
      - [X] add max, total and average  option to residual
      - [X]  fixes bug, showing an extra "level" when residual
@@ -32,9 +32,9 @@
    - [X] setup two axes on for quantity and the other for amount (margin ?) (runsum q and runsum amount)
    - [X]instead of having 2nd field-value : tick-them all and use the correct axis
    - [X] use same colour for 
-** tasks [3/10]
+** tasks [4/9]
   - [X] Regroup Customer/Supplier in one
-  - [ ] Create table for categories and use it
+  - [X] Create table for categories and use it
   - [ ] display quantity and amount in graph tooltip
   - [ ] add global button (tab) to use bar, scatter etc ...
   - [X] add rank
