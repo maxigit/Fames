@@ -40,7 +40,8 @@ applyJSONRules stock json =
   case decodeEither $ encodeUtf8 json of
     Right rulesMap ->  let
       (FA.StockMasterKey sku) = entityKey stock
-      resultMap = computeCategories (join $ map Map.toList rulesMap) mempty (unpack sku)
+      input = RuleInput mempty (Just 15)
+      resultMap = computeCategories (join $ map Map.toList rulesMap) input (unpack sku)
       in traceShow ("RULES", rulesMap) $ Map.toList resultMap
     Left err -> error (show err)
 
