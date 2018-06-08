@@ -46,6 +46,11 @@ calculateDate EndOfMonth day = let
   in fromGregorian y m (gregorianMonthLength y m)
 calculateDate (EndOfWeek target) day = nextWeekDay target day
 calculateDate EndOfYear day = fromGregorian year 12 31 where (year,_,_) = toGregorian day
+calculateDate BeginningOfMonth day = let
+  (y, m, _) = toGregorian day
+  in fromGregorian y m 1
+calculateDate (BeginningOfWeek target) day = previousWeekDay target day
+calculateDate BeginningOfYear day = fromGregorian year 01 01 where (year,_,_) = toGregorian day
 
 
 dayOfWeek :: Day -> DayOfWeek

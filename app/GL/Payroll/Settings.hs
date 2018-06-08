@@ -68,6 +68,9 @@ data DateCalculator
   | EndOfMonth 
   | EndOfWeek { weekDay :: DayOfWeek}
   | EndOfYear
+  | BeginningOfMonth 
+  | BeginningOfWeek { weekDay :: DayOfWeek}
+  | BeginningOfYear
   deriving (Show, Read, Eq, Ord)
 
 data DayOfWeek = Monday | Tuesday | Wednesday | Thursday | Friday | Saturday | Sunday

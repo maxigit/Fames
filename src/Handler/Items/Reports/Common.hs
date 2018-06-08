@@ -187,7 +187,7 @@ getColsWithDefault = do
       defaultBand =  style
       defaultSerie = variation
       defaultTime = mkDateColumn monthly -- w52
-      monthly =  ("End of Month", calculateDate EndOfMonth)
+      monthly =  ("Beginning of Month", calculateDate EndOfMonth)
       mkDateColumn (name, fn) = Column name fn' where
         fn' p tk = let (d0, _) = foldDay p tk
                        d = fn d0
@@ -269,8 +269,8 @@ getColsWithDefault = do
             , Column "Sales/Purchase" (const' $ maybe PersistNull PersistText . tkType'')
             , Column "Invoice/Credit" (const' $ maybe PersistNull PersistText . tkType')
             ]  <>
-            ( map mkDateColumn [ ("End of Year", calculateDate EndOfYear)
-                               , ("End of Week", calculateDate (EndOfWeek Sunday))
+            ( map mkDateColumn [ ("Beginning of Year", calculateDate BeginningOfYear)
+                               , ("Beginning of Week", calculateDate (BeginningOfWeek Sunday))
                                , monthly
                                ]
             ) <>
