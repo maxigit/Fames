@@ -109,7 +109,7 @@ newtype Start = Start Day -- to mixup adjustTaxYear
 data PeriodFolding
   = FoldYearly Day  -- starting day
   -- PreviousPeriod -- use the length of the start and end period
-  | FoldMonthly
+  | FoldMonthly Integer -- (base year)
   | FoldWeekly
   deriving Show
 
@@ -126,4 +126,9 @@ foldTime (FoldYearly yearStart) day = let
   in ( fromGregorian newDayYear dayMonth dayDay
      , Start (fromGregorian newPeriodYear periodMonth periodDay)
      )
+foldTime (FoldMonthly periodYear) day = let
+  (_dayYear, dayMonth, dayDay) = toGregorian day
+  in ( fromGregorian periodYear 1 dayDay
+     , Start (fromGregorian periodYear dayMonth 1) )
+  
 
