@@ -55,3 +55,24 @@ nextWeekDay  weekDay day = calculateDate (NextDayOfWeek weekDay weekDay) (addDay
 --    5 (03 Mar) -> 5 Feb
 previousMonthStartingAt :: Int -> Day -> Day
 previousMonthStartingAt d day = addGregorianMonthsClip (-1) $  calculateDate (DayOfMonth d d) day
+
+-- * Date Folding
+-- | Used to project a given a day into a given period. Useful for comparing or charting
+-- sales for different year.
+-- example 2017/03/01 for year starting on 2018/08/01 will be projected to 2018/03/01 (day) period_start 2017/01/01
+  
+-- | Argument type to not mixup adjustTAxYear arguments
+newtype Start = Start Day -- to mixup adjustTaxYear
+  deriving (Show, Eq, Ord)
+data PeriodFolding
+  = FoldYearly Day  -- starting day
+  -- PreviousPeriod -- use the length of the start and end period
+  | FoldMonthly
+  | FoldWeekly
+  deriving Show
+
+
+
+-- compute the period and the new date within the current period
+foldTime :: PeriodFolding -> Day -> (Day, Start)
+foldTime (FoldYearly start) day = (day, Start start)

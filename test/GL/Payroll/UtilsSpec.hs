@@ -11,7 +11,8 @@ check calculator s1 s2 = let
   in calculateDate calculator d1 `shouldBe` d2
 
 
-spec = describe "@Date Calculator" $ do
+spec = dateSpec >> periodSpec
+dateSpec = describe "@DateCalculator" $ do
   context "AddDays" $ do
     it "get same day" $ do
       check (AddDays 0) "2018-03-27" "2018-03-27"
@@ -50,3 +51,15 @@ spec = describe "@Date Calculator" $ do
         previousMonthStartingAt 6 (fromGregorian 2018 03 26) `shouldBe` fromGregorian 2018 03 06
       it "finds previous month" $ do
         previousMonthStartingAt 6 (fromGregorian 2018 03 02) `shouldBe` fromGregorian 2018 02 06
+
+periodSpec = describe "@Period" $ do
+  context "whole yearl" $ do
+    let folding = FoldYearly (fromGregorian 2018 01 01)
+    it "stays in current period" $ do
+      foldTime  folding (fromGregorian 2018 03 02) `shouldBe` (fromGregorian 2018 03 02, Start (fromGregorian 2018 01 01))
+    it "find previous period" $ do
+      foldTime  folding (fromGregorian 2017 03 02) `shouldBe` (fromGregorian 2018 03 02, Start (fromGregorian 2017 01 01))
+    it "find next period" $ do
+      foldTime  folding (fromGregorian 2019 03 02) `shouldBe` (fromGregorian 2018 03 02, Start (fromGregorian 2019 01 01))
+    it "manages leap year" $ do
+      foldTime  folding (fromGregorian 2016 02 29) `shouldBe` (fromGregorian 2018 02 28, Start (fromGregorian 2016 01 01))

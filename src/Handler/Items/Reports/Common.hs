@@ -20,6 +20,8 @@ import Database.Persist.Sql hiding (Column)
 data ReportParam = ReportParam
   { rpFrom :: Maybe Day
   , rpTo :: Maybe Day
+  -- , rpPeriod :: Maybe PeriodFolding
+  -- , rpNumberOfPeriods :: Maybe Int
   -- , rpCatFilter :: Map Text (Maybe Text)
   , rpCategoryToFilter :: Maybe Text
   , rpCategoryFilter :: Maybe FilterExpression
@@ -52,9 +54,13 @@ data TraceParams = TraceParams
   { tpDataType :: QPType
   , tpDataParams :: Identifiable [TraceParam]
   }  deriving Show
+-- | Parameter to define a plotly trace.
 newtype TraceParam = TraceParam ((QPrice -> Double), Text {- Color-} -> [(Text, Value)], RunSum ) 
 instance Show TraceParam where
   show _ = "<trace param>"
+-- | should we do a a running sum (cumulative total) before displaying the trace ?
+-- [1,2,0,5] -> 1,3,3,8 (runsum)
+-- backward -> 8,7,5,5,0 (start from the end cumul and decrease to 0)
 data RunSum = RunSum | RunSumBack | RSNormal deriving Show
 -- ** Default  style
 amountStyle color = [("type", String "scatter")

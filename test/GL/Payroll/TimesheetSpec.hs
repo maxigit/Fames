@@ -1,6 +1,7 @@
 module GL.Payroll.TimesheetSpec(spec) where
 import Prelude
 import GL.Payroll.Timesheet
+import GL.Utils
 
 import Test.Hspec
 

@@ -43,6 +43,7 @@ import Data.Map(Map)
 import Locker
 import Data.Text (Text)
 import Data.Either(isRight)
+import GL.Utils(Start(..))
 
 -- * Type alias
 type Amount = Locker Text Double
@@ -191,9 +192,6 @@ makeClassy ''EmployeeSummary
 
   
 
--- | Argument type to not mixup adjustTAxYear arguments
-newtype Start = Start Day -- to mixup adjustTaxYear
-  deriving (Show, Eq, Ord)
 data Period = Period
   { _periodFrequency :: PayrollFrequency
   , _pStart :: Start
