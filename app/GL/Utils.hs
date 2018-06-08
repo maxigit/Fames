@@ -130,5 +130,9 @@ foldTime (FoldMonthly periodYear) day = let
   (_dayYear, dayMonth, dayDay) = toGregorian day
   in ( fromGregorian periodYear 1 dayDay
      , Start (fromGregorian periodYear dayMonth 1) )
+foldTime (FoldWeekly) day = let
+  day = previousWeekDay Monday day
+  periodStart = day
+  in (day, Start periodStart)
   
 
