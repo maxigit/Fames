@@ -69,8 +69,10 @@ install_local:
 ghcid-old:
 	ghcid --command="stack exec ghci --test -- -iapp -ilegacy -isrc -ifay-shared -itest -iconfig/fa -hide-package=cryptonite  -w test/Spec.hs"   --test ":main --rerun --color"
 
+ghcid-current:
+	ghcid --command="stack ghci :ghcid" --test ":main --color -m@current"
 ghcid-test:
-	ghcid --command="stack ghci :ghcid" --test ":main --color -m@Period"
+	ghcid --command="stack ghci :ghcid" --test ":main --color"
 ghcid-force:
 	ghcid --command="stack ghci :test --ghc-options=-w --ghc-options=-fdefer-type-errors" --test ":main --color"
 ghcid:

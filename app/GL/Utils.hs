@@ -67,12 +67,8 @@ nextWeekDay  weekDay day = calculateDate (NextDayOfWeek weekDay weekDay) (addDay
 -- same tax year as the given day
 adjustTaxYear :: Start -> Day -> Day
 adjustTaxYear (Start taxStart) start = let
-  (_taxYear, taxMonth, taxDay) = toGregorian taxStart
-  (startYear, startMonth, startDay) = toGregorian start
-  newYear = if (startMonth, startDay) >= (taxMonth, taxDay)
-            then startYear
-            else startYear - 1
-  in fromGregorian newYear taxMonth taxDay
+  (_, Start period) = foldTime (FoldYearly taxStart) start
+  in period
 
 weekNumber :: Start -> Day -> (Integer, Int)
 weekNumber taxStart start = let
