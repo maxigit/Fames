@@ -256,11 +256,11 @@ employeeDescription (Entity _ op, emp) = intercalate " "
 
 period :: PayrollSettings -> PayrollFrequency -> Day -> (Integer, Int, String, Day)
 period settings TS.Weekly day = let
-  (y, w) = TS.weekNumber (Start $ firstTaxWeek settings) day
+  (y, w) = weekNumber (Start $ firstTaxWeek settings) day
   w' = printf "W%02d" w
   in (y, w, w', addDays 6 day )
 period settings TS.Monthly day = let
-  (y, m) = TS.monthNumber (Start $ firstTaxMonth settings) day
+  (y, m) = monthNumber (Start $ firstTaxMonth settings) day
   m' = printf "M%02d" m
   in (y, m, m', addDays (-1) (addGregorianMonthsClip 1 day ))
 

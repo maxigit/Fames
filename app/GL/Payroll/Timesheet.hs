@@ -43,7 +43,7 @@ import Data.Map(Map)
 import Locker
 import Data.Text (Text)
 import Data.Either(isRight)
-import GL.Utils(Start(..))
+import GL.Utils
 
 -- * Type alias
 type Amount = Locker Text Double
@@ -199,39 +199,6 @@ data Period = Period
 makeLenses ''Period
 
 -- * Period Calculator
--- Adjust the start tax year to be in the
--- same tax year as the given day
-adjustTaxYear :: Start -> Day -> Day
-adjustTaxYear (Start taxStart) start = let
-  (_taxYear, taxMonth, taxDay) = toGregorian taxStart
-  (startYear, startMonth, startDay) = toGregorian start
-  newYear = if (startMonth, startDay) >= (taxMonth, taxDay)
-            then startYear
-            else startYear - 1
-  in fromGregorian newYear taxMonth taxDay
-
-weekNumber :: Start -> Day -> (Integer, Int)
-weekNumber taxStart start = let
-  -- first we need to adjust
-  adjusted = adjustTaxYear taxStart start
-  days = diffDays start adjusted
-  in (toYear adjusted , fromIntegral $ days  `div` 7 +1)
-
-monthNumber :: Start -> Day -> (Integer, Int)
-monthNumber taxStart start = let
-  (taxYear, taxMonth, taxDay) = toGregorian (adjustTaxYear taxStart start)
-  (_startYear, startMonth, startDay) = toGregorian start
-  deltaMonth =  startMonth - taxMonth
-  plusOneIf (y,d) = if startDay < taxDay
-            then (y,d)
-            else (y,d+1)
-  adjust12 (y,d) = if d < 1
-               then (y, d +12)
-               else (y,d)
-  in adjust12 $ plusOneIf (taxYear, deltaMonth)
-
-toYear :: Day -> Integer
-toYear d = y where (y, _, _ ) = toGregorian d
 -- | End of a period
 periodEnd :: Timesheet p e -> Day
 periodEnd ts = let

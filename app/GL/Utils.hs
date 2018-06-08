@@ -2,6 +2,18 @@ module GL.Utils where
 import ClassyPrelude
 import GL.Payroll.Settings
 import Data.Time.Calendar(addDays, addGregorianMonthsClip, gregorianMonthLength)
+import           Data.Time ( Day
+                           , LocalTime
+                           , TimeOfDay
+                           , makeTimeOfDayValid
+                           -- , addDays
+                           , timeOfDayToTime
+                           , formatTime
+                           , fromGregorian
+                           , toGregorian
+                           , diffDays
+                           -- , addGregorianMonthsClip
+                           )
 
 -- * Date calculator
 calculateDate :: DateCalculator -> Day -> Day
@@ -50,6 +62,40 @@ nextWeekDay :: DayOfWeek -> Day -> Day
 nextWeekDay  weekDay day = calculateDate (NextDayOfWeek weekDay weekDay) (addDays (-1) day)
   
 
+-- * Helper (not using calculateDate)
+-- Adjust the start tax year to be in the
+-- same tax year as the given day
+adjustTaxYear :: Start -> Day -> Day
+adjustTaxYear (Start taxStart) start = let
+  (_taxYear, taxMonth, taxDay) = toGregorian taxStart
+  (startYear, startMonth, startDay) = toGregorian start
+  newYear = if (startMonth, startDay) >= (taxMonth, taxDay)
+            then startYear
+            else startYear - 1
+  in fromGregorian newYear taxMonth taxDay
+
+weekNumber :: Start -> Day -> (Integer, Int)
+weekNumber taxStart start = let
+  -- first we need to adjust
+  adjusted = adjustTaxYear taxStart start
+  days = diffDays start adjusted
+  in (toYear adjusted , fromIntegral $ days  `div` 7 +1)
+
+monthNumber :: Start -> Day -> (Integer, Int)
+monthNumber taxStart start = let
+  (taxYear, taxMonth, taxDay) = toGregorian (adjustTaxYear taxStart start)
+  (_startYear, startMonth, startDay) = toGregorian start
+  deltaMonth =  startMonth - taxMonth
+  plusOneIf (y,d) = if startDay < taxDay
+            then (y,d)
+            else (y,d+1)
+  adjust12 (y,d) = if d < 1
+               then (y, d +12)
+               else (y,d)
+  in adjust12 $ plusOneIf (taxYear, deltaMonth)
+
+toYear :: Day -> Integer
+toYear d = y where (y, _, _ ) = toGregorian d
 -- | beginning of month period starting at given day
 -- Ex : 5 (07 Mar) -> 5 Mar
 --    5 (03 Mar) -> 5 Feb
@@ -75,4 +121,14 @@ data PeriodFolding
 
 -- compute the period and the new date within the current period
 foldTime :: PeriodFolding -> Day -> (Day, Start)
-foldTime (FoldYearly start) day = (day, Start start)
+foldTime (FoldYearly yearStart) day = let
+  (periodYear, periodMonth, periodDay) = toGregorian yearStart
+  (dayYear, dayMonth, dayDay) = toGregorian day
+  newPeriodYear = if (dayMonth, dayDay) >= (periodMonth, periodDay)
+            then dayYear
+            else dayYear - 1
+  newDayYear = periodYear+ (newPeriodYear - dayYear) -- adjustment
+  in ( fromGregorian newDayYear dayMonth dayDay
+     , Start (fromGregorian newPeriodYear periodMonth periodDay)
+     )
+
