@@ -111,7 +111,7 @@ data PeriodFolding
   -- PreviousPeriod -- use the length of the start and end period
   | FoldMonthly Integer -- (base year)
   | FoldWeekly
-  deriving Show
+  deriving (Show, Eq, Ord)
 
 
 
@@ -130,9 +130,9 @@ foldTime (FoldMonthly periodYear) day = let
   (_dayYear, dayMonth, dayDay) = toGregorian day
   in ( fromGregorian periodYear 1 dayDay
      , Start (fromGregorian periodYear dayMonth 1) )
-foldTime (FoldWeekly) day = let
-  day = previousWeekDay Monday day
-  periodStart = day
+foldTime (FoldWeekly) day0 = let
+  periodStart = previousWeekDay Monday day0
+  w = dayOfWeek day0
+  day = nextWeekDay w (fromGregorian 2018 01 01)
   in (day, Start periodStart)
-  
 

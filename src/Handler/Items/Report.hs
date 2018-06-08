@@ -27,6 +27,8 @@ reportForm cols paramM extra = do
       categoryOptions = [(cat, cat) | cat <-categories ]
   (fFrom, vFrom) <- mopt dayField "from" (Just $ rpFrom =<< paramM )
   (fTo, vTo) <- mopt dayField "to" (Just $ rpTo =<< paramM)
+  (fPeriod, vPeriod) <- mopt (selectFieldList periodOptions) "period" (Just $ rpPeriod =<< paramM)
+  (fPeriodN, vPeriodN) <- mopt intField "number" (Just $ rpNumberOfPeriods =<< paramM)
   (fCategoryToFilter, vCategoryToFilter) <- mopt (selectFieldList categoryOptions ) "category" (Just $ rpCategoryToFilter =<< paramM)
   (fCategoryFilter, vCategoryFilter) <- mopt filterEField  "filter" (Just $ rpCategoryFilter =<< paramM)
   (fStockFilter, vStockFilter) <- mopt filterEField  "sku" (Just $ rpStockFilter =<< paramM)
@@ -40,7 +42,8 @@ reportForm cols paramM extra = do
   (fSales, vSales) <- mreq checkBoxField "Sales" (rpLoadSales <$> paramM)
   (fPurchases, vPurchases) <- mreq checkBoxField "Purchases" (rpLoadPurchases <$> paramM)
   (fAdjustment, vAdjustment) <- mreq checkBoxField "Adjustment" (rpLoadAdjustment <$> paramM)
-  let fields = [ Right $ mapM_ renderField [vFrom, vTo, vStockFilter, vCategoryToFilter, vCategoryFilter]
+  let fields = [ Right $ mapM_ renderField [vFrom, vTo, vPeriod, vPeriodN]
+               , Right $ mapM_ renderField [vStockFilter, vCategoryToFilter, vCategoryFilter]
                , Right wPanel, Right wBand, Right wSerie
                , Left vColRupture
                , Right wTrace1, Right wTrace2, Right wTrace3
@@ -49,6 +52,7 @@ reportForm cols paramM extra = do
   let form = [whamlet|#{extra}|] >> mapM_ (either renderField inline) fields
       inline w = [whamlet| <div.form-inline>^{w}|]
       report = ReportParam <$> fFrom <*> fTo
+                           <*> fPeriod <*> fPeriodN
                            <*> fCategoryToFilter <*> fCategoryFilter
                            <*> fStockFilter <*> fPanel <*> fBand <*> fSerie
                            <*> fColRupture <*> fTrace1 <*> fTrace2 <*> fTrace3
@@ -124,6 +128,8 @@ getItemsReportR mode = do
         Just ReportChart -> ReportParam
                            (Just past) --  rpFrom :: Maybe Day
                            Nothing --  rpTo :: Maybe Day
+                           Nothing --  rpPeriod
+                           Nothing --  rpNumberOfPeriods
                            Nothing -- rpToCategoryToFilter
                            Nothing -- rpToCategoryFilter
                            Nothing --  rpStockFilter :: Maybe FilterExpression
@@ -138,6 +144,8 @@ getItemsReportR mode = do
         _ -> ReportParam
                            (Just past) --  rpFrom :: Maybe Day
                            Nothing --  rpTo :: Maybe Day
+                           Nothing --  rpPeriod
+                           Nothing --  rpNumberOfPeriods
                            Nothing -- rpToCategoryToFilter
                            Nothing -- rpToCategoryFilter
                            Nothing --  rpStockFilter :: Maybe FilterExpression

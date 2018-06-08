@@ -12,16 +12,17 @@ import Data.List.NonEmpty (NonEmpty(..))
 import Data.List(cycle,scanl1,scanr1)
 import Database.Persist.MySQL(unSqlBackendKey, rawSql, Single(..))
 import Data.Aeson.QQ(aesonQQ)
-import GL.Utils(calculateDate)
+import GL.Utils(calculateDate, foldTime, Start(..), PeriodFolding(..))
 import GL.Payroll.Settings
 import Database.Persist.Sql hiding (Column)
+
 
 -- * Param
 data ReportParam = ReportParam
   { rpFrom :: Maybe Day
   , rpTo :: Maybe Day
-  -- , rpPeriod :: Maybe PeriodFolding
-  -- , rpNumberOfPeriods :: Maybe Int
+  , rpPeriod :: Maybe PeriodFolding
+  , rpNumberOfPeriods :: Maybe Int
   -- , rpCatFilter :: Map Text (Maybe Text)
   , rpCategoryToFilter :: Maybe Text
   , rpCategoryFilter :: Maybe FilterExpression
@@ -127,6 +128,11 @@ pricesStyle = [(qpMinPrice , const [ ("style", String "scatter")
                              -- , ("line", [aesonQQ|{width:0}|])
                              ], RSNormal)
                  ]
+periodOptions :: [(Text, PeriodFolding)]
+periodOptions = [("Whole Year", FoldYearly (fromGregorian 2018 01 01))
+                ,("Monthly", FoldMonthly 2018)
+                ,("Weekly", FoldWeekly)
+                ]
 -- * Columns
 data Column = Column
   { colName :: Text
@@ -170,15 +176,17 @@ getColsWithDefault = do
 
   let style = Column "Style" (const' $ maybe PersistNull PersistText . tkStyle)
       variation = Column "Variation" (const' $ maybe PersistNull PersistText . tkVar)
-      w52 = Column "52W" (\p tk -> let day0 = addDays 1 $ fromMaybe today (rpTo p)
-                                       year = slidingYear day0 (tkDay tk)
-                                   in mkNMapKey . PersistDay $ fromGregorian year 1 1
-                          )
+      -- w52 = Column "52W" (\p tk -> let day0 = addDays 1 $ fromMaybe today (rpTo p)
+      --                                  year = slidingYear day0 (tkDay tk)
+      --                              in mkNMapKey . PersistDay $ fromGregorian year 1 1
+                          -- )
       defaultBand =  style
       defaultSerie = variation
       defaultTime = mkDateColumn monthly -- w52
       monthly =  ("End of Month", calculateDate EndOfMonth)
-      mkDateColumn (name, fn) = Column name (const' $ PersistDay . fn . tkDay)
+      mkDateColumn (name, fn) = Column name fn' where
+        fn' p tk = let (d, _) = foldDay p tk
+                   in NMapKey Nothing (PersistDay $ fn d)
       const' fn = const ( mkNMapKey . fn)
       -- For the supplier and customer key
       -- we want the Map to use the id instead of the map for performance reason
@@ -205,12 +213,26 @@ getColsWithDefault = do
       mkTransactionType _ tkey = let ktype = tkType tkey
        in NMapKey (Just $ fromEnum ktype)
                   (PersistText $ showTransType ktype)
+     
+      foldDay p tkey = let
+        day = tkDay tkey
+        in  case rpPeriod p of
+              Nothing -> (day, Start day)
+              Just period -> foldTime period (tkDay tkey)
+
+      getPeriod p tkey = NMapKey Nothing (PersistDay d) where
+        (_, Start d) = foldDay p tkey
+      getDay p tkey = NMapKey Nothing (PersistDay d) where
+        (d, _) = foldDay p tkey
+                   
+
 
       cols = [ style
             , variation
             , Column "Sku" (const' $ PersistText . tkSku)
-            , Column "Date" (const' $ PersistDay . tkDay)
-            , w52
+            , Column "Period" getPeriod
+            , Column "Date" getDay
+            -- , w52
             -- , Column "Customer" (const' $ maybe PersistNull (PersistInt64. fst) . tkCustomer)
             -- , Column "Supplier" (const' $ maybe PersistNull  PersistInt64 . tkSupplier)
             , Column "Supplier/Customer" mkCustomerSupplierKey --  (const' $ maybe PersistNull (either (PersistInt64 . fst)
