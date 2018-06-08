@@ -53,7 +53,7 @@ dateSpec = describe "@DateCalculator" $ do
         previousMonthStartingAt 6 (fromGregorian 2018 03 02) `shouldBe` fromGregorian 2018 02 06
 
 periodSpec = describe "@Period @current" $ do
-  context "whole yearl" $ do
+  context "whole year" $ do
     let folding = FoldYearly (fromGregorian 2018 01 01)
     it "stays in current period" $ do
       foldTime  folding (fromGregorian 2018 03 02)
@@ -67,3 +67,17 @@ periodSpec = describe "@Period @current" $ do
     it "manages leap year" $ do
       foldTime  folding (fromGregorian 2016 02 29)
              `shouldBe` (fromGregorian 2018 02 28, Start (fromGregorian 2016 01 01))
+  context "fiscal yearl" $ do
+    let folding = FoldYearly (fromGregorian 2018 05 01)
+    it "stays in current period" $ do
+      foldTime  folding (fromGregorian 2019 03 02)
+             `shouldBe` (fromGregorian 2019 03 02, Start (fromGregorian 2018 05 01))
+    it "find previous period" $ do
+      foldTime  folding (fromGregorian 2018 03 02)
+             `shouldBe` (fromGregorian 2019 03 02, Start (fromGregorian 2017 05 01))
+    it "find next period" $ do
+      foldTime  folding (fromGregorian 2020 03 02)
+             `shouldBe` (fromGregorian 2019 03 02, Start (fromGregorian 2019 05 01))
+    it "manages leap year" $ do
+      foldTime  folding (fromGregorian 2020 02 29)
+             `shouldBe` (fromGregorian 2019 02 28, Start (fromGregorian 2019 05 01))

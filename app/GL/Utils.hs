@@ -120,10 +120,9 @@ foldTime :: PeriodFolding -> Day -> (Day, Start)
 foldTime (FoldYearly yearStart) day = let
   (periodYear, periodMonth, periodDay) = toGregorian yearStart
   (dayYear, dayMonth, dayDay) = toGregorian day
-  newPeriodYear = if (dayMonth, dayDay) >= (periodMonth, periodDay)
-            then dayYear
-            else dayYear - 1
-  newDayYear = periodYear+ (newPeriodYear - dayYear) -- adjustment
+  (newPeriodYear, newDayYear) = if (dayMonth, dayDay) >= (periodMonth, periodDay)
+            then (dayYear, periodYear)
+            else (dayYear - 1, periodYear +1)
   in ( fromGregorian newDayYear dayMonth dayDay
      , Start (fromGregorian newPeriodYear periodMonth periodDay)
      )
