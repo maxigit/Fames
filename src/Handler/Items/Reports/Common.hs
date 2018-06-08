@@ -128,11 +128,12 @@ pricesStyle = [(qpMinPrice , const [ ("style", String "scatter")
                              -- , ("line", [aesonQQ|{width:0}|])
                              ], RSNormal)
                  ]
-periodOptions :: Day -> [(Text, PeriodFolding)]
-periodOptions today = let
+periodOptions :: Day -> Maybe Day -> [(Text, PeriodFolding)]
+periodOptions today from = let
   beginYear = fromGregorian (toYear today) 1 1
   in [("Whole Year", FoldYearly beginYear)
-     ,("Sliding Year", FoldYearly today)
+     ,("Sliding Year (today)", FoldYearly today)
+     ,("Sliding Year (from)", FoldYearly (fromMaybe today from))
      -- ,("Fiscal Year", FoldYearly fiscal)
      ,("Monthly", FoldMonthly 2018)
      ,("Weekly", FoldWeekly)
@@ -187,7 +188,7 @@ getColsWithDefault = do
       defaultBand =  style
       defaultSerie = variation
       defaultTime = mkDateColumn monthly -- w52
-      monthly =  ("Beginning of Month", calculateDate EndOfMonth)
+      monthly =  ("Beginning of Month", calculateDate BeginningOfMonth)
       mkDateColumn (name, fn) = Column name fn' where
         fn' p tk = let (d0, _) = foldDay p tk
                        d = fn d0
@@ -314,6 +315,42 @@ computeCategory skuToStyleVar categories catFinder (key, tpq) = let
   (style, var) = skuToStyleVar sku
   in (key { tkCategory = mapFromList cats, tkStyle = Just style, tkVar = Just var}, tpq)
 
+-- | Allows to load similar slices of time depending on the param
+-- example the first 3 months of each year
+generateTranDateIntervals :: ReportParam -> [(Text, PersistValue)]
+generateTranDateIntervals param = let
+  intervals = case (rpFrom param, rpTo param, rpNumberOfPeriods param) of
+    (Nothing, Nothing, _)  -> [ ]
+    (fromM, toM, Nothing)  -> [ (fromM, toM) ]
+    (Just from, Nothing, Just n) -> -- go n year ago
+          [ (Just (calculateDate (AddYears (-n)) from), Nothing) ]
+    (Nothing, Just to, Just n) -> -- go n year ago
+          [ (Nothing, Just to) ]
+    (Just from, Just to, Just n) -> let
+      period i = case rpPeriod param of
+        Just (FoldYearly _) -> calculateDate (AddYears (-i))
+        Just (FoldMonthly _) -> calculateDate (AddMonths (-i))
+        Just (FoldWeekly) -> calculateDate (AddWeeks (-i))
+        Nothing  -> calculateDate (AddYears (-i))
+      in [ ( Just (period i from), Just (period i to)) | i <- [0..n] ]
+  -- we need AND ((d>= from and d < to) OR (.. and ..))
+  -- and some hack to use persist value even if not needed
+  in  join $ [(" AND ? AND (", PersistBool True )] :
+             [ ( maybe (" (?", PersistBool True)
+                       (\d -> (" (tran_date >= ?", PersistDay d))
+                       fromM
+               ) :
+               ( maybe (" AND ?) OR ", PersistBool True)
+                       (\d -> (" AND tran_date < ?) OR", PersistDay d))
+                       toM
+               ) :
+               []
+             | (fromM, toM) <- intervals
+             ]
+             <> [[("?) ", PersistBool False)]] -- close the or clause
+      
+
+  
 loadItemSales :: ReportParam -> Handler [(TranKey, TranQP)]
 loadItemSales param = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
@@ -333,9 +370,7 @@ loadItemSales param = do
           ("AND stock_id LIKE '" <> stockLike <> "'") : -- we don't want space between ' and stockLike
           -- " LIMIT 100" :
           []
-      (w,p) = unzip $ (rpFrom param <&> (\d -> (" AND tran_date >= ?", PersistDay d))) ?:
-                      (rpTo param <&> (\d -> (" AND tran_date <= ?", PersistDay d))) ?:
-                      (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+      (w,p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
                                                       in (" AND stock_id " <> keyw <> " ?", PersistText v)
                                                )) ?:
                        case catFilterM of
@@ -345,6 +380,7 @@ loadItemSales param = do
                                  in [ (" AND category.value " <> keyw <> " ?", PersistText v)
                                     , (" AND category.category = ? ", PersistText catToFilter)
                                     ]
+                       <> generateTranDateIntervals param
         
   sales <- runDB $ rawSql (sql <> intercalate " "w) p
   return $ map detailToTransInfo sales
@@ -367,9 +403,7 @@ loadItemPurchases param = do
           ("AND stock_id LIKE '" <> stockLike <> "'") : -- we don't want space between ' and stockLike
           -- " LIMIT 100" :
           []
-      (w,p) = unzip $ (rpFrom param <&> (\d -> (" AND tran_date >= ?", PersistDay d))) ?:
-                      (rpTo param <&> (\d -> (" AND tran_date <= ?", PersistDay d))) ?:
-                      (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+      (w,p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
                                                       in (" AND stock_id " <> keyw <> " ?", PersistText v)
                                                )) ?:
                        case catFilterM of
@@ -379,6 +413,7 @@ loadItemPurchases param = do
                                  in [ (" AND category.value " <> keyw <> " ?", PersistText v)
                                     , (" AND category.category = ? ", PersistText catToFilter)
                                     ]
+                       <> generateTranDateIntervals param
   purch <- runDB $ rawSql (sql <> intercalate " " w) p
   return $ map purchToTransInfo purch
 
@@ -407,9 +442,7 @@ loadStockAdjustments param = do
           ("AND stock_id LIKE '" <> stockLike <> "'") : 
           []
 
-      (w,p) = unzip $ (rpFrom param <&> (\d -> (" AND tran_date >= ?", PersistDay d))) ?:
-                      (rpTo param <&> (\d -> (" AND tran_date <= ?", PersistDay d))) ?:
-                      (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+      (w,p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
                                                       in (" AND stock_id " <> keyw <> " ?", PersistText v)
                                                )) ?:
                        case catFilterM of
@@ -419,6 +452,7 @@ loadStockAdjustments param = do
                                  in [ (" AND category.value " <> keyw <> " ?", PersistText v)
                                     , (" AND category.category = ? ", PersistText catToFilter)
                                     ]
+                       <> generateTranDateIntervals param
 
   moves <- runDB $ rawSql (sql <> intercalate " " w) p
   return $ map moveToTransInfo moves

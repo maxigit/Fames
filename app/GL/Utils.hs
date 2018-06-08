@@ -28,6 +28,8 @@ calculateDate (DayOfMonth target cutoff) day = let
      else new
 calculateDate (AddDays n) day = addDays (fromIntegral n) day
 calculateDate (AddMonths n) day = addGregorianMonthsClip (fromIntegral n) day
+calculateDate (AddYears n) day = calculateDate (AddMonths $ 12*n) day
+calculateDate (AddWeeks n) day = calculateDate (AddDays $ 7*n) day
 calculateDate (NextDayOfWeek target cutoff) day = let
   d = dayOfWeek day
   -- to compare the cut off we need to use the target day as the begining of the week

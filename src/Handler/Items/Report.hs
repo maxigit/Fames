@@ -16,7 +16,8 @@ import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,)
 import Text.Blaze.Html.Renderer.Text(renderHtml)
 import qualified Data.List as List
 import qualified FA as FA
-import Data.Time (addGregorianMonthsClip)
+import GL.Utils
+import GL.Payroll.Settings
 
 -- * Form
 reportForm :: [Column] -> Maybe ReportParam -> Html -> MForm Handler (FormResult ReportParam, Widget)
@@ -28,7 +29,7 @@ reportForm cols paramM extra = do
       categoryOptions = [(cat, cat) | cat <-categories ]
   (fFrom, vFrom) <- mopt dayField "from" (Just $ rpFrom =<< paramM )
   (fTo, vTo) <- mopt dayField "to" (Just $ rpTo =<< paramM)
-  (fPeriod, vPeriod) <- mopt (selectFieldList $ periodOptions today) "period" (Just $ rpPeriod =<< paramM)
+  (fPeriod, vPeriod) <- mopt (selectFieldList $ periodOptions today (rpFrom =<< paramM)) "period" (Just $ rpPeriod =<< paramM)
   (fPeriodN, vPeriodN) <- mopt intField "number" (Just $ rpNumberOfPeriods =<< paramM)
   (fCategoryToFilter, vCategoryToFilter) <- mopt (selectFieldList categoryOptions ) "category" (Just $ rpCategoryToFilter =<< paramM)
   (fCategoryFilter, vCategoryFilter) <- mopt filterEField  "filter" (Just $ rpCategoryFilter =<< paramM)
@@ -123,12 +124,13 @@ getItemsReportR mode = do
       bestSales = TraceParams QPSales (mkIdentifialParam amountInOption)
       sales = TraceParams QPSales (mkIdentifialParam amountOutOption)
       emptyTrace = TraceParams QPSales (mkIdentifialParam noneOption)
-      past = addGregorianMonthsClip (-6) today
+      past = calculateDate (AddMonths (-3)) today
+      tomorrow = calculateDate (AddDays 1) today
   
       defaultReportParam = case mode of
         Just ReportChart -> ReportParam
                            (Just past) --  rpFrom :: Maybe Day
-                           Nothing --  rpTo :: Maybe Day
+                           (Just tomorrow) --  rpTo :: Maybe Day
                            Nothing --  rpPeriod
                            Nothing --  rpNumberOfPeriods
                            Nothing -- rpToCategoryToFilter
@@ -144,7 +146,7 @@ getItemsReportR mode = do
                            True True True
         _ -> ReportParam
                            (Just past) --  rpFrom :: Maybe Day
-                           Nothing --  rpTo :: Maybe Day
+                           (Just tomorrow) --  rpTo :: Maybe Day
                            Nothing --  rpPeriod
                            Nothing --  rpNumberOfPeriods
                            Nothing -- rpToCategoryToFilter

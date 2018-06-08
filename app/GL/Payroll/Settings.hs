@@ -65,6 +65,8 @@ data DateCalculator
   | AddDays Int
   | NextDayOfWeek { weekDay :: DayOfWeek, weekCutoff:: DayOfWeek } -- day, cut off
   | AddMonths Int
+  | AddYears Int
+  | AddWeeks Int
   | EndOfMonth 
   | EndOfWeek { weekDay :: DayOfWeek}
   | EndOfYear
