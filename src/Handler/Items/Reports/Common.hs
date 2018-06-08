@@ -6,16 +6,16 @@ import Items.Types
 import Handler.Items.Common
 import Handler.Util
 import FA
-import Data.Time(addDays)
+import Data.Time(addDays, formatTime, defaultTimeLocale)
 import qualified Data.Map as Map
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.List(cycle,scanl1,scanr1)
 import Database.Persist.MySQL(unSqlBackendKey, rawSql, Single(..))
 import Data.Aeson.QQ(aesonQQ)
-import GL.Utils(calculateDate, foldTime, Start(..), PeriodFolding(..))
+import GL.Utils(calculateDate, foldTime, Start(..), PeriodFolding(..), dayOfWeek, monthNumber, toYear)
 import GL.Payroll.Settings
 import Database.Persist.Sql hiding (Column)
-
+import Text.Printf(printf)
 
 -- * Param
 data ReportParam = ReportParam
@@ -128,11 +128,15 @@ pricesStyle = [(qpMinPrice , const [ ("style", String "scatter")
                              -- , ("line", [aesonQQ|{width:0}|])
                              ], RSNormal)
                  ]
-periodOptions :: [(Text, PeriodFolding)]
-periodOptions = [("Whole Year", FoldYearly (fromGregorian 2018 01 01))
-                ,("Monthly", FoldMonthly 2018)
-                ,("Weekly", FoldWeekly)
-                ]
+periodOptions :: Day -> [(Text, PeriodFolding)]
+periodOptions today = let
+  beginYear = fromGregorian (toYear today) 1 1
+  in [("Whole Year", FoldYearly beginYear)
+     ,("Sliding Year", FoldYearly today)
+     -- ,("Fiscal Year", FoldYearly fiscal)
+     ,("Monthly", FoldMonthly 2018)
+     ,("Weekly", FoldWeekly)
+     ]
 -- * Columns
 data Column = Column
   { colName :: Text
@@ -185,8 +189,19 @@ getColsWithDefault = do
       defaultTime = mkDateColumn monthly -- w52
       monthly =  ("End of Month", calculateDate EndOfMonth)
       mkDateColumn (name, fn) = Column name fn' where
-        fn' p tk = let (d, _) = foldDay p tk
-                   in NMapKey Nothing (PersistDay $ fn d)
+        fn' p tk = let (d0, _) = foldDay p tk
+                       d = fn d0
+                   in case (rpPeriod p) of
+                     Just FoldWeekly -> -- format
+                       let w = dayOfWeek d
+                       in NMapKey (Just $ fromEnum w)  (PersistText $ tshow w)
+                     -- Just (FoldYearly _) -> -- format
+                     --   let (_,m,_) = toGregorian d
+                     --   in NMapKey (Just $ m)  (PersistText $ pack $ formatTime defaultTimeLocale "%B" d) 
+                     -- Just (FoldMonthly _) -> -- format
+                     --   let (_,_,m) = toGregorian d
+                     --   in NMapKey Nothing  (PersistInt64 $ fromIntegral m)
+                     _ ->  NMapKey Nothing (PersistDay d)
       const' fn = const ( mkNMapKey . fn)
       -- For the supplier and customer key
       -- we want the Map to use the id instead of the map for performance reason
@@ -220,18 +235,30 @@ getColsWithDefault = do
               Nothing -> (day, Start day)
               Just period -> foldTime period (tkDay tkey)
 
-      getPeriod p tkey = NMapKey Nothing (PersistDay d) where
+      getPeriod p tkey = let
         (_, Start d) = foldDay p tkey
-      getDay p tkey = NMapKey Nothing (PersistDay d) where
-        (d, _) = foldDay p tkey
-                   
+        in case rpPeriod p of
+             Just (FoldMonthly _) -> -- format
+               let (_,m,_) = toGregorian d
+               in NMapKey (Just m)  (PersistText $ pack $ formatTime defaultTimeLocale "%B" d) 
+             Just (FoldYearly _) -> -- format
+               let (y,_,_) = toGregorian d
+               -- in NMapKey (Just $ fromIntegral y) (PersistText $ pack $ printf "%d-%d" y (y+1))
+               -- at the mooment we display the rank-the value, so printing y-y+1
+                   -- result in printing y-y-y+1
+               in NMapKey (Just $ fromIntegral y) (PersistInt64 $ fromIntegral (y+1))
 
+
+             _ -> NMapKey Nothing (PersistDay d) where
+      -- getDay p tkey = NMapKey Nothing (PersistDay d) where
+      --   (d, _) = foldDay p tkey
 
       cols = [ style
             , variation
             , Column "Sku" (const' $ PersistText . tkSku)
             , Column "Period" getPeriod
-            , Column "Date" getDay
+            -- , Column "Date" getDay
+            , mkDateColumn ("Day", id)
             -- , w52
             -- , Column "Customer" (const' $ maybe PersistNull (PersistInt64. fst) . tkCustomer)
             -- , Column "Supplier" (const' $ maybe PersistNull  PersistInt64 . tkSupplier)

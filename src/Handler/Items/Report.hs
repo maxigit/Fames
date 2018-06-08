@@ -21,13 +21,14 @@ import Data.Time (addGregorianMonthsClip)
 -- * Form
 reportForm :: [Column] -> Maybe ReportParam -> Html -> MForm Handler (FormResult ReportParam, Widget)
 reportForm cols paramM extra = do
+  today <- utctDay <$> liftIO getCurrentTime
   categories <- lift $ categoriesH
 
   let colOptions = [(colName c,c) | c <- cols]
       categoryOptions = [(cat, cat) | cat <-categories ]
   (fFrom, vFrom) <- mopt dayField "from" (Just $ rpFrom =<< paramM )
   (fTo, vTo) <- mopt dayField "to" (Just $ rpTo =<< paramM)
-  (fPeriod, vPeriod) <- mopt (selectFieldList periodOptions) "period" (Just $ rpPeriod =<< paramM)
+  (fPeriod, vPeriod) <- mopt (selectFieldList $ periodOptions today) "period" (Just $ rpPeriod =<< paramM)
   (fPeriodN, vPeriodN) <- mopt intField "number" (Just $ rpNumberOfPeriods =<< paramM)
   (fCategoryToFilter, vCategoryToFilter) <- mopt (selectFieldList categoryOptions ) "category" (Just $ rpCategoryToFilter =<< paramM)
   (fCategoryFilter, vCategoryFilter) <- mopt filterEField  "filter" (Just $ rpCategoryFilter =<< paramM)
