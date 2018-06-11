@@ -108,9 +108,12 @@ traceForm suffix p = do
   (tParam, vParam) <- mreq (selectFieldList dataValueOptions)
                                             (fromString $ "value" <> suffix)
                                             (tpDataParams <$> p) 
-  (tNorm, vNorm) <- mopt (selectField optionsEnum) (fromString $ "norm" <> suffix) (tpDataNorm <$> p)
-  let form =  mapM_ renderField [vType, vParam, vNorm]
-  return (TraceParams <$> tType <*> tParam <*> tNorm, form )
+  (tNormMethod, vNormMethod) <- mopt (selectField optionsEnum) (fromString $ "normMethod" <> suffix) (nmMethod <$$> tpDataNorm <$> p)
+  (tNormTarget, vNormTarget) <- mopt (selectField optionsEnum) (fromString $ "normTarget" <> suffix) (nmTarget <$$> tpDataNorm <$> p)
+  (tNormMargin, vNormMargin) <- mopt (selectField optionsEnum) (fromString $ "normMargin" <> suffix) (nmMargin <$$> tpDataNorm <$> p)
+  let form =  mapM_ renderField [vType, vParam, vNormMethod, vNormMargin, vNormTarget]
+      norm = liftA3 NormalizeMode <$> tNormMargin <*> tNormMethod <*> tNormTarget
+  return (TraceParams <$> tType <*> tParam <*> norm, form )
 
 ruptureForm :: [(Text, Column)] -> String -> Maybe ColumnRupture -> MForm Handler (FormResult ColumnRupture, Widget)
 ruptureForm colOptions title paramM = do

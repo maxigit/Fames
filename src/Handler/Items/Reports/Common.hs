@@ -58,7 +58,25 @@ data TraceParams = TraceParams
   }  deriving Show
 
 --
-data NormalizeMode
+data NormalizeMargin
+  = NMRow
+  | NMColumn
+  | NMTotal
+  | NMTruncated
+  deriving (Show, Eq, Enum, Bounded)
+data NormalizeMethod
+  = NMPercentage
+  | NMMax
+  | NMMedian
+  deriving (Show, Eq, Enum, Bounded)
+data NormalizeTarget
+  = NMAll
+  | NMPanel
+  | NMBand
+  | NMSerie
+  deriving (Show, Eq, Enum, Bounded)
+
+data NormalizeMode'
   = PercentageOfColumn
   | PercentageOfRow
   | PercentageOfTotal
@@ -66,6 +84,12 @@ data NormalizeMode
   | MaxOfRow
   | MedianOfRow
   deriving (Show, Eq, Enum, Bounded)
+data NormalizeMode = NormalizeMode
+  { nmMargin :: NormalizeMargin
+  , nmMethod :: NormalizeMethod
+  , nmTarget :: NormalizeTarget
+  }
+  deriving (Show, Eq)
   
 -- | Parameter to define a plotly trace.
 newtype TraceParam = TraceParam ((QPrice -> Double), Text {- Color-} -> [(Text, Value)], RunSum ) 
@@ -674,11 +698,11 @@ chartProcessor param grouped = do
   forM_ (zip asList [1 :: Int ..]) $ \((panelName, nmap), i) -> do
      let plotId = "items-report-plot-" <> tshow i 
          -- bySerie = fmap (groupAsMap (mkGrouper param (cpColumn $ rpSerie param) . fst) (:[])) group
-     panelChartProcessor param (nkeyWithRank panelName) plotId nmap
+     panelChartProcessor grouped param (nkeyWithRank panelName) plotId nmap
         
   
-panelChartProcessor :: ReportParam -> Text -> Text -> NMap TranQP -> Widget 
-panelChartProcessor param name plotId0 grouped = do
+panelChartProcessor :: NMap TranQP -> ReportParam -> Text -> Text -> NMap TranQP -> Widget 
+panelChartProcessor all param name plotId0 grouped = do
   let asList = nmapToNMapList grouped
   let plots = forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
         do
@@ -688,7 +712,7 @@ panelChartProcessor param name plotId0 grouped = do
                                                                <*> [param]
                             , tparam <- getIdentified tparams
                             ]
-              plot = seriesChartProcessor (rpSerie param) (isNothing $ cpColumn $ rpSerie param) traceParams (nkeyWithRank bandName) plotId bands 
+              plot = seriesChartProcessor all grouped (rpSerie param) (isNothing $ cpColumn $ rpSerie param) traceParams (nkeyWithRank bandName) plotId bands 
               plotId = plotId0 <> "-" <> tshow i
           [whamlet|
             <div id=#{plotId} style="height:#{tshow plotHeight }px">
@@ -719,31 +743,37 @@ defaultColors = defaultPlottly where
               "#17becf"   -- blue-teal
              ]
 
--- formatSerieValues :: Maybe NormalizeMode -> NMap a -> (a -> Maybe Double) -> [a] -> [Maybe String]
-formatSerieValues mode nmap f g = let
+formatSerieValues :: Maybe NormalizeMode -> NMap TranQP -> NMap TranQP -> NMap TranQP -> (TranQP -> Maybe Double) -> [TranQP] -> [Maybe String]
+formatSerieValues mode all panel band f g = let
+           computeMargin t = case nmMargin <$> mode of
+             (Just NMTruncated) -> [mconcat . map snd $ nmapToList t]
+             _                  -> [nmapMargin t]
+           margins = case nmTarget <$> mode of
+             (Just NMAll ) -> computeMargin all
+             (Just NMPanel ) -> computeMargin panel
+             (Just NMBand ) -> computeMargin band
+             (_ ) -> g
+
            xs = map f  g
-           -- margin = nmapMargin nmap
-           headMargin = mconcat $ map snd $ nmapToList nmap
            -- normalize
            -- normalize = case mapMaybe f [nmapMargin grouped] of
-           normalize = case mapMaybe (fmap abs) xs of
+           normalize = case mapMaybe (fmap abs . f) margins of
              [] -> const ""
-             vs -> let result x =  case mode of
-                         (Just PercentageOfTotal) -> printf "%0.1f" $ x * 100 / fromMaybe (error "margin shouldn't not be No" ) (f $ nmapMargin nmap)
-                         (Just PercentageOfTruncated) -> printf "%0.1f" $ x * 100 / fromMaybe (error "margin shouldn't not be No" ) (f headMargin)
-                         (Just PercentageOfRow) -> printf "%0.1f" $ x * 100 / sum vs
-                         (Just MaxOfRow) -> printf "%0.1f" $ x * 100 / maximumEx vs
-                         (Just MedianOfRow) -> printf "%0.1f" $ x * 50 / (sort vs !! (length vs `div` 2)) -- median -> 100
+             vs -> let result x =  case nmMethod <$> mode of
+                         (Just NMPercentage) -> printf "%0.1f" $ x * 100 / sum vs
+                         (Just NMMax) -> printf "%0.1f" $ x * 100 / maximumEx vs
+                         (Just NMMedian) -> printf "%0.1f" $ x * 50 / (sort vs !! (length vs `div` 2)) -- median -> 100
                          _ -> formatDouble x
                    in result
                    -- in \x -> formatDouble $ x
            in map (fmap normalize) xs
 
-seriesChartProcessor :: ColumnRupture -> Bool -> [(QPType, TraceParam, Maybe NormalizeMode )]-> Text -> Text -> NMap TranQP  -> Widget 
-seriesChartProcessor rupture mono params name plotId grouped = do
+seriesChartProcessor :: NMap TranQP -> NMap TranQP
+  -> ColumnRupture -> Bool -> [(QPType, TraceParam, Maybe NormalizeMode )]-> Text -> Text -> NMap TranQP  -> Widget 
+seriesChartProcessor all panel rupture mono params name plotId grouped = do
      let xsFor g = map (toJSON . fst) g
          -- ysFor :: Maybe NormalizeMode -> (b -> Maybe Double) -> [ (a, b) ] -> [ Maybe Value ]
-         ysFor normM f g = map (fmap toJSON) $ formatSerieValues normM grouped f (map snd g)
+         ysFor normM f g = map (fmap toJSON) $ formatSerieValues normM all panel grouped f (map snd g)
          traceFor param ((name', g'), color,groupId) = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g) 
                                                     , ("y",  toJSON $ ysFor normMode fn g)
                                                     -- , ("name", toJSON name )
