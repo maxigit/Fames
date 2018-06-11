@@ -38,9 +38,9 @@ reportForm cols paramM extra = do
   (fBand, wBand) <- ruptureForm colOptions "Band" (rpBand <$> paramM)
   (fSerie, wSerie) <- ruptureForm colOptions "Series" (rpSerie <$> paramM)
   (fColRupture, vColRupture) <- mreq (selectFieldList colOptions)  "column rupture" (rpColumnRupture <$> paramM) 
-  (fTrace1, wTrace1) <- traceForm "" (rpTraceParam <$> paramM)
-  (fTrace2, wTrace2) <- traceForm " 2" (rpTraceParam2 <$> paramM)
-  (fTrace3, wTrace3) <- traceForm " 3"(rpTraceParam3 <$> paramM)
+  (fTrace1, wTrace1) <- traceForm False "" (rpTraceParam <$> paramM)
+  (fTrace2, wTrace2) <- traceForm False " 2" (rpTraceParam2 <$> paramM)
+  (fTrace3, wTrace3) <- traceForm False " 3"(rpTraceParam3 <$> paramM)
   (fSales, vSales) <- mreq checkBoxField "Sales" (rpLoadSales <$> paramM)
   (fPurchases, vPurchases) <- mreq checkBoxField "Purchases" (rpLoadPurchases <$> paramM)
   (fAdjustment, vAdjustment) <- mreq checkBoxField "Adjustment" (rpLoadAdjustment <$> paramM)
@@ -80,9 +80,8 @@ amountOutOption = ("Amount (Out)" ,   [(qpAmount Outward, amountStyle, RSNormal)
 amountInOption = ("Amount (In)",     [(qpAmount Inward,  amountStyle, RSNormal)])
 mkIdentifialParam  (t, tp'runsumS) = Identifiable (t, map TraceParam tp'runsumS)
 
-
-traceForm :: String -> Maybe TraceParams -> MForm Handler (FormResult TraceParams, Widget)
-traceForm suffix p = do
+traceForm :: Bool -> String -> Maybe TraceParams -> MForm Handler (FormResult TraceParams, Widget)
+traceForm nomode suffix p = do
   let
     dataTypeOptions = optionsPairs [(drop 2 (tshow qtype), qtype) | qtype <- [minBound..maxBound]]
     dataValueOptions = map (\(t, tps'runsum) -> (t, Identifiable (t, (map TraceParam tps'runsum))))
@@ -108,17 +107,16 @@ traceForm suffix p = do
   (tParam, vParam) <- mreq (selectFieldList dataValueOptions)
                                             (fromString $ "value" <> suffix)
                                             (tpDataParams <$> p) 
-  (tNormMethod, vNormMethod) <- mopt (selectField optionsEnum) (fromString $ "normMethod" <> suffix) (nmMethod <$$> tpDataNorm <$> p)
   (tNormTarget, vNormTarget) <- mopt (selectField optionsEnum) (fromString $ "normTarget" <> suffix) (nmTarget <$$> tpDataNorm <$> p)
   (tNormMargin, vNormMargin) <- mopt (selectField optionsEnum) (fromString $ "normMargin" <> suffix) (nmMargin <$$> tpDataNorm <$> p)
-  let form =  mapM_ renderField [vType, vParam, vNormMethod, vNormMargin, vNormTarget]
-      norm = liftA3 NormalizeMode <$> tNormMargin <*> tNormMethod <*> tNormTarget
+  let form =  mapM_ renderField $ [vType, vParam ] <> if nomode then [] else [ vNormMargin, vNormTarget]
+      norm = liftA2 NormalizeMode <$> tNormMargin <*> tNormTarget
   return (TraceParams <$> tType <*> tParam <*> norm, form )
 
 ruptureForm :: [(Text, Column)] -> String -> Maybe ColumnRupture -> MForm Handler (FormResult ColumnRupture, Widget)
 ruptureForm colOptions title paramM = do
   (fColumn, vColumn) <- mopt (selectFieldList colOptions) (fromString title)  (cpColumn <$> paramM) 
-  (fSortBy, wSortBy) <- traceForm ("" ) (cpSortBy <$> paramM)
+  (fSortBy, wSortBy) <- traceForm True ("" ) (cpSortBy <$> paramM)
   (fRankMode, vRankMode) <- mopt (selectField optionsEnum) ("" ) (cpRankMode <$> paramM)
   (fLimitTo, vLimitTo) <- mopt intField "Limit To" (Just $ cpLimitTo =<< paramM)
 

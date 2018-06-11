@@ -64,11 +64,6 @@ data NormalizeMargin
   | NMTotal
   | NMTruncated
   deriving (Show, Eq, Enum, Bounded)
-data NormalizeMethod
-  = NMPercentage
-  | NMMax
-  | NMMedian
-  deriving (Show, Eq, Enum, Bounded)
 data NormalizeTarget
   = NMAll
   | NMPanel
@@ -86,7 +81,6 @@ data NormalizeMode'
   deriving (Show, Eq, Enum, Bounded)
 data NormalizeMode = NormalizeMode
   { nmMargin :: NormalizeMargin
-  , nmMethod :: NormalizeMethod
   , nmTarget :: NormalizeTarget
   }
   deriving (Show, Eq)
@@ -759,10 +753,8 @@ formatSerieValues mode all panel band f g = let
            -- normalize = case mapMaybe f [nmapMargin grouped] of
            normalize = case mapMaybe (fmap abs . f) margins of
              [] -> const ""
-             vs -> let result x =  case nmMethod <$> mode of
-                         (Just NMPercentage) -> printf "%0.1f" $ x * 100 / sum vs
-                         (Just NMMax) -> printf "%0.1f" $ x * 100 / maximumEx vs
-                         (Just NMMedian) -> printf "%0.1f" $ x * 50 / (sort vs !! (length vs `div` 2)) -- median -> 100
+             vs -> let result x =  case mode of
+                         (Just _) -> printf "%0.1f" $ x * 100 / sum vs
                          _ -> formatDouble x
                    in result
                    -- in \x -> formatDouble $ x
