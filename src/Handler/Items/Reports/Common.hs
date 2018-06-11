@@ -61,8 +61,10 @@ data TraceParams = TraceParams
 data NormalizeMargin
   = NMRow
   | NMColumn
-  | NMTotal
-  | NMTruncated
+  | NMTotal -- margin of the target. Represent the total before the residual can be removed
+  | NMFirst -- first row
+  | NMLast -- last row. To comparte sales with last year for example
+  | NMTruncated -- 
   deriving (Show, Eq, Enum, Bounded)
 data NormalizeTarget
   = NMAll
@@ -740,8 +742,11 @@ defaultColors = defaultPlottly where
 formatSerieValues :: Maybe NormalizeMode -> NMap TranQP -> NMap TranQP -> NMap TranQP -> (TranQP -> Maybe Double) -> [TranQP] -> [Maybe String]
 formatSerieValues mode all panel band f g = let
            computeMargin t = case nmMargin <$> mode of
-             (Just NMTruncated) -> [mconcat . map snd $ nmapToList t]
+             (Just NMTruncated) -> [mconcat subMargins]
+             (Just NMFirst) -> [headEx subMargins]
+             (Just NMLast) -> [lastEx subMargins]
              _                  -> [nmapMargin t]
+             where subMargins = map (nmapMargin . snd) (nmapToNMapList t)
            margins = case nmTarget <$> mode of
              (Just NMAll ) -> computeMargin all
              (Just NMPanel ) -> computeMargin panel
