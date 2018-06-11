@@ -53,15 +53,28 @@ reportForm cols paramM extra = do
                ]
   let form = [whamlet|#{extra}|] >> mapM_ (either renderField inline) fields
       inline w = [whamlet| <div.form-inline>^{w}|]
-      report = ReportParam <$> fFrom <*> fTo
-                           <*> fPeriod <*> fPeriodN
-                           <*> fCategoryToFilter <*> fCategoryFilter
-                           <*> fStockFilter <*> fPanel <*> fBand <*> fSerie
-                           <*> fColRupture <*> fTrace1 <*> fTrace2 <*> fTrace3
-                           <*> fSales <*> fPurchases <*> fAdjustment
-  return (report, form)
+      report = mkReport fFrom  fTo
+          fPeriod  fPeriodN
+          fCategoryToFilter  fCategoryFilter
+          fStockFilter  fPanel  fBand  fSerie
+          fColRupture  fTrace1  fTrace2  fTrace3
+          fSales  fPurchases  fAdjustment
+  return (report , form)
  
--- noneOption, amountOutOption, amountInOption :: ToJSON a =>  (Text, [(QPrice -> Amount, a -> [(Text, Value)], RunSum)])
+{-# NOINLINE mkReport #-}
+mkReport fFrom  fTo
+   fPeriod  fPeriodN
+   fCategoryToFilter  fCategoryFilter
+   fStockFilter  fPanel  fBand  fSerie
+   fColRupture  fTrace1  fTrace2  fTrace3
+   fSales  fPurchases  fAdjustment = 
+  ReportParam <$> fFrom <*> fTo
+  <*> fPeriod <*> fPeriodN
+  <*> fCategoryToFilter <*> fCategoryFilter
+  <*> fStockFilter <*> fPanel <*> fBand <*> fSerie
+  <*> fColRupture <*> fTrace1 <*> fTrace2 <*> fTrace3
+  <*> fSales <*> fPurchases <*> fAdjustment
+  -- noneOption, amountOutOption, amountInOption :: ToJSON a =>  (Text, [(QPrice -> Amount, a -> [(Text, Value)], RunSum)])
 noneOption = ("None" :: Text, [])
 amountOutOption = ("Amount (Out)" ,   [(qpAmount Outward, amountStyle, RSNormal)] )
 amountInOption = ("Amount (In)",     [(qpAmount Inward,  amountStyle, RSNormal)])
