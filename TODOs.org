@@ -1,5 +1,21 @@
 * TODO Chart
-** Today [0/0] 
+** Today [0/11] 
+   - [ ]  Add formating function (% or normal, or forbidden)
+     - [ ] percentage column, total, row
+       - [ ] total above ?
+   - [ ] pivot table
+     display table as chart (same field) with formatin
+   - [ ] Use it in chart and pitov
+   - [ ] add formating inparam (per column)
+   - [ ] annonymize amount/qty
+   - [ ] Permissions
+     - [ ] adjust report param
+       - [ ] limit date
+       - [ ] annonymize amount/qty
+   - [ ] Change date parameter to accept automatic date
+   - [ ] filter customers
+   - [ ] Dashboards
+   - [ ] remove styleToVar in Handler.Item.Common
 ** previous [11/13] 
    - [X] Stock category
      - [X]  add prices and categories
@@ -44,7 +60,7 @@
   - [ ] display margin (total)
     - add it as on of the value so it appears in a separate serie or band etc ...
   - [ ] Add option to use TraceParam as panel/band instead of serie
-  - csv pivot (use column rupture)
+  - [X] csv pivot (use column rupture)
 * TODO Delete from item index
 ** TODO Website 
   - [ ] createAndInsertProductPrices prices prod'revMKeys
