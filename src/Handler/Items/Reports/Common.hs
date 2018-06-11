@@ -9,7 +9,7 @@ import FA
 import Data.Time(addDays, formatTime, defaultTimeLocale)
 import qualified Data.Map as Map
 import Data.List.NonEmpty (NonEmpty(..))
-import Data.List(cycle,scanl1,scanr1)
+import Data.List(cycle,scanl1,scanr1, (!!))
 import Database.Persist.MySQL(unSqlBackendKey, rawSql, Single(..))
 import Data.Aeson.QQ(aesonQQ)
 import GL.Utils(calculateDate, foldTime, Start(..), PeriodFolding(..), dayOfWeek, monthNumber, toYear)
@@ -54,7 +54,19 @@ data ColumnRupture = ColumnRupture
 data TraceParams = TraceParams
   { tpDataType :: QPType
   , tpDataParams :: Identifiable [TraceParam]
+  , tpDataNorm :: Maybe NormalizeMode
   }  deriving Show
+
+--
+data NormalizeMode
+  = PercentageOfColumn
+  | PercentageOfRow
+  | PercentageOfTotal
+  | PercentageOfTruncated
+  | MaxOfRow
+  | MedianOfRow
+  deriving (Show, Eq, Enum, Bounded)
+  
 -- | Parameter to define a plotly trace.
 newtype TraceParam = TraceParam ((QPrice -> Double), Text {- Color-} -> [(Text, Value)], RunSum ) 
 instance Show TraceParam where
@@ -671,8 +683,8 @@ panelChartProcessor param name plotId0 grouped = do
   let plots = forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
         do
           let -- byColumn = nmapToNMapList grouped -- fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) (unNMap TranQP' bands)
-              traceParams = [(qtype, tparam )
-                            | (TraceParams qtype tparams ) <- [rpTraceParam,  rpTraceParam2 , rpTraceParam3]
+              traceParams = [(qtype, tparam, tpNorm )
+                            | (TraceParams qtype tparams tpNorm ) <- [rpTraceParam,  rpTraceParam2 , rpTraceParam3]
                                                                <*> [param]
                             , tparam <- getIdentified tparams
                             ]
@@ -707,12 +719,33 @@ defaultColors = defaultPlottly where
               "#17becf"   -- blue-teal
              ]
 
-seriesChartProcessor :: ColumnRupture -> Bool -> [(QPType, TraceParam)]-> Text -> Text -> NMap TranQP  -> Widget 
+-- formatSerieValues :: Maybe NormalizeMode -> NMap a -> (a -> Maybe Double) -> [a] -> [Maybe String]
+formatSerieValues mode nmap f g = let
+           xs = map f  g
+           -- margin = nmapMargin nmap
+           headMargin = mconcat $ map snd $ nmapToList nmap
+           -- normalize
+           -- normalize = case mapMaybe f [nmapMargin grouped] of
+           normalize = case mapMaybe (fmap abs) xs of
+             [] -> const ""
+             vs -> let result x =  case mode of
+                         (Just PercentageOfTotal) -> printf "%0.1f" $ x * 100 / fromMaybe (error "margin shouldn't not be No" ) (f $ nmapMargin nmap)
+                         (Just PercentageOfTruncated) -> printf "%0.1f" $ x * 100 / fromMaybe (error "margin shouldn't not be No" ) (f headMargin)
+                         (Just PercentageOfRow) -> printf "%0.1f" $ x * 100 / sum vs
+                         (Just MaxOfRow) -> printf "%0.1f" $ x * 100 / maximumEx vs
+                         (Just MedianOfRow) -> printf "%0.1f" $ x * 50 / (sort vs !! (length vs `div` 2)) -- median -> 100
+                         _ -> formatDouble x
+                   in result
+                   -- in \x -> formatDouble $ x
+           in map (fmap normalize) xs
+
+seriesChartProcessor :: ColumnRupture -> Bool -> [(QPType, TraceParam, Maybe NormalizeMode )]-> Text -> Text -> NMap TranQP  -> Widget 
 seriesChartProcessor rupture mono params name plotId grouped = do
      let xsFor g = map (toJSON . fst) g
-         ysFor f g = map (toJSON . f . snd) g
+         -- ysFor :: Maybe NormalizeMode -> (b -> Maybe Double) -> [ (a, b) ] -> [ Maybe Value ]
+         ysFor normM f g = map (fmap toJSON) $ formatSerieValues normM grouped f (map snd g)
          traceFor param ((name', g'), color,groupId) = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g) 
-                                                    , ("y",  toJSON $ ysFor fn g)
+                                                    , ("y",  toJSON $ ysFor normMode fn g)
                                                     -- , ("name", toJSON name )
                                                     , ("connectgaps", toJSON False )
                                                     , ("type", "scatter" ) 
@@ -728,7 +761,7 @@ seriesChartProcessor rupture mono params name plotId grouped = do
                                                                  RunSumBack -> let (keys, tqs) = unzip g''
                                                                            in zip keys (scanr1 (<>) tqs)
                                                                  RSNormal -> g''
-                                                             (qtype, TraceParam (valueFn, options, runsum)) = param
+                                                             (qtype, TraceParam (valueFn, options, runsum), normMode) = param
                                                              fn = fmap valueFn . lookupGrouped qtype
                                                              name = nkKey name'
                           

@@ -108,8 +108,9 @@ traceForm suffix p = do
   (tParam, vParam) <- mreq (selectFieldList dataValueOptions)
                                             (fromString $ "value" <> suffix)
                                             (tpDataParams <$> p) 
-  let form =  mapM_ renderField [vType, vParam]
-  return (TraceParams <$> tType <*> tParam, form )
+  (tNorm, vNorm) <- mopt (selectField optionsEnum) (fromString $ "norm" <> suffix) (tpDataNorm <$> p)
+  let form =  mapM_ renderField [vType, vParam, vNorm]
+  return (TraceParams <$> tType <*> tParam <*> tNorm, form )
 
 ruptureForm :: [(Text, Column)] -> String -> Maybe ColumnRupture -> MForm Handler (FormResult ColumnRupture, Widget)
 ruptureForm colOptions title paramM = do
@@ -134,9 +135,9 @@ getItemsReportR mode = do
   today <- utctDay <$> liftIO getCurrentTime
   (_, (band, serie, timeColumn)) <- getColsWithDefault
   let emptyRupture = ColumnRupture Nothing emptyTrace Nothing Nothing
-      bestSales = TraceParams QPSales (mkIdentifialParam amountInOption)
-      sales = TraceParams QPSales (mkIdentifialParam amountOutOption)
-      emptyTrace = TraceParams QPSales (mkIdentifialParam noneOption)
+      bestSales = TraceParams QPSales (mkIdentifialParam amountInOption) Nothing
+      sales = TraceParams QPSales (mkIdentifialParam amountOutOption) Nothing
+      emptyTrace = TraceParams QPSales (mkIdentifialParam noneOption) Nothing
       past = calculateDate (AddMonths (-3)) today
       tomorrow = calculateDate (AddDays 1) today
   
@@ -201,7 +202,7 @@ postItemsReportFor route mode = do
           -- for table, the exact meaning of the rupture doesn't matter
           tableGrouper = panel : filter (isJust . cpColumn) [band, serie]
           grouper = [ panel, band, serie
-                    , ColumnRupture  (Just col) (TraceParams QPSummary (Identifiable ("Column", []))) Nothing Nothing
+                    , ColumnRupture  (Just col) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing
                     ]
       case readMay =<< actionM of
 
