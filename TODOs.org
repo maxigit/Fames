@@ -1,16 +1,16 @@
 * TODO Chart
-** Today [0/10] 
+** Today [2/10] 
    - [-]  Add formating function (% or normal, or forbidden)
      - [-] percentage column, total, row
        - [X] total above ?
        - [ ] column
        - [ ] use different scale for %
 so we can juxtapose 100% and real number
-   - [ ] pivot table
+   - [X] pivot table
      display table as chart (same field) with formatin
    - [ ] Use it in chart and pitov
    - [ ] add formating inparam (per column)
-   - [ ] annonymize amount/qty
+   - [X] annonymize amount/qty
    - [ ] Permissions
      - [ ] adjust report param
        - [ ] limit date

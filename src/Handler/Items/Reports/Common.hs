@@ -73,14 +73,6 @@ data NormalizeTarget
   | NMSerie
   deriving (Show, Eq, Enum, Bounded)
 
-data NormalizeMode'
-  = PercentageOfColumn
-  | PercentageOfRow
-  | PercentageOfTotal
-  | PercentageOfTruncated
-  | MaxOfRow
-  | MedianOfRow
-  deriving (Show, Eq, Enum, Bounded)
 data NormalizeMode = NormalizeMode
   { nmMargin :: NormalizeMargin
   , nmTarget :: NormalizeTarget
