@@ -123,6 +123,7 @@ library:
       - -fwarn-unused-binds
       - -Werror
       - -fno-warn-partial-type-signatures
+      - -fno-max-relevant-binds
       - -O0
       - -j6
       cpp-options: -DDEVELOPMENT

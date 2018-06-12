@@ -541,6 +541,7 @@ purchToTransInfo ( Entity _ FA.SuppInvoiceItem{..}
   price = suppInvoiceItemUnitPrice*suppTranRate
 
 -- * Reports
+-- ** Common
 -- | Display sales and purchase of an item
 itemReport
   :: ReportParam
@@ -585,7 +586,7 @@ tableProcessor grouped =
           <div.panel-heading data-toggle="collapse" data-target="#report-panel-#{name}">
             <h2>#{nkeyWithRank h1}
           <div.panel-body.collapse.in id="report-panel-#{name}">
-            <table.table.table-hover.table-striped>
+            <table.table.table-hover.table-striped.table-hover>
               <tr>
                 $forall level <-  nmapLevels group1
                   <th> #{fromMaybe "" level}
@@ -671,7 +672,7 @@ toCsv param grouped' = let
                              <> (qpToCsv Outward $ salesQPrice qp)
                              <> (qpToCsv Inward $ purchQPrice qp)
                              <> (qpToCsv Inward $ adjQPrice qp)
--- ** Sort and limit
+-- *** Sort and limit
 sortAndLimitTranQP :: [ColumnRupture] -> NMap TranQP -> NMap TranQP
 sortAndLimitTranQP ruptures nmap = let
   mkCol :: ColumnRupture ->  Maybe (NMapKey ->  TranQP -> Double, Maybe RankMode, Maybe Int)
@@ -791,9 +792,6 @@ seriesChartProcessor all panel rupture mono params name plotId grouped = do
                                                              (qtype, TraceParam (valueFn, options, runsum), normMode) = param
                                                              fn = fmap valueFn . lookupGrouped qtype
                                                              name = nkKey name'
-                          
-                       
-                                                                    
          colorIds = zip (cycle defaultColors) [1::Int ..]
          asList = nmapToNMapList grouped
          jsData = [ traceFor param (name'group, color :: Text, groupId :: Int)
@@ -837,6 +835,86 @@ seriesChartProcessor all panel rupture mono params name plotId grouped = do
                     );
                 |]
   
+-- ** Pivot
+-- | Render a pivot table similar to the chart but a table instead
+pivotProcessor :: ReportParam -> NMap TranQP -> Widget 
+pivotProcessor param grouped = do
+  let asList = nmapToNMapList grouped
+  toWidget [cassius|
+.text90
+    writing-mode: sideways-lr
+.just-right
+  text-align: right
+                   |]
+  forM_ (zip asList [1 :: Int ..]) $ \((panelName, nmap), i) -> do
+     let plotId = "items-report-table-" <> tshow i 
+         -- bySerie = fmap (groupAsMap (mkGrouper param (cpColumn $ rpSerie param) . fst) (:[])) group
+     panelPivotProcessor grouped param (nkeyWithRank panelName) plotId nmap
+
+panelPivotProcessor :: NMap TranQP -> ReportParam -> Text -> Text -> NMap TranQP -> Widget 
+panelPivotProcessor all param name plotId0 grouped = do
+  let asList = nmapToNMapList grouped
+  let plots = forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
+        do
+          let -- byColumn = nmapToNMapList grouped -- fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) (unNMap TranQP' bands)
+              traceParams = [(qtype, tparam, tpNorm )
+                            | (TraceParams qtype tparams tpNorm ) <- [rpTraceParam,  rpTraceParam2 , rpTraceParam3]
+                                                               <*> [param]
+                            , tparam <- getIdentified tparams
+                            ]
+              plot = bandPivotProcessor all grouped (rpSerie param) (isNothing $ cpColumn $ rpSerie param) traceParams (nkeyWithRank bandName) plotId bands 
+              plotId = plotId0 <> "-" <> tshow i
+          [whamlet|
+            <div id=#{plotId}>
+                ^{plot}
+                  |]
+  [whamlet|
+      <div.panel.panel-info>
+        <div.panel-heading data-toggle="collapse" data-target="#report-panel-#{name}">
+          <h2>#{name}
+        <div.panel-body.collapse.in id="report-panel-#{name}">
+          ^{plots}
+            |]
+-- | Display an html table (pivot) for each series
+bandPivotProcessor :: NMap TranQP -> NMap TranQP
+  -> ColumnRupture -> Bool -> [(QPType, TraceParam, Maybe NormalizeMode )]-> Text -> Text -> NMap TranQP  -> Widget 
+bandPivotProcessor all panel rupture mono params name plotId grouped = let
+  name'serieS = nmapToNMapList grouped
+  -- it's a set but should be sorted by rank
+  columnSet :: Set NMapKey
+  columnSet = setFromList [ column
+                          | (_, serie) <- name'serieS
+                          , column <- map fst $ nmapToNMapList serie
+                          ]
+  columns = setToList columnSet
+  lookupValue :: QPType -> NMap TranQP -> (QPrice -> Double) -> NMapKey -> Maybe Double
+  lookupValue qtype serie valueFn column = do --
+    tranMap <- lookup column (nmapToMap serie)
+    let tran = nmapMargin tranMap
+    qprice <- lookupGrouped qtype tran
+    return (valueFn qprice)
+    -- Maybe valueFn `fmap` ((lookup column (nmapToMap serie) <&> nmapMargin) >>= lookupGrouped qtype) -- <&> valueFn
+  in [whamlet|
+       <div>
+         <h3> #{name}
+         <table.table.table-border>
+           <thead>
+             <tr>
+               <th> #{fromMaybe "" $ fmap colName (cpColumn rupture)}
+               $forall column <- columns
+                 <th.text90>#{nkeyWithRank column}
+             <tbody>
+               $forall (serieName, serie)  <- name'serieS
+                 <tr>
+                   <td> #{nkeyWithRank serieName}
+                     $forall column <- columns
+                       <td>
+                        $forall (qtype, TraceParam (valueFn, _, _), _ ) <- params
+                          <div.just-right>#{tshowM $ lookupValue qtype serie valueFn column}
+       <div>
+             |]
+
+      
 -- ** Csv
   
 itemToCsv param panelGrouperM colGrouper = do

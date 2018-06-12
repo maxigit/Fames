@@ -42,6 +42,7 @@ instance PathPiece ItemViewMode where
 -- ** Reports
 data ReportMode = ReportTable
                 | ReportChart
+                | ReportPivot
                 | ReportCsv
                 | ReportRaw
      deriving (Eq, Read, Show, Enum, Bounded)

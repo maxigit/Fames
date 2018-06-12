@@ -1,8 +1,11 @@
 * TODO Chart
-** Today [0/11] 
-   - [ ]  Add formating function (% or normal, or forbidden)
-     - [ ] percentage column, total, row
-       - [ ] total above ?
+** Today [0/10] 
+   - [-]  Add formating function (% or normal, or forbidden)
+     - [-] percentage column, total, row
+       - [X] total above ?
+       - [ ] column
+       - [ ] use different scale for %
+so we can juxtapose 100% and real number
    - [ ] pivot table
      display table as chart (same field) with formatin
    - [ ] Use it in chart and pitov
