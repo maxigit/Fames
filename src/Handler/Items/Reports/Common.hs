@@ -740,7 +740,16 @@ defaultColors = defaultPlottly where
               "#17becf"   -- blue-teal
              ]
 
-formatSerieValues :: Maybe NormalizeMode -> NMap TranQP -> NMap TranQP -> NMap TranQP -> (TranQP -> Maybe Double) -> [TranQP] -> [Maybe String]
+-- | Format the values of a serie to text. Include rounding, formatting as well
+-- as computing %  (normalizing) if needed. To normalize we need the original set
+-- of transactions to calculate 
+formatSerieValues :: Maybe NormalizeMode -- normalising, %, by row, col etct
+                  -> NMap TranQP -- all
+                  -> NMap TranQP
+                  -> NMap TranQP
+                  -> (TranQP -> Maybe Double) -- get a value from a tran
+                  -> [TranQP] -- list of tran to convert
+                  -> [Maybe String]
 formatSerieValues mode all panel band f g = let
            computeMargin t = case nmMargin <$> mode of
              (Just NMTruncated) -> [mconcat subMargins]
@@ -766,6 +775,32 @@ formatSerieValues mode all panel band f g = let
                    -- in \x -> formatDouble $ x
            in map (fmap normalize) xs
 
+nmapRunSum :: (Show b, Monoid b) => RunSum -> NMap b -> NMap b
+nmapRunSum runsum nmap = let
+  nmap' = [ (key, mconcat (toList nmap))  | (key, nmap) <- nmapToNMapList nmap ] -- flatten everything if needed
+  key'sumS =  case runsum of
+       RunSum     -> let (keys, tqs) = unzip nmap'
+                     in zip keys (scanl1 mappend tqs)
+       RunSumBack -> let (keys, tqs) = unzip nmap'
+                     in zip keys (scanr1 mappend tqs)
+       RSNormal   -> nmap'
+  in traceShowId $ nmapFromList (join . headMay $ nmapLevels nmap) key'sumS
+
+-- | NMap version of formatSerieValues
+formatSerieValuesNMap :: Maybe NormalizeMode -- normalising, %, by row, col etct
+                  -> NMap TranQP -- all
+                  -> NMap TranQP
+                  -> NMap TranQP
+                  -> (TranQP -> Maybe Double) -- get a value from a tran
+                  -> NMap TranQP-- list of tran to convert
+                  -> Map NMapKey String
+formatSerieValuesNMap mode all panel band f nmap = let
+  asList = nmapToNMapList nmap
+  (keys, nmaps) = unzip asList
+  strings = formatSerieValues mode all panel band f (map nmapMargin nmaps)
+  in mapFromList [(key, value) | (key, valueM) <- zip keys strings, value <- maybeToList valueM]
+  
+
 seriesChartProcessor :: NMap TranQP -> NMap TranQP
   -> ColumnRupture -> Bool -> [(QPType, TraceParam, Maybe NormalizeMode )]-> Text -> Text -> NMap TranQP  -> Widget 
 seriesChartProcessor all panel rupture mono params name plotId grouped = do
@@ -782,13 +817,8 @@ seriesChartProcessor all panel rupture mono params name plotId grouped = do
                                                     -- <> maybe [] (\color -> [("color", String color)]) colorM
                                                     <> options color
                                                     <> (if name == PersistNull then [] else [("name", toJSON $ nkeyWithRank name')])
-                                                       where g'' = [ (nkeyWithRank n, mconcat (toList nmap))  | (n, nmap) <- nmapToNMapList g' ] -- flatten everything if needed
-                                                             g = case runsum of
-                                                                 RunSum -> let (keys, tqs) = unzip g''
-                                                                           in zip keys (scanl1 (<>) tqs)
-                                                                 RunSumBack -> let (keys, tqs) = unzip g''
-                                                                           in zip keys (scanr1 (<>) tqs)
-                                                                 RSNormal -> g''
+                                                       where g = [ (nkeyWithRank n, mconcat (toList nmap))  | (n, nmap) <- nmapToNMapList g'' ] -- flatten everything if needed
+                                                             g'' = nmapRunSum runsum g'
                                                              (qtype, TraceParam (valueFn, options, runsum), normMode) = param
                                                              fn = fmap valueFn . lookupGrouped qtype
                                                              name = nkKey name'
@@ -887,12 +917,12 @@ bandPivotProcessor all panel rupture mono params name plotId grouped = let
                           , column <- map fst $ nmapToNMapList serie
                           ]
   columns = setToList columnSet
-  lookupValue :: QPType -> NMap TranQP -> (QPrice -> Double) -> NMapKey -> Maybe Double
-  lookupValue qtype serie valueFn column = do --
-    tranMap <- lookup column (nmapToMap serie)
-    let tran = nmapMargin tranMap
-    qprice <- lookupGrouped qtype tran
-    return (valueFn qprice)
+  -- lookupValue :: QPType -> NMap TranQP -> (QPrice -> Double) -> NMapKey -> Maybe Double
+  -- lookupValue qtype serie0 valueFn column = do --
+  --   tranMap <- lookup column (nmapToMap serie)
+  --   let tran = nmapMargin tranMap
+  --   qprice <- lookupGrouped qtype tran
+  --   return (valueFn qprice)
     -- Maybe valueFn `fmap` ((lookup column (nmapToMap serie) <&> nmapMargin) >>= lookupGrouped qtype) -- <&> valueFn
   in [whamlet|
        <div>
@@ -904,14 +934,14 @@ bandPivotProcessor all panel rupture mono params name plotId grouped = let
                $forall column <- columns
                  <th.text90>#{nkeyWithRank column}
              <tbody>
-               $forall (serieName, serie)  <- name'serieS
+               $forall (serieName, serie0)  <- name'serieS
                  <tr>
                    <td> #{nkeyWithRank serieName}
                      $forall column <- columns
                        <td>
-                        $forall (qtype, TraceParam (valueFn, _, _), _ ) <- params
-                          <div.just-right>#{tshowM $ lookupValue qtype serie valueFn column}
-       <div>
+                        $forall (qtype, TraceParam (valueFn, _, runsum), normMode ) <- params
+                          $with serie <- formatSerieValuesNMap normMode all panel grouped (fmap valueFn . lookupGrouped qtype) (nmapRunSum runsum serie0)
+                            <div.just-right>#{fromMaybe "" $ lookup column serie}
              |]
 
       
