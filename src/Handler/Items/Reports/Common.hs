@@ -1,6 +1,6 @@
 module Handler.Items.Reports.Common where
 
-import Import hiding(computeCategory)
+import Import hiding(computeCategory, formatAmount, formatQuantity)
 import Handler.Table
 import Items.Types
 import Handler.Items.Common
@@ -16,6 +16,7 @@ import GL.Utils(calculateDate, foldTime, Start(..), PeriodFolding(..), dayOfWeek
 import GL.Payroll.Settings
 import Database.Persist.Sql hiding (Column)
 import Text.Printf(printf)
+import Formatting
 
 -- * Param
 data ReportParam = ReportParam
@@ -641,11 +642,11 @@ tableProcessor grouped =
                                   <td>
                                   |]
       showQp io (Just qp) = [whamlet|
-                                  <td> #{show $ round (qpQty io qp)}
-                                  <td> #{showDouble (qpAmount io qp)}
-                                  <td> #{showDouble (qpMinPrice qp) }
-                                  <td> #{showDouble (qpMaxPrice qp) }
-                                  <td> #{showDouble (qpAveragePrice qp)}
+                                  <td> #{formatQuantity (qpQty io qp)}
+                                  <td> #{formatAmount (qpAmount io qp)}
+                                  <td> #{formatPrice (qpMinPrice qp) }
+                                  <td> #{formatPrice (qpMaxPrice qp) }
+                                  <td> #{formatPrice (qpAveragePrice qp)}
                                   |]
 
 
@@ -790,7 +791,7 @@ nmapRunSum runsum nmap = let
        RunSumBack -> let (keys, tqs) = unzip nmap'
                      in zip keys (scanr1 mappend tqs)
        RSNormal   -> nmap'
-  in traceShowId $ nmapFromList (join . headMay $ nmapLevels nmap) key'sumS
+  in nmapFromList (join . headMay $ nmapLevels nmap) key'sumS
 
 -- | NMap version of formatSerieValues
 formatSerieValuesNMap :: (Double -> t) -> (Double -> t)
@@ -924,7 +925,6 @@ bandPivotProcessor all panel rupture mono params name plotId grouped = let
                           , column <- map fst $ nmapToNMapList serie
                           ]
   columns = setToList columnSet
-  formatPercent = printf "%0.1f%%"
   -- lookupValue :: QPType -> NMap TranQP -> (QPrice -> Double) -> NMapKey -> Maybe Double
   -- lookupValue qtype serie0 valueFn column = do --
   --   tranMap <- lookup column (nmapToMap serie)
@@ -932,6 +932,7 @@ bandPivotProcessor all panel rupture mono params name plotId grouped = let
   --   qprice <- lookupGrouped qtype tran
   --   return (valueFn qprice)
     -- Maybe valueFn `fmap` ((lookup column (nmapToMap serie) <&> nmapMargin) >>= lookupGrouped qtype) -- <&> valueFn
+  formatPercent tp = formatDouble' tp {tpValueType = VPercentage}
   in [whamlet|
        <div>
          <h3> #{name}
@@ -948,10 +949,47 @@ bandPivotProcessor all panel rupture mono params name plotId grouped = let
                      $forall column <- columns
                        <td>
                         $forall (qtype, tp , normMode ) <- params
-                          $with serie <- formatSerieValuesNMap formatDouble formatPercent normMode all panel grouped (fmap (tpValueGetter tp) . lookupGrouped qtype) (nmapRunSum (tpRunSum tp) serie0)
-                            <div.just-right>#{fromMaybe "" $ lookup column serie}
+                          $with serie <- formatSerieValuesNMap (formatDouble' tp) (formatPercent tp) normMode all panel grouped (fmap (tpValueGetter tp) . lookupGrouped qtype) (nmapRunSum (tpRunSum tp) serie0)
+                            <div.just-right>#{fromMaybe "-" $ lookup column serie}
              |]
 
+formatDouble' :: TraceParam -> Double -> Html
+formatDouble' tp = formatDouble'' (tpRunSum tp) (tpValueType tp) 
+formatDouble'' runsum vtype x = let
+  s :: Text
+  s = case vtype of
+    VAmount -> sformat ("£" % commasFixed) x -- TODO create builder
+    VQuantity -> sformat commasFixed' x
+    VPercentage -> sformat (fixed 1 % "%") x
+    VPrice -> sformat ("£" % fixed 2) x
+  
+  in toHtml $ case runsum of
+          RSNormal -> s
+          RunSum -> sformat (">> " % stext) s
+          RunSumBack -> sformat ("<< " % stext) s
+        
+
+-- | display a amount to 2 dec with thousands separator
+commasFixed = later go where
+  go x = let
+    (n,f) = properFraction x :: (Int, Double)
+    b = (commas % "." % (left 2 '0' %. int)) -- n (floor $ 100 *  abs f)
+    in bprint b n (floor $ 100 *  abs f)
+
+-- | Sames as commasFixed but don't print commas if number is a whole number
+commasFixed' = later go where
+  go x = let
+    (n,f) = properFraction x :: (Int, Double)
+    frac =  floor (100 * abs f)
+    fracB = if frac < 1
+            then fconst mempty
+            else "." % left 2 '0' %. int
+    b = (commas % fracB) -- n (floor $ 100 *  abs f)
+    in bprint b n frac
+
+formatAmount = formatDouble''  RSNormal VAmount
+formatQuantity = formatDouble''  RSNormal VQuantity
+formatPrice = formatDouble''  RSNormal VPrice
       
 -- ** Csv
   
