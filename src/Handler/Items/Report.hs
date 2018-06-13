@@ -76,29 +76,30 @@ mkReport fFrom  fTo
   <*> fSales <*> fPurchases <*> fAdjustment
   -- noneOption, amountOutOption, amountInOption :: ToJSON a =>  (Text, [(QPrice -> Amount, a -> [(Text, Value)], RunSum)])
 noneOption = ("None" :: Text, [])
-amountOutOption = ("Amount (Out)" ,   [(qpAmount Outward, amountStyle, RSNormal)] )
-amountInOption = ("Amount (In)",     [(qpAmount Inward,  amountStyle, RSNormal)])
-mkIdentifialParam  (t, tp'runsumS) = Identifiable (t, map TraceParam tp'runsumS)
+amountOutOption = ("Amount (Out)" ,   [(qpAmount Outward, VAmount, amountStyle, RSNormal)] )
+amountInOption = ("Amount (In)",     [(qpAmount Inward,  VAmount, amountStyle, RSNormal)])
+mkIdentifialParam  (t, tp'runsumS) = Identifiable (t, map mkTraceParam tp'runsumS)
+mkTraceParam (f, vtype, options, runsum) = TraceParam f vtype options runsum
 
 traceForm :: Bool -> String -> Maybe TraceParams -> MForm Handler (FormResult TraceParams, Widget)
 traceForm nomode suffix p = do
   let
     dataTypeOptions = optionsPairs [(drop 2 (tshow qtype), qtype) | qtype <- [minBound..maxBound]]
-    dataValueOptions = map (\(t, tps'runsum) -> (t, Identifiable (t, (map TraceParam tps'runsum))))
+    dataValueOptions = map (\(t, tps'runsum) -> (t, Identifiable (t, (map mkTraceParam tps'runsum))))
                                     [ noneOption
                                     , ("QA-Sales", quantityAmountStyle Outward)
-                                    , ("CumulAmount (Out)" ,   [(qpAmount Outward, cumulAmountStyle, RunSum)] )
-                                    , ("CumulAmount Backward (Out)" ,   [(qpAmount Outward, cumulAmountStyle, RunSumBack)] )
-                                    , ("Stock" ,   [(qpQty Inward, quantityStyle, RunSum)] )
+                                    , ("CumulAmount (Out)" ,   [(qpAmount Outward, VAmount, cumulAmountStyle, RunSum)] )
+                                    , ("CumulAmount Backward (Out)" ,   [(qpAmount Outward, VAmount, cumulAmountStyle, RunSumBack)] )
+                                    , ("Stock" ,   [(qpQty Inward, VQuantity, quantityStyle, RunSum)] )
                                     , amountOutOption
                                     , amountInOption
-                                    , ("Amount (Bare)",   [(_qpAmount,        amountStyle, RSNormal)])
-                                    , ("Quantity (Out)",  [(qpQty Outward,    quantityStyle, RSNormal)])
-                                    , ("Quantity (In)",   [(qpQty Inward,     quantityStyle, RSNormal)])
-                                    , ("Quantity (Bare)", [(_qpQty,           quantityStyle, RSNormal)] )
-                                    , ("Avg Price",       [(qpAveragePrice,   priceStyle, RSNormal)])
-                                    , ("Min Price",       [(qpMinPrice,       priceStyle, RSNormal)])
-                                    , ("Max Price",       [(qpMaxPrice,       priceStyle, RSNormal)])
+                                    , ("Amount (Bare)",   [(_qpAmount, VAmount, amountStyle, RSNormal)])
+                                    , ("Quantity (Out)",  [(qpQty Outward, VQuantity, quantityStyle, RSNormal)])
+                                    , ("Quantity (In)",   [(qpQty Inward, VQuantity, quantityStyle, RSNormal)])
+                                    , ("Quantity (Bare)", [(_qpQty, VQuantity,           quantityStyle, RSNormal)] )
+                                    , ("Avg Price",       [(qpAveragePrice, VPrice,   priceStyle, RSNormal)])
+                                    , ("Min Price",       [(qpMinPrice, VPrice,       priceStyle, RSNormal)])
+                                    , ("Max Price",       [(qpMaxPrice, VPrice,       priceStyle, RSNormal)])
                                     , ("Price Band",          pricesStyle)
                                     ]
   (tType, vType) <-  mreq (selectField dataTypeOptions)

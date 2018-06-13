@@ -79,8 +79,21 @@ data NormalizeMode = NormalizeMode
   }
   deriving (Show, Eq)
   
+-- Type of value, used to format it accordingly
+data ValueType
+  = VAmount --
+  | VQuantity
+  | VPrice
+  | VPercentage
+  deriving (Show, Eq, Ord, Enum, Bounded)
+
 -- | Parameter to define a plotly trace.
-newtype TraceParam = TraceParam ((QPrice -> Double), Text {- Color-} -> [(Text, Value)], RunSum ) 
+data TraceParam = TraceParam
+  { tpValueGetter :: QPrice -> Double
+  , tpValueType :: ValueType
+  , tpChartOptions :: Text {- Color-} -> [(Text, Value)]
+  , tpRunSum :: RunSum  
+  }
 instance Show TraceParam where
   show _ = "<trace param>"
 -- | should we do a a running sum (cumulative total) before displaying the trace ?
@@ -114,9 +127,9 @@ quantityStyle color = [("type", String "scatter")
                 , ("showlegend", toJSON False)
               ]
 
-quantityAmountStyle :: InOutward -> [(QPrice -> Amount, Text -> [(Text, Value)], RunSum)]
-quantityAmountStyle io = [ (qpQty io, quantityStyle, RSNormal)
-                         , (qpAmount io, \color -> [("type", String "scatter")
+quantityAmountStyle :: InOutward -> [(QPrice -> Amount, ValueType, Text -> [(Text, Value)], RunSum)]
+quantityAmountStyle io = [ (qpQty io, VQuantity,  quantityStyle, RSNormal)
+                         , (qpAmount io, VAmount, \color -> [("type", String "scatter")
                                                    ,("name", String "Amount")
                                                    ,("line", [aesonQQ|{
                                                            color: #{color},
@@ -131,20 +144,20 @@ priceStyle color = [("type", String "scatter")
                 , ("name", "price")
                 , ("line", [aesonQQ|{dash:"dash", color:#{color}}|])
               ]
-pricesStyle :: [(QPrice -> Amount, Text -> [(Text, Value)], RunSum)]
-pricesStyle = [(qpMinPrice , const [ ("style", String "scatter")
+pricesStyle :: [(QPrice -> Amount, ValueType,  Text -> [(Text, Value)], RunSum)]
+pricesStyle = [(qpMinPrice , VPrice,  const [ ("style", String "scatter")
                              , ("fill", String "tonexty")
                              , ("fillcolor", String "transparent")
                              , ("mode", String "markers")
                              , ("connectgaps", toJSON True )
                              , ("showlegend", toJSON False )
                              ], RSNormal)
-               ,(qpAveragePrice , \color -> [ ("style", String "scatter")
+               ,(qpAveragePrice, VPrice , \color -> [ ("style", String "scatter")
                              , ("fill", String "tonexty")
                              , ("connectgaps", toJSON True )
                              , ("line", [aesonQQ|{color:#{color}}|])
                              ], RSNormal)
-               ,(qpMaxPrice , \color -> [ ("style", String "scatter")
+               ,(qpMaxPrice , VPrice, \color -> [ ("style", String "scatter")
                              , ("fill", String "tonexty")
                              , ("connectgaps", toJSON True )
                              -- , ("mode", String "markers")
@@ -671,7 +684,7 @@ sortAndLimitTranQP ruptures nmap = let
   mkCol (ColumnRupture{..}) = case (getIdentified (tpDataParams cpSortBy), cpColumn) of
     (_, Nothing) -> Nothing
     ([], _) -> Nothing
-    ((TraceParam (fn, _, _):_), _) -> Just ( \k mr -> maybe 0 fn $ lookupGrouped (tpDataType cpSortBy) $ mr
+    ((tp :_), _) -> Just ( \k mr -> maybe 0 (tpValueGetter tp) $ lookupGrouped (tpDataType cpSortBy) $ mr
                                            , cpRankMode
                                            , cpLimitTo
                                            )
@@ -809,12 +822,12 @@ seriesChartProcessor all panel rupture mono params name plotId grouped = do
                                                     , ("legendgroup", String (tshow groupId))
                                                     ]
                                                     -- <> maybe [] (\color -> [("color", String color)]) colorM
-                                                    <> options color
+                                                    <> tpChartOptions tp color
                                                     <> (if name == PersistNull then [] else [("name", toJSON $ nkeyWithRank name')])
                                                        where g = [ (nkeyWithRank n, mconcat (toList nmap))  | (n, nmap) <- nmapToNMapList g'' ] -- flatten everything if needed
-                                                             g'' = nmapRunSum runsum g'
-                                                             (qtype, TraceParam (valueFn, options, runsum), normMode) = param
-                                                             fn = fmap valueFn . lookupGrouped qtype
+                                                             g'' = nmapRunSum (tpRunSum tp) g'
+                                                             (qtype, tp , normMode) = param
+                                                             fn = fmap (tpValueGetter tp) . lookupGrouped qtype
                                                              name = nkKey name'
          colorIds = zip (cycle defaultColors) [1::Int ..]
          asList = nmapToNMapList grouped
@@ -934,8 +947,8 @@ bandPivotProcessor all panel rupture mono params name plotId grouped = let
                    <td> #{nkeyWithRank serieName}
                      $forall column <- columns
                        <td>
-                        $forall (qtype, TraceParam (valueFn, _, runsum), normMode ) <- params
-                          $with serie <- formatSerieValuesNMap formatDouble formatPercent normMode all panel grouped (fmap valueFn . lookupGrouped qtype) (nmapRunSum runsum serie0)
+                        $forall (qtype, tp , normMode ) <- params
+                          $with serie <- formatSerieValuesNMap formatDouble formatPercent normMode all panel grouped (fmap (tpValueGetter tp) . lookupGrouped qtype) (nmapRunSum (tpRunSum tp) serie0)
                             <div.just-right>#{fromMaybe "" $ lookup column serie}
              |]
 
