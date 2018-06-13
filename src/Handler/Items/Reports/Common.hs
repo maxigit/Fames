@@ -708,7 +708,7 @@ panelChartProcessor all param name plotId0 grouped = do
                 ^{plot}
                   |]
       numberOfBands = length asList
-      plotHeight = max 200 (800 `div` numberOfBands)
+      plotHeight = max 350 (900 `div` numberOfBands)
   [whamlet|
       <div.panel.panel-info>
         <div.panel-heading data-toggle="collapse" data-target="#report-panel-#{name}">
@@ -827,7 +827,7 @@ seriesChartProcessor all panel rupture mono params name plotId grouped = do
      toWidgetBody [julius|
           Plotly.plot( #{toJSON plotId}
                     , #{toJSON jsData} 
-                    , { margin: { t: 0 }
+                    , { margin: { t: 30 }
                       , title: #{toJSON name}
                       , yaxis2 : {overlaying: 'y', title: "Quantities", side: "right"}
                       , yaxis3 : {overlaying: 'y', title: "Price"}

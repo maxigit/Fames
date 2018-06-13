@@ -1,10 +1,13 @@
 * TODO Chart
-** Today [2/10] 
+** Today [2/12] 
    - [-]  Add formating function (% or normal, or forbidden)
      - [-] percentage column, total, row
        - [X] total above ?
        - [ ] column
        - [ ] use different scale for %
+       - [ ] Add rank
+   - [ ] display serie as column in table
+   - [ ] use full rupture for column
 so we can juxtapose 100% and real number
    - [X] pivot table
      display table as chart (same field) with formatin
