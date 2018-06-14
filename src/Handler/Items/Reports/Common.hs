@@ -583,8 +583,16 @@ nkeyWithRank :: NMapKey -> Text
 nkeyWithRank (NMapKey (Just i) key) = tshow i <> "-" <> pvToText key
 nkeyWithRank (NMapKey Nothing key) = pvToText key
 
+commonCss = [cassius|
+.text90
+    writing-mode: sideways-lr
+.just-right
+  text-align: right
+                   |]
 tableProcessor :: NMap TranQP -> Widget 
-tableProcessor grouped = 
+tableProcessor grouped = do
+  let levels = drop 1 $ nmapLevels grouped
+  toWidget commonCss
   [whamlet|
     $forall (h1, group1) <- nmapToNMapList grouped
         <div.panel.panel-info>
@@ -594,7 +602,7 @@ tableProcessor grouped =
           <div.panel-body.collapse.in id="report-panel-#{name}">
             <table.table.table-hover.table-striped.table-hover>
               <tr>
-                $forall level <-  nmapLevels group1
+                $forall level <-  levels
                   <th> #{fromMaybe "" level}
                 <th> Sales Qty
                 <th> Sales Amount
@@ -611,11 +619,8 @@ tableProcessor grouped =
                 <th> Adjust Min Price
                 <th> Adjust Max Price
                 <th> Adjust Average Price/
-                <th> Summary Qty
-                <th> Summary Amount
-                <th> Summary Min Price
-                <th> Summary max Price
-                <th> Summary Average Price
+                <th> Summary Qty (Out)
+                <th> Summary Amount (Out)
               $forall (keys, qp) <- nmapToList group1
                     <tr>
                       $forall key <- keys
@@ -624,30 +629,37 @@ tableProcessor grouped =
                       ^{showQp Outward $ salesQPrice qp}
                       ^{showQp Inward $ purchQPrice qp}
                       ^{showQp Inward $ adjQPrice qp}
-                      ^{showQp Outward $ summaryQPrice qp}
-              $with (qpt) <- (nmapMargin group1)
-                  <tr.total>
-                    <td> Total
-                    ^{showQp Outward $ salesQPrice qpt}
-                    ^{showQp Outward $ purchQPrice qpt}
-                      ^{showQp Inward $ adjQPrice qpt}
-                      ^{showQp Outward $ summaryQPrice qpt}
-                    |]
+                      ^{showQpMargin Outward $ summaryQPrice qp}
+              $if not (null levels)
+                $with (qpt) <- (nmapMargin group1)
+                    <tr.total>
+                      <td> Total
+                      $forall level <- drop 1 levels
+                        <td>
+                      ^{showQp Outward $ salesQPrice qpt}
+                      ^{showQp Outward $ purchQPrice qpt}
+                        ^{showQp Inward $ adjQPrice qpt}
+                        ^{showQpMargin Outward $ summaryQPrice qpt}
+                      |]
   where
-      showQp _ Nothing = [whamlet|
+      showQp' showPrice _ Nothing = [whamlet|
                                   <td>
                                   <td>
-                                  <td>
-                                  <td>
-                                  <td>
+                                  $if showPrice
+                                    <td>
+                                    <td>
+                                    <td>
                                   |]
-      showQp io (Just qp) = [whamlet|
-                                  <td> #{formatQuantity (qpQty io qp)}
-                                  <td> #{formatAmount (qpAmount io qp)}
-                                  <td> #{formatPrice (qpMinPrice qp) }
-                                  <td> #{formatPrice (qpMaxPrice qp) }
-                                  <td> #{formatPrice (qpAveragePrice qp)}
+      showQp' showPrice io (Just qp) = [whamlet|
+                                  <td.just-right> #{formatQuantity (qpQty io qp)}
+                                  <td.just-right> #{formatAmount (qpAmount io qp)}
+                                  $if showPrice
+                                    <td.just-right> #{formatPrice (qpMinPrice qp) }
+                                    <td.just-right> #{formatPrice (qpMaxPrice qp) }
+                                    <td.just-right> #{formatPrice (qpAveragePrice qp)}
                                   |]
+      showQp = showQp' True
+      showQpMargin = showQp' False
 
 
 -- *** Csv
@@ -878,12 +890,7 @@ seriesChartProcessor all panel rupture mono params name plotId grouped = do
 pivotProcessor :: ReportParam -> NMap TranQP -> Widget 
 pivotProcessor param grouped = do
   let asList = nmapToNMapList grouped
-  toWidget [cassius|
-.text90
-    writing-mode: sideways-lr
-.just-right
-  text-align: right
-                   |]
+  toWidget commonCss
   forM_ (zip asList [1 :: Int ..]) $ \((panelName, nmap), i) -> do
      let plotId = "items-report-table-" <> tshow i 
          -- bySerie = fmap (groupAsMap (mkGrouper param (cpColumn $ rpSerie param) . fst) (:[])) group
@@ -984,8 +991,15 @@ commasFixed' = later go where
     fracB = if frac < 1
             then fconst mempty
             else "." % left 2 '0' %. int
-    b = (commas % fracB) -- n (floor $ 100 *  abs f)
+    b = (commas' % fracB) -- n (floor $ 100 *  abs f)
     in bprint b n frac
+
+-- | Like Formatting.commas but fix bug on negative value
+-- -125 - -,125
+commas' = later go where
+  go n = if n < 0
+         then bprint ("-" % commas) (abs n)
+         else bprint commas  n
 
 formatAmount = formatDouble''  RSNormal VAmount
 formatQuantity = formatDouble''  RSNormal VQuantity
