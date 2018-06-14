@@ -22,7 +22,7 @@ import Formatting
 data ReportParam = ReportParam
   { rpFrom :: Maybe Day
   , rpTo :: Maybe Day
-  , rpPeriod :: Maybe PeriodFolding
+  , rpPeriod' :: Maybe PeriodFolding'
   , rpNumberOfPeriods :: Maybe Int
   -- , rpCatFilter :: Map Text (Maybe Text)
   , rpCategoryToFilter :: Maybe Text
@@ -166,16 +166,35 @@ pricesStyle = [(qpMinPrice , VPrice,  const [ ("style", String "scatter")
                              -- , ("line", [aesonQQ|{width:0}|])
                              ], RSNormal)
                  ]
-periodOptions :: Day -> Maybe Day -> [(Text, PeriodFolding)]
+data PeriodFolding'
+  = PFWholeYear
+  | PFSlidingYearFrom
+  | PFSlidingYearTomorrow
+  | PFMonthly
+  | PFWeekly
+  deriving (Show, Eq)
+
+periodOptions :: Day -> Maybe Day -> [(Text, PeriodFolding')]
 periodOptions today from = let
-  beginYear = fromGregorian (toYear today) 1 1
-  in [("Whole Year", FoldYearly beginYear)
-     ,("Sliding Year (today)", FoldYearly today)
-     ,("Sliding Year (from)", FoldYearly (fromMaybe today from))
+  in [("Whole Year", PFWholeYear)
+     ,("Sliding Year (to today)", PFSlidingYearTomorrow)
+     ,("Sliding Year (from)", PFSlidingYearFrom)
      -- ,("Fiscal Year", FoldYearly fiscal)
-     ,("Monthly", FoldMonthly 2018)
-     ,("Weekly", FoldWeekly)
+     ,("Monthly", PFMonthly )
+     ,("Weekly", PFWeekly)
      ]
+rpPeriod :: Day -> ReportParam -> Maybe PeriodFolding
+rpPeriod today rp = let
+  beginYear = fromGregorian (currentYear) 1 1
+  currentYear = toYear today
+  tomorrowLastYear = calculateDate (AddYears (-1)) . calculateDate (AddDays 1) $ today
+  in case rpPeriod' rp of
+        Just PFWholeYear -> Just $ FoldYearly beginYear
+        Just PFSlidingYearFrom -> Just $ FoldYearly (fromMaybe beginYear (rpFrom rp))
+        Just PFSlidingYearTomorrow -> Just $ FoldYearly tomorrowLastYear
+        Just PFMonthly ->  Just $ FoldMonthly currentYear
+        Just PFWeekly -> Just $ FoldWeekly
+        Nothing -> Nothing
 -- * Columns
 data Column = Column
   { colName :: Text
@@ -230,7 +249,7 @@ getColsWithDefault = do
       mkDateColumn (name, fn) = Column name fn' where
         fn' p tk = let (d0, _) = foldDay p tk
                        d = fn d0
-                   in case (rpPeriod p) of
+                   in case (rpPeriod today p) of
                      Just FoldWeekly -> -- format
                        let w = dayOfWeek d
                        in NMapKey (Just $ fromEnum w)  (PersistText $ tshow w)
@@ -270,13 +289,13 @@ getColsWithDefault = do
      
       foldDay p tkey = let
         day = tkDay tkey
-        in  case rpPeriod p of
+        in  case rpPeriod today p of
               Nothing -> (day, Start day)
               Just period -> foldTime period (tkDay tkey)
 
       getPeriod p tkey = let
         (_, Start d) = foldDay p tkey
-        in case rpPeriod p of
+        in case rpPeriod today p of
              Just (FoldMonthly _) -> -- format
                let (_,m,_) = toGregorian d
                in NMapKey (Just m)  (PersistText $ pack $ formatTime defaultTimeLocale "%B" d) 
@@ -285,7 +304,8 @@ getColsWithDefault = do
                -- in NMapKey (Just $ fromIntegral y) (PersistText $ pack $ printf "%d-%d" y (y+1))
                -- at the mooment we display the rank-the value, so printing y-y+1
                    -- result in printing y-y-y+1
-               in NMapKey (Just $ fromIntegral y) (PersistInt64 $ fromIntegral (y+1))
+               -- in NMapKey (Just $ fromIntegral y) (PersistInt64 $ fromIntegral (y+1))
+               in NMapKey (Just $ fromIntegral y -2000) (PersistText $ pack $ formatTime defaultTimeLocale "%Y (%b %d..)" d)
 
 
              _ -> NMapKey Nothing (PersistDay d) where
@@ -355,8 +375,8 @@ computeCategory skuToStyleVar categories catFinder (key, tpq) = let
 
 -- | Allows to load similar slices of time depending on the param
 -- example the first 3 months of each year
-generateTranDateIntervals :: ReportParam -> [(Text, PersistValue)]
-generateTranDateIntervals param = let
+generateTranDateIntervals :: Day -> ReportParam -> [(Text, PersistValue)]
+generateTranDateIntervals today param = let
   intervals = case (rpFrom param, rpTo param, rpNumberOfPeriods param) of
     (Nothing, Nothing, _)  -> [ (Nothing, Nothing) ]
     (fromM, toM, Nothing)  -> [ (fromM, toM) ]
@@ -365,7 +385,7 @@ generateTranDateIntervals param = let
     (Nothing, Just to, Just n) -> -- go n year ago
           [ (Nothing, Just to) ]
     (Just from, Just to, Just n) -> let
-      period i = case rpPeriod param of
+      period i = case rpPeriod today param of
         Just (FoldYearly _) -> calculateDate (AddYears (-i))
         Just (FoldMonthly _) -> calculateDate (AddMonths (-i))
         Just (FoldWeekly) -> calculateDate (AddWeeks (-i))
@@ -391,6 +411,7 @@ generateTranDateIntervals param = let
   
 loadItemSales :: ReportParam -> Handler [(TranKey, TranQP)]
 loadItemSales param = do
+  today <- utctDay <$> liftIO getCurrentTime
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   let catFilterM = (,) <$> rpCategoryToFilter param <*> rpCategoryFilter param
   let sql = intercalate " " $
@@ -418,13 +439,14 @@ loadItemSales param = do
                                  in [ (" AND category.value " <> keyw <> " ?", PersistText v)
                                     , (" AND category.category = ? ", PersistText catToFilter)
                                     ]
-                       <> generateTranDateIntervals param
+                       <> generateTranDateIntervals today param
         
   sales <- runDB $ rawSql (sql <> intercalate " "w) p
   return $ map detailToTransInfo sales
 
 loadItemPurchases :: ReportParam -> Handler [(TranKey, TranQP)]
 loadItemPurchases param = do
+  today <- utctDay <$> liftIO getCurrentTime
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   let catFilterM = (,) <$> rpCategoryToFilter param <*> rpCategoryFilter param
   let sql = intercalate " " $
@@ -451,13 +473,14 @@ loadItemPurchases param = do
                                  in [ (" AND category.value " <> keyw <> " ?", PersistText v)
                                     , (" AND category.category = ? ", PersistText catToFilter)
                                     ]
-                       <> generateTranDateIntervals param
+                       <> generateTranDateIntervals today param
   purch <- runDB $ rawSql (sql <> intercalate " " w) p
   return $ map purchToTransInfo purch
 
 
 loadStockAdjustments :: ReportParam -> Handler [(TranKey, TranQP)]
 loadStockAdjustments param = do
+  today <- utctDay <$> liftIO getCurrentTime
   -- We are only interested in what's going in or out of the LOST location
   -- checking what's in DEF doesn't work, as it mixes
   -- transfers from incoming containers  with real adjusment
@@ -490,7 +513,7 @@ loadStockAdjustments param = do
                                  in [ (" AND category.value " <> keyw <> " ?", PersistText v)
                                     , (" AND category.category = ? ", PersistText catToFilter)
                                     ]
-                       <> generateTranDateIntervals param
+                       <> generateTranDateIntervals today param
 
   moves <- runDB $ rawSql (sql <> intercalate " " w) p
   return $ map moveToTransInfo moves
