@@ -506,7 +506,10 @@ moveToTransInfo (Entity _ FA.StockMove{..}) = (key, tqp) where
                 mempty
                 (toEnum stockMoveType)
   tqp = case toEnum stockMoveType of
-    ST_INVADJUST -> tranQP QPAdjustment (mkQPrice Inward stockMoveQty stockMoveStandardCost)
+    -- Adjustement should be counted with a negative price
+    -- indeed a positiv adjustment, means that we found some (therefore should go toward the stock  : Inward)
+    -- However, they didn't cost anything so the amount should go towards the sales : Outward
+    ST_INVADJUST -> tranQP QPAdjustment (mkQPrice Inward stockMoveQty (-stockMoveStandardCost))
   -- transfers are relative to the LOST location so should be taking as Outward : +ve quantity = loss
     ST_LOCTRANSFER -> tranQP QPAdjustment (mkQPrice Outward stockMoveQty 0)
     _ -> error $ "unexpected transaction type " ++ show (toEnum stockMoveType :: FATransType) ++ " for stock adjustment "
@@ -613,15 +616,13 @@ tableProcessor grouped = do
                 <th> Purch Amount
                 <th> Purch Min Price
                 <th> Purch Max Price
-                <th> Purch Average Price/
-                <th> Adjust Qty
+                <th> Purch Average Price
+                <th> Adjust Qty (In)
                 <th> Adjust Amount
-                <th> Adjust Min Price
-                <th> Adjust Max Price
-                <th> Adjust Average Price/
                 <th> Leftover
                 <th> Profit Amount
                 <th> Sales Through
+                <th> %Found (Qty)
                 <th> Margin 
               $forall (keys, qp) <- nmapToList group1
                     <tr>
@@ -630,7 +631,7 @@ tableProcessor grouped = do
                            #{nkeyWithRank key}
                       ^{showQp Outward $ salesQPrice qp}
                       ^{showQp Inward $ purchQPrice qp}
-                      ^{showQp Inward $ adjQPrice qp}
+                      ^{showQpAdj $ adjQPrice qp}
                       ^{showQpMargin qp}
               $if not (null levels)
                 $with (qpt) <- (nmapMargin group1)
@@ -639,7 +640,7 @@ tableProcessor grouped = do
                       $forall level <- drop 1 levels
                         <td>
                       ^{showQp Outward $ salesQPrice qpt}
-                      ^{showQp Outward $ purchQPrice qpt}
+                      ^{showQp Inward $ purchQPrice qpt}
                         ^{showQp Inward $ adjQPrice qpt}
                         ^{showQpMargin qpt}
                       |]
@@ -658,20 +659,36 @@ tableProcessor grouped = do
                                   <td.just-right> #{formatPrice (qpMaxPrice qp) }
                                   <td.just-right> #{formatPrice (qpAveragePrice qp)}
                                   |]
+      -- Adjustment are different because the price is negative
+      -- posting quantity are good
+      -- but negative amount are good too (cost )
+      showQpAdj Nothing = [whamlet|
+                                  <td>
+                                  <td>
+                                  |]
+      showQpAdj (Just qp) = [whamlet|
+                                  <td.just-right> #{formatQuantity (qpQty Inward qp)}
+                                  <td.just-right> #{formatAmount (qpAmount Outward qp)}
+                                  |]
+      -- ignore margin
       showQpMargin tqp = do
-        let qp = summaryQPrice tqp
+        let _qp = summaryQPrice tqp
             salesM = salesQPrice tqp
             purchM = purchQPrice tqp
+            adjM = adjQPrice tqp
             qSold = maybe 0 (qpQty Outward) salesM
             qIn = maybe 0 (qpQty Inward) purchM
+            qFound = maybe 0 (qpQty Inward) adjM
             salesThrough = 100 * qSold / qIn
+            foundRatio = 100 * qFound / qIn
             aSold = maybe 0 (qpAmount Outward) salesM
             aIn = maybe 0 (qpAmount Inward) purchM
             margin = 100 * (aSold - aIn) / aIn
         [whamlet|
-                <td.just-right> #{maybe "" (formatQuantity . qpQty Inward) qp}
-                <td.just-right> #{maybe "" (formatAmount . qpAmount Outward) qp}
+                <td.just-right> #{formatQuantity $ qIn - qSold}
+                <td.just-right> #{formatAmount $ aSold - aIn}
                 <td.just-right> #{formatPercentage salesThrough}
+                <td.just-right> #{formatPercentage foundRatio}
                 <td.just-right> #{formatPercentage margin}
                 |]
 
@@ -984,17 +1001,19 @@ formatDouble'' runsum vtype x = let
     VPercentage -> sformat (fixed 1 % "%") x
     VPrice -> sformat ("£" % fixed 2) x
   
-  in toHtml $ case runsum of
-          RSNormal -> s
-          RunSum -> sformat (">> " % stext) s
-          RunSumBack -> sformat ("<< " % stext) s
+  in case runsum of
+          RSNormal -> if x < 0
+                      then [shamlet|<span.bg-danger.text-danger>#{s}|]
+                      else toHtml s
+          RunSum -> toHtml $ sformat (">> " % stext) s
+          RunSumBack -> toHtml $ sformat ("<< " % stext) s
         
 
 -- | display a amount to 2 dec with thousands separator
 commasFixed = later go where
   go x = let
     (n,f) = properFraction x :: (Int, Double)
-    b = (commas % "." % (left 2 '0' %. int)) -- n (floor $ 100 *  abs f)
+    b = (commas' % "." % (left 2 '0' %. int)) -- n (floor $ 100 *  abs f)
     in bprint b n (floor $ 100 *  abs f)
 
 -- | Sames as commasFixed but don't print commas if number is a whole number

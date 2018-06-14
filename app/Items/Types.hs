@@ -253,7 +253,13 @@ tranQP qtype qp = let
                    QPAdjustment -> [QPAdjustment]
                    QPSummary -> [minBound..maxBound]
                    _ -> error $ "Fix ME: creating with TranQP with " <> show qtype
-  in TranQP $ LMap.fromList (map (, qp) (qtype:QPSummary:qtypes))
+  -- for adjustment, we want the quantity to be parts of the summary
+  -- but not the price
+  createPair targetType =  (targetType, qp') where
+    qp' = case (qtype, targetType) of
+                  (QPAdjustment, QPSummary) -> qp {_qpAmount = 0}
+                  _ -> qp
+  in TranQP $ LMap.fromList (map createPair (qtype:QPSummary:qtypes))
                    
 
 -- | Projection
