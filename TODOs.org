@@ -1,8 +1,8 @@
 * TODO Chart
-** Today [8/22] 
+** Today [12/22] 
    -[ ] bugs (from Ellie)
    - [X] avg price wrong for summary
-   - [ ] period not working
+   - [X] period not working
    - [X]  date range not working when empty
    - [X] justify summary table right
    - [X] 150 -> ,150
@@ -12,9 +12,9 @@
    - [X] Add margin to summary
      - [X]  change heading
    - [X] take adjustmen into account in left over and return calculation
-   - [ ]  rename table to summary
-     - [ ]  readd sliding year in options or is period enough ?
-   - [ ] Adjustment wrond way ?
+   - [X]  rename table to summary
+     - [X]  readd sliding year in options or is period enough ?
+   - [X] Adjustment wrond way ?
    - [-]  Add formating function (% or normal, or forbidden)
      - [-] percentage column, total, row
        - [X] total above ?

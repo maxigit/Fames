@@ -380,17 +380,24 @@ generateTranDateIntervals today param = let
   intervals = case (rpFrom param, rpTo param, rpNumberOfPeriods param) of
     (Nothing, Nothing, _)  -> [ (Nothing, Nothing) ]
     (fromM, toM, Nothing)  -> [ (fromM, toM) ]
-    (Just from, Nothing, Just n) -> -- go n year ago
-          [ (Just (calculateDate (AddYears (-n)) from), Nothing) ]
+    -- (Just from, Nothing, Just n) -> -- go n year ago
+    --       [ (Just (calculateDate (AddYears (-n)) from), Nothing) ]
     (Nothing, Just to, Just n) -> -- go n year ago
           [ (Nothing, Just to) ]
-    (Just from, Just to, Just n) -> let
+    (Just from, toM, Just n) -> let
       period i = case rpPeriod today param of
         Just (FoldYearly _) -> calculateDate (AddYears (-i))
         Just (FoldMonthly _) -> calculateDate (AddMonths (-i))
         Just (FoldWeekly) -> calculateDate (AddWeeks (-i))
         Nothing  -> calculateDate (AddYears (-i))
-      in [ ( Just (period i from), Just (period i to)) | i <- [0..n] ]
+      to = fromMaybe (period (-1) from) toM
+      in [ ( Just (period i from)
+           , Just ( min (period i to)
+                        (period (i-1) from)
+                  )
+           )
+         | i <- [0..n]
+         ]
   -- we need AND ((d>= from and d < to) OR (.. and ..))
   -- and some hack to use persist value even if not needed
   in  join $ [(" AND ? AND (", PersistBool True )] :
