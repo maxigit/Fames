@@ -1,11 +1,13 @@
 * TODO Chart
-** Today [7/21] 
+** Today [8/21] 
    -[ ] bugs (from Ellie)
    - [X] avg price wrong for summary
    - [ ] period not working
    - [X] justify summary table right
    - [X] 150 -> ,150
-   - [ ] display - in red
+   - [X] display - in red
+     - [X] done
+     - [X] change so that in can be in green if good (but unexpected)
    - [X] Add margin to summary
      - [X]  change heading
    - [X] take adjustmen into account in left over and return calculation

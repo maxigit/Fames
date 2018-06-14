@@ -591,6 +591,12 @@ commonCss = [cassius|
     writing-mode: sideways-lr
 .just-right
   text-align: right
+.negative-good .negative, .positive-good .positive
+  background: ##dff0d8
+  color: #93c54b
+.negative-bad .negative, .positive-bad .positive
+  background: #fedede
+  color: #d0534f
                    |]
 tableProcessor :: NMap TranQP -> Widget 
 tableProcessor grouped = do
@@ -617,12 +623,12 @@ tableProcessor grouped = do
                 <th> Purch Min Price
                 <th> Purch Max Price
                 <th> Purch Average Price
-                <th> Adjust Qty (In)
-                <th> Adjust Amount
+                <th> Loss Qty
+                <th> Loss Amount
                 <th> Leftover
                 <th> Profit Amount
                 <th> Sales Through
-                <th> %Found (Qty)
+                <th> %Loss (Qty)
                 <th> Margin 
               $forall (keys, qp) <- nmapToList group1
                     <tr>
@@ -641,8 +647,8 @@ tableProcessor grouped = do
                         <td>
                       ^{showQp Outward $ salesQPrice qpt}
                       ^{showQp Inward $ purchQPrice qpt}
-                        ^{showQp Inward $ adjQPrice qpt}
-                        ^{showQpMargin qpt}
+                      ^{showQpAdj $ adjQPrice qpt}
+                      ^{showQpMargin qpt}
                       |]
   where
       showQp _ Nothing = [whamlet|
@@ -652,12 +658,16 @@ tableProcessor grouped = do
                                   <td>
                                   <td>
                                   |]
-      showQp io (Just qp) = [whamlet|
-                                  <td.just-right> #{formatQuantity (qpQty io qp)}
-                                  <td.just-right> #{formatAmount (qpAmount io qp)}
-                                  <td.just-right> #{formatPrice (qpMinPrice qp) }
-                                  <td.just-right> #{formatPrice (qpMaxPrice qp) }
-                                  <td.just-right> #{formatPrice (qpAveragePrice qp)}
+      showQp io (Just qp) = let
+        klass = case io of
+          Inward -> "negative-good" :: Text
+          Outward -> "negative-bad"
+        in [whamlet|
+                                  <td.just-right class="#{klass}"> #{formatQuantity (qpQty io qp)}
+                                  <td.just-right class="#{klass}"> #{formatAmount (qpAmount io qp)}
+                                  <td.just-right class="#{klass}"> #{formatPrice (qpMinPrice qp) }
+                                  <td.just-right class="#{klass}"> #{formatPrice (qpMaxPrice qp) }
+                                  <td.just-right class="#{klass}"> #{formatPrice (qpAveragePrice qp)}
                                   |]
       -- Adjustment are different because the price is negative
       -- posting quantity are good
@@ -667,8 +677,8 @@ tableProcessor grouped = do
                                   <td>
                                   |]
       showQpAdj (Just qp) = [whamlet|
-                                  <td.just-right> #{formatQuantity (qpQty Inward qp)}
-                                  <td.just-right> #{formatAmount (qpAmount Outward qp)}
+                                  <td.just-right.negative-good.positive-bad> #{formatQuantity (qpQty Inward qp)}
+                                  <td.just-right.negative-good> #{formatAmount (qpAmount Outward qp)}
                                   |]
       -- ignore margin
       showQpMargin tqp = do
@@ -678,18 +688,18 @@ tableProcessor grouped = do
             adjM = adjQPrice tqp
             qSold = maybe 0 (qpQty Outward) salesM
             qIn = maybe 0 (qpQty Inward) purchM
-            qFound = maybe 0 (qpQty Inward) adjM
+            qLoss = maybe 0 (qpQty Outward) adjM
             salesThrough = 100 * qSold / qIn
-            foundRatio = 100 * qFound / qIn
+            lossRatio = 100 * qLoss / qIn
             aSold = maybe 0 (qpAmount Outward) salesM
             aIn = maybe 0 (qpAmount Inward) purchM
             margin = 100 * (aSold - aIn) / aIn
         [whamlet|
-                <td.just-right> #{formatQuantity $ qIn - qSold}
-                <td.just-right> #{formatAmount $ aSold - aIn}
-                <td.just-right> #{formatPercentage salesThrough}
-                <td.just-right> #{formatPercentage foundRatio}
-                <td.just-right> #{formatPercentage margin}
+                <td.just-righ.negative-good> #{formatQuantity $ qIn - qSold}
+                <td.just-right.negative-bad.positive-good> #{formatAmount $ aSold - aIn}
+                <td.just-right.negative-bad> #{formatPercentage salesThrough}
+                <td.just-right.negative-good.positive-bad> #{formatPercentage lossRatio}
+                <td.just-right.negative-bad> #{formatPercentage margin}
                 |]
 
 
@@ -941,7 +951,7 @@ panelPivotProcessor all param name plotId0 grouped = do
               plot = bandPivotProcessor all grouped (rpSerie param) (isNothing $ cpColumn $ rpSerie param) traceParams (nkeyWithRank bandName) plotId bands 
               plotId = plotId0 <> "-" <> tshow i
           [whamlet|
-            <div id=#{plotId}>
+            <div.negative-bad id=#{plotId}>
                 ^{plot}
                   |]
   [whamlet|
@@ -1001,12 +1011,15 @@ formatDouble'' runsum vtype x = let
     VPercentage -> sformat (fixed 1 % "%") x
     VPrice -> sformat ("£" % fixed 2) x
   
-  in case runsum of
-          RSNormal -> if x < 0
-                      then [shamlet|<span.bg-danger.text-danger>#{s}|]
-                      else toHtml s
-          RunSum -> toHtml $ sformat (">> " % stext) s
-          RunSumBack -> toHtml $ sformat ("<< " % stext) s
+  toHtmlWith t = if x < 0
+                 then [shamlet|<span.negative>#{t}|]
+                 else if x > 0
+                      then [shamlet|<span.positive>#{t}|]
+                      else toHtml t
+  in toHtmlWith $ case runsum of
+          RSNormal -> s
+          RunSum -> sformat (">> " % stext) s
+          RunSumBack -> sformat ("<< " % stext) s
         
 
 -- | display a amount to 2 dec with thousands separator
