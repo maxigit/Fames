@@ -170,6 +170,7 @@ data PeriodFolding'
   = PFWholeYear
   | PFSlidingYearFrom
   | PFSlidingYearTomorrow
+  | PFQuaterly
   | PFMonthly
   | PFWeekly
   deriving (Show, Eq)
@@ -180,6 +181,7 @@ periodOptions today from = let
      ,("Sliding Year (to today)", PFSlidingYearTomorrow)
      ,("Sliding Year (from)", PFSlidingYearFrom)
      -- ,("Fiscal Year", FoldYearly fiscal)
+     ,("Quaterly", PFQuaterly )
      ,("Monthly", PFMonthly )
      ,("Weekly", PFWeekly)
      ]
@@ -193,6 +195,7 @@ rpPeriod today rp = let
         Just PFSlidingYearFrom -> Just $ FoldYearly (fromMaybe beginYear (rpFrom rp))
         Just PFSlidingYearTomorrow -> Just $ FoldYearly tomorrowLastYear
         Just PFMonthly ->  Just $ FoldMonthly currentYear
+        Just PFQuaterly ->  Just $ FoldQuaterly currentYear
         Just PFWeekly -> Just $ FoldWeekly
         Nothing -> Nothing
 -- * Columns
@@ -329,6 +332,7 @@ getColsWithDefault = do
             , Column "Invoice/Credit" (const' $ maybe PersistNull PersistText . tkType')
             ]  <>
             ( map mkDateColumn [ ("Beginning of Year", calculateDate BeginningOfYear)
+                               , ("Beginning of Quarter", calculateDate (BeginningOfQuarter))
                                , ("Beginning of Week", calculateDate (BeginningOfWeek Sunday))
                                , monthly
                                ]
@@ -388,6 +392,7 @@ generateTranDateIntervals today param = let
       period i = case rpPeriod today param of
         Just (FoldYearly _) -> calculateDate (AddYears (-i))
         Just (FoldMonthly _) -> calculateDate (AddMonths (-i))
+        Just (FoldQuaterly _) -> calculateDate (AddMonths (-i*3))
         Just (FoldWeekly) -> calculateDate (AddWeeks (-i))
         Nothing  -> calculateDate (AddYears (-i))
       to = fromMaybe (period (-1) from) toM

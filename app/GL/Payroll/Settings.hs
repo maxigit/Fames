@@ -71,6 +71,7 @@ data DateCalculator
   | EndOfWeek { weekDay :: DayOfWeek}
   | EndOfYear
   | BeginningOfMonth 
+  | BeginningOfQuarter 
   | BeginningOfWeek { weekDay :: DayOfWeek}
   | BeginningOfYear
   deriving (Show, Read, Eq, Ord)

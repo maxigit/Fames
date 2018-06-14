@@ -51,6 +51,10 @@ calculateDate EndOfYear day = fromGregorian year 12 31 where (year,_,_) = toGreg
 calculateDate BeginningOfMonth day = let
   (y, m, _) = toGregorian day
   in fromGregorian y m 1
+calculateDate BeginningOfQuarter day = let
+  (y, m, _) = toGregorian day
+  q = (m-1) `div` 3
+  in fromGregorian y (1+3*q) 1
 calculateDate (BeginningOfWeek target) day = previousWeekDay target day
 calculateDate BeginningOfYear day = fromGregorian year 01 01 where (year,_,_) = toGregorian day
 
@@ -116,6 +120,7 @@ newtype Start = Start Day -- to mixup adjustTaxYear
 data PeriodFolding
   = FoldYearly Day  -- starting day
   -- PreviousPeriod -- use the length of the start and end period
+  | FoldQuaterly Integer -- (base year)
   | FoldMonthly Integer -- (base year)
   | FoldWeekly
   deriving (Show, Eq, Ord)
@@ -132,6 +137,12 @@ foldTime (FoldYearly yearStart) day = let
             else (dayYear - 1, periodYear +1)
   in ( fromGregorian newDayYear dayMonth dayDay
      , Start (fromGregorian newPeriodYear periodMonth periodDay)
+     )
+foldTime (FoldQuaterly periodYear) day = let
+  (_dayYear, dayMonth, dayDay) = toGregorian day
+  (q0,m0) = (dayMonth -1) `divMod` 3
+  in ( fromGregorian periodYear (1+m0) dayDay
+     , Start (fromGregorian periodYear (1+ (q0*3)) 1)
      )
 foldTime (FoldMonthly periodYear) day = let
   (_dayYear, dayMonth, dayDay) = toGregorian day
