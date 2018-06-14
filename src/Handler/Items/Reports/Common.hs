@@ -358,7 +358,7 @@ computeCategory skuToStyleVar categories catFinder (key, tpq) = let
 generateTranDateIntervals :: ReportParam -> [(Text, PersistValue)]
 generateTranDateIntervals param = let
   intervals = case (rpFrom param, rpTo param, rpNumberOfPeriods param) of
-    (Nothing, Nothing, _)  -> [ ]
+    (Nothing, Nothing, _)  -> [ (Nothing, Nothing) ]
     (fromM, toM, Nothing)  -> [ (fromM, toM) ]
     (Just from, Nothing, Just n) -> -- go n year ago
           [ (Just (calculateDate (AddYears (-n)) from), Nothing) ]

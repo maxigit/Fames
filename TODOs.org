@@ -1,8 +1,9 @@
 * TODO Chart
-** Today [8/21] 
+** Today [8/22] 
    -[ ] bugs (from Ellie)
    - [X] avg price wrong for summary
    - [ ] period not working
+   - [X]  date range not working when empty
    - [X] justify summary table right
    - [X] 150 -> ,150
    - [X] display - in red
@@ -30,8 +31,8 @@ so we can juxtapose 100% and real number
    - [X] annonymize amount/qty
    - [ ] Permissions
      - [ ] adjust report param
-       - [ ] limit date
        - [ ] annonymize amount/qty
+       - [ ] limit date
    - [ ] Change date parameter to accept automatic date
    - [ ] filter customers
    - [ ] Dashboards
