@@ -619,8 +619,10 @@ tableProcessor grouped = do
                 <th> Adjust Min Price
                 <th> Adjust Max Price
                 <th> Adjust Average Price/
-                <th> Summary Qty (Out)
-                <th> Summary Amount (Out)
+                <th> Leftover
+                <th> Profit Amount
+                <th> Sales Through
+                <th> Margin 
               $forall (keys, qp) <- nmapToList group1
                     <tr>
                       $forall key <- keys
@@ -629,7 +631,7 @@ tableProcessor grouped = do
                       ^{showQp Outward $ salesQPrice qp}
                       ^{showQp Inward $ purchQPrice qp}
                       ^{showQp Inward $ adjQPrice qp}
-                      ^{showQpMargin Outward $ summaryQPrice qp}
+                      ^{showQpMargin qp}
               $if not (null levels)
                 $with (qpt) <- (nmapMargin group1)
                     <tr.total>
@@ -639,27 +641,39 @@ tableProcessor grouped = do
                       ^{showQp Outward $ salesQPrice qpt}
                       ^{showQp Outward $ purchQPrice qpt}
                         ^{showQp Inward $ adjQPrice qpt}
-                        ^{showQpMargin Outward $ summaryQPrice qpt}
+                        ^{showQpMargin qpt}
                       |]
   where
-      showQp' showPrice _ Nothing = [whamlet|
+      showQp _ Nothing = [whamlet|
                                   <td>
                                   <td>
-                                  $if showPrice
-                                    <td>
-                                    <td>
-                                    <td>
+                                  <td>
+                                  <td>
+                                  <td>
                                   |]
-      showQp' showPrice io (Just qp) = [whamlet|
+      showQp io (Just qp) = [whamlet|
                                   <td.just-right> #{formatQuantity (qpQty io qp)}
                                   <td.just-right> #{formatAmount (qpAmount io qp)}
-                                  $if showPrice
-                                    <td.just-right> #{formatPrice (qpMinPrice qp) }
-                                    <td.just-right> #{formatPrice (qpMaxPrice qp) }
-                                    <td.just-right> #{formatPrice (qpAveragePrice qp)}
+                                  <td.just-right> #{formatPrice (qpMinPrice qp) }
+                                  <td.just-right> #{formatPrice (qpMaxPrice qp) }
+                                  <td.just-right> #{formatPrice (qpAveragePrice qp)}
                                   |]
-      showQp = showQp' True
-      showQpMargin = showQp' False
+      showQpMargin tqp = do
+        let qp = summaryQPrice tqp
+            salesM = salesQPrice tqp
+            purchM = purchQPrice tqp
+            qSold = maybe 0 (qpQty Outward) salesM
+            qIn = maybe 0 (qpQty Inward) purchM
+            salesThrough = 100 * qSold / qIn
+            aSold = maybe 0 (qpAmount Outward) salesM
+            aIn = maybe 0 (qpAmount Inward) purchM
+            margin = 100 * (aSold - aIn) / aIn
+        [whamlet|
+                <td.just-right> #{maybe "" (formatQuantity . qpQty Inward) qp}
+                <td.just-right> #{maybe "" (formatAmount . qpAmount Outward) qp}
+                <td.just-right> #{formatPercentage salesThrough}
+                <td.just-right> #{formatPercentage margin}
+                |]
 
 
 -- *** Csv
@@ -1004,6 +1018,7 @@ commas' = later go where
 formatAmount = formatDouble''  RSNormal VAmount
 formatQuantity = formatDouble''  RSNormal VQuantity
 formatPrice = formatDouble''  RSNormal VPrice
+formatPercentage = formatDouble''  RSNormal VPercentage
       
 -- ** Csv
   

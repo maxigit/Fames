@@ -1,13 +1,13 @@
 * TODO Chart
-** Today [5/20] 
+** Today [6/20] 
    -[ ] bugs (from Ellie)
    - [X] avg price wrong for summary
    - [ ] period not working
    - [X] justify summary table right
    - [X] 150 -> ,150
    - [ ] display - in red
-   - [ ] Add margin to summary
-     - [ ]  change heading
+   - [X] Add margin to summary
+     - [X]  change heading
    - [ ]  rename table to summary
      - [ ]  readd sliding year in options or is period enough ?
    - [ ] Adjustment wrond way ?
