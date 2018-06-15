@@ -66,6 +66,7 @@ data NormalizeMargin
   | NMFirst -- first row
   | NMLast -- last row. To comparte sales with last year for example
   | NMTruncated -- 
+  | NMColumnRank -- 
   deriving (Show, Eq, Enum, Bounded)
 data NormalizeTarget
   = NMAll
@@ -846,29 +847,11 @@ formatSerieValues :: (Double -> t) -> (Double -> t)
                   -> [TranQP] -- list of tran to convert
                   -> [Maybe t]
 formatSerieValues formatValue formatPercent mode all panel band f g = let
-           computeMargin t = case nmMargin <$> mode of
-             (Just NMTruncated) -> [mconcat subMargins]
-             (Just NMFirst) -> [headEx subMargins]
-             (Just NMLast) -> [lastEx subMargins]
-             _                  -> [nmapMargin t]
-             where subMargins = map (nmapMargin . snd) (nmapToNMapList t)
-           margins = case nmTarget <$> mode of
-             (Just NMAll ) -> computeMargin all
-             (Just NMPanel ) -> computeMargin panel
-             (Just NMBand ) -> computeMargin band
-             (_ ) -> g
-
-           xs = map f  g
-           -- normalize
-           -- normalize = case mapMaybe f [nmapMargin grouped] of
-           normalize = case mapMaybe (fmap abs . f) margins of
-             [] -> const Nothing
-             vs -> let result x =  case mode of
-                         (Just _) -> Just $ formatPercent $ x * 100 / sum vs
-                         _ -> Just $ formatValue x
-                   in result
-                   -- in \x -> formatDouble $ x
-           in map (>>= normalize) xs
+  indexed = zip (map (NMapKey Nothing . PersistInt64) [1..]) g
+  indexes = map fst indexed
+  input = nmapFromList Nothing indexed
+  output = formatSerieValuesNMap formatValue formatPercent mode all panel band f input
+  in map (flip lookup output ) indexes
 
 nmapRunSum :: (Show b, Monoid b) => RunSum -> NMap b -> NMap b
 nmapRunSum runsum nmap = let
@@ -891,11 +874,57 @@ formatSerieValuesNMap :: (Double -> t) -> (Double -> t)
                   -> NMap TranQP-- list of tran to convert
                   -> Map NMapKey t
 formatSerieValuesNMap formatAmount formatPercent mode all panel band f nmap = let
-  asList = nmapToNMapList nmap
-  (keys, nmaps) = unzip asList
-  strings = formatSerieValues formatAmount formatPercent mode all panel band f (map nmapMargin nmaps)
-  in mapFromList [(key, value) | (key, valueM) <- zip keys strings, value <- maybeToList valueM]
-  
+           computeMargin t = case nmMargin <$> mode of
+             (Just NMTruncated) -> NLeaf (mconcat subMargins)
+             (Just NMFirst) -> NLeaf (headEx subMargins)
+             (Just NMLast) -> NLeaf (lastEx subMargins)
+             (Just NMColumn) -> let
+                        -- regroup margin by column TODO computes on0
+                        -- all data are already grouped by column, but at the deepest level of nesting
+                        -- we need to bring it up
+                        alls = nmapToList t
+                        in groupAsNMap [(Nothing, lastEx)] alls
+             (Just NMColumnRank) -> let
+                        -- regroup margin by column TODO computes on0
+                        -- all data are already grouped by column, but at the deepest level of nesting
+                        -- we need to bring it up, but keep the list of value
+                        alls = [(take 2 $ reverse keys, nmap) | (keys, nmap) <- nmapToList t ]
+                        in groupAsNMap [(Nothing, headEx), (Nothing, lastEx)] alls
+             _ -> NLeaf (nmapMargin t)
+             where subMargins = map (nmapMargin . snd) (nmapToNMapList t)
+           margins = case (nmMargin <$> mode, nmTarget <$> mode)  of
+             (Just NMColumn, Just NMSerie ) -> computeMargin band -- otherwise, everything is 100%
+             (Just NMColumnRank, _ ) -> computeMargin band -- 
+             (_, Just NMAll ) -> computeMargin all
+             (_, Just NMPanel ) -> computeMargin panel
+             (_, Just NMBand ) -> computeMargin band
+             (_ ) -> computeMargin nmap
+           marginMap = nmapToMap margins
+
+           asList = nmapToNMapList nmap
+           key'tranS = nmapMargin <$$>  asList
+           -- normalize
+           -- normalize = case mapMaybe f [nmapMargin grouped] of
+           normalize (col, tqp) = (f tqp >>= go) <&> (col,) where
+             go x = do
+               norm <- f (nmapMargin margins)
+               case nmMargin <$> mode of
+                 Just NMColumn -> do
+                   marginCol <- lookup col marginMap
+                   normCol <- f (nmapMargin marginCol)
+                   return $ formatPercent $ x * 100 / abs normCol
+                 Just NMColumnRank -> do
+                   marginCol <- lookup col marginMap
+                   let values = mapMaybe (f . nmapMargin . snd) (nmapToNMapList marginCol)
+                       sorted = sort values
+                       rankMap :: Map Double Int
+                       rankMap = mapFromList $ zip (reverse sorted) [1 :: Int ..]
+                   rank <- lookup x rankMap
+                   return $ formatPercent (fromIntegral rank)
+                 Just _ -> Just $ formatPercent $ x * 100 / abs norm
+                 Nothing -> Just $ formatAmount x
+           result = mapMaybe normalize key'tranS
+           in mapFromList result
 
 seriesChartProcessor :: NMap TranQP -> NMap TranQP
   -> ColumnRupture -> Bool -> [(QPType, TraceParam, Maybe NormalizeMode )]-> Text -> Text -> NMap TranQP  -> Widget 
@@ -1015,7 +1044,9 @@ bandPivotProcessor all panel rupture mono params name plotId grouped = let
   --   qprice <- lookupGrouped qtype tran
   --   return (valueFn qprice)
     -- Maybe valueFn `fmap` ((lookup column (nmapToMap serie) <&> nmapMargin) >>= lookupGrouped qtype) -- <&> valueFn
-  formatPercent tp = formatDouble' tp {tpValueType = VPercentage}
+  formatPercent tp mode = case nmMargin <$>  mode of
+    Just NMColumnRank -> formatQuantity  -- display rank
+    _ -> formatDouble' tp {tpValueType = VPercentage}
   in [whamlet|
        <div>
          <h3> #{name}
@@ -1032,7 +1063,7 @@ bandPivotProcessor all panel rupture mono params name plotId grouped = let
                      $forall column <- columns
                        <td>
                         $forall (qtype, tp , normMode ) <- params
-                          $with serie <- formatSerieValuesNMap (formatDouble' tp) (formatPercent tp) normMode all panel grouped (fmap (tpValueGetter tp) . lookupGrouped qtype) (nmapRunSum (tpRunSum tp) serie0)
+                          $with serie <- formatSerieValuesNMap (formatDouble' tp) (formatPercent tp normMode) normMode all panel grouped (fmap (tpValueGetter tp) . lookupGrouped qtype) (nmapRunSum (tpRunSum tp) serie0)
                             <div.just-right>#{fromMaybe "-" $ lookup column serie}
              |]
 
