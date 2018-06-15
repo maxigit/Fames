@@ -1,10 +1,10 @@
 * TODO Chart
-** Today [12/22] 
-   -[ ] bugs (from Ellie)
-   - [X] avg price wrong for summary
-   - [X] period not working
-   - [X]  date range not working when empty
-   - [X] justify summary table right
+** Today [13/22] 
+   -[X] bugs (from Ellie)
+    - [X] avg price wrong for summary
+    - [X] period not working
+    - [X]  date range not working when empty
+    - [X] justify summary table right
    - [X] 150 -> ,150
    - [X] display - in red
      - [X] done
@@ -15,12 +15,12 @@
    - [X]  rename table to summary
      - [X]  readd sliding year in options or is period enough ?
    - [X] Adjustment wrond way ?
-   - [-]  Add formating function (% or normal, or forbidden)
-     - [-] percentage column, total, row
+   - [X]  Add formating function (% or normal, or forbidden)
+     - [X] percentage column, total, row
        - [X] total above ?
-       - [ ] column
-       - [ ] use different scale for %
-       - [ ] Add rank
+       - [X] column
+       - [X] use different scale for %
+       - [X] Add rank
    - [ ] display serie as column in table
    - [ ] use full rupture for column
 so we can juxtapose 100% and real number

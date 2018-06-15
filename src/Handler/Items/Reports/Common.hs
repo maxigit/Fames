@@ -66,7 +66,7 @@ data NormalizeMargin
   | NMFirst -- first row
   | NMLast -- last row. To comparte sales with last year for example
   | NMTruncated -- 
-  | NMColumnRank -- 
+  | NMRank -- 
   deriving (Show, Eq, Enum, Bounded)
 data NormalizeTarget
   = NMAll
@@ -884,17 +884,23 @@ formatSerieValuesNMap formatAmount formatPercent mode all panel band f nmap = le
                         -- we need to bring it up
                         alls = nmapToList t
                         in groupAsNMap [(Nothing, lastEx)] alls
-             (Just NMColumnRank) -> let
+             (Just NMRank) -> case nmTarget <$> mode of
+               Just NMSerie ->  let -- column by serie , we need the full serie for each column key
+                        -- we need to duplicate the levels ... So lookup of a column
+                        -- gives the map of all columns/values
+                        keys = map fst asList
+                        in NMap (nmapMargin nmap) [] (mapFromList $ [(key, nmap ) | key <- keys ] )
+               _ -> let -- by band
                         -- regroup margin by column TODO computes on0
                         -- all data are already grouped by column, but at the deepest level of nesting
                         -- we need to bring it up, but keep the list of value
-                        alls = [(take 2 $ reverse keys, nmap) | (keys, nmap) <- nmapToList t ]
+                        alls = [(take 2 $ reverse keys, nmap) | (keys, nmap) <- nmapToList band ]
                         in groupAsNMap [(Nothing, headEx), (Nothing, lastEx)] alls
              _ -> NLeaf (nmapMargin t)
              where subMargins = map (nmapMargin . snd) (nmapToNMapList t)
            margins = case (nmMargin <$> mode, nmTarget <$> mode)  of
              (Just NMColumn, Just NMSerie ) -> computeMargin band -- otherwise, everything is 100%
-             (Just NMColumnRank, _ ) -> computeMargin band -- 
+             (Just NMRank, _ ) -> computeMargin band -- 
              (_, Just NMAll ) -> computeMargin all
              (_, Just NMPanel ) -> computeMargin panel
              (_, Just NMBand ) -> computeMargin band
@@ -913,7 +919,7 @@ formatSerieValuesNMap formatAmount formatPercent mode all panel band f nmap = le
                    marginCol <- lookup col marginMap
                    normCol <- f (nmapMargin marginCol)
                    return $ formatPercent $ x * 100 / abs normCol
-                 Just NMColumnRank -> do
+                 Just NMRank -> do
                    marginCol <- lookup col marginMap
                    let values = mapMaybe (f . nmapMargin . snd) (nmapToNMapList marginCol)
                        sorted = sort values
@@ -1045,7 +1051,7 @@ bandPivotProcessor all panel rupture mono params name plotId grouped = let
   --   return (valueFn qprice)
     -- Maybe valueFn `fmap` ((lookup column (nmapToMap serie) <&> nmapMargin) >>= lookupGrouped qtype) -- <&> valueFn
   formatPercent tp mode = case nmMargin <$>  mode of
-    Just NMColumnRank -> formatQuantity  -- display rank
+    Just NMRank -> (\d -> toHtml $ sformat ords (floor d)) -- formatQuantity  -- display rank
     _ -> formatDouble' tp {tpValueType = VPercentage}
   in [whamlet|
        <div>
