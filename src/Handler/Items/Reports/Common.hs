@@ -844,14 +844,13 @@ formatSerieValues :: (Double -> t) -> (Double -> t)
                   -> NMap TranQP
                   -> NMap TranQP
                   -> (TranQP -> Maybe Double) -- get a value from a tran
-                  -> [TranQP] -- list of tran to convert
+                  -> NMap TranQP -- list of tran to convert
                   -> [Maybe t]
-formatSerieValues formatValue formatPercent mode all panel band f g = let
-  indexed = zip (map (NMapKey Nothing . PersistInt64) [1..]) g
-  indexes = map fst indexed
-  input = nmapFromList Nothing indexed
-  output = formatSerieValuesNMap formatValue formatPercent mode all panel band f input
-  in map (flip lookup output ) indexes
+formatSerieValues formatValue formatPercent mode all panel band f nmap = let
+  -- key'valueS = [(mkNMapKey (PersistText t), v) | (t, v ) <- text'valueS]
+  keys = map fst (nmapToNMapList nmap)
+  output = formatSerieValuesNMap formatValue formatPercent mode all panel band f nmap
+  in map (flip lookup output ) keys
 
 nmapRunSum :: (Show b, Monoid b) => RunSum -> NMap b -> NMap b
 nmapRunSum runsum nmap = let
@@ -937,9 +936,9 @@ seriesChartProcessor :: NMap TranQP -> NMap TranQP
 seriesChartProcessor all panel rupture mono params name plotId grouped = do
      let xsFor g = map (toJSON . fst) g
          -- ysFor :: Maybe NormalizeMode -> (b -> Maybe Double) -> [ (a, b) ] -> [ Maybe Value ]
-         ysFor normM f g = map (fmap toJSON) $ formatSerieValues formatDouble (printf "%0.1f")normM all panel grouped f (map snd g)
+         ysFor normM f g = map (fmap toJSON) $ formatSerieValues formatDouble (printf "%0.1f")normM all panel grouped f g
          traceFor param ((name', g'), color,groupId) = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g) 
-                                                    , ("y",  toJSON $ ysFor normMode fn g)
+                                                    , ("y",  toJSON $ ysFor normMode fn g'')
                                                     -- , ("name", toJSON name )
                                                     , ("connectgaps", toJSON False )
                                                     , ("type", "scatter" ) 
