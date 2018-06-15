@@ -1,28 +1,29 @@
 * TODO Chart
-** Today [13/22] 
+** Today [12/23] 
    -[X] bugs (from Ellie)
     - [X] avg price wrong for summary
     - [X] period not working
     - [X]  date range not working when empty
     - [X] justify summary table right
-   - [X] 150 -> ,150
-   - [X] display - in red
-     - [X] done
-     - [X] change so that in can be in green if good (but unexpected)
-   - [X] Add margin to summary
-     - [X]  change heading
-   - [X] take adjustmen into account in left over and return calculation
-   - [X]  rename table to summary
-     - [X]  readd sliding year in options or is period enough ?
-   - [X] Adjustment wrond way ?
-   - [X]  Add formating function (% or normal, or forbidden)
-     - [X] percentage column, total, row
-       - [X] total above ?
-       - [X] column
-       - [X] use different scale for %
-       - [X] Add rank
-   - [ ] display serie as column in table
-   - [ ] use full rupture for column
+    - [X] 150 -> ,150
+    - [X] display - in red
+      - [X] done
+      - [X] change so that in can be in green if good (but unexpected)
+    - [-] Add margin to summary
+      - [X]  change heading
+    - [x] ADd best Init and best Tail
+    - [X] take adjustmen into account in left over and return calculation
+    - [X]  rename table to summary
+      - [X]  readd sliding year in options or is period enough ?
+    - [X] Adjustment wrond way ?
+    - [X]  Add formating function (% or normal, or forbidden)
+      - [X] percentage column, total, row
+        - [X] total above ?
+        - [X] column
+        - [X] use different scale for %
+        - [X] Add rank
+    - [ ] display serie as column in table
+    - [ ] use full rupture for column
 so we can juxtapose 100% and real number
    - [X] pivot table
      display table as chart (same field) with formatin

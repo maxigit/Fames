@@ -65,6 +65,8 @@ data NormalizeMargin
   | NMTotal -- margin of the target. Represent the total before the residual can be removed
   | NMFirst -- first row
   | NMLast -- last row. To comparte sales with last year for example
+  | NMBestTail -- best of everything but first
+  | NMBestInit -- best of everything but last
   | NMTruncated -- 
   | NMRank -- 
   deriving (Show, Eq, Enum, Bounded)
@@ -877,6 +879,8 @@ formatSerieValuesNMap formatAmount formatPercent mode all panel band f nmap = le
              (Just NMTruncated) -> NLeaf (mconcat subMargins)
              (Just NMFirst) -> NLeaf (headEx subMargins)
              (Just NMLast) -> NLeaf (lastEx subMargins)
+             (Just NMBestTail) -> NLeaf (maximumByEx (comparing f) $  tailEx subMargins)
+             (Just NMBestInit) -> NLeaf (maximumByEx (comparing f) $  initEx subMargins)
              (Just NMColumn) -> let
                         -- regroup margin by column TODO computes on0
                         -- all data are already grouped by column, but at the deepest level of nesting

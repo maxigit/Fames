@@ -336,11 +336,13 @@ nmapMargin :: NMap a -> a
 nmapMargin (NLeaf x) = x
 nmapMargin (NMap x _ _) = x
 
+-- | Creates a 1-deep NMAP from a list of key values
 nmapFromList :: (Monoid a) => Maybe Text -> [(NMapKey, a)] -> NMap a
 nmapFromList level xs = let
   m = Map.fromListWith mappend (map (fmap NLeaf) xs)
   in NMap (mconcat $ map nmapMargin $ toList m) [level] m
 
+-- | Creates a deep NMap from a list a some levels specifications
 groupAsNMap :: Monoid v => [(Maybe Text, k -> NMapKey)] -> [(k, v)] -> NMap v
 groupAsNMap [] trans  = NLeaf (mconcat $ map snd trans)
 groupAsNMap gs@((level, grouper):groupers) trans = let
