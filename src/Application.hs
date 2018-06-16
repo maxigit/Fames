@@ -47,6 +47,7 @@ import Handler.DC
 import Handler.WH
 import Handler.Items
 import Handler.Planner
+import Handler.Dashboard
 import Util.Cache
 
 -- This line actually creates our YesodDispatch instance. It is the second half

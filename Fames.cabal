@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d77fa0d5b126f4c3279cb5dad7b53b13c19d29665e929aa6a07e402560109671
+-- hash: 5415a33c81c852ccd34a0ca738734c30350d3c5ee20742fc6955347bde7e680d
 
 name:           Fames
 version:        0.0.1
@@ -123,6 +123,7 @@ library
       Handler.Comment
       Handler.Common
       Handler.CsvUtils
+      Handler.Dashboard
       Handler.DC
       Handler.DC.Def
       Handler.FA
@@ -460,6 +461,7 @@ test-suite ghcid
       Handler.Comment
       Handler.Common
       Handler.CsvUtils
+      Handler.Dashboard
       Handler.DC
       Handler.DC.Def
       Handler.FA

@@ -85,6 +85,9 @@
   /view/#Maybe-PlannerViewMode PViewR GET POST !group=Planner !title=View
   /image/#Text/#Int64/#Int64 PImageR GET
   
+/dashboard DashboardR !dashboard:
+  / DMainR GET
+  /custom/#Text/#Int64/#Int64 DCustomR GET
 -- Warning ! This code has been generated !}
 
 -- Route

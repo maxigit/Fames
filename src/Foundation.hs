@@ -99,6 +99,8 @@ deriving instance Generic (DC'R)
 instance EnumTreeable (DC'R) 
 deriving instance Generic (PlannerR)
 instance EnumTreeable PlannerR
+deriving instance Generic (DashboardR)
+instance EnumTreeable DashboardR
 
 instance EnumTreeable (Route App)
 
