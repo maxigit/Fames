@@ -53,7 +53,7 @@ reportForm cols paramM extra = do
                ]
   let form = [whamlet|#{extra}|] >> mapM_ (either renderField inline) fields
       inline w = [whamlet| <div.form-inline>^{w}|]
-      report = mkReport fFrom  fTo
+      report = mkReport today fFrom  fTo
           fPeriod  fPeriodN
           fCategoryToFilter  fCategoryFilter
           fStockFilter  fPanel  fBand  fSerie
@@ -62,25 +62,19 @@ reportForm cols paramM extra = do
   return (report , form)
  
 {-# NOINLINE mkReport #-}
-mkReport fFrom  fTo
+mkReport today fFrom  fTo
    fPeriod  fPeriodN
    fCategoryToFilter  fCategoryFilter
    fStockFilter  fPanel  fBand  fSerie
    fColRupture  fTrace1  fTrace2  fTrace3
    fSales  fPurchases  fAdjustment = 
-  ReportParam <$> fFrom <*> fTo
+  ReportParam <$> pure today <*> fFrom <*> fTo
   <*> fPeriod <*> fPeriodN
   <*> fCategoryToFilter <*> fCategoryFilter
   <*> fStockFilter <*> fPanel <*> fBand <*> fSerie
   <*> fColRupture <*> fTrace1 <*> fTrace2 <*> fTrace3
   <*> fSales <*> fPurchases <*> fAdjustment
   -- noneOption, amountOutOption, amountInOption :: ToJSON a =>  (Text, [(QPrice -> Amount, a -> [(Text, Value)], RunSum)])
-noneOption = ("None" :: Text, [])
-amountOutOption = ("Amount (Out)" ,   [(qpAmount Outward, VAmount, amountStyle, RSNormal)] )
-amountInOption = ("Amount (In)",     [(qpAmount Inward,  VAmount, amountStyle, RSNormal)])
-mkIdentifialParam  (t, tp'runsumS) = Identifiable (t, map mkTraceParam tp'runsumS)
-mkTraceParam (f, vtype, options, runsum) = TraceParam f vtype options runsum
-
 traceForm :: Bool -> String -> Maybe TraceParams -> MForm Handler (FormResult TraceParams, Widget)
 traceForm nomode suffix p = do
   let
@@ -145,6 +139,7 @@ getItemsReportR mode = do
   
       defaultReportParam = case mode of
         Just ReportChart -> ReportParam
+                            today
                            (Just past) --  rpFrom :: Maybe Day
                            (Just tomorrow) --  rpTo :: Maybe Day
                            Nothing --  rpPeriod
@@ -160,7 +155,7 @@ getItemsReportR mode = do
                            emptyTrace --  rpTraceParam2 :: TraceParams
                            emptyTrace --  rpTraceParam3 :: TraceParams
                            True True True
-        _ -> ReportParam
+        _ -> ReportParam   today
                            (Just past) --  rpFrom :: Maybe Day
                            (Just tomorrow) --  rpTo :: Maybe Day
                            Nothing --  rpPeriod

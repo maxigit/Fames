@@ -20,7 +20,8 @@ import Formatting
 
 -- * Param
 data ReportParam = ReportParam
-  { rpFrom :: Maybe Day
+  { rpToday :: Day -- today
+  , rpFrom :: Maybe Day
   , rpTo :: Maybe Day
   , rpPeriod' :: Maybe PeriodFolding'
   , rpNumberOfPeriods :: Maybe Int
@@ -188,8 +189,9 @@ periodOptions today from = let
      ,("Monthly", PFMonthly )
      ,("Weekly", PFWeekly)
      ]
-rpPeriod :: Day -> ReportParam -> Maybe PeriodFolding
-rpPeriod today rp = let
+rpPeriod :: ReportParam -> Maybe PeriodFolding
+rpPeriod rp = let
+  today = rpToday rp
   beginYear = fromGregorian (currentYear) 1 1
   currentYear = toYear today
   tomorrowLastYear = calculateDate (AddYears (-1)) . calculateDate (AddDays 1) $ today
@@ -238,70 +240,96 @@ getCols = do
 getColsWithDefault :: Handler ([Column], (Column, Column, Column))
 getColsWithDefault = do
   today <- utctDay <$> liftIO getCurrentTime
-  categories <- categoriesH
-  customerMap <- allCustomers False
-  supplierMap <- allSuppliers False
+  supplierCustomerColumn <- supplierCustomerColumnH
+  categoryColumns <- categoryColumnsH
 
-  let style = Column "Style" (const' $ maybe PersistNull PersistText . tkStyle)
-      variation = Column "Variation" (const' $ maybe PersistNull PersistText . tkVar)
-      -- w52 = Column "52W" (\p tk -> let day0 = addDays 1 $ fromMaybe today (rpTo p)
-      --                                  year = slidingYear day0 (tkDay tk)
-      --                              in mkNMapKey . PersistDay $ fromGregorian year 1 1
-                          -- )
-      defaultBand =  style
-      defaultSerie = variation
-      defaultTime = mkDateColumn monthly -- w52
-      monthly =  ("Beginning of Month", calculateDate BeginningOfMonth)
-      mkDateColumn (name, fn) = Column name fn' where
-        fn' p tk = let (d0, _) = foldDay p tk
-                       d = fn d0
-                   in case (rpPeriod today p) of
-                     Just FoldWeekly -> -- format
-                       let w = dayOfWeek d
-                       in NMapKey (Just $ fromEnum w)  (PersistText $ tshow w)
-                     -- Just (FoldYearly _) -> -- format
-                     --   let (_,m,_) = toGregorian d
-                     --   in NMapKey (Just $ m)  (PersistText $ pack $ formatTime defaultTimeLocale "%B" d) 
-                     -- Just (FoldMonthly _) -> -- format
-                     --   let (_,_,m) = toGregorian d
-                     --   in NMapKey Nothing  (PersistInt64 $ fromIntegral m)
-                     _ ->  NMapKey Nothing (PersistDay d)
-      const' fn = const ( mkNMapKey . fn)
-      -- For the supplier and customer key
-      -- we want the Map to use the id instead of the map for performance reason
-      -- but we need to store the name somewhere.
-      -- The easiest way (to be consistent with the other key)
-      -- we set the id to the rank but the name to the key.
-      -- this doesn't stop the name to be compare when building the map
-      -- but at lest the id have been matched beforehand, which should reduce
-      -- the number of Text comparison significantly.
-      mkCustomerSupplierKey _ tkey = case tkCustomerSupplier tkey of
-        Nothing -> NMapKey Nothing PersistNull
-        Just (Left (custId, _)) ->
-          NMapKey (Just $ fromIntegral custId)
-                  (case lookup (FA.DebtorsMasterKey $ fromIntegral custId) customerMap of
-                                   Nothing -> PersistNull 
-                                   Just cust -> PersistText (decodeHtmlEntities $ FA.debtorsMasterName cust)
-                  )
-        Just (Right suppId) -> 
-          NMapKey (Just $ fromIntegral suppId)
-                  (case lookup (FA.SupplierKey $ fromIntegral suppId) supplierMap of
-                     Nothing -> PersistNull 
-                     Just supp -> PersistText (decodeHtmlEntities $ FA.supplierSuppName supp )
-                  )
-      mkTransactionType _ tkey = let ktype = tkType tkey
-       in NMapKey (Just $ fromEnum ktype)
-                  (PersistText $ showTransType ktype)
+  let defaultBand =  styleColumn
+      defaultSerie = variationColumn
+      defaultTime = monthlyColumn
      
-      foldDay p tkey = let
-        day = tkDay tkey
-        in  case rpPeriod today p of
-              Nothing -> (day, Start day)
-              Just period -> foldTime period (tkDay tkey)
+      -- getDay p tkey = NMapKey Nothing (PersistDay d) where
+      --   (d, _) = foldDay p tkey
 
+      cols = [ styleColumn
+             , variationColumn
+             , skuColumn
+             , periodColumn
+             , supplierCustomerColumn
+             , transactionTypeColumn
+             , salesPurchaseColumn
+             , invoiceCreditColumn
+             ]  <> dateColumns <> categoryColumns
+  return (cols, (defaultBand, defaultSerie, defaultTime))
+           
+mkIdentifialParam  (t, tp'runsumS) = Identifiable (t, map mkTraceParam tp'runsumS)
+mkTraceParam (f, vtype, options, runsum) = TraceParam f vtype options runsum
+-- ** Default parameters
+-- | Column colFn take a ReportParam as a parameter.
+-- This is only used for a few case.
+-- This function create a function suitable for Column from a normal function
+constMkKey :: PersistField b => (a -> b) -> p -> a -> NMapKey
+constMkKey fn = const ( mkNMapKey . toPersistValue . fn)
+
+-- | Change a day to match belong to the given period.
+-- This is useful when plotting data from different period
+-- but make them appears on the same abscissa.
+-- For example, if the period is a whole year 2018 data, from 2017 needs to be "folded" to 2018
+foldDay :: ReportParam -> TranKey -> (Day, Start)
+foldDay p tkey = let
+  day = tkDay tkey
+  in  case rpPeriod p of
+        Nothing -> (day, Start day)
+        Just period -> foldTime period (tkDay tkey)
+
+mkDateColumn :: (Text, Day -> Day) -> Column
+mkDateColumn (name, fn) = Column name fn' where
+  fn' p tk = let (d0, _) = foldDay p tk
+                 d = fn d0
+              in case (rpPeriod p) of
+                Just FoldWeekly -> -- format
+                  let w = dayOfWeek d
+                  in NMapKey (Just $ fromEnum w)  (PersistText $ tshow w)
+                -- Just (FoldYearly _) -> -- format
+                --   let (_,m,_) = toGregorian d
+                --   in NMapKey (Just $ m)  (PersistText $ pack $ formatTime defaultTimeLocale "%B" d) 
+                -- Just (FoldMonthly _) -> -- format
+                --   let (_,_,m) = toGregorian d
+                --   in NMapKey Nothing  (PersistInt64 $ fromIntegral m)
+                _ ->  NMapKey Nothing (PersistDay d)
+-- For the supplier and customer key
+-- we want the Map to use the id instead of the map for performance reason
+-- but we need to store the name somewhere.
+-- The easiest way (to be consistent with the other key)
+-- we set the id to the rank but the name to the key.
+-- this doesn't stop the name to be compare when building the map
+-- but at lest the id have been matched beforehand, which should reduce
+-- the number of Text comparison significantly.
+mkCustomerSupplierKey customerMap supplierMap _ tkey = case tkCustomerSupplier tkey of
+  Nothing -> NMapKey Nothing PersistNull
+  Just (Left (custId, _)) ->
+    NMapKey (Just $ fromIntegral custId)
+            (case lookup (FA.DebtorsMasterKey $ fromIntegral custId) customerMap of
+                              Nothing -> PersistNull 
+                              Just cust -> PersistText (decodeHtmlEntities $ FA.debtorsMasterName cust)
+            )
+  Just (Right suppId) -> 
+    NMapKey (Just $ fromIntegral suppId)
+            (case lookup (FA.SupplierKey $ fromIntegral suppId) supplierMap of
+                Nothing -> PersistNull 
+                Just supp -> PersistText (decodeHtmlEntities $ FA.supplierSuppName supp )
+            )
+mkTransactionType _ tkey = let ktype = tkType tkey
+  in NMapKey (Just $ fromEnum ktype)
+            (PersistText $ showTransType ktype)
+
+-- *** Columns
+styleColumn = Column "Style" (constMkKey tkStyle)
+variationColumn = Column "Variation" (constMkKey tkVar)
+skuColumn = Column "Sku" (constMkKey tkSku)
+periodColumn = Column "Period" getPeriod where
       getPeriod p tkey = let
         (_, Start d) = foldDay p tkey
-        in case rpPeriod today p of
+        in case rpPeriod p of
              Just (FoldMonthly _) -> -- format
                let (_,m,_) = toGregorian d
                in NMapKey (Just m)  (PersistText $ pack $ formatTime defaultTimeLocale "%B" d) 
@@ -315,37 +343,37 @@ getColsWithDefault = do
 
 
              _ -> NMapKey Nothing (PersistDay d) where
-      -- getDay p tkey = NMapKey Nothing (PersistDay d) where
-      --   (d, _) = foldDay p tkey
+supplierCustomerColumnH = do
+  customerMap <- allCustomers False
+  supplierMap <- allSuppliers False
+  return $ Column "Supplier/Customer" (mkCustomerSupplierKey customerMap supplierMap)
+transactionTypeColumn = Column "TransactionType" mkTransactionType
+salesPurchaseColumn = Column "Sales/Purchase" (constMkKey $ maybe PersistNull PersistText . tkType'')
+invoiceCreditColumn = Column "Invoice/Credit" (constMkKey $ maybe PersistNull PersistText . tkType')
+categoryColumnsH = do
+  categories <- categoriesH
+  return [ Column ("Category:" <> cat) (constMkKey $ \tk -> maybe PersistNull PersistText $ Map.lookup cat (tkCategory tk))
+         | cat <- categories
+         ]
 
-      cols = [ style
-            , variation
-            , Column "Sku" (const' $ PersistText . tkSku)
-            , Column "Period" getPeriod
-            -- , Column "Date" getDay
-            , mkDateColumn ("Day", id)
-            -- , w52
-            -- , Column "Customer" (const' $ maybe PersistNull (PersistInt64. fst) . tkCustomer)
-            -- , Column "Supplier" (const' $ maybe PersistNull  PersistInt64 . tkSupplier)
-            , Column "Supplier/Customer" mkCustomerSupplierKey --  (const' $ maybe PersistNull (either (PersistInt64 . fst)
-                                                               --              PersistInt64
-                                                               --     ). tkCustomerSupplier)
-            , Column "TransactionType" mkTransactionType
-            , Column "Sales/Purchase" (const' $ maybe PersistNull PersistText . tkType'')
-            , Column "Invoice/Credit" (const' $ maybe PersistNull PersistText . tkType')
-            ]  <>
-            ( map mkDateColumn [ ("Beginning of Year", calculateDate BeginningOfYear)
-                               , ("Beginning of Quarter", calculateDate (BeginningOfQuarter))
-                               , ("Beginning of Week", calculateDate (BeginningOfWeek Sunday))
-                               , monthly
-                               ]
-            ) <>
-            [ Column ("Category:" <> cat) (const' $ \tk -> maybe PersistNull PersistText $ Map.lookup cat (tkCategory tk))
-            | cat <- categories
-            ]
-  return (cols, (defaultBand, defaultSerie, defaultTime))
-           
-  -- return $ map Column $ basic ++ ["category:" <>  cat | cat <- categories]
+dateColumns@[yearlyColumn, quarterlyColumn, weeklyColumn, monthlyColumn, dailyColum]
+  = map mkDateColumn [ ("Beginning of Year", calculateDate BeginningOfYear)
+                     , ("Beginning of Quarter", calculateDate (BeginningOfQuarter))
+                     , ("Beginning of Week", calculateDate (BeginningOfWeek Sunday))
+                     , ("Beginning of Month", calculateDate BeginningOfMonth)
+                     , ("Day", id)
+                     ]
+w52 = Column "52W" (\p tk -> let day0 = addDays 1 $ fromMaybe (rpToday p) (rpTo p)
+                                 year = slidingYear day0 (tkDay tk)
+                             in mkNMapKey . PersistDay $ fromGregorian year 1 1
+                   )
+-- ** Default options
+emptyRupture = ColumnRupture Nothing emptyTrace Nothing Nothing
+emptyTrace = TraceParams QPSales (mkIdentifialParam noneOption) Nothing
+noneOption = ("None" :: Text, [])
+amountOutOption = ("Amount (Out)" ,   [(qpAmount Outward, VAmount, amountStyle, RSNormal)] )
+amountInOption = ("Amount (In)",     [(qpAmount Inward,  VAmount, amountStyle, RSNormal)])
+
 -- * DB
 loadItemTransactions :: ReportParam
                      -> ([(TranKey, TranQP)] -> NMap TranQP)
@@ -382,8 +410,8 @@ computeCategory skuToStyleVar categories catFinder (key, tpq) = let
 
 -- | Allows to load similar slices of time depending on the param
 -- example the first 3 months of each year
-generateTranDateIntervals :: Day -> ReportParam -> [(Text, PersistValue)]
-generateTranDateIntervals today param = let
+generateTranDateIntervals :: ReportParam -> [(Text, PersistValue)]
+generateTranDateIntervals param = let
   intervals = case (rpFrom param, rpTo param, rpNumberOfPeriods param) of
     (Nothing, Nothing, _)  -> [ (Nothing, Nothing) ]
     (fromM, toM, Nothing)  -> [ (fromM, toM) ]
@@ -392,7 +420,7 @@ generateTranDateIntervals today param = let
     (Nothing, Just to, Just n) -> -- go n year ago
           [ (Nothing, Just to) ]
     (Just from, toM, Just n) -> let
-      period i = case rpPeriod today param of
+      period i = case rpPeriod param of
         Just (FoldYearly _) -> calculateDate (AddYears (-i))
         Just (FoldMonthly _) -> calculateDate (AddMonths (-i))
         Just (FoldQuaterly _) -> calculateDate (AddMonths (-i*3))
@@ -426,7 +454,6 @@ generateTranDateIntervals today param = let
   
 loadItemSales :: ReportParam -> Handler [(TranKey, TranQP)]
 loadItemSales param = do
-  today <- utctDay <$> liftIO getCurrentTime
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   let catFilterM = (,) <$> rpCategoryToFilter param <*> rpCategoryFilter param
   let sql = intercalate " " $
@@ -454,14 +481,13 @@ loadItemSales param = do
                                  in [ (" AND category.value " <> keyw <> " ?", PersistText v)
                                     , (" AND category.category = ? ", PersistText catToFilter)
                                     ]
-                       <> generateTranDateIntervals today param
+                       <> generateTranDateIntervals param
         
   sales <- runDB $ rawSql (sql <> intercalate " "w) p
   return $ map detailToTransInfo sales
 
 loadItemPurchases :: ReportParam -> Handler [(TranKey, TranQP)]
 loadItemPurchases param = do
-  today <- utctDay <$> liftIO getCurrentTime
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   let catFilterM = (,) <$> rpCategoryToFilter param <*> rpCategoryFilter param
   let sql = intercalate " " $
@@ -488,14 +514,13 @@ loadItemPurchases param = do
                                  in [ (" AND category.value " <> keyw <> " ?", PersistText v)
                                     , (" AND category.category = ? ", PersistText catToFilter)
                                     ]
-                       <> generateTranDateIntervals today param
+                       <> generateTranDateIntervals param
   purch <- runDB $ rawSql (sql <> intercalate " " w) p
   return $ map purchToTransInfo purch
 
 
 loadStockAdjustments :: ReportParam -> Handler [(TranKey, TranQP)]
 loadStockAdjustments param = do
-  today <- utctDay <$> liftIO getCurrentTime
   -- We are only interested in what's going in or out of the LOST location
   -- checking what's in DEF doesn't work, as it mixes
   -- transfers from incoming containers  with real adjusment
@@ -528,7 +553,7 @@ loadStockAdjustments param = do
                                  in [ (" AND category.value " <> keyw <> " ?", PersistText v)
                                     , (" AND category.category = ? ", PersistText catToFilter)
                                     ]
-                       <> generateTranDateIntervals today param
+                       <> generateTranDateIntervals param
 
   moves <- runDB $ rawSql (sql <> intercalate " " w) p
   return $ map moveToTransInfo moves
