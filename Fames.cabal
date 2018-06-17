@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5415a33c81c852ccd34a0ca738734c30350d3c5ee20742fc6955347bde7e680d
+-- hash: f0b9d2ac4010bced9b378110a9b3f5f39683721d98634b66c79fb4ac4e65ff8d
 
 name:           Fames
 version:        0.0.1
@@ -109,7 +109,7 @@ library
     , yesod-media-simple >=0.2.0.1 && <0.2.1
     , yesod-static >=1.4.0.3 && <1.6
   if (flag(dev)) || (flag(library-only))
-    ghc-options: -fwarn-tabs -fwarn-incomplete-patterns -fwarn-incomplete-record-updates -fwarn-missing-fields -fwarn-unused-binds -Werror -fno-warn-partial-type-signatures -fno-max-relevant-binds -O0 -j6
+    ghc-options: -fwarn-tabs -fwarn-incomplete-patterns -fwarn-incomplete-record-updates -fwarn-missing-fields -fwarn-unused-binds -fno-warn-partial-type-signatures -fno-max-relevant-binds -O0 -j6
     cpp-options: -DDEVELOPMENT
   else
     ghc-options: -w -fwarn-tabs -Wno-type-defaults -O2 -j6
