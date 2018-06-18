@@ -14,6 +14,7 @@ import GL.Payroll.Settings
 getDMainR :: Handler Html
 getDMainR = defaultLayout $ do
   addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
+  toWidgetHead commonCss
   [whamlet|
 <div.panel.panel-primary>
   <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-1">
