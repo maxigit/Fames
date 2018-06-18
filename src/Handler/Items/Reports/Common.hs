@@ -51,6 +51,7 @@ data ColumnRupture = ColumnRupture
    , cpSortBy :: TraceParams
    , cpRankMode :: Maybe RankMode
    , cpLimitTo :: Maybe Int
+   , cpReverse :: Bool
    } deriving Show
 -- | Trace parameter for plotting 
 data TraceParams = TraceParams
@@ -368,7 +369,7 @@ w52 = Column "52W" (\p tk -> let day0 = addDays 1 $ fromMaybe (rpToday p) (rpTo 
                              in mkNMapKey . PersistDay $ fromGregorian year 1 1
                    )
 -- ** Default options
-emptyRupture = ColumnRupture Nothing emptyTrace Nothing Nothing
+emptyRupture = ColumnRupture Nothing emptyTrace Nothing Nothing False
 emptyTrace = TraceParams QPSales (mkIdentifialParam noneOption) Nothing
 noneOption = ("None" :: Text, [])
 amountOutOption = ("Amount (Out)" ,   [(qpAmount Outward, VAmount, amountStyle, RSNormal)] )
@@ -799,13 +800,15 @@ toCsv param grouped' = let
 -- *** Sort and limit
 sortAndLimitTranQP :: [ColumnRupture] -> NMap TranQP -> NMap TranQP
 sortAndLimitTranQP ruptures nmap = let
-  mkCol :: ColumnRupture ->  Maybe (NMapKey ->  TranQP -> Double, Maybe RankMode, Maybe Int)
-  mkCol (ColumnRupture{..}) = case (getIdentified (tpDataParams cpSortBy), cpColumn) of
-    (_, Nothing) -> Nothing
-    ([], _) -> Nothing
-    ((tp :_), _) -> Just ( \k mr -> maybe 0 (tpValueGetter tp) $ lookupGrouped (tpDataType cpSortBy) $ mr
+  mkCol :: ColumnRupture ->  Maybe (NMapKey ->  TranQP -> Maybe Double, Maybe RankMode, Maybe Int, Bool)
+  mkCol (ColumnRupture{..}) = case (getIdentified (tpDataParams cpSortBy), cpColumn, cpReverse) of
+    (_, Nothing, False) -> Nothing
+    ([], _col, False) -> Nothing
+    ([], _, True) -> Just (\k mr -> Nothing, cpRankMode, cpLimitTo, cpReverse)
+    ((tp :_), _,_) -> Just ( \k mr -> tpValueGetter tp <$> (lookupGrouped (tpDataType cpSortBy) $ mr)
                                            , cpRankMode
                                            , cpLimitTo
+                                           , cpReverse
                                            )
   in sortAndLimit (map mkCol ruptures) nmap
   

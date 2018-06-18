@@ -363,15 +363,17 @@ data RankMode = RMResidual -- replace residuals with concat
 sortAndLimit :: (Ord r)
              => [Maybe ( NMapKey ->  TranQP -> r
                        , Maybe RankMode
-                       , Maybe Int)
+                       , Maybe Int -- limit
+                       , Bool) -- reverse
                 ]  -> NMap TranQP -> NMap TranQP
 sortAndLimit  [] nmap = nmap
 sortAndLimit  _ (NLeaf a) = NLeaf a
 sortAndLimit  (Nothing:cols) (NMap mr levels m) = NMap mr levels (fmap (sortAndLimit cols) m)
-sortAndLimit  (Just (sortFn, modeM, limitM):cols) (NMap mr levels m) = let
-  sorted = map snd $ sortOn fst [ ((sortFn key (nmapMargin nmap)),  (key, nmap))
+sortAndLimit  (Just (sortFn, modeM, limitM, reverseOrder):cols) (NMap mr levels m) = let
+  sorted' = map snd $ sortOn fst [ ((sortFn key (nmapMargin nmap)),  (key, nmap))
                                 | (key, nmap) <- Map.toList m
                                 ]
+  sorted = (if reverseOrder then reverse else id) sorted'
   (bests, residuals) = case limitM of
     Nothing -> (sorted, [])
     Just limit ->  splitAt limit sorted
