@@ -3,9 +3,9 @@ module Handler.Items.Common where
 import Import
 import Items
 import Data.Text(splitOn)
-import qualified Data.Map as Map 
+import qualified Data.Map as Map
 import Data.Time.Calendar
-import qualified FA as FA
+import qualified FA
 
 -- * Style names conversion
 -- Those function are in handler and not in app
@@ -19,10 +19,10 @@ skuToStyleVarH = do
   -- check style and colour categories exists
   let style = "style"
       var = "colour"
-  when (style `notElem` categories) $ do
-    setWarning ("Style category not set. Please contact your Administrator.")
-  when (var `notElem` categories) $ do
-    setWarning ("Variation category not set. Please contact your Administrator.")
+  when (style `notElem` categories) $
+    setWarning "Style category not set. Please contact your Administrator."
+  when (var `notElem` categories) $
+    setWarning "Variation category not set. Please contact your Administrator."
   let styleFn = catFinder style
       varFn = catFinder var
   return $ (,) <$> (\sku -> fromMaybe sku $ styleFn (FA.StockMasterKey sku)) <*> (fromMaybe "" . varFn . FA.StockMasterKey)
@@ -32,7 +32,8 @@ skuToStyleVarH = do
 styleVarToSku :: Text -> Text -> Text
 styleVarToSku style "" = style
 styleVarToSku style var = style <> "-" <> var
-  
+
+
 
 -- ** Sku form info
 
@@ -41,11 +42,11 @@ iiSku (ItemInfo style var _ ) = styleVarToSku style var
 -- | Split a variation name to variations
 -- ex: A/B -> [A,B]
 variationToVars :: Text -> [Text]
-variationToVars var = splitOn "/" var
+variationToVars = splitOn "/"
 
 -- | Inverse of variationToVars
 varsToVariation :: [Text] -> Text
-varsToVariation vars = intercalate "/" vars
+varsToVariation = intercalate "/" 
 
 
 

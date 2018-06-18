@@ -121,7 +121,7 @@ library:
       - -fwarn-incomplete-record-updates
       - -fwarn-missing-fields
       - -fwarn-unused-binds
-      - -Werror
+      # - -Werror
       - -fno-warn-partial-type-signatures
       - -fno-max-relevant-binds
       - -O0

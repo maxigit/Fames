@@ -374,6 +374,8 @@ noneOption = ("None" :: Text, [])
 amountOutOption = ("Amount (Out)" ,   [(qpAmount Outward, VAmount, amountStyle, RSNormal)] )
 amountInOption = ("Amount (In)",     [(qpAmount Inward,  VAmount, amountStyle, RSNormal)])
 
+-- ** Default trace
+bestSalesTrace = TraceParams QPSales (mkIdentifialParam amountInOption) Nothing
 -- * DB
 loadItemTransactions :: ReportParam
                      -> ([(TranKey, TranQP)] -> NMap TranQP)
@@ -814,16 +816,26 @@ chartProcessor param grouped = do
   -- addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
   -- done add report level to fix ajax issue.
   let asList = nmapToNMapList grouped
-  forM_ (zip asList [1 :: Int ..]) $ \((panelName, nmap), i) -> do
-     let plotId = "items-report-plot-" <> tshow i 
+  forM_ (zip asList [1 :: Int ..]) $ \((panelKey, nmap), i) -> do
+     let plotId = "items-report-" <> panelName <> "-" <> tshow i 
          -- bySerie = fmap (groupAsMap (mkGrouper param (cpColumn $ rpSerie param) . fst) (:[])) group
-     panelChartProcessor grouped param (nkeyWithRank panelName) plotId nmap
+         panelName = nkeyWithRank panelKey
+         panel = panelChartProcessor grouped param plotId nmap
+     [whamlet|
+      <div.panel.panel-info>
+        <div.panel-heading data-toggle="collapse" data-target="#report-panel-#{panelName}">
+          <h2>#{panelName}
+        <div.panel-body.collapse.in id="report-panel-#{panelName}">
+          ^{panel}
+            |]
         
   
-panelChartProcessor :: NMap TranQP -> ReportParam -> Text -> Text -> NMap TranQP -> Widget 
-panelChartProcessor all param name plotId0 grouped = do
+panelChartProcessor :: NMap TranQP -> ReportParam -> Text -> NMap TranQP -> Widget 
+panelChartProcessor all param plotId0 grouped = do
   let asList = nmapToNMapList grouped
-  let plots = forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
+      numberOfBands = length asList
+      plotHeight = max 350 (900 `div` numberOfBands)
+  forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
         do
           let -- byColumn = nmapToNMapList grouped -- fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) (unNMap TranQP' bands)
               traceParams = [(qtype, tparam, tpNorm )
@@ -837,15 +849,6 @@ panelChartProcessor all param name plotId0 grouped = do
             <div id=#{plotId} style="height:#{tshow plotHeight }px">
                 ^{plot}
                   |]
-      numberOfBands = length asList
-      plotHeight = max 350 (900 `div` numberOfBands)
-  [whamlet|
-      <div.panel.panel-info>
-        <div.panel-heading data-toggle="collapse" data-target="#report-panel-#{name}">
-          <h2>#{name}
-        <div.panel-body.collapse.in id="report-panel-#{name}">
-          ^{plots}
-            |]
 
     
 defaultColors :: [Text]
