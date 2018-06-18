@@ -36,6 +36,11 @@ getDMainR = defaultLayout $ do
 -- Run report by name (find in configuration file)
 getDCustomR :: Text -> Int64 -> Int64 -> Handler Html
 getDCustomR reportName width height = do
+  role <- currentRole
+  when (not $ authorizeFromAttributes role (setFromList [reportName]) ReadRequest)
+       (permissionDenied reportName)
+     
+
   let reportMaker = case reportName of
         "top100ItemYearChart" -> top100ItemYearChart "top1"
         "top100ItemYearChart2" -> top100ItemYearChart "top2"
