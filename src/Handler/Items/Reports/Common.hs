@@ -657,9 +657,12 @@ commonCss = [cassius|
     writing-mode: sideways-lr
 .just-right
   text-align: right
-.negative-good .negative, .positive-good .positive
-  background: ##dff0d8
+.negative-good .negative, .positive-good .positive, .topOne
+  background: #dff0d8
   color: #93c54b
+.topTwo
+  background: #d0edf7
+  color: #29abe0
 .negative-bad .negative, .positive-bad .positive
   background: #fedede
   color: #d0534f
@@ -1074,7 +1077,11 @@ bandPivotProcessor all panel rupture mono params name plotId grouped = let
   --   return (valueFn qprice)
     -- Maybe valueFn `fmap` ((lookup column (nmapToMap serie) <&> nmapMargin) >>= lookupGrouped qtype) -- <&> valueFn
   formatPercent tp mode = case nmMargin <$>  mode of
-    Just NMRank -> (\d -> toHtml $ sformat ords (floor d)) -- formatQuantity  -- display rank
+    Just NMRank -> \d -> let rank  = floor d
+                             isTop = rank == 1
+                             isTop2 = rank == 2
+                          in [shamlet|<span :isTop:.topOne :isTop2:.topTwo>#{sformat ords rank}|]
+
     _ -> formatDouble' tp {tpValueType = VPercentage}
   in [whamlet|
        <div>
