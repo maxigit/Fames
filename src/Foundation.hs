@@ -396,6 +396,7 @@ mainLinks = do
              , ("FAX",  FAX'R FAXItemRequestsR)
              , ("FAMES",  FAMES'R FAMESFamesBarcodeSeedR)
              , ("DC",  DC'R DCNodeR)
+             , ("Dashboard",  DashboardR DMainR)
              ]
       authorised (_, r) = do
         -- and menu is allowed if only one of its children is allowed
