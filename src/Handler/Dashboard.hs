@@ -79,10 +79,11 @@ top100ItemYear = do
       rpLoadPurchases = False
       rpLoadAdjustment = False
       -- TODO factorize
-      grouper = [ rpPanelRupture, rpBand, rpSerie
+      grouper = [ rpBand, rpSerie
                 , ColumnRupture  (Just rpColumnRupture) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing
                 ]
-  report <- itemReport param grouper (pivotProcessor param)
+  -- report <- itemReport param grouper (pivotProcessor param)
+  report <- itemReport param grouper (\nmap -> panelPivotProcessor nmap param "pivot-Top-100" nmap)
   return $ report
       
 

@@ -813,22 +813,23 @@ sortAndLimitTranQP ruptures nmap = let
 -- ** Plot
 chartProcessor :: ReportParam -> NMap TranQP -> Widget 
 chartProcessor param grouped = do
-  -- addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
-  -- done add report level to fix ajax issue.
+  processPanelsWith "items-report-chart" param grouped panelChartProcessor
+        
+processPanelsWith reportId param grouped panelProcessor =  do
   let asList = nmapToNMapList grouped
   forM_ (zip asList [1 :: Int ..]) $ \((panelKey, nmap), i) -> do
-     let plotId = "items-report-" <> panelName <> "-" <> tshow i 
+     let plotId = reportId <> "-plot-" <> "-" <> tshow i 
          -- bySerie = fmap (groupAsMap (mkGrouper param (cpColumn $ rpSerie param) . fst) (:[])) group
          panelName = nkeyWithRank panelKey
-         panel = panelChartProcessor grouped param plotId nmap
+         panelId = reportId <> "-panel-" <> panelName
+         panel = panelProcessor grouped param plotId nmap
      [whamlet|
       <div.panel.panel-info>
-        <div.panel-heading data-toggle="collapse" data-target="#report-panel-#{panelName}">
+        <div.panel-heading data-toggle="collapse" data-target="#{panelId}">
           <h2>#{panelName}
-        <div.panel-body.collapse.in id="report-panel-#{panelName}">
+        <div.panel-body.collapse.in id="#{panelId}" style="max-height:2000px; overflow:auto">
           ^{panel}
             |]
-        
   
 panelChartProcessor :: NMap TranQP -> ReportParam -> Text -> NMap TranQP -> Widget 
 panelChartProcessor all param plotId0 grouped = do
@@ -1031,17 +1032,12 @@ seriesChartProcessor all panel rupture mono params name plotId grouped = do
 -- | Render a pivot table similar to the chart but a table instead
 pivotProcessor :: ReportParam -> NMap TranQP -> Widget 
 pivotProcessor param grouped = do
-  let asList = nmapToNMapList grouped
-  toWidget commonCss
-  forM_ (zip asList [1 :: Int ..]) $ \((panelName, nmap), i) -> do
-     let plotId = "items-report-table-" <> tshow i 
-         -- bySerie = fmap (groupAsMap (mkGrouper param (cpColumn $ rpSerie param) . fst) (:[])) group
-     panelPivotProcessor grouped param (nkeyWithRank panelName) plotId nmap
+  processPanelsWith "items-report-pivot" param grouped panelPivotProcessor
 
-panelPivotProcessor :: NMap TranQP -> ReportParam -> Text -> Text -> NMap TranQP -> Widget 
-panelPivotProcessor all param name plotId0 grouped = do
+panelPivotProcessor :: NMap TranQP -> ReportParam -> Text -> NMap TranQP -> Widget 
+panelPivotProcessor all param plotId0 grouped = do
   let asList = nmapToNMapList grouped
-  let plots = forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
+  forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
         do
           let -- byColumn = nmapToNMapList grouped -- fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) (unNMap TranQP' bands)
               traceParams = [(qtype, tparam, tpNorm )
@@ -1055,13 +1051,6 @@ panelPivotProcessor all param name plotId0 grouped = do
             <div.negative-bad id=#{plotId}>
                 ^{plot}
                   |]
-  [whamlet|
-      <div.panel.panel-info>
-        <div.panel-heading data-toggle="collapse" data-target="#report-panel-#{name}">
-          <h2>#{name}
-        <div.panel-body.collapse.in id="report-panel-#{name}">
-          ^{plots}
-            |]
 -- | Display an html table (pivot) for each series
 bandPivotProcessor :: NMap TranQP -> NMap TranQP
   -> ColumnRupture -> Bool -> [(QPType, TraceParam, Maybe NormalizeMode )]-> Text -> Text -> NMap TranQP  -> Widget 
