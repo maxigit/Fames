@@ -27,17 +27,12 @@ div#pivot-Top-100-1
   <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-1">
     <h2> Top 100 Items (Beginning of Year)
   <div.panel-body id=dashboard-panel-1>
-    <div#test-include-1 style="max-height:400px; overflow:auto">
-<div.panel.panel-primary>
-  <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-1">
-    <h2> Top 100 Items (Beginning of Year)
-  <div.panel-body id=dashboard-panel-2>
-    <div#test-include-2 style="max-height:400px; overflow:auto">
-<div.panel.panel-primary>
-  <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-1">
-    <h2> Top 100 Items (Beginning of Year)
-  <div.panel-body id=dashboard-panel-3>
-    <div#test-include-3 style="max-height:400px; overflow:auto">
+      <h2> Top Style
+      <div#test-include-2 style="max-height:440px; overflow:auto">
+      <h2> Top Colour
+      <div#test-include-3 style="max-height:440px; overflow:auto">
+      <h2> Top Items
+      <div#test-include-1 style="max-height:440px; overflow:auto">
 |]
   toWidgetBody [julius|
                       $("#test-include-1").load("@{DashboardR (DCustomR "top100ItemYear" 800 400)}")
@@ -87,8 +82,8 @@ top100ItemYear rupture = do
       rpBand = emptyRupture
       rpSerie = ColumnRupture (Just rupture) bestSalesTrace Nothing (Just 100) False
       rpColumnRupture = periodColumn
-      rpTraceParam = TraceParams QPSales (mkIdentifialParam amountOutOption) (Just $ NormalizeMode NMColumn NMSerie )
-      rpTraceParam2 = TraceParams QPSales (mkIdentifialParam amountOutOption) (Just $ NormalizeMode NMRank NMBand )
+      rpTraceParam2 = TraceParams QPSales (mkIdentifialParam amountOutOption) (Just $ NormalizeMode NMColumn NMSerie )
+      rpTraceParam = TraceParams QPSales (mkIdentifialParam amountOutOption) (Just $ NormalizeMode NMRank NMBand )
       rpTraceParam3 = emptyTrace
       rpLoadSales = True
       rpLoadPurchases = False

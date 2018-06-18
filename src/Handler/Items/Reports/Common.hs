@@ -1086,7 +1086,7 @@ bandPivotProcessor all panel rupture mono params name plotId grouped = let
   in [whamlet|
        <div>
          <h3> #{name}
-         <table.table.table-border>
+         <table.table.table-border.table-hover.table-striped>
            <thead>
              <tr>
                <th> #{fromMaybe "" $ fmap colName (cpColumn rupture)}
