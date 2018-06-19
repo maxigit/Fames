@@ -62,6 +62,10 @@ data TraceParams = TraceParams
   , tpDataNorm :: Maybe NormalizeMode
   }  deriving Show
 
+cpSorter ColumnRupture{..} = case getIdentified $ tpDataParams cpSortBy of
+    (tp :_)->  \k tqp -> Sum $ fromMaybe 0 $ (tpValueGetter tp) <$> (lookupGrouped (tpDataType cpSortBy) $ tqp)
+    _ -> \k tqp -> Sum 0
+  
 --
 data NormalizeMargin
   = NMRow
@@ -620,17 +624,35 @@ purchToTransInfo ( Entity _ FA.SuppInvoiceItem{..}
 -- * Reports
 -- ** Common
 -- | Display sales and purchase of an item
-itemReport
+itemReportXXX
   :: ReportParam
      -> [ColumnRupture]
      -> (NMap (Sum Double, TranQP) -> a )
      -> Handler a
-itemReport param cols processor = do
+itemReportXXX param cols processor = do
   let grouper =  groupTranQPs param ((map cpColumn cols))
   grouped <- loadItemTransactions param grouper
   -- ranke
   let ranked = sortAndLimitTranQP cols grouped
   return $ processor ranked
+
+itemReport :: ReportParam
+           -> ((ColumnRupture, _) -> NMap TranQP -> b)
+           -> Handler b
+itemReport param processor = do
+  let panel = rpPanelRupture param
+      band = rpBand param
+      serie = rpSerie param
+      col = rpColumnRupture param
+      -- for table, the exact meaning of the rupture doesn't matter
+      colR = ColumnRupture  (Just col) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
+      cols = [ panel, band, serie, colR]
+      ruptures = (panel, (band, (serie, (colR, ()))))
+  let grouper =  groupTranQPs param ((map cpColumn cols))
+  grouped <- loadItemTransactions param grouper
+
+  -- ranke
+  return $ processor ruptures grouped
 
 groupTranQPs :: ReportParam
              -> [Maybe Column]
@@ -831,9 +853,9 @@ nmapToNMapListWithRank  nmap =
 -- ** Plot
 chartProcessor :: ReportParam -> NMap (Sum Double, TranQP) -> Widget 
 chartProcessor param grouped = do
-  processPanelsWith "items-report-chart" param grouped panelChartProcessor
+  processPanelsWithXXX "items-report-chart" param grouped panelChartProcessor
         
-processPanelsWith reportId param grouped panelProcessor =  do
+processPanelsWithXXX reportId param grouped panelProcessor =  do
   let asList = nmapToNMapListWithRank grouped
   forM_ (zip asList [1 :: Int ..]) $ \((panelKey, nmap), i) -> do
      let plotId = reportId <> "-plot-" <> "-" <> tshow i 
@@ -848,6 +870,28 @@ processPanelsWith reportId param grouped panelProcessor =  do
         <div.panel-body.collapse.in id="#{panelId}" style="max-height:2000px; overflow:auto">
           ^{panel}
             |]
+  
+-- processPanelsWith :: Monoid w
+--                   => (ColumnRupture, rs )
+--                   -> (NMap TranQP)
+--                   -> (NMap TranQP -> rs -> (NMapKey, NMap TranQP) -> (NMapKey, TranQP, w) )
+--                   -> w
+processPanelsWith (rupture, subruptures) nmap bandProcessor =  let
+  key'nmaps = nmapToNMapList nmap
+  weigher (k,t) = cpSorter rupture k  (nmapMargin t)
+  sorted' = sortOn weigher key'nmaps
+  sorted = (if cpReverse rupture then reverse else id) sorted'
+  (bests, residuals) = case cpLimitTo rupture of
+                         Nothing -> (sorted, [])
+                         Just limit ->  splitAt limit sorted
+
+  limited = makeResidual (cpRankMode rupture) bests residuals
+  in mconcat $ zipWith  (\(k,n) i -> bandProcessor k i (nmapMargin nmap) subruptures n) limited [1..]
+
+
+      
+  
+
   
 panelChartProcessor :: NMap (Sum Double, TranQP) -> ReportParam -> Text -> NMap (Sum Double, TranQP) -> Widget 
 panelChartProcessor all param plotId0 grouped = do
@@ -1011,7 +1055,7 @@ seriesChartProcessor all panel rupture mono params name plotId grouped = do
                   , (name'group, gcId) <- zip asList colorIds
          -- if there is only one series, we don't need to group legend and colour by serie
                   , let (color, groupId) = if mono {-length grouped == 1-} then pcId else gcId
-                  ] -- ) (cycle defaultColors) [1 :: Int ..])
+                  ] -- ) (cycle defaultColors) [1 :: Int ..]
      toWidgetBody [julius|
           Plotly.plot( #{toJSON plotId}
                     , #{toJSON jsData} 
@@ -1048,13 +1092,54 @@ seriesChartProcessor all panel rupture mono params name plotId grouped = do
                 |]
   
 -- ** Pivot
--- | Render a pivot table similar to the chart but a table instead
-pivotProcessor :: ReportParam -> NMap (Sum Double, TranQP) -> Widget 
-pivotProcessor param grouped = do
-  processPanelsWith "items-report-pivot" param grouped panelPivotProcessor
+pivotProcessor:: _ColumnRuptures -> NMap TranQP -> Widget
+pivotProcessor ruptures nmap = 
+  processPanelsWith ruptures nmap (panelPivotProcessor "items-report-pivot")
+  
+-- each nmap is a panel
+panelPivotProcessor :: Text -> NMapKey -> Int -> TranQP -> _ -> NMap TranQP ->  Widget
+panelPivotProcessor reportId key rank allMargin ruptures nmap = do
+  let panelName = nkeyWithRank (rank, key)
+      panelId = reportId <> "-panel-" <> panelName
+      panel = processPanelsWith ruptures nmap (bandPivotProcessor panelId allMargin)
+  [whamlet|
+      <div.panel.panel-info>
+        <div.panel-heading data-toggle="collapse" data-target="#{panelId}">
+          <h2>#{panelName}
+        <div.panel-body.collapse.in id="#{panelId}" style="max-height:2000px; overflow:auto">
+          ^{panel}
+            |]
+  
+-- each nmap is band
+bandPivotProcessor panelId allMargin key rank panelMargin ruptures nmap = let
+  -- get the list of the columns for that we need to
+  -- sort and limit each serie first by calling processPanelsWith
+  columnMap = Map.fromListWith (<>) $ processPanelsWith ruptures nmap collectColumnsForPivot
+  in [whamlet|<div.well>#{nkeyWithRank (rank, key)}
+             $forall (col, w) <- mapToList columnMap
+               <h3>#{tshow col}
+               <ul>
+                 $forall i <- w
+                  <li> #{tshow i}
+             |]
 
-panelPivotProcessor :: NMap (Sum Double, TranQP) -> ReportParam -> Text -> NMap (Sum Double, TranQP) -> Widget 
-panelPivotProcessor all param plotId0 grouped = do
+-- get the list of the columns for that we need to
+ -- nmap is a serie
+collectColumnsForPivot key rank bandMargin ruptures@(r, ()) nmap = let
+  -- we are within a serie, we need to get all the used columns
+  -- form nmap and return them upstream
+  -- columns = processPanelsWith ruptures nmap (\k _ _mar _  n -> [(k, cpSorter r k (nmapMargin n) )])
+  columns = processPanelsWith ruptures nmap (\k _ _mar _  n -> [(k, [key])])
+  in columns
+
+
+  
+pivotProcessorXXX :: ReportParam -> NMap (Sum Double, TranQP) -> Widget 
+pivotProcessorXXX param grouped = do
+  processPanelsWithXXX "items-report-pivot" param grouped panelPivotProcessorXXX
+
+panelPivotProcessorXXX :: NMap (Sum Double, TranQP) -> ReportParam -> Text -> NMap (Sum Double, TranQP) -> Widget 
+panelPivotProcessorXXX all param plotId0 grouped = do
   let asList = nmapToNMapListWithRank grouped
   forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
         do
@@ -1064,16 +1149,16 @@ panelPivotProcessor all param plotId0 grouped = do
                                                                <*> [param]
                             , tparam <- getIdentified tparams
                             ]
-              plot = bandPivotProcessor all grouped (rpSerie param) (isNothing $ cpColumn $ rpSerie param) traceParams (nkeyWithRank bandName) plotId bands 
+              plot = bandPivotProcessorXXX all grouped (rpSerie param) (isNothing $ cpColumn $ rpSerie param) traceParams (nkeyWithRank bandName) plotId bands 
               plotId = plotId0 <> "-" <> tshow i
           [whamlet|
             <div.negative-bad id=#{plotId}>
                 ^{plot}
                   |]
 -- | Display an html table (pivot) for each series
-bandPivotProcessor :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
+bandPivotProcessorXXX :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
   -> ColumnRupture -> Bool -> [(QPType, TraceParam, Maybe NormalizeMode )]-> Text -> Text -> NMap (Sum Double, TranQP)  -> Widget 
-bandPivotProcessor all panel rupture mono params name plotId grouped = let
+bandPivotProcessorXXX all panel rupture mono params name plotId grouped = let
   name'serieS = nmapToNMapListWithRank grouped
   -- it's a set but should be sorted by rank
   -- The same columns can appears in different series with a different rank

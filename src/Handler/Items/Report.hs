@@ -207,7 +207,7 @@ postItemsReportFor route mode = do
       case readMay =<< actionM of
 
         Just ReportCsv -> do
-              result <- itemReport param grouper (fmap snd) --  (fmap (fmap (summarize . map snd)))
+              result <- itemReportXXX param grouper (fmap snd) --  (fmap (fmap (summarize . map snd)))
               let source = yieldMany (map (<> "\n") (toCsv param result))
               setAttachment . fromStrict $ "items-report-" <> (tshowM $ colName <$> (cpColumn $ rpPanelRupture param)) <> "-"
                                               <> (tshowM $ colName <$> (cpColumn $ rpBand param)) <> ".csv"
@@ -216,10 +216,10 @@ postItemsReportFor route mode = do
              error "FIXME" -- itemToCsv param panel band
         _ -> do
               report <- case mode of
-                    Just ReportChart -> itemReport param grouper (chartProcessor param)
-                    Just ReportPivot -> itemReport param grouper (pivotProcessor param)
-                    Just ReportTable -> itemReport param tableGrouper tableProcessor
-                    _                -> itemReport param grouper (pivotProcessor param)
+                    Just ReportChart -> itemReportXXX param grouper (chartProcessor param)
+                    Just ReportPivot -> itemReport param pivotProcessor
+                    Just ReportTable -> itemReportXXX param tableGrouper tableProcessor
+                    _                -> itemReportXXX param grouper (pivotProcessorXXX param)
               renderReportForm route mode (Just param) ok200 (Just report)
 
 
