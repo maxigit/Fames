@@ -18,6 +18,8 @@ import Database.Persist.Sql hiding (Column)
 import Text.Printf(printf)
 import Formatting
 
+import Data.Monoid(Sum(..))
+
 -- * Param
 data ReportParam = ReportParam
   { rpToday :: Day -- today
@@ -289,14 +291,14 @@ mkDateColumn (name, fn) = Column name fn' where
               in case (rpPeriod p) of
                 Just FoldWeekly -> -- format
                   let w = dayOfWeek d
-                  in NMapKey (Just $ fromEnum w)  (PersistText $ tshow w)
+                  in NMapKey (PersistText $ tshow w)
                 -- Just (FoldYearly _) -> -- format
                 --   let (_,m,_) = toGregorian d
                 --   in NMapKey (Just $ m)  (PersistText $ pack $ formatTime defaultTimeLocale "%B" d) 
                 -- Just (FoldMonthly _) -> -- format
                 --   let (_,_,m) = toGregorian d
                 --   in NMapKey Nothing  (PersistInt64 $ fromIntegral m)
-                _ ->  NMapKey Nothing (PersistDay d)
+                _ ->  NMapKey (PersistDay d)
 -- For the supplier and customer key
 -- we want the Map to use the id instead of the map for performance reason
 -- but we need to store the name somewhere.
@@ -306,21 +308,21 @@ mkDateColumn (name, fn) = Column name fn' where
 -- but at lest the id have been matched beforehand, which should reduce
 -- the number of Text comparison significantly.
 mkCustomerSupplierKey customerMap supplierMap _ tkey = case tkCustomerSupplier tkey of
-  Nothing -> NMapKey Nothing PersistNull
+  Nothing -> NMapKey PersistNull
   Just (Left (custId, _)) ->
-    NMapKey (Just $ fromIntegral custId)
+    NMapKey -- (Just $ fromIntegral custId)
             (case lookup (FA.DebtorsMasterKey $ fromIntegral custId) customerMap of
                               Nothing -> PersistNull 
                               Just cust -> PersistText (decodeHtmlEntities $ FA.debtorsMasterName cust)
             )
   Just (Right suppId) -> 
-    NMapKey (Just $ fromIntegral suppId)
+    NMapKey  -- (Just $ fromIntegral suppId)
             (case lookup (FA.SupplierKey $ fromIntegral suppId) supplierMap of
                 Nothing -> PersistNull 
                 Just supp -> PersistText (decodeHtmlEntities $ FA.supplierSuppName supp )
             )
 mkTransactionType _ tkey = let ktype = tkType tkey
-  in NMapKey (Just $ fromEnum ktype)
+  in NMapKey -- (Just $ fromEnum ktype)
             (PersistText $ showTransType ktype)
 
 -- *** Columns
@@ -332,18 +334,18 @@ periodColumn = Column "Period" getPeriod where
         (_, Start d) = foldDay p tkey
         in case rpPeriod p of
              Just (FoldMonthly _) -> -- format
-               let (_,m,_) = toGregorian d
-               in NMapKey (Just m)  (PersistText $ pack $ formatTime defaultTimeLocale "%B" d) 
+               let (_,_m,_) = toGregorian d
+               in NMapKey (PersistText $ pack $ formatTime defaultTimeLocale "%B" d) 
              Just (FoldYearly _) -> -- format
-               let (y,_,_) = toGregorian d
+               let (_y,_,_) = toGregorian d
                -- in NMapKey (Just $ fromIntegral y) (PersistText $ pack $ printf "%d-%d" y (y+1))
                -- at the mooment we display the rank-the value, so printing y-y+1
                    -- result in printing y-y-y+1
                -- in NMapKey (Just $ fromIntegral y) (PersistInt64 $ fromIntegral (y+1))
-               in NMapKey (Just $ fromIntegral y -2000) (PersistText $ pack $ formatTime defaultTimeLocale "%Y (%b %d..)" d)
+               in NMapKey  (PersistText $ pack $ formatTime defaultTimeLocale "%Y (%b %d..)" d)
 
 
-             _ -> NMapKey Nothing (PersistDay d) where
+             _ -> NMapKey (PersistDay d) where
 supplierCustomerColumnH = do
   customerMap <- allCustomers False
   supplierMap <- allSuppliers False
@@ -621,7 +623,7 @@ purchToTransInfo ( Entity _ FA.SuppInvoiceItem{..}
 itemReport
   :: ReportParam
      -> [ColumnRupture]
-     -> (NMap TranQP -> a )
+     -> (NMap (Sum Double, TranQP) -> a )
      -> Handler a
 itemReport param cols processor = do
   let grouper =  groupTranQPs param ((map cpColumn cols))
@@ -648,9 +650,10 @@ pvToText :: PersistValue -> Text
 pvToText PersistNull = ""
 pvToText pv = either id id . fromPersistValueText $ pv
   
-nkeyWithRank :: NMapKey -> Text
-nkeyWithRank (NMapKey (Just i) key) = tshow i <> "-" <> pvToText key
-nkeyWithRank (NMapKey Nothing key) = pvToText key
+nkeyWithRank :: (Int, NMapKey) -> Text
+nkeyWithRank (i, NMapKey key) = tshow i <> "-" <> pvToText key
+-- nkeyWithRank :: NMapKey -> Text
+-- nkeyWithRank (NMapKey key)  = pvToText key
 
 commonCss = [cassius|
 .text90
@@ -667,12 +670,13 @@ commonCss = [cassius|
   background: #fedede
   color: #d0534f
                    |]
-tableProcessor :: NMap TranQP -> Widget 
+tableProcessor :: NMap (Sum Double, TranQP) -> Widget 
 tableProcessor grouped = do
   let levels = drop 1 $ nmapLevels grouped
+      ns = [1..]
   toWidget commonCss
   [whamlet|
-    $forall (h1, group1) <- nmapToNMapList grouped
+    $forall (h1, group1) <- nmapToNMapListWithRank grouped
         <div.panel.panel-info>
          $with name <- nkeyWithRank h1
           <div.panel-heading data-toggle="collapse" data-target="#report-panel-#{name}">
@@ -699,9 +703,9 @@ tableProcessor grouped = do
                 <th> Sales Through
                 <th> %Loss (Qty)
                 <th> Margin 
-              $forall (keys, qp) <- nmapToList group1
+              $forall (keys, (_,qp)) <- nmapToList group1
                     <tr>
-                      $forall key <- keys
+                      $forall key <- zip ns keys
                         <td>
                            #{nkeyWithRank key}
                       ^{showQp Outward $ salesQPrice qp}
@@ -709,7 +713,7 @@ tableProcessor grouped = do
                       ^{showQpAdj $ adjQPrice qp}
                       ^{showQpMargin qp}
               $if not (null levels)
-                $with (qpt) <- (nmapMargin group1)
+                $with (_,qpt) <- (nmapMargin group1)
                     <tr.total>
                       <td> Total
                       $forall level <- drop 1 levels
@@ -801,28 +805,36 @@ toCsv param grouped' = let
                              <> (qpToCsv Inward $ purchQPrice qp)
                              <> (qpToCsv Inward $ adjQPrice qp)
 -- *** Sort and limit
-sortAndLimitTranQP :: [ColumnRupture] -> NMap TranQP -> NMap TranQP
+sortAndLimitTranQP :: [ColumnRupture] -> NMap TranQP -> NMap (Sum Double, TranQP)
 sortAndLimitTranQP ruptures nmap = let
-  mkCol :: ColumnRupture ->  Maybe (NMapKey ->  TranQP -> Maybe Double, Maybe RankMode, Maybe Int, Bool)
+  mkCol :: ColumnRupture ->  Maybe (NMapKey ->  TranQP -> Sum Double , Maybe RankMode, Maybe Int, Bool)
   mkCol (ColumnRupture{..}) = case (getIdentified (tpDataParams cpSortBy), cpColumn, cpReverse) of
     (_, Nothing, False) -> Nothing
     ([], _col, False) -> Nothing
-    ([], _, True) -> Just (\k mr -> Nothing, cpRankMode, cpLimitTo, cpReverse)
-    ((tp :_), _,_) -> Just ( \k mr -> tpValueGetter tp <$> (lookupGrouped (tpDataType cpSortBy) $ mr)
-                                           , cpRankMode
-                                           , cpLimitTo
-                                           , cpReverse
-                                           )
+    ([], _, True) -> Just (\k mr -> Sum 0 , cpRankMode, cpLimitTo, cpReverse)
+    ((tp :_), _,_) -> Just ( \k mr -> Sum $ fromMaybe 0 $ (tpValueGetter tp) <$> (lookupGrouped (tpDataType cpSortBy) $ mr)
+                           , cpRankMode
+                           , cpLimitTo
+                           , cpReverse
+                           )
   in sortAndLimit (map mkCol ruptures) nmap
   
 
+nmapToNMapListWithRank :: Ord w =>  NMap (w, a) -> [((Int, NMapKey), NMap (w,a))]
+nmapToNMapListWithRank  nmap =
+  let asList = [ ( (fst (nmapMargin n), k)
+                 , n)
+               | (k, n) <- nmapToNMapList nmap
+               ]
+      sorted = sortOn fst asList
+  in zipWith (\i ((w,k), n) -> ((i,k), n)) [1..]  sorted
 -- ** Plot
-chartProcessor :: ReportParam -> NMap TranQP -> Widget 
+chartProcessor :: ReportParam -> NMap (Sum Double, TranQP) -> Widget 
 chartProcessor param grouped = do
   processPanelsWith "items-report-chart" param grouped panelChartProcessor
         
 processPanelsWith reportId param grouped panelProcessor =  do
-  let asList = nmapToNMapList grouped
+  let asList = nmapToNMapListWithRank grouped
   forM_ (zip asList [1 :: Int ..]) $ \((panelKey, nmap), i) -> do
      let plotId = reportId <> "-plot-" <> "-" <> tshow i 
          -- bySerie = fmap (groupAsMap (mkGrouper param (cpColumn $ rpSerie param) . fst) (:[])) group
@@ -837,9 +849,9 @@ processPanelsWith reportId param grouped panelProcessor =  do
           ^{panel}
             |]
   
-panelChartProcessor :: NMap TranQP -> ReportParam -> Text -> NMap TranQP -> Widget 
+panelChartProcessor :: NMap (Sum Double, TranQP) -> ReportParam -> Text -> NMap (Sum Double, TranQP) -> Widget 
 panelChartProcessor all param plotId0 grouped = do
-  let asList = nmapToNMapList grouped
+  let asList = nmapToNMapListWithRank grouped
       numberOfBands = length asList
       plotHeight = max 350 (900 `div` numberOfBands)
   forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
@@ -877,11 +889,11 @@ defaultColors = defaultPlottly where
 -- of transactions to calculate 
 formatSerieValues :: (Double -> t) -> (Double -> t)
                   -> Maybe NormalizeMode -- normalising, %, by row, col etct
-                  -> NMap TranQP -- all
-                  -> NMap TranQP
-                  -> NMap TranQP
+                  -> NMap (Sum Double, TranQP) -- all
+                  -> NMap (Sum Double, TranQP)
+                  -> NMap (Sum Double, TranQP)
                   -> (TranQP -> Maybe Double) -- get a value from a tran
-                  -> NMap TranQP -- list of tran to convert
+                  -> NMap (Sum Double, TranQP) -- list of tran to convert
                   -> [Maybe t]
 formatSerieValues formatValue formatPercent mode all panel band f nmap = let
   -- key'valueS = [(mkNMapKey (PersistText t), v) | (t, v ) <- text'valueS]
@@ -903,13 +915,14 @@ nmapRunSum runsum nmap = let
 -- | NMap version of formatSerieValues
 formatSerieValuesNMap :: (Double -> t) -> (Double -> t)
                   -> Maybe NormalizeMode -- normalising, %, by row, col etct
-                  -> NMap TranQP -- all
-                  -> NMap TranQP
-                  -> NMap TranQP
+                  -> NMap (Sum Double, TranQP) -- all
+                  -> NMap (Sum Double, TranQP)
+                  -> NMap (Sum Double, TranQP)
                   -> (TranQP -> Maybe Double) -- get a value from a tran
-                  -> NMap TranQP-- list of tran to convert
+                  -> NMap (Sum Double, TranQP)-- list of tran to convert
                   -> Map NMapKey t
-formatSerieValuesNMap formatAmount formatPercent mode all panel band f nmap = let
+formatSerieValuesNMap formatAmount formatPercent mode all panel band f0 nmap = let
+           f = f0 . snd
            computeMargin t = case nmMargin <$> mode of
              (Just NMTruncated) -> NLeaf (mconcat subMargins)
              (Just NMFirst) -> NLeaf (headEx subMargins)
@@ -970,8 +983,8 @@ formatSerieValuesNMap formatAmount formatPercent mode all panel band f nmap = le
            result = mapMaybe normalize key'tranS
            in mapFromList result
 
-seriesChartProcessor :: NMap TranQP -> NMap TranQP
-  -> ColumnRupture -> Bool -> [(QPType, TraceParam, Maybe NormalizeMode )]-> Text -> Text -> NMap TranQP  -> Widget 
+seriesChartProcessor :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
+  -> ColumnRupture -> Bool -> [(QPType, TraceParam, Maybe NormalizeMode )]-> Text -> Text -> NMap (Sum Double, TranQP)  -> Widget 
 seriesChartProcessor all panel rupture mono params name plotId grouped = do
      let xsFor g = map (toJSON . fst) g
          -- ysFor :: Maybe NormalizeMode -> (b -> Maybe Double) -> [ (a, b) ] -> [ Maybe Value ]
@@ -986,13 +999,13 @@ seriesChartProcessor all panel rupture mono params name plotId grouped = do
                                                     -- <> maybe [] (\color -> [("color", String color)]) colorM
                                                     <> tpChartOptions tp color
                                                     <> (if name == PersistNull then [] else [("name", toJSON $ nkeyWithRank name')])
-                                                       where g = [ (nkeyWithRank n, mconcat (toList nmap))  | (n, nmap) <- nmapToNMapList g'' ] -- flatten everything if needed
+                                                       where g = [ (nkeyWithRank n, mconcat (toList nmap))  | (n, nmap) <- nmapToNMapListWithRank g'' ] -- flatten everything if needed
                                                              g'' = nmapRunSum (tpRunSum tp) g'
                                                              (qtype, tp , normMode) = param
                                                              fn = fmap (tpValueGetter tp) . lookupGrouped qtype
-                                                             name = nkKey name'
+                                                             name = nkKey (snd name')
          colorIds = zip (cycle defaultColors) [1::Int ..]
-         asList = nmapToNMapList grouped
+         asList = nmapToNMapListWithRank grouped
          jsData = [ traceFor param (name'group, color :: Text, groupId :: Int)
                   | (param, pcId) <- zip params colorIds
                   , (name'group, gcId) <- zip asList colorIds
@@ -1036,13 +1049,13 @@ seriesChartProcessor all panel rupture mono params name plotId grouped = do
   
 -- ** Pivot
 -- | Render a pivot table similar to the chart but a table instead
-pivotProcessor :: ReportParam -> NMap TranQP -> Widget 
+pivotProcessor :: ReportParam -> NMap (Sum Double, TranQP) -> Widget 
 pivotProcessor param grouped = do
   processPanelsWith "items-report-pivot" param grouped panelPivotProcessor
 
-panelPivotProcessor :: NMap TranQP -> ReportParam -> Text -> NMap TranQP -> Widget 
+panelPivotProcessor :: NMap (Sum Double, TranQP) -> ReportParam -> Text -> NMap (Sum Double, TranQP) -> Widget 
 panelPivotProcessor all param plotId0 grouped = do
-  let asList = nmapToNMapList grouped
+  let asList = nmapToNMapListWithRank grouped
   forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
         do
           let -- byColumn = nmapToNMapList grouped -- fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) (unNMap TranQP' bands)
@@ -1058,17 +1071,19 @@ panelPivotProcessor all param plotId0 grouped = do
                 ^{plot}
                   |]
 -- | Display an html table (pivot) for each series
-bandPivotProcessor :: NMap TranQP -> NMap TranQP
-  -> ColumnRupture -> Bool -> [(QPType, TraceParam, Maybe NormalizeMode )]-> Text -> Text -> NMap TranQP  -> Widget 
+bandPivotProcessor :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
+  -> ColumnRupture -> Bool -> [(QPType, TraceParam, Maybe NormalizeMode )]-> Text -> Text -> NMap (Sum Double, TranQP)  -> Widget 
 bandPivotProcessor all panel rupture mono params name plotId grouped = let
-  name'serieS = nmapToNMapList grouped
+  name'serieS = nmapToNMapListWithRank grouped
   -- it's a set but should be sorted by rank
-  columnSet :: Set NMapKey
-  columnSet = setFromList [ column
+  -- The same columns can appears in different series with a different rank
+  -- we need to use the weigh and add them up
+  columnMap :: Map NMapKey (Sum Double)
+  columnMap = Map.fromListWith (<>) [ (colName, fst (nmapMargin nmap))
                           | (_, serie) <- name'serieS
-                          , column <- map fst $ nmapToNMapList serie
+                          , (colName, nmap) <- nmapToNMapList serie
                           ]
-  columns = setToList columnSet
+  columns = zip [1..] (keys columnMap)
   -- lookupValue :: QPType -> NMap TranQP -> (QPrice -> Double) -> NMapKey -> Maybe Double
   -- lookupValue qtype serie0 valueFn column = do --
   --   tranMap <- lookup column (nmapToMap serie)
@@ -1100,7 +1115,7 @@ bandPivotProcessor all panel rupture mono params name plotId grouped = let
                        <td>
                         $forall (qtype, tp , normMode ) <- params
                           $with serie <- formatSerieValuesNMap (formatDouble' tp) (formatPercent tp normMode) normMode all panel grouped (fmap (tpValueGetter tp) . lookupGrouped qtype) (nmapRunSum (tpRunSum tp) serie0)
-                            <div.just-right>#{fromMaybe "-" $ lookup column serie}
+                            <div.just-right>#{fromMaybe "-" $ lookup (snd column) serie}
              |]
 
 formatDouble' :: TraceParam -> Double -> Html

@@ -73,12 +73,14 @@ ghcid-current:
 	ghcid --command="stack ghci :ghcid" --test ":main --color -m@current"
 ghcid-test:
 	ghcid --command="stack ghci :ghcid" --test ":main --color"
-ghcid-force:
+ghcid-test-force:
 	ghcid --command="stack ghci :test --ghc-options=-w --ghc-options=-fdefer-type-errors" --test ":main --color"
 ghcid:
 	ghcid --command="stack ghci --ghc-options=-w"
 ghcid-run:
 	ghcid --command="stack ghci" --test "appMain"
+ghcid-force:
+	ghcid --command="stack ghci --ghc-options=-w --ghc-options=-fdefer-type-errors" --test "appMain"
 ghcid-now:
 	ghcid --command="stack ghci --ghc-options=-w" --test "appMain"
 

@@ -1,5 +1,16 @@
 * TODO Chart
-** Today [12/23] 
+** Today [12/24] 
+   - [ ] Big Rank Refactoring
+     - [ ]  bug when sorting period
+     When period are sorted, 2016 can be rank 1 of for different product
+     this result in either 
+       - a product being displayed on the wrong year (but with the same rank) if we only use rank in Eq, Show
+       - period been displayed more than onc  e
+     - [ ]  add a period weight ?
+     - [ ] Remove rank from NMap
+       - [ ] Add weight instead (but in the value not in the key)
+       - [ ]  sort when displaying ? (start from child) then sort afterward ?
+       - [ ] use DataTable
    -[X] bugs (from Ellie)
     - [X] avg price wrong for summary
     - [X] period not working
