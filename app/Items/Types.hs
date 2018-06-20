@@ -424,23 +424,25 @@ makeResidual :: Maybe RankMode
              -> [(NMapKey, NMap TranQP)] -- last
              -> [(NMapKey, NMap TranQP)]
 makeResidual Nothing bests residuals = bests
-makeResidual (Just RMResidual) bests residuals = bests <> [aggregateResiduals "Last" residuals]
+makeResidual (Just RMResidual) bests residuals = bests <> (aggregateResiduals "Last" residuals)
 makeResidual (Just RMResidualAvg) bests residuals = bests <> averageResiduals "Last" residuals
 makeResidual (Just RMTotal) bests residuals = averageResiduals "All" (bests <> residuals)
 makeResidual (Just RMAverage) bests residuals = averageResiduals "All" (bests <> residuals)
-makeResidual (Just RMBest) bests residuals = [aggregateResiduals "Top" bests] <> residuals
+makeResidual (Just RMBest) bests residuals = (aggregateResiduals "Top" bests) <> residuals
 makeResidual (Just RMBestAvg) bests residuals = averageResiduals "Top" bests <> residuals
 makeResidual (Just RMBestAndRes) bests residuals =
-  [aggregateResiduals "Top" bests] <> [aggregateResiduals "Last" residuals]
+  (aggregateResiduals "Top" bests) <> (aggregateResiduals "Last" residuals)
 makeResidual (Just RMBestAndResAvg) bests residuals =
   averageResiduals "Top" bests <> averageResiduals "Last" residuals
 
 
 
-aggregateResiduals :: Text  -> [(NMapKey, NMap TranQP)] -> (NMapKey, NMap TranQP)
-aggregateResiduals title key'nmaps = ( NMapKey (PersistText $ title <> "-" <> tshow (length key'nmaps))
+aggregateResiduals :: Text  -> [(NMapKey, NMap TranQP)] -> [(NMapKey, NMap TranQP)]
+aggregateResiduals _ [] = []
+aggregateResiduals title key'nmaps = [( NMapKey (PersistText $ title <> "-" <> tshow (length key'nmaps))
                                      , mconcat $ map snd key'nmaps
                                      )
+                                     ]
 averageResiduals :: Text  -> [(NMapKey, NMap TranQP)] -> [(NMapKey, NMap TranQP)]
 averageResiduals title [] = []
 averageResiduals title key'nmaps = let
