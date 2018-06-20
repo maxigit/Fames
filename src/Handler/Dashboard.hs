@@ -82,11 +82,12 @@ top100ItemYear which rupture = do
       rpStockFilter = Just (LikeFilter "ML1_-A_2-BLK")
       rpPanelRupture = emptyRupture
       rpBand = emptyRupture
-      rpSerie = ColumnRupture (Just rupture) bestSalesTrace Nothing (Just 5) False
+      rpSerie = ColumnRupture (Just rupture) bestSalesTrace (Just RMResidual) (Just 5) True
       rpColumnRupture = periodColumn
-      rpTraceParam2 = TraceParams QPSales (mkIdentifialParam amountOutOption) Nothing -- (Just $ NormalizeMode NMColumn NMSerie )
-      rpTraceParam = TraceParams QPSales (mkIdentifialParam amountOutOption) Nothing -- (Just $ NormalizeMode NMRank NMBand )
-      rpTraceParam3 = emptyTrace
+      rpTraceParam2 = TraceParams QPSales (mkIdentifialParam amountOutOption) (Just $ NormalizeMode NMColumn NMSerie )
+      rpTraceParam = TraceParams QPSales (mkIdentifialParam amountOutOption) (Just $ NormalizeMode NMRank NMBand )
+      rpTraceParam3 = TraceParams QPSales (mkIdentifialParam amountOutOption) Nothing
+      -- rpTraceParam3 = emptyTrace
       rpLoadSales = True
       rpLoadPurchases = False
       rpLoadAdjustment = False
@@ -98,7 +99,8 @@ top100ItemYear which rupture = do
   -- report <- itemReportXXX param grouper (pivotProcessorXXX param)
   report <- if which 
             then itemReportXXX param grouper (\nmap -> panelPivotProcessorXXX nmap param "pivot-Top-100" nmap)
-            else itemReport param pivotProcessor --  (panelPivotProcessor "pivot-Top-100" (mkNMapKey "New Report"))
+            else let pivotP tparams = processRupturesWith (\_ _ -> processRupturesWith (bandPivotProcessor tparams "pivot-Top-100") ) ()
+                 in itemReport param pivotP--  (panelPivotProcessor "pivot-Top-100" (mkNMapKey "New Report"))
   return $ report
       
 
