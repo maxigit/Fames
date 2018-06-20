@@ -37,7 +37,7 @@ reportForm cols paramM extra = do
   (fPanel, wPanel) <- ruptureForm colOptions "Panel" (rpPanelRupture <$> paramM)
   (fBand, wBand) <- ruptureForm colOptions "Band" (rpBand <$> paramM)
   (fSerie, wSerie) <- ruptureForm colOptions "Series" (rpSerie <$> paramM)
-  (fColRupture, vColRupture) <- mreq (selectFieldList colOptions)  "column rupture" (rpColumnRupture <$> paramM) 
+  (fColRupture, vColRupture) <- ruptureForm colOptions  "Columns" (rpColumnRupture <$> paramM)
   (fTrace1, wTrace1) <- traceForm False "" (rpTraceParam <$> paramM)
   (fTrace2, wTrace2) <- traceForm False " 2" (rpTraceParam2 <$> paramM)
   (fTrace3, wTrace3) <- traceForm False " 3"(rpTraceParam3 <$> paramM)
@@ -47,7 +47,7 @@ reportForm cols paramM extra = do
   let fields = [ Right $ mapM_ renderField [vFrom, vTo, vPeriod, vPeriodN]
                , Right $ mapM_ renderField [vStockFilter, vCategoryToFilter, vCategoryFilter]
                , Right wPanel, Right wBand, Right wSerie
-               , Left vColRupture
+               , Right vColRupture
                , Right wTrace1, Right wTrace2, Right wTrace3
                , Right $ mapM_ renderField [vSales, vPurchases, vAdjustment]
                ]
@@ -153,7 +153,7 @@ getItemsReportR mode = do
                            emptyRupture   -- rpPanelRupture :: ColumnRupture
                            (ColumnRupture (Just band)  bestSales (Just RMResidual) (Just 20) False)--  rpBand :: ColumnRupture
                            (ColumnRupture (Just serie)  bestSales (Just RMResidual) (Just 20) False)--  rpSerie :: ColumnRupture
-                           timeColumn --  rpColumnRupture :: Column
+                           (emptyRupture {cpColumn = Just timeColumn})
                            sales --  rpTraceParam :: TraceParams
                            emptyTrace --  rpTraceParam2 :: TraceParams
                            emptyTrace --  rpTraceParam3 :: TraceParams
@@ -169,7 +169,7 @@ getItemsReportR mode = do
                            (ColumnRupture (Just band) bestSales (Just RMResidual) (Just 20) False)--  rpBand :: ColumnRupture
                            (ColumnRupture (Just serie) bestSales (Just RMResidual)  (Just 20) False)--  rpSerie :: ColumnRupture
                            emptyRupture   -- rpPanelRupture :: ColumnRupture
-                           timeColumn --  rpColumnRupture :: Column
+                           (emptyRupture {cpColumn = Just timeColumn}) --  rpColumnRupture :: Column
                            sales --  rpTraceParam :: TraceParams
                            emptyTrace --  rpTraceParam2 :: TraceParams
                            emptyTrace --  rpTraceParam3 :: TraceParams
@@ -201,9 +201,7 @@ postItemsReportFor route mode = do
           col = rpColumnRupture param
           -- for table, the exact meaning of the rupture doesn't matter
           tableGrouper = panel : filter (isJust . cpColumn) [band, serie]
-          grouper = [ panel, band, serie
-                    , ColumnRupture  (Just col) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
-                    ]
+          grouper = [ panel, band, serie, col]
       case readMay =<< actionM of
 
         Just ReportCsv -> do

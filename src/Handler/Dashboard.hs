@@ -83,7 +83,7 @@ top100ItemYear which rupture = do
       rpPanelRupture = emptyRupture
       rpBand = emptyRupture
       rpSerie = ColumnRupture (Just rupture) bestSalesTrace (Just RMResidual) (Just 5) False
-      rpColumnRupture = periodColumn
+      rpColumnRupture = ColumnRupture  (Just periodColumn) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing True
       rpTraceParam2 = TraceParams QPSales (mkIdentifialParam amountOutOption) (Just $ NormalizeMode NMColumn NMSerie )
       rpTraceParam = TraceParams QPSales (mkIdentifialParam amountOutOption) (Just $ NormalizeMode NMRank NMBand )
       rpTraceParam3 = TraceParams QPSales (mkIdentifialParam amountOutOption) Nothing
@@ -92,9 +92,8 @@ top100ItemYear which rupture = do
       rpLoadPurchases = False
       rpLoadAdjustment = False
       -- TODO factorize
-      colRup =  ColumnRupture  (Just rpColumnRupture) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing (error "tut")
       grouper = [ rpBand, rpSerie
-                , colRup
+                , rpColumnRupture
                 ]
   -- report <- itemReportXXX param grouper (pivotProcessorXXX param)
   report <- if which 
@@ -122,7 +121,7 @@ top100ItemYearChart plotName = do
       rpPanelRupture = emptyRupture
       rpBand = emptyRupture
       rpSerie = ColumnRupture (Just skuColumn) bestSalesTrace Nothing (Just 100) False
-      rpColumnRupture = monthlyColumn
+      rpColumnRupture = ColumnRupture  (Just monthlyColumn) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
       rpTraceParam = TraceParams QPSales (mkIdentifialParam amountOutOption) Nothing 
       rpTraceParam2 = emptyTrace
       rpTraceParam3 = emptyTrace
@@ -132,7 +131,7 @@ top100ItemYearChart plotName = do
       -- TODO factorize
       grouper = [ -- rpPanelRupture,
                   rpBand, rpSerie
-                , ColumnRupture  (Just rpColumnRupture) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing True
+                , rpColumnRupture
                 ]
   report <- itemReportXXX param grouper (\nmap -> panelChartProcessor nmap param plotName nmap)
   return $ report

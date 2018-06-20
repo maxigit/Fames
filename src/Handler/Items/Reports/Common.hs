@@ -34,7 +34,7 @@ data ReportParam = ReportParam
   , rpPanelRupture :: ColumnRupture
   , rpBand :: ColumnRupture
   , rpSerie :: ColumnRupture
-  , rpColumnRupture :: Column
+  , rpColumnRupture :: ColumnRupture
   , rpTraceParam :: TraceParams
   , rpTraceParam2 :: TraceParams
   , rpTraceParam3 :: TraceParams
@@ -80,7 +80,7 @@ instance Semigroup Weight where
   Weight r a b <> Weight r' a' b' = Weight (r || r') (a <> a') (b <> b')
 
 cpSorter :: ColumnRupture -> NMapKey -> TranQP -> Weight
-cpSorter r@ColumnRupture{..} = traceShow ("COL", r) $ case getIdentified $ tpDataParams cpSortBy of
+cpSorter r@ColumnRupture{..} = case getIdentified $ tpDataParams cpSortBy of
     (tp :_)->  \k tqp -> Weight cpReverse (Sum $ fromMaybe 0 $ (tpValueGetter tp) <$> (lookupGrouped (tpDataType cpSortBy) $ tqp)) mempty
     _ -> \k tqp -> Weight cpReverse mempty (First (Just $ nkKey k))
           
@@ -664,9 +664,8 @@ itemReport param processor = do
       serie = rpSerie param
       col = rpColumnRupture param
       -- for table, the exact meaning of the rupture doesn't matter
-      colR = ColumnRupture  (Just col) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing True
-      cols = [ panel, band, serie, colR]
-      ruptures = (panel, (band, (serie, (colR, ()))))
+      cols = [ panel, band, serie, col]
+      ruptures = (panel, (band, (serie, (col, ()))))
       tparams = map ($ param) [rpTraceParam, rpTraceParam2, rpTraceParam3]
   let grouper =  groupTranQPs param ((map cpColumn cols))
   grouped <- loadItemTransactions param grouper
