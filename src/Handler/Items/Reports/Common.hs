@@ -62,27 +62,30 @@ data TraceParams = TraceParams
   , tpDataNorm :: Maybe NormalizeMode
   }  deriving Show
 
+type Weight = (Sum Double, First PersistValue)
+-- We don't want to add the reverse facility in here
+-- as reverse is only use for display and not for for getting the residual
 -- | a double or a persist value (Text or Date), with a Monoid instance
 -- ideally value types shouldn't be mixed
 -- used to sort and limit ruptures
 -- we also add a up/down field to sort things in reverse
-data Weight = Weight Bool (Sum Double) (First PersistValue) deriving (Show, Eq)
-instance Ord Weight where
-  compare (Weight False a b) (Weight False a' b') = compare (a,b) (a',b')
-  compare (Weight True a b) (Weight True a' b') = compare (a',b') (a,b)
-  compare (Weight True _ _ ) (Weight False _ _) =  GT
-  compare (Weight False _ _ ) (Weight True _ _) =  LT
+-- data Weight = Weight Bool (Sum Double) (First PersistValue) deriving (Show, Eq)
+-- instance Ord Weight where
+--   compare (Weight False a b) (Weight False a' b') = compare (a,b) (a',b')
+--   compare (Weight True a b) (Weight True a' b') = compare (a',b') (a,b)
+--   compare (Weight True _ _ ) (Weight False _ _) =  GT
+--   compare (Weight False _ _ ) (Weight True _ _) =  LT
                                            
-instance Monoid Weight where
-  mempty = Weight False mempty mempty
-  mappend = (<>)
-instance Semigroup Weight where
-  Weight r a b <> Weight r' a' b' = Weight (r || r') (a <> a') (b <> b')
+-- instance Monoid Weight where
+--   mempty = Weight False mempty mempty
+--   mappend = (<>)
+-- instance Semigroup Weight where
+--   Weight r a b <> Weight r' a' b' = Weight (r || r') (a <> a') (b <> b')
 
 cpSorter :: ColumnRupture -> NMapKey -> TranQP -> Weight
 cpSorter r@ColumnRupture{..} = case getIdentified $ tpDataParams cpSortBy of
-    (tp :_)->  \k tqp -> Weight cpReverse (Sum $ fromMaybe 0 $ (tpValueGetter tp) <$> (lookupGrouped (tpDataType cpSortBy) $ tqp)) mempty
-    _ -> \k tqp -> Weight cpReverse mempty (First (Just $ nkKey k))
+    (tp :_)->  \k tqp -> (Sum $ fromMaybe 0 $ (tpValueGetter tp) <$> (lookupGrouped (tpDataType cpSortBy) $ tqp), mempty)
+    _ -> \k tqp -> (mempty ,First (Just $ nkKey k))
           
   
 --
@@ -898,13 +901,13 @@ processPanelsWithXXX reportId param grouped panelProcessor =  do
 processRupturesWith subProcessor parents (rupture, subruptures) nmap =  let
   key'nmaps = nmapToNMapList nmap
   weigher (k,t) = cpSorter rupture k  (nmapMargin t)
-  sorted' = sortOn weigher key'nmaps
-  sorted = (if cpReverse rupture then reverse else id) sorted'
+  sorted = sortOn weigher key'nmaps
+  rev = if cpReverse rupture then reverse else id
   (bests, residuals) = case cpLimitTo rupture of
                          Nothing -> (sorted, [])
                          Just limit ->  splitAt limit sorted
 
-  limited = makeResidual (cpRankMode rupture) bests residuals
+  limited = rev $ makeResidual (cpRankMode rupture) bests residuals
   in mconcat $ zipWith  (\(k,n) i -> subProcessor k i (nmap, parents) subruptures n) limited [1..]
 
 
@@ -1203,7 +1206,8 @@ panelPivotProcessor tparams reportId = createKeyRankProcessor go where
   
 
 -- each nmap is band
-bandPivotProcessor tparams panelId = createKeyRankProcessor go where
+bandPivotProcessor tparams panelId key rank parents ruptures = createKeyRankProcessor go key rank parents ruptures where
+  (_, (ColumnRupture{..},_)) = ruptures
   go key rank =  let sub = collectColumnsForPivot tparams
                           -- get the list of the columns for that we need to
                           -- sort and limit each serie first by calling processRupturesWith
@@ -1212,7 +1216,9 @@ bandPivotProcessor tparams panelId = createKeyRankProcessor go where
                           -- colmns comes with a weight, we need to add up those weight sort
                           -- the keys according to it
                           columnMap = Map.fromListWith (<>) $ join cols
-                          columns = zip [1..] $ map fst (sortOn snd $ mapToList columnMap)
+                          sorted' = map fst (sortOn snd $ mapToList columnMap)
+                          sorted = if cpReverse then reverse sorted' else sorted'
+                          columns = zip [1..] $ sorted
                           in [whamlet|
                               <div>
                                 <h3> #{nkeyWithRank (rank, key)}
