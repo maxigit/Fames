@@ -36,7 +36,7 @@ div#pivot-Top-100-1
 |]
   toWidgetBody [julius|
                       $("#test-include-1").load("@{DashboardR (DCustomR "top100ItemYear" 800 400)}")
-                      $("#test-include-2").load("@{DashboardR (DCustomR "top100ItemYearXXX" 800 400)}")
+                      $("#test-include-2XXX").load("@{DashboardR (DCustomR "top100ItemYearXXX" 800 400)}")
                       $("#test-include-4XXX").load("@{DashboardR (DCustomR "top100StyleYear" 800 400)}")
                       $("#test-include-3XXX").load("@{DashboardR (DCustomR "top100ColourYear" 800 400)}")
                       |]
@@ -82,7 +82,7 @@ top100ItemYear which rupture = do
       rpStockFilter = Just (LikeFilter "ML1_-A_2-BLK")
       rpPanelRupture = emptyRupture
       rpBand = emptyRupture
-      rpSerie = ColumnRupture (Just rupture) bestSalesTrace (Just RMResidual) (Just 5) True
+      rpSerie = ColumnRupture (Just rupture) bestSalesTrace (Just RMResidual) (Just 5) False
       rpColumnRupture = periodColumn
       rpTraceParam2 = TraceParams QPSales (mkIdentifialParam amountOutOption) (Just $ NormalizeMode NMColumn NMSerie )
       rpTraceParam = TraceParams QPSales (mkIdentifialParam amountOutOption) (Just $ NormalizeMode NMRank NMBand )
@@ -92,7 +92,7 @@ top100ItemYear which rupture = do
       rpLoadPurchases = False
       rpLoadAdjustment = False
       -- TODO factorize
-      colRup =  ColumnRupture  (Just rpColumnRupture) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
+      colRup =  ColumnRupture  (Just rpColumnRupture) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing (error "tut")
       grouper = [ rpBand, rpSerie
                 , colRup
                 ]
@@ -100,7 +100,7 @@ top100ItemYear which rupture = do
   report <- if which 
             then itemReportXXX param grouper (\nmap -> panelPivotProcessorXXX nmap param "pivot-Top-100" nmap)
             -- else let pivotP tparams = processRupturesWith (\_ _ -> processRupturesWith (bandPivotProcessor tparams "pivot-Top-100") ) ()
-            else let pivotP tparams = processRupturesWith (createKeyRankProcessor $ \_ _ -> (bandPivotProcessor tparams "pivot-Top-100", id) ) ()
+            else let pivotP tparams = processRupturesWith (createKeyRankProcessor $ \_ _ -> (bandPivotProcessor tparams "pivot-Top-100", \w -> [whamlet|<div#pivot-Top-100>^{w}|]) ) ()
                  in itemReport param pivotP--  (panelPivotProcessor "pivot-Top-100" (mkNMapKey "New Report"))
   return $ report
       

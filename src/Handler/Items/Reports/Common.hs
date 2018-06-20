@@ -18,7 +18,7 @@ import Database.Persist.Sql hiding (Column)
 import Text.Printf(printf)
 import Formatting
 
-import Data.Monoid(Sum(..))
+import Data.Monoid(Sum(..), First(..))
 
 -- * Param
 data ReportParam = ReportParam
@@ -62,9 +62,28 @@ data TraceParams = TraceParams
   , tpDataNorm :: Maybe NormalizeMode
   }  deriving Show
 
-cpSorter ColumnRupture{..} = case getIdentified $ tpDataParams cpSortBy of
-    (tp :_)->  \k tqp -> Sum $ fromMaybe 0 $ (tpValueGetter tp) <$> (lookupGrouped (tpDataType cpSortBy) $ tqp)
-    _ -> \k tqp -> Sum 0
+-- | a double or a persist value (Text or Date), with a Monoid instance
+-- ideally value types shouldn't be mixed
+-- used to sort and limit ruptures
+-- we also add a up/down field to sort things in reverse
+data Weight = Weight Bool (Sum Double) (First PersistValue) deriving (Show, Eq)
+instance Ord Weight where
+  compare (Weight False a b) (Weight False a' b') = compare (a,b) (a',b')
+  compare (Weight True a b) (Weight True a' b') = compare (a',b') (a,b)
+  compare (Weight True _ _ ) (Weight False _ _) =  GT
+  compare (Weight False _ _ ) (Weight True _ _) =  LT
+                                           
+instance Monoid Weight where
+  mempty = Weight False mempty mempty
+  mappend = (<>)
+instance Semigroup Weight where
+  Weight r a b <> Weight r' a' b' = Weight (r || r') (a <> a') (b <> b')
+
+cpSorter :: ColumnRupture -> NMapKey -> TranQP -> Weight
+cpSorter r@ColumnRupture{..} = traceShow ("COL", r) $ case getIdentified $ tpDataParams cpSortBy of
+    (tp :_)->  \k tqp -> Weight cpReverse (Sum $ fromMaybe 0 $ (tpValueGetter tp) <$> (lookupGrouped (tpDataType cpSortBy) $ tqp)) mempty
+    _ -> \k tqp -> Weight cpReverse mempty (First (Just $ nkKey k))
+          
   
 --
 data NormalizeMargin
@@ -645,7 +664,7 @@ itemReport param processor = do
       serie = rpSerie param
       col = rpColumnRupture param
       -- for table, the exact meaning of the rupture doesn't matter
-      colR = ColumnRupture  (Just col) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
+      colR = ColumnRupture  (Just col) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing True
       cols = [ panel, band, serie, colR]
       ruptures = (panel, (band, (serie, (colR, ()))))
       tparams = map ($ param) [rpTraceParam, rpTraceParam2, rpTraceParam3]
@@ -1191,8 +1210,10 @@ bandPivotProcessor tparams panelId = createKeyRankProcessor go where
                           -- sort and limit each serie first by calling processRupturesWith
                      widget cw =  let
                           (cols, widgetFs) = unzip cw
+                          -- colmns comes with a weight, we need to add up those weight sort
+                          -- the keys according to it
                           columnMap = Map.fromListWith (<>) $ join cols
-                          columns = zip [1..] (keys columnMap)
+                          columns = zip [1..] $ map fst (sortOn snd $ mapToList columnMap)
                           in [whamlet|
                               <div>
                                 <h3> #{nkeyWithRank (rank, key)}
