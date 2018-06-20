@@ -890,8 +890,11 @@ processRupturesWith subProcessor parents (rupture, subruptures) nmap =  let
   in mconcat $ zipWith  (\(k,n) i -> subProcessor k i (nmap, parents) subruptures n) limited [1..]
 
 
+createKeyRankProcessor f key rank parents ruptures nmap= let
+  (p,w) = f key rank
+  children  = processRupturesWith p parents ruptures nmap
+  in w children
       
-  
 
   
 panelChartProcessor :: NMap (Sum Double, TranQP) -> ReportParam -> Text -> NMap (Sum Double, TranQP) -> Widget 
@@ -1167,39 +1170,43 @@ pivotProcessor tparams =
   
 -- each nmap is a panel
 panelPivotProcessor :: [TraceParams] -> Text -> NMapKey -> Int -> _ -> _ -> NMap TranQP ->  Widget
-panelPivotProcessor tparams reportId key rank parents ruptures nmap = do
-  let panelName = nkeyWithRank (rank, key)
-      panelId = reportId <> "-panel-" <> panelName
-      panel = processRupturesWith (bandPivotProcessor tparams panelId) parents ruptures nmap
-  [whamlet|
-      <div.panel.panel-info>
-        <div.panel-heading data-toggle="collapse" data-target="#{panelId}">
-          <h2>#{panelName}
-        <div.panel-body.collapse.in id="#{panelId}" style="max-height:2000px; overflow:auto">
-          ^{panel}
-            |]
+panelPivotProcessor tparams reportId = createKeyRankProcessor go where
+  go key rank = let panelName = nkeyWithRank (rank, key)
+                    panelId = reportId <> "-panel-" <> panelName
+                    sub = bandPivotProcessor tparams panelId
+                    widget children = [whamlet|
+                                         <div.panel.panel-info>
+                                         <div.panel-heading data-toggle="collapse" data-target="#{panelId}">
+                                         <h2>#{panelName}
+                                         <div.panel-body.collapse.in id="#{panelId}" style="max-height:2000px; overflow:auto">
+                                         ^{children}
+                       |]
+                    in (sub, widget)
   
+
 -- each nmap is band
-bandPivotProcessor tparams panelId key rank parents ruptures nmap = let
-  -- get the list of the columns for that we need to
-  -- sort and limit each serie first by calling processRupturesWith
-  cw = processRupturesWith (collectColumnsForPivot tparams) parents ruptures nmap
-  (cols, widgetFs) = unzip cw
-  columnMap = Map.fromListWith (<>) $ join cols
-  columns = zip [1..] (keys columnMap)
-  in [whamlet|
-       <div>
-         <h3> #{nkeyWithRank (rank, key)}
-         <table.table.table-border.table-hover.table-striped>
-           <thead>
-             <tr>
-               <th>
-               $forall column <- columns
-                 <th.text90>#{nkeyWithRank column}
-             <tbody>
-               $forall wF <- widgetFs
-                 ^{wF columns }
-                 |]
+bandPivotProcessor tparams panelId = createKeyRankProcessor go where
+  go key rank =  let sub = collectColumnsForPivot tparams
+                          -- get the list of the columns for that we need to
+                          -- sort and limit each serie first by calling processRupturesWith
+                     widget cw =  let
+                          (cols, widgetFs) = unzip cw
+                          columnMap = Map.fromListWith (<>) $ join cols
+                          columns = zip [1..] (keys columnMap)
+                          in [whamlet|
+                              <div>
+                                <h3> #{nkeyWithRank (rank, key)}
+                                <table.table.table-border.table-hover.table-striped>
+                                  <thead>
+                                    <tr>
+                                      <th>
+                                      $forall column <- columns
+                                        <th.text90>#{nkeyWithRank column}
+                                    <tbody>
+                                      $forall wF <- widgetFs
+                                        ^{wF columns }
+                                        |]
+                     in (sub, widget)
 
 -- get the list of the columns for that we need to
  -- nmap is a serie
