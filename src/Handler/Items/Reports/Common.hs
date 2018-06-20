@@ -1193,11 +1193,11 @@ panelPivotProcessor tparams reportId = createKeyRankProcessor go where
                     panelId = reportId <> "-panel-" <> panelName
                     sub = bandPivotProcessor tparams panelId
                     widget children = [whamlet|
-                                         <div.panel.panel-info>
-                                         <div.panel-heading data-toggle="collapse" data-target="#{panelId}">
-                                         <h2>#{panelName}
-                                         <div.panel-body.collapse.in id="#{panelId}" style="max-height:2000px; overflow:auto">
-                                         ^{children}
+                               <div.panel.panel-info>
+                                 <div.panel-heading data-toggle="collapse" data-target="#{panelId}">
+                                   <h2>#{panelName}
+                                 <div.panel-body.collapse.in id="#{panelId}" style="max-height:2000px; overflow:auto">
+                                   ^{children}
                        |]
                     in (sub, widget)
   
