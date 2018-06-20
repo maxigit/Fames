@@ -368,7 +368,7 @@ periodColumn = Column "Period" getPeriod where
                -- at the mooment we display the rank-the value, so printing y-y+1
                    -- result in printing y-y-y+1
                -- in NMapKey (Just $ fromIntegral y) (PersistInt64 $ fromIntegral (y+1))
-               in NMapKey  (PersistText $ pack $ formatTime defaultTimeLocale "%Y (%b %d..)" d)
+               in NMapKey  (PersistText $ pack $ formatTime defaultTimeLocale "%Y (%d %b)" d)
 
 
              _ -> NMapKey (PersistDay d) where
