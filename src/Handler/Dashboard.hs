@@ -36,8 +36,9 @@ div#pivot-Top-100-1
 |]
   toWidgetBody [julius|
                       $("#test-include-1").load("@{DashboardR (DCustomR "top100ItemYear" 800 400)}")
-                      $("#test-include-2").load("@{DashboardR (DCustomR "top100StyleYear" 800 400)}")
-                      $("#test-include-3").load("@{DashboardR (DCustomR "top100ColourYear" 800 400)}")
+                      $("#test-include-2").load("@{DashboardR (DCustomR "top100ItemYearXXX" 800 400)}")
+                      $("#test-include-4XXX").load("@{DashboardR (DCustomR "top100StyleYear" 800 400)}")
+                      $("#test-include-3XXX").load("@{DashboardR (DCustomR "top100ColourYear" 800 400)}")
                       |]
 
 -- Run report by name (find in configuration file)
@@ -51,9 +52,10 @@ getDCustomR reportName width height = do
   let reportMaker = case reportName of
         "top100ItemYearChart" -> top100ItemYearChart "top1"
         "top100ItemYearChart2" -> top100ItemYearChart "top2"
-        "top100ItemYear" -> top100ItemYear skuColumn
-        "top100StyleYear" -> top100ItemYear styleColumn
-        "top100ColourYear" -> top100ItemYear variationColumn
+        "top100ItemYearXXX" -> top100ItemYear True skuColumn
+        "top100ItemYear" -> top100ItemYear False skuColumn
+        "top100StyleYear" -> top100ItemYear True styleColumn
+        "top100ColourYear" -> top100ItemYear True variationColumn
         _ -> error "undefined report"
   widget <- reportMaker
   p <- widgetToPageContent widget
@@ -64,7 +66,7 @@ getDCustomR reportName width height = do
 
 
 -- | Top style
-top100ItemYear rupture = do
+top100ItemYear which rupture = do
   today <- utctDay <$> liftIO getCurrentTime
   let tomorrow = calculateDate (AddDays 1) today
       beginYear = fromGregorian (currentYear) 1 1
@@ -74,26 +76,29 @@ top100ItemYear rupture = do
       rpFrom = Just beginYear
       rpTo = Just tomorrow
       rpPeriod' = Just PFSlidingYearFrom
-      rpNumberOfPeriods = Just 2
+      rpNumberOfPeriods = Just 8
       rpCategoryToFilter = Nothing
       rpCategoryFilter = Nothing
-      rpStockFilter = Nothing
+      rpStockFilter = Just (LikeFilter "ML1_-A_2-BLK")
       rpPanelRupture = emptyRupture
       rpBand = emptyRupture
-      rpSerie = ColumnRupture (Just rupture) bestSalesTrace Nothing (Just 100) False
+      rpSerie = ColumnRupture (Just rupture) bestSalesTrace Nothing (Just 5) False
       rpColumnRupture = periodColumn
-      rpTraceParam2 = TraceParams QPSales (mkIdentifialParam amountOutOption) (Just $ NormalizeMode NMColumn NMSerie )
-      rpTraceParam = TraceParams QPSales (mkIdentifialParam amountOutOption) (Just $ NormalizeMode NMRank NMBand )
+      rpTraceParam2 = TraceParams QPSales (mkIdentifialParam amountOutOption) Nothing -- (Just $ NormalizeMode NMColumn NMSerie )
+      rpTraceParam = TraceParams QPSales (mkIdentifialParam amountOutOption) Nothing -- (Just $ NormalizeMode NMRank NMBand )
       rpTraceParam3 = emptyTrace
       rpLoadSales = True
       rpLoadPurchases = False
       rpLoadAdjustment = False
       -- TODO factorize
+      colRup =  ColumnRupture  (Just rpColumnRupture) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
       grouper = [ rpBand, rpSerie
-                , ColumnRupture  (Just rpColumnRupture) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing True
+                , colRup
                 ]
-  -- report <- itemReport param grouper (pivotProcessor param)
-  report <- itemReport param grouper (\nmap -> panelPivotProcessor nmap param "pivot-Top-100" nmap)
+  -- report <- itemReportXXX param grouper (pivotProcessorXXX param)
+  report <- if which 
+            then itemReportXXX param grouper (\nmap -> panelPivotProcessorXXX nmap param "pivot-Top-100" nmap)
+            else itemReport param pivotProcessor --  (panelPivotProcessor "pivot-Top-100" (mkNMapKey "New Report"))
   return $ report
       
 
@@ -126,5 +131,5 @@ top100ItemYearChart plotName = do
                   rpBand, rpSerie
                 , ColumnRupture  (Just rpColumnRupture) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing True
                 ]
-  report <- itemReport param grouper (\nmap -> panelChartProcessor nmap param plotName nmap)
+  report <- itemReportXXX param grouper (\nmap -> panelChartProcessor nmap param plotName nmap)
   return $ report

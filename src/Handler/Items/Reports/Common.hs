@@ -637,7 +637,7 @@ itemReportXXX param cols processor = do
   return $ processor ranked
 
 itemReport :: ReportParam
-           -> ((ColumnRupture, _) -> NMap TranQP -> b)
+           -> ([TraceParams] -> (ColumnRupture, _) -> NMap TranQP -> b)
            -> Handler b
 itemReport param processor = do
   let panel = rpPanelRupture param
@@ -648,11 +648,12 @@ itemReport param processor = do
       colR = ColumnRupture  (Just col) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
       cols = [ panel, band, serie, colR]
       ruptures = (panel, (band, (serie, (colR, ()))))
+      tparams = map ($ param) [rpTraceParam, rpTraceParam2, rpTraceParam3]
   let grouper =  groupTranQPs param ((map cpColumn cols))
   grouped <- loadItemTransactions param grouper
 
   -- ranke
-  return $ processor ruptures grouped
+  return $ processor tparams ruptures grouped
 
 groupTranQPs :: ReportParam
              -> [Maybe Column]
@@ -871,12 +872,12 @@ processPanelsWithXXX reportId param grouped panelProcessor =  do
           ^{panel}
             |]
   
--- processPanelsWith :: Monoid w
+-- processRupturesWith :: Monoid w
 --                   => (ColumnRupture, rs )
 --                   -> (NMap TranQP)
 --                   -> (NMap TranQP -> rs -> (NMapKey, NMap TranQP) -> (NMapKey, TranQP, w) )
 --                   -> w
-processPanelsWith (rupture, subruptures) nmap bandProcessor =  let
+processRupturesWith subProcessor parents (rupture, subruptures) nmap =  let
   key'nmaps = nmapToNMapList nmap
   weigher (k,t) = cpSorter rupture k  (nmapMargin t)
   sorted' = sortOn weigher key'nmaps
@@ -886,7 +887,7 @@ processPanelsWith (rupture, subruptures) nmap bandProcessor =  let
                          Just limit ->  splitAt limit sorted
 
   limited = makeResidual (cpRankMode rupture) bests residuals
-  in mconcat $ zipWith  (\(k,n) i -> bandProcessor k i (nmapMargin nmap) subruptures n) limited [1..]
+  in mconcat $ zipWith  (\(k,n) i -> subProcessor k i (nmap, parents) subruptures n) limited [1..]
 
 
       
@@ -942,7 +943,7 @@ formatSerieValues :: (Double -> t) -> (Double -> t)
 formatSerieValues formatValue formatPercent mode all panel band f nmap = let
   -- key'valueS = [(mkNMapKey (PersistText t), v) | (t, v ) <- text'valueS]
   keys = map fst (nmapToNMapList nmap)
-  output = formatSerieValuesNMap formatValue formatPercent mode all panel band f nmap
+  output = formatSerieValuesNMapXXX formatValue formatPercent mode all panel band f nmap
   in map (flip lookup output ) keys
 
 nmapRunSum :: (Show b, Monoid b) => RunSum -> NMap b -> NMap b
@@ -957,7 +958,7 @@ nmapRunSum runsum nmap = let
   in nmapFromList (join . headMay $ nmapLevels nmap) key'sumS
 
 -- | NMap version of formatSerieValues
-formatSerieValuesNMap :: (Double -> t) -> (Double -> t)
+formatSerieValuesNMapXXX :: (Double -> t) -> (Double -> t)
                   -> Maybe NormalizeMode -- normalising, %, by row, col etct
                   -> NMap (Sum Double, TranQP) -- all
                   -> NMap (Sum Double, TranQP)
@@ -965,7 +966,7 @@ formatSerieValuesNMap :: (Double -> t) -> (Double -> t)
                   -> (TranQP -> Maybe Double) -- get a value from a tran
                   -> NMap (Sum Double, TranQP)-- list of tran to convert
                   -> Map NMapKey t
-formatSerieValuesNMap formatAmount formatPercent mode all panel band f0 nmap = let
+formatSerieValuesNMapXXX formatAmount formatPercent mode all panel band f0 nmap = let
            f = f0 . snd
            computeMargin t = case nmMargin <$> mode of
              (Just NMTruncated) -> NLeaf (mconcat subMargins)
@@ -1027,6 +1028,74 @@ formatSerieValuesNMap formatAmount formatPercent mode all panel band f0 nmap = l
            result = mapMaybe normalize key'tranS
            in mapFromList result
 
+formatSerieValuesNMap :: (Double -> t) -> (Double -> t)
+                  -> Maybe NormalizeMode -- normalising, %, by row, col etct
+                  -> NMap TranQP -- all
+                  -> NMap TranQP
+                  -> NMap TranQP
+                  -> (TranQP -> Maybe Double) -- get a value from a tran
+                  -> NMap TranQP-- list of tran to convert
+                  -> Map NMapKey t
+formatSerieValuesNMap formatAmount formatPercent mode all panel band f nmap = let
+           computeMargin t = case nmMargin <$> mode of
+             (Just NMTruncated) -> NLeaf (mconcat subMargins)
+             (Just NMFirst) -> NLeaf (headEx subMargins)
+             (Just NMLast) -> NLeaf (lastEx subMargins)
+             (Just NMBestTail) -> NLeaf (maximumByEx (comparing f) $  tailEx subMargins)
+             (Just NMBestInit) -> NLeaf (maximumByEx (comparing f) $  initEx subMargins)
+             (Just NMColumn) -> let
+                        -- regroup margin by column TODO computes on0
+                        -- all data are already grouped by column, but at the deepest level of nesting
+                        -- we need to bring it up
+                        alls = nmapToList t
+                        in groupAsNMap [(Nothing, lastEx)] alls
+             (Just NMRank) -> case nmTarget <$> mode of
+               Just NMSerie ->  let -- column by serie , we need the full serie for each column key
+                        -- we need to duplicate the levels ... So lookup of a column
+                        -- gives the map of all columns/values
+                        keys = map fst asList
+                        in NMap (nmapMargin nmap) [] (mapFromList $ [(key, nmap ) | key <- keys ] )
+               _ -> let -- by band
+                        -- regroup margin by column TODO computes on0
+                        -- all data are already grouped by column, but at the deepest level of nesting
+                        -- we need to bring it up, but keep the list of value
+                        alls = [(take 2 $ reverse keys, nmap) | (keys, nmap) <- nmapToList band ]
+                        in groupAsNMap [(Nothing, headEx), (Nothing, lastEx)] alls
+             _ -> NLeaf (nmapMargin t)
+             where subMargins = map (nmapMargin . snd) (nmapToNMapList t)
+           margins = case (nmMargin <$> mode, nmTarget <$> mode)  of
+             (Just NMColumn, Just NMSerie ) -> computeMargin band -- otherwise, everything is 100%
+             (Just NMRank, _ ) -> computeMargin band -- 
+             (_, Just NMAll ) -> computeMargin all
+             (_, Just NMPanel ) -> computeMargin panel
+             (_, Just NMBand ) -> computeMargin band
+             (_ ) -> computeMargin nmap
+           marginMap = nmapToMap margins
+
+           asList = nmapToNMapList nmap
+           key'tranS = nmapMargin <$$>  asList
+           -- normalize
+           -- normalize = case mapMaybe f [nmapMargin grouped] of
+           normalize (col, tqp) = (f tqp >>= go) <&> (col,) where
+             go x = do
+               norm <- f (nmapMargin margins)
+               case nmMargin <$> mode of
+                 Just NMColumn -> do
+                   marginCol <- lookup col marginMap
+                   normCol <- f (nmapMargin marginCol)
+                   return $ formatPercent $ x * 100 / abs normCol
+                 Just NMRank -> do
+                   marginCol <- lookup col marginMap
+                   let values = mapMaybe (f . nmapMargin . snd) (nmapToNMapList marginCol)
+                       sorted = sort values
+                       rankMap :: Map Double Int
+                       rankMap = mapFromList $ zip (reverse sorted) [1 :: Int ..]
+                   rank <- lookup x rankMap
+                   return $ formatPercent (fromIntegral rank)
+                 Just _ -> Just $ formatPercent $ x * 100 / abs norm
+                 Nothing -> Just $ formatAmount x
+           result = mapMaybe normalize key'tranS
+           in mapFromList result
 seriesChartProcessor :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
   -> ColumnRupture -> Bool -> [(QPType, TraceParam, Maybe NormalizeMode )]-> Text -> Text -> NMap (Sum Double, TranQP)  -> Widget 
 seriesChartProcessor all panel rupture mono params name plotId grouped = do
@@ -1092,16 +1161,16 @@ seriesChartProcessor all panel rupture mono params name plotId grouped = do
                 |]
   
 -- ** Pivot
-pivotProcessor:: _ColumnRuptures -> NMap TranQP -> Widget
-pivotProcessor ruptures nmap = 
-  processPanelsWith ruptures nmap (panelPivotProcessor "items-report-pivot")
+pivotProcessor:: [TraceParams] -> _ColumnRuptures -> NMap TranQP -> Widget
+pivotProcessor tparams = 
+  processRupturesWith (panelPivotProcessor tparams "items-report-pivot") ()
   
 -- each nmap is a panel
-panelPivotProcessor :: Text -> NMapKey -> Int -> TranQP -> _ -> NMap TranQP ->  Widget
-panelPivotProcessor reportId key rank allMargin ruptures nmap = do
+panelPivotProcessor :: [TraceParams] -> Text -> NMapKey -> Int -> _ -> _ -> NMap TranQP ->  Widget
+panelPivotProcessor tparams reportId key rank parents ruptures nmap = do
   let panelName = nkeyWithRank (rank, key)
       panelId = reportId <> "-panel-" <> panelName
-      panel = processPanelsWith ruptures nmap (bandPivotProcessor panelId allMargin)
+      panel = processRupturesWith (bandPivotProcessor tparams panelId) parents ruptures nmap
   [whamlet|
       <div.panel.panel-info>
         <div.panel-heading data-toggle="collapse" data-target="#{panelId}">
@@ -1111,26 +1180,59 @@ panelPivotProcessor reportId key rank allMargin ruptures nmap = do
             |]
   
 -- each nmap is band
-bandPivotProcessor panelId allMargin key rank panelMargin ruptures nmap = let
+bandPivotProcessor tparams panelId key rank parents ruptures nmap = let
   -- get the list of the columns for that we need to
-  -- sort and limit each serie first by calling processPanelsWith
-  columnMap = Map.fromListWith (<>) $ processPanelsWith ruptures nmap collectColumnsForPivot
-  in [whamlet|<div.well>#{nkeyWithRank (rank, key)}
-             $forall (col, w) <- mapToList columnMap
-               <h3>#{tshow col}
-               <ul>
-                 $forall i <- w
-                  <li> #{tshow i}
-             |]
+  -- sort and limit each serie first by calling processRupturesWith
+  cw = processRupturesWith (collectColumnsForPivot tparams) parents ruptures nmap
+  (cols, widgetFs) = unzip cw
+  columnMap = Map.fromListWith (<>) $ join cols
+  columns = zip [1..] (keys columnMap)
+  in [whamlet|
+       <div>
+         <h3> #{nkeyWithRank (rank, key)}
+         <table.table.table-border.table-hover.table-striped>
+           <thead>
+             <tr>
+               <th>
+               $forall column <- columns
+                 <th.text90>#{nkeyWithRank column}
+             <tbody>
+               $forall wF <- widgetFs
+                 ^{wF columns }
+                 |]
 
 -- get the list of the columns for that we need to
  -- nmap is a serie
-collectColumnsForPivot key rank bandMargin ruptures@(r, ()) nmap = let
+collectColumnsForPivot :: [TraceParams] -> NMapKey -> Int -> _parents -> _ruptures -> NMap TranQP -> [(_, _ -> Widget)]
+collectColumnsForPivot tparams key rank parents ruptures@(r, ()) nmap = let
+  (band, (panel, (all, ()))) = parents
   -- we are within a serie, we need to get all the used columns
   -- form nmap and return them upstream
-  -- columns = processPanelsWith ruptures nmap (\k _ _mar _  n -> [(k, cpSorter r k (nmapMargin n) )])
-  columns = processPanelsWith ruptures nmap (\k _ _mar _  n -> [(k, [key])])
-  in columns
+  columns = processRupturesWith (\k _ _mar _  n -> [(k, cpSorter r k (nmapMargin n) )]) parents ruptures nmap
+  -- columns = processRupturesWith (\k _ _mar _  n -> [(k, [key])]) parents ruptures nmap
+  formatPercent tp mode = case nmMargin <$>  mode of
+    Just NMRank -> \d -> let rank  = floor d
+                             isTop = rank == 1
+                             isTop2 = rank == 2
+                          in [shamlet|<span :isTop:.topOne :isTop2:.topTwo>#{sformat ords rank}|]
+
+    _ -> formatDouble' tp {tpValueType = VPercentage}
+  traces = [formatSerieValuesNMap (formatDouble' tp)
+                                  (formatPercent tp normMode)
+                                  normMode all panel band
+                                  (fmap (tpValueGetter tp) . lookupGrouped qtype) (nmapRunSum (tpRunSum tp) nmap)
+           | TraceParams qtype tps normMode <- tparams
+           , tp <- getIdentified tps
+           ]
+  widget col's = [whamlet|
+   <tr>
+     <td>#{nkeyWithRank (rank, key)}
+     $forall column <- col's
+        <td>
+          $forall trace <- traces
+            <div.just-right>#{fromMaybe "-" $ lookup (snd column) trace}
+                        |]
+  in [(columns, widget )]
 
 
   
@@ -1199,7 +1301,7 @@ bandPivotProcessorXXX all panel rupture mono params name plotId grouped = let
                      $forall column <- columns
                        <td>
                         $forall (qtype, tp , normMode ) <- params
-                          $with serie <- formatSerieValuesNMap (formatDouble' tp) (formatPercent tp normMode) normMode all panel grouped (fmap (tpValueGetter tp) . lookupGrouped qtype) (nmapRunSum (tpRunSum tp) serie0)
+                          $with serie <- formatSerieValuesNMapXXX (formatDouble' tp) (formatPercent tp normMode) normMode all panel grouped (fmap (tpValueGetter tp) . lookupGrouped qtype) (nmapRunSum (tpRunSum tp) serie0)
                             <div.just-right>#{fromMaybe "-" $ lookup (snd column) serie}
              |]
 
