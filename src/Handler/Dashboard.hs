@@ -16,72 +16,96 @@ import Data.Aeson.QQ(aesonQQ)
 
 -- Display a dashboard made of different report depending on the configuration file
 getDMainR :: Handler Html
-getDMainR = defaultLayout $ do
+getDMainR = do
   now <- liftIO $ getCurrentTime
-  addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
-  toWidgetHead commonCss
-  toWidgetHead [cassius|
-div.pivot-inline
-  th
-    writing-mode: lr
-  td div
-    display: inline
-  .display10
-    max-height: 410px
-    overflow: hidden
-    &:hover
-      overflow:auto
-    > div > div
-      > h3, thead
-        display:  none
-    h4
-      text-align: center
-                       |]
-  [whamlet|
-<div.panel.panel-primary>
-  <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-1">
-    <h2> Monthly Sales
-  <div.panel-body.pivot-inline id=dashboard-panel-1>
-     <div.row>
-       <div.col-md-12>
-         <div#current-month-pcent>
-     <div.row>
-       <div.col-md-4.display10 >
-         <h4> Top Styles Monthly
-         <div#top-style-month-pcent>
-       <div.col-md-4.display10>
-         <h4> Top Colour Monthly
-         <div#top-colour-month-pcent>
-       <div.col-md-4.display10>
-         <h4> Top Item Monthly
-         <div#top-sku-month-pcent>
-<div.panel.panel-primary>
-  <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-1">
-    <h2> Since January
-  <div.panel-body.pivot-inline id=dashboard-panel-2>
-     <div.row>
-       <div.col-md-4.display10 >
-         <h4> Top Styles 
-         <div#top-style-january-pcent>
-       <div.col-md-4.display10>
-         <h4> Top Colour 
-         <div#top-colour-january-pcent>
-       <div.col-md-4.display10>
-         <h4> Top Item 
-         <div#top-sku-january-pcent>
-<div.footer>
-<span.text-right.font-italic>
-  Last update #{tshow now}
-|]
-  toWidgetBody [julius|
-                      $("div#current-month-pcent").load("@{DashboardR (DCustomR "sales-current-month-p" 800 400)}")
-                      $("div#top-style-month-pcent").load("@{DashboardR (DCustomR "top20StyleMonth" 800 400)}")
-                      $("div#top-colour-month-pcent").load("@{DashboardR (DCustomR "top20ColourMonth" 800 400)}")
-                      $("div#top-sku-month-pcent").load("@{DashboardR (DCustomR "top20ItemMonth" 800 400)}")
-                      $("div#top-style-january-pcent").load("@{DashboardR (DCustomR "top20StyleJanuary" 800 400)}")
-                      $("div#top-colour-january-pcent").load("@{DashboardR (DCustomR "top20ColourJanuary" 800 400)}")
-                      $("div#top-sku-january-pcent").load("@{DashboardR (DCustomR "top20ItemJanuary" 800 400)}")
-                      |]
+  let reportDiv :: Text -> Handler Widget
+      reportDiv reportId = do
+        widgetE <- dispatchReport reportId 800 400
+        case widgetE of
+          Left err -> return [whamlet|
+             <div id=#{reportId}>
+               The report #{reportId} doesn't exists. Contact your administrator.
+                              |]
+          Right w -> do
+            return [whamlet|
+                         <div id=#{reportId}>
+                         ^{w}
+                         |]
+  -- refactor
+  currentMonthPcent <- reportDiv "salesCurrentMonthP" 
+  topStyleMonthPcent <- reportDiv "top20StyleMonth" 
+  topColourMonthPcent <- reportDiv "top20ColourMonth" 
+  topSkuMonthPcent <- reportDiv "top20ItemMonth" 
+  topStyleJanuaryPcent <- reportDiv "top20StyleJanuary" 
+  topColourJanuaryPcent <- reportDiv "top20ColourJanuary" 
+  topSkuJanuaryPcent <- reportDiv "top20ItemJanuary" 
+
+  cacheSeconds (3600*24)
+  defaultLayout $ do
+    addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
+    toWidgetHead commonCss
+    toWidgetHead [cassius|
+  div.pivot-inline
+    th
+      writing-mode: lr
+    td div
+      display: inline
+    .display10
+      max-height: 410px
+      overflow: hidden
+      &:hover
+        overflow:auto
+      > div > div
+        > h3, thead
+          display:  none
+      h4
+        text-align: center
+                        |]
+    [whamlet|
+  <div.panel.panel-primary>
+    <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-1">
+      <h2> Monthly Sales
+    <div.panel-body.pivot-inline id=dashboard-panel-1>
+      <div.row>
+        <div.col-md-12>
+          ^{currentMonthPcent}
+      <div.row>
+        <div.col-md-4.display10 >
+          <h4> Top Styles Monthly
+          ^{topStyleMonthPcent}
+        <div.col-md-4.display10>
+          <h4> Top Colour Monthly
+          ^{topColourMonthPcent}
+        <div.col-md-4.display10>
+          <h4> Top Item Monthly
+          ^{topSkuMonthPcent}
+  <div.panel.panel-primary>
+    <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-1">
+      <h2> Since January
+    <div.panel-body.pivot-inline id=dashboard-panel-2>
+      <div.row>
+        <div.col-md-4.display10 >
+          <h4> Top Styles 
+          ^{topStyleJanuaryPcent}
+        <div.col-md-4.display10>
+          <h4> Top Colour 
+          ^{topColourJanuaryPcent}
+        <div.col-md-4.display10>
+          <h4> Top Item 
+          ^{topSkuJanuaryPcent}
+  <div.footer>
+  <span.text-right.font-italic>
+    Last update #{tshow now}
+  |]
+  -- toWidgetBody [julius|
+  --                     $("div#current-month-pcent").load("@{DashboardR (DCustomR "sales-current-month-p" 800 400)}")
+  --                     $("div#top-style-month-pcent").load("@{DashboardR (DCustomR "top20StyleMonth" 800 400)}")
+  --                     $("div#top-colour-month-pcent").load("@{DashboardR (DCustomR "top20ColourMonth" 800 400)}")
+  --                     $("div#top-sku-month-pcent").load("@{DashboardR (DCustomR "top20ItemMonth" 800 400)}")
+  --                     $("div#top-style-january-pcent").load("@{DashboardR (DCustomR "top20StyleJanuary" 800 400)}")
+  --                     $("div#top-colour-january-pcent").load("@{DashboardR (DCustomR "top20ColourJanuary" 800 400)}")
+  --                     $("div#top-sku-january-pcent").load("@{DashboardR (DCustomR "top20ItemJanuary" 800 400)}")
+  --                     |]
 
 -- Run report by name (find in configuration file)
 getDCustomR :: Text -> Int64 -> Int64 -> Handler Html
@@ -89,10 +113,33 @@ getDCustomR reportName width height = do
   role <- currentRole
   when (not $ authorizeFromAttributes role (setFromList [reportName]) ReadRequest)
        (permissionDenied reportName)
+  reportMakerE <- dispatchReport reportName width height
+  let widget = case reportMakerE of
+        Left err -> error (unpack err)
+        Right w -> w
+  p <- widgetToPageContent widget
+  withUrlRenderer [hamlet|^{pageBody p}|]
+
+-- enum of type of report
+-- allows to check statically that the report we need exist
+-- data DashboardReport = |
+--  | SalesCurrentMonthP
+--  | Top20StyleMonth
+--  | Top20ColourMonth
+--  | Top20ItemMonth
+--  | Top20StyleJanuary
+--  | Top20ColourJanuary
+--  | Top20ItemJanuary
+--  deriving (Show, Eq, Enum, Bounded)
+
+dispatchReport :: Text -> Int64 -> Int64 -> Handler (Either Text Widget)
+dispatchReport reportName width height = do
   today <- utctDay <$> liftIO getCurrentTime
-     
-  let reportMaker = case reportName of
-        "sales-current-month-p" -> salesCurrentMonth reportName
+  let beginMonth = calculateDate (AddMonths (-1)) today
+      beginJanuary = fromGregorian (currentYear) 1 1
+      currentYear = toYear today
+      reportMaker = case reportName of
+        "salesCurrentMonthP" -> salesCurrentMonth reportName
         "top20ItemMonth" -> top20ItemMonth beginMonth skuColumn
         "top20StyleMonth" -> top20ItemMonth beginMonth styleColumn
         "top20ColourMonth" -> top20ItemMonth beginMonth variationColumn
@@ -105,15 +152,9 @@ getDCustomR reportName width height = do
         "top100ItemYear" -> top100ItemYear False skuColumn
         "top100StyleYear" -> top100ItemYear False styleColumn
         "top100ColourYear" -> top100ItemYear False variationColumn
-        _ -> error "undefined report"
-      beginMonth = calculateDate (AddMonths (-1)) today
-      beginJanuary = fromGregorian (currentYear) 1 1
-      currentYear = toYear today
-  widget <- reportMaker
-  p <- widgetToPageContent widget
-  cacheSeconds (3600*24)
-  withUrlRenderer [hamlet|^{pageBody p}|]
-
+        _ -> fail "undefined report"
+  report <- reportMaker
+  return (Right report)
 
 -- | Sales current months
 
