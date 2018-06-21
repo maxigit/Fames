@@ -53,13 +53,12 @@ getDMainR = do
     .display10
       max-height: 410px
       overflow: hidden
-      &:hover
-        overflow:auto
-      > div > div
-        > h3, thead
+      h3, thead
           display:  none
       h4
         text-align: center
+      &:hover
+        overflow:auto
                         |]
     [whamlet|
   <div.panel.panel-primary>
