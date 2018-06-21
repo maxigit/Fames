@@ -1,3 +1,4 @@
+--
 module Handler.Dashboard
 ( getDMainR 
 , getDCustomR
@@ -11,6 +12,7 @@ import GL.Utils
 import GL.Payroll.Settings
 import qualified Data.Map as Map
 import Formatting
+import Data.Aeson.QQ(aesonQQ)
 
 -- Display a dashboard made of different report depending on the configuration file
 getDMainR :: Handler Html
@@ -18,7 +20,7 @@ getDMainR = defaultLayout $ do
   addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
   toWidgetHead commonCss
   toWidgetHead [cassius|
-div#pivot-Top-100-1
+div.pivot-inline
   th
     writing-mode: lr
   td div
@@ -27,20 +29,17 @@ div#pivot-Top-100-1
   [whamlet|
 <div.panel.panel-primary>
   <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-1">
-    <h2> Top 100 Items (Beginning of Year)
-  <div.panel-body id=dashboard-panel-1>
-      <h2> Top Style
-      <div#test-include-2 style="max-height:440px; overflow:auto">
-      <h2> Top Colour
-      <div#test-include-3 style="max-height:440px; overflow:auto">
-      <h2> Top Items
-      <div#test-include-1 style="max-height:440px; overflow:auto">
+    <h2> Sales
+  <div.panel-body.pivot-inline id=dashboard-panel-1>
+     <div.row>
+       <div.col-md-8>
+         <div#current-month-pcent>
 |]
   toWidgetBody [julius|
-                      $("#test-include-1").load("@{DashboardR (DCustomR "top100ItemYear" 800 400)}")
-                      $("#test-include-2XXX").load("@{DashboardR (DCustomR "top100ItemYearXXX" 800 400)}")
-                      $("#test-include-4XXX").load("@{DashboardR (DCustomR "top100StyleYear" 800 400)}")
-                      $("#test-include-3XXX").load("@{DashboardR (DCustomR "top100ColourYear" 800 400)}")
+                      $("div#current-month-pcent").load("@{DashboardR (DCustomR "sales-current-month-p" 800 400)}")
+                      $("#test-include-4").load("@{DashboardR (DCustomR "top100ItemYearChart" 800 400)}")
+                      $("#test-include-2").load("@{DashboardR (DCustomR "top100StyleYear" 800 400)}")
+                      $("#test-include-3").load("@{DashboardR (DCustomR "top100ColourYear" 800 400)}")
                       |]
 
 -- Run report by name (find in configuration file)
@@ -52,19 +51,73 @@ getDCustomR reportName width height = do
      
 
   let reportMaker = case reportName of
+        "sales-current-month-p" -> salesCurrentMonth reportName
         "top100ItemYearChart" -> top100ItemYearChart "top1"
         "top100ItemYearChart2" -> top100ItemYearChart "top2"
         "top100ItemYearXXX" -> top100ItemYear True skuColumn
         "top100ItemYear" -> top100ItemYear False skuColumn
-        "top100StyleYear" -> top100ItemYear True styleColumn
-        "top100ColourYear" -> top100ItemYear True variationColumn
+        "top100StyleYear" -> top100ItemYear False styleColumn
+        "top100ColourYear" -> top100ItemYear False variationColumn
         _ -> error "undefined report"
   widget <- reportMaker
   p <- widgetToPageContent widget
   withUrlRenderer [hamlet|^{pageBody p}|]
 
 
+-- | Sales current months
 
+salesCurrentMonth plotName = do
+  today <- utctDay <$> liftIO getCurrentTime
+  let endMonth = calculateDate EndOfMonth today
+      beginMonth = calculateDate (BeginningOfMonth) . calculateDate (BeginningOfWeek Monday) $ today
+  let param = ReportParam{..}
+      rpToday = today
+      rpFrom = Just beginMonth
+      rpTo = Just endMonth
+      rpPeriod' = Just PFWholeYear
+      rpNumberOfPeriods = Just 2
+      rpCategoryToFilter = Nothing
+      rpCategoryFilter = Nothing
+      rpStockFilter = Nothing
+      rpPanelRupture = emptyRupture
+      rpBand = emptyRupture
+      rpSerie = ColumnRupture  (Just periodColumn) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
+      rpColumnRupture = ColumnRupture  (Just dailyColumn) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
+      rpTraceParam = TraceParams QPSales (mkIdentifialParam cumulSales) (Just $ NormalizeMode NMBestInit NMBand )
+      rpTraceParam2 = TraceParams QPSales (mkIdentifialParam amountSales) (Just $ NormalizeMode NMBestInit NMBand )
+      rpTraceParam3 = emptyTrace
+      rpLoadSales = True
+      rpLoadPurchases = False
+      rpLoadAdjustment = False
+      amountSales = ("AmountAmount (Out)" ,   [(qpAmount Outward, VAmount, amountStyle, RSNormal)] )
+      amountStyle color = [("type", String "bar")
+                      ,("mode", String "bar")
+                      ,("name", String "Sales")
+                      ,("line", [aesonQQ|{
+                               shape:"linear", 
+                               color: #{color}
+                                }|])
+                -- , ("marker", [aesonQQ|{symbol: null}|])
+              ]
+      cumulSales = ("CumulAmount (Out)" ,   [(qpAmount Outward, VAmount, cumulStyle, RunSum)] )
+      cumulStyle color = [("type", String "scatter")
+                      ,("mode", String "lines")
+                      ,("name", String "Sales")
+                      ,("line", [aesonQQ|{
+                               shape:"linear", 
+                               color: #{color}
+                                }|])
+                -- , ("marker", [aesonQQ|{symbol: null}|])
+                , ("yaxis", "y2")
+                , ("showlegend", toJSON True)
+              ]
+      -- TODO factorize
+      grouper = [ -- rpPanelRupture,
+                  rpBand, rpSerie
+                , rpColumnRupture
+                ]
+  report <- itemReportXXX param grouper (\nmap -> panelChartProcessor (const 350) nmap param plotName nmap)
+  return $ report
 
 
 -- | Top style
@@ -88,8 +141,8 @@ top100ItemYear which rupture = do
       rpColumnRupture = ColumnRupture  (Just periodColumn) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing True
       rpTraceParam2 = TraceParams QPSales (mkIdentifialParam amountOutOption) (Just $ NormalizeMode NMColumn NMSerie )
       rpTraceParam = TraceParams QPSales (mkIdentifialParam amountOutOption) (Just $ NormalizeMode NMRank NMBand )
-      rpTraceParam3 = TraceParams QPSales (mkIdentifialParam amountOutOption) Nothing
-      -- rpTraceParam3 = emptyTrace
+      -- rpTraceParam3 = TraceParams QPSales (mkIdentifialParam amountOutOption) Nothing
+      rpTraceParam3 = emptyTrace
       rpLoadSales = True
       rpLoadPurchases = False
       rpLoadAdjustment = False
@@ -135,7 +188,7 @@ top100ItemYearChart plotName = do
                   rpBand, rpSerie
                 , rpColumnRupture
                 ]
-  report <- itemReportXXX param grouper (\nmap -> panelChartProcessor nmap param plotName nmap)
+  report <- itemReportXXX param grouper (\nmap -> panelChartProcessor (const 350) nmap param plotName nmap)
   return $ report
 
 -- pivotRankProcessor:: [TraceParams] -> _ColumnRuptures -> NMap TranQP -> Widget
@@ -234,10 +287,11 @@ collectColumnsForPivotRank tparams key rank parents ruptures@(r, ()) nmap = let
             , Just rankForCol <- return $ lookup column rankTrace
             ]
   widget rank column = let
-    isTop = rank == 1
-    isTop2 = rank == 2
+    -- isTop = rank == 1
+    -- isTop2 = rank == 2
+          -- <div :isTop:.topOne :isTop2:.topTwo>#{pvToText $ nkKey key}
     in [whamlet|
-          <div :isTop:.topOne :isTop2:.topTwo>#{pvToText $ nkKey key}
+          <div>#{pvToText $ nkKey key}
           $forall trace <- traces
             <div.just-right>#{fromMaybe "-" $ lookup column trace}
                         |]

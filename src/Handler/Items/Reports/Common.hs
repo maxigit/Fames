@@ -385,7 +385,7 @@ categoryColumnsH = do
          | cat <- categories
          ]
 
-dateColumns@[yearlyColumn, quarterlyColumn, weeklyColumn, monthlyColumn, dailyColum]
+dateColumns@[yearlyColumn, quarterlyColumn, weeklyColumn, monthlyColumn, dailyColumn]
   = map mkDateColumn [ ("Beginning of Year", calculateDate BeginningOfYear)
                      , ("Beginning of Quarter", calculateDate (BeginningOfQuarter))
                      , ("Beginning of Week", calculateDate (BeginningOfWeek Sunday))
@@ -875,7 +875,7 @@ nmapToNMapListWithRank  nmap =
 -- ** Plot
 chartProcessor :: ReportParam -> NMap (Sum Double, TranQP) -> Widget 
 chartProcessor param grouped = do
-  processPanelsWithXXX "items-report-chart" param grouped panelChartProcessor
+  processPanelsWithXXX "items-report-chart" param grouped (panelChartProcessor $ \n -> max 350 (900 `div` n))
         
 processPanelsWithXXX reportId param grouped panelProcessor =  do
   let asList = nmapToNMapListWithRank grouped
@@ -918,11 +918,11 @@ createKeyRankProcessor f key rank parents ruptures nmap= let
       
 
   
-panelChartProcessor :: NMap (Sum Double, TranQP) -> ReportParam -> Text -> NMap (Sum Double, TranQP) -> Widget 
-panelChartProcessor all param plotId0 grouped = do
+panelChartProcessor :: (Int -> Int ) -> NMap (Sum Double, TranQP) -> ReportParam -> Text -> NMap (Sum Double, TranQP) -> Widget 
+panelChartProcessor heightForBands all param plotId0 grouped = do
   let asList = nmapToNMapListWithRank grouped
       numberOfBands = length asList
-      plotHeight = max 350 (900 `div` numberOfBands)
+      plotHeight = heightForBands numberOfBands -- max 350 (900 `div` numberOfBands)
   forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
         do
           let -- byColumn = nmapToNMapList grouped -- fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) (unNMap TranQP' bands)
@@ -1123,7 +1123,7 @@ formatSerieValuesNMap formatAmount formatPercent mode all panel band f nmap = le
 seriesChartProcessor :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
   -> ColumnRupture -> Bool -> [(QPType, TraceParam, Maybe NormalizeMode )]-> Text -> Text -> NMap (Sum Double, TranQP)  -> Widget 
 seriesChartProcessor all panel rupture mono params name plotId grouped = do
-     let xsFor g = map (toJSON . fst) g
+     let xsFor g = map (toJSON . pvToText . fst) g
          -- ysFor :: Maybe NormalizeMode -> (b -> Maybe Double) -> [ (a, b) ] -> [ Maybe Value ]
          ysFor normM f g = map (fmap toJSON) $ formatSerieValues formatDouble (printf "%0.1f")normM all panel grouped f g
          traceFor param ((name', g'), color,groupId) = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g) 
@@ -1136,7 +1136,7 @@ seriesChartProcessor all panel rupture mono params name plotId grouped = do
                                                     -- <> maybe [] (\color -> [("color", String color)]) colorM
                                                     <> tpChartOptions tp color
                                                     <> (if name == PersistNull then [] else [("name", toJSON $ nkeyWithRank name')])
-                                                       where g = [ (nkeyWithRank n, mconcat (toList nmap))  | (n, nmap) <- nmapToNMapListWithRank g'' ] -- flatten everything if needed
+                                                       where g = [ (nkKey (snd n), mconcat (toList nmap))  | (n, nmap) <- nmapToNMapListWithRank g'' ] -- flatten everything if needed
                                                              g'' = nmapRunSum (tpRunSum tp) g'
                                                              (qtype, tp , normMode) = param
                                                              fn = fmap (tpValueGetter tp) . lookupGrouped qtype
