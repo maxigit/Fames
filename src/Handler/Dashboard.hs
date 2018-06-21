@@ -61,6 +61,7 @@ getDCustomR reportName width height = do
         _ -> error "undefined report"
   widget <- reportMaker
   p <- widgetToPageContent widget
+  cacheSeconds 3600
   withUrlRenderer [hamlet|^{pageBody p}|]
 
 
