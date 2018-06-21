@@ -55,6 +55,20 @@ div.pivot-inline
        <div.col-md-4.display10>
          <h4> Top Item Monthly
          <div#top-sku-month-pcent>
+<div.panel.panel-primary>
+  <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-1">
+    <h2> Since January
+  <div.panel-body.pivot-inline id=dashboard-panel-2>
+     <div.row>
+       <div.col-md-4.display10 >
+         <h4> Top Styles 
+         <div#top-style-january-pcent>
+       <div.col-md-4.display10>
+         <h4> Top Colour 
+         <div#top-colour-january-pcent>
+       <div.col-md-4.display10>
+         <h4> Top Item 
+         <div#top-sku-january-pcent>
 <div.footer>
 <span.text-right.font-italic>
   Last update #{tshow now}
@@ -64,9 +78,9 @@ div.pivot-inline
                       $("div#top-style-month-pcent").load("@{DashboardR (DCustomR "top20StyleMonth" 800 400)}")
                       $("div#top-colour-month-pcent").load("@{DashboardR (DCustomR "top20ColourMonth" 800 400)}")
                       $("div#top-sku-month-pcent").load("@{DashboardR (DCustomR "top20ItemMonth" 800 400)}")
-                      $("#test-include-4").load("@{DashboardR (DCustomR "top100ItemYearChart" 800 400)}")
-                      $("#test-include-2").load("@{DashboardR (DCustomR "top100StyleYear" 800 400)}")
-                      $("#test-include-3").load("@{DashboardR (DCustomR "top100ColourYear" 800 400)}")
+                      $("div#top-style-january-pcent").load("@{DashboardR (DCustomR "top20StyleJanuary" 800 400)}")
+                      $("div#top-colour-january-pcent").load("@{DashboardR (DCustomR "top20ColourJanuary" 800 400)}")
+                      $("div#top-sku-january-pcent").load("@{DashboardR (DCustomR "top20ItemJanuary" 800 400)}")
                       |]
 
 -- Run report by name (find in configuration file)
@@ -75,13 +89,16 @@ getDCustomR reportName width height = do
   role <- currentRole
   when (not $ authorizeFromAttributes role (setFromList [reportName]) ReadRequest)
        (permissionDenied reportName)
+  today <- utctDay <$> liftIO getCurrentTime
      
-
   let reportMaker = case reportName of
         "sales-current-month-p" -> salesCurrentMonth reportName
-        "top20ItemMonth" -> top20ItemMonth skuColumn
-        "top20StyleMonth" -> top20ItemMonth styleColumn
-        "top20ColourMonth" -> top20ItemMonth variationColumn
+        "top20ItemMonth" -> top20ItemMonth beginMonth skuColumn
+        "top20StyleMonth" -> top20ItemMonth beginMonth styleColumn
+        "top20ColourMonth" -> top20ItemMonth beginMonth variationColumn
+        "top20ItemJanuary" -> top20ItemMonth beginJanuary skuColumn
+        "top20StyleJanuary" -> top20ItemMonth beginJanuary styleColumn
+        "top20ColourJanuary" -> top20ItemMonth beginJanuary variationColumn
         "top100ItemYearChart" -> top100ItemYearChart "top1"
         "top100ItemYearChart2" -> top100ItemYearChart "top2"
         "top100ItemYearXXX" -> top100ItemYear True skuColumn
@@ -89,6 +106,9 @@ getDCustomR reportName width height = do
         "top100StyleYear" -> top100ItemYear False styleColumn
         "top100ColourYear" -> top100ItemYear False variationColumn
         _ -> error "undefined report"
+      beginMonth = calculateDate (AddMonths (-1)) today
+      beginJanuary = fromGregorian (currentYear) 1 1
+      currentYear = toYear today
   widget <- reportMaker
   p <- widgetToPageContent widget
   cacheSeconds (3600*24)
@@ -154,13 +174,12 @@ salesCurrentMonth plotName = do
 
 
 -- | Top style
-top20ItemMonth rupture = do
+top20ItemMonth begin rupture = do
   today <- utctDay <$> liftIO getCurrentTime
   let tomorrow = calculateDate (AddDays 1) today
-      beginMonth = calculateDate (AddMonths (-1)) today
   let param = ReportParam{..}
       rpToday = today
-      rpFrom = Just beginMonth
+      rpFrom = Just begin
       rpTo = Just tomorrow
       rpPeriod' = Nothing
       rpNumberOfPeriods = Nothing
