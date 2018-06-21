@@ -17,6 +17,7 @@ import Data.Aeson.QQ(aesonQQ)
 -- Display a dashboard made of different report depending on the configuration file
 getDMainR :: Handler Html
 getDMainR = defaultLayout $ do
+  now <- liftIO $ getCurrentTime
   addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
   toWidgetHead commonCss
   toWidgetHead [cassius|
@@ -25,18 +26,44 @@ div.pivot-inline
     writing-mode: lr
   td div
     display: inline
+  .display10
+    max-height: 410px
+    overflow: hidden
+    &:hover
+      overflow:auto
+    > div > div
+      > h3, thead
+        display:  none
+    h4
+      text-align: center
                        |]
   [whamlet|
 <div.panel.panel-primary>
   <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-1">
-    <h2> Sales
+    <h2> Monthly Sales
   <div.panel-body.pivot-inline id=dashboard-panel-1>
      <div.row>
        <div.col-md-12>
          <div#current-month-pcent>
+     <div.row>
+       <div.col-md-4.display10 >
+         <h4> Top Styles Monthly
+         <div#top-style-month-pcent>
+       <div.col-md-4.display10>
+         <h4> Top Colour Monthly
+         <div#top-colour-month-pcent>
+       <div.col-md-4.display10>
+         <h4> Top Item Monthly
+         <div#top-sku-month-pcent>
+<div.footer>
+<span.text-right.font-italic>
+  Last update #{tshow now}
 |]
   toWidgetBody [julius|
                       $("div#current-month-pcent").load("@{DashboardR (DCustomR "sales-current-month-p" 800 400)}")
+                      $("div#top-style-month-pcent").load("@{DashboardR (DCustomR "top20StyleMonth" 800 400)}")
+                      $("div#top-colour-month-pcent").load("@{DashboardR (DCustomR "top20ColourMonth" 800 400)}")
+                      $("div#top-sku-month-pcent").load("@{DashboardR (DCustomR "top20ItemMonth" 800 400)}")
                       $("#test-include-4").load("@{DashboardR (DCustomR "top100ItemYearChart" 800 400)}")
                       $("#test-include-2").load("@{DashboardR (DCustomR "top100StyleYear" 800 400)}")
                       $("#test-include-3").load("@{DashboardR (DCustomR "top100ColourYear" 800 400)}")
@@ -52,6 +79,9 @@ getDCustomR reportName width height = do
 
   let reportMaker = case reportName of
         "sales-current-month-p" -> salesCurrentMonth reportName
+        "top20ItemMonth" -> top20ItemMonth skuColumn
+        "top20StyleMonth" -> top20ItemMonth styleColumn
+        "top20ColourMonth" -> top20ItemMonth variationColumn
         "top100ItemYearChart" -> top100ItemYearChart "top1"
         "top100ItemYearChart2" -> top100ItemYearChart "top2"
         "top100ItemYearXXX" -> top100ItemYear True skuColumn
@@ -61,7 +91,7 @@ getDCustomR reportName width height = do
         _ -> error "undefined report"
   widget <- reportMaker
   p <- widgetToPageContent widget
-  cacheSeconds 3600
+  cacheSeconds (3600*24)
   withUrlRenderer [hamlet|^{pageBody p}|]
 
 
@@ -69,7 +99,7 @@ getDCustomR reportName width height = do
 
 salesCurrentMonth plotName = do
   today <- utctDay <$> liftIO getCurrentTime
-  let endMonth = calculateDate EndOfMonth today
+  let endMonth = calculateDate (AddMonths 1) beginMonth
       beginMonth = calculateDate (BeginningOfMonth) . calculateDate (BeginningOfWeek Monday) $ today
   let param = ReportParam{..}
       rpToday = today
@@ -124,6 +154,35 @@ salesCurrentMonth plotName = do
 
 
 -- | Top style
+top20ItemMonth rupture = do
+  today <- utctDay <$> liftIO getCurrentTime
+  let tomorrow = calculateDate (AddDays 1) today
+      beginMonth = calculateDate (AddMonths (-1)) today
+  let param = ReportParam{..}
+      rpToday = today
+      rpFrom = Just beginMonth
+      rpTo = Just tomorrow
+      rpPeriod' = Nothing
+      rpNumberOfPeriods = Nothing
+      rpCategoryToFilter = Nothing
+      rpCategoryFilter = Nothing
+      rpStockFilter = Nothing -- Just (LikeFilter "ML1_-A_2-BLK")
+      rpPanelRupture = emptyRupture
+      rpBand = emptyRupture
+      rpSerie = ColumnRupture (Just rupture) bestSalesTrace (Just RMResidual) (Just 50) False
+      rpColumnRupture = ColumnRupture  Nothing (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing True
+      rpTraceParam = TraceParams QPSales (mkIdentifialParam amountOutOption) (Just $ NormalizeMode NMColumn NMSerie )
+      rpTraceParam2 = emptyTrace
+      -- rpTraceParam = TraceParams QPSales (mkIdentifialParam amountOutOption) (Just $ NormalizeMode NMRank NMBand )
+      -- rpTraceParam3 = TraceParams QPSales (mkIdentifialParam amountOutOption) Nothing
+      rpTraceParam3 = emptyTrace
+      rpLoadSales = True
+      rpLoadPurchases = False
+      rpLoadAdjustment = False
+  report <- let pivotP tparams = processRupturesWith (createKeyRankProcessor $ \_ _ -> (bandPivotProcessor tparams "pivot-Top20", id) ) ()
+            in itemReport param pivotP--  (panelPivotProcessor "pivot-Top-100" (mkNMapKey "New Report"))
+  return $ report
+
 top100ItemYear which rupture = do
   today <- utctDay <$> liftIO getCurrentTime
   let tomorrow = calculateDate (AddDays 1) today
