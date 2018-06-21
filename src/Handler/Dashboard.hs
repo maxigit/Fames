@@ -32,7 +32,7 @@ div.pivot-inline
     <h2> Sales
   <div.panel-body.pivot-inline id=dashboard-panel-1>
      <div.row>
-       <div.col-md-8>
+       <div.col-md-12>
          <div#current-month-pcent>
 |]
   toWidgetBody [julius|
@@ -84,20 +84,22 @@ salesCurrentMonth plotName = do
       rpSerie = ColumnRupture  (Just periodColumn) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
       rpColumnRupture = ColumnRupture  (Just dailyColumn) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
       rpTraceParam = TraceParams QPSales (mkIdentifialParam cumulSales) (Just $ NormalizeMode NMBestInit NMBand )
-      rpTraceParam2 = TraceParams QPSales (mkIdentifialParam amountSales) (Just $ NormalizeMode NMBestInit NMBand )
+      rpTraceParam2 = TraceParams QPSales (mkIdentifialParam amountSales) (Just $ NormalizeMode NMTotal NMBand )
       rpTraceParam3 = emptyTrace
       rpLoadSales = True
       rpLoadPurchases = False
       rpLoadAdjustment = False
-      amountSales = ("AmountAmount (Out)" ,   [(qpAmount Outward, VAmount, amountStyle, RSNormal)] )
-      amountStyle color = [("type", String "bar")
-                      ,("mode", String "bar")
+      amountSales = ("Amount (Out)" ,   [(qpAmount Outward, VAmount, amountStyle, RSNormal)] )
+      amountStyle color = [("type", String "scatter")
+                      ,("mode", String "lines")
                       ,("name", String "Sales")
                       ,("line", [aesonQQ|{
-                               shape:"linear", 
-                               color: #{color}
+                               shape:"spline", 
+                               color: #{color},
+                               dash: "dot",
+                               width: 1
                                 }|])
-                -- , ("marker", [aesonQQ|{symbol: null}|])
+                , ("marker", [aesonQQ|{symbol: "square"}|])
               ]
       cumulSales = ("CumulAmount (Out)" ,   [(qpAmount Outward, VAmount, cumulStyle, RunSum)] )
       cumulStyle color = [("type", String "scatter")

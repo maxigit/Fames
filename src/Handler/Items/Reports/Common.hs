@@ -1156,33 +1156,33 @@ seriesChartProcessor all panel rupture mono params name plotId grouped = do
                       , title: #{toJSON name}
                       , yaxis2 : {overlaying: 'y', title: "Quantities", side: "right"}
                       , yaxis3 : {overlaying: 'y', title: "Price"}
-                      , updatemenus:
-                         [ { buttons: [ { method: 'restyle'
-                                        , args: [{type: 'scatter', fill: 'none' }]
-                                        , label: "Line"
-                                        }
-                                      , { method: 'restyle'
-                                        , args: [{type: 'bar' }]
-                                        , label: "Bar"
-                                        }
-                                      , { method: 'restyle'
-                                        , args: [{type: 'scatter', fill: 'tozeroy' }]
-                                        , label: "Area"
-                                        }
-                                      , { method: 'relayout'
-                                        , args: [{barmode: 'stack'}]
-                                        , label: "Stack"
-                                        }
-                                      , { method: 'relayout'
-                                        , args: [{barmode: null}]
-                                        , label: "Untack"
-                                        }
-                                  ]
-                           }
-                         ]
                       }
                     );
                 |]
+                      -- , updatemenus:
+                      --    [ { buttons: [ { method: 'restyle'
+                      --                   , args: [{type: 'scatter', fill: 'none' }]
+                      --                   , label: "Line"
+                      --                   }
+                      --                 , { method: 'restyle'
+                      --                   , args: [{type: 'bar' }]
+                      --                   , label: "Bar"
+                      --                   }
+                      --                 , { method: 'restyle'
+                      --                   , args: [{type: 'scatter', fill: 'tozeroy' }]
+                      --                   , label: "Area"
+                      --                   }
+                      --                 , { method: 'relayout'
+                      --                   , args: [{barmode: 'stack'}]
+                      --                   , label: "Stack"
+                      --                   }
+                      --                 , { method: 'relayout'
+                      --                   , args: [{barmode: null}]
+                      --                   , label: "Untack"
+                      --                   }
+                      --             ]
+                      --      }
+                      --    ]
   
 -- ** Pivot
 pivotProcessor:: [TraceParams] -> _ColumnRuptures -> NMap TranQP -> Widget
