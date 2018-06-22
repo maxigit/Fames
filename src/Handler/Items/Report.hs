@@ -267,7 +267,7 @@ renderReportForm  route modeM paramM status resultM = do
                         |]
   selectRep $ do
     provideRep $ do
-      html <- sendResponseStatus status =<< defaultLayout (widget >> fay) 
+      html <- sendResponseStatus status =<< defaultLayout (toWidget commonCss >> widget >> fay) 
       return (html :: Html)
     provideRep $ do -- Ajax. return result
       div <- widgetToPageContent (fromMaybe (return ()) resultM)

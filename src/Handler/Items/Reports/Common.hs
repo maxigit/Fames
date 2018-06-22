@@ -713,9 +713,10 @@ commonCss = [cassius|
 .negative-bad .negative, .positive-bad .positive
   background: #fedede
   color: #d0534f
-  .bracket
-  font-style: italic
-  color: gray
+span.RunSum::before
+  content: ">>"
+span.RunSumBack::before
+  content: "<<"
                    |]
 tableProcessor :: NMap (Sum Double, TranQP) -> Widget 
 tableProcessor grouped = do
@@ -1195,7 +1196,7 @@ seriesChartProcessor all panel rupture mono params name plotId grouped = do
   
 -- ** Pivot
 pivotProcessor:: [TraceParams] -> _ColumnRuptures -> NMap TranQP -> Widget
-pivotProcessor tparams = 
+pivotProcessor tparams =  do
   processRupturesWith (panelPivotProcessor tparams "items-report-pivot") ()
   
 -- each nmap is a panel
