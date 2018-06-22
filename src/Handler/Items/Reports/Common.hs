@@ -981,6 +981,12 @@ nmapRunSum runsum nmap = let
        RSNormal   -> nmap'
   in nmapFromList (join . headMay $ nmapLevels nmap) key'sumS
 
+-- allows to get the tail or init but always leave a element
+-- if needed
+getSubMargin :: ([a] -> [a]) -> [a] -> [a]
+getSubMargin getter subs = case subs of
+  [x] -> [x]
+  _ -> getter subs
 -- | NMap version of formatSerieValues
 formatSerieValuesNMapXXX :: (Double -> t) -> (Double -> t)
                   -> Maybe NormalizeMode -- normalising, %, by row, col etct
@@ -996,8 +1002,8 @@ formatSerieValuesNMapXXX formatAmount formatPercent mode all panel band f0 nmap 
              (Just NMTruncated) -> NLeaf (mconcat subMargins)
              (Just NMFirst) -> NLeaf (headEx subMargins)
              (Just NMLast) -> NLeaf (lastEx subMargins)
-             (Just NMBestTail) -> NLeaf (maximumByEx (comparing f) $  tailEx subMargins)
-             (Just NMBestInit) -> NLeaf (maximumByEx (comparing f) $  initEx subMargins)
+             (Just NMBestTail) -> NLeaf (maximumByEx (comparing f) $  getSubMargin tailEx subMargins) -- TODO use minLen instead
+             (Just NMBestInit) -> NLeaf (maximumByEx (comparing f) $  getSubMargin initEx subMargins)
              (Just NMColumn) -> let
                         -- regroup margin by column TODO computes on0
                         -- all data are already grouped by column, but at the deepest level of nesting
@@ -1065,8 +1071,8 @@ formatSerieValuesNMap formatAmount formatPercent mode all panel band f nmap = le
              (Just NMTruncated) -> NLeaf (mconcat subMargins)
              (Just NMFirst) -> NLeaf (headEx subMargins)
              (Just NMLast) -> NLeaf (lastEx subMargins)
-             (Just NMBestTail) -> NLeaf (maximumByEx (comparing f) $  tailEx subMargins)
-             (Just NMBestInit) -> NLeaf (maximumByEx (comparing f) $  initEx subMargins)
+             (Just NMBestTail) -> NLeaf (maximumByEx (comparing f) $  getSubMargin tailEx subMargins)
+             (Just NMBestInit) -> NLeaf (maximumByEx (comparing f) $  getSubMargin initEx subMargins)
              (Just NMColumn) -> let
                         -- regroup margin by column TODO computes on0
                         -- all data are already grouped by column, but at the deepest level of nesting
