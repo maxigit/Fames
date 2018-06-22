@@ -119,7 +119,6 @@ data ValueType
   | VQuantity
   | VPrice
   | VPercentage
-  | VBracket ValueType
   deriving (Show, Eq, Ord) -- , Enum, Bounded)
 
 -- | Parameter to define a plotly trace.
@@ -714,7 +713,7 @@ commonCss = [cassius|
 .negative-bad .negative, .positive-bad .positive
   background: #fedede
   color: #d0534f
-.bracket
+  .bracket
   font-style: italic
   color: gray
                    |]
@@ -1350,7 +1349,6 @@ bandPivotProcessorXXX all panel rupture mono params name plotId grouped = let
 
 formatDouble' :: TraceParam -> Double -> Html
 formatDouble' tp = formatDouble'' (tpRunSum tp) (tpValueType tp) 
-formatDouble'' runsum (VBracket f) x = [shamlet|<span.font-italic.bracket>[#{formatDouble'' runsum f x}]|]
 formatDouble'' runsum vtype x = let
   s :: Text
   s = case vtype of
@@ -1358,17 +1356,12 @@ formatDouble'' runsum vtype x = let
     VQuantity -> sformat commasFixed' x
     VPercentage -> sformat (fixed 1 % "%") x
     VPrice -> sformat ("£" % fixed 2) x
-    VBracket _ -> error "done before"
   
-  toHtmlWith t = if x < 0
-                 then [shamlet|<span.negative>#{t}|]
-                 else if x > 0
-                      then [shamlet|<span.positive>#{t}|]
-                      else toHtml t
-  in toHtmlWith $ case runsum of
-          RSNormal -> s
-          RunSum -> sformat (">> " % stext) s
-          RunSumBack -> sformat ("<< " % stext) s
+  classes = posneg : tshow vtype : tshow runsum : [] :: [Text]
+  posneg = if x < 0 then "negative" else "negative"
+  in  [shamlet|
+         <span class="#{intercalate " " classes}">
+              #{s}|]
         
 
 -- | display a amount to 2 dec with thousands separator

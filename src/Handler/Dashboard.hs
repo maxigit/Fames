@@ -15,6 +15,29 @@ import qualified Data.Map as Map
 import Formatting
 import Data.Aeson.QQ(aesonQQ)
 
+pivotCss = [cassius|
+  div.pivot-inline
+    th
+      writing-mode: lr
+    td div
+      display: inline
+    .display10
+      max-height: 410px
+      overflow: hidden
+      h3, thead
+          display:  none
+      h4
+        text-align: center
+      &:hover
+        overflow:auto
+    span.VQuantity::before
+      content: "["
+    span.VQuantity::after
+      content: "]"
+    span.VQuantity
+      font-style: italic
+      color: grey
+                        |]
 -- Display a dashboard made of different report depending on the configuration file
 getDMainR :: Handler Html
 getDMainR = do
@@ -45,22 +68,7 @@ getDMainR = do
   defaultLayout $ do
     addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
     toWidgetHead commonCss
-    toWidgetHead [cassius|
-  div.pivot-inline
-    th
-      writing-mode: lr
-    td div
-      display: inline
-    .display10
-      max-height: 410px
-      overflow: hidden
-      h3, thead
-          display:  none
-      h4
-        text-align: center
-      &:hover
-        overflow:auto
-                        |]
+    toWidgetHead pivotCss
     [whamlet|
   <div.panel.panel-primary>
     <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-1">
@@ -129,22 +137,7 @@ getDMainFullR = do
   defaultLayout $ do
     addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
     toWidgetHead commonCss
-    toWidgetHead [cassius|
-  div.pivot-inline
-    th
-      writing-mode: lr
-    td div
-      display: inline
-    .display10
-      max-height: 410px
-      overflow: hidden
-      h3, thead
-          display:  none
-      h4
-        text-align: center
-      &:hover
-        overflow:auto
-                        |]
+    toWidgetHead pivotCss 
     [whamlet|
   <div.panel.panel-primary>
     <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-1">
@@ -251,7 +244,7 @@ dispatchReport reportName width height = do
 cumulSales = ("CumulAmount (Out)" ,   [(qpAmount Outward, VAmount, cumulStyle, RunSum)] )
 _quantitySales = ("CumulAmount (Out)" ,   [(qpQty Outward, VAmount, cumulStyle, RunSum)] )
 amountSales = ("Amount (Out)" ,   [(qpAmount Outward, VAmount, smouthAmountStyle, RSNormal)] )
-quantitySales = ("Amount (Out)" ,   [(qpQty Outward, VBracket VQuantity, smouthAmountStyle, RSNormal)] )
+quantitySales = ("Amount (Out)" ,   [(qpQty Outward, VQuantity, smouthAmountStyle, RSNormal)] )
 cumulStyle color = [("type", String "scatter")
                       ,("mode", String "lines")
                       ,("name", String "Sales")
