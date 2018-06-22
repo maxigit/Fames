@@ -86,7 +86,8 @@
   /image/#Text/#Int64/#Int64 PImageR GET
   
 /dashboard DashboardR !dashboard:
-  / DMainR GET !group=Dashboard !title=Items
+  / DMainR GET !group=Dashboard !title=Sales
+  /mainFull DMainFullR GET !title=Sales_Full
   /custom/#Text/#Int64/#Int64 DCustomR GET
 -- Warning ! This code has been generated !}
 

@@ -1,6 +1,7 @@
---
+{-# LANGUAGE NamedFieldPuns #-}
 module Handler.Dashboard
 ( getDMainR 
+, getDMainFullR
 , getDCustomR
 )
 where
@@ -96,6 +97,90 @@ getDMainR = do
   <span.text-right.font-italic>
     Last update #{tshow now}
   |]
+-- | Same as main but display qty and amount instead of percent
+getDMainFullR :: Handler Html
+getDMainFullR = do
+  now <- liftIO $ getCurrentTime
+  let reportDiv :: Text -> Handler Widget
+      reportDiv reportId = do
+        widgetE <- dispatchReport reportId 800 400
+        case widgetE of
+          Left err -> return [whamlet|
+             <div id=#{reportId}>
+               The report #{reportId} doesn't exists. Contact your administrator.
+                              |]
+          Right w -> do
+            return [whamlet|
+                         <div id=#{reportId}>
+                         ^{w}
+                         |]
+
+  -- refactor
+  currentMonthFull <- reportDiv "salesCurrentMonthFull" 
+  topStyleMonthFull <- reportDiv "top20StyleMonthFull" 
+  topColourMonthFull <- reportDiv "top20ColourMonthFull" 
+  topSkuMonthFull <- reportDiv "top20ItemMonthFull" 
+  topStyleJanuaryFull <- reportDiv "top20StyleJanuaryFull" 
+  topColourJanuaryFull <- reportDiv "top20ColourJanuaryFull" 
+  topSkuJanuaryFull <- reportDiv "top20ItemJanuaryFull" 
+
+
+  cacheSeconds (3600*24)
+  defaultLayout $ do
+    addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
+    toWidgetHead commonCss
+    toWidgetHead [cassius|
+  div.pivot-inline
+    th
+      writing-mode: lr
+    td div
+      display: inline
+    .display10
+      max-height: 410px
+      overflow: hidden
+      h3, thead
+          display:  none
+      h4
+        text-align: center
+      &:hover
+        overflow:auto
+                        |]
+    [whamlet|
+  <div.panel.panel-primary>
+    <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-1">
+      <h2> Monthly Sales
+    <div.panel-body.pivot-inline id=dashboard-panel-1>
+      <div.row>
+        <div.col-md-12>
+          ^{currentMonthFull}
+      <div.row>
+        <div.col-md-4.display10 >
+          <h4> Top Styles Monthly
+          ^{topStyleMonthFull}
+        <div.col-md-4.display10>
+          <h4> Top Colour Monthly
+          ^{topColourMonthFull}
+        <div.col-md-4.display10>
+          <h4> Top Item Monthly
+          ^{topSkuMonthFull}
+  <div.panel.panel-primary>
+    <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-1">
+      <h2> Since January
+    <div.panel-body.pivot-inline id=dashboard-panel-2>
+      <div.row>
+        <div.col-md-4.display10 >
+          <h4> Top Styles 
+          ^{topStyleJanuaryFull}
+        <div.col-md-4.display10>
+          <h4> Top Colour 
+          ^{topColourJanuaryFull}
+        <div.col-md-4.display10>
+          <h4> Top Item 
+          ^{topSkuJanuaryFull}
+  <div.footer>
+  <span.text-right.font-italic>
+    Last update #{tshow now}
+  |]
   -- toWidgetBody [julius|
   --                     $("div#current-month-pcent").load("@{DashboardR (DCustomR "sales-current-month-p" 800 400)}")
   --                     $("div#top-style-month-pcent").load("@{DashboardR (DCustomR "top20StyleMonth" 800 400)}")
@@ -138,30 +223,72 @@ dispatchReport reportName width height = do
       beginJanuary = fromGregorian (currentYear) 1 1
       currentYear = toYear today
       reportMaker = case reportName of
-        "salesCurrentMonthP" -> salesCurrentMonth reportName
-        "top20ItemMonth" -> top20ItemMonth beginMonth skuColumn
-        "top20StyleMonth" -> top20ItemMonth beginMonth styleColumn
-        "top20ColourMonth" -> top20ItemMonth beginMonth variationColumn
-        "top20ItemJanuary" -> top20ItemMonth beginJanuary skuColumn
-        "top20StyleJanuary" -> top20ItemMonth beginJanuary styleColumn
-        "top20ColourJanuary" -> top20ItemMonth beginJanuary variationColumn
+        "salesCurrentMonthP" -> salesCurrentMonth id reportName
+        "top20ItemMonth" -> top20ItemMonth id beginMonth skuColumn
+        "top20StyleMonth" -> top20ItemMonth id beginMonth styleColumn
+        "top20ColourMonth" -> top20ItemMonth id beginMonth variationColumn
+        "top20ItemJanuary" -> top20ItemMonth id beginJanuary skuColumn
+        "top20StyleJanuary" -> top20ItemMonth id beginJanuary styleColumn
+        "top20ColourJanuary" -> top20ItemMonth id beginJanuary variationColumn
         "top100ItemYearChart" -> top100ItemYearChart "top1"
         "top100ItemYearChart2" -> top100ItemYearChart "top2"
         "top100ItemYearXXX" -> top100ItemYear True skuColumn
         "top100ItemYear" -> top100ItemYear False skuColumn
         "top100StyleYear" -> top100ItemYear False styleColumn
         "top100ColourYear" -> top100ItemYear False variationColumn
-        _ -> fail "undefined report"
+
+        "salesCurrentMonthFull" -> salesCurrentMonth salesCurrentMonthFullUp reportName
+        "top20ItemMonthFull" -> top20ItemMonth top20FullUp beginMonth skuColumn
+        "top20StyleMonthFull" -> top20ItemMonth top20FullUp beginMonth styleColumn
+        "top20ColourMonthFull" -> top20ItemMonth top20FullUp beginMonth variationColumn
+        "top20ItemJanuaryFull" -> top20ItemMonth top20FullUp beginJanuary skuColumn
+        "top20StyleJanuaryFull" -> top20ItemMonth top20FullUp beginJanuary styleColumn
+        "top20ColourJanuaryFull" -> top20ItemMonth top20FullUp beginJanuary variationColumn
+        _ -> fail $ "undefined report "  <> unpack reportName
   report <- reportMaker
   return (Right report)
 
+cumulSales = ("CumulAmount (Out)" ,   [(qpAmount Outward, VAmount, cumulStyle, RunSum)] )
+_quantitySales = ("CumulAmount (Out)" ,   [(qpQty Outward, VAmount, cumulStyle, RunSum)] )
+amountSales = ("Amount (Out)" ,   [(qpAmount Outward, VAmount, smouthAmountStyle, RSNormal)] )
+quantitySales = ("Amount (Out)" ,   [(qpQty Outward, VBracket VQuantity, smouthAmountStyle, RSNormal)] )
+cumulStyle color = [("type", String "scatter")
+                      ,("mode", String "lines")
+                      ,("name", String "Sales")
+                      ,("line", [aesonQQ|{
+                               shape:"linear", 
+                               color: #{color}
+                                }|])
+                -- , ("marker", [aesonQQ|{symbol: null}|])
+                , ("yaxis", "y2")
+                , ("showlegend", toJSON True)
+              ]
+smouthAmountStyle color = [("type", String "scatter")
+                      ,("mode", String "lines")
+                      ,("name", String "Sales")
+                      ,("line", [aesonQQ|{
+                               shape:"spline", 
+                               color: #{color},
+                               dash: "dot",
+                               width: 1
+                                }|])
+                , ("marker", [aesonQQ|{symbol: "square"}|])
+              ]
+salesCurrentMonthFullUp param = param {rpTraceParam, rpTraceParam2} where
+      rpTraceParam = TraceParams QPSales (mkIdentifialParam cumulSales) Nothing
+      rpTraceParam2 = TraceParams QPSales (mkIdentifialParam amountSales) Nothing
+  
+top20FullUp param = param {rpTraceParam2,rpTraceParam3} where
+      rpTraceParam2 = TraceParams QPSales (mkIdentifialParam amountSales) Nothing
+      rpTraceParam3 = TraceParams QPSales (mkIdentifialParam quantitySales) Nothing
+      -- rpTraceParam3 = TraceParams QPSales (mkIdentifialParam quantityOutOption) Nothing
 -- | Sales current months
 
-salesCurrentMonth plotName = do
+salesCurrentMonth f plotName = do
   today <- utctDay <$> liftIO getCurrentTime
   let endMonth = calculateDate (AddMonths 1) beginMonth
       beginMonth = calculateDate (BeginningOfMonth) . calculateDate (BeginningOfWeek Monday) $ today
-  let param = ReportParam{..}
+  let param = f ReportParam{..}
       rpToday = today
       rpFrom = Just beginMonth
       rpTo = Just endMonth
@@ -214,10 +341,10 @@ salesCurrentMonth plotName = do
 
 
 -- | Top style
-top20ItemMonth begin rupture = do
+top20ItemMonth f begin rupture = do
   today <- utctDay <$> liftIO getCurrentTime
   let tomorrow = calculateDate (AddDays 1) today
-  let param = ReportParam{..}
+  let param = f ReportParam{..}
       rpToday = today
       rpFrom = Just begin
       rpTo = Just tomorrow
