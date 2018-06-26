@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9a0d1cd4251b66984cf973a23ee403bc48ee2afb4679dd2f5c9dd1bb65681ce2
+-- hash: 1855f7dd7c565dc2a6703388e0bf4b411b3ea1b9f77bf559b26ea3cae12c055d
 
 name:           Fames
 version:        0.0.1
@@ -121,6 +121,7 @@ library
       FAX
       Foundation
       Handler.Administrator
+      Handler.Bank
       Handler.Comment
       Handler.Common
       Handler.CsvUtils
@@ -179,6 +180,7 @@ library
       Util.Cache
       Util.EnumTree
       Util.SameCons
+      BankReconciliate
       WarehousePlanner.Base
       WarehousePlanner.Csv
       WarehousePlanner.Display
@@ -448,6 +450,7 @@ test-suite ghcid
       TestImport
       WH.BarcodeSpec
       WH.PackingList.InternalSpec
+      BankReconciliate
       WarehousePlanner.Base
       WarehousePlanner.Csv
       WarehousePlanner.Display
@@ -461,6 +464,7 @@ test-suite ghcid
       FAX
       Foundation
       Handler.Administrator
+      Handler.Bank
       Handler.Comment
       Handler.Common
       Handler.CsvUtils

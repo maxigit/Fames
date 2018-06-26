@@ -18,8 +18,6 @@
 -- differs from the real transaction date (entered) in FA.
 
 module BankReconciliate
-(
-)
 where
   
 import Control.Applicative
@@ -139,8 +137,8 @@ fetchFA cinfo bankAccount startM endM = do
     (_, results) <- mapAccumL tupleToFTrans (0,1) <$> SQL.query_ conn (fromString q)
     return $ V.fromList results
 
-    where q0 = "SELECT type, trans_no, ref, trans_date, CAST(person_id as CHAR(100)), amount FROM 0_bank_trans\
-                         \ WHERE amount <> 0 AND bank_act = "  ++ show bankAccount
+    where q0 = "SELECT type, trans_no, ref, trans_date, CAST(person_id as CHAR(100)), amount FROM 0_bank_trans"
+                         ++ " WHERE amount <> 0 AND bank_act = "  ++ show bankAccount
           q = reduceWith appEndo ws q0
 
           ws = catMaybes
@@ -456,47 +454,43 @@ buildSTrans (These hs fs) = let
 -- ** Options
 data Options = Options
     { hsbcFiles :: !(String) -- ^ pattern of files containing HSBC full statements.
-    , faFiles :: !(String) -- ^ patter of files containing FA transaction. 
     , statementFiles :: !(String) -- ^ pattern of files containig HSBC recent transactions. (not a statment but called statement.csv)
     , output :: !(String)
     , startDate :: !(Maybe Day)
     , endDate :: !(Maybe Day)
-    , faCredential :: !(String) -- ^ file to use to read credential  to connect to FA database
+    , faCredential :: !SQL.ConnectInfo -- ^ file to use to read credential  to connect to FA database
     , faMode :: !(FaMode) -- ^  read file or connect to FA database.
     , aggregateMode :: !(AggregateMode) -- ^ display all or just discrepencies.
     } deriving (Show)
 
-data FaMode = UseFile | BankAccountId Int deriving (Show, Read, Eq)
+data FaMode = BankAccountId Int deriving (Show, Read, Eq)
 
 -- ** Main body
 readFa :: Options -> IO (Vector FTrans)
 readFa opt  = case faMode opt of 
-    UseFile         -> V.concat <$> (mapM readFTrans =<< glob (faFiles opt))
     BankAccountId i -> do 
-                credentials <- read <$> readFile (faCredential opt)
-                fetchFA credentials i <$> startDate <*> endDate $ opt
--- main :: IO ()
--- main = do
---     opt <- O.execParser $ O.info options mempty
---     print opt
---     hs <- V.concat <$> (mapM readHTrans =<< glob (hsbcFiles opt))
---     -- print ("HS", hs)
---     sss <- mapM readStatment =<<  glob (statementFiles opt)
---     -- print ("SSS", sss)
---     fas <- readFa opt
---     -- print ("FAS", fas)
---     let ths = reconciliate (hs `mergeTrans` sss) fas
---         badTrans = bads (aggregateMode opt) ths
+                fetchFA (faCredential opt) i <$> startDate <*> endDate $ opt
+main :: Options -> IO BL.ByteString
+main opt = do
+    print opt
+    hs <- V.concat <$> (mapM readHTrans =<< glob (hsbcFiles opt))
+    -- print ("HS", hs)
+    sss <- mapM readStatment =<<  glob (statementFiles opt)
+    -- print ("SSS", sss)
+    fas <- readFa opt
+    -- print ("FAS", fas)
+    let ths = reconciliate (hs `mergeTrans` sss) fas
+        badTrans = bads (aggregateMode opt) ths
 
---         summaries = concatMap buildSTrans (map snd badTrans)
---         filters = reduceWith appEndo $ catMaybes
---                   [ startDate opt <&> \d -> filter ((>=d). _sDate)
---                   , endDate opt <&> \d -> filter ((<=d). _sDate)
---                   ]
+        summaries = concatMap buildSTrans (map snd badTrans)
+        filters = reduceWith appEndo $ catMaybes
+                  [ startDate opt <&> \d -> filter ((>=d). _sDate)
+                  , endDate opt <&> \d -> filter ((<=d). _sDate)
+                  ]
 
---         filtered = filters summaries
+        filtered = filters summaries
 
 
---     -- putStrLn "BAD" >> mapM_ print badTrans
+    -- putStrLn "BAD" >> mapM_ print badTrans
 
---     BL.writeFile (output opt) (encodeDefaultOrderedByName filtered)
+    return (encodeDefaultOrderedByName filtered)
