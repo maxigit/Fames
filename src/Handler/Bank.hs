@@ -24,7 +24,6 @@ getGLBankR = do
 postGLBankR :: Handler Html
 postGLBankR = getGLBankR
 
-
 displayStatementInPanel :: Day -> _DB -> Text -> (Text, BankStatementSettings) -> Handler Widget
 displayStatementInPanel today dbConf faURL (title, BankStatementSettings{..})= do
   let options = B.Options{..}

@@ -479,9 +479,9 @@ main opt = do
     -- print ("SSS", sss)
     fas <- readFa opt
     -- print ("FAS", fas)
-    let ths = reconciliate (hs `mergeTrans` sss) fas
+    let hss = hs `mergeTrans` sss 
+        ths = reconciliate hss fas
         badTrans = bads (aggregateMode opt) ths
-
         summaries = concatMap buildSTrans (map snd badTrans)
         filters = reduceWith appEndo $ catMaybes
                   [ startDate opt <&> \d -> filter ((>=d). _sDate)
@@ -490,5 +490,4 @@ main opt = do
 
         filtered = filters summaries
 
-
-    return (filtered, map hToS (V.toList hs))
+    return (filtered, map hToS (V.toList hss))
