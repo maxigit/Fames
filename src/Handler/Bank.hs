@@ -41,8 +41,8 @@ displayStatementInPanel today dbConf faURL (title, BankStatementSettings{..})= d
       panelId = "bank-"  <> title
       ok = null sorted
       lastBanks = take 10 $ sortTrans banks
-      lastW = renderTransactions faURL lastBanks True (const False)
-      tableW = renderTransactions faURL sorted True ((B.FA ==) . B._sSource)
+      lastW = renderTransactions faURL lastBanks (Just "Total") (const False)
+      tableW = renderTransactions faURL sorted (Just "Total") ((B.FA ==) . B._sSource)
   return [whamlet|
     <div.panel :ok:.panel-success:.panel-danger>
       <div.panel-heading data-toggle="collapse" data-target="##{panelId}">
@@ -70,9 +70,13 @@ linkToFA urlForFA' trans = case (readMay (B._sType trans), B._sNumber trans) of
        |]
   _ -> toHtml (B._sType trans)
 
-renderTransactions :: Text -> [B.STrans] -> Bool -> (B.STrans -> Bool) -> Widget
-renderTransactions faURL sorted displayTotal danger = 
-      let total = sum (map B._sAmount sorted)
+renderTransactions :: Text -> [B.STrans] -> Maybe Text -> (B.STrans -> Bool) -> Widget
+renderTransactions faURL sorted totalTitle danger = 
+      let (ins, outs) = partition (> 0) (map B._sAmount sorted)
+          inTotal = sum ins
+          outTotal = sum outs
+          total = inTotal + outTotal
+         
       in [whamlet| 
         <table.table.table-hover.table-border.table-striped>
           <tr>
@@ -100,15 +104,11 @@ renderTransactions faURL sorted displayTotal danger =
                   <td>#{maybe "-" tshow $ B._sNumber trans}
                   <td>#{fromMaybe "-" (B._sObject trans)}
           <tr>
-            $if displayTotal
-              $if total > 0
-                <th>
-                <th>#{tshow total}
-              $else
-                <th>#{tshow $ negate total}
-                <th>
-              <th><= Difference
-              <th>
+            $maybe totalTitle <-  totalTitle
+              <th>#{tshow $ negate outTotal}
+              <th>#{tshow inTotal}
+              <th> #{totalTitle}
+              <th> #{tshow total}
               <th>
               <th>
               <th>
@@ -138,7 +138,7 @@ displayDetailsInPanel account BankStatementSettings{..} = do
       aggregateMode = B.BEST
   
   (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main options)
-  let tableW = renderTransactions faURL stransz True ((B.FA ==) . B._sSource)
+  let tableW = renderTransactions faURL stransz (Just "Total") ((B.FA ==) . B._sSource)
       ok = null stransz
       panelId = "bank-"  <> account
   return [whamlet|
