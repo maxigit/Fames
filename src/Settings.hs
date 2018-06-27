@@ -12,8 +12,9 @@ import ClassyPrelude.Yesod hiding(throw)
 import Control.Exception          (throw)
 import Data.Aeson                 (Result (..), fromJSON, withObject, (.!=),
                                    (.:?))
+import Data.Aeson.Types (camelTo2)
 import qualified Data.Aeson as JSON
-import Data.Aeson.TH(deriveToJSON, deriveJSON, defaultOptions)
+import Data.Aeson.TH(deriveToJSON, deriveJSON, defaultOptions, Options(..))
 import Data.FileEmbed             (embedFile)
 import Data.Yaml                  (decodeEither')
 import Database.Persist.MySQL     (MySQLConf (..))
@@ -29,6 +30,7 @@ import  CategoryRule
 import WH.Barcode
 import GL.Payroll.Settings
 import qualified Data.Map as Map
+import Lens.Micro
 
 data AuthMode = BypassAuth | CheckAuth deriving (Read, Show, Eq)
 -- | Runtime settings to configure this application. These settings can be
@@ -90,7 +92,18 @@ data AppSettings = AppSettings
     , appVariations :: Map Text Text -- ^ Variation description. Used to adjust item description in index.
     , appVariationGroups :: Map Text [Text] -- ^ group of variations. Can intersect
     , appPayroll :: PayrollSettings
+    , appBankStatements :: Map Text  BankStatementSettings -- ^ How to parse and displays bank statements
     } deriving Show
+
+data BankStatementSettings = BankStatementSettings
+  { bsStartDate :: Maybe Day -- point in time to start from. Should correspond to 0-discrepency
+  -- between FA and the given statemet
+  , bsPath :: FilePath -- Where to find the statement files
+  , bsStatementGlob :: Text -- Glob pattern to filter full statement files
+  , bsDailyGlob :: Text -- Glob pattern to filter daily statement
+  , bsBankAccount :: Int -- id of the bank account in FA
+  , bsPosition:: Maybe Int -- order of display
+  } deriving (Show, Read, Eq, Ord)
 
 -- TODO clean
 instance ToJSON MySQLConf  where
@@ -100,8 +113,10 @@ instance ToJSON HostPreference  where
 instance ToJSON RoleFor  where
   toJSON = const $ JSON.String "RoleFor..."
   
+
 $(deriveToJSON defaultOptions ''BarcodeTemplate)
 $(deriveToJSON defaultOptions ''BarcodeParams)
+$(deriveJSON defaultOptions {fieldLabelModifier = camelTo2 '-' . drop 2} ''BankStatementSettings)
 $(deriveToJSON defaultOptions ''AppSettings)
 instance FromJSON AppSettings  where
     parseJSON = withObject "AppSettings" $ \o -> do
@@ -163,6 +178,7 @@ instance FromJSON AppSettings  where
                                                           (fromGregorian 2017 03 26)
                                                           0 "" "" 0
                                                           (Map.fromList [])
+        appBankStatements <- o .:? "bank-statements" .!= Map.fromList []
           
         
 

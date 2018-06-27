@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f0b9d2ac4010bced9b378110a9b3f5f39683721d98634b66c79fb4ac4e65ff8d
+-- hash: 1855f7dd7c565dc2a6703388e0bf4b411b3ea1b9f77bf559b26ea3cae12c055d
 
 name:           Fames
 version:        0.0.1
@@ -73,6 +73,7 @@ library
     , monad-logger >=0.3 && <0.4
     , mtl >=2.2 && <2.3
     , mysql
+    , mysql-simple
     , parsec >=3.1 && <3.2
     , path-pieces >=0.2 && <0.3
     , persistent >=2.0 && <2.8
@@ -120,6 +121,7 @@ library
       FAX
       Foundation
       Handler.Administrator
+      Handler.Bank
       Handler.Comment
       Handler.Common
       Handler.CsvUtils
@@ -178,6 +180,7 @@ library
       Util.Cache
       Util.EnumTree
       Util.SameCons
+      BankReconciliate
       WarehousePlanner.Base
       WarehousePlanner.Csv
       WarehousePlanner.Display
@@ -260,6 +263,7 @@ executable Fames
     , monad-logger >=0.3 && <0.4
     , mtl >=2.2 && <2.3
     , mysql
+    , mysql-simple
     , parsec >=3.1 && <3.2
     , path-pieces >=0.2 && <0.3
     , persistent >=2.0 && <2.8
@@ -383,6 +387,7 @@ test-suite ghcid
     , monad-logger
     , mtl >=2.2 && <2.3
     , mysql
+    , mysql-simple
     , parsec >=3.1 && <3.2
     , path-pieces >=0.2 && <0.3
     , persistent
@@ -445,6 +450,7 @@ test-suite ghcid
       TestImport
       WH.BarcodeSpec
       WH.PackingList.InternalSpec
+      BankReconciliate
       WarehousePlanner.Base
       WarehousePlanner.Csv
       WarehousePlanner.Display
@@ -458,6 +464,7 @@ test-suite ghcid
       FAX
       Foundation
       Handler.Administrator
+      Handler.Bank
       Handler.Comment
       Handler.Common
       Handler.CsvUtils
@@ -594,6 +601,7 @@ test-suite test
     , monad-logger
     , mtl >=2.2 && <2.3
     , mysql
+    , mysql-simple
     , parsec >=3.1 && <3.2
     , path-pieces >=0.2 && <0.3
     , persistent

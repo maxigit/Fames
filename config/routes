@@ -25,6 +25,7 @@
   /payroll/calendar GLPayrollCalendarR GET POST !payroll !title=Calendar
   /payroll/import GLPayrollImportR GET POST !payroll/import !title=Import
 
+  /bank/reconciliate GLBankR GET POST !bank !group=Bank !title=Reconcilate
 /warehouse WarehouseR !warehouse:
   /barcodes WHBarcodeR GET POST !group=Barcodes !title=Generate
 

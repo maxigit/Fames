@@ -133,8 +133,12 @@ urlForFA base type_ no = base <> "/" <> pack url  where
   url = case type_ of
     ST_CUSTDELIVERY -> printf "sales/view/view_dispatch.php?trans_no=%d?trans_type=%d" no tp
     ST_CUSTCREDIT -> printf "sales/view/view_credit.php?trans_no=%d?trans_type=%d" no tp
+    ST_CUSTPAYMENT -> printf "sales/view/view_receipt.php?trans_no=%d&trans_type=%d" no tp
     ST_LOCTRANSFER -> printf "inventory/view/view_transfer.php?trans_no=%d" no
     ST_INVADJUST -> printf "inventory/view/view_adjustment.php?trans_no=%d" no
     ST_SUPPRECEIVE -> printf "purchasing/view/view_grn.php?trans_no=%d" no
+    ST_SUPPAYMENT -> printf "purchasing/view/view_supp_payment.php?trans_no=%d" no
+    ST_BANKTRANSFER -> printf "gl/view/bank_transfer_view.php?trans_no=%d" no
+    ST_BANKPAYMENT -> printf "gl/view/gl_payment_view.php?trans_no=%d" no
+    ST_BANKDEPOSIT -> printf "gl/view/gl_deposit_view.php?trans_no=%d" no
     _ -> "not found"
-                                        
