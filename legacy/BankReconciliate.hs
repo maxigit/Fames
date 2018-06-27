@@ -491,4 +491,4 @@ main opt = do
         filtered = filters summaries
 
 
-    return filtered
+    return (filtered, map hToS (V.toList hs))
