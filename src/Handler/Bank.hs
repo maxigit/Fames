@@ -1,6 +1,6 @@
 module Handler.Bank 
 ( getGLBankR
-, postGLBankR
+, getGLBankDetailsR
 ) where
 
 
@@ -20,9 +20,6 @@ getGLBankR = do
   panels <- forM (sortOn (bsPosition . snd) $ mapToList settings) (displayStatementInPanel today dbConf faURL)
   defaultLayout (mconcat panels)
 
-
-postGLBankR :: Handler Html
-postGLBankR = getGLBankR
 
 displayStatementInPanel :: Day -> _DB -> Text -> (Text, BankStatementSettings) -> Handler Widget
 displayStatementInPanel today dbConf faURL (title, BankStatementSettings{..})= do
@@ -44,12 +41,13 @@ displayStatementInPanel today dbConf faURL (title, BankStatementSettings{..})= d
       panelId = "bank-"  <> title
       ok = null sorted
       lastBanks = take 10 $ sortTrans banks
-      lastW = renderTransactions faURL lastBanks False (const False)
+      lastW = renderTransactions faURL lastBanks True (const False)
       tableW = renderTransactions faURL sorted True ((B.FA ==) . B._sSource)
   return [whamlet|
     <div.panel :ok:.panel-success:.panel-danger>
       <div.panel-heading data-toggle="collapse" data-target="##{panelId}">
-        <h2>#{title}
+        <a href="@{GLR (GLBankDetailsR title)}">
+          <h2>#{title}
       <div.panel-body.collapse :ok:.out:.in id="#{panelId}">
         $if ok   
            <p> Everything is fine
@@ -116,3 +114,38 @@ renderTransactions faURL sorted displayTotal danger =
               <th>
               <th>
               |]
+
+getGLBankDetailsR :: Text -> Handler Html
+getGLBankDetailsR account = do
+  allSettings <- getsYesod (appBankStatements . appSettings)
+  case lookup account allSettings of
+    Nothing -> error $ "Bank Account " <> unpack account <> " not found!"
+    Just settings -> defaultLayout =<< displayDetailsInPanel account settings 
+
+displayDetailsInPanel :: Text -> BankStatementSettings -> Handler Widget
+displayDetailsInPanel account BankStatementSettings{..} = do
+  today <- utctDay <$> liftIO getCurrentTime
+  dbConf <- appDatabaseConf <$> getsYesod appSettings
+  faURL <- getsYesod (pack . appFAExternalURL . appSettings)
+  let options = B.Options{..}
+      hsbcFiles = unpack bsStatementGlob
+      faCredential = myConnInfo dbConf
+      statementFiles = unpack bsDailyGlob
+      output = ""
+      startDate = bsStartDate
+      endDate = Nothing -- Just today
+      faMode = B.BankAccountId (bsBankAccount)
+      aggregateMode = B.BEST
+  
+  (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main options)
+  let tableW = renderTransactions faURL stransz True ((B.FA ==) . B._sSource)
+      ok = null stransz
+      panelId = "bank-"  <> account
+  return [whamlet|
+    <div.panel :ok:.panel-success:.panel-danger>
+      <div.panel-heading data-toggle="collapse" data-target="##{panelId}">
+          <h2>#{account}
+      <div.panel-body.collapse :ok:.out:.in id="#{panelId}">
+           <h3> By amount
+           ^{tableW}
+                     |]

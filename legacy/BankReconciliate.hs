@@ -71,7 +71,7 @@ instance {-# OVERLAPPING #-} FromField (Maybe Decimal) where
 instance FromField Decimal where
     parseField f = do
         s <- parseField f
-        let t = s :: String
+        let _type = s :: String
         return (read s)
 
 
