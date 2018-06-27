@@ -9,7 +9,6 @@ import qualified BankReconciliate as B
 import BankReconciliate()
 import Database.Persist.MySQL     (MySQLConf (..))
 import System.Directory
-import Data.List (scanl)
 
 
 getGLBankR  :: Handler Html
@@ -42,8 +41,8 @@ displayStatementInPanel today dbConf faURL (title, BankStatementSettings{..})= d
       panelId = "bank-"  <> title
       ok = null sorted
       lastBanks = take 10 $ sortTrans banks
-      lastW = renderTransactions Nothing faURL lastBanks (Just "Total") (const False)
-      tableW = renderTransactions Nothing faURL sorted (Just "Total") ((B.FA ==) . B._sSource)
+      lastW = renderTransactions faURL lastBanks (Just "Total") (const False)
+      tableW = renderTransactions faURL sorted (Just "Total") ((B.FA ==) . B._sSource)
   return [whamlet|
     <div.panel :ok:.panel-success:.panel-danger>
       <div.panel-heading data-toggle="collapse" data-target="##{panelId}">
@@ -71,16 +70,12 @@ linkToFA urlForFA' trans = case (readMay (B._sType trans), B._sNumber trans) of
        |]
   _ -> toHtml (B._sType trans)
 
-renderTransactions :: Maybe B.Amount -> Text -> [B.STrans] -> Maybe Text -> (B.STrans -> Bool) -> Widget
-renderTransactions runBalance faURL sorted totalTitle danger = 
-      let (ins, outs) = partition (> 0) amounts
-          amounts = map B._sAmount sorted
+renderTransactions :: Text -> [B.STrans] -> Maybe Text -> (B.STrans -> Bool) -> Widget
+renderTransactions faURL sorted totalTitle danger = 
+      let (ins, outs) = partition (> 0) (map B._sAmount sorted)
           inTotal = sum ins
           outTotal = sum outs
           total = inTotal + outTotal
-          balances = case runBalance of
-            Nothing -> repeat Nothing
-            Just bal0 -> map Just $ scanl (+) bal0 amounts
          
       in [whamlet| 
         <table.table.table-hover.table-border.table-striped>
@@ -89,13 +84,11 @@ renderTransactions runBalance faURL sorted totalTitle danger =
             <th>Paid In
             <th>Source
             <th>Date
-            $maybe _ <- runBalance
-              <th> Balance
             <th>Type
             <th>Description
             <th>Number
             <th>Object
-          $forall (trans, balanceM) <- zip sorted balances
+          $forall trans <- sorted
             $with isDanger <- danger trans
               <tr :isDanger:.text-danger :isDanger:.bg-danger>
                   $if B._sAmount trans > 0
@@ -106,8 +99,6 @@ renderTransactions runBalance faURL sorted totalTitle danger =
                     <td>
                   <td>#{tshow $ B._sSource trans}
                   <td>#{tshow $ B._sDate trans}
-                  $maybe  bal <- balanceM
-                     <td>#{tshow bal}
                   <td>^{linkToFA (urlForFA faURL) trans}
                   <td>#{B._sDescription trans}
                   <td>#{maybe "-" tshow $ B._sNumber trans}
@@ -118,8 +109,6 @@ renderTransactions runBalance faURL sorted totalTitle danger =
               <th>#{tshow inTotal}
               <th> #{totalTitle}
               <th> #{tshow total}
-              $maybe bal <- runBalance
-                <th> #{tshow $ bal + total}
               <th>
               <th>
               <th>
@@ -146,10 +135,10 @@ displayDetailsInPanel account BankStatementSettings{..} = do
       startDate = bsStartDate
       endDate = Nothing -- Just today
       faMode = B.BankAccountId (bsBankAccount)
-      aggregateMode = B.ALL
+      aggregateMode = B.BEST
   
   (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main options)
-  let tableW = renderTransactions (Just 0) faURL stransz (Just "Total") ((B.FA ==) . B._sSource)
+  let tableW = renderTransactions faURL stransz (Just "Total") ((B.FA ==) . B._sSource)
       ok = null stransz
       panelId = "bank-"  <> account
   return [whamlet|
