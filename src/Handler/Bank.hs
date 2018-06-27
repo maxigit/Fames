@@ -27,9 +27,9 @@ postGLBankR = do
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
   -- get mysql connect info
   let options = B.Options{..}
-      hsbcFiles ="HSBC*.csvX"
+      hsbcFiles ="HSBC*.csv"
       faCredential = myConnInfo dbConf
-      statementFiles = "statement*.csvX"
+      statementFiles = "statement*.csv"
       output = ""
       startDate = Just (fromGregorian 2015 11 16 )
       endDate = Nothing -- Just today
@@ -42,7 +42,8 @@ postGLBankR = do
   
   stransz <- lift $ withCurrentDirectory statmentPath (B.main options)
   -- we sort by date
-  let sorted = sortOn ((Down . B._sDate)) stransz
+  let sorted = sortOn (liftA3 (,,) (Down . B._sDate) (Down . B._sAmount) (B._sDayPos)) stransz
+      total = sum (map B._sAmount stransz)
   defaultLayout [whamlet|
     <table.table.table-hover.table-border.table-striped>
       <tr>
@@ -69,7 +70,20 @@ postGLBankR = do
               <td>#{B._sDescription trans}
               <td>#{maybe "-" tshow $ B._sNumber trans}
               <td>#{fromMaybe "-" (B._sObject trans)}
-                        |]
+       <tr>
+         $if total > 0
+           <th>
+           <th>#{tshow total}
+         $else
+           <th>#{tshow $ negate total}
+           <th>
+         <th><= Difference
+         <th>
+         <th>
+         <th>
+         <th>
+         <th>
+                     |]
 
 linkToFA
   :: (FATransType -> Int -> Text) -> B.STrans -> Html
@@ -82,11 +96,3 @@ linkToFA urlForFA' trans = case (readMay (B._sType trans), B._sNumber trans) of
        #{trans}
        |]
   _ -> toHtml (B._sType trans)
-  
-
-
-      
-showType :: String ->  String
-showType ttype =  case readMay ttype of
-  Nothing -> ttype
-  Just n -> showTransType $ toEnum n
