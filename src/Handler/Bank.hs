@@ -50,7 +50,7 @@ displayStatementInPanel today dbConf faURL (title, BankStatementSettings{..})= d
     <div.panel :ok:.panel-success:.panel-danger>
       <div.panel-heading data-toggle="collapse" data-target="##{panelId}">
         <h2>#{title}
-      <div.panel-body.collapse :ok:.out:.in id="##{panelId}">
+      <div.panel-body.collapse :ok:.out:.in id="#{panelId}">
         $if ok   
            <p> Everything is fine
         $else
