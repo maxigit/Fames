@@ -470,7 +470,7 @@ readFa :: Options -> IO (Vector FTrans)
 readFa opt  = case faMode opt of 
     BankAccountId i -> do 
                 fetchFA (faCredential opt) i <$> startDate <*> endDate $ opt
-main :: Options -> IO BL.ByteString
+-- main :: Options -> IO [(Amount, These [HTrans] [FTrans])]
 main opt = do
     print opt
     hs <- V.concat <$> (mapM readHTrans =<< glob (hsbcFiles opt))
@@ -491,6 +491,4 @@ main opt = do
         filtered = filters summaries
 
 
-    -- putStrLn "BAD" >> mapM_ print badTrans
-
-    return (encodeDefaultOrderedByName filtered)
+    return filtered

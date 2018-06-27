@@ -33,14 +33,36 @@ postGLBankR = do
       startDate = Just (fromGregorian 2015 11 16 )
       endDate = Just today
       faMode = B.BankAccountId 1
-      aggregateMode = B.BEST
+      aggregateMode = B.TAIL
 
       statmentPath = "/home/max/mae/warehouse/BankReconciliate"
 
   
   
-  report <- lift $ withCurrentDirectory statmentPath (B.main options)
-  defaultLayout $ toWidget $ toHtmlWithBreak (toStrict $ decodeUtf8 report)
+  stransz <- lift $ withCurrentDirectory statmentPath (B.main options)
+  -- we sort by date
+  let sorted = sortOn ((Down . B._sAmount)) stransz
+  defaultLayout [whamlet|
+    <table.table.table-hover.table-border.table-striped>
+      <tr>
+        <th>Amount
+        <th>Source
+        <th>Date
+        <th>Type
+        <th>Description
+        <th>Number
+        <th>Object
+       $forall trans <- sorted
+         $with isFa <- B._sSource trans == B.FA
+          <tr :isFa:.text-danger.bg-danger>
+              <td>#{tshow $  B._sAmount trans}
+              <td>#{tshow $ B._sSource trans}
+              <td>#{tshow $ B._sDate trans}
+              <td>#{B._sType trans}
+              <td>#{B._sDescription trans}
+              <td>#{maybe "-" tshow $ B._sNumber trans}
+              <td>#{fromMaybe "" $ B._sObject trans}
+                        |]
 
 
       
