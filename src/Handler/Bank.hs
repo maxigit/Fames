@@ -40,7 +40,7 @@ displayStatementInPanel today dbConf faURL (title, BankStatementSettings{..})= d
   
   (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main options)
   -- we sort by date
-  let sortTrans = sortOn (liftA3 (,,) (Down . B._sDate) (Down . B._sAmount) (B._sDayPos))
+  let sortTrans = sortOn (liftA3 (,,) (Down . B._sDate) (B._sDayPos) (Down . B._sAmount))
       sorted = sortTrans stransz
       panelId = "bank-"  <> title
       ok = null sorted
