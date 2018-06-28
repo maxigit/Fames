@@ -342,7 +342,16 @@ renderReconciliate account param = do
 
       
                         |]
-  defaultLayout (toWidget commonCss >> widget)
+  defaultLayout $ do
+    toWidget commonCss
+    [whamlet|
+     <div.well>
+      <form.form-inline action="@{GLR (GLBankReconciliateR account)}" method=POST enctype="#{encType}">
+        ^{form}
+        <button.btn.btn-primary action="submit">Submit
+        <button.btn.btn-warning action="reconciliate">Save
+     ^{displayPanel False False account widget}
+            |]
   
 
 getObject :: Map Text Text -> Map Text Text -> B.STrans -> Maybe Text
