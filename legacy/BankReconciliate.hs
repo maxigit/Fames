@@ -471,18 +471,10 @@ readFa opt  = case faMode opt of
     BankAccountId i -> do 
                 fetchFA (faCredential opt) i <$> startDate <*> endDate $ opt
 -- main :: Options -> IO [(Amount, These [HTrans] [FTrans])]
+main :: Options -> IO ([STrans], [STrans])
 main opt = do
-    print opt
-    hs <- V.concat <$> (mapM readHTrans =<< glob (hsbcFiles opt))
-    -- print ("HS", hs)
-    sss <- mapM readStatment =<<  glob (statementFiles opt)
-    -- print ("SSS", sss)
-    fas <- readFa opt
-    -- print ("FAS", fas)
-    let hss = hs `mergeTrans` sss 
-        ths = reconciliate hss fas
-        badTrans = bads (aggregateMode opt) ths
-        summaries = concatMap buildSTrans (map snd badTrans)
+  (badTrans, hss) <- loadAllTrans opt
+  let   summaries = concatMap buildSTrans (map snd badTrans)
         filters = reduceWith appEndo $ catMaybes
                   [ startDate opt <&> \d -> filter ((>=d). _sDate)
                   , endDate opt <&> \d -> filter ((<=d). _sDate)
@@ -490,4 +482,42 @@ main opt = do
 
         filtered = filters summaries
 
-    return (filtered, map hToS (V.toList hss))
+  return (filtered, map hToS hss)
+
+loadAllTrans :: Options -> IO ([(Amount, These [HTrans] [FTrans])], [HTrans])
+loadAllTrans opt = do
+    hs <- V.concat <$> (mapM readHTrans =<< glob (hsbcFiles opt))
+    sss <- mapM readStatment =<<  glob (statementFiles opt)
+    fas <- readFa opt
+    let hss = hs `mergeTrans` sss 
+        ths = reconciliate hss fas
+    return $ (bads (aggregateMode opt) ths, V.toList hss)
+  
+-- | finishes the zip work by get a list of possible pair
+rezip :: These [HTrans] [FTrans] -> [These HTrans FTrans]
+rezip  (This hs) = map This hs
+rezip  (That fs) = map That fs
+rezip (These hs fs) = align hs fs
+
+-- | Regroup bads by matching pair. we lose the amount grouping
+-- but we are here trying to display match, not discrepencies
+badsByDay :: [(Amount, These [HTrans] [FTrans])] -> [These HTrans  FTrans]
+badsByDay a'hts = let
+  hts = map snd a'hts
+  toSort = concatMap rezip hts
+  getDay = these _hDate _fDate (const . _hDate)
+  in sortBy (comparing getDay) toSort
+  
+
+
+thisFirst :: These STrans STrans -> STrans
+thisFirst (This a) = a
+thisFirst (That a) = a
+thisFirst (These a b) = a { _sNumber = _sNumber b, _sObject = _sObject b}
+thatFirst :: These STrans STrans -> STrans
+thatFirst (This a) = a
+thatFirst (That a) = a
+thatFirst (These a b) = b { _sNumber = _sNumber b, _sObject = _sObject a}
+
+
+

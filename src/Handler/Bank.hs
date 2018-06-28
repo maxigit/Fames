@@ -1,6 +1,8 @@
 module Handler.Bank 
 ( getGLBankR
 , getGLBankDetailsR
+, getGLBankReconciliateR
+, postGLBankReconciliateR
 ) where
 
 
@@ -10,7 +12,10 @@ import BankReconciliate()
 import Database.Persist.MySQL     (MySQLConf (..))
 import System.Directory
 import Text.Regex.TDFA ((=~), makeRegex, Regex)
-
+import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
+                              withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
+import Data.These
+import Data.Time (diffDays)
 commonCss = [cassius|
 tr.private
   font-style: italic
@@ -83,13 +88,19 @@ displaySummary today dbConf faURL title BankStatementSettings{..}= do
       lastW = renderTransactions faURL lastBanks hideBlacklisted (Just "Total") (const False)
       tableW = renderTransactions faURL sorted hideBlacklisted (Just "Total") ((B.FA ==) . B._sSource)
   return $ displayPanel ok ok title [whamlet|
-        <a href="@{GLR (GLBankDetailsR title)}">
-          $if ok   
-            <p> Everything is fine
-          $else
-            <h3> Discrepencies
+        <div.row>
+            <div.col-md-2>
+              $if ok   
+                <h3> Everything is fine
+              $else
+                <h3> Discrepencies
+            <div.col-md-2><h4>
+              <a href="@{GLR (GLBankDetailsR title)}"> Details
+            <div.col-md-2><h4>
+              <a href="@{GLR (GLBankReconciliateR title)}"> Reconciliate
         ^{tableW}
-        <h3> Last 10
+        <div>
+           <h3> Last 10
         ^{lastW}
                      |]
 
@@ -189,15 +200,20 @@ renderTransactions faURL sorted mkClasses totalTitle danger =
               <th>
               |]
 
-getGLBankDetailsR :: Text -> Handler Html
-getGLBankDetailsR account = do
+settingsFor :: Text -> Handler BankStatementSettings
+settingsFor account = do
   role <- currentRole
   when (not $ canViewBankStatement role account)
      (permissionDenied account)
   allSettings <- getsYesod (appBankStatements . appSettings)
   case lookup account allSettings of
     Nothing -> error $ "Bank Account " <> unpack account <> " not found!"
-    Just settings -> defaultLayout =<< displayDetailsInPanel account settings 
+    Just settings -> return settings
+  
+getGLBankDetailsR :: Text -> Handler Html
+getGLBankDetailsR account = do
+  settings <- settingsFor account
+  defaultLayout =<< displayDetailsInPanel account settings 
 
 displayDetailsInPanel :: Text -> BankStatementSettings -> Handler Widget
 displayDetailsInPanel account BankStatementSettings{..} = do
@@ -221,3 +237,86 @@ displayDetailsInPanel account BankStatementSettings{..} = do
            <h3> By amount
            ^{tableW}
                      |]
+-- * Reconciliationg
+data RecParam = RecParam
+   { rpStartDate :: Maybe Day
+   , rpEndDate :: Maybe Day
+   , rpRecDate :: Maybe Day
+   }
+defaultParam = RecParam Nothing Nothing Nothing
+
+recForm paramM = renderBootstrap3 BootstrapBasicForm form  where
+  form = RecParam <$> aopt dayField "start" (rpStartDate <$> paramM)
+                  <*> aopt dayField "end" (rpEndDate <$> paramM)
+                  <*> aopt dayField "reconciliate" (rpRecDate <$> paramM)
+
+getGLBankReconciliateR :: Text -> Handler Html
+getGLBankReconciliateR account = do
+  renderReconciliate account defaultParam 
+  
+postGLBankReconciliateR :: Text -> Handler Html
+postGLBankReconciliateR account = do
+  ((resp, formW), encType) <- runFormPost (recForm Nothing)
+  case resp of
+    FormMissing -> error "Form missing"
+    FormFailure a -> error $ "Form failure : " ++ show a
+    FormSuccess param -> do
+        actionM <- lookupPostParam "action"
+        case actionM of
+          Nothing -> getGLBankReconciliateR account
+          _ -> renderReconciliate account param
+
+
+renderReconciliate :: Text -> RecParam -> Handler Html
+renderReconciliate account param = do
+  dbConf <- appDatabaseConf <$> getsYesod appSettings
+  (form, encType) <- generateFormPost (recForm $ Just param)
+  faURL <- getsYesod (pack . appFAExternalURL . appSettings)
+  BankStatementSettings{..} <- settingsFor account
+  let options = B.Options{..}
+      hsbcFiles = unpack bsStatementGlob
+      faCredential = myConnInfo dbConf
+      statementFiles = unpack bsDailyGlob
+      output = ""
+      startDate = bsStartDate
+      endDate = Nothing -- Just today
+      faMode = B.BankAccountId (bsBankAccount)
+      aggregateMode = B.ALL
+
+  (hts,_) <- lift $ B.loadAllTrans options
+  let byDays = reverse $ B.badsByDay hts
+      st'sts = map (bimap B.hToS B.fToS)  byDays
+      -- check if the difference of the two date is acceptable
+      dateClass (This _) = ""
+      dateClass (That _) = ""
+      dateClass (These h f) = let d = diffDays (B._sDate h) (B._sDate f)
+                              in if abs(d)  > 28
+                                 then "bg-danger text-danger" :: Text
+                                 else if abs(d) > 7
+                                      then "bg-warning text-warning"
+                                      else "bg-success text-success"
+      widget  = [whamlet|
+    <table.table.table-hover.table-border.table-striped>
+      $forall st'st <- st'sts
+        <tr>
+         $with (trans, fatrans) <- (B.thisFirst st'st, B.thatFirst st'st)
+           <td>
+              $if B._sAmount trans > 0
+                  <td>
+                  <td>#{tshow $  B._sAmount trans}
+              $else
+                  <td>#{tshow $ negate  $    B._sAmount trans}
+                  <td>
+              <td>#{tshow $  B._sSource trans}
+              <td>#{tshow $ B._sDate trans}
+              <td class="#{dateClass st'st}">#{tshow $ B._sDate fatrans}
+              <td>^{linkToFA (urlForFA faURL) trans}
+              <td>#{B._sDescription trans}
+              <td>#{maybe "-" tshow $ B._sNumber trans}
+              <td>#{fromMaybe "-" (B._sObject trans)}
+
+      
+                        |]
+  defaultLayout (toWidget commonCss >> widget)
+  
+

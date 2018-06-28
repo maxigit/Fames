@@ -26,7 +26,9 @@
   /payroll/import GLPayrollImportR GET POST !payroll/import !title=Import
 
   /bank/summary GLBankR GET !bank !group=Bank !title=Summary
-  /bank/details/#Text GLBankDetailsR GET !bank !title=Details
+  /bank/details/#Text GLBankDetailsR GET !bank !bank-full
+  /bank/reconciliate/#Text GLBankReconciliateR GET POST !bank-full
+
 /warehouse WarehouseR !warehouse:
   /barcodes WHBarcodeR GET POST !group=Barcodes !title=Generate
 
