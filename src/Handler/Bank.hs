@@ -17,6 +17,7 @@ import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
 import Data.These
 import Data.Time (diffDays)
 import Lens.Micro.Extras (preview)
+import FA as FA
 
 commonCss = [cassius|
 tr.private
@@ -69,6 +70,7 @@ displayPanel ok collapsed account content =
 -- | Display all non matching transaction as well as a preview of last the statement 
 displaySummary :: Day -> _DB -> Text -> Text ->  BankStatementSettings -> Handler Widget
 displaySummary today dbConf faURL title BankStatementSettings{..}= do
+  object <- getObjectH
   let options = B.Options{..}
       hsbcFiles = unpack bsStatementGlob
       faCredential = myConnInfo dbConf
@@ -87,8 +89,8 @@ displaySummary today dbConf faURL title BankStatementSettings{..}= do
       sorted = sortTrans stransz
       ok = null sorted
       lastBanks = take 10 $ sortTrans banks
-      lastW = renderTransactions faURL lastBanks hideBlacklisted (Just "Total") (const False)
-      tableW = renderTransactions faURL sorted hideBlacklisted (Just "Total") ((B.FA ==) . B._sSource)
+      lastW = renderTransactions object faURL lastBanks hideBlacklisted (Just "Total") (const False)
+      tableW = renderTransactions object faURL sorted hideBlacklisted (Just "Total") ((B.FA ==) . B._sSource)
   return $ displayPanel ok ok title [whamlet|
         <div.row>
             <div.col-md-2>
@@ -108,6 +110,7 @@ displaySummary today dbConf faURL title BankStatementSettings{..}= do
 
 displayLightSummary :: Day -> _DB -> Text -> Text ->  BankStatementSettings -> Handler Widget
 displayLightSummary today dbConf faURL title BankStatementSettings{..}= do
+  object <- getObjectH
   let options = B.Options{..}
       hsbcFiles = unpack bsStatementGlob
       faCredential = myConnInfo dbConf
@@ -125,8 +128,8 @@ displayLightSummary today dbConf faURL title BankStatementSettings{..}= do
       ok = null sorted
       blacklist = map unpack bsLightBlacklist
       lastBanks = take 10 $ sortTrans banks
-      lastW = renderTransactions faURL lastBanks (const []) (Just "Total") (const False)
-      tableW = renderTransactions faURL sorted  (const [])(Just "Total") ((B.FA ==) . B._sSource)
+      lastW = renderTransactions object faURL lastBanks (const []) (Just "Total") (const False)
+      tableW = renderTransactions object faURL sorted  (const [])(Just "Total") ((B.FA ==) . B._sSource)
   return $ displayPanel ok ok title [whamlet|
         <a href="@{GLR (GLBankDetailsR title)}">
           $if ok   
@@ -157,8 +160,8 @@ linkToFA urlForFA' trans = case (readMay (B._sType trans), B._sNumber trans) of
        |]
   _ -> toHtml (B._sType trans)
 
-renderTransactions :: Text -> [B.STrans] -> (B.STrans -> [Text]) -> Maybe Text -> (B.STrans -> Bool) -> Widget
-renderTransactions faURL sorted mkClasses totalTitle danger = 
+renderTransactions :: (B.STrans -> Maybe Text) -> Text -> [B.STrans] -> (B.STrans -> [Text]) -> Maybe Text -> (B.STrans -> Bool) -> Widget
+renderTransactions object faURL sorted mkClasses totalTitle danger = 
       let (ins, outs) = partition (> 0) (map B._sAmount sorted)
           inTotal = sum ins
           outTotal = sum outs
@@ -189,7 +192,7 @@ renderTransactions faURL sorted mkClasses totalTitle danger =
                   <td>^{linkToFA (urlForFA faURL) trans}
                   <td>#{B._sDescription trans}
                   <td>#{maybe "-" tshow $ B._sNumber trans}
-                  <td>#{fromMaybe "-" (B._sObject trans)}
+                  <td>#{fromMaybe "-" (object trans)}
           <tr>
             $maybe totalTitle <-  totalTitle
               <th>#{tshow $ negate outTotal}
@@ -222,6 +225,7 @@ displayDetailsInPanel account BankStatementSettings{..} = do
   today <- utctDay <$> liftIO getCurrentTime
   dbConf <- appDatabaseConf <$> getsYesod appSettings
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
+  object <- getObjectH
   let options = B.Options{..}
       hsbcFiles = unpack bsStatementGlob
       faCredential = myConnInfo dbConf
@@ -233,7 +237,7 @@ displayDetailsInPanel account BankStatementSettings{..} = do
       aggregateMode = B.BEST
   
   (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main options)
-  let tableW = renderTransactions faURL stransz (const []) (Just "Total") ((B.FA ==) . B._sSource)
+  let tableW = renderTransactions object faURL stransz (const []) (Just "Total") ((B.FA ==) . B._sSource)
       ok = null stransz
   return $ displayPanel ok ok account [whamlet|
            <h3> By amount
@@ -274,6 +278,7 @@ renderReconciliate account param = do
   dbConf <- appDatabaseConf <$> getsYesod appSettings
   (form, encType) <- generateFormPost (recForm $ Just param)
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
+  object <- getObjectH
   BankStatementSettings{..} <- settingsFor account
   let options = B.Options{..}
       hsbcFiles = unpack bsStatementGlob
@@ -333,10 +338,31 @@ renderReconciliate account param = do
               <td>#{maybe "" B._sDescription transM}
               <td>#{maybe "" B._sDescription fatransM}
               <td>#{maybe "-" tshow $ B._sNumber trans}
-              <td>#{fromMaybe "-" (B._sObject trans)}
+              <td>#{fromMaybe "-" (object fatrans)}
 
       
                         |]
   defaultLayout (toWidget commonCss >> widget)
   
 
+getObject :: Map Text Text -> Map Text Text -> B.STrans -> Maybe Text
+getObject customerMap supplierMap trans = do -- Maybe
+  object <- pack <$> B._sObject trans
+  let mapped = case toEnum <$> readMay (B._sType trans) of
+                 Just ST_CUSTPAYMENT -> lookup object customerMap
+                 Just ST_SUPPAYMENT -> lookup object supplierMap
+                 _ -> Nothing
+  return $ fromMaybe object mapped
+
+getObjectH :: Handler (B.STrans -> Maybe Text)
+getObjectH = do
+  customerMap' <- allCustomers False
+  supplierMap' <- allSuppliers False
+  let customerMap :: Map Text Text
+      customerMap = mapFromList [(tshow $ FA.unDebtorsMasterKey key, decodeHtmlEntities $ FA.debtorsMasterName cust)
+                                | (key, cust) <- mapToList customerMap'
+                                ]
+      supplierMap = mapFromList [(tshow $ FA.unSupplierKey key, decodeHtmlEntities $ FA.supplierSuppName sup)
+                                | (key, sup) <- mapToList supplierMap'
+                                ]
+  return (getObject customerMap supplierMap)
