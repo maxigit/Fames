@@ -32,6 +32,18 @@ canViewBankStatement :: Role -> Text -> Bool
 canViewBankStatement role account = authorizeFromAttributes role (setFromList ["bank/" <> account ]) ReadRequest
 
 
+-- | Displays a collapsible panel 
+displayPanel :: Bool -> Bool -> Text -> Widget -> Widget
+displayPanel ok collapsed account content =
+  let panelId = "bank-"  <> account
+  in [whamlet|
+    <div.panel :ok:.panel-success:.panel-danger>
+      <div.panel-heading data-toggle="collapse" data-target="##{panelId}">
+          <h2 style=>#{account}
+      <div.panel-body.collapse :collapsed:.out:.in id="#{panelId}">
+        ^{content}
+        |]
+
 displayStatementInPanel :: Day -> _DB -> Text -> (Text, BankStatementSettings) -> Handler Widget
 displayStatementInPanel today dbConf faURL (title, BankStatementSettings{..})= do
   let options = B.Options{..}
@@ -48,16 +60,11 @@ displayStatementInPanel today dbConf faURL (title, BankStatementSettings{..})= d
   -- we sort by date
   let sortTrans = sortOn (liftA3 (,,) (Down . B._sDate) (Down . B._sDayPos) (Down . B._sAmount))
       sorted = sortTrans stransz
-      panelId = "bank-"  <> title
       ok = null sorted
       lastBanks = take 10 $ sortTrans banks
       lastW = renderTransactions faURL lastBanks (Just "Total") (const False)
       tableW = renderTransactions faURL sorted (Just "Total") ((B.FA ==) . B._sSource)
-  return [whamlet|
-    <div.panel :ok:.panel-success:.panel-danger>
-      <div.panel-heading data-toggle="collapse" data-target="##{panelId}">
-          <h2 style=>#{title}
-      <div.panel-body.collapse :ok:.out:.in id="#{panelId}">
+  return $ displayPanel ok ok title [whamlet|
         <a href="@{GLR (GLBankDetailsR title)}">
           $if ok   
             <p> Everything is fine
@@ -153,12 +160,7 @@ displayDetailsInPanel account BankStatementSettings{..} = do
   (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main options)
   let tableW = renderTransactions faURL stransz (Just "Total") ((B.FA ==) . B._sSource)
       ok = null stransz
-      panelId = "bank-"  <> account
-  return [whamlet|
-    <div.panel :ok:.panel-success:.panel-danger>
-      <div.panel-heading data-toggle="collapse" data-target="##{panelId}">
-          <h2>#{account}
-      <div.panel-body.collapse :ok:.out:.in id="#{panelId}">
+  return $ displayPanel ok ok account [whamlet|
            <h3> By amount
            ^{tableW}
                      |]
