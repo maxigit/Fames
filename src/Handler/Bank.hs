@@ -11,6 +11,14 @@ import Database.Persist.MySQL     (MySQLConf (..))
 import System.Directory
 import Text.Regex.TDFA ((=~), makeRegex, Regex)
 
+commonCss = [cassius|
+tr.private
+  font-style: italic
+  opacity: 0.5
+  &:hover
+    font-style: normal
+    opacity: 1
+|]
 
 getGLBankR  :: Handler Html
 getGLBankR = do
@@ -30,7 +38,7 @@ getGLBankR = do
                               then displaySummary today dbConf faURL account bs
                               else displayLightSummary today dbConf faURL account bs
   panels <- forM (sortOn (bsPosition . snd) settings) display
-  defaultLayout (mconcat panels)
+  defaultLayout $ toWidget commonCss >> (mconcat panels)
 
 
 canViewBankStatement :: Role -> Text -> Bool
@@ -63,15 +71,17 @@ displaySummary today dbConf faURL title BankStatementSettings{..}= do
       endDate = Nothing -- Just today
       faMode = B.BankAccountId (bsBankAccount)
       aggregateMode = B.BEST
+      blacklist = map unpack bsLightBlacklist
   
   (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main options)
   -- we sort by date
   let sortTrans = sortOn (liftA3 (,,) (Down . B._sDate) (Down . B._sDayPos) (Down . B._sAmount))
+      hideBlacklisted t = if keepLight blacklist t then ["public" ] else ["private"]
       sorted = sortTrans stransz
       ok = null sorted
       lastBanks = take 10 $ sortTrans banks
-      lastW = renderTransactions faURL lastBanks (Just "Total") (const False)
-      tableW = renderTransactions faURL sorted (Just "Total") ((B.FA ==) . B._sSource)
+      lastW = renderTransactions faURL lastBanks hideBlacklisted (Just "Total") (const False)
+      tableW = renderTransactions faURL sorted hideBlacklisted (Just "Total") ((B.FA ==) . B._sSource)
   return $ displayPanel ok ok title [whamlet|
         <a href="@{GLR (GLBankDetailsR title)}">
           $if ok   
@@ -97,13 +107,13 @@ displayLightSummary today dbConf faURL title BankStatementSettings{..}= do
   
   (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main options)
   -- we sort by date
-  let sortTrans = keepLight blacklist . sortOn (liftA3 (,,) (Down . B._sDate) (Down . B._sDayPos) (Down . B._sAmount))
+  let sortTrans = filter (keepLight blacklist) . sortOn (liftA3 (,,) (Down . B._sDate) (Down . B._sDayPos) (Down . B._sAmount))
       sorted = sortTrans stransz
       ok = null sorted
       blacklist = map unpack bsLightBlacklist
       lastBanks = take 10 $ sortTrans banks
-      lastW = renderTransactions faURL lastBanks (Just "Total") (const False)
-      tableW = renderTransactions faURL sorted (Just "Total") ((B.FA ==) . B._sSource)
+      lastW = renderTransactions faURL lastBanks (const []) (Just "Total") (const False)
+      tableW = renderTransactions faURL sorted  (const [])(Just "Total") ((B.FA ==) . B._sSource)
   return $ displayPanel ok ok title [whamlet|
         <a href="@{GLR (GLBankDetailsR title)}">
           $if ok   
@@ -116,12 +126,11 @@ displayLightSummary today dbConf faURL title BankStatementSettings{..}= do
                      |]
 
 -- | Only keep transactions in which aren not in the black list
-keepLight :: [String] -> [B.STrans] -> [B.STrans]
-keepLight blacklist = filter go where
-  go tr = B._sAmount tr >0
-        && not (blacklisted (B._sDescription tr))
-        && B._sSource tr == B.HSBC
-  blacklisted s = any (s =~) blacklist
+keepLight :: [String] -> B.STrans -> Bool
+keepLight blacklist tr = B._sAmount tr >0
+                         && not (blacklisted (B._sDescription tr))
+                         && B._sSource tr == B.HSBC
+                         where blacklisted s = any (s =~) blacklist
 
 
 linkToFA :: (FATransType -> Int -> Text) -> B.STrans -> Html
@@ -135,8 +144,8 @@ linkToFA urlForFA' trans = case (readMay (B._sType trans), B._sNumber trans) of
        |]
   _ -> toHtml (B._sType trans)
 
-renderTransactions :: Text -> [B.STrans] -> Maybe Text -> (B.STrans -> Bool) -> Widget
-renderTransactions faURL sorted totalTitle danger = 
+renderTransactions :: Text -> [B.STrans] -> (B.STrans -> [Text]) -> Maybe Text -> (B.STrans -> Bool) -> Widget
+renderTransactions faURL sorted mkClasses totalTitle danger = 
       let (ins, outs) = partition (> 0) (map B._sAmount sorted)
           inTotal = sum ins
           outTotal = sum outs
@@ -155,7 +164,7 @@ renderTransactions faURL sorted totalTitle danger =
             <th>Object
           $forall trans <- sorted
             $with isDanger <- danger trans
-              <tr :isDanger:.text-danger :isDanger:.bg-danger>
+              <tr :isDanger:.text-danger :isDanger:.bg-danger class="#{intercalate " " (mkClasses trans)}">
                   $if B._sAmount trans > 0
                     <td>
                     <td>#{tshow $  B._sAmount trans}
@@ -206,7 +215,7 @@ displayDetailsInPanel account BankStatementSettings{..} = do
       aggregateMode = B.BEST
   
   (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main options)
-  let tableW = renderTransactions faURL stransz (Just "Total") ((B.FA ==) . B._sSource)
+  let tableW = renderTransactions faURL stransz (const []) (Just "Total") ((B.FA ==) . B._sSource)
       ok = null stransz
   return $ displayPanel ok ok account [whamlet|
            <h3> By amount
