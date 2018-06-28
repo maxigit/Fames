@@ -459,14 +459,15 @@ main :: Options -> IO ([STrans], [STrans])
 main opt = do
   (badTrans, hss) <- loadAllTrans opt
   let   summaries = concatMap buildSTrans (map snd badTrans)
-        filters = reduceWith appEndo $ catMaybes
-                  [ startDate opt <&> \d -> filter ((>=d). _sDate)
-                  , endDate opt <&> \d -> filter ((<=d). _sDate)
-                  ]
 
-        filtered = filters summaries
+        filtered = (filterDate _sDate _sDate opt) summaries
 
   return (filtered, map hToS hss)
+
+filterDate sDate eDate opt = reduceWith appEndo $ catMaybes
+                [ startDate opt <&> \d -> filter ((>=d). sDate)
+                , endDate opt <&> \d -> filter ((<=d). eDate)
+                ]
 
 loadAllTrans :: Options -> IO ([(Amount, These [HTrans] [FTrans])], [HTrans])
 loadAllTrans opt = do

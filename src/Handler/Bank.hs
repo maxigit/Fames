@@ -248,7 +248,7 @@ data RecParam = RecParam
    { rpStartDate :: Maybe Day
    , rpEndDate :: Maybe Day
    , rpRecDate :: Maybe Day
-   }
+   } deriving Show
 defaultParam = RecParam Nothing Nothing Nothing
 
 recForm paramM = renderBootstrap3 BootstrapBasicForm form  where
@@ -270,7 +270,7 @@ postGLBankReconciliateR account = do
         actionM <- lookupPostParam "action"
         case actionM of
           Nothing -> getGLBankReconciliateR account
-          _ -> renderReconciliate account param
+          _ -> traceShowM param >> renderReconciliate account param
 
 
 renderReconciliate :: Text -> RecParam -> Handler Html
@@ -291,8 +291,14 @@ renderReconciliate account param = do
       aggregateMode = B.ALL_BEST
 
   (hts,_) <- lift $ withCurrentDirectory bsPath (B.loadAllTrans options)
-  let byDays = reverse $ B.badsByDay hts
-      st'sts = map (bimap B.hToS B.fToS)  byDays
+  let byDays = B.badsByDay hts
+      st'sts = filterDate $ map (bimap B.hToS B.fToS)  byDays
+
+      -- exclude a pair if both date are outside the range
+      filterDate  = B.filterDate (mergeTheseWith B._sDate B._sDate  max)
+                                 (mergeTheseWith B._sDate B._sDate min)
+                                 options {B.startDate = rpStartDate param, B.endDate = rpEndDate param }
+        
       -- check if the difference of the two date is acceptable
       dateClass (This _) = ""
       dateClass (That _) = ""
@@ -348,8 +354,8 @@ renderReconciliate account param = do
      <div.well>
       <form.form-inline action="@{GLR (GLBankReconciliateR account)}" method=POST enctype="#{encType}">
         ^{form}
-        <button.btn.btn-primary action="submit">Submit
-        <button.btn.btn-warning action="reconciliate">Save
+        <button.btn.btn-primary name=action value="submit">Submit
+        <button.btn.btn-warning name=action value="reconciliate">Save
      ^{displayPanel False False account widget}
             |]
   
