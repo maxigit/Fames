@@ -326,7 +326,8 @@ groupBy k as = Map.fromListWith (++) as' where
 -- | How to aggregates group of transactions corresponding to a problem.
 -- ALL keep them all, whereas TAIL tries to only keep the last unmatched ones.
 -- BEST try to find the best unmatched, ie the one which maximize the distance between dates
-data AggregateMode = DEBUG | ALL | TAIL | BEST  deriving (Show, Eq)
+-- ALL_BEST is keep everything but pair things using the BEST algorithms
+data AggregateMode = DEBUG | ALL | TAIL | BEST | ALL_BEST  deriving (Show, Eq)
 
 -- | Remove all matching transactions and only keep the *bad* ones.
 bads :: AggregateMode ->  Map Amount (These [HTrans] [FTrans]) -> [(Amount, These [HTrans] [FTrans])]
@@ -342,10 +343,12 @@ bads mode m = let
         | mode == TAIL           = Just $ These hs' fs'
         | mode == ALL            = Just $ These hs fs
         | mode == BEST           = Just $ These hs'' fs''
+        | mode == ALL_BEST       = Just $ These (hs''0 <> hs'') (fs''0 <> fs'')
         where (hs', fs') = zipTail (sortBy (comparing _hDate) hs)
                                    (sortBy (comparing _fDate) fs)
 
-              (hs'', fs'') = best hs fs
+              (hs'', fs'', hfs''0) = best [] hs fs
+              (hs''0, fs''0) = unzip hfs''0 -- matched pair
     good mode t  = Just t
     in sorted
 
@@ -362,34 +365,15 @@ distance h f = abs .fromInteger $ diffDays (_hDate h) (_fDate f)
 -- | Like zipTail but try to match each transaction by date.
 -- To do so, we exclude the one with the greatest weight
 -- .i.e, the sum of distance to (by date)  to all
-best :: [HTrans] -> [FTrans] -> ([HTrans], [FTrans])
-best' hs fs | length hs == length fs = ([], [])
-           | length hs > length fs = let
-                (h,i) = fst $ maximumBy (comparing snd) hweight
-                (hs',fs') = best (deleteAt i hs)  fs
-                in (h:hs', fs')
+-- also returns the matching pairs
+best :: [(HTrans, FTrans)] ->[HTrans] -> [FTrans] -> ([HTrans], [FTrans], [(HTrans, FTrans)])
 
-           | otherwise  =  let
-                (f,i) = fst $ maximumBy (comparing snd) fweight
-                (hs', fs') = best hs (deleteAt i fs)
-                in (hs', f:fs')
-
-               where hweight = [((h,i), minimum (map (distance h) fs))        | (h, i) <- zip hs [0..]]
-                     fweight = [((f,i), minimum (map (flip distance f) hs)) | (f, i) <- zip fs [0..]]
-
-                     deleteAt i xs =  head' ++ (tail tail')
-                         where (head', tail') = splitAt i xs
-
--- | Like best' but instead of excluding the item maximizing the distance
--- we instead match (and remove) the pair with the smallest distance.
--- The main difference between the 2 algorithms is transaction in a matching
--- pair can be only used once.
-best [] fs = ([],fs)
-best hs [] = (hs,[])
-best (h:hs) (f:fs) | distance h f == 0 = best hs fs -- not necessary but too speed up
-best hs fs = if minDistance < 31
-                then best (deleteAt hi hs) (deleteAt fi fs)
-                else (hs, fs) where
+best hfs [] fs = ([],fs, hfs)
+best hfs hs [] = (hs,[], hfs)
+best hfs (h:hs) (f:fs) | distance h f == 0 =  best ((h,f):hfs) hs fs -- not necessary but too speed up
+best hfs hs fs = if minDistance < 31
+                then best ((hs !! hi,fs !! fi):hfs) (deleteAt hi hs) (deleteAt fi fs)
+                else (hs, fs, hfs) where
     ((hi,fi),minDistance) = minimumBy (comparing snd) pairs
     pairs = [((hi, fi), distance h f) | (h, hi) <- hs `zip` [0..], (f,fi) <- fs `zip` [0..]]
     deleteAt i xs =  head' ++ (tail tail')

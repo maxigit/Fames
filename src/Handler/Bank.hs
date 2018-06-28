@@ -283,7 +283,7 @@ renderReconciliate account param = do
       startDate = bsStartDate
       endDate = Nothing -- Just today
       faMode = B.BankAccountId (bsBankAccount)
-      aggregateMode = B.ALL
+      aggregateMode = B.ALL_BEST
 
   (hts,_) <- lift $ withCurrentDirectory bsPath (B.loadAllTrans options)
   let byDays = reverse $ B.badsByDay hts
