@@ -9,6 +9,7 @@ import qualified BankReconciliate as B
 import BankReconciliate()
 import Database.Persist.MySQL     (MySQLConf (..))
 import System.Directory
+import Text.Regex.TDFA ((=~), makeRegex, Regex)
 
 
 getGLBankR  :: Handler Html
@@ -23,13 +24,19 @@ getGLBankR = do
   -- setting the position to Nothing allows to quickly deactivate a panel 
   -- it can still be access via the Bank details page
   let settings = filter filterSettings (mapToList settings')
-      filterSettings (account, bsetting) = isJust (bsPosition bsetting) && canViewBankStatement role account
-  panels <- forM (sortOn (bsPosition . snd) settings) (displayStatementInPanel today dbConf faURL)
+      filterSettings (account, bsetting) = isJust (bsPosition bsetting) && (canViewBankStatement role account || canViewBankLightStatement role account)
+      -- chose the display function depending on permission
+      display (account, bs) = if canViewBankStatement role account
+                              then displaySummary today dbConf faURL account bs
+                              else displayLightSummary today dbConf faURL account bs
+  panels <- forM (sortOn (bsPosition . snd) settings) display
   defaultLayout (mconcat panels)
 
 
 canViewBankStatement :: Role -> Text -> Bool
 canViewBankStatement role account = authorizeFromAttributes role (setFromList ["bank/" <> account ]) ReadRequest
+canViewBankLightStatement :: Role -> Text -> Bool
+canViewBankLightStatement role account = authorizeFromAttributes role (setFromList ["bank/light/" <> account ]) ReadRequest
 
 
 -- | Displays a collapsible panel 
@@ -44,8 +51,9 @@ displayPanel ok collapsed account content =
         ^{content}
         |]
 
-displayStatementInPanel :: Day -> _DB -> Text -> (Text, BankStatementSettings) -> Handler Widget
-displayStatementInPanel today dbConf faURL (title, BankStatementSettings{..})= do
+-- | Display all non matching transaction as well as a preview of last the statement 
+displaySummary :: Day -> _DB -> Text -> Text ->  BankStatementSettings -> Handler Widget
+displaySummary today dbConf faURL title BankStatementSettings{..}= do
   let options = B.Options{..}
       hsbcFiles = unpack bsStatementGlob
       faCredential = myConnInfo dbConf
@@ -75,8 +83,48 @@ displayStatementInPanel today dbConf faURL (title, BankStatementSettings{..})= d
         ^{lastW}
                      |]
 
-linkToFA
-  :: (FATransType -> Int -> Text) -> B.STrans -> Html
+displayLightSummary :: Day -> _DB -> Text -> Text ->  BankStatementSettings -> Handler Widget
+displayLightSummary today dbConf faURL title BankStatementSettings{..}= do
+  let options = B.Options{..}
+      hsbcFiles = unpack bsStatementGlob
+      faCredential = myConnInfo dbConf
+      statementFiles = unpack bsDailyGlob
+      output = ""
+      startDate = bsStartDate
+      endDate = Nothing -- Just today
+      faMode = B.BankAccountId (bsBankAccount)
+      aggregateMode = B.BEST
+  
+  (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main options)
+  -- we sort by date
+  let sortTrans = keepLight blacklist . sortOn (liftA3 (,,) (Down . B._sDate) (Down . B._sDayPos) (Down . B._sAmount))
+      sorted = sortTrans stransz
+      ok = null sorted
+      blacklist = map unpack bsLightBlacklist
+      lastBanks = take 10 $ sortTrans banks
+      lastW = renderTransactions faURL lastBanks (Just "Total") (const False)
+      tableW = renderTransactions faURL sorted (Just "Total") ((B.FA ==) . B._sSource)
+  return $ displayPanel ok ok title [whamlet|
+        <a href="@{GLR (GLBankDetailsR title)}">
+          $if ok   
+            <p> Everything is fine
+          $else
+            <h3> Discrepencies
+        ^{tableW}
+        <h3> Last 10
+        ^{lastW}
+                     |]
+
+-- | Only keep transactions in which aren not in the black list
+keepLight :: [String] -> [B.STrans] -> [B.STrans]
+keepLight blacklist = filter go where
+  go tr = B._sAmount tr >0
+        && not (blacklisted (B._sDescription tr))
+        && B._sSource tr == B.HSBC
+  blacklisted s = any (s =~) blacklist
+
+
+linkToFA :: (FATransType -> Int -> Text) -> B.STrans -> Html
 linkToFA urlForFA' trans = case (readMay (B._sType trans), B._sNumber trans) of
   (Just t, Just no) | B._sSource trans == B.FA ->
            let eType = toEnum t

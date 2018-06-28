@@ -32,6 +32,7 @@ import GL.Payroll.Settings
 import qualified Data.Map as Map
 import Lens.Micro
 
+
 data AuthMode = BypassAuth | CheckAuth deriving (Read, Show, Eq)
 -- | Runtime settings to configure this application. These settings can be
 -- loaded from various sources: defaults, environment variables, config files,
@@ -103,6 +104,7 @@ data BankStatementSettings = BankStatementSettings
   , bsDailyGlob :: Text -- Glob pattern to filter daily statement
   , bsBankAccount :: Int -- id of the bank account in FA
   , bsPosition:: Maybe Int -- order of display
+  , bsLightBlacklist :: [Text] -- what to hide from light mode
   } deriving (Show, Read, Eq, Ord)
 
 -- TODO clean
