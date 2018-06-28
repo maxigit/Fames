@@ -16,6 +16,8 @@ import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 import Data.These
 import Data.Time (diffDays)
+import Lens.Micro.Extras (preview)
+
 commonCss = [cassius|
 tr.private
   font-style: italic
@@ -283,7 +285,7 @@ renderReconciliate account param = do
       faMode = B.BankAccountId (bsBankAccount)
       aggregateMode = B.ALL
 
-  (hts,_) <- lift $ B.loadAllTrans options
+  (hts,_) <- lift $ withCurrentDirectory bsPath (B.loadAllTrans options)
   let byDays = reverse $ B.badsByDay hts
       st'sts = map (bimap B.hToS B.fToS)  byDays
       -- check if the difference of the two date is acceptable
@@ -291,15 +293,18 @@ renderReconciliate account param = do
       dateClass (That _) = ""
       dateClass (These h f) = let d = diffDays (B._sDate h) (B._sDate f)
                               in if abs(d)  > 28
-                                 then "bg-danger text-danger" :: Text
+                                 then "text-danger" :: Text
                                  else if abs(d) > 7
-                                      then "bg-warning text-warning"
-                                      else "bg-success text-success"
+                                      then "text-warning"
+                                      else "text-success"
+      rowClass (This _) = "bg-warning text-warning "
+      rowClass (That _) = "bg-danger text-danger"
+      rowClass (These _ _) = "" :: Text
       widget  = [whamlet|
-    <table.table.table-hover.table-border.table-striped>
+    <table.table.table-hover.table-border>
       $forall st'st <- st'sts
-        <tr>
-         $with (trans, fatrans) <- (B.thisFirst st'st, B.thatFirst st'st)
+        $with (trans, fatrans, transM, fatransM) <- (B.thisFirst st'st, B.thatFirst st'st, preview here st'st, preview there st'st)
+          <tr class="#{rowClass st'st}">
            <td>
               $if B._sAmount trans > 0
                   <td>
@@ -307,10 +312,12 @@ renderReconciliate account param = do
               $else
                   <td>#{tshow $ negate  $    B._sAmount trans}
                   <td>
-              <td>#{tshow $  B._sSource trans}
-              <td>#{tshow $ B._sDate trans}
-              <td class="#{dateClass st'st}">#{tshow $ B._sDate fatrans}
-              <td>^{linkToFA (urlForFA faURL) trans}
+              <td>#{maybe "" (tshow . B._sSource) (justThis st'st)}
+              <td>#{maybe "" (tshow . B._sSource) (justThat st'st)}
+              <td>#{maybe "" (tshow . B._sDate) transM}
+              <td class="#{dateClass st'st}">#{maybe "" (tshow . B._sDate) fatransM}
+              <td>#{maybe "" B._sType transM}
+              <td>^{maybe "" (linkToFA (urlForFA faURL)) fatransM}
               <td>#{B._sDescription trans}
               <td>#{maybe "-" tshow $ B._sNumber trans}
               <td>#{fromMaybe "-" (B._sObject trans)}

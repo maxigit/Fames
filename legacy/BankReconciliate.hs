@@ -517,7 +517,7 @@ thisFirst (These a b) = a { _sNumber = _sNumber b, _sObject = _sObject b}
 thatFirst :: These STrans STrans -> STrans
 thatFirst (This a) = a
 thatFirst (That a) = a
-thatFirst (These a b) = b { _sNumber = _sNumber b, _sObject = _sObject a}
+thatFirst (These a b) = b { _sNumber = _sNumber b, _sObject = _sObject b}
 
 
 
