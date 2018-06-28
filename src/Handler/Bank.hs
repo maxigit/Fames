@@ -18,6 +18,8 @@ import Data.These
 import Data.Time (diffDays)
 import Lens.Micro.Extras (preview)
 import FA as FA
+import GL.Utils
+import GL.Payroll.Settings
 
 commonCss = [cassius|
 tr.private
@@ -170,39 +172,39 @@ renderTransactions object faURL sorted mkClasses totalTitle danger =
       in [whamlet| 
         <table.table.table-hover.table-border.table-striped>
           <tr>
-            <th>Paid Out
-            <th>Paid In
-            <th>Source
             <th>Date
+            <th>Source
             <th>Type
             <th>Description
             <th>Number
             <th>Object
+            <th>Paid Out
+            <th>Paid In
           $forall trans <- sorted
             $with isDanger <- danger trans
               <tr :isDanger:.text-danger :isDanger:.bg-danger class="#{intercalate " " (mkClasses trans)}">
+                  <td>#{tshow $ B._sDate trans}
+                  <td>#{tshow $ B._sSource trans}
+                  <td>^{linkToFA (urlForFA faURL) trans}
+                  <td>#{B._sDescription trans}
+                  <td>#{maybe "-" tshow $ B._sNumber trans}
+                  <td>#{fromMaybe "-" (object trans)}
                   $if B._sAmount trans > 0
                     <td>
                     <td>#{tshow $  B._sAmount trans}
                   $else
                     <td>#{tshow $ negate  $    B._sAmount trans}
                     <td>
-                  <td>#{tshow $ B._sSource trans}
-                  <td>#{tshow $ B._sDate trans}
-                  <td>^{linkToFA (urlForFA faURL) trans}
-                  <td>#{B._sDescription trans}
-                  <td>#{maybe "-" tshow $ B._sNumber trans}
-                  <td>#{fromMaybe "-" (object trans)}
           <tr>
             $maybe totalTitle <-  totalTitle
-              <th>#{tshow $ negate outTotal}
-              <th>#{tshow inTotal}
               <th> #{totalTitle}
               <th> #{tshow total}
               <th>
               <th>
               <th>
               <th>
+              <th>#{tshow $ negate outTotal}
+              <th>#{tshow inTotal}
               |]
 
 settingsFor :: Text -> Handler BankStatementSettings
@@ -251,14 +253,15 @@ data RecParam = RecParam
    } deriving Show
 defaultParam = RecParam Nothing Nothing Nothing
 
-recForm paramM = renderBootstrap3 BootstrapBasicForm form  where
+recForm  paramM = renderBootstrap3 BootstrapBasicForm form  where
   form = RecParam <$> aopt dayField "start" (rpStartDate <$> paramM)
                   <*> aopt dayField "end" (rpEndDate <$> paramM)
                   <*> aopt dayField "reconciliate" (rpRecDate <$> paramM)
 
 getGLBankReconciliateR :: Text -> Handler Html
 getGLBankReconciliateR account = do
-  renderReconciliate account defaultParam 
+  today <- utctDay <$> liftIO getCurrentTime
+  renderReconciliate account defaultParam  {rpStartDate = Just $ calculateDate (AddMonths (-3)) today}
   
 postGLBankReconciliateR :: Text -> Handler Html
 postGLBankReconciliateR account = do
@@ -314,8 +317,6 @@ renderReconciliate account param = do
       widget  = [whamlet|
     <table.table.table-hover.table-border>
       <tr>
-              <th>Paid Out
-              <th>Paid In
               <th>Date 
               <th>Source
               <th>Source
@@ -326,25 +327,27 @@ renderReconciliate account param = do
               <th>FA Ref.
               <th>Number 
               <th>Object
+              <th>Paid Out
+              <th>Paid In
       $forall st'st <- st'sts
         $with (trans, fatrans, transM, fatransM) <- (B.thisFirst st'st, B.thatFirst st'st, preview here st'st, preview there st'st)
           <tr class="#{rowClass st'st}">
-              $if B._sAmount trans > 0
-                  <td>
-                  <td>#{tshow $  B._sAmount trans}
-              $else
-                  <td>#{tshow $ negate  $    B._sAmount trans}
-                  <td>
-              <td>#{maybe "" (tshow . B._sSource) transM}
-              <td>#{maybe "" (tshow . B._sSource) fatransM}
               <td>#{maybe "" (tshow . B._sDate) transM}
               <td class="#{dateClass st'st}">#{maybe "" (tshow . B._sDate) fatransM}
+              <td>#{maybe "" (tshow . B._sSource) transM}
+              <td>#{maybe "" (tshow . B._sSource) fatransM}
               <td>#{maybe "" B._sType transM}
               <td>^{maybe "" (linkToFA (urlForFA faURL)) fatransM}
               <td>#{maybe "" B._sDescription transM}
               <td>#{maybe "" B._sDescription fatransM}
               <td>#{maybe "-" tshow $ B._sNumber trans}
               <td>#{fromMaybe "-" (object fatrans)}
+              $if B._sAmount trans > 0
+                  <td>
+                  <td>#{tshow $  B._sAmount trans}
+              $else
+                  <td>#{tshow $ negate  $    B._sAmount trans}
+                  <td>
 
       
                         |]
