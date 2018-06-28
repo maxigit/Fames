@@ -96,9 +96,7 @@ postItemsIndexR mode = do
 -- | User authorized to see purchase prices or not ?
 purchaseAuth :: Handler Bool
 purchaseAuth = do
-  settings <- appSettings <$> getYesod
-  mu <- maybeAuth
-  let role = roleFor (appRoleFor settings) (userIdent . entityVal <$> mu)
+  role <- currentRole
   return $ null (filterPermissions ReadRequest (setFromList ["purchase/prices"]) role)
     
 -- * Utils

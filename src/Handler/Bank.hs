@@ -16,9 +16,20 @@ getGLBankR = do
   today <- utctDay <$> liftIO getCurrentTime
   dbConf <- appDatabaseConf <$> getsYesod appSettings
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
-  settings <- getsYesod (appBankStatements . appSettings)
-  panels <- forM (sortOn (bsPosition . snd) $ mapToList settings) (displayStatementInPanel today dbConf faURL)
+  settings' <- getsYesod (appBankStatements . appSettings)
+
+  role <- currentRole
+  -- only keep authorised settings and which have a position
+  -- setting the position to Nothing allows to quickly deactivate a panel 
+  -- it can still be access via the Bank details page
+  let settings = filter filterSettings (mapToList settings')
+      filterSettings (account, bsetting) = isJust (bsPosition bsetting) && canViewBankStatement role account
+  panels <- forM (sortOn (bsPosition . snd) settings) (displayStatementInPanel today dbConf faURL)
   defaultLayout (mconcat panels)
+
+
+canViewBankStatement :: Role -> Text -> Bool
+canViewBankStatement role account = authorizeFromAttributes role (setFromList ["bank/" <> account ]) ReadRequest
 
 
 displayStatementInPanel :: Day -> _DB -> Text -> (Text, BankStatementSettings) -> Handler Widget
@@ -32,7 +43,6 @@ displayStatementInPanel today dbConf faURL (title, BankStatementSettings{..})= d
       endDate = Nothing -- Just today
       faMode = B.BankAccountId (bsBankAccount)
       aggregateMode = B.BEST
-
   
   (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main options)
   -- we sort by date
@@ -46,8 +56,8 @@ displayStatementInPanel today dbConf faURL (title, BankStatementSettings{..})= d
   return [whamlet|
     <div.panel :ok:.panel-success:.panel-danger>
       <div.panel-heading data-toggle="collapse" data-target="##{panelId}">
-        <a href="@{GLR (GLBankDetailsR title)}">
-          <h2>#{title}
+        <a.aler-link href="@{GLR (GLBankDetailsR title)}">
+          <h2 style=>#{title}
       <div.panel-body.collapse :ok:.out:.in id="#{panelId}">
         $if ok   
            <p> Everything is fine
@@ -117,6 +127,9 @@ renderTransactions faURL sorted totalTitle danger =
 
 getGLBankDetailsR :: Text -> Handler Html
 getGLBankDetailsR account = do
+  role <- currentRole
+  when (not $ canViewBankStatement role account)
+     (permissionDenied account)
   allSettings <- getsYesod (appBankStatements . appSettings)
   case lookup account allSettings of
     Nothing -> error $ "Bank Account " <> unpack account <> " not found!"
