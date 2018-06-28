@@ -56,14 +56,14 @@ displayStatementInPanel today dbConf faURL (title, BankStatementSettings{..})= d
   return [whamlet|
     <div.panel :ok:.panel-success:.panel-danger>
       <div.panel-heading data-toggle="collapse" data-target="##{panelId}">
-        <a.aler-link href="@{GLR (GLBankDetailsR title)}">
           <h2 style=>#{title}
       <div.panel-body.collapse :ok:.out:.in id="#{panelId}">
-        $if ok   
-           <p> Everything is fine
-        $else
-           <h3> Discrepencies
-           ^{tableW}
+        <a href="@{GLR (GLBankDetailsR title)}">
+          $if ok   
+            <p> Everything is fine
+          $else
+            <h3> Discrepencies
+        ^{tableW}
         <h3> Last 10
         ^{lastW}
                      |]
