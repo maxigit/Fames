@@ -302,23 +302,36 @@ renderReconciliate account param = do
       rowClass (These _ _) = "" :: Text
       widget  = [whamlet|
     <table.table.table-hover.table-border>
+      <tr>
+              <th>Paid Out
+              <th>Paid In
+              <th>Date 
+              <th>Source
+              <th>Source
+              <th>FA Date
+              <th>Type 
+              <th>FA Type
+              <th>Description
+              <th>FA Ref.
+              <th>Number 
+              <th>Object
       $forall st'st <- st'sts
         $with (trans, fatrans, transM, fatransM) <- (B.thisFirst st'st, B.thatFirst st'st, preview here st'st, preview there st'st)
           <tr class="#{rowClass st'st}">
-           <td>
               $if B._sAmount trans > 0
                   <td>
                   <td>#{tshow $  B._sAmount trans}
               $else
                   <td>#{tshow $ negate  $    B._sAmount trans}
                   <td>
-              <td>#{maybe "" (tshow . B._sSource) (justThis st'st)}
-              <td>#{maybe "" (tshow . B._sSource) (justThat st'st)}
+              <td>#{maybe "" (tshow . B._sSource) transM}
+              <td>#{maybe "" (tshow . B._sSource) fatransM}
               <td>#{maybe "" (tshow . B._sDate) transM}
               <td class="#{dateClass st'st}">#{maybe "" (tshow . B._sDate) fatransM}
               <td>#{maybe "" B._sType transM}
               <td>^{maybe "" (linkToFA (urlForFA faURL)) fatransM}
-              <td>#{B._sDescription trans}
+              <td>#{maybe "" B._sDescription transM}
+              <td>#{maybe "" B._sDescription fatransM}
               <td>#{maybe "-" tshow $ B._sNumber trans}
               <td>#{fromMaybe "-" (B._sObject trans)}
 
