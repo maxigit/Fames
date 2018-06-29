@@ -115,6 +115,7 @@ data FTrans = FTrans
        , _fObject      :: !String   --   ^ Can be Person, Item etc   ...
        , _fAmount      :: !Amount
        , _fBalance     :: !Amount
+       , _fRecDate      :: !(Maybe Day)
        , _fPosition    :: !Int -- ^ position
        } deriving (Show, Read, Eq, Ord)
 
@@ -129,6 +130,7 @@ instance FromNamedRecord (Int -> FTrans) where
                 <*> r .: "Person/Item"
                 <*> parseDebit "Debit" "Credit" r
                 <*> r .: "Balance"
+                <*> pure Nothing
 
 -- | Read from DB
 fetchFA :: SQL.ConnectInfo -> Int -> Maybe Day -> Maybe Day -> IO (Vector FTrans)
@@ -137,7 +139,8 @@ fetchFA cinfo bankAccount startM endM = do
     (_, results) <- mapAccumL tupleToFTrans (0,1) <$> SQL.query_ conn (fromString q)
     return $ V.fromList results
 
-    where q0 = "SELECT type, trans_no, ref, trans_date, CAST(person_id as CHAR(100)), amount FROM 0_bank_trans"
+    where q0 = "SELECT type, trans_no, ref, trans_date, CAST(person_id as CHAR(100)), amount, reconciled"
+                         ++ " FROM 0_bank_trans"
                          ++ " WHERE amount <> 0 AND bank_act = "  ++ show bankAccount
           q = reduceWith appEndo ws q0
 
@@ -151,8 +154,8 @@ fetchFA cinfo bankAccount startM endM = do
                    ]
           format d = formatTime defaultTimeLocale "%F" d
 
-          tupleToFTrans :: (Amount, Int) ->  (Int, Int, String, Day, String, Double) -> ((Amount, Int), FTrans)
-          tupleToFTrans (bal,pos) (t,n,r,d,o,a) = ((bal',pos+1), FTrans (show t) n r d o a' bal' pos)
+          tupleToFTrans :: (Amount, Int) ->  (Int, Int, String, Day, String, Double, Maybe Day) -> ((Amount, Int), FTrans)
+          tupleToFTrans (bal,pos) (t,n,r,d,o,a,rd) = ((bal',pos+1), FTrans (show t) n r d o a' bal' rd pos)
             where bal' = bal+a'
                   a' = roundTo 2 $ read . show $ a
 
@@ -396,6 +399,7 @@ data STrans = STrans
     , _sNumber :: !(Maybe Int)
     , _sObject :: !(Maybe String)
     , _sDayPos :: !Int
+    , _sRecDate :: !(Maybe Day)
     } deriving (Show, Read, Generic)
 
 
@@ -411,6 +415,7 @@ hToS h = pure STrans
         <*> pure Nothing
         <*> pure Nothing
         <*> _hDayPos
+        <*> pure Nothing
         $ h
 
 -- ** Converters between input transactions and summaries.b
@@ -424,6 +429,7 @@ fToS f = pure STrans
                 <*> fmap Just _fNumber
                 <*> fmap Just _fObject
                 <*> _fPosition
+                <*> _fRecDate
                 $ f
 
 buildSTrans :: These [HTrans] [FTrans] -> [STrans]

@@ -295,26 +295,46 @@ renderReconciliate account param = do
 
   (hts,_) <- lift $ withCurrentDirectory bsPath (B.loadAllTrans options)
   let byDays = B.badsByDay hts
+      -- group by rec
       st'sts = filterDate $ map (bimap B.hToS B.fToS)  byDays
-
+      recGroup = groupAsMap (B._sRecDate . B.thatFirst) (:[]) st'sts
       -- exclude a pair if both date are outside the range
       filterDate  = B.filterDate (mergeTheseWith B._sDate B._sDate  max)
                                  (mergeTheseWith B._sDate B._sDate min)
                                  options {B.startDate = rpStartDate param, B.endDate = rpEndDate param }
         
+      panels = map (displayRecGroup faURL object) (sortPanel $ mapToList recGroup)
+      -- put nothing first then by reverse order
+      sortPanel (main@(Nothing,_ ):others) = main : reverse others
+      sortPanel others = reverse others
+  defaultLayout $ do
+    toWidget commonCss
+    [whamlet|
+    <form.form-inline action="@{GLR (GLBankReconciliateR account)}" method=POST enctype="#{encType}">
+     <div.well>
+        ^{form}
+        <button.btn.btn-primary name=action value="submit">Submit
+     ^{mconcat panels}
+     <div.well>
+        <button.btn.btn-warning name=action value="reconciliate">Save
+            |]
+  
+displayRecGroup :: Text -> (B.STrans -> Maybe Text) -> (Maybe Day, [These B.STrans B.STrans]) -> Widget
+displayRecGroup faURL object (recDateM, st'sts) = let
+  title = maybe "" tshow recDateM
       -- check if the difference of the two date is acceptable
-      dateClass (This _) = ""
-      dateClass (That _) = ""
-      dateClass (These h f) = let d = diffDays (B._sDate h) (B._sDate f)
-                              in if abs(d)  > 28
-                                 then "text-danger" :: Text
-                                 else if abs(d) > 7
-                                      then "text-warning"
-                                      else "text-success"
-      rowClass (This _) = "bg-warning text-warning "
-      rowClass (That _) = "bg-danger text-danger"
-      rowClass (These _ _) = "" :: Text
-      widget  = [whamlet|
+  dateClass (This _) = ""
+  dateClass (That _) = ""
+  dateClass (These h f) = let d = diffDays (B._sDate h) (B._sDate f)
+                          in if abs(d)  > 28
+                              then "text-danger" :: Text
+                              else if abs(d) > 7
+                                  then "text-warning"
+                                  else "text-success"
+  rowClass (This _) = "bg-warning text-warning "
+  rowClass (That _) = "bg-danger text-danger"
+  rowClass (These _ _) = "" :: Text
+  widget = [whamlet|
     <table.table.table-hover.table-border>
       <tr>
               <th>Date 
@@ -329,6 +349,7 @@ renderReconciliate account param = do
               <th>Object
               <th>Paid Out
               <th>Paid In
+              <th>Rec Date 
       $forall st'st <- st'sts
         $with (trans, fatrans, transM, fatransM) <- (B.thisFirst st'st, B.thatFirst st'st, preview here st'st, preview there st'st)
           <tr class="#{rowClass st'st}">
@@ -348,20 +369,9 @@ renderReconciliate account param = do
               $else
                   <td>#{tshow $ negate  $    B._sAmount trans}
                   <td>
-
-      
-                        |]
-  defaultLayout $ do
-    toWidget commonCss
-    [whamlet|
-     <div.well>
-      <form.form-inline action="@{GLR (GLBankReconciliateR account)}" method=POST enctype="#{encType}">
-        ^{form}
-        <button.btn.btn-primary name=action value="submit">Submit
-        <button.btn.btn-warning name=action value="reconciliate">Save
-     ^{displayPanel False False account widget}
-            |]
-  
+              <td>#{maybe "-" tshow $ B._sRecDate fatrans}
+              |]
+  in displayPanel False False title widget
 
 getObject :: Map Text Text -> Map Text Text -> B.STrans -> Maybe Text
 getObject customerMap supplierMap trans = do -- Maybe
