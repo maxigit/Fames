@@ -277,7 +277,12 @@ postGLBankReconciliateR account = do
         actionM <- lookupPostParam "action"
         case actionM of
           Nothing -> getGLBankReconciliateR account
-          _ -> traceShowM param >> renderReconciliate account param
+          Just action -> do
+            when (action == "reconciliate") $
+              case rpRecDate param of
+                Nothing -> setWarning "Please set a reconciliation date"
+                Just recDate -> saveReconciliation recDate
+            renderReconciliate account param
 
 
 renderReconciliate :: Text -> RecParam -> Handler Html
@@ -340,13 +345,13 @@ renderReconciliate account param = do
     toWidget commonCss
     [whamlet|
     <form.form-inline action="@{GLR (GLBankReconciliateR account)}" method=POST enctype="#{encType}">
-     <div.well>
+      <div.well>
         ^{form}
         <button.btn.btn-primary name=action value="submit">Submit
-     <div.well>
+      <div.well>
        ^{statusW}
         <button.btn.btn-warning name=action value="reconciliate">Save
-     ^{mconcat panels}
+      ^{mconcat panels}
             |]
   
 displayRecGroup :: Text -> (B.STrans -> Maybe Text) -> (Maybe Day, [These B.STrans B.STrans]) -> Widget
@@ -401,12 +406,63 @@ displayRecGroup faURL object (recDateM, st'sts) = let
                   <td>
               <td>
                 $if isThese st'st 
-                     <input type=checkbox id="#{faId fatrans}" checked>
+                  $if isJust (B._sRecDate fatrans)
+                      <input type=hidden name="already-#{faId fatrans}" value=off>
+                      <input type=checkbox name="keepset-#{faId fatrans}" checked>
+                  $else
+                      <input type=checkbox name="set-#{faId fatrans}" checked>
               |]
   in displayPanel False False title widget
 
+-- | Computes the checkbox prefix for a transaction.
 faId :: B.STrans -> Text
-faId strans = "rec-" <>  pack (B._sType strans) <> "-" <> maybe "0" tshow (B._sNumber strans)
+faId strans = let
+  prefix = if isJust (B._sRecDate strans)
+           then "rec-"
+           else "rec-"
+  in prefix <> pack (B._sType strans) <> "-" <> maybe "0" tshow (B._sNumber strans)
+
+saveReconciliation :: Day -> Handler ()
+saveReconciliation recDate = do
+  (params, _) <- runRequestBody
+  let toSet' = catMaybes [ decodeKey key
+              | (key', value) <- params
+              -- , value == "on"
+              , Just key <-  [stripPrefix "set-rec-" key']
+              ]
+      already = catMaybes [ decodeKey key
+                | (key', value) <- params
+                , Just key <-  [stripPrefix "already-rec-" key']
+                ]
+      
+      tokeep = catMaybes [ decodeKey key
+               | (key', value) <- params
+               -- , value == "on"
+               , Just key <-  [stripPrefix "keepset-rec-" key']
+               ]
+      toUnset = setFromList already \\ setFromList tokeep :: Set (Int, Int)
+      decodeKey key = let (a,b) = break (=='-') key in (,)  <$> readMay a <*> readMay  (drop 1 b)
+  runDB $ do
+  saveRecDate recDate toSet'
+  unsetRecDate (setToList toUnset)
+
+-- saveRecDate :: Day -> [(Int, Int)] -> Handler ()
+saveRecDate recDate transIds = do
+  forM_ transIds $ \(t, no) -> 
+     updateWhere [FA.BankTranType ==. Just t, FA.BankTranTransNo ==. Just no]
+                 [FA.BankTranReconciled =. Just recDate]
+
+-- unsetRecDate :: [(Int, Int)] -> Handler ()
+unsetRecDate transIds = do
+  forM_ transIds $ \(t, no) -> 
+     updateWhere [FA.BankTranType ==. Just t, FA.BankTranTransNo ==. Just no]
+                 [FA.BankTranReconciled =. Nothing]
+
+
+
+  
+
+  -- get all ids
 
 getObject :: Map Text Text -> Map Text Text -> B.STrans -> Maybe Text
 getObject customerMap supplierMap trans = do -- Maybe
