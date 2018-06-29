@@ -300,12 +300,19 @@ renderReconciliate account param = do
   (hts,_) <- lift $ withCurrentDirectory bsPath (B.loadAllTrans options)
   let byDays = B.badsByDay hts
       -- group by rec
-      st'sts = filterDate $ map (bimap B.hToS B.fToS)  byDays
+      st'sts = filter transFilter $ map (bimap B.hToS B.fToS)  byDays
       recGroup = groupAsMap (B._sRecDate . B.thatFirst) (:[]) st'sts
       -- exclude a pair if both date are outside the range
-      filterDate  = B.filterDate (mergeTheseWith B._sDate B._sDate  max)
-                                 (mergeTheseWith B._sDate B._sDate min)
-                                 options {B.startDate = rpStartDate param, B.endDate = rpEndDate param }
+      transFilter t | d <- mergeTheseWith B._sDate B._sDate max t,   Just start <- bsStartDate, d < start = False
+      transFilter t@(These _ fa) = isNothing (B._sRecDate fa) -- not reconciliated, must show
+                               || ( maybe True (mergeTheseWith B._sDate B._sDate  max t >=)  (rpStartDate param)
+                                  && maybe True (mergeTheseWith B._sDate B._sDate  min t <=)  (rpEndDate param)
+                                  )
+      transFilter _ = True
+
+      -- filterDate  = B.filterDate (mergeTheseWith B._sDate B._sDate  max)
+      --                            (mergeTheseWith B._sDate B._sDate min)
+      --                            options {B.startDate = rpStartDate param, B.endDate = rpEndDate param }
         
       panels = map (displayRecGroup faURL object) (sortPanel $ mapToList recGroup)
       -- put nothing first then by reverse order
