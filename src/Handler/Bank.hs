@@ -248,14 +248,18 @@ displayDetailsInPanel account BankStatementSettings{..} = do
 -- * Reconciliationg
 data RecParam = RecParam
    { rpStartDate :: Maybe Day
+   , rpOpeningBalance :: Double
    , rpEndDate :: Maybe Day
+   , rpClosingBalance :: Double
    , rpRecDate :: Maybe Day
    } deriving Show
-defaultParam = RecParam Nothing Nothing Nothing
+defaultParam = RecParam Nothing 0 Nothing  0 Nothing
 
 recForm  paramM = renderBootstrap3 BootstrapBasicForm form  where
   form = RecParam <$> aopt dayField "start" (rpStartDate <$> paramM)
-                  <*> aopt dayField "end" (rpEndDate <$> paramM)
+                  <*> areq doubleField "Opening Balance" (rpOpeningBalance <$> paramM)
+                  <*> aopt dayField "end date" (rpEndDate <$> paramM)
+                  <*> areq doubleField "Closing Balance" (rpClosingBalance <$> paramM)
                   <*> aopt dayField "reconciliate" (rpRecDate <$> paramM)
 
 getGLBankReconciliateR :: Text -> Handler Html
@@ -307,6 +311,24 @@ renderReconciliate account param = do
       -- put nothing first then by reverse order
       sortPanel (main@(Nothing,_ ):others) = main : reverse others
       sortPanel others = reverse others
+      -- if a trans is taken into account to calculated the reconciliated amount
+      -- we are only interesed in the item reconciliated in the current reconciliation period
+      -- and the one ready to be (ie match FA And statements)
+      forInitRec (These h _) = maybe True (<= (B._sDate h)) (rpRecDate param) 
+      forInitRec (That fa) = isJust $ B._sRecDate fa
+      forInitRec _ = False
+      reconciliated :: Double
+      reconciliated = fromRational . toRational $ sum $ map (B._sAmount . B.thisFirst) (filter forInitRec st'sts)
+      statusW = [whamlet|
+     <label>Opening
+     <input value="#{formatDouble $ rpOpeningBalance param}" readonly>
+     <label>Closing
+     <input value="#{formatDouble $ rpClosingBalance param}" readonly>
+     <label>Reconciliated
+     <input value="#{formatDouble $ reconciliated}" readonly>
+     <label>Difference
+     <input value="#{formatDouble $ reconciliated - (rpClosingBalance param - rpOpeningBalance param)}" readonly>
+                        |]
   defaultLayout $ do
     toWidget commonCss
     [whamlet|
@@ -314,9 +336,10 @@ renderReconciliate account param = do
      <div.well>
         ^{form}
         <button.btn.btn-primary name=action value="submit">Submit
-     ^{mconcat panels}
      <div.well>
+       ^{statusW}
         <button.btn.btn-warning name=action value="reconciliate">Save
+     ^{mconcat panels}
             |]
   
 displayRecGroup :: Text -> (B.STrans -> Maybe Text) -> (Maybe Day, [These B.STrans B.STrans]) -> Widget
@@ -349,7 +372,7 @@ displayRecGroup faURL object (recDateM, st'sts) = let
               <th>Object
               <th>Paid Out
               <th>Paid In
-              <th>Rec Date 
+              <th>Reconciliate
       $forall st'st <- st'sts
         $with (trans, fatrans, transM, fatransM) <- (B.thisFirst st'st, B.thatFirst st'st, preview here st'st, preview there st'st)
           <tr class="#{rowClass st'st}">
@@ -369,9 +392,14 @@ displayRecGroup faURL object (recDateM, st'sts) = let
               $else
                   <td>#{tshow $ negate  $    B._sAmount trans}
                   <td>
-              <td>#{maybe "-" tshow $ B._sRecDate fatrans}
+              <td>
+                $if isThese st'st 
+                     <input type=checkbox id="#{faId fatrans}" checked>
               |]
   in displayPanel False False title widget
+
+faId :: B.STrans -> Text
+faId strans = "rec-" <>  pack (B._sType strans) <> "-" <> maybe "0" tshow (B._sNumber strans)
 
 getObject :: Map Text Text -> Map Text Text -> B.STrans -> Maybe Text
 getObject customerMap supplierMap trans = do -- Maybe
