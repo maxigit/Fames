@@ -443,8 +443,8 @@ saveReconciliation recDate = do
       toUnset = setFromList already \\ setFromList tokeep :: Set (Int, Int)
       decodeKey key = let (a,b) = break (=='-') key in (,)  <$> readMay a <*> readMay  (drop 1 b)
   runDB $ do
-  saveRecDate recDate toSet'
-  unsetRecDate (setToList toUnset)
+    saveRecDate recDate toSet'
+    unsetRecDate (setToList toUnset)
 
 -- saveRecDate :: Day -> [(Int, Int)] -> Handler ()
 saveRecDate recDate transIds = do
