@@ -394,8 +394,8 @@ renderReconciliate account param = do
       -- if a trans is taken into account to calculated the reconciliated amount
       -- we are only interesed in the item reconciliated in the current reconciliation period
       -- and the one ready to be (ie match FA And statements)
-      forInitRec (These h fa) = maybe True ((fromMaybe  (B._sDate h) (B._sRecDate fa)) <=) (rpRecDate param) 
-                              && maybe True (\(recDate, startDate) -> recDate > startDate ) ((,) <$> B._sRecDate  fa <*> rpRecDate param)
+      forInitRec (These h fa) = maybe True (B._sDate h <=) (rpRecDate param) 
+                              && maybe True (\(tRecDate, recDate) -> tRecDate == recDate ) ((,) <$> B._sRecDate  fa <*> rpRecDate param)
       forInitRec (That fa) = isJust $ B._sRecDate fa
       forInitRec _ = False
       reconciliated :: Double
