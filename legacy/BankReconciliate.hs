@@ -343,7 +343,7 @@ bads mode m = let
     good :: AggregateMode -> These [HTrans] [FTrans] -> Maybe (These [HTrans] [FTrans])
     good DEBUG t = Just t
     good mode (These hs0 fs0)
-        | length hs == length fs = Nothing
+        | length hs == length fs && mode /= ALL_BEST = Nothing
         | mode == TAIL           = Just $ These hs' fs'
         | mode == ALL            = Just $ These hs fs
         | mode == BEST           = Just $ These hs'' fs''
