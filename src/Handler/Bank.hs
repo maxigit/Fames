@@ -348,10 +348,10 @@ renderReconciliate account param = do
       <div.well>
         ^{form}
         <button.btn.btn-primary name=action value="submit">Submit
+      ^{mconcat panels}
       <div.well>
        ^{statusW}
         <button.btn.btn-warning name=action value="reconciliate">Save
-      ^{mconcat panels}
             |]
   
 displayRecGroup :: (These B.STrans B.STrans -> Bool) -> Text -> (B.STrans -> Maybe Text) -> (Maybe Day, [These B.STrans B.STrans]) -> Widget
