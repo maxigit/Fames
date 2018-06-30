@@ -319,14 +319,14 @@ renderReconciliate account param = do
       --                            (mergeTheseWith B._sDate B._sDate min)
       --                            options {B.startDate = rpStartDate param, B.endDate = rpEndDate param }
         
-      panels = map (displayRecGroup faURL object) (sortPanel $ mapToList recGroup)
+      panels = map (displayRecGroup forInitRec faURL object) (sortPanel $ mapToList recGroup)
       -- put nothing first then by reverse order
       sortPanel (main@(Nothing,_ ):others) = main : reverse others
       sortPanel others = reverse others
       -- if a trans is taken into account to calculated the reconciliated amount
       -- we are only interesed in the item reconciliated in the current reconciliation period
       -- and the one ready to be (ie match FA And statements)
-      forInitRec (These h _) = maybe True (<= (B._sDate h)) (rpRecDate param) 
+      forInitRec (These h _) = maybe True ((B._sDate h) <=) (rpRecDate param) 
       forInitRec (That fa) = isJust $ B._sRecDate fa
       forInitRec _ = False
       reconciliated :: Double
@@ -354,8 +354,8 @@ renderReconciliate account param = do
       ^{mconcat panels}
             |]
   
-displayRecGroup :: Text -> (B.STrans -> Maybe Text) -> (Maybe Day, [These B.STrans B.STrans]) -> Widget
-displayRecGroup faURL object (recDateM, st'sts0) = let
+displayRecGroup :: (These B.STrans B.STrans -> Bool) -> Text -> (B.STrans -> Maybe Text) -> (Maybe Day, [These B.STrans B.STrans]) -> Widget
+displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
   st'sts = sortOn (((,) <$> B._sDate <*> B._sDayPos) . B.thisFirst) st'sts0
   title = maybe "" tshow recDateM
       -- check if the difference of the two date is acceptable
@@ -411,7 +411,8 @@ displayRecGroup faURL object (recDateM, st'sts0) = let
                       <input type=hidden name="already-#{faId fatrans}" value=off>
                       <input type=checkbox name="keepset-#{faId fatrans}" checked>
                   $else
-                      <input type=checkbox name="set-#{faId fatrans}" checked>
+                    $with checked <- toCheck st'st
+                      <input type=checkbox name="set-#{faId fatrans}" :checked:checked>
               |]
   in displayPanel False False title widget
 
