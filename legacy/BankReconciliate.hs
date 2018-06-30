@@ -142,6 +142,7 @@ fetchFA cinfo bankAccount startM endM = do
     where q0 = "SELECT type, trans_no, ref, trans_date, CAST(person_id as CHAR(100)), amount, reconciled"
                          ++ " FROM 0_bank_trans"
                          ++ " WHERE amount <> 0 AND bank_act = "  ++ show bankAccount
+                         ++ " ORDER BY trans_date, id"
           q = reduceWith appEndo ws q0
 
           ws = catMaybes
@@ -341,15 +342,15 @@ bads mode m = let
     goodM mode (a, t) = (,) a <$> good mode t
     good :: AggregateMode -> These [HTrans] [FTrans] -> Maybe (These [HTrans] [FTrans])
     good DEBUG t = Just t
-    good mode (These hs fs)
+    good mode (These hs0 fs0)
         | length hs == length fs = Nothing
         | mode == TAIL           = Just $ These hs' fs'
         | mode == ALL            = Just $ These hs fs
         | mode == BEST           = Just $ These hs'' fs''
         | mode == ALL_BEST       = Just $ These (hs''0 <> hs'') (fs''0 <> fs'')
-        where (hs', fs') = zipTail (sortBy (comparing _hDate) hs)
-                                   (sortBy (comparing _fDate) fs)
-
+        where hs = sortBy (comparing (liftA2 (,) _hDate _hDayPos)) hs0
+              fs = sortBy (comparing (liftA2 (,) _fDate _fPosition)) fs0
+              (hs', fs') = zipTail hs fs
               (hs'', fs'', hfs''0) = best [] hs fs
               (hs''0, fs''0) = unzip hfs''0 -- matched pair
     good mode t  = Just t

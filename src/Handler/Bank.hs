@@ -355,7 +355,8 @@ renderReconciliate account param = do
             |]
   
 displayRecGroup :: Text -> (B.STrans -> Maybe Text) -> (Maybe Day, [These B.STrans B.STrans]) -> Widget
-displayRecGroup faURL object (recDateM, st'sts) = let
+displayRecGroup faURL object (recDateM, st'sts0) = let
+  st'sts = sortOn (((,) <$> B._sDate <*> B._sDayPos) . B.thisFirst) st'sts0
   title = maybe "" tshow recDateM
       -- check if the difference of the two date is acceptable
   dateClass (This _) = ""
