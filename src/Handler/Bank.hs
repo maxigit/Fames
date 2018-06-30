@@ -44,13 +44,27 @@ function updateRecTotal () {
    $("input.opening-balance").val(opening)
    $("input.closing-balance").val(closing)
    $("input.rec-total").val(rec);
-   $("input.rec-difference").val(rec - (closing-opening));
+   var diff = closing-opening-rec;
+   var diffE = $("input.rec-difference");
+   diffE.val(diff);
+   if(diff==0) {
+     diffE.removeClass("text-danger");
+     diffE.removeClass("bg-danger");
+     diffE.addClass("text-success");
+     diffE.addClass("bg-success");
+   } else {
+     diffE.addClass("text-danger");
+     diffE.addClass("bg-danger");
+     diffE.removeClass("text-success");
+     diffE.removeClass("bg-success");
+   }
 }
 
 function toggleAll(e) {
   var panel= $(e.target).parents("table");
   var checkboxes = $(panel).find("input[type='checkbox']");
      $(checkboxes).prop('checked', $(e.target).prop('checked'));
+  updateRecTotal();
 }
 
 function updateCheckBox(e) {
@@ -380,7 +394,8 @@ renderReconciliate account param = do
       -- if a trans is taken into account to calculated the reconciliated amount
       -- we are only interesed in the item reconciliated in the current reconciliation period
       -- and the one ready to be (ie match FA And statements)
-      forInitRec (These h _) = maybe True ((B._sDate h) <=) (rpRecDate param) 
+      forInitRec (These h fa) = maybe True ((fromMaybe  (B._sDate h) (B._sRecDate fa)) <=) (rpRecDate param) 
+                              && maybe True (\(recDate, startDate) -> recDate > startDate ) ((,) <$> B._sRecDate  fa <*> rpRecDate param)
       forInitRec (That fa) = isJust $ B._sRecDate fa
       forInitRec _ = False
       reconciliated :: Double
@@ -392,8 +407,8 @@ renderReconciliate account param = do
      <input value="#{formatDouble $ rpClosingBalance param}" readonly>
      <label>Reconciliated
      <input.rec-total value="#{formatDouble $ reconciliated}" readonly>
-     <label>Difference
-     <input.rec-difference value="#{formatDouble $ reconciliated - (rpClosingBalance param - rpOpeningBalance param)}" readonly>
+     <label>Missing
+     <input.rec-difference value="#{formatDouble $ (rpClosingBalance param - rpOpeningBalance param) - reconciliated}" readonly>
                         |]
   defaultLayout $ do
     toWidget commonCss
@@ -429,9 +444,9 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
     <table.table.table-hover.table-border>
       <tr>
               <th>Date 
-              <th>Source
-              <th>Source
               <th>FA Date
+              <th>Source
+              <th>Source
               <th>Type 
               <th>FA Type
               <th>Description
