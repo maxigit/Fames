@@ -544,7 +544,7 @@ getObject customerMap supplierMap trans = do -- Maybe
                  Just ST_CUSTPAYMENT -> lookup object customerMap
                  Just ST_SUPPAYMENT -> lookup object supplierMap
                  _ -> Nothing
-  return $ fromMaybe object mapped
+  return . decodeHtmlEntities $ fromMaybe object mapped
 
 getObjectH :: Handler (B.STrans -> Maybe Text)
 getObjectH = do
