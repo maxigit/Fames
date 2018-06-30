@@ -30,6 +30,59 @@ tr.private
     opacity: 1
 |]
 
+recJs = [julius|
+
+function updateRecTotal () {
+   var opening = Number($("label:contains('Opening Balance')+input")[0].value) || 0;
+   var closing = Number($("label:contains('Closing Balance')+input")[0].value) || 0 ;
+   var inputs = $("td.update-rec input:checked");
+   var rec = 0;
+   $(inputs).each(function(input){
+      var td= $(inputs[input]).parents("td");
+      rec += Number(td.attr("data-amount"));
+   })
+   $("input.opening-balance").val(opening)
+   $("input.closing-balance").val(closing)
+   $("input.rec-total").val(rec);
+   $("input.rec-difference").val(rec - (closing-opening));
+}
+
+function toggleAll(e) {
+  var panel= $(e.target).parents("table");
+  var checkboxes = $(panel).find("input[type='checkbox']");
+     $(checkboxes).prop('checked', $(e.target).prop('checked'));
+}
+
+function updateCheckBox(e) {
+   // check if we need to untoggle the parent
+   var panel = $(e.target).parents("table");
+   var checkboxes = $(panel).find("input[type='checkbox']").not('.toggle-all');
+   var toggle = $(panel).find("input.toggle-all");
+   // check if all are unchecked checked
+   if($(checkboxes).filter('input:checked').length == 0) {
+     $(toggle).prop('checked',false);
+   } else {
+     $(toggle).prop('checked',true);
+   }
+
+  // propagate if needed
+  if($(panel).find('td.update-rec').length > 0) {
+     updateRecTotal()
+  }
+}
+$(document).ready (function() {
+  $("input [data-init-checked]").prop('checked',true);
+  $("input [type=checkbox]").not('[data-init-checked]').prop('checked',false);
+  $("input.toggle-all [type=checkbox]").prop('checked',false);
+  $("td.update-rec input").change(updateRecTotal);
+  $("input[type='checkbox']").not('.toggle-all').change(updateCheckBox);
+  $("label:contains('Opening Balance')+input").change(updateRecTotal);
+  $("label:contains('Closing Balance')+input").change(updateRecTotal);
+  $("input.toggle-all").change(toggleAll);
+  updateRecTotal();
+})
+|]
+
 getGLBankR  :: Handler Html
 getGLBankR = do
   today <- utctDay <$> liftIO getCurrentTime
@@ -309,6 +362,7 @@ renderReconciliate account param = do
       recGroup = groupAsMap (B._sRecDate . B.thatFirst) (:[]) st'sts
       -- exclude a pair if both date are outside the range
       transFilter t | d <- mergeTheseWith B._sDate B._sDate max t,   Just start <- bsStartDate, d < start = False
+      transFilter t | d <- mergeTheseWith B._sDate B._sDate min t,   Just end <- rpEndDate param , d > end  = False
       transFilter t@(These _ fa) = isNothing (B._sRecDate fa) -- not reconciliated, must show
                                || ( maybe True (mergeTheseWith B._sDate B._sDate  max t >=)  (rpStartDate param)
                                   && maybe True (mergeTheseWith B._sDate B._sDate  min t <=)  (rpEndDate param)
@@ -333,23 +387,24 @@ renderReconciliate account param = do
       reconciliated = fromRational . toRational $ sum $ map (B._sAmount . B.thisFirst) (filter forInitRec st'sts)
       statusW = [whamlet|
      <label>Opening
-     <input value="#{formatDouble $ rpOpeningBalance param}" readonly>
+     <input.opening-balance value="#{formatDouble $ rpOpeningBalance param}" readonly>
      <label>Closing
      <input value="#{formatDouble $ rpClosingBalance param}" readonly>
      <label>Reconciliated
-     <input value="#{formatDouble $ reconciliated}" readonly>
+     <input.rec-total value="#{formatDouble $ reconciliated}" readonly>
      <label>Difference
-     <input value="#{formatDouble $ reconciliated - (rpClosingBalance param - rpOpeningBalance param)}" readonly>
+     <input.rec-difference value="#{formatDouble $ reconciliated - (rpClosingBalance param - rpOpeningBalance param)}" readonly>
                         |]
   defaultLayout $ do
     toWidget commonCss
+    toWidget recJs
     [whamlet|
     <form.form-inline action="@{GLR (GLBankReconciliateR account)}" method=POST enctype="#{encType}">
       <div.well>
         ^{form}
         <button.btn.btn-primary name=action value="submit">Submit
       ^{mconcat panels}
-      <div.well>
+      <div.well.footer.navbar-fixed-bottom>
        ^{statusW}
         <button.btn.btn-warning name=action value="reconciliate">Save
             |]
@@ -386,6 +441,7 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
               <th>Paid Out
               <th>Paid In
               <th>Reconciliate
+                <input.toggle-all type=checkbox checked>
       $forall st'st <- st'sts
         $with (trans, fatrans, transM, fatransM) <- (B.thisFirst st'st, B.thatFirst st'st, preview here st'st, preview there st'st)
           <tr class="#{rowClass st'st}">
@@ -405,14 +461,14 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
               $else
                   <td>#{tshow $ negate  $    B._sAmount trans}
                   <td>
-              <td>
-                $if isThese st'st 
-                  $if isJust (B._sRecDate fatrans)
-                      <input type=hidden name="already-#{faId fatrans}" value=off>
-                      <input type=checkbox name="keepset-#{faId fatrans}" checked>
-                  $else
-                    $with checked <- toCheck st'st
-                      <input type=checkbox name="set-#{faId fatrans}" :checked:checked>
+              $with checked <- toCheck st'st
+                <td :checked:.update-rec data-amount="#{tshow (B._sAmount trans)}">
+                  $if isThese st'st 
+                    $if isJust (B._sRecDate fatrans)
+                        <input type=hidden name="already-#{faId fatrans}" value=off>
+                        <input type=checkbox name="keepset-#{faId fatrans}" data-init-checked checked>
+                    $else
+                        <input type=checkbox name="set-#{faId fatrans}":checked:checked :checked:data-init-checked>
               |]
   in displayPanel False False title widget
 
