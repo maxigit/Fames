@@ -3,6 +3,7 @@ module Handler.Bank
 , getGLBankDetailsR
 , getGLBankReconciliateR
 , postGLBankReconciliateR
+, getGLBankHelpR
 ) where
 
 
@@ -125,11 +126,11 @@ canViewBankLightStatement role account = authorizeFromAttributes role (setFromLi
 
 
 -- | Displays a collapsible panel 
-displayPanel :: Bool -> Bool -> Text -> Widget -> Widget
-displayPanel ok collapsed account content =
-  let panelId = "bank-"  <> account
+displayPanel :: Text -> Bool -> Text -> Widget -> Widget
+displayPanel panelClass collapsed account content =
+  let panelId = "bank-"  <> filter (' ' /=) account
   in [whamlet|
-    <div.panel :ok:.panel-success:.panel-danger>
+    <div.panel class="panel-#{panelClass}">
       <div.panel-heading data-toggle="collapse" data-target="##{panelId}">
           <h2 style=>#{account}
       <div.panel-body.collapse :collapsed:.out:.in id="#{panelId}">
@@ -160,7 +161,7 @@ displaySummary today dbConf faURL title BankStatementSettings{..}= do
       lastBanks = take 10 $ sortTrans banks
       lastW = renderTransactions object faURL lastBanks hideBlacklisted (Just "Total") (const False)
       tableW = renderTransactions object faURL sorted hideBlacklisted (Just "Total") ((B.FA ==) . B._sSource)
-  return $ displayPanel ok ok title [whamlet|
+  return $ displayPanel (if ok then "success" else "danger")  ok title [whamlet|
         <div.row>
             <div.col-md-2>
               $if ok   
@@ -199,7 +200,7 @@ displayLightSummary today dbConf faURL title BankStatementSettings{..}= do
       lastBanks = take 10 $ sortTrans banks
       lastW = renderTransactions object faURL lastBanks (const []) (Just "Total") (const False)
       tableW = renderTransactions object faURL sorted  (const [])(Just "Total") ((B.FA ==) . B._sSource)
-  return $ displayPanel ok ok title [whamlet|
+  return $ displayPanel (if ok then "success" else "danger") ok title [whamlet|
         <a href="@{GLR (GLBankDetailsR title)}">
           $if ok   
             <p> Everything is fine
@@ -308,7 +309,7 @@ displayDetailsInPanel account BankStatementSettings{..} = do
   (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main options)
   let tableW = renderTransactions object faURL stransz (const []) (Just "Total") ((B.FA ==) . B._sSource)
       ok = null stransz
-  return $ displayPanel ok ok account [whamlet|
+  return $ displayPanel (if ok then "succes" else "danger") ok account [whamlet|
            <h3> By amount
            ^{tableW}
                      |]
@@ -485,7 +486,7 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
                     $else
                         <input type=checkbox name="set-#{faId fatrans}":checked:checked :checked:data-init-checked>
               |]
-  in displayPanel False False title widget
+  in displayPanel ("primary") False title widget
 
 -- | Computes the checkbox prefix for a transaction.
 faId :: B.STrans -> Text
@@ -558,3 +559,44 @@ getObjectH = do
                                 | (key, sup) <- mapToList supplierMap'
                                 ]
   return (getObject customerMap supplierMap)
+
+-- * Help : How to get the required files
+getGLBankHelpR :: Handler Html
+getGLBankHelpR = do
+  let panels  = map (uncurry $ displayPanel "primary" True)
+                    [ ("Common", commonHelp)
+                    ,("HSBC current", hsbcHelp )
+                    ,("HSBC BMM", bmmHelp )
+                    ,("HSBC Credit Card", ccardHelp )
+                    , ("Paypal", paypalHelp)
+                    ]
+  
+  defaultLayout $ mconcat panels
+
+commonHelp, paypalHelp, hsbcHelp, bmmHelp, ccardHelp :: Widget
+commonHelp = [whamlet|
+<b>Fames</b> accepts two types of statements, daily and full statements.
+<p><b>Daily</b> statements corresponds to current balance and can overlap with each others. This usually occurs
+because each statement only contains the last n transactions which can be the curren days and a few day before.
+In that case, for example, yesterday transactions will be in the today daily statement as well as yesterday statement if available.
+<p> <b>Full statement</b> on the other hand shouldn't overlap even though they can overlap with the daily one.
+<p> Depending on the source, daily statement or bank statemen may have the same format or not be available.
+|]
+paypalHelp = [whamlet|
+<h3> Daily
+<h3> Full Statement
+<p> Paypal statement must be downloaded from the activity download page.
+<p>  To do so, go on the <a href="https://www.paypal.com/listing/transactions">Activity</a> page and follow
+the <code>download</code> link.
+<p>  Alternatively the following <a href="https://business.paypal.com/merchantdata/reportHome?reportType=DLOG">link</a> should work.
+<p>  Enter the desired dates and create the report. You should then be able to download and save the report.
+<p> The file then needs to cleaned up (see your administrator)
+  <div.well><ul>
+      <li><code>s/"//g</code> and <code>s/,/, /g</code> on the header
+      <li>Foreign currencies need to be removed <code>2,$v/GBP/d</code>
+      <li>As well as incomplete transcation <code>2,$v/Completed/d</code>
+|]
+hsbcHelp = [whamlet||]
+bmmHelp = [whamlet||]
+ccardHelp = [whamlet||]
+
