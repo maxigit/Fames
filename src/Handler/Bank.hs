@@ -353,7 +353,7 @@ postGLBankReconciliateR account = do
             when (action == "reconciliate") $
               case rpRecDate param of
                 Nothing -> setWarning "Please set a reconciliation date"
-                Just recDate -> saveReconciliation recDate
+                Just recDate -> saveReconciliation account recDate
             renderReconciliate account param
 
 
@@ -509,9 +509,10 @@ faId strans = let
            else "rec-"
   in prefix <> pack (B._sType strans) <> "-" <> maybe "0" tshow (B._sNumber strans)
 
-saveReconciliation :: Day -> Handler ()
-saveReconciliation recDate = do
+saveReconciliation :: Text -> Day -> Handler ()
+saveReconciliation account recDate = do
   (params, _) <- runRequestBody
+  BankStatementSettings{..} <- settingsFor account
   let toSet' = catMaybes [ decodeKey key
               | (key', value) <- params
               -- , value == "on"
@@ -530,19 +531,27 @@ saveReconciliation recDate = do
       toUnset = setFromList already \\ setFromList tokeep :: Set (Int, Int)
       decodeKey key = let (a,b) = break (=='-') key in (,)  <$> readMay a <*> readMay  (drop 1 b)
   runDB $ do
-    saveRecDate recDate toSet'
-    unsetRecDate (setToList toUnset)
+    saveRecDate (tshow bsBankAccount) recDate toSet'
+    unsetRecDate (tshow bsBankAccount) (setToList toUnset)
 
 -- saveRecDate :: Day -> [(Int, Int)] -> Handler ()
-saveRecDate recDate transIds = do
+-- bank account is needed to not update both
+-- side of a bank transfer
+saveRecDate bankAccount recDate transIds = do
   forM_ transIds $ \(t, no) -> 
-     updateWhere [FA.BankTranType ==. Just t, FA.BankTranTransNo ==. Just no]
-                 [FA.BankTranReconciled =. Just recDate]
+     updateWhere [ FA.BankTranType ==. Just t
+                 , FA.BankTranTransNo ==. Just no
+                 , FA.BankTranBankAct ==. bankAccount
+                 ]
+                 [ FA.BankTranReconciled =. Just recDate]
 
 -- unsetRecDate :: [(Int, Int)] -> Handler ()
-unsetRecDate transIds = do
+unsetRecDate bankAccount transIds = do
   forM_ transIds $ \(t, no) -> 
-     updateWhere [FA.BankTranType ==. Just t, FA.BankTranTransNo ==. Just no]
+     updateWhere [ FA.BankTranType ==. Just t
+                 , FA.BankTranTransNo ==. Just no
+                 , FA.BankTranBankAct ==. bankAccount
+                 ]
                  [FA.BankTranReconciled =. Nothing]
 
 
