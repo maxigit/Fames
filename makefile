@@ -161,7 +161,7 @@ build_profile:
 	stack build --profile --work-dir .stack-profile
 
 profile: build_profile
-	stack exec --work-dir .stack-profile Fames -- $(RUN_CONFIG) +RTS -hy -p
+	stack exec --work-dir .stack-profile Fames -- $(RUN_CONFIG) +RTS -hy -p -xc
 	mkdir -p .prof
 	mv Fames.hp Fames.prof  .prof
 

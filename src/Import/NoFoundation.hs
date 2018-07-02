@@ -133,7 +133,7 @@ showTransType ST_DIMENSION = "Dimensions"
 
 -- * Html 
 decodeHtmlEntities :: Text -> Text
-decodeHtmlEntities s = TS.fromTagText $ headEx $ TS.parseTags s
+decodeHtmlEntities s = maybe s TS.fromTagText (headMay $ TS.parseTags s)
   
 -- * Util
 groupAsMap :: (Semigroup a, Ord k) => (t -> k) -> (t -> a) -> [t] -> Map k a
