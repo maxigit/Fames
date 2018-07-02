@@ -310,7 +310,11 @@ displayDetailsInPanel account BankStatementSettings{..} = do
   let tableW = renderTransactions object faURL stransz (const []) (Just "Total") ((B.FA ==) . B._sSource)
       ok = null stransz
   return $ displayPanel (if ok then "succes" else "danger") ok account [whamlet|
-           <h3> By amount
+            <div.row>
+              <div.col-md-2>
+                <h3> By amount
+              <div.col-md-2><h4>
+                <a href="@{GLR (GLBankReconciliateR account)}"> Reconciliate
            ^{tableW}
                      |]
 -- * Reconciliationg
@@ -402,15 +406,17 @@ renderReconciliate account param = do
       reconciliated :: Double
       reconciliated = fromRational . toRational $ sum $ map (B._sAmount . B.thisFirst) (filter forInitRec st'sts)
       statusW = [whamlet|
-     <label>Opening
-     <input.opening-balance value="#{formatDouble $ rpOpeningBalance param}" readonly>
-     <label>Closing
-     <input value="#{formatDouble $ rpClosingBalance param}" readonly>
-     <label>Reconciliated
-     <input.rec-total value="#{formatDouble $ reconciliated}" readonly>
-     <label>Missing
-     <input.rec-difference value="#{formatDouble $ (rpClosingBalance param - rpOpeningBalance param) - reconciliated}" readonly>
-                        |]
+          <label>Opening
+          <input.opening-balance value="#{formatDouble $ rpOpeningBalance param}" readonly>
+          <label>Closing
+          <input value="#{formatDouble $ rpClosingBalance param}" readonly>
+          <label>Reconciliated
+          <input.rec-total value="#{formatDouble $ reconciliated}" readonly>
+          <label>Missing
+          <input.rec-difference value="#{formatDouble $ (rpClosingBalance param - rpOpeningBalance param) - reconciliated}" readonly>
+          |]
+      emptyPanel = displayPanel "info" False  " " "" -- needed so that the statusBar doesn't hide the bottom of the last relevant panel
+
   defaultLayout $ do
     toWidget commonCss
     toWidget recJs
@@ -419,7 +425,14 @@ renderReconciliate account param = do
       <div.well>
         ^{form}
         <button.btn.btn-primary name=action value="submit">Submit
+      <div.row>
+        <div.col-md-2>
+          <h3> Details
+        <div.col-md-2><h4>
+          <a href="@{GLR (GLBankDetailsR account)}"> Details
+      
       ^{mconcat panels}
+      ^{emptyPanel}
       <div.well.footer.navbar-fixed-bottom>
        ^{statusW}
         <button.btn.btn-warning name=action value="reconciliate">Save
@@ -588,8 +601,8 @@ paypalHelp = [whamlet|
 <p> Paypal statement must be downloaded from the activity download page.
 <p>  To do so, go on the <a href="https://www.paypal.com/listing/transactions">Activity</a> page and follow
 the <code>download</code> link.
-<p>  Alternatively the following <a href="https://business.paypal.com/merchantdata/reportHome?reportType=DLOG">link</a> should work.
-<p>  Enter the desired dates and create the report. You should then be able to download and save the report.
+-- <p>  Alternatively the following <a href="https://business.paypal.com/merchantdata/reportHome?reportType=DLOG">link</a> should work.
+-- <p>  Enter the desired dates and create the report. You should then be able to download and save the report.
 <p> The file then needs to cleaned up (see your administrator)
   <div.well><ul>
       <li><code>s/"//g</code> and <code>s/,/, /g</code> on the header
