@@ -282,10 +282,15 @@ readCsv path =  do
 
 readCsv' :: FromNamedRecord (Int -> r) => String -> IO (Either String (Vector r))
 readCsv' path = do
-    csv <- BL.readFile path
+    csv' <- BL.readFile path
+    let csv = stripUtf8Bom csv'
     return $ case decodeByName csv of
         Left s -> Left s
         Right (h,v) -> Right $ V.imap (&) v
+
+-- | Remove Byte order Mark if necessary
+stripUtf8Bom :: BL.ByteString -> BL.ByteString
+stripUtf8Bom bs = fromMaybe bs (BL.stripPrefix "\239\187\191" bs)    
 
 readFTrans :: String -> IO (Vector FTrans)
 readFTrans = readCsv
