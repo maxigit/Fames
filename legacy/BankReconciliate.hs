@@ -52,6 +52,7 @@ import qualified Database.MySQL.Simple as SQL
 import qualified Database.MySQL.Simple.QueryResults as SQL
 import Prelude hiding(read)
 import Text.Read(readMaybe)
+import Debug.Trace
 
 read s = case readMaybe s of
   Nothing -> error $ "can't read ["   ++ s ++ "]"
@@ -142,8 +143,7 @@ fetchFA cinfo bankAccount startM endM = do
     where q0 = "SELECT type, trans_no, ref, trans_date, CAST(person_id as CHAR(100)), amount, reconciled"
                          ++ " FROM 0_bank_trans"
                          ++ " WHERE amount <> 0 AND bank_act = "  ++ show bankAccount
-                         ++ " ORDER BY trans_date, id"
-          q = reduceWith appEndo ws q0
+          q = reduceWith appEndo ws q0 ++ " ORDER BY trans_date, id"
 
           ws = catMaybes
                    [ startM <&> \start q -> q ++ " AND trans_date >= '"
