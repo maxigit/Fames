@@ -26,7 +26,7 @@ commonCss = [cassius|
 tr.private
   font-style: italic
   opacity: 0.5
-  &:hover
+table:hover tr.private
     font-style: normal
     opacity: 1
 |]
