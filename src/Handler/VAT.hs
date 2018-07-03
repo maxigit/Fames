@@ -9,6 +9,7 @@ import Database.Persist.MySQL     (Single(..), rawSql)
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 import GL.Utils
+import GL.Payroll.Settings
                             
 --------------------------------------------------------------------------------
 -- * Form
@@ -37,11 +38,20 @@ getGLVATR = getGLVATEcslR
 getGLVATEcslR :: Handler Html
 getGLVATEcslR = do
   today <- todayH
-  let epStartDate = today
-      epEndDate = today 
+  let (epStartDate, epEndDate) = previousVATQuarter today
       param = ECSLParam{..}
 
   renderGLVATEcslR param mempty
+
+previousVATQuarter :: Day -> (Day, Day)          
+previousVATQuarter day =  (start, end) where
+  begMonth = calculateDate BeginningOfMonth day
+  (__year, month, _day) = toGregorian begMonth
+      -- we need to find the last full quarter before today
+      -- VAT quarter at the beginning of the year
+  monthOffset = (month- 1) `mod` 3
+  start = calculateDate (AddMonths (-monthOffset-3))  begMonth
+  end = foldr (calculateDate) start [EndOfMonth, AddMonths 2]
 
 
 --------------------------------------------------------------------------------
