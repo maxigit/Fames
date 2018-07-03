@@ -54,6 +54,7 @@ module Handler.Util
 , allSuppliers
 , loadStockMasterRuleInfos
 , applyCategoryRules
+, todayH
 ) where
 -- ** Import
 import Foundation
@@ -684,3 +685,8 @@ categoriesFor rules info = let
   in [ ItemCategory (FA.unStockMasterKey sku) (pack key) (pack value)
      | (key, value) <- mapToList categories
      ]
+
+-- * Misc
+-- todayH :: Handler Day
+-- todayH :: MonadIO io => io Day
+todayH = utctDay <$> liftIO getCurrentTime

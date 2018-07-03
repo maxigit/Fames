@@ -95,7 +95,7 @@ getWHBoxtakePlannerR = do
   
 renderPlannerCsv boxSources = do
   let source = boxSourceToCsv boxSources
-  today <- utctDay <$> liftIO getCurrentTime
+  today <- todayH
   setAttachment ("Planner-" <> fromStrict (tshow today) <> ".csv")
   respondSourceDB "text/csv" (source =$= mapC (toFlushBuilder))
 
@@ -482,7 +482,7 @@ processBoxtakeMove Validate param (sessions, styleMissings) = do
 
 processBoxtakeMove Save param (sessions, styleMissings) = do
   runDB $ do
-        today <- utctDay <$> liftIO getCurrentTime
+        today <- todayH
         let maxDate = fromMaybe today $ maximumMay (map sessionDate sessions)
               
         mapM_ saveFromSession sessions

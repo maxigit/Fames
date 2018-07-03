@@ -358,7 +358,7 @@ postTimesheetToFA :: TimesheetId
                   -> HandlerT App IO (Either Text Int)
 postTimesheetToFA key timesheet shifts items = do
       settings <- appSettings <$> getYesod
-      today <- utctDay <$> liftIO getCurrentTime
+      today <- todayH
       let tsOId = modelToTimesheetOpId timesheet shifts items
       runExceptT $ do
          ts <- ExceptT $ timesheetOpIdToO'SH tsOId

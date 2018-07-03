@@ -218,7 +218,7 @@ outputFile prefix start end ext =
 -- generateBarcodes :: Text -> (Maybe Day) -> Int -> Handler [Text]
 generateBarcodes code dayM 0 = return []
 generateBarcodes code dayM nb = do
-  today <- utctDay <$> liftIO getCurrentTime
+  today <- todayH
   let date = fromMaybe today dayM
       prefix = format ((fitLeft 2 %. stext) % (yy `mappend` later month2))
                       code

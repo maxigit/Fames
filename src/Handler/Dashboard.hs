@@ -211,7 +211,7 @@ getDCustomR reportName width height = do
 
 dispatchReport :: Text -> Int64 -> Int64 -> Handler (Either Text Widget)
 dispatchReport reportName width height = do
-  today <- utctDay <$> liftIO getCurrentTime
+  today <- todayH
   let beginMonth = calculateDate (AddMonths (-1)) today
       beginJanuary = fromGregorian (currentYear) 1 1
       currentYear = toYear today
@@ -278,7 +278,7 @@ top20FullUp param = param {rpTraceParam2,rpTraceParam3} where
 -- | Sales current months
 
 salesCurrentMonth f plotName = do
-  today <- utctDay <$> liftIO getCurrentTime
+  today <- todayH
   let endMonth = calculateDate (AddMonths 1) beginMonth
       beginMonth = calculateDate (BeginningOfMonth) . calculateDate (BeginningOfWeek Monday) $ today
   let param = f ReportParam{..}
@@ -335,7 +335,7 @@ salesCurrentMonth f plotName = do
 
 -- | Top style
 top20ItemMonth f begin rupture = do
-  today <- utctDay <$> liftIO getCurrentTime
+  today <- todayH
   let tomorrow = calculateDate (AddDays 1) today
   let param = f ReportParam{..}
       rpToday = today
@@ -363,7 +363,7 @@ top20ItemMonth f begin rupture = do
   return $ report
 
 top100ItemYear which rupture = do
-  today <- utctDay <$> liftIO getCurrentTime
+  today <- todayH
   let tomorrow = calculateDate (AddDays 1) today
       beginYear = fromGregorian (currentYear) 1 1
       currentYear = toYear today
@@ -401,7 +401,7 @@ top100ItemYear which rupture = do
       
 
 top100ItemYearChart plotName = do
-  today <- utctDay <$> liftIO getCurrentTime
+  today <- todayH
   let tomorrow = calculateDate (AddDays 1) today
       beginYear = fromGregorian (currentYear) 1 1
       currentYear = toYear today

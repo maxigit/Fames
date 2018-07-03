@@ -111,7 +111,7 @@ renderWHPackingList mode param status message pre = do
 viewPLLists :: Handler Widget
 viewPLLists = do
   entities <- runDB $ selectList [] []
-  today <- utctDay <$> liftIO getCurrentTime
+  today <- todayH
   let pls = map entityVal entities
       minDate = Just $ List.minimum (today : catMaybes (map (packingListDeparture) pls))
       maxDate = Just $ List.maximum (today : catMaybes (map (packingListArriving) pls))
@@ -376,7 +376,7 @@ viewPackingList mode key pre = do
           Just pl -> get (packingListDocumentKey pl)
       return (plM, docKey, entities)
 
-  today <- utctDay <$> liftIO getCurrentTime
+  today <- todayH
 
 
   case (plM, docKeyM) of
@@ -491,7 +491,7 @@ deliverCart details = let
 
 renderDeliver :: Maybe Text -> Int64 -> [Entity PackingListDetail] -> Handler Widget
 renderDeliver defCart key details = do
-  today <- utctDay <$> lift getCurrentTime
+  today <- todayH
   location <- appFADefaultLocation . appSettings <$> getYesod
   operator <- runDB $ selectKeysList [] [Asc OperatorId, LimitTo 1]
   let opId = case operator of
@@ -582,7 +582,7 @@ stickerSource today pl entities = do
 
 generateStickers :: PackingList -> [Entity PackingListDetail] -> Handler TypedContent
 generateStickers pl details = do
-  today <- utctDay <$> liftIO getCurrentTime
+  today <- todayH
   generateLabelsResponse ("label" <> ( maybe "" ("-" <>) (packingListContainer pl) <> ".pdf") )
                          "/config/delivery-stickers.glabels"
                          (stickerSource today pl details)

@@ -30,6 +30,9 @@
   /bank/reconciliate/#Text GLBankReconciliateR GET POST !bank-full
   /bank/help/ GLBankHelpR GET !title=Help
 
+  /vat GLVATR GET !vat !group=VAT !title=Main
+  /vat/ecsl GLVATEcslR GET POST !vat !title=ECSL
+
 /warehouse WarehouseR !warehouse:
   /barcodes WHBarcodeR GET POST !group=Barcodes !title=Generate
 

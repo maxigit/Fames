@@ -22,7 +22,7 @@ import GL.Payroll.Settings
 -- * Form
 reportForm :: [Column] -> Maybe ReportParam -> Html -> MForm Handler (FormResult ReportParam, Widget)
 reportForm cols paramM extra = do
-  today <- utctDay <$> liftIO getCurrentTime
+  today <- todayH
   categories <- lift $ categoriesH
 
   let colOptions = [(colName c,c) | c <- cols]
@@ -131,7 +131,7 @@ ruptureForm colOptions title paramM = do
 
 getItemsReportR :: Maybe ReportMode -> Handler TypedContent
 getItemsReportR mode = do
-  today <- utctDay <$> liftIO getCurrentTime
+  today <- todayH
   (_, (band, serie, timeColumn)) <- getColsWithDefault
   let -- emptyRupture = ColumnRupture Nothing emptyTrace Nothing Nothing False
       bestSales = TraceParams QPSales (mkIdentifialParam amountInOption) Nothing
@@ -187,7 +187,7 @@ getItemsReport3R mode = do
 
 postItemsReportR = postItemsReportFor ItemsReportR 
 postItemsReportFor route mode = do
-  today <- utctDay <$> liftIO getCurrentTime
+  today <- todayH
   actionM <- lookupPostParam "action"
   cols <- getCols
   ((resp, formW), enctype) <- runFormPost (reportForm cols Nothing)

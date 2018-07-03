@@ -268,7 +268,7 @@ getCols = do
   return cols
 getColsWithDefault :: Handler ([Column], (Column, Column, Column))
 getColsWithDefault = do
-  today <- utctDay <$> liftIO getCurrentTime
+  today <- todayH
   supplierCustomerColumn <- supplierCustomerColumnH
   categoryColumns <- categoryColumnsH
 

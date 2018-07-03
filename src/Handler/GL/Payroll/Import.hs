@@ -54,7 +54,7 @@ importForm paramM = let
 -- * Handler
 getGLPayrollImportR :: Handler Html
 getGLPayrollImportR = do
-  today <- utctDay <$> liftIO getCurrentTime
+  today <- todayH
   let lastMonth = addGregorianMonthsClip (-1) today
   renderMain (Just $ ImportParam (Just lastMonth)
                                  (Just today)

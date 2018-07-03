@@ -178,7 +178,7 @@ getWHStocktakeHistoryR = do
       showDate (Just d) = tshow d
   style'dates <- runDB $ rawSql sql [PersistText stockLike, PersistText defaultLocation ]
   let _types = style'dates :: [(Single Text, Single (Maybe Day), Single (Maybe Day), Single Double)]
-  today <- utctDay <$> liftIO getCurrentTime
+  today <- todayH
   let (allMinDates, allMaxDates) = unzip [(mindate, maxdate) | (_, Single mindate, Single maxdate, _) <- style'dates]
       minAllDate = case catMaybes allMinDates of
         [] -> Nothing
@@ -251,7 +251,7 @@ getWHStocktakeHistoryStyleR style = do
       showDate (Just d) = tshow d
   style'dates <- runDB $ rawSql sql [PersistText stockLike, PersistText defaultLocation ]
   let _types = style'dates :: [(Single Text, Single (Maybe Day), Single (Maybe Day), Single Double)]
-  today <- utctDay <$> liftIO getCurrentTime
+  today <- todayH
   let (allMinDates, allMaxDates) = unzip [(mindate, maxdate) | (_, Single mindate, Single maxdate, _) <- style'dates]
       -- for recent, what which decide what to display in red or green
       -- we use the latest real stocktake
@@ -1409,7 +1409,7 @@ collectFromMOP = do
     then return []
     else do
       (Entity opId operator) <- firstOperator
-      today <- utctDay <$> liftIO getCurrentTime
+      today <- todayH
       return $ map (mopToFinalRow (Operator' opId operator) today) losts
 
 mopToFinalRow :: Operator' -> Day

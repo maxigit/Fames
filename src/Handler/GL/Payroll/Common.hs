@@ -652,7 +652,7 @@ saveInvoice :: AppSettings
             -> [(Int, [PayrollShiftId])]
             -> ExceptT Text Handler Int
 saveInvoice settings timesheet deliveries = do
-  today <- utctDay <$> liftIO getCurrentTime
+  today <- todayH
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       psettings = appPayroll settings
       ref = invoiceRef (appPayroll settings) timesheet
@@ -704,7 +704,7 @@ savePayments :: Ord p
              -> Int
              -> ExceptT Text Handler [Int]
 savePayments settings key timesheet invoiceId = do
-  today <- utctDay <$> liftIO getCurrentTime
+  today <- todayH
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       psettings = appPayroll settings
       ref = employeePaymentRef psettings timesheet

@@ -100,7 +100,7 @@ $(document).ready (function() {
 
 getGLBankR  :: Handler Html
 getGLBankR = do
-  today <- utctDay <$> liftIO getCurrentTime
+  today <- todayH
   dbConf <- appDatabaseConf <$> getsYesod appSettings
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
   settings' <- getsYesod (appBankStatements . appSettings)
@@ -292,7 +292,7 @@ getGLBankDetailsR account = do
 
 displayDetailsInPanel :: Text -> BankStatementSettings -> Handler Widget
 displayDetailsInPanel account BankStatementSettings{..} = do
-  today <- utctDay <$> liftIO getCurrentTime
+  today <- todayH
   dbConf <- appDatabaseConf <$> getsYesod appSettings
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
   object <- getObjectH
@@ -336,7 +336,7 @@ recForm  paramM = renderBootstrap3 BootstrapBasicForm form  where
 
 getGLBankReconciliateR :: Text -> Handler Html
 getGLBankReconciliateR account = do
-  today <- utctDay <$> liftIO getCurrentTime
+  today <- todayH
   renderReconciliate account defaultParam  {rpStartDate = Just $ calculateDate (AddMonths (-3)) today}
   
 postGLBankReconciliateR :: Text -> Handler Html

@@ -41,7 +41,7 @@ filterForm paramM = let
 -- * Handler
 getGLPayrollCalendarR :: Handler Html
 getGLPayrollCalendarR = do
-  today <- utctDay <$> liftIO getCurrentTime
+  today <- todayH
   let lastMonth = addGregorianMonthsClip (-1) today
   renderMain (Just $ CalendarParam (Just lastMonth)
                                    (Just today)
