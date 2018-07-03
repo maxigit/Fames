@@ -342,25 +342,24 @@ data AggregateMode = DEBUG | ALL | TAIL | BEST | ALL_BEST  deriving (Show, Eq)
 bads :: AggregateMode ->  Map Amount (These [HTrans] [FTrans]) -> [(Amount, These [HTrans] [FTrans])]
 bads mode m = let
     list = Map.toList m
-    filtered = mapMaybe (goodM mode) list
+    filtered = concatMap (goodM mode) list
     sorted = sortBy (comparing (negate.abs.fst)) filtered
     goodM mode (a, t) = (,) a <$> good mode t
-    good :: AggregateMode -> These [HTrans] [FTrans] -> Maybe (These [HTrans] [FTrans])
-    good DEBUG t = Just t
+    good :: AggregateMode -> These [HTrans] [FTrans] -> [(These [HTrans] [FTrans])]
+    good DEBUG t = return t
     good mode (These hs0 fs0)
-        | length hs == length fs && mode /= ALL_BEST = Nothing
-        | mode == TAIL           = Just $ These hs' fs'
-        | mode == ALL            = Just $ These hs fs
-        | mode == BEST           = Just $ These hs'' fs''
-        | mode == ALL_BEST       = Just $ These (hs''0 <> hs'') (fs''0 <> fs'')
+        | length hs == length fs && mode /= ALL_BEST = []
+        | mode == TAIL           = return $ These hs' fs'
+        | mode == ALL            = return $ These hs fs
+        | mode == BEST           = return $ These hs'' fs''
+        | mode == ALL_BEST       = This hs'' : That fs'' : These hs''0 fs''0 : []
         where hs = sortBy (comparing (liftA2 (,) _hDate _hDayPos)) hs0
               fs = sortBy (comparing (liftA2 (,) _fDate _fPosition)) fs0
               (hs', fs') = zipTail hs fs
               (hs'', fs'', hfs''0) = best [] hs fs
               (hs''0, fs''0) = unzip hfs''0 -- matched pair
-    good mode t  = Just t
+    good mode t  = return t
     in sorted
-
 
 -- | keep the tail left after a zip
 -- [1,2,3] [a,b] -> ([3], [])
@@ -375,8 +374,11 @@ distance h f = abs .fromInteger $ diffDays (_hDate h) (_fDate f)
 -- To do so, we exclude the one with the greatest weight
 -- .i.e, the sum of distance to (by date)  to all
 -- also returns the matching pairs
-best :: [(HTrans, FTrans)] ->[HTrans] -> [FTrans] -> ([HTrans], [FTrans], [(HTrans, FTrans)])
-
+best :: [(HTrans, FTrans)] ->[HTrans] -> [FTrans]
+     -> ( [HTrans] --
+        , [FTrans] --
+        , [(HTrans, FTrans)] -- matching pairs
+        )
 best hfs [] fs = ([],fs, hfs)
 best hfs hs [] = (hs,[], hfs)
 best hfs (h:hs) (f:fs) | distance h f == 0 =  best ((h,f):hfs) hs fs -- not necessary but too speed up
@@ -515,6 +517,4 @@ thatFirst :: These STrans STrans -> STrans
 thatFirst (This a) = a
 thatFirst (That a) = a
 thatFirst (These a b) = b { _sNumber = _sNumber b, _sObject = _sObject b}
-
-
 
