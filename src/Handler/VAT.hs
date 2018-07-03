@@ -5,7 +5,7 @@ module Handler.VAT
 ) where
 
 import Import
-import Database.Persist.MySQL     (MySQLConf (..))
+import Database.Persist.MySQL     (Single(..), rawSql)
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 import GL.Utils
@@ -19,7 +19,8 @@ data ECSLParam = ECSLParam
 
 data ECSL = ECSL
   { eCountry :: Text
-  , eCustomer :: Text
+  , eCustomerGST :: Text
+  , eCustomerName :: Text
   , eValue :: Int
   , eIndicator :: Int
   } deriving (Eq, Show)
@@ -80,26 +81,43 @@ renderEcsl :: [ECSL] -> Widget
 renderEcsl ecsls = [whamlet|
 <table.table-border.table.hover.table-striped>
   <tr>
+    <td.private> Name
     <td> Country
     <td> Customer
     <td> Value
     <td> Indicator
   $forall ecsl <- ecsls
     <tr>
+      <td.private> #{eCustomerName ecsl}
       <td> #{eCountry ecsl}
-      <td> #{eCustomer ecsl}
+      <td> #{eCustomerGST ecsl}
       <td> #{tshow $ eValue ecsl}
       <td> #{tshow $ eIndicator ecsl}
-|]
+|] <> toWidget [cassius|
+  td.private
+    font-style: italic
+    opacity: 0.5
+
+               |]
 -- * DB
 loadEcsl :: ECSLParam -> Handler [ECSL]
-loadEcsl param = do
-  return [ ECSL "AT" "U23456789" 8601 0
-         , ECSL "BE" "1234567890" 617 2
-         , ECSL "CY" "12345678X" 126 0
-         , ECSL "CZ" "12345678" 567 0
-         , ECSL "DE" "123456789" 750312 2
-         ]
+loadEcsl ECSLParam{..} = do
+  let sql = "SELECT d.debtor_no, d.name AS cust_name, d.tax_id, "
+          <> " SUM(CASE WHEN dt.type=" <> (tshow $ fromEnum ST_CUSTCREDIT) <> " THEN (ov_amount+ov_freight+ov_discount)*-1 "
+          <> "    ELSE (ov_amount+ov_freight+ov_discount) "
+          <> " END *dt.rate) AS total"
+          <> " FROM 0_debtor_trans dt"
+          <> " LEFT JOIN 0_debtors_master d ON d.debtor_no=dt.debtor_no "
+          <> "  WHERE (dt.type=" <> ( tshow $ fromEnum ST_SALESINVOICE) <> " OR dt.type=" <> (( tshow $ fromEnum ST_CUSTCREDIT)) <> ")" 
+          <> "  AND tax_id <> '' AND dt.tran_date >= ? AND dt.tran_date <= ? "
+          <> "  GROUP BY debtor_no"
+
+      makeEcls :: (Single Int64, Single Text, Single Text, Single Double) -> ECSL
+      makeEcls (Single _no, Single name, Single tId, Single total) = ECSL (take 2 tId) (drop 2 tId) (decodeHtmlEntities name) (floor total) 0
+
+  rows <- runDB $ rawSql sql [PersistDay epStartDate, PersistDay epEndDate]
+  return $ map makeEcls rows
+ 
 
 
 
