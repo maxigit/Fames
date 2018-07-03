@@ -446,9 +446,9 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
   dateClass (This _) = ""
   dateClass (That _) = ""
   dateClass (These h f) = let d = diffDays (B._sDate h) (B._sDate f)
-                          in if abs(d)  > 28
+                          in if abs(d)  > 14
                               then "text-danger" :: Text
-                              else if abs(d) > 7
+                              else if abs(d) > 5
                                   then "text-warning"
                                   else "text-success"
   rowClass (This _) = "bg-warning text-warning "
