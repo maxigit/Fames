@@ -356,7 +356,7 @@ bads mode m = let
         where hs = sortBy (comparing (liftA2 (,) _hDate _hDayPos)) hs0
               fs = sortBy (comparing (liftA2 (,) _fDate _fPosition)) fs0
               (hs', fs') = zipTail hs fs
-              (hs'', fs'', hfs''0) = best hs fs
+              (hs'', fs'', hfs''0) = best [] hs fs
               (hs''0, fs''0) = unzip hfs''0 -- matched pair
     good mode t  = return t
     in sorted
@@ -374,35 +374,21 @@ distance h f = abs .fromInteger $ diffDays (_hDate h) (_fDate f)
 -- To do so, we exclude the one with the greatest weight
 -- .i.e, the sum of distance to (by date)  to all
 -- also returns the matching pairs
-best :: --  [(HTrans, FTrans)] -- ^ previous matching pairs
-     -- ->
-     [HTrans]
-     -> [FTrans]
+best :: [(HTrans, FTrans)] ->[HTrans] -> [FTrans]
      -> ( [HTrans] --
         , [FTrans] --
         , [(HTrans, FTrans)] -- matching pairs
         )
-best [] fs = ([],fs, [])
-best hs [] = (hs,[], [])
--- best hfs (h:hs) (f:fs) | distance h f == 0 =  best ((h,f):hfs) hs fs -- not necessary but too speed up
-best hs fs = let
+best hfs [] fs = ([],fs, hfs)
+best hfs hs [] = (hs,[], hfs)
+best hfs (h:hs) (f:fs) | distance h f == 0 =  best ((h,f):hfs) hs fs -- not necessary but too speed up
+best hfs hs fs = if minDistance < 31
+                then best ((hs !! hi,fs !! fi):hfs) (deleteAt hi hs) (deleteAt fi fs)
+                else (hs, fs, hfs) where
+    ((hi,fi),minDistance) = minimumBy (comparing snd) pairs
     pairs = [((hi, fi), distance h f) | (h, hi) <- hs `zip` [0..], (f,fi) <- fs `zip` [0..]]
-    sortedPair = sortBy (comparing snd) pairs
-    -- check if the current pair is valid, removes its componend from the sorted pair and carry on recursive
-    go h'fs [] = ([], [], h'fs)
-    go h'fs (((hi,fi),minDistance): leftovers) = let
-      h = hs !! hi
-      f = fs !! fi
-      in if minDistance < 31
-          then let
-            filtered = filter ((/= hi). fst. fst) . filter ((/= fi). snd . fst) $ leftovers
-            in  go ((h,f):h'fs) filtered
-
-          else ([h], [f], h'fs)
-   in go [] sortedPair 
-   -- in if minDistance < 31
-   --              then best ((hs !! hi,fs !! fi):hfs) (deleteAt hi hs) (deleteAt fi fs)
-   --              else (hs, fs, hfs) where
+    deleteAt i xs =  head' ++ (tail tail')
+        where (head', tail') = splitAt i xs
 
 -- * Output
 
