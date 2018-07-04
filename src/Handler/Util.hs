@@ -55,6 +55,7 @@ module Handler.Util
 , loadStockMasterRuleInfos
 , applyCategoryRules
 , todayH
+, currentFAUser
 ) where
 -- ** Import
 import Foundation
@@ -71,7 +72,7 @@ import System.IO.Temp (openTempFile)
 import Data.Streaming.Process (streamingProcess, proc, Inherited(..), waitForStreamingProcess, env)
 import qualified Data.Text.Lazy as LT
 import Text.Blaze.Html (Markup)
-import FA as FA
+import FA as FA hiding (unUserKey)
 import Data.Time (diffDays, addGregorianMonthsClip)
 import System.Directory (doesFileExist)
 import qualified Data.Map.Strict as Map
@@ -83,7 +84,7 @@ import Text.Printf(printf)
 import Text.Read(Read,readPrec)
 import qualified Data.Map as LMap
 -- import Data.IOData (IOData)
-import Database.Persist.MySQL(rawSql, Single(..))
+import Database.Persist.MySQL(unSqlBackendKey, rawSql, Single(..))
 
 -- * Display entities
 -- | Display Persist entities as paginated table
@@ -471,6 +472,13 @@ allCustomers force = cacheEntities "all-customer-list" force
 allSuppliers :: Bool -> Handler (Map (Key  FA.Supplier) FA.Supplier)
 allSuppliers force = cacheEntities "all-supplier-list" force
 
+-- *** Current User
+currentFAUser :: Handler (Maybe FA.User)
+currentFAUser = do
+  userM <- maybeAuthId
+  fmap join $ forM userM $ \user ->  
+    runDB $ get (FA.UserKey . fromIntegral . unSqlBackendKey . unUserKey $  user)
+
 -- ** Fames
 -- *** Operators
 allOperators :: Handler (Map (Key Operator) Operator)
@@ -504,6 +512,7 @@ operatorFinderWithError = do
                       Right
                       (opFinder name)
   return go
+
 
 -- *** Location
 locationSet :: Handler (Set Text)

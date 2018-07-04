@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Handler.VAT
 ( getGLVATR
 , getGLVATEcslR
@@ -10,25 +11,31 @@ import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 import GL.Utils
 import GL.Payroll.Settings
-                            
+import Formatting
+import Formatting.Time(year, month)
+import qualified FA as FA
 --------------------------------------------------------------------------------
 -- * Form
 data ECSLParam = ECSLParam
   { epStartDate :: Day
   , epEndDate :: Day
+  , epContactName :: Text
   } deriving Show
 
 data ECSL = ECSL
   { eCountry :: Text
   , eCustomerGST :: Text
   , eCustomerName :: Text
-  , eValue :: Int
+  , eAmount :: Double
   , eIndicator :: Int
   } deriving (Eq, Show)
+eValue :: ECSL -> Int
+eValue e = floor (eAmount e)
 --------------------------------------------------------------------------------
 ecslForm paramM = renderBootstrap3 BootstrapBasicForm form where
     form = ECSLParam <$> areq dayField "start" (epStartDate <$> paramM)
                      <*> areq dayField "end" (epEndDate <$> paramM)
+                     <*> areq textField "Contact" (epContactName <$> paramM)
 -- * Handler
 --------------------------------------------------------------------------------
 getGLVATR :: Handler Html
@@ -38,7 +45,10 @@ getGLVATR = getGLVATEcslR
 getGLVATEcslR :: Handler Html
 getGLVATEcslR = do
   today <- todayH
+
+  userm <- currentFAUser
   let (epStartDate, epEndDate) = previousVATQuarter today
+      epContactName = maybe "" FA.userRealName userm
       param = ECSLParam{..}
 
   renderGLVATEcslR param mempty
@@ -55,7 +65,7 @@ previousVATQuarter day =  (start, end) where
 
 
 --------------------------------------------------------------------------------
-postGLVATEcslR :: Handler Html
+postGLVATEcslR :: Handler TypedContent
 postGLVATEcslR = do
   ((resp, formW), encType) <- runFormPost (ecslForm Nothing)
   case resp of
@@ -65,8 +75,10 @@ postGLVATEcslR = do
         ecsls <- loadEcsl param
         actionM <- lookupPostParam "action"
         case actionM of
-          Just "download" -> error "TODO" -- param
-          _ -> renderGLVATEcslR param (renderEcsl ecsls)
+                      Just "download" -> do
+                          vatNumber <- vatNumberH
+                          generateCSV vatNumber "000" param  ecsls
+                      _ -> toTypedContent <$> renderGLVATEcslR param (renderEcsl ecsls)
   
   
 --------------------------------------------------------------------------------
@@ -95,14 +107,23 @@ renderEcsl ecsls = [whamlet|
     <td> Country
     <td> Customer
     <td> Value
+    <td.private> (Amount)
     <td> Indicator
   $forall ecsl <- ecsls
     <tr>
       <td.private> #{eCustomerName ecsl}
       <td> #{eCountry ecsl}
       <td> #{eCustomerGST ecsl}
-      <td> #{tshow $ eValue ecsl}
+      <td> #{eValue ecsl}
+      <td.private> #{formatDouble $ eAmount ecsl}
       <td> #{tshow $ eIndicator ecsl}
+  <tr>
+    <th.private> Total
+    <th>
+    <th>
+    <th> #{sum (map eValue ecsls)}
+    <th> #{formatDouble $ sum (map eAmount ecsls)}
+    <th> 
 |] <> toWidget [cassius|
   td.private
     font-style: italic
@@ -123,15 +144,35 @@ loadEcsl ECSLParam{..} = do
           <> "  GROUP BY debtor_no"
 
       makeEcls :: (Single Int64, Single Text, Single Text, Single Double) -> ECSL
-      makeEcls (Single _no, Single name, Single tId, Single total) = ECSL (take 2 tId) (drop 2 tId) (decodeHtmlEntities name) (floor total) 0
+      makeEcls (Single _no, Single name, Single tId, Single total) = ECSL (take 2 tId) (drop 2 tId) (decodeHtmlEntities name) total 0
 
   rows <- runDB $ rawSql sql [PersistDay epStartDate, PersistDay epEndDate]
   return $ map makeEcls rows
  
 
 
+generateCSV :: Text -> Text -> ECSLParam -> [ECSL] -> Handler TypedContent
+generateCSV vatNumber branch  param ecsls = do
+  let start =  epStartDate param
+  let csv = [ "HMRC_VAT_ESL_BULK_SUBMISSION_FILE"
+            , format ("\n"%stext%","%stext%","%year%","%month%",GBP,"%stext%",0")
+                         vatNumber branch start start (epContactName param)
+            ] ++ map go ecsls
+      go e@ECSL{..} = format ("\n"%stext%","%stext%","%int%","%int) eCountry eCustomerGST (eValue e) eIndicator
+      source = yieldMany csv
+  setAttachment $ format ("ecsl-"%year%"-"%month%".csv") start start
+  respondSource ("text/csv") (source =$= mapC toFlushBuilder)
+
+       
 
 
 
 
 
+-- | Retrieve the VAT number from FA settings
+vatNumberH :: Handler Text
+vatNumberH = do
+  pref <- runDB $ get (FA.SysPrefKey "gst_no")
+  case pref >>= FA.sysPrefValue of
+     (Just vatNumber) -> return vatNumber
+     _ -> error "VAT number not configured"
