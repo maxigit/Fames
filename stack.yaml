@@ -17,6 +17,8 @@ packages:
   extra-dep: true
 - location: fames-persist
   extra-dep: true
+- location: yesod-fay
+  extra-dep: true
 - '.'
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
@@ -31,7 +33,7 @@ extra-deps:
 - hpack-0.23.0
 - fay-jquery-0.6.1.0
 - fay-text-0.3.2.2
-- yesod-fay-0.8.0
+# - yesod-fay-0.8.0
 
 # Override default flag values for local packages and extra-deps
 flags:
