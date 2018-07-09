@@ -19,6 +19,7 @@ module Handler.WH.PackingList
 , parseDeliverList
 , EditMode(..)
 -- , postWHPackingListViewR
+, postWHPackingListReportR
 ) where
 
 import Import
@@ -68,10 +69,14 @@ uploadForm param = renderBootstrap3 BootstrapBasicForm form
             <*> (areq textareaField "spreadsheet" (fmap spreadsheet param) )
 
 getWHPackingListR :: Handler Html
-getWHPackingListR = renderWHPackingList Validate Nothing ok200 (setInfo "Enter a packing list") (return ())
+getWHPackingListR = do
+  today <- todayH
+  let lastYear = calculateDate (AddYears (-1)) today
+      reportParam = ReportParam (Just lastYear) (Just today)
+  renderWHPackingList Validate Nothing (Just reportParam) ok200 (setInfo "Enter a packing list") (return ())
 
-renderWHPackingList :: Mode -> (Maybe UploadParam) -> Status -> Handler () ->  Widget -> Handler Html
-renderWHPackingList mode param status message pre = do
+renderWHPackingList :: Mode -> (Maybe UploadParam) -> Maybe ReportParam -> Status -> Handler () ->  Widget -> Handler Html
+renderWHPackingList mode param reportParamM status message pre = do
   let (btn, plViewH) = case mode of
         Validate -> ("primary" :: Text, Just viewPLLists)
         Save -> ("danger", Nothing)
@@ -91,6 +96,9 @@ renderWHPackingList mode param status message pre = do
     $maybe plView <- plViewM
       <div.well>
         ^{plView}
+    $maybe reportParam <- reportParamM
+      <div.well>
+        ^{reportFormWidget reportParam}
     <div.well> ^{pre}
     <div.panel.panel-info>
       <div.panel-heading data-toggle="collapse" data-target=".pl-upload-colnames">
@@ -197,15 +205,15 @@ processUpload mode param = do
   forM documentKey'msgM  $ \(Entity _ doc, msg) -> do
     case mode of
       Validate -> setWarning msg >> return ""
-      Save -> renderWHPackingList Save (Just param) expectationFailed417 (setError msg) (return ()) -- should exit
+      Save -> renderWHPackingList Save (Just param) Nothing expectationFailed417 (setError msg) (return ()) -- should exit
 
   let onSuccess Save rows = do
         __saved <-savePLFromRows key param rows
-        renderWHPackingList Validate Nothing created201 (setSuccess "Packing list uploaded successfully") (return ())
+        renderWHPackingList Validate Nothing Nothing created201 (setSuccess "Packing list uploaded successfully") (return ())
 
       onSuccess Validate groups = do
 
-        renderWHPackingList Save (Just param)
+        renderWHPackingList Save (Just param) Nothing
                             ok200 (setSuccess "Packing list valid")
                             [whamlet|
 <div.panel-group>
@@ -213,7 +221,7 @@ processUpload mode param = do
     ^{renderSection section}
                                     |]
 
-  renderParsingResult (renderWHPackingList mode (Just param) badRequest400) 
+  renderParsingResult (renderWHPackingList mode (Just param) Nothing badRequest400) 
                       (onSuccess mode)
                       (parsePackingList (orderRef param) bytes)
 
@@ -593,6 +601,14 @@ generateStickers pl details = do
                          "/config/delivery-stickers.glabels"
                          (stickerSource today pl details)
 
+
+toBox (Entity _ PackingListDetail{..}) = Box ( Dimension packingListDetailWidth
+                                               packingListDetailLength
+                                               packingListDetailHeight
+                                             )
+                                         packingListDetailStyle
+                                         1
+                                         Middle
 renderChalk  :: [(Double, Double, Double)] -> PackingList -> [Entity PackingListDetail] -> Html
 renderChalk _ _ details = let
   -- convert details into Box.box
@@ -1320,3 +1336,81 @@ deletePLDetails plKey sections = do
                                               <*> packingListDetailBoxNumber
                           )
                 )
+
+-- * Report
+data ReportParam  = ReportParam
+  { rpStart :: Maybe Day
+  , rpEnd :: Maybe Day
+  } 
+
+reportForm paramM = renderBootstrap3 BootstrapBasicForm form
+  where form = ReportParam <$> aopt dayField "start" (rpStart <$> paramM )
+                            <*> aopt dayField "end" (rpEnd <$> paramM)
+
+reportFormWidget param = do
+  (form, encType) <- generateFormPost (reportForm $ Just param)
+  [whamlet|
+  <form.form.form-inline action="@{WarehouseR WHPackingListReportR}" method=POST enctype=#{encType}>
+    ^{form}
+    <button.btn.btn-primary>Summary
+          |]
+  
+postWHPackingListReportR :: Handler Html
+postWHPackingListReportR = do
+  ((resp, view), _encType) <- runFormPost (reportForm Nothing)
+  case resp of
+    FormMissing -> error "Form Missing"
+    FormFailure a -> error $ "Form failure : " ++ show a
+    FormSuccess param ->  do
+      reportFor param
+      
+
+reportFor param@ReportParam{..} = do
+  -- load pl
+  plXs <- runDB $ do
+    pls <- selectList [PackingListDeparture >=. rpStart, PackingListDeparture <=. rpEnd] []
+    mapM loadPLInfo pls
+  let cbms = map snd plXs
+      avg = sum cbms / fromIntegral (length cbms)
+      getDate field aggregate = case mapMaybe (field . entityVal . fst) plXs of
+        [] -> Nothing
+        dates -> Just $ aggregate dates
+       
+
+  defaultLayout [whamlet|
+<div.well>
+  ^{reportFormWidget param}
+<table.table.table-bordered.table-hover>
+  $forall (Entity key pl, cbm) <- plXs
+    <tr>
+      <td> <a href="@{WarehouseR (WHPackingListViewR (unSqlBackendKey $ unPackingListKey key) Nothing)}">
+      <td> #{packingListInvoiceRef pl}
+      <td> #{fromMaybe "" $ packingListVessel pl}
+      <td> #{fromMaybe "" $ packingListContainer pl}
+      <td> #{maybe "" tshow (packingListDeparture pl) }
+      <td> #{maybe "" tshow (packingListArriving pl) }
+      <td.text-right> #{formatDouble cbm} m<sup>3</sub>
+  <tr>
+      <th>
+      <th>
+      <th>
+      <th.text-right> #{length cbms}
+      <th> #{tshowM $ getDate packingListDeparture minimumEx}
+      <th> #{tshowM $ getDate packingListArriving maximumEx}
+      <th.text-right> #{formatDouble avg} m<sup>3</sub>
+                        |]
+
+  
+
+-- | Computes cbm and costs for a given PL
+loadPLInfo e@(Entity plKey pl) = do
+    entities <- selectList [PackingListDetailPackingList ==. plKey] []
+    let dimensions = map (boxDimension . toBox) entities
+        cbm = (sum $ map  volume dimensions) / 1e6 -- convert cm to m3
+    return (e, cbm)
+
+
+
+
+  
+  

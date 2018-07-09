@@ -1,6 +1,7 @@
 module WH.PackingList.Internal
 ( module WH.PackingList.Internal
 , Dimension(..)
+, volume
 )
 where
 
