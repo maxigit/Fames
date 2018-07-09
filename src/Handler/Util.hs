@@ -261,9 +261,9 @@ readUploadOrCacheUTF8  encoding fileInfoM keyM pathM = do
         (_,_,_) -> return Nothing
   
 -- ** Form builder
-renderField :: (MonadIO m, MonadBaseControl IO m, MonadThrow m)
-            => FieldView site
-            -> WidgetT site m ()
+-- renderField :: (MonadIO m, MonadThrow m)
+--             => FieldView site
+--             -> WidgetT site m ()
 renderField view = let
   class_ = case fvRequired view of
     False -> "optional" :: Text
@@ -299,17 +299,18 @@ generateLabelsResponse outputName template labelSource = do
   -- glabels doesn't set the exit code.
   -- we need to stderr instead 
   errorMessage <- sourceToList  $ sourceHandle perr 
-  let cleanUp = liftIO $  do
-        hClose perr
+  -- let _cleanUp = liftIO $  do
+  --       hClose perr
 
-        removeFile tmp
-        hClose thandle
+  --       removeFile tmp
+  --       hClose thandle
 
   case errorMessage of
     _ ->  do
       setAttachment (fromStrict outputName)
       respondSource "application/pdf"
-                    (const cleanUp `addCleanup` CB.sourceHandle thandle =$= mapC (toFlushBuilder))
+                    -- (const cleanUp `addCleanup`)
+                    (CB.sourceHandle thandle =$= mapC (toFlushBuilder))
 
     -- _ -> do
     --     cleanUp
@@ -531,7 +532,7 @@ hToHx = lift
 
 -- | as an excersise
 ioToH :: IO a -> Handler a
-ioToH = lift
+ioToH = liftIO
 
 ioToHx :: IO a -> HandlerX a
 ioToHx = liftIO
@@ -545,7 +546,7 @@ ioeToHx = ioxToHx . ioeToIox
 
 ioxToHx :: ExceptT Text IO a -> HandlerX  a
 -- ioXtoHX = ExceptT . lift  . runExceptT
-ioxToHx = mapExceptT lift
+ioxToHx = mapExceptT liftIO
 
 heToHx :: Handler (Either Text a)  -> HandlerX a
 heToHx = ExceptT

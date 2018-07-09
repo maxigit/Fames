@@ -771,7 +771,7 @@ saveExternalPayments settings key invoiceNo day timesheet = do
       pairs = (makeExternalPayments psettings (Just invoiceNo) day reference timesheet) -- :: [( WFA.PurchaseCreditNote, WFA.PurchaseInvoice)]
       tId = fromIntegral . unSqlBackendKey $ unTimesheetKey key
 
-  ids <- mapExceptT lift $ forM pairs $ either
+  ids <- mapExceptT liftIO $ forM pairs $ either
       (\(credit, inv) ->  do
         crId <- ExceptT $ WFA.postPurchaseCreditNote connectInfo credit
         invId <- ExceptT $ WFA.postPurchaseInvoice connectInfo inv

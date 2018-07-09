@@ -152,7 +152,7 @@ displaySummary today dbConf faURL title BankStatementSettings{..}= do
       aggregateMode = B.BEST
       blacklist = map unpack bsLightBlacklist
   
-  (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main options)
+  (stransz, banks) <- liftIO $ withCurrentDirectory bsPath (B.main options)
   -- we sort by date
   let sortTrans = sortOn (liftA3 (,,) (Down . B._sDate) (Down . B._sDayPos) (Down . B._sAmount))
       hideBlacklisted t = if keepLight blacklist t then ["public" ] else ["private"]
@@ -191,7 +191,7 @@ displayLightSummary today dbConf faURL title BankStatementSettings{..}= do
       faMode = B.BankAccountId (bsBankAccount)
       aggregateMode = B.BEST
   
-  (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main options)
+  (stransz, banks) <- liftIO $ withCurrentDirectory bsPath (B.main options)
   -- we sort by date
   let sortTrans = filter (keepLight blacklist) . sortOn (liftA3 (,,) (Down . B._sDate) (Down . B._sDayPos) (Down . B._sAmount))
       sorted = sortTrans stransz
@@ -306,7 +306,7 @@ displayDetailsInPanel account BankStatementSettings{..} = do
       faMode = B.BankAccountId (bsBankAccount)
       aggregateMode = B.BEST
   
-  (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main options)
+  (stransz, banks) <- liftIO $ withCurrentDirectory bsPath (B.main options)
   let tableW = renderTransactions object faURL stransz (const []) (Just "Total") ((B.FA ==) . B._sSource)
       ok = null stransz
   return $ displayPanel (if ok then "succes" else "danger") ok account [whamlet|
@@ -374,7 +374,7 @@ renderReconciliate account param = do
       faMode = B.BankAccountId (bsBankAccount)
       aggregateMode = B.ALL_BEST
 
-  (hts,_) <- lift $ withCurrentDirectory bsPath (B.loadAllTrans options)
+  (hts,_) <- liftIO $ withCurrentDirectory bsPath (B.loadAllTrans options)
   let byDays = B.badsByDay hts
       -- group by rec
       st'sts = filter transFilter $ map (bimap B.hToS B.fToS)  byDays

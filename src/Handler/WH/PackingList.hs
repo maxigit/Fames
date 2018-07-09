@@ -1123,7 +1123,7 @@ instance Num () where
   fromInteger _ = 0
   negate () = ()
 
-renderRow :: (MonadIO m, MonadThrow m, MonadBaseControl IO m, Renderable (PLFieldTF t Text Identity Identity), Renderable (PLFieldTF t Text Identity Maybe), Renderable (PLFieldTF t Int Identity Null), Renderable (PLFieldTF t Int Null Null), Renderable (PLFieldTF t Double Maybe Null)) => PLRow t -> WidgetT App m ()
+-- renderRow :: (MonadIO m, MonadThrow m, Renderable (PLFieldTF t Text Identity Identity), Renderable (PLFieldTF t Text Identity Maybe), Renderable (PLFieldTF t Int Identity Null), Renderable (PLFieldTF t Int Null Null), Renderable (PLFieldTF t Double Maybe Null)) => PLRow t -> WidgetT App m ()
 renderRow PLRow{..} = do
   [whamlet|
           <td.pl>^{render plStyle}
@@ -1146,7 +1146,7 @@ renderRow PLRow{..} = do
           <td.pl>^{render plTotalWeight}
           |]
 
-renderHeaderRow :: (MonadBaseControl IO m, MonadThrow m, MonadIO m) => WidgetT site m ()
+-- renderHeaderRow :: (MonadThrow m, MonadIO m) => WidgetT site m ()
 renderHeaderRow = [whamlet|
   <tr>
     <th>Style

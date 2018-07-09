@@ -91,10 +91,10 @@ sSortedSteps Scenario{..} = let
   
 execScenario sc@Scenario{..} = do
   initialM <- join <$> cacheWarehouseOut `mapM` sInitialState
-  stepsW <- lift $ mapM executeStep (sSortedSteps sc)
+  stepsW <- liftIO $ mapM executeStep (sSortedSteps sc)
         -- put (fromMaybe emptyWarehouse (unsafeCoerce initialM))
   -- execute and store the resulting warehouse
-  (_, warehouse) <- runWH (maybe emptyWarehouse unfreeze initialM) { colors = colorFromTag}
+  (_, warehouse) <- lift $ runWH (maybe emptyWarehouse unfreeze initialM) { colors = colorFromTag}
                           (sequence stepsW >> return ())
   let key = warehouseScenarioKey sc
   cacheWarehouseIn key warehouse
@@ -113,8 +113,8 @@ renderScenario sc layoutM = do
     Nothing -> return $ Left "No layout provided"
     Just layout -> do
         wh0 <- execWithCache sc
-        groupW <- lift $ readWarehouse (contentPath layout)
-        diags <- execWH wh0 ( do
+        groupW <- liftIO $ readWarehouse (contentPath layout)
+        diags <- liftHandler $ execWH wh0 ( do
                                 group <- groupW
                                 renderSlices group
                            )

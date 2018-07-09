@@ -113,9 +113,9 @@ data A = A Int | B Int deriving (Show, Generic)
 instance SameCons (A)
 
 -- | A convenient synonym for creating forms.
-type Form x = Html -> MForm (HandlerT App IO) (FormResult x, Widget)
+type Form x = Html -> MForm (HandlerFor App) (FormResult x, Widget)
 
-currentRole :: HandlerT App IO Role
+currentRole :: HandlerFor App Role
 currentRole = do
        settings <- appSettings <$> getYesod
        mu <- maybeAuth
@@ -475,12 +475,12 @@ getSuggestedLinks = do
 
 
 -- * Caching
-preCache0 :: (Show k, Typeable a) => Bool -> CacheDelay -> k -> Handler a -> Handler (Delayed Handler a)
+-- preCache0 :: (Show k, Typeable a) => Bool -> CacheDelay -> k -> Handler a -> Handler (Delayed Handler a)
 preCache0 force delay key action = do
   cache <- getsYesod appCache
   preCache force cache key action delay
  
-preCache1 :: (Show k, Typeable a) => Bool -> CacheDelay -> k -> (k -> Handler a) -> Handler (Delayed Handler a)
+-- preCache1 :: (Show k, Typeable a) => Bool -> CacheDelay -> k -> (k -> Handler a) -> Handler (Delayed Handler a)
 preCache1 force delay param action = preCache0 force delay param (action param)
 
 cache0 :: (Show k, Typeable a) => Bool -> CacheDelay -> k -> Handler a -> Handler a

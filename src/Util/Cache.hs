@@ -55,7 +55,7 @@ newtype CacheDelay = CacheDelay Int
   
 deriving instance Typeable Async
 
-createDelayed :: (MonadBaseControl IO io, MonadIO io) =>  io a -> io (Delayed io a)
+-- createDelayed :: (MonadIO io) =>  io a -> io (Delayed io a)
 createDelayed a = do
    mvar <- liftIO newEmptyMVar
    -- don't actually start the action until mvar has been set
@@ -87,7 +87,7 @@ cancelDelayed d = liftIO $ do
 
 
 -- | Get the actual value
-getDelayed :: (MonadBaseControl IO io, MonadIO io) => Delayed io a -> io a
+-- getDelayed :: (MonadIO io) => Delayed io a -> io a
 getDelayed d = do
   startDelayed d
   wait (action d)
@@ -126,7 +126,7 @@ castToDelayed k (unsafeViewDynamic -> DYNAMIC t x) =
     _ -> Nothing
 
 -- | Check if the job status
-statusDelayed :: (MonadBaseControl IO io, MonadIO io) => Delayed io a -> io DelayedStatus
+statusDelayed :: (MonadIO io) => Delayed io a -> io DelayedStatus
 statusDelayed d = liftIO $ do
   empty_ <- isEmptyMVar (blocker d)
   if empty_
@@ -209,8 +209,8 @@ cacheForEver = cacheDay 365
 -- but not when it's actually started. We assume there, that the
 -- start delay is small. When precaching, we delay the start of the computation
 -- only to be started once the HTTP query has processed.
-preCache :: (MonadBaseControl IO io, MonadIO io, Show k, Typeable a, Typeable io)
-         => Bool -> MVar ExpiryCache -> k -> io a -> CacheDelay -> io (Delayed io a)
+-- preCache :: (MonadIO io, Show k, Typeable a, Typeable io)
+--          => Bool -> MVar ExpiryCache -> k -> io a -> CacheDelay -> io (Delayed io a)
 preCache force cvar key vio (CacheDelay delay) = do
   d <- createDelayed vio
   _ <- async $ do
