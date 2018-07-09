@@ -33,7 +33,8 @@ import Control.Monad.Trans.Control(StM, MonadBaseControl)
 import Debug.Trace
 import Unsafe.Coerce(unsafeCoerce)
 import Data.Proxy
-import GHC.Prim (Any, Proxy#)
+import GHC.Prim (Proxy#)
+import GHC.Types (Any)
 import Data.Typeable
 
 -- * Delayed
@@ -110,7 +111,7 @@ withTypeable t k = withTypeRep (MagicTypeable k) t Proxy
 delayed_tycon = fst $ splitTyConApp $ typeRep (Proxy :: Proxy Delayed)
 -- This is needed because Dynamic doesn't export its constructortraceShowId $ , and
 -- we need to pattern match on it.
-data DYNAMIC = Dynamic TypeRep Any
+data DYNAMIC = DYNAMIC TypeRep Any
 
 unsafeViewDynamic :: Dynamic -> DYNAMIC
 unsafeViewDynamic = unsafeCoerce
@@ -118,7 +119,7 @@ unsafeViewDynamic = unsafeCoerce
 -- The actual implementation, much the same as the one on GHC 8.2, but more 
 -- 'unsafe' things
 castToDelayed :: Monad m => (forall a . Typeable a => Delayed m a -> r) -> Dynamic -> Maybe r
-castToDelayed k (unsafeViewDynamic -> Dynamic t x) =
+castToDelayed k (unsafeViewDynamic -> DYNAMIC t x) =
   case splitTyConApp t of
     (((== delayed_tycon) -> True), [_,a]) -> Just $
       withTypeable a $ \(_ :: Proxy (a :: *)) -> k (unsafeCoerce x :: Delayed m a)

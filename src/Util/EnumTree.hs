@@ -15,6 +15,8 @@ import GHC.Generics
 import Data.Foldable (toList)
 
 data EnumTree a = EnumTree [EnumTree a] | EnumNode a  deriving (Show, Functor, Foldable)
+instance Semigroup (EnumTree a) where
+  (<>) = mappend
 instance Monoid (EnumTree a) where
   mempty = EnumTree []
   EnumTree xs `mappend` EnumTree ys = EnumTree (xs <> ys)

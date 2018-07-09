@@ -25,7 +25,7 @@ import Data.Maybe
 
 import Lens.Micro
 import Lens.Micro.TH
-import Data.Csv
+import Data.Csv hiding(Options)
 import qualified Data.ByteString.Lazy as BL
 import Data.Vector(Vector)
 import qualified Data.Vector as V

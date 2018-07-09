@@ -254,7 +254,7 @@ instance Yesod App where
 
     -- What messages should be logged. The following includes all messages when
     -- in development, and warnings and errors in production.
-    shouldLog app _source level =
+    shouldLogIO app _source level = return $ 
         appShouldLogAll (appSettings app)
             || level == LevelWarn
             || level == LevelError
@@ -289,7 +289,7 @@ instance YesodAuth App where
     -- Override the above two destinations when a Referer: header is present
     redirectToReferer _ = True
 
-    authenticate creds = runDB $ do
+    authenticate creds = liftHandler . runDB $ do
         x <- getBy $ UniqueUser $ credsIdent creds
         case x of
             Just (Entity uid _) -> return $ Authenticated uid
@@ -301,7 +301,8 @@ instance YesodAuth App where
     -- You can add other plugins like Google Email, email or OAuth here
     authPlugins _ = [authFA] -- [authOpenId Claimed []]
 
-    authHttpManager = getHttpManager
+    authHttpManager = error "TODO" --  _ getHttpManager 
+
 
 instance YesodAuthPersist App
 
@@ -354,19 +355,20 @@ authFA = AuthPlugin "fa" dispatch loginWidget
               <td colspan="2">
                  <button type="submit" .btn .btn-success>_{Msg.LoginTitle}
         |]
-postLoginR :: HandlerT Auth (HandlerT App IO) TypedContent
+-- postLoginR :: SubHandlerFor Auth App TypedContent
+postLoginR :: AuthHandler App TypedContent
 postLoginR = do
-  (username, password) <- lift ( runInputPost
+  (username, password) <- liftHandler ( runInputPost
                                  ((,) <$> ireq textField "username"
                                       <*> ireq passwordField "password")
                                )
-  isValid <- lift $ validatePassword username password
+  isValid <- liftHandler $ validatePassword username password
   if isValid
     then do
       deleteSession "masquerade-user"
-      lift (setCredsRedirect (Creds "fa" username []))
+      liftHandler (setCredsRedirect (Creds "fa" username []))
     else do
-       userExists <- lift $ doesUserNameExist username
+       userExists <- liftHandler $ doesUserNameExist username
        loginErrorMessageI LoginR ( if userExists
                                       then Msg.InvalidUsernamePass
                                       else Msg.IdentifierNotFound username
@@ -489,5 +491,5 @@ cache0 force delay key action = do
 clearAppCache :: Handler ()
 clearAppCache = do
   cache <- getsYesod appCache
-  lift $ clearExpiryCache cache
+  liftIO $ clearExpiryCache cache
 

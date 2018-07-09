@@ -44,6 +44,8 @@ floorSpace :: Dimension -> Double
 floorSpace (Dimension l w _) = l*w
 
 
+instance Semigroup Dimension where
+  (<>) = mappend
 instance Monoid Dimension where
     mempty = Dimension 0 0 0
     mappend (Dimension l w h) (Dimension l' w' h') =
@@ -259,6 +261,8 @@ groupToShelfIds :: ShelfGroup s -> [ShelfId s]
 groupToShelfIds (ShelfProxy sid) = [sid]
 groupToShelfIds (ShelfGroup  groups _ ) = concatMap groupToShelfIds groups
 
+instance Semigroup (ShelfGroup s) where
+  (<>) = mappend
 instance Monoid (ShelfGroup s) where
     mempty = ShelfGroup [] Vertical
     mappend sg@(ShelfGroup g d) sg'@(ShelfGroup g' d')

@@ -13,12 +13,12 @@ module Locker
 
 where
 
-import ClassyPrelude.Yesod
+import ClassyPrelude.Yesod hiding (traceShow)
 import qualified Data.Text as Text
 import qualified Data.Set as Set
 import Role
-import Debug.Trace
 import Data.Either(isRight)
+import Debug.Trace
 
 -- * Types
 
@@ -31,14 +31,14 @@ data Granted = Granted | Forbidden deriving (Eq, Ord, Show, Read)
 lock :: Ord r => [r] -> a -> Locker r a
 lock rs x = Locker (setFromList rs) x
 
-unlock :: (r -> Granted) ->  Locker r a -> Either [r] a
+unlock :: Ord r => (r -> Granted) ->  Locker r a -> Either [r] a
 unlock unlocker (Locker roles value) = case filter ((== Forbidden). unlocker) (toList roles) of
     [] -> Right value
     missings -> Left missings
 
 isUnlocked granter = isRight . unlock granter
   
-permissions :: Locker r a -> [r]
+permissions :: Ord r => Locker r a -> [r]
 permissions (Locker rs _)  = toList rs
 
 restrict :: Ord r => [r] ->  Locker r a -> Locker r a
@@ -78,12 +78,12 @@ instance (Ord r, Fractional a) => Fractional (Locker r a) where
 
 -- Show Instance which is readable if there is no permission required
 -- but not otherwise
-instance (Show r, Show a) => Show (Locker r a) where
+instance (Ord r, Show r, Show a) => Show (Locker r a) where
   show l@(Locker rs v) = "Locker " <> show rs <> " ("
                          <> (showLock (const Forbidden) l)
                          <>  ")" 
 
-showLock  :: (Show r, Show a) => (r -> Granted) ->  (Locker r a ) -> String
+showLock  :: (Ord r, Show r, Show a) => (r -> Granted) ->  (Locker r a ) -> String
 showLock  unlocker lock = case unlock unlocker lock of
   Left required -> "Requires: " <> show required
   Right value -> show value

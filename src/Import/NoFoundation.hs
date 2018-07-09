@@ -9,7 +9,6 @@ module Import.NoFoundation
     , formatInfo
     , formatSuccess
     , (<|&>)
-    , (<&>)
     , (<$$>), (<$$$>), (<$$$$>)
     , (?:)
     , formatAmount
@@ -74,10 +73,6 @@ infixl 3 <|&>
 (<|&>) :: Either a b -> (a -> a') -> Either a' b
 Left l <|&> f = Left (f l)
 Right r <|&> _ = Right r
-
-infixl 3 <&>
-(<&>) :: Functor f => f a  -> (a ->b) -> f b
-x <&> f = fmap f x
 
 infixl 4 <$$>, <$$$>, <$$$$>
 (<$$>) :: (Functor f, Functor f1) => (a -> b) -> f1 (f a) -> f1 (f b)

@@ -157,11 +157,14 @@ deriving instance Eq (ItemWebStatusF ((,) [Text]))
 deriving instance Eq (ItemMasterAndPrices Identity)
 deriving instance Eq (ItemMasterAndPrices ((,) [Text]))
  
+instance Semigroup (ItemMasterAndPrices f) where
+  (<>) = mappend
 instance Monoid (ItemMasterAndPrices f) where
   mempty = ItemMasterAndPrices Nothing Nothing Nothing Nothing Nothing Nothing
   mappend (ItemMasterAndPrices m s p st ws wp)
           (ItemMasterAndPrices m' s' p' st' ws' wp')
      = ItemMasterAndPrices (m <|> m') (s <|> s') (p <|> p') (st <|> st') (ws <|> ws') (wp <|> wp')
+
 
 -- | Whereas an item is running or not.
 data FARunningStatus = FARunning -- ^ can and need to be sold
