@@ -12,6 +12,7 @@ module Handler.WH.PackingList
 , postWHPackingListEditR
 , getWHPackingListViewR
 , postWHPackingListEditDetailsR
+, postWHPackingListEditInvoicesR
 , postWHPackingListDeliverR
 , contentToMarks
 -- For test
@@ -258,6 +259,22 @@ updatePackingListDetails mode key cart = do
                       onSuccess 
                       (parsePackingList orderRef bytes)
 
+updatePackingListInvoices :: Int64 -> Textarea -> HandlerT App IO TypedContent
+updatePackingListInvoices key cart = do
+  let bytes = unTextarea $ cart
+      plKey = PackingListKey (SqlBackendKey key)
+      onSuccess (shippings) = do
+            -- prefill information
+        runDB $ do
+           deleteWhere [ TransactionMapEventType ==. PackingListShippingE
+                       , TransactionMapEventNo ==. fromIntegral key
+                       ]
+           insertMany_ shippings
+        viewPackingList EditInvoices key (return ())
+  renderParsingResult (\msg pre -> do msg >>  viewPackingList EditInvoices key pre)
+                      onSuccess 
+                      (parseInvoiceList plKey bytes)
+
 updatePackingList :: Int64 -> UploadParam -> HandlerT App IO TypedContent
 updatePackingList key param = do
   let plKey = PackingListKey (SqlBackendKey key)
@@ -358,6 +375,17 @@ postWHPackingListEditDetailsR key = do
         Nothing -> error "Action missing"
         Just action -> updatePackingListDetails action key cart
 
+postWHPackingListEditInvoicesR :: Int64 -> Handler TypedContent
+postWHPackingListEditInvoicesR key = do
+  -- actionM <- lookupPostParam "action"
+  ((resp, view), __encType)  <- runFormPost (editInvoicesForm Nothing)
+  case resp of
+    FormMissing -> error "Form Missing"
+    FormFailure a -> do
+      setError $ "FormFailure" >> mapM_ toHtml a
+      sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
+    FormSuccess cart -> updatePackingListInvoices key cart
+
 postWHPackingListEditR :: Int64 -> Handler TypedContent
 postWHPackingListEditR key = do
   ((resp, view), __encType)  <- runFormPost (editForm Nothing Nothing)
@@ -381,17 +409,17 @@ postWHPackingListDeliverR key = do
 viewPackingList :: PLViewMode -> Int64 ->  Widget -> Handler TypedContent
 viewPackingList mode key pre = do
   let plKey = PackingListKey (SqlBackendKey key)
-  (plM, docKeyM, entities) <- runDB $ do
+  (plM, docKeyM, entities, invoiceNos) <- runDB $ do
       plM <- get plKey
       entities <- selectList [PackingListDetailPackingList ==. plKey] [Asc PackingListDetailId]
+      invoiceNos <- loadInvoicesNoFor plKey
       docKey <- do
         case plM of
           Nothing -> return Nothing
           Just pl -> get (packingListDocumentKey pl)
-      return (plM, docKey, entities)
+      return (plM, docKey, entities, invoiceNos)
 
   today <- todayH
-
 
   case (plM, docKeyM) of
     (Just pl, Just docKey) -> do
@@ -409,6 +437,8 @@ viewPackingList mode key pre = do
                     , [ ("DEPARTURE", tshow <$> packingListDeparture pl)
                       , ("ARRIVING", tshow <$> packingListArriving pl)
                       ]
+                    , [ ("SHIPPING", Just (tshow $ transactionMapFaTransNo event)) | event <- filter ((== PackingListShippingE) . transactionMapEventType) (map entityVal invoiceNos)]
+                        
                     ] :: [[(Text, Maybe Text)]]
       let panelClass delivered | delivered == 0 = "success" :: Text
                               | delivered == length entities = "info"
@@ -426,6 +456,7 @@ viewPackingList mode key pre = do
            entitiesWidget <- case mode of
              EditDetails -> renderEditDetails Nothing key entities
              Edit -> renderEdit key pl docKey
+             EditInvoices -> renderEditInvoices key invoiceNos
              Deliver -> renderDeliver Nothing key entities
              _ -> return . toWidget $ (case mode of
                                  Details -> renderDetails
@@ -436,6 +467,7 @@ viewPackingList mode key pre = do
                                  PlannerColourless -> renderPlannerColourless
                                  Stickers ->  error "Shoudn't happen"
                                  EditDetails ->  error "Shoudn't happen"
+                                 EditInvoices ->  error "Shoudn't happen"
                                  Edit ->  error "Shoudn't happen"
                                  Deliver ->  error "Shoudn't happen"
                                  StocktakePL -> error "Shoudn't happen"
@@ -464,7 +496,7 @@ viewPackingList mode key pre = do
               [whamlet|
                       ^{pre}
           <ul.nav.nav-tabs>
-            $forall nav <-[Details, Edit, EditDetails, Textcart,Stickers, StickerCsv, Chalk, Planner, PlannerColourless,Deliver, StocktakePL]
+            $forall nav <-[Details, Edit, EditDetails, EditInvoices, Textcart,Stickers, StickerCsv, Chalk, Planner, PlannerColourless,Deliver, StocktakePL]
               <li class="#{navClass nav}">
                 <a href="@{WarehouseR (WHPackingListViewR key (Just nav)) }">#{tshow nav}
           ^{entitiesWidget}
@@ -826,6 +858,28 @@ renderEdit key pl doc = do
 |]
 
 
+editInvoicesForm :: Maybe Text -> Markup -> _ (FormResult Textarea, Widget)
+editInvoicesForm defCart  = renderBootstrap3 BootstrapBasicForm form
+  where form = areq textareaField "invoices" (Textarea <$> defCart)
+renderEditInvoices :: Int64 -> [Entity TransactionMap] -> Handler Widget
+renderEditInvoices key invoicesNos = do
+  let cart = unlines $ "-- ship:trans_no for shipping invoices" :
+               [ case transactionMapEventType of
+                   PackingListShippingE -> "ship:" <> tshow transactionMapFaTransNo
+                   _ -> "-- " <> tshow transactionMapEventType
+                        <> ":"
+                        <> tshow transactionMapFaTransNo
+               | (Entity _ TransactionMap{..}) <- invoicesNos
+               ] 
+  (form, encType) <- generateFormPost (editInvoicesForm (Just $ cart))
+  return [whamlet|
+<div>
+  <form #edit-invoices role=form method=post action=@{WarehouseR $ WHPackingListEditInvoicesR key} enctype=#{encType}>
+    ^{form}
+    <div.form-inline>
+        <button type="submit" name="action" class="btn btn-warning">Save
+|]
+  
 -- | Generates a progress bar to track the delivery timing
 -- In order to normalize progress bars when displaying different packing list
 -- we need some "bounds"
@@ -1132,6 +1186,26 @@ parseDeliverList cart = let
 
 
 
+-- ** Parse invoice list
+parseInvoiceList :: PackingListId -> Text -> ParsingResult ParseDeliveryError [TransactionMap]
+parseInvoiceList plKey cart = let
+  parsed = map parseLine (filter (not . isPrefixOf "--") (lines cart))
+  parseLine line = 
+    case break (== ':' ) line of
+               ("ship" , t)| s <- drop 1 t  -> case readMay s of
+                   Nothing -> Left line --  (s <> " is not a number")
+                   Just no -> Right (TransactionMap ST_SUPPINVOICE
+                                                    no
+                                                    PackingListShippingE
+                                                    (fromIntegral $ unSqlBackendKey $ unPackingListKey plKey)
+                                    , line )
+               _ -> Left line
+  in case sequence parsed of
+         Right trans -> ParsingCorrect (map fst trans)
+         Left _ -> InvalidFormat $ map (ParseDeliveryError . map snd) parsed
+
+               
+  
 
 
 
@@ -1302,6 +1376,7 @@ updateDocumentKey plKey bytes  = do
 
   update plKey [PackingListDocumentKey =. docKey ]
 
+-- ** Update details
 replacePLDetails ::  Key PackingList -> [(PLOrderRef, [PLBoxGroup])] -> ByteString -> SqlHandler ()
 replacePLDetails plKey sections cart = do
   -- As we total discard the content of the previous document
@@ -1336,7 +1411,6 @@ deletePLDetails plKey sections = do
                                               <*> packingListDetailBoxNumber
                           )
                 )
-
 -- * Report
 data ReportParam  = ReportParam
   { rpStart :: Maybe Day
@@ -1364,6 +1438,14 @@ postWHPackingListReportR = do
     FormSuccess param ->  do
       reportFor param
       
+-- loadInvoicesFor :: Entity PackingList -> [Entity TransactionMap]
+loadInvoicesNoFor plKey = do
+    ids <- selectList [TransactionMapFaTransType ==. ST_SUPPINVOICE, TransactionMapEventNo ==. fromIntegral (unSqlBackendKey (unPackingListKey plKey)) ] []
+    return ids
+    
+-- loadInvoicesNoFor (Entity plKey _)= do
+--     ids <- selectList [TransactionMapFaTransType ==. ST_SUPPINVOICE, TransactionMapEventNo ==. fromIntegral (unSqlBackendKey (unPackingListKey plKey)) ] []
+--     mapM 
 
 reportFor param@ReportParam{..} = do
   -- load pl
@@ -1384,6 +1466,7 @@ reportFor param@ReportParam{..} = do
   $forall (Entity key pl, cbm) <- plXs
     <tr>
       <td> <a href="@{WarehouseR (WHPackingListViewR (unSqlBackendKey $ unPackingListKey key) Nothing)}">
+        ##{tshow $ unSqlBackendKey $ unPackingListKey key}
       <td> #{packingListInvoiceRef pl}
       <td> #{fromMaybe "" $ packingListVessel pl}
       <td> #{fromMaybe "" $ packingListContainer pl}

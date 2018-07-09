@@ -17,6 +17,7 @@ data PLViewMode = Details
                 | PlannerColourless
                 | EditDetails 
                 | Edit
+                | EditInvoices
                 | Deliver
                 | StocktakePL
   deriving (Eq, Read, Show, Enum, Bounded)
