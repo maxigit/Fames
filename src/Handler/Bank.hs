@@ -4,6 +4,8 @@ module Handler.Bank
 , getGLBankReconciliateR
 , postGLBankReconciliateR
 , getGLBankHelpR
+, getGLBankFXR
+, postGLBankFXR
 ) where
 
 
@@ -622,3 +624,48 @@ hsbcHelp = [whamlet||]
 bmmHelp = [whamlet||]
 ccardHelp = [whamlet||]
 
+-- * FX
+
+data FXParam = FXParam { fxStart :: Day, fxEnd :: Day, fxCurrency :: Text}
+  deriving (Show, Eq)
+
+fxForm paramM = renderBootstrap3 BootstrapBasicForm form  where
+  form = FXParam <$> areq dayField "start" (fxStart <$> paramM)
+                 <*> areq dayField "end" (fxEnd <$> paramM)
+                 <*> areq textField "" (fxCurrency <$> paramM)
+
+getGLBankFXR :: Handler Html
+getGLBankFXR = do
+  today <- todayH
+  let fxStart = calculateDate (AddYears (-1)) today
+      fxEnd = today -- calculateDate (AddDays 1) today
+
+  -- load currencies, take the second one, the first one being the company currency
+  currencies <- runDB $ selectList [FA.CurrencyInactive ==. False] [LimitTo 2]
+  let fxCurrency = case currencies of 
+        _ : Entity curr _ : _ -> FA.unCurrencyKey curr
+        _ -> ""
+
+  renderFX (FXParam{..}) -- (return ())
+
+
+postGLBankFXR :: Handler Html
+postGLBankFXR = do
+  ((resp, formW), encType) <- runFormPost (fxForm Nothing)
+  case resp of
+    FormMissing -> error "Form missing"
+    FormFailure a -> error $ "Form failure : " ++ show a
+    FormSuccess param -> renderFX param
+
+
+renderFX :: FXParam -> Handler Html
+renderFX param  = do
+  (form, encType) <- generateFormPost (fxForm $ Just param)
+  defaultLayout $ do
+    [whamlet|
+    <form.form-inline method=POST enctype="#{encType}">
+      <div.well>
+        ^{form}
+        <button.btn.btn-primary name=action value="submit">Submit
+            |]
+  

@@ -29,6 +29,7 @@
   /bank/details/#Text GLBankDetailsR GET !bank !bank-full
   /bank/reconciliate/#Text GLBankReconciliateR GET POST !bank-full
   /bank/help/ GLBankHelpR GET !title=Help
+  /bank/fx/ GLBankFXR GET POST !title=Foreign_Exchange
 
   /vat GLVATR GET !vat !group=VAT !title=Main
   /vat/ecsl GLVATEcslR GET POST !vat !title=ECSL
