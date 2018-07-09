@@ -12,7 +12,7 @@ module Handler.Bank
 import Import
 import qualified BankReconciliate as B
 import BankReconciliate()
-import Database.Persist.MySQL     (MySQLConf (..))
+import Database.Persist.MySQL     (MySQLConf (..), Single(..), rawSql)
 import System.Directory
 import Text.Regex.TDFA ((=~), makeRegex, Regex)
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
@@ -23,6 +23,9 @@ import Lens.Micro.Extras (preview)
 import FA as FA
 import GL.Utils
 import GL.Payroll.Settings
+import Text.Shakespeare.Text (st)
+import Data.List(mapAccumL)
+import Formatting
 
 commonCss = [cassius|
 tr.private
@@ -660,12 +663,85 @@ postGLBankFXR = do
 
 renderFX :: FXParam -> Handler Html
 renderFX param  = do
+  let curr = fxCurrency param
   (form, encType) <- generateFormPost (fxForm $ Just param)
+  trans <- loadFXTrans param
   defaultLayout $ do
     [whamlet|
     <form.form-inline method=POST enctype="#{encType}">
       <div.well>
         ^{form}
         <button.btn.btn-primary name=action value="submit">Submit
+    <table.table.table-hover.table-border.table-striped id=fx-table>
+     <tr>
+       <th>Date
+       <th>Description
+       <th>FX Amount 
+       <th>Home Amount 
+       <th>Rate
+       <th>Total FX
+       <th>Total Home
+       <th>Average rate
+     $forall tran <- trans
+       <tr>
+        <td>#{tshow $ fxDate tran}
+        <td>#{fxDescription tran}
+        <td.text-right>#{formatDouble $ fxFXAmount tran} #{curr}
+        <td.text-right>#{formatDouble $ fxHomeAmount tran}
+        <td.text-right>#{sformat  (fixed 4) (fxRate tran)}
+        $with (totalH, totalFX) <- fxExtra tran
+          <td.text-right>#{formatDouble $ totalFX} #{curr}
+          <td.text-right>#{formatDouble $ totalH}
+          <td.text-right>#{sformat (fixed 4) (totalFX / totalH)}
             |]
+
   
+
+-- We are only interested in money in, ie when we buy 
+loadFXTrans param = do
+  setWarning( "This report doesn't use (yet) supplier payments but only bank transfer")
+  loadFXTransfers param
+  -- bank transfers into FX Account - easy
+  -- supplier (USD) to current -- with rate
+  -- bank deposit -- into FX account, how to we know the rate 
+
+
+data FXTrans e = FXTrans
+  { fxDate :: !Day
+  , fxDescription :: !Text
+  , fxHomeAmount :: !Double
+  , fxFXAmount :: !Double
+  , fxTransNo :: !Int
+  , fxTransType :: !Int
+  , fxRate :: !Double
+  , fxExtra :: e
+  }
+
+loadFXTransfers :: FXParam -> Handler [FXTrans (Double, Double)]
+loadFXTransfers FXParam{..} = do
+  let sql = [st|
+    SELECT to_.trans_date, to_.person_id, to_.amount, -from_.amount, to_.trans_no, to_.type
+    FROM 0_bank_trans AS to_
+    JOIN 0_bank_accounts AS bank ON (to_.bank_act = bank.id AND bank_curr_code = ?)
+    JOIN 0_bank_trans AS from_ ON (to_.type = from_.type AND to_.trans_no = from_.trans_no  )
+    WHERE to_.type = 4
+    AND to_.trans_date between ? AND ?
+    AND to_.amount > 0
+    AND from_.amount < 0
+    ORDER BY to_.trans_date , to_.trans_no
+               |]
+  rows <- runDB $ rawSql sql [toPersistValue fxCurrency, toPersistValue fxStart, toPersistValue fxEnd] 
+  let fxTrans = map transferToFXs rows
+      fxTransPlus = mapAccumL runBalance (0,0) fxTrans
+      runBalance (totalHome, totalFX) FXTrans{..} = ((newHome, newFX), FXTrans{..} ) where
+        newHome = totalHome + fxHomeAmount
+        newFX = totalFX + fxFXAmount
+        fxExtra = (newHome, newFX)
+
+  return (snd fxTransPlus)
+
+
+transferToFXs (Single fxDate, Single fxDescription, Single fxFXAmount, Single fxHomeAmount, Single fxTransNo, Single fxTransType) = FXTrans{..}
+  where fxRate = fxFXAmount/fxHomeAmount
+        fxExtra = ()
+
