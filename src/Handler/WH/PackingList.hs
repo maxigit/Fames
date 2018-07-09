@@ -37,6 +37,7 @@ import Text.Printf(printf)
 import Data.Conduit.List (consume)
 import Data.Text(splitOn)
 import Text.Blaze.Html(Markup, ToMarkup)
+import GL.Utils
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
 data EditMode = Replace | Insert | Delete deriving (Eq, Read, Show, Enum)
@@ -110,7 +111,12 @@ renderWHPackingList mode param status message pre = do
 
 viewPLLists :: Handler Widget
 viewPLLists = do
-  entities <- runDB $ selectList [] []
+  today <- todayH
+  let lastYear = calculateDate (AddYears (-1)) today
+  entities <- runDB $ selectList [ FilterOr [ PackingListArriving >=. Just lastYear
+                                            , PackingListBoxesToDeliver_d >. 0
+                                            ]
+                                 ] [Desc PackingListArriving]
   today <- todayH
   let pls = map entityVal entities
       minDate = Just $ List.minimum (today : catMaybes (map (packingListDeparture) pls))

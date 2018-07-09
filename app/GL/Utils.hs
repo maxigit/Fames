@@ -1,4 +1,7 @@
-module GL.Utils where
+module GL.Utils
+( module GL.Utils
+, DateCalculator(..)
+)where 
 import ClassyPrelude
 import GL.Payroll.Settings
 import Data.Time.Calendar(addDays, addGregorianMonthsClip, gregorianMonthLength)

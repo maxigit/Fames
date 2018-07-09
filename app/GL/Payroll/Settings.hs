@@ -4,7 +4,7 @@
 module GL.Payroll.Settings where
 
 import ClassyPrelude
-import Data.Aeson.TH(deriveJSON, defaultOptions, sumEncoding, SumEncoding(..))
+import Data.Aeson.TH(deriveJSON, defaultOptions, fieldLabelModifier, sumEncoding, SumEncoding(..))
 
 -- * Types
 -- ** For config
@@ -61,7 +61,7 @@ data PayrollSettings = PayrollSettings
 
 -- ** Date Calculator
 data DateCalculator
-  = DayOfMonth { day :: Int, cutoff :: Int } -- day , cut off
+  = DayOfMonth { dayX :: Int, cutoff :: Int } -- day , cut off
   | AddDays Int
   | NextDayOfWeek { weekDay :: DayOfWeek, weekCutoff:: DayOfWeek } -- day, cut off
   | AddMonths Int
@@ -88,7 +88,11 @@ succCyclic d = succ d
 -- * JSON
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField}''DayOfWeek)
 $(deriveJSON defaultOptions ''EmployeeSettings)
-$(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField} ''DateCalculator)
+$(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField
+                            , fieldLabelModifier = \d -> case d of
+                                                           "dayX" -> "day"
+                                                           _ -> d
+                            } ''DateCalculator)
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField} ''DACSettings)
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField}''DACPaymentSettings)
 $(deriveJSON defaultOptions ''PayrollExternalSettings)
