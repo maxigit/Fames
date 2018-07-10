@@ -1532,55 +1532,62 @@ reportFor param@ReportParam{..} = do
   defaultLayout [whamlet|
 <div.well>
   ^{reportFormWidget param}
-<table.table.table-bordered.table-hover>
-  <tr>
-      <th>
-      <th> Reference
-      <th> Vessel
-      <th> Container 
-      <th> Departure
-      <th> Arriving
-      <th.text-right> Volume
-      <th.text-right> Shipping cost/m<sup>3
-      <th> Shipping Cost
-      <th> %
-      <th> Duty Cost
-      <th> %
-      <th> Supplier Cost
-  $forall (Entity key pl, (cbm, (costMap, _))) <- plXs
-    <tr>
-      <td> <a href="@{WarehouseR (WHPackingListViewR (unSqlBackendKey $ unPackingListKey key) Nothing)}">
-        ##{tshow $ unSqlBackendKey $ unPackingListKey key}
-      <td> #{packingListInvoiceRef pl}
-      <td> #{fromMaybe "" $ packingListVessel pl}
-      <td> #{fromMaybe "" $ packingListContainer pl}
-      <td> #{maybe "" tshow (packingListDeparture pl) }
-      <td> #{maybe "" tshow (packingListArriving pl) }
-      <td.text-right> #{formatDouble' cbm} m<sup>3</sub>
-      <td.text-right> #{maybe "" (formatPerCbm' cbm )  (lookup PackingListShippingE costMap)  } /m<sup>3
-      ^{costTds costMap}
-  <tr>
-      <td>
-      <th> Total
-      <td>
-      <td> #{length cbms}
-      <td> #{tshowM $ getDate packingListDeparture minimumEx}
-      <td> #{tshowM $ getDate packingListArriving maximumEx}
-      <td.text-right> #{formatDouble' $ sum cbms} m<sup>3</sub>
-      <td.text-right> #{maybe "" formatPerCbm  (lookup PackingListShippingE allCosts)  } /m<sup>3
-      ^{costTds allCosts}
-  <tr>
-      <td>
-      <th> Average
-      <td>
-      <td>
-      <td>
-      <td>
-      <td.text-right> #{formatDouble' $ avg} m<sup>3</sub>
-      <td.text-right>
-      ^{costTds $ fmap perPL allCosts}
-<div.well>
-  ^{renderDetailInfo allInfos}
+<div.panel-primary>
+  <div.panel-heading data-toggle=collapse data-target=#pl-report>
+    <h2>Packing List
+  <div.panel-body id=pl-report>
+    <table.table.table-bordered.table-hover>
+      <tr>
+          <th>
+          <th> Reference
+          <th> Vessel
+          <th> Container 
+          <th> Departure
+          <th> Arriving
+          <th.text-right> Volume
+          <th.text-right> Shipping cost/m<sup>3
+          <th> Shipping Cost
+          <th> %
+          <th> Duty Cost
+          <th> %
+          <th> Supplier Cost
+      $forall (Entity key pl, (cbm, (costMap, _))) <- plXs
+        <tr>
+          <td> <a href="@{WarehouseR (WHPackingListViewR (unSqlBackendKey $ unPackingListKey key) Nothing)}">
+            ##{tshow $ unSqlBackendKey $ unPackingListKey key}
+          <td> #{packingListInvoiceRef pl}
+          <td> #{fromMaybe "" $ packingListVessel pl}
+          <td> #{fromMaybe "" $ packingListContainer pl}
+          <td> #{maybe "" tshow (packingListDeparture pl) }
+          <td> #{maybe "" tshow (packingListArriving pl) }
+          <td.text-right> #{formatDouble' cbm} m<sup>3</sub>
+          <td.text-right> #{maybe "" (formatPerCbm' cbm )  (lookup PackingListShippingE costMap)  } /m<sup>3
+          ^{costTds costMap}
+      <tr>
+          <td>
+          <th> Total
+          <td>
+          <td> #{length cbms}
+          <td> #{tshowM $ getDate packingListDeparture minimumEx}
+          <td> #{tshowM $ getDate packingListArriving maximumEx}
+          <td.text-right> #{formatDouble' $ sum cbms} m<sup>3</sub>
+          <td.text-right> #{maybe "" formatPerCbm  (lookup PackingListShippingE allCosts)  } /m<sup>3
+          ^{costTds allCosts}
+      <tr>
+          <td>
+          <th> Average
+          <td>
+          <td>
+          <td>
+          <td>
+          <td.text-right> #{formatDouble' $ avg} m<sup>3</sub>
+          <td.text-right>
+          ^{costTds $ fmap perPL allCosts}
+<div.panel.panel-primary>
+  <div.panel-heading data-toggle=collapse data-target=#pl-report-styles>
+    <h2>Styles summary
+  <div.panel-body id=pl-report-styles>
+    ^{renderDetailInfo allInfos}
                         |]
 
   
