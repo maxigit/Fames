@@ -40,6 +40,7 @@ import Data.Conduit.List (consume)
 import Data.Text(splitOn)
 import Text.Blaze.Html(Markup, ToMarkup)
 import GL.Utils
+import qualified FA as FA
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
 data EditMode = Replace | Insert | Delete deriving (Eq, Read, Show, Enum)
@@ -266,9 +267,7 @@ updatePackingListInvoices key cart = do
       onSuccess (shippings) = do
             -- prefill information
         runDB $ do
-           deleteWhere [ TransactionMapEventType ==. PackingListShippingE
-                       , TransactionMapEventNo ==. fromIntegral key
-                       ]
+           deleteWhere (transMapFilter plKey)
            insertMany_ shippings
         viewPackingList EditInvoices key (return ())
   renderParsingResult (\msg pre -> do msg >>  viewPackingList EditInvoices key pre)
@@ -409,15 +408,16 @@ postWHPackingListDeliverR key = do
 viewPackingList :: PLViewMode -> Int64 ->  Widget -> Handler TypedContent
 viewPackingList mode key pre = do
   let plKey = PackingListKey (SqlBackendKey key)
-  (plM, docKeyM, entities, invoiceNos) <- runDB $ do
+  (plM, docKeyM, entities, invoiceNos, invoices) <- runDB $ do
       plM <- get plKey
       entities <- selectList [PackingListDetailPackingList ==. plKey] [Asc PackingListDetailId]
       invoiceNos <- loadInvoicesNoFor plKey
+      invoices <- concat <$> mapM (loadSuppInvoiceFor . entityVal) invoiceNos
       docKey <- do
         case plM of
           Nothing -> return Nothing
           Just pl -> get (packingListDocumentKey pl)
-      return (plM, docKey, entities, invoiceNos)
+      return (plM, docKey, entities, invoiceNos, invoices)
 
   today <- todayH
 
@@ -437,7 +437,9 @@ viewPackingList mode key pre = do
                     , [ ("DEPARTURE", tshow <$> packingListDeparture pl)
                       , ("ARRIVING", tshow <$> packingListArriving pl)
                       ]
-                    , [ ("SHIPPING", Just (tshow $ transactionMapFaTransNo event)) | event <- filter ((== PackingListShippingE) . transactionMapEventType) (map entityVal invoiceNos)]
+                    -- , [ ("SHIPPING", Just (tshow $ transactionMapFaTransNo event)) | event <- filter ((== PackingListShippingE) . transactionMapEventType) (map entityVal invoiceNos)]
+                    -- , [ ("SUPPLIER INVOICE", Just (tshow $ transactionMapFaTransNo event)) | event <- filter ((== PackingListInvoiceE) . transactionMapEventType) (map entityVal invoiceNos)]
+                    -- , [ ("DUTY ", Just (tshow $ transactionMapFaTransNo event)) | event <- filter ((== PackingListDutyE) . transactionMapEventType) (map entityVal invoiceNos)]
                         
                     ] :: [[(Text, Maybe Text)]]
       let panelClass delivered | delivered == 0 = "success" :: Text
@@ -490,6 +492,14 @@ viewPackingList mode key pre = do
                   $forall (field, value) <- fields
                       <b>#{field}
                       #{fromMaybe "" value}
+              <table.table.table-border.table-hover.table-striped>
+                $forall (event, Entity _ trans) <- invoices
+                  <tr>
+                   <td> #{fromMaybe (tshow $ transactionMapEventType event) (showEvent event)}
+                   <td> #{FA.suppTranSuppReference trans}
+                   <td> #{tshow $ (FA.suppTranOvAmount trans)}
+                   <td> #{tshow $ (FA.suppTranOvDiscount trans)}
+                   <td> #{tshow $ FA.suppTranRate trans}
 
             <p>#{documentKeyComment docKey}
                 |]
@@ -858,18 +868,22 @@ renderEdit key pl doc = do
 |]
 
 
+showEvent :: TransactionMap -> Maybe Text
+showEvent TransactionMap{..} = case transactionMapEventType of
+                   PackingListShippingE -> Just "shipping"
+                   PackingListInvoiceE -> Just "supplier"
+                   PackingListDutyE -> Just "duty"
+                   _ -> Nothing
+
 editInvoicesForm :: Maybe Text -> Markup -> _ (FormResult Textarea, Widget)
 editInvoicesForm defCart  = renderBootstrap3 BootstrapBasicForm form
   where form = areq textareaField "invoices" (Textarea <$> defCart)
 renderEditInvoices :: Int64 -> [Entity TransactionMap] -> Handler Widget
 renderEditInvoices key invoicesNos = do
   let cart = unlines $ "-- ship:trans_no for shipping invoices" :
-               [ case transactionMapEventType of
-                   PackingListShippingE -> "ship:" <> tshow transactionMapFaTransNo
-                   _ -> "-- " <> tshow transactionMapEventType
-                        <> ":"
-                        <> tshow transactionMapFaTransNo
-               | (Entity _ TransactionMap{..}) <- invoicesNos
+               [ ( fromMaybe  ("-- " <> tshow (transactionMapEventType ev)) (showEvent ev)
+                 ) <> ":" <> tshow (transactionMapFaTransNo ev)
+               | (Entity _ ev) <- invoicesNos
                ] 
   (form, encType) <- generateFormPost (editInvoicesForm (Just $ cart))
   return [whamlet|
@@ -1190,16 +1204,16 @@ parseDeliverList cart = let
 parseInvoiceList :: PackingListId -> Text -> ParsingResult ParseDeliveryError [TransactionMap]
 parseInvoiceList plKey cart = let
   parsed = map parseLine (filter (not . isPrefixOf "--") (lines cart))
-  parseLine line = 
-    case break (== ':' ) line of
-               ("ship" , t)| s <- drop 1 t  -> case readMay s of
-                   Nothing -> Left line --  (s <> " is not a number")
-                   Just no -> Right (TransactionMap ST_SUPPINVOICE
-                                                    no
-                                                    PackingListShippingE
-                                                    (fromIntegral $ unSqlBackendKey $ unPackingListKey plKey)
-                                    , line )
-               _ -> Left line
+  parseLine line = maybe (Left line) (Right . (,line))  $ do -- Maybe
+    let (prefix, nos) = break (== ':') line
+    no <- readMay (drop 1 nos)
+    ftype <- case toLower (take 4 prefix) of
+               "ship" -> Just PackingListShippingE
+               "supp" -> Just PackingListInvoiceE
+               "duty" -> Just PackingListDutyE
+               _ -> Nothing
+    Just $ TransactionMap ST_SUPPINVOICE no ftype
+                         (fromIntegral $ unSqlBackendKey $ unPackingListKey plKey)
   in case sequence parsed of
          Right trans -> ParsingCorrect (map fst trans)
          Left _ -> InvalidFormat $ map (ParseDeliveryError . map snd) parsed
@@ -1437,15 +1451,39 @@ postWHPackingListReportR = do
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess param ->  do
       reportFor param
+
+transMapFilter :: PackingListId -> [Filter TransactionMap]
+transMapFilter plKey =
+     [ TransactionMapEventNo ==. fromIntegral (unSqlBackendKey (unPackingListKey plKey))
+     , FilterOr (map (TransactionMapEventType ==.) [PackingListShippingE])
+     ]
+
       
--- loadInvoicesFor :: Entity PackingList -> [Entity TransactionMap]
+loadInvoicesNoFor :: PackingListId -> SqlHandler [Entity TransactionMap]
 loadInvoicesNoFor plKey = do
-    ids <- selectList [TransactionMapFaTransType ==. ST_SUPPINVOICE, TransactionMapEventNo ==. fromIntegral (unSqlBackendKey (unPackingListKey plKey)) ] []
+    ids <- selectList ((TransactionMapFaTransType ==. ST_SUPPINVOICE) : transMapFilter plKey) []
     return ids
     
 -- loadInvoicesNoFor (Entity plKey _)= do
 --     ids <- selectList [TransactionMapFaTransType ==. ST_SUPPINVOICE, TransactionMapEventNo ==. fromIntegral (unSqlBackendKey (unPackingListKey plKey)) ] []
 --     mapM 
+
+loadSuppInvoiceFor :: TransactionMap -> SqlHandler [(TransactionMap, Entity FA.SuppTran)]
+loadSuppInvoiceFor tm@TransactionMap{..} = do
+  ts <- selectList [ FA.SuppTranTransNo ==. transactionMapFaTransNo, FA.SuppTranType ==. fromEnum transactionMapFaTransType] []
+  return (map (tm,) ts)
+
+-- | load and split all supplier invoices into supplier, duty and shipping
+-- loadAllInvoices :: PackingListId -> SqlHandler ([Entity FA.SuppTran], [Entity FA.SuppTran], [Entity FA.SuppTran])
+-- loadAllInvoices plKey = do
+--   transMapE <- loadInvoicesNoFor plKey
+--   let f ftype = filter ( (== ftype) . transactionMapEventType) transMap
+--       transMap = map entityVal transMapE
+--       transMap' = map f [PackingListInvoiceE, PackingListDutyE, PackingListShippingE]
+      
+--   [invoices, dutys, ships] <- mapM (mapM (loadSuppInvoiceFor))  transMap'
+--   _return (invoices, dutys, ships)
+
 
 reportFor param@ReportParam{..} = do
   -- load pl

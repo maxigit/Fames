@@ -33,7 +33,9 @@ data EventType = StockAdjustmentE
                | PayrollShiftE
                | PayrollItemE
                | TimesheetE
-               | PackingListShippingE
+               | PackingListShippingE -- ^ Shipping invoice for a delivery
+               | PackingListDutyE -- ^ duty invoice for a delivery
+               | PackingListInvoiceE -- ^ supplier invoice for a delivery
   deriving (Eq, Show, Enum)
 
 -- | derivePersistField uses String instead of an INt
