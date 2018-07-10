@@ -1545,7 +1545,7 @@ reportFor param@ReportParam{..} = do
       <th> #{tshowM $ getDate packingListArriving maximumEx}
       <th.text-right> #{formatDouble $ sum cbms} m<sup>3</sub>
       <th.text-right> #{maybe "" (formatPerCbm . getSum)  (lookup PackingListShippingE allCosts)  } /m<sup>3
-      ^{costTds allCosts}
+      ^{costTds $ fmap (fmap perPL) allCosts}
                         |]
 
   
