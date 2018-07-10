@@ -41,6 +41,7 @@ import Data.Text(splitOn,strip)
 import Text.Blaze.Html(Markup, ToMarkup)
 import GL.Utils
 import qualified FA as FA
+import Formatting
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
 data EditMode = Replace | Insert | Delete deriving (Eq, Read, Show, Enum)
@@ -499,8 +500,8 @@ viewPackingList mode key pre = do
                   <tr>
                    <td> #{fromMaybe (tshow $ transactionMapEventType event) (showEvent event)}
                    <td> #{decodeHtmlEntities $ FA.suppTranSuppReference trans}
-                   <td.text-right> #{formatDouble $ (FA.suppTranOvAmount trans * FA.suppTranRate trans)}
-                   <td.text-right> #{formatDouble $ (FA.suppTranOvDiscount trans * FA.suppTranRate trans)}
+                   <td.text-right> #{formatDouble' $ (FA.suppTranOvAmount trans * FA.suppTranRate trans)}
+                   <td.text-right> #{formatDouble' $ (FA.suppTranOvDiscount trans * FA.suppTranRate trans)}
                    <td.text-right> #{tshow $ FA.suppTranRate trans}
                    <td> <a href="#{urlForFA faUrl (transactionMapFaTransType event) (transactionMapFaTransNo event)}" target=_blank>##{transactionMapFaTransNo event}
 
@@ -1431,6 +1432,7 @@ deletePLDetails plKey sections = do
                           )
                 )
 -- * Report
+formatDouble' = sformat commasFixed
 data ReportParam  = ReportParam
   { rpStart :: Maybe Day
   , rpEnd :: Maybe Day
@@ -1503,8 +1505,8 @@ reportFor param@ReportParam{..} = do
       getDate field aggregate = case mapMaybe (field . entityVal . fst) plXs of
         [] -> Nothing
         dates -> Just $ aggregate dates
-      formatPerCbm =  formatDouble . perCbm -- doesn't work in whamlet ortherwise
-      formatPerCbm' cbm x =  formatDouble $ x/cbm -- doesn't work in whamlet ortherwise
+      formatPerCbm =  formatDouble' . perCbm -- doesn't work in whamlet ortherwise
+      formatPerCbm' cbm x =  formatDouble' $ x/cbm -- doesn't work in whamlet ortherwise
        
       allInfos = unionsWith (<>) (map (snd.snd.snd) plXs)
       costTds costMap = do
@@ -1517,14 +1519,14 @@ reportFor param@ReportParam{..} = do
 
         [whamlet|
   $forall costType <- [PackingListShippingE,PackingListDutyE, PackingListInvoiceE]
-    <td.text-right> #{maybe "" formatDouble (lookup costType costMap)}
+    <td.text-right> #{maybe "" formatDouble' (lookup costType costMap)}
     $if costType /= PackingListInvoiceE
       <td.text-right>
         $case calcPerc costType
           $of Nothing
             -
           $of Just p
-            #{formatDouble p}%
+            #{formatDouble' p}%
                                    |]
 
   defaultLayout [whamlet|
@@ -1554,7 +1556,7 @@ reportFor param@ReportParam{..} = do
       <td> #{fromMaybe "" $ packingListContainer pl}
       <td> #{maybe "" tshow (packingListDeparture pl) }
       <td> #{maybe "" tshow (packingListArriving pl) }
-      <td.text-right> #{formatDouble cbm} m<sup>3</sub>
+      <td.text-right> #{formatDouble' cbm} m<sup>3</sub>
       <td.text-right> #{maybe "" (formatPerCbm' cbm )  (lookup PackingListShippingE costMap)  } /m<sup>3
       ^{costTds costMap}
   <tr>
@@ -1564,7 +1566,7 @@ reportFor param@ReportParam{..} = do
       <td> #{length cbms}
       <td> #{tshowM $ getDate packingListDeparture minimumEx}
       <td> #{tshowM $ getDate packingListArriving maximumEx}
-      <td.text-right> #{formatDouble $ sum cbms} m<sup>3</sub>
+      <td.text-right> #{formatDouble' $ sum cbms} m<sup>3</sub>
       <td.text-right> #{maybe "" formatPerCbm  (lookup PackingListShippingE allCosts)  } /m<sup>3
       ^{costTds allCosts}
   <tr>
@@ -1574,7 +1576,7 @@ reportFor param@ReportParam{..} = do
       <td>
       <td>
       <td>
-      <td.text-right> #{formatDouble $ avg} m<sup>3</sub>
+      <td.text-right> #{formatDouble' $ avg} m<sup>3</sub>
       <td.text-right>
       ^{costTds $ fmap perPL allCosts}
 <div.well>
@@ -1584,17 +1586,20 @@ reportFor param@ReportParam{..} = do
   
 renderDetailInfo :: Map Text DetailInfo -> Widget
 renderDetailInfo infos = do
-  let row style di = [whamlet|
+  let row footer style di = [whamlet|
     $with diQ <- normQ di
       <tr>
-        <td>#{style}
+        $if footer
+          <th>#{style}
+        $else
+          <td>#{style}
         <td.text-right>#{diQty di}
-        <td>#{formatDouble $ diVolume di} m<sup>3
-        <td>#{formatDouble $ diVolume diQ} m<sup>3
+        <td.text-right>#{formatDouble' $ diVolume di} m<sup>3
+        <td.text-right>#{sformat (fixed 4) $ diVolume diQ} m<sup>3
         $with cost <- diCostMap di
-          <td>#{maybe "" formatDouble (lookup PackingListShippingE cost) }
+          <td.text-right>#{maybe "" formatDouble' (lookup PackingListShippingE cost) }
         $with cost <- diCostMap diQ
-          <td>#{maybe "" formatDouble (lookup PackingListShippingE cost) }
+          <td.text-right>#{maybe "" formatDouble' (lookup PackingListShippingE cost) }
           |]
       totalTitle = "Total" :: Text
   [whamlet|
@@ -1607,9 +1612,9 @@ renderDetailInfo infos = do
     <th> Shipping Cost
     <th> Shipping/Item
   $forall (style, di) <- mapToList infos
-    ^{row style di}
+    ^{row False style di}
   <tr>
-    ^{row totalTitle (concat (toList infos))}
+    ^{row True totalTitle (concat (toList infos))}
       |]
 
 -- | Computes cbm and costs for a given PL
