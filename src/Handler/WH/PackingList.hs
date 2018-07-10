@@ -37,7 +37,7 @@ import WH.Barcode
 import WH.PackingList.Internal
 import Text.Printf(printf)
 import Data.Conduit.List (consume)
-import Data.Text(splitOn)
+import Data.Text(splitOn,strip)
 import Text.Blaze.Html(Markup, ToMarkup)
 import GL.Utils
 import qualified FA as FA
@@ -1205,8 +1205,10 @@ parseInvoiceList :: PackingListId -> Text -> ParsingResult ParseDeliveryError [T
 parseInvoiceList plKey cart = let
   parsed = map parseLine (filter (not . isPrefixOf "--") (lines cart))
   parseLine line = maybe (Left line) (Right . (,line))  $ do -- Maybe
-    let (prefix, nos) = break (== ':') line
+    traceShowM line
+    let (prefix, nos) = break (== ':') (strip line)
     no <- readMay (drop 1 nos)
+    traceShowM no
     ftype <- case toLower (take 4 prefix) of
                "ship" -> Just PackingListShippingE
                "supp" -> Just PackingListInvoiceE
