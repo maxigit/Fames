@@ -41,7 +41,6 @@ import Data.Text(splitOn,strip)
 import Text.Blaze.Html(Markup, ToMarkup)
 import GL.Utils
 import qualified FA as FA
-import Data.Monoid(Sum(..))
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
 data EditMode = Replace | Insert | Delete deriving (Eq, Read, Show, Enum)
@@ -1500,24 +1499,25 @@ reportFor param@ReportParam{..} = do
       avg = perPL (sum cbms)
       perPL x = x / fromIntegral (length cbms)
       perCbm x = x / (sum cbms)
-      allCosts = unionsWith (<>) (map (snd.snd) plXs)
+      allCosts = unionsWith (+) (map (fst.snd.snd) plXs)
       getDate field aggregate = case mapMaybe (field . entityVal . fst) plXs of
         [] -> Nothing
         dates -> Just $ aggregate dates
       formatPerCbm =  formatDouble . perCbm -- doesn't work in whamlet ortherwise
       formatPerCbm' cbm x =  formatDouble $ x/cbm -- doesn't work in whamlet ortherwise
        
+      allInfos = unionsWith (<>) (map (snd.snd.snd) plXs)
       costTds costMap = do
         let totalInvoiceM = lookup PackingListInvoiceE costMap
             calcPerc PackingListInvoiceE = Nothing 
             calcPerc costType = do -- Maybe
                      totalInvoice <- totalInvoiceM
                      cost <- lookup costType costMap
-                     return $ 100 * getSum cost / getSum totalInvoice
+                     return $ 100 * cost / totalInvoice
 
         [whamlet|
   $forall costType <- [PackingListShippingE,PackingListDutyE, PackingListInvoiceE]
-    <td.text-right> #{maybe "" (formatDouble . getSum) (lookup costType costMap)}
+    <td.text-right> #{maybe "" formatDouble (lookup costType costMap)}
     $if costType /= PackingListInvoiceE
       <td.text-right>
         $case calcPerc costType
@@ -1545,7 +1545,7 @@ reportFor param@ReportParam{..} = do
       <th> Duty Cost
       <th> %
       <th> Supplier Cost
-  $forall (Entity key pl, (cbm, costMap)) <- plXs
+  $forall (Entity key pl, (cbm, (costMap, _))) <- plXs
     <tr>
       <td> <a href="@{WarehouseR (WHPackingListViewR (unSqlBackendKey $ unPackingListKey key) Nothing)}">
         ##{tshow $ unSqlBackendKey $ unPackingListKey key}
@@ -1555,7 +1555,7 @@ reportFor param@ReportParam{..} = do
       <td> #{maybe "" tshow (packingListDeparture pl) }
       <td> #{maybe "" tshow (packingListArriving pl) }
       <td.text-right> #{formatDouble cbm} m<sup>3</sub>
-      <td.text-right> #{maybe "" (formatPerCbm' cbm . getSum)  (lookup PackingListShippingE costMap)  } /m<sup>3
+      <td.text-right> #{maybe "" (formatPerCbm' cbm )  (lookup PackingListShippingE costMap)  } /m<sup>3
       ^{costTds costMap}
   <tr>
       <td>
@@ -1565,7 +1565,7 @@ reportFor param@ReportParam{..} = do
       <td> #{tshowM $ getDate packingListDeparture minimumEx}
       <td> #{tshowM $ getDate packingListArriving maximumEx}
       <td.text-right> #{formatDouble $ sum cbms} m<sup>3</sub>
-      <td.text-right> #{maybe "" (formatPerCbm . getSum)  (lookup PackingListShippingE allCosts)  } /m<sup>3
+      <td.text-right> #{maybe "" formatPerCbm  (lookup PackingListShippingE allCosts)  } /m<sup>3
       ^{costTds allCosts}
   <tr>
       <td>
@@ -1576,10 +1576,41 @@ reportFor param@ReportParam{..} = do
       <td>
       <td.text-right> #{formatDouble $ avg} m<sup>3</sub>
       <td.text-right>
-      ^{costTds $ fmap (fmap perPL) allCosts}
+      ^{costTds $ fmap perPL allCosts}
+<div.well>
+  ^{renderDetailInfo allInfos}
                         |]
 
   
+renderDetailInfo :: Map Text DetailInfo -> Widget
+renderDetailInfo infos = do
+  let row style di = [whamlet|
+    $with diQ <- normQ di
+      <tr>
+        <td>#{style}
+        <td.text-right>#{diQty di}
+        <td>#{formatDouble $ diVolume di} m<sup>3
+        <td>#{formatDouble $ diVolume diQ} m<sup>3
+        $with cost <- diCostMap di
+          <td>#{maybe "" formatDouble (lookup PackingListShippingE cost) }
+        $with cost <- diCostMap diQ
+          <td>#{maybe "" formatDouble (lookup PackingListShippingE cost) }
+          |]
+      totalTitle = "Total" :: Text
+  [whamlet|
+<table.table.table-border.table-hover.table.striped>
+  <tr>
+    <th> Style
+    <th.text-right> Quantity
+    <th> Volume
+    <th> Vol/Item
+    <th> Shipping Cost
+    <th> Shipping/Item
+  $forall (style, di) <- mapToList infos
+    ^{row style di}
+  <tr>
+    ^{row totalTitle (concat (toList infos))}
+      |]
 
 -- | Computes cbm and costs for a given PL
 loadPLInfo e@(Entity plKey pl) = do
@@ -1591,13 +1622,51 @@ loadPLInfo e@(Entity plKey pl) = do
     invoices <- concat <$> mapM (loadSuppInvoiceFor . entityVal) invoiceNos
 
 
-    let costs = groupAsMap (transactionMapEventType.fst)
-                           (\(_, Entity _ FA.SuppTran{..}) -> Sum $ (suppTranOvAmount - suppTranOvDiscount) * suppTranRate )
+    let costs = fmap sum $ groupAsMap (transactionMapEventType.fst)
+                           (\(_, Entity _ FA.SuppTran{..}) -> [(suppTranOvAmount - suppTranOvDiscount) * suppTranRate ])
                            invoices
 
-    return (e, (cbm, costs))
+        info = computeStyleShippingCost entities costs
+
+    return (e, (cbm, (costs, info)))
+
+-- | Information relative to style within deliveries, quantities, volume, costs
+
+data DetailInfo  = DetailInfo
+  { diQty :: Int
+  , diVolume :: Double 
+  , diCostMap :: Map EventType Double
+  } deriving Show
+
+instance Semigroup DetailInfo  where
+  DetailInfo qty vol cost <> DetailInfo qty' vol' cost' = DetailInfo (qty+qty') (vol+vol') (unionWith (+) cost cost')
+
+instance Monoid DetailInfo  where
+  mempty = DetailInfo 0 0 mempty
+  mappend = (<>)
+
+normQ :: DetailInfo ->  DetailInfo
+normQ (DetailInfo qty vol cost) = DetailInfo 1 (forQ vol) (fmap forQ cost)
+  where forQ x = x / fromIntegral qty
+-- | Computes the contribution  of a given style to the shipping cost relative to the occupied volume
+computeStyleShippingCost :: [Entity PackingListDetail] -> Map EventType Double -> Map Text DetailInfo
+computeStyleShippingCost details costMap = let
+    toInfo e@(Entity _ PackingListDetail{..})  = DetailInfo (sum (toList packingListDetailContent)) ((/1e6) . volume . boxDimension $ toBox e) mempty
+    styleMap = groupAsMap (packingListDetailStyle. entityVal) toInfo details
+
+    in case lookup PackingListShippingE costMap of
+          Nothing ->  styleMap
+          Just shippingCost -> let
+            totalCbm = sum (map diVolume $ toList styleMap)
+            costFor cbm = shippingCost * cbm / totalCbm
+            shipCost di = di {diCostMap = singletonMap PackingListShippingE (costFor (diVolume di)) }
+            in fmap shipCost styleMap
+        
 
 
+        
+        
+        
 
 
   
