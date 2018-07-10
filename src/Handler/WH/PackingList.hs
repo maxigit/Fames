@@ -41,6 +41,7 @@ import Data.Text(splitOn,strip)
 import Text.Blaze.Html(Markup, ToMarkup)
 import GL.Utils
 import qualified FA as FA
+import Data.Monoid(Sum(..))
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
 data EditMode = Replace | Insert | Delete deriving (Eq, Read, Show, Enum)
@@ -1493,17 +1494,37 @@ reportFor param@ReportParam{..} = do
     pls <- selectList [PackingListDeparture >=. rpStart, PackingListDeparture <=. rpEnd] []
     mapM loadPLInfo pls
   let cbms = map (fst.snd) plXs
-      avg = sum cbms / fromIntegral (length cbms)
+      avg = perPL (sum cbms)
+      perPL x = x / fromIntegral (length cbms)
+      perCbm x = x / (sum cbms)
+      allCosts = mconcat (map (snd.snd) plXs)
       getDate field aggregate = case mapMaybe (field . entityVal . fst) plXs of
         [] -> Nothing
         dates -> Just $ aggregate dates
+      formatPerCbm =  formatDouble . perCbm -- doesn't work in whamlet ortherwise
        
+      costTds costMap = [whamlet|
+  $forall costType <- [PackingListShippingE,PackingListDutyE, PackingListInvoiceE]
+    <td.text-right> #{maybe "" (formatDouble . getSum) (lookup costType costMap)}
+                                   |]
 
   defaultLayout [whamlet|
 <div.well>
   ^{reportFormWidget param}
 <table.table.table-bordered.table-hover>
-  $forall (Entity key pl, (cbm, _)) <- plXs
+  <tr>
+      <th>
+      <th> Reference
+      <th> Vessel
+      <th> Container 
+      <th> Departure
+      <th> Arriving
+      <th.text-right> Volume
+      <th.text-right> Shipping cost/m<sup>3
+      <th> Shipping Cost
+      <th> Duty Cost
+      <th> Supplier Cost
+  $forall (Entity key pl, (cbm, costMap)) <- plXs
     <tr>
       <td> <a href="@{WarehouseR (WHPackingListViewR (unSqlBackendKey $ unPackingListKey key) Nothing)}">
         ##{tshow $ unSqlBackendKey $ unPackingListKey key}
@@ -1513,14 +1534,18 @@ reportFor param@ReportParam{..} = do
       <td> #{maybe "" tshow (packingListDeparture pl) }
       <td> #{maybe "" tshow (packingListArriving pl) }
       <td.text-right> #{formatDouble cbm} m<sup>3</sub>
+      <td.text-right> #{maybe "" (formatPerCbm . getSum)  (lookup PackingListShippingE costMap)  } /m<sup>3
+      ^{costTds costMap}
   <tr>
       <th>
       <th>
       <th>
-      <th.text-right> #{length cbms}
+      <th> #{length cbms} x #{formatDouble avg} m<sup>3
       <th> #{tshowM $ getDate packingListDeparture minimumEx}
       <th> #{tshowM $ getDate packingListArriving maximumEx}
-      <th.text-right> #{formatDouble avg} m<sup>3</sub>
+      <th.text-right> #{formatDouble $ sum cbms} m<sup>3</sub>
+      <th.text-right> #{maybe "" (formatPerCbm . getSum)  (lookup PackingListShippingE allCosts)  } /m<sup>3
+      ^{costTds allCosts}
                         |]
 
   
@@ -1534,7 +1559,12 @@ loadPLInfo e@(Entity plKey pl) = do
     invoiceNos <- loadInvoicesNoFor plKey
     invoices <- concat <$> mapM (loadSuppInvoiceFor . entityVal) invoiceNos
 
-    return (e, (cbm, invoices))
+
+    let costs = groupAsMap (transactionMapEventType.fst)
+                           (\(_, Entity _ FA.SuppTran{..}) -> Sum $ (suppTranOvAmount - suppTranOvDiscount) / suppTranRate )
+                           invoices
+
+    return (e, (cbm, costs))
 
 
 
