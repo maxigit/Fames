@@ -421,6 +421,8 @@ viewPackingList mode key pre = do
       return (plM, docKey, entities, invoiceNos, invoices)
 
   today <- todayH
+  faUrl <- getsYesod (pack . appFAExternalURL . appSettings)
+
 
   case (plM, docKeyM) of
     (Just pl, Just docKey) -> do
@@ -497,10 +499,11 @@ viewPackingList mode key pre = do
                 $forall (event, Entity _ trans) <- invoices
                   <tr>
                    <td> #{fromMaybe (tshow $ transactionMapEventType event) (showEvent event)}
-                   <td> #{FA.suppTranSuppReference trans}
-                   <td> #{tshow $ (FA.suppTranOvAmount trans)}
-                   <td> #{tshow $ (FA.suppTranOvDiscount trans)}
-                   <td> #{tshow $ FA.suppTranRate trans}
+                   <td> #{decodeHtmlEntities $ FA.suppTranSuppReference trans}
+                   <td.text-right> #{formatDouble $ (FA.suppTranOvAmount trans * FA.suppTranRate trans)}
+                   <td.text-right> #{formatDouble $ (FA.suppTranOvDiscount trans * FA.suppTranRate trans)}
+                   <td.text-right> #{tshow $ FA.suppTranRate trans}
+                   <td> <a href="#{urlForFA faUrl (transactionMapFaTransType event) (transactionMapFaTransNo event)}" target=_blank>##{transactionMapFaTransNo event}
 
             <p>#{documentKeyComment docKey}
                 |]
@@ -1502,6 +1505,7 @@ reportFor param@ReportParam{..} = do
         [] -> Nothing
         dates -> Just $ aggregate dates
       formatPerCbm =  formatDouble . perCbm -- doesn't work in whamlet ortherwise
+      formatPerCbm' cbm x =  formatDouble $ x/cbm -- doesn't work in whamlet ortherwise
        
       costTds costMap = [whamlet|
   $forall costType <- [PackingListShippingE,PackingListDutyE, PackingListInvoiceE]
@@ -1534,7 +1538,7 @@ reportFor param@ReportParam{..} = do
       <td> #{maybe "" tshow (packingListDeparture pl) }
       <td> #{maybe "" tshow (packingListArriving pl) }
       <td.text-right> #{formatDouble cbm} m<sup>3</sub>
-      <td.text-right> #{maybe "" (formatPerCbm . getSum)  (lookup PackingListShippingE costMap)  } /m<sup>3
+      <td.text-right> #{maybe "" (formatPerCbm' cbm . getSum)  (lookup PackingListShippingE costMap)  } /m<sup>3
       ^{costTds costMap}
   <tr>
       <th>
@@ -1561,7 +1565,7 @@ loadPLInfo e@(Entity plKey pl) = do
 
 
     let costs = groupAsMap (transactionMapEventType.fst)
-                           (\(_, Entity _ FA.SuppTran{..}) -> Sum $ (suppTranOvAmount - suppTranOvDiscount) / suppTranRate )
+                           (\(_, Entity _ FA.SuppTran{..}) -> Sum $ (suppTranOvAmount - suppTranOvDiscount) * suppTranRate )
                            invoices
 
     return (e, (cbm, costs))
