@@ -1500,7 +1500,7 @@ reportFor param@ReportParam{..} = do
       avg = perPL (sum cbms)
       perPL x = x / fromIntegral (length cbms)
       perCbm x = x / (sum cbms)
-      allCosts = mconcat (map (snd.snd) plXs)
+      allCosts = unionsWith (<>) (map (snd.snd) plXs)
       getDate field aggregate = case mapMaybe (field . entityVal . fst) plXs of
         [] -> Nothing
         dates -> Just $ aggregate dates
@@ -1558,14 +1558,24 @@ reportFor param@ReportParam{..} = do
       <td.text-right> #{maybe "" (formatPerCbm' cbm . getSum)  (lookup PackingListShippingE costMap)  } /m<sup>3
       ^{costTds costMap}
   <tr>
-      <th>
-      <th>
-      <th>
-      <th> #{length cbms} x #{formatDouble avg} m<sup>3
-      <th> #{tshowM $ getDate packingListDeparture minimumEx}
-      <th> #{tshowM $ getDate packingListArriving maximumEx}
-      <th.text-right> #{formatDouble $ sum cbms} m<sup>3</sub>
-      <th.text-right> #{maybe "" (formatPerCbm . getSum)  (lookup PackingListShippingE allCosts)  } /m<sup>3
+      <td>
+      <th> Total
+      <td>
+      <td> #{length cbms}
+      <td> #{tshowM $ getDate packingListDeparture minimumEx}
+      <td> #{tshowM $ getDate packingListArriving maximumEx}
+      <td.text-right> #{formatDouble $ sum cbms} m<sup>3</sub>
+      <td.text-right> #{maybe "" (formatPerCbm . getSum)  (lookup PackingListShippingE allCosts)  } /m<sup>3
+      ^{costTds allCosts}
+  <tr>
+      <td>
+      <th> Average
+      <td>
+      <td>
+      <td>
+      <td>
+      <td.text-right> #{formatDouble $ avg} m<sup>3</sub>
+      <td.text-right>
       ^{costTds $ fmap (fmap perPL) allCosts}
                         |]
 
