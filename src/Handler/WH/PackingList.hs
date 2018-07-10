@@ -1457,7 +1457,7 @@ postWHPackingListReportR = do
 transMapFilter :: PackingListId -> [Filter TransactionMap]
 transMapFilter plKey =
      [ TransactionMapEventNo ==. fromIntegral (unSqlBackendKey (unPackingListKey plKey))
-     , FilterOr (map (TransactionMapEventType ==.) [PackingListShippingE])
+     , FilterOr (map (TransactionMapEventType ==.) [PackingListShippingE, PackingListDutyE, PackingListInvoiceE])
      ]
 
       
@@ -1492,7 +1492,7 @@ reportFor param@ReportParam{..} = do
   plXs <- runDB $ do
     pls <- selectList [PackingListDeparture >=. rpStart, PackingListDeparture <=. rpEnd] []
     mapM loadPLInfo pls
-  let cbms = map snd plXs
+  let cbms = map (fst.snd) plXs
       avg = sum cbms / fromIntegral (length cbms)
       getDate field aggregate = case mapMaybe (field . entityVal . fst) plXs of
         [] -> Nothing
@@ -1503,7 +1503,7 @@ reportFor param@ReportParam{..} = do
 <div.well>
   ^{reportFormWidget param}
 <table.table.table-bordered.table-hover>
-  $forall (Entity key pl, cbm) <- plXs
+  $forall (Entity key pl, (cbm, _)) <- plXs
     <tr>
       <td> <a href="@{WarehouseR (WHPackingListViewR (unSqlBackendKey $ unPackingListKey key) Nothing)}">
         ##{tshow $ unSqlBackendKey $ unPackingListKey key}
@@ -1530,7 +1530,11 @@ loadPLInfo e@(Entity plKey pl) = do
     entities <- selectList [PackingListDetailPackingList ==. plKey] []
     let dimensions = map (boxDimension . toBox) entities
         cbm = (sum $ map  volume dimensions) / 1e6 -- convert cm to m3
-    return (e, cbm)
+
+    invoiceNos <- loadInvoicesNoFor plKey
+    invoices <- concat <$> mapM (loadSuppInvoiceFor . entityVal) invoiceNos
+
+    return (e, (cbm, invoices))
 
 
 

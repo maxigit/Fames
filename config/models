@@ -209,6 +209,8 @@ TransactionMap sql=fames_transaction_map
   faTransNo Int
   eventType EventType sqltype=Int
   eventNo Int
+  deriving Eq 
+  deriving Show 
 
   
 
