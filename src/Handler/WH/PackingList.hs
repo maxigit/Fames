@@ -1507,9 +1507,24 @@ reportFor param@ReportParam{..} = do
       formatPerCbm =  formatDouble . perCbm -- doesn't work in whamlet ortherwise
       formatPerCbm' cbm x =  formatDouble $ x/cbm -- doesn't work in whamlet ortherwise
        
-      costTds costMap = [whamlet|
+      costTds costMap = do
+        let totalInvoiceM = lookup PackingListInvoiceE costMap
+            calcPerc PackingListInvoiceE = Nothing 
+            calcPerc costType = do -- Maybe
+                     totalInvoice <- totalInvoiceM
+                     cost <- lookup costType costMap
+                     return $ 100 * getSum cost / getSum totalInvoice
+
+        [whamlet|
   $forall costType <- [PackingListShippingE,PackingListDutyE, PackingListInvoiceE]
     <td.text-right> #{maybe "" (formatDouble . getSum) (lookup costType costMap)}
+    $if costType /= PackingListInvoiceE
+      <td.text-right>
+        $case calcPerc costType
+          $of Nothing
+            -
+          $of Just p
+            #{formatDouble p}%
                                    |]
 
   defaultLayout [whamlet|
@@ -1526,7 +1541,9 @@ reportFor param@ReportParam{..} = do
       <th.text-right> Volume
       <th.text-right> Shipping cost/m<sup>3
       <th> Shipping Cost
+      <th> %
       <th> Duty Cost
+      <th> %
       <th> Supplier Cost
   $forall (Entity key pl, (cbm, costMap)) <- plXs
     <tr>
