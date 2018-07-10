@@ -19,6 +19,8 @@ module Import.NoFoundation
     , decodeHtmlEntities
     , groupAsMap
     , wordize
+    , commasFixed
+    , commasFixed'
     ) where
 
 import ClassyPrelude.Yesod as Import
@@ -36,6 +38,7 @@ import qualified Text.HTML.TagSoup as TS
 import qualified Data.Map as Map
 import qualified Data.List.Split as Split
 import Data.Char (isUpper)
+import Formatting
 
 
 import Text.Printf(printf)
@@ -106,6 +109,31 @@ formatQuantity :: Double -> String
 formatQuantity = strip0 . (\t -> t :: String) .  printf "%0.2f" where
   strip0 s = fromMaybe s (stripSuffix ".00" s)
 
+-- ** Formating lib
+-- | display a amount to 2 dec with thousands separator
+commasFixed = later go where
+  go x = let
+    (n,f) = properFraction x :: (Int, Double)
+    b = (commas' % "." % (left 2 '0' %. int)) -- n (floor $ 100 *  abs f)
+    in bprint b n (floor $ 100 *  abs f)
+
+-- | Sames as commasFixed but don't print commas if number is a whole number
+commasFixed' = later go where
+  go x = let
+    (n,f) = properFraction x :: (Int, Double)
+    frac =  floor (100 * abs f)
+    fracB = if frac < 1
+            then fconst mempty
+            else "." % left 2 '0' %. int
+    b = (commas' % fracB) -- n (floor $ 100 *  abs f)
+    in bprint b n frac
+
+-- | Like Formatting.commas but fix bug on negative value
+-- -125 - -,125
+commas' = later go where
+  go n = if n < 0
+         then bprint ("-" % commas) (abs n)
+         else bprint commas  n
 -- * FA utilit
 showTransType :: IsString t => FATransType -> t
 showTransType ST_JOURNAL = "Journal Entry"

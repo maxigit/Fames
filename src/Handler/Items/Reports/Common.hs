@@ -1365,30 +1365,6 @@ formatDouble'' runsum vtype x = let
               #{s}|]
         
 
--- | display a amount to 2 dec with thousands separator
-commasFixed = later go where
-  go x = let
-    (n,f) = properFraction x :: (Int, Double)
-    b = (commas' % "." % (left 2 '0' %. int)) -- n (floor $ 100 *  abs f)
-    in bprint b n (floor $ 100 *  abs f)
-
--- | Sames as commasFixed but don't print commas if number is a whole number
-commasFixed' = later go where
-  go x = let
-    (n,f) = properFraction x :: (Int, Double)
-    frac =  floor (100 * abs f)
-    fracB = if frac < 1
-            then fconst mempty
-            else "." % left 2 '0' %. int
-    b = (commas' % fracB) -- n (floor $ 100 *  abs f)
-    in bprint b n frac
-
--- | Like Formatting.commas but fix bug on negative value
--- -125 - -,125
-commas' = later go where
-  go n = if n < 0
-         then bprint ("-" % commas) (abs n)
-         else bprint commas  n
 
 formatAmount = formatDouble''  RSNormal VAmount
 formatQuantity = formatDouble''  RSNormal VQuantity
