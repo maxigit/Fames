@@ -78,7 +78,7 @@ getWHPackingListR :: Handler Html
 getWHPackingListR = do
   today <- todayH
   let lastYear = calculateDate (AddYears (-1)) today
-      reportParam = ReportParam (Just lastYear) (Just today)
+      reportParam = ReportParam (Just lastYear) (Just today) Nothing False Nothing
   renderWHPackingList Validate Nothing (Just reportParam) ok200 (setInfo "Enter a packing list") (return ())
 
 renderWHPackingList :: Mode -> (Maybe UploadParam) -> Maybe ReportParam -> Status -> Handler () ->  Widget -> Handler Html
@@ -1439,11 +1439,17 @@ formatDouble' = sformat commasFixed
 data ReportParam  = ReportParam
   { rpStart :: Maybe Day
   , rpEnd :: Maybe Day
+  , rpRate :: Maybe Double
+  , rpInverseRate :: Bool 
+  , rpMargin :: Maybe Double
   } 
 
 reportForm paramM = renderBootstrap3 BootstrapBasicForm form
   where form = ReportParam <$> aopt dayField "start" (rpStart <$> paramM )
                             <*> aopt dayField "end" (rpEnd <$> paramM)
+                            <*> aopt doubleField "rate" (rpRate <$> paramM)
+                            <*> areq boolField "inverse" (rpInverseRate <$> paramM)
+                            <*> aopt doubleField "margin" (rpMargin <$> paramM)
 
 reportFormWidget param = do
   (form, encType) <- generateFormPost (reportForm $ Just param)
@@ -1496,10 +1502,14 @@ loadSuppInvoiceFor tm@TransactionMap{..} = do
 
 
 reportFor param@ReportParam{..} = do
+  let rateFn = case rpRate of
+            Nothing -> (*)
+            Just rate' -> let rate = if rpInverseRate then (1/rate') else rate'
+                          in \a _ -> a * rate
   -- load pl
   plXs <- runDB $ do
     pls <- selectList [PackingListDeparture >=. rpStart, PackingListDeparture <=. rpEnd] []
-    mapM loadPLInfo pls
+    mapM (loadPLInfo rateFn) pls
   let cbms = map (fst.snd) plXs
       avg = perPL (sum cbms)
       perPL x = x / fromIntegral (length cbms)
@@ -1590,12 +1600,12 @@ reportFor param@ReportParam{..} = do
   <div.panel-heading data-toggle=collapse data-target=#pl-report-styles>
     <h2>Styles summary
   <div.panel-body id=pl-report-styles>
-    ^{renderDetailInfo allInfos}
+    ^{renderDetailInfo rpMargin allInfos}
                         |]
 
   
-renderDetailInfo :: Map Text DetailInfo -> Widget
-renderDetailInfo infos = do
+renderDetailInfo :: Maybe Double -> Map Text DetailInfo -> Widget
+renderDetailInfo marginM infos = do
   let row footer style di = [whamlet|
     $with diQ <- normQ di
       <tr>
@@ -1612,6 +1622,11 @@ renderDetailInfo infos = do
         $with cost <- diCostMap diQ
           <td.text-right>#{maybe "" formatDouble' (lookup PackingListShippingE cost) }
           <td.text-right>#{maybe "" formatDouble' (lookup PackingListInvoiceE cost) }
+          $with itemCost <- sum (toList cost)
+            <td.text-right> #{formatDouble' itemCost}
+            $maybe margin <- marginM
+              $with rrp <- itemCost * margin
+                <td.text-right> #{formatDouble' rrp}
           |]
       totalTitle = "Total" :: Text
   [whamlet|
@@ -1625,6 +1640,9 @@ renderDetailInfo infos = do
     <th> Shipping/Item
     <th> Buying Cost
     <th> Buying price
+    <th> Item cost (No duty)
+    $if isJust marginM
+      <th> RRP
   $forall (style, di) <- mapToList infos
     ^{row False style di}
   <tr>
@@ -1632,7 +1650,7 @@ renderDetailInfo infos = do
       |]
 
 -- | Computes cbm and costs for a given PL
-loadPLInfo e@(Entity plKey pl) = do
+loadPLInfo rateFn e@(Entity plKey pl) = do
     styleFn <- (fst.) <$> lift skuToStyleVarH
     entities <- selectList [PackingListDetailPackingList ==. plKey] []
     let dimensions = map (boxDimension . toBox) entities
@@ -1643,13 +1661,13 @@ loadPLInfo e@(Entity plKey pl) = do
 
 
     let costs = fmap sum $ groupAsMap (transactionMapEventType.fst)
-                           (\(_, Entity _ FA.SuppTran{..}) -> [(suppTranOvAmount - suppTranOvDiscount) * suppTranRate ])
+                           (\(_, Entity _ FA.SuppTran{..}) -> [(suppTranOvAmount - suppTranOvDiscount) `rateFn` suppTranRate ])
                            invoices
 
         shippingInfo = computeStyleShippingCost entities costs
         -- styleFn = fst . skuToStyleVar
         ref = sformat ("PL#"%shown %"-"%stext) (unSqlBackendKey $ unPackingListKey plKey) (packingListInvoiceRef pl)
-    info <- computeSupplierCosts ref styleFn (map (entityVal . snd) invoices)  shippingInfo
+    info <- computeSupplierCosts ref rateFn styleFn (map (entityVal . snd) invoices)  shippingInfo
 
     return (e, (cbm, (costs, info)))
 
@@ -1687,8 +1705,8 @@ computeStyleShippingCost details costMap = let
         
 
 -- | Loads supplier information 
-loadSuppInvoiceInfo :: (Text -> Text) -> FA.SuppTran -> SqlHandler (Map Text DetailInfo)
-loadSuppInvoiceInfo styleFn FA.SuppTran{..} = do
+loadSuppInvoiceInfo :: (Double -> Double -> Double) -> (Text -> Text) -> FA.SuppTran -> SqlHandler (Map Text DetailInfo)
+loadSuppInvoiceInfo  rateFn styleFn FA.SuppTran{..} = do
   -- load invoice details
   details <- selectList [ FA.SuppInvoiceItemSuppTransNo ==. Just suppTranTransNo
                          , FA.SuppInvoiceItemSuppTransType ==. Just suppTranType 
@@ -1699,18 +1717,18 @@ loadSuppInvoiceInfo styleFn FA.SuppTran{..} = do
   let toInfo (FA.SuppInvoiceItem{..}) = DetailInfo (round suppInvoiceItemQuantity)
                                                    0
                                                    (singletonMap PackingListInvoiceE
-                                                    (suppInvoiceItemQuantity * suppInvoiceItemUnitPrice) )
+                                                    (suppInvoiceItemQuantity * suppInvoiceItemUnitPrice `rateFn` suppTranRate) )
 
       styles = groupAsMap (styleFn . FA.suppInvoiceItemStockId) toInfo (map entityVal details)
   return styles
 
 -- | Load supplier info and check their consistency as well as merging them with previous one
-computeSupplierCosts :: Text -> (Text -> Text) -> [FA.SuppTran] -> Map Text DetailInfo -> SqlHandler (Map Text DetailInfo)
-computeSupplierCosts pl styleFn invoices shippInfo = do
-  invoiceInfos <- unionsWith (<>) <$>  mapM (loadSuppInvoiceInfo styleFn) invoices
+computeSupplierCosts :: Text -> (Double -> Double -> Double) -> (Text -> Text) -> [FA.SuppTran] -> Map Text DetailInfo -> SqlHandler (Map Text DetailInfo)
+computeSupplierCosts pl rateFn styleFn invoices shippInfo = do
+  invoiceInfos <- unionsWith (<>) <$>  mapM (loadSuppInvoiceInfo rateFn styleFn) invoices
   let 
   -- check it matches invoices amount
-      invoiceAmount = sum (map (\FA.SuppTran{..} -> suppTranOvAmount - suppTranOvDiscount) invoices)
+      invoiceAmount = sum (map (\FA.SuppTran{..} -> suppTranOvAmount - suppTranOvDiscount `rateFn` suppTranRate) invoices)
       detailsAmount = sum $ mapMaybe (lookup PackingListInvoiceE . diCostMap) (toList invoiceInfos)
   when (abs (detailsAmount  - invoiceAmount) > 1e-4) $ do
       let msg = "PL "% shown %"Invoice amount ("% commasFixed %") doesn't match content"% commasFixed  
