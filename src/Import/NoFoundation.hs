@@ -21,6 +21,7 @@ module Import.NoFoundation
     , wordize
     , commasFixed
     , commasFixed'
+    , mapWithKeyM
     ) where
 
 import ClassyPrelude.Yesod as Import
@@ -167,6 +168,10 @@ decodeHtmlEntities s = maybe s TS.fromTagText (headMay $ TS.parseTags s)
 groupAsMap :: (Semigroup a, Ord k) => (t -> k) -> (t -> a) -> [t] -> Map k a
 groupAsMap key f xs = Map.fromListWith (<>) [(key x, f x ) | x <- xs]
 
+mapWithKeyM :: (Monad m, Ord k) => (k -> a -> m b) -> Map k a -> m (Map k b)
+mapWithKeyM f m = do
+  pairs <- mapM (\(k, v) -> traverse (f k) (k, v)) (mapToList m)
+  return $ mapFromList pairs
 -- * Text
 -- | Transform camel case to word and remove prefix and suffix
 -- use full to make menu from data type

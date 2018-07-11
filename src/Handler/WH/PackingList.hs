@@ -1617,11 +1617,11 @@ renderDetailInfo marginM infos = do
         <td.text-right>#{formatDouble' $ diVolume di} m<sup>3
         <td.text-right>#{sformat (fixed 4) $ diVolume diQ} m<sup>3
         $with cost <- diCostMap di
-          <td.text-right>#{maybe "" formatDouble' (lookup PackingListShippingE cost) }
-          <td.text-right>#{maybe "" formatDouble' (lookup PackingListInvoiceE cost) }
+          $forall costType <- [PackingListShippingE,PackingListDutyE, PackingListInvoiceE]
+            <td.text-right>#{maybe "" formatDouble' (lookup costType cost) }
         $with cost <- diCostMap diQ
-          <td.text-right>#{maybe "" formatDouble' (lookup PackingListShippingE cost) }
-          <td.text-right>#{maybe "" formatDouble' (lookup PackingListInvoiceE cost) }
+          $forall costType <- [PackingListShippingE,PackingListDutyE, PackingListInvoiceE]
+            <td.text-right>#{maybe "" formatDouble' (lookup costType cost) }
           $with itemCost <- sum (toList cost)
             <td.text-right> #{formatDouble' itemCost}
             $maybe margin <- marginM
@@ -1637,10 +1637,12 @@ renderDetailInfo marginM infos = do
     <th> Volume
     <th> Vol/Item
     <th> Shipping Cost
-    <th> Shipping/Item
+    <th> Duty Cost
     <th> Buying Cost
+    <th> Shipping/Item
+    <th> Duty 
     <th> Buying price
-    <th> Item cost (No duty)
+    <th> Item cost 
     $if isJust marginM
       <th> RRP
   $forall (style, di) <- mapToList infos
@@ -1650,6 +1652,13 @@ renderDetailInfo marginM infos = do
       |]
 
 -- | Computes cbm and costs for a given PL
+loadPLInfo :: (Double -> Double -> Double) -> Entity PackingList
+           -> SqlHandler (Entity PackingList -- ^ itself
+                         , (Double -- ^ Cbm
+                           , (_ -- PL cost
+                             , Map Text DetailInfo -- ^ cost per style
+                             ) )
+                         )
 loadPLInfo rateFn e@(Entity plKey pl) = do
     styleFn <- (fst.) <$> lift skuToStyleVarH
     entities <- selectList [PackingListDetailPackingList ==. plKey] []
@@ -1667,7 +1676,10 @@ loadPLInfo rateFn e@(Entity plKey pl) = do
         shippingInfo = computeStyleShippingCost entities costs
         -- styleFn = fst . skuToStyleVar
         ref = sformat ("PL#"%shown %"-"%stext) (unSqlBackendKey $ unPackingListKey plKey) (packingListInvoiceRef pl)
-    info <- computeSupplierCosts ref rateFn styleFn (map (entityVal . snd) invoices)  shippingInfo
+    infoNoDuty <- computeSupplierCosts ref rateFn styleFn (map (entityVal . snd) invoices)  shippingInfo
+    dutyFor <- lift dutyForH 
+    info <- lift $ mapWithKeyM (addDutyOn dutyFor)  infoNoDuty
+
 
     return (e, (cbm, (costs, info)))
 
@@ -1758,22 +1770,13 @@ computeSupplierCosts pl rateFn styleFn invoices shippInfo = do
                                      ) costMap
              }
   return $ fmap (these id id combineInfo) paired
-      
-    
-      
-  
 
-
-
-
-
-
-  
-
-
-        
-        
-        
-
-
-  
+addDutyOn :: (Text -> Maybe Double) -> Text -> DetailInfo -> Handler DetailInfo
+addDutyOn dutyFn style details = case dutyFn style of
+  Nothing -> do
+    setWarning (toHtml $ "NO duty for " <> style )
+    return details
+  Just duty -> let costMap = diCostMap details
+                   cost = sum (toList $ deleteMap PackingListDutyE costMap)
+                   newCost = insertMap PackingListDutyE (cost * (1+duty)) costMap
+                in return  details {diCostMap = newCost}
