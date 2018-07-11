@@ -42,6 +42,8 @@ import Text.Blaze.Html(Markup, ToMarkup)
 import GL.Utils
 import qualified FA as FA
 import Formatting
+import Data.Align(align)
+import Data.These
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
 data EditMode = Replace | Insert | Delete deriving (Eq, Read, Show, Enum)
@@ -1605,8 +1607,10 @@ renderDetailInfo infos = do
         <td.text-right>#{sformat (fixed 4) $ diVolume diQ} m<sup>3
         $with cost <- diCostMap di
           <td.text-right>#{maybe "" formatDouble' (lookup PackingListShippingE cost) }
+          <td.text-right>#{maybe "" formatDouble' (lookup PackingListInvoiceE cost) }
         $with cost <- diCostMap diQ
           <td.text-right>#{maybe "" formatDouble' (lookup PackingListShippingE cost) }
+          <td.text-right>#{maybe "" formatDouble' (lookup PackingListInvoiceE cost) }
           |]
       totalTitle = "Total" :: Text
   [whamlet|
@@ -1618,6 +1622,8 @@ renderDetailInfo infos = do
     <th> Vol/Item
     <th> Shipping Cost
     <th> Shipping/Item
+    <th> Buying Cost
+    <th> Buying price
   $forall (style, di) <- mapToList infos
     ^{row False style di}
   <tr>
@@ -1638,7 +1644,10 @@ loadPLInfo e@(Entity plKey pl) = do
                            (\(_, Entity _ FA.SuppTran{..}) -> [(suppTranOvAmount - suppTranOvDiscount) * suppTranRate ])
                            invoices
 
-        info = computeStyleShippingCost entities costs
+        shippingInfo = computeStyleShippingCost entities costs
+        _styleFn = take 8
+        ref = sformat ("PL#"%shown %"-"%stext) (unSqlBackendKey $ unPackingListKey plKey) (packingListInvoiceRef pl)
+    info <- computeSupplierCosts ref _styleFn (map (entityVal . snd) invoices)  shippingInfo
 
     return (e, (cbm, (costs, info)))
 
@@ -1675,11 +1684,76 @@ computeStyleShippingCost details costMap = let
             in fmap shipCost styleMap
         
 
+-- | Loads supplier information 
+loadSuppInvoiceInfo :: (Text -> Text) -> FA.SuppTran -> SqlHandler (Map Text DetailInfo)
+loadSuppInvoiceInfo styleFn FA.SuppTran{..} = do
+  -- load invoice details
+  details <- selectList [ FA.SuppInvoiceItemSuppTransNo ==. Just suppTranTransNo
+                         , FA.SuppInvoiceItemSuppTransType ==. Just suppTranType 
+                         , FA.SuppInvoiceItemQuantity !=. 0
+                         , FA.SuppInvoiceItemUnitPrice !=. 0 -- remove item remade
+                         ] []
+  -- group by style
+  let toInfo (FA.SuppInvoiceItem{..}) = DetailInfo (round suppInvoiceItemQuantity)
+                                                   0
+                                                   (singletonMap PackingListInvoiceE
+                                                    (suppInvoiceItemQuantity * suppInvoiceItemUnitPrice) )
 
-        
-        
-        
+      styles = groupAsMap (styleFn . FA.suppInvoiceItemStockId) toInfo (map entityVal details)
+  return styles
+
+-- | Load supplier info and check their consistency as well as merging them with previous one
+computeSupplierCosts :: Text -> (Text -> Text) -> [FA.SuppTran] -> Map Text DetailInfo -> SqlHandler (Map Text DetailInfo)
+computeSupplierCosts pl styleFn invoices shippInfo = do
+  invoiceInfos <- unionsWith (<>) <$>  mapM (loadSuppInvoiceInfo styleFn) invoices
+  let 
+  -- check it matches invoices amount
+      invoiceAmount = sum (map (\FA.SuppTran{..} -> suppTranOvAmount - suppTranOvDiscount) invoices)
+      detailsAmount = sum $ mapMaybe (lookup PackingListInvoiceE . diCostMap) (toList invoiceInfos)
+  when (abs (detailsAmount  - invoiceAmount) > 1e-4) $ do
+      let msg = "PL "% shown %"Invoice amount ("% commasFixed %") doesn't match content"% commasFixed  
+      setWarning . toHtml $ sformat msg pl invoiceAmount detailsAmount
+  -- check content matches (invoices vs pl)
+  let paired = align invoiceInfos shippInfo
+  forM_ (mapToList paired) $ \(style, th ) -> do
+      case th of
+        This _ ->  do
+            let msg = stext % "Item " %stext%" present in invoice but not present in PL"
+            setWarning . toHtml $ sformat msg pl style
+        That _  -> do
+            let msg = stext % "Item " %stext%" present in PL but not present in invoice"
+            setWarning . toHtml $ sformat msg pl style
+        These inv pld | diQty inv /= diQty pld -> do
+            let msg = stext % ": Quantity differs for style "%stext%" : Invoice "%int%" PL " %int
+            setWarning . toHtml $ sformat msg pl style (diQty inv) (diQty pld)
+        _ -> return ()
+
+  -- As we only have one quantity field (the PL),  we to set the invoice amount accordingly
+  let combineInfo inv pl = let
+       invAmount = fromMaybe 0 (lookup PackingListInvoiceE (diCostMap inv))
+       costMap = diCostMap pl
+       in pl { diCostMap = insertMap PackingListInvoiceE
+                                     ( invAmount * (fromIntegral $ diQty inv)
+                                                 / (fromIntegral $ diQty pl)
+                                     ) costMap
+             }
+  return $ fmap (these id id combineInfo) paired
+      
+    
+      
+  
+
+
+
+
 
 
   
+
+
+        
+        
+        
+
+
   
