@@ -44,6 +44,7 @@ import qualified FA as FA
 import Formatting
 import Data.Align(align)
 import Data.These
+import Handler.Items.Common(skuToStyleVarH)
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
 data EditMode = Replace | Insert | Delete deriving (Eq, Read, Show, Enum)
@@ -1632,6 +1633,7 @@ renderDetailInfo infos = do
 
 -- | Computes cbm and costs for a given PL
 loadPLInfo e@(Entity plKey pl) = do
+    styleFn <- (fst.) <$> lift skuToStyleVarH
     entities <- selectList [PackingListDetailPackingList ==. plKey] []
     let dimensions = map (boxDimension . toBox) entities
         cbm = (sum $ map  volume dimensions) / 1e6 -- convert cm to m3
@@ -1645,9 +1647,9 @@ loadPLInfo e@(Entity plKey pl) = do
                            invoices
 
         shippingInfo = computeStyleShippingCost entities costs
-        _styleFn = take 8
+        -- styleFn = fst . skuToStyleVar
         ref = sformat ("PL#"%shown %"-"%stext) (unSqlBackendKey $ unPackingListKey plKey) (packingListInvoiceRef pl)
-    info <- computeSupplierCosts ref _styleFn (map (entityVal . snd) invoices)  shippingInfo
+    info <- computeSupplierCosts ref styleFn (map (entityVal . snd) invoices)  shippingInfo
 
     return (e, (cbm, (costs, info)))
 
