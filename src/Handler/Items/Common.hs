@@ -33,6 +33,18 @@ styleVarToSku :: Text -> Text -> Text
 styleVarToSku style "" = style
 styleVarToSku style var = style <> "-" <> var
 
+-- | Generate a finder Sku or Style -> duty percent
+dutyForH :: Handler (Text -> Maybe Double)
+dutyForH = do
+  styleFn <- (fst.) <$> skuToStyleVarH
+  refreshCategoryCache False
+  dutyS <- runDB $ selectList [ItemCategoryCategory ==. "duty"] []
+  let styleMap = mapFromList [ (styleFn itemCategoryStockId, duty )
+                           | (Entity _ ItemCategory{..}) <- dutyS
+                           , Just duty <- [readMay itemCategoryValue]
+                           ] :: Map Text Double
+  return $ flip lookup styleMap . styleFn
+
 
 
 -- ** Sku form info

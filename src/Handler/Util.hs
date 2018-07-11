@@ -45,7 +45,6 @@ module Handler.Util
 , categoryFinderCached
 , categoriesH
 , categoriesFor
-, dutyForH
 , refreshCategoryCache
 , refreshCategoryFor
 , Identifiable(..)
@@ -695,17 +694,6 @@ categoriesFor rules info = let
   in [ ItemCategory (FA.unStockMasterKey sku) (pack key) (pack value)
      | (key, value) <- mapToList categories
      ]
-
--- | Generate a finder Sku -> duty percent
-dutyForH :: Handler (Text -> Maybe Double)
-dutyForH = do
-  refreshCategoryCache False
-  dutyS <- runDB $ selectList [ItemCategoryCategory ==. "duty"] []
-  let skuMap = mapFromList [ (itemCategoryStockId, duty )
-                           | (Entity _ ItemCategory{..}) <- dutyS
-                           , Just duty <- [readMay itemCategoryValue]
-                           ] :: Map Text Double
-  return $ flip lookup skuMap
 
 
 

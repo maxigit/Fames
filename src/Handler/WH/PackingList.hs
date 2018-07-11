@@ -44,7 +44,7 @@ import qualified FA as FA
 import Formatting
 import Data.Align(align)
 import Data.These
-import Handler.Items.Common(skuToStyleVarH)
+import Handler.Items.Common(skuToStyleVarH, dutyForH)
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
 data EditMode = Replace | Insert | Delete deriving (Eq, Read, Show, Enum)
@@ -1772,11 +1772,11 @@ computeSupplierCosts pl rateFn styleFn invoices shippInfo = do
   return $ fmap (these id id combineInfo) paired
 
 addDutyOn :: (Text -> Maybe Double) -> Text -> DetailInfo -> Handler DetailInfo
-addDutyOn dutyFn style details = case dutyFn style of
+addDutyOn dutyFn style details = case (dutyFn) style of
   Nothing -> do
     setWarning (toHtml $ "NO duty for " <> style )
     return details
   Just duty -> let costMap = diCostMap details
                    cost = sum (toList $ deleteMap PackingListDutyE costMap)
-                   newCost = insertMap PackingListDutyE (cost * (1+duty)) costMap
+                   newCost = insertMap PackingListDutyE (cost * duty) costMap
                 in return  details {diCostMap = newCost}
