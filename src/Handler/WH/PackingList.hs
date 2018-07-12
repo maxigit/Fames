@@ -1505,7 +1505,9 @@ reportFor param@ReportParam{..} = do
   let rateFn = case rpRate of
             Nothing -> (*)
             Just rate' -> let rate = if rpInverseRate then (1/rate') else rate'
-                          in \a _ -> a * rate
+                          in \a rate0 -> if abs (rate0 -1) < 1e-2 -- already in home currency
+                                     then a * rate0
+                                     else a * rate
   -- load pl
   plXs <- runDB $ do
     pls <- selectList [PackingListDeparture >=. rpStart, PackingListDeparture <=. rpEnd] []
