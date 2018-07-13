@@ -189,10 +189,10 @@ installL index el = do
     Defined value ->  do
         JQ.addClass "clickable" label -- change mouse pointer
       -- find rows matching the same label
-        others <- select ("[data-label='" `FT.append` value  `FT.append` "']")
-        targets <- JQ.closestSelector "tr" others
 
         onClick (\ev -> do
+                    others <- select ("[data-label='" `FT.append` value  `FT.append` "']")
+                    targets <- JQ.closestSelector "tr" others
                     -- depending on the value of the current row
                     -- we either select or unselect all the targets
                     checkedStr <- JQ.getProp "checked" checkBox
@@ -205,6 +205,7 @@ installL index el = do
                     updateCheckAllStatus
                     return False
                   ) label
+        return ()
 
     _ -> return label
 
