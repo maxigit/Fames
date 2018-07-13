@@ -205,7 +205,6 @@ installL index el = do
                     updateCheckAllStatus
                     return False
                   ) label
-        return ()
 
     _ -> return label
 
