@@ -578,11 +578,12 @@ categoryFinderCached :: Handler (Text -> FA.StockMasterId -> Maybe Text)
 categoryFinderCached = cache0 False cacheForEver "category-finder" $ do
   refreshCategoryCache False
   itemCategories <- runDB $ selectList [] []
-  let sku'catMap = mapFromList [((itemCategoryStockId , itemCategoryCategory ), itemCategoryValue )
+  let sku'catMap = Map.fromList [((itemCategoryStockId , itemCategoryCategory ), itemCategoryValue )
                            | (Entity _ ItemCategory{..}) <- itemCategories
                            ]
       finder category (FA.StockMasterKey sku) = Map.lookup (sku, category) sku'catMap
-  return finder
+
+  sku'catMap `seq` return finder
 
 _allSkus :: Handler [Key FA.StockMaster]
 _allSkus = do
