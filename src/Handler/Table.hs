@@ -25,7 +25,7 @@ displayTableRows  columns colDisplay rows = do
       $forall col <- columns
         $case rowF col
           $of Nothing
-            <td.empty class="#{fst (colDisplay col)}">
+            <td.empty class="#{intercalate " " (snd (colDisplay col))}">
           $of Just (cellH, cellA)
             <td class="#{intercalate " " ((snd (colDisplay col)) <> cellA)}"> #{cellH}
   |]
