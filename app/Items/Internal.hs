@@ -74,9 +74,9 @@ promoteQP qtype' (qtype, qp) | qtype' == qtype = Just (qtype, qp)
 -- the description to "Red T-Shirt" for the Red variation. 
 computeItemsStatus :: (ItemInfo a -> Text -> ItemInfo a )
                    -> (ItemInfo a -> ItemInfo a -> ItemInfo diff)
-                   -> ItemInfo a
-                   -> [Text]
-                   -> [ItemInfo a]
+                   -> ItemInfo a -- ^ base item
+                   -> [Text] -- ^ list of variations to expand to
+                   -> [ItemInfo a] -- ^ item (base, variation) alreadyexisting
                    -> [(VariationStatus, ItemInfo diff)]
 computeItemsStatus adjustItem0 computeDiff_ item0 varMap items = let
   styleMap = mapFromList [(iiVariation i, i) | i <- items ]
@@ -150,12 +150,15 @@ joinStyleVariations bases adjustBase computeDiff_ items vars = let
   in map (\(_, variations@(var:_)) -> let
              -- bases Map a style to the base sku. We need to find the sku then item
              varMap = mapFromList [((iiStyle v, iiVariation v), v) | v <- variations ]
+             varsForBase = if null vars
+                           then map iiVariation variations
+                           else vars
              base = fromMaybe var $ Map.lookup (iiStyle var) bases
                >>= flip Map.lookup varMap
              in ( base
                 , computeItemsStatus adjustBase computeDiff_
                   base
-                  vars
+                  varsForBase
                   variations
                 )
          )

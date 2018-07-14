@@ -296,13 +296,13 @@ loadVariations cache param = do
     Right styleF -> let select = selectList styleF [Asc FA.StockMasterId]
                     in cache0 forceCache (cacheDelay) ("load styles", ipStyles param) (runDB select)
   variations <- case varF of
-    (Right Nothing) -> return (Left $ map  entityKey styles)
     (Left filter_)  -> let select = (Left . map entityKey) <$> runDB (selectList -- selectKeysList bug. fixed but not in current LTS
                                     (filterE StockMasterKey FA.StockMasterId (Just filter_)
                                      <> [FA.StockMasterInactive ==. False ]
                                     )
                                           [Asc FA.StockMasterId])
                        in cache0 forceCache (cacheDelay) (filter_, "load variations") select
+    (Right Nothing) -> return $ Left [] -- (Left $ map  entityKey styles)
     (Right (Just group_)) -> return $ Right (Map.findWithDefault [] group_ varGroupMap)
   infoSources <- mapM getDelayed (case ipMode param of
     ItemGLView -> []
