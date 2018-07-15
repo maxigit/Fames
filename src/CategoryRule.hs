@@ -9,7 +9,9 @@ import Text.Regex.TDFA ((=~))
 import qualified Text.Regex as Rg
 
 data PriceRanger = PriceRanger (Maybe Double) (Maybe Double) String deriving Show
-data RegexSub = RegexSub { rsRegex, rsReplace :: String } deriving Show
+data RegexSub = RegexSub { rsRegex :: Rg.Regex, rsOriginal, rsReplace :: String }
+instance Show RegexSub where
+  show (RegexSub _ regex replace) = "regexSub " ++ show regex ++ " " ++ replace
 -- | 
 data CategoryRule
   = SkuTransformer RegexSub
@@ -25,7 +27,7 @@ data RuleInput = RuleInput
   { categoryMap :: Map String String
   , salesPrice :: Maybe Double
   }
-regexSub regex replace = RegexSub (regex ++ ".*") replace
+regexSub regex replace = RegexSub (Rg.mkRegex $ regex ++ ".*") regex replace
 instance FromJSON CategoryRule where
   parseJSON v = parseJSON' "" v 
 
@@ -59,7 +61,7 @@ parseJSON' key0 v = let
     parseMatcher key o = do
       -- traceShowM ("MATCHER", key0, key, o)
 
-      let parseRegex = (SkuTransformer <$> (RegexSub <$> (unpackT <$> o .: "match")  <*> pure (unpack key)))
+      let parseRegex = (SkuTransformer <$> (regexSub <$> (unpackT <$> o .: "match")  <*> pure (unpack key)))
                        <|> (parseDisjunction key =<< o .: "rules")
         
 
@@ -79,7 +81,7 @@ parseJSON' key0 v = let
 unpackT :: Text -> String
 unpackT = unpack
 instance ToJSON CategoryRule where
-  toJSON (SkuTransformer (RegexSub regex replace)) = toJSON $ regex <> "/" <> replace
+  toJSON (SkuTransformer (RegexSub _ origin replace)) = toJSON $ origin <> "/" <> replace
   toJSON (CategoryDisjunction rules) = toJSON  rules
   toJSON (SalesPriceRanger (PriceRanger fromM toM target)) = object [pack target .= object ["sales_price" .= priceJ]] where
     priceJ = object ["from" .= fromM, "to" .= toM]
@@ -111,8 +113,7 @@ computeCategory source input rule = case rule of
       CategoryDisjunction rules -> asum $ map (computeCategory source input) rules
 
 subRegex :: RegexSub -> String -> Maybe String
-subRegex (RegexSub regexS replace) s = let
-  regex =Rg.mkRegex regexS
+subRegex (RegexSub regex _ replace) s = let
   in if isJust $ Rg.matchRegex regex s
      then Just . pack $ Rg.subRegex regex s replace
      else Nothing
