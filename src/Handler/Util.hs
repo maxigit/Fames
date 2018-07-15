@@ -662,39 +662,59 @@ loadStockMasterRuleInfos stockFilter = do
 --   :: [(String, CategoryRule)]
 --      -> StockMasterRuleInfo
 --      -> (Key StockMaster, Map String String)
-applyCategoryRules rules (stockId
+applyCategoryRules rules =
+  let inputKeys = ["sku"
+              ,"description"
+              ,"longDescription"
+              ,"unit"
+              ,"mbFlag"
+              ,"taxType"
+              ,"category"
+              ,"dimension1"
+              ,"dimension2"
+              ,"salesAccount"
+              ,"cogsAccount"
+              ,"inventoryAccount"
+              ,"adjustmentAccount"
+              ] -- inputMap key, outside of the lambda so it can be optimised and calculated only once
+      catRegexCache =  mapFromList (map (liftA2 (,) id mkCategoryRegex) (inputKeys  <> map fst rules))
+  in \(stockId
                          , (Single description, Single longDescription, Single units, Single mbFlag)
                          , (Single taxType, Single category, Single dimension1, Single dimension2 )
                          , (Single salesAccount, Single cogsAccount, Single inventoryAccount, Single adjustmentAccount)
-                         , Single salesPrice )  =
-  (stockId, computeCategories rules ruleInput (unpack sku)) where
-  sku = unStockMasterKey stockId
-  ruleInput = RuleInput ( mapFromList 
-                          ( ("sku", unpack sku) :
-                            ("description", description) :
-                            ("longDescription", longDescription) :
-                            ("unit", units) :
-                            ("mbFlag", mbFlag) :
-                            (("taxType",) <$> taxType) ?:
-                            (("category",) <$> category) ?:
-                            (("dimension1",) <$> dimension1) ?:
-                            (("dimension2",) <$> dimension2) ?:
-                            ("salesAccount", salesAccount) :
-                            ("cogsAccount", cogsAccount) :
-                            ("inventoryAccount", inventoryAccount) :
-                            ("adjustmentAccount", adjustmentAccount) :
-                          []
-                          )
-                        )
-                        salesPrice
+                         , Single salesPrice )
+     -> let
+              sku = unStockMasterKey stockId
+              ruleInput = RuleInput ( mapFromList 
+                                    ( ("sku", unpack sku) :
+                                      ("description", description) :
+                                      ("longDescription", longDescription) :
+                                      ("unit", units) :
+                                      ("mbFlag", mbFlag) :
+                                      (("taxType",) <$> taxType) ?:
+                                      (("category",) <$> category) ?:
+                                      (("dimension1",) <$> dimension1) ?:
+                                      (("dimension2",) <$> dimension2) ?:
+                                      ("salesAccount", salesAccount) :
+                                      ("cogsAccount", cogsAccount) :
+                                      ("inventoryAccount", inventoryAccount) :
+                                      ("adjustmentAccount", adjustmentAccount) :
+                                    []
+                                    )
+                                  )
+                                  salesPrice
+        in (stockId, computeCategories catRegexCache rules ruleInput (unpack sku))
 
 
 categoriesFor :: [(String, CategoryRule)] -> StockMasterRuleInfo   -> [ItemCategory]
-categoriesFor rules info = let
-  (sku, categories ) = applyCategoryRules rules info
-  in [ ItemCategory (FA.unStockMasterKey sku) (pack key) (pack value)
-     | (key, value) <- mapToList categories
-     ]
+categoriesFor rules = let
+  applyCached =  applyCategoryRules rules
+  in \info -> let
+      (sku, categories ) = applyCached info
+
+      in [ ItemCategory (FA.unStockMasterKey sku) (pack key) (pack value)
+        | (key, value) <- mapToList categories
+        ]
 
 
 

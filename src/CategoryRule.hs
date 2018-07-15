@@ -93,24 +93,24 @@ instance ToJSON CategoryRule where
 -- | Computes the value of all category in the category map.
 -- We can't compute the value of each category individually because
 -- a category can depend on another.
-computeCategories :: [(String, CategoryRule)] -> RuleInput -> String -> Map String String
-computeCategories rules input source = let
+computeCategories :: Map String Rg.Regex -> [(String, CategoryRule)] -> RuleInput -> String -> Map String String
+computeCategories catRegexCache rules input source = let
   x = foldl' go input  rules
   go i (category, rule) = i { categoryMap = maybe mempty
                                                   (Map.singleton category)
-                                                  (computeCategory source i rule)
+                                                  (computeCategory catRegexCache source i rule)
                                             <> categoryMap i
                             }
 
 
   in categoryMap x
 
-computeCategory :: String -> RuleInput -> CategoryRule -> Maybe String
-computeCategory source input rule = case rule of
+computeCategory :: Map String Rg.Regex -> String -> RuleInput -> CategoryRule -> Maybe String
+computeCategory catRegexCache source input rule = case rule of
       SkuTransformer rsub -> subRegex rsub source
       SalesPriceRanger ranger ->  salesPrice input >>= flip checkPriceRange ranger
-      SourceTransformer source subrule -> computeCategory (expandSource (categoryMap input) source) input subrule
-      CategoryDisjunction rules -> asum $ map (computeCategory source input) rules
+      SourceTransformer source subrule -> computeCategory catRegexCache (expandSource catRegexCache (categoryMap input) source) input subrule
+      CategoryDisjunction rules -> asum $ map (computeCategory catRegexCache source input) rules
 
 subRegex :: RegexSub -> String -> Maybe String
 subRegex (RegexSub regex _ replace) s = let
@@ -128,13 +128,17 @@ checkPriceRange price (PriceRanger from to target) =
   
   
 -- | set the current text source to the target expanded with category
-expandSource :: Map String String -> String -> String
-expandSource inputMap format = let
+expandSource :: Map String Rg.Regex ->  Map String String -> String -> String
+expandSource regexCache inputMap format = let
   expanded = foldl' sub format (Map.toList inputMap)
-  sub s (category, value) = let regex = Rg.mkRegex $ "\\$" ++ category
+  sub s (category, value) = let regex = fromMaybe (mkCategoryRegex category) (lookup category regexCache)  -- normally everything shoulb be in the cache
                             in Rg.subRegex regex s value
   in expanded
   
+-- | Regex as match in source tranform
+-- "$cat1 - $cat2"" will search and replace for the value
+-- of category cat1 and cat2
+mkCategoryRegex category = Rg.mkRegex $ "\\$" ++ category
 
   
 
