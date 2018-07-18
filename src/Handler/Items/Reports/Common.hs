@@ -1359,7 +1359,10 @@ formatDouble'' runsum vtype x = let
     VPrice -> sformat ("£" % fixed 2) x
   
   classes = posneg : tshow vtype : tshow runsum : [] :: [Text]
-  posneg = if x < 0 then "negative" else "negative"
+  posneg = case compare x  0 of
+                LT -> "negative"
+                EQ -> ""
+                GT -> "positive"
   in  [shamlet|
          <span class="#{intercalate " " classes}">
               #{s}|]
