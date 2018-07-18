@@ -216,8 +216,8 @@ postItemsReportFor route mode = do
               report <- case mode of
                     Just ReportChart -> itemReportXXX param grouper (chartProcessor param)
                     Just ReportPivot -> itemReport param pivotProcessor
-                    Just ReportTable -> itemReportXXX param tableGrouper tableProcessor
-                    _                -> itemReportXXX param grouper (pivotProcessorXXX param)
+                    _ -> itemReportXXX param tableGrouper tableProcessor
+                    -- _                -> itemReportXXX param grouper (pivotProcessorXXX param)
               renderReportForm route mode (Just param) ok200 (Just report)
 
 
