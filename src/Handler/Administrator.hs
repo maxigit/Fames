@@ -149,7 +149,7 @@ getAResetCustomerCategoryCacheR :: Handler Html
 getAResetCustomerCategoryCacheR = do
   refreshCustomerCategoryCache True
   setSuccess ("Customer Category cache successfully refreshed")
-  getAIndexR
+  getACustomerCategoryR
   
 -- | Displays all customer, their info and computed category
 getACustomerCategoryR :: Handler Html
@@ -192,7 +192,6 @@ getACustomerCategoryR = do
         $forall cat <- cats
           <td>#{fromMaybe "" $ finder cat key}
     |]
-
 
 -- * Masquerade
 masquerade = "masquerade-user" :: Text
