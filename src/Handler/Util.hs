@@ -753,8 +753,10 @@ customerCategoryFinderCached = cache0 False cacheForEver "customerCategory-finde
 
 -- *** CustomerCategory caches
 type DebtorsMasterRuleInfo = (Key DebtorsMaster
-                           , (Single String, Single String, Single String, Single String)
-                           , (Single (Maybe String), Single (Maybe String))
+                           , (Single String, Single String, Single String, Single String) -- debtor infos
+                           , (Single (Maybe String), Single (Maybe String)) -- dimensions
+                           , (Single (Maybe Day), Single (Maybe String)) -- first order
+                           , (Single (Maybe Day), Single (Maybe String)) -- last order
                            )
 refreshCustomerCategoryFor :: Handler ()
 refreshCustomerCategoryFor = do
@@ -787,15 +789,27 @@ loadDebtorsMasterRuleInfos = do
             <> "     , dm.curr_code"
             <> "     , dim1.name as dim1 "
             <> "     , dim2.name As dim2 "
-            <> "from 0_debtors_master as dm "
-            <> "left join 0_dimensions as dim1 on (dm.dimension_id = dim1.id) "
-            <> "left join 0_dimensions as dim2 on (dm.dimension2_id = dim2.id) "
-            <> "left join 0_prices as sales on (sales.sales_type_id = dm.sales_type) "
+            <> "     , ord.first_ord_date "
+            <> "     , ord.first_ord_ref "
+            <> "     , ord.last_ord_date "
+            <> "     , ord.last_ord_ref "
+            <> " from 0_debtors_master as dm "
+            <> " left join 0_dimensions as dim1 on (dm.dimension_id = dim1.id) "
+            <> " left join 0_dimensions as dim2 on (dm.dimension2_id = dim2.id) "
+            <> " left join 0_prices as sales on (sales.sales_type_id = dm.sales_type) "
+            <> " left join (" <> orders <> ") ord on(dm.debtor_no = ord.debtor_no) "
+      orders = " "
+              <> " select debtor_no, MIN(ord_date) AS first_ord_date, MAX(ord_date) AS last_ord_date"
+              <> " , SUBSTRING_INDEX(GROUP_CONCAT(reference order by ord_date), ',', 1) AS first_ord_ref"
+              <> " , SUBSTRING_INDEX(GROUP_CONCAT(reference order by ord_date desc), ',', 1) AS last_ord_ref"
+              <> " from 0_sales_orders"
+              <> " group by debtor_no"
       decode (debtorId , (Single name, Single note, Single taxCode, Single currency)
-              , (Single dimension1, Single dimension2 )
+              , dims, firstOrder, lastOrder
               ) = (debtorId , (Single . unpack . decodeHtmlEntities $ pack  name
                               , Single . unpack . decodeHtmlEntities $ pack note, Single taxCode, Single currency)
-              , (Single dimension1, Single dimension2 ))
+              , dims, firstOrder, lastOrder
+              )
 
   infos <- runDB $ rawSql sql []
   return $ map decode infos
@@ -821,6 +835,8 @@ applyCustomerCategoryRules rules =
   in \(debtorId
                          , (Single name, Single note, Single taxCode, Single currency)
                          , (Single dimension1, Single dimension2 )
+                         , (Single firstOrderDate, Single firstOrderRef)
+                         , (Single lastOrderDate, Single lastOrderRef)
                          )
      -> let
               debtor = unDebtorsMasterKey debtorId
@@ -832,6 +848,10 @@ applyCustomerCategoryRules rules =
                                       ("currency", currency) :
                                       (("dimension1",) <$> dimension1) ?:
                                       (("dimension2",) <$> dimension2) ?:
+                                      ((("first_order_date",) . show) <$> firstOrderDate) ?:
+                                      (("first_order_ref",) <$> firstOrderRef) ?:
+                                      ((("last_order_date",) . show) <$> lastOrderDate) ?:
+                                      (("last_order_ref",) <$> lastOrderRef) ?:
                                     []
                                     )
                                   )

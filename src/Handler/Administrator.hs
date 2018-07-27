@@ -169,9 +169,13 @@ getACustomerCategoryR = do
        <th>Currency
        <th>Dimension 1
        <th>Dimension 2
+       <th>First Order Date
+       <th>First Order Ref
+       <th>Last Order Date
+       <th>Last Order Ref
        $forall cat <- cats
         <th>#{cat}
-     $forall (key, info, dims) <- infos
+     $forall (key, info, dims, firstOrder, lastOrder) <- infos
        <tr>
         <td>##{tshow $ FA.unDebtorsMasterKey key}
         $with (Single name, Single note, Single tax, Single currency ) <- info
@@ -182,6 +186,9 @@ getACustomerCategoryR = do
         $with (Single dim1, Single dim2) <- dims
           <td>#{tshowM dim1}
           <td>#{tshowM dim2}
+        $forall (Single day, Single ref) <- [firstOrder, lastOrder]
+          <td>#{tshowM day}
+          <td>#{fromMaybe "" ref}
         $forall cat <- cats
           <td>#{fromMaybe "" $ finder cat key}
     |]
