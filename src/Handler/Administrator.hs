@@ -10,6 +10,8 @@ import qualified Data.Map as Map
 import Items.Types
 import Text.Pretty.Simple
 import Development.GitRev
+import Database.Persist.MySQL(unSqlBackendKey, Single(..))
+import FA as FA hiding (unUserKey)
 
 
 -- | Page to test administrator authentication.
@@ -142,6 +144,49 @@ getAResetCategoryCacheR = do
   refreshCategoryCache True
   setSuccess ("Category cache successfully refreshed")
   getAIndexR
+
+getAResetCustomerCategoryCacheR :: Handler Html
+getAResetCustomerCategoryCacheR = do
+  refreshCustomerCategoryCache True
+  setSuccess ("Customer Category cache successfully refreshed")
+  getAIndexR
+  
+-- | Displays all customer, their info and computed category
+getACustomerCategoryR :: Handler Html
+getACustomerCategoryR = do
+  infos <- loadDebtorsMasterRuleInfos
+  cats <- customerCategoriesH
+  finder <- customerCategoryFinderCached
+  defaultLayout $ do
+    [whamlet|
+   <h2> Customers
+   <table.table.table-border.table-hover.table-striped>
+     <tr>
+       <th>Id
+       <th>Name
+       <th>Note
+       <th>Tax Code
+       <th>Currency
+       $forall cat <- cats
+        <th>#{cat}
+     $forall (key, info, dims) <- infos
+       <tr>
+        <td>##{tshow $ FA.unDebtorsMasterKey key}
+        $with (Single name, Single note, Single tax, Single currency ) <- info
+          <td>#{name}
+          <td>#{note}
+          <td>#{tax}
+          <td>#{currency}
+        $with (Single dim1, Single dim2) <- dims
+          <td>#{tshowM dim1}
+          <td>#{tshowM dim2}
+        $forall cat <- cats
+          <td>#{tshowM $ finder cat key}
+    |]
+   
+
+
+
 
 -- * Masquerade
 masquerade = "masquerade-user" :: Text

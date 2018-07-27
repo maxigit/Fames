@@ -47,12 +47,18 @@ module Handler.Util
 , categoriesFor
 , refreshCategoryCache
 , refreshCategoryFor
+, customerCategoryFinderCached
+, customerCategoriesH
+, customerCategoriesFor
+, refreshCustomerCategoryCache
+, refreshCustomerCategoryFor
 , Identifiable(..)
 , getIdentified
 , renderField
 , allCustomers
 , allSuppliers
 , loadStockMasterRuleInfos
+, loadDebtorsMasterRuleInfos
 , applyCategoryRules
 , todayH
 , currentFAUser
@@ -562,7 +568,7 @@ eToX =  either throwError return
 
 
 -- * Categories
-
+-- ** Items
 
   -- return finder
 
@@ -592,7 +598,7 @@ _allSkus = do
   entities <- runDB $ selectList (filterE FA.StockMasterKey FA.StockMasterId (Just . LikeFilter $ stockLike) ) []
   return $ map entityKey entities
 
--- ** Category caches
+-- *** Category caches
 type StockMasterRuleInfo = (Key StockMaster
                            , (Single String, Single String, Single String, Single String)
                            , (Single (Maybe String), Single (Maybe String), Single (Maybe String), Single (Maybe String))
@@ -714,6 +720,132 @@ categoriesFor rules = let
 
       in [ ItemCategory (FA.unStockMasterKey sku) (pack key) (pack value)
         | (key, value) <- mapToList categories
+        ]
+
+
+
+
+
+
+-- ** Customers
+
+  -- return finder
+
+customerCategoriesH :: Handler [Text]
+customerCategoriesH = do 
+  catRulesMap <- appCustomerCategoryRules <$> getsYesod appSettings
+  return $ concatMap keys catRulesMap
+
+-- | Return a function finding the customerCategory given a style
+-- The current implementation is based on TDFA regex
+-- which are pretty so we cache it into a big map
+customerCategoryFinderCached :: Handler (Text -> FA.DebtorsMasterId -> Maybe Text)
+customerCategoryFinderCached = cache0 False cacheForEver "customerCategory-finder" $ do
+  refreshCustomerCategoryCache False
+  customerCategories <- runDB $ selectList [] []
+  let debtor'catMap = Map.fromList [((customerCategoryCustomerId , customerCategoryCategory ), customerCategoryValue )
+                           | (Entity _ CustomerCategory{..}) <- customerCategories
+                           ]
+      finder customerCategory (FA.DebtorsMasterKey debtor) = Map.lookup (debtor, customerCategory) debtor'catMap
+
+  debtor'catMap `seq` return finder
+
+
+-- *** CustomerCategory caches
+type DebtorsMasterRuleInfo = (Key DebtorsMaster
+                           , (Single String, Single String, Single String, Single String)
+                           , (Single (Maybe String), Single (Maybe String))
+                           )
+refreshCustomerCategoryFor :: Handler ()
+refreshCustomerCategoryFor = do
+  rulesMaps <- appCustomerCategoryRules <$> getsYesod appSettings
+  debtorsmasters <- loadDebtorsMasterRuleInfos
+  let customerCategories = concatMap (customerCategoriesFor rules) debtorsmasters
+      rules = map (first unpack) $ concatMap mapToList rulesMaps
+  runDB $ do
+    deleteWhere ([] :: [Filter CustomerCategory])
+    -- insertMany_ customerCategories
+    mapM_ insert_ customerCategories
+
+-- Populates the customer customerCategory cache table if needed
+refreshCustomerCategoryCache :: Bool -> Handler ()
+refreshCustomerCategoryCache force = do
+  -- check if the datbase is empty
+  -- clear it if needed
+  c <- runDB $ do
+    when force (deleteWhere ([] ::[Filter CustomerCategory]))
+    count ([] ::[Filter CustomerCategory]) 
+  when (c == 0) (refreshCustomerCategoryFor) 
+  
+loadDebtorsMasterRuleInfos :: Handler [DebtorsMasterRuleInfo]
+loadDebtorsMasterRuleInfos = do
+  let sql = " "
+            <> "select dm.debtor_no "
+            <> "     , dm.name"
+            <> "     , dm.notes"
+            <> "     , dm.tax_id"
+            <> "     , dm.curr_code"
+            <> "     , dim1.name as dim1 "
+            <> "     , dim2.name As dim2 "
+            <> "from 0_debtors_master as dm "
+            <> "left join 0_dimensions as dim1 on (dm.dimension_id = dim1.id) "
+            <> "left join 0_dimensions as dim2 on (dm.dimension2_id = dim2.id) "
+            <> "left join 0_prices as sales on (sales.sales_type_id = dm.sales_type) "
+      decode (debtorId , (Single name, Single note, Single taxCode, Single currency)
+              , (Single dimension1, Single dimension2 )
+              ) = (debtorId , (Single . unpack . decodeHtmlEntities $ pack  name
+                              , Single . unpack . decodeHtmlEntities $ pack note, Single taxCode, Single currency)
+              , (Single dimension1, Single dimension2 ))
+
+  infos <- runDB $ rawSql sql []
+  return $ map decode infos
+
+
+-- We use string to be compatible with regex substitution
+-- applyCategoryRules :: [(String, CustomerCategoryRule)]
+--                    -> DebtorsMasterRuleInfo -> Map String String
+-- applyCategoryRules
+--   :: [(String, CustomerCategoryRule)]
+--      -> DebtorsMasterRuleInfo
+--      -> (Key DebtorsMaster, Map String String)
+applyCustomerCategoryRules rules =
+  let inputKeys = ["debtor_id"
+              ,"name"
+              ,"note"
+              ,"tax_code"
+              ,"currency"
+              ,"dimension1"
+              ,"dimension2"
+              ] -- inputMap key, outside of the lambda so it can be optimised and calculated only once
+      catRegexCache =  mapFromList (map (liftA2 (,) id mkCategoryRegex) (inputKeys  <> map fst rules))
+  in \(debtorId
+                         , (Single name, Single note, Single taxCode, Single currency)
+                         , (Single dimension1, Single dimension2 )
+                         )
+     -> let
+              debtor = unDebtorsMasterKey debtorId
+              ruleInput = RuleInput ( mapFromList 
+                                    ( ("name", unpack name) :
+                                      ("note", note) :
+                                      ("tax_code", taxCode) :
+                                      ("currency", currency) :
+                                      (("dimension1",) <$> dimension1) ?:
+                                      (("dimension2",) <$> dimension2) ?:
+                                    []
+                                    )
+                                  )
+                                  (Just $ fromIntegral debtor)
+        in (debtorId, computeCategories catRegexCache rules ruleInput (unpack name))
+
+
+customerCategoriesFor :: [(String, CategoryRule)] -> DebtorsMasterRuleInfo   -> [CustomerCategory]
+customerCategoriesFor rules = let
+  applyCached =  applyCustomerCategoryRules rules
+  in \info -> let
+      (debtor, customerCategories ) = applyCached info 
+
+      in [ CustomerCategory (FA.unDebtorsMasterKey debtor) (pack key) (pack value)
+        | (key, value) <- mapToList customerCategories
         ]
 
 

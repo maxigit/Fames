@@ -201,6 +201,13 @@ ItemCategory sql=fames_item_category_cache
   Unique ICSC stockId category
   Unique ICCS category stockId
 
+CustomerCategory sql=fames_customer_category_cache
+  Id sql=customer_category_id
+  customerId Int 
+  category Text
+  value Text
+  Unique CUCC customerId category
+  Unique CCUS category customerId
 -- * FrontAccounting
 -- FrontAccounting Fames many to many relation table
 -- Link Fames "event" to FA Transaction

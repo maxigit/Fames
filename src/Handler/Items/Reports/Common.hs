@@ -271,6 +271,7 @@ getColsWithDefault = do
   today <- todayH
   supplierCustomerColumn <- supplierCustomerColumnH
   categoryColumns <- categoryColumnsH
+  customerCategoryColumns <- customerCategoryColumnsH
 
   let defaultBand =  styleColumn
       defaultSerie = variationColumn
@@ -287,7 +288,7 @@ getColsWithDefault = do
              , transactionTypeColumn
              , salesPurchaseColumn
              , invoiceCreditColumn
-             ]  <> dateColumns <> categoryColumns
+             ]  <> dateColumns <> categoryColumns <> customerCategoryColumns
   return (cols, (defaultBand, defaultSerie, defaultTime))
            
 mkIdentifialParam  (t, tp'runsumS) = Identifiable (t, map mkTraceParam tp'runsumS)
@@ -381,10 +382,16 @@ salesPurchaseColumn = Column "Sales/Purchase" (constMkKey $ maybe PersistNull Pe
 invoiceCreditColumn = Column "Invoice/Credit" (constMkKey $ maybe PersistNull PersistText . tkType')
 categoryColumnsH = do
   categories <- categoriesH
-  return [ Column ("Category:" <> cat) (constMkKey $ \tk -> maybe PersistNull PersistText $ Map.lookup cat (tkCategory tk))
+  return [ Column ("item:" <> cat) (constMkKey $ \tk -> maybe PersistNull PersistText $ Map.lookup cat (tkCategory tk))
          | cat <- categories
          ]
 
+customerCategoryColumnsH = do
+  categories <- customerCategoriesH
+  return [ Column ("customer:" <> cat) (constMkKey $ \tk -> maybe PersistNull PersistText $ Map.lookup cat (tkCategory tk))
+         | cat <- categories
+         ]
+  
 dateColumns@[yearlyColumn, quarterlyColumn, weeklyColumn, monthlyColumn, dailyColumn]
   = map mkDateColumn [ ("Beginning of Year", calculateDate BeginningOfYear)
                      , ("Beginning of Quarter", calculateDate (BeginningOfQuarter))
