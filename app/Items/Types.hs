@@ -288,6 +288,7 @@ data TranKey = TranKey
   , tkStyle :: Maybe Text
   , tkVar :: Maybe Text
   , tkCategory :: Map Text Text
+  , tkCustomerCategory :: Map Text Text
   , tkType :: FATransType
   } deriving (Show, Eq, Ord)
 

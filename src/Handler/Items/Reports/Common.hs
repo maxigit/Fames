@@ -388,7 +388,7 @@ categoryColumnsH = do
 
 customerCategoryColumnsH = do
   categories <- customerCategoriesH
-  return [ Column ("customer:" <> cat) (constMkKey $ \tk -> maybe PersistNull PersistText $ Map.lookup cat (tkCategory tk))
+  return [ Column ("customer:" <> cat) (constMkKey $ \tk -> maybe PersistNull PersistText $ Map.lookup cat (tkCustomerCategory tk))
          | cat <- categories
          ]
   
@@ -419,8 +419,10 @@ loadItemTransactions :: ReportParam
 loadItemTransactions param grouper = do
   let loadIf f loader = if f param then loader else return []
   categories <- categoriesH
+  custCategories <- customerCategoriesH
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   catFinder <- categoryFinderCached
+  custCatFinder <- customerCategoryFinderCached
   skuToStyleVar <- skuToStyleVarH
   adjustments <- loadIf rpLoadAdjustment $ loadStockAdjustments param
   -- for efficiency reason
@@ -430,7 +432,7 @@ loadItemTransactions param grouper = do
   let salesGroups = grouper' sales
       purchaseGroups = grouper'  purchases
       adjGroups = grouper' adjustments
-      grouper' = grouper . fmap (computeCategory skuToStyleVar categories catFinder) 
+      grouper' = grouper . fmap (computeCategory skuToStyleVar categories catFinder custCategories custCatFinder) 
         
 
   return $ salesGroups <> purchaseGroups <> adjGroups
@@ -438,13 +440,25 @@ loadItemTransactions param grouper = do
 computeCategory :: (Text -> (Text, Text))
                 -> [Text]
                 -> (Text -> FA.StockMasterId -> Maybe Text)
+                -> [Text]
+                -> (Text -> FA.DebtorsMasterId -> Maybe Text)
                 -> (TranKey, t)
                 -> (TranKey, t)
-computeCategory skuToStyleVar categories catFinder (key, tpq) = let
+computeCategory skuToStyleVar categories catFinder custCategories custCatFinder (key, tpq) = let
   sku = tkSku key
+  debtorNo = tkCustomer key
   cats = mapFromList [(cat, found) | cat <-  categories, Just found <- return $ catFinder cat (FA.StockMasterKey sku) ]
+  custCats = mapFromList [(cat, found)
+                         | cat <-  custCategories
+                         , Just found <- return $ custCatFinder cat =<< (FA.DebtorsMasterKey . fromIntegral . fst) <$> debtorNo
+                         ]
+
   (style, var) = skuToStyleVar sku
-  in (key { tkCategory = mapFromList cats, tkStyle = Just style, tkVar = Just var}, tpq)
+  in (key { tkCategory = mapFromList cats
+          , tkCustomerCategory = mapFromList custCats
+          , tkStyle = Just style
+          , tkVar = Just var
+          }, tpq)
 
 -- | Allows to load similar slices of time depending on the param
 -- example the first 3 months of each year
@@ -605,6 +619,7 @@ moveToTransInfo (Entity _ FA.StockMove{..}) = (key, tqp) where
                 Nothing
                 Nothing
                 mempty
+                mempty
                 (toEnum stockMoveType)
   tqp = case toEnum stockMoveType of
     -- Adjustement should be counted with a negative price
@@ -622,7 +637,7 @@ detailToTransInfo ( Entity _ FA.DebtorTransDetail{..}
                   , Single debtorNo, Single branchCode)  = (key, tqp) where
   key = TranKey debtorTranTranDate
                 (Just $ Left (debtorNo,  branchCode))
-                debtorTransDetailStockId Nothing Nothing  (mempty)
+                debtorTransDetailStockId Nothing Nothing  mempty mempty
                 transType
   (tqp, transType) = case toEnum <$> debtorTransDetailDebtorTransType of
     Just ST_SALESINVOICE -> (tranQP QPSalesInvoice  (qp Outward), ST_SALESINVOICE)
@@ -640,7 +655,7 @@ purchToTransInfo ( Entity _ FA.SuppInvoiceItem{..}
                   , Single supplierId) = (key, tqp) where
   suppTranType = fromMaybe (error "supplier transaction should have a ty B") suppInvoiceItemSuppTransType
   key = TranKey suppTranTranDate (Just $ Right supplierId)
-                suppInvoiceItemStockId Nothing Nothing  (mempty)
+                suppInvoiceItemStockId Nothing Nothing  mempty mempty
                 (toEnum suppTranType)
                    
   tqp = case toEnum suppTranType of

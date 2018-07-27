@@ -825,7 +825,8 @@ applyCustomerCategoryRules rules =
      -> let
               debtor = unDebtorsMasterKey debtorId
               ruleInput = RuleInput ( mapFromList 
-                                    ( ("name", unpack name) :
+                                    ( ("id", show debtor ) :
+                                      ("name", unpack name) :
                                       ("note", note) :
                                       ("tax_code", taxCode) :
                                       ("currency", currency) :

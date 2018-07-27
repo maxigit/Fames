@@ -183,7 +183,7 @@ getACustomerCategoryR = do
           <td>#{tshowM dim1}
           <td>#{tshowM dim2}
         $forall cat <- cats
-          <td>#{tshowM $ finder cat key}
+          <td>#{fromMaybe "" $ finder cat key}
     |]
 
 
