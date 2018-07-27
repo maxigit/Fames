@@ -167,6 +167,8 @@ getACustomerCategoryR = do
        <th>Note
        <th>Tax Code
        <th>Currency
+       <th>Dimension 1
+       <th>Dimension 2
        $forall cat <- cats
         <th>#{cat}
      $forall (key, info, dims) <- infos
@@ -183,9 +185,6 @@ getACustomerCategoryR = do
         $forall cat <- cats
           <td>#{tshowM $ finder cat key}
     |]
-   
-
-
 
 
 -- * Masquerade
