@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6e4187222d99310f780a7c2784353f9527d3286982bca8edf88067489e796ca4
+-- hash: c0d67d2e6940fc57283fc5488433ec3afcddd2541d2a9d22530b52b7418c37d2
 
 name:           Fames
 version:        0.0.1
@@ -152,6 +152,7 @@ library
       Handler.Items.Index
       Handler.Items.Report
       Handler.Items.Reports.Common
+      Handler.Items.Reports.Forecast
       Handler.Planner
       Handler.Planner.Exec
       Handler.Planner.View
@@ -343,6 +344,7 @@ test-suite ghcid
       Decimal >=0.4.2 && <0.5
     , Glob
     , Metamorphosis >=0.1.0.1
+    , QuickCheck
     , aeson
     , aeson-qq
     , base
@@ -496,6 +498,7 @@ test-suite ghcid
       Handler.Items.Index
       Handler.Items.Report
       Handler.Items.Reports.Common
+      Handler.Items.Reports.Forecast
       Handler.Planner
       Handler.Planner.Exec
       Handler.Planner.View
@@ -558,6 +561,7 @@ test-suite test
     , Fames
     , Glob
     , Metamorphosis >=0.1.0.1
+    , QuickCheck
     , aeson
     , aeson-qq
     , base

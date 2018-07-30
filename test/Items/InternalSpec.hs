@@ -3,6 +3,8 @@ module Items.InternalSpec (spec) where
 import TestImport
 import Items.Internal
 import Items.Types
+import Test.QuickCheck(property, (===), (==>))
+
 
 iMaster = (StockMasterF {smfCategoryId = Identity 23
                           , smfTaxTypeId = Identity 1
@@ -96,7 +98,8 @@ fullWhite= [[ItemInfo {iiStyle = "Bob"
           ,[]]
   
 spec :: Spec
-spec = describe "bug" $ do
+spec = bug >> forecast
+bug = describe "bug" $ do
   it "merges info" $ do
     mergeInfoSources fullWhite `shouldBe` [ItemInfo {iiStyle = "Bob"
                                             , iiVariation ="White"
@@ -125,4 +128,35 @@ spec = describe "bug" $ do
                                                       , impWebPrices = Nothing}   }
     computeDiff bob bob `shouldBe`  bobF
     
+shouldBeAlmost a b = (abs (a-b) <1e-6) `shouldBe` True
+forecast :: Spec
+forecast = describe "Forecast" $ do
+  let profile = seasonProfile [1,1,1,1,2,3,0,0,0,1,0,0]
+      --                       J F M A M J J A S O N D
+  context "#SeasonProfile" $ do
+    it "sums to one" $ property $ 
+      \xs -> let SeasonProfile p = seasonProfile (xs :: [Double])
+             in not (null xs) ==> abs (sum p - 1) < 1e-2
+    it "has all months " $ property $
+      \xs -> let SeasonProfile p = seasonProfile xs
+             in length p === 12
+
+  context "#weightForRange" $ do
+    it "matches full month" $ do
+      weightForRange profile (fromGregorian 2017 01 01) (fromGregorian 2017 01 31) `shouldBeAlmost` 0.1
+      weightForRange profile (fromGregorian 2017 05 01) (fromGregorian 2017 05 31) `shouldBeAlmost` 0.2
+      weightForRange profile (fromGregorian 2017 12 01) (fromGregorian 2017 12 31) `shouldBeAlmost` 0
+    it "matches partial month" $ do
+      weightForRange profile (fromGregorian 2017 01 01) (fromGregorian 2017 01 16) `shouldBeAlmost` (16/31*0.1)
+    it "matches across 1  month" $ do
+      weightForRange profile (fromGregorian 2017 01 01) (fromGregorian 2017 02 28) `shouldBeAlmost` 0.2
+      weightForRange profile (fromGregorian 2017 05 01) (fromGregorian 2017 06 30) `shouldBeAlmost` 0.5
+      weightForRange profile (fromGregorian 2017 12 01) (fromGregorian 2017 12 31) `shouldBeAlmost` 0
+      weightForRange profile (fromGregorian 2017 01 16) (fromGregorian 2017 02 14) `shouldBeAlmost`  ((16/31+14/28) *0.1)
+    it "matches across  years" $ do
+      weightForRange profile (fromGregorian 2017 06 01) (fromGregorian 2018 01 16) `shouldBeAlmost` (0.3 + 0.1 + 0.1*(16/31))
+      weightForRange profile (fromGregorian 2017 06 01) (fromGregorian 2019 05 31) `shouldBeAlmost` 2
+
+
+  
 

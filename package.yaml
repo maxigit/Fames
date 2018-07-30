@@ -203,6 +203,7 @@ tests:
     - transformers
     - hspec >=2.0.0
     - hspec-stack-rerun
+    - QuickCheck
     - classy-prelude
     - classy-prelude-yesod
     - aeson
@@ -237,6 +238,7 @@ tests:
     - transformers
     - hspec >=2.0.0
     - hspec-stack-rerun
+    - QuickCheck
     - classy-prelude
     - classy-prelude-yesod
     - aeson

@@ -469,8 +469,8 @@ readFa opt  = case faMode opt of
     BankAccountId i -> do 
                 fetchFA (faCredential opt) i <$> startDate <*> endDate $ opt
 -- main :: Options -> IO [(Amount, These [HTrans] [FTrans])]
-main :: Options -> IO ([STrans], [STrans])
-main opt = do
+main' :: Options -> IO ([STrans], [STrans])
+main' opt = do
   (badTrans, hss) <- loadAllTrans opt
   let   summaries = concatMap buildSTrans (map snd badTrans)
 

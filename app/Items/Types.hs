@@ -507,3 +507,15 @@ nmapToList (NMap _ _ m) = [ (key : subkeys, es)
                       , (subkeys, es)<- nmapToList nmap
                       ]
 
+-- * Forecast
+-- | Proportion of sales for each month of sales for each month. The sum should be 1 or 0 (and we should have 12 )
+data SeasonProfile = SeasonProfile [Double] deriving (Show, Read, Eq)
+seasonProfile [] = seasonProfile (repeat 1)
+seasonProfile weights0 = SeasonProfile (normalize weights) where
+  weights = take 12 $ weights0 ++ repeat 0
+  normalize xs = case sum xs of
+    0 -> xs
+    norm -> (/norm) <$> xs
+  
+
+

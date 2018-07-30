@@ -41,7 +41,7 @@ applyJSONRules stock json =
     Right rulesMap ->  let
       (FA.StockMasterKey sku) = entityKey stock
       input = RuleInput mempty (Just 15)
-      resultMap = computeCategories (join $ map Map.toList rulesMap) input (unpack sku)
+      resultMap = computeCategories mempty (join $ map Map.toList rulesMap) input (unpack sku)
       in traceShow ("RULES", rulesMap) $ Map.toList resultMap
     Left err -> error (show err)
 
@@ -50,9 +50,9 @@ spec = describe "@Category StockMaster to category" $ do
   describe "#toJSON" $ it "" pending
   describe "expand source" $ do
     it "leaves everything if nothing to replace" $ do
-      expandSource (Map.fromList [("A", "3")]) "A" `shouldBe` "A"
+      expandSource mempty (Map.fromList [("A", "3")]) "A" `shouldBe` "A"
     it "replace category between <>" $ do
-      expandSource (Map.fromList [("A", "3")]) "$A" `shouldBe` "3"
+      expandSource mempty (Map.fromList [("A", "3")]) "$A" `shouldBe` "3"
   context "applying rules" $ do
     let stock = Entity (FA.StockMasterKey "T-Shirt Blue") defStock
     it "finds all category" $ do
