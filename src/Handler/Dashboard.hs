@@ -300,6 +300,7 @@ salesCurrentMonth f plotName = do
       rpLoadSales = True
       rpLoadPurchases = False
       rpLoadAdjustment = False
+      rpLoadForecast = False
       amountSales = ("Amount (Out)" ,   [(qpAmount Outward, VAmount, amountStyle, RSNormal)] )
       amountStyle color = [("type", String "scatter")
                       ,("mode", String "lines")
@@ -358,6 +359,7 @@ top20ItemMonth f begin rupture = do
       rpLoadSales = True
       rpLoadPurchases = False
       rpLoadAdjustment = False
+      rpLoadForecast = False
   report <- let pivotP tparams = processRupturesWith (createKeyRankProcessor $ \_ _ -> (bandPivotProcessor tparams "pivot-Top20", id) ) ()
             in itemReport param pivotP--  (panelPivotProcessor "pivot-Top-100" (mkNMapKey "New Report"))
   return $ report
@@ -387,6 +389,7 @@ top100ItemYear which rupture = do
       rpLoadSales = True
       rpLoadPurchases = False
       rpLoadAdjustment = False
+      rpLoadForecast = False
       -- TODO factorize
       grouper = [ rpBand, rpSerie
                 , rpColumnRupture
@@ -424,6 +427,7 @@ top100ItemYearChart plotName = do
       rpLoadSales = True
       rpLoadPurchases = False
       rpLoadAdjustment = False
+      rpLoadForecast = False
       -- TODO factorize
       grouper = [ -- rpPanelRupture,
                   rpBand, rpSerie

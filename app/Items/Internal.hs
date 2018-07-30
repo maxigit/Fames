@@ -252,7 +252,11 @@ masterPrice baseId master = do -- Maybe
 -- Of course, the weight of a full month should correspond to the weight of the corresponding months
 weightForRange :: SeasonProfile -> Day -> Day -> Double
 weightForRange p start end | end < start = weightForRange p end start
-weightForRange (SeasonProfile weights) start end = let
+weightForRange profile start end = let
+  in sum $ map snd (weightsForRange profile start end)
+
+weightsForRange :: SeasonProfile  -> Day -> Day -> [(Day, Double)]
+weightsForRange (SeasonProfile weights) start end = let
   beginningOfYear = calculateDate BeginningOfYear start
   monthStarts = takeWhile (<= end) $ iterate (calculateDate (AddMonths 1)) beginningOfYear
   month'weights = zip monthStarts (cycle weights )
@@ -262,9 +266,8 @@ weightForRange (SeasonProfile weights) start end = let
     e = min (calculateDate EndOfMonth m) end 
     d = diffDays e s
     (year, month, _) = toGregorian m
-    in traceShow ("R", s, e, d) $ if d >= 0 then w * (fromIntegral $ d + 1) / fromIntegral (gregorianMonthLength year month) else 0
-    
-  in sum $ traceShowId $  map weightForMonth month'weights
+    in  if d >= 0 then w * (fromIntegral $ d + 1) / fromIntegral (gregorianMonthLength year month) else 0
+  in map ((,) <$> fst <*> weightForMonth) month'weights
 
 
 

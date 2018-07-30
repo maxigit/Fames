@@ -95,6 +95,9 @@ data AppSettings = AppSettings
     , appVariationGroups :: Map Text [Text] -- ^ group of variations. Can intersect
     , appPayroll :: PayrollSettings
     , appBankStatements :: Map Text  BankStatementSettings -- ^ How to parse and displays bank statements
+    , appForecastCollectionProfilePath :: FilePath -- ^ path to find collection profile : ie category -> weight
+    , appForecastSkuSpeedGlob :: Text -- ^ Glob pattern to load multiple sku speed file : stok_id -> speed (eQty)
+    , appForecastCollectionCategory :: Text -- ^ The category used in collection profile file
     } deriving Show
 
 data BankStatementSettings = BankStatementSettings
@@ -183,6 +186,9 @@ instance FromJSON AppSettings  where
                                                           0 "" "" 0
                                                           (Map.fromList [])
         appBankStatements <- o .:? "bank-statements" .!= Map.fromList []
+        appForecastCollectionProfilePath <- o .:? "forecast-collection-profile" .!= "collection_profile.csv"
+        appForecastSkuSpeedGlob <- o .:? "forecast-sku-speed" .!= "*sku_speed.csv"
+        appForecastCollectionCategory <- o .:? "forecast-collection-category" .!= "collection"
           
         
 

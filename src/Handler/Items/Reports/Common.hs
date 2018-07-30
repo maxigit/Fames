@@ -4,6 +4,7 @@ import Import hiding(computeCategory, formatAmount, formatQuantity)
 import Handler.Table
 import Items.Types
 import Handler.Items.Common
+import Handler.Items.Reports.Forecast
 import Handler.Util
 import FA
 import Data.Time(addDays, formatTime, defaultTimeLocale)
@@ -41,12 +42,16 @@ data ReportParam = ReportParam
   , rpLoadSales :: Bool
   , rpLoadPurchases :: Bool
   , rpLoadAdjustment :: Bool
+  , rpLoadForecast :: Bool
   }  deriving Show
 paramToCriteria :: ReportParam -> [Filter FA.StockMove]
 paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
                                   (rpTo <&> (FA.StockMoveTranDate <=.)) ?:
                                   (filterE id FA.StockMoveStockId  rpStockFilter)
  
+rpJustFrom ReportParam{..} = fromMaybe rpToday rpFrom
+rpJustTo ReportParam{..} = fromMaybe rpToday rpTo
+
 -- TODO could it be merged with Column ?
 data ColumnRupture = ColumnRupture
    { cpColumn :: Maybe Column
@@ -425,6 +430,9 @@ loadItemTransactions param grouper = do
   custCatFinder <- customerCategoryFinderCached
   skuToStyleVar <- skuToStyleVarH
   adjustments <- loadIf rpLoadAdjustment $ loadStockAdjustments param
+  forecasts <- loadIf rpLoadForecast $ do
+    skus <- loadValidSkus param
+    loadItemForecast (`member` skus) (rpJustFrom param) (rpJustTo param)
   -- for efficiency reason
   -- it is better to group sales and purchase separately and then merge them
   sales <- loadIf rpLoadSales $ loadItemSales param
@@ -432,10 +440,11 @@ loadItemTransactions param grouper = do
   let salesGroups = grouper' sales
       purchaseGroups = grouper'  purchases
       adjGroups = grouper' adjustments
+      forecastGroups = grouper' forecasts
       grouper' = grouper . fmap (computeCategory skuToStyleVar categories catFinder custCategories custCatFinder) 
         
 
-  return $ salesGroups <> purchaseGroups <> adjGroups
+  return $ salesGroups <> purchaseGroups <> adjGroups <> forecastGroups
 
 computeCategory :: (Text -> (Text, Text))
                 -> [Text]
@@ -610,6 +619,34 @@ loadStockAdjustments param = do
   moves <- runDB $ rawSql (sql <> intercalate " " w) p
   return $ map moveToTransInfo moves
 
+
+-- | Load a set of filtered sku. This correspond of matching the ReportParam criteria.
+-- Useful to filter the forecast for example.
+loadValidSkus :: ReportParam -> Handler (Set Text)
+loadValidSkus  param =  do
+  stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
+  let catFilterM = (,) <$> rpCategoryToFilter param <*> rpCategoryFilter param
+  let sql = intercalate " " $
+          "SELECT distinct stock_id " :
+          "FROM 0_stock_master" :
+          (if isJust catFilterM then "JOIN fames_item_category_cache AS category USING (stock_id)" else "" ) :
+          ("WHERE stock_id LIKE '" <> stockLike <> "'") : 
+          []
+
+      (w,p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+                                                      in (" AND stock_id " <> keyw <> " ?", PersistText v)
+                                               )) ?:
+                       case catFilterM of
+                            Nothing -> []
+                            Just (catToFilter, catFilter) ->
+                                 let (keyw, v) = filterEKeyword catFilter
+                                 in [ (" AND category.value " <> keyw <> " ?", PersistText v)
+                                    , (" AND category.category = ? ", PersistText catToFilter)
+                                    ]
+
+  rows <- runDB $ rawSql (sql <> intercalate " " w) p
+  return $ setFromList $ map unSingle rows
+
 -- * Converter
 -- ** StockMove
 moveToTransInfo (Entity _ FA.StockMove{..}) = (key, tqp) where
@@ -740,8 +777,8 @@ span.RunSum::before
 span.RunSumBack::before
   content: "<<"
                    |]
-tableProcessor :: NMap (Sum Double, TranQP) -> Widget 
-tableProcessor grouped = do
+tableProcessor :: ReportParam -> NMap (Sum Double, TranQP) -> Widget 
+tableProcessor ReportParam{..} grouped = do
   let levels = drop 1 $ nmapLevels grouped
       ns = [1..]
   toWidget commonCss
@@ -756,19 +793,28 @@ tableProcessor grouped = do
               <tr>
                 $forall level <-  levels
                   <th> #{fromMaybe "" level}
-                <th> Sales Qty
-                <th> Sales Amount
-                <th> Sales Min Price
-                <th> Sales max Price
-                <th> Sales Average Price
-                <th> Purch Qty
-                <th> Purch Amount
-                <th> Purch Min Price
-                <th> Purch Max Price
-                <th> Purch Average Price
-                <th> Loss Qty
-                <th> Loss Amount
-                <th> Leftover
+                $if rpLoadSales
+                  <th> Sales Qty
+                  <th> Sales Amount
+                  <th> Sales Min Price
+                  <th> Sales max Price
+                  <th> Sales Average Price
+                $if rpLoadForecast
+                  <th> Forecast Qty
+                  <th> Forecast Amount
+                  <th> Forecast Min Price
+                  <th> Forecast max Price
+                  <th> Forecast Average Price
+                $if rpLoadPurchases
+                  <th> Purch Qty
+                  <th> Purch Amount
+                  <th> Purch Min Price
+                  <th> Purch Max Price
+                  <th> Purch Average Price
+                $if rpLoadAdjustment
+                  <th> Loss Qty
+                  <th> Loss Amount
+                  <th> Leftover
                 <th> Profit Amount
                 <th> Sales Through
                 <th> %Loss (Qty)
@@ -778,9 +824,15 @@ tableProcessor grouped = do
                       $forall key <- zip ns keys
                         <td>
                            #{nkeyWithRank key}
-                      ^{showQp Outward $ salesQPrice qp}
-                      ^{showQp Inward $ purchQPrice qp}
-                      ^{showQpAdj $ adjQPrice qp}
+                       
+                      $if rpLoadSales
+                        ^{showQp Outward $ salesQPrice qp}
+                      $if rpLoadForecast
+                        ^{showQp Outward $ forecastQPrice qp}
+                      $if rpLoadPurchases
+                        ^{showQp Inward $ purchQPrice qp}
+                      $if rpLoadAdjustment
+                        ^{showQpAdj $ adjQPrice qp}
                       ^{showQpMargin qp}
               $if not (null levels)
                 $with (_,qpt) <- (nmapMargin group1)
@@ -788,9 +840,14 @@ tableProcessor grouped = do
                       <td> Total
                       $forall level <- drop 1 levels
                         <td>
-                      ^{showQp Outward $ salesQPrice qpt}
-                      ^{showQp Inward $ purchQPrice qpt}
-                      ^{showQpAdj $ adjQPrice qpt}
+                      $if rpLoadSales
+                        ^{showQp Outward $ salesQPrice qpt}
+                      $if rpLoadForecast
+                        ^{showQp Outward $ forecastQPrice qpt}
+                      $if rpLoadPurchases
+                        ^{showQp Inward $ purchQPrice qpt}
+                      $if rpLoadAdjustment
+                        ^{showQpAdj $ adjQPrice qpt}
                       ^{showQpMargin qpt}
                       |]
   where

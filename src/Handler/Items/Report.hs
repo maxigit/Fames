@@ -44,12 +44,13 @@ reportForm cols paramM extra = do
   (fSales, vSales) <- mreq checkBoxField "Sales" (rpLoadSales <$> paramM)
   (fPurchases, vPurchases) <- mreq checkBoxField "Purchases" (rpLoadPurchases <$> paramM)
   (fAdjustment, vAdjustment) <- mreq checkBoxField "Adjustment" (rpLoadAdjustment <$> paramM)
+  (fForecast, vForecast) <- mreq checkBoxField "Forecast" (rpLoadForecast <$> paramM)
   let fields = [ Right $ mapM_ renderField [vFrom, vTo, vPeriod, vPeriodN]
                , Right $ mapM_ renderField [vStockFilter, vCategoryToFilter, vCategoryFilter]
                , Right wPanel, Right wBand, Right wSerie
                , Right vColRupture
                , Right wTrace1, Right wTrace2, Right wTrace3
-               , Right $ mapM_ renderField [vSales, vPurchases, vAdjustment]
+               , Right $ mapM_ renderField [vSales, vPurchases, vAdjustment, vForecast]
                ]
   let form = [whamlet|#{extra}|] >> mapM_ (either renderField inline) fields
       inline w = [whamlet| <div.form-inline>^{w}|]
@@ -58,7 +59,7 @@ reportForm cols paramM extra = do
           fCategoryToFilter  fCategoryFilter
           fStockFilter  fPanel  fBand  fSerie
           fColRupture  fTrace1  fTrace2  fTrace3
-          fSales  fPurchases  fAdjustment
+          fSales  fPurchases  fAdjustment fForecast
   return (report , form)
  
 {-# NOINLINE mkReport #-}
@@ -67,13 +68,13 @@ mkReport today fFrom  fTo
    fCategoryToFilter  fCategoryFilter
    fStockFilter  fPanel  fBand  fSerie
    fColRupture  fTrace1  fTrace2  fTrace3
-   fSales  fPurchases  fAdjustment = 
+   fSales  fPurchases  fAdjustment fForecast = 
   ReportParam <$> pure today <*> fFrom <*> fTo
   <*> fPeriod <*> fPeriodN
   <*> fCategoryToFilter <*> fCategoryFilter
   <*> fStockFilter <*> fPanel <*> fBand <*> fSerie
   <*> fColRupture <*> fTrace1 <*> fTrace2 <*> fTrace3
-  <*> fSales <*> fPurchases <*> fAdjustment
+  <*> fSales <*> fPurchases <*> fAdjustment <*> fForecast
   -- noneOption, amountOutOption, amountInOption :: ToJSON a =>  (Text, [(QPrice -> Amount, a -> [(Text, Value)], RunSum)])
 traceForm :: Bool -> String -> Maybe TraceParams -> MForm Handler (FormResult TraceParams, Widget)
 traceForm nomode suffix p = do
@@ -157,7 +158,7 @@ getItemsReportR mode = do
                            sales --  rpTraceParam :: TraceParams
                            emptyTrace --  rpTraceParam2 :: TraceParams
                            emptyTrace --  rpTraceParam3 :: TraceParams
-                           True True True
+                           True True True False
         _ -> ReportParam   today
                            (Just past) --  rpFrom :: Maybe Day
                            (Just tomorrow) --  rpTo :: Maybe Day
@@ -173,7 +174,7 @@ getItemsReportR mode = do
                            sales --  rpTraceParam :: TraceParams
                            emptyTrace --  rpTraceParam2 :: TraceParams
                            emptyTrace --  rpTraceParam3 :: TraceParams
-                           True True True
+                           True True True False
 
   renderReportForm ItemsReportR mode (Just defaultReportParam) ok200 Nothing
 
@@ -216,7 +217,7 @@ postItemsReportFor route mode = do
               report <- case mode of
                     Just ReportChart -> itemReportXXX param grouper (chartProcessor param)
                     Just ReportPivot -> itemReport param pivotProcessor
-                    _ -> itemReportXXX param tableGrouper tableProcessor
+                    _ -> itemReportXXX param tableGrouper (tableProcessor param)
                     -- _                -> itemReportXXX param grouper (pivotProcessorXXX param)
               renderReportForm route mode (Just param) ok200 (Just report)
 

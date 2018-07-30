@@ -219,6 +219,7 @@ data InOutward = Inward | Outward deriving (Show, Read, Eq, Ord, Enum, Bounded)
 -- | example Sales Credit -> Credit ,or Sales Credit to Sales
 data QPType = QPSales | QPPurchase | QPAdjustment | QPCredit | QPInvoice 
             | QPSalesInvoice | QPSalesCredit | QPPurchInvoice | QPPurchCredit
+            | QPSalesForecast
             | QPSummary
   deriving(Read, Show, Eq, Ord, Enum, Bounded)
 
@@ -251,6 +252,7 @@ tranQP qtype qp = let
                    QPPurchInvoice -> [QPPurchase, QPInvoice]
                    QPPurchCredit -> [QPPurchase, QPCredit]
                    QPAdjustment -> [QPAdjustment]
+                   QPSalesForecast -> [QPSalesForecast]
                    QPSummary -> [minBound..maxBound]
                    _ -> error $ "Fix ME: creating with TranQP with " <> show qtype
   -- for adjustment, we want the quantity to be parts of the summary
@@ -258,6 +260,7 @@ tranQP qtype qp = let
   createPair targetType =  (targetType, qp') where
     qp' = case (qtype, targetType) of
                   (QPAdjustment, QPSummary) -> qp {_qpAmount = 0}
+                  (QPSalesForecast, QPSummary) -> qp {_qpAmount = 0}
                   _ -> qp
   in TranQP $ LMap.fromList (map createPair (qtype:QPSummary:qtypes))
                    
@@ -266,6 +269,7 @@ tranQP qtype qp = let
 lookupGrouped qtype (TranQP tmap) = LMap.lookup qtype tmap
 
 salesQPrice = lookupGrouped QPSales
+forecastQPrice = lookupGrouped QPSalesForecast
 purchQPrice = lookupGrouped QPPurchase
 summaryQPrice = lookupGrouped QPSummary
 adjQPrice = lookupGrouped QPAdjustment
@@ -517,5 +521,6 @@ seasonProfile weights0 = SeasonProfile (normalize weights) where
     0 -> xs
     norm -> (/norm) <$> xs
   
+seasonProfileFromMap m = seasonProfile [ findWithDefault 0 i m   | i <- [1..12]]
 
 
