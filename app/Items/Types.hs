@@ -304,7 +304,7 @@ tkSupplier = (either (const Nothing) Just) <=< tkCustomerSupplier
 data ItemInitialInfo = ItemInitialInfo
   { iiStandardCost :: Maybe Double
   , iiSalesPrice :: Maybe Double
-  , iiIntialStock :: Maybe Double
+  , iiInitialStock :: Maybe Double
   } deriving Show
 
 -- * Nested Map with pseudo-heterogenous key

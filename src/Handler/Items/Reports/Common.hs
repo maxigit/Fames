@@ -459,9 +459,8 @@ loadItemTransactions param grouper = do
   stockInfo <- loadStockInfo param
   custCatFinder <- customerCategoryFinderCached
   skuToStyleVar <- skuToStyleVarH
-  adjustments <- loadIf rpLoadAdjustment $ loadStockAdjustments param
+  adjustments <- loadIf rpLoadAdjustment $ loadStockAdjustments stockInfo param
   forecasts <- loadIf rpLoadForecast $ do
-    skus <- loadValidSkus param
     loadItemForecast stockInfo (rpJustFrom param) (rpJustTo param)
   -- for efficiency reason
   -- it is better to group sales and purchase separately and then merge them
@@ -476,6 +475,23 @@ loadItemTransactions param grouper = do
 
   return $ salesGroups <> purchaseGroups <> adjGroups <> forecastGroups
 
+createInitialStock infoMap day = mapMaybe go (mapToList infoMap) where
+  go (sku, info) = do --maybe
+    qoh <- iiInitialStock info
+    guard (qoh /= 0)
+    let key = TranKey day
+                Nothing
+                sku
+                Nothing
+                Nothing
+                mempty
+                mempty
+                ST_INVADJUST
+        tqp = tranQP QPAdjustment (mkQPrice Inward qoh 0)
+
+
+    Just  (key, tqp)
+  
 computeCategory :: (Text -> (Text, Text))
                 -> [Text]
                 -> (Text -> FA.StockMasterId -> Maybe Text)
@@ -610,8 +626,8 @@ loadItemPurchases param = do
   return $ map purchToTransInfo purch
 
 
-loadStockAdjustments :: ReportParam -> Handler [(TranKey, TranQP)]
-loadStockAdjustments param = do
+loadStockAdjustments :: Map Text ItemInitialInfo -> ReportParam -> Handler [(TranKey, TranQP)]
+loadStockAdjustments infoMap param = do
   -- We are only interested in what's going in or out of the LOST location
   -- checking what's in DEF doesn't work, as it mixes
   -- transfers from incoming containers  with real adjusment
@@ -647,7 +663,9 @@ loadStockAdjustments param = do
                        <> generateTranDateIntervals param
 
   moves <- runDB $ rawSql (sql <> intercalate " " w) p
-  return $ map moveToTransInfo moves
+  let initials = createInitialStock infoMap (rpJustFrom param)
+
+  return $ map (moveToTransInfo infoMap) moves <> initials
 
 
 -- | Load a set of filtered sku. This correspond of matching the ReportParam criteria.
@@ -680,7 +698,7 @@ loadValidSkus  param =  do
 -- | Basic item information, cost, price initital, stock at the start day (-1)
 loadStockInfo :: ReportParam -> Handler (Map Text ItemInitialInfo)
 loadStockInfo param = do
-  let stockDay = fromMaybe (rpToday param) (rpTo param)
+  let stockDay = rpJustFrom param
   defaultLocation <- appFADefaultLocation <$> getsYesod appSettings
   base <- basePriceList
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
@@ -689,7 +707,7 @@ loadStockInfo param = do
           "SELECT sm.stock_id, material_cost, price, qoh.qty " :
           "FROM 0_stock_master sm" :
           "LEFT JOIN 0_prices AS p ON (sm.stock_id = p.stock_id AND p.sales_type_id = ?) " :
-          ("LEFT JOIN (" <> qoh <> ") qoh ON (sm.stock_id AND qoh.stock_id)" ) :
+          ("LEFT JOIN (" <> qoh <> ") qoh ON (sm.stock_id = qoh.stock_id)" ) :
           (if isJust catFilterM then "JOIN fames_item_category_cache AS category USING (sm.stock_id)" else "" ) :
           (" WHERE sm.stock_id LIKE '" <> stockLike <> "'") : 
           []
@@ -704,14 +722,15 @@ loadStockInfo param = do
                                  in [ (" AND category.value " <> keyw <> " ?", PersistText v)
                                     , (" AND category.category = ? ", PersistText catToFilter)
                                     ]
-      qoh = "SELECT stock_id, SUM(qty) as qty FROM 0_stock_moves WHERE tran_date < ? AND loc_code = ?"
+      qoh = "SELECT stock_id, SUM(qty) as qty FROM 0_stock_moves WHERE tran_date < ? AND loc_code = ? GROUP BY stock_id"
       toInfo (Single sku, Single cost, Single price, Single qoh ) = (sku, ItemInitialInfo cost price qoh)
   rows <- runDB $ rawSql (sql <> intercalate " " w <> order) (toPersistValue base: toPersistValue stockDay : toPersistValue defaultLocation:  p)
+  -- traceShowM("Stock Info", rows)
   return . Map.fromAscList $ map toInfo rows
   
 -- * Converter
 -- ** StockMove
-moveToTransInfo (Entity _ FA.StockMove{..}) = (key, tqp) where
+moveToTransInfo infoMap (Entity _ FA.StockMove{..}) = (key, tqp) where
   key = TranKey stockMoveTranDate
                 Nothing
                 stockMoveStockId
@@ -726,8 +745,9 @@ moveToTransInfo (Entity _ FA.StockMove{..}) = (key, tqp) where
     -- However, they didn't cost anything so the amount should go towards the sales : Outward
     ST_INVADJUST -> tranQP QPAdjustment (mkQPrice Inward stockMoveQty (-stockMoveStandardCost))
   -- transfers are relative to the LOST location so should be taking as Outward : +ve quantity = loss
-    ST_LOCTRANSFER -> tranQP QPAdjustment (mkQPrice Outward stockMoveQty 0)
+    ST_LOCTRANSFER -> tranQP QPAdjustment (mkQPrice Outward stockMoveQty $ fromMaybe 0 costPrice)
     _ -> error $ "unexpected transaction type " ++ show (toEnum stockMoveType :: FATransType) ++ " for stock adjustment "
+  costPrice = iiStandardCost =<< lookup stockMoveStockId infoMap  
   
 -- ** Sales Details
 detailToTransInfo :: (Entity FA.DebtorTransDetail, Single Day, Single ({- Maybe -} Int64), Single Int64) -> (TranKey, TranQP)
