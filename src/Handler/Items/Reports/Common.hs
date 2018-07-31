@@ -456,12 +456,13 @@ loadItemTransactions param grouper = do
   custCategories <- customerCategoriesH
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   catFinder <- categoryFinderCached
+  stockInfo <- loadStockInfo param
   custCatFinder <- customerCategoryFinderCached
   skuToStyleVar <- skuToStyleVarH
   adjustments <- loadIf rpLoadAdjustment $ loadStockAdjustments param
   forecasts <- loadIf rpLoadForecast $ do
     skus <- loadValidSkus param
-    loadItemForecast (`member` skus) (rpJustFrom param) (rpJustTo param)
+    loadItemForecast stockInfo (rpJustFrom param) (rpJustTo param)
   -- for efficiency reason
   -- it is better to group sales and purchase separately and then merge them
   sales <- loadIf rpLoadSales $ loadItemSales param
@@ -676,6 +677,38 @@ loadValidSkus  param =  do
   rows <- runDB $ rawSql (sql <> intercalate " " w) p
   return $ setFromList $ map unSingle rows
 
+-- | Basic item information, cost, price initital, stock at the start day (-1)
+loadStockInfo :: ReportParam -> Handler (Map Text ItemInitialInfo)
+loadStockInfo param = do
+  let stockDay = fromMaybe (rpToday param) (rpTo param)
+  defaultLocation <- appFADefaultLocation <$> getsYesod appSettings
+  base <- basePriceList
+  stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
+  let catFilterM = (,) <$> rpCategoryToFilter param <*> rpCategoryFilter param
+  let sql = intercalate " " $
+          "SELECT sm.stock_id, material_cost, price, qoh.qty " :
+          "FROM 0_stock_master sm" :
+          "LEFT JOIN 0_prices AS p ON (sm.stock_id = p.stock_id AND p.sales_type_id = ?) " :
+          ("LEFT JOIN (" <> qoh <> ") qoh ON (sm.stock_id AND qoh.stock_id)" ) :
+          (if isJust catFilterM then "JOIN fames_item_category_cache AS category USING (sm.stock_id)" else "" ) :
+          (" WHERE sm.stock_id LIKE '" <> stockLike <> "'") : 
+          []
+      order = " ORDER BY sm.stock_id " 
+      (w,p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+                                                      in (" AND sm.stock_id " <> keyw <> " ?", PersistText v)
+                                               )) ?:
+                       case catFilterM of
+                            Nothing -> []
+                            Just (catToFilter, catFilter) ->
+                                 let (keyw, v) = filterEKeyword catFilter
+                                 in [ (" AND category.value " <> keyw <> " ?", PersistText v)
+                                    , (" AND category.category = ? ", PersistText catToFilter)
+                                    ]
+      qoh = "SELECT stock_id, SUM(qty) as qty FROM 0_stock_moves WHERE tran_date < ? AND loc_code = ?"
+      toInfo (Single sku, Single cost, Single price, Single qoh ) = (sku, ItemInitialInfo cost price qoh)
+  rows <- runDB $ rawSql (sql <> intercalate " " w <> order) (toPersistValue base: toPersistValue stockDay : toPersistValue defaultLocation:  p)
+  return . Map.fromAscList $ map toInfo rows
+  
 -- * Converter
 -- ** StockMove
 moveToTransInfo (Entity _ FA.StockMove{..}) = (key, tqp) where

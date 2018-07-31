@@ -301,6 +301,12 @@ tkCustomer = (either Just (const Nothing)) <=< tkCustomerSupplier
 tkSupplier :: TranKey -> Maybe Int64
 tkSupplier = (either (const Nothing) Just) <=< tkCustomerSupplier
 
+data ItemInitialInfo = ItemInitialInfo
+  { iiStandardCost :: Maybe Double
+  , iiSalesPrice :: Maybe Double
+  , iiIntialStock :: Maybe Double
+  } deriving Show
+
 -- * Nested Map with pseudo-heterogenous key
 -- we use here PersistValue as a Sum type containing
 -- the main basic types as well hav having an Ord instance
