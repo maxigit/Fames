@@ -140,12 +140,38 @@ instance Show TraceParam where
 -- backward -> 8,7,5,5,0 (start from the end cumul and decrease to 0)
 data RunSum = RunSum | RunSumBack | RSNormal deriving Show
 -- ** Default  style
-amountStyle color = [("type", String "scatter")
+amountStyle 3 = smouthAmountStyle
+amountStyle 2 = smouthDotStyle
+amountStyle _ = markerLineStyle
+
+markerLineStyle color = [("type", String "scatter")
                     ,("name", String "Amount")
                     ,("line", [aesonQQ|{
                                color: #{color}
                                 }|])
                     ]
+smouthAmountStyle color = [("type", String "scatter")
+                      ,("mode", String "lines")
+                      ,("name", String "Sales")
+                      ,("line", [aesonQQ|{
+                               shape:"spline", 
+                               color: #{color},
+                               dash: "dot",
+                               width: 1
+                                }|])
+                , ("marker", [aesonQQ|{symbol: "square"}|])
+              ]
+smouthDotStyle color = [("type", String "scatter")
+                      ,("mode", String "lines+markers")
+                      ,("name", String "Sales")
+                      ,("line", [aesonQQ|{
+                               shape:"spline", 
+                               color: #{color},
+                               dash: "dot",
+                               width: 1
+                                }|])
+                , ("marker", [aesonQQ|{symbol: "square"}|])
+              ]
 -- cumulAmountStyle color = [("type", String "scatter")
 --                     ,("name", String "Amount")
 --                     ,("fill", "tonextx")
@@ -154,34 +180,37 @@ amountStyle color = [("type", String "scatter")
 --                                color: #{color}
 --                                 }|])
 cumulAmountStyle = amountStyle
-quantityStyle color = [("type", String "scatter")
+quantityStyle 2 = hvStyle
+quantityStyle n = amountStyle n
+hvStyle color = [("type", String "scatter")
                       ,("name", String "Quantity")
                       ,("line", [aesonQQ|{
-                               shape:"hvh",
+                               shape:"hv",
                                color: #{color},
-                               dash: "dash"
+                               width: 1
                                 }|])
                 , ("marker", [aesonQQ|{symbol: "square-open"}|])
                 , ("yaxis", "y2")
                 , ("showlegend", toJSON False)
               ]
 
-quantityAmountStyle :: InOutward -> [(QPrice -> Amount, ValueType, Text -> [(Text, Value)], RunSum)]
-quantityAmountStyle io = [ (qpQty io, VQuantity,  quantityStyle, RSNormal)
-                         , (qpAmount io, VAmount, \color -> [("type", String "scatter")
-                                                   ,("name", String "Amount")
-                                                   ,("line", [aesonQQ|{
-                                                           color: #{color},
-                                                           shape: "spline",
-                                                           width: 1
-                                                           }|])
-                                         ], RSNormal)
+quantityAmountStyle :: Int -> InOutward -> [(QPrice -> Amount, ValueType, Text -> [(Text, Value)], RunSum)]
+quantityAmountStyle traceN io = [ (qpQty io, VQuantity,  quantityStyle (traceN+1), RSNormal)
+                                , (qpAmount io, VAmount, amountStyle traceN, RSNormal)
+                                   -- \color -> [("type", String "scatter")
+                                         --           ,("name", String "Amount")
+                                         --           ,("line", [aesonQQ|{
+                                         --                   color: #{color},
+                                         --                   shape: "spline",
+                                         --                   width: 1
+                                         --                   }|])
+                                         -- ], RSNormal)
                          ]
 priceStyle color = [("type", String "scatter")
                 , ("marker", [aesonQQ|{symbol: "diamond"}|])
                 , ("yaxis", "y3")
                 , ("name", "price")
-                , ("line", [aesonQQ|{dash:"dash", color:#{color}}|])
+                , ("line", [aesonQQ|{dash:"dot", width:1, color:#{color}}|])
               ]
 pricesStyle :: [(QPrice -> Amount, ValueType,  Text -> [(Text, Value)], RunSum)]
 pricesStyle = [(qpMinPrice , VPrice,  const [ ("style", String "scatter")
@@ -412,11 +441,11 @@ w52 = Column "52W" (\p tk -> let day0 = addDays 1 $ fromMaybe (rpToday p) (rpTo 
 emptyRupture = ColumnRupture Nothing emptyTrace Nothing Nothing False
 emptyTrace = TraceParams QPSales (mkIdentifialParam noneOption) Nothing
 noneOption = ("None" :: Text, [])
-amountOutOption = ("Amount (Out)" ,   [(qpAmount Outward, VAmount, amountStyle, RSNormal)] )
-amountInOption = ("Amount (In)",     [(qpAmount Inward,  VAmount, amountStyle, RSNormal)])
+amountOutOption n = ("Amount (Out)" ,   [(qpAmount Outward, VAmount, amountStyle n, RSNormal)] )
+amountInOption n = ("Amount (In)",     [(qpAmount Inward,  VAmount, amountStyle n, RSNormal)])
 
 -- ** Default trace
-bestSalesTrace = TraceParams QPSales (mkIdentifialParam amountInOption) Nothing
+bestSalesTrace = TraceParams QPSales (mkIdentifialParam $ amountInOption 1) Nothing
 -- * DB
 loadItemTransactions :: ReportParam
                      -> ([(TranKey, TranQP)] -> NMap TranQP)

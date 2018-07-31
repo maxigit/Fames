@@ -38,9 +38,9 @@ reportForm cols paramM extra = do
   (fBand, wBand) <- ruptureForm colOptions "Band" (rpBand <$> paramM)
   (fSerie, wSerie) <- ruptureForm colOptions "Series" (rpSerie <$> paramM)
   (fColRupture, vColRupture) <- ruptureForm colOptions  "Columns" (rpColumnRupture <$> paramM)
-  (fTrace1, wTrace1) <- traceForm False "" (rpTraceParam <$> paramM)
-  (fTrace2, wTrace2) <- traceForm False " 2" (rpTraceParam2 <$> paramM)
-  (fTrace3, wTrace3) <- traceForm False " 3"(rpTraceParam3 <$> paramM)
+  (fTrace1, wTrace1) <- traceForm 1 False "" (rpTraceParam <$> paramM)
+  (fTrace2, wTrace2) <- traceForm 2 False " 2" (rpTraceParam2 <$> paramM)
+  (fTrace3, wTrace3) <- traceForm 3 False " 3"(rpTraceParam3 <$> paramM)
   (fSales, vSales) <- mreq checkBoxField "Sales" (rpLoadSales <$> paramM)
   (fPurchases, vPurchases) <- mreq checkBoxField "Purchases" (rpLoadPurchases <$> paramM)
   (fAdjustment, vAdjustment) <- mreq checkBoxField "Adjustment" (rpLoadAdjustment <$> paramM)
@@ -76,22 +76,22 @@ mkReport today fFrom  fTo
   <*> fColRupture <*> fTrace1 <*> fTrace2 <*> fTrace3
   <*> fSales <*> fPurchases <*> fAdjustment <*> fForecast
   -- noneOption, amountOutOption, amountInOption :: ToJSON a =>  (Text, [(QPrice -> Amount, a -> [(Text, Value)], RunSum)])
-traceForm :: Bool -> String -> Maybe TraceParams -> MForm Handler (FormResult TraceParams, Widget)
-traceForm nomode suffix p = do
+traceForm :: Int -> Bool -> String -> Maybe TraceParams -> MForm Handler (FormResult TraceParams, Widget)
+traceForm traceN nomode suffix p = do
   let
     dataTypeOptions = optionsPairs [(drop 2 (tshow qtype), qtype) | qtype <- [minBound..maxBound]]
     dataValueOptions = map (\(t, tps'runsum) -> (t, Identifiable (t, (map mkTraceParam tps'runsum))))
                                     [ noneOption
-                                    , ("QA-Sales", quantityAmountStyle Outward)
-                                    , ("CumulAmount (Out)" ,   [(qpAmount Outward, VAmount, cumulAmountStyle, RunSum)] )
-                                    , ("CumulAmount Backward (Out)" ,   [(qpAmount Outward, VAmount, cumulAmountStyle, RunSumBack)] )
-                                    , ("Stock" ,   [(qpQty Inward, VQuantity, quantityStyle, RunSum)] )
-                                    , amountOutOption
-                                    , amountInOption
-                                    , ("Amount (Bare)",   [(_qpAmount, VAmount, amountStyle, RSNormal)])
-                                    , ("Quantity (Out)",  [(qpQty Outward, VQuantity, quantityStyle, RSNormal)])
-                                    , ("Quantity (In)",   [(qpQty Inward, VQuantity, quantityStyle, RSNormal)])
-                                    , ("Quantity (Bare)", [(_qpQty, VQuantity,           quantityStyle, RSNormal)] )
+                                    , ("QA-Sales", quantityAmountStyle traceN Outward)
+                                    , ("CumulAmount (Out)" ,   [(qpAmount Outward, VAmount, cumulAmountStyle traceN, RunSum)] )
+                                    , ("CumulAmount Backward (Out)" ,   [(qpAmount Outward, VAmount, cumulAmountStyle traceN, RunSumBack)] )
+                                    , ("Stock" ,   [(qpQty Inward, VQuantity, quantityStyle traceN, RunSum)] )
+                                    , amountOutOption traceN
+                                    , amountInOption traceN
+                                    , ("Amount (Bare)",   [(_qpAmount, VAmount, amountStyle traceN, RSNormal)])
+                                    , ("Quantity (Out)",  [(qpQty Outward, VQuantity, quantityStyle traceN, RSNormal)])
+                                    , ("Quantity (In)",   [(qpQty Inward, VQuantity, quantityStyle traceN, RSNormal)])
+                                    , ("Quantity (Bare)", [(_qpQty, VQuantity,           quantityStyle traceN, RSNormal)] )
                                     , ("Avg Price",       [(qpAveragePrice, VPrice,   priceStyle, RSNormal)])
                                     , ("Min Price",       [(qpMinPrice, VPrice,       priceStyle, RSNormal)])
                                     , ("Max Price",       [(qpMaxPrice, VPrice,       priceStyle, RSNormal)])
@@ -112,7 +112,7 @@ traceForm nomode suffix p = do
 ruptureForm :: [(Text, Column)] -> String -> Maybe ColumnRupture -> MForm Handler (FormResult ColumnRupture, Widget)
 ruptureForm colOptions title paramM = do
   (fColumn, vColumn) <- mopt (selectFieldList colOptions) (fromString title)  (cpColumn <$> paramM) 
-  (fSortBy, wSortBy) <- traceForm True ("" ) (cpSortBy <$> paramM)
+  (fSortBy, wSortBy) <- traceForm 1 True ("" ) (cpSortBy <$> paramM)
   (fRankMode, vRankMode) <- mopt (selectField optionsEnum) ("" ) (cpRankMode <$> paramM)
   (fLimitTo, vLimitTo) <- mopt intField "Limit To" (Just $ cpLimitTo =<< paramM)
   (fReverse, vReverse) <- mreq boolField "reverse" (cpReverse <$> paramM)
@@ -135,8 +135,8 @@ getItemsReportR mode = do
   today <- todayH
   (_, (band, serie, timeColumn)) <- getColsWithDefault
   let -- emptyRupture = ColumnRupture Nothing emptyTrace Nothing Nothing False
-      bestSales = TraceParams QPSales (mkIdentifialParam amountInOption) Nothing
-      sales = TraceParams QPSales (mkIdentifialParam amountOutOption) Nothing
+      bestSales = TraceParams QPSales (mkIdentifialParam $ amountInOption 1) Nothing
+      sales = TraceParams QPSales (mkIdentifialParam $ amountOutOption 1) Nothing
       emptyTrace = TraceParams QPSales (mkIdentifialParam noneOption) Nothing
       past = calculateDate (AddMonths (-3)) today
       tomorrow = calculateDate (AddDays 1) today

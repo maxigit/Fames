@@ -256,17 +256,6 @@ cumulStyle color = [("type", String "scatter")
                 , ("yaxis", "y2")
                 , ("showlegend", toJSON True)
               ]
-smouthAmountStyle color = [("type", String "scatter")
-                      ,("mode", String "lines")
-                      ,("name", String "Sales")
-                      ,("line", [aesonQQ|{
-                               shape:"spline", 
-                               color: #{color},
-                               dash: "dot",
-                               width: 1
-                                }|])
-                , ("marker", [aesonQQ|{symbol: "square"}|])
-              ]
 salesCurrentMonthFullUp param = param {rpTraceParam, rpTraceParam2} where
       rpTraceParam = TraceParams QPSales (mkIdentifialParam cumulSales) Nothing
       rpTraceParam2 = TraceParams QPSales (mkIdentifialParam amountSales) Nothing
@@ -351,7 +340,7 @@ top20ItemMonth f begin rupture = do
       rpBand = emptyRupture
       rpSerie = ColumnRupture (Just rupture) bestSalesTrace (Just RMResidual) (Just 50) False
       rpColumnRupture = ColumnRupture  Nothing (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing True
-      rpTraceParam = TraceParams QPSales (mkIdentifialParam amountOutOption) (Just $ NormalizeMode NMColumn NMSerie )
+      rpTraceParam = TraceParams QPSales (mkIdentifialParam $ amountOutOption 1) (Just $ NormalizeMode NMColumn NMSerie )
       rpTraceParam2 = emptyTrace
       -- rpTraceParam = TraceParams QPSales (mkIdentifialParam amountOutOption) (Just $ NormalizeMode NMRank NMBand )
       -- rpTraceParam3 = TraceParams QPSales (mkIdentifialParam amountOutOption) Nothing
@@ -382,8 +371,8 @@ top100ItemYear which rupture = do
       rpBand = emptyRupture
       rpSerie = ColumnRupture (Just rupture) bestSalesTrace (Just RMResidual) (Just 100) False
       rpColumnRupture = ColumnRupture  (Just periodColumn) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing True
-      rpTraceParam2 = TraceParams QPSales (mkIdentifialParam amountOutOption) (Just $ NormalizeMode NMColumn NMSerie )
-      rpTraceParam = TraceParams QPSales (mkIdentifialParam amountOutOption) (Just $ NormalizeMode NMRank NMBand )
+      rpTraceParam2 = TraceParams QPSales (mkIdentifialParam $ amountOutOption 1) (Just $ NormalizeMode NMColumn NMSerie )
+      rpTraceParam = TraceParams QPSales (mkIdentifialParam $ amountOutOption 1) (Just $ NormalizeMode NMRank NMBand )
       -- rpTraceParam3 = TraceParams QPSales (mkIdentifialParam amountOutOption) Nothing
       rpTraceParam3 = emptyTrace
       rpLoadSales = True
@@ -421,7 +410,7 @@ top100ItemYearChart plotName = do
       rpBand = emptyRupture
       rpSerie = ColumnRupture (Just skuColumn) bestSalesTrace Nothing (Just 100) False
       rpColumnRupture = ColumnRupture  (Just monthlyColumn) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
-      rpTraceParam = TraceParams QPSales (mkIdentifialParam amountOutOption) Nothing 
+      rpTraceParam = TraceParams QPSales (mkIdentifialParam $ amountOutOption 1) Nothing 
       rpTraceParam2 = emptyTrace
       rpTraceParam3 = emptyTrace
       rpLoadSales = True
