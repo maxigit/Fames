@@ -91,7 +91,6 @@ skuSpeedRowToTransInfo profileFor start end (SkuSpeedRow sku speed) =
     Nothing -> []
     Just profile -> do -- []
       (day0, weight) <- weightsForRange profile start end
-      traceShowM ("R", day0, weight)
       guard (weight > 1e-6)
       let key = TranKey day0
                     Nothing
