@@ -188,7 +188,7 @@ instance FromJSON AppSettings  where
         appBankStatements <- o .:? "bank-statements" .!= Map.fromList []
         appForecastCollectionProfilePath <- o .:? "forecast-collection-profile" .!= "collection_profile.csv"
         appForecastSkuSpeedGlob <- o .:? "forecast-sku-speed" .!= "*sku_speed.csv"
-        appForecastCollectionCategory <- o .:? "forecast-collection-category" .!= "collection"
+        appForecastCollectionCategory <- o .:? "forecast-collection-category" .!= "forecast-profile"
           
         
 
