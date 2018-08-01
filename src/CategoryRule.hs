@@ -138,7 +138,7 @@ expandSource regexCache inputMap format = let
 -- | Regex as match in source tranform
 -- "$cat1 - $cat2"" will search and replace for the value
 -- of category cat1 and cat2
-mkCategoryRegex category = Rg.mkRegex $ "\\$" ++ category
+mkCategoryRegex category = Rg.mkRegex $ "\\$" ++ category ++ "\\>"
 
   
 
