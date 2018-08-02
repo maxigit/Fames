@@ -42,7 +42,8 @@ data ReportParam = ReportParam
   , rpLoadSales :: Bool
   , rpLoadPurchases :: Bool
   , rpLoadAdjustment :: Bool
-  , rpLoadForecast :: Bool
+  -- , rpLoadForecast :: Bool
+  , rpForecastDir :: Maybe FilePath
   }  deriving Show
 paramToCriteria :: ReportParam -> [Filter FA.StockMove]
 paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
@@ -51,6 +52,7 @@ paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
  
 rpJustFrom ReportParam{..} = fromMaybe rpToday rpFrom
 rpJustTo ReportParam{..} = fromMaybe rpToday rpTo
+rpLoadForecast = isJust . rpForecastDir
 
 -- TODO could it be merged with Column ?
 data ColumnRupture = ColumnRupture
@@ -460,8 +462,9 @@ loadItemTransactions param grouper = do
   custCatFinder <- customerCategoryFinderCached
   skuToStyleVar <- skuToStyleVarH
   adjustments <- loadIf rpLoadAdjustment $ loadStockAdjustments stockInfo param
-  forecasts <- loadIf rpLoadForecast $ do
-    loadItemForecast stockInfo (rpJustFrom param) (rpJustTo param)
+  forecasts <- case rpForecastDir param of
+    Nothing -> return []
+    Just forecastDir -> loadItemForecast forecastDir stockInfo (rpJustFrom param) (rpJustTo param)
   -- for efficiency reason
   -- it is better to group sales and purchase separately and then merge them
   sales <- loadIf rpLoadSales $ loadItemSales param
@@ -881,7 +884,7 @@ tableProcessor ReportParam{..} grouped = do
                   <th> Sales Min Price
                   <th> Sales max Price
                   <th> Sales Average Price
-                $if rpLoadForecast
+                $if isJust rpForecastDir 
                   <th> Forecast Qty
                   <th> Forecast Amount
                   <th> Forecast Min Price
@@ -909,7 +912,7 @@ tableProcessor ReportParam{..} grouped = do
                        
                       $if rpLoadSales
                         ^{showQp Outward $ salesQPrice qp}
-                      $if rpLoadForecast
+                      $if isJust rpForecastDir
                         ^{showQp Outward $ forecastQPrice qp}
                       $if rpLoadPurchases
                         ^{showQp Inward $ purchQPrice qp}
@@ -924,7 +927,7 @@ tableProcessor ReportParam{..} grouped = do
                         <td>
                       $if rpLoadSales
                         ^{showQp Outward $ salesQPrice qpt}
-                      $if rpLoadForecast
+                      $if isJust rpForecastDir
                         ^{showQp Outward $ forecastQPrice qpt}
                       $if rpLoadPurchases
                         ^{showQp Inward $ purchQPrice qpt}

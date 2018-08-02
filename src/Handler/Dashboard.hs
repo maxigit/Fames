@@ -289,7 +289,7 @@ salesCurrentMonth f plotName = do
       rpLoadSales = True
       rpLoadPurchases = False
       rpLoadAdjustment = False
-      rpLoadForecast = False
+      rpForecastDir = Nothing
       amountSales = ("Amount (Out)" ,   [(qpAmount Outward, VAmount, amountStyle, RSNormal)] )
       amountStyle color = [("type", String "scatter")
                       ,("mode", String "lines")
@@ -348,7 +348,7 @@ top20ItemMonth f begin rupture = do
       rpLoadSales = True
       rpLoadPurchases = False
       rpLoadAdjustment = False
-      rpLoadForecast = False
+      rpForecastDir = Nothing
   report <- let pivotP tparams = processRupturesWith (createKeyRankProcessor $ \_ _ -> (bandPivotProcessor tparams "pivot-Top20", id) ) ()
             in itemReport param pivotP--  (panelPivotProcessor "pivot-Top-100" (mkNMapKey "New Report"))
   return $ report
@@ -378,7 +378,7 @@ top100ItemYear which rupture = do
       rpLoadSales = True
       rpLoadPurchases = False
       rpLoadAdjustment = False
-      rpLoadForecast = False
+      rpForecastDir = Nothing
       -- TODO factorize
       grouper = [ rpBand, rpSerie
                 , rpColumnRupture
@@ -416,7 +416,7 @@ top100ItemYearChart plotName = do
       rpLoadSales = True
       rpLoadPurchases = False
       rpLoadAdjustment = False
-      rpLoadForecast = False
+      rpForecastDir = Nothing
       -- TODO factorize
       grouper = [ -- rpPanelRupture,
                   rpBand, rpSerie
@@ -424,6 +424,7 @@ top100ItemYearChart plotName = do
                 ]
   report <- itemReportXXX param grouper (\nmap -> panelChartProcessor (const 350) nmap param plotName nmap)
   return $ report
+
 
 -- pivotRankProcessor:: [TraceParams] -> _ColumnRuptures -> NMap TranQP -> Widget
 -- pivotRankProcessor tparams = 

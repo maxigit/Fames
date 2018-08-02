@@ -71,14 +71,14 @@ loadSkuSpeed filepath = do
   return rows
 
 -- | Generate fake transactions corresponding to forecast sales
-loadItemForecast ::  (Map Text ItemInitialInfo) -> Day -> Day -> Handler [(TranKey, TranQP)]
-loadItemForecast infoMap start end = do
+loadItemForecast ::  FilePath -> (Map Text ItemInitialInfo) -> Day -> Day -> Handler [(TranKey, TranQP)]
+loadItemForecast forecastDir infoMap start end = do
   catFinder <- categoryFinderCached
   settings <- getsYesod appSettings
-  profiles <- lift $ readProfiles (appForecastCollectionProfilePath settings)
+  profiles <- lift $ readProfiles (forecastDir </> "collection_profiles.csv")
   let profile sku = (catFinder (appForecastCollectionCategory settings) (FA.StockMasterKey sku) >>= (`lookup` profiles) ) <|> Just flatProfile
       flatProfile = seasonProfile []
-  skuFiles <- lift $ glob (unpack $ appForecastSkuSpeedGlob settings)
+  skuFiles <- lift $ glob (unpack $ forecastDir </> "*sku_forecast.csv" )
   when (null skuFiles) $ do
      setError "Can't find any sku speed files. Please check with your administrator."
 

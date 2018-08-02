@@ -18,12 +18,14 @@ import qualified Data.List as List
 import qualified FA as FA
 import GL.Utils
 import GL.Payroll.Settings
+import System.Directory(listDirectory, doesDirectoryExist)
 
 -- * Form
 reportForm :: [Column] -> Maybe ReportParam -> Html -> MForm Handler (FormResult ReportParam, Widget)
 reportForm cols paramM extra = do
   today <- todayH
   categories <- lift $ categoriesH
+  forecastDirOptions <- lift getForecastDirOptions
 
   let colOptions = [(colName c,c) | c <- cols]
       categoryOptions = [(cat, cat) | cat <-categories ]
@@ -44,7 +46,7 @@ reportForm cols paramM extra = do
   (fSales, vSales) <- mreq checkBoxField "Sales" (rpLoadSales <$> paramM)
   (fPurchases, vPurchases) <- mreq checkBoxField "Purchases" (rpLoadPurchases <$> paramM)
   (fAdjustment, vAdjustment) <- mreq checkBoxField "Adjustment" (rpLoadAdjustment <$> paramM)
-  (fForecast, vForecast) <- mreq checkBoxField "Forecast" (rpLoadForecast <$> paramM)
+  (fForecast, vForecast) <- mopt (selectFieldList forecastDirOptions) "Forecast Profile" (rpForecastDir <$> paramM)
   let fields = [ Right $ mapM_ renderField [vFrom, vTo, vPeriod, vPeriodN]
                , Right $ mapM_ renderField [vStockFilter, vCategoryToFilter, vCategoryFilter]
                , Right wPanel, Right wBand, Right wSerie
@@ -128,6 +130,16 @@ ruptureForm colOptions title paramM = do
                                            ]
   return (ColumnRupture <$> fColumn <*>  fSortBy <*> fRankMode <*> fLimitTo <*> fReverse, form)
   
+
+getForecastDirOptions :: Handler [(Text, FilePath)]
+getForecastDirOptions = do
+  forecastDir <- appForecastProfilesDir <$> getsYesod appSettings
+  entries <- lift $ listDirectory forecastDir
+  dirs <- lift $ filterM (doesDirectoryExist . (forecastDir </>)) entries
+  -- traceShowM (forecastDir, entries, dirs)
+  return [(pack dir, forecastDir </> dir) | dir <- dirs]
+
+
 -- * Handler
 
 getItemsReportR :: Maybe ReportMode -> Handler TypedContent
@@ -158,7 +170,7 @@ getItemsReportR mode = do
                            sales --  rpTraceParam :: TraceParams
                            emptyTrace --  rpTraceParam2 :: TraceParams
                            emptyTrace --  rpTraceParam3 :: TraceParams
-                           True True True False
+                           True True True Nothing
         _ -> ReportParam   today
                            (Just past) --  rpFrom :: Maybe Day
                            (Just tomorrow) --  rpTo :: Maybe Day
@@ -174,7 +186,7 @@ getItemsReportR mode = do
                            sales --  rpTraceParam :: TraceParams
                            emptyTrace --  rpTraceParam2 :: TraceParams
                            emptyTrace --  rpTraceParam3 :: TraceParams
-                           True True True False
+                           True True True Nothing
 
   renderReportForm ItemsReportR mode (Just defaultReportParam) ok200 Nothing
 
