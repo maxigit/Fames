@@ -67,8 +67,9 @@ instance Csv.FromNamedRecord SkuSpeedRow where
 loadSkuSpeed :: FilePath -> IO  [SkuSpeedRow]
 loadSkuSpeed filepath = do
   content <- readFile filepath
-  let Right rows = parseSpreadsheet mempty Nothing content
-  return rows
+  case parseSpreadsheet mempty Nothing content of
+    Left err -> error $ show err
+    Right rows -> return rows
 
 -- | Generate fake transactions corresponding to forecast sales
 loadItemForecast ::  FilePath -> (Map Text ItemInitialInfo) -> Day -> Day -> Handler [(TranKey, TranQP)]
