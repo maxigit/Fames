@@ -243,8 +243,8 @@ dispatchReport reportName width height = do
 
 cumulSales = ("CumulAmount (Out)" ,   [(qpAmount Outward, VAmount, cumulStyle, RunSum)] )
 _quantitySales = ("CumulAmount (Out)" ,   [(qpQty Outward, VAmount, cumulStyle, RunSum)] )
-amountSales = ("Amount (Out)" ,   [(qpAmount Outward, VAmount, smouthAmountStyle, RSNormal)] )
-quantitySales = ("Amount (Out)" ,   [(qpQty Outward, VQuantity, smouthAmountStyle, RSNormal)] )
+amountSales = ("Amount (Out)" ,   [(qpAmount Outward, VAmount, smoothStyle AmountAxis, RSNormal)] )
+quantitySales = ("Amount (Out)" ,   [(qpQty Outward, VQuantity, smoothStyle QuantityAxis, RSNormal)] )
 cumulStyle color = [("type", String "scatter")
                       ,("mode", String "lines")
                       ,("name", String "Sales")

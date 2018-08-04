@@ -307,6 +307,12 @@ data ItemInitialInfo = ItemInitialInfo
   , iiInitialStock :: Maybe Double
   } deriving Show
 
+-- | different type of axis. correspond roughly to unit
+-- but we also make a difference between amount and cumul amount,
+-- because we don't want them to be on the same scale
+data Axis = PriceAxis | AmountAxis | CumulAmountAxis | QuantityAxis | CumulQuantityAxis
+    deriving (Show, Eq, Ord, Enum, Bounded)
+
 -- * Nested Map with pseudo-heterogenous key
 -- we use here PersistValue as a Sum type containing
 -- the main basic types as well hav having an Ord instance

@@ -141,20 +141,35 @@ instance Show TraceParam where
 -- [1,2,0,5] -> 1,3,3,8 (runsum)
 -- backward -> 8,7,5,5,0 (start from the end cumul and decrease to 0)
 data RunSum = RunSum | RunSumBack | RSNormal deriving Show
--- ** Default  style
-amountStyle 3 = smouthAmountStyle
-amountStyle 2 = smouthDotStyle
-amountStyle _ = markerLineStyle
 
-markerLineStyle color = [("type", String "scatter")
+
+data TraceType = Line | LineMarker | Smooth | SmoothMarker | Bar | Hv
+  deriving (Show, Eq, Ord, Enum, Bounded )
+
+-- ** Default  style
+amountStyle 3 = smoothStyle AmountAxis
+amountStyle 2 = smoothDotStyle AmountAxis
+amountStyle _ = markerLineStyle AmountAxis
+
+lineStyle axis color = [("type", String "scatter")
                     ,("name", String "Amount")
+                    ,("mode", String "lines")
+                    , axisFor axis
                     ,("line", [aesonQQ|{
                                color: #{color}
                                 }|])
                     ]
-smouthAmountStyle color = [("type", String "scatter")
+markerLineStyle axis color = [("type", String "scatter")
+                    ,("name", String "Amount")
+                    , axisFor axis
+                    ,("line", [aesonQQ|{
+                               color: #{color}
+                                }|])
+                    ]
+smoothStyle axis color = [("type", String "scatter")
                       ,("mode", String "lines")
                       ,("name", String "Sales")
+                      , axisFor axis
                       ,("line", [aesonQQ|{
                                shape:"spline", 
                                color: #{color},
@@ -163,9 +178,10 @@ smouthAmountStyle color = [("type", String "scatter")
                                 }|])
                 , ("marker", [aesonQQ|{symbol: "square"}|])
               ]
-smouthDotStyle color = [("type", String "scatter")
+smoothDotStyle axis color = [("type", String "scatter")
                       ,("mode", String "lines+markers")
                       ,("name", String "Sales")
+                      , axisFor axis
                       ,("line", [aesonQQ|{
                                shape:"spline", 
                                color: #{color},
@@ -181,10 +197,12 @@ smouthDotStyle color = [("type", String "scatter")
 --                     ,("line", [aesonQQ|{
 --                                color: #{color}
 --                                 }|])
-cumulAmountStyle = amountStyle
-quantityStyle 2 = hvStyle
-quantityStyle n = amountStyle n
-hvStyle color = [("type", String "scatter")
+cumulAmountStyle 3 = smoothStyle CumulAmountAxis
+cumulAmountStyle 2 = smoothDotStyle CumulAmountAxis
+cumulAmountStyle _ = markerLineStyle CumulAmountAxis
+quantityStyle 2 = hvStyle QuantityAxis
+quantityStyle n = smoothDotStyle QuantityAxis
+hvStyle axis color = [("type", String "scatter")
                       ,("name", String "Quantity")
                       ,("line", [aesonQQ|{
                                shape:"hv",
@@ -192,9 +210,19 @@ hvStyle color = [("type", String "scatter")
                                width: 1
                                 }|])
                 , ("marker", [aesonQQ|{symbol: "square-open"}|])
-                , ("yaxis", "y2")
+                , axisFor axis
                 , ("showlegend", toJSON False)
               ]
+
+axisFor axis = ("yaxis", ax) where
+  ax = case axis of
+         PriceAxis ->  "y5"
+         AmountAxis -> "y"
+         CumulAmountAxis -> "y3"
+         QuantityAxis -> "y2"
+         CumulQuantityAxis -> "y4"
+
+    
 
 quantityAmountStyle :: Int -> InOutward -> [(QPrice -> Amount, ValueType, Text -> [(Text, Value)], RunSum)]
 quantityAmountStyle traceN io = [ (qpQty io, VQuantity,  quantityStyle (traceN+1), RSNormal)
@@ -210,7 +238,7 @@ quantityAmountStyle traceN io = [ (qpQty io, VQuantity,  quantityStyle (traceN+1
                          ]
 priceStyle color = [("type", String "scatter")
                 , ("marker", [aesonQQ|{symbol: "diamond"}|])
-                , ("yaxis", "y3")
+                , axisFor PriceAxis
                 , ("name", "price")
                 , ("line", [aesonQQ|{dash:"dot", width:1, color:#{color}}|])
               ]
@@ -1329,7 +1357,9 @@ seriesChartProcessor all panel rupture mono params name plotId grouped = do
                     , { margin: { t: 30 }
                       , title: #{toJSON name}
                       , yaxis2 : {overlaying: 'y', title: "Quantities", side: "right"}
-                      , yaxis3 : {overlaying: 'y', title: "Price"}
+                      , yaxis3 : {overlaying: 'y', title: "Amount(T)", side: "right"}
+                      , yaxis4 : {overlaying: 'y', title: "Quantities(T)", side: "left"}
+                      , yaxis5 : {overlaying: 'y', title: "Price"}
                       }
                     );
                 |]
