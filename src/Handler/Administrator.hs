@@ -12,7 +12,7 @@ import Text.Pretty.Simple
 import Development.GitRev
 import Database.Persist.MySQL(unSqlBackendKey, Single(..))
 import FA as FA hiding (unUserKey)
-
+import Database.Persist.MySQL     (Single(..), rawSql)
 
 -- | Page to test administrator authentication.
 -- might be empty
@@ -133,18 +133,20 @@ getACacheR = do
   <button.btn.btn-danger type="submit">Clear 
                           |]
 
--- | Clear the cache
+-- * Clear the cache
 postACacheR :: Handler Html
 postACacheR = do
   clearAppCache
   getACacheR
 
+-- ** Item Categories
 getAResetCategoryCacheR :: Handler Html
 getAResetCategoryCacheR = do
   refreshCategoryCache True
   setSuccess ("Category cache successfully refreshed")
   getAIndexR
 
+-- ** Customer Categories
 getAResetCustomerCategoryCacheR :: Handler Html
 getAResetCustomerCategoryCacheR = do
   refreshCustomerCategoryCache True
@@ -192,6 +194,83 @@ getACustomerCategoryR = do
         $forall cat <- cats
           <td>#{fromMaybe "" $ finder cat key}
     |]
+
+-- ** Order Categories
+-- | Recomputes the categories for ALL orders
+-- usefull when a new category is created
+getAResetOrderCategoryCacheR :: Handler Html
+getAResetOrderCategoryCacheR = do
+  refreshOrderCategoryCache (Just 1000)
+  setSuccess ("Order category cache sucessfully refreshed")
+  getAOrderCategoryR
+
+-- | Computes category only for the new orders (limited by a number)
+-- can be called 
+getAComputeNewOrderCategoryCacheR :: Handler Html
+getAComputeNewOrderCategoryCacheR = do
+  refreshNewOrderCategoryCache (Just 1000)
+  setSuccess ("New Order category cache sucessfully computed")
+  getAOrderCategoryR
+
+-- | Displays the status of order categories 
+-- How many category have been computed, and the last order computed
+getAOrderCategoryR  :: Handler Html
+getAOrderCategoryR = do
+  sumW <- displayOrderCategorySummary
+  pendingW <- displayPendingOrderCategory
+  defaultLayout [whamlet|
+<div.panel.panel-info>
+  <div.panel-heading>
+    <h3> Summary
+  <div.panel-body>
+    ^{sumW}
+<div.panel.panel-info>
+  <div.panel-heading>
+    <h3> Pending
+  <div.panel-body>
+    ^{pendingW}
+<div.well>
+  <a href=@{AdministratorR AResetOrderCategoryCacheR}>Reset Order Category
+  <a href=@{AdministratorR AComputeNewOrderCategoryCacheR}>Compute New Order Category
+
+|]
+
+displayOrderCategorySummary :: Handler Widget
+displayOrderCategorySummary = do
+  let sql = "SELECT category, count(*) orderId, count(distinct value) FROM fames_order_category_cache GROUP BY category ORDER BY category"
+  rows <- runDB $ rawSql sql []
+  let _types = rows :: [(Single Text, Single Int, Single Int)]
+  return [whamlet|
+<table.table.table-border.table-hover.table-striped>
+  <td>
+    <th>Category
+    <th>Values #
+    <th> Order #
+  $forall (Single category, Single orderN, Single valueN) <- rows
+    <tr>
+      <tr>#{category}
+      <tr>#{valueN}
+      <tr>#{orderN}
+|]
+
+-- find how many order have not been categoried
+displayPendingOrderCategory :: Handler Widget
+displayPendingOrderCategory = runDB $ do
+   [Single orderNb] <- rawSql "SELECT count(*) from 0_sales_orders" []
+   [Single catNb] <- rawSql "SELECT count(distinct order_id) from fames_order_category_cache" []
+   let leftOver = orderNb - catNb :: Int
+   return [whamlet|
+    <p>Categories order #{catNb}/#{orderNb}.
+    <p>
+       $if (leftOver > 0)
+         #{leftOver} orders left to categories.
+       $else
+         All order have been categorized.
+                  |]
+
+
+  
+  
 
 -- * Masquerade
 masquerade = "masquerade-user" :: Text

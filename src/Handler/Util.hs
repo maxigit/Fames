@@ -52,6 +52,8 @@ module Handler.Util
 , customerCategoriesFor
 , refreshCustomerCategoryCache
 , refreshCustomerCategoryFor
+, refreshOrderCategoryCache
+, refreshNewOrderCategoryCache
 , Identifiable(..)
 , getIdentified
 , renderField
@@ -875,6 +877,14 @@ customerCategoriesFor rules = let
 
 
 
+--- *** Order Category caches
+refreshNewOrderCategoryCache :: Maybe Int -> Handler ()
+refreshNewOrderCategoryCache nM = do
+  return ()
+
+refreshOrderCategoryCache :: Maybe Int -> Handler ()
+refreshOrderCategoryCache nM = do
+  return ()
 -- * Misc
 -- todayH :: Handler Day
 -- todayH :: MonadIO io => io Day

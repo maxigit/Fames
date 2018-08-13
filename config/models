@@ -201,6 +201,7 @@ ItemCategory sql=fames_item_category_cache
   Unique ICSC stockId category
   Unique ICCS category stockId
 
+-- | Category for customers
 CustomerCategory sql=fames_customer_category_cache
   Id sql=customer_category_id
   customerId Int 
@@ -208,6 +209,25 @@ CustomerCategory sql=fames_customer_category_cache
   value Text
   Unique CUCC customerId category
   Unique CCUS category customerId
+
+-- | Category for orders
+OrderCategory sql=fames_order_category_cache
+  Id sql=order_category_id
+  orderId Int 
+  category Text
+  value Text
+  Unique COCC orderId category
+  Unique CCOS category orderId
+
+-- | Category for dates
+-- DateCategory sql=fames_date_category_cache
+-- Id sql=date_category_id
+-- dateId Int 
+-- category Text
+-- value Text
+-- Unique CDCC dateId category
+-- Unique CCDS category dateId
+
 -- * FrontAccounting
 -- FrontAccounting Fames many to many relation table
 -- Link Fames "event" to FA Transaction
