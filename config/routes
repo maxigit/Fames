@@ -93,6 +93,7 @@
   /reset-customer-category-cache AResetCustomerCategoryCacheR GET !title=Refresh_User_Category_Cache
   /customer-categories ACustomerCategoryR GET !title=Customer_Categories
   /reset-order-categories AResetOrderCategoryCacheR GET
+  /reset-all-order-categories AResetAllOrderCategoryCacheR GET
   /compute-new-order-categories AComputeNewOrderCategoryCacheR GET
   /order-categories AOrderCategoryR GET !title=Order_Categories
   /masquerade AMasqueradeR GET POST !group=Masquerade !title=Masquerade

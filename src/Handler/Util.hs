@@ -878,13 +878,69 @@ customerCategoriesFor rules = let
 
 
 --- *** Order Category caches
-refreshNewOrderCategoryCache :: Maybe Int -> Handler ()
-refreshNewOrderCategoryCache nM = do
-  return ()
-
+-- | Clears all order categories and computes the n first if given
 refreshOrderCategoryCache :: Maybe Int -> Handler ()
 refreshOrderCategoryCache nM = do
-  return ()
+  runDB $ deleteWhere ([] :: [Filter OrderCategory])
+  refreshNewOrderCategoryCache nM
+
+-- | Computes Order category and cache them
+refreshNewOrderCategoryCache :: Maybe Int -> Handler ()
+refreshNewOrderCategoryCache nM = runDB $ do
+  rulesMap <- appOrderCategoryRules <$> getsYesod appSettings
+  -- find last order with a category
+  [(Single lastOrderM)] <- rawSql "SELECT max(order_id) FROM fames_order_category_cache" []
+  orders <- selectList ( (FA.SalesOrderTransType ==. fromEnum ST_SALESORDER)
+                       : maybe [] (return . (FA.SalesOrderOrderNo >.)) lastOrderM
+                       ) (Asc FA.SalesOrderOrderNo : (maybe [] (return . LimitTo) nM))
+  let orderCategories = concatMap (orderCategoriesFor rules) orders
+      rules = map (first unpack) $ concatMap mapToList rulesMap
+  insertMany_ orderCategories
+  
+orderCategoriesFor :: [(String, CategoryRule)] -> Entity FA.SalesOrder -> [OrderCategory]
+orderCategoriesFor rules = let
+  -- trick to for applyCached to be computed only once, so that the regular expressions
+  -- are only computed once
+  applyCached = applyOrderCategoryRules rules
+  in \orderE -> let
+       (orderId, orderCategories) = applyCached orderE
+       in [OrderCategory (orderId) (pack key) (pack value)
+          | (key, value) <- mapToList orderCategories
+          ]
+
+applyOrderCategoryRules rules =
+  let inputKeys = ["date"
+                  , "delivery-date"
+                  , "delivery-delay"
+                  , "reference"
+                  , "customer-ref"
+                  , "price_list"
+                  , "shipping-cost"
+                  , "shipping-via"
+                  -- , "deliveryAddress"
+                  , "amount"
+                  , "amount-PPD"
+                  , "PPD-days"
+                  , "comment"
+
+                  ]
+      catRegexCache = mapFromList (map (liftA2 (,) id mkCategoryRegex) (inputKeys <> map fst rules))
+  in \(Entity orderId FA.SalesOrder{..}) -> let
+        ruleInput = RuleInput (mapFromList riList) (Just $ salesOrderTotal)
+        riList = ("date", show salesOrderOrdDate) :
+                 ("delivery-date", show salesOrderDeliveryDate) :
+                 ("delivery-delay", printf "%03d" $ diffDays salesOrderDeliveryDate salesOrderOrdDate) :
+                 ("reference", unpack salesOrderReference) :
+                 ("customer-ref", unpack salesOrderCustomerRef) :
+                 ("price_list", show salesOrderOrderType ) :
+                 ("shipping-cost", printf "%09.2f"  salesOrderFreightCost) : -- padding with 0 to 6 figures 
+                 ("shipping-via", show salesOrderShipVia) :
+                 ("amount", printf "%09.2f"  salesOrderTotal) : -- padding with 0 to 6 figures 
+                 ((("amount-PPD",) . printf "%09.2f") <$>  salesOrderTotalPpd) ?: -- padding with 0 to 6 figures 
+                 ("PPD-days",  show  salesOrderPpdDays) : -- padding with 0 to 6 figures 
+                 ((("comment",) . unpack) <$> salesOrderComments) ?:
+                 []
+        in (salesOrderOrderNo, computeCategories catRegexCache rules ruleInput (unpack salesOrderReference))
 -- * Misc
 -- todayH :: Handler Day
 -- todayH :: MonadIO io => io Day

@@ -204,6 +204,13 @@ getAResetOrderCategoryCacheR = do
   setSuccess ("Order category cache sucessfully refreshed")
   getAOrderCategoryR
 
+-- | Computes the categories for ALL orders 
+getAResetAllOrderCategoryCacheR :: Handler Html
+getAResetAllOrderCategoryCacheR = do
+  refreshOrderCategoryCache Nothing
+  setSuccess ("Order category cache sucessfully refreshed")
+  getAOrderCategoryR
+
 -- | Computes category only for the new orders (limited by a number)
 -- can be called 
 getAComputeNewOrderCategoryCacheR :: Handler Html
@@ -230,9 +237,9 @@ getAOrderCategoryR = do
   <div.panel-body>
     ^{pendingW}
 <div.well>
-  <a href=@{AdministratorR AResetOrderCategoryCacheR}>Reset Order Category
-  <a href=@{AdministratorR AComputeNewOrderCategoryCacheR}>Compute New Order Category
-
+  <a href=@{AdministratorR AResetOrderCategoryCacheR}>Reset Order Categories
+  <a href=@{AdministratorR AComputeNewOrderCategoryCacheR}>Compute New Order Categories
+  <a href=@{AdministratorR AResetAllOrderCategoryCacheR}>Reset ALL Order Categories
 |]
 
 displayOrderCategorySummary :: Handler Widget
@@ -242,15 +249,15 @@ displayOrderCategorySummary = do
   let _types = rows :: [(Single Text, Single Int, Single Int)]
   return [whamlet|
 <table.table.table-border.table-hover.table-striped>
-  <td>
+  <tr>
     <th>Category
     <th>Values #
     <th> Order #
   $forall (Single category, Single orderN, Single valueN) <- rows
     <tr>
-      <tr>#{category}
-      <tr>#{valueN}
-      <tr>#{orderN}
+      <td>#{category}
+      <td>#{valueN}
+      <td>#{orderN}
 |]
 
 -- find how many order have not been categoried
@@ -259,17 +266,12 @@ displayPendingOrderCategory = runDB $ do
    [Single orderNb] <- rawSql "SELECT count(*) from 0_sales_orders" []
    [Single catNb] <- rawSql "SELECT count(distinct order_id) from fames_order_category_cache" []
    let leftOver = orderNb - catNb :: Int
+   when (leftOver > 0) $ do
+     setWarning (toHtml $ "There are " <> tshow leftOver <> " orders left to categories")
    return [whamlet|
     <p>Categories order #{catNb}/#{orderNb}.
-    <p>
-       $if (leftOver > 0)
-         #{leftOver} orders left to categories.
-       $else
-         All order have been categorized.
                   |]
 
-
-  
   
 
 -- * Masquerade
@@ -283,7 +285,6 @@ getAMasqueradeR = do
        <input type=text name="#{masquerade}">
        <button.btn.btn-danger type="Submit">Submit
             |]
-  
 
 postAMasqueradeR :: Handler Html
 postAMasqueradeR = do
