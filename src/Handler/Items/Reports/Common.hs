@@ -637,7 +637,7 @@ loadOrderCategoriesFor :: Text -> Handler (Map Int (Map Text Text))
 loadOrderCategoriesFor orderSql = do
   let sql  = "SELECT ??  "
              <> " FROM fames_order_category_cache "
-             <> " JOIN (SELECT 0_debtor_trans.order_" <> orderSql <> ") orders "
+             <> " JOIN (SELECT distinct 0_debtor_trans.order_" <> orderSql <> ") orders "
              <> "      ON (orders.order_ = fames_order_category_cache.order_id ) "
              <> " ORDER BY order_id" 
 
