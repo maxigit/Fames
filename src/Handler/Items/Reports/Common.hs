@@ -630,7 +630,9 @@ loadItemSales param = do
                        <> generateTranDateIntervals param
         
   sales <- runDB $ rawSql (sqlSelect <> sql0 <> intercalate " " w) p
-  orderCategoryMap <- loadOrderCategoriesFor sql0
+  orderCategoryMap <- if rpLoadOrderInfo param
+                      then loadOrderCategoriesFor sql0
+                      else return mempty
   return $ map (detailToTransInfo orderCategoryMap) sales
 
 loadOrderCategoriesFor :: Text -> Handler (Map Int (Map Text Text))
