@@ -40,6 +40,7 @@ data ReportParam = ReportParam
   , rpTraceParam2 :: TraceParams
   , rpTraceParam3 :: TraceParams
   , rpLoadSales :: Bool
+  , rpLoadOrderInfo :: Bool
   , rpLoadPurchases :: Bool
   , rpLoadAdjustment :: Bool
   -- , rpLoadForecast :: Bool
@@ -336,6 +337,7 @@ getColsWithDefault = do
   supplierCustomerColumn <- supplierCustomerColumnH
   categoryColumns <- categoryColumnsH
   customerCategoryColumns <- customerCategoryColumnsH
+  orderCategoryColumns <- orderCategoryColumnsH
 
   let defaultBand =  styleColumn
       defaultSerie = variationColumn
@@ -352,7 +354,7 @@ getColsWithDefault = do
              , transactionTypeColumn
              , salesPurchaseColumn
              , invoiceCreditColumn
-             ]  <> dateColumns <> categoryColumns <> customerCategoryColumns
+             ]  <> dateColumns <> categoryColumns <> customerCategoryColumns <> orderCategoryColumns
   return (cols, (defaultBand, defaultSerie, defaultTime))
            
 mkIdentifialParam  (t, tp'runsumS) = Identifiable (t, map mkTraceParam tp'runsumS)
@@ -455,6 +457,11 @@ customerCategoryColumnsH = do
   return [ Column ("customer:" <> cat) (constMkKey $ \tk -> maybe PersistNull PersistText $ Map.lookup cat (tkCustomerCategory tk))
          | cat <- categories
          ]
+orderCategoryColumnsH = do
+  categories <- orderCategoriesH
+  return [ Column ("order:" <> cat) (constMkKey $ \tk -> maybe PersistNull PersistText $ Map.lookup cat (tkOrderCategory tk))
+         | cat <- categories
+         ]
   
 dateColumns@[yearlyColumn, quarterlyColumn, weeklyColumn, monthlyColumn, dailyColumn]
   = map mkDateColumn [ ("Beginning of Year", calculateDate BeginningOfYear)
@@ -518,6 +525,7 @@ createInitialStock infoMap day = mapMaybe go (mapToList infoMap) where
                 mempty
                 mempty
                 ST_INVADJUST
+                Nothing Nothing mempty
         tqp = tranQP QPAdjustment (mkQPrice Inward qoh 0)
 
 
@@ -594,8 +602,8 @@ loadItemSales :: ReportParam -> Handler [(TranKey, TranQP)]
 loadItemSales param = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   let catFilterM = (,) <$> rpCategoryToFilter param <*> rpCategoryFilter param
-  let sql = intercalate " " $
-          "SELECT ??, 0_debtor_trans.tran_date, 0_debtor_trans.debtor_no, 0_debtor_trans.branch_code" :
+  let sqlSelect = "SELECT ??, 0_debtor_trans.tran_date, 0_debtor_trans.debtor_no, 0_debtor_trans.branch_code, 0_debtor_trans.order_ "
+  let sql0 = intercalate " " $
           " FROM 0_debtor_trans_details " :
           "JOIN 0_debtor_trans ON (0_debtor_trans_details.debtor_trans_no = 0_debtor_trans.trans_no " :
           " AND 0_debtor_trans_details.debtor_trans_type = 0_debtor_trans.type)  " :
@@ -621,8 +629,23 @@ loadItemSales param = do
                                     ]
                        <> generateTranDateIntervals param
         
-  sales <- runDB $ rawSql (sql <> intercalate " "w) p
-  return $ map detailToTransInfo sales
+  sales <- runDB $ rawSql (sqlSelect <> sql0 <> intercalate " " w) p
+  orderCategoryMap <- loadOrderCategoriesFor sql0
+  return $ map (detailToTransInfo orderCategoryMap) sales
+
+loadOrderCategoriesFor :: Text -> Handler (Map Int (Map Text Text))
+loadOrderCategoriesFor orderSql = do
+  let sql  = "SELECT ??  "
+             <> " FROM fames_order_category_cache "
+             <> " JOIN (SELECT 0_debtor_trans.order_" <> orderSql <> ") orders "
+             <> "      ON (orders.order_ = fames_order_category_cache.order_id ) "
+             <> " ORDER BY order_id" 
+
+  cats <- runDB $ rawSql sql []
+  return $ Map.fromAscListWith (<>) [ (orderCategoryOrderId, Map.singleton orderCategoryCategory orderCategoryValue )
+                                    | (Entity _ OrderCategory{..}) <- cats
+                                    ]
+
 
 loadItemPurchases :: ReportParam -> Handler [(TranKey, TranQP)]
 loadItemPurchases param = do
@@ -770,6 +793,7 @@ moveToTransInfo infoMap (Entity _ FA.StockMove{..}) = (key, tqp) where
                 mempty
                 mempty
                 (toEnum stockMoveType)
+                Nothing Nothing mempty
   tqp = case toEnum stockMoveType of
     -- Adjustement should be counted with a negative price
     -- indeed a positiv adjustment, means that we found some (therefore should go toward the stock  : Inward)
@@ -781,14 +805,20 @@ moveToTransInfo infoMap (Entity _ FA.StockMove{..}) = (key, tqp) where
   costPrice = iiStandardCost =<< lookup stockMoveStockId infoMap  
   
 -- ** Sales Details
-detailToTransInfo :: (Entity FA.DebtorTransDetail, Single Day, Single ({- Maybe -} Int64), Single Int64) -> (TranKey, TranQP)
-detailToTransInfo ( Entity _ FA.DebtorTransDetail{..}
+detailToTransInfo :: Map Int (Map Text Text)
+                  -> (Entity FA.DebtorTransDetail, Single Day, Single ({- Maybe -} Int64), Single Int64, Single (Maybe Int))
+                  -> (TranKey, TranQP)
+detailToTransInfo orderCategoryMap
+        ( Entity _ FA.DebtorTransDetail{..}
                   , Single debtorTranTranDate
-                  , Single debtorNo, Single branchCode)  = (key, tqp) where
-  key = TranKey debtorTranTranDate
+                  , Single debtorNo, Single branchCode, Single orderM)  = (key, tqp) where
+  key' = TranKey debtorTranTranDate
                 (Just $ Left (debtorNo,  branchCode))
                 debtorTransDetailStockId Nothing Nothing  mempty mempty
                 transType
+  key = case flip lookup orderCategoryMap =<<  orderM of
+    Nothing -> key' Nothing Nothing mempty
+    Just cat -> key' (readMay =<< "date" `lookup` cat) (readMay =<< "delivery-date" `lookup` cat) cat
   (tqp, transType) = case toEnum <$> debtorTransDetailDebtorTransType of
     Just ST_SALESINVOICE -> (tranQP QPSalesInvoice  (qp Outward), ST_SALESINVOICE)
     Just ST_CUSTCREDIT -> (tranQP QPSalesCredit (qp Inward), ST_CUSTCREDIT)
@@ -807,6 +837,7 @@ purchToTransInfo ( Entity _ FA.SuppInvoiceItem{..}
   key = TranKey suppTranTranDate (Just $ Right supplierId)
                 suppInvoiceItemStockId Nothing Nothing  mempty mempty
                 (toEnum suppTranType)
+                Nothing Nothing mempty
                    
   tqp = case toEnum suppTranType of
     ST_SUPPINVOICE -> tranQP QPPurchInvoice (qp Inward)

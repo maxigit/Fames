@@ -294,6 +294,10 @@ data TranKey = TranKey
   , tkCategory :: Map Text Text
   , tkCustomerCategory :: Map Text Text
   , tkType :: FATransType
+  -- , tkOrderNo :: Maybe Int
+  , tkOrderDay :: Maybe Day
+  , tkOrderDeliveryDay :: Maybe Day
+  , tkOrderCategory :: Map Text Text
   } deriving (Show, Eq, Ord)
 
 tkCustomer :: TranKey -> Maybe (Int64, Int64)

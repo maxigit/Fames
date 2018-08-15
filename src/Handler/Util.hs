@@ -54,6 +54,7 @@ module Handler.Util
 , refreshCustomerCategoryFor
 , refreshOrderCategoryCache
 , refreshNewOrderCategoryCache
+, orderCategoriesH
 , Identifiable(..)
 , getIdentified
 , renderField
@@ -941,6 +942,11 @@ applyOrderCategoryRules rules =
                  ((("comment",) . unpack) <$> salesOrderComments) ?:
                  []
         in (salesOrderOrderNo, computeCategories catRegexCache rules ruleInput (unpack salesOrderReference))
+
+orderCategoriesH :: Handler [Text]
+orderCategoriesH = do 
+  catRulesMap <- appOrderCategoryRules <$> getsYesod appSettings
+  return $ concatMap keys catRulesMap
 -- * Misc
 -- todayH :: Handler Day
 -- todayH :: MonadIO io => io Day
