@@ -459,12 +459,19 @@ customerCategoryColumnsH = do
          ]
 orderCategoryColumnsH = do
   categories <- orderCategoriesH
-  return [ Column ("order:" <> cat) (constMkKey $ \tk -> maybe PersistNull PersistText $ Map.lookup cat (tkOrderCategory tk))
-         | cat <- categories
-         ]
+  let mkDateCol getDay (name, fn) = Column name fn' where
+        fn' _p tk = NMapKey $ maybe PersistNull (PersistDay . fn)  (getDay tk)
+  return $ [ Column ("order:" <> cat) (constMkKey $ \tk -> maybe PersistNull PersistText $ Map.lookup cat (tkOrderCategory tk))
+           | cat <- categories
+           ]
+          <> dateColumnsFor "order:date-" (mkDateCol tkOrderDay)
+          <> dateColumnsFor "order:delivery-date-" (mkDateCol  tkOrderDeliveryDay)
   
 dateColumns@[yearlyColumn, quarterlyColumn, weeklyColumn, monthlyColumn, dailyColumn]
-  = map mkDateColumn [ ("Beginning of Year", calculateDate BeginningOfYear)
+  = dateColumnsFor "" mkDateColumn
+dateColumnsFor prefix mkDateCol 
+  = map (mkDateCol . first (prefix <>))
+                     [ ("Beginning of Year", calculateDate BeginningOfYear)
                      , ("Beginning of Quarter", calculateDate (BeginningOfQuarter))
                      , ("Beginning of Week", calculateDate (BeginningOfWeek Sunday))
                      , ("Beginning of Month", calculateDate BeginningOfMonth)
