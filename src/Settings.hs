@@ -85,6 +85,7 @@ data AppSettings = AppSettings
     , appFAStockLikeFilter :: Text
     -- ^ SQL LIKE expression to filter what's is considered stock
     , appCategoryRules :: [Map Text CategoryRule]  
+    , appReverseCategoryKey :: Bool -- reverse stock it in Category Map. Might speed up lookup if items have a common prefix
     , appCustomerCategoryRules :: [Map Text CategoryRule]  
     , appOrderCategoryRules :: [Map Text CategoryRule]  
     , appBarcodeParams :: [BarcodeParams]
@@ -174,6 +175,7 @@ instance FromJSON AppSettings  where
         appFADefaultLocation  <- o .:? "fa-default-location" .!= "DEF"
         appFAStockLikeFilter  <- o .:? "fa-stock-like-filter" .!= "%"
         appCategoryRules <- o .:? "category-rules" .!= []
+        appReverseCategoryKey <- o .:? "category-reverse-key" .!= False
         appCustomerCategoryRules <- o .:? "customer-category-rules" .!= []
         appOrderCategoryRules <- o .:? "order-category-rules" .!= []
         appFAExternalURL <- o .:? "fa-x-url" .!= "http://127.0.0.1" -- for outsideworld 
