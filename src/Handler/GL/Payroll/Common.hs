@@ -490,6 +490,13 @@ displayTimesheetCalendar timesheet = do
 -- displayCalendar :: Show emp =>  Day -> Day -> Day -> Day
 --                 -> Map Text (Map Day [TS.Shift emp])
 --                 -> Widget
+displayCalendar :: (?viewPayrollDurationPermissions::Text -> Granted)
+  => Day
+  -> Day
+  -> Day
+  -> Day
+  -> [TS.Shift (Text, Day, TS.ShiftType)]
+  -> WidgetT App IO ()
 displayCalendar start end firstActive lastActive shifts = do
   let shiftMap' = TS.groupBy (^. TS.shiftKey . _1 ) shifts
       shiftMap = TS.groupBy (^. TS.day) <$> shiftMap'
@@ -526,11 +533,12 @@ displayCalendar start end firstActive lastActive shifts = do
                   |]
   displayTable columns colDisplay rows >> toWidget css
 
--- calendarFn :: (Map Text -- (Map Day [TS.Shift TS.ShiftType]))
-  --          -> (Text, Text)
-  --             -> Day
-  -- -> Either Bool Integer
-  -- -> Maybe (Html, [Text])
+calendarFn :: (?viewPayrollDurationPermissions :: Text -> Granted)
+           => (Map Text (Map Day [TS.Shift (Text,Day,TS.ShiftType)]))
+           -> (Text, Text)
+           -> Day
+           -> Either Bool Integer
+           -> Maybe (Html, [Text])
 calendarFn shiftMap (operator,color) weekStart (Left False) = Just $ ([shamlet|<span style="color:#{color}">#{operator}|], [])
 calendarFn shiftMap (operator,color) weekStart (Left True) = do -- Maybe
   -- display total, for that we need all the shifts for the given week
@@ -550,6 +558,8 @@ calendarFn shiftMap (operator,color) weekStart (Right col) = do -- Maybe
       html = displayTimeBadges color maxDuration types
   return (html, [])
 
+displayTimeBadges :: (?viewPayrollDurationPermissions :: Text -> Granted)
+                  => Text -> Double ->  [TS.Shift TS.ShiftType] -> Html
 displayTimeBadges color maxDuration durations = 
   let durationWidth d =  formatDouble $ min maxDuration d / maxDuration * 100
       bg shift = case TS._shiftKey shift of
@@ -568,6 +578,13 @@ displayTimeBadges color maxDuration durations =
                  |]
 -- Display a week. The first line is the day of month
 -- then each operator
+rowsForWeek :: (?viewPayrollDurationPermissions::Text -> Granted)
+  => Day
+  -> Day
+  -> Map Text (Map Day [TS.Shift (Text, Day, TS.ShiftType)])
+  -> [(Text, Text)]
+  -> Day
+  -> [(Either Bool Integer -> Maybe (Html, [Text]), [t])]
 rowsForWeek firstActive lastActive shiftMap operators weekStart  = let
   header = (headFn, [])
   headFn (Left False) = Just (toHtml $ formatTime defaultTimeLocale "%d %B %Y"  weekStart, [])
