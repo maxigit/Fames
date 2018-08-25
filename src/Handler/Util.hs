@@ -586,11 +586,13 @@ categoriesH = do
 categoryFinderCached :: Handler (Text -> FA.StockMasterId -> Maybe Text)
 categoryFinderCached = cache0 False cacheForEver "category-finder" $ do
   refreshCategoryCache False
-  itemCategories <- runDB $ selectList [] [Asc ItemCategoryStockId, Asc ItemCategoryCategory]
-  let sku'catMap = Map.fromDistinctAscList [((itemCategoryStockId , itemCategoryCategory ), itemCategoryValue )
+  -- we reverse the stock_id to speed up string comparasison
+  -- as most items share a common prefix, it might be faster to compare them from right to left 
+  itemCategories <- runDB $ rawSql "SELECT ?? FROM fames_item_category_cache ORDER BY REVERSE(stock_id), category " [] -- selectList [] [Asc ItemCategoryStockId, Asc ItemCategoryCategory]
+  let sku'catMap = Map.fromAscList [((reverse itemCategoryStockId , itemCategoryCategory ), itemCategoryValue )
                            | (Entity _ ItemCategory{..}) <- itemCategories
                            ]
-      finder category (FA.StockMasterKey sku) = Map.lookup (sku, category) sku'catMap
+      finder category (FA.StockMasterKey sku) = Map.lookup (reverse sku, category) sku'catMap
 
   sku'catMap `seq` return finder
 
