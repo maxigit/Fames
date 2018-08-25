@@ -551,7 +551,7 @@ calendarFn shiftMap (operator,color) weekStart (Right col) = do -- Maybe
   return (html, [])
 
 displayTimeBadges color maxDuration durations = 
-  let durationWidth d =  formatDouble $ d / maxDuration * 100
+  let durationWidth d =  formatDouble $ min maxDuration d / maxDuration * 100
       bg shift = case TS._shiftKey shift of
         TS.Work -> "background:" <> color
         TS.Holiday -> ""
