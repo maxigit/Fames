@@ -586,8 +586,8 @@ categoriesH = do
 categoryFinderCached :: Handler (Text -> FA.StockMasterId -> Maybe Text)
 categoryFinderCached = cache0 False cacheForEver "category-finder" $ do
   refreshCategoryCache False
-  itemCategories <- runDB $ selectList [] []
-  let sku'catMap = Map.fromList [((itemCategoryStockId , itemCategoryCategory ), itemCategoryValue )
+  itemCategories <- runDB $ selectList [] [Asc ItemCategoryStockId, Asc ItemCategoryCategory]
+  let sku'catMap = Map.fromDistinctAscList [((itemCategoryStockId , itemCategoryCategory ), itemCategoryValue )
                            | (Entity _ ItemCategory{..}) <- itemCategories
                            ]
       finder category (FA.StockMasterKey sku) = Map.lookup (sku, category) sku'catMap
@@ -746,8 +746,8 @@ customerCategoriesH = do
 customerCategoryFinderCached :: Handler (Text -> FA.DebtorsMasterId -> Maybe Text)
 customerCategoryFinderCached = cache0 False cacheForEver "customerCategory-finder" $ do
   refreshCustomerCategoryCache False
-  customerCategories <- runDB $ selectList [] []
-  let debtor'catMap = Map.fromList [((customerCategoryCustomerId , customerCategoryCategory ), customerCategoryValue )
+  customerCategories <- runDB $ selectList [] [Asc CustomerCategoryCustomerId, Asc CustomerCategoryCategory]
+  let debtor'catMap = Map.fromDistinctAscList [((customerCategoryCustomerId , customerCategoryCategory ), customerCategoryValue )
                            | (Entity _ CustomerCategory{..}) <- customerCategories
                            ]
       finder customerCategory (FA.DebtorsMasterKey debtor) = Map.lookup (debtor, customerCategory) debtor'catMap
