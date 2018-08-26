@@ -83,6 +83,7 @@ validate param key = do
           case validateTimesheet (appPayroll settings) =<< timesheetE of
             Left e -> setError (toHtml e) >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a timesheet") (return ())
             Right timesheet -> do
+                  timedShifts <- loadTimedShiftsFromTS $ timesheetPayrooForSummary timesheet
                   let ref = invoiceRef (appPayroll settings) timesheet :: String
                   (documentKey'msgM) <- runDB $ loadAndCheckDocumentKey key
                   forM documentKey'msgM  $ \(Entity _ doc, msg) -> do
@@ -93,7 +94,7 @@ validate param key = do
                              (setInfo . toHtml $ "Timesheet " <> ref  <> " is valid.")
                              (do
                                  TS.filterTimesheet (const False) isDACUnlocked timesheet  `forM` (displayShifts displayDAC . TS._deductionAndCosts)
-                                 displayTimesheetCalendar (timesheetPayrooForSummary timesheet)
+                                 displayTimesheetCalendar timedShifts (timesheetPayrooForSummary timesheet)
                                  -- TS.filterTimesheet isShiftDurationUnlocked (const True) timesheet `forM` displayTimesheet
                                  TS.filterTimesheet isShiftViewable isDACUnlocked timesheet `forM` (displayEmployeeSummary . timesheetPayrooForSummary)
                                  return ()
@@ -161,7 +162,8 @@ getGLPayrollViewR key = do
           --           ]
           dacsReport = ("Deductions and Costs" :: Text, displayShifts displayDAC . TS._deductionAndCosts, TS.filterTimesheet (const False) isDACUnlocked )
           summaryReport = ("Summary", displayEmployeeSummary , TS.filterTimesheet isShiftViewable isDACUnlocked)
-          calendar = ("Calendar", displayTimesheetCalendar, TS.filterTimesheet isShiftDurationUnlocked (const False) )
+      timedShifts <- loadTimedShiftsFromTS ts'
+      let calendar = ("Calendar", displayTimesheetCalendar timedShifts, TS.filterTimesheet isShiftDurationUnlocked (const False) )
           -- reports = [(name, report  . TS._shifts, TS.filterTimesheet isShiftViewable (const False) ) | (name, report)  <- reports']
           reports = [calendar, dacsReport, summaryReport]
       defaultLayout $ [whamlet|

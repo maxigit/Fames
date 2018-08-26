@@ -101,6 +101,7 @@ loadTimedFromMOPactions start end = do
              <> "   join mop.operator as mopOp on (mopOp.id = operatorId) "
              <> "   join fames_operator as fOp on (mopOp.name = fOp.nickname) "
              <> "   where invalid = 0 "
+             <> "   and actiongroup.id IN (SELECT distinct actionGroupId FROM mop.action)"
              <> "   and date >= ? and date <= ? "
              <> "   group by date, operatorId "
         toShift (Single date, Single opName, Single opKey, Single duration) =
@@ -116,6 +117,16 @@ addTimedFromMop start end shifts = do
    timed <- loadTimedFromMOPactions start end
 
    return $ shifts' <> filter (flip member operatorSet . view (TS.shiftKey . _1 )) timed
+-- | Keep timed shift for operator present in the actual shifts
+addTimedShifts :: [TS.Shift (Text, Day, TS.ShiftType)] -> [(TS.Shift (Text, Day, ShiftType))] -> [(TS.Shift (Text, Day, ShiftType))]
+addTimedShifts shifts timed = let
+  shifts' = (_3 %~ ShiftType )<$$> shifts
+  operatorSet = setFromList $ map (view $ TS.shiftKey . _1 ) shifts :: Set Text
+  in shifts' <> filter (flip member operatorSet . view (TS.shiftKey . _1 )) timed
+
+loadTimedShiftsFromTS :: TS.Timesheet paye Text -> Handler [TS.Shift (Text, Day, ShiftType)]
+loadTimedShiftsFromTS timesheet = do
+  loadTimedFromMOPactions (TS._periodStart timesheet) (TS.periodEnd timesheet)
 
 
 -- * Converter
@@ -511,9 +522,9 @@ employeeSummaryRows summaries = let
 
 -- ** Calendar
 -- | Display timesheet as a calendar
-displayTimesheetCalendar :: (?viewPayrollDurationPermissions:: Text -> Granted)
-                         => (TS.Timesheet payee Text) -> Widget
-displayTimesheetCalendar timesheet = do
+-- displayTimesheetCalendar :: (?viewPayrollDurationPermissions:: Text -> Granted)
+--                          =>  [TS.Shift paye Text] -> (TS.Timesheet payee Text) -> Widget
+displayTimesheetCalendar timed timesheet = do
   let periodStart = TS._periodStart timesheet
       periodEnd = TS.periodEnd timesheet
       -- some timesheet might have for some reason shift outside of the authorized period
@@ -538,19 +549,23 @@ displayTimesheetCalendar timesheet = do
       -- get start and end of displayed calendar
       -- for weekly, it's just the week
       -- for month, we start on Sunday
-  displayCalendar start end periodStart periodEnd ((_3 %~ ShiftType) <$$> TS._shifts timesheet)
+  displayCalendar (TS._frequency timesheet == TS.Monthly )
+                  start end
+                  periodStart periodEnd
+                  (addTimedShifts allShifts timed)
 
 -- displayCalendar :: Show emp =>  Day -> Day -> Day -> Day
 --                 -> Map Text (Map Day [TS.Shift emp])
 --                 -> Widget
 displayCalendar :: (?viewPayrollDurationPermissions::Text -> Granted)
-  => Day
+  => Bool -- ^ display total
+  -> Day
   -> Day
   -> Day
   -> Day
   -> [TS.Shift (Text, Day, ShiftType)]
   -> WidgetT App IO ()
-displayCalendar start end firstActive lastActive shifts = do
+displayCalendar displayTotal start end firstActive lastActive shifts = do
   let shiftMap' = TS.groupBy (^. TS.shiftKey . _1 ) shifts
       shiftMap = TS.groupBy (^. TS.day) <$> shiftMap'
       columns = ((Left False) : (map Right [0..6])) <> [Left True]
@@ -564,10 +579,15 @@ displayCalendar start end firstActive lastActive shifts = do
                                Sunday -> ["weekend"]
                                _ -> [])
       operators =  keys shiftMap
-      rows = concatMap (rowsForWeek firstActive lastActive shiftMap operator'colors) weekStarts
+      rows' = concatMap (rowsForWeek firstActive lastActive shiftMap operator'colors) weekStarts
+      rows = if displayTotal
+                   then rows' <> rowTotal start shiftMap operator'colors 
+                   else rows'
       colors = defaultColors --  ["green", "blue", "orange", "purple", "brown"] :: [Text]
       operator'colors = zip operators (cycle colors)
       css = [cassius|
+             table tr.total
+                font-weight: 700
              td.Saturday, td.Sunday
                 background: #fee
              span.badge.Holiday
@@ -713,6 +733,27 @@ rowsForWeek firstActive lastActive shiftMap operators weekStart  = let
          ]
   in header:rows
 
+rowTotal :: (?viewPayrollDurationPermissions::Text -> Granted)
+  => Day
+  -> Map Text (Map Day [TS.Shift (Text, Day, ShiftType)])
+  -> [(Text, Text)]
+  -> [(Either Bool Integer -> Maybe (Html, [Text]), [Text])]
+rowTotal periodStart shiftMap operators = let
+  header = (headerFn, ["total"])
+  headerFn (Left False) = Just ("Operator", [])
+  headerFn (Left True) = Just ("Summary", [])
+  headerFn _ =  Nothing
+  shiftMap0 = shiftMap <&> \dateMap -> let
+    shifts = join (toList dateMap)
+    -- in TS.groupShiftsBy (^. _2) (shifts & mapped . mapped . TS.shiftKey . _2 .~ periodStart)
+    in singletonMap periodStart shifts
+  go _ (Right _) = Nothing
+  go op col = calendarFn shiftMap0 op periodStart col
+  rows = [ (go op , [])
+         | op <- operators
+         ]
+ in header:rows
+  
 
 -- * To Front Accounting
 -- ** GRN

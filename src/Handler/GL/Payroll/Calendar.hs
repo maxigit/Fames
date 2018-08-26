@@ -95,7 +95,7 @@ processCalendar param =  do
                   minDay = previousWeekDay Monday (min minDay0 firstActive)
                   maxDay = nextWeekDay Saturday (max maxDay0 lastActive)
               timedShifts <- addTimedFromMop firstActive lastActive allShifts
-              return $ displayCalendar minDay maxDay firstActive lastActive timedShifts
+              return $ displayCalendar True minDay maxDay firstActive lastActive timedShifts
 
 -- * DBAccess
 loadTimesheet' :: CalendarParam -> Handler [TS.Timesheet Text Text]
