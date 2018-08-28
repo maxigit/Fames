@@ -33,6 +33,11 @@ import Locker
 instance TS.Display Text where
   display = unpack
 
+-- * Types
+-- | Extended version of Timesheest ShiftType adding an option corresponding
+-- to work which has been timed
+data ShiftType = ShiftType TS.ShiftType | Timed deriving (Show, Eq, Ord)
+   
 -- * DB access
 -- | Save a timesheet.
 saveTimeSheet :: DocumentHash -> (TS.Timesheet String TS.PayrooEmployee) -> Handler (TimesheetId, Text)
@@ -86,6 +91,44 @@ loadTimesheets criteria shiftCriteria itemCriteria = do
         items <- selectList ((PayrollItemTimesheet ==. key) : itemCriteria) []
         return (ts, shifts, items)
 
+-- | Find the time a operator effectively during a given shift
+-- ie lookup in mop.action table
+loadTimedFromMOPactions :: Day -> Day -> Handler [TS.Shift (Text, Day, ShiftType)]
+loadTimedFromMOPactions start end = do
+    let sql =    "   select date, fOp.nickname, fOp.operator_id, sum(duration)/60 "
+             <> "   from mop.session "
+             <> "   join mop.actiongroup ON (actiongroup.id = groupId) "
+             <> "   join mop.operator as mopOp on (mopOp.id = operatorId) "
+             <> "   join fames_operator as fOp on (mopOp.name = fOp.nickname) "
+             <> "   where invalid = 0 "
+             <> "   and actiongroup.id IN (SELECT distinct actionGroupId FROM mop.action)"
+             <> "   and date >= ? and date <= ? "
+             <> "   group by date, operatorId "
+        toShift (Single date, Single opName, Single opKey, Single duration) =
+          TS.Shift (opName, date, Timed) Nothing (makeDurationLock opKey  duration) (makeAmountLock opKey 0 )
+
+    rows <- runDB $ rawSql sql [PersistDay start, PersistDay end]
+    return $ map toShift rows
+
+addTimedFromMop :: Day -> Day -> [TS.Shift (Text, Day, TS.ShiftType)] -> Handler [TS.Shift (Text, Day, ShiftType)]
+addTimedFromMop start end shifts = do
+   let shifts' = (_3 %~ ShiftType )<$$> shifts
+       operatorSet = setFromList $ map (view $ TS.shiftKey . _1 ) shifts :: Set Text
+   timed <- loadTimedFromMOPactions start end
+
+   return $ shifts' <> filter (flip member operatorSet . view (TS.shiftKey . _1 )) timed
+-- | Keep timed shift for operator present in the actual shifts
+addTimedShifts :: [TS.Shift (Text, Day, TS.ShiftType)] -> [(TS.Shift (Text, Day, ShiftType))] -> [(TS.Shift (Text, Day, ShiftType))]
+addTimedShifts shifts timed = let
+  shifts' = (_3 %~ ShiftType )<$$> shifts
+  operatorSet = setFromList $ map (view $ TS.shiftKey . _1 ) shifts :: Set Text
+  in shifts' <> filter (flip member operatorSet . view (TS.shiftKey . _1 )) timed
+
+loadTimedShiftsFromTS :: TS.Timesheet paye Text -> Handler [TS.Shift (Text, Day, ShiftType)]
+loadTimedShiftsFromTS timesheet = do
+  loadTimedFromMOPactions (TS._periodStart timesheet) (TS.periodEnd timesheet)
+
+
 -- * Converter
 -- | Convert a Payroll Timesheet to it's DB model.
 -- It doesn't return a list of Shift but a function creating them
@@ -115,6 +158,11 @@ timesheetOpIdToModel ref ts = (model, shiftsFn, itemsFn) where
                   (payee, op) = TS._dacKey dac
                   mkDAC dacType amount = [ PayrollItem i amount dacType op (pack payee) "" ]
 
+makeLock name opKey = lock $ makeLock' name (tshow . unSqlBackendKey . unOperatorKey $  opKey)
+makeLock' name extra = ["Payroll/" <> name <> "/" <> extra]
+makeDurationLock = makeLock "duration"
+makeAmountLock = makeLock "amount"
+
 modelToTimesheetOpId :: Entity Timesheet
                      -> [Entity PayrollShift]
                      -> [Entity PayrollItem]
@@ -125,8 +173,8 @@ modelToTimesheetOpId (Entity _ timesheet) shiftEs itemEs = let
   makeLock name opKey = lock $ makeLock' name (tshow . unSqlBackendKey . unOperatorKey $  opKey)
   makeLock' name extra = ["Payroll/" <> name <> "/" <> extra]
   mkShift (Entity key shift) = TS.Shift  (mkShiftKey key shift) Nothing
-                                         (makeLock "duration" (payrollShiftOperator shift) $ payrollShiftDuration shift)
-                                         (makeLock "amount" (payrollShiftOperator shift) $ payrollShiftCost shift)
+                                         (makeDurationLock (payrollShiftOperator shift) $ payrollShiftDuration shift)
+                                         (makeAmountLock (payrollShiftOperator shift) $ payrollShiftCost shift)
   mkShiftKey key shift = ( (payrollShiftOperator shift, key)
 
                      , fromMaybe (error "TODO") (payrollShiftDate shift)
@@ -426,6 +474,22 @@ employeeSummaryTable columns colNames rows = let
             font-weight: 700
             |]
 
+-- | Default colours, taken from plottly. Factorize with reports
+defaultColors :: [Text]
+defaultColors = defaultPlottly where
+  defaultPlottly  = ["#1f77b4",  -- muted blue
+              -- "#ff7f0e",  -- safety orange
+              "#2ca02c",  -- cooked asparagus green
+              -- "#d62728",  -- brick red
+              "#2728d6",  -- brick red
+              "#9467bd",  -- muted purple
+              "#8c564b",  -- chestnut brown
+              "#e377c2",  -- raspberry yogurt pink
+              "#77c2e3",  -- raspberry yogurt pink
+              -- "#7f7f7f",  -- middle gray
+              "#bcbd22",  -- curry yellow-green
+              "#17becf"   -- blue-teal
+             ]
 employeeSummaryRows summaries = let 
   -- | Columns are either straight field (Nothing)
   -- or the name of a payee in in the given dacs map (Just ...)
@@ -458,9 +522,9 @@ employeeSummaryRows summaries = let
 
 -- ** Calendar
 -- | Display timesheet as a calendar
-displayTimesheetCalendar :: (?viewPayrollDurationPermissions:: Text -> Granted)
-                         => (TS.Timesheet payee Text) -> Widget
-displayTimesheetCalendar timesheet = do
+-- displayTimesheetCalendar :: (?viewPayrollDurationPermissions:: Text -> Granted)
+--                          =>  [TS.Shift paye Text] -> (TS.Timesheet payee Text) -> Widget
+displayTimesheetCalendar timed timesheet = do
   let periodStart = TS._periodStart timesheet
       periodEnd = TS.periodEnd timesheet
       -- some timesheet might have for some reason shift outside of the authorized period
@@ -485,12 +549,23 @@ displayTimesheetCalendar timesheet = do
       -- get start and end of displayed calendar
       -- for weekly, it's just the week
       -- for month, we start on Sunday
-  displayCalendar start end periodStart periodEnd (TS._shifts timesheet)
+  displayCalendar (TS._frequency timesheet == TS.Monthly )
+                  start end
+                  periodStart periodEnd
+                  (addTimedShifts allShifts timed)
 
 -- displayCalendar :: Show emp =>  Day -> Day -> Day -> Day
 --                 -> Map Text (Map Day [TS.Shift emp])
 --                 -> Widget
-displayCalendar start end firstActive lastActive shifts = do
+displayCalendar :: (?viewPayrollDurationPermissions::Text -> Granted)
+  => Bool -- ^ display total
+  -> Day
+  -> Day
+  -> Day
+  -> Day
+  -> [TS.Shift (Text, Day, ShiftType)]
+  -> WidgetT App IO ()
+displayCalendar displayTotal start end firstActive lastActive shifts = do
   let shiftMap' = TS.groupBy (^. TS.shiftKey . _1 ) shifts
       shiftMap = TS.groupBy (^. TS.day) <$> shiftMap'
       columns = ((Left False) : (map Right [0..6])) <> [Left True]
@@ -504,15 +579,38 @@ displayCalendar start end firstActive lastActive shifts = do
                                Sunday -> ["weekend"]
                                _ -> [])
       operators =  keys shiftMap
-      rows = concatMap (rowsForWeek firstActive lastActive shiftMap operator'colors) weekStarts
-      colors = ["green", "blue", "orange", "purple", "brown"] :: [Text]
+      rows' = concatMap (rowsForWeek firstActive lastActive shiftMap operator'colors) weekStarts
+      rows = if displayTotal
+                   then rows' <> rowTotal start shiftMap operator'colors 
+                   else rows'
+      colors = defaultColors --  ["green", "blue", "orange", "purple", "brown"] :: [Text]
       operator'colors = zip operators (cycle colors)
       css = [cassius|
+             table tr.total
+                font-weight: 700
              td.Saturday, td.Sunday
                 background: #fee
              span.badge.Holiday
                 color: white
-                background: red
+                background: lightgray
+             span.badge.timed-extra
+                color: white
+                background: orangered
+             span.badge.timed-slacking-off
+                color: white
+                background: darkorange
+             span.badge.timed-bad
+                color: white
+                background: orange
+             span.badge.timed-ok
+                color: white
+                background: gold
+             span.badge.timed-good
+                color: white
+                background: lawngreen
+             span.badge.Work
+                color: white
+                background: black
              .dayOfMonth
                 text-align:right
                 font-size: 1.2em
@@ -523,21 +621,30 @@ displayCalendar start end firstActive lastActive shifts = do
                   color: gray
              td.total
                 background: darkgray
+             span.hover-only
+                display: none
+             td:hover span.hover-only
+                  display: inline-block
+             span.Xnon-hover
+                display: inline-block
+             td:hover span.Xnon-hover
+                  display: none
                   |]
   displayTable columns colDisplay rows >> toWidget css
 
--- calendarFn :: (Map Text -- (Map Day [TS.Shift TS.ShiftType]))
-  --          -> (Text, Text)
-  --             -> Day
-  -- -> Either Bool Integer
-  -- -> Maybe (Html, [Text])
+calendarFn :: (?viewPayrollDurationPermissions :: Text -> Granted)
+           => (Map Text (Map Day [TS.Shift (Text,Day,ShiftType)]))
+           -> (Text, Text)
+           -> Day
+           -> Either Bool Integer
+           -> Maybe (Html, [Text])
 calendarFn shiftMap (operator,color) weekStart (Left False) = Just $ ([shamlet|<span style="color:#{color}">#{operator}|], [])
 calendarFn shiftMap (operator,color) weekStart (Left True) = do -- Maybe
   -- display total, for that we need all the shifts for the given week
   let days = map (`addDays` weekStart) [0..6]
   dateMap <- lookup operator shiftMap
   let shifts = concat $ mapMaybe (flip lookup dateMap) days
-      types = TS.groupShiftsBy (^. TS.shiftType ) shifts
+      types = TS.groupShiftsBy (^. _3 ) shifts
   Just (displayTimeBadges color (9*5) types, ["total"])
 
 calendarFn shiftMap (operator,color) weekStart (Right col) = do -- Maybe
@@ -546,16 +653,39 @@ calendarFn shiftMap (operator,color) weekStart (Right col) = do -- Maybe
 
   dateMap <- lookup operator shiftMap
   shifts <- lookup day dateMap
-  let types = TS.groupShiftsBy (^. TS.shiftType ) shifts
+  let types = TS.groupShiftsBy (^. _3) shifts
       html = displayTimeBadges color maxDuration types
   return (html, [])
 
-displayTimeBadges color maxDuration durations = 
-  let durationWidth d =  formatDouble $ min maxDuration d / maxDuration * 100
+-- ^ Display shift as badges
+displayTimeBadges :: (?viewPayrollDurationPermissions :: Text -> Granted)
+                  => Text -> Double -> [TS.Shift ShiftType] -> Html
+displayTimeBadges color maxDuration durations0 = 
+  let durationWidth d =  formatDouble $ max 20 $ min maxDuration d / maxDuration * 100
+      (timeds, durations) = partitionEithers $ map shiftToE durations0
+      timedM = if null timeds then Nothing else either (const Nothing) Just (unlock' $ sum timeds)
+      _a = timeds
+      workedM = case filter ((== TS.Work) . TS._shiftKey)  durations of
+                   [] -> Nothing
+                   ts -> either (const Nothing) Just $ unlock' $ sum $ map TS._duration ts
+      shiftToE shift = case TS._shiftKey shift of
+        Timed -> Left (TS._duration shift)
+        ShiftType st -> Right $ shift {TS._shiftKey = st}
       bg shift = case TS._shiftKey shift of
-        TS.Work -> "background:" <> color
-        TS.Holiday -> ""
+        TS.Work ->  "background:" <> color
+        -- TS.Work | Just timed <- timedM, Right duration <- unlock' (TS._duration shift),  timed <= duration -> "background:" <> color
+        -- TS.Work | Nothing <- timedM  -> "background:" <> color
+        _ -> "" -- use css default. gray for holiday, red for Work < than clocked timed
+      classForTimed Nothing _ = "timed-extra"
+      classForTimed (Just worked) timed = let ratio = timed /worked
+         in case () of
+              () | ratio > 1   -> "timed-extra" :: Text
+              () | ratio >= (7/7.5) -> "timed-good"
+              () | ratio >= (6/7.5) -> "timed-ok"
+              () | ratio >= (5/7.5) -> "timed-bad"
+              _                -> "timed-slacking-off"
       unlock' = unlock ?viewPayrollDurationPermissions
+      invAndMul a b = a/b
   in [shamlet|
     $forall shift <-  durations
       $with durationE <- unlock' (TS._duration shift)
@@ -563,11 +693,28 @@ displayTimeBadges color maxDuration durations =
            $of Left e 
              <.invisible>LOCK #{tshow e}
            $of Right duration
-              <span.badge class=#{show $ TS._shiftKey shift} style="width:#{durationWidth duration}%;#{bg shift}">
+              <span.badge.non-hover class=#{show $ TS._shiftKey shift} style="width:#{durationWidth $ fromMaybe duration timedM}%;#{bg shift};color:white">
                 #{duration}
+    $maybe timed <- timedM
+       $with timeAdjusted <- maybe timed (subtract timed) workedM
+        <span.badge.non-hover class=#{classForTimed workedM timed} style="width:#{durationWidth $ abs timeAdjusted}%">
+            #{formatDouble $ abs $ timeAdjusted}
+        <span.hover-only>
+          <p> Paied for: #{fromMaybe 0 workedM} hours
+          <p> Including Holidays : #{either (const 0) id $ unlock' $ sum $ map TS._duration durations} hours
+          <p> Timed : #{formatDouble timed} hours
+          <p> Iddle : #{formatDouble timeAdjusted} hours (#{formatDouble $ maybe 100 (invAndMul (100 * timeAdjusted)) workedM }%)
                  |]
+          
 -- Display a week. The first line is the day of month
 -- then each operator
+rowsForWeek :: (?viewPayrollDurationPermissions::Text -> Granted)
+  => Day
+  -> Day
+  -> Map Text (Map Day [TS.Shift (Text, Day, ShiftType)])
+  -> [(Text, Text)]
+  -> Day
+  -> [(Either Bool Integer -> Maybe (Html, [Text]), [t])]
 rowsForWeek firstActive lastActive shiftMap operators weekStart  = let
   header = (headFn, [])
   headFn (Left False) = Just (toHtml $ formatTime defaultTimeLocale "%d %B %Y"  weekStart, [])
@@ -586,6 +733,27 @@ rowsForWeek firstActive lastActive shiftMap operators weekStart  = let
          ]
   in header:rows
 
+rowTotal :: (?viewPayrollDurationPermissions::Text -> Granted)
+  => Day
+  -> Map Text (Map Day [TS.Shift (Text, Day, ShiftType)])
+  -> [(Text, Text)]
+  -> [(Either Bool Integer -> Maybe (Html, [Text]), [Text])]
+rowTotal periodStart shiftMap operators = let
+  header = (headerFn, ["total"])
+  headerFn (Left False) = Just ("Operator", [])
+  headerFn (Left True) = Just ("Summary", [])
+  headerFn _ =  Nothing
+  shiftMap0 = shiftMap <&> \dateMap -> let
+    shifts = join (toList dateMap)
+    -- in TS.groupShiftsBy (^. _2) (shifts & mapped . mapped . TS.shiftKey . _2 .~ periodStart)
+    in singletonMap periodStart shifts
+  go _ (Right _) = Nothing
+  go op col = calendarFn shiftMap0 op periodStart col
+  rows = [ (go op , [])
+         | op <- operators
+         ]
+ in header:rows
+  
 
 -- * To Front Accounting
 -- ** GRN

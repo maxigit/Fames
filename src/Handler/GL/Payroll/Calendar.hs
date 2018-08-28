@@ -17,7 +17,7 @@ import qualified GL.Payroll.Report as TS
 import Data.Maybe
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Time (addGregorianMonthsClip)
-import Lens.Micro ((^.))
+import Lens.Micro ((^.),_3,(%~))
 -- * Forms
 -- ** Type
 data CalendarParam = CalendarParam
@@ -86,13 +86,16 @@ processCalendar param =  do
       days = map (^. TS.day) allShifts
   case days of
     [] -> setWarning "No timesheet selected. Please amend the range" >> return ""
-    (d:ds) -> let minDay0 = minimum (ncons d ds)
+    (d:ds) ->
+      do
+              let minDay0 = minimum (ncons d ds)
                   maxDay0 = maximum (ncons d ds)
                   firstActive = fromMaybe minDay0 (from param)
                   lastActive = fromMaybe maxDay0 (to param)
                   minDay = previousWeekDay Monday (min minDay0 firstActive)
                   maxDay = nextWeekDay Saturday (max maxDay0 lastActive)
-              in return $ displayCalendar minDay maxDay firstActive lastActive allShifts
+              timedShifts <- addTimedFromMop firstActive lastActive allShifts
+              return $ displayCalendar True minDay maxDay firstActive lastActive timedShifts
 
 -- * DBAccess
 loadTimesheet' :: CalendarParam -> Handler [TS.Timesheet Text Text]
