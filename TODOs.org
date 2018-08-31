@@ -1,3 +1,8 @@
+* TODO Planner
+  - [ ] Doc (section name + header)
+  - [ ] Special syntax for section and free title (better error message)
+  - [ ] Keep last layout section but warn if needed
+  - [ ] SHA at "breaks"
 * TODO Chart
 ** Today [12/24] 
    - [ ] Big Rank Refactoring
