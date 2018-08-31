@@ -65,6 +65,7 @@ module Handler.Util
 , applyCategoryRules
 , todayH
 , currentFAUser
+, getSubdirOptions
 ) where
 -- ** Import
 import Foundation
@@ -87,13 +88,14 @@ import System.Directory (doesFileExist)
 import qualified Data.Map.Strict as Map
 import qualified Data.List as Data.List
 import Model.DocumentKey
-import Control.Monad.Except hiding(mapM_)
+import Control.Monad.Except hiding(mapM_, filterM)
 import Text.Printf(printf) 
 
 import Text.Read(Read,readPrec)
 import qualified Data.Map as LMap
 -- import Data.IOData (IOData)
 import Database.Persist.MySQL(unSqlBackendKey, rawSql, Single(..))
+import System.Directory(listDirectory, doesDirectoryExist)
 
 -- * Display entities
 -- | Display Persist entities as paginated table
@@ -284,6 +286,25 @@ renderField view = let
   $maybe err <- fvErrors view
     <div .errors>#{err}
 |]
+
+-- ** Directories
+-- | Return a list of options corresponding to the sub directories
+-- within the given one (on the server side)
+-- The easiest is to use Dropbox or equivalent to synchronize those files
+-- with the outside world
+getSubdirOptions :: (AppSettings -> FilePath) -> Handler [(Text, FilePath)]
+getSubdirOptions appDir = do
+  mainDir <- appDir <$> getsYesod appSettings
+  exists <- lift $ doesDirectoryExist mainDir
+  if exists
+    then do
+          entries <- lift $ listDirectory mainDir
+          dirs <- lift $ filterM (doesDirectoryExist . (mainDir </>)) entries
+          -- traceShowM (forecastDir, entries, dirs)
+          return [(pack dir, mainDir </> dir) | dir <- dirs]
+    else do
+      setWarning (toHtml $ "Planner master directory '" <> mainDir <> "' doesn't exist.")
+      return []
 
 -- * Labels
 generateLabelsResponse ::

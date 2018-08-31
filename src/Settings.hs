@@ -101,6 +101,8 @@ data AppSettings = AppSettings
     -- each subdirectory containing one a "collection_profiles.csv" file
     -- and one or more "*sku_speed.csv" Files
     , appForecastCollectionCategory :: Text -- ^ The category used in collection profile file
+    , appPlannerDir :: FilePath -- ^ path to directory containing subdirectories with planner files.
+    -- each files will be concatenated in alphabetical order.
     } deriving Show
 
 data BankStatementSettings = BankStatementSettings
@@ -191,8 +193,9 @@ instance FromJSON AppSettings  where
                                                           0 "" "" 0
                                                           (Map.fromList [])
         appBankStatements <- o .:? "bank-statements" .!= Map.fromList []
-        appForecastProfilesDir <- o .:? "forecast-profiles-dir" .!= "."
+        appForecastProfilesDir <- o .:? "forecast-profiles-dir" .!= "Forecast"
         appForecastCollectionCategory <- o .:? "forecast-collection-category" .!= "forecast-profile"
+        appPlannerDir <- o .:? "planner-dir" .!= "Planner"
           
         
 

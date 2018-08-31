@@ -11,7 +11,7 @@ import Control.Monad.Except (ExceptT(..), runExceptT)
 import Control.Monad.Writer (tell, execWriter)
 import Data.Text(strip)
 import qualified Data.Text as Text
-import System.Directory (doesFileExist)
+import System.Directory (doesFileExist, listDirectory)
 
 import Unsafe.Coerce (unsafeCoerce)
 import Model.DocumentKey
@@ -97,7 +97,18 @@ readScenario text = do
   runExceptT $ do
     sections <-   ExceptT . return $ (parseScenarioFile text)
     steps' <- mapM (\s -> ExceptT $ cacheSection s) sections
-    ExceptT . return $ makeScenario steps'
+    ExceptT . return $ makeScenario steps' 
+
+-- | Read a sceanrio from a directory.
+-- Concatene all files in alphabetical order
+-- readScenarioDir :: MonadIO m => FilePath -> m Either [Step]
+readScenarioFromDir :: MonadIO io => FilePath -> io Text 
+readScenarioFromDir path = liftIO $ do
+  entries0 <- listDirectory path
+  let entries = map (path </>) (sort  entries0)
+  files <- filterM  doesFileExist entries
+  contents <-  mapM readFile files
+  return $ concatMap decodeUtf8 contents
   
 -- | Save a content to a temporary file if needed
 cacheContent :: MonadIO m => Content -> m (Either Text DocumentHash)

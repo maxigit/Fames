@@ -23,17 +23,19 @@ import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import qualified Yesod.Media.Simple as M
 import Data.Text(strip, splitOn)
 import qualified Data.Map as Map
+import Handler.Util
 
 -- * Type
 data ScenarioDisplayMode = NormalM | CompactM | InitialM | ExpandedM deriving (Eq, Show, Read)
 data FormParam = FormParam
-  { pOrgfile :: Textarea
+  { pPlannerDir :: Maybe FilePath -- ^ directory containings planner files
+  , pOrgfile :: Maybe Textarea -- ^ text to add to the content of pPlannerDir
   , pDisplayMode :: Maybe ScenarioDisplayMode -- ^ How to re-render the scenario in the textarea field
   , pViewMode :: Maybe PlannerViewMode -- ^ How to view the warehouse
   , pParameter :: Maybe Text
   } deriving (Show, Read)
 
-defaultParam = FormParam (Textarea "") Nothing Nothing Nothing
+defaultParam = FormParam Nothing Nothing Nothing Nothing Nothing
 
 -- * Handler
 getPViewR :: Maybe PlannerViewMode -> Handler TypedContent
@@ -41,7 +43,7 @@ getPViewR viewMode = renderView defaultParam {pViewMode = viewMode}
 
 postPViewR :: Maybe PlannerViewMode -> Handler TypedContent
 postPViewR viewMode = do
-  ((resp, _), _) <- runFormPost (paramForm Nothing)
+  ((resp, _), _) <- runFormPost =<< paramForm Nothing
   case resp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
@@ -63,13 +65,20 @@ getPImageR sha i width = do
   
 -- * Form
 
-paramForm :: Maybe FormParam -> _
-paramForm param = renderBootstrap3 BootstrapBasicForm form
-  where form = FormParam
-          <$> areq textareaField "Scenario" (pOrgfile <$> param)
+paramForm :: Maybe FormParam -> Handler _
+paramForm param = do
+  plannerDirOptions <- getPlannerDirOptions
+  let form = FormParam
+          <$> aopt (selectFieldList plannerDirOptions) "Planner Directory" (pPlannerDir <$> param)
+          <*> aopt textareaField "Scenario" (pOrgfile <$> param)
           <*> pure (pDisplayMode =<< param)
           <*> pure (pViewMode =<< param)
           <*> aopt textField "report parameter" (pParameter <$> param)
+  return $ renderBootstrap3 BootstrapBasicForm form
+
+getPlannerDirOptions :: Handler [(Text, FilePath)]
+getPlannerDirOptions = getSubdirOptions appPlannerDir
+
 
 -- * Rendering
 -- ** General
@@ -78,11 +87,13 @@ renderView param0 = do
   modeS <- lookupPostParam "mode"
   let mode = modeS >>=readMay
       vmode = pViewMode param0
-  scenarioE <- readScenario (unTextarea $ pOrgfile param0)
+  plannerDirContent <-  forM (pPlannerDir param0) readScenarioFromDir 
+  scenarioE <- readScenario (concat $ catMaybes [plannerDirContent, unTextarea <$> pOrgfile param0])
   (param, widget) <- case scenarioE of
       Left err -> setError (toHtml err) >> return (param0, "Invalid scenario")
       Right scenario ->  do
-          param <- expandScenario (param0 {pDisplayMode = mode}) scenario
+          -- param <- expandScenario (param0 {pDisplayMode = mode}) scenario
+          let param = param0 {pDisplayMode = mode}
           w <- case fromMaybe PlannerSummaryView (pViewMode param) of
               PlannerSummaryView-> renderSummaryReport scenario
               PlannerGraphicCompactView-> renderGraphicCompactView scenario
@@ -97,7 +108,7 @@ renderView param0 = do
               PlannerScenarioHistory -> renderHistory
           return (param, w)
     
-  (formW, encType) <- generateFormPost $ paramForm (Just param)
+  (formW, encType) <- generateFormPost =<< paramForm (Just param)
   let navs = [PlannerSummaryView .. ]
       navClass nav = if vmode == Just nav then "active" else "" :: Html
       fay = $(fayFile "PlannerView") -- js to post form when tab change
@@ -125,17 +136,17 @@ renderView param0 = do
       html <- withUrlRenderer (pageBody div)
       returnJson (renderHtml html)
 
-expandScenario :: FormParam -> Scenario -> Handler FormParam
-expandScenario param scenario = do
-    text <- case pDisplayMode param of
-            Just CompactM -> return $ scenarioToTextWithHash scenario 
-            Just InitialM -> let s' = Scenario (Just (warehouseScenarioKey scenario))
-                                               []
-                                               (sLayout scenario)
-                             in return $ scenarioToTextWithHash s'
-            Just ExpandedM -> liftIO $ scenarioToFullText scenario
-            _ -> return $ unTextarea (pOrgfile param)
-    return $ param {pOrgfile = Textarea text} 
+-- _unused_expandScenario :: FormParam -> Scenario -> Handler FormParam
+-- _unused_expandScenario param scenario = do
+--     text <- case pDisplayMode param of
+--             Just CompactM -> return $ scenarioToTextWithHash scenario 
+--             Just InitialM -> let s' = Scenario (Just (warehouseScenarioKey scenario))
+--                                                []
+--                                                (sLayout scenario)
+--                              in return $ scenarioToTextWithHash s'
+--             Just ExpandedM -> liftIO $ scenarioToFullText scenario
+--             _ -> return $ unTextarea (pOrgfile param)
+--     return $ param {pOrgfile = Textarea text} 
 
 sendResponseDiag :: Int64 -> _ -> Handler TypedContent
 sendResponseDiag width diag =  do
