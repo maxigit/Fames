@@ -39,7 +39,9 @@ defaultParam = FormParam Nothing Nothing Nothing Nothing Nothing
 
 -- * Handler
 getPViewR :: Maybe PlannerViewMode -> Handler TypedContent
-getPViewR viewMode = renderView defaultParam {pViewMode = viewMode}
+getPViewR viewMode = do
+  setInfo plannerDoc
+  renderView defaultParam {pViewMode = viewMode}
 
 postPViewR :: Maybe PlannerViewMode -> Handler TypedContent
 postPViewR viewMode = do
@@ -82,6 +84,94 @@ getPlannerDirOptions = getSubdirOptions appPlannerDir
 
 -- * Rendering
 -- ** General
+plannerDoc = [shamlet|
+$newline text
+Displays a Planner (a visual view of the warehouse with its content).
+The planner is a set of files compatible with Emacs org-mode.
+Files are read from the given subdirectory (if any) and/or read from the text area.
+A planner file is made of different sections. Each section correspond to an org-mode heading (beginning with one more <code>*</code>).
+If the first word of a section is one of the valid section name, the whole content of the heading will be treated processed according to the section type.
+<h3>Sections
+<ul> 
+  <li>
+    <h4>
+      <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-shelves"> Shelves (Mandatory)
+    <div.pre.collapse id=info-section-shelves>
+        Describes set of shelves. Should be a csv with the following header :
+        <pre>name,comment,length,width,height,type
+        Please note that there is always an error shelf named <code>error</code>.
+  <li>
+    <h4>
+      <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-layout"> Layout (Mandatory)
+    <div.pre.collapse id=info-section-layout>
+      Describes how shelves should be displayed.
+      Shelves are displayed as a matrix (row and column) of bays. A bay being a set of shelves stacked together.
+      Each line of the layout section describe a row.
+      Columns are separated by one or more space and each element of a bay by a pipe <code>|</code>
+
+      Example: 
+        <pre>
+            A1|A2|A3 B1|B2
+            C D E
+  <li>
+    <h4>
+      <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-stocktake">  Stocktake
+    <div.pre.collapse id=info-section-stocktake>
+      Describes a set of boxes with their location and eventually orientation. It is a csv with the following header
+      <pre>Bay No,Style,QTY,Length,Width,Height,Orientations
+  <li>
+    <h4>
+      <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-boxes"> Boxes
+    <div.pre.collapse id=info-section-boxes>
+      A set of boxes without initial location. They will be put in the <code>pending</code> shelf.
+      It is a csv with the following header :
+      <pre>style,quantity,l,w,h
+  <li>
+    <h4>
+      <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-moves"> Moves
+    <div.pre.collapse id=info-section-moves>
+      Describes a set of moves boxes to shelves. The first column describe a set of boxes to moves to
+      a set of shelves. If multiple shelves are given, the Planner will fill the shelf in the given order
+      and use the optimal orientation. If all boxes can't fit the given shelves, the excendatary boxes will
+      be moved to error.
+      It is csv with the following header:
+      <pre>stock_id,location
+      Please not the stock_id and location are in fact boxes and shelves selecto
+  <li>
+    <h4>
+      <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-tags"> Tags
+    <div.pre.collapse id=info-section-tags>
+      Allows to set a tag to a selection of boxes. Tags can be used to display boxes differently (via a colour)
+      or select them (when moving or even tagging boxes).
+      Boxes tagged with a colour name will be displayed with this colours. If a boxes is tagged with multiple colours,
+      all colours will be mixed.
+
+      Example <code>black#black#white</code> will display a box in dark gray (black is counted twice)
+      A Tag can be removed by setting with <code>-</code>
+   
+  <li>
+    <h4>
+      <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-orientations"> Orientations
+    <div.pre.collapse id=info-section-orientations>
+      Specifies the boxes configuration within a shelves (if they are stacked up, on the side, how many etc).
+      Boxes of a given style can be given different configuration for different shelves by specifing the shelf
+      in the box selector. This is a csv with the following header:
+      <code>stock_id,orientation
+
+      Example:
+      <pre>
+         TSHIRT/#top,^
+         TSHIRT,=
+
+      All T-shirt on top shelves (with the tag <code>top</code>) are up, whereas T-shirt in other shelves
+      are being laid on the side.
+       
+    
+
+<h3>Boxes and shelves selector
+<h3> Virtual tags
+|]
+
 renderView :: FormParam -> Handler TypedContent
 renderView param0 = do
   modeS <- lookupPostParam "mode"
@@ -90,7 +180,7 @@ renderView param0 = do
   plannerDirContent <-  forM (pPlannerDir param0) readScenarioFromDir 
   scenarioE <- readScenario (concat $ catMaybes [plannerDirContent, unTextarea <$> pOrgfile param0])
   (param, widget) <- case scenarioE of
-      Left err -> setError (toHtml err) >> return (param0, "Invalid scenario")
+      Left err -> setInfo plannerDoc >> setError (toHtml err) >> return (param0, "Invalid scenario")
       Right scenario ->  do
           -- param <- expandScenario (param0 {pDisplayMode = mode}) scenario
           let param = param0 {pDisplayMode = mode}

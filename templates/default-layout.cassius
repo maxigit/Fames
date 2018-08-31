@@ -1,0 +1,11 @@
+.pre
+  white-space: pre-line
+
+.data-toggler:after
+  font-family: 'Glyphicons Halflings'
+  content: '\e114'
+  floatXXX: right
+
+.data-toggler.collapsed:after
+  content: '\e080'
+
