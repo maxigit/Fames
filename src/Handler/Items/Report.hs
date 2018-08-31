@@ -18,7 +18,6 @@ import qualified Data.List as List
 import qualified FA as FA
 import GL.Utils
 import GL.Payroll.Settings
-import System.Directory(listDirectory, doesDirectoryExist)
 
 -- * Form
 reportForm :: [Column] -> Maybe ReportParam -> Html -> MForm Handler (FormResult ReportParam, Widget)
@@ -133,13 +132,7 @@ ruptureForm colOptions title paramM = do
   
 
 getForecastDirOptions :: Handler [(Text, FilePath)]
-getForecastDirOptions = do
-  forecastDir <- appForecastProfilesDir <$> getsYesod appSettings
-  entries <- lift $ listDirectory forecastDir
-  dirs <- lift $ filterM (doesDirectoryExist . (forecastDir </>)) entries
-  -- traceShowM (forecastDir, entries, dirs)
-  return [(pack dir, forecastDir </> dir) | dir <- dirs]
-
+getForecastDirOptions = getSubdirOptions appForecastProfilesDir
 
 -- * Handler
 
