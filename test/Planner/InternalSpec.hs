@@ -15,65 +15,83 @@ spec = parallel pureSpec >> ioSpec
 
 pureSpec :: Spec
 pureSpec = describe "Parsing Scenario file @planner" $ do
-  it "parses complex scenario"  $ do
-    let text = unlines [ "* Layout"
+  it "parses scenario without headings" $ do
+    let text = unlines [ ":LAYOUT:"
                        , "A|B|C"
-                       , ""
-                       , "*   Moves  "
+                       , ":MOVES:"
+                       , "move 1"
+                       , "move 2"
+                       , ":END:"
+                       ]
+
+    parseScenarioFile text `shouldBe` Right [ Section LayoutH (Right ["A|B|C"]) ""
+                                           , Section MovesH (Right ["move 1", "move 2"]) ""
+                                           ]
+  it "parses scenario with headings" $ do
+    let text = unlines [ "* Layout"
+                       , ":LAYOUT:"
+                       , "A|B|C"
+                       , "* Initial Moves"
+                       , ":MOVES:"
+                       , "move 1"
+                       , "move 2"
+                       , ":END:"
+                       ]
+
+    parseScenarioFile text `shouldBe` Right [ Section TitleH (Right []) "* Layout"
+                                            , Section LayoutH (Right ["A|B|C"]) ""
+                                            , Section TitleH (Right []) "* Initial Moves"
+                                            , Section MovesH (Right ["move 1", "move 2"]) ""
+                                            ]
+  it "parses complex scenario"  $ do
+    let text = unlines [ ":LAYOUT:"
+                       , "A|B|C"
+                       , ":MOVES:"
                        , "@sha1"
                        , "move 1"
                        , "move 2"
                        , "@sha2"
                        , "move 3"
                        , "move 4"
+                       , ":END:"
                        ]
 
-    parseScenarioFile text `shouldBe` Right [ Section LayoutH (Right ["A|B|C"]) "* Layout"
-                                           , Section MovesH (Left (DocumentHash "sha1")) "*   Moves"
-                                           , Section MovesH (Right ["move 1", "move 2"]) "*   Moves"
-                                           , Section MovesH (Left (DocumentHash "sha2")) "*   Moves"
-                                           , Section MovesH (Right ["move 3", "move 4"]) "*   Moves"
+    parseScenarioFile text `shouldBe` Right [ Section LayoutH (Right ["A|B|C"]) ""
+                                           , Section MovesH (Left (DocumentHash "sha1")) ""
+                                           , Section MovesH (Right ["move 1", "move 2"]) ""
+                                           , Section MovesH (Left (DocumentHash "sha2")) ""
+                                           , Section MovesH (Right ["move 3", "move 4"]) ""
                                            ]
 
+  it "rejects scenario with unknown section" $ do
+    let text = unlines [ ":Layout:"
+                       , "A|B|C"
+                       , ":END:"
+                       , ":Move:" -- <--- invalid : should be Moves
+                       , "move 1"
+                       , "move 2"
+                       , ":END"
+                       ]
+    parseScenarioFile text `shouldBe` Left "Move is not a valid drawer."
 
 ioSpec :: Spec
 ioSpec = describe "Reading scenario @planner" $ do
-  it "parses complex scenario"  $ do
-    let text = unlines [ "* Layout"
-                       , "A|B|C"
-                       , ""
-                       , "*   Moves  "
-                       , "@sha1"
-                       , "move 1"
-                       , "move 2"
-                       , "@sha2"
-                       , "move 3"
-                       , "move 4"
-                       ]
-
-    parseScenarioFile text `shouldBe` Right [ Section LayoutH (Right ["A|B|C"]) "* Layout"
-                                           , Section MovesH (Left (DocumentHash "sha1")) "*   Moves"
-                                           , Section MovesH (Right ["move 1", "move 2"]) "*   Moves"
-                                           , Section MovesH (Left (DocumentHash "sha2")) "*   Moves"
-                                           , Section MovesH (Right ["move 3", "move 4"]) "*   Moves"
-                                           ]
-
   it "computes different SHA for different layout scenario" $ do
-    let text = unlines [ "* Layout"
+    let text = unlines [ ":Layout:"
                        , "A"
-                       , "*   Moves  "
+                       , ":Moves:"
                        , "move 1"
                        , "move 2"
-                       , "*   Moves  "
+                       , ":Moves:"
                        , "move 3"
                        , "move 4"
                        ]
-    let text2 = unlines [ "* Layout"
+    let text2 = unlines [ ":Layout:"
                        , "B" -- only layout changes
-                       , "*   Moves  "
+                       , ":Moves:"
                        , "move 1"
                        , "move 20" -- only changes
-                       , "*   Moves  "
+                       , ":Moves:"
                        , "move 3"
                        , "move 4"
                        ]
@@ -86,22 +104,22 @@ ioSpec = describe "Reading scenario @planner" $ do
     sha1 `shouldNotBe` sha2
 
   it "computes same SHA for similar scenarios" $ do
-    let text = unlines [ "* Layout"
+    let text = unlines [ ":Layout:"
                        , "A|B|C"
-                       , "*   Moves  "
+                       , ":Moves:"
                        , "move 1"
                        , "move 2"
-                       , "*   Moves  "
+                       , ":Moves:"
                        , "move 3"
                        , "move 4"
                        ]
-    let text2 = unlines [ "* Layout"
+    let text2 = unlines [ ":Layout:"
                        , "A|B|C"
-                       , "*   Moves  "
+                       , ":Moves:"
                        , "move 1"
                        , "" -- only changes
                        , "move 2"
-                       , "*   Moves  "
+                       , ":Moves:"
                        , "move 3"
                        , "move 4"
                        ]
@@ -115,21 +133,21 @@ ioSpec = describe "Reading scenario @planner" $ do
     sha1 `shouldBe` sha2
 
   it "computes different SHA for different moves scenario" $ do
-    let text = unlines [ "* Layout"
+    let text = unlines [ ":Layout:"
                        , "A"
-                       , "*   Moves  "
+                       , ":Moves:"
                        , "move 1"
                        , "move 2"
-                       , "*   Moves  "
+                       , ":Moves:"
                        , "move 3"
                        , "move 4"
                        ]
-    let text2 = unlines [ "* Layout"
+    let text2 = unlines [ ":Layout:"
                        , "A"
-                       , "*   Moves  "
+                       , ":Moves:"
                        , "move 1"
                        , "move 20" -- Change
-                       , "*   Moves  "
+                       , ":Moves:"
                        , "move 3"
                        , "move 4"
                        ]

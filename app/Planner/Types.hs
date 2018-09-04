@@ -14,6 +14,12 @@ data Section = Section
    } deriving (Show, Read, Eq)
 
 -- * Content Types
+-- TODO needs refactoring. Now we are using orgmode drawer
+-- for planner instructions. HeaderL should only be drawer
+-- and org-mode drawer could be simple comment.
+-- Also the DocumentHash probably needs to be removed.
+-- It is not useful anymore now that we can save planner file on the server
+-- (via Dropbox)
 data TypedLine = CommentL 
               | HeaderL HeaderType Text
               | TextL Text

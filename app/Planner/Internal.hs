@@ -41,11 +41,13 @@ parseScenarioFile text = do -- Either
 -- | Transform a line of text to a typed line
 parseLine :: Text -> Either Text TypedLine
 parseLine line | "-- END " `isPrefixOf` line          = Right EndL
+               | ":END:" `isPrefixOf` line            = Right EndL
                | "-- " `isPrefixOf` line              = Right $ CommentL
-               | Just sha <- stripPrefix "@" line = Right $ HashL (DocumentHash $ strip sha)
-               | Just headerType <-  extractHeader line =  Right $ HeaderL headerType line
-               | strip line                 == "" = Right $ CommentL
-               | otherwise                        = Right $ TextL line
+               | Just drawer <- extractDrawer line      = drawer
+               | Just sha <- stripPrefix "@" line     = Right $ HashL (DocumentHash $ strip sha)
+               | Just headerType <- extractHeader line=  Right $ HeaderL headerType line
+               | strip line                 == ""     = Right $ CommentL
+               | otherwise                            = Right $ TextL line
 
 
 -- | Regroup lines into section
@@ -69,22 +71,28 @@ linesToSections lines = reverse $ go lines (MovesH, "") ([]) [] where
 -- | Header is like "*** [HEADER] title"
 extractHeader :: Text -> Maybe HeaderType
 extractHeader line = case words line of
-  (stars:section:_) | isStars stars -> Just $ parseHeader section
+  (stars:section:_) | isStars stars -> Just TitleH
   _ -> Nothing
   where isStars = all ((==) '*') 
   
-parseHeader :: Text -> HeaderType
-parseHeader h = case toLower (strip h) of
-  "layout" -> LayoutH
-  "shelves" -> ShelvesH
-  "initial" -> InitialH
-  "stocktake" -> StocktakeH
-  "boxes" -> BoxesH
-  "moves" -> MovesH
-  "tags" -> TagsH
-  "orientations" -> OrientationsH
-  _ -> TitleH
+extractDrawer :: Text -> Maybe (Either Text TypedLine)
+extractDrawer s = do
+  drawerE <- stripPrefix ":" s >>= stripSuffix ":" >>= Just . parseDrawer
+  return $ fmap (\d -> HeaderL d "") drawerE
+
+parseDrawer :: Text -> Either Text HeaderType
+parseDrawer h = case toLower (strip h) of
+  "layout" -> Right LayoutH
+  "shelves" -> Right ShelvesH
+  "initial" -> Right InitialH
+  "stocktake" -> Right StocktakeH
+  "boxes" -> Right BoxesH
+  "moves" -> Right MovesH
+  "tags" -> Right TagsH
+  "orientations" -> Right OrientationsH
+  _ -> Left $ h <> " is not a valid drawer."
   
+
 writeHeader :: HeaderType -> Text
 writeHeader header = let
   u = toUpper (tshow header)
