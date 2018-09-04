@@ -73,6 +73,22 @@ pureSpec = describe "Parsing Scenario file @planner" $ do
                        , ":END"
                        ]
     parseScenarioFile text `shouldBe` Left "Move is not a valid drawer."
+  it "parse with or without :END: markers" $ do
+    let without = unlines [ ":LAYOUT:"
+                       , "C1"
+                       , ":SHELVES:"
+                       , "name,comment,length,width,height,type"
+                       , "C1#_coming,coming,3800,100,1200,Shelf"
+                   ]
+        with = unlines [ ":LAYOUT:"
+                       , "C1"
+                       , ":END:"
+                       , ":SHELVES:"
+                       , "name,comment,length,width,height,type"
+                       , "C1#_coming,coming,3800,100,1200,Shelf"
+                       , ":END:"
+                   ]
+    parseScenarioFile with `shouldBe` parseScenarioFile without
 
 ioSpec :: Spec
 ioSpec = describe "Reading scenario @planner" $ do

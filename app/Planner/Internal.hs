@@ -41,7 +41,7 @@ parseScenarioFile text = do -- Either
 -- | Transform a line of text to a typed line
 parseLine :: Text -> Either Text TypedLine
 parseLine line | "-- END " `isPrefixOf` line          = Right EndL
-               | ":END:" `isPrefixOf` line            = Right EndL
+               | ":END:" `isPrefixOf` line            = Right CommentL
                | "-- " `isPrefixOf` line              = Right $ CommentL
                | Just drawer <- extractDrawer line      = drawer
                | Just sha <- stripPrefix "@" line     = Right $ HashL (DocumentHash $ strip sha)
