@@ -287,6 +287,7 @@ postLocationTransfer connectInfo locTrans = do
                                  , "AdjDate" <=>  toFADate (ltrDate locTrans)
                                  , "FromStockLocation" <=> unpack (ltrLocationFrom locTrans) 
                                  , "ToStockLocation" <=> unpack (ltrLocationTo locTrans) 
+                                 , Just "type=0" -- @TODO config file
                                  ] : method_POST
     tags <- curlSoup (toAjax locationTransferURL) process 200 "process location transfer"
     case extractAddedId' "AddedID" "location transfer" tags  of
