@@ -143,10 +143,11 @@ If the first word of a section is one of the valid section name, the whole conte
     <div.pre.collapse id=info-section-tags>
       Allows to set a tag to a selection of boxes. Tags can be used to display boxes differently (via a colour)
       or select them (when moving or even tagging boxes).
-      Boxes tagged with a colour name will be displayed with this colours. If a boxes is tagged with multiple colours,
-      all colours will be mixed.
+      Boxes tagged with a colour name will be displayed with this colours. If a box is tagged with different colours, the result will be
+      the mix of the colours. As a tag can only be set once per box, to change the weight of a colour by tagging it more than once, an underscore (or more) can be added before a colour name.
+      This way, tags will different (example #black and #_black), but will be seen twice as the black colour, but will be seen twice as the black colour.
 
-      Example <code>black#black#white</code> will display a box in dark gray (black is counted twice)
+      Example <code>black#_black#white</code> will display a box in dark gray (black is counted twice)
       A Tag can be removed by setting with <code>-</code>
    
   <li>
@@ -168,8 +169,53 @@ If the first word of a section is one of the valid section name, the whole conte
        
     
 
-<h3>Boxes and shelves selector
+<div>
+    <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-selectors">
+      <h3>Boxes and shelves selector
+    <div.pre.collapse id=info-section-selectors>
+      Most operations, (moving and tagging) operates on boxes. To do so, a set of boxes is selected and then the operation is applied.
+      The main way of selecting a box is by specifying a style, which will select all boxes of the given style. However, more complex selection
+      can be selecting boxes by tags and locations (as well as loction tag). The format of a box selector is the following
+
+      <pre>
+        style pattern <b>#</b> tag <b>/</b>/ location pattern <b>#</b> location tag
+
+      Example
+      <pre>
+         TShirt => all boxes with the style 'TShirt'
+         #white  =>  all boxes with the 'white' tag
+         TShirt#white => all boxes with the style 'TShirt' AND the white tag
+         /A => All boxes in the A Shelves
+         #white/A* => All boxes in a shelves with the name starting with 'A' shelves AND The white tag
+         TShirt/#top => ALL Tshirt on the shelf with the 'top' tag.
+      <ul>
+        <li>
+          <h4> Style pattern
+        <li>
+          <h4> tags
+        <li>
+          <h4> Location pattern
+        <li>
+          <h4> Location tag
+        <li>
+          <h4> number restriction
+          The <code>^</code> symbol is used to select only a certain number of boxes per variation/content, per shelf, and in total
+          <pre>
+             content ^ shelf ^ total ^
+
+          Example
+          <pre>
+             TShirt^^^1 => the first box containing a t-shirt.
+             ^1 => The first box of each variations (colour)
+             ^2^3 =>  The two first boxes of each variations, with a maximum of 3 per shelves.
 <h3> Virtual tags
+Virtual tags are tags which are not set by the user, but automatically set depending the box content and/or the box itself. It allows
+to select style by variations (<code>'</code>content) and dimensions (in 1/10th of mm) (<code>'l</code>length, <code>'w</code>width,<code>'h</code>height ).
+
+Example
+<pre>
+    TShirt#'3500 => all T-shirt with boxes with a length of 35cm.
+    TShirt#'RED  => all red T-shirt (with a content of Red)
 |]
 
 renderView :: FormParam -> Handler TypedContent
