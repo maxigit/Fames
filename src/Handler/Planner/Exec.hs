@@ -1,6 +1,6 @@
 module Handler.Planner.Exec where
 
-import Import
+import Import hiding(get)
 import Planner.Types
 import Planner.Internal
 import WarehousePlanner.Base
@@ -8,7 +8,7 @@ import WarehousePlanner.Csv
 import WarehousePlanner.Display
 import Util.Cache
 import Unsafe.Coerce (unsafeCoerce)
-import Control.Monad.State (put)
+import Control.Monad.State (put,get)
 import Data.Colour (Colour,blend,over, affineCombo)
 import Data.Colour.Names (readColourName,wheat)
 
@@ -56,6 +56,52 @@ cacheScenarioOut :: Text -> Handler (Maybe (Scenario, Int))
 cacheScenarioOut key = do
   cache0 False (cacheDay 1) ("scenario", key) (return Nothing)
 
+-- * Deep copy
+copyWarehouse :: WH (WH (Warehouse s) s) t
+copyWarehouse = do
+  wh0 <- get
+  -- buildGroup <- copyShelfGroup (shelfGroup wh0)
+  buildGroup <- mapM copyShelf (shelves wh0)
+  return $ do
+    put emptyWarehouse { colors = unsafeCoerce $ colors wh0
+                       , shelfColors = unsafeCoerce $ shelfColors wh0
+                       , boxOrientations = unsafeCoerce $ boxOrientations wh0
+                       }
+    sequence buildGroup
+    get
+
+
+copyShelfGroup :: ShelfGroup t -> WH (WH (ShelfGroup s) s) t
+copyShelfGroup (ShelfProxy sId) = do
+  sIdM <- copyShelf sId
+  return $ do
+    sId' <- sIdM
+    return $ ShelfProxy sId'
+copyShelfGroup (ShelfGroup gIds dir) = do
+  gIdM <- mapM copyShelfGroup gIds
+  return $ do
+    gIds' <- sequence gIdM
+    return $ ShelfGroup gIds' dir
+
+copyShelf :: ShelfId t -> WH (WH (ShelfId s) s) t
+copyShelf sId = do
+  Shelf{..} <- findShelf sId
+  boxes <- findBoxByShelf sId
+  buildBoxFnsM <- mapM copyBox boxes
+  return $ do
+    nshelf <- (newShelf shelfName shelfTag minDim maxDim shelfBoxOrientator shelfFillingStrategy)
+    let nId = shelfId nshelf
+    let _n = map ($ nId) buildBoxFnsM
+    sequence _n
+    updateShelf (\s ->  s {flow = flow} ) nshelf
+    return nId
+  
+copyBox :: Box t -> WH (ShelfId s -> WH (Box s) s) t
+copyBox Box{..} = return $ \shelf -> do
+  newBox <- newBox boxStyle boxContent _boxDim orientation shelf boxBoxOrientations boxTags
+  updateBox (\b -> b { boxOffset = boxOffset}) newBox
+  -- return newBox
+
 -- * Exec
 -- underscores are stripped before looking for the color name
 -- this allow the same colours to be used more that once
@@ -79,32 +125,40 @@ defOrs :: [Orientation]
 defOrs = [ tiltedForward, tiltedFR ]                       
 
                             
--- some steps need to be done before other to make sense
--- shelves first, then orientations rules, then in inital order
-sSortedSteps :: Scenario -> [Step]
-sSortedSteps Scenario{..} = let
-  steps = zipWith key sSteps  [1..]
-  key step@(Step header hash _) i = ((priority header, i), step)
-  priority header = case header of
-                         ShelvesH  -> 1
-                         OrientationsH -> 2
-                         _ -> 3
-  sorted = sortBy (comparing fst) steps
-  in  map snd sorted
   
+-- | Execute a scenario, read and write cache if necessary.
+-- The execution of each steps is cached, so that
+-- when modifying a file in the middle results, all the steps
+-- at the beginning which haven't changed don't need to be recalculated.
+-- To do so, we create and execute a chain of scenario with one step
+-- and the initial step corresponding to the previous one.
 execScenario :: Scenario -> Handler (Warehouse RealWorld)
 execScenario sc@Scenario{..} = do
   initialM <- join <$> cacheWarehouseOut `mapM` sInitialState
-  stepsW <- lift $ mapM executeStep (sSortedSteps sc)
-        -- put (fromMaybe emptyWarehouse (unsafeCoerce initialM))
-  -- execute and store the resulting warehouse
-  (_, warehouse) <- runWH (maybe emptyWarehouse unfreeze initialM) { colors = colorFromTag}
-                          (sequence stepsW >> return ())
-  let key = warehouseScenarioKey sc
-  cacheWarehouseIn key warehouse
-  return warehouse
-
+  let warehouse0 = maybe emptyWarehouse unfreeze initialM
+  go warehouse0 [] (sSortedSteps sc) where
+      go :: Warehouse RealWorld -> [Step] -> [Step] -> Handler (Warehouse RealWorld)
+      go w _ [] = return w
+      go warehouse (previous) (step:steps) = do
+        (wCopyM,_) <- runWH warehouse copyWarehouse
+        let subKey = warehouseScenarioKey $ Scenario Nothing (reverse (step:previous))  Nothing
+        wM <- cacheWarehouseOut subKey
+        w <- case wM of
+          Nothing -> do
+            stepW <- lift $ executeStep step
+            (_, w') <- runWH emptyWarehouse  $ do
+              wCopy <- wCopyM
+              put wCopy { colors = colorFromTag}
+              stepW >> return ()
+            traceShowM ("Scenario step => execute", subKey)
+            cacheWarehouseIn subKey w'
+            return w'
+          Just w' -> traceShowM ("Scenario Step => use cache", subKey) >> (return $ unfreeze w')
+        -- carry on with the remaing steps
+        go w (step:previous) steps
+  
 execWithCache :: Scenario -> Handler (Warehouse RealWorld)
+-- execWithCache = execScenario
 execWithCache sc = do
   let key = warehouseScenarioKey sc
   wM <- cacheWarehouseOut key

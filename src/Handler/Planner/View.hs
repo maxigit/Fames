@@ -54,7 +54,7 @@ postPViewR viewMode = do
 getPImageR :: Text -> Int64 -> Int64 -> Handler TypedContent
 getPImageR sha i width = do
   scenarioM <- cacheScenarioOut sha
-  traceShowM ("IMAGE", scenarioM)
+  -- traceShowM ("IMAGE", scenarioM)
   case scenarioM of
     Nothing -> do
       error "No matching scenario"
@@ -242,7 +242,7 @@ renderView param0 = do
   modeS <- lookupPostParam "mode"
   let mode = modeS >>=readMay
       vmode = pViewMode param0
-  plannerDirContent <-  forM (pPlannerDir param0) readScenarioFromDir 
+  plannerDirContent <-  forM (pPlannerDir param0) readScenariosFromDir 
   scenarioE <- readScenario (concat $ catMaybes [plannerDirContent, unTextarea <$> pOrgfile param0])
   (param, widget) <- case scenarioE of
       Left err -> setInfo plannerDoc >> setError (toHtml err) >> return (param0, "Invalid scenario")

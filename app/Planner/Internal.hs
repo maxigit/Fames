@@ -98,8 +98,14 @@ writeHeader header = let
   u = toUpper (tshow header)
   in Text.init u
 
--- | Read a scenario text file. Needs IO to cache the section to
--- tempory file
+-- | Read a scenario text file. Needs IO to cache each sections into
+-- in tempory file. 
+-- The reason for that is the we are only doing a wrapper over
+-- the legacy planner which works by parsing files using cassava.
+-- To work, we need to save each section to a temporary file which
+-- can be read by the legacy planner.
+-- To avoid creating the same temporary file over and over, which
+-- just cache them once and use a SHA identify them.
 readScenario :: MonadIO m => Text -> m (Either Text Scenario)
 readScenario text = do
   runExceptT $ do
@@ -110,8 +116,8 @@ readScenario text = do
 -- | Read a sceanrio from a directory.
 -- Concatene all files in alphabetical order
 -- readScenarioDir :: MonadIO m => FilePath -> m Either [Step]
-readScenarioFromDir :: MonadIO io => FilePath -> io Text 
-readScenarioFromDir path = liftIO $ do
+readScenariosFromDir :: MonadIO io => FilePath -> io Text 
+readScenariosFromDir path = liftIO $ do
   entries0 <- listDirectory path
   let entries = map (path </>) (sort  entries0)
   files <- filterM  doesFileExist entries
@@ -170,7 +176,6 @@ retrieveContent key = do
     then (Just . decodeUtf8) <$> readFile path
     else return Nothing
 
-
 makeScenario :: [(HeaderType, (DocumentHash, Text))]  -> Either Text Scenario
 makeScenario sections0 = do -- Either
   let (initials, sections1) = partition (( InitialH==). fst) sections0
@@ -180,7 +185,7 @@ makeScenario sections0 = do -- Either
       firstOrNone err _ = Left err
 
   initial <- firstOrNone "Too many INITIAL sections" initials
-  layout <- firstOrNone "Too many LAYOUT sections" layouts
+  layout <- firstOrNone "Too many LAYOUT sections" (take 1 $ reverse layouts) -- take last one
 
   let steps = map (\(header , (sha, title)) ->  Step header sha title) sections2
 
@@ -223,8 +228,20 @@ scenarioKey sc = computeDocumentKey .  encodeUtf8 $ scenarioToTextWithHash  sc
 
 -- | Key indentifying the warehouse scenario, i.e. not taking the layout into account
 warehouseScenarioKey ::  Scenario -> DocumentHash
-warehouseScenarioKey sc = scenarioKey (sc {sLayout = Nothing})
+warehouseScenarioKey sc = scenarioKey (sc {sLayout = Nothing, sSteps = sSortedSteps sc} )
 
+-- some steps need to be done before other to make sense
+-- shelves first, then orientations rules, then in inital order
+sSortedSteps :: Scenario -> [Step]
+sSortedSteps Scenario{..} = let
+  steps = zipWith key sSteps  [1..]
+  key step@(Step header hash _) i = ((priority header, i), step)
+  priority header = case header of
+                         ShelvesH  -> 1
+                         OrientationsH -> 2
+                         _ -> 3
+  sorted = sortBy (comparing fst) steps
+  in  map snd sorted
 
 -- * Rendering
 

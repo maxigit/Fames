@@ -176,3 +176,29 @@ ioSpec = describe "Reading scenario @planner" $ do
     -- length (rights [sha1, sha2]) `shouldBe` 2
     sha1 `shouldNotBe` sha2
 
+  it "computes same SHA from nested scenario" $ do
+    pendingWith "Not implementable right now"
+    let part1 = unlines [":Moves:"
+                        , "move 1"
+                        , "move 2"
+                        ]
+    let part2 = unlines [":Moves:"
+                        , "move 3"
+                        , "move 4"
+                        ]
+    Right (DocumentHash shaPart1) <- do
+                  sc <- readScenario part1
+                  return $ scenarioKey `fmap` sc
+
+    let text1 = part1 <> part2
+        text2 = unlines [":Initial:"
+                        , "@" ++ shaPart1] ++ part2
+
+    [sha1, sha2] <- mapM ( \t -> do
+                               sc <- readScenario t
+                               return $ scenarioKey `fmap` sc
+                         )
+                       [text1, text2]
+    sha1 `shouldBe` sha2
+    -- text1 `shouldBe` text2
+
