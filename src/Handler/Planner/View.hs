@@ -85,137 +85,156 @@ getPlannerDirOptions = getSubdirOptions appPlannerDir
 -- * Rendering
 -- ** General
 plannerDoc = [shamlet|
+<h2>
+  <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-main"> Planner quick reference 
+<div.pre.collapse id=info-section-main>
+  #{plannerDoc'}
+|]
+plannerDoc' = [shamlet|
 $newline text
 Displays a Planner (a visual view of the warehouse with its content).
 The planner is a set of files compatible with Emacs org-mode.
 Files are read from the given subdirectory (if any) and/or read from the text area.
 A planner file is made of different sections. Each section correspond to an org-mode heading (beginning with one more <code>*</code>).
 If the first word of a section is one of the valid section name, the whole content of the heading will be treated processed according to the section type.
-<h3>Sections
-<ul> 
-  <li>
-    <h4>
-      <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-shelves"> Shelves (Mandatory)
-    <div.pre.collapse id=info-section-shelves>
-        Describes set of shelves. Should be a csv with the following header :
-        <pre>name,comment,length,width,height,type
-        Please note that there is always an error shelf named <code>error</code>.
-  <li>
-    <h4>
-      <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-layout"> Layout (Mandatory)
-    <div.pre.collapse id=info-section-layout>
-      Describes how shelves should be displayed.
-      Shelves are displayed as a matrix (row and column) of bays. A bay being a set of shelves stacked together.
-      Each line of the layout section describe a row.
-      Columns are separated by one or more space and each element of a bay by a pipe <code>|</code>
+<h3>
+  <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-sections">Sections
+<div.pre.collapse id=info-section-sections>
+    <ul> 
+      <li>
+        <h4>
+          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-shelves"> Shelves (Mandatory)
+        <div.pre.collapse id=info-section-shelves>
+            Describes set of shelves. Should be a csv with the following header :
+            <pre>name,comment,length,width,height,type
+            Please note that there is always an error shelf named <code>error</code>.
+      <li>
+        <h4>
+          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-layout"> Layout (Mandatory)
+        <div.pre.collapse id=info-section-layout>
+          Describes how shelves should be displayed.
+          Shelves are displayed as a matrix (row and column) of bays. A bay being a set of shelves stacked together.
+          Each line of the layout section describe a row.
+          Columns are separated by one or more space and each element of a bay by a pipe <code>|</code>
 
-      Example: 
-        <pre>
-            A1|A2|A3 B1|B2
-            C D E
-  <li>
-    <h4>
-      <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-stocktake">  Stocktake
-    <div.pre.collapse id=info-section-stocktake>
-      Describes a set of boxes with their location and eventually orientation. It is a csv with the following header
-      <pre>Bay No,Style,QTY,Length,Width,Height,Orientations
-  <li>
-    <h4>
-      <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-boxes"> Boxes
-    <div.pre.collapse id=info-section-boxes>
-      A set of boxes without initial location. They will be put in the <code>pending</code> shelf.
-      It is a csv with the following header :
-      <pre>style,quantity,l,w,h
-  <li>
-    <h4>
-      <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-moves"> Moves
-    <div.pre.collapse id=info-section-moves>
-      Describes a set of moves boxes to shelves. The first column describe a set of boxes to moves to
-      a set of shelves. If multiple shelves are given, the Planner will fill the shelf in the given order
-      and use the optimal orientation. If all boxes can't fit the given shelves, the excendatary boxes will
-      be moved to error.
-      It is csv with the following header:
-      <pre>stock_id,location
-      Please not the stock_id and location are in fact boxes and shelves selecto
-  <li>
-    <h4>
-      <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-tags"> Tags
-    <div.pre.collapse id=info-section-tags>
-      Allows to set a tag to a selection of boxes. Tags can be used to display boxes differently (via a colour)
-      or select them (when moving or even tagging boxes).
-      Boxes tagged with a colour name will be displayed with this colours. If a box is tagged with different colours, the result will be
-      the mix of the colours. As a tag can only be set once per box, to change the weight of a colour by tagging it more than once, an underscore (or more) can be added before a colour name.
-      This way, tags will different (example #black and #_black), but will be seen twice as the black colour, but will be seen twice as the black colour.
+          Example: 
+            <pre>
+                A1|A2|A3 B1|B2
+                C D E
+      <li>
+        <h4>
+          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-stocktake">  Stocktake
+        <div.pre.collapse id=info-section-stocktake>
+          Describes a set of boxes with their location and eventually orientation. It is a csv with the following header
+          <pre>Bay No,Style,QTY,Length,Width,Height,Orientations
+      <li>
+        <h4>
+          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-boxes"> Boxes
+        <div.pre.collapse id=info-section-boxes>
+          A set of boxes without initial location. They will be put in the <code>pending</code> shelf.
+          It is a csv with the following header :
+          <pre>style,quantity,l,w,h
+      <li>
+        <h4>
+          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-moves"> Moves
+        <div.pre.collapse id=info-section-moves>
+          Describes a set of moves boxes to shelves. The first column describe a set of boxes to moves to
+          a set of shelves. If multiple shelves are given, the Planner will fill the shelf in the given order
+          and use the optimal orientation. If all boxes can't fit the given shelves, the excendatary boxes will
+          be moved to error.
+          It is csv with the following header:
+          <pre>stock_id,location
+          Please not the stock_id and location are in fact boxes and shelves selecto
+      <li>
+        <h4>
+          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-tags"> Tags
+        <div.pre.collapse id=info-section-tags>
+          Allows to set a tag to a selection of boxes. Tags can be used to display boxes differently (via a colour)
+          or select them (when moving or even tagging boxes).
 
-      Example <code>black#_black#white</code> will display a box in dark gray (black is counted twice)
-      A Tag can be removed by setting with <code>-</code>
-   
-  <li>
-    <h4>
-      <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-orientations"> Orientations
-    <div.pre.collapse id=info-section-orientations>
-      Specifies the boxes configuration within a shelves (if they are stacked up, on the side, how many etc).
-      Boxes of a given style can be given different configuration for different shelves by specifing the shelf
-      in the box selector. This is a csv with the following header:
-      <code>stock_id,orientation
+          Boxes tagged with a colour name will be displayed with this colours. If a box is tagged with different colours, the result will be
+          the mix of the colours. As a tag can only be set once per box, to change the weight of a colour by tagging it more than once, an underscore (or more) can be added before a colour name.
+          This way, tags will different (example #black and #_black), but will be seen twice as the black colour, but will be seen twice as the black colour.
 
-      Example:
-      <pre>
-         TSHIRT/#top,^
-         TSHIRT,=
+          Example <code>black#_black#white</code> will display a box in dark gray (black is counted twice)
+          A Tag can be removed by setting with <code>-</code>
 
-      All T-shirt on top shelves (with the tag <code>top</code>) are up, whereas T-shirt in other shelves
-      are being laid on the side.
-       
-    
+      <li>
+        <h4>
+          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-orientations"> Orientations
+        <div.pre.collapse id=info-section-orientations>
+          Specifies the boxes configuration within a shelves (if they are stacked up, on the side, how many etc).
+          Boxes of a given style can be given different configuration for different shelves by specifing the shelf
+          in the box selector. This is a csv with the following header:
+          <code>stock_id,orientation
 
-<div>
-    <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-selectors">
-      <h3>Boxes and shelves selector
-    <div.pre.collapse id=info-section-selectors>
-      Most operations, (moving and tagging) operates on boxes. To do so, a set of boxes is selected and then the operation is applied.
-      The main way of selecting a box is by specifying a style, which will select all boxes of the given style. However, more complex selection
-      can be selecting boxes by tags and locations (as well as loction tag). The format of a box selector is the following
+          Example:
+          <pre>
+            TSHIRT/#top,^
+            TSHIRT,=
 
-      <pre>
-        style pattern <b>#</b> tag <b>/</b>/ location pattern <b>#</b> location tag
+          All T-shirt on top shelves (with the tag <code>top</code>) are up, whereas T-shirt in other shelves
+          are being laid on the side.
+
+
+
+    <div>
+<h3>
+  <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-selectors">
+    Boxes and shelves selector
+<div.pre.collapse id=info-section-selectors>
+  Most operations, (moving and tagging) operates on boxes. To do so, a set of boxes is selected and then the operation is applied.
+  The main way of selecting a box is by specifying a style, which will select all boxes of the given style. However, more complex selection
+  can be selecting boxes by tags and locations (as well as loction tag). The format of a box selector is the following
+
+  <pre>
+    style pattern <b>#</b> tag <b>/</b>/ location pattern <b>#</b> location tag
+
+  Example
+  <pre>
+     TShirt => all boxes with the style 'TShirt'
+     #white  =>  all boxes with the 'white' tag
+     TShirt#white => all boxes with the style 'TShirt' AND the white tag
+     /A => All boxes in the A Shelves
+     #white/A* => All boxes in a shelves with the name starting with 'A' shelves AND The white tag
+     TShirt/#top => ALL Tshirt on the shelf with the 'top' tag.
+  <ul>
+    <li>
+      <h4> Style pattern
+    <li>
+      <h4> tags
+      Starts should start and be separated with <code>#</code>). Only boxes with ALL tags will be selected.
+      Preceding a tag with <code>-</code> means boxes wich don't have this tag.
 
       Example
       <pre>
-         TShirt => all boxes with the style 'TShirt'
-         #white  =>  all boxes with the 'white' tag
-         TShirt#white => all boxes with the style 'TShirt' AND the white tag
-         /A => All boxes in the A Shelves
-         #white/A* => All boxes in a shelves with the name starting with 'A' shelves AND The white tag
-         TShirt/#top => ALL Tshirt on the shelf with the 'top' tag.
-      <ul>
-        <li>
-          <h4> Style pattern
-        <li>
-          <h4> tags
-        <li>
-          <h4> Location pattern
-        <li>
-          <h4> Location tag
-        <li>
-          <h4> number restriction
-          The <code>^</code> symbol is used to select only a certain number of boxes per variation/content, per shelf, and in total
-          <pre>
-             content ^ shelf ^ total ^
+        TShirt#red#-XL => all red tshirt , except the XL Ones.
+    <li>
+      <h4> Location pattern
+    <li>
+      <h4> Location tag
+    <li>
+      <h4> number restriction
+      The <code>^</code> symbol is used to select only a certain number of boxes per variation/content, per shelf, and in total
+      <pre>
+         content ^ shelf ^ total ^
 
-          Example
-          <pre>
-             TShirt^^^1 => the first box containing a t-shirt.
-             ^1 => The first box of each variations (colour)
-             ^2^3 =>  The two first boxes of each variations, with a maximum of 3 per shelves.
-<h3> Virtual tags
-Virtual tags are tags which are not set by the user, but automatically set depending the box content and/or the box itself. It allows
-to select style by variations (<code>'</code>content) and dimensions (in 1/10th of mm) (<code>'l</code>length, <code>'w</code>width,<code>'h</code>height ).
+      Example
+      <pre>
+         TShirt^^^1 => the first box containing a t-shirt.
+         ^1 => The first box of each variations (colour)
+         ^2^3 =>  The two first boxes of each variations, with a maximum of 3 per shelves.
+<h3>
+  <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-virtual-tags">
+     Virtual tags
+<div.pre.collapse id=info-section-virtual-tags>
+  Virtual tags are tags which are not set by the user, but automatically set depending the box content and/or the box itself. It allows
+  to select style by variations (<code>'</code>content) and dimensions (in 1/10th of mm) (<code>'l</code>length, <code>'w</code>width,<code>'h</code>height ).
 
-Example
-<pre>
-    TShirt#'3500 => all T-shirt with boxes with a length of 35cm.
-    TShirt#'RED  => all red T-shirt (with a content of Red)
+  Example
+  <pre>
+      TShirt#'3500 => all T-shirt with boxes with a length of 35cm.
+      TShirt#'RED  => all red T-shirt (with a content of Red)
 |]
 
 renderView :: FormParam -> Handler TypedContent
