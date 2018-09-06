@@ -23,6 +23,7 @@ data WarehouseCache = WarehouseCache (Warehouse ()) deriving (Show, Typeable)
 -- * Caching
 
 
+cacheWarehouseIn :: DocumentHash -> Warehouse s -> Handler (Maybe WarehouseCache)
 cacheWarehouseIn (DocumentHash key) warehouse = do
   cache0 False (cacheDay 1) ("warehouse", key) (return . Just $ freeze warehouse)
 
@@ -44,12 +45,14 @@ freeze = WarehouseCache . unsafeCoerce
 unfreeze :: WarehouseCache -> Warehouse s
 unfreeze (WarehouseCache warehouse)= unsafeCoerce warehouse
 
+cacheScenarioIn :: Scenario -> Handler (Text, Int)
 cacheScenarioIn sc = do
   let (DocumentHash key) = scenarioKey sc
   layoutSize <- scenarioLayoutSize sc
   cache0 False (cacheDay 1) ("scenario", key) (return $ Just (sc, layoutSize))
   return (key, layoutSize)
 
+cacheScenarioOut :: Text -> Handler (Maybe (Scenario, Int))
 cacheScenarioOut key = do
   cache0 False (cacheDay 1) ("scenario", key) (return Nothing)
 
@@ -72,11 +75,13 @@ colorFromTag box = let
 
 
 
+defOrs :: [Orientation]
 defOrs = [ tiltedForward, tiltedFR ]                       
 
                             
 -- some steps need to be done before other to make sense
 -- shelves first, then orientations rules, then in inital order
+sSortedSteps :: Scenario -> [Step]
 sSortedSteps Scenario{..} = let
   steps = zipWith key sSteps  [1..]
   key step@(Step header hash _) i = ((priority header, i), step)
@@ -84,11 +89,10 @@ sSortedSteps Scenario{..} = let
                          ShelvesH  -> 1
                          OrientationsH -> 2
                          _ -> 3
-               
-
   sorted = sortBy (comparing fst) steps
   in  map snd sorted
   
+execScenario :: Scenario -> Handler (Warehouse RealWorld)
 execScenario sc@Scenario{..} = do
   initialM <- join <$> cacheWarehouseOut `mapM` sInitialState
   stepsW <- lift $ mapM executeStep (sSortedSteps sc)
@@ -100,6 +104,7 @@ execScenario sc@Scenario{..} = do
   cacheWarehouseIn key warehouse
   return warehouse
 
+execWithCache :: Scenario -> Handler (Warehouse RealWorld)
 execWithCache sc = do
   let key = warehouseScenarioKey sc
   wM <- cacheWarehouseOut key
@@ -108,6 +113,8 @@ execWithCache sc = do
     Just wh -> return  $ unfreeze wh
 
 
+renderScenario :: Scenario -> Maybe DocumentHash
+               -> Handler (Either String [_Diagram])
 renderScenario sc layoutM = do
   case layoutM <|> (sLayout sc) of
     Nothing -> return $ Left "No layout provided"
