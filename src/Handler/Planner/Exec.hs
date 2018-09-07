@@ -124,8 +124,6 @@ colorFromTag box = let
 defOrs :: [Orientation]
 defOrs = [ tiltedForward, tiltedFR ]                       
 
-                            
-  
 -- | Execute a scenario, read and write cache if necessary.
 -- The execution of each steps is cached, so that
 -- when modifying a file in the middle results, all the steps
@@ -139,24 +137,31 @@ execScenario sc@Scenario{..} = do
   go warehouse0 [] (sSortedSteps sc) where
       go :: Warehouse RealWorld -> [Step] -> [Step] -> Handler (Warehouse RealWorld)
       go w _ [] = return w
-      go warehouse (previous) (step:steps) = do
+      go warehouse (previous) (steps0) = do
+        -- in order to only save at saving points
+        -- we need to execute all steps between saving points
+        -- as a group
+        let (toExecutes, steps') = break (== SavingPoint) steps0
+            steps = drop 1 steps' -- drop SavingPoint if step non empty
+            allPreviousSteps = previous <> toExecutes
         (wCopyM,_) <- runWH warehouse copyWarehouse
-        let subKey = warehouseScenarioKey $ Scenario Nothing (reverse (step:previous))  Nothing
+        let subKey = warehouseScenarioKey $ Scenario Nothing allPreviousSteps  Nothing
         wM <- cacheWarehouseOut subKey
         w <- case wM of
           Nothing -> do
-            stepW <- lift $ executeStep step
+            execM <- lift $ mapM executeStep toExecutes
             (_, w') <- runWH emptyWarehouse  $ do
               wCopy <- wCopyM
               put wCopy { colors = colorFromTag}
-              stepW >> return ()
+              sequence_ execM
             traceShowM ("Scenario step => execute", subKey)
             cacheWarehouseIn subKey w'
             return w'
           Just w' -> traceShowM ("Scenario Step => use cache", subKey) >> (return $ unfreeze w')
         -- carry on with the remaing steps
-        go w (step:previous) steps
+        go w (allPreviousSteps) steps
   
+
 execWithCache :: Scenario -> Handler (Warehouse RealWorld)
 -- execWithCache = execScenario
 execWithCache sc = do

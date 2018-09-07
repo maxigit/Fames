@@ -242,12 +242,15 @@ renderView param0 = do
   modeS <- lookupPostParam "mode"
   let mode = modeS >>=readMay
       vmode = pViewMode param0
-  plannerDirContent <-  forM (pPlannerDir param0) readScenariosFromDir 
-  scenarioE <- readScenario (concat $ catMaybes [plannerDirContent, unTextarea <$> pOrgfile param0])
-  (param, widget) <- case scenarioE of
+  scenariosEM <-  forM (pPlannerDir param0) readScenariosFromDir 
+  scenarioEM <- forM (pOrgfile param0) (readScenario . unTextarea)
+  (param, widget) <- case liftA2 (,) (sequence scenariosEM) (sequence scenarioEM) of
       Left err -> setInfo plannerDoc >> setError (toHtml err) >> return (param0, "Invalid scenario")
-      Right scenario ->  do
+      Right (scenariosM, scenarioM) ->  do
           -- param <- expandScenario (param0 {pDisplayMode = mode}) scenario
+          -- we intersperce before the catMaybe so that there a savingPoint after  the last file even
+          -- if there is no extra scenario
+          let scenario = mconcat . catMaybes $ (intersperse (Just savePointScenario) $ (sequence scenariosM <> [scenarioM]))
           let param = param0 {pDisplayMode = mode}
           w <- case fromMaybe PlannerSummaryView (pViewMode param) of
               PlannerSummaryView-> renderSummaryReport scenario

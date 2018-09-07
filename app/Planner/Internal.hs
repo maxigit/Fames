@@ -116,14 +116,17 @@ readScenario text = do
 -- | Read a sceanrio from a directory.
 -- Concatene all files in alphabetical order
 -- readScenarioDir :: MonadIO m => FilePath -> m Either [Step]
-readScenariosFromDir :: MonadIO io => FilePath -> io Text 
+readScenariosFromDir :: MonadIO io => FilePath -> io (Either Text [Scenario])
 readScenariosFromDir path = liftIO $ do
   entries0 <- listDirectory path
   let entries = map (path </>) (sort  entries0)
   files <- filterM  doesFileExist entries
   contents <-  mapM readFile files
-  return $ concatMap decodeUtf8 contents
+  scenariosE <- mapM (readScenario . decodeUtf8) contents
+  return $ sequence scenariosE
   
+savePointScenario = Scenario Nothing [SavingPoint] Nothing
+
 -- | Save a content to a temporary file if needed
 cacheContent :: MonadIO m => Content -> m (Either Text DocumentHash)
 cacheContent (Left sha) = do
@@ -218,7 +221,10 @@ scenarioToSections :: Scenario -> [Section]
 scenarioToSections Scenario{..} = execWriter $ do  -- []
   forM sInitialState (\state -> tell [Section InitialH (Left state) "* INITIAL"])
   forM sLayout (\layout -> tell [Section LayoutH (Left layout) "* LAYOUT"])
-  forM sSteps (\(Step header sha title) -> tell [Section header (Left sha) title])
+  forM sSteps (\s -> case s of
+                  Step header sha title -> tell [Section header (Left sha) title]
+                  SavingPoint -> return ()
+              )
 
 -- | Key identifying the scenario. Takes all document and has them.
 scenarioKey :: Scenario -> DocumentHash
@@ -235,11 +241,11 @@ warehouseScenarioKey sc = scenarioKey (sc {sLayout = Nothing, sSteps = sSortedSt
 sSortedSteps :: Scenario -> [Step]
 sSortedSteps Scenario{..} = let
   steps = zipWith key sSteps  [1..]
-  key step@(Step header hash _) i = ((priority header, i), step)
-  priority header = case header of
-                         ShelvesH  -> 1
-                         OrientationsH -> 2
-                         _ -> 3
+  key step i = ((priority step, i), step)
+  priority step = case step of
+                    Step ShelvesH _ _  -> 1
+                    Step OrientationsH _ _  -> 2
+                    _ -> 3
   sorted = sortBy (comparing fst) steps
   in  map snd sorted
 
@@ -261,6 +267,7 @@ execWH warehouse0 wh = lift $ stToIO $ evalStateT wh warehouse0
 runWH warehouse0 wh = lift $ stToIO $ runStateT wh warehouse0
 
 executeStep :: Step -> IO (WH () s)
+executeStep SavingPoint = return (return ())
 executeStep (Step header sha _) =
   let path = contentPath sha
       defaultOrientations = [tiltedForward, tiltedFR]

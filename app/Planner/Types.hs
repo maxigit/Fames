@@ -28,7 +28,16 @@ data TypedLine = CommentL
               deriving (Show, Read, Eq, Ord)
 
 
-data HeaderType = LayoutH | ShelvesH | InitialH | StocktakeH | BoxesH | MovesH | TagsH | OrientationsH | TitleH
+data HeaderType
+  = LayoutH
+  | ShelvesH
+  | InitialH
+  | StocktakeH
+  | BoxesH 
+  | MovesH 
+  | TagsH 
+  | OrientationsH 
+  | TitleH
   deriving (Show, Read, Eq, Ord)
 
 -- * Scenario
@@ -40,9 +49,17 @@ data Scenario = Scenario
   , sLayout ::  Maybe DocumentHash
   } deriving (Read, Show)
 
+instance Monoid Scenario where
+  mempty = Scenario Nothing [] Nothing
+  _ `mappend` sc@(Scenario (Just i') _ _)  = sc
+  (Scenario i steps l) `mappend` (Scenario i' steps' l') = Scenario i (steps <> steps') (l' <|> l)
+  
+
 -- | Text is the original line.
 -- usefull to reconstruct the orignal file
-data Step = Step HeaderType DocumentHash Text deriving (Show, Read)
+data Step = Step HeaderType DocumentHash Text
+          | SavingPoint
+          deriving (Show, Read, Eq)
 
 
 
