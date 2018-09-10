@@ -8,7 +8,7 @@ import Control.Monad.State
 import Data.Monoid
 import qualified Data.Map.Strict as Map'
 import Data.List(sort, sortBy, groupBy, nub, (\\), union, maximumBy, delete)
-import Data.Maybe(catMaybes)
+import Data.Maybe(catMaybes, fromMaybe)
 import Control.Applicative
 import Data.Ord (comparing, Down(..))
 import Data.List.Split(splitOn)
@@ -127,6 +127,7 @@ data Box s = Box { _boxId      :: BoxId s
                , orientation :: !Orientation -- ^ orientation of the box
                , boxBoxOrientations :: [Orientation]  -- ^ allowed orientation
                , boxTags :: [String] --
+               , boxPriorities :: (Int, Int, Int ) -- Global, within style, within content , default is 100
                } deriving (Show, Eq)
 
 boxKey :: Box s -> [Char]
@@ -497,7 +498,7 @@ newBox style content dim or shelf ors tags = do
         dshow c f = '\'' : c : show (floor $ 100 * f dim)
 
     ref <- lift $ newSTRef (error "should never been called. undefined. Base.hs:338")
-    let box = Box (BoxId ref) (Just $ shelfId shelf) style content dim mempty or ors (tags' <> dtags)
+    let box = Box (BoxId ref) (Just $ shelfId shelf) style content dim mempty or ors (tags' <> dtags) defaultPriorities
     shelf' <- findShelf shelf
     linkBox (BoxId ref) shelf'
     lift $ writeSTRef ref box
@@ -699,26 +700,15 @@ boxRank box = ( boxStyle box , boxStylePriority box, boxContent box, boxContentP
 -- we might set it as an attribute to speed things up
 -- extract number from tag
 boxContentPriority :: Box s -> Int
-boxContentPriority box = extractPriority readMaybe (boxTags box)
+boxContentPriority box = p where (_, _, p) = boxPriorities box
 
 boxStylePriority  :: Box s -> Int
-boxStylePriority  box = extractPriority readPriority (boxTags box) where
-  readPriority ('@':s) = readMaybe s
-  readPriority _ = Nothing
-
-extractPriority :: (a -> Maybe Int) -> [a] -> Int
-extractPriority readPriority xs =  let
-  priorities = mapMaybe readPriority xs
-  in case priorities of
-      [] -> 100
-      ps -> minimum ps
+boxStylePriority  box = p where (_,p,_)  = boxPriorities box
 
 -- | Same as boxPriority but used before grouping box by styles
 -- look at @n in tags
 boxGlobalPriority  :: Box s -> Int
-boxGlobalPriority  box = extractPriority readPriority (boxTags box) where
-  readPriority ('@':'@':s) = readMaybe s
-  readPriority _ = Nothing
+boxGlobalPriority  box = p where (p, _, _) = boxPriorities box
 
 moveSimilarBoxes' :: (Box' b , Shelf' shelf) => ExitMode -> Similar (b s) -> [shelf s] -> [shelf s] -> WH [Box s] s
 moveSimilarBoxes' _ (Similar bs) [] [] = mapM findBox bs
@@ -803,9 +793,38 @@ updateBoxTags' tags box = let
   to_add = rights parsed
   to_remove = lefts parsed
   new = (btags <> to_add) \\ to_remove
-  in box {boxTags = new}
+  in box {boxTags = new, boxPriorities = extractPriorities new}
 
 updateBoxTags tags = updateBox (updateBoxTags' $ filter (not . null) tags)
+
+defaultPriority :: Int
+defaultPriority = 100
+defaultPriorities = (defaultPriority, defaultPriority, defaultPriority)
+
+-- | Convert a set of tags to prioties
+-- bare number = content priority, 
+-- @number style priority
+-- @@number global priority
+extractPriorities :: [String] -> (Int, Int, Int)
+extractPriorities tags = let
+  prioritiess = map extractPriority tags
+  (globals, styles, contents) = unzip3 prioritiess
+  go :: [Maybe Int] -> Int
+  go ps = fromMaybe defaultPriority $ getLast $ mconcat (map Last (Just 100 : ps))
+  in (go globals, go styles, go contents)
+   
+
+
+-- read 0 or more priorite. Priority have the following format
+-- content@style@global. Empty priorite are allowed
+-- so @@ is a shortcut for global
+
+extractPriority :: String -> (Maybe Int, Maybe Int, Maybe Int)
+extractPriority tag = let
+  priorities = map readMaybe $ splitOn "@" tag
+  [content, style, global]= take 3 $ priorities  <> repeat Nothing
+  in (global, style, content)
+
 
 -- * Misc
 -- | reorder box so they are ordered by column across all

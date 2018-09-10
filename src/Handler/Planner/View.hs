@@ -224,6 +224,52 @@ If the first word of a section is one of the valid section name, the whole conte
          TShirt^^^1 => the first box containing a t-shirt.
          ^1 => The first box of each variations (colour)
          ^2^3 =>  The two first boxes of each variations, with a maximum of 3 per shelves.
+    <li>
+      <h4> Priority and selection order
+      Boxes are selected in semi-arbitrary order which can be modified setting up priority.
+      The order in which box are selected affect the way boxes are actually stacked on shelves
+      but also which boxese are selected when using number restriction (see above).
+      By default boxes are selected in order by
+      <ul>
+        <li> global priority
+        <li> style name  (ascending)
+        <li> style priority (priority within style)
+        <li> content name
+        <li> content priority (priority within content)
+      By default, all priorities  are set 100. Priorities can be modified by assigning a special tag
+      <pre>
+         content @ style @ global
+      
+      For example, given fox boxes, A-Black, A-Red, B-Black, B-Red. Boxes will be stacked in the following order
+      <ul>
+        <li> B-Black
+        <li> B-Red
+        <li> A-Black
+        <li> A-Red
+      or 
+      <ul>
+        <li> A-Black
+        <li> A-Red
+        <li> B-Black
+        <li> B-Red
+      
+      A and B having the same global priority, the system is free to start with A or B. However, content (Black and Red) are sorted alphabetically.
+      To ensure that, A is processed before B. We need to assign it a priority < 100 to A (global priority) with
+      <pre>
+         A,@@1
+      
+      To get B-Red boxes before B-Black boxes we can assign it a priority (style priority)
+      <pre>
+       B-Red,@1
+
+      Settings those two priorities will result in the following order :
+      <ul>
+        <li> A-Black # @100@1
+        <li> A-Red   # @100@1
+        <li> B-Red   # @1@100
+        <li> B-Black # @100@100
+
+      The content priority could be used for example, to select which one of the B-Black boxes to get first.
 <h3>
   <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-virtual-tags">
      Virtual tags
