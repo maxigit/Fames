@@ -261,37 +261,65 @@ readWarehouse filename = buildWarehouse `fmap` readLayout filename
 -- | read a file assigning styles to locations
 -- returns left boxes
 readMoves :: String -> IO ( WH [Box s] s)
-readMoves filename = do
+readMoves = readMovesAndTagsWith (\(style, location) -> processMovesAndTags (style, Nothing, Just location))
+
+
+readMovesAndTagsWith :: Csv.FromRecord r => (r -> WH [Box s] s) -> String -> IO (WH [Box s] s)
+readMovesAndTagsWith  rowProcessor filename = do
     csvData <- BL.readFile filename
     case Csv.decode  Csv.HasHeader csvData of
-        Left err ->  do putStrLn err; return (return [])
+        Left err ->  putStrLn err >> return (return [])
         Right (rows) -> return $ do
-            let v = Vec.forM rows $ \ (style, location') -> do
-                        let (location, exitMode) = case location' of
-                              ('^':loc) -> (loc, ExitOnTop)
-                              _ -> (location', ExitLeft)
-                        let locations = splitOn "|" location
-                        boxes <- findBoxByStyleAndShelfNames style
-                        shelvesS <- mapM findShelfByName locations
-                        aroundArrangement (moveBoxes exitMode) boxes ((nub.concat) shelvesS)
+          v <- Vec.forM rows rowProcessor
+          return $ concat (Vec.toList v)
 
-            concat `fmap` (Vec.toList `fmap` v)
+processMovesAndTags :: (String, Maybe [Char], Maybe [Char]) -> WH [Box s] s
+processMovesAndTags (style, tagM, locationM) = do
+  boxes0 <- findBoxByStyleAndShelfNames style
+  forM locationM $ \location' -> do
+    let (location, exitMode) = case location' of
+                                  ('^':loc) -> (loc, ExitOnTop)
+                                  _ -> (location', ExitLeft)
+    let locations = splitOn "|" location
+    shelvesS <- mapM findShelfByName locations
+    aroundArrangement (moveBoxes exitMode) boxes0 ((nub.concat) shelvesS)
+  boxes <- mapM findBox boxes0
+  case tagM of
+    Nothing -> return boxes
+    Just tag  -> do
+      let tags = splitOn "#" tag
+      mapM (updateBoxTags tags) boxes
 
 -- | read a file assigning tags to styles
 -- returns left boxes
 readTags :: String -> IO ( WH [Box s] s)
-readTags filename = do
-    csvData <- BL.readFile filename
-    case Csv.decode  Csv.HasHeader csvData of
-        Left err ->  do putStrLn err; return (return [])
-        Right (rows) -> return $ do
-            let v = Vec.forM rows $ \ (style, tag) -> do
-                        let tags = splitOn "#" tag
-                        boxes <- findBoxByStyleAndShelfNames style
-                        -- shelvesS <- mapM findShelfByName tags
-                        mapM (updateBoxTags tags) boxes
+readTags = readMovesAndTagsWith (\(style, tag) -> processMovesAndTags (style, Just tag, Nothing))
 
-            concat `fmap` (Vec.toList `fmap` v)
+-- | Read tags or moves. Normally we could consider
+-- that by default, we have a location, unless we start with '#'
+-- and the it's a tag. However, location can have a tag. They need
+-- then to be prefixed by /
+-- #tag
+-- location
+-- /#taggedLocation
+-- /location
+-- #tag/location
+-- location,tag
+readMovesAndTags :: String -> IO (WH [Box s] s)
+readMovesAndTags = readMovesAndTagsWith go where
+  go (style, tag'location) =
+    let (tagM, locM) = splitTagsAndLocation tag'location
+    in traceShow ("MAT", tag'location, (tagM, locM)) $ processMovesAndTags (style, tagM, locM)
+
+splitTagsAndLocation tag'locations
+   | (tag, _:location@(_:_)) <- break (=='/') tag'locations = (just tag, just location)
+   | (location , _:tag@(_:_)) <- break (=='#') tag'locations = (just tag, just location)
+   | otherwise = (Nothing, Just tag'locations)
+   where just [] = Nothing
+         just s = Just s
+    
+
+
 readOrientations :: [Orientation] -> String -> [Orientation]
 readOrientations def os = case os of
     [] -> []

@@ -89,6 +89,12 @@ parseDrawer h = case toLower (strip h) of
   "boxes" -> Right BoxesH
   "moves" -> Right MovesH
   "tags" -> Right TagsH
+  "moves and tags" -> Right MovesAndTagsH
+  "movesandtags" -> Right MovesAndTagsH
+  "mat" -> Right MovesAndTagsH
+  "tags and moves" -> Right MovesAndTagsH
+  "tagsandmoves" -> Right MovesAndTagsH
+  "tam" -> Right MovesAndTagsH
   "orientations" -> Right OrientationsH
   _ -> Left $ h <> " is not a valid drawer."
   
@@ -284,6 +290,7 @@ executeStep (Step header sha _) =
           BoxesH -> execute $ readBoxes defaultOrientations splitStyle path
           MovesH -> execute $ readMoves path
           TagsH -> execute $ readTags path
+          MovesAndTagsH -> execute $ readMovesAndTags path
           OrientationsH -> execute $ setOrientationRules defaultOrientations path
           TitleH -> return $ return ()
 

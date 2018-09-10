@@ -36,6 +36,7 @@ data HeaderType
   | BoxesH 
   | MovesH 
   | TagsH 
+  | MovesAndTagsH
   | OrientationsH 
   | TitleH
   deriving (Show, Read, Eq, Ord)
