@@ -64,7 +64,7 @@ readShelves2 defaultOrientator filename = do
                                 "shelf" -> (ForceOrientations [tiltedForward, tiltedFR], ColumnFirst)
                                 _ -> (defaultOrientator, ColumnFirst)
 
-                            name'tagS = expand name
+                            name'tagS = expand =<< splitOn "|" name
                         in mapM (\(n, tag) -> newShelfWithFormula
                                     (dimToFormula n dim)
                                     (dimToFormula n dim')

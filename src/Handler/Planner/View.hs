@@ -115,6 +115,33 @@ If the first word of a section is one of the valid section name, the whole conte
             The <code>pending</code> shelf is used when creating new boxes. Boxes created using the Boxes command are
             created within the <code>pending</code> shelf.
             It is best practice to name those shelves <code>error</code> and <code>pending</code> (or equivalent).
+
+            <h5> Name expansion
+            Groups of similar shelves can be created in one line using name expansion. Before creating a shelf,
+            the name is expanded into one or many shelf names. One shelf will be created of each of the resulting name.
+            Shelf name are split with the <code>|</code> separator, then when encountering <code>[..]</code>, name will be expanded by generating a name for each character within the bracket.
+            Example
+            <pre>
+              A|B => A B
+              A[01] => A0 A1
+              A[ABx]X => AAX ABX AxX
+
+            If diferent ranger are given, all combination will generated
+            Example
+            <pre>
+              [ABC][123] => A1 A2 A3 B1 B2 B3 C1 C2 C3
+            <h5> dimension formula 
+            Shelf dimension depending on the dimension on another shelf can be expressed using shelf dimension.
+            This can be useful when shelf are back to back or one shelf is not physically a shelf but the space
+            leftover between a shelf and wall. Basic arithmetic can be performed and the the same dimension of another
+            shelf can referenced using <code>{...}</code>. Wildcard (<code>%</code>,<code>_</code>,<code>+</code> and <code>-</code>) can be used to modify the name of the current shelf itsef.
+            Example
+            <pre>
+              name,comment,length,width,height,type
+              A1,,150,40,200,
+              A2,,100,{_-},20, -- same width as A1 
+              B1,,200-{A_},-- length 200 - length of A1
+              B2,,200-{A_},-- length 200 - length of A2
       <li>
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-layout"> Layout (Mandatory)
@@ -240,7 +267,37 @@ If the first word of a section is one of the valid section name, the whole conte
      TShirt/#top => ALL Tshirt on the shelf with the 'top' tag.
   <ul>
     <li>
-      <h4> Style pattern
+      <h4> Glob pattern
+      When selecting boxes or shelves, wildcard can be used to match the name of the box or the shelf using
+      <a href="https://en.wikipedia.org/wiki/Glob_(programming)">UNIX glob pattern</a>.
+      The <code>|</code> operator can also be used to give a list of alternatives.
+      Example, given the location
+      <ul>
+        <li> A01
+        <li> A02
+        <li> A11
+        <li> A12
+        <li> B1
+        <li> B2
+        <li> B3
+      <pre>
+        A* => <b>A0</b>1 <b>A0</b>2 A03 A11 A12 A3
+        ?? => B1 B2 B3 -- two characters only
+        B[12] => B1 B2 -- 3 is not in the range 1-2
+        A?1|B2 => A01, A11 , B2
+
+      Please note that the syntax used to create group of shelves is only a subset of the glob pattern syntax.
+      Even though pattern globing can only create disjunction (OR), conjunction (AND) can be achieve using tags.
+      Example
+      <pre>
+        %RED|%XL => select things which are red OR extra large..
+        %RED,red => tag all RED thing
+        %XL,xl => tag all XL things
+        #red#xl => select thing which are red AND extra large.
+        
+    <li>
+      <h4> style pattern
+      A glob pattern on the name of the box.
     <li>
       <h4> tags
       Starts should start and be separated with <code>#</code>). Only boxes with ALL tags will be selected.
@@ -251,8 +308,10 @@ If the first word of a section is one of the valid section name, the whole conte
         TShirt#red#-XL => all red tshirt , except the XL Ones.
     <li>
       <h4> Location pattern
+      A glob pattern on the name of the shelf.
     <li>
       <h4> Location tag
+      A tag to select a shelf.
     <li>
       <h4> number restriction
       The <code>^</code> symbol is used to select only a certain number of boxes per variation/content, per shelf, and in total
