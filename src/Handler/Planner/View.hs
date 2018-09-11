@@ -107,7 +107,14 @@ If the first word of a section is one of the valid section name, the whole conte
         <div.pre.collapse id=info-section-shelves>
             Describes set of shelves. Should be a csv with the following header :
             <pre>name,comment,length,width,height,type
-            Please note that there is always an error shelf named <code>error</code>.
+            <h5> Special shelves
+            The two first declared shelves have a special meaning.
+            The first one is the <code>error</code> shelf and the second one is the <code>pending</code> shelf.
+            The error shelf is used when ever a move try to fit more boxses than possible in the given shelf.
+            All the selected boxes which doesn't fit the given location are moved to the error shelf.
+            The <code>pending</code> shelf is used when creating new boxes. Boxes created using the Boxes command are
+            created within the <code>pending</code> shelf.
+            It is best practice to name those shelves <code>error</code> and <code>pending</code> (or equivalent).
       <li>
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-layout"> Layout (Mandatory)
@@ -134,17 +141,39 @@ If the first word of a section is one of the valid section name, the whole conte
           A set of boxes without initial location. They will be put in the <code>pending</code> shelf.
           It is a csv with the following header :
           <pre>style,quantity,l,w,h
+          Please not, that boxes created this way will be tagged with the <code>new</code> tag.
+          It is the user responsibilities to remove this tag when needed.
       <li>
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-moves"> Moves
         <div.pre.collapse id=info-section-moves>
           Describes a set of moves boxes to shelves. The first column describe a set of boxes to moves to
           a set of shelves. If multiple shelves are given, the Planner will fill the shelf in the given order
-          and use the optimal orientation. If all boxes can't fit the given shelves, the excendatary boxes will
-          be moved to error.
+          and use the optimal orientation. If all boxes can't fit the given shelves, the excedendatary boxes will
+          be moved to the error shelf.
           It is csv with the following header:
           <pre>stock_id,location
-          Please not the stock_id and location are in fact boxes and shelves selecto
+          Please not the stock_id and location are in fact boxes and shelves selectors
+
+          <h5> Filling order, Exit on top
+          When moves boxes to a new set of shelves, shelves are filled by alphabetical order. For example
+          the command
+          <pre>
+          :Moves:
+          stock_id,location
+          ,A|B|C
+          Will move all boxes to the  shelves A, B and C starting by filling A, the filling B and so on.
+          Boxes are stacked in column form left to right.
+          It is however sometimes desirable to carry on filling the same column on the next shelf
+          rather than creating a new column on the current shelf. This can be achieved by specifying
+          the "exit on top" option by starting the location with <code>^</code>
+          <pre>
+          :Moves:
+          stock_id,location
+          ,^A|B|C
+
+          The code above, will fill the first colum into shelf A, then a column in B and then C.
+          When the first column in C is full, it will start a 2nd column in A, then B  etc ...
       <li>
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-tags"> Tags
@@ -158,7 +187,18 @@ If the first word of a section is one of the valid section name, the whole conte
 
           Example <code>black#_black#white</code> will display a box in dark gray (black is counted twice)
           A Tag can be removed by setting with <code>-</code>
-
+      <li>
+        <h4>
+          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-movesandtags"> MAT (moves and tags)
+        <div.pre.collapse id=info-section-movesandtags>
+          Allows to move and tag at the same time a set of boxes. This can be faster and less verbose than creating a move and
+          a tag section. Tags needs to start with a <code>#</code> and location CAN start with <code>/</code>
+          Example
+          <pre>
+            :MAT:
+            stock_id,location#tag
+            #new,A#-new
+          Moves all new boxes (with the new tag) to A and unset the new tag.
       <li>
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-orientations"> Orientations
