@@ -142,6 +142,12 @@ If the first word of a section is one of the valid section name, the whole conte
               A2,,100,{_-},20, -- same width as A1 
               B1,,200-{A_},-- length 200 - length of A1
               B2,,200-{A_},-- length 200 - length of A2
+            <h5>shelf types
+            The shelf type determines the default boxes orientation and filling strategy. The current shelf style are
+            <ul>
+              <li> Shelf (normal first) : tilted row first
+              <li> deadzone : allow up column first
+              <li> other, column first
       <li>
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-layout"> Layout (Mandatory)
@@ -235,6 +241,7 @@ If the first word of a section is one of the valid section name, the whole conte
           in the box selector. This is a csv with the following header:
           <code>stock_id,orientation
 
+          Orientation must have the following format <code>min-depth : max-depth  orientations</code>
           Example:
           <pre>
             TSHIRT/#top,^
@@ -242,9 +249,24 @@ If the first word of a section is one of the valid section name, the whole conte
 
           All T-shirt on top shelves (with the tag <code>top</code>) are up, whereas T-shirt in other shelves
           are being laid on the side.
-
-
-
+          <h5> Orientations
+          <pre>
+            * all 
+            % default orientations
+            ^ up
+            = tilted forward
+            > tilted right
+            | tilted forward & right
+            ' rotated up
+            @ rotated side
+          <h5> Depth specification
+          By default, boxes are stacked using only one level of depth. This way, no boxes hide behind others and so all boxes are visible.
+          To enable the use of multiple depth and allow boxes to hide each other, a minimum and max depth can set (before)
+          <pre>
+            ,1:4 -- allow up to 4 depth level
+            ,1: -- use a mininum of 2
+            ,4 -- similar to 1:4
+            ,4^ -- up to 4 levels, stacking boxes up
     <div>
 <h3>
   <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-selectors">
@@ -252,10 +274,12 @@ If the first word of a section is one of the valid section name, the whole conte
 <div.pre.collapse id=info-section-selectors>
   Most operations, (moving and tagging) operates on boxes. To do so, a set of boxes is selected and then the operation is applied.
   The main way of selecting a box is by specifying a style, which will select all boxes of the given style. However, more complex selection
-  can be selecting boxes by tags and locations (as well as loction tag). The format of a box selector is the following
+  can be selecting boxes by tags and locations (as well as location tag). The format of a box selector is the following
 
   <pre>
     style pattern <b>#</b> tag <b>/</b>/ location pattern <b>#</b> location tag
+
+  Note that glob pattern only applies to style and location but not to tags.
 
   Example
   <pre>
