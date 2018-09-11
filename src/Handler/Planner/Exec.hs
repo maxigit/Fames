@@ -154,10 +154,10 @@ execScenario sc@Scenario{..} = do
               wCopy <- wCopyM
               put wCopy { colors = colorFromTag}
               sequence_ execM
-            traceShowM ("Scenario step => execute", subKey)
+            -- traceShowM ("Scenario step => execute", subKey)
             cacheWarehouseIn subKey w'
             return w'
-          Just w' -> traceShowM ("Scenario Step => use cache", subKey) >> (return $ unfreeze w')
+          Just w' -> {-traceShowM ("Scenario Step => use cache", subKey) >>-} (return $ unfreeze w')
         -- carry on with the remaing steps
         go w (allPreviousSteps) steps
   

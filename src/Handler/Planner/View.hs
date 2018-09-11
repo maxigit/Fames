@@ -148,6 +148,14 @@ If the first word of a section is one of the valid section name, the whole conte
               <li> Shelf (normal first) : tilted row first
               <li> deadzone : allow up column first
               <li> other, column first
+            <h5> Tag
+            On the contrary of boxes, shelves can only have one tag (or none).
+            The tag can be used to select shelf when doing box moves, but is also used to
+            group shelves when displaying the summary. Shelves with a tag starting with a <code>_</code>
+            are considered as virtual shelves and are not taken in to account when calculated used spaces
+            and floor space. Also, shelves with the <code>sep</code> are seen as separator : shelves
+            present for layout purpose only and are excluded from the summary as well as being displayed
+            differently.
       <li>
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-layout"> Layout (Mandatory)
