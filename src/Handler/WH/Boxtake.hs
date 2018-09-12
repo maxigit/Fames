@@ -8,6 +8,8 @@ module Handler.WH.Boxtake
 , postWHBoxtakeValidateR
 , postWHBoxtakeSaveR
 , getWHBoxtakePlannerR
+, getWHBoxtakeAdjustmentR
+, postWHBoxtakeAdjustmentR
 ) where
 
 import Import hiding(Planner)
@@ -24,7 +26,7 @@ data RuptureMode = BarcodeRupture | LocationRupture | DescriptionRupture
   deriving (Eq, Read, Show, Enum, Bounded)
 
 -- | Parameters for boxtake history,lookup,
-data FormParam  = FormParam
+data BoxtakeInquiryParam  = BoxtakeInquiryParam
   { pBarcode :: Maybe FilterExpression
   , pLocation :: Maybe FilterExpression
   , pDescription :: Maybe FilterExpression
@@ -33,7 +35,7 @@ data FormParam  = FormParam
   , pShowInactive :: Bool
   , pCompactView :: Bool
   }
-defaultParam = FormParam Nothing Nothing Nothing LocationRupture Nothing  False True
+defaultInquiryParam = BoxtakeInquiryParam Nothing Nothing Nothing LocationRupture Nothing  False True
 
 -- | Validate or save spreadsheet.
 data SavingMode = Validate | Save deriving (Eq, Read, Show)
@@ -49,15 +51,22 @@ data UploadParam = UploadParam
 
 -- defaultUploadParam = UploadParam Nothing Nothing Nothing UTF8 WipeShelves
 
+-- | Parameter needed to process boxtake adjustment
+data AdjustmentParam = AdjustmentParam
+  { aStyleFilter :: Maybe FilterExpression
+  } 
+
+defaultAdjustmentParam = AdjustmentParam Nothing
+
 -- * Requests
 -- ** Boxtake history
 getWHBoxtakeR :: Handler Html
 getWHBoxtakeR = do
-  renderBoxtakes defaultParam
+  renderBoxtakes defaultInquiryParam
 
 postWHBoxtakeR :: Handler Html
 postWHBoxtakeR = do
-  ((resp, _), _) <- runFormPost (paramForm Nothing)
+  ((resp, _), _) <- runFormPost (inquiryForm Nothing)
   case resp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
@@ -97,7 +106,7 @@ renderPlannerCsv boxSources = do
   let source = boxSourceToCsv boxSources
   today <- todayH
   setAttachment ("Planner-" <> fromStrict (tshow today) <> ".csv")
-  respondSourceDB "text/csv" (source =$= mapC (toFlushBuilder))
+  respondSourceDB "pext/csv" (source =$= mapC (toFlushBuilder))
 
 -- plannerSource :: _ => Source m Text
 plannerSource = selectSource [BoxtakeActive ==. True] [Asc BoxtakeLocation, Asc BoxtakeDescription]
@@ -130,11 +139,25 @@ spreadSheetToCsv = processBoxtakeSheet' Save go
                  Just (Entity bId box) <- return $ rowBoxtake row -- skip Nothing
                  return $ Entity bId box {boxtakeLocation = sessionLocation}
 
-          
+-- * Adjustment
+-- Boxtake Adjustment allows to validate or invalidate boxtake
+-- depending on the actual stock
+
+getWHBoxtakeAdjustmentR :: Handler TypedContent
+getWHBoxtakeAdjustmentR = renderBoxtakeAdjustments $ defaultAdjustmentParam
+
+postWHBoxtakeAdjustmentR :: Handler TypedContent
+postWHBoxtakeAdjustmentR = do
+  ((resp, _ ) , _) <- runFormPost (adjustmentForm Nothing )
+  case resp of
+    FormMissing -> error "form missing"
+    FormFailure a -> error $ "Form failure : " ++ show a
+    FormSuccess param -> renderBoxtakeAdjustments param
+
 -- * Forms
-paramForm :: Maybe FormParam -> _
-paramForm param0 = renderBootstrap3 BootstrapBasicForm form
-  where form = FormParam
+inquiryForm :: Maybe BoxtakeInquiryParam -> _
+inquiryForm param0 = renderBootstrap3 BootstrapBasicForm form
+  where form = BoxtakeInquiryParam
           <$> aopt filterEField "Barcode" (pBarcode <$> param0)
           <*> aopt filterEField "Location" (pLocation <$> param0)
           <*> aopt filterEField "Description" (pDescription <$> param0)
@@ -158,12 +181,16 @@ uploadForm mode paramM = renderBootstrap3 BootstrapBasicForm (form mode)
              <*> areq (selectField optionsEnum ) "encoding" (uEncoding <$> paramM <|> Just UTF8)
              <*> areq (selectField optionsEnum ) "wipe mode" (uWipeMode <$> paramM <|> Just FullStylesAndShelves)
             
+-- adjustForm :: Maybe AdjustmentParam -> _ 
+adjustmentForm paramM = renderBootstrap3 BootstrapBasicForm form where
+  form = AdjustmentParam <$> aopt filterEField "style" (aStyleFilter <$> paramM)
+
 -- * Rendering
 -- ** Boxtake history
-renderBoxtakes :: FormParam -> Handler Html
+renderBoxtakes :: BoxtakeInquiryParam -> Handler Html
 renderBoxtakes param = do
   boxtakes <- loadBoxtakes param
-  (formW, encType) <- generateFormPost $ paramForm (Just param)
+  (formW, encType) <- generateFormPost $ inquiryForm (Just param)
   opMap <- allOperators
   body <- case pCompactView param  of
         True -> return $ renderBoxtakeTable opMap boxtakes
@@ -286,7 +313,7 @@ renderStocktakes opMap stocktakes = do
       <td> #{displayActive (stocktakeActive stocktake)}
           |]
 
-renderSummary :: FormParam -> [Entity Boxtake] -> Widget
+renderSummary :: BoxtakeInquiryParam -> [Entity Boxtake] -> Widget
 renderSummary param boxtakes =  do
   let (n, volume) = summary boxtakes
       groups = case pRuptureLength  param of
@@ -489,21 +516,36 @@ processBoxtakeMove Save param (sessions, styleMissings) = do
         mapM_ (deactivateBoxtake maxDate) (concatMap missingBoxes styleMissings)
   renderBoxtakeSheet Validate Nothing (fromEnum created201) (setSuccess "Boxtake uploaded successfully") (return ())
 
+-- ** Adjustment
+          
+renderBoxtakeAdjustments :: AdjustmentParam -> Handler TypedContent
+renderBoxtakeAdjustments param = do
+  html <- defaultLayout =<< displayBoxtakeAdjustments param
+  return $ toTypedContent html
+
+
+-- | Fetch boxtake and their status according to FA Stock
+-- and display it so that it can be processed
+displayBoxtakeAdjustments :: AdjustmentParam -> Handler Widget
+displayBoxtakeAdjustments param  = do
+  return ""
+    
 -- * DB Access
-loadBoxtakes :: FormParam -> Handler [Entity Boxtake]
+loadBoxtakes :: BoxtakeInquiryParam -> Handler [Entity Boxtake]
 loadBoxtakes param = do
   let filter = filterE id BoxtakeBarcode (pBarcode param)
             <> filterE id BoxtakeLocation (pLocation param)
             <> filterE Just BoxtakeDescription (pDescription param)
-      opts = case filter of
-        [] -> -- no filter, we want the last ones
-             [Desc BoxtakeId, LimitTo 50]
-        _ -> -- filter, we use the filter to sort as well
+  opts <- case filter of
+        [] -> do -- no filter, we want the last ones
+                setWarning "Only the last 50 boxtakes are being displayed. Please refine the filter to get a full selection"
+                return [Desc BoxtakeId, LimitTo 50]
+        _ -> return $ -- filter, we use the filter to sort as well
           catMaybes [ pBarcode param <&> (const $ Asc BoxtakeBarcode)
                     , pLocation param <&> (const $ Asc BoxtakeLocation)
                     , pDescription param <&> (const $ Asc BoxtakeDescription)
                     ] <> [Asc BoxtakeDescription]
-      active = if pShowInactive param
+  let active = if pShowInactive param
                then []
                else [BoxtakeActive ==. True]
   runDB $ selectList (active <> filter) opts
@@ -548,5 +590,3 @@ rupture mode l boxtakes = let
   key = (take l) . field
   groups = Map.fromListWith (<>) [ (key b, [e]) | e@(Entity _ b) <- boxtakes ]
   in mapToList groups
-
-  
