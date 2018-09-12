@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c0d67d2e6940fc57283fc5488433ec3afcddd2541d2a9d22530b52b7418c37d2
+-- hash: 0e550ab1dff9597b65a8db3cd80b00f45382709dcc558aeb1daa7322b7fb66f0
 
 name:           Fames
 version:        0.0.1
@@ -45,6 +45,7 @@ library
     , colour >=2.3.3 && <2.4
     , conduit >=1.0 && <2.0
     , conduit-extra
+    , conduit-merge >=1.2 && <2
     , containers
     , cryptohash
     , curl >=1.3.8 && <1.4
@@ -237,6 +238,7 @@ executable Fames
     , colour >=2.3.3 && <2.4
     , conduit >=1.0 && <2.0
     , conduit-extra
+    , conduit-merge >=1.2 && <2
     , containers
     , cryptohash
     , curl >=1.3.8 && <1.4
@@ -359,6 +361,7 @@ test-suite ghcid
     , colour >=2.3.3 && <2.4
     , conduit >=1.0 && <2.0
     , conduit-extra
+    , conduit-merge >=1.2 && <2
     , containers
     , cryptohash
     , curl >=1.3.8 && <1.4
@@ -576,6 +579,7 @@ test-suite test
     , colour >=2.3.3 && <2.4
     , conduit >=1.0 && <2.0
     , conduit-extra
+    , conduit-merge >=1.2 && <2
     , containers
     , cryptohash
     , curl >=1.3.8 && <1.4

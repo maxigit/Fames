@@ -20,6 +20,9 @@ import qualified Data.Map.Strict as Map
 import Text.Printf(printf)
 import Handler.WH.Boxtake.Upload
 import Data.Conduit.List(sourceList)
+import qualified Data.Conduit.List as CL
+import Database.Persist.Sql(rawQuery)
+import Data.Conduit.Merge(mergeSourcesOn)
 
 -- * Types
 data RuptureMode = BarcodeRupture | LocationRupture | DescriptionRupture
@@ -530,6 +533,10 @@ displayBoxtakeAdjustments :: AdjustmentParam -> Handler Widget
 displayBoxtakeAdjustments param  = do
   return ""
     
+loadBoxInfoForAdjustment param = do
+  -- load  boxtakes AND the QOH from FA
+  -- join them as conduit
+  return $ error "Not implemented"
 -- * DB Access
 loadBoxtakes :: BoxtakeInquiryParam -> Handler [Entity Boxtake]
 loadBoxtakes param = do
@@ -556,6 +563,73 @@ loadStocktakes boxtakes =
   forM boxtakes $ \e@(Entity _ box) -> do
      stocktakes <- runDB $ selectList [StocktakeBarcode ==. boxtakeBarcode box] []
      return (e, stocktakes)
+-- | Load all boxes needed to display and compute adjustment
+--  style filter filter a style (not a particular variation)
+-- because boxes can be boxtaken without specifying the variation
+-- select active and inactive boxes
+boxForAdjustmentSource :: _ => AdjustmentParam -> Source m (Text, [Entity Boxtake])
+boxForAdjustmentSource param = do
+  let filter = filterE Just BoxtakeDescription (aStyleFilter param)
+  selectSource filter  [Asc BoxtakeDescription, Desc BoxtakeActive, Desc BoxtakeDate]
+    =$= groupOnC  (fromMaybe "" . boxtakeDescription . entityVal)
+
+groupOnC :: (Eq a, Monad m) => (i -> a) -> ConduitM i (a, [i]) m ()
+groupOnC f = go [] Nothing where
+  go xs Nothing = do
+    m <- await
+    if isNothing m
+      then return ()
+      else go xs m
+  go xs (Just current) = do
+    nextM <- await 
+    case nextM of
+      Just next | f current == f next -> go (next:xs) nextM
+                -- | otherwise -> yield xs >> go next []
+      _ -> yield (f current, current:xs) >> go [] nextM
+
+
+alignByC :: (Ord k, Monad m) => Source m (k,a) -> Source m (k, b ) -> Source m (k, These a b)
+alignByC as bs = merged =$= go  where
+  -- ,1 and ,2 are only there to guarantie that source 1 is always before source 2
+  merged = mergeSourcesOn fst [as =$= mapC (bimap (,1) Left),  (bs =$= mapC (bimap (,2) Right))]
+  go = do
+    mab <- await
+    case mab of
+      (Just ((ka,_), Left a)) -> do
+         nextM <- await
+         case nextM of
+            (Just ((kb,_), Right b)) | kb == ka -> yield (ka, These a b) >> go
+            _ -> yield (ka, This a) >> traverse leftover nextM >> go
+      (Just ((kb,_), Right b)) -> yield (kb, That b) >> go
+      Nothing -> return ()
+
+
+qohForAdjustmentSource :: _ => AdjustmentParam -> Source m (Text, Int)
+qohForAdjustmentSource param = do
+  -- liftIO $ defaultLocation <- appFADefaultLocation . appSettings <$> getYesod
+  let defaultLocation = "DEF" :: Text -- TODO do not push
+  -- join denorm table with category: style
+  let sql = " SELECT value as style, coalesce(quantity, 0)FROM fames_item_category_cache LEFT JOIN 0_qoh_denorm USING (stock_id)"
+          <>" WHERE loc_code = ? and category = 'style'"
+      orderBy = " ORDER BY style"
+      (w,p) = case filterEKeyword <$> aStyleFilter param of
+        Nothing -> ("",  [] )
+        Just (keyword, v) -> (" AND stock_id = ?" <> keyword , [toPersistValue v])
+      convert [style, quantity] = let (Right s, Right q) = (fromPersistValue style, fromPersistValue quantity)
+                                  in (s, q)
+      convert q's = error $  "Can't read qohForAdjustmentSource" ++ show q's
+  rawQuery (sql <>  w <> orderBy) (toPersistValue defaultLocation :p) =$= mapC convert
+  
+
+forAdjustmentSource :: _ => AdjustmentParam -> Source m (Text, These Int [Entity Boxtake])
+forAdjustmentSource param = do
+  let boxSource = boxForAdjustmentSource param
+      q'sSource = qohForAdjustmentSource param
+  alignByC q'sSource boxSource
+
+  
+  
+  
 -- * Util
 displayActive :: Bool -> Text
 displayActive act = if act then "Active" else "Inactive"
