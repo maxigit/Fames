@@ -18,6 +18,7 @@ module Import.NoFoundation
     , showTransType
     , decodeHtmlEntities
     , groupAsMap
+    , alignSorted
     , wordize
     , commasFixed
     , commasFixed'
@@ -40,6 +41,7 @@ import qualified Data.Map as Map
 import qualified Data.List.Split as Split
 import Data.Char (isUpper)
 import Formatting
+import Data.Align(align)
 
 
 import Text.Printf(printf)
@@ -182,5 +184,9 @@ wordize prefixM suffixM s0 = let
   titles = Split.split (Split.keepDelimsL $ Split.whenElt isUpper) (unpack . withoutSuffix $ withoutPrefix s0)
   in intercalate " " (map pack titles)
 
+-- | Align two sorted list. Even though it could be lazy, it is probably not
+-- due to the strictness of Map used under the hood.
+alignSorted :: (Ord k) => [(k,a)] -> [(k,b)] -> [(k, These a b)]
+alignSorted as bs = Map.toList $ align (Map.fromAscList as)  (Map.fromAscList bs)
 
   

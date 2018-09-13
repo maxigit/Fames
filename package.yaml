@@ -37,7 +37,6 @@ dependencies:
 - aeson-qq
 - conduit >=1.0 && <2.0
 - conduit-extra
-- conduit-merge >= 1.2 && < 2
 - streaming-commons
 - monad-logger >=0.3 && <0.4
 - fast-logger >=2.2 && <2.5
