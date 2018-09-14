@@ -18,6 +18,7 @@ import Handler.CsvUtils
 import Data.List(nub)
 import qualified Data.Map.Strict as Map
 import Text.Printf(printf)
+import Handler.WH.Boxtake.Common
 import Handler.WH.Boxtake.Upload
 import Handler.WH.Boxtake.Adjustment
 import Data.Conduit.List(sourceList)
@@ -550,17 +551,9 @@ loadBoxtakes param = do
                else [BoxtakeActive ==. True]
   runDB $ selectList (active <> filter) opts
   
-loadStocktakes :: [Entity Boxtake] -> Handler [(Entity Boxtake , [Entity Stocktake])]
-loadStocktakes boxtakes = 
-  -- slow version
-  forM boxtakes $ \e@(Entity _ box) -> do
-     stocktakes <- runDB $ selectList [StocktakeBarcode ==. boxtakeBarcode box] []
-     return (e, stocktakes)
-  
 -- * Util
 displayActive :: Bool -> Text
 displayActive act = if act then "Active" else "Inactive"
-
   
 dimensionPicture :: Int -> Boxtake -> Widget
 dimensionPicture width Boxtake{..} =  do

@@ -181,7 +181,7 @@ groupAscAsMap :: (Semigroup a, Ord k) => (t -> k) -> (t -> a) -> [t] -> Map k a
 groupAscAsMap key f xs = Map.fromAscListWith (<>) [(key x, f x ) | x <- xs]
 
 groupAscWith :: Ord k =>  (a -> k) -> (a -> b) -> [a] -> [(k, [b])]
-groupAscWith key xs = map (first (fromJust . getFirst) . sequence)
+groupAscWith key f xs = map (first (fromJust . getFirst) . sequence)
   $ groupBy ((==) `on` fst) (map ((First . Just .  key) &&& f) xs)
 -- | don't sort element
 -- groupOn' :: Eq k => (a -> k) -> f a -> [f (k, a)]
@@ -214,5 +214,3 @@ wordize prefixM suffixM s0 = let
 -- due to the strictness of Map used under the hood.
 alignSorted :: (Ord k) => [(k,a)] -> [(k,b)] -> [(k, These a b)]
 alignSorted as bs = Map.toList $ align (Map.fromAscList as)  (Map.fromAscList bs)
-
-  
