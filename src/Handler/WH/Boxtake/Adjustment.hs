@@ -5,6 +5,7 @@ import Database.Persist.Sql(Single(..), rawSql)
 import qualified Data.Map as Map
 import Data.Align
 import Handler.WH.Boxtake.Common
+import Handler.Items.Common
 
 -- * types
 -- | All information regarging a style, QOH, boxtakes stocktakes etc.
@@ -43,7 +44,8 @@ computeInfoSummary StyleInfo{..} = do
 
 boxSkuContent :: Maybe Text -> (t,  [Entity Stocktake]) -> Int
 boxSkuContent Nothing _ = 0
-boxSkuContent (Just sku) (_, stocktakes) = traceShow("BOx", sku, stocktakes) r where
+boxSkuContent (Just sku) (_, stocktakes) = -- traceShow("BOx", sku, stocktakes)
+  r where
   r = sum . map stocktakeQuantity $ filter ((sku ==) . stocktakeStockId) (map entityVal stocktakes)
 
   
@@ -77,10 +79,15 @@ defaultAdjustmentParamH = do
 -- select active and inactive boxes
 loadBoxForAdjustment :: AdjustmentParam -> SqlHandler (Map Text [(Entity Boxtake, [Entity Stocktake])])
 loadBoxForAdjustment param = do
-  let filter = filterE Just BoxtakeDescription (aStyleFilter param)
+  let filter = filterE Just BoxtakeDescription (filterEAddWildcardRight <$> aStyleFilter param)
+  skuToStyleVar <- lift skuToStyleVarH 
+  let descrToStyle sku = let cleaned = fromMaybe sku  (stripSuffix "*" sku)
+                             (style, _) = skuToStyleVar cleaned
+                         in style
+                         
   boxtakes <- selectList filter  [Asc BoxtakeDescription, Desc BoxtakeActive, Desc BoxtakeDate]
   withStocktake <- loadStocktakes' boxtakes
-  let key = fromMaybe "" . boxtakeDescription . entityVal . fst
+  let key = maybe "" descrToStyle . boxtakeDescription . entityVal . fst
   return $ groupAscAsMap key (:[]) withStocktake
 
 
@@ -106,7 +113,6 @@ loadAdjustementInfo :: AdjustmentParam -> SqlHandler (Map Text StyleInfo)
 loadAdjustementInfo param = do
   boxGroups <- loadBoxForAdjustment param
   qs <- loadQohForAdjustment param
-
   return $ malign (fmap (flip StyleInfo mempty . Map.fromAscList) qs)
                   (fmap (StyleInfo mempty) boxGroups)
 

@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9e0297d4ab93bac02ed11b0f4d557f2118c12aa106ebe02460e39d3597ba68b1
+-- hash: b7842894b5cb9a3069064e79b57c9a259705ed71d6299fdf97b91e898b07ec1e
 
 name:           Fames
 version:        0.0.1
@@ -163,6 +163,7 @@ library
       Handler.WH.Barcode
       Handler.WH.Boxtake
       Handler.WH.Boxtake.Adjustment
+      Handler.WH.Boxtake.Common
       Handler.WH.Boxtake.Upload
       Handler.WH.Dimensions
       Handler.WH.Location
@@ -511,6 +512,7 @@ test-suite ghcid
       Handler.WH.Barcode
       Handler.WH.Boxtake
       Handler.WH.Boxtake.Adjustment
+      Handler.WH.Boxtake.Common
       Handler.WH.Boxtake.Upload
       Handler.WH.Dimensions
       Handler.WH.Location

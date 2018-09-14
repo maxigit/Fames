@@ -29,6 +29,7 @@ module Handler.Util
 , filterEField
 , filterEKeyword
 , filterEToSQL
+, filterEAddWildcardRight
 , readUploadOrCacheUTF8
 , locationSet
 , toHtmlWithBreak
@@ -405,6 +406,10 @@ filterEKeyword (LikeFilter f) = ("LIKE", f)
 filterEKeyword (RegexFilter f) = ("RLIKE", f)
 filterEToSQL :: FilterExpression -> Text
 filterEToSQL exp = let (key, v) = filterEKeyword exp in key <> " '" <> v <> "''"
+
+filterEAddWildcardRight :: FilterExpression -> FilterExpression
+filterEAddWildcardRight (LikeFilter f) = LikeFilter (f<>"%")
+filterEAddWildcardRight (RegexFilter f) = RegexFilter (f<>"*")
 -- * Badges
 badgeSpan :: (Num a,  Show a) => (a -> Maybe Int) -> a -> Maybe String -> String -> Html
 badgeSpan badgeWidth qty bgM klass = do
