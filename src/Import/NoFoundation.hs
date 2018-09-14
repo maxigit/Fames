@@ -18,6 +18,10 @@ module Import.NoFoundation
     , showTransType
     , decodeHtmlEntities
     , groupAsMap
+    , groupAscAsMap
+    , groupAscWith
+    , groupAsc
+    , fanl, fanr
     , alignSorted
     , wordize
     , commasFixed
@@ -42,7 +46,8 @@ import qualified Data.List.Split as Split
 import Data.Char (isUpper)
 import Formatting
 import Data.Align(align)
-
+import Data.Monoid(First(..))
+import Data.Maybe (fromJust)
 
 import Text.Printf(printf)
 
@@ -169,6 +174,27 @@ decodeHtmlEntities s = maybe s TS.fromTagText (headMay $ TS.parseTags s)
 -- * Util
 groupAsMap :: (Semigroup a, Ord k) => (t -> k) -> (t -> a) -> [t] -> Map k a
 groupAsMap key f xs = Map.fromListWith (<>) [(key x, f x ) | x <- xs]
+
+
+-- | Expect element to be already sorted. Can happen from the result of the SQL query
+groupAscAsMap :: (Semigroup a, Ord k) => (t -> k) -> (t -> a) -> [t] -> Map k a
+groupAscAsMap key f xs = Map.fromAscListWith (<>) [(key x, f x ) | x <- xs]
+
+groupAscWith :: Ord k =>  (a -> k) -> (a -> b) -> [a] -> [(k, [b])]
+groupAscWith key xs = map (first (fromJust . getFirst) . sequence)
+  $ groupBy ((==) `on` fst) (map ((First . Just .  key) &&& f) xs)
+-- | don't sort element
+-- groupOn' :: Eq k => (a -> k) -> f a -> [f (k, a)]
+groupAsc :: Ord k => (a -> k) -> [a] -> [(k, [a])]
+groupAsc key =  groupAscWith key id
+
+-- | Fanout but only left eq `f &&& id`
+fanl :: (a -> b) -> a -> (b, a)
+fanl f x = (f x, x)
+-- | Fanout but only right eq `id &&& f`
+fanr :: (a -> b) -> a -> (a, b)
+fanr f x = (x, f x)
+
 
 mapWithKeyM :: (Monad m, Ord k) => (k -> a -> m b) -> Map k a -> m (Map k b)
 mapWithKeyM f m = do
