@@ -6,12 +6,16 @@ import qualified Data.Map as Map
 import Data.Align
 import Handler.WH.Boxtake.Common
 import Handler.Items.Common
+import Data.List(mapAccumL, tails, inits)
+import Lens.Micro.Extras (preview)
 
+type BoxtakePlus = (Entity Boxtake , [Entity Stocktake])
+type StocktakePlus = (Entity Stocktake, Key Boxtake)
 -- * types
 -- | All information regarging a style, QOH, boxtakes stocktakes etc.
 data StyleInfo = StyleInfo
-   { siQoh :: Map (Maybe Text) Double
-   , siBoxtakes :: [(Entity Boxtake, [Entity Stocktake])]
+   { siQoh :: Map Text Double
+   , siBoxtakes :: [BoxtakePlus]
    } deriving (Show)
 instance Semigroup StyleInfo where
    (StyleInfo a b) <>  (StyleInfo a' b') = StyleInfo (unionWith (+) a a') (b <> b')
@@ -20,48 +24,122 @@ instance Monoid StyleInfo where
   mempty = StyleInfo mempty mempty
   mappend = (<>)
 
-data BoxStatus = BoxStatus
+data UsedStatus e = Used Double e | Unused e
   deriving (Show,Eq,Ord)
+usedSubject :: UsedStatus e -> e
+usedSubject (Used _ e) = e 
+usedSubject (Unused e) = e 
+usedQuantity :: UsedStatus e -> Maybe Double
+usedQuantity (Used q _) = Just q 
+usedQuantity (Unused e) = Nothing 
+isUsed :: UsedStatus e -> Bool
+isUsed (Used _ _) = True
+isUsed (Unused _) = False
 
 -- | Result of computation
 data StyleInfoSummary = StyleInfoSummary
    { ssSku :: Maybe Text
    , ssQoh :: Double
-   , ssBoxes :: [(BoxStatus, Entity Boxtake, Maybe Double )] 
+   , ssBoxes :: [(UsedStatus BoxtakePlus)] 
    }
 -- * 
 
-perBox = 6 -- TODO change
+-- | Compute the box status of each boxes
 computeInfoSummary :: StyleInfo -> [StyleInfoSummary]
-computeInfoSummary StyleInfo{..} = do
-  (var, qoh) <- Map.toList siQoh
-  -- doesn't work for boxes with multiple 
-  let boxWithQty = filter ((/=0) . fst) $ map (fanl (boxSkuContent var)) siBoxtakes
-      status (q,(b, _)) = (BoxStatus, b, Just $ fromIntegral q)
-  return $ StyleInfoSummary var qoh (map status boxWithQty)
-      
+computeInfoSummary StyleInfo{..} =
+  -- to do so, we consider that
+  -- quantity in a box can only go down, ie the
+  -- quantity left is smaller than the quantity from the last stocktake (inactive or not)
+  -- To detect which boxes are still in used or unused, we need to "fill" The boxes
+  -- starting with QOH quantity.
+  -- Boxes more likely to be unused should be at the end.
+  -- The problem is then equivalent to sort boxes by priority, fill them and
+  -- see which one are used or not.
+  -- The priority (to pick things , ie the reverse priority)
+  -- is inactive box first, then date and finally location type (top shelf are not picked from) and qty
+  -- boxes with the less quantity are more likely to be picked from first, especially if they are mixed colours
+  -- However, the fact that a box can contains many colours, means than we can just process
+  -- all boxes together but needs to sort priority for each colours independently
+  let p's'bs = concatMap computeStocktakePriority siBoxtakes
+      stocktakesSorted = map snd $ sortOn fst p's'bs
+      (_qohLeft, stocktakesWithQ ) = mapAccumL assignQuantityToStocktake siQoh stocktakesSorted
+      usedBoxes = usedStocktakeToBoxes (map fst siBoxtakes) stocktakesWithQ
+      -- used boxes may contain the same box many times
+      -- if it contains many colours
+      -- we need to group box by colours
+      -- and find w
+      boxBySku = groupAsMap fst (return . snd) usedBoxes :: Map Text [UsedStatus BoxtakePlus]
+      skuInfo = align boxBySku siQoh
+  in map (uncurry boxInfoToSummary) $ mapToList skuInfo
 
+boxInfoToSummary :: Text -> These [UsedStatus BoxtakePlus]  Double -> StyleInfoSummary
+boxInfoToSummary style t = let
+  qoh = fromMaybe 0 $ preview there t 
+  boxes = fromMaybe [] $ preview here t
+  in StyleInfoSummary (Just style)  qoh boxes
 
-boxSkuContent :: Maybe Text -> (t,  [Entity Stocktake]) -> Int
-boxSkuContent Nothing _ = 0
-boxSkuContent (Just sku) (_, stocktakes) = -- traceShow("BOx", sku, stocktakes)
-  r where
-  r = sum . map stocktakeQuantity $ filter ((sku ==) . stocktakeStockId) (map entityVal stocktakes)
+  
+   
 
   
 
+type StocktakePrioriry = (Down Bool, Down Day, Down Int, (Text, Text))
+--  USE location
+computeStocktakePriority :: BoxtakePlus -> [(StocktakePrioriry, StocktakePlus)]
+computeStocktakePriority (Entity bId Boxtake{..}, stocktakes) = do
+  s@(Entity _ Stocktake{..}) <- stocktakes
+  let priority = ( Down $ boxtakeActive || stocktakeActive
+                 , Down (max stocktakeDate boxtakeDate) -- older more likely to be picked
+                 , Down stocktakeQuantity -- The more, the less we pick from it
+                 , locationPriority boxtakeLocation
+                 )
+  return (priority, (s, bId) )
+
+-- priority in which item are likely to be picked
+-- Item are more like to be picked from a shelf with an alphabetically low
+-- name (as it will be physically before)
+-- However, this is not true for the level, which should be take into account
+-- last, so that top shelves are not picked from
+locationPriority :: Text -> (Text, Text)
+locationPriority location = break (== '/') location
+
+-- | Assign and use the quantity for a given stock take
+assignQuantityToStocktake :: (Map Text Double) -> StocktakePlus -> (Map Text Double, UsedStatus StocktakePlus)
+assignQuantityToStocktake qohs s@(Entity _ Stocktake{..}, bId) =
+  case lookup stocktakeStockId qohs of
+    Just q | let used = min q $ fromIntegral stocktakeQuantity 
+           , let leftover = q - used
+           , used /= 0
+           -> (insertMap stocktakeStockId leftover qohs, (Used used s))
+    _ -> (qohs, (Unused s))
+
+
+-- Reverse 
+usedStocktakeToBoxes :: [Entity Boxtake] -> [UsedStatus StocktakePlus] -> [(Text, UsedStatus BoxtakePlus)]
+usedStocktakeToBoxes boxes stocktakes = let
+  boxByBoxId = mapFromList $ map (fanl entityKey) boxes
+  stockByBoxId = groupAsMap (snd  . usedSubject) (:[]) stocktakes
+  boxStock = alignWith goUsedStocktakeToBoxes boxByBoxId stockByBoxId
+  in join $ toList boxStock 
+
+-- | Might return the same boxes many times
+goUsedStocktakeToBoxes  :: These (Entity Boxtake) [UsedStatus StocktakePlus] -> [(Text, UsedStatus BoxtakePlus)] -- UsedStatus BoxtakePlus
+goUsedStocktakeToBoxes t = case t of
+  This boxe -> unused boxe
+  That stocktakes -> error "Shouldn't happen" -- all stockake belong intialy to a box
+  These boxe stocktakes -> case filter isUsed stocktakes of
+                             [] -> unused boxe
+                             useds -> do
+                               -- scan all item and get what's i
+                               (Used q splus: t, i) <- zip <$> tails <*> inits $ useds
+                               let s = fst splus
+                               return ( stocktakeStockId $ entityVal s
+                                      , Used q (boxe, s: map ( fst. usedSubject) (i<>t))
+                                      )
+  where unused b = [(fromMaybe "" $ boxtakeDescription (entityVal b), Unused (b, []))]
 
 
 
-
-
-  
-
-
-
-  
-
-  
 -- | Parameter needed to process boxtake adjustment
 data AdjustmentParam = AdjustmentParam
   { aStyleFilter :: Maybe FilterExpression
@@ -91,7 +169,7 @@ loadBoxForAdjustment param = do
   return $ groupAscAsMap key (:[]) withStocktake
 
 
-loadQohForAdjustment :: AdjustmentParam -> SqlHandler (Map Text [(Maybe Text, Double)])
+loadQohForAdjustment :: AdjustmentParam -> SqlHandler (Map Text [(Text, Double)])
 loadQohForAdjustment param = do
   let defaultLocation = aLocation param
   -- join denorm table with category: style
@@ -99,11 +177,11 @@ loadQohForAdjustment param = do
          <> " FROM fames_item_category_cache "
          <> " JOIN 0_denorm_qoh USING (stock_id)"
          <> " WHERE loc_code = ? AND category = 'style' AND quantity != 0 "
-      orderBy = " ORDER BY style, stock_id"
+      orderBy = " ORDER BY style, stock_id DESC"
       (w,p) = case filterEKeyword <$> aStyleFilter param of
         Nothing -> ("",  [] )
         Just (keyword, v) -> (" AND value " <> keyword <> " ? " , [toPersistValue v])
-      convert :: (Single Text, Single (Maybe Text), Single Double) -> (Text, (Maybe Text, Double))
+      convert :: (Single Text, Single (Text), Single Double) -> (Text, (Text, Double))
       convert (Single style, Single var, Single quantity) = (style, (var, quantity))
   raw <- rawSql (sql <>  w <> orderBy) (toPersistValue defaultLocation :p)
   return $ groupAscAsMap fst (return . snd) (map convert raw)
@@ -132,21 +210,22 @@ displayBoxtakeAdjustments param  = do
         <td>#{fromMaybe "" $ ssSku s}
         <td>#{formatQuantity (ssQoh s)}
         <td>
-          $forall (_, _, qM) <- ssBoxes s
-           (#{maybe "" formatQuantity qM})
-           <nbsp> 
-                 |]
-    
-_renderStyleInfos style'info =
-  return [whamlet|
-  <table>
-    $forall (style, info) <- style'info
-      <tr>
-        <td>#{style}
-        <td>
-          $forall (var, qoh) <- mapToList (siQoh info)
-            #{fromMaybe "" var}:#{tshow qoh}
-        <td>
-          $forall (boxe, stocke) <- take 3 $ siBoxtakes info
-            #{tshow $ entityVal boxe}
+          $forall statusBox <- ssBoxes s
+            ^{displayUsedStatusBox statusBox}
+            <nbsp> 
 |]
+
+displayUsedStatusBox :: UsedStatus BoxtakePlus -> Widget
+displayUsedStatusBox (Used q (Entity bId Boxtake{..}, s)) = 
+  -- let multi = not null (take 2 s)
+  [whamlet|
+          $if boxtakeActive
+            <span.badge>#{q} 
+          $else
+            <btn.btn-danger>#{q} 
+          |]
+displayUsedStatusBox (Unused (Entity bId Boxtake{..}, s)) | boxtakeActive = 
+  [whamlet|
+          <span.badge.badge-danger>#{boxtakeBarcode}
+          |]
+displayUsedStatusBox _ = mempty
