@@ -36,3 +36,17 @@ deactivateBoxtake date (Entity key Boxtake{..}) = do
                                          ) : boxtakeLocationHistory
              , BoxtakeDate =. date
              ]
+
+deactivateBoxtakeByKey :: Day -> Key Boxtake -> SqlHandler ()
+deactivateBoxtakeByKey day key = do
+  boxtakeM <- get key 
+  case boxtakeM of
+    Nothing -> setWarning . toHtml $ "Can't deactivate box #" <> tshow key <> ". Box doesn't exist."
+    Just boxtake -> deactivateBoxtake day (Entity key boxtake)
+      
+
+
+reactivateBoxtake :: Day -> Key Boxtake -> SqlHandler ()
+reactivateBoxtake day key = do
+  updateWhere [BoxtakeId ==. key] [BoxtakeDate =. day, BoxtakeActive =. True]
+

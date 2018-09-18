@@ -148,6 +148,8 @@ postWHBoxtakeAdjustmentR = do
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess param -> do
+      actionM <- lookupPostParam "action"
+      when (actionM == Just "Process") (processBoxtakeAdjustment param)
       result <- displayBoxtakeAdjustments param
       renderBoxtakeAdjustments param (Just result)
 
@@ -521,11 +523,13 @@ renderBoxtakeAdjustments param resultM = do
   (formW, encType) <- generateFormPost $ adjustmentForm param
   toTypedContent <$> defaultLayout ( do
      adjustmentCSS
+     adjustmentJS
      [whamlet|
 <form #box-adjustment role=form method=POST action=@{WarehouseR WHBoxtakeAdjustmentR} enctype="#{encType}">
   <div.well>
     ^{formW}
     <button type="submit" name="Search" .btn.btn-primary> Search
+    <button type="submit" name="Process" .btn.btn-danger> Activate/Deactivate
   $maybe result <- resultM
     <div.panel.panel-info>
       <div.panel-heading><h2> Adjustments
@@ -555,15 +559,6 @@ loadBoxtakes param = do
   runDB $ selectList (active <> filter) opts
   
 -- * Util
-displayActive :: Bool -> Text
-displayActive act = if act then "Active" else "Inactive"
-  
-dimensionPicture :: Int -> Boxtake -> Widget
-dimensionPicture width Boxtake{..} =  do
-  let dimRoute = WarehouseR $ WHDimensionOuterR (round boxtakeLength) (round boxtakeWidth) (round boxtakeLength)
-  [whamlet|
-      <a href="@{dimRoute}" ><img src=@?{(dimRoute , [("width", tshow width)])}>
-         |]
 
 opName :: (Map (Key Operator) Operator) -> Key Operator -> Text
 opName opMap key = maybe "" operatorNickname (lookup key opMap)

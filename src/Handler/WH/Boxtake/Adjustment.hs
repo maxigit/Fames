@@ -1,7 +1,7 @@
 module Handler.WH.Boxtake.Adjustment
 where
 import Import hiding(Planner)
-import Database.Persist.Sql(Single(..), rawSql)
+import Database.Persist.Sql(Single(..), rawSql, unSqlBackendKey)
 import qualified Data.Map as Map
 import Data.Align
 import Handler.WH.Boxtake.Common
@@ -218,9 +218,10 @@ displayBoxtakeAdjustments param  = do
     $forall s <- summaries
      <tbody.summary-group>
       <tr.summary-row>
-        <td>#{fromMaybe "" $ ssSku s}
+        <td><input type="checkbox" checked>
+        <td colspan=2>#{fromMaybe "" $ ssSku s}
         <td>#{formatQuantity (ssQoh s)}
-        <td colspan=5>
+        <td colspan=4>
           <div.status-summary>
             $forall statusBox <- ssBoxes s
               ^{displayBoxQuantity statusBox}
@@ -236,19 +237,40 @@ displayBoxQuantity status = forM_ (classForBox status) $ \klass ->  do
 
 displayBoxRow :: UsedStatus BoxtakePlus -> Widget
 displayBoxRow status = forM_ (classForBox status) $ \klass -> do
-  let (Entity _bId Boxtake{..}, stocktakees) = usedSubject status
+  let (Entity _bId box@Boxtake{..}, stocktakees) = usedSubject status
       multi = not . null $ drop 1 stocktakees 
   [whamlet|
   <tr.box-row class=#{klass} :multi:.multi>
+    <td>#{checkBoxForRow status}
+    <td>^{dimensionPicture 48 box}
     <td><a href="@{WarehouseR (WHBoxtakeDetailR boxtakeBarcode)}" target=_blank> #{boxtakeBarcode}
     <td.boxQuantity>
       ^{displayBoxQuantity status}
     <td.boxDescription>#{fromMaybe "" boxtakeDescription}
     <td>#{tshow boxtakeDate}
     <td>#{boxtakeLocation}
-    <td>#{boxtakeActive}
           |]
   
+-- | Depending on the status of a box
+-- We need to either activate or not.
+checkBoxForRow :: UsedStatus BoxtakePlus -> Html
+checkBoxForRow status = case boxStatus status of
+  BoxToActivate -> [shamlet|
+                             <span.badge>
+                               <input type="checkbox" name="activate-#{boxId}" checked>
+                           |]
+  BoxToDeactivate -> -- only deactivate if the box is not shared
+    case snd (usedSubject  status ) of
+      [] -> [shamlet|<span.badge>
+                        <input type="checkbox" name="deactivate-#{boxId}" checked>|]
+      _ -> [shamlet|<span.badge>
+                   <input type="checkbox" disabled>
+      -- _ -> [shamlet|<span.glyphicon.glyphicon-ban-circle>|]
+  _ -> ""
+  where boxId = tshow . unSqlBackendKey . unBoxtakeKey . entityKey . fst  $ usedSubject status
+
+
+
 
 boxStatus :: UsedStatus BoxtakePlus -> BoxStatus
 boxStatus b = case (b, boxtakeActive . entityVal . fst $ usedSubject b) of
@@ -261,6 +283,24 @@ classForBox :: UsedStatus BoxtakePlus -> Maybe Text
 classForBox b = case boxStatus b of
   BoxInactive -> Nothing
   status -> Just (tshow status)
+
+-- * Adjustment
+-- | Inactivate and reactivate the given boxes
+  
+processBoxtakeAdjustment :: AdjustmentParam -> Handler ()
+processBoxtakeAdjustment param = do
+  today <- todayH
+  (pp, _) <- runRequestBody
+  let toDeactivate = [ bId | (p, checked) <- pp, checked=="on", Just bId <- [readMay =<< stripPrefix "deactivate-" p] ]
+  let toActivate = [ bId | (p, checked) <- pp, checked=="on", Just bId <- [readMay =<< stripPrefix "activate-" p] ]
+  if null toDeactivate && null toActivate
+    then setWarning "Nothing to activate or deactivate" 
+    else runDB $ do
+        forM_ toDeactivate (deactivateBoxtakeByKey today)
+        forM_ toActivate (reactivateBoxtake today)
+        setSuccess [shamlet|<p>#{length toDeactivate} boxtakes deactivated succsessfuly.
+                            <p>#{length toActivate} boxtakes reactivated succsessfuly.
+                           |]
 
 -- * Css
 adjustmentCSS :: Widget
@@ -301,4 +341,31 @@ tbody.summary-group
       border-bottom: 2px black solid
       td
         border-top: 1px black solid
+|]
+
+adjustmentJS :: Widget
+adjustmentJS = toWidget [julius|
+$(document).ready(function () {
+  $('tr.summary-row input[type=checkbox]').change(function() {
+     var tbody = $(this).parents('tbody');
+     var inputs = $(tbody).find('tr.box-row input[type=checkbox]');
+     $(inputs).prop('checked', $(this).prop('checked'))
+  })
+
+  $('tr.box-row input[type=checkbox]').change(function() {
+     // update parent
+     var tbody = $(this).parents('tbody');
+     var inputs = $(tbody).find('tr.box-row input[type=checkbox]');
+     var checked = this.checked;
+     // is any checked ?
+     $.each(inputs, function(i,r) {
+        if(r.checked) { checked = true; return !checked;}
+        else {return true;}
+     })
+     $(tbody).find('tr.summary-row input[type=checkbox]').prop('checked',checked)
+   
+  }
+  )
+  }
+)
 |]

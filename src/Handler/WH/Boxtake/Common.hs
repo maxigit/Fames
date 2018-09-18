@@ -15,3 +15,13 @@ loadStocktakes' boxtakes =
 
 loadStocktakes :: [Entity Boxtake] -> Handler [(Entity Boxtake , [Entity Stocktake])]
 loadStocktakes boxtakes = runDB $ loadStocktakes' boxtakes
+
+displayActive :: Bool -> Text
+displayActive act = if act then "Active" else "Inactive"
+  
+dimensionPicture :: Int -> Boxtake -> Widget
+dimensionPicture width Boxtake{..} =  do
+  let dimRoute = WarehouseR $ WHDimensionOuterR (round boxtakeLength) (round boxtakeWidth) (round boxtakeLength)
+  [whamlet|
+      <a href="@{dimRoute}" ><img src=@?{(dimRoute , [("width", tshow width)])}>
+         |]
