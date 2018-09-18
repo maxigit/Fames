@@ -8,6 +8,8 @@ module Handler.WH.Boxtake
 , postWHBoxtakeValidateR
 , postWHBoxtakeSaveR
 , getWHBoxtakePlannerR
+, getWHBoxtakeAdjustmentR
+, postWHBoxtakeAdjustmentR
 ) where
 
 import Import hiding(Planner)
@@ -16,15 +18,16 @@ import Handler.CsvUtils
 import Data.List(nub)
 import qualified Data.Map.Strict as Map
 import Text.Printf(printf)
+import Handler.WH.Boxtake.Common
 import Handler.WH.Boxtake.Upload
+import Handler.WH.Boxtake.Adjustment
 import Data.Conduit.List(sourceList)
-
 -- * Types
 data RuptureMode = BarcodeRupture | LocationRupture | DescriptionRupture
   deriving (Eq, Read, Show, Enum, Bounded)
 
 -- | Parameters for boxtake history,lookup,
-data FormParam  = FormParam
+data BoxtakeInquiryParam  = BoxtakeInquiryParam
   { pBarcode :: Maybe FilterExpression
   , pLocation :: Maybe FilterExpression
   , pDescription :: Maybe FilterExpression
@@ -33,7 +36,7 @@ data FormParam  = FormParam
   , pShowInactive :: Bool
   , pCompactView :: Bool
   }
-defaultParam = FormParam Nothing Nothing Nothing LocationRupture Nothing  False True
+defaultInquiryParam = BoxtakeInquiryParam Nothing Nothing Nothing LocationRupture Nothing  False True
 
 -- | Validate or save spreadsheet.
 data SavingMode = Validate | Save deriving (Eq, Read, Show)
@@ -49,15 +52,16 @@ data UploadParam = UploadParam
 
 -- defaultUploadParam = UploadParam Nothing Nothing Nothing UTF8 WipeShelves
 
+
 -- * Requests
 -- ** Boxtake history
 getWHBoxtakeR :: Handler Html
 getWHBoxtakeR = do
-  renderBoxtakes defaultParam
+  renderBoxtakes defaultInquiryParam
 
 postWHBoxtakeR :: Handler Html
 postWHBoxtakeR = do
-  ((resp, _), _) <- runFormPost (paramForm Nothing)
+  ((resp, _), _) <- runFormPost (inquiryForm Nothing)
   case resp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
@@ -130,11 +134,29 @@ spreadSheetToCsv = processBoxtakeSheet' Save go
                  Just (Entity bId box) <- return $ rowBoxtake row -- skip Nothing
                  return $ Entity bId box {boxtakeLocation = sessionLocation}
 
-          
+-- * Adjustment
+-- Boxtake Adjustment allows to validate or invalidate boxtake
+-- depending on the actual stock
+
+getWHBoxtakeAdjustmentR :: Handler TypedContent
+getWHBoxtakeAdjustmentR = flip renderBoxtakeAdjustments Nothing =<< defaultAdjustmentParamH
+
+postWHBoxtakeAdjustmentR :: Handler TypedContent
+postWHBoxtakeAdjustmentR = do
+  ((resp, _ ) , _) <- adjustmentForm <$> defaultAdjustmentParamH >>= runFormPost
+  case resp of
+    FormMissing -> error "form missing"
+    FormFailure a -> error $ "Form failure : " ++ show a
+    FormSuccess param -> do
+      actionM <- lookupPostParam "action"
+      when (actionM == Just "Process") (processBoxtakeAdjustment param)
+      result <- displayBoxtakeAdjustments param
+      renderBoxtakeAdjustments param (Just result)
+
 -- * Forms
-paramForm :: Maybe FormParam -> _
-paramForm param0 = renderBootstrap3 BootstrapBasicForm form
-  where form = FormParam
+inquiryForm :: Maybe BoxtakeInquiryParam -> _
+inquiryForm param0 = renderBootstrap3 BootstrapBasicForm form
+  where form = BoxtakeInquiryParam
           <$> aopt filterEField "Barcode" (pBarcode <$> param0)
           <*> aopt filterEField "Location" (pLocation <$> param0)
           <*> aopt filterEField "Description" (pDescription <$> param0)
@@ -158,12 +180,17 @@ uploadForm mode paramM = renderBootstrap3 BootstrapBasicForm (form mode)
              <*> areq (selectField optionsEnum ) "encoding" (uEncoding <$> paramM <|> Just UTF8)
              <*> areq (selectField optionsEnum ) "wipe mode" (uWipeMode <$> paramM <|> Just FullStylesAndShelves)
             
+-- adjustForm :: Maybe AdjustmentParam -> _ 
+adjustmentForm param = renderBootstrap3 BootstrapBasicForm form where
+  form = AdjustmentParam <$> aopt filterEField "style" (Just $ aStyleFilter param)
+                         <*> pure (aLocation param)
+
 -- * Rendering
 -- ** Boxtake history
-renderBoxtakes :: FormParam -> Handler Html
+renderBoxtakes :: BoxtakeInquiryParam -> Handler Html
 renderBoxtakes param = do
   boxtakes <- loadBoxtakes param
-  (formW, encType) <- generateFormPost $ paramForm (Just param)
+  (formW, encType) <- generateFormPost $ inquiryForm (Just param)
   opMap <- allOperators
   body <- case pCompactView param  of
         True -> return $ renderBoxtakeTable opMap boxtakes
@@ -286,7 +313,7 @@ renderStocktakes opMap stocktakes = do
       <td> #{displayActive (stocktakeActive stocktake)}
           |]
 
-renderSummary :: FormParam -> [Entity Boxtake] -> Widget
+renderSummary :: BoxtakeInquiryParam -> [Entity Boxtake] -> Widget
 renderSummary param boxtakes =  do
   let (n, volume) = summary boxtakes
       groups = case pRuptureLength  param of
@@ -489,42 +516,49 @@ processBoxtakeMove Save param (sessions, styleMissings) = do
         mapM_ (deactivateBoxtake maxDate) (concatMap missingBoxes styleMissings)
   renderBoxtakeSheet Validate Nothing (fromEnum created201) (setSuccess "Boxtake uploaded successfully") (return ())
 
+-- ** Adjustment
+          
+renderBoxtakeAdjustments :: AdjustmentParam -> Maybe Widget -> Handler TypedContent
+renderBoxtakeAdjustments param resultM = do
+  (formW, encType) <- generateFormPost $ adjustmentForm param
+  toTypedContent <$> defaultLayout ( do
+     adjustmentCSS
+     adjustmentJS
+     [whamlet|
+<form #box-adjustment role=form method=POST action=@{WarehouseR WHBoxtakeAdjustmentR} enctype="#{encType}">
+  <div.well>
+    ^{formW}
+    <button type="submit" name="Search" .btn.btn-primary> Search
+    <button type="submit" name="Process" .btn.btn-danger> Activate/Deactivate
+  $maybe result <- resultM
+    <div.panel.panel-info>
+      <div.panel-heading><h2> Adjustments
+      <div.panel-body> ^{result}
+                        |]
+                                       )
+  
+
 -- * DB Access
-loadBoxtakes :: FormParam -> Handler [Entity Boxtake]
+loadBoxtakes :: BoxtakeInquiryParam -> Handler [Entity Boxtake]
 loadBoxtakes param = do
   let filter = filterE id BoxtakeBarcode (pBarcode param)
             <> filterE id BoxtakeLocation (pLocation param)
             <> filterE Just BoxtakeDescription (pDescription param)
-      opts = case filter of
-        [] -> -- no filter, we want the last ones
-             [Desc BoxtakeId, LimitTo 50]
-        _ -> -- filter, we use the filter to sort as well
+  opts <- case filter of
+        [] -> do -- no filter, we want the last ones
+                setWarning "Only the last 50 boxtakes are being displayed. Please refine the filter to get a full selection"
+                return [Desc BoxtakeId, LimitTo 50]
+        _ -> return $ -- filter, we use the filter to sort as well
           catMaybes [ pBarcode param <&> (const $ Asc BoxtakeBarcode)
                     , pLocation param <&> (const $ Asc BoxtakeLocation)
                     , pDescription param <&> (const $ Asc BoxtakeDescription)
                     ] <> [Asc BoxtakeDescription]
-      active = if pShowInactive param
+  let active = if pShowInactive param
                then []
                else [BoxtakeActive ==. True]
   runDB $ selectList (active <> filter) opts
   
-loadStocktakes :: [Entity Boxtake] -> Handler [(Entity Boxtake , [Entity Stocktake])]
-loadStocktakes boxtakes = 
-  -- slow version
-  forM boxtakes $ \e@(Entity _ box) -> do
-     stocktakes <- runDB $ selectList [StocktakeBarcode ==. boxtakeBarcode box] []
-     return (e, stocktakes)
 -- * Util
-displayActive :: Bool -> Text
-displayActive act = if act then "Active" else "Inactive"
-
-  
-dimensionPicture :: Int -> Boxtake -> Widget
-dimensionPicture width Boxtake{..} =  do
-  let dimRoute = WarehouseR $ WHDimensionOuterR (round boxtakeLength) (round boxtakeWidth) (round boxtakeLength)
-  [whamlet|
-      <a href="@{dimRoute}" ><img src=@?{(dimRoute , [("width", tshow width)])}>
-         |]
 
 opName :: (Map (Key Operator) Operator) -> Key Operator -> Text
 opName opMap key = maybe "" operatorNickname (lookup key opMap)
@@ -548,5 +582,3 @@ rupture mode l boxtakes = let
   key = (take l) . field
   groups = Map.fromListWith (<>) [ (key b, [e]) | e@(Entity _ b) <- boxtakes ]
   in mapToList groups
-
-  
