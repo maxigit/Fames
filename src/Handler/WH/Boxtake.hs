@@ -519,7 +519,9 @@ processBoxtakeMove Save param (sessions, styleMissings) = do
 renderBoxtakeAdjustments :: AdjustmentParam -> Maybe Widget -> Handler TypedContent
 renderBoxtakeAdjustments param resultM = do
   (formW, encType) <- generateFormPost $ adjustmentForm param
-  toTypedContent <$> defaultLayout [whamlet|
+  toTypedContent <$> defaultLayout ( do
+     adjustmentCSS
+     [whamlet|
 <form #box-adjustment role=form method=POST action=@{WarehouseR WHBoxtakeAdjustmentR} enctype="#{encType}">
   <div.well>
     ^{formW}
@@ -529,6 +531,7 @@ renderBoxtakeAdjustments param resultM = do
       <div.panel-heading><h2> Adjustments
       <div.panel-body> ^{result}
                         |]
+                                       )
   
 
 -- * DB Access

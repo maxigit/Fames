@@ -7,8 +7,7 @@ module Handler.Util
 ( entitiesToTable
 , getDBName
 , getHaskellName
-, entityTableHandler
-, entityTableHandler'
+, entityTableHandler , entityTableHandler'
 , uploadFileForm
 , uploadFileFormWithComment
 , Encoding(..)
@@ -17,12 +16,8 @@ module Handler.Util
 , generateLabelsResponse
 , firstOperator
 , badgeSpan
-, blueBadgeBg
-, grayBadgeBg
-, greenBadgeBg
-, amberBadgeBg
-, redBadgeBg
-, blackBadgeBg
+, blueBadgeBg , grayBadgeBg , greenBadgeBg , amberBadgeBg , redBadgeBg , blackBadgeBg
+, paleRed, paleGreen, paleBlue, paleAmber
 , tshowM
 , showDouble
 , basePriceList
@@ -417,31 +412,32 @@ filterEAddWildcardRight :: FilterExpression -> FilterExpression
 filterEAddWildcardRight (LikeFilter f) = LikeFilter (f<>"%")
 filterEAddWildcardRight (RegexFilter f) = RegexFilter (f<>"*")
 -- * Badges
-badgeSpan :: (Num a,  Show a) => (a -> Maybe Int) -> a -> Maybe String -> String -> Html
+badgeSpan :: (Num a,  Show a) => (a -> Maybe Int) -> a -> Maybe Text -> Text -> Html
 badgeSpan badgeWidth qty bgM klass = do
   let style = case badgeWidth qty of
         Nothing -> "display:none"
-        Just w ->  "width:" ++ show w  ++ "em"
+        Just w ->  "width:" <> tshow w  <> "em"
       bg = case bgM of
              Nothing -> ""
-             Just col ->  "background-color:"++col++";"
+             Just col ->  "background-color:"<>col<>";"
       qs = tshow qty
       q = fromMaybe qs $  stripSuffix ".0" qs
   [shamlet|<span.badge class=#{klass} style="#{style}; #{bg}">#{q}|]
 
 -- ** BadgeColour
-blueBadgeBg :: IsString a => a
+blueBadgeBg , grayBadgeBg , greenBadgeBg , amberBadgeBg , redBadgeBg , blackBadgeBg :: Text
 blueBadgeBg = "#29abe0"
-grayBadgeBg :: IsString a => a
-grayBadgeBg = "#ccccff"
-greenBadgeBg :: IsString a => a
+grayBadgeBg = "#cccccc"
 greenBadgeBg = "#93c54b"
-amberBadgeBg :: IsString a => a
 amberBadgeBg = "#f47c3c"
-redBadgeBg :: IsString a => a
 redBadgeBg = "#d9534f"
-blackBadgeBg :: IsString a => a
 blackBadgeBg = "#000000"
+
+paleRed, paleGreen, paleBlue, paleAmber :: Text
+paleRed = "#f2dede"
+paleGreen = "#dff0d8"
+paleBlue = "#d0edf7"
+paleAmber = "#fcf8e3"
 
 -- * Progress bars
 -- Display a time range within a global time range

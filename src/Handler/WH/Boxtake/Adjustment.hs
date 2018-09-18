@@ -42,6 +42,13 @@ data StyleInfoSummary = StyleInfoSummary
    , ssQoh :: Double
    , ssBoxes :: [(UsedStatus BoxtakePlus)] 
    }
+-- | What should happend to a box
+data BoxStatus
+  = BoxUsed -- ^ Active and used. nothing to do
+  | BoxToActivate -- ^ used but inactive. Needs activation
+  | BoxToDeactivate -- ^ unused but active. Need deactivation.
+  | BoxInactive -- ^ don't display
+  deriving (Eq, Show)
 -- * 
 
 -- | Compute the box status of each boxes
@@ -202,30 +209,96 @@ loadAdjustementInfo param = do
 displayBoxtakeAdjustments :: AdjustmentParam -> Handler Widget
 displayBoxtakeAdjustments param  = do
   infos <- runDB $ loadAdjustementInfo param
-  let summaries = toList infos >>= computeInfoSummary
+  let summaries0 = toList infos >>= computeInfoSummary
+      -- only keep nono zero style
+      summaries = filter toDisplay summaries0
+      toDisplay StyleInfoSummary{..} = ssQoh /= 0 || not (null $ mapMaybe classForBox ssBoxes)
   return [whamlet|
-  <table>
+  <table.table.table-border.table-hover>
     $forall s <- summaries
-      <tr>
+     <tbody.summary-group>
+      <tr.summary-row>
         <td>#{fromMaybe "" $ ssSku s}
         <td>#{formatQuantity (ssQoh s)}
-        <td>
-          $forall statusBox <- ssBoxes s
-            ^{displayUsedStatusBox statusBox}
-            <nbsp> 
+        <td colspan=5>
+          <div.status-summary>
+            $forall statusBox <- ssBoxes s
+              ^{displayBoxQuantity statusBox}
+      ^{forM_ (ssBoxes s) displayBoxRow}
 |]
 
-displayUsedStatusBox :: UsedStatus BoxtakePlus -> Widget
-displayUsedStatusBox (Used q (Entity bId Boxtake{..}, s)) = 
-  -- let multi = not null (take 2 s)
+displayBoxQuantity :: UsedStatus BoxtakePlus -> Widget
+displayBoxQuantity status = forM_ (classForBox status) $ \klass ->  do
   [whamlet|
-          $if boxtakeActive
-            <span.badge>#{q} 
-          $else
-            <btn.btn-danger>#{q} 
-          |]
-displayUsedStatusBox (Unused (Entity bId Boxtake{..}, s)) | boxtakeActive = 
+    <span class="#{klass}">
+      <span.badge>#{maybe "∅" formatQuantity (usedQuantity status)}
+      |]
+
+displayBoxRow :: UsedStatus BoxtakePlus -> Widget
+displayBoxRow status = forM_ (classForBox status) $ \klass -> do
+  let (Entity _bId Boxtake{..}, stocktakees) = usedSubject status
+      multi = not . null $ drop 1 stocktakees 
   [whamlet|
-          <span.badge.badge-danger>#{boxtakeBarcode}
+  <tr.box-row class=#{klass} :multi:.multi>
+    <td><a href="@{WarehouseR (WHBoxtakeDetailR boxtakeBarcode)}" target=_blank> #{boxtakeBarcode}
+    <td.boxQuantity>
+      ^{displayBoxQuantity status}
+    <td.boxDescription>#{fromMaybe "" boxtakeDescription}
+    <td>#{tshow boxtakeDate}
+    <td>#{boxtakeLocation}
+    <td>#{boxtakeActive}
           |]
-displayUsedStatusBox _ = mempty
+  
+
+boxStatus :: UsedStatus BoxtakePlus -> BoxStatus
+boxStatus b = case (b, boxtakeActive . entityVal . fst $ usedSubject b) of
+  (Used _ _, True) -> BoxUsed
+  (Used _ _, False) -> BoxToActivate
+  (Unused _, True) -> BoxToDeactivate
+  (Unused _, False) -> BoxInactive
+    
+classForBox :: UsedStatus BoxtakePlus -> Maybe Text
+classForBox b = case boxStatus b of
+  BoxInactive -> Nothing
+  status -> Just (tshow status)
+
+-- * Css
+adjustmentCSS :: Widget
+adjustmentCSS =toWidget [cassius|
+.multi td.boxDescription
+  color: #{redBadgeBg}
+.badge.badge-danger
+  background: #{redBadgeBg}
+  a
+    color: white
+.BoxToDeactivate
+  span.badge
+    background: #{redBadgeBg}
+.BoxToActivate
+  span.badge
+    background: #{blueBadgeBg}
+.BoxUsed
+  span.badge
+    background: #{grayBadgeBg}
+  
+tbody.summary-group
+  tr.box-row
+    display: none
+  &:hover
+    tr.box-row
+      display: table-row
+      border-left: 1px solid #{blueBadgeBg}
+    div.status-summary
+      display: none
+    tr:last-child
+        border-bottom: 2px solid #{blueBadgeBg}
+    tr:first-child
+        border-top: 2px solid #{blueBadgeBg}
+    tr.summary-row
+      font-weight: 500
+      background: #{paleBlue}
+      border-left: 1px solid #{blueBadgeBg}
+      border-bottom: 2px black solid
+      td
+        border-top: 1px black solid
+|]

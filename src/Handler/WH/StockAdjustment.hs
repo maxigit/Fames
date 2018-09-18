@@ -665,7 +665,7 @@ postWHStockAdjustmentRejectR adjId = do
 
 
 
-badgeSpan' :: Int -> Maybe String -> String -> Widget
+badgeSpan' :: Int -> Maybe Text -> Text -> Widget
 badgeSpan' qty bgM klass = toWidget $ badgeSpan badgeWidth qty bgM klass
 
 preToOriginal modulo pre = (OriginalQuantities qtake (qoh-before) qlost modulo , before) where

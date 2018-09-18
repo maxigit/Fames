@@ -212,21 +212,21 @@ valueFor (_, renderUrl) (ItemEvent (Right adj ) __qoh __stake _) col = let
 
 
 -- badgeSpan' :: (Num a, Ord a, ToMarkup a)  => a -> Maybe String -> String -> Html
-badgeSpan' :: Maybe String -> Double -> String -> Html
+badgeSpan' :: Maybe Text -> Double -> Text -> Html
 badgeSpan' bgM qty klass =
   badgeSpan badgeWidth qty bgM klass
 
-okBadge :: IsString a => Maybe a
+okBadge :: Maybe Text
 okBadge = Just blueBadgeBg
-qohBadge :: IsString a => Maybe a
+qohBadge :: Maybe Text
 qohBadge = Just "#ccccff"
-inBadge :: IsString a => Maybe a
+inBadge :: Maybe Text
 inBadge = Just greenBadgeBg
-outBadge :: IsString a => Maybe a
+outBadge :: Maybe Text
 outBadge = Just redBadgeBg
-negBadge :: IsString a => Maybe a
+negBadge :: Maybe Text
 negBadge = Just blackBadgeBg 
-modBadge :: IsString a => Maybe a
+modBadge :: Maybe Text
 modBadge = Just grayBadgeBg
 
 
