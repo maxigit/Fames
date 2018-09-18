@@ -217,17 +217,17 @@ badgeSpan' bgM qty klass =
   badgeSpan badgeWidth qty bgM klass
 
 okBadge :: IsString a => Maybe a
-okBadge = Just "#29abe0"
+okBadge = Just blueBadgeBg
 qohBadge :: IsString a => Maybe a
 qohBadge = Just "#ccccff"
-inBadge :: Maybe a
-inBadge = Nothing
+inBadge :: IsString a => Maybe a
+inBadge = Just greenBadgeBg
 outBadge :: IsString a => Maybe a
-outBadge = Just "#d9534f"
+outBadge = Just redBadgeBg
 negBadge :: IsString a => Maybe a
-negBadge = Just "#000000"
+negBadge = Just blackBadgeBg 
 modBadge :: IsString a => Maybe a
-modBadge = Just "#cccccc"
+modBadge = Just grayBadgeBg
 
 
 

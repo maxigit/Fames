@@ -17,6 +17,12 @@ module Handler.Util
 , generateLabelsResponse
 , firstOperator
 , badgeSpan
+, blueBadgeBg
+, grayBadgeBg
+, greenBadgeBg
+, amberBadgeBg
+, redBadgeBg
+, blackBadgeBg
 , tshowM
 , showDouble
 , basePriceList
@@ -422,6 +428,20 @@ badgeSpan badgeWidth qty bgM klass = do
       qs = tshow qty
       q = fromMaybe qs $  stripSuffix ".0" qs
   [shamlet|<span.badge class=#{klass} style="#{style}; #{bg}">#{q}|]
+
+-- ** BadgeColour
+blueBadgeBg :: IsString a => a
+blueBadgeBg = "#29abe0"
+grayBadgeBg :: IsString a => a
+grayBadgeBg = "#ccccff"
+greenBadgeBg :: IsString a => a
+greenBadgeBg = "#93c54b"
+amberBadgeBg :: IsString a => a
+amberBadgeBg = "#f47c3c"
+redBadgeBg :: IsString a => a
+redBadgeBg = "#d9534f"
+blackBadgeBg :: IsString a => a
+blackBadgeBg = "#000000"
 
 -- * Progress bars
 -- Display a time range within a global time range

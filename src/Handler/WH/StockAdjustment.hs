@@ -225,13 +225,13 @@ postWHStockAdjustmentR = do
           <td.active><input type="checkbox" name="active-#{sku pre}" checked>
           <td.style><a href=@{route pre} target="_blank">#{sku pre}
           <td.quantity data-original=#{qtake qties}>#{qtake qties}
-            ^{badgeSpan' (bMissing badges) (Just "#d9534f") "missing"}
-            ^{badgeSpan' (bMissingMod badges) (Just "#cccccc") "missing-mod"}
+            ^{badgeSpan' (bMissing badges) (Just redBadgeBg) "missing"}
+            ^{badgeSpan' (bMissingMod badges) (Just grayBadgeBg) "missing-mod"}
           <td.date>#{tshow $ (takeDate pre)}
           <td.qoh data-original=#{qoh qties}>
             <span.qoh>#{qoh qties + before}
-            ^{badgeSpan' (bFoundMod badges) (Just "#cccccc") "found-mod"}
-            ^{badgeSpan' (bFound badges) (Just "#29abe0") "found"}
+            ^{badgeSpan' (bFoundMod badges) (Just grayBadgeBg ) "found-mod"}
+            ^{badgeSpan' (bFound badges) (Just blueBadgeBg) "found"}
             ^{badgeSpan' (bNew badges) Nothing "new" }
           <td.lost data-original=#{qlost qties}>#{qlost qties}
           <td.last_move>#{fromMaybe "" (tshow <$> (lastMove pre))}
