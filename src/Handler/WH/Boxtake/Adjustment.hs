@@ -2,6 +2,7 @@ module Handler.WH.Boxtake.Adjustment
 where
 import Import hiding(Planner)
 import Database.Persist.Sql(Single(..), rawSql, unSqlBackendKey)
+import Database.Persist.MySQL -- (BackendKey(SqlBackendKey))
 import qualified Data.Map as Map
 import Data.Align
 import Handler.WH.Boxtake.Common
@@ -290,7 +291,6 @@ xxx param@AdjustmentParam{..} decorateSku decorateQuantity StyleInfoSummary{..} 
 |]
 
 
-
 displayBoxQuantity :: UsedStatus BoxtakePlus -> Widget
 displayBoxQuantity status = forM_ (classForBox status) $ \klass ->  do
   [whamlet|
@@ -354,8 +354,8 @@ processBoxtakeAdjustment :: AdjustmentParam -> Handler ()
 processBoxtakeAdjustment param = do
   today <- todayH
   (pp, _) <- runRequestBody
-  let toDeactivate = [ bId | (p, checked) <- pp, checked=="on", Just bId <- [readMay =<< stripPrefix "deactivate-" p] ]
-  let toActivate = [ bId | (p, checked) <- pp, checked=="on", Just bId <- [readMay =<< stripPrefix "activate-" p] ]
+  let toDeactivate = extractBoxIdFromParam "deactivate-" pp
+  let toActivate = extractBoxIdFromParam "activate-" pp
   if null toDeactivate && null toActivate
     then setWarning "Nothing to activate or deactivate" 
     else runDB $ do
@@ -365,6 +365,10 @@ processBoxtakeAdjustment param = do
                             <p>#{length toActivate} boxtakes reactivated succsessfuly.
                            |]
 
+extractBoxIdFromParam :: Text -> [(Text, Text)] -> [Key Boxtake]
+extractBoxIdFromParam prefix pp =
+  let bids = [ bId | (p, checked) <- pp, checked=="on", Just bId <- [readMay =<< stripPrefix prefix p] ] :: [Int64]
+  in map (BoxtakeKey . SqlBackendKey) bids
 -- * Css
 adjustmentCSS :: Widget
 adjustmentCSS =toWidget [cassius|

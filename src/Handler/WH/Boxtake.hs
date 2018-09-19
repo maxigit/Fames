@@ -552,7 +552,7 @@ renderBoxtakeAdjustments param resultM = do
       <div.panel-heading><h2> Adjustments
       <div.panel-body> ^{result}
   $if aShowDetails param
-    <button type="submit" name="Process" .btn.btn-danger> Activate/Deactivate
+    <button type="submit" name="action" value="Process" .btn.btn-danger> Activate/Deactivate
                         |]
                                        )
   
