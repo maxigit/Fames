@@ -40,6 +40,7 @@ isUsed (Unused _) = False
 data StyleInfoSummary = StyleInfoSummary
    { ssSku :: Maybe Text
    , ssQoh :: Double
+   , ssQUsed :: Double
    , ssBoxes :: [(UsedStatus BoxtakePlus)] 
    }
 -- | What should happend to a box
@@ -83,7 +84,8 @@ boxInfoToSummary :: Text -> These [UsedStatus BoxtakePlus]  Double -> StyleInfoS
 boxInfoToSummary style t = let
   qoh = fromMaybe 0 $ preview there t 
   boxes = fromMaybe [] $ preview here t
-  in StyleInfoSummary (Just style)  qoh boxes
+  qused = sum $ mapMaybe usedQuantity boxes
+  in StyleInfoSummary (Just style)  qoh qused boxes
 
   
    
@@ -220,7 +222,9 @@ displayBoxtakeAdjustments param  = do
       <tr.summary-row>
         <td><input type="checkbox" checked>
         <td colspan=2>#{fromMaybe "" $ ssSku s}
-        <td>#{formatQuantity (ssQoh s)}
+        <td.varQuantity>#{formatQuantity (ssQoh s)}
+           $if ssQoh s > ssQUsed s
+             <span.badge>#{formatQuantity $ ssQoh s - ssQUsed s}
         <td colspan=4>
           <div.status-summary>
             $forall statusBox <- ssBoxes s
@@ -321,6 +325,8 @@ adjustmentCSS =toWidget [cassius|
   span.badge
     background: #{grayBadgeBg}
   
+td.varQuantity .badge
+    background: #{amberBadgeBg}
 tbody.summary-group
   tr.box-row
     display: none
