@@ -112,7 +112,7 @@ getACacheR = do
         return (k, dyn, t, x)
   withExtra <- mapM getExtra sorted
   defaultLayout $ do
-    toWidgetHead [shamlet|<meta http-equiv="refresh" content="1">|]
+    toWidgetHead [shamlet|<meta http-equiv="refresh" content="30">|]
     [whamlet|
 <h1>Cache
 <h2>Expiry Cache
