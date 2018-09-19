@@ -233,33 +233,63 @@ displayBoxtakeAdjustments param@AdjustmentParam{..}  = do
             in leftOver > 0 || any (`elem` [BoxToActivate, BoxToDeactivate]) boxStatuses
         else ssQoh /= 0 || not (null $ mapMaybe classForBox ssBoxes)
         -- create a link to drilldown 
-      skuToLink sku = case aStyleSummary of
-             False -> [whamlet|#{sku}|]
+      decorateSku sku = case aStyleSummary of
+             -- style => drilldown
              True -> [whamlet|
                              <a href="@{WarehouseR (WHBoxtakeAdjustmentForR sku aSkipOk)}"
-                                target_blank
+                                target=_blank
                              >#{sku}
-                             |]
-        
+                     |]
+             -- sku => link to item stocktake history
+             False -> [whamlet|
+                   <a href="@?{(WarehouseR WHStocktakeR, [("stock_id", sku)])}" > #{sku}
+                              |]
+      decorateQuantity _ Nothing qw = toWidget $ toHtml qw
+      decorateQuantity AdjustmentParam{..} (Just sku) qw =
+        case aStyleSummary of
+           -- style => stocktake to item history, allow to go the item history for the given sku
+           True -> [whamlet|
+                            <a href="@{WarehouseR (WHStocktakeHistoryStyleR sku)}"
+                                target=_blank
+                             >#{qw}
+                           |]
+           -- sku -- item history
+           False -> [whamlet|
+                             <a href="@{ItemsR (ItemsHistoryR sku)}"
+                                target=_blank
+                             >#{qw}
+                           |]
   return [whamlet|
   <table.table.table-border.table-hover>
     $forall s <- summaries
-     <tbody.summary-group :aShowDetails:.with-details>
+     ^{xxx param decorateSku (decorateQuantity param) s}
+     |]
+
+xxx :: AdjustmentParam
+    -> (Text -> Widget)
+    -> _ -- (Maybe Text -> _ -> Widget)
+    -> StyleInfoSummary
+    -> Widget
+xxx param@AdjustmentParam{..} decorateSku decorateQuantity StyleInfoSummary{..} =
+  [whamlet|
+    <tbody.summary-group :aShowDetails:.with-details>
       <tr.summary-row>
         $if aShowDetails
-          <td><input type="checkbox" checked>
-        <td colspan=2>^{maybe mempty skuToLink (ssSku s)}
-        <td.varQuantity>#{formatQuantity (ssQoh s)}
-           $with leftOver <- ssQoh s - ssQUsed s
+        <td><input type="checkbox" checked>
+        <td colspan=2>^{maybe mempty decorateSku ssSku }
+        <td.varQuantity>^{decorateQuantity ssSku (formatQuantity ssQoh)}
+           $with leftOver <- ssQoh - ssQUsed
               $if leftOver > 0
                 <span.badge>#{formatQuantity leftOver}
         <td colspan=4>
           <div.status-summary>
-            $forall statusBox <- sortOn boxStatus ( ssBoxes s )
+            $forall statusBox <- sortOn boxStatus ssBoxes
                   ^{displayBoxQuantity statusBox}
       $if aShowDetails 
-        ^{forM_ (ssBoxes s) displayBoxRow}
+        ^{forM_ ssBoxes displayBoxRow}
 |]
+
+
 
 displayBoxQuantity :: UsedStatus BoxtakePlus -> Widget
 displayBoxQuantity status = forM_ (classForBox status) $ \klass ->  do
