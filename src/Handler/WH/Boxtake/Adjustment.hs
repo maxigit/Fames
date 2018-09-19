@@ -49,7 +49,7 @@ data BoxStatus
   | BoxToActivate -- ^ used but inactive. Needs activation
   | BoxToDeactivate -- ^ unused but active. Need deactivation.
   | BoxInactive -- ^ don't display
-  deriving (Eq, Show)
+  deriving (Eq, Ord, Show)
 -- * 
 
 -- | Compute the box status of each boxes
@@ -153,7 +153,7 @@ aggregateInfoSummaries style ss = traceShow ss $
   StyleInfoSummary (Just style)
                    (sum $ map ssQoh ss)
                    (sum $ map ssQUsed ss)
-                   (join $ map ssBoxes ss)
+                   (sortOn boxStatus . join $ map ssBoxes ss)
                      
 
 -- | Parameter needed to process boxtake adjustment
@@ -223,7 +223,7 @@ displayBoxtakeAdjustments param@AdjustmentParam{..}  = do
   infos <- runDB $ loadAdjustementInfo  param
   let summaries0 = if aStyleSummary
         then [ aggregateInfoSummaries style (computeInfoSummary styleInfo) | (style, styleInfo) <- mapToList infos ]
-        else error "Don't call it" -- toList infos >>= computeInfoSummary
+        else toList infos >>= computeInfoSummary
       -- only keep nono zero style
       summaries = filter toDisplay summaries0
       toDisplay StyleInfoSummary{..} = if aSkipOk 
