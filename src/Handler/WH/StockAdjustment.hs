@@ -419,6 +419,7 @@ saveStockAdj FormParam{..} pres' = do
 
     -- update stock take
     mapM_ (\pre -> updateWhere [ StocktakeStockId ==. (sku pre)
+                               , StocktakeActive ==. True
                                , StocktakeAdjustment ==. Nothing
                                ]
                                [StocktakeAdjustment =. Just adjKey])
