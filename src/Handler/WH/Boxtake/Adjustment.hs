@@ -230,8 +230,7 @@ displayBoxtakeAdjustments param@AdjustmentParam{..}  = do
         then let -- check if there is problem
                     leftOver = ssQoh - ssQUsed 
                     boxStatuses = map boxStatus ssBoxes 
-            in traceShow ("LEft", ssSku, ssQoh, leftOver, boxStatuses) $
-               traceShowId $ leftOver > 0 || any (`elem` [BoxToActivate, BoxToDeactivate]) boxStatuses
+            in leftOver > 0 || any (`elem` [BoxToActivate, BoxToDeactivate]) boxStatuses
         else ssQoh /= 0 || not (null $ mapMaybe classForBox ssBoxes)
         -- create a link to drilldown 
       skuToLink sku = case aStyleSummary of
@@ -256,9 +255,7 @@ displayBoxtakeAdjustments param@AdjustmentParam{..}  = do
                 <span.badge>#{formatQuantity leftOver}
         <td colspan=4>
           <div.status-summary>
-            $forall boxGroup <- groupBy (on (==) boxStatus) $ sortOn boxStatus ( ssBoxes s )
-              <div>
-                $forall statusBox <- boxGroup
+            $forall statusBox <- sortOn boxStatus ( ssBoxes s )
                   ^{displayBoxQuantity statusBox}
       $if aShowDetails 
         ^{forM_ (ssBoxes s) displayBoxRow}
