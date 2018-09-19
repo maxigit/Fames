@@ -153,11 +153,14 @@ goUsedStocktakeToBoxes t = case t of
 data AdjustmentParam = AdjustmentParam
   { aStyleFilter :: Maybe FilterExpression
   , aLocation :: Text
+  , aSkipOk :: Bool -- ^ don't show things with nothing to do
+  , aShowDetails :: Bool -- ^ don't show boxes. 
+  , aStyleSummary :: Bool -- ^ display summary for styles vs variations
   } 
 
 defaultAdjustmentParamH = do
   defaultLocation <- appFADefaultLocation <$> getsYesod appSettings 
-  return $ AdjustmentParam Nothing defaultLocation
+  return $ AdjustmentParam Nothing defaultLocation True False True
 -- * Render
 -- * DB
 -- | Load all boxes needed to display and compute adjustment
@@ -209,28 +212,37 @@ loadAdjustementInfo param = do
 -- | Fetch boxtake and their status according to FA Stock
 -- and display it so that it can be processed
 displayBoxtakeAdjustments :: AdjustmentParam -> Handler Widget
-displayBoxtakeAdjustments param  = do
-  infos <- runDB $ loadAdjustementInfo param
+displayBoxtakeAdjustments param@AdjustmentParam{..}  = do
+  infos <- runDB $ loadAdjustementInfo  param
   let summaries0 = toList infos >>= computeInfoSummary
       -- only keep nono zero style
       summaries = filter toDisplay summaries0
-      toDisplay StyleInfoSummary{..} = ssQoh /= 0 || not (null $ mapMaybe classForBox ssBoxes)
+      toDisplay StyleInfoSummary{..} = if aSkipOk 
+        then let -- check if there is problem
+                    leftOver = ssQoh - ssQUsed 
+                    boxStatuses = map boxStatus ssBoxes 
+            in leftOver > 0 || any (/= BoxUsed) boxStatuses
+        else ssQoh /= 0 || not (null $ mapMaybe classForBox ssBoxes)
   return [whamlet|
   <table.table.table-border.table-hover>
     $forall s <- summaries
-     <tbody.summary-group>
+     <tbody.summary-group :aShowDetails:.with-details>
       <tr.summary-row>
-        <td><input type="checkbox" checked>
+        $if aShowDetails
+          <td><input type="checkbox" checked>
         <td colspan=2>#{fromMaybe "" $ ssSku s}
         <td.varQuantity>#{formatQuantity (ssQoh s)}
-           $if ssQoh s > ssQUsed s
-             <span.badge>#{formatQuantity $ ssQoh s - ssQUsed s}
+           $with leftOver <- ssQoh s - ssQUsed s
+              $if leftOver > 0
+                <span.badge>#{formatQuantity leftOver}
         <td colspan=4>
           <div.status-summary>
             $forall statusBox <- ssBoxes s
               ^{displayBoxQuantity statusBox}
-      ^{forM_ (ssBoxes s) displayBoxRow}
+      $if aShowDetails 
+        ^{forM_ (ssBoxes s) displayBoxRow}
 |]
+
 
 displayBoxQuantity :: UsedStatus BoxtakePlus -> Widget
 displayBoxQuantity status = forM_ (classForBox status) $ \klass ->  do
@@ -327,7 +339,7 @@ adjustmentCSS =toWidget [cassius|
   
 td.varQuantity .badge
     background: #{amberBadgeBg}
-tbody.summary-group
+tbody.summary-group.with-details
   tr.box-row
     display: none
   &:hover

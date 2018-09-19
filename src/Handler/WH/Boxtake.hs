@@ -184,6 +184,9 @@ uploadForm mode paramM = renderBootstrap3 BootstrapBasicForm (form mode)
 adjustmentForm param = renderBootstrap3 BootstrapBasicForm form where
   form = AdjustmentParam <$> aopt filterEField "style" (Just $ aStyleFilter param)
                          <*> pure (aLocation param)
+                         <*> areq boolField "Skip OK" (Just $ aSkipOk param)
+                         <*> areq boolField "Show Details" (Just $ aShowDetails param)
+                         <*> areq boolField "Style Summary" (Just $ aStyleSummary param)
 
 -- * Rendering
 -- ** Boxtake history
@@ -529,7 +532,8 @@ renderBoxtakeAdjustments param resultM = do
   <div.well>
     ^{formW}
     <button type="submit" name="Search" .btn.btn-primary> Search
-    <button type="submit" name="Process" .btn.btn-danger> Activate/Deactivate
+    $if aShowDetails param
+      <button type="submit" name="Process" .btn.btn-danger> Activate/Deactivate
   $maybe result <- resultM
     <div.panel.panel-info>
       <div.panel-heading><h2> Adjustments
