@@ -230,7 +230,8 @@ displayBoxtakeAdjustments param@AdjustmentParam{..}  = do
         then let -- check if there is problem
                     leftOver = ssQoh - ssQUsed 
                     boxStatuses = map boxStatus ssBoxes 
-            in leftOver > 0 || any (/= BoxUsed) boxStatuses
+            in traceShow ("LEft", ssSku, ssQoh, leftOver, boxStatuses) $
+               traceShowId $ leftOver > 0 || any (`elem` [BoxToActivate, BoxToDeactivate]) boxStatuses
         else ssQoh /= 0 || not (null $ mapMaybe classForBox ssBoxes)
         -- create a link to drilldown 
       skuToLink sku = case aStyleSummary of
