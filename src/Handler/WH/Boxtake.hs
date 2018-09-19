@@ -532,12 +532,12 @@ renderBoxtakeAdjustments param resultM = do
   <div.well>
     ^{formW}
     <button type="submit" name="Search" .btn.btn-primary> Search
-    $if aShowDetails param
-      <button type="submit" name="Process" .btn.btn-danger> Activate/Deactivate
   $maybe result <- resultM
     <div.panel.panel-info>
       <div.panel-heading><h2> Adjustments
       <div.panel-body> ^{result}
+  $if aShowDetails param
+    <button type="submit" name="Process" .btn.btn-danger> Activate/Deactivate
                         |]
                                        )
   
