@@ -93,15 +93,14 @@ boxInfoToSummary style t = let
 
   
 
-type StocktakePrioriry = (Down Bool, Down Day, Down Int, (Text, Text))
---  USE location
+type StocktakePrioriry = (Down Bool, Down Day, Down Int, Down (Text, Text))
 computeStocktakePriority :: BoxtakePlus -> [(StocktakePrioriry, StocktakePlus)]
 computeStocktakePriority (Entity bId Boxtake{..}, stocktakes) = do
   s@(Entity _ Stocktake{..}) <- stocktakes
-  let priority = ( Down $ boxtakeActive || stocktakeActive
-                 , Down (max stocktakeDate boxtakeDate) -- older more likely to be picked
+  let priority = ( Down $ boxtakeActive -- || stocktakeActive
+                 , Down boxtakeDate -- older more likely to be picked
                  , Down stocktakeQuantity -- The more, the less we pick from it
-                 , locationPriority boxtakeLocation
+                 , Down $ locationPriority boxtakeLocation
                  )
   return (priority, (s, bId) )
 
