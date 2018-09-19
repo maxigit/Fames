@@ -77,6 +77,7 @@ type SqlHandler = ReaderT SqlBackend Handler
 
 instance EnumTreeable Text where enumTree = EnumTree []
 instance EnumTreeable Int64 where enumTree = EnumTree []
+instance EnumTreeable Bool where enumTree = EnumTree []
 
 instance EnumTreeable (Route Static) where enumTree = EnumTree []
 instance EnumTreeable (Route Auth) where enumTree = EnumTree []

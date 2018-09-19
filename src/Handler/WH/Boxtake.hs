@@ -10,6 +10,7 @@ module Handler.WH.Boxtake
 , getWHBoxtakePlannerR
 , getWHBoxtakeAdjustmentR
 , postWHBoxtakeAdjustmentR
+, getWHBoxtakeAdjustmentForR
 ) where
 
 import Import hiding(Planner)
@@ -153,6 +154,20 @@ postWHBoxtakeAdjustmentR = do
       result <- displayBoxtakeAdjustments param
       renderBoxtakeAdjustments param (Just result)
 
+-- | Narrow the search to the given style.
+-- Used mainly as a target from link
+getWHBoxtakeAdjustmentForR :: Text -> Bool ->  Handler TypedContent
+getWHBoxtakeAdjustmentForR style skipOk = do
+  param0 <- defaultAdjustmentParamH
+  let param = param0 { aStyleFilter = Just (LikeFilter style)
+                    , aShowDetails = True
+                    , aSkipOk = skipOk
+                    , aStyleSummary = False
+                    }
+  renderBoxtakeAdjustments param =<< Just <$> displayBoxtakeAdjustments param
+
+  
+
 -- * Forms
 inquiryForm :: Maybe BoxtakeInquiryParam -> _
 inquiryForm param0 = renderBootstrap3 BootstrapBasicForm form
@@ -186,7 +201,7 @@ adjustmentForm param = renderBootstrap3 BootstrapBasicForm form where
                          <*> pure (aLocation param)
                          <*> areq boolField "Skip OK" (Just $ aSkipOk param)
                          <*> areq boolField "Show Details" (Just $ aShowDetails param)
-                         <*> areq boolField "Style Summary" (Just $ aStyleSummary param)
+                         <*> areq boolField "Group Style" (Just $ aStyleSummary param)
 
 -- * Rendering
 -- ** Boxtake history

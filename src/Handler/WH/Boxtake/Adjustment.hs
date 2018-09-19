@@ -149,7 +149,7 @@ goUsedStocktakeToBoxes t = case t of
 
 
 aggregateInfoSummaries :: Text -> [StyleInfoSummary] -> StyleInfoSummary
-aggregateInfoSummaries style ss = traceShow ss $
+aggregateInfoSummaries style ss = 
   StyleInfoSummary (Just style)
                    (sum $ map ssQoh ss)
                    (sum $ map ssQUsed ss)
@@ -232,6 +232,15 @@ displayBoxtakeAdjustments param@AdjustmentParam{..}  = do
                     boxStatuses = map boxStatus ssBoxes 
             in leftOver > 0 || any (/= BoxUsed) boxStatuses
         else ssQoh /= 0 || not (null $ mapMaybe classForBox ssBoxes)
+        -- create a link to drilldown 
+      skuToLink sku = case aStyleSummary of
+             False -> [whamlet|#{sku}|]
+             True -> [whamlet|
+                             <a href="@{WarehouseR (WHBoxtakeAdjustmentForR sku aSkipOk)}"
+                                target_blank
+                             >#{sku}
+                             |]
+        
   return [whamlet|
   <table.table.table-border.table-hover>
     $forall s <- summaries
@@ -239,19 +248,20 @@ displayBoxtakeAdjustments param@AdjustmentParam{..}  = do
       <tr.summary-row>
         $if aShowDetails
           <td><input type="checkbox" checked>
-        <td colspan=2>#{fromMaybe "" $ ssSku s}
+        <td colspan=2>^{maybe mempty skuToLink (ssSku s)}
         <td.varQuantity>#{formatQuantity (ssQoh s)}
            $with leftOver <- ssQoh s - ssQUsed s
               $if leftOver > 0
                 <span.badge>#{formatQuantity leftOver}
         <td colspan=4>
           <div.status-summary>
-            $forall statusBox <- sortOn boxStatus ( ssBoxes s )
-              ^{displayBoxQuantity statusBox}
+            $forall boxGroup <- groupBy (on (==) boxStatus) $ sortOn boxStatus ( ssBoxes s )
+              <div>
+                $forall statusBox <- boxGroup
+                  ^{displayBoxQuantity statusBox}
       $if aShowDetails 
         ^{forM_ (ssBoxes s) displayBoxRow}
 |]
-
 
 displayBoxQuantity :: UsedStatus BoxtakePlus -> Widget
 displayBoxQuantity status = forM_ (classForBox status) $ \klass ->  do
