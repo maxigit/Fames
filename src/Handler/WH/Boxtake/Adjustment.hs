@@ -275,8 +275,8 @@ xxx param@AdjustmentParam{..} decorateSku decorateQuantity StyleInfoSummary{..} 
     <tbody.summary-group :aShowDetails:.with-details>
       <tr.summary-row>
         $if aShowDetails
-        <td><input type="checkbox" checked>
-        <td colspan=2>^{maybe mempty decorateSku ssSku }
+          <td.checkboxColumn><input type="checkbox" checked>
+        <td.styleColumn colspan=2>^{maybe mempty decorateSku ssSku }
         <td.varQuantity>^{decorateQuantity ssSku (formatQuantity ssQoh)}
            $with leftOver <- ssQoh - ssQUsed
               $if leftOver > 0
@@ -406,6 +406,12 @@ tbody.summary-group.with-details
       border-bottom: 2px black solid
       td
         border-top: 1px black solid
+td.checkboxColumn
+  width:  5%
+td.styleColumn
+  width:  20%
+td.varQuantity
+  width:  10%
 |]
 
 adjustmentJS :: Widget
