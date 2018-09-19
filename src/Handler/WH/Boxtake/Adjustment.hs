@@ -42,7 +42,7 @@ data StyleInfoSummary = StyleInfoSummary
    , ssQoh :: Double
    , ssQUsed :: Double
    , ssBoxes :: [(UsedStatus BoxtakePlus)] 
-   }
+   } deriving Show
 -- | What should happend to a box
 data BoxStatus
   = BoxUsed -- ^ Active and used. nothing to do
@@ -148,6 +148,13 @@ goUsedStocktakeToBoxes t = case t of
   where unused b = [(fromMaybe "" $ boxtakeDescription (entityVal b), Unused (b, []))]
 
 
+aggregateInfoSummaries :: Text -> [StyleInfoSummary] -> StyleInfoSummary
+aggregateInfoSummaries style ss = traceShow ss $
+  StyleInfoSummary (Just style)
+                   (sum $ map ssQoh ss)
+                   (sum $ map ssQUsed ss)
+                   (join $ map ssBoxes ss)
+                     
 
 -- | Parameter needed to process boxtake adjustment
 data AdjustmentParam = AdjustmentParam
@@ -214,7 +221,9 @@ loadAdjustementInfo param = do
 displayBoxtakeAdjustments :: AdjustmentParam -> Handler Widget
 displayBoxtakeAdjustments param@AdjustmentParam{..}  = do
   infos <- runDB $ loadAdjustementInfo  param
-  let summaries0 = toList infos >>= computeInfoSummary
+  let summaries0 = if aStyleSummary
+        then [ aggregateInfoSummaries style (computeInfoSummary styleInfo) | (style, styleInfo) <- mapToList infos ]
+        else error "Don't call it" -- toList infos >>= computeInfoSummary
       -- only keep nono zero style
       summaries = filter toDisplay summaries0
       toDisplay StyleInfoSummary{..} = if aSkipOk 
