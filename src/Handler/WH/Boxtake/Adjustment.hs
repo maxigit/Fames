@@ -246,7 +246,7 @@ displayBoxtakeAdjustments param@AdjustmentParam{..}  = do
                 <span.badge>#{formatQuantity leftOver}
         <td colspan=4>
           <div.status-summary>
-            $forall statusBox <- ssBoxes s
+            $forall statusBox <- sortOn boxStatus ( ssBoxes s )
               ^{displayBoxQuantity statusBox}
       $if aShowDetails 
         ^{forM_ (ssBoxes s) displayBoxRow}
