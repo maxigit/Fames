@@ -12,6 +12,7 @@ import Control.Monad.Writer (tell, execWriter)
 import Data.Text(strip)
 import qualified Data.Text as Text
 import System.Directory (doesFileExist, listDirectory)
+import System.FilePath (takeExtension)
 
 import Unsafe.Coerce (unsafeCoerce)
 import Model.DocumentKey
@@ -119,14 +120,15 @@ readScenario text = do
     steps' <- mapM (\s -> ExceptT $ cacheSection s) sections
     ExceptT . return $ makeScenario steps' 
 
--- | Read a sceanrio from a directory.
+-- | Read a sceanrio from a directory. Only read '.org'
 -- Concatene all files in alphabetical order
 -- readScenarioDir :: MonadIO m => FilePath -> m Either [Step]
 readScenariosFromDir :: MonadIO io => FilePath -> io (Either Text [Scenario])
 readScenariosFromDir path = liftIO $ do
   entries0 <- listDirectory path
   let entries = map (path </>) (sort  entries0)
-  files <- filterM  doesFileExist entries
+      isOrg = (== ".org") . takeExtension
+  files <- filterM  doesFileExist (filter isOrg entries)
   contents <-  mapM readFile files
   scenariosE <- mapM (readScenario . decodeUtf8) contents
   return $ sequence scenariosE
