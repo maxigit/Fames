@@ -122,7 +122,7 @@ toPlanner (Entity (BoxtakeKey boxId) Boxtake{..}) =
   <> "\n"
   where tags= [ "barcode=" <> boxtakeBarcode 
               , "date=" <> tshow boxtakeDate
-              , "location=" <> location
+              , "location=" <> boxtakeLocation
               ] ::  [Text]
 
 boxSourceToCsv today boxSources = do

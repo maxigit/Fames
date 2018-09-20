@@ -417,12 +417,13 @@ If the first word of a section is one of the valid section name, the whole conte
   Certain attributes like the current location or orientation of a box can be used to set a new tag
   with the corresponding value. The following attributes are available.
   <ul>
-    <li> $location # current location
+    <li> $shelfname # current shelf
+    <li> $shelftag # tag of the current shelf
     <li> $orientation # current orientation
 
   Example
   <pre>
-    /pending,loc=$location  => All boxes in the pending location will be tagged with "loc=pending".
+    /pending,loc=$shelfname  => All boxes in the pending location will be tagged with "loc=pending".
 |]
 
 renderView :: FormParam -> Handler TypedContent
