@@ -807,16 +807,23 @@ updateBoxTags tags0 box = do
   updateBox (updateBoxTags' $ filter (not . null) tags) box
 
 -- | Box attribute can be used to create new tag
--- example, /pending,#previous=$location on a
+-- example, /pending,#previous=$shelfname on a
 -- will add the tag previous=pending to all items in the pending shelf
 expandAttribute :: Box s -> String -> WH String s
-expandAttribute box ('$':'l':'o':'c':'a':'t':'i':'o':'n':xs) = do
+expandAttribute box ('$':'s':'h':'e':'l':'f':'n':'a':'m':'e':xs) = do
   ex <-  expandAttribute box xs
   case boxShelf box of
     Nothing -> return ex
     Just sId -> do
       shelf <- findShelf sId
       return $ shelfName shelf ++ ex
+expandAttribute box ('$':'s':'h':'e':'l':'f':'t':'a':'g':xs) = do
+  ex <-  expandAttribute box xs
+  case boxShelf box of
+    Nothing -> return ex
+    Just sId -> do
+      shelf <- findShelf sId
+      return $ fromMaybe "" (shelfTag shelf) ++ ex
 expandAttribute box ('$':'o':'r':'i':'e':'n':'t':'a':'t':'i':'o':'n':xs) = fmap (showOrientation (orientation box) ++) (expandAttribute box xs)
 expandAttribute box (x:xs) = fmap (x :)  (expandAttribute box xs)
 expandAttribute box [] = return []
