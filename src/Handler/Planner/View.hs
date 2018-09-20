@@ -439,7 +439,8 @@ renderView param0 = do
               PlannerBestBoxesFor -> renderConsoleReport (bestBoxesFor (unpack $ fromMaybe "" (pParameter param))) scenario
               PlannerBestShelvesFor -> renderConsoleReport (bestShelvesFor (unpack $ fromMaybe "" (pParameter param))) scenario
               PlannerBestAvailableShelvesFor -> renderConsoleReport (bestAvailableShelvesFor (unpack $ fromMaybe "" (pParameter param))) scenario
-              PlannerGenerateMoves -> renderConsoleReport generateMoves scenario
+              PlannerGenerateMoves -> renderConsoleReport (generateMoves boxStyle) scenario
+              PlannerGenerateMovesWithTags -> renderConsoleReport (generateMoves boxStyleWithTags) scenario
               PlannerScenarioHistory -> renderHistory
           return (param, w)
     

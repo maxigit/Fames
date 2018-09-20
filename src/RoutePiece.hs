@@ -64,6 +64,7 @@ data PlannerViewMode = PlannerSummaryView
                      | PlannerBestShelvesFor 
                      | PlannerBestAvailableShelvesFor 
                      | PlannerGenerateMoves
+                     | PlannerGenerateMovesWithTags
                      | PlannerScenarioHistory
   deriving (Eq, Read, Show, Enum, Bounded)
 instance PathPiece PlannerViewMode where

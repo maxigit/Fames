@@ -795,8 +795,14 @@ updateBoxTags' tags box = let
   new = (btags <> to_add) \\ to_remove
   in box {boxTags = new, boxPriorities = extractPriorities new}
 
-updateBoxTags tags = updateBox (updateBoxTags' $ filter (not . null) tags)
+updateBoxTags tags = let
+  -- remove '''
+  -- tags = map (map replaceSlash) tags0
+  in updateBox (updateBoxTags' $ filter (not . null) tags)
 
+replaceSlash '/' = '\''
+replaceSlash c  = c
+   
 defaultPriority :: Int
 defaultPriority = 100
 defaultPriorities = (defaultPriority, defaultPriority, defaultPriority)

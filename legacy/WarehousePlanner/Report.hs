@@ -16,6 +16,7 @@ module WarehousePlanner.Report
 , groupShelvesReport'
 , groupBoxesReport
 , reportPairs
+, boxStyleWithTags
 ) where
 
 -- import Control.Monad.ST (runST, stToIO, RealWorld)
@@ -358,11 +359,20 @@ groupNames names = let
 
   in map toName (Map'.toList groups)
 
+boxStyleAndContent b = case boxContent b of
+  "" -> boxStyle b
+  c -> boxStyle b ++ "-" ++ c
+  
+boxStyleWithTags b = let
+  isVirtual ('\'':_) = True
+  isVirtual _ = False
+  tags = filter (not . isVirtual) (boxTags b)
+  in intercalate "#" (boxStyleAndContent b : tags)
  
-generateMoves :: WH [String] s
-generateMoves = do
+generateMoves :: (Box s -> String) -> WH [String] s
+generateMoves boxName = do
  s'bS <- shelfBoxes
- let groups = Map'.fromListWith (<>) [ (boxStyle b, [shelfName s]) | (s,b) <- s'bS]
+ let groups = Map'.fromListWith (<>) [ (boxName b, [shelfName s]) | (s,b) <- s'bS]
  return ("stock_id,location"
         : map printGroup (Map'.toList groups)
         )

@@ -18,6 +18,7 @@ import Yesod.Form.Bootstrap3
 import Handler.CsvUtils
 import Data.List(nub)
 import qualified Data.Map.Strict as Map
+import Database.Persist.MySQL(unSqlBackendKey)
 import Text.Printf(printf)
 import Handler.WH.Boxtake.Common
 import Handler.WH.Boxtake.Upload
@@ -99,10 +100,10 @@ getWHBoxtakePlannerR = do
   renderPlannerCsv source
   
 renderPlannerCsv boxSources = do
-  let source = boxSourceToCsv boxSources
   today <- todayH
-  setAttachment ("Planner-" <> fromStrict (tshow today) <> ".csv")
-  respondSourceDB "text/csv" (source =$= mapC (toFlushBuilder))
+  let source = boxSourceToCsv today boxSources
+  setAttachment ("10-Planner-" <> fromStrict (tshow today) <> ".org")
+  respondSourceDB "text/plain" (source =$= mapC (toFlushBuilder))
 
 -- plannerSource :: _ => Source m Text
 plannerSource = selectSource [BoxtakeActive ==. True] [Asc BoxtakeLocation, Asc BoxtakeDescription]
@@ -110,19 +111,25 @@ plannerSource = selectSource [BoxtakeActive ==. True] [Asc BoxtakeLocation, Asc 
   -- boxes =$= mapC toPlanner
   
 toPlanner :: (Entity Boxtake) -> Text
-toPlanner (Entity boxId Boxtake{..}) = 
+toPlanner (Entity (BoxtakeKey boxId) Boxtake{..}) = 
   boxtakeLocation
-  <> "," <> (fromMaybe ("#" <> tshow boxId) boxtakeDescription)
+  <> "," <> (fromMaybe "" boxtakeDescription) <> (mconcat $ map ("#" <>) tags )
   <> ",1"
   <> "," <> tshow boxtakeLength
   <> "," <> tshow boxtakeWidth
   <> "," <> tshow boxtakeHeight
   <> "," -- orientation
   <> "\n"
+  where tags= [ "barcode=" <> boxtakeBarcode 
+              , "date=" <> tshow boxtakeDate
+              ] ::  [Text]
 
-boxSourceToCsv boxSources = do
+boxSourceToCsv today boxSources = do
+  yield ("* Stocktake from Planner  [" <> tshow today <> "]\n")
+  yield (":STOCKTAKE:\n")
   yield ("Bay No,Style,QTY,Length,Width,Height,Orientations\n" :: Text)
   boxSources =$= mapC toPlanner
+  yield (":END:\n")
 
   
 spreadSheetToCsv :: Handler TypedContent
