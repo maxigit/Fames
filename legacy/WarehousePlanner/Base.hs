@@ -1,6 +1,7 @@
 {-# LANGUAGE TupleSections, BangPatterns #-}
 {-# LANGUAGE LiberalTypeSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE NoOverloadedStrings #-}
 module WarehousePlanner.Base where
 import Prelude
 import Data.Vector(Vector)
@@ -798,10 +799,27 @@ updateBoxTags' tags box = let
   new = (btags <> to_add) \\ to_remove
   in box {boxTags = new, boxPriorities = extractPriorities new}
 
-updateBoxTags tags = let
+updateBoxTags :: [[Char]] -> Box s -> WH (Box s) s
+updateBoxTags tags0 box = do
   -- remove '''
-  -- tags = map (map replaceSlash) tags0
-  in updateBox (updateBoxTags' $ filter (not . null) tags)
+  let tags1 = map (map replaceSlash) tags0
+  tags <- mapM (expandAttribute box) tags1
+  updateBox (updateBoxTags' $ filter (not . null) tags) box
+
+-- | Box attribute can be used to create new tag
+-- example, /pending,#previous=$location on a
+-- will add the tag previous=pending to all items in the pending shelf
+expandAttribute :: Box s -> String -> WH String s
+expandAttribute box ('$':'l':'o':'c':'a':'t':'i':'o':'n':xs) = do
+  ex <-  expandAttribute box xs
+  case boxShelf box of
+    Nothing -> return ex
+    Just sId -> do
+      shelf <- findShelf sId
+      return $ shelfName shelf ++ ex
+expandAttribute box ('$':'o':'r':'i':'e':'n':'t':'a':'t':'i':'o':'n':xs) = fmap (showOrientation (orientation box) ++) (expandAttribute box xs)
+expandAttribute box (x:xs) = fmap (x :)  (expandAttribute box xs)
+expandAttribute box [] = return []
 
 replaceSlash '/' = '\''
 replaceSlash c  = c

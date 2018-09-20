@@ -410,6 +410,19 @@ If the first word of a section is one of the valid section name, the whole conte
   <pre>
       TShirt#'3500 => all T-shirt with boxes with a length of 35cm.
       TShirt#'RED  => all red T-shirt (with a content of Red)
+<h3>
+  <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-box-attributes">
+     Box attributes
+<div.pre.collapse id=info-section-box-attributes>
+  Certain attributes like the current location or orientation of a box can be used to set a new tag
+  with the corresponding value. The following attributes are available.
+  <ul>
+    <li> $location # current location
+    <li> $orientation # current orientation
+
+  Example
+  <pre>
+    /pending,loc=$location  => All boxes in the pending location will be tagged with "loc=pending".
 |]
 
 renderView :: FormParam -> Handler TypedContent
