@@ -496,7 +496,7 @@ newBox style content dim or shelf ors tags = do
     warehouse <- get
     let tags' = case content of
           "" -> tags
-          _ -> ('\'':content):tags
+          _ -> ('\'':content): map (map replaceSlash) tags
     -- create tag of dimension
         dtags = [dshow 'l' dLength, dshow 'w' dWidth, dshow 'h' dHeight]
         dshow c f = '\'' : c : show (floor $ 100 * f dim)
@@ -802,8 +802,8 @@ updateBoxTags' tags box = let
 updateBoxTags :: [[Char]] -> Box s -> WH (Box s) s
 updateBoxTags tags0 box = do
   -- remove '''
-  let tags1 = map (map replaceSlash) tags0
-  tags <- mapM (expandAttribute box) tags1
+  tags1 <- mapM (expandAttribute box) tags0
+  let tags = map (map replaceSlash) tags1
   updateBox (updateBoxTags' $ filter (not . null) tags) box
 
 -- | Box attribute can be used to create new tag
