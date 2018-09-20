@@ -285,9 +285,7 @@ If the first word of a section is one of the valid section name, the whole conte
   can be selecting boxes by tags and locations (as well as location tag). The format of a box selector is the following
 
   <pre>
-    style pattern <b>#</b> tag <b>/</b>/ location pattern <b>#</b> location tag
-
-  Note that glob pattern only applies to style and location but not to tags.
+    style pattern <b>#</b> tag(s) pattern <b>/</b>/ location pattern <b>#</b> location tag
 
   Example
   <pre>
@@ -300,7 +298,7 @@ If the first word of a section is one of the valid section name, the whole conte
   <ul>
     <li>
       <h4> Glob pattern
-      When selecting boxes or shelves, wildcard can be used to match the name of the box or the shelf using
+      When selecting boxes or shelves, wildcard can be used to match the name and the tags of the box or the shelf using
       <a href="https://en.wikipedia.org/wiki/Glob_(programming)">UNIX glob pattern</a>.
       The <code>|</code> operator can also be used to give a list of alternatives.
       Example, given the location
@@ -343,7 +341,7 @@ If the first word of a section is one of the valid section name, the whole conte
       A glob pattern on the name of the shelf.
     <li>
       <h4> Location tag
-      A tag to select a shelf.
+      A glob pattern on the tag to select a shelf.
     <li>
       <h4> number restriction
       The <code>^</code> symbol is used to select only a certain number of boxes per variation/content, per shelf, and in total

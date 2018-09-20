@@ -356,17 +356,20 @@ filterBoxByTag tagM box =  filterByTag tagM (boxTags box)
 
 -- | all tags from the left must belong to the right
 -- ex if box as tag A B C, A#B should match but not A#E
+filterByTag :: Maybe [Char] -> [[Char]] -> Bool
 filterByTag Nothing names = True
 filterByTag _ [] = False
-filterByTag (Just tag) names = let
-  tags = map ok $ splitOn "#" tag
+filterByTag (Just selector) tags = let
+  selectors = map ok $ splitOn "#" selector
   ok ('-':t) = Left t
   ok t = Right t
-  on = rights tags
-  off = lefts tags
-  in  length (on \\ names) == 0 -- all tags are found
-     && length (off \\ names) == length off -- not negative tags are found
-
+  on = rights selectors
+  off = lefts selectors
+  matchers ss = map (Glob.match . Glob.compile) ss
+  -- each selector must be matched
+  selectorMatched matcher = any matcher tags 
+  in all selectorMatched (matchers on) -- 
+     && not (any selectorMatched (matchers off))
 
 patternToMatchers :: String -> [(String -> Bool)]
 patternToMatchers "" = [const True]
