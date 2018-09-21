@@ -252,6 +252,14 @@ data SStatement = SStatement
   , _stAccount :: String
   , _stTrans :: [STransaction]
   } deriving (Eq, Show)
+
+sToS :: STransaction -> Int -> HStatement
+sToS STransaction{..} pos = HStatement
+         _stDate
+         _stDescription
+         _stAmount
+         pos
+         
 -- ** Parsec parser
 
 -- parseSStatment :: P.Parsec s u SStatement
@@ -377,12 +385,15 @@ readStatment path = do
         decodePaypal = case decodeByName csv of
           Left e -> Left e
           Right (_, v) -> Right $ V.map (\bf i -> pToS (bf i)) v
-    case decodePaypal <|> decodeHSBC of
+        decodeSantander = case P.parse parseSStatement path csv of
+          Left  e -> Left $ show e
+          Right s -> let htranss  = map sToS (_stTrans s)
+                     in Right (V.fromList htranss)
+    case decodePaypal <|> decodeHSBC <|> decodeSantander of
         Left s -> error $ "can't parse Statement:" ++ path ++ "\n" ++ s
         Right v -> return $ V.imap (\i f -> f (-i)) v -- Statements appears with
         -- the newest transaction on top, ie by descending date.
         -- transactions needs therefore to be numered in reverse order
-
 
 -- * Main functions
 --  | Group transaction of different source by amounts.
