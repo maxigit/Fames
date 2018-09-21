@@ -140,12 +140,11 @@ instance FromNamedRecord (Int -> FATransaction) where
                 <*> pure Nothing
 
 -- | Read from DB
-fetchFA :: SQL.ConnectInfo -> Int -> Maybe Day -> Maybe Day -> IO (Vector FATransaction)
+fetchFA :: SQL.ConnectInfo -> Int -> Maybe Day -> Maybe Day -> IO [FATransaction]
 fetchFA cinfo bankAccount startM endM = do
     conn <- SQL.connect cinfo
     (_, results) <- mapAccumL tupleToFATransaction (0,1) <$> SQL.query_ conn (fromString q)
-    return $ V.fromList results
-
+    return results
     where q0 = "SELECT type, trans_no, ref, trans_date, CAST(person_id as CHAR(100)), amount, reconciled"
                          ++ " FROM 0_bank_trans"
                          ++ " WHERE amount <> 0 AND bank_act = "  ++ show bankAccount
@@ -317,19 +316,19 @@ parseAttribute field = do
 -- from statement 1. (We then start from latest statement to the oldest). However
 -- official statement works the other way.
 --
-mergeTrans :: Vector HSBCTransactions -> [Vector HSBCDaily] -> Vector HSBCTransactions
-mergeTrans hs sss | V.null hs = V.concat $ map (V.map dailyToHTrans) sss 
+mergeTrans :: [HSBCTransactions] -> [[HSBCDaily]] -> [HSBCTransactions]
+mergeTrans hs sss | null hs = concat $ map (map dailyToHTrans) sss 
 mergeTrans hs sss = let
-  lastHDate = V.maximum (fmap _hDate hs)
+  lastHDate = maximum (fmap _hDate hs)
   -- list of pair, statement and it starting date
-  datedStatement :: [(Vector HSBCDaily, Maybe Day)]
-  datedStatement = zip sss (map (\vs -> Just (V.minimum (fmap _hsDate vs))) sss)
+  datedStatement :: [([HSBCDaily], Maybe Day)]
+  datedStatement = zip sss (map (\vs -> Just (minimum (fmap _hsDate vs))) sss)
 
   orderedStatements = (sortBy (comparing snd) datedStatement)
 
-  filteredStatements :: [Vector HSBCDaily]
+  filteredStatements :: [[HSBCDaily]]
   filteredStatements =
-    zipWith (\(ss,_) (_,d) -> V.filter (\s -> filterStatement s d
+    zipWith (\(ss,_) (_,d) -> filter (\s -> filterStatement s d
                                               && _hsDate s > lastHDate
                                        )
                               ss
@@ -341,47 +340,47 @@ mergeTrans hs sss = let
   filterStatement s (Just d) = _hsDate s < d
 
 
-  filteredTransaction = map (V.map dailyToHTrans) filteredStatements
+  filteredTransaction = map (map dailyToHTrans) filteredStatements
   -- in V.concat filteredTransaction
-  in V.concat (hs:filteredTransaction)
+  in concat (hs:filteredTransaction)
 
 -- ** Read functions
 
 
-readCsv :: FromNamedRecord (Int -> r) => String -> IO (Vector r)
+readCsv :: FromNamedRecord (Int -> r) => String -> IO ([r])
 readCsv path =  do
     records <-  readCsv' path
     case records of
         Left s -> error $ "can't parse file:" ++ path ++ "\n"  ++ s
         Right v -> return v
 
-readCsv' :: FromNamedRecord (Int -> r) => String -> IO (Either String (Vector r))
+readCsv' :: FromNamedRecord (Int -> r) => String -> IO (Either String [r])
 readCsv' path = do
     csv' <- BL.readFile path
     let csv = stripUtf8Bom csv'
     return $ case decodeByName csv of
         Left s -> Left s
-        Right (h,v) -> Right $ V.imap (&) v
+        Right (h,v) -> Right . V.toList $ V.imap (&) v
 
 -- | Remove Byte order Mark if necessary
 stripUtf8Bom :: BL.ByteString -> BL.ByteString
 stripUtf8Bom bs = fromMaybe bs (BL.stripPrefix "\239\187\191" bs)    
 
-readFATransaction :: String -> IO (Vector FATransaction)
+readFATransaction :: String -> IO [FATransaction]
 readFATransaction = readCsv
 -- |
-readHSBCTransactions :: String -> IO (Vector HSBCTransactions)
+readHSBCTransactions :: String -> IO [HSBCTransactions]
 readHSBCTransactions path = do
     hs <- readCsv' path
-    ps <- readCsv' path :: IO (Either String (Vector PaypalTransaction))
-    let phs = fmap (V.map (dailyToHTrans . pToS)) ps :: Either String (Vector HSBCTransactions)
+    ps <- readCsv' path :: IO (Either String [PaypalTransaction])
+    let phs = fmap (map (dailyToHTrans . pToS)) ps :: Either String [HSBCTransactions]
     case hs <|> phs  of
       Left s -> error $ "can't parse Transactions:" ++ path ++ "\n" ++ s
       Right v -> return v
       
 
 -- | Try to read Paypal or HSBC statements
-readDaily:: String -> IO (Vector HSBCDaily)
+readDaily:: String -> IO [HSBCDaily]
 readDaily path = do
     csv <- BL.readFile path
     let decodeHSBC = decode NoHeader csv
@@ -394,7 +393,7 @@ readDaily path = do
                      in Right (V.fromList htranss)
     case decodePaypal <|> decodeHSBC <|> decodeSantander of
         Left s -> error $ "can't parse Statement:" ++ path ++ "\n" ++ s
-        Right v -> return $ V.imap (\i f -> f (-i)) v -- Statements appears with
+        Right v -> return . V.toList $ V.imap (\i f -> f (-i)) v -- Statements appears with
         -- the newest transaction on top, ie by descending date.
         -- transactions needs therefore to be numered in reverse order
 
@@ -402,8 +401,8 @@ readDaily path = do
 --  | Group transaction of different source by amounts.
 -- reconciliate :: Vector HSBCTransactions -> Vector FATransaction -> Map Amount (These [HSBCTransactions] [FATransaction])
 reconciliate hsbcs fas = align groupH groupF where
-    groupH = groupBy _hAmount (V.toList hsbcs)
-    groupF = groupBy _fAmount (V.toList fas)
+    groupH = groupBy _hAmount hsbcs
+    groupF = groupBy _fAmount fas
 
 groupBy :: Ord k => (a -> k) -> [a] -> Map k [a]
 groupBy k as = Map.fromListWith (++) as' where
@@ -545,7 +544,7 @@ data Options = Options
 data FaMode = BankAccountId Int deriving (Show, Read, Eq)
 
 -- ** Main body
-readFa :: Options -> IO (Vector FATransaction)
+readFa :: Options -> IO [FATransaction]
 readFa opt  = case faMode opt of 
     BankAccountId i -> do 
                 fetchFA (faCredential opt) i <$> startDate <*> endDate $ opt
@@ -566,12 +565,12 @@ filterDate sDate eDate opt = reduceWith appEndo $ catMaybes
 
 loadAllTrans :: Options -> IO ([(Amount, These [HSBCTransactions] [FATransaction])], [HSBCTransactions])
 loadAllTrans opt = do
-    hs <- V.concat <$> (mapM readHSBCTransactions =<< glob (statementFiles opt))
+    hs <- (mapM readHSBCTransactions =<< glob (statementFiles opt))
     sss <- mapM readDaily =<<  glob (dailyFiles opt)
     fas <- readFa opt
-    let hss = hs `mergeTrans` sss 
+    let hss = concat hs `mergeTrans` sss 
         ths = reconciliate hss fas
-    return $ (bads (aggregateMode opt) ths, V.toList hss)
+    return $ (bads (aggregateMode opt) ths, hss)
   
 -- | finishes the zip work by get a list of possible pair
 rezip :: These [HSBCTransactions] [FATransaction] -> [These HSBCTransactions FATransaction]
