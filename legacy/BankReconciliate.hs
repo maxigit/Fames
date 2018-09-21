@@ -42,6 +42,7 @@ import Data.Ord (comparing)
 import Data.String
 import Data.Time(Day, parseTimeM, formatTime, diffDays, addDays)
 import Data.Time.Format(defaultTimeLocale)
+import Data.Char(isSpace, isAscii)
 
 import GHC.Generics
 
@@ -53,6 +54,8 @@ import qualified Database.MySQL.Simple.QueryResults as SQL
 import Prelude hiding(read)
 import Text.Read(readMaybe)
 import Debug.Trace
+import qualified Text.Parsec as P
+-- import qualified Text.Parsec.Char as P
 
 read s = case readMaybe s of
   Nothing -> error $ "can't read ["   ++ s ++ "]"
@@ -84,10 +87,12 @@ instance ToField Day where
 
 
 readTime :: [String ]-> String -> Day
-readTime formats str= case concat $ map (parseTimeM True defaultTimeLocale) formats <*> [str] of
-  [] -> error $ "can't parse time : " ++ str
-  [date] -> date
-  _ -> error $ "ambiguous parsing for time : " ++ str
+readTime formats s = either error id (readTimeE formats s)
+readTimeE :: [String ]-> String -> Either String Day
+readTimeE formats str= case concat $ map (parseTimeM True defaultTimeLocale) formats <*> [str] of
+  [] -> Left $ "can't parse time : " ++ str
+  [date] -> Right date
+  _ -> Left $ "ambiguous parsing for time : " ++ str
 
 parseDebit debit credit r = do
     dAmount <- r .: debit
@@ -232,6 +237,61 @@ pToS = HStatement <$> _pDate
                   <*> _pName
                   <*> _pGross
                   <*> _pDayPos
+-- | Santander Statement
+data STransaction = STransaction
+     { _stDate :: Day
+     , _stDescription :: String
+     , _stAmount :: Amount
+     , _stBalance :: Amount
+     } deriving (Eq, Show)
+
+data SStatement = SStatement
+  { _stFrom :: Day
+  , _stTo :: Day
+  , _stAccount :: String
+  , _stTrans :: [STransaction]
+  } deriving (Eq, Show)
+-- ** Parsec parser
+
+-- parseSStatment :: P.Parsec s u SStatement
+parseSStatment = do
+  -- date
+  from <- parseAttribute "From:"
+  to <- parseAttribute "to"
+  -- account
+  P.spaces >> P.endOfLine
+  account <- parseAttribute "Account:"
+  trans <- many parseSTransaction
+  return $ SStatement from to account trans
+
+parseSTransaction = do
+  P.spaces
+  date <- parseAttribute "Date:"
+  desc <- parseAttribute "Description:"
+  amount <- parseAttribute "Amount:"
+  balance <- parseAttribute "Balance:"
+  return $ STransaction date desc amount balance
+
+-- parseAttribute :: Read a => String -> P.Parsec s u a
+
+nonSpace = P.satisfy $ liftA2 (&&) isAscii  (not . isSpace)
+skippable = P.satisfy $ liftA2 (||) isSpace (not . isAscii)
+parseAttribute field = do
+  P.string field >> P.many skippable
+  v <- P.many1 nonSpace
+  case readMaybe v of
+    Nothing -> error $ "Can't convert " ++ show v ++ "to a " ++ field
+    Just v -> do
+      P.spaces
+      return v
+  
+
+
+
+
+  
+
+
 -- | We need to merge transaction comming from the official statements (HTrans)
 -- and from the dailys statements STrans.
 -- The problem is to remove duplicates between the files.
@@ -518,3 +578,4 @@ thatFirst (This a) = a
 thatFirst (That a) = a
 thatFirst (These a b) = b { _sNumber = _sNumber b, _sObject = _sObject b}
 
+  

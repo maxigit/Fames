@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-missing-signatures -fno-warn-unused-binds #-}
 {-# LANGUAGE QuasiQuotes#-}
-module Handler.WHBoxkAdjustmenSpec where
+module Handler.WHBoxtake.AdjustementSpec where
 import TestImport
 
 spec :: Spec

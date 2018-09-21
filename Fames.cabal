@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b7842894b5cb9a3069064e79b57c9a259705ed71d6299fdf97b91e898b07ec1e
+-- hash: df2ee189b05a1887f32221efda53ef88f21ac653bd391f825209c7fb76bcba60
 
 name:           Fames
 version:        0.0.1
@@ -451,6 +451,7 @@ test-suite ghcid
       Handler.WHStocktakeSpec
       Items.CategorySpec
       Items.InternalSpec
+      Legacy.BankReconciliateSpec
       Planner.InternalSpec
       RoleSpec
       TestImport
@@ -671,6 +672,7 @@ test-suite test
       Handler.WHStocktakeSpec
       Items.CategorySpec
       Items.InternalSpec
+      Legacy.BankReconciliateSpec
       Planner.InternalSpec
       RoleSpec
       TestImport

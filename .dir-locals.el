@@ -5,9 +5,10 @@
   (hamlet/basic-offset . 4)
   (haskell-process-use-ghci . t))
  (haskell-mode
-  (intero-targets "Fames:lib")
+  (intero-targets "Fames:lib" "Fames:test:test")
   (haskell-indent-spaces . 4)
   (haskell-process-use-ghci . t)))
+
 
 
 
