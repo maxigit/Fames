@@ -172,7 +172,7 @@ data HSBCTransactions = HSBCTransactions
     , _hType :: !String
     , _hDescription ::  !String
     , _hAmount :: !Amount
-    , _hBalance :: !String
+    , _hBalance :: !Amount
     , _hDayPos :: !Int -- ^ position unique within a day, but doesn't have to start a one.
     } deriving (Show, Read, Eq, Ord)
 
@@ -206,12 +206,12 @@ instance FromRecord (Int -> HSBCDaily) where
                                <*> r .! 1
                                <*> r .! 2
 
-sToH :: HSBCDaily -> HSBCTransactions
-sToH = HSBCTransactions <$> _hsDate
+dailyToHTrans :: HSBCDaily -> HSBCTransactions
+dailyToHTrans = HSBCTransactions <$> _hsDate
               <*> pure "Statement"
               <*> _hsDescription
               <*> _hsAmount
-              <*> pure ""
+              <*> pure (error " need balance")
               <*> _hsDayPos
 
 -- | Paypal Statement
@@ -318,7 +318,7 @@ parseAttribute field = do
 -- official statement works the other way.
 --
 mergeTrans :: Vector HSBCTransactions -> [Vector HSBCDaily] -> Vector HSBCTransactions
-mergeTrans hs sss | V.null hs = V.concat $ map (V.map sToH) sss 
+mergeTrans hs sss | V.null hs = V.concat $ map (V.map dailyToHTrans) sss 
 mergeTrans hs sss = let
   lastHDate = V.maximum (fmap _hDate hs)
   -- list of pair, statement and it starting date
@@ -341,7 +341,7 @@ mergeTrans hs sss = let
   filterStatement s (Just d) = _hsDate s < d
 
 
-  filteredTransaction = map (V.map sToH) filteredStatements
+  filteredTransaction = map (V.map dailyToHTrans) filteredStatements
   -- in V.concat filteredTransaction
   in V.concat (hs:filteredTransaction)
 
@@ -374,7 +374,7 @@ readHSBCTransactions :: String -> IO (Vector HSBCTransactions)
 readHSBCTransactions path = do
     hs <- readCsv' path
     ps <- readCsv' path :: IO (Either String (Vector PaypalTransaction))
-    let phs = fmap (V.map (sToH . pToS)) ps :: Either String (Vector HSBCTransactions)
+    let phs = fmap (V.map (dailyToHTrans . pToS)) ps :: Either String (Vector HSBCTransactions)
     case hs <|> phs  of
       Left s -> error $ "can't parse Transactions:" ++ path ++ "\n" ++ s
       Right v -> return v
@@ -478,14 +478,15 @@ instance ToField TSource where
 
 data Transaction = Transaction
     { _sAmount :: !Amount
-    , _sSource :: TSource
+    , _sSource :: TSource -- ^ FA or bank 
     , _sDate :: !Day
-    , _sType :: !String
+    , _sType :: !String -- ^
     , _sDescription :: !String
-    , _sNumber :: !(Maybe Int)
-    , _sObject :: !(Maybe String)
-    , _sDayPos :: !Int
+    , _sNumber :: !(Maybe Int) -- ^ id in FA
+    , _sObject :: !(Maybe String) -- ^ Customer or Supplier in FA
+    , _sDayPos :: !Int -- ^ Used to sort transaction 
     , _sRecDate :: !(Maybe Day)
+    , _sBalance :: !(Maybe Amount) -- ^ Balance if provide
     } deriving (Show, Read, Generic)
 
 
@@ -502,6 +503,7 @@ hsbcTransToTransaction h = pure Transaction
         <*> pure Nothing
         <*> _hDayPos
         <*> pure Nothing
+        <*> (Just <$> _hBalance)
         $ h
 
 -- ** Converters between input transactions and summaries.b
@@ -516,6 +518,7 @@ faTransToTransaction f = pure Transaction
                 <*> fmap Just _fObject
                 <*> _fPosition
                 <*> _fRecDate
+                <*> (Just <$>_fBalance)
                 $ f
 
 buildTransactions :: These [HSBCTransactions] [FATransaction] -> [Transaction]
