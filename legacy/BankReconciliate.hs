@@ -37,7 +37,7 @@ import Data.Text (strip)
 
 import System.FilePath.Glob (glob)
 import Data.Decimal
-import Data.List (sortBy, minimumBy, maximumBy, foldl', mapAccumL, nub)
+import Data.List (sortBy, minimumBy, maximumBy, foldl', mapAccumL, nub, dropWhileEnd)
 import Data.Ord (comparing)
 import Data.String
 import Data.Time(Day, parseTimeM, formatTime, diffDays, addDays)
@@ -89,7 +89,8 @@ instance ToField Day where
 readTime :: [String ]-> String -> Day
 readTime formats s = either error id (readTimeE formats s)
 readTimeE :: [String ]-> String -> Either String Day
-readTimeE formats str= case concat $ map (parseTimeM True defaultTimeLocale) formats <*> [str] of
+readTimeE formats str= traceShow ("E", str, r) r where
+ r = case concat $ map (parseTimeM True defaultTimeLocale) formats <*> [str] of
   [] -> Left $ "can't parse time : " ++ str
   [date] -> Right date
   _ -> Left $ "ambiguous parsing for time : " ++ str
@@ -254,36 +255,39 @@ data SStatement = SStatement
 -- ** Parsec parser
 
 -- parseSStatment :: P.Parsec s u SStatement
-parseSStatment = do
+parseSStatement = do
+  P.spaces
   -- date
-  from <- parseAttribute "From:"
-  to <- parseAttribute "to"
+  from <- either fail return . (readTimeE ["%e/%m/%Y"]) =<< parseAttribute "From:"
+  to <- either fail return . (readTimeE ["%e/%m/%Y"]) =<< parseAttribute "to"
   -- account
-  P.spaces >> P.endOfLine
   account <- parseAttribute "Account:"
+  -- transactions
   trans <- many parseSTransaction
   return $ SStatement from to account trans
 
 parseSTransaction = do
   P.spaces
-  date <- parseAttribute "Date:"
-  desc <- parseAttribute "Description:"
-  amount <- parseAttribute "Amount:"
-  balance <- parseAttribute "Balance:"
+  date <- either fail return . (readTimeE ["%e/%m/%Y"]) =<< parseAttribute "Date:"
+  desc <- fmap (dropWhile isSpace . dropWhileEnd isSpace ) (parseAttribute "Description:")
+  amount <-  maybe (fail "Can't read amount") (return . normalizeDecimal) . readMaybe =<< parseAttribute "Amount:"
+  balance <- maybe (fail "Can't read amount") (return . normalizeDecimal) . readMaybe =<< parseAttribute "Balance:"
   return $ STransaction date desc amount balance
-
 -- parseAttribute :: Read a => String -> P.Parsec s u a
 
 nonSpace = P.satisfy $ liftA2 (&&) isAscii  (not . isSpace)
 skippable = P.satisfy $ liftA2 (||) isSpace (not . isAscii)
+-- parseAttribute :: String -> P.Parsec s u String
 parseAttribute field = do
   P.string field >> P.many skippable
-  v <- P.many1 nonSpace
-  case readMaybe v of
-    Nothing -> error $ "Can't convert " ++ show v ++ "to a " ++ field
-    Just v -> do
-      P.spaces
-      return v
+  v <- P.many1 (P.satisfy $ \c -> isAscii c && c /= '\n' && c /= '\r')
+  P.many1 skippable
+  return v
+  -- case readMaybe v of
+  --   Nothing -> error $ "Can't convert " ++ show v ++ " to a " ++ field
+  --   Just v' -> do
+  --     P.many skippable
+  --     return v'
   
 
 
