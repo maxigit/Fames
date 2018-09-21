@@ -147,9 +147,9 @@ displaySummary :: Day -> _DB -> Text -> Text ->  BankStatementSettings -> Handle
 displaySummary today dbConf faURL title BankStatementSettings{..}= do
   object <- getObjectH
   let options = B.Options{..}
-      hsbcFiles = unpack bsStatementGlob
+      statementFiles = unpack bsStatementGlob
       faCredential = myConnInfo dbConf
-      statementFiles = unpack bsDailyGlob
+      dailyFiles = unpack bsDailyGlob
       output = ""
       startDate = bsStartDate
       endDate = Nothing -- Just today
@@ -187,9 +187,9 @@ displayLightSummary :: Day -> _DB -> Text -> Text ->  BankStatementSettings -> H
 displayLightSummary today dbConf faURL title BankStatementSettings{..}= do
   object <- getObjectH
   let options = B.Options{..}
-      hsbcFiles = unpack bsStatementGlob
+      statementFiles = unpack bsStatementGlob
       faCredential = myConnInfo dbConf
-      statementFiles = unpack bsDailyGlob
+      dailyFiles = unpack bsDailyGlob
       output = ""
       startDate = bsStartDate
       endDate = Nothing -- Just today
@@ -217,14 +217,14 @@ displayLightSummary today dbConf faURL title BankStatementSettings{..}= do
                      |]
 
 -- | Only keep transactions in which aren not in the black list
-keepLight :: [String] -> B.STrans -> Bool
+keepLight :: [String] -> B.Transaction -> Bool
 keepLight blacklist tr = B._sAmount tr >0
                          && not (blacklisted (B._sDescription tr))
                          && B._sSource tr == B.HSBC
                          where blacklisted s = any (s =~) blacklist
 
 
-linkToFA :: (FATransType -> Int -> Text) -> B.STrans -> Html
+linkToFA :: (FATransType -> Int -> Text) -> B.Transaction -> Html
 linkToFA urlForFA' trans = case (readMay (B._sType trans), B._sNumber trans) of
   (Just t, Just no) | B._sSource trans == B.FA ->
            let eType = toEnum t
@@ -235,7 +235,7 @@ linkToFA urlForFA' trans = case (readMay (B._sType trans), B._sNumber trans) of
        |]
   _ -> toHtml (B._sType trans)
 
-renderTransactions :: (B.STrans -> Maybe Text) -> Text -> [B.STrans] -> (B.STrans -> [Text]) -> Maybe Text -> (B.STrans -> Bool) -> Widget
+renderTransactions :: (B.Transaction -> Maybe Text) -> Text -> [B.Transaction] -> (B.Transaction -> [Text]) -> Maybe Text -> (B.Transaction -> Bool) -> Widget
 renderTransactions object faURL sorted mkClasses totalTitle danger = 
       let (ins, outs) = partition (> 0) (map B._sAmount sorted)
           inTotal = sum ins
@@ -302,9 +302,9 @@ displayDetailsInPanel account BankStatementSettings{..} = do
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
   object <- getObjectH
   let options = B.Options{..}
-      hsbcFiles = unpack bsStatementGlob
+      statementFiles = unpack bsStatementGlob
       faCredential = myConnInfo dbConf
-      statementFiles = unpack bsDailyGlob
+      dailyFiles = unpack bsDailyGlob
       output = ""
       startDate = bsStartDate
       endDate = Nothing -- Just today
@@ -370,9 +370,9 @@ renderReconciliate account param = do
   object <- getObjectH
   BankStatementSettings{..} <- settingsFor account
   let options = B.Options{..}
-      hsbcFiles = unpack bsStatementGlob
+      statementFiles = unpack bsStatementGlob
       faCredential = myConnInfo dbConf
-      statementFiles = unpack bsDailyGlob
+      dailyFiles = unpack bsDailyGlob
       output = ""
       startDate = bsStartDate
       endDate = Nothing -- Just today
@@ -382,7 +382,7 @@ renderReconciliate account param = do
   (hts,_) <- lift $ withCurrentDirectory bsPath (B.loadAllTrans options)
   let byDays = B.badsByDay hts
       -- group by rec
-      st'sts = filter transFilter $ map (bimap B.hToS B.fToS)  byDays
+      st'sts = filter transFilter $ map (bimap B.hsbcTransToTransaction B.faTransToTransaction)  byDays
       recGroup = groupAsMap (B._sRecDate . B.thatFirst) (:[]) st'sts
       -- exclude a pair if both date are outside the range
       transFilter t | d <- mergeTheseWith B._sDate B._sDate max t,   Just start <- bsStartDate, d < start = False
@@ -443,7 +443,7 @@ renderReconciliate account param = do
         <button.btn.btn-warning name=action value="reconciliate">Save
             |]
   
-displayRecGroup :: (These B.STrans B.STrans -> Bool) -> Text -> (B.STrans -> Maybe Text) -> (Maybe Day, [These B.STrans B.STrans]) -> Widget
+displayRecGroup :: (These B.Transaction B.Transaction -> Bool) -> Text -> (B.Transaction -> Maybe Text) -> (Maybe Day, [These B.Transaction B.Transaction]) -> Widget
 displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
   st'sts = sortOn (((,) <$> B._sDate <*> B._sDayPos) . B.thisFirst) st'sts0
   title = maybe "" tshow recDateM
@@ -507,7 +507,7 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
   in displayPanel ("primary") False title widget
 
 -- | Computes the checkbox prefix for a transaction.
-faId :: B.STrans -> Text
+faId :: B.Transaction -> Text
 faId strans = let
   prefix = if isJust (B._sRecDate strans)
            then "rec-"
@@ -565,7 +565,7 @@ unsetRecDate bankAccount transIds = do
 
   -- get all ids
 
-getObject :: Map Text Text -> Map Text Text -> B.STrans -> Maybe Text
+getObject :: Map Text Text -> Map Text Text -> B.Transaction -> Maybe Text
 getObject customerMap supplierMap trans = do -- Maybe
   object <- pack <$> B._sObject trans
   let mapped = case toEnum <$> readMay (B._sType trans) of
@@ -574,7 +574,7 @@ getObject customerMap supplierMap trans = do -- Maybe
                  _ -> Nothing
   return . decodeHtmlEntities $ fromMaybe object mapped
 
-getObjectH :: Handler (B.STrans -> Maybe Text)
+getObjectH :: Handler (B.Transaction -> Maybe Text)
 getObjectH = do
   customerMap' <- allCustomers False
   supplierMap' <- allSuppliers False

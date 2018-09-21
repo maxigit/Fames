@@ -114,7 +114,7 @@ parseDebit debit credit r = do
 -- ** Basic types
 -- Each type corresponds to a different input format.
 -- | Transaction from FA statement report.
-data FTrans = FTrans
+data FATransaction = FATransaction
        { _fType        :: !String
        , _fNumber      :: !Int
        , _fReference   :: !String
@@ -126,10 +126,10 @@ data FTrans = FTrans
        , _fPosition    :: !Int -- ^ position
        } deriving (Show, Read, Eq, Ord)
 
-makeClassy ''FTrans
+makeClassy ''FATransaction
 
-instance FromNamedRecord (Int -> FTrans) where
-    parseNamedRecord r = pure FTrans
+instance FromNamedRecord (Int -> FATransaction) where
+    parseNamedRecord r = pure FATransaction
                 <*> r .: "Type"
                 <*> r .: "#"
                 <*> r .: "Reference"
@@ -140,10 +140,10 @@ instance FromNamedRecord (Int -> FTrans) where
                 <*> pure Nothing
 
 -- | Read from DB
-fetchFA :: SQL.ConnectInfo -> Int -> Maybe Day -> Maybe Day -> IO (Vector FTrans)
+fetchFA :: SQL.ConnectInfo -> Int -> Maybe Day -> Maybe Day -> IO (Vector FATransaction)
 fetchFA cinfo bankAccount startM endM = do
     conn <- SQL.connect cinfo
-    (_, results) <- mapAccumL tupleToFTrans (0,1) <$> SQL.query_ conn (fromString q)
+    (_, results) <- mapAccumL tupleToFATransaction (0,1) <$> SQL.query_ conn (fromString q)
     return $ V.fromList results
 
     where q0 = "SELECT type, trans_no, ref, trans_date, CAST(person_id as CHAR(100)), amount, reconciled"
@@ -161,13 +161,13 @@ fetchFA cinfo bankAccount startM endM = do
                    ]
           format d = formatTime defaultTimeLocale "%F" d
 
-          tupleToFTrans :: (Amount, Int) ->  (Int, Int, String, Day, String, Double, Maybe Day) -> ((Amount, Int), FTrans)
-          tupleToFTrans (bal,pos) (t,n,r,d,o,a,rd) = ((bal',pos+1), FTrans (show t) n r d o a' bal' rd pos)
+          tupleToFATransaction :: (Amount, Int) ->  (Int, Int, String, Day, String, Double, Maybe Day) -> ((Amount, Int), FATransaction)
+          tupleToFATransaction (bal,pos) (t,n,r,d,o,a,rd) = ((bal',pos+1), FATransaction (show t) n r d o a' bal' rd pos)
             where bal' = bal+a'
                   a' = roundTo 2 $ read . show $ a
 
 -- | HSBC Transaction
-data HTrans = HTrans
+data HSBCTransactions = HSBCTransactions
     { _hDate :: !Day
     , _hType :: !String
     , _hDescription ::  !String
@@ -176,35 +176,38 @@ data HTrans = HTrans
     , _hDayPos :: !Int -- ^ position unique within a day, but doesn't have to start a one.
     } deriving (Show, Read, Eq, Ord)
 
-makeClassy ''HTrans
+makeClassy ''HSBCTransactions
 
-instance FromNamedRecord (Int -> HTrans) where
-    parseNamedRecord r = pure HTrans
+instance FromNamedRecord (Int -> HSBCTransactions) where
+    parseNamedRecord r = pure HSBCTransactions
       <*> (readTime ["%e-%b-%y", "%e %b %0Y"] <$> r .: "Date")
          <*> r .: "Type"
          <*> r .: "Description"
          <*> parseDebit "Paid in" "Paid out" r -- opposite to HSBC
          <*> r .: "Balance"
 
--- | HSBC Statement. This data type is only used to read the statements
--- file and to be converted into an HTrans.
+-- | HSBC Transaction (transaction download). Doesn't contain a balance
+-- This data type is only used to read the statement.csv file
+-- and to be converted into an HSBCTransactions.
+-- Even though the files are called statement, they are actually not
+-- statement as such and should not be mixed with real statement
 -- The attributes don't need to be strict
--- as the data will be converted to strict attributse (from HTrans)
+-- as the data will be converted to strict attributse (from HSBCTransactions)
 -- Not sure
-data HStatement = HStatement
+data HSBCDaily = HSBCDaily
     { _hsDate :: Day
     , _hsDescription :: String
     , _hsAmount :: Amount
     , _hsDayPos :: Int
     } deriving (Show, Read, Generic)
 
-instance FromRecord (Int -> HStatement) where
-    parseRecord r = HStatement <$> (readTime ["%e/%m/%Y"] <$> r .! 0)
+instance FromRecord (Int -> HSBCDaily) where
+    parseRecord r = HSBCDaily <$> (readTime ["%e/%m/%Y"] <$> r .! 0)
                                <*> r .! 1
                                <*> r .! 2
 
-sToH :: HStatement -> HTrans
-sToH = HTrans <$> _hsDate
+sToH :: HSBCDaily -> HSBCTransactions
+sToH = HSBCTransactions <$> _hsDate
               <*> pure "Statement"
               <*> _hsDescription
               <*> _hsAmount
@@ -213,7 +216,7 @@ sToH = HTrans <$> _hsDate
 
 -- | Paypal Statement
 -- data PStatus
-data PStatement = PStatement
+data PaypalTransaction = PaypalTransaction
      { _pDate :: Day
      , _pName :: String
      , _pType :: String
@@ -223,9 +226,9 @@ data PStatement = PStatement
      , _pDayPos :: Int -- not in CSV, order
      } deriving (Show, Read, Generic)
 
-makeClassy ''PStatement
-instance FromNamedRecord (Int -> PStatement) where
-  parseNamedRecord r = pure PStatement
+makeClassy ''PaypalTransaction
+instance FromNamedRecord (Int -> PaypalTransaction) where
+  parseNamedRecord r = pure PaypalTransaction
                 <*> (readTime ["%e/%m/%Y"] <$> r .: "Date")
                 <*> r .: " Name"
                 <*> r .: " Type"
@@ -233,28 +236,28 @@ instance FromNamedRecord (Int -> PStatement) where
                 <*> r .: " Currency"
                 <*> r .: " Net" -- we want the net not the gross , as the gross include fees
 
-pToS :: PStatement -> HStatement
-pToS = HStatement <$> _pDate
+pToS :: PaypalTransaction -> HSBCDaily
+pToS = HSBCDaily <$> _pDate
                   <*> _pName
                   <*> _pGross
                   <*> _pDayPos
 -- | Santander Statement
-data STransaction = STransaction
+data SantanderTransaction = SantanderTransaction
      { _stDate :: Day
      , _stDescription :: String
      , _stAmount :: Amount
      , _stBalance :: Amount
      } deriving (Eq, Show)
 
-data SStatement = SStatement
+data SantanderStatement = SantanderStatement
   { _stFrom :: Day
   , _stTo :: Day
   , _stAccount :: String
-  , _stTrans :: [STransaction]
+  , _stTrans :: [SantanderTransaction]
   } deriving (Eq, Show)
 
-sToS :: STransaction -> Int -> HStatement
-sToS STransaction{..} pos = HStatement
+sToS :: SantanderTransaction -> Int -> HSBCDaily
+sToS SantanderTransaction{..} pos = HSBCDaily
          _stDate
          _stDescription
          _stAmount
@@ -262,8 +265,8 @@ sToS STransaction{..} pos = HStatement
          
 -- ** Parsec parser
 
--- parseSStatment :: P.Parsec s u SStatement
-parseSStatement = do
+-- parseSStatment :: P.Parsec s u SantanderStatement
+parseSantanderStatement = do
   P.spaces
   -- date
   from <- either fail return . (readTimeE ["%e/%m/%Y"]) =<< parseAttribute "From:"
@@ -271,16 +274,16 @@ parseSStatement = do
   -- account
   account <- parseAttribute "Account:"
   -- transactions
-  trans <- many parseSTransaction
-  return $ SStatement from to account trans
+  trans <- many parseSantanderTransaction
+  return $ SantanderStatement from to account trans
 
-parseSTransaction = do
+parseSantanderTransaction = do
   P.spaces
   date <- either fail return . (readTimeE ["%e/%m/%Y"]) =<< parseAttribute "Date:"
   desc <- fmap (dropWhile isSpace . dropWhileEnd isSpace ) (parseAttribute "Description:")
   amount <-  maybe (fail "Can't read amount") (return . normalizeDecimal) . readMaybe =<< parseAttribute "Amount:"
   balance <- maybe (fail "Can't read amount") (return . normalizeDecimal) . readMaybe =<< parseAttribute "Balance:"
-  return $ STransaction date desc amount balance
+  return $ SantanderTransaction date desc amount balance
 -- parseAttribute :: Read a => String -> P.Parsec s u a
 
 nonSpace = P.satisfy $ liftA2 (&&) isAscii  (not . isSpace)
@@ -304,8 +307,8 @@ parseAttribute field = do
   
 
 
--- | We need to merge transaction comming from the official statements (HTrans)
--- and from the dailys statements STrans.
+-- | We need to merge transaction comming from the official statements (HSBCTransactions)
+-- and from the dailys statements Transaction.
 -- The problem is to remove duplicates between the files.
 -- Using `nub` doesn't work as it will remove duplicates within the same file.
 -- This happens when a customer makes two payments of the same amount the same day.
@@ -314,17 +317,17 @@ parseAttribute field = do
 -- from statement 1. (We then start from latest statement to the oldest). However
 -- official statement works the other way.
 --
-mergeTrans :: Vector HTrans -> [Vector HStatement] -> Vector HTrans
+mergeTrans :: Vector HSBCTransactions -> [Vector HSBCDaily] -> Vector HSBCTransactions
 mergeTrans hs sss | V.null hs = V.concat $ map (V.map sToH) sss 
 mergeTrans hs sss = let
   lastHDate = V.maximum (fmap _hDate hs)
   -- list of pair, statement and it starting date
-  datedStatement :: [(Vector HStatement, Maybe Day)]
+  datedStatement :: [(Vector HSBCDaily, Maybe Day)]
   datedStatement = zip sss (map (\vs -> Just (V.minimum (fmap _hsDate vs))) sss)
 
   orderedStatements = (sortBy (comparing snd) datedStatement)
 
-  filteredStatements :: [Vector HStatement]
+  filteredStatements :: [Vector HSBCDaily]
   filteredStatements =
     zipWith (\(ss,_) (_,d) -> V.filter (\s -> filterStatement s d
                                               && _hsDate s > lastHDate
@@ -333,7 +336,7 @@ mergeTrans hs sss = let
                               )
             orderedStatements
             (tail orderedStatements ++ [(error "Shoudn't be evaluated", Nothing)])
-  filterStatement :: HStatement -> Maybe Day -> Bool
+  filterStatement :: HSBCDaily -> Maybe Day -> Bool
   filterStatement s Nothing = True
   filterStatement s (Just d) = _hsDate s < d
 
@@ -364,28 +367,28 @@ readCsv' path = do
 stripUtf8Bom :: BL.ByteString -> BL.ByteString
 stripUtf8Bom bs = fromMaybe bs (BL.stripPrefix "\239\187\191" bs)    
 
-readFTrans :: String -> IO (Vector FTrans)
-readFTrans = readCsv
+readFATransaction :: String -> IO (Vector FATransaction)
+readFATransaction = readCsv
 -- |
-readHTrans :: String -> IO (Vector HTrans)
-readHTrans path = do
+readHSBCTransactions :: String -> IO (Vector HSBCTransactions)
+readHSBCTransactions path = do
     hs <- readCsv' path
-    ps <- readCsv' path :: IO (Either String (Vector PStatement))
-    let phs = fmap (V.map (sToH . pToS)) ps :: Either String (Vector HTrans)
+    ps <- readCsv' path :: IO (Either String (Vector PaypalTransaction))
+    let phs = fmap (V.map (sToH . pToS)) ps :: Either String (Vector HSBCTransactions)
     case hs <|> phs  of
       Left s -> error $ "can't parse Transactions:" ++ path ++ "\n" ++ s
       Right v -> return v
       
 
 -- | Try to read Paypal or HSBC statements
-readStatment :: String -> IO (Vector HStatement)
-readStatment path = do
+readDaily:: String -> IO (Vector HSBCDaily)
+readDaily path = do
     csv <- BL.readFile path
     let decodeHSBC = decode NoHeader csv
         decodePaypal = case decodeByName csv of
           Left e -> Left e
           Right (_, v) -> Right $ V.map (\bf i -> pToS (bf i)) v
-        decodeSantander = case P.parse parseSStatement path csv of
+        decodeSantander = case P.parse parseSantanderStatement path csv of
           Left  e -> Left $ show e
           Right s -> let htranss  = map sToS (_stTrans s)
                      in Right (V.fromList htranss)
@@ -397,7 +400,7 @@ readStatment path = do
 
 -- * Main functions
 --  | Group transaction of different source by amounts.
--- reconciliate :: Vector HTrans -> Vector FTrans -> Map Amount (These [HTrans] [FTrans])
+-- reconciliate :: Vector HSBCTransactions -> Vector FATransaction -> Map Amount (These [HSBCTransactions] [FATransaction])
 reconciliate hsbcs fas = align groupH groupF where
     groupH = groupBy _hAmount (V.toList hsbcs)
     groupF = groupBy _fAmount (V.toList fas)
@@ -414,13 +417,13 @@ groupBy k as = Map.fromListWith (++) as' where
 data AggregateMode = DEBUG | ALL | TAIL | BEST | ALL_BEST  deriving (Show, Eq)
 
 -- | Remove all matching transactions and only keep the *bad* ones.
-bads :: AggregateMode ->  Map Amount (These [HTrans] [FTrans]) -> [(Amount, These [HTrans] [FTrans])]
+bads :: AggregateMode ->  Map Amount (These [HSBCTransactions] [FATransaction]) -> [(Amount, These [HSBCTransactions] [FATransaction])]
 bads mode m = let
     list = Map.toList m
     filtered = concatMap (goodM mode) list
     sorted = sortBy (comparing (negate.abs.fst)) filtered
     goodM mode (a, t) = (,) a <$> good mode t
-    good :: AggregateMode -> These [HTrans] [FTrans] -> [(These [HTrans] [FTrans])]
+    good :: AggregateMode -> These [HSBCTransactions] [FATransaction] -> [(These [HSBCTransactions] [FATransaction])]
     good DEBUG t = return t
     good mode (These hs0 fs0)
         | length hs == length fs && mode /= ALL_BEST = []
@@ -442,17 +445,17 @@ zipTail [] ys = ([], ys)
 zipTail xs [] = (xs, [])
 zipTail (x:xs) (y:ys) = zipTail xs ys
 
-distance :: HTrans -> FTrans -> Int
+distance :: HSBCTransactions -> FATransaction -> Int
 distance h f = abs .fromInteger $ diffDays (_hDate h) (_fDate f)
 
 -- | Like zipTail but try to match each transaction by date.
 -- To do so, we exclude the one with the greatest weight
 -- .i.e, the sum of distance to (by date)  to all
 -- also returns the matching pairs
-best :: [(HTrans, FTrans)] ->[HTrans] -> [FTrans]
-     -> ( [HTrans] --
-        , [FTrans] --
-        , [(HTrans, FTrans)] -- matching pairs
+best :: [(HSBCTransactions, FATransaction)] ->[HSBCTransactions] -> [FATransaction]
+     -> ( [HSBCTransactions] --
+        , [FATransaction] --
+        , [(HSBCTransactions, FATransaction)] -- matching pairs
         )
 best hfs [] fs = ([],fs, hfs)
 best hfs hs [] = (hs,[], hfs)
@@ -467,13 +470,13 @@ best hfs hs fs = if minDistance < 31
 
 -- * Output
 
--- | Summary, for the output. Sort of Either HTrans FTrans
+-- | Summary, for the output. Sort of Either HSBCTransactions FATransaction
 -- but exportable to CSV
 data TSource = HSBC | FA | Statement deriving (Show, Read, Eq)
 instance ToField TSource where
     toField f = toField (show f)
 
-data STrans = STrans
+data Transaction = Transaction
     { _sAmount :: !Amount
     , _sSource :: TSource
     , _sDate :: !Day
@@ -486,10 +489,10 @@ data STrans = STrans
     } deriving (Show, Read, Generic)
 
 
-instance ToNamedRecord STrans
-instance DefaultOrdered STrans
-hToS :: HTrans -> STrans
-hToS h = pure STrans
+instance ToNamedRecord Transaction
+instance DefaultOrdered Transaction
+hsbcTransToTransaction :: HSBCTransactions -> Transaction
+hsbcTransToTransaction h = pure Transaction
         <*> _hAmount
         <*> pure HSBC
         <*> _hDate
@@ -502,8 +505,8 @@ hToS h = pure STrans
         $ h
 
 -- ** Converters between input transactions and summaries.b
-fToS :: FTrans -> STrans
-fToS f = pure STrans
+faTransToTransaction :: FATransaction -> Transaction
+faTransToTransaction f = pure Transaction
                 <*> _fAmount
                 <*> pure FA
                 <*> _fDate
@@ -515,19 +518,19 @@ fToS f = pure STrans
                 <*> _fRecDate
                 $ f
 
-buildSTrans :: These [HTrans] [FTrans] -> [STrans]
-buildSTrans (This hs) = map hToS hs
-buildSTrans (That fs) = map fToS fs
-buildSTrans (These hs fs) = let
-    shs = map hToS hs
-    fhs = map fToS fs
+buildTransactions :: These [HSBCTransactions] [FATransaction] -> [Transaction]
+buildTransactions  (This hs) = map hsbcTransToTransaction hs
+buildTransactions  (That fs) = map faTransToTransaction fs
+buildTransactions  (These hs fs) = let
+    shs = map hsbcTransToTransaction hs
+    fhs = map faTransToTransaction fs
     in sortBy (comparing _sDate) (shs ++ fhs)
 
 -- * Main
 -- ** Options
 data Options = Options
-    { hsbcFiles :: !(String) -- ^ pattern of files containing HSBC full statements.
-    , statementFiles :: !(String) -- ^ pattern of files containig HSBC recent transactions. (not a statment but called statement.csv)
+    { statementFiles :: !(String) -- ^ pattern of files containing HSBC full statements.
+    , dailyFiles :: !(String) -- ^ pattern of files containig HSBC recent transactions. (not a statment but called statement.csv)
     , output :: !(String)
     , startDate :: !(Maybe Day)
     , endDate :: !(Maybe Day)
@@ -539,43 +542,43 @@ data Options = Options
 data FaMode = BankAccountId Int deriving (Show, Read, Eq)
 
 -- ** Main body
-readFa :: Options -> IO (Vector FTrans)
+readFa :: Options -> IO (Vector FATransaction)
 readFa opt  = case faMode opt of 
     BankAccountId i -> do 
                 fetchFA (faCredential opt) i <$> startDate <*> endDate $ opt
--- main :: Options -> IO [(Amount, These [HTrans] [FTrans])]
-main' :: Options -> IO ([STrans], [STrans])
+-- main :: Options -> IO [(Amount, These [HSBCTransactions] [FATransaction])]
+main' :: Options -> IO ([Transaction], [Transaction])
 main' opt = do
   (badTrans, hss) <- loadAllTrans opt
-  let   summaries = concatMap buildSTrans (map snd badTrans)
+  let   summaries = concatMap buildTransactions  (map snd badTrans)
 
         filtered = (filterDate _sDate _sDate opt) summaries
 
-  return (filtered, map hToS hss)
+  return (filtered, map hsbcTransToTransaction hss)
 
 filterDate sDate eDate opt = reduceWith appEndo $ catMaybes
                 [ startDate opt <&> \d -> filter ((>=d). sDate)
                 , endDate opt <&> \d -> filter ((<=d). eDate)
                 ]
 
-loadAllTrans :: Options -> IO ([(Amount, These [HTrans] [FTrans])], [HTrans])
+loadAllTrans :: Options -> IO ([(Amount, These [HSBCTransactions] [FATransaction])], [HSBCTransactions])
 loadAllTrans opt = do
-    hs <- V.concat <$> (mapM readHTrans =<< glob (hsbcFiles opt))
-    sss <- mapM readStatment =<<  glob (statementFiles opt)
+    hs <- V.concat <$> (mapM readHSBCTransactions =<< glob (statementFiles opt))
+    sss <- mapM readDaily =<<  glob (dailyFiles opt)
     fas <- readFa opt
     let hss = hs `mergeTrans` sss 
         ths = reconciliate hss fas
     return $ (bads (aggregateMode opt) ths, V.toList hss)
   
 -- | finishes the zip work by get a list of possible pair
-rezip :: These [HTrans] [FTrans] -> [These HTrans FTrans]
+rezip :: These [HSBCTransactions] [FATransaction] -> [These HSBCTransactions FATransaction]
 rezip  (This hs) = map This hs
 rezip  (That fs) = map That fs
 rezip (These hs fs) = align hs fs
 
 -- | Regroup bads by matching pair. we lose the amount grouping
 -- but we are here trying to display match, not discrepencies
-badsByDay :: [(Amount, These [HTrans] [FTrans])] -> [These HTrans  FTrans]
+badsByDay :: [(Amount, These [HSBCTransactions] [FATransaction])] -> [These HSBCTransactions  FATransaction]
 badsByDay a'hts = let
   hts = map snd a'hts
   toSort = concatMap rezip hts
@@ -584,11 +587,11 @@ badsByDay a'hts = let
   
 
 
-thisFirst :: These STrans STrans -> STrans
+thisFirst :: These Transaction Transaction -> Transaction
 thisFirst (This a) = a
 thisFirst (That a) = a
 thisFirst (These a b) = a { _sNumber = _sNumber b, _sObject = _sObject b}
-thatFirst :: These STrans STrans -> STrans
+thatFirst :: These Transaction Transaction -> Transaction
 thatFirst (This a) = a
 thatFirst (That a) = a
 thatFirst (These a b) = b { _sNumber = _sNumber b, _sObject = _sObject b}
