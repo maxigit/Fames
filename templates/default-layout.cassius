@@ -9,3 +9,8 @@
 .data-toggler.collapsed:after
   content: '\e080'
 
+span.guessed-value
+  color:blue
+
+span.unknown-value
+  color:orange

@@ -37,7 +37,7 @@ import Data.Text (strip)
 
 import System.FilePath.Glob (glob)
 import Data.Decimal
-import Data.List (sortBy, minimumBy, maximumBy, foldl', mapAccumL, nub, dropWhileEnd)
+import Data.List (sortBy, sortOn, minimumBy, maximumBy, foldl', mapAccumL, nub, dropWhileEnd)
 import Data.Ord (comparing)
 import Data.String
 import Data.Time(Day, parseTimeM, formatTime, diffDays, addDays)
@@ -90,8 +90,7 @@ instance ToField Day where
 readTime :: [String ]-> String -> Day
 readTime formats s = either error id (readTimeE formats s)
 readTimeE :: [String ]-> String -> Either String Day
-readTimeE formats str= traceShow ("E", str, r) r where
- r = case concat $ map (parseTimeM True defaultTimeLocale) formats <*> [str] of
+readTimeE formats str= case concat $ map (parseTimeM True defaultTimeLocale) formats <*> [str] of
   [] -> Left $ "can't parse time : " ++ str
   [date] -> Right date
   _ -> Left $ "ambiguous parsing for time : " ++ str
@@ -184,7 +183,7 @@ instance FromNamedRecord (Int -> HSBCTransactions) where
          <*> r .: "Type"
          <*> r .: "Description"
          <*> parseDebit "Paid in" "Paid out" r -- opposite to HSBC
-         <*> ((Just . Provided) <$> r .: "Balance")
+         <*> (fmap Provided <$> r .: "Balance")
 
 -- | HSBC Transaction (transaction download). Doesn't contain a balance
 -- This data type is only used to read the statement.csv file
@@ -211,7 +210,7 @@ dailyToHTrans = HSBCTransactions <$> _hsDate
               <*> pure "Statement"
               <*> _hsDescription
               <*> _hsAmount
-              <*> pure (error " need balance")
+              <*> pure Nothing
               <*> _hsDayPos
 
 -- | Paypal Statement
@@ -527,8 +526,29 @@ buildTransactions  (That fs) = map faTransToTransaction fs
 buildTransactions  (These hs fs) = let
     shs = map hsbcTransToTransaction hs
     fhs = map faTransToTransaction fs
-    in sortBy (comparing _sDate) (shs ++ fhs)
+    in sortOn (liftA2 (,) _sDate _sDayPos) (shs ++ fhs)
 
+
+fillBalance :: [Transaction] -> [Transaction]
+fillBalance transs = let
+  sorted = sortOn (liftA2 (,) _sDate _sDayPos) transs
+  go :: (Maybe Amount) -> Transaction -> (Maybe Amount, Transaction)
+  go prevBalanceM trans =
+    case (_sBalance trans, prevBalanceM) of
+          (Nothing, Just prevBalance) -> let newBalance = prevBalance + _sAmount trans
+                                         in (Just newBalance, trans {_sBalance = Just (Guessed newBalance )})
+          (balance , _ ) -> (fmap validValue balance, trans)
+  in snd $ mapAccumL go Nothing sorted
+
+fillHSBCBalance :: [HSBCTransactions] -> [HSBCTransactions]
+fillHSBCBalance transs = let
+  sorted = sortOn (liftA2 (,) _hDate _hDayPos) transs
+  go prevBalanceM trans =
+    case (_hBalance trans, prevBalanceM) of
+          (Nothing, Just prevBalance) -> let newBalance = prevBalance + _hAmount trans
+                                         in (Just newBalance, trans {_hBalance = Just (Guessed newBalance )})
+          (balance , _ ) -> (fmap validValue balance, trans)
+  in snd $ mapAccumL go Nothing sorted
 -- * Main
 -- ** Options
 data Options = Options
@@ -569,7 +589,7 @@ loadAllTrans opt = do
     hs <- (mapM readHSBCTransactions =<< glob (statementFiles opt))
     sss <- mapM readDaily =<<  glob (dailyFiles opt)
     fas <- readFa opt
-    let hss = concat hs `mergeTrans` sss 
+    let hss = fillHSBCBalance $ concat hs `mergeTrans` sss 
         ths = reconciliate hss fas
     return $ (bads (aggregateMode opt) ths, hss)
   

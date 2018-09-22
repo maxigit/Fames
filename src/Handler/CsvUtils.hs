@@ -350,10 +350,6 @@ $('[data-toggle="tooltip"]').tooltip();
 instance Renderable a => Renderable (ValidField a) where
   render (Provided x) = render x
   render (Guessed x) = do
-    toWidget [cassius|
-span.guessed-value
-  color:blue
-|]
     [whamlet|
 <span.guessed-value>^{render x}
 |]
@@ -361,10 +357,6 @@ span.guessed-value
 instance Renderable a => Renderable (Known a) where
   render (Known a) = render a
   render Unknown = do
-    toWidget [cassius|
-span.unknown-value
-  color:orange
-|]
     [whamlet|<span.unknown-value>?|]
 
 instance Renderable InvalidSpreadsheet where

@@ -26,6 +26,7 @@ import GL.Payroll.Settings
 import Text.Shakespeare.Text (st)
 import Data.List(mapAccumL)
 import Formatting
+import Handler.CsvUtils
 
 commonCss = [cassius|
 tr.private
@@ -164,8 +165,8 @@ displaySummary today dbConf faURL title BankStatementSettings{..}= do
       sorted = sortTrans stransz
       ok = null sorted
       lastBanks = take 10 $ sortTrans banks
-      lastW = renderTransactions object faURL lastBanks hideBlacklisted (Just "Total") (const False)
-      tableW = renderTransactions object faURL sorted hideBlacklisted (Just "Total") ((B.FA ==) . B._sSource)
+      lastW = renderTransactions True object faURL lastBanks hideBlacklisted (Just "Total") (const False)
+      tableW = renderTransactions True object faURL sorted hideBlacklisted (Just "Total") ((B.FA ==) . B._sSource)
   return $ displayPanel (if ok then "success" else "danger")  ok title [whamlet|
         <div.row>
             <div.col-md-2>
@@ -203,8 +204,8 @@ displayLightSummary today dbConf faURL title BankStatementSettings{..}= do
       ok = null sorted
       blacklist = map unpack bsLightBlacklist
       lastBanks = take 10 $ sortTrans banks
-      lastW = renderTransactions object faURL lastBanks (const []) (Just "Total") (const False)
-      tableW = renderTransactions object faURL sorted  (const [])(Just "Total") ((B.FA ==) . B._sSource)
+      lastW = renderTransactions False object faURL lastBanks (const []) (Just "Total") (const False)
+      tableW = renderTransactions False object faURL sorted  (const [])(Just "Total") ((B.FA ==) . B._sSource)
   return $ displayPanel (if ok then "success" else "danger") ok title [whamlet|
         <a href="@{GLR (GLBankDetailsR title)}">
           $if ok   
@@ -235,8 +236,8 @@ linkToFA urlForFA' trans = case (readMay (B._sType trans), B._sNumber trans) of
        |]
   _ -> toHtml (B._sType trans)
 
-renderTransactions :: (B.Transaction -> Maybe Text) -> Text -> [B.Transaction] -> (B.Transaction -> [Text]) -> Maybe Text -> (B.Transaction -> Bool) -> Widget
-renderTransactions object faURL sorted mkClasses totalTitle danger = 
+renderTransactions :: Bool ->  (B.Transaction -> Maybe Text) -> Text -> [B.Transaction] -> (B.Transaction -> [Text]) -> Maybe Text -> (B.Transaction -> Bool) -> Widget
+renderTransactions canViewBalance object faURL sorted mkClasses totalTitle danger = 
       let (ins, outs) = partition (> 0) (map B._sAmount sorted)
           inTotal = sum ins
           outTotal = sum outs
@@ -253,6 +254,8 @@ renderTransactions object faURL sorted mkClasses totalTitle danger =
             <th>Object
             <th>Paid Out
             <th>Paid In
+            $if canViewBalance
+              <th>Balance
           $forall trans <- sorted
             $with isDanger <- danger trans
               <tr :isDanger:.text-danger :isDanger:.bg-danger class="#{intercalate " " (mkClasses trans)}">
@@ -268,6 +271,8 @@ renderTransactions object faURL sorted mkClasses totalTitle danger =
                   $else
                     <td>#{tshow $ negate  $    B._sAmount trans}
                     <td>
+                 $if canViewBalance
+                    <td> ^{render $ fmap (fmap tshow)  $ B._sBalance trans}
           <tr>
             $maybe totalTitle <-  totalTitle
               <th> #{totalTitle}
@@ -312,7 +317,7 @@ displayDetailsInPanel account BankStatementSettings{..} = do
       aggregateMode = B.BEST
   
   (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main' options)
-  let tableW = renderTransactions object faURL stransz (const []) (Just "Total") ((B.FA ==) . B._sSource)
+  let tableW = renderTransactions True object faURL stransz (const []) (Just "Total") ((B.FA ==) . B._sSource)
       ok = null stransz
   return $ displayPanel (if ok then "succes" else "danger") ok account [whamlet|
             <div.row>
