@@ -43,6 +43,7 @@ import Data.String
 import Data.Time(Day, parseTimeM, formatTime, diffDays, addDays)
 import Data.Time.Format(defaultTimeLocale)
 import Data.Char(isSpace, isAscii)
+import Util.ValidField
 
 import GHC.Generics
 
@@ -171,7 +172,7 @@ data HSBCTransactions = HSBCTransactions
     , _hType :: !String
     , _hDescription ::  !String
     , _hAmount :: !Amount
-    , _hBalance :: !Amount
+    , _hBalance :: !(Maybe (ValidField Amount))
     , _hDayPos :: !Int -- ^ position unique within a day, but doesn't have to start a one.
     } deriving (Show, Read, Eq, Ord)
 
@@ -183,7 +184,7 @@ instance FromNamedRecord (Int -> HSBCTransactions) where
          <*> r .: "Type"
          <*> r .: "Description"
          <*> parseDebit "Paid in" "Paid out" r -- opposite to HSBC
-         <*> r .: "Balance"
+         <*> ((Just . Provided) <$> r .: "Balance")
 
 -- | HSBC Transaction (transaction download). Doesn't contain a balance
 -- This data type is only used to read the statement.csv file
@@ -317,12 +318,12 @@ parseAttribute field = do
 -- official statement works the other way.
 --
 mergeTrans :: [HSBCTransactions] -> [[HSBCDaily]] -> [HSBCTransactions]
-mergeTrans hs sss | null hs = concat $ map (map dailyToHTrans) sss 
-mergeTrans hs sss = let
-  lastHDate = maximum (fmap _hDate hs)
+mergeTrans [] dailyss = concat $ map (map dailyToHTrans) dailyss 
+mergeTrans transs dailyss = let
+  lastHDate = maximum (fmap _hDate transs)
   -- list of pair, statement and it starting date
   datedStatement :: [([HSBCDaily], Maybe Day)]
-  datedStatement = zip sss (map (\vs -> Just (minimum (fmap _hsDate vs))) sss)
+  datedStatement = zip dailyss (map (\vs -> Just (minimum (fmap _hsDate vs))) dailyss)
 
   orderedStatements = (sortBy (comparing snd) datedStatement)
 
@@ -342,7 +343,7 @@ mergeTrans hs sss = let
 
   filteredTransaction = map (map dailyToHTrans) filteredStatements
   -- in V.concat filteredTransaction
-  in concat (hs:filteredTransaction)
+  in concat (transs:filteredTransaction)
 
 -- ** Read functions
 
@@ -485,11 +486,11 @@ data Transaction = Transaction
     , _sObject :: !(Maybe String) -- ^ Customer or Supplier in FA
     , _sDayPos :: !Int -- ^ Used to sort transaction 
     , _sRecDate :: !(Maybe Day)
-    , _sBalance :: !(Maybe Amount) -- ^ Balance if provide
+    , _sBalance :: !(Maybe (ValidField Amount)) -- ^ Balance if provided
     } deriving (Show, Read, Generic)
 
 
-instance ToNamedRecord Transaction
+-- instance ToNamedRecord Transaction
 instance DefaultOrdered Transaction
 hsbcTransToTransaction :: HSBCTransactions -> Transaction
 hsbcTransToTransaction h = pure Transaction
@@ -502,7 +503,7 @@ hsbcTransToTransaction h = pure Transaction
         <*> pure Nothing
         <*> _hDayPos
         <*> pure Nothing
-        <*> (Just <$> _hBalance)
+        <*> _hBalance
         $ h
 
 -- ** Converters between input transactions and summaries.b
@@ -517,7 +518,7 @@ faTransToTransaction f = pure Transaction
                 <*> fmap Just _fObject
                 <*> _fPosition
                 <*> _fRecDate
-                <*> (Just <$>_fBalance)
+                <*> (Just . Provided <$>_fBalance)
                 $ f
 
 buildTransactions :: These [HSBCTransactions] [FATransaction] -> [Transaction]

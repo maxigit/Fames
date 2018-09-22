@@ -1,3 +1,4 @@
+{-# LANGUAGE PatternSynonyms #-}
 module Import.NoFoundation
     ( module Import
     , setWarning
@@ -27,6 +28,12 @@ module Import.NoFoundation
     , commasFixed
     , commasFixed'
     , mapWithKeyM
+    , pattern RJust
+    , pattern RNothing
+    , pattern LLeft
+    , pattern LRight
+    , pattern RLeft
+    , pattern RRight
     ) where
 
 import ClassyPrelude.Yesod as Import
@@ -214,3 +221,23 @@ wordize prefixM suffixM s0 = let
 -- due to the strictness of Map used under the hood.
 alignSorted :: (Ord k) => [(k,a)] -> [(k,b)] -> [(k, These a b)]
 alignSorted as bs = Map.toList $ align (Map.fromAscList as)  (Map.fromAscList bs)
+
+
+-- * Patterns
+pattern RJust :: a -> Either e (Maybe a)
+pattern RJust x = Right (Just x)
+
+pattern RNothing :: Either e (Maybe a)
+pattern RNothing = Right Nothing
+
+pattern RRight :: a -> Either e (Either e' a)
+pattern RRight x = Right (Right x)
+
+pattern RLeft :: e' -> Either e (Either e' a)
+pattern RLeft x = Right (Left x)
+
+pattern LRight :: a -> Either (Either e' a) b
+pattern LRight x = Left (Right x)
+
+pattern LLeft :: e' -> Either (Either e' a) b
+pattern LLeft x = Left (Left x)

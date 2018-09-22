@@ -1,7 +1,11 @@
 {-# LANGUAGE PatternSynonyms, LiberalTypeSynonyms, DeriveFunctor, DataKinds, PolyKinds #-}
 {-# LANGUAGE StandaloneDeriving #-} 
 -- | Miscellaneous functions and types to parse and render CSV.
-module Handler.CsvUtils where
+module Handler.CsvUtils
+( module Handler.CsvUtils
+, module Util.ValidField
+, module Util.Transformable
+) where
 
 import Import hiding(toLower, Null)
 import qualified Data.Csv as Csv
@@ -10,6 +14,8 @@ import Data.Time(parseTimeM)
 import qualified Data.Map as Map
 import Data.Char (ord,toUpper,toLower)
 import Data.List (nub)
+import Util.ValidField
+import Util.Transformable
   
 import qualified Data.ByteString.Lazy as LazyBS
 
@@ -103,70 +109,6 @@ invalidFieldError InvalidValueError{..} = invFieldError
 
 type FieldForValid a = FieldTF 'ValidT a
 
-data ValidField a = Provided { validValue :: a} | Guessed { validValue :: a }  deriving Functor
-instance Applicative ValidField  where
-  pure = Provided
-  (Provided f) <*> (Provided v) = Provided (f v)
-  f <*> v = Guessed $ (validValue f) (validValue v)
-
-guess :: ValidField a -> ValidField a
-guess v = Guessed (validValue v)
-
-deriving instance Show a => Show (ValidField a)
-deriving instance Read a => Read (ValidField a)
-deriving instance Eq a => Eq (ValidField a)
--- * Patterns
-pattern RJust :: a -> Either e (Maybe a)
-pattern RJust x = Right (Just x)
-
-pattern RNothing :: Either e (Maybe a)
-pattern RNothing = Right Nothing
-
-pattern RRight :: a -> Either e (Either e' a)
-pattern RRight x = Right (Right x)
-
-pattern RLeft :: e' -> Either e (Either e' a)
-pattern RLeft x = Right (Left x)
-
-pattern LRight :: a -> Either (Either e' a) b
-pattern LRight x = Left (Right x)
-
-pattern LLeft :: e' -> Either (Either e' a) b
-pattern LLeft x = Left (Left x)
-
--- * Transformables
--- | Sort of convert but can loose information
--- Used to demote valid rows to invalid ones.
-class Transformable a b where
-  transform :: a -> b
-
-instance Transformable a () where
-  transform = const ()
-
-instance  {-# OVERLAPPABLE #-} (a~b) => Transformable a b where
-  transform x =  x
-
-instance Applicative f => Transformable a (f a) where
-  transform = pure
-
-instance Alternative f => Transformable () (f a) where
-  transform = const empty
-
-instance Transformable (ValidField a) a where
-  transform v = validValue v
- 
-instance Transformable a (ValidField a) where
-  transform x = Provided x
-
-
-instance Transformable a b => Transformable [a] [b] where
-  transform x = map transform x
-
-instance Transformable b (Either e (Maybe b))  where
-  transform x = Right (Just x)
-
-instance Transformable a b => Transformable (Maybe a) (Maybe b) where
-  transform x = map transform x
 -- * Functions
 
 parseInvalidSpreadsheet :: Show a

@@ -12,7 +12,7 @@ fay/Fay/Yesod.hs
 *.sqlite3-wal
 .hsenv*
 cabal-dev/
-.stack-work/
+.stack-*/
 yesod-devel/
 .cabal-sandbox
 cabal.sandbox.config
@@ -24,3 +24,8 @@ SourceGraph/
 private/
 scripts/
 prof
+Fames.*
+*.prof
+sql/bug*
+.hspec-failures
+TAGS

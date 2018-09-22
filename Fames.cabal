@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: df2ee189b05a1887f32221efda53ef88f21ac653bd391f825209c7fb76bcba60
+-- hash: becd1527368ad92a2e0c987c8e99d4bda51fee5f4ec6f1403e3ad859b78f7b6d
 
 name:           Fames
 version:        0.0.1
@@ -184,6 +184,8 @@ library
       Util.Cache
       Util.EnumTree
       Util.SameCons
+      Util.Transformable
+      Util.ValidField
       BankReconciliate
       WarehousePlanner.Base
       WarehousePlanner.Csv
@@ -534,6 +536,8 @@ test-suite ghcid
       Util.Cache
       Util.EnumTree
       Util.SameCons
+      Util.Transformable
+      Util.ValidField
       GL
       GL.FA
       GL.Payroll.Parser
