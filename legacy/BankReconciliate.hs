@@ -489,6 +489,7 @@ data Transaction = Transaction
     } deriving (Show, Read, Generic)
 
 
+makeClassy ''Transaction
 -- instance ToNamedRecord Transaction
 instance DefaultOrdered Transaction
 hsbcTransToTransaction :: HSBCTransactions -> Transaction

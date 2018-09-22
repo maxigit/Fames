@@ -35,6 +35,16 @@ tr.private
 table:hover tr.private
     font-style: normal
     opacity: 1
+td.balance-no-match
+  .balances
+    display: none
+  .diff-balance:
+    display: inline
+td.balance-no-match:hover
+  .balances
+    display: inline
+  .diff-balance
+    display: none
 |]
 
 recJs = [julius|
@@ -479,6 +489,7 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
               <th>Object
               <th>Paid Out
               <th>Paid In
+              <th>Balance
               <th>Reconciliate
                 <input.toggle-all type=checkbox checked>
       $forall st'st <- st'sts
@@ -500,6 +511,22 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
               $else
                   <td>#{tshow $ negate  $    B._sAmount trans}
                   <td>
+              $if fmap B._sBalance transM == fmap B._sBalance fatransM
+                <td.balance-match.bg-success.text-success>
+                 ^{render $ fmap (fmap tshow) (B._sBalance trans) }
+              $else
+                $with [bal, balfa] <- map (maybe 0 validValue . B._sBalance) [trans, fatrans]
+                  $with diff <- balfa - bal
+                    <td.balance-no-match>
+                      ^{render $ fmap (fmap tshow) (B._sBalance trans) }
+                      <div.diff-balance>
+                        $if diff > 0
+                          +#{tshow diff}
+                        $else
+                          #{tshow diff}
+                      <div.balances>
+                        ^{render $ fmap (fmap tshow) (B._sBalance fatrans) }
+                
               $with checked <- toCheck st'st
                 <td :checked:.update-rec data-amount="#{tshow (B._sAmount trans)}">
                   $if isThese st'st 
