@@ -30,8 +30,8 @@ santanderSpec = describe "@Santander" $ do
             |Balance: 337.97 
             |]
 
-        parseLT parseSTransaction input `shouldBe`
-           Right (STransaction
+        parseLT parseSantanderTransaction input `shouldBe`
+           Right (SantanderTransaction
                    (fromGregorian 2018 09 20)
                    "BANK GIRO CREDIT, New York"
                    39.50	
@@ -54,19 +54,19 @@ santanderSpec = describe "@Santander" $ do
                        |Amount: 773.00 	
                        |Balance: 198.47 
                        |]
-           trans = [ STransaction
+           trans = [ SantanderTransaction
                          (fromGregorian 2018 09 20)
                          "BANK GIRO CREDIT , New York"
                          139.5	
                          337.97 
-                   , STransaction
+                   , SantanderTransaction
                          (fromGregorian 2018 09 19)
                          "DUALITY 150910, Boston"
                          773.00
                          198.47
                   ]
-       parseLT parseSStatement input `shouldBe`
-               Right (SStatement
+       parseLT parseSantanderStatement input `shouldBe`
+               Right (SantanderStatement
                        (fromGregorian 2018 03 20)
                        (fromGregorian 2018 09 20)
                        "XXXX XXXX XXXX 1234"
