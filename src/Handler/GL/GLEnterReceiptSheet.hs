@@ -3,6 +3,7 @@
 {-# LANGUAGE TypeFamilies, DataKinds #-}
 {-# LANGUAGE DeriveFunctor, GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Handler.GL.GLEnterReceiptSheet where
 
 import Import hiding(InvalidHeader)
@@ -21,6 +22,7 @@ import qualified Data.List.Split  as S
 -- import Data.Ratio (approxRational)
 -- import qualified Data.ByteString as BL
 import qualified Data.Map as Map
+import Lens.Micro.Extras (preview)
 -- | Entry point to enter a receipts spreadsheet
 -- The use should be able to :
 --   - post a text
@@ -118,16 +120,28 @@ t = id
 setMessage' :: (ToMarkup a, MonadHandler m) => a -> m ()
 setMessage' msg = {-trace ("set message : " ++ show msg)-} (setMessage $ toHtml msg)
 -- ** Widgets
-instance Renderable (ReceiptRow 'ValidRowT) where render = renderReceiptRow ValidRowT
-instance Renderable (ReceiptRow 'InvalidRowT) where render = renderReceiptRow InvalidRowT
-
-renderReceiptRow :: (Renderable (HeaderFieldTF t Text),
+instance (
+                     Renderable (HeaderFieldTF t Text),
                      Renderable (HeaderFieldTF t Double),
                      Renderable (RowFieldTF t (Maybe Int)),
                      Renderable (RowFieldTF t (Maybe Double)),
-                     Renderable (RowFieldTF t (Maybe Text)))
+                     Renderable (RowFieldTF t (Maybe Text)) ,
+                     Renderable (ReceiptHeader t) ,
+                     Renderable (ReceiptItem t) ,
+                     ReceiptRowTypeClass (ReceiptRow t)
+           ) => Renderable (ReceiptRow t)
+    where render r = renderReceiptRow (rowType r) r
+renderReceiptRow :: (
+                     Renderable (HeaderFieldTF t Text),
+                     Renderable (HeaderFieldTF t Double),
+                     Renderable (RowFieldTF t (Maybe Int)),
+                     Renderable (RowFieldTF t (Maybe Double)),
+                     Renderable (RowFieldTF t (Maybe Text)) ,
+                     Renderable (ReceiptHeader t)
+                    ,Renderable (ReceiptItem t)
+                    )
                  => ReceiptRowType -> ReceiptRow t -> Widget
-renderReceiptRow rowType_ ReceiptRow{..}= do
+renderReceiptRow rowType_ row= do
   let groupIndicator ValidHeaderT = ">" :: Text
       groupIndicator InvalidHeaderT = ">"
       groupIndicator _ = ""
@@ -138,17 +152,58 @@ renderReceiptRow rowType_ ReceiptRow{..}= do
 |]
   [whamlet|
 <td.receiptGroup>#{groupIndicator rowType_}
+  $case preview here row
+    $of Nothing
+      <td>
+      <td>
+      <td>
+      <td>
+      <td>
+    $of Just header
+      ^{render header}
+  $case preview there row
+    $of Nothing
+      <td>
+      <td>
+      <td>
+      <td>
+      <td>
+      <td>
+      <td>
+    $of Just item
+      ^{render item}
+ |] 
+
+
+instance ( Renderable (HeaderFieldTF t Text)
+         , Renderable (HeaderFieldTF t (Maybe Text))
+         , Renderable (HeaderFieldTF t Double)
+         ) => Renderable  (ReceiptHeader t) where
+  render = renderReceiptHeader
+renderReceiptHeader ReceiptHeader{..} = [whamlet|
 <td.date>^{render rowDate}
 <td.counterparty>^{render rowCounterparty}
 <td.bankAccount>^{render rowBankAccount}
+<td.bankAccount>^{render rowComment}
 <td.totalAmount>^{render rowTotal}
+|]
+instance ( Renderable (RowFieldTF t (Maybe Text))
+         , Renderable (RowFieldTF t (Maybe Double))
+         , Renderable (RowFieldTF t (Maybe Int))
+         ) => Renderable  (ReceiptItem t) where
+  render = renderReceiptItem
+renderReceiptItem ReceiptItem{..} = [whamlet|
 <td.glAccount>^{render rowGlAccount}
 <td.amount>^{render rowAmount}
+<td.amount>^{render rowNetAmount}
+<td.amount>^{render rowMemo}
 <td.tax>^{render rowTax}
+<td.tax>^{render rowGLDimension1}
+<td.tax>^{render rowGLDimension2}
 |]
 
-instance Renderable (ReceiptRow 'ValidHeaderT) where render = renderReceiptRow ValidHeaderT
-instance Renderable (ReceiptRow 'InvalidHeaderT) where render = renderReceiptRow InvalidHeaderT
+-- instance (Renderable a, Renderable b)  => Renderable (These a b) where
+-- renderThese = these render render (\a b -> render a >> render b) 
 
 
 instance ( ReceiptRowTypeClass h, Renderable h
@@ -189,13 +244,18 @@ columnMap = Map.fromList
                           
 -- Represents a row of the spreadsheet.
 instance Csv.FromNamedRecord (ReceiptRow 'RawT)where
-  parseNamedRecord m = pure ReceiptRow
+  parseNamedRecord m = These <$> Csv.parseNamedRecord m <*> Csv.parseNamedRecord m
+instance Csv.FromNamedRecord (ReceiptHeader 'RawT) where
+  parseNamedRecord m = pure ReceiptHeader
     <*> m `parse` "date"
     <*> m `parse` "counterparty" 
     <*> m `parse` "bank account"
     <*> m `parse` "comment"
     <*> (unCurrency <$$$> m  `parse` "total" )
+    where parse = parseMulti columnMap
 
+instance Csv.FromNamedRecord (ReceiptItem 'RawT) where
+  parseNamedRecord m = pure ReceiptItem
     <*> m `parse` "gl account"
     <*> (unCurrency <$$$> m `parse` "amount" )
     <*> (unCurrency <$$$> m `parse` "net amount" )

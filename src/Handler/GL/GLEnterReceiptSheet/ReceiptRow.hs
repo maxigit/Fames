@@ -54,8 +54,9 @@ instance {-#OVERLAPPING #-}Show (InvalidRow) where show = showReceiptRow Invalid
 
 
 
-pattern NonHeaderRow gl amount net memo tax dim1 dim2 = That (ReceiptItem gl amount net memo tax dim1 dim2)
-pattern RowP gl amount net memo tax dim1 dim2 = That (ReceiptItem gl amount net memo tax dim1 dim2)
+pattern NonHeaderRow gl amount net memo tax dim1 dim2 = These (ReceiptHeader RNothing RNothing RNothing RNothing RNothing) (ReceiptItem gl amount net memo tax dim1 dim2)
+-- pattern RowP gl amount net memo tax dim1 dim2 = These (ReceiptHeader () () () () ()) (ReceiptItem gl amount net memo tax dim1 dim2)
+pattern NonItemRow date counterparty bank comment total = These (ReceiptHeader date counterparty bank comment total  ) (ReceiptItem RNothing RNothing RNothing RNothing RNothing RNothing RNothing)
                                              
 showReceiptRow rType row = show "ReceiptRow " ++ show rType ++ show row
 -- showReceiptHeader ReceiptHeader{..} = show "ReceiptHeader {"
@@ -111,15 +112,22 @@ analyseReceiptRow (These
                    (ReceiptItem (Right glAccount) (Right amount) (Right net) (Right memo) (Right tax) (Right dim1) (Right dim2)))
   = Right . Right $ These (ReceiptHeader date counterparty bankAccount comment total)
                           (ReceiptItem glAccount amount net memo tax dim1 dim2)
-analyseReceiptRow (That (ReceiptItem RNothing RNothing RNothing RNothing RNothing RNothing RNothing))
+analyseReceiptRow (NonHeaderRow RNothing RNothing RNothing RNothing RNothing RNothing RNothing)
   -- empty row
   = Left . Left . That $ ReceiptItem RNothing RNothing RNothing RNothing RNothing RNothing RNothing
-analyseReceiptRow (That (ReceiptItem (Right glAccount) (Right amount) (Right net) (Right memo) (Right tax) (Right dim1) (Right dim2)))
+analyseReceiptRow (NonHeaderRow (Right glAccount) (Right amount) (Right net) (Right memo) (Right tax) (Right dim1) (Right dim2))
   -- valid row. at least one is non empty
   = Left . Right $  That $ ReceiptItem glAccount amount net memo tax dim1 dim2
-analyseReceiptRow (That (ReceiptItem glAccount amount net memo tax dim1 dim2))
+analyseReceiptRow (NonHeaderRow glAccount amount net memo tax dim1 dim2)
   -- invalid row
-  = Left . Left $  RowP glAccount amount net memo tax dim1 dim2
+  = Left . Left .  That $ ReceiptItem glAccount amount net memo tax dim1 dim2
+analyseReceiptRow (NonItemRow rowDate rowCounterparty rowBankAccount rowComment rowTotal)
+  -- invalid header
+  = Right. Left . This $ ReceiptHeader  (validateNonEmpty "Date" rowDate)
+                                        (validateNonEmpty "Counterparty" rowCounterparty)
+                                        (validateNonEmpty "Bank Account" rowBankAccount)
+                                        rowComment
+                                        (validateNonEmpty "Total" rowTotal)
 analyseReceiptRow (These ReceiptHeader{..} ReceiptItem{..})
   -- invalid header
   = Right. Left $ These  (ReceiptHeader (validateNonEmpty "Date" rowDate)
@@ -137,13 +145,7 @@ analyseReceiptRow (These ReceiptHeader{..} ReceiptItem{..})
                              rowGLDimension1
                              rowGLDimension2
                          )
-analyseReceiptRow (This ReceiptHeader{..})
-  -- invalid header
-  = Right. Left . This $ ReceiptHeader  (validateNonEmpty "Date" rowDate)
-                                        (validateNonEmpty "Counterparty" rowCounterparty)
-                                        (validateNonEmpty "Bank Account" rowBankAccount)
-                                        rowComment
-                                        (validateNonEmpty "Total" rowTotal)
+analyseReceiptRow row = error  $ "Which should have These at that point , instead we got " ++ show row
 
 transformRow row  = bimap transformHeader transformItem row
 transformHeader ReceiptHeader{..} = ReceiptHeader
