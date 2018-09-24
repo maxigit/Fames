@@ -12,22 +12,24 @@ import Handler.CsvUtils hiding (RowTypes(..))
 -- The actual type of each field depend of a status or stage
 -- This is needed to model different types of row which have 
 -- Which have the same structure but different semantic.
-data ReceiptRow s = ReceiptRow
+data ReceiptHeader s = ReceiptHeader
   { rowDate :: HeaderFieldTF s Text --  RowDateTF s
   , rowCounterparty :: HeaderFieldTF s Text -- RowCounterpartyTF s
   , rowBankAccount :: HeaderFieldTF s Text -- RowBankAccountTF s
   , rowComment :: HeaderFieldTF s (Maybe Text)
   , rowTotal :: HeaderFieldTF s Double
-
-  , rowGlAccount :: RowFieldTF s (Maybe Int)-- RowGLAccountTF s
+  } 
+data ReceiptItem s = ReceiptItem 
+  { rowGlAccount :: RowFieldTF s (Maybe Int)-- RowGLAccountTF s
   , rowAmount :: RowFieldTF s (Maybe Double)-- RowAmountTF s
   , rowNetAmount :: RowFieldTF s (Maybe Double)-- RowAmountTF s
   , rowMemo :: RowFieldTF s (Maybe Text)
   , rowTax :: RowFieldTF s (Maybe Text) -- RowTaxTF s
   , rowGLDimension1 :: RowFieldTF s (Maybe Int)
   , rowGLDimension2 :: RowFieldTF s (Maybe Int)
-  } -- deriving (Read, Show, Eq)
+  }
 
+type ReceiptRow s = These (ReceiptHeader s) (ReceiptItem s)
   
 data ReceiptRowType
   = RawT
@@ -43,29 +45,33 @@ type InvalidHeader = ReceiptRow 'InvalidHeaderT
 type ValidRow = ReceiptRow 'ValidRowT
 type InvalidRow = ReceiptRow 'InvalidRowT
  
-instance Show (RawRow) where show = showReceiptRow ValidHeaderT
-instance Show (ValidHeader) where show = showReceiptRow ValidHeaderT
-instance Show (InvalidHeader) where show = showReceiptRow InvalidHeaderT
-instance Show (ValidRow) where show = showReceiptRow ValidRowT
-instance Show (InvalidRow) where show = showReceiptRow InvalidRowT
+instance {-#OVERLAPPING #-} Show (RawRow) where show = showReceiptRow ValidHeaderT
+instance {-#OVERLAPPING #-}Show (ValidHeader) where show = showReceiptRow ValidHeaderT
+instance {-#OVERLAPPING #-}Show (InvalidHeader) where show = showReceiptRow InvalidHeaderT
+instance {-#OVERLAPPING #-}Show (ValidRow) where show = showReceiptRow ValidRowT
+instance {-#OVERLAPPING #-}Show (InvalidRow) where show = showReceiptRow InvalidRowT
          
 
 
-pattern NonHeaderRow gl amount net memo tax dim1 dim2 = ReceiptRow RNothing RNothing RNothing RNothing RNothing gl amount net memo tax dim1 dim2
-pattern RowP gl amount net memo tax dim1 dim2 = ReceiptRow () () () () () gl amount net memo tax dim1 dim2
+
+pattern NonHeaderRow gl amount net memo tax dim1 dim2 = That (ReceiptItem gl amount net memo tax dim1 dim2)
+pattern RowP gl amount net memo tax dim1 dim2 = That (ReceiptItem gl amount net memo tax dim1 dim2)
                                              
-showReceiptRow rType ReceiptRow{..} = show "ReceiptRow " ++ show rType ++ " {"
-  ++ "rowDate=" ++ show rowDate ++ ", " 
-  ++ "rowCounterparty=" ++ show rowCounterparty ++ ", " 
-  ++ "rowBankAccount=" ++ show rowBankAccount ++ ", " 
-  ++ "rowComment=" ++ show rowComment ++ ", " 
-  ++ "rowTotal=" ++ show rowTotal ++ ", " 
-  ++ "rowGlAccount=" ++ show rowGlAccount ++ ", " 
-  ++ "rowAmount=" ++ show rowAmount ++ ", " 
-  ++ "rowNetAmount=" ++ show rowNetAmount ++ ", " 
-  ++ "rowTax=" ++ show rowTax ++ "," 
-  ++ "rowGlDimension1=" ++ show rowGLDimension1 ++ ", " 
-  ++ "rowGlDimension2=" ++ show rowGLDimension2 ++ "}" 
+showReceiptRow rType row = show "ReceiptRow " ++ show rType ++ show row
+-- showReceiptHeader ReceiptHeader{..} = show "ReceiptHeader {"
+--   ++ "rowDate=" ++ show rowDate ++ ", " 
+--   ++ "rowCounterparty=" ++ show rowCounterparty ++ ", " 
+--   ++ "rowBankAccount=" ++ show rowBankAccount ++ ", " 
+--   ++ "rowComment=" ++ show rowComment ++ ", " 
+--   ++ "rowTotal=" ++ show rowTotal ++ "}" 
+
+-- showReceiptITEM ReceiptItem{..} = show "ReceipItem {"
+--   ++ "rowGlAccount=" ++ show rowGlAccount ++ ", " 
+--   ++ "rowAmount=" ++ show rowAmount ++ ", " 
+--   ++ "rowNetAmount=" ++ show rowNetAmount ++ ", " 
+--   ++ "rowTax=" ++ show rowTax ++ "," 
+--   ++ "rowGlDimension1=" ++ show rowGLDimension1 ++ ", " 
+--   ++ "rowGlDimension2=" ++ show rowGLDimension2 ++ "}" 
 
 
 class ReceiptRowTypeClass a where
@@ -100,27 +106,29 @@ type family RowFieldTF (s :: ReceiptRowType) a where
 -- What are invalid header ? with valid header field but missing  or invalid header field
 analyseReceiptRow :: RawRow -> Either (Either InvalidRow ValidRow)
                                       (Either InvalidHeader ValidHeader)
-analyseReceiptRow (ReceiptRow
-                   (RJust date) (RJust counterparty) (RJust bankAccount) (Right comment) (RJust total)
-                   (Right glAccount) (Right amount) (Right net) (Right memo) (Right tax) (Right dim1) (Right dim2))
-  = Right . Right $ ReceiptRow date counterparty bankAccount comment total
-                                   glAccount amount net memo tax dim1 dim2
-analyseReceiptRow (NonHeaderRow RNothing RNothing RNothing RNothing RNothing RNothing RNothing)
+analyseReceiptRow (These 
+                   (ReceiptHeader (RJust date) (RJust counterparty) (RJust bankAccount) (Right comment) (RJust total))
+                   (ReceiptItem (Right glAccount) (Right amount) (Right net) (Right memo) (Right tax) (Right dim1) (Right dim2)))
+  = Right . Right $ These (ReceiptHeader date counterparty bankAccount comment total)
+                          (ReceiptItem glAccount amount net memo tax dim1 dim2)
+analyseReceiptRow (That (ReceiptItem RNothing RNothing RNothing RNothing RNothing RNothing RNothing))
   -- empty row
-  = Left . Left $ RowP RNothing RNothing RNothing RNothing RNothing RNothing RNothing
-analyseReceiptRow (NonHeaderRow (Right glAccount) (Right amount) (Right net) (Right memo) (Right tax) (Right dim1) (Right dim2))
+  = Left . Left . That $ ReceiptItem RNothing RNothing RNothing RNothing RNothing RNothing RNothing
+analyseReceiptRow (That (ReceiptItem (Right glAccount) (Right amount) (Right net) (Right memo) (Right tax) (Right dim1) (Right dim2)))
   -- valid row. at least one is non empty
-  = Left . Right $  RowP glAccount amount net memo tax dim1 dim2
-analyseReceiptRow (NonHeaderRow glAccount amount net memo tax dim1 dim2)
+  = Left . Right $  That $ ReceiptItem glAccount amount net memo tax dim1 dim2
+analyseReceiptRow (That (ReceiptItem glAccount amount net memo tax dim1 dim2))
   -- invalid row
   = Left . Left $  RowP glAccount amount net memo tax dim1 dim2
-analyseReceiptRow ReceiptRow{..}
+analyseReceiptRow (These ReceiptHeader{..} ReceiptItem{..})
   -- invalid header
-  = Right. Left $ ReceiptRow (validateNonEmpty "Date" rowDate)
+  = Right. Left $ These  (ReceiptHeader (validateNonEmpty "Date" rowDate)
                              (validateNonEmpty "Counterparty" rowCounterparty)
                              (validateNonEmpty "Bank Account" rowBankAccount)
                              rowComment
                              (validateNonEmpty "Total" rowTotal)
+                         )
+                         (ReceiptItem 
                              rowGlAccount
                              rowAmount
                              rowNetAmount
@@ -128,13 +136,23 @@ analyseReceiptRow ReceiptRow{..}
                              rowTax
                              rowGLDimension1
                              rowGLDimension2
+                         )
+analyseReceiptRow (This ReceiptHeader{..})
+  -- invalid header
+  = Right. Left . This $ ReceiptHeader  (validateNonEmpty "Date" rowDate)
+                                        (validateNonEmpty "Counterparty" rowCounterparty)
+                                        (validateNonEmpty "Bank Account" rowBankAccount)
+                                        rowComment
+                                        (validateNonEmpty "Total" rowTotal)
 
-transformRow ReceiptRow{..} = ReceiptRow
+transformRow row  = bimap transformHeader transformItem row
+transformHeader ReceiptHeader{..} = ReceiptHeader
   (transform rowDate)
   (transform rowCounterparty)
   (transform rowBankAccount)
   (transform rowComment)
   (transform rowTotal)
+transformItem ReceiptItem{..} = ReceiptItem
   (transform rowGlAccount)
   (transform rowAmount)
   (transform rowNetAmount)
