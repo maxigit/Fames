@@ -174,7 +174,7 @@ columnMap = Map.fromList
   | (col, cols) <-
     [ ("date", [])
     , ("counterparty", ["company"])
-    , ("bank account", ["account"])
+    , ("bank account", ["bank"])
     , ("comment", [])
     , ("total", ["total price"])
     , ("gl account", ["account"])
