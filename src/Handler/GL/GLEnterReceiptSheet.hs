@@ -11,7 +11,7 @@ import Import hiding(InvalidHeader)
 import Handler.GL.GLEnterReceiptSheet.ReceiptRow
 
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
-import Handler.CsvUtils hiding(RawT)
+import Handler.CsvUtils
 import qualified Data.Csv as Csv
 import Data.Either
 import Text.Blaze.Html(ToMarkup())
@@ -89,9 +89,9 @@ postGLEnterReceiptSheetR = do
     return $ renderReceiptSheet receipts
 
 
-renderReceiptSheet :: ( ReceiptRowTypeClass h, Renderable h
-                      , ReceiptRowTypeClass r, Renderable r
-                      , Show h, Show r) => [(h, [r])] -> Widget
+-- renderReceiptSheet :: ( ReceiptRowTypeClass h, Renderable h
+--                       , ReceiptRowTypeClass r, Renderable r
+--                       , Show h, Show r) => [(h, [r])] -> Widget
 renderReceiptSheet receipts =  do
   let ns = [1..] :: [Int]
   [whamlet| 
@@ -121,37 +121,36 @@ setMessage' :: (ToMarkup a, MonadHandler m) => a -> m ()
 setMessage' msg = {-trace ("set message : " ++ show msg)-} (setMessage $ toHtml msg)
 -- ** Widgets
 instance (
-                     Renderable (HeaderFieldTF t Text),
-                     Renderable (HeaderFieldTF t Double),
-                     Renderable (RowFieldTF t (Maybe Int)),
-                     Renderable (RowFieldTF t (Maybe Double)),
-                     Renderable (RowFieldTF t (Maybe Text)) ,
+                     -- Renderable (HeaderFieldTF t Text),
+                     -- Renderable (HeaderFieldTF t Double),
+                     -- Renderable (RowFieldTF t (Maybe Int)),
+                     -- Renderable (RowFieldTF t (Maybe Double)),
+                     -- Renderable (RowFieldTF t (Maybe Text)) ,
                      Renderable (ReceiptHeader t) ,
-                     Renderable (ReceiptItem t) ,
-                     ReceiptRowTypeClass (ReceiptRow t)
+                     Renderable (ReceiptItem t) 
            ) => Renderable (ReceiptRow t)
-    where render r = renderReceiptRow (rowType r) r
+    where render r = renderReceiptRow  r
+
 renderReceiptRow :: (
-                     Renderable (HeaderFieldTF t Text),
-                     Renderable (HeaderFieldTF t Double),
-                     Renderable (RowFieldTF t (Maybe Int)),
-                     Renderable (RowFieldTF t (Maybe Double)),
-                     Renderable (RowFieldTF t (Maybe Text)) ,
+                     -- Renderable (HeaderFieldTF t Text),
+                     -- Renderable (HeaderFieldTF t Double),
+                     -- Renderable (RowFieldTF t (Maybe Int)),
+                     -- Renderable (RowFieldTF t (Maybe Double)),
+                     -- Renderable (RowFieldTF t (Maybe Text)) ,
                      Renderable (ReceiptHeader t)
                     ,Renderable (ReceiptItem t)
                     )
-                 => ReceiptRowType -> ReceiptRow t -> Widget
-renderReceiptRow rowType_ row= do
-  let groupIndicator ValidHeaderT = ">" :: Text
-      groupIndicator InvalidHeaderT = ">"
-      groupIndicator _ = ""
+                 => ReceiptRow t -> Widget
+renderReceiptRow row = do
+  let groupIndicator | isThat row = ""  :: Text
+                     | otherwise  = ">"
   toWidget [cassius|
 .receipt-header
   font-size: 1.2 em
   font-weight: bold
 |]
   [whamlet|
-<td.receiptGroup>#{groupIndicator rowType_}
+<td.receiptGroup>#{groupIndicator}
   $case preview here row
     $of Nothing
       <td>
@@ -175,9 +174,10 @@ renderReceiptRow rowType_ row= do
  |] 
 
 
-instance ( Renderable (HeaderFieldTF t Text)
-         , Renderable (HeaderFieldTF t (Maybe Text))
-         , Renderable (HeaderFieldTF t Double)
+instance ( Renderable (FieldTF t Text)
+         , Renderable (FieldTF t (Maybe Text))
+         , Renderable (FieldTF t Double)
+         , Renderable (FieldTF t Day)
          ) => Renderable  (ReceiptHeader t) where
   render = renderReceiptHeader
 renderReceiptHeader ReceiptHeader{..} = [whamlet|
@@ -187,9 +187,9 @@ renderReceiptHeader ReceiptHeader{..} = [whamlet|
 <td.bankAccount>^{render rowComment}
 <td.totalAmount>^{render rowTotal}
 |]
-instance ( Renderable (RowFieldTF t (Maybe Text))
-         , Renderable (RowFieldTF t (Maybe Double))
-         , Renderable (RowFieldTF t (Maybe Int))
+instance ( Renderable (FieldTF t (Maybe Text))
+         , Renderable (FieldTF t (Maybe Double))
+         , Renderable (FieldTF t (Maybe Int))
          ) => Renderable  (ReceiptItem t) where
   render = renderReceiptItem
 renderReceiptItem ReceiptItem{..} = [whamlet|
@@ -206,21 +206,22 @@ renderReceiptItem ReceiptItem{..} = [whamlet|
 -- renderThese = these render render (\a b -> render a >> render b) 
 
 
-instance ( ReceiptRowTypeClass h, Renderable h
-         , ReceiptRowTypeClass r, Renderable r
-         , Show h, Show r) => Renderable (Int, (h, [r])) where
+instance ( Renderable h
+         , Renderable r
+         ) => Renderable (Int, (h, [r])) where
   render (i, (header, rows)) = [whamlet|
-<tr class="#{class_ (rowType header)}" id="receipt#{i}">
+<tr class="#{class_ header}" id="receipt#{i}">
   ^{render header}
 $forall (row, j) <- zip rows is
-  <tr class="#{class_ (rowType row)}" id="receipt#{i}-#{j}">
+  <tr class="#{class_ row }" id="receipt#{i}-#{j}">
       ^{render row}
 |] where is = [1..] :: [Int]
-         class_ ValidHeaderT = "receipt-header valid bg-info" :: Text
-         class_ InvalidHeaderT = "receipt-header invalid bg-danger"
-         class_ ValidRowT = "receipt-row valid"
-         class_ InvalidRowT = "receipt-row invalid bg-warning"
-         class_ RawT = error "Shouldn't happend"
+         class_ _ = "receipt-header valid bg-info" :: Text
+         -- class_ ValidHeaderT = "receipt-header valid bg-info" :: Text
+         -- class_ InvalidHeaderT = "receipt-header invalid bg-danger"
+         -- class_ ValidRowT = "receipt-row valid"
+         -- class_ InvalidRowT = "receipt-row invalid bg-warning"
+         -- class_ RawT = error "Shouldn't happend"
 -- <span.rowTax>#{render rowTax}
 
 columnMap :: Map String [String]
@@ -244,21 +245,29 @@ columnMap = Map.fromList
                           
 -- Represents a row of the spreadsheet.
 instance Csv.FromNamedRecord (ReceiptRow 'RawT)where
-  parseNamedRecord m = These <$> Csv.parseNamedRecord m <*> Csv.parseNamedRecord m
+  parseNamedRecord m = do
+    header <- Csv.parseNamedRecord m
+    item <- Csv.parseNamedRecord m
+    case (header, item) of
+      (EmptyHeader, EmptyItem) -> mzero
+      (EmptyHeader, _) -> return $ That item
+      (_, EmptyItem) -> return $ This header
+      (_, _) -> return $ These header item
+ 
 instance Csv.FromNamedRecord (ReceiptHeader 'RawT) where
   parseNamedRecord m = pure ReceiptHeader
-    <*> m `parse` "date"
+    <*> (allFormatsDay <$$$$> m `parse` "date")
     <*> m `parse` "counterparty" 
     <*> m `parse` "bank account"
     <*> m `parse` "comment"
-    <*> (unCurrency <$$$> m  `parse` "total" )
+    <*> (unCurrency <$$$$> m  `parse` "total" )
     where parse = parseMulti columnMap
 
 instance Csv.FromNamedRecord (ReceiptItem 'RawT) where
   parseNamedRecord m = pure ReceiptItem
     <*> m `parse` "gl account"
-    <*> (unCurrency <$$$> m `parse` "amount" )
-    <*> (unCurrency <$$$> m `parse` "net amount" )
+    <*> (unCurrency <$$$$> m `parse` "amount" )
+    <*> (unCurrency <$$$$> m `parse` "net amount" )
     <*> m `parse` "memo" 
     <*> m `parse` "tax rate" 
     <*> m `parse` "dimension 1"
@@ -266,38 +275,37 @@ instance Csv.FromNamedRecord (ReceiptItem 'RawT) where
     where parse = parseMulti columnMap
 
 -- | Regroups receipts rows starting with a header (valid or invalid)
-makeReceipt :: [Either (Either InvalidRow ValidRow)
-                       (Either InvalidHeader ValidHeader)
+makeReceipt :: [Either RawRow ValidRow
                ]
-             -> Either [( Either InvalidHeader ValidHeader
-                         , [Either InvalidRow ValidRow]
+             -> Either [( Either InvalidHeader ValidHeader 
+                          , [Either InvalidItem ValidItem]
                          )]
                        [ (ValidHeader
-                          , [ValidRow]
+                          , [ValidItem]
                           )
                        ]
 makeReceipt [] = Left []
-makeReceipt rows = 
-  -- split by header, valid or not
-  let (orphans:groups) =  S.split (S.keepDelimsL $ S.whenElt  isRight) rows
-      -- we know header are right and rows are left
+makeReceipt rows = Left []
+  -- -- split by header, valid or not
+  -- let (orphans:groups) =  S.split (S.keepDelimsL $ S.whenElt  isRight) rows
+  --     -- we know header are right and rows are left
 
-      go (Right header:rows__) = (header , lefts rows__)
-      go _ = error "Shouldn't not happend"
+  --     go (Right header:rows__) = (header , lefts rows__)
+  --     go _ = error "Shouldn't not happend"
 
-      headerToRowE :: (Either InvalidHeader ValidHeader) -> (Either InvalidRow ValidRow)
-      headerToRowE = either (Left . transformRow) (Right . transformRow)
+  --     headerToRowE :: (Either InvalidHeader ValidHeader) -> (Either RawRow ValidRow)
+  --     headerToRowE = either (Left . transformRow) (Right . transformRow)
 
-      receipts = if null orphans then map go groups else error "orphans"
+  --     receipts = if null orphans then map go groups else error "orphans"
 
-      toMaybe = either (const Nothing) Just
-      -- to valid a 'receipt' we traverse all of its constituent rows
-      validReceipt (header, rows2) =
-        liftA2 (,)
-        (toMaybe header)
-        (traverse toMaybe (headerToRowE header : rows2))
+  --     toMaybe = either (const Nothing) Just
+  --     -- to valid a 'receipt' we traverse all of its constituent rows
+  --     validReceipt (header, rows2) =
+  --       liftA2 (,)
+  --       (toMaybe header)
+  --       (traverse toMaybe (headerToRowE header : rows2))
         
         
-  in case traverse validReceipt receipts of
-    Just valids -> Right valids
-    Nothing -> Left receipts
+  -- in case traverse validReceipt receipts of
+  --   Just valids -> Right valids
+  --   Nothing -> Left receipts
