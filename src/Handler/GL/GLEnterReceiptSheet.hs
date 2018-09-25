@@ -84,25 +84,20 @@ postGLEnterReceiptSheetR = do
                         (formA, formB) -> error $ showForm formA ++ ", " ++ showForm formB
  
   let receipts = parseGL spreadSheet 
-  renderParsingResult ((\_ pre -> setError "Invalid Spreadsheet" >> renderGLEnterReceiptSheet param 422 "" pre ) :: Handler () -> Widget -> Handler Html)
+  renderParsingResult ((\msg pre -> msg  >> renderGLEnterReceiptSheet param 422 "" pre ) :: Handler () -> Widget -> Handler Html)
                       (defaultLayout  . renderReceiptSheet)
                       receipts
-
-    -- rawRows <- parseSpreadsheet columnMap Nothing spreadSheet <|&>  renderGLEnterReceiptSheet 422 "Invalid file or columns missing." . render
-    -- let receiptRowsE = map analyseReceiptRow rawRows
-
-    -- case sequence receiptRowsE of
-    --   Left _ -> renderGLEnterReceiptSheet 422 "Invalid cell format." (render receiptRowsE)
-    -- receipts <- makeReceipt receiptRows <|&> renderGLEnterReceiptSheet  422 "Invalid cell format." . renderReceiptSheet
-    -- return $ renderReceiptSheet receipts
-
-
-parseGL :: ByteString -> ParsingResult RawRow [(PartialHeader, [PartialItem])]
+parseGL :: ByteString -> ParsingResult RawRow [(ValidHeader, [ValidItem])]
 parseGL spreadSheet = either id ParsingCorrect $ do
   rawRows <- parseSpreadsheet columnMap Nothing spreadSheet <|&>  WrongHeader
-  partials <- getLefts (map analyseReceiptRow rawRows) <|&>  InvalidFormat 
-  receipts <- makeReceipt partials <|&> InvalidData ["First row is missing header"] [] . map transformRow
-  Right receipts
+  traceShowM ("I've been there")
+  rows <- getLefts (map analyseReceiptRow rawRows) <|&>  InvalidFormat 
+  traceShowM ("and there")
+  partials <- makeReceipt rows <|&> flip (InvalidData ["First row is missing header"]) [] . traceShowId . map transformRow
+  traceShowM ("there again")
+  valids <- getLefts (map validReceipt partials) <|&> flip (InvalidData ["Missing value"]) [] . concatMap flattenReceipt
+
+  Right valids
 
 getLefts es = case partitionEithers es of
                       ([], rights ) -> Right rights
@@ -215,6 +210,9 @@ renderReceiptHeader ReceiptHeader{..} = [whamlet|
 instance ( Renderable (FieldTF t (Maybe Text))
          , Renderable (FieldTF t (Maybe Double))
          , Renderable (FieldTF t (Maybe Int))
+         , Renderable (FieldTF t Text)
+         , Renderable (FieldTF t Double)
+         , Renderable (FieldTF t Int)
          ) => Renderable  (ReceiptItem t) where
   render = renderReceiptItem
 renderReceiptItem ReceiptItem{..} = [whamlet|

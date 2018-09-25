@@ -20,9 +20,9 @@ data ReceiptHeader s = ReceiptHeader
   , rowTotal :: FieldTF s Double
   } 
 data ReceiptItem s = ReceiptItem 
-  { rowGlAccount :: FieldTF s (Maybe Int)-- RowGLAccountTF s
-  , rowAmount :: FieldTF s (Maybe Double)-- RowAmountTF s
-  , rowNetAmount :: FieldTF s (Maybe Double)-- RowAmountTF s
+  { rowGlAccount :: FieldTF s (Int)-- RowGLAccountTF s
+  , rowAmount :: FieldTF s (Double)-- RowAmountTF s
+  , rowNetAmount :: FieldTF s (Double)-- RowAmountTF s
   , rowMemo :: FieldTF s (Maybe Text)
   , rowTax :: FieldTF s (Maybe Text) -- RowTaxTF s
   , rowGLDimension1 :: FieldTF s (Maybe Int)
@@ -105,6 +105,21 @@ validateHeader (ReceiptHeader (Right rowDate)
                               (Right rowTotal)
                ) = Just $ ReceiptHeader{..}
 validateHeader _ = Nothing
+-- validateHeader header = either (const Nothing) Just $ traverseHeader header
+
+traverseHeader' = ReceiptHeader <$> rowDate
+                               <*> rowCounterparty
+                               <*> rowBankAccount
+                               <*> rowComment
+                               <*> rowTotal
+validateHeader' :: PartialHeader -> Maybe ValidHeader
+validateHeader' (ReceiptHeader (Just rowDate)
+                              (Just rowCounterparty)
+                              (Just rowBankAccount)
+                              (rowComment)
+                              (Just rowTotal)
+               ) = Just $ ReceiptHeader{..}
+validateHeader' _ = Nothing
 
 validateItem :: RawItem -> Maybe PartialItem
 validateItem (ReceiptItem (Right rowGlAccount)
@@ -116,14 +131,27 @@ validateItem (ReceiptItem (Right rowGlAccount)
                           (Right rowGLDimension2)
              ) = Just $ ReceiptItem{..}
 validateItem _ = Nothing
+
+validateItem' :: PartialItem -> Maybe ValidItem
+validateItem' (ReceiptItem (Just rowGlAccount)
+                          (Just rowAmount)
+                          (Just rowNetAmount)
+                          (rowMemo)
+                          (rowTax)
+                          (rowGLDimension1)
+                          (rowGLDimension2)
+             ) = Just $ ReceiptItem{..}
+validateItem' _ = Nothing
               
 -- | Create a Raw row with an error or not
+invalidateHeader :: RawHeader -> RawHeader
 invalidateHeader ReceiptHeader{..} =
   ReceiptHeader (validateNonEmpty "Date" rowDate)
   (validateNonEmpty "Counterparty" rowCounterparty)
   (validateNonEmpty "Bank Account" rowBankAccount)
   rowComment
   (validateNonEmpty "Total" rowTotal) 
+invalidateItem :: RawItem -> RawItem
 invalidateItem ReceiptItem{..} = 
   ReceiptItem 
   (validateNonEmpty "GLAccount" rowGlAccount)
@@ -149,3 +177,28 @@ transformItem ReceiptItem{..} = ReceiptItem
   (transform rowTax)
   (transform rowGLDimension1)
   (transform rowGLDimension2)
+
+-- * Template
+-- Templates allow to prefill or "guess" missing values from csv
+-- such as counterparty, GLAccount but also compute Tax backward etc
+
+data ReceiptTemplate
+  = SetCounterParty Text
+
+
+validReceipt :: (PartialHeader, [PartialItem])
+             -> Either (RawHeader, [RawItem])
+                        (ValidHeader, [ValidItem])
+validReceipt (header, items) = maybe (Left invalidateAll) Right validate where
+  validate = do
+    h <- validateHeader' header
+    is <- mapM validateItem' items
+    return (h, is)
+  invalidateAll = (invalidateHeader $ transformHeader header, map (invalidateItem . transformItem) items)
+    
+
+flattenReceipt :: (ReceiptHeader t, [ReceiptItem t]) -> [ReceiptRow t]
+flattenReceipt (header, []) = [This header]
+flattenReceipt (header, i:items) = These header i : map That items
+
+

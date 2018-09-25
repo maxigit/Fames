@@ -329,7 +329,7 @@ invFieldToHtml invField =
     in [shamlet|
 <span class="#{class_}">
   <span.description>#{invalidFieldError invField}
-  <span.message.text-danger data-toggle="tooltip" title="#{invalidFieldError invField}"><#{value}>
+  <span.message.text-danger data-toggle="tooltip" title="#{invalidFieldError invField}">&lt;#{value}&gt;
 |]
 
 
