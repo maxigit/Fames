@@ -90,12 +90,13 @@ postGLEnterReceiptSheetR = do
 parseGL :: ByteString -> ParsingResult RawRow [(ValidHeader, [ValidItem])]
 parseGL spreadSheet = either id ParsingCorrect $ do
   rawRows <- parseSpreadsheet columnMap Nothing spreadSheet <|&>  WrongHeader
-  traceShowM ("I've been there")
+  -- traceShowM ("I've been there")
   rows <- getLefts (map analyseReceiptRow rawRows) <|&>  InvalidFormat 
-  traceShowM ("and there")
+  -- traceShowM ("and there")
   partials <- makeReceipt rows <|&> flip (InvalidData ["First row is missing header"]) [] . traceShowId . map transformRow
-  traceShowM ("there again")
-  valids <- getLefts (map validReceipt partials) <|&> flip (InvalidData ["Missing value"]) [] . concatMap flattenReceipt
+  -- traceShowM ("there again")
+  let guessed = map (applyTemplate (SetCounterParty "pipo")) partials
+  valids <- getLefts (map validReceipt guessed) <|&> flip (InvalidData ["Missing value"]) [] . concatMap flattenReceipt
 
   Right valids
 

@@ -6,6 +6,7 @@ module Handler.GL.GLEnterReceiptSheet.ReceiptRow where
 
 import Import hiding(InvalidHeader)
 import Handler.CsvUtils
+import GL.Receipt (ReceiptTemplate(..))
 
 
 -- | Represents a row of the spreadsheet.
@@ -178,13 +179,6 @@ transformItem ReceiptItem{..} = ReceiptItem
   (transform rowGLDimension1)
   (transform rowGLDimension2)
 
--- * Template
--- Templates allow to prefill or "guess" missing values from csv
--- such as counterparty, GLAccount but also compute Tax backward etc
-
-data ReceiptTemplate
-  = SetCounterParty Text
-
 
 validReceipt :: (PartialHeader, [PartialItem])
              -> Either (RawHeader, [RawItem])
@@ -202,3 +196,31 @@ flattenReceipt (header, []) = [This header]
 flattenReceipt (header, i:items) = These header i : map That items
 
 
+
+applyTemplate :: ReceiptTemplate -> (PartialHeader, [PartialItem]) -> (PartialHeader, [PartialItem])
+applyTemplate setter h'is@(header, items) = case setter of
+  (CounterPartySetter counterparty) -> (header {rowCounterparty = addGuess (rowCounterparty header) counterparty}, items)
+  (BankAccountSetter bank) -> (header {rowBankAccount =  addGuess (rowBankAccount header) bank}, items)
+  (CompoundTemplate []) -> h'is
+  (CompoundTemplate (t:ts)) -> applyTemplate (CompoundTemplate ts) (applyTemplate t h'is)
+  (ItemMemoSetter memo) -> (header, [i {rowMemo = addGuess (rowMemo i) memo} |i <- items])
+  (ItemVATDeducer rate account) -> (header, [deduceVAT rate account i |i <- items])
+
+-- only set Both rate and net together
+deduceVAT :: Double -> Text -> PartialItem -> PartialItem
+deduceVAT rate account r@ReceiptItem{..} = case (rowTax, rowAmount, rowNetAmount) of
+  (Just (Provided _) , _ , _) -> r
+  (_,  Just (Provided amount),  _) -> let
+      tax = amount * rate 
+      net = amount - tax
+      in r {rowTax = Just (Guessed account), rowNetAmount = Just (Guessed net)}
+  (_, _,  Just (Provided amount)) -> let
+      gross =  amount * (1+rate)
+      in r {rowTax = Just (Guessed account), rowAmount = Just (Guessed gross)}
+  (_,_,_) -> r
+
+addGuess old new  = case old of
+  Nothing -> g
+  (Just (Guessed _ )) -> g
+  p@(Just (Provided _)) -> p
+  where  g = Just (Guessed new)

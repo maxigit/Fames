@@ -9,6 +9,7 @@ module GL.Receipt
   , Receipt(..)
   , ReceiptItem(..)
   , translate
+  , ReceiptTemplate(..)
   ) where
 
 import ClassyPrelude
@@ -73,3 +74,13 @@ translate receipt = FA.Payment (nets ++ taxes) where
   
 
 
+-- * Template
+-- Templates allow to prefill or "guess" missing values from csv
+-- such as counterparty, GLAccount but also compute Tax backward etc
+
+data ReceiptTemplate
+  = CounterPartySetter Text -- ^ set the counterparty
+  | BankAccountSetter Text -- ^ set a bank account
+  | CompoundTemplate [ReceiptTemplate] 
+  | ItemVATDeducer  Double Text -- ^ compute the net and tax from the gross
+  | ItemMemoSetter  Text
