@@ -329,7 +329,7 @@ makeReceipt rows = reverse . map (map reverse) <$> r where
         [] -> Right []
         This header : rs -> Right $ go header [] rs 
         These header item :rs -> Right $ go header [item] rs
-        That item : rs -> Left [That $ transformItem item]
+        That item : rs -> Left [These (ReceiptHeader (Left (MissingValueError "GL item without header") ) RNothing RNothing RNothing RNothing) (transformItem item)]
   go :: PartialHeader -> [PartialItem] -> [PartialRow]  -> [(PartialHeader, [PartialItem])]
   go h is [] = [(h, is)]
   go h is (These header item : rows) = (h, is) : go header [item] rows

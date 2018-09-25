@@ -44,8 +44,9 @@ type InvalidItem = ReceiptItem 'RawT
 type RawItem = ReceiptItem 'RawT
 type PartialItem = ReceiptItem 'PartialT
  
-instance {-#OVERLAPPING #-} Show (RawRow) where show = showReceiptRow RawT
-instance {-#OVERLAPPING #-}Show (ValidRow) where show = showReceiptRow ValidT
+-- instance {-#OVERLAPPING #-} Show (RawRow) where show = showReceiptRow RawT
+-- instance {-#OVERLAPPING #-}Show (ValidRow) where show = showReceiptRow ValidT
+-- instance {-#OVERLAPPING #-}Show (PartialRow) where show = showReceiptRow PartialT
 -- instance {-#OVERLAPPING #-}Show (InvalidRow) where show = showReceiptRow InvalidRowT
          
 
@@ -57,22 +58,26 @@ pattern NonHeaderRow gl amount net memo tax dim1 dim2 = These (ReceiptHeader RNo
 -- pattern RowP gl amount net memo tax dim1 dim2 = These (ReceiptHeader () () () () ()) (ReceiptItem gl amount net memo tax dim1 dim2)
 pattern NonItemRow date counterparty bank comment total = These (ReceiptHeader date counterparty bank comment total  ) (ReceiptItem RNothing RNothing RNothing RNothing RNothing RNothing RNothing)
                                              
-showReceiptRow rType row = show "ReceiptRow " ++ show rType ++ show row
--- showReceiptHeader ReceiptHeader{..} = show "ReceiptHeader {"
---   ++ "rowDate=" ++ show rowDate ++ ", " 
---   ++ "rowCounterparty=" ++ show rowCounterparty ++ ", " 
---   ++ "rowBankAccount=" ++ show rowBankAccount ++ ", " 
---   ++ "rowComment=" ++ show rowComment ++ ", " 
---   ++ "rowTotal=" ++ show rowTotal ++ "}" 
+-- showReceiptRow rType row = show "ReceiptRow " ++ show rType ++ show row
+showReceiptHeader ReceiptHeader{..} = show "ReceiptHeader {"
+  ++ "rowDate=" ++ show rowDate ++ ", " 
+  ++ "rowCounterparty=" ++ show rowCounterparty ++ ", " 
+  ++ "rowBankAccount=" ++ show rowBankAccount ++ ", " 
+  ++ "rowComment=" ++ show rowComment ++ ", " 
+  ++ "rowTotal=" ++ show rowTotal ++ "}" 
 
--- showReceiptITEM ReceiptItem{..} = show "ReceipItem {"
---   ++ "rowGlAccount=" ++ show rowGlAccount ++ ", " 
---   ++ "rowAmount=" ++ show rowAmount ++ ", " 
---   ++ "rowNetAmount=" ++ show rowNetAmount ++ ", " 
---   ++ "rowTax=" ++ show rowTax ++ "," 
---   ++ "rowGlDimension1=" ++ show rowGLDimension1 ++ ", " 
---   ++ "rowGlDimension2=" ++ show rowGLDimension2 ++ "}" 
+showReceiptItem ReceiptItem{..} = show "ReceipItem {"
+  ++ "rowGlAccount=" ++ show rowGlAccount ++ ", " 
+  ++ "rowAmount=" ++ show rowAmount ++ ", " 
+  ++ "rowNetAmount=" ++ show rowNetAmount ++ ", " 
+  ++ "rowTax=" ++ show rowTax ++ "," 
+  ++ "rowGlDimension1=" ++ show rowGLDimension1 ++ ", " 
+  ++ "rowGlDimension2=" ++ show rowGLDimension2 ++ "}" 
 
+instance Show (ReceiptHeader 'RawT) where show = showReceiptHeader
+instance Show (ReceiptItem 'RawT) where show = showReceiptItem
+instance Show (ReceiptHeader 'PartialT) where show = showReceiptHeader
+instance Show (ReceiptItem 'PartialT) where show = showReceiptItem
 
 class ReceiptRowTypeClass a where
   rowType :: a -> RowTypes

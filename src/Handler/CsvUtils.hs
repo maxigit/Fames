@@ -51,6 +51,7 @@ data ParsingResult row result
                       -- ^ errors to be displayed first
   | ParsingCorrect result -- Ok
 
+
 deriving instance (Eq a, Eq b) => Eq (ParsingResult a b)
 deriving instance (Show a, Show b) => Show (ParsingResult a b)
 
@@ -323,12 +324,12 @@ instance Renderable InvalidField where
 invFieldToHtml invField = 
     let (class_, value) = case invField of
           ParsingError _ v -> ("parsing-error" :: Text, v)
-          MissingValueError _ -> ("missing-value" :: Text,"<Empty>")
+          MissingValueError _ -> ("missing-value" :: Text,"Empty")
           InvalidValueError e v -> ("invalid-value" :: Text, v)
     in [shamlet|
 <span class="#{class_}">
   <span.description>#{invalidFieldError invField}
-  <span.message.text-danger data-toggle="tooltip" title="#{invalidFieldError invField}">#{value}
+  <span.message.text-danger data-toggle="tooltip" title="#{invalidFieldError invField}"><#{value}>
 |]
 
 
