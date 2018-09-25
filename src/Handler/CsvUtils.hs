@@ -397,8 +397,8 @@ instance Renderable InvalidSpreadsheet where
              
 
 renderParsingResult :: (Renderable [row], MonadHandler m)
-                    => (m () -> Widget -> out)
-                    -> (result -> out)
+                    => (m () -> Widget -> out) -- layout to combine msg and rendered item
+                    -> (result -> out) -- Process the result and get an output
                     -> ParsingResult row result
                     -> out
 renderParsingResult onError onSuccess result = 

@@ -33,13 +33,13 @@ import Lens.Micro.Extras (preview)
 -- | process GET for GLEnterReceiptSheetR route
 -- used to upload a receip sheet.
 getGLEnterReceiptSheetR :: Handler Html
-getGLEnterReceiptSheetR = renderGLEnterReceiptSheet 200 ""  (return ())
+getGLEnterReceiptSheetR = renderGLEnterReceiptSheet Nothing 200 ""  (return ())
 
 -- | Render a page with a form to upload a receipt sheet
 -- via text or file. It can also display the content of the previous attempt if any.
-renderGLEnterReceiptSheet :: Int -> Text -> Widget -> Handler Html
-renderGLEnterReceiptSheet status title pre = do
-  (postTextFormW, postEncType) <- generateFormPost postTextForm
+renderGLEnterReceiptSheet :: Maybe Param -> Int -> Text -> Widget -> Handler Html
+renderGLEnterReceiptSheet param status title pre = do
+  (postTextFormW, postEncType) <- generateFormPost (postTextForm param)
   (uploadFileFormW, upEncType) <- generateFormPost $ uploadFileForm (pure ())
   setMessage (toHtml title)
   sendResponseStatus (toEnum status) =<< defaultLayout [whamlet|
@@ -60,38 +60,62 @@ renderGLEnterReceiptSheet status title pre = do
         Not implemented
 |]
 
-postTextForm :: Form (Text, Textarea)
-postTextForm = renderBootstrap3 BootstrapBasicForm $ (,)
-  <$> areq textField "Sheet name" Nothing
-  <*> areq textareaField "Receipts" Nothing
+type Param = (Text, Textarea)   
+postTextForm :: Maybe Param -> Form Param
+postTextForm paramM = renderBootstrap3 BootstrapBasicForm $ (,)
+  <$> areq textField "Sheet name" (fst <$> paramM )
+  <*> areq textareaField "Receipts" (snd <$> paramM)
 
 
 postGLEnterReceiptSheetR :: Handler Html
 postGLEnterReceiptSheetR = do
-  ((textResp, __postTextW), __enctype) <- runFormPost postTextForm
+  ((textResp, __postTextW), __enctype) <- runFormPost (postTextForm Nothing)
   ((fileResp, __postFileW), ___enctype) <- runFormPost $ uploadFileForm (pure ())
   let showForm form = case form of
                       (FormFailure f) -> "Form Failure:" ++ show f
                       (FormMissing) -> "Form missing"
                       (FormSuccess _) -> "Form Success"
 
-  spreadSheet <- case (textResp, fileResp) of
+  (spreadSheet, param) <- case (textResp, fileResp) of
                         -- (FormMissing, FormMissing) -> error "missing"
-                        (FormSuccess (__title, spreadsheet), _) -> return $ encodeUtf8 $ unTextarea spreadsheet
+                        (FormSuccess param@(__title, spreadsheet), _) -> return $ (encodeUtf8 $ unTextarea spreadsheet, Just param)
                         (_, FormSuccess (fileInfo, encoding, ())) -> do
-                          fst <$> readUploadUTF8 fileInfo encoding
+                          (, Nothing) . fst <$> readUploadUTF8 fileInfo encoding
                         (formA, formB) -> error $ showForm formA ++ ", " ++ showForm formB
  
-  either id defaultLayout $ do
-    rawRows <- parseSpreadsheet columnMap Nothing spreadSheet <|&>  renderGLEnterReceiptSheet 422 "Invalid file or columns missing." . render
-    let receiptRows = map analyseReceiptRow rawRows
-    receipts <- makeReceipt receiptRows <|&> renderGLEnterReceiptSheet  422 "Invalid cell format." . renderReceiptSheet
-    return $ renderReceiptSheet receipts
+  let receipts = parseGL spreadSheet 
+  renderParsingResult ((\_ pre -> setError "Invalid Spreadsheet" >> renderGLEnterReceiptSheet param 422 "" pre ) :: Handler () -> Widget -> Handler Html)
+                      (defaultLayout  . renderReceiptSheet)
+                      receipts
+
+    -- rawRows <- parseSpreadsheet columnMap Nothing spreadSheet <|&>  renderGLEnterReceiptSheet 422 "Invalid file or columns missing." . render
+    -- let receiptRowsE = map analyseReceiptRow rawRows
+
+    -- case sequence receiptRowsE of
+    --   Left _ -> renderGLEnterReceiptSheet 422 "Invalid cell format." (render receiptRowsE)
+    -- receipts <- makeReceipt receiptRows <|&> renderGLEnterReceiptSheet  422 "Invalid cell format." . renderReceiptSheet
+    -- return $ renderReceiptSheet receipts
 
 
--- renderReceiptSheet :: ( ReceiptRowTypeClass h, Renderable h
---                       , ReceiptRowTypeClass r, Renderable r
---                       , Show h, Show r) => [(h, [r])] -> Widget
+parseGL :: ByteString -> ParsingResult RawRow [(PartialHeader, [PartialItem])]
+parseGL spreadSheet = either id ParsingCorrect $ do
+  rawRows <- parseSpreadsheet columnMap Nothing spreadSheet <|&>  WrongHeader
+  partials <- getLefts (map analyseReceiptRow rawRows) <|&>  InvalidFormat 
+  receipts <- makeReceipt partials <|&> InvalidData ["First row is missing header"] [] . map transformRow
+  Right receipts
+
+getLefts es = case partitionEithers es of
+                      ([], rights ) -> Right rights
+                      (lefts, _) -> Left lefts
+   
+
+
+renderReceiptSheet :: ( Renderable h
+                      , Renderable r
+                      , Renderable (Int, (h, [r]))
+                      )
+                      => [(h, [r] )] -> Widget
+  
 renderReceiptSheet receipts =  do
   let ns = [1..] :: [Int]
   [whamlet| 
@@ -150,27 +174,28 @@ renderReceiptRow row = do
   font-weight: bold
 |]
   [whamlet|
-<td.receiptGroup>#{groupIndicator}
-  $case preview here row
-    $of Nothing
-      <td>
-      <td>
-      <td>
-      <td>
-      <td>
-    $of Just header
-      ^{render header}
-  $case preview there row
-    $of Nothing
-      <td>
-      <td>
-      <td>
-      <td>
-      <td>
-      <td>
-      <td>
-    $of Just item
-      ^{render item}
+<tr>
+  <td.receiptGroup>#{groupIndicator}
+    $case preview here row
+      $of Nothing
+        <td>
+        <td>
+        <td>
+        <td>
+        <td>
+      $of Just header
+        ^{render header}
+    $case preview there row
+      $of Nothing
+        <td>
+        <td>
+        <td>
+        <td>
+        <td>
+        <td>
+        <td>
+      $of Just item
+        ^{render item}
  |] 
 
 
@@ -184,7 +209,7 @@ renderReceiptHeader ReceiptHeader{..} = [whamlet|
 <td.date>^{render rowDate}
 <td.counterparty>^{render rowCounterparty}
 <td.bankAccount>^{render rowBankAccount}
-<td.bankAccount>^{render rowComment}
+<td.comment>^{render rowComment}
 <td.totalAmount>^{render rowTotal}
 |]
 instance ( Renderable (FieldTF t (Maybe Text))
@@ -223,6 +248,27 @@ $forall (row, j) <- zip rows is
          -- class_ InvalidRowT = "receipt-row invalid bg-warning"
          -- class_ RawT = error "Shouldn't happend"
 -- <span.rowTax>#{render rowTax}
+
+instance Renderable ([RawRow]) where
+  render rows = [whamlet|
+    <table.table.table-border.table-striped.table-hover>
+      <tr>
+        <th>
+        <th>Date
+        <th>Counterparty
+        <th>Bank Account
+        <th>Comment
+        <th>Totalparse
+        <th>GL Account
+        <th>Amount
+        <th>Net Amount
+        <th>Memo
+        <th>Tax Rate
+        <th>Dimension 1
+        <th>Dimension 2
+      $forall row <- rows
+        ^{renderReceiptRow row}
+                        |]
 
 columnMap :: Map String [String]
 columnMap = Map.fromList
@@ -275,20 +321,23 @@ instance Csv.FromNamedRecord (ReceiptItem 'RawT) where
     where parse = parseMulti columnMap
 
 -- | Regroups receipts rows starting with a header (valid or invalid)
-makeReceipt :: [Either RawRow ValidRow
-               ]
-             -> Either [( Either InvalidHeader ValidHeader 
-                          , [Either InvalidItem ValidItem]
-                         )]
-                       [ (ValidHeader
-                          , [ValidItem]
-                          )
-                       ]
-makeReceipt [] = Left []
-makeReceipt rows = Left []
+makeReceipt :: [PartialRow]
+             -> Either [RawRow] -- [ReceiptRow 'RawT]
+                       [(PartialHeader, [PartialItem])]
+makeReceipt rows = reverse . map (map reverse) <$> r where
+  r = case rows of
+        [] -> Right []
+        This header : rs -> Right $ go header [] rs 
+        These header item :rs -> Right $ go header [item] rs
+        That item : rs -> Left [That $ transformItem item]
+  go :: PartialHeader -> [PartialItem] -> [PartialRow]  -> [(PartialHeader, [PartialItem])]
+  go h is [] = [(h, is)]
+  go h is (These header item : rows) = (h, is) : go header [item] rows
+  go h is (This header : rows) = (h, is) : go header [] rows
+  go h is (That item : rows) = go h (item:is) rows
   -- -- split by header, valid or not
   -- let (orphans:groups) =  S.split (S.keepDelimsL $ S.whenElt  isRight) rows
-  --     -- we know header are right and rows are left
+  --     -- we know header are right and rows are left]
 
   --     go (Right header:rows__) = (header , lefts rows__)
   --     go _ = error "Shouldn't not happend"

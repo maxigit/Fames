@@ -33,11 +33,16 @@ type ReceiptRow s = These (ReceiptHeader s) (ReceiptItem s)
   
 type RawRow = ReceiptRow 'RawT
 type ValidRow = ReceiptRow 'ValidT
+type PartialRow = ReceiptRow 'PartialT
 -- type InvalidRow = ReceiptRow 'InvalidT
 type ValidHeader = ReceiptHeader 'ValidT
 type InvalidHeader = ReceiptHeader 'RawT
+type RawHeader = ReceiptHeader 'RawT
+type PartialHeader = ReceiptHeader 'PartialT
 type ValidItem = ReceiptItem 'ValidT
 type InvalidItem = ReceiptItem 'RawT
+type RawItem = ReceiptItem 'RawT
+type PartialItem = ReceiptItem 'PartialT
  
 instance {-#OVERLAPPING #-} Show (RawRow) where show = showReceiptRow RawT
 instance {-#OVERLAPPING #-}Show (ValidRow) where show = showReceiptRow ValidT
@@ -79,9 +84,34 @@ instance (ReceiptRowTypeClass l, ReceiptRowTypeClass r) => ReceiptRowTypeClass (
 
   
 -- What are invalid header ? with valid header field but missing  or invalid header field
-analyseReceiptRow :: RawRow -> (Either RawRow ValidRow)
-analyseReceiptRow = Left  -- for the moment
+analyseReceiptRow :: RawRow -> (Either RawRow PartialRow)
+analyseReceiptRow h@(This header) = maybe (Left h) (Right . This) (validateHeader header)
+analyseReceiptRow i@(That item) = maybe (Left i) (Right . That) (validateItem item)
+analyseReceiptRow t@(These header item) = case (validateHeader header, validateItem item) of
+  (Just h, Just i) -> Right (These h i)
+  _ -> Left t
 
+-- | Check that all fields have been parsed correctly. Blank are allowed
+validateHeader :: RawHeader -> Maybe PartialHeader
+validateHeader (ReceiptHeader (Right rowDate)
+                              (Right rowCounterparty)
+                              (Right rowBankAccount)
+                              (Right rowComment)
+                              (Right rowTotal)
+               ) = Just $ ReceiptHeader{..}
+validateHeader _ = Nothing
+
+validateItem :: RawItem -> Maybe PartialItem
+validateItem (ReceiptItem (Right rowGlAccount)
+                          (Right rowAmount)
+                          (Right rowNetAmount)
+                          (Right rowMemo)
+                          (Right rowTax)
+                          (Right rowGLDimension1)
+                          (Right rowGLDimension2)
+             ) = Just $ ReceiptItem{..}
+validateItem _ = Nothing
+              
 -- | Create a Raw row with an error or not
 invalidateHeader ReceiptHeader{..} =
   ReceiptHeader (validateNonEmpty "Date" rowDate)
