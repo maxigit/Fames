@@ -7,7 +7,7 @@ module Handler.GL.GLEnterReceiptSheet.ReceiptRow where
 import Import hiding(InvalidHeader)
 import Handler.CsvUtils
 import GL.Receipt (ReceiptTemplate(..))
-
+import Data.List(mapAccumL)
 
 -- | Represents a row of the spreadsheet.
 -- The actual type of each field depend of a status or stage
@@ -56,8 +56,9 @@ type PartialItem = ReceiptItem 'PartialT
 
 
 pattern EmptyItem = ReceiptItem RNothing RNothing RNothing RNothing RNothing RNothing RNothing RNothing
-pattern EmptyHeader = ReceiptHeader RNothing RNothing RNothing RNothing RNothing RNothing
-pattern NonHeaderRow gl amount net memo tax dim1 dim2 itemTemplate = These (ReceiptHeader RNothing RNothing RNothing RNothing RNothing RNothing) (ReceiptItem gl amount net memo tax dim1 dim2 itemTemplate)
+-- | Check if a header is empty. Don't look at template, as it will be picked up by the item too.
+pattern EmptyHeader <- ReceiptHeader RNothing RNothing RNothing RNothing RNothing _
+pattern NonHeaderRow gl amount net memo tax dim1 dim2 itemTemplate <- These (ReceiptHeader RNothing RNothing RNothing RNothing RNothing _) (ReceiptItem gl amount net memo tax dim1 dim2 itemTemplate)
 -- pattern RowP gl amount net memo tax dim1 dim2 = These (ReceiptHeader () () () () ()) (ReceiptItem gl amount net memo tax dim1 dim2)
 pattern NonItemRow date counterparty bank comment total template = These (ReceiptHeader date counterparty bank comment total template  ) (ReceiptItem RNothing RNothing RNothing RNothing RNothing RNothing RNothing RNothing)
                                              
@@ -98,7 +99,7 @@ analyseReceiptRow :: RawRow -> (Either RawRow PartialRow)
 analyseReceiptRow h@(This header) = maybe (Left h) (Right . This) (validateHeader header)
 analyseReceiptRow i@(That item) = maybe (Left i) (Right . That) (validateItem item)
 analyseReceiptRow t@(These header item) = case (validateHeader header, validateItem item) of
-  (Just h, Just i) -> Right (These h i)
+  (Just h, Just i) -> Right (These h i {rowItemTemplate = Nothing}) -- cancel item template already on header
   _ -> Left t
 
 -- | Check that all fields have been parsed correctly. Blank are allowed
@@ -219,6 +220,23 @@ applyTemplate setter h'is@(header, items) = case setter of
   (ItemDimension1Setter dimension1) -> (header, [i {rowGLDimension1 = addGuess (rowGLDimension1 i) dimension1} |i <- items])
   (ItemDimension2Setter dimension2) -> (header, [i {rowGLDimension2 = addGuess (rowGLDimension2 i) dimension2} |i <- items])
   (ItemVATDeducer rate account) -> (header, [deduceVAT rate account i |i <- items])
+
+-- Process all items with header template and then apply individual item template
+-- We do it so that item template have priority but also in acse the item template use informatoon
+-- from the header. The header could be modified (like updating the total)
+applyInnerTemplate :: Map Text ReceiptTemplate -> (PartialHeader, [PartialItem]) -> (PartialHeader, [PartialItem])
+applyInnerTemplate templateMap h'is0@(header0,_) = let
+  (header, items) = case flip lookup templateMap . validValue =<< rowTemplate header0 of
+                      Nothing -> h'is0
+                      Just template -> applyTemplate template h'is0
+  in mapAccumL (applyInnerItemTemplate templateMap ) header items
+
+applyInnerItemTemplate :: Map Text ReceiptTemplate -> PartialHeader -> PartialItem -> (PartialHeader, PartialItem)
+applyInnerItemTemplate templateMap header0 item0 = 
+    case flip lookup templateMap . validValue =<< rowItemTemplate item0 of
+      Nothing -> (header0, item0)
+      Just template -> let (header, [item] ) = applyTemplate template (header0, [item0])
+                       in (header, item)
 
 -- only set Both rate and net together
 deduceVAT :: Double -> Text -> PartialItem -> PartialItem

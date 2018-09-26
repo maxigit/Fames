@@ -99,7 +99,7 @@ parseGL templateMap spreadSheet = either id ParsingCorrect $ do
   partials <- makeReceipt rows <|&> flip (InvalidData ["First row is missing header"]) [] . traceShowId . map transformRow
   -- traceShowM ("there again")
   let template = findWithDefault mempty "default"  templateMap
-      guessed = map (applyTemplate template) partials
+      guessed = map (applyInnerTemplate templateMap . applyTemplate template) partials
   valids <- getLefts (map validReceipt guessed) <|&> flip (InvalidData ["Missing value"]) [] . concatMap flattenReceipt
 
   Right valids
@@ -232,8 +232,8 @@ renderReceiptItem ReceiptItem{..} = [whamlet|
 <td.amount>^{render rowNetAmount}
 <td.amount>^{render rowMemo}
 <td.tax>^{render rowTax}
-<td.tax>^{render rowGLDimension1}
-<td.tax>^{render rowGLDimension2}
+<td.dimension.1>^{render rowGLDimension1}
+<td.dimension.2>^{render rowGLDimension2}
 |]
 
 -- instance (Renderable a, Renderable b)  => Renderable (These a b) where
@@ -334,7 +334,8 @@ instance Csv.FromNamedRecord (ReceiptItem 'RawT) where
     where parse = parseMulti columnMap
 
 -- | Regroups receipts rows starting with a header (valid or invalid)
-makeReceipt :: [PartialRow]
+makeReceipt :: -- (FieldTF 'PartialT (Maybe Text) ~ Either InvalidField (Maybe (ValidField Text)))
+            [PartialRow]
              -> Either [RawRow] -- [ReceiptRow 'RawT]
                        [(PartialHeader, [PartialItem])]
 makeReceipt rows = reverse . map (map reverse) <$> r where
@@ -342,7 +343,7 @@ makeReceipt rows = reverse . map (map reverse) <$> r where
         [] -> Right []
         This header : rs -> Right $ go header [] rs 
         These header item :rs -> Right $ go header [item] rs
-        That item : rs -> Left [These (ReceiptHeader (Left (MissingValueError "GL item without header") ) RNothing RNothing RNothing RNothing RNothing) (transformItem item)]
+        That item : rs -> Left [These (ReceiptHeader (Left (MissingValueError "GL item without header") ) RNothing RNothing RNothing RNothing (transform $ rowItemTemplate item)) (transformItem item)]
   go :: PartialHeader -> [PartialItem] -> [PartialRow]  -> [(PartialHeader, [PartialItem])]
   go h is [] = [(h, is)]
   go h is (These header item : rows) = (h, is) : go header [item] rows
