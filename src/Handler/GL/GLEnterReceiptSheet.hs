@@ -16,6 +16,7 @@ import qualified Data.Csv as Csv
 import Data.Either
 import Text.Blaze.Html(ToMarkup())
 import qualified Data.List.Split  as S
+import GL.Receipt(ReceiptTemplate(..))
 -- import Text.Printf (printf)
 -- import qualified Data.Text as Text
 -- import qualified Data.Text.Read as Text
@@ -95,7 +96,8 @@ parseGL spreadSheet = either id ParsingCorrect $ do
   -- traceShowM ("and there")
   partials <- makeReceipt rows <|&> flip (InvalidData ["First row is missing header"]) [] . traceShowId . map transformRow
   -- traceShowM ("there again")
-  let guessed = map (applyTemplate (SetCounterParty "pipo")) partials
+  let template = CompoundTemplate [CounterpartySetter "pipo and VAT", ItemVATDeducer 0.20 "VAT 20%" ]
+  let guessed = map (applyTemplate template) partials
   valids <- getLefts (map validReceipt guessed) <|&> flip (InvalidData ["Missing value"]) [] . concatMap flattenReceipt
 
   Right valids

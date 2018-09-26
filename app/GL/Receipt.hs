@@ -15,6 +15,7 @@ module GL.Receipt
 import ClassyPrelude
 import qualified GL.FA as FA
 import qualified Data.Map as Map
+import Data.Aeson
 
 
 -- * General types
@@ -79,8 +80,16 @@ translate receipt = FA.Payment (nets ++ taxes) where
 -- such as counterparty, GLAccount but also compute Tax backward etc
 
 data ReceiptTemplate
-  = CounterPartySetter Text -- ^ set the counterparty
+  = CounterpartySetter Text -- ^ set the counterparty
   | BankAccountSetter Text -- ^ set a bank account
   | CompoundTemplate [ReceiptTemplate] 
   | ItemVATDeducer  Double Text -- ^ compute the net and tax from the gross
   | ItemMemoSetter  Text
+  deriving (Eq, Show, Read)
+
+
+-- ** JSON
+-- parseJSON = withObject "primary"
+
+instance FromJSON ReceiptTemplate where
+  parseJSON = fail "not implemented"

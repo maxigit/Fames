@@ -52,7 +52,7 @@ dateSpec = describe "@DateCalculator" $ do
       it "finds previous month" $ do
         previousMonthStartingAt 6 (fromGregorian 2018 03 02) `shouldBe` fromGregorian 2018 02 06
 
-periodSpec = describe "@Period @current" $ do
+periodSpec = describe "@Period" $ do
   context "whole year" $ do
     let folding = FoldYearly (fromGregorian 2018 01 01)
     it "stays in current period" $ do

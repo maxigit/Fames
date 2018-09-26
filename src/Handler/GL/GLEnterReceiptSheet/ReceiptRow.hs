@@ -199,7 +199,7 @@ flattenReceipt (header, i:items) = These header i : map That items
 
 applyTemplate :: ReceiptTemplate -> (PartialHeader, [PartialItem]) -> (PartialHeader, [PartialItem])
 applyTemplate setter h'is@(header, items) = case setter of
-  (CounterPartySetter counterparty) -> (header {rowCounterparty = addGuess (rowCounterparty header) counterparty}, items)
+  (CounterpartySetter counterparty) -> (header {rowCounterparty = addGuess (rowCounterparty header) counterparty}, items)
   (BankAccountSetter bank) -> (header {rowBankAccount =  addGuess (rowBankAccount header) bank}, items)
   (CompoundTemplate []) -> h'is
   (CompoundTemplate (t:ts)) -> applyTemplate (CompoundTemplate ts) (applyTemplate t h'is)
