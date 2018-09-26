@@ -8,6 +8,7 @@ import Import hiding(InvalidHeader)
 import Handler.CsvUtils
 import GL.Receipt (ReceiptTemplate(..))
 import Data.List(mapAccumL)
+import GL.FA
 
 -- | Represents a row of the spreadsheet.
 -- The actual type of each field depend of a status or stage
@@ -16,21 +17,30 @@ import Data.List(mapAccumL)
 data ReceiptHeader s = ReceiptHeader
   { rowDate :: FieldTF s Day --  RowDateTF s
   , rowCounterparty :: FieldTF s Text -- RowCounterpartyTF s
-  , rowBankAccount :: FieldTF s Text -- RowBankAccountTF s
+  , rowBankAccount :: RefFieldTF s (BankAccountRef) -- RowBankAccountTF s
   , rowComment :: FieldTF s (Maybe Text)
   , rowTotal :: FieldTF s Double
   , rowTemplate :: FieldTF s (Maybe Text) -- template to apply to whole receipt
   } 
 data ReceiptItem s = ReceiptItem 
-  { rowGlAccount :: FieldTF s (Int)-- RowGLAccountTF s
+  { rowGlAccount :: RefFieldTF s (GLAccountRef)-- RowGLAccountTF s
   , rowAmount :: FieldTF s (Double)-- RowAmountTF s
   , rowNetAmount :: FieldTF s (Double)-- RowAmountTF s
   , rowMemo :: FieldTF s (Maybe Text)
   , rowTax :: FieldTF s (Maybe Text) -- RowTaxTF s
-  , rowGLDimension1 :: FieldTF s (Maybe Int)
-  , rowGLDimension2 :: FieldTF s (Maybe Int)
+  , rowGLDimension1 :: RefFieldTF s (Maybe Dimension1Ref)
+  , rowGLDimension2 :: RefFieldTF s (Maybe Dimension2Ref)
   , rowItemTemplate :: FieldTF s (Maybe Text) -- template to apply to item only
   }
+
+type RefFieldTF s a = FieldTF s (RefTF s a)
+type family RefTF (s :: RowTypes) a where
+  RefTF 'RawT (Maybe a) = Either Text a
+  RefTF 'RawT a = Either Text a
+  RefTF 'PartialT (Maybe a) = Either Text a
+  RefTF 'PartialT a = Either Text a
+  RefTF 'ValidT a = a
+  RefTF 'FinalT a = a
 
 type ReceiptRow s = These (ReceiptHeader s) (ReceiptItem s)
   
@@ -123,12 +133,25 @@ traverseHeader' = ReceiptHeader <$> rowDate
 validateHeader' :: PartialHeader -> Maybe ValidHeader
 validateHeader' (ReceiptHeader (Just rowDate)
                               (Just rowCounterparty)
-                              (Just rowBankAccount)
+                              (Just rowBankAccount')
                               (rowComment)
                               (Just rowTotal)
                               (rowTemplate)
-               ) = Just $ ReceiptHeader{..}
+               )
+  | Right rowBankAccount'' <- validValue rowBankAccount'
+  = let rowBankAccount = fmap (const rowBankAccount'') rowBankAccount'
+   in Just ReceiptHeader{..}
 validateHeader' _ = Nothing
+
+-- | Expand if possible the reference. The validity is checked afterward.
+-- We need those 2 steps to be able to track easily which expension have gone wrong
+expandHeaderRef :: ReferenceMap -> PartialHeader -> PartialHeader
+expandHeaderRef refMap ReceiptHeader{..} = ReceiptHeader{rowBankAccount= expandField refMap <$$> rowBankAccount,..}
+
+expandField :: Referable s => ReferenceMap -> Either Text (Reference s) -> Either Text (Reference s)
+expandField refMap (Left ref) = maybe (Left ref) Right   $ findReference refMap ref
+expandField _ x = x
+
 
 validateItem :: RawItem -> Maybe PartialItem
 validateItem (ReceiptItem (Right rowGlAccount)
@@ -143,17 +166,30 @@ validateItem (ReceiptItem (Right rowGlAccount)
 validateItem _ = Nothing
 
 validateItem' :: PartialItem -> Maybe ValidItem
-validateItem' (ReceiptItem (Just rowGlAccount)
+validateItem' (ReceiptItem (Just rowGlAccount')
                           (Just rowAmount)
                           (Just rowNetAmount)
                           (rowMemo)
                           (rowTax)
-                          (rowGLDimension1)
-                          (rowGLDimension2)
+                          (rowGLDimension1')
+                          (rowGLDimension2')
                           (rowItemTemplate)
-             ) = Just $ ReceiptItem{..}
-validateItem' _ = Nothing
+             )
+  | Right rowGlAccount'' <- validValue rowGlAccount'
+  -- , Right rowGLDimension1'' <- validValue rowGLDimension1'
+  -- , Right rowGLDimension2'' <- validValue rowGLDimension2'
+  = let rowGlAccount = const rowGlAccount'' <$> rowGlAccount'
+        rowGLDimension1 = Nothing -- const rowGLDimension1'' <$> rowGLDimension1'
+        rowGLDimension2 = Nothing -- const rowGLDimension2'' <$> rowGLDimension2'
+  in Just $ ReceiptItem{..}
+validateItem' _  = Nothing
               
+expandItemRef :: ReferenceMap -> PartialItem -> PartialItem
+expandItemRef refMap ReceiptItem{..} = ReceiptItem { rowGlAccount = expandField refMap <$$> rowGlAccount
+                                                   , rowGLDimension1 = expandField refMap <$$> rowGLDimension1
+                                                   , rowGLDimension2 = expandField refMap <$$> rowGLDimension2
+                                                   , ..
+                                                   }
 -- | Create a Raw row with an error or not
 invalidateHeader :: RawHeader -> RawHeader
 invalidateHeader ReceiptHeader{..} =
@@ -193,16 +229,23 @@ transformItem ReceiptItem{..} = ReceiptItem
   (transform rowItemTemplate)
 
 
-validReceipt :: (PartialHeader, [PartialItem])
+validReceipt :: ReferenceMap
+             -> (PartialHeader, [PartialItem])
              -> Either (RawHeader, [RawItem])
                         (ValidHeader, [ValidItem])
-validReceipt (header, items) = maybe (Left invalidateAll) Right validate where
+validReceipt refMap h'is = maybe (Left invalidateAll) Right validate where
+  (header, items) = expandReceiptRef refMap h'is
   validate = do
     h <- validateHeader' header
-    is <- mapM validateItem' items
+    is <- mapM (validateItem' ) items
     return (h, is)
   invalidateAll = (invalidateHeader $ transformHeader header, map (invalidateItem . transformItem) items)
     
+expandReceiptRef :: ReferenceMap
+             -> (PartialHeader, [PartialItem])
+             -> (PartialHeader, [PartialItem])
+expandReceiptRef refMap (header, items) = (expandHeaderRef refMap header, map (expandItemRef refMap) items )
+
 
 flattenReceipt :: (ReceiptHeader t, [ReceiptItem t]) -> [ReceiptRow t]
 flattenReceipt (header, []) = [This header]
@@ -213,12 +256,12 @@ flattenReceipt (header, i:items) = These header i : map That items
 applyTemplate :: ReceiptTemplate -> (PartialHeader, [PartialItem]) -> (PartialHeader, [PartialItem])
 applyTemplate setter h'is@(header, items) = case setter of
   (CounterpartySetter counterparty) -> (header {rowCounterparty = addGuess (rowCounterparty header) counterparty}, items)
-  (BankAccountSetter bank) -> (header {rowBankAccount =  addGuess (rowBankAccount header) bank}, items)
+  (BankAccountSetter bank) -> (header {rowBankAccount =  addGuess (rowBankAccount header) (Left bank)}, items)
   (CompoundTemplate []) -> h'is
   (CompoundTemplate (t:ts)) -> applyTemplate (CompoundTemplate ts) (applyTemplate t h'is)
   (ItemMemoSetter memo) -> (header, [i {rowMemo = addGuess (rowMemo i) memo} |i <- items])
-  (ItemDimension1Setter dimension1) -> (header, [i {rowGLDimension1 = addGuess (rowGLDimension1 i) dimension1} |i <- items])
-  (ItemDimension2Setter dimension2) -> (header, [i {rowGLDimension2 = addGuess (rowGLDimension2 i) dimension2} |i <- items])
+  (ItemDimension1Setter dimension1) -> (header, [i {rowGLDimension1 = addGuess (rowGLDimension1 i) (Left dimension1)} |i <- items])
+  (ItemDimension2Setter dimension2) -> (header, [i {rowGLDimension2 = addGuess (rowGLDimension2 i) (Left dimension2)} |i <- items])
   (ItemVATDeducer rate account) -> (header, [deduceVAT rate account i |i <- items])
 
 -- Process all items with header template and then apply individual item template
@@ -251,6 +294,7 @@ deduceVAT rate account r@ReceiptItem{..} = case (rowTax, rowAmount, rowNetAmount
       in r {rowTax = Just (Guessed account), rowAmount = Just (Guessed gross)}
   (_,_,_) -> r
 
+addGuess :: Maybe (ValidField a) -> a -> Maybe (ValidField a)
 addGuess old new  = case old of
   Nothing -> g
   (Just (Guessed _ )) -> g

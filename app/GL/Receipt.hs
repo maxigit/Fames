@@ -87,8 +87,8 @@ data ReceiptTemplate
   | CompoundTemplate [ReceiptTemplate] 
   | ItemVATDeducer  Double Text -- ^ compute the net and tax from the gross
   | ItemMemoSetter  Text
-  | ItemDimension1Setter  Int
-  | ItemDimension2Setter  Int
+  | ItemDimension1Setter  Text
+  | ItemDimension2Setter  Text
   deriving (Eq, Show, Read)
 
 instance Semigroup ReceiptTemplate where

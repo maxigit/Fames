@@ -18,6 +18,10 @@ import Text.Blaze.Html(ToMarkup())
 import qualified Data.List.Split  as S
 import Data.List(nub)
 import GL.Receipt(ReceiptTemplate)
+import GL.FA
+import qualified FA as FA
+import Data.Maybe(fromJust)
+import Database.Persist.Sql(Single(..), rawSql, unSqlBackendKey)
 -- import Text.Printf (printf)
 -- import qualified Data.Text as Text
 -- import qualified Data.Text.Read as Text
@@ -86,12 +90,13 @@ postGLEnterReceiptSheetR = do
                         (formA, formB) -> error $ showForm formA ++ ", " ++ showForm formB
  
   templateMap <- appReceiptTemplates <$> getsYesod appSettings
-  let receipts = parseGL templateMap spreadSheet 
+  refMap <- faReferenceMapH
+  let receipts = parseGL refMap templateMap spreadSheet 
   renderParsingResult ((\msg pre -> msg  >> renderGLEnterReceiptSheet param 422 "" pre ) :: Handler () -> Widget -> Handler Html)
                       (defaultLayout  . renderReceiptSheet)
                       receipts
-parseGL :: (Map Text ReceiptTemplate) -> ByteString -> ParsingResult RawRow [(ValidHeader, [ValidItem])]
-parseGL templateMap spreadSheet = either id ParsingCorrect $ do
+parseGL :: ReferenceMap -> Map Text ReceiptTemplate -> ByteString -> ParsingResult RawRow [(ValidHeader, [ValidItem])]
+parseGL refMap templateMap spreadSheet = either id ParsingCorrect $ do
   rawRows <- parseSpreadsheet columnMap Nothing spreadSheet <|&>  WrongHeader
   -- traceShowM ("I've been there")
   rows <- getLefts (map analyseReceiptRow rawRows) <|&>  InvalidFormat 
@@ -100,7 +105,7 @@ parseGL templateMap spreadSheet = either id ParsingCorrect $ do
   -- traceShowM ("there again")
   let template = findWithDefault mempty "default"  templateMap
       guessed = map (applyInnerTemplate templateMap . applyTemplate template) partials
-  valids <- getLefts (map validReceipt guessed) <|&> flip (InvalidData ["Missing value"]) [] . concatMap flattenReceipt
+  valids <- getLefts (map (validReceipt refMap) guessed) <|&> flip (InvalidData ["Missing value"]) [] . concatMap flattenReceipt
 
   Right valids
 
@@ -209,6 +214,7 @@ instance ( Renderable (FieldTF t Text)
          , Renderable (FieldTF t (Maybe Text))
          , Renderable (FieldTF t Double)
          , Renderable (FieldTF t Day)
+         , Renderable (RefFieldTF t BankAccountRef)
          ) => Renderable  (ReceiptHeader t) where
   render = renderReceiptHeader
 renderReceiptHeader ReceiptHeader{..} = [whamlet|
@@ -224,6 +230,9 @@ instance ( Renderable (FieldTF t (Maybe Text))
          , Renderable (FieldTF t Text)
          , Renderable (FieldTF t Double)
          , Renderable (FieldTF t Int)
+         , Renderable (RefFieldTF t GLAccountRef)
+         , Renderable (RefFieldTF t (Maybe Dimension1Ref))
+         , Renderable (RefFieldTF t (Maybe Dimension2Ref))
          ) => Renderable  (ReceiptItem t) where
   render = renderReceiptItem
 renderReceiptItem ReceiptItem{..} = [whamlet|
@@ -280,6 +289,11 @@ instance Renderable ([RawRow]) where
         ^{renderReceiptRow row}
                         |]
 
+instance Renderable (Reference s) where
+  render Reference{..} = [whamlet|
+     <span.referenceId>(#{refId}) <span.referenceName>#{refName}
+                                 |]
+  
 columnMap :: Map String [String]
 columnMap = Map.fromList
   [ (col, concatMap expandColumnName (col:cols)  )
@@ -333,6 +347,9 @@ instance Csv.FromNamedRecord (ReceiptItem 'RawT) where
     <*> m `parse` "template"
     where parse = parseMulti columnMap
 
+instance Csv.FromField (Either Text (Reference s)) where
+  parseField field = Left <$> Csv.parseField  field
+
 -- | Regroups receipts rows starting with a header (valid or invalid)
 makeReceipt :: -- (FieldTF 'PartialT (Maybe Text) ~ Either InvalidField (Maybe (ValidField Text)))
             [PartialRow]
@@ -372,3 +389,30 @@ makeReceipt rows = reverse . map (map reverse) <$> r where
   -- in case traverse validReceipt receipts of
   --   Just valids -> Right valids
   --   Nothing -> Left receipts
+
+faReferenceMapH :: Handler ReferenceMap
+faReferenceMapH = runDB $ do
+  bankAccounts <- selectList [] []
+  glAccounts <- selectList [] []
+  -- for some reason the type_field is a bool and can't be read properly by persistent
+  dimension1s <- rawSql "SELECT id, name, closed FROM 0_dimensions WHERE type_ = 1" []
+  dimension2s <- rawSql "SELECT id, name, closed FROM 0_dimensions WHERE type_ = 2" []
+
+  let rmBankAccountMap = buildRefMap [ (FA.unBankAccountKey key, bankAccountBankAccountName, not bankAccountInactive  )
+                                     | (Entity key FA.BankAccount{..}) <- bankAccounts
+                                     ]
+      rmGLAccountMap = buildRefMap [ (fromJust $ readMay $ FA.unChartMasterKey key, chartMasterAccountName, not chartMasterInactive  )
+                                   | (Entity key FA.ChartMaster{..}) <- glAccounts
+                                   ]
+      rmDimension1Map = buildRefMap [(key, name, not closed)
+                                   | (Single key, Single name, Single closed) <- dimension1s
+                                   ]
+      rmDimension2Map = buildRefMap [(key, name, closed)
+                                   | (Single key, Single name, Single closed) <- dimension2s
+                                   ]
+
+  return $ ReferenceMap{..}
+
+
+  
+  
