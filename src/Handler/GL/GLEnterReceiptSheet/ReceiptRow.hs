@@ -204,6 +204,8 @@ applyTemplate setter h'is@(header, items) = case setter of
   (CompoundTemplate []) -> h'is
   (CompoundTemplate (t:ts)) -> applyTemplate (CompoundTemplate ts) (applyTemplate t h'is)
   (ItemMemoSetter memo) -> (header, [i {rowMemo = addGuess (rowMemo i) memo} |i <- items])
+  (ItemDimension1Setter dimension1) -> (header, [i {rowGLDimension1 = addGuess (rowGLDimension1 i) dimension1} |i <- items])
+  (ItemDimension2Setter dimension2) -> (header, [i {rowGLDimension2 = addGuess (rowGLDimension2 i) dimension2} |i <- items])
   (ItemVATDeducer rate account) -> (header, [deduceVAT rate account i |i <- items])
 
 -- only set Both rate and net together
@@ -224,3 +226,4 @@ addGuess old new  = case old of
   (Just (Guessed _ )) -> g
   p@(Just (Provided _)) -> p
   where  g = Just (Guessed new)
+

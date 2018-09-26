@@ -16,7 +16,7 @@ import qualified Data.Csv as Csv
 import Data.Either
 import Text.Blaze.Html(ToMarkup())
 import qualified Data.List.Split  as S
-import GL.Receipt(ReceiptTemplate(..))
+import GL.Receipt(ReceiptTemplate)
 -- import Text.Printf (printf)
 -- import qualified Data.Text as Text
 -- import qualified Data.Text.Read as Text
@@ -84,20 +84,21 @@ postGLEnterReceiptSheetR = do
                           (, Nothing) . fst <$> readUploadUTF8 fileInfo encoding
                         (formA, formB) -> error $ showForm formA ++ ", " ++ showForm formB
  
-  let receipts = parseGL spreadSheet 
+  templateMap <- appReceiptTemplates <$> getsYesod appSettings
+  let receipts = parseGL templateMap spreadSheet 
   renderParsingResult ((\msg pre -> msg  >> renderGLEnterReceiptSheet param 422 "" pre ) :: Handler () -> Widget -> Handler Html)
                       (defaultLayout  . renderReceiptSheet)
                       receipts
-parseGL :: ByteString -> ParsingResult RawRow [(ValidHeader, [ValidItem])]
-parseGL spreadSheet = either id ParsingCorrect $ do
+parseGL :: (Map Text ReceiptTemplate) -> ByteString -> ParsingResult RawRow [(ValidHeader, [ValidItem])]
+parseGL templateMap spreadSheet = either id ParsingCorrect $ do
   rawRows <- parseSpreadsheet columnMap Nothing spreadSheet <|&>  WrongHeader
   -- traceShowM ("I've been there")
   rows <- getLefts (map analyseReceiptRow rawRows) <|&>  InvalidFormat 
   -- traceShowM ("and there")
   partials <- makeReceipt rows <|&> flip (InvalidData ["First row is missing header"]) [] . traceShowId . map transformRow
   -- traceShowM ("there again")
-  let template = CompoundTemplate [CounterpartySetter "pipo and VAT", ItemVATDeducer 0.20 "VAT 20%" ]
-  let guessed = map (applyTemplate template) partials
+  let template = findWithDefault mempty "default"  templateMap
+      guessed = map (applyTemplate template) partials
   valids <- getLefts (map validReceipt guessed) <|&> flip (InvalidData ["Missing value"]) [] . concatMap flattenReceipt
 
   Right valids

@@ -3,7 +3,7 @@ module GL.ReceiptProcessingSpec (spec) where
 import TestImport
 import qualified GL.FA as FA
 import GL.Receipt
-import Data.Aeson(decode)
+import Data.Yaml(decodeEither)
 
 spec :: Spec
 spec = paymentSpecs >> jsonSpecs
@@ -33,10 +33,16 @@ paymentSpecs = parallel $ describe "@parallel @Receipt #Receipt translator" $ do
 
 jsonSpecs = parallel $ describe "@parallel @Receipt #parseJSON @current" $ do
   it "parses counterparty setter " $ do
-     decode "counterparty: A" `shouldBe` Just (CounterpartySetter "A")
+     decodeEither "counterparty: A" `shouldBe` Right (CounterpartySetter "A")
   it "parses bank account setter " $ do
-     decode "bank: B" `shouldBe` Just (BankAccountSetter "B")
-  it "parses multiple setter" $ do
-     decode "counterparty: A\nbank: B" `shouldBe` (Just $ CompoundTemplate [CounterpartySetter "A", BankAccountSetter "B"])
+     decodeEither "bank: B" `shouldBe` Right (BankAccountSetter "B")
+  it "parses multiple setter as hash in Alpha order" $ do
+     decodeEither "counterparty: A\nbank: B" `shouldBe` (Right $ CompoundTemplate [BankAccountSetter "B", CounterpartySetter "A"])
+  it "parses multiple setter as hash in alpha order" $ do
+     decodeEither "bank: B\ncounterparty: A" `shouldBe` (Right $ CompoundTemplate [BankAccountSetter "B", CounterpartySetter "A"])
+  it "parses multiple setter as list" $ do
+     decodeEither "- counterparty: A\n- bank: B" `shouldBe` (Right $ CompoundTemplate [CounterpartySetter "A", BankAccountSetter "B"])
 
+  it "parses VAT" $ do
+    decodeEither "vat:\n  rate: 20\n  tax: VAT 20%" `shouldBe` Right (ItemVATDeducer 0.20 "VAT 20%")
 
