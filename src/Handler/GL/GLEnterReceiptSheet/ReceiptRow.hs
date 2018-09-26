@@ -19,6 +19,7 @@ data ReceiptHeader s = ReceiptHeader
   , rowBankAccount :: FieldTF s Text -- RowBankAccountTF s
   , rowComment :: FieldTF s (Maybe Text)
   , rowTotal :: FieldTF s Double
+  , rowTemplate :: FieldTF s (Maybe Text) -- template to apply to whole receipt
   } 
 data ReceiptItem s = ReceiptItem 
   { rowGlAccount :: FieldTF s (Int)-- RowGLAccountTF s
@@ -28,6 +29,7 @@ data ReceiptItem s = ReceiptItem
   , rowTax :: FieldTF s (Maybe Text) -- RowTaxTF s
   , rowGLDimension1 :: FieldTF s (Maybe Int)
   , rowGLDimension2 :: FieldTF s (Maybe Int)
+  , rowItemTemplate :: FieldTF s (Maybe Text) -- template to apply to item only
   }
 
 type ReceiptRow s = These (ReceiptHeader s) (ReceiptItem s)
@@ -53,11 +55,11 @@ type PartialItem = ReceiptItem 'PartialT
 
 
 
-pattern EmptyItem = ReceiptItem RNothing RNothing RNothing RNothing RNothing RNothing RNothing
-pattern EmptyHeader = ReceiptHeader RNothing RNothing RNothing RNothing RNothing
-pattern NonHeaderRow gl amount net memo tax dim1 dim2 = These (ReceiptHeader RNothing RNothing RNothing RNothing RNothing) (ReceiptItem gl amount net memo tax dim1 dim2)
+pattern EmptyItem = ReceiptItem RNothing RNothing RNothing RNothing RNothing RNothing RNothing RNothing
+pattern EmptyHeader = ReceiptHeader RNothing RNothing RNothing RNothing RNothing RNothing
+pattern NonHeaderRow gl amount net memo tax dim1 dim2 itemTemplate = These (ReceiptHeader RNothing RNothing RNothing RNothing RNothing RNothing) (ReceiptItem gl amount net memo tax dim1 dim2 itemTemplate)
 -- pattern RowP gl amount net memo tax dim1 dim2 = These (ReceiptHeader () () () () ()) (ReceiptItem gl amount net memo tax dim1 dim2)
-pattern NonItemRow date counterparty bank comment total = These (ReceiptHeader date counterparty bank comment total  ) (ReceiptItem RNothing RNothing RNothing RNothing RNothing RNothing RNothing)
+pattern NonItemRow date counterparty bank comment total template = These (ReceiptHeader date counterparty bank comment total template  ) (ReceiptItem RNothing RNothing RNothing RNothing RNothing RNothing RNothing RNothing)
                                              
 -- showReceiptRow rType row = show "ReceiptRow " ++ show rType ++ show row
 showReceiptHeader ReceiptHeader{..} = show "ReceiptHeader {"
@@ -65,7 +67,8 @@ showReceiptHeader ReceiptHeader{..} = show "ReceiptHeader {"
   ++ "rowCounterparty=" ++ show rowCounterparty ++ ", " 
   ++ "rowBankAccount=" ++ show rowBankAccount ++ ", " 
   ++ "rowComment=" ++ show rowComment ++ ", " 
-  ++ "rowTotal=" ++ show rowTotal ++ "}" 
+  ++ "rowTotal=" ++ show rowTotal ++ "," 
+  ++ "rowTemplate=" ++ show rowTemplate ++ "}" 
 
 showReceiptItem ReceiptItem{..} = show "ReceipItem {"
   ++ "rowGlAccount=" ++ show rowGlAccount ++ ", " 
@@ -73,7 +76,8 @@ showReceiptItem ReceiptItem{..} = show "ReceipItem {"
   ++ "rowNetAmount=" ++ show rowNetAmount ++ ", " 
   ++ "rowTax=" ++ show rowTax ++ "," 
   ++ "rowGlDimension1=" ++ show rowGLDimension1 ++ ", " 
-  ++ "rowGlDimension2=" ++ show rowGLDimension2 ++ "}" 
+  ++ "rowGlDimension2=" ++ show rowGLDimension2 ++ "," 
+  ++ "rowItemTemplate=" ++ show rowItemTemplate ++ "}" 
 
 instance Show (ReceiptHeader 'RawT) where show = showReceiptHeader
 instance Show (ReceiptItem 'RawT) where show = showReceiptItem
@@ -104,6 +108,7 @@ validateHeader (ReceiptHeader (Right rowDate)
                               (Right rowBankAccount)
                               (Right rowComment)
                               (Right rowTotal)
+                              (Right rowTemplate)
                ) = Just $ ReceiptHeader{..}
 validateHeader _ = Nothing
 -- validateHeader header = either (const Nothing) Just $ traverseHeader header
@@ -113,12 +118,14 @@ traverseHeader' = ReceiptHeader <$> rowDate
                                <*> rowBankAccount
                                <*> rowComment
                                <*> rowTotal
+                               <*> rowTemplate
 validateHeader' :: PartialHeader -> Maybe ValidHeader
 validateHeader' (ReceiptHeader (Just rowDate)
                               (Just rowCounterparty)
                               (Just rowBankAccount)
                               (rowComment)
                               (Just rowTotal)
+                              (rowTemplate)
                ) = Just $ ReceiptHeader{..}
 validateHeader' _ = Nothing
 
@@ -130,6 +137,7 @@ validateItem (ReceiptItem (Right rowGlAccount)
                           (Right rowTax)
                           (Right rowGLDimension1)
                           (Right rowGLDimension2)
+                          (Right rowItemTemplate)
              ) = Just $ ReceiptItem{..}
 validateItem _ = Nothing
 
@@ -141,6 +149,7 @@ validateItem' (ReceiptItem (Just rowGlAccount)
                           (rowTax)
                           (rowGLDimension1)
                           (rowGLDimension2)
+                          (rowItemTemplate)
              ) = Just $ ReceiptItem{..}
 validateItem' _ = Nothing
               
@@ -152,6 +161,7 @@ invalidateHeader ReceiptHeader{..} =
   (validateNonEmpty "Bank Account" rowBankAccount)
   rowComment
   (validateNonEmpty "Total" rowTotal) 
+  rowTemplate
 invalidateItem :: RawItem -> RawItem
 invalidateItem ReceiptItem{..} = 
   ReceiptItem 
@@ -162,7 +172,7 @@ invalidateItem ReceiptItem{..} =
   rowTax
   rowGLDimension1
   rowGLDimension2
-
+  rowItemTemplate
 transformRow row  = bimap transformHeader transformItem row
 transformHeader ReceiptHeader{..} = ReceiptHeader
   (transform rowDate)
@@ -170,6 +180,7 @@ transformHeader ReceiptHeader{..} = ReceiptHeader
   (transform rowBankAccount)
   (transform rowComment)
   (transform rowTotal)
+  (transform rowTemplate)
 transformItem ReceiptItem{..} = ReceiptItem
   (transform rowGlAccount)
   (transform rowAmount)
@@ -178,6 +189,7 @@ transformItem ReceiptItem{..} = ReceiptItem
   (transform rowTax)
   (transform rowGLDimension1)
   (transform rowGLDimension2)
+  (transform rowItemTemplate)
 
 
 validReceipt :: (PartialHeader, [PartialItem])

@@ -16,6 +16,7 @@ import qualified Data.Csv as Csv
 import Data.Either
 import Text.Blaze.Html(ToMarkup())
 import qualified Data.List.Split  as S
+import Data.List(nub)
 import GL.Receipt(ReceiptTemplate)
 -- import Text.Printf (printf)
 -- import qualified Data.Text as Text
@@ -121,6 +122,7 @@ renderReceiptSheet receipts =  do
 <table..table.table-bordered>
   <tr>
     <th>
+    <th>Template
     <th>Date
     <th>Counterparty
     <th>Bank Account
@@ -148,7 +150,7 @@ instance (
                      -- Renderable (HeaderFieldTF t Double),
                      -- Renderable (RowFieldTF t (Maybe Int)),
                      -- Renderable (RowFieldTF t (Maybe Double)),
-                     -- Renderable (RowFieldTF t (Maybe Text)) ,
+                     Renderable (FieldTF t (Maybe Text)) ,
                      Renderable (ReceiptHeader t) ,
                      Renderable (ReceiptItem t) 
            ) => Renderable (ReceiptRow t)
@@ -159,7 +161,7 @@ renderReceiptRow :: (
                      -- Renderable (HeaderFieldTF t Double),
                      -- Renderable (RowFieldTF t (Maybe Int)),
                      -- Renderable (RowFieldTF t (Maybe Double)),
-                     -- Renderable (RowFieldTF t (Maybe Text)) ,
+                     Renderable (FieldTF t (Maybe Text)) ,
                      Renderable (ReceiptHeader t)
                     ,Renderable (ReceiptItem t)
                     )
@@ -167,6 +169,10 @@ renderReceiptRow :: (
 renderReceiptRow row = do
   let groupIndicator | isThat row = ""  :: Text
                      | otherwise  = ">"
+      template = these (rowTemplate)
+                       (rowItemTemplate)
+                       (\a _ -> rowTemplate a)
+                       row
   toWidget [cassius|
 .receipt-header
   font-size: 1.2 em
@@ -175,6 +181,7 @@ renderReceiptRow row = do
   [whamlet|
 <tr>
   <td.receiptGroup>#{groupIndicator}
+  <td.template>^{render template}
     $case preview here row
       $of Nothing
         <td>
@@ -256,6 +263,7 @@ instance Renderable ([RawRow]) where
     <table.table.table-border.table-striped.table-hover>
       <tr>
         <th>
+        <th>Template
         <th>Date
         <th>Counterparty
         <th>Bank Account
@@ -288,6 +296,7 @@ columnMap = Map.fromList
     , ("tax rate" , ["vat"])
     , ("dimension 1", ["dim1", "dimension1"])
     , ("dimension 2", ["dim2", "dimension2"])
+    , ("template", ["quick"])
     ]
   ]
                           
@@ -309,6 +318,7 @@ instance Csv.FromNamedRecord (ReceiptHeader 'RawT) where
     <*> m `parse` "bank account"
     <*> m `parse` "comment"
     <*> (unCurrency <$$$$> m  `parse` "total" )
+    <*> m `parse` "template"
     where parse = parseMulti columnMap
 
 instance Csv.FromNamedRecord (ReceiptItem 'RawT) where
@@ -320,6 +330,7 @@ instance Csv.FromNamedRecord (ReceiptItem 'RawT) where
     <*> m `parse` "tax rate" 
     <*> m `parse` "dimension 1"
     <*> m `parse` "dimension 2"
+    <*> m `parse` "template"
     where parse = parseMulti columnMap
 
 -- | Regroups receipts rows starting with a header (valid or invalid)
@@ -331,7 +342,7 @@ makeReceipt rows = reverse . map (map reverse) <$> r where
         [] -> Right []
         This header : rs -> Right $ go header [] rs 
         These header item :rs -> Right $ go header [item] rs
-        That item : rs -> Left [These (ReceiptHeader (Left (MissingValueError "GL item without header") ) RNothing RNothing RNothing RNothing) (transformItem item)]
+        That item : rs -> Left [These (ReceiptHeader (Left (MissingValueError "GL item without header") ) RNothing RNothing RNothing RNothing RNothing) (transformItem item)]
   go :: PartialHeader -> [PartialItem] -> [PartialRow]  -> [(PartialHeader, [PartialItem])]
   go h is [] = [(h, is)]
   go h is (These header item : rows) = (h, is) : go header [item] rows
