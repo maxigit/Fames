@@ -303,7 +303,7 @@ instance Renderable Double where
   render d = [whamlet|#{formatDouble d}|]
 
 instance Renderable Text where
-  render t = [whamlet|#{t}|]
+  render t = [whamlet|#{toHtmlWithBreak t}|]
 
 instance Renderable Day where
   render t = [whamlet|#{tshow t}|]

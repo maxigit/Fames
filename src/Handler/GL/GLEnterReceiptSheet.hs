@@ -105,7 +105,7 @@ parseGL refMap templateMap spreadSheet = either id ParsingCorrect $ do
   -- traceShowM ("there again")
   let template = findWithDefault mempty "default"  templateMap
       guessed = map (applyInnerTemplate templateMap . applyTemplate template) partials
-  valids <- getLefts (map (validReceipt refMap) guessed) <|&> flip (InvalidData ["Missing value"]) [] . concatMap flattenReceipt
+  valids <- getLefts (map (validReceipt refMap) guessed) <|&> flip (InvalidData ["Missing or incorrect values"]) [] . concatMap flattenReceipt
 
   Right valids
 
@@ -253,19 +253,23 @@ instance ( Renderable h
          , Renderable r
          ) => Renderable (Int, (h, [r])) where
   render (i, (header, rows)) = [whamlet|
-<tr class="#{class_ header}" id="receipt#{i}">
+<tr class="bg-info" id="receipt#{i}-1">
+  <td> >
+  <td>
   ^{render header}
-$forall (row, j) <- zip rows is
-  <tr class="#{class_ row }" id="receipt#{i}-#{j}">
+  $maybe row <- headMay rows
+    ^{render row}
+$forall (row, j) <- zip (drop 1 rows) is
+  <tr id="receipt#{i}-#{j}">
+     <td>
+     <td>
+     <td>
+     <td>
+     <td>
+     <td>
+     <td>
       ^{render row}
-|] where is = [1..] :: [Int]
-         class_ _ = "receipt-header valid bg-info" :: Text
-         -- class_ ValidHeaderT = "receipt-header valid bg-info" :: Text
-         -- class_ InvalidHeaderT = "receipt-header invalid bg-danger"
-         -- class_ ValidRowT = "receipt-row valid"
-         -- class_ InvalidRowT = "receipt-row invalid bg-warning"
-         -- class_ RawT = error "Shouldn't happend"
--- <span.rowTax>#{render rowTax}
+|] where is = [2..] :: [Int]
 
 instance Renderable ([RawRow]) where
   render rows = [whamlet|

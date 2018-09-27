@@ -55,31 +55,33 @@ instance Referable Dimension2R where
   getReferenceMap'Name refMap = (rmDimension2Map refMap, "Dimension 2")
 
 
+findReferenceEither :: Referable r => ReferenceMap -> Text -> Either Text (Reference r)
 findReferenceEither refMap ref =
   let (refm, name) = getReferenceMap'Name refMap
-  in maybe (Left $ "Cant' find " <> name <> " for " <> ref) Right (parseReference refm ref)
+  in either (Left . ((name <> ": ") <>)) Right (parseReference refm ref)
 
 findReference refMap ref = either (const Nothing) Just $ findReferenceEither refMap ref
 
 -- | find a reference by glob pattern. Should only match one.
-findReferenceByPattern :: IntMap (Reference r) -> Text -> Maybe (Reference r)
+findReferenceByPattern :: IntMap (Reference r) -> Text -> Either Text (Reference r)
 findReferenceByPattern refMap ref = let
   pat = Glob.compile (unpack ref)
   in case filter (Glob.match pat . unpack . refName) (toList refMap) of
-        [one] -> Just one
-        _ -> Nothing
+        [] -> Left $ "No match found for " <> ref
+        [one] -> Right one
+        all -> Left $ "Too many matches found for " <> ref <> " " <> tshow (map refName all)
      
 buildRefMap :: [(Int, Text, Bool)] -> IntMap (Reference r)
 buildRefMap i'ref'actives = mapFromList [(i, Reference i ref active) | (i, ref, active) <-i'ref'actives ]
 
 -- | lookup by id or name the reference
-parseReference :: IntMap (Reference r) -> Text -> Maybe (Reference r)
+parseReference :: IntMap (Reference r) -> Text -> Either Text (Reference r)
 parseReference refMap ref =
   case Text.stripPrefix "#" ref of
-    Just ref | Just refId <- readMay ref -> lookup refId  refMap
-    Nothing | Just refId <- readMay ref,  Just found <- lookup refId refMap -> Just found
+    Just ref | Just refId <- readMay ref -> maybe (Left $ "No match found for id" <> ref) Right $ lookup refId  refMap
+    Nothing | Just refId <- readMay ref,  Just found <- lookup refId refMap -> Right found
             | otherwise ->  findReferenceByPattern refMap ref
-    _ -> Nothing
+    _ -> Left $ "No match found for " <> ref
 
 
 -- * Payment related

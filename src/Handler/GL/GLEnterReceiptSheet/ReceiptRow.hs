@@ -176,8 +176,8 @@ validateItem' (ReceiptItem (Just rowGlAccount')
                           (rowItemTemplate)
              )
   | Right rowGlAccount'' <- validValue rowGlAccount'
-  -- , Right rowGLDimension1'' <- validValue rowGLDimension1'
-  -- , Right rowGLDimension2'' <- validValue rowGLDimension2'
+  , Right rowGLDimension1'' <- traverse sequence rowGLDimension1'
+  , Right rowGLDimension2'' <- traverse sequence rowGLDimension2'
   = let rowGlAccount = const rowGlAccount'' <$> rowGlAccount'
         rowGLDimension1 = Nothing -- const rowGLDimension1'' <$> rowGLDimension1'
         rowGLDimension2 = Nothing -- const rowGLDimension2'' <$> rowGLDimension2'
@@ -190,25 +190,35 @@ expandItemRef refMap ReceiptItem{..} = ReceiptItem { rowGlAccount = expandField 
                                                    , rowGLDimension2 = expandField refMap <$$> rowGLDimension2
                                                    , ..
                                                    }
+-- | Check if a reference has been expanded properly
+validateRef :: Referable s => ReferenceMap -> Either InvalidField (Maybe (ValidField (Either Text (Reference s)))) -> Either InvalidField (Maybe (ValidField (Either Text (Reference s))))
+validateRef refMap (RJust te)  | Left t <- validValue te= let -- we know the conversion doesn't work but we need to do it again
+  -- to get the error message
+  ref=  findReferenceEither refMap t
+  _types = [te, const ref <$> te ] -- help types inference
+  Left err = ref
+  in Left (InvalidValueError err t)
+validateRef _ x = x
+
 -- | Create a Raw row with an error or not
-invalidateHeader :: RawHeader -> RawHeader
-invalidateHeader ReceiptHeader{..} =
+invalidateHeader :: ReferenceMap ->  RawHeader -> RawHeader
+invalidateHeader refMap ReceiptHeader{..} =
   ReceiptHeader (validateNonEmpty "Date" rowDate)
   (validateNonEmpty "Counterparty" rowCounterparty)
-  (validateNonEmpty "Bank Account" rowBankAccount)
+  (validateRef refMap $ validateNonEmpty "Bank Account" rowBankAccount)
   rowComment
   (validateNonEmpty "Total" rowTotal) 
   rowTemplate
-invalidateItem :: RawItem -> RawItem
-invalidateItem ReceiptItem{..} = 
+invalidateItem :: ReferenceMap -> RawItem -> RawItem
+invalidateItem refMap ReceiptItem{..} = 
   ReceiptItem 
-  (validateNonEmpty "GLAccount" rowGlAccount)
+  (validateRef refMap $ validateNonEmpty "GLAccount" rowGlAccount)
   (validateNonEmpty "Amount" rowAmount)
   (validateNonEmpty "Net Amount" rowNetAmount)
   rowMemo
   rowTax
-  rowGLDimension1
-  rowGLDimension2
+  (validateRef refMap rowGLDimension1)
+  (validateRef refMap rowGLDimension2)
   rowItemTemplate
 transformRow row  = bimap transformHeader transformItem row
 transformHeader ReceiptHeader{..} = ReceiptHeader
@@ -239,7 +249,7 @@ validReceipt refMap h'is = maybe (Left invalidateAll) Right validate where
     h <- validateHeader' header
     is <- mapM (validateItem' ) items
     return (h, is)
-  invalidateAll = (invalidateHeader $ transformHeader header, map (invalidateItem . transformItem) items)
+  invalidateAll = (invalidateHeader refMap $ transformHeader header, map (invalidateItem refMap . transformItem) items)
     
 expandReceiptRef :: ReferenceMap
              -> (PartialHeader, [PartialItem])
