@@ -1,3 +1,4 @@
+{-# LANGUAGE StandaloneDeriving #-}
 -- | Event corresponding to a receipt.
 -- It translates in FA to a payment or a supplier invoice.
 -- The main difference between an event and an FA payment is :
@@ -9,7 +10,10 @@ module GL.Receipt
   , Receipt(..)
   , ReceiptItem(..)
   , translate
-  , ReceiptTemplate(..)
+  , ReceiptTemplate'(..)
+  , ReceiptTemplate
+  , ReceiptTemplateExpanded
+  , expandTemplate
   ) where
 
 import ClassyPrelude
@@ -18,6 +22,7 @@ import qualified Data.Map as Map
 import Data.Aeson
 import Data.Aeson.Types(Parser,typeMismatch)
 import Data.Scientific(toRealFloat)
+import Control.Applicative (Const(..))
 
 
 -- * General types
@@ -80,26 +85,35 @@ translate receipt = FA.Payment (nets ++ taxes) where
 -- * Template
 -- Templates allow to prefill or "guess" missing values from csv
 -- such as counterparty, GLAccount but also compute Tax backward etc
-
-data ReceiptTemplate
+-- It is parametrized by a functor but should only be use with two: const or Identity
+-- The point , the reference map needed to replace text by the referee can only
+-- be loaded after the parameter has been read from the coni
+ 
+data ReceiptTemplate' f
   = CounterpartySetter Text -- ^ set the counterparty
-  | BankAccountSetter Text -- ^ set a bank account
-  | CompoundTemplate [ReceiptTemplate] 
-  | ItemVATDeducer  Double Text -- ^ compute the net and tax from the gross
+  | BankAccountSetter (f FA.BankAccountRef) -- ^ set a bank account
+  | CompoundTemplate [ReceiptTemplate' f] 
+  | ItemGLAccountSetter (f FA.GLAccountRef) -- ^ set a gl account
+  | ItemVATDeducer (f FA.TaxRef)  -- ^ compute the net and tax from the gross
   | ItemMemoSetter  Text
-  | ItemDimension1Setter  Text
-  | ItemDimension2Setter  Text
-  deriving (Eq, Show, Read)
+  | ItemDimension1Setter  (f FA.Dimension1Ref)
+  | ItemDimension2Setter  (f FA.Dimension2Ref)
+  -- deriving (Eq, Show, Read)
 
-instance Semigroup ReceiptTemplate where
+type ReceiptTemplate = ReceiptTemplate' (Const Text)
+type ReceiptTemplateExpanded = ReceiptTemplate' Identity
+
+deriving instance Show ReceiptTemplate
+
+instance Semigroup (ReceiptTemplate' f) where
   a <> b = normalizeTemplate (CompoundTemplate [a,b])
 
-instance Monoid ReceiptTemplate where
+instance Monoid (ReceiptTemplate' f) where
   mempty = CompoundTemplate []
   mappend = (<>)
 
 -- | Remove unused compound
-normalizeTemplate :: ReceiptTemplate -> ReceiptTemplate
+normalizeTemplate :: ReceiptTemplate' f -> ReceiptTemplate' f
 normalizeTemplate template = case template of
   CompoundTemplate ts -> case map normalizeTemplate ts of
        [one] -> one
@@ -107,40 +121,43 @@ normalizeTemplate template = case template of
        manys -> CompoundTemplate manys
   all -> all
 
-    
+expandTemplate :: FA.ReferenceMap -> ReceiptTemplate' (Const Text) -> Either Text (ReceiptTemplate' Identity)
+expandTemplate refMap (BankAccountSetter (Const text)) = BankAccountSetter . Identity <$> FA.findReferenceEither refMap text
+expandTemplate refMap (ItemGLAccountSetter (Const text)) = ItemGLAccountSetter . Identity <$> FA.findReferenceEither refMap text
+expandTemplate refMap (CompoundTemplate ts) = CompoundTemplate <$> mapM (expandTemplate refMap) ts
+expandTemplate refMap (ItemDimension1Setter (Const text)) = ItemDimension1Setter . Identity <$> FA.findReferenceEither refMap text
+expandTemplate refMap (ItemDimension2Setter (Const text)) = ItemDimension2Setter . Identity <$> FA.findReferenceEither refMap text
+expandTemplate refMap (ItemVATDeducer (Const text)) = ItemVATDeducer . Identity <$> FA.findReferenceEither refMap text
+expandTemplate refMap (CounterpartySetter text) = Right $ CounterpartySetter text
+expandTemplate refMap (ItemMemoSetter text) = Right $ ItemMemoSetter  text
+   
 -- ** JSON
 -- parseJSON = withObject "primary"
 
-instance FromJSON ReceiptTemplate where
+instance FromJSON (ReceiptTemplate' (Const Text)) where
   parseJSON = fmap normalizeTemplate . parseJSON'
 
 parseJSON' (Object o) = CompoundTemplate <$> traverse (uncurry parsePair) (sortOn fst $ mapToList o)
 parseJSON' (Array a) = CompoundTemplate <$> traverse parseJSON' (toList a)
 parseJSON' json = traceShow json $ error (show json)
 
-parsePair :: Text -> Value -> Parser ReceiptTemplate
+parsePair :: Text -> Value -> Parser (ReceiptTemplate' (Const Text))
 parsePair key value = case toLower key of
   "counterparty" -> flip (withText "Counterparty") value (return . CounterpartySetter)
-  "bank" -> flip (withText "BankAccount") value (return . BankAccountSetter)
-  "vat" -> parseVAT value
+  "bank" -> flip (withText "BankAccount") value (return . BankAccountSetter . Const )
+  "tax" -> flip (withText "tax") value (return . ItemVATDeducer . Const)
   "memo" -> flip (withText "Memo") value (return . ItemMemoSetter)
   "dimension1" -> ItemDimension1Setter <$> parseJSON value
   "dimension2" -> ItemDimension2Setter <$> parseJSON value
   _ -> typeMismatch (show key ++ " not a recognized key for") value
 
-parseVAT v@(Object o) = case (lookup "rate" o, lookup "tax" o) of
-           (Just (Number rate), Just (String name)) -> return $ ItemVATDeducer (toRealFloat $ rate/100) name
-           (Just (Number _), Just v) -> typeMismatch "Tax" v
-           (Just v, Just (String _)) -> typeMismatch "Rate" v
-           _ -> typeMismatch "VAT record" v
-parseVAT v = typeMismatch "VAT record"  v
-
-
-instance ToJSON ReceiptTemplate where
+instance ToJSON (ReceiptTemplate' (Const Text)) where
   toJSON (CounterpartySetter a) = object ["counterparty" .= a]
   toJSON (BankAccountSetter a) = object ["bank" .= a]
   toJSON (ItemMemoSetter a) = object ["memo" .= a]
+  toJSON (ItemGLAccountSetter a) = object ["GLAccount" .= a]
   toJSON (ItemDimension1Setter a) = object ["dimension1" .= a]
   toJSON (ItemDimension2Setter a) = object ["dimension2" .= a]
-  toJSON (ItemVATDeducer rate tax) = object ["vat" .= [object ["rate" .= rate, "tax" .= tax]]]
+  toJSON (ItemVATDeducer a) = object ["tax" .= a]
   toJSON (CompoundTemplate ts)  = toJSON ts
+  

@@ -70,12 +70,16 @@ findReference refMap ref = either (const Nothing) Just $ findReferenceEither ref
 -- | find a reference by glob pattern. Should only match one.
 findReferenceByPattern :: IntMap (Reference r e) -> Text -> Either Text (Reference r e)
 findReferenceByPattern refMap ref = let
-  pat = Glob.compile (unpack ref)
-  in case filter (Glob.match pat . unpack . refName) (toList refMap) of
+  pat = Glob.compile (unpack  $ cleanName ref)
+  in case filter (Glob.match pat . unpack . cleanName . refName) (toList refMap) of
         [] -> Left $ "No match found for " <> ref
         [one] -> Right one
         all -> Left $ "Too many matches found for " <> ref <> " " <> tshow (map refName all)
      
+-- | Strip and lower
+cleanName :: Text -> Text
+cleanName = toLower . Text.strip
+
 buildRefMap :: [(Int, Text, Bool, e)] -> IntMap (Reference r e)
 buildRefMap i'ref'active'extras = mapFromList [(i, Reference i ref active extra) | (i, ref, active, extra) <-i'ref'active'extras ]
 

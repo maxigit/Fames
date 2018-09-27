@@ -17,7 +17,7 @@ import Data.Either
 import Text.Blaze.Html(ToMarkup())
 import qualified Data.List.Split  as S
 import Data.List(nub)
-import GL.Receipt(ReceiptTemplate)
+import GL.Receipt(ReceiptTemplateExpanded, ReceiptTemplate, expandTemplate)
 import GL.FA
 import qualified FA as FA
 import Data.Maybe(fromJust)
@@ -89,13 +89,15 @@ postGLEnterReceiptSheetR = do
                           (, Nothing) . fst <$> readUploadUTF8 fileInfo encoding
                         (formA, formB) -> error $ showForm formA ++ ", " ++ showForm formB
  
-  templateMap <- appReceiptTemplates <$> getsYesod appSettings
+  templateMap0 <- appReceiptTemplates <$> getsYesod appSettings
   refMap <- faReferenceMapH
+  templateMap <- either (error . show) return $  traverse (expandTemplate refMap) templateMap0
+
   let receipts = parseGL refMap templateMap spreadSheet 
   renderParsingResult ((\msg pre -> msg  >> renderGLEnterReceiptSheet param 422 "" pre ) :: Handler () -> Widget -> Handler Html)
                       (defaultLayout  . renderReceiptSheet)
                       receipts
-parseGL :: ReferenceMap -> Map Text ReceiptTemplate -> ByteString -> ParsingResult RawRow [(ValidHeader, [ValidItem])]
+parseGL :: ReferenceMap -> Map Text ReceiptTemplateExpanded -> ByteString -> ParsingResult RawRow [(ValidHeader, [ValidItem])]
 parseGL refMap templateMap spreadSheet = either id ParsingCorrect $ do
   rawRows <- parseSpreadsheet columnMap Nothing spreadSheet <|&>  WrongHeader
   -- traceShowM ("I've been there")
@@ -231,12 +233,13 @@ instance ( Renderable (FieldTF t (Maybe Text))
          , Renderable (FieldTF t Double)
          , Renderable (FieldTF t Int)
          , Renderable (RefFieldTF t GLAccountRef)
+         , Renderable (RefFieldTF t TaxRef)
          , Renderable (RefFieldTF t (Maybe Dimension1Ref))
          , Renderable (RefFieldTF t (Maybe Dimension2Ref))
          ) => Renderable  (ReceiptItem t) where
   render = renderReceiptItem
 renderReceiptItem ReceiptItem{..} = [whamlet|
-<td.glAccount>^{render rowGlAccount}
+<td.glAccount>^{render rowGLAccount}
 <td.amount>^{render rowAmount}
 <td.amount>^{render rowNetAmount}
 <td.amount>^{render rowMemo}
@@ -415,11 +418,11 @@ faReferenceMapH = runDB $ do
       rmDimension2Map = buildRefMap [(key, name, closed, ())
                                    | (Single key, Single name, Single closed) <- dimension2s
                                    ]
-      rmTaxMap = buildRefMap [ (FA.unTaxTypeKey key, taxTypeName, not taxTypeInactive, (taxTypeRate, taxTypeSalesGlCode))
+      rmTaxMap = buildRefMap [ (FA.unTaxTypeKey key, tshow taxTypeRate <> "% " <> taxTypeName, not taxTypeInactive, (taxTypeRate/100, taxTypeSalesGlCode))
                              | (Entity key FA.TaxType{..}) <- vats
                              ]
-
   return $ ReferenceMap{..}
+
 
 
   
