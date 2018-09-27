@@ -293,7 +293,7 @@ instance Renderable ([RawRow]) where
         ^{renderReceiptRow row}
                         |]
 
-instance Renderable (Reference s) where
+instance Renderable (Reference s e) where
   render Reference{..} = [whamlet|
      <span.referenceId>(#{refId}) <span.referenceName>#{refName}
                                  |]
@@ -351,7 +351,7 @@ instance Csv.FromNamedRecord (ReceiptItem 'RawT) where
     <*> m `parse` "template"
     where parse = parseMulti columnMap
 
-instance Csv.FromField (Either Text (Reference s)) where
+instance Csv.FromField (Either Text (Reference s e)) where
   parseField field = Left <$> Csv.parseField  field
 
 -- | Regroups receipts rows starting with a header (valid or invalid)
@@ -401,19 +401,23 @@ faReferenceMapH = runDB $ do
   -- for some reason the type_field is a bool and can't be read properly by persistent
   dimension1s <- rawSql "SELECT id, name, closed FROM 0_dimensions WHERE type_ = 1" []
   dimension2s <- rawSql "SELECT id, name, closed FROM 0_dimensions WHERE type_ = 2" []
+  vats <- selectList [] []
 
-  let rmBankAccountMap = buildRefMap [ (FA.unBankAccountKey key, bankAccountBankAccountName, not bankAccountInactive  )
+  let rmBankAccountMap = buildRefMap [ (FA.unBankAccountKey key, bankAccountBankAccountName, not bankAccountInactive, () )
                                      | (Entity key FA.BankAccount{..}) <- bankAccounts
                                      ]
-      rmGLAccountMap = buildRefMap [ (fromJust $ readMay $ FA.unChartMasterKey key, chartMasterAccountName, not chartMasterInactive  )
+      rmGLAccountMap = buildRefMap [ (fromJust $ readMay $ FA.unChartMasterKey key, chartMasterAccountName, not chartMasterInactive, ()  )
                                    | (Entity key FA.ChartMaster{..}) <- glAccounts
                                    ]
-      rmDimension1Map = buildRefMap [(key, name, not closed)
+      rmDimension1Map = buildRefMap [(key, name, not closed, ())
                                    | (Single key, Single name, Single closed) <- dimension1s
                                    ]
-      rmDimension2Map = buildRefMap [(key, name, closed)
+      rmDimension2Map = buildRefMap [(key, name, closed, ())
                                    | (Single key, Single name, Single closed) <- dimension2s
                                    ]
+      rmTaxMap = buildRefMap [ (FA.unTaxTypeKey key, taxTypeName, not taxTypeInactive, (taxTypeRate, taxTypeSalesGlCode))
+                             | (Entity key FA.TaxType{..}) <- vats
+                             ]
 
   return $ ReferenceMap{..}
 

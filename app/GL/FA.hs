@@ -24,14 +24,16 @@ data ReferenceType
   | GLAccountR
   | Dimension1R
   | Dimension2R
+  | TaxRefR
 
-data Reference (s :: ReferenceType) = Reference {refId :: !Int, refName :: !Text, refActive :: !Bool}
+data Reference (s :: ReferenceType) e = Reference {refId :: !Int, refName :: !Text, refActive :: !Bool, refExtra :: e}
   deriving (Show, Read, Eq, Ord)
 
-type BankAccountRef = Reference 'BankAccountR
-type GLAccountRef = Reference 'GLAccountR
-type Dimension1Ref = Reference 'Dimension1R
-type Dimension2Ref = Reference 'Dimension2R
+type BankAccountRef = Reference 'BankAccountR ()
+type GLAccountRef = Reference 'GLAccountR ()
+type Dimension1Ref = Reference 'Dimension1R ()
+type Dimension2Ref = Reference 'Dimension2R ()
+type TaxRef = Reference 'TaxRefR (Double, Text)
 
 
 --  | Provide a map allowing to find reference by id or name
@@ -40,22 +42,25 @@ data ReferenceMap  = ReferenceMap
    , rmGLAccountMap :: IntMap GLAccountRef 
    , rmDimension1Map :: IntMap Dimension1Ref 
    , rmDimension2Map :: IntMap Dimension2Ref 
+   , rmTaxMap :: IntMap TaxRef
    }
 
-class Referable s where
-  getReferenceMap'Name :: ReferenceMap -> (IntMap (Reference s), Text)
+class Referable s e where
+  getReferenceMap'Name :: ReferenceMap -> (IntMap (Reference s e), Text)
 
-instance Referable BankAccountR where
+instance Referable BankAccountR () where
   getReferenceMap'Name refMap = (rmBankAccountMap refMap, "bank account")
-instance Referable GLAccountR where
+instance Referable GLAccountR () where
   getReferenceMap'Name refMap = (rmGLAccountMap refMap, "GL account")
-instance Referable Dimension1R where
+instance Referable Dimension1R () where
   getReferenceMap'Name refMap = (rmDimension1Map refMap, "Dimension 1")
-instance Referable Dimension2R where
+instance Referable Dimension2R () where
   getReferenceMap'Name refMap = (rmDimension2Map refMap, "Dimension 2")
+instance Referable TaxRefR (Double, Text) where
+  getReferenceMap'Name refMap = (rmTaxMap refMap, "tax")
 
 
-findReferenceEither :: Referable r => ReferenceMap -> Text -> Either Text (Reference r)
+findReferenceEither :: Referable r e => ReferenceMap -> Text -> Either Text (Reference r e)
 findReferenceEither refMap ref =
   let (refm, name) = getReferenceMap'Name refMap
   in either (Left . ((name <> ": ") <>)) Right (parseReference refm ref)
@@ -63,7 +68,7 @@ findReferenceEither refMap ref =
 findReference refMap ref = either (const Nothing) Just $ findReferenceEither refMap ref
 
 -- | find a reference by glob pattern. Should only match one.
-findReferenceByPattern :: IntMap (Reference r) -> Text -> Either Text (Reference r)
+findReferenceByPattern :: IntMap (Reference r e) -> Text -> Either Text (Reference r e)
 findReferenceByPattern refMap ref = let
   pat = Glob.compile (unpack ref)
   in case filter (Glob.match pat . unpack . refName) (toList refMap) of
@@ -71,11 +76,11 @@ findReferenceByPattern refMap ref = let
         [one] -> Right one
         all -> Left $ "Too many matches found for " <> ref <> " " <> tshow (map refName all)
      
-buildRefMap :: [(Int, Text, Bool)] -> IntMap (Reference r)
-buildRefMap i'ref'actives = mapFromList [(i, Reference i ref active) | (i, ref, active) <-i'ref'actives ]
+buildRefMap :: [(Int, Text, Bool, e)] -> IntMap (Reference r e)
+buildRefMap i'ref'active'extras = mapFromList [(i, Reference i ref active extra) | (i, ref, active, extra) <-i'ref'active'extras ]
 
 -- | lookup by id or name the reference
-parseReference :: IntMap (Reference r) -> Text -> Either Text (Reference r)
+parseReference :: IntMap (Reference r e) -> Text -> Either Text (Reference r e)
 parseReference refMap ref =
   case Text.stripPrefix "#" ref of
     Just ref | Just refId <- readMay ref -> maybe (Left $ "No match found for id" <> ref) Right $ lookup refId  refMap
