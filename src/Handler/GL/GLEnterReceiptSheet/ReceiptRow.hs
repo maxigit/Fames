@@ -119,8 +119,8 @@ validateHeader (ReceiptHeader (Right rowDate)
                               (Right rowBankAccount)
                               (Right rowComment)
                               (Right rowTotal)
-                              (Right rowTemplate)
-               ) = Just $ ReceiptHeader{..}
+                              (Right rowTemplate')
+               ) = Just $ ReceiptHeader{..} where rowTemplate = Just $ Guessed "pepito"
 validateHeader _ = Nothing
 -- validateHeader header = either (const Nothing) Just $ traverseHeader header
 
@@ -181,8 +181,8 @@ validateItem' (ReceiptItem (Just rowGLAccount')
   , Right rowGLDimension2'' <- traverse sequence rowGLDimension2'
   = let rowGLAccount = const rowGLAccount'' <$> rowGLAccount'
         rowTax = const rowTax'' <$> rowTax'
-        rowGLDimension1 = Nothing -- const rowGLDimension1'' <$> rowGLDimension1'
-        rowGLDimension2 = Nothing -- const rowGLDimension2'' <$> rowGLDimension2'
+        rowGLDimension1 = rowGLDimension1'' :: Maybe (ValidField (Dimension1Ref)) -- const rowGLDimension1'' <$> rowGLDimension1'
+        rowGLDimension2 = rowGLDimension2''  -- const rowGLDimension2'' <$> rowGLDimension2'
   in Just $ ReceiptItem{..}
 validateItem' _  = Nothing
               
@@ -219,7 +219,7 @@ invalidateItem refMap ReceiptItem{..} =
   (validateNonEmpty "Amount" rowAmount)
   (validateNonEmpty "Net Amount" rowNetAmount)
   rowMemo
-  rowTax
+  (validateRef refMap rowTax)
   (validateRef refMap rowGLDimension1)
   (validateRef refMap rowGLDimension2)
   rowItemTemplate
@@ -296,7 +296,7 @@ applyInnerItemTemplate templateMap header0 item0 =
                        in (header, item)
 
 setTax :: TaxRef -> PartialItem -> PartialItem
-setTax tax item  = item {rowTax = Just (Provided $ Right tax)}
+setTax tax item  = item {rowTax = addGuess (rowTax item) (Right tax)}
 
 setAndDeduceTax tax item = deduceVAT tax (setTax tax item)
 -- set tax and compute missing amount
@@ -327,3 +327,41 @@ addGuess old new  = case old of
   p@(Just (Provided _)) -> p
   where  g = Just (Guessed new)
 
+
+-- * Final 
+-- | Validate, once all field are correct that the receipt is consistent (total matchs, tax are correct etc ...)
+validateConsistency :: Day -> (ValidHeader, [ValidItem]) -> [Text] 
+             -- -> Either (Text, (ValidHeader, [ValidItem]))
+             --           (ValidHeader, [ValidItem])
+validateConsistency minday r = catMaybes errors
+  where errors = validateTotalAmount r
+                 : validateDate minday r
+                 : map validateItemTax (snd r)
+
+eqDouble :: (Fractional a, Ord a) => a -> a -> Bool
+eqDouble a b = abs (a -b) < 1e-4
+
+validateDate minDay (ReceiptHeader{..}, _) =
+  if validValue rowDate >= minDay
+  then Nothing
+  else Just $ "Transaction to old : "   <> tshow rowDate 
+validateTotalAmount (ReceiptHeader{..}, items) =
+  if totalItems  `eqDouble` validValue rowTotal
+  then Nothing
+  else Just $ "Amounts doesn't add up"
+  where totalItems = sum (map (validValue . rowAmount) items)
+
+validateItemTax :: ValidItem -> Maybe Text
+validateItemTax ReceiptItem{..} =
+  -- if (1 + rate ) * net `eqDouble` gross
+  if eqDouble ((1 + rate ) * net) gross
+  then Nothing
+  else Just $ "Gross amount (" <> tshow gross <> ") doesn't match net (" <> tshow net
+         <> " for rate of " <> tshow rate
+  where rate = fst (refExtra $ validValue rowTax)
+        net = validValue rowNetAmount
+        gross = validValue rowAmount
+                        
+
+                  
+  

@@ -53,16 +53,6 @@ getGLVATEcslR = do
 
   renderGLVATEcslR param mempty
 
-previousVATQuarter :: Day -> (Day, Day)          
-previousVATQuarter day =  (start, end) where
-  begMonth = calculateDate BeginningOfMonth day
-  (__year, month, _day) = toGregorian begMonth
-      -- we need to find the last full quarter before today
-      -- VAT quarter at the beginning of the year
-  monthOffset = (month- 1) `mod` 3
-  start = calculateDate (AddMonths (-monthOffset-3))  begMonth
-  end = foldr (calculateDate) start [EndOfMonth, AddMonths 2]
-
 
 --------------------------------------------------------------------------------
 postGLVATEcslR :: Handler TypedContent

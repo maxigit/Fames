@@ -19,6 +19,7 @@ import qualified Data.List.Split  as S
 import Data.List(nub)
 import GL.Receipt(ReceiptTemplateExpanded, ReceiptTemplate, expandTemplate)
 import GL.FA
+import GL.Utils
 import qualified FA as FA
 import Data.Maybe(fromJust)
 import Database.Persist.Sql(Single(..), rawSql, unSqlBackendKey)
@@ -93,12 +94,16 @@ postGLEnterReceiptSheetR = do
   refMap <- faReferenceMapH
   templateMap <- either (error . show) return $  traverse (expandTemplate refMap) templateMap0
 
-  let receipts = parseGL refMap templateMap spreadSheet 
+  today <- todayH
+  let receipts = parseGL minDay refMap templateMap spreadSheet 
+      (minDay, _) = previousVATQuarter $ calculateDate (AddDays 15) today
+  
+  setWarning [shamlet|Using #{tshow minDay} as the beginning of the VAT Return |]
   renderParsingResult ((\msg pre -> msg  >> renderGLEnterReceiptSheet param 422 "" pre ) :: Handler () -> Widget -> Handler Html)
-                      (defaultLayout  . renderReceiptSheet)
+                      (defaultLayout  . renderReceiptSheet . map (fanl (validateConsistency minDay)))
                       receipts
-parseGL :: ReferenceMap -> Map Text ReceiptTemplateExpanded -> ByteString -> ParsingResult RawRow [(ValidHeader, [ValidItem])]
-parseGL refMap templateMap spreadSheet = either id ParsingCorrect $ do
+parseGL :: Day -> ReferenceMap -> Map Text ReceiptTemplateExpanded -> ByteString -> ParsingResult RawRow [(ValidHeader, [ValidItem])]
+parseGL minDay refMap templateMap spreadSheet = either id ParsingCorrect $ do
   rawRows <- parseSpreadsheet columnMap Nothing spreadSheet <|&>  WrongHeader
   -- traceShowM ("I've been there")
   rows <- getLefts (map analyseReceiptRow rawRows) <|&>  InvalidFormat 
@@ -107,9 +112,7 @@ parseGL refMap templateMap spreadSheet = either id ParsingCorrect $ do
   -- traceShowM ("there again")
   let template = findWithDefault mempty "default"  templateMap
       guessed = map (applyInnerTemplate templateMap . applyTemplate template) partials
-  valids <- getLefts (map (validReceipt refMap) guessed) <|&> flip (InvalidData ["Missing or incorrect values"]) [] . concatMap flattenReceipt
-
-  Right valids
+  getLefts (map (validReceipt refMap) guessed) <|&> flip (InvalidData ["Missing or incorrect values"]) [] . concatMap flattenReceipt
 
 getLefts es = case partitionEithers es of
                       ([], rights ) -> Right rights
@@ -121,12 +124,21 @@ renderReceiptSheet :: ( Renderable h
                       , Renderable r
                       , Renderable (Int, (h, [r]))
                       )
-                      => [(h, [r] )] -> Widget
+                      => [([Text], (h, [r] ))] -> Widget
   
 renderReceiptSheet receipts =  do
   let ns = [1..] :: [Int]
+      tooltip [] =  ""
+      tooltip errors = mconcat (intersperse " - " errors) <> "\""
+  toWidget [cassius|
+tr.receipt-header
+  background: #{paleBlue}
+tbody.invalid
+  tr.receipt-header
+    background: #{paleRed}
+                   |]
   [whamlet| 
-<table..table.table-bordered>
+<table.table.table-bordered>
   <tr>
     <th>
     <th>Template
@@ -142,8 +154,10 @@ renderReceiptSheet receipts =  do
     <th>Tax Rate
     <th>Dimension 1
     <th>Dimension 2
-  $forall (receipt, i) <- zip receipts ns
-    ^{render (i, receipt)}
+  $forall ((errors, receipt), i) <- zip receipts ns
+    $with error <- not (null errors)
+      <tbody :error:.invalid data-toggle=tooltip title="#{tooltip errors}" >
+        ^{render (i, receipt)}
 |]
 
 t :: Text -> Text
@@ -188,9 +202,9 @@ renderReceiptRow row = do
   [whamlet|
 <tr>
   <td.receiptGroup>#{groupIndicator}
-  <td.template>^{render template}
     $case preview here row
       $of Nothing
+        <td.template>^{render template}
         <td>
         <td>
         <td>
@@ -220,6 +234,7 @@ instance ( Renderable (FieldTF t Text)
          ) => Renderable  (ReceiptHeader t) where
   render = renderReceiptHeader
 renderReceiptHeader ReceiptHeader{..} = [whamlet|
+<td.template>^{render rowTemplate}
 <td.date>^{render rowDate}
 <td.counterparty>^{render rowCounterparty}
 <td.bankAccount>^{render rowBankAccount}
@@ -256,9 +271,8 @@ instance ( Renderable h
          , Renderable r
          ) => Renderable (Int, (h, [r])) where
   render (i, (header, rows)) = [whamlet|
-<tr class="bg-info" id="receipt#{i}-1">
+<tr class=receipt-header" id="receipt#{i}-1">
   <td> >
-  <td>
   ^{render header}
   $maybe row <- headMay rows
     ^{render row}
