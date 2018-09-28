@@ -134,8 +134,11 @@ postGLSaveReceiptSheetToFAR = do
             case concatMap fst err'receipts of
               [] -> do
                 settings <- getsYesod appSettings 
-                runExceptT $ saveReceiptsToFA settings (map snd err'receipts)
-                setSuccess "Transactions saved successfully"
+                res <- runExceptT $ saveReceiptsToFA settings (map snd err'receipts)
+                case res of
+                  Left err -> setError $ toHtml err
+                  Right ids -> do
+                    setSuccess $ [shamlet| #{length ids} Transactions saved successfully|]
                 getGLEnterReceiptSheetR
               _ -> err
          _ -> err

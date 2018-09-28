@@ -45,10 +45,12 @@ docurl url opts = lift $ do_curl_ ?curl url opts
 curlSoup :: (?curl :: Curl)
          => URLString -> [CurlOption] -> Int -> Text -> ExceptT Text IO [Tag String]
 curlSoup url opts status msg = do
+  traceShowM ("POST to CURL", url, opts)
   r <- docurl url (mergePostFields opts)
+  traceShowM ("RESP", respStatus r, respBody r)
   let tags = parseTags (respBody r)
   when (respCurlCode r /= CurlOK || respStatus r /= status) $ do
-      throwError $ unlines [ "Failed to : " <> msg
+      throwError $ traceShowId $ unlines [ "Failed to : " <> msg
                            , "CURL status: " <> tshow (respCurlCode r)
                            , "HTTP status :" <> pack (respStatusLine r)
                            , "when accessing URL: '" <> tshow url <> "'"
@@ -56,7 +58,7 @@ curlSoup url opts status msg = do
                            ]
   case (extractErrorMsgFromSoup tags) of
     Nothing -> return tags
-    Just err -> throwError err
+    Just err -> throwError $ traceShowId err
 
 withCurl :: ExceptT e' IO b -> ExceptT e' IO b
 withCurl = mapExceptT withCurlDo
@@ -330,13 +332,15 @@ postBankPayment connectInfo payment = do
     let ref = case extractInputValue "ref" new of
                   Nothing -> Left "Can't find GRN reference"
                   Just r -> Right r
-    let process = curlPostFields [ "date_" <=> show (bpDate payment)
+    let process = curlPostFields [ "date_" <=> bpDate payment
                                  , "ref" <=> either error id ref
-                                 , Just "CheckTaxBalance=1"
+                                 , Just "CheckTaxBalance=0"
                                  , Just "PayType=0" -- miscellaneous
+                                 , Just "_ex_rate=1" -- exchange rate
                                  , "person_id" <=> bpCounterparty payment
                                  , "bank_account" <=> bpBankAccount payment
                                  , "memo_"  <=> bpMemo payment
+                                 , Just "Process=Process"
                                  ] : method_POST
     tags <- curlSoup (toAjax bankPaymentURL) process 200 "Create bank payment"
     case extractAddedId' "AddedID" "grn" tags of
@@ -352,7 +356,7 @@ addBankPaymentItems GLItem{..} = do
                               , "dimension_id" <=> gliDimension1
                               , "dimension2_id" <=> gliDimension2
                               , "LineMemo" <=> gliMemo
-                              , Just "AddGLCodeToTrans=1"
+                              , Just "AddItem=Add%20Item"
                               ] :method_POST
   curlSoup (ajaxBankPaymentItemURL) fields 200 "add GL items"
 
