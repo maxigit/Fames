@@ -480,7 +480,7 @@ faReferenceMapH = runDB $ do
       rmDimension2Map = buildRefMap [(key, name, closed, ())
                                    | (Single key, Single name, Single closed) <- dimension2s
                                    ]
-      rmTaxMap = buildRefMap [ (FA.unTaxTypeKey key, tshow taxTypeRate <> "% " <> taxTypeName, not taxTypeInactive, (taxTypeRate/100, taxTypeSalesGlCode))
+      rmTaxMap = buildRefMap [ (FA.unTaxTypeKey key, tshow taxTypeRate <> "% " <> taxTypeName, not taxTypeInactive, (taxTypeRate/100, fromJust $ readMay taxTypeSalesGlCode))
                              | (Entity key FA.TaxType{..}) <- vats
                              ]
   return $ ReferenceMap{..}
@@ -499,7 +499,9 @@ saveReceiptsToFA settings receipts = do
       mkPayment :: (ReceiptHeader 'FinalT, [ReceiptItem 'ValidT])  -> WFA.BankPayment
       mkPayment (ReceiptHeader{..}, items)  = WFA.BankPayment rowDate Nothing rowCounterparty (refId rowBankAccount) rowComment (concatMap (mkItem . transformItem) items)
       mkItem :: ReceiptItem 'FinalT -> [WFA.GLItem]
-      mkItem ReceiptItem{..} = WFA.GLItem (refId rowGLAccount) (refId <$> rowGLDimension1) (refId <$> rowGLDimension2) rowAmount rowMemo : []
+      mkItem ReceiptItem{..} = WFA.GLItem (refId rowGLAccount) (refId <$> rowGLDimension1) (refId <$> rowGLDimension2) rowNetAmount Nothing rowMemo  
+                             : WFA.GLItem (snd $ refExtra rowTax) (refId <$> rowGLDimension1) (refId <$> rowGLDimension2) (rowAmount - rowNetAmount) (Just rowNetAmount) rowMemo
+                             : []
         
   mapM (ExceptT . liftIO <$> WFA.postBankPayment connectInfo) payments
   

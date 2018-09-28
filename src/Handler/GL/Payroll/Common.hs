@@ -861,6 +861,7 @@ itemsForCosts timesheet = let
                   (dimension1 (opSettings :: EmployeeSettings ))
                   (dimension2 (opSettings :: EmployeeSettings))
                   (unsafeUnlock amount)
+                  Nothing
                   (Just memo)
   in map mkItem costs
 
@@ -1023,7 +1024,7 @@ dacToExternalItems day tsReference dac = let
                              due = calculateDate (paymentTerm set) day 
                              in case paymentSettings set of
                                (DACSupplierSettings supplier glAccount dim1 dim2 memo)  -> 
-                                     let item = WFA.GLItem glAccount dim1 dim2 amount (memo <|> Just memo_)
+                                     let item = WFA.GLItem glAccount dim1 dim2 amount Nothing (memo <|> Just memo_)
                                      in [Left ((supplier, ref, due), item)]
                                (DACPaymentSettings bankAccount)  ->  [Right ((bankAccount, ref, due), amount )]
       _ -> []

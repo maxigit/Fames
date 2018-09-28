@@ -97,6 +97,7 @@ data GLItem = GLItem
   , gliDimension1 :: !(Maybe Int)
   , gliDimension2 :: !(Maybe Int)
   , gliAmount :: !Double 
+  , gliTaxOutput :: !(Maybe Double)
   , gliMemo :: !(Maybe Text) 
   } deriving (Eq, Show)
 

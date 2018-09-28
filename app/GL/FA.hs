@@ -33,7 +33,7 @@ type BankAccountRef = Reference 'BankAccountR ()
 type GLAccountRef = Reference 'GLAccountR ()
 type Dimension1Ref = Reference 'Dimension1R ()
 type Dimension2Ref = Reference 'Dimension2R ()
-type TaxRef = Reference 'TaxRefR (Double, Text)
+type TaxRef = Reference 'TaxRefR (Double, Int)
 
 
 --  | Provide a map allowing to find reference by id or name
@@ -56,7 +56,7 @@ instance Referable Dimension1R () where
   getReferenceMap'Name refMap = (rmDimension1Map refMap, "Dimension 1")
 instance Referable Dimension2R () where
   getReferenceMap'Name refMap = (rmDimension2Map refMap, "Dimension 2")
-instance Referable TaxRefR (Double, Text) where
+instance Referable TaxRefR (Double, Int) where
   getReferenceMap'Name refMap = (rmTaxMap refMap, "tax")
 
 

@@ -45,9 +45,9 @@ docurl url opts = lift $ do_curl_ ?curl url opts
 curlSoup :: (?curl :: Curl)
          => URLString -> [CurlOption] -> Int -> Text -> ExceptT Text IO [Tag String]
 curlSoup url opts status msg = do
-  traceShowM ("POST to CURL", url, opts)
+  -- traceShowM ("POST to CURL", url, opts)
   r <- docurl url (mergePostFields opts)
-  traceShowM ("RESP", respStatus r, respBody r)
+  -- traceShowM ("RESP", respStatus r, respBody r)
   let tags = parseTags (respBody r)
   when (respCurlCode r /= CurlOK || respStatus r /= status) $ do
       throwError $ traceShowId $ unlines [ "Failed to : " <> msg
@@ -334,16 +334,16 @@ postBankPayment connectInfo payment = do
                   Just r -> Right r
     let process = curlPostFields [ "date_" <=> bpDate payment
                                  , "ref" <=> either error id ref
-                                 , Just "CheckTaxBalance=0"
+                                 , Just "CheckTaxBalance=1"
                                  , Just "PayType=0" -- miscellaneous
-                                 , Just "_ex_rate=1" -- exchange rate
+                                 -- , Just "_ex_rate=1" -- exchange rate
                                  , "person_id" <=> bpCounterparty payment
                                  , "bank_account" <=> bpBankAccount payment
                                  , "memo_"  <=> bpMemo payment
                                  , Just "Process=Process"
                                  ] : method_POST
     tags <- curlSoup (toAjax bankPaymentURL) process 200 "Create bank payment"
-    case extractAddedId' "AddedID" "grn" tags of
+    case extractAddedId' "AddedID" "bank payment" tags of
       Left e -> throwError $ "Bank payment creation failed:" <> e
       Right faId -> return faId
 
@@ -352,9 +352,9 @@ addBankPaymentItems :: (?baseURL :: URLString, ?curl :: Curl)
 addBankPaymentItems GLItem{..} = do
   let fields = curlPostFields [  "code_id" <=> gliAccount
                               , "amount" <=> gliAmount
-                              , Just "tax_net_amount=3" -- <=> gliTaxOutput
-                              , "dimension_id" <=> gliDimension1
-                              , "dimension2_id" <=> gliDimension2
+                              , "tax_net_amount" <=> gliTaxOutput
+                              , "dimension_id" <=> fromMaybe 0 gliDimension1
+                              , "dimension2_id" <=> fromMaybe 0 gliDimension2
                               , "LineMemo" <=> gliMemo
                               , Just "AddItem=Add%20Item"
                               ] :method_POST
