@@ -14,6 +14,7 @@ import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import Handler.CsvUtils
 import qualified Data.Csv as Csv
 import Data.Either
+import Control.Monad.Except
 import Text.Blaze.Html(ToMarkup())
 import qualified Data.List.Split  as S
 import Data.List(nub)
@@ -21,6 +22,8 @@ import GL.Receipt(ReceiptTemplateExpanded, ReceiptTemplate, expandTemplate)
 import GL.FA
 import GL.Utils
 import qualified FA as FA
+import  qualified WH.FA.Types as WFA
+import  qualified WH.FA.Curl as WFA
 import Data.Maybe(fromJust)
 import Database.Persist.Sql(Single(..), rawSql, unSqlBackendKey)
 -- import Text.Printf (printf)
@@ -130,7 +133,8 @@ postGLSaveReceiptSheetToFAR = do
                    err'receipts = map (fanl $ validateConsistency minDay) receipts
             case concatMap fst err'receipts of
               [] -> do
-                saveReceiptsToFA (map snd err'receipts)
+                settings <- getsYesod appSettings 
+                runExceptT $ saveReceiptsToFA settings (map snd err'receipts)
                 setSuccess "Transactions saved successfully"
                 getGLEnterReceiptSheetR
               _ -> err
@@ -484,8 +488,15 @@ faReferenceMapH = runDB $ do
   
 
 
--- * Save to Fron tAccount
-saveReceiptsToFA :: [(ValidHeader, [ValidItem])] -> Handler ()
-saveReceiptsToFA receipts = do
-  return ()
+-- * to Front Accounting
+saveReceiptsToFA :: AppSettings -> [(ValidHeader, [ValidItem])] -> ExceptT Text Handler [Int]
+saveReceiptsToFA settings receipts = do
+  let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
+      payments = map (mkPayment . first transformHeader) receipts
+      mkPayment :: (ReceiptHeader 'FinalT, [ReceiptItem 'ValidT])  -> WFA.BankPayment
+      mkPayment (ReceiptHeader{..}, items)  = WFA.BankPayment rowDate Nothing rowCounterparty (refId rowBankAccount) rowComment (concatMap (mkItem . transformItem) items)
+      mkItem :: ReceiptItem 'FinalT -> [WFA.GLItem]
+      mkItem ReceiptItem{..} = WFA.GLItem (refId rowGLAccount) (refId <$> rowGLDimension1) (refId <$> rowGLDimension2) rowAmount rowMemo : []
+        
+  mapM (ExceptT . liftIO <$> WFA.postBankPayment connectInfo) payments
   

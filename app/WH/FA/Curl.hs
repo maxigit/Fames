@@ -6,6 +6,7 @@ module WH.FA.Curl
 ( postStockAdjustment
 , postLocationTransfer
 , testFAConnection
+, postBankPayment
 , postGRN
 , postPurchaseInvoice
 , postSupplierPayment
@@ -219,6 +220,14 @@ newAdjustmentURL ::  (?baseURL :: URLString) => URLString
 newAdjustmentURL = inventoryAdjustmentURL <> "?NewAdjustment=1"
 ajaxInventoryAdjustmentURL  :: (?baseURL :: URLString) => URLString
 ajaxInventoryAdjustmentURL = toAjax inventoryAdjustmentURL
+-- *** GL
+bankPaymentURL :: (?baseURL :: URLString) => URLString
+bankPaymentURL = ?baseURL <> "/gl/gl_bank.php"
+newBankPaymentURL :: (?baseURL :: URLString) => URLString
+newBankPaymentURL = bankPaymentURL <>  "?NewPayment=Yes"
+ajaxBankPaymentItemURL :: (?baseURL :: URLString) => URLString
+ajaxBankPaymentItemURL = toAjax bankPaymentURL 
+
 -- *** Purchases
 grnURL, newGRNURL, ajaxGRNURL :: (?baseURL :: URLString) => URLString
 grnURL = ?baseURL <> "/purchasing/po_entry_items.php"
@@ -311,6 +320,43 @@ addLocationTransferDetail LocationTransferDetail{..} = do
   curlSoup (toAjax locationTransferURL) items 200 "add items"
 
 
+-- ** GL
+postBankPayment :: FAConnectInfo -> BankPayment -> IO (Either Text Int)
+postBankPayment connectInfo payment = do
+  let ?baseURL = faURL connectInfo
+  runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
+    new <- curlSoup newBankPaymentURL method_GET 200 "Problem trying to create new bank payment"
+    _ <- mapM addBankPaymentItems (bpItems payment)
+    let ref = case extractInputValue "ref" new of
+                  Nothing -> Left "Can't find GRN reference"
+                  Just r -> Right r
+    let process = curlPostFields [ "date_" <=> show (bpDate payment)
+                                 , "ref" <=> either error id ref
+                                 , Just "CheckTaxBalance=1"
+                                 , Just "PayType=0" -- miscellaneous
+                                 , "person_id" <=> bpCounterparty payment
+                                 , "bank_account" <=> bpBankAccount payment
+                                 , "memo_"  <=> bpMemo payment
+                                 ] : method_POST
+    tags <- curlSoup (toAjax bankPaymentURL) process 200 "Create bank payment"
+    case extractAddedId' "AddedID" "grn" tags of
+      Left e -> throwError $ "Bank payment creation failed:" <> e
+      Right faId -> return faId
+
+addBankPaymentItems :: (?baseURL :: URLString, ?curl :: Curl)
+                    => GLItem -> ExceptT Text IO [Tag String]
+addBankPaymentItems GLItem{..} = do
+  let fields = curlPostFields [  "code_id" <=> gliAccount
+                              , "amount" <=> gliAmount
+                              , Just "tax_net_amount=3" -- <=> gliTaxOutput
+                              , "dimension_id" <=> gliDimension1
+                              , "dimension2_id" <=> gliDimension2
+                              , "LineMemo" <=> gliMemo
+                              , Just "AddGLCodeToTrans=1"
+                              ] :method_POST
+  curlSoup (ajaxBankPaymentItemURL) fields 200 "add GL items"
+
+  
 -- ** Purchase
 -- *** GRN
 postGRN :: FAConnectInfo -> GRN -> IO (Either Text Int)
