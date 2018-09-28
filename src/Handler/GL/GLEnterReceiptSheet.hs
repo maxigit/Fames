@@ -73,7 +73,6 @@ postTextForm paramM = renderBootstrap3 BootstrapBasicForm $ (,)
   <$> areq textField "Sheet name" (fst <$> paramM )
   <*> areq textareaField "Receipts" (snd <$> paramM)
 
-
 postGLEnterReceiptSheetR :: Handler Html
 postGLEnterReceiptSheetR = do
   ((textResp, __postTextW), __enctype) <- runFormPost (postTextForm Nothing)
@@ -90,20 +89,56 @@ postGLEnterReceiptSheetR = do
                           (, Nothing) . fst <$> readUploadUTF8 fileInfo encoding
                         (formA, formB) -> error $ showForm formA ++ ", " ++ showForm formB
  
-  templateMap0 <- appReceiptTemplates <$> getsYesod appSettings
-  refMap <- faReferenceMapH
-  templateMap <- either (error . show) return $  traverse (expandTemplate refMap) templateMap0
+  let onSuccess  err'receipts = let
+          rendered = renderReceiptSheet err'receipts
+          in case concatMap fst err'receipts of
+              [] -> do
+                -- save text
+                (key, path) <- cacheByteString Nothing spreadSheet
+                (form, encType) <- generateFormPost (hiddenFileForm $ Just (key, path))
+                defaultLayout $ [whamlet|
+                            <form method=POST action="@{GLR GLSaveReceiptSheetToFAR}" enctype=#{encType}>
+                              ^{form}
+                              ^{rendered}
+                              <button type="submit" .btn .btn-danger>Save to Front Accounting
+                                            |]
+              _ -> renderGLEnterReceiptSheet param 422 "Some receipt are inconsistent " rendered
 
   today <- todayH
-  let receipts = parseGL minDay refMap templateMap spreadSheet 
-      (minDay, _) = previousVATQuarter $ calculateDate (AddDays 15) today
+  receipts <- parseGLH spreadSheet 
+  let    (minDay, _) = previousVATQuarter $ calculateDate (AddDays 15) today
   
   setWarning [shamlet|Using #{tshow minDay} as the beginning of the VAT Return |]
   renderParsingResult ((\msg pre -> msg  >> renderGLEnterReceiptSheet param 422 "" pre ) :: Handler () -> Widget -> Handler Html)
-                      (defaultLayout  . renderReceiptSheet . map (fanl (validateConsistency minDay)))
+                      (onSuccess . map (fanl (validateConsistency minDay)))
                       receipts
-parseGL :: Day -> ReferenceMap -> Map Text ReceiptTemplateExpanded -> ByteString -> ParsingResult RawRow [(ValidHeader, [ValidItem])]
-parseGL minDay refMap templateMap spreadSheet = either id ParsingCorrect $ do
+postGLSaveReceiptSheetToFAR :: Handler Html
+postGLSaveReceiptSheetToFAR = do
+  ((resp,_), __enctype) <- runFormPost (hiddenFileForm Nothing)
+  case resp of
+    FormMissing -> error "missing"
+    FormFailure msg ->  error $ "Form Failure:" ++ show msg
+    FormSuccess (key, path) -> do
+       let _types = path :: FilePath
+       Just spreadsheet <- retrieveTextByKey Nothing key
+       receiptsE <- parseGLH $ encodeUtf8 spreadsheet
+       let err = error "This file has already been validated but is not valid anymor"
+       case receiptsE of
+         ParsingCorrect receipts ->  do
+            today <- todayH
+            let    (minDay, _) = previousVATQuarter $ calculateDate (AddDays 15) today
+                   err'receipts = map (fanl $ validateConsistency minDay) receipts
+            case concatMap fst err'receipts of
+              [] -> do
+                saveReceiptsToFA (map snd err'receipts)
+                setSuccess "Transactions saved successfully"
+                getGLEnterReceiptSheetR
+              _ -> err
+         _ -> err
+         
+
+parseGL :: ReferenceMap -> Map Text ReceiptTemplateExpanded -> ByteString -> ParsingResult RawRow [(ValidHeader, [ValidItem])]
+parseGL refMap templateMap spreadSheet = either id ParsingCorrect $ do
   rawRows <- parseSpreadsheet columnMap Nothing spreadSheet <|&>  WrongHeader
   -- traceShowM ("I've been there")
   rows <- getLefts (map analyseReceiptRow rawRows) <|&>  InvalidFormat 
@@ -119,6 +154,12 @@ getLefts es = case partitionEithers es of
                       (lefts, _) -> Left lefts
    
 
+parseGLH spreadsheet = do
+  templateMap0 <- appReceiptTemplates <$> getsYesod appSettings
+  refMap <- faReferenceMapH
+  templateMap <- either (error . show) return $  traverse (expandTemplate refMap) templateMap0
+  return $ parseGL refMap templateMap spreadsheet 
+  
 
 renderReceiptSheet :: ( Renderable h
                       , Renderable r
@@ -440,4 +481,11 @@ faReferenceMapH = runDB $ do
 
 
   
+  
+
+
+-- * Save to Fron tAccount
+saveReceiptsToFA :: [(ValidHeader, [ValidItem])] -> Handler ()
+saveReceiptsToFA receipts = do
+  return ()
   

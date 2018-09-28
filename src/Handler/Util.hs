@@ -10,6 +10,7 @@ module Handler.Util
 , entityTableHandler , entityTableHandler'
 , uploadFileForm
 , uploadFileFormWithComment
+, hiddenFileForm
 , Encoding(..)
 , readUploadUTF8
 , setAttachment
@@ -32,6 +33,9 @@ module Handler.Util
 , filterEToSQL
 , filterEAddWildcardRight
 , readUploadOrCacheUTF8
+, cacheText
+, cacheByteString
+, retrieveTextByKey
 , locationSet
 , toHtmlWithBreak
 , hxtoHe
@@ -200,6 +204,17 @@ uploadFileFormWithComment :: Markup
                           (FormResult (FileInfo, Encoding, Maybe Textarea), Widget)
 uploadFileFormWithComment = uploadFileForm (aopt textareaField "comment" Nothing)
 
+--  | Generate a form meant to be used to reload cache using readUploadOrCache
+-- hiddenFileForm
+--   :: DocumentHash
+--      -> Maybe (DocumentHash, FilePath)
+--      -> _ (FormResult (DocumentHash, FilePath), Widget)
+hiddenFileForm key'pathM = renderBootstrap3 BootstrapBasicForm form where
+  form =
+    (,) <$> areq hiddenField  "key" (fmap fst  key'pathM)
+        <*> areq hiddenField "path" (fmap snd key'pathM)
+   
+
 -- | Retrieve the content of an uploaded file.
 readUploadUTF8 :: MonadResource m => FileInfo -> Encoding -> m (ByteString, DocumentHash)
 readUploadUTF8  fileInfo encoding = do
@@ -244,7 +259,7 @@ instance Read (Identifiable ()) where
 -- (and because it's not possible to preset the upload parameter on the new form)
 -- we save the first time, the file to a temporary file and use the key to reload it
 -- on the second time. The key and path will need to be set to the form (as hidden parameter)
--- readUploadOrCache.
+-- | readUploadOrCache.
 -- Returns the content and the tempory key and path or nothing if nothing is present.
 -- The resulting file is converted in UTF8 
 readUploadOrCacheUTF8
@@ -273,6 +288,32 @@ readUploadOrCacheUTF8  encoding fileInfoM keyM pathM = do
           return $ Just (ss, key, fileName fileInfo)
         (_,_,_) -> return Nothing
   
+-- | Saves and compute the cache key of a text
+-- allows a textarea to be reread after submitting
+cacheText :: (MonadIO m, MonadResource m) => Maybe (DocumentHash -> FilePath) -> Text -> m (DocumentHash, FilePath)
+cacheText base = cacheByteString base . encodeUtf8
+cacheByteString :: (MonadIO m, MonadResource m) => Maybe (DocumentHash -> FilePath) -> ByteString -> m (DocumentHash, FilePath)
+cacheByteString base bs = do
+  let key = computeDocumentKey bs
+      path = fromMaybe (defaultPathMaker) base $ key
+  exist <- liftIO $ doesFileExist path
+  writeFile path  bs
+
+  return (key, path)
+
+defaultPathMaker :: DocumentHash -> FilePath
+defaultPathMaker (DocumentHash key) = "/tmp" </> (unpack key)
+
+retrieveTextByKey :: (MonadIO m, MonadResource m)
+                  => Maybe (DocumentHash -> FilePath) -> DocumentHash -> m (Maybe Text)
+retrieveTextByKey base key = do
+  let path = fromMaybe defaultPathMaker  base $ key
+  exist <- liftIO $ doesFileExist  path
+  if exist
+    then (Just . decodeUtf8) <$> readFile path
+    else return Nothing
+
+
 -- ** Form builder
 renderField :: (MonadIO m, MonadBaseControl IO m, MonadThrow m)
             => FieldView site
