@@ -21,7 +21,6 @@ import qualified GL.FA as FA
 import qualified Data.Map as Map
 import Data.Aeson
 import Data.Aeson.Types(Parser,typeMismatch)
-import Data.Scientific(toRealFloat)
 import Control.Applicative (Const(..))
 
 
