@@ -21,6 +21,7 @@ import Control.Monad.State
 import Data.List(isPrefixOf)
 import qualified Data.Map as Map
 import Data.Monoid(Sum(Sum))
+import Data.Decimal
 
 import qualified Prelude as Prelude
 import Text.HTML.TagSoup 
@@ -112,6 +113,9 @@ instance CurlPostField Day where
   toCurlPostField = Just . toFADate
 
 instance CurlPostField Double where
+  toCurlPostField  = Just . show
+
+instance CurlPostField Decimal where
   toCurlPostField  = Just . show
 
 instance CurlPostField Int where
@@ -348,7 +352,7 @@ postBankPayment connectInfo payment = do
       Right faId -> return faId
 
 addBankPaymentItems :: (?baseURL :: URLString, ?curl :: Curl)
-                    => GLItem -> ExceptT Text IO [Tag String]
+                    => GLItemD -> ExceptT Text IO [Tag String]
 addBankPaymentItems GLItem{..} = do
   let fields = curlPostFields [  "code_id" <=> gliAccount
                               , "amount" <=> gliAmount

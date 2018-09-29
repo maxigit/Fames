@@ -25,6 +25,7 @@ import qualified FA as FA
 import  qualified WH.FA.Types as WFA
 import  qualified WH.FA.Curl as WFA
 import Data.Maybe(fromJust)
+import Data.Decimal
 import Database.Persist.Sql(Single(..), rawSql, unSqlBackendKey)
 -- import Text.Printf (printf)
 -- import qualified Data.Text as Text
@@ -154,6 +155,8 @@ parseGL refMap templateMap spreadSheet = either id ParsingCorrect $ do
   -- traceShowM ("there again")
   let template = findWithDefault mempty "default"  templateMap
       guessed = map (applyInnerTemplate templateMap . applyTemplate template) partials
+      -- round to 2 decimals
+      
   getLefts (map (validReceipt refMap) guessed) <|&> flip (InvalidData ["Missing or incorrect values"]) [] . concatMap flattenReceipt
 
 getLefts es = case partitionEithers es of
@@ -493,15 +496,47 @@ faReferenceMapH = runDB $ do
 
 -- * to Front Accounting
 saveReceiptsToFA :: AppSettings -> [(ValidHeader, [ValidItem])] -> ExceptT Text Handler [Int]
-saveReceiptsToFA settings receipts = do
+saveReceiptsToFA settings receipts0 = do
+  let receipts = map roundReceipt receipts0
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       payments = map (mkPayment . first transformHeader) receipts
       mkPayment :: (ReceiptHeader 'FinalT, [ReceiptItem 'ValidT])  -> WFA.BankPayment
-      mkPayment (ReceiptHeader{..}, items)  = WFA.BankPayment rowDate Nothing rowCounterparty (refId rowBankAccount) rowComment (concatMap (mkItem . transformItem) items)
-      mkItem :: ReceiptItem 'FinalT -> [WFA.GLItem]
-      mkItem ReceiptItem{..} = WFA.GLItem (refId rowGLAccount) (refId <$> rowGLDimension1) (refId <$> rowGLDimension2) rowNetAmount Nothing rowMemo  
-                             : WFA.GLItem (snd $ refExtra rowTax) (refId <$> rowGLDimension1) (refId <$> rowGLDimension2) (rowAmount - rowNetAmount) (Just rowNetAmount) rowMemo
-                             : []
-        
+      mkPayment (ReceiptHeader{..}, items)  = WFA.BankPayment rowDate
+                                                              Nothing
+                                                              rowCounterparty
+                                                              (refId rowBankAccount)
+                                                              rowComment
+                                                              (mkItems (map transformItem items))
   mapM (ExceptT . liftIO <$> WFA.postBankPayment connectInfo) payments
   
+
+mkItems :: [ReceiptItem 'FinalT] -> [WFA.GLItemD]
+mkItems items = let
+  byTax = groupAsMap (\ReceiptItem{..} -> (rowTax, refId <$> rowGLDimension1, refId <$> rowGLDimension2)) (:[]) items
+  taxes = Map.mapWithKey mkTax byTax
+  mkItem :: ReceiptItem 'FinalT -> WFA.GLItemD
+  mkItem ReceiptItem{..} = WFA.GLItem (refId rowGLAccount)
+                                          (refId <$> rowGLDimension1)
+                                          (refId <$> rowGLDimension2)
+                                          (realFracToDecimal 2 $ rowNetAmount)
+                                          Nothing
+                                          rowMemo  
+  mkTax :: (TaxRef, Maybe Int, Maybe Int) -> [ReceiptItem 'FinalT] -> [WFA.GLItemD]
+  mkTax (taxRef, dim1, dim2 ) items =  let
+    -- we need to make sure that the total amount matches
+    -- net = realFracToDecimal 2 $ sum (map (rowNetAmount) items)
+    total = realFracToDecimal 2 $ sum (map rowAmount items)
+    glItems = map mkItem items
+    netItem = sum (map WFA.gliAmount glItems)
+    -- we need Sum of netAmount of each times + tax = initial net
+    tax = total - netItem
+    
+    in glItems <> [WFA.GLItem (snd $ refExtra taxRef)
+                  dim1 
+                  dim2 
+                  tax
+                  (Just netItem)
+                  Nothing
+                  ]
+  in join $ toList taxes
+

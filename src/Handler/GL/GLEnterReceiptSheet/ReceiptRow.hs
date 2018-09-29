@@ -267,7 +267,9 @@ flattenReceipt (header, i:items) = These header i : map That items
 
 
 applyTemplate :: ReceiptTemplateExpanded -> (PartialHeader, [PartialItem]) -> (PartialHeader, [PartialItem])
-applyTemplate setter h'is@(header, items) = case setter of
+applyTemplate setter his = foldr applyTemplate' his (words setter)
+applyTemplate' :: ReceiptTemplateExpanded -> (PartialHeader, [PartialItem]) -> (PartialHeader, [PartialItem])
+applyTemplate' setter h'is@(header, items) = case setter of
   (CounterpartySetter counterparty) -> (header {rowCounterparty = addGuess (rowCounterparty header) counterparty}, items)
   (BankAccountSetter (Identity bank)) -> (header {rowBankAccount =  addGuess (rowBankAccount header) (Right bank)}, items)
   (CompoundTemplate []) -> h'is
@@ -283,9 +285,9 @@ applyTemplate setter h'is@(header, items) = case setter of
 -- from the header. The header could be modified (like updating the total)
 applyInnerTemplate :: Map Text ReceiptTemplateExpanded -> (PartialHeader, [PartialItem]) -> (PartialHeader, [PartialItem])
 applyInnerTemplate templateMap h'is0@(header0,_) = let
-  (header, items) = case flip lookup templateMap . validValue =<< rowTemplate header0 of
-                      Nothing -> h'is0
-                      Just template -> applyTemplate template h'is0
+  names = maybeToList (rowTemplate header0) >>= (words . validValue)
+  templates = mapMaybe (flip lookup templateMap) names
+  (header, items) = foldl' (flip applyTemplate) h'is0 templates 
   in mapAccumL (applyInnerItemTemplate templateMap ) header items
 
 applyInnerItemTemplate :: Map Text ReceiptTemplateExpanded -> PartialHeader -> PartialItem -> (PartialHeader, PartialItem)
@@ -365,3 +367,13 @@ validateItemTax ReceiptItem{..} =
 
                   
   
+
+-- | Round amount to 2 decimals, needed so that, later sum of items (rounded) = of round(sum items)
+roundReceipt :: (ValidHeader, [ValidItem]) -> (ValidHeader, [ValidItem])
+roundReceipt (ReceiptHeader{..}, items) =
+  ( ReceiptHeader{rowTotal=roundTo <$> rowTotal,..}
+  , map (\ReceiptItem{..} -> ReceiptItem{ rowAmount= roundTo <$> rowAmount
+                                        , rowNetAmount = roundTo <$> rowNetAmount
+                                        , ..}) items
+  )
+  where roundTo x = fromIntegral (round (x *100)) /100
