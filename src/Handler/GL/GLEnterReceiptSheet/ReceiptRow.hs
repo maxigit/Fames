@@ -119,8 +119,8 @@ validateHeader (ReceiptHeader (Right rowDate)
                               (Right rowBankAccount)
                               (Right rowComment)
                               (Right rowTotal)
-                              (Right rowTemplate')
-               ) = Just $ ReceiptHeader{..} where rowTemplate = Just $ Guessed "pepito"
+                              (Right rowTemplate)
+               ) = Just $ ReceiptHeader{..} -- where rowTemplate = Just $ Guessed "pepito"
 validateHeader _ = Nothing
 -- validateHeader header = either (const Nothing) Just $ traverseHeader header
 
@@ -267,9 +267,7 @@ flattenReceipt (header, i:items) = These header i : map That items
 
 
 applyTemplate :: ReceiptTemplateExpanded -> (PartialHeader, [PartialItem]) -> (PartialHeader, [PartialItem])
-applyTemplate setter his = foldr applyTemplate' his (words setter)
-applyTemplate' :: ReceiptTemplateExpanded -> (PartialHeader, [PartialItem]) -> (PartialHeader, [PartialItem])
-applyTemplate' setter h'is@(header, items) = case setter of
+applyTemplate setter h'is@(header, items) = case setter of
   (CounterpartySetter counterparty) -> (header {rowCounterparty = addGuess (rowCounterparty header) counterparty}, items)
   (BankAccountSetter (Identity bank)) -> (header {rowBankAccount =  addGuess (rowBankAccount header) (Right bank)}, items)
   (CompoundTemplate []) -> h'is
@@ -285,17 +283,18 @@ applyTemplate' setter h'is@(header, items) = case setter of
 -- from the header. The header could be modified (like updating the total)
 applyInnerTemplate :: Map Text ReceiptTemplateExpanded -> (PartialHeader, [PartialItem]) -> (PartialHeader, [PartialItem])
 applyInnerTemplate templateMap h'is0@(header0,_) = let
-  names = maybeToList (rowTemplate header0) >>= (words . validValue)
-  templates = mapMaybe (flip lookup templateMap) names
-  (header, items) = foldl' (flip applyTemplate) h'is0 templates 
+  (header, items) = applyTemplates (rowTemplate header0) templateMap h'is0
   in mapAccumL (applyInnerItemTemplate templateMap ) header items
 
+applyTemplates template templateMap receipt = let
+  names = maybeToList template >>= (words . validValue)
+  templates = mapMaybe (flip lookup templateMap) names
+  in  foldl' (flip applyTemplate) receipt templates 
+
 applyInnerItemTemplate :: Map Text ReceiptTemplateExpanded -> PartialHeader -> PartialItem -> (PartialHeader, PartialItem)
-applyInnerItemTemplate templateMap header0 item0 = 
-    case flip lookup templateMap . validValue =<< rowItemTemplate item0 of
-      Nothing -> (header0, item0)
-      Just template -> let (header, [item] ) = applyTemplate template (header0, [item0])
-                       in (header, item)
+applyInnerItemTemplate templateMap header0 item0 = let
+  (header, [item] ) = applyTemplates (rowItemTemplate item0) templateMap  (header0, [item0])
+  in (header, item)
 
 setTax :: TaxRef -> PartialItem -> PartialItem
 setTax tax item  = item {rowTax = addGuess (rowTax item) (Right tax)}
