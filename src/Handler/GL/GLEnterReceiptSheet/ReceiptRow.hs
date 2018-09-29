@@ -270,6 +270,7 @@ applyTemplate :: ReceiptTemplateExpanded -> (PartialHeader, [PartialItem]) -> (P
 applyTemplate setter h'is@(header, items) = case setter of
   (CounterpartySetter counterparty) -> (header {rowCounterparty = addGuess (rowCounterparty header) counterparty}, items)
   (BankAccountSetter (Identity bank)) -> (header {rowBankAccount =  addGuess (rowBankAccount header) (Right bank)}, items)
+  (BankAccountMapper mapping) -> (mapBankAccount mapping header, items)
   (CompoundTemplate []) -> h'is
   (CompoundTemplate (t:ts)) -> applyTemplate (CompoundTemplate ts) (applyTemplate t h'is)
   (ItemMemoSetter memo) -> (header, [i {rowMemo = addGuess (rowMemo i) memo} |i <- items])
@@ -304,10 +305,23 @@ setAndDeduceTax tax item = deduceVAT tax (setTax tax item)
 deduceVAT :: TaxRef -> PartialItem -> PartialItem
 deduceVAT taxRef item@ReceiptItem{..} = case (rowNetAmount, rowAmount) of
    (Just net, Nothing) -> item {rowAmount = Just $ Guessed (validValue net * (1+rate)) }
+   (Just net, Just (Guessed _)) -> item {rowAmount = Just $ Guessed (validValue net * (1+rate)) }
    (Nothing , Just gross) -> item {rowNetAmount = Just $ Guessed (validValue gross / (1+rate)) }
+   (Just (Guessed _) , Just gross) -> item {rowNetAmount = Just $ Guessed (validValue gross / (1+rate)) }
    _ -> item
    where (rate, _) = refExtra taxRef
 
+mapBankAccount :: Map Text (Identity BankAccountRef) -> PartialHeader -> PartialHeader
+mapBankAccount mapping header | Just bankAccount' <- rowBankAccount header
+                              , Left bankAccount <- validValue bankAccount'=
+  case  lookup bankAccount mapping of
+    Nothing -> header
+    Just bankRef -> header {rowBankAccount = Just (const (Right (runIdentity bankRef)) <$> bankAccount' )} 
+
+mapBankAccount _ header = header
+
+
+                                             
 
 
 -- deduceVAT taxRef@(_ _ rate account) r@ReceiptItem{..} = case (rowTax, rowAmount, rowNetAmount) of
