@@ -110,7 +110,8 @@ postGLEnterReceiptSheetR = do
 
   today <- todayH
   receipts <- parseGLH spreadSheet 
-  let    (minDay, _) = previousVATQuarter $ calculateDate (AddDays 15) today
+  let minDay = calculateDate (AddMonths (-1)) . fst . previousVATQuarter $ calculateDate (AddDays 15) today
+  -- -1 month, VATQuarter correspond to ECSL not HMRC
   
   setWarning [shamlet|Using #{tshow minDay} as the beginning of the VAT Return |]
   renderParsingResult ((\msg pre -> msg  >> renderGLEnterReceiptSheet param 422 "" pre ) :: Handler () -> Widget -> Handler Html)
