@@ -148,7 +148,7 @@ postGLSaveReceiptSheetToFAR = do
 parseGL :: ReferenceMap -> Map Text ReceiptTemplateExpanded -> ByteString -> ParsingResult RawRow [(ValidHeader, [ValidItem])]
 parseGL refMap templateMap spreadSheet = either id ParsingCorrect $ do
   rawRows' <- parseSpreadsheet columnMap Nothing spreadSheet <|&>  WrongHeader
-  let rawRows = reverse $ snd $ mapAccumL fillRowDate Nothing rawRows'
+  let rawRows = snd $ mapAccumL fillRowDate Nothing rawRows'
   -- traceShowM ("I've been there")
   rows <- getLefts (map analyseReceiptRow rawRows) <|&>  InvalidFormat 
   -- traceShowM ("and there")
