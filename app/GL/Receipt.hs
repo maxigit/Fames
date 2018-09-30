@@ -155,6 +155,7 @@ parsePair key value = case toLower key of
       return $ BankAccountMapper (fmap Const pairs)
   "tax" -> flip (withText "tax") value (return . ItemVATDeducer . Const)
   "memo" -> flip (withText "Memo") value (return . ItemMemoSetter)
+  "glAccount" -> flip (withText "glAccount") value (return . ItemGLAccountSetter . Const)
   "dimension1" -> ItemDimension1Setter <$> parseJSON value
   "dimension2" -> ItemDimension2Setter <$> parseJSON value
   "taxAlias" -> do
@@ -172,7 +173,7 @@ instance ToJSON (ReceiptTemplate' (Const Text)) where
   toJSON (ItemTaxMapper a) = object ["taxAlias" .= toJSON a]
   toJSON (ItemGLAccountMapper a) = object ["glAlias" .= toJSON a]
   toJSON (ItemMemoSetter a) = object ["memo" .= a]
-  toJSON (ItemGLAccountSetter a) = object ["GLAccount" .= a]
+  toJSON (ItemGLAccountSetter a) = object ["glAccount" .= a]
   toJSON (ItemDimension1Setter a) = object ["dimension1" .= a]
   toJSON (ItemDimension2Setter a) = object ["dimension2" .= a]
   toJSON (ItemVATDeducer a) = object ["tax" .= a]
