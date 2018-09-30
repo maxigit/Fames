@@ -150,18 +150,18 @@ parsePair :: Text -> Value -> Parser (ReceiptTemplate' (Const Text))
 parsePair key value = case toLower key of
   "counterparty" -> flip (withText "Counterparty") value (return . CounterpartySetter)
   "bank" -> flip (withText "BankAccount") value (return . BankAccountSetter . Const )
-  "bankAlias" -> do -- flip (withObject "BankAlias") value (return . BankAccountSetter . fmap Const )
+  "bankalias" -> do -- flip (withObject "BankAlias") value (return . BankAccountSetter . fmap Const )
       pairs <- parseJSON value
       return $ BankAccountMapper (fmap Const pairs)
   "tax" -> flip (withText "tax") value (return . ItemVATDeducer . Const)
   "memo" -> flip (withText "Memo") value (return . ItemMemoSetter)
-  "glAccount" -> flip (withText "glAccount") value (return . ItemGLAccountSetter . Const)
+  "glaccount" -> flip (withText "glAccount") value (return . ItemGLAccountSetter . Const)
   "dimension1" -> ItemDimension1Setter <$> parseJSON value
   "dimension2" -> ItemDimension2Setter <$> parseJSON value
-  "taxAlias" -> do
+  "taxalias" -> do
       pairs <- parseJSON value
       return $ ItemTaxMapper (fmap Const pairs)
-  "glAlias" -> do
+  "glalias" -> do
       pairs <- parseJSON value
       return $ ItemGLAccountMapper (fmap Const pairs)
   _ -> typeMismatch (show key ++ " not a recognized key for") value
