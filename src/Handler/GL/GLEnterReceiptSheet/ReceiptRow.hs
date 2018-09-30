@@ -321,16 +321,20 @@ applyInnerItemTemplate templateMap header0 item0 = let
 setTax :: TaxRef -> PartialItem -> PartialItem
 setTax tax item  = item {rowTax = addGuess (rowTax item) (Right tax)}
 
-setAndDeduceTax tax item = deduceVAT tax (setTax tax item)
+setAndDeduceTax tax item = deduceVAT (setTax tax item)
 -- set tax and compute missing amount
-deduceVAT :: TaxRef -> PartialItem -> PartialItem
-deduceVAT taxRef item@ReceiptItem{..} = case (rowNetAmount, rowAmount) of
+deduceVAT :: PartialItem -> PartialItem
+deduceVAT item@ReceiptItem{..} | Just rate' <- rowTax, Right rate'' <- validValue rate' =
+   let (rate, _)  = refExtra rate''
+   in case (rowNetAmount, rowAmount) of
    (Just net, Nothing) -> item {rowAmount = Just $ Guessed (validValue net * (1+rate)) }
-   (Just net, Just (Guessed _)) -> item {rowAmount = Just $ Guessed (validValue net * (1+rate)) }
    (Nothing , Just gross) -> item {rowNetAmount = Just $ Guessed (validValue gross / (1+rate)) }
+   -- (Just (Provided net), Just (Guessed _)) -> item {rowAmount = Just $ Guessed (net * (1+rate)) }rate
+   (Just net, Just (Guessed _)) -> item {rowAmount = Just $ Guessed (validValue net * (1+rate)) }
    (Just (Guessed _) , Just gross) -> item {rowNetAmount = Just $ Guessed (validValue gross / (1+rate)) }
    _ -> item
-   where (rate, _) = refExtra taxRef
+deduceVAT item = item
+
 
 mapBankAccount :: Map Text (Identity BankAccountRef) -> PartialHeader -> PartialHeader
 mapBankAccount mapping header | Just bankAccount' <- rowBankAccount header
@@ -342,11 +346,11 @@ mapBankAccount mapping header | Just bankAccount' <- rowBankAccount header
 mapBankAccount _ header = header
 
 mapTax :: Map Text (Identity TaxRef) -> PartialItem -> PartialItem
-mapTax mapping item | Just bankAccount' <- rowTax item
-                              , Left bankAccount <- validValue bankAccount'=
-  case  lookup bankAccount mapping of
+mapTax mapping item | Just taxAccount' <- rowTax item
+                              , Left taxAccount <- validValue taxAccount'=
+  case  lookup taxAccount mapping of
     Nothing -> item
-    Just bankRef -> item {rowTax = Just (const (Right (runIdentity bankRef)) <$> bankAccount' )} 
+    Just taxRef -> deduceVAT $ item {rowTax = Just (const (Right (runIdentity taxRef)) <$> taxAccount' )} 
 
 mapTax _ item = item
 
@@ -390,7 +394,7 @@ validateConsistency minday r = catMaybes errors
                  : map validateItemTax (snd r)
 
 eqDouble :: (Fractional a, Ord a) => a -> a -> Bool
-eqDouble a b = abs (a -b) < 1e-4
+eqDouble a b = abs (a -b) < 1e-2
 
 validateDate minDay (ReceiptHeader{..}, _) =
   if validValue rowDate >= minDay
@@ -399,7 +403,7 @@ validateDate minDay (ReceiptHeader{..}, _) =
 validateTotalAmount (ReceiptHeader{..}, items) =
   if totalItems  `eqDouble` validValue rowTotal
   then Nothing
-  else Just $ "Amounts doesn't add up"
+  else Just $ "Amounts doesn't add up. Total : " <> tshow (validValue rowTotal) <> " != from sums: " <> tshow totalItems
   where totalItems = sum (map (validValue . rowAmount) items)
 
 validateItemTax :: ValidItem -> Maybe Text
