@@ -98,6 +98,8 @@ data ReceiptTemplate' f
   | ItemDimension1Setter  (f FA.Dimension1Ref)
   | ItemDimension2Setter  (f FA.Dimension2Ref)
   | BankAccountMapper (Map Text (f FA.BankAccountRef))
+  | ItemTaxMapper (Map Text (f FA.TaxRef))
+  | ItemGLAccountMapper (Map Text (f FA.GLAccountRef))
   -- deriving (Eq, Show, Read)
 
 type ReceiptTemplate = ReceiptTemplate' (Const Text)
@@ -129,6 +131,8 @@ expandTemplate refMap (CompoundTemplate ts) = CompoundTemplate <$> mapM (expandT
 expandTemplate refMap (ItemDimension1Setter (Const text)) = ItemDimension1Setter . Identity <$> FA.findReferenceEither refMap text
 expandTemplate refMap (ItemDimension2Setter (Const text)) = ItemDimension2Setter . Identity <$> FA.findReferenceEither refMap text
 expandTemplate refMap (ItemVATDeducer (Const text)) = ItemVATDeducer . Identity <$> FA.findReferenceEither refMap text
+expandTemplate refMap (ItemTaxMapper (mapping)) = ItemTaxMapper <$> traverse ((fmap Identity) . FA.findReferenceEither refMap . getConst) mapping
+expandTemplate refMap (ItemGLAccountMapper (mapping)) = ItemGLAccountMapper <$> traverse ((fmap Identity) . FA.findReferenceEither refMap . getConst) mapping
 expandTemplate refMap (CounterpartySetter text) = Right $ CounterpartySetter text
 expandTemplate refMap (ItemMemoSetter text) = Right $ ItemMemoSetter  text
    
@@ -153,12 +157,20 @@ parsePair key value = case toLower key of
   "memo" -> flip (withText "Memo") value (return . ItemMemoSetter)
   "dimension1" -> ItemDimension1Setter <$> parseJSON value
   "dimension2" -> ItemDimension2Setter <$> parseJSON value
+  "taxAlias" -> do
+      pairs <- parseJSON value
+      return $ ItemTaxMapper (fmap Const pairs)
+  "glAlias" -> do
+      pairs <- parseJSON value
+      return $ ItemGLAccountMapper (fmap Const pairs)
   _ -> typeMismatch (show key ++ " not a recognized key for") value
 
 instance ToJSON (ReceiptTemplate' (Const Text)) where
   toJSON (CounterpartySetter a) = object ["counterparty" .= a]
   toJSON (BankAccountSetter a) = object ["bank" .= a]
-  toJSON (BankAccountMapper a) = object ["bank" .= toJSON a]
+  toJSON (BankAccountMapper a) = object ["bankAlias" .= toJSON a]
+  toJSON (ItemTaxMapper a) = object ["taxAlias" .= toJSON a]
+  toJSON (ItemGLAccountMapper a) = object ["glAlias" .= toJSON a]
   toJSON (ItemMemoSetter a) = object ["memo" .= a]
   toJSON (ItemGLAccountSetter a) = object ["GLAccount" .= a]
   toJSON (ItemDimension1Setter a) = object ["dimension1" .= a]

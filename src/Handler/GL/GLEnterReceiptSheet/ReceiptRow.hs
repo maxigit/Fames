@@ -290,6 +290,8 @@ applyTemplate setter h'is@(header, items) = case setter of
   (CounterpartySetter counterparty) -> (header {rowCounterparty = addGuess (rowCounterparty header) counterparty}, items)
   (BankAccountSetter (Identity bank)) -> (header {rowBankAccount =  addGuess (rowBankAccount header) (Right bank)}, items)
   (BankAccountMapper mapping) -> (mapBankAccount mapping header, items)
+  (ItemTaxMapper mapping) -> (header, map (mapTax mapping) items)
+  (ItemGLAccountMapper mapping) -> (header, map (mapGLAccount mapping) items)
   (CompoundTemplate []) -> h'is
   (CompoundTemplate (t:ts)) -> applyTemplate (CompoundTemplate ts) (applyTemplate t h'is)
   (ItemMemoSetter memo) -> (header, [i {rowMemo = addGuess (rowMemo i) memo} |i <- items])
@@ -339,8 +341,23 @@ mapBankAccount mapping header | Just bankAccount' <- rowBankAccount header
 
 mapBankAccount _ header = header
 
+mapTax :: Map Text (Identity TaxRef) -> PartialItem -> PartialItem
+mapTax mapping item | Just bankAccount' <- rowTax item
+                              , Left bankAccount <- validValue bankAccount'=
+  case  lookup bankAccount mapping of
+    Nothing -> item
+    Just bankRef -> item {rowTax = Just (const (Right (runIdentity bankRef)) <$> bankAccount' )} 
 
-                                             
+mapTax _ item = item
+
+mapGLAccount :: Map Text (Identity GLAccountRef) -> PartialItem -> PartialItem
+mapGLAccount mapping item | Just glAccount' <- rowGLAccount item
+                              , Left glAccount <- validValue glAccount'=
+  case  lookup glAccount mapping of
+    Nothing -> item
+    Just glRef -> item {rowGLAccount = Just (const (Right (runIdentity glRef)) <$> glAccount' )} 
+
+mapGLAccount _ item = item
 
 
 -- deduceVAT taxRef@(_ _ rate account) r@ReceiptItem{..} = case (rowTax, rowAmount, rowNetAmount) of
