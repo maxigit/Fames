@@ -10,6 +10,7 @@
 /comments CommentR POST
 /gl GLR !GL:
   /enter_receipts_sheet GLEnterReceiptSheetR GET POST !gl !group=Receipts !title=Enter_Receipt
+  /save_receipts_sheet GLSaveReceiptSheetToFAR POST !gl-save 
 
   /payroll GLPayrollR GET !payroll !group=Payroll !title=Payroll
   /payroll/validate GLPayrollValidateR POST !payroll
@@ -66,9 +67,9 @@
   /boxtake/detail/#Text  WHBoxtakeDetailR GET !boxtake
   /boxtake/validate WHBoxtakeValidateR GET POST !boxtake !title=Upload_Box_Scans
   /boxtake/save WHBoxtakeSaveR POST !boxtake_save
-  /boxtake/planner WHBoxtakePlannerR GET !title=Export_Planner
+  /boxtake/planner WHBoxtakePlannerR GET !title=Export_Planner !boxtake
   /boxtake/adjustment WHBoxtakeAdjustmentR GET POST !boxtake_save !title=Boxtake_Adjustment
-  /boxtake/adjustment-for/#Text/#Bool WHBoxtakeAdjustmentForR GET
+  /boxtake/adjustment-for/#Text/#Bool WHBoxtakeAdjustmentForR GET !boxtake
 
   /dimensions WHDimensionR GET !dimension !title=Dimension 
   /dimensions/bulk WHDimensionBulkR GET POST !title=Dimensions_Bulk !dimension

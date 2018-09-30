@@ -51,6 +51,7 @@ data ParsingResult row result
                       -- ^ errors to be displayed first
   | ParsingCorrect result -- Ok
 
+
 deriving instance (Eq a, Eq b) => Eq (ParsingResult a b)
 deriving instance (Show a, Show b) => Show (ParsingResult a b)
 
@@ -302,7 +303,7 @@ instance Renderable Double where
   render d = [whamlet|#{formatDouble d}|]
 
 instance Renderable Text where
-  render t = [whamlet|#{t}|]
+  render t = [whamlet|#{toHtmlWithBreak t}|]
 
 instance Renderable Day where
   render t = [whamlet|#{tshow t}|]
@@ -323,12 +324,12 @@ instance Renderable InvalidField where
 invFieldToHtml invField = 
     let (class_, value) = case invField of
           ParsingError _ v -> ("parsing-error" :: Text, v)
-          MissingValueError _ -> ("missing-value" :: Text,"<Empty>")
+          MissingValueError _ -> ("missing-value" :: Text,"Empty")
           InvalidValueError e v -> ("invalid-value" :: Text, v)
     in [shamlet|
 <span class="#{class_}">
   <span.description>#{invalidFieldError invField}
-  <span.message.text-danger data-toggle="tooltip" title="#{invalidFieldError invField}">#{value}
+  <span.message.text-danger data-toggle="tooltip" title="#{invalidFieldError invField}">&lt;#{value}&gt;
 |]
 
 
@@ -397,8 +398,8 @@ instance Renderable InvalidSpreadsheet where
              
 
 renderParsingResult :: (Renderable [row], MonadHandler m)
-                    => (m () -> Widget -> out)
-                    -> (result -> out)
+                    => (m () -> Widget -> out) -- layout to combine msg and rendered item
+                    -> (result -> out) -- Process the result and get an output
                     -> ParsingResult row result
                     -> out
 renderParsingResult onError onSuccess result = 

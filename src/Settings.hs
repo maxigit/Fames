@@ -29,6 +29,7 @@ import  Role
 import  CategoryRule
 import WH.Barcode
 import GL.Payroll.Settings
+import GL.Receipt
 import qualified Data.Map as Map
 import Lens.Micro
 
@@ -103,6 +104,7 @@ data AppSettings = AppSettings
     , appForecastCollectionCategory :: Text -- ^ The category used in collection profile file
     , appPlannerDir :: FilePath -- ^ path to directory containing subdirectories with planner files.
     -- each files will be concatenated in alphabetical order.
+    , appReceiptTemplates :: Map Text ReceiptTemplate
     } deriving Show
 
 data BankStatementSettings = BankStatementSettings
@@ -196,6 +198,7 @@ instance FromJSON AppSettings  where
         appForecastProfilesDir <- o .:? "forecast-profiles-dir" .!= "Forecast"
         appForecastCollectionCategory <- o .:? "forecast-collection-category" .!= "forecast-profile"
         appPlannerDir <- o .:? "planner-dir" .!= "Planner"
+        appReceiptTemplates <- o .:? "receipt-templates" .!= Map.fromList []
           
         
 

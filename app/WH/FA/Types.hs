@@ -6,6 +6,7 @@ module WH.FA.Types
 
 import ClassyPrelude
 import ModelField
+import Data.Decimal
 
 -- * Connection parametes
 data FAConnectInfo = FAConnectInfo
@@ -49,6 +50,17 @@ data LocationTransferDetail = LocationTransferDetail
   , ltrQuantity :: !Int
   } deriving (Eq, Show)
 
+-- * GL
+-- ** Payments
+data BankPayment = BankPayment
+  { bpDate :: !Day
+  , bpReference  :: !(Maybe Text)
+  , bpCounterparty :: !Text
+  , bpBankAccount :: !Int
+  , bpMemo :: !(Maybe Text)
+  , bpItems :: [GLItemD]
+  } deriving (Eq, Show)
+
 -- * Purchases
 -- ** GRN
 data GRN = GRN
@@ -81,14 +93,17 @@ data PurchaseInvoice = PurchaseInvoice
   , poiGLItems :: ![GLItem]
   } deriving (Eq, Show)
 
-data GLItem = GLItem
+data GLItem' a = GLItem
   { gliAccount :: !Int
   , gliDimension1 :: !(Maybe Int)
   , gliDimension2 :: !(Maybe Int)
-  , gliAmount :: !Double 
+  , gliAmount :: !a 
+  , gliTaxOutput :: !(Maybe a)
   , gliMemo :: !(Maybe Text) 
   } deriving (Eq, Show)
 
+type GLItem = GLItem' Double
+type GLItemD = GLItem' Decimal
 -- ** Credit Note
 data PurchaseCreditNote = PurchaseCreditNote
   { pcnSupplier :: !Int

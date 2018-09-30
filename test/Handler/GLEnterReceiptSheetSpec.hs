@@ -10,7 +10,7 @@ import Data.Csv (decode, HasHeader(NoHeader))
 import Text.Shakespeare.Text (st)
 
 spec :: Spec
-spec = pureSpec >> storiesSpec >> appSpec
+spec = describe "@GLReceipt" $ pureSpec >> storiesSpec >> appSpec
 
 postReceiptSheet status sheet = do
   get (GLR GLEnterReceiptSheetR)

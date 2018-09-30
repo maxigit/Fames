@@ -6,6 +6,7 @@ module WH.FA.Curl
 ( postStockAdjustment
 , postLocationTransfer
 , testFAConnection
+, postBankPayment
 , postGRN
 , postPurchaseInvoice
 , postSupplierPayment
@@ -20,6 +21,7 @@ import Control.Monad.State
 import Data.List(isPrefixOf)
 import qualified Data.Map as Map
 import Data.Monoid(Sum(Sum))
+import Data.Decimal
 
 import qualified Prelude as Prelude
 import Text.HTML.TagSoup 
@@ -44,10 +46,12 @@ docurl url opts = lift $ do_curl_ ?curl url opts
 curlSoup :: (?curl :: Curl)
          => URLString -> [CurlOption] -> Int -> Text -> ExceptT Text IO [Tag String]
 curlSoup url opts status msg = do
+  -- traceShowM ("POST to CURL", url, opts)
   r <- docurl url (mergePostFields opts)
+  -- traceShowM ("RESP", respStatus r, respBody r)
   let tags = parseTags (respBody r)
   when (respCurlCode r /= CurlOK || respStatus r /= status) $ do
-      throwError $ unlines [ "Failed to : " <> msg
+      throwError $ traceShowId $ unlines [ "Failed to : " <> msg
                            , "CURL status: " <> tshow (respCurlCode r)
                            , "HTTP status :" <> pack (respStatusLine r)
                            , "when accessing URL: '" <> tshow url <> "'"
@@ -55,7 +59,7 @@ curlSoup url opts status msg = do
                            ]
   case (extractErrorMsgFromSoup tags) of
     Nothing -> return tags
-    Just err -> throwError err
+    Just err -> throwError $ traceShowId err
 
 withCurl :: ExceptT e' IO b -> ExceptT e' IO b
 withCurl = mapExceptT withCurlDo
@@ -109,6 +113,9 @@ instance CurlPostField Day where
   toCurlPostField = Just . toFADate
 
 instance CurlPostField Double where
+  toCurlPostField  = Just . show
+
+instance CurlPostField Decimal where
   toCurlPostField  = Just . show
 
 instance CurlPostField Int where
@@ -219,6 +226,14 @@ newAdjustmentURL ::  (?baseURL :: URLString) => URLString
 newAdjustmentURL = inventoryAdjustmentURL <> "?NewAdjustment=1"
 ajaxInventoryAdjustmentURL  :: (?baseURL :: URLString) => URLString
 ajaxInventoryAdjustmentURL = toAjax inventoryAdjustmentURL
+-- *** GL
+bankPaymentURL :: (?baseURL :: URLString) => URLString
+bankPaymentURL = ?baseURL <> "/gl/gl_bank.php"
+newBankPaymentURL :: (?baseURL :: URLString) => URLString
+newBankPaymentURL = bankPaymentURL <>  "?NewPayment=Yes"
+ajaxBankPaymentItemURL :: (?baseURL :: URLString) => URLString
+ajaxBankPaymentItemURL = toAjax bankPaymentURL 
+
 -- *** Purchases
 grnURL, newGRNURL, ajaxGRNURL :: (?baseURL :: URLString) => URLString
 grnURL = ?baseURL <> "/purchasing/po_entry_items.php"
@@ -311,6 +326,45 @@ addLocationTransferDetail LocationTransferDetail{..} = do
   curlSoup (toAjax locationTransferURL) items 200 "add items"
 
 
+-- ** GL
+postBankPayment :: FAConnectInfo -> BankPayment -> IO (Either Text Int)
+postBankPayment connectInfo payment = do
+  let ?baseURL = faURL connectInfo
+  runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
+    new <- curlSoup newBankPaymentURL method_GET 200 "Problem trying to create new bank payment"
+    _ <- mapM addBankPaymentItems (bpItems payment)
+    let ref = case extractInputValue "ref" new of
+                  Nothing -> Left "Can't find GRN reference"
+                  Just r -> Right r
+    let process = curlPostFields [ "date_" <=> bpDate payment
+                                 , "ref" <=> either error id ref
+                                 , Just "CheckTaxBalance=1"
+                                 , Just "PayType=0" -- miscellaneous
+                                 -- , Just "_ex_rate=1" -- exchange rate
+                                 , "person_id" <=> bpCounterparty payment
+                                 , "bank_account" <=> bpBankAccount payment
+                                 , "memo_"  <=> bpMemo payment
+                                 , Just "Process=Process"
+                                 ] : method_POST
+    tags <- curlSoup (toAjax bankPaymentURL) process 200 "Create bank payment"
+    case extractAddedId' "AddedID" "bank payment" tags of
+      Left e -> throwError $ "Bank payment creation failed:" <> e
+      Right faId -> return faId
+
+addBankPaymentItems :: (?baseURL :: URLString, ?curl :: Curl)
+                    => GLItemD -> ExceptT Text IO [Tag String]
+addBankPaymentItems GLItem{..} = do
+  let fields = curlPostFields [  "code_id" <=> gliAccount
+                              , "amount" <=> gliAmount
+                              , "tax_net_amount" <=> gliTaxOutput
+                              , "dimension_id" <=> fromMaybe 0 gliDimension1
+                              , "dimension2_id" <=> fromMaybe 0 gliDimension2
+                              , "LineMemo" <=> gliMemo
+                              , Just "AddItem=Add%20Item"
+                              ] :method_POST
+  curlSoup (ajaxBankPaymentItemURL) fields 200 "add GL items"
+
+  
 -- ** Purchase
 -- *** GRN
 postGRN :: FAConnectInfo -> GRN -> IO (Either Text Int)
