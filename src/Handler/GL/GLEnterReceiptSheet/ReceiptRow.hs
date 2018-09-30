@@ -9,6 +9,7 @@ import Handler.CsvUtils
 import GL.Receipt (ReceiptTemplateExpanded, ReceiptTemplate'(..))
 import Data.List(mapAccumL)
 import GL.FA
+import Data.Time(toGregorian, fromGregorianValid)
 
 -- | Represents a row of the spreadsheet.
 -- The actual type of each field depend of a status or stage
@@ -143,6 +144,24 @@ validateHeader' (ReceiptHeader (Just rowDate)
    in Just ReceiptHeader{..}
 validateHeader' _ = Nothing
 
+-- | Try to complete date if the only a day of the month has been given
+fillRowDate :: Maybe Day -> ReceiptRow 'RawT -> (Maybe Day, ReceiptRow 'RawT)
+fillRowDate  previousDay row = case row of
+  This header -> This <$> fixDate header
+  These header item -> flip These item <$> fixDate header
+  That item -> (previousDay , That item)
+
+  where fixDate h@ReceiptHeader{..} = let
+          newDate = case (rowDate,  toGregorian <$> previousDay) of
+            (Left (ParsingError _ t) , Just (year, month, _)) | Just dayOfMonth <- readMay t -> fromGregorianValid year month dayOfMonth
+            (RJust date, _) -> Just $ validValue date
+            _ -> previousDay
+          in case newDate of
+              Nothing  -> (previousDay, h)
+              Just d -> (Just d, h {rowDate = Right . Just $ Provided d})
+
+                                          
+                                        
 -- | Expand if possible the reference. The validity is checked afterward.
 -- We need those 2 steps to be able to track easily which expension have gone wrong
 expandHeaderRef :: ReferenceMap -> PartialHeader -> PartialHeader

@@ -17,7 +17,7 @@ import Data.Either
 import Control.Monad.Except
 import Text.Blaze.Html(ToMarkup())
 import qualified Data.List.Split  as S
-import Data.List(nub)
+import Data.List(nub,mapAccumL)
 import GL.Receipt(ReceiptTemplateExpanded, ReceiptTemplate, expandTemplate)
 import GL.FA
 import GL.Utils
@@ -147,7 +147,8 @@ postGLSaveReceiptSheetToFAR = do
 
 parseGL :: ReferenceMap -> Map Text ReceiptTemplateExpanded -> ByteString -> ParsingResult RawRow [(ValidHeader, [ValidItem])]
 parseGL refMap templateMap spreadSheet = either id ParsingCorrect $ do
-  rawRows <- parseSpreadsheet columnMap Nothing spreadSheet <|&>  WrongHeader
+  rawRows' <- parseSpreadsheet columnMap Nothing spreadSheet <|&>  WrongHeader
+  let rawRows = reverse $ snd $ mapAccumL fillRowDate Nothing rawRows'
   -- traceShowM ("I've been there")
   rows <- getLefts (map analyseReceiptRow rawRows) <|&>  InvalidFormat 
   -- traceShowM ("and there")
