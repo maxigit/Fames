@@ -499,7 +499,7 @@ faReferenceMapH = runDB $ do
 -- * to Front Accounting
 saveReceiptsToFA :: AppSettings -> [(ValidHeader, [ValidItem])] -> ExceptT Text Handler [Int]
 saveReceiptsToFA settings receipts0 = do
-  let receipts = map roundReceipt receipts0
+  let receipts = sortOn (rowDate . fst ) $ map roundReceipt receipts0
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       payments = map (mkPayment . first transformHeader) receipts
       mkPayment :: (ReceiptHeader 'FinalT, [ReceiptItem 'ValidT])  -> WFA.BankPayment
