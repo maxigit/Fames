@@ -399,7 +399,7 @@ validateConsistency minday r = catMaybes errors
                  : map validateItemTax (snd r)
 
 eqDouble :: (Fractional a, Ord a) => a -> a -> Bool
-eqDouble a b = abs (a -b) < 1e-2
+eqDouble a b = abs (a -b) < 5e-3
 
 validateDate minDay (ReceiptHeader{..}, _) =
   if validValue rowDate >= minDay
