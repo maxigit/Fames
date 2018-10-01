@@ -151,7 +151,7 @@ cacheContent (Right texts) = do
   return (Right key)
 
 contentPath :: DocumentHash -> FilePath
-contentPath (DocumentHash file) = "/tmp/planner-" <> unpack file
+contentPath (DocumentHash file) = "/tmp/DocumentCache/planner-" <> unpack file
 
 
 -- | Saves files and replace them by their hash

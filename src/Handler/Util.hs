@@ -82,7 +82,8 @@ import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               ) -- withSmallInput)
 import qualified Data.Conduit.Binary as CB
 -- import Data.Conduit.List (consume)
-import System.Directory (removeFile)
+import System.Directory (removeFile, createDirectoryIfMissing)
+import System.FilePath(takeDirectory)
 import System.IO.Temp (openTempFile)
 -- import System.Exit (ExitCode(..))
 import Data.Streaming.Process (streamingProcess, proc, Inherited(..), waitForStreamingProcess, env)
@@ -270,7 +271,7 @@ readUploadOrCacheUTF8
   -> Maybe Text -- Path if already uploaded
   -> m (Maybe (ByteString, DocumentHash, Text))
 readUploadOrCacheUTF8  encoding fileInfoM keyM pathM = do
-      let tmp (DocumentHash file) = "/tmp" </> (unpack file)
+      let tmp (DocumentHash file) = "/tmp/DocumentCache" </> (unpack file)
       case (fileInfoM, keyM, pathM) of
         -- key and path set. Reuse the temporary file
         (_, Just (key), Just path) -> do
@@ -284,7 +285,8 @@ readUploadOrCacheUTF8  encoding fileInfoM keyM pathM = do
           let path = tmp key
           exist <- liftIO $ doesFileExist path
           unless exist $ do
-            writeFile (tmp key) ss
+            liftIO $ createDirectoryIfMissing True (takeDirectory path)
+            writeFile path ss
           return $ Just (ss, key, fileName fileInfo)
         (_,_,_) -> return Nothing
   
@@ -302,7 +304,7 @@ cacheByteString base bs = do
   return (key, path)
 
 defaultPathMaker :: DocumentHash -> FilePath
-defaultPathMaker (DocumentHash key) = "/tmp" </> (unpack key)
+defaultPathMaker (DocumentHash key) = "/tmp/DocumentCache" </> (unpack key)
 
 retrieveTextByKey :: (MonadIO m, MonadResource m)
                   => Maybe (DocumentHash -> FilePath) -> DocumentHash -> m (Maybe Text)
@@ -357,7 +359,7 @@ generateLabelsResponse ::
   -> HandlerT site IO TypedContent
 generateLabelsResponse outputName template labelSource = do
   -- let types = (outputName, template) :: (Text, Text)
-  (tmp, thandle) <- liftIO $ openTempFile "/tmp" (unpack outputName)
+  (tmp, thandle) <- liftIO $ openTempFile "/tmp/DocumentCache" (unpack outputName)
   (pin, Inherited, perr, phandle ) <- streamingProcess (proc "glabels-3-batch"
                                                         ["--input=-"
                                                         , "--output"
