@@ -36,6 +36,7 @@ data EventType = StockAdjustmentE
                | PackingListShippingE -- ^ Shipping invoice for a delivery
                | PackingListDutyE -- ^ duty invoice for a delivery
                | PackingListInvoiceE -- ^ supplier invoice for a delivery
+               | GLReceiptE
   deriving (Eq, Show, Ord, Enum, Bounded)
 
 -- | derivePersistField uses String instead of an INt

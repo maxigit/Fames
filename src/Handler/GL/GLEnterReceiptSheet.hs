@@ -86,11 +86,11 @@ postGLEnterReceiptSheetR = do
                       (FormMissing) -> "Form missing"
                       (FormSuccess _) -> "Form Success"
 
-  (spreadSheet, param) <- case (textResp, fileResp) of
+  (spreadSheet, param, path) <- case (textResp, fileResp) of
                         -- (FormMissing, FormMissing) -> error "missing"
-                        (FormSuccess param@(__title, spreadsheet), _) -> return $ (encodeUtf8 $ unTextarea spreadsheet, Just param)
+                        (FormSuccess param@(title, spreadsheet), _) -> return $ (encodeUtf8 $ unTextarea spreadsheet, Just param, title)
                         (_, FormSuccess (fileInfo, encoding, ())) -> do
-                          (, Nothing) . fst <$> readUploadUTF8 fileInfo encoding
+                          (, Nothing, fileName fileInfo) . fst <$> readUploadUTF8 fileInfo encoding
                         (formA, formB) -> error $ showForm formA ++ ", " ++ showForm formB
  
   let onSuccess  err'receipts = let
@@ -98,7 +98,10 @@ postGLEnterReceiptSheetR = do
           in case concatMap fst err'receipts of
               [] -> do
                 -- save text
-                (key, path) <- cacheByteString Nothing spreadSheet
+                (key, _) <- cacheByteString Nothing spreadSheet
+                -- check if the document already exists
+                documentKey'msgM <- runDB $ loadAndCheckDocumentKey key
+                forM documentKey'msgM $ setWarning . snd
                 (form, encType) <- generateFormPost (hiddenFileForm $ Just (key, path))
                 defaultLayout $ [whamlet|
                             <form method=POST action="@{GLR GLSaveReceiptSheetToFAR}" enctype=#{encType}>
@@ -126,6 +129,7 @@ postGLSaveReceiptSheetToFAR = do
     FormSuccess (key, path) -> do
        let _types = path :: FilePath
        Just spreadsheet <- retrieveTextByKey Nothing key
+       documentKey'msgM <- runDB $ loadAndCheckDocumentKey key
        receiptsE <- parseGLH $ encodeUtf8 spreadsheet
        let err = error "This file has already been validated but is not valid anymore"
        case receiptsE of
@@ -136,7 +140,13 @@ postGLSaveReceiptSheetToFAR = do
             case concatMap fst err'receipts of
               [] -> do
                 settings <- getsYesod appSettings 
-                res <- runExceptT $ saveReceiptsToFA settings (map snd err'receipts)
+                docKey <- do
+                    case documentKey'msgM of
+                      Nothing -> do
+                        runDB $ createDocumentKey  (DocumentType "glreceipt") key (pack path) ""
+                      Just (k, _) -> return (entityKey k)
+                res <- runExceptT $ do
+                    saveReceiptsToFA docKey settings (map snd err'receipts)
                 case res of
                   Left err -> setError $ toHtml err
                   Right ids -> do
@@ -497,8 +507,8 @@ faReferenceMapH = runDB $ do
 
 
 -- * to Front Accounting
-saveReceiptsToFA :: AppSettings -> [(ValidHeader, [ValidItem])] -> ExceptT Text Handler [Int]
-saveReceiptsToFA settings receipts0 = do
+saveReceiptsToFA :: Key DocumentKey -> AppSettings -> [(ValidHeader, [ValidItem])] -> ExceptT Text Handler [Int]
+saveReceiptsToFA docKey settings receipts0 = do
   let receipts = sortOn (rowDate . fst ) $ map roundReceipt receipts0
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       payments = map (mkPayment . first transformHeader) receipts
@@ -509,7 +519,12 @@ saveReceiptsToFA settings receipts0 = do
                                                               (refId rowBankAccount)
                                                               rowComment
                                                               (mkItems (map transformItem items))
-  mapM (ExceptT . liftIO <$> WFA.postBankPayment connectInfo) payments
+  forM payments $ \p -> do 
+    pId <- ExceptT . liftIO <$> WFA.postBankPayment connectInfo  $ p
+    hToHx $ runDB $  do
+       insert_ $ TransactionMap ST_BANKPAYMENT pId GLReceiptE (fromIntegral $ unSqlBackendKey $ unDocumentKeyKey docKey)
+    return pId
+
   
 
 mkItems :: [ReceiptItem 'FinalT] -> [WFA.GLItemD]
