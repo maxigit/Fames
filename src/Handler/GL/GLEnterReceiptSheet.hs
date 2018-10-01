@@ -127,12 +127,12 @@ postGLSaveReceiptSheetToFAR = do
        let _types = path :: FilePath
        Just spreadsheet <- retrieveTextByKey Nothing key
        receiptsE <- parseGLH $ encodeUtf8 spreadsheet
-       let err = error "This file has already been validated but is not valid anymor"
+       let err = error "This file has already been validated but is not valid anymore"
        case receiptsE of
          ParsingCorrect receipts ->  do
             today <- todayH
-            let    (minDay, _) = previousVATQuarter $ calculateDate (AddDays 15) today
-                   err'receipts = map (fanl $ validateConsistency minDay) receipts
+            let minDay = calculateDate (AddMonths (-1)) . fst . previousVATQuarter $ calculateDate (AddDays 15) today
+                err'receipts = map (fanl $ validateConsistency minDay) receipts
             case concatMap fst err'receipts of
               [] -> do
                 settings <- getsYesod appSettings 
@@ -144,7 +144,7 @@ postGLSaveReceiptSheetToFAR = do
                 getGLEnterReceiptSheetR
               _ -> err
          _ -> err
-         
+
 
 parseGL :: ReferenceMap -> Map Text ReceiptTemplateExpanded -> ByteString -> ParsingResult RawRow [(ValidHeader, [ValidItem])]
 parseGL refMap templateMap spreadSheet = either id ParsingCorrect $ do
