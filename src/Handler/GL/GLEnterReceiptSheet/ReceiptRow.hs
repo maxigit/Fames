@@ -153,7 +153,12 @@ fillRowDate  previousDay row = case row of
 
   where fixDate h@ReceiptHeader{..} = let
           newDate = case (rowDate,  toGregorian <$> previousDay) of
-            (Left (ParsingError _ t) , Just (year, month, _)) | Just dayOfMonth <- readMay t -> fromGregorianValid year month dayOfMonth
+            (Left (ParsingError _ t) , Just (year0, month0, day0)) | Just dayOfMonth <- readMay t -> let
+                                                                     (month, year) = if dayOfMonth < day0 -- next month if neeede
+                                                                                     then (month0 + 1, year0 + ((fromIntegral month0+1) `div` 12))
+                                                                                     else (month0, year0)
+                                                                     -- increment month if neede
+                                                                     in fromGregorianValid year month dayOfMonth
             (RJust date, _) -> Just $ validValue date
             _ -> previousDay
           in case newDate of
