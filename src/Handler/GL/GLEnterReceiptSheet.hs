@@ -429,7 +429,7 @@ makeReceipt :: -- (FieldTF 'PartialT (Maybe Text) ~ Either InvalidField (Maybe (
             [PartialRow]
              -> Either [RawRow] -- [ReceiptRow 'RawT]
                        [(PartialHeader, [PartialItem])]
-makeReceipt rows = reverse . map (map reverse) <$> r where
+makeReceipt rows = map (map reverse) <$> r where
   r = case rows of
         [] -> Right []
         This header : rs -> Right $ go header [] rs 
