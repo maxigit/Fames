@@ -299,6 +299,7 @@ cacheByteString base bs = do
   let key = computeDocumentKey bs
       path = fromMaybe (defaultPathMaker) base $ key
   exist <- liftIO $ doesFileExist path
+  liftIO $ createDirectoryIfMissing True (takeDirectory path)
   writeFile path  bs
 
   return (key, path)
