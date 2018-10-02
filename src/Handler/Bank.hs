@@ -27,6 +27,7 @@ import Text.Shakespeare.Text (st)
 import Data.List(mapAccumL)
 import Formatting
 import Handler.CsvUtils
+import Data.Decimal(realFracToDecimal)
 
 commonCss = [cassius|
 tr.private
@@ -167,6 +168,7 @@ displaySummary today dbConf faURL title BankStatementSettings{..}= do
       faMode = B.BankAccountId (bsBankAccount)
       aggregateMode = B.BEST
       blacklist = map unpack bsLightBlacklist
+      initialBalance = Nothing
   
   (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main' options)
   -- we sort by date
@@ -206,6 +208,8 @@ displayLightSummary today dbConf faURL title BankStatementSettings{..}= do
       endDate = Nothing -- Just today
       faMode = B.BankAccountId (bsBankAccount)
       aggregateMode = B.BEST
+      initialBalance = Nothing
+
   
   (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main' options)
   -- we sort by date
@@ -325,6 +329,7 @@ displayDetailsInPanel account BankStatementSettings{..} = do
       endDate = Nothing -- Just today
       faMode = B.BankAccountId (bsBankAccount)
       aggregateMode = B.BEST
+      initialBalance = Nothing
   
   (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main' options)
   let tableW = renderTransactions True object faURL stransz (const []) (Just "Total") ((B.FA ==) . B._sSource)
@@ -393,6 +398,7 @@ renderReconciliate account param = do
       endDate = Nothing -- Just today
       faMode = B.BankAccountId (bsBankAccount)
       aggregateMode = B.ALL_BEST
+      initialBalance = realFracToDecimal 2 <$> bsInitialBalance
 
   (hts,_) <- lift $ withCurrentDirectory bsPath (B.loadAllTrans options)
   let byDays = B.badsByDay hts
@@ -525,7 +531,7 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
                         $else
                           #{tshow diff}
                       <div.balances>
-                        ^{render $ fmap (fmap tshow) (B._sBalance fatrans) }
+                        FA: ^{render $ fmap (fmap tshow) (B._sBalance fatrans) }
                 
               $with checked <- toCheck st'st
                 <td :checked:.update-rec data-amount="#{tshow (B._sAmount trans)}">

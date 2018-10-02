@@ -140,10 +140,15 @@ instance FromNamedRecord (Int -> FATransaction) where
                 <*> pure Nothing
 
 -- | Read from DB
-fetchFA :: SQL.ConnectInfo -> Int -> Maybe Day -> Maybe Day -> IO [FATransaction]
-fetchFA cinfo bankAccount startM endM = do
+fetchFA :: Maybe Decimal -> SQL.ConnectInfo -> Int -> Maybe Day -> Maybe Day -> IO [FATransaction]
+fetchFA balance0 cinfo bankAccount startM endM = do
     conn <- SQL.connect cinfo
-    (_, results) <- mapAccumL tupleToFATransaction (0,1) <$> SQL.query_ conn (fromString q)
+    rows <- SQL.query_ conn (fromString q)
+    let      befores = case startM of
+                     Nothing -> []
+                     Just start -> takeWhile (\(_,_,_,day,_,_,_) -> day < start) rows
+             prevBal = realFracToDecimal 2 $ sum (map (\(_,_,_,_,_,amount,_) -> amount) befores)
+             (_, results) = mapAccumL tupleToFATransaction (maybe 0 (\b -> b - prevBal) balance0, 1) rows
     return results
     where q0 = "SELECT type, trans_no, ref, trans_date, CAST(person_id as CHAR(100)), amount, reconciled"
                          ++ " FROM 0_bank_trans"
@@ -159,11 +164,14 @@ fetchFA cinfo bankAccount startM endM = do
                                         ++ "'"
                    ]
           format d = formatTime defaultTimeLocale "%F" d
+          -- as we load some transaction before the date corresponding to the balance
+          -- we need to adjust the starting balance accordingly
 
           tupleToFATransaction :: (Amount, Int) ->  (Int, Int, String, Day, String, Double, Maybe Day) -> ((Amount, Int), FATransaction)
-          tupleToFATransaction (bal,pos) (t,n,r,d,o,a,rd) = ((bal',pos+1), FATransaction (show t) n r d o a' bal' rd pos)
+          tupleToFATransaction (bal, pos) (t,n,r,d,o,a,rd) =
+            ((bal',pos+1), FATransaction (show t) n r d o a' bal' rd pos)
             where bal' = bal+a'
-                  a' = roundTo 2 $ read . show $ a
+                  a' = realFracToDecimal 2 a
 
 -- | HSBC Transaction
 data HSBCTransactions = HSBCTransactions
@@ -561,6 +569,7 @@ data Options = Options
     , faCredential :: !SQL.ConnectInfo -- ^ file to use to read credential  to connect to FA database
     , faMode :: !(FaMode) -- ^  read file or connect to FA database.
     , aggregateMode :: !(AggregateMode) -- ^ display all or just discrepencies.
+    , initialBalance :: !(Maybe Decimal) -- ^ balance to use instead of correct one. Can make reconcilation easier
     } deriving (Show)
 
 data FaMode = BankAccountId Int deriving (Show, Read, Eq)
@@ -569,7 +578,7 @@ data FaMode = BankAccountId Int deriving (Show, Read, Eq)
 readFa :: Options -> IO [FATransaction]
 readFa opt  = case faMode opt of 
     BankAccountId i -> do 
-                fetchFA (faCredential opt) i <$> startDate <*> endDate $ opt
+                fetchFA (initialBalance opt) (faCredential opt) i <$> startDate <*> endDate $ opt
 -- main :: Options -> IO [(Amount, These [HSBCTransactions] [FATransaction])]
 main' :: Options -> IO ([Transaction], [Transaction])
 main' opt = do
