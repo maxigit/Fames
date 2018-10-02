@@ -414,7 +414,7 @@ validateTotalAmount (ReceiptHeader{..}, items) =
 validateItemTax :: ValidItem -> Maybe Text
 validateItemTax ReceiptItem{..} =
   -- if (1 + rate ) * net `eqDouble` gross
-  if eqDouble ((1 + rate ) * net) gross
+  if abs (((1 + rate ) * net) - gross) < 1e-2 -- we need to be a bit tolerant on that too match what's is given on the receipt
   then Nothing
   else Just $ "Gross amount (" <> tshow gross <> ") doesn't match net (" <> tshow net
          <> " for rate of " <> tshow rate
