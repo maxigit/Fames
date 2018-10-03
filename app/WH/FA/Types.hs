@@ -61,6 +61,16 @@ data BankPayment = BankPayment
   , bpItems :: [GLItemD]
   } deriving (Eq, Show)
 
+-- ** Deposits
+data BankDeposit = BankDeposit
+  { bdDate :: !Day
+  , bdReference  :: !(Maybe Text)
+  , bdCounterparty :: !Text
+  , bdBankAccount :: !Int
+  , bdMemo :: !(Maybe Text)
+  , bdItems :: [GLItemD]
+  } deriving (Eq, Show)
+
 -- * Purchases
 -- ** GRN
 data GRN = GRN

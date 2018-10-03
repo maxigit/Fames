@@ -194,10 +194,12 @@ renderReceiptSheet receipts =  do
       tooltip [] =  ""
       tooltip errors = mconcat (intersperse " - " errors) <> "\""
   toWidget [cassius|
-tr.receipt-header
+tr.payment-header
   background: #{paleBlue}
+tr.deposit-header
+  background: #{amberBadgeBg}
 tbody.invalid
-  tr.receipt-header
+  tr.payment-header
     background: #{paleRed}
                    |]
   [whamlet| 
@@ -258,7 +260,7 @@ renderReceiptRow row = do
                        (\a _ -> rowTemplate a)
                        row
   toWidget [cassius|
-.receipt-header
+.payment-header
   font-size: 1.2 em
   font-weight: bold
 |]
@@ -330,11 +332,17 @@ renderReceiptItem ReceiptItem{..} = [whamlet|
 -- renderThese = these render render (\a b -> render a >> render b) 
 
 
-instance ( Renderable h
-         , Renderable r
-         ) => Renderable (Int, (h, [r])) where
-  render (i, (header, rows)) = [whamlet|
-<tr class=receipt-header" id="receipt#{i}-1">
+instance (
+          Renderable r
+         ) => Renderable (Int, (ValidHeader, [r])) where
+  render (i, (header, rows)) =
+    -- let class_ = if maybe 0 validValue (rowTotal header) < 0
+    let class_ = if validValue (rowTotal header) < 0
+                 then "deposit-header" :: Text
+                 else "payment-header"
+
+    in [whamlet|
+<tr class="#{class_}" id="receipt#{i}-1">
   <td> >
   ^{render header}
   $maybe row <- headMay rows
@@ -512,20 +520,26 @@ saveReceiptsToFA docKey settings receipts0 = do
   let receipts = sortOn (rowDate . fst ) $ map roundReceipt receipts0
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       payments = map (mkPayment . first transformHeader) receipts
-      mkPayment :: (ReceiptHeader 'FinalT, [ReceiptItem 'ValidT])  -> WFA.BankPayment
-      mkPayment (ReceiptHeader{..}, items)  = WFA.BankPayment rowDate
-                                                              Nothing
-                                                              rowCounterparty
-                                                              (refId rowBankAccount)
-                                                              rowComment
-                                                              (mkItems (map transformItem items))
+      mkPayment :: (ReceiptHeader 'FinalT, [ReceiptItem 'ValidT])  -> Either WFA.BankDeposit WFA.BankPayment
+      mkPayment (ReceiptHeader{..}, items)  = if rowTotal >= 0
+        then Right $ WFA.BankPayment rowDate
+             Nothing
+             rowCounterparty
+             (refId rowBankAccount)
+             rowComment
+             (mkItems (map transformItem items))
+        else Left $ WFA.BankDeposit rowDate
+             Nothing
+             rowCounterparty
+             (refId rowBankAccount)
+             rowComment
+             (mkItems (map transformItem items))
   forM payments $ \p -> do 
-    pId <- ExceptT . liftIO <$> WFA.postBankPayment connectInfo  $ p
+    (pId, transType) <- ExceptT . liftIO <$> WFA.postBankPaymentOrDeposit connectInfo  $ p
     hToHx $ runDB $  do
-       insert_ $ TransactionMap ST_BANKPAYMENT pId GLReceiptE (fromIntegral $ unSqlBackendKey $ unDocumentKeyKey docKey)
+       insert_ $ TransactionMap transType pId GLReceiptE (fromIntegral $ unSqlBackendKey $ unDocumentKeyKey docKey)
     return pId
 
-  
 
 mkItems :: [ReceiptItem 'FinalT] -> [WFA.GLItemD]
 mkItems items = let
@@ -535,14 +549,14 @@ mkItems items = let
   mkItem ReceiptItem{..} = WFA.GLItem (refId rowGLAccount)
                                           (refId <$> rowGLDimension1)
                                           (refId <$> rowGLDimension2)
-                                          (realFracToDecimal 2 $ rowNetAmount)
+                                          (abs $ realFracToDecimal 2 $ rowNetAmount)
                                           Nothing
                                           rowMemo  
   mkTax :: (TaxRef, Maybe Int, Maybe Int) -> [ReceiptItem 'FinalT] -> [WFA.GLItemD]
   mkTax (taxRef, dim1, dim2 ) items =  let
     -- we need to make sure that the total amount matches
     -- net = realFracToDecimal 2 $ sum (map (rowNetAmount) items)
-    total = realFracToDecimal 2 $ sum (map rowAmount items)
+    total = abs $ realFracToDecimal 2 $ sum (map rowAmount items)
     glItems = map mkItem items
     netItem = sum (map WFA.gliAmount glItems)
     -- we need Sum of netAmount of each times + tax = initial net
@@ -556,4 +570,3 @@ mkItems items = let
                   Nothing
                   ]
   in join $ toList taxes
-

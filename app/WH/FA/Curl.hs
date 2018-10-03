@@ -7,6 +7,7 @@ module WH.FA.Curl
 , postLocationTransfer
 , testFAConnection
 , postBankPayment
+, postBankPaymentOrDeposit
 , postGRN
 , postPurchaseInvoice
 , postSupplierPayment
@@ -234,6 +235,13 @@ newBankPaymentURL = bankPaymentURL <>  "?NewPayment=Yes"
 ajaxBankPaymentItemURL :: (?baseURL :: URLString) => URLString
 ajaxBankPaymentItemURL = toAjax bankPaymentURL 
 
+bankDepositURL :: (?baseURL :: URLString) => URLString
+bankDepositURL = ?baseURL <> "/gl/gl_bank.php"
+newBankDepositURL :: (?baseURL :: URLString) => URLString
+newBankDepositURL = bankDepositURL <>  "?NewDeposit=Yes"
+ajaxBankDepositItemURL :: (?baseURL :: URLString) => URLString
+ajaxBankDepositItemURL = toAjax bankDepositURL 
+
 -- *** Purchases
 grnURL, newGRNURL, ajaxGRNURL :: (?baseURL :: URLString) => URLString
 grnURL = ?baseURL <> "/purchasing/po_entry_items.php"
@@ -364,6 +372,48 @@ addBankPaymentItems GLItem{..} = do
                               ] :method_POST
   curlSoup (ajaxBankPaymentItemURL) fields 200 "add GL items"
 
+-- | TODO factorize with postBankPayment
+postBankDeposit :: FAConnectInfo -> BankDeposit -> IO (Either Text Int)
+postBankDeposit connectInfo deposit = do
+  let ?baseURL = faURL connectInfo
+  runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
+    new <- curlSoup newBankDepositURL method_GET 200 "Problem trying to create new bank deposit"
+    _ <- mapM addBankDepositItems (bdItems deposit)
+    let ref = case extractInputValue "ref" new of
+                  Nothing -> Left "Can't find GRN reference"
+                  Just r -> Right r
+    let process = curlPostFields [ "date_" <=> bdDate deposit
+                                 , "ref" <=> either error id ref
+                                 , Just "CheckTaxBalance=1"
+                                 , Just "PayType=0" -- miscellaneous
+                                 -- , Just "_ex_rate=1" -- exchange rate
+                                 , "person_id" <=> bdCounterparty deposit
+                                 , "bank_account" <=> bdBankAccount deposit
+                                 , "memo_"  <=> bdMemo deposit
+                                 , Just "Process=Process"
+                                 ] : method_POST
+    tags <- curlSoup (toAjax bankDepositURL) process 200 "Create bank deposit"
+    case extractAddedId' "AddedDep" "bank deposit" tags of
+      Left e -> throwError $ "Bank deposit creation failed:" <> e
+      Right faId -> return faId
+
+postBankPaymentOrDeposit :: FAConnectInfo -> Either BankDeposit BankPayment -> IO (Either Text (Int, FATransType))
+postBankPaymentOrDeposit connectInfo =
+  either (fmap (fmap . fmap . fmap $ (, ST_BANKDEPOSIT))  postBankDeposit connectInfo)
+         (fmap (fmap .fmap . fmap $ (, ST_BANKPAYMENT)) postBankPayment connectInfo)
+
+addBankDepositItems :: (?baseURL :: URLString, ?curl :: Curl)
+                    => GLItemD -> ExceptT Text IO [Tag String]
+addBankDepositItems GLItem{..} = do
+  let fields = curlPostFields [  "code_id" <=> gliAccount
+                              , "amount" <=> gliAmount
+                              , "tax_net_amount" <=> gliTaxOutput
+                              , "dimension_id" <=> fromMaybe 0 gliDimension1
+                              , "dimension2_id" <=> fromMaybe 0 gliDimension2
+                              , "LineMemo" <=> gliMemo
+                              , Just "AddItem=Add%20Item"
+                              ] :method_POST
+  curlSoup (ajaxBankDepositItemURL) fields 200 "add GL items"
   
 -- ** Purchase
 -- *** GRN
