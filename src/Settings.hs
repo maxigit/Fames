@@ -117,6 +117,7 @@ data BankStatementSettings = BankStatementSettings
   , bsPosition:: Maybe Int -- order of display
   , bsLightBlacklist :: [Text] -- what to hide from light mode
   , bsInitialBalance :: Maybe Double
+  , bsDiscardRegex :: Maybe Text
   } deriving (Show, Read, Eq, Ord)
 
 -- TODO clean

@@ -26,7 +26,8 @@ import Data.Maybe
 import Lens.Micro
 import Lens.Micro.TH
 import Data.Csv
-import qualified Data.ByteString.Lazy as BL
+-- import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Lazy.Char8 as BL
 import Data.Vector(Vector)
 import qualified Data.Vector as V
 import Data.These
@@ -56,6 +57,10 @@ import Prelude hiding(read)
 import Text.Read(readMaybe)
 import Debug.Trace
 import qualified Text.Parsec as P
+
+import Text.Regex.TDFA((=~))
+import qualified Text.Regex.TDFA.ByteString as Rg
+import qualified Text.Regex.Base as R
 -- import qualified Text.Parsec.Char as P
 
 read s = case readMaybe s of
@@ -355,16 +360,16 @@ mergeTrans transs dailyss = let
 -- ** Read functions
 
 
-readCsv :: FromNamedRecord (Int -> r) => String -> IO ([r])
-readCsv path =  do
-    records <-  readCsv' path
+readCsv :: FromNamedRecord (Int -> r) => Maybe String -> String -> IO ([r])
+readCsv discardPat path =  do
+    records <-  readCsv' discardPat path
     case records of
         Left s -> error $ "can't parse file:" ++ path ++ "\n"  ++ s
         Right v -> return v
 
-readCsv' :: FromNamedRecord (Int -> r) => String -> IO (Either String [r])
-readCsv' path = do
-    csv' <- BL.readFile path
+readCsv' :: FromNamedRecord (Int -> r) => Maybe String -> String -> IO (Either String [r])
+readCsv' discardPat path = do
+    csv' <- readWithFilter discardPat path
     let csv = stripUtf8Bom csv'
     return $ case decodeByName csv of
         Left s -> Left s
@@ -375,22 +380,34 @@ stripUtf8Bom :: BL.ByteString -> BL.ByteString
 stripUtf8Bom bs = fromMaybe bs (BL.stripPrefix "\239\187\191" bs)    
 
 readFATransaction :: String -> IO [FATransaction]
-readFATransaction = readCsv
+readFATransaction = readCsv Nothing
 -- |
-readHSBCTransactions :: String -> IO [HSBCTransactions]
-readHSBCTransactions path = do
-    hs <- readCsv' path
-    ps <- readCsv' path :: IO (Either String [PaypalTransaction])
+readHSBCTransactions :: Maybe String -> String -> IO [HSBCTransactions]
+readHSBCTransactions discardPatM path = do
+    hs <- readCsv' discardPatM path
+    ps <- readCsv' discardPatM path :: IO (Either String [PaypalTransaction])
     let phs = fmap (map (dailyToHTrans . pToS)) ps :: Either String [HSBCTransactions]
     case hs <|> phs  of
       Left s -> error $ "can't parse Transactions:" ++ path ++ "\n" ++ s
       Right v -> return v
       
 
+readWithFilter :: Maybe String -> String -> IO BL.ByteString
+readWithFilter discardPatM path = do
+    csv' <- BL.readFile path
+    case discardPatM of
+      Nothing -> return csv'
+      Just discardPat -> do
+        let pat :: Rg.Regex
+            pat =  R.makeRegex (BL.pack discardPat)
+          -- Left err -> error $ "Discard regular expression /" ++ discardPat ++ "/ is not valid :" ++ err
+        return $ BL.unlines $ filter  (not . (R.matchTest pat)  ) $ BL.lines csv'
+  
 -- | Try to read Paypal or HSBC statements
-readDaily:: String -> IO [HSBCDaily]
-readDaily path = do
-    csv <- BL.readFile path
+readDaily:: Maybe String -> String -> IO [HSBCDaily]
+readDaily discardPat path = do
+    csv <- readWithFilter discardPat path
+
     let decodeHSBC = decode NoHeader csv
         decodePaypal = case decodeByName csv of
           Left e -> Left e
@@ -399,7 +416,10 @@ readDaily path = do
           Left  e -> Left $ show e
           Right s -> let htranss  = map sToS (_stTrans s)
                      in Right (V.fromList htranss)
-    case decodePaypal <|> decodeHSBC <|> decodeSantander of
+    -- it is important to start with decodeHSBC because if a file as only one line
+    -- trying to parse first with a decoder expecting a header will return a empty list
+    -- instead of failing: the header is actually not used (and not checked if there is no lines)
+    case decodeHSBC <|> decodePaypal <|> decodeSantander of
         Left s -> error $ "can't parse Statement:" ++ path ++ "\n" ++ s
         Right v -> return . V.toList $ V.imap (\i f -> f (-i)) v -- Statements appears with
         -- the newest transaction on top, ie by descending date.
@@ -570,6 +590,7 @@ data Options = Options
     , faMode :: !(FaMode) -- ^  read file or connect to FA database.
     , aggregateMode :: !(AggregateMode) -- ^ display all or just discrepencies.
     , initialBalance :: !(Maybe Decimal) -- ^ balance to use instead of correct one. Can make reconcilation easier
+    , discardFilter :: !(Maybe String)
     } deriving (Show)
 
 data FaMode = BankAccountId Int deriving (Show, Read, Eq)
@@ -596,8 +617,8 @@ filterDate sDate eDate opt = reduceWith appEndo $ catMaybes
 
 loadAllTrans :: Options -> IO ([(Amount, These [HSBCTransactions] [FATransaction])], [HSBCTransactions])
 loadAllTrans opt = do
-    hs <- (mapM readHSBCTransactions =<< glob (statementFiles opt))
-    sss <- mapM readDaily =<<  glob (dailyFiles opt)
+    hs <- (mapM (readHSBCTransactions $ discardFilter opt) =<< glob (statementFiles opt))
+    sss <- mapM (readDaily $ discardFilter opt) =<<  glob (dailyFiles opt)
     fas <- readFa opt
     let hss = fillHSBCBalance $ concat hs `mergeTrans` sss 
         ths = reconciliate hss fas

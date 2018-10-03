@@ -169,6 +169,7 @@ displaySummary today dbConf faURL title BankStatementSettings{..}= do
       aggregateMode = B.BEST
       blacklist = map unpack bsLightBlacklist
       initialBalance = Nothing
+      discardFilter = unpack <$> bsDiscardRegex
   
   (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main' options)
   -- we sort by date
@@ -209,6 +210,7 @@ displayLightSummary today dbConf faURL title BankStatementSettings{..}= do
       faMode = B.BankAccountId (bsBankAccount)
       aggregateMode = B.BEST
       initialBalance = Nothing
+      discardFilter = unpack <$> bsDiscardRegex
 
   
   (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main' options)
@@ -330,6 +332,7 @@ displayDetailsInPanel account BankStatementSettings{..} = do
       faMode = B.BankAccountId (bsBankAccount)
       aggregateMode = B.BEST
       initialBalance = Nothing
+      discardFilter = unpack <$> bsDiscardRegex
   
   (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main' options)
   let tableW = renderTransactions True object faURL stransz (const []) (Just "Total") ((B.FA ==) . B._sSource)
@@ -399,6 +402,7 @@ renderReconciliate account param = do
       faMode = B.BankAccountId (bsBankAccount)
       aggregateMode = B.ALL_BEST
       initialBalance = realFracToDecimal 2 <$> bsInitialBalance
+      discardFilter = unpack <$> bsDiscardRegex
 
   (hts,_) <- lift $ withCurrentDirectory bsPath (B.loadAllTrans options)
   let byDays = B.badsByDay hts
