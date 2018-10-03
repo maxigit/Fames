@@ -480,6 +480,7 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
   rowClass (This _) = "bg-warning text-warning "
   rowClass (That _) = "bg-danger text-danger"
   rowClass (These _ _) = "" :: Text
+  eqDouble x y = abs (validValue x - validValue y ) < 1e-4
   widget = [whamlet|
     <table.table.table-hover.table-border>
       <tr>
@@ -517,7 +518,7 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
               $else
                   <td>#{tshow $ negate  $    B._sAmount trans}
                   <td>
-              $if fmap B._sBalance transM == fmap B._sBalance fatransM
+              $if liftA2 eqDouble (B._sBalance =<< transM) (B._sBalance =<< fatransM)  == Just True
                 <td.balance-match.bg-success.text-success>
                  ^{render $ fmap (fmap tshow) (B._sBalance trans) }
               $else
