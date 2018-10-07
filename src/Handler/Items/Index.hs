@@ -888,7 +888,7 @@ renderButton param bclass button = case buttonStatus param button of
 -- some of them. Creating missing items only works if we are sure that
 -- we are displaying the item.
 areVariationsComplete :: IndexParam -> Bool
-areVariationsComplete IndexParam{..} = ipShowInactive && null ipFAStatusFilter && ipWebStatusFilter
+areVariationsComplete IndexParam{..} = ipShowInactive && null ipFAStatusFilter && null ipWebStatusFilter
 buttonStatus :: IndexParam -> Button -> ButtonStatus
 buttonStatus param CreateMissingBtn = case (ipMode param, not (areVariationsComplete param)) of
   (ItemGLView, False) -> BtnInactive "Please show inactive item before creating items. This is to avoid trying to create disabled items."
