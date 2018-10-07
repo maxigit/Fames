@@ -36,6 +36,8 @@ data IndexParam = IndexParam
   , ipColumns :: [Text] -- ^ columns to act upon
   , ipMode :: ItemViewMode
   , ipClearCache :: Bool -- ^ Clear cache
+  , ipFAStatusFilter :: [FARunningStatus]
+  , ipWebStatusFilter :: [WebDisplayStatus]
   } deriving (Eq, Show, Read)
 
 ipVariations :: IndexParam -> Either FilterExpression (Maybe Text)
@@ -110,6 +112,7 @@ paramDef mode = IndexParam Nothing Nothing Nothing False True
                            mempty empty empty
                            (fromMaybe ItemGLView mode)
                            False
+                           [] []
 -- indexForm :: (MonadHandler m,
 --               RenderMessage (HandlerSite m) FormMessage)
 --           => [Text]
@@ -128,7 +131,11 @@ indexForm groups param = renderBootstrap3 BootstrapBasicForm form
           <*> pure (ipColumns param)
           <*> pure (ipMode param)
           <*> pure False
+          <*> (areq (multiSelectField rstatus) "Running status" (Just $ ipFAStatusFilter param)) 
+          <*> (areq (multiSelectField wstatus) "Web Display status" (Just $ ipWebStatusFilter param)) 
         groups' =  map (\g -> (g,g)) groups
+        rstatus = optionsPairs $ map (fanl (drop 2 . tshow)) [minBound..maxBound]
+        wstatus = optionsPairs $ map (fanl (drop 3 . tshow)) [minBound..maxBound]
 
 -- | Fill the parameters which are not in the form but have to be extracted
 -- from the request parameters
@@ -263,14 +270,14 @@ loadVariations :: (?skuToStyleVar :: Text -> (Text, Text))
 loadVariations cache param = do
   -- pre cache variations parts
   let forceCache = ipClearCache param
-  delayeds <- mapM (\(p,a) -> preCache0 forceCache
+  delayeds <- mapM (\(p,a) -> (p,) <$> preCache0 forceCache
                                         (cacheDelay) (p
                                            , param { ipMode = ItemPriceView
                                                   , ipChecked = []
                                                   , ipBases = mempty
                                                   }
                                            ) (runDB $ a param))
-           [ ("prices", loadSalesPrices)
+           [ ("prices" :: Text, loadSalesPrices)
            , ("purchase", loadPurchasePrices)
            , ("fa status", loadStatus)
            , ("web status", loadWebStatus)
@@ -282,8 +289,17 @@ loadVariations cache param = do
         , delayedWebStatus
         , delayedWebPrices 
         ] = delayeds
+  let -- adjustSources ::
+    -- Add sources needed by filter and remove duplicate
+      adjustSources :: [(Text, Delayed Handler [ItemInfo (ItemMasterAndPrices Identity)])]
+                    ->  [ Delayed Handler [ItemInfo (ItemMasterAndPrices Identity)]]
+      adjustSources sources = toList $ Map.fromList
+        (
+          (if null (ipFAStatusFilter param) then Nothing else Just delayedStatus) ?:
+          (if null (ipWebStatusFilter param) then Nothing else Just delayedWebStatus) ?:
+          sources
+        )
 
-                        
   let varF = ipVariations param
       bases =  ipBases param
   adjustBase <- getAdjustBase
@@ -304,7 +320,7 @@ loadVariations cache param = do
                        in cache0 forceCache (cacheDelay) (filter_, "load variations") select
     (Right Nothing) -> return $ Left [] -- (Left $ map  entityKey styles)
     (Right (Just group_)) -> return $ Right (Map.findWithDefault [] group_ varGroupMap)
-  infoSources <- mapM getDelayed (case ipMode param of
+  infoSources <- mapM getDelayed $ adjustSources (case ipMode param of
     ItemGLView -> []
     ItemPriceView -> [delayedSalesPrices]
     ItemPurchaseView -> [delayedPurchasePrices]
@@ -314,9 +330,10 @@ loadVariations cache param = do
     ItemCategoryView -> []
     )
 
-  let itemStyles = mergeInfoSources ( map stockItemMasterToItem styles
+  let itemStyles0 = mergeInfoSources ( map stockItemMasterToItem styles
                                     : infoSources
                                     )
+      itemStyles = filter (filterFromParam param) itemStyles0
       itemVars =  case variations of
         Left keys -> map (snd . ?skuToStyleVar . unStockMasterKey) keys
         Right vars -> vars
@@ -330,9 +347,17 @@ loadVariations cache param = do
   let result =  map (\(base, vars)
                   -> (base, filterExtra vars)
                 ) itemGroups
-  mapM_ startDelayed delayeds
+  mapM_ (startDelayed . snd) delayeds
   return result
-    
+filterFromParam :: IndexParam ->  ItemInfo (ItemMasterAndPrices Identity) -> Bool
+filterFromParam IndexParam{..} ItemInfo{..} = faStatusOk && webStatusOk where
+  faStatusOk = case (ipFAStatusFilter, fmap faRunningStatus (impFAStatus iiInfo)) of
+    (s@(_:_), Just (Identity status))  -> status `elem` s
+    _ -> True
+  webStatusOk = case (ipWebStatusFilter, fmap webDisplayStatus (impWebStatus iiInfo)) of
+    (s@(_:_), Just (Identity status))  -> status `elem` s
+    _ -> True
+
 -- ** Sales prices
 -- | Load sales prices 
     -- loadSalesPrices :: IndexParam -> Handler [ItemInfo (ItemMasterAndPrices Identity)]
@@ -859,8 +884,13 @@ renderButton param bclass button = case buttonStatus param button of
                |]
   BtnHidden ->  [shamlet||]
 
+-- | Check if the user param returns all variaton of a given style or filter
+-- some of them. Creating missing items only works if we are sure that
+-- we are displaying the item.
+areVariationsComplete :: IndexParam -> Bool
+areVariationsComplete IndexParam{..} = ipShowInactive && null ipFAStatusFilter && ipWebStatusFilter
 buttonStatus :: IndexParam -> Button -> ButtonStatus
-buttonStatus param CreateMissingBtn = case (ipMode param, ipShowInactive param) of
+buttonStatus param CreateMissingBtn = case (ipMode param, not (areVariationsComplete param)) of
   (ItemGLView, False) -> BtnInactive "Please show inactive item before creating items. This is to avoid trying to create disabled items."
   _ -> BtnActive
  

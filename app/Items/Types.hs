@@ -169,8 +169,13 @@ data FARunningStatus = FARunning -- ^ can and need to be sold
 
                     | FADead -- ^ Not used anymore but can't be deleted because of exists in previous trans.
                     | FAGhost -- ^ In the system but can be deleted.
-                    deriving (Show, Read, Eq)
+                    deriving (Show, Read, Eq, Enum, Bounded)
 
+data WebDisplayStatus = WebOk -- ^ is active and has a product display : shows on the website
+                      | WebHidden -- ^ has a product display but inactive: is hidden
+                      | WebMissing -- ^  the variation doesn't exist.
+                      | WebUnlinked -- ^  orphan variation without a product display
+                      deriving (Show, Read, Eq, Enum, Bounded)
 
 -- * Reporting
 type Quantity = Double

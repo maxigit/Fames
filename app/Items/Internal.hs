@@ -205,6 +205,14 @@ faRunningStatus ItemStatusF{..} = let
     _ -> FAGhost -- nothing is using it. It can be deleted
   in go <$> isfQoh <*> isfOnOrder <*> isfAllQoh <*> isfOnOrder <*> isfAllOnDemand <*> isfUsed 
       
+ 
+webDisplayStatus :: Applicative f => ItemWebStatusF f -> f WebDisplayStatus
+webDisplayStatus ItemWebStatusF{..} =  status <$> iwfProductDisplay <*> iwfActive
+  where status p a = case  (p , a) of
+                        (Just _, True) -> WebOk
+                        (Just _, False) -> WebUnlinked
+                        (Nothing, True) -> WebHidden
+                        (Nothing, False) -> WebMissing
   
 
 -- ** Prices
