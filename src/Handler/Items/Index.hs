@@ -36,8 +36,8 @@ data IndexParam = IndexParam
   , ipColumns :: [Text] -- ^ columns to act upon
   , ipMode :: ItemViewMode
   , ipClearCache :: Bool -- ^ Clear cache
-  , ipFAStatusFilter :: [FARunningStatus]
-  , ipWebStatusFilter :: [WebDisplayStatus]
+  , ipFAStatusFilter :: Maybe [FARunningStatus]
+  , ipWebStatusFilter :: Maybe [WebDisplayStatus]
   } deriving (Eq, Show, Read)
 
 ipVariations :: IndexParam -> Either FilterExpression (Maybe Text)
@@ -112,7 +112,7 @@ paramDef mode = IndexParam Nothing Nothing Nothing False True
                            mempty empty empty
                            (fromMaybe ItemGLView mode)
                            False
-                           [] []
+                           Nothing Nothing
 -- indexForm :: (MonadHandler m,
 --               RenderMessage (HandlerSite m) FormMessage)
 --           => [Text]
@@ -131,8 +131,8 @@ indexForm groups param = renderBootstrap3 BootstrapBasicForm form
           <*> pure (ipColumns param)
           <*> pure (ipMode param)
           <*> pure False
-          <*> (areq (multiSelectField rstatus) "Running status" (Just $ ipFAStatusFilter param)) 
-          <*> (areq (multiSelectField wstatus) "Web Display status" (Just $ ipWebStatusFilter param)) 
+          <*> (aopt (multiSelectField rstatus) "Running status" (Just $ ipFAStatusFilter param)) 
+          <*> (aopt (multiSelectField wstatus) "Web Display status" (Just $ ipWebStatusFilter param)) 
         groups' =  map (\g -> (g,g)) groups
         rstatus = optionsPairs $ map (fanl (drop 2 . tshow)) [minBound..maxBound]
         wstatus = optionsPairs $ map (fanl (drop 3 . tshow)) [minBound..maxBound]
@@ -352,11 +352,13 @@ loadVariations cache param = do
 filterFromParam :: IndexParam ->  ItemInfo (ItemMasterAndPrices Identity) -> Bool
 filterFromParam IndexParam{..} ItemInfo{..} = faStatusOk && webStatusOk where
   faStatusOk = case (ipFAStatusFilter, fmap faRunningStatus (impFAStatus iiInfo)) of
-    (s@(_:_), Just (Identity status))  -> status `elem` s
-    _ -> True
+    (Nothing, _) -> True
+    (Just s@(_:_), Just (Identity status))  -> status `elem` s
+    _ -> False
   webStatusOk = case (ipWebStatusFilter, fmap webDisplayStatus (impWebStatus iiInfo)) of
-    (s@(_:_), Just (Identity status))  -> status `elem` s
-    _ -> True
+    (Nothing, _) -> True
+    (Just s@(_:_), Just (Identity status))  -> status `elem` s
+    _ -> False
 
 -- ** Sales prices
 -- | Load sales prices 
