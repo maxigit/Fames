@@ -38,6 +38,7 @@ data IndexParam = IndexParam
   , ipClearCache :: Bool -- ^ Clear cache
   , ipFAStatusFilter :: Maybe [FARunningStatus]
   , ipWebStatusFilter :: Maybe [WebDisplayStatus]
+  , ipBaseVariation:: Maybe Text -- ^ to keep when filtering element, so that missing have a base
   } deriving (Eq, Show, Read)
 
 ipVariations :: IndexParam -> Either FilterExpression (Maybe Text)
@@ -112,7 +113,7 @@ paramDef mode = IndexParam Nothing Nothing Nothing False True
                            mempty empty empty
                            (fromMaybe ItemGLView mode)
                            False
-                           Nothing Nothing
+                           Nothing Nothing Nothing
 -- indexForm :: (MonadHandler m,
 --               RenderMessage (HandlerSite m) FormMessage)
 --           => [Text]
@@ -133,6 +134,7 @@ indexForm groups param = renderBootstrap3 BootstrapBasicForm form
           <*> pure False
           <*> (aopt (multiSelectField rstatus) "Running status" (Just $ ipFAStatusFilter param)) 
           <*> (aopt (multiSelectField wstatus) "Web Display status" (Just $ ipWebStatusFilter param)) 
+          <*> (aopt textField "include variation" (Just $ ipBaseVariation param))
         groups' =  map (\g -> (g,g)) groups
         rstatus = optionsPairs $ map (fanl (drop 2 . tshow)) [minBound..maxBound]
         wstatus = optionsPairs $ map (fanl (drop 3 . tshow)) [minBound..maxBound]
@@ -352,8 +354,11 @@ loadVariations cache param = do
                 ) itemGroups
   mapM_ (startDelayed . snd) delayeds
   return result
+-- | Filter according to FA and DC status but KEEP base variation
+-- This is needed To be able to copy price or other information when creating missing
+-- product
 filterFromParam :: IndexParam ->  ItemInfo (ItemMasterAndPrices Identity) -> Bool
-filterFromParam IndexParam{..} ItemInfo{..} = faStatusOk && webStatusOk where
+filterFromParam IndexParam{..} ItemInfo{..} = (faStatusOk && webStatusOk) || isBaseVariation where
   faStatusOk = case (ipFAStatusFilter, fmap faRunningStatus (impFAStatus iiInfo)) of
     (Nothing, _) -> True
     (Just s@(_:_), Just (Identity status))  -> status `elem` s
@@ -362,6 +367,7 @@ filterFromParam IndexParam{..} ItemInfo{..} = faStatusOk && webStatusOk where
     (Nothing, _) -> True
     (Just s@(_:_), Just (Identity status))  -> status `elem` s
     _ -> False
+  isBaseVariation = Just iiVariation == ipBaseVariation 
 
 -- ** Sales prices
 -- | Load sales prices 

@@ -291,7 +291,7 @@ runDCDB action = do
   case dcConfM of
     Nothing -> do
       setError $ "DC Database not configured. Please contact your administrator"
-      error "Action can not be performed" -- needed to match (runSqlConn action) type
+      return mzero -- error "Action can not be performed" -- needed to match (runSqlConn action) type
    
     Just conf -> withMySQLConn (myConnInfo conf) (runSqlConn action)
 
