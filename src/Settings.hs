@@ -46,6 +46,7 @@ data AppSettings = AppSettings
     -- ^ Directory from which to serve static files.
     , appDatabaseConf           :: MySQLConf
     -- ^ Configuration settings for accessing the database.
+    , appDatabaseDCConf           :: Maybe MySQLConf
     , appRoot                   :: Maybe Text
     -- ^ Base for all generated URLs. If @Nothing@, determined
     -- from the request headers.
@@ -143,6 +144,7 @@ instance FromJSON AppSettings  where
 #endif
         appStaticDir              <- o .: "static-dir"
         fromYamlAppDatabaseConf   <- o .: "database"
+        fromYamlAppDatabaseDCConf   <- o .:? "dc-database"
         appRoot                   <- o .:? "approot"
         appHost                   <- fromString <$> o .: "host"
         appPort                   <- o .: "port"
@@ -212,6 +214,13 @@ instance FromJSON AppSettings  where
                 MySQL.connectOptions =
                   ( MySQL.connectOptions (myConnInfo fromYamlAppDatabaseConf)) ++ [MySQL.InitCommand "SET SESSION sql_mode = 'STRICT_ALL_TABLES';\0"]
               }
+            }
+            appDatabaseDCConf = case fromYamlAppDatabaseDCConf of
+                  Nothing -> Nothing
+                  Just conf -> Just $ conf { myConnInfo = (myConnInfo conf) {
+                          MySQL.connectOptions =
+                            ( MySQL.connectOptions (myConnInfo conf)) ++ [MySQL.InitCommand "SET SESSION sql_mode = 'STRICT_ALL_TABLES';\0"]
+                        }
             }
 
         return AppSettings {..}

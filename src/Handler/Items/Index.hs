@@ -190,25 +190,28 @@ fillIndexCache :: Handler IndexCache
 fillIndexCache = do
   categories <- categoriesH
   catFinder <- categoryFinderCached
-  cache0 False (cacheHour 1) "index/static"  $ runDB $ do
-      salesTypes <- selectList [] [] -- [Entity SalesType]
+  cache0 False (cacheHour 1) "index/static"  $ do
+      salesTypes <- runDB $ selectList [] [] -- [Entity SalesType]
       let priceListNames = mapFromList [ (k, salesTypeSalesType t)
                                       | (Entity (SalesTypeKey k) t) <- salesTypes
                                       ]
-      supplierNames <- do
+      supplierNames <- runDB $ do
             entities <- selectList [] []
             return $ mapFromList [(k, supplierSuppName s) | (Entity (SupplierKey k) s) <- entities]
 
-      rows <- rawSql "SHOW TABLES LIKE 'dcx_field_data_field_price%'" []
-      let webPriceList = [ pId :: Int
-                      | (Single table) <- rows
-                      , Just pId <- return $ readMay =<< stripPrefix "dcx_field_data_field_price_pl_" (table :: Text)
-
-                      ]
+      -- don't load webprices if the DC database is not configured
+      dcConf <- getsYesod (appDatabaseDCConf . appSettings)
+      webPriceList <- case dcConf of
+        Nothing -> return []
+        Just _ -> do
+          rows <- runDCDB $ rawSql "SHOW TABLES LIKE 'field_data_field_price%'" []
+          return [ pId :: Int
+                 | (Single table) <- rows
+                 , Just pId <- return $ readMay =<< stripPrefix "field_data_field_price_pl_" (table :: Text)
+                 ]
 
       return $ IndexCache salesTypes priceListNames supplierNames webPriceList catFinder categories
   
-
   
 -- ** StyleAdjustment
 getAdjustBase :: Handler (IndexCache -> ItemInfo (ItemMasterAndPrices Identity) -> Text -> ItemInfo (ItemMasterAndPrices Identity))
@@ -505,19 +508,21 @@ loadStatus param = do
 -- ** Web Status
     
 -- | Load Web Status, if item exists, have a product display, activated and the prices
+-- FIXME: Technically we don't need to return SqlHandler, as we are not using
+-- the main Persistent database but the one. Here for historical and convenient reason
 loadWebStatus :: (?skuToStyleVar :: Text -> (Text,Text))
               => IndexParam -> SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
 loadWebStatus param = do
   case (ipStyles param) of
     Just styleF -> do
-      let sql = "SELECT sku, product.status, dcx_node.title"
-             <> " FROM dcx_commerce_product AS product "
-             <> " LEFT JOIN dcx_field_data_field_product ON (product_id = field_product_product_id"
+      let sql = "SELECT sku, product.status, node.title"
+             <> " FROM commerce_product AS product "
+             <> " LEFT JOIN field_data_field_product ON (product_id = field_product_product_id"
              <> "                                                     AND  entity_type = 'node')"
-             <> " LEFT JOIN dcx_node ON (entity_id = nid) "
+             <> " LEFT JOIN node ON (entity_id = nid) "
              <> " WHERE sku " <> fKeyword <> " ?"
           (fKeyword, p) = filterEKeyword styleF
-      rows <- rawSql sql [PersistText p]
+      rows <- runDCDB $ rawSql sql [PersistText p]
       return [ItemInfo style var master
              | (Single sku, Single active, Single display) <- rows
              , let (style, var) = ?skuToStyleVar sku
@@ -551,11 +556,11 @@ webPriceList pId = pack $ printf "pl_%0.2d" pId
 loadWebPriceFor ::  _ -> Int -> SqlHandler [(Text, ItemPriceF Identity )]
 loadWebPriceFor (fKeyword, p) pId = do 
   let sql =  " SELECT sku, field_price_" <> webPriceList pId <> "_amount"
-          <> " FROM dcx_commerce_product AS product "
-          <> " JOIN dcx_field_data_field_price_" <> webPriceList pId <> " AS price"
+          <> " FROM commerce_product AS product "
+          <> " JOIN field_data_field_price_" <> webPriceList pId <> " AS price"
           <> "      ON (price.entity_id = product_id AND type = 'product')"
           <> " WHERE sku " <> fKeyword <> " ?"
-  rows <- rawSql sql [PersistText p]
+  rows <- runDCDB $ rawSql sql [PersistText p]
   return [ (sku, webPrices)
          | (Single sku, Single price) <- rows
          , let webPrices = ItemPriceF (mapFromList [(fromIntegral pId, Identity (price /100))])
@@ -1428,10 +1433,10 @@ deleteProductPrice (pId,mrevId) = do
 loadDCColorMap :: Handler (Map Text Int)
 loadDCColorMap = cache0 False cacheForEver "dc-color-map" $ do
   let sql = "SELECT field_colour_code_value, entity_id "
-          <>  "FROM dcx_field_data_field_colour_code "
+          <>  "FROM field_data_field_colour_code "
           <>  "WHERE bundle = 'colours' "
           <>  "AND deleted = 0 "
-  rows <- runDB $ rawSql sql []
+  rows <- runDCDB $ rawSql sql []
   return $ mapFromList [ ( col, eid ) | ( Single col, Single eid ) <- rows ]
 
 createAndInsertProductColours colours p'rKeys = do
@@ -1573,8 +1578,8 @@ loadLastProductDelta
   :: DC.NodeTId
   -> SqlHandler Int
 loadLastProductDelta displayId = do
-      [(Single lastDelta)] <- rawSql ("SELECT MAX(delta) "
-                           <> "FROM dcx_field_data_field_product "
+      [(Single lastDelta)] <- runDCDB $ rawSql ("SELECT MAX(delta) "
+                           <> "FROM field_data_field_product "
                            <> "WHERE entity_id = ?"
                            )
                            [toPersistValue displayId]

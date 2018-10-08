@@ -14,7 +14,8 @@ module Foundation
 
 
 import Import.NoFoundation hiding(toList)
-import Database.Persist.Sql (ConnectionPool, runSqlPool)
+import Database.Persist.Sql (ConnectionPool, runSqlPool, runSqlConn)
+import Database.Persist.MySQL (myConnInfo, withMySQLConn)
 import Text.Hamlet          (hamletFile)
 import Text.Jasmine         (minifym)
 import qualified Yesod.Auth.Message    as Msg
@@ -280,6 +281,19 @@ instance YesodPersist App where
         runSqlPool action $ appConnPool master
 instance YesodPersistRunner App where
     getDBRunner = defaultGetDBRunner appConnPool
+
+-- | Run Persistent action on DC database.
+-- As we are not expecting it be used much
+-- we don't create a pool but create connection when needed
+runDCDB action = do
+  master <- appSettings <$> getYesod 
+  let dcConfM = appDatabaseDCConf master
+  case dcConfM of
+    Nothing -> do
+      setError $ "DC Database not configured. Please contact your administrator"
+      error "Action can not be performed" -- needed to match (runSqlConn action) type
+   
+    Just conf -> withMySQLConn (myConnInfo conf) (runSqlConn action)
 
 instance YesodAuth App where
     type AuthId App = UserId
