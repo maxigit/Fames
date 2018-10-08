@@ -210,8 +210,8 @@ webDisplayStatus :: Applicative f => ItemWebStatusF f -> f WebDisplayStatus
 webDisplayStatus ItemWebStatusF{..} =  status <$> iwfProductDisplay <*> iwfActive
   where status p a = case  (p , a) of
                         (Just _, True) -> WebOk
-                        (Just _, False) -> WebUnlinked
-                        (Nothing, True) -> WebHidden
+                        (Just _, False) -> WebHidden
+                        (Nothing, True) -> WebUnlinked
                         (Nothing, False) -> WebMissing
   
 
