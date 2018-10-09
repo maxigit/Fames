@@ -368,7 +368,7 @@ filterFromParam p@IndexParam{..} (base, vars0) = let
   vars = filter (statusOk . snd) vars0
   statusOk i = (faStatusOk p i && webStatusOk p i) || isBaseVariation i
   isBaseVariation ItemInfo{..} = return iiVariation == ipBaseVariation 
-  in if null vars || (not (faStatusOk p base && webStatusOk p base) && null (drop 1 vars))
+  in if null vars || (not (faStatusOk p base && webStatusOk p base) && null (drop 1 vars) && isJust ipBaseVariation)
      then Nothing
      else Just (base, vars)
 
