@@ -19,6 +19,7 @@ import Text.Printf (printf)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Util.Cache
 import Control.Monad(zipWithM_)
+import Control.Comonad
 import Handler.Util
 import Control.Monad.Reader(mapReaderT)
 import qualified Data.Map as Map
@@ -335,10 +336,9 @@ loadVariations cache param = do
     ItemCategoryView -> []
     )
 
-  let itemStyles0 = mergeInfoSources ( map stockItemMasterToItem styles
+  let itemStyles = mergeInfoSources ( map stockItemMasterToItem styles
                                     : infoSources
                                     )
-      itemStyles = filter (filterFromParam param) itemStyles0
       itemVars =  case variations of
         Left keys -> map (snd . ?skuToStyleVar . unStockMasterKey) keys
         Right vars -> vars
@@ -349,25 +349,39 @@ loadVariations cache param = do
                     then id
                     else (List.filter ((/= VarExtra) . fst))
 
-  let result =  map (\(base, vars)
+  let result =  mapMaybe (filterFromParam param) $ map (\(base, vars)
                   -> (base, filterExtra vars)
                 ) itemGroups
   mapM_ (startDelayed . snd) delayeds
   return result
--- | Filter according to FA and DC status but KEEP base variation
+-- | Filters according to FA and DC status but KEEP base variation if needed.
 -- This is needed To be able to copy price or other information when creating missing
--- product
-filterFromParam :: IndexParam ->  ItemInfo (ItemMasterAndPrices Identity) -> Bool
-filterFromParam IndexParam{..} ItemInfo{..} = (faStatusOk && webStatusOk) || isBaseVariation where
-  faStatusOk = case (ipFAStatusFilter, fmap faRunningStatus (impFAStatus iiInfo)) of
+-- product. 
+-- However, we only keep the base variation if there is any valid variations
+filterFromParam :: IndexParam ->  (ItemInfo ( ItemMasterAndPrices Identity)
+                                  , [ ( VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text]) )) ]
+                                  )
+                              -> Maybe (ItemInfo ( ItemMasterAndPrices Identity)
+                                       , [ ( VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text]) )) ]
+                                       )
+filterFromParam p@IndexParam{..} (base, vars0) = let
+  vars = filter (statusOk . snd) vars0
+  statusOk i = (faStatusOk p i && webStatusOk p i) || isBaseVariation i
+  isBaseVariation ItemInfo{..} = return iiVariation == ipBaseVariation 
+  in if null vars || (not (faStatusOk p base && webStatusOk p base) && null (drop 1 vars))
+     then Nothing
+     else Just (base, vars)
+
+faStatusOk :: (Applicative f, Comonad f) => IndexParam -> ItemInfo (ItemMasterAndPrices f) -> Bool
+faStatusOk IndexParam{..} ItemInfo{..} = case (ipFAStatusFilter, fmap faRunningStatus (impFAStatus iiInfo)) of
     (Nothing, _) -> True
-    (Just s@(_:_), Just (Identity status))  -> status `elem` s
+    (Just s@(_:_), Just statusM)  -> extract statusM `elem` s
     _ -> False
-  webStatusOk = case (ipWebStatusFilter, fmap webDisplayStatus (impWebStatus iiInfo)) of
+webStatusOk :: (Applicative f, Comonad f) => IndexParam -> ItemInfo (ItemMasterAndPrices f) -> Bool
+webStatusOk IndexParam{..} ItemInfo{..} = case (ipWebStatusFilter, fmap webDisplayStatus (impWebStatus iiInfo)) of
     (Nothing, _) -> True
-    (Just s@(_:_), Just (Identity status))  -> status `elem` s
+    (Just s@(_:_), Just statusM)  -> extract statusM `elem` s
     _ -> False
-  isBaseVariation = Just iiVariation == ipBaseVariation 
 
 -- ** Sales prices
 -- | Load sales prices 

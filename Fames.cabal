@@ -2,7 +2,7 @@
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 65f7ca3912456390afe956998983ea9304bf4f74ea9ccda1c369a59ee1aabadc
+-- hash: 006179d33fa045796e53e588514f28053a7ea4f14e3d66972906a94c90f979f1
 
 name:           Fames
 version:        0.0.1
@@ -43,6 +43,7 @@ library
     , classy-prelude-conduit >=0.10.2
     , classy-prelude-yesod >=0.10.2
     , colour >=2.3.3 && <2.4
+    , comonad
     , conduit >=1.0 && <2.0
     , conduit-extra
     , containers
@@ -240,6 +241,7 @@ executable Fames
     , classy-prelude-conduit >=0.10.2
     , classy-prelude-yesod >=0.10.2
     , colour >=2.3.3 && <2.4
+    , comonad
     , conduit >=1.0 && <2.0
     , conduit-extra
     , containers
@@ -363,6 +365,7 @@ test-suite ghcid
     , classy-prelude-conduit >=0.10.2
     , classy-prelude-yesod
     , colour >=2.3.3 && <2.4
+    , comonad
     , conduit >=1.0 && <2.0
     , conduit-extra
     , containers
@@ -587,6 +590,7 @@ test-suite test
     , classy-prelude-conduit >=0.10.2
     , classy-prelude-yesod
     , colour >=2.3.3 && <2.4
+    , comonad
     , conduit >=1.0 && <2.0
     , conduit-extra
     , containers
