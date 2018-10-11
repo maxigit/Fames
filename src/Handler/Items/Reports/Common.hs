@@ -1366,6 +1366,7 @@ seriesChartProcessor :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
   -> ColumnRupture -> Bool -> [(QPType, TraceParam, Maybe NormalizeMode )]-> Text -> Text -> NMap (Sum Double, TranQP)  -> Widget 
 seriesChartProcessor all panel rupture mono params name plotId grouped = do
      let xsFor g = map (toJSON . pvToText . fst) g
+
          -- ysFor :: Maybe NormalizeMode -> (b -> Maybe Double) -> [ (a, b) ] -> [ Maybe Value ]
          ysFor normM f g = map (fmap toJSON) $ formatSerieValues formatDouble (printf "%0.1f")normM all panel grouped f g
          traceFor param ((name', g'), color,groupId) = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g) 
@@ -1428,6 +1429,107 @@ seriesChartProcessor all panel rupture mono params name plotId grouped = do
                       --      }
                       --    ]
   
+-- ** Bubble
+bubbleProcessor :: ReportParam -> NMap (Sum Double, TranQP) -> Widget 
+bubbleProcessor param grouped = do
+  processPanelsWithYYY "items-report-bubble" param grouped (panelBubbleProcessor $ \n -> max 350 (900 `div` n))
+        
+processPanelsWithYYY reportId param grouped panelProcessor =  do
+  let asList = nmapToNMapListWithRank grouped
+  forM_ (zip asList [1 :: Int ..]) $ \((panelKey, nmap), i) -> do
+     let plotId = reportId <> "-plot-" <> "-" <> tshow i 
+         -- bySerie = fmap (groupAsMap (mkGrouper param (cpColumn $ rpSerie param) . fst) (:[])) group
+         panelName = nkeyWithRank panelKey
+         panelId = reportId <> "-panel-" <> panelName
+         panel = panelProcessor grouped param plotId nmap
+     [whamlet|
+      <div.panel.panel-info>
+        <div.panel-heading data-toggle="collapse" data-target="#{panelId}">
+          <h2>#{panelName}
+        <div.panel-body.collapse.in id="#{panelId}" style="max-height:2000px; overflow:auto">
+          ^{panel}
+            |]
+  
+panelBubbleProcessor :: (Int -> Int ) -> NMap (Sum Double, TranQP) -> ReportParam -> Text -> NMap (Sum Double, TranQP) -> Widget 
+panelBubbleProcessor heightForBands all param plotId0 grouped = do
+  let asList = nmapToNMapListWithRank grouped
+      numberOfBands = length asList
+      plotHeight = heightForBands numberOfBands -- max 350 (900 `div` numberOfBands)
+  forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
+        do
+          let -- byColumn = nmapToNMapList grouped -- fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) (unNMap TranQP' bands)
+
+              plot = seriesBubbleProcessor all grouped (rpSerie param) (isNothing $ cpColumn $ rpSerie param) (traceParamsForBubble param) (nkeyWithRank bandName) plotId bands 
+              plotId = plotId0 <> "-" <> tshow i
+          [whamlet|
+            <div id=#{plotId} style="height:#{tshow plotHeight }px">
+                ^{plot}
+                  |]
+-- | Normally, value (or trace params) given in then report parameter
+-- should generate traces with first the size and then the colour.
+-- things get more complicated because some trace can generated 1 or to 2 params (or nothing)
+-- depending on the configuration we group (or not) traces to be pair of size/colour
+traceParamsForBubble :: ReportParam -> [[Maybe (QPType, TraceParam, Maybe NormalizeMode )]] 
+traceParamsForBubble param = 
+  let q'tp'norms = map extract $ [rpTraceParam, rpTraceParam2] <*> [param]
+      extract (TraceParams qtype tparams tpNorm) = (qtype, getIdentified tparams, tpNorm)
+      expand (qtype, tps, norm) = [Just (qtype, tp, norm) | tp <- tps]
+      expanded = case q'tp'norms of
+            -- if the first param is null and the second is only one, then 2nd is the colour
+            ( (_, [], _) : q@(qtype, [tparam], norm) : others) -> (Nothing: expand q) : map expand others
+            ( q@(_, [_], _) : q'@(_, [_], _) : others) -> (expand q <>  expand q') : map expand others
+            _ -> map expand q'tp'norms
+  in filter (not . null) expanded
+  
+seriesBubbleProcessor :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
+  -> ColumnRupture -> Bool -> [[Maybe (QPType, TraceParam, Maybe NormalizeMode )]]-> Text -> Text -> NMap (Sum Double, TranQP)  -> Widget 
+seriesBubbleProcessor all panel rupture mono paramss name plotId grouped = do
+     let asList = nmapToNMapListWithRank grouped
+         jsDatas = map (bubbleTrace asList) paramss
+     toWidgetBody [julius|
+          Plotly.plot( #{toJSON plotId}
+                    , #{toJSON jsDatas}
+                    , { margin: { t: 30 }
+                      , title: #{toJSON name}
+                      , yaxis2 : {overlaying: 'y', title: "Quantities", side: "right"}
+                      , yaxis3 : {overlaying: 'y', title: "Amount(T)", side: "right"}
+                      , yaxis4 : {overlaying: 'y', title: "Quantities(T)", side: "left"}
+                      , yaxis5 : {overlaying: 'y', title: "Price"}
+                      }
+                    );
+                |]
+bubbleTrace :: _ -> [Maybe (QPType, TraceParam, Maybe NormalizeMode)] -> Value
+bubbleTrace asList params =  
+    let (getSize: getColour: _) = (map (fmap tpToFn) params) <> repeat Nothing
+        tpToFn (qtype, tp, _) = fmap (tpValueGetter tp) . lookupGrouped qtype
+        (xs, ys, vs, texts, colours) = unzip5 [  (x, y, v, text, colour)
+                              | (name'group, n) <- zip asList  [1..]
+                              , (i,g) <- zip [1..] $ nmapToList $ snd name'group
+                              , let x = nkKey . lastEx $ fst g --  :: Int --  # of the serie
+                              , let y = nkKey . snd $ fst name'group --  n :: Int --  # of the serie
+                              , let v = getSize >>=  ($ (snd . snd $ g)) :: Maybe Double -- # of  for the colun
+                              , let text = fmap (\vv -> (tshow . nkKey $ lastEx (fst g)) <> " " <> (tshow . nkKey $ snd (fst name'group)) <> " = " <> tshow vv) v
+                              , let colour = getColour >>= ($ (snd . snd $ g)) :: Maybe Double  
+                              ]
+        t x = x :: Text
+        jsData = object [ "x"  .=  xs
+                        , "y" .= ys
+                        , "text" .= texts
+                        , "mode" .= t "markers"
+                        , "marker" .= object ( case getSize of
+                                                Nothing -> [ "size" .= t "6"]
+                                                Just _ -> [ "size" .= vs
+                                                          , "sizemode" .= t "area"
+                                                          , "sizemin" .= t "1"
+                                                          , "sizeref" .= t "1"
+                                                          ]
+                                            <> case getColour of
+                                                  Nothing -> []
+                                                  Just _ -> ["color" .= colours]
+                                             )
+                        ]
+    in jsData
+
 -- ** Pivot
 pivotProcessor:: [TraceParams] -> _ColumnRuptures -> NMap TranQP -> Widget
 pivotProcessor tparams =  do

@@ -45,6 +45,8 @@ data ReportMode = ReportTable
                 | ReportChart
                 | ReportPivot
                 | ReportCsv
+                | ReportBubble  -- punch card. scatter chart using category (serie) as column
+                | ReportScatter -- scatter chart using any measure sales 3 as colum
                 | ReportRaw
      deriving (Eq, Read, Show, Enum, Bounded)
 instance PathPiece ReportMode where
