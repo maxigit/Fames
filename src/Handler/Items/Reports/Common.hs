@@ -1517,7 +1517,7 @@ bubbleTrace asList params =
                         , "text" .= texts
                         , "mode" .= t "markers"
                         , "marker" .= object ( case getSize of
-                                                Nothing -> [ "size" .= t "6"]
+                                                Nothing -> [ "size" .= t "40"]
                                                 Just _ -> [ "size" .= vs
                                                           , "sizemode" .= t "area"
                                                           , "sizemin" .= t "1"
@@ -1526,7 +1526,9 @@ bubbleTrace asList params =
                                             <> case getColour of
                                                   Nothing -> []
                                                   Just _ -> ["color" .= colours]
+                                             <> ["colorscale" .= "YlGn"]
                                              )
+                                        
                         ]
     in jsData
 
