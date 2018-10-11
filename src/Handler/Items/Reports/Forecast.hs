@@ -102,7 +102,7 @@ skuSpeedRowToTransInfo infoMap profileFor start end (SkuSpeedRow sku speed) =
                     ST_SALESINVOICE
                     Nothing Nothing mempty
 
-          qp = mkQPrice Outward (weight * speed) (fromMaybe 0 $ iiSalesPrice info)
+          qp = mkQPrice Inward (weight * speed) (fromMaybe 0 $ iiSalesPrice info)
           tqp = tranQP QPSalesForecast qp
       return (key, tqp)
     _ -> []
