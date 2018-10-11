@@ -1507,7 +1507,7 @@ bubbleTrace asList params =
                               , (i,g) <- zip [1..] $ nmapToList $ snd name'group
                               , let x = nkKey . lastEx $ fst g --  :: Int --  # of the serie
                               , let y = nkKey . snd $ fst name'group --  n :: Int --  # of the serie
-                              , let v = getSize >>=  ($ (snd . snd $ g)) :: Maybe Double -- # of  for the colun
+                              , let v = abs <$> (getSize >>=  ($ (snd . snd $ g))) :: Maybe Double -- # of  for the colun
                               , let text = fmap (\vv -> (tshow . nkKey $ lastEx (fst g)) <> " " <> (tshow . nkKey $ snd (fst name'group)) <> " = " <> tshow vv) v
                               , let colour = getColour >>= ($ (snd . snd $ g)) :: Maybe Double  
                               ]
