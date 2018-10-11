@@ -1526,7 +1526,7 @@ bubbleTrace asList params =
                                             <> case getColour of
                                                   Nothing -> []
                                                   Just _ -> ["color" .= colours]
-                                             <> ["colorscale" .= "YlGn"]
+                                             <> ["colorscale" .= t "YlGn"]
                                              )
                                         
                         ]
