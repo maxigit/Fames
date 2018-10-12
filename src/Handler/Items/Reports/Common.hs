@@ -858,12 +858,12 @@ purchToTransInfo ( Entity _ FA.SuppInvoiceItem{..}
 -- * Reports
 -- ** Common
 -- | Display sales and purchase of an item
-itemReportXXX
+itemReportWithRank
   :: ReportParam
      -> [ColumnRupture]
      -> (NMap (Sum Double, TranQP) -> a )
      -> Handler a
-itemReportXXX param cols processor = do
+itemReportWithRank param cols processor = do
   let grouper =  groupTranQPs param ((map cpColumn cols))
   grouped <- loadItemTransactions param grouper
   -- ranke
