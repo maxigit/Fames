@@ -18,7 +18,6 @@ import GL.Payroll.Settings
 import Database.Persist.Sql hiding (Column)
 import Text.Printf(printf)
 import Formatting
-
 import Data.Monoid(Sum(..), First(..))
 
 -- * Param
@@ -1111,16 +1110,16 @@ nmapToNMapListWithRank  nmap =
 -- ** Plot
 chartProcessor :: ReportParam -> NMap (Sum Double, TranQP) -> Widget 
 chartProcessor param grouped = do
-  processPanelsWithXXX "items-report-chart" param grouped (panelChartProcessor $ \n -> max 350 (900 `div` n))
+  processPanelsWith  "items-report-chart" grouped (panelChartProcessor param $ \n -> max 350 (900 `div` n))
         
-processPanelsWithXXX reportId param grouped panelProcessor =  do
+processPanelsWith reportId grouped panelProcessor =  do
   let asList = nmapToNMapListWithRank grouped
   forM_ (zip asList [1 :: Int ..]) $ \((panelKey, nmap), i) -> do
      let plotId = reportId <> "-plot-" <> "-" <> tshow i 
          -- bySerie = fmap (groupAsMap (mkGrouper param (cpColumn $ rpSerie param) . fst) (:[])) group
          panelName = nkeyWithRank panelKey
          panelId = reportId <> "-panel-" <> panelName
-         panel = panelProcessor grouped param plotId nmap
+         panel = panelProcessor grouped plotId nmap
      [whamlet|
       <div.panel.panel-info>
         <div.panel-heading data-toggle="collapse" data-target="#{panelId}">
@@ -1154,26 +1153,44 @@ createKeyRankProcessor f key rank parents ruptures nmap= let
       
 
   
-panelChartProcessor :: (Int -> Int ) -> NMap (Sum Double, TranQP) -> ReportParam -> Text -> NMap (Sum Double, TranQP) -> Widget 
-panelChartProcessor heightForBands all param plotId0 grouped = do
+panelChartProcessor :: ReportParam -> (Int -> Int ) -> NMap (Sum Double, TranQP) -> Text -> NMap (Sum Double, TranQP) -> Widget 
+panelChartProcessor param heightForBands all plotId0 grouped = do
+  let plotSeries all grouped bandName plotId bands = seriesChartProcessor all grouped (rpSerie param)
+                                                                          (isNothing $ cpColumn $ rpSerie param) traceParams bandName plotId bands
+      traceParams = [(qtype, tparam, tpNorm )
+                    | (TraceParams qtype tparams tpNorm ) <- [rpTraceParam,  rpTraceParam2 , rpTraceParam3]
+                                                        <*> [param]
+                    , tparam <- getIdentified tparams
+                    ]
+  panelPlotProcessor plotSeries heightForBands all plotId0 grouped
+  -- let asList = nmapToNMapListWithRank grouped
+  --     numberOfBands = length asList
+  --     plotHeight = heightForBands numberOfBands -- max 350 (900 `div` numberOfBands)
+  -- forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
+  --       do
+  --         let -- byColumn = nmapToNMapList grouped -- fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) (unNMap TranQP' bands)
+  --             plot = seriesChartProcessor all grouped (rpSerie param) (isNothing $ cpColumn $ rpSerie param) traceParams (nkeyWithRank bandName) plotId bands 
+  --             plotId = plotId0 <> "-" <> tshow i
+  --         [whamlet|
+  --           <div id=#{plotId} style="height:#{tshow plotHeight }px">
+  --               ^{plot}
+  --                 |]
+-- | Draw a plot per band within a panel
+-- panelPlotProcessor :: (_ -> _)
+--                    ->  (Int -> Int ) -> NMap (Sum Double, TranQP) -> Text -> NMap (Sum Double, TranQP) -> Widget 
+panelPlotProcessor plotSeries heightForBands all plotId0 grouped = do
   let asList = nmapToNMapListWithRank grouped
       numberOfBands = length asList
       plotHeight = heightForBands numberOfBands -- max 350 (900 `div` numberOfBands)
   forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
         do
           let -- byColumn = nmapToNMapList grouped -- fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) (unNMap TranQP' bands)
-              traceParams = [(qtype, tparam, tpNorm )
-                            | (TraceParams qtype tparams tpNorm ) <- [rpTraceParam,  rpTraceParam2 , rpTraceParam3]
-                                                               <*> [param]
-                            , tparam <- getIdentified tparams
-                            ]
-              plot = seriesChartProcessor all grouped (rpSerie param) (isNothing $ cpColumn $ rpSerie param) traceParams (nkeyWithRank bandName) plotId bands 
+              plot = plotSeries all grouped (nkeyWithRank bandName) plotId bands 
               plotId = plotId0 <> "-" <> tshow i
           [whamlet|
             <div id=#{plotId} style="height:#{tshow plotHeight }px">
                 ^{plot}
                   |]
-
     
 defaultColors :: [Text]
 defaultColors = defaultPlottly where
@@ -1224,13 +1241,14 @@ getSubMargin getter subs = case subs of
   [x] -> [x]
   _ -> getter subs
 -- | NMap version of formatSerieValues
-formatSerieValuesNMapXXX :: (Double -> t) -> (Double -> t)
+formatSerieValuesNMapXXX :: Monoid w => 
+                  (Double -> t) -> (Double -> t)
                   -> Maybe NormalizeMode -- normalising, %, by row, col etct
-                  -> NMap (Sum Double, TranQP) -- all
-                  -> NMap (Sum Double, TranQP)
-                  -> NMap (Sum Double, TranQP)
+                  -> NMap (w,  TranQP) -- all
+                  -> NMap (w,  TranQP)
+                  -> NMap (w,  TranQP)
                   -> (TranQP -> Maybe Double) -- get a value from a tran
-                  -> NMap (Sum Double, TranQP)-- list of tran to convert
+                  -> NMap (w,  TranQP)-- list of tran to convert
                   -> Map NMapKey t
 formatSerieValuesNMapXXX formatAmount formatPercent mode all panel band f0 nmap = let
            f = f0 . snd
@@ -1302,66 +1320,23 @@ formatSerieValuesNMap :: (Double -> t) -> (Double -> t)
                   -> (TranQP -> Maybe Double) -- get a value from a tran
                   -> NMap TranQP-- list of tran to convert
                   -> Map NMapKey t
-formatSerieValuesNMap formatAmount formatPercent mode all panel band f nmap = let
-           computeMargin t = case nmMargin <$> mode of
-             (Just NMTruncated) -> NLeaf (mconcat subMargins)
-             (Just NMFirst) -> NLeaf (headEx subMargins)
-             (Just NMLast) -> NLeaf (lastEx subMargins)
-             (Just NMBestTail) -> NLeaf (maximumByEx (comparing f) $  getSubMargin tailEx subMargins)
-             (Just NMBestInit) -> NLeaf (maximumByEx (comparing f) $  getSubMargin initEx subMargins)
-             (Just NMColumn) -> let
-                        -- regroup margin by column TODO computes on0
-                        -- all data are already grouped by column, but at the deepest level of nesting
-                        -- we need to bring it up
-                        alls = nmapToList t
-                        in groupAsNMap [(Nothing, lastEx)] alls
-             (Just NMRank) -> case nmTarget <$> mode of
-               Just NMSerie ->  let -- column by serie , we need the full serie for each column key
-                        -- we need to duplicate the levels ... So lookup of a column
-                        -- gives the map of all columns/values
-                        keys = map fst asList
-                        in NMap (nmapMargin nmap) [] (mapFromList $ [(key, nmap ) | key <- keys ] )
-               _ -> let -- by band
-                        -- regroup margin by column TODO computes on0
-                        -- all data are already grouped by column, but at the deepest level of nesting
-                        -- we need to bring it up, but keep the list of value
-                        alls = [(take 2 $ reverse keys, nmap) | (keys, nmap) <- nmapToList band ]
-                        in groupAsNMap [(Nothing, headEx), (Nothing, lastEx)] alls
-             _ -> NLeaf (nmapMargin t)
-             where subMargins = map (nmapMargin . snd) (nmapToNMapList t)
-           margins = case (nmMargin <$> mode, nmTarget <$> mode)  of
-             (Just NMColumn, Just NMSerie ) -> computeMargin band -- otherwise, everything is 100%
-             (Just NMRank, _ ) -> computeMargin band -- 
-             (_, Just NMAll ) -> computeMargin all
-             (_, Just NMPanel ) -> computeMargin panel
-             (_, Just NMBand ) -> computeMargin band
-             (_ ) -> computeMargin nmap
-           marginMap = nmapToMap margins
+formatSerieValuesNMap formatAmount formatPercent mode all panel band f nmap = 
+  formatSerieValuesNMapXXX formatAmount formatPercent mode all' panel' band' f nmap' where
+  all' = convert all
+  panel' = convert panel
+  band' = convert band
+  nmap' = convert nmap
+  convert xs = ((),) <$> xs
 
-           asList = nmapToNMapList nmap
-           key'tranS = nmapMargin <$$>  asList
-           -- normalize
-           -- normalize = case mapMaybe f [nmapMargin grouped] of
-           normalize (col, tqp) = (f tqp >>= go) <&> (col,) where
-             go x = do
-               norm <- f (nmapMargin margins)
-               case nmMargin <$> mode of
-                 Just NMColumn -> do
-                   marginCol <- lookup col marginMap
-                   normCol <- f (nmapMargin marginCol)
-                   return $ formatPercent $ x * 100 / abs normCol
-                 Just NMRank -> do
-                   marginCol <- lookup col marginMap
-                   let values = mapMaybe (f . nmapMargin . snd) (nmapToNMapList marginCol)
-                       sorted = sort values
-                       rankMap :: Map Double Int
-                       rankMap = mapFromList $ zip (reverse sorted) [1 :: Int ..]
-                   rank <- lookup x rankMap
-                   return $ formatPercent (fromIntegral rank)
-                 Just _ -> Just $ formatPercent $ x * 100 / abs norm
-                 Nothing -> Just $ formatAmount x
-           result = mapMaybe normalize key'tranS
-           in mapFromList result
+traceParamForChart mono asList params =  let
+    colorIds = zip (cycle defaultColors) [1::Int ..]
+    in [ (param, name'group, color :: Text, groupId :: Int)
+       | (param, pcId) <- zip params colorIds
+       , (name'group, gcId) <- zip asList colorIds
+       -- if there is only one series, we don't need to group legend and colour by serie
+       , let (color, groupId) = if mono {-length grouped == 1-} then pcId else gcId
+       ] -- ) (cycle defaultColors) [1 :: Int ..]
+
 seriesChartProcessor :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
   -> ColumnRupture -> Bool -> [(QPType, TraceParam, Maybe NormalizeMode )]-> Text -> Text -> NMap (Sum Double, TranQP)  -> Widget 
 seriesChartProcessor all panel rupture mono params name plotId grouped = do
@@ -1369,29 +1344,8 @@ seriesChartProcessor all panel rupture mono params name plotId grouped = do
 
          -- ysFor :: Maybe NormalizeMode -> (b -> Maybe Double) -> [ (a, b) ] -> [ Maybe Value ]
          ysFor normM f g = map (fmap toJSON) $ formatSerieValues formatDouble (printf "%0.1f")normM all panel grouped f g
-         traceFor param ((name', g'), color,groupId) = Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g) 
-                                                    , ("y",  toJSON $ ysFor normMode fn g'')
-                                                    -- , ("name", toJSON name )
-                                                    , ("connectgaps", toJSON False )
-                                                    , ("type", "scatter" ) 
-                                                    , ("legendgroup", String (tshow groupId))
-                                                    ]
-                                                    -- <> maybe [] (\color -> [("color", String color)]) colorM
-                                                    <> tpChartOptions tp color
-                                                    <> (if name == PersistNull then [] else [("name", toJSON $ nkeyWithRank name')])
-                                                       where g = [ (nkKey (snd n), mconcat (toList nmap))  | (n, nmap) <- nmapToNMapListWithRank g'' ] -- flatten everything if needed
-                                                             g'' = nmapRunSum (tpRunSum tp) g'
-                                                             (qtype, tp , normMode) = param
-                                                             fn = fmap (tpValueGetter tp) . lookupGrouped qtype
-                                                             name = nkKey (snd name')
-         colorIds = zip (cycle defaultColors) [1::Int ..]
          asList = nmapToNMapListWithRank grouped
-         jsData = [ traceFor param (name'group, color :: Text, groupId :: Int)
-                  | (param, pcId) <- zip params colorIds
-                  , (name'group, gcId) <- zip asList colorIds
-         -- if there is only one series, we don't need to group legend and colour by serie
-                  , let (color, groupId) = if mono {-length grouped == 1-} then pcId else gcId
-                  ] -- ) (cycle defaultColors) [1 :: Int ..]
+         jsData = map (traceFor xsFor ysFor) (traceParamForChart mono asList  params)
      toWidgetBody [julius|
           Plotly.plot( #{toJSON plotId}
                     , #{toJSON jsData} 
@@ -1404,67 +1358,40 @@ seriesChartProcessor all panel rupture mono params name plotId grouped = do
                       }
                     );
                 |]
-                      -- , updatemenus:
-                      --    [ { buttons: [ { method: 'restyle'
-                      --                   , args: [{type: 'scatter', fill: 'none' }]
-                      --                   , label: "Line"
-                      --                   }
-                      --                 , { method: 'restyle'
-                      --                   , args: [{type: 'bar' }]
-                      --                   , label: "Bar"
-                      --                   }
-                      --                 , { method: 'restyle'
-                      --                   , args: [{type: 'scatter', fill: 'tozeroy' }]
-                      --                   , label: "Area"
-                      --                   }
-                      --                 , { method: 'relayout'
-                      --                   , args: [{barmode: 'stack'}]
-                      --                   , label: "Stack"
-                      --                   }
-                      --                 , { method: 'relayout'
-                      --                   , args: [{barmode: null}]
-                      --                   , label: "Untack"
-                      --                   }
-                      --             ]
-                      --      }
-                      --    ]
   
+traceFor xsFor ysFor (param, (name', g'), color,groupId) = let
+    g = [ (nkKey (snd n), mconcat (toList nmap))  | (n, nmap) <- nmapToNMapListWithRank g'' ] -- flatten everything if needed
+    g'' = nmapRunSum (tpRunSum tp) g'
+    (qtype, tp , normMode) = param
+    fn = fmap (tpValueGetter tp) . lookupGrouped qtype
+    name = nkKey (snd name')
+    in Map.fromList $ [ ("x" :: Text, toJSON $ xsFor g) 
+                      , ("y",  toJSON $ ysFor normMode fn g'')
+                      -- , ("name", toJSON name )
+                      , ("connectgaps", toJSON False )
+                      , ("type", "scatter" ) 
+                      , ("legendgroup", String (tshow groupId))
+                      ]
+                      -- <> maybe [] (\color -> [("color", String color)]) colorM
+                      <> tpChartOptions tp color
+                      <> (if name == PersistNull then [] else [("name", toJSON $ nkeyWithRank name')])
 -- ** Bubble
 bubbleProcessor :: ReportParam -> NMap (Sum Double, TranQP) -> Widget 
 bubbleProcessor param grouped = do
-  processPanelsWithYYY "items-report-bubble" param grouped (panelBubbleProcessor $ \n -> max 350 (900 `div` n))
+  processPanelsWith  "items-report-bubble" grouped (panelBubbleProcessor param $ \n -> max 350 (900 `div` n))
         
-processPanelsWithYYY reportId param grouped panelProcessor =  do
-  let asList = nmapToNMapListWithRank grouped
-  forM_ (zip asList [1 :: Int ..]) $ \((panelKey, nmap), i) -> do
-     let plotId = reportId <> "-plot-" <> "-" <> tshow i 
-         -- bySerie = fmap (groupAsMap (mkGrouper param (cpColumn $ rpSerie param) . fst) (:[])) group
-         panelName = nkeyWithRank panelKey
-         panelId = reportId <> "-panel-" <> panelName
-         panel = panelProcessor grouped param plotId nmap
-     [whamlet|
-      <div.panel.panel-info>
-        <div.panel-heading data-toggle="collapse" data-target="#{panelId}">
-          <h2>#{panelName}
-        <div.panel-body.collapse.in id="#{panelId}" style="max-height:2000px; overflow:auto">
-          ^{panel}
-            |]
   
-panelBubbleProcessor :: (Int -> Int ) -> NMap (Sum Double, TranQP) -> ReportParam -> Text -> NMap (Sum Double, TranQP) -> Widget 
-panelBubbleProcessor heightForBands all param plotId0 grouped = do
-  let asList = nmapToNMapListWithRank grouped
-      numberOfBands = length asList
-      plotHeight = heightForBands numberOfBands -- max 350 (900 `div` numberOfBands)
-  forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
-        do
-          let -- byColumn = nmapToNMapList grouped -- fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) (unNMap TranQP' bands)
+panelBubbleProcessor :: ReportParam -> (Int -> Int ) -> NMap (Sum Double, TranQP) -> Text -> NMap (Sum Double, TranQP) -> Widget 
+panelBubbleProcessor param heightForBands all plotId0 grouped = do
+  let plotSeries all grouped bandName plotId bands =
+        seriesBubbleProcessor all
+                              grouped
+                              (rpSerie param)
+                              (isNothing $ cpColumn $ rpSerie param)
+                              (traceParamsForBubble param)
+                              bandName plotId bands
+  panelPlotProcessor plotSeries heightForBands all plotId0 grouped
 
-              plot = seriesBubbleProcessor all grouped (rpSerie param) (isNothing $ cpColumn $ rpSerie param) (traceParamsForBubble param) (nkeyWithRank bandName) plotId bands 
-              plotId = plotId0 <> "-" <> tshow i
-          [whamlet|
-            <div id=#{plotId} style="height:#{tshow plotHeight }px">
-                ^{plot}
-                  |]
 -- | Normally, value (or trace params) given in then report parameter
 -- should generate traces with first the size and then the colour.
 -- things get more complicated because some trace can generated 1 or to 2 params (or nothing)
@@ -1621,10 +1548,10 @@ collectColumnsForPivot tparams key rank parents ruptures@(r, ()) nmap = let
   
 pivotProcessorXXX :: ReportParam -> NMap (Sum Double, TranQP) -> Widget 
 pivotProcessorXXX param grouped = do
-  processPanelsWithXXX "items-report-pivot" param grouped panelPivotProcessorXXX
+  processPanelsWith  "items-report-pivot" grouped (panelPivotProcessorXXX param)
 
-panelPivotProcessorXXX :: NMap (Sum Double, TranQP) -> ReportParam -> Text -> NMap (Sum Double, TranQP) -> Widget 
-panelPivotProcessorXXX all param plotId0 grouped = do
+panelPivotProcessorXXX :: ReportParam -> NMap (Sum Double, TranQP) -> Text -> NMap (Sum Double, TranQP) -> Widget 
+panelPivotProcessorXXX param all plotId0 grouped = do
   let asList = nmapToNMapListWithRank grouped
   forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
         do

@@ -320,7 +320,7 @@ salesCurrentMonth f plotName = do
                   rpBand, rpSerie
                 , rpColumnRupture
                 ]
-  report <- itemReportWithRank param grouper (\nmap -> panelChartProcessor (const 350) nmap param plotName nmap)
+  report <- itemReportWithRank param grouper (\nmap -> panelChartProcessor param (const 350) nmap plotName nmap)
   return $ report
 
 
@@ -388,7 +388,7 @@ top100ItemYear which rupture = do
                 ]
   -- report <- itemReportWithRank param grouper (pivotProcessorXXX param)
   report <- if which 
-            then itemReportWithRank param grouper (\nmap -> panelPivotProcessorXXX nmap param "pivot-Top-100" nmap)
+            then itemReportWithRank param grouper (\nmap -> panelPivotProcessorXXX param nmap "pivot-Top-100" nmap)
             -- else let pivotP tparams = processRupturesWith (\_ _ -> processRupturesWith (bandPivotProcessor tparams "pivot-Top-100") ) ()
             else let pivotP tparams = processRupturesWith (createKeyRankProcessor $ \_ _ -> (bandPivotRankProcessor tparams "pivot-Top-100", \w -> [whamlet|<div#pivot-Top-100>^{w}|]) ) ()
                  in itemReport param pivotP--  (panelPivotProcessor "pivot-Top-100" (mkNMapKey "New Report"))
@@ -426,7 +426,7 @@ top100ItemYearChart plotName = do
                   rpBand, rpSerie
                 , rpColumnRupture
                 ]
-  report <- itemReportWithRank param grouper (\nmap -> panelChartProcessor (const 350) nmap param plotName nmap)
+  report <- itemReportWithRank param grouper (\nmap -> panelChartProcessor param (const 350) nmap plotName nmap)
   return $ report
 
 
