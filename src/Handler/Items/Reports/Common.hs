@@ -1498,17 +1498,19 @@ seriesBubbleProcessor all panel rupture mono paramss name plotId grouped = do
                       }
                     );
                 |]
-bubbleTrace :: _ -> [Maybe (QPType, TraceParam, Maybe NormalizeMode)] -> Value
+bubbleTrace :: [((Int, NMapKey), NMap (Sum Double, TranQP))]
+            -> [Maybe (QPType, TraceParam, Maybe NormalizeMode)]
+            -> Value
 bubbleTrace asList params =  
     let (getSize: getColour: _) = (map (fmap tpToFn) params) <> repeat Nothing
         tpToFn (qtype, tp, _) = fmap (tpValueGetter tp) . lookupGrouped qtype
         (xs, ys, vs, texts, colours) = unzip5 [  (x, y, v, text, colour)
                               | (name'group, n) <- zip asList  [1..]
                               , (i,g) <- zip [1..] $ nmapToList $ snd name'group
-                              , let x = nkKey . lastEx $ fst g --  :: Int --  # of the serie
-                              , let y = nkKey . snd $ fst name'group --  n :: Int --  # of the serie
+                              , let x = pvToText . nkKey . lastEx $ fst g --  :: Int --  # of the serie
+                              , let y = nkeyWithRank $ fst name'group --  n :: Int --  # of the serie
                               , let v = abs <$> (getSize >>=  ($ (snd . snd $ g))) :: Maybe Double -- # of  for the colun
-                              , let text = fmap (\vv -> (tshow . nkKey $ lastEx (fst g)) <> " " <> (tshow . nkKey $ snd (fst name'group)) <> " = " <> tshow vv) v
+                              , let text = fmap (\vv -> ( x <> " " <> tshow vv)) v
                               , let colour = getColour >>= ($ (snd . snd $ g)) :: Maybe Double  
                               ]
         t x = x :: Text
@@ -1526,7 +1528,7 @@ bubbleTrace asList params =
                                             <> case getColour of
                                                   Nothing -> []
                                                   Just _ -> ["color" .= colours]
-                                             <> ["colorscale" .= t "YlGn"]
+                                             <> ["colorscale" .= t "Greens"]
                                              )
                                         
                         ]
