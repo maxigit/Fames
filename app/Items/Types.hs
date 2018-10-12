@@ -402,36 +402,36 @@ sortAndLimit  (Just (sortFn, modeM, limitM, reverseOrder):cols) (NMap mr levels 
     Just limit ->  splitAt limit sorted
   cleanNMap = map snd
 
-  limited = makeResidualXXX modeM (cleanNMap bests) (cleanNMap residuals)
+  limited = makeResidual modeM (cleanNMap bests) (cleanNMap residuals)
   in NMap (sortFn (NMapKey PersistNull) mr, mr) (levels) (Map.fromList $ limited)
 
 
-makeResidualXXX :: Monoid w
+makeResidual :: Monoid w
   => Maybe RankMode
   -> [(NMapKey, NMap (w, TranQP))]
   -> [(NMapKey, NMap (w, TranQP))]
   -> [(NMapKey, NMap (w, TranQP))]
-makeResidualXXX Nothing bests residuals = bests
-makeResidualXXX (Just RMResidual) bests residuals = bests <> [aggregateResidualsXXX "Last" residuals]
-makeResidualXXX (Just RMResidualAvg) bests residuals = bests <> averageResidualsXXX "Last" residuals
-makeResidualXXX (Just RMTotal) bests residuals = averageResidualsXXX "All" (bests <> residuals)
-makeResidualXXX (Just RMAverage) bests residuals = averageResidualsXXX "All" (bests <> residuals)
-makeResidualXXX (Just RMBest) bests residuals = [aggregateResidualsXXX "Top" bests] <> residuals
-makeResidualXXX (Just RMBestAvg) bests residuals = averageResidualsXXX "Top" bests <> residuals
-makeResidualXXX (Just RMBestAndRes) bests residuals =
-  [aggregateResidualsXXX "Top" bests] <> [aggregateResidualsXXX "Last" residuals]
-makeResidualXXX (Just RMBestAndResAvg) bests residuals =
-  averageResidualsXXX "Top" bests <> averageResidualsXXX "Last" residuals
+makeResidual Nothing bests residuals = bests
+makeResidual (Just RMResidual) bests residuals = bests <> [aggregateResiduals "Last" residuals]
+makeResidual (Just RMResidualAvg) bests residuals = bests <> averageResiduals "Last" residuals
+makeResidual (Just RMTotal) bests residuals = averageResiduals "All" (bests <> residuals)
+makeResidual (Just RMAverage) bests residuals = averageResiduals "All" (bests <> residuals)
+makeResidual (Just RMBest) bests residuals = [aggregateResiduals "Top" bests] <> residuals
+makeResidual (Just RMBestAvg) bests residuals = averageResiduals "Top" bests <> residuals
+makeResidual (Just RMBestAndRes) bests residuals =
+  [aggregateResiduals "Top" bests] <> [aggregateResiduals "Last" residuals]
+makeResidual (Just RMBestAndResAvg) bests residuals =
+  averageResiduals "Top" bests <> averageResiduals "Last" residuals
 
 
 
-aggregateResidualsXXX :: Monoid t => Text -> [(a, t)] -> (NMapKey, t)
-aggregateResidualsXXX title key'nmaps = ( NMapKey (PersistText $ title <> "-" <> tshow (length key'nmaps))
+aggregateResiduals :: Monoid t => Text -> [(a, t)] -> (NMapKey, t)
+aggregateResiduals title key'nmaps = ( NMapKey (PersistText $ title <> "-" <> tshow (length key'nmaps))
                                      , mconcat $ map snd key'nmaps
                                      )
-averageResidualsXXX :: (Monoid w) => Text  -> [(NMapKey, NMap (w, TranQP))] -> [(NMapKey, NMap (w, TranQP))]
-averageResidualsXXX title [] = []
-averageResidualsXXX title key'nmaps = let
+averageResiduals :: (Monoid w) => Text  -> [(NMapKey, NMap (w, TranQP))] -> [(NMapKey, NMap (w, TranQP))]
+averageResiduals title [] = []
+averageResiduals title key'nmaps = let
   n = length key'nmaps
   nmap = mconcat (map snd key'nmaps)
   in [( NMapKey (PersistText $ title <> "/" <> tshow (length key'nmaps))
@@ -445,37 +445,15 @@ averageResidualsXXX title key'nmaps = let
 -- m = NMap [Just "level1"] (mapFromList [(PersistText "x", NLeaf "1")])
 -- n = NLeaf "a"
 
-makeResidual :: Maybe RankMode
+makeResidualNoRank :: Maybe RankMode
              -> [(NMapKey, NMap TranQP)] -- bests
              -> [(NMapKey, NMap TranQP)] -- last
              -> [(NMapKey, NMap TranQP)]
-makeResidual Nothing bests residuals = bests
-makeResidual (Just RMResidual) bests residuals = bests <> (aggregateResiduals "Last" residuals)
-makeResidual (Just RMResidualAvg) bests residuals = bests <> averageResiduals "Last" residuals
-makeResidual (Just RMTotal) bests residuals = averageResiduals "All" (bests <> residuals)
-makeResidual (Just RMAverage) bests residuals = averageResiduals "All" (bests <> residuals)
-makeResidual (Just RMBest) bests residuals = (aggregateResiduals "Top" bests) <> residuals
-makeResidual (Just RMBestAvg) bests residuals = averageResiduals "Top" bests <> residuals
-makeResidual (Just RMBestAndRes) bests residuals =
-  (aggregateResiduals "Top" bests) <> (aggregateResiduals "Last" residuals)
-makeResidual (Just RMBestAndResAvg) bests residuals =
-  averageResiduals "Top" bests <> averageResiduals "Last" residuals
-
-
-
-aggregateResiduals :: Text  -> [(NMapKey, NMap TranQP)] -> [(NMapKey, NMap TranQP)]
-aggregateResiduals _ [] = []
-aggregateResiduals title key'nmaps = [( NMapKey (PersistText $ title <> "-" <> tshow (length key'nmaps))
-                                     , mconcat $ map snd key'nmaps
-                                     )
-                                     ]
-averageResiduals :: Text  -> [(NMapKey, NMap TranQP)] -> [(NMapKey, NMap TranQP)]
-averageResiduals title [] = []
-averageResiduals title key'nmaps = let
-  n = length key'nmaps
-  in [( NMapKey (PersistText $ title <> "/" <> tshow (length key'nmaps))
-                                     , fmap (mulTranQP (1/fromIntegral n)) . mconcat $ map snd key'nmaps
-                                     )]
+makeResidualNoRank rank best residuals = let
+  bestXXX = ((),) <$$$> best
+  residualsXXX = ((),) <$$$> residuals
+  result = makeResidual rank bestXXX residualsXXX
+  in snd <$$$> result
 
 appendNMap :: (a -> a -> a) -> NMap a -> NMap a -> NMap a
 appendNMap appN (NLeaf x) (NLeaf y) =  NLeaf (x `appN` y)

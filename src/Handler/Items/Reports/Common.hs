@@ -1143,7 +1143,7 @@ processRupturesWith subProcessor parents (rupture, subruptures) nmap =  let
                          Nothing -> (sorted, [])
                          Just limit ->  splitAt limit sorted
 
-  limited = rev $ makeResidual (cpRankMode rupture) bests residuals
+  limited = rev $ makeResidualNoRank (cpRankMode rupture) bests residuals
   in mconcat $ zipWith  (\(k,n) i -> subProcessor k i (nmap, parents) subruptures n) limited [1..]
 
 
