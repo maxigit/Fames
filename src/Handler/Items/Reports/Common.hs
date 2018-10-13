@@ -1442,15 +1442,24 @@ bubbleTrace :: [((Int, NMapKey), NMap (Sum Double, TranQP))]
             -> Value
 bubbleTrace asList params =  
     let (getSize'p : getColour'p :  _) = (map (fmap $ fanl dataParamGetter) params) <> repeat Nothing
-        (xs, ys, vs, texts, colours) = unzip5 [  (x, y, v, text, colour)
+        (xs, ys, vs, texts, colours, symbols) = unzip6 [  (x, y, abs <$> v, text, colour, symbol)
                               | (name'group, n) <- zip asList  [1..]
                               , (i,g) <- zip [1..] $ nmapToList $ snd name'group
                               , let x = pvToText . nkKey . lastEx $ fst g --  :: Int --  # of the serie
                               , let y = nkeyWithRank $ fst name'group --  n :: Int --  # of the serie
-                              , let v = abs <$> (fst <$> getSize'p >>=  ($ (snd . snd $ g))) :: Maybe Double -- # of  for the colun
+                              , let v = (fst <$> getSize'p >>=  ($ (snd . snd $ g))) :: Maybe Double -- # of  for the colun
                               , let text = fmap (\vv -> ( x <> " " <> tshow vv)) v
                               , let colour = (fst <$> getColour'p) >>= ($ (snd . snd $ g)) :: Maybe Double  
+                              , let symbol = if maybe False (<0) v then t "diamond" else "circle"
                               ]
+        rgb :: (Double, Double, Double) -> Text
+        rgb (r, g, b) = pack $ printf "rgb(%d,%d,%d)" (round r :: Int) (round g :: Int) (round b :: Int)
+        palette rgbs = toJSON $ zip ix (map toJSON rgbs) where len = length rgbs 
+                                                               ix = [ toJSON (fromIntegral i / fromIntegral (len-1) :: Double) | i <- [0..len-1] ]
+        gradient3 (r0,g0,b0) (r1,g1,b1) n = zip3 (gradient r0 r1 n) (gradient g0 g1 n) (gradient b0 b1 n)
+        gradient :: Double -> Double  -> Int -> [Double]
+        gradient a b n = [ a + slope*fromIntegral i | i <- [0..n-1]] where slope = (b - a) / fromIntegral (n -1)
+        
         jsData = object [ "x"  .=  xs
                         , "y" .= ys
                         , "text" .= texts
@@ -1459,6 +1468,7 @@ bubbleTrace asList params =
                                                 Nothing -> [ "size" .= t "40"]
                                                 Just (_, p) -> [ "size" .= vs
                                                                , "sizemin" .= t "1"
+                                                               , "symbol" .= symbols
                                                                ] <> let diameter = [ "sizemode" .= t "diameter"
                                                                                    , "sizeref" .= case catMaybes vs of
                                                                                        [] -> 1
@@ -1474,9 +1484,24 @@ bubbleTrace asList params =
                                                                              VQuantity -> area
                                                                              _ -> diameter
                                             <> case getColour'p of
-                                                  Nothing -> []
-                                                  Just (_,p) -> ["color" .= colours]
-                                             <> ["colorscale" .= t "Greens"]
+                                                  Nothing -> ["colorscale" .= t "Greens"]
+                                                  Just (_,p) -> ["color" .= colours] <> case catMaybes colours of
+                                                    [] -> []
+                                                    css -> let mx = maximumEx (map abs css)
+                                                               (cmin, cscale) =  if minimumEx css < 0
+                                                                       then (-mx, palette . map rgb $ gradient3 (150,0,0) (255,200,255) 10 ++ drop 1 ( gradient3 (255,255,200) (0, 150, 0) 10 ) ) 
+                                                                       -- then (-mx, toJSON $  [[toJSON $ n/21, String $ "rgb(255,"<> tshow i <> "," <> tshow i <> ")"]  | n <- [0..10 :: Double] , let i = round $ 255*(n/10)]
+                                                                       --      <> [[toJSON $ ( n+11)/21, String $ "rgb("<> tshow i <> ",255," <> tshow i <> ")"] | n <- [1..10 :: Double] , let i = round $ 255*(1-n/10)]
+                                                                       --      )
+                                                                       else (0, palette . map rgb $ gradient3 (255,200,255) (0,150,0) 20 )
+                                                           in ["cauto" .= False
+                                                              ,"cmin" .= cmin
+                                                              ,"zmin" .= cmin
+                                                              , "cmax" .= mx
+                                                              , "zmax" .= mx
+                                                              , "showscale" .= True
+                                                              , "colorscale" .= cscale
+                                                              ]
                                              )
                                         
                         ]
@@ -1707,3 +1732,4 @@ itemToCsv param panelGrouperM colGrouper = do
 -- ** Utils
 -- splitToGroups :: (a -> k) -> (a -> a') ->   [(a,b)] -> [(k, (a',b))]
 
+  
