@@ -39,9 +39,9 @@ reportForm cols paramM extra = do
   (fBand, wBand) <- ruptureForm colOptions "Band" (rpBand <$> paramM)
   (fSerie, wSerie) <- ruptureForm colOptions "Series" (rpSerie <$> paramM)
   (fColRupture, vColRupture) <- ruptureForm colOptions  "Columns" (rpColumnRupture <$> paramM)
-  (fTrace1, wTrace1) <- traceForm 1 False "" (rpTraceParam <$> paramM)
-  (fTrace2, wTrace2) <- traceForm 2 False " 2" (rpTraceParam2 <$> paramM)
-  (fTrace3, wTrace3) <- traceForm 3 False " 3"(rpTraceParam3 <$> paramM)
+  (fTrace1, wTrace1) <- traceForm 1 False "" (rpDataParam <$> paramM)
+  (fTrace2, wTrace2) <- traceForm 2 False " 2" (rpDataParam2 <$> paramM)
+  (fTrace3, wTrace3) <- traceForm 3 False " 3"(rpDataParam3 <$> paramM)
   (fSales, vSales) <- mreq checkBoxField "Sales" (rpLoadSales <$> paramM)
   (fOrderInfo, vOrderInfo) <- mreq checkBoxField "OrderInfo" (rpLoadOrderInfo <$> paramM)
   (fPurchases, vPurchases) <- mreq checkBoxField "Purchases" (rpLoadPurchases <$> paramM)
@@ -78,7 +78,7 @@ mkReport today fFrom  fTo
   <*> fColRupture <*> fTrace1 <*> fTrace2 <*> fTrace3
   <*> fSales <*> fOrderInfo <*> fPurchases <*> fAdjustment <*> fForecast
   -- noneOption, amountOutOption, amountInOption :: ToJSON a =>  (Text, [(QPrice -> Amount, a -> [(Text, Value)], RunSum)])
-traceForm :: Int -> Bool -> String -> Maybe TraceParams -> MForm Handler (FormResult TraceParams, Widget)
+traceForm :: Int -> Bool -> String -> Maybe DataParams -> MForm Handler (FormResult DataParams, Widget)
 traceForm traceN nomode suffix p = do
   let
     dataTypeOptions = optionsPairs [(drop 2 (tshow qtype), qtype) | qtype <- [minBound..maxBound]]
@@ -101,15 +101,15 @@ traceForm traceN nomode suffix p = do
                                     ]
   (tType, vType) <-  mreq (selectField dataTypeOptions)
                            (fromString $ "type" <> suffix)
-                           (tpDataType <$> p) 
+                           (dpDataType <$> p) 
   (tParam, vParam) <- mreq (selectFieldList dataValueOptions)
                                             (fromString $ "value" <> suffix)
-                                            (tpDataParams <$> p) 
-  (tNormTarget, vNormTarget) <- mopt (selectField optionsEnum) (fromString $ "normTarget" <> suffix) (nmTarget <$$> tpDataNorm <$> p)
-  (tNormMargin, vNormMargin) <- mopt (selectField optionsEnum) (fromString $ "normMargin" <> suffix) (nmMargin <$$> tpDataNorm <$> p)
+                                            (dpDataTraceParams <$> p) 
+  (tNormTarget, vNormTarget) <- mopt (selectField optionsEnum) (fromString $ "normTarget" <> suffix) (nmTarget <$$> dpDataNorm <$> p)
+  (tNormMargin, vNormMargin) <- mopt (selectField optionsEnum) (fromString $ "normMargin" <> suffix) (nmMargin <$$> dpDataNorm <$> p)
   let form =  mapM_ renderField $ [vType, vParam ] <> if nomode then [] else [ vNormMargin, vNormTarget]
       norm = liftA2 NormalizeMode <$> tNormMargin <*> tNormTarget
-  return (TraceParams <$> tType <*> tParam <*> norm, form )
+  return (DataParams <$> tType <*> tParam <*> norm, form )
 
 ruptureForm :: [(Text, Column)] -> String -> Maybe ColumnRupture -> MForm Handler (FormResult ColumnRupture, Widget)
 ruptureForm colOptions title paramM = do
@@ -141,9 +141,9 @@ getItemsReportR mode = do
   today <- todayH
   (_, (band, serie, timeColumn)) <- getColsWithDefault
   let -- emptyRupture = ColumnRupture Nothing emptyTrace Nothing Nothing False
-      bestSales = TraceParams QPSales (mkIdentifialParam $ amountInOption 1) Nothing
-      sales = TraceParams QPSales (mkIdentifialParam $ amountOutOption 1) Nothing
-      emptyTrace = TraceParams QPSales (mkIdentifialParam noneOption) Nothing
+      bestSales = DataParams QPSales (mkIdentifialParam $ amountInOption 1) Nothing
+      sales = DataParams QPSales (mkIdentifialParam $ amountOutOption 1) Nothing
+      emptyTrace = DataParams QPSales (mkIdentifialParam noneOption) Nothing
       past = calculateDate (AddMonths (-3)) today
       tomorrow = calculateDate (AddDays 1) today
   
@@ -161,9 +161,9 @@ getItemsReportR mode = do
                            (ColumnRupture (Just band)  bestSales (Just RMResidual) (Just 20) False)--  rpBand :: ColumnRupture
                            (ColumnRupture (Just serie)  bestSales (Just RMResidual) (Just 20) False)--  rpSerie :: ColumnRupture
                            (emptyRupture {cpColumn = Just timeColumn})
-                           sales --  rpTraceParam :: TraceParams
-                           emptyTrace --  rpTraceParam2 :: TraceParams
-                           emptyTrace --  rpTraceParam3 :: TraceParams
+                           sales --  rpDataParam :: DataParams
+                           emptyTrace --  rpDataParam2 :: DataParams
+                           emptyTrace --  rpDataParam3 :: DataParams
                            True False True True Nothing
         _ -> ReportParam   today
                            (Just past) --  rpFrom :: Maybe Day
@@ -177,9 +177,9 @@ getItemsReportR mode = do
                            (ColumnRupture (Just serie) bestSales (Just RMResidual)  (Just 20) False)--  rpSerie :: ColumnRupture
                            emptyRupture   -- rpPanelRupture :: ColumnRupture
                            (emptyRupture {cpColumn = Just timeColumn}) --  rpColumnRupture :: Column
-                           sales --  rpTraceParam :: TraceParams
-                           emptyTrace --  rpTraceParam2 :: TraceParams
-                           emptyTrace --  rpTraceParam3 :: TraceParams
+                           sales --  rpDataParam :: DataParams
+                           emptyTrace --  rpDataParam2 :: DataParams
+                           emptyTrace --  rpDataParam3 :: DataParams
                            True False True True Nothing
 
   renderReportForm ItemsReportR mode (Just defaultReportParam) ok200 Nothing

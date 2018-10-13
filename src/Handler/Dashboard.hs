@@ -256,14 +256,14 @@ cumulStyle color = [("type", String "scatter")
                 , ("yaxis", "y2")
                 , ("showlegend", toJSON True)
               ]
-salesCurrentMonthFullUp param = param {rpTraceParam, rpTraceParam2} where
-      rpTraceParam = TraceParams QPSales (mkIdentifialParam cumulSales) Nothing
-      rpTraceParam2 = TraceParams QPSales (mkIdentifialParam amountSales) Nothing
+salesCurrentMonthFullUp param = param {rpDataParam, rpDataParam2} where
+      rpDataParam = DataParams QPSales (mkIdentifialParam cumulSales) Nothing
+      rpDataParam2 = DataParams QPSales (mkIdentifialParam amountSales) Nothing
   
-top20FullUp param = param {rpTraceParam2,rpTraceParam3} where
-      rpTraceParam2 = TraceParams QPSales (mkIdentifialParam amountSales) Nothing
-      rpTraceParam3 = TraceParams QPSales (mkIdentifialParam quantitySales) Nothing
-      -- rpTraceParam3 = TraceParams QPSales (mkIdentifialParam quantityOutOption) Nothing
+top20FullUp param = param {rpDataParam2,rpDataParam3} where
+      rpDataParam2 = DataParams QPSales (mkIdentifialParam amountSales) Nothing
+      rpDataParam3 = DataParams QPSales (mkIdentifialParam quantitySales) Nothing
+      -- rpDataParam3 = DataParams QPSales (mkIdentifialParam quantityOutOption) Nothing
 -- | Sales current months
 
 salesCurrentMonth f plotName = do
@@ -281,11 +281,11 @@ salesCurrentMonth f plotName = do
       rpStockFilter = Nothing
       rpPanelRupture = emptyRupture
       rpBand = emptyRupture
-      rpSerie = ColumnRupture  (Just periodColumn) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
-      rpColumnRupture = ColumnRupture  (Just dailyColumn) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
-      rpTraceParam = TraceParams QPSales (mkIdentifialParam cumulSales) (Just $ NormalizeMode NMBestInit NMBand )
-      rpTraceParam2 = TraceParams QPSales (mkIdentifialParam amountSales) (Just $ NormalizeMode NMTotal NMBand )
-      rpTraceParam3 = emptyTrace
+      rpSerie = ColumnRupture  (Just periodColumn) (DataParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
+      rpColumnRupture = ColumnRupture  (Just dailyColumn) (DataParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
+      rpDataParam = DataParams QPSales (mkIdentifialParam cumulSales) (Just $ NormalizeMode NMBestInit NMBand )
+      rpDataParam2 = DataParams QPSales (mkIdentifialParam amountSales) (Just $ NormalizeMode NMTotal NMBand )
+      rpDataParam3 = emptyTrace
       rpLoadSales = True
       rpLoadOrderInfo = False
       rpLoadPurchases = False
@@ -320,7 +320,7 @@ salesCurrentMonth f plotName = do
                   rpBand, rpSerie
                 , rpColumnRupture
                 ]
-  report <- itemReportWithRank param grouper (\nmap -> panelChartProcessor param (const 350) nmap plotName nmap)
+  report <- itemReportWithRank param grouper (\nmap -> plotChartDiv param (const 350) nmap plotName nmap)
   return $ report
 
 
@@ -340,12 +340,12 @@ top20ItemMonth f begin rupture = do
       rpPanelRupture = emptyRupture
       rpBand = emptyRupture
       rpSerie = ColumnRupture (Just rupture) bestSalesTrace (Just RMResidual) (Just 50) False
-      rpColumnRupture = ColumnRupture  Nothing (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing True
-      rpTraceParam = TraceParams QPSales (mkIdentifialParam $ amountOutOption 1) (Just $ NormalizeMode NMColumn NMSerie )
-      rpTraceParam2 = emptyTrace
-      -- rpTraceParam = TraceParams QPSales (mkIdentifialParam amountOutOption) (Just $ NormalizeMode NMRank NMBand )
-      -- rpTraceParam3 = TraceParams QPSales (mkIdentifialParam amountOutOption) Nothing
-      rpTraceParam3 = emptyTrace
+      rpColumnRupture = ColumnRupture  Nothing (DataParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing True
+      rpDataParam = DataParams QPSales (mkIdentifialParam $ amountOutOption 1) (Just $ NormalizeMode NMColumn NMSerie )
+      rpDataParam2 = emptyTrace
+      -- rpDataParam = DataParams QPSales (mkIdentifialParam amountOutOption) (Just $ NormalizeMode NMRank NMBand )
+      -- rpDataParam3 = DataParams QPSales (mkIdentifialParam amountOutOption) Nothing
+      rpDataParam3 = emptyTrace
       rpLoadSales = True
       rpLoadOrderInfo = False
       rpLoadPurchases = False
@@ -372,11 +372,11 @@ top100ItemYear which rupture = do
       rpPanelRupture = emptyRupture
       rpBand = emptyRupture
       rpSerie = ColumnRupture (Just rupture) bestSalesTrace (Just RMResidual) (Just 100) False
-      rpColumnRupture = ColumnRupture  (Just periodColumn) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing True
-      rpTraceParam2 = TraceParams QPSales (mkIdentifialParam $ amountOutOption 1) (Just $ NormalizeMode NMColumn NMSerie )
-      rpTraceParam = TraceParams QPSales (mkIdentifialParam $ amountOutOption 1) (Just $ NormalizeMode NMRank NMBand )
-      -- rpTraceParam3 = TraceParams QPSales (mkIdentifialParam amountOutOption) Nothing
-      rpTraceParam3 = emptyTrace
+      rpColumnRupture = ColumnRupture  (Just periodColumn) (DataParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing True
+      rpDataParam2 = DataParams QPSales (mkIdentifialParam $ amountOutOption 1) (Just $ NormalizeMode NMColumn NMSerie )
+      rpDataParam = DataParams QPSales (mkIdentifialParam $ amountOutOption 1) (Just $ NormalizeMode NMRank NMBand )
+      -- rpDataParam3 = DataParams QPSales (mkIdentifialParam amountOutOption) Nothing
+      rpDataParam3 = emptyTrace
       rpLoadSales = True
       rpLoadOrderInfo = False
       rpLoadPurchases = False
@@ -412,10 +412,10 @@ top100ItemYearChart plotName = do
       rpPanelRupture = emptyRupture
       rpBand = emptyRupture
       rpSerie = ColumnRupture (Just skuColumn) bestSalesTrace Nothing (Just 100) False
-      rpColumnRupture = ColumnRupture  (Just monthlyColumn) (TraceParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
-      rpTraceParam = TraceParams QPSales (mkIdentifialParam $ amountOutOption 1) Nothing 
-      rpTraceParam2 = emptyTrace
-      rpTraceParam3 = emptyTrace
+      rpColumnRupture = ColumnRupture  (Just monthlyColumn) (DataParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
+      rpDataParam = DataParams QPSales (mkIdentifialParam $ amountOutOption 1) Nothing 
+      rpDataParam2 = emptyTrace
+      rpDataParam3 = emptyTrace
       rpLoadSales = True
       rpLoadOrderInfo = False
       rpLoadPurchases = False
@@ -426,16 +426,16 @@ top100ItemYearChart plotName = do
                   rpBand, rpSerie
                 , rpColumnRupture
                 ]
-  report <- itemReportWithRank param grouper (\nmap -> panelChartProcessor param (const 350) nmap plotName nmap)
+  report <- itemReportWithRank param grouper (\nmap -> plotChartDiv param (const 350) nmap plotName nmap)
   return $ report
 
 
--- pivotRankProcessor:: [TraceParams] -> _ColumnRuptures -> NMap TranQP -> Widget
+-- pivotRankProcessor:: [DataParams] -> _ColumnRuptures -> NMap TranQP -> Widget
 -- pivotRankProcessor tparams = 
 --   processRupturesWith (panelPivotRankProcessor tparams "items-report-pivotRank") ()
   
 -- -- each nmap is a panel
--- panelPivotRankProcessor :: [TraceParams] -> Text -> NMapKey -> Int -> _ -> _ -> NMap TranQP ->  Widget
+-- panelPivotRankProcessor :: [DataParams] -> Text -> NMapKey -> Int -> _ -> _ -> NMap TranQP ->  Widget
 -- panelPivotRankProcessor tparams reportId = createKeyRankProcessor go where
 --   go key rank = let panelName = nkeyWithRank (rank, key)
 --                     panelId = reportId <> "-panel-" <> panelName
@@ -491,7 +491,7 @@ bandPivotRankProcessor tparams panelId key rank parents ruptures = createKeyRank
 
 -- get the list of the columns for that we need to
  -- nmap is a serie
-collectColumnsForPivotRank :: [TraceParams] -> NMapKey -> Int -> _parents -> _ruptures -> NMap TranQP -> [(_, Map (Int, NMapKey) Widget)]
+collectColumnsForPivotRank :: [DataParams] -> NMapKey -> Int -> _parents -> _ruptures -> NMap TranQP -> [(_, Map (Int, NMapKey) Widget)]
 collectColumnsForPivotRank tparams key rank parents ruptures@(r, ()) nmap = let
   (band, (panel, (all, ()))) = parents
   -- we are within a serie, we need to get all the used columns
@@ -511,14 +511,14 @@ collectColumnsForPivotRank tparams key rank parents ruptures@(r, ()) nmap = let
                                   floor
                                   normMode all panel band
                                   (fmap (tpValueGetter tp) . lookupGrouped qtype) (nmapRunSum (tpRunSum tp) nmap)
-           | TraceParams qtype tps normMode <- tparams
+           | DataParams qtype tps normMode <- tparams
            , tp <- getIdentified tps
            ]
   _:traces = [formatSerieValuesNMap (formatDouble' tp)
                                   (formatPercent tp normMode)
                                   normMode all panel band
                                   (fmap (tpValueGetter tp) . lookupGrouped qtype) (nmapRunSum (tpRunSum tp) nmap)
-             | TraceParams qtype tps normMode <- tparams
+             | DataParams qtype tps normMode <- tparams
              , tp <- getIdentified tps
              ]
   rankMap = [ ((rankForCol, column) , widget rankForCol column) 

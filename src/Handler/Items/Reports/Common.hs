@@ -35,9 +35,9 @@ data ReportParam = ReportParam
   , rpBand :: ColumnRupture
   , rpSerie :: ColumnRupture
   , rpColumnRupture :: ColumnRupture
-  , rpTraceParam :: TraceParams
-  , rpTraceParam2 :: TraceParams
-  , rpTraceParam3 :: TraceParams
+  , rpDataParam :: DataParams
+  , rpDataParam2 :: DataParams
+  , rpDataParam3 :: DataParams
   , rpLoadSales :: Bool
   , rpLoadOrderInfo :: Bool
   , rpLoadPurchases :: Bool
@@ -60,18 +60,30 @@ t x = x
 -- TODO could it be merged with Column ?
 data ColumnRupture = ColumnRupture
    { cpColumn :: Maybe Column
-   , cpSortBy :: TraceParams
+   , cpSortBy :: DataParams
    , cpRankMode :: Maybe RankMode
    , cpLimitTo :: Maybe Int
    , cpReverse :: Bool
    } deriving Show
 -- | Trace parameter for plotting 
-data TraceParams = TraceParams
-  { tpDataType :: QPType
-  , tpDataParams :: Identifiable [TraceParam]
-  , tpDataNorm :: Maybe NormalizeMode
-  }  deriving Show
+data DataParams' f g = DataParams
+  { dpDataType :: QPType
+  , dpDataTraceParams :: f (g TraceParam)
+  , dpDataNorm :: Maybe NormalizeMode
+  }  -- deriving Show
 
+type DataParams = DataParams' Identifiable []
+
+pattern DataParamsU qtype tps normMode <- DataParams qtype (Identifiable (_, tps)) normMode
+type DataParam = DataParams' Identity Identity
+pattern DataParam qtype tp normMode = DataParams qtype (Identity (Identity tp)) normMode
+deriving instance Show DataParams
+deriving instance Show DataParam
+
+dpDataTraceParam :: DataParam -> TraceParam
+dpDataTraceParam = runIdentity . runIdentity . dpDataTraceParams
+
+ 
 type Weight = (Sum Double, First PersistValue)
 -- We don't want to add the reverse facility in here
 -- as reverse is only use for display and not for for getting the residual
@@ -93,8 +105,8 @@ type Weight = (Sum Double, First PersistValue)
 --   Weight r a b <> Weight r' a' b' = Weight (r || r') (a <> a') (b <> b')
 
 cpSorter :: ColumnRupture -> NMapKey -> TranQP -> Weight
-cpSorter r@ColumnRupture{..} = case getIdentified $ tpDataParams cpSortBy of
-    (tp :_)->  \k tqp -> (Sum $ fromMaybe 0 $ (tpValueGetter tp) <$> (lookupGrouped (tpDataType cpSortBy) $ tqp), mempty)
+cpSorter r@ColumnRupture{..} = case getIdentified $ dpDataTraceParams cpSortBy of
+    (tp :_)->  \k tqp -> (Sum $ fromMaybe 0 $ (tpValueGetter tp) <$> (lookupGrouped (dpDataType cpSortBy) $ tqp), mempty)
     _ -> \k tqp -> (mempty ,First (Just $ nkKey k))
           
   
@@ -368,6 +380,9 @@ mkTraceParam (f, vtype, options, runsum) = TraceParam f vtype options runsum
 constMkKey :: PersistField b => (a -> b) -> p -> a -> NMapKey
 constMkKey fn = const ( mkNMapKey . toPersistValue . fn)
 
+-- dataParamGetter :: DataParam -> 
+dataParamGetter (DataParam qtype tp _) = fmap (tpValueGetter tp) . lookupGrouped qtype
+dataParamGetter _ = const Nothing
 -- | Change a day to match belong to the given period.
 -- This is useful when plotting data from different period
 -- but make them appears on the same abscissa.
@@ -485,13 +500,13 @@ w52 = Column "52W" (\p tk -> let day0 = addDays 1 $ fromMaybe (rpToday p) (rpTo 
                    )
 -- ** Default options
 emptyRupture = ColumnRupture Nothing emptyTrace Nothing Nothing False
-emptyTrace = TraceParams QPSales (mkIdentifialParam noneOption) Nothing
+emptyTrace = DataParams QPSales (mkIdentifialParam noneOption) Nothing
 noneOption = ("None" :: Text, [])
 amountOutOption n = ("Amount (Out)" ,   [(qpAmount Outward, VAmount, amountStyle n, RSNormal)] )
 amountInOption n = ("Amount (In)",     [(qpAmount Inward,  VAmount, amountStyle n, RSNormal)])
 
 -- ** Default trace
-bestSalesTrace = TraceParams QPSales (mkIdentifialParam $ amountInOption 1) Nothing
+bestSalesTrace = DataParams QPSales (mkIdentifialParam $ amountInOption 1) Nothing
 -- * DB
 loadItemTransactions :: ReportParam
                      -> ([(TranKey, TranQP)] -> NMap TranQP)
@@ -873,7 +888,7 @@ itemReportWithRank param cols processor = do
   return $ processor ranked
 
 itemReport :: ReportParam
-           -> ([TraceParams] -> (ColumnRupture, _) -> NMap TranQP -> b)
+           -> ([DataParams] -> (ColumnRupture, _) -> NMap TranQP -> b)
            -> Handler b
 itemReport param processor = do
   let panel = rpPanelRupture param
@@ -883,7 +898,7 @@ itemReport param processor = do
       -- for table, the exact meaning of the rupture doesn't matter
       cols = [ panel, band, serie, col]
       ruptures = (panel, (band, (serie, (col, ()))))
-      tparams = map ($ param) [rpTraceParam, rpTraceParam2, rpTraceParam3]
+      tparams = map ($ param) [rpDataParam, rpDataParam2, rpDataParam3]
   let grouper =  groupTranQPs param ((map cpColumn cols))
   grouped <- loadItemTransactions param grouper
 
@@ -1090,11 +1105,11 @@ toCsv param grouped' = let
 sortAndLimitTranQP :: [ColumnRupture] -> NMap TranQP -> NMap (Sum Double, TranQP)
 sortAndLimitTranQP ruptures nmap = let
   mkCol :: ColumnRupture ->  Maybe (NMapKey ->  TranQP -> Sum Double , Maybe RankMode, Maybe Int, Bool)
-  mkCol (ColumnRupture{..}) = case (getIdentified (tpDataParams cpSortBy), cpColumn, cpReverse) of
+  mkCol (ColumnRupture{..}) = case (getIdentified (dpDataTraceParams cpSortBy), cpColumn, cpReverse) of
     (_, Nothing, False) -> Nothing
     ([], _col, False) -> Nothing
     ([], _, True) -> Just (\k mr -> Sum 0 , cpRankMode, cpLimitTo, cpReverse)
-    ((tp :_), _,_) -> Just ( \k mr -> Sum $ fromMaybe 0 $ (tpValueGetter tp) <$> (lookupGrouped (tpDataType cpSortBy) $ mr)
+    ((tp :_), _,_) -> Just ( \k mr -> Sum $ fromMaybe 0 $ (tpValueGetter tp) <$> (lookupGrouped (dpDataType cpSortBy) $ mr)
                            , cpRankMode
                            , cpLimitTo
                            , cpReverse
@@ -1154,40 +1169,35 @@ createKeyRankProcessor f key rank parents ruptures nmap= let
   in w children
       
 
+dataParamsToDataParam0s :: DataParams -> [DataParam]
+dataParamsToDataParam0s (DataParams qtype tparams tpNorm) =
+    [ DataParam qtype tparam tpNorm
+    | tparam <- getIdentified tparams
+    ]
+rpDataParam0ss :: ReportParam -> [[DataParam]]
+rpDataParam0ss param = map dataParamsToDataParam0s $ [rpDataParam,  rpDataParam2 , rpDataParam3] <*> [param]
+rpDataParam0s :: ReportParam -> [DataParam]
+rpDataParam0s = join . rpDataParam0ss
   
 plotChartDiv :: ReportParam -> (Int -> Int ) -> NMap (Sum Double, TranQP) -> Text -> NMap (Sum Double, TranQP) -> Widget 
-plotChartDiv param heightForBands all plotId0 grouped = do
-  let plotSeries all grouped bandName plotId bands = seriesChartProcessor all grouped (rpSerie param)
-                                                                          (isNothing $ cpColumn $ rpSerie param) traceParams bandName plotId bands
-      traceParams = [(qtype, tparam, tpNorm )
-                    | (TraceParams qtype tparams tpNorm ) <- [rpTraceParam,  rpTraceParam2 , rpTraceParam3]
-                                                        <*> [param]
-                    , tparam <- getIdentified tparams
-                    ]
-  renderPlotDiv plotSeries heightForBands all plotId0 grouped
-  -- let asList = nmapToNMapListWithRank grouped
-  --     numberOfBands = length asList
-  --     plotHeight = heightForBands numberOfBands -- max 350 (900 `div` numberOfBands)
-  -- forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
-  --       do
-  --         let -- byColumn = nmapToNMapList grouped -- fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) (unNMap TranQP' bands)
-  --             plot = seriesChartProcessor all grouped (rpSerie param) (isNothing $ cpColumn $ rpSerie param) traceParams (nkeyWithRank bandName) plotId bands 
-  --             plotId = plotId0 <> "-" <> tshow i
-  --         [whamlet|
-  --           <div id=#{plotId} style="height:#{tshow plotHeight }px">
-  --               ^{plot}
-  --                 |]
+plotChartDiv param heightForBands all plotId0 panels = do
+  let plotSeries bandName plotId bands =
+        seriesChartProcessor all panels (rpSerie param)
+                             (isNothing $ cpColumn $ rpSerie param)
+                             (rpDataParam0s param) bandName plotId bands
+  renderPlotDiv plotSeries heightForBands plotId0 panels
+
 -- | Draw a plot per band within a panel
 -- renderPlotDiv :: (_ -> _)
 --                    ->  (Int -> Int ) -> NMap (Sum Double, TranQP) -> Text -> NMap (Sum Double, TranQP) -> Widget 
-renderPlotDiv plotSeries heightForBands all plotId0 panels = do
+renderPlotDiv plotSeries heightForBands plotId0 panels = do
   let asList = nmapToNMapListWithRank panels
       numberOfBands = length asList
       plotHeight = heightForBands numberOfBands -- max 350 (900 `div` numberOfBands)
   forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
         do
           let -- byColumn = nmapToNMapList grouped -- fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) (unNMap TranQP' bands)
-              plot = plotSeries all panels (nkeyWithRank bandName) plotId bands 
+              plot = plotSeries (nkeyWithRank bandName) plotId bands 
               plotId = plotId0 <> "-" <> tshow i
           [whamlet|
             <div id=#{plotId} style="height:#{tshow plotHeight }px">
@@ -1340,7 +1350,7 @@ traceParamForChart mono asList params =  let
        ] -- ) (cycle defaultColors) [1 :: Int ..]
 
 seriesChartProcessor :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
-  -> ColumnRupture -> Bool -> [(QPType, TraceParam, Maybe NormalizeMode )]-> Text -> Text -> NMap (Sum Double, TranQP)  -> Widget 
+  -> ColumnRupture -> Bool -> [DataParam]-> Text -> Text -> NMap (Sum Double, TranQP)  -> Widget 
 seriesChartProcessor all panel rupture mono params name plotId grouped = do
      let -- ysFor :: Maybe NormalizeMode -> (b -> Maybe Double) -> [ (a, b) ] -> [ Maybe Value ]
          ysFor normM f g = map (fmap toJSON) $ formatSerieValues formatDouble (printf "%0.1f")normM all panel grouped f g
@@ -1364,7 +1374,7 @@ textValuesFor = map (toJSON . pvToText . fst)
 traceFor xsFor ysFor (param, (name', g'), color,groupId) = let
     g = [ (nkKey (snd n), mconcat (toList nmap))  | (n, nmap) <- nmapToNMapListWithRank g'' ] -- flatten everything if needed
     g'' = nmapRunSum (tpRunSum tp) g'
-    (qtype, tp , normMode) = param
+    DataParam qtype tp  normMode = param
     fn = fmap (tpValueGetter tp) . lookupGrouped qtype
     name = nkKey (snd name')
     in object $ [ "x" .=  xsFor g 
@@ -1384,33 +1394,33 @@ bubbleProcessor param grouped = do
   
 renderBubblePlotDiv :: ReportParam -> (Int -> Int ) -> NMap (Sum Double, TranQP) -> Text -> NMap (Sum Double, TranQP) -> Widget 
 renderBubblePlotDiv param heightForBands all plotId0 panels = do
-  let plotSeries all grouped bandName plotId bands =
+  let plotSeries bandName plotId bands =
         seriesBubbleProcessor all
                               panels
                               (rpSerie param)
                               (isNothing $ cpColumn $ rpSerie param)
                               (traceParamsForBubble param)
                               bandName plotId bands
-  renderPlotDiv plotSeries heightForBands all plotId0 panels
+  renderPlotDiv plotSeries heightForBands plotId0 panels
 
 -- | Normally, value (or trace params) given in then report parameter
 -- should generate traces with first the size and then the colour.
 -- things get more complicated because some trace can generated 1 or to 2 params (or nothing)
 -- depending on the configuration we group (or not) traces to be pair of size/colour
-traceParamsForBubble :: ReportParam -> [[Maybe (QPType, TraceParam, Maybe NormalizeMode )]] 
+traceParamsForBubble :: ReportParam -> [[Maybe DataParam]] 
 traceParamsForBubble param = 
-  let q'tp'norms = map extract $ [rpTraceParam, rpTraceParam2] <*> [param]
-      extract (TraceParams qtype tparams tpNorm) = (qtype, getIdentified tparams, tpNorm)
-      expand (qtype, tps, norm) = [Just (qtype, tp, norm) | tp <- tps]
+  let q'tp'norms = [rpDataParam, rpDataParam2] <*> [param]
+      -- expand (DataParams qtype tps norm) = [Just (DataParam qtype tp norm) | tp <- tps]
+      expand dps = map Just $ dataParamsToDataParam0s dps
       expanded = case q'tp'norms of
             -- if the first param is null and the second is only one, then 2nd is the colour
-            ( (_, [], _) : q@(qtype, [tparam], norm) : others) -> (Nothing: expand q) : map expand others
-            ( q@(_, [_], _) : q'@(_, [_], _) : others) -> (expand q <>  expand q') : map expand others
+            ( (DataParamsU _ [] _) : q@(DataParamsU qtype [tparam] norm) : others) -> (Nothing: expand q) : map expand others
+            ( q@(DataParamsU _ [_] _) : q'@(DataParamsU _ [_] _) : others) -> (expand q <>  expand q') : map expand others
             _ -> map expand q'tp'norms
   in filter (not . null) expanded
   
 seriesBubbleProcessor :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
-  -> ColumnRupture -> Bool -> [[Maybe (QPType, TraceParam, Maybe NormalizeMode )]]-> Text -> Text -> NMap (Sum Double, TranQP)  -> Widget 
+  -> ColumnRupture -> Bool -> [[Maybe DataParam]]-> Text -> Text -> NMap (Sum Double, TranQP)  -> Widget 
 seriesBubbleProcessor all panel rupture mono paramss name plotId grouped = do
      let asList = nmapToNMapListWithRank grouped
          jsDatas = map (bubbleTrace asList) paramss
@@ -1428,11 +1438,10 @@ seriesBubbleProcessor all panel rupture mono paramss name plotId grouped = do
                 |]
 -- | Generate a plot trace for bubble graph
 bubbleTrace :: [((Int, NMapKey), NMap (Sum Double, TranQP))]
-            -> [Maybe (QPType, TraceParam, Maybe NormalizeMode)]
+            -> [Maybe DataParam]
             -> Value
 bubbleTrace asList params =  
-    let (getSize: getColour: _) = (map (fmap tpToFn) params) <> repeat Nothing
-        tpToFn (qtype, tp, _) = fmap (tpValueGetter tp) . lookupGrouped qtype
+    let (getSize: getColour: _) = (map (fmap dataParamGetter) params) <> repeat Nothing
         (xs, ys, vs, texts, colours) = unzip5 [  (x, y, v, text, colour)
                               | (name'group, n) <- zip asList  [1..]
                               , (i,g) <- zip [1..] $ nmapToList $ snd name'group
@@ -1463,12 +1472,12 @@ bubbleTrace asList params =
     in jsData
 
 -- ** Pivot
-pivotProcessor:: [TraceParams] -> _ColumnRuptures -> NMap TranQP -> Widget
+pivotProcessor:: [DataParams] -> _ColumnRuptures -> NMap TranQP -> Widget
 pivotProcessor tparams =  do
   processRupturesWith (panelPivotProcessor tparams "items-report-pivot") ()
   
 -- each nmap is a panel
-panelPivotProcessor :: [TraceParams] -> Text -> NMapKey -> Int -> _ -> _ -> NMap TranQP ->  Widget
+panelPivotProcessor :: [DataParams] -> Text -> NMapKey -> Int -> _ -> _ -> NMap TranQP ->  Widget
 panelPivotProcessor tparams reportId = createKeyRankProcessor go where
   go key rank = let panelName = nkeyWithRank (rank, key)
                     panelId = reportId <> "-panel-" <> panelName
@@ -1514,7 +1523,7 @@ bandPivotProcessor tparams panelId key rank parents ruptures = createKeyRankProc
 
 -- get the list of the columns for that we need to
  -- nmap is a serie
-collectColumnsForPivot :: [TraceParams] -> NMapKey -> Int -> _parents -> _ruptures -> NMap TranQP -> [(_, _ -> Widget)]
+collectColumnsForPivot :: [DataParams] -> NMapKey -> Int -> _parents -> _ruptures -> NMap TranQP -> [(_, _ -> Widget)]
 collectColumnsForPivot tparams key rank parents ruptures@(r, ()) nmap = let
   (band, (panel, (all, ()))) = parents
   -- we are within a serie, we need to get all the used columns
@@ -1532,7 +1541,7 @@ collectColumnsForPivot tparams key rank parents ruptures@(r, ()) nmap = let
                                   (formatPercent tp normMode)
                                   normMode all panel band
                                   (fmap (tpValueGetter tp) . lookupGrouped qtype) (nmapRunSum (tpRunSum tp) nmap)
-           | TraceParams qtype tps normMode <- tparams
+           | DataParams qtype tps normMode <- tparams
            , tp <- getIdentified tps
            ]
   widget col's = [whamlet|
@@ -1557,12 +1566,7 @@ panelPivotProcessorXXX param all plotId0 grouped = do
   forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
         do
           let -- byColumn = nmapToNMapList grouped -- fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) (unNMap TranQP' bands)
-              traceParams = [(qtype, tparam, tpNorm )
-                            | (TraceParams qtype tparams tpNorm ) <- [rpTraceParam,  rpTraceParam2 , rpTraceParam3]
-                                                               <*> [param]
-                            , tparam <- getIdentified tparams
-                            ]
-              plot = bandPivotProcessorXXX all grouped (rpSerie param) (isNothing $ cpColumn $ rpSerie param) traceParams (nkeyWithRank bandName) plotId bands 
+              plot = bandPivotProcessorXXX all grouped (rpSerie param) (isNothing $ cpColumn $ rpSerie param) (rpDataParam0s param) (nkeyWithRank bandName) plotId bands 
               plotId = plotId0 <> "-" <> tshow i
           [whamlet|
             <div.negative-bad id=#{plotId}>
@@ -1570,7 +1574,7 @@ panelPivotProcessorXXX param all plotId0 grouped = do
                   |]
 -- | Display an html table (pivot) for each series
 bandPivotProcessorXXX :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
-  -> ColumnRupture -> Bool -> [(QPType, TraceParam, Maybe NormalizeMode )]-> Text -> Text -> NMap (Sum Double, TranQP)  -> Widget 
+  -> ColumnRupture -> Bool -> [DataParam]-> Text -> Text -> NMap (Sum Double, TranQP)  -> Widget 
 bandPivotProcessorXXX all panel rupture mono params name plotId grouped = let
   name'serieS = nmapToNMapListWithRank grouped
   -- it's a set but should be sorted by rank
@@ -1611,7 +1615,7 @@ bandPivotProcessorXXX all panel rupture mono params name plotId grouped = let
                    <td> #{nkeyWithRank serieName}
                      $forall column <- columns
                        <td>
-                        $forall (qtype, tp , normMode ) <- params
+                        $forall (DataParam qtype tp normMode ) <- params
                           $with serie <- formatSerieValuesNMapXXX (formatDouble' tp) (formatPercent tp normMode) normMode all panel grouped (fmap (tpValueGetter tp) . lookupGrouped qtype) (nmapRunSum (tpRunSum tp) serie0)
                             <div.just-right>#{fromMaybe "-" $ lookup (snd column) serie}
              |]
