@@ -1441,30 +1441,33 @@ bubbleTrace :: [((Int, NMapKey), NMap (Sum Double, TranQP))]
             -> [Maybe DataParam]
             -> Value
 bubbleTrace asList params =  
-    let (getSize: getColour: _) = (map (fmap dataParamGetter) params) <> repeat Nothing
+    let (getSize'p : getColour'p :  _) = (map (fmap $ fanl dataParamGetter) params) <> repeat Nothing
         (xs, ys, vs, texts, colours) = unzip5 [  (x, y, v, text, colour)
                               | (name'group, n) <- zip asList  [1..]
                               , (i,g) <- zip [1..] $ nmapToList $ snd name'group
                               , let x = pvToText . nkKey . lastEx $ fst g --  :: Int --  # of the serie
                               , let y = nkeyWithRank $ fst name'group --  n :: Int --  # of the serie
-                              , let v = abs <$> (getSize >>=  ($ (snd . snd $ g))) :: Maybe Double -- # of  for the colun
+                              , let v = abs <$> (fst <$> getSize'p >>=  ($ (snd . snd $ g))) :: Maybe Double -- # of  for the colun
                               , let text = fmap (\vv -> ( x <> " " <> tshow vv)) v
-                              , let colour = getColour >>= ($ (snd . snd $ g)) :: Maybe Double  
+                              , let colour = (fst <$> getColour'p) >>= ($ (snd . snd $ g)) :: Maybe Double  
                               ]
         jsData = object [ "x"  .=  xs
                         , "y" .= ys
                         , "text" .= texts
                         , "mode" .= t "markers"
-                        , "marker" .= object ( case getSize of
+                        , "marker" .= object ( case getSize'p of
                                                 Nothing -> [ "size" .= t "40"]
-                                                Just _ -> [ "size" .= vs
-                                                          , "sizemode" .= t "area"
+                                                Just (_, p) -> [ "size" .= vs
+                                                          , "sizemode" .= case tpValueType (dpDataTraceParam p) of
+                                                                             VAmount -> t "area"
+                                                                             VQuantity -> t "area"
+                                                                             _ -> t "diameter"
                                                           , "sizemin" .= t "1"
                                                           , "sizeref" .= t "1"
                                                           ]
-                                            <> case getColour of
+                                            <> case getColour'p of
                                                   Nothing -> []
-                                                  Just _ -> ["color" .= colours]
+                                                  Just (_,p) -> ["color" .= colours]
                                              <> ["colorscale" .= t "Greens"]
                                              )
                                         
