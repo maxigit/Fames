@@ -19,6 +19,9 @@ import Database.Persist.Sql hiding (Column)
 import Text.Printf(printf)
 import Formatting
 import Data.Monoid(Sum(..), First(..))
+import Data.Align(align)
+import Data.These 
+import Lens.Micro.Extras (preview)
 
 -- * Param
 data ReportParam = ReportParam
@@ -1399,6 +1402,13 @@ traceFor xsFor ysFor (param, (name', g'), color,groupId) = let
                 -- <> maybe [] (\color -> [("color", String color)]) colorM
                 <> tpChartOptions tp color
                 <> (if name == PersistNull then [] else ["name" .= nkeyWithRank name'])
+
+nmapToListWithRunSum :: (Ord w, Monoid a, Monoid w) =>
+         RunSum -> NMap (w, a) -> [(PersistValue, (w, a))]
+nmapToListWithRunSum runSum g' = let
+    g = [ (nkKey (snd n), mconcat (toList nmap))  | (n, nmap) <- nmapToNMapListWithRank g'' ] -- flatten everything if needed
+    g'' = nmapRunSum runSum g'
+    in g
 -- ** Bubble
 bubbleProcessor :: ReportParam -> NMap (Sum Double, TranQP) -> Widget 
 bubbleProcessor param grouped = do
@@ -1436,7 +1446,7 @@ seriesBubbleProcessor :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
   -> ColumnRupture -> Bool -> [[Maybe DataParam]]-> Text -> Text -> NMap (Sum Double, TranQP)  -> Widget 
 seriesBubbleProcessor all panel rupture mono paramss name plotId grouped = do
      let asList = nmapToNMapListWithRank grouped
-         jsDatas = map (bubbleTrace asList) paramss
+         jsDatas = map (bubbleTrace all panel grouped asList) paramss
      toWidgetBody [julius|
           Plotly.plot( #{toJSON plotId}
                     , #{toJSON jsDatas}
@@ -1450,19 +1460,27 @@ seriesBubbleProcessor all panel rupture mono paramss name plotId grouped = do
                     );
                 |]
 -- | Generate a plot trace for bubble graph
-bubbleTrace :: [((Int, NMapKey), NMap (Sum Double, TranQP))]
-            -> [Maybe DataParam]
-            -> Value
-bubbleTrace asList params =  
+-- bubbleTrace :: [((Int, NMapKey), NMap (Sum Double, TranQP))]
+--             -> [Maybe DataParam]
+--             -> Value
+bubbleTrace all panel band asList params =  
     let (getSize'p : getColour'p :  _) = (map (fmap $ fanl dataParamGetter) params) <> repeat Nothing
+        runSumFor getFn'p grp =
+          case getFn'p of
+            Just (fn, DataParam _ tp normMode) ->
+                let runsumed = nmapRunSum (tpRunSum tp) $ grp
+                in formatSerieValues id id normMode all panel band fn runsumed 
+            _ -> replicate (length grp) Nothing
         (xs, ys, vs, texts, colours, symbols) = unzip6 [  (x, y, abs <$> v, text, colour, symbol)
-                              | (name'group, n) <- zip asList  [1..]
-                              , (i,g) <- zip [1..] $ nmapToList $ snd name'group
-                              , let x = pvToText . nkKey . lastEx $ fst g --  :: Int --  # of the serie
-                              , let y = nkeyWithRank $ fst name'group --  n :: Int --  # of the serie
-                              , let v = (fst <$> getSize'p >>=  ($ (snd . snd $ g))) :: Maybe Double -- # of  for the colun
+                              | ((name,group), n) <- zip asList  [1..]
+                              , let gForSize = runSumFor getSize'p group
+                              , let gForColor = runSumFor getColour'p group
+                              , ((k,_), v, colour) <- zip3 (nmapToNMapList group) gForSize gForColor
+                              , let x = pvToText $ nkKey k --  :: Int --  # of the serie
+                              , let y = nkeyWithRank $ name --  n :: Int --  # of the serie
+                              -- , let v =  (fst <$> getSize'p) >>= ($ gsm)  :: Maybe Double -- # of  for the colun
                               , let text = fmap (\vv -> ( x <> " " <> tshow vv)) v
-                              , let colour = (fst <$> getColour'p) >>= ($ (snd . snd $ g)) :: Maybe Double  
+                              -- , let colour = (fst <$> getColour'p) >>= ($ gcm)
                               , let symbol = if maybe False (<0) v then t "diamond" else "circle"
                               ]
         rgb :: (Double, Double, Double) -> Text
