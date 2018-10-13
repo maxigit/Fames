@@ -1458,13 +1458,21 @@ bubbleTrace asList params =
                         , "marker" .= object ( case getSize'p of
                                                 Nothing -> [ "size" .= t "40"]
                                                 Just (_, p) -> [ "size" .= vs
-                                                          , "sizemode" .= case tpValueType (dpDataTraceParam p) of
-                                                                             VAmount -> t "area"
-                                                                             VQuantity -> t "area"
-                                                                             _ -> t "diameter"
-                                                          , "sizemin" .= t "1"
-                                                          , "sizeref" .= t "1"
-                                                          ]
+                                                               , "sizemin" .= t "1"
+                                                               ] <> let diameter = [ "sizemode" .= t "diameter"
+                                                                                   , "sizeref" .= case catMaybes vs of
+                                                                                       [] -> 1
+                                                                                       vss -> 2*(maximumEx vss) / 40
+                                                                                   ]
+                                                                        area = [ "sizemode" .= t "area"
+                                                                               , "sizeref" .= case catMaybes vs of
+                                                                                                [] -> 1
+                                                                                                vss -> 2*(maximumEx vss) / (40 * 40)
+                                                                               ]
+                                                                    in case tpValueType (dpDataTraceParam p) of
+                                                                             VAmount -> area
+                                                                             VQuantity -> area
+                                                                             _ -> diameter
                                             <> case getColour'p of
                                                   Nothing -> []
                                                   Just (_,p) -> ["color" .= colours]
