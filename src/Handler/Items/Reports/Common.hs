@@ -1235,7 +1235,7 @@ formatSerieValues formatValue formatPercent mode all panel band f nmap = let
   output = formatSerieValuesNMapXXX formatValue formatPercent mode all panel band f nmap
   in map (flip lookup output ) keys
 
-nmapRunSum :: (Show b, Monoid b) => RunSum -> NMap b -> NMap b
+nmapRunSum :: (Monoid b) => RunSum -> NMap b -> NMap b
 nmapRunSum runsum nmap = let
   nmap' = [ (key, mconcat (toList nmap))  | (key, nmap) <- nmapToNMapList nmap ] -- flatten everything if needed
   key'sumS =  case runsum of
@@ -1371,6 +1371,19 @@ seriesChartProcessor all panel rupture mono params name plotId grouped = do
   
 textValuesFor = map (toJSON . pvToText . fst)
 
+traceFor :: ([(PersistValue, (Sum Double, TranQP))] -> [Value]) -- ^ generate x values/l
+         -> ( -- ^ generates ys as Double
+               Maybe NormalizeMode -- ^ use how to apply magin
+            -> (TranQP -> Maybe Double) -- ^ value getter
+            -> NMap (Sum Double, TranQP)
+            -> [Maybe Value])
+         -> (DataParam
+            , ((Int, NMapKey) -- ^ rank and trace/serie name
+              , NMap (Sum Double, TranQP)) -- ^ values to graph
+              , Text -- ^ colour
+              , Int -- ^ group id
+              )
+         -> Value
 traceFor xsFor ysFor (param, (name', g'), color,groupId) = let
     g = [ (nkKey (snd n), mconcat (toList nmap))  | (n, nmap) <- nmapToNMapListWithRank g'' ] -- flatten everything if needed
     g'' = nmapRunSum (tpRunSum tp) g'
