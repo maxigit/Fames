@@ -1538,6 +1538,95 @@ bubbleTrace all panel band asList params =
                         ]
     in jsData
 
+-- ** Scatter
+  -- | Like bubble map but uses 2 measures instead of 2 categories
+scatterProcessor :: ReportParam -> NMap (Sum Double, TranQP) -> Widget 
+scatterProcessor param grouped = do
+  renderPanelWith  "items-report-scatter" grouped (renderScatterPlotDiv param $ \n -> max 350 (900 `div` n))
+        
+  
+renderScatterPlotDiv :: ReportParam -> (Int -> Int ) -> NMap (Sum Double, TranQP) -> Text -> NMap (Sum Double, TranQP) -> Widget 
+renderScatterPlotDiv param heightForBands all plotId0 panels = do
+  let plotSeries bandName plotId bands =
+        seriesScatterProcessor all
+                              panels
+                              (rpSerie param)
+                              (isNothing $ cpColumn $ rpSerie param)
+                              [map Just $ rpDataParam0s param]
+                              bandName plotId bands
+  renderPlotDiv plotSeries heightForBands plotId0 panels
+
+seriesScatterProcessor :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
+  -> ColumnRupture -> Bool -> [[Maybe DataParam]]-> Text -> Text -> NMap (Sum Double, TranQP)  -> Widget 
+seriesScatterProcessor all panel rupture mono paramss name plotId grouped = do
+     let asList = nmapToNMapListWithRank grouped
+         jsDatas = map (scatterTrace all panel grouped asList) paramss
+     toWidgetBody [julius|
+          Plotly.plot( #{toJSON plotId}
+                    , #{toJSON jsDatas}
+                    , { margin: { t: 30 }
+                      , title: #{toJSON name}
+                      , yaxis2 : {overlaying: 'y', title: "Quantities", side: "right"}
+                      , yaxis3 : {overlaying: 'y', title: "Amount(T)", side: "right"}
+                      , yaxis4 : {overlaying: 'y', title: "Quantities(T)", side: "left"}
+                      , yaxis5 : {overlaying: 'y', title: "Price"}
+                      }
+                    );
+                |]
+-- | Generate a plot trace for scatter graph
+scatterTrace :: NMap (Sum Double, TranQP)
+             -> NMap (Sum Double, TranQP)
+             -> NMap (Sum Double, TranQP)
+             ->   [((Int, NMapKey), NMap (Sum Double, TranQP))]
+            -> [Maybe DataParam]
+            -> Value
+scatterTrace all panel band asList params =  
+    let (getX'p : getY'p : getSize'p:  _) = (map (fmap $ fanl dataParamGetter) params) <> repeat Nothing
+        runSumFor getFn'p grp =
+          case getFn'p of
+            Just (fn, DataParam _ tp normMode) ->
+                let runsumed = nmapRunSum (tpRunSum tp) $ grp
+                in formatSerieValues id id normMode all panel band fn runsumed 
+            _ -> replicate (length grp) Nothing
+        (xs, ys, vs, texts, colours, symbols) = unzip6 [  (x, y, abs <$> v, text, colour, symbol)
+                              | ((name,group), colour) <- zip asList  defaultColors
+                              , let gForSize = runSumFor getSize'p group
+                              , let gForX = runSumFor getX'p group
+                              , let gForY = runSumFor getY'p group
+                              , ((k,_), x, y, v) <- zip4 (nmapToNMapList group) gForX gForY gForSize
+                              -- , let v =  (fst <$> getSize'p) >>= ($ gsm)  :: Maybe Double -- # of  for the colun
+                              , let text = pvToText . nkKey $ snd name --  fmap (\vv -> (( pvToText . nkKey $ snd name ) <> " " <> tshow vv)) v
+                              -- , let colour = (fst <$> getColour'p) >>= ($ gcm)
+                              , let symbol = if maybe False (<0) v then t "diamond" else "circle"
+                              ]
+        jsData = object [ "x"  .=  xs
+                        , "y" .= ys
+                        , "text" .= texts
+                        , "mode" .= t "markers"
+                        , "marker" .= object ( case getSize'p of
+                                                Nothing -> [ "size" .= t "40"]
+                                                Just (_, p) -> [ "size" .= vs
+                                                               , "sizemin" .= t "1"
+                                                               , "symbol" .= symbols
+                                                               ] <> let diameter = [ "sizemode" .= t "diameter"
+                                                                                   , "sizeref" .= case catMaybes vs of
+                                                                                       [] -> 1
+                                                                                       vss -> 2*(maximumEx vss) / 40
+                                                                                   ]
+                                                                        area = [ "sizemode" .= t "area"
+                                                                               , "sizeref" .= case catMaybes vs of
+                                                                                                [] -> 1
+                                                                                                vss -> 2*(maximumEx vss) / (40 * 40)
+                                                                               ]
+                                                                    in case tpValueType (dpDataTraceParam p) of
+                                                                             VAmount -> area
+                                                                             VQuantity -> area
+                                                                             _ -> diameter
+                                            <> ["color" .= colours]
+                                             )
+                                        
+                        ]
+    in jsData
 -- ** Pivot
 pivotProcessor:: [DataParams] -> _ColumnRuptures -> NMap TranQP -> Widget
 pivotProcessor tparams =  do

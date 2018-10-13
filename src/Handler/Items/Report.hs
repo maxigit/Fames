@@ -224,6 +224,7 @@ postItemsReportFor route mode = do
                     Just ReportChart -> itemReportWithRank param grouper (chartProcessor param)
                     Just ReportPivot -> itemReport param pivotProcessor
                     Just ReportBubble -> itemReportWithRank param grouper (bubbleProcessor param)
+                    Just ReportScatter -> itemReportWithRank param grouper (scatterProcessor param)
                     _ -> itemReportWithRank param tableGrouper (tableProcessor param)
                     -- _                -> itemReportWithRank param grouper (pivotProcessorXXX param)
               renderReportForm route mode (Just param) ok200 (Just report)
