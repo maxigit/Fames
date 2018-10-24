@@ -312,7 +312,7 @@ readMovesAndTags = readMovesAndTagsWith go where
     in traceShow ("MAT", tag'location, (tagM, locM)) $ processMovesAndTags (style, tagM, locM)
 
 splitTagsAndLocation tag'locations
-   | (tag, _:location@(_:_)) <- break (=='/') tag'locations = (just tag, just location)
+   -- | (tag, _:location@(_:_)) <- break (=='/') tag'locations = (just tag, just location)
    | (location , _:tag@(_:_)) <- break (=='#') tag'locations = (just tag, just location)
    | otherwise = (Nothing, Just tag'locations)
    where just [] = Nothing
