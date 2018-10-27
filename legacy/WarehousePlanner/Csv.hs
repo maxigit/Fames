@@ -309,7 +309,7 @@ readMovesAndTags :: String -> IO (WH [Box s] s)
 readMovesAndTags = readMovesAndTagsWith go where
   go (style, tag'location) =
     let (tagM, locM) = splitTagsAndLocation tag'location
-    in traceShow ("MAT", tag'location, (tagM, locM)) $ processMovesAndTags (style, tagM, locM)
+    in processMovesAndTags (style, tagM, locM)
 
 splitTagsAndLocation tag'locations
    -- | (tag, _:location@(_:_)) <- break (=='/') tag'locations = (just tag, just location)

@@ -8,7 +8,7 @@ import Data.Vector(Vector)
 import Control.Monad.State
 import Data.Monoid
 import qualified Data.Map.Strict as Map'
-import Data.List(sort, sortBy, groupBy, nub, (\\), union, maximumBy, delete)
+import Data.List(sort, sortBy, groupBy, nub, (\\), union, maximumBy, delete, stripPrefix)
 import Data.Maybe(catMaybes, fromMaybe)
 import Control.Applicative
 import Data.Ord (comparing, Down(..))
@@ -498,8 +498,7 @@ newBox style content dim or shelf ors tags = do
           "" -> tags
           _ -> ('\'':content): map (map replaceSlash) tags
     -- create tag of dimension
-        dtags = [dshow 'l' dLength, dshow 'w' dWidth, dshow 'h' dHeight]
-        dshow c f = '\'' : c : show (floor $ 100 * f dim)
+        dtags = dimensionTags dim
 
     ref <- lift $ newSTRef (error "should never been called. undefined. Base.hs:338")
     let box = Box (BoxId ref) (Just $ shelfId shelf) style content dim mempty or ors (tags' <> dtags) defaultPriorities
@@ -510,6 +509,31 @@ newBox style content dim or shelf ors tags = do
                   }
     return box
 
+-- | Generates tag for dimensions. Used when creating a box
+-- but also to delete the existing one when updating a box dimension
+dimensionTags :: Dimension  -> [String]
+dimensionTags dim = [dshow 'l' dLength, dshow 'w' dWidth, dshow 'h' dHeight]
+  where dshow c f = '\'' : c : show (floor $ 100 * f dim)
+
+-- | Extract new dimensions from tags
+extractDimensions :: Dimension -> [String] -> Maybe Dimension
+extractDimensions dim tags = case (go "'l", go "'w", go "'h'") of
+  (Nothing, Nothing, Nothing) -> Nothing
+  (l, w, h) -> Just dim { dLength = fromMaybe (dLength dim) l
+                        , dWidth = fromMaybe (dWidth dim) w
+                        , dHeight = fromMaybe (dHeight dim) h
+                        }
+  where go prefix = msum $ map (go' prefix) tags
+        go' prefix tag = (/100) `fmap` (stripPrefix prefix tag >>= readMaybe) 
+
+updateDimFromTags :: [String] -> Box s -> Box s
+updateDimFromTags tags box = case extractDimensions (_boxDim box) tags of
+  Nothing -> box
+  Just dim -> let to_add = trace "ADD" $ traceShowId $ dimensionTags dim
+                  to_remove = trace "REMOVE" $ traceShowId $ dimensionTags (_boxDim box)
+               in box { boxTags = trace "BEST" $ traceShowId ((trace "TAGS" (traceShowId $ boxTags box) \\ to_remove) <> to_add), _boxDim = dim  }
+
+ 
 -- | Assign a box to shelf regardless of if there is enough space
 -- left or not.
 -- For a "real" move see moveBox
@@ -797,7 +821,7 @@ updateBoxTags' tags box = let
   to_add = rights parsed
   to_remove = lefts parsed
   new = (btags <> to_add) \\ to_remove
-  in box {boxTags = new, boxPriorities = extractPriorities new}
+  in updateDimFromTags tags $ box {boxTags = new, boxPriorities = extractPriorities new}
 
 updateBoxTags :: [[Char]] -> Box s -> WH (Box s) s
 updateBoxTags tags0 box = do
