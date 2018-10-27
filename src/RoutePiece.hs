@@ -68,6 +68,9 @@ data PlannerViewMode = PlannerSummaryView
                      | PlannerGenerateMoves
                      | PlannerGenerateMovesWithTags
                      | PlannerScenarioHistory
+                     | PlannerBoxGroupReport -- ^ box dimensions and number summary per style
+                     -- | PlannerBoxGroupWarningReport -- ^ only group with different size Boxes
+                     -- | PlannerExport -- ^ Reexport a planner. Can be usefull to see where is what
   deriving (Eq, Read, Show, Enum, Bounded)
 instance PathPiece PlannerViewMode where
   fromPathPiece = readFromPathPiece

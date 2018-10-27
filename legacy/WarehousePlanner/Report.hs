@@ -444,24 +444,24 @@ groupBoxes :: (Box s -> Bool) -> WH [(Box s, Int)] s
 groupBoxes exclude = do
     boxIds <- toList <$> gets boxes
     boxes <- mapM findBox boxIds
+    groupBoxes' (filter (not . exclude) boxes)
 
+groupBoxes' :: [Box s] -> WH [(Box s, Int)] s
+groupBoxes' boxes =  do
     let groups = Map'.fromListWith (<>) [ (boxKeyForGroup b, [b])
-                                       | b <- boxes
-                                       , exclude b == False
-                                       ]
+                                        | b <- boxes
+                                        ]
         regroup bs = (last bs, length bs)
     return $ map regroup (Map'.elems groups)
 
-
-groupBoxesReport :: WH (IO ()) s
-groupBoxesReport = do
-  groups <- groupBoxes (const False)
+groupBoxesReport :: [Box s] -> WH [String] s
+groupBoxesReport boxes = do
+  groups <- groupBoxes' boxes
   let withVolumes = [(volume (boxDim b) * (fromIntegral q), b'q) | b'q@(b,q) <- groups ]
-  let sorted = sortBy (comparing (Down .  fst)) withVolumes
-  return $ do
-    forM_ sorted $ \(v, (box, qty)) -> do
+  let sorted = map snd $ sortBy (comparing (\(rank, (volume, _)) -> (rank, Down volume))) (zip [1..] withVolumes)
+  forM sorted $ \(v, (box, qty)) -> do
       let d = _boxDim box
-      putStrLn $ (boxStyle box ) ++ (concatMap showOrientation (boxBoxOrientations box )) ++   " x "  ++ show qty
+      return $ (boxStyle box ) ++ (concatMap showOrientation (boxBoxOrientations box )) ++   " x "  ++ show qty
                ++ " " ++ f (dLength d) ++ "," ++ f(dWidth d) ++ "," ++ f (dHeight d)
                ++ " " ++ f (v/1000000 ) ++ "m^3"
       where f = printf ("%0.1f")

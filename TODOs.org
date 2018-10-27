@@ -1,8 +1,18 @@
-* TODO Planner
-  - [ ] Doc (section name + header)
-  - [ ] Special syntax for section and free title (better error message)
-  - [ ] Keep last layout section but warn if needed
-  - [ ] SHA at "breaks"
+* TODO Planner [3/11]
+  - [X] Display style with different box sizes
+    - [X] filter with report param
+  - [ ] Display style boxes
+  - [ ] use tag to overwrite box dimension
+    - [ ] make sure virtual tags are updated
+  - [ ] clear colours ? nocolour ? -colour*
+  - [ ] filter shelfves with report param >
+  - [ ] filter moves report with report param
+  - [ ] generate move per single box
+  - [ ] add lxwxh syntax to orientation (limit stack up )
+    - [ ] allow diffenrt lxwxh for individual orientation
+  - [X] remove save buttons and co
+  - [X] make nav title nicer
+  - [ ] synchronize route with tab
 * TODO Chart
 ** Today [12/24] 
    - [ ] Big Rank Refactoring

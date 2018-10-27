@@ -24,6 +24,7 @@ import qualified Yesod.Media.Simple as M
 import Data.Text(strip, splitOn)
 import qualified Data.Map as Map
 import Handler.Util
+import Control.Monad.State
 
 -- * Type
 data ScenarioDisplayMode = NormalM | CompactM | InitialM | ExpandedM deriving (Eq, Show, Read)
@@ -454,6 +455,8 @@ renderView param0 = do
               PlannerGenerateMoves -> renderConsoleReport (generateMoves boxStyle) scenario
               PlannerGenerateMovesWithTags -> renderConsoleReport (generateMoves boxStyleWithTags) scenario
               PlannerScenarioHistory -> renderHistory
+              PlannerBoxGroupReport -> renderBoxGroupReport (pParameter param) scenario
+              -- PlannerBoxGroupReport -> renderBoxGroupReport
           return (param, w)
     
   (formW, encType) <- generateFormPost =<< paramForm (Just param)
@@ -561,6 +564,17 @@ renderShelvesReport scenario = do
 
 renderShelvesGroupReport :: Scenario -> Handler Widget
 renderShelvesGroupReport = renderConsoleReport groupShelvesReport
+
+
+renderBoxGroupReport :: Maybe Text ->  Scenario -> Handler Widget
+renderBoxGroupReport selectorM = renderConsoleReport report where
+  report = do
+    boxIds <- case selectorM of
+      Nothing -> toList <$> gets boxes
+      Just pat -> findBoxByStyleAndShelfNames (unpack pat)
+    boxes <- mapM findBox boxIds
+    groupBoxesReport boxes
+  
 
 -- renderConsoleReport :: Scenario )Scenario -> Handler Widget
 renderConsoleReport report scenario = do
