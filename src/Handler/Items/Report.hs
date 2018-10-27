@@ -263,9 +263,9 @@ renderReportForm  route modeM paramM status resultM = do
             $forall nav <- navs
               <li class=#{navClass nav}>
                 $if nav == ReportCsv
-                  <a href="@{ItemsR (ItemsReportR (Just nav))}"> #{drop 6 $ tshow nav}
+                  <a href="@{ItemsR (ItemsReportR (Just nav))}"> #{splitSnake $ drop 6 $ tshow nav}
                 $else
-                  <a.view-mode href="#" data-url="@{ItemsR (ItemsReportR (Just nav))}"> #{drop 6 $ tshow nav}
+                  <a.view-mode href="#" data-url="@{ItemsR (ItemsReportR (Just nav))}"> #{splitSnake $ drop 6 $ tshow nav}
           <div#items-report-result>
             ^{result}
       <div.well>

@@ -515,7 +515,7 @@ viewPackingList mode key pre = do
           <ul.nav.nav-tabs>
             $forall nav <-[Details, Edit, EditDetails, EditInvoices, Textcart,Stickers, StickerCsv, Chalk, Planner, PlannerColourless,Deliver, StocktakePL]
               <li class="#{navClass nav}">
-                <a href="@{WarehouseR (WHPackingListViewR key (Just nav)) }">#{tshow nav}
+                <a href="@{WarehouseR (WHPackingListViewR key (Just nav)) }">#{splitSnake $ tshow nav}
           ^{entitiesWidget}
                 |]
     _ -> notFound

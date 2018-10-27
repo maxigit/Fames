@@ -21,6 +21,7 @@ module Handler.Util
 , paleRed, paleGreen, paleBlue, paleAmber
 , tshowM
 , showDouble
+, splitSnake
 , basePriceList
 , timeProgress
 , allOperators
@@ -103,6 +104,8 @@ import qualified Data.Map as LMap
 -- import Data.IOData (IOData)
 import Database.Persist.MySQL(unSqlBackendKey, rawSql, Single(..))
 import System.Directory(listDirectory, doesDirectoryExist)
+import Data.Char(isUpper)
+import qualified Data.List.Split as Split 
 
 -- * Display entities
 -- | Display Persist entities as paginated table
@@ -545,6 +548,9 @@ toHtmlWithBreak t  = [shamlet|
 showDouble :: Double -> Html
 showDouble x = toHtml $ ( (printf "%.4f" x) :: String )
   
+-- | split snake
+splitSnake ::  Text -> Text
+splitSnake t = pack $ intercalate " " $ Split.split  (Split.keepDelimsL $ Split.whenElt isUpper) (unpack t)
 -- * Cached Value accross session
 -- cacheEntities :: PersistEntity e => Text -> Bool -> Handler (Map (Key e) e )
 cacheEntities cacheKey force = cache0 force cacheForEver cacheKey $ do

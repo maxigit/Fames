@@ -464,13 +464,10 @@ renderView param0 = do
 <form #planner-view-form role=form method=post action="@{PlannerR (PViewR (pViewMode param))}" encType="#{encType}">
   ^{formW}
   <button type="submit" .btn .btn-default name="mode" value="NormalM">Submit
-  <button type="submit" .btn .btn-default name="mode" value="CompactM">Compact
-  <button type="submit" .btn .btn-danger name="mode" value="InitialM">Save
-  <button type="submit" .btn .btn-primary name="mode" value="ExpandedM">Expand
   <ul.nav.nav-tabs>
     $forall nav <- navs
       <li class="#{navClass nav}">
-        <a.view-mode href="#" data-url="@{PlannerR (PViewR (Just nav))}">#{drop 7 (tshow nav)}
+        <a.view-mode href="#" data-url="@{PlannerR (PViewR (Just nav))}">#{splitSnake $ drop 7 (tshow nav)}
 <div#planner-view-view>
   ^{widget}
 |]
