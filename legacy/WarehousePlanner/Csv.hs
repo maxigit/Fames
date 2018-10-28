@@ -395,11 +395,12 @@ readOrientationRules defOrs filename = do
                               boxPatterns = patternToMatchers style
                               locPatterns = patternToMatchers location
                               ors = parseOrientationRule defOrs orientations
+                              (on, off) = maybe ([],[]) tagToOnOff boxTagM
 
                               in if and [ orTrue $ boxPatterns <*> [boxStyle box]
                                         , orTrue $ locPatterns <*> [shelfName shelf]
                                         , filterShelfByTag locationTagM shelf
-                                        , filterBoxByTag boxTagM box
+                                        , filterBoxByTag on off box
                                         ]
                                   then Just ors
                                   else Nothing

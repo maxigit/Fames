@@ -350,28 +350,31 @@ findShelfByName name' = do
   return $ map shelfId shelves1
 
 filterShelfByTag :: Maybe String -> Shelf s -> Bool
-filterShelfByTag tagM shelf = filterByTag  tagM (maybeToList $ shelfTag shelf)
+filterShelfByTag tagM shelf = case tagM of
+  Nothing -> True
+  Just tag -> let (on,off) = tagToOnOff tag
+              in filterByTag on off (maybeToList $ shelfTag shelf)
 
-filterBoxByTag :: Maybe String -> Box s -> Bool
-filterBoxByTag tagM box =  filterByTag tagM (boxTags box)
+filterBoxByTag :: [String -> Bool] -> [String -> Bool] -> Box s -> Bool
+filterBoxByTag ons offs box =  filterByTag ons offs (boxTags box)
 
 -- | all tags from the left must belong to the right
 -- ex if box as tag A B C, A#B should match but not A#E
-filterByTag :: Maybe [Char] -> [[Char]] -> Bool
-filterByTag Nothing names = True
-filterByTag _ [] = False
-filterByTag (Just selector) tags = let
+filterByTag :: [String -> Bool] -> [String -> Bool] -> [[Char]] -> Bool
+filterByTag on off tags = let
+  selectorMatched matcher = any matcher tags
+  in all selectorMatched (on) -- 
+     && not (any selectorMatched (off))
+
+tagToOnOff :: String -> ([String -> Bool], [String -> Bool])
+tagToOnOff selector =  let
   selectors = map ok $ splitOn "#" selector
   ok ('-':t) = Left t
   ok t = Right t
   on = rights selectors
   off = lefts selectors
   matchers ss = map (Glob.match . Glob.compile) ss
-  -- each selector must be matched
-  selectorMatched matcher = any matcher tags 
-  in all selectorMatched (matchers on) -- 
-     && not (any selectorMatched (matchers off))
-
+  in (matchers on, matchers off)
 patternToMatchers :: String -> [(String -> Bool)]
 patternToMatchers "" = [const True]
 patternToMatchers pat = map mkGlob (splitOn "|" pat) where
@@ -427,8 +430,10 @@ findBoxByStyleAndShelfNames style'' = do
   -- filter by tag if any
   let allBoxes = case boxtag of
                   Nothing -> allBoxesBeforeTag
-                  Just _ -> do
-                    filter (filterBoxByTag boxtag) allBoxesBeforeTag
+                  Just bt -> do
+                    let  (on, off) = tagToOnOff bt
+                         fb = filterBoxByTag on off 
+                    filter  fb allBoxesBeforeTag
 
   boxesWithShelfName <- mapM ( \b -> do
       shelfIdM <- findShelfByBox (boxId b)
