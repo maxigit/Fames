@@ -99,8 +99,7 @@ copyShelf sId = do
 copyBox :: Box t -> WH (ShelfId s -> WH (Box s) s) t
 copyBox Box{..} = return $ \shelf -> do
   newBox <- newBox boxStyle boxContent _boxDim orientation shelf boxBoxOrientations boxTags
-  updateBox (\b -> b { boxOffset = boxOffset}) newBox
-  -- return newBox
+  updateBox (\b -> b { boxOffset = boxOffset, boxTags = boxTags}) newBox
 
 -- * Exec
 -- underscores are stripped before looking for the color name

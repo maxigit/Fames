@@ -529,9 +529,9 @@ extractDimensions dim tags = case (go "'l", go "'w", go "'h'") of
 updateDimFromTags :: [String] -> Box s -> Box s
 updateDimFromTags tags box = case extractDimensions (_boxDim box) tags of
   Nothing -> box
-  Just dim -> let to_add = trace "ADD" $ traceShowId $ dimensionTags dim
-                  to_remove = trace "REMOVE" $ traceShowId $ dimensionTags (_boxDim box)
-               in box { boxTags = trace "BEST" $ traceShowId ((trace "TAGS" (traceShowId $ boxTags box) \\ to_remove) <> to_add), _boxDim = dim  }
+  Just dim -> let to_add = dimensionTags dim
+                  to_remove = dimensionTags (_boxDim box)
+               in box { boxTags = (boxTags box \\ to_remove) <> to_add, _boxDim = dim  }
 
  
 -- | Assign a box to shelf regardless of if there is enough space
@@ -821,7 +821,8 @@ updateBoxTags' tags box = let
   to_add = rights parsed
   to_remove = lefts parsed
   new = (btags <> to_add) \\ to_remove
-  in updateDimFromTags tags $ box {boxTags = new, boxPriorities = extractPriorities new}
+  in updateDimFromTags to_add $ box {boxTags = new, boxPriorities = extractPriorities new}
+
 
 updateBoxTags :: [[Char]] -> Box s -> WH (Box s) s
 updateBoxTags tags0 box = do
