@@ -434,6 +434,7 @@ renderView param0 = do
       vmode = pViewMode param0
   scenariosEM <-  forM (pPlannerDir param0) readScenariosFromDir 
   scenarioEM <- forM (pOrgfile param0) (readScenario . unTextarea)
+  Right extra <- readScenario "* Best Available shelves for"
   (param, widget) <- case liftA2 (,) (sequence scenariosEM) (sequence scenarioEM) of
       Left err -> setInfo plannerDoc >> setError (toHtml err) >> return (param0, "Invalid scenario")
       Right (scenariosM, scenarioM) ->  do
@@ -451,7 +452,11 @@ renderView param0 = do
               PlannerAllReport -> renderConsoleReport reportAll scenario
               PlannerBestBoxesFor -> renderConsoleReport (bestBoxesFor (unpack $ fromMaybe "" (pParameter param))) scenario
               PlannerBestShelvesFor -> renderConsoleReport (bestShelvesFor (unpack $ fromMaybe "" (pParameter param))) scenario
-              PlannerBestAvailableShelvesFor -> renderConsoleReport (bestAvailableShelvesFor (unpack $ fromMaybe "" (pParameter param))) scenario
+              PlannerBestAvailableShelvesFor -> let
+                -- needed to use a different key to cache the warehouse
+                -- as this report modify the warehouse. We don't want it to modify the cached one
+                in renderConsoleReport (bestAvailableShelvesFor (unpack $ fromMaybe "" (pParameter param))) (scenario `mappend` extra)
+
               PlannerGenerateMoves -> renderConsoleReport (generateMoves boxStyle) scenario
               PlannerGenerateMovesWithTags -> renderConsoleReport (generateMoves boxStyleWithTags) scenario
               PlannerScenarioHistory -> renderHistory
