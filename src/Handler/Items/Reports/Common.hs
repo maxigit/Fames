@@ -474,8 +474,16 @@ categoryColumnsH = do
 
 customerCategoryColumnsH = do
   categories <- customerCategoriesH
-  return [ Column ("customer:" <> cat) (constMkKey $ \tk -> maybe PersistNull PersistText $ Map.lookup cat (tkCustomerCategory tk))
-         | cat <- categories
+  -- branch
+  customerMap <- allCustomers False
+  let getBranch tk = do -- Maybe
+        (custId, branchNo) <- tkCustomer tk
+        let name = maybe (tshow custId)
+                         (decodeHtmlEntities . FA.debtorsMasterName )
+                         (Map.lookup (FA.DebtorsMasterKey $ fromIntegral custId) customerMap)
+        return $ name <> "#" <> tshow branchNo
+  return $ Column "customer:branch" (constMkKey $ maybe PersistNull PersistText . getBranch) : [ Column ("customer:" <> cat) (constMkKey $ \tk -> maybe PersistNull PersistText $ Map.lookup cat (tkCustomerCategory tk))
+                                       | cat <- categories
          ]
 orderCategoryColumnsH = do
   categories <- orderCategoriesH
