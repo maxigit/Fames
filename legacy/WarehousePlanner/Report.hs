@@ -379,7 +379,7 @@ generateMoves' boxName boxComments printGroup = do
  s'bS <- shelfBoxes
  let groups = Map'.fromListWith (<>) [ ((boxName b, boxComments b), [shelfName s])
                                      | (s,b) <- s'bS
-                                     , ["mop-exclude" `notElem` boxTags b
+                                     , ["mop-exclude"] `notElem` boxTags b
                                      ]
      printGroup' ((boxName, boxComments), shelves) = boxName ++ "," ++ printGroup boxComments (nub $ sort shelves)
  return ("stock_id,location"
