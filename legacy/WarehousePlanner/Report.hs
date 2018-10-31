@@ -5,6 +5,7 @@ module WarehousePlanner.Report
 , report
 , summary
 , generateMoves
+, generateMOPLocations
 , bestBoxesFor
 , bestShelvesFor
 , bestAvailableShelvesFor
@@ -33,7 +34,7 @@ import qualified Data.Set as Set
 import qualified Data.Sequence as Seq
 import Data.Sequence (Seq)
 import Data.Function(on)
-import Data.List (sortBy, partition, intercalate, nub, sort, tails)
+import Data.List (sortBy, partition, intercalate, nub, sort, tails, stripPrefix)
 import Data.Ord (comparing, Down(..))
 import Control.Applicative
 import Data.Monoid
@@ -370,16 +371,34 @@ boxStyleWithTags b = let
   in intercalate "#" (boxStyleAndContent b : tags)
  
 generateMoves :: (Box s -> String) -> WH [String] s
-generateMoves boxName = do
+generateMoves boxName = generateMoves' boxName (const Nothing) printGroup where
+     printGroup _boxComments shelves = intercalate "|" (groupNames shelves)
+-- generateMoves' :: (Box s -> String) -> (Box s -> [String]) -> WH [String] s
+generateMoves' :: (Box s -> String) -> (Box s -> Maybe String) -> (Maybe String -> [String] -> String ) -> WH [String] s
+generateMoves' boxName boxComments printGroup = do
  s'bS <- shelfBoxes
- let groups = Map'.fromListWith (<>) [ (boxName b, [shelfName s]) | (s,b) <- s'bS]
+ let groups = Map'.fromListWith (<>) [ ((boxName b, boxComments b), [shelfName s]) | (s,b) <- s'bS]
+     printGroup' ((boxName, boxComments), shelves) = boxName ++ "," ++ printGroup boxComments (nub $ sort shelves)
  return ("stock_id,location"
-        : map printGroup (Map'.toList groups)
+        : map printGroup' (Map'.toList groups)
         )
- where printGroup (box, shelves) =
-           let names = nub shelves :: [String]
-           in box ++ "," ++ (intercalate "|" (sort $ groupNames names))
+-- | Generates files compatible with MOP
+generateMOPLocations :: WH [String] s
+generateMOPLocations = generateMoves' boxName boxComments printGroup where
+  -- use box style unless the box is tagged as exception
+ boxName box = if  "mop-exception" `elem` boxTags box
+               then boxStyleAndContent box
+               else boxStyle box
+ -- add comment from tag
+ boxComments box = F.asum $ map (stripPrefix "mop-comment=") (boxTags box)
+ printGroup boxComment shelves =
+   case (boxComment, shelves) of
+          (Nothing, name:names) -> intercalate "|" (name : groupNames names) 
+          (Just comment, [name]) -> intercalate "|" [name , comment]
+          (Just comment, name:names) -> intercalate "|" (name : groupNames names)  ++ " " ++ comment
+                                        
 
+  
 -- * Optimizer
 -- find optimal way to rearrange the warehouse.
 -- The first things is to separate what needs to go on the "top" from

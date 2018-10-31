@@ -459,6 +459,7 @@ renderView param0 = do
 
               PlannerGenerateMoves -> renderConsoleReport (generateMoves boxStyle) scenario
               PlannerGenerateMovesWithTags -> renderConsoleReport (generateMoves boxStyleWithTags) scenario
+              PlannerGenerateMOPLocations -> renderConsoleReport (generateMOPLocations) scenario
               PlannerScenarioHistory -> renderHistory
               PlannerBoxGroupReport -> renderBoxGroupReport (pParameter param) scenario
               -- PlannerBoxGroupReport -> renderBoxGroupReport
