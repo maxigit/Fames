@@ -97,8 +97,8 @@ copyShelf sId = do
     return nId
   
 copyBox :: Box t -> WH (ShelfId s -> WH (Box s) s) t
-copyBox Box{..} = return $ \shelf -> do
-  newBox <- newBox boxStyle boxContent _boxDim orientation shelf boxBoxOrientations boxTags
+copyBox box@Box{..} = return $ \shelf -> do
+  newBox <- newBox boxStyle boxContent _boxDim orientation shelf boxBoxOrientations (boxTagList box)
   updateBox (\b -> b { boxOffset = boxOffset, boxTags = boxTags}) newBox
 
 -- * Exec
@@ -107,7 +107,7 @@ copyBox Box{..} = return $ \shelf -> do
 -- example, navy#_navy#white,  will use navy twice
 colorFromTag :: Box s -> Colour Double
 colorFromTag box = let
-  colors = mapMaybe readColourName (map (dropWhile (=='_')) (boxTags box))
+  colors = mapMaybe readColourName (map (dropWhile (=='_')) (boxTagList box))
   in case colors of
   [] -> wheat
   [col] -> col

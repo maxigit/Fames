@@ -367,7 +367,7 @@ boxStyleAndContent b = case boxContent b of
 boxStyleWithTags b = let
   isVirtual ('\'':_) = True
   isVirtual _ = False
-  tags = filter (not . isVirtual) (boxTags b)
+  tags = filter (not . isVirtual) (boxTagList b)
   in intercalate "#" (boxStyleAndContent b : tags)
  
 generateMoves :: (Box s -> String) -> WH [String] s
@@ -393,7 +393,7 @@ generateMOPLocations = generateMoves' boxName boxComments printGroup where
                then boxStyleAndContent box
                else boxStyle box
  -- add comment from tag
- boxComments box = F.asum $ map (stripPrefix "mop-comment=") (boxTags box)
+ boxComments box = F.asum $ map (stripPrefix "mop-comment=") (boxTagList box)
  printGroup boxComment shelves =
    case (boxComment, shelves) of
           (Nothing, name:names) -> intercalate "|" (name : groupNames names) 
@@ -570,7 +570,7 @@ newPair wh res (Just res') =
                                              (rOrientation res) -- current orientation
                                              shelf
                                              (boxBoxOrientations box)
-                                             (boxTags box)
+                                             (boxTagList box)
 
         tryW = do
           -- traceShowM ("NEW PAIR", res, res')

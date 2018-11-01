@@ -127,13 +127,15 @@ data Box s = Box { _boxId      :: BoxId s
                , boxOffset   :: !Dimension
                , orientation :: !Orientation -- ^ orientation of the box
                , boxBoxOrientations :: [Orientation]  -- ^ allowed orientation
-               , boxTags :: [String] --
+               , boxTags :: Set String --
                , boxPriorities :: (Int, Int, Int ) -- Global, within style, within content , default is 100
                } deriving (Show, Eq)
 
 boxKey :: Box s -> [Char]
 boxKey b = (boxStyle b) ++ (boxContent b)
 boxSku b = boxStyle b ++ "-" ++ boxContent b
+boxTagList :: Box s -> [String]
+boxTagList = Set.toList . boxTags
 
 -- | Return global dimension according
 -- to box orientation
@@ -356,11 +358,11 @@ filterShelfByTag tagM shelf = case tagM of
               in filterByTag on off (maybeToList $ shelfTag shelf)
 
 filterBoxByTag :: [String -> Bool] -> [String -> Bool] -> Box s -> Bool
-filterBoxByTag ons offs box =  filterByTag ons offs (boxTags box)
+filterBoxByTag ons offs box =  filterByTag ons offs (boxTagList box)
 
 -- | all tags from the left must belong to the right
 -- ex if box as tag A B C, A#B should match but not A#E
-filterByTag :: [String -> Bool] -> [String -> Bool] -> [[Char]] -> Bool
+filterByTag :: [String -> Bool] -> [String -> Bool] -> [String] -> Bool
 filterByTag on off tags = let
   selectorMatched matcher = any matcher tags
   in all selectorMatched (on) -- 
@@ -499,10 +501,10 @@ newShelf name tag minD maxD boxOrientator fillStrat = do
 newBox :: Shelf' shelf => String -> String ->  Dimension -> Orientation -> shelf s  -> [Orientation]-> [String] -> WH (Box s) s
 newBox style content dim or shelf ors tags = do
     warehouse <- get
-    let tags' = case content of
+    let tags' = Set.fromList $ case content of
           "" -> tags
           _ -> ('\'':content): map (map replaceSlash) tags
-    -- create tag of dimension
+          -- create tag of dimension
         dtags = dimensionTags dim
 
     ref <- lift $ newSTRef (error "should never been called. undefined. Base.hs:338")
@@ -516,27 +518,27 @@ newBox style content dim or shelf ors tags = do
 
 -- | Generates tag for dimensions. Used when creating a box
 -- but also to delete the existing one when updating a box dimension
-dimensionTags :: Dimension  -> [String]
-dimensionTags dim = [dshow 'l' dLength, dshow 'w' dWidth, dshow 'h' dHeight]
+dimensionTags :: Dimension  -> Set String
+dimensionTags dim = Set.fromList [dshow 'l' dLength, dshow 'w' dWidth, dshow 'h' dHeight]
   where dshow c f = '\'' : c : show (floor $ 100 * f dim)
 
 -- | Extract new dimensions from tags
-extractDimensions :: Dimension -> [String] -> Maybe Dimension
-extractDimensions dim tags = case (go "'l", go "'w", go "'h'") of
+extractDimensions :: Dimension -> Set String -> Maybe Dimension
+extractDimensions dim tags = case (go "'l", go "'w", go "'h") of
   (Nothing, Nothing, Nothing) -> Nothing
   (l, w, h) -> Just dim { dLength = fromMaybe (dLength dim) l
                         , dWidth = fromMaybe (dWidth dim) w
                         , dHeight = fromMaybe (dHeight dim) h
                         }
-  where go prefix = msum $ map (go' prefix) tags
+  where go prefix = msum $ map (go' prefix) (Set.toList tags)
         go' prefix tag = (/100) `fmap` (stripPrefix prefix tag >>= readMaybe) 
 
-updateDimFromTags :: [String] -> Box s -> Box s
+updateDimFromTags :: Set String -> Box s -> Box s
 updateDimFromTags tags box = case extractDimensions (_boxDim box) tags of
   Nothing -> box
   Just dim -> let to_add = dimensionTags dim
                   to_remove = dimensionTags (_boxDim box)
-               in box { boxTags = (boxTags box \\ to_remove) <> to_add, _boxDim = dim  }
+               in box { boxTags = (boxTags box Set.\\ to_remove) <> to_add, _boxDim = dim  }
 
  
 -- | Assign a box to shelf regardless of if there is enough space
@@ -823,9 +825,9 @@ updateBoxTags' tags box = let
   parse ('-':tag) = Left tag
   parse tag = Right tag
   parsed = map parse tags
-  to_add = rights parsed
-  to_remove = lefts parsed
-  new = (btags <> to_add) \\ to_remove
+  to_add = Set.fromList $ rights parsed
+  to_remove = Set.fromList $ lefts parsed
+  new = (btags <> to_add) Set.\\ to_remove
   in updateDimFromTags to_add $ box {boxTags = new, boxPriorities = extractPriorities new}
 
 
@@ -869,9 +871,9 @@ defaultPriorities = (defaultPriority, defaultPriority, defaultPriority)
 -- bare number = content priority, 
 -- @number style priority
 -- @@number global priority
-extractPriorities :: [String] -> (Int, Int, Int)
+extractPriorities :: Set String -> (Int, Int, Int)
 extractPriorities tags = let
-  prioritiess = map extractPriority tags
+  prioritiess = map extractPriority (Set.toList tags)
   (globals, styles, contents) = unzip3 prioritiess
   go :: [Maybe Int] -> Int
   go ps = fromMaybe defaultPriority $ getLast $ mconcat (map Last (Just 100 : ps))
