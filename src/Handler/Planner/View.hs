@@ -425,6 +425,20 @@ If the first word of a section is one of the valid section name, the whole conte
   Example
   <pre>
     /pending,loc=$shelfname  => All boxes in the pending location will be tagged with "loc=pending".
+<h3>
+  <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-mop-export">
+     Mop export
+<div.pre.collapse id=info-section-mop-export>
+  The location of all the boxes can be exported to MOP (via the generateMOPLocation).
+  By default, locations are given for each style (regardless of the content) in the form of the pattern matching all used shelves.
+  The location of a particular variation (style + content) can exported separately using the tag <code>mop-exception</code>.
+  Boxes can also be ignored using the tag <code>mop-ignore</code>. This is particularey usefull to ignore shelves which shoudn't be taken into account.
+  Example, to ignore all shelves starting with <code>_</code> (shelves filtered from the summary report)
+  <pre>
+    :TAGS:
+    stock_id,tag
+    /#_*,mop-ignore
+    :END:
 |]
 
 renderView :: FormParam -> Handler TypedContent
