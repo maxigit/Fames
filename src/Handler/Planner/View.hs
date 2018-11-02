@@ -409,7 +409,7 @@ If the first word of a section is one of the valid section name, the whole conte
 
   Example
   <pre>
-      TShirt#'3500 => all T-shirt with boxes with a length of 35cm.
+      TShirt#'l3500 => all T-shirt with boxes with a length of 35cm.
       TShirt#'RED  => all red T-shirt (with a content of Red)
   Virtual tags can also be used to change the dimension of a box. Setting for example the tag <code>'h3400</code> will change the box size to 34 cm.
 <h3>
