@@ -12,7 +12,11 @@
     - [ ] allow diffenrt lxwxh for individual orientation
   - [X] remove save buttons and co
   - [X] make nav title nicer
-  - [ ] synchronize route with tab
+** [ ] Replace tags with regexp
+   - [ ]  use regexp
+   - [ ] update doc
+   - [ ] add virtual field
+     - [ ] with format string
 * TODO Chart
 ** Today [12/24] 
    - [ ] Big Rank Refactoring

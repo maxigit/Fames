@@ -18,6 +18,10 @@ import qualified Text.ParserCombinators.Parsec.Token as P
 import Control.Applicative
 import Data.Maybe(maybeToList, catMaybes)
 import Control.Monad.State
+import Text.Regex.TDFA ((=~))
+import qualified Text.Regex as Rg
+import qualified Text.Regex.Base.RegexLike as Rg
+import qualified Data.Set as Set
 
 import Debug.Trace
 readShelves :: String -> IO (WH [Shelf s] s)
@@ -327,11 +331,40 @@ readOrientations def os = case os of
     '%':os' -> def `union` readOrientations def os'  -- def
     o:os' -> [readOrientation o] `union` readOrientations def os'
 
+-- * Read transform tags
+-- | Temporary type to read a regex using Cassava
+-- Usefull so that regex validation is done when reading the file
+newtype ReadRegex = ReadRegex { readRegex :: Rg.Regex }
+instance Csv.FromField ReadRegex where
+  parseField s = do
+    r <- Csv.parseField s
+    ReadRegex <$> Rg.makeRegexM (r :: String)
+
+-- | Read transform tags
+readTransformTags :: String -> IO (WH [Box s] s)
+readTransformTags = readMovesAndTagsWith (\(style, tagPat, tagSub) -> transformTags style (readRegex tagPat) tagSub)
+
+ -- | Apply {transformTagsFor} to the matching boxes
+transformTags :: String -> Rg.Regex -> String -> WH [Box s] s
+transformTags style tagPattern tagSub = do
+  boxes0 <- findBoxByStyleAndShelfNames style
+  boxes <- mapM findBox boxes0
+  catMaybes <$> mapM (transformTagsFor tagPattern tagSub) boxes
+  
+-- | Regex tags substitutions. Each tags is matched and applied separately
+-- The tag is not removed. To do so add a `#-\0` at the end
+transformTagsFor :: Rg.Regex -> String -> Box s -> WH (Maybe (Box s)) s
+transformTagsFor tagPat tagSub box = do
+  let tags0 = boxTags box
+      tags = concatMap (splitOn "#" . (\t -> Rg.subRegex tagPat t tagSub)) (Set.toList tags0)
+  if Set.toList tags0 == tags
+  then return Nothing
+  else Just <$> updateBoxTags tags box
+
 -- | Read box dimension on their location
 readStockTake :: [Orientation] -> (String -> (String, String)) -> String -> IO (WH ([Box s], [String]) s)
 readStockTake newBoxOrientations splitStyle filename = do
     csvData <- BL.readFile filename
-
     case Csv.decode  Csv.HasHeader csvData of
         Left err ->  do putStrLn err; return (return ([], []))
         Right (rowsV) -> return $ do
