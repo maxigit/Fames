@@ -1,14 +1,15 @@
--- This file has been generated from package.yaml by hpack version 0.20.0.
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 006179d33fa045796e53e588514f28053a7ea4f14e3d66972906a94c90f979f1
+-- hash: ca28c9ea1d42c00440129edc2b224e83e3198a94d800b78daf8fc9d50806d055
 
 name:           Fames
 version:        0.0.1
 license:        UnspecifiedLicense
 build-type:     Simple
-cabal-version:  >= 1.10
 
 flag dev
   description: Turn on development settings, like auto-reload templates.

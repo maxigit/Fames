@@ -94,7 +94,6 @@ library:
   - ./.
   - fa
   - dc
-  exposed-modules:
   when:
   - condition: (flag(dev)) || (flag(library-only))
     then:

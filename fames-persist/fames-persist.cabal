@@ -1,14 +1,15 @@
--- This file has been generated from package.yaml by hpack version 0.20.0.
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 834116d5cb8e7bb38cf080d5d7df16264eb7e573c740f4503fa96c9521b7896b
+-- hash: ddfd2c04182a5378b84d954c2d953971aabd5ac1cdc08a7d8c4cd030fa878fcb
 
 name:           fames-persist
 version:        0.0.1
 license:        UnspecifiedLicense
 build-type:     Simple
-cabal-version:  >= 1.10
 
 flag dev
   description: Turn on development settings, like auto-reload templates.

@@ -163,7 +163,7 @@ Timesheet sql=fames_timesheet
   documentKey DocumentKeyId sql=document_key_id
   start Day
   end Day
-  frequency PayrollFrequency
+  frequency PayrollFrequency sqltype=varchar(20)
   status PendingStatus
   Unique TSR reference
   Unique TSD start frequency
