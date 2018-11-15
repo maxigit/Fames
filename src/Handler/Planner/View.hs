@@ -243,6 +243,28 @@ If the first word of a section is one of the valid section name, the whole conte
           Moves all new boxes (with the new tag) to A and unset the new tag.
       <li>
         <h4>
+          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-transformtags"> Transform (transform tags)
+        <div.pre.collapse id=info-section-transformtags>
+          Allow to use POSIX regular expression to subsitute existing tags into new ones.
+          Each tag of the selecting boxes are matched against the pattern. A set of new tags is generated
+          by substituing the pattern with the substitution string  which is then splitted using <code>#</code>.
+          Other tags can be removed by generating a <i>negative</i> tag (using <code>-</code>).
+          The original tag is not deleted but can be done using <code>-\0</code>.
+          It is a csv with the following header
+          <pre>
+             stock_id,pat(tern),sub(stitue)
+
+          Examples
+          <pre>
+             A,black,blue --> add the blue tag to each box of type A
+             ,black,blue#-black --> replace black by blue
+             ,black,blue#-\0 --> replace black by blue. (remove black)
+             ,^[[:upper]],-\0 --> remove all tags starting with an uppercase
+          Group (using `(..)`) can be use to extract substring
+          <pre>
+             ,(..)-(..),\2:\1 --> add BB:AA from the tag AA-BB
+      <li>
+        <h4>
           <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-orientations"> Orientations
         <div.pre.collapse id=info-section-orientations>
           Specifies the boxes configuration within a shelves (if they are stacked up, on the side, how many etc).
