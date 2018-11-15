@@ -280,6 +280,18 @@ If the first word of a section is one of the valid section name, the whole conte
           (instead of <code>location=W/2</code>). <code>$shelfname</code> expands to <code>W/2</code> whereas the
           value of the shelfname propery will be W'2 (<code>shelfname=W'2</code>).
           This behavior might be fixed and therefore this workaround not necessary in a future versioin.
+          To detect moves only if the the 3 first letter of the shelf name have changed :
+          <pre>
+            :TAGS:
+            stock_id,tag
+            ,shelfname=$shelfname -- set shelfname property using shelfname attribute
+            :END:
+            :TRANSFORM:
+            stock_id,pat,sub
+            ,shelfname=(...).*,shortshelf=\1
+            ,location=(...).*,shortloc=\1
+            ,shortshelf=[shortloc],unmoved -- uses the value of shortloc property
+            
       <li>
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-orientations"> Orientations

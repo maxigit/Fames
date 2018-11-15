@@ -864,9 +864,10 @@ expandAttribute' ('$':'s':'h':'e':'l':'f':'t':'a':'g':xs) = Just $ \box -> do
       shelf <- findShelf sId
       return $ fromMaybe "" (shelfTag shelf) ++ ex
 expandAttribute' ('$':'o':'r':'i':'e':'n':'t':'a':'t':'i':'o':'n':xs) = Just $ \box -> fmap (showOrientation (orientation box) ++) (expandAttribute box xs)
-expandAttribute' ('[':xs') | (xs, ']':xs')<- break (== ']') xs' = Just $ \box -> do
+expandAttribute' ('[':xs') | (pat', ']':xs')<- break (== ']') xs' = Just $ \box -> do
                                ex <- expandAttribute box xs'
-                               let pre = xs ++ "="
+                               pat <- expandAttribute box pat'
+                               let pre = pat ++ "="
                                return $ maybe ex (++ex) (asum $ map (stripPrefix pre) (Set.toList $ boxTags box))
 expandAttribute' (x:xs) = fmap (\f b -> (x:) <$> f b) (expandAttribute' xs)
 expandAttribute' [] = Nothing
