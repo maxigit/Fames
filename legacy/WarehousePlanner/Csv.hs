@@ -334,18 +334,22 @@ readOrientations def os = case os of
 -- * Read transform tags
 -- | Temporary type to read a regex using Cassava
 -- Usefull so that regex validation is done when reading the file
-newtype ReadRegex = ReadRegex { readRegex :: Rg.Regex }
-instance Csv.FromField ReadRegex where
+type RegexOrFn s =  Either Rg.Regex (Box s -> WH Rg.Regex s)
+instance Csv.FromField (Either Rg.Regex (Box s -> WH Rg.Regex s)) where
   parseField s = do
     r <- Csv.parseField s
-    ReadRegex <$> Rg.makeRegexM (r :: String)
+    case expandAttribute' r of
+      Nothing -> Left <$> Rg.makeRegexM r
+      Just f -> return . Right $ \box -> do
+              r'  <- expandAttribute box r
+              Rg.makeRegexM r'
 
 -- | Read transform tags
 readTransformTags :: String -> IO (WH [Box s] s)
-readTransformTags = readMovesAndTagsWith (\(style, tagPat, tagSub) -> transformTags style (readRegex tagPat) tagSub)
+readTransformTags = readMovesAndTagsWith (\(style, tagPat, tagSub) -> transformTags style tagPat tagSub)
 
  -- | Apply {transformTagsFor} to the matching boxes
-transformTags :: String -> Rg.Regex -> String -> WH [Box s] s
+transformTags :: String -> RegexOrFn s -> String -> WH [Box s] s
 transformTags style tagPattern tagSub = do
   boxes0 <- findBoxByStyleAndShelfNames style
   boxes <- mapM findBox boxes0
@@ -353,8 +357,9 @@ transformTags style tagPattern tagSub = do
   
 -- | Regex tags substitutions. Each tags is matched and applied separately
 -- The tag is not removed. To do so add a `#-\0` at the end
-transformTagsFor :: Rg.Regex -> String -> Box s -> WH (Maybe (Box s)) s
-transformTagsFor tagPat tagSub box = do
+transformTagsFor :: RegexOrFn s -> String -> Box s -> WH (Maybe (Box s)) s
+transformTagsFor tagPat' tagSub box = do
+  tagPat <- either return ($ box) tagPat'
   let tags0 = boxTags box
       tags = concatMap (splitOn "#" . (\t -> Rg.subRegex tagPat t tagSub)) (Set.toList tags0)
   if Set.toList tags0 == tags

@@ -263,6 +263,10 @@ If the first word of a section is one of the valid section name, the whole conte
           Group (using `(..)`) can be use to extract substring
           <pre>
              ,(..)-(..),\2:\1 --> add BB:AA from the tag AA-BB
+          Properties and virtual tags are expanded in the regexp itself.
+          Example
+          <pre>
+            ,location=$shelfname,unmoved -- detect boxes which haven't changed
       <li>
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-orientations"> Orientations
@@ -434,6 +438,16 @@ If the first word of a section is one of the valid section name, the whole conte
       TShirt#'l3500 => all T-shirt with boxes with a length of 35cm.
       TShirt#'RED  => all red T-shirt (with a content of Red)
   Virtual tags can also be used to change the dimension of a box. Setting for example the tag <code>'h3400</code> will change the box size to 34 cm.
+<h3>
+  <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-property">
+     Properties
+<div.pre.collapse id=info-section-box-attributes>
+  Tag with the shape <code>propery=value</code> are properties. Their value can be expanded to create tag. 
+  Example
+  <pre>
+    A,prop=first --> A boxes have the tag 'prop=first'
+    B,prop=second
+    ,XXX[prop] -- create XXXfirst tag for A and XXXsecond for B
 <h3>
   <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-box-attributes">
      Box attributes

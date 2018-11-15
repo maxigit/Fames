@@ -13,6 +13,7 @@ import Data.Maybe(catMaybes, fromMaybe)
 import Control.Applicative
 import Data.Ord (comparing, Down(..))
 import Data.List.Split(splitOn)
+import Data.Foldable (asum)
 import Data.Function(on)
 import Diagrams.Prelude(Colour, white)
 import Data.Function(on)
@@ -842,23 +843,33 @@ updateBoxTags tags0 box = do
 -- example, /pending,#previous=$shelfname on a
 -- will add the tag previous=pending to all items in the pending shelf
 expandAttribute :: Box s -> String -> WH String s
-expandAttribute box ('$':'s':'h':'e':'l':'f':'n':'a':'m':'e':xs) = do
+expandAttribute box toExpand = maybe (return toExpand) ($ box) (expandAttribute' toExpand)
+-- | Workhorse for expandAttribute. The difference is it actually doesn't need a box
+-- to know if it needs expansion or not
+-- If an attribute is found, we can safely call expandAttribute (recursively), as we are
+-- only interested in doest in need expansion or not
+expandAttribute' :: String -> Maybe (Box s -> WH String s)
+expandAttribute' ('$':'s':'h':'e':'l':'f':'n':'a':'m':'e':xs) = Just $ \box ->  do
   ex <-  expandAttribute box xs
   case boxShelf box of
     Nothing -> return ex
     Just sId -> do
       shelf <- findShelf sId
       return $ shelfName shelf ++ ex
-expandAttribute box ('$':'s':'h':'e':'l':'f':'t':'a':'g':xs) = do
+expandAttribute' ('$':'s':'h':'e':'l':'f':'t':'a':'g':xs) = Just $ \box -> do
   ex <-  expandAttribute box xs
   case boxShelf box of
     Nothing -> return ex
     Just sId -> do
       shelf <- findShelf sId
       return $ fromMaybe "" (shelfTag shelf) ++ ex
-expandAttribute box ('$':'o':'r':'i':'e':'n':'t':'a':'t':'i':'o':'n':xs) = fmap (showOrientation (orientation box) ++) (expandAttribute box xs)
-expandAttribute box (x:xs) = fmap (x :)  (expandAttribute box xs)
-expandAttribute box [] = return []
+expandAttribute' ('$':'o':'r':'i':'e':'n':'t':'a':'t':'i':'o':'n':xs) = Just $ \box -> fmap (showOrientation (orientation box) ++) (expandAttribute box xs)
+expandAttribute' ('[':xs') | (xs, ']':xs')<- break (== ']') xs' = Just $ \box -> do
+                               ex <- expandAttribute box xs'
+                               let pre = xs ++ "="
+                               return $ maybe ex (++ex) (asum $ map (stripPrefix pre) (Set.toList $ boxTags box))
+expandAttribute' (x:xs) = fmap (\f b -> (x:) <$> f b) (expandAttribute' xs)
+expandAttribute' [] = Nothing
 
 replaceSlash '/' = '\''
 replaceSlash c  = c

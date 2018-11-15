@@ -13,10 +13,10 @@
   - [X] remove save buttons and co
   - [X] make nav title nicer
 ** [ ] Replace tags with regexp
-   - [ ]  use regexp
-   - [ ] update doc
-   - [ ] add virtual field
-     - [ ] with format string
+   - [X]  use regexp
+   - [X] update doc
+   - +[ ] add virtual field+
+     - +[ ] with format string+
 * TODO Chart
 ** Today [12/24] 
    - [ ] Big Rank Refactoring
