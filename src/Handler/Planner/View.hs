@@ -526,6 +526,11 @@ If the first word of a section is one of the valid section name, the whole conte
     <li> ${dimensions-count} : number of different dimensions
     <li> ${orientations} : different orientations
     <li> ${count-orientations} : number of different dimensions
+  Symbols would can't be used without being interpreted by the parser can be expanded using
+  <ul>
+    <li> ${hash} <code>#</code>
+    <li> ${comma} <code>,</code>
+    <li> ${dollar} <code>$</code>
 
   Example, to generate a valid TAG File tagging each box using its unique barcode tag with its location
   <pre>

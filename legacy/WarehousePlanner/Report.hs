@@ -433,6 +433,10 @@ expandReportValue boxes shelves s = let
             , replace "${dimensions-count}" (show  $ lengthBy' boxes _boxDim)
             , replace "${orientations}" orientations
             , replace "${orientation-count}" (show  $ length orientations)
+            , replace "${hash}" "#"
+            , replace "${comma}" ","
+            , replace "${dollar}" "$"
+            , replace "${divide}" "/"
             ]
   orientations = concatMap showOrientation . nub . sort $ map orientation boxes
   styles = nub . sort $ map boxStyle boxes
