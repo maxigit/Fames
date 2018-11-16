@@ -483,6 +483,10 @@ If the first word of a section is one of the valid section name, the whole conte
     <li> $shelfname # current shelf
     <li> $shelftag # tag of the current shelf
     <li> $orientation # current orientation
+    <li> $style # current box style
+    <li> $content # current box content (or colour)
+    <li> $boxname # box style + content
+    <li> $dimension # box dimension in cm
 
   Example
   <pre>
@@ -502,6 +506,36 @@ If the first word of a section is one of the valid section name, the whole conte
     /#_*,mop-exclude
     :END:
   Arbitrary comments can also be added to a box using the tag <code>mop-comment=<i>your comment</i></code>.
+<h3>
+  <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-generic-report">
+     Generic report
+<div.pre.collapse id=info-section-generic-report>
+  A generic report can generated using special tags. All boxes will be grouped using the special tag <code><i>report-</i>key</code>.
+  For each group (having the same key), a line will be displayed with the content of the <code><i>report-</i>value</code> property.
+  The <code>report-</code> prefix can be changed by setting an alternative prefix in the parameter field. This allows multiples report
+  to be defined within the same plan. 
+  The following group attributes will be expanded :
+  <ul>
+    <li> $count : number of boxes within the group
+    <li> $shelf-count : number of different shelves
+    <li> $locations: list of shelves (compacted)
+    <li> $shelves: list of shelves
+    <li> $total-volume : total volumes in m^3
+    <li> $style-count : number of different styles
+    <li> $content-count : number of different content
+    <li> $dimensions-count : number of different dimensions
+    <li> $orientations : different orientations
+    <li> $count-orientations : number of different dimensions
+
+  Example, to generate a valid TAG File tagging each box using its unique barcode tag with its location
+  <pre>
+     :TAGS:
+     stock_id,tag
+     ,report-key=$[barcode]
+     ,"report-value=$[report-key],$location"
+
+  Note the presence of quotes wich allow a comma to be used inside the tag field and the use of <code>$[report-key]</code> to display
+  the barcode in the report
 |]
 
 renderView :: FormParam -> Handler TypedContent
@@ -537,6 +571,7 @@ renderView param0 = do
               PlannerGenerateMoves -> renderConsoleReport (generateMoves boxStyle) scenario
               PlannerGenerateMovesWithTags -> renderConsoleReport (generateMoves boxStyleWithTags) scenario
               PlannerGenerateMOPLocations -> renderConsoleReport (generateMOPLocations) scenario
+              PlannerGenericReport -> renderConsoleReport (generateGenericReport (maybe "report-" unpack $ pParameter param)) scenario
               PlannerScenarioHistory -> renderHistory
               PlannerBoxGroupReport -> renderBoxGroupReport (pParameter param) scenario
               -- PlannerBoxGroupReport -> renderBoxGroupReport

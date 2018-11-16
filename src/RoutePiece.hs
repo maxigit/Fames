@@ -68,6 +68,7 @@ data PlannerViewMode = PlannerSummaryView
                      | PlannerGenerateMoves
                      | PlannerGenerateMovesWithTags
                      | PlannerGenerateMOPLocations
+                     | PlannerGenericReport
                      | PlannerScenarioHistory
                      | PlannerBoxGroupReport -- ^ box dimensions and number summary per style
                      -- | PlannerBoxGroupWarningReport -- ^ only group with different size Boxes

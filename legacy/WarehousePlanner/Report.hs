@@ -6,6 +6,7 @@ module WarehousePlanner.Report
 , summary
 , generateMoves
 , generateMOPLocations
+, generateGenericReport
 , bestBoxesFor
 , bestShelvesFor
 , bestAvailableShelvesFor
@@ -360,10 +361,6 @@ groupNames names = let
 
   in map toName (Map'.toList groups)
 
-boxStyleAndContent b = case boxContent b of
-  "" -> boxStyle b
-  c -> boxStyle b ++ "-" ++ c
-  
 boxStyleWithTags b = let
   isVirtual ('\'':_) = True
   isVirtual _ = False
@@ -371,35 +368,85 @@ boxStyleWithTags b = let
   in intercalate "#" (boxStyleAndContent b : tags)
  
 generateMoves :: (Box s -> String) -> WH [String] s
-generateMoves boxName = generateMoves' boxName (const Nothing) printGroup where
-     printGroup _boxComments shelves = intercalate "|" (groupNames shelves)
+generateMoves boxName = generateMoves' "stock_id,location" (Just . boxName) printGroup where
+     printGroup boxName _ shelves = boxName ++ "," ++ intercalate "|" (groupNames shelves)
 -- generateMoves' :: (Box s -> String) -> (Box s -> [String]) -> WH [String] s
-generateMoves' :: (Box s -> String) -> (Box s -> Maybe String) -> (Maybe String -> [String] -> String ) -> WH [String] s
-generateMoves' boxName boxComments printGroup = do
+generateMoves' :: (Ord k, Eq k)
+               => String -- ^ Header
+               -> (Box s -> Maybe k) -- ^ box key
+               ->  (k -> [Box s] -> [String]  -> String) -- ^ string from key, boxes and unique shelfnames
+               -> WH [String] s
+generateMoves' header boxKey printGroup = do
  s'bS <- shelfBoxes
- let groups = Map'.fromListWith (<>) [ ((boxName b, boxComments b), [shelfName s])
+ let groups = Map'.fromListWith (<>) [ (key, [(b, shelfName s)])
                                      | (s,b) <- s'bS
-                                     , "mop-exclude" `notElem` boxTags b
+                                     , Just key <- [boxKey b]
+                                     -- , "mop-exclude" `notElem` boxTags b
                                      ]
-     printGroup' ((boxName, boxComments), shelves) = boxName ++ "," ++ printGroup boxComments (nub $ sort shelves)
- return ("stock_id,location"
+     printGroup' (key, box'shelves) = printGroup key boxes (nub $ sort shelves) where (boxes, shelves) = unzip box'shelves
+ return (header
         : map printGroup' (Map'.toList groups)
         )
 -- | Generates files compatible with MOP
 generateMOPLocations :: WH [String] s
-generateMOPLocations = generateMoves' boxName boxComments printGroup where
+generateMOPLocations = generateMoves' "stock_id,location" boxName printGroup where
   -- use box style unless the box is tagged as exception
- boxName box = if  "mop-exception" `elem` boxTags box
-               then boxStyleAndContent box
-               else boxStyle box
+  boxName box = let tags = boxTags box
+                    comment = F.asum $ map (stripPrefix "mop-comment=") (boxTagList box)
+                in case ("mop-exclude" `elem` tags , "mop-exception" `elem` tags) of
+                   (True, _) -> Nothing -- skipped
+                   (False, True) -> Just $ (boxStyleAndContent box, comment)
+                   (False, False) -> Just $ (boxStyle box, comment)
  -- add comment from tag
- boxComments box = F.asum $ map (stripPrefix "mop-comment=") (boxTagList box)
- printGroup boxComment shelves =
-   case (boxComment, shelves) of
-          (Nothing, name:names) -> intercalate "|" (name : groupNames names) 
-          (Just comment, [name]) -> intercalate "|" [name , comment]
-          (Just comment, name:names) -> intercalate "|" (name : groupNames names)  ++ " " ++ comment
+  printGroup (boxName, boxComment) _ shelves = boxName ++ "," ++
+    case (boxComment, shelves) of
+           (Nothing, name:names) -> intercalate "|" (name : groupNames names) 
+           (Just comment, [name]) -> intercalate "|" [name , comment]
+           (Just comment, name:names) -> intercalate "|" (name : groupNames names)  ++ " " ++ comment
                                         
+-- | Generate a generic report using tags prefixed by the report param
+generateGenericReport prefix = generateMoves' "" boxKey printGroup where
+  boxKey box = let tags = boxTags box
+               in F.asum $ map (stripPrefix $ prefix ++ "key=") (Set.toList tags)
+  printGroup boxKey [] shelfNames = boxKey
+  printGroup boxKey boxes@(box:_) shelfNames = let
+    value0 = F.asum $ map (stripPrefix (prefix ++ "value=")) (boxTagList box)
+    value = maybe "" (expandReportValue boxes shelfNames ) value0
+    in value
+
+
+-- | Expands group related properties, which can't be processed on a indivial box
+-- e.g. boxes counts, shelves list etc ...
+expandReportValue :: [Box s] -> [String] -> String -> String
+expandReportValue boxes shelves s = let
+  updates = [ replace "$count" (show $ length boxes)
+            , replace "$locations" (intercalate "|" $ groupNames shelves)
+            , replace "$shelves" (intercalate "|" shelves)
+            , replace "$total-volume" $ printf "%0.1f" ((sum $ map boxVolume boxes) * 1E-6)
+            , replace "$style-count" $ lengthBy  boxStyle
+            , replace "$content-count" $ lengthBy  boxContent
+            , replace "$shelf-count" $ (show $ length shelves)
+            , replace "$dimensions-count" (show  $ lengthBy' boxes _boxDim)
+            , replace "$orientations" orientations
+            , replace "$orientation-count" (show  $ length orientations)
+            ]
+  orientations = concatMap showOrientation . nub . sort $ map orientation boxes
+  -- lengthBy f = show . length . Set.toList $ Set.fromList (map f boxes)
+  lengthBy f = show $ lengthBy' boxes f
+  in F.foldl' (flip ($)) s updates
+
+
+lengthBy' :: (Ord k, Eq k) => [a] -> (a -> k) -> Int
+lengthBy' boxes f = length . nub . sort $ (map f boxes)
+
+replace :: String -> String -> String -> String
+replace needle value [] = []
+replace needle value s@(c:cs) = case stripPrefix needle s of
+  Nothing -> c : replace needle value cs
+  Just s' -> value ++ replace needle value s'
+
+  
+  
 
   
 -- * Optimizer
@@ -708,4 +755,3 @@ showPair pair = let res = pRes1 pair
                   ++ (printf " wasted:%0.2f  " (pWastedVolume pair))
                   ++ printDim (boxDim $ rBox res) ++ (printf "(%d)" $ rBoxPerShelf res)
 
-printDim  (Dimension l w h) = printf "%0.1fx%0.1fx%0.1f" l w h

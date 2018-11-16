@@ -4,6 +4,7 @@
 {-# LANGUAGE NoOverloadedStrings #-}
 module WarehousePlanner.Base where
 import Prelude
+import Text.Printf(printf)
 import Data.Vector(Vector)
 import Control.Monad.State
 import Data.Monoid
@@ -839,6 +840,11 @@ updateBoxTags tags0 box = do
   let tags = map (map replaceSlash) tags1
   updateBox (updateBoxTags' $ filter (not . null) tags) box
 
+boxStyleAndContent :: Box s -> String
+boxStyleAndContent b = case boxContent b of
+  "" -> boxStyle b
+  c -> boxStyle b ++ "-" ++ c
+  
 -- | Box attribute can be used to create new tag
 -- example, /pending,#previous=$shelfname on a
 -- will add the tag previous=pending to all items in the pending shelf
@@ -863,12 +869,16 @@ expandAttribute' ('$':'s':'h':'e':'l':'f':'t':'a':'g':xs) = Just $ \box -> do
     Just sId -> do
       shelf <- findShelf sId
       return $ fromMaybe "" (shelfTag shelf) ++ ex
+expandAttribute' ('$':'s':'t':'y':'l':'e':xs) =  Just $ \box -> fmap ((boxStyle box) ++) (expandAttribute box xs)
+expandAttribute' ('$':'c':'o':'n':'t':'e':'n':'t':xs) =  Just $ \box -> fmap ((boxContent box) ++) (expandAttribute box xs)
+expandAttribute' ('$':'b':'o':'x':'n':'a':'m':'e':xs) =  Just $ \box -> fmap ((boxStyleAndContent box) ++) (expandAttribute box xs)
+expandAttribute' ('$':'d':'i':'m':'e':'n':'s':'i':'o':'n':xs) =  Just $ \box -> fmap ((printDim (_boxDim box)) ++) (expandAttribute box xs)
 expandAttribute' ('$':'o':'r':'i':'e':'n':'t':'a':'t':'i':'o':'n':xs) = Just $ \box -> fmap (showOrientation (orientation box) ++) (expandAttribute box xs)
 expandAttribute' ('$':'[':xs') | (pat', _:xs')<- break (== ']') xs' = Just $ \box -> do
                                ex <- expandAttribute box xs'
                                pat <- expandAttribute box pat'
                                let pre = pat ++ "="
-                               return $ maybe ex (++ex) (asum $ map (stripPrefix pre) (Set.toList $ boxTags box))
+                               return $ maybe ex (++ex) (asum $ map (stripPrefix $ pre) (Set.toList $ boxTags box))
 expandAttribute' (x:xs) = fmap (\f b -> (x:) <$> f b) (expandAttribute' xs)
 expandAttribute' [] = Nothing
 
@@ -879,6 +889,7 @@ defaultPriority :: Int
 defaultPriority = 100
 defaultPriorities = (defaultPriority, defaultPriority, defaultPriority)
 
+printDim  (Dimension l w h) = printf "%0.1fx%0.1fx%0.1f" l w h
 -- | Convert a set of tags to prioties
 -- bare number = content priority, 
 -- @number style priority
