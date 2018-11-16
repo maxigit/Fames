@@ -272,7 +272,7 @@ If the first word of a section is one of the valid section name, the whole conte
             :END:
             :TRANSFORM:
             stock_id,pat,sub
-            ,location=.*[shelfname],unmoved -- detect boxes which haven't changed
+            ,location=.*$[shelfname],unmoved -- detect boxes which haven't changed
 
           In this example, we need to use an intermediate property <code>shelfname</code> because
           the name of the shelf can contains <code>/</code> which are replaced by <code>'</code> when the tag is set.
@@ -290,7 +290,7 @@ If the first word of a section is one of the valid section name, the whole conte
             stock_id,pat,sub
             ,shelfname=(...).*,shortshelf=\1
             ,location=(...).*,shortloc=\1
-            ,shortshelf=[shortloc],unmoved -- uses the value of shortloc property
+            ,shortshelf=$[shortloc],unmoved -- uses the value of shortloc property
             
       <li>
         <h4>
@@ -466,13 +466,13 @@ If the first word of a section is one of the valid section name, the whole conte
 <h3>
   <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-property">
      Properties
-<div.pre.collapse id=info-section-box-attributes>
+<div.pre.collapse id=info-section-property>
   Tag with the shape <code>propery=value</code> are properties. Their value can be expanded to create tag. 
   Example
   <pre>
     A,prop=first --> A boxes have the tag 'prop=first'
     B,prop=second
-    ,XXX[prop] -- create XXXfirst tag for A and XXXsecond for B
+    ,XXX$[prop] -- create XXXfirst tag for A and XXXsecond for B
 <h3>
   <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-box-attributes">
      Box attributes
