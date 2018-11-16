@@ -480,13 +480,13 @@ If the first word of a section is one of the valid section name, the whole conte
   Certain attributes like the current location or orientation of a box can be used to set a new tag
   with the corresponding value. The following attributes are available.
   <ul>
-    <li> $shelfname # current shelf
-    <li> $shelftag # tag of the current shelf
-    <li> $orientation # current orientation
-    <li> $style # current box style
-    <li> $content # current box content (or colour)
-    <li> $boxname # box style + content
-    <li> $dimension # box dimension in cm
+    <li> ${shelfname} # current shelf
+    <li> ${shelftag} # tag of the current shelf
+    <li> ${orientation} # current orientation
+    <li> ${style} # current box style
+    <li> ${content} # current box content (or colour)
+    <li> ${boxname} # box style + content
+    <li> ${dimension} # box dimension in cm
 
   Example
   <pre>
@@ -516,16 +516,16 @@ If the first word of a section is one of the valid section name, the whole conte
   to be defined within the same plan. 
   The following group attributes will be expanded :
   <ul>
-    <li> $count : number of boxes within the group
-    <li> $shelf-count : number of different shelves
-    <li> $locations: list of shelves (compacted)
-    <li> $shelves: list of shelves
-    <li> $total-volume : total volumes in m^3
-    <li> $style-count : number of different styles
-    <li> $content-count : number of different content
-    <li> $dimensions-count : number of different dimensions
-    <li> $orientations : different orientations
-    <li> $count-orientations : number of different dimensions
+    <li> ${count} : number of boxes within the group
+    <li> ${shelf-count} : number of different shelves
+    <li> ${locations} list of shelves (compacted)
+    <li> ${shelves} list of shelves
+    <li> ${total-volume} : total volumes in m^3
+    <li> ${style-count} : number of different styles
+    <li> ${content-count} : number of different content
+    <li> ${dimensions-count} : number of different dimensions
+    <li> ${orientations} : different orientations
+    <li> ${count-orientations} : number of different dimensions
 
   Example, to generate a valid TAG File tagging each box using its unique barcode tag with its location
   <pre>

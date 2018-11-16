@@ -419,20 +419,25 @@ generateGenericReport prefix = generateMoves' "" boxKey printGroup where
 -- e.g. boxes counts, shelves list etc ...
 expandReportValue :: [Box s] -> [String] -> String -> String
 expandReportValue boxes shelves s = let
-  updates = [ replace "$count" (show $ length boxes)
-            , replace "$locations" (intercalate "|" $ groupNames shelves)
-            , replace "$shelves" (intercalate "|" shelves)
-            , replace "$total-volume" $ printf "%0.1f" ((sum $ map boxVolume boxes) * 1E-6)
-            , replace "$style-count" $ lengthBy  boxStyle
-            , replace "$content-count" $ lengthBy  boxContent
-            , replace "$shelf-count" $ (show $ length shelves)
-            , replace "$dimensions-count" (show  $ lengthBy' boxes _boxDim)
-            , replace "$orientations" orientations
-            , replace "$orientation-count" (show  $ length orientations)
+  updates = [ replace "${count}" (show $ length boxes)
+            , replace "${locations}" (intercalate "|" $ groupNames shelves)
+            , replace "${shelves}" (intercalate "|" shelves)
+            , replace "${total-volume}" $ printf "%0.1f" ((sum $ map boxVolume boxes) * 1E-6)
+            , replace "${style-count}" (show $ length styles)
+            , replace "${styles}" $ (intercalate "|" styles)
+            , replace "${content-count}" (show $ length contents)
+            , replace "${contents}" $ (intercalate "|" contents)
+            , replace "${sku-count}" (show $ length contents)
+            , replace "${skus}" $ (intercalate "|" skus)
+            , replace "${shelf-count}" $ (show $ length shelves)
+            , replace "${dimensions-count}" (show  $ lengthBy' boxes _boxDim)
+            , replace "${orientations}" orientations
+            , replace "${orientation-count}" (show  $ length orientations)
             ]
   orientations = concatMap showOrientation . nub . sort $ map orientation boxes
-  -- lengthBy f = show . length . Set.toList $ Set.fromList (map f boxes)
-  lengthBy f = show $ lengthBy' boxes f
+  styles = nub . sort $ map boxStyle boxes
+  contents = nub . sort $ map boxContent boxes
+  skus = nub. sort $ map boxStyleAndContent boxes
   in F.foldl' (flip ($)) s updates
 
 

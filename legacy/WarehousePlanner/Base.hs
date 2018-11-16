@@ -855,26 +855,26 @@ expandAttribute box toExpand = maybe (return toExpand) ($ box) (expandAttribute'
 -- If an attribute is found, we can safely call expandAttribute (recursively), as we are
 -- only interested in doest in need expansion or not
 expandAttribute' :: String -> Maybe (Box s -> WH String s)
-expandAttribute' ('$':'s':'h':'e':'l':'f':'n':'a':'m':'e':xs) = Just $ \box ->  do
+expandAttribute' ('$':'{':'s':'h':'e':'l':'f':'n':'a':'m':'e':'}':xs) = Just $ \box ->  do
   ex <-  expandAttribute box xs
   case boxShelf box of
     Nothing -> return ex
     Just sId -> do
       shelf <- findShelf sId
       return $ shelfName shelf ++ ex
-expandAttribute' ('$':'s':'h':'e':'l':'f':'t':'a':'g':xs) = Just $ \box -> do
+expandAttribute' ('$':'{':'s':'h':'e':'l':'f':'t':'a':'g':'}':xs) = Just $ \box -> do
   ex <-  expandAttribute box xs
   case boxShelf box of
     Nothing -> return ex
     Just sId -> do
       shelf <- findShelf sId
       return $ fromMaybe "" (shelfTag shelf) ++ ex
-expandAttribute' ('$':'s':'t':'y':'l':'e':xs) =  Just $ \box -> fmap ((boxStyle box) ++) (expandAttribute box xs)
-expandAttribute' ('$':'c':'o':'n':'t':'e':'n':'t':xs) =  Just $ \box -> fmap ((boxContent box) ++) (expandAttribute box xs)
-expandAttribute' ('$':'b':'o':'x':'n':'a':'m':'e':xs) =  Just $ \box -> fmap ((boxStyleAndContent box) ++) (expandAttribute box xs)
-expandAttribute' ('$':'d':'i':'m':'e':'n':'s':'i':'o':'n':xs) =  Just $ \box -> fmap ((printDim (_boxDim box)) ++) (expandAttribute box xs)
-expandAttribute' ('$':'o':'r':'i':'e':'n':'t':'a':'t':'i':'o':'n':xs) = Just $ \box -> fmap (showOrientation (orientation box) ++) (expandAttribute box xs)
-expandAttribute' ('$':'[':xs') | (pat', _:xs')<- break (== ']') xs' = Just $ \box -> do
+expandAttribute' ('$':'{':'s':'t':'y':'l':'e':'}':xs) =  Just $ \box -> fmap ((boxStyle box) ++) (expandAttribute box xs)
+expandAttribute' ('$':'{':'c':'o':'n':'t':'e':'n':'t':'}':xs) =  Just $ \box -> fmap ((boxContent box) ++) (expandAttribute box xs)
+expandAttribute' ('$':'{':'b':'o':'x':'n':'a':'m':'e':'}':xs) =  Just $ \box -> fmap ((boxStyleAndContent box) ++) (expandAttribute box xs)
+expandAttribute' ('$':'{':'d':'i':'m':'e':'n':'s':'i':'o':'n':'}':xs) =  Just $ \box -> fmap ((printDim (_boxDim box)) ++) (expandAttribute box xs)
+expandAttribute' ('$':'{':'o':'r':'i':'e':'n':'t':'a':'t':'i':'o':'n':'}':xs) = Just $ \box -> fmap (showOrientation (orientation box) ++) (expandAttribute box xs)
+expandAttribute' ('$':'{':'[':'}':xs') | (pat', _:xs')<- break (== ']') xs' = Just $ \box -> do
                                ex <- expandAttribute box xs'
                                pat <- expandAttribute box pat'
                                let pre = pat ++ "="
