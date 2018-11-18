@@ -43,6 +43,7 @@ import Data.Foldable (toList)
 import qualified Data.Foldable as F
 import qualified Data.Traversable  as T
 import Data.Maybe
+import Data.Time(Day, formatTime, defaultTimeLocale)
 
 import Text.Tabular as Tabul
 import qualified Text.Tabular.AsciiArt as TAscii
@@ -405,20 +406,20 @@ generateMOPLocations = generateMoves' "stock_id,location" boxName printGroup whe
            (Just comment, name:names) -> intercalate "|" (name : groupNames names)  ++ " " ++ comment
                                         
 -- | Generate a generic report using tags prefixed by the report param
-generateGenericReport prefix = generateMoves' "" boxKey printGroup where
+generateGenericReport today prefix = generateMoves' "" boxKey printGroup where
   boxKey box = let tags = boxTags box
                in F.asum $ map (stripPrefix $ prefix ++ "key=") (Set.toList tags)
   printGroup boxKey [] shelfNames = boxKey
   printGroup boxKey boxes@(box:_) shelfNames = let
     value0 = F.asum $ map (stripPrefix (prefix ++ "value=")) (boxTagList box)
-    value = maybe "" (expandReportValue boxes shelfNames ) value0
+    value = maybe "" (expandReportValue today boxes shelfNames ) value0
     in value
 
 
 -- | Expands group related properties, which can't be processed on a indivial box
 -- e.g. boxes counts, shelves list etc ...
-expandReportValue :: [Box s] -> [String] -> String -> String
-expandReportValue boxes shelves s = let
+expandReportValue :: Day -> [Box s] -> [String] -> String -> String
+expandReportValue today boxes shelves s = let
   updates = [ replace "${count}" (show $ length boxes)
             , replace "${locations}" (intercalate "|" $ groupNames shelves)
             , replace "${shelves}" (intercalate "|" shelves)
@@ -437,6 +438,7 @@ expandReportValue boxes shelves s = let
             , replace "${comma}" ","
             , replace "${dollar}" "$"
             , replace "${divide}" "/"
+            , replace "${today}" (formatTime defaultTimeLocale "%Y-%m-%d" today)
             ]
   orientations = concatMap showOrientation . nub . sort $ map orientation boxes
   styles = nub . sort $ map boxStyle boxes

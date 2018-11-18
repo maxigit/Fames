@@ -526,6 +526,7 @@ If the first word of a section is one of the valid section name, the whole conte
     <li> ${dimensions-count} : number of different dimensions
     <li> ${orientations} : different orientations
     <li> ${count-orientations} : number of different dimensions
+    <li> ${today} : today's date with the following format <code>YYYY-MM-DD</code>
   Symbols would can't be used without being interpreted by the parser can be expanded using
   <ul>
     <li> ${hash} <code>#</code>
@@ -545,6 +546,7 @@ If the first word of a section is one of the valid section name, the whole conte
 
 renderView :: FormParam -> Handler TypedContent
 renderView param0 = do
+  today <- todayH
   modeS <- lookupPostParam "mode"
   let mode = modeS >>=readMay
       vmode = pViewMode param0
@@ -576,7 +578,7 @@ renderView param0 = do
               PlannerGenerateMoves -> renderConsoleReport (generateMoves boxStyle) scenario
               PlannerGenerateMovesWithTags -> renderConsoleReport (generateMoves boxStyleWithTags) scenario
               PlannerGenerateMOPLocations -> renderConsoleReport (generateMOPLocations) scenario
-              PlannerGenericReport -> renderConsoleReport (generateGenericReport (maybe "report-" unpack $ pParameter param)) scenario
+              PlannerGenericReport -> renderConsoleReport (generateGenericReport today (maybe "report-" unpack $ pParameter param)) scenario
               PlannerScenarioHistory -> renderHistory
               PlannerBoxGroupReport -> renderBoxGroupReport (pParameter param) scenario
               -- PlannerBoxGroupReport -> renderBoxGroupReport
