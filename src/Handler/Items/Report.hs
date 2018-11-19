@@ -138,6 +138,11 @@ getForecastDirOptions = getSubdirOptions appForecastProfilesDir
 
 getItemsReportR :: Maybe ReportMode -> Handler TypedContent
 getItemsReportR mode = do
+  actionM <- lookupGetParam "action"
+  case actionM of
+    Nothing -> getItemsReportR' mode
+    Just _ -> postItemsReportR mode
+getItemsReportR' mode = do
   today <- todayH
   (_, (band, serie, timeColumn)) <- getColsWithDefault
   let -- emptyRupture = ColumnRupture Nothing emptyTrace Nothing Nothing False
@@ -192,12 +197,23 @@ getItemsReport2R mode = do
 getItemsReport3R mode = do 
   renderReportForm ItemsReport3R mode Nothing ok200 Nothing
 
+runFormAndGetAction form = do
+  fromPost@((resp, _), _) <- runFormPostNoToken form
+  traceShowM resp
+  case resp of
+    FormMissing -> (,) <$> runFormGet form <*> lookupGetParam "action"
+    _ -> do
+        action <- lookupPostParam "action"
+        return (fromPost, action)
+
+  
+-- | React on post. Actually used GET So should be removed
 postItemsReportR = postItemsReportFor ItemsReportR 
 postItemsReportFor route mode = do
   today <- todayH
-  actionM <- lookupPostParam "action"
   cols <- getCols
-  ((resp, formW), enctype) <- runFormPost (reportForm cols Nothing)
+  (formRan, actionM) <- runFormAndGetAction (reportForm cols Nothing)
+  let ((resp, _), _) = formRan
   case resp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
@@ -245,7 +261,7 @@ renderReportForm :: (Maybe ReportMode -> ItemsR)
                  -> Handler TypedContent
 renderReportForm  route modeM paramM status resultM = do
   cols <- getCols
-  (repForm, repEncType) <- generateFormPost $ reportForm cols paramM
+  (repForm, repEncType) <- generateFormGet' $ reportForm cols paramM
   let buttons = [(ReportCsv, "Export To Csv" :: Text), (ReportRaw, "Export Raw CSV")]
       navs = ([minBound..maxBound] :: [ReportMode]) List.\\ map fst buttons
       -- ^ We use a button instead for the CSV
@@ -257,7 +273,7 @@ renderReportForm  route modeM paramM status resultM = do
       -- Ajax call with plot won't work
       -- plotly = addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
       widget = [whamlet|
-    <form #items-report-form role=form method=post action="@{ItemsR (route modeM)}" enctype="#{repEncType}">
+    <form #items-report-form role=form method=get action="@{ItemsR (route modeM)}" enctype="#{repEncType}">
         $maybe result <- resultM
           <ul.nav.nav-tabs>
             $forall nav <- navs
@@ -282,3 +298,4 @@ renderReportForm  route modeM paramM status resultM = do
       div <- widgetToPageContent (fromMaybe (return ()) resultM)
       html <- withUrlRenderer (pageBody div)
       returnJson (renderHtml html)
+
