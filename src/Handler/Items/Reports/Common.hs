@@ -1365,7 +1365,7 @@ seriesChartProcessor :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
 seriesChartProcessor all panel rupture mono params name plotId grouped = do
      let -- ysFor :: Maybe NormalizeMode -> (b -> Maybe Double) -> [ (a, b) ] -> [ Maybe Value ]
          ysFor normM f g = map (fmap toJSON) $ formatSerieValues formatDouble (printf "%0.1f")normM all panel grouped f g
-         asList = nmapToNMapListWithRank grouped
+         asList = (if cpReverse rupture then reverse else id ) $ nmapToNMapListWithRank grouped
          jsData = map (traceFor textValuesFor ysFor) (traceParamForChart mono asList  params)
      toWidgetBody [julius|
           Plotly.plot( #{toJSON plotId}
