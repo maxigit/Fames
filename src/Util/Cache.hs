@@ -10,6 +10,7 @@ module Util.Cache
 , ExpiryCache
 , cacheSecond
 , cacheHour
+, cacheMinute
 , cacheDay
 , cacheForEver
 , preCache
@@ -191,7 +192,7 @@ purgeKey cvar key = liftIO $ modifyMVar_ cvar go
     
 -- ** Delayed cache
 
-cacheSecond, cacheHour, cacheDay :: Int -> CacheDelay
+cacheSecond, cacheMinute, cacheHour, cacheDay :: Int -> CacheDelay
 cacheSecond second = CacheDelay second
 cacheMinute minute = cacheSecond (60*minute)
 cacheHour hour = cacheMinute (60*hour)
