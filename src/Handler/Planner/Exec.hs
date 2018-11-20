@@ -54,7 +54,7 @@ cacheScenarioIn sc = do
 
 cacheScenarioOut :: Text -> Handler (Maybe (Scenario, Int))
 cacheScenarioOut key = do
-  cache0 False (cacheDay 1) ("scenario", key) (return Nothing)
+  cache0 False (cacheHour 1) ("scenario", key) (return Nothing)
 
 -- * Deep copy
 copyWarehouse :: WH (WH (Warehouse s) s) t

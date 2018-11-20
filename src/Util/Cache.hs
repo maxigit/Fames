@@ -195,7 +195,7 @@ cacheSecond, cacheHour, cacheDay :: Int -> CacheDelay
 cacheSecond second = CacheDelay second
 cacheMinute minute = cacheSecond (60*minute)
 cacheHour hour = cacheMinute (60*hour)
-cacheDay day = cacheHour (24*day)
+cacheDay day = cacheHour (24*day-1) -- a bit less so that a refresh at nearly the same time days later works
 -- | used for value which normally don't change,
 -- user preferences, price lists.
 -- If those value change, just reset the cache.

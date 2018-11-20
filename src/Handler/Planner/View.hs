@@ -63,7 +63,7 @@ getPImageR sha i width = do
         diagE <- renderScenario scenario Nothing
         case diagE of
           Left e -> error e
-          Right diags -> cache0 False (cacheHour 1) ("DIAG", width, i, sha) $
+          Right diags -> cache0 False (cacheMinute 10) ("DIAG", width, i, sha) $
                                 sendResponseDiag width (diags !! min (fromIntegral i) (layoutSize-1))
   
 -- * Form
