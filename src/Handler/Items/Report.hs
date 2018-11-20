@@ -206,7 +206,28 @@ runFormAndGetAction form = do
         action <- lookupPostParam "action"
         return (fromPost, action)
 
+
+-- | Adjust if needed date param so that they can be dynamic
+-- i.e. calculated on the fly for example to get last 3 months from today
+-- It uses some special http field not part of the form.
+-- They are meant to be used when storing url
+-- for example to get report using the current day (and the last 3 months)
+-- one needs to add to url
+-- `calculate-from=[AddMonths (-3)]&calculate-to=[AddMonths 0]`
+adjustParamDates :: ReportParam -> Handler ReportParam
+adjustParamDates param = do
+  newFrom <- update (rpFrom param) "calculate-from"
+  newTo <- update (rpTo param) "calculate-to"
+  return param {rpFrom = newFrom, rpTo = newTo }
+  where update day field = do
+          calc <- lookupGetParam field
+          return $ case fmap readMay calc of
+                     Just (Just cs@(_:_)) -> Just $ foldl'(flip ($)) (rpToday param) (map calculateDate cs)
+                     Just Nothing -> error $ "Can't parse " ++ unpack field ++  " : " ++ show calc
+                     _ -> day
+          
   
+
 -- | React on post. Actually used GET So should be removed
 postItemsReportR = postItemsReportFor ItemsReportR 
 postItemsReportFor route mode = do
@@ -217,7 +238,8 @@ postItemsReportFor route mode = do
   case resp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
-    FormSuccess param -> do
+    FormSuccess param0 -> do
+      param <- adjustParamDates param0
       let panel = rpPanelRupture param
           band = rpBand param
           serie = rpSerie param
