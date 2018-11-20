@@ -109,6 +109,7 @@
   / DMainR GET !group=Dashboard !title=Sales
   /mainFull DMainFullR GET !title=Sales_Full
   /custom/#Text/#Int64/#Int64 DCustomR GET
+  /year DYearR GET !title=sales_year
 -- Warning ! This code has been generated !}
 
 -- Route

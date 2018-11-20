@@ -3,6 +3,7 @@ module Handler.Dashboard
 ( getDMainR 
 , getDMainFullR
 , getDCustomR
+, getDYearR
 )
 where
 
@@ -38,23 +39,23 @@ pivotCss = [cassius|
       font-style: italic
       color: grey
                         |]
+reportDiv :: Text -> Handler Widget
+reportDiv reportId = do
+  widgetE <- dispatchReport reportId 800 400
+  case widgetE of
+    Left err -> return [whamlet|
+       <div id=#{reportId}>
+         The report #{reportId} doesn't exists. Contact your administrator.
+                        |]
+    Right w -> do
+      return [whamlet|
+                   <div id=#{reportId}>
+                   ^{w}
+                   |]
 -- Display a dashboard made of different report depending on the configuration file
 getDMainR :: Handler Html
 getDMainR = do
   now <- liftIO $ getCurrentTime
-  let reportDiv :: Text -> Handler Widget
-      reportDiv reportId = do
-        widgetE <- dispatchReport reportId 800 400
-        case widgetE of
-          Left err -> return [whamlet|
-             <div id=#{reportId}>
-               The report #{reportId} doesn't exists. Contact your administrator.
-                              |]
-          Right w -> do
-            return [whamlet|
-                         <div id=#{reportId}>
-                         ^{w}
-                         |]
   -- refactor
   currentMonthPcent <- reportDiv "salesCurrentMonthP" 
   topStyleMonthPcent <- reportDiv "top20StyleMonth" 
@@ -64,7 +65,7 @@ getDMainR = do
   topColourJanuaryPcent <- reportDiv "top20ColourJanuary" 
   topSkuJanuaryPcent <- reportDiv "top20ItemJanuary" 
 
-  cacheSeconds (3600*24)
+  cacheSeconds(3600*23)
   defaultLayout $ do
     addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
     toWidgetHead commonCss
@@ -88,7 +89,7 @@ getDMainR = do
           <h4> Top Item Monthly
           ^{topSkuMonthPcent}
   <div.panel.panel-primary>
-    <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-1">
+    <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-2">
       <h2> Since January
     <div.panel-body.pivot-inline id=dashboard-panel-2>
       <div.row>
@@ -133,7 +134,7 @@ getDMainFullR = do
   topSkuJanuaryFull <- reportDiv "top20ItemJanuaryFull" 
 
 
-  cacheSeconds (3600*24)
+  cacheSeconds (3600*23)
   defaultLayout $ do
     addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
     toWidgetHead commonCss
@@ -157,7 +158,7 @@ getDMainFullR = do
           <h4> Top Item Monthly
           ^{topSkuMonthFull}
   <div.panel.panel-primary>
-    <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-1">
+    <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-2">
       <h2> Since January
     <div.panel-body.pivot-inline id=dashboard-panel-2>
       <div.row>
@@ -208,18 +209,55 @@ getDCustomR reportName width height = do
 --  | Top20ColourJanuary
 --  | Top20ItemJanuary
 --  deriving (Show, Eq, Enum, Bounded)
+-- | Display full year (fiscal and las 52 weeks)
+getDYearR :: Handler Html
+getDYearR = do
+  now <- liftIO $ getCurrentTime
+  -- refactor
+  slidingFull <- reportDiv "salesSlidingYearFull" 
+  slidingBack <- reportDiv "salesSlidingYearFullBackward" 
+  currentFull <- reportDiv "salesCurrentYearFull" 
+
+  cacheSeconds (3600*23)
+  defaultLayout $ do
+    addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
+    [whamlet|
+  <div.panel.panel-primary>
+    <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-1">
+      <h2> Full Year
+    <div.panel-body.pivot-inline id=dashboard-panel-1>
+      <div.row>
+        <div.col-md-12>
+          ^{slidingFull}
+      <div.row>
+        <div.col-md-12>
+          ^{currentFull}
+      <div.row>
+        <div.col-md-12>
+          ^{slidingBack}
+  <div.footer>
+  <span.text-right.font-italic>
+    Last update #{tshow now}
+  |]
 
 dispatchReport :: Text -> Int64 -> Int64 -> Handler (Either Text Widget)
 dispatchReport reportName width height = do
   today <- todayH
-  let beginMonth = calculateDate (AddMonths (-1)) today
+  let slidingMonthg = calculateDate (AddMonths (-1)) today
       beginJanuary = fromGregorian (currentYear) 1 1
+      endDecember = fromGregorian currentYear 12 31
       currentYear = toYear today
+      slidingYearEnd = today
+      slidingYear = calculateDate (AddDays 1) $ calculateDate (AddMonths (-12)) slidingYearEnd
+      fiscalYear = slidingYear 
+      fiscalYearEnd = slidingYearEnd
+      -- fiscalYearEnd = calculateDate (AddDays (-1)) $ calculateDate (AddMonths 12) fiscalYear
+      
       reportMaker = case reportName of
         "salesCurrentMonthP" -> salesCurrentMonth id reportName
-        "top20ItemMonth" -> top20ItemMonth id beginMonth skuColumn
-        "top20StyleMonth" -> top20ItemMonth id beginMonth styleColumn
-        "top20ColourMonth" -> top20ItemMonth id beginMonth variationColumn
+        "top20ItemMonth" -> top20ItemMonth id slidingMonthg skuColumn
+        "top20StyleMonth" -> top20ItemMonth id slidingMonthg styleColumn
+        "top20ColourMonth" -> top20ItemMonth id slidingMonthg variationColumn
         "top20ItemJanuary" -> top20ItemMonth id beginJanuary skuColumn
         "top20StyleJanuary" -> top20ItemMonth id beginJanuary styleColumn
         "top20ColourJanuary" -> top20ItemMonth id beginJanuary variationColumn
@@ -230,10 +268,14 @@ dispatchReport reportName width height = do
         "top100StyleYear" -> top100ItemYear False styleColumn
         "top100ColourYear" -> top100ItemYear False variationColumn
 
-        "salesCurrentMonthFull" -> salesCurrentMonth salesCurrentMonthFullUp reportName
-        "top20ItemMonthFull" -> top20ItemMonth top20FullUp beginMonth skuColumn
-        "top20StyleMonthFull" -> top20ItemMonth top20FullUp beginMonth styleColumn
-        "top20ColourMonthFull" -> top20ItemMonth top20FullUp beginMonth variationColumn
+        "salesCurrentMonthFull" -> salesCurrentMonth salesCurrentMonthFullUp reportName 
+        "salesCurrentYearFull" -> salesCurrentYear RunSum salesCurrentMonthFullUp reportName beginJanuary endDecember
+        "salesSlidingYearFull" -> salesCurrentYear RunSum salesCurrentMonthFullUp reportName slidingYear slidingYearEnd
+        "salesSlidingYearFullBackward" -> salesCurrentYear RunSumBack salesCurrentMonthFullUp reportName slidingYear slidingYearEnd
+        "salesFiscalYearFull" -> salesCurrentYear RunSum salesCurrentMonthFullUp reportName fiscalYear fiscalYearEnd
+        "top20ItemMonthFull" -> top20ItemMonth top20FullUp slidingMonthg skuColumn
+        "top20StyleMonthFull" -> top20ItemMonth top20FullUp slidingMonthg styleColumn
+        "top20ColourMonthFull" -> top20ItemMonth top20FullUp slidingMonthg variationColumn
         "top20ItemJanuaryFull" -> top20ItemMonth top20FullUp beginJanuary skuColumn
         "top20StyleJanuaryFull" -> top20ItemMonth top20FullUp beginJanuary styleColumn
         "top20ColourJanuaryFull" -> top20ItemMonth top20FullUp beginJanuary variationColumn
@@ -323,6 +365,60 @@ salesCurrentMonth f plotName = do
   report <- itemReportWithRank param grouper (\nmap -> plotChartDiv param (const 350) nmap plotName nmap)
   return $ report
 
+salesCurrentYear runsum f plotName begin end = do
+  let param = f ReportParam{..}
+      rpToday = end
+      rpFrom = Just begin
+      rpTo = Just end
+      rpPeriod' = Just PFSlidingYearFrom
+      rpNumberOfPeriods = Just 2
+      rpCategoryToFilter = Nothing
+      rpCategoryFilter = Nothing
+      rpStockFilter = Nothing
+      rpPanelRupture = emptyRupture
+      rpBand = emptyRupture
+      rpSerie = ColumnRupture  (Just periodColumn) (DataParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
+      rpColumnRupture = ColumnRupture  (Just monthlyColumn) (DataParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
+      rpDataParam = DataParams QPSales (mkIdentifialParam cumulSales') (Just $ NormalizeMode NMBestInit NMBand )
+      rpDataParam2 = DataParams QPSales (mkIdentifialParam amountSales) (Just $ NormalizeMode NMTotal NMBand )
+      rpDataParam3 = emptyTrace
+      rpLoadSales = True
+      rpLoadOrderInfo = False
+      rpLoadPurchases = False
+      rpLoadAdjustment = False
+      rpForecastDir = Nothing
+      amountSales = ("Amount (Out)" ,   [(qpAmount Outward, VAmount, amountStyle, RunSumBack)] )
+      amountStyle color = [("type", String "scatter")
+                      ,("mode", String "lines")
+                      ,("name", String "Sales")
+                      ,("line", [aesonQQ|{
+                               shape:"spline", 
+                               color: #{color},
+                               dash: "dot",
+                               width: 1
+                                }|])
+                , ("marker", [aesonQQ|{symbol: "square"}|])
+              ]
+      cumulSales' = ("CumulAmount (Out)" ,   [(qpAmount Outward, VAmount, cumulStyle, RunSumBack)] )
+      cumulStyle color = [("type", String "scatter")
+                      ,("mode", String "lines")
+                      ,("name", String "Sales")
+                      ,("line", [aesonQQ|{
+                               shape:"linear", 
+                               color: #{color},
+                               dash: "dot"
+                                }|])
+                -- , ("marker", [aesonQQ|{symbol: null}|])
+                , ("yaxis", "y2")
+                , ("showlegend", toJSON True)
+              ]
+      -- TODO factorize
+      grouper = [ -- rpPanelRupture,
+                  rpBand, rpSerie
+                , rpColumnRupture
+                ]
+  report <- itemReportWithRank param grouper (\nmap -> plotChartDiv param (const 350) nmap plotName nmap)
+  return $ report
 
 -- | Top style
 top20ItemMonth f begin rupture = do
