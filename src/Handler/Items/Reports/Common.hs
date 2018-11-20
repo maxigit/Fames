@@ -1217,9 +1217,9 @@ renderPlotDiv plotSeries heightForBands plotId0 panels = do
     
 defaultColors :: [Text]
 defaultColors = defaultPlottly where
-  defaultPlottly  = ["#1f77b4",  -- muted blue
+  defaultPlottly  = ["#2ca02c",  -- cooked asparagus green
               "#ff7f0e",  -- safety orange
-              "#2ca02c",  -- cooked asparagus green
+              "#1f77b4",  -- muted blue
               "#d62728",  -- brick red
               "#9467bd",  -- muted purple
               "#8c564b",  -- chestnut brown
