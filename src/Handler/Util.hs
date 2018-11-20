@@ -71,6 +71,7 @@ module Handler.Util
 , loadDebtorsMasterRuleInfos
 , applyCategoryRules
 , todayH
+, fiscalYearH
 , currentFAUser
 , getSubdirOptions
 ) where
@@ -98,7 +99,7 @@ import qualified Data.List as Data.List
 import Model.DocumentKey
 import Control.Monad.Except hiding(mapM_, filterM)
 import Text.Printf(printf) 
-
+import Data.Maybe(fromJust)
 import Text.Read(Read,readPrec)
 import qualified Data.Map as LMap
 -- import Data.IOData (IOData)
@@ -1054,3 +1055,14 @@ orderCategoriesH = do
 -- todayH :: Handler Day
 -- todayH :: MonadIO io => io Day
 todayH = utctDay <$> liftIO getCurrentTime
+
+-- | Find beginning of fiscal year
+fiscalYearH :: Handler Day
+fiscalYearH = do
+  today <- todayH
+  fiscalm <- runDB $ selectFirst [FA.FiscalYearEnd >. Just today] [Desc FA.FiscalYearBegin]
+  case fiscalm of
+    Just (Entity _ fiscal) -> return $ fromJust $ FA.fiscalYearBegin fiscal
+    Nothing -> do
+      fiscal <- runDB $ selectFirst [] [Desc FA.FiscalYearBegin]
+      return . fromMaybe (error "No fiscal year configured in the database") $  fiscal >>= (FA.fiscalYearBegin . entityVal)

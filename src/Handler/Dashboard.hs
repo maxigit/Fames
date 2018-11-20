@@ -217,6 +217,7 @@ getDYearR = do
   slidingFull <- reportDiv "salesSlidingYearFull" 
   slidingBack <- reportDiv "salesSlidingYearFullBackward" 
   currentFull <- reportDiv "salesCurrentYearFull" 
+  fiscalFull <- reportDiv "salesCurrentFiscalFull"
 
   cacheSeconds (3600*23)
   defaultLayout $ do
@@ -234,6 +235,9 @@ getDYearR = do
           ^{currentFull}
       <div.row>
         <div.col-md-12>
+          ^{fiscalFull}
+      <div.row>
+        <div.col-md-12>
           ^{slidingBack}
   <div.footer>
   <span.text-right.font-italic>
@@ -243,15 +247,14 @@ getDYearR = do
 dispatchReport :: Text -> Int64 -> Int64 -> Handler (Either Text Widget)
 dispatchReport reportName width height = do
   today <- todayH
+  fiscalYear <- fiscalYearH
   let slidingMonth = calculateDate (AddMonths (-1)) today
       beginJanuary = fromGregorian (currentYear) 1 1
       endDecember = fromGregorian currentYear 12 31
       currentYear = toYear today
       slidingYearEnd = today
       slidingYear = calculateDate (AddDays 1) $ calculateDate (AddMonths (-12)) slidingYearEnd
-      fiscalYear = slidingYear 
-      fiscalYearEnd = slidingYearEnd
-      -- fiscalYearEnd = calculateDate (AddDays (-1)) $ calculateDate (AddMonths 12) fiscalYear
+      fiscalYearEnd = calculateDate (AddDays (-1)) $ calculateDate (AddMonths 12) fiscalYear
       
       reportMaker = case reportName of
         "salesCurrentMonthP" -> salesCurrentMonth id reportName
@@ -272,7 +275,7 @@ dispatchReport reportName width height = do
         "salesCurrentYearFull" -> salesCurrentMonth (salesCurrentYearUp RunSum beginJanuary endDecember) reportName 
         "salesSlidingYearFull" -> salesCurrentMonth (salesCurrentYearUp RunSum slidingYear slidingYearEnd) reportName
         "salesSlidingYearFullBackward" -> salesCurrentMonth (salesCurrentYearUp RunSumBack slidingYear slidingYearEnd) reportName
-        "salesFiscalYearFull" -> salesCurrentMonth (salesCurrentYearUp RunSum fiscalYear fiscalYearEnd) reportName
+        "salesCurrentFiscalFull" -> salesCurrentMonth ((\param -> param  {rpNumberOfPeriods = Just 5, rpDataParam2 = emptyTrace}) . salesCurrentYearUp RunSum fiscalYear fiscalYearEnd) reportName
         "top20ItemMonthFull" -> top20ItemMonth top20FullUp slidingMonth skuColumn
         "top20StyleMonthFull" -> top20ItemMonth top20FullUp slidingMonth styleColumn
         "top20ColourMonthFull" -> top20ItemMonth top20FullUp slidingMonth variationColumn
