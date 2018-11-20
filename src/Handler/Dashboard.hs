@@ -243,7 +243,7 @@ getDYearR = do
 dispatchReport :: Text -> Int64 -> Int64 -> Handler (Either Text Widget)
 dispatchReport reportName width height = do
   today <- todayH
-  let slidingMonthg = calculateDate (AddMonths (-1)) today
+  let slidingMonth = calculateDate (AddMonths (-1)) today
       beginJanuary = fromGregorian (currentYear) 1 1
       endDecember = fromGregorian currentYear 12 31
       currentYear = toYear today
@@ -255,9 +255,9 @@ dispatchReport reportName width height = do
       
       reportMaker = case reportName of
         "salesCurrentMonthP" -> salesCurrentMonth id reportName
-        "top20ItemMonth" -> top20ItemMonth id slidingMonthg skuColumn
-        "top20StyleMonth" -> top20ItemMonth id slidingMonthg styleColumn
-        "top20ColourMonth" -> top20ItemMonth id slidingMonthg variationColumn
+        "top20ItemMonth" -> top20ItemMonth id slidingMonth skuColumn
+        "top20StyleMonth" -> top20ItemMonth id slidingMonth styleColumn
+        "top20ColourMonth" -> top20ItemMonth id slidingMonth variationColumn
         "top20ItemJanuary" -> top20ItemMonth id beginJanuary skuColumn
         "top20StyleJanuary" -> top20ItemMonth id beginJanuary styleColumn
         "top20ColourJanuary" -> top20ItemMonth id beginJanuary variationColumn
@@ -268,14 +268,14 @@ dispatchReport reportName width height = do
         "top100StyleYear" -> top100ItemYear False styleColumn
         "top100ColourYear" -> top100ItemYear False variationColumn
 
-        "salesCurrentMonthFull" -> salesCurrentMonth salesCurrentMonthFullUp reportName 
-        "salesCurrentYearFull" -> salesCurrentYear RunSum salesCurrentMonthFullUp reportName beginJanuary endDecember
-        "salesSlidingYearFull" -> salesCurrentYear RunSum salesCurrentMonthFullUp reportName slidingYear slidingYearEnd
-        "salesSlidingYearFullBackward" -> salesCurrentYear RunSumBack salesCurrentMonthFullUp reportName slidingYear slidingYearEnd
-        "salesFiscalYearFull" -> salesCurrentYear RunSum salesCurrentMonthFullUp reportName fiscalYear fiscalYearEnd
-        "top20ItemMonthFull" -> top20ItemMonth top20FullUp slidingMonthg skuColumn
-        "top20StyleMonthFull" -> top20ItemMonth top20FullUp slidingMonthg styleColumn
-        "top20ColourMonthFull" -> top20ItemMonth top20FullUp slidingMonthg variationColumn
+        "salesCurrentMonthFull" -> salesCurrentMonth salesCurrentUp reportName 
+        "salesCurrentYearFull" -> salesCurrentMonth (salesCurrentYearUp RunSum beginJanuary endDecember) reportName 
+        "salesSlidingYearFull" -> salesCurrentMonth (salesCurrentYearUp RunSum slidingYear slidingYearEnd) reportName
+        "salesSlidingYearFullBackward" -> salesCurrentMonth (salesCurrentYearUp RunSumBack slidingYear slidingYearEnd) reportName
+        "salesFiscalYearFull" -> salesCurrentMonth (salesCurrentYearUp RunSum fiscalYear fiscalYearEnd) reportName
+        "top20ItemMonthFull" -> top20ItemMonth top20FullUp slidingMonth skuColumn
+        "top20StyleMonthFull" -> top20ItemMonth top20FullUp slidingMonth styleColumn
+        "top20ColourMonthFull" -> top20ItemMonth top20FullUp slidingMonth variationColumn
         "top20ItemJanuaryFull" -> top20ItemMonth top20FullUp beginJanuary skuColumn
         "top20StyleJanuaryFull" -> top20ItemMonth top20FullUp beginJanuary styleColumn
         "top20ColourJanuaryFull" -> top20ItemMonth top20FullUp beginJanuary variationColumn
@@ -298,10 +298,21 @@ cumulStyle color = [("type", String "scatter")
                 , ("yaxis", "y2")
                 , ("showlegend", toJSON True)
               ]
-salesCurrentMonthFullUp param = param {rpDataParam, rpDataParam2} where
+salesCurrentUp param = param {rpDataParam, rpDataParam2} where
       rpDataParam = DataParams QPSales (mkIdentifialParam cumulSales) Nothing
       rpDataParam2 = DataParams QPSales (mkIdentifialParam amountSales) Nothing
   
+salesCurrentYearUp runsum from to param =
+  (salesCurrentUp param) { rpFrom = Just from
+        , rpTo = Just to
+        , rpToday = to
+        , rpPeriod' = Just PFSlidingYearFrom
+        , rpColumnRupture = ColumnRupture (Just weeklyColumn) (DataParams QPSummary
+                                          (Identifiable ("Column", [])) Nothing) Nothing Nothing False
+        , rpDataParam = DataParams QPSales (mkIdentifialParam cumulSales0) Nothing
+        }
+  where 
+      cumulSales0 = ("CumulAmount (Out)" ,   [(qpAmount Outward, VAmount, cumulStyle, runsum)] )
 top20FullUp param = param {rpDataParam2,rpDataParam3} where
       rpDataParam2 = DataParams QPSales (mkIdentifialParam amountSales) Nothing
       rpDataParam3 = DataParams QPSales (mkIdentifialParam quantitySales) Nothing
@@ -312,7 +323,7 @@ salesCurrentMonth f plotName = do
   today <- todayH
   let endMonth = calculateDate (AddMonths 1) beginMonth
       beginMonth = calculateDate (BeginningOfMonth) . calculateDate (BeginningOfWeek Monday) $ today
-  let param = f ReportParam{..}
+  let param = f ReportParam{rpColumnRupture=columnRupture,..}
       rpToday = today
       rpFrom = Just beginMonth
       rpTo = Just endMonth
@@ -324,7 +335,7 @@ salesCurrentMonth f plotName = do
       rpPanelRupture = emptyRupture
       rpBand = emptyRupture
       rpSerie = ColumnRupture  (Just periodColumn) (DataParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
-      rpColumnRupture = ColumnRupture  (Just dailyColumn) (DataParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
+      columnRupture = ColumnRupture  (Just dailyColumn) (DataParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
       rpDataParam = DataParams QPSales (mkIdentifialParam cumulSales) (Just $ NormalizeMode NMBestInit NMBand )
       rpDataParam2 = DataParams QPSales (mkIdentifialParam amountSales) (Just $ NormalizeMode NMTotal NMBand )
       rpDataParam3 = emptyTrace
@@ -359,66 +370,12 @@ salesCurrentMonth f plotName = do
               ]
       -- TODO factorize
       grouper = [ -- rpPanelRupture,
-                  rpBand, rpSerie
-                , rpColumnRupture
+                  rpBand , rpSerie
+                , rpColumnRupture param
                 ]
   report <- itemReportWithRank param grouper (\nmap -> plotChartDiv param (const 350) nmap plotName nmap)
   return $ report
 
-salesCurrentYear runsum f plotName begin end = do
-  let param = f ReportParam{..}
-      rpToday = end
-      rpFrom = Just begin
-      rpTo = Just end
-      rpPeriod' = Just PFSlidingYearFrom
-      rpNumberOfPeriods = Just 2
-      rpCategoryToFilter = Nothing
-      rpCategoryFilter = Nothing
-      rpStockFilter = Nothing
-      rpPanelRupture = emptyRupture
-      rpBand = emptyRupture
-      rpSerie = ColumnRupture  (Just periodColumn) (DataParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
-      rpColumnRupture = ColumnRupture  (Just monthlyColumn) (DataParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
-      rpDataParam = DataParams QPSales (mkIdentifialParam cumulSales') (Just $ NormalizeMode NMBestInit NMBand )
-      rpDataParam2 = DataParams QPSales (mkIdentifialParam amountSales) (Just $ NormalizeMode NMTotal NMBand )
-      rpDataParam3 = emptyTrace
-      rpLoadSales = True
-      rpLoadOrderInfo = False
-      rpLoadPurchases = False
-      rpLoadAdjustment = False
-      rpForecastDir = Nothing
-      amountSales = ("Amount (Out)" ,   [(qpAmount Outward, VAmount, amountStyle, RunSumBack)] )
-      amountStyle color = [("type", String "scatter")
-                      ,("mode", String "lines")
-                      ,("name", String "Sales")
-                      ,("line", [aesonQQ|{
-                               shape:"spline", 
-                               color: #{color},
-                               dash: "dot",
-                               width: 1
-                                }|])
-                , ("marker", [aesonQQ|{symbol: "square"}|])
-              ]
-      cumulSales' = ("CumulAmount (Out)" ,   [(qpAmount Outward, VAmount, cumulStyle, RunSumBack)] )
-      cumulStyle color = [("type", String "scatter")
-                      ,("mode", String "lines")
-                      ,("name", String "Sales")
-                      ,("line", [aesonQQ|{
-                               shape:"linear", 
-                               color: #{color},
-                               dash: "dot"
-                                }|])
-                -- , ("marker", [aesonQQ|{symbol: null}|])
-                , ("yaxis", "y2")
-                , ("showlegend", toJSON True)
-              ]
-      -- TODO factorize
-      grouper = [ -- rpPanelRupture,
-                  rpBand, rpSerie
-                , rpColumnRupture
-                ]
-  report <- itemReportWithRank param grouper (\nmap -> plotChartDiv param (const 350) nmap plotName nmap)
-  return $ report
 
 -- | Top style
 top20ItemMonth f begin rupture = do
