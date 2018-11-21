@@ -379,8 +379,10 @@ generateMoves' :: (Ord k, Eq k)
                -> WH [String] s
 generateMoves' header boxKey printGroup = do
  s'bS <- shelfBoxes
+ generateMovesFor header boxKey printGroup s'bS 
+generateMovesFor header boxKey printGroup box'shelfs = do
  let groups = Map'.fromListWith (<>) [ (key, [(b, shelfName s)])
-                                     | (s,b) <- s'bS
+                                     | (s,b) <- box'shelfs
                                      , Just key <- [boxKey b]
                                      -- , "mop-exclude" `notElem` boxTags b
                                      ]
@@ -388,6 +390,7 @@ generateMoves' header boxKey printGroup = do
  return (header
         : map printGroup' (Map'.toList groups)
         )
+  
 -- | Generates files compatible with MOP
 generateMOPLocations :: WH [String] s
 generateMOPLocations = generateMoves' "stock_id,location" boxName printGroup where
@@ -406,12 +409,37 @@ generateMOPLocations = generateMoves' "stock_id,location" boxName printGroup whe
            (Just comment, name:names) -> intercalate "|" (name : groupNames names)  ++ " " ++ comment
                                         
 -- | Generate a generic report using tags prefixed by the report param
-generateGenericReport today prefix = generateMoves' "" boxKey printGroup where
+generateGenericReport :: Day -> String -> WH [String] s
+generateGenericReport today prefix = do
+  s'bS <- shelfBoxes
+  -- group by group if exists
+  let groupKey box = let tags = boxTags box
+                 in F.asum $ map (stripPrefix $ prefix ++ "-group=") (Set.toList tags)
+      groups0 = Map'.fromListWith (<>) [ (gkey, [s'b])
+                                    | s'b <- s'bS
+                                    , let gkey = groupKey (snd s'b)
+                                    ]
+      groups = case Map'.keys groups0 of
+        [Nothing] -> groups0
+        _ -> Map'.delete Nothing groups0
+
+  rs <- forM (Map'.toList groups) $ \(gkey, s'bs) -> do
+    -- display the group only if it's not null
+    let withTitle items = case gkey of
+                            Just s | not (null s) -> expandReportValue today boxes (nub $ sort $ map shelfName shelves) s : items
+                            _ -> items
+        (shelves, boxes) = unzip s'bs
+    items <- generateGenericReport' today prefix s'bs
+    return (withTitle items)
+  return $ concat rs
+        
+  
+generateGenericReport' today prefix s'bs = generateMovesFor "" boxKey printGroup s'bs where
   boxKey box = let tags = boxTags box
-               in F.asum $ map (stripPrefix $ prefix ++ "key=") (Set.toList tags)
+               in F.asum $ map (stripPrefix $ prefix ++ "-key=") (Set.toList tags)
   printGroup boxKey [] shelfNames = boxKey
   printGroup boxKey boxes@(box:_) shelfNames = let
-    value0 = F.asum $ map (stripPrefix (prefix ++ "value=")) (boxTagList box)
+    value0 = F.asum $ map (stripPrefix (prefix ++ "-value=")) (boxTagList box)
     value = maybe "" (expandReportValue today boxes shelfNames ) value0
     in value
 

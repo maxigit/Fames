@@ -510,9 +510,11 @@ If the first word of a section is one of the valid section name, the whole conte
   <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-generic-report">
      Generic report
 <div.pre.collapse id=info-section-generic-report>
-  A generic report can generated using special tags. All boxes will be grouped using the special tag <code><i>report-</i>key</code>.
-  For each group (having the same key), a line will be displayed with the content of the <code><i>report-</i>value</code> property.
-  The <code>report-</code> prefix can be changed by setting an alternative prefix in the parameter field. This allows multiples report
+  A generic report can generated using special tags. All boxes will be grouped first using the special tag <code><i>report</i>-group</code>
+  and then <code><i>report</i>-key</code>.
+  For each group (having the same key), a line will be displayed with the content of  <code><i>report</i>-group</code> (for the first
+  level of grouping) and the <code><i>report</i>-value</code> property (for boxes grouped by <code><i>report</i>-key</code>). 
+  The <code>report</code> prefix can be changed by setting an alternative prefix in the parameter field. This allows multiples report
   to be defined within the same plan. 
   The following group attributes will be expanded :
   <ul>
@@ -578,7 +580,7 @@ renderView param0 = do
               PlannerGenerateMoves -> renderConsoleReport (generateMoves boxStyle) scenario
               PlannerGenerateMovesWithTags -> renderConsoleReport (generateMoves boxStyleWithTags) scenario
               PlannerGenerateMOPLocations -> renderConsoleReport (generateMOPLocations) scenario
-              PlannerGenericReport -> renderConsoleReport (generateGenericReport today (maybe "report-" unpack $ pParameter param)) scenario
+              PlannerGenericReport -> renderConsoleReport (generateGenericReport today (maybe "report" unpack $ pParameter param)) scenario
               PlannerScenarioHistory -> renderHistory
               PlannerBoxGroupReport -> renderBoxGroupReport (pParameter param) scenario
               -- PlannerBoxGroupReport -> renderBoxGroupReport
