@@ -533,6 +533,7 @@ If the first word of a section is one of the valid section name, the whole conte
   <ul>
     <li> ${hash} <code>#</code>
     <li> ${comma} <code>,</code>
+    <li> ${divide} <code>/</code>
     <li> ${dollar} <code>$</code>
 
   Example, to generate a valid TAG File tagging each box using its unique barcode tag with its location
