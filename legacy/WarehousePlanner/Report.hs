@@ -369,11 +369,11 @@ boxStyleWithTags b = let
   in intercalate "#" (boxStyleAndContent b : tags)
  
 generateMoves :: (Box s -> String) -> WH [String] s
-generateMoves boxName = generateMoves' "stock_id,location" (Just . boxName) printGroup where
+generateMoves boxName = generateMoves' (Just "stock_id,location") (Just . boxName) printGroup where
      printGroup boxName _ shelves = boxName ++ "," ++ intercalate "|" (groupNames shelves)
 -- generateMoves' :: (Box s -> String) -> (Box s -> [String]) -> WH [String] s
 generateMoves' :: (Ord k, Eq k)
-               => String -- ^ Header
+               => Maybe String -- ^ Header
                -> (Box s -> Maybe k) -- ^ box key
                ->  (k -> [Box s] -> [String]  -> String) -- ^ string from key, boxes and unique shelfnames
                -> WH [String] s
@@ -387,13 +387,11 @@ generateMovesFor header boxKey printGroup box'shelfs = do
                                      -- , "mop-exclude" `notElem` boxTags b
                                      ]
      printGroup' (key, box'shelves) = printGroup key boxes (nub $ sort shelves) where (boxes, shelves) = unzip box'shelves
- return (header
-        : map printGroup' (Map'.toList groups)
-        )
+ return $ maybe id   (:) header $  map printGroup' (Map'.toList groups)
   
 -- | Generates files compatible with MOP
 generateMOPLocations :: WH [String] s
-generateMOPLocations = generateMoves' "stock_id,location" boxName printGroup where
+generateMOPLocations = generateMoves' (Just "stock_id,location") boxName printGroup where
   -- use box style unless the box is tagged as exception
   boxName box = let tags = boxTags box
                     comment = F.asum $ map (stripPrefix "mop-comment=") (boxTagList box)
@@ -434,13 +432,13 @@ generateGenericReport today prefix = do
   return $ concat rs
         
   
-generateGenericReport' today prefix s'bs = generateMovesFor "" boxKey printGroup s'bs where
+generateGenericReport' today prefix s'bs = generateMovesFor Nothing boxKey printGroup s'bs where
   boxKey box = let tags = boxTags box
                in F.asum $ map (stripPrefix $ prefix ++ "-key=") (Set.toList tags)
   printGroup boxKey [] shelfNames = boxKey
   printGroup boxKey boxes@(box:_) shelfNames = let
     value0 = F.asum $ map (stripPrefix (prefix ++ "-value=")) (boxTagList box)
-    value = maybe "" (expandReportValue today boxes shelfNames ) value0
+    value = maybe boxKey (expandReportValue today boxes shelfNames ) value0
     in value
 
 
