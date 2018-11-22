@@ -148,7 +148,9 @@ spreadSheetToCsv = processBoxtakeSheet' Save go
 -- depending on the actual stock
 
 getWHBoxtakeAdjustmentR :: Handler TypedContent
-getWHBoxtakeAdjustmentR = flip renderBoxtakeAdjustments Nothing =<< defaultAdjustmentParamH
+getWHBoxtakeAdjustmentR = do
+  setWarning "Make sure orderXtra cache has been reset on FrontAccounting"
+  flip renderBoxtakeAdjustments Nothing =<< defaultAdjustmentParamH
 
 postWHBoxtakeAdjustmentR :: Handler TypedContent
 postWHBoxtakeAdjustmentR = do
