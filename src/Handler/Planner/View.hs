@@ -710,7 +710,7 @@ renderConsoleReport report scenario = do
   return [whamlet|
 $forall row <- rows
   <samp>
-    <p> #{row}
+    #{row}<br>
                  |]
 
 -- | Show scenario in cache
