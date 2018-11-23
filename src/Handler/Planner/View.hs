@@ -487,6 +487,11 @@ If the first word of a section is one of the valid section name, the whole conte
     <li> ${content} # current box content (or colour)
     <li> ${boxname} # box style + content
     <li> ${dimension} # box dimension in cm
+    <li> ${offset} # box offset (within the shelf) in cm
+    <li> ${coordinate} # box coordinate (as if row and column of similar boxes) (start at 1)
+    <li> ${ol} $ length coordinate
+    <li> ${ow} $ width coordinate
+    <li> ${oh} $ height coordinate
 
   Example
   <pre>

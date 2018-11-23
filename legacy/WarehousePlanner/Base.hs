@@ -845,6 +845,12 @@ boxStyleAndContent b = case boxContent b of
   "" -> boxStyle b
   c -> boxStyle b ++ "-" ++ c
   
+-- | Box coordinate as if the shelf was full of this box
+-- give the offest divide by the dimension of the box + 1
+boxCoordinate box  = let (Dimension ol ow oh) = boxOffset box
+                         (Dimension l w h) = boxDim box
+                         go o d = (o / d) + 1
+                     in Dimension (go ol l) (go ow w) (go oh h)
 -- | Box attribute can be used to create new tag
 -- example, /pending,#previous=$shelfname on a
 -- will add the tag previous=pending to all items in the pending shelf
@@ -869,9 +875,16 @@ expandAttribute' ('$':'{':'s':'h':'e':'l':'f':'t':'a':'g':'}':xs) = Just $ \box 
     Just sId -> do
       shelf <- findShelf sId
       return $ fromMaybe "" (shelfTag shelf) ++ ex
+expandAttribute' ('$':'{':'o':'l':'}':xs) = Just $ \box -> let (Dimension ol _ _ ) = boxCoordinate box in fmap ((show $ round ol) ++) (expandAttribute box xs)
+expandAttribute' ('$':'{':'o':'w':'}':xs) = Just $ \box -> let (Dimension _ ow _ ) = boxCoordinate box in fmap ((show $ round ow) ++) (expandAttribute box xs)
+expandAttribute' ('$':'{':'o':'h':'}':xs) = Just $ \box -> let (Dimension _ _ oh ) = boxCoordinate box in fmap ((show $ round oh) ++) (expandAttribute box xs)
 expandAttribute' ('$':'{':'s':'t':'y':'l':'e':'}':xs) =  Just $ \box -> fmap ((boxStyle box) ++) (expandAttribute box xs)
 expandAttribute' ('$':'{':'c':'o':'n':'t':'e':'n':'t':'}':xs) =  Just $ \box -> fmap ((boxContent box) ++) (expandAttribute box xs)
 expandAttribute' ('$':'{':'b':'o':'x':'n':'a':'m':'e':'}':xs) =  Just $ \box -> fmap ((boxStyleAndContent box) ++) (expandAttribute box xs)
+expandAttribute' ('$':'{':'c':'o':'o':'r':'d':'i':'n':'a':'t':'e':'}':xs) =  Just $ \box -> let (Dimension ol ow oh) = boxCoordinate box
+                                                                                                roundi i = (round i) :: Int
+                                                                                            in fmap ((printf "%d:%d:%d" (roundi ol) (roundi ow) (roundi oh)) ++) (expandAttribute box xs)
+expandAttribute' ('$':'{':'o':'f':'f':'s':'e':'t':'}':xs) =  Just $ \box -> fmap ((printDim $ boxOffset box) ++) (expandAttribute box xs)
 expandAttribute' ('$':'{':'d':'i':'m':'e':'n':'s':'i':'o':'n':'}':xs) =  Just $ \box -> fmap ((printDim (_boxDim box)) ++) (expandAttribute box xs)
 expandAttribute' ('$':'{':'o':'r':'i':'e':'n':'t':'a':'t':'i':'o':'n':'}':xs) = Just $ \box -> fmap (showOrientation (orientation box) ++) (expandAttribute box xs)
 expandAttribute' ('$':'[':xs') | (pat', _:xs')<- break (== ']') xs' = Just $ \box -> do
