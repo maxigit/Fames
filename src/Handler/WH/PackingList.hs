@@ -718,7 +718,11 @@ renderPlanner _ details = let
                                  )
                                | (Entity _ detail@PackingListDetail{..}) <- details
                                ]
-  style PackingListDetail{..} = packingListDetailStyle <> (content $ Map.toList packingListDetailContent )
+  style PackingListDetail{..} = packingListDetailStyle
+                             <> (content $ Map.toList packingListDetailContent )
+                             <> ("#barcode=" <> packingListDetailBarcode )
+                             <> ("#reference=" <> packingListDetailReference )
+                             <> ("#boxNumber=" <> tshow packingListDetailBoxNumber )
   content [] = ""
   content ((col,__qty):cs) = "-" <> col <> if null cs then "" else "*"
   in [shamlet|
