@@ -720,7 +720,7 @@ renderPlanner withDetails _ details = let
                                ]
   style PackingListDetail{..} = packingListDetailStyle
                              <> (content $ Map.toList packingListDetailContent )
-                             <> if withDetails
+                             <> if not withDetails
                                 then ("#barcode=" <> packingListDetailBarcode )
                                      <> ("#reference=" <> packingListDetailReference )
                                      <> ("#boxNumber=" <> tshow packingListDetailBoxNumber )
