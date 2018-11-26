@@ -471,7 +471,7 @@ viewPackingList mode key pre = do
                                  Textcart -> renderTextcart
                                  StickerCsv -> renderStickers today
                                  Chalk -> renderChalk corridors
-                                 Planner -> renderPlanner
+                                 Planner -> renderPlanner False
                                  PlannerColourless -> renderPlannerColourless
                                  Stickers ->  error "Shoudn't happen"
                                  EditDetails ->  error "Shoudn't happen"
@@ -707,8 +707,8 @@ $forall zone <- sliced
 |]
 
 -- | CSV compatible with WarehousePlanner
-renderPlanner :: PackingList -> [Entity PackingListDetail] -> Html
-renderPlanner _ details = let
+renderPlanner :: Bool -> PackingList -> [Entity PackingListDetail] -> Html
+renderPlanner withDetails _ details = let
   groups = Map.fromListWith (+) [ ( ( style detail
                                    , packingListDetailLength
                                    , packingListDetailWidth
@@ -720,9 +720,11 @@ renderPlanner _ details = let
                                ]
   style PackingListDetail{..} = packingListDetailStyle
                              <> (content $ Map.toList packingListDetailContent )
-                             <> ("#barcode=" <> packingListDetailBarcode )
-                             <> ("#reference=" <> packingListDetailReference )
-                             <> ("#boxNumber=" <> tshow packingListDetailBoxNumber )
+                             <> if withDetails
+                                then ("#barcode=" <> packingListDetailBarcode )
+                                     <> ("#reference=" <> packingListDetailReference )
+                                     <> ("#boxNumber=" <> tshow packingListDetailBoxNumber )
+                                 else ""
   content [] = ""
   content ((col,__qty):cs) = "-" <> col <> if null cs then "" else "*"
   in [shamlet|
@@ -740,7 +742,7 @@ $forall ((style, l, w, h),qty) <- Map.toList groups
 -- but remove colour information so that it's easier to know actuall how many boxes
 -- are coming for a given style.
 renderPlannerColourless :: PackingList -> [Entity PackingListDetail] -> Html
-renderPlannerColourless pl details = renderPlanner pl (map removeColour details) where
+renderPlannerColourless pl details = renderPlanner True pl (map removeColour details) where
   removeColour (Entity key detail) = Entity  key detail {packingListDetailContent = Map.fromList []}
 
 
