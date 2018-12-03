@@ -324,6 +324,7 @@ top20FullUp param = param {rpDataParam2,rpDataParam3} where
 
 salesCurrentMonth f plotName = do
   today <- todayH
+  rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
   let endMonth = calculateDate (AddMonths 1) beginMonth
       beginMonth = calculateDate (BeginningOfMonth) . calculateDate (BeginningOfWeek Monday) $ today
   let param = f ReportParam{rpColumnRupture=columnRupture,..}
@@ -383,6 +384,8 @@ salesCurrentMonth f plotName = do
 -- | Top style
 top20ItemMonth f begin rupture = do
   today <- todayH
+  rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
+
   let tomorrow = calculateDate (AddDays 1) today
   let param = f ReportParam{..}
       rpToday = today
@@ -413,6 +416,8 @@ top20ItemMonth f begin rupture = do
 
 top100ItemYear which rupture = do
   today <- todayH
+  rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
+
   let tomorrow = calculateDate (AddDays 1) today
       beginYear = fromGregorian (currentYear) 1 1
       currentYear = toYear today
@@ -453,6 +458,7 @@ top100ItemYear which rupture = do
 
 top100ItemYearChart plotName = do
   today <- todayH
+  rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
   let tomorrow = calculateDate (AddDays 1) today
       beginYear = fromGregorian (currentYear) 1 1
       currentYear = toYear today

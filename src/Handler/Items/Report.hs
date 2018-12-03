@@ -23,6 +23,7 @@ import GL.Payroll.Settings
 reportForm :: [Column] -> Maybe ReportParam -> Html -> MForm Handler (FormResult ReportParam, Widget)
 reportForm cols paramM extra = do
   today <- todayH
+  deduceTax <- appReportDeduceTax <$> getsYesod appSettings 
   categories <- lift $ categoriesH
   forecastDirOptions <- lift getForecastDirOptions
 
@@ -56,7 +57,7 @@ reportForm cols paramM extra = do
                ]
   let form = [whamlet|#{extra}|] >> mapM_ (either renderField inline) fields
       inline w = [whamlet| <div.form-inline>^{w}|]
-      report = mkReport today fFrom  fTo
+      report = mkReport today deduceTax fFrom  fTo
           fPeriod  fPeriodN
           fCategoryToFilter  fCategoryFilter
           fStockFilter  fPanel  fBand  fSerie
@@ -65,13 +66,13 @@ reportForm cols paramM extra = do
   return (report , form)
  
 {-# NOINLINE mkReport #-}
-mkReport today fFrom  fTo
+mkReport today deduceTax fFrom  fTo
    fPeriod  fPeriodN
    fCategoryToFilter  fCategoryFilter
    fStockFilter  fPanel  fBand  fSerie
    fColRupture  fTrace1  fTrace2  fTrace3
    fSales  fOrderInfo fPurchases  fAdjustment fForecast = 
-  ReportParam <$> pure today <*> fFrom <*> fTo
+  ReportParam <$> pure today <*> pure deduceTax <*> fFrom <*> fTo
   <*> fPeriod <*> fPeriodN
   <*> fCategoryToFilter <*> fCategoryFilter
   <*> fStockFilter <*> fPanel <*> fBand <*> fSerie
@@ -144,6 +145,7 @@ getItemsReportR mode = do
     Just _ -> postItemsReportR mode
 getItemsReportR' mode = do
   today <- todayH
+  deduceTax <- appReportDeduceTax <$> getsYesod appSettings 
   (_, (band, serie, timeColumn)) <- getColsWithDefault
   let -- emptyRupture = ColumnRupture Nothing emptyTrace Nothing Nothing False
       bestSales = DataParams QPSales (mkIdentifialParam $ amountInOption 1) Nothing
@@ -155,6 +157,7 @@ getItemsReportR' mode = do
       defaultReportParam = case mode of
         Just ReportChart -> ReportParam
                             today
+                            deduceTax
                            (Just past) --  rpFrom :: Maybe Day
                            (Just tomorrow) --  rpTo :: Maybe Day
                            Nothing --  rpPeriod
@@ -171,6 +174,7 @@ getItemsReportR' mode = do
                            emptyTrace --  rpDataParam3 :: DataParams
                            True False True True Nothing
         _ -> ReportParam   today
+                           deduceTax
                            (Just past) --  rpFrom :: Maybe Day
                            (Just tomorrow) --  rpTo :: Maybe Day
                            Nothing --  rpPeriod

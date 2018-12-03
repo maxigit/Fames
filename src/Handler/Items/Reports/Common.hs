@@ -26,6 +26,7 @@ import Lens.Micro.Extras (preview)
 -- * Param
 data ReportParam = ReportParam
   { rpToday :: Day -- today
+  , rpDeduceTax :: Bool 
   , rpFrom :: Maybe Day
   , rpTo :: Maybe Day
   , rpPeriod' :: Maybe PeriodFolding'
@@ -668,7 +669,7 @@ loadItemSales param = do
   orderCategoryMap <- if rpLoadOrderInfo param
                       then loadOrderCategoriesFor sql0
                       else return mempty
-  return $ map (detailToTransInfo orderCategoryMap) sales
+  return $ map (detailToTransInfo (rpDeduceTax param) orderCategoryMap) sales
 
 loadOrderCategoriesFor :: Text -> Handler (Map Int (Map Text Text))
 loadOrderCategoriesFor orderSql = do
@@ -842,10 +843,10 @@ moveToTransInfo infoMap (Entity _ FA.StockMove{..}) = (key, tqp) where
   costPrice = iiStandardCost =<< lookup stockMoveStockId infoMap  
   
 -- ** Sales Details
-detailToTransInfo :: Map Int (Map Text Text)
+detailToTransInfo :: Bool -> Map Int (Map Text Text)
                   -> (Entity FA.DebtorTransDetail, Single Day, Single ({- Maybe -} Int64), Single Int64, Single (Maybe Int))
                   -> (TranKey, TranQP)
-detailToTransInfo orderCategoryMap
+detailToTransInfo deduceTax orderCategoryMap
         ( Entity _ FA.DebtorTransDetail{..}
                   , Single debtorTranTranDate
                   , Single debtorNo, Single branchCode, Single orderM)  = (key, tqp) where
@@ -861,7 +862,10 @@ detailToTransInfo orderCategoryMap
     Just ST_CUSTCREDIT -> (tranQP QPSalesCredit (qp Inward), ST_CUSTCREDIT)
     else_ -> error $ "Shouldn't process transaction of type " <> show else_
   qp io = mkQPrice io debtorTransDetailQuantity price
-  price = debtorTransDetailUnitPrice*(1-debtorTransDetailDiscountPercent/100)
+  price = (if deduceTax
+          then debtorTransDetailUnitPrice - debtorTransDetailUnitTax
+          else debtorTransDetailUnitPrice)
+               *(1-debtorTransDetailDiscountPercent/100)
 
 -- ** Purchase info
 purchToTransInfo :: (Entity SuppInvoiceItem, Single Day, Single Double, Single Int64)

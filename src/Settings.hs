@@ -106,6 +106,7 @@ data AppSettings = AppSettings
     , appPlannerDir :: FilePath -- ^ path to directory containing subdirectories with planner files.
     -- each files will be concatenated in alphabetical order.
     , appReceiptTemplates :: Map Text ReceiptTemplate
+    , appReportDeduceTax :: Bool -- ^ weither to deduce tax from tax included transaction
     } deriving Show
 
 data BankStatementSettings = BankStatementSettings
@@ -203,6 +204,7 @@ instance FromJSON AppSettings  where
         appForecastCollectionCategory <- o .:? "forecast-collection-category" .!= "forecast-profile"
         appPlannerDir <- o .:? "planner-dir" .!= "Planner"
         appReceiptTemplates <- o .:? "receipt-templates" .!= Map.fromList []
+        appReportDeduceTax <- o .:? "report-deduce-tax" .!= False
           
         
 
