@@ -864,8 +864,8 @@ detailToTransInfo deduceTax orderCategoryMap
   qp io = mkQPrice io debtorTransDetailQuantity price
   price = (if deduceTax
           then debtorTransDetailUnitPrice - debtorTransDetailUnitTax
-          else debtorTransDetailUnitPrice)
-               *(1-debtorTransDetailDiscountPercent) -- don't divide per 100, is not a percent but the real factor :-(
+          else debtorTransDetailUnitPrice
+          ) *(1-debtorTransDetailDiscountPercent) -- don't divide per 100, is not a percent but the real factor :-(
 
 -- ** Purchase info
 purchToTransInfo :: (Entity SuppInvoiceItem, Single Day, Single Double, Single Int64)
