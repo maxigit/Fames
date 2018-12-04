@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ca28c9ea1d42c00440129edc2b224e83e3198a94d800b78daf8fc9d50806d055
+-- hash: d2d26197b648b8963da6810d3d97452a9cb6d1b2e8e27ff1831bec14b5a2aba8
 
 name:           Fames
 version:        0.0.1
@@ -139,6 +139,7 @@ library
       Handler.FAX.Def
       Handler.Fay
       Handler.GL
+      Handler.GL.Check
       Handler.GL.GLEnterReceiptSheet
       Handler.GL.GLEnterReceiptSheet.ReceiptRow
       Handler.GL.Payroll
@@ -495,6 +496,7 @@ test-suite ghcid
       Handler.FAX.Def
       Handler.Fay
       Handler.GL
+      Handler.GL.Check
       Handler.GL.GLEnterReceiptSheet
       Handler.GL.GLEnterReceiptSheet.ReceiptRow
       Handler.GL.Payroll

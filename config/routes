@@ -35,6 +35,10 @@
   /vat GLVATR GET !vat !group=VAT !title=Main
   /vat/ecsl GLVATEcslR GET POST !vat !title=ECSL
 
+  /check GLCheckR GET POST !check !group=Check !title=Check
+  /check/debtor_trans/#Int64/#Int64 GLCheckDebtorTransR GET !check 
+  !/check/debtor_trans/fix/#Int64/#Int64 GLFixDebtorTransR POST !check !fix
+
 /warehouse WarehouseR !warehouse:
   /barcodes WHBarcodeR GET POST !group=Barcodes !title=Generate
 
