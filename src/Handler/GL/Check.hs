@@ -68,6 +68,14 @@ tsRoute TransactionSummary{..} = GLR (f (fromIntegral tsTransNo) (fromIntegral $
         ST_CUSTCREDIT -> GLCheckDebtorTransR 
         _ -> GLCheckDebtorTransR 
   
+tsFixRoute TransactionSummary{..} = GLR (f (fromIntegral tsTransNo) (fromIntegral $ fromEnum tsTransType)) where
+  f = case tsTransType of
+        ST_CUSTPAYMENT -> GLFixDebtorTransR
+        ST_SALESINVOICE -> GLFixDebtorTransR 
+        ST_CUSTDELIVERY -> GLFixDebtorTransR 
+        ST_CUSTCREDIT -> GLFixDebtorTransR 
+        _ -> GLFixDebtorTransR 
+
 near a b = abs (a - b) < 1e-2
 tsIsValid t = and [ tsExpectedDetail t `near` tsTotalDetails t
                   , tsExpectedDebit t `near` tsTotalDebit t
@@ -263,6 +271,15 @@ getGLCheckDebtorTransR no tType = do
       <tr>
         <th> Fixed Credit
         <td> #{showWithStatus (tsExpectedDebit t) (fixedCredit glDiffStatus) }
+      <tr>
+        <td>
+        $if and [near (tsExpectedDebit t) (fixedDebit glDiffStatus), near (tsExpectedDebit t) (fixedCredit glDiffStatus) ]
+          <td>
+            <form role=form method=POST action=@{tsFixRoute t}>
+              <button.btn.btn-danger type="submit" name="Fix" value="Fix">Fix
+        $else
+          <td><button.btn.btn-primary.disabled type="submit" name="Fix" value="Fix">Fix
+
 <div.panel.panel-info>
   <div.panel-heading data-toggle=collapse data-target="#details-panel"><h3> Details
   <div.panel-body.collapse id=details-panel>
