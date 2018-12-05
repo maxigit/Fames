@@ -48,6 +48,13 @@ tsTotalCredit t = sum [  - glTranAmount
                      ]
 isDebit GlTran{..} = glTranAmount > 0
 
+-- | Discount are entered separatily in invoice
+-- example 10 with 10% discount generate 10 + -1 (instead of 9)
+-- which add up to 11 credit and 11 debit
+tsDetailsSplitDiscount t = sum $ map (getAmount . entityVal) (tsDetails t) where
+  getAmount = case tsTransType t of
+                ST_SALESINVOICE -> \x -> debtorTransDetailDiscountedAmount  x
+                _ -> const 0
 -- | How much should the details adds too. It depends on the transaction types
 tsExpectedDetail t = case tsTransType t of
   ST_CUSTDELIVERY -> tsTotalDetails t -- only COGS side of the sales
@@ -58,6 +65,7 @@ tsExpectedDetail t = case tsTransType t of
 tsExpectedDebit t = case tsTransType t of
   ST_CUSTDELIVERY -> tsTotalDetails t
   ST_CUSTCREDIT -> tsTotalDetails t {- cogs -} + tsTotal t -- refund customer
+  ST_SALESINVOICE -> tsTotal t + tsDetailsSplitDiscount t
   _ -> tsTotal t 
 
 tsRoute TransactionSummary{..} = GLR (f (fromIntegral tsTransNo) (fromIntegral $ fromEnum tsTransType)) where
@@ -430,6 +438,13 @@ debtorTransDetailCOGSAmount DebtorTransDetail{..} =
   debtorTransDetailQuantity
   * debtorTransDetailStandardCost
 
+debtorTransDetailDiscountedAmount DebtorTransDetail{..} =
+  debtorTransDetailQuantity
+  * ( if ?taxIncluded
+      then debtorTransDetailUnitPrice - debtorTransDetailUnitTax
+      else debtorTransDetailUnitPrice)
+  * (debtorTransDetailDiscountPercent)
+  
 postGLFixDebtorTransR :: Int64 -> Int64 -> Handler Html
 postGLFixDebtorTransR no tType = do
   runDB $ fixDebtorTrans no tType
