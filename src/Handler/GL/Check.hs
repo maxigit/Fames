@@ -423,7 +423,7 @@ generateGLs t@TransactionSummary{..} = do
      return $ case tsTransType of
           ST_CUSTDELIVERY -> generateCustomerDeliveryGls t stockMaster d
           ST_CUSTCREDIT -> generateCustomerCreditGls t debtor branch stockMaster d
-          -- ST_SALESINVOICE -> generateSalesinvoiceGL stockMaster detail
+          ST_SALESINVOICE -> generateCustomerInvoiceGls t debtor branch stockMaster d
           _ ->  []
                  ) 
   return $ concat glss
@@ -486,6 +486,36 @@ generateCustomerCreditGls (TransactionSummary{..})
   --        glTranAmount = - (debtorTransDetailSalesTaxAmount d)
   in  [sales, cogs, stock, debt] --- , {-tax , -} debtTax]
   
+generateCustomerInvoiceGls (TransactionSummary{..})
+                           DebtorsMaster{..}
+                           CustBranch{..}
+                           StockMaster{..}
+                           (Entity _ d@DebtorTransDetail{..}) = let
+  glTranTypeNo = tsTransNo
+  glTranType = fromEnum tsTransType
+  glTranTranDate = tsDate
+  glTranMemo = ""
+  glTranStockId = Just debtorTransDetailStockId
+  glTranDimensionId = debtorsMasterDimensionId
+  glTranDimension2Id = debtorsMasterDimension2Id
+  glTranPersonTypeId = Just 2
+  glTranPersonId = Just (fromString $ show tsPersonId)
+  sales = GlTran{..} where
+         glTranAccount = stockMasterSalesAccount
+         glTranAmount = - (debtorTransDetailSalesAmount d)
+  -- we don't check the tax as it should be correct
+  -- tax = GlTran{..} where
+  --        glTranAccount = "2200"
+  --        glTranAmount = - (debtorTransDetailSalesTaxAmount d)
+  debt = GlTran{ glTranDimensionId=debtorsMasterDimensionId
+               , glTranDimension2Id=debtorsMasterDimension2Id
+               , ..} where
+         glTranAccount = custBranchReceivablesAccount
+         glTranAmount = (debtorTransDetailSalesAmount d)
+  -- debtTax = GlTran{..} where
+  --        glTranAccount = custBranchReceivablesAccount
+  --        glTranAmount = (debtorTransDetailSalesTaxAmount d)
+  in  [sales, debt]
 
 alignGls :: [GlTran] -> [GlTran] -> [(These GlTran GlTran)]
 alignGls as bs = let
