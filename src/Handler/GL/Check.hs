@@ -35,7 +35,7 @@ tsTotalDetails t = sum $ map (getAmount . entityVal) (tsDetails t) where
   getAmount = case tsTransType t of
                 ST_CUSTDELIVERY -> debtorTransDetailCOGSAmount
                 ST_CUSTCREDIT -> debtorTransDetailCOGSAmount
-                _ -> \x -> debtorTransDetailSalesAmount  x + debtorTransDetailSalesTaxAmount x
+                _ -> \x -> debtorTransDetailSalesAmount  x -- + debtorTransDetailSalesTaxAmount x
   
 
 tsTotalDebit t = sum [  glTranAmount 
@@ -189,12 +189,16 @@ loadCustomerSummary ts@(Entity _ DebtorTran{..}) = do
           gls <- loadGLFor debtorTranTransNo debtorTranType
           return $ tsFromDebtor ts details gls
 
-tsFromDebtor (Entity _ DebtorTran{..}) details gls =
-  TransactionSummary debtorTranTransNo (toEnum debtorTranType) debtorTranTranDate
+tsFromDebtor (Entity _ DebtorTran{..}) details gls = let
+  transType = toEnum debtorTranType
+  in TransactionSummary debtorTranTransNo transType debtorTranTranDate
                      (fromMaybe (error $ "Debtor no should be set for " ++ show debtorTranType ++ " #" ++ show debtorTranTransNo)
                                 debtorTranDebtorNo)
                      debtorTranBranchCode
-                     (debtorTranOvAmount - debtorTranOvDiscount)
+                     (debtorTranOvAmount + if transType == ST_CUSTPAYMENT
+                                           then debtorTranOvDiscount
+                                           else - debtorTranOvDiscount)
+                                           
                      (debtorTranOvFreightTax + debtorTranOvGst)
                      (debtorTranOvFreight)
                      details gls
@@ -223,8 +227,8 @@ getGLCheckDebtorTransR no tType = do
     maybe (error $ "Transaction" <> show no <> " not found") loadCustomerSummary tm
   newGls <- runDB $ generateGLs t
   let (newDebits, newCredits) = partition isDebit newGls
-      newDebit = sum (map glTranAmount newDebits)
-      newCredit = negate $ sum (map glTranAmount newCredits)
+      newDebit = sum (map glTranAmount newDebits) + tsTax t + tsShippingNet t
+      newCredit = negate ( sum (map glTranAmount newCredits)) + tsTax t + tsShippingNet t
       glDiffs = alignGls (tsGl t) newGls
       glDiffStatus  = fixGls glDiffs
   defaultLayout' [whamlet|
@@ -278,7 +282,9 @@ getGLCheckDebtorTransR no tType = do
             <form role=form method=POST action=@{tsFixRoute t}>
               <button.btn.btn-danger type="submit" name="Fix" value="Fix">Fix
         $else
-          <td><button.btn.btn-primary.disabled type="submit" name="Fix" value="Fix">Fix
+          <td>
+            <form role=form method=POST action=@{tsFixRoute t}>
+                <button.btn.btn-primary.disabled type="submit" name="Fix" value="Fix">Fix
 
 <div.panel.panel-info>
   <div.panel-heading data-toggle=collapse data-target="#details-panel"><h3> Details
@@ -408,7 +414,6 @@ displayGlDiff glt = case glt of
     |]
 
 
-
 debtorTransDetailSalesAmount DebtorTransDetail{..} =
   debtorTransDetailQuantity
   * ( if ?taxIncluded
@@ -454,7 +459,7 @@ generateGLs :: (?taxIncluded :: Bool) => TransactionSummary -> SqlHandler [GlTra
 generateGLs t@TransactionSummary{..} = do
   glss <- forM tsDetails (\d@(Entity _ detail@DebtorTransDetail{..}) -> do
      stockMaster <- getJust (StockMasterKey debtorTransDetailStockId)
-     branch <- getJust (CustBranchKey tsPersonId tsBranchId)
+     branch <- getJust (CustBranchKey tsBranchId tsPersonId)
      debtor <- getJust (DebtorsMasterKey tsPersonId)
      return $ case tsTransType of
           ST_CUSTDELIVERY -> generateCustomerDeliveryGls t stockMaster d
@@ -536,9 +541,15 @@ generateCustomerInvoiceGls (TransactionSummary{..})
   glTranDimension2Id = debtorsMasterDimension2Id
   glTranPersonTypeId = Just 2
   glTranPersonId = Just (fromString $ show tsPersonId)
-  sales = GlTran{..} where
-         glTranAccount = stockMasterSalesAccount
-         glTranAmount = - (debtorTransDetailSalesAmount d)
+  sales = let glTranAccount = stockMasterSalesAccount
+          in if debtorTransDetailDiscountPercent /= 0
+             then let noDiscount = debtorTransDetailSalesAmount d { debtorTransDetailDiscountPercent = 0}
+                      discount =  noDiscount - debtorTransDetailSalesAmount d 
+                  in [ GlTran {glTranAmount = - noDiscount, .. }
+                     , GlTran {glTranAmount = discount, ..}
+                     ]
+             else [ GlTran{glTranAmount = - (debtorTransDetailSalesAmount d), .. }
+                  ]
   -- we don't check the tax as it should be correct
   -- tax = GlTran{..} where
   --        glTranAccount = "2200"
@@ -551,7 +562,7 @@ generateCustomerInvoiceGls (TransactionSummary{..})
   -- debtTax = GlTran{..} where
   --        glTranAccount = custBranchReceivablesAccount
   --        glTranAmount = (debtorTransDetailSalesTaxAmount d)
-  in  [sales, debt]
+  in  sales ++ [debt]
 
 alignGls :: [Entity GlTran] -> [GlTran] -> [(These (Entity GlTran) GlTran)]
 alignGls as bs = let
