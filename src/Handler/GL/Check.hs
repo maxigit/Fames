@@ -55,18 +55,29 @@ tsDetailsSplitDiscount t = sum $ map (getAmount . entityVal) (tsDetails t) where
   getAmount = case tsTransType t of
                 ST_SALESINVOICE -> \x -> debtorTransDetailDiscountedAmount  x
                 _ -> const 0
+tsDetailsTax t = sum $ map (getAmount . entityVal) (tsDetails t) where
+  getAmount = case tsTransType t of
+                _ -> \x -> debtorTransDetailSalesTaxAmount x
 -- | How much should the details adds too. It depends on the transaction types
-tsExpectedDetail t = case tsTransType t of
+tsExpectedDetails t = case tsTransType t of
   ST_CUSTDELIVERY -> tsTotalDetails t -- only COGS side of the sales
   ST_CUSTCREDIT -> tsTotalDetails t -- only COGS side of the sales
   ST_CUSTPAYMENT -> 0 -- no details
-  _ -> tsNet t
+  _ -> if ?taxIncluded
+       then tsNet t - tsDetailsTax t  -- the net is not a net
+       else tsNet t
 
 tsExpectedDebit t = case tsTransType t of
   ST_CUSTDELIVERY -> tsTotalDetails t
   ST_CUSTCREDIT -> tsTotalDetails t {- cogs -} + tsTotal t -- refund customer
   ST_SALESINVOICE -> tsTotal t + tsDetailsSplitDiscount t
   _ -> tsTotal t 
+
+tsExpectedGeneratedDebit t =
+  case tsTransType t of
+    ST_CUSTCREDIT -> tsExpectedDetails t { tsTransType = ST_SALESINVOICE}
+                   + tsExpectedDetails t { tsTransType = ST_CUSTDELIVERY}
+    _ -> tsExpectedDebit t 
 
 tsRoute TransactionSummary{..} = GLR (f (fromIntegral tsTransNo) (fromIntegral $ fromEnum tsTransType)) where
   f = case tsTransType of
@@ -85,7 +96,7 @@ tsFixRoute TransactionSummary{..} = GLR (f (fromIntegral tsTransNo) (fromIntegra
         _ -> GLFixDebtorTransR 
 
 near a b = abs (a - b) < 1e-2
-tsIsValid t = and [ tsExpectedDetail t `near` tsTotalDetails t
+tsIsValid t = and [ tsExpectedDetails t `near` tsTotalDetails t
                   , tsExpectedDebit t `near` tsTotalDebit t
                   , tsExpectedDebit t `near` tsTotalCredit t
                   ]
@@ -150,7 +161,7 @@ postGLCheckR = do
         <td> #{tshow $ tsTax t}
         <td> #{tshow $ tsShippingNet t}
         <td> #{showDouble $ tsTotal t}
-        <td> #{showWithStatus (tsExpectedDetail t)  (tsTotalDetails t) }
+        <td> #{showWithStatus (tsExpectedDetails t)  (tsTotalDetails t) }
         <td> #{showWithStatus (tsExpectedDebit t) (tsTotalDebit t) }
         <td> #{showWithStatus (tsExpectedDebit t) (tsTotalCredit t) }
                       |]
@@ -245,6 +256,7 @@ getGLCheckDebtorTransR no tType = do
     #{itext $ showTransType (tsTransType t)}
     <a href="#{urlForFA faUrl (tsTransType t) (tsTransNo t)}">
       ##{tshow (tsTransNo t)}
+    <a href="#{glViewUrlForFA faUrl (tsTransType t) (tsTransNo t)}"> GL
   <div.panel-body>
     <table.table.table-hover>
       <tr>
@@ -264,7 +276,7 @@ getGLCheckDebtorTransR no tType = do
         <td> #{showDouble $ tsTotal t}
       <tr>
         <th> Details
-        <td> #{showWithStatus (tsExpectedDetail t)  (tsTotalDetails t) }
+        <td> #{showWithStatus (tsExpectedDetails t)  (tsTotalDetails t) }
       <tr>
         <th> Debit
         <td> #{showWithStatus (tsExpectedDebit t) (tsTotalDebit t) }
@@ -273,10 +285,10 @@ getGLCheckDebtorTransR no tType = do
         <td> #{showWithStatus (tsExpectedDebit t) (tsTotalCredit t) }
       <tr>
         <th> Generated Debit
-        <td> #{showWithStatus (tsExpectedDebit t) (newDebit) }
+        <td> #{showWithStatus (tsExpectedGeneratedDebit t) (newDebit) }
       <tr>
         <th> Generated Credit
-        <td> #{showWithStatus (tsExpectedDebit t) (newCredit) }
+        <td> #{showWithStatus (tsExpectedGeneratedDebit t) (newCredit) }
       <tr>
         <th> Fixed Debit
         <td> #{showWithStatus (tsExpectedDebit t) (fixedDebit glDiffStatus) }
@@ -632,4 +644,3 @@ fixGls glts = let
   in traceShowId $ GlDiffStatus  (oks ++ map entityVal faOnlys)
                    toDeletes
                    (toCreates ++ newOnlys)
-

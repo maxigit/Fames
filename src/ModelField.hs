@@ -148,3 +148,8 @@ urlForFA base type_ no = base <> "/" <> pack url  where
     ST_BANKPAYMENT -> printf "gl/view/gl_payment_view.php?trans_no=%d" no
     ST_BANKDEPOSIT -> printf "gl/view/gl_deposit_view.php?trans_no=%d" no
     _ -> "not found"
+
+glViewUrlForFA :: Text -> FATransType -> Int -> Text
+glViewUrlForFA base type_ no = base <> "/" <> pack url where
+  tp = fromEnum type_
+  url = printf "gl/view/gl_trans_view.php?type_id=%d&trans_no=%d" tp no
