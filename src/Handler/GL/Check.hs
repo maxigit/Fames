@@ -607,6 +607,3 @@ fixGls glts = let
                    toDeletes
                    (toCreates ++ newOnlys)
 
-
-
-  
