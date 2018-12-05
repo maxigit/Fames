@@ -225,7 +225,7 @@ getGLCheckDebtorTransR no tType = do
   let (newDebits, newCredits) = partition isDebit newGls
       newDebit = sum (map glTranAmount newDebits)
       newCredit = negate $ sum (map glTranAmount newCredits)
-      glDiffs = alignGls (map entityVal (tsGl t)) newGls
+      glDiffs = alignGls (tsGl t) newGls
       glDiffStatus  = fixGls glDiffs
   defaultLayout' [whamlet|
 <div.panel.panel-info>
@@ -361,7 +361,7 @@ displayGl (GlTran{..}) =  [whamlet|
       <td> #{maybe "" decodeUtf8 glTranPersonId}
 |]
 
-displayGlsDiff :: [These GlTran GlTran] -> Widget
+displayGlsDiff :: [These (Entity GlTran) GlTran] -> Widget
 displayGlsDiff es = do
   [whamlet|
 <table.table.table-border.table-hover>
@@ -380,9 +380,9 @@ displayGlsDiff es = do
        ^{displayGlDiff glt}
 |]
 
-displayGlDiff :: These GlTran GlTran -> Widget
+displayGlDiff :: These (Entity GlTran) GlTran -> Widget
 displayGlDiff glt = case glt of
-  This gl -> [whamlet|
+  This (Entity _ gl) -> [whamlet|
  <tr.bg-warning.text-warning>
     <td> FA Only
     ^{displayGl gl}
@@ -393,12 +393,12 @@ displayGlDiff glt = case glt of
     <td> New Only
     ^{displayGl gl}
   |]
-  These a b | glTranAmount a == glTranAmount b ->  [whamlet|
+  These (Entity _ a) b | glTranAmount a == glTranAmount b ->  [whamlet|
  <tr.bg-success.text-success>
     <td> Ok
     ^{displayGl a}
     |]
-  These a b ->  [whamlet|
+  These (Entity _ a) b ->  [whamlet|
  <tr.bg-danger.text-danger>
     <td> FA
     ^{displayGl a}
@@ -427,8 +427,27 @@ debtorTransDetailCOGSAmount DebtorTransDetail{..} =
 
 postGLFixDebtorTransR :: Int64 -> Int64 -> Handler Html
 postGLFixDebtorTransR no tType = do
+  runDB $ fixDebtorTrans no tType
   -- process
   getGLCheckDebtorTransR no tType
+
+fixDebtorTrans :: Int64 -> Int64 -> SqlHandler ()
+fixDebtorTrans no tType =  do
+  deduceTax <- appReportDeduceTax <$> getsYesod appSettings 
+  let ?taxIncluded = deduceTax
+  tm <- selectFirst [DebtorTranTransNo ==. fromIntegral no, DebtorTranType ==. fromIntegral tType] []
+  t <-  maybe (error $ "Transaction" <> show no <> " not found") loadCustomerSummary tm
+
+  newGls <- generateGLs t
+  let glDiffs = alignGls (tsGl t) newGls
+      glDiffStatus  = fixGls glDiffs
+
+  -- delete to toDeletes and create toCreates
+  mapM_ (delete . entityKey) (glToDelete glDiffStatus)
+  insertMany_ (glToCreate glDiffStatus)
+
+  setSuccess ("Transaction has been fixed")
+  
 
 -- | Generate expected GL from details
 generateGLs :: (?taxIncluded :: Bool) => TransactionSummary -> SqlHandler [GlTran]
@@ -534,24 +553,25 @@ generateCustomerInvoiceGls (TransactionSummary{..})
   --        glTranAmount = (debtorTransDetailSalesTaxAmount d)
   in  [sales, debt]
 
-alignGls :: [GlTran] -> [GlTran] -> [(These GlTran GlTran)]
+alignGls :: [Entity GlTran] -> [GlTran] -> [(These (Entity GlTran) GlTran)]
 alignGls as bs = let
-  as' = rankGls as
-  bs' = rankGls bs
-  toMap xs = Map.fromList $ [ ((glTranStockId, rank, glTranAccount), gl)
-                            | (gl@GlTran{..}, rank) <- xs
+  as' = rankGls entityVal as
+  bs' = rankGls id bs
+  toMap getGl xs = Map.fromList $ [ ((glTranStockId, rank, glTranAccount), x)
+                            | (x, rank) <- xs
+                            , let GlTran{..} = getGl x
                             ]
-  am = toMap as'
-  bm = toMap bs'
+  am = toMap entityVal as'
+  bm = toMap id bs'
 
   in toList (align am bm)
   
 -- | Gives a rank to item with similar stock_id and gl account 
 -- sorted by amount
-rankGls :: [GlTran] -> [(GlTran, Int)]
-rankGls gls = let
-  grouped = groupAsMap (\GlTran{..} -> (glTranStockId, glTranAccount)) return gls
-  rankGroup gs = zip (sortOn glTranAmount gs) [1..]
+rankGls :: (a -> GlTran) -> [a] -> [(a, Int)]
+rankGls getGl gls = let
+  grouped = groupAsMap (\a -> let GlTran{..}  = getGl a in  (glTranStockId, glTranAccount)) return gls
+  rankGroup gs = zip (sortOn (glTranAmount . getGl) gs) [1..]
   in concat $ toList (rankGroup <$> grouped)
 
 
@@ -566,7 +586,7 @@ fixedCredit = negate . sum . map glTranAmount . filter (not . isDebit) . glValid
 -- fixGls :: [These GlTran GlTran
 data GlDiffStatus = GlDiffStatus
   { glToKeep :: [GlTran]
-  , glToDelete :: [GlTran]
+  , glToDelete :: [Entity GlTran]
   , glToCreate :: [GlTran]
   } deriving Show
 
@@ -575,15 +595,15 @@ deriving instance Show GlTran
 glValids :: GlDiffStatus -> [GlTran]
 glValids gld = glToKeep gld ++ glToCreate gld
   
-fixGls :: [These GlTran GlTran] -> GlDiffStatus
+fixGls :: [These (Entity GlTran) GlTran] -> GlDiffStatus
 fixGls glts = let
   (oks, notOks ) = partitionEithers (map isOk glts)
-  isOk (These a b) | glTranAmount a == glTranAmount b = Left a
+  isOk (These a b) | glTranAmount (entityVal a) == glTranAmount b = Left b
   isOk t = Right t
   (wrongs, (faOnlys, newOnlys)) = partitionThese notOks
   (toDeletes, toCreates) = unzip wrongs
 
-  in traceShowId $ GlDiffStatus  (oks ++ faOnlys)
+  in traceShowId $ GlDiffStatus  (oks ++ map entityVal faOnlys)
                    toDeletes
                    (toCreates ++ newOnlys)
 
