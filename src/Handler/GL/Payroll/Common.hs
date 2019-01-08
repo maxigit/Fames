@@ -911,7 +911,10 @@ employeePayment :: Ord p
 employeePayment _ _ _ _ summary | TS._finalPayment summary <= 0 = Nothing
 employeePayment ref paymentDate settings invM summary = let 
   amount = TS._finalPayment summary
-  allocations = maybeToList $ invM <&> \inv -> WFA.PaymentTransaction inv ST_SUPPINVOICE (unsafeUnlock amount)
+  netRefund = negate . sum . filter (<0) . map unsafeUnlock . toList $ TS._deductions summary
+  allocations = maybeToList $ invM <&> \inv -> WFA.PaymentTransaction inv ST_SUPPINVOICE
+                                                                      (unsafeUnlock amount - netRefund 
+                                                                      )
   payment = WFA.SupplierPayment (wagesSupplier settings)
                                 (wagesBankAccount settings)
                                 (unsafeUnlock amount)
