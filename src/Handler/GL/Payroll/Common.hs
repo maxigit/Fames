@@ -815,12 +815,12 @@ saveGRNs settings key timesheet = do
        ) grns
 
 -- ** Invoice
-saveInvoice :: AppSettings
+saveInvoice :: Day
+            -> AppSettings
             -> TS.Timesheet (Text, PayrollExternalSettings) _
             -> [(Int, [PayrollShiftId])]
             -> ExceptT Text Handler Int
-saveInvoice settings timesheet deliveries = do
-  today <- todayH
+saveInvoice today settings timesheet deliveries = do
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       psettings = appPayroll settings
       ref = invoiceRef (appPayroll settings) timesheet
@@ -867,13 +867,13 @@ itemsForCosts timesheet = let
 
 -- ** Payment
 savePayments :: Ord p
-             => AppSettings
+             => Day
+             -> AppSettings
              -> TimesheetId
              -> TS.Timesheet p Text
              -> Int
              -> ExceptT Text Handler [Int]
-savePayments settings key timesheet invoiceId = do
-  today <- todayH
+savePayments today settings key timesheet invoiceId = do
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       psettings = appPayroll settings
       ref = employeePaymentRef psettings timesheet

@@ -58,6 +58,10 @@ uploadForm mode paramM = let
   form _ = UploadParam <$> areq textareaField "Timesheet" (upTimesheet <$> paramM)
                        <*> areq hiddenField "key" (Just $ upPreviousKey =<< paramM)
   in renderBootstrap3 BootstrapBasicForm . form $ mode
+
+-- faForm :: _ (FormResult Day, Widget)
+faForm = renderBootstrap3 BootstrapBasicForm form  where
+  form = areq dayField "Processing date" Nothing
 -- * Handlers
 -- ** upload and show timesheets
 getGLPayrollR :: Handler Html
@@ -128,10 +132,15 @@ postGLPayrollToFAR :: Int64 -> Handler Html
 postGLPayrollToFAR key = do
   setting <- appSettings <$> getYesod
   modelE <- loadTimesheet key
+  ((resp, formW), enctype) <- runFormPost faForm
+  processDay <- case resp of
+    FormMissing -> error "form missing"
+    FormFailure a -> error $ "Form failure : " ++ show a
+    FormSuccess day -> return day
   case modelE of
     Nothing -> error $ "Can't load Timesheet with id #" ++ show key
     Just (ts, shifts, items) -> do
-      r <- postTimesheetToFA (TimesheetKey $ SqlBackendKey key) ts shifts items
+      r <- postTimesheetToFA processDay (TimesheetKey $ SqlBackendKey key) ts shifts items
       case r of
         Left e -> setError (toHtml e) >> getGLPayrollViewR key
         Right e -> do
@@ -150,6 +159,10 @@ getGLPayrollViewR key = do
   viewPayrollDurationPermissions' <- viewPayrollDurationPermissions
   let ?viewPayrollAmountPermissions = viewPayrollAmountPermissions'
       ?viewPayrollDurationPermissions = viewPayrollDurationPermissions'
+      -- Date used for invoice and payment
+      -- We don't provide a default value
+      -- to prevent accidental save to FrontAccounting
+  (faFormW, faEncType)  <- generateFormPost faForm
   case modelE of
     Nothing -> error $ "Can't load Timesheet with id #" ++ show key
     Just (ts, shifts, items) -> do
@@ -174,7 +187,8 @@ getGLPayrollViewR key = do
                 <div.panel-body>
                   <div>^{trans object }
           $if (timesheetStatus (entityVal ts) /= Process)
-            <form role=form method=post action=@{GLR $ GLPayrollToFAR key}>
+            <form role=form method=post action=@{GLR $ GLPayrollToFAR key} enctype=#{faEncType}>
+              ^{faFormW}
               <button type="submit" .btn.btn-danger>Save To FrontAccounting
             <form role=form method=post action=@{GLR $ GLPayrollRejectR key}>
               <button type="submit" .btn.btn-warning>Reject 
@@ -353,14 +367,14 @@ parseTimesheetH param = do
   return $ parseTimesheet header (upTimesheet param)
 
 -- * To Front Accounting
-postTimesheetToFA :: TimesheetId
+postTimesheetToFA :: Day
+                  -> TimesheetId
                   -> Entity Timesheet
                   -> [Entity PayrollShift]
                   -> [Entity PayrollItem]
                   -> HandlerT App IO (Either Text Int)
-postTimesheetToFA key timesheet shifts items = do
+postTimesheetToFA today key timesheet shifts items = do
       settings <- appSettings <$> getYesod
-      today <- todayH
       let tsOId = modelToTimesheetOpId timesheet shifts items
       runExceptT $ do
          ts <- ExceptT $ timesheetOpIdToO'SH tsOId
@@ -370,8 +384,7 @@ postTimesheetToFA key timesheet shifts items = do
                       ) <$> ts
              tsPayment =  (\(Entity _ op, settings, shiftKey) -> operatorNickname op) <$> ts
          grnIds <- saveGRNs settings key tsSkus
-         invoiceId <- saveInvoice settings ts grnIds
-         paymentIds <- savePayments settings key tsPayment invoiceId
+         invoiceId <- saveInvoice today settings ts grnIds
+         paymentIds <- savePayments today settings key tsPayment invoiceId
          credits <- saveExternalPayments settings key invoiceId today ts
-         let invoiceId = 2044
          return invoiceId
