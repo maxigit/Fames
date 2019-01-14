@@ -21,7 +21,7 @@ displayActive act = if act then "Active" else "Inactive"
   
 dimensionPicture :: Int -> Boxtake -> Widget
 dimensionPicture width Boxtake{..} =  do
-  let dimRoute = WarehouseR $ WHDimensionOuterR (round boxtakeLength) (round boxtakeWidth) (round boxtakeLength)
+  let dimRoute = WarehouseR $ WHDimensionOuterR (round boxtakeLength) (round boxtakeWidth) (round boxtakeHeight)
   [whamlet|
       <a href="@{dimRoute}" ><img src=@?{(dimRoute , [("width", tshow width)])}>
          |]
