@@ -402,9 +402,11 @@ eqDouble :: (Fractional a, Ord a) => a -> a -> Bool
 eqDouble a b = abs (a -b) < 5e-3
 
 validateDate minDay (ReceiptHeader{..}, _) =
-  if validValue rowDate >= minDay
+  if validValue rowDate >= minDay || forceDate
   then Nothing
   else Just $ "Transaction to old : "   <> tshow rowDate 
+  where forceDate = "force-date" `elem` templates -- hack to force date if needed. Could be added instead to the header receipt and used defining a custom template
+        templates = maybeToList rowTemplate >>= (words . validValue)
 validateTotalAmount (ReceiptHeader{..}, items) =
   if totalItems  `eqDouble` validValue rowTotal
   then Nothing
