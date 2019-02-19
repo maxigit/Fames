@@ -110,7 +110,8 @@ clean_fa:
 # Split fa-models to one file per table
 # should be faster to compile
 gen_tables:
-	cd config; csplit fa-models /^$/ {*}
+	mkdir -p config/tables
+	cd config; csplit fa-models /^$$/ {*}
 	mv config/xx* config/tables
 
 # Generate Drupal Commerce model

@@ -539,15 +539,17 @@ loadItemTransactions param grouper = do
   -- for efficiency reason
   -- it is better to group sales and purchase separately and then merge them
   sales <- loadIf rpLoadSales $ loadItemSales param
+  salesOrders <- loadIf (const True) $ loadItemOrders param
   purchases <- loadIf rpLoadPurchases $ loadItemPurchases param
   let salesGroups = grouper' sales
+      orderGroups = grouper' salesOrders
       purchaseGroups = grouper'  purchases
       adjGroups = grouper' adjustments
       forecastGroups = grouper' forecasts
       grouper' = grouper . fmap (computeCategory skuToStyleVar categories catFinder custCategories custCatFinder) 
         
 
-  return $ salesGroups <> purchaseGroups <> adjGroups <> forecastGroups
+  return $ salesGroups <> purchaseGroups <> adjGroups <> forecastGroups <> orderGroups
 
 createInitialStock infoMap day = mapMaybe go (mapToList infoMap) where
   go (sku, info) = do --maybe
@@ -593,7 +595,9 @@ computeCategory skuToStyleVar categories catFinder custCategories custCatFinder 
 -- | Allows to load similar slices of time depending on the param
 -- example the first 3 months of each year
 generateTranDateIntervals :: ReportParam -> [(Text, PersistValue)]
-generateTranDateIntervals param = let
+generateTranDateIntervals = generateDateIntervals "tran_date"
+generateDateIntervals :: Text -> ReportParam -> [(Text, PersistValue)]
+generateDateIntervals date_column param = let
   intervals = case (rpFrom param, rpTo param, rpNumberOfPeriods param) of
     (Nothing, Nothing, _)  -> [ (Nothing, Nothing) ]
     (fromM, toM, Nothing)  -> [ (fromM, toM) ]
@@ -620,11 +624,11 @@ generateTranDateIntervals param = let
   -- and some hack to use persist value even if not needed
   in  join $ [(" AND ? AND (", PersistBool True )] :
              [ ( maybe (" (?", PersistBool True)
-                       (\d -> (" (tran_date >= ?", PersistDay d))
+                       (\d -> (" (" <> date_column <> " >= ?", PersistDay d))
                        fromM
                ) :
                ( maybe (" AND ?) OR ", PersistBool True)
-                       (\d -> (" AND tran_date < ?) OR", PersistDay d))
+                       (\d -> (" AND " <> date_column <> " < ?) OR", PersistDay d))
                        toM
                ) :
                []
@@ -685,6 +689,33 @@ loadOrderCategoriesFor orderSql = do
                                     ]
 
 
+loadItemOrders :: ReportParam -> Handler [(TranKey, TranQP)]
+loadItemOrders param = do
+  stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
+  let catFilterM = (,) <$> rpCategoryToFilter param <*> rpCategoryFilter param
+  let sql = intercalate " " $
+         "SELECT ??, ?? FROM 0_sales_order_details" :
+         "JOIN 0_sales_orders USING(order_no, trans_type)" :
+          (if isJust catFilterM then "JOIN fames_item_category_cache AS category ON (stock_id = stk_code)" else "" ) :
+          "WHERE trans_type = "  : (tshow $ fromEnum ST_SALESORDER) :
+          "AND quantity != 0" :
+          ("AND stk_code LIKE '" <> stockLike <> "'") : -- we don't want space between ' and stockLike
+          []
+      (w,p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+                                                      in (" AND stock_id " <> keyw <> " ?", PersistText v)
+                                               )) ?:
+                       case catFilterM of
+                            Nothing -> []
+                            Just (catToFilter, catFilter) ->
+                                 let (keyw, v) = filterEKeyword catFilter
+                                 in [ (" AND category.value " <> keyw <> " ?", PersistText v)
+                                    , (" AND category.category = ? ", PersistText catToFilter)
+                                    ]
+                       <> generateDateIntervals "ord_date" param
+  details <- runDB $ rawSql (sql <> intercalate " " w) p
+  return $ map (orderDetailToTransInfo) details
+
+  
 loadItemPurchases :: ReportParam -> Handler [(TranKey, TranQP)]
 loadItemPurchases param = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
@@ -866,6 +897,24 @@ detailToTransInfo deduceTax orderCategoryMap
           then debtorTransDetailUnitPrice - debtorTransDetailUnitTax
           else debtorTransDetailUnitPrice
           ) *(1-debtorTransDetailDiscountPercent) -- don't divide per 100, is not a percent but the real factor :-(
+
+-- ** Order details
+orderDetailToTransInfo :: (Entity FA.SalesOrderDetail, Entity FA.SalesOrder)
+                      -> (TranKey, TranQP)
+orderDetailToTransInfo (Entity _ FA.SalesOrderDetail{..}
+                       , Entity _ FA.SalesOrder{..}) = (key, tqp) where
+  key = TranKey salesOrderOrdDate
+               (Just $ Left (fromIntegral salesOrderDebtorNo, fromIntegral salesOrderBranchCode))
+               salesOrderDetailStkCode Nothing Nothing mempty mempty
+               ST_SALESORDER
+               (Just salesOrderOrdDate)
+               (Just salesOrderDeliveryDate)
+               mempty -- TODO [order-report] add replace by order category map
+
+
+  qp = mkQPrice Outward salesOrderDetailQuantity price
+  price = salesOrderDetailUnitPrice * (1- salesOrderDetailDiscountPercent)
+  tqp = tranQP QPSalesForecast qp
 
 -- ** Purchase info
 purchToTransInfo :: (Entity SuppInvoiceItem, Single Day, Single Double, Single Int64)

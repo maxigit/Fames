@@ -9,10 +9,12 @@ SalesOrderDetail sql=0_sales_order_details
     unitPrice Double  sql=unit_price
     quantity Double  sql=quantity
     discountPercent Double  sql=discount_percent
-    requiredDate Day Maybe sql=required_date
+    occasionDate Day Maybe sql=occasion_date
     comment Text Maybe sql=comment default=NULL
     ref Text Maybe sql=ref default=NULL
     priority UTCTime Maybe sql=priority
-    expiryDate Day Maybe sql=expiry_date
-    holdUntilDate Day Maybe sql=hold_until_date
+    relegationDate Day Maybe sql=relegation_date
+    canWaitUntilDate Day Maybe sql=can_wait_until_date
     ppd Double  sql=ppd
+    nowOrNever Bool Maybe sql=now_or_never
+    expiryDate Day Maybe sql=expiry_date

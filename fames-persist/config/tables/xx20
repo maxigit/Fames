@@ -16,3 +16,4 @@ DebtorsMaster sql=0_debtors_master
     notes Text Maybe sql=notes default=NULL
     inactive Bool  sql=inactive
     debtorRef Text  sql=debtor_ref
+    nowOrNever Bool  sql=now_or_never

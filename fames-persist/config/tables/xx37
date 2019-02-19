@@ -11,3 +11,5 @@ Location sql=0_locations
     email Text  sql=email
     contact Text  sql=contact
     inactive Bool  sql=inactive
+    availabilityDate Day Maybe sql=availability_date
+    availabilityPeriod Text Maybe sql=availability_period default=NULL

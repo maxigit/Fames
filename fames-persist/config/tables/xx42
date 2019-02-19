@@ -7,7 +7,7 @@ OrderSummaryView sql=0_order_summary_view
     deliveryDate Day Maybe sql=delivery_date
     quantity Double Maybe sql=quantity
     amount Double Maybe sql=amount
-    requiredDate Day Maybe sql=required_date
+    occasionDate Day Maybe sql=occasion_date
     orderComment Text Maybe sql=order_comment default=NULL
     detailComment Text Maybe sql=detail_comment default=NULL
     quantityBefore Double Maybe sql=quantity_before
