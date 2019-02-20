@@ -910,7 +910,7 @@ loadDebtorsMasterRuleInfos = do
             <> " from 0_debtors_master as dm "
             <> " left join 0_dimensions as dim1 on (dm.dimension_id = dim1.id) "
             <> " left join 0_dimensions as dim2 on (dm.dimension2_id = dim2.id) "
-            <> " left join 0_prices as sales on (sales.sales_type_id = dm.sales_type) "
+            -- <> " left join 0_prices as sales on (sales.sales_type_id = dm.sales_type) "
             <> " left join (" <> orders <> ") ord on(dm.debtor_no = ord.debtor_no) "
       orders = " "
               <> " select debtor_no, MIN(ord_date) AS first_ord_date, MAX(ord_date) AS last_ord_date"
