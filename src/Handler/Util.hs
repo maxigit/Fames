@@ -680,23 +680,29 @@ categoryFinderCached :: Handler (Text -> FA.StockMasterId -> Maybe Text)
 categoryFinderCached = cache0 False cacheForEver "category-finder" $ do
   reverseKey <- getsYesod appSettings <&> appReverseCategoryKey
   refreshCategoryCache False
-  -- we reverse the stock_id to speed up string comparasison
+  -- we reverse the stock_id to speed up string comparison
   -- as most items share a common prefix, it might be faster to compare them from right to left 
-  if reverseKey  
-    then do
-    itemCategories <- runDB $ rawSql "SELECT ?? FROM fames_item_category_cache ORDER BY REVERSE(stock_id), category " [] -- selectList [] [Asc ItemCategoryStockId, Asc ItemCategoryCategory]
-    let sku'catMapR = Map.fromAscList [((reverse itemCategoryStockId , itemCategoryCategory ), itemCategoryValue )
-                                      | (Entity _ ItemCategory{..}) <- itemCategories
+  let (order_key, valueFinder ) = if reverseKey
+                                  then ("REVERSE(stock_id)", \sku -> Map.lookup (reverse sku))
+                                  else ("stock_id", \sku -> Map.lookup sku)
+  categories <- categoriesH
+  catMaps <- forM categories $ \category -> do
+
+         let sql =  "SELECT " <> order_key <> " AS order_key, value "
+                 <> "FROM fames_item_category_cache "
+                 <> "WHERE category = ?"
+                 <> "ORDER by order_key"
+         key'values <- runDB $ rawSql sql [PersistText category]
+         let skuMap = Map.fromAscList [ (key , value )
+                                      | (Single key, Single value) <- key'values
                                       ]
-        finder category (FA.StockMasterKey sku) = Map.lookup (reverse sku, category) sku'catMapR
-    return $ sku'catMapR `seq` finder
-  else do
-       itemCategories <- runDB $ selectList [] [Asc ItemCategoryStockId, Asc ItemCategoryCategory]
-       let sku'catMap = Map.fromAscList [((itemCategoryStockId , itemCategoryCategory ), itemCategoryValue )
-                                         | (Entity _ ItemCategory{..}) <- itemCategories
-                                         ]
-           finder category (FA.StockMasterKey sku) = Map.lookup (sku, category) sku'catMap
-       return $ sku'catMap `seq` finder
+         return (category, skuMap)
+  let cat'skuMap = Map.fromList catMaps
+      finder category (FA.StockMasterKey sku) = do
+        keyValueMap <- Map.lookup category cat'skuMap
+        valueFinder sku keyValueMap
+
+  return $ cat'skuMap `seq` finder
 
 _allSkus :: Handler [Key FA.StockMaster]
 _allSkus = do
