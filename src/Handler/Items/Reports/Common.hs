@@ -670,21 +670,22 @@ loadItemSales param = do
                                     ]
                        <> generateTranDateIntervals param
         
-  sales <- runDB $ rawSql (sqlSelect <> sql0 <> intercalate " " w) p
+      sql = sql0 <> intercalate " " w
+  sales <- runDB $ rawSql (sqlSelect <> sql) p
   orderCategoryMap <- if rpLoadOrderInfo param
-                      then loadOrderCategoriesFor sql0
+                      then loadOrderCategoriesFor "0_debtor _trans.order_ " sql p
                       else return mempty
   return $ map (detailToTransInfo (rpDeduceTax param) orderCategoryMap) sales
 
-loadOrderCategoriesFor :: Text -> Handler (Map Int (Map Text Text))
-loadOrderCategoriesFor orderSql = do
+loadOrderCategoriesFor :: Text -> Text -> [PersistValue] -> Handler (Map Int (Map Text Text))
+loadOrderCategoriesFor order_field orderSql params = do
   let sql  = "SELECT ??  "
              <> " FROM fames_order_category_cache "
-             <> " JOIN (SELECT distinct 0_debtor_trans.order_" <> orderSql <> ") orders "
+             <> " JOIN (SELECT distinct " <> order_field <> " " <> orderSql <> ") orders "
              <> "      ON (orders.order_ = fames_order_category_cache.order_id ) "
              <> " ORDER BY order_id" 
 
-  cats <- runDB $ rawSql sql []
+  cats <- runDB $ rawSql sql params
   return $ Map.fromAscListWith (<>) [ (orderCategoryOrderId, Map.singleton orderCategoryCategory orderCategoryValue )
                                     | (Entity _ OrderCategory{..}) <- cats
                                     ]
@@ -694,8 +695,9 @@ loadItemOrders :: ReportParam -> Handler [(TranKey, TranQP)]
 loadItemOrders param = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   let catFilterM = (,) <$> rpCategoryToFilter param <*> rpCategoryFilter param
-  let sql = intercalate " " $
-         "SELECT ??, ?? FROM 0_sales_order_details" :
+  let sqlSelect = "SELECT ??, ?? "
+  let sql0 = intercalate " " $
+         "FROM 0_sales_order_details" :
          "JOIN 0_sales_orders USING(order_no, trans_type)" :
           (if isJust catFilterM then "JOIN fames_item_category_cache AS category ON (stock_id = stk_code)" else "" ) :
           "WHERE trans_type = "  : (tshow $ fromEnum ST_SALESORDER) :
@@ -713,8 +715,10 @@ loadItemOrders param = do
                                     , (" AND category.category = ? ", PersistText catToFilter)
                                     ]
                        <> generateDateIntervals "ord_date" param
-  details <- runDB $ rawSql (sql <> intercalate " " w) p
-  return $ map (orderDetailToTransInfo) details
+      sql = sql0 <> intercalate " " w
+  details <- runDB $ rawSql (sqlSelect <> sql) p
+  orderCategoryMap <- loadOrderCategoriesFor "0_sales_orders.order_no AS order_" sql p
+  return $ map (orderDetailToTransInfo orderCategoryMap) details
 
   
 loadItemPurchases :: ReportParam -> Handler [(TranKey, TranQP)]
@@ -900,17 +904,18 @@ detailToTransInfo deduceTax orderCategoryMap
           ) *(1-debtorTransDetailDiscountPercent) -- don't divide per 100, is not a percent but the real factor :-(
 
 -- ** Order details
-orderDetailToTransInfo :: (Entity FA.SalesOrderDetail, Entity FA.SalesOrder)
+orderDetailToTransInfo :: Map Int (Map Text Text) -- ^ Order category map
+                      -> (Entity FA.SalesOrderDetail, Entity FA.SalesOrder)
                       -> (TranKey, TranQP)
-orderDetailToTransInfo (Entity _ FA.SalesOrderDetail{..}
-                       , Entity _ FA.SalesOrder{..}) = (key, tqp) where
+orderDetailToTransInfo orderCategoryMap (Entity _ FA.SalesOrderDetail{..}
+                       , Entity  _ FA.SalesOrder{..}) = (key, tqp) where
   key = TranKey salesOrderOrdDate
                (Just $ Left (fromIntegral salesOrderDebtorNo, fromIntegral salesOrderBranchCode))
                salesOrderDetailStkCode Nothing Nothing mempty mempty
                ST_SALESORDER
                (Just salesOrderOrdDate)
                (Just salesOrderDeliveryDate)
-               mempty -- TODO [order-report] add replace by order category map
+               (fromMaybe mempty (lookup salesOrderOrderNo orderCategoryMap))
 
 
   qp = mkQPrice Outward salesOrderDetailQuantity price

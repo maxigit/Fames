@@ -267,7 +267,7 @@ displayPendingOrderCategory = runDB $ do
    [Single catNb] <- rawSql "SELECT count(distinct order_id) from fames_order_category_cache" []
    let leftOver = orderNb - catNb :: Int
    when (leftOver > 0) $ do
-     setWarning (toHtml $ "There are " <> tshow leftOver <> " orders left to categories")
+     setWarning (toHtml $ "There are " <> tshow leftOver <> " orders left to categorize")
    return [whamlet|
     <p>Categories order #{catNb}/#{orderNb}.
                   |]
