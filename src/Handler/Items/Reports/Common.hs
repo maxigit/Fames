@@ -44,6 +44,7 @@ data ReportParam = ReportParam
   , rpDataParam3 :: DataParams
   , rpLoadSales :: Bool
   , rpLoadOrderInfo :: Bool
+  , rpLoadSalesOrders :: Bool
   , rpLoadPurchases :: Bool
   , rpLoadAdjustment :: Bool
   -- , rpLoadForecast :: Bool
@@ -539,7 +540,7 @@ loadItemTransactions param grouper = do
   -- for efficiency reason
   -- it is better to group sales and purchase separately and then merge them
   sales <- loadIf rpLoadSales $ loadItemSales param
-  salesOrders <- loadIf (const True) $ loadItemOrders param
+  salesOrders <- loadIf rpLoadSalesOrders $ loadItemOrders param
   purchases <- loadIf rpLoadPurchases $ loadItemPurchases param
   let salesGroups = grouper' sales
       orderGroups = grouper' salesOrders
@@ -914,7 +915,7 @@ orderDetailToTransInfo (Entity _ FA.SalesOrderDetail{..}
 
   qp = mkQPrice Outward salesOrderDetailQuantity price
   price = salesOrderDetailUnitPrice * (1- salesOrderDetailDiscountPercent)
-  tqp = tranQP QPSalesForecast qp
+  tqp = tranQP QPSalesOrder qp
 
 -- ** Purchase info
 purchToTransInfo :: (Entity SuppInvoiceItem, Single Day, Single Double, Single Int64)
@@ -1027,7 +1028,7 @@ tableProcessor ReportParam{..} grouped = do
               <tr>
                 $forall level <-  levels
                   <th> #{fromMaybe "" level}
-                $if rpLoadSales
+                $# if rpLoadSales
                   <th> Sales Qty
                   <th> Sales Amount
                   <th> Sales Min Price

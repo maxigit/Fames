@@ -45,6 +45,7 @@ reportForm cols paramM extra = do
   (fTrace3, wTrace3) <- traceForm 3 False " 3"(rpDataParam3 <$> paramM)
   (fSales, vSales) <- mreq checkBoxField "Sales" (rpLoadSales <$> paramM)
   (fOrderInfo, vOrderInfo) <- mreq checkBoxField "OrderInfo" (rpLoadOrderInfo <$> paramM)
+  (fOrder, vOrder) <- mreq checkBoxField "Sales Order" (rpLoadSalesOrders <$> paramM)
   (fPurchases, vPurchases) <- mreq checkBoxField "Purchases" (rpLoadPurchases <$> paramM)
   (fAdjustment, vAdjustment) <- mreq checkBoxField "Adjustment" (rpLoadAdjustment <$> paramM)
   (fForecast, vForecast) <- mopt (selectFieldList forecastDirOptions) "Forecast Profile" (rpForecastDir <$> paramM)
@@ -53,7 +54,7 @@ reportForm cols paramM extra = do
                , Right wPanel, Right wBand, Right wSerie
                , Right vColRupture
                , Right wTrace1, Right wTrace2, Right wTrace3
-               , Right $ mapM_ renderField [vSales, vOrderInfo, vPurchases, vAdjustment, vForecast]
+               , Right $ mapM_ renderField [vSales, vOrderInfo, vOrder, vPurchases, vAdjustment, vForecast]
                ]
   let form = [whamlet|#{extra}|] >> mapM_ (either renderField inline) fields
       inline w = [whamlet| <div.form-inline>^{w}|]
@@ -62,7 +63,7 @@ reportForm cols paramM extra = do
           fCategoryToFilter  fCategoryFilter
           fStockFilter  fPanel  fBand  fSerie
           fColRupture  fTrace1  fTrace2  fTrace3
-          fSales  fOrderInfo fPurchases  fAdjustment fForecast
+          fSales  fOrderInfo fOrder fPurchases  fAdjustment fForecast
   return (report , form)
  
 {-# NOINLINE mkReport #-}
@@ -71,13 +72,13 @@ mkReport today deduceTax fFrom  fTo
    fCategoryToFilter  fCategoryFilter
    fStockFilter  fPanel  fBand  fSerie
    fColRupture  fTrace1  fTrace2  fTrace3
-   fSales  fOrderInfo fPurchases  fAdjustment fForecast = 
+   fSales  fOrderInfo fOrder fPurchases  fAdjustment fForecast = 
   ReportParam <$> pure today <*> pure deduceTax <*> fFrom <*> fTo
   <*> fPeriod <*> fPeriodN
   <*> fCategoryToFilter <*> fCategoryFilter
   <*> fStockFilter <*> fPanel <*> fBand <*> fSerie
   <*> fColRupture <*> fTrace1 <*> fTrace2 <*> fTrace3
-  <*> fSales <*> fOrderInfo <*> fPurchases <*> fAdjustment <*> fForecast
+  <*> fSales <*> fOrderInfo <*> fOrder <*> fPurchases <*> fAdjustment <*> fForecast
   -- noneOption, amountOutOption, amountInOption :: ToJSON a =>  (Text, [(QPrice -> Amount, a -> [(Text, Value)], RunSum)])
 traceForm :: Int -> Bool -> String -> Maybe DataParams -> MForm Handler (FormResult DataParams, Widget)
 traceForm traceN nomode suffix p = do
@@ -88,10 +89,12 @@ traceForm traceN nomode suffix p = do
                                     , ("QA-Sales", quantityAmountStyle traceN Outward)
                                     , ("CumulAmount (Out)" ,   [(qpAmount Outward, VAmount, cumulAmountStyle traceN, RunSum)] )
                                     , ("CumulAmount Backward (Out)" ,   [(qpAmount Outward, VAmount, cumulAmountStyle traceN, RunSumBack)] )
+                                    , ("CumulAmount (In)" ,   [(qpAmount Inward, VAmount, cumulAmountStyle traceN, RunSum)] )
                                     , ("Stock" ,   [(qpQty Inward, VQuantity, quantityStyle traceN, RunSum)] )
                                     , amountOutOption traceN
                                     , amountInOption traceN
                                     , ("Amount (Bare)",   [(_qpAmount, VAmount, amountStyle traceN, RSNormal)])
+                                    , ("CumulAmount (Bare)" ,   [(_qpAmount, VAmount, cumulAmountStyle traceN, RunSum)] )
                                     , ("Quantity (Out)",  [(qpQty Outward, VQuantity, quantityStyle traceN, RSNormal)])
                                     , ("Quantity (In)",   [(qpQty Inward, VQuantity, quantityStyle traceN, RSNormal)])
                                     , ("Quantity (Bare)", [(_qpQty, VQuantity,           quantityStyle traceN, RSNormal)] )
@@ -172,7 +175,7 @@ getItemsReportR' mode = do
                            sales --  rpDataParam :: DataParams
                            emptyTrace --  rpDataParam2 :: DataParams
                            emptyTrace --  rpDataParam3 :: DataParams
-                           True False True True Nothing
+                           True False False True True Nothing
         _ -> ReportParam   today
                            deduceTax
                            (Just past) --  rpFrom :: Maybe Day
@@ -189,7 +192,7 @@ getItemsReportR' mode = do
                            sales --  rpDataParam :: DataParams
                            emptyTrace --  rpDataParam2 :: DataParams
                            emptyTrace --  rpDataParam3 :: DataParams
-                           True False True True Nothing
+                           True False False True True Nothing
 
   renderReportForm ItemsReportR mode (Just defaultReportParam) ok200 Nothing
 

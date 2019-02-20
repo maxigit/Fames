@@ -224,7 +224,7 @@ data InOutward = Inward | Outward deriving (Show, Read, Eq, Ord, Enum, Bounded)
 -- | example Sales Credit -> Credit ,or Sales Credit to Sales
 data QPType = QPSales | QPPurchase | QPAdjustment | QPCredit | QPInvoice 
             | QPSalesInvoice | QPSalesCredit | QPPurchInvoice | QPPurchCredit
-            | QPSalesForecast
+            | QPSalesForecast | QPSalesOrder
             | QPSummary
   deriving(Read, Show, Eq, Ord, Enum, Bounded)
 
@@ -257,7 +257,11 @@ tranQP qtype qp = let
                    QPPurchInvoice -> [QPPurchase, QPInvoice]
                    QPPurchCredit -> [QPPurchase, QPCredit]
                    QPAdjustment -> [QPAdjustment]
+                   -- dependinp on the use, forecast and sales order
+                   -- can be compared to sales in a positive or negative way
+                   -- TODO [report] fix documentation
                    QPSalesForecast -> [QPSalesForecast]
+                   QPSalesOrder -> QPSalesOrder : if qpIO qp == Inward then [QPPurchase] else [QPSales]
                    QPSummary -> [minBound..maxBound]
                    _ -> error $ "Fix ME: creating with TranQP with " <> show qtype
   -- for adjustment, we want the quantity to be parts of the summary
