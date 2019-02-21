@@ -42,8 +42,8 @@ data ReportParam = ReportParam
   , rpDataParam :: DataParams
   , rpDataParam2 :: DataParams
   , rpDataParam3 :: DataParams
-  , rpLoadSales :: Bool
-  , rpLoadOrderInfo :: Bool
+  , rpLoadSalesAndInfo :: Maybe SalesInfoMode -- ^ load or not, with or without extra info
+  -- , rpLoadOrderInfo :: Bool
   , rpLoadSalesOrders :: Maybe (InOutward, OrderDateColumn)
   , rpLoadPurchases :: Bool
   , rpLoadAdjustment :: Bool
@@ -51,6 +51,7 @@ data ReportParam = ReportParam
   , rpForecastDir :: Maybe FilePath
   }  deriving Show
 data OrderDateColumn = OOrderDate | ODeliveryDate deriving (Eq, Show)
+data SalesInfoMode = SSalesOnly | SSalesAndOrderInfo deriving (Eq, Show)
 paramToCriteria :: ReportParam -> [Filter FA.StockMove]
 paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
                                   (rpTo <&> (FA.StockMoveTranDate <=.)) ?:
@@ -59,7 +60,8 @@ paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
 rpJustFrom ReportParam{..} = fromMaybe rpToday rpFrom
 rpJustTo ReportParam{..} = fromMaybe rpToday rpTo
 rpLoadForecast = isJust . rpForecastDir
-
+rpLoadSales = isJust . rpLoadSalesAndInfo
+rpLoadOrderInfo = (== Just SSalesAndOrderInfo) . rpLoadSalesAndInfo
 
 t :: Text -> Text
 t x = x
@@ -1024,13 +1026,13 @@ span.RunSumBack::before
   content: "<<"
                    |]
 tableProcessor :: ReportParam -> NMap (Sum Double, TranQP) -> Widget 
-tableProcessor ReportParam{..} grouped = do
+tableProcessor param@ReportParam{..} grouped = do
   let levels = drop 1 $ nmapLevels grouped
       ns = [1..]
       -- don't display sales order if it's includeg in either sales or purchase
       displayOrders = case rpLoadSalesOrders of
                     Nothing -> False
-                    Just (Outward, _) ->  not rpLoadSales -- included in sales but no sales
+                    Just (Outward, _) ->  not (rpLoadSales param) -- included in sales but no sales
                     Just (Inward, _) -> not rpLoadPurchases --  included in purchases but no purchases
   toWidget commonCss
   [whamlet|
@@ -1044,7 +1046,7 @@ tableProcessor ReportParam{..} grouped = do
               <tr>
                 $forall level <-  levels
                   <th> #{fromMaybe "" level}
-                $if rpLoadSales
+                $if rpLoadSales param
                   <th> Sales Qty
                   <th> Sales Amount
                   <th> Sales Min Price
@@ -1082,7 +1084,7 @@ tableProcessor ReportParam{..} grouped = do
                         <td>
                            #{nkeyWithRank key}
                        
-                      $if  rpLoadSales 
+                      $if rpLoadSales param
                         ^{showQp Outward $ salesQPrice qp}
                       $if displayOrders
                         $case rpLoadSalesOrders
@@ -1104,7 +1106,7 @@ tableProcessor ReportParam{..} grouped = do
                       <td> Total
                       $forall level <- drop 1 levels
                         <td>
-                      $if rpLoadSales
+                      $if rpLoadSales param
                         ^{showQp Outward $ salesQPrice qpt}
                       $if isJust rpForecastDir
                         ^{showQp Outward $ forecastQPrice qpt}

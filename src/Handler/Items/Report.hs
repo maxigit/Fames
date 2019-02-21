@@ -34,6 +34,9 @@ reportForm cols paramM extra = do
                          , ("As Purchase - Order Date", (Inward, OOrderDate))
                          , ("As Purchase - Delivery Date", (Inward, ODeliveryDate))
                          ]
+      salesOptions = [ ("Transaction only" :: Text, SSalesOnly )
+                     , ("With Order info", SSalesAndOrderInfo)
+                     ]
   (fFrom, vFrom) <- mopt dayField "from" (Just $ rpFrom =<< paramM )
   (fTo, vTo) <- mopt dayField "to" (Just $ rpTo =<< paramM)
   (fPeriod, vPeriod) <- mopt (selectFieldList $ periodOptions today (rpFrom =<< paramM)) "period" (Just $ rpPeriod' =<< paramM)
@@ -48,8 +51,8 @@ reportForm cols paramM extra = do
   (fTrace1, wTrace1) <- traceForm 1 False "" (rpDataParam <$> paramM)
   (fTrace2, wTrace2) <- traceForm 2 False " 2" (rpDataParam2 <$> paramM)
   (fTrace3, wTrace3) <- traceForm 3 False " 3"(rpDataParam3 <$> paramM)
-  (fSales, vSales) <- mreq checkBoxField "Sales" (rpLoadSales <$> paramM)
-  (fOrderInfo, vOrderInfo) <- mreq checkBoxField "OrderInfo" (rpLoadOrderInfo <$> paramM)
+  (fSales, vSales) <- mopt (selectFieldList salesOptions) "Sales" (rpLoadSalesAndInfo <$> paramM)
+  -- (fOrderInfo, vOrderInfo) <- mreq checkBoxField "OrderInfo" (rpLoadOrderInfo <$> paramM)
   (fOrder, vOrder) <- mopt (selectFieldList inoutwardOptions) "Sales Order" (rpLoadSalesOrders <$> paramM)
   (fPurchases, vPurchases) <- mreq checkBoxField "Purchases" (rpLoadPurchases <$> paramM)
   (fAdjustment, vAdjustment) <- mreq checkBoxField "Adjustment" (rpLoadAdjustment <$> paramM)
@@ -59,7 +62,7 @@ reportForm cols paramM extra = do
                , Right wPanel, Right wBand, Right wSerie
                , Right vColRupture
                , Right wTrace1, Right wTrace2, Right wTrace3
-               , Right $ mapM_ renderField [vSales, vOrderInfo, vOrder, vPurchases, vAdjustment, vForecast]
+               , Right $ mapM_ renderField [vSales, vOrder, vPurchases, vAdjustment, vForecast]
                ]
   let form = [whamlet|#{extra}|] >> mapM_ (either renderField inline) fields
       inline w = [whamlet| <div.form-inline>^{w}|]
@@ -68,7 +71,7 @@ reportForm cols paramM extra = do
           fCategoryToFilter  fCategoryFilter
           fStockFilter  fPanel  fBand  fSerie
           fColRupture  fTrace1  fTrace2  fTrace3
-          fSales  fOrderInfo fOrder fPurchases  fAdjustment fForecast
+          fSales  fOrder fPurchases  fAdjustment fForecast
   return (report , form)
  
 {-# NOINLINE mkReport #-}
@@ -77,13 +80,13 @@ mkReport today deduceTax fFrom  fTo
    fCategoryToFilter  fCategoryFilter
    fStockFilter  fPanel  fBand  fSerie
    fColRupture  fTrace1  fTrace2  fTrace3
-   fSales  fOrderInfo fOrder fPurchases  fAdjustment fForecast = 
+   fSales  fOrder fPurchases  fAdjustment fForecast = 
   ReportParam <$> pure today <*> pure deduceTax <*> fFrom <*> fTo
   <*> fPeriod <*> fPeriodN
   <*> fCategoryToFilter <*> fCategoryFilter
   <*> fStockFilter <*> fPanel <*> fBand <*> fSerie
   <*> fColRupture <*> fTrace1 <*> fTrace2 <*> fTrace3
-  <*> fSales <*> fOrderInfo <*> fOrder <*> fPurchases <*> fAdjustment <*> fForecast
+  <*> fSales <*> fOrder <*> fPurchases <*> fAdjustment <*> fForecast
   -- noneOption, amountOutOption, amountInOption :: ToJSON a =>  (Text, [(QPrice -> Amount, a -> [(Text, Value)], RunSum)])
 traceForm :: Int -> Bool -> String -> Maybe DataParams -> MForm Handler (FormResult DataParams, Widget)
 traceForm traceN nomode suffix p = do
@@ -180,7 +183,7 @@ getItemsReportR' mode = do
                            sales --  rpDataParam :: DataParams
                            emptyTrace --  rpDataParam2 :: DataParams
                            emptyTrace --  rpDataParam3 :: DataParams
-                           True False Nothing
+                           (Just SSalesOnly) Nothing
                            True True Nothing
         _ -> ReportParam   today
                            deduceTax
@@ -198,7 +201,7 @@ getItemsReportR' mode = do
                            sales --  rpDataParam :: DataParams
                            emptyTrace --  rpDataParam2 :: DataParams
                            emptyTrace --  rpDataParam3 :: DataParams
-                           True False Nothing
+                           (Just SSalesOnly) Nothing
                            True True Nothing
 
   renderReportForm ItemsReportR mode (Just defaultReportParam) ok200 Nothing

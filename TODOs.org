@@ -1,18 +1,18 @@
-* TODO Sales Order report :  [2/4]
-  - [-] Sort QSales, how do we it ?
+* DONE Sales Order report :  [4/4]
+  CLOSED: [2019-02-21 Thu 15:19]
+  - [X] Sort QSales, how do we it ?
     - [X] Have a special entry SalesOrder
-    - [ ] and map it either to Sales or Purchase depending on paramters
-    - [ ] Display in summary
-      - [ ]  filter based on what's is present in the all map
+    - [X] and map it either to Sales or Purchase depending on paramters
+    - [X] Display in summary
   - [X] sort speed problem
     +- [ ]  use normal regex+
     +- [ ]  don't load map+
     - [X]  break loading of map
   - [X]  add order category to order
-  - [ ] param to load order or not
+  - [X] param to load order or not
     +- [ ] at that point, decide what we do we them+
     Example, inward, outward, or sales, forecast , purchase ? etc 
-    - [ ] update forecast param to be similar to orders
+    +- [ ] update forecast param to be similar to orders+
 * TODO Planner [3/10]
   - [X] Display style with different box sizes
     - [X] filter with report param
