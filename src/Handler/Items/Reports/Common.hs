@@ -1028,7 +1028,6 @@ span.RunSumBack::before
 tableProcessor :: ReportParam -> NMap (Sum Double, TranQP) -> Widget 
 tableProcessor param@ReportParam{..} grouped = do
   let levels = drop 1 $ nmapLevels grouped
-      ns = [1..]
       -- don't display sales order if it's includeg in either sales or purchase
       displayOrders = case rpLoadSalesOrders of
                     Nothing -> False
@@ -1078,9 +1077,9 @@ tableProcessor param@ReportParam{..} grouped = do
                 <th> Sales Through
                 <th> %Loss (Qty)
                 <th> Margin 
-              $forall (keys, (_,qp)) <- nmapToList group1
+              $forall (keys, (_,qp)) <- nmapToListWithRank group1
                     <tr>
-                      $forall key <- zip ns keys
+                      $forall key <- keys
                         <td>
                            #{nkeyWithRank key}
                        
@@ -1218,9 +1217,18 @@ nmapToNMapListWithRank  nmap =
   let asList = [ ( (fst (nmapMargin n), k)
                  , n)
                | (k, n) <- nmapToNMapList nmap
+               , not (null n)
                ]
       sorted = sortOn fst asList
   in zipWith (\i ((w,k), n) -> ((i,k), n)) [1..]  sorted
+
+nmapToListWithRank :: Ord w => NMap (w, a) -> [([(Int, NMapKey)], (w,a))]
+nmapToListWithRank (NLeaf x) = [([], x)]
+nmapToListWithRank nmap = do -- []
+  ((rank'key), subNMap) <- nmapToNMapListWithRank nmap
+  (rks, wa) <- nmapToListWithRank subNMap
+  return (rank'key:rks, wa)
+
 -- ** Plot
 chartProcessor :: ReportParam -> NMap (Sum Double, TranQP) -> Widget 
 chartProcessor param grouped = do
