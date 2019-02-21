@@ -44,14 +44,15 @@ data ReportParam = ReportParam
   , rpDataParam3 :: DataParams
   , rpLoadSalesAndInfo :: Maybe SalesInfoMode -- ^ load or not, with or without extra info
   -- , rpLoadOrderInfo :: Bool
-  , rpLoadSalesOrders :: Maybe (InOutward, OrderDateColumn)
+  , rpLoadSalesOrders :: Maybe (InOutward, OrderDateColumn, OrderQuantityMode)
   , rpLoadPurchases :: Bool
   , rpLoadAdjustment :: Bool
   -- , rpLoadForecast :: Bool
-  , rpForecastDir :: Maybe FilePath
+  , rpForecast :: Maybe (FilePath, InOutward)
   }  deriving Show
 data OrderDateColumn = OOrderDate | ODeliveryDate deriving (Eq, Show)
 data SalesInfoMode = SSalesOnly | SSalesAndOrderInfo deriving (Eq, Show)
+data OrderQuantityMode = OOrderedQuantity | OQuantityLeft deriving (Eq, Show)
 paramToCriteria :: ReportParam -> [Filter FA.StockMove]
 paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
                                   (rpTo <&> (FA.StockMoveTranDate <=.)) ?:
@@ -59,9 +60,11 @@ paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
  
 rpJustFrom ReportParam{..} = fromMaybe rpToday rpFrom
 rpJustTo ReportParam{..} = fromMaybe rpToday rpTo
-rpLoadForecast = isJust . rpForecastDir
+rpLoadForecast = isJust . rpForecast
 rpLoadSales = isJust . rpLoadSalesAndInfo
 rpLoadOrderInfo = (== Just SSalesAndOrderInfo) . rpLoadSalesAndInfo
+rpForecastDir = fmap fst . rpForecast
+rpForecastInOut = fmap snd . rpForecast
 
 t :: Text -> Text
 t x = x
@@ -537,13 +540,13 @@ loadItemTransactions param grouper = do
   custCatFinder <- customerCategoryFinderCached
   skuToStyleVar <- skuToStyleVarH
   adjustments <- loadIf rpLoadAdjustment $ loadStockAdjustments stockInfo param
-  forecasts <- case rpForecastDir param of
+  forecasts <- case rpForecast param of
     Nothing -> return []
-    Just forecastDir -> loadItemForecast forecastDir stockInfo (rpJustFrom param) (rpJustTo param)
+    Just (forecastDir, io) -> loadItemForecast io forecastDir stockInfo (rpJustFrom param) (rpJustTo param)
   -- for efficiency reason
   -- it is better to group sales and purchase separately and then merge them
   sales <- loadIf rpLoadSales $ loadItemSales param
-  salesOrdersM <- forM (rpLoadSalesOrders param) $ \(io, dateColumn) -> loadItemOrders param io dateColumn
+  salesOrdersM <- forM (rpLoadSalesOrders param) $ \(io, dateColumn, qtyMode) -> loadItemOrders param io dateColumn qtyMode
   let salesOrders = fromMaybe [] salesOrdersM
   purchases <- loadIf rpLoadPurchases $ loadItemPurchases param
   let salesGroups = grouper' sales
@@ -695,8 +698,8 @@ loadOrderCategoriesFor order_field orderSql params = do
                                     ]
 
 
-loadItemOrders :: ReportParam -> InOutward -> OrderDateColumn -> Handler [(TranKey, TranQP)]
-loadItemOrders param io orderDateColumn = do
+loadItemOrders :: ReportParam -> InOutward -> OrderDateColumn -> OrderQuantityMode -> Handler [(TranKey, TranQP)]
+loadItemOrders param io orderDateColumn qtyMode = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   let catFilterM = (,) <$> rpCategoryToFilter param <*> rpCategoryFilter param
   let orderDateField = case orderDateColumn of
@@ -725,7 +728,7 @@ loadItemOrders param io orderDateColumn = do
       sql = sql0 <> intercalate " " w
   details <- runDB $ rawSql (sqlSelect <> sql) p
   orderCategoryMap <- loadOrderCategoriesFor "0_sales_orders.order_no AS order_" sql p
-  return $ map (orderDetailToTransInfo io orderCategoryMap) details
+  return $ map (orderDetailToTransInfo io qtyMode orderCategoryMap) details
 
   
 loadItemPurchases :: ReportParam -> Handler [(TranKey, TranQP)]
@@ -911,10 +914,10 @@ detailToTransInfo deduceTax orderCategoryMap
           ) *(1-debtorTransDetailDiscountPercent) -- don't divide per 100, is not a percent but the real factor :-(
 
 -- ** Order details
-orderDetailToTransInfo :: InOutward -> Map Int (Map Text Text) -- ^ Order category map
+orderDetailToTransInfo :: InOutward -> OrderQuantityMode -> Map Int (Map Text Text) -- ^ Order category map
                       -> (Entity FA.SalesOrderDetail, Entity FA.SalesOrder, Single Day)
                       -> (TranKey, TranQP)
-orderDetailToTransInfo io orderCategoryMap (Entity _ FA.SalesOrderDetail{..}
+orderDetailToTransInfo io qtyMode orderCategoryMap (Entity _ FA.SalesOrderDetail{..}
                        , Entity  _ FA.SalesOrder{..}
                        , Single effectiveDate ) = (key, tqp) where
   key = TranKey effectiveDate
@@ -926,7 +929,10 @@ orderDetailToTransInfo io orderCategoryMap (Entity _ FA.SalesOrderDetail{..}
                (fromMaybe mempty (lookup salesOrderOrderNo orderCategoryMap))
 
 
-  qp = mkQPrice io salesOrderDetailQuantity price
+  qty = case qtyMode of
+          OOrderedQuantity -> salesOrderDetailQuantity
+          OQuantityLeft -> salesOrderDetailQuantity - salesOrderDetailQtySent
+  qp = mkQPrice io qty price
   price = salesOrderDetailUnitPrice * (1- salesOrderDetailDiscountPercent)
   tqp = tranQP QPSalesOrder qp
 
@@ -1031,8 +1037,8 @@ tableProcessor param@ReportParam{..} grouped = do
       -- don't display sales order if it's includeg in either sales or purchase
       displayOrders = case rpLoadSalesOrders of
                     Nothing -> False
-                    Just (Outward, _) ->  not (rpLoadSales param) -- included in sales but no sales
-                    Just (Inward, _) -> not rpLoadPurchases --  included in purchases but no purchases
+                    Just (Outward, _, _) ->  not (rpLoadSales param) -- included in sales but no sales
+                    Just (Inward, _, _) -> not rpLoadPurchases --  included in purchases but no purchases
   toWidget commonCss
   [whamlet|
     $forall (h1, group1) <- nmapToNMapListWithRank grouped
@@ -1057,7 +1063,7 @@ tableProcessor param@ReportParam{..} grouped = do
                   <th> Sales Order Min Price
                   <th> Sales Order max Price
                   <th> Sales Order Average Price
-                $if isJust rpForecastDir 
+                $if rpLoadForecast param
                   <th> Forecast Qty
                   <th> Forecast Amount
                   <th> Forecast Min Price
@@ -1087,12 +1093,12 @@ tableProcessor param@ReportParam{..} grouped = do
                         ^{showQp Outward $ salesQPrice qp}
                       $if displayOrders
                         $case rpLoadSalesOrders
-                          $of Just (Outward, _)
+                          $of Just (Outward, _, _)
                             ^{showQp Outward $ salesQPrice qp}
-                          $of Just (Inward, _)
+                          $of Just (Inward, _, _)
                             ^{showQp Inward $ purchQPrice qp}
-                          $of _
-                      $if isJust rpForecastDir
+                          $of p
+                      $if rpLoadForecast param
                         ^{showQp Outward $ forecastQPrice qp}
                       $if rpLoadPurchases
                         ^{showQp Inward $ purchQPrice qp}
@@ -1107,7 +1113,7 @@ tableProcessor param@ReportParam{..} grouped = do
                         <td>
                       $if rpLoadSales param
                         ^{showQp Outward $ salesQPrice qpt}
-                      $if isJust rpForecastDir
+                      $if rpLoadForecast param
                         ^{showQp Outward $ forecastQPrice qpt}
                       $if rpLoadPurchases
                         ^{showQp Inward $ purchQPrice qpt}

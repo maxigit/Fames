@@ -29,11 +29,11 @@ reportForm cols paramM extra = do
 
   let colOptions = [(colName c,c) | c <- cols]
       categoryOptions = [(cat, cat) | cat <-categories ]
-      inoutwardOptions = [ ("As Sales - Order Date" :: Text, (Outward, OOrderDate))
-                         , ("As Sales - Delivery Date" :: Text, (Outward, ODeliveryDate))
-                         , ("As Purchase - Order Date", (Inward, OOrderDate))
-                         , ("As Purchase - Delivery Date", (Inward, ODeliveryDate))
-                         ]
+      inoutwardOptions = [ (ios <> " - " <> dates <> " - " <> qtys, (io, date, qty) ) 
+                         | (ios, io) <- [("As Sales" :: Text, Outward), ("As Purchase", Inward)]
+                         , (dates, date) <- [ ("Order Date", OOrderDate), ("Delivery Date", ODeliveryDate) ]
+                         , (qtys, qty) <- [ ("Ordered Quantity", OOrderedQuantity), ("Left Quantity", OQuantityLeft)]
+                         ] 
       salesOptions = [ ("Transaction only" :: Text, SSalesOnly )
                      , ("With Order info", SSalesAndOrderInfo)
                      ]
@@ -57,12 +57,14 @@ reportForm cols paramM extra = do
   (fPurchases, vPurchases) <- mreq checkBoxField "Purchases" (rpLoadPurchases <$> paramM)
   (fAdjustment, vAdjustment) <- mreq checkBoxField "Adjustment" (rpLoadAdjustment <$> paramM)
   (fForecast, vForecast) <- mopt (selectFieldList forecastDirOptions) "Forecast Profile" (rpForecastDir <$> paramM)
+  (fForecastInOut, vForecastInOut) <- mopt (selectField optionsEnum) "Forecast Mode" (rpForecastInOut <$> paramM)
   let fields = [ Right $ mapM_ renderField [vFrom, vTo, vPeriod, vPeriodN]
                , Right $ mapM_ renderField [vStockFilter, vCategoryToFilter, vCategoryFilter]
                , Right wPanel, Right wBand, Right wSerie
                , Right vColRupture
                , Right wTrace1, Right wTrace2, Right wTrace3
-               , Right $ mapM_ renderField [vSales, vOrder, vPurchases, vAdjustment, vForecast]
+               , Right $ mapM_ renderField [vSales, vOrder, vPurchases, vAdjustment]
+               , Right $ mapM_ renderField [vForecast, vForecastInOut]
                ]
   let form = [whamlet|#{extra}|] >> mapM_ (either renderField inline) fields
       inline w = [whamlet| <div.form-inline>^{w}|]
@@ -71,16 +73,17 @@ reportForm cols paramM extra = do
           fCategoryToFilter  fCategoryFilter
           fStockFilter  fPanel  fBand  fSerie
           fColRupture  fTrace1  fTrace2  fTrace3
-          fSales  fOrder fPurchases  fAdjustment fForecast
+          fSales  fOrder fPurchases  fAdjustment (liftA2 (liftA2 (,)) fForecast fForecastInOut)
   return (report , form)
  
+  
 {-# NOINLINE mkReport #-}
 mkReport today deduceTax fFrom  fTo
    fPeriod  fPeriodN
    fCategoryToFilter  fCategoryFilter
    fStockFilter  fPanel  fBand  fSerie
    fColRupture  fTrace1  fTrace2  fTrace3
-   fSales  fOrder fPurchases  fAdjustment fForecast = 
+   fSales  fOrder fPurchases  fAdjustment fForecast =
   ReportParam <$> pure today <*> pure deduceTax <*> fFrom <*> fTo
   <*> fPeriod <*> fPeriodN
   <*> fCategoryToFilter <*> fCategoryFilter

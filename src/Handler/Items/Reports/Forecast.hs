@@ -72,8 +72,8 @@ loadSkuSpeed filepath = do
     Right rows -> return rows
 
 -- | Generate fake transactions corresponding to forecast sales
-loadItemForecast ::  FilePath -> (Map Text ItemInitialInfo) -> Day -> Day -> Handler [(TranKey, TranQP)]
-loadItemForecast forecastDir infoMap start end = do
+loadItemForecast ::  InOutward -> FilePath -> (Map Text ItemInitialInfo) -> Day -> Day -> Handler [(TranKey, TranQP)]
+loadItemForecast io forecastDir infoMap start end = do
   catFinder <- categoryFinderCached
   settings <- getsYesod appSettings
   profiles <- lift $ readProfiles (forecastDir </> "collection_profiles.csv")
@@ -85,9 +85,9 @@ loadItemForecast forecastDir infoMap start end = do
 
   skuSpeedMap <- lift $ mapM loadSkuSpeed skuFiles
   let skuSpeeds = concat skuSpeedMap 
-  return $ concatMap (skuSpeedRowToTransInfo infoMap profile start end) skuSpeeds
+  return $ concatMap (skuSpeedRowToTransInfo infoMap profile start end io) skuSpeeds
 
-skuSpeedRowToTransInfo infoMap profileFor start end (SkuSpeedRow sku speed) =
+skuSpeedRowToTransInfo infoMap profileFor start end io (SkuSpeedRow sku speed) =
   case (profileFor sku, lookup sku infoMap) of
     (Just profile, Just info) -> do -- []
       (day0, weight) <- weightsForRange profile start end
@@ -102,7 +102,7 @@ skuSpeedRowToTransInfo infoMap profileFor start end (SkuSpeedRow sku speed) =
                     ST_SALESINVOICE
                     Nothing Nothing mempty
 
-          qp = mkQPrice Inward (weight * speed) (fromMaybe 0 $ iiSalesPrice info)
+          qp = mkQPrice io (weight * speed) (fromMaybe 0 $ iiSalesPrice info)
           tqp = tranQP QPSalesForecast qp
       return (key, tqp)
     _ -> []
