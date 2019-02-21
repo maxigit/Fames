@@ -29,6 +29,11 @@ reportForm cols paramM extra = do
 
   let colOptions = [(colName c,c) | c <- cols]
       categoryOptions = [(cat, cat) | cat <-categories ]
+      inoutwardOptions = [ ("As Sales - Order Date" :: Text, (Outward, OOrderDate))
+                         , ("As Sales - Delivery Date" :: Text, (Outward, ODeliveryDate))
+                         , ("As Purchase - Order Date", (Inward, OOrderDate))
+                         , ("As Purchase - Delivery Date", (Inward, ODeliveryDate))
+                         ]
   (fFrom, vFrom) <- mopt dayField "from" (Just $ rpFrom =<< paramM )
   (fTo, vTo) <- mopt dayField "to" (Just $ rpTo =<< paramM)
   (fPeriod, vPeriod) <- mopt (selectFieldList $ periodOptions today (rpFrom =<< paramM)) "period" (Just $ rpPeriod' =<< paramM)
@@ -45,7 +50,7 @@ reportForm cols paramM extra = do
   (fTrace3, wTrace3) <- traceForm 3 False " 3"(rpDataParam3 <$> paramM)
   (fSales, vSales) <- mreq checkBoxField "Sales" (rpLoadSales <$> paramM)
   (fOrderInfo, vOrderInfo) <- mreq checkBoxField "OrderInfo" (rpLoadOrderInfo <$> paramM)
-  (fOrder, vOrder) <- mreq checkBoxField "Sales Order" (rpLoadSalesOrders <$> paramM)
+  (fOrder, vOrder) <- mopt (selectFieldList inoutwardOptions) "Sales Order" (rpLoadSalesOrders <$> paramM)
   (fPurchases, vPurchases) <- mreq checkBoxField "Purchases" (rpLoadPurchases <$> paramM)
   (fAdjustment, vAdjustment) <- mreq checkBoxField "Adjustment" (rpLoadAdjustment <$> paramM)
   (fForecast, vForecast) <- mopt (selectFieldList forecastDirOptions) "Forecast Profile" (rpForecastDir <$> paramM)
@@ -175,7 +180,8 @@ getItemsReportR' mode = do
                            sales --  rpDataParam :: DataParams
                            emptyTrace --  rpDataParam2 :: DataParams
                            emptyTrace --  rpDataParam3 :: DataParams
-                           True False False True True Nothing
+                           True False Nothing
+                           True True Nothing
         _ -> ReportParam   today
                            deduceTax
                            (Just past) --  rpFrom :: Maybe Day
@@ -192,7 +198,8 @@ getItemsReportR' mode = do
                            sales --  rpDataParam :: DataParams
                            emptyTrace --  rpDataParam2 :: DataParams
                            emptyTrace --  rpDataParam3 :: DataParams
-                           True False False True True Nothing
+                           True False Nothing
+                           True True Nothing
 
   renderReportForm ItemsReportR mode (Just defaultReportParam) ok200 Nothing
 

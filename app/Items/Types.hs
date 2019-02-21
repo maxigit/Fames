@@ -257,11 +257,14 @@ tranQP qtype qp = let
                    QPPurchInvoice -> [QPPurchase, QPInvoice]
                    QPPurchCredit -> [QPPurchase, QPCredit]
                    QPAdjustment -> [QPAdjustment]
-                   -- dependinp on the use, forecast and sales order
-                   -- can be compared to sales in a positive or negative way
-                   -- TODO [report] fix documentation
-                   QPSalesForecast -> [QPSalesForecast]
-                   QPSalesOrder -> QPSalesOrder : if qpIO qp == Inward then [QPPurchase] else [QPSales]
+                   -- depending on the use, forecast can be seen 
+                   -- as a sales (to forecast the left over stock for example)
+                   -- or as a purchase, to compare to the actual sales
+                   QPSalesForecast -> if qpIO qp == Inward then [QPPurchase] else [QPSales]
+                   -- depending on the use, sales order can be seen 
+                   -- as a sales (to add current sales to 
+                   -- or as a purchase, to compare to the actual sales (excluding the order)
+                   QPSalesOrder -> if qpIO qp == Inward then [QPPurchase] else [QPSales]
                    QPSummary -> [minBound..maxBound]
                    _ -> error $ "Fix ME: creating with TranQP with " <> show qtype
   -- for adjustment, we want the quantity to be parts of the summary
