@@ -335,6 +335,7 @@ renderReportForm  route modeM paramM status resultM = do
       
       #{reportDoc}
                         |]
+  cacheSeconds (23*3600)
   selectRep $ do
     provideRep $ do
       html <- sendResponseStatus status =<< defaultLayout (toWidget commonCss >> widget >> fay) 
