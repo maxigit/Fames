@@ -99,7 +99,10 @@ skuSpeedRowToTransInfo infoMap profileFor start end io (SkuSpeedRow sku speed) =
                     Nothing -- var
                     mempty
                     mempty
-                    ST_SALESINVOICE
+                    (case io of
+                       Inward -> ST_PURCHORDER
+                       Outward -> ST_SALESINVOICE
+                    )
                     Nothing Nothing mempty
 
           qp = mkQPrice io (weight * speed) (fromMaybe 0 $ iiSalesPrice info)
