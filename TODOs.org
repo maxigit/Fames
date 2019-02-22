@@ -1,9 +1,12 @@
-* TODO Sales Order report :  [0/3]
-  - [ ] use quantity left instead of total quantity (from order details)
+* TODO Sales Order report :  [3/5]
+  - [X] Bug: not displaying summary (total) column as above
+  - [ ] Bug: stock_id used to filter sku not working (for sales_orders)
+  - [ ] Bug: category join not working
+  - [X] use quantity left instead of total quantity (from order details)
 Useful if we need to preview stock in the future (use in conjunction with delivery date)
-  - [ ]  add bool to put forecast in sales or purchases
-Forecast are purchases, if we want to see if the forecast is enougth to cope with the sales
-Forecast is a sales if we want to check if the stock is enough
+  - [X]  add bool to put forecast in sales or purchases
+Forecast are purchases, if we want to see if the forecast is enougth to cope with the sales (we forecast what to buy)
+Forecast is a sales if we want to check if the stock is enough (we forecast what we will sales)
 * DONE Sales Order report :  [4/4]
   CLOSED: [2019-02-21 Thu 15:19]
   - [X] Sort QSales, how do we it ?

@@ -1097,7 +1097,7 @@ tableProcessor param@ReportParam{..} grouped = do
                             ^{showQp Outward $ salesQPrice qp}
                           $of Just (Inward, _, _)
                             ^{showQp Inward $ purchQPrice qp}
-                          $of p
+                          $of Nothing
                       $if rpLoadForecast param
                         ^{showQp Outward $ forecastQPrice qp}
                       $if rpLoadPurchases
@@ -1113,6 +1113,13 @@ tableProcessor param@ReportParam{..} grouped = do
                         <td>
                       $if rpLoadSales param
                         ^{showQp Outward $ salesQPrice qpt}
+                      $if displayOrders
+                        $case rpLoadSalesOrders
+                          $of Just (Outward, _, _)
+                            ^{showQp Outward $ salesQPrice qpt}
+                          $of Just (Inward, _, _)
+                            ^{showQp Inward $ purchQPrice qpt}
+                          $of Nothing
                       $if rpLoadForecast param
                         ^{showQp Outward $ forecastQPrice qpt}
                       $if rpLoadPurchases
