@@ -1702,19 +1702,22 @@ scatterTrace all panel band asList params =
                 let runsumed = nmapRunSum (tpRunSum tp) $ grp
                 in formatSerieValues id id normMode all panel band fn runsumed 
             _ -> replicate (length grp) Nothing
-        (xs, ys, vs, texts, colours, symbols) = unzip6 [  (x, y, abs <$> v, text, colour, symbol)
+        (xs, ys, vs, texts, colours, symbols) = unzip6
+                              [  (x, y, abs <$> v, text, colour, symbol)
                               | ((name,group), colour) <- zip asList  defaultColors
                               , let gForSize = runSumFor getSize'p group
                               , let gForX = runSumFor getX'p group
                               , let gForY = runSumFor getY'p group
                               , ((k,_), x, y, v) <- zip4 (nmapToNMapList group) gForX gForY gForSize
                               -- , let v =  (fst <$> getSize'p) >>= ($ gsm)  :: Maybe Double -- # of  for the colun
-                              , let text = pvToText . nkKey $ snd name --  fmap (\vv -> (( pvToText . nkKey $ snd name ) <> " " <> tshow vv)) v
+                              -- , let text = pvToText . nkKey $ snd name --  fmap (\vv -> (( pvToText . nkKey $ snd name ) <> " " <> tshow vv)) v
+                              , let text = intercalate " - " . filter (not . null) $ map (pvToText . nkKey)   [snd name, k]
                               -- , let colour = (fst <$> getColour'p) >>= ($ gcm)
                               , let symbol = if maybe False (<0) v then t "diamond" else "circle"
                               ]
         jsData = object [ "x"  .=  xs
                         , "y" .= ys
+                        , "name" .= t "pipo"
                         , "text" .= texts
                         , "mode" .= t "markers"
                         , "marker" .= object ( case getSize'p of

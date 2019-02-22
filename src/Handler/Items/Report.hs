@@ -389,13 +389,13 @@ reportDoc' = [shamlet|
             <td >Y/Row
             <td >Colour/Label
 
-          <tr>
+<tr>
             <td >Column
             <td >N/A
             <td >X
             <td >X/Column
             <td >X/Column
-            <td >Point
+            <td >Point/Label
           
 
           <tr>
