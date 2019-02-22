@@ -680,7 +680,7 @@ loadItemSales param = do
       sql = sql0 <> intercalate " " w
   sales <- runDB $ rawSql (sqlSelect <> sql) p
   orderCategoryMap <- if rpLoadOrderInfo param
-                      then loadOrderCategoriesFor "0_debtor _trans.order_ " sql p
+                      then loadOrderCategoriesFor "0_debtor_trans.order_ " sql p
                       else return mempty
   return $ map (detailToTransInfo (rpDeduceTax param) orderCategoryMap) sales
 
