@@ -1,6 +1,6 @@
-* TODO Sales Order report :  [3/5]
+* TODO Sales Order report :  [4/5]
   - [X] Bug: not displaying summary (total) column as above
-  - [ ] Bug: stock_id used to filter sku not working (for sales_orders)
+  - [X] Bug: stock_id used to filter sku not working (for sales_orders)
   - [ ] Bug: category join not working
   - [X] use quantity left instead of total quantity (from order details)
 Useful if we need to preview stock in the future (use in conjunction with delivery date)

@@ -715,7 +715,7 @@ loadItemOrders param io orderDateColumn qtyMode = do
           ("AND stk_code LIKE '" <> stockLike <> "'") : -- we don't want space between ' and stockLike
           []
       (w,p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
-                                                      in (" AND stock_id " <> keyw <> " ?", PersistText v)
+                                                      in (" AND stk_code " <> keyw <> " ?", PersistText v)
                                                )) ?:
                        case catFilterM of
                             Nothing -> []
