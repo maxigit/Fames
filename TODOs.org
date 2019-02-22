@@ -427,3 +427,14 @@ by looking at the sku in commerce_line_item and find the correct product_id in c
 
 The easiest however, is just to delete all commerce_line_item and then delete the order from the 
 DC order interface.
+* Doc
+** Report table
+ |         | Table  | Chart | Pivot    | Bubble   | Scatter      |
+ |---------+--------+-------+----------+----------+--------------|
+ | Panel   | Panel  | Panel | Panel    | Panel    | Panell       |
+ | Band    | Row    | Band  | Band     | Band     | Band         |
+ | Serie   | Subrow | Line  | Row      | Y/Row    | Colour/Label |
+ | Column  | N/A    | X     | X/Column | X/Column | Point        |
+ | Trace 1 | N/A    | Line  | Z/Subrow | Z/Size   | X            |
+ | Trace 2 | N/A    | Line  | Z/Subrow | Z/Colour | Y            |
+ | Trace 3 | N/A    | Line  | Z/Subrow |          | Z/Size       |

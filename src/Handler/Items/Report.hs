@@ -331,6 +331,9 @@ renderReportForm  route modeM paramM status resultM = do
         <button.btn type="submit" name="action" value="Submit"> Submit
         $forall (btn, title) <- buttons
           <button.btn.btn-info type="submit" name="action" value="#{tshow btn}">#{title}
+    <div.panel.panel-info>
+      
+      #{reportDoc}
                         |]
   selectRep $ do
     provideRep $ do
@@ -341,3 +344,86 @@ renderReportForm  route modeM paramM status resultM = do
       html <- withUrlRenderer (pageBody div)
       returnJson (renderHtml html)
 
+reportDoc = [shamlet|
+<div.panel-heading>
+  <h3>
+    <span.data-toggler.collapsed data-toggle=collapse data-target="#report-doc"> Report Doc
+<div.panel-body>
+  <div.pre.collapse id=report-doc>
+      #{reportDoc'}
+|]
+
+
+reportDoc' = [shamlet|
+      <table.table.table-striped.table-hover>
+        <thead>
+          <tr>
+            <th scope="col" >&#xa0;
+            <th scope="col" >Table
+            <th scope="col" >Chart
+            <th scope="col" >Pivot
+            <th scope="col" >Bubble
+            <th scope="col" >Scatter
+        <tbody>
+          <tr>
+            <td >Panel
+            <td >Panel
+            <td >Panel
+            <td >Panel
+            <td >Panel
+            <td >Panell
+
+          <tr>
+            <td >Band
+            <td >Row
+            <td >Band
+            <td >Band
+            <td >Band
+            <td >Band
+
+          <tr>
+            <td >Serie
+            <td >Subrow
+            <td >Line
+            <td >Row
+            <td >Y/Row
+            <td >Colour/Label
+
+          <tr>
+            <td >Column
+            <td >N/A
+            <td >X
+            <td >X/Column
+            <td >X/Column
+            <td >Point
+          
+
+          <tr>
+            <td >Trace 1
+            <td >N/A
+            <td >Line
+            <td >Z/Subrow
+            <td >Z/Size
+            <td >X
+          
+
+          <tr>
+            <td >Trace 2
+            <td >N/A
+            <td >Line
+            <td >Z/Subrow
+            <td >Z/Colour
+            <td >Y
+          
+
+          <tr>
+            <td >Trace 3
+            <td >N/A
+            <td >Line
+            <td >Z/Subrow
+            <td >&#xa0;
+            <td >Z/Size
+          
+        
+      
+|]
