@@ -846,7 +846,7 @@ loadStockInfo param = do
           "FROM 0_stock_master sm" :
           "LEFT JOIN 0_prices AS p ON (sm.stock_id = p.stock_id AND p.sales_type_id = ?) " :
           ("LEFT JOIN (" <> qoh <> ") qoh ON (sm.stock_id = qoh.stock_id)" ) :
-          (if isJust catFilterM then "JOIN fames_item_category_cache AS category USING (sm.stock_id)" else "" ) :
+          (if isJust catFilterM then "JOIN fames_item_category_cache AS category ON (sm.stock_id=category.stock_id)" else "" ) :
           (" WHERE sm.stock_id LIKE '" <> stockLike <> "'") : 
           []
       order = " ORDER BY sm.stock_id " 
