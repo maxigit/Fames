@@ -38,9 +38,10 @@ saveQuickAdd  save text key  = do
       case tEs of
         [ (oldE@(Entity key oldT), oldShifts, oldItems) ] -> do
           let start = timesheetStart oldT
+              frequency = timesheetFrequency oldT
           let tsOId = modelToTimesheetOpId oldE oldShifts oldItems
               oldTts' = map (\(op, _) -> maybe (tshow op) operatorNickname (lookup op operatorMap)) tsOId
-          timesheet <- ExceptT. return $ generateAdds header key start texts
+          timesheet <- ExceptT. return $ generateAdds header key frequency start texts
           (model, shiftsFn, itemsFn) <- ExceptT . return $ timesheetOpIdToModel ref <$> timesheetEmployeeToOpId opFinder timesheet
           let shifts = shiftsFn key
               items = itemsFn key
@@ -90,9 +91,9 @@ splitTimesheet text = do
   return sections
 
 
-generateAdds :: [Text] -> _ -> Day -> [Text] -> Either Text (TS.Timesheet String TS.PayrooEmployee)
-generateAdds header key start texts = do
-  let toParse = tshow start : header <> texts
+generateAdds :: [Text] -> _ -> PayrollFrequency -> Day -> [Text] -> Either Text (TS.Timesheet String TS.PayrooEmployee)
+generateAdds header key frequency start texts = do
+  let toParse = (tshow frequency <> " " <>  tshow start) : header <> texts
   ts <- parseFastTimesheet' toParse
   return ts
 
