@@ -338,6 +338,11 @@ timesheetStyleCheat = [shamlet|
 Example, <code>Alice Wed 4|!4</code>
 Means, that Alice worked 4 hours on Wednesday morning on took her afternoon off.
                                 
+<p>
+<p>Please note that entering a day without shift information doesn't skip to the next day, so <code>Mon Mon</code>
+Doesn't go the next Monday even though <code>Mon 8 Mon</code> does.
+To do so, days needs to be explicetly skipped using <code>_</code>
+Example, <code>Alice Mon _ Mon 8</code>, means Alice worked 8 hours on the 2nd Monday of the period.
 |]
 
 -- * Processing
