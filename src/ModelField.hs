@@ -13,6 +13,10 @@ data PendingStatus = Pending | Process deriving (Eq, Read, Show, Enum, Bounded, 
 
 derivePersistField "PendingStatus"
 
+-- | Quality of a match between batche
+data MatchQuality = Closest | Fair | Good | Excellent deriving(Eq, Read, Show, Enum, Bounded, Ord)
+derivePersistField "MatchQuality"
+
 -- * Payroll
 -- | Wether a payroll cost is a added to the employer bill (cost) or paid by the employee (deduction)
 data CostOrDeduction = Cost | Deduction deriving(Eq, Read, Show, Enum, Bounded, Ord)
