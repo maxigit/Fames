@@ -5,7 +5,9 @@ import Import
 
 displayTable :: [col] -- ^ index of columns to display
              -> (col -> (Html, [Text])) -- ^ column index to header and class
-             -> [(col -> Maybe (Html, [Text]), [Text])] -- ^ rows, given column index, return a value and classes
+             -> [ (col -> Maybe (Html, [Text])
+                  , [Text]
+                  )] -- ^ rows, given column index, return a value and classes
              -> Widget
 displayTable columns colDisplay rows = do
   [whamlet|

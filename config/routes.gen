@@ -92,6 +92,8 @@
 
   /history/#Text ItemsHistoryR GET !items/history
 
+  /batches ItemBatchesR GET POST !batch !group=Batch_Match !title=Batches
+
 /administrator AdministratorR !administrator:
   / AIndexR GET !group=Info !title=Index
   /testfa  ATestFAR GET !group=Test !title=FA_Connection
