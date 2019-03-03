@@ -7,6 +7,7 @@ module Handler.Util
 ( entitiesToTable
 , getDBName
 , getHaskellName
+, renderPersistValue
 , entityTableHandler , entityTableHandler'
 , uploadFileForm
 , uploadFileFormWithComment
@@ -177,7 +178,7 @@ getHaskellName = unHaskellName . fieldHaskell
 renderPersistValue :: PersistValue -> Text
 renderPersistValue (PersistList _) = "<>"
 renderPersistValue pvalue = case (fromPersistValueText pvalue) of
-  Left _ -> tshow pvalue
+  Left _ -> tshow $ toJSON pvalue
   Right text -> text
 
 

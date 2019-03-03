@@ -2,6 +2,9 @@
 module Handler.Table where
 
 import Import
+import Lens.Micro.Extras(view)
+import Data.Text(toTitle)
+import Handler.Util
 
 displayTable :: [col] -- ^ index of columns to display
              -> (col -> (Html, [Text])) -- ^ column index to header and class
@@ -47,3 +50,14 @@ displayTableRowsAndHeader  columns colDisplay rows = do
     ^{displayTableRows columns colDisplay rows}
 |]
 
+
+entityFieldToColumn  :: (PersistEntity e, PersistField typ) => EntityField e typ -> (Text, Entity e  -> PersistValue )
+entityFieldToColumn field = (fieldName, getter) where
+  fieldDef = persistFieldDef field
+  fieldName = toTitle $ getDBName fieldDef
+  getter = toPersistValue . view (fieldLens field)
+
+
+entityColumnToColDisplay :: e -> (Text, e -> PersistValue) -> Maybe (Html, [Text])
+entityColumnToColDisplay entity (name, getter) =
+  Just ( toHtml . renderPersistValue$ getter entity, [name] )
