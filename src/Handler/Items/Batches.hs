@@ -6,6 +6,7 @@ module Handler.Items.Batches
 , postItemNewBatchR
 , getItemEditBatchR
 , postItemEditBatchR
+, postItemBatchUploadMatchesR
 ) where
 
 import Import
@@ -21,6 +22,15 @@ import Data.Text(toTitle)
 import Database.Persist.Sql(unSqlBackendKey)
 
 -- * Form
+batchForm today batchM = renderBootstrap3 BootstrapBasicForm form where
+  form = Batch <$> areq textField "Name" (batchName <$> batchM)
+               <*> aopt textField "Alias" (batchAlias <$> batchM)
+               <*> aopt textField "Supplier" (batchSupplier <$> batchM)
+               <*> aopt textField "Material" (batchMaterial <$> batchM)
+               <*> aopt textField "Season" (batchSeason <$> batchM)
+               <*> aopt textField "Description" (batchDescription <$> batchM)
+               <*> areq dayField "Date" (batchDate <$> batchM <|> Just today)
+
 -- * Handler
 getItemBatchesR :: Handler Html
 getItemBatchesR = do
@@ -44,8 +54,16 @@ getItemBatchR :: Int64 -> Handler Html
 getItemBatchR key = do
   let batchKey = BatchKey (fromIntegral key)
   batch <- runDB $ getJust batchKey
-  renderBatch (Entity batchKey batch)
-  
+  (form, encType) <- generateFormPost (uploadFileFormInline (pure ()))
+  defaultLayout $ do
+    renderBatch (Entity batchKey batch)
+    [whamlet|
+   <div.well>
+      <form.form-inline role=form method=POST action="@{ItemsR (ItemBatchUploadMatchesR key)}" enctype=#{encType}>
+        ^{form}
+        <button.btn.btn-primary type=submit name="action" value="validate" > Upload matches
+            |]
+
 -- display page to create a new batch
 getItemNewBatchR :: Handler Html
 getItemNewBatchR = do
@@ -59,15 +77,6 @@ getItemNewBatchR = do
       <button.btn.btn-default type="submit" name="action" value="Cancel"> Cancel
       |]
                                                      
-batchForm today batchM = renderBootstrap3 BootstrapBasicForm form where
-  form = Batch <$> areq textField "Name" (batchName <$> batchM)
-               <*> aopt textField "Alias" (batchAlias <$> batchM)
-               <*> aopt textField "Supplier" (batchSupplier <$> batchM)
-               <*> aopt textField "Material" (batchMaterial <$> batchM)
-               <*> aopt textField "Season" (batchSeason <$> batchM)
-               <*> aopt textField "Description" (batchDescription <$> batchM)
-               <*> areq dayField "Date" (batchDate <$> batchM <|> Just today)
-
 postItemNewBatchR :: Handler Html
 postItemNewBatchR = do
   today <- todayH
@@ -82,9 +91,13 @@ getItemEditBatchR key = return "Todo"
 postItemEditBatchR :: Int64 -> Handler Html
 postItemEditBatchR key = return "Todo"
 
+postItemBatchUploadMatchesR :: Int64 -> Handler Html
+postItemBatchUploadMatchesR key = do
+  return "Todo"
+
 -- * Rendering
-renderBatch :: Entity Batch -> Handler Html
-renderBatch (Entity _ Batch{..}) = defaultLayout $ infoPanel ("Batch: " <> batchName) [whamlet|
+renderBatch :: Entity Batch -> Widget
+renderBatch (Entity _ Batch{..}) = infoPanel ("Batch: " <> batchName) [whamlet|
 <table.table>
   <tr>
     <th>Name
@@ -125,6 +138,7 @@ batchTables renderUrl batches = [whamlet|
             , entityFieldToColumn BatchDate]
   colDisplays (name, _) = (toHtml name, [])
 
+  
 -- * DB
 loadBatches :: SqlHandler [Entity Batch]
 loadBatches = do

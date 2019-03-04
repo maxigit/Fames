@@ -96,6 +96,7 @@
   /batch/view/#Int64 ItemBatchR GET !batch 
   /batch/edit/#Int64 ItemEditBatchR GET POST !batch 
   /batch/new ItemNewBatchR GET POST !batch  !title=New_Batch
+  /batch/uploadMatches/#Int64 ItemBatchUploadMatchesR POST !batch
 
 /administrator AdministratorR !administrator:
   / AIndexR GET !group=Info !title=Index

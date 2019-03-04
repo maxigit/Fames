@@ -10,6 +10,7 @@ module Handler.Util
 , renderPersistValue
 , entityTableHandler , entityTableHandler'
 , uploadFileForm
+, uploadFileFormInline
 , uploadFileFormWithComment
 , hiddenFileForm
 , unsafeRunFormPost
@@ -199,12 +200,15 @@ uploadFileForm :: _ a
                              Ints
                              Handler
                              (FormResult (FileInfo, Encoding, a), Widget) 
-uploadFileForm fields = renderBootstrap3 BootstrapBasicForm
+uploadFileForm = renderBootstrap3 BootstrapBasicForm . uploadFileForm'
+uploadFileForm' fields = 
   ((,,)
-   <$> areq fileField "upload" Nothing
+   <$> areq fileField "file" Nothing
    <*> areq (selectField optionsEnum ) "encoding" (Just UTF8)
    <*> fields
   )
+
+uploadFileFormInline = renderBootstrap3 BootstrapInlineForm . uploadFileForm'
 
 uploadFileFormWithComment :: Markup
                           -> _
