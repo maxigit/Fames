@@ -51,13 +51,26 @@ displayTableRowsAndHeader  columns colDisplay rows = do
 |]
 
 
-entityFieldToColumn  :: (PersistEntity e, PersistField typ) => EntityField e typ -> (Text, Entity e  -> PersistValue )
+entityFieldToColumn  :: (PersistEntity e, PersistField typ) => EntityField e typ -> (Text, Entity e  -> Either Html PersistValue )
 entityFieldToColumn field = (fieldName, getter) where
   fieldDef = persistFieldDef field
   fieldName = toTitle $ getDBName fieldDef
-  getter = toPersistValue . view (fieldLens field)
+  getter = Right . toPersistValue . view (fieldLens field)
 
 
-entityColumnToColDisplay :: e -> (Text, e -> PersistValue) -> Maybe (Html, [Text])
+entityColumnToColDisplay :: e -> (Text, e -> Either Html PersistValue) -> Maybe (Html, [Text])
 entityColumnToColDisplay entity (name, getter) =
-  Just ( toHtml . renderPersistValue$ getter entity, [name] )
+  Just ( either id (toHtml . renderPersistValue) $ getter entity, [name] )
+
+entityKeyToColumn :: (PersistField typ, PersistEntity e)
+  => (Route App -> [(Text, Text)] -> Text)
+  -> (Int64 -> Route App)
+  -> EntityField e typ
+  -> (Text,
+      Entity e -> Either Html PersistValue)
+entityKeyToColumn renderUrl route field = addRoute <$$> entityFieldToColumn field where
+  addRoute v = case v of
+    Right (PersistInt64 int64) -> Left $ [hamlet|<a href="@{route int64}">##{tshow int64}|] renderUrl
+    _ -> v
+
+

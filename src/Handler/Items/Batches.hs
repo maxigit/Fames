@@ -24,8 +24,9 @@ import Database.Persist.Sql(unSqlBackendKey)
 -- * Handler
 getItemBatchesR :: Handler Html
 getItemBatchesR = do
+  renderUrl <- getUrlRenderParams
   batcheEs <- runDB $ loadBatches
-  let lastBatches = infoPanel "Last Batches" (batchTables batcheEs)
+  let lastBatches = infoPanel "Last Batches" (batchTables renderUrl batcheEs)
   defaultLayout $ lastBatches >> infoPanel "Actions" [whamlet|
    <form method=get action="@{ItemsR ItemNewBatchR}">
      <button.btn.btn-default type=submit> Create New Batch
@@ -108,13 +109,13 @@ renderBatch (Entity _ Batch{..}) = defaultLayout $ infoPanel ("Batch: " <> batch
     <td>#{tshow batchDate}
 |]
   
-batchTables :: [Entity Batch] -> Widget
-batchTables batches = [whamlet|
+batchTables :: _renderUrl -> [Entity Batch] -> Widget
+batchTables renderUrl batches = [whamlet|
   <table.table.table-hover>
     ^{rowsAndHeader}
   |] where
   rowsAndHeader = displayTableRowsAndHeader columns colDisplays (map ((,[]) . entityColumnToColDisplay)  batches) where
-  columns = [ entityFieldToColumn BatchId
+  columns = [ entityKeyToColumn renderUrl (ItemsR . ItemBatchR) BatchId
             , entityFieldToColumn BatchName
             , entityFieldToColumn BatchAlias
             , entityFieldToColumn BatchSupplier
