@@ -93,6 +93,9 @@
   /history/#Text ItemsHistoryR GET !items/history
 
   /batches ItemBatchesR GET POST !batch !group=Batch_Match !title=Batches
+  /batch/new ItemNewBatchR GET POST !batch 
+  /batch/view/#Int64 ItemBatchR GET !batch 
+  /batch/edit/#Int64 ItemEditBatchR GET POST !batch 
 
 /administrator AdministratorR !administrator:
   / AIndexR GET !group=Info !title=Index

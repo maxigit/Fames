@@ -12,6 +12,7 @@ module Handler.Util
 , uploadFileForm
 , uploadFileFormWithComment
 , hiddenFileForm
+, unsafeRunFormPost
 , Encoding(..)
 , readUploadUTF8
 , setAttachment
@@ -22,6 +23,10 @@ module Handler.Util
 , paleRed, paleGreen, paleBlue, paleAmber
 , tshowM
 , showDouble
+, panel
+, infoPanel
+, dangerPanel
+, primaryPanel
 , splitSnake
 , basePriceList
 , timeProgress
@@ -220,6 +225,16 @@ hiddenFileForm key'pathM = renderBootstrap3 BootstrapBasicForm form where
     (,) <$> areq hiddenField  "key" (fmap fst  key'pathM)
         <*> areq hiddenField "path" (fmap snd key'pathM)
    
+
+unsafeRunFormPost form = do
+  ((resp, view), encType) <- runFormPost form
+  case resp of
+    FormMissing -> error "Form Missing"
+    FormFailure a -> do
+      setError $ "FormFailure:" >> mapM_ toHtml a
+      sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
+    FormSuccess x -> do
+      return (x, (view, encType))
 
 -- | Retrieve the content of an uploaded file.
 readUploadUTF8 :: MonadResource m => FileInfo -> Encoding -> m (ByteString, DocumentHash)
@@ -550,6 +565,18 @@ toHtmlWithBreak t  = [shamlet|
 showDouble :: Double -> Html
 showDouble x = toHtml $ ( (printf "%.4f" x) :: String )
   
+panel :: Text -> Text -> Widget -> Widget
+panel panelClass title body = [whamlet|
+  <div.panel class=#{panelClass}>
+    <div.panel-heading>
+      <h3>#{title}
+    <div.panel-body>
+      ^{body}
+|]
+  
+infoPanel = panel "panel-info"
+dangerPanel = panel "panel-danger"
+primaryPanel = panel "panel-primary"
 -- | split snake
 splitSnake ::  Text -> Text
 splitSnake t = pack $ intercalate " " $ Split.split  (Split.keepDelimsL $ Split.whenElt isUpper) (unpack t)

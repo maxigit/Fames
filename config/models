@@ -245,7 +245,7 @@ Batch sql=fames_batch
   Id sql=batch_id
   name Text
   description Text Maybe
-  createdAt Day 
+  date Day 
   UniqueBName name
 
 -- Correspondance betweens colours of different batches
