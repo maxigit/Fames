@@ -26,7 +26,10 @@ getItemBatchesR :: Handler Html
 getItemBatchesR = do
   batcheEs <- runDB $ loadBatches
   let lastBatches = infoPanel "Last Batches" (batchTables batcheEs)
-  defaultLayout lastBatches
+  defaultLayout $ lastBatches >> infoPanel "Actions" [whamlet|
+   <form method=get action="@{ItemsR ItemNewBatchR}">
+     <button.btn.btn-default type=submit> Create New Batch
+     |]
 
 
 postItemBatchesR :: Handler Html
@@ -57,6 +60,10 @@ getItemNewBatchR = do
                                                      
 batchForm today batchM = renderBootstrap3 BootstrapBasicForm form where
   form = Batch <$> areq textField "Name" (batchName <$> batchM)
+               <*> aopt textField "Alias" (batchAlias <$> batchM)
+               <*> aopt textField "Supplier" (batchSupplier <$> batchM)
+               <*> aopt textField "Material" (batchMaterial <$> batchM)
+               <*> aopt textField "Season" (batchSeason <$> batchM)
                <*> aopt textField "Description" (batchDescription <$> batchM)
                <*> areq dayField "Date" (batchDate <$> batchM <|> Just today)
 
@@ -82,10 +89,22 @@ renderBatch (Entity _ Batch{..}) = defaultLayout $ infoPanel ("Batch: " <> batch
     <th>Name
     <td>#{batchName}
   <tr>
+    <th>Alias
+    <td>#{fromMaybe "" batchAlias}
+  <tr>
+    <th>Supplier
+    <td>#{fromMaybe "" batchSupplier}
+  <tr>
+    <th>Material
+    <td>#{fromMaybe "" batchMaterial}
+  <tr>
+    <th>Season
+    <td>#{fromMaybe "" batchSeason}
+  <tr>
     <th>Description
     <td>#{fromMaybe "" batchDescription}
   <tr>
-    <th>Created At
+    <th>Date
     <td>#{tshow batchDate}
 |]
   
@@ -95,7 +114,14 @@ batchTables batches = [whamlet|
     ^{rowsAndHeader}
   |] where
   rowsAndHeader = displayTableRowsAndHeader columns colDisplays (map ((,[]) . entityColumnToColDisplay)  batches) where
-  columns = [ entityFieldToColumn BatchId, entityFieldToColumn BatchName, entityFieldToColumn BatchDescription, entityFieldToColumn BatchDate]
+  columns = [ entityFieldToColumn BatchId
+            , entityFieldToColumn BatchName
+            , entityFieldToColumn BatchAlias
+            , entityFieldToColumn BatchSupplier
+            , entityFieldToColumn BatchMaterial
+            , entityFieldToColumn BatchSeason
+            , entityFieldToColumn BatchDescription
+            , entityFieldToColumn BatchDate]
   colDisplays (name, _) = (toHtml name, [])
 
 -- * DB
@@ -103,4 +129,3 @@ loadBatches :: SqlHandler [Entity Batch]
 loadBatches = do
   batches <- selectList [] [Desc BatchDate, Asc BatchName]
   return batches
-  

@@ -244,6 +244,10 @@ TransactionMap sql=fames_transaction_map
 Batch sql=fames_batch
   Id sql=batch_id
   name Text
+  alias Text Maybe -- used to display batch name in the outside workd (e.g. cutomers)
+  supplier Text Maybe
+  material Text Maybe
+  season Text Maybe -- eg SS18 for Spring Summer 2018
   description Text Maybe
   date Day 
   UniqueBName name
