@@ -93,6 +93,14 @@ postItemEditBatchR key = return "Todo"
 
 postItemBatchUploadMatchesR :: Int64 -> Handler Html
 postItemBatchUploadMatchesR key = do
+  (fileInfo, encoding) <- unsafeRunFormPost (uploadFileFormInline (pure ()))
+  (bs, hash ) <- readUploadUTF8 fileInfo encoding
+
+  let result = xxx bs
+  return "..."
+
+
+  
   return "Todo"
 
 -- * Rendering

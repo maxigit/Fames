@@ -161,6 +161,12 @@ parseMulti columnMap m colname =  do
             -- return $ trace (show (colname, t, res )) res
             return res
 
+m .: field = do
+  e <- m Csv..: field -- parse text
+  toError e <$> (m Csv..: field) -- parse Either Csv.Field
+
+  
+  
 -- | Parse a spread sheet 
 parseSpreadsheet :: (Csv.FromNamedRecord a, Show a)
                  => Map String [String] -- ^ Columns (what to display, possible names)
