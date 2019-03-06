@@ -54,6 +54,7 @@ data ParsingResult row result
 
 deriving instance (Eq a, Eq b) => Eq (ParsingResult a b)
 deriving instance (Show a, Show b) => Show (ParsingResult a b)
+deriving instance (Functor (ParsingResult row))
 
 type family NotEq a b where
   NotEq a a = 'True

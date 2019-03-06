@@ -3,6 +3,7 @@ module Handler.Items.Batches.Matches where
 
 import Import hiding((.:))
 import qualified Data.Csv as Csv
+import Data.List(scanl)
 import Handler.CsvUtils
 
 -- * Types
@@ -49,16 +50,31 @@ readMatchQuality t = readMay t <|> case t of
   
 
 -- * Parsing
-parseMatchRows :: ByteString -> ParsingResult (MatchRow 'RawT) [MatchRow 'FinalT]
-parseMatchRows bytes = either id ParsingCorrect $ do
-  let columnMap = mapFromList $ map (,[]) ["Source", "SourceColour", "TargetColour", "Quality", "Comment"]
-  raws <- parseSpreadsheet columnMap Nothing bytes <|&> WrongHeader
-  let rawsE = map (\raw -> sequenceMatchRow raw <|&> const raw) raws :: [Either (MatchRow 'RawT) (MatchRow 'PartialT)]
-  rows <- sequence rawsE <|&> const (InvalidFormat . lefts $ rawsE)
-  return []
+parseMatchRows :: ByteString -> SqlHandler (ParsingResult (MatchRow 'RawT) [MatchRow 'ValidT])
+parseMatchRows bytes = do
+  let resultE = do -- Either
+      let columnMap = mapFromList $ map (,[]) ["Source", "SourceColour", "TargetColour", "Quality", "Comment"]
+      raws <- parseSpreadsheet columnMap Nothing bytes <|&> WrongHeader
+      let rawOrPartials = map (\raw -> sequenceMatchRow raw <|&> const raw) raws :: [Either (MatchRow 'RawT) (MatchRow 'PartialT)]
+      partials <- sequence rawOrPartials <|&> const (InvalidFormat . lefts $ rawOrPartials)
+      let filleds = case partials of
+            [] -> []
+            (row:rows) -> scanl fillFromPrevious row rows
+      return $ zip raws filleds -- we return the raws row as well to be able to convert it back
+      -- to raw in validation failed on other row
+  case resultE of
+    Left result -> return result
+    Right raw'filleds -> do
+      raw'validEs  <- mapM (mapM validateRow) raw'filleds
+      -- check if everything is valid
+      return $ case sequence (map snd raw'validEs) of
+                 Right valids -> ParsingCorrect valids
+                 Left _ -> InvalidData [] [] [ either id (const raw)  rawOrValid | (raw, rawOrValid) <- raw'validEs ]
+      
+        
   
 
--- | sequence
+-- | sequence through fields functor
 sequenceMatchRow MatchRow{..} = MatchRow <$> source <*> sourceColour
                                           <*> targetColour <*> target
                                           <*> quality <*> comment
@@ -74,7 +90,7 @@ fillFromPrevious (MatchRow source0 _sourceColour0 _targetColour0 target0 _qualit
              quality
              comment
 
-validateRow :: MatchRow 'PartialT -> Handler (Either (MatchRow 'RawT) (MatchRow 'ValidT))
+validateRow :: MatchRow 'PartialT -> SqlHandler (Either (MatchRow 'RawT) (MatchRow 'ValidT))
 validateRow (MatchRow (Just source) (Just sourceColour)
                       (Just targetColour) (Just target)
                       (Just quality) comment
