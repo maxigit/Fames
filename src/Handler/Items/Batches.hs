@@ -20,6 +20,8 @@ import Text.Blaze.Html.Renderer.Text(renderHtml)
 import qualified Data.List as List
 import Data.Text(toTitle)
 import Database.Persist.Sql(unSqlBackendKey)
+import Handler.Items.Batches.Matches
+import Handler.CsvUtils(renderParsingResult)
 
 -- * Form
 batchForm today batchM = renderBootstrap3 BootstrapBasicForm form where
@@ -93,11 +95,12 @@ postItemEditBatchR key = return "Todo"
 
 postItemBatchUploadMatchesR :: Int64 -> Handler Html
 postItemBatchUploadMatchesR key = do
-  (fileInfo, encoding) <- unsafeRunFormPost (uploadFileFormInline (pure ()))
-  (bs, hash ) <- readUploadUTF8 fileInfo encoding
+  ((fileInfo,encoding, ()), (view, encType)) <- unsafeRunFormPost (uploadFileFormInline (pure ()))
+  (bytes, hash ) <- readUploadUTF8 fileInfo encoding
 
-  let result = xxx bs
-  return "..."
+  parsingResult <- runDB $ parseMatchRows bytes
+  let w = renderParsingResult (\m w -> w) (\r -> setSuccess "Spreadsheet parsed successfully") parsingResult
+  defaultLayout w
 
 
   

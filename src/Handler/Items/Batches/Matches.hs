@@ -108,3 +108,24 @@ validateRow (MatchRow sourcem sourceColourm targetColourm targetm qualitym comme
   return $ Left $ MatchRow{..}
 
   
+
+-- * Rendering
+instance Renderable ([MatchRow 'RawT]) where
+  render rows = [whamlet|
+<table.table.table-hover>
+  <tr>
+    <th>Source
+    <th>Source Colour
+    <th>Target Colour
+    <th>Target
+    <th>Quality
+    <th>Comment
+  $forall row <- rows
+    <tr>
+      <td>^{render $ source row }
+      <td>^{render $ sourceColour row }
+      <td>^{render $ targetColour row }
+      <td>^{render $ target row }
+      <td>^{render $ fmap tshow (quality row) }
+      <td>^{render $ comment row }
+     |]
