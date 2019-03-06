@@ -5,6 +5,7 @@ import Import hiding((.:))
 import qualified Data.Csv as Csv
 import Data.List(scanl)
 import Handler.CsvUtils
+import Data.Text(toTitle)
 
 -- * Types
 
@@ -39,9 +40,8 @@ instance Csv.FromField (Either InvalidField (Maybe (ValidField MatchQuality))) w
         Just m -> Right (Just $ Provided m)
 
 
-   
 readMatchQuality :: Text -> Maybe MatchQuality
-readMatchQuality t = readMay t <|> case t of
+readMatchQuality t = readMay (toTitle t) <|> case t of
   "+" -> Just Fair
   "-" -> Just Closest
   "++" -> Just Good
@@ -86,7 +86,7 @@ fillFromPrevious (MatchRow source0 _sourceColour0 _targetColour0 target0 _qualit
   = MatchRow (source <|> source0 )
              sourceColour
              targetColour
-             (target <|> target)
+             (target <|> target0)
              quality
              comment
 
@@ -126,6 +126,6 @@ instance Renderable ([MatchRow 'RawT]) where
       <td>^{render $ sourceColour row }
       <td>^{render $ targetColour row }
       <td>^{render $ target row }
-      <td>^{render $ fmap tshow (quality row) }
+      <td>^{render $ fmap (fmap $ fmap tshow) (quality row) }
       <td>^{render $ comment row }
      |]

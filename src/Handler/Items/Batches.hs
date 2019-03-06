@@ -99,12 +99,12 @@ postItemBatchUploadMatchesR key = do
   (bytes, hash ) <- readUploadUTF8 fileInfo encoding
 
   parsingResult <- runDB $ parseMatchRows bytes
-  let w = renderParsingResult (\m w -> w) (\r -> setSuccess "Spreadsheet parsed successfully") parsingResult
+  let w = renderParsingResult (\msg w' -> do msg >> w') (\r -> setSuccess "Spreadsheet parsed successfully") parsingResult
   defaultLayout w
 
 
   
-  return "Todo"
+  -- return "Todo"
 
 -- * Rendering
 renderBatch :: Entity Batch -> Widget
