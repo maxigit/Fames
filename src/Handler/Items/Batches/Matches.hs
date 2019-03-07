@@ -81,12 +81,12 @@ sequenceMatchRow MatchRow{..} = MatchRow <$> source <*> sourceColour
                     
 -- | Fill missing field from previous row if needed
 fillFromPrevious :: MatchRow 'PartialT -> MatchRow 'PartialT -> MatchRow 'PartialT
-fillFromPrevious (MatchRow source0 _sourceColour0 _targetColour0 target0 _quality0 _comment0)
-                  (MatchRow source sourceColour targetColour target quality comment)
-  = MatchRow (source <|> source0 )
+fillFromPrevious p@(MatchRow source0 _sourceColour0 _targetColour0 target0 _quality0 _comment0)
+                  r@(MatchRow source sourceColour targetColour target quality comment)
+  = MatchRow (source <|> guess <$> source0 )
              sourceColour
              targetColour
-             (target <|> target0)
+             (target <|> guess <$> target0)
              quality
              comment
 
