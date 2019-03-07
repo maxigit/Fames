@@ -21,7 +21,7 @@ import qualified Data.List as List
 import Data.Text(toTitle)
 import Database.Persist.Sql(unSqlBackendKey)
 import Handler.Items.Batches.Matches
-import Handler.CsvUtils(renderParsingResult)
+import Handler.CsvUtils(renderParsingResult, Renderable(..))
 
 -- * Form
 batchForm today batchM = renderBootstrap3 BootstrapBasicForm form where
@@ -99,7 +99,7 @@ postItemBatchUploadMatchesR key = do
   (bytes, hash ) <- readUploadUTF8 fileInfo encoding
 
   parsingResult <- runDB $ parseMatchRows bytes
-  let w = renderParsingResult (\msg w' -> do msg >> w') (\r -> setSuccess "Spreadsheet parsed successfully") parsingResult
+  let w = renderParsingResult (\msg w' -> do msg >> w') (\rows -> setSuccess "Spreadsheet parsed successfully" >> render (map unvalidateRow rows)) parsingResult
   defaultLayout w
 
 

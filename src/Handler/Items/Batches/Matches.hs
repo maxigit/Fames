@@ -69,7 +69,7 @@ parseMatchRows bytes = do
       -- check if everything is valid
       return $ case sequence (map snd raw'validEs) of
                  Right valids -> ParsingCorrect valids
-                 Left _ -> InvalidData [] [] [ either id (const raw)  rawOrValid | (raw, rawOrValid) <- raw'validEs ]
+                 Left _ -> InvalidData [] (lefts (map snd raw'validEs)) [ either id (const raw)  rawOrValid | (raw, rawOrValid) <- raw'validEs ]
       
         
   
@@ -108,6 +108,15 @@ validateRow (MatchRow sourcem sourceColourm targetColourm targetm qualitym comme
   return $ Left $ MatchRow{..}
 
   
+-- | convert a valid row to an original raw row, so that it can be displayed
+unvalidateRow  :: MatchRow 'ValidT -> MatchRow 'RawT
+unvalidateRow (MatchRow source sourceColour targetColour target quality comment) =
+    MatchRow (transform source)
+             (transform sourceColour)
+             (transform targetColour)
+             (transform target)
+             (transform quality)
+             (transform comment)
 
 -- * Rendering
 instance Renderable ([MatchRow 'RawT]) where
