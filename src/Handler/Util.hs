@@ -711,7 +711,7 @@ categoriesH = do
 categoryFinderCached :: Handler (Text -> FA.StockMasterId -> Maybe Text)
 categoryFinderCached = cache0 False cacheForEver "category-finder" $ do
   reverseKey <- getsYesod appSettings <&> appReverseCategoryKey
-  refreshCategoryCache False
+  refreshCategoryCache False Nothing
   -- we reverse the stock_id to speed up string comparison
   -- as most items share a common prefix, it might be faster to compare them from right to left 
   let (order_key, valueFinder ) = if reverseKey
@@ -749,29 +749,61 @@ type StockMasterRuleInfo = (Key StockMaster
                            , (Single (Maybe String), Single (Maybe String), Single (Maybe String), Single (Maybe String))
                            , (Single String, Single String, Single String, Single String)
                            , Single (Maybe Double))
-refreshCategoryFor :: Maybe FilterExpression -> Handler ()
-refreshCategoryFor stockFilterM = do
+refreshCategoryFor :: (Maybe Text) -> Maybe FilterExpression -> Handler ()
+refreshCategoryFor textm stockFilterM = do
   stockFilter <- case stockFilterM of
     Just sf -> return sf
     Nothing -> LikeFilter <$> appFAStockLikeFilter . appSettings <$> getYesod
   rulesMaps <- appCategoryRules <$> getsYesod appSettings
   stockMasters <- loadStockMasterRuleInfos stockFilter 
-  let categories = concatMap (categoriesFor rules) stockMasters
-      rules = map (first unpack) $ concatMap mapToList rulesMaps
+  -- if we are only computing one category
+  -- load the other from the db instead of computing them
+  let rules = map (first unpack) $ concatMap mapToList rulesMaps
+  categories <- case textm of
+        Nothing -> let
+          in return $ concatMap (categoriesFor rules) stockMasters
+        Just cat ->  do
+          let  rulem = lookup (unpack cat) rules
+          case rulem of
+            Nothing -> return []
+            Just rule -> concat <$> mapM (computeOneCategory cat rule)  stockMasters
+          -- load category
   runDB $ do
-    deleteWhere (filterE id ItemCategoryStockId (Just stockFilter))
+    let criteria = map (ItemCategoryCategory ==.) (maybeToList textm)
+    deleteWhere (criteria <> filterE id ItemCategoryStockId (Just stockFilter))
     -- insertMany_ categories
     mapM_ insert_ categories
 
+-- | Compute the given category using existing value for other categories
+computeOneCategory :: Text -> CategoryRule -> StockMasterRuleInfo -> Handler [ItemCategory]
+computeOneCategory cat rule stockMasterRuleInfo = do
+  catFinder <- categoryFinderCached
+  categories <- categoriesH
+  let otherCategories = filter (/= cat) categories
+      rulesMap = mapFromList [ (unpack c, unpack value)
+                             | c <- otherCategories
+                             , value <-  maybeToList (catFinder c stockId)
+                             ]
+      cat'values = applyCategoryRules rulesMap [(unpack cat, rule)] stockMasterRuleInfo
+      (stockId, _, _, _, _)  = stockMasterRuleInfo
+      cats = unpack cat
+  return [ ItemCategory (FA.unStockMasterKey stockId) (pack key) (pack value)
+        | (key, value) <- mapToList  (snd cat'values)
+        , key == cats
+        ]
+
+
+
 -- Populates the item category cache table if needed
-refreshCategoryCache :: Bool -> Handler ()
-refreshCategoryCache force = do
+refreshCategoryCache :: Bool -> Maybe Text -> Handler ()
+refreshCategoryCache force textm = do
   -- check if the datbase is empty
   -- clear it if needed
+  let criteria = map (ItemCategoryCategory ==.) (maybeToList textm)
   c <- runDB $ do
-    when force (deleteWhere ([] ::[Filter ItemCategory]))
-    count ([] ::[Filter ItemCategory]) 
-  when (c == 0) (refreshCategoryFor Nothing)
+    when force (deleteWhere criteria)
+    count criteria
+  when (c == 0) (refreshCategoryFor textm Nothing)
   
 loadStockMasterRuleInfos :: FilterExpression -> Handler [StockMasterRuleInfo]
 loadStockMasterRuleInfos stockFilter = do
@@ -814,7 +846,7 @@ loadStockMasterRuleInfos stockFilter = do
 --   :: [(String, CategoryRule)]
 --      -> StockMasterRuleInfo
 --      -> (Key StockMaster, Map String String)
-applyCategoryRules rules =
+applyCategoryRules extraInputs rules =
   let inputKeys = ["sku"
               ,"description"
               ,"longDescription"
@@ -851,7 +883,7 @@ applyCategoryRules rules =
                                       ("cogsAccount", cogsAccount) :
                                       ("inventoryAccount", inventoryAccount) :
                                       ("adjustmentAccount", adjustmentAccount) :
-                                    []
+                                    extraInputs
                                     )
                                   )
                                   salesPrice
@@ -860,7 +892,7 @@ applyCategoryRules rules =
 
 categoriesFor :: [(String, CategoryRule)] -> StockMasterRuleInfo   -> [ItemCategory]
 categoriesFor rules = let
-  applyCached =  applyCategoryRules rules
+  applyCached =  applyCategoryRules [] rules
   in \info -> let
       (sku, categories ) = applyCached info
 

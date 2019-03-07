@@ -34,6 +34,11 @@ getItemsCategoryTermsR name = do
                   |]
   defaultLayout [whamlet|
       <div.well>
+        <form.form role=form method=GET action=@{AdministratorR (AResetCategoryCacheR (Just name))}>
+          <button.btn.btn-danger> Reset category for all items
+        <form.form role=form method=GET action=@{AdministratorR (AComputeNewItemCategoryCacheR (Just name))}>
+          <button.btn.btn-danger> Compute category for new items
+      <div.well>
           <ul>
             $forall (Single term, Single co) <- terms
               <li>#{term} (#{co})
@@ -102,7 +107,7 @@ loadCategoriesWidget (TesterParam stockFilter configuration showFields) = do
     Left err -> setError "Error in configuration" >> return [whamlet|<div.well>#{err}|]
     Right ruleMaps -> do
       stockMasters <- loadStockMasterRuleInfos stockFilter
-      let sku'categories = map (applyCategoryRules rules) (take 100 stockMasters)
+      let sku'categories = map (applyCategoryRules [] rules) (take 100 stockMasters)
           rules = map (first unpack) (concatMap mapToList ruleMaps)
           all = if showFields then  allFields else []
           categories = Nothing : map Just all <>   map (Just . fst) rules 

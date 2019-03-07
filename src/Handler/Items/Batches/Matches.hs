@@ -5,15 +5,17 @@ import Import hiding((.:))
 import qualified Data.Csv as Csv
 import Data.List(scanl)
 import Handler.CsvUtils
+import Handler.Items.Common
 import Data.Text(toTitle)
+import qualified FA
 
 -- * Types
 
 data MatchRow (s :: RowTypes) = MatchRow
-  { source :: FieldTF s Text
+  { source :: FieldTF s (ForRowT s Text Text (Entity Batch) (Entity Batch))
   , sourceColour :: FieldTF s Text
   , targetColour :: FieldTF s Text
-  , target :: FieldTF s Text
+  , target :: FieldTF s (ForRowT s Text Text (Entity Batch) (Entity Batch))
   , quality :: FieldTF s MatchQuality
   , comment :: FieldTF s (Maybe Text)
   } -- deriving Show
@@ -48,9 +50,11 @@ readMatchQuality t = readMay (toTitle t) <|> case t of
   "+++" -> Just Excellent
   _ -> Nothing
   
+instance Transformable (Entity Batch) Text where
+  transform (Entity _ batch) = batchName batch
 
 -- * Parsing
-parseMatchRows :: ByteString -> SqlHandler (ParsingResult (MatchRow 'RawT) [MatchRow 'ValidT])
+parseMatchRows :: ByteString -> Handler (ParsingResult (MatchRow 'RawT) [MatchRow 'ValidT])
 parseMatchRows bytes = do
   let resultE = do -- Either
       let columnMap = mapFromList $ map (,[]) ["Source", "SourceColour", "TargetColour", "Quality", "Comment"]
@@ -90,31 +94,89 @@ fillFromPrevious p@(MatchRow source0 _sourceColour0 _targetColour0 target0 _qual
              quality
              comment
 
-validateRow :: MatchRow 'PartialT -> SqlHandler (Either (MatchRow 'RawT) (MatchRow 'ValidT))
-validateRow (MatchRow (Just source) (Just sourceColour)
-                      (Just targetColour) (Just target)
+validateRow :: MatchRow 'PartialT -> Handler (Either (MatchRow 'RawT) (MatchRow 'ValidT))
+validateRow row@(MatchRow (Just sourcet) (sourceColourm)
+                      (targetColourm) (Just targett)
                       (Just quality) comment
             )
   = do
-  -- validation
-  return . Right $ MatchRow{..}
-validateRow (MatchRow sourcem sourceColourm targetColourm targetm qualitym commentm) = do
+  sourcem <- findBatch (validValue sourcet) (validValue <$> sourceColourm)
+  targetm <- findBatch (validValue targett) (validValue <$> targetColourm)
+  case (sourcem, targetm) of
+    (Just (sourceBatch, sourceColour'), Just (targetBatch, targetColour')) -> let
+      guessForSource :: a -> ValidField a
+      guessForSource v = (\_ _ ->  v) <$> sourcet <*> (sequenceA sourceColourm) -- get the correct guessed status
+      guessForTarget :: a -> ValidField a
+      guessForTarget v = (\_ _ ->  v) <$> targett <*> (sequenceA targetColourm) -- get the correct guessed status
+      source = guessForSource sourceBatch
+      sourceColour = guessForSource sourceColour'
+      target = guessForTarget targetBatch
+      targetColour = guessForTarget targetColour'
+      in return . Right $ MatchRow{..}
+    _ -> return . Left $ let
+                         sourceField = case sourcem of
+                                           Nothing -> Left (InvalidValueError "Batch not found" (validValue sourcet) )
+                                           Just _ -> Right (transform sourcet)
+                         targetField = case targetm of
+                                           Nothing -> Left (InvalidValueError "Batch not found" (validValue targett) )
+                                           Just _ -> Right (transform targett)
+                         in (validateRow' row)  { source = sourceField, target = targetField}
+
+validateRow row = return $ Left (validateRow' row)
+
+validateRow' :: MatchRow 'PartialT -> MatchRow 'RawT
+validateRow' (MatchRow sourcem sourceColourm targetColourm targetm qualitym commentm) = 
   let source = validateNonEmpty "Source" $ Right sourcem
       sourceColour = validateNonEmpty "Source Colour" $ Right sourceColourm
       targetColour = validateNonEmpty "Target Colour" $ Right targetColourm
       target = validateNonEmpty "Target" $ Right targetm
       quality = validateNonEmpty "Quality" $ Right qualitym
       comment = Right commentm
-  return $ Left $ MatchRow{..}
+  in MatchRow{..}
 
   
+-- * Batch finding
+findBatch :: Text -> Maybe Text -> Handler (Maybe (Entity Batch, Text))
+findBatch styleOrBatch (Just colour) = do
+  -- try batch
+  batchByName <- runDB $ getBy (UniqueBName styleOrBatch)
+  case batchByName of
+    Just batch -> return $ Just (batch, colour)
+    Nothing -> findBatchForSku (styleVarToSku styleOrBatch colour)
+findBatch sku Nothing = findBatchForSku  sku
+findBatchForSku :: Text -> Handler (Maybe (Entity Batch, Text))
+findBatchForSku sku = do
+  skuToStyleVar <- skuToStyleVarH
+  catFinder <- categoryFinderCached
+  categories <- categoriesH
+  let batchS = "batch"
+      (_, colour) = skuToStyleVar sku
+  case (batchS `elem` categories,  colour) of
+    (False, _ ) -> do
+      setError("Batch category not set. Please contact your Administrator")
+      return Nothing
+    (True, "" ) -> do
+      setError(toHtml $ sku <> " doesn't have a a colour")
+      return Nothing
+    (True, _) -> do
+      let batchm = catFinder batchS (FA.StockMasterKey sku)
+      case batchm of
+        Nothing -> return Nothing
+        Just batch -> do
+          batchByName <- runDB $ getBy (UniqueBName batch)
+          return $  batchByName <&> (,colour)
+  
+
+  
+  
+
 -- | convert a valid row to an original raw row, so that it can be displayed
 unvalidateRow  :: MatchRow 'ValidT -> MatchRow 'RawT
 unvalidateRow (MatchRow source sourceColour targetColour target quality comment) =
-    MatchRow (transform source)
+    MatchRow (transform (fmap transform source :: ValidField Text))
              (transform sourceColour)
              (transform targetColour)
-             (transform target)
+             (transform (fmap transform target :: ValidField Text))
              (transform quality)
              (transform comment)
 

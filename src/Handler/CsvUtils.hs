@@ -90,6 +90,9 @@ type FieldForRaw a  = Either InvalidField (Maybe (ValidField (UnMaybe a)))
 type FieldForPartial a = (Maybe (ValidField (UnMaybe a)))
 type FieldForFinal a = a
 
+-- | A field tranformation depending on row types
+-- allowing to keep intermediate values when csv parsing or validation fail.
+-- Map with maybe and or InvalidField if needed
 type family FieldTF (s :: RowTypes) a where
   FieldTF 'RawT (Maybe a) = Either InvalidField (Maybe (ValidField a))
   FieldTF 'RawT a = Either InvalidField (Maybe (ValidField a))
@@ -111,6 +114,13 @@ invalidFieldError InvalidValueError{..} = invFieldError
 
 type FieldForValid a = FieldTF 'ValidT a
 
+-- | Cases transformation for RowTypes
+type family ForRowT (s :: RowTypes) raw partial valid final where
+  ForRowT 'RawT raw partial valid final = raw
+  ForRowT 'PartialT raw partial valid final = partial
+  ForRowT 'ValidT raw partial valid final = valid
+  ForRowT 'FinalT raw partial valid final = final
+  
 -- * Functions
 
 parseInvalidSpreadsheet :: Show a

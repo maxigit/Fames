@@ -102,7 +102,8 @@
   / AIndexR GET !group=Info !title=Index
   /testfa  ATestFAR GET !group=Test !title=FA_Connection
   /cache ACacheR GET POST !group=Cache !title=Cache
-  /reset-category-cache AResetCategoryCacheR GET !title=Refresh_Category_Cache 
+  /reset-category-cache/#Maybe-Text AResetCategoryCacheR GET !title=Refresh_Category_Cache 
+  /compute-new-items-category/#Maybe-Text AComputeNewItemCategoryCacheR GET !title=Compute_New_item_Category_Cache
   /reset-customer-category-cache AResetCustomerCategoryCacheR GET !title=Refresh_User_Category_Cache
   /customer-categories ACustomerCategoryR GET !title=Customer_Categories
   /reset-order-categories AResetOrderCategoryCacheR GET

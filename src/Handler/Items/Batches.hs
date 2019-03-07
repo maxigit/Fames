@@ -98,7 +98,7 @@ postItemBatchUploadMatchesR key = do
   ((fileInfo,encoding, ()), (view, encType)) <- unsafeRunFormPost (uploadFileFormInline (pure ()))
   (bytes, hash ) <- readUploadUTF8 fileInfo encoding
 
-  parsingResult <- runDB $ parseMatchRows bytes
+  parsingResult <- parseMatchRows bytes
   let w = renderParsingResult (\msg w' -> do msg >> w') (\rows -> setSuccess "Spreadsheet parsed successfully" >> render (map unvalidateRow rows)) parsingResult
   defaultLayout w
 

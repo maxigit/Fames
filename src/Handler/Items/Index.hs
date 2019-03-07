@@ -1185,7 +1185,7 @@ createGLMissings params = do
     insertMany_ itemCodes
     insertMany_ prices
     insertMany_ purchData
-  refreshCategoryFor (ipStyles params)
+  refreshCategoryFor Nothing (ipStyles params)
   clearAppCache
 
   setSuccess (toHtml $ tshow (maximumEx [length stockMasters, length prices, length purchData]) <> " items succesfully created.")

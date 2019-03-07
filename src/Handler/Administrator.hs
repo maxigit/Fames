@@ -140,10 +140,15 @@ postACacheR = do
   getACacheR
 
 -- ** Item Categories
-getAResetCategoryCacheR :: Handler Html
-getAResetCategoryCacheR = do
-  refreshCategoryCache True
+getAResetCategoryCacheR :: Maybe Text -> Handler Html
+getAResetCategoryCacheR catm = do
+  refreshCategoryCache True catm
   setSuccess ("Category cache successfully refreshed")
+  getAIndexR
+
+getAComputeNewItemCategoryCacheR :: Maybe Text -> Handler Html
+getAComputeNewItemCategoryCacheR catm = do
+  setWarning "Not implemented yet"
   getAIndexR
 
 -- ** Customer Categories

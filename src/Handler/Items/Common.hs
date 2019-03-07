@@ -37,7 +37,7 @@ styleVarToSku style var = style <> "-" <> var
 dutyForH :: Handler (Text -> Maybe Double)
 dutyForH = do
   styleFn <- (fst.) <$> skuToStyleVarH
-  refreshCategoryCache False
+  refreshCategoryCache False Nothing
   dutyS <- runDB $ selectList [ItemCategoryCategory ==. "duty"] []
   let styleMap = mapFromList [ (styleFn itemCategoryStockId, duty )
                            | (Entity _ ItemCategory{..}) <- dutyS
