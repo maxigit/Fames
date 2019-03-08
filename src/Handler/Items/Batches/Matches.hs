@@ -180,6 +180,26 @@ unvalidateRow (MatchRow source sourceColour targetColour target quality comment)
              (transform quality)
              (transform comment)
 
+finalizeRow :: MatchRow 'ValidT -> MatchRow 'FinalT
+finalizeRow (MatchRow source sourceColour targetColour target quality comment) =
+    MatchRow (transform source)
+             (transform sourceColour)
+             (transform targetColour)
+             (transform target)
+             (transform quality)
+             (transform comment)
+finalRowToMatch :: Day -> Maybe OperatorId -> DocumentKeyId -> MatchRow 'FinalT -> BatchMatch
+finalRowToMatch date operatorId docKey MatchRow{..} =
+  BatchMatch (entityKey source)
+              sourceColour
+              (entityKey target)
+              targetColour
+              operatorId
+              quality
+              comment
+              date
+              docKey
+
 -- * Rendering
 instance Renderable ([MatchRow 'RawT]) where
   render rows = [whamlet|

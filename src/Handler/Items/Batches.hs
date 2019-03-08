@@ -7,6 +7,7 @@ module Handler.Items.Batches
 , getItemEditBatchR
 , postItemEditBatchR
 , postItemBatchUploadMatchesR
+, postItemBatchSaveMatchesR
 ) where
 
 import Import
@@ -24,6 +25,7 @@ import Handler.Items.Batches.Matches
 import Handler.CsvUtils(renderParsingResult, Renderable(..))
 
 -- * Form
+data Mode = Validate | Success deriving (Show, Read, Eq)
 batchForm today batchM = renderBootstrap3 BootstrapBasicForm form where
   form = Batch <$> areq textField "Name" (batchName <$> batchM)
                <*> aopt textField "Alias" (batchAlias <$> batchM)
@@ -93,14 +95,69 @@ getItemEditBatchR key = return "Todo"
 postItemEditBatchR :: Int64 -> Handler Html
 postItemEditBatchR key = return "Todo"
 
+-- saveMatchesForm text = renderBootstrap3 BootstrapBasicForm form where
+--   form = (,) <$> undefined <*> undefined
+--   -- form = unTextarea <$> areq textareaField "dimensions" (fmap Textarea text)
+
+-- saveMatchesForm :: Maybe (Encoding, (DocumentHash, Text)) -> _ -> _ (Form (Encoding, (DocumentHash, Text)), _ ) 
+saveMatchesForm encoding''hash'pathM = renderBootstrap3 BootstrapBasicForm  form where
+  form = (,) <$> areq hiddenField "encoding" (fst <$> encoding''hash'pathM )
+             <*>  ((,) <$> areq hiddenField "key" (fst . snd <$> encoding''hash'pathM)
+                       <*>  areq hiddenField "path" (snd . snd <$> encoding''hash'pathM)
+                  )
+
 postItemBatchUploadMatchesR :: Int64 -> Handler Html
 postItemBatchUploadMatchesR key = do
   ((fileInfo,encoding, ()), (view, encType)) <- unsafeRunFormPost (uploadFileFormInline (pure ()))
-  (bytes, hash ) <- readUploadUTF8 fileInfo encoding
+  Just (bytes, hash, path ) <- readUploadOrCacheUTF8 encoding (Just fileInfo) Nothing Nothing
 
   parsingResult <- parseMatchRows bytes
-  let w = renderParsingResult (\msg w' -> do msg >> w') (\rows -> setSuccess "Spreadsheet parsed successfully" >> render (map unvalidateRow rows)) parsingResult
+  let onSuccess rows = do
+        -- check if the spreadhsheet has already been uploaded
+        (documentKey'msgM) <- runDB $ loadAndCheckDocumentKey hash
+        forM documentKey'msgM $ \(_, msg) -> do
+           setWarning msg
+        setSuccess "Spreadsheet parsed successfully"
+        (uploadFileFormW, encType) <- generateFormPost $ saveMatchesForm (Just (encoding, (hash, path)))
+        return [whamlet|
+              ^{render (map unvalidateRow rows)} 
+              <div.well>
+                 <form.form-inline role=form method=POST action="@{ItemsR ItemBatchSaveMatchesR}" enctype=#{encType}>
+                   ^{uploadFileFormW}
+                   <button.btn.btn-default type=sumbit name=action value=Cancel>Cancel
+                   <button.btn.btn-danger type=sumbit name=action value=save>Save
+                      |]
+  w <- renderParsingResult (\msg w' -> return( msg >> w')) onSuccess parsingResult
   defaultLayout w
+
+postItemBatchSaveMatchesR :: Handler Html
+postItemBatchSaveMatchesR = do
+  actionM <- lookupPostParam "action"
+  case actionM of
+    Just "save" -> do
+      ((encoding, (hash, path) ), _) <- unsafeRunFormPost (saveMatchesForm Nothing)
+      Just (bytes, hash, _) <- readUploadOrCacheUTF8 encoding Nothing (Just hash) (Just path)
+      let onSuccess valids = runDB $ do
+            let finals = map finalizeRow valids
+            today <- todayH
+            (documentKey'msgM) <- loadAndCheckDocumentKey hash
+            docKey <- case documentKey'msgM of
+              Nothing -> createDocumentKey (DocumentType "BatchMatch") hash path ""
+              Just (dock, _) -> return  (entityKey dock)
+            let matches = map (finalRowToMatch today Nothing (docKey)) finals
+            mapM_ insert_ matches
+            setSuccess "Batch matches uploaded successfully"
+      parsingResult <- parseMatchRows bytes
+      renderParsingResult (\msg _ -> msg) onSuccess parsingResult
+    _ ->  return ()
+  getItemBatchesR
+     
+      
+
+
+
+      
+  
 
 
   

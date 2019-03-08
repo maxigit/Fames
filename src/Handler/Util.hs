@@ -189,9 +189,6 @@ renderPersistValue pvalue = case (fromPersistValueText pvalue) of
 
 
 -- * Forms
--- | Encoding of the file being uploaded.
-data Encoding = UTF8 | Latin1 deriving (Show, Read, Eq, Enum, Bounded)
-
 uploadFileForm :: _ a
                         -> Markup
                         -> _

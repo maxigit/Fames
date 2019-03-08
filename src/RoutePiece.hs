@@ -4,6 +4,12 @@ import ClassyPrelude
 import Web.PathPieces
 
 -- * General
+-- | Encoding of the file being uploaded.
+data Encoding = UTF8 | Latin1 deriving (Show, Read, Eq, Enum, Bounded)
+
+instance PathPiece Encoding where
+  fromPathPiece = readFromPathPiece
+  toPathPiece = showToPathPiece
 
 -- * Warehouse
 -- ** PackingList
