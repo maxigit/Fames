@@ -34,10 +34,11 @@ getItemsCategoryTermsR name = do
                   |]
   defaultLayout [whamlet|
       <div.well>
-        <form.form role=form method=GET action=@{AdministratorR (AResetCategoryCacheR (Just name))}>
+        <form.form role=form method=GET action=@{AdministratorR (AResetCategoryCacheR)}>
+          <input type=hidden name=category value="#{name}"> 
+          <label for=stockFilterF> Skus
+          <input#stockFilterF type="text" name=stockFilter>
           <button.btn.btn-danger> Reset category for all items
-        <form.form role=form method=GET action=@{AdministratorR (AComputeNewItemCategoryCacheR (Just name))}>
-          <button.btn.btn-danger> Compute category for new items
       <div.well>
           <ul>
             $forall (Single term, Single co) <- terms

@@ -13,6 +13,7 @@ import Development.GitRev
 import Database.Persist.MySQL(unSqlBackendKey, Single(..))
 import FA as FA hiding (unUserKey)
 import Database.Persist.MySQL     (Single(..), rawSql)
+import Handler.Items.Category(getItemsCategoryTermsR)
 
 -- | Page to test administrator authentication.
 -- might be empty
@@ -140,16 +141,15 @@ postACacheR = do
   getACacheR
 
 -- ** Item Categories
-getAResetCategoryCacheR :: Maybe Text -> Handler Html
-getAResetCategoryCacheR catm = do
-  refreshCategoryCache True catm
+getAResetCategoryCacheR :: Handler Html
+getAResetCategoryCacheR = do
+  catm <- lookupGetParam "category"
+  stockFilterM <- lookupGetParam "stockFilter"
+  refreshCategoryFor catm (fromString . unpack <$> stockFilterM)
   setSuccess ("Category cache successfully refreshed")
-  getAIndexR
-
-getAComputeNewItemCategoryCacheR :: Maybe Text -> Handler Html
-getAComputeNewItemCategoryCacheR catm = do
-  setWarning "Not implemented yet"
-  getAIndexR
+  case catm of
+    Nothing -> getAIndexR
+    Just cat -> getItemsCategoryTermsR cat
 
 -- ** Customer Categories
 getAResetCustomerCategoryCacheR :: Handler Html
