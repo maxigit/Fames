@@ -8,6 +8,7 @@ module Handler.Items.Batches
 , postItemEditBatchR
 , postItemBatchUploadMatchesR
 , postItemBatchSaveMatchesR
+, getItemBatchMatchTableR
 ) where
 
 import Import
@@ -20,10 +21,10 @@ import Yesod.Form.Bootstrap3 (renderBootstrap3, BootstrapFormLayout(..))
 import Text.Blaze.Html.Renderer.Text(renderHtml)
 import qualified Data.List as List
 import Data.Text(toTitle)
-import Database.Persist.Sql(unSqlBackendKey)
+import Database.Persist.Sql -- (unSqlBackendKey)
+
 import Handler.Items.Batches.Matches
 import Handler.CsvUtils(renderParsingResult, Renderable(..))
-
 -- * Form
 data Mode = Validate | Success deriving (Show, Read, Eq)
 batchForm today batchM = renderBootstrap3 BootstrapBasicForm form where
@@ -35,13 +36,32 @@ batchForm today batchM = renderBootstrap3 BootstrapBasicForm form where
                <*> aopt textField "Description" (batchDescription <$> batchM)
                <*> areq dayField "Date" (batchDate <$> batchM <|> Just today)
 
+-- | Form used to display a table of how how batches or items matches
+data BatchRole = AsColumn | AsRow deriving (Show, Read, Eq)
+data MatchTableParam  = MatchTableParam
+  { mtBatchRole :: [(Key Batch, BatchRole) ] -- wether a batch is displayed as a column or row or not a all
+  , skuFilter :: Maybe FilterExpression -- 
+  } deriving (Show, Read, Eq)
+matchTableForm = renderBootstrap3 BootstrapInlineForm form where
+  form = MatchTableParam <$> pure [] -- filled manually by parsing params
+                         <*> aopt filterEField "Sku" Nothing
+
 -- * Handler
+-- ** All batches
 getItemBatchesR :: Handler Html
 getItemBatchesR = do
   renderUrl <- getUrlRenderParams
   batcheEs <- runDB $ loadBatches
-  let lastBatches = infoPanel "Last Batches" (batchTables renderUrl batcheEs)
-  defaultLayout $ lastBatches >> infoPanel "Actions" [whamlet|
+  ((_, form), encType) <- runFormGet matchTableForm
+  let allBatches = batchTables renderUrl roleRadioColumns batcheEs
+      mainPanel = infoPanel "All Batches" [whamlet|
+        <form role=form method=get action="@{ItemsR ItemBatchMatchTableR}" encType=#{encType}>
+          ^{allBatches}
+          <div.form-inline>
+            ^{form}
+            <button.btn.btn-default type="submit"> Display Match Table
+                 |]
+  defaultLayout $ mainPanel >> infoPanel "Actions" [whamlet|
    <form method=get action="@{ItemsR ItemNewBatchR}">
      <button.btn.btn-default type=submit> Create New Batch
      |]
@@ -106,6 +126,7 @@ saveMatchesForm encoding''hash'pathM = renderBootstrap3 BootstrapBasicForm  form
                        <*>  areq hiddenField "path" (snd . snd <$> encoding''hash'pathM)
                   )
 
+-- ** Upload
 postItemBatchUploadMatchesR :: Int64 -> Handler Html
 postItemBatchUploadMatchesR key = do
   ((fileInfo,encoding, ()), (view, encType)) <- unsafeRunFormPost (uploadFileFormInline (pure ()))
@@ -163,9 +184,35 @@ postItemBatchSaveMatchesR = do
   
   -- return "Todo"
 
+-- ** Match Table
+getItemBatchMatchTableR :: Handler Html
+getItemBatchMatchTableR = do
+  param <- getMatchTableParam 
+  defaultLayout [whamlet|
+Filter: #{maybe "" tshow (skuFilter param)}
+Roles:
+<ul>
+   $forall role <- mtBatchRole param
+     <li>#{tshow $ role}
+
+                        |]
+
+getMatchTableParam :: Handler MatchTableParam
+getMatchTableParam = do
+  (param, _) <- unsafeRunFormGet matchTableForm
+  key'values <- reqGetParams <$> getRequest
+  let radios = mapMaybe (\(k, v) -> (,) <$> (stripPrefix radioNamePrefix k >>= readMay )
+                                        <*> readMay v
+                        ) key'values
+      toBatchKey :: Int64 -> Key Batch
+      toBatchKey = fromBackendKey . SqlBackendKey
+  traceShowM (key'values, radios)
+  return param { mtBatchRole = map (first toBatchKey) radios}
+
+  
 -- * Rendering
 renderBatch :: Entity Batch -> Widget
-renderBatch (Entity _ Batch{..}) = infoPanel ("Batch: " <> batchName) [whamlet|
+renderBatch batchEntity@(Entity _ Batch{..}) = infoPanel ("Batch: " <> batchName) [whamlet|
 <table.table>
   <tr>
     <th>Name
@@ -189,9 +236,22 @@ renderBatch (Entity _ Batch{..}) = infoPanel ("Batch: " <> batchName) [whamlet|
     <th>Date
     <td>#{tshow batchDate}
 |]
+
+radioNamePrefix = "batch-role-" :: Text
+radioName (Entity batchId _) = radioNamePrefix <> tshow (unSqlBackendKey $ unBatchKey batchId)
+roleRadioColumns :: [(Text, Entity Batch -> Either Html PersistValue)]
+roleRadioColumns =  map (uncurry go) [ ("Don't use" :: Text, "" :: Text)
+                              , ("As AsRow", tshow AsRow)
+                              , ("As AsColumn", tshow AsColumn)
+                              ] where
+  go title value = ( title
+                   , \batchEntity -> Left [shamlet|
+                         <input type=radio name="#{radioName batchEntity}" value="#{value}">
+                         |]
+                   )
   
-batchTables :: _renderUrl -> [Entity Batch] -> Widget
-batchTables renderUrl batches = [whamlet|
+batchTables :: _renderUrl -> [(Text, Entity Batch -> Either Html PersistValue)] -> [Entity Batch] -> Widget
+batchTables renderUrl extraColumns batches = [whamlet|
   <table.table.table-hover>
     ^{rowsAndHeader}
   |] where
@@ -203,7 +263,8 @@ batchTables renderUrl batches = [whamlet|
             , entityFieldToColumn BatchMaterial
             , entityFieldToColumn BatchSeason
             , entityFieldToColumn BatchDescription
-            , entityFieldToColumn BatchDate]
+            , entityFieldToColumn BatchDate
+            ] <> extraColumns
   colDisplays (name, _) = (toHtml name, [])
 
   

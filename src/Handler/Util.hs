@@ -14,6 +14,7 @@ module Handler.Util
 , uploadFileFormWithComment
 , hiddenFileForm
 , unsafeRunFormPost
+, unsafeRunFormGet
 , Encoding(..)
 , readUploadUTF8
 , setAttachment
@@ -229,6 +230,16 @@ hiddenFileForm key'pathM = renderBootstrap3 BootstrapBasicForm form where
 
 unsafeRunFormPost form = do
   ((resp, view), encType) <- runFormPost form
+  case resp of
+    FormMissing -> error "Form Missing"
+    FormFailure a -> do
+      setError $ "FormFailure:" >> mapM_ toHtml a
+      sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
+    FormSuccess x -> do
+      return (x, (view, encType))
+
+unsafeRunFormGet form = do
+  ((resp, view), encType) <- runFormGet form
   case resp of
     FormMissing -> error "Form Missing"
     FormFailure a -> do
