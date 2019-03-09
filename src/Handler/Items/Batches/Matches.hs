@@ -3,11 +3,12 @@ module Handler.Items.Batches.Matches where
 
 import Import hiding((.:))
 import qualified Data.Csv as Csv
-import Data.List(scanl)
+import Data.List(scanl, nub)
 import Handler.CsvUtils
 import Handler.Items.Common
 import Data.Text(toTitle)
 import qualified FA
+import Data.Maybe(fromJust)
 
 -- * Types
 
@@ -199,7 +200,63 @@ finalRowToMatch date operatorId docKey MatchRow{..} =
               comment
               date
               docKey
+              
+-- * DB
+loadBatchMatchesFor :: [Key Batch] -> SqlHandler [Entity BatchMatch]
+loadBatchMatchesFor batchIds = do
+  -- load everything with
+  selectList [BatchMatchSource <-. batchIds, BatchMatchTarget <-. batchIds ] []
 
+-- inverse source and target
+reverseBatchMatch :: BatchMatch -> BatchMatch
+reverseBatchMatch BatchMatch{..} = BatchMatch{ batchMatchSource=batchMatchTarget,batchMatchSourceColour=batchMatchTargetColour
+                                             , batchMatchTarget=batchMatchSource, batchMatchTargetColour=batchMatchSourceColour,..}
+
+
+-- * Match Table
+-- | Assures all source are source and target are target regardless of the database order
+newtype ForBuildTable = ForBuildTable [BatchMatch] 
+buildTable :: [Entity Batch] -> [Entity Batch] -> ForBuildTable
+           -> ( [ (Text, (Key Batch, Text) -> Maybe [(Text, MatchQuality)]) ]
+              , ((Text, (Key Batch, Text) -> Maybe [(Text, MatchQuality)]) -> (Html, [Text]))
+              , [ ((Text, (Key Batch, Text) -> Maybe [(Text, MatchQuality)]) -> Maybe (Html, [Text]), [Text]) ]
+              )
+buildTable rowBatches columnBatches (ForBuildTable matches) = let
+  matchMap = groupAsMap (\BatchMatch{..} -> (batchMatchSource, batchMatchSourceColour, batchMatchTarget))
+                        (\BatchMatch{..} -> [(batchMatchTargetColour, batchMatchQuality)])
+                        matches
+  source'colours = nub $ sort (map ((,) <$> batchMatchSource <*> batchMatchSourceColour ) matches)
+  -- targets = nub $ sort (map batchMatchTarget matches)
+  columns0 = [ (fromJust $ lookup batchMatchTarget batchMap
+               , \(source, colour) -> lookup (source, colour, batchMatchTarget ) matchMap
+                                  
+               )
+            | BatchMatch{..} <- matches
+            ]
+  -- columns = ("Style/Batch", \(source, _colour) -> lookup source batchMap) :
+  --           ("Colour", \(_source, colour) -> Just colour) :
+  --           columns0
+  columns = columns0
+
+  batchMap = groupAsMap entityKey  (\(Entity _ Batch{..}) -> fromMaybe batchName batchAlias ) (rowBatches <> columnBatches)
+  rowsForTables = [ (uncurry colFn, [])
+                  | source'colour <- source'colours
+                  , let colFn _ getter = getter source'colour <&> (,[]) . colour'QualitysToHtml
+                  ]
+  in ( columns
+     , \(col, _) -> (toHtml col, [])
+     , rowsForTables
+     )
+
+colour'QualityToHtml (colour, quality) = [shamlet|#{colour}
+   <sup>#{tshow quality}|]
+colour'QualitysToHtml = mconcat . map colour'QualityToHtml 
+
+
+
+
+
+  
 -- * Rendering
 instance Renderable ([MatchRow 'RawT]) where
   render rows = [whamlet|

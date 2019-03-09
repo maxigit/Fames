@@ -40,7 +40,7 @@ batchForm today batchM = renderBootstrap3 BootstrapBasicForm form where
 data BatchRole = AsColumn | AsRow deriving (Show, Read, Eq)
 data MatchTableParam  = MatchTableParam
   { mtBatchRole :: [(Key Batch, BatchRole) ] -- wether a batch is displayed as a column or row or not a all
-  , skuFilter :: Maybe FilterExpression -- 
+  , _todo_mtSkuFilter :: Maybe FilterExpression -- 
   } deriving (Show, Read, Eq)
 matchTableForm = renderBootstrap3 BootstrapInlineForm form where
   form = MatchTableParam <$> pure [] -- filled manually by parsing params
@@ -183,18 +183,14 @@ postItemBatchSaveMatchesR = do
 
   
   -- return "Todo"
-
+    
 -- ** Match Table
 getItemBatchMatchTableR :: Handler Html
 getItemBatchMatchTableR = do
   param <- getMatchTableParam 
-  defaultLayout [whamlet|
-Filter: #{maybe "" tshow (skuFilter param)}
-Roles:
-<ul>
-   $forall role <- mtBatchRole param
-     <li>#{tshow $ role}
-
+  table <- loadMatchTable param
+  defaultLayout $ primaryPanel "Match Table" [whamlet|
+^{table}
                         |]
 
 getMatchTableParam :: Handler MatchTableParam
@@ -207,9 +203,28 @@ getMatchTableParam = do
       toBatchKey :: Int64 -> Key Batch
       toBatchKey = fromBackendKey . SqlBackendKey
   traceShowM (key'values, radios)
-  return param { mtBatchRole = map (first toBatchKey) radios}
-
+  return $ param { mtBatchRole = map (first toBatchKey) radios}
   
+loadMatchTable :: MatchTableParam -> Handler Widget -- [Entity BatchMatch]
+loadMatchTable param = do
+  let (rows, columns) = bimap (List.nub . sort . map fst)
+                              (List.nub . sort . map fst) $ partition ((== AsRow) . snd) (mtBatchRole param)
+  tableW <- runDB $ do
+      -- load batch the correct way
+      normal <- selectList (BatchMatchSource <-?. rows <> BatchMatchTarget <-?. columns) []
+      wrongWay <- selectList (BatchMatchSource <-?. columns <>  BatchMatchTarget <-?. rows) []
+      let matches = ForBuildTable $ map entityVal normal ++ map (reverseBatchMatch . entityVal) wrongWay
+
+      rowBatches <- selectList [BatchId <-. rows] []
+      columnBatches <- selectList [BatchId <-. columns] []
+
+      let (cols, colDisplay, tableRows) = buildTable rowBatches columnBatches  matches
+      
+      return $ displayTable cols colDisplay tableRows
+
+
+  return tableW
+    
 -- * Rendering
 renderBatch :: Entity Batch -> Widget
 renderBatch batchEntity@(Entity _ Batch{..}) = infoPanel ("Batch: " <> batchName) [whamlet|

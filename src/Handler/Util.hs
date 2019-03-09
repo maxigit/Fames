@@ -41,6 +41,7 @@ module Handler.Util
 , filterEKeyword
 , filterEToSQL
 , filterEAddWildcardRight
+,(<-?.)
 , readUploadOrCacheUTF8
 , cacheText
 , cacheByteString
@@ -434,6 +435,8 @@ firstOperator = do
 
 
 -- * SQL
+_ <-?. []  =  []
+a <-?. list  =   [a <-. list]
 -- ** Filtering Expressions (Like or Regexp)
 -- | Generate a like or rlike statement
 data FilterExpression = LikeFilter Text  | RegexFilter Text deriving (Eq, Show, Read)
