@@ -9,6 +9,7 @@ import Handler.Items.Common
 import Data.Text(toTitle)
 import qualified FA
 import Data.Maybe(fromJust)
+import Handler.Table
 
 -- * Types
 
@@ -216,32 +217,34 @@ reverseBatchMatch BatchMatch{..} = BatchMatch{ batchMatchSource=batchMatchTarget
 -- * Match Table
 -- | Assures all source are source and target are target regardless of the database order
 newtype ForBuildTable = ForBuildTable [BatchMatch] 
-buildTable :: [Entity Batch] -> [Entity Batch] -> ForBuildTable
-           -> ( [ (Text, (Key Batch, Text) -> Maybe [(Text, MatchQuality)]) ]
-              , ((Text, (Key Batch, Text) -> Maybe [(Text, MatchQuality)]) -> (Html, [Text]))
-              , [ ((Text, (Key Batch, Text) -> Maybe [(Text, MatchQuality)]) -> Maybe (Html, [Text]), [Text]) ]
+buildTable :: ([(Text, MatchQuality)] -> Html)
+           -> [Entity Batch] -> [Entity Batch] -> ForBuildTable
+           -> ( [ (Text, (Key Batch, Text) -> Maybe (Either Html PersistValue)) ] -- ^ COLUMNS : Column name, getter
+              , ((Text, (Key Batch, Text) -> Maybe (Either Html PersistValue)) -> (Html, [Text])) -- ^ COLUMN NAME: from column (as above)
+              , [ ((Text, (Key Batch, Text) -> Maybe (Either Html PersistValue)) -> Maybe (Html, [Text]), [Text]) ] -- ^ ROWS: column (as above) -> value (via getter) 
               )
-buildTable rowBatches columnBatches (ForBuildTable matches) = let
+buildTable renderColour'Qualitys rowBatches columnBatches (ForBuildTable matches) = let
   matchMap = groupAsMap (\BatchMatch{..} -> (batchMatchSource, batchMatchSourceColour, batchMatchTarget))
                         (\BatchMatch{..} -> [(batchMatchTargetColour, batchMatchQuality)])
                         matches
+
   source'colours = nub $ sort (map ((,) <$> batchMatchSource <*> batchMatchSourceColour ) matches)
   -- targets = nub $ sort (map batchMatchTarget matches)
-  columns0 = [ (fromJust $ lookup batchMatchTarget batchMap
-               , \(source, colour) -> lookup (source, colour, batchMatchTarget ) matchMap
+  columns0 = [ ( fromMaybe batchName batchAlias -- Column name :: Text
+               , \(source, colour) -> Left . renderColour'Qualitys <$> lookup (source, colour, batchId ) matchMap
                                   
                )
-            | BatchMatch{..} <- matches
+            | (Entity batchId Batch{..}) <- columnBatches
             ]
-  -- columns = ("Style/Batch", \(source, _colour) -> lookup source batchMap) :
-  --           ("Colour", \(_source, colour) -> Just colour) :
-  --           columns0
-  columns = columns0
+  -- columns = 
+  columns = ("Style/Batch", \(source, _colour) -> lookup source batchMap <&> (Right . toPersistValue)) :
+            ("Colour", \(_source, colour) -> Just (Right $ toPersistValue colour)) :
+            columns0
 
   batchMap = groupAsMap entityKey  (\(Entity _ Batch{..}) -> fromMaybe batchName batchAlias ) (rowBatches <> columnBatches)
-  rowsForTables = [ (uncurry colFn, [])
+  rowsForTables = [ (colFn, [])
                   | source'colour <- source'colours
-                  , let colFn _ getter = getter source'colour <&> (,[]) . colour'QualitysToHtml
+                  , let colFn (_colname,  getter) = getter source'colour <&> (,[]) . either id (toHtml . renderPersistValue)
                   ]
   in ( columns
      , \(col, _) -> (toHtml col, [])

@@ -218,7 +218,7 @@ loadMatchTable param = do
       rowBatches <- selectList [BatchId <-. rows] []
       columnBatches <- selectList [BatchId <-. columns] []
 
-      let (cols, colDisplay, tableRows) = buildTable rowBatches columnBatches  matches
+      let (cols, colDisplay, tableRows) = buildTable (concatMap colour'QualityToHtml) rowBatches columnBatches  matches
       
       return $ displayTable cols colDisplay tableRows
 
