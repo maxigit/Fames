@@ -207,6 +207,7 @@ getMatchTableParam = do
   
 loadMatchTable :: MatchTableParam -> Handler Widget -- [Entity BatchMatch]
 loadMatchTable param | Just skuFilter <- mtSkuFilter param  = do
+  -- TODO factorize  
   let columns = map fst $ filter ((== AsColumn) . snd) (mtBatchRole param)
   skuToStyleVar <- skuToStyleVarH
   tableW <- runDB $ do
