@@ -10,6 +10,7 @@ import Data.Text(toTitle)
 import qualified FA
 import Data.Maybe(fromJust)
 import Handler.Table
+import Database.Persist.Sql(rawSql, Single(..))
 
 -- * Types
 
@@ -217,8 +218,10 @@ reverseBatchMatch BatchMatch{..} = BatchMatch{ batchMatchSource=batchMatchTarget
 -- * Match Table
 -- | Assures all source are source and target are target regardless of the database order
 newtype ForBuildTable = ForBuildTable [BatchMatch] 
-buildTable :: ([(Text, MatchQuality)] -> Html)
-           -> [Entity Batch] -> [Entity Batch] -> ForBuildTable
+buildTable :: ([(Text, MatchQuality)] -> Html) -- ^ qualitys rendered
+           -> [Entity Batch] -- ^ rows
+           -> [Entity Batch] -- ^ columns
+           -> ForBuildTable -- ^ matches
            -> ( [ (Text, (Key Batch, Text) -> Maybe (Either Html PersistValue)) ] -- ^ COLUMNS : Column name, getter
               , ((Text, (Key Batch, Text) -> Maybe (Either Html PersistValue)) -> (Html, [Text])) -- ^ COLUMN NAME: from column (as above)
               , [ ((Text, (Key Batch, Text) -> Maybe (Either Html PersistValue)) -> Maybe (Html, [Text]), [Text]) ] -- ^ ROWS: column (as above) -> value (via getter) 
@@ -251,9 +254,68 @@ buildTable renderColour'Qualitys rowBatches columnBatches (ForBuildTable matches
      , rowsForTables
      )
 
+buildTableForSku renderColour'Qualitys sku'batches columnBatches (ForBuildTable matches) = let
+  matchMap = groupAsMap (\BatchMatch{..} -> (batchMatchSource, batchMatchSourceColour, batchMatchTarget))
+                        (\BatchMatch{..} -> [(batchMatchTargetColour, batchMatchQuality)])
+                        matches
+
+  -- targets = nub $ sort (map batchMatchTarget matches)
+  columns0 = [ ( fromMaybe batchName batchAlias -- Column name :: Text
+               , \((style, colour), batch ) -> Left . renderColour'Qualitys <$> lookup (entityKey batch, colour, batchId ) matchMap
+                                  
+               )
+            | (Entity batchId Batch{..}) <- columnBatches
+            ]
+  -- columns = 
+  columns = ("Style", \((style, _var), _batch) -> Just (Right $ toPersistValue style) ) :
+            ("Colour", \((_style, colour), _batch) -> Just (Right $ toPersistValue colour)) :
+            ("Batch", \(_, Entity _ Batch{..}) -> Just (Right $ toPersistValue (fromMaybe batchName batchAlias))) :
+            columns0
+
+  -- batchMap = groupAsMap entityKey  (\(Entity _ Batch{..}) -> fromMaybe batchName batchAlias ) (columnBatches)
+  rowsForTables = [ (colFn, [])
+                  | sku'batch <- sku'batches
+                  , let colFn (_colname,  getter) = getter sku'batch <&> (,[]) . either id (toHtml . renderPersistValue)
+                  ]
+  in ( columns
+     , \(col, _) -> (toHtml col, [])
+     , rowsForTables
+     )
 colour'QualityToHtml (colour, quality) = [shamlet|#{colour}
    <sup>#{tshow quality}|]
 colour'QualitysToHtml = mconcat . map colour'QualityToHtml 
+
+-- | Load batches from sku but return on modified batch for each sku
+-- with the alias set to the style name
+loadSkuBatches :: FilterExpression -> SqlHandler [(Text, Key Batch)]
+loadSkuBatches filterE = do
+  let sql = "SELECT stock_id, batch_id FROM fames_item_category_cache "
+            <> " JOIN fames_batch ON (value = name) "
+            <> "WHERE category = 'batch' AND stock_id " <> keyw <> "?"
+      (keyw, v )  = filterEKeyword filterE
+  rows <- rawSql sql [toPersistValue v]
+  return $ map (\(Single sku, Single batchId) -> (sku, batchId)) rows
+
+
+skuToStyle''var'Batch :: (Text -> (Text, Text)) -> [Entity Batch] -> (Text, Key Batch) -> ((Text, Text), Entity Batch)
+skuToStyle''var'Batch skuToStyleVar batches = let
+  -- split in two function to memoize the batchMap
+  -- GHC might do it
+  batchMap = mapFromList $ map (fanl entityKey) batches :: Map (Key Batch) (Entity Batch)
+  in \(sku, batchId) -> case lookup batchId batchMap of
+                        Nothing -> error $ "Batch " <> show batchId <> " not found."
+                        Just batch -> (skuToStyleVar sku, batch)
+                      
+       
+  
+     
+
+--   [ BatchMatch {batchS}
+--   | ((style, var), batchId) <- style'var''batchId
+--   , BatchMatch{..}  <- fromMaybe [] (lookup (batchId, var) matchMap)
+--   ]
+
+
 
 
 
