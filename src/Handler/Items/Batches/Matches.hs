@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Handler.Items.Batches.Matches where
 
 import Import hiding((.:))
@@ -11,7 +12,7 @@ import qualified FA
 import Data.Maybe(fromJust)
 import Handler.Table
 import Database.Persist.Sql(rawSql, Single(..))
-
+import Data.Char(ord)
 -- * Types
 
 data MatchRow (s :: RowTypes) = MatchRow
@@ -26,6 +27,7 @@ data MatchRow (s :: RowTypes) = MatchRow
 deriving instance Show (MatchRow 'RawT)
 
 -- * Instance
+-- | Parse one match per row
 instance Csv.FromNamedRecord (MatchRow  'RawT) where
   parseNamedRecord  m = MatchRow
     <$> m .: "Source" 
@@ -34,6 +36,25 @@ instance Csv.FromNamedRecord (MatchRow  'RawT) where
     <*> m .: "Target"
     <*> m Csv..: "Quality"
     <*> m .: "Comment"
+-- | Parse multiple matches , one column per batch (with multipe value)
+instance Csv.FromNamedRecord ([MatchRow 'RawT]) where
+  parseNamedRecord m = do
+    -- get all columns
+    let columns = keys m
+        batchNames = filter (`notElem` ["SKU", "Source", "SourceColour"]) columns
+
+    sku <- m .: "SKU"
+    matchess <- forM batchNames $ \batchNameBS -> do
+      col'qs <- m Csv..: batchNameBS
+      batchName <- Csv.parseField batchNameBS
+      return [ MatchRow sku (Right Nothing)
+                        (col) (Right batchName)
+                        (quality) (Right Nothing)
+                        
+             | (col, quality) <-  col'qs :: [(FieldForRaw Text, FieldForRaw MatchQuality)]
+             ]
+    return (concat matchess)
+    
     
 instance Csv.FromField (Either InvalidField (Maybe (ValidField MatchQuality))) where
   parseField field = do
@@ -44,15 +65,36 @@ instance Csv.FromField (Either InvalidField (Maybe (ValidField MatchQuality))) w
         Nothing -> Left (ParsingError "MatchQuality" t)
         Just m -> Right (Just $ Provided m)
 
+-- | Parses pairs colour quality, pairs are separated by , and colour quality as well if needed
+-- Accepts format like
+-- Black+++,Navy:Excellent
+-- Black Excellent Navy Excellent
+-- Black +++ Navy+++
+instance Csv.FromField [(Either InvalidField (Maybe (ValidField Text)), Either InvalidField (Maybe (ValidField MatchQuality)))] where
+  parseField field | null field = return []
+  parseField field = do
+    let parseQuality colour line = do
+          let (qualityBS, rest) = break (`elem` (",;\t" :: ByteString)) line
+          quality <- Csv.parseField qualityBS
+          rets <- Csv.parseField (stripBS ",;\t " rest)
+          return $ (colour, fromMaybe (Right (Just $ Provided Close)) quality) : rets
+        (colourBS, rest) = break (`elem` (":+=," :: ByteString)) field
+    colour <- Csv.parseField colourBS
+    parseQuality (Right colour) (stripBS " :=" rest)
 
+
+stripBS :: ByteString -> ByteString -> ByteString
+stripBS seps = snd . span (`elem` seps)
 readMatchQuality :: Text -> Maybe MatchQuality
 readMatchQuality t = readMay (toTitle t) <|> case t of
   "+" -> Just Fair
-  "-" -> Just Closest
+  "-" -> Just Close
   "++" -> Just Good
   "+++" -> Just Excellent
   _ -> Nothing
   
+
+
 instance Transformable (Entity Batch) Text where
   transform (Entity _ batch) = batchName batch
 
@@ -61,7 +103,11 @@ parseMatchRows :: ByteString -> Handler (ParsingResult (MatchRow 'RawT) [MatchRo
 parseMatchRows bytes = do
   let resultE = do -- Either
       let columnMap = mapFromList $ map (,[]) ["Source", "SourceColour", "TargetColour", "Quality", "Comment"]
-      raws <- parseSpreadsheet columnMap Nothing bytes <|&> WrongHeader
+          columnMap' = mapFromList $ map (,[]) ["SKU"]
+      raws <- ( parseSpreadsheet columnMap Nothing bytes 
+               <> (concat <$> parseSpreadsheet columnMap' Nothing bytes)
+              )
+             <|&> WrongHeader 
       let rawOrPartials = map (\raw -> sequenceMatchRow raw <|&> const raw) raws :: [Either (MatchRow 'RawT) (MatchRow 'PartialT)]
       partials <- sequence rawOrPartials <|&> const (InvalidFormat . lefts $ rawOrPartials)
       let filleds = case partials of

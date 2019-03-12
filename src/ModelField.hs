@@ -14,7 +14,7 @@ data PendingStatus = Pending | Process deriving (Eq, Read, Show, Enum, Bounded, 
 derivePersistField "PendingStatus"
 
 -- | Quality of a match between batche
-data MatchQuality = Closest | Fair | Good | Excellent deriving(Eq, Read, Show, Enum, Bounded, Ord)
+data MatchQuality = Close | Fair | Good | Excellent deriving(Eq, Read, Show, Enum, Bounded, Ord)
 derivePersistField "MatchQuality"
 
 -- * Payroll
