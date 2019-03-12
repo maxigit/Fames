@@ -83,6 +83,7 @@ module Handler.Util
 , fiscalYearH
 , currentFAUser
 , getSubdirOptions
+, loadItemDeliveryForSku
 ) where
 -- ** Import
 import Foundation
@@ -116,6 +117,9 @@ import Database.Persist.MySQL(unSqlBackendKey, rawSql, Single(..))
 import System.Directory(listDirectory, doesDirectoryExist)
 import Data.Char(isUpper)
 import qualified Data.List.Split as Split 
+import Data.Align(align)
+import Data.These
+import Lens.Micro.Extras (preview)
 
 -- * Display entities
 -- | Display Persist entities as paginated table
@@ -767,6 +771,9 @@ refreshCategoryFor textm stockFilterM = do
     Nothing -> LikeFilter <$> appFAStockLikeFilter . appSettings <$> getYesod
   rulesMaps <- appCategoryRules <$> getsYesod appSettings
   stockMasters <- loadStockMasterRuleInfos stockFilter 
+
+  _ <- runDB $ do
+       forM stockMasters  (\(sku, _, _, _, _) -> traceShowId <$> loadItemDeliveryForSku sku) 
   -- if we are only computing one category
   -- load the other from the db instead of computing them
   let rules = map (first unpack) $ concatMap mapToList rulesMaps
@@ -910,6 +917,75 @@ categoriesFor rules = let
       in [ ItemCategory (FA.unStockMasterKey sku) (pack key) (pack value)
         | (key, value) <- mapToList categories
         ]
+
+
+
+--- ***  track delivery
+-- Try to guess the provenance of each item in stock
+-- by comparing the quantity on hand in each container
+-- and what's been deliveredhiding((<&>))
+loadItemDeliveryForSku (FA.StockMasterKey sku) = do
+  defaultLocation <- appFADefaultLocation <$> getsYesod appSettings
+-- Load transactions "creating"  new item, ie purchase order delivery  and postive adjustments
+  moves <- selectList [FA.StockMoveType <-. (map fromEnum [ST_SUPPRECEIVE, ST_INVADJUST]),  FA.StockMoveStockId ==. sku ]
+             [Asc FA.StockMoveStockId, Asc FA.StockMoveLocCode, Asc FA.StockMoveTranDate]
+  
+  -- load qoh in each container
+  qohs <- selectList [FA.DenormQohStockId ==. Just sku] [Asc FA.DenormQohLocCode]
+
+  let locQohMap = Map.fromAscList $ map ((fromJust . FA.denormQohLocCode &&& fromJust . FA.denormQohQuantity) . entityVal) qohs
+      locTransMap = groupAscAsMap  FA.stockMoveLocCode (:[])  (map entityVal moves)
+      locs = align locTransMap locQohMap
+
+      defLocM = lookup defaultLocation locs
+      otherLoc = deleteMap defaultLocation locs 
+
+      -- transaction "used" From other container (ie not lef t) have
+      -- probably been transfered to the default location
+      used = concatMap fst $ map (partitionDeliveriesFIFO) (Map.elems otherLoc)
+      defThese = These (sortOn FA.stockMoveTranDate $ fromMaybe [] (defLocM >>= preview here) <> used)
+                       (fromMaybe 0 (defLocM >>= preview there))
+      (_, remainers) = partitionDeliveriesFIFO defThese
+
+  return remainers
+
+
+-- | Partitions deliveries in chronological order so that the "after" moves
+-- correspond to the given quantity , ie what's left
+-- for example if we have 3 deliverys A:10 B:5 C:5 and 8 item left
+-- this will be split into A:10 B:2 (used) and B:2 C:5 (left)
+-- This gives us the composition of the current stock given the qoh assuming
+-- items are use FIFO
+partitionDeliveriesFIFO :: These [FA.StockMove] Double -> ([FA.StockMove], [FA.StockMove])
+partitionDeliveriesFIFO (This moves) = (moves, []) -- nothing left
+partitionDeliveriesFIFO (That qho) = ([], []) -- should raise an error ?
+partitionDeliveriesFIFO (These moves 0) = partitionDeliveriesFIFO (This moves)
+partitionDeliveriesFIFO (These [] qoh) = ([], [])
+partitionDeliveriesFIFO (These moves qoh) = let
+  -- normally we could create a running balance from the end
+  -- but it might be faster to not create a reverse list
+  quantities = map FA.stockMoveQty moves
+  total = sum quantities 
+  usedQty = total - qoh
+  running = zip (Data.List.scanl1 (+) quantities) moves
+  (used',leftover') = case span ((<= usedQty) . fst) running of
+    (used, l@((run, current):leftover)) ->
+      let toUse = usedQty - (run - FA.stockMoveQty current)
+      in if toUse == 0
+         then (used, l)
+         else ( used ++ [ (run, current {stockMoveQty = toUse})]
+              , (run, current {stockMoveQty = FA.stockMoveQty current - toUse}):leftover
+              )
+    r@(used, []) ->  r
+  in -- traceShow ("QS", quantities, "Running", map fst running) 
+  -- $ traceShow ("SPLIT", map (FA.stockMoveQty . snd) used', map (FA.stockMoveQty . snd) leftover')  $
+  (map snd used', map snd leftover')
+                                            
+                                       
+
+  
+  
+
 
 
 
