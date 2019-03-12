@@ -78,7 +78,8 @@ getItemBatchR :: Int64 -> Handler Html
 getItemBatchR key = do
   let batchKey = BatchKey (fromIntegral key)
   batch <- runDB $ getJust batchKey
-  (form, encType) <- generateFormPost (uploadFileFormInline (pure ()))
+  extra <- uploadBatchExtra
+  (form, encType) <- generateFormPost (uploadFileFormInline extra)
   defaultLayout $ do
     renderBatch (Entity batchKey batch)
     [whamlet|
@@ -120,16 +121,27 @@ postItemEditBatchR key = return "Todo"
 --   -- form = unTextarea <$> areq textareaField "dimensions" (fmap Textarea text)
 
 -- saveMatchesForm :: Maybe (Encoding, (DocumentHash, Text)) -> _ -> _ (Form (Encoding, (DocumentHash, Text)), _ ) 
-saveMatchesForm encoding''hash'pathM = renderBootstrap3 BootstrapBasicForm  form where
-  form = (,) <$> areq hiddenField "encoding" (fst <$> encoding''hash'pathM )
-             <*>  ((,) <$> areq hiddenField "key" (fst . snd <$> encoding''hash'pathM)
-                       <*>  areq hiddenField "path" (snd . snd <$> encoding''hash'pathM)
-                  )
+saveMatchesForm encoding'hash'''pathM''day'''operator = renderBootstrap3 BootstrapBasicForm  form where
+  form = (,) <$> areq hiddenField "encoding" (fst <$> encoding'hash'''pathM''day'''operator )
+             <*> ((,) <$>  ((,) <$> areq hiddenField "key" (fst . fst . snd <$> encoding'hash'''pathM''day'''operator)
+                                <*>  areq hiddenField "path" (snd . fst . snd <$> encoding'hash'''pathM''day'''operator)
+                            )
+                      <*> ((,) <$> areq hiddenField "day"  ( fst . snd . snd <$> encoding'hash'''pathM''day'''operator)
+                                <*> areq hiddenField "operator"  ( snd. snd . snd <$> encoding'hash'''pathM''day'''operator)
+                          )
+                 )
 
 -- ** Upload
+uploadBatchExtra =  do
+  today <- todayH
+  let operatorOptions = optionsPersistKey [OperatorActive ==. True] [Asc OperatorNickname] operatorNickname
+  return ( (,) <$>  areq dayField "Date" (Just today)
+            <*> areq (selectField operatorOptions) "Operator" Nothing
+         )
 postItemBatchUploadMatchesR :: Int64 -> Handler Html
 postItemBatchUploadMatchesR key = do
-  ((fileInfo,encoding, ()), (view, encType)) <- unsafeRunFormPost (uploadFileFormInline (pure ()))
+  extra <- uploadBatchExtra
+  ((fileInfo,encoding, (day, operator)), (view, encType)) <- unsafeRunFormPost (uploadFileFormInline extra)
   Just (bytes, hash, path ) <- readUploadOrCacheUTF8 encoding (Just fileInfo) Nothing Nothing
 
   parsingResult <- parseMatchRows bytes
@@ -139,7 +151,7 @@ postItemBatchUploadMatchesR key = do
         forM documentKey'msgM $ \(_, msg) -> do
            setWarning msg
         setSuccess "Spreadsheet parsed successfully"
-        (uploadFileFormW, encType) <- generateFormPost $ saveMatchesForm (Just (encoding, (hash, path)))
+        (uploadFileFormW, encType) <- generateFormPost $ saveMatchesForm (Just (encoding, ((hash, path), (day, operator))))
         return [whamlet|
               ^{render (map unvalidateRow rows)} 
               <div.well>
@@ -156,16 +168,15 @@ postItemBatchSaveMatchesR = do
   actionM <- lookupPostParam "action"
   case actionM of
     Just "save" -> do
-      ((encoding, (hash, path) ), _) <- unsafeRunFormPost (saveMatchesForm Nothing)
+      ((encoding, ((hash, path), (day, operator)) ), _) <- unsafeRunFormPost (saveMatchesForm Nothing)
       Just (bytes, hash, _) <- readUploadOrCacheUTF8 encoding Nothing (Just hash) (Just path)
       let onSuccess valids = runDB $ do
             let finals = map finalizeRow valids
-            today <- todayH
             (documentKey'msgM) <- loadAndCheckDocumentKey hash
             docKey <- case documentKey'msgM of
               Nothing -> createDocumentKey (DocumentType "BatchMatch") hash path ""
               Just (dock, _) -> return  (entityKey dock)
-            let matches = map (finalRowToMatch today Nothing (docKey)) finals
+            let matches = map (finalRowToMatch day (Just operator) (docKey)) finals
             mapM_ insert_ matches
             setSuccess "Batch matches uploaded successfully"
       parsingResult <- parseMatchRows bytes
