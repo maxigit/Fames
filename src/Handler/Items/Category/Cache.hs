@@ -109,32 +109,33 @@ refreshCategoryFor textm stockFilterM = do
     Nothing -> LikeFilter <$> appFAStockLikeFilter . appSettings <$> getYesod
   rulesMaps <- appCategoryRules <$> getsYesod appSettings
   stockMasters <- loadStockMasterRuleInfos stockFilter 
-
-  _ <- runDB $ do
-       forM stockMasters  (loadItemDeliveryForSku . smStockId) 
-  -- if we are only computing one category
-  -- load the other from the db instead of computing them
   let rules = map (first unpack) $ concatMap mapToList rulesMaps
-  categories <- case textm of
-        Nothing -> let
-          in return $ concatMap (categoriesFor rules) stockMasters
-        Just cat ->  do
-          let  rulem = lookup (unpack cat) rules
-          case rulem of
-            Nothing -> return []
-            Just rule -> concat <$> mapM (computeOneCategory cat rule)  stockMasters
-          -- load category
+
   runDB $ do
     let criteria = map (ItemCategoryCategory ==.) (maybeToList textm)
+    -- Warning, we delete everything before having computed anything
+    -- might be better to delete for a given sku in the form loop
     deleteWhere (criteria <> filterE id ItemCategoryStockId (Just stockFilter))
-    -- insertMany_ categories
-    mapM_ insert_ categories
+    forM_ stockMasters $ \stockMaster -> do
+    -- (loadItemDeliveryForSku . smStockId) 
+      -- if we are only computing one category
+      -- load the other from the db instead of computing them
+      categories <- case textm of
+            Nothing -> return $ categoriesFor rules stockMaster
+            Just cat ->  do
+              let  rulem = lookup (unpack cat) rules
+              case rulem of
+                Nothing -> return []
+                Just rule -> computeOneCategory cat rule  stockMaster
+      mapM_ insert_ categories
 
+
+  
 -- | Compute the given category using existing value for other categories
-computeOneCategory :: Text -> CategoryRule -> StockMasterRuleInfo -> Handler [ItemCategory]
+computeOneCategory :: Text -> CategoryRule -> StockMasterRuleInfo -> SqlHandler [ItemCategory]
 computeOneCategory cat rule ruleInfo@StockMasterRuleInfo{..} = do
-  catFinder <- categoryFinderCached
-  categories <- categoriesH
+  catFinder <- lift categoryFinderCached
+  categories <- lift categoriesH
   let otherCategories = filter (/= cat) categories
       rulesMap = mapFromList [ (unpack c, unpack value)
                              | c <- otherCategories
