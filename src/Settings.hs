@@ -90,6 +90,7 @@ data AppSettings = AppSettings
     , appReverseCategoryKey :: Bool -- reverse stock it in Category Map. Might speed up lookup if items have a common prefix
     , appCustomerCategoryRules :: [Map Text CategoryRule]  
     , appOrderCategoryRules :: [Map Text CategoryRule]  
+    , appDeliveryCategoryRules :: [Map Text CategoryRule]  
     , appBarcodeParams :: [BarcodeParams]
     , appFAURL :: String -- ^ URL to connect to FrontAccounting to post transactions
     , appFAUser :: String -- ^ User to connect to FrontAcounting
@@ -187,6 +188,7 @@ instance FromJSON AppSettings  where
         appReverseCategoryKey <- o .:? "category-reverse-key" .!= False
         appCustomerCategoryRules <- o .:? "customer-category-rules" .!= []
         appOrderCategoryRules <- o .:? "order-category-rules" .!= []
+        appDeliveryCategoryRules <- o .:? "delivery-category-rules" .!= []
         appFAExternalURL <- o .:? "fa-x-url" .!= "http://127.0.0.1" -- for outsideworld 
         appFAURL <- o .:? "fa-url" .!= "http://127.0.0.1" -- from inside the Fames container
         appFAUser <- o .:? "fa-user" .!= "admin"

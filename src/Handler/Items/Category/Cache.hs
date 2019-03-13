@@ -161,6 +161,7 @@ refreshCategoryCache force textm = do
   when (c == 0) (refreshCategoryFor textm Nothing)
   
 -- ** DB
+-- *** Standard rules
 loadStockMasterRuleInfos :: FilterExpression -> Handler [StockMasterRuleInfo]
 loadStockMasterRuleInfos stockFilter = do
   base <- basePriceList
@@ -258,6 +259,7 @@ categoriesFor rules = let
 -- Try to guess the provenance of each item in stock
 -- by comparing the quantity on hand in each container
 -- and what's been deliveredhiding((<&>))
+loadItemDeliveryForSku :: Key StockMaster -> SqlHandler [StockMove]
 loadItemDeliveryForSku (FA.StockMasterKey sku) = do
   defaultLocation <- appFADefaultLocation <$> getsYesod appSettings
 -- Load transactions "creating"  new item, ie purchase order delivery  and postive adjustments
@@ -316,10 +318,6 @@ partitionDeliveriesFIFO (These moves qoh) = let
   (map snd used', map snd leftover')
                                             
                                        
-
-  
-  
-
 
 
 
