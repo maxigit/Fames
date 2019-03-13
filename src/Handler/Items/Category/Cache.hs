@@ -134,13 +134,15 @@ refreshCategoryFor textm stockFilterM = do
 -- | Compute the given category using existing value for other categories
 computeOneCategory :: Text -> CategoryRule -> StockMasterRuleInfo -> SqlHandler [ItemCategory]
 computeOneCategory cat rule ruleInfo@StockMasterRuleInfo{..} = do
+  deliveryRule <- appDeliveryCategoryRule <$> getsYesod appSettings
   catFinder <- lift categoryFinderCached
   categories <- lift categoriesH
+  deliveries <- loadItemDeliveryForSku smStockId
   let otherCategories = filter (/= cat) categories
-      rulesMap = mapFromList [ (unpack c, unpack value)
+      rulesMap = mapFromList $ [ (unpack c, unpack value)
                              | c <- otherCategories
                              , value <-  maybeToList (catFinder c smStockId)
-                             ]
+                             ] <> mkItemDeliveryInput deliveryRule deliveries
       cat'values = applyCategoryRules rulesMap [(unpack cat, rule)] ruleInfo
       cats = unpack cat
   return [ ItemCategory (FA.unStockMasterKey $ smStockId) (pack key) (pack value)
@@ -204,6 +206,10 @@ loadStockMasterRuleInfos stockFilter = do
 --   :: [(String, CategoryRule)]
 --      -> StockMasterRuleInfo
 --      -> (Key StockMaster, Map String String)
+applyCategoryRules :: [(String, String)]
+                   -> [(String, CategoryRule)]
+                   -> StockMasterRuleInfo
+                   -> (Key StockMaster, Map String String)
 applyCategoryRules extraInputs rules =
   let inputKeys = ["sku"
               ,"description"
@@ -219,7 +225,7 @@ applyCategoryRules extraInputs rules =
               ,"inventoryAccount"
               ,"adjustmentAccount"
               ] -- inputMap key, outside of the lambda so it can be optimised and calculated only once
-      catRegexCache =  mapFromList (map (liftA2 (,) id mkCategoryRegex) (inputKeys  <> map fst rules))
+      catRegexCache =  mapFromList (map (liftA2 (,) id mkCategoryRegex) (inputKeys  <> map fst extraInputs <>  map fst rules))
   in \StockMasterRuleInfo{..}
      -> let
               sku = unStockMasterKey smStockId
@@ -320,8 +326,31 @@ partitionDeliveriesFIFO (These moves qoh) = let
                                             
                                        
 
-
-
+-- | Creates an input map (category:value) to be given as preset category
+-- needed to compute item batch category
+mkItemDeliveryInput :: Maybe CategoryRule -> [FA.StockMove] -> [(String, String)]
+mkItemDeliveryInput ruleM moves = let
+  inputKeys = ["trans_no", "location", "date", "reference", "type", "person"]
+  catRegexCache =  mapFromList (map (liftA2 (,) id mkCategoryRegex) inputKeys)
+  values = case ruleM of
+    Nothing -> map source moves
+    Just rule -> mapMaybe (\move -> computeCategory catRegexCache (source move) (ruleInput move) rule)  moves
+  ruleInput FA.StockMove{..} = RuleInput (Map.fromList
+    [ ("trans_no", show stockMoveTransNo)
+    , ("location", unpack stockMoveLocCode)
+    , ("date", show stockMoveTranDate)
+    , ("reference", unpack stockMoveReference)
+    , ("type", show stockMoveType)
+    , ("person", maybe "" show stockMovePersonId)
+    ]) Nothing
+  source FA.StockMove{..} = show stockMoveTranDate
+              <> " " <> showTransType (toEnum stockMoveType) -- full text 
+              <> " " <> show stockMoveType -- number for easier "selection"
+              <> "#" <>  show stockMoveTransNo
+              <> " -> " <> unpack stockMoveLocCode
+  nubbed = Data.List.nub . Data.List.sort $ filter (not . null) values
+  in [("fifo-deliveries", Data.List.intercalate " | " nubbed)]
+   
 
 
 
@@ -453,10 +482,6 @@ customerCategoriesFor rules = let
         ]
 
 
-
-
-
-
 -- * Order Category caches
 -- | Clears all order categories and computes the n first if given
 refreshOrderCategoryCache :: Maybe Int -> Handler ()
@@ -521,4 +546,3 @@ applyOrderCategoryRules rules =
                  ((("comment",) . unpack) <$> salesOrderComments) ?:
                  []
         in (salesOrderOrderNo, computeCategories catRegexCache rules ruleInput (unpack salesOrderReference))
-
