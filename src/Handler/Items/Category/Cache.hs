@@ -14,7 +14,7 @@ module Handler.Items.Category.Cache
 
 import  Import
 import FA as FA hiding (unUserKey)
-import Database.Persist.MySQL(unSqlBackendKey, rawSql, Single(..))
+import Database.Persist.MySQL(unSqlBackendKey, rawSql, Single(..), RawSql(..))
 import qualified Data.Map as LMap
 import qualified Data.Map.Strict as Map
 import qualified Data.List as Data.List
@@ -26,11 +26,43 @@ import Text.Printf(printf)
 import Data.Time (diffDays, addGregorianMonthsClip)
 -- * Types
 -- ** Items
-type StockMasterRuleInfo = (Key StockMaster
-                           , (Single String, Single String, Single String, Single String)
-                           , (Single (Maybe String), Single (Maybe String), Single (Maybe String), Single (Maybe String))
-                           , (Single String, Single String, Single String, Single String)
-                           , Single (Maybe Double))
+data StockMasterRuleInfo = StockMasterRuleInfo
+  { smStockId :: !(Key FA.StockMaster)
+  , smDescription :: !String
+  , smLongDescription :: !String
+  , smUnit :: !String
+  , smMbFlag :: !String
+  , smTaxTypeName :: !(Maybe String)
+  , smCategoryDescription :: !(Maybe String)
+  , smDimension1 :: !(Maybe String)
+  , smDimension2 :: !(Maybe String)
+  , smSalesAccount :: !String
+  , smCogsAccount :: !String
+  , smInventoryAccount :: !String
+  , smAdjustmentAccount :: !String
+  , smSalesPrice :: !(Maybe Double)
+  } deriving Show
+
+stockMasterRuleInfoToTuple StockMasterRuleInfo{..} =
+  ( smStockId
+  , (Single smDescription, Single smLongDescription, Single smUnit, Single smMbFlag)
+  , (Single smTaxTypeName, Single smCategoryDescription, Single smDimension1, Single smDimension2)
+  , (Single smSalesAccount, Single smCogsAccount, Single smInventoryAccount, Single smAdjustmentAccount)
+  , Single smSalesPrice
+  )
+stockMasterRuleInfoFromTuple ( smStockId
+                             , (Single smDescription, Single smLongDescription, Single smUnit, Single smMbFlag)
+                             , (Single smTaxTypeName, Single smCategoryDescription, Single smDimension1, Single smDimension2)
+                             , (Single smSalesAccount, Single smCogsAccount, Single smInventoryAccount, Single smAdjustmentAccount)
+                             , Single smSalesPrice
+                             ) = StockMasterRuleInfo{..}
+
+instance RawSql StockMasterRuleInfo where
+  rawSqlCols f = rawSqlCols f . stockMasterRuleInfoToTuple
+  rawSqlColCountReason = rawSqlColCountReason . stockMasterRuleInfoToTuple
+  rawSqlProcessRow = stockMasterRuleInfoFromTuple <$$> rawSqlProcessRow
+  
+
 -- ** Customers
 type DebtorsMasterRuleInfo = (Key DebtorsMaster
                            , (Single String, Single String, Single String, Single String) -- debtor infos
@@ -79,7 +111,7 @@ refreshCategoryFor textm stockFilterM = do
   stockMasters <- loadStockMasterRuleInfos stockFilter 
 
   _ <- runDB $ do
-       forM stockMasters  (\(sku, _, _, _, _) -> traceShowId <$> loadItemDeliveryForSku sku) 
+       forM stockMasters  (loadItemDeliveryForSku . smStockId) 
   -- if we are only computing one category
   -- load the other from the db instead of computing them
   let rules = map (first unpack) $ concatMap mapToList rulesMaps
@@ -100,18 +132,17 @@ refreshCategoryFor textm stockFilterM = do
 
 -- | Compute the given category using existing value for other categories
 computeOneCategory :: Text -> CategoryRule -> StockMasterRuleInfo -> Handler [ItemCategory]
-computeOneCategory cat rule stockMasterRuleInfo = do
+computeOneCategory cat rule ruleInfo@StockMasterRuleInfo{..} = do
   catFinder <- categoryFinderCached
   categories <- categoriesH
   let otherCategories = filter (/= cat) categories
       rulesMap = mapFromList [ (unpack c, unpack value)
                              | c <- otherCategories
-                             , value <-  maybeToList (catFinder c stockId)
+                             , value <-  maybeToList (catFinder c smStockId)
                              ]
-      cat'values = applyCategoryRules rulesMap [(unpack cat, rule)] stockMasterRuleInfo
-      (stockId, _, _, _, _)  = stockMasterRuleInfo
+      cat'values = applyCategoryRules rulesMap [(unpack cat, rule)] ruleInfo
       cats = unpack cat
-  return [ ItemCategory (FA.unStockMasterKey stockId) (pack key) (pack value)
+  return [ ItemCategory (FA.unStockMasterKey $ smStockId) (pack key) (pack value)
         | (key, value) <- mapToList  (snd cat'values)
         , key == cats
         ]
@@ -187,32 +218,28 @@ applyCategoryRules extraInputs rules =
               ,"adjustmentAccount"
               ] -- inputMap key, outside of the lambda so it can be optimised and calculated only once
       catRegexCache =  mapFromList (map (liftA2 (,) id mkCategoryRegex) (inputKeys  <> map fst rules))
-  in \(stockId
-                         , (Single description, Single longDescription, Single units, Single mbFlag)
-                         , (Single taxType, Single category, Single dimension1, Single dimension2 )
-                         , (Single salesAccount, Single cogsAccount, Single inventoryAccount, Single adjustmentAccount)
-                         , Single salesPrice )
+  in \StockMasterRuleInfo{..}
      -> let
-              sku = unStockMasterKey stockId
+              sku = unStockMasterKey smStockId
               ruleInput = RuleInput ( mapFromList 
                                     ( ("sku", unpack sku) :
-                                      ("description", description) :
-                                      ("longDescription", longDescription) :
-                                      ("unit", units) :
-                                      ("mbFlag", mbFlag) :
-                                      (("taxType",) <$> taxType) ?:
-                                      (("category",) <$> category) ?:
-                                      (("dimension1",) <$> dimension1) ?:
-                                      (("dimension2",) <$> dimension2) ?:
-                                      ("salesAccount", salesAccount) :
-                                      ("cogsAccount", cogsAccount) :
-                                      ("inventoryAccount", inventoryAccount) :
-                                      ("adjustmentAccount", adjustmentAccount) :
+                                      ("description", smDescription) :
+                                      ("longDescription", smLongDescription) :
+                                      ("unit", smUnit) :
+                                      ("mbFlag", smMbFlag) :
+                                      (("taxType",) <$> smTaxTypeName) ?:
+                                      (("category",) <$> smCategoryDescription) ?:
+                                      (("dimension1",) <$> smDimension1) ?:
+                                      (("dimension2",) <$> smDimension2) ?:
+                                      ("salesAccount", smSalesAccount) :
+                                      ("cogsAccount", smCogsAccount) :
+                                      ("inventoryAccount", smInventoryAccount) :
+                                      ("adjustmentAccount", smAdjustmentAccount) :
                                     extraInputs
                                     )
                                   )
-                                  salesPrice
-        in (stockId, computeCategories catRegexCache rules ruleInput (unpack sku))
+                                  smSalesPrice
+        in (smStockId, computeCategories catRegexCache rules ruleInput (unpack sku))
 
 
 categoriesFor :: [(String, CategoryRule)] -> StockMasterRuleInfo   -> [ItemCategory]
