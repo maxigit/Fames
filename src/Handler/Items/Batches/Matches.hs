@@ -7,8 +7,9 @@ import qualified Data.Csv as Csv
 import Data.List(scanl, nub)
 import Handler.CsvUtils
 import Handler.Items.Common
+import Handler.Items.Category.Cache
 import Data.Text(toTitle)
-import qualified FA
+import qualified FA as FA
 import Data.Maybe(fromJust)
 import Handler.Table
 import Database.Persist.Sql(rawSql, Single(..))

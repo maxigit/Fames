@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 756eb48c2424bfeaa0e0c3043e963be8513d71b9c2068e0ec367e9bc82df69f2
+-- hash: 269252bf6fa9e2c54300949d8c6baa101399c3b50b649405bbe6acddc9bff6c5
 
 name:           Fames
 version:        0.0.1
@@ -153,6 +153,7 @@ library
       Handler.Items.Batches
       Handler.Items.Batches.Matches
       Handler.Items.Category
+      Handler.Items.Category.Cache
       Handler.Items.Common
       Handler.Items.History
       Handler.Items.Index
@@ -512,6 +513,7 @@ test-suite ghcid
       Handler.Items.Batches
       Handler.Items.Batches.Matches
       Handler.Items.Category
+      Handler.Items.Category.Cache
       Handler.Items.Common
       Handler.Items.History
       Handler.Items.Index

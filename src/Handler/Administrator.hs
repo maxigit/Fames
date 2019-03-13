@@ -14,6 +14,7 @@ import Database.Persist.MySQL(unSqlBackendKey, Single(..))
 import FA as FA hiding (unUserKey)
 import Database.Persist.MySQL     (Single(..), rawSql)
 import Handler.Items.Category(getItemsCategoryTermsR)
+import qualified Handler.Items.Category.Cache as Cache
 
 -- | Page to test administrator authentication.
 -- might be empty
@@ -145,7 +146,7 @@ getAResetCategoryCacheR :: Handler Html
 getAResetCategoryCacheR = do
   catm <- lookupGetParam "category"
   stockFilterM <- lookupGetParam "stockFilter"
-  refreshCategoryFor catm (fromString . unpack <$> stockFilterM)
+  Cache.refreshCategoryFor catm (fromString . unpack <$> stockFilterM)
   setSuccess ("Category cache successfully refreshed")
   case catm of
     Nothing -> getAIndexR
@@ -154,16 +155,16 @@ getAResetCategoryCacheR = do
 -- ** Customer Categories
 getAResetCustomerCategoryCacheR :: Handler Html
 getAResetCustomerCategoryCacheR = do
-  refreshCustomerCategoryCache True
+  Cache.refreshCustomerCategoryCache True
   setSuccess ("Customer Category cache successfully refreshed")
   getACustomerCategoryR
   
 -- | Displays all customer, their info and computed category
 getACustomerCategoryR :: Handler Html
 getACustomerCategoryR = do
-  infos <- loadDebtorsMasterRuleInfos
+  infos <- Cache.loadDebtorsMasterRuleInfos
   cats <- customerCategoriesH
-  finder <- customerCategoryFinderCached
+  finder <- Cache.customerCategoryFinderCached
   defaultLayout $ do
     [whamlet|
    <h2> Customers
@@ -205,14 +206,14 @@ getACustomerCategoryR = do
 -- usefull when a new category is created
 getAResetOrderCategoryCacheR :: Handler Html
 getAResetOrderCategoryCacheR = do
-  refreshOrderCategoryCache (Just 1000)
+  Cache.refreshOrderCategoryCache (Just 1000)
   setSuccess ("Order category cache sucessfully refreshed")
   getAOrderCategoryR
 
 -- | Computes the categories for ALL orders 
 getAResetAllOrderCategoryCacheR :: Handler Html
 getAResetAllOrderCategoryCacheR = do
-  refreshOrderCategoryCache Nothing
+  Cache.refreshOrderCategoryCache Nothing
   setSuccess ("Order category cache sucessfully refreshed")
   getAOrderCategoryR
 
@@ -220,7 +221,7 @@ getAResetAllOrderCategoryCacheR = do
 -- can be called 
 getAComputeNewOrderCategoryCacheR :: Handler Html
 getAComputeNewOrderCategoryCacheR = do
-  refreshNewOrderCategoryCache (Just 1000)
+  Cache.refreshNewOrderCategoryCache (Just 1000)
   setSuccess ("New Order category cache sucessfully computed")
   getAOrderCategoryR
 

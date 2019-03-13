@@ -8,6 +8,7 @@ import FA
 import qualified DC as DC
 import Items
 import Handler.Items.Common
+import Handler.Items.Category.Cache
 import qualified Data.Map as Map
 import Data.Monoid(Endo(..), appEndo)
 import Data.Text(toTitle, replace, strip)

@@ -4,6 +4,7 @@ import Import
 import Items.Types
 import qualified Data.Csv as Csv
 import Handler.CsvUtils
+import Handler.Items.Category.Cache
 import Items.Internal
 import qualified Data.IntMap as IntMap
 import System.FilePath.Glob (glob)

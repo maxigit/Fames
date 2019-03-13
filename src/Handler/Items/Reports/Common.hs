@@ -5,6 +5,7 @@ import Handler.Table
 import Items.Types
 import Handler.Items.Common
 import Handler.Items.Reports.Forecast
+import Handler.Items.Category.Cache
 import Handler.Util
 import FA
 import Data.Time(addDays, formatTime, defaultTimeLocale)

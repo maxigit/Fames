@@ -4,6 +4,7 @@ import Database.Persist.MySQL
 import Yesod.Form.Bootstrap3
 import Handler.Util
 import Handler.Table
+import Handler.Items.Category.Cache
 import Data.Yaml(decodeEither, encode)
 import qualified FA as FA
 
