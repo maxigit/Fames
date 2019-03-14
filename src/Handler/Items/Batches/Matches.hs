@@ -333,10 +333,11 @@ colour'QualitysToHtml = mconcat . map colour'QualityToHtml
 
 -- | Load batches from sku but return on modified batch for each sku
 -- with the alias set to the style name
+-- lookp the batch name be "inside" the actual batch category
 loadSkuBatches :: Text -> FilterExpression -> SqlHandler [(Text, Key Batch)]
 loadSkuBatches batchCategory filterE = do
   let sql = "SELECT stock_id, batch_id FROM fames_item_category_cache "
-            <> " JOIN fames_batch ON (value = name) "
+            <> " JOIN fames_batch ON (name RLIKE concat('(.*| )*', value, '( |.*)*')) "
             <> "WHERE category = ? AND stock_id " <> keyw <> " ?"
       (keyw, v )  = filterEKeyword filterE
   rows <- rawSql sql [toPersistValue batchCategory, toPersistValue v]
