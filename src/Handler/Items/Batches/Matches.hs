@@ -102,21 +102,7 @@ instance Transformable (Entity Batch) Text where
 -- * Parsing
 parseMatchRows :: Text -> ByteString -> Handler (ParsingResult (MatchRow 'RawT) [MatchRow 'ValidT])
 parseMatchRows batchCategory bytes = do
-  let resultE = do -- Either
-      let columnMap = mapFromList $ map (,[]) ["Source", "SourceColour", "TargetColour", "Quality", "Comment"]
-          columnMap' = mapFromList $ map (,[]) ["SKU"]
-      raws <- ( parseSpreadsheet columnMap Nothing bytes 
-               <> (concat <$> parseSpreadsheet columnMap' Nothing bytes)
-              )
-             <|&> WrongHeader 
-      let rawOrPartials = map (\raw -> sequenceMatchRow raw <|&> const raw) raws :: [Either (MatchRow 'RawT) (MatchRow 'PartialT)]
-      partials <- sequence rawOrPartials <|&> const (InvalidFormat . lefts $ rawOrPartials)
-      let filleds = case partials of
-            [] -> []
-            (row:rows) -> scanl fillFromPrevious row rows
-      return $ zip raws filleds -- we return the raws row as well to be able to convert it back
-      -- to raw in validation failed on other row
-  case resultE of
+  case parseMatchRowsGo bytes of
     Left result -> return result
     Right raw'filleds -> do
       raw'validEs  <- mapM (mapM $ validateRow batchCategory) raw'filleds
@@ -126,6 +112,17 @@ parseMatchRows batchCategory bytes = do
                  Left _ -> InvalidData [] (lefts (map snd raw'validEs)) [ either id (const raw)  rawOrValid | (raw, rawOrValid) <- raw'validEs ]
       
         
+parseMatchRowsGo bytes = do -- Either
+      let columnMap = mapFromList $ map (,[]) ["Source", "SourceColour", "TargetColour", "Quality", "Comment"]
+          columnMap' = mapFromList $ map (,[]) ["SKU"]
+      raws <- ( parseSpreadsheet columnMap Nothing bytes <> (concat <$> parseSpreadsheet columnMap' Nothing bytes)) <|&> WrongHeader 
+      let rawOrPartials = map (\raw -> sequenceMatchRow raw <|&> const raw) raws :: [Either (MatchRow 'RawT) (MatchRow 'PartialT)]
+      partials <- sequence rawOrPartials <|&> const (InvalidFormat . lefts $ rawOrPartials)
+      let filleds = case partials of
+            [] -> []
+            (row:rows) -> scanl fillFromPrevious row rows
+      return $ zip raws filleds -- we return the raws row as well to be able to convert it back
+      -- to raw in validation failed on other row
   
 
 -- | sequence through fields functor
