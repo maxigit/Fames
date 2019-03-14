@@ -48,21 +48,29 @@ getItemsCategoryTermsR name = do
 
 
 -- * Test and previous category configuration
-data TesterParam = TesterParam {tpStockFilter :: FilterExpression, tpConfiguration :: Textarea, tpShowFields :: Bool} deriving Show
+data TesterParam = TesterParam
+  { tpStockFilter :: FilterExpression
+  , tpConfiguration :: Textarea
+  , tpDeliveryRule :: Maybe Textarea
+  , tpShowFields :: Bool
+  } deriving Show
 
 categoryTesterForm :: Maybe TesterParam -> _
 categoryTesterForm param = renderBootstrap3 BootstrapBasicForm form
   where form = TesterParam
          <$> areq filterEField "styles" (tpStockFilter <$> param)
          <*> areq textareaField "configuration" (tpConfiguration <$> param)
+         <*> aopt textareaField "delivery  rule" (tpDeliveryRule <$> param)
          <*> areq boolField "show fields" (tpShowFields <$> param)
 
 getItemsCategoryTesterR :: Handler Html
 getItemsCategoryTesterR = do
   rulesMaps <- appCategoryRules <$> getsYesod appSettings
+  deliveryRule <- appDeliveryCategoryRule <$> getsYesod appSettings
   let configuration = Textarea . decodeUtf8 $ encode rulesMaps
+      deliveryConf = Textarea . decodeUtf8 . encode <$> deliveryRule
       filter = ""
-  renderCategoryTester (TesterParam filter configuration False) Nothing
+  renderCategoryTester (TesterParam filter configuration deliveryConf False) Nothing
 
 postItemsCategoryTesterR :: Handler Html
 postItemsCategoryTesterR = do
@@ -99,18 +107,17 @@ allFields = [ "description"
             , "cogsAccount"
             , "inventoryAccount"
             , "adjustmentAccount"
+            , "fifo-deliveries"
             ]
 loadCategoriesWidget :: TesterParam -> Handler Widget
-loadCategoriesWidget (TesterParam stockFilter configuration showFields) = do 
-  traceShowM ("CONF", configuration)
+loadCategoriesWidget (TesterParam stockFilter configuration deliveryConf showFields) = do 
   let rulesE = decodeEither (encodeUtf8 $ unTextarea configuration) :: Either String [Map String CategoryRule]
-  traceShowM ("RULES", rulesE)
-  case rulesE of
-    Left err -> setError "Error in configuration" >> return [whamlet|<div.well>#{err}|]
-    Right ruleMaps -> do
-      stockMasters <- loadStockMasterRuleInfos stockFilter
-      let sku'categories = map (applyCategoryRules [] rules) (take 100 stockMasters)
-          rules = map (first unpack) (concatMap mapToList ruleMaps)
+      deliveryRuleE = sequence $ (decodeEither . encodeUtf8 . unTextarea) <$>  deliveryConf :: Either String (Maybe CategoryRule)
+  case (rulesE, deliveryRuleE) of
+    (Left err, _) -> setError "Error in configuration" >> return [whamlet|<div.well>#{err}|]
+    (_, Left err) -> setError "Error in delivery configuration" >> return [whamlet|<div.well>#{err}|]
+    (Right ruleMaps, Right deliveryRule) -> do
+      let rules = map (first unpack) (concatMap mapToList ruleMaps)
           all = if showFields then  allFields else []
           categories = Nothing : map Just all <>   map (Just . fst) rules 
           headerFn = (,[]) . maybe "sku" toHtml
@@ -121,9 +128,10 @@ loadCategoriesWidget (TesterParam stockFilter configuration showFields) = do
                       Just cat -> fmap ((,[]) . toHtml) $ lookup cat cats
 
             in (f, [])
-          
-
-      
+      stockMasters <- loadStockMasterRuleInfos stockFilter
+      sku'categories <- forM (take 100 stockMasters) $ \sm -> do
+            deliveries <- runDB $ loadItemDeliveryForSku (smStockId sm)
+            return $ applyCategoryRules [] deliveryRule rules (sm { smDeliveries = deliveries })
       return $ displayTable categories headerFn (map makeRow sku'categories)
 
   

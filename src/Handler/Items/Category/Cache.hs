@@ -4,12 +4,14 @@ module Handler.Items.Category.Cache
 , customerCategoryFinderCached
 , loadDebtorsMasterRuleInfos
 , loadStockMasterRuleInfos
+, loadItemDeliveryForSku
 , applyCategoryRules
 , refreshCategoryCache
 , refreshCategoryFor
 , refreshCustomerCategoryCache
 , refreshOrderCategoryCache
 , refreshNewOrderCategoryCache 
+, StockMasterRuleInfo(..)
 ) where
 
 import  Import
@@ -41,6 +43,7 @@ data StockMasterRuleInfo = StockMasterRuleInfo
   , smInventoryAccount :: !String
   , smAdjustmentAccount :: !String
   , smSalesPrice :: !(Maybe Double)
+  , smDeliveries :: [FA.StockMove]
   } deriving Show
 
 stockMasterRuleInfoToTuple StockMasterRuleInfo{..} =
@@ -50,7 +53,7 @@ stockMasterRuleInfoToTuple StockMasterRuleInfo{..} =
   , (Single smSalesAccount, Single smCogsAccount, Single smInventoryAccount, Single smAdjustmentAccount)
   , Single smSalesPrice
   )
-stockMasterRuleInfoFromTuple ( smStockId
+stockMasterRuleInfoFromTuple smDeliveries ( smStockId
                              , (Single smDescription, Single smLongDescription, Single smUnit, Single smMbFlag)
                              , (Single smTaxTypeName, Single smCategoryDescription, Single smDimension1, Single smDimension2)
                              , (Single smSalesAccount, Single smCogsAccount, Single smInventoryAccount, Single smAdjustmentAccount)
@@ -60,7 +63,7 @@ stockMasterRuleInfoFromTuple ( smStockId
 instance RawSql StockMasterRuleInfo where
   rawSqlCols f = rawSqlCols f . stockMasterRuleInfoToTuple
   rawSqlColCountReason = rawSqlColCountReason . stockMasterRuleInfoToTuple
-  rawSqlProcessRow = stockMasterRuleInfoFromTuple <$$> rawSqlProcessRow
+  rawSqlProcessRow = stockMasterRuleInfoFromTuple [] <$$> rawSqlProcessRow
   
 
 -- ** Customers
@@ -108,6 +111,7 @@ refreshCategoryFor textm stockFilterM = do
     Just sf -> return sf
     Nothing -> LikeFilter <$> appFAStockLikeFilter . appSettings <$> getYesod
   rulesMaps <- appCategoryRules <$> getsYesod appSettings
+  deliveryRule <- appDeliveryCategoryRule <$> getsYesod appSettings
   stockMasters <- loadStockMasterRuleInfos stockFilter 
   let rules = map (first unpack) $ concatMap mapToList rulesMaps
 
@@ -116,34 +120,35 @@ refreshCategoryFor textm stockFilterM = do
     -- Warning, we delete everything before having computed anything
     -- might be better to delete for a given sku in the form loop
     deleteWhere (criteria <> filterE id ItemCategoryStockId (Just stockFilter))
-    forM_ stockMasters $ \stockMaster -> do
+    forM_ stockMasters $ \stockMaster0 -> do
+      deliveries <- loadItemDeliveryForSku (smStockId stockMaster0)
+      let stockMaster = stockMaster0 { smDeliveries = deliveries}
     -- (loadItemDeliveryForSku . smStockId) 
       -- if we are only computing one category
       -- load the other from the db instead of computing them
       categories <- case textm of
-            Nothing -> return $ categoriesFor rules stockMaster
+            Nothing -> return $ categoriesFor deliveryRule rules stockMaster
             Just cat ->  do
               let  rulem = lookup (unpack cat) rules
               case rulem of
                 Nothing -> return []
-                Just rule -> computeOneCategory cat rule  stockMaster
+                Just rule -> computeOneCategory cat deliveryRule rule  stockMaster
       mapM_ insert_ categories
 
 
   
 -- | Compute the given category using existing value for other categories
-computeOneCategory :: Text -> CategoryRule -> StockMasterRuleInfo -> SqlHandler [ItemCategory]
-computeOneCategory cat rule ruleInfo@StockMasterRuleInfo{..} = do
+computeOneCategory :: Text -> (Maybe CategoryRule) -> CategoryRule -> StockMasterRuleInfo -> SqlHandler [ItemCategory]
+computeOneCategory cat deliveryRule rule ruleInfo@StockMasterRuleInfo{..} = do
   deliveryRule <- appDeliveryCategoryRule <$> getsYesod appSettings
   catFinder <- lift categoryFinderCached
   categories <- lift categoriesH
-  deliveries <- loadItemDeliveryForSku smStockId
   let otherCategories = filter (/= cat) categories
       rulesMap = mapFromList $ [ (unpack c, unpack value)
                              | c <- otherCategories
                              , value <-  maybeToList (catFinder c smStockId)
-                             ] <> mkItemDeliveryInput deliveryRule deliveries
-      cat'values = applyCategoryRules rulesMap [(unpack cat, rule)] ruleInfo
+                             ]
+      cat'values = applyCategoryRules rulesMap deliveryRule [(unpack cat, rule)] ruleInfo
       cats = unpack cat
   return [ ItemCategory (FA.unStockMasterKey $ smStockId) (pack key) (pack value)
         | (key, value) <- mapToList  (snd cat'values)
@@ -207,10 +212,11 @@ loadStockMasterRuleInfos stockFilter = do
 --      -> StockMasterRuleInfo
 --      -> (Key StockMaster, Map String String)
 applyCategoryRules :: [(String, String)]
-                   -> [(String, CategoryRule)]
+                   -> Maybe CategoryRule -- ^ Delivery rules
+                   -> [(String, CategoryRule)] -- ^ Categories rules
                    -> StockMasterRuleInfo
                    -> (Key StockMaster, Map String String)
-applyCategoryRules extraInputs rules =
+applyCategoryRules extraInputs deliveryRule rules =
   let inputKeys = ["sku"
               ,"description"
               ,"longDescription"
@@ -224,7 +230,8 @@ applyCategoryRules extraInputs rules =
               ,"cogsAccount"
               ,"inventoryAccount"
               ,"adjustmentAccount"
-              ] -- inputMap key, outside of the lambda so it can be optimised and calculated only once
+              ] <> deliveryKeys -- inputMap key, outside of the lambda so it can be optimised and calculated only once
+      (deliveryKeys, mkDeliveryCategories) = mkItemDeliveryInput deliveryRule
       catRegexCache =  mapFromList (map (liftA2 (,) id mkCategoryRegex) (inputKeys  <> map fst extraInputs <>  map fst rules))
   in \StockMasterRuleInfo{..}
      -> let
@@ -243,16 +250,16 @@ applyCategoryRules extraInputs rules =
                                       ("cogsAccount", smCogsAccount) :
                                       ("inventoryAccount", smInventoryAccount) :
                                       ("adjustmentAccount", smAdjustmentAccount) :
-                                    extraInputs
+                                    extraInputs <> mkDeliveryCategories smDeliveries
                                     )
                                   )
                                   smSalesPrice
         in (smStockId, computeCategories catRegexCache rules ruleInput (unpack sku))
 
 
-categoriesFor :: [(String, CategoryRule)] -> StockMasterRuleInfo   -> [ItemCategory]
-categoriesFor rules = let
-  applyCached =  applyCategoryRules [] rules
+categoriesFor :: Maybe CategoryRule -> [(String, CategoryRule)] -> StockMasterRuleInfo   -> [ItemCategory]
+categoriesFor deliveryRule rules = let
+  applyCached =  applyCategoryRules [] deliveryRule rules
   in \info -> let
       (sku, categories ) = applyCached info
 
@@ -328,29 +335,31 @@ partitionDeliveriesFIFO (These moves qoh) = let
 
 -- | Creates an input map (category:value) to be given as preset category
 -- needed to compute item batch category
-mkItemDeliveryInput :: Maybe CategoryRule -> [FA.StockMove] -> [(String, String)]
-mkItemDeliveryInput ruleM moves = let
+mkItemDeliveryInput :: Maybe CategoryRule -> ([String], [FA.StockMove] -> [(String, String)])
+mkItemDeliveryInput ruleM = (inputKeys, fn) where
   inputKeys = ["trans_no", "location", "date", "reference", "type", "person"]
   catRegexCache =  mapFromList (map (liftA2 (,) id mkCategoryRegex) inputKeys)
-  values = case ruleM of
-    Nothing -> map source moves
-    Just rule -> mapMaybe (\move -> computeCategory catRegexCache (source move) (ruleInput move) rule)  moves
-  ruleInput FA.StockMove{..} = RuleInput (Map.fromList
-    [ ("trans_no", show stockMoveTransNo)
-    , ("location", unpack stockMoveLocCode)
-    , ("date", show stockMoveTranDate)
-    , ("reference", unpack stockMoveReference)
-    , ("type", show stockMoveType)
-    , ("person", maybe "" show stockMovePersonId)
-    ]) Nothing
-  source FA.StockMove{..} = show stockMoveTranDate
-              <> " " <> showTransType (toEnum stockMoveType) -- full text 
-              <> " " <> show stockMoveType -- number for easier "selection"
-              <> "#" <>  show stockMoveTransNo
-              <> " [" <> unpack stockMoveLocCode
-              <> "] @" <> maybe "" show stockMovePersonId
-  nubbed = Data.List.nub . Data.List.sort $ filter (not . null) values
-  in [("fifo-deliveries", Data.List.intercalate " | " nubbed)]
+  fn moves = let
+      values = case ruleM of
+        Nothing -> map source moves
+        Just rule -> mapMaybe (\move -> computeCategory catRegexCache (source move) (ruleInput move) rule)  moves
+      ruleInput FA.StockMove{..} = RuleInput (Map.fromList
+        [ ("trans_no", show stockMoveTransNo)
+        , ("location", unpack stockMoveLocCode)
+        , ("date", show stockMoveTranDate)
+        , ("reference", unpack stockMoveReference)
+        , ("type", show stockMoveType)
+        , ("person", maybe "" show stockMovePersonId)
+        ]) Nothing
+      source FA.StockMove{..} = show stockMoveTranDate
+                  <> " " <> showTransType (toEnum stockMoveType) -- full text 
+                  <> " " <> show stockMoveType -- number for easier "selection"
+                  <> "#" <>  show stockMoveTransNo
+                  <> " [" <> unpack stockMoveLocCode
+                  <> "] @" <> maybe "" show stockMovePersonId
+      nubbed = Data.List.nub . Data.List.sort $ filter (not . null) values
+      in [("fifo-deliveries", Data.List.intercalate " | " nubbed)]
+
    
 
 -- * Customers
