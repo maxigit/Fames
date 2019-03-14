@@ -81,10 +81,10 @@ parseJSON' key0 v = let
 unpackT :: Text -> String
 unpackT = unpack
 instance ToJSON CategoryRule where
-  toJSON (SkuTransformer (RegexSub _ origin replace)) = toJSON $ origin <> "/" <> replace
+  toJSON (SkuTransformer (RegexSub _ origin replace)) = object [ pack replace .= origin ]  -- origin <> "/" <> replace
   toJSON (CategoryDisjunction rules) = toJSON  rules
-  toJSON (SalesPriceRanger (PriceRanger fromM toM target)) = object [pack target .= object ["sales_price" .= priceJ]] where
-    priceJ = object ["from" .= fromM, "to" .= toM]
+  toJSON (SalesPriceRanger (PriceRanger fromM toM target)) = object [pack target .= paramJ] where
+    paramJ = object ["source" .= ("sales_price" :: Text), "from" .= fromM, "to" .= toM]
   toJSON (SourceTransformer source rule) = object ["source" .= source, "rules" .= rule ]
   
 
@@ -114,7 +114,8 @@ computeCategory catRegexCache source input rule = case rule of
 
 subRegex :: RegexSub -> String -> Maybe String
 subRegex (RegexSub regex _ replace) s = let
-  in if isJust $ Rg.matchRegex regex s
+  in seq ( traceShowId ("REG", replace, s) ) $
+     if isJust $ Rg.matchRegex regex s
      then Just . pack $ Rg.subRegex regex s replace
      else Nothing
 
