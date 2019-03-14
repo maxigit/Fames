@@ -347,12 +347,11 @@ mkItemDeliveryInput ruleM moves = let
               <> " " <> showTransType (toEnum stockMoveType) -- full text 
               <> " " <> show stockMoveType -- number for easier "selection"
               <> "#" <>  show stockMoveTransNo
-              <> " -> " <> unpack stockMoveLocCode
+              <> " [" <> unpack stockMoveLocCode
+              <> "] @" <> maybe "" show stockMovePersonId
   nubbed = Data.List.nub . Data.List.sort $ filter (not . null) values
   in [("fifo-deliveries", Data.List.intercalate " | " nubbed)]
    
-
-
 
 -- * Customers
 -- | Return a function finding the customerCategory given a style
