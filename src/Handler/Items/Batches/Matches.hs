@@ -100,8 +100,8 @@ instance Transformable (Entity Batch) Text where
   transform (Entity _ batch) = batchName batch
 
 -- * Parsing
-parseMatchRows :: ByteString -> Handler (ParsingResult (MatchRow 'RawT) [MatchRow 'ValidT])
-parseMatchRows bytes = do
+parseMatchRows :: Text -> ByteString -> Handler (ParsingResult (MatchRow 'RawT) [MatchRow 'ValidT])
+parseMatchRows batchCategory bytes = do
   let resultE = do -- Either
       let columnMap = mapFromList $ map (,[]) ["Source", "SourceColour", "TargetColour", "Quality", "Comment"]
           columnMap' = mapFromList $ map (,[]) ["SKU"]
@@ -119,7 +119,7 @@ parseMatchRows bytes = do
   case resultE of
     Left result -> return result
     Right raw'filleds -> do
-      raw'validEs  <- mapM (mapM validateRow) raw'filleds
+      raw'validEs  <- mapM (mapM $ validateRow batchCategory) raw'filleds
       -- check if everything is valid
       return $ case sequence (map snd raw'validEs) of
                  Right valids -> ParsingCorrect valids
@@ -144,14 +144,14 @@ fillFromPrevious p@(MatchRow source0 _sourceColour0 _targetColour0 target0 _qual
              quality
              comment
 
-validateRow :: MatchRow 'PartialT -> Handler (Either (MatchRow 'RawT) (MatchRow 'ValidT))
-validateRow row@(MatchRow (Just sourcet) (sourceColourm)
+validateRow :: Text -> MatchRow 'PartialT -> Handler (Either (MatchRow 'RawT) (MatchRow 'ValidT))
+validateRow batchCategory row@(MatchRow (Just sourcet) (sourceColourm)
                       (targetColourm) (Just targett)
                       (Just quality) comment
             )
   = do
-  sourcem <- findBatch (validValue sourcet) (validValue <$> sourceColourm)
-  targetm <- findBatch (validValue targett) (validValue <$> targetColourm)
+  sourcem <- findBatch batchCategory (validValue sourcet) (validValue <$> sourceColourm)
+  targetm <- findBatch batchCategory (validValue targett) (validValue <$> targetColourm)
   case (sourcem, targetm) of
     (Just (sourceBatch, sourceColour'), Just (targetBatch, targetColour')) -> let
       guessForSource :: a -> ValidField a
@@ -172,7 +172,7 @@ validateRow row@(MatchRow (Just sourcet) (sourceColourm)
                                            Just _ -> Right (transform targett)
                          in (validateRow' row)  { source = sourceField, target = targetField}
 
-validateRow row = return $ Left (validateRow' row)
+validateRow _ row = return $ Left (validateRow' row)
 
 validateRow' :: MatchRow 'PartialT -> MatchRow 'RawT
 validateRow' (MatchRow sourcem sourceColourm targetColourm targetm qualitym commentm) = 
@@ -186,21 +186,20 @@ validateRow' (MatchRow sourcem sourceColourm targetColourm targetm qualitym comm
 
   
 -- * Batch finding
-findBatch :: Text -> Maybe Text -> Handler (Maybe (Entity Batch, Text))
-findBatch styleOrBatch (Just colour) = do
+findBatch :: Text -> Text -> Maybe Text -> Handler (Maybe (Entity Batch, Text))
+findBatch batchCategory styleOrBatch (Just colour) = do
   -- try batch
   batchByName <- runDB $ getBy (UniqueBName styleOrBatch)
   case batchByName of
     Just batch -> return $ Just (batch, colour)
-    Nothing -> findBatchForSku (styleVarToSku styleOrBatch colour)
-findBatch sku Nothing = findBatchForSku  sku
-findBatchForSku :: Text -> Handler (Maybe (Entity Batch, Text))
-findBatchForSku sku = do
+    Nothing -> findBatchForSku batchCategory (styleVarToSku styleOrBatch colour)
+findBatch batchCategory sku Nothing = findBatchForSku  batchCategory sku
+findBatchForSku :: Text -> Text -> Handler (Maybe (Entity Batch, Text))
+findBatchForSku batchS sku = do
   skuToStyleVar <- skuToStyleVarH
   catFinder <- categoryFinderCached
   categories <- categoriesH
-  let batchS = "batch"
-      (_, colour) = skuToStyleVar sku
+  let (_, colour) = skuToStyleVar sku
   case (batchS `elem` categories,  colour) of
     (False, _ ) -> do
       setError("Batch category not set. Please contact your Administrator")
@@ -334,13 +333,13 @@ colour'QualitysToHtml = mconcat . map colour'QualityToHtml
 
 -- | Load batches from sku but return on modified batch for each sku
 -- with the alias set to the style name
-loadSkuBatches :: FilterExpression -> SqlHandler [(Text, Key Batch)]
-loadSkuBatches filterE = do
+loadSkuBatches :: Text -> FilterExpression -> SqlHandler [(Text, Key Batch)]
+loadSkuBatches batchCategory filterE = do
   let sql = "SELECT stock_id, batch_id FROM fames_item_category_cache "
             <> " JOIN fames_batch ON (value = name) "
-            <> "WHERE category = 'batch' AND stock_id " <> keyw <> "?"
+            <> "WHERE category = ? AND stock_id " <> keyw <> " ?"
       (keyw, v )  = filterEKeyword filterE
-  rows <- rawSql sql [toPersistValue v]
+  rows <- rawSql sql [toPersistValue batchCategory, toPersistValue v]
   return $ map (\(Single sku, Single batchId) -> (sku, batchId)) rows
 
 

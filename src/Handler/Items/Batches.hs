@@ -41,10 +41,12 @@ data BatchRole = AsColumn | AsRow deriving (Show, Read, Eq)
 data MatchTableParam  = MatchTableParam
   { mtBatchRole :: [(Key Batch, BatchRole) ] -- wether a batch is displayed as a column or row or not a all
   , mtSkuFilter :: Maybe FilterExpression -- 
+  , mtBatchCategory :: Text -- which category to use as batch
   } deriving (Show, Read, Eq)
-matchTableForm = renderBootstrap3 BootstrapInlineForm form where
+matchTableForm categories = renderBootstrap3 BootstrapInlineForm form where
   form = MatchTableParam <$> pure [] -- filled manually by parsing params
                          <*> aopt filterEField "Sku" Nothing
+                         <*> areq (selectFieldList $ zip categories categories ) "batch category" Nothing
 
 -- * Handler
 -- ** All batches
@@ -52,7 +54,8 @@ getItemBatchesR :: Handler Html
 getItemBatchesR = do
   renderUrl <- getUrlRenderParams
   batcheEs <- runDB $ loadBatches
-  ((_, form), encType) <- runFormGet matchTableForm
+  categories <- categoriesH
+  ((_, form), encType) <- runFormGet $ matchTableForm categories
   let allBatches = batchTables renderUrl roleRadioColumns batcheEs
       mainPanel = infoPanel "All Batches" [whamlet|
         <form role=form method=get action="@{ItemsR ItemBatchMatchTableR}" encType=#{encType}>
@@ -116,42 +119,44 @@ getItemEditBatchR key = return "Todo"
 postItemEditBatchR :: Int64 -> Handler Html
 postItemEditBatchR key = return "Todo"
 
--- saveMatchesForm text = renderBootstrap3 BootstrapBasicForm form where
---   form = (,) <$> undefined <*> undefined
---   -- form = unTextarea <$> areq textareaField "dimensions" (fmap Textarea text)
-
--- saveMatchesForm :: Maybe (Encoding, (DocumentHash, Text)) -> _ -> _ (Form (Encoding, (DocumentHash, Text)), _ ) 
+-- saveMatchesForm :: Maybe (Encoding, ((DocumentHash, Text), (_, _, _))) -> _ -> _ (Form (Encoding, (DocumentHash, Text)), _ ) 
 saveMatchesForm encoding'hash'''pathM''day'''operator = renderBootstrap3 BootstrapBasicForm  form where
   form = (,) <$> areq hiddenField "encoding" (fst <$> encoding'hash'''pathM''day'''operator )
-             <*> ((,) <$>  ((,) <$> areq hiddenField "key" (fst . fst . snd <$> encoding'hash'''pathM''day'''operator)
-                                <*>  areq hiddenField "path" (snd . fst . snd <$> encoding'hash'''pathM''day'''operator)
+             <*> ((,) <$>  ((,) <$> areq hiddenField "" (fst . fst . snd <$> encoding'hash'''pathM''day'''operator)
+                                <*>  areq hiddenField "" (snd . fst . snd <$> encoding'hash'''pathM''day'''operator)
                             )
-                      <*> ((,) <$> areq hiddenField "day"  ( fst . snd . snd <$> encoding'hash'''pathM''day'''operator)
-                                <*> areq hiddenField "operator"  ( snd. snd . snd <$> encoding'hash'''pathM''day'''operator)
+                      <*> ((,,) <$> areq hiddenField ""  ( view1 . snd . snd <$> encoding'hash'''pathM''day'''operator)
+                                <*> areq hiddenField ""  ( view2 . snd . snd <$> encoding'hash'''pathM''day'''operator)
+                                <*> areq hiddenField ""  ( view3 . snd . snd <$> encoding'hash'''pathM''day'''operator)
                           )
                  )
+  view1 (a, _, _ ) = a
+  view2 (_, b, _ ) = b
+  view3 (_, _, c ) = c
 
 -- ** Upload
 uploadBatchExtra =  do
   today <- todayH
+  categories <- categoriesH
   let operatorOptions = optionsPersistKey [OperatorActive ==. True] [Asc OperatorNickname] operatorNickname
-  return ( (,) <$>  areq dayField "Date" (Just today)
-            <*> areq (selectField operatorOptions) "Operator" Nothing
+  return ( (,,) <$>  areq dayField "Date" (Just today)
+           <*> areq (selectField operatorOptions) "Operator" Nothing
+           <*> areq (selectFieldList $ zip categories categories) "Operator" Nothing
          )
 postItemBatchUploadMatchesR :: Int64 -> Handler Html
 postItemBatchUploadMatchesR key = do
   extra <- uploadBatchExtra
-  ((fileInfo,encoding, (day, operator)), (view, encType)) <- unsafeRunFormPost (uploadFileFormInline extra)
+  ((fileInfo,encoding, (day, operator, batchCategory)), (view, encType)) <- unsafeRunFormPost (uploadFileFormInline extra)
   Just (bytes, hash, path ) <- readUploadOrCacheUTF8 encoding (Just fileInfo) Nothing Nothing
 
-  parsingResult <- parseMatchRows bytes
+  parsingResult <- parseMatchRows batchCategory bytes
   let onSuccess rows = do
         -- check if the spreadhsheet has already been uploaded
         (documentKey'msgM) <- runDB $ loadAndCheckDocumentKey hash
         forM documentKey'msgM $ \(_, msg) -> do
            setWarning msg
         setSuccess "Spreadsheet parsed successfully"
-        (uploadFileFormW, encType) <- generateFormPost $ saveMatchesForm (Just (encoding, ((hash, path), (day, operator))))
+        (uploadFileFormW, encType) <- generateFormPost $ saveMatchesForm (Just (encoding, ((hash, path), (day, operator, batchCategory))))
         return [whamlet|
               ^{render (map unvalidateRow rows)} 
               <div.well>
@@ -168,7 +173,7 @@ postItemBatchSaveMatchesR = do
   actionM <- lookupPostParam "action"
   case actionM of
     Just "save" -> do
-      ((encoding, ((hash, path), (day, operator)) ), _) <- unsafeRunFormPost (saveMatchesForm Nothing)
+      ((encoding, ((hash, path), (day, operator, batchCategory)) ), _) <- unsafeRunFormPost (saveMatchesForm Nothing)
       Just (bytes, hash, _) <- readUploadOrCacheUTF8 encoding Nothing (Just hash) (Just path)
       let onSuccess valids = runDB $ do
             let finals = map finalizeRow valids
@@ -179,7 +184,7 @@ postItemBatchSaveMatchesR = do
             let matches = map (finalRowToMatch day (Just operator) (docKey)) finals
             mapM_ insert_ matches
             setSuccess "Batch matches uploaded successfully"
-      parsingResult <- parseMatchRows bytes
+      parsingResult <- parseMatchRows batchCategory bytes
       renderParsingResult (\msg _ -> msg) onSuccess parsingResult
     _ ->  return ()
   getItemBatchesR
@@ -206,7 +211,8 @@ getItemBatchMatchTableR = do
 
 getMatchTableParam :: Handler MatchTableParam
 getMatchTableParam = do
-  (param, _) <- unsafeRunFormGet matchTableForm
+  categories <- categoriesH
+  (param, _) <- unsafeRunFormGet $ matchTableForm categories
   key'values <- reqGetParams <$> getRequest
   let radios = mapMaybe (\(k, v) -> (,) <$> (stripPrefix radioNamePrefix k >>= readMay )
                                         <*> readMay v
@@ -222,7 +228,7 @@ loadMatchTable param | Just skuFilter <- mtSkuFilter param  = do
   let columns = map fst $ filter ((== AsColumn) . snd) (mtBatchRole param)
   skuToStyleVar <- skuToStyleVarH
   tableW <- runDB $ do
-      sku'batchIds <- loadSkuBatches skuFilter
+      sku'batchIds <- loadSkuBatches (mtBatchCategory param) skuFilter
       let rows = List.nub $ sort $ map snd sku'batchIds
       -- load batch the correct way
       normal <- selectList (BatchMatchSource <-?. rows <> BatchMatchTarget <-?. columns) []

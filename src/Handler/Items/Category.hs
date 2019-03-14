@@ -108,6 +108,8 @@ allFields = [ "description"
             , "inventoryAccount"
             , "adjustmentAccount"
             , "fifo-deliveries"
+            , "fifo-deliveries-with-qoh"
+            , "fifo-deliveries-with-short-qoh"
             ]
 loadCategoriesWidget :: TesterParam -> Handler Widget
 loadCategoriesWidget (TesterParam stockFilter configuration deliveryConf showFields) = do 
@@ -133,10 +135,4 @@ loadCategoriesWidget (TesterParam stockFilter configuration deliveryConf showFie
             deliveries <- runDB $ loadItemDeliveryForSku (smStockId sm)
             return $ applyCategoryRules [] deliveryRule rules (sm { smDeliveries = deliveries })
       return $ displayTable categories headerFn (map makeRow sku'categories)
-
-  
-
-  
-  
-  
 

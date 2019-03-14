@@ -359,9 +359,11 @@ mkItemDeliveryInput ruleM = (inputKeys, fn) where
   inputKeys = ["trans_no", "location", "date", "reference", "type", "person"]
   catRegexCache =  mapFromList (map (liftA2 (,) id mkCategoryRegex) inputKeys)
   fn moves = let
-      values = case ruleM of
-        Nothing -> map source moves
-        Just rule -> mapMaybe (\move -> computeCategory catRegexCache (source move) (ruleInput move) rule)  moves
+      value'qohs = case ruleM of
+        Nothing -> map (liftA2 (,) source stockMoveQty) moves
+        Just rule -> mapMaybe (\move -> computeCategory catRegexCache (source move) (ruleInput move) rule
+                                        <&> (,stockMoveQty move)
+                              )  moves
       ruleInput FA.StockMove{..} = RuleInput (Map.fromList
         [ ("trans_no", show stockMoveTransNo)
         , ("location", unpack stockMoveLocCode)
@@ -378,8 +380,17 @@ mkItemDeliveryInput ruleM = (inputKeys, fn) where
                   <> " location=" <> unpack stockMoveLocCode
                   <> " @" <> maybe "" show stockMovePersonId
                   <> " ref=" <> unpack stockMoveReference 
-      nubbed = Data.List.nub . Data.List.sort $ filter (not . null) values
-      in [("fifo-deliveries", Data.List.intercalate " | " nubbed)]
+      -- group batch by value and sum quantities
+      valueQohMap = LMap.fromListWith (+) value'qohs
+      withQoh = map (\(v,q) -> v ++ " qoh=" ++ show (floor q)) (LMap.toList valueQohMap)
+      withQoh' = map (\(v,q) -> v ++ " +" ++ show (floor q)) (LMap.toList valueQohMap)
+      mkCategory catName vs = (catName, Data.List.intercalate " | " vs)
+      in mkCategory "fifo-deliveries" (LMap.keys valueQohMap) :
+         mkCategory "fifo-deliveries-with-qoh" withQoh :
+         mkCategory "fifo-deliveries-with-short-qoh" withQoh' :
+         []
+
+
 
    
 
