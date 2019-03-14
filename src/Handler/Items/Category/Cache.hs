@@ -272,19 +272,37 @@ categoriesFor deliveryRule rules = let
 -- ***  Track delivery
 -- Try to guess the provenance of each item in stock
 -- by comparing the quantity on hand in each container
--- and what's been deliveredhiding((<&>))
+-- and what's been delivered.
+-- We cheat a bit and replace the reference with the Purchase order ref
+-- if possible
 loadItemDeliveryForSku :: Key StockMaster -> SqlHandler [StockMove]
 loadItemDeliveryForSku (FA.StockMasterKey sku) = do
   defaultLocation <- appFADefaultLocation <$> getsYesod appSettings
 -- Load transactions "creating"  new item, ie purchase order delivery  and postive adjustments
-  moves <- selectList [FA.StockMoveType <-. (map fromEnum [ST_SUPPRECEIVE, ST_INVADJUST]),  FA.StockMoveStockId ==. sku ]
-             [Asc FA.StockMoveStockId, Asc FA.StockMoveLocCode, Asc FA.StockMoveTranDate]
+  let moveSql = "SELECT ??, po.requisition_no "
+              <> "FROM 0_stock_moves "
+              <> "LEFT JOIN 0_grn_batch AS b ON (b.id = trans_no and type =?)"
+              <> "LEFT JOIN 0_purch_orders AS po ON (b.purch_order_no = po.order_no)"
+              <> " WHERE type IN (?,?) AND stock_id = ? "
+              <> "ORDER BY stock_id, loc_code, tran_date"
+  
+  move'pos <- rawSql moveSql [ toPersistValue (fromEnum ST_SUPPRECEIVE)
+                          , toPersistValue (fromEnum ST_SUPPRECEIVE)
+                          , toPersistValue (fromEnum ST_INVADJUST)
+                          , toPersistValue sku
+                          ]
+  let moves = map (\(Entity _ move, Single poRefM) -> case poRefM of
+                     Nothing -> move
+                     Just ref -> move { stockMoveReference = "PO=" <> ref } -- stockMover reference should be null 
+                  ) move'pos
+  -- [FA.StockMoveType <-. (map fromEnum [ST_SUPPRECEIVE, ST_INVADJUST]),  FA.StockMoveStockId ==. sku ]
+  --           [Asc FA.StockMoveStockId, Asc FA.StockMoveLocCode, Asc FA.StockMoveTranDate]
   
   -- load qoh in each container
   qohs <- selectList [FA.DenormQohStockId ==. Just sku] [Asc FA.DenormQohLocCode]
 
   let locQohMap = Map.fromAscList $ map ((fromJust . FA.denormQohLocCode &&& fromJust . FA.denormQohQuantity) . entityVal) qohs
-      locTransMap = groupAscAsMap  FA.stockMoveLocCode (:[])  (map entityVal moves)
+      locTransMap = groupAscAsMap  FA.stockMoveLocCode (:[])  moves
       locs = align locTransMap locQohMap
 
       defLocM = lookup defaultLocation locs
@@ -297,6 +315,7 @@ loadItemDeliveryForSku (FA.StockMasterKey sku) = do
                        (fromMaybe 0 (defLocM >>= preview there))
       (_, remainers) = partitionDeliveriesFIFO defThese
 
+  -- traceShowM ("used", used, "QOH", locQohMap)
   return remainers
 
 
@@ -355,8 +374,9 @@ mkItemDeliveryInput ruleM = (inputKeys, fn) where
                   <> " " <> showTransType (toEnum stockMoveType) -- full text 
                   <> " " <> show stockMoveType -- number for easier "selection"
                   <> "#" <>  show stockMoveTransNo
-                  <> " [" <> unpack stockMoveLocCode
-                  <> "] @" <> maybe "" show stockMovePersonId
+                  <> " location=" <> unpack stockMoveLocCode
+                  <> " @" <> maybe "" show stockMovePersonId
+                  <> " ref=" <> unpack stockMoveReference 
       nubbed = Data.List.nub . Data.List.sort $ filter (not . null) values
       in [("fifo-deliveries", Data.List.intercalate " | " nubbed)]
 
