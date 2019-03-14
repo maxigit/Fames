@@ -188,7 +188,6 @@ parseMatchRowsGo bytes = do -- Either
             (row:rows) -> scanl fillFromPrevious row rows
       return $ zip raws filleds -- we return the raws row as well to be able to convert it back
       -- to raw in validation failed on other row
-  
 
 -- | sequence through fields functor
 sequenceMatchRow MatchRow{..} = MatchRow <$> source <*> sourceColour
