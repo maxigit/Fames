@@ -388,6 +388,7 @@ mkItemDeliveryInput ruleM = (inputKeys, fn) where
       in mkCategory "fifo-deliveries" (LMap.keys valueQohMap) :
          mkCategory "fifo-deliveries-with-qoh" withQoh :
          mkCategory "fifo-deliveries-with-short-qoh" withQoh' :
+         mkCategory "fifo-deliveries-by-qoh" (map fst $ sortOn (Down . snd) $ LMap.toList valueQohMap) :
          []
 
 
