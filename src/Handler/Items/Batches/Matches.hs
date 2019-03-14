@@ -320,7 +320,7 @@ buildTableForSku renderColour'Qualitys sku'batches columnBatches (ForBuildTable 
 
   -- batchMap = groupAsMap entityKey  (\(Entity _ Batch{..}) -> fromMaybe batchName batchAlias ) (columnBatches)
   rowsForTables = [ (colFn, [])
-                  | sku'batch <- sku'batches
+                  | sku'batch <- sortOn fst sku'batches
                   , let colFn (_colname,  getter) = getter sku'batch <&> (,[]) . either id (toHtml . renderPersistValue)
                   ]
   in ( columns
