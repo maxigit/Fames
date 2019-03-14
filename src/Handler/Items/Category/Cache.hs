@@ -281,10 +281,10 @@ loadItemDeliveryForSku (FA.StockMasterKey sku) = do
 -- Load transactions "creating"  new item, ie purchase order delivery  and postive adjustments
   let moveSql = "SELECT ??, po.requisition_no "
               <> "FROM 0_stock_moves "
-              <> "LEFT JOIN 0_grn_batch AS b ON (b.id = trans_no and type =?)"
-              <> "LEFT JOIN 0_purch_orders AS po ON (b.purch_order_no = po.order_no)"
-              <> " WHERE type IN (?,?) AND stock_id = ? "
-              <> "ORDER BY stock_id, loc_code, tran_date"
+              <> "LEFT JOIN 0_grn_batch AS b ON (b.id = trans_no and type =?) "
+              <> "LEFT JOIN 0_purch_orders AS po ON (b.purch_order_no = po.order_no) "
+              <> "WHERE type IN (?,?) AND stock_id = ? AND qty >0 "
+              <> "ORDER BY stock_id, loc_code, tran_date "
   
   move'pos <- rawSql moveSql [ toPersistValue (fromEnum ST_SUPPRECEIVE)
                           , toPersistValue (fromEnum ST_SUPPRECEIVE)
@@ -368,6 +368,7 @@ mkItemDeliveryInput ruleM = (inputKeys, fn) where
         , ("date", show stockMoveTranDate)
         , ("reference", unpack stockMoveReference)
         , ("type", show stockMoveType)
+        , ("full_type", showTransType (toEnum stockMoveType))
         , ("person", maybe "" show stockMovePersonId)
         ]) Nothing
       source FA.StockMove{..} = show stockMoveTranDate
