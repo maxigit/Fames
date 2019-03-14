@@ -114,8 +114,7 @@ computeCategory catRegexCache source input rule = case rule of
 
 subRegex :: RegexSub -> String -> Maybe String
 subRegex (RegexSub regex _ replace) s = let
-  in seq ( traceShowId ("REG", replace, s) ) $
-     if isJust $ Rg.matchRegex regex s
+  in if isJust $ Rg.matchRegex regex s
      then Just . pack $ Rg.subRegex regex s replace
      else Nothing
 
@@ -139,7 +138,7 @@ expandSource regexCache inputMap format = let
 -- | Regex as match in source tranform
 -- "$cat1 - $cat2"" will search and replace for the value
 -- of category cat1 and cat2
-mkCategoryRegex category = Rg.mkRegex $ "\\$" ++ category ++ "\\>"
+mkCategoryRegex category = Rg.mkRegex $ "(\\$" ++ category ++ "\\>)|(\\$\\{" ++ category ++ "\\})"
 
   
 
