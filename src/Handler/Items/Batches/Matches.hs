@@ -93,6 +93,7 @@ readMatchQuality t = readMay (toTitle t) <|> case t of
   "++" -> Just Good
   "+++" -> Just Excellent
   "---" -> Just Bad
+  "===" -> Just Identical
   _ -> Nothing
   
 
