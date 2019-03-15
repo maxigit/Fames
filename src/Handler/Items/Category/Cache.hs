@@ -279,7 +279,7 @@ loadItemDeliveryForSku :: Key StockMaster -> SqlHandler [StockMove]
 loadItemDeliveryForSku (FA.StockMasterKey sku) = do
   defaultLocation <- appFADefaultLocation <$> getsYesod appSettings
 -- Load transactions "creating"  new item, ie purchase order delivery  and postive adjustments
-  let moveSql = "SELECT ??, po.requisition_no "
+  let moveSql = "SELECT ??, IF(po.requisition_no='', concat('#', po.order_no) , po.requisition_no) "
               <> "FROM 0_stock_moves "
               <> "LEFT JOIN 0_grn_batch AS b ON (b.id = trans_no and type =?) "
               <> "LEFT JOIN 0_purch_orders AS po ON (b.purch_order_no = po.order_no) "
