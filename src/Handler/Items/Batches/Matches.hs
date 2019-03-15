@@ -152,7 +152,7 @@ validateRow batchCategory row@(MatchRow (Just sourcet) (sourceColourm)
   sourcem <- findBatch batchCategory (validValue sourcet) (validValue <$> sourceColourm)
   targetm <- findBatch batchCategory (validValue targett) (validValue <$> targetColourm)
   case (sourcem, targetm) of
-    (Just (sourceBatch, sourceColour'), Just (targetBatch, targetColour')) -> let
+    (Right (sourceBatch, sourceColour'), Right (targetBatch, targetColour')) -> let
       guessForSource :: a -> ValidField a
       guessForSource v = (\_ _ ->  v) <$> sourcet <*> (sequenceA sourceColourm) -- get the correct guessed status
       guessForTarget :: a -> ValidField a
@@ -164,11 +164,11 @@ validateRow batchCategory row@(MatchRow (Just sourcet) (sourceColourm)
       in return . Right $ MatchRow{..}
     _ -> return . Left $ let
                          sourceField = case sourcem of
-                                           Nothing -> Left (InvalidValueError "Batch not found" (validValue sourcet) )
-                                           Just _ -> Right (transform sourcet)
+                                           Left err -> Left (InvalidValueError err (validValue sourcet) )
+                                           Right _ -> Right (transform sourcet)
                          targetField = case targetm of
-                                           Nothing -> Left (InvalidValueError "Batch not found" (validValue targett) )
-                                           Just _ -> Right (transform targett)
+                                           Left err -> Left (InvalidValueError err (validValue targett) )
+                                           Right _ -> Right (transform targett)
                          in (validateRow' row)  { source = sourceField, target = targetField}
 
 validateRow _ row = return $ Left (validateRow' row)
@@ -185,34 +185,34 @@ validateRow' (MatchRow sourcem sourceColourm targetColourm targetm qualitym comm
 
   
 -- * Batch finding
-findBatch :: Text -> Text -> Maybe Text -> Handler (Maybe (Entity Batch, Text))
+findBatch :: Text -> Text -> Maybe Text -> Handler (Either Text (Entity Batch, Text))
 findBatch batchCategory styleOrBatch (Just colour) = do
   -- try batch
   batchByName <- runDB $ getBy (UniqueBName styleOrBatch)
   case batchByName of
-    Just batch -> return $ Just (batch, colour)
+    Just batch -> return $ Right (batch, colour)
     Nothing -> findBatchForSku batchCategory (styleVarToSku styleOrBatch colour)
 findBatch batchCategory sku Nothing = findBatchForSku  batchCategory sku
-findBatchForSku :: Text -> Text -> Handler (Maybe (Entity Batch, Text))
-findBatchForSku batchS sku = do
+findBatchForSku :: Text -> Text -> Handler (Either Text (Entity Batch, Text))
+findBatchForSku batchCategory sku = do
   skuToStyleVar <- skuToStyleVarH
   catFinder <- categoryFinderCached
   categories <- categoriesH
   let (_, colour) = skuToStyleVar sku
-  case (batchS `elem` categories,  colour) of
+  case (batchCategory `elem` categories,  colour) of
     (False, _ ) -> do
       setError("Batch category not set. Please contact your Administrator")
-      return Nothing
+      return $  Left "Batch category not set"
     (True, "" ) -> do
-      setError(toHtml $ sku <> " doesn't have a a colour")
-      return Nothing
+      setError(toHtml $ sku <> " doesn't have a colour")
+      return $ Left $ sku <> " doesn't have a colour"
     (True, _) -> do
-      let batchm = catFinder batchS (FA.StockMasterKey sku)
+      let batchm = catFinder batchCategory (FA.StockMasterKey sku)
       case batchm of
-        Nothing -> return Nothing
+        Nothing -> return $ Left $ "not " <> batchCategory <> " value for " <> sku
         Just batch -> do
           batchByName <- runDB $ getBy (UniqueBName batch)
-          return $  batchByName <&> (,colour)
+          return $  maybe (Left $ batch <> " is not a valid batch") (Right . (,colour)) batchByName
   
 
   
@@ -356,7 +356,7 @@ skuToStyle''var'Batch skuToStyleVar batches = let
   
      
 
---   [ BatchMatch {batchS}
+--   [ BatchMatch {batchCategory}
 --   | ((style, var), batchId) <- style'var''batchId
 --   , BatchMatch{..}  <- fromMaybe [] (lookup (batchId, var) matchMap)
 --   ]
