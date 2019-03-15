@@ -284,7 +284,7 @@ loadItemDeliveryForSku (FA.StockMasterKey sku) = do
               <> "LEFT JOIN 0_grn_batch AS b ON (b.id = trans_no and type =?) "
               <> "LEFT JOIN 0_purch_orders AS po ON (b.purch_order_no = po.order_no) "
               <> "WHERE type IN (?,?) AND stock_id = ? AND qty >0 "
-              <> "ORDER BY stock_id, loc_code, tran_date "
+              <> "ORDER BY stock_id, loc_code, tran_date DESC "
   
   move'pos <- rawSql moveSql [ toPersistValue (fromEnum ST_SUPPRECEIVE)
                           , toPersistValue (fromEnum ST_SUPPRECEIVE)
@@ -330,10 +330,11 @@ partitionDeliveriesFIFO (This moves) = (moves, []) -- nothing left
 partitionDeliveriesFIFO (That qho) = ([], []) -- should raise an error ?
 partitionDeliveriesFIFO (These moves 0) = partitionDeliveriesFIFO (This moves)
 partitionDeliveriesFIFO (These [] qoh) = ([], [])
-partitionDeliveriesFIFO (These moves qoh) = let
+partitionDeliveriesFIFO (These moves' qoh) = let
+  moves = sortOn FA.stockMoveTranDate moves'
+  quantities = map FA.stockMoveQty moves
   -- normally we could create a running balance from the end
   -- but it might be faster to not create a reverse list
-  quantities = map FA.stockMoveQty moves
   total = sum quantities 
   usedQty = total - qoh
   running = zip (Data.List.scanl1 (+) quantities) moves
@@ -346,9 +347,10 @@ partitionDeliveriesFIFO (These moves qoh) = let
               , (run, current {stockMoveQty = FA.stockMoveQty current - toUse}):leftover
               )
     r@(used, []) ->  r
-  in -- traceShow ("QS", quantities, "Running", map fst running) 
-  -- $ traceShow ("SPLIT", map (FA.stockMoveQty . snd) used', map (FA.stockMoveQty . snd) leftover')  $
-  (map snd used', map snd leftover')
+  in
+     -- traceShow ("QS", quantities, "Running", map fst running) 
+     -- $ traceShow ("SPLIT", map (FA.stockMoveQty . snd) used', map (FA.stockMoveQty . snd) leftover')  $
+    ( map snd used', map snd leftover')
                                             
                                        
 
