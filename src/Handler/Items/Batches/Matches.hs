@@ -8,7 +8,7 @@ import Data.List(scanl, nub)
 import Handler.CsvUtils
 import Handler.Items.Common
 import Handler.Items.Category.Cache
-import Data.Text(toTitle)
+import Data.Text(toTitle, splitOn)
 import qualified FA as FA
 import Data.Maybe(fromJust)
 import Handler.Table
@@ -42,13 +42,24 @@ instance Csv.FromNamedRecord ([MatchRow 'RawT]) where
   parseNamedRecord m = do
     -- get all columns
     let columns = keys m
-        batchNames = filter (`notElem` ["SKU", "Source", "SourceColour"]) columns
+        batchNames = filter (`notElem` ["SKU", "Batch", "Source", "SourceColour"]) columns
 
+    -- check if a batch is given
+    -- in that case we use the color of the sku
+    -- but the given batch. We should also check
+    -- that the given batch is correct
+    batchM <- do
+      if "Batch" `member` m
+      then m .: "Batch"
+      else return $ Left $ error "don't evaluate"
     sku <- m .: "SKU"
+    let (source, sourceColour ) = case batchM of
+                        (Right (Just batch)) -> (Right batch, sku) -- use sku as colour
+                        _ -> (sku, Right Nothing)
     matchess <- forM batchNames $ \batchNameBS -> do
       col'qs <- m Csv..: batchNameBS
       batchName <- Csv.parseField batchNameBS
-      return [ MatchRow sku (Right Nothing)
+      return [ MatchRow source sourceColour
                         (col) (Right batchName)
                         (quality) (Right Nothing)
                         
@@ -185,13 +196,23 @@ validateRow' (MatchRow sourcem sourceColourm targetColourm targetm qualitym comm
 
   
 -- * Batch finding
+-- Retrieve a batch given a batch name, a sku and a batch category
+-- The batch category, allows to find the batch name given a sku.
+-- Alternatively, if a sku is given as colour, we need to extract the colour from
 findBatch :: Text -> Text -> Maybe Text -> Handler (Either Text (Entity Batch, Text))
-findBatch batchCategory styleOrBatch (Just colour) = do
+findBatch batchCategory styleOrBatch (Just colourOrSku) = do
   -- try batch
   batchByName <- runDB $ getBy (UniqueBName styleOrBatch)
   case batchByName of
-    Just batch -> return $ Right (batch, colour)
-    Nothing -> findBatchForSku batchCategory (styleVarToSku styleOrBatch colour)
+    Just batch -> return $ Right (batch, colourOrSku)
+    Nothing -> do
+      batchE <- findBatchForSku batchCategory (styleVarToSku styleOrBatch colourOrSku)
+      case batchE of
+        r@(Right _) -> return r
+        l -> do -- try to extract the colour from the colourOrSku
+          batchM <- findBatchForBatchSku batchCategory styleOrBatch colourOrSku
+          return $ fromMaybe l batchM
+
 findBatch batchCategory sku Nothing = findBatchForSku  batchCategory sku
 findBatchForSku :: Text -> Text -> Handler (Either Text (Entity Batch, Text))
 findBatchForSku batchCategory sku = do
@@ -209,11 +230,32 @@ findBatchForSku batchCategory sku = do
     (True, _) -> do
       let batchm = catFinder batchCategory (FA.StockMasterKey sku)
       case batchm of
-        Nothing -> return $ Left $ "not " <> batchCategory <> " value for " <> sku
+        Nothing -> return $ Left $ "no " <> batchCategory <> " value for " <> sku
         Just batch -> do
           batchByName <- runDB $ getBy (UniqueBName batch)
           return $  maybe (Left $ batch <> " is not a valid batch") (Right . (,colour)) batchByName
+-- If the colour is a sku, find the associated colour and check that the
+-- the input batch belongs to the batch category
+findBatchForBatchSku :: Text -> Text -> Text -> Handler (Maybe (Either Text (Entity Batch, Text)))
+findBatchForBatchSku batchCategory batchName sku =  do
+  skuToStyleVar <- skuToStyleVarH
+  let (_, colour) =  skuToStyleVar sku
+  if null colour
+  then return $ Nothing -- sku doesn't give a colour
+  else do
+     batchM  <- runDB $ getBy (UniqueBName batchName)
+     case batchM of
+        Nothing -> return . Just . Left $ batchName <> " is not a valid batch"
+        Just batch -> do -- check the batch is authorized
+            catFinder <- categoryFinderCached
+            let batchNames = catFinder batchCategory (FA.StockMasterKey sku)
+                validBatches = maybe [] (splitOn " | ")  batchNames
+            if batchName `elem` validBatches
+            then return . Just $ Right (batch, colour)
+            else return . Just . Left $ batchName <> " doesn't belong current batches for "  <> sku
+
   
+
 
   
   
@@ -343,7 +385,10 @@ loadSkuBatches batchCategory filterE = do
   return $ map (\(Single sku, Single batchId) -> (sku, batchId)) rows
 
 
-skuToStyle''var'Batch :: (Text -> (Text, Text)) -> [Entity Batch] -> (Text, Key Batch) -> ((Text, Text), Entity Batch)
+skuToStyle''var'Batch :: (Text -> (Text, Text)) -- ^ Category
+                      -> [Entity Batch] -- ^ available batches
+                      -> (Text, Key Batch) -- ^ Sku, batch Id
+                      -> ((Text, Text), Entity Batch)
 skuToStyle''var'Batch skuToStyleVar batches = let
   -- split in two function to memoize the batchMap
   -- GHC might do it
