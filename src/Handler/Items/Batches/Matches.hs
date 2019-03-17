@@ -112,6 +112,25 @@ readMatchQuality t = readMay (toTitle t) <|> case t of
 instance Transformable (Entity Batch) Text where
   transform (Entity _ batch) = batchName batch
 
+-- * Match operations
+mergeQuality :: MatchQuality -> MatchQuality -> Maybe MatchQuality
+-- mergeQuality a b| a < b = mergeQuality a b
+mergeQuality Identical b = Just b
+mergeQuality Excellent Excellent = Just Good
+mergeQuality Excellent b = Just b
+mergeQuality Good Good = Just Fair
+mergeQuality Good Fair = Just Fair
+mergeQuality Good Close = Nothing
+mergeQuality Good Bad = Just Bad
+mergeQuality Fair Fair = Just Close
+mergeQuality Fair Close = Nothing
+mergeQuality Fair Bad = Nothing
+mergeQuality Close Close = Nothing
+mergeQuality Close Bad = Just Bad
+mergeQuality Bad Bad = Nothing
+mergeQuality a b = mergeQuality b a
+
+
 -- * Parsing
 parseMatchRows :: Text -> ByteString -> Handler (ParsingResult (MatchRow 'RawT) [MatchRow 'ValidT])
 parseMatchRows batchCategory bytes = do
