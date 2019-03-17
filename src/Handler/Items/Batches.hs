@@ -9,6 +9,7 @@ module Handler.Items.Batches
 , postItemBatchUploadMatchesR
 , postItemBatchSaveMatchesR
 , getItemBatchMatchTableR
+, getItemBatchExpandMatchesR
 ) where
 
 import Import
@@ -261,9 +262,37 @@ loadMatchTable param = do
       
       return $ displayTable cols colDisplay tableRows
 
-
   return tableW
-    
+      
+getItemBatchExpandMatchesR :: Handler Html 
+getItemBatchExpandMatchesR = do
+  matches <- runDB $ selectList [] []
+  let expanded = expandMatches $ map entityVal matches
+      guessed = filter (isNothing . batchMatchOperator) expanded
+      widget = [whamlet|
+<table.table.table-hover.table-striped>
+    <tr>
+      <td>Source
+      <td>Source Colour
+      <td>Target
+      <td>Target Colour
+      <td>Quality
+      <td>Comment
+  $forall BatchMatch{..} <- guessed
+    <tr>
+      <td>#{unSqlBackendKey $ unBatchKey batchMatchSource}
+      <td>#{batchMatchSourceColour}
+      <td>#{unSqlBackendKey $ unBatchKey batchMatchTarget}
+      <td>#{batchMatchTargetColour}
+      $case batchMatchOperator
+        $of Nothing 
+          <td.text-danger>#{tshow batchMatchQuality}
+        $of (Just _)
+          <td>#{tshow batchMatchQuality}
+      <td>#{tshowM batchMatchComment}
+                   |]
+  defaultLayout widget
+  
 
 -- * Rendering
 renderBatch :: Entity Batch -> Widget

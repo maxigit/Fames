@@ -12,7 +12,7 @@ import Data.Text(toTitle, splitOn)
 import qualified FA as FA
 import Data.Maybe(fromJust)
 import Handler.Table
-import Database.Persist.Sql(rawSql, Single(..))
+import Database.Persist.Sql -- (rawSql, Single(..))
 import Data.Char(ord)
 -- * Types
 
@@ -130,6 +130,13 @@ mergeQuality Close Bad = Just Bad
 mergeQuality Bad Bad = Nothing
 mergeQuality a b = mergeQuality b a
 
+sourceKey, targetKey :: BatchMatch -> (Key Batch, Text )
+sourceKey BatchMatch{..} = (batchMatchSource, batchMatchSourceColour)
+targetKey BatchMatch{..} = (batchMatchTarget, batchMatchTargetColour)
+
+-- return the keys of a batch match
+batchMatchKeys :: BatchMatch -> [(Key Batch, Text)]
+batchMatchKeys batch = [sourceKey batch, targetKey batch]
 
 -- * Parsing
 parseMatchRows :: Text -> ByteString -> Handler (ParsingResult (MatchRow 'RawT) [MatchRow 'ValidT])
@@ -432,6 +439,70 @@ skuToStyle''var'Batch skuToStyleVar batches = let
 
 
   
+-- * Bleed
+-- Extrapolate matches using best path (chain of batch) between colours
+  
+-- type MatchTable = Map (Key Batch, Text) (Map (Key Batch, Text) )[BatchMatch]
+-- multiplyMatchTable :: MatchTable -> MatchTable -> MatchTable
+-- multiplyMatchTable table1 table 2= let
+--   [ 
+--   | (batchi, colouri) <- keys table1
+--   , (batchj, colourj) <- keys table2
+--   undefined
+
+-- | cross product between to lists of matches. make a new batch
+-- by connecting each possible pairs. Might needs optimisation
+multiplyMatches :: [BatchMatch] -> [BatchMatch] -> [BatchMatch]
+multiplyMatches matches1 matches2 = let
+  -- check all pairs
+  pairs = catMaybes [ connectMatches mi mj
+                    | mi <- matches1
+                    , mj <- matches2
+                    ]
+  in pairs
+
+filterBestMatches :: [BatchMatch] -> [BatchMatch]
+filterBestMatches matches = let
+  grouped = groupAsMap (sort . batchMatchKeys) (:[]) matches
+  bests = fmap (keepBests . SameKeys) grouped
+  in concat $ toList bests
+
+data SameKeys = SameKeys [BatchMatch]
+-- remove duplicate and removes guessed if needed
+-- or keep the best guest
+keepBests (SameKeys matches) =
+  case partition (isNothing . batchMatchOperator) matches of
+    (guesseds, []) -> take 1 (sortOn (Down . batchMatchQuality) guesseds)
+    (_, knowns) -> knowns
+
+-- | Connect 2 matches if possible
+-- match can connect if one 
+connectMatches :: BatchMatch -> BatchMatch -> Maybe BatchMatch
+connectMatches ma mb = do -- maybe
+   batchMatchQuality <- mergeQuality (batchMatchQuality ma) (batchMatchQuality mb)
+   let [keysa, keysb] = map batchMatchKeys [ma, mb]
+       ifOne [a]  = Just a
+       ifOne _ = Nothing
+   common@(cBatch,cColour) <- ifOne $ keysa `intersect` keysb
+   (batchMatchSource, batchMatchSourceColour) <- ifOne $ filter (/= common) keysa
+   (batchMatchTarget, batchMatchTargetColour) <- ifOne $ filter (/= common) keysb
+   let batchMatchOperator = Nothing
+       batchMatchComment = Just $ "Via " <> cColour <> " #" <> tshow (unSqlBackendKey $ unBatchKey cBatch)
+       batchMatchDate' = max (batchMatchDate ma) (batchMatchDate mb)
+       batchMatchDocumentKey = DocumentKeyKey' 0
+   Just BatchMatch{batchMatchDate=batchMatchDate',..}
+
+expandMatches :: [BatchMatch] -> [BatchMatch]
+expandMatches matches =
+  let new = matches `multiplyMatches` matches
+      filtered = filterBestMatches (matches <> new) 
+  in filtered
+  
+                   
+
+  -- find 
+  
+
 -- * Rendering
 instance Renderable ([MatchRow 'RawT]) where
   render rows = [whamlet|
