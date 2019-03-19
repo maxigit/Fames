@@ -384,7 +384,7 @@ mkItemDeliveryInput ruleM = (inputKeys, fn) where
                   <> " @" <> maybe "" show stockMovePersonId
                   <> " ref=" <> unpack stockMoveReference 
       -- group batch by value and sum quantities
-      valueQohMap = LMap.fromListWith (+) $ filter (null . fst) value'qohs
+      valueQohMap = LMap.fromListWith (+) $ filter (not . null . fst) value'qohs
       withQoh = map (\(v,q) -> v ++ " qoh=" ++ show (floor q)) (LMap.toList valueQohMap)
       withQoh' = map (\(v,q) -> v ++ " +" ++ show (floor q)) (LMap.toList valueQohMap)
       mkCategory catName vs = (catName, Data.List.intercalate " | " vs)
