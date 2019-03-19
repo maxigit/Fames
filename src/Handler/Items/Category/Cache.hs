@@ -374,6 +374,7 @@ mkItemDeliveryInput ruleM = (inputKeys, fn) where
         , ("type", show stockMoveType)
         , ("full_type", showTransType (toEnum stockMoveType))
         , ("person", maybe "" show stockMovePersonId)
+        , ("quantity", show (floor stockMoveQty))
         ]) Nothing
       source FA.StockMove{..} = show stockMoveTranDate
                   <> " " <> showTransType (toEnum stockMoveType) -- full text 
