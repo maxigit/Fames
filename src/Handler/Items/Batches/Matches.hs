@@ -408,7 +408,7 @@ loadSkuBatches :: Text -> FilterExpression -> SqlHandler [(Text, Key Batch)]
 loadSkuBatches batchCategory filterE = do
   let sql = "SELECT stock_id, batch_id FROM fames_item_category_cache "
             <> " JOIN fames_batch ON (name RLIKE concat('(.*| )*', value, '( |.*)*')) "
-            <> "WHERE category = ? AND stock_id " <> keyw <> " ?"
+            <> "WHERE value != '' AND category = ? AND stock_id " <> keyw <> " ?"
       (keyw, v )  = filterEKeyword filterE
   rows <- rawSql sql [toPersistValue batchCategory, toPersistValue v]
   return $ map (\(Single sku, Single batchId) -> (sku, batchId)) rows
