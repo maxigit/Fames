@@ -186,6 +186,7 @@ validateRow batchCategory row@(MatchRow (Just sourcet) (sourceColourm)
                       (Just quality) comment
             )
   = do
+  skuToStyleVar <- skuToStyleVarH
   sourcem <- findBatch batchCategory (validValue sourcet) (validValue <$> sourceColourm)
   targetm <- findBatch batchCategory (validValue targett) (validValue <$> targetColourm)
   case (sourcem, targetm) of
@@ -195,7 +196,9 @@ validateRow batchCategory row@(MatchRow (Just sourcet) (sourceColourm)
       guessForTarget :: a -> ValidField a
       guessForTarget v = (\_ _ ->  v) <$> targett <*> (sequenceA targetColourm) -- get the correct guessed status
       source = guessForSource sourceBatch
-      sourceColour = guessForSource sourceColour'
+      sourceColour = guessForSource $ case skuToStyleVar sourceColour' of
+                                        (style, var) | null var  -> style 
+                                        (_style, colour) -> colour -- the colour is actually a sku, we need to extract the colour
       target = guessForTarget targetBatch
       targetColour = guessForTarget targetColour'
       in return . Right $ MatchRow{..}
