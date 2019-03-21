@@ -43,11 +43,15 @@ data MatchTableParam  = MatchTableParam
   { mtBatchRole :: [(Key Batch, BatchRole) ] -- wether a batch is displayed as a column or row or not a all
   , mtSkuFilter :: Maybe FilterExpression -- 
   , mtBatchCategory :: Text -- which category to use as batch
+  , mtAggregationMode :: MatchAggregationMode
+  , mtDisplayMode :: QualityDisplayMode
   } deriving (Show, Read, Eq)
 matchTableForm categories = renderBootstrap3 BootstrapInlineForm form where
   form = MatchTableParam <$> pure [] -- filled manually by parsing params
                          <*> aopt filterEField "Sku" Nothing
-                         <*> areq (selectFieldList $ zip categories categories ) "batch category" Nothing
+                         <*> areq (selectFieldList $ zip categories categories ) "Batch category" Nothing
+                         <*> areq (selectField optionsEnum) "Aggregation Mode" Nothing
+                         <*> areq (selectField optionsEnum) "Display Mode" Nothing
 
 -- * Handler
 -- ** All batches
@@ -224,12 +228,12 @@ getMatchTableParam = do
   return $ param { mtBatchRole = map (first toBatchKey) radios}
   
 loadMatchTable :: MatchTableParam -> Handler Widget -- [Entity BatchMatch]
-loadMatchTable param | Just skuFilter <- mtSkuFilter param  = do
+loadMatchTable MatchTableParam{..} | Just skuFilter <- mtSkuFilter = do
   -- TODO factorize  
-  let columns = map fst $ filter ((== AsColumn) . snd) (mtBatchRole param)
+  let columns = map fst $ filter ((== AsColumn) . snd) mtBatchRole
   skuToStyleVar <- skuToStyleVarH
   tableW <- runDB $ do
-      sku'batchIds <- loadSkuBatches (mtBatchCategory param) skuFilter
+      sku'batchIds <- loadSkuBatches mtBatchCategory skuFilter
       let rows = List.nub $ sort $ map snd sku'batchIds
       -- load batch the correct way
       normal <- selectList (BatchMatchSource <-?. rows <> BatchMatchTarget <-?. columns) []
@@ -240,15 +244,15 @@ loadMatchTable param | Just skuFilter <- mtSkuFilter param  = do
       columnBatches <- selectList [BatchId <-. columns] []
       let style''var'batchs = map (skuToStyle''var'Batch skuToStyleVar rowBatches) sku'batchIds
 
-      let (cols, colDisplay, tableRows) = buildTableForSku (concatMap colour'QualityToHtml) style''var'batchs columnBatches  matches
+      let (cols, colDisplay, tableRows) = buildTableForSku (colour'QualitysToHtml' mtAggregationMode mtDisplayMode) style''var'batchs columnBatches  matches
       
       return $ displayTable cols colDisplay tableRows
   return tableW
    
 
-loadMatchTable param = do
+loadMatchTable MatchTableParam{..} = do
   let (rows, columns) = bimap (List.nub . sort . map fst)
-                              (List.nub . sort . map fst) $ partition ((== AsRow) . snd) (mtBatchRole param)
+                              (List.nub . sort . map fst) $ partition ((== AsRow) . snd) mtBatchRole
   tableW <- runDB $ do
       -- load batch the correct way
       normal <- selectList (BatchMatchSource <-?. rows <> BatchMatchTarget <-?. columns) []
@@ -258,7 +262,7 @@ loadMatchTable param = do
       rowBatches <- selectList [BatchId <-. rows] []
       columnBatches <- selectList [BatchId <-. columns] []
 
-      let (cols, colDisplay, tableRows) = buildTable (concatMap colour'QualityToHtml) rowBatches columnBatches  matches
+      let (cols, colDisplay, tableRows) = buildTable (colour'QualitysToHtml' mtAggregationMode mtDisplayMode) rowBatches columnBatches  matches
       
       return $ displayTable cols colDisplay tableRows
 
@@ -351,6 +355,17 @@ batchTables renderUrl extraColumns batches = [whamlet|
             ] <> extraColumns
   colDisplays (name, _) = (toHtml name, [])
 
+colour'QualitysToHtml' :: MatchAggregationMode -> QualityDisplayMode -> [(Text, MatchQuality)] -> Html
+colour'QualitysToHtml' aggregationMode displayMode c'qs0 = let
+  (filterQ ,qualityToHtml') = case displayMode of
+                         FullQuality -> (id, toHtml . tshow)
+                         LimitQuality -> (filter ((/= Bad) . snd), qualityToShortHtml)
+  c'qs = filterQ $ aggregateQuality aggregationMode c'qs0
+  in colour'QualitysToHtml qualityToHtml' c'qs
+
+
+  
+    
   
 -- * DB
 loadBatches :: SqlHandler [Entity Batch]

@@ -14,6 +14,7 @@ import Data.Maybe(fromJust)
 import Handler.Table
 import Database.Persist.Sql -- (rawSql, Single(..))
 import Data.Char(ord)
+import qualified Data.Map as Map
 -- * Types
 
 data MatchRow (s :: RowTypes) = MatchRow
@@ -27,6 +28,10 @@ data MatchRow (s :: RowTypes) = MatchRow
 
 deriving instance Show (MatchRow 'RawT)
 
+data MatchAggregationMode = AllMatches | MedianMatches | LastMatches deriving (Show, Read, Eq, Enum, Bounded)
+data QualityDisplayMode = FullQuality -- ^ display full text 
+                        | LimitQuality -- ^ remove Bad and Identical
+                        deriving (Show, Read, Eq, Enum, Bounded)
 -- * Instance
 -- | Parse one match per row
 instance Csv.FromNamedRecord (MatchRow  'RawT) where
@@ -397,10 +402,48 @@ buildTableForSku renderColour'Qualitys sku'batches columnBatches (ForBuildTable 
      , \(col, _) -> (toHtml col, [])
      , rowsForTables
      )
-colour'QualityToHtml (colour, quality) = [shamlet|#{colour}
-   <sup>#{tshow quality}|]
-colour'QualitysToHtml = mconcat . map colour'QualityToHtml 
+colour'QualityToHtml :: (MatchQuality -> Html) -> (Text, MatchQuality) -> Html
+colour'QualityToHtml renderQuality (colour, quality) = [shamlet|
+   <span class="match-quality quality-#{tshow quality}">
+      #{colour}
+      <sup>
+        <span.quality-content>#{renderQuality quality}
+        |]
+colour'QualitysToHtml :: (MatchQuality -> Html) -> [(Text, MatchQuality)] -> Html
+colour'QualitysToHtml renderQuality c'qs = mconcat $ intersperse [shamlet|<span.quality-sep>, |] htmls
+  where htmls = map (colour'QualityToHtml renderQuality) c'qs
 
+qualityToShortHtml :: IsString t => MatchQuality -> t
+qualityToShortHtml quality = case quality of
+  Bad -> "➖➖➖"
+  Close -> ""
+  Fair -> "➕"
+  Good -> "➕➕"
+  Excellent -> "➕➕➕"
+  Identical -> "➕➕➕"
+
+aggregateQuality :: MatchAggregationMode -> [(Text, MatchQuality)] -> [(Text, MatchQuality)]
+aggregateQuality AllMatches colour'qualitys = sortOn (liftA2 (,) (Down . snd) fst ) colour'qualitys
+-- aggregateQuality MedianMatches colour'qualitys = sortOn (liftA2 (,) (Down . snd) fst ) colour'qualitys
+aggregateQuality mode colour'qualitys  = let
+  byColour = groupAsMap fst (return . snd) colour'qualitys
+  filtered = fmap (f mode) byColour 
+  f MedianMatches [] = []
+  f MedianMatches qs = case median2 $ sort qs of
+                         [a, b] -> take 1 $ median2 [a .. b]
+                         m -> m
+  f LastMatches qs = take 1 qs -- groupAsMap reverse items, so we need the head to take the last
+  f AllMatches qs = qs -- shouldn't be called, but here for completion
+  in aggregateQuality AllMatches [ (col, q)
+                                 | (col, qs) <- Map.toList filtered
+                                 , q <- qs
+                                 ]
+
+-- | Get 0, 1 or 2 if the list is even
+median2 :: [a] -> [a]
+median2 xs = case length xs `divMod` 2 of
+              (p, 0) -> take 2 $ drop (p-1) xs
+              (p, _1) -> take 1 $ drop p xs
 -- | Load batches from sku but return on modified batch for each sku
 -- with the alias set to the style name
 -- lookp the batch name be "inside" the actual batch category
