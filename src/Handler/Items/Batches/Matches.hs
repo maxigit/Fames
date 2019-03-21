@@ -423,7 +423,7 @@ qualityToShortHtml quality = case quality of
   Identical -> "➕➕➕"
 
 aggregateQuality :: MatchAggregationMode -> [(Text, MatchQuality)] -> [(Text, MatchQuality)]
-aggregateQuality AllMatches colour'qualitys = sortOn (liftA2 (,) (Down . snd) fst ) colour'qualitys
+-- aggregateQuality AllMatches colour'qualitys = sortOn (liftA2 (,) (Down . snd) fst ) colour'qualitys
 -- aggregateQuality MedianMatches colour'qualitys = sortOn (liftA2 (,) (Down . snd) fst ) colour'qualitys
 aggregateQuality mode colour'qualitys  = let
   byColour = groupAsMap fst (return . snd) colour'qualitys
@@ -433,11 +433,13 @@ aggregateQuality mode colour'qualitys  = let
                          [a, b] -> take 1 $ median2 [a .. b]
                          m -> m
   f LastMatches qs = take 1 qs -- groupAsMap reverse items, so we need the head to take the last
-  f AllMatches qs = qs -- shouldn't be called, but here for completion
-  in aggregateQuality AllMatches [ (col, q)
-                                 | (col, qs) <- Map.toList filtered
-                                 , q <- qs
-                                 ]
+  f AllMatches qs = reverse qs -- shouldn't be called, but here for completion
+  -- sort group by best batch
+  in [ (col, q)
+     -- colour with best match first
+     | (col, qs) <- sortOn ( Down . maximumEx . snd ) (Map.toList filtered)
+     , q <- qs
+     ]
 
 -- | Get 0, 1 or 2 if the list is even
 median2 :: [a] -> [a]
