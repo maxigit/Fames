@@ -44,6 +44,7 @@ data MatchTableParam  = MatchTableParam
   , mtSkuFilter :: Maybe FilterExpression -- 
   , mtBatchCategory :: Text -- which category to use as batch
   , mtAggregationMode :: MatchAggregationMode
+  , mTRowAggregationMode :: Maybe BatchMergeMode -- merging means hide the batch column
   , mtDisplayMode :: QualityDisplayMode
   } deriving (Show, Read, Eq)
 matchTableForm categories = renderBootstrap3 BootstrapInlineForm form where
@@ -51,6 +52,7 @@ matchTableForm categories = renderBootstrap3 BootstrapInlineForm form where
                          <*> aopt filterEField "Sku" Nothing
                          <*> areq (selectFieldList $ zip categories categories ) "Batch category" Nothing
                          <*> areq (selectField optionsEnum) "Aggregation Mode" Nothing
+                         <*> aopt (selectField optionsEnum) "Aggregation Batch" Nothing
                          <*> areq (selectField optionsEnum) "Display Mode" Nothing
 
 -- * Handler

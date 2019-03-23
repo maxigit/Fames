@@ -28,10 +28,30 @@ data MatchRow (s :: RowTypes) = MatchRow
 
 deriving instance Show (MatchRow 'RawT)
 
-data MatchAggregationMode = AllMatches | MedianMatches | LastMatches deriving (Show, Read, Eq, Enum, Bounded)
+-- | Aggregate set os quality, kee
+data MatchAggregationMode = AllMatches -- ^ Keep all
+  | MedianMatches -- ^ get average of the two medians
+  | LastMatches -- ^ get the latest
+  deriving (Show, Read, Eq, Enum, Bounded)
+-- | Display quality as text or sign, and hide bad and identical
 data QualityDisplayMode = FullQuality -- ^ display full text 
                         | LimitQuality -- ^ remove Bad and Identical
                         deriving (Show, Read, Eq, Enum, Bounded)
+-- | How to merge batches into one and keep colours
+-- example, when displaying the table of a given style
+-- each colour can correspond to one or many batch.
+-- Merging batches mean merging all the match into one line.
+data BatchMergeMode =
+  -- AllBatches -- ^ don't do anything
+   MergeRaisesError -- ^ Raises an error if multiple batch.
+    --  Allows to check that only one batch is needed
+  | SafeMatch -- ^ worst case scenario,
+  -- in case of multiple batches, use the safest match
+  -- ie, worst case scenario. check that a batch belong to ALL Batches
+  -- and get the worst
+  | MergeBest -- ^ Only merge if the SafeMatch is good enough, otherwise raises an error
+  deriving (Show, Read, Eq, Enum, Bounded)
+
 -- * Instance
 -- | Parse one match per row
 instance Csv.FromNamedRecord (MatchRow  'RawT) where
@@ -42,7 +62,7 @@ instance Csv.FromNamedRecord (MatchRow  'RawT) where
     <*> m .: "Target"
     <*> m Csv..: "Quality"
     <*> m .: "Comment"
--- | Parse multiple matches , one column per batch (with multipe value)
+-- | Parse multiple matches , one column per batch (with multiple value)
 instance Csv.FromNamedRecord ([MatchRow 'RawT]) where
   parseNamedRecord m = do
     -- get all columns
