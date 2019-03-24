@@ -49,7 +49,7 @@ data BatchMergeMode =
   -- in case of multiple batches, use the safest match
   -- ie, worst case scenario. check that a batch belong to ALL Batches
   -- and get the worst
-  | MergeBest -- ^ Only merge if the SafeMatch is good enough, otherwise raises an error
+  -- | MergeBest -- ^ Only merge if the SafeMatch is good enough, otherwise raises an error
   deriving (Show, Read, Eq, Enum, Bounded)
 
 -- * Instance
@@ -522,10 +522,27 @@ median2 xs = case length xs `divMod` 2 of
 
 -- | Merge quality match from different batch into one
 mergeBatchMatches :: BatchMergeMode -> Text ->  [ [(Text, MatchQuality)]] -> Maybe [(Text, MatchQuality)]
-mergeBatchMatches MergeRaisesError _ [matches] = Just matches
-mergeBatchMatches MergeRaisesError _ [] = Nothing
+mergeBatchMatches _ _ [] = Nothing
+mergeBatchMatches _ _ [matches] = Just matches
 mergeBatchMatches MergeRaisesError sku _ = error $ "Multiple batches for " <> unpack sku
-mergeBatchMatches mode sku _ = error $ show mode <>  " Not implemetned Multiple batches for " <> unpack sku
+mergeBatchMatches SafeMatch sku matchess = let
+  matches = concat matchess
+  -- group by colour and take the worst of it
+  col'qualityMap' :: Map Text [MatchQuality]
+  col'qualityMap' = groupAsMap fst ((:[]) . snd) matches
+  -- a col to used needs to be used by ALL line
+  numberOfBatches = length matchess
+  col'qualityMap = Map.filter ((== numberOfBatches) . length) col'qualityMap'
+  in case Map.toList (fmap minimumEx col'qualityMap) of
+           [] -> Nothing
+           rs -> Just rs
+-- mergeBatchMatches MergeBest sku matchess = 
+--   -- try merge safe good enough
+--  case mergeBatchMatches SafeMatch sku matchess of
+--    Just bests | minimumEx (map snd bests) >= Fair -> Just bests
+--    _ -> mergeBatchMatches MergeRaisesError sku matchess
+
+  
 
 
 -- | Load batches from sku but return on modified batch for each sku
