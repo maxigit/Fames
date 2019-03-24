@@ -13,6 +13,7 @@ module Import.NoFoundation
     , (<&>)
     , (<$$>), (<$$$>), (<$$$$>)
     , (?:)
+    , curry3, uncurry3
     , formatAmount
     , formatDouble
     , formatQuantity
@@ -114,6 +115,12 @@ infixr 5 ?:
 Nothing ?: xs = xs 
 (Just x) ?: xs = x:xs
 
+-- ** Tuples
+uncurry3 :: (a -> b -> c -> r) -> (a,b,c) -> r
+uncurry3 f (a,b,c) = f a b c
+
+curry3 :: ((a,b,c) -> r) -> a -> b -> c -> r
+curry3 f a b c = f (a,b,c)
 -- * Format
 -- formatAmount :: Amount -> Text
 formatAmount :: Rational -> String

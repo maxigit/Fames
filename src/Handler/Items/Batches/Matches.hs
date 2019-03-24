@@ -395,6 +395,15 @@ buildTable renderColour'Qualitys rowBatches columnBatches (ForBuildTable matches
      , rowsForTables
      )
 
+buildTableForSku ::
+  col0 ~ (Text, (((Text, Text), Entity Batch)) -> Maybe (Either Html PersistValue))
+  => ([(Text, MatchQuality)] -> Html) -- ^ match renderer
+  -> [((Text, Text), Entity Batch)] -- ^ sku@style'var batch
+  -> [Entity Batch] -- ^ batches
+  -> ForBuildTable -- ^ matches
+  -> ([col0]
+     , col0 -> (Html, [Text])
+     , [(col0 -> Maybe (Html, [Text]), [Text])])
 buildTableForSku renderColour'Qualitys sku'batches columnBatches (ForBuildTable matches) = let
   matchMap = groupAsMap (\BatchMatch{..} -> (batchMatchSource, batchMatchSourceColour, batchMatchTarget))
                         (\BatchMatch{..} -> [(batchMatchTargetColour, batchMatchQuality)])
@@ -417,6 +426,50 @@ buildTableForSku renderColour'Qualitys sku'batches columnBatches (ForBuildTable 
   rowsForTables = [ (colFn, [])
                   | sku'batch <- sortOn fst sku'batches
                   , let colFn (_colname,  getter) = getter sku'batch <&> (,[]) . either id (toHtml . renderPersistValue)
+                  ]
+  in ( columns
+     , \(col, _) -> (toHtml col, [])
+     , rowsForTables
+     )
+-- | build a match table, but doesn't display batch column
+-- and aggregate batches by sku
+buildTableForSkuMerged ::
+  col0 ~ (Text, (((Text, Text), [Entity Batch])) -> Maybe (Either Html PersistValue))
+  => BatchMergeMode
+  -> ([(Text, MatchQuality)] -> Html) -- ^ match renderer
+  -> [((Text, Text), Entity Batch)] -- ^ sku@style'var batch
+  -> [Entity Batch] -- ^ batches
+  -> ForBuildTable -- ^ matches
+  -> ([col0]
+     , col0 -> (Html, [Text])
+     , [(col0 -> Maybe (Html, [Text]), [Text])])
+buildTableForSkuMerged mergeMode renderColour'Qualitys sku'batches columnBatches (ForBuildTable matches) = let
+  -- TODO factorize with buildTableForSku
+  matchMap = groupAsMap (\BatchMatch{..} -> (batchMatchSource, batchMatchSourceColour, batchMatchTarget))
+                        (\BatchMatch{..} -> [(batchMatchTargetColour, batchMatchQuality)])
+                        matches
+
+  -- targets = nub $ sort (map batchMatchTarget matches)
+  qualityFinder matchMap targetBatch ((style, colour), batches) = let
+    -- find all match for all batches
+    matchess  = mapMaybe (\batch -> lookup (entityKey batch, colour, targetBatch) matchMap) batches
+    in mergeBatchMatches mergeMode (styleVarToSku style colour) matchess
+
+  columns0 = [ ( fromMaybe batchName batchAlias -- Column name :: Text
+               , \s'c'bs -> Left . renderColour'Qualitys <$> qualityFinder matchMap  batchId s'c'bs
+               )
+            | (Entity batchId Batch{..}) <- columnBatches
+            ]
+  -- columns = 
+  columns = ("Style", \((style, _var), _batch) -> Just (Right $ toPersistValue style) ) :
+            ("Colour", \((_style, colour), _batch) -> Just (Right $ toPersistValue colour)) :
+            columns0
+
+  -- batchMap = groupAsMap entityKey  (\(Entity _ Batch{..}) -> fromMaybe batchName batchAlias ) (columnBatches)
+  skuBatchesMap = groupAsMap fst ((:[]) . snd) sku'batches
+  rowsForTables = [ (colFn, [])
+                  | sku'batches <- Map.toList skuBatchesMap
+                  , let colFn (_colname,  getter) = getter sku'batches <&> (,[]) . either id (toHtml . renderPersistValue)
                   ]
   in ( columns
      , \(col, _) -> (toHtml col, [])
@@ -466,6 +519,15 @@ median2 :: [a] -> [a]
 median2 xs = case length xs `divMod` 2 of
               (p, 0) -> take 2 $ drop (p-1) xs
               (p, _1) -> take 1 $ drop p xs
+
+-- | Merge quality match from different batch into one
+mergeBatchMatches :: BatchMergeMode -> Text ->  [ [(Text, MatchQuality)]] -> Maybe [(Text, MatchQuality)]
+mergeBatchMatches MergeRaisesError _ [matches] = Just matches
+mergeBatchMatches MergeRaisesError _ [] = Nothing
+mergeBatchMatches MergeRaisesError sku _ = error $ "Multiple batches for " <> unpack sku
+mergeBatchMatches mode sku _ = error $ show mode <>  " Not implemetned Multiple batches for " <> unpack sku
+
+
 -- | Load batches from sku but return on modified batch for each sku
 -- with the alias set to the style name
 -- lookp the batch name be "inside" the actual batch category

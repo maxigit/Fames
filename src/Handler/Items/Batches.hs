@@ -44,7 +44,7 @@ data MatchTableParam  = MatchTableParam
   , mtSkuFilter :: Maybe FilterExpression -- 
   , mtBatchCategory :: Text -- which category to use as batch
   , mtAggregationMode :: MatchAggregationMode
-  , mTRowAggregationMode :: Maybe BatchMergeMode -- merging means hide the batch column
+  , mtRowAggregationMode :: Maybe BatchMergeMode -- merging means hide the batch column
   , mtDisplayMode :: QualityDisplayMode
   } deriving (Show, Read, Eq)
 matchTableForm categories = renderBootstrap3 BootstrapInlineForm form where
@@ -246,9 +246,9 @@ loadMatchTable MatchTableParam{..} | Just skuFilter <- mtSkuFilter = do
       columnBatches <- selectList [BatchId <-. columns] []
       let style''var'batchs = map (skuToStyle''var'Batch skuToStyleVar rowBatches) sku'batchIds
 
-      let (cols, colDisplay, tableRows) = buildTableForSku (colour'QualitysToHtml' mtAggregationMode mtDisplayMode) style''var'batchs columnBatches  matches
-      
-      return $ displayTable cols colDisplay tableRows
+      return $ case mtRowAggregationMode of
+               Nothing -> displayTable `uncurry3` buildTableForSku (colour'QualitysToHtml' mtAggregationMode mtDisplayMode) style''var'batchs columnBatches  matches
+               Just mergeMode -> displayTable `uncurry3` buildTableForSkuMerged mergeMode (colour'QualitysToHtml' mtAggregationMode mtDisplayMode) style''var'batchs columnBatches  matches
   return tableW
    
 
