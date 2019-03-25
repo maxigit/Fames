@@ -668,7 +668,15 @@ the <code>download</code> link.
 |]
 hsbcHelp = [whamlet||]
 bmmHelp = [whamlet||]
-ccardHelp = [whamlet||]
+ccardHelp = [whamlet|
+<p>Credit card account needs actually two (or more) statement to be complet.
+<p>One correspond to the account itself and then there is a statment per card.
+<p> Even though they are called statement on the HSBC website, they don't follow
+<p>the monthly statement format but the daily one. They all need to be saved as daily statment.
+<p>On HSBC website, statement can be seen on the <b>Transactions List</b> page.
+<p>This can be either a <b>Business card startment</b> or a <b>Card Holder</b> statment.
+<p>One can go from one to the other by either clicking on the balance or the <b>Business card</b> button.
+|]
 
 -- * FX
 
