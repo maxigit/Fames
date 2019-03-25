@@ -410,7 +410,7 @@ validateDate minDay (ReceiptHeader{..}, _) =
 validateTotalAmount (ReceiptHeader{..}, items) =
   if totalItems  `eqDouble` validValue rowTotal
   then Nothing
-  else Just $ "Amounts doesn't add up. Total : " <> tshow (validValue rowTotal) <> " != from sums: " <> tshow totalItems
+  else Just $ "Amounts doesn't add up. Total : " <> tshow (validValue rowTotal) <> " != from sums: " <> tshow totalItems <> ". If this corresponds to an rounding error which is acceptable, please set or adjust the amount and net amount."
   where totalItems = sum (map (validValue . rowAmount) items)
 
 validateItemTax :: ValidItem -> Maybe Text
