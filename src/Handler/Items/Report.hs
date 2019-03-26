@@ -390,14 +390,13 @@ reportDoc' = [shamlet|
             <td >Y/Row
             <td >Colour/Label
 
-<tr>
+          <tr>
             <td >Column
             <td >N/A
             <td >X
             <td >X/Column
             <td >X/Column
             <td >Point/Label
-          
 
           <tr>
             <td >Trace 1
@@ -406,7 +405,6 @@ reportDoc' = [shamlet|
             <td >Z/Subrow
             <td >Z/Size
             <td >X
-          
 
           <tr>
             <td >Trace 2
@@ -415,7 +413,6 @@ reportDoc' = [shamlet|
             <td >Z/Subrow
             <td >Z/Colour
             <td >Y
-          
 
           <tr>
             <td >Trace 3
@@ -424,7 +421,4 @@ reportDoc' = [shamlet|
             <td >Z/Subrow
             <td >&#xa0;
             <td >Z/Size
-          
-        
-      
 |]
