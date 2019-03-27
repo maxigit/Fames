@@ -36,6 +36,7 @@ module Handler.Util
 , operatorFinder
 , operatorFinderWithError
 , FilterExpression(..)
+, readFilterExpression
 , filterE
 , filterEField
 , filterEKeyword
@@ -59,6 +60,7 @@ module Handler.Util
 , hToHx
 , eToX
 , categoriesH
+, batchCategoriesH
 , customerCategoriesH
 , orderCategoriesH
 , Identifiable(..)
@@ -702,6 +704,11 @@ categoriesH = do
   catRulesMap <- appCategoryRules <$> getsYesod appSettings
   return $ concatMap keys catRulesMap
 
+batchCategoriesH :: Handler [Text]
+batchCategoriesH = do
+  categories <- categoriesH
+  -- at the moment filter categroy starting with match
+  return $ filter (isPrefixOf "batch") categories
 
 _allSkus :: Handler [Key FA.StockMaster]
 _allSkus = do

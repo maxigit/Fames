@@ -80,11 +80,32 @@ data Button = CreateMissingBtn
             deriving (Read, Show)
 data ButtonStatus = BtnActive | BtnInactive Text | BtnHidden deriving Show
 -- * Handlers
+-- | Override parameters from Url
+-- Allows, link from categories to call this page
+overrideParamFromUrl :: IndexParam -> Handler IndexParam
+overrideParamFromUrl param@IndexParam{..} = do
+  -- could be rewritten using normal Yesod form
+  categories <- batchCategoriesH
+  categoryIndex <- lookupGetParam "category"
+  categoryFilter <- readFilterExpression <$$> lookupGetParam "category-filter"
+  sku <- readFilterExpression <$$> lookupGetParam "sku"
+  let category = case categoryIndex >>= readMay of
+        Nothing -> categoryIndex -- category name
+        Just index -> listToMaybe $ drop index categories
+  return $ param { ipSKU = ipSKU <|> sku
+                 , ipCategory = ipCategory <|> category
+                 , ipCategoryFilter = ipCategoryFilter <|> categoryFilter
+                 }
+
+  
+  
+  
 getItemsIndexR :: Maybe ItemViewMode -> Handler TypedContent
 getItemsIndexR mode = do
   skuToStyleVar <- skuToStyleVarH
   let ?skuToStyleVar = skuToStyleVar
-  renderIndex (paramDef mode) ok200
+  param <- overrideParamFromUrl (paramDef mode)
+  renderIndex param ok200
 
 postItemsIndexR :: Maybe ItemViewMode -> Handler TypedContent
 postItemsIndexR mode = do

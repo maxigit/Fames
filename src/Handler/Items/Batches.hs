@@ -55,13 +55,16 @@ matchTableForm categories = renderBootstrap3 BootstrapInlineForm form where
                          <*> aopt (selectField optionsEnum) "Aggregation Batch" Nothing
                          <*> areq (selectField optionsEnum) "Display Mode" Nothing
 
+batchCategoryIndexForm categories batchName = renderBootstrap3 BootstrapInlineForm form where
+  form = (,) <$> areq (selectFieldList $ zip categories categories ) ("Batch category" { fsName = Just "category"}) Nothing
+             <*> areq hiddenField ("" { fsName = Just "category-filter"}) (Just batchName)
 -- * Handler
 -- ** All batches
 getItemBatchesR :: Handler Html
 getItemBatchesR = do
   renderUrl <- getUrlRenderParams
   batcheEs <- runDB $ loadBatches
-  categories <- categoriesH
+  categories <- batchCategoriesH
   ((_, form), encType) <- runFormGet $ matchTableForm categories
 
   extra <- uploadBatchExtra
@@ -94,9 +97,14 @@ getItemBatchR :: Int64 -> Handler Html
 getItemBatchR key = do
   let batchKey = BatchKey (fromIntegral key)
   batch <- runDB $ getJust batchKey
+  categories <- batchCategoriesH
+  ((_, form), encType) <- runFormGet $ batchCategoryIndexForm categories (batchName batch)
   defaultLayout $ do
     renderBatch (Entity batchKey batch)
     [whamlet|
+   <form.form-inline role=form method=GET action="@{ItemsR (ItemsIndexR Nothing)}" enctype=#{encType}>
+        ^{form}
+        <button.btn.btn-primary type=submit >View Items
             |]
 
 -- display page to create a new batch
@@ -144,7 +152,7 @@ saveMatchesForm encoding'hash'''pathM''day'''operator = renderBootstrap3 Bootstr
 -- ** Upload
 uploadBatchExtra =  do
   today <- todayH
-  categories <- categoriesH
+  categories <- batchCategoriesH
   let operatorOptions = optionsPersistKey [OperatorActive ==. True] [Asc OperatorNickname] operatorNickname
   return ( (,,) <$>  areq dayField "Date" (Just today)
            <*> areq (selectField operatorOptions) "Operator" Nothing
@@ -218,7 +226,7 @@ getItemBatchMatchTableR = do
 
 getMatchTableParam :: Handler MatchTableParam
 getMatchTableParam = do
-  categories <- categoriesH
+  categories <- batchCategoriesH
   (param, _) <- unsafeRunFormGet $ matchTableForm categories
   key'values <- reqGetParams <$> getRequest
   let radios = mapMaybe (\(k, v) -> (,) <$> (stripPrefix radioNamePrefix k >>= readMay )

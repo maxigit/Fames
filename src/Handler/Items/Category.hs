@@ -41,9 +41,15 @@ getItemsCategoryTermsR name = do
           <input#stockFilterF type="text" name=stockFilter>
           <button.btn.btn-danger> Reset category for all items
       <div.well>
-          <ul>
+          <table.table.table-hover.table-striped>
+            <tr>
+              <th> Value
+              <th> Number of items
             $forall (Single term, Single co) <- terms
-              <li>#{term} (#{co})
+              <tr>
+                <td>#{term}
+                <td>
+                  <a href=@?{(ItemsR (ItemsIndexR Nothing), [("category", name), ("category-filter", term)])}>#{co}
                  |]
 
 

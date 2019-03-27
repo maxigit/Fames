@@ -272,7 +272,7 @@ findBatchForSku :: Text -> Text -> Handler (Either Text (Entity Batch, Text))
 findBatchForSku batchCategory sku = do
   skuToStyleVar <- skuToStyleVarH
   catFinder <- categoryFinderCached
-  categories <- categoriesH
+  categories <- batchCategoriesH
   let (_, colour) = skuToStyleVar sku
   case (batchCategory `elem` categories,  colour) of
     (False, _ ) -> do
