@@ -63,6 +63,9 @@ getItemBatchesR = do
   batcheEs <- runDB $ loadBatches
   categories <- categoriesH
   ((_, form), encType) <- runFormGet $ matchTableForm categories
+
+  extra <- uploadBatchExtra
+  (uForm, uEncType) <- generateFormPost (uploadFileFormInline extra)
   let allBatches = batchTables renderUrl roleRadioColumns batcheEs
       mainPanel = infoPanel "All Batches" [whamlet|
         <form role=form method=get action="@{ItemsR ItemBatchMatchTableR}" encType=#{encType}>
@@ -74,7 +77,10 @@ getItemBatchesR = do
   defaultLayout $ mainPanel >> infoPanel "Actions" [whamlet|
    <form method=get action="@{ItemsR ItemNewBatchR}">
      <button.btn.btn-default type=submit> Create New Batch
-     |]
+   <form.form-inline role=form method=POST action="@{ItemsR (ItemBatchUploadMatchesR)}" enctype=#{uEncType}>
+        ^{uForm}
+        <button.btn.btn-primary type=submit name="action" value="validate" > Upload matches
+            |]
 
 
 postItemBatchesR :: Handler Html
@@ -88,15 +94,9 @@ getItemBatchR :: Int64 -> Handler Html
 getItemBatchR key = do
   let batchKey = BatchKey (fromIntegral key)
   batch <- runDB $ getJust batchKey
-  extra <- uploadBatchExtra
-  (form, encType) <- generateFormPost (uploadFileFormInline extra)
   defaultLayout $ do
     renderBatch (Entity batchKey batch)
     [whamlet|
-   <div.well>
-      <form.form-inline role=form method=POST action="@{ItemsR (ItemBatchUploadMatchesR key)}" enctype=#{encType}>
-        ^{form}
-        <button.btn.btn-primary type=submit name="action" value="validate" > Upload matches
             |]
 
 -- display page to create a new batch
@@ -150,8 +150,8 @@ uploadBatchExtra =  do
            <*> areq (selectField operatorOptions) "Operator" Nothing
            <*> areq (selectFieldList $ zip categories categories) "Operator" Nothing
          )
-postItemBatchUploadMatchesR :: Int64 -> Handler Html
-postItemBatchUploadMatchesR key = do
+postItemBatchUploadMatchesR :: Handler Html
+postItemBatchUploadMatchesR = do
   extra <- uploadBatchExtra
   ((fileInfo,encoding, (day, operator, batchCategory)), (view, encType)) <- unsafeRunFormPost (uploadFileFormInline extra)
   Just (bytes, hash, path ) <- readUploadOrCacheUTF8 encoding (Just fileInfo) Nothing Nothing

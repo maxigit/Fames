@@ -96,7 +96,7 @@
   /batch/view/#Int64 ItemBatchR GET !batch 
   /batch/edit/#Int64 ItemEditBatchR GET POST !batch 
   /batch/new ItemNewBatchR GET POST !batch  !title=New_Batch
-  /batch/uploadMatches/#Int64 ItemBatchUploadMatchesR POST !batch
+  /batch/uploadMatches/ ItemBatchUploadMatchesR POST !batch
   /batch/uploadAndSaveMatches ItemBatchSaveMatchesR POST !batch
   /batch/match_table ItemBatchMatchTableR GET !batch
   /batch/expand ItemBatchExpandMatchesR GET !batch
