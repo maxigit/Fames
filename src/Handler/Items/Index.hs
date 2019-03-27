@@ -28,7 +28,9 @@ import qualified Data.Map as Map
 -- | SQL text filter expression. Can be use either the LIKE syntax or the Regex one.
 -- Regex one starts with '/'.
 data IndexParam = IndexParam
-  { ipStyles :: Maybe FilterExpression
+  { ipSKU :: Maybe FilterExpression
+  , ipCategory :: Maybe Text
+  , ipCategoryFilter :: Maybe FilterExpression
   , ipVariationsF :: Maybe FilterExpression
   , ipVariationGroup :: Maybe Text -- ^ Alternative to variations
   , ipShowInactive :: Bool
@@ -111,7 +113,9 @@ cacheDelay :: CacheDelay
 cacheDelay = cacheDay 1
 -- ** Params and Forms
 paramDef :: Maybe ItemViewMode -> IndexParam
-paramDef mode = IndexParam Nothing Nothing Nothing False True
+paramDef mode = IndexParam Nothing Nothing Nothing -- SKU category
+                           Nothing Nothing -- variation
+                           False True
                            mempty empty empty
                            (fromMaybe ItemGLView mode)
                            False
@@ -122,9 +126,11 @@ paramDef mode = IndexParam Nothing Nothing Nothing False True
 --           -> IndexParam
 --           -> Markup
 --           -> MForm m (FormResult IndexParam, WidgetT (HandlerSite m) IO ())
-indexForm groups param = renderBootstrap3 BootstrapBasicForm form
+indexForm categories groups param = renderBootstrap3 BootstrapBasicForm form
   where form = IndexParam
-          <$> (aopt filterEField "styles" (Just $ ipStyles param))
+          <$> (aopt filterEField "Sku" (Just $ ipSKU param))
+          <*> (aopt (selectFieldList categoryOptions) "Category" (Just $ ipCategory param))
+          <*> (aopt filterEField "Category Filter" (Just $ ipCategoryFilter param))
           <*> (aopt filterEField "variations" (Just $ ipVariationsF param))
           <*> (aopt (selectFieldList groups') "variation group" (Just $ ipVariationGroup param))
           <*> (areq boolField "Show Inactive" (Just $ ipShowInactive param))
@@ -140,6 +146,7 @@ indexForm groups param = renderBootstrap3 BootstrapBasicForm form
         groups' =  map (\g -> (g,g)) groups
         rstatus = optionsPairs $ map (fanl (drop 2 . tshow)) [minBound..maxBound]
         wstatus = optionsPairs $ map (fanl (drop 3 . tshow)) [minBound..maxBound]
+        categoryOptions = [(cat, cat) | cat <-categories ]
 
 -- | Fill the parameters which are not in the form but have to be extracted
 -- from the request parameters
@@ -158,7 +165,8 @@ fillTableParams params0 = do
 getPostIndexParam :: IndexParam -> HandlerT App IO (IndexParam, WidgetT App IO (), Enctype)
 getPostIndexParam param0 = do
   varGroup <- appVariationGroups <$> getsYesod appSettings
-  ((resp, form), encType) <- runFormPost (indexForm (Map.keys varGroup) param0)
+  categories <- categoriesH
+  ((resp, form), encType) <- runFormPost (indexForm categories (Map.keys varGroup) param0)
   let param1 = case resp of
         FormMissing -> param0
         FormSuccess par -> par
@@ -168,17 +176,37 @@ getPostIndexParam param0 = do
 
 -- | Generates the filter which loads the variations corresponding to the given
 -- parameters.
--- styleFilter.
-styleFilter :: IsString a => IndexParam -> Either a [Filter StockMaster]
-styleFilter param = 
-  let styleF = ipStyles param
-  in case styleF of
-      Nothing -> Left "Please enter a styles filter expression (SQL like expression or regexp starting with '/'')"
-      Just _ -> Right (filterE StockMasterKey FA.StockMasterId styleF
-                            ++ if (ipShowInactive param)
-                               then []
-                               else [FA.StockMasterInactive ==. False]
-                      )
+-- styleQuery.
+styleQuery :: IsString a => IndexParam -> Either a (Text, [PersistValue])
+styleQuery IndexParam{..} = 
+  let selectClause = " SELECT ?? FROM 0_stock_master "
+      (where0, p0) = case ipSKU of
+          Nothing -> ("", [])
+          Just styleE ->  let (keyw, v) = filterEKeyword styleE
+                              where0 = " stock_id " <> keyw <> " ?"
+                          in (where0, [toPersistValue v])
+      (joinClause, where1 , p1) = case (ipCategory, ipCategoryFilter) of
+                       (Just category, Just catFilter) -> let joinClause = " JOIN fames_item_category_cache AS category USING (stock_id) "
+                                                              (catw, catv) = filterEKeyword catFilter
+                                                              whereCat = [ "category.category = ? " , " category.value " <> catw <> "? " ]
+                                                          in (joinClause, whereCat, [toPersistValue category, toPersistValue catv])
+                       _ -> ("", [], [])
+      makeWhere [] = ""
+      makeWhere ws = " WHERE " <> intercalate " AND " ws
+      activeWhere = if ipShowInactive
+                    then []
+                    else [" 0_stock_master.inactive = 0 "]
+
+  in case (filter (not . null) $ (where0 : where1)) of
+    [] -> Left "Please enter a styles or category filter expression (SQL like expression or regexp starting with '/'')"
+    wheres -> Right  ( selectClause ++ joinClause ++ makeWhere (wheres ++ activeWhere)
+                      , p0 <> p1 )
+-- | Return Persistent filter corresponding to selected it
+selectedItemsFilter :: IsString a => IndexParam -> Either a  [ Filter FA.StockMaster ]
+selectedItemsFilter param = 
+  case ipChecked param of
+    [] -> Left "No items selected"
+    checkeds -> Right [ FA.StockMasterId <-. map FA.StockMasterKey checkeds ]
 
 -- | Generates function to filter sku based on items which have been checked (checkbox)
 checkFilter :: IndexParam -> Text -> Bool
@@ -312,12 +340,12 @@ loadVariations cache param = do
   adjustBase <- getAdjustBase
   varGroupMap <- appVariationGroups <$> appSettings <$> getYesod
   
-  styles <- case styleFilter param of
+  styles <- case styleQuery param of
     Left err -> do
               setWarning err
               return []
-    Right styleF -> let select = selectList styleF [Asc FA.StockMasterId]
-                    in cache0 forceCache (cacheDelay) ("load styles", ipStyles param) (runDB select)
+    Right (sql, sqlParams) -> let select = rawSql (sql <> " ORDER BY 0_stock_master.stock_id") sqlParams
+                    in cache0 forceCache (cacheDelay) ("load styles", (ipSKU param, ipCategory param, ipCategoryFilter param, ipShowInactive param)) (runDB select)
   variations <- case varF of
     (Left filter_)  -> let select = (Left . map entityKey) <$> runDB (selectList -- selectKeysList bug. fixed but not in current LTS
                                     (filterE StockMasterKey FA.StockMasterId (Just filter_)
@@ -390,7 +418,7 @@ webStatusOk IndexParam{..} ItemInfo{..} = case (ipWebStatusFilter, fmap webDispl
 loadSalesPrices :: (?skuToStyleVar :: Text -> (Text, Text))
                 => IndexParam -> SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
 loadSalesPrices param = do
-  case (ipStyles param) of
+  case (ipSKU param) of
      Just styleF -> do
        let sql = "SELECT ?? FROM 0_prices JOIN 0_stock_master USING(stock_id)"
             <> " WHERE curr_abrev = 'GBP' AND " <> stockF <> inactive
@@ -434,7 +462,7 @@ priceListsToKeep cache params = do
 loadPurchasePrices :: (?skuToStyleVar :: Text -> (Text,Text))
               => IndexParam -> SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
 loadPurchasePrices param = do
-  case (ipStyles param) of
+  case (ipSKU param) of
      Just styleF -> do
        let sql = "SELECT ?? FROM 0_purch_data JOIN 0_stock_master USING(stock_id)"
             <> " WHERE " <> stockF <> inactive
@@ -477,7 +505,7 @@ suppliersToKeep cache params = do
 loadStatus :: (?skuToStyleVar :: Text -> (Text,Text))
               => IndexParam ->  SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
 loadStatus param = do 
-  case (ipStyles param) of
+  case (ipSKU param) of
     Just styleF -> do
       let sql = "SELECT stock_id, COALESCE(qoh, 0), COALESCE(all_qoh, 0)"
               <> " , COALESCE(on_demand, 0), COALESCE(all_on_demand, 0) "
@@ -534,7 +562,7 @@ loadStatus param = do
 loadWebStatus :: (?skuToStyleVar :: Text -> (Text,Text))
               => IndexParam -> SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
 loadWebStatus param = do
-  case (ipStyles param) of
+  case (ipSKU param) of
     Just styleF -> do
       let sql = "SELECT sku, product.status, node.title"
              <> " FROM commerce_product AS product "
@@ -558,7 +586,7 @@ loadWebStatus param = do
 loadWebPrices :: (?skuToStyleVar :: Text -> (Text, Text))
               => IndexCache -> IndexParam -> SqlHandler [ItemInfo (ItemMasterAndPrices Identity)]
 loadWebPrices cache param = do
-  case (ipStyles param) of
+  case (ipSKU param) of
     Just styleF ->  do
        -- individual prices For each sku
        sku'prices <- mapM (loadWebPriceFor (filterEKeyword styleF)) (icWebPriceList cache)
@@ -916,7 +944,7 @@ renderButton param bclass button = case buttonStatus param button of
 -- some of them. Creating missing items only works if we are sure that
 -- we are displaying the item.
 areVariationsComplete :: IndexParam -> Bool
-areVariationsComplete IndexParam{..} = ipShowInactive && null ipFAStatusFilter && null ipWebStatusFilter
+areVariationsComplete IndexParam{..} = ipShowInactive && null ipFAStatusFilter && null ipWebStatusFilter && null ipCategoryFilter
 buttonStatus :: IndexParam -> Button -> ButtonStatus
 buttonStatus param CreateMissingBtn = case (ipMode param, not (areVariationsComplete param)) of
   (ItemGLView, False) -> BtnInactive "Please show inactive item before creating items. This is to avoid trying to create disabled items."
@@ -1186,7 +1214,7 @@ createGLMissings params = do
     insertMany_ itemCodes
     insertMany_ prices
     insertMany_ purchData
-  refreshCategoryFor Nothing (ipStyles params)
+  refreshCategoryFor Nothing (ipSKU params)
   clearAppCache
 
   setSuccess (toHtml $ tshow (maximumEx [length stockMasters, length prices, length purchData]) <> " items succesfully created.")
@@ -1765,10 +1793,10 @@ changeActivation :: Bool -> IndexParam -> _ -> _ -> Handler ()
 changeActivation activate param activeFilter updateFn =  runDB $ do
   -- we set ShowInactive to true to not filter anything yet using (StockMasterInactive)
   -- as it will be done before
-  entities <- case styleFilter param {ipMode = ItemGLView, ipShowInactive = True } of
+  entities <- case selectedItemsFilter param {ipMode = ItemGLView, ipShowInactive = True } of
     Left err -> error err >> return []
     Right filter_ ->  selectList ( activeFilter ++ filter_) []
-  traceShowM ("ACTI", param, entities)
+  -- traceShowM ("ACTI", param, entities)
   let toKeep = checkFilter param
       keys_ = [ key
              | (Entity key _) <- entities
