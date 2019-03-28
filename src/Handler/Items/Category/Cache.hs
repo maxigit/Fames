@@ -358,7 +358,7 @@ partitionDeliveriesFIFO (These moves' qoh) = let
 -- needed to compute item batch category
 mkItemDeliveryInput :: Maybe CategoryRule -> ([String], [FA.StockMove] -> [(String, String)])
 mkItemDeliveryInput ruleM = (inputKeys, fn) where
-  inputKeys = ["trans_no", "location", "date", "reference", "type", "person"]
+  inputKeys = ["trans_no", "location", "date", "reference", "type", "person", "stockId"]
   catRegexCache =  mapFromList (map (liftA2 (,) id mkCategoryRegex) inputKeys)
   fn moves = let
       value'qohs = case ruleM of
@@ -375,6 +375,7 @@ mkItemDeliveryInput ruleM = (inputKeys, fn) where
         , ("full_type", showTransType (toEnum stockMoveType))
         , ("person", maybe "" show stockMovePersonId)
         , ("quantity", show (floor stockMoveQty))
+        , ("stockId", unpack stockMoveStockId)
         ]) Nothing
       source FA.StockMove{..} = show stockMoveTranDate
                   <> " " <> showTransType (toEnum stockMoveType) -- full text 
