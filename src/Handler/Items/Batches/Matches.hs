@@ -527,7 +527,7 @@ mergeBatchMatches _ _ [matches] = Just matches
 mergeBatchMatches MergeRaisesError sku matchess | [ms] <-  nub matchess = Just ms
 mergeBatchMatches MergeRaisesError sku _ = error $ "Multiple batches for " <> unpack sku
 mergeBatchMatches SafeMatch sku matchess = let
-  matches = concat matchess
+  matches = concatMap (aggregateQuality MedianMatches) matchess
   -- group by colour and take the worst of it
   col'qualityMap' :: Map Text [MatchQuality]
   col'qualityMap' = groupAsMap fst ((:[]) . snd) matches

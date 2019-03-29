@@ -44,3 +44,12 @@ pureSpec = do
                                                      , [ ("A", Good) ]
                                                      ]
               `shouldBe` Just [("A", Good)] 
+          it "gets lowest  of the intersection" $ do
+            mergeBatchMatches SafeMatch "sku" [ [ ("FPK", Fair), ("FPK", Good)
+                                                , ("BGM", Close), ("BGM", Fair)
+                                                ]
+                                              , [ ("CES", Close)
+                                                , ("BGM", Bad)
+                                                ]
+                                              ]
+              `shouldBe` Just [("BGM", Bad)] 
