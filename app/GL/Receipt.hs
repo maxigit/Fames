@@ -106,6 +106,7 @@ type ReceiptTemplate = ReceiptTemplate' (Const Text)
 type ReceiptTemplateExpanded = ReceiptTemplate' Identity
 
 deriving instance Show ReceiptTemplate
+deriving instance Eq ReceiptTemplate
 
 instance Semigroup (ReceiptTemplate' f) where
   a <> b = normalizeTemplate (CompoundTemplate [a,b])

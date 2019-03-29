@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 269252bf6fa9e2c54300949d8c6baa101399c3b50b649405bbe6acddc9bff6c5
+-- hash: c6d5c55d416dd9c66c49554f99ea567bf23e515cddd284fe209f1b4ddfb1fa47
 
 name:           Fames
 version:        0.0.1
@@ -456,6 +456,7 @@ test-suite ghcid
       Handler.GLEnterReceiptSheetSpec
       Handler.HomeSpec
       Handler.ItemReportSpec
+      Handler.Items.BatchSpec
       Handler.WHBarcodeSpec
       Handler.WHBoxtake.AdjustementSpec
       Handler.WHBoxtake.UploadSpec
@@ -685,6 +686,7 @@ test-suite test
       Handler.GLEnterReceiptSheetSpec
       Handler.HomeSpec
       Handler.ItemReportSpec
+      Handler.Items.BatchSpec
       Handler.WHBarcodeSpec
       Handler.WHBoxtake.AdjustementSpec
       Handler.WHBoxtake.UploadSpec

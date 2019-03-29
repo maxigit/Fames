@@ -1,9 +1,11 @@
+{-# LANGUAGE OverloadedStrings #-}
 module GL.ReceiptProcessingSpec (spec) where
 
 import TestImport
 import qualified GL.FA as FA
 import GL.Receipt
 import Data.Yaml(decodeEither)
+import Control.Applicative (Const(..))
 
 spec :: Spec
 spec = paymentSpecs >> jsonSpecs
@@ -31,18 +33,21 @@ paymentSpecs = parallel $ describe "@parallel @Receipt #Receipt translator" $ do
     pending
 
 
-jsonSpecs = parallel $ describe "@parallel @Receipt #parseJSON @current" $ do
+jsonSpecs = parallel $ describe "@parallel @Receipt #parseJSON" $ do
+  let rightR x = Right (x :: ReceiptTemplate)
   it "parses counterparty setter " $ do
-     decodeEither "counterparty: A" `shouldBe` Right (CounterpartySetter "A")
+     decodeEither "counterparty: A" `shouldBe` rightR (CounterpartySetter "A")
   it "parses bank account setter " $ do
-     decodeEither "bank: B" `shouldBe` Right (BankAccountSetter "B")
+     decodeEither "bank: B" `shouldBe` rightR (BankAccountSetter "B")
   it "parses multiple setter as hash in Alpha order" $ do
-     decodeEither "counterparty: A\nbank: B" `shouldBe` (Right $ CompoundTemplate [BankAccountSetter "B", CounterpartySetter "A"])
+     decodeEither "counterparty: A\nbank: B" `shouldBe` (rightR $ CompoundTemplate [BankAccountSetter "B", CounterpartySetter "A"])
   it "parses multiple setter as hash in alpha order" $ do
-     decodeEither "bank: B\ncounterparty: A" `shouldBe` (Right $ CompoundTemplate [BankAccountSetter "B", CounterpartySetter "A"])
+     decodeEither "bank: B\ncounterparty: A" `shouldBe` (rightR $ CompoundTemplate [BankAccountSetter "B", CounterpartySetter "A"])
   it "parses multiple setter as list" $ do
-     decodeEither "- counterparty: A\n- bank: B" `shouldBe` (Right $ CompoundTemplate [CounterpartySetter "A", BankAccountSetter "B"])
+     decodeEither "- counterparty: A\n- bank: B" `shouldBe` (rightR $ CompoundTemplate [CounterpartySetter "A", BankAccountSetter "B"])
 
-  it "parses VAT" $ do
-    decodeEither "vat:\n  rate: 20\n  tax: VAT 20%" `shouldBe` Right (ItemVATDeducer 0.20 "VAT 20%")
+  -- it "parses VAT" $ do
+  --   -- decodeEither "vat:\n  rate: 20\n  tax: VAT 20%" `shouldBe` Right (ItemVATDeducer $ FA.TaxRef 0.20 "VAT 20%")
+  --   decodeEither "vat:\n  rate: 20\n  tax: VAT 20%" `shouldBe` 
+  --     (rightR $ CompoundTemplate [CounterpartySetter "A", BankAccountSetter "B"])
 

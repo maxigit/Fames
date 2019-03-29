@@ -524,6 +524,7 @@ median2 xs = case length xs `divMod` 2 of
 mergeBatchMatches :: BatchMergeMode -> Text ->  [ [(Text, MatchQuality)]] -> Maybe [(Text, MatchQuality)]
 mergeBatchMatches _ _ [] = Nothing
 mergeBatchMatches _ _ [matches] = Just matches
+mergeBatchMatches MergeRaisesError sku matchess | [ms] <-  nub matchess = Just ms
 mergeBatchMatches MergeRaisesError sku _ = error $ "Multiple batches for " <> unpack sku
 mergeBatchMatches SafeMatch sku matchess = let
   matches = concat matchess
