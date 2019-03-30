@@ -341,12 +341,12 @@ roleRadioColumns :: [(Text, (Entity Batch, a) -> Either Html PersistValue)]
 roleRadioColumns =  map (uncurry go) [ ("Don't use" :: Text, "" :: Text)
                               , ("As AsRow", tshow AsRow)
                               , ("As AsColumn", tshow AsColumn)
-                              ] where
+                              ]  where
   go title value = ( title
                    , \(batchEntity, _) -> Left [shamlet|
-                         <input type=radio name="#{radioName batchEntity}" value="#{value}">
+                         <input type=radio name="#{radioName batchEntity}" value="#{value}" :checked:checked>
                          |]
-                   )
+                   ) where checked = null value
   
 matchCountColumn :: (Text, (Entity Batch, Int) -> Either Html PersistValue)
 matchCountColumn = ("Matches", go)  where
