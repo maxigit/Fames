@@ -63,13 +63,13 @@ batchCategoryIndexForm categories batchName = renderBootstrap3 BootstrapInlineFo
 getItemBatchesR :: Handler Html
 getItemBatchesR = do
   renderUrl <- getUrlRenderParams
-  batcheEs <- runDB $ loadBatches
+  batcheEs <- runDB $ loadBatchesWithInfo
   categories <- batchCategoriesH
   ((_, form), encType) <- runFormGet $ matchTableForm categories
 
   extra <- uploadBatchExtra
   (uForm, uEncType) <- generateFormPost (uploadFileFormInline extra)
-  let allBatches = batchTables renderUrl roleRadioColumns batcheEs
+  let allBatches = batchTables renderUrl (matchCountColumn:roleRadioColumns) batcheEs
       mainPanel = infoPanel "All Batches" [whamlet|
         <form role=form method=get action="@{ItemsR ItemBatchMatchTableR}" encType=#{encType}>
           ^{allBatches}
@@ -337,32 +337,36 @@ renderBatch batchEntity@(Entity _ Batch{..}) = infoPanel ("Batch: " <> batchName
 
 radioNamePrefix = "batch-role-" :: Text
 radioName (Entity batchId _) = radioNamePrefix <> tshow (unSqlBackendKey $ unBatchKey batchId)
-roleRadioColumns :: [(Text, Entity Batch -> Either Html PersistValue)]
+roleRadioColumns :: [(Text, (Entity Batch, a) -> Either Html PersistValue)]
 roleRadioColumns =  map (uncurry go) [ ("Don't use" :: Text, "" :: Text)
                               , ("As AsRow", tshow AsRow)
                               , ("As AsColumn", tshow AsColumn)
                               ] where
   go title value = ( title
-                   , \batchEntity -> Left [shamlet|
+                   , \(batchEntity, _) -> Left [shamlet|
                          <input type=radio name="#{radioName batchEntity}" value="#{value}">
                          |]
                    )
   
-batchTables :: _renderUrl -> [(Text, Entity Batch -> Either Html PersistValue)] -> [Entity Batch] -> Widget
-batchTables renderUrl extraColumns batches = [whamlet|
+matchCountColumn :: (Text, (Entity Batch, Int) -> Either Html PersistValue)
+matchCountColumn = ("Matches", go)  where
+  go (_, count) = Right (toPersistValue count)
+
+batchTables :: _renderUrl -> [(Text, (Entity Batch, a) -> Either Html PersistValue)] -> [(Entity Batch, a)] -> Widget
+batchTables renderUrl extraColumns batch'counts = [whamlet|
   <table.table.table-hover>
     ^{rowsAndHeader}
   |] where
-  rowsAndHeader = displayTableRowsAndHeader columns colDisplays (map ((,[]) . entityColumnToColDisplay)  batches) where
-  columns = [ entityKeyToColumn renderUrl (ItemsR . ItemBatchR) BatchId
-            , entityFieldToColumn BatchName
-            , entityFieldToColumn BatchAlias
-            , entityFieldToColumn BatchSupplier
-            , entityFieldToColumn BatchMaterial
-            , entityFieldToColumn BatchSeason
-            , entityFieldToColumn BatchDescription
-            , entityFieldToColumn BatchDate
-            ] <> extraColumns
+  rowsAndHeader = displayTableRowsAndHeader columns colDisplays (map ((,[]) . entityColumnToColDisplay )  batch'counts) where
+  columns =  ((. fst) <$$> [ entityKeyToColumn renderUrl (ItemsR . ItemBatchR) BatchId 
+                           , entityFieldToColumn BatchName
+                           , entityFieldToColumn BatchAlias
+                           , entityFieldToColumn BatchSupplier
+                           , entityFieldToColumn BatchMaterial
+                           , entityFieldToColumn BatchSeason
+                           , entityFieldToColumn BatchDescription
+                           , entityFieldToColumn BatchDate
+                           ]) <>  extraColumns
   colDisplays (name, _) = (toHtml name, [])
 
 colour'QualitysToHtml' :: MatchAggregationMode -> QualityDisplayMode -> [(Text, MatchQuality)] -> Html
@@ -382,3 +386,11 @@ loadBatches :: SqlHandler [Entity Batch]
 loadBatches = do
   batches <- selectList [] [Desc BatchDate, Asc BatchName]
   return batches
+
+-- | Load batches as well as the number of matches they are invovled with
+loadBatchesWithInfo :: SqlHandler [(Entity Batch, Int)]
+loadBatchesWithInfo = do
+  batches <- loadBatches
+  forM batches $ \batchE@(Entity batchId _) -> do
+    c <- count ([BatchMatchSource ==. batchId] ||. [BatchMatchTarget ==. batchId])
+    return (batchE, c)
