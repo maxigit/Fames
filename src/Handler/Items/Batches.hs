@@ -283,10 +283,14 @@ loadMatchTable MatchTableParam{..} = do
       wrongWay <- selectList (BatchMatchSource <-?. columns <>  BatchMatchTarget <-?. rows) []
       let matches = ForBuildTable $ map entityVal normal ++ map (reverseBatchMatch . entityVal) wrongWay
 
-      rowBatches <- selectList [BatchId <-. rows] []
-      columnBatches <- selectList [BatchId <-. columns] []
+      rowBatches <- selectList (BatchId <-?. rows) []
+      columnBatches <- selectList (BatchId <-?. columns) []
 
-      let (cols, colDisplay, tableRows) = buildTable (colour'QualitysToHtml' mtAggregationMode mtDisplayMode) rowBatches columnBatches  matches
+
+      let (cols, colDisplay, tableRows) = buildTable (colour'QualitysToHtml' mtAggregationMode mtDisplayMode) filterColumn rowBatches columnBatches  matches
+          filterColumn = if length columns == 1
+                         then Nothing
+                         else Just (/= "Style/Batch")
       
       return $ displayTable cols colDisplay tableRows
 
@@ -324,13 +328,16 @@ getItemBatchExpandMatchesR = do
 -- | Load the matche table corresponding to one batch
 loadBatchMatchTable :: Key Batch -> Handler Widget
 loadBatchMatchTable batchKey = do
+  let sqlKeys = "SELECT distinct IF(source = ?, target, source) FROM fames_batch_match WHERE source = ? OR target = ?"
+  otherBatches <- runDB $ rawSql sqlKeys (replicate 3 (toPersistValue $ unBatchKey batchKey))
+
   let 
-    mtBatchRole = (batchKey, AsRow) : [] --  map (,AsColumn) []
+    mtBatchRole = (batchKey, AsRow) : map (, AsColumn) (otherBatches :: [Key Batch])
     mtSkuFilter= Nothing
     mtBatchCategory = ""
     mtAggregationMode = AllMatches
     mtRowAggregationMode = Nothing
-    mtDisplayMode = FullQuality
+    mtDisplayMode = LimitQuality
   loadMatchTable MatchTableParam{..}
   
 

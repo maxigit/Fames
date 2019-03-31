@@ -360,6 +360,7 @@ reverseBatchMatch BatchMatch{..} = BatchMatch{ batchMatchSource=batchMatchTarget
 -- | Assures all source are source and target are target regardless of the database order
 newtype ForBuildTable = ForBuildTable [BatchMatch] 
 buildTable :: ([(Text, MatchQuality)] -> Html) -- ^ qualitys rendered
+           -> Maybe (Text -> Bool)  -- ^ filter column
            -> [Entity Batch] -- ^ rows
            -> [Entity Batch] -- ^ columns
            -> ForBuildTable -- ^ matches
@@ -367,7 +368,7 @@ buildTable :: ([(Text, MatchQuality)] -> Html) -- ^ qualitys rendered
               , ((Text, (Key Batch, Text) -> Maybe (Either Html PersistValue)) -> (Html, [Text])) -- ^ COLUMN NAME: from column (as above)
               , [ ((Text, (Key Batch, Text) -> Maybe (Either Html PersistValue)) -> Maybe (Html, [Text]), [Text]) ] -- ^ ROWS: column (as above) -> value (via getter) 
               )
-buildTable renderColour'Qualitys rowBatches columnBatches (ForBuildTable matches) = let
+buildTable renderColour'Qualitys filterColumnFn rowBatches columnBatches (ForBuildTable matches) = let
   matchMap = groupAsMap (\BatchMatch{..} -> (batchMatchSource, batchMatchSourceColour, batchMatchTarget))
                         (\BatchMatch{..} -> [(batchMatchTargetColour, batchMatchQuality)])
                         matches
@@ -381,9 +382,10 @@ buildTable renderColour'Qualitys rowBatches columnBatches (ForBuildTable matches
             | (Entity batchId Batch{..}) <- columnBatches
             ]
   -- columns = 
-  columns = ("Style/Batch", \(source, _colour) -> lookup source batchMap <&> (Right . toPersistValue)) :
-            ("Colour", \(_source, colour) -> Just (Right $ toPersistValue colour)) :
-            columns0
+  columns = filter (maybe (const True) (. fst) filterColumnFn)
+            $ ("Style/Batch", \(source, _colour) -> lookup source batchMap <&> (Right . toPersistValue)) :
+              ("Colour", \(_source, colour) -> Just (Right $ toPersistValue colour)) :
+              columns0
 
   batchMap = groupAsMap entityKey  (\(Entity _ Batch{..}) -> fromMaybe batchName batchAlias ) (rowBatches <> columnBatches)
   rowsForTables = [ (colFn, [])
