@@ -99,7 +99,7 @@
   /batch/uploadMatches/ ItemBatchUploadMatchesR POST !batch
   /batch/uploadAndSaveMatches ItemBatchSaveMatchesR POST !batch
   /batch/match_table ItemBatchMatchTableR GET !batch
-  /batch/expand ItemBatchExpandMatchesR GET !batch
+  /batch/expand ItemBatchExpandMatchesR GET POST !batch !title=Expand_Batches
 
 /administrator AdministratorR !administrator:
   / AIndexR GET !group=Info !title=Index

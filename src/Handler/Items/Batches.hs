@@ -10,6 +10,7 @@ module Handler.Items.Batches
 , postItemBatchSaveMatchesR
 , getItemBatchMatchTableR
 , getItemBatchExpandMatchesR
+, postItemBatchExpandMatchesR
 ) where
 
 import Import
@@ -324,8 +325,23 @@ getItemBatchExpandMatchesR = do
         $of (Just _)
           <td>#{tshow batchMatchQuality}
       <td>#{tshowM batchMatchComment}
+<form role=form method=POST>
+  <button.btn.btn-danger type=submit> Save
                    |]
   defaultLayout widget
+
+-- | Saves expanded matches
+postItemBatchExpandMatchesR :: Handler Html
+postItemBatchExpandMatchesR = do
+  matches <- runDB $ selectList [] []
+  now <- liftIO getCurrentTime
+  let expanded = expandMatches $ map entityVal matches
+      guessed = filter (isNothing . batchMatchOperator) expanded
+      hash = computeDocumentKey . fromString $ "Expand batches " <> show now
+  runDB $ do
+    docKey <- createDocumentKey (DocumentType "BatchMatch") hash "<expand batches>" ""
+    insertMany_ (map (\g -> g { batchMatchDocumentKey = docKey } ) guessed)
+  getItemBatchExpandMatchesR
   
 -- | Load the matche table corresponding to one batch
 loadBatchMatchTable :: Key Batch -> Handler Widget
