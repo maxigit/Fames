@@ -100,21 +100,25 @@ postItemBatchesR :: Handler Html
 postItemBatchesR = do
   return ""
 
-
+  
 -- ** Single Batch
 -- display a batch
 getItemBatchR :: Int64 -> Handler Html
 getItemBatchR key = do
   let batchKey = BatchKey (fromIntegral key)
   batch <- runDB $ getJust batchKey
+  -- view item form, allows to view in items index all items for this batch
   categories <- batchCategoriesH
   ((_, form), encType) <- runFormGet $ batchCategoryIndexForm categories (batchName batch)
+
+  table <-  loadBatchMatchTable batchKey
   defaultLayout $ do
     renderBatch (Entity batchKey batch)
     [whamlet|
    <form.form-inline role=form method=GET action="@{ItemsR (ItemsIndexR Nothing)}" enctype=#{encType}>
         ^{form}
         <button.btn.btn-primary type=submit >View Items
+   ^{primaryPanel "Match Table" table}
             |]
 
 -- display page to create a new batch
@@ -316,6 +320,18 @@ getItemBatchExpandMatchesR = do
       <td>#{tshowM batchMatchComment}
                    |]
   defaultLayout widget
+  
+-- | Load the matche table corresponding to one batch
+loadBatchMatchTable :: Key Batch -> Handler Widget
+loadBatchMatchTable batchKey = do
+  let 
+    mtBatchRole = (batchKey, AsRow) : [] --  map (,AsColumn) []
+    mtSkuFilter= Nothing
+    mtBatchCategory = ""
+    mtAggregationMode = AllMatches
+    mtRowAggregationMode = Nothing
+    mtDisplayMode = FullQuality
+  loadMatchTable MatchTableParam{..}
   
 
 -- * Rendering
