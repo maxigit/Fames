@@ -117,7 +117,7 @@ instance Csv.FromField [(Either InvalidField (Maybe (ValidField Text)), Either I
           return $ (colour, fromMaybe (Right (Just $ Provided Close)) quality) : rets
         (colourBS, rest) = break (`elem` (":+=-," :: ByteString)) field
     colour <- Csv.parseField colourBS
-    parseQuality (Right colour) (stripBS " :=" rest)
+    parseQuality (Right colour) (stripBS " :" rest)
 
 
 stripBS :: ByteString -> ByteString -> ByteString
