@@ -60,7 +60,10 @@ entityFieldToColumn field = (fieldName, getter) where
 
 entityColumnToColDisplay :: e -> (Text, e -> Either Html PersistValue) -> Maybe (Html, [Text])
 entityColumnToColDisplay entity (name, getter) =
-  Just ( either id (toHtml . renderPersistValue) $ getter entity, [name] )
+  Just ( either id (toHtml . renderPersistValueEraseNull) $ getter entity, [name] )
+
+renderPersistValueEraseNull PersistNull = ""
+renderPersistValueEraseNull pv = renderPersistValue pv
 
 entityKeyToColumn :: (PersistField typ, PersistEntity e)
   => (Route App -> [(Text, Text)] -> Text)

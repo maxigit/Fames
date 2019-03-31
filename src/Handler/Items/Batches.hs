@@ -26,6 +26,16 @@ import Database.Persist.Sql -- (unSqlBackendKey)
 
 import Handler.Items.Batches.Matches
 import Handler.CsvUtils(renderParsingResult, Renderable(..))
+-- * Type
+-- | Summary to display on main batches page
+data BatchSummaryCount = BatchSummaryCount
+  { bsColourCount :: Int -- ^ the number of colours
+  , bsBatchCount :: Int -- ^ the number of colours
+  } deriving Show
+data BatchSummary = BatchSummary
+  { bsGiven :: BatchSummaryCount -- ^ as opposed to guessed
+  , bsTotal :: BatchSummaryCount
+  } deriving Show
 -- * Form
 data Mode = Validate | Success deriving (Show, Read, Eq)
 batchForm today batchM = renderBootstrap3 BootstrapBasicForm form where
@@ -63,13 +73,13 @@ batchCategoryIndexForm categories batchName = renderBootstrap3 BootstrapInlineFo
 getItemBatchesR :: Handler Html
 getItemBatchesR = do
   renderUrl <- getUrlRenderParams
-  batcheEs <- runDB $ loadBatchesWithInfo
+  batcheEs <- runDB $ loadBatchesWithSummary
   categories <- batchCategoriesH
   ((_, form), encType) <- runFormGet $ matchTableForm categories
 
   extra <- uploadBatchExtra
   (uForm, uEncType) <- generateFormPost (uploadFileFormInline extra)
-  let allBatches = batchTables renderUrl (matchCountColumn:roleRadioColumns) batcheEs
+  let allBatches = batchTables renderUrl (batchSummaryColumns <> roleRadioColumns) batcheEs
       mainPanel = infoPanel "All Batches" [whamlet|
         <form role=form method=get action="@{ItemsR ItemBatchMatchTableR}" encType=#{encType}>
           ^{allBatches}
@@ -348,9 +358,18 @@ roleRadioColumns =  map (uncurry go) [ ("Don't use" :: Text, "" :: Text)
                          |]
                    ) where checked = null value
   
-matchCountColumn :: (Text, (Entity Batch, Int) -> Either Html PersistValue)
-matchCountColumn = ("Matches", go)  where
-  go (_, count) = Right (toPersistValue count)
+batchSummaryColumns:: [( Text, (Entity Batch, BatchSummary) -> Either Html PersistValue ) ]
+batchSummaryColumns =
+  [ ("Colours", render bsColourCount)
+  , ("Batches", render bsBatchCount)
+  ]
+  where render getInt (_, BatchSummary{..})  =
+          case (getInt bsGiven, getInt bsTotal) of
+            (0, 0)  -> Left ""
+            (given, total) -> Left
+                              [shamlet|
+                                      #{given}/#{total}
+                                      |]
 
 batchTables :: _renderUrl -> [(Text, (Entity Batch, a) -> Either Html PersistValue)] -> [(Entity Batch, a)] -> Widget
 batchTables renderUrl extraColumns batch'counts = [whamlet|
@@ -388,9 +407,36 @@ loadBatches = do
   return batches
 
 -- | Load batches as well as the number of matches they are invovled with
-loadBatchesWithInfo :: SqlHandler [(Entity Batch, Int)]
-loadBatchesWithInfo = do
+loadBatchesWithSummary :: SqlHandler [(Entity Batch, BatchSummary)]
+loadBatchesWithSummary = do
   batches <- loadBatches
   forM batches $ \batchE@(Entity batchId _) -> do
-    c <- count ([BatchMatchSource ==. batchId] ||. [BatchMatchTarget ==. batchId])
-    return (batchE, c)
+    summary <- loadBatchSummary batchId
+    return (batchE, summary)
+
+loadBatchSummary :: Key Batch -> SqlHandler BatchSummary
+loadBatchSummary batchId = do
+  let sql = "SELECT operator_id is null AS guessed "
+            <> "     , COUNT(DISTINCT IF( source = ? "
+            <> "                        , source_colour "
+            <> "                        , target_colour)) AS colourCount "
+            <> "     , COUNT(DISTINCT IF( source = ? "
+            <> "                        , target "
+            <> "                        , source)) AS batchCount "
+            <> "FROM fames_batch_match "
+            <> "WHERE source =? OR target = ? "
+            <> "GROUP BY guessed "
+
+  summarys <- rawSql sql  (replicate 4 (toPersistValue batchId))
+  let mkCount (Single guessed, Single bsColourCount, Single bsBatchCount) = (guessed, BatchSummaryCount{..})
+      sumMap = mapFromList (map mkCount summarys) :: Map Bool BatchSummaryCount
+      count0 = BatchSummaryCount 0 0 
+      bsGiven = findWithDefault count0 False sumMap
+      alls = toList sumMap
+      bsTotal = BatchSummaryCount (sum (map bsColourCount alls))
+                                (sum (map bsBatchCount alls))
+
+  return BatchSummary{..}
+  
+
+
