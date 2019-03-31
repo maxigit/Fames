@@ -169,7 +169,7 @@ uploadBatchExtra =  do
   categories <- batchCategoriesH
   let operatorOptions = optionsPersistKey [OperatorActive ==. True] [Asc OperatorNickname] operatorNickname
   return ( (,,) <$>  areq dayField "Date" (Just today)
-           <*> areq (selectField operatorOptions) "Operator" Nothing
+           <*> aopt (selectField operatorOptions) "Operator" Nothing
            <*> areq (selectFieldList $ zip categories categories) "Operator" Nothing
          )
 postItemBatchUploadMatchesR :: Handler Html
@@ -177,6 +177,8 @@ postItemBatchUploadMatchesR = do
   extra <- uploadBatchExtra
   ((fileInfo,encoding, (day, operator, batchCategory)), (view, encType)) <- unsafeRunFormPost (uploadFileFormInline extra)
   Just (bytes, hash, path ) <- readUploadOrCacheUTF8 encoding (Just fileInfo) Nothing Nothing
+  when (isNothing operator) $
+    setWarning [shamlet|No operator has been set. The matches will be considered as <b>GUEST</b>|]
 
   parsingResult <- parseMatchRows batchCategory bytes
   let onSuccess rows = do
@@ -210,7 +212,7 @@ postItemBatchSaveMatchesR = do
             docKey <- case documentKey'msgM of
               Nothing -> createDocumentKey (DocumentType "BatchMatch") hash path ""
               Just (dock, _) -> return  (entityKey dock)
-            let matches = map (finalRowToMatch day (Just operator) (docKey)) finals
+            let matches = map (finalRowToMatch day operator (docKey)) finals
             mapM_ insert_ matches
             setSuccess "Batch matches uploaded successfully"
       parsingResult <- parseMatchRows batchCategory bytes
