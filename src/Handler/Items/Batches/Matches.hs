@@ -142,6 +142,7 @@ mergeQuality :: MatchQuality -> MatchQuality -> Maybe MatchQuality
 -- mergeQuality a b| a < b = mergeQuality a b
 mergeQuality Identical b = Just b
 mergeQuality Excellent Excellent = Just Good
+mergeQuality Excellent Close = Nothing
 mergeQuality Excellent b = Just b
 mergeQuality Good Good = Just Fair
 mergeQuality Good Fair = Just Fair
