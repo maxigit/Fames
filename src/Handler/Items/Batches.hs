@@ -268,12 +268,25 @@ loadMatchTable MatchTableParam{..} | Just skuFilter <- mtSkuFilter = do
       let matches = ForBuildTable $ map entityVal normal ++ map (reverseBatchMatch . entityVal) wrongWay
 
       rowBatches <- selectList [BatchId <-. rows] []
-      columnBatches <- selectList [BatchId <-. columns] []
+      columnBatches0 <- selectList [BatchId <-. columns] []
+      let descriptionName = "Description"
+      let columnBatches = map snd $ sortOn fst [ ((batchName /= descriptionName, batchId), batchE)
+                                               | batchE@(Entity batchId Batch{..}) <- columnBatches0
+                                               ]
       let style''var'batchs = map (skuToStyle''var'Batch skuToStyleVar rowBatches) sku'batchIds
 
-      return $ case mtRowAggregationMode of
-               Nothing -> displayTable `uncurry3` buildTableForSku (colour'QualitysToHtml' mtAggregationMode mtDisplayMode) style''var'batchs columnBatches  matches
-               Just mergeMode -> displayTable `uncurry3` buildTableForSkuMerged mergeMode (colour'QualitysToHtml' mtAggregationMode mtDisplayMode) style''var'batchs columnBatches  matches
+      case mtRowAggregationMode of
+               Nothing -> return $ displayTable `uncurry3` buildTableForSku (colour'QualitysToHtml' mtAggregationMode mtDisplayMode) style''var'batchs columnBatches  matches
+               Just mergeMode -> do
+                 varMap <- appVariations <$> getsYesod appSettings
+                 let (col0,title,rows) = buildTableForSkuMerged mergeMode (colour'QualitysToHtml' mtAggregationMode mtDisplayMode) style''var'batchs columnBatches  matches
+                 -- Hack column to display variation name
+                     col = map hack col0
+                     hack (colName, getter) | colName == descriptionName = let
+                                                fn row@((_, var), batches) = getter row  <|> (Right . toPersistValue <$> lookup var varMap) 
+                                                in (colName, fn)
+                     hack c = c 
+                 return $ displayTable col title rows
   return tableW
    
 
