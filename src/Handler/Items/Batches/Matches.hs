@@ -602,10 +602,10 @@ skuToStyle''var'Batch skuToStyleVar batches = let
 
 -- | cross product between to lists of matches. make a new batch
 -- by connecting each possible pairs. Might needs optimisation
-multiplyMatches :: [BatchMatch] -> [BatchMatch] -> [BatchMatch]
-multiplyMatches matches1 matches2 = let
+multiplyMatches :: (Key Batch -> Text) -> [BatchMatch] -> [BatchMatch] -> [BatchMatch]
+multiplyMatches batchNameFn matches1 matches2 = let
   -- check all pairs
-  pairs = catMaybes [ connectMatches mi mj
+  pairs = catMaybes [ connectMatches batchNameFn mi mj
                     | mi <- matches1
                     , mj <- matches2
                     ]
@@ -632,8 +632,8 @@ keepBests (SameKeys matches) =
 noDocumentKey = DocumentKeyKey' 0
 -- | Connect 2 matches if possible
 -- match can connect if one 
-connectMatches :: BatchMatch -> BatchMatch -> Maybe BatchMatch
-connectMatches ma mb = do -- maybe
+connectMatches :: (Key Batch -> Text) -> BatchMatch -> BatchMatch -> Maybe BatchMatch
+connectMatches batchNameFn ma mb = do -- maybe
    batchMatchQuality <- mergeQuality (batchMatchQuality ma) (batchMatchQuality mb)
    let [keysa, keysb] = map batchMatchKeys [ma, mb]
        ifOne [a]  = Just a
@@ -641,16 +641,20 @@ connectMatches ma mb = do -- maybe
    common@(cBatch,cColour) <- ifOne $ keysa `intersect` keysb
    (batchMatchSource, batchMatchSourceColour) <- ifOne $ filter (/= common) keysa
    (batchMatchTarget, batchMatchTargetColour) <- ifOne $ filter (/= common) keysb
+   
    let batchMatchOperator = Nothing
-       batchMatchComment = Just $ "Via " <> cColour <> " #" <> tshow (unSqlBackendKey $ unBatchKey cBatch)
+       batchMatchComment = Just $ "=> " <> batchNameFn  cBatch <> " (" <> cColour <> ")"
        batchMatchDate' = max (batchMatchDate ma) (batchMatchDate mb)
        batchMatchDocumentKey = noDocumentKey
+   -- don't propage bad matches to different colours
+   -- otherwise we end up having everigy colour combination as BAD
+   guard $ batchMatchSourceColour == batchMatchTargetColour  || batchMatchQuality > Bad
    Just BatchMatch{batchMatchDate=batchMatchDate',..}
 
 -- | Expand matches. Return only new ones
-expandMatches :: [BatchMatch] -> [BatchMatch]
-expandMatches matches =
-  let new = matches `multiplyMatches` matches
+expandMatches :: (Key Batch -> Text) -> [BatchMatch] -> [BatchMatch]
+expandMatches batchNameFn matches =
+  let new = multiplyMatches batchNameFn matches matches
       filtered = filterBestMatches matches new 
       newOnly = filter ((== noDocumentKey) . batchMatchDocumentKey ) filtered
   in newOnly

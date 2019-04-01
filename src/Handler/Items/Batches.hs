@@ -301,10 +301,8 @@ loadMatchTable MatchTableParam{..} = do
       
 getItemBatchExpandMatchesR :: Handler Html 
 getItemBatchExpandMatchesR = do
-  matches <- runDB $ selectList [] []
-  let expanded = expandMatches $ map entityVal matches
-      guessed = filter (isNothing . batchMatchOperator) expanded
-      widget = [whamlet|
+  (guessed, batchName') <- expandAllMatches
+  let widget = [whamlet|
 <table.table.table-hover.table-striped>
     <tr>
       <td>Source
@@ -313,11 +311,11 @@ getItemBatchExpandMatchesR = do
       <td>Target Colour
       <td>Quality
       <td>Comment
-  $forall BatchMatch{..} <- guessed
+  $forall BatchMatch{..} <- take 100 guessed
     <tr>
-      <td>#{unSqlBackendKey $ unBatchKey batchMatchSource}
+      <td>#{batchName' batchMatchSource}
       <td>#{batchMatchSourceColour}
-      <td>#{unSqlBackendKey $ unBatchKey batchMatchTarget}
+      <td>#{batchName' batchMatchTarget}
       <td>#{batchMatchTargetColour}
       $case batchMatchOperator
         $of Nothing 
@@ -330,14 +328,24 @@ getItemBatchExpandMatchesR = do
                    |]
   defaultLayout widget
 
+expandAllMatches = runDB $ do
+  matches <- selectList [] []
+  batches <- selectList [] []
+  let expanded = expandMatches batchName' $ map entityVal matches
+      guessed = filter (isNothing . batchMatchOperator) expanded
+      batchMap = mapFromList $ map ((,) <$> (entityKey) <*> entityVal) batches :: Map (Key Batch) Batch
+      batchName' :: Key Batch -> Text
+      batchName' batchKey = maybe ("#" <> ( tshow $ unSqlBackendKey $ unBatchKey batchKey))
+                                 batchName
+                                 (lookup batchKey batchMap)
+  return (guessed, batchName')
+
 -- | Saves expanded matches
 postItemBatchExpandMatchesR :: Handler Html
 postItemBatchExpandMatchesR = do
-  matches <- runDB $ selectList [] []
+  (guessed,_) <- expandAllMatches
   now <- liftIO getCurrentTime
-  let expanded = expandMatches $ map entityVal matches
-      guessed = filter (isNothing . batchMatchOperator) expanded
-      hash = computeDocumentKey . fromString $ "Expand batches " <> show now
+  let hash = computeDocumentKey . fromString $ "Expand batches " <> show now
   runDB $ do
     docKey <- createDocumentKey (DocumentType "BatchMatch") hash "<expand batches>" ""
     insertMany_ (map (\g -> g { batchMatchDocumentKey = docKey } ) guessed)
