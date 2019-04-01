@@ -611,8 +611,9 @@ multiplyMatches matches1 matches2 = let
                     ]
   in pairs
 
-filterBestMatches :: [BatchMatch] -> [BatchMatch]
-filterBestMatches matches = let
+filterBestMatches :: [BatchMatch] -> [BatchMatch] -> [BatchMatch]
+filterBestMatches olds news = let
+  matches = olds <> news
   grouped = groupAsMap (sort . batchMatchKeys) (:[]) matches
   bests = fmap (keepBests . SameKeys) grouped
   in concat $ toList bests
@@ -622,9 +623,13 @@ data SameKeys = SameKeys [BatchMatch]
 -- or keep the best guest
 keepBests (SameKeys matches) =
   case partition (isNothing . batchMatchOperator) matches of
-    (guesseds, []) -> take 1 (sortOn (Down . batchMatchQuality) guesseds)
+    (guesseds, []) -> take 1 (sortOn ((,) <$> Down . batchMatchQuality -- best quality first
+                                          <*> Down . batchMatchDocumentKey -- latest document first, use to filter 
+                                         -- used to filter NEW one which have key of 0
+                                     ) guesseds)
     (_, knowns) -> knowns
-
+-- | HACK to identity new created matches 
+noDocumentKey = DocumentKeyKey' 0
 -- | Connect 2 matches if possible
 -- match can connect if one 
 connectMatches :: BatchMatch -> BatchMatch -> Maybe BatchMatch
@@ -639,14 +644,16 @@ connectMatches ma mb = do -- maybe
    let batchMatchOperator = Nothing
        batchMatchComment = Just $ "Via " <> cColour <> " #" <> tshow (unSqlBackendKey $ unBatchKey cBatch)
        batchMatchDate' = max (batchMatchDate ma) (batchMatchDate mb)
-       batchMatchDocumentKey = DocumentKeyKey' 0
+       batchMatchDocumentKey = noDocumentKey
    Just BatchMatch{batchMatchDate=batchMatchDate',..}
 
+-- | Expand matches. Return only new ones
 expandMatches :: [BatchMatch] -> [BatchMatch]
 expandMatches matches =
   let new = matches `multiplyMatches` matches
-      filtered = filterBestMatches (matches <> new) 
-  in filtered
+      filtered = filterBestMatches matches new 
+      newOnly = filter ((== noDocumentKey) . batchMatchDocumentKey ) filtered
+  in newOnly
   
                    
 

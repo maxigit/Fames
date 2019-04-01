@@ -64,17 +64,16 @@ pureSpec = do
           expandMatches [ BatchMatch b1 "A" b2 "A" (Just op) Excellent Nothing day1 docKey
                         , BatchMatch b3 "A" b2 "A" (Just op) Excellent Nothing day1 docKey
                         ]  `shouldBe`
-                        [ BatchMatch b1 "A" b3 "A" (Just op) Good Nothing day1 nokey
+                        [ BatchMatch b3 "A" b1 "A" Nothing Good (Just "Via A #2") day1 nokey
                         ]
         it "should remove duplicate guesses " $ do
           expandMatches [ BatchMatch b1 "A" b2 "A" (Just op) Excellent Nothing day1 docKey
                         , BatchMatch b3 "A" b2 "A" (Just op) Excellent Nothing day1 docKey
-                        , BatchMatch b1 "A" b3 "A" Nothing   Good Nothing day1 nokey
+                        , BatchMatch b1 "A" b3 "A" Nothing   Good Nothing day1 docKey
                         ]  `shouldBe`
-                        [ BatchMatch b1 "A" b3 "A" Nothing Good Nothing day1 nokey
-                        ]
+                        []
         it "should keeps the given ones" $ do
-          keepBests (SameKeys [ BatchMatch b1 "A" b2 "A" (Just op) Excellent Nothing day1 docKey
+          keepBests (SameKeys [ BatchMatch b1 "A" b2 "A" (Just op) Excellent (Just "Via #3") day1 docKey
                               , BatchMatch b1 "A" b2 "A" Nothing Excellent Nothing day2 docKey
                         
                               ]) `shouldBe`
@@ -87,14 +86,14 @@ pureSpec = do
                               ]) `shouldBe`
                               [ BatchMatch b1 "A" b2 "A" (Just op) Excellent Nothing day2 docKey
                               ]
-        it "should keeps guess with the last doc key" $ do
+        it "should keep guess with the last doc key" $ do
           keepBests (SameKeys [ BatchMatch b1 "A" b2 "A" Nothing Excellent Nothing day1 nokey
                               , BatchMatch b1 "A" b2 "A" Nothing Excellent Nothing day2 docKey
                         
                               ]) `shouldBe`
-                              [ BatchMatch b1 "A" b2 "A" (Just op) Excellent Nothing day2 docKey
+                              [ BatchMatch b1 "A" b2 "A" Nothing Excellent Nothing day2 docKey
                               ]
-        it "should keeps guess with the last doc key (reverse order)" $ do
+        it "should keep guess with the last doc key (reverse order)" $ do
           keepBests (SameKeys [ BatchMatch b1 "A" b2 "A" Nothing Excellent Nothing day1 docKey
                               , BatchMatch b1 "A" b2 "A" Nothing Excellent Nothing day2 nokey
                         
