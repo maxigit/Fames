@@ -251,6 +251,7 @@ Batch sql=fames_batch
   description Text Maybe
   date Day 
   UniqueBName name
+  deriving Show
 
 -- Correspondance betweens colours of different batches
 BatchMatch sql=fames_batch_match
@@ -264,6 +265,8 @@ BatchMatch sql=fames_batch_match
   comment Text Maybe
   date Day
   documentKey DocumentKeyId sql=document_key_id
+  deriving Show
+  deriving Eq
 
 
   
