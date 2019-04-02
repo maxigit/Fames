@@ -88,7 +88,11 @@ getItemBatchesR = do
             ^{form}
             <button.btn.btn-default type="submit"> Display Match Table
                  |]
-  defaultLayout $ mainPanel >> infoPanel "Actions" [whamlet|
+      css = [cassius|
+                    td.Colours, td.Batches
+                      text-align: right
+                    |]
+  defaultLayout $ toWidget css >> mainPanel >> infoPanel "Actions" [whamlet|
    <form method=get action="@{ItemsR ItemNewBatchR}">
      <button.btn.btn-default type=submit> Create New Batch
    <form.form-inline role=form method=POST action="@{ItemsR (ItemBatchUploadMatchesR)}" enctype=#{uEncType}>
