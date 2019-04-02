@@ -339,7 +339,7 @@ getItemBatchExpandMatchesR = do
           <td.text-danger>#{tshow batchMatchQuality}
         $of (Just _)
           <td>#{tshow batchMatchQuality}
-      <td>#{tshowM batchMatchComment}
+      <td>#{maybe "" toHtmlWithBreak batchMatchComment}
 <form role=form method=POST>
   <button.btn.btn-danger type=submit> Save
                    |]

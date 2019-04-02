@@ -15,6 +15,7 @@ import Handler.Table
 import Database.Persist.Sql -- (rawSql, Single(..))
 import Data.Char(ord)
 import qualified Data.Map as Map
+import qualified Data.Text as Text
 -- * Types
 
 data MatchRow (s :: RowTypes) = MatchRow
@@ -631,6 +632,10 @@ keepBests (SameKeys matches) =
     (_, knowns) -> knowns
 -- | HACK to identity new created matches 
 noDocumentKey = DocumentKeyKey' 0
+-- | Prefix indicating that the dot line represent the current match
+-- useful to filter it nested graph in comments
+currentBatchDotPrefix :: Text
+currentBatchDotPrefix = "/*current*/ "
 -- | Connect 2 matches if possible
 -- match can connect if one 
 connectMatches :: (Key Batch -> Text) -> BatchMatch -> BatchMatch -> Maybe BatchMatch
@@ -644,13 +649,30 @@ connectMatches batchNameFn ma mb = do -- maybe
    (batchMatchTarget, batchMatchTargetColour) <- ifOne $ filter (/= common) keysb
    
    let batchMatchOperator = Nothing
-       batchMatchComment = Just $ "=> " <> batchNameFn  cBatch <> " (" <> cColour <> ")"
+       batchMatchComment = Just $ batchMatchesToDot Nothing batchNameFn ma mb <> currentBatchDotPrefix <> matchToDot (Just "red") batchNameFn tmpMatch
        batchMatchDate' = max (batchMatchDate ma) (batchMatchDate mb)
        batchMatchDocumentKey = noDocumentKey
+       tmpMatch = BatchMatch{batchMatchComment=Nothing, batchMatchDate=batchMatchDate', ..}
    -- don't propage bad matches to different colours
    -- otherwise we end up having everigy colour combination as BAD
    guard $ batchMatchSourceColour == batchMatchTargetColour  || batchMatchQuality > Bad
    Just BatchMatch{batchMatchDate=batchMatchDate',..}
+
+batchMatchesToDot colorM batchNameFn ma mb = matchToDot colorM batchNameFn ma <> matchToDot colorM batchNameFn mb
+
+matchToDot colorM batchNameFn m = "\"" <> (batchNameFn $ batchMatchSource m) <> "-"  <> (batchMatchSourceColour m)
+        <> "\" -- \"" <> (batchNameFn $ batchMatchTarget m) <> "-" <> (batchMatchTargetColour m)
+        <> "\" [label=\"" <> qualityToShortHtml (batchMatchQuality m) <>   "\""
+        <> ", color=" <> color m
+        <> ", fontcolor=" <> color m
+        <> "];\n"
+        <> maybe "" comments  (batchMatchComment m) where
+      color m = case (colorM, batchMatchOperator m) of
+                  (Just c, _) -> c
+                  (Nothing, Nothing) -> "blue"
+                  (Nothing, Just _ ) -> "black"
+      comments :: Text -> Text
+      comments t = Text.unlines $ map ("//  " <>) (filter (not . isPrefixOf currentBatchDotPrefix) (Text.lines t))
 
 -- | Expand matches. Return only new ones
 expandMatches :: (Key Batch -> Text) -> [BatchMatch] -> [BatchMatch]
