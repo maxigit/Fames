@@ -140,22 +140,39 @@ instance Transformable (Entity Batch) Text where
 
 -- * Match operations
 mergeQuality :: MatchQuality -> MatchQuality -> Maybe MatchQuality
--- mergeQuality a b| a < b = mergeQuality a b
-mergeQuality Identical b = Just b
-mergeQuality Excellent Excellent = Just Good
-mergeQuality Excellent Close = Nothing
-mergeQuality Excellent b = Just b
-mergeQuality Good Good = Just Fair
-mergeQuality Good Fair = Just Fair
-mergeQuality Good Close = Nothing
-mergeQuality Good Bad = Just Bad
-mergeQuality Fair Fair = Just Close
-mergeQuality Fair Close = Nothing
-mergeQuality Fair Bad = Nothing
-mergeQuality Close Close = Nothing
-mergeQuality Close Bad = Just Bad
-mergeQuality Bad Bad = Nothing
-mergeQuality a b = mergeQuality b a
+mergeQuality a b = case sort  [a,b] of
+  [a , Identical] -> Just a
+  [Excellent, _ ] -> Just Good
+  [Good , _ ] -> Just Fair
+  [Fair , _ ] -> Just Fair
+  [Close, _] -> Nothing
+  [Bad, b] | b >= Fair -> Just Bad
+  -- [a , Excellent] | a > Fair -> Just $ pred a
+  -- [a , Good] | a > Fair -> Just $ pred $ pred a
+  -- [a, b ] | a >= Fair -> Just Fair
+  -- [a, _] | a <= Close -> Nothing
+  -- [a, _] -> Just (pred a) -- a > Bad
+  _ -> Nothing -- for exhausitivy
+  
+-- mergeQuality Identical b = Just b
+-- mergeQuality a b = case min a b of
+--                      Close -> Nothing 
+--                      Bad -> Nothing 
+--                      m -> Just $ pred m
+-- mergeQuality Excellent Excellent = Just Good
+-- mergeQuality Excellent Close = Nothing
+-- mergeQuality Excellent b = Just b
+-- mergeQuality Good Good = Just Fair
+-- mergeQuality Good Fair = Just Fair
+-- mergeQuality Good Close = Nothing
+-- mergeQuality Good Bad = Just Bad
+-- mergeQuality Fair Fair = Just Close
+-- mergeQuality Fair Close = Nothing
+-- mergeQuality Fair Bad = Nothing
+-- mergeQuality Close Close = Nothing
+-- mergeQuality Close Bad = Just Bad
+-- mergeQuality Bad Bad = Nothing
+-- mergeQuality a b = mergeQuality b a
 
 sourceKey, targetKey :: BatchMatch -> (Key Batch, Text )
 sourceKey BatchMatch{..} = (batchMatchSource, batchMatchSourceColour)

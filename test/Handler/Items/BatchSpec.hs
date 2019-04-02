@@ -4,14 +4,17 @@ import TestImport
 import Handler.Items.Batches
 import Handler.Items.Batches.Matches
 import ModelField
+import Test.QuickCheck(property, (===), (==>), Arbitrary(..), arbitraryBoundedEnum)
 
 spec :: Spec
 spec = parallel pureSpec 
 
+instance Arbitrary MatchQuality where
+  arbitrary = arbitraryBoundedEnum
 
 shouldThrowPure x e = seq x (return ()) `shouldThrow` e
 pureSpec = do 
-   describe "@current @Batches Matches" $ do
+  describe "@current @Batches Matches" $ do
       describe "#mergeBatchMatches" $ do
         describe "#MergeRaisesError" $ do
           it "works with only one batch" $ do
@@ -59,15 +62,20 @@ pureSpec = do
             day2 = fromGregorian 2019 05 01
             docKey = DocumentKeyKey' 1
             nokey = DocumentKeyKey' 0
+            -- tweak expandMatche to set the comment
+            expandMatches0 ms = map updateComment $ expandMatches tshow ms where
+              updateComment b = b {batchMatchComment = Just "<expanded>"}
             
         it "should connect 2 batches" $ do
-          expandMatches [ BatchMatch b1 "A" b2 "A" (Just op) Excellent Nothing day1 docKey
+          expandMatches0 
+                        [ BatchMatch b1 "A" b2 "A" (Just op) Excellent Nothing day1 docKey
                         , BatchMatch b3 "A" b2 "A" (Just op) Excellent Nothing day1 docKey
                         ]  `shouldBe`
-                        [ BatchMatch b3 "A" b1 "A" Nothing Good (Just "Via A #2") day1 nokey
+                        [ BatchMatch b3 "A" b1 "A" Nothing Good (Just "<expanded>") day1 nokey
                         ]
         it "should remove duplicate guesses " $ do
-          expandMatches [ BatchMatch b1 "A" b2 "A" (Just op) Excellent Nothing day1 docKey
+          expandMatches0 
+                        [ BatchMatch b1 "A" b2 "A" (Just op) Excellent Nothing day1 docKey
                         , BatchMatch b3 "A" b2 "A" (Just op) Excellent Nothing day1 docKey
                         , BatchMatch b1 "A" b3 "A" Nothing   Good Nothing day1 docKey
                         ]  `shouldBe`
@@ -100,3 +108,25 @@ pureSpec = do
                               ]) `shouldBe`
                               [ BatchMatch b1 "A" b2 "A" Nothing Excellent Nothing day1 docKey
                               ]
+      describe "#mergeQuality" $ do
+          it  "should be symmetric" $ property $
+                \(a, b) -> mergeQualities [a , b] ===  mergeQualities [b , a]
+          it  "should be transitive" $ property $
+                \(a, b, c) -> mergeQualities [a, b, c]
+                    === mergeQualities [b, c, a]
+          it "2 excellents make a excellent" $ do
+            mergeQualities [Excellent, Excellent] `shouldBe` Just Excellent
+          it "3 excellent make a good" $ do
+             mergeQualities [Excellent,  Excellent , Excellent] `shouldBe` Just Good
+          it "2 goods make a good" $ do
+             mergeQualities [Good , Good ] `shouldBe` Just Good
+          it "2 goods and a excelent make a fair" $ do
+             mergeQualities [Good , Good , Excellent ]  `shouldBe` Just Fair
+          it "Good <> Fair => Fair" $ do
+             mergeQualities [Good , Fair] `shouldBe` Just Fair
+          it "Fair <> Fair " $ do
+             mergeQualities [Fair , Fair] `shouldBe` Just Close
+
+mergeQualities [] = Nothing
+mergeQualities [q] = Just q
+mergeQualities (q:qs) = mergeQualities qs >>= (mergeQuality q)
