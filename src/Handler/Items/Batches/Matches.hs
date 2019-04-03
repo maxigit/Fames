@@ -142,11 +142,11 @@ instance Transformable (Entity Batch) Text where
 mergeQuality :: MatchQuality -> MatchQuality -> Maybe MatchQuality
 mergeQuality a b = case sort  [a,b] of
   [a , Identical] -> Just a
+  [Bad, b] | b >= Fair -> Just Bad
   [Excellent, _ ] -> Just Good
   [Good , _ ] -> Just Fair
   [Fair , _ ] -> Just Fair
   [Close, _] -> Nothing
-  [Bad, b] | b >= Fair -> Just Bad
   -- [a , Excellent] | a > Fair -> Just $ pred a
   -- [a , Good] | a > Fair -> Just $ pred $ pred a
   -- [a, b ] | a >= Fair -> Just Fair

@@ -70,7 +70,7 @@ ghcid-old:
 	ghcid --command="stack exec ghci --test -- -iapp -ilegacy -isrc -ifay-shared -itest -iconfig/fa -hide-package=cryptonite  -w test/Spec.hs"   --test ":main --rerun --color"
 
 ghcid-current:
-	ghcid --command="stack ghci :ghcid" --test ":main --color -m@current"
+	ghcid --command="stack ghci :ghcid" --test ":main --color -m@current --rerun --rerun-all-on-success"
 ghcid-test:
 	ghcid --command="stack ghci :ghcid" --test ":main --color"
 ghcid-test-force:

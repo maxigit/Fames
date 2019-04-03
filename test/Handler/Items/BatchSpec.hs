@@ -126,7 +126,31 @@ pureSpec = do
              mergeQualities [Good , Fair] `shouldBe` Just Fair
           it "Fair <> Fair " $ do
              mergeQualities [Fair , Fair] `shouldBe` Just Close
+          describe "#qToD" $ do
+            it "quality to double is idempotan" $ property $ do
+              \q -> dToQ (qToD q) === q
+            it "Quality + 0.5 stays the same" $ property $ do
+              \q -> dToQ (qToD q + (qToD Excellent * 0.5)) === q
+              
 
-mergeQualities [] = Nothing
-mergeQualities [q] = Just q
-mergeQualities (q:qs) = mergeQualities qs >>= (mergeQuality q)
+mergeQualities:: [MatchQuality] -> Maybe MatchQuality
+mergeQualities qs = dToQ <$> mergeQualities' (map qToD qs)
+mergeQualities' [] = Nothing
+mergeQualities' [q] = Just q
+mergeQualities' (d:ds) = mergeQualities' ds >>= (mergeQs d)
+
+qToD Identical = 0
+qToD Excellent = 1
+qToD Good = 3
+qToD Fair = 7
+qToD Close = 14
+qToD Bad = 50
+
+dToQ :: Double -> MatchQuality
+dToQ d = let qs = [Bad .. Identical]
+             go d [] = error "proven to not happen"
+             go d (q:qs) | d >= (qToD q) = q
+                         | otherwise =  go d qs
+         in    go d qs
+
+mergeQs a b= Just $ a + b
