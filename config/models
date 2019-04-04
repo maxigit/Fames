@@ -261,7 +261,7 @@ BatchMatch sql=fames_batch_match
   target BatchId
   targetColour Text
   operator OperatorId Maybe sql=operator_id -- no operator means guessed
-  quality MatchQuality
+  score MatchScore
   comment Text Maybe
   date Day
   documentKey DocumentKeyId sql=document_key_id

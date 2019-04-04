@@ -280,10 +280,10 @@ loadMatchTable MatchTableParam{..} | Just skuFilter <- mtSkuFilter = do
       let style''var'batchs = map (skuToStyle''var'Batch skuToStyleVar rowBatches) sku'batchIds
 
       case mtRowAggregationMode of
-               Nothing -> return $ displayTable `uncurry3` buildTableForSku (colour'QualitysToHtml' mtAggregationMode mtDisplayMode) style''var'batchs columnBatches  matches
+               Nothing -> return $ displayTable `uncurry3` buildTableForSku (colour'AsQualitysToHtml' mtAggregationMode mtDisplayMode) style''var'batchs columnBatches  matches
                Just mergeMode -> do
                  varMap <- appVariations <$> getsYesod appSettings
-                 let (col0,title,rows) = buildTableForSkuMerged mergeMode (colour'QualitysToHtml' mtAggregationMode mtDisplayMode) style''var'batchs columnBatches  matches
+                 let (col0,title,rows) = buildTableForSkuMerged mergeMode (colour'AsQualitysToHtml' mtAggregationMode mtDisplayMode) style''var'batchs columnBatches  matches
                  -- Hack column to display variation name
                      col = map hack col0
                      hack (colName, getter) | colName == descriptionName = let
@@ -307,7 +307,7 @@ loadMatchTable MatchTableParam{..} = do
       columnBatches <- selectList (BatchId <-?. columns) []
 
 
-      let (cols, colDisplay, tableRows) = buildTable (colour'QualitysToHtml' mtAggregationMode mtDisplayMode) filterColumn rowBatches columnBatches  matches
+      let (cols, colDisplay, tableRows) = buildTable (colour'AsQualitysToHtml' mtAggregationMode mtDisplayMode) filterColumn rowBatches columnBatches  matches
           filterColumn = if length columns == 1
                          then Nothing
                          else Just (/= "Style/Batch")
@@ -336,9 +336,9 @@ getItemBatchExpandMatchesR = do
       <td>#{batchMatchTargetColour}
       $case batchMatchOperator
         $of Nothing 
-          <td.text-danger>#{tshow batchMatchQuality}
+          <td.text-danger>#{tshow $ scoreToQuality batchMatchScore}
         $of (Just _)
-          <td>#{tshow batchMatchQuality}
+          <td>#{tshow $ scoreToQuality batchMatchScore}
       <td>#{maybe "" toHtmlWithBreak batchMatchComment}
 <form role=form method=POST>
   <button.btn.btn-danger type=submit> Save
@@ -454,13 +454,13 @@ batchTables renderUrl extraColumns batch'counts = [whamlet|
                            ]) <>  extraColumns
   colDisplays (name, _) = (toHtml name, [])
 
-colour'QualitysToHtml' :: MatchAggregationMode -> QualityDisplayMode -> [(Text, MatchQuality)] -> Html
-colour'QualitysToHtml' aggregationMode displayMode c'qs0 = let
+colour'AsQualitysToHtml' :: MatchAggregationMode -> QualityDisplayMode -> [(Text, MatchScore)] -> Html
+colour'AsQualitysToHtml' aggregationMode displayMode c'qs0 = let
   (filterQ ,qualityToHtml') = case displayMode of
                          FullQuality -> (id, toHtml . tshow)
-                         LimitQuality -> (filter ((/= Bad) . snd), qualityToShortHtml)
-  c'qs = filterQ $ aggregateQuality aggregationMode c'qs0
-  in colour'QualitysToHtml qualityToHtml' c'qs
+                         LimitQuality -> (filter ((/= Bad) . scoreToQuality . snd), qualityToShortHtml)
+  c'qs = filterQ $ aggregateScore aggregationMode c'qs0
+  in colour'AsQualitysToHtml qualityToHtml' c'qs
 
 
   

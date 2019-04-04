@@ -14,9 +14,17 @@ import Data.Maybe(fromJust)
 import Handler.Table
 import Database.Persist.Sql -- (rawSql, Single(..))
 import Data.Char(ord)
+import Data.Either(isRight)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
 -- * Types
+-- A graded version of MatchScore. This is ultimately what we expose to the end user.
+-- Quality are saved internally as Double (score) , only to make merging easier
+data MatchQuality = Bad | Close | Fair | Good | Excellent | Identical
+  deriving(Eq, Read, Show, Enum, Bounded, Ord)
+
+newtype MatchError = MatchError Double -- 100 - MatchScore
+  deriving(Eq, Read,Show, Ord, Num)
 
 data MatchRow (s :: RowTypes) = MatchRow
   { source :: FieldTF s (ForRowT s Text Text (Entity Batch) (Entity Batch))
@@ -139,40 +147,48 @@ instance Transformable (Entity Batch) Text where
   transform (Entity _ batch) = batchName batch
 
 -- * Match operations
-mergeQuality :: MatchQuality -> MatchQuality -> Maybe MatchQuality
-mergeQuality a b = case sort  [a,b] of
-  [a , Identical] -> Just a
-  [Bad, b] | b >= Fair -> Just Bad
-  [Excellent, _ ] -> Just Good
-  [Good , _ ] -> Just Fair
-  [Fair , _ ] -> Just Fair
-  [Close, _] -> Nothing
-  -- [a , Excellent] | a > Fair -> Just $ pred a
-  -- [a , Good] | a > Fair -> Just $ pred $ pred a
-  -- [a, b ] | a >= Fair -> Just Fair
-  -- [a, _] | a <= Close -> Nothing
-  -- [a, _] -> Just (pred a) -- a > Bad
-  _ -> Nothing -- for exhausitivy
-  
--- mergeQuality Identical b = Just b
--- mergeQuality a b = case min a b of
---                      Close -> Nothing 
---                      Bad -> Nothing 
---                      m -> Just $ pred m
--- mergeQuality Excellent Excellent = Just Good
--- mergeQuality Excellent Close = Nothing
--- mergeQuality Excellent b = Just b
--- mergeQuality Good Good = Just Fair
--- mergeQuality Good Fair = Just Fair
--- mergeQuality Good Close = Nothing
--- mergeQuality Good Bad = Just Bad
--- mergeQuality Fair Fair = Just Close
--- mergeQuality Fair Close = Nothing
--- mergeQuality Fair Bad = Nothing
--- mergeQuality Close Close = Nothing
--- mergeQuality Close Bad = Just Bad
--- mergeQuality Bad Bad = Nothing
--- mergeQuality a b = mergeQuality b a
+qualityToMError :: MatchQuality -> MatchError
+qualityToMError Identical = MatchError  0
+qualityToMError Excellent = MatchError  1
+qualityToMError Good = MatchError  3
+qualityToMError Fair = MatchError  7
+qualityToMError Close = MatchError  14
+qualityToMError Bad = MatchError  100
+
+qualityToScore :: MatchQuality -> MatchScore
+qualityToScore = mErrorToScore . qualityToMError
+
+scoreToQuality :: MatchScore -> MatchQuality
+scoreToQuality = mErrorToQuality . scoreToMError
+
+mErrorToQuality :: MatchError -> MatchQuality
+mErrorToQuality d = let
+  qs = [Bad .. Identical]
+  go d [] = error "proven to not happen"
+  go d (q:qs) | d >= (qualityToMError q) = q
+              | otherwise =  go d qs
+  in    go d qs
+mergeMError :: MatchError -> MatchError -> Maybe MatchError
+mergeMError a b= case a + b of
+  -- check if it's too far for Identical or Bad
+  x | x > nothing && x < bad -> Nothing
+  x | x >= bad  + close -> Nothing
+  x -> Just x
+  where bad = qualityToMError Bad
+        close = qualityToMError Close
+        nothing = close + qualityToMError Good
+mergeMErrors :: [MatchError] -> Maybe MatchError
+mergeMErrors [] = Nothing
+mergeMErrors [e] = Just e
+mergeMErrors (e:es) = mergeMErrors es >>= mergeMError e
+
+mErrorToScore :: MatchError -> MatchScore
+mErrorToScore (MatchError x) = MatchScore $ 100 - x
+scoreToMError :: MatchScore -> MatchError
+scoreToMError (MatchScore x) = MatchError (100 - x)
+
+mergeScores :: [MatchScore] -> Maybe MatchScore
+mergeScores ss = mErrorToScore <$> mergeMErrors (map scoreToMError ss)
 
 sourceKey, targetKey :: BatchMatch -> (Key Batch, Text )
 sourceKey BatchMatch{..} = (batchMatchSource, batchMatchSourceColour)
@@ -357,7 +373,7 @@ finalRowToMatch date operatorId docKey MatchRow{..} =
               (entityKey target)
               targetColour
               operatorId
-              quality
+              (qualityToScore quality)
               comment
               date
               docKey
@@ -377,7 +393,7 @@ reverseBatchMatch BatchMatch{..} = BatchMatch{ batchMatchSource=batchMatchTarget
 -- * Match Table
 -- | Assures all source are source and target are target regardless of the database order
 newtype ForBuildTable = ForBuildTable [BatchMatch] 
-buildTable :: ([(Text, MatchQuality)] -> Html) -- ^ qualitys rendered
+buildTable :: ([(Text, MatchScore)] -> Html) -- ^ qualitys rendered
            -> Maybe (Text -> Bool)  -- ^ filter column
            -> [Entity Batch] -- ^ rows
            -> [Entity Batch] -- ^ columns
@@ -386,15 +402,15 @@ buildTable :: ([(Text, MatchQuality)] -> Html) -- ^ qualitys rendered
               , ((Text, (Key Batch, Text) -> Maybe (Either Html PersistValue)) -> (Html, [Text])) -- ^ COLUMN NAME: from column (as above)
               , [ ((Text, (Key Batch, Text) -> Maybe (Either Html PersistValue)) -> Maybe (Html, [Text]), [Text]) ] -- ^ ROWS: column (as above) -> value (via getter) 
               )
-buildTable renderColour'Qualitys filterColumnFn rowBatches columnBatches (ForBuildTable matches) = let
+buildTable renderColour'Scores filterColumnFn rowBatches columnBatches (ForBuildTable matches) = let
   matchMap = groupAsMap (\BatchMatch{..} -> (batchMatchSource, batchMatchSourceColour, batchMatchTarget))
-                        (\BatchMatch{..} -> [(batchMatchTargetColour, batchMatchQuality)])
+                        (\BatchMatch{..} -> [(batchMatchTargetColour, batchMatchScore)])
                         matches
 
   source'colours = nub $ sort (map ((,) <$> batchMatchSource <*> batchMatchSourceColour ) matches)
   -- targets = nub $ sort (map batchMatchTarget matches)
   columns0 = [ ( fromMaybe batchName batchAlias -- Column name :: Text
-               , \(source, colour) -> Left . renderColour'Qualitys <$> lookup (source, colour, batchId ) matchMap
+               , \(source, colour) -> Left . renderColour'Scores <$> lookup (source, colour, batchId ) matchMap
                                   
                )
             | (Entity batchId Batch{..}) <- columnBatches
@@ -417,21 +433,21 @@ buildTable renderColour'Qualitys filterColumnFn rowBatches columnBatches (ForBui
 
 buildTableForSku ::
   col0 ~ (Text, (((Text, Text), Entity Batch)) -> Maybe (Either Html PersistValue))
-  => ([(Text, MatchQuality)] -> Html) -- ^ match renderer
+  => ([(Text, MatchScore)] -> Html) -- ^ match renderer
   -> [((Text, Text), Entity Batch)] -- ^ sku@style'var batch
   -> [Entity Batch] -- ^ batches
   -> ForBuildTable -- ^ matches
   -> ([col0]
      , col0 -> (Html, [Text])
      , [(col0 -> Maybe (Html, [Text]), [Text])])
-buildTableForSku renderColour'Qualitys sku'batches columnBatches (ForBuildTable matches) = let
+buildTableForSku renderColour'Scores sku'batches columnBatches (ForBuildTable matches) = let
   matchMap = groupAsMap (\BatchMatch{..} -> (batchMatchSource, batchMatchSourceColour, batchMatchTarget))
-                        (\BatchMatch{..} -> [(batchMatchTargetColour, batchMatchQuality)])
+                        (\BatchMatch{..} -> [(batchMatchTargetColour, batchMatchScore)])
                         matches
 
   -- targets = nub $ sort (map batchMatchTarget matches)
   columns0 = [ ( fromMaybe batchName batchAlias -- Column name :: Text
-               , \((style, colour), batch ) -> Left . renderColour'Qualitys <$> lookup (entityKey batch, colour, batchId ) matchMap
+               , \((style, colour), batch ) -> Left . renderColour'Scores <$> lookup (entityKey batch, colour, batchId ) matchMap
                                   
                )
             | (Entity batchId Batch{..}) <- columnBatches
@@ -456,27 +472,27 @@ buildTableForSku renderColour'Qualitys sku'batches columnBatches (ForBuildTable 
 buildTableForSkuMerged ::
   col0 ~ (Text, (((Text, Text), [Entity Batch])) -> Maybe (Either Html PersistValue))
   => BatchMergeMode
-  -> ([(Text, MatchQuality)] -> Html) -- ^ match renderer
+  -> ([(Text, MatchScore)] -> Html) -- ^ match renderer
   -> [((Text, Text), Entity Batch)] -- ^ sku@style'var batch
   -> [Entity Batch] -- ^ batches
   -> ForBuildTable -- ^ matches
   -> ([col0]
      , col0 -> (Html, [Text])
      , [(col0 -> Maybe (Html, [Text]), [Text])])
-buildTableForSkuMerged mergeMode renderColour'Qualitys sku'batches columnBatches (ForBuildTable matches) = let
+buildTableForSkuMerged mergeMode renderColour'Scores sku'batches columnBatches (ForBuildTable matches) = let
   -- TODO factorize with buildTableForSku
   matchMap = groupAsMap (\BatchMatch{..} -> (batchMatchSource, batchMatchSourceColour, batchMatchTarget))
-                        (\BatchMatch{..} -> [(batchMatchTargetColour, batchMatchQuality)])
+                        (\BatchMatch{..} -> [(batchMatchTargetColour, batchMatchScore)])
                         matches
 
   -- targets = nub $ sort (map batchMatchTarget matches)
-  qualityFinder matchMap targetBatch ((style, colour), batches) = let
+  scoreFinder matchMap targetBatch ((style, colour), batches) = let
     -- find all match for all batches
     matchess  = mapMaybe (\batch -> lookup (entityKey batch, colour, targetBatch) matchMap) batches
     in mergeBatchMatches mergeMode (styleVarToSku style colour) matchess
 
   columns0 = [ ( fromMaybe batchName batchAlias -- Column name :: Text
-               , \s'c'bs -> Left . renderColour'Qualitys <$> qualityFinder matchMap  batchId s'c'bs
+               , \s'c'bs -> Left . renderColour'Scores <$> scoreFinder matchMap  batchId s'c'bs
                )
             | (Entity batchId Batch{..}) <- columnBatches
             ]
@@ -496,16 +512,17 @@ buildTableForSkuMerged mergeMode renderColour'Qualitys sku'batches columnBatches
      , \(col, _) -> (toHtml col, [])
      , rowsForTables
      )
-colour'QualityToHtml :: (MatchQuality -> Html) -> (Text, MatchQuality) -> Html
-colour'QualityToHtml renderQuality (colour, quality) = [shamlet|
+colour'AsQualityToHtml :: (MatchQuality -> Html) -> (Text, MatchScore) -> Html
+colour'AsQualityToHtml renderQuality (colour, score) = [shamlet|
    <span class="match-quality quality-#{tshow quality}">
       #{colour}
       <sup>
         <span.quality-content>#{renderQuality quality}
-        |]
-colour'QualitysToHtml :: (MatchQuality -> Html) -> [(Text, MatchQuality)] -> Html
-colour'QualitysToHtml renderQuality c'qs = mconcat $ intersperse [shamlet|<span.quality-sep>, |] htmls
-  where htmls = map (colour'QualityToHtml renderQuality) c'qs
+        |] where quality = scoreToQuality score
+
+colour'AsQualitysToHtml :: (MatchQuality -> Html) -> [(Text, MatchScore)] -> Html
+colour'AsQualitysToHtml renderQuality c'qs = mconcat $ intersperse [shamlet|<span.quality-sep>, |] htmls
+  where htmls = map (colour'AsQualityToHtml renderQuality) c'qs
 
 qualityToShortHtml :: IsString t => MatchQuality -> t
 qualityToShortHtml quality = case quality of
@@ -516,15 +533,15 @@ qualityToShortHtml quality = case quality of
   Excellent -> "➕➕➕"
   Identical -> "➕➕➕"
 
-aggregateQuality :: MatchAggregationMode -> [(Text, MatchQuality)] -> [(Text, MatchQuality)]
--- aggregateQuality AllMatches colour'qualitys = sortOn (liftA2 (,) (Down . snd) fst ) colour'qualitys
--- aggregateQuality MedianMatches colour'qualitys = sortOn (liftA2 (,) (Down . snd) fst ) colour'qualitys
-aggregateQuality mode colour'qualitys  = let
-  byColour = groupAsMap fst (return . snd) colour'qualitys
+aggregateScore :: MatchAggregationMode -> [(Text, MatchScore)] -> [(Text, MatchScore)]
+-- aggregateScore AllMatches colour'scores = sortOn (liftA2 (,) (Down . snd) fst ) colour'scores
+-- aggregateScore MedianMatches colour'scores = sortOn (liftA2 (,) (Down . snd) fst ) colour'scores
+aggregateScore mode colour'scores  = let
+  byColour = groupAsMap fst (return . snd) colour'scores
   filtered = fmap (f mode) byColour 
   f MedianMatches [] = []
   f MedianMatches qs = case median2 $ sort qs of
-                         [a, b] -> take 1 $ median2 [a .. b]
+                         [a, b] -> [fromMaybe a ( mergeScores [a, b] )]
                          m -> m
   f LastMatches qs = take 1 qs -- groupAsMap reverse items, so we need the head to take the last
   f AllMatches qs = reverse qs -- shouldn't be called, but here for completion
@@ -542,20 +559,20 @@ median2 xs = case length xs `divMod` 2 of
               (p, _1) -> take 1 $ drop p xs
 
 -- | Merge quality match from different batch into one
-mergeBatchMatches :: BatchMergeMode -> Text ->  [ [(Text, MatchQuality)]] -> Maybe [(Text, MatchQuality)]
+mergeBatchMatches :: BatchMergeMode -> Text ->  [ [(Text, MatchScore)]] -> Maybe [(Text, MatchScore)]
 mergeBatchMatches _ _ [] = Nothing
 mergeBatchMatches _ _ [matches] = Just matches
 mergeBatchMatches MergeRaisesError sku matchess | [ms] <-  nub matchess = Just ms
 mergeBatchMatches MergeRaisesError sku _ = error $ "Multiple batches for " <> unpack sku
 mergeBatchMatches SafeMatch sku matchess = let
-  matches = concatMap (aggregateQuality MedianMatches) matchess
+  matches = concatMap (aggregateScore MedianMatches) matchess
   -- group by colour and take the worst of it
-  col'qualityMap' :: Map Text [MatchQuality]
-  col'qualityMap' = groupAsMap fst ((:[]) . snd) matches
+  col'scoreMap' :: Map Text [MatchScore]
+  col'scoreMap' = groupAsMap fst ((:[]) . snd) matches
   -- a col to used needs to be used by ALL line
   numberOfBatches = length matchess
-  col'qualityMap = Map.filter ((== numberOfBatches) . length) col'qualityMap'
-  in case Map.toList (fmap minimumEx col'qualityMap) of
+  col'scoreMap = Map.filter ((== numberOfBatches) . length) col'scoreMap'
+  in case Map.toList (fmap minimumEx col'scoreMap) of
            [] -> Nothing
            rs -> Just rs
 -- mergeBatchMatches MergeBest sku matchess = 
@@ -629,20 +646,22 @@ multiplyMatches batchNameFn matches1 matches2 = let
                     , mj <- matches2
                     ]
   in pairs
-
+-- | Remove batch in news which are already in news
 filterBestMatches :: [BatchMatch] -> [BatchMatch] -> [BatchMatch]
 filterBestMatches olds news = let
-  matches = olds <> news
-  grouped = groupAsMap (sort . batchMatchKeys) (:[]) matches
+  matches = map Left olds <> map Right news
+  grouped0 = groupAsMap (sort . batchMatchKeys . either id id)  (:[]) matches
+  -- remove items with lefts
+  grouped = map rights $ Map.filter (all isRight) grouped0
   bests = fmap (keepBests . SameKeys) grouped
-  in concat $ toList bests
+  in traceShow("GROUPED", keys grouped) $ concat $ toList bests
 
 data SameKeys = SameKeys [BatchMatch]
 -- remove duplicate and removes guessed if needed
 -- or keep the best guest
 keepBests (SameKeys matches) =
   case partition (isNothing . batchMatchOperator) matches of
-    (guesseds, []) -> take 1 (sortOn ((,) <$> Down . batchMatchQuality -- best quality first
+    (guesseds, []) -> take 1 (sortOn ((,) <$> Down . batchMatchScore -- best quality first
                                           <*> Down . batchMatchDocumentKey -- latest document first, use to filter 
                                          -- used to filter NEW one which have key of 0
                                      ) guesseds)
@@ -657,7 +676,7 @@ currentBatchDotPrefix = "/*current*/ "
 -- match can connect if one 
 connectMatches :: (Key Batch -> Text) -> BatchMatch -> BatchMatch -> Maybe BatchMatch
 connectMatches batchNameFn ma mb = do -- maybe
-   batchMatchQuality <- mergeQuality (batchMatchQuality ma) (batchMatchQuality mb)
+   batchMatchScore <- mergeScores [batchMatchScore ma,  batchMatchScore mb]
    let [keysa, keysb] = map batchMatchKeys [ma, mb]
        ifOne [a]  = Just a
        ifOne _ = Nothing
@@ -672,14 +691,14 @@ connectMatches batchNameFn ma mb = do -- maybe
        tmpMatch = BatchMatch{batchMatchComment=Nothing, batchMatchDate=batchMatchDate', ..}
    -- don't propage bad matches to different colours
    -- otherwise we end up having everigy colour combination as BAD
-   guard $ batchMatchSourceColour == batchMatchTargetColour  || batchMatchQuality > Bad
+   guard $ batchMatchSourceColour == batchMatchTargetColour  || scoreToQuality batchMatchScore > Bad
    Just BatchMatch{batchMatchDate=batchMatchDate',..}
 
 batchMatchesToDot colorM batchNameFn ma mb = matchToDot colorM batchNameFn ma <> matchToDot colorM batchNameFn mb
 
 matchToDot colorM batchNameFn m = "\"" <> (batchNameFn $ batchMatchSource m) <> "-"  <> (batchMatchSourceColour m)
         <> "\" -- \"" <> (batchNameFn $ batchMatchTarget m) <> "-" <> (batchMatchTargetColour m)
-        <> "\" [label=\"" <> qualityToShortHtml (batchMatchQuality m) <>   "\""
+        <> "\" [label=\"" <> qualityToShortHtml (scoreToQuality $ batchMatchScore m) <> "("<> (tshow . floor . unMatchScore $ batchMatchScore m) <> ")\""
         <> ", color=" <> color m
         <> ", fontcolor=" <> color m
         <> "];\n"
