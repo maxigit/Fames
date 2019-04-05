@@ -5,6 +5,28 @@ FamesBarcodeSeed sql=fames_barcode_seed
     prefix Text  sql=prefix
     lastUsed Int  sql=last_used
 
+FamesBatch sql=fames_batch
+    Id Int  sql=batch_id
+    name Text  sql=name
+    alias Text Maybe sql=alias default=NULL
+    supplier Text Maybe sql=supplier default=NULL
+    material Text Maybe sql=material default=NULL
+    season Text Maybe sql=season default=NULL
+    description Text Maybe sql=description default=NULL
+    date Day  sql=date
+
+FamesBatchMatch sql=fames_batch_match
+    Id Int  sql=batch_match_id
+    source Int  sql=source
+    sourceColour Text  sql=source_colour
+    target Int  sql=target
+    targetColour Text  sql=target_colour
+    operatorId Int Maybe sql=operator_id
+    quality Text  sql=quality
+    comment Text Maybe sql=comment default=NULL
+    date Day  sql=date
+    documentKeyId Int  sql=document_key_id
+
 FamesBoxtake sql=fames_boxtake
     Id Int  sql=boxtake_id
     description Text Maybe sql=description default=NULL
@@ -25,6 +47,12 @@ FamesComment sql=fames_comment
     message Text  sql=message
     userId Int Maybe sql=user_id
 
+FamesCustomerCategoryCache sql=fames_customer_category_cache
+    Id Int  sql=customer_category_id
+    customerId Int  sql=customer_id
+    category Text  sql=category
+    value Text  sql=value
+
 FamesDocumentKey sql=fames_document_key
     Id Int  sql=document_key_id
     documentType Text  sql=document_type
@@ -40,12 +68,24 @@ FamesEmail sql=fames_email
     userId Int Maybe sql=user_id
     verkey Text Maybe sql=verkey default=NULL
 
+FamesItemCategoryCache sql=fames_item_category_cache
+    Id Int  sql=item_category_id
+    stockId Text  sql=stock_id
+    category Text  sql=category
+    value Text  sql=value
+
 FamesOperator sql=fames_operator
     Id Int  sql=operator_id
     firstname Text  sql=firstname
     surname Text  sql=surname
     nickname Text  sql=nickname
     active Bool  sql=active
+
+FamesOrderCategoryCache sql=fames_order_category_cache
+    Id Int  sql=order_category_id
+    orderId Int  sql=order_id
+    category Text  sql=category
+    value Text  sql=value
 
 FamesPackinglist sql=fames_packinglist
     Id Int  sql=packinglist_id
@@ -70,6 +110,33 @@ FamesPackinglistDetail sql=fames_packinglist_detail
     height Double  sql=height
     weight Double  sql=weight
     delivered Bool  sql=delivered
+
+FamesPayrollItem sql=fames_payroll_item
+    Id Int  sql=id
+    timesheetId Int  sql=timesheet_id
+    amount Double  sql=amount
+    type Text  sql=type
+    operatorId Int  sql=operator_id
+    payee Text  sql=payee
+    glAccount Text  sql=gl_account
+
+FamesPayrollShift sql=fames_payroll_shift
+    Id Int  sql=id
+    timesheetId Int  sql=timesheet_id
+    duration Double  sql=duration
+    cost Double  sql=cost
+    operatorId Int  sql=operator_id
+    date Day Maybe sql=date
+    type Text  sql=type
+
+FamesShift sql=fames_shift
+    Id Int  sql=id
+    timesheetId Int  sql=timesheet_id
+    duration Double  sql=duration
+    cost Double  sql=cost
+    operatorId Int  sql=operator_id
+    date Day Maybe sql=date
+    type Text  sql=type
 
 FamesStocktake sql=fames_stocktake
     Id Int  sql=stocktake_id
@@ -100,6 +167,15 @@ FamesStockAdjDetail sql=fames_stock_adj_detail
     quantity Int  sql=quantity
     locFrom Text Maybe sql=loc_from default=NULL
     locTo Text Maybe sql=loc_to default=NULL
+
+FamesTimesheet sql=fames_timesheet
+    Id Int  sql=timesheet_id
+    reference Text  sql=reference
+    documentKeyId Int  sql=document_key_id
+    start Day  sql=start
+    end Day  sql=end
+    frequency Text  sql=frequency
+    status Text  sql=status
 
 FamesTransactionMap sql=fames_transaction_map
     Id Int  sql=id

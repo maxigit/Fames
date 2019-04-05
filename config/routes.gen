@@ -247,16 +247,25 @@
 -- Route
 /db/fames FAMES'R !db !fames:
   /fames_barcode_seed FAMESFamesBarcodeSeedR GET !title=fames_barcode_seed !group=Tables
+  /fames_batch FAMESFamesBatchR GET !title=fames_batch 
+  /fames_batch_match FAMESFamesBatchMatchR GET !title=fames_batch_match 
   /fames_boxtake FAMESFamesBoxtakeR GET !title=fames_boxtake 
   /fames_comment FAMESFamesCommentR GET !title=fames_comment 
+  /fames_customer_category_cache FAMESFamesCustomerCategoryCacheR GET !title=fames_customer_category_cache 
   /fames_document_key FAMESFamesDocumentKeyR GET !title=fames_document_key 
   /fames_email FAMESFamesEmailR GET !title=fames_email 
+  /fames_item_category_cache FAMESFamesItemCategoryCacheR GET !title=fames_item_category_cache 
   /fames_operator FAMESFamesOperatorR GET !title=fames_operator 
+  /fames_order_category_cache FAMESFamesOrderCategoryCacheR GET !title=fames_order_category_cache 
   /fames_packinglist FAMESFamesPackinglistR GET !title=fames_packinglist 
   /fames_packinglist_detail FAMESFamesPackinglistDetailR GET !title=fames_packinglist_detail 
+  /fames_payroll_item FAMESFamesPayrollItemR GET !title=fames_payroll_item 
+  /fames_payroll_shift FAMESFamesPayrollShiftR GET !title=fames_payroll_shift 
+  /fames_shift FAMESFamesShiftR GET !title=fames_shift 
   /fames_stocktake FAMESFamesStocktakeR GET !title=fames_stocktake 
   /fames_stock_adjustment FAMESFamesStockAdjustmentR GET !title=fames_stock_adjustment 
   /fames_stock_adj_detail FAMESFamesStockAdjDetailR GET !title=fames_stock_adj_detail 
+  /fames_timesheet FAMESFamesTimesheetR GET !title=fames_timesheet 
   /fames_transaction_map FAMESFamesTransactionMapR GET !title=fames_transaction_map 
   /fames_user FAMESFamesUserR GET !title=fames_user 
 -- Warning ! This code has been generated !}

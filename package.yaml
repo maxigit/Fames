@@ -161,15 +161,15 @@ executables:
         - -O2
 
 
-#k  FAGenerator:
-#k    main: FAGenerator.hs
-#k    source-dirs: tools
-#k    dependencies:
-#k    - base
-#k    - mysql-simple
-#k    - split
-#k    - filepath
-#k    - directory
+  # FAGenerator:
+  #   main: FAGenerator.hs
+  #   source-dirs: tools
+  #   dependencies:
+  #   - base
+  #   - mysql-simple
+  #   - split
+  #   - filepath
+  #   - directory
 #k
 #k  TextcartHelper:
 #k    main: TextcartHelper.hs

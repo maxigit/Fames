@@ -130,7 +130,7 @@ main = do
   hClose outRoute
 
 
-  let handlerDir = "Handler" </> module_
+  let handlerDir = "src" </> "Handler" </> module_
   createDirectoryIfMissing True handlerDir
   outHandler <- openFile (handlerDir </> "Def.hs") WriteMode 
   hPutStrLn outHandler "-- Warning ! This code has been generated !"
