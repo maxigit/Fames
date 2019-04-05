@@ -1,15 +1,15 @@
 <h1.jumbotron>
   Welcome to Fames!
 
-$forall (ix, (main, route,  subs)) <- ix'links
-  $with panelId <- "home-panel-" <> tshow ix
-    <div.panel.panel-success>
-      <div.panel-heading>
-        <h2>
-          <span.data-toggler.collapsed data-toggle=collapse data-target=##{panelId}>#{main}
-      <div.panel-body.collapse id=#{panelId}">
-          $forall (group, sublinks) <- subs
-            <div.list-group.table-of-contents>
-              <a.list-group-item.list-group-item-success>#{group}
-                $forall ((title, route), denied) <- sublinks
-                  <a.list-group-item href=@{route} :denied:class="disabled">#{title}
+<div.list-group.table-of-contents>
+  $forall (ix, (main, route,  subs)) <- ix'links
+    $with panelId <- "home-panel-" <> tshow ix
+        <div.list-group-item>
+          <h4.data-toggler.collapsed data-toggle=collapse data-target=##{panelId}>
+            #{main}
+        <div.list-group.collapse id=#{panelId}">
+            $forall (group, sublinks) <- subs
+              <div.list-group.table-of-contents>
+                <a.list-group-item.list-group-item-success>#{group}
+                  $forall ((title, route), denied) <- sublinks
+                    <a.list-group-item href=@{route} :denied:class="disabled">#{title}
