@@ -403,8 +403,8 @@ mainLinks :: Handler [(Text, Route App, Bool)]
 mainLinks = do
   currentRoute <- getCurrentRoute
   let allRoutes = Data.Foldable.toList routeTree
-  let links= [ ("General Ledger", GLR GLEnterReceiptSheetR)
-             , ("Items", ItemsR (ItemsIndexR Nothing))
+  let links= [ ("General Ledger", GLR GLBankR)
+             , ("Items", ItemsR ItemsCategoryR)
              , ("Warehouse", WarehouseR WHStockAdjustmentR)
              , ("Planner", PlannerR (PViewR Nothing))
              , ("Admin", AdministratorR AIndexR)
