@@ -17,6 +17,7 @@ module Import.NoFoundation
     , formatAmount
     , formatDouble
     , formatQuantity
+    , formatHours
     , showTransType
     , decodeHtmlEntities
     , groupAsMap
@@ -52,7 +53,7 @@ import qualified Text.HTML.TagSoup as TS
 import qualified Data.Map as Map
 import qualified Data.List.Split as Split
 import Data.Char (isUpper)
-import Formatting
+import Formatting as F
 import Data.Align(align)
 import Data.Monoid(First(..))
 import Data.Maybe (fromJust)
@@ -131,7 +132,13 @@ formatQuantity :: Double -> String
 formatQuantity = strip0 . (\t -> t :: String) .  printf "%0.2f" where
   strip0 s = fromMaybe s (stripSuffix ".00" s)
 
--- ** Formating lib
+formatHours :: Double -> Text
+formatHours duration = let
+  (h, m) = properFraction duration :: (Int, Double)
+  p2 = left 2 '0' %. F.int
+  in sformat (p2 % ":" % p2) h (round $ 60*m :: Int)
+  
+-- ** Formating lforb
 -- | display a amount to 2 dec with thousands separator
 commasFixed = later go where
   go x = let

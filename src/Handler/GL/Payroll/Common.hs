@@ -694,16 +694,16 @@ displayTimeBadges color maxDuration durations0 =
              <.invisible>LOCK #{tshow e}
            $of Right duration
               <span.badge.non-hover class=#{show $ TS._shiftKey shift} style="width:#{durationWidth $ fromMaybe duration timedM}%;#{bg shift};color:white">
-                #{duration}
+                #{formatHours duration}
     $maybe timed <- timedM
        $with timeAdjusted <- maybe timed (subtract timed) workedM
         <span.badge.non-hover class=#{classForTimed workedM timed} style="width:#{durationWidth $ abs timeAdjusted}%">
-            #{formatDouble $ abs $ timeAdjusted}
+            #{formatHours $ abs $ timeAdjusted}
         <span.hover-only>
           <p> Paied for: #{fromMaybe 0 workedM} hours
           <p> Including Holidays : #{either (const 0) id $ unlock' $ sum $ map TS._duration durations} hours
-          <p> Timed : #{formatDouble timed} hours
-          <p> Iddle : #{formatDouble timeAdjusted} hours (#{formatDouble $ maybe 100 (invAndMul (100 * timeAdjusted)) workedM }%)
+          <p> Timed : #{formatHours timed} hours
+          <p> Iddle : #{formatHours timeAdjusted} hours (#{formatDouble $ maybe 100 (invAndMul (100 * timeAdjusted)) workedM }%)
                  |]
           
 -- Display a week. The first line is the day of month
