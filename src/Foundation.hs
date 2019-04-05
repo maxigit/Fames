@@ -173,11 +173,7 @@ instance Yesod App where
                                  a <- isAuthorized r False
                                  return $ (l, a /= Authorized))
                              suggested0
-        let sideLinks0 = sideLinks currentRoute
-        sideLinks' <- mapM (mapM (mapM (\l@(_,r) -> do
-                                 a <- isAuthorized r False
-                                 return $ (l, a /= Authorized))))
-                             sideLinks0
+        sideLinks' <- sideLinksWithAuth currentRoute
 
 
         
@@ -448,6 +444,13 @@ sideLinks (Just route) = let
      ]
 sideLinks _ = []
 
+sideLinksWithAuth currentRoute = do
+  let sideLinks0 = sideLinks currentRoute
+  mapM (mapM (mapM (\l@(_,r) -> do
+                       a <- isAuthorized r False
+                       return $ (l, a /= Authorized))))
+    sideLinks0
+  
 routeValue :: Text -> Route App -> Maybe Text
 routeValue prefix route = let
   attrs = mapMaybe (stripPrefix prefix) (toList $ routeAttrs route)
