@@ -18,6 +18,7 @@ import Data.List.Split
 import Control.Monad.Except (ExceptT(..), runExceptT)
 import Data.Text (strip)
 import Locker
+import Database.Persist.Sql(unSqlBackendKey)
 
 -- * Quick Add
 saveQuickAdd :: Bool -> Text -> DocumentHash -> Handler (Either Text Widget)
@@ -50,10 +51,14 @@ saveQuickAdd  save text key  = do
               mergedOId = modelToTimesheetOpId oldE (oldShifts <> shifts0) (oldItems <> items0)
               mergedTts' = map (\(op, _) -> maybe (tshow op) operatorNickname (lookup op operatorMap)) mergedOId
 
-          when save ( lift . runDB $ do
+          when save $ lift $ do
+            runDB $ do
                         insertMany_ shifts
                         insertMany_ items
-                    )
+            pushLinks ("View Timesheet " <> ref)
+                        (GLR $ GLPayrollViewR (unSqlBackendKey $ unTimesheetKey key ))
+                        []
+  
           return [whamlet|
               <div.panel.panel-success>
                 <div.panel-heading><h3>#{ref}
