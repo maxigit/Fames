@@ -703,7 +703,7 @@ displayTimeBadges color maxDuration durations0 =
           <p> Paied for: #{fromMaybe 0 workedM} hours
           <p> Including Holidays : #{either (const 0) id $ unlock' $ sum $ map TS._duration durations} hours
           <p> Timed : #{formatHours timed} hours
-          <p> Iddle : #{formatHours timeAdjusted} hours (#{formatDouble $ maybe 100 (invAndMul (100 * timeAdjusted)) workedM }%)
+          <p> Idle : #{formatHours timeAdjusted} hours (#{formatDouble $ maybe 100 (invAndMul (100 * timeAdjusted)) workedM }%)
                  |]
           
 -- Display a week. The first line is the day of month
