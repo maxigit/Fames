@@ -149,7 +149,7 @@ getWHStocktakeHistoryR :: Handler Html
 getWHStocktakeHistoryR = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   defaultLocation <- appFADefaultLocation . appSettings <$> getYesod
-  let sql =  " SELECT left(last_stocktake.stock_id, 8) as style, min(stock_take) take_date, max(alltake) latest"
+  let sql =  " SELECT category.value AS style, min(stock_take) take_date, max(alltake) latest"
           <> "        , SUM(quantity) quantity"
           <> " FROM "
           <> " ("
@@ -169,6 +169,7 @@ getWHStocktakeHistoryR = do
           <> "    AND qoh.loc_code = ?"
           <> "    GROUP BY sm.stock_id"
           <> " ) last_stocktake"
+          <> " JOIN fames_item_category_cache AS category ON (category.category = 'style' AND category.stock_id = last_stocktake.stock_id) "
           <> " GROUP BY style"
           <> " HAVING NOT (quantity = 0 AND take_date is NULL AND latest is NULL)"
           <> " ORDER BY take_date, latest, style"
