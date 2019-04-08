@@ -700,8 +700,8 @@ displayTimeBadges color maxDuration durations0 =
         <span.badge.non-hover class=#{classForTimed workedM timed} style="width:#{durationWidth $ abs timeAdjusted}%">
             #{formatHours $ abs $ timeAdjusted}
         <span.hover-only>
-          <p> Paied for: #{fromMaybe 0 workedM} hours
-          <p> Including Holidays : #{either (const 0) id $ unlock' $ sum $ map TS._duration durations} hours
+          <p> Paied for: #{formatHours $ fromMaybe 0 workedM} hours
+          <p> Including Holidays : #{either (const "0") formatHours $ unlock' $ sum $ map TS._duration durations} hours
           <p> Timed : #{formatHours timed} hours
           <p> Idle : #{formatHours timeAdjusted} hours (#{formatDouble $ maybe 100 (invAndMul (100 * timeAdjusted)) workedM }%)
                  |]
