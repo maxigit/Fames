@@ -5,6 +5,7 @@ module ModelField
 ) where 
 
 import ClassyPrelude.Yesod
+import Database.Persist.Sql(PersistFieldSql(..))
 import Text.Printf(printf)
 import GL.Payroll.Timesheet (PayrollFrequency)
 -- * Warehouse
@@ -16,7 +17,13 @@ derivePersistField "PendingStatus"
 -- | Quality of Batch. 0 is bad -  100 is perfect
 newtype MatchScore = MatchScore { unMatchScore:: Double }
   deriving(Eq, Read,Show, Ord)
-derivePersistField "MatchScore"
+
+instance PersistField MatchScore where
+  toPersistValue = toPersistValue . unMatchScore
+  fromPersistValue pv = fmap MatchScore (fromPersistValue pv)
+  
+instance PersistFieldSql MatchScore where
+  sqlType _ = SqlReal
 
 -- * Payroll
 -- | Wether a payroll cost is a added to the employer bill (cost) or paid by the employee (deduction)

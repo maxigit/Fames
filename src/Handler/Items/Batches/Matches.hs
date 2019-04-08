@@ -39,7 +39,8 @@ deriving instance Show (MatchRow 'RawT)
 
 -- | Aggregate set os quality, kee
 data MatchAggregationMode = AllMatches -- ^ Keep all
-  | MedianMatches -- ^ get average of the two medians
+  -- | MedianMatches -- ^ get average of the two medians
+  | AverageMatches -- ^ get the average
   | LastMatches -- ^ get the latest
   deriving (Show, Read, Eq, Enum, Bounded)
 -- | Display quality as text or sign, and hide bad and identical
@@ -539,10 +540,11 @@ aggregateScore :: MatchAggregationMode -> [(Text, MatchScore)] -> [(Text, MatchS
 aggregateScore mode colour'scores  = let
   byColour = groupAsMap fst (return . snd) colour'scores
   filtered = fmap (f mode) byColour 
-  f MedianMatches [] = []
-  f MedianMatches qs = case median2 $ sort qs of
-                         [a, b] -> [fromMaybe a ( mergeScores [a, b] )]
-                         m -> m
+  -- fMedianMatches [] = []
+  -- fMedianMatches qs = case median2 $ sort qs of
+  --                        [a, b] -> [fromMaybe a ( mergeScores [a, b] )]
+  --                        m -> m
+  f AverageMatches qs = maybeToList (mergeScores qs)
   f LastMatches qs = take 1 qs -- groupAsMap reverse items, so we need the head to take the last
   f AllMatches qs = reverse qs -- shouldn't be called, but here for completion
   -- sort group by best batch
@@ -565,7 +567,7 @@ mergeBatchMatches _ _ [matches] = Just matches
 mergeBatchMatches MergeRaisesError sku matchess | [ms] <-  nub matchess = Just ms
 mergeBatchMatches MergeRaisesError sku _ = error $ "Multiple batches for " <> unpack sku
 mergeBatchMatches SafeMatch sku matchess = let
-  matches = concatMap (aggregateScore MedianMatches) matchess
+  matches = concatMap (aggregateScore AverageMatches) matchess
   -- group by colour and take the worst of it
   col'scoreMap' :: Map Text [MatchScore]
   col'scoreMap' = groupAsMap fst ((:[]) . snd) matches

@@ -461,10 +461,6 @@ colour'AsQualitysToHtml' aggregationMode displayMode c'qs0 = let
                          LimitQuality -> (filter ((/= Bad) . scoreToQuality . snd), qualityToShortHtml)
   c'qs = filterQ $ aggregateScore aggregationMode c'qs0
   in colour'AsQualitysToHtml qualityToHtml' c'qs
-
-
-  
-    
   
 -- * DB
 loadBatches :: SqlHandler [Entity Batch]

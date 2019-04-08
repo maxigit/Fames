@@ -7,10 +7,10 @@ IF EXISTS(
                     AND column_name = 'quality'
 
   )
+THEN
 
 -- CREATE NEW COLUMN
-ALTER TABLE fames_batch_match
-ADD score DOUBLE DEFAULT 0 AFTER quality
+ALTER TABLE fames_batch_match ADD score DOUBLE DEFAULT 0 AFTER operator_id
 ;
 
 -- MIGRATE old column
@@ -30,16 +30,14 @@ WHERE quality is not null
 -- DROP old column
 ALTER TABLE fames_batch_match
 DROP quality;
-  ;
 
-END
-
-
-IF FALSE
-
-DELETE FROM fames_batch_match
-where operator_id IS NUL
-; 
+END IF;
 
 
-END
+-- IF FALSE
+
+-- DELETE FROM fames_batch_match
+-- where operator_id IS NUL
+-- ; 
+
+-- END IF
