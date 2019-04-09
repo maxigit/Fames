@@ -165,7 +165,6 @@ getWHStocktakeHistoryR = do
           <> "    JOIN 0_denorm_qoh qoh ON (sm.stock_id = qoh.stock_id)"
           <> "    WHERE inactive = false"
           <> "    AND sm.stock_id like ?"
-          <> "    AND sm.stock_id like 'M%'" -- TODO configuration
           <> "    AND qoh.loc_code = ?"
           <> "    GROUP BY sm.stock_id"
           <> " ) last_stocktake"
@@ -221,7 +220,8 @@ getWHStocktakeHistoryR = do
 -- for each variation of a give style.
 getWHStocktakeHistoryStyleR :: Text -> Handler Html
 getWHStocktakeHistoryStyleR style = do
-  let stockLike = style <> "-%"
+  -- let styleLike = style <> "-%"
+  stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   defaultLocation <- appFADefaultLocation . appSettings <$> getYesod
   let sql =  " SELECT stock_id, min(stock_take) take_date, max(alltake) latest"
           <> "        , SUM(quantity) quantity"
@@ -237,9 +237,9 @@ getWHStocktakeHistoryStyleR style = do
           <> "    ) "
           <> "    LEFT JOIN fames_document_key doc USING(document_key_id)"
           <> "    JOIN 0_denorm_qoh qoh ON (sm.stock_id = qoh.stock_id)"
+          <> "    JOIN fames_item_category_cache category ON (category.stock_id = sm.stock_id AND category.category = 'style' AND category.value = ? ) "
           <> "    WHERE inactive = false"
           <> "    AND sm.stock_id like ?"
-          <> "    AND sm.stock_id like 'M%'" -- TODO configuration
           <> "    AND qoh.loc_code = ?"
           <> "    GROUP BY sm.stock_id"
           <> " ) last_stocktake"
@@ -250,7 +250,7 @@ getWHStocktakeHistoryStyleR style = do
       showDate Nothing = ""
       showDate (Just d) | d ==  nullDate = ""
       showDate (Just d) = tshow d
-  style'dates <- runDB $ rawSql sql [PersistText stockLike, PersistText defaultLocation ]
+  style'dates <- runDB $ rawSql sql [PersistText style, PersistText stockLike, PersistText defaultLocation ]
   let _types = style'dates :: [(Single Text, Single (Maybe Day), Single (Maybe Day), Single Double)]
   today <- todayH
   let (allMinDates, allMaxDates) = unzip [(mindate, maxdate) | (_, Single mindate, Single maxdate, _) <- style'dates]
