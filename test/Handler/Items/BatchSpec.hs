@@ -32,7 +32,7 @@ roundupScore BatchMatch{..} = BatchMatch{batchMatchScore=score,..}  where
 
 shouldBeRoundedUp as bs = map roundupScore as `shouldBe` map roundupScore bs
 pureSpec = do 
-  describe "@currentXXX @Batches Matches" $ do
+  describe "@Batches Matches" $ do
       describe "#mergeBatchMatches" $ do
         let mergeBatchMatches' :: BatchMergeMode -> Text -> [[(Text, MatchQuality)]] -> Maybe [(Text, MatchQuality)]
             mergeBatchMatches' mode sku qs =  scoreToQuality <$$$> mergeBatchMatches mode sku ss
@@ -76,7 +76,7 @@ pureSpec = do
                                                   ]
                                                 ]
                 `shouldBe` Just [("BGM", Bad)] 
-      describe "@Expand" $ do
+      describe "@Expand @current" $ do
         let [b1, b2, b3] = map BatchKey [1..3]
             op = OperatorKey 1
             day1 = fromGregorian 2019 04 01
@@ -84,7 +84,7 @@ pureSpec = do
             docKey = DocumentKeyKey' 1
             nokey = DocumentKeyKey' 0
             -- tweak expandMatche to set the comment
-            expandMatches0 ms = map updateComment $ expandMatches tshow ms where
+            expandMatches0 ms = map updateComment $ expandMatches (\_ _ v -> Just v) tshow ms where
               updateComment b = b {batchMatchComment = Just "<expanded>"}
             
         it "should connect 2 batches" $ do
@@ -94,7 +94,28 @@ pureSpec = do
                         ]  `shouldBeRoundedUp`
                         [ BatchMatch b3 "A" b1 "A" Nothing excellent (Just "<expanded>") day1 nokey
                         ]
-        it "@current  should remove duplicate guesses " $ do
+        it "should connect 2 batches in a different order" $ do
+          expandMatches0 
+                        [ BatchMatch b2 "A" b1 "A" (Just op) excellent Nothing day1 docKey
+                        , BatchMatch b3 "A" b2 "A" (Just op) excellent Nothing day1 docKey
+                        ]  `shouldBeRoundedUp`
+                        [ BatchMatch b3 "A" b1 "A" Nothing excellent (Just "<expanded>") day1 nokey
+                        ]
+        it "should connect 2 batches in a different order" $ do
+          expandMatches0 
+                        [ BatchMatch b2 "A" b1 "A" (Just op) excellent Nothing day1 docKey
+                        , BatchMatch b2 "A" b3 "A" (Just op) excellent Nothing day1 docKey
+                        ]  `shouldBeRoundedUp`
+                        [ BatchMatch b3 "A" b1 "A" Nothing excellent (Just "<expanded>") day1 nokey
+                        ]
+        it "should connect 2 batches - last order" $ do
+          expandMatches0 
+                        [ BatchMatch b1 "A" b2 "A" (Just op) excellent Nothing day1 docKey
+                        , BatchMatch b2 "A" b3 "A" (Just op) excellent Nothing day1 docKey
+                        ]  `shouldBeRoundedUp`
+                        [ BatchMatch b3 "A" b1 "A" Nothing excellent (Just "<expanded>") day1 nokey
+                        ]
+        it "should remove duplicate guesses " $ do
           expandMatches0 
                         [ BatchMatch b1 "A" b2 "A" (Just op) excellent Nothing day1 docKey
                         , BatchMatch b3 "A" b2 "A" (Just op) excellent Nothing day1 docKey

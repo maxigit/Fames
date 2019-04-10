@@ -15,7 +15,6 @@ module Handler.Items.Batches
 
 import Import
 import Items.Types
-import Handler.Items.Reports.Common
 import Handler.Items.Common
 import Handler.Util
 import Handler.Table
@@ -318,8 +317,10 @@ loadMatchTable MatchTableParam{..} = do
       
 getItemBatchExpandMatchesR :: Handler Html 
 getItemBatchExpandMatchesR = do
+  limitM <- lookupGetParam "limit"
   (guessed, batchName') <- expandAllMatches
-  let widget = [whamlet|
+  let limit = take $ fromMaybe 100  (readMay =<< limitM)
+      widget = [whamlet|
 <table.table.table-hover.table-striped>
     <tr>
       <td>Source
@@ -328,7 +329,7 @@ getItemBatchExpandMatchesR = do
       <td>Target Colour
       <td>Quality
       <td>Comment
-  $forall BatchMatch{..} <- take 100 guessed
+  $forall BatchMatch{..} <- limit guessed
     <tr>
       <td>#{batchName' batchMatchSource}
       <td>#{batchMatchSourceColour}
@@ -348,13 +349,18 @@ getItemBatchExpandMatchesR = do
 expandAllMatches = runDB $ do
   matches <- selectList [] []
   batches <- selectList [] []
-  let expanded = expandMatches batchName' $ map entityVal matches
+  let expanded = expandMatches scoreLimiter batchName' $ map entityVal matches
       guessed = filter (isNothing . batchMatchOperator) expanded
       batchMap = mapFromList $ map ((,) <$> (entityKey) <*> entityVal) batches :: Map (Key Batch) Batch
       batchName' :: Key Batch -> Text
       batchName' batchKey = maybe ("#" <> ( tshow $ unSqlBackendKey $ unBatchKey batchKey))
                                  batchName
                                  (lookup batchKey batchMap)
+      -- Limit the match within the same batch to Close
+      -- TODO? add top score in Batch itself
+      scoreLimiter _ _ v  | v == qualityToScore Identical = Just v
+      scoreLimiter a b v | a == b = mergeScores [min v (qualityToScore Close)]
+      scoreLimiter _ _ v = Just v
   return (guessed, batchName')
 
 -- | Saves expanded matches

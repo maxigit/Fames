@@ -5,6 +5,7 @@ module Handler.Items.Batches.Matches where
 import Import hiding((.:))
 import qualified Data.Csv as Csv
 import Data.List(scanl, nub)
+import qualified Data.List as List
 import Handler.CsvUtils
 import Handler.Items.Common
 import Handler.Items.Category.Cache
@@ -539,7 +540,8 @@ aggregateScore :: MatchAggregationMode -> [(Text, MatchScore)] -> [(Text, MatchS
 -- aggregateScore MedianMatches colour'scores = sortOn (liftA2 (,) (Down . snd) fst ) colour'scores
 aggregateScore mode colour'scores  = let
   byColour = groupAsMap fst (return . snd) colour'scores
-  filtered = fmap (f mode) byColour 
+  aggregated = fmap (f mode) byColour 
+  filtered = Map.filter (not . null) aggregated
   -- fMedianMatches [] = []
   -- fMedianMatches qs = case median2 $ sort qs of
   --                        [a, b] -> [fromMaybe a ( mergeScores [a, b] )]
@@ -640,10 +642,11 @@ skuToStyle''var'Batch skuToStyleVar batches = let
 
 -- | cross product between to lists of matches. make a new batch
 -- by connecting each possible pairs. Might needs optimisation
-multiplyMatches :: (Key Batch -> Text) -> [BatchMatch] -> [BatchMatch] -> [BatchMatch]
-multiplyMatches batchNameFn matches1 matches2 = let
+multiplyMatches :: (Key Batch -> Key Batch -> MatchScore -> Maybe MatchScore)
+                -> (Key Batch -> Text) -> [BatchMatch] -> [BatchMatch] -> [BatchMatch]
+multiplyMatches scoreLimiter batchNameFn matches1 matches2 = let
   -- check all pairs
-  pairs = catMaybes [ connectMatches batchNameFn mi mj
+  pairs = catMaybes [ connectMatches scoreLimiter batchNameFn mi mj
                     | mi <- matches1
                     , mj <- matches2
                     ]
@@ -656,7 +659,7 @@ filterBestMatches olds news = let
   -- remove items with lefts
   grouped = map rights $ Map.filter (all isRight) grouped0
   bests = fmap (keepBests . SameKeys) grouped
-  in traceShow("GROUPED", keys grouped) $ concat $ toList bests
+  in {- traceShow("GROUPED", keys grouped) $ -} concat $ toList bests
 
 data SameKeys = SameKeys [BatchMatch]
 -- remove duplicate and removes guessed if needed
@@ -676,15 +679,17 @@ currentBatchDotPrefix :: Text
 currentBatchDotPrefix = "/*current*/ "
 -- | Connect 2 matches if possible
 -- match can connect if one 
-connectMatches :: (Key Batch -> Text) -> BatchMatch -> BatchMatch -> Maybe BatchMatch
-connectMatches batchNameFn ma mb = do -- maybe
-   batchMatchScore <- mergeScores [batchMatchScore ma,  batchMatchScore mb]
+connectMatches :: (Key Batch -> Key Batch -> MatchScore -> Maybe MatchScore) -- ^ score limiter
+               -> (Key Batch -> Text) -> BatchMatch -> BatchMatch -> Maybe BatchMatch
+connectMatches scoreLimiter batchNameFn ma mb = do -- maybe
+   batchMatchScore0 <- mergeScores [batchMatchScore ma,  batchMatchScore mb]
    let [keysa, keysb] = map batchMatchKeys [ma, mb]
        ifOne [a]  = Just a
        ifOne _ = Nothing
-   common@(cBatch,cColour) <- ifOne $ keysa `intersect` keysb
+   common@(cBatch,cColour) <- ifOne $ keysa `List.intersect` keysb
    (batchMatchSource, batchMatchSourceColour) <- ifOne $ filter (/= common) keysa
    (batchMatchTarget, batchMatchTargetColour) <- ifOne $ filter (/= common) keysb
+   batchMatchScore <- scoreLimiter batchMatchSource batchMatchTarget  batchMatchScore0
    
    let batchMatchOperator = Nothing
        batchMatchComment = Just $ batchMatchesToDot Nothing batchNameFn ma mb <> currentBatchDotPrefix <> matchToDot (Just "red") batchNameFn tmpMatch
@@ -713,11 +718,12 @@ matchToDot colorM batchNameFn m = "\"" <> (batchNameFn $ batchMatchSource m) <> 
       comments t = Text.unlines $ map ("//  " <>) (filter (not . isPrefixOf currentBatchDotPrefix) (Text.lines t))
 
 -- | Expand matches. Return only new ones
-expandMatches :: (Key Batch -> Text) -> [BatchMatch] -> [BatchMatch]
-expandMatches batchNameFn matches =
-  let new = multiplyMatches batchNameFn matches matches
+expandMatches :: (Key Batch -> Key Batch -> MatchScore -> Maybe MatchScore )
+              -> (Key Batch -> Text) -> [BatchMatch] -> [BatchMatch]
+expandMatches scoreLimiter batchNameFn matches =
+  let new = multiplyMatches scoreLimiter batchNameFn matches matches
       filtered = filterBestMatches matches new 
-      newOnly = filter ((== noDocumentKey) . batchMatchDocumentKey ) filtered
+      newOnly = filtered --  filter ((== noDocumentKey) . batchMatchDocumentKey ) filtered
   in newOnly
   
                    
