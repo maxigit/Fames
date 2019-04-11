@@ -48,6 +48,7 @@ data MatchAggregationMode = AllMatches -- ^ Keep all
 -- | Display quality as text or sign, and hide bad and identical
 data QualityDisplayMode = FullQuality -- ^ display full text 
                         | LimitQuality -- ^ remove Bad and Identical
+                        | LimitCloses -- ^ as LimitQuality and  remove closes except unique
                         deriving (Show, Read, Eq, Enum, Bounded)
 -- | How to merge batches into one and keep colours
 -- example, when displaying the table of a given style

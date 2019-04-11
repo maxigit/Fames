@@ -469,6 +469,7 @@ colour'AsQualitysToHtml' opMap AllMatches displayMode matches = let
   (filterQ ,qualityToHtml') = case displayMode of
                          FullQuality -> (id, toHtml . tshow)
                          LimitQuality -> (filter ((/= Bad) . scoreToQuality . batchMatchScore ), qualityToShortHtml)
+                         LimitCloses -> (filterCloses (scoreToQuality . batchMatchScore), qualityToShortHtml)
   filtered = filterQ matches
   c'q'gs = [((batchMatchTargetColour, batchMatchScore) , isNothing batchMatchOperator) | BatchMatch{..} <-  filtered ]
   in [shamlet|
@@ -482,9 +483,15 @@ colour'AsQualitysToHtml' _ aggregationMode displayMode matches = let
   (filterQ ,qualityToHtml') = case displayMode of
                          FullQuality -> (id, toHtml . tshow)
                          LimitQuality -> (filter ((/= Bad) . scoreToQuality . snd ), qualityToShortHtml)
+                         LimitCloses -> (filterCloses (scoreToQuality . snd), qualityToShortHtml)
   c'qs = filterQ $ aggregateScore aggregationMode (map (batchMatchTargetColour &&& batchMatchScore) matches)
   in colour'AsQualitysToHtml qualityToHtml' $ zip c'qs (repeat True)
-  
+-- |  removes closes or bad, except if only one cloes
+filterCloses :: (a -> MatchQuality) -> [a] -> [a]
+filterCloses getter ms = 
+  case partition ((<= Close) . getter ) ms of
+    (closes, []) -> closes
+    (_, goods) -> goods
 -- * DB
 loadBatches :: SqlHandler [Entity Batch]
 loadBatches = do
