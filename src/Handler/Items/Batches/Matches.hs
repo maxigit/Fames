@@ -391,6 +391,10 @@ reverseBatchMatch :: BatchMatch -> BatchMatch
 reverseBatchMatch BatchMatch{..} = BatchMatch{ batchMatchSource=batchMatchTarget,batchMatchSourceColour=batchMatchTargetColour
                                              , batchMatchTarget=batchMatchSource, batchMatchTargetColour=batchMatchSourceColour,..}
 
+normalizeBatchMatch :: BatchMatch -> BatchMatch
+normalizeBatchMatch batch = case batchMatchKeys batch of
+  [a, b] | b < a -> reverseBatchMatch batch
+  _ -> batch
 
 -- * Match Table
 -- | Assures all source are source and target are target regardless of the database order

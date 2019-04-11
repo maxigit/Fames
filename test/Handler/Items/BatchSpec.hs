@@ -30,7 +30,8 @@ roundupScore :: BatchMatch -> BatchMatch
 roundupScore BatchMatch{..} = BatchMatch{batchMatchScore=score,..}  where
   score = qualityToScore $ scoreToQuality batchMatchScore
 
-shouldBeRoundedUp as bs = map roundupScore as `shouldBe` map roundupScore bs
+shouldBeRoundedUp as bs = norm as `shouldBe` norm bs
+  where norm = sortOn batchMatchKeys . map (normalizeBatchMatch . roundupScore)
 pureSpec = do 
   describe "@Batches Matches" $ do
       describe "#mergeBatchMatches" $ do
@@ -76,8 +77,8 @@ pureSpec = do
                                                   ]
                                                 ]
                 `shouldBe` Just [("BGM", Bad)] 
-      describe "@Expand @current" $ do
-        let [b1, b2, b3] = map BatchKey [1..3]
+      describe "@Expand" $ do
+        let [b1, b2, b3, b4] = map BatchKey [1..4]
             op = OperatorKey 1
             day1 = fromGregorian 2019 04 01
             day2 = fromGregorian 2019 05 01
@@ -86,6 +87,9 @@ pureSpec = do
             -- tweak expandMatche to set the comment
             expandMatches0 ms = map updateComment $ expandMatches (\_ _ v -> Just v) tshow ms where
               updateComment b = b {batchMatchComment = Just "<expanded>"}
+            expandMatches1 ms = let
+              new = expandMatches0 ms
+              in expandMatches0 (ms <> new)
             
         it "should connect 2 batches" $ do
           expandMatches0 
@@ -122,6 +126,34 @@ pureSpec = do
                         , BatchMatch b1 "A" b3 "A" Nothing   good Nothing day1 docKey
                         ]  `shouldBeRoundedUp`
                         []
+        context "@current #short path" $ do
+          it "A -> B -> C -> D => A -> D" $ do
+            expandMatches1 [ BatchMatch b1 "A" b2 "B" Nothing excellent Nothing day1 docKey
+                           , BatchMatch b2 "B" b3 "C" Nothing excellent Nothing day1 docKey
+                           , BatchMatch b3 "C" b4 "D" Nothing excellent Nothing day1 docKey
+                           ] `shouldBeRoundedUp`
+                           [ BatchMatch b1 "A" b4 "D" Nothing good (Just "<expanded>") day1 nokey]
+          it "A +++ B +++ C +++ D | A ++ C  => A + D" $ do
+            expandMatches0 [ BatchMatch b1 "A" b2 "B" Nothing excellent Nothing day1 docKey
+                           , BatchMatch b2 "B" b3 "C" Nothing excellent Nothing day1 docKey
+                           , BatchMatch b3 "C" b4 "D" Nothing excellent Nothing day1 docKey
+                           -- add short cut
+                           , BatchMatch b1 "A" b3 "C" Nothing fair Nothing day1 docKey
+                           ] `shouldBeRoundedUp`
+                           [ BatchMatch b2 "B" b4 "D" Nothing excellent (Just "<expanded>") day1 nokey
+                           , BatchMatch b1 "A" b4 "D" Nothing fair (Just "<expanded>") day1 nokey
+                           ]
+          it "A +++ B +++ C +++ D | A ++ C  => A + D" $ do
+            expandMatches1 [ BatchMatch b1 "A" b2 "B" Nothing excellent Nothing day1 docKey
+                           , BatchMatch b2 "B" b3 "C" Nothing excellent Nothing day1 docKey
+                           , BatchMatch b3 "C" b4 "D" Nothing excellent Nothing day1 docKey
+                           -- add short cut
+                           , BatchMatch b1 "A" b3 "C" Nothing fair Nothing day1 docKey
+                           ] `shouldBeRoundedUp`
+                           [ 
+                           ]
+                           -- already done in round 1
+
         it "should keeps the given ones" $ do
           keepBests (SameKeys [ BatchMatch b1 "A" b2 "A" (Just op) excellent (Just "Via #3") day1 docKey
                               , BatchMatch b1 "A" b2 "A" Nothing excellent Nothing day2 docKey
@@ -150,6 +182,7 @@ pureSpec = do
                               ]) `shouldBe`
                               [ BatchMatch b1 "A" b2 "A" Nothing excellent Nothing day1 docKey
                               ]
+        
       describe "#mergeQuality" $ do
           it  "should be symmetric" $ property $
                 \(a, b) -> mergeQualities [a , b] ===  mergeQualities [b , a]
