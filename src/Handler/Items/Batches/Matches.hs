@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NamedFieldPuns #-}
 module Handler.Items.Batches.Matches where
 
 import Import hiding((.:))
@@ -399,7 +400,7 @@ normalizeBatchMatch batch = case batchMatchKeys batch of
 -- * Match Table
 -- | Assures all source are source and target are target regardless of the database order
 newtype ForBuildTable = ForBuildTable [BatchMatch] 
-buildTable :: ([(Text, MatchScore)] -> Html) -- ^ qualitys rendered
+buildTable :: ([BatchMatch] -> Html) -- ^ qualitys rendered
            -> Maybe (Text -> Bool)  -- ^ filter column
            -> [Entity Batch] -- ^ rows
            -> [Entity Batch] -- ^ columns
@@ -408,15 +409,15 @@ buildTable :: ([(Text, MatchScore)] -> Html) -- ^ qualitys rendered
               , ((Text, (Key Batch, Text) -> Maybe (Either Html PersistValue)) -> (Html, [Text])) -- ^ COLUMN NAME: from column (as above)
               , [ ((Text, (Key Batch, Text) -> Maybe (Either Html PersistValue)) -> Maybe (Html, [Text]), [Text]) ] -- ^ ROWS: column (as above) -> value (via getter) 
               )
-buildTable renderColour'Scores filterColumnFn rowBatches columnBatches (ForBuildTable matches) = let
+buildTable renderMatches filterColumnFn rowBatches columnBatches (ForBuildTable matches) = let
   matchMap = groupAsMap (\BatchMatch{..} -> (batchMatchSource, batchMatchSourceColour, batchMatchTarget))
-                        (\BatchMatch{..} -> [(batchMatchTargetColour, batchMatchScore)])
+                        (:[])
                         matches
 
   source'colours = nub $ sort (map ((,) <$> batchMatchSource <*> batchMatchSourceColour ) matches)
   -- targets = nub $ sort (map batchMatchTarget matches)
   columns0 = [ ( fromMaybe batchName batchAlias -- Column name :: Text
-               , \(source, colour) -> Left . renderColour'Scores <$> lookup (source, colour, batchId ) matchMap
+               , \(source, colour) -> Left . renderMatches <$> lookup (source, colour, batchId ) matchMap
                                   
                )
             | (Entity batchId Batch{..}) <- columnBatches
@@ -439,21 +440,21 @@ buildTable renderColour'Scores filterColumnFn rowBatches columnBatches (ForBuild
 
 buildTableForSku ::
   col0 ~ (Text, (((Text, Text), Entity Batch)) -> Maybe (Either Html PersistValue))
-  => ([(Text, MatchScore)] -> Html) -- ^ match renderer
+  => ([BatchMatch] -> Html) -- ^ match renderer
   -> [((Text, Text), Entity Batch)] -- ^ sku@style'var batch
   -> [Entity Batch] -- ^ batches
   -> ForBuildTable -- ^ matches
   -> ([col0]
      , col0 -> (Html, [Text])
      , [(col0 -> Maybe (Html, [Text]), [Text])])
-buildTableForSku renderColour'Scores sku'batches columnBatches (ForBuildTable matches) = let
+buildTableForSku renderMatches sku'batches columnBatches (ForBuildTable matches) = let
   matchMap = groupAsMap (\BatchMatch{..} -> (batchMatchSource, batchMatchSourceColour, batchMatchTarget))
-                        (\BatchMatch{..} -> [(batchMatchTargetColour, batchMatchScore)])
+                        (:[])
                         matches
 
   -- targets = nub $ sort (map batchMatchTarget matches)
   columns0 = [ ( fromMaybe batchName batchAlias -- Column name :: Text
-               , \((style, colour), batch ) -> Left . renderColour'Scores <$> lookup (entityKey batch, colour, batchId ) matchMap
+               , \((style, colour), batch ) -> Left . renderMatches <$> lookup (entityKey batch, colour, batchId ) matchMap
                                   
                )
             | (Entity batchId Batch{..}) <- columnBatches
@@ -478,17 +479,17 @@ buildTableForSku renderColour'Scores sku'batches columnBatches (ForBuildTable ma
 buildTableForSkuMerged ::
   col0 ~ (Text, (((Text, Text), [Entity Batch])) -> Maybe (Either Html PersistValue))
   => BatchMergeMode
-  -> ([(Text, MatchScore)] -> Html) -- ^ match renderer
+  -> ([BatchMatch] -> Html) -- ^ match renderer
   -> [((Text, Text), Entity Batch)] -- ^ sku@style'var batch
   -> [Entity Batch] -- ^ batches
   -> ForBuildTable -- ^ matches
   -> ([col0]
      , col0 -> (Html, [Text])
      , [(col0 -> Maybe (Html, [Text]), [Text])])
-buildTableForSkuMerged mergeMode renderColour'Scores sku'batches columnBatches (ForBuildTable matches) = let
+buildTableForSkuMerged mergeMode renderMatches sku'batches columnBatches (ForBuildTable matches) = let
   -- TODO factorize with buildTableForSku
   matchMap = groupAsMap (\BatchMatch{..} -> (batchMatchSource, batchMatchSourceColour, batchMatchTarget))
-                        (\BatchMatch{..} -> [(batchMatchTargetColour, batchMatchScore)])
+                        (:[])
                         matches
 
   -- targets = nub $ sort (map batchMatchTarget matches)
@@ -498,7 +499,7 @@ buildTableForSkuMerged mergeMode renderColour'Scores sku'batches columnBatches (
     in mergeBatchMatches mergeMode (styleVarToSku style colour) matchess
 
   columns0 = [ ( fromMaybe batchName batchAlias -- Column name :: Text
-               , \s'c'bs -> Left . renderColour'Scores <$> scoreFinder matchMap  batchId s'c'bs
+               , \s'c'bs -> Left . renderMatches <$> scoreFinder matchMap  batchId s'c'bs
                )
             | (Entity batchId Batch{..}) <- columnBatches
             ]
@@ -518,17 +519,17 @@ buildTableForSkuMerged mergeMode renderColour'Scores sku'batches columnBatches (
      , \(col, _) -> (toHtml col, [])
      , rowsForTables
      )
-colour'AsQualityToHtml :: (MatchQuality -> Html) -> (Text, MatchScore) -> Html
-colour'AsQualityToHtml renderQuality (colour, score) = [shamlet|
-   <span class="match-quality quality-#{tshow quality}">
+colour'AsQualityToHtml :: (MatchQuality -> Html) -> ((Text, MatchScore), Bool) -> Html
+colour'AsQualityToHtml renderQuality ((colour, score), guessed) = [shamlet|
+   <span class="match-quality quality-#{tshow quality}" :guessed:.guessed-value>
       #{colour}
       <sup>
         <span.quality-content>#{renderQuality quality}
         |] where quality = scoreToQuality score
 
-colour'AsQualitysToHtml :: (MatchQuality -> Html) -> [(Text, MatchScore)] -> Html
-colour'AsQualitysToHtml renderQuality c'qs = mconcat $ intersperse [shamlet|<span.quality-sep>, |] htmls
-  where htmls = map (colour'AsQualityToHtml renderQuality) c'qs
+colour'AsQualitysToHtml :: (MatchQuality -> Html) -> [((Text, MatchScore), Bool)] -> Html
+colour'AsQualitysToHtml renderQuality c'q'gs = mconcat $ intersperse [shamlet|<span.quality-sep>, |] htmls
+  where htmls = map (colour'AsQualityToHtml renderQuality) c'q'gs
 
 qualityToShortHtml :: IsString t => MatchQuality -> t
 qualityToShortHtml quality = case quality of
@@ -570,13 +571,13 @@ median2 xs = case length xs `divMod` 2 of
               (p, _1) -> take 1 $ drop p xs
 
 -- | Merge quality match from different batch into one
-mergeBatchMatches :: BatchMergeMode -> Text ->  [ [(Text, MatchScore)]] -> Maybe [(Text, MatchScore)]
+mergeBatchMatches :: BatchMergeMode -> Text ->  [ [BatchMatch]] -> Maybe [BatchMatch]
 mergeBatchMatches _ _ [] = Nothing
 mergeBatchMatches _ _ [matches] = Just matches
 mergeBatchMatches MergeRaisesError sku matchess | [ms] <-  nub matchess = Just ms
 mergeBatchMatches MergeRaisesError sku _ = error $ "Multiple batches for " <> unpack sku
 mergeBatchMatches SafeMatch sku matchess = let
-  matches = concatMap (aggregateScore AverageMatches) matchess
+  matches = concatMap (aggregateScore AverageMatches . (map (batchMatchTargetColour &&& batchMatchScore))) matchess
   -- group by colour and take the worst of it
   col'scoreMap' :: Map Text [MatchScore]
   col'scoreMap' = groupAsMap fst ((:[]) . snd) matches
@@ -585,7 +586,10 @@ mergeBatchMatches SafeMatch sku matchess = let
   col'scoreMap = Map.filter ((== numberOfBatches) . length) col'scoreMap'
   in case Map.toList (fmap minimumEx col'scoreMap) of
            [] -> Nothing
-           rs -> Just rs
+           rs -> let ((firstMatch:_):_) = matchess  -- safe otherwise we wouldn't have a result
+                 in Just [ firstMatch {batchMatchTargetColour,batchMatchScore, batchMatchOperator=Nothing}
+                         | (batchMatchTargetColour, batchMatchScore) <- rs
+                         ]
 -- mergeBatchMatches MergeBest sku matchess = 
 --   -- try merge safe good enough
 --  case mergeBatchMatches SafeMatch sku matchess of

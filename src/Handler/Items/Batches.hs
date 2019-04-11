@@ -460,13 +460,20 @@ batchTables renderUrl extraColumns batch'counts = [whamlet|
                            ]) <>  extraColumns
   colDisplays (name, _) = (toHtml name, [])
 
-colour'AsQualitysToHtml' :: MatchAggregationMode -> QualityDisplayMode -> [(Text, MatchScore)] -> Html
-colour'AsQualitysToHtml' aggregationMode displayMode c'qs0 = let
+colour'AsQualitysToHtml' :: MatchAggregationMode -> QualityDisplayMode -> [BatchMatch] -> Html
+colour'AsQualitysToHtml' AllMatches displayMode matches = let
   (filterQ ,qualityToHtml') = case displayMode of
                          FullQuality -> (id, toHtml . tshow)
-                         LimitQuality -> (filter ((/= Bad) . scoreToQuality . snd), qualityToShortHtml)
-  c'qs = filterQ $ aggregateScore aggregationMode c'qs0
-  in colour'AsQualitysToHtml qualityToHtml' c'qs
+                         LimitQuality -> (filter ((/= Bad) . scoreToQuality . batchMatchScore ), qualityToShortHtml)
+  filtered = filterQ matches
+  c'q'gs = [((batchMatchTargetColour, batchMatchScore) , isNothing batchMatchOperator) | BatchMatch{..} <-  filtered ]
+  in colour'AsQualitysToHtml qualityToHtml'  c'q'gs
+colour'AsQualitysToHtml' aggregationMode displayMode matches = let
+  (filterQ ,qualityToHtml') = case displayMode of
+                         FullQuality -> (id, toHtml . tshow)
+                         LimitQuality -> (filter ((/= Bad) . scoreToQuality . snd ), qualityToShortHtml)
+  c'qs = filterQ $ aggregateScore aggregationMode (map (batchMatchTargetColour &&& batchMatchScore) matches)
+  in colour'AsQualitysToHtml qualityToHtml' $ zip c'qs (repeat True)
   
 -- * DB
 loadBatches :: SqlHandler [Entity Batch]
