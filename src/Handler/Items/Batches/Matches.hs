@@ -540,6 +540,28 @@ qualityToShortHtml quality = case quality of
   Excellent -> "➕➕➕"
   Identical -> "➕➕➕"
 
+matchesToHtml :: Map (Key Operator) Text -> [BatchMatch] -> Html
+matchesToHtml opMap matches = [shamlet|
+    <table.table.table-hover>
+      <tr>
+      <th> Colour
+      <th> Score
+      <th> Operator
+      <th> Date
+      $forall match <- matches
+         <tr>
+           <td> #{batchMatchTargetColour match}
+                 <sup>#{shortQuality match}
+           <td> #{formatQuantity $ unMatchScore $ batchMatchScore match} (#{renderQuality' match})
+           <td> #{fromMaybe ""  $ flip lookup opMap =<< batchMatchOperator match}
+           <td> #{tshow $ batchMatchDate match}
+         <tr>
+           $maybe comment <- batchMatchComment match
+            <td colspan=5>
+              <pre>#{toHtmlWithBreak comment }
+|] where renderQuality' = tshow . scoreToQuality . batchMatchScore
+         shortQuality b = qualityToShortHtml . scoreToQuality $ batchMatchScore b :: Text
+
 aggregateScore :: MatchAggregationMode -> [(Text, MatchScore)] -> [(Text, MatchScore)]
 -- aggregateScore AllMatches colour'scores = sortOn (liftA2 (,) (Down . snd) fst ) colour'scores
 -- aggregateScore MedianMatches colour'scores = sortOn (liftA2 (,) (Down . snd) fst ) colour'scores

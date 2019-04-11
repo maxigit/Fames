@@ -14,3 +14,14 @@ span.guessed-value
 
 span.unknown-value
   color:orange
+
+.hover-only
+  display: none
+
+.hover-base:hover > .non-hover
+  display: none
+.hover-base:hover > .hover-only
+  display: inline-block
+
+.hover-next:hover + .hover-only
+  display: inline-block

@@ -262,6 +262,8 @@ loadMatchTable MatchTableParam{..} | Just skuFilter <- mtSkuFilter = do
   -- TODO factorize  
   let columns = map fst $ filter ((== AsColumn) . snd) mtBatchRole
   skuToStyleVar <- skuToStyleVarH
+  opMap' <- allOperators
+  let opMap = operatorNickname <$> opMap'
   tableW <- runDB $ do
       sku'batchIds <- loadSkuBatches mtBatchCategory skuFilter
       let rows = List.nub $ sort $ map snd sku'batchIds
@@ -279,10 +281,10 @@ loadMatchTable MatchTableParam{..} | Just skuFilter <- mtSkuFilter = do
       let style''var'batchs = map (skuToStyle''var'Batch skuToStyleVar rowBatches) sku'batchIds
 
       case mtRowAggregationMode of
-               Nothing -> return $ displayTable `uncurry3` buildTableForSku (colour'AsQualitysToHtml' mtAggregationMode mtDisplayMode) style''var'batchs columnBatches  matches
+               Nothing -> return $ displayTable `uncurry3` buildTableForSku (colour'AsQualitysToHtml' opMap mtAggregationMode mtDisplayMode) style''var'batchs columnBatches  matches
                Just mergeMode -> do
                  varMap <- appVariations <$> getsYesod appSettings
-                 let (col0,title,rows) = buildTableForSkuMerged mergeMode (colour'AsQualitysToHtml' mtAggregationMode mtDisplayMode) style''var'batchs columnBatches  matches
+                 let (col0,title,rows) = buildTableForSkuMerged mergeMode (colour'AsQualitysToHtml' opMap mtAggregationMode mtDisplayMode) style''var'batchs columnBatches  matches
                  -- Hack column to display variation name
                      col = map hack col0
                      hack (colName, getter) | colName == descriptionName = let
@@ -296,6 +298,8 @@ loadMatchTable MatchTableParam{..} | Just skuFilter <- mtSkuFilter = do
 loadMatchTable MatchTableParam{..} = do
   let (rows, columns) = bimap (List.nub . sort . map fst)
                               (List.nub . sort . map fst) $ partition ((== AsRow) . snd) mtBatchRole
+  opMap' <- allOperators
+  let opMap = operatorNickname <$> opMap'
   tableW <- runDB $ do
       -- load batch the correct way
       normal <- selectList (BatchMatchSource <-?. rows <> BatchMatchTarget <-?. columns) []
@@ -306,7 +310,7 @@ loadMatchTable MatchTableParam{..} = do
       columnBatches <- selectList (BatchId <-?. columns) []
 
 
-      let (cols, colDisplay, tableRows) = buildTable (colour'AsQualitysToHtml' mtAggregationMode mtDisplayMode) filterColumn rowBatches columnBatches  matches
+      let (cols, colDisplay, tableRows) = buildTable (colour'AsQualitysToHtml' opMap mtAggregationMode mtDisplayMode) filterColumn rowBatches columnBatches  matches
           filterColumn = if length columns == 1
                          then Nothing
                          else Just (/= "Style/Batch")
@@ -460,15 +464,21 @@ batchTables renderUrl extraColumns batch'counts = [whamlet|
                            ]) <>  extraColumns
   colDisplays (name, _) = (toHtml name, [])
 
-colour'AsQualitysToHtml' :: MatchAggregationMode -> QualityDisplayMode -> [BatchMatch] -> Html
-colour'AsQualitysToHtml' AllMatches displayMode matches = let
+colour'AsQualitysToHtml' :: (Map (Key Operator) Text) -> MatchAggregationMode -> QualityDisplayMode -> [BatchMatch] -> Html
+colour'AsQualitysToHtml' opMap AllMatches displayMode matches = let
   (filterQ ,qualityToHtml') = case displayMode of
                          FullQuality -> (id, toHtml . tshow)
                          LimitQuality -> (filter ((/= Bad) . scoreToQuality . batchMatchScore ), qualityToShortHtml)
   filtered = filterQ matches
   c'q'gs = [((batchMatchTargetColour, batchMatchScore) , isNothing batchMatchOperator) | BatchMatch{..} <-  filtered ]
-  in colour'AsQualitysToHtml qualityToHtml'  c'q'gs
-colour'AsQualitysToHtml' aggregationMode displayMode matches = let
+  in [shamlet|
+    <div.hover-base>
+       <div>
+             #{colour'AsQualitysToHtml qualityToHtml'  c'q'gs }
+       <div.hover-only>
+         #{ matchesToHtml opMap matches}
+             |]
+colour'AsQualitysToHtml' _ aggregationMode displayMode matches = let
   (filterQ ,qualityToHtml') = case displayMode of
                          FullQuality -> (id, toHtml . tshow)
                          LimitQuality -> (filter ((/= Bad) . scoreToQuality . snd ), qualityToShortHtml)
