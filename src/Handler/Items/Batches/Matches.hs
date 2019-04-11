@@ -550,7 +550,10 @@ aggregateScore mode colour'scores  = let
   -- fMedianMatches qs = case median2 $ sort qs of
   --                        [a, b] -> [fromMaybe a ( mergeScores [a, b] )]
   --                        m -> m
-  f AverageMatches qs = maybeToList (mergeScores qs)
+  f AverageMatches qs = let
+    l = fromIntegral $ length qs
+    avg = sum (map unMatchScore qs) / l
+    in maybeToList $ mergeScores [ MatchScore avg]
   f LastMatches qs = take 1 qs -- groupAsMap reverse items, so we need the head to take the last
   f AllMatches qs = reverse qs -- shouldn't be called, but here for completion
   -- sort group by best batch
@@ -670,11 +673,17 @@ data SameKeys = SameKeys [BatchMatch]
 -- or keep the best guest
 keepBests (SameKeys matches) =
   case partition (isNothing . batchMatchOperator) matches of
-    (guesseds, []) -> take 1 (sortOn ((,) <$> Down . batchMatchScore -- best quality first
+    (guesseds, []) -> take 1 (sortOn ((,) <$> batchMatchScore -- worst quality first
                                           <*> Down . batchMatchDocumentKey -- latest document first, use to filter 
                                          -- used to filter NEW one which have key of 0
                                      ) guesseds)
     (_, knowns) -> knowns
+
+-- confidence works if we use deciaml to encode the number of connection, by setting for example identical to 0.1
+-- batchMatchConfidence BatchMatch{..} = Down  (up - score) where
+--   up = unMatchScore (qualityToScore (scoreToQuality batchMatchScore))
+--   score = unMatchScore batchMatchScore
+
 -- | HACK to identity new created matches 
 noDocumentKey = DocumentKeyKey' 0
 -- | Prefix indicating that the dot line represent the current match

@@ -33,7 +33,7 @@ roundupScore BatchMatch{..} = BatchMatch{batchMatchScore=score,..}  where
 shouldBeRoundedUp as bs = norm as `shouldBe` norm bs
   where norm = sortOn batchMatchKeys . map (normalizeBatchMatch . roundupScore)
 pureSpec = do 
-  describe "@Batches Matches" $ do
+  describe "@Batches @current Matches" $ do
       describe "#mergeBatchMatches" $ do
         let mergeBatchMatches' :: BatchMergeMode -> Text -> [[(Text, MatchQuality)]] -> Maybe [(Text, MatchQuality)]
             mergeBatchMatches' mode sku qs =  scoreToQuality <$$$> mergeBatchMatches mode sku ss
@@ -85,11 +85,14 @@ pureSpec = do
             docKey = DocumentKeyKey' 1
             nokey = DocumentKeyKey' 0
             -- tweak expandMatche to set the comment
-            expandMatches0 ms = map updateComment $ expandMatches (\_ _ v -> Just v) tshow ms where
+            expandMatches0 ms = map updateComment $ expandMatches scoreLimiter tshow ms where
               updateComment b = b {batchMatchComment = Just "<expanded>"}
             expandMatches1 ms = let
               new = expandMatches0 ms
               in expandMatches0 (ms <> new)
+            scoreLimiter _ _ v  | v == qualityToScore Identical = Just v
+            scoreLimiter a b v | a == b = mergeScores [min v (qualityToScore Close)]
+            scoreLimiter _ _ v = Just v
             
         it "should connect 2 batches" $ do
           expandMatches0 
@@ -126,14 +129,14 @@ pureSpec = do
                         , BatchMatch b1 "A" b3 "A" Nothing   good Nothing day1 docKey
                         ]  `shouldBeRoundedUp`
                         []
-        context "@current #short path" $ do
-          it "A -> B -> C -> D => A -> D" $ do
+        context "#short path" $ do
+          it "A +++ B +++ C +++ D ==> A ++ D" $ do
             expandMatches1 [ BatchMatch b1 "A" b2 "B" Nothing excellent Nothing day1 docKey
                            , BatchMatch b2 "B" b3 "C" Nothing excellent Nothing day1 docKey
                            , BatchMatch b3 "C" b4 "D" Nothing excellent Nothing day1 docKey
                            ] `shouldBeRoundedUp`
                            [ BatchMatch b1 "A" b4 "D" Nothing good (Just "<expanded>") day1 nokey]
-          it "A +++ B +++ C +++ D | A ++ C  => A + D" $ do
+          it "A +++ B +++ C +++ D | A ++ C  => B +++ D" $ do
             expandMatches0 [ BatchMatch b1 "A" b2 "B" Nothing excellent Nothing day1 docKey
                            , BatchMatch b2 "B" b3 "C" Nothing excellent Nothing day1 docKey
                            , BatchMatch b3 "C" b4 "D" Nothing excellent Nothing day1 docKey
@@ -151,8 +154,26 @@ pureSpec = do
                            , BatchMatch b1 "A" b3 "C" Nothing fair Nothing day1 docKey
                            ] `shouldBeRoundedUp`
                            [ 
+                            -- BatchMatch b1 "A" b4 "D" Nothing close (Just "<expanded>") day1 nokey
                            ]
-                           -- already done in round 1
+        context "#use limiter " $ do
+          it "A +++ B +++ A' +++ D  => A ~ A' | B +++ D" $ do
+            expandMatches0 [ BatchMatch b1 "A" b2 "B" Nothing excellent Nothing day1 docKey
+                           , BatchMatch b2 "B" b1 "A'" Nothing excellent Nothing day1 docKey -- limitation
+                           , BatchMatch b1 "A'" b4 "D" Nothing excellent Nothing day1 docKey
+                           ] `shouldBeRoundedUp`
+                           [ BatchMatch b2 "B" b4 "D" Nothing excellent (Just "<expanded>") day1 nokey
+                           , BatchMatch b1 "A" b1 "A'" Nothing  close (Just "<expanded>") day1 nokey -- limit to close
+                           ]
+          it "A +++ B +++ A' +++ D ==> A ~ D " $ do
+            expandMatches1 [ BatchMatch b1 "A" b2 "B" Nothing excellent Nothing day1 docKey
+                           , BatchMatch b2 "B" b1 "A'" Nothing excellent Nothing day1 docKey -- limitation
+                           , BatchMatch b1 "A'" b4 "D" Nothing excellent Nothing day1 docKey
+                           ] `shouldBeRoundedUp`
+                           [ 
+                            BatchMatch b1 "A" b4 "D" Nothing close (Just "<expanded>") day1 nokey
+                           ]
+                           -- already done in round 1. Shouldn't be overloaded
 
         it "should keeps the given ones" $ do
           keepBests (SameKeys [ BatchMatch b1 "A" b2 "A" (Just op) excellent (Just "Via #3") day1 docKey
@@ -199,46 +220,30 @@ pureSpec = do
              mergeQualities [Good , Good , Excellent ]  `shouldBe` Just Fair
           it "Good <> Fair => Fair" $ do
              mergeQualities [Good , Fair] `shouldBe` Just Fair
-          it "Fair <> Fair " $ do
+          it "Fair <> Fair => Close " $ do
              mergeQualities [Fair , Fair] `shouldBe` Just Close
-          it "Bad <> Close " $ property $ do
+          it "Bad <> Close => 0 " $ property $ do
             \a -> (a <= Close) ==> mergeQualities [a, Bad] === Nothing
-          it "Bad <> Anything " $ property $ do
+          it "Bad <> Anything => Bad " $ property $ do
             \a -> (a > Close) ==> mergeQualities [a, Bad] === Just Bad
           describe "#qToD" $ do
             it "quality to double is idempotan" $ property $ do
               \q -> dToQ (qToD q) === q
             it "Quality + 0.5 stays the same" $ property $ do
-              \q -> dToQ (qToD q + (qToD Excellent * 0.5)) === q
-              
-
+              \q -> dToQ (qToD q - 0.9 ) === q
+               
+      describe "#aggregateScore" $ do
+        it "doesn't touch single elements" $ property $ do
+          mode <- arbitraryBoundedEnum
+          q <- arbitraryBoundedEnum
+          let a = qualityToScore q
+          return $ aggregateScore mode [("A", a)] === [("A", a)]
+          
 mergeQualities:: [MatchQuality] -> Maybe MatchQuality
-mergeQualities qs = dToQ <$> mergeQualities' (map qToD qs)
-mergeQualities' [] = Nothing
-mergeQualities' [q] = Just q
-mergeQualities' (d:ds) = mergeQualities' ds >>= (mergeQs d)
+mergeQualities qs = scoreToQuality <$> mergeScores (map qualityToScore qs)
 
-qToD Identical = 0
-qToD Excellent = 1
-qToD Good = 3
-qToD Fair = 7
-qToD Close = 14
-qToD Bad = 100
+qToD = unMatchScore . qualityToScore 
+dToQ = scoreToQuality . MatchScore
 
-dToQ :: Double -> MatchQuality
-dToQ d = let qs = [Bad .. Identical]
-             go d [] = error "proven to not happen"
-             go d (q:qs) | d >= (qToD q) = q
-                         | otherwise =  go d qs
-         in    go d qs
-
-mergeQs a b= case a + b of
-  -- check if it's too far for Identical or Bad
-  x | x > nothing && x < bad -> Nothing
-  x | x >= bad  + close -> Nothing
-  x -> Just x
-  where bad = qToD Bad
-        close = qToD Close
-        nothing = close + qToD Good
 
   
