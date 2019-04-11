@@ -473,7 +473,7 @@ colour'AsQualitysToHtml' opMap AllMatches displayMode matches = let
   filtered = filterQ matches
   c'q'gs = [((batchMatchTargetColour, batchMatchScore) , isNothing batchMatchOperator) | BatchMatch{..} <-  filtered ]
   in [shamlet|
-    <div.hover-base>
+    <div.hover-base style="witdh=100%">
        <div>
              #{colour'AsQualitysToHtml qualityToHtml'  c'q'gs }
        <div.hover-only>
@@ -490,7 +490,7 @@ colour'AsQualitysToHtml' _ aggregationMode displayMode matches = let
 filterCloses :: (a -> MatchQuality) -> [a] -> [a]
 filterCloses getter ms = 
   case partition ((<= Close) . getter ) ms of
-    (closes, []) -> closes
+    (closes, []) -> filter ((/= Bad) . getter) closes
     (_, goods) -> goods
 -- * DB
 loadBatches :: SqlHandler [Entity Batch]
