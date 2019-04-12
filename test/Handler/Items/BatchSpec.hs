@@ -34,10 +34,28 @@ shouldBeRoundedUp as bs = norm as `shouldBe` norm bs
   where norm = sortOn batchMatchKeys . map (normalizeBatchMatch . roundupScore)
 pureSpec = do 
   describe "@Batches @current Matches" $ do
+      let [b1, b2, b3, b4] = map BatchKey [1..4]
+          day1 = fromGregorian 2019 04 01
+          day2 = fromGregorian 2019 05 01
+          docKey = DocumentKeyKey' 1
+          nokey = DocumentKeyKey' 0
       describe "#mergeBatchMatches" $ do
         let mergeBatchMatches' :: BatchMergeMode -> Text -> [[(Text, MatchQuality)]] -> Maybe [(Text, MatchQuality)]
-            mergeBatchMatches' mode sku qs =  scoreToQuality <$$$> mergeBatchMatches mode sku ss
-                  where ss = qualityToScore <$$$>  qs
+            mergeBatchMatches' mode sku qs =  batchToCol'qual <$$> mergeBatchMatches mode sku ss
+                  where ss = col'qualToBatch <$$> qs :: [[BatchMatch]]
+            col'qualToBatch :: (Text, MatchQuality) -> BatchMatch
+            col'qualToBatch (col, qty) = BatchMatch{..} where
+              batchMatchSource = b1
+              batchMatchTarget = b2
+              batchMatchSourceColour = "<undefined>" -- set if spec breaks
+              batchMatchOperator = Nothing -- set if spec breaks
+              batchMatchDate = day1 -- set if spec breaks
+              batchMatchDocumentKey = nokey -- set if spec breaks
+              batchMatchComment = Nothing
+              batchMatchTargetColour = col
+              batchMatchScore = qualityToScore qty
+            batchToCol'qual :: BatchMatch -> (Text, MatchQuality)
+            batchToCol'qual BatchMatch{..} = (batchMatchTargetColour, scoreToQuality batchMatchScore)
         describe "#MergeRaisesError" $ do
           it "works with only one batch" $ do
             mergeBatchMatches' MergeRaisesError "sku" [ [ ("A", Excellent) , ("B", Bad) ]
@@ -78,12 +96,8 @@ pureSpec = do
                                                 ]
                 `shouldBe` Just [("BGM", Bad)] 
       describe "@Expand" $ do
-        let [b1, b2, b3, b4] = map BatchKey [1..4]
+        let 
             op = OperatorKey 1
-            day1 = fromGregorian 2019 04 01
-            day2 = fromGregorian 2019 05 01
-            docKey = DocumentKeyKey' 1
-            nokey = DocumentKeyKey' 0
             -- tweak expandMatche to set the comment
             expandMatches0 ms = map updateComment $ expandMatches scoreLimiter tshow ms where
               updateComment b = b {batchMatchComment = Just "<expanded>"}
@@ -220,6 +234,8 @@ pureSpec = do
              mergeQualities [Good , Good , Excellent ]  `shouldBe` Just Fair
           it "Good <> Fair => Fair" $ do
              mergeQualities [Good , Fair] `shouldBe` Just Fair
+          it "Good <> Good <> Fair => Close" $ do
+             mergeQualities [Good , Good, Fair] `shouldBe` Just Close
           it "Fair <> Fair => Close " $ do
              mergeQualities [Fair , Fair] `shouldBe` Just Close
           it "Bad <> Close => 0 " $ property $ do

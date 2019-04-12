@@ -156,7 +156,7 @@ qualityToMError Identical = MatchError  0
 qualityToMError Excellent = MatchError  1
 qualityToMError Good = MatchError  3
 qualityToMError Fair = MatchError  7
-qualityToMError Close = MatchError  14
+qualityToMError Close = MatchError  13
 qualityToMError Bad = MatchError  100
 
 qualityToScore :: MatchQuality -> MatchScore
