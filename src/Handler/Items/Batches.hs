@@ -472,11 +472,13 @@ colour'AsQualitysToHtml' opMap AllMatches displayMode matches = let
                          LimitCloses -> (filterCloses (scoreToQuality . batchMatchScore), qualityToShortHtml)
   filtered = filterQ matches
   c'q'gs = [((batchMatchTargetColour, batchMatchScore) , isNothing batchMatchOperator) | BatchMatch{..} <-  filtered ]
+  keys = List.nub . sort $ concatMap batchMatchKeys filtered
+  divId = intercalate "-"  [tshow batchId  <> "--" <> col | (BatchKey (SqlBackendKey batchId), col) <- keys ]
   in [shamlet|
-    <div.hover-base style="witdh=100%">
-       <div>
+    <div.  style="witdh=100%">
+       <span.data-toggler.collapsed data-toggle="collapse" data-target="##{divId}">
              #{colour'AsQualitysToHtml qualityToHtml'  c'q'gs }
-       <div.hover-only>
+       <div.match-details.collapse id=#{divId}>
          #{ matchesToHtml opMap matches}
              |]
 colour'AsQualitysToHtml' _ aggregationMode displayMode matches = let
