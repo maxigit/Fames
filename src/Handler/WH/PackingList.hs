@@ -1218,7 +1218,7 @@ parseInvoiceList :: PackingListId -> Text -> ParsingResult ParseDeliveryError [T
 parseInvoiceList plKey cart = let
   parsed = map parseLine (filter (not . isPrefixOf "--") (lines cart))
   parseLine line = maybe (Left line) (Right . (,line))  $ do -- Maybe
-    traceShowM line
+    -- traceShowM line
     let (prefix, nos) = break (== ':') (strip line)
     no <- readMay (drop 1 nos)
     traceShowM no
@@ -1229,6 +1229,7 @@ parseInvoiceList plKey cart = let
                _ -> Nothing
     Just $ TransactionMap ST_SUPPINVOICE no ftype
                          (fromIntegral $ unSqlBackendKey $ unPackingListKey plKey)
+                         False
   in case sequence parsed of
          Right trans -> ParsingCorrect (map fst trans)
          Left _ -> InvalidFormat $ map (ParseDeliveryError . map snd) parsed

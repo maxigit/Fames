@@ -537,7 +537,7 @@ saveReceiptsToFA docKey settings receipts0 = do
   forM payments $ \p -> do 
     (pId, transType) <- ExceptT . liftIO <$> WFA.postBankPaymentOrDeposit connectInfo  $ p
     hToHx $ runDB $  do
-       insert_ $ TransactionMap transType pId GLReceiptE (fromIntegral $ unSqlBackendKey $ unDocumentKeyKey docKey)
+       insert_ $ TransactionMap transType pId GLReceiptE (fromIntegral $ unSqlBackendKey $ unDocumentKeyKey docKey) False
     return pId
 
 

@@ -146,3 +146,11 @@ data PaymentTransaction = PaymentTransaction
   , ptTransactionAmount :: !Double
   } deriving (Eq, Show)
   
+
+-- ** Voiding
+data VoidTransaction = VoidTransaction
+  { vtTransNo :: !Int
+  , vtTransType :: !FATransType
+  , vtDate :: !Day
+  , vtComment :: !(Maybe Text)
+  }

@@ -19,6 +19,7 @@
   /payroll/edit/#Int64 GLPayrollEditR GET POST !payroll/edit
   !/payroll/#Int64/reject GLPayrollRejectR POST !payroll/reject
   !/payroll/#Int64/tofa GLPayrollToFAR POST !payroll/tofa
+  !/payroll/#Int64/void GLPayrollVoidFAR GET POST !payroll/tofa
   !/payroll/#Int64/payroo GLPayrollToPayrooR POST !payroll/full
   -- /payroll/full/view/#Int64 GLPayrollFullView GET !payroll/full
   -- /payroll/full/edit/#Int64 GLPayrollFullEditR GET POST !payroll/edit !payroll/full

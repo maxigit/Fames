@@ -12,6 +12,7 @@ module WH.FA.Curl
 , postPurchaseInvoice
 , postSupplierPayment
 , postPurchaseCreditNote
+, postVoid
 ) where
 
 import ClassyPrelude
@@ -154,6 +155,13 @@ extractErrorMsgFromSoup tags = let
     [] -> Nothing
     _ -> Just . pack $ unlines (mapMaybe maybeTagText msgs)
 
+extractSuccessMsgFromSoup :: [Tag [Element String]] -> Maybe Text
+extractSuccessMsgFromSoup tags = let
+  successs = sections (~== TagOpen ("div" :: String) [("class", "note_msg")]) tags
+  msgs = map (headEx .drop 1) successs -- get next tag
+  in case msgs of
+    [] -> Nothing
+    _ -> Just . pack $ unlines (mapMaybe maybeTagText msgs)
 -- | Extract value from a input field. This allows for example to use the generated
 -- reference instead of having to specify one.
 extractInputValue :: String -> [Tag String] -> Maybe Text
@@ -265,6 +273,11 @@ supplierPaymentURL, newSupplierPaymentURL, ajaxSupplierPaymentURL :: (?baseURL :
 supplierPaymentURL = ?baseURL <> "/purchasing/supplier_payment.php"
 newSupplierPaymentURL = supplierPaymentURL
 ajaxSupplierPaymentURL = toAjax supplierPaymentURL
+-- *** Void
+voidTransactionUrl :: (?baseURL :: String) => String
+voidTransactionUrl = ?baseURL <> "/admin/void_transaction.php" 
+ajaxVoidTransactionUrl = toAjax $ voidTransactionUrl
+
 -- ** Items
 -- *** Stock Adjustment
 addAdjustmentDetail :: (?curl :: Curl, ?baseURL:: String)
@@ -733,4 +746,40 @@ groupPaymentTransactions transactions = let
   in [ PaymentTransaction no typ amount 
      | ((no, typ), Sum amount) <- mapToList m
      ]
+  
+
+-- ** Voiding
+postVoid ::  FAConnectInfo -> VoidTransaction -> IO (Either Text Int)
+postVoid connectInfo VoidTransaction{..} = do
+  let ?baseURL = faURL connectInfo
+  traceShowM ("Post VOId => " ,  ajaxVoidTransactionUrl)
+  let fields = curlPostFields [ "filterType" <=>  fromEnum vtTransType
+                              , "trans_no" <=> vtTransNo
+                              , "select_id" <=> vtTransNo
+                              , "memo_" <=> vtComment
+                              , "date_" <=> vtDate
+                              ]
+  runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
+    tags <- curlSoup ajaxVoidTransactionUrl [fields] 200 "Void Transaction"
+    traceShowM ("VOID TAGs", tags)
+    case extractSuccessMsgFromSoup tags of
+      Just "Selected transaction has been voided" -> return 1
+      _ -> traceShowM ("VOID", tags) >> throwError $ tshow tags
+
+
+{-
+  
+  filterType=4
+FromTransNo=1
+ToTransNo=999999
+trans_no=266
+selected_id=266
+date_=2019/04/15
+memo_=test%20void
+ProcessVoiding=Void%20Transaction
+_focus=filterType
+_modified=0
+_token=8e40312b63862417a34b8025a91e6bdbc5055af9960ecae35b1c7646d3c9925e
+_random=881903.1138965458
+-}
   

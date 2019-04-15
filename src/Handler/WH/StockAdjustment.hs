@@ -648,7 +648,7 @@ postWHStockAdjustmentToFAR key = do
     Right (adjId, t1, t2  ) -> do
       runDB $ do
         update (StockAdjustmentKey $ SqlBackendKey key) [StockAdjustmentStatus =. Process]
-        insertMany_ [ TransactionMap faType faId StockAdjustmentE (fromIntegral key)
+        insertMany_ [ TransactionMap faType faId StockAdjustmentE (fromIntegral key) False
                     | (faId, faType) <- catMaybes [ (, ST_INVADJUST) <$> adjId
                                                   , (, ST_LOCTRANSFER) <$> t1
                                                   , (, ST_LOCTRANSFER) <$> t2

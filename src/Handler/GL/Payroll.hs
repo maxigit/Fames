@@ -10,6 +10,8 @@ module Handler.GL.Payroll
 , postGLPayrollRejectR
 , postGLPayrollToFAR
 , postGLPayrollToPayrooR
+, getGLPayrollVoidFAR
+, postGLPayrollVoidFAR
 , module Handler.GL.Payroll.Summary
 , module Handler.GL.Payroll.Calendar
 , module Handler.GL.Payroll.Import
@@ -194,6 +196,9 @@ getGLPayrollViewR key = do
               <button type="submit" .btn.btn-warning>Reject 
             <form role=form method=post action=@{GLR $ GLPayrollToPayrooR key}>
               <button type="submit" .btn.btn-info>Download Payroo 
+          $else 
+            <form role=form method=get action=@{GLR $ GLPayrollVoidFAR key}>
+              <button type="submit" .btn.btn-danger>Void in FrontAccounting
                               |]
 
 getGLPayrollEditR :: Int64 -> Handler Html
@@ -251,6 +256,51 @@ postGLPayrollToPayrooR key = do
             respondSource "text/csv" (source =$= mapC toFlushBuilder)
         Left e -> error $ "Problem generating payroo csv: " <> unpack e
 
+-- ** Void
+getGLPayrollVoidFAR :: Int64 -> Handler Html
+getGLPayrollVoidFAR timesheetId = do
+  faURL <- getsYesod (pack . appFAExternalURL . appSettings) :: Handler Text
+  -- display things to delete
+  transactions <- runDB $ selectList (transactionMapFilterForTS timesheetId) [Asc TransactionMapId ]
+  let t x = x :: Text
+      transTable = [whamlet|
+      <table.table.table-hover.table-strip>
+          <tr>
+            <th> Trans Type
+            <th> Trans No
+            <th> Voided
+        $forall (Entity _ TransactionMap{..}) <- transactions
+          <tr>
+            <td> #{t $ showTransType transactionMapFaTransType}
+            <td>
+              <a href="#{urlForFA faURL transactionMapFaTransType transactionMapFaTransNo}">#{tshow transactionMapFaTransNo}
+            <td>
+              $if transactionMapVoided
+                   Voided
+                   |]
+  defaultLayout $ infoPanel ("Transaction for timesheet #" <> tshow timesheetId) [whamlet|
+     <form role=form method=POST action="@{GLR $ GLPayrollVoidFAR timesheetId}">
+        ^{transTable}
+        <button type="submit" .btn.btn-danger>Void
+      |]
+  
+  
+postGLPayrollVoidFAR :: Int64 -> Handler Html
+postGLPayrollVoidFAR timesheetId = do
+  today <- todayH
+  runDB $ do
+    let criteria = transactionMapFilterForTS timesheetId 
+    nb <- lift $ voidTransactions today (const $ Just "Timesheet voided") criteria
+    update (TimesheetKey $ SqlBackendKey timesheetId) [TimesheetStatus =. Process]
+
+    lift $ setSuccess. toHtml $ tshow nb <> " FA transaction(s) have been successufully voide"
+  getGLPayrollViewR timesheetId
+  -- delete FA transaction
+
+  
+transactionMapFilterForTS :: Int64 -> [Filter TransactionMap]
+transactionMapFilterForTS timesheetId =  do
+  [TransactionMapEventType ==. TimesheetE  , TransactionMapEventNo ==. fromIntegral timesheetId]
 
 -- ** Quick Add
 quickadd :: UploadParam -> DocumentHash -> Handler Html

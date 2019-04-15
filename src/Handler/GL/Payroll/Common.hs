@@ -66,7 +66,7 @@ saveTimeSheetModel invM key ref (model, shiftsFn, itemsFn) = do
           docKey <- createDocumentKey (DocumentType "timesheet") key ref ""
           modelId <- insert (model docKey)
           shiftKeys <- insertMany (shiftsFn modelId)
-          forM invM $ \faId -> insertMany_ [ TransactionMap ST_SUPPINVOICE faId PayrollShiftE (fromIntegral $ unSqlBackendKey shiftKey)
+          forM invM $ \faId -> insertMany_ [ TransactionMap ST_SUPPINVOICE faId PayrollShiftE (fromIntegral $ unSqlBackendKey shiftKey) False
                                            | (PayrollShiftKey shiftKey) <- shiftKeys
                                            ]
           insertMany_ (itemsFn modelId)
@@ -807,7 +807,7 @@ saveGRNs settings key timesheet = do
            faId <- ExceptT . liftIO $ WFA.postGRN connectInfo grn
            -- save payroll details instead of timesheet
            ExceptT $ runDB $ do
-             insertMany_ [ TransactionMap ST_SUPPRECEIVE faId PayrollShiftE (fromIntegral $ unSqlBackendKey $ unPayrollShiftKey key)
+             insertMany_ [ TransactionMap ST_SUPPRECEIVE faId PayrollShiftE (fromIntegral $ unSqlBackendKey $ unPayrollShiftKey key) False
                          | key <- keys
                          ]
              return (Right ())
@@ -835,7 +835,7 @@ saveInvoice today settings timesheet deliveries = do
                                      (itemsForCosts timesheet)
   faId <- ExceptT $ liftIO $ WFA.postPurchaseInvoice connectInfo invoice
   ExceptT $ runDB $ do
-    insertMany_ [ TransactionMap ST_SUPPINVOICE faId PayrollShiftE (fromIntegral $ unSqlBackendKey $ unPayrollShiftKey key)
+    insertMany_ [ TransactionMap ST_SUPPINVOICE faId PayrollShiftE (fromIntegral $ unSqlBackendKey $ unPayrollShiftKey key) False
                 | (_, keys) <- deliveries
                 , key <- keys
                 ]
@@ -881,7 +881,7 @@ savePayments today settings key timesheet invoiceId = do
 
   paymentIds <- mapM (ExceptT . liftIO . WFA.postSupplierPayment  connectInfo) payments
   ExceptT $ runDB $ do
-    insertMany_ [TransactionMap ST_SUPPAYMENT faId TimesheetE (fromIntegral $ unSqlBackendKey $ unTimesheetKey key)
+    insertMany_ [TransactionMap ST_SUPPAYMENT faId TimesheetE (fromIntegral $ unSqlBackendKey $ unTimesheetKey key) False
                 | faId <- paymentIds
                 ]
     return (Right())
@@ -956,10 +956,10 @@ saveExternalPayments settings key invoiceNo day timesheet = do
   lift $ runDB $ insertMany_ $ concatMap
         (\x -> case x of
                  Left (crId, Nothing) -> error "Should not happend" --  [ TransactionMap ST_SUPPCREDIT crId TimesheetE tId
-                 Left (crId, Just invId) -> [ TransactionMap ST_SUPPCREDIT crId TimesheetE tId
-                                            , TransactionMap ST_SUPPINVOICE invId TimesheetE tId
+                 Left (crId, Just invId) -> [ TransactionMap ST_SUPPCREDIT crId TimesheetE tId False
+                                            , TransactionMap ST_SUPPINVOICE invId TimesheetE tId False
                                             ]
-                 Right pId -> [ TransactionMap ST_SUPPAYMENT pId TimesheetE tId ]
+                 Right pId -> [ TransactionMap ST_SUPPAYMENT pId TimesheetE tId False ]
         ) ids
   return ids
 
@@ -1100,3 +1100,33 @@ isShiftAmountUnlocked = isUnlocked ?viewPayrollDurationPermissions . TS._duratio
 isShiftUnlocked = liftA2 (&&) isShiftDurationUnlocked isShiftAmountUnlocked
 isDACUnlocked = isUnlocked ?viewPayrollAmountPermissions . TS.dacTotal 
 isShiftViewable = liftA2 (||) isShiftAmountUnlocked isShiftDurationUnlocked
+
+-- ** Voiding
+
+-- | Void transaction in FA From transaction map and mark them as voided
+voidTransactions :: Day -> (TransactionMap -> Maybe Text) -> [Filter TransactionMap] -> Handler Int
+voidTransactions date commentFn criteria= do
+  settings <- getsYesod appSettings
+  let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
+  trans <- runDB $ selectList ((TransactionMapVoided ==. False) : criteria) []
+  e <- runExceptT $ mapM (\tran -> voidFATransaction connectInfo date (commentFn . entityVal $ tran) tran) $ take 1 trans
+  case e of
+    Left err -> error (unpack err)
+    Right _ -> return (length trans)
+
+voidFATransaction :: WFA.FAConnectInfo -> Day -> Maybe Text -> Entity TransactionMap -> ExceptT Text Handler ()
+voidFATransaction connectInfo vtDate comment (Entity tId TransactionMap{..}) = do
+  let vtTransNo = transactionMapFaTransNo
+      vtTransType = transactionMapFaTransType
+      vtComment = Just $ fromMaybe "Voided by Fames" comment
+  ExceptT $ do
+    liftIO $ WFA.postVoid connectInfo WFA.VoidTransaction{..}
+    runDB $ update tId [TransactionMapVoided =. True]
+    return $ Right ()
+    
+
+
+  
+
+
+  
