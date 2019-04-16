@@ -245,6 +245,8 @@ getGLPayrollEditR key = return "todo"
 postGLPayrollEditR :: Int64 -> Handler Html
 postGLPayrollEditR key = return "todo"
 
+-- | Delete the timesheet and its component
+-- unless it has transaction linked to it
 postGLPayrollRejectR :: Int64 -> Handler Html
 postGLPayrollRejectR tId = do
   let key = TimesheetKey $ SqlBackendKey tId
@@ -255,8 +257,20 @@ postGLPayrollRejectR tId = do
     Just timesheet -> case timesheetStatus timesheet of
       Process  -> renderMain Validate Nothing badRequest400 (setError $ toHtml $ "Timesheet #" <> tshow tId <> " has already been processed.") (return ())
       Pending -> do
-            runDB $ deleteCascade key 
-            renderMain Validate Nothing ok200 (setSuccess $ toHtml $ "Timesheet #" <> tshow tId <> " has been deleted sucessfully" ) (return ())
+            c <- runDB $ count [TransactionMapEventNo ==. fromIntegral tId , TransactionMapEventType ==. TimesheetE, TransactionMapVoided ==. False]
+            if c == 0
+            then  do
+              runDB $ deleteCascade key  >> deleteWhere [TransactionMapEventNo ==. fromIntegral tId , TransactionMapEventType ==. TimesheetE, TransactionMapVoided ==. True]
+              renderMain Validate Nothing ok200 (setSuccess $ toHtml $ "Timesheet #" <> tshow tId <> " has been deleted sucessfully" ) (return ())
+            else do
+               -- linked to Fa transaction, only clear
+               runDB $ do
+                  deleteWhere [PayrollShiftTimesheet ==. key]
+                  deleteWhere [PayrollItemTimesheet ==. key]
+               let msg = do
+                              setWarning $ toHtml $ "Timesheet #" <> tshow tId <> " is linked to FA transaction and can not be deleted"
+                              setSuccess $ toHtml $ "Timesheet #" <> tshow tId <> " has been cleared sucessfully" 
+               renderMain Validate Nothing ok200 msg  (return ())
             
       -- _  -> renderMain Validate Nothing preconditionFailed412 (setError $ toHtml $ "Timesheet #" <> tshow tId <> " is not pending.") (return ())
 
