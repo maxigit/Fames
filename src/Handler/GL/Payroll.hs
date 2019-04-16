@@ -64,6 +64,10 @@ uploadForm mode paramM = let
 -- faForm :: _ (FormResult Day, Widget)
 faForm = renderBootstrap3 BootstrapBasicForm form  where
   form = areq dayField "Processing date" Nothing
+
+voidForm = renderBootstrap3 BootstrapBasicForm form where
+  form = areq boolField "Keep payments" (Just True)
+  
 -- * Handlers
 -- ** upload and show timesheets
 getGLPayrollR :: Handler Html
@@ -260,6 +264,7 @@ postGLPayrollToPayrooR key = do
 getGLPayrollVoidFAR :: Int64 -> Handler Html
 getGLPayrollVoidFAR timesheetId = do
   faURL <- getsYesod (pack . appFAExternalURL . appSettings) :: Handler Text
+  (voidFormW, voidEncType) <- generateFormPost voidForm
   -- display things to delete
   transactions <- runDB $ selectList (transactionMapFilterForTS timesheetId) [Asc TransactionMapId ]
   let t x = x :: Text
@@ -279,8 +284,9 @@ getGLPayrollVoidFAR timesheetId = do
                    Voided
                    |]
   defaultLayout $ infoPanel ("Transaction for timesheet #" <> tshow timesheetId) [whamlet|
-     <form role=form method=POST action="@{GLR $ GLPayrollVoidFAR timesheetId}">
+     <form role=form method=POST action="@{GLR $ GLPayrollVoidFAR timesheetId}" encType="#{voidEncType}">
         ^{transTable}
+        ^{voidFormW}
         <button type="submit" .btn.btn-danger>Void
       |]
   
@@ -288,8 +294,16 @@ getGLPayrollVoidFAR timesheetId = do
 postGLPayrollVoidFAR :: Int64 -> Handler Html
 postGLPayrollVoidFAR timesheetId = do
   today <- todayH
+  ((resp, formW), enctype) <- runFormPost voidForm
+  keepPayment <- case resp of
+    FormMissing -> error "form missing"
+    FormFailure a -> error $ "Form failure : " ++ show a
+    FormSuccess keepPayment_ -> return keepPayment_
   runDB $ do
-    let criteria = transactionMapFilterForTS timesheetId 
+    let criteria = ( if keepPayment
+                     then [TransactionMapFaTransType !=. ST_SUPPAYMENT]
+                     else []
+                   ) <> transactionMapFilterForTS timesheetId 
     nb <- lift $ voidTransactions today (const $ Just "Timesheet voided") criteria
     update (TimesheetKey $ SqlBackendKey timesheetId) [TimesheetStatus =. Pending]
 
