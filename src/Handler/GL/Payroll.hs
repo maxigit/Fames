@@ -38,6 +38,7 @@ import Lens.Micro hiding ((<&>))
 import Data.These
 import Data.Align
 import Data.List.NonEmpty (NonEmpty(..))
+import Data.List(nub)
 import  qualified WH.FA.Types as WFA
 import  qualified WH.FA.Curl as WFA
 import Control.Monad.Except
@@ -257,7 +258,9 @@ postGLPayrollRejectR tId = do
     Just timesheet -> case timesheetStatus timesheet of
       Process  -> renderMain Validate Nothing badRequest400 (setError $ toHtml $ "Timesheet #" <> tshow tId <> " has already been processed.") (return ())
       Pending -> do
-            c <- runDB $ count [TransactionMapEventNo ==. fromIntegral tId , TransactionMapEventType ==. TimesheetE, TransactionMapVoided ==. False]
+            c <- runDB $ do
+             criteria <- transactionMapFilterForTS tId
+             count  ((TransactionMapVoided ==. False) : criteria)
             if c == 0
             then  do
               runDB $ deleteCascade key  >> deleteWhere [TransactionMapEventNo ==. fromIntegral tId , TransactionMapEventType ==. TimesheetE, TransactionMapVoided ==. True]
@@ -315,21 +318,30 @@ getGLPayrollVoidFAR timesheetId = do
   faURL <- getsYesod (pack . appFAExternalURL . appSettings) :: Handler Text
   (voidFormW, voidEncType) <- generateFormPost voidForm
   -- display things to delete
-  transactions <- runDB $ selectList (transactionMapFilterForTS timesheetId) [Asc TransactionMapFaTransType, Asc TransactionMapFaTransNo ]
+  transactions <- runDB $ do
+    criteria <- transactionMapFilterForTS timesheetId
+    selectList criteria  [Asc TransactionMapFaTransType, Asc TransactionMapFaTransNo ]
   let t x = x :: Text
+      tranMap = groupAsMap (liftA3 (,,) transactionMapFaTransType transactionMapFaTransNo transactionMapVoided . entityVal)
+                           ((:[]) . transactionMapEventType . entityVal)
+                           transactions
       transTable = [whamlet|
       <table.table.table-hover.table-strip>
-          <tr>
+        <tr>
             <th> Trans Type
             <th> Trans No
+            <th> Event Type
             <th> Voided
-        $forall (Entity _ TransactionMap{..}) <- transactions
-          <tr>
-            <td> #{t $ showTransType transactionMapFaTransType}
+        $forall ((transType, transNo, voided ), events) <- mapToList tranMap
+          <tr :voided:.text-muded>
+            <td> #{t $ showTransType transType}
             <td>
-              <a href="#{urlForFA faURL transactionMapFaTransType transactionMapFaTransNo}">#{tshow transactionMapFaTransNo}
+              <a href="#{urlForFA faURL transType transNo}">#{tshow transNo}
             <td>
-              $if transactionMapVoided
+              $forall event <- nub (sort events)
+                <span>#{tshow event}
+            <td>
+              $if voided
                    Voided
                    |]
   defaultLayout $ infoPanel ("Transaction for timesheet #" <> tshow timesheetId) [whamlet|
@@ -349,10 +361,11 @@ postGLPayrollVoidFAR timesheetId = do
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess keepPayment_ -> return keepPayment_
   runDB $ do
+    criteria0 <- transactionMapFilterForTS timesheetId 
     let criteria = ( if keepPayment
                      then [TransactionMapFaTransType !=. ST_SUPPAYMENT]
                      else []
-                   ) <> transactionMapFilterForTS timesheetId 
+                   ) <> criteria0
     nb <- lift $ voidTransactions today (const $ Just "Timesheet voided") criteria
     update (TimesheetKey $ SqlBackendKey timesheetId) [TimesheetStatus =. Pending]
 
@@ -361,9 +374,22 @@ postGLPayrollVoidFAR timesheetId = do
   -- delete FA transaction
 
   
-transactionMapFilterForTS :: Int64 -> [Filter TransactionMap]
+-- Create a filter load all transaction connected to the timesheet
+  -- using also link via payroll shifts and items
+transactionMapFilterForTS :: Int64 -> SqlHandler [Filter TransactionMap]
 transactionMapFilterForTS timesheetId =  do
-  [TransactionMapEventType ==. TimesheetE  , TransactionMapEventNo ==. fromIntegral timesheetId]
+  let key = TimesheetKey (SqlBackendKey timesheetId)
+  shiftIds <- selectKeysList [PayrollShiftTimesheet ==. key ] []
+  itemIds <- selectKeysList [PayrollItemTimesheet ==. key] []
+
+
+  let for _event _unkey [] = []
+      for event unkey keys = [ TransactionMapEventType ==. event
+                             , TransactionMapEventNo <-. map (fromIntegral . unSqlBackendKey . unkey ) keys
+                             ]
+  return $ [TransactionMapEventType ==. TimesheetE  , TransactionMapEventNo ==. fromIntegral timesheetId]
+          ||. for PayrollShiftE unPayrollShiftKey shiftIds
+          ||. for PayrollItemE unPayrollItemKey itemIds
 
 -- ** Quick Add
 quickadd :: UploadParam -> DocumentHash -> Handler Html
