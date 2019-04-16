@@ -1132,7 +1132,17 @@ voidTransactions :: Day -> (TransactionMap -> Maybe Text) -> [Filter Transaction
 voidTransactions date commentFn criteria= do
   settings <- getsYesod appSettings
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
-  trans <- runDB $ selectList ((TransactionMapVoided ==. False) : criteria) []
+  trans0 <- runDB $ selectList ([TransactionMapVoided ==. False] <>  criteria) []
+  -- remove duplicate
+  let tranMap = mapFromList $ map (fanl ( liftA3 (,,) transactionMapFaTransType
+                                                      transactionMapFaTransNo
+                                                      transactionMapVoided
+                                                      . entityVal
+                                        )
+                                  ) trans0 :: Map _ (Entity TransactionMap)
+  -- and remove GRN last (so that their corresponding invoice has already been deleted
+      trans = uncurry (<>) $ partition ((/= ST_SUPPRECEIVE) . transactionMapFaTransType . entityVal)
+                                       (toList tranMap)
   e <- runExceptT $ mapM (\tran -> voidFATransaction connectInfo date (commentFn . entityVal $ tran) tran) $ trans
   case e of
     Left err -> error (unpack err)
@@ -1147,9 +1157,3 @@ voidFATransaction connectInfo vtDate comment (Entity tId TransactionMap{..}) = d
   lift $  runDB $ update tId [TransactionMapVoided =. True]
   return ()
     
-
-
-  
-
-
-  
