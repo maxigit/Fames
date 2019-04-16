@@ -315,7 +315,7 @@ getGLPayrollVoidFAR timesheetId = do
   faURL <- getsYesod (pack . appFAExternalURL . appSettings) :: Handler Text
   (voidFormW, voidEncType) <- generateFormPost voidForm
   -- display things to delete
-  transactions <- runDB $ selectList (transactionMapFilterForTS timesheetId) [Asc TransactionMapId ]
+  transactions <- runDB $ selectList (transactionMapFilterForTS timesheetId) [Asc TransactionMapFaTransType, Asc TransactionMapFaTransNo ]
   let t x = x :: Text
       transTable = [whamlet|
       <table.table.table-hover.table-strip>
