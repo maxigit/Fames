@@ -494,10 +494,6 @@ employeeSummaryRows summaries = let
   -- | Columns are either straight field (Nothing)
   -- or the name of a payee in in the given dacs map (Just ...)
   colFns = map mkColFn summaries
-  formatDouble' x = either (\m -> traceShow ("Lock required", m) ("" :: Html)) formatDoubl'' $ unlock ?viewPayrollAmountPermissions x
-  formatDoubl'' x | abs x < 1e-2 = ""
-                  | x < 0 = [shamlet|<span.text-danger>#{formatDouble x}|]
-                  | otherwise = toHtml $ formatDouble x
           
   rows = (zip colFns (map (const []) summaries)) ++ totalRows
   -- we computes total rows as a list, as it could be empty
@@ -519,6 +515,28 @@ employeeSummaryRows summaries = let
               _ -> Nothing
     in value
   in rows
+formatDouble' x = either (\m -> traceShow ("Lock required", m) ("" :: Html)) formatDoubl'' $ unlock ?viewPayrollAmountPermissions x
+formatDoubl'' x | abs x < 1e-2 = ""
+                | x < 0 = [shamlet|<span.text-danger>#{formatDouble x}|]
+                | otherwise = toHtml $ formatDouble x
+
+-- | Export a form with all payment to be made and an option to change the amount and the date
+generatePaymentForm timesheet = let
+  summaries = TS.paymentSummary timesheet
+  in [whamlet|
+   <table.table.table-bordered.table-striped.table-hover>
+     <tr>
+       <th> Employee
+       <th> Amount
+       <th> Date
+     $forall summary <- summaries
+       <tr>
+         <td> #{toHtml $ TS._sumEmployee summary}
+         <td.text-right>
+            <input type=number name="payment-amount-for-#{TS._sumEmployee summary}" value="#{formatDouble' $ TS._net summary}">
+         <td>
+            <input name="payment-date-for-#{TS._sumEmployee summary}" type=date>
+             |]
 
 -- ** Calendar
 -- | Display timesheet as a calendar
@@ -868,16 +886,17 @@ itemsForCosts timesheet = let
 -- ** Payment
 savePayments :: Ord p
              => Day
+             -> Map Text (Maybe Double , Maybe Day)
              -> AppSettings
              -> TimesheetId
              -> TS.Timesheet p Text
              -> Int
              -> ExceptT Text Handler [Int]
-savePayments today settings key timesheet invoiceId = do
+savePayments today paymentMap settings key timesheet invoiceId = do
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       psettings = appPayroll settings
       ref = employeePaymentRef psettings timesheet
-      payments = employeePayments ref today psettings timesheet (Just invoiceId)
+      payments = employeePayments ref today paymentMap psettings timesheet (Just invoiceId)
 
   paymentIds <- mapM (ExceptT . liftIO . WFA.postSupplierPayment  connectInfo) payments
   ExceptT $ runDB $ do
@@ -892,37 +911,42 @@ savePayments today settings key timesheet invoiceId = do
 employeePayments :: Ord p
                  => (Text -> Text)
                  -> Day
+                 -> Map Text (Maybe Double, Maybe Day)
                  -> PayrollSettings
                  -> (TS.Timesheet p Text)
                  -> Maybe Int
                  -> [WFA.SupplierPayment]
-employeePayments ref paymentDate settings timesheet invoiceM =
+employeePayments ref paymentDate paymentMap settings timesheet invoiceM =
   let summaries =  TS.paymentSummary timesheet
-  in mapMaybe (employeePayment ref paymentDate settings invoiceM) summaries
+  in mapMaybe (employeePayment ref paymentDate paymentMap settings invoiceM) summaries
   
 
 employeePayment :: Ord p
                 => (Text -> Text)
                 -> Day
+                 -> Map Text (Maybe Double, Maybe Day)
                 -> PayrollSettings
                 -> Maybe Int
                 -> TS.EmployeeSummary p Text
                 -> Maybe WFA.SupplierPayment
-employeePayment _ _ _ _ summary | TS._finalPayment summary <= 0 = Nothing
-employeePayment ref paymentDate settings invM summary = let 
-  amount = TS._finalPayment summary
-  netRefund = negate . sum . filter (<0) . map unsafeUnlock . toList $ TS._deductions summary
-  allocations = maybeToList $ invM <&> \inv -> WFA.PaymentTransaction inv ST_SUPPINVOICE
-                                                                      (unsafeUnlock amount - netRefund 
-                                                                      )
-  payment = WFA.SupplierPayment (wagesSupplier settings)
-                                (wagesBankAccount settings)
-                                (unsafeUnlock amount)
-                                paymentDate
-                                (Just $ ref $ TS._sumEmployee summary)
-                                (Just 0) -- charge
-                                allocations
-  in Just payment
+employeePayment _ _ _ _ _ summary | TS._finalPayment summary <= 0 = Nothing
+employeePayment ref paymentDate paymentMap settings invM summary = do -- Maybe
+    (userAmountM, userDate ) <- lookup (TS._sumEmployee summary) paymentMap
+    userAmount <- userAmountM
+    let amount = min userAmount (unsafeUnlock $ TS._finalPayment summary)
+    guard (amount >0)
+    let netRefund = negate . sum . filter (<0) . map unsafeUnlock . toList $ TS._deductions summary
+        allocations = maybeToList $ invM <&> \inv -> WFA.PaymentTransaction inv ST_SUPPINVOICE
+                                                                            (amount - netRefund 
+                                                                            )
+        payment = WFA.SupplierPayment (wagesSupplier settings)
+                                      (wagesBankAccount settings)
+                                      amount
+                                      (fromMaybe paymentDate userDate)
+                                      (Just $ ref $ TS._sumEmployee summary)
+                                      (Just 0) -- charge
+                                      allocations
+    Just payment
 
 
 -- ** External payments

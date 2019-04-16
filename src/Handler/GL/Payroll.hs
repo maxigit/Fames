@@ -36,6 +36,7 @@ import Data.Time.Calendar
 import Lens.Micro.Extras (view, preview)
 import Lens.Micro hiding ((<&>))
 import Data.These
+import Data.Align
 import Data.List.NonEmpty (NonEmpty(..))
 import  qualified WH.FA.Types as WFA
 import  qualified WH.FA.Curl as WFA
@@ -46,7 +47,6 @@ import Handler.Util
 import Locker
 
 
-
 -- * Types
 data Mode = Validate | Save deriving (Eq, Read, Show)
 data UploadParam = UploadParam
@@ -54,6 +54,10 @@ data UploadParam = UploadParam
   , upPreviousKey :: Maybe DocumentHash
   } deriving (Eq, Read, Show)
 
+data FAParam = FAParam
+  { ffDate :: Day
+  , ffPayments :: Map Text (Maybe Double, Maybe Day)
+  } deriving (Eq, Read, Show)
 -- * Form
 uploadForm :: Mode -> Maybe UploadParam -> _Markup -> _ (FormResult UploadParam, Widget)
 uploadForm mode paramM = let
@@ -63,7 +67,8 @@ uploadForm mode paramM = let
 
 -- faForm :: _ (FormResult Day, Widget)
 faForm = renderBootstrap3 BootstrapBasicForm form  where
-  form = areq dayField "Processing date" Nothing
+  form = FAParam <$> areq dayField "Processing date" Nothing
+                <*> pure mempty
 
 voidForm = renderBootstrap3 BootstrapBasicForm form where
   form = areq boolField "Keep payments" (Just True)
@@ -139,14 +144,16 @@ postGLPayrollToFAR key = do
   setting <- appSettings <$> getYesod
   modelE <- loadTimesheet key
   ((resp, formW), enctype) <- runFormPost faForm
-  processDay <- case resp of
+  faParam' <- case resp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess day -> return day
+  -- extract payment information
+  faParam <- setFaParamPayments faParam'
   case modelE of
     Nothing -> error $ "Can't load Timesheet with id #" ++ show key
     Just (ts, shifts, items) -> do
-      r <- postTimesheetToFA processDay (TimesheetKey $ SqlBackendKey key) ts shifts items
+      r <- postTimesheetToFA faParam (TimesheetKey $ SqlBackendKey key) ts shifts items
       case r of
         Left e -> setError (toHtml e) >> getGLPayrollViewR key
         Right e -> do
@@ -156,6 +163,27 @@ postGLPayrollToFAR key = do
 
           renderMain Validate Nothing created201 (setInfo "Timesheet saved to Front Account sucessfully") (return ())
 
+setFaParamPayments :: FAParam ->  Handler FAParam
+setFaParamPayments param = do
+  (pp, _) <- runRequestBody
+  let paramTo :: Read a => Text -> (Text, Text) -> Maybe (Text, a)
+      paramTo field (name, value) = do -- Maybe
+        employee <- stripPrefix ("payment-" <> field <> "-for-") name 
+        val  <- readMay value
+        return (employee, val)
+
+      toMap :: Read a => Text -> Map Text a
+      toMap field = mapFromList $ mapMaybe (paramTo field)  pp
+      amounts = toMap "amount" :: Map Text Double
+      dates = toMap "date" :: Map Text Day
+      amount'dateMap = align amounts dates :: Map Text (These Double Day)
+      paymentMap = (\a'd -> (preview here a'd, preview there a'd)) <$> amount'dateMap
+  return param {ffPayments = paymentMap}
+
+
+
+
+  
 -- ** Individual timesheet
 getGLPayrollViewR :: Int64 -> Handler Html
 getGLPayrollViewR key = do
@@ -184,7 +212,17 @@ getGLPayrollViewR key = do
       timedShifts <- loadTimedShiftsFromTS ts'
       let calendar = ("Calendar", displayTimesheetCalendar timedShifts, TS.filterTimesheet isShiftDurationUnlocked (const False) )
           -- reports = [(name, report  . TS._shifts, TS.filterTimesheet isShiftViewable (const False) ) | (name, report)  <- reports']
-          reports = [calendar, dacsReport, summaryReport]
+          reports0 = [calendar, dacsReport, summaryReport]
+          reports = reports0 <> (if timesheetStatus (entityVal ts )/= Process
+                                then [("Generate Payments", addFAForm . generatePaymentForm, TS.filterTimesheet isShiftViewable isDACUnlocked)]
+                                else  [] )
+          addFAForm w = [whamlet|
+            <form role=form method=post action=@{GLR $ GLPayrollToFAR key} enctype=#{faEncType}>
+              ^{w}
+              ^{faFormW}
+              <button type="submit" .btn.btn-danger>Save To FrontAccounting
+                                |]
+          
       defaultLayout $ [whamlet|
           $forall (name, trans, filter') <- reports
              $maybe object <- filter' ts'
@@ -193,9 +231,6 @@ getGLPayrollViewR key = do
                 <div.panel-body>
                   <div>^{trans object }
           $if (timesheetStatus (entityVal ts) /= Process)
-            <form role=form method=post action=@{GLR $ GLPayrollToFAR key} enctype=#{faEncType}>
-              ^{faFormW}
-              <button type="submit" .btn.btn-danger>Save To FrontAccounting
             <form role=form method=post action=@{GLR $ GLPayrollRejectR key}>
               <button type="submit" .btn.btn-warning>Reject 
             <form role=form method=post action=@{GLR $ GLPayrollToPayrooR key}>
@@ -436,14 +471,15 @@ parseTimesheetH param = do
   return $ parseTimesheet header (upTimesheet param)
 
 -- * To Front Accounting
-postTimesheetToFA :: Day
+postTimesheetToFA :: FAParam
                   -> TimesheetId
                   -> Entity Timesheet
                   -> [Entity PayrollShift]
                   -> [Entity PayrollItem]
                   -> HandlerT App IO (Either Text Int)
-postTimesheetToFA today key timesheet shifts items = do
+postTimesheetToFA param key timesheet shifts items = do
       settings <- appSettings <$> getYesod
+      let today = ffDate param
       let tsOId = modelToTimesheetOpId timesheet shifts items
       runExceptT $ do
          ts <- ExceptT $ timesheetOpIdToO'SH tsOId
@@ -454,6 +490,9 @@ postTimesheetToFA today key timesheet shifts items = do
              tsPayment =  (\(Entity _ op, settings, shiftKey) -> operatorNickname op) <$> ts
          grnIds <- saveGRNs settings key tsSkus
          invoiceId <- saveInvoice today settings ts grnIds
-         paymentIds <- savePayments today settings key tsPayment invoiceId
+         paymentIds <- savePayments today (ffPayments param) settings key tsPayment invoiceId
          credits <- saveExternalPayments settings key invoiceId today ts
          return invoiceId
+
+
+  
