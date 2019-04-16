@@ -1109,7 +1109,7 @@ voidTransactions date commentFn criteria= do
   settings <- getsYesod appSettings
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
   trans <- runDB $ selectList ((TransactionMapVoided ==. False) : criteria) []
-  e <- runExceptT $ mapM (\tran -> voidFATransaction connectInfo date (commentFn . entityVal $ tran) tran) $ take 1 trans
+  e <- runExceptT $ mapM (\tran -> voidFATransaction connectInfo date (commentFn . entityVal $ tran) tran) $ trans
   case e of
     Left err -> error (unpack err)
     Right _ -> return (length trans)
@@ -1119,10 +1119,9 @@ voidFATransaction connectInfo vtDate comment (Entity tId TransactionMap{..}) = d
   let vtTransNo = transactionMapFaTransNo
       vtTransType = transactionMapFaTransType
       vtComment = Just $ fromMaybe "Voided by Fames" comment
-  ExceptT $ do
-    liftIO $ WFA.postVoid connectInfo WFA.VoidTransaction{..}
-    runDB $ update tId [TransactionMapVoided =. True]
-    return $ Right ()
+  ExceptT $ liftIO $ WFA.postVoid connectInfo WFA.VoidTransaction{..}
+  lift $  runDB $ update tId [TransactionMapVoided =. True]
+  return ()
     
 
 

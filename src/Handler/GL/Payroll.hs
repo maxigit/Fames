@@ -291,7 +291,7 @@ postGLPayrollVoidFAR timesheetId = do
   runDB $ do
     let criteria = transactionMapFilterForTS timesheetId 
     nb <- lift $ voidTransactions today (const $ Just "Timesheet voided") criteria
-    update (TimesheetKey $ SqlBackendKey timesheetId) [TimesheetStatus =. Process]
+    update (TimesheetKey $ SqlBackendKey timesheetId) [TimesheetStatus =. Pending]
 
     lift $ setSuccess. toHtml $ tshow nb <> " FA transaction(s) have been successufully voide"
   getGLPayrollViewR timesheetId
