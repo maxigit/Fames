@@ -385,8 +385,7 @@ transactionMapFilterForTS timesheetId =  do
   itemIds <- selectKeysList [PayrollItemTimesheet ==. key] []
 
 
-  let for _event _unkey [] = []
-      for event unkey keys = [ TransactionMapEventType ==. event
+  let for event unkey keys = [ TransactionMapEventType ==. event
                              , TransactionMapEventNo <-. map (fromIntegral . unSqlBackendKey . unkey ) keys
                              ]
   return $ [TransactionMapEventType ==. TimesheetE  , TransactionMapEventNo ==. fromIntegral timesheetId]
