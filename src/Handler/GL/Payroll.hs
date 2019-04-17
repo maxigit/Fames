@@ -202,8 +202,9 @@ getGLPayrollViewR key = do
   (faFormW, faEncType)  <- generateFormPost faForm
   case modelE of
     Nothing -> error $ "Can't load Timesheet with id #" ++ show key
-    Just (ts, shifts, items) -> do
-      let tsOId = modelToTimesheetOpId ts shifts items
+    Just (tse, shifts, items) -> do
+      let ts = entityVal tse
+          tsOId = modelToTimesheetOpId tse shifts items
           ts' = map (\(op, _) -> maybe (tshow op) operatorNickname (lookup op operatorMap)) tsOId
           -- reports' = [ ("Timesheet" :: Text, displayShifts)
           --           , ("By Employees", displayShifts . (TS.groupShiftsBy id))
@@ -216,7 +217,7 @@ getGLPayrollViewR key = do
       let calendar = ("Calendar", displayTimesheetCalendar timedShifts, TS.filterTimesheet isShiftDurationUnlocked (const False) )
           -- reports = [(name, report  . TS._shifts, TS.filterTimesheet isShiftViewable (const False) ) | (name, report)  <- reports']
           reports0 = [calendar, dacsReport, summaryReport]
-          reports = reports0 <> (if timesheetStatus (entityVal ts )/= Process
+          reports = reports0 <> (if timesheetStatus ts /= Process
                                 then [("Generate Payments", addFAForm . generatePaymentForm, TS.filterTimesheet isShiftViewable isDACUnlocked)]
                                 else  [] )
           addFAForm w = [whamlet|
@@ -226,14 +227,20 @@ getGLPayrollViewR key = do
               <button type="submit" .btn.btn-danger>Save To FrontAccounting
                                 |]
           
-      defaultLayout $ [whamlet|
+      let showDate d =  formatTime defaultTimeLocale "%a %d %h %Y" d
+      defaultLayout $ do
+        setTitle . toHtml $ "Timesheet " <> timesheetReference ts
+        [whamlet|
+          <div.row>
+            <div.col-md-2><h2> #{timesheetReference ts} 
+            <div.col-md-4.col-md-offset-6><h3> #{showDate $ timesheetStart ts } - #{showDate $ timesheetEnd ts}
           $forall (name, trans, filter') <- reports
              $maybe object <- filter' ts'
               <div.panel.panel-info>
                 <div.panel-heading> #{name}
                 <div.panel-body>
                   <div>^{trans object }
-          $if (timesheetStatus (entityVal ts) /= Process)
+          $if (timesheetStatus ts /= Process)
             <form role=form method=post action=@{GLR $ GLPayrollRejectR key}>
               <button type="submit" .btn.btn-warning>Reject 
             <form role=form method=post action=@{GLR $ GLPayrollToPayrooR key}>
