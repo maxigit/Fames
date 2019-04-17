@@ -57,6 +57,7 @@ data UploadParam = UploadParam
 
 data FAParam = FAParam
   { ffDate :: Day
+  , ffReferenceSuffix :: Maybe Text
   , ffPayments :: Map Text (Maybe Double, Maybe Day)
   } deriving (Eq, Read, Show)
 -- * Form
@@ -69,7 +70,8 @@ uploadForm mode paramM = let
 -- faForm :: _ (FormResult Day, Widget)
 faForm = renderBootstrap3 BootstrapBasicForm form  where
   form = FAParam <$> areq dayField "Processing date" Nothing
-                <*> pure mempty
+                 <*> aopt textField "Reference Suffix" Nothing
+                 <*> pure mempty
 
 voidForm = renderBootstrap3 BootstrapBasicForm form where
   form = areq boolField "Keep payments" (Just True)
@@ -366,7 +368,7 @@ postGLPayrollVoidFAR timesheetId = do
                      then [TransactionMapFaTransType !=. ST_SUPPAYMENT]
                      else []
                    ) <> criteria0
-    nb <- lift $ voidTransactions today (const $ Just "Timesheet voided") criteria
+    nb <- lift $ voidTransactions today (const . Just $ "Timesheet #" <> tshow timesheetId <> " voided") criteria
     update (TimesheetKey $ SqlBackendKey timesheetId) [TimesheetStatus =. Pending]
 
     lift $ setSuccess. toHtml $ tshow nb <> " FA transaction(s) have been successufully voide"
@@ -530,7 +532,7 @@ postTimesheetToFA param key timesheet shifts items = do
              tsPayment =  (\(Entity _ op, settings, shiftKey) -> operatorNickname op) <$> ts
          grnIds <- saveGRNs settings key tsSkus
          invoiceId <- saveInvoice today settings ts grnIds
-         paymentIds <- savePayments today (ffPayments param) settings key tsPayment invoiceId
+         paymentIds <- savePayments today (ffReferenceSuffix param) (ffPayments param) settings key tsPayment invoiceId
          credits <- saveExternalPayments settings key invoiceId today ts
          return invoiceId
 

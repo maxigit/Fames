@@ -533,7 +533,7 @@ generatePaymentForm timesheet = let
        <tr>
          <td> #{toHtml $ TS._sumEmployee summary}
          <td.text-right>
-            <input type=number name="payment-amount-for-#{TS._sumEmployee summary}" value="#{formatDouble' $ TS._net summary}">
+            <input type=number step=0.01 min=0 name="payment-amount-for-#{TS._sumEmployee summary}" value="#{formatDouble' $ TS._net summary}">
          <td>
             <input name="payment-date-for-#{TS._sumEmployee summary}" type=date>
              |]
@@ -885,18 +885,24 @@ itemsForCosts timesheet = let
 
 -- ** Payment
 savePayments :: Ord p
-             => Day
-             -> Map Text (Maybe Double , Maybe Day)
+             => Day -- ^ Payment date
+             -> Maybe Text -- ^ Payment reference suffix. Too avoid duplicate
+             -> Map Text (Maybe Double , Maybe Day) -- ^ Payments overriding
              -> AppSettings
              -> TimesheetId
              -> TS.Timesheet p Text
              -> Int
              -> ExceptT Text Handler [Int]
-savePayments today paymentMap settings key timesheet invoiceId = do
+savePayments today refSuffix paymentMap settings key timesheet invoiceId = do
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       psettings = appPayroll settings
       ref = employeePaymentRef psettings timesheet
-      payments = employeePayments ref today paymentMap psettings timesheet (Just invoiceId)
+      payments0 = employeePayments ref today paymentMap psettings timesheet (Just invoiceId)
+      payments = [ payment {WFA.spReference = Just ref}
+                 | payment@WFA.SupplierPayment{..} <- payments0
+                 -- ad the suffix only if reference is set
+                 , let ref = maybe ""(<> fromMaybe "" refSuffix) spReference
+                 ]
 
   paymentIds <- mapM (ExceptT . liftIO . WFA.postSupplierPayment  connectInfo) payments
   ExceptT $ runDB $ do
