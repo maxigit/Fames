@@ -1154,6 +1154,9 @@ voidFATransaction connectInfo vtDate comment (Entity tId TransactionMap{..}) = d
       vtTransType = transactionMapFaTransType
       vtComment = Just $ fromMaybe "Voided by Fames" comment
   ExceptT $ liftIO $ WFA.postVoid connectInfo WFA.VoidTransaction{..}
-  lift $  runDB $ update tId [TransactionMapVoided =. True]
+  -- mark the transaction as voided (all the rows)  not just the one matching the curren entity
+  lift $  runDB $ updateWhere [ TransactionMapFaTransType ==. transactionMapFaTransType
+                              , TransactionMapFaTransNo ==. transactionMapFaTransNo
+                              ] [TransactionMapVoided =. True]
   return ()
     
