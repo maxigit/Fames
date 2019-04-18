@@ -47,8 +47,12 @@ $newline never
       <div.row>
         <div class="navbar navbar-inverse navbar-static-top">
           <div.navbar-header>
+            <button.navbar-toggle.collapsed data-toggle="collapse" data-target="#navbar-collapse" type=button>
+              <span.icon-bar>
+              <span.icon-bar>
+              <span.icon-bar>
             <a.navbar-brand href=@{HomeR}>Fames
-          <div.collapse.navbar-collapse>
+          <div.collapse.navbar-collapse id=navbar-collapse>
             <ul.nav.navbar-nav>
               $forall (title, route, active) <- mainNavLinks
                 <li :active:class=active><a href="@{route}">#{title}
