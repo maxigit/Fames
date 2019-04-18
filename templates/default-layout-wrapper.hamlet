@@ -89,7 +89,7 @@ $newline never
                 <a.list-group-item.list-group-item-success>#{group}
                   $forall ((title, route), denied) <- links
                     <a.list-group-item href=@{route} :denied:class="disabled">#{title}
-        <div.col-md-8.col-xs-12 id="main" role="main">
+        <div.col-md-10 id="main" role="main">
           ^{pageBody pc}
       <div.row>
         <footer>
