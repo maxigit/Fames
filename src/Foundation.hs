@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# Language CPP #-}
 module Foundation
 ( module Foundation
 , module RoutePiece
@@ -116,6 +117,14 @@ instance SameCons (A)
 
 -- | A convenient synonym for creating forms.
 type Form x = Html -> MForm (HandlerT App IO) (FormResult x, Widget)
+
+devel = 
+#if DEVELOPMENT
+                    True
+#else
+                    False
+#endif
+
 
 currentRole :: HandlerT App IO Role
 currentRole = do

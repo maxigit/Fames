@@ -42,7 +42,7 @@ $newline never
 
     <script>
       document.documentElement.className = document.documentElement.className.replace(/\bno-js\b/,'js');
-  <body>
+  <body :devel:.devel>
     <div class="container-fluid">
       <div.row>
         <div class="navbar navbar-inverse navbar-static-top">

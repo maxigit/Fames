@@ -25,3 +25,10 @@ span.unknown-value
 
 .hover-next:hover + .hover-only
   display: inline-block
+
+.devel
+  .navbar-static-top
+    background-color: darkorange
+  .list-group.table-of-contents .list-group-item.list-group-item-success
+    background-color: peachpuff
+    color: darkorange
