@@ -47,15 +47,22 @@ $newline never
       <div.row>
         <div class="navbar navbar-inverse navbar-static-top">
           <div.navbar-header>
-            <button.navbar-toggle.collapsed data-toggle="collapse" data-target="#navbar-collapse" type=button>
+            <button.navbar-toggle.collapsed data-toggle="collapse" data-target="#navbar-collapse, .sidebar-collapse" type=button>
               <span.icon-bar>
               <span.icon-bar>
               <span.icon-bar>
+            $# if md or more, we don't need the button
+            $# if <sd we use the button above
+            <button.navbar-toggle.visible-sm data-toggle=collapse data-target=".sidebar-collapse" type=button>
+                <span.icon-bar>
+                <span.icon-bar>
+                <span.icon-bar>
             <a.navbar-brand href=@{HomeR}>Fames
           <div.collapse.navbar-collapse id=navbar-collapse>
             <ul.nav.navbar-nav>
               $forall (title, route, active) <- mainNavLinks
-                <li :active:class=active><a href="@{route}">#{title}
+                <li :active:class=active>
+                   <a href="@{route}">#{title}
             <ul.nav.navbar-nav.navbar-right>
               $case userM 
                 $of Nothing
@@ -67,21 +74,22 @@ $newline never
                       $maybe mask <- masqueradeM
                         <span.text-danger>(As #{mask})
                       #{userIdent user} Logout
-        <div.col-md-2 style="min-height:100">
-          $if (not (null suggested))
-            <div.list-group.table-of-contents>
-              <a.list-group-item.list-group-item-info>Suggested
-                $forall ((title, route, params), denied) <- suggested
-                  <a.list-group-item href=@?{(route, params)}
-                   :denied:class="disabled"
-                  >
-                    #{title}
-          $forall (group, links) <- sideLinks'
-            <div.list-group.table-of-contents>
-              <a.list-group-item.list-group-item-success>#{group}
-                $forall ((title, route), denied) <- links
-                  <a.list-group-item href=@{route} :denied:class="disabled">#{title}
-        <div.col-md-8 id="main" role="main">
+        <div.sidebar>
+          <div.col-md-2.sidebar-collapse.collapse style="min-height:100">
+            $if (not (null suggested))
+              <div.list-group.table-of-contents>
+                <a.list-group-item.list-group-item-info>Suggested
+                  $forall ((title, route, params), denied) <- suggested
+                    <a.list-group-item href=@?{(route, params)}
+                    :denied:class="disabled"
+                    >
+                      #{title}
+            $forall (group, links) <- sideLinks'
+              <div.list-group.table-of-contents>
+                <a.list-group-item.list-group-item-success>#{group}
+                  $forall ((title, route), denied) <- links
+                    <a.list-group-item href=@{route} :denied:class="disabled">#{title}
+        <div.col-md-8.col-xs-12 id="main" role="main">
           ^{pageBody pc}
       <div.row>
         <footer>

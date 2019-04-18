@@ -32,3 +32,8 @@ span.unknown-value
   .list-group.table-of-contents .list-group-item.list-group-item-success
     background-color: peachpuff
     color: darkorange
+@media (min-width:992px)
+  .sidebar-toggle
+      display: none
+  .sidebar-collapse
+      display: block !important
