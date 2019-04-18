@@ -108,6 +108,7 @@ data AppSettings = AppSettings
     -- each files will be concatenated in alphabetical order.
     , appReceiptTemplates :: Map Text ReceiptTemplate
     , appReportDeduceTax :: Bool -- ^ weither to deduce tax from tax included transaction
+    , appFavicon:: Text
     } deriving Show
 
 data BankStatementSettings = BankStatementSettings
@@ -208,6 +209,7 @@ instance FromJSON AppSettings  where
         appReceiptTemplates <- o .:? "receipt-templates" .!= Map.fromList []
         appReportDeduceTax <- o .:? "report-deduce-tax" .!= False
           
+        appFavicon <- o .:? "favicon" .!= (if defaultDev then "Orange" else "" )
         
 
         -- This code enables MySQL's strict mode, without which MySQL will truncate data.
