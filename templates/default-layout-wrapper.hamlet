@@ -42,11 +42,15 @@ $newline never
     $# Datatables
     <link rel="stylesheet" type="text/css" href="/static/DataTables-1.10.18/css/dataTables.bootstrap.css"/>
     <script type="text/javascript" src="/static/DataTables-1.10.18/js/jquery.dataTables.js"></script>
-    <script type="text/javascript" src="static/DataTables-1.10.18/js/dataTables.bootstrap.js"></script>
+    <script type="text/javascript" src="/static/DataTables-1.10.18/js/dataTables.bootstrap.js"></script>
+    <script type="text/javascript" src="/static/Responsive-2.2.2/js/dataTables.responsive.js"></script>
+    <script type="text/javascript" src="/static/Responsive-2.2.2/js/responsive.bootstrap.js"></script>
+    <link rel="stylesheet" type="text/css" href="/static/Responsive-2.2.2/css/responsive.dataTables.css"></script>
+    <link rel="stylesheet" type="text/css" href="/static/Responsive-2.2.2/css/responsive.bootstrap.css"></script>
     $# initialize element with datatable
     <script> 
       \$(document).ready(function() {
-            \$('table.datatable, div.datatable > table').dataTable();
+            \$('table.datatable, div.datatable > table, div.panel-heading.datatable +table').dataTable({responsive:true});
         })
     <script>
       document.documentElement.className = document.documentElement.className.replace(/\bno-js\b/,'js');

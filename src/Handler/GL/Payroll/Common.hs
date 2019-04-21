@@ -371,21 +371,22 @@ displayLastSheets n = do
   timesheets <- runDB $ selectList [TimesheetStatus !=. Pending] [LimitTo n, Desc TimesheetId ]
   return [whamlet|
      <div.panel.panel-primary>
-       <div.panel-heading> Last Timesheets
+       <div.panel-heading.datatable> Last Timesheets
        ^{displayTimesheetList timesheets}
           |]
 
 -- ** Timesheet list
 displayTimesheetList :: [Entity Timesheet] -> Widget
 displayTimesheetList timesheets = [whamlet|
-<table.table.table-hover.table-striped>
-  <tr>
-    <th> Id
-    <th> Reference
-    <th> Period Type
-    <th> Start
-    <th> End
-    <th> Status
+<table.table.table-hover.table-striped.nowrap.dt-responsive>
+  <thead>
+    <tr>
+      <th> Id
+      <th> Reference
+      <th> Period Type
+      <th> Start
+      <th> End
+      <th> Status
   $forall (Entity key ts) <- timesheets
     <tr>
       <td> <a href="@{GLR (GLPayrollViewR (unSqlBackendKey $ unTimesheetKey key))}">

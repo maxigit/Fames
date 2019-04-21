@@ -200,13 +200,14 @@ getWHStocktakeHistoryR = do
 <div.panel.panel-info>
   <div.panel-heading><h3>Stocktake History
   <div.panel-body>
-    <table.table.table-bordered>
-      <tr>
-         <th> Style
-         <th> QOH
-         <th style="opacity:0;"> _____ Date Range _____
-         <th> Last Full
-         <th> Last Partial
+    <table.table.table-bordered.datatable>
+      <thead>
+        <tr>
+          <th> Style
+          <th> QOH
+          <th> 
+          <th> Last Full
+          <th> Last Partial
       $forall (Single style, Single mindate, Single latest, Single quantity) <- style'dates
         <tr>
           <td><a href="@{WarehouseR (WHStocktakeHistoryStyleR style)}" > #{style}

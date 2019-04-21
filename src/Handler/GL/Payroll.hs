@@ -81,7 +81,7 @@ voidForm = renderBootstrap3 BootstrapBasicForm form where
 getGLPayrollR :: Handler Html
 getGLPayrollR = do
   pendingW <-displayPendingSheets
-  lastW <-displayLastSheets 10
+  lastW <-displayLastSheets 100
   renderMain Validate Nothing ok200 (setInfo ([shamlet|<h3>Enter a timesheet|] >> timesheetStyleCheat)) (pendingW >> lastW)
 postGLPayrollValidateR :: Handler Html
 postGLPayrollValidateR = do
