@@ -126,7 +126,7 @@ renderWHPackingList mode param reportParamM status message pre = do
 viewPLLists :: Handler Widget
 viewPLLists = do
   today <- todayH
-  let lastYear = calculateDate (AddYears (-1)) today
+  let lastYear = calculateDate (AddYears (-2)) today
   entities <- runDB $ selectList [ FilterOr [ PackingListArriving >=. Just lastYear
                                             , PackingListBoxesToDeliver_d >. 0
                                             ]
@@ -137,16 +137,17 @@ viewPLLists = do
       maxDate = Just $ List.maximum (today : catMaybes (map (packingListArriving) pls))
 
   return [whamlet|
-<table.table.table-bordered>
-  <tr>
-    <th> Id
-    <th> Invoice Ref
-    <th> Vessel
-    <th> Container
-    <th> Left
-    <th> Departure
-    <th.col-xs-4.col-md-6> 
-    <th> Arriving
+<table.table.table-bordered.datatable>
+  <thead>
+    <tr>
+      <th> Id
+      <th> Invoice Ref
+      <th> Vessel
+      <th> Container
+      <th> Left
+      <th> Departure
+      <th.col-xs-4.col-md-6> 
+      <th> Arriving
   $forall (Entity key pl) <- entities
     <tr>
       <td> <a href="@{WarehouseR (WHPackingListViewR (unSqlBackendKey $ unPackingListKey key) Nothing)}">
@@ -199,8 +200,9 @@ processUpload mode param = do
         [whamlet|
 <div.panel.panel-primary>
   <div.panel-heading data-toggle="collapse" data-target="##{tshow orderRefId}-pl"> #{orderRefId}
-  <table.table.table-hover.collapse.in id="#{tshow orderRefId}-pl">
-    ^{renderHeaderRow}
+  <table.table.table-hover.collapse.in.datatable id="#{tshow orderRefId}-pl">
+    <thead>
+      ^{renderHeaderRow}
     $forall group <- groups
       ^{renderBoxGroup group}
       |]
@@ -690,13 +692,14 @@ renderChalk _ _ details = let
 $forall zone <- sliced
   <div.panel.panel-primary>
     <div.panel-heading> #{zoneName zone}
-    <table.table.table-striped>
-      <tr>
-        <th> Style
-        <th> Number of Boxes
-        <th> Total Width (cm)
-        <th> Position
-        <th> Depth
+    <table.table.table-striped.datatable>
+      <thead>
+        <tr>
+          <th> Style
+          <th> Number of Boxes
+          <th> Total Width (cm)
+          <th> Position
+          <th> Depth
       $forall (st, n, nh, w, nd,d, cw ) <- processSlices (zoneSlices zone)
         <tr>
           <td> #{st}
@@ -1301,8 +1304,9 @@ renderHeaderRow = [whamlet|
 renderRows :: _ => (r -> a) -> [r] -> Widget
 renderRows classFor rows = do
   [whamlet|
-<table.table.table-bordered.table-hover>
-  ^{renderHeaderRow}
+<table.table.table-bordered.table-hover.datatable>
+  <thead>
+    ^{renderHeaderRow}
   $forall row <- rows
     <tr class="#{classFor row}">^{render row}
         |]
@@ -1558,21 +1562,22 @@ reportFor param@ReportParam{..} = do
   <div.panel-heading data-toggle=collapse data-target=#pl-report>
     <h2>Packing List
   <div.panel-body id=pl-report>
-    <table.table.table-bordered.table-hover>
-      <tr>
-          <th>
-          <th> Reference
-          <th> Vessel
-          <th> Container 
-          <th> Departure
-          <th> Arriving
-          <th.text-right> Volume
-          <th.text-right> Shipping cost/m<sup>3
-          <th> Shipping Cost
-          <th> %
-          <th> Duty Cost
-          <th> %
-          <th> Supplier Cost
+    <table.table.table-bordered.table-hover.datatable>
+      <thead>
+        <tr>
+            <th>
+            <th> Reference
+            <th> Vessel
+            <th> Container 
+            <th> Departure
+            <th> Arriving
+            <th.text-right> Volume
+            <th.text-right> Shipping cost/m<sup>3
+            <th> Shipping Cost
+            <th> %
+            <th> Duty Cost
+            <th> %
+            <th> Supplier Cost
       $forall (Entity key pl, (cbm, (costMap, _))) <- plXs
         <tr>
           <td> <a href="@{WarehouseR (WHPackingListViewR (unSqlBackendKey $ unPackingListKey key) Nothing)}">
@@ -1639,21 +1644,22 @@ renderDetailInfo marginM infos = do
           |]
       totalTitle = "Total" :: Text
   [whamlet|
-<table.table.table-border.table-hover.table.striped>
-  <tr>
-    <th> Style
-    <th.text-right> Quantity
-    <th> Volume
-    <th> Vol/Item
-    <th> Shipping Cost
-    <th> Duty Cost
-    <th> Buying Cost
-    <th> Shipping/Item
-    <th> Duty 
-    <th> Buying price
-    <th> Item cost 
-    $if isJust marginM
-      <th> RRP
+<table.table.table-border.table-hover.table.striped.datatable>
+  <thead>
+    <tr>
+      <th> Style
+      <th.text-right> Quantity
+      <th> Volume
+      <th> Vol/Item
+      <th> Shipping Cost
+      <th> Duty Cost
+      <th> Buying Cost
+      <th> Shipping/Item
+      <th> Duty 
+      <th> Buying price
+      <th> Item cost 
+      $if isJust marginM
+        <th> RRP
   $forall (style, di) <- mapToList infos
     ^{row False style di}
   <tr>

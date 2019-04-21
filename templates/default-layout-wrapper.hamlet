@@ -39,7 +39,15 @@ $newline never
       \      }
       \  });
       }
-
+    $# Datatables
+    <link rel="stylesheet" type="text/css" href="/static/DataTables-1.10.18/css/dataTables.bootstrap.css"/>
+    <script type="text/javascript" src="/static/DataTables-1.10.18/js/jquery.dataTables.js"></script>
+    <script type="text/javascript" src="static/DataTables-1.10.18/js/dataTables.bootstrap.js"></script>
+    $# initialize element with datatable
+    <script> 
+      \$(document).ready(function() {
+            \$('table.datatable, div.datatable > table').dataTable();
+        })
     <script>
       document.documentElement.className = document.documentElement.className.replace(/\bno-js\b/,'js');
   <body :devel:.devel>

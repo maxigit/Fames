@@ -236,31 +236,34 @@ renderBoxtakes param = do
   ^{body}
           |]
   
+
 -- *** Table
 renderBoxtakeTable :: (Map (Key Operator) Operator) -> [Entity Boxtake] -> Widget
 renderBoxtakeTable opMap boxtakes = do
   [whamlet|
-<table.table.table-bordered.table-striped.table-hover>
-  <tr>
-      <th> Barcode 
-      <th> Description 
-      <th> Dimensions
-      <th> Volume
-      <th> Location
-      <th> Date 
-      <th> Operator
-      <th> Active
-  $forall (Entity _ boxtake) <- boxtakes
+<table.table.table-bordered.table-striped.table-hover.datatable>
+  <thead>
     <tr>
-      <td> <a href=@{WarehouseR (WHBoxtakeDetailR (boxtakeBarcode boxtake))}>#{boxtakeBarcode boxtake}
-      <td> #{fromMaybe "" (boxtakeDescription boxtake)}
-      <td> #{tshow (boxtakeLength boxtake)} x #{tshow (boxtakeWidth boxtake)} x #{tshow (boxtakeHeight boxtake)}
-            ^{dimensionPicture 64 boxtake}
-      <td> #{formatVolume (boxtakeVolume boxtake)}
-      <td> #{boxtakeLocation boxtake}
-      <td> #{tshow (boxtakeDate boxtake)}
-      <td> #{opName opMap (boxtakeOperator boxtake)}
-      <td> #{displayActive (boxtakeActive boxtake)}
+        <th> Barcode 
+        <th> Description 
+        <th> Dimensions
+        <th> Volume
+        <th> Location
+        <th> Date 
+        <th> Operator
+        <th> Active
+  <tbody>
+    $forall (Entity _ boxtake) <- boxtakes
+      <tr>
+        <td> <a href=@{WarehouseR (WHBoxtakeDetailR (boxtakeBarcode boxtake))}>#{boxtakeBarcode boxtake}
+        <td> #{fromMaybe "" (boxtakeDescription boxtake)}
+        <td> #{tshow (boxtakeLength boxtake)} x #{tshow (boxtakeWidth boxtake)} x #{tshow (boxtakeHeight boxtake)}
+              ^{dimensionPicture 64 boxtake}
+        <td> #{formatVolume (boxtakeVolume boxtake)}
+        <td> #{boxtakeLocation boxtake}
+        <td> #{tshow (boxtakeDate boxtake)}
+        <td> #{opName opMap (boxtakeOperator boxtake)}
+        <td> #{displayActive (boxtakeActive boxtake)}
           |]
   
 -- *** List
