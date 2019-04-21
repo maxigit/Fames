@@ -43,15 +43,22 @@ $newline never
     <link rel="stylesheet" type="text/css" href="/static/DataTables-1.10.18/css/dataTables.bootstrap.css"/>
     <script type="text/javascript" src="/static/DataTables-1.10.18/js/jquery.dataTables.js"></script>
     <script type="text/javascript" src="/static/DataTables-1.10.18/js/dataTables.bootstrap.js"></script>
+    $# responsive - extension
     <script type="text/javascript" src="/static/Responsive-2.2.2/js/dataTables.responsive.js"></script>
     <script type="text/javascript" src="/static/Responsive-2.2.2/js/responsive.bootstrap.js"></script>
     <link rel="stylesheet" type="text/css" href="/static/Responsive-2.2.2/css/responsive.dataTables.css"></script>
     <link rel="stylesheet" type="text/css" href="/static/Responsive-2.2.2/css/responsive.bootstrap.css"></script>
+    $# fixedHeader - extension
+    <script type="text/javascript" src="/static/FixedHeader-3.1.4/js/dataTables.fixedHeader.js"></script>
+    <script type="text/javascript" src="/static/FixedHeader-3.1.4/js/fixedHeader.bootstrap.js"></script>
+    <link rel="stylesheet" type="text/css" href="/static/FixedHeader-3.1.4/css/fixedHeader.dataTables.css"></script>
+    <link rel="stylesheet" type="text/css" href="/static/FixedHeader-3.1.4/css/fixedHeader.bootstrap.css"></script>
     $# initialize element with datatable
     <script> 
       \$(document).ready(function() {
             \$('table.datatable, div.datatable > table, div.panel-heading.datatable +table').dataTable({responsive:true
                   , lengthMenu: [[10, 50, 200, -1], [10, 50, 200, "All"]]
+                  , fixedHeader: true
                   });
         })
     <script>
