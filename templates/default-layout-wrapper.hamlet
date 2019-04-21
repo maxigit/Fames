@@ -50,7 +50,9 @@ $newline never
     $# initialize element with datatable
     <script> 
       \$(document).ready(function() {
-            \$('table.datatable, div.datatable > table, div.panel-heading.datatable +table').dataTable({responsive:true});
+            \$('table.datatable, div.datatable > table, div.panel-heading.datatable +table').dataTable({responsive:true
+                  , lengthMenu: [[10, 50, 200, -1], [10, 50, 200, "All"]]
+                  });
         })
     <script>
       document.documentElement.className = document.documentElement.className.replace(/\bno-js\b/,'js');
