@@ -60,6 +60,11 @@ $newline never
                   , lengthMenu: [[10, 50, 200, -1], [10, 50, 200, "All"]]
                   , fixedHeader: true
                   });
+            \$('table.datatable-nopage').dataTable({responsive:true
+                  , fixedHeader: true
+                  , paging: false
+                  , sorting: false
+                  });
         })
     <script>
       document.documentElement.className = document.documentElement.className.replace(/\bno-js\b/,'js');

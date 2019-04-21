@@ -152,11 +152,12 @@ entitiesToTable :: PersistEntity a => (FieldDef -> Text) -> [Entity a] -> Html
 entitiesToTable getColumn entities = do
   let eDef = entityDef (map entityVal entities)
   [shamlet|
-<table.table.table-bordered.table-striped class="#{unHaskellName $ entityHaskell eDef}">
-  <tr>
-    <th> Id
-    $forall field <- entityFields eDef
-      <th> #{getColumn field}
+<table.table.table-bordered.table-striped.datatable-nopage.nowrap class="#{unHaskellName $ entityHaskell eDef}">
+  <thead>
+    <tr>
+      <th> Id
+      $forall field <- entityFields eDef
+        <th> #{getColumn field}
   $forall Entity eit entity  <- entities
     <tr>
       <td.id> #{renderPersistValue $ toPersistValue eit}
