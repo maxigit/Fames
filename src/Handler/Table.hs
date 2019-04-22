@@ -14,7 +14,7 @@ displayTable :: [col] -- ^ index of columns to display
              -> Widget
 displayTable columns colDisplay rows = do
   [whamlet|
-<table.table.table-bordered>
+<table *{datatable}>
   ^{displayTableRowsAndHeader columns colDisplay rows}
 |]
  

@@ -138,18 +138,19 @@ postGLCheckR = do
     FormSuccess param -> do
       alls <- checkAll param
       let w = [whamlet|
-<table.table.table-border.table-hover.table-striped>
-  <tr>
-    <th> No
-    <th> Type
-    <th> Date
-    <th> Net
-    <th> Tax
-    <th> Shipping
-    <th> Total
-    <th> Details
-    <th> Debit
-    <th> Credit
+<table#gl-check *{datatable} data-paging=false>
+  <thead>
+    <tr>
+      <th> No
+      <th> Type
+      <th> Date
+      <th> Net
+      <th> Tax
+      <th> Shipping
+      <th> Total
+      <th> Details
+      <th> Debit
+      <th> Credit
   $forall t <- alls
     $if pDisplayAll param || not (tsIsValid t)
       <tr>

@@ -723,16 +723,17 @@ renderFX param  = do
       <div.well>
         ^{form}
         <button.btn.btn-primary name=action value="submit">Submit
-    <table.table.table-hover.table-border.table-striped id=fx-table>
-     <tr>
-       <th>Date
-       <th>Description
-       <th>FX Amount 
-       <th>Home Amount 
-       <th>Rate
-       <th>Total FX
-       <th>Total Home
-       <th>Average rate
+    <table#fx-table *{datatable} data-paging=false data-ordering=false data-dom="">
+     <thead>
+        <tr>
+          <th>Date
+          <th>Description
+          <th>FX Amount 
+          <th>Home Amount 
+          <th>Rate
+          <th>Total FX
+          <th>Total Home
+          <th>Average rate
      $forall tran <- trans
        <tr>
         <td>#{tshow $ fxDate tran}

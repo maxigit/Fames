@@ -325,7 +325,8 @@ getItemBatchExpandMatchesR = do
   (guessed, batchName') <- expandAllMatches
   let limit = take $ fromMaybe 100  (readMay =<< limitM)
       widget = [whamlet|
-<table.table.table-hover.table-striped>
+<table *{datatable}>
+  <thead>
     <tr>
       <td>Source
       <td>Source Colour
@@ -449,7 +450,7 @@ batchSummaryColumns =
 
 batchTables :: _renderUrl -> [(Text, (Entity Batch, a) -> Either Html PersistValue)] -> [(Entity Batch, a)] -> Widget
 batchTables renderUrl extraColumns batch'counts = [whamlet|
-  <table.table.table-hover>
+  <table *{datatable}>
     ^{rowsAndHeader}
   |] where
   rowsAndHeader = displayTableRowsAndHeader columns colDisplays (map ((,[]) . entityColumnToColDisplay )  batch'counts) where
