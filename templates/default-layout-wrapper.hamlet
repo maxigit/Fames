@@ -53,17 +53,27 @@ $newline never
     <script type="text/javascript" src="/static/FixedHeader-3.1.4/js/fixedHeader.bootstrap.js"></script>
     <link rel="stylesheet" type="text/css" href="/static/FixedHeader-3.1.4/css/fixedHeader.dataTables.css"></script>
     <link rel="stylesheet" type="text/css" href="/static/FixedHeader-3.1.4/css/fixedHeader.bootstrap.css"></script>
+    $# buttons - extension
+    <script type="text/javascript" src="/static/Buttons-1.5.6/js/dataTables.buttons.js"></script>
+    <script type="text/javascript" src="/static/Buttons-1.5.6/js/buttons.bootstrap.js"></script>
+    <script type="text/javascript" src="/static/Buttons-1.5.6/js/buttons.colVis.js"></script>
+    <link rel="stylesheet" type="text/css" href="/static/Buttons-1.5.6/css/buttons.dataTables.css"></script>
+    <link rel="stylesheet" type="text/css" href="/static/Buttons-1.5.6/css/buttons.bootstrap.css"></script>
     $# initialize element with datatable
     <script> 
+      \$.extend($.fn.dataTable.defaults ,
+                              { responsive: true
+                              , lengthMenu: [[10, 50, 200, -1], [10, 50, 200, "All"]]
+                              , fixedHeader: true
+                              });
       \$(document).ready(function() {
-            \$('table.datatable, div.datatable > table, div.panel-heading.datatable +table').dataTable({responsive:true
-                  , lengthMenu: [[10, 50, 200, -1], [10, 50, 200, "All"]]
-                  , fixedHeader: true
-                  });
+            \$('table.datatable, div.datatable > table, div.panel-heading.datatable +table').dataTable();
             \$('table.datatable-nopage').dataTable({responsive:true
                   , fixedHeader: true
                   , paging: false
                   , sorting: false
+                  , buttons: ['copy', 'excel', 'colvis']
+                  , dom: 'Blfrtip'
                   });
         })
     <script>

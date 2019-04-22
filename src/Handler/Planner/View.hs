@@ -664,7 +664,7 @@ renderSummaryReport scenario = do
   (header:rows, total) <- renderReport scenario summary
   
   return $ [whamlet|
-<table.table.table-striged.table-hover>
+<table.table.table-striped.table-hover>
   <tr>
     $forall h <- header
         <th> #{h}
@@ -685,7 +685,7 @@ renderShelvesReport scenario = do
   let header = splitOn "," (pack header')
       rows = map (splitOn "," . pack) rows'
   return [whamlet|
-<table.table.table-striged.table-hover>
+<table.table.table-striped.table-hover>
   <tr>
     $forall h <- header
         <th> #{h}

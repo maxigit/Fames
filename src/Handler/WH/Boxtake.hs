@@ -241,7 +241,7 @@ renderBoxtakes param = do
 renderBoxtakeTable :: (Map (Key Operator) Operator) -> [Entity Boxtake] -> Widget
 renderBoxtakeTable opMap boxtakes = do
   [whamlet|
-<table.table.table-bordered.table-striped.table-hover.datatable>
+<table#render-boxtake-table *{datatable} >
   <thead>
     <tr>
         <th> Barcode 

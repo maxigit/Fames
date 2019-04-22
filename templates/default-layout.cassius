@@ -29,6 +29,12 @@ span.unknown-value
 table.datatable
   width: 100%
 
+table.table-striped
+    tr:nth-of-type(2n), thead > tr
+      background: white
+    tr:hover
+        background: lightgray
+
 .devel
   .navbar-static-top
     background-color: darkorange

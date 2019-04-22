@@ -378,15 +378,15 @@ displayLastSheets n = do
 -- ** Timesheet list
 displayTimesheetList :: [Entity Timesheet] -> Widget
 displayTimesheetList timesheets = [whamlet|
-<table.table.table-hover.table-striped.nowrap.dt-responsive>
+<table.table.table-hover.table-striped.nowrap.nowrap.responsive style=width:100%>
   <thead>
     <tr>
-      <th> Id
-      <th> Reference
-      <th> Period Type
-      <th> Start
-      <th> End
-      <th> Status
+      <th data-priority=0 > Id
+      <th data-priority=1 > Reference
+      <th data-priority=3 > Period Type
+      <th data-priority=20 > Start
+      <th data-priority=50 > End
+      <th data-priority=2 > Status
   $forall (Entity key ts) <- timesheets
     <tr>
       <td> <a href="@{GLR (GLPayrollViewR (unSqlBackendKey $ unTimesheetKey key))}">

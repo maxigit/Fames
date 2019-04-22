@@ -41,11 +41,11 @@ getItemsCategoryTermsR name = do
           <input#stockFilterF type="text" name=stockFilter>
           <button.btn.btn-danger> Reset category for all items
       <div.well>
-          <table.table.table-hover.table-striped.display.nowrap.dt-responsive.datatable>
+          <table#item-categories *{datatable} data-paging=false>
             <thead>
               <tr>
-                <th.all> Value
-                <th.min-tablet-p> Number of items
+                <th> Value
+                <th> Number of items
             $forall (Single term, Single co) <- terms
               <tr>
                 <td>#{term}

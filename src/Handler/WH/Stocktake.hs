@@ -200,7 +200,7 @@ getWHStocktakeHistoryR = do
 <div.panel.panel-info>
   <div.panel-heading><h3>Stocktake History
   <div.panel-body>
-    <table.table.table-bordered.datatable>
+    <table#stock-take-history *{"table-bordered" <>. datatable} data-page-length="50">
       <thead>
         <tr>
           <th> Style

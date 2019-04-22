@@ -137,7 +137,7 @@ viewPLLists = do
       maxDate = Just $ List.maximum (today : catMaybes (map (packingListArriving) pls))
 
   return [whamlet|
-<table.table.table-bordered.datatable>
+<table#packing-list-list *{"table-bordered" <>. datatable}>
   <thead>
     <tr>
       <th> Id
@@ -200,7 +200,7 @@ processUpload mode param = do
         [whamlet|
 <div.panel.panel-primary>
   <div.panel-heading data-toggle="collapse" data-target="##{tshow orderRefId}-pl"> #{orderRefId}
-  <table.table.table-hover.collapse.in.datatable id="#{tshow orderRefId}-pl">
+  <table *{"collapse in" <>. datatable} id="#{tshow orderRefId}-pl">
     <thead>
       ^{renderHeaderRow}
     $forall group <- groups
@@ -578,7 +578,10 @@ renderDeliver defCart key details = do
 |]
 
 renderDetails :: PersistEntity a => t -> [Entity a] -> Html
-renderDetails _ entities = entitiesToTable getDBName entities
+renderDetails _ entities = [shamlet|
+  <table *{"table-bordered" <>. datatable} data-page-length=50>
+    #{entitiesToTableRows getDBName entities}
+|]
 
 renderTextcart :: t -> [Entity PackingListDetail] -> Markup
 renderTextcart _ entities =
@@ -692,7 +695,7 @@ renderChalk _ _ details = let
 $forall zone <- sliced
   <div.panel.panel-primary>
     <div.panel-heading> #{zoneName zone}
-    <table.table.table-striped.datatable>
+    <table *{datatable} data-searching=false data-paging=false data-ordering=false data-dom="" >
       <thead>
         <tr>
           <th> Style
@@ -1304,7 +1307,7 @@ renderHeaderRow = [whamlet|
 renderRows :: _ => (r -> a) -> [r] -> Widget
 renderRows classFor rows = do
   [whamlet|
-<table.table.table-bordered.table-hover.datatable>
+<table *{"table-bordered" <>. datatable}>
   <thead>
     ^{renderHeaderRow}
   $forall row <- rows
@@ -1562,7 +1565,7 @@ reportFor param@ReportParam{..} = do
   <div.panel-heading data-toggle=collapse data-target=#pl-report>
     <h2>Packing List
   <div.panel-body id=pl-report>
-    <table.table.table-bordered.table-hover.datatable>
+    <table *{"table-bordered" <>. datatable}>
       <thead>
         <tr>
             <th>
@@ -1644,7 +1647,7 @@ renderDetailInfo marginM infos = do
           |]
       totalTitle = "Total" :: Text
   [whamlet|
-<table.table.table-border.table-hover.table.striped.datatable>
+<table#packing-list-detail *{"table-bordered" <>. datatable}>
   <thead>
     <tr>
       <th> Style

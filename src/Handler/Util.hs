@@ -4,7 +4,7 @@
 -- | Miscellaneous functions to help rendering
 -- | and/or accessing the database
 module Handler.Util
-( entitiesToTable
+( entitiesToTable, entitiesToTableRows
 , getDBName
 , getHaskellName
 , renderPersistValue
@@ -29,6 +29,7 @@ module Handler.Util
 , infoPanel
 , dangerPanel
 , primaryPanel
+, datatable, datatableNoPage, (<>.)
 , splitSnake
 , basePriceList
 , timeProgress
@@ -153,6 +154,13 @@ entitiesToTable getColumn entities = do
   let eDef = entityDef (map entityVal entities)
   [shamlet|
 <table.table.table-bordered.table-striped.datatable-nopage.nowrap class="#{unHaskellName $ entityHaskell eDef}">
+   #{entitiesToTableRows getColumn entities}
+   |]
+
+entitiesToTableRows :: PersistEntity a => (FieldDef -> Text) -> [Entity a] -> Html
+entitiesToTableRows getColumn entities = do
+  let eDef = entityDef (map entityVal entities)
+  [shamlet|
   <thead>
     <tr>
       <th> Id
@@ -584,6 +592,16 @@ primaryPanel = panel "panel-primary"
 -- | split snake
 splitSnake ::  Text -> Text
 splitSnake t = pack $ intercalate " " $ Split.split  (Split.keepDelimsL $ Split.whenElt isUpper) (unpack t)
+-- ** Table attributes
+datatable, datatableNoPage :: [(Text, Text)]
+datatable = ("class", "table table-hover table-striped datatable"):[("style", "width:100%")]
+datatableNoPage = (map ("class",) $ words "table table-hover table-striped datatable-nopage") <> [ ("style","width:100%")]
+
+-- | Append a class to a list of attributes
+(<>.) :: Text ->  [(Text, Text)] ->  [(Text, Text)]
+klass <>.  attrs = mapToList $ insertWith go "class" klass m
+  where m = mapFromList attrs :: Map Text Text
+        go old new = old <> " " <> new
 -- * Cached Value accross session
 -- cacheEntities :: PersistEntity e => Text -> Bool -> Handler (Map (Key e) e )
 cacheEntities cacheKey force = cache0 force cacheForEver cacheKey $ do
