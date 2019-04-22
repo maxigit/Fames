@@ -281,7 +281,7 @@ renderBoxtakeDetail opMap (Entity _ boxtake@Boxtake{..}) stocktakes = do
                        (False, _ ) ->   "danger"
       day'locS = nub $ (boxtakeDate, boxtakeLocation) : boxtakeLocationHistory
       history = [whamlet|
-<table.table.table-bordered.table-striped.table-hover>
+<table *{"table-bordered" <>. datatable}>
     <tr>
       <th> Date
       <th> Location
@@ -330,7 +330,7 @@ renderBoxtakeDetail opMap (Entity _ boxtake@Boxtake{..}) stocktakes = do
 renderStocktakes :: (Map (Key Operator) Operator) -> [Entity Stocktake]  -> Widget
 renderStocktakes opMap stocktakes = do
   [whamlet|
-<table.table.table-bordered.table-striped.table.hover>
+<table *{"table-bordered" <>. datatable}>
   <tr>
      <th> Stock Id
      <th> Quantity
@@ -351,11 +351,12 @@ renderSummary param boxtakes =  do
                 Just l | l /= 0 -> rupture (pRuptureMode param) l boxtakes
                 _ -> []
   [whamlet|
-<table.table>
-  <tr>
-     <th>
-     <th> Number of Boxes
-     <th> Volume
+<table#boxtake-summary *{datatable}>
+  <thead>
+    <tr>
+      <th>
+      <th> Number of Boxes
+      <th> Volume
   $forall (key, group) <- groups
     $with (n1, v1) <- summary group
      <tr>

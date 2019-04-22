@@ -111,8 +111,8 @@ renderStockAdjustment :: Handler Html
 renderStockAdjustment = do
   (paramForm, encType) <- generateFormPost (paramForm View)
   pendings <- renderPending
-  lastAdjs <- renderLast 10
-  lastTakes <- renderTakes 10
+  lastAdjs <- renderLast 50
+  lastTakes <- renderTakes 50
   let response = [whamlet|
 <div.panel.panel-info>
   <div.panel-heading>
@@ -489,12 +489,13 @@ renderLast limit =  do
 renderAdjustments :: [Entity StockAdjustment] -> Handler Widget
 renderAdjustments adjustments = do
   return [whamlet|
-<table.table.table-hover>
-  <tr>
-    <th> Id
-    <th> Date
-    <th> Comment
-    <th> Statement
+<table *{datatable}>
+  <thead>
+    <tr>
+      <th> Id
+      <th> Date
+      <th> Comment
+      <th> Statement
   $forall (Entity k adj) <- adjustments
     <tr>
       <td> <a target=_blank href=@{WarehouseR (WHStockAdjustmentViewR (unSqlBackendKey $ unStockAdjustmentKey k) )}>
@@ -509,11 +510,12 @@ renderTakes limit = do
   rtakes <- runDB $ selectList [DocumentKeyType ==. "stocktake"] [LimitTo limit, Desc DocumentKeyId]
   let takes = reverse rtakes
   return [whamlet|
-<table.table.table-hover>
-  <tr>
-    <th> Id
-    <th> Date
-    <th> Comment
+<table *{datatable}>
+  <thead>
+    <tr>
+      <th> Id
+      <th> Date
+      <th> Comment
   $forall (Entity k doc) <- takes
     <tr>
       <td> ##{tshow $ unSqlBackendKey $ unDocumentKeyKey k}
