@@ -697,7 +697,7 @@ filterBestMatches olds news = let
 
 data SameKeys = SameKeys [BatchMatch]
 -- remove duplicate and removes guessed if needed
--- or keep the best guest
+-- or keep the best guess
 keepBests (SameKeys matches) =
   case partition (isNothing . batchMatchOperator) matches of
     (guesseds, []) -> take 1 (sortOn ((,) <$> batchMatchScore -- worst quality first

@@ -182,7 +182,7 @@ postItemBatchUploadMatchesR = do
   ((fileInfo,encoding, (day, operator, batchCategory)), (view, encType)) <- unsafeRunFormPost (uploadFileFormInline extra)
   Just (bytes, hash, path ) <- readUploadOrCacheUTF8 encoding (Just fileInfo) Nothing Nothing
   when (isNothing operator) $
-    setWarning [shamlet|No operator has been set. The matches will be considered as <b>GUEST</b>|]
+    setWarning [shamlet|No operator has been set. The matches will be considered as <b>GUESS</b>|]
 
   parsingResult <- parseMatchRows batchCategory bytes
   let onSuccess rows = do
