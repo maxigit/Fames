@@ -505,9 +505,9 @@ buildTableForSkuMerged mergeMode renderMatches sku'batches columnBatches (ForBui
             | (Entity batchId Batch{..}) <- columnBatches
             ]
   -- columns = 
-  columns = ("Style", \((style, _var), _batch) -> Just (Right $ toPersistValue style) ) :
-            ("Colour", \((_style, colour), _batch) -> Just (Right $ toPersistValue colour)) :
+  columns = -- ("Style", \((style, _var), _batch) -> Just (Right $ toPersistValue style) ) :
             ("Sku", \((style, colour), _batch) -> Just (Right $ toPersistValue $ styleVarToSku style colour)) :
+            ("Colour", \((_style, colour), _batch) -> Just (Right $ toPersistValue colour)) :
             columns0
 
   -- batchMap = groupAsMap entityKey  (\(Entity _ Batch{..}) -> fromMaybe batchName batchAlias ) (columnBatches)
