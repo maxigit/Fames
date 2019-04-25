@@ -526,6 +526,8 @@ colour'AsQualityToHtml renderQuality ((colour, score), guessed) = [shamlet|
       #{colour}
       <sup>
         <span.quality-content>#{renderQuality quality}
+   $# for searching purporse
+   <span.hidden>#{colour}#{qualityToShortAscii quality}
         |] where quality = scoreToQuality score
 
 colour'AsQualitysToHtml :: (MatchQuality -> Html) -> [((Text, MatchScore), Bool)] -> Html
@@ -540,6 +542,14 @@ qualityToShortHtml quality = case quality of
   Good -> "➕➕"
   Excellent -> "➕➕➕"
   Identical -> "➕➕➕"
+qualityToShortAscii :: MatchQuality -> Text
+qualityToShortAscii quality = case quality of
+  Bad -> "---"
+  Close -> ""
+  Fair -> "+"
+  Good -> "++"
+  Excellent -> "+++"
+  Identical -> "+++"
 
 matchesToHtml :: Map (Key Operator) Text -> [BatchMatch] -> Html
 matchesToHtml opMap matches = [shamlet|
