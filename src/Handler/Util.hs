@@ -29,7 +29,7 @@ module Handler.Util
 , infoPanel
 , dangerPanel
 , primaryPanel
-, datatable, datatableNoPage, (<>.)
+, datatable, forDatatable, datatableNoPage, (<>.)
 , splitSnake
 , basePriceList
 , timeProgress
@@ -593,7 +593,8 @@ primaryPanel = panel "panel-primary"
 splitSnake ::  Text -> Text
 splitSnake t = pack $ intercalate " " $ Split.split  (Split.keepDelimsL $ Split.whenElt isUpper) (unpack t)
 -- ** Table attributes
-datatable, datatableNoPage :: [(Text, Text)]
+datatable, forDatatable, datatableNoPage :: [(Text, Text)]
+forDatatable = ("class", "table table-hover table-striped"):[("style", "width:100%")]
 datatable = ("class", "table table-hover table-striped datatable"):[("style", "width:100%")]
 datatableNoPage = (map ("class",) $ words "table table-hover table-striped datatable-nopage") <> [ ("style","width:100%")]
 

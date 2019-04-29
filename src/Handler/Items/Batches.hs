@@ -450,9 +450,16 @@ batchSummaryColumns =
 
 batchTables :: _renderUrl -> [(Text, (Entity Batch, a) -> Either Html PersistValue)] -> [(Entity Batch, a)] -> Widget
 batchTables renderUrl extraColumns batch'counts = [whamlet|
-  <table *{datatable}>
+  <table#batch-table *{forDatatable}>
     ^{rowsAndHeader}
-  |] where
+  |] <>
+  toWidget [julius|
+                  $(document).ready(function () {
+                  $('table#batch-table').dataTable({columnDefs: [{"targets": [-3,-2,-1] , "orderDataType" : "dom-check"}]})
+                  
+                  });
+                  |]
+         where
   rowsAndHeader = displayTableRowsAndHeader columns colDisplays (map ((,[]) . entityColumnToColDisplay )  batch'counts) where
   columns =  ((. fst) <$$> [ entityKeyToColumn renderUrl (ItemsR . ItemBatchR) BatchId 
                            , entityFieldToColumn BatchName
