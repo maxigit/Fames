@@ -593,11 +593,16 @@ renderTextcart _ entities =
                                   , (var, qty) <- Map.toList $ (packingListDetailContent d)
                                   ]
       groups = mkSkus <$> byRef
+      skusToText sku'qtys = unlines $ map (\(sku, qty) -> sku <> "," <> tshow qty)  sku'qtys
   in  [shamlet|
+$newline text
 $forall (ref, skus) <- Map.toList groups
-  -- #{ref}
-  $forall (sku, qty) <- skus
-    <div> #{sku},#{qty}
+  <div.panel.panel-info>
+    <div.panel-heading>
+      <h2>#{ref}
+    <div.panel-body>
+      <textarea.form-control rows=#{min 20 (max 10 (length skus))} readonly>
+        #{skusToText skus}
 |]
 
 renderStickers :: Day -> PackingList -> [Entity PackingListDetail] -> Html
