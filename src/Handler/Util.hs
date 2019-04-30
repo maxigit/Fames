@@ -105,7 +105,7 @@ import Database.Persist.MySQL(unSqlBackendKey)
 import System.Directory(listDirectory, doesDirectoryExist)
 import Data.Char(isUpper)
 import qualified Data.List.Split as Split 
-
+import Data.Aeson(encode)
 -- * Display entities
 -- | Display Persist entities as paginated table
 -- the filter is mainly there as a proxy to indicate
@@ -183,7 +183,7 @@ getHaskellName = unHaskellName . fieldHaskell
 renderPersistValue :: PersistValue -> Text
 renderPersistValue (PersistList _) = "<>"
 renderPersistValue pvalue = case (fromPersistValueText pvalue) of
-  Left _ -> tshow $ toJSON pvalue
+  Left _ -> toStrict . decodeUtf8 $ encode $ toJSON pvalue
   Right text -> text
 
 
