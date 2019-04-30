@@ -585,13 +585,19 @@ renderDetails _ entities = [shamlet|
 
 renderTextcart :: t -> [Entity PackingListDetail] -> Markup
 renderTextcart _ entities =
-  let skus = Map.toList $ Map.fromListWith (+) [ (packingListDetailStyle d <> "-" <> var, qty)
-                                  | (Entity _ d) <- entities
+  -- we need to group by reference, which should correspond to different order.
+  -- this makes it easier to use the text cart to deliver a specific order.
+  let byRef = groupAsMap packingListDetailReference (:[]) (map entityVal entities)
+      mkSkus details = Map.toList $ Map.fromListWith (+) [ (packingListDetailStyle d <> "-" <> var, qty)
+                                  | d  <- details
                                   , (var, qty) <- Map.toList $ (packingListDetailContent d)
                                   ]
+      groups = mkSkus <$> byRef
   in  [shamlet|
-$forall (sku, qty) <- skus
-  <div> #{sku},#{qty}
+$forall (ref, skus) <- Map.toList groups
+  -- #{ref}
+  $forall (sku, qty) <- skus
+    <div> #{sku},#{qty}
 |]
 
 renderStickers :: Day -> PackingList -> [Entity PackingListDetail] -> Html
