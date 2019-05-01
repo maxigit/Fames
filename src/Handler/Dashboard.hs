@@ -327,7 +327,8 @@ salesCurrentMonth f plotName = do
   rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
   -- The display period is the current month. However, during the first days of a new month
   -- we display the previous month extended to today
-  let endMonth = max today (calculateDate (AddMonths 1) beginMonth)
+  let endMonth = max tomorrow (calculateDate (AddMonths 1) beginMonth)
+      tomorrow = calculateDate (AddDays 1) today
       beginMonth = calculateDate (BeginningOfMonth) . calculateDate (AddDays  (-3)) $ today
   let param = f ReportParam{rpColumnRupture=columnRupture,..}
       rpToday = today
