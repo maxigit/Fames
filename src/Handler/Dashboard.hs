@@ -325,8 +325,10 @@ top20FullUp param = param {rpDataParam2,rpDataParam3} where
 salesCurrentMonth f plotName = do
   today <- todayH
   rpDeduceTax <- appReportDeduceTax <$> getsYesod appSettings 
-  let endMonth = calculateDate (AddMonths 1) beginMonth
-      beginMonth = calculateDate (BeginningOfMonth) . calculateDate (BeginningOfWeek Monday) $ today
+  -- The display period is the current month. However, during the first days of a new month
+  -- we display the previous month extended to today
+  let endMonth = max today (calculateDate (AddMonths 1) beginMonth)
+      beginMonth = calculateDate (BeginningOfMonth) . calculateDate (AddDays  (-3)) $ today
   let param = f ReportParam{rpColumnRupture=columnRupture,..}
       rpToday = today
       rpFrom = Just beginMonth
