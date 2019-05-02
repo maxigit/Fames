@@ -1342,6 +1342,7 @@ createMissingProducts
 createMissingProducts cache group = do
   timestamp <- round <$> liftIO getPOSIXTime
   colorMap <- lift loadDCColorMap
+  catFinder <- lift categoryFinderCached
   -- find items with no product information in DC
   -- ie, ItemWebStatusF not present 
   -- let missingProduct group = isJust (_ group)
@@ -1351,17 +1352,11 @@ createMissingProducts cache group = do
               ]
   let skus = map (iiSku.fst) infos
       prices = map snd infos
-      colors = [ (fromMaybe (error "missing color") baseId, trimId)
-               | (info, _) <- infos
-               , let (base, trim ) = case variationToVars $ iiVariation info of
-                                              [b] -> (b, Nothing)
-                                              (b:trim:_) -> (b, Just trim)
-                                              _ -> error "should not happen"
-               , let baseId = Map.lookup base colorMap
-               , let trimId = flip Map.lookup colorMap =<< trim
-               ]
-      bases = map fst colors
-      trims = map snd colors
+      bases = map (\sku -> fromMaybe (error $ "Missing or invalid base color for " <> unpack sku) (findColour "base" sku)) skus 
+      trims = map (findColour "trim") skus 
+      findColour :: Text -> Text -> Maybe Int
+      findColour cat sku = (catFinder cat (FA.StockMasterKey sku) >>= flip Map.lookup colorMap )
+
   productEntities <- createAndInsertNewProducts timestamp skus
   prod'revKeys <- createAndInsertNewProductRevisions timestamp productEntities
   let prod'revMKeys = Just <$$> prod'revKeys
