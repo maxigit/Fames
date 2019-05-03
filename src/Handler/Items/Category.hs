@@ -73,9 +73,9 @@ categoryTesterForm param = renderBootstrap3 BootstrapBasicForm form
 getItemsCategoryTesterR :: Handler Html
 getItemsCategoryTesterR = do
   rulesMaps <- appCategoryRules <$> getsYesod appSettings
-  deliveryRule <- appDeliveryCategoryRule <$> getsYesod appSettings
+  deliveryRules <- appDeliveryCategoryRules <$> getsYesod appSettings
   let configuration = Textarea . decodeUtf8 $ encode rulesMaps
-      deliveryConf = Textarea . decodeUtf8 . encode <$> deliveryRule
+      deliveryConf = Just . Textarea . decodeUtf8 $ encode deliveryRules
       filter = ""
   renderCategoryTester (TesterParam filter configuration deliveryConf False) Nothing
 
@@ -121,12 +121,12 @@ allFields = [ "description"
             ]
 loadCategoriesWidget :: TesterParam -> Handler Widget
 loadCategoriesWidget (TesterParam stockFilter configuration deliveryConf showFields) = do 
-  let rulesE = decodeEither (encodeUtf8 $ unTextarea configuration) :: Either String [Map String (CategoryRule a)]
-      deliveryRuleE = sequence $ (decodeEither . encodeUtf8 . unTextarea) <$>  deliveryConf :: Either String (Maybe (CategoryRule a))
+  let rulesE = decodeEither (encodeUtf8 $ unTextarea configuration) :: Either String [Map String ItemCategoryRule]
+      deliveryRuleE = maybe (Right []) (decodeEither . encodeUtf8 . unTextarea) deliveryConf :: Either String [Map Text DeliveryCategoryRule]
   case (rulesE, deliveryRuleE) of
     (Left err, _) -> setError "Error in configuration" >> return [whamlet|<div.well>#{err}|]
     (_, Left err) -> setError "Error in delivery configuration" >> return [whamlet|<div.well>#{err}|]
-    (Right ruleMaps, Right deliveryRule) -> do
+    (Right ruleMaps, Right deliveryRules) -> do
       let rules = map (first unpack) (concatMap mapToList ruleMaps)
           all = if showFields then  allFields else []
           categories = Nothing : map Just all <>   map (Just . fst) rules 
@@ -141,5 +141,6 @@ loadCategoriesWidget (TesterParam stockFilter configuration deliveryConf showFie
       stockMasters <- loadStockMasterRuleInfos stockFilter
       sku'categories <- forM (take 100 stockMasters) $ \sm -> do
             deliveries <- runDB $ loadItemDeliveryForSku (smStockId sm)
-            return $ applyCategoryRules [] deliveryRule rules (sm { smDeliveries = deliveries })
+            return $ applyCategoryRules [] deliveryRules rules (sm { smDeliveries = deliveries })
       return $ displayTable categories headerFn (map makeRow sku'categories)
+

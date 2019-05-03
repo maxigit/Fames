@@ -111,7 +111,7 @@ refreshCategoryFor textm stockFilterM = do
     Just sf -> return sf
     Nothing -> LikeFilter <$> appFAStockLikeFilter . appSettings <$> getYesod
   rulesMaps <- appCategoryRules <$> getsYesod appSettings
-  deliveryRule <- appDeliveryCategoryRule <$> getsYesod appSettings
+  deliveryRules <- appDeliveryCategoryRules <$> getsYesod appSettings
   stockMasters <- loadStockMasterRuleInfos stockFilter 
   let rules = map (first unpack) $ concatMap mapToList rulesMaps
 
@@ -127,20 +127,20 @@ refreshCategoryFor textm stockFilterM = do
       -- if we are only computing one category
       -- load the other from the db instead of computing them
       categories <- case textm of
-            Nothing -> return $ categoriesFor deliveryRule rules stockMaster
+            Nothing -> return $ categoriesFor deliveryRules rules stockMaster
             Just cat ->  do
               let  rulem = lookup (unpack cat) rules
               case rulem of
                 Nothing -> return []
-                Just rule -> computeOneCategory cat deliveryRule rule  stockMaster
+                Just rule -> computeOneCategory cat deliveryRules rule  stockMaster
       mapM_ insert_ categories
 
 
   
 -- | Compute the given category using existing value for other categories
-computeOneCategory :: Text -> (Maybe DeliveryCategoryRule) -> ItemCategoryRule -> StockMasterRuleInfo -> SqlHandler [ItemCategory]
-computeOneCategory cat deliveryRule rule ruleInfo@StockMasterRuleInfo{..} = do
-  deliveryRule <- appDeliveryCategoryRule <$> getsYesod appSettings
+computeOneCategory :: Text -> [Map Text DeliveryCategoryRule] -> ItemCategoryRule -> StockMasterRuleInfo -> SqlHandler [ItemCategory]
+computeOneCategory cat deliveryRules rule ruleInfo@StockMasterRuleInfo{..} = do
+  deliveryRules <- appDeliveryCategoryRules <$> getsYesod appSettings
   catFinder <- lift categoryFinderCached
   categories <- lift categoriesH
   let otherCategories = filter (/= cat) categories
@@ -148,7 +148,7 @@ computeOneCategory cat deliveryRule rule ruleInfo@StockMasterRuleInfo{..} = do
                              | c <- otherCategories
                              , value <-  maybeToList (catFinder c smStockId)
                              ]
-      cat'values = applyCategoryRules rulesMap deliveryRule [(unpack cat, rule)] ruleInfo
+      cat'values = applyCategoryRules rulesMap deliveryRules [(unpack cat, rule)] ruleInfo
       cats = unpack cat
   return [ ItemCategory (FA.unStockMasterKey $ smStockId) (pack key) (pack value)
         | (key, value) <- mapToList  (snd cat'values)
@@ -212,11 +212,11 @@ loadStockMasterRuleInfos stockFilter = do
 --      -> StockMasterRuleInfo
 --      -> (Key StockMaster, Map String String)
 applyCategoryRules :: [(String, String)]
-                   -> Maybe DeliveryCategoryRule -- ^ Delivery rules
+                   -> [Map Text DeliveryCategoryRule] -- ^ Delivery rules
                    -> [(String, ItemCategoryRule)] -- ^ Categories rules
                    -> StockMasterRuleInfo
                    -> (Key StockMaster, Map String String)
-applyCategoryRules extraInputs deliveryRule rules =
+applyCategoryRules extraInputs deliveryRules rules =
   let inputKeys = ["sku"
               ,"description"
               ,"longDescription"
@@ -231,7 +231,7 @@ applyCategoryRules extraInputs deliveryRule rules =
               ,"inventoryAccount"
               ,"adjustmentAccount"
               ] <> deliveryKeys -- inputMap key, outside of the lambda so it can be optimised and calculated only once
-      (deliveryKeys, mkDeliveryCategories) = mkItemDeliveryInput deliveryRule
+      (deliveryKeys, mkDeliveryCategories) = mkItemDeliveryInput deliveryRules
       catRegexCache =  mapFromList (map (liftA2 (,) id mkCategoryRegex) (inputKeys  <> map fst extraInputs <>  map fst rules))
   in \StockMasterRuleInfo{..}
      -> let
@@ -257,9 +257,9 @@ applyCategoryRules extraInputs deliveryRule rules =
         in (smStockId, computeCategories catRegexCache rules ruleInput (unpack sku))
 
 
-categoriesFor :: Maybe DeliveryCategoryRule -> [(String, ItemCategoryRule)] -> StockMasterRuleInfo   -> [ItemCategory]
-categoriesFor deliveryRule rules = let
-  applyCached =  applyCategoryRules [] deliveryRule rules
+categoriesFor :: [Map Text DeliveryCategoryRule] -> [(String, ItemCategoryRule)] -> StockMasterRuleInfo   -> [ItemCategory]
+categoriesFor deliveryRules rules = let
+  applyCached =  applyCategoryRules [] deliveryRules rules
   in \info -> let
       (sku, categories ) = applyCached info
 
@@ -356,15 +356,16 @@ partitionDeliveriesFIFO (These moves' qoh) = let
 
 -- | Creates an input map (category:value) to be given as preset category
 -- needed to compute item batch category
-mkItemDeliveryInput :: Maybe (CategoryRule a) -> ([String], [FA.StockMove] -> [(String, String)])
+mkItemDeliveryInput :: [Map Text DeliveryCategoryRule] -> ([String], [FA.StockMove] -> [(String, String)])
 mkItemDeliveryInput ruleM = (inputKeys, fn) where
   inputKeys = ["trans_no", "location", "date", "reference", "type", "person", "stockId"]
-  catRegexCache =  mapFromList (map (liftA2 (,) id mkCategoryRegex) inputKeys)
   fn moves = let
-      value'qohs = case ruleM of
+      value'qohs = case extractMainDeliveryRule ruleM of
         Nothing -> map (liftA2 (,) source stockMoveQty) moves
-        Just rule -> mapMaybe (\move -> computeCategory catRegexCache (source move) (ruleInput move) rule
-                                        <&> (,stockMoveQty move)
+        Just (ruleName, rules) -> let
+          catRegexCache =  mapFromList (map (liftA2 (,) id mkCategoryRegex) (inputKeys <> map fst rules))
+          in mapMaybe (\move -> lookup ruleName $ computeCategories catRegexCache rules (ruleInput move) (source move)
+                                <&> (,stockMoveQty move)
                               )  moves
       ruleInput FA.StockMove{..} = RuleInput (Map.fromList
         [ ("trans_no", show stockMoveTransNo)
@@ -395,6 +396,15 @@ mkItemDeliveryInput ruleM = (inputKeys, fn) where
          mkCategory "fifo-deliveries-by-qoh" (map fst $ sortOn (Down . snd) $ LMap.toList valueQohMap) :
          []
 
+-- | Flatten delivery rules and find the name of the last one, which is the one we need as an output.
+-- For obvious reasons, all not used by the output needs to be computed before the output category itself.
+-- therefore the output has to be the last one
+extractMainDeliveryRule :: [Map Text DeliveryCategoryRule] -> Maybe (String, [(String, DeliveryCategoryRule)])
+extractMainDeliveryRule maps = do -- Maybe
+  let name'rules = first unpack <$> concatMap mapToList maps
+  (ruleName, _ ) <- lastMay name'rules
+  Just (ruleName, name'rules) 
+  
 
 
    
@@ -473,12 +483,9 @@ loadDebtorsMasterRuleInfos = do
 
 
 -- We use string to be compatible with regex substitution
--- applyCategoryRules :: [(String, CustomerCategoryRule)]
---                    -> DebtorsMasterRuleInfo -> Map String String
--- applyCategoryRules
---   :: [(String, CustomerCategoryRule)]
---      -> DebtorsMasterRuleInfo
---      -> (Key DebtorsMaster, Map String String)
+applyCustomerCategoryRules :: [(String, CustomerCategoryRule)]
+                   -> DebtorsMasterRuleInfo
+                   -> (Key DebtorsMaster, Map String String)
 applyCustomerCategoryRules rules =
   let inputKeys = ["debtor_id"
               ,"name"
