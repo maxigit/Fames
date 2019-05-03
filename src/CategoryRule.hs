@@ -20,6 +20,7 @@ data CategoryRule a
   | CategoryDisjunction [(CategoryRule a)] -- match first categories
   | SalesPriceRanger PriceRanger
   | SourceTransformer String (CategoryRule a)
+  | CategoryCondition (CategoryRule a) (CategoryRule a) -- uses second category  only if the first one matches
   -- | FACategory RegexSub
   deriving Show
 
@@ -81,11 +82,21 @@ parseJSON' key0 v = let
         Just "sales_price"  -> SalesPriceRanger <$> (PriceRanger <$> (o .:? "from") <*> (o .:? "to") <*> pure (unpack key))
         -- Just other -> typeMismatch ("source " ++ other ++ " invalid" ) (Object o)
         -- Just s -> SourceTransformer s . SkuTransformer <$> (RegexSub <$> (unpackT <$> o .: "match")  <*> pure (unpack key))
+        --
         Just s -> SourceTransformer s <$> parseRegex  
         Nothing -> parseObject o
                                              
+    -- check if contains if and then
+    parseCondition key o = do
+      condition <- o .: "if"
+      rule <- o .: "then"
+      return $ CategoryCondition condition rule
+      
+
+      
     in withText "sub string" parseSkuString v
        <|> withArray "rule list" (parseDisjunction key0) v
+       <|> withObject "rule object - condition" (parseCondition key0) v
        <|> withObject "rule object" (parseMatcher key0) v
 
 unpackT :: Text -> String
@@ -96,6 +107,7 @@ instance ToJSON (CategoryRule a) where
   toJSON (SalesPriceRanger (PriceRanger fromM toM target)) = object [pack target .= paramJ] where
     paramJ = object ["source" .= ("sales_price" :: Text), "from" .= fromM, "to" .= toM]
   toJSON (SourceTransformer source rule) = object ["source" .= source, "rules" .= rule ]
+  toJSON (CategoryCondition condition rule) = object ["if" .= condition, "then" .= rule]
   
 
 
@@ -121,6 +133,10 @@ computeCategory catRegexCache source input rule = case rule of
       SalesPriceRanger ranger ->  salesPrice input >>= flip checkPriceRange ranger
       SourceTransformer source subrule -> computeCategory catRegexCache (expandSource catRegexCache (categoryMap input) source) input subrule
       CategoryDisjunction rules -> asum $ map (computeCategory catRegexCache source input) rules
+      CategoryCondition condition rule ->  case computeCategory catRegexCache source input condition of
+                                                Nothing -> Nothing
+                                                Just _ -> computeCategory catRegexCache source input rule
+        
 
 subRegex :: RegexSub -> String -> Maybe String
 subRegex (RegexSub regex _ replace) s = let

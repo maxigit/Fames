@@ -45,7 +45,7 @@ applyJSONRules stock json =
       in traceShow ("RULES", rulesMap) $ Map.toList resultMap
     Left err -> error (show err)
 
-spec = describe "@Category StockMaster to category" $ do
+spec = describe "@Category @current StockMaster to category" $ do
   describe "#fromJSON" $ it "" pending
   describe "#toJSON" $ it "" pending
   describe "expand source" $ do
@@ -96,3 +96,42 @@ spec = describe "@Category StockMaster to category" $ do
                        |]
 
        applyJSONRules stock rules `shouldBe` sort [("style", "T-Shirt"), ("colour", "Blue"), ("colour-style", "(Blue) {T-Shirt}")]
+    it "uses then of successful condition " $ do
+       let rules = [sbt|- isBlue:
+                       |  - if: Blue
+                       |    then: /Yes
+                       |]
+       applyJSONRules stock rules `shouldBe` sort [("isBlue", "Yes")]
+    it "uses then of successful conditions " $ do
+       let rules = [sbt|- isBlue:
+                       |  - if:
+                       |    - titi: blue
+                       |    - Blue
+                       |    then: .*/Yes
+                       |]
+       applyJSONRules stock rules `shouldBe` sort [("isBlue", "Yes")]
+    it "uses thens of successful condition " $ do
+       let rules = [sbt|- isBlue:
+                       |  - if: Blue
+                       |    then:
+                       |    - not correct /NO
+                       |    - /Yes
+                       |]
+       applyJSONRules stock rules `shouldBe` sort [("isBlue", "Yes")]
+    it "skip unsuccesful condition " $ do
+       let rules = [sbt|- isRed:
+                       |  - if: Red 
+                       |    then: /Yes
+                       |  - /No
+                       |]
+       applyJSONRules stock rules `shouldBe` sort [("isRed", "No")]
+    it "uses source in condition " $ do
+       let rules = [sbt|- isRed:
+                       |  - if:
+                       |    - source: Red
+                       |      match: Red
+                       |    then: /Yes
+                       |  - /No
+                       |]
+       applyJSONRules stock rules `shouldBe` sort [("isRed", "Yes")]
+
