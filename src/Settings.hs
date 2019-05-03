@@ -86,11 +86,11 @@ data AppSettings = AppSettings
     , appFADefaultLocation :: Text
     , appFAStockLikeFilter :: Text
     -- ^ SQL LIKE expression to filter what's is considered stock
-    , appCategoryRules :: [Map Text CategoryRule]  
+    , appCategoryRules :: [Map Text (ItemCategoryRule)]  
     , appReverseCategoryKey :: Bool -- reverse stock it in Category Map. Might speed up lookup if items have a common prefix
-    , appCustomerCategoryRules :: [Map Text CategoryRule]  
-    , appOrderCategoryRules :: [Map Text CategoryRule]  
-    , appDeliveryCategoryRule :: Maybe CategoryRule  
+    , appCustomerCategoryRules :: [Map Text (CustomerCategoryRule)]  
+    , appOrderCategoryRules :: [Map Text (OrderCategoryRule)]  
+    , appDeliveryCategoryRule :: Maybe (DeliveryCategoryRule)  
     , appBarcodeParams :: [BarcodeParams]
     , appFAURL :: String -- ^ URL to connect to FrontAccounting to post transactions
     , appFAUser :: String -- ^ User to connect to FrontAcounting

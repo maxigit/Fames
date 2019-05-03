@@ -138,7 +138,7 @@ refreshCategoryFor textm stockFilterM = do
 
   
 -- | Compute the given category using existing value for other categories
-computeOneCategory :: Text -> (Maybe CategoryRule) -> CategoryRule -> StockMasterRuleInfo -> SqlHandler [ItemCategory]
+computeOneCategory :: Text -> (Maybe DeliveryCategoryRule) -> ItemCategoryRule -> StockMasterRuleInfo -> SqlHandler [ItemCategory]
 computeOneCategory cat deliveryRule rule ruleInfo@StockMasterRuleInfo{..} = do
   deliveryRule <- appDeliveryCategoryRule <$> getsYesod appSettings
   catFinder <- lift categoryFinderCached
@@ -205,15 +205,15 @@ loadStockMasterRuleInfos stockFilter = do
 
 
 -- We use string to be compatible with regex substitution
--- applyCategoryRules :: [(String, CategoryRule)]
+-- applyCategoryRules :: [(String, (CategoryRule a))]
 --                    -> StockMasterRuleInfo -> Map String String
 -- applyCategoryRules
---   :: [(String, CategoryRule)]
+--   :: [(String, (CategoryRule a))]
 --      -> StockMasterRuleInfo
 --      -> (Key StockMaster, Map String String)
 applyCategoryRules :: [(String, String)]
-                   -> Maybe CategoryRule -- ^ Delivery rules
-                   -> [(String, CategoryRule)] -- ^ Categories rules
+                   -> Maybe DeliveryCategoryRule -- ^ Delivery rules
+                   -> [(String, ItemCategoryRule)] -- ^ Categories rules
                    -> StockMasterRuleInfo
                    -> (Key StockMaster, Map String String)
 applyCategoryRules extraInputs deliveryRule rules =
@@ -257,7 +257,7 @@ applyCategoryRules extraInputs deliveryRule rules =
         in (smStockId, computeCategories catRegexCache rules ruleInput (unpack sku))
 
 
-categoriesFor :: Maybe CategoryRule -> [(String, CategoryRule)] -> StockMasterRuleInfo   -> [ItemCategory]
+categoriesFor :: Maybe DeliveryCategoryRule -> [(String, ItemCategoryRule)] -> StockMasterRuleInfo   -> [ItemCategory]
 categoriesFor deliveryRule rules = let
   applyCached =  applyCategoryRules [] deliveryRule rules
   in \info -> let
@@ -356,7 +356,7 @@ partitionDeliveriesFIFO (These moves' qoh) = let
 
 -- | Creates an input map (category:value) to be given as preset category
 -- needed to compute item batch category
-mkItemDeliveryInput :: Maybe CategoryRule -> ([String], [FA.StockMove] -> [(String, String)])
+mkItemDeliveryInput :: Maybe (CategoryRule a) -> ([String], [FA.StockMove] -> [(String, String)])
 mkItemDeliveryInput ruleM = (inputKeys, fn) where
   inputKeys = ["trans_no", "location", "date", "reference", "type", "person", "stockId"]
   catRegexCache =  mapFromList (map (liftA2 (,) id mkCategoryRegex) inputKeys)
@@ -516,7 +516,7 @@ applyCustomerCategoryRules rules =
         in (debtorId, computeCategories catRegexCache rules ruleInput (unpack name))
 
 
-customerCategoriesFor :: [(String, CategoryRule)] -> DebtorsMasterRuleInfo   -> [CustomerCategory]
+customerCategoriesFor :: [(String, CustomerCategoryRule)] -> DebtorsMasterRuleInfo   -> [CustomerCategory]
 customerCategoriesFor rules = let
   applyCached =  applyCustomerCategoryRules rules
   in \info -> let
@@ -547,7 +547,7 @@ refreshNewOrderCategoryCache nM = runDB $ do
       rules = map (first unpack) $ concatMap mapToList rulesMap
   insertMany_ orderCategories
   
-orderCategoriesFor :: [(String, CategoryRule)] -> Entity FA.SalesOrder -> [OrderCategory]
+orderCategoriesFor :: [(String, (OrderCategoryRule))] -> Entity FA.SalesOrder -> [OrderCategory]
 orderCategoriesFor rules = let
   -- trick to for applyCached to be computed only once, so that the regular expressions
   -- are only computed once

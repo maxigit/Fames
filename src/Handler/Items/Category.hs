@@ -121,8 +121,8 @@ allFields = [ "description"
             ]
 loadCategoriesWidget :: TesterParam -> Handler Widget
 loadCategoriesWidget (TesterParam stockFilter configuration deliveryConf showFields) = do 
-  let rulesE = decodeEither (encodeUtf8 $ unTextarea configuration) :: Either String [Map String CategoryRule]
-      deliveryRuleE = sequence $ (decodeEither . encodeUtf8 . unTextarea) <$>  deliveryConf :: Either String (Maybe CategoryRule)
+  let rulesE = decodeEither (encodeUtf8 $ unTextarea configuration) :: Either String [Map String (CategoryRule a)]
+      deliveryRuleE = sequence $ (decodeEither . encodeUtf8 . unTextarea) <$>  deliveryConf :: Either String (Maybe (CategoryRule a))
   case (rulesE, deliveryRuleE) of
     (Left err, _) -> setError "Error in configuration" >> return [whamlet|<div.well>#{err}|]
     (_, Left err) -> setError "Error in delivery configuration" >> return [whamlet|<div.well>#{err}|]
