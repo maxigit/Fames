@@ -1,414 +1,4 @@
-* DONE Sales Order report :  [5/5]
-  CLOSED: [2019-02-22 Fri 09:28]
-  - [X] Bug: not displaying summary (total) column as above
-  - [X] Bug: stock_id used to filter sku not working (for sales_orders)
-  - [X] Bug: category join not working
-  - [X] use quantity left instead of total quantity (from order details)
-Useful if we need to preview stock in the future (use in conjunction with delivery date)
-  - [X]  add bool to put forecast in sales or purchases
-Forecast are purchases, if we want to see if the forecast is enough to cope with the sales (we forecast what to buy)
-Forecast is a sales if we want to check if the stock is enough (we forecast what we will sales)
-* DONE Sales Order report :  [4/4]
-  CLOSED: [2019-02-21 Thu 15:19]
-  - [X] Sort QSales, how do we it ?
-    - [X] Have a special entry SalesOrder
-    - [X] and map it either to Sales or Purchase depending on parameters
-    - [X] Display in summary
-  - [X] sort speed problem
-    +- [ ]  use normal regex+
-    +- [ ]  don't load map+
-    - [X]  break loading of map
-  - [X]  add order category to order
-  - [X] param to load order or not
-    +- [ ] at that point, decide what we do we them+
-    Example, inward, outward, or sales, forecast , purchase ? etc 
-    +- [ ] update forecast param to be similar to orders+
-* TODO Planner [3/10]
-  - [X] Display style with different box sizes
-    - [X] filter with report param
-  - [ ] Display style boxes
-  - [ ] use tag to overwrite box dimension
-    - [ ] make sure virtual tags are updated
-  - [ ] clear colours ? nocolour ? -colour*
-  - [ ] filter shelfves with report param >
-  - [ ] filter moves report with report param
-  - [ ] generate move per single box
-  - [ ] add lxwxh syntax to orientation (limit stack up )
-    - [ ] allow diffenrt lxwxh for individual orientation
-  - [X] remove save buttons and co
-  - [X] make nav title nicer
-** [ ] Replace tags with regexp
-   - [X]  use regexp
-   - [X] update doc
-   - +[ ] add virtual field+
-     - +[ ] with format string+
-* TODO Chart
-** Today [12/24] 
-   - [ ] Big Rank Refactoring
-     - [ ]  bug when sorting period
-     When period are sorted, 2016 can be rank 1 of for different product
-     this result in either 
-       - a product being displayed on the wrong year (but with the same rank) if we only use rank in Eq, Show
-       - period been displayed more than onc  e
-     - [ ]  add a period weight ?
-     - [ ] Remove rank from NMap
-       - [ ] Add weight instead (but in the value not in the key)
-       - [ ]  sort when displaying ? (start from child) then sort afterward ?
-       - [ ] use DataTable
-   -[X] bugs (from Ellie)
-    - [X] avg price wrong for summary
-    - [X] period not working
-    - [X]  date range not working when empty
-    - [X] justify summary table right
-    - [X] 150 -> ,150
-    - [X] display - in red
-      - [X] done
-      - [X] change so that in can be in green if good (but unexpected)
-    - [-] Add margin to summary
-      - [X]  change heading
-    - [x] ADd best Init and best Tail
-    - [X] take adjustmen into account in left over and return calculation
-    - [X]  rename table to summary
-      - [X]  readd sliding year in options or is period enough ?
-    - [X] Adjustment wrond way ?
-    - [X]  Add formating function (% or normal, or forbidden)
-      - [X] percentage column, total, row
-        - [X] total above ?
-        - [X] column
-        - [X] use different scale for %
-        - [X] Add rank
-    - [ ] display serie as column in table
-    - [ ] use full rupture for column
-so we can juxtapose 100% and real number
-   - [X] pivot table
-     display table as chart (same field) with formatin
-   - [ ] Use it in chart and pitov
-   - [ ] add formating inparam (per column)
-   - [X] annonymize amount/qty
-   - [ ] Permissions
-     - [ ] adjust report param
-       - [ ] annonymize amount/qty
-       - [ ] limit date
-   - [ ] Change date parameter to accept automatic date
-   - [ ] filter customers
-   - [ ] Dashboards
-   - [ ] remove styleToVar in Handler.Item.Common
-** previous [11/13] 
-   - [X] Stock category
-     - [X]  add prices and categories
-     - [X]  conjunction
-     - [X] to JSON
-     - [X] Display categories
-       - [X]  in pages
-       - [X]  As modal window ?
-   - [X] Finish margin
-     - [X] add max, total and average  option to residual
-     - [X]  fixes bug, showing an extra "level" when residual
-   - [X] memoize TranQP virtual fieed
-   - [X] add QPType as virtual field
-   - [ ] date `mod` year
-   - [X]  Remove semigroup constraints on NMap
-     - [X] load customer/supplier
-   - [X] Make generic map level Map (Dynamic) (Either Map Value)
-     - [X]  use serie
-     - [X] with probably custom Dynamic type as key
-     - [X]  readd sorted and limit
-     - [X] get date working as date not text
-     - [X] move sliding year function to date calculator
-   - [X] Update Form
-     This is important to speed up testing
-     - [X] One line for rupture
-     - [X] sensible Default
-   - [X] Replace supplier /customer with supplierCustmenr Either Int Int
-   - [ ] display margin in EVERY band as average (and or max)  (and possibly adjust all band the
-   - [X] style graph (line and marker) per field quantity, min-price etc ...
-   - [X] setup two axes on for quantity and the other for amount (margin ?) (runsum q and runsum amount)
-   - [X]instead of having 2nd field-value : tick-them all and use the correct axis
-   - [X] use same colour for 
-** tasks [4/9]
-  - [X] Regroup Customer/Supplier in one
-  - [X] Create table for categories and use it
-  - [ ] display quantity and amount in graph tooltip
-  - [ ] add global button (tab) to use bar, scatter etc ...
-  - [X] add rank
-  - [X] add running sum
-  - [ ] perf 
-    - are some Map strict (categorie ?) instead of being lazy
-  - [ ] display margin (total)
-    - add it as on of the value so it appears in a separate serie or band etc ...
-  - [ ] Add option to use TraceParam as panel/band instead of serie
-  - [X] csv pivot (use column rupture)
-* TODO Delete from item index
-** TODO Website 
-  - [ ] createAndInsertProductPrices prices prod'revMKeys
-    - [ ] (go DC.FieldDataCommercePriceT)  p'rKeys
-    - [ ] (go' DC.FieldRevisionCommercePriceT)  p'rKeys
-  - [ ] createAndInsertProductColours bases prod'revMKeys
-    - [ ] (go DC.FieldDataFieldColourT) p'rKeys
-    - [ ] (go' DC.FieldRevisionFieldColourT) p'rKeys
-  - [ ] createAndInsertProductTrimColours (trims) prod'revMKeys
-    - [ ] (go DC.FieldDataFieldTrimColourT) p'rKeys
-    - [ ] (go' DC.FieldRevisionFieldTrimColourT) p'rKeys
-  - [ ] createAndInsertProductStockStatus prod'revMKeys
-    - [ ] (newProductStockStatus (Just 70) DC.FieldDataFieldStockStatusT) p'rKeys
-    - [ ] (newProductStockStatus (Just 70) DC.FieldRevisionFieldStockStatusT) p'rKeys
-   - [ ] createAndInsertDCLinks displayId displayRev sku'p'rs
-    - [ ] (go DC.FieldDataFieldProductT) p'rS
-    - [ ] (go' DC.FieldRevisionFieldProductT) p'rS
-  - [ ] createAndInsertDCPrices priceMaps sku'p'rs = do
-        - [ ]  createAndInsertDCPriceFor 1 DC.FieldDataFieldPricePl01T (DC.FieldRevisionFieldPricePl01T)
-        - [ ] reateAndInsertDCPriceFor 2 DC.FieldDataFieldPricePl02T DC.FieldRevisionFieldPricePl02T
-        - [ ] reateAndInsertDCPriceFor 3 DC.FieldDataFieldPricePl03T DC.FieldRevisionFieldPricePl03T
-        - [ ] reateAndInsertDCPriceFor 4 DC.FieldDataFieldPricePl04T DC.FieldRevisionFieldPricePl04T
-        - [ ] reateAndInsertDCPriceFor 5 DC.FieldDataFieldPricePl05T DC.FieldRevisionFieldPricePl05T
-        - [ ] reateAndInsertDCPriceFor 6 DC.FieldDataFieldPricePl06T DC.FieldRevisionFieldPricePl06T
-        - [ ] reateAndInsertDCPriceFor 7 DC.FieldDataFieldPricePl07T DC.FieldRevisionFieldPricePl07T
-        - [ ] reateAndInsertDCPriceFor 8 DC.FieldDataFieldPricePl08T DC.FieldRevisionFieldPricePl08T
-        - [ ] reateAndInsertDCPriceFor 9 DC.FieldDataFieldPricePl09T DC.FieldRevisionFieldPricePl09T
-        - [ ] reateAndInsertDCPriceFor 10 DC.FieldDataFieldPricePl10T DC.FieldRevisionFieldPricePl10T
-        - [ ] reateAndInsertDCPriceFor 11 DC.FieldDataFieldPricePl11T DC.FieldRevisionFieldPricePl11T
-        - [ ] reateAndInsertDCPriceFor 12 DC.FieldDataFieldPricePl12T DC.FieldRevisionFieldPricePl12T
-        - [ ] reateAndInsertDCPriceFor 13 DC.FieldDataFieldPricePl13T DC.FieldRevisionFieldPricePl13T
-        - [ ] reateAndInsertDCPriceFor 14 DC.FieldDataFieldPricePl14T DC.FieldRevisionFieldPricePl14T
-** TODO - [ ] Prices
-** TODO PO PRices
-** TODO All
-* Web status missing
-Web items need 
-- product variation
-- prices
-- link
-When creating missing, we need of course
-to create all, but prices only can be missing,
-or link only 
-** Added manually to make it work
-- set revision_id in field_data_field_product
-Revision is for the product display 
-#+BEGIN_SRC sql
- update field_data_field_product set revision_id = 208 where field_product_product_id = 211943
-
-#+END_SRC
-#+BEGIN_SRC  sql
-  insert into field_revision_field_product
-  value ('node', 'product_display', 0, 207, 208, 'und', 24, 211943)
-
-#+END_SRC
-
-#+BEGIN_SRC sql
- insert into commerce_product_revision 
- (product_id, sku, title, revision_uid, status)
- VALUE (211943,'ML16-CF9-CAO', 'ML16-CF9 (Cameo)', 1, 1)
-
-#+END_SRC
-
-
-** Updating dC manualy
-*** insert
-- commerce_product with revision
-- commerce_product_revision
-- field_data_commerce_price
-- field_data_field_colour : ID of the colour
-- field_data_field_product
-- field_data_field_stock_status
-- field_revision_commerce_price
-- field_revision_field_colour
-- field_revision_field_product
-- field_revision_field_stock_status
-*** updated
-- node
-- node_counter
-- xmlsitemap
-* DONE Web status  price
-  CLOSED: [2017-08-14 Mon 18:54]
-- [X] pass salesTypes as argument and use it to count column
-- [X] don't fail if price table doesn't existing
-- [X] implement diff and create webprice from FA Prices list
-and set it to base
-- [X] filter inactive price list?
-* TODO to finish Items creation update
-** TODO fix bug check button not working
- When refreshing a page "Search" checkbox and style are not in synck
- The easiest would probably be to reset the checkboxes
- It makes sense, since if we change the filter, the already checked box are not
- relevant anymore.
-** TODO display price column name
-** TODO display purchase information
-as supplier description
-** TODO fill 0_items table on item creation
-** TODO add update button
-Update existing item to match base.
-**Important** don't forget to not update cost prices !!!
-Only on visible panel
-** TODO select column to update
-** TODO add disable/enable button
-*** TODO Needs running status
-** TODO add delete button
-** TODO Web status
-Only work if nothing has been entered
-*** TODO create
-*** TODO update
-*** TODO enable/disable
-* Todo History [4/9] <2017-06-24 Sat> 
-- [ ] bug bd1-sir ...
-- [X] Group Adjustment details
-in case of new + found
-- [ ] don't update stocktake on stock adjusment
-Done. but hardcoded
-The problem is to differentiate genuine loc transfer
-from delivery. Need from location
-- [ ] move stock adjustment at the end of the day ?
-but not delivery
-- [X] try clever algo to reorder moves within a day
-- [X] Add customer name
-- [X] Add supplier name
-- [ ] Add loc from 
-- [ ] add operator
-  - [ ] stocktake
-  - [ ] pick 
-  - [ ] pack
-- [ ] display in blue when adjustment matches stocktake
-* TODO StockAdjustment to FA<2017-06-07 Wed>
-- [X] update adjustment as processed
-- [X] record the link between FA transactions and Fames ones
-- [ ] moves hardcoded value to config file
-- [X ] check adjusted quantity is used instead of original one
-Works but behavior is weird if we got a delivery between stocktake and adjustment ...
-
-* TODO StockAdjustment to FA <2017-06-03 Sat> 
-- [-] use CURL lib to generate
-  - [X] generate StockAdjustment FA Object - which mapp to 
-  - [ ] generate StockRename
-  - [X] generate Item Transfert Object - no persistence
-- [X] Stock adjustmen
-- [X] item transfer
-- [ ] Add Reject/process button
-Items which are not processed (and don't need to) need to
-be marked somehow so we don't try to process them again.
-- [ ] Record FA transaction reference, in either StockAdjustment or details
-- [-] Adjust quantity to not generate negative stock
-  - [X] display it along old original quantity (textcart comment ?)
-  - [-] find way to calculate actual quantities to adjustment
-    - [X] just floor quantity to 0
-* TODO TODO<2017-05-20 Sat> 
-** DONE StockAdjustment
-   CLOSED: [2017-06-03 Sat 14:23]
-   - [X] add modulo
-   On generate adjusment modulo 6 (for example) optional
-** DONE Collect MOP lost items
-   CLOSED: [2017-06-03 Sat 14:23]
-** DONE generate quickcheck
-   CLOSED: [2017-06-03 Sat 14:24]
-Allow stocktake without barcode.
-similar to 0 takes but doesn't
-For example if 24 of a styles are in stock
-but only 5 are checked.
-We don't want to invalidate the last stocktake (and not the box)
-as it's indicate where (location and barcode) are the styles
-if needs to be.
-However, those items won't be taken into account when calculating 
-stock adjustement if they have been already adjusted.
-
-In fact, a stocktake can be seen as a queue for pending adjustement.
-The real information where things are is in the boxtake table.
-*** DONE change ZeroTake to QuickTake
-    CLOSED: [2017-05-21 Sun 08:07]
-- [X] make sure that only zerotakes discard boxes
-- [ ] make sure style, operator and date are carried over
-*** DONE reuse style, operator and date
-    CLOSED: [2017-06-03 Sat 14:24]
-* DONE <2017-03-04 Sat> 
-** Edit packing list [7/9]
-- [X] add message
- to tell the user the PL have been edited
-- [X] use PL reference as first order ref
-- [X] implement delete details
-- [X] write tests for "edit details" features
-- [X] refactor
-  - [X] remove all view routes use parameter instead
-    - [X] where to put PL types used by routes ?
-- [X] display parsing error nicely
-- [ ] use user textcart to fill form on error
-- [ ] +Allow empty PL+
-  - [ ] what to do with the document key ? (Can't be null)
-   Doesn't work. Using the same document twice generate an error.
-- [-] edit PL info (not details)
-  - [ ] write tests
-  - [X] implement
-- [X] update document key table ?
-  - [X] easy when replacing
-
-* TODO <2017-01-08 Sun> 
-- [X] refactor stocktake to validate and save on the same workflow
-- [X] check stocktake dates in stockadj page
-- [ ] filter stockadj by 
-  - [ ] date
-  - [ ] stocktake
-- [X] add =complete style= button
-- [ ] add stocktake date if needed
-  but probably not as it's in the file.
-- [X] check override erase everything
-Doesn't, as it's not an update. It only overrides barcodes
-Maybe it should.
-- [  filter stocktake by
-  - [ ] style
-  - [ ] 
-- [ ] link stock_id in stock adj to stocktake 
-* PL
-- [ ] TODO check groups are valid
-- [-] deliver boxes
-  - [X] mark them as deliver
-  - [ ] generate automatic stocktake
-    Boxtakess are generated. We could instead generate a stocktake sheet
-to upload manually.
-* Features
-** TODO Stock Adjustment [0/2]
-*** TODO Generate stock adjustment from stock take amendment [0/2]
-- [ ] Generate the diff
-between the stock adj saved in db and the one which 
-should be generated from the actual stocktake.
-
-The new adj should set the parent to the original
-
- - [ ] add *parent* field in stock_adjustement
- - [ ] find all descendant
-When comparing expeced adj with one in DB , we need to not only 
-check for the adj to amend but also to all it's descendant and possibly ascendant.
-Basically, all adjustments related to the original one should be loaded and taken into consideration.
-** TODO Items
-Allows to create an update new variations.
-** Design
-The main page displays the (outer) cross product between selected styles and selected colours (from style)
-This done by filtering variations by regexp or SQL like expression the style and the colours.
-The first variations selected represent the style to overview, the second variations represent the colour to look at.
-For example the first selection returns
-
-| T-Shirt | Black |
-| T-Shirt | Blue  |
-| Cap     | Black |
-
-This correspond to T-Shirt and Cap[
-
-
-and the second selection returns
-| Hat | Black |
-| Hat | Red |
-This correspond to Black and Red.
-
-The *cross product* will be
-
-| T-Shirt | Black | Present |
-| T-Shirt | Blue | Extra |
-| T-Shrit | Red | Missing |
-| Cap | Black | Present |
-| Cap | Red | Missing |
-
-
-T-Shirt-Red and Cap-Rep are *missing*. T-Shirt blue is *extra* as not part of the selected colours.
-However Cap-Blue is not displayed as blue is not an expected colors
-
-
 * Bugs
-
 ** Drupal Commerce borked
 Delete Website items doesn't work if people have a pending order
 There is a link between commerce_line_item and the product
@@ -652,6 +242,33 @@ where  trans_type = 12 and trans_no in (8517, 8456)
       #+END_SRC
 
 
+*** Check transaction without tax details 
+
+    #+BEGIN_SRC sql :no_web yes
+      select trans_type , max(gl_date), count(*), max(trans_no) from
+      (select type as trans_type, type_no as trans_no, sum(amount), tran_date as gl_date
+      from
+          0_gl_trans
+          group by type, type_No
+                ) As gl
+      left join 0_trans_tax_details using (trans_type, trans_no)
+      where id is NULL
+            group by trans_type
+
+
+                select *
+                from 0_trans_tax_details
+                where 
+            id > 39962
+            -- tran_date > '2019-02-04'
+            -- order by tran_date, trans_no, id
+
+
+      select * from 0_gl_trans
+                      where type_no = 12265 And type = 10\G
+      select * from 0_trans_tax_details
+       where trans_no = 12265 And trans_type = 10
+    #+END_SRC
 
 ** Bugs [1/1]
 *** DONE voided invoice displays PPD when 0
@@ -662,3 +279,38 @@ where  trans_type = 12 and trans_no in (8517, 8456)
     - [ ] is it a different line ? service ?
     - [ ] configure Tax to use shipping. However, this is not the case for Uk (why ?)
    
+** Model
+ReportTransDetails
+   id --
+   transType FATransType Sqltype=Int
+   transNo Int
+   netAmount Double
+   taxAmount Double
+   overallAmount -- ??
+   bin TaxBin
+   report Maybe TaxReportId
+   Unique transType transNo bin report -- one bin per transaction per report
+   
+
+-- | Instance of a reporttype
+TaxReport
+  id --
+  type Text -- 
+  reference Text
+  submissionReference Maybe Text
+  startPeriod Day
+  endPeriod Day
+  submitted Day
+  status Status | Closed, Open redundant with submitted ?
+  details Map Text Double -- JSON with reportDetail
+  UniqueReference type Reference
+  UniqueTypeStart type start
+  
+  
+TaxReportDetail
+  id --
+  report ReportID
+  bin Text
+  amount Double
+  
+
