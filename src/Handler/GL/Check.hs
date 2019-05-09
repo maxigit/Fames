@@ -11,6 +11,7 @@ import Import
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 import FA
+import GL.Utils
 import Handler.Util
 import Data.These
 import Data.Align(align)
@@ -46,7 +47,6 @@ tsTotalCredit t = sum [  - glTranAmount
                      | Entity _ gl@GlTran{..} <- tsGl t
                      , not (isDebit gl)
                      ]
-isDebit GlTran{..} = glTranAmount > 0
 
 -- | Discount are entered separatily in invoice
 -- example 10 with 10% discount generate 10 + -1 (instead of 9)

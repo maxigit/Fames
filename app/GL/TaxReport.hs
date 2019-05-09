@@ -6,6 +6,7 @@ where
 import ClassyPrelude 
 import qualified FA as FA
 import GL.FA
+import GL.Utils
 -- import qualified GL.FA as FA
 import Data.Aeson
 import Import.NoFoundation
@@ -79,8 +80,33 @@ mkTaxBins = groupAsMap fst snd
 
 
 
-
-
+-- | which direction should tax been using
+-- For some transactions like Journal entry it cant' be decided
+-- as it depends of the actual gl entries. It can in fact contains
+-- no tax at all, or tax in both direction
+debitCreditForTax :: FATransType -> Maybe DebitCredit 
+debitCreditForTax ST_JOURNAL = Nothing
+debitCreditForTax ST_BANKPAYMENT = Just Debit
+debitCreditForTax ST_BANKDEPOSIT = Just Credit
+debitCreditForTax ST_BANKTRANSFER = Nothing
+debitCreditForTax ST_SALESINVOICE = Just Debit
+debitCreditForTax ST_CUSTCREDIT = Just Credit
+debitCreditForTax ST_CUSTPAYMENT = Just Credit -- Prompt payment discount is like a credit
+debitCreditForTax ST_CUSTDELIVERY = Nothing
+debitCreditForTax ST_LOCTRANSFER = Nothing -- no
+debitCreditForTax ST_INVADJUST = Nothing -- unknown
+debitCreditForTax ST_PURCHORDER = Nothing
+debitCreditForTax ST_SUPPINVOICE = Just Credit
+debitCreditForTax ST_SUPPCREDIT = Just Debit
+debitCreditForTax ST_SUPPAYMENT = Nothing
+debitCreditForTax ST_SUPPRECEIVE = Nothing
+debitCreditForTax ST_WORKORDER = Nothing
+debitCreditForTax ST_MANUISSUE = Nothing
+debitCreditForTax ST_MANURECEIVE = Nothing
+debitCreditForTax ST_SALESORDER = Nothing
+debitCreditForTax ST_SALESQUOTE = Nothing
+debitCreditForTax ST_COSTUPDATE = Nothing
+debitCreditForTax ST_DIMENSION = Nothing
   
 
 
