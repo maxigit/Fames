@@ -495,7 +495,7 @@ rebalanceFA groups = let
       traverse forceUpdateBalanceS thf
   forceUpdateBalanceS t = B.updateBalanceS (t {B._sBalance = Nothing}) -- clear balance, so that it gets updated
     
-  in case sortOn ((,) <$> B._sDate <*> B._sDayPos) fas of
+  in case {-sortOn ((,) <$> B._sDate <*> B._sDayPos)-} fas of
        [] -> groups
        (fa:_) -> groupAsMap fst ( snd ) $ runBalance ((\a -> validValue a - B._sAmount fa ) <$> B._sBalance fa)
        -- (fa:_) -> runBalance ((\a -> validValue a - validValue a) <$> B._sBalance fa)
