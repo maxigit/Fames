@@ -568,7 +568,7 @@ updateBalanceS trans = do
   prevBalanceM <- get
   case (_sBalance trans, prevBalanceM) of
     (Nothing, Just prevBalance) -> do
-      let newBalance = prevBalance + _sAmount trans
+      let newBalance = prevBalance + _sAmount trans 
       put $ Just newBalance
       return $ trans {_sBalance = Just (Guessed newBalance )}
     (balance , _ ) -> do

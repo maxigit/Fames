@@ -18,7 +18,7 @@ import Text.Regex.TDFA ((=~), makeRegex, Regex)
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 import Data.These
-import Data.Time (diffDays)
+import Data.Time (diffDays,addDays)
 import Lens.Micro.Extras (preview)
 import FA as FA
 import GL.Utils
@@ -485,8 +485,8 @@ resortFA groups = let
 rebalanceFA :: Map (Maybe Day) [These B.Transaction B.Transaction] -> Map (Maybe Day) [These B.Transaction B.Transaction]
 rebalanceFA groups = let
   -- groups are sorted by date, however Nothing is first instead of being last
-  lastDate = join $ maximumMay (keys groups)
-  groupList = sortOn (\(k, _) -> k <|> lastDate ) (mapToList groups)
+  lastDate = join ( maximumMay (keys groups)) <&> addDays 1000
+  groupList = sortOn (\(k, _) -> k <|> (lastDate) ) (mapToList groups)
   fas = mapMaybe (preview there) (concatMap snd groupList)
   runBalance balance0 = flip evalState balance0 (traverse (traverse runBalanceS) groupList)
   runBalanceS :: [These B.Transaction B.Transaction] -> State _amount [These B.Transaction B.Transaction]
