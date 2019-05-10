@@ -28,6 +28,7 @@ import Data.List(mapAccumL)
 import Formatting
 import Handler.CsvUtils
 import Data.Decimal(realFracToDecimal)
+import Control.Monad.State(State, evalState)
 
 commonCss = [cassius|
 tr.private
@@ -408,7 +409,9 @@ renderReconciliate account param = do
   let byDays = B.badsByDay hts
       -- group by rec
       st'sts = filter transFilter $ map (bimap B.hsbcTransToTransaction B.faTransToTransaction)  byDays
-      recGroup = groupAsMap (B._sRecDate . B.thatFirst) (:[]) st'sts
+      recGroup' = groupAsMap (B._sRecDate . B.thatFirst) (:[]) st'sts
+      -- sort FA Transaction within each group by pos and recalculate the balance
+      recGroup = resortFA recGroup'
       -- exclude a pair if both date are outside the range
       transFilter t | d <- mergeTheseWith B._sDate B._sDate max t,   Just start <- bsStartDate, d < start = False
       transFilter t | d <- mergeTheseWith B._sDate B._sDate min t,   Just end <- rpEndDate param , d > end  = False
@@ -468,7 +471,36 @@ renderReconciliate account param = do
         <button.btn.btn-warning name=action value="reconciliate">Save
             |]
   
-displayRecGroup :: (These B.Transaction B.Transaction -> Bool) -> Text -> (B.Transaction -> Maybe Text) -> (Maybe Day, [These B.Transaction B.Transaction]) -> Widget
+
+resortFA :: Map (Maybe Day) [These B.Transaction B.Transaction] -> Map (Maybe Day) [These B.Transaction B.Transaction]
+resortFA groups = let
+  sorted = sortFas <$> groups
+  sortFas :: [These B.Transaction B.Transaction] -> [These B.Transaction B.Transaction]
+  sortFas thfs = case partitionThese thfs of
+    ([], ([], fas)) -> map That (sortOn ((,) <$> B._sDate <*> B._sDayPos) fas)
+    _ -> thfs
+  in rebalanceFA sorted
+  
+-- | Recalculate FA balance according to their new order
+rebalanceFA :: Map (Maybe Day) [These B.Transaction B.Transaction] -> Map (Maybe Day) [These B.Transaction B.Transaction]
+rebalanceFA groups = let
+  -- groups are sorted by date, however Nothing is first instead of being last
+  lastDate = join $ maximumMay (keys groups)
+  groupList = sortOn (\(k, _) -> k <|> lastDate ) (mapToList groups)
+  fas = mapMaybe (preview there) (concatMap snd groupList)
+  runBalance balance0 = flip evalState balance0 (traverse (traverse runBalanceS) groupList)
+  runBalanceS :: [These B.Transaction B.Transaction] -> State _amount [These B.Transaction B.Transaction]
+  runBalanceS group = do
+    flip traverse  group $ \thf -> do
+      traverse forceUpdateBalanceS thf
+  forceUpdateBalanceS t = B.updateBalanceS (t {B._sBalance = Nothing}) -- clear balance, so that it gets updated
+    
+  in case sortOn ((,) <$> B._sDate <*> B._sDayPos) fas of
+       [] -> groups
+       (fa:_) -> groupAsMap fst ( snd ) $ runBalance ((\a -> validValue a - B._sAmount fa ) <$> B._sBalance fa)
+       -- (fa:_) -> runBalance ((\a -> validValue a - validValue a) <$> B._sBalance fa)
+
+displayRecGroup :: (These B.Transaction B.Transaction -> Bool) -> Text -> (B.Transaction -> Maybe Text) -> (Maybe Day, [These B.Transaction B.Transaction]) -> Widget 
 displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
   st'sts = sortOn (((,) <$> B._sDate <*> B._sDayPos) . B.thisFirst) st'sts0
   title = maybe "" tshow recDateM

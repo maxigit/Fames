@@ -22,6 +22,7 @@ where
   
 import Control.Applicative
 import Data.Maybe
+import Control.Monad.State(State, evalState, get, put)
 
 import Lens.Micro
 import Lens.Micro.TH
@@ -561,13 +562,18 @@ buildTransactions  (These hs fs) = let
 fillBalance :: [Transaction] -> [Transaction]
 fillBalance transs = let
   sorted = sortOn (liftA2 (,) _sDate _sDayPos) transs
-  go :: (Maybe Amount) -> Transaction -> (Maybe Amount, Transaction)
-  go prevBalanceM trans =
-    case (_sBalance trans, prevBalanceM) of
-          (Nothing, Just prevBalance) -> let newBalance = prevBalance + _sAmount trans
-                                         in (Just newBalance, trans {_sBalance = Just (Guessed newBalance )})
-          (balance , _ ) -> (fmap validValue balance, trans)
-  in snd $ mapAccumL go Nothing sorted
+  in flip evalState Nothing (mapM updateBalanceS sorted)
+
+updateBalanceS trans = do
+  prevBalanceM <- get
+  case (_sBalance trans, prevBalanceM) of
+    (Nothing, Just prevBalance) -> do
+      let newBalance = prevBalance + _sAmount trans
+      put $ Just newBalance
+      return $ trans {_sBalance = Just (Guessed newBalance )}
+    (balance , _ ) -> do
+      put $ fmap validValue balance
+      return trans
 
 fillHSBCBalance :: [HSBCTransactions] -> [HSBCTransactions]
 fillHSBCBalance transs = let
