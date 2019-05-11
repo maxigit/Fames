@@ -494,9 +494,10 @@ resortFA :: Map (Maybe Day) [These B.Transaction B.Transaction] -> Map (Maybe Da
 resortFA groups = let
   sorted = sortFas <$> groups
   sortFas :: [These B.Transaction B.Transaction] -> [These B.Transaction B.Transaction]
-  sortFas thfs = case partitionThese thfs of
-    ([], ([], fas)) -> map That (sortOn ((,) <$> B._sDate <*> B._sDayPos) fas)
-    _ -> thfs
+  sortFas st'sts = sortOn (((,) <$> B._sDate <*> B._sDayPos) . B.thisFirst) st'sts
+  -- sortFas thfs = case partitionThese thfs of
+  --   ([], ([], fas)) -> map That (sortOn ((,) <$> B._sDate <*> B._sDayPos) fas)
+  --   _ -> thfs
   in rebalanceFA sorted
   
 -- | Recalculate FA balance according to their new order
@@ -526,7 +527,8 @@ rebalanceFA groups = let
 
 displayRecGroup :: (These B.Transaction B.Transaction -> Bool) -> Text -> (B.Transaction -> Maybe Text) -> (Maybe Day, [These B.Transaction B.Transaction]) -> Widget 
 displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
-  st'sts = sortOn (((,) <$> B._sDate <*> B._sDayPos) . B.thisFirst) st'sts0
+  -- st'sts = sortOn (((,) <$> B._sDate <*> B._sDayPos) . B.thisFirst) st'sts0
+  st'sts = st'sts0
   title = maybe "" tshow recDateM
       -- check if the difference of the two date is acceptable
   dateClass (This _) = ""
