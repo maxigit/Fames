@@ -140,19 +140,20 @@ getGLBankR = do
 
 
 canViewBankStatement :: Role -> Text -> Bool
-canViewBankStatement role account = authorizeFromAttributes role (setFromList ["piggy-bank/" <> account ]) ReadRequest
+canViewBankStatement role account = authorizeFromAttributes role (setFromList ["bank/" <> account ]) ReadRequest
 canViewBankLightStatement :: Role -> Text -> Bool
-canViewBankLightStatement role account = authorizeFromAttributes role (setFromList ["piggy-bank/light/" <> account ]) ReadRequest
+canViewBankLightStatement role account = authorizeFromAttributes role (setFromList ["bank/light/" <> account ]) ReadRequest
 
 
 -- | Displays a collapsible panel 
 displayPanel :: Text -> Bool -> Text -> Widget -> Widget
-displayPanel panelClass collapsed account content =
-  let panelId = "piggy-bank-"  <> filter (' ' /=) account
+displayPanel panelClass collapsed account = displayPanel' panelClass collapsed account [shamlet|<h2>#{account}|]
+displayPanel' panelClass collapsed account title content =
+  let panelId = "bank-"  <> filter (' ' /=) account
   in [whamlet|
     <div.panel class="panel-#{panelClass}">
       <div.panel-heading data-toggle="collapse" data-target="##{panelId}">
-          <h2 style=>#{account}
+          #{title}
       <div.panel-body.collapse :collapsed:.out:.in id="#{panelId}">
         ^{content}
         |]
@@ -527,12 +528,35 @@ rebalanceFA groups = let
        (fa:_) -> groupAsMap fst ( snd ) $ runBalance ((\a -> validValue a - B._sAmount fa ) <$> B._sBalance fa)
        -- (fa:_) -> runBalance ((\a -> validValue a - validValue a) <$> B._sBalance fa)
 
+getOpenings :: [These B.Transaction B.Transaction] -> (Maybe (ValidField B.Amount), Maybe (ValidField B.Amount))
+getOpenings st'sts = (headMay ts >>= (\t -> (subtract (B._sAmount t)) <$$> (B._sBalance t)) , lastMay ts >>= B._sBalance) where 
+  ts = case partitionThese st'sts of
+    ([], ([], fas)) -> fas
+    _ -> mapMaybe (preview here) st'sts
+
 displayRecGroup :: (These B.Transaction B.Transaction -> Bool) -> Text -> (B.Transaction -> Maybe Text) -> (Maybe Day, [These B.Transaction B.Transaction]) -> Widget 
 displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
   -- st'sts = sortOn (((,) <$> B._sDate <*> B._sDayPos) . B.thisFirst) st'sts0
   st'sts = st'sts0
-  title = maybe "" tshow recDateM
+  (opening', close') = getOpenings st'sts
+  opening = validValue <$> opening'
+  close = validValue <$> close'
+  title = [shamlet|
+     <div.row>
+       <div.col-md-2>
+         <h2> #{ maybe "" tshow recDateM}
+       <h4.col-md-1.col-md-offset-7>
+         <label> Opening
+         <div>#{maybe "" tshow opening }
+       <h4.col-md-1>
+         <label> Close
+         <div>#{maybe "" tshow close }
+       <h4.col-md-1>
+         <label>  Net
+         <div>#{ tshow (fromMaybe 0 close - fromMaybe 0 opening)}
+        |]
       -- check if the difference of the two date is acceptable
+
   dateClass (This _) = ""
   dateClass (That _) = ""
   dateClass (These h f) = let d = diffDays (B._sDate h) (B._sDate f)
@@ -623,7 +647,7 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
                     $else
                         <input type=checkbox name="set-#{faId fatrans}":checked:checked :checked:data-init-checked>
               |]
-  in displayPanel ("primary") False title widget
+  in displayPanel' ("primary" :: Text) False (tshowM recDateM) title widget
 
 -- | Computes the checkbox prefix for a transaction.
 faId :: B.Transaction -> Text
@@ -659,8 +683,8 @@ saveReconciliation account recDate = do
     unsetRecDate (tshow bsBankAccount) (setToList toUnset)
 
 -- saveRecDate :: Day -> [(Int, Int)] -> Handler ()
--- piggy-bank account is needed to not update both
--- side of a piggy-bank transfer
+-- bank account is needed to not update both
+-- side of a bank transfer
 saveRecDate bankAccount recDate transIds = do
   forM_ transIds $ \(t, no) -> 
      updateWhere [ FA.BankTranType ==. Just t
@@ -726,7 +750,7 @@ commonHelp = [whamlet|
 because each statement only contains the last n transactions which can be the curren days and a few day before.
 In that case, for example, yesterday transactions will be in the today daily statement as well as yesterday statement if available.
 <p> <b>Full statement</b> on the other hand shouldn't overlap even though they can overlap with the daily one.
-<p> Depending on the source, daily statement or piggy-bank statemen may have the same format or not be available.
+<p> Depending on the source, daily statement or bank statemen may have the same format or not be available.
 |]
 paypalHelp = [whamlet|
 <h3> Daily
@@ -827,11 +851,11 @@ renderFX param  = do
 
 -- We are only interested in money in, ie when we buy 
 loadFXTrans param = do
-  setWarning( "This report doesn't use (yet) supplier payments but only piggy-bank transfer")
+  setWarning( "This report doesn't use (yet) supplier payments but only bank transfer")
   loadFXTransfers param
-  -- piggy-bank transfers into FX Account - easy
+  -- bank transfers into FX Account - easy
   -- supplier (USD) to current -- with rate
-  -- piggy-bank deposit -- into FX account, how to we know the rate 
+  -- bank deposit -- into FX account, how to we know the rate 
 
 
 data FXTrans e = FXTrans
@@ -850,7 +874,7 @@ loadFXTransfers FXParam{..} = do
   let sql = [st|
     SELECT to_.trans_date, to_.person_id, to_.amount, -from_.amount, to_.trans_no, to_.type
     FROM 0_bank_trans AS to_
-    JOIN 0_bank_accounts AS piggy-bank ON (to_.bank_act = piggy-bank.id AND bank_curr_code = ?)
+    JOIN 0_bank_accounts AS bank ON (to_.bank_act = bank.id AND bank_curr_code = ?)
     JOIN 0_bank_trans AS from_ ON (to_.type = from_.type AND to_.trans_no = from_.trans_no  )
     WHERE to_.type = 4
     AND to_.trans_date between ? AND ?
