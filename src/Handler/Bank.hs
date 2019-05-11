@@ -511,7 +511,13 @@ rebalanceFA groups = let
   runBalanceS group = do
     flip traverse  group $ \thf -> do
       traverse forceUpdateBalanceS thf
-  forceUpdateBalanceS t = B.updateBalanceS (t {B._sBalance = Nothing}) -- clear balance, so that it gets updated
+  forceUpdateBalanceS t' = do
+    t <- B.updateBalanceS (t' {B._sBalance = Nothing}) -- clear balance, so that it gets updated
+    -- compare if balance has changed
+    return $ case (validValue <$> B._sBalance t, validValue <$> B._sBalance t') of
+               (Just b, Just b') | b == b' -> t { B._sBalance = Just (Provided b)  }
+               _ -> t
+      
     
   in case {-sortOn ((,) <$> B._sDate <*> B._sDayPos)-} fas of
        [] -> groups
@@ -559,7 +565,7 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
       $forall st'st <- st'sts
         $with (trans, fatrans, transM, fatransM) <- (B.thisFirst st'st, B.thatFirst st'st, preview here st'st, preview there st'st)
           <tr class="#{rowClass st'st}">
-              <td>#{maybe "" (tshow . B._sDate) transM}
+              <td>#{tshow $ B._sDate trans}
               $case (B._sDate <$> transM, B._sDate <$> fatransM)
                 $of (Just d, Just d')
                   $with diff <- diffDays d d'
