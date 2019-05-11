@@ -518,11 +518,11 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
   rowClass (These _ _) = "" :: Text
   eqDouble x y = abs (validValue x - validValue y ) < 1e-4
   widget = [whamlet|
-    <table.table.table-hover.table-border>
-      <tr>
+    <table *{datatable} data-paging=false>
+      <thead>
+        <tr>
               <th>Date 
               <th>FA Date
-              <th>Source
               <th>Source
               <th>Type 
               <th>FA Type
@@ -533,15 +533,15 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
               <th>Paid Out
               <th>Paid In
               <th>Balance
-              <th>Reconciliate
+              <th>Rec
                 <input.toggle-all type=checkbox checked>
       $forall st'st <- st'sts
         $with (trans, fatrans, transM, fatransM) <- (B.thisFirst st'st, B.thatFirst st'st, preview here st'st, preview there st'st)
           <tr class="#{rowClass st'st}">
               <td>#{maybe "" (tshow . B._sDate) transM}
               <td class="#{dateClass st'st}">#{maybe "" (tshow . B._sDate) fatransM}
-              <td>#{maybe "" (tshow . B._sSource) transM}
-              <td>#{maybe "" (tshow . B._sSource) fatransM}
+              <td>
+                #{maybe "-" (tshow . B._sSource) transM}/#{maybe "-" (tshow . B._sSource) fatransM}
               <td>#{maybe "" B._sType transM}
               <td>^{maybe "" (linkToFA (urlForFA faURL)) fatransM}
               <td>#{maybe "" B._sDescription transM}
