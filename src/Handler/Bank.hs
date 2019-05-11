@@ -540,7 +540,7 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
                               then "text-danger" :: Text
                               else if abs(d) > 5
                                   then "text-warning"
-                                  else "text-success"
+                                  else ""
   rowClass (This _) = "bg-warning text-warning "
   rowClass (That _) = "bg-danger text-danger"
   rowClass (These _ _) = "" :: Text
@@ -573,8 +573,7 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
               $case (B._sDate <$> transM, B._sDate <$> fatransM)
                 $of (Just d, Just d')
                   $with diff <- diffDays d d'
-                    $with big <- abs diff > 1
-                      <td :big:.text-danger>
+                      <td.date-diff class="#{dateClass st'st}">
                           $if diff > 0
                             +#{tshow diff}
                           $elseif diff < 0
