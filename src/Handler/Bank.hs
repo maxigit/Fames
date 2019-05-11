@@ -521,24 +521,38 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
     <table *{datatable} data-paging=false>
       <thead>
         <tr>
-              <th>Date 
-              <th>FA Date
-              <th>Source
-              <th>Type 
-              <th>FA Type
-              <th>Description
-              <th>FA Ref.
-              <th>Number 
-              <th>Object
-              <th>Paid Out
-              <th>Paid In
-              <th>Balance
-              <th>Rec
+              <th.all>Date 
+              <th.data-priority=150>D
+              <th.none>FA Date
+              <th.data-priority=50>Source
+              <th.data-priority=100>Type 
+              <th.data-priority=110>FA Type
+              <th.data-priority=10>Description
+              <th.none>FA Ref.
+              <th.none>Number 
+              <th.data-priority=105>Object
+              <th.all>Paid Out
+              <th.all>Paid In
+              <th.data-priority=1>Balance
+              <th.data-priority=200>FA Bal
+              <th.data-priority=150>Diff
+              <th.all>Rec
                 <input.toggle-all type=checkbox checked>
       $forall st'st <- st'sts
         $with (trans, fatrans, transM, fatransM) <- (B.thisFirst st'st, B.thatFirst st'st, preview here st'st, preview there st'st)
           <tr class="#{rowClass st'st}">
               <td>#{maybe "" (tshow . B._sDate) transM}
+              $case (B._sDate <$> transM, B._sDate <$> fatransM)
+                $of (Just d, Just d')
+                  $with diff <- diffDays d d'
+                    $with big <- abs diff > 1
+                      <td :big:.text-danger>
+                          $if diff > 0
+                            +#{tshow diff}
+                          $elseif diff < 0
+                            #{tshow diff}
+                $of _
+                    <td>
               <td class="#{dateClass st'st}">#{maybe "" (tshow . B._sDate) fatransM}
               <td>
                 #{maybe "-" (tshow . B._sSource) transM}/#{maybe "-" (tshow . B._sSource) fatransM}
@@ -557,18 +571,21 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
               $if liftA2 eqDouble (B._sBalance =<< transM) (B._sBalance =<< fatransM)  == Just True
                 <td.balance-match.bg-success.text-success>
                  ^{render $ fmap (fmap tshow) (B._sBalance trans) }
+                <td>
+                 ^{render $ fmap (fmap tshow) (B._sBalance fatrans) }
               $else
-                $with [bal, balfa] <- map (maybe 0 validValue . B._sBalance) [trans, fatrans]
+                <td.balance-no-match>
+                 ^{render $ fmap (fmap tshow) (B._sBalance trans) }
+                <td>
+                 ^{render $ fmap (fmap tshow) (B._sBalance fatrans) }
+              $with [bal, balfa] <- map (maybe 0 validValue . B._sBalance) [trans, fatrans]
                   $with diff <- balfa - bal
-                    <td.balance-no-match>
-                      ^{render $ fmap (fmap tshow) (B._sBalance trans) }
+                     <td>
                       <div.diff-balance>
                         $if diff > 0
                           +#{tshow diff}
                         $else
                           #{tshow diff}
-                      <div.balances>
-                        FA: ^{render $ fmap (fmap tshow) (B._sBalance fatrans) }
                 
               $with checked <- toCheck st'st
                 <td :checked:.update-rec data-amount="#{tshow (B._sAmount trans)}">
