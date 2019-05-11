@@ -47,6 +47,8 @@ td.balance-no-match:hover
     display: inline
   .diff-balance
     display: none
+td.balance > span:not(.guessed-value)
+  font-weight: bold
 |]
 
 recJs = [julius|
@@ -520,7 +522,7 @@ rebalanceFA groups = let
                _ -> t
       
     
-  in case {-sortOn ((,) <$> B._sDate <*> B._sDayPos)-} fas of
+  in case sortOn ((,) <$> B._sDate <*> B._sDayPos) fas of
        [] -> groups
        (fa:_) -> groupAsMap fst ( snd ) $ runBalance ((\a -> validValue a - B._sAmount fa ) <$> B._sBalance fa)
        -- (fa:_) -> runBalance ((\a -> validValue a - validValue a) <$> B._sBalance fa)
@@ -590,20 +592,20 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
               <td>#{fromMaybe "-" (object fatrans)}
               $if B._sAmount trans > 0
                   <td>
-                  <td>#{tshow $  B._sAmount trans}
+                  <td.balance>#{tshow $  B._sAmount trans}
               $else
-                  <td>#{tshow $ negate  $    B._sAmount trans}
+                  <td.balance>#{tshow $ negate  $    B._sAmount trans}
                   <td>
               $if liftA2 eqDouble (B._sBalance =<< transM) (B._sBalance =<< fatransM)  == Just True
-                <td.balance-match.bg-success.text-success>
+                <td.balance.balance-match.bg-success.text-success>
                  ^{render $ fmap (fmap tshow) (B._sBalance trans) }
-                <td>
+                <td.balance>
                  ^{render $ fmap (fmap tshow) (B._sBalance fatrans) }
               $else
-                <td.balance-no-match>
+                <td.balance.balance-no-match>
                  ^{render $ fmap (fmap tshow) (B._sBalance trans) }
-                <td>
-                 ^{render $ fmap (fmap tshow) (B._sBalance fatrans) }
+                <td.balance>
+                 ^{maybe "" (render . fmap tshow) (B._sBalance =<< fatransM) }
               $with [bal, balfa] <- map (maybe 0 validValue . B._sBalance) [trans, fatrans]
                   $with diff <- balfa - bal
                      <td>
