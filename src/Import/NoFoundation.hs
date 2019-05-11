@@ -19,6 +19,7 @@ module Import.NoFoundation
     , formatQuantity
     , formatHours
     , showTransType
+    , showShortTransType
     , decodeHtmlEntities
     , groupAsMap
     , groupAscAsMap
@@ -188,6 +189,37 @@ showTransType ST_SALESQUOTE = "Sales Quote"
 showTransType ST_COSTUPDATE = "Cost Update"
 showTransType ST_DIMENSION = "Dimensions"
 
+-- C customer
+--  S supplier
+-- Bank $
+-- stock ^ = home
+-- invoice T
+-- 
+-- =>
+  
+showShortTransType :: IsString t => FATransType -> t
+showShortTransType ST_JOURNAL = "#=#"
+showShortTransType ST_BANKPAYMENT = "$->*"
+showShortTransType ST_BANKDEPOSIT = "*->$"
+showShortTransType ST_BANKTRANSFER = "$=$"
+showShortTransType ST_SALESINVOICE = "C->#"
+showShortTransType ST_CUSTCREDIT = "C<-#"
+showShortTransType ST_CUSTPAYMENT = "C->$"
+showShortTransType ST_CUSTDELIVERY = "C->#"
+showShortTransType ST_LOCTRANSFER = "^<>^"
+showShortTransType ST_INVADJUST = "^->#"
+showShortTransType ST_PURCHORDER = "S->@"
+showShortTransType ST_SUPPINVOICE = "S->#"
+showShortTransType ST_SUPPCREDIT = "S<-#"
+showShortTransType ST_SUPPAYMENT = "$->S"
+showShortTransType ST_SUPPRECEIVE = "S->^"
+showShortTransType ST_WORKORDER = "W->@"
+showShortTransType ST_MANUISSUE = "W->#"
+showShortTransType ST_MANURECEIVE = "W->^"
+showShortTransType ST_SALESORDER = "S->@"
+showShortTransType ST_SALESQUOTE = "S->'"
+showShortTransType ST_COSTUPDATE = "CU"
+showShortTransType ST_DIMENSION = "D"
 -- * Html 
 decodeHtmlEntities :: Text -> Text
 decodeHtmlEntities s = maybe s TS.fromTagText (headMay $ TS.parseTags s)
