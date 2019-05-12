@@ -262,7 +262,11 @@ postWHStockAdjustmentR = do
 
 -- | Escape sku to be JQuery friendly
 encodedSku :: PreAdjust -> Text
-encodedSku pre = Text.replace "/" "_div_" $ Text.replace "*" "_star_" (sku pre)
+encodedSku pre = Text.replace "/" "_div_"
+               $ Text.replace "*" "_star_"
+               $ Text.replace "?" "_qmark_"
+               $ Text.replace "!" "_emark_"
+               $  (sku pre)
 -- | Temporary data holding stock adjustment information (to display)
 data LocationInfo = LocationInfo
   { location :: !Text
