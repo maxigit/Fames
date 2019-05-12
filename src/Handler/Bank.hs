@@ -158,11 +158,17 @@ displayPanel' panelClass collapsed account title content =
         ^{content}
         |]
 
--- | Display all non matching transaction as well as a preview of last the statement 
-displaySummary :: Day -> _DB -> Text -> Text ->  BankStatementSettings -> Handler Widget
-displaySummary today dbConf faURL title BankStatementSettings{..}= do
-  object <- getObjectH
-  let options = B.Options{..}
+loadReconciliatedTrans dbConf settings = 
+  case mkRecOptions dbConf settings of
+    (Just path, options) -> withCurrentDirectory path  (B.main' options)
+    (Nothing, options) -> do
+      -- fake the same system by setting fake path and load the transaction
+      fas <- B.readFa options
+      let ts = map B.faTransToTransaction fas
+
+      return (filter (isNothing . B._sRecDate) ts,  ts)
+
+mkRecOptions dbConf BankStatementSettings{bsMode=BankUseStatement{..},..} =  let
       statementFiles = unpack bsStatementGlob
       faCredential = myConnInfo dbConf
       dailyFiles = unpack bsDailyGlob
@@ -171,11 +177,42 @@ displaySummary today dbConf faURL title BankStatementSettings{..}= do
       endDate = Nothing -- Just today
       faMode = B.BankAccountId (bsBankAccount)
       aggregateMode = B.BEST
-      blacklist = map unpack bsLightBlacklist
       initialBalance = Nothing
       discardFilter = unpack <$> bsDiscardRegex
+  in (Just bsPath, B.Options{..})
+mkRecOptions dbConf BankStatementSettings{bsMode=BankNoStatement,..} =  let
+      statementFiles = ""
+      faCredential = myConnInfo dbConf
+      dailyFiles = ""
+      output = ""
+      startDate = bsStartDate
+      endDate = Nothing -- Just today
+      faMode = B.BankAccountId (bsBankAccount)
+      aggregateMode = B.BEST
+      initialBalance = Nothing
+      discardFilter = unpack <$> bsDiscardRegex
+  in (Nothing, B.Options{..})
+
+-- | Display all non matching transaction as well as a preview of last the statement 
+displaySummary :: Day -> _DB -> Text -> Text ->  BankStatementSettings -> Handler Widget
+displaySummary today dbConf faURL title bankSettings@BankStatementSettings{..}= do
+  object <- getObjectH
+  let 
+  -- let options = B.Options{..}
+  --     statementFiles = unpack bsStatementGlob
+  --     faCredential = myConnInfo dbConf
+  --     dailyFiles = unpack bsDailyGlob
+  --     output = ""
+  --     startDate = bsStartDate
+  --     endDate = Nothing -- Just today
+  --     faMode = B.BankAccountId (bsBankAccount)
+  --     aggregateMode = B.BEST
+      blacklist = map unpack bsLightBlacklist
+  --     initialBalance = Nothing
+  --     discardFilter = unpack <$> bsDiscardRegex
   
-  (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main' options)
+  -- (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main' options)
+  (stransz, banks) <- lift $ loadReconciliatedTrans dbConf bankSettings
   -- we sort by date
   let sortTrans = sortOn (liftA3 (,,) (Down . B._sDate) (Down . B._sDayPos) (Down . B._sAmount))
       hideBlacklisted t = if keepLight blacklist t then ["public" ] else ["private"]
@@ -202,22 +239,22 @@ displaySummary today dbConf faURL title BankStatementSettings{..}= do
                      |]
 
 displayLightSummary :: Day -> _DB -> Text -> Text ->  BankStatementSettings -> Handler Widget
-displayLightSummary today dbConf faURL title BankStatementSettings{..}= do
+displayLightSummary today dbConf faURL title bankSettings@BankStatementSettings{..}= do
   object <- getObjectH
-  let options = B.Options{..}
-      statementFiles = unpack bsStatementGlob
-      faCredential = myConnInfo dbConf
-      dailyFiles = unpack bsDailyGlob
-      output = ""
-      startDate = bsStartDate
-      endDate = Nothing -- Just today
-      faMode = B.BankAccountId (bsBankAccount)
-      aggregateMode = B.BEST
-      initialBalance = Nothing
-      discardFilter = unpack <$> bsDiscardRegex
+  -- let options = B.Options{..}
+  --     statementFiles = unpack bsStatementGlob
+  --     faCredential = myConnInfo dbConf
+  --     dailyFiles = unpack bsDailyGlob
+  --     output = ""
+  --     startDate = bsStartDate
+  --     endDate = Nothing -- Just today
+  --     faMode = B.BankAccountId (bsBankAccount)
+  --     aggregateMode = B.BEST
+  --     initialBalance = Nothing
+  --     discardFilter = unpack <$> bsDiscardRegex
 
   
-  (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main' options)
+  (stransz, banks) <- lift $ loadReconciliatedTrans dbConf bankSettings
   -- we sort by date
   let sortTrans = filter (keepLight blacklist) . sortOn (liftA3 (,,) (Down . B._sDate) (Down . B._sDayPos) (Down . B._sAmount))
       sorted = sortTrans stransz
@@ -339,24 +376,25 @@ getGLBankDetailsR account = do
   defaultLayout =<< displayDetailsInPanel account settings 
 
 displayDetailsInPanel :: Text -> BankStatementSettings -> Handler Widget
-displayDetailsInPanel account BankStatementSettings{..} = do
+displayDetailsInPanel account bankSettings@BankStatementSettings{..} = do
   today <- todayH
   dbConf <- appDatabaseConf <$> getsYesod appSettings
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
   object <- getObjectH
-  let options = B.Options{..}
-      statementFiles = unpack bsStatementGlob
-      faCredential = myConnInfo dbConf
-      dailyFiles = unpack bsDailyGlob
-      output = ""
-      startDate = bsStartDate
-      endDate = Nothing -- Just today
-      faMode = B.BankAccountId (bsBankAccount)
-      aggregateMode = B.BEST
-      initialBalance = Nothing
-      discardFilter = unpack <$> bsDiscardRegex
+  -- let options = B.Options{..}
+  --     statementFiles = unpack bsStatementGlob
+  --     faCredential = myConnInfo dbConf
+  --     dailyFiles = unpack bsDailyGlob
+  --     output = ""
+  --     startDate = bsStartDate
+  --     endDate = Nothing -- Just today
+  --     faMode = B.BankAccountId (bsBankAccount)
+  --     aggregateMode = B.BEST
+  --     initialBalance = Nothing
+  --     discardFilter = unpack <$> bsDiscardRegex
   
-  (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main' options)
+  (stransz, banks) <- lift $ loadReconciliatedTrans dbConf bankSettings
+
   let tableW = renderTransactions True object faURL stransz (const []) (Just "Total") ((B.FA ==) . B._sSource)
       ok = null stransz
   return $ displayPanel (if ok then "succes" else "danger") ok account [whamlet|
@@ -413,31 +451,29 @@ renderReconciliate account param = do
   (form, encType) <- generateFormPost (recForm $ Just param)
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
   object <- getObjectH
-  BankStatementSettings{..} <- settingsFor account
-  let options = B.Options{..}
-      statementFiles = unpack bsStatementGlob
-      faCredential = myConnInfo dbConf
-      dailyFiles = unpack bsDailyGlob
-      output = ""
-      startDate = bsStartDate
-      endDate = Nothing -- Just today
-      faMode = B.BankAccountId (bsBankAccount)
-      aggregateMode = B.ALL_BEST
-      initialBalance = realFracToDecimal 2 <$> bsInitialBalance
-      discardFilter = unpack <$> bsDiscardRegex
-
-  (hts,_) <- lift $ withCurrentDirectory bsPath (B.loadAllTrans options)
-  let byDays = B.badsByDay hts
-      -- group by rec
-      st'sts = filter transFilter $ map (bimap B.hsbcTransToTransaction B.faTransToTransaction)  byDays
+  bankSettings <- settingsFor account
+  let optionsm = mkRecOptions dbConf bankSettings
+  st'sts0 <- case optionsm of
+    (Nothing, options) -> do
+      fas <- lift $ B.readFa options
+      let ts = map B.faTransToTransaction fas
+      return $ [These t { B._sSource = B.HSBC } t | t <- ts]
+      
+    (Just path, options) -> do
+      (hts, _) <- lift $ withCurrentDirectory path (B.loadAllTrans options)
+      let byDays = B.badsByDay hts
+          -- group by rec
+      return $ map (bimap B.hsbcTransToTransaction B.faTransToTransaction)  byDays
+  let
+      st'sts = filter transFilter $ st'sts0
       recGroup' = groupAsMap (B._sRecDate . B.thatFirst) (:[]) st'sts
       -- sort FA Transaction within each group by pos and recalculate the balance
       recGroup = resortFA recGroup'
       -- exclude a pair if both date are outside the range
-      transFilter t | d <- mergeTheseWith B._sDate B._sDate max t,   Just start <- bsStartDate, d < start = False
+      transFilter t | d <- mergeTheseWith B._sDate B._sDate max t,   Just start <- (bsStartDate bankSettings), d < start = False
       transFilter t | d <- mergeTheseWith B._sDate B._sDate min t,   Just end <- rpEndDate param , d > end  = False
       transFilter t@(These _ fa) = isNothing (B._sRecDate fa) -- not reconciliated, must show
-                               || ( maybe True (mergeTheseWith B._sDate B._sDate  max t >=)  (rpStartDate param)
+                              || ( maybe True (mergeTheseWith B._sDate B._sDate  max t >=)  (rpStartDate param)
                                   && maybe True (mergeTheseWith B._sDate B._sDate  min t <=)  (rpEndDate param)
                                   )
       transFilter _ = True
@@ -445,7 +481,7 @@ renderReconciliate account param = do
       -- filterDate  = B.filterDate (mergeTheseWith B._sDate B._sDate  max)
       --                            (mergeTheseWith B._sDate B._sDate min)
       --                            options {B.startDate = rpStartDate param, B.endDate = rpEndDate param }
-        
+
       panels = map (displayRecGroup forInitRec faURL object) (sortPanel $ mapToList recGroup)
       -- put nothing first then by reverse order
       sortPanel (main@(Nothing,_ ):others) = main : reverse others
@@ -472,25 +508,25 @@ renderReconciliate account param = do
       emptyPanel = displayPanel "info" False  " " "" -- needed so that the statusBar doesn't hide the bottom of the last relevant panel
 
   defaultLayout $ do
-    toWidget commonCss
-    toWidget recJs
-    [whamlet|
-    <form.form-inline action="@{GLR (GLBankReconciliateR account)}" method=POST enctype="#{encType}">
-      <div.well>
-        ^{form}
-        <button.btn.btn-primary name=action value="submit">Submit
-      <div.row>
-        <div.col-md-2>
-          <h3> Details
-        <div.col-md-2><h4>
-          <a href="@{GLR (GLBankDetailsR account)}"> Details
-      
-      ^{mconcat panels}
-      ^{emptyPanel}
-      <div.well.footer.navbar-fixed-bottom>
-       ^{statusW}
-        <button.btn.btn-warning name=action value="reconciliate">Save
-            |]
+      toWidget commonCss
+      toWidget recJs
+      [whamlet|
+      <form.form-inline action="@{GLR (GLBankReconciliateR account)}" method=POST enctype="#{encType}">
+        <div.well>
+          ^{form}
+          <button.btn.btn-primary name=action value="submit">Submit
+        <div.row>
+          <div.col-md-2>
+            <h3> Details
+          <div.col-md-2><h4>
+            <a href="@{GLR (GLBankDetailsR account)}"> Details
+
+        ^{mconcat panels}
+        ^{emptyPanel}
+        <div.well.footer.navbar-fixed-bottom>
+          ^{statusW}
+          <button.btn.btn-warning name=action value="reconciliate">Save
+              |]
   
 
 resortFA :: Map (Maybe Day) [These B.Transaction B.Transaction] -> Map (Maybe Day) [These B.Transaction B.Transaction]

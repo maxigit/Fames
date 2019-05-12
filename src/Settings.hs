@@ -14,7 +14,7 @@ import Data.Aeson                 (Result (..), fromJSON, withObject, (.!=),
                                    (.:?))
 import Data.Aeson.Types (camelTo2)
 import qualified Data.Aeson as JSON
-import Data.Aeson.TH(deriveToJSON, deriveJSON, defaultOptions, Options(..))
+import Data.Aeson.TH(deriveToJSON, deriveJSON, defaultOptions, Options(..), SumEncoding(..))
 import Data.FileEmbed             (embedFile)
 import Data.Yaml                  (decodeEither')
 import Database.Persist.MySQL     (MySQLConf (..))
@@ -111,12 +111,17 @@ data AppSettings = AppSettings
     , appFavicon:: Text
     } deriving Show
 
+data BankStatementMode = BankUseStatement
+  { bsPath :: FilePath -- Where to find the statement files
+  , bsStatementGlob :: Text
+  , bsDailyGlob :: Text -- Glob pattern to filter daily statement
+  }
+                       | BankNoStatement 
+                       deriving (Show, Read, Eq, Ord)
 data BankStatementSettings = BankStatementSettings
   { bsStartDate :: Maybe Day -- point in time to start from. Should correspond to 0-discrepency
   -- between FA and the given statemet
-  , bsPath :: FilePath -- Where to find the statement files
-  , bsStatementGlob :: Text -- Glob pattern to filter full statement files
-  , bsDailyGlob :: Text -- Glob pattern to filter daily statement
+  , bsMode :: BankStatementMode
   , bsBankAccount :: Int -- id of the bank account in FA
   , bsPosition:: Maybe Int -- order of display
   , bsLightBlacklist :: [Text] -- what to hide from light mode
@@ -135,6 +140,9 @@ instance ToJSON RoleFor  where
 
 $(deriveToJSON defaultOptions ''BarcodeTemplate)
 $(deriveToJSON defaultOptions ''BarcodeParams)
+$(deriveJSON defaultOptions { fieldLabelModifier = camelTo2 '-' . drop 2
+                            , sumEncoding= ObjectWithSingleField
+                            , constructorTagModifier = camelTo2 '-' . drop (length ("Bank" :: Text))} ''BankStatementMode)
 $(deriveJSON defaultOptions {fieldLabelModifier = camelTo2 '-' . drop 2} ''BankStatementSettings)
 $(deriveToJSON defaultOptions ''AppSettings)
 instance FromJSON AppSettings  where
