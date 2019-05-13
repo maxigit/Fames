@@ -460,7 +460,7 @@ renderReconciliate account param = do
       return $ [These t { B._sSource = B.HSBC } t | t <- ts]
       
     (Just path, options) -> do
-      (hts, _) <- lift $ withCurrentDirectory path (B.loadAllTrans options)
+      (hts, _) <- lift $ withCurrentDirectory path (B.loadAllTrans options {B.aggregateMode = B.ALL_BEST})
       let byDays = B.badsByDay hts
           -- group by rec
       return $ map (bimap B.hsbcTransToTransaction B.faTransToTransaction)  byDays
