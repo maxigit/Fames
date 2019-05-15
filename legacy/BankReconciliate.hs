@@ -154,7 +154,9 @@ fetchFA balance0 cinfo bankAccount startM endM = do
                      Nothing -> []
                      Just start -> takeWhile (\(_,_,_,day,_,_,_) -> day < start) rows
              prevBal = realFracToDecimal 2 $ sum (map (\(_,_,_,_,_,amount,_) -> amount) befores)
-             (_, results) = mapAccumL tupleToFATransaction (maybe 0 (\b -> b - prevBal) balance0, 1) rows
+             balance = (fromMaybe 0 balance0) - prevBal
+             (_, results) = mapAccumL tupleToFATransaction (balance, 1) rows
+    -- writeFile "/home/max/Webshot/fetched.hs" (fromString $ show ("RESULT", results, "Rows" , rows, "balance0", balance0, "befores", befores, "prev", prevBal, "balance", balance))
     return results
     where q0 = "SELECT type, trans_no, ref, trans_date, CAST(person_id as CHAR(100)), amount, reconciled"
                          ++ " FROM 0_bank_trans"

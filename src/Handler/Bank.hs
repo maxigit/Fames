@@ -457,7 +457,8 @@ renderReconciliate account param = do
     (Nothing, options) -> do
       fas <- lift $ B.readFa options
       let ts = map B.faTransToTransaction fas
-      return $ [These t { B._sSource = B.HSBC } t | t <- ts]
+          autoBalance t = if B._sAmount t < 0 then Just (pure 0) else Nothing
+      return $ [These t { B._sSource = B.HSBC, B._sBalance = autoBalance t } t | t <- ts]
       
     (Just path, options) -> do
       (hts, _) <- lift $ withCurrentDirectory path (B.loadAllTrans options {B.aggregateMode = B.ALL_BEST})
@@ -565,10 +566,15 @@ rebalanceFA groups = let
        -- (fa:_) -> runBalance ((\a -> validValue a - validValue a) <$> B._sBalance fa)
 
 getOpenings :: [These B.Transaction B.Transaction] -> (Maybe (ValidField B.Amount), Maybe (ValidField B.Amount))
+-- getOpenings st'sts = (headMay ts >>= (\t -> (subtract (B._sAmount t)) <$$> (B._sBalance t)) , lastMay ts >>= B._sBalance) where 
+--   ts = case partitionThese st'sts of
+--     ([], ([], fas)) -> fas
+--     _ -> mapMaybe (preview here) st'sts
 getOpenings st'sts = (headMay ts >>= (\t -> (subtract (B._sAmount t)) <$$> (B._sBalance t)) , lastMay ts >>= B._sBalance) where 
-  ts = case partitionThese st'sts of
-    ([], ([], fas)) -> fas
-    _ -> mapMaybe (preview here) st'sts
+  -- if first hsbc balance is unknow us FA
+  ts = case headMay st'sts >>= preview here >>= B._sBalance of
+         Just _ -> mapMaybe (preview here) st'sts -- all bank
+         Nothing -> mapMaybe (preview there) st'sts -- all fast
 
 displayRecGroup :: (These B.Transaction B.Transaction -> Bool) -> Text -> (B.Transaction -> Maybe Text) -> (Maybe Day, [These B.Transaction B.Transaction]) -> Widget 
 displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
