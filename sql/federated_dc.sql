@@ -1,5 +1,5 @@
 -- * Create federated table to use with Drupal commerce
-INSTALL PLUGIN federated SONAME 'ha_federatedx.so'
+INSTALL PLUGIN federated SONAME 'ha_federatedx.so';
 
 -- * Init
 -- You should create a dedicated user on the remote database
@@ -7,12 +7,13 @@ INSTALL PLUGIN federated SONAME 'ha_federatedx.so'
 drop server if exists dc;
 
 create server 'dc' foreign data wrapper 'mysql' options
-( HOST '172.17.0.1'
+( HOST host
 , DATABASE 'commerce'
-, USER 'root'
-, PASSWORD 'mu'
+, USER user
+, PASSWORD password
 , PORT 3306
 , OWNER 'root'
+, SOCKET ''
 );
 
 create database if not exists commerceX;
