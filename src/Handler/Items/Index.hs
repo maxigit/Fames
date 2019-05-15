@@ -649,7 +649,8 @@ loadVariationsToKeep cache params = do
   itemGroups <- loadVariations cache params
   let checkSku = checkFilter params 
       toKeep (_,info) = checkSku sku where sku = styleVarToSku (iiStyle info) (iiVariation info)
-  return $  (filter toKeep) <$$> itemGroups
+  return . filter (not . null . snd  ) -- filter Group with no variations left
+         $ (filter toKeep) <$$> itemGroups -- 
 
 -- * Misc
 -- ** Type conversions
