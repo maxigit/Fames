@@ -66,9 +66,10 @@ function updateRecTotal () {
    $("input.closing-balance").val(closing)
    $("input.rec-total").val(rec);
    var diff = closing-opening-rec;
+       diff = Math.round(diff*100+Number.EPSILON)/100
    var diffE = $("input.rec-difference");
    diffE.val(diff);
-   if(diff==0) {
+   if(Math.abs(diff)<1e-2) {
      diffE.removeClass("text-danger");
      diffE.removeClass("bg-danger");
      diffE.addClass("text-success");
