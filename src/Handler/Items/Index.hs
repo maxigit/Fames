@@ -1632,7 +1632,8 @@ loadSkuProductRevisions p'rMap skus  = do
 loadProductDisplayInfo
   :: Text -> SqlHandler (DC.NodeTId, Maybe DC.NodeRevisionTId)
 loadProductDisplayInfo style = do
-  pdKeys <- selectList [DC.NodeTTitle ==. style, DC.NodeTType ==. "product_display" ] []
+  -- workaround federated bug
+  pdKeys <- selectList [DC.NodeTTitle ==. style, Filter  DC.NodeTType (Left ("_roduct_display" :: Text)) (BackendSpecificFilter "LIKE") ] []
   case pdKeys of
     [Entity nodeKey node] -> let nodeId = nodeKey
                                  revId = DC.NodeRevisionTKey <$> DC.nodeTVid node
