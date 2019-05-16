@@ -38,11 +38,12 @@ import qualified Data.Map as Map
 import Data.Text (strip)
 
 import System.FilePath.Glob (glob)
+import System.Directory(getModificationTime)
 import Data.Decimal
 import Data.List (sortBy, sortOn, minimumBy, maximumBy, foldl', mapAccumL, nub, dropWhileEnd)
 import Data.Ord (comparing)
 import Data.String
-import Data.Time(Day, parseTimeM, formatTime, diffDays, addDays)
+import Data.Time(Day, parseTimeM, formatTime, diffDays, addDays, UTCTime)
 import Data.Time.Format(defaultTimeLocale)
 import Data.Char(isSpace, isAscii)
 import Util.ValidField
@@ -632,6 +633,20 @@ loadAllTrans opt = do
         ths = reconciliate hss fas
     return $ (bads (aggregateMode opt) ths, hss)
   
+-- | Read the latest update of the files involved in the
+-- bank reconciliation
+updateTime :: Options -> IO (Maybe UTCTime)
+updateTime opt = do
+  let go patFn = do
+        paths <- glob (patFn opt)
+        mapM getModificationTime paths
+        
+  timess <- mapM go [statementFiles, dailyFiles]
+  case concat timess of
+    [] -> return Nothing
+    times -> return . Just $ maximum times 
+
+
 -- | finishes the zip work by get a list of possible pair
 rezip :: These [HSBCTransactions] [FATransaction] -> [These HSBCTransactions FATransaction]
 rezip  (This hs) = map This hs

@@ -18,7 +18,7 @@ import Text.Regex.TDFA ((=~), makeRegex, Regex)
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 import Data.These
-import Data.Time (diffDays,addDays)
+import Data.Time (diffDays,addDays, formatTime, defaultTimeLocale)
 import Lens.Micro.Extras (preview)
 import FA as FA
 import GL.Utils
@@ -162,13 +162,13 @@ displayPanel' panelClass collapsed account title content =
 
 loadReconciliatedTrans dbConf settings = 
   case mkRecOptions dbConf settings of
-    (Just path, options) -> withCurrentDirectory path  (B.main' options)
+    (Just path, options) -> withCurrentDirectory path  ((,) <$> B.main' options <*> B.updateTime options)
     (Nothing, options) -> do
       -- fake the same system by setting fake path and load the transaction
       fas <- B.readFa options
       let ts = map B.faTransToTransaction fas
 
-      return (filter (isNothing . B._sRecDate) ts,  ts)
+      return ((filter (isNothing . B._sRecDate) ts,  ts), Nothing)
 
 mkRecOptions dbConf BankStatementSettings{bsMode=BankUseStatement{..},..} =  let
       statementFiles = unpack bsStatementGlob
@@ -214,7 +214,7 @@ displaySummary today dbConf faURL title bankSettings@BankStatementSettings{..}= 
   --     discardFilter = unpack <$> bsDiscardRegex
   
   -- (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main' options)
-  (stransz, banks) <- lift $ loadReconciliatedTrans dbConf bankSettings
+  ((stransz, banks), updatedAtm) <- lift $ loadReconciliatedTrans dbConf bankSettings
   -- we sort by date
   let sortTrans = sortOn (liftA3 (,,) (Down . B._sDate) (Down . B._sDayPos) (Down . B._sAmount))
       hideBlacklisted t = if keepLight blacklist t then ["public" ] else ["private"]
@@ -233,7 +233,27 @@ displaySummary today dbConf faURL title bankSettings@BankStatementSettings{..}= 
       lastBanks = news <> (take (summaryLimit - length news) olds)
       lastW = renderTransactions bsSummaryPageSize True object faURL lastBanks hideBlacklisted (Just "Total") (const False)
       tableW = renderTransactions bsRecSummaryPageSize True object faURL sorted hideBlacklisted (Just "Total") ((B.FA ==) . B._sSource)
-  return $ displayPanel (if ok then "success" else "danger")  collapsed title [whamlet|
+      titleW = [shamlet|
+        <div.row>
+          <div.col-md-2>
+            <h2> #{title}
+          <h4.col-md-2>
+            $maybe updated <- updatedAtm
+              <label> Last Update
+              <div>
+                <span>#{formatTime defaultTimeLocale "%a %d %b %Y -- %R" updated }
+          <h4.col-md-2.col-md-offset-5>
+            $case sorted 
+              $of []
+              $of _
+                $with bal <- sum (map B._sAmount sorted)
+                  <label> Discrepencies
+                  #{tshow $ bal}
+          <h4.col-md-1>
+            <label> Balance
+            <span.text-right>#{maybe ""  (tshow . validValue) $  headMay $ mapMaybe B._sBalance lastBanks }
+                       |]
+  return $ displayPanel' (if ok then "success" else "danger" :: Text)  collapsed title titleW [whamlet|
         <div.row>
             <div.col-md-2>
               $if ok   
@@ -253,20 +273,7 @@ displaySummary today dbConf faURL title bankSettings@BankStatementSettings{..}= 
 displayLightSummary :: Day -> _DB -> Text -> Text ->  BankStatementSettings -> Handler Widget
 displayLightSummary today dbConf faURL title bankSettings@BankStatementSettings{..}= do
   object <- getObjectH
-  -- let options = B.Options{..}
-  --     statementFiles = unpack bsStatementGlob
-  --     faCredential = myConnInfo dbConf
-  --     dailyFiles = unpack bsDailyGlob
-  --     output = ""
-  --     startDate = bsStartDate
-  --     endDate = Nothing -- Just today
-  --     faMode = B.BankAccountId (bsBankAccount)
-  --     aggregateMode = B.BEST
-  --     initialBalance = Nothing
-  --     discardFilter = unpack <$> bsDiscardRegex
-
-  
-  (stransz, banks) <- lift $ loadReconciliatedTrans dbConf bankSettings
+  ((stransz, banks), updatedAtm) <- lift $ loadReconciliatedTrans dbConf bankSettings
   -- we sort by date
   let sortTrans = filter (keepLight blacklist) . sortOn (liftA3 (,,) (Down . B._sDate) (Down . B._sDayPos) (Down . B._sAmount))
       sorted = sortTrans stransz
@@ -275,7 +282,18 @@ displayLightSummary today dbConf faURL title bankSettings@BankStatementSettings{
       lastBanks = take 10 $ sortTrans banks
       lastW = renderTransactions bsSummaryPageSize False object faURL lastBanks (const []) (Just "Total") (const False)
       tableW = renderTransactions bsRecSummaryPageSize False object faURL sorted  (const [])(Just "Total") ((B.FA ==) . B._sSource)
-  return $ displayPanel (if ok then "success" else "danger") ok title [whamlet|
+      titleW = [shamlet|
+        <div.row>
+          <div.col-md-2>
+            <h2> #{title}
+          <h4.col-md-2.col-md-offset-8>
+                    $maybe updated <- updatedAtm
+                      <label> Last Update
+                      <div>
+                        <span>#{formatTime defaultTimeLocale "%a %d %b %Y -- %R" updated }
+
+                       |]
+  return $ displayPanel' (if ok then "success" else "danger" :: Text) ok title titleW [whamlet|
         <a href="@{GLR (GLBankDetailsR title)}">
           $if ok   
             <p> Everything is fine
@@ -411,7 +429,7 @@ displayDetailsInPanel account bankSettings@BankStatementSettings{..} = do
   --     initialBalance = Nothing
   --     discardFilter = unpack <$> bsDiscardRegex
   
-  (stransz, banks) <- lift $ loadReconciliatedTrans dbConf bankSettings
+  (,) (stransz, banks) _ <- lift $ loadReconciliatedTrans dbConf bankSettings
 
   let tableW = renderTransactions Nothing True object faURL stransz (const []) (Just "Total") ((B.FA ==) . B._sSource)
       ok = null stransz
