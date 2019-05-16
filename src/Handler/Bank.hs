@@ -526,13 +526,14 @@ renderReconciliate account param = do
       -- if a trans is taken into account to calculated the reconciliated amount
       -- we are only interesed in the item reconciliated in the current reconciliation period
       -- and the one ready to be (ie match FA And statements)
-      forInitRec _ | bsMode bankSettings == BankNoStatement = False  -- don't pre check if no statement.
-      forInitRec (These h fa) = maybe True (B._sDate h <=) (rpRecDate param) 
-                              && maybe True (\(tRecDate, recDate) -> tRecDate == recDate ) ((,) <$> B._sRecDate  fa <*> rpRecDate param)
-      forInitRec (That fa) = isJust $ B._sRecDate fa
-      forInitRec _ = False
+      forInitRec _ | bsMode bankSettings == BankNoStatement = (False, True)  -- don't pre check if no statement.
+      forInitRec (These h fa) = (result, result) where
+        result = maybe True (B._sDate h <=) (rpRecDate param) 
+               && maybe True (\(tRecDate, recDate) -> tRecDate == recDate ) ((,) <$> B._sRecDate  fa <*> rpRecDate param)
+      forInitRec (That fa) = (r, r) where r = isJust $ B._sRecDate fa
+      forInitRec _ = (False, False)
       reconciliated :: Double
-      reconciliated = fromRational . toRational $ sum $ map (B._sAmount . B.thisFirst) (filter forInitRec st'sts)
+      reconciliated = fromRational . toRational $ sum $ map (B._sAmount . B.thisFirst) (filter (fst. forInitRec) st'sts)
       statusW = [whamlet|
           <label>Opening
           <input.opening-balance value="#{formatDouble $ rpOpeningBalance param}" readonly>
@@ -613,7 +614,7 @@ getOpenings st'sts = (headMay ts >>= (\t -> (subtract (B._sAmount t)) <$$> (B._s
          Just _ -> mapMaybe (preview here) st'sts -- all bank
          Nothing -> mapMaybe (preview there) st'sts -- all fast
 
-displayRecGroup :: (These B.Transaction B.Transaction -> Bool) -> Text -> (B.Transaction -> Maybe Text) -> (Maybe Day, [These B.Transaction B.Transaction]) -> Widget 
+displayRecGroup :: (These B.Transaction B.Transaction -> (Bool, Bool)) -> Text -> (B.Transaction -> Maybe Text) -> (Maybe Day, [These B.Transaction B.Transaction]) -> Widget 
 displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
   -- st'sts = sortOn (((,) <$> B._sDate <*> B._sDayPos) . B.thisFirst) st'sts0
   st'sts = st'sts0
@@ -717,8 +718,8 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
                         $else
                           #{tshow diff}
                 
-              $with checked <- toCheck st'st
-                <td :checked:.update-rec data-amount="#{tshow (B._sAmount trans)}">
+              $with (checked, update) <- toCheck st'st
+                <td :update:.update-rec data-amount="#{tshow (B._sAmount trans)}">
                   $if isThese st'st 
                     $if isJust (B._sRecDate fatrans)
                         <input type=hidden name="already-#{faId fatrans}" value=off>
