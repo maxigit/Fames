@@ -235,14 +235,14 @@ displaySummary today dbConf faURL title bankSettings@BankStatementSettings{..}= 
       tableW = renderTransactions bsRecSummaryPageSize True object faURL sorted hideBlacklisted (Just "Total") ((B.FA ==) . B._sSource)
       titleW = [shamlet|
         <div.row>
-          <div.col-md-2>
+          <div.col-md-4>
             <h2> #{title}
           <h4.col-md-2>
             $maybe updated <- updatedAtm
               <label> Last Update
               <div>
                 <span>#{formatTime defaultTimeLocale "%a %d %b %Y -- %R" updated }
-          <h4.col-md-2.col-md-offset-5>
+          <h4.col-md-2.col-md-offset-3>
             $case sorted 
               $of []
               $of _
@@ -284,9 +284,9 @@ displayLightSummary today dbConf faURL title bankSettings@BankStatementSettings{
       tableW = renderTransactions bsRecSummaryPageSize False object faURL sorted  (const [])(Just "Total") ((B.FA ==) . B._sSource)
       titleW = [shamlet|
         <div.row>
-          <div.col-md-2>
+          <div.col-md-4>
             <h2> #{title}
-          <h4.col-md-2.col-md-offset-8>
+          <h4.col-md-2.col-md-offset-6>
                     $maybe updated <- updatedAtm
                       <label> Last Update
                       <div>
