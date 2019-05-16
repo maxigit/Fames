@@ -99,7 +99,7 @@ data AppSettings = AppSettings
     , appVariations :: Map Text Text -- ^ Variation description. Used to adjust item description in index.
     , appVariationGroups :: Map Text [Text] -- ^ group of variations. Can intersect
     , appPayroll :: PayrollSettings
-    , appBankStatements :: Map Text  BankStatementSettings -- ^ How to parse and displays bank statements
+    , appBankStatements :: Map Text (Map Text  BankStatementSettings) -- ^ How to parse and displays bank statements
     , appForecastProfilesDir :: FilePath -- ^ path to directory containing subdirectories
     -- each subdirectory containing one a "collection_profiles.csv" file
     -- and one or more "*sku_speed.csv" Files
@@ -215,7 +215,9 @@ instance FromJSON AppSettings  where
                                                           (fromGregorian 2017 03 26)
                                                           0 "" "" 0
                                                           (Map.fromList [])
-        appBankStatements <- o .:? "bank-statements" .!= Map.fromList []
+        -- statemens settings should be a list, each element corresponding to a page
+        -- if a map is found, we consider there is only one page
+        appBankStatements <-  (o .: "bank-statements" <&> Map.singleton "Main") <|>  (o .:? "bank-statements" .!= mempty)
         appForecastProfilesDir <- o .:? "forecast-profiles-dir" .!= "Forecast"
         appForecastCollectionCategory <- o .:? "forecast-collection-category" .!= "forecast-profile"
         appPlannerDir <- o .:? "planner-dir" .!= "Planner"

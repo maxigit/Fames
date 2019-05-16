@@ -119,26 +119,45 @@ $(document).ready (function() {
 })
 |]
 
-getGLBankR  :: Handler Html
-getGLBankR = do
+getGLBankR  :: Maybe Int -> Handler Html
+getGLBankR pagem = do
   today <- todayH
   dbConf <- appDatabaseConf <$> getsYesod appSettings
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
-  settings' <- getsYesod (appBankStatements . appSettings)
+  settingss <- getsYesod (appBankStatements . appSettings)
 
   role <- currentRole
   -- only keep authorised settings and which have a position
   -- setting the position to Nothing allows to quickly deactivate a panel 
   -- it can still be access via the Bank details page
   let settings = filter filterSettings (mapToList settings')
+      settings' = fromMaybe mempty $ headMay (maybe id (drop . (subtract 1)) pagem $ toList settingss)
       filterSettings (account, bsetting) = isJust (bsPosition bsetting) && (canViewBankStatement role account || canViewBankLightStatement role account)
       -- chose the display function depending on permission
       display (account, bs) = if canViewBankStatement role account
                               then displaySummary today dbConf faURL account bs
                               else displayLightSummary today dbConf faURL account bs
   panels <- forM (sortOn (bsPosition . snd) settings) display
-  defaultLayout $ toWidget commonCss >> (mconcat panels)
+  barW <- pageBar pagem
+  defaultLayout $ toWidget commonCss >> barW >> (mconcat panels)
 
+pageBar :: Maybe Int -> Handler Widget
+pageBar pagem = do
+  settingss <- getsYesod (appBankStatements . appSettings)
+  let pages = zip (keys settingss) [1..]
+      nonEmpty t = if null t then "Main" else t
+      
+
+  return [whamlet|
+    <nav.navbar.navbar-default>
+      <ul.nav.navbar-nav>
+        $forall (title, page) <- pages
+          $with current <- Just page == pagem
+            <li :current:.active>
+              <a href="@{GLR $ GLBankR (Just page)}"> #{nonEmpty title}
+          |]
+
+  
 
 canViewBankStatement :: Role -> Text -> Bool
 canViewBankStatement role account = authorizeFromAttributes role (setFromList ["bank/" <> account ]) ReadRequest
@@ -402,7 +421,7 @@ settingsFor account = do
   when (not $ canViewBankStatement role account)
      (permissionDenied account)
   allSettings <- getsYesod (appBankStatements . appSettings)
-  case lookup account allSettings of
+  case lookup account (concat allSettings) of
     Nothing -> error $ "Bank Account " <> unpack account <> " not found!"
     Just settings -> return settings
   

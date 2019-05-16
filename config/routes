@@ -27,7 +27,7 @@
   /payroll/calendar GLPayrollCalendarR GET POST !payroll !title=Calendar
   /payroll/import GLPayrollImportR GET POST !payroll/import !title=Import
 
-  /bank/summary GLBankR GET !bank !group=Bank !title=Summary
+  /bank/summary/#Maybe-Int GLBankR GET !bank !group=Bank !title=Summary
   /bank/details/#Text GLBankDetailsR GET !bank !bank-full
   /bank/reconciliate/#Text GLBankReconciliateR GET POST !bank-full
   /bank/help/ GLBankHelpR GET !title=Help 

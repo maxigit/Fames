@@ -406,7 +406,7 @@ mainLinks :: Handler [(Text, Route App, Bool)]
 mainLinks = do
   currentRoute <- getCurrentRoute
   let allRoutes = Data.Foldable.toList routeTree
-  let links= [ ("General Ledger", GLR GLBankR)
+  let links= [ ("General Ledger", GLR $ GLBankR Nothing)
              , ("Items", ItemsR ItemsCategoryR)
              , ("Warehouse", WarehouseR WHStockAdjustmentR)
              , ("Planner", PlannerR (PViewR Nothing))
