@@ -18,7 +18,7 @@ import Text.Regex.TDFA ((=~), makeRegex, Regex)
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 import Data.These
-import Data.Time (diffDays,addDays, formatTime, defaultTimeLocale)
+import Data.Time (diffDays,addDays, formatTime, defaultTimeLocale, utcToLocalTime, getCurrentTimeZone)
 import Lens.Micro.Extras (preview)
 import FA as FA
 import GL.Utils
@@ -235,6 +235,7 @@ displaySummary today dbConf faURL title bankSettings@BankStatementSettings{..}= 
   -- (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main' options)
   ((stransz, banks), updatedAtm) <- lift $ loadReconciliatedTrans dbConf bankSettings
   -- we sort by date
+  tz <- lift getCurrentTimeZone
   let sortTrans = sortOn (liftA3 (,,) (Down . B._sDate) (Down . B._sDayPos) (Down . B._sAmount))
       hideBlacklisted t = if keepLight blacklist t then ["public" ] else ["private"]
       sorted = sortTrans stransz
@@ -260,7 +261,7 @@ displaySummary today dbConf faURL title bankSettings@BankStatementSettings{..}= 
             $maybe updated <- updatedAtm
               <label> Last Update
               <div>
-                <span>#{formatTime defaultTimeLocale "%a %d %b %Y -- %R" updated }
+                <span>#{formatTime defaultTimeLocale "%a %d %b %Y -- %R" $ utcToLocalTime tz updated }
           <h4.col-md-2.col-md-offset-3>
             $case sorted 
               $of []
