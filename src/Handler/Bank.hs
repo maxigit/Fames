@@ -354,26 +354,26 @@ renderTransactions pageSize canViewBalance object faURL sorted mkClasses totalTi
                   <td>#{tshow $ B._sSource trans}
                   <td>^{linkToFA (urlForFA faURL) trans}
                   <td>#{B._sDescription trans}
-                  <td>#{maybe "-" tshow $ B._sNumber trans}
+                  <td.text-right>#{maybe "-" tshow $ B._sNumber trans}
                   <td>#{fromMaybe "-" (object trans)}
                   $if B._sAmount trans > 0
                     <td>
-                    <td>#{tshow $  B._sAmount trans}
+                    <td.text-right>#{tshow $  B._sAmount trans}
                   $else
-                    <td>#{tshow $ negate  $    B._sAmount trans}
+                    <td.text-right>#{tshow $ negate  $    B._sAmount trans}
                     <td>
                  $if canViewBalance
-                    <td> ^{render $ fmap (fmap tshow)  $ B._sBalance trans}
+                    <td.text-right> ^{render $ fmap (fmap tshow)  $ B._sBalance trans}
           <tr>
             $maybe totalTitle <-  totalTitle
               <th> #{totalTitle}
-              <th> #{tshow total}
+              <th.text-right> #{tshow total}
               <th>
               <th>
               <th>
               <th>
-              <th>#{tshow $ negate outTotal}
-              <th>#{tshow inTotal}
+              <th.text-right>#{tshow $ negate outTotal}
+              <th.text-right>#{tshow inTotal}
               $if canViewBalance
                 <th> #{tshow total}
               |]
@@ -608,13 +608,13 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
          <h2> #{ maybe "" tshow recDateM}
        <h4.col-md-1.col-md-offset-7>
          <label> Opening
-         <div>#{maybe "" tshow opening }
+         <div.text-right>#{maybe "" tshow opening }
        <h4.col-md-1>
          <label> Close
-         <div>#{maybe "" tshow close }
+         <div.text-right>#{maybe "" tshow close }
        <h4.col-md-1>
          <label>  Net
-         <div>#{ tshow (fromMaybe 0 close - fromMaybe 0 opening)}
+         <div.text-right>#{ tshow (fromMaybe 0 close - fromMaybe 0 opening)}
         |]
       -- check if the difference of the two date is acceptable
 
@@ -631,7 +631,7 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
   rowClass (These _ _) = "" :: Text
   eqDouble x y = abs (validValue x - validValue y ) < 1e-4
   widget = [whamlet|
-    <table *{datatable} data-paging=false>
+    <table *{datatable} data-paging=false data-ordering=false>
       <thead>
         <tr>
               <th.all>Date 
@@ -644,11 +644,11 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
               <th.none>FA Ref.
               <th.none>Number 
               <th.data-priority=105>Object
-              <th.all>Paid Out
-              <th.all>Paid In
-              <th.data-priority=1>Balance
-              <th.data-priority=200>FA Bal
-              <th.data-priority=150>Diff
+              <th.all data-class-name=text-right>Paid Out
+              <th.all> data-class-name=text-rightPaid In
+              <th.data-priority=1 data-class-name=text-right>Balance
+              <th.data-priority=200 data-class-name=text-right>FA Bal
+              <th.data-priority=150 data-class-name=text-right>Diff
               <th.all>Rec
                 <input.toggle-all type=checkbox checked>
       $forall st'st <- st'sts
