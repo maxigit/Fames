@@ -151,11 +151,12 @@ displayPanel :: Text -> Bool -> Text -> Widget -> Widget
 displayPanel panelClass collapsed account = displayPanel' panelClass collapsed account [shamlet|<h2>#{account}|]
 displayPanel' panelClass collapsed account title content =
   let panelId = "bank-"  <> filter (' ' /=) account
+      expanded = not collapsed
   in [whamlet|
     <div.panel class="panel-#{panelClass}">
       <div.panel-heading data-toggle="collapse" data-target="##{panelId}">
           #{title}
-      <div.panel-body.collapse :collapsed:.out:.in id="#{panelId}">
+      <div.panel-body.collapse :collapsed:.out :expanded:.in id="#{panelId}">
         ^{content}
         |]
 
@@ -219,10 +220,20 @@ displaySummary today dbConf faURL title bankSettings@BankStatementSettings{..}= 
       hideBlacklisted t = if keepLight blacklist t then ["public" ] else ["private"]
       sorted = sortTrans stransz
       ok = null sorted
-      lastBanks = take 10 $ sortTrans banks
-      lastW = renderTransactions True object faURL lastBanks hideBlacklisted (Just "Total") (const False)
-      tableW = renderTransactions True object faURL sorted hideBlacklisted (Just "Total") ((B.FA ==) . B._sSource)
-  return $ displayPanel (if ok then "success" else "danger")  ok title [whamlet|
+      collapsed = fromMaybe ok bsCollapsed
+      summaryLimit = fromMaybe 10 bsSummaryLimit
+      defaultCalculator = Oldest [ AddDays (-1)
+                                 , Chain [ NextDayOfWeek Friday Tuesday
+                                         ,  AddWeeks (-1)
+                                         ]
+                                 ]
+      summaryDateCalculator = fromMaybe defaultCalculator bsSummaryDateCalculator
+      lastDay = calculateDate summaryDateCalculator today
+      (news, olds) = partition ((>= lastDay) . B._sDate)  (sortTrans banks)
+      lastBanks = news <> (take (summaryLimit - length news) olds)
+      lastW = renderTransactions bsSummaryPageSize True object faURL lastBanks hideBlacklisted (Just "Total") (const False)
+      tableW = renderTransactions bsRecSummaryPageSize True object faURL sorted hideBlacklisted (Just "Total") ((B.FA ==) . B._sSource)
+  return $ displayPanel (if ok then "success" else "danger")  collapsed title [whamlet|
         <div.row>
             <div.col-md-2>
               $if ok   
@@ -235,7 +246,7 @@ displaySummary today dbConf faURL title bankSettings@BankStatementSettings{..}= 
               <a href="@{GLR (GLBankReconciliateR title)}"> Reconciliate
         ^{tableW}
         <div>
-           <h3> Last 10
+           <h3> Last #{summaryLimit}
         ^{lastW}
                      |]
 
@@ -262,8 +273,8 @@ displayLightSummary today dbConf faURL title bankSettings@BankStatementSettings{
       ok = null sorted
       blacklist = map unpack bsLightBlacklist
       lastBanks = take 10 $ sortTrans banks
-      lastW = renderTransactions False object faURL lastBanks (const []) (Just "Total") (const False)
-      tableW = renderTransactions False object faURL sorted  (const [])(Just "Total") ((B.FA ==) . B._sSource)
+      lastW = renderTransactions bsSummaryPageSize False object faURL lastBanks (const []) (Just "Total") (const False)
+      tableW = renderTransactions bsRecSummaryPageSize False object faURL sorted  (const [])(Just "Total") ((B.FA ==) . B._sSource)
   return $ displayPanel (if ok then "success" else "danger") ok title [whamlet|
         <a href="@{GLR (GLBankDetailsR title)}">
           $if ok   
@@ -312,26 +323,30 @@ linkToFA urlForFA' trans = case (readMay (B._sType trans), B._sNumber trans) of
        |]
   _ -> toHtml (B._sType trans)
 
-renderTransactions :: Bool ->  (B.Transaction -> Maybe Text) -> Text -> [B.Transaction] -> (B.Transaction -> [Text]) -> Maybe Text -> (B.Transaction -> Bool) -> Widget
-renderTransactions canViewBalance object faURL sorted mkClasses totalTitle danger = 
+renderTransactions :: Maybe Int -> Bool ->  (B.Transaction -> Maybe Text) -> Text -> [B.Transaction] -> (B.Transaction -> [Text]) -> Maybe Text -> (B.Transaction -> Bool) -> Widget
+renderTransactions pageSize canViewBalance object faURL sorted mkClasses totalTitle danger = 
       let (ins, outs) = partition (> 0) (map B._sAmount sorted)
           inTotal = sum ins
           outTotal = sum outs
           total = inTotal + outTotal
+          paging = case pageSize of
+            Nothing -> []
+            Just s -> [("data-page-length" :: Text, tshow s)]
          
       in [whamlet| 
-        <table.table.table-hover.table-border.table-striped>
-          <tr>
-            <th>Date
-            <th>Source
-            <th>Type
-            <th>Description
-            <th>Number
-            <th>Object
-            <th>Paid Out
-            <th>Paid In
-            $if canViewBalance
-              <th>Balance
+        <table *{datatable} *{paging} data-ordering=false>
+          <thead>
+            <tr>
+              <th>Date
+              <th>Source
+              <th>Type
+              <th>Description
+              <th>Number
+              <th>Object
+              <th>Paid Out
+              <th>Paid In
+              $if canViewBalance
+                <th>Balance
           $forall trans <- sorted
             $with isDanger <- danger trans
               <tr :isDanger:.text-danger :isDanger:.bg-danger class="#{intercalate " " (mkClasses trans)}">
@@ -359,6 +374,8 @@ renderTransactions canViewBalance object faURL sorted mkClasses totalTitle dange
               <th>
               <th>#{tshow $ negate outTotal}
               <th>#{tshow inTotal}
+              $if canViewBalance
+                <th> #{tshow total}
               |]
 
 settingsFor :: Text -> Handler BankStatementSettings
@@ -396,7 +413,7 @@ displayDetailsInPanel account bankSettings@BankStatementSettings{..} = do
   
   (stransz, banks) <- lift $ loadReconciliatedTrans dbConf bankSettings
 
-  let tableW = renderTransactions True object faURL stransz (const []) (Just "Total") ((B.FA ==) . B._sSource)
+  let tableW = renderTransactions Nothing True object faURL stransz (const []) (Just "Total") ((B.FA ==) . B._sSource)
       ok = null stransz
   return $ displayPanel (if ok then "succes" else "danger") ok account [whamlet|
             <div.row>

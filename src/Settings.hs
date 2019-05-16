@@ -127,6 +127,11 @@ data BankStatementSettings = BankStatementSettings
   , bsLightBlacklist :: [Text] -- what to hide from light mode
   , bsInitialBalance :: Maybe Double
   , bsDiscardRegex :: Maybe Text
+  , bsCollapsed :: Maybe Bool -- initial collapsed or no
+  , bsRecSummaryPageSize :: Maybe Int -- initial datatable page size for non-rec section
+  , bsSummaryPageSize :: Maybe Int -- initital datatable page size for statment section
+  , bsSummaryDateCalculator :: Maybe DateCalculator -- When to start the statement section
+  , bsSummaryLimit :: Maybe Int -- Number max to load
   } deriving (Show, Read, Eq, Ord)
 
 -- TODO clean

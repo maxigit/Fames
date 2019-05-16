@@ -33,7 +33,7 @@ roundupScore BatchMatch{..} = BatchMatch{batchMatchScore=score,..}  where
 shouldBeRoundedUp as bs = norm as `shouldBe` norm bs
   where norm = sortOn batchMatchKeys . map (normalizeBatchMatch . roundupScore)
 pureSpec = do 
-  describe "@Batches @current Matches" $ do
+  describe "@Batches Matches" $ do
       let [b1, b2, b3, b4] = map BatchKey [1..4]
           day1 = fromGregorian 2019 04 01
           day2 = fromGregorian 2019 05 01

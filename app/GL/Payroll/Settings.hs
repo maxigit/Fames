@@ -5,6 +5,7 @@ module GL.Payroll.Settings where
 
 import ClassyPrelude
 import Data.Aeson.TH(deriveJSON, defaultOptions, fieldLabelModifier, sumEncoding, SumEncoding(..))
+import Data.Aeson.Types
 
 -- * Types
 -- ** For config
@@ -74,6 +75,10 @@ data DateCalculator
   | BeginningOfQuarter 
   | BeginningOfWeek { weekDay :: DayOfWeek}
   | BeginningOfYear
+  | Chain [DateCalculator] -- apply  in order
+  | Newest [DateCalculator]
+  | Oldest [DateCalculator]
+  | WeekDayCase (Map (Maybe DayOfWeek) DateCalculator)
   deriving (Show, Read, Eq, Ord)
 
 data DayOfWeek = Monday | Tuesday | Wednesday | Thursday | Friday | Saturday | Sunday
@@ -86,6 +91,16 @@ succCyclic Sunday = Monday
 succCyclic d = succ d
 
 -- * JSON
+instance ToJSONKey (Maybe DayOfWeek) where
+  toJSONKey = toJSONKeyText myKey where
+    myKey Nothing = "default"
+    myKey (Just w ) = tshow w
+instance FromJSONKey (Maybe DayOfWeek) where
+  fromJSONKey = FromJSONKeyValue parseW  where
+    parseW v = (Just <$> parseJSON  v) <|> return Nothing
+       
+  
+  
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField}''DayOfWeek)
 $(deriveJSON defaultOptions ''EmployeeSettings)
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField

@@ -45,7 +45,7 @@ applyJSONRules stock json =
       in traceShow ("RULES", rulesMap) $ Map.toList resultMap
     Left err -> error (show err)
 
-spec = describe "@Category @current StockMaster to category" $ do
+spec = describe "@Category StockMaster to category" $ do
   describe "#fromJSON" $ it "" pending
   describe "#toJSON" $ it "" pending
   describe "expand source" $ do

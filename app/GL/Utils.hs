@@ -60,6 +60,15 @@ calculateDate BeginningOfQuarter day = let
   in fromGregorian y (1+3*q) 1
 calculateDate (BeginningOfWeek target) day = previousWeekDay target day
 calculateDate BeginningOfYear day = fromGregorian year 01 01 where (year,_,_) = toGregorian day
+calculateDate (Chain dcs) day = foldl' (flip calculateDate) day dcs
+calculateDate (Newest dcs) day = case dcs of
+  [] -> day
+  _ -> maximumEx $ map (flip calculateDate day) dcs
+calculateDate (Oldest dcs) day = case dcs of
+  [] -> day
+  _ -> minimumEx $ map (flip calculateDate day) dcs
+calculateDate (WeekDayCase m) day = maybe id calculateDate dcm $ day where
+  dcm = lookup (Just $ dayOfWeek day) m <|> lookup Nothing m 
 
 
 dayOfWeek :: Day -> DayOfWeek
