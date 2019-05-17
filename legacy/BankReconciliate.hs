@@ -2,6 +2,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE RecordWildCards #-}
 -- * Overview
 -- | This script perform the reconciliation between
 -- bank statements from HSBC (UK) and  FrontAccounting,
@@ -196,11 +197,27 @@ makeClassy ''HSBCTransactions
 
 instance FromNamedRecord (Int -> HSBCTransactions) where
     parseNamedRecord r = pure HSBCTransactions
-      <*> (readTime ["%e-%b-%y", "%e %b %0Y"] <$> r .: "Date")
+      <*> (readTime ["%e-%b-%y", "%e %b %0Y", "%F"] <$> r .: "Date")
          <*> r .: "Type"
          <*> r .: "Description"
          <*> parseDebit "Paid in" "Paid out" r -- opposite to HSBC
          <*> (fmap Provided <$> r .: "Balance")
+
+instance ToNamedRecord HSBCTransactions where
+  -- we use %F to be easily sortable in excel
+  toNamedRecord HSBCTransactions{..} = namedRecord [ "Date" .= formatTime defaultTimeLocale "%F" _hDate
+                                    , "Type" .= _hType
+                                    , "Description" .= _hDescription
+                                    , "Paid in" .= paidIn
+                                    , "Paid out" .= paidOut
+                                    , "Balance" .= fmap validValue _hBalance
+                                    ] where
+    (paidIn, paidOut) = if _hAmount > 0
+                        then (Just _hAmount, Nothing) 
+                        else (Nothing, Just $ - _hAmount)
+
+instance DefaultOrdered HSBCTransactions where
+  headerOrder _ = V.fromList ["Date", "Type", "Description", "Paid in", "Paid out", "Balance"]
 
 -- | HSBC Transaction (transaction download). Doesn't contain a balance
 -- This data type is only used to read the statement.csv file
@@ -428,6 +445,10 @@ readDaily discardPat path = do
         Right v -> return . V.toList $ V.imap (\i f -> f (-i)) v -- Statements appears with
         -- the newest transaction on top, ie by descending date.
         -- transactions needs therefore to be numered in reverse order
+-- * Encode Function
+encodeHSBCTransactions :: [HSBCTransactions] -> BL.ByteString
+encodeHSBCTransactions hs = encodeDefaultOrderedByName hs
+  
 
 -- * Main functions
 --  | Group transaction of different source by amounts.
@@ -552,6 +573,15 @@ faTransToTransaction f = pure Transaction
                 <*> _fRecDate
                 <*> (Just . Provided <$>_fBalance)
                 $ f
+
+transactionToHsbcTrans :: Transaction -> HSBCTransactions
+transactionToHsbcTrans = pure HSBCTransactions
+  <*> _sDate
+  <*> _sType
+  <*> (fromMaybe "" <$> _sObject)
+  <*> _sAmount
+  <*> _sBalance
+  <*> _sDayPos
 
 buildTransactions :: These [HSBCTransactions] [FATransaction] -> [Transaction]
 buildTransactions  (This hs) = map hsbcTransToTransaction hs

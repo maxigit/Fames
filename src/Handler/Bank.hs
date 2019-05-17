@@ -6,6 +6,7 @@ module Handler.Bank
 , getGLBankHelpR
 , getGLBankFXR
 , postGLBankFXR
+, getGLBankStatementGenR
 ) where
 
 
@@ -202,9 +203,9 @@ mkRecOptions dbConf BankStatementSettings{bsMode=BankUseStatement{..},..} =  let
       discardFilter = unpack <$> bsDiscardRegex
   in (Just bsPath, B.Options{..})
 mkRecOptions dbConf BankStatementSettings{bsMode=BankNoStatement,..} =  let
-      statementFiles = ""
+      statementFiles = " "
       faCredential = myConnInfo dbConf
-      dailyFiles = ""
+      dailyFiles = " "
       output = ""
       startDate = bsStartDate
       endDate = Nothing -- Just today
@@ -460,6 +461,8 @@ displayDetailsInPanel account bankSettings@BankStatementSettings{..} = do
                 <h3> By amount
               <div.col-md-2><h4>
                 <a href="@{GLR (GLBankReconciliateR account)}"> Reconciliate
+              <div.col-md-2><h4>
+                <a href="@{GLR (GLBankStatementGenR account)}"> Download Statement
            ^{tableW}
                      |]
 -- * Reconciliationg
@@ -998,3 +1001,36 @@ transferToFXs (Single fxDate, Single fxDescription, Single fxFXAmount, Single fx
   where fxRate = fxFXAmount/fxHomeAmount
         fxExtra = ()
 
+
+-- * Generate statement
+-- generating statement can be usefull to reconciliate
+-- account which doesn't have statement but have for example
+-- known balances. This is a case of cash account.
+-- The procedure is then to generate a statement with the unreconciliated
+-- transaction and add the balance manually  in the generated file.
+getGLBankStatementGenR :: Text -> Handler TypedContent
+getGLBankStatementGenR account= do
+  dbConf <- appDatabaseConf <$> getsYesod appSettings
+  bankSettings <- settingsFor account
+  let (pathm, options) = mkRecOptions dbConf bankSettings
+  let withDir = case pathm of
+        Nothing -> id
+        Just path -> withCurrentDirectory path
+       
+  (hts, _) <- lift $ withDir (B.loadAllTrans options)
+  let fas = concat $ catThat $ map snd hts
+      hs = [ h  {B._hBalance = Nothing, B._hType = convertType (B._hType h) } -- reset balance
+             | fa <- fas
+             , let t = B.faTransToTransaction fa
+             , let h = B.transactionToHsbcTrans t
+             ]
+      convertType t = maybe t (showTransType . toEnum) (readMay t)
+  let content = B.encodeHSBCTransactions hs 
+      dates = map B._hDate hs
+      minDate = minimumMay dates
+      maxDate = maximumMay dates
+      filename = "gen-statement-" <> (maybe "" (formatTime defaultTimeLocale "%F") minDate)
+                 <> "--" <> (maybe "" (formatTime defaultTimeLocale "%F") maxDate)
+                 <> ".csv"
+  setAttachment $ fromString filename
+  respond "text/csv" content
