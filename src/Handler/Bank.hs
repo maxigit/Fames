@@ -295,6 +295,7 @@ displayLightSummary today dbConf faURL title bankSettings@BankStatementSettings{
   object <- getObjectH
   ((stransz, banks), updatedAtm) <- lift $ loadReconciliatedTrans dbConf bankSettings
   -- we sort by date
+  tz <- lift getCurrentTimeZone
   let sortTrans = filter (keepLight blacklist) . sortOn (liftA3 (,,) (Down . B._sDate) (Down . B._sDayPos) (Down . B._sAmount))
       sorted = sortTrans stransz
       ok = null sorted
@@ -310,7 +311,7 @@ displayLightSummary today dbConf faURL title bankSettings@BankStatementSettings{
                     $maybe updated <- updatedAtm
                       <label> Last Update
                       <div>
-                        <span>#{formatTime defaultTimeLocale "%a %d %b %Y -- %R" updated }
+                        <span>#{formatTime defaultTimeLocale "%a %d %b %Y -- %R" $ utcToLocalTime tz updated }
 
                        |]
   return $ displayPanel' (if ok then "success" else "danger" :: Text) ok title titleW [whamlet|
