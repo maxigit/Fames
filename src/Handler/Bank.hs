@@ -688,7 +688,7 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
               <th.none>Number 
               <th.data-priority=105>Object
               <th.all data-class-name=text-right>Paid Out
-              <th.all> data-class-name=text-rightPaid In
+              <th.all data-class-name=text-right>Paid In
               <th.data-priority=1 data-class-name=text-right>Balance
               <th.data-priority=200 data-class-name=text-right>FA Bal
               <th.data-priority=150 data-class-name=text-right>Diff
