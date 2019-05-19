@@ -31,6 +31,17 @@ import Handler.CsvUtils
 import Data.Decimal(realFracToDecimal)
 import Control.Monad.State(State, evalState)
 
+-- Transaction to reconciliate
+-- Transaction from a statement missing in FA
+-- may be automattically saved to FA
+data ToRec = ToRec
+    { trTrans :: B.Transaction
+    , trSaveHtml :: Maybe Html
+    }
+toRec :: B.Transaction -> ToRec
+toRec t = ToRec t Nothing
+
+
 commonCss = [cassius|
 tr.private
   font-style: italic
@@ -180,15 +191,21 @@ displayPanel' panelClass collapsed account title content =
         ^{content}
         |]
 
+loadReconciliatedTrans :: MySQLConf
+                       -> BankStatementSettings
+                       -> Handler (([ToRec], [B.Transaction]), Maybe UTCTime)
 loadReconciliatedTrans dbConf settings = 
   case mkRecOptions dbConf settings of
-    (Just path, options) -> withCurrentDirectory path  ((,) <$> B.main' options <*> B.updateTime options)
+    (Just path, options) -> do
+      ((torec0, all), upTime) <- lift $ withCurrentDirectory path  ((,) <$> B.main' options <*> B.updateTime options)
+      torec <- runDB $ mapM (autoRec settings) torec0
+      return ((torec, all ), upTime)
     (Nothing, options) -> do
       -- fake the same system by setting fake path and load the transaction
-      fas <- B.readFa options
+      fas <- lift$ B.readFa options
       let ts = map B.faTransToTransaction fas
 
-      return ((filter (isNothing . B._sRecDate) ts,  ts), Nothing)
+      return ((map (flip ToRec Nothing) (filter (isNothing . B._sRecDate) ts), ts), Nothing)
 
 mkRecOptions dbConf BankStatementSettings{bsMode=BankUseStatement{..},..} =  let
       statementFiles = unpack bsStatementGlob
@@ -234,12 +251,13 @@ displaySummary today dbConf faURL title bankSettings@BankStatementSettings{..}= 
   --     discardFilter = unpack <$> bsDiscardRegex
   
   -- (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main' options)
-  ((stransz, banks), updatedAtm) <- lift $ loadReconciliatedTrans dbConf bankSettings
+  ((stransz, banks), updatedAtm) <- loadReconciliatedTrans dbConf bankSettings
   -- we sort by date
   tz <- lift getCurrentTimeZone
-  let sortTrans = sortOn (liftA3 (,,) (Down . B._sDate) (Down . B._sDayPos) (Down . B._sAmount))
+  let sortTrans = sortOn sorter
+      sorter = liftA3 (,,) (Down . B._sDate) (Down . B._sDayPos) (Down . B._sAmount)
       hideBlacklisted t = if keepLight blacklist t then ["public" ] else ["private"]
-      sorted = sortTrans stransz
+      sorted = (sortOn (sorter . trTrans)) stransz
       ok = null sorted
       collapsed = fromMaybe ok bsCollapsed
       summaryLimit = fromMaybe 10 bsSummaryLimit
@@ -253,7 +271,7 @@ displaySummary today dbConf faURL title bankSettings@BankStatementSettings{..}= 
       (news, olds) = partition ((>= lastDay) . B._sDate)  (sortTrans banks)
       lastBanks = news <> (take (summaryLimit - length news) olds)
       lastW = renderTransactions bsSummaryPageSize True object faURL lastBanks hideBlacklisted (Just "Total") (const False)
-      tableW = renderTransactions bsRecSummaryPageSize True object faURL sorted hideBlacklisted (Just "Total") ((B.FA ==) . B._sSource)
+      tableW = renderToRecs bsRecSummaryPageSize True trSaveHtml  faURL sorted hideBlacklisted (Just "Total") ((B.FA ==) . B._sSource)
       titleW = [shamlet|
         <div.row>
           <div.col-md-4>
@@ -267,7 +285,7 @@ displaySummary today dbConf faURL title bankSettings@BankStatementSettings{..}= 
             $case sorted 
               $of []
               $of _
-                $with bal <- sum (map B._sAmount sorted)
+                $with bal <- sum (map (B._sAmount . trTrans) sorted)
                   <label> Discrepencies
                   #{tshow $ bal}
           <h4.col-md-1>
@@ -294,16 +312,16 @@ displaySummary today dbConf faURL title bankSettings@BankStatementSettings{..}= 
 displayLightSummary :: Day -> _DB -> Text -> Text ->  BankStatementSettings -> Handler Widget
 displayLightSummary today dbConf faURL title bankSettings@BankStatementSettings{..}= do
   object <- getObjectH
-  ((stransz, banks), updatedAtm) <- lift $ loadReconciliatedTrans dbConf bankSettings
+  ((stransz, banks), updatedAtm) <- loadReconciliatedTrans dbConf bankSettings
   -- we sort by date
   tz <- lift getCurrentTimeZone
-  let sortTrans = filter (keepLight blacklist) . sortOn (liftA3 (,,) (Down . B._sDate) (Down . B._sDayPos) (Down . B._sAmount))
-      sorted = sortTrans stransz
+  let sortTrans = sortOn sorter
+      sorter = liftA3 (,,) (Down . B._sDate) (Down . B._sDayPos) (Down . B._sAmount)
+      sorted = (sortOn (sorter . trTrans)) stransz
       ok = null sorted
-      blacklist = map unpack bsLightBlacklist
       lastBanks = take 10 $ sortTrans banks
       lastW = renderTransactions bsSummaryPageSize False object faURL lastBanks (const []) (Just "Total") (const False)
-      tableW = renderTransactions bsRecSummaryPageSize False object faURL sorted  (const [])(Just "Total") ((B.FA ==) . B._sSource)
+      tableW = renderToRecs bsRecSummaryPageSize False trSaveHtml faURL sorted  (const [])(Just "Total") ((B.FA ==) . B._sSource)
       titleW = [shamlet|
         <div.row>
           <div.col-md-4>
@@ -365,7 +383,11 @@ linkToFA urlForFA' trans = case (readMay (B._sType trans), B._sNumber trans) of
 
 renderTransactions :: Maybe Int -> Bool ->  (B.Transaction -> Maybe Text) -> Text -> [B.Transaction] -> (B.Transaction -> [Text]) -> Maybe Text -> (B.Transaction -> Bool) -> Widget
 renderTransactions pageSize canViewBalance object faURL sorted mkClasses totalTitle danger = 
-      let (ins, outs) = partition (> 0) (map B._sAmount sorted)
+  renderToRecs pageSize canViewBalance (fmap toHtml . object . trTrans) faURL (map toRec sorted) mkClasses totalTitle danger
+
+renderToRecs :: Maybe Int -> Bool ->  (ToRec -> Maybe Html) -> Text -> [ToRec] -> (B.Transaction -> [Text]) -> Maybe Text -> (B.Transaction -> Bool) -> Widget
+renderToRecs pageSize canViewBalance object faURL sorted mkClasses totalTitle danger =
+      let (ins, outs) = partition (> 0) (map (B._sAmount . trTrans) sorted)
           inTotal = sum ins
           outTotal = sum outs
           total = inTotal + outTotal
@@ -387,7 +409,7 @@ renderTransactions pageSize canViewBalance object faURL sorted mkClasses totalTi
               <th>Paid In
               $if canViewBalance
                 <th>Balance
-          $forall trans <- sorted
+          $forall torec@(ToRec trans _ ) <- sorted
             $with isDanger <- danger trans
               <tr :isDanger:.text-danger :isDanger:.bg-danger class="#{intercalate " " (mkClasses trans)}">
                   <td>#{tshow $ B._sDate trans}
@@ -395,7 +417,7 @@ renderTransactions pageSize canViewBalance object faURL sorted mkClasses totalTi
                   <td>^{linkToFA (urlForFA faURL) trans}
                   <td>#{B._sDescription trans}
                   <td.text-right>#{maybe "-" tshow $ B._sNumber trans}
-                  <td>#{fromMaybe "-" (object trans)}
+                  <td>#{fromMaybe "-" (object torec)}
                   $if B._sAmount trans > 0
                     <td>
                     <td.text-right>#{tshow $  B._sAmount trans}
@@ -451,9 +473,9 @@ displayDetailsInPanel account bankSettings@BankStatementSettings{..} = do
   --     initialBalance = Nothing
   --     discardFilter = unpack <$> bsDiscardRegex
   
-  (,) (stransz, banks) _ <- lift $ loadReconciliatedTrans dbConf bankSettings
+  (,) (stransz, banks) _ <- loadReconciliatedTrans dbConf bankSettings
 
-  let tableW = renderTransactions Nothing True object faURL stransz (const []) (Just "Total") ((B.FA ==) . B._sSource)
+  let tableW = renderToRecs Nothing True trSaveHtml faURL stransz (const []) (Just "Total") ((B.FA ==) . B._sSource)
       ok = null stransz
   return $ displayPanel (if ok then "succes" else "danger") ok account [whamlet|
             <div.row>
@@ -1034,3 +1056,9 @@ getGLBankStatementGenR account= do
                  <> ".csv"
   setAttachment $ fromString filename
   respond "text/csv" content
+-- * Auto rec
+-- generate FA transactions to match statement ones.
+-- This can be for example, supplier payment corresponding to outsanding invoice
+-- or bank transfer.
+autoRec :: BankStatementSettings -> B.Transaction -> SqlHandler ToRec 
+autoRec _ t = return (toRec t)
