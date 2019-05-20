@@ -274,7 +274,7 @@ displaySummary today dbConf faURL title bankSettings@BankStatementSettings{..}= 
       (news, olds) = partition ((>= lastDay) . B._sDate)  (sortTrans banks)
       lastBanks = news <> (take (summaryLimit - length news) olds)
       lastW = renderTransactions bsSummaryPageSize True object faURL lastBanks hideBlacklisted (Just "Total") (const False)
-      tableW = renderToRecs bsRecSummaryPageSize True trSaveHtml  faURL sorted hideBlacklisted (Just "Total") ((B.FA ==) . B._sSource)
+      tableW = renderToRecs bsRecSummaryPageSize True (liftA2 (<|>) trSaveHtml (toHtml <$$> object . trTrans))  faURL sorted hideBlacklisted (Just "Total") ((B.FA ==) . B._sSource)
       titleW = [shamlet|
         <div.row>
           <div.col-md-4>
@@ -324,7 +324,7 @@ displayLightSummary today dbConf faURL title bankSettings@BankStatementSettings{
       ok = null sorted
       lastBanks = take 10 $ sortTrans banks
       lastW = renderTransactions bsSummaryPageSize False object faURL lastBanks (const []) (Just "Total") (const False)
-      tableW = renderToRecs bsRecSummaryPageSize False trSaveHtml faURL sorted  (const [])(Just "Total") ((B.FA ==) . B._sSource)
+      tableW = renderToRecs bsRecSummaryPageSize False (liftA2 (<|>) trSaveHtml (toHtml <$$> object . trTrans)) faURL sorted  (const [])(Just "Total") ((B.FA ==) . B._sSource)
       titleW = [shamlet|
         <div.row>
           <div.col-md-4>
@@ -429,7 +429,7 @@ renderToRecs pageSize canViewBalance object faURL sorted mkClasses totalTitle da
                   <td>^{linkToFA (urlForFA faURL) trans}
                   <td>#{B._sDescription trans}
                   <td.text-right>#{maybe "-" tshow $ B._sNumber trans}
-                  <td>#{fromMaybe "-" (object torec <|> (toHtml <$> B._sObject trans))}
+                  <td>#{fromMaybe "-" (object torec)}
                   $if B._sAmount trans > 0
                     <td>
                     <td.text-right>#{tshow $  B._sAmount trans}
