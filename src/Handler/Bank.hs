@@ -25,12 +25,15 @@ import FA as FA
 import GL.Utils
 import GL.Payroll.Settings
 import Text.Shakespeare.Text (st)
-import Data.List(mapAccumL)
+import Data.List(mapAccumL, nub)
+import qualified Data.Map as Map
 import Formatting
 import Handler.CsvUtils
+import Util.Cache
 import Data.Decimal(realFracToDecimal)
 import Control.Monad.State(State, evalState)
-
+import qualified Text.Regex as Rg
+import CategoryRule(RegexSub(..), regexSub, subRegex)
 -- Transaction to reconciliate
 -- Transaction from a statement missing in FA
 -- may be automattically saved to FA
@@ -127,7 +130,7 @@ $(document).ready (function() {
   $("label:contains('Opening Balance')+input").change(updateRecTotal);
   $("label:contains('Closing Balance')+input").change(updateRecTotal);
   $("input.toggle-all").change(toggleAll);
-  updateRecTotal();
+  updateRecTotal(());
 })
 |]
 
@@ -198,7 +201,7 @@ loadReconciliatedTrans dbConf settings =
   case mkRecOptions dbConf settings of
     (Just path, options) -> do
       ((torec0, all), upTime) <- lift $ withCurrentDirectory path  ((,) <$> B.main' options <*> B.updateTime options)
-      torec <- runDB $ mapM (autoRec settings) torec0
+      torec <- mapM (autoRec settings) torec0
       return ((torec, all ), upTime)
     (Nothing, options) -> do
       -- fake the same system by setting fake path and load the transaction
@@ -356,13 +359,20 @@ linkToFA :: (FATransType -> Int -> Text) -> B.Transaction -> Html
 linkToFA urlForFA' trans = case (readMay (B._sType trans), B._sNumber trans) of
   (Just t, Just no) | B._sSource trans == B.FA ->
            let eType = toEnum t
-               ttype = showShortTransType eType :: Text
                longType = showTransType eType :: Text
                directionClass = if B._sAmount trans > 0
                                 then "text-success" :: Text
                                 else "text-danger"
            in [shamlet|
      <a href="#{urlForFA' (eType) no}" class="#{directionClass}" target=_blank data-toggle="tooltip" title="#{longType}">
+       #{transactionIcon eType}
+       |]
+  _ -> toHtml (B._sType trans)
+
+transactionIcon :: FATransType -> Html
+transactionIcon eType = 
+  let ttype = showShortTransType eType :: Text
+  in [shamlet|
        $case eType
          $of ST_CUSTPAYMENT
            <span.glyphicon.glyphicon-user.text-primary>
@@ -378,9 +388,11 @@ linkToFA urlForFA' trans = case (readMay (B._sType trans), B._sNumber trans) of
            <span.glyphicon.glyphicon-arrow-right.text-success>
          $of _
            #{ttype}
-       |]
-  _ -> toHtml (B._sType trans)
-
+           |]
+_not_used_transactionIcon' :: Text -> Html
+_not_used_transactionIcon' t = case readMay t of
+  Just eType -> transactionIcon $ toEnum eType
+  Nothing -> toHtml t
 renderTransactions :: Maybe Int -> Bool ->  (B.Transaction -> Maybe Text) -> Text -> [B.Transaction] -> (B.Transaction -> [Text]) -> Maybe Text -> (B.Transaction -> Bool) -> Widget
 renderTransactions pageSize canViewBalance object faURL sorted mkClasses totalTitle danger = 
   renderToRecs pageSize canViewBalance (fmap toHtml . object . trTrans) faURL (map toRec sorted) mkClasses totalTitle danger
@@ -1060,5 +1072,127 @@ getGLBankStatementGenR account= do
 -- generate FA transactions to match statement ones.
 -- This can be for example, supplier payment corresponding to outsanding invoice
 -- or bank transfer.
-autoRec :: BankStatementSettings -> B.Transaction -> SqlHandler ToRec 
-autoRec _ t = return (toRec t)
+autoRec :: BankStatementSettings -> B.Transaction -> Handler ToRec 
+autoRec settings0 t = do
+  BankStatementSettings{..} <- fillAutoSettingsCached settings0
+  faURL <- getsYesod (pack . appFAExternalURL . appSettings)
+  let rules' = concatMap mapToList bsRules 
+      description = toLower $ B._sDescription t
+      parseRegex s = case break (=='/') (toLower s) of
+        (regex, '/':replace ) -> regexSub regex replace
+        (regex, "") -> regexSub regex description
+        _ -> error "Pattern should be exhaustive"
+
+      rules = map (first (parseRegex . unpack)) rules' -- map (first $ Rg.mkRegex . unpack) rules'
+      match = headMay [ (rule, memo)
+                      | (r, rule) <- rules
+                      , memo <- maybeToList $ subRegex r description
+                      ]
+  case match of
+        (Just (BankAutoTransfer target, memo)) -> generatePrefillFundTransferLink faURL bsBankAccount target memo t
+        (Just (BankAutoSupplier target, memo)) -> generatePrefillSupplierPaymentLink faURL bsBankAccount target memo t
+        (Just (BankAutoCustomer target, memo)) -> generatePrefillCustomerPaymentLink faURL bsBankAccount target memo t
+        _ -> return $ toRec t
+
+-- | Open the FA fund transfer page with prefilled parameter
+generatePrefillFundTransferLink :: Text -> Int -> Int -> String ->  B.Transaction -> Handler ToRec
+generatePrefillFundTransferLink faURL current target memo t@B.Transaction{..} = do
+  let (from, to, dirClass ) = if _sAmount > 0 -- transfer TO current
+                    then (target, current, "text-success" :: Text)
+                    else (current, target, "text-danger")
+  -- find target name
+  bankm <- runDB $ get (FA.BankAccountKey target)
+  let targetName = maybe ("#" <> tshow target) FA.bankAccountBankAccountName bankm
+      html = [shamlet|
+  <form method=POST action="#{faURL}/gl/bank_transfer.php" target=_blank>
+    <input type=hidden name=DatePaid  value="#{formatTime defaultTimeLocale "%Y/%m/%d" _sDate}">
+    <input type=hidden name=amount  value="#{tshow $ abs _sAmount}">
+    <input type=hidden name=FromBankAccount  value="#{tshow from}">
+    <input type=hidden name=ToBankAccount  value="#{tshow to}">
+    <input type=hidden name=memo_  value="#{memo}">
+    <span class="#{dirClass}">
+       #{transactionIcon $ ST_BANKTRANSFER}
+       <span.guessed-value>#{targetName}
+    <button.btn.btn-sm.btn-danger>Save
+    |]
+  return $ ToRec t  (Just html)
+
+
+generatePrefillSupplierPaymentLink :: Text -> Int -> Int -> String ->  B.Transaction -> Handler ToRec
+generatePrefillSupplierPaymentLink faURL current target memo t@B.Transaction{..} | _sAmount < 0 = do
+  suppm <- runDB $ get (FA.SupplierKey target)
+  let targetName = maybe ("#" <> tshow target) FA.supplierSuppName suppm
+      html = [shamlet|
+  <form method=POST action="#{faURL}/purchasing/supplier_payment.php" target=_blank>
+    <input type=hidden name=DatePaid  value="#{formatTime defaultTimeLocale "%Y/%m/%d" _sDate}">
+    $#<input type=hidden name=amount  value="#{tshow $ abs _sAmount}">
+    <input type=hidden name=bank_account  value="#{tshow current}">
+    <input type=hidden name=supplier_id value="#{tshow target}">
+    <input type=hidden name=memo_  value="#{memo}">
+    <span>
+       #{transactionIcon $ ST_SUPPAYMENT}
+       <span.guessed-value>#{targetName}
+    <button.btn.btn-sm.btn-danger>Save
+    |]
+  return $ ToRec t  (Just html)
+generatePrefillSupplierPaymentLink faURL current target memo t@B.Transaction{..} = return $ toRec t
+
+generatePrefillCustomerPaymentLink :: Text -> Int -> Int -> String ->  B.Transaction -> Handler ToRec
+generatePrefillCustomerPaymentLink faURL current target memo t@B.Transaction{..} | _sAmount > 0 = do
+  suppm <- runDB $ get (FA.DebtorsMasterKey target)
+  let targetName = maybe ("#" <> tshow target) FA.debtorsMasterName suppm
+      html = [shamlet|
+  <form method=POST action="#{faURL}/sales/customer_payments.php" target=_blank>
+    <input type=hidden name=DateBanked  value="#{formatTime defaultTimeLocale "%Y/%m/%d" _sDate}">
+    $#<input type=hidden name=amount  value="#{tshow $ abs _sAmount}">
+    <input type=hidden name=bank_account  value="#{tshow current}">
+    <input type=hidden name=customer_id value="#{tshow target}">
+    <input type=hidden name=memo_  value="#{memo}">
+    <span>
+       #{transactionIcon $ ST_CUSTPAYMENT}
+       <span.guessed-value>#{targetName}
+    <button.btn.btn-sm.btn-danger>Save
+    |]
+  return $ ToRec t  (Just html)
+generatePrefillCustomerPaymentLink faURL current target memo t@B.Transaction{..} = return $ toRec t
+
+-- | Create rules for supplier and customer based on previous payment
+fillAutoSettingsCached bankSettings = cache0 False (cacheDay 1) ("bank-settings/" <> tshow (bsBankAccount bankSettings)) $ do
+  dbConf <- appDatabaseConf <$> getsYesod appSettings
+  let optionsm = mkRecOptions dbConf bankSettings
+  recs <- case optionsm of
+    (Nothing, _) -> return [] -- :: Handler [These B.HSBCTransacations B.FATransaction]
+    (Just path, options) -> do
+      (hts, _) <- lift $ withCurrentDirectory path (B.loadAllTrans options {B.aggregateMode = B.ALL_BEST})
+      return $ B.badsByDay hts
+  -- transform number and special character into wildcard
+  let customerRules = rulesFromRec ST_CUSTPAYMENT BankAutoCustomer recs
+      supplierRules = rulesFromRec ST_SUPPAYMENT BankAutoSupplier recs
+      -- transRules = rulesFromRec ST_BANKTRANSFER BankAutoTransfer recs
+  -- writeFile "/home/max/Webshot/recs.hs" (fromString $ show ("RECS", filter isThese recs, "customerRules", customerRules, "supp", supplierRules, "trans", transRules))
+  return $ bankSettings {bsRules = bsRules bankSettings <> (customerRules : supplierRules : [])}
+  
+
+rulesFromRec eType ruleFn recs = 
+  let numberSub = (Rg.mkRegex "[a-z]*([0-9]+[-a-z]*)+",  ".*")
+      specialSub = (Rg.mkRegex "[()/ ]+", " ")
+      stripEnd = (Rg.mkRegex " +$", ".*")
+      mkReg s = (subRegex0 stripEnd $ subRegex0 numberSub $ subRegex0 specialSub $ toLower s)
+      subRegex0 (reg, rep) s = Rg.subRegex reg s rep 
+      -- don't keep regex which have only wild card or space
+      valid r = not $ null $ filter (`notElem` (".* $^" :: String)) (r :: String)
+
+  -- customer rules
+  -- we take the beginning of the payment reference
+      entity0 = groupAsMap fst ((:[]) . snd) [ ("^" ++ reg ++ "$", entity :: Int)
+                                               | These h f <- recs
+                                               , B._fType f ==  show (fromEnum eType)
+                                               , entity <- maybeToList (readMay $ B._fObject f)
+                                               , let reg = mkReg $ B._hDescription h
+                                               , valid reg
+                                               ]
+      entity1 = fmap (nub . sort) entity0
+      --  and only keep the one without ambiguity
+  in  mapFromList [ (pack ref, ruleFn debtor)
+                  | (ref, [debtor]) <-  Map.toList entity1
+                  ]

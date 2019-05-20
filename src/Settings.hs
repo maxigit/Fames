@@ -111,6 +111,11 @@ data AppSettings = AppSettings
     , appFavicon:: Text
     } deriving Show
 
+data BankAutoReconciliateRule = BankAutoTransfer !Int
+  | BankAutoSupplier !Int
+  | BankAutoCustomer !Int
+  -- | BankAutoCustomer !Int
+  deriving (Show, Read, Eq, Ord)
 data BankStatementMode = BankUseStatement
   { bsPath :: FilePath -- Where to find the statement files
   , bsStatementGlob :: Text
@@ -132,6 +137,7 @@ data BankStatementSettings = BankStatementSettings
   , bsSummaryPageSize :: Maybe Int -- initital datatable page size for statment section
   , bsSummaryDateCalculator :: Maybe DateCalculator -- When to start the statement section
   , bsSummaryLimit :: Maybe Int -- Number max to load
+  , bsRules:: [Map Text BankAutoReconciliateRule]  -- rules to generate FA transaction statement entry
   } deriving (Show, Read, Eq, Ord)
 
 -- TODO clean
@@ -145,6 +151,9 @@ instance ToJSON RoleFor  where
 
 $(deriveToJSON defaultOptions ''BarcodeTemplate)
 $(deriveToJSON defaultOptions ''BarcodeParams)
+$(deriveJSON defaultOptions { fieldLabelModifier = camelTo2 '-' . drop 2
+                            , sumEncoding= ObjectWithSingleField
+                            , constructorTagModifier = camelTo2 '-' . drop (length ("BankAuto" :: Text))} ''BankAutoReconciliateRule)
 $(deriveJSON defaultOptions { fieldLabelModifier = camelTo2 '-' . drop 2
                             , sumEncoding= ObjectWithSingleField
                             , constructorTagModifier = camelTo2 '-' . drop (length ("Bank" :: Text))} ''BankStatementMode)
