@@ -429,7 +429,7 @@ renderToRecs pageSize canViewBalance object faURL sorted mkClasses totalTitle da
                   <td>^{linkToFA (urlForFA faURL) trans}
                   <td>#{B._sDescription trans}
                   <td.text-right>#{maybe "-" tshow $ B._sNumber trans}
-                  <td>#{fromMaybe "-" (object torec)}
+                  <td>#{fromMaybe "-" (object torec <|> (toHtml <$> B._sObject trans))}
                   $if B._sAmount trans > 0
                     <td>
                     <td.text-right>#{tshow $  B._sAmount trans}
