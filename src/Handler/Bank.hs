@@ -315,14 +315,15 @@ displaySummary today dbConf faURL title bankSettings@BankStatementSettings{..}= 
 displayLightSummary :: Day -> _DB -> Text -> Text ->  BankStatementSettings -> Handler Widget
 displayLightSummary today dbConf faURL title bankSettings@BankStatementSettings{..}= do
   object <- getObjectH
-  ((stransz, banks), updatedAtm) <- loadReconciliatedTrans dbConf bankSettings
+  ((stranszUnfiltered, banksUnfiltered), updatedAtm) <- loadReconciliatedTrans dbConf bankSettings
   -- we sort by date
   tz <- lift getCurrentTimeZone
   let sortTrans = sortOn sorter
       sorter = liftA3 (,,) (Down . B._sDate) (Down . B._sDayPos) (Down . B._sAmount)
-      sorted = (sortOn (sorter . trTrans)) stransz
+      sorted = filter (keepLight blacklist . trTrans) $ (sortOn (sorter . trTrans)) stranszUnfiltered
       ok = null sorted
-      lastBanks = take 10 $ sortTrans banks
+      blacklist = map unpack bsLightBlacklist
+      lastBanks = take 10 $ filter (keepLight blacklist) $ sortTrans banksUnfiltered
       lastW = renderTransactions bsSummaryPageSize False object faURL lastBanks (const []) (Just "Total") (const False)
       tableW = renderToRecs bsRecSummaryPageSize False (liftA2 (<|>) trSaveHtml (toHtml <$$> object . trTrans)) faURL sorted  (const [])(Just "Total") ((B.FA ==) . B._sSource)
       titleW = [shamlet|
