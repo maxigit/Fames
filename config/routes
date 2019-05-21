@@ -36,6 +36,9 @@
 
   /vat GLVATR GET !vat !group=VAT !title=Main
   /vat/ecsl GLVATEcslR GET POST !vat !title=ECSL
+  /tax GLTaxReportsR  GET !tax !title=Tax_Reports
+  /tax/new/#Text GLNewTaxReportR POST !tax !new-tax
+  /tax/view/#Int64 GLTaxReportR GET POST !tax
 
   /check GLCheckR GET POST !check !group=Check !title=Check
   /check/debtor_trans/#Int64/#Int64 GLCheckDebtorTransR GET !check 

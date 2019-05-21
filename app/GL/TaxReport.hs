@@ -1,8 +1,5 @@
 module GL.TaxReport
-( computeTaxBin
-)
 where
-
 import ClassyPrelude 
 import qualified FA as FA
 import GL.FA
@@ -11,30 +8,14 @@ import GL.Utils
 import Data.Aeson
 import Import.NoFoundation
 
--- * Dummy type
-data ReportTransDetail = ReportTransDetail
 -- * Types
-data BinRule = -- TaxTypeMap (Map TaxRef BinRule) -- case
-             -- | Bin TaxBin -- const
-             UseTaxRef
-             | NoBin -- empty bin
-      
-type ReportTransDetailDate = ( ReportTransDetail, Maybe Day )
-data TransactionInfo = TransactionInfo
-   { glEntries :: [ FA.GlTran ] -- ^ Gl entrie corresponding to the transaction
-   , taxDetails :: [ FA.TransTaxDetail ] -- ^ transaction details from FA
-   , reportDetails :: [ ReportTransDetail ] -- ^ What's been alread submitted
-   }
-data TaxBin = TaxBin Text
-  deriving (Eq, Show, Read, Ord)
-
-data BinError = BalanceError -- ^ amounts doesn't balance
-              | NoBinError -- ^ no bin
+-- | 
 data TaxSummary = TaxSummary
    { netAmount :: Amount
    , taxAmount :: Amount
    } deriving (Eq, Read, Show, Ord)
 
+-- * Instance
 instance Semigroup TaxSummary where
   (TaxSummary net tax) <> (TaxSummary net' tax') = TaxSummary (net + net') (tax + tax')
 instance Monoid TaxSummary where
@@ -50,70 +31,3 @@ instance HasTaxAmounts FA.TransTaxDetail where
   taxSummary FA.TransTaxDetail{..} = let
     ex = (* transTaxDetailExRate)
     in TaxSummary (ex transTaxDetailNetAmount) (ex transTaxDetailAmount)
-
-type RuleResult = Either BinError (Map TaxBin TaxSummary)
-
--- * Box
-
--- All bin must add up to the original amount.
--- The rules function deciding of the bin, should not use the
--- amounts (even though they have access to it). This is why
--- we calculate the taxSummary, separately from the bin, instead of having a function returin a bin and a summary.
--- This is to avoid amount to be used twice or 0.
-computeTaxBin :: [BinRule] -> TransactionInfo  -> RuleResult
-computeTaxBin rules info = do
-  binsForDetails <- mapM (\td@FA.TransTaxDetail{..} ->  binForTaxDetail rules td <&> (, taxSummary td))  (taxDetails info)
-  Right $ mkTaxBins binsForDetails
-
--- applyBinRule :: BinRule  -> TransactionInfo -> Either BinError TaxBins
--- applyBinRule rule info = do
---   binsForDetails <- mapM (binForTaxDetail rule)  (taxDetails info)
---   return mkTaxBins binsForDetails
-
-
-binForTaxDetail :: [BinRule] -> FA.TransTaxDetail -> Either BinError TaxBin
-binForTaxDetail _ FA.TransTaxDetail{..} = Right $ TaxBin ("#" <> tshow transTaxDetailTaxTypeId <> " " <> tshow transTaxDetailRate )
-  
-mkTaxBins :: [(TaxBin, TaxSummary)] -> Map TaxBin TaxSummary
-mkTaxBins = groupAsMap fst snd 
--- applyBinRule (TaxTypeMap tmap) TransactionInfo{..} =  map (_applyTaxRule tmap ) taxDetails
-
-
-
--- | which direction should tax been using
--- For some transactions like Journal entry it cant' be decided
--- as it depends of the actual gl entries. It can in fact contains
--- no tax at all, or tax in both direction
-debitCreditForTax :: FATransType -> Maybe DebitCredit 
-debitCreditForTax ST_JOURNAL = Nothing
-debitCreditForTax ST_BANKPAYMENT = Just Debit
-debitCreditForTax ST_BANKDEPOSIT = Just Credit
-debitCreditForTax ST_BANKTRANSFER = Nothing
-debitCreditForTax ST_SALESINVOICE = Just Debit
-debitCreditForTax ST_CUSTCREDIT = Just Credit
-debitCreditForTax ST_CUSTPAYMENT = Just Credit -- Prompt payment discount is like a credit
-debitCreditForTax ST_CUSTDELIVERY = Nothing
-debitCreditForTax ST_LOCTRANSFER = Nothing -- no
-debitCreditForTax ST_INVADJUST = Nothing -- unknown
-debitCreditForTax ST_PURCHORDER = Nothing
-debitCreditForTax ST_SUPPINVOICE = Just Credit
-debitCreditForTax ST_SUPPCREDIT = Just Debit
-debitCreditForTax ST_SUPPAYMENT = Nothing
-debitCreditForTax ST_SUPPRECEIVE = Nothing
-debitCreditForTax ST_WORKORDER = Nothing
-debitCreditForTax ST_MANUISSUE = Nothing
-debitCreditForTax ST_MANURECEIVE = Nothing
-debitCreditForTax ST_SALESORDER = Nothing
-debitCreditForTax ST_SALESQUOTE = Nothing
-debitCreditForTax ST_COSTUPDATE = Nothing
-debitCreditForTax ST_DIMENSION = Nothing
-  
-
-
-
-
-
-
-
-
-

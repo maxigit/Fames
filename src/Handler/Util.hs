@@ -575,6 +575,7 @@ toHtmlWithBreak t  = [shamlet|
 
 
 showDouble :: Double -> Html
+
 showDouble x = toHtml $ ( (printf "%.4f" x) :: String )
   
 panel :: Text -> Text -> Widget -> Widget

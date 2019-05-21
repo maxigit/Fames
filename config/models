@@ -269,6 +269,53 @@ BatchMatch sql=fames_batch_match
   deriving Show
   deriving Eq
 
+-- * Tax Report
+-- An instance of a report
+TaxReport sql=fames_tax_report
+  Id sql=tax_report_id
+  type Text
+  reference Text
+  start Day
+  end Day
+  status PendingStatus
+  submittedAt Day Maybe
+  UniqueTR type reference
+  UniqueTS type start
+  deriving Show
+  deriving Eq
+
+-- Data submitted 
+TaxReportBoxes TaxReportDetail sql=fames_tax_report_boxes
+  Id sql=tax_report_boxes
+  report TaxReportId sql=tax_report_id
+  name Text
+  value  Double
+  UniqueRT report name
+  deriving Show
+  deriving Eq
+
+-- Details, match FA transaction. May contains
+-- Amounts are repeated as they correspond
+-- to what has actually been submitted, instead
+-- of what is in FA db. May differ if data are modified
+-- in FA.
+TaxReportDetail sql=fames_tax_report_detail
+  Id sql=tax_report_detail_id
+  report TaxReportId sql=tax_report_id
+  tax_trans_detail FA.TransTaxDetailId sql=tax_trans_detail_id
+  net_amount Double
+  tax_amount Double
+  tax_ratio Double ?
+  taxBucket Text -- ^ 
+  -- denormalization ?
+  -- use fatrans map ?
+  faTransType FATransType sqltype=Int
+  faTransNo Int
+  faTaxType Int
+  deriving Show
+  deriving Eq
+
+
 
   
 
