@@ -3,6 +3,7 @@ module Handler.GL.TaxReport
 , postGLNewTaxReportR 
 , getGLTaxReportR
 , postGLTaxReportR
+, getGLTaxReportDetailsR
 ) where
 import Import
 import GL.TaxReport.Settings
@@ -10,6 +11,9 @@ import GL.Utils
 import Data.Time (addDays)
 import Database.Persist.MySQL(unSqlBackendKey)
 import Database.Persist.Sql (rawSql, toSqlKey, Single(..))
+import Data.Aeson(encode)
+import qualified FA as FA
+
 -- * Handler
 -- | Display the list of the available tax reports
 getGLTaxReportsR :: Handler Html
@@ -84,13 +88,14 @@ renderReportList (name, settings) = runDB $ do
   return (name, widget)
 
 renderReport :: Entity TaxReport -> (Int, Int)-> Widget
-renderReport (Entity _ TaxReport{..}) (before, inRange) = do
+renderReport (Entity rId TaxReport{..}) (before, inRange) = do
   let panelClass = case (taxReportStatus, taxReportSubmittedAt) of
                      (Pending, Just _ ) -> "panel-danger" -- shoudn't happeellon
                      (Pending, Nothing) -> "panel-warning" -- in progress
                      (Process, Just _) -> "panel-success" -- done
                      (Process, Nothing) -> "panel-success" -- shoudn't happen
       hasBefore = before > 0
+      key = unSqlBackendKey (unTaxReportKey rId)
       panel1 = panel panelClass taxReportReference  [whamlet|
    <table.table.table-border.table-striped>
      <tr>
@@ -116,6 +121,30 @@ renderReport (Entity _ TaxReport{..}) (before, inRange) = do
        <td> #{tshow inRange}
           |]
   panel1
+  panel panelClass "Pending transactions" (renderTransTable key)
+
+-- | Render a table with the transaction, with or without bin
+  
+renderTransTable key = do
+  [whamlet|
+  <table#trans-table *{datatable} data-server-side="true" data-ajax="@{GLR $ GLTaxReportDetailsR key}">
+    <thead>
+      <tr>
+        <th>Date
+        <th data-class-name="text-right"> TransNo
+        <th> TransType
+        <th> Memo
+        <th data-class-name="text-right">netAmount
+        <th data-class-name="text-right">taxAmount
+        <th data-class-name="text-right">ratio
+        <th>Bucket
+        |]
+  toWidget [julius|
+    $(document).read(function () {
+      $('#trans-table').columnDefs
+    
+    })
+                  |]
 -- * DB
 loadReport :: Int64 -> SqlHandler (Entity TaxReport)
 loadReport key = do
@@ -164,6 +193,31 @@ buildPendingTransTaxDetailsQuery selectQuery reportType startDate endDate =
         Nothing -> (sql0, p0)
         Just start -> (sql0 <> " AND fad.tran_date >= ? ", p0 <> [toPersistValue start])
 
+-- | Load transactions Report details For datatable
+getGLTaxReportDetailsR :: Int64 -> Handler Value
+getGLTaxReportDetailsR key = do
+  rows <- runDB $  do
+    (Entity _ TaxReport{..}) <- loadReport key
+    let (sql, params) = buildPendingTransTaxDetailsQuery selectQ taxReportType (Just taxReportStart) taxReportEnd
+        selectQ = "SELECT fad.* /* ?? */ " -- hack to use 
+        -- we need to order them to get a consistent paging
+        order = " ORDER BY fad.tran_date, fad.id"
+        paging = " LIMIT 100"
+    rawSql (sql <> order <> paging) params
+  let _types = rows :: [Entity FA.TransTaxDetail]
+      _report0 = TaxReportKey 0
+      showType = showShortTransType :: FATransType -> Text
+      toj (Entity _ FA.TransTaxDetail{..}) = [ toJSON transTaxDetailTranDate
+                                             , toJSON transTaxDetailTransNo
+                                             , toJSON ((showType . toEnum ) <$> transTaxDetailTransType)
+                                             , toJSON transTaxDetailMemo
+                                             , toJSON transTaxDetailNetAmount
+                                             , toJSON transTaxDetailAmount
+                                             , toJSON transTaxDetailRate
+                                             , "<none>"
+                                             ]
+
+  returnJson $ object [ "data" .= (map toj rows) ]
   
 -- * Util
 -- | Return the setting corresponding to a report name.
@@ -178,3 +232,16 @@ unsafeGetReportSettings name = do
     Just settings -> return settings
   
   
+__transTaxDetailToReportDetail :: TaxReportId -> Entity FA.TransTaxDetail -> TaxReportDetail
+__transTaxDetailToReportDetail reportId (Entity tid FA.TransTaxDetail{..}) = let
+  taxReportDetailReport = reportId
+  taxReportDetailTaxTransDetail = tid
+  taxReportDetailNetAmount = transTaxDetailNetAmount * transTaxDetailExRate
+  taxReportDetailTaxAmount =  transTaxDetailAmount * transTaxDetailExRate
+  taxReportDetailRatio =  transTaxDetailRate
+  taxReportDetailBucket = "<none>"
+  taxReportDetailFaTransType = maybe (error "???") toEnum transTaxDetailTransType
+  taxReportDetailFaTransNo = fromMaybe (error "???") transTaxDetailTransNo
+  taxReportDetailFaTaxType = transTaxDetailTaxTypeId
+  in TaxReportDetail{..}
+

@@ -139,6 +139,12 @@ instance PersistField FATransType where
   fromPersistValue = map toEnum . fromPersistValue
 
 
+instance ToJSON FATransType where
+  toJSON = toJSON . fromEnum
+
+instance FromJSON FATransType where
+  parseJSON o = toEnum <$> parseJSON o
+
 inTypes :: [FATransType] -> Text
 inTypes types = intercalate "," $ map (tshow . fromEnum) types
   

@@ -18,3 +18,4 @@ share [ mkPersist sqlSettings
       , mkDeleteCascade sqlSettings
       ]
     $(persistFileWith lowerCaseSettings "config/models")
+

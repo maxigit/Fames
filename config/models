@@ -285,7 +285,7 @@ TaxReport sql=fames_tax_report
   deriving Eq
 
 -- Data submitted 
-TaxReportBoxes TaxReportDetail sql=fames_tax_report_boxes
+TaxReportBoxes TaxReportDetail sql=fames_tax_report_boxes json
   Id sql=tax_report_boxes
   report TaxReportId sql=tax_report_id
   name Text
@@ -299,14 +299,14 @@ TaxReportBoxes TaxReportDetail sql=fames_tax_report_boxes
 -- to what has actually been submitted, instead
 -- of what is in FA db. May differ if data are modified
 -- in FA.
-TaxReportDetail sql=fames_tax_report_detail
+TaxReportDetail sql=fames_tax_report_detail json
   Id sql=tax_report_detail_id
   report TaxReportId sql=tax_report_id
-  tax_trans_detail FA.TransTaxDetailId sql=tax_trans_detail_id
-  net_amount Double
-  tax_amount Double
-  tax_ratio Double ?
-  taxBucket Text -- ^ 
+  taxTransDetail FA.TransTaxDetailId sql=tax_trans_detail_id
+  netAmount Double
+  taxAmount Double
+  ratio Double ?
+  bucket Text -- ^ 
   -- denormalization ?
   -- use fatrans map ?
   faTransType FATransType sqltype=Int
