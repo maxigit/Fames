@@ -1143,7 +1143,7 @@ generatePrefillCustomerPaymentLink faURL current target memo t@B.Transaction{..}
   suppm <- runDB $ get (FA.DebtorsMasterKey target)
   let targetName = maybe ("#" <> tshow target) FA.debtorsMasterName suppm
       html = [shamlet|
-  <form method=POST action="#{faURL}/sales/customer_payments.php" target=_blank>
+  <form method=GET action="#{faURL}/sales/customer_payments.php" target=_blank>
     <input type=hidden name=DateBanked  value="#{formatTime defaultTimeLocale "%Y/%m/%d" _sDate}">
     $#<input type=hidden name=amount  value="#{tshow $ abs _sAmount}">
     <input type=hidden name=bank_account  value="#{tshow current}">
