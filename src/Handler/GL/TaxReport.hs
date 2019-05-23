@@ -10,7 +10,7 @@ import GL.TaxReport.Settings
 import GL.Utils
 import Data.Time (addDays)
 import Database.Persist.MySQL(unSqlBackendKey)
-import Database.Persist.Sql (rawSql, toSqlKey, Single(..))
+import Database.Persist.Sql (rawSql, fromSqlKey, toSqlKey, Single(..))
 import Data.Aeson(encode)
 import qualified FA as FA
 
@@ -48,18 +48,19 @@ postGLNewTaxReportR name = do
         taxReportSubmittedAt = Nothing
 
     insert TaxReport{..}
-  redirect (GLR . GLTaxReportR  . unSqlBackendKey $ unTaxReportKey key)
+  redirect (GLR $ GLTaxReportR (fromSqlKey key) Nothing)
 
-getGLTaxReportR :: Int64 -> Handler Html
-getGLTaxReportR key = do
+getGLTaxReportR :: Int64 -> Maybe TaxReportViewMode -> Handler Html
+getGLTaxReportR key mode = do
   report <- runDB $ loadReport key
   (before, inRange)  <- runDB $ countPendingTransTaxDetails (entityVal report)
+  view <- renderReportView report (fromMaybe TaxReportPendingView mode)
   when (before > 0) $ do
     setWarning "Some Transactions part of the  have been entered or modified before current report start date"
-  defaultLayout $ renderReport report (before, inRange)
+  defaultLayout $ renderReportHeader report (before, inRange) >> view
 
-postGLTaxReportR :: Int64 -> Handler Html
-postGLTaxReportR key = return "todo"
+postGLTaxReportR :: Int64 -> Maybe TaxReportViewMode -> Handler Html
+postGLTaxReportR key modem = return "todo"
 
 -- * Render
 renderReportList :: (Text, TaxReportSettings) -> Handler (Text, Widget)
@@ -75,10 +76,10 @@ renderReportList (name, settings) = runDB $ do
         <th> End
         <th> Status
         <th> Submitted
-    $forall (Entity reportId TaxReport{..}) <- reports
+    $forall (Entity reportKey TaxReport{..}) <- reports
       <tr>
-        <td> <a href="@{GLR $ GLTaxReportR (unSqlBackendKey $ unTaxReportKey reportId)}">  
-            #{tshow $ unSqlBackendKey $ unTaxReportKey reportId}
+        <td> <a href="@{GLR $ GLTaxReportR (fromSqlKey reportKey) Nothing}">  
+            #{tshow $ fromSqlKey reportKey}
         <td> #{taxReportReference}
         <td> #{tshow taxReportStart}
         <td> #{tshow taxReportEnd}
@@ -87,15 +88,14 @@ renderReportList (name, settings) = runDB $ do
   |]
   return (name, widget)
 
-renderReport :: Entity TaxReport -> (Int, Int)-> Widget
-renderReport (Entity rId TaxReport{..}) (before, inRange) = do
+renderReportHeader :: Entity TaxReport -> (Int, Int)-> Widget
+renderReportHeader (Entity rId TaxReport{..}) (before, inRange) = do
   let panelClass = case (taxReportStatus, taxReportSubmittedAt) of
                      (Pending, Just _ ) -> "panel-danger" -- shoudn't happeellon
                      (Pending, Nothing) -> "panel-warning" -- in progress
                      (Process, Just _) -> "panel-success" -- done
                      (Process, Nothing) -> "panel-success" -- shoudn't happen
       hasBefore = before > 0
-      key = unSqlBackendKey (unTaxReportKey rId)
       panel1 = panel panelClass taxReportReference  [whamlet|
    <table.table.table-border.table-striped>
      <tr>
@@ -121,13 +121,25 @@ renderReport (Entity rId TaxReport{..}) (before, inRange) = do
        <td> #{tshow inRange}
           |]
   panel1
-  panel panelClass "Pending transactions" (renderTransTable key)
 
+renderReportView :: Entity TaxReport -> TaxReportViewMode ->  Handler Widget
+renderReportView report mode = do
+  let navs = [TaxReportPendingView .. ]
+      myshow t0 = let t =  drop  12 $ splitSnake $ tshow t0
+                  in take (length t - 4) t :: Text
+      navClass nav = if mode == nav then "active" else "" :: Text
+      mainW = [whamlet|
+        <ul.nav.nav-tabs>
+          $forall nav <- navs 
+            <li class="#{navClass nav}">
+              <a href="@{GLR $ GLTaxReportR (fromSqlKey $ entityKey report) (Just mode)}">#{myshow nav}
+                    |]
+  return $ mainW >> renderTransTable (entityKey report)
 -- | Render a table with the transaction, with or without bin
   
-renderTransTable key = do
+renderTransTable reportId = do
   [whamlet|
-  <table#trans-table *{datatable} data-server-side="true" data-ajax="@{GLR $ GLTaxReportDetailsR key}">
+  <table#trans-table *{datatable} data-ajax="@{GLR $ GLTaxReportDetailsR (fromSqlKey reportId)}">
     <thead>
       <tr>
         <th>Date
@@ -198,11 +210,11 @@ getGLTaxReportDetailsR :: Int64 -> Handler Value
 getGLTaxReportDetailsR key = do
   rows <- runDB $  do
     (Entity _ TaxReport{..}) <- loadReport key
-    let (sql, params) = buildPendingTransTaxDetailsQuery selectQ taxReportType (Just taxReportStart) taxReportEnd
+    let (sql, params) = buildPendingTransTaxDetailsQuery selectQ taxReportType Nothing taxReportEnd
         selectQ = "SELECT fad.* /* ?? */ " -- hack to use 
         -- we need to order them to get a consistent paging
         order = " ORDER BY fad.tran_date, fad.id"
-        paging = " LIMIT 100"
+        paging = " LIMIT 50000"
     rawSql (sql <> order <> paging) params
   let _types = rows :: [Entity FA.TransTaxDetail]
       _report0 = TaxReportKey 0
@@ -244,4 +256,3 @@ __transTaxDetailToReportDetail reportId (Entity tid FA.TransTaxDetail{..}) = let
   taxReportDetailFaTransNo = fromMaybe (error "???") transTaxDetailTransNo
   taxReportDetailFaTaxType = transTaxDetailTaxTypeId
   in TaxReportDetail{..}
-
