@@ -1113,7 +1113,7 @@ generatePrefillFundTransferLink faURL current target memo t@B.Transaction{..} = 
     <input type=hidden name=memo_  value="#{memo}">
     <span class="#{dirClass}">
        #{transactionIcon $ ST_BANKTRANSFER}
-       <span.guessed-value>#{targetName}
+       <span.guessed-value>#{decodeHtmlEntities targetName}
     <button.btn.btn-sm.btn-danger>Save
     |]
   return $ ToRec t  (Just html)
@@ -1132,7 +1132,7 @@ generatePrefillSupplierPaymentLink faURL current target memo t@B.Transaction{..}
     <input type=hidden name=memo_  value="#{memo}">
     <span>
        #{transactionIcon $ ST_SUPPAYMENT}
-       <span.guessed-value>#{targetName}
+       <span.guessed-value>#{decodeHtmlEntities targetName}
     <button.btn.btn-sm.btn-danger>Save
     |]
   return $ ToRec t  (Just html)
@@ -1151,7 +1151,7 @@ generatePrefillCustomerPaymentLink faURL current target memo t@B.Transaction{..}
     <input type=hidden name=memo_  value="#{memo}">
     <span>
        #{transactionIcon $ ST_CUSTPAYMENT}
-       <span.guessed-value>#{targetName}
+       <span.guessed-value>#{decodeHtmlEntities targetName}
     <button.btn.btn-sm.btn-danger>Save
     |]
   return $ ToRec t  (Just html)
@@ -1170,18 +1170,20 @@ fillAutoSettingsCached bankSettings = cache0 False (cacheDay 1) ("bank-settings/
   let customerRules = rulesFromRec ST_CUSTPAYMENT BankAutoCustomer recs
       supplierRules = rulesFromRec ST_SUPPAYMENT BankAutoSupplier recs
       -- transRules = rulesFromRec ST_BANKTRANSFER BankAutoTransfer recs
-  -- writeFile "/home/max/Webshot/recs.hs" (fromString $ show ("RECS", filter isThese recs, "customerRules", customerRules, "supp", supplierRules, "trans", transRules))
+  -- lift $ writeFile "/home/max/Webshot/recs.hs" (fromString $ show ("RECS", filter isThese recs, "customerRules", customerRules, "supp", supplierRules))
   return $ bankSettings {bsRules = bsRules bankSettings <> (customerRules : supplierRules : [])}
   
 
 rulesFromRec eType ruleFn recs = 
-  let numberSub = (Rg.mkRegex "[a-z]*([0-9]+[-a-z]*)+",  ".*")
-      specialSub = (Rg.mkRegex "[()/ ]+", " ")
-      stripEnd = (Rg.mkRegex " +$", ".*")
-      mkReg s = (subRegex0 stripEnd $ subRegex0 numberSub $ subRegex0 specialSub $ toLower s)
+  let numberSub = (Rg.mkRegex " [a-z]*([0-9]{2,}[-a-z]*)+",  " [-a-zA-Z0-9]{2,}" )
+      specialSub = (Rg.mkRegex "[()/*?+]", ".") -- avoid insertiong of specical charctter in regex
+      spaces = (Rg.mkRegex " +", " +") -- many spaces = many spaces
+      ltdSub = (Rg.mkRegex " ltd", "( ...)?")
+      stripEnd = (Rg.mkRegex " \\+$", " *") -- remove trailing spaces at the end
+      mkReg s = (subRegex0 stripEnd$ subRegex0 spaces $ subRegex0 ltdSub $ subRegex0 numberSub $ subRegex0 specialSub $ toLower s)
       subRegex0 (reg, rep) s = Rg.subRegex reg s rep 
       -- don't keep regex which have only wild card or space
-      valid r = not $ null $ filter (`notElem` (".* $^" :: String)) (r :: String)
+      valid r = not $ null $ filter (`notElem` (".*?+ $^()" :: String)) (r :: String)
 
   -- customer rules
   -- we take the beginning of the payment reference
