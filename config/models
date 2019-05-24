@@ -305,7 +305,7 @@ TaxReportDetail sql=fames_tax_report_detail json
   taxTransDetail FA.TransTaxDetailId sql=tax_trans_detail_id
   netAmount Double
   taxAmount Double
-  ratio Double ?
+  rate Double
   bucket Text -- ^ 
   -- denormalization ?
   -- use fatrans map ?

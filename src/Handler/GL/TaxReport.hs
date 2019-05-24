@@ -7,12 +7,17 @@ module Handler.GL.TaxReport
 ) where
 import Import
 import GL.TaxReport.Settings
+import Handler.GL.TaxReport.Types
 import GL.Utils
 import Data.Time (addDays)
 import Database.Persist.MySQL(unSqlBackendKey)
 import Database.Persist.Sql (rawSql, fromSqlKey, toSqlKey, Single(..))
 import Data.Aeson(encode)
 import qualified FA as FA
+import Metamorphosis
+import Lens.Micro
+import Formatting as F
+
 
 -- * Handler
 -- | Display the list of the available tax reports
@@ -63,6 +68,7 @@ postGLTaxReportR :: Int64 -> Maybe TaxReportViewMode -> Handler Html
 postGLTaxReportR key modem = return "todo"
 
 -- * Render
+
 renderReportList :: (Text, TaxReportSettings) -> Handler (Text, Widget)
 renderReportList (name, settings) = runDB $ do
   reports <- selectList [TaxReportType==. name] [Desc TaxReportEnd]
@@ -134,10 +140,10 @@ renderReportView report mode = do
             <li class="#{navClass nav}">
               <a href="@{GLR $ GLTaxReportR (fromSqlKey $ entityKey report) (Just mode)}">#{myshow nav}
                     |]
-  return $ mainW >> renderTransTable (entityKey report)
+  return $ mainW >> renderTransDifferedTable (entityKey report)
 -- | Render a table with the transaction, with or without bin
   
-renderTransTable reportId = do
+renderTransDifferedTable reportId = do
   [whamlet|
   <table#trans-table *{datatable} data-ajax="@{GLR $ GLTaxReportDetailsR (fromSqlKey reportId)}">
     <thead>
@@ -148,7 +154,7 @@ renderTransTable reportId = do
         <th> Memo
         <th data-class-name="text-right">netAmount
         <th data-class-name="text-right">taxAmount
-        <th data-class-name="text-right">ratio
+        <th data-class-name="text-right">rate
         <th>Bucket
         |]
   toWidget [julius|
@@ -157,7 +163,35 @@ renderTransTable reportId = do
     
     })
                   |]
+
+renderTaxDetailTable taxDetails = 
+  [whamlet|
+   <table *{datatable}>
+    <thead>
+      <tr>
+        <th>Date
+        <th data-class-name="text-right"> TransNo
+        <th> TransType
+        <th> Memo
+        <th data-class-name="text-right">netAmount
+        <th data-class-name="text-right">taxAmount
+        <th data-class-name="text-right">rate
+        <th>Bucket
+    <tbody>
+      $forall detail <- taxDetails 
+        <tr>
+          <td>#{tshow $ tdTranDate detail }
+          <td>#{tshow $ tdTransNo detail }
+          <td>#{tshow $ tdTransType detail }
+          <td>#{fromMaybe "" $ tdMemo detail }
+          <td.text-right>#{formatDouble' $ tdNetAmount detail }
+          <td.text-right>#{formatDouble' $ tdTaxAmount detail }
+          <td.text-right>#{formatDouble' $ tdRate detail }%
+          <td>#{tdBucket detail}
+          |]
+
 -- * DB
+
 loadReport :: Int64 -> SqlHandler (Entity TaxReport)
 loadReport key = do
   let rId = TaxReportKey (fromIntegral key)
@@ -231,6 +265,23 @@ getGLTaxReportDetailsR key = do
 
   returnJson $ object [ "data" .= (map toj rows) ]
   
+loadTaxDetail :: Int64 -> Handler [TaxDetail]
+loadTaxDetail rId = do
+  rows <- runDB $  do
+    (Entity reportKey TaxReport{..}) <- loadReport rId
+    let (sql, params) = buildPendingTransTaxDetailsQuery selectQ taxReportType Nothing taxReportEnd
+        selectQ = "SELECT fad.* /* ?? */, ?? " -- hack to use 
+        -- we need to order them to get a consistent paging
+        order = " ORDER BY fad.tran_date, fad.id"
+        paging = " LIMIT 50000"
+    rawSql (sql <> order <> paging) params
+  case mapM (uncurry taxDetailFromDetail ) rows of
+    Left err -> do
+       setError "Inconsistent DB contact your administrator"
+       error (unpack err)
+    Right details -> return details
+
+
 -- * Util
 -- | Return the setting corresponding to a report name.
 -- Normally, all the function calling should have been given
@@ -243,16 +294,5 @@ unsafeGetReportSettings name = do
     Nothing -> error $ unpack $ "Can't tax settings for " <> name
     Just settings -> return settings
   
-  
-__transTaxDetailToReportDetail :: TaxReportId -> Entity FA.TransTaxDetail -> TaxReportDetail
-__transTaxDetailToReportDetail reportId (Entity tid FA.TransTaxDetail{..}) = let
-  taxReportDetailReport = reportId
-  taxReportDetailTaxTransDetail = tid
-  taxReportDetailNetAmount = transTaxDetailNetAmount * transTaxDetailExRate
-  taxReportDetailTaxAmount =  transTaxDetailAmount * transTaxDetailExRate
-  taxReportDetailRatio =  transTaxDetailRate
-  taxReportDetailBucket = "<none>"
-  taxReportDetailFaTransType = maybe (error "???") toEnum transTaxDetailTransType
-  taxReportDetailFaTransNo = fromMaybe (error "???") transTaxDetailTransNo
-  taxReportDetailFaTaxType = transTaxDetailTaxTypeId
-  in TaxReportDetail{..}
+
+formatDouble' = F.sformat commasFixed
