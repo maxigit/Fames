@@ -262,7 +262,6 @@ getItemsReport3R mode = do
 
 runFormAndGetAction form = do
   fromPost@((resp, _), _) <- runFormPostNoToken form
-  traceShowM resp
   case resp of
     FormMissing -> (,) <$> runFormGet form <*> lookupGetParam "action"
     _ -> do
@@ -320,7 +319,7 @@ postItemsReportFor route mode = do
               let source = yieldMany (map (<> "\n") (formatter param result))
               setAttachment . fromStrict $ "items-report-" <> (tshowM $ colName <$> (cpColumn $ rpPanelRupture param)) <> "-"
                                               <> (tshowM $ colName <$> (cpColumn $ rpBand param)) <> ".csv"
-              respondSource "text/csv" (source =$= mapC toFlushBuilder)
+              respondSource "text/csv" (source .| mapC toFlushBuilder)
         Just ReportRaw -> do
              let grouper' = grouper <> map mkRupture (filter (`notElem` columnInGrouper) cols) -- all columns with grouper first
                  columnInGrouper = mapMaybe cpColumn grouper

@@ -103,12 +103,12 @@ renderPlannerCsv boxSources = do
   today <- todayH
   let source = boxSourceToCsv today boxSources
   setAttachment ("10-Planner-" <> fromStrict (tshow today) <> ".org")
-  respondSourceDB "text/plain" (source =$= mapC (toFlushBuilder))
+  respondSourceDB "text/plain" (source .| mapC (toFlushBuilder))
 
 -- plannerSource :: _ => Source m Text
 plannerSource = selectSource [BoxtakeActive ==. True] [Asc BoxtakeLocation, Asc BoxtakeDescription]
   -- yield "Bay No,Style,QTY,Length,Width,Height,Orientations\n"
-  -- boxes =$= mapC toPlanner
+  -- boxes .| mapC toPlanner
   
 toPlanner :: (Entity Boxtake) -> Text
 toPlanner (Entity (BoxtakeKey boxId) Boxtake{..}) = 
@@ -129,7 +129,7 @@ boxSourceToCsv today boxSources = do
   yield ("* Stocktake from Planner  [" <> tshow today <> "]\n")
   yield (":STOCKTAKE:\n")
   yield ("Bay No,Style,QTY,Length,Width,Height,Orientations\n" :: Text)
-  boxSources =$= mapC toPlanner
+  boxSources .| mapC toPlanner
   yield (":END:\n")
 
   

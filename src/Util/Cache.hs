@@ -26,16 +26,12 @@ import Prelude
 import Data.Dynamic
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict(Map)
-import Control.Concurrent
-import Control.Concurrent.Async.Lifted
+import UnliftIO
+import UnliftIO.Concurrent(threadDelay)
 import Data.Time
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Control(StM, MonadBaseControl)
 import Debug.Trace
 import Unsafe.Coerce(unsafeCoerce)
-import Data.Proxy
-import GHC.Prim (Any, Proxy#)
-import Data.Typeable
+import Type.Reflection
 
 -- * Delayed
 -- | A syncronous actions, which can be started from another thread.
@@ -44,7 +40,7 @@ import Data.Typeable
 data DAction = DStart | DCancel deriving Show
 data Delayed m a = Delayed
   { blocker :: MVar DAction
-  , action :: Async (StM m a)
+  , action :: Async (m a)
   } deriving Typeable
 
 data DelayedStatus = Waiting | InProgress | Finished | OnError deriving Show
@@ -55,12 +51,12 @@ newtype CacheDelay = CacheDelay Int
   
 deriving instance Typeable Async
 
-createDelayed :: (MonadBaseControl IO io, MonadIO io) =>  io a -> io (Delayed io a)
+createDelayed :: (MonadUnliftIO io) =>  io a -> io (Delayed io a)
 createDelayed a = do
-   mvar <- liftIO newEmptyMVar
+   mvar <- newEmptyMVar
    -- don't actually start the action until mvar has been set
    as <- async (do
-                   act <- liftIO $ do
+                   act <- do
                      act <- readMVar mvar
                      return act
                    case act of
@@ -72,7 +68,7 @@ createDelayed a = do
                        
 
                )
-   return (Delayed mvar as)
+   return (Delayed mvar (fmap return as))
 
 -- | Start the delayed action
 startDelayed :: MonadIO io =>  Delayed io a -> io ()
@@ -87,46 +83,26 @@ cancelDelayed d = liftIO $ do
 
 
 -- | Get the actual value
-getDelayed :: (MonadBaseControl IO io, MonadIO io) => Delayed io a -> io a
+getDelayed :: (MonadUnliftIO io) => Delayed io a -> io a
 getDelayed d = do
   startDelayed d
-  wait (action d)
+  r <- wait (action d)
+  r
 
--- From Stackoverflow
-
--- This part reifies a `Typeable' dictionary from a `TypeRep'.
--- This works because `Typeable' is a class with a single field, so 
--- operationally `Typeable a => r' is the same as `(Proxy# a -> TypeRep) -> r'
-newtype MagicTypeable r (kp :: KProxy k) =
-  MagicTypeable (forall (a :: k) . Typeable a => Proxy a -> r)
-
-withTypeRep :: MagicTypeable r (kp :: KProxy k)
-            -> forall a . TypeRep -> Proxy a -> r
-withTypeRep d t = unsafeCoerce d ((\_ -> t) :: Proxy# a -> TypeRep)
-
-withTypeable :: forall r . TypeRep -> (forall (a :: k) . Typeable a => Proxy a -> r) -> r
-withTypeable t k = withTypeRep (MagicTypeable k) t Proxy
-
--- The type constructor for Delayed
-delayed_tycon = fst $ splitTyConApp $ typeRep (Proxy :: Proxy Delayed)
--- This is needed because Dynamic doesn't export its constructortraceShowId $ , and
--- we need to pattern match on it.
-data DYNAMIC = Dynamic TypeRep Any
-
-unsafeViewDynamic :: Dynamic -> DYNAMIC
-unsafeViewDynamic = unsafeCoerce
-
--- The actual implementation, much the same as the one on GHC 8.2, but more 
--- 'unsafe' things
-castToDelayed :: Monad m => (forall a . Typeable a => Delayed m a -> r) -> Dynamic -> Maybe r
-castToDelayed k (unsafeViewDynamic -> Dynamic t x) =
-  case splitTyConApp t of
-    (((== delayed_tycon) -> True), [_,a]) -> Just $
-      withTypeable a $ \(_ :: Proxy (a :: *)) -> k (unsafeCoerce x :: Delayed m a)
+-- | Big Hack to get the blocker from a Dynamic Delayed
+--  Without knowing it's actual type (which we don't need)
+-- Trying to not use unsafeCoerce and just function from Type.Reflection
+-- doesn't seem to work as easily as it should be.
+castToDelayed :: (Delayed Maybe () -> r) -> Dynamic -> Maybe r
+castToDelayed k (Dynamic typeR v) =
+  case splitApps typeR of
+    (cons, _) | cons == typeRepTyCon (typeRep :: TypeRep (Delayed Maybe ()))
+                                       -> Just $ k (unsafeCoerce v :: Delayed Maybe () )
     _ -> Nothing
 
+
 -- | Check if the job status
-statusDelayed :: (MonadBaseControl IO io, MonadIO io) => Delayed io a -> io DelayedStatus
+statusDelayed :: (MonadUnliftIO io) => Delayed io a -> io DelayedStatus
 statusDelayed d = liftIO $ do
   empty_ <- isEmptyMVar (blocker d)
   if empty_
@@ -209,12 +185,12 @@ cacheForEver = cacheDay 365
 -- but not when it's actually started. We assume there, that the
 -- start delay is small. When precaching, we delay the start of the computation
 -- only to be started once the HTTP query has processed.
-preCache :: (MonadBaseControl IO io, MonadIO io, Show k, Typeable a, Typeable io)
+preCache :: (MonadUnliftIO io, Show k, Typeable a, Typeable io)
          => Bool -> MVar ExpiryCache -> k -> io a -> CacheDelay -> io (Delayed io a)
 preCache force cvar key vio (CacheDelay delay) = do
   d <- createDelayed vio
   _ <- async $ do
-    liftIO $ threadDelay ((delay+1)*1000000)
+    threadDelay ((delay+1)*1000000)
     cancelDelayed d
     purgeKey cvar key
   expCache force cvar key (return d) (CacheDelay delay) 

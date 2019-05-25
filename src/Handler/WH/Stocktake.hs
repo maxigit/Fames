@@ -91,7 +91,7 @@ getWHStocktakeR = do
         , (StocktakeStockId ==. ) <$> stockId
         , (\like -> Filter StocktakeStockId (Left $ like <> "%") (BackendSpecificFilter "LIKE")) <$> style
         , (StocktakeActive ==.) <$> (active >>= readMay)
-        , (StocktakeDate ==.) <$> (let d = date >>= readMay in traceShow ("DATE",date,d) d)
+        , (StocktakeDate ==.) <$> let d = date >>= readMay in  d
         , (\k -> StocktakeDocumentKey ==. DocumentKeyKey' (SqlBackendKey k) ) <$> (docId >>= readMay)
         ]
   let orderBy = concat $ catMaybes

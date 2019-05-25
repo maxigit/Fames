@@ -715,6 +715,6 @@ fixGls glts = let
   (wrongs, (faOnlys, newOnlys)) = partitionThese notOks
   (toDeletes, toCreates) = unzip wrongs
 
-  in traceShowId $ GlDiffStatus  (oks ++ map entityVal faOnlys)
+  in GlDiffStatus  (oks ++ map entityVal faOnlys)
                    toDeletes
                    (toCreates ++ newOnlys)

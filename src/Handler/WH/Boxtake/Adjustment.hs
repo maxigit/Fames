@@ -23,7 +23,6 @@ instance Semigroup StyleInfo where
   
 instance Monoid StyleInfo where
   mempty = StyleInfo mempty mempty
-  mappend = (<>)
 
 data UsedStatus e = Used Double e | Unused e
   deriving (Show,Eq,Ord)

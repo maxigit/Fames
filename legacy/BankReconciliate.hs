@@ -27,7 +27,7 @@ import Control.Monad.State(State, evalState, get, put)
 
 import Lens.Micro
 import Lens.Micro.TH
-import Data.Csv
+import Data.Csv hiding(Options)
 -- import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Char8 as BL
 import Data.Vector(Vector)

@@ -66,7 +66,7 @@ findSlices zones0 boxes = let
   (zones1, boxes1) = fitOneRow zones0 (toList styles0)
   (zones2, _boxes2) = fitAllRow (sortOn zoneName zones1) boxes1
   r =  sortOn zoneName zones2
-  in traceShow ("SLICES", r) r
+  in r
 
 
 -- | Sort slices and calculate offset

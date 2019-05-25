@@ -51,10 +51,11 @@ data Scenario = Scenario
   , sLayout ::  Maybe DocumentHash
   } deriving (Read, Show)
 
+instance Semigroup Scenario where
+  _ <> sc@(Scenario (Just i') _ _)  = sc
+  (Scenario i steps l) <> (Scenario i' steps' l') = Scenario i (steps <> steps') (l' <|> l)
 instance Monoid Scenario where
   mempty = Scenario Nothing [] Nothing
-  _ `mappend` sc@(Scenario (Just i') _ _)  = sc
-  (Scenario i steps l) `mappend` (Scenario i' steps' l') = Scenario i (steps <> steps') (l' <|> l)
   
 
 -- | Text is the original line.

@@ -266,7 +266,7 @@ timesheetOpIdToText employeeInfos ts = do
   return $ fmap (\(o,_,_) -> operatorNickname (entityVal o)) tsO
 
 timesheetOpIdToTextH :: TS.Timesheet p (OperatorId, PayrollShiftId)
-  -> HandlerT App IO (Either Text (TS.Timesheet p Text))
+  -> Handler (Either Text (TS.Timesheet p Text))
 timesheetOpIdToTextH ts = do
   employeeInfos <- getEmployeeInfo
   return $ timesheetOpIdToText employeeInfos ts
@@ -516,7 +516,7 @@ employeeSummaryRows summaries = let
               _ -> Nothing
     in value
   in rows
-formatDouble' x = either (\m -> traceShow ("Lock required", m) ("" :: Html)) formatDoubl'' $ unlock ?viewPayrollAmountPermissions x
+formatDouble' x = either (const ("<locked>" :: Html)) formatDoubl'' $ unlock ?viewPayrollAmountPermissions x
 formatDoubl'' x | abs x < 1e-2 = ""
                 | x < 0 = [shamlet|<span.text-danger>#{formatDouble x}|]
                 | otherwise = toHtml $ formatDouble x
@@ -583,7 +583,7 @@ displayCalendar :: (?viewPayrollDurationPermissions::Text -> Granted)
   -> Day
   -> Day
   -> [TS.Shift (Text, Day, ShiftType)]
-  -> WidgetT App IO ()
+  -> Widget
 displayCalendar displayTotal start end firstActive lastActive shifts = do
   let shiftMap' = TS.groupBy (^. TS.shiftKey . _1 ) shifts
       shiftMap = TS.groupBy (^. TS.day) <$> shiftMap'
@@ -976,7 +976,7 @@ saveExternalPayments settings key invoiceNo day timesheet = do
       pairs = (makeExternalPayments psettings (Just invoiceNo) day reference timesheet) -- :: [( WFA.PurchaseCreditNote, WFA.PurchaseInvoice)]
       tId = fromIntegral . unSqlBackendKey $ unTimesheetKey key
 
-  ids <- mapExceptT lift $ forM pairs $ either
+  ids <- mapExceptT liftIO $ forM pairs $ either
       (\(credit, inv) ->  do
         crId <- ExceptT $ WFA.postPurchaseCreditNote connectInfo credit
         invId <- ExceptT $ WFA.postPurchaseInvoice connectInfo inv

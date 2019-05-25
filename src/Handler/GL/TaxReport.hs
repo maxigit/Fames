@@ -1067,8 +1067,8 @@ closeReport settings report = do
     -- load
       buckets <- loadBucketSummary $ entityKey report
       boxes <- getBoxes settings (setFromList $ map fst $ keys buckets)
-      mapM traceShowM (mapToList buckets)
-      mapM traceShowM boxes
+      -- mapM traceShowM (mapToList buckets)
+      -- mapM traceShowM boxes
       let
         box'amounts = computeBoxes (setFromList $ keys bucket'rates) buckets boxes
         mkBox (TaxBox{..}, amount) = TaxReportBox{..} where

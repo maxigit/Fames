@@ -42,7 +42,6 @@ instance Applicative MinMax where
 
 instance (Ord a, Num a, Fractional a) => Monoid (MinMax a) where
   mempty = MinMax (1/0) 0
-  mappend = (<>)
 
 -- * Index
 -- | Status of a variation within a group
@@ -98,7 +97,6 @@ instance Semigroup (ItemPriceF f) where
    (ItemPriceF a) <> (ItemPriceF b) = ItemPriceF $ a <> b
 instance Monoid (ItemPriceF f) where
   mempty = ItemPriceF mempty
-  mappend = (<>)
 
 -- | FA status
 data ItemStatusF f = ItemStatusF
@@ -157,11 +155,12 @@ deriving instance Eq (ItemWebStatusF ((,) [Text]))
 deriving instance Eq (ItemMasterAndPrices Identity)
 deriving instance Eq (ItemMasterAndPrices ((,) [Text]))
  
-instance Monoid (ItemMasterAndPrices f) where
-  mempty = ItemMasterAndPrices Nothing Nothing Nothing Nothing Nothing Nothing
-  mappend (ItemMasterAndPrices m s p st ws wp)
+instance Semigroup (ItemMasterAndPrices f) where
+  (<>) (ItemMasterAndPrices m s p st ws wp)
           (ItemMasterAndPrices m' s' p' st' ws' wp')
      = ItemMasterAndPrices (m <|> m') (s <|> s') (p <|> p') (st <|> st') (ws <|> ws') (wp <|> wp')
+instance Monoid (ItemMasterAndPrices f) where
+  mempty = ItemMasterAndPrices Nothing Nothing Nothing Nothing Nothing Nothing
 
 -- | Whereas an item is running or not.
 data FARunningStatus = FARunning -- ^ can and need to be sold
@@ -212,7 +211,6 @@ instance Semigroup QPrice where
 
 instance Monoid QPrice where
   mempty = QPrice Inward 0 0 mempty 
-  mappend = (<>)
 
 -- | Specifies whether the quantities are seen  as inward or outward (from the company point of view)
 -- Positive quantities for Inward transaction means we are getting more in
@@ -247,7 +245,6 @@ instance Semigroup TranQP where
   --   go (Just a) (Just b) = Just $ a <> b
 instance Monoid TranQP where
   mempty = TranQP mempty
-  mappend = (<>)
 -- type TranQP = Map QPType QPrice
 tranQP :: QPType -> QPrice -> TranQP
 tranQP qtype qp = tranQP' extra qtype qp where

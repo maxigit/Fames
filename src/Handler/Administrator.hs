@@ -94,7 +94,7 @@ getACacheR = do
   let expired t = t > now
   -- sort by expiry date desc
   info <- mapM (\km ->traverse readMVar km) (Map.toList cache) 
-  let blockerH :: Delayed Handler a -> MVar DAction
+  let blockerH :: Delayed Maybe () -> MVar DAction
       blockerH = blocker
   let sorted = sortBy (comparing (\(k, (_, t)) -> (Down t,k))) info
       extra :: Dynamic -> UTCTime -> Handler Html
@@ -300,7 +300,7 @@ postAMasqueradeR = do
   case userM of
     Nothing -> deleteSession masquerade
     Just user -> do
-      traceShowM ("Masquerading to " <> user)
+      logInfoN ("Masquerading to " <> user)
       setSession masquerade user
       role <- currentRole
       $(logWarn) . toStrict $ pShow ("NEW ROLE", role)

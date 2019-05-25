@@ -15,6 +15,7 @@ module Foundation
 
 
 import Import.NoFoundation hiding(toList)
+import Yesod.Core.Handler
 import Database.Persist.Sql (ConnectionPool, runSqlPool, runSqlConn)
 import Database.Persist.MySQL (myConnInfo, withMySQLConn)
 import Text.Hamlet          (hamletFile)
@@ -66,8 +67,8 @@ data App = App
 -- http://www.yesodweb.com/book/scaffolding-and-the-site-template#scaffolding-and-the-site-template_foundation_and_application_modules
 --
 -- This function also generates the following type synonyms:
--- type Handler = HandlerT App IO
--- type Widget = WidgetT App IO ()
+-- type Handler = Handler
+-- type Widget = WidgetFor App ()
 mkYesodData "App" $(parseRoutesFile "config/routes.gen")
 
 deriving instance Generic (Route App)
@@ -116,7 +117,7 @@ data A = A Int | B Int deriving (Show, Generic)
 instance SameCons (A)
 
 -- | A convenient synonym for creating forms.
-type Form x = Html -> MForm (HandlerT App IO) (FormResult x, Widget)
+type Form x = Html -> MForm (HandlerFor App) (FormResult x, Widget)
 
 devel = 
 #if DEVELOPMENT
@@ -126,7 +127,7 @@ devel =
 #endif
 
 
-currentRole :: HandlerT App IO Role
+currentRole :: HandlerFor App Role
 currentRole = do
        settings <- appSettings <$> getYesod
        mu <- maybeAuth
@@ -260,7 +261,7 @@ instance Yesod App where
 
     -- What messages should be logged. The following includes all messages when
     -- in development, and warnings and errors in production.
-    shouldLog app _source level =
+    shouldLogIO app _source level = return $
         appShouldLogAll (appSettings app)
             || level == LevelWarn
             || level == LevelError
@@ -308,7 +309,7 @@ instance YesodAuth App where
     -- Override the above two destinations when a Referer: header is present
     redirectToReferer _ = True
 
-    authenticate creds = runDB $ do
+    authenticate creds = liftHandler . runDB $ do
         x <- getBy $ UniqueUser $ credsIdent creds
         case x of
             Just (Entity uid _) -> return $ Authenticated uid
@@ -320,7 +321,7 @@ instance YesodAuth App where
     -- You can add other plugins like Google Email, email or OAuth here
     authPlugins _ = [authFA] -- [authOpenId Claimed []]
 
-    authHttpManager = getHttpManager
+    -- authHttpManager = _ getHttpManager
 
 instance YesodAuthPersist App
 
@@ -349,7 +350,7 @@ unsafeHandler = Unsafe.fakeHandlerGetLogger appLogger
 authFA :: AuthPlugin App
 authFA = AuthPlugin "fa" dispatch loginWidget
   where
-    -- dispatch _ _ = undefined
+    -- dispatch _ _ = liftHandler
     dispatch "POST" ["login"] = postLoginR >>= sendResponse
     dispatch _ _ = notFound
     loginR = PluginR "fa" ["login"]
@@ -373,19 +374,19 @@ authFA = AuthPlugin "fa" dispatch loginWidget
               <td colspan="2">
                  <button type="submit" .btn .btn-success>_{Msg.LoginTitle}
         |]
-postLoginR :: HandlerT Auth (HandlerT App IO) TypedContent
+postLoginR :: AuthHandler App TypedContent
 postLoginR = do
-  (username, password) <- lift ( runInputPost
+  (username, password) <- ( runInputPost
                                  ((,) <$> ireq textField "username"
                                       <*> ireq passwordField "password")
                                )
-  isValid <- lift $ validatePassword username password
+  isValid <- liftHandler $ validatePassword username password
   if isValid
     then do
       deleteSession "masquerade-user"
-      lift (setCredsRedirect (Creds "fa" username []))
+      (setCredsRedirect (Creds "fa" username []))
     else do
-       userExists <- lift $ doesUserNameExist username
+       userExists <- liftHandler $ doesUserNameExist username
        loginErrorMessageI LoginR ( if userExists
                                       then Msg.InvalidUsernamePass
                                       else Msg.IdentifierNotFound username
@@ -502,7 +503,7 @@ getSuggestedLinks = do
 preCache0 :: (Show k, Typeable a) => Bool -> CacheDelay -> k -> Handler a -> Handler (Delayed Handler a)
 preCache0 force delay key action = do
   cache <- getsYesod appCache
-  preCache force cache key action delay
+  preCache force cache key action delay 
  
 preCache1 :: (Show k, Typeable a) => Bool -> CacheDelay -> k -> (k -> Handler a) -> Handler (Delayed Handler a)
 preCache1 force delay param action = preCache0 force delay param (action param)
@@ -515,7 +516,7 @@ cache0 force delay key action = do
 clearAppCache :: Handler ()
 clearAppCache = do
   cache <- getsYesod appCache
-  lift $ clearExpiryCache cache
+  liftIO $ clearExpiryCache cache
 
 -- * Colours
 blueBadgeBg , grayBadgeBg , greenBadgeBg , amberBadgeBg , redBadgeBg , blackBadgeBg :: Text

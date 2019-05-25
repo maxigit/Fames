@@ -151,7 +151,7 @@ generateCSV vatNumber branch  param ecsls = do
       go e@ECSL{..} = format ("\n"%stext%","%stext%","%int%","%int) eCountry eCustomerGST (eValue e) eIndicator
       source = yieldMany csv
   setAttachment $ format ("ecsl-"%year%"-"%month%".csv") start start
-  respondSource ("text/csv") (source =$= mapC toFlushBuilder)
+  respondSource ("text/csv") (source .| mapC toFlushBuilder)
 
        
 

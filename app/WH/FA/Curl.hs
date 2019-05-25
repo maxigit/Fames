@@ -41,6 +41,7 @@ toAjax url = url <> "?jsHttpRequest=0-xml"
 
 toFADate :: Day -> String
 toFADate = formatTime defaultTimeLocale faDateFormat
+
 -- | Open a Session  to FrontAccounting an execute curl statement
 withFACurlDo :: (?baseURL :: URLString)
              => String -> String -> ((?curl :: Curl) => ExceptT Text IO a) -> ExceptT Text IO a
@@ -68,7 +69,7 @@ curlSoup = doCurlWith go where
     tags = parseTags body
     in case (extractErrorMsgFromSoup tags) of
       Nothing -> return tags
-      Just err -> throwError $ traceShowId err
+      Just err -> throwError $ {- traceShowId -} err
 
 instance CurlPostField Day where 
   toCurlPostField = Just . toFADate

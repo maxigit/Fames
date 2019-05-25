@@ -742,7 +742,7 @@ renderHistory = do
       scenarios = [ (t,s)
                   | (k, (d, t)) <- sorted
                   , let smm = Data.Dynamic.fromDynamic d :: Maybe (Maybe (Scenario, Int))
-                  , Just (Just (s, _)) <- return $ traceShow (k, smm) smm
+                  , Just (Just (s, _)) <- return $  smm
                   ]
                            
 

@@ -115,11 +115,9 @@ import Data.Aeson(encode)
 -- | Display Persist entities as paginated table
 -- the filter is mainly there as a proxy to indicate
 -- the entity type to display
-entityTableHandler :: (PersistEntityBackend a ~ BaseBackend (YesodPersistBackend site), Yesod site, YesodPersist site, PersistQueryRead (YesodPersistBackend site), PersistEntity a)
-  => Route site -> [Filter a] -> HandlerT site IO Html
+entityTableHandler :: (PersistRecordBackend a SqlBackend) => Route App -> [Filter a] -> Handler Html
 entityTableHandler route filter_ = entityTableHandler' route filter_ []
-entityTableHandler' :: (PersistEntityBackend a ~ BaseBackend (YesodPersistBackend site), Yesod site, YesodPersist site, PersistQueryRead (YesodPersistBackend site), PersistEntity a)
-  => Route site -> [Filter a] -> [SelectOpt a] -> HandlerT site IO Html
+entityTableHandler' :: (PersistRecordBackend a SqlBackend) => Route App -> [Filter a] -> [SelectOpt a] -> Handler Html
 entityTableHandler' route filter_ orders = do
   let page_ = "page"
       pageSize_ = "pageSize_"
@@ -254,7 +252,7 @@ unsafeRunFormGet form = do
 -- | Retrieve the content of an uploaded file.
 readUploadUTF8 :: MonadResource m => FileInfo -> Encoding -> m (ByteString, DocumentHash)
 readUploadUTF8  fileInfo encoding = do
-  c <- fileSource fileInfo $$ consume
+  c <- runConduit $ fileSource fileInfo .| consume
   let bs = decode encoding (concat c)
 
   return $ (bs, computeDocumentKey bs)
@@ -353,9 +351,10 @@ retrieveTextByKey base key = do
 
 
 -- ** Form builder
-renderField :: (MonadIO m, MonadBaseControl IO m, MonadThrow m)
-            => FieldView site
-            -> WidgetT site m ()
+-- TODO renderField :: (MonadIO m, MonadThrow m)
+--             => FieldView site
+--             -> WidgetT site m ()
+renderField :: FieldView App -> Widget
 renderField view = let
   class_ = case fvRequired view of
     False -> "optional" :: Text
@@ -376,11 +375,11 @@ renderField view = let
 getSubdirOptions :: (AppSettings -> FilePath) -> Handler [(Text, FilePath)]
 getSubdirOptions appDir = do
   mainDir <- appDir <$> getsYesod appSettings
-  exists <- lift $ doesDirectoryExist mainDir
+  exists <- liftIO $ doesDirectoryExist mainDir
   if exists
     then do
-          entries <- lift $ listDirectory mainDir
-          dirs <- lift $ filterM (doesDirectoryExist . (mainDir </>)) entries
+          entries <- liftIO $ listDirectory mainDir
+          dirs <- liftIO $ filterM (doesDirectoryExist . (mainDir </>)) entries
           -- traceShowM (forecastDir, entries, dirs)
           return [(pack dir, mainDir </> dir) | dir <- dirs]
     else do
@@ -391,8 +390,8 @@ getSubdirOptions appDir = do
 generateLabelsResponse ::
   Text
   -> Text
-  -> Conduit () (HandlerT site IO) Text
-  -> HandlerT site IO TypedContent
+  -> ConduitT () Text Handler ()
+  -> Handler TypedContent
 generateLabelsResponse outputName template labelSource = do
   -- let types = (outputName, template) :: (Text, Text)
   (tmp, thandle) <- liftIO $ openTempFile "/tmp/DocumentCache" (unpack outputName)
@@ -403,24 +402,25 @@ generateLabelsResponse outputName template labelSource = do
                                                         , (unpack template)
                                                         ]
                                                   ) {env = Just [("LANG", "C.UTF-8")]}
-  runConduit $ labelSource =$= encodeUtf8C =$= sinkHandle pin
+  runConduit $ labelSource .| encodeUtf8C .| sinkHandle pin
   liftIO $ hClose pin
   _exitCode <- waitForStreamingProcess phandle
   -- we would like to check the exitCode, unfortunately
   -- glabels doesn't set the exit code.
   -- we need to stderr instead 
   errorMessage <- sourceToList  $ sourceHandle perr 
-  let cleanUp = liftIO $  do
-        hClose perr
+  -- let cleanUp = do
+  --       hClose perr
 
-        removeFile tmp
-        hClose thandle
+  --       removeFile tmp
+  --       hClose thandle
+  --     addCleanup = error "TODO"
 
   case errorMessage of
     _ ->  do
       setAttachment (fromStrict outputName)
       respondSource "application/pdf"
-                    (const cleanUp `addCleanup` CB.sourceHandle thandle =$= mapC (toFlushBuilder))
+                    ({-const cleanUp `addCleanup`-} CB.sourceHandle thandle .| mapC (toFlushBuilder))
 
     -- _ -> do
     --     cleanUp
@@ -430,7 +430,7 @@ generateLabelsResponse outputName template labelSource = do
 -- | Returns the first active operator.
 -- This is the default operator which will be used in batch mode if  required.
 --- We should have at least one operator, so we don't need the Maybe
-firstOperator :: (BaseBackend (YesodPersistBackend site) ~ SqlBackend, YesodPersist site, PersistQueryRead (YesodPersistBackend site)) => HandlerT site IO (Entity Operator)
+firstOperator ::  Handler (Entity Operator)
 firstOperator = do
   operator <- runDB $ selectFirst [OperatorActive ==. True] [Asc OperatorId]
   maybe (error "No active operators found. Please contact your administrator") return operator
@@ -710,7 +710,7 @@ hToHx = lift
 
 -- | as an excersise
 ioToH :: IO a -> Handler a
-ioToH = lift
+ioToH = liftIO
 
 ioToHx :: IO a -> HandlerX a
 ioToHx = liftIO
@@ -724,7 +724,7 @@ ioeToHx = ioxToHx . ioeToIox
 
 ioxToHx :: ExceptT Text IO a -> HandlerX  a
 -- ioXtoHX = ExceptT . lift  . runExceptT
-ioxToHx = mapExceptT lift
+ioxToHx = mapExceptT liftIO
 
 heToHx :: Handler (Either Text a)  -> HandlerX a
 heToHx = ExceptT

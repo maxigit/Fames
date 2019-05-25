@@ -42,7 +42,7 @@ doCurlWith cont url opts status msg = do
   r <- docurl url (mergePostFields opts)
   -- traceShowM ("RESP", respStatus r, respBody r)
   when (respCurlCode r /= CurlOK || respStatus r /= status) $ do
-      throwError $ traceShowId $ unlines [ "Failed to : " <> msg
+      throwError $ {- traceShowId $ -} unlines [ "Failed to : " <> msg
                            , "CURL status: " <> tshow (respCurlCode r)
                            , "HTTP status :" <> pack (respStatusLine r)
                            , "when accessing URL: '" <> tshow url <> "'"

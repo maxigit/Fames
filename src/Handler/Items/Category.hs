@@ -5,7 +5,7 @@ import Yesod.Form.Bootstrap3
 import Handler.Util
 import Handler.Table
 import Handler.Items.Category.Cache
-import Data.Yaml(decodeEither, encode)
+import Data.Yaml(decodeEither', encode)
 import qualified FA as FA
 
 -- * List of categories
@@ -121,8 +121,8 @@ allFields = [ "description"
             ]
 loadCategoriesWidget :: TesterParam -> Handler Widget
 loadCategoriesWidget (TesterParam stockFilter configuration deliveryConf showFields) = do 
-  let rulesE = decodeEither (encodeUtf8 $ unTextarea configuration) :: Either String [Map String ItemCategoryRule]
-      deliveryRuleE = maybe (Right []) (decodeEither . encodeUtf8 . unTextarea) deliveryConf :: Either String [Map Text DeliveryCategoryRule]
+  let rulesE = decodeEither' (encodeUtf8 $ unTextarea configuration) <|&> show :: Either String [Map String ItemCategoryRule]
+      deliveryRuleE = maybe (Right []) ((<|&> show) . decodeEither' . encodeUtf8 . unTextarea) deliveryConf :: Either String [Map Text DeliveryCategoryRule]
   case (rulesE, deliveryRuleE) of
     (Left err, _) -> setError "Error in configuration" >> return [whamlet|<div.well>#{err}|]
     (_, Left err) -> setError "Error in delivery configuration" >> return [whamlet|<div.well>#{err}|]

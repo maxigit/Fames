@@ -10,7 +10,6 @@ module Import.NoFoundation
     , formatInfo
     , formatSuccess
     , (<|&>)
-    , (<&>)
     , (<$$>), (<$$$>), (<$$$$>)
     , (?:)
     , curry3, uncurry3
@@ -47,6 +46,7 @@ module Import.NoFoundation
     ) where
 
 import ClassyPrelude.Yesod as Import
+import Control.Monad.Logger as Import
 import Data.These as Import
 import Model as Import
 import ModelField as Import
@@ -103,10 +103,6 @@ infixl 3 <|&>
 (<|&>) :: Either a b -> (a -> a') -> Either a' b
 Left l <|&> f = Left (f l)
 Right r <|&> _ = Right r
-
-infixl 3 <&>
-(<&>) :: Functor f => f a  -> (a ->b) -> f b
-x <&> f = fmap f x
 
 infixl 4 <$$>, <$$$>, <$$$$>
 (<$$>) :: (Functor f, Functor f1) => (a -> b) -> f1 (f a) -> f1 (f b)

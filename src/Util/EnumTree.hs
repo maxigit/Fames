@@ -15,12 +15,14 @@ import GHC.Generics
 import Data.Foldable (toList)
 
 data EnumTree a = EnumTree [EnumTree a] | EnumNode a  deriving (Show, Functor, Foldable)
+instance Semigroup (EnumTree a) where
+  EnumTree xs <> EnumTree ys = EnumTree (xs <> ys)
+  EnumTree xs <>  y = EnumTree (xs ++ [y])
+  x <>  EnumTree ys = EnumTree (x : ys )
+  x <>  y = EnumTree (x:[y])
+
 instance Monoid (EnumTree a) where
   mempty = EnumTree []
-  EnumTree xs `mappend` EnumTree ys = EnumTree (xs <> ys)
-  EnumTree xs `mappend` y = EnumTree (xs ++ [y])
-  x `mappend` EnumTree ys = EnumTree (x : ys )
-  x `mappend` y = EnumTree (x:[y])
 
 -- | remove unused EnumTree []
 cleanTree :: EnumTree a -> EnumTree a

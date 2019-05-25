@@ -91,7 +91,6 @@ splitTimesheet text = do
       mkSection (Right ref:ss) = Right (ref, lefts ss)
       mkSection ((Left l):_) = Left . pack $ "Section doesn't start with timesheet reference but '" <> unpack l <>  "' instead."
       mkSection _ = Left "Shoudn't not happen"
-  traceShowM groups
   sections <- traverse mkSection groups
   return sections
 

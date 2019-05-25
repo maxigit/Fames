@@ -167,7 +167,7 @@ retrieveVATObligations reportType reportM params@HMRCProcessorParameters{..} = d
                               , formatTime0 "to=%Y-%m-%d" taxReportEnd
                               ]
 -- #if DEVELOPMENT
-  traceShowM token
+  -- traceShowM token
 -- #endif
   -- only keep the obligation corresponding to given report if any
   -- it's not clear how HMRc filters obligations, so we might get more than needed
@@ -239,15 +239,16 @@ mkVatReturn vr_periodKey vr_finalised boxes = do -- Either
   let
     boxMap = mapFromList $ map (fanl taxReportBoxName) boxes :: Map Text TaxReportBox
     getValue boxname = maybe  (Left $ "Box " <> boxname <> " doesn't exist") (Right . toFixed . taxReportBoxValue) (lookup boxname boxMap)
+    getValue0 boxname = maybe  (Left $ "Box " <> boxname <> " doesn't exist") (Right . toFixed . taxReportBoxValue) (lookup boxname boxMap)
     toFixed f = fromRational (toRational f)
   vr_vatDueSales <- getValue "B1"
   vr_vatDueAcquisitions <- getValue "B2"
   vr_totalVatDue <- getValue "B3"
   vr_vatReclaimedCurrPeriod <- getValue "B4"
   vr_netVatDue <- getValue "B5"
-  vr_totalValueSalesExVAT <- getValue "B6"
-  vr_totalValuePurchasesExVAT <- getValue "B7"
-  vr_totalValueGoodsSuppliedExVAT <- getValue "B8"
-  vr_totalAcquisitionsExVAT <- getValue "B9"
+  vr_totalValueSalesExVAT <- getValue0 "B6"
+  vr_totalValuePurchasesExVAT <- getValue0 "B7"
+  vr_totalValueGoodsSuppliedExVAT <- getValue0 "B8"
+  vr_totalAcquisitionsExVAT <- getValue0 "B9"
 
   return VATReturn{..}

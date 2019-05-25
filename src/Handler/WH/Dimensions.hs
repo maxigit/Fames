@@ -184,7 +184,7 @@ loadBoxForStyles (stripPrefix "!" -> Just style) = do
       go (Single s, Single c, Single l, Single w, Single h, Single il, Single iw, Single ih)
         = (s <> " ("  <> tshow (c::Int) <> ")" , Dimension l w h, liftA3 Dimension il iw ih )
   takes <- runDB $ rawSql sql [PersistText style]
-  return $ map go (traceShowId takes)
+  return $ map go takes
 loadBoxForStyles (stripPrefix "<" -> Just vol) = do
   let sql = "SELECT style, count(owidth) n, `oLength` l, oWidth w , oHeight h"
           <> " , iLength il, iWidth iw, iHeight ih"
@@ -196,7 +196,7 @@ loadBoxForStyles (stripPrefix "<" -> Just vol) = do
       go (Single s, Single c, Single l, Single w, Single h, Single il, Single iw, Single ih)
         = (s <> " ("  <> tshow (c::Int) <> ")" , Dimension l w h, liftA3 Dimension il iw ih )
   takes <- runDB $ rawSql sql [PersistDouble (fromJust $ readMay vol)]
-  return $ map go (traceShowId takes)
+  return $ map go takes
 loadBoxForStyles style =  do
   let sql = "SELECT LEFT(description,8) as style, count(width) n, `length` l, width w , height h"
           <> " FROM fames_boxtake"
@@ -207,11 +207,11 @@ loadBoxForStyles style =  do
       go (Single s, Single c, Single l, Single w, Single h)
         = (s <> " ("  <> tshow (c::Int) <> ")" , Dimension l w h, Nothing)
   takes <- runDB $ rawSql sql [PersistText style]
-  return $ map go (traceShowId takes)
+  return $ map go takes
   
 
 parseBoxList :: Text -> [(Text, Dimension, Maybe Dimension)]
-parseBoxList text = mapMaybe go (traceShowId $ lines text)
+parseBoxList text = mapMaybe go (lines text)
   where go line =
           case splitOn "," (strip line) of
             [l,w,h] -> Just ("", mkDim0 l w h, Nothing)
@@ -253,7 +253,7 @@ innerBoxes :: Dimension -> Dimension -> [PDimension]
 innerBoxes outer inner =
   let orientations = zip3 allOrientations (repeat 0) (repeat 6)
       best = bestArrangement orientations [(outer, ())] inner
-      (ori, nl, nw, nh, _) = traceShow ("BEST-new", outer, inner, best) best
+      (ori, nl, nw, nh, _) = best
       (Dimension l w h) = W.rotate ori inner
   in reverse $ [ PDimension (Dimension l0 w0 h0) inner ori
                | iw <- [1..nw]
@@ -314,7 +314,7 @@ innerBoxToFacets opening (Dimension l w h) = let
   go (Orientation Vertical Vertical) = error "should not happen"
   go (Orientation Depth Depth ) = error "should not happen"
   go (Orientation Horizontal Horizontal ) = error "should not happen"
-  in go $ traceShowId opening
+  in go opening
 
 -- halfL f@(Dimension l w h) = let
 --   f' = f { gg

@@ -28,14 +28,14 @@ getWHStocktakeLocationR = do
         <td> #{location}: #{shelf}
 |]
 
-getWHLocationListR :: HandlerT App IO TypedContent
+getWHLocationListR :: Handler TypedContent
 getWHLocationListR = do
   source <- csvSource
   setAttachment "location-barcodes.csv"
-  respondSource "text/csv" (source =$= mapC toFlushBuilder)
+  respondSource "text/csv" (source .| mapC toFlushBuilder)
   
   
-getWHLocationStickersR :: HandlerT App IO TypedContent
+getWHLocationStickersR :: Handler TypedContent
 getWHLocationStickersR = do
   source <- csvSource
   generateLabelsResponse "location-stickers.pdf" "config/locations-qr.glabels" source

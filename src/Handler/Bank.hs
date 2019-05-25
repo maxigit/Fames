@@ -222,12 +222,12 @@ loadReconciliatedTrans :: Maybe Day
 loadReconciliatedTrans todaym dbConf settings =  do
   result <- case mkRecOptions todaym dbConf settings of
     (Just path, options) -> do
-      ((torec0, all), upTime) <- lift $ withCurrentDirectory path  ((,) <$> B.main' options <*> B.updateTime options)
+      ((torec0, all), upTime) <- liftIO $ withCurrentDirectory path  ((,) <$> B.main' options <*> B.updateTime options)
       torec <- mapM (autoRec settings) torec0
       return ((torec, all ), upTime)
     (Nothing, options) -> do
       -- fake the same system by setting fake path and load the transaction
-      fas <- lift$ B.readFa options
+      fas <- liftIO$ B.readFa options
       let ts = map B.faTransToTransaction fas
 
       return ((map toRec (filter (isNothing . B._sRecDate) ts), ts), Nothing)
@@ -287,7 +287,7 @@ displaySummary today dbConf faURL title bankSettings@BankStatementSettings{..}= 
   -- (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main' options)
   ((stransz, banks), updatedAtm) <- loadReconciliatedTrans (Just today) dbConf bankSettings
   -- we sort by date
-  tz <- lift getCurrentTimeZone
+  tz <- liftIO getCurrentTimeZone
   let sortTrans = sortOn sorter
       sorter = liftA3 (,,) (Down . B._sDate) (Down . B._sDayPos) (Down . B._sAmount)
       hideBlacklisted t = if keepLight blacklist t then ["public" ] else ["private"]
@@ -349,7 +349,7 @@ displayLightSummary today dbConf faURL title bankSettings@BankStatementSettings{
   object <- getObjectH
   ((stranszUnfiltered, banksUnfiltered), updatedAtm) <- loadReconciliatedTrans (Just today) dbConf bankSettings
   -- we sort by date
-  tz <- lift getCurrentTimeZone
+  tz <- liftIO getCurrentTimeZone
   let sortTrans = sortOn sorter
       sorter = liftA3 (,,) (Down . B._sDate) (Down . B._sDayPos) (Down . B._sAmount)
       sorted = filter (keepLight blacklist . trTrans) $ (sortOn (sorter . trTrans)) stranszUnfiltered
@@ -575,13 +575,13 @@ renderReconciliate account param = do
     (Nothing, options) -> do
       -- No statement file provided
       -- Assume that payment out should reset the account balance to 0
-      fas <- lift $ B.readFa options
+      fas <- liftIO $ B.readFa options
       let ts = map B.faTransToTransaction fas
           autoBalance t = if B._sAmount t < 0 then Just (pure 0) else Nothing
       return $ [These t { B._sSource = B.HSBC, B._sBalance = autoBalance t } t | t <- ts]
       
     (Just path, options) -> do
-      (hts, _) <- lift $ withCurrentDirectory path (B.loadAllTrans options {B.aggregateMode = B.ALL_BEST})
+      (hts, _) <- liftIO $ withCurrentDirectory path (B.loadAllTrans options {B.aggregateMode = B.ALL_BEST})
       let byDays = B.badsByDay hts
           -- group by rec
       return $ map (bimap B.hsbcTransToTransaction B.faTransToTransaction)  byDays
@@ -686,7 +686,7 @@ rebalanceFA groups = let
        [] -> groups
        (fa:_) -> groupAsMap fst ( snd ) $ runBalance ((\a -> validValue a - B._sAmount fa ) <$> B._sBalance fa)
        -- (fa:_) -> runBalance ((\a -> validValue a - validValue a) <$> B._sBalance fa)
-  in traceShow(("FA Before", groups), ("FA AFter", result)) result
+  in result
 
 getOpenings :: [These B.Transaction B.Transaction] -> (Maybe (ValidField B.Amount), Maybe (ValidField B.Amount))
 -- getOpenings st'sts = (headMay ts >>= (\t -> (subtract (B._sAmount t)) <$$> (B._sBalance t)) , lastMay ts >>= B._sBalance) where 
@@ -1078,7 +1078,7 @@ getGLBankStatementGenR account= do
         Nothing -> id
         Just path -> withCurrentDirectory path
        
-  (hts, _) <- lift $ withDir (B.loadAllTrans options)
+  (hts, _) <- liftIO $ withDir (B.loadAllTrans options)
   let fas = concat $ catThat $ map snd hts
       hs = [ h  {B._hBalance = Nothing, B._hType = convertType (B._hType h) } -- reset balance
              | fa <- fas
@@ -1202,7 +1202,7 @@ fillAutoSettingsCached bankSettings = cache0 False (cacheDay 1) ("bank-settings/
   recs <- case optionsm of
     (Nothing, _) -> return [] -- :: Handler [These B.HSBCTransacations B.FATransaction]
     (Just path, options) -> do
-      (hts, _) <- lift $ withCurrentDirectory path (B.loadAllTrans options {B.aggregateMode = B.ALL_BEST})
+      (hts, _) <- liftIO $ withCurrentDirectory path (B.loadAllTrans options {B.aggregateMode = B.ALL_BEST})
       return $ B.badsByDay hts
   -- transform number and special character into wildcard
   let customerRules = rulesFromRec ST_CUSTPAYMENT BankAutoCustomer recs

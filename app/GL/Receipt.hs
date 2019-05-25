@@ -113,7 +113,6 @@ instance Semigroup (ReceiptTemplate' f) where
 
 instance Monoid (ReceiptTemplate' f) where
   mempty = CompoundTemplate []
-  mappend = (<>)
 
 -- | Remove unused compound
 normalizeTemplate :: ReceiptTemplate' f -> ReceiptTemplate' f
@@ -145,7 +144,7 @@ instance FromJSON (ReceiptTemplate' (Const Text)) where
 
 parseJSON' (Object o) = CompoundTemplate <$> traverse (uncurry parsePair) (sortOn fst $ mapToList o)
 parseJSON' (Array a) = CompoundTemplate <$> traverse parseJSON' (toList a)
-parseJSON' json = traceShow json $ error (show json)
+parseJSON' json = error (show json)
 
 parsePair :: Text -> Value -> Parser (ReceiptTemplate' (Const Text))
 parsePair key value = case toLower key of

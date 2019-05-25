@@ -111,8 +111,7 @@ loadRow isLocationValid findOperator row = do
 parseScan
   :: WipeMode
   -> ByteString
-  -> HandlerT
-       App IO (ParsingResult (Either InvalidField ScanRow) ([Session], [StyleMissing]))
+  -> Handler (ParsingResult (Either InvalidField ScanRow) ([Session], [StyleMissing]))
 parseScan wipeMode spreadsheet = do -- Either
       let rawsE = parseSpreadsheet (mapFromList [("Barcode", [])]) Nothing spreadsheet
       case rawsE of

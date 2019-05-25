@@ -271,10 +271,10 @@ warehouseToDiagram warehouse = do
 
 execWH0 wh = execWH emptyWarehouse
 
-execWH warehouse0 wh = lift $ stToIO $ evalStateT wh warehouse0
+execWH warehouse0 wh = liftIO $ stToIO $ evalStateT wh warehouse0
 
 -- runWH :: MonadIO m => Warehouse s -> WH a s -> m (a, Warehouse s)
-runWH warehouse0 wh = lift $ stToIO $ runStateT wh warehouse0
+runWH warehouse0 wh = liftIO $ stToIO $ runStateT wh warehouse0
 
 executeStep :: Step -> IO (WH () s)
 executeStep SavingPoint = return (return ())

@@ -1,3 +1,4 @@
+{-# LANGUAGE StandaloneDeriving #-}
 module Locker
 ( Locker
 , lock
@@ -17,13 +18,19 @@ import ClassyPrelude.Yesod
 import qualified Data.Text as Text
 import qualified Data.Set as Set
 import Role
-import Debug.Trace
+import qualified Debug.Trace as D
 import Data.Either(isRight)
 
 -- * Types
 
 -- | The locker Monad. A value which can't be accessed without a key
-data Locker r a = Locker (Set r) a deriving (Eq, Ord, Read) -- 
+data Locker r a where
+  Locker :: Ord r => Set r -> a -> Locker r a
+
+deriving instance  (Eq a, Eq r) => Eq (Locker r a) 
+deriving instance  (Ord a, Ord r) => Ord (Locker r a) 
+deriving instance  (Ord r, Read a, Read r) => Read (Locker r a) 
+
 
 data Granted = Granted | Forbidden deriving (Eq, Ord, Show, Read)
 
@@ -47,7 +54,9 @@ restrict rs' (Locker rs x) = Locker (rs <> setFromList rs') x
 _unlock' unlocker privilege (Locker roles value) = unlock unlocker $ Locker (setFromList $ map (privilege,) (toList roles)) value
 
 -- * Unsafe
-unsafeUnlock (Locker rs x) = traceShow ("Unsafe UNLOCK requiring " <> show rs) x
+-- use prelude version issue a warning. 
+unsafeUnlock (Locker rs x) = D.traceShow ("Unsafe UNLOCK requiring " <> show rs) x 
+
 -- * Instances
 
 instance Functor (Locker r) where

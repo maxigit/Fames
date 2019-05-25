@@ -183,7 +183,7 @@ fillTableParams params0 = do
    
 
 -- getPostIndexParam :: IndexParam -> Handler (IndexParam, _
-getPostIndexParam :: IndexParam -> HandlerT App IO (IndexParam, WidgetT App IO (), Enctype)
+getPostIndexParam :: IndexParam -> Handler (IndexParam, Widget, Enctype)
 getPostIndexParam param0 = do
   varGroup <- appVariationGroups <$> getsYesod appSettings
   categories <- categoriesH
@@ -1756,7 +1756,7 @@ createMissingWebPrices cache group p'revMap = do
            , Just priceMap <- return $ impSalesPrices (iiInfo info)
            , let sku = iiSku info
            ]
-      priceList = trace "got price list from cache " $ icPriceLists cache -- TODO move in global cache
+      priceList = icPriceLists cache -- TODO move in global cache
       prices = map (computeTheoreticalPricesP basePl priceList . snd)  sku'prices
   sku'p'rs0 <- loadSkuProductRevisions p'revMap (map fst sku'prices)
 

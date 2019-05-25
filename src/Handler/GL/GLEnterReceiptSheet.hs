@@ -164,7 +164,7 @@ parseGL refMap templateMap spreadSheet = either id ParsingCorrect $ do
   -- traceShowM ("I've been there")
   rows <- getLefts (map analyseReceiptRow rawRows) <|&>  InvalidFormat 
   -- traceShowM ("and there")
-  partials <- makeReceipt rows <|&> flip (InvalidData ["First row is missing header"]) [] . traceShowId . map transformRow
+  partials <- makeReceipt rows <|&> flip (InvalidData ["First row is missing header"]) [] . map transformRow
   -- traceShowM ("there again")
   let template = findWithDefault mempty "default"  templateMap
       guessed = map (applyInnerTemplate templateMap . applyTemplate template) partials

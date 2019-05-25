@@ -318,7 +318,7 @@ postGLPayrollToPayrooR key = do
                                           (TS.Employee (unpack operatorNickname) Nothing)
                                   ) ts'
             setAttachment (fromStrict $ "payroo" <> tshow start <> "--" <> tshow end  <> ".csv")
-            respondSource "text/csv" (source =$= mapC toFlushBuilder)
+            respondSource "text/csv" (source .| mapC toFlushBuilder)
         Left e -> error $ "Problem generating payroo csv: " <> unpack e
 
 -- ** Void
@@ -524,7 +524,7 @@ postTimesheetToFA :: FAParam
                   -> Entity Timesheet
                   -> [Entity PayrollShift]
                   -> [Entity PayrollItem]
-                  -> HandlerT App IO (Either Text Int)
+                  -> Handler (Either Text Int)
 postTimesheetToFA param key timesheet shifts items = do
       settings <- appSettings <$> getYesod
       let today = ffDate param

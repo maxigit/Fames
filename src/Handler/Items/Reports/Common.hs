@@ -116,12 +116,6 @@ type Weight = (Sum Double, First PersistValue)
 --   compare (Weight True a b) (Weight True a' b') = compare (a',b') (a,b)
 --   compare (Weight True _ _ ) (Weight False _ _) =  GT
 --   compare (Weight False _ _ ) (Weight True _ _) =  LT
-                                           
--- instance Monoid Weight where
---   mempty = Weight False mempty mempty
---   mappend = (<>)
--- instance Semigroup Weight where
---   Weight r a b <> Weight r' a' b' = Weight (r || r') (a <> a') (b <> b')
 
 cpSorter :: ColumnRupture -> NMapKey -> TranQP -> Weight
 cpSorter r@ColumnRupture{..} = case getIdentified $ dpDataTraceParams cpSortBy of

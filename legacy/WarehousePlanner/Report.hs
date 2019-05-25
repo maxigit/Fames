@@ -233,9 +233,10 @@ siUsedPercent :: SummaryInfo -> Maybe Double
 siUsedPercent si = do
   total <- siTotalVolume si
   return $ (siUsedVolume si / total) * 100
-instance Monoid SummaryInfo where
-  (SummaryInfo f t u) `mappend` (SummaryInfo f' t' u') =
+instance Semigroup SummaryInfo where
+  (SummaryInfo f t u) <> (SummaryInfo f' t' u') =
     SummaryInfo (f `mPlus` f') (t `mPlus` t') (u+u')
+instance Monoid SummaryInfo where
   mempty = SummaryInfo Nothing Nothing 0
 
 mPlus :: Maybe Double -> Maybe Double -> Maybe Double

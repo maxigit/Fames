@@ -481,7 +481,6 @@ importTimesheets param = do
 -- importCredits :: ImportParam -> Handler [TimesheetId]
 importCredits param = do
   invoices <- loadSelectedInvoices param
-  traceShowM ("loaded invoices"  <> show (length invoices))
   r <- runExceptT $ mapM importExternalPayment invoices
   case r of
     Left e -> setError (toHtml e) >> return []
@@ -496,7 +495,6 @@ importExternalPayment invoice = do
       invoiceNo = FA.suppTranTransNo inv
       day = FA.suppTranTranDate inv
       psettings = appPayroll settings
-  traceShowM $ "Saving invoice" <> show invoiceNo
   tId <- case key invoice of
     Nothing -> fail $ "No timesheet corresponding to invoice #" <> show invoiceNo
     Just tId -> return tId

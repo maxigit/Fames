@@ -148,7 +148,7 @@ execScenario sc@Scenario{..} = do
         wM <- cacheWarehouseOut subKey
         w <- case wM of
           Nothing -> do
-            execM <- lift $ mapM executeStep toExecutes
+            execM <- liftIO $ mapM executeStep toExecutes
             (_, w') <- runWH emptyWarehouse  $ do
               wCopy <- wCopyM
               put wCopy { colors = colorFromTag}
@@ -178,13 +178,12 @@ renderScenario sc layoutM = do
     Nothing -> return $ Left "No layout provided"
     Just layout -> do
         wh0 <- execWithCache sc
-        groupW <- lift $ readWarehouse (contentPath layout)
+        groupW <- liftIO $ readWarehouse (contentPath layout)
         diags <- execWH wh0 ( do
                                 group <- groupW
                                 renderSlices group
                            )
         return (Right diags)
-
 
 renderReport sc report = do
   wh0 <- execWithCache sc

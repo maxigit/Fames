@@ -254,7 +254,6 @@ getMatchTableParam = do
                         ) key'values
       toBatchKey :: Int64 -> Key Batch
       toBatchKey = fromBackendKey . SqlBackendKey
-  traceShowM (key'values, radios)
   return $ param { mtBatchRole = map (first toBatchKey) radios}
   
 loadMatchTable :: MatchTableParam -> Handler Widget -- [Entity BatchMatch]

@@ -49,7 +49,7 @@ checkHMRCStatus (Entity reportKey report@TaxReport{..}) settings = do
   -- so that we are redirected to the correct page
   getHMRCToken taxReportType settings (Just reportKey)
   obligations <- retrieveVATObligations taxReportType (Just report)settings
-  traceShowM ("OBLIGATIONS", obligations)
+  -- traceShowM ("OBLIGATIONS", obligations)
   case obligations of
     [obligation] -> case received obligation of
          Nothing -> return Ready
@@ -184,6 +184,6 @@ generateECSLCSV contactName TaxReport{..} ECSLProcessorParameters{..} ecsls = do
       source = yieldMany csv
       attachmentName = format ("ecsl-"%year%"-"%month%".csv") start start
   setAttachment attachmentName
-  content <- respondSource ("text/csv") (source =$= mapC toFlushBuilder)
+  content <- respondSource ("text/csv") (source .| mapC toFlushBuilder)
   return (content, toStrict attachmentName)
 

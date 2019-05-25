@@ -77,14 +77,14 @@ loadItemForecast ::  Maybe InOutward -> FilePath -> (Map Text ItemInitialInfo) -
 loadItemForecast io forecastDir infoMap start end = do
   catFinder <- categoryFinderCached
   settings <- getsYesod appSettings
-  profiles <- lift $ readProfiles (forecastDir </> "collection_profiles.csv")
+  profiles <- liftIO $ readProfiles (forecastDir </> "collection_profiles.csv")
   let profile sku = (catFinder (appForecastCollectionCategory settings) (FA.StockMasterKey sku) >>= (`lookup` profiles) ) <|> Just flatProfile
       flatProfile = seasonProfile []
-  skuFiles <- lift $ glob (unpack $ forecastDir </> "*sku_forecast.csv" )
+  skuFiles <- liftIO $ glob (unpack $ forecastDir </> "*sku_forecast.csv" )
   when (null skuFiles) $ do
      setError "Can't find any sku speed files. Please check with your administrator."
 
-  skuSpeedMap <- lift $ mapM loadSkuSpeed skuFiles
+  skuSpeedMap <- liftIO $ mapM loadSkuSpeed skuFiles
   let skuSpeeds = concat skuSpeedMap 
   return $ concatMap (skuSpeedRowToTransInfo infoMap profile start end io) skuSpeeds
 

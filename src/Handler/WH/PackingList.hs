@@ -242,7 +242,7 @@ updateDenorm plKey = do
 
   update plKey [PackingListBoxesToDeliver_d =. boxesToDeliver ]
 
-updatePackingListDetails :: EditMode -> Int64 -> Textarea -> HandlerT App IO TypedContent
+updatePackingListDetails :: EditMode -> Int64 -> Textarea -> Handler TypedContent
 updatePackingListDetails mode key cart = do
   let bytes = encodeUtf8 . unTextarea $ cart
       plKey = PackingListKey (SqlBackendKey key)
@@ -263,10 +263,10 @@ updatePackingListDetails mode key cart = do
 
 
   renderParsingResult (\msg pre -> do msg >>  viewPackingList EditDetails key pre)
-                      onSuccess 
+                      onSuccess
                       (parsePackingList orderRef bytes)
 
-updatePackingListInvoices :: Int64 -> Textarea -> HandlerT App IO TypedContent
+updatePackingListInvoices :: Int64 -> Textarea -> Handler TypedContent
 updatePackingListInvoices key cart = do
   let bytes = unTextarea $ cart
       plKey = PackingListKey (SqlBackendKey key)
@@ -280,7 +280,7 @@ updatePackingListInvoices key cart = do
                       onSuccess 
                       (parseInvoiceList plKey bytes)
 
-updatePackingList :: Int64 -> UploadParam -> HandlerT App IO TypedContent
+updatePackingList :: Int64 -> UploadParam -> Handler TypedContent
 updatePackingList key param = do
   let plKey = PackingListKey (SqlBackendKey key)
       plUpdates = 
@@ -608,7 +608,7 @@ $forall (ref, skus) <- Map.toList groups
 renderStickers :: Day -> PackingList -> [Entity PackingListDetail] -> Html
 renderStickers today pl entities = 
   -- we need a monad to use the conduit. Let's use Maybe ...
-  let Just csv = stickerSource today pl entities $$ consume
+  let Just csv = runConduit $ stickerSource today pl entities .| consume
   in [shamlet|
 <p>
   $forall row <- csv
@@ -800,7 +800,7 @@ generateStocktake key pl = do
   detail'boxS <- loadForStocktake key
   let source = stocktakeSource key detail'boxS 
   setAttachment (fromStrict $ "stocktake" <> ( maybe "" ("-" <>) (packingListContainer pl) <> ".csv") )
-  respondSource "text/csv" (source =$= mapC toFlushBuilder)
+  respondSource "text/csv" (source .| mapC toFlushBuilder)
 
 editDetailsForm :: Maybe Text -> Markup -> _ (FormResult Textarea, Widget)
 editDetailsForm defCart  = renderBootstrap3 BootstrapBasicForm form
@@ -1238,7 +1238,6 @@ parseInvoiceList plKey cart = let
     -- traceShowM line
     let (prefix, nos) = break (== ':') (strip line)
     no <- readMay (drop 1 nos)
-    traceShowM no
     ftype <- case toLower (take 4 prefix) of
                "ship" -> Just PackingListShippingE
                "supp" -> Just PackingListInvoiceE
@@ -1266,7 +1265,13 @@ instance Num () where
   fromInteger _ = 0
   negate () = ()
 
-renderRow :: (MonadIO m, MonadThrow m, MonadBaseControl IO m, Renderable (PLFieldTF t Text Identity Identity), Renderable (PLFieldTF t Text Identity Maybe), Renderable (PLFieldTF t Int Identity Null), Renderable (PLFieldTF t Int Null Null), Renderable (PLFieldTF t Double Maybe Null)) => PLRow t -> WidgetT App m ()
+renderRow :: (Renderable (PLFieldTF t Text Identity Identity)
+             , Renderable (PLFieldTF t Text Identity Maybe)
+             , Renderable (PLFieldTF t Int Identity Null)
+             , Renderable (PLFieldTF t Int Null Null)
+             , Renderable (PLFieldTF t Double Maybe Null)
+             )
+          => PLRow t -> Widget
 renderRow PLRow{..} = do
   [whamlet|
           <td.pl>^{render plStyle}
@@ -1289,7 +1294,7 @@ renderRow PLRow{..} = do
           <td.pl>^{render plTotalWeight}
           |]
 
-renderHeaderRow :: (MonadBaseControl IO m, MonadThrow m, MonadIO m) => WidgetT site m ()
+renderHeaderRow :: Widget
 renderHeaderRow = [whamlet|
   <tr>
     <th>Style
@@ -1739,7 +1744,6 @@ instance Semigroup DetailInfo  where
 
 instance Monoid DetailInfo  where
   mempty = DetailInfo 0 0 mempty
-  mappend = (<>)
 
 normQ :: DetailInfo ->  DetailInfo
 normQ (DetailInfo qty vol cost) = DetailInfo 1 (forQ vol) (fmap forQ cost)
