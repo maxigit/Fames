@@ -156,7 +156,7 @@ postGLCheckR = do
       <tr>
         <td><a href=@{tsRoute t} > #{tsTransNo t}
         <td><a href="#{urlForFA faUrl (tsTransType t) (tsTransNo t)}">
-            #{itext (showTransType $ tsTransType t) }
+            #{transactionIconSpan $ tsTransType t }
         <td> #{tshow $ tsDate t}
         <td> #{tshow $ tsNet t}
         <td> #{tshow $ tsTax t}

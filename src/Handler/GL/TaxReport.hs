@@ -178,19 +178,19 @@ renderTaxDetailTable taxDetails =
     <thead>
       <tr>
         <th>Date
-        <th data-class-name="text-right"> TransNo
+        <th> TransNo
         <th> TransType
         <th> Memo
-        <th data-class-name="text-right">netAmount
-        <th data-class-name="text-right">taxAmount
-        <th data-class-name="text-right">rate
+        <th> netAmount
+        <th>taxAmount
+        <th>rate
         <th>Bucket
     <tbody>
       $forall detail <- taxDetails 
         <tr>
           <td>#{tshow $ tdTranDate detail }
-          <td>#{tshow $ tdTransNo detail }
-          <td>#{tshow $ tdTransType detail }
+          <td.text-right>#{tshow $ tdTransNo detail }
+          <td.text-center>#{transactionIconSpan $ tdTransType detail }
           <td>#{fromMaybe "" $ tdMemo detail }
           <td.text-right>#{formatDouble' $ tdNetAmount detail }
           <td.text-right>#{formatDouble' $ tdTaxAmount detail }

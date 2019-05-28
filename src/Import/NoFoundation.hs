@@ -20,6 +20,8 @@ module Import.NoFoundation
     , formatHours
     , showTransType
     , showShortTransType
+    , transactionIcon
+    , transactionIconSpan
     , decodeHtmlEntities
     , groupAsMap
     , groupAscAsMap
@@ -220,6 +222,97 @@ showShortTransType ST_SALESORDER = "S->@"
 showShortTransType ST_SALESQUOTE = "S->'"
 showShortTransType ST_COSTUPDATE = "CU"
 showShortTransType ST_DIMENSION = "D"
+
+data IconType = ICustomer
+              | ISupplier
+              | IStock
+              | IBank
+              | IAny
+              | IGL
+              | IInLeft
+              | IInRight
+              | IOutLeft
+              | IOutRight
+              | IInOut
+              | IOrder  -- loc
+              deriving (Eq, Show, Ord, Enum)
+
+-- order ICustomer -> Stock | Bank | GL | Supplier
+transactionIcons :: FATransType -> [IconType]
+transactionIcons eType = case eType of
+  ST_JOURNAL -> [IGL, IInOut, IGL ]
+  ST_BANKPAYMENT -> [ IBank, IOutRight, IAny ]
+  ST_BANKDEPOSIT -> [ IBank, IInLeft, IAny ]
+  ST_BANKTRANSFER -> [ IBank, IInOut, IBank ]
+  ST_SALESINVOICE -> [ ICustomer, IInRight, IGL ]
+  ST_CUSTCREDIT ->   [ ICustomer, IOutLeft, IGL ]
+  ST_CUSTPAYMENT -> [ ICustomer, IInRight, IBank ]
+  ST_CUSTDELIVERY -> [ ICustomer, IOutLeft, IStock ]
+  ST_LOCTRANSFER -> [ IStock, IInOut, IStock ]
+  ST_INVADJUST -> [ IStock, IInOut, IGL  ]
+  ST_PURCHORDER -> [ IOrder, IOutRight, ISupplier ]
+  ST_SUPPINVOICE -> [ IGL, IOutRight , ISupplier ]
+  ST_SUPPCREDIT -> [ IGL, IInLeft, ISupplier ]
+  ST_SUPPAYMENT -> [ IBank, IOutRight, ISupplier ]
+  ST_SUPPRECEIVE -> [ IStock, IInLeft, ISupplier ]
+  ST_WORKORDER -> [ IInRight, IOrder ]
+  ST_MANUISSUE -> [ ]
+  ST_MANURECEIVE -> [ IInRight, IStock]
+  ST_SALESORDER -> [ ICustomer, IInRight,  IOrder ]
+  ST_SALESQUOTE -> [ ICustomer, IInRight,  IOrder ]
+  ST_COSTUPDATE -> [  ]
+  ST_DIMENSION -> [  ]
+  
+itypeToIcon :: IconType -> Html
+itypeToIcon iType = [shamlet| <span.glyphicon class="glyphicon-#{glyph} #{class_}"> |]
+  where
+    glyph, class_ :: Text
+    (glyph, class_) = case iType of
+       ICustomer -> ("user", "text-primary")
+       ISupplier -> ("user", "text-info")
+       IStock -> ("home", "text-muted")
+       IBank -> ("stats", "text-muted")
+       IAny -> ("globe", "text-info")
+       IGL -> ("list", "text-muted")
+       IInLeft -> ("arrow-left", "text-success")
+       IInRight -> ("arrow-right", "text-success")
+       IOutLeft -> ("arrow-left", "text-danger")
+       IOutRight -> ("arrow-right", "text-danger")
+       IInOut -> ("transfer", "")
+       IOrder  -> ("shopping-cart", "text-muted")
+  
+transactionIcon :: FATransType -> Html
+transactionIcon eType = 
+  let ttype = showShortTransType eType :: Text
+  in [shamlet|
+       $case transactionIcons eType
+         $of []
+           #{ttype}
+         $of icons
+           $forall i <- icons
+             #{itypeToIcon i}
+          |]
+transactionIconSpan  :: FATransType -> Html
+transactionIconSpan eType =
+  [shamlet|
+     <span data-toggle="tooltip" title="#{longType}">
+       #{transactionIcon eType}
+       <span.hidden> #{longType}
+  |] where
+      longType = showTransType eType :: Text
+  
+ 
+-- linkToFA :: (FATransType -> Int -> Text) -> Text -> FATransType -> Int -> Html
+-- linkToFA urlForFA' class_ transType transNo = [shamlet|
+--  <a href="#{urlFoFa' transType no}"
+--     class="#{class_}"
+--     target=_blank
+--     data-toggle="tooltip" 
+--     title="#{longType} ##{tshow $ transNo}"
+--     > #{transactionIcon eType}
+--   |] where
+--          longType = showTransType transType :: Text
+ 
 -- * Html 
 decodeHtmlEntities :: Text -> Text
 decodeHtmlEntities s = maybe s TS.fromTagText (headMay $ TS.parseTags s)
