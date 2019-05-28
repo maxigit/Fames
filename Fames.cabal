@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 675520649a0134b34d0928c31fcd863a68b1c8cde56eeebb5d6cbfc381ec06e4
+-- hash: b17f481520e329574573d4bc70e9ebbf519e5f804a2d80d631fda0f398a03471
 
 name:           Fames
 version:        0.0.1
@@ -92,6 +92,7 @@ library
     , split
     , streaming-commons
     , tabular >=0.2.2.7 && <0.3
+    , tagged
     , tagsoup >=0.14.1 && <0.15
     , template-haskell
     , temporary
@@ -298,6 +299,7 @@ executable Fames
     , split
     , streaming-commons
     , tabular >=0.2.2.7 && <0.3
+    , tagged
     , tagsoup >=0.14.1 && <0.15
     , template-haskell
     , temporary
@@ -428,6 +430,7 @@ test-suite ghcid
     , split
     , streaming-commons
     , tabular >=0.2.2.7 && <0.3
+    , tagged
     , tagsoup >=0.14.1 && <0.15
     , template-haskell
     , temporary
@@ -662,6 +665,7 @@ test-suite test
     , split
     , streaming-commons
     , tabular >=0.2.2.7 && <0.3
+    , tagged
     , tagsoup >=0.14.1 && <0.15
     , template-haskell
     , temporary

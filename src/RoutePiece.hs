@@ -88,7 +88,7 @@ instance PathPiece PlannerViewMode where
 -- ** Tax Report
 data TaxReportViewMode = TaxReportPendingView -- ^ display transaction to collect
                        | TaxReportCollectedView -- ^ transaction  already collected
-                       | TaxReportBuckView 
+                       | TaxReportBucketView 
                        | TaxReportBoxesView
      deriving (Eq, Read, Show, Enum, Bounded)
 

@@ -2,6 +2,7 @@ module Handler.GL.TaxReport.Types
 ( TaxDetail -- no constructor
 , taxDetailFromDetail
 , taxDetailFromBucket
+, taxDetailFromDetailM
 , isNew
 , tdFADetail
 , tdReportDetail
@@ -71,7 +72,13 @@ taxDetailFromBucket report (Entity transKey trans@TransTaxDetail{..}) bucket = l
 isNew :: TaxDetail -> Bool
 isNew detail = isJust (_private_detailKey detail)
 
-
+taxDetailFromDetailM :: Key TaxReport
+                     -> Text
+                     -> Entity TransTaxDetail
+                     -> Maybe (Entity TaxReportDetail)
+                     -> Either Text TaxDetail
+taxDetailFromDetailM report bucket trans Nothing = Right $ taxDetailFromBucket report trans bucket
+taxDetailFromDetailM report bucket trans (Just detail) = taxDetailFromDetail trans detail
 
 -- * Accessors
 tdFADetail = _private_faDetail

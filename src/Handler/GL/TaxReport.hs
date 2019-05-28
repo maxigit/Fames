@@ -11,13 +11,13 @@ import Handler.GL.TaxReport.Types
 import GL.Utils
 import Data.Time (addDays)
 import Database.Persist.MySQL(unSqlBackendKey)
-import Database.Persist.Sql (rawSql, fromSqlKey, toSqlKey, Single(..))
+import Database.Persist.Sql (rawSql, RawSql, fromSqlKey, toSqlKey, Single(..))
 import Data.Aeson(encode)
 import qualified FA as FA
 import Metamorphosis
 import Lens.Micro
 import Formatting as F
-
+import Data.Tagged
 
 -- * Handler
 -- | Display the list of the available tax reports
@@ -130,6 +130,14 @@ renderReportHeader (Entity rId TaxReport{..}) (before, inRange) = do
 
 renderReportView :: Entity TaxReport -> TaxReportViewMode ->  Handler Widget
 renderReportView report mode = do
+  view <- case mode of
+            TaxReportPendingView -> do
+              details <- loadPendingTaxDetails report
+              return $ renderTaxDetailTable details
+            TaxReportCollectedView -> do
+              details <- loadCollectedTaxDetails report
+              return $ renderTaxDetailTable details
+            _ -> return $ renderTaxDetailTable []
   let navs = [TaxReportPendingView .. ]
       myshow t0 = let t =  drop  12 $ splitSnake $ tshow t0
                   in take (length t - 4) t :: Text
@@ -138,12 +146,12 @@ renderReportView report mode = do
         <ul.nav.nav-tabs>
           $forall nav <- navs 
             <li class="#{navClass nav}">
-              <a href="@{GLR $ GLTaxReportR (fromSqlKey $ entityKey report) (Just mode)}">#{myshow nav}
+              <a href="@{GLR $ GLTaxReportR (fromSqlKey $ entityKey report) (Just nav)}">#{myshow nav}
                     |]
-  return $ mainW >> renderTransDifferedTable (entityKey report)
+  return $ mainW >> view
 -- | Render a table with the transaction, with or without bin
   
-renderTransDifferedTable reportId = do
+_to_remove_renderTransDifferedTable reportId = do
   [whamlet|
   <table#trans-table *{datatable} data-ajax="@{GLR $ GLTaxReportDetailsR (fromSqlKey reportId)}">
     <thead>
@@ -207,13 +215,12 @@ loadReport key = do
 -- collectPendingTransTaxDetails ::  TaxReport -> SqlHandler [TaxReportDetail]
 countPendingTransTaxDetails :: TaxReport -> SqlHandler (Int, Int)
 countPendingTransTaxDetails TaxReport{..} =  do
-  let count = "SELECT COUNT(*) " 
-  [Single inRange] <- uncurry rawSql (buildPendingTransTaxDetailsQuery count
+  [Single inRange] <- runTaggedSql (buildPendingTransTaxDetailsQuery selectCount
                                                               taxReportType
                                                               (Just taxReportStart)
                                                               taxReportEnd
                             ) 
-  [Single before] <- uncurry rawSql (buildPendingTransTaxDetailsQuery count
+  [Single before] <- runTaggedSql (buildPendingTransTaxDetailsQuery selectCount
                                                              taxReportType
                                                              Nothing
                                                              ((-1) `addDays` taxReportStart)
@@ -221,8 +228,8 @@ countPendingTransTaxDetails TaxReport{..} =  do
 
   return (before, inRange)                                                                                     
 
-buildPendingTransTaxDetailsQuery :: Text -> Text -> Maybe Day -> Day -> (Text, [PersistValue])
-buildPendingTransTaxDetailsQuery selectQuery reportType startDate endDate = 
+buildPendingTransTaxDetailsQuery :: Tagged e Text -> Text -> Maybe Day -> Day -> (Tagged e Text, [PersistValue])
+buildPendingTransTaxDetailsQuery (Tagged selectQuery) reportType startDate endDate = 
 
   let sql0 =  selectQuery <> " FROM 0_trans_tax_details fad"
           <>  " LEFT JOIN fames_tax_report_detail rd ON (tax_report_detail_id = fad.id) "
@@ -235,16 +242,57 @@ buildPendingTransTaxDetailsQuery selectQuery reportType startDate endDate =
       p0 = [ toPersistValue $ reportType
            , toPersistValue $ endDate
            ]
-  in case startDate of
-        Nothing -> (sql0, p0)
-        Just start -> (sql0 <> " AND fad.tran_date >= ? ", p0 <> [toPersistValue start])
+  in first Tagged $ case startDate of
+                Nothing -> (sql0, p0)
+                Just start -> (sql0 <> " AND fad.tran_date >= ? ", p0 <> [toPersistValue start])
+
+buildCollectedTaxDetailsQuery :: Tagged e Text -> Key TaxReport -> (Tagged e Text, [PersistValue])
+buildCollectedTaxDetailsQuery (Tagged selectQuery) reportKey = 
+  let sql0 =  selectQuery <> " FROM 0_trans_tax_details fad"
+          <>  " JOIN fames_tax_report_detail rd ON (tax_report_detail_id = fad.id) "
+          <> " WHERE tax_report_detail_id = ? "
+          <> "      AND (rd.tax_report_id is NULL OR ("
+          <> "           abs (fad.net_amount * ex_rate - rd.net_amount) < 1e-4 "
+          <> "                AND    abs (fad.amount * ex_rate - rd.tax_amount) < 1e-4 "
+          <> "               )"
+          <> "       ) "
+      p0 = keyToValues reportKey
+           
+  in (Tagged sql0, p0)
+
+selectTt'MRd :: Tagged (Entity FA.TransTaxDetail, Maybe (Entity TaxReportDetail)) Text
+selectTt'MRd = Tagged "SELECT fad.*, rd.* /* ?? */ /* ?? */ " -- hack to use 
+
+selectTt'Rd :: Tagged (Entity FA.TransTaxDetail, Entity TaxReportDetail) Text
+selectTt'Rd = Tagged "SELECT fad.*, rd.* /* ?? */ /* ?? */ " -- hack to use 
+
+selectCount :: Tagged (Single Int) Text
+selectCount = Tagged "SELECT count(*) "
+
+runTaggedSql :: RawSql r => (Tagged r Text, [PersistValue]) -> SqlHandler [r]
+runTaggedSql (Tagged sql, params) = rawSql sql params
+
+loadPendingTaxDetails :: Entity TaxReport -> Handler [TaxDetail]
+loadPendingTaxDetails (Entity reportKey TaxReport{..}) =
+  loadTaxDetail (uncurry $ taxDetailFromDetailM reportKey "<none>")
+                (buildPendingTransTaxDetailsQuery selectTt'MRd
+                                                  taxReportType
+                                                  Nothing
+                                                  taxReportEnd
+                )
+
+loadCollectedTaxDetails (Entity reportKey TaxReport{..})  =
+  loadTaxDetail (uncurry taxDetailFromDetail)
+                (buildCollectedTaxDetailsQuery selectTt'Rd
+                                                    reportKey 
+                )
 
 -- | Load transactions Report details For datatable
 getGLTaxReportDetailsR :: Int64 -> Handler Value
 getGLTaxReportDetailsR key = do
   rows <- runDB $  do
     (Entity _ TaxReport{..}) <- loadReport key
-    let (sql, params) = buildPendingTransTaxDetailsQuery selectQ taxReportType Nothing taxReportEnd
+    let (Tagged sql, params) = buildPendingTransTaxDetailsQuery selectQ taxReportType Nothing taxReportEnd
         selectQ = "SELECT fad.* /* ?? */ " -- hack to use 
         -- we need to order them to get a consistent paging
         order = " ORDER BY fad.tran_date, fad.id"
@@ -265,17 +313,13 @@ getGLTaxReportDetailsR key = do
 
   returnJson $ object [ "data" .= (map toj rows) ]
   
-loadTaxDetail :: Int64 -> Handler [TaxDetail]
-loadTaxDetail rId = do
-  rows <- runDB $  do
-    (Entity reportKey TaxReport{..}) <- loadReport rId
-    let (sql, params) = buildPendingTransTaxDetailsQuery selectQ taxReportType Nothing taxReportEnd
-        selectQ = "SELECT fad.* /* ?? */, ?? " -- hack to use 
-        -- we need to order them to get a consistent paging
-        order = " ORDER BY fad.tran_date, fad.id"
-        paging = " LIMIT 50000"
-    rawSql (sql <> order <> paging) params
-  case mapM (uncurry taxDetailFromDetail ) rows of
+loadTaxDetail :: RawSql e 
+              => (e -> Either Text TaxDetail)
+              -> (Tagged e Text, [PersistValue])
+              -> Handler [TaxDetail]
+loadTaxDetail mkDetail query  = do
+  rows <- runDB $ runTaggedSql $ query
+  case mapM mkDetail rows of
     Left err -> do
        setError "Inconsistent DB contact your administrator"
        error (unpack err)
