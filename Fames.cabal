@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b17f481520e329574573d4bc70e9ebbf519e5f804a2d80d631fda0f398a03471
+-- hash: 0d1c207fa991f30e8f7080e54da30904d93435b01100ccf8d7df3ac8a5d1408c
 
 name:           Fames
 version:        0.0.1
@@ -211,6 +211,7 @@ library
       GL.Receipt
       GL.TaxReport
       GL.TaxReport.Settings
+      GL.TaxReport.Types
       GL.Utils
       Items
       Items.Internal
@@ -336,6 +337,7 @@ executable Fames
       GL.Receipt
       GL.TaxReport
       GL.TaxReport.Settings
+      GL.TaxReport.Types
       GL.Utils
       Items
       Items.Internal
@@ -574,6 +576,7 @@ test-suite ghcid
       GL.Receipt
       GL.TaxReport
       GL.TaxReport.Settings
+      GL.TaxReport.Types
       GL.Utils
       Items
       Items.Internal

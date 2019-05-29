@@ -134,6 +134,25 @@ instance Enum FATransType where
   toEnum 35 = ST_COSTUPDATE
   toEnum i = error $ "Can't convert " ++ show i ++ " to FATransType"
 
+customerFATransactions, supplierFATransactions :: [FATransType]
+customerFATransactions =  
+  [ ST_SALESINVOICE
+  , ST_CUSTCREDIT
+  , ST_CUSTPAYMENT
+  , ST_CUSTDELIVERY
+  , ST_SALESORDER
+  , ST_SALESQUOTE
+  ]
+
+supplierFATransactions = 
+  [ ST_PURCHORDER
+  , ST_SUPPINVOICE
+  , ST_SUPPCREDIT
+  , ST_SUPPAYMENT
+  , ST_SUPPRECEIVE
+  ]
+
+
 instance PersistField FATransType where
   toPersistValue = toPersistValue . fromEnum
   fromPersistValue = map toEnum . fromPersistValue

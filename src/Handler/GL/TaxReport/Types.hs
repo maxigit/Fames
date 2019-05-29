@@ -25,6 +25,7 @@ where
 import Import
 import qualified FA as FA
 import FA(TransTaxDetail(..))
+import GL.TaxReport.Types
 
 -- | A mix of FA trans tax detail and report
 -- A smart constructor makes sure that the information common
@@ -55,14 +56,14 @@ taxDetailFromDetail trans detail = validateDetail (entityKey trans)
                (entityVal detail)
                (Just $ entityKey detail)
 
-taxDetailFromBucket :: Key TaxReport -> Entity TransTaxDetail -> Text -> TaxDetail  
-taxDetailFromBucket report (Entity transKey trans@TransTaxDetail{..}) bucket = let
+taxDetailFromBucket :: Key TaxReport -> Entity TransTaxDetail -> (TransTaxDetail -> Bucket) -> TaxDetail  
+taxDetailFromBucket report (Entity transKey trans@TransTaxDetail{..}) bucketFn = let
   taxReportDetailReport = report
   taxReportDetailTaxTransDetail = transKey
   taxReportDetailNetAmount = transTaxDetailNetAmount * transTaxDetailExRate
   taxReportDetailTaxAmount = transTaxDetailAmount * transTaxDetailExRate
   taxReportDetailRate = transTaxDetailRate / 100
-  taxReportDetailBucket = bucket
+  taxReportDetailBucket = bucketFn trans 
   taxReportDetailFaTransType = maybe (error "TransType should not be null") toEnum transTaxDetailTransType
   taxReportDetailFaTransNo = fromMaybe (error "TransType should not be null") transTaxDetailTransNo
   taxReportDetailFaTaxType = transTaxDetailTaxTypeId
@@ -73,11 +74,11 @@ isNew :: TaxDetail -> Bool
 isNew detail = isJust (_private_detailKey detail)
 
 taxDetailFromDetailM :: Key TaxReport
-                     -> Text
+                     -> (TransTaxDetail -> Bucket)
                      -> Entity TransTaxDetail
                      -> Maybe (Entity TaxReportDetail)
                      -> Either Text TaxDetail
-taxDetailFromDetailM report bucket trans Nothing = Right $ taxDetailFromBucket report trans bucket
+taxDetailFromDetailM report bucketFn trans Nothing = Right $ taxDetailFromBucket report trans bucketFn
 taxDetailFromDetailM report bucket trans (Just detail) = taxDetailFromDetail trans detail
 
 -- * Accessors

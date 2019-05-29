@@ -5,8 +5,10 @@ module Handler.GL.TaxReport
 , postGLTaxReportR
 , getGLTaxReportDetailsR
 ) where
-import Import
+import Import hiding(RuleInput)
+import GL.TaxReport.Types
 import GL.TaxReport.Settings
+import GL.TaxReport
 import Handler.GL.TaxReport.Types
 import GL.Utils
 import Data.Time (addDays)
@@ -58,8 +60,10 @@ postGLNewTaxReportR name = do
 getGLTaxReportR :: Int64 -> Maybe TaxReportViewMode -> Handler Html
 getGLTaxReportR key mode = do
   report <- runDB $ loadReport key
+  reportSettings  <- getReportSettings (taxReportType $ entityVal report)
+  let reportRules = maybe defaultRule rules reportSettings
   (before, inRange)  <- runDB $ countPendingTransTaxDetails (entityVal report)
-  view <- renderReportView report (fromMaybe TaxReportPendingView mode)
+  view <- renderReportView reportRules report (fromMaybe TaxReportPendingView mode)
   when (before > 0) $ do
     setWarning "Some Transactions part of the  have been entered or modified before current report start date"
   defaultLayout $ renderReportHeader report (before, inRange) >> view
@@ -128,16 +132,16 @@ renderReportHeader (Entity rId TaxReport{..}) (before, inRange) = do
           |]
   panel1
 
-renderReportView :: Entity TaxReport -> TaxReportViewMode ->  Handler Widget
-renderReportView report mode = do
+renderReportView :: Rule -> Entity TaxReport -> TaxReportViewMode ->  Handler Widget
+renderReportView rule report mode = do
   view <- case mode of
             TaxReportPendingView -> do
-              details <- loadPendingTaxDetails report
-              return $ renderTaxDetailTable details
+              details <- loadPendingTaxDetails rule report
+              return $ renderTaxDetailTable (taxReportStart $ entityVal report) details
             TaxReportCollectedView -> do
               details <- loadCollectedTaxDetails report
-              return $ renderTaxDetailTable details
-            _ -> return $ renderTaxDetailTable []
+              return $ renderTaxDetailTable (taxReportStart $ entityVal report) details
+            _ -> return $ renderTaxDetailTable (taxReportStart $ entityVal report) []
   let navs = [TaxReportPendingView .. ]
       myshow t0 = let t =  drop  12 $ splitSnake $ tshow t0
                   in take (length t - 4) t :: Text
@@ -172,7 +176,7 @@ _to_remove_renderTransDifferedTable reportId = do
     })
                   |]
 
-renderTaxDetailTable taxDetails = 
+renderTaxDetailTable startDate taxDetails = 
   [whamlet|
    <table *{datatable}>
     <thead>
@@ -187,17 +191,17 @@ renderTaxDetailTable taxDetails =
         <th>Bucket
     <tbody>
       $forall detail <- taxDetails 
-        <tr>
-          <td>#{tshow $ tdTranDate detail }
-          <td.text-right>#{tshow $ tdTransNo detail }
-          <td.text-center>#{transactionIconSpan $ tdTransType detail }
-          <td>#{fromMaybe "" $ tdMemo detail }
-          <td.text-right>#{formatDouble' $ tdNetAmount detail }
-          <td.text-right>#{formatDouble' $ tdTaxAmount detail }
-          <td.text-right>#{formatDouble' $ tdRate detail }%
-          <td>#{tdBucket detail}
+        $with old <- tdTranDate detail < startDate
+          <tr :old:.bg-danger>
+            <td :old:.text-danger>#{tshow $ tdTranDate detail }
+            <td.text-right>#{tshow $ tdTransNo detail }
+            <td.text-center>#{transactionIconSpan $ tdTransType detail }
+            <td>#{fromMaybe "" $ tdMemo detail }
+            <td.text-right>#{formatDouble' $ tdNetAmount detail }
+            <td.text-right>#{formatDouble' $ tdTaxAmount detail }
+            <td.text-right>#{formatDouble' $ tdRate detail }%
+            <td>#{tdBucket detail}
           |]
-
 -- * DB
 
 loadReport :: Int64 -> SqlHandler (Entity TaxReport)
@@ -272,9 +276,9 @@ selectCount = Tagged "SELECT count(*) "
 runTaggedSql :: RawSql r => (Tagged r Text, [PersistValue]) -> SqlHandler [r]
 runTaggedSql (Tagged sql, params) = rawSql sql params
 
-loadPendingTaxDetails :: Entity TaxReport -> Handler [TaxDetail]
-loadPendingTaxDetails (Entity reportKey TaxReport{..}) =
-  loadTaxDetail (uncurry $ taxDetailFromDetailM reportKey "<none>")
+loadPendingTaxDetails :: Rule -> Entity TaxReport -> Handler [TaxDetail]
+loadPendingTaxDetails taxRule (Entity reportKey TaxReport{..}) =
+  loadTaxDetail (uncurry $ taxDetailFromDetailM reportKey (applyTaxRule taxRule . faTransToRuleInput))
                 (buildPendingTransTaxDetailsQuery selectTt'MRd
                                                   taxReportType
                                                   Nothing
@@ -290,25 +294,28 @@ loadCollectedTaxDetails (Entity reportKey TaxReport{..})  =
 -- | Load transactions Report details For datatable
 getGLTaxReportDetailsR :: Int64 -> Handler Value
 getGLTaxReportDetailsR key = do
-  rows <- runDB $  do
+  (rows, reportType) <- runDB $  do
     (Entity _ TaxReport{..}) <- loadReport key
+
     let (Tagged sql, params) = buildPendingTransTaxDetailsQuery selectQ taxReportType Nothing taxReportEnd
         selectQ = "SELECT fad.* /* ?? */ " -- hack to use 
         -- we need to order them to get a consistent paging
         order = " ORDER BY fad.tran_date, fad.id"
         paging = " LIMIT 50000"
-    rawSql (sql <> order <> paging) params
+    r <- rawSql (sql <> order <> paging) params
+    return (r, taxReportType)
+  TaxReportSettings{..} <- unsafeGetReportSettings reportType
   let _types = rows :: [Entity FA.TransTaxDetail]
       _report0 = TaxReportKey 0
       showType = showShortTransType :: FATransType -> Text
-      toj (Entity _ FA.TransTaxDetail{..}) = [ toJSON transTaxDetailTranDate
+      toj (Entity _ trans@FA.TransTaxDetail{..}) = [ toJSON transTaxDetailTranDate
                                              , toJSON transTaxDetailTransNo
                                              , toJSON ((showType . toEnum ) <$> transTaxDetailTransType)
                                              , toJSON transTaxDetailMemo
                                              , toJSON transTaxDetailNetAmount
                                              , toJSON transTaxDetailAmount
                                              , toJSON transTaxDetailRate
-                                             , "<none>"
+                                             , toJSON (applyTaxRule rules $ faTransToRuleInput trans)
                                              ]
 
   returnJson $ object [ "data" .= (map toj rows) ]
@@ -333,10 +340,25 @@ loadTaxDetail mkDetail query  = do
 -- in which case it is legitimate  to raise an error ;-)
 unsafeGetReportSettings :: Text -> Handler TaxReportSettings
 unsafeGetReportSettings name = do
-  settings <- appTaxReportSettings <$> getsYesod appSettings
-  case lookup name settings of
+  r <- getReportSettings name
+  case r of
     Nothing -> error $ unpack $ "Can't tax settings for " <> name
     Just settings -> return settings
+
+getReportSettings :: Text -> Handler (Maybe TaxReportSettings)
+getReportSettings name = do
+  settings <- appTaxReportSettings <$> getsYesod appSettings
+  return $ lookup name settings
   
 
 formatDouble' = F.sformat commasFixed
+
+-- * Rule
+faTransToRuleInput :: FA.TransTaxDetail -> RuleInput
+faTransToRuleInput FA.TransTaxDetail{..} = let
+  riTransType = maybe (error "DB Problem") toEnum transTaxDetailTransType
+  riEntity = Nothing
+  riTaxType = transTaxDetailTaxTypeId
+  riTaxRate = transTaxDetailRate -- 1% = 1
+  in RuleInput{..}
+
