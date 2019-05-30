@@ -16,6 +16,7 @@ data TaxSummary = TaxSummary
    , taxAmount :: Amount
    } deriving (Eq, Read, Show, Ord)
 
+grossAmount TaxSummary{..} = netAmount + taxAmount
 -- * Instance
 instance Semigroup TaxSummary where
   (TaxSummary net tax) <> (TaxSummary net' tax') = TaxSummary (net + net') (tax + tax')
@@ -54,3 +55,21 @@ applyTaxRuleM (TaxRateRule taxrate rule ) input =
 
 isCustomer = (`elem` customerFATransactions)
 isSupplier = (`elem` supplierFATransactions)
+
+-- * Boxes
+computeBoxAmount :: TaxBoxRule -> Map Bucket TaxSummary -> Amount
+computeBoxAmount rule0 buckets = case rule0 of
+    TaxBoxSum rules -> sum $ map amountFor rules
+    TaxBoxNet bucket -> findBucket bucket netAmount 
+    TaxBoxTax bucket -> findBucket bucket taxAmount
+    TaxBoxGross bucket -> findBucket bucket (grossAmount)
+    TaxBoxSub rule1 rule2 -> amountFor rule1 + amountFor rule2
+    TaxBoxNegate rule -> - (amountFor rule)
+    TaxBoxFloor rule -> fromIntegral $ floor (amountFor rule)
+    TaxBoxCeil rule -> fromIntegral $ ceiling (amountFor rule)
+    TaxBoxRound rule -> error "not implemented yet"
+    TaxBoxBanker rule -> fromIntegral $ round (amountFor rule)
+  where amountFor rule = computeBoxAmount rule buckets
+        findBucket bucket fn = case lookup bucket buckets of
+          Nothing -> error $ "Bucket: " <> unpack bucket <> " dosen't exit. Please contact your administrator"
+          Just summary -> fn summary

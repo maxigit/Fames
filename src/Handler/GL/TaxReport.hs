@@ -187,7 +187,11 @@ renderReportView rule report mode = do
             TaxReportBucketView -> do
               buckets <- runDB $ loadBucketSummary (entityKey report)
               return $ renderBucketTable buckets
-            _ -> return $ renderTaxDetailTable (taxReportStart $ entityVal report) []
+            TaxReportBoxesView -> do
+              settings <- unsafeGetReportSettings (taxReportType $ entityVal report)
+              buckets <- runDB $ loadBucketSummary (entityKey report)
+              let box'amounts = computeBoxes buckets (boxes settings)
+              return $ renderBoxTable box'amounts
   let navs = [TaxReportPendingView .. ]
       myshow t0 = let t =  drop  12 $ splitSnake $ tshow t0
                   in take (length t - 4) t :: Text
@@ -249,7 +253,7 @@ renderTaxDetailTable startDate taxDetails =
             <td>#{tdBucket detail}
           |]
 
--- | Do pivot table 
+-- | Do pivot table  Bucket/Rate
 renderBucketTable :: Map (Bucket, Double) TaxSummary -> Widget
 renderBucketTable bucketMap = let
   buckets :: [(Bucket, [TaxSummary])]
@@ -305,6 +309,22 @@ renderTaxSummary rateM TaxSummary{..} = let
     <div.gross-amount.text-right>
       <span.guessed-value>#{formatDouble' $ taxAmount + netAmount}
 |]
+
+renderBoxTable :: [(TaxBox, Double)] -> Widget
+renderBoxTable box'amounts =
+  [whamlet|
+  <table *{datatableNoPage}>
+    <thead>
+      <tr>
+        <th>Box
+        <th>Description
+        <th>Amount
+    $forall (TaxBox{..}, amount) <- box'amounts
+      <tr>
+        <td>#{tbName}
+        <td>#{fromMaybe "" tbDescription}
+        <td>#{formatDouble' amount}
+          |]
 -- * DB
 
 loadReport :: Int64 -> SqlHandler (Entity TaxReport)
@@ -464,4 +484,11 @@ faTransToRuleInput FA.TransTaxDetail{..} = let
   riTaxType = transTaxDetailTaxTypeId
   riTaxRate = transTaxDetailRate -- 1% = 1
   in RuleInput{..}
+
+
+computeBoxes :: Map (Bucket, Double) TaxSummary -> [TaxBox] -> [(TaxBox, Double )]
+computeBoxes bucketMap boxes = let
+  buckets = groupAsMap (fst . fst) snd $ mapToList bucketMap
+  in [ (box, computeBoxAmount (tbRule box) buckets) | box <- boxes ]
+
 
