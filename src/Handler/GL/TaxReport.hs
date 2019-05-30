@@ -4,6 +4,7 @@ module Handler.GL.TaxReport
 , getGLTaxReportR
 , postGLTaxReportR
 , getGLTaxReportDetailsR
+, postGLTaxReportCollectDetailsR
 ) where
 import Import hiding(RuleInput)
 import GL.TaxReport.Types
@@ -43,7 +44,7 @@ getGLTaxReportsR = do
 postGLNewTaxReportR :: Text -> Handler Html
 postGLNewTaxReportR name = do
   settings <- unsafeGetReportSettings name
-  key <- runDB $ do
+  runDB $ do
     lasts <- selectList [TaxReportType ==. name] [Desc TaxReportStart]
     let taxReportStart = case lasts of
           (Entity _ report: _) -> 1 `addDays` (Import.taxReportEnd report)
@@ -54,8 +55,12 @@ postGLNewTaxReportR name = do
         taxReportStatus = Pending
         taxReportSubmittedAt = Nothing
 
-    insert TaxReport{..}
-  redirect (GLR $ GLTaxReportR (fromSqlKey key) Nothing)
+    key <- insert TaxReport{..}
+    lift $ do
+      setSuccess "Report created sucessfully"
+      let newRoute =GLR $ GLTaxReportR (fromSqlKey key) Nothing 
+      pushLinks ("View tax report " <> taxReportReference) newRoute []
+      getGLTaxReportR (fromSqlKey key) Nothing >>= sendResponseStatus created201
 
 getGLTaxReportR :: Int64 -> Maybe TaxReportViewMode -> Handler Html
 getGLTaxReportR key mode = do
@@ -70,6 +75,24 @@ getGLTaxReportR key mode = do
 
 postGLTaxReportR :: Int64 -> Maybe TaxReportViewMode -> Handler Html
 postGLTaxReportR key modem = return "todo"
+
+
+postGLTaxReportCollectDetailsR :: Int64 -> Handler Html
+postGLTaxReportCollectDetailsR key = do
+  let rId = TaxReportKey (fromIntegral key)
+  report <- runDB $ do
+    report <- getJust rId
+    reportSettings  <- lift $ getReportSettings (taxReportType report)
+    let reportRules = maybe defaultRule rules reportSettings
+    details <- lift $ loadPendingTaxDetails reportRules (Entity rId report)
+    insertMany_ $ mapMaybe tdDetailToSave details
+    return report
+
+  setSuccess "Transaction tax details collected successfully"
+  let newRoute = GLR . GLTaxReportR key
+  pushLinks ("View tax report " <> taxReportReference report) (newRoute Nothing) []
+  getGLTaxReportR key (Just TaxReportCollectedView) >>= sendResponseStatus created201
+     
 
 -- * Render
 
@@ -132,12 +155,18 @@ renderReportHeader (Entity rId TaxReport{..}) (before, inRange) = do
           |]
   panel1
 
+collectButtonForm :: Key TaxReport -> Widget
+collectButtonForm key = [whamlet|
+  <form method=POST action="@{GLR $ GLTaxReportCollectDetailsR $ fromSqlKey key}">
+    <button.btn.btn-danger type="submit"> Collect
+                            |]
 renderReportView :: Rule -> Entity TaxReport -> TaxReportViewMode ->  Handler Widget
 renderReportView rule report mode = do
   view <- case mode of
             TaxReportPendingView -> do
               details <- loadPendingTaxDetails rule report
               return $ renderTaxDetailTable (taxReportStart $ entityVal report) details
+                     >> collectButtonForm (entityKey report)
             TaxReportCollectedView -> do
               details <- loadCollectedTaxDetails report
               return $ renderTaxDetailTable (taxReportStart $ entityVal report) details
@@ -236,7 +265,7 @@ buildPendingTransTaxDetailsQuery :: Tagged e Text -> Text -> Maybe Day -> Day ->
 buildPendingTransTaxDetailsQuery (Tagged selectQuery) reportType startDate endDate = 
 
   let sql0 =  selectQuery <> " FROM 0_trans_tax_details fad"
-          <>  " LEFT JOIN fames_tax_report_detail rd ON (tax_report_detail_id = fad.id) "
+          <>  " LEFT JOIN fames_tax_report_detail rd ON (tax_trans_detail_id = fad.id) "
           <>  " LEFT JOIN fames_tax_report r ON(r.tax_report_id =  rd.tax_report_id AND type = ?) "
           <> " WHERE (rd.tax_report_id is NULL OR ("
           <> "           abs (fad.net_amount * ex_rate - rd.net_amount) > 1e-4 "
@@ -253,11 +282,11 @@ buildPendingTransTaxDetailsQuery (Tagged selectQuery) reportType startDate endDa
 buildCollectedTaxDetailsQuery :: Tagged e Text -> Key TaxReport -> (Tagged e Text, [PersistValue])
 buildCollectedTaxDetailsQuery (Tagged selectQuery) reportKey = 
   let sql0 =  selectQuery <> " FROM 0_trans_tax_details fad"
-          <>  " JOIN fames_tax_report_detail rd ON (tax_report_detail_id = fad.id) "
-          <> " WHERE tax_report_detail_id = ? "
-          <> "      AND (rd.tax_report_id is NULL OR ("
-          <> "           abs (fad.net_amount * ex_rate - rd.net_amount) < 1e-4 "
-          <> "                AND    abs (fad.amount * ex_rate - rd.tax_amount) < 1e-4 "
+          <>  " JOIN fames_tax_report_detail rd ON (tax_trans_detail_id = fad.id) "
+          <> " WHERE tax_report_id = ? "
+          <> "      AND (("
+          <> "           abs (fad.net_amount * ex_rate - rd.net_amount) <= 1e-4 "
+          <> "                AND    abs (fad.amount * ex_rate - rd.tax_amount) <= 1e-4 "
           <> "               )"
           <> "       ) "
       p0 = keyToValues reportKey

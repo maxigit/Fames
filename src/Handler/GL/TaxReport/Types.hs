@@ -18,6 +18,7 @@ module Handler.GL.TaxReport.Types
 , tdTaxAmount 
 , tdMemo 
 , tdBucket
+, tdDetailToSave
 )
 where
 
@@ -98,3 +99,20 @@ tdRate = taxReportDetailRate . tdReportDetail
 tdNetAmount = taxReportDetailNetAmount . tdReportDetail
 tdTaxAmount = taxReportDetailTaxAmount . tdReportDetail
 tdBucket = taxReportDetailBucket . tdReportDetail
+
+-- * Compute difference with what the report should be
+tdDetailToSave d@PrivateTaxDetail{..}= case _private_detailKey of
+  Nothing -> -- doesn't exist in the db
+     Just _private_detail
+  Just _ -> tdDetailDiff  d
+
+tdDetailDiff (PrivateTaxDetail TransTaxDetail{..} TaxReportDetail{..} _) = let
+  net = transTaxDetailNetAmount * transTaxDetailExRate - taxReportDetailNetAmount
+  tax = transTaxDetailAmount * transTaxDetailExRate - taxReportDetailTaxAmount
+  small x = abs x < 1e-4
+  in if all small [tax, net]
+     then Nothing
+     else Just $ TaxReportDetail{taxReportDetailNetAmount = net, taxReportDetailTaxAmount=tax,..}
+   
+
+  
