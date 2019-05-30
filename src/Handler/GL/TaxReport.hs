@@ -21,7 +21,7 @@ import Metamorphosis
 import Lens.Micro
 import Formatting as F
 import Data.Tagged
-
+import qualified Data.Map as Map
 -- * Handler
 -- | Display the list of the available tax reports
 getGLTaxReportsR :: Handler Html
@@ -93,6 +93,20 @@ postGLTaxReportCollectDetailsR key = do
   pushLinks ("View tax report " <> taxReportReference report) (newRoute Nothing) []
   getGLTaxReportR key (Just TaxReportCollectedView) >>= sendResponseStatus created201
      
+
+-- | Load 
+loadBucketSummary :: Key TaxReport -> SqlHandler (Map (Bucket, Double) TaxSummary)
+loadBucketSummary key = do
+  let sql = "SELECT bucket, rate, SUM(net_amount), SUM(tax_amount)  "
+            <> " FROM fames_tax_report_detail "
+            <> " WHERE tax_report_id = ? "
+            <> " GROUP BY bucket, rate"
+  raws <- rawSql sql (keyToValues key)
+  return $ mapFromList  [ ((bucket, rate), tx )
+                           | (Single bucket, Single rate, Single net, Single tax) <- raws
+                           , let tx = TaxSummary net tax
+                           ]
+  
 
 -- * Render
 
@@ -170,6 +184,9 @@ renderReportView rule report mode = do
             TaxReportCollectedView -> do
               details <- loadCollectedTaxDetails report
               return $ renderTaxDetailTable (taxReportStart $ entityVal report) details
+            TaxReportBucketView -> do
+              buckets <- runDB $ loadBucketSummary (entityKey report)
+              return $ renderBucketTable buckets
             _ -> return $ renderTaxDetailTable (taxReportStart $ entityVal report) []
   let navs = [TaxReportPendingView .. ]
       myshow t0 = let t =  drop  12 $ splitSnake $ tshow t0
@@ -231,6 +248,63 @@ renderTaxDetailTable startDate taxDetails =
             <td.text-right>#{formatDouble' $ tdRate detail }%
             <td>#{tdBucket detail}
           |]
+
+-- | Do pivot table 
+renderBucketTable :: Map (Bucket, Double) TaxSummary -> Widget
+renderBucketTable bucketMap = let
+  buckets :: [(Bucket, [TaxSummary])]
+  buckets = Map.toList $ groupAsMap (fst . fst) (return . snd)$ Map.toList bucketMap
+  rates :: [(Double, [TaxSummary])]
+  rates = Map.toList $ groupAsMap (snd . fst) (return . snd) $  Map.toList bucketMap
+  in [whamlet|
+   <table *{datatable}>
+     <thead>
+       <tr>
+         <th>Bucket
+         $forall (rate, _) <- rates
+           <th>#{formatDouble' $ rate * 100}%
+         <th>Total
+     <tbody>
+       $forall (bucket, txs) <- buckets
+         <tr>
+           <td>#{bucket}
+           $forall (rate, _) <- rates
+             <td>
+               $case lookup (bucket, rate) bucketMap
+                $of Just tx
+                  ^{renderTaxSummary (Just rate) tx}
+                $of _
+           $# Right margin
+           <td>
+               ^{renderTaxSummary Nothing $ mconcat txs}
+       $# Bottom margin
+       <tfoot>
+         <tr>
+           <th> Total
+           $forall (rate, txs ) <- rates
+             <td>
+                ^{renderTaxSummary (Just rate) $ mconcat txs}
+           $with allTxs <- toList bucketMap
+             <td>
+               ^{renderTaxSummary Nothing $ mconcat allTxs}
+          |]
+
+renderTaxSummary rateM TaxSummary{..} = let
+  -- check that the rate if given matches the transaction
+  klass = case rateM of
+    Nothing -> "" :: Text
+    Just rate -> case netAmount * rate - taxAmount of
+                    diff | diff < 1e-4 -> "" -- correct
+                    diff | diff <= 1e-2 -> "bg-warning text-warning"
+                    _ -> "bg-danger text-danger"
+                   
+  in [whamlet|
+  <span class="#{klass}">
+    <div.tax-amount.text-right>#{formatDouble' taxAmount}
+    <div.net-amount.text-right>#{formatDouble' netAmount}
+    <div.gross-amount.text-right>
+      <span.guessed-value>#{formatDouble' $ taxAmount + netAmount}
+|]
 -- * DB
 
 loadReport :: Int64 -> SqlHandler (Entity TaxReport)
