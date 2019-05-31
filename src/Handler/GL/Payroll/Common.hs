@@ -943,9 +943,11 @@ employeePayment ref paymentDate paymentMap settings invM summary = do -- Maybe
     let amount = min userAmount (unsafeUnlock $ TS._finalPayment summary)
     guard (amount >0)
     let netRefund = negate . sum . filter (<0) . map unsafeUnlock . toList $ TS._deductions summary
-        allocations = maybeToList $ invM <&> \inv -> WFA.PaymentTransaction inv ST_SUPPINVOICE
+        allocations = case amount -netRefund of
+          allocated | allocated > 0  -> maybeToList $ invM <&> \inv -> WFA.PaymentTransaction inv ST_SUPPINVOICE
                                                                             (amount - netRefund 
                                                                             )
+          _ -> [] -- allocat things manually if needed
         payment = WFA.SupplierPayment (wagesSupplier settings)
                                       (wagesBankAccount settings)
                                       amount
