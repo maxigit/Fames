@@ -192,6 +192,10 @@ renderReportView rule report mode = do
               buckets <- runDB $ loadBucketSummary (entityKey report)
               let box'amounts = computeBoxes buckets (boxes settings)
               return $ renderBoxTable box'amounts
+            TaxReportConfigView -> do
+              settings <- unsafeGetReportSettings (taxReportType $ entityVal report)
+              buckets <- runDB $ loadBucketSummary (entityKey report)
+              return $ renderBoxConfigTable buckets (boxes settings)
   let navs = [TaxReportPendingView .. ]
       myshow t0 = let t =  drop  12 $ splitSnake $ tshow t0
                   in take (length t - 4) t :: Text
@@ -310,6 +314,7 @@ renderTaxSummary rateM TaxSummary{..} = let
       <span.guessed-value>#{formatDouble' $ taxAmount + netAmount}
 |]
 
+-- | Displays a table with the box values
 renderBoxTable :: [(TaxBox, Double)] -> Widget
 renderBoxTable box'amounts =
   [whamlet|
@@ -325,6 +330,64 @@ renderBoxTable box'amounts =
         <td>#{fromMaybe "" tbDescription}
         <td>#{formatDouble' amount}
           |]
+
+-- | Display a bucket table showing each box
+-- which bucket as an impact on. To do
+-- we calculate the value of each box
+-- by setting a bucket to 1 and look at the value of the box.
+renderBoxConfigTable bucketMap boxes =  let
+  buckets :: [(Bucket, [TaxSummary])] 
+  buckets = Map.toList $ groupAsMap (fst . fst) (return . snd)$ Map.toList bucketMap
+  rates :: [(Double, [TaxSummary])]
+  rates = Map.toList $ groupAsMap (snd . fst) (return . snd) $  Map.toList bucketMap
+  mkTxs = [ TaxSummary 1 0
+          , TaxSummary 0 1
+          , TaxSummary 1 1
+          ]
+  renderBoxFor mkTx bucket rate = let
+    boxValues = [ (tbName, boxValue)
+                | TaxBox{..} <- boxes
+                , let boxValue = computeBoxAmount  tbRule (mapFromList [(bucket, mkTx)])
+                , abs boxValue >= delta
+                ]
+    delta = 1e-2
+    in [shamlet|
+         $case boxValues
+           $of []
+             <td.bg-danger>∅ 
+           $of _
+             <td>
+               $forall (name, value) <- boxValues
+                 $if (value > delta)
+                   <span.badge.up.text-succes.bg-success class="box-#{name}">
+                      <span.glyphicon.glyphicon-arrow-up>
+                      #{name}
+                 $if (value < (negate delta))
+                   <span.badge.down.text-danger.bg-danger class="box-#{name}">
+                      <span.glyphicon.glyphicon-arrow-down>
+                      #{name}
+               |]
+  in [whamlet|
+   <table.table.table-border.table-hover>
+     <thead>
+       <tr>
+         <th>Bucket
+         $forall (rate, _) <- rates
+           <th>#{formatDouble' $ rate * 100}%
+         $forall _ <- drop 1 mkTxs
+           <th>
+     <tbody>
+       $forall (bucket, txs) <- buckets
+         $forall (first, mkTx) <- zip (True : repeat False) mkTxs
+          <tr>
+           $if first
+            <td rowspan="#{tshow $ length mkTxs}">#{bucket}
+           $else
+            $forall (rate, _) <- rates
+                #{renderBoxFor mkTx bucket rate}
+          |]
+
+
 -- * DB
 
 loadReport :: Int64 -> SqlHandler (Entity TaxReport)
