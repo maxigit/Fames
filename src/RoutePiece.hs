@@ -90,7 +90,7 @@ data TaxReportViewMode = TaxReportPendingView -- ^ display transaction to collec
                        | TaxReportCollectedView -- ^ transaction  already collected
                        | TaxReportBucketView 
                        | TaxReportBoxesView
-                       | TaxReportConfigView
+                       | TaxReportConfigChecker
      deriving (Eq, Read, Show, Enum, Bounded)
 
 instance PathPiece TaxReportViewMode where

@@ -32,6 +32,14 @@ DC order interface.
 :PROPERTIES:
 :header-args: :engine mysql :dbhost 127.0.0.1 :dbuser root :dbpassword stag :database fa :dbport 3308
 :END:
+** Todo [/]
+*** TODO Generate all bucket when checking config
+    without that, evaluating a box with a bucket not present crashse
+*** TODO use bucket in config as well as bucket in data
+    when checking config
+    This way it will show bucket not present in the config but present in the data
+*** TODO check buckets are present in configuration when saving/publishing report
+*** TODO add tax selector in box rule  ?
 ** Overiew
 Generate tax report with the following features, 
  - generate Tax report

@@ -192,10 +192,10 @@ renderReportView rule report mode = do
               buckets <- runDB $ loadBucketSummary (entityKey report)
               let box'amounts = computeBoxes buckets (boxes settings)
               return $ renderBoxTable box'amounts
-            TaxReportConfigView -> do
+            TaxReportConfigChecker -> do
               settings <- unsafeGetReportSettings (taxReportType $ entityVal report)
               buckets <- runDB $ loadBucketSummary (entityKey report)
-              return $ renderBoxConfigTable buckets (boxes settings)
+              return $ renderBoxConfigCheckerTable buckets (boxes settings)
   let navs = [TaxReportPendingView .. ]
       myshow t0 = let t =  drop  12 $ splitSnake $ tshow t0
                   in take (length t - 4) t :: Text
@@ -335,7 +335,7 @@ renderBoxTable box'amounts =
 -- which bucket as an impact on. To do
 -- we calculate the value of each box
 -- by setting a bucket to 1 and look at the value of the box.
-renderBoxConfigTable bucketMap boxes =  let
+renderBoxConfigCheckerTable bucketMap boxes =  let
   buckets :: [(Bucket, [TaxSummary])] 
   buckets = Map.toList $ groupAsMap (fst . fst) (return . snd)$ Map.toList bucketMap
   rates :: [(Double, [TaxSummary])]
@@ -344,36 +344,37 @@ renderBoxConfigTable bucketMap boxes =  let
           , TaxSummary 0 1
           , TaxSummary 1 1
           ]
+  box'ids = zip boxes [1 ::Int ..]
   renderBoxFor mkTx bucket rate = let
-    boxValues = [ (tbName, boxValue)
-                | TaxBox{..} <- boxes
+    boxDetails = [ (tshow boxId, tbName, boxValue, up)
+                | (TaxBox{..}, boxId) <- box'ids
                 , let boxValue = computeBoxAmount  tbRule (mapFromList [(bucket, mkTx)])
-                , abs boxValue >= delta
+                , let up = if boxValue > delta
+                           then "up"
+                           else if boxValue < (negate delta)
+                           then "down"
+                           else "no"
                 ]
+    klasses = [ "box-" <> boxId  <> "-" <> up  | (boxId, boxName, value, up) <- boxDetails ]
+    boxUps = length $ filter (== "up") [up | (_,_,_,up) <- boxDetails]
+    boxDowns = length $ filter (== "down") [up | (_,_,_,up) <- boxDetails]
+    iconFor "up" = "glyphicon-plus-sign boxup" :: Text
+    iconFor "down" = "glyphicon-minus-sign boxdown"
+    iconFor _ = "glyphicon-remove-sign nobox"
     delta = 1e-2
     in [shamlet|
-         $case boxValues
-           $of []
-             <td.bg-danger>∅ 
-           $of _
-             <td>
-               $forall (name, value) <- boxValues
-                 $if (value > delta)
-                   <span.badge.up.text-succes.bg-success class="box-#{name}">
-                      <span.glyphicon.glyphicon-arrow-up>
-                      #{name}
-                 $if (value < (negate delta))
-                   <span.badge.down.text-danger.bg-danger class="box-#{name}">
-                      <span.glyphicon.glyphicon-arrow-down>
-                      #{name}
+       <td.box class=#{intercalate " " klasses} data-boxup=#{tshow boxUps} data-boxdown=#{tshow boxDowns}>
+         $forall  (boxId, boxName, boxValue, up) <- boxDetails
+           <span.glyphicon.box-selected class="#{iconFor up} box-#{boxId} #{up}" data-toggle="tooltip" title="#{boxName} #{formatDouble' boxValue}" onClick="toggleBox(#{boxId});")>
                |]
-  in [whamlet|
+  colWidth = tshow (100 / (fromIntegral $ 1 + length rates)) <> "%"
+  bucketTable = [whamlet|
    <table.table.table-border.table-hover>
      <thead>
        <tr>
          <th>Bucket
          $forall (rate, _) <- rates
-           <th>#{formatDouble' $ rate * 100}%
+           <th style="width:#{colWidth}">#{formatDouble' $ rate * 100}%
          $forall _ <- drop 1 mkTxs
            <th>
      <tbody>
@@ -386,6 +387,107 @@ renderBoxConfigTable bucketMap boxes =  let
             $forall (rate, _) <- rates
                 #{renderBoxFor mkTx bucket rate}
           |]
+  control = [whamlet|
+   <table.table.table-hover.table-striped.table-border>
+     <thead>
+       <tr>
+        <th>Boxes
+          <input.master-box type=checkbox onChange="toggleAll()" checked>
+     <tbody>
+       $forall (TaxBox{..}, boxId) <- box'ids
+         <tr>
+          <td>
+            <label>#{tbName}
+            <input.box.box-#{boxId} type=checkbox onchange="changeBox('#{tshow boxId}')" checked>
+  |]
+  controlJS = [julius|
+    function changeBox(boxName) {
+       var state = this.event.target.checked;
+       if (state) {
+        $('td.box-'+boxName+'-up').attr('data-boxup', increment);
+        $('td.box-'+boxName+'-down').attr('data-boxdown', increment);
+        $('span.box-'+boxName).addClass('box-selected');
+
+        $('input.master-box:not(:checked)').prop('checked', true);
+       } else {
+        $('td.box-'+boxName+'-up').attr('data-boxup', decrement);
+        $('td.box-'+boxName+'-down').attr('data-boxdown', decrement);
+        $('span.box-'+boxName).removeClass('box-selected');
+        //if all unselct
+        if($('input.box:checked').length == 0)
+          $('input.master-box:checked').prop('checked', false);
+       }
+
+    }
+
+    function increment(el, value) {
+       return parseInt(value)+1;
+    }
+    function decrement(el, value) {
+       return Math.max(0, parseInt(value)-1);
+    }
+
+    function toggleBox(idx) {
+      $('input[type=checkbox].box-'+idx).click();
+    
+    }
+   function toggleAll() {
+     var state = this.event.target.checked;
+     if (state)
+        $('input.box[type=checkbox]:not(:checked)').click();
+     else
+       $('input.box[type=checkbox]:checked').click();
+     
+     
+   
+   }
+   $(document).ready(function () { 
+   // reset all checkbox 
+      $('input[type=checkbox]').prop('checked', true);
+      // $('td.box').attr('data-boxup', "0");
+      // $('td.box').attr('data-boxdown', "0");
+      })
+              |]
+  bucketCSS = [cassius|
+td.box
+  # mute span
+  color: gray
+  span.glyphicon
+    cursor: pointer
+td.box[data-boxup="1"][data-boxdown="0"]
+  background: lightgreen
+  & span.glyphicon.box-selected
+    color: green
+  color: gray
+  
+td.box[data-boxup="0"][data-boxdown="1"]
+  background: peachpuff
+  & span.glyphicon.box-selected
+    color: orange
+  color: gray
+td.box[data-boxup="0"][data-boxdown="0"]
+  background: pink
+  & span.glyphicon.nobox
+    color: red
+  color: gray
+td.box
+  background: pink
+  & span.glyphicon.box-selected.nobox
+    color: gray
+  & span.glyphicon.box-selected
+    color: red
+  color: gray
+                          |]
+
+    
+  in [whamlet|
+      <div.row>
+        <div.col-md-2 id=control-table >
+          ^{control}
+        <div.col-md-10 id=bucket-table >
+          ^{bucketTable}
+          |] <> toWidget controlJS <> toWidget bucketCSS
+     
 
 
 -- * DB
