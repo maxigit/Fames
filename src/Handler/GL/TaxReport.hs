@@ -22,6 +22,8 @@ import Lens.Micro
 import Formatting as F
 import Data.Tagged
 import qualified Data.Map as Map
+import Data.List(nub)
+
 -- * Handler
 -- | Display the list of the available tax reports
 getGLTaxReportsR :: Handler Html
@@ -194,7 +196,7 @@ renderReportView rule report mode = do
               return $ renderBoxTable box'amounts
             TaxReportConfigChecker -> do
               settings <- unsafeGetReportSettings (taxReportType $ entityVal report)
-              buckets <- runDB $ loadBucketSummary (entityKey report)
+              buckets <- getBucketRateFromConfig report
               return $ renderBoxConfigCheckerTable buckets (boxes settings)
   let navs = [TaxReportPendingView .. ]
       myshow t0 = let t =  drop  12 $ splitSnake $ tshow t0
@@ -335,20 +337,24 @@ renderBoxTable box'amounts =
 -- which bucket as an impact on. To do
 -- we calculate the value of each box
 -- by setting a bucket to 1 and look at the value of the box.
-renderBoxConfigCheckerTable bucketMap boxes =  let
-  buckets :: [(Bucket, [TaxSummary])] 
-  buckets = Map.toList $ groupAsMap (fst . fst) (return . snd)$ Map.toList bucketMap
-  rates :: [(Double, [TaxSummary])]
-  rates = Map.toList $ groupAsMap (snd . fst) (return . snd) $  Map.toList bucketMap
+renderBoxConfigCheckerTable :: Set (Bucket, Double) -> [TaxBox] ->  Widget
+renderBoxConfigCheckerTable bucket'rates boxes =  let
+  buckets :: [Bucket] 
+  buckets = nub . sort . map fst $ toList bucket'rates
+  rates :: [Double]
+  rates = nub . sort .map snd $ toList bucket'rates
   mkTxs = [ TaxSummary 1 0
           , TaxSummary 0 1
           , TaxSummary 1 1
           ]
+  bucketMap0 :: Map Bucket TaxSummary
+  bucketMap0 = mapFromList $ map  (, TaxSummary 0 0 ) buckets
+  mkMap bucket tx = insertMap bucket tx bucketMap0 
   box'ids = zip boxes [1 ::Int ..]
   renderBoxFor mkTx bucket rate = let
-    boxDetails = [ (tshow boxId, tbName, boxValue, up)
+    boxDetails =[ (tshow boxId, tbName, boxValue, up)
                 | (TaxBox{..}, boxId) <- box'ids
-                , let boxValue = computeBoxAmount  tbRule (mapFromList [(bucket, mkTx)])
+                , let boxValue = computeBoxAmount  tbRule (mkMap bucket mkTx)
                 , let up = if boxValue > delta
                            then "up"
                            else if boxValue < (negate delta)
@@ -362,29 +368,35 @@ renderBoxConfigCheckerTable bucketMap boxes =  let
     iconFor "down" = "glyphicon-minus-sign boxdown"
     iconFor _ = "glyphicon-remove-sign nobox"
     delta = 1e-2
-    in [shamlet|
+    in if  (bucket, rate) `member` bucket'rates
+       then
+        [shamlet|
        <td.box class=#{intercalate " " klasses} data-boxup=#{tshow boxUps} data-boxdown=#{tshow boxDowns}>
          $forall  (boxId, boxName, boxValue, up) <- boxDetails
            <span.glyphicon.box-selected class="#{iconFor up} box-#{boxId} #{up}" data-toggle="tooltip" title="#{boxName} #{formatDouble' boxValue}" onClick="toggleBox(#{boxId});")>
                |]
+       else
+        [shamlet|
+                    <td.text-center> -
+                    |]
   colWidth = tshow (100 / (fromIntegral $ 1 + length rates)) <> "%"
   bucketTable = [whamlet|
    <table.table.table-border.table-hover>
      <thead>
        <tr>
          <th>Bucket
-         $forall (rate, _) <- rates
+         $forall rate <- rates
            <th style="width:#{colWidth}">#{formatDouble' $ rate * 100}%
          $forall _ <- drop 1 mkTxs
            <th>
      <tbody>
-       $forall (bucket, txs) <- buckets
+       $forall bucket <- buckets
          $forall (first, mkTx) <- zip (True : repeat False) mkTxs
           <tr>
            $if first
             <td rowspan="#{tshow $ length mkTxs}">#{bucket}
            $else
-            $forall (rate, _) <- rates
+            $forall rate <- rates
                 #{renderBoxFor mkTx bucket rate}
           |]
   control = [whamlet|
@@ -640,6 +652,19 @@ getReportSettings name = do
   
 
 formatDouble' = F.sformat commasFixed
+
+-- | Get the list of all  Bucket/rate configuration from the config
+-- (and the rate in the database)
+getBucketRateFromConfig :: Entity TaxReport -> Handler (Set (Bucket, Double ))
+getBucketRateFromConfig report = do
+  settings <- unsafeGetReportSettings (taxReportType $ entityVal report)
+
+  taxEntities <- runDB $ selectList [] []
+  return $ computeBucketRates (rules settings) $ mapFromList [ (FA.unTaxTypeKey tId, taxTypeRate / 100 )
+                                                             | (Entity tId FA.TaxType{..}) <- taxEntities
+                                                             ]
+  
+
 
 -- * Rule
 faTransToRuleInput :: FA.TransTaxDetail -> RuleInput

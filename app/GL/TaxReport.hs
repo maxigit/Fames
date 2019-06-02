@@ -73,3 +73,21 @@ computeBoxAmount rule0 buckets = case rule0 of
         findBucket bucket fn = case lookup bucket buckets of
           Nothing -> error $ "Bucket: " <> unpack bucket <> " dosen't exit. Please contact your administrator"
           Just summary -> fn summary
+
+
+-- * Misc
+-- | Return the list of bucket rates possible combination
+computeBucketRates :: Rule -> Map Int Double -> Set (Bucket, Double)
+computeBucketRates rule0 rateMap = let
+  rates :: [Double]
+  rates = toList ( setFromList ( toList rateMap)  :: Set Double )
+  go (BucketRule bucket) = map (bucket,) rates
+  go (RuleList rules) = rules >>= go
+  go (TransactionRule _ rule) = go rule
+  go (CustomerRule _ rule)  = go rule
+  go (SupplierRule _ rule) = go rule
+  go (TaxTypeRule  taxId rule) = case lookup taxId rateMap of
+         Nothing -> error "proven to never happen"
+         Just rate -> go (TaxRateRule rate rule )
+  go (TaxRateRule rate   rule) = filter ((== rate). snd) $ go rule
+  in setFromList (go rule0)
