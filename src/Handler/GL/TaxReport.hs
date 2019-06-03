@@ -337,11 +337,11 @@ renderBoxTable box'amounts =
 -- which bucket as an impact on. To do
 -- we calculate the value of each box
 -- by setting a bucket to 1 and look at the value of the box.
-renderBoxConfigCheckerTable :: Set (Bucket, Double) -> [TaxBox] ->  Widget
+renderBoxConfigCheckerTable :: Set (Bucket, Entity FA.TaxType) -> [TaxBox] ->  Widget
 renderBoxConfigCheckerTable bucket'rates boxes =  let
   buckets :: [Bucket] 
   buckets = nub . sort . map fst $ toList bucket'rates
-  rates :: [Double]
+  rates :: [Entity FA.TaxType]
   rates = nub . sort .map snd $ toList bucket'rates
   mkTxs = [ TaxSummary 1 0
           , TaxSummary 0 1
@@ -385,8 +385,10 @@ renderBoxConfigCheckerTable bucket'rates boxes =  let
      <thead>
        <tr>
          <th>Bucket
-         $forall rate <- rates
-           <th style="width:#{colWidth}">#{formatDouble' $ rate * 100}%
+         $forall (Entity (FA.TaxTypeKey taxId) rate) <- rates
+           <th style="width:#{colWidth}">
+            <div>##{tshow taxId} #{FA.taxTypeName rate}
+            <div>#{formatDouble' $ FA.taxTypeRate rate}%
          $forall _ <- drop 1 mkTxs
            <th>
      <tbody>
@@ -655,13 +657,13 @@ formatDouble' = F.sformat commasFixed
 
 -- | Get the list of all  Bucket/rate configuration from the config
 -- (and the rate in the database)
-getBucketRateFromConfig :: Entity TaxReport -> Handler (Set (Bucket, Double ))
+getBucketRateFromConfig :: Entity TaxReport -> Handler (Set (Bucket, Entity FA.TaxType ))
 getBucketRateFromConfig report = do
   settings <- unsafeGetReportSettings (taxReportType $ entityVal report)
 
-  taxEntities <- runDB $ selectList [] []
-  return $ computeBucketRates (rules settings) $ mapFromList [ (FA.unTaxTypeKey tId, taxTypeRate / 100 )
-                                                             | (Entity tId FA.TaxType{..}) <- taxEntities
+  taxEntities <- runDB $ selectList [FA.TaxTypeInactive ==. False] []
+  return $ computeBucketRates (rules settings) $ mapFromList [ (key, e)
+                                                             | (Entity key e) <- taxEntities
                                                              ]
   
 
@@ -671,7 +673,7 @@ faTransToRuleInput :: FA.TransTaxDetail -> RuleInput
 faTransToRuleInput FA.TransTaxDetail{..} = let
   riTransType = maybe (error "DB Problem") toEnum transTaxDetailTransType
   riEntity = Nothing
-  riTaxType = transTaxDetailTaxTypeId
+  riTaxType = fromIntegral $ transTaxDetailTaxTypeId
   riTaxRate = transTaxDetailRate -- 1% = 1
   in RuleInput{..}
 

@@ -8,7 +8,7 @@ import Data.Aeson
 import Import.NoFoundation
 import GL.TaxReport.Settings as GL.TaxReport
 import GL.TaxReport.Types 
-
+import Database.Persist.Sql (fromSqlKey)
 -- * Types
 -- | 
 data TaxSummary = TaxSummary
@@ -24,6 +24,8 @@ instance Monoid TaxSummary where
   mempty = TaxSummary 0 0
   mappend = (<>)
 
+deriving instance Eq FA.TaxType
+deriving instance Ord FA.TaxType
 -- type TaxBins = (Map TaxBin TaxSummary)
 -- Everything which has a net and tax amount
 class HasTaxAmounts a where
@@ -34,9 +36,13 @@ instance HasTaxAmounts FA.TransTaxDetail where
     ex = (* transTaxDetailExRate)
     in TaxSummary (ex transTaxDetailNetAmount) (ex transTaxDetailAmount)
 -- * Rules
-infix 4 *==
-Nothing *== _ = True
-a *== b = a == b
+infix 4 *==, *==?
+[] *== _ = True
+as *== b = b `elem` as
+_ *==? Nothing = False
+as *==? (Just b) = as *== b
+
+
 applyTaxRule :: Rule -> RuleInput -> Bucket
 applyTaxRule rule input = fromMaybe defaultBucket (applyTaxRuleM rule input)
 applyTaxRuleM :: Rule -> RuleInput -> Maybe Bucket
@@ -45,13 +51,13 @@ applyTaxRuleM (RuleList rules ) input = asum $ [ applyTaxRuleM rule input | rule
 applyTaxRuleM (TransactionRule ttype rule ) input = 
   guard (ttype == riTransType input) >> (applyTaxRuleM rule input)
 applyTaxRuleM (CustomerRule cust rule ) input = 
-  guard (isCustomer (riTransType input) && cust *== riEntity input) >> (applyTaxRuleM rule input)
+  guard (isCustomer (riTransType input) && cust *==? riEntity input) >> (applyTaxRuleM rule input)
 applyTaxRuleM (SupplierRule cust rule ) input = 
-  guard (isSupplier (riTransType input) && cust *== riEntity input) >> (applyTaxRuleM rule input)
+  guard (isSupplier (riTransType input) && cust *==? riEntity input) >> (applyTaxRuleM rule input)
 applyTaxRuleM (TaxTypeRule taxtype rule ) input = 
-  guard (taxtype == riTaxType input ) >> (applyTaxRuleM rule input)
+  guard (taxtype *== riTaxType input ) >> (applyTaxRuleM rule input)
 applyTaxRuleM (TaxRateRule taxrate rule ) input = 
-  guard (taxrate == riTaxRate input ) >> (applyTaxRuleM rule input)
+  guard (taxrate *== riTaxRate input ) >> (applyTaxRuleM rule input)
 
 isCustomer = (`elem` customerFATransactions)
 isSupplier = (`elem` supplierFATransactions)
@@ -77,17 +83,16 @@ computeBoxAmount rule0 buckets = case rule0 of
 
 -- * Misc
 -- | Return the list of bucket rates possible combination
-computeBucketRates :: Rule -> Map Int Double -> Set (Bucket, Double)
+computeBucketRates :: Rule -> Map FA.TaxTypeId FA.TaxType -> Set (Bucket, Entity FA.TaxType)
 computeBucketRates rule0 rateMap = let
-  rates :: [Double]
-  rates = toList ( setFromList ( toList rateMap)  :: Set Double )
+  rates :: [Entity FA.TaxType]
+  rates = map (uncurry Entity) $ mapToList rateMap
+  go :: Rule -> [(Bucket, Entity FA.TaxType)]
   go (BucketRule bucket) = map (bucket,) rates
   go (RuleList rules) = rules >>= go
   go (TransactionRule _ rule) = go rule
   go (CustomerRule _ rule)  = go rule
   go (SupplierRule _ rule) = go rule
-  go (TaxTypeRule  taxId rule) = case lookup taxId rateMap of
-         Nothing -> error "proven to never happen"
-         Just rate -> go (TaxRateRule rate rule )
-  go (TaxRateRule rate   rule) = filter ((== rate). snd) $ go rule
+  go (TaxTypeRule  taxIds rule) = filter ((taxIds *==) . fromIntegral . FA.unTaxTypeKey . entityKey . snd) $ go rule
+  go (TaxRateRule rates   rule) = filter ((rates *==) . FA.taxTypeRate . entityVal . snd) $ go rule
   in setFromList (go rule0)

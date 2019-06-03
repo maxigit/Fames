@@ -12,10 +12,10 @@ data Rule
   = BucketRule Bucket 
   | RuleList [Rule]
   | TransactionRule FATransType Rule
-  | CustomerRule (Maybe Int) Rule -- Nothing matches all customer
-  | SupplierRule (Maybe Int) Rule
-  | TaxTypeRule  Int Rule
-  | TaxRateRule Double   Rule
+  | CustomerRule [Int64] Rule -- Nothing matches all customer
+  | SupplierRule [Int64] Rule
+  | TaxTypeRule  [Int64] Rule
+  | TaxRateRule [Double]   Rule
   deriving (Show, Read, Eq, Ord)
 
 defaultBucket :: Bucket
@@ -26,8 +26,8 @@ defaultRule = BucketRule defaultBucket
 
 data RuleInput = RuleInput
  { riTransType :: FATransType
- , riEntity :: Maybe Int
- , riTaxType :: Int
+ , riEntity :: Maybe Int64
+ , riTaxType :: Int64
  , riTaxRate :: Double
  } deriving (Eq, Show, Read)
 
@@ -41,7 +41,7 @@ data TaxBox = TaxBox
 -- | Rules to determine the content of a box
 data TaxBoxRule
   = TaxBoxSum [TaxBoxRule] -- sun all
-  | TaxBoxNet Bucket
+  | TaxBoxNet Bucket -- list can be parsed as json
   | TaxBoxTax Bucket
   | TaxBoxGross Bucket
   | TaxBoxSub TaxBoxRule TaxBoxRule

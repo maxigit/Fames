@@ -29,7 +29,8 @@ instance FromJSON TaxBox where
         [(tbName, fields)] -> do
           let parseFields o = do
                   tbDescription  <- o .:? "description"
-                  tbRule <- o .: "rules"
+                  -- allow simple rule or rule list
+                  tbRule <- (o .: "rules") <|> (TaxBoxSum <$> o .: "rules")
                   return TaxBox{..}
               parseBucket s  = case s of
                 "net" -> return  $ TaxBox tbName (Just $ tbName <> " net") (TaxBoxNet tbName )
@@ -50,6 +51,8 @@ instance ToJSON TaxBox where
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField
                             , fieldLabelModifier = (fromMaybe <*> stripSuffix "Rule")
                                                  . (fromMaybe <*> stripPrefix "rule")
+                            , constructorTagModifier = (fromMaybe <*> stripSuffix "Rule")
+                                                       . (fromMaybe <*> stripPrefix "Rule")
                             } ''Rule)
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField
                             , fieldLabelModifier = fromMaybe <*> stripPrefix "TaxBox"
