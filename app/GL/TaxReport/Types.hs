@@ -46,6 +46,7 @@ data TaxBoxRule
   | TaxBoxGross Bucket
   | TaxBoxSub TaxBoxRule TaxBoxRule
   | TaxBoxNegate TaxBoxRule
+  | TaxBoxTaxWith Double Bucket
   -- rounding
   | TaxBoxFloor TaxBoxRule
   | TaxBoxCeil TaxBoxRule

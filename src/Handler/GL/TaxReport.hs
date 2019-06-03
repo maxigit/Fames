@@ -343,9 +343,8 @@ renderBoxConfigCheckerTable bucket'rates boxes =  let
   buckets = nub . sort . map fst $ toList bucket'rates
   rates :: [Entity FA.TaxType]
   rates = nub . sort .map snd $ toList bucket'rates
-  mkTxs = [ TaxSummary 1 0
-          , TaxSummary 0 1
-          , TaxSummary 1 1
+  mkTxs = [ TaxSummary 0 1 -- tax amount
+          , TaxSummary 1 0  --net amount
           ]
   bucketMap0 :: Map Bucket TaxSummary
   bucketMap0 = mapFromList $ map  (, TaxSummary 0 0 ) buckets
@@ -364,16 +363,19 @@ renderBoxConfigCheckerTable bucket'rates boxes =  let
     klasses = [ "box-" <> boxId  <> "-" <> up  | (boxId, boxName, value, up) <- boxDetails ]
     boxUps = length $ filter (== "up") [up | (_,_,_,up) <- boxDetails]
     boxDowns = length $ filter (== "down") [up | (_,_,_,up) <- boxDetails]
-    iconFor "up" = "glyphicon-plus-sign boxup" :: Text
-    iconFor "down" = "glyphicon-minus-sign boxdown"
+    iconFor "up" = "glyphicon-arrow-up boxup" :: Text
+    iconFor "down" = "glyphicon-arrow-down boxdown"
     iconFor _ = "glyphicon-remove-sign nobox"
+    taxFor0Rate = FA.taxTypeRate (entityVal rate) == 0 && mkTx == TaxSummary 0 1 
     delta = 1e-2
+    partialFor v = abs v < 1 - delta && v > delta
     in if  (bucket, rate) `member` bucket'rates
        then
         [shamlet|
-       <td.box class=#{intercalate " " klasses} data-boxup=#{tshow boxUps} data-boxdown=#{tshow boxDowns}>
+       <td.box :taxFor0Rate:.tax-for-0rate class=#{intercalate " " klasses} data-boxup=#{tshow boxUps} data-boxdown=#{tshow boxDowns}>
          $forall  (boxId, boxName, boxValue, up) <- boxDetails
-           <span.glyphicon.box-selected class="#{iconFor up} box-#{boxId} #{up}" data-toggle="tooltip" title="#{boxName} #{formatDouble' boxValue}" onClick="toggleBox(#{boxId});")>
+           $with partial <- partialFor boxValue
+            <span.glyphicon.box-selected :partial:.partial class="#{iconFor up} box-#{boxId} #{up}" data-toggle="tooltip" title="#{boxName} #{formatDouble' boxValue}" onClick="toggleBox(#{boxId});")>
                |]
        else
         [shamlet|
@@ -397,8 +399,7 @@ renderBoxConfigCheckerTable bucket'rates boxes =  let
           <tr>
            $if first
             <td rowspan="#{tshow $ length mkTxs}">#{bucket}
-           $else
-            $forall rate <- rates
+           $forall rate <- rates
                 #{renderBoxFor mkTx bucket rate}
           |]
   control = [whamlet|
@@ -472,24 +473,39 @@ td.box[data-boxup="1"][data-boxdown="0"]
   background: lightgreen
   & span.glyphicon.box-selected
     color: green
+  & span.glyphicon.box-selected.partial
+    background: green
+    color: white
   color: gray
   
 td.box[data-boxup="0"][data-boxdown="1"]
   background: lightblue
   & span.glyphicon.box-selected
     color: blue
+  & span.glyphicon.box-selected.partial
+    background: blue
+    color: white
   color: gray
 td.box[data-boxup="0"][data-boxdown="0"]
   background: pink
   & span.glyphicon.nobox
     color: red
   color: gray
+
+  &.tax-for-0rate
+    background: lightgray
+    & span.glyphicon.nobox
+      color: gray
+
 td.box
   background: peachpuff
   & span.glyphicon.box-selected.nobox
     color: gray
   & span.glyphicon.box-selected
     color: orange
+    &.partial
+      background: orange
+      color: white
   color: gray
                           |]
 

@@ -69,8 +69,9 @@ computeBoxAmount rule0 buckets = case rule0 of
     TaxBoxNet bucket -> findBucket bucket netAmount 
     TaxBoxTax bucket -> findBucket bucket taxAmount
     TaxBoxGross bucket -> findBucket bucket (grossAmount)
-    TaxBoxSub rule1 rule2 -> amountFor rule1 + amountFor rule2
+    TaxBoxSub rule1 rule2 -> amountFor rule1 - amountFor rule2
     TaxBoxNegate rule -> - (amountFor rule)
+    TaxBoxTaxWith rate bucket -> rate / 100 * findBucket bucket netAmount
     TaxBoxFloor rule -> fromIntegral $ floor (amountFor rule)
     TaxBoxCeil rule -> fromIntegral $ ceiling (amountFor rule)
     TaxBoxRound rule -> error "not implemented yet"
