@@ -475,9 +475,9 @@ td.box[data-boxup="1"][data-boxdown="0"]
   color: gray
   
 td.box[data-boxup="0"][data-boxdown="1"]
-  background: peachpuff
+  background: lightblue
   & span.glyphicon.box-selected
-    color: orange
+    color: blue
   color: gray
 td.box[data-boxup="0"][data-boxdown="0"]
   background: pink
@@ -485,11 +485,11 @@ td.box[data-boxup="0"][data-boxdown="0"]
     color: red
   color: gray
 td.box
-  background: pink
+  background: peachpuff
   & span.glyphicon.box-selected.nobox
     color: gray
   & span.glyphicon.box-selected
-    color: red
+    color: orange
   color: gray
                           |]
 
