@@ -87,9 +87,17 @@ computeBucketRates :: Rule -> Map FA.TaxTypeId FA.TaxType -> Set (Bucket, Entity
 computeBucketRates rule0 rateMap = let
   rates :: [Entity FA.TaxType]
   rates = map (uncurry Entity) $ mapToList rateMap
+  rateIds = map (fromIntegral . FA.unTaxTypeKey . entityKey) rates
   go :: Rule -> [(Bucket, Entity FA.TaxType)]
   go (BucketRule bucket) = map (bucket,) rates
-  go (RuleList rules) = rules >>= go
+  -- for tax rules
+  -- transform what's next as if it was an else clause
+  -- ie a rules with the other tax
+  go (RuleList []) = []
+  go (RuleList (rule:rules)) = go rule <> case rule of
+    TaxTypeRule taxIds _   -> let otherIds = filter (`notElem` taxIds) rateIds
+                              in go (TaxTypeRule otherIds (RuleList rules))
+    _ -> go (RuleList rules) 
   go (TransactionRule _ rule) = go rule
   go (CustomerRule _ rule)  = go rule
   go (SupplierRule _ rule) = go rule
