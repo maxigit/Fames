@@ -11,7 +11,7 @@ type Bucket = Text
 data Rule
   = BucketRule Bucket 
   | RuleList [Rule]
-  | TransactionRule FATransType Rule
+  | TransactionRule [FATransType] Rule
   | CustomerRule [Int64] Rule -- Nothing matches all customer
   | SupplierRule [Int64] Rule
   | TaxTypeRule  [Int64] Rule

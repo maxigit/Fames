@@ -49,7 +49,7 @@ applyTaxRuleM :: Rule -> RuleInput -> Maybe Bucket
 applyTaxRuleM (BucketRule bucket) _ = Just bucket
 applyTaxRuleM (RuleList rules ) input = asum $ [ applyTaxRuleM rule input | rule <- rules ]
 applyTaxRuleM (TransactionRule ttype rule ) input = 
-  guard (ttype == riTransType input) >> (applyTaxRuleM rule input)
+  guard (ttype *== riTransType input) >> (applyTaxRuleM rule input)
 applyTaxRuleM (CustomerRule cust rule ) input = 
   guard (isCustomer (riTransType input) && cust *==? riEntity input) >> (applyTaxRuleM rule input)
 applyTaxRuleM (SupplierRule cust rule ) input = 
