@@ -493,7 +493,7 @@ td.box[data-boxup="0"][data-boxdown="0"]
   color: gray
 
   &.tax-for-0rate
-    background: lightgray
+    background: whitesmoke
     & span.glyphicon.nobox
       color: gray
 
