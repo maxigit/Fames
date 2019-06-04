@@ -198,7 +198,7 @@ renderReportView rule report mode = do
               return $ renderBucketTable bucket'rates buckets
             TaxReportBoxesView -> do
               buckets <- runDB $ loadBucketSummary (entityKey report)
-              let box'amounts = computeBoxes buckets (boxes settings)
+              let box'amounts = computeBoxes bucket'rates buckets (boxes settings)
               return $ renderBoxTable box'amounts
             TaxReportConfigChecker -> do
               buckets <- getBucketRateFromConfig report
@@ -707,8 +707,11 @@ faTransToRuleInput FA.TransTaxDetail{..} = let
   in RuleInput{..}
 
 
-computeBoxes :: Map (Bucket, Entity FA.TaxType) TaxSummary -> [TaxBox] -> [(TaxBox, Double )]
-computeBoxes bucketMap boxes = let
+computeBoxes :: Set (Bucket, Entity FA.TaxType) -> Map (Bucket, Entity FA.TaxType) TaxSummary -> [TaxBox] -> [(TaxBox, Double )]
+computeBoxes bucket'rates bucketMap1 boxes = let
+  -- initialize all bucket with 0
+  bucketMap0 = mapFromList $ map (, mempty) (toList bucket'rates)
+  bucketMap = unionWith (<>) bucketMap1 bucketMap0
   buckets = groupAsMap (fst . fst) snd $ mapToList bucketMap
   in [ (box, computeBoxAmount (tbRule box) buckets) | box <- boxes ]
 
