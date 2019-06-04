@@ -97,16 +97,21 @@ postGLTaxReportCollectDetailsR key = do
      
 
 -- | Load 
-loadBucketSummary :: Key TaxReport -> SqlHandler (Map (Bucket, Double) TaxSummary)
+loadBucketSummary :: Key TaxReport -> SqlHandler (Map (Bucket, Entity FA.TaxType) TaxSummary)
 loadBucketSummary key = do
-  let sql = "SELECT bucket, rate, SUM(net_amount), SUM(tax_amount)  "
+  taxTypes <- selectList [] []
+  let
+    rateMap :: Map FA.TaxTypeId (Entity FA.TaxType)
+    rateMap = mapFromList $ map (fanl entityKey) taxTypes
+  let sql = "SELECT bucket, fa_tax_type, SUM(net_amount), SUM(tax_amount)  "
             <> " FROM fames_tax_report_detail "
             <> " WHERE tax_report_id = ? "
-            <> " GROUP BY bucket, rate"
+            <> " GROUP BY bucket, fa_tax_type"
   raws <- rawSql sql (keyToValues key)
-  return $ mapFromList  [ ((bucket, rate), tx )
-                           | (Single bucket, Single rate, Single net, Single tax) <- raws
+  return $ mapFromList  [ ((bucket, taxType), tx )
+                           | (Single bucket, Single taxId, Single net, Single tax) <- raws
                            , let tx = TaxSummary net tax
+                           , let Just taxType = lookup taxId rateMap
                            ]
   
 
@@ -178,6 +183,8 @@ collectButtonForm key = [whamlet|
                             |]
 renderReportView :: Rule -> Entity TaxReport -> TaxReportViewMode ->  Handler Widget
 renderReportView rule report mode = do
+  settings <- unsafeGetReportSettings (taxReportType $ entityVal report)
+  bucket'rates <- getBucketRateFromConfig report
   view <- case mode of
             TaxReportPendingView -> do
               details <- loadPendingTaxDetails rule report
@@ -188,14 +195,12 @@ renderReportView rule report mode = do
               return $ renderTaxDetailTable (taxReportStart $ entityVal report) details
             TaxReportBucketView -> do
               buckets <- runDB $ loadBucketSummary (entityKey report)
-              return $ renderBucketTable buckets
+              return $ renderBucketTable bucket'rates buckets
             TaxReportBoxesView -> do
-              settings <- unsafeGetReportSettings (taxReportType $ entityVal report)
               buckets <- runDB $ loadBucketSummary (entityKey report)
               let box'amounts = computeBoxes buckets (boxes settings)
               return $ renderBoxTable box'amounts
             TaxReportConfigChecker -> do
-              settings <- unsafeGetReportSettings (taxReportType $ entityVal report)
               buckets <- getBucketRateFromConfig report
               return $ renderBoxConfigCheckerTable buckets (boxes settings)
   let navs = [TaxReportPendingView .. ]
@@ -260,30 +265,38 @@ renderTaxDetailTable startDate taxDetails =
           |]
 
 -- | Do pivot table  Bucket/Rate
-renderBucketTable :: Map (Bucket, Double) TaxSummary -> Widget
-renderBucketTable bucketMap = let
+renderBucketTable :: Set (Bucket, Entity FA.TaxType) -- ^ Combination bucket/rate used by config
+                  -> Map (Bucket, Entity FA.TaxType) TaxSummary -> Widget
+renderBucketTable bucket'rates bucketMap = let
+  bucketMap' = unionWith (<>) bucketMap $ mapFromList $ (map (, TaxSummary 0 0 ) (toList bucket'rates))
   buckets :: [(Bucket, [TaxSummary])]
-  buckets = Map.toList $ groupAsMap (fst . fst) (return . snd)$ Map.toList bucketMap
-  rates :: [(Double, [TaxSummary])]
-  rates = Map.toList $ groupAsMap (snd . fst) (return . snd) $  Map.toList bucketMap
+  buckets = Map.toList $ groupAsMap (fst . fst) (return . snd)$ Map.toList bucketMap'
+  taxTypes :: [(Entity FA.TaxType, [TaxSummary])]
+  taxTypes = Map.toList $ groupAsMap (snd . fst) (return . snd) $  Map.toList bucketMap'
+  confBuckets = setFromList $ map fst (toList bucket'rates) :: Set Bucket
   in [whamlet|
-   <table *{datatable}>
+   <table *{datatable -. "table-striped"}>
      <thead>
        <tr>
          <th>Bucket
-         $forall (rate, _) <- rates
-           <th>#{formatDouble' $ rate * 100}%
+         $forall (Entity (FA.TaxTypeKey taxId) FA.TaxType{..}, _) <- taxTypes
+           <th :taxTypeInactive:.text-danger :taxTypeInactive:.bg-danger data-toggle='tooltip' :taxTypeInactive:title="TaxType is Inactive">
+              <div>##{tshow taxId} #{taxTypeName}
+              <div>#{formatDouble' taxTypeRate}%
          <th>Total
      <tbody>
        $forall (bucket, txs) <- buckets
-         <tr>
-           <td>#{bucket}
-           $forall (rate, _) <- rates
-             <td>
-               $case lookup (bucket, rate) bucketMap
+         $with bucketIn <-  notElem bucket confBuckets
+          <tr :bucketIn:.bg-danger :bucketIn:.text-danger data-toggle="tooltip" :bucketIn:title="Bucket #{bucket} not in current report configuration">
+              <td>#{bucket}
+            $forall (taxType@(Entity _ FA.TaxType{..}), _) <- taxTypes
+              $case lookup (bucket, taxType) bucketMap
                 $of Just tx
-                  ^{renderTaxSummary (Just rate) tx}
+                  $with invalidBucket <- notElem (bucket, taxType) bucket'rates
+                    <td :invalidBucket:.bg-danger :taxTypeInactive:.bg-danger data-toggle='tooltip' :invalidBucket:title="Bucket/Tax combination not part of the report configuration">
+                        ^{renderTaxSummary (Just taxTypeRate) tx}
                 $of _
+                  <td>
            $# Right margin
            <td>
                ^{renderTaxSummary Nothing $ mconcat txs}
@@ -291,9 +304,9 @@ renderBucketTable bucketMap = let
        <tfoot>
          <tr>
            <th> Total
-           $forall (rate, txs ) <- rates
+           $forall (Entity _ FA.TaxType{..}, txs ) <- taxTypes
              <td>
-                ^{renderTaxSummary (Just rate) $ mconcat txs}
+                ^{renderTaxSummary (Just $ taxTypeRate) $ mconcat txs}
            $with allTxs <- toList bucketMap
              <td>
                ^{renderTaxSummary Nothing $ mconcat allTxs}
@@ -694,7 +707,7 @@ faTransToRuleInput FA.TransTaxDetail{..} = let
   in RuleInput{..}
 
 
-computeBoxes :: Map (Bucket, Double) TaxSummary -> [TaxBox] -> [(TaxBox, Double )]
+computeBoxes :: Map (Bucket, Entity FA.TaxType) TaxSummary -> [TaxBox] -> [(TaxBox, Double )]
 computeBoxes bucketMap boxes = let
   buckets = groupAsMap (fst . fst) snd $ mapToList bucketMap
   in [ (box, computeBoxAmount (tbRule box) buckets) | box <- boxes ]

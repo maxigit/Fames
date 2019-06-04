@@ -29,7 +29,7 @@ module Handler.Util
 , infoPanel
 , dangerPanel
 , primaryPanel
-, datatable, forDatatable, datatableNoPage, (<>.)
+, datatable, forDatatable, datatableNoPage, (<>.), (-.)
 , splitSnake
 , basePriceList
 , timeProgress
@@ -603,6 +603,11 @@ datatableNoPage = (map ("class",) $ words "table table-hover table-striped datat
 klass <>.  attrs = mapToList $ insertWith go "class" klass m
   where m = mapFromList attrs :: Map Text Text
         go old new = old <> " " <> new
+-- Remove a class from a list of attributes
+(-.) :: [(Text, Text)] -> Text -> [(Text, Text)]
+attrs -.  klass = mapToList $ Map.adjust go "class" m
+  where m = mapFromList attrs :: Map Text Text
+        go = unwords . filter (/= klass) . words
 -- * Cached Value accross session
 -- cacheEntities :: PersistEntity e => Text -> Bool -> Handler (Map (Key e) e )
 cacheEntities cacheKey force = cache0 force cacheForEver cacheKey $ do
