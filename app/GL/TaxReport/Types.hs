@@ -35,6 +35,7 @@ data RuleInput = RuleInput
 data TaxBox = TaxBox
    { tbName :: Text -- 
    , tbDescription :: Maybe Text
+   , tbShouldBeNegative :: Maybe Bool -- which way amount should be.
    , tbRule :: TaxBoxRule
    } deriving (Eq, Show, Read)
 

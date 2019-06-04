@@ -46,3 +46,11 @@ table.table-striped
       display: none
   .sidebar-collapse
       display: block !important
+
+.negative-good .negative, .positive-good .positive, .negative-good.negative, .positive-good.positive
+  background: #dff0d8
+  color: #93c54b
+
+.negative-bad .negative, .positive-bad .positive, .negative-bad.negative, .positive-bad.positive
+  background: #fedede
+  color: #d0534f
