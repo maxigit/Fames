@@ -99,7 +99,7 @@ computeBucketRates rule0 rateMap = let
   go (RuleList (rule:rules)) = go rule <> case rule of
     TaxTypeRule taxIds sub |  ruleCatchesAll sub   -> let otherIds = filter (`notElem` taxIds) rateIds
                               in go (TaxTypeRule otherIds (RuleList rules))
-    _ -> (RuleList rules) 
+    _ -> go (RuleList rules) 
   go (TransactionRule _ rule) = go rule
   go (CustomerRule _ rule)  = go rule
   go (SupplierRule _ rule) = go rule

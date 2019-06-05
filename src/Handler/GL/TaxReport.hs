@@ -336,9 +336,10 @@ renderTaxSummary rateM TaxSummary{..} = let
 -- | Displays a table with the box values
 renderBoxTable :: [(TaxBox, Double)] -> Widget
 renderBoxTable box'amounts =
-  let klass isNegative amount = case isNegative of
-             Just True -> "positive-bad" :: Text
-             Just False -> "negative-bad"
+  let klass shouldBe amount = case shouldBe of
+             Just LT -> "positive-bad" :: Text
+             Just EQ -> "negative-bad positive-bad"
+             Just GT -> "negative-bad"
              Nothing -> ""
         <> " " <> case () of
                   _ | amount >  1e-2 -> "positive"
@@ -353,7 +354,7 @@ renderBoxTable box'amounts =
         <th>Description
         <th>Amount
     $forall (TaxBox{..}, amount) <- box'amounts
-      <tr class="#{klass tbShouldBeNegative amount}">
+      <tr class="#{klass tbShouldBe amount}">
         <td>#{tbName}
         <td>#{fromMaybe "" tbDescription}
         <td.text-right>#{formatDouble' amount}

@@ -31,19 +31,21 @@ instance FromJSON TaxBox where
           let parseFields o = do
                   tbDescription  <- o .:? "description"
                   shouldBe <- o .:? "shouldBe"
-                  let tbShouldBeNegative = case (take 3 . unpack . toLower) <$> (shouldBe :: Maybe Text) of
-                        Just "neg" -> Just True
-                        Just "pos" -> Just False
+                  let tbShouldBe = case (take 3 . unpack . toLower) <$> (shouldBe :: Maybe Text) of
+                        Just "neg" -> Just LT
+                        Just "pos" -> Just GT
+                        Just "nul" -> Just EQ
+                        Just "0" -> Just EQ
                         _ -> Nothing
                   -- allow simple rule or rule list
                   tbRule <- (o .: "rules") <|> (TaxBoxSum <$> o .: "rules")
                   return TaxBox{tbRule=negateBucket tbRule,..}
               parseBucket (stripPrefix "-" -> Just bucket)  = do
                 TaxBox{..} <- parseBucket bucket
-                return TaxBox{tbRule=TaxBoxNegate tbRule, tbShouldBeNegative = Just False,..}
+                return TaxBox{tbRule=TaxBoxNegate tbRule, tbShouldBe= Just LT,..}
               parseBucket (stripPrefix "+" -> Just bucket)  = do
                 TaxBox{..} <- parseBucket bucket
-                return TaxBox{tbRule=tbRule, tbShouldBeNegative = Just False,..}
+                return TaxBox{tbRule=tbRule, tbShouldBe = Just GT,..}
               parseBucket s  = case s of
                 "net" -> return  $ TaxBox tbName (Just $ tbName <> " net") Nothing (TaxBoxNet tbName )
                 "tax" -> return  $ TaxBox tbName (Just $ tbName <> " tax") Nothing (TaxBoxTax tbName )
