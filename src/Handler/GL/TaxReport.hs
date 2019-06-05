@@ -185,14 +185,16 @@ renderReportView :: Rule -> Entity TaxReport -> TaxReportViewMode ->  Handler Wi
 renderReportView rule report mode = do
   settings <- unsafeGetReportSettings (taxReportType $ entityVal report)
   bucket'rates <- getBucketRateFromConfig report
+  faURL <- getsYesod (pack . appFAExternalURL . appSettings)
+  let urlFn = urlForFA faURL
   view <- case mode of
             TaxReportPendingView -> do
               details <- loadPendingTaxDetails rule report
-              return $ renderTaxDetailTable (taxReportStart $ entityVal report) details
+              return $ renderTaxDetailTable urlFn (taxReportStart $ entityVal report) details
                      >> collectButtonForm (entityKey report)
             TaxReportCollectedView -> do
               details <- loadCollectedTaxDetails report
-              return $ renderTaxDetailTable (taxReportStart $ entityVal report) details
+              return $ renderTaxDetailTable urlFn (taxReportStart $ entityVal report) details
             TaxReportBucketView -> do
               buckets <- runDB $ loadBucketSummary (entityKey report)
               return $ renderBucketTable bucket'rates buckets
@@ -237,7 +239,9 @@ _to_remove_renderTransDifferedTable reportId = do
     })
                   |]
 
-renderTaxDetailTable startDate taxDetails = 
+renderTaxDetailTable :: (FATransType -> Int -> Text)
+                     -> Day -> [TaxDetail] -> Widget
+renderTaxDetailTable urlFn startDate taxDetails = 
   [whamlet|
    <table *{datatable}>
     <thead>
@@ -255,9 +259,9 @@ renderTaxDetailTable startDate taxDetails =
         $with old <- tdTranDate detail < startDate
           <tr :old:.bg-danger>
             <td :old:.text-danger>#{tshow $ tdTranDate detail }
-            <td.text-right>#{tshow $ tdTransNo detail }
+            <td.text-right>#{transNoWithLink urlFn "" (tdTransType detail) (tdTransNo detail) }
             <td.text-center>#{transactionIconSpan $ tdTransType detail }
-            <td>#{fromMaybe "" $ tdMemo detail }
+            <td>#{maybe "" decodeHtmlEntities $ tdMemo detail }
             <td.text-right>#{formatDouble' $ tdNetAmount detail }
             <td.text-right>#{formatDouble' $ tdTaxAmount detail }
             <td.text-right>#{formatDouble' $ tdRate detail }%
@@ -352,7 +356,7 @@ renderBoxTable box'amounts =
       <tr class="#{klass tbShouldBeNegative amount}">
         <td>#{tbName}
         <td>#{fromMaybe "" tbDescription}
-        <td>#{formatDouble' amount}
+        <td.text-right>#{formatDouble' amount}
           |]
 
 -- | Display a bucket table showing each box

@@ -22,6 +22,7 @@ module Import.NoFoundation
     , showShortTransType
     , transactionIcon
     , transactionIconSpan
+    , transNoWithLink
     , decodeHtmlEntities
     , groupAsMap
     , groupAscAsMap
@@ -302,16 +303,16 @@ transactionIconSpan eType =
       longType = showTransType eType :: Text
   
  
--- linkToFA :: (FATransType -> Int -> Text) -> Text -> FATransType -> Int -> Html
--- linkToFA urlForFA' class_ transType transNo = [shamlet|
---  <a href="#{urlFoFa' transType no}"
---     class="#{class_}"
---     target=_blank
---     data-toggle="tooltip" 
---     title="#{longType} ##{tshow $ transNo}"
---     > #{transactionIcon eType}
---   |] where
---          longType = showTransType transType :: Text
+transNoWithLink :: (FATransType -> Int -> Text) -> Text -> FATransType -> Int -> Html
+transNoWithLink urlForFA' class_ transType transNo = [shamlet|
+ <a href="#{urlForFA' transType transNo}"
+    class="#{class_}"
+    target=_blank
+    data-toggle="tooltip" 
+    title="#{longType} ##{tshow $ transNo}"
+    >##{tshow transNo}
+  |] where
+         longType = showTransType transType :: Text
  
 -- * Html 
 decodeHtmlEntities :: Text -> Text
