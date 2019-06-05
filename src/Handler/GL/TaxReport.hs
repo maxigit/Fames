@@ -5,6 +5,7 @@ module Handler.GL.TaxReport
 , postGLTaxReportR
 , getGLTaxReportDetailsR
 , postGLTaxReportCollectDetailsR
+, postGLTaxReportRejectDetailsR
 ) where
 import Import hiding(RuleInput)
 import GL.TaxReport.Types
@@ -96,25 +97,14 @@ postGLTaxReportCollectDetailsR key = do
   pushLinks ("View tax report " <> taxReportReference report) (newRoute Nothing) []
   getGLTaxReportR key (Just TaxReportCollectedView) >>= sendResponseStatus created201
      
+postGLTaxReportRejectDetailsR :: Int64 -> Handler Html
+postGLTaxReportRejectDetailsR key = do
+  let rId = TaxReportKey (fromIntegral key)
+  runDB $ deleteWhere [TaxReportDetailReport ==. rId]
+         >> deleteWhere [TaxReportBoxReport ==. rId]
+  setSuccess "Transaction tax details successfully rejected"
+  getGLTaxReportR key (Just TaxReportCollectedView) >>= sendResponseStatus created201
 
--- | Load 
-loadBucketSummary :: Key TaxReport -> SqlHandler (Map (Bucket, Entity FA.TaxType) TaxSummary)
-loadBucketSummary key = do
-  taxTypes <- selectList [] []
-  let
-    rateMap :: Map FA.TaxTypeId (Entity FA.TaxType)
-    rateMap = mapFromList $ map (fanl entityKey) taxTypes
-  let sql = "SELECT bucket, fa_tax_type, SUM(net_amount), SUM(tax_amount)  "
-            <> " FROM fames_tax_report_detail "
-            <> " WHERE tax_report_id = ? "
-            <> " GROUP BY bucket, fa_tax_type"
-  raws <- rawSql sql (keyToValues key)
-  return $ mapFromList  [ ((bucket, taxType), tx )
-                           | (Single bucket, Single taxId, Single net, Single tax) <- raws
-                           , let tx = TaxSummary net tax
-                           , let Just taxType = lookup taxId rateMap
-                           ]
-  
 
 -- * Render
 
@@ -182,6 +172,13 @@ collectButtonForm key = [whamlet|
   <form method=POST action="@{GLR $ GLTaxReportCollectDetailsR $ fromSqlKey key}">
     <button.btn.btn-danger type="submit"> Collect
                             |]
+
+rejectButtonForm :: Key TaxReport -> Widget
+rejectButtonForm key = [whamlet|
+  <form method=POST action="@{GLR $ GLTaxReportRejectDetailsR $ fromSqlKey key}">
+    <button.btn.btn-danger type="submit"> Reject
+                            |]
+
 renderReportView :: Rule -> Entity TaxReport -> TaxReportViewMode ->  Handler Widget
 renderReportView rule report mode = do
   settings <- unsafeGetReportSettings (taxReportType $ entityVal report)
@@ -196,6 +193,7 @@ renderReportView rule report mode = do
             TaxReportCollectedView -> do
               details <- loadCollectedTaxDetails report
               return $ renderTaxDetailTable urlFn (taxReportStart $ entityVal report) details
+                     >> rejectButtonForm (entityKey report)
             TaxReportBucketView -> do
               buckets <- runDB $ loadBucketSummary (entityKey report)
               return $ renderBucketTable bucket'rates buckets
@@ -636,6 +634,25 @@ loadCollectedTaxDetails (Entity reportKey TaxReport{..})  =
                 (buildCollectedTaxDetailsQuery selectTt'Rd
                                                     reportKey 
                 )
+
+-- | Load 
+loadBucketSummary :: Key TaxReport -> SqlHandler (Map (Bucket, Entity FA.TaxType) TaxSummary)
+loadBucketSummary key = do
+  taxTypes <- selectList [] []
+  let
+    rateMap :: Map FA.TaxTypeId (Entity FA.TaxType)
+    rateMap = mapFromList $ map (fanl entityKey) taxTypes
+  let sql = "SELECT bucket, fa_tax_type, SUM(net_amount), SUM(tax_amount)  "
+            <> " FROM fames_tax_report_detail "
+            <> " WHERE tax_report_id = ? "
+            <> " GROUP BY bucket, fa_tax_type"
+  raws <- rawSql sql (keyToValues key)
+  return $ mapFromList  [ ((bucket, taxType), tx )
+                           | (Single bucket, Single taxId, Single net, Single tax) <- raws
+                           , let tx = TaxSummary net tax
+                           , let Just taxType = lookup taxId rateMap
+                           ]
+  
 
 -- | Load transactions Report details For datatable
 getGLTaxReportDetailsR :: Int64 -> Handler Value

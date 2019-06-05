@@ -41,6 +41,7 @@
   /tax/view/#Int64/#Maybe-TaxReportViewMode GLTaxReportR GET POST !tax
   /tax/details/#Int64 GLTaxReportDetailsR GET !internal !tax
   /tax/collect/#Int64 GLTaxReportCollectDetailsR POST !tax !save-tax
+  /tax/reject/#Int64 GLTaxReportRejectDetailsR POST !tax !save-tax
 
   /check GLCheckR GET POST !check !group=Check !title=Check
   /check/debtor_trans/#Int64/#Int64 GLCheckDebtorTransR GET !check 
