@@ -46,7 +46,7 @@ getGLTaxReportsR = do
 postGLNewTaxReportR :: Text -> Handler Html
 postGLNewTaxReportR name = do
   settings <- unsafeGetReportSettings name
-  runDB $ do
+  (key, TaxReport{..}) <- runDB $ do
     lasts <- selectList [TaxReportType ==. name] [Desc TaxReportStart]
     let taxReportStart = case lasts of
           (Entity _ report: _) -> 1 `addDays` (Import.taxReportEnd report)
@@ -58,11 +58,12 @@ postGLNewTaxReportR name = do
         taxReportSubmittedAt = Nothing
 
     key <- insert TaxReport{..}
-    lift $ do
-      setSuccess "Report created sucessfully"
-      let newRoute =GLR $ GLTaxReportR (fromSqlKey key) Nothing 
-      pushLinks ("View tax report " <> taxReportReference) newRoute []
-      getGLTaxReportR (fromSqlKey key) Nothing >>= sendResponseStatus created201
+    return (key, TaxReport{..})
+  
+  setSuccess "Report created sucessfully"
+  let newRoute =GLR $ GLTaxReportR (fromSqlKey key) Nothing 
+  pushLinks ("View tax report " <> taxReportReference) newRoute []
+  getGLTaxReportR (fromSqlKey key) Nothing >>= sendResponseStatus created201
 
 getGLTaxReportR :: Int64 -> Maybe TaxReportViewMode -> Handler Html
 getGLTaxReportR key mode = do
