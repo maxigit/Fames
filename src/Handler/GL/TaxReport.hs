@@ -263,7 +263,7 @@ renderTaxDetailTable urlFn startDate taxDetails =
             <td>#{maybe "" decodeHtmlEntities $ tdMemo detail }
             <td.text-right>#{formatDouble' $ tdNetAmount detail }
             <td.text-right>#{formatDouble' $ tdTaxAmount detail }
-            <td.text-right>#{formatDouble' $ tdRate detail }%
+            <td.text-right>#{formatDouble' $ (*) (tdRate detail) 100 }%
             <td>#{tdBucket detail}
           |]
 
