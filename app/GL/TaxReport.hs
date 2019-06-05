@@ -81,6 +81,7 @@ computeBoxAmount rule0 buckets = case rule0 of
           Nothing -> error $ "Bucket: " <> unpack bucket <> " dosen't exit. Please contact your administrator"
           Just summary -> fn summary
 
+deriving instance (Show FA.TaxType)
 
 -- * Misc
 -- | Return the list of bucket rates possible combination
@@ -96,12 +97,24 @@ computeBucketRates rule0 rateMap = let
   -- ie a rules with the other tax
   go (RuleList []) = []
   go (RuleList (rule:rules)) = go rule <> case rule of
-    TaxTypeRule taxIds _   -> let otherIds = filter (`notElem` taxIds) rateIds
+    TaxTypeRule taxIds sub |  ruleCatchesAll sub   -> let otherIds = filter (`notElem` taxIds) rateIds
                               in go (TaxTypeRule otherIds (RuleList rules))
-    _ -> go (RuleList rules) 
+    _ -> (RuleList rules) 
   go (TransactionRule _ rule) = go rule
   go (CustomerRule _ rule)  = go rule
   go (SupplierRule _ rule) = go rule
   go (TaxTypeRule  taxIds rule) = filter ((taxIds *==) . fromIntegral . FA.unTaxTypeKey . entityKey . snd) $ go rule
   go (TaxRateRule rates   rule) = filter ((rates *==) . FA.taxTypeRate . entityVal . snd) $ go rule
   in setFromList (go rule0)
+
+-- | return true if it catches everyting
+-- usefull to now if a config is complete or not
+ruleCatchesAll :: Rule -> Bool
+ruleCatchesAll (BucketRule _) = True
+ruleCatchesAll (RuleList rules) = any ruleCatchesAll rules
+-- ruleCatchesAll (TransactionRule [] rule) = ruleCatchesAll rule
+-- ruleCatchesAll (SupplierRule [] rule) = ruleCatchesAll rule
+-- ruleCatchesAll (CustomerRule [] rule) = ruleCatchesAll rule
+-- ruleCatchesAll (TaxTypeRule [] rule) = ruleCatchesAll rule
+-- ruleCatchesAll (TaxRateRule [] rule) = ruleCatchesAll rule
+ruleCatchesAll _ = False
