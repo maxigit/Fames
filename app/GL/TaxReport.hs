@@ -63,23 +63,23 @@ isCustomer = (`elem` customerFATransactions)
 isSupplier = (`elem` supplierFATransactions)
 
 -- * Boxes
-computeBoxAmount :: TaxBoxRule -> Map Bucket TaxSummary -> Amount
+computeBoxAmount :: TaxBoxRule -> Map Bucket TaxSummary -> Either Text Amount
 computeBoxAmount rule0 buckets = case rule0 of
-    TaxBoxSum rules -> sum $ map amountFor rules
+    TaxBoxSum rules -> sum <$> mapM amountFor rules
     TaxBoxNet bucket -> findBucket bucket netAmount 
     TaxBoxTax bucket -> findBucket bucket taxAmount
     TaxBoxGross bucket -> findBucket bucket (grossAmount)
-    TaxBoxSub rule1 rule2 -> amountFor rule1 - amountFor rule2
-    TaxBoxNegate rule -> - (amountFor rule)
-    TaxBoxTaxWith rate bucket -> rate / 100 * findBucket bucket netAmount
-    TaxBoxFloor rule -> fromIntegral $ floor (amountFor rule)
-    TaxBoxCeil rule -> fromIntegral $ ceiling (amountFor rule)
-    TaxBoxRound rule -> error "not implemented yet"
-    TaxBoxBanker rule -> fromIntegral $ round (amountFor rule)
+    TaxBoxSub rule1 rule2 -> liftA2 (-) (amountFor rule1) (amountFor rule2)
+    TaxBoxNegate rule -> negate <$>  amountFor rule
+    TaxBoxTaxWith rate bucket -> (\a -> a * rate / 100) <$> findBucket bucket netAmount
+    TaxBoxFloor rule -> fromIntegral . floor <$>  amountFor rule
+    TaxBoxCeil rule -> fromIntegral . ceiling <$> amountFor rule
+    TaxBoxRound rule -> Left "not implemented yet"
+    TaxBoxBanker rule -> fromIntegral . round <$> amountFor rule
   where amountFor rule = computeBoxAmount rule buckets
         findBucket bucket fn = case lookup bucket buckets of
-          Nothing -> error $ "Bucket: " <> unpack bucket <> " dosen't exit. Please contact your administrator"
-          Just summary -> fn summary
+          Nothing -> Left $ "Bucket: " <> bucket <> " dosen't exit."
+          Just summary -> Right $ fn summary
 
 deriving instance (Show FA.TaxType)
 

@@ -184,15 +184,25 @@ renderReportView rule report mode = do
   settings <- unsafeGetReportSettings (taxReportType $ entityVal report)
   bucket'rates <- getBucketRateFromConfig report
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
+
+  taxMap <- runDB $ loadTaxTypeMap
+  let boxValues :: [(TaxBox, TaxDetail -> Maybe Double)]
+      boxValues = [ (box, f)
+                  | box <- (boxes settings)
+                  , let f detail = either (const Nothing) Just $ computeBox bucket'rates 
+                                              (reportDetailToBucketMap taxMap $ tdReportDetail detail) 
+                                              box
+                  ]
+
   let urlFn = urlForFA faURL
   view <- case mode of
             TaxReportPendingView -> do
               details <- loadPendingTaxDetails rule report
-              return $ renderTaxDetailTable urlFn (taxReportStart $ entityVal report) details
+              return $ renderTaxDetailTable urlFn boxValues (taxReportStart $ entityVal report) details
                      >> collectButtonForm (entityKey report)
             TaxReportCollectedView -> do
               details <- loadCollectedTaxDetails report
-              return $ renderTaxDetailTable urlFn (taxReportStart $ entityVal report) details
+              return $ renderTaxDetailTable urlFn boxValues (taxReportStart $ entityVal report) details
                      >> rejectButtonForm (entityKey report)
             TaxReportBucketView -> do
               buckets <- runDB $ loadBucketSummary (entityKey report)
@@ -239,9 +249,11 @@ _to_remove_renderTransDifferedTable reportId = do
                   |]
 
 renderTaxDetailTable :: (FATransType -> Int -> Text)
+                     -> [(TaxBox, TaxDetail -> Maybe Double) ]
                      -> Day -> [TaxDetail] -> Widget
-renderTaxDetailTable urlFn startDate taxDetails = 
-  [whamlet|
+renderTaxDetailTable urlFn boxes startDate taxDetails =  let
+  hasBoxes = not $ null boxes 
+  in [whamlet|
    <table *{datatable}>
     <thead>
       <tr>
@@ -253,6 +265,10 @@ renderTaxDetailTable urlFn startDate taxDetails =
         <th>taxAmount
         <th>rate
         <th>Bucket
+        $if hasBoxes
+          <th>Boxes
+        $forall (TaxBox{..}, _) <- boxes
+          <th.none>#{tbName} 
     <tbody>
       $forall detail <- taxDetails 
         $with old <- tdTranDate detail < startDate
@@ -265,7 +281,20 @@ renderTaxDetailTable urlFn startDate taxDetails =
             <td.text-right>#{formatDouble' $ tdTaxAmount detail }
             <td.text-right>#{formatDouble' $ (*) (tdRate detail) 100 }%
             <td>#{tdBucket detail}
-          |]
+            $if hasBoxes
+              <td>
+                $forall  (box, valueF) <- boxes
+                  $maybe value <- valueF detail
+                      $if value > 0.01
+                       <span.badge.up data-toggle="tooltip" title="#{formatDouble' value}">
+                         #{tbName box}
+                      $else
+                        $if value < -0.01
+                          <span.badge.down data-toggle="tooltip" title="#{formatDouble' value}">
+                            #{tbName box}
+            $forall (box, boxValue) <- boxes
+              #{renderBoxForDetail box (boxValue detail)}
+          |] <> toWidget bucketCSS
 
 -- | Do pivot table  Bucket/Rate
 renderBucketTable :: Set (Bucket, Entity FA.TaxType) -- ^ Combination bucket/rate used by config
@@ -332,6 +361,18 @@ renderTaxSummary rateM TaxSummary{..} = let
       <span.guessed-value>#{formatDouble' $ taxAmount + netAmount}
 |]
 
+-- | Compute the contribution of a detail for a box
+-- and display it if needed. Also add a hidden field
+-- allowing to search transaction by box
+renderBoxForDetail box valuem =  case valuem of
+  Just value | abs value > 1e-2 -> [shamlet|
+      <td>
+        #{formatDouble' value}
+        <span.hidden>box:#{tbName box}
+                        |]
+  _ -> [shamlet|<td>|]
+
+
 -- | Displays a table with the box values
 renderBoxTable :: [(TaxBox, Double)] -> Widget
 renderBoxTable box'amounts =
@@ -379,7 +420,7 @@ renderBoxConfigCheckerTable bucket'rates boxes =  let
   renderBoxFor mkTx bucket rate = let
     boxDetails =[ (tshow boxId, tbName, boxValue, up)
                 | (TaxBox{..}, boxId) <- box'ids
-                , let boxValue = computeBoxAmount  tbRule (mkMap bucket mkTx)
+                , let boxValue = either (error . unpack) id $ computeBoxAmount  tbRule (mkMap bucket mkTx)
                 , let up = if boxValue > delta
                            then "up"
                            else if boxValue < (negate delta)
@@ -489,7 +530,17 @@ renderBoxConfigCheckerTable bucket'rates boxes =  let
       // $('td.box').attr('data-boxdown', "0");
       })
               |]
-  bucketCSS = [cassius|
+  in [whamlet|
+      <div.row>
+        <div.col-md-2 id=control-table >
+          ^{control}
+        <div.col-md-10 id=bucket-table >
+          ^{bucketTable}
+          |] <> toWidget controlJS <> toWidget bucketCSS
+     
+
+
+bucketCSS = [cassius|
 td.box
   # mute span
   color: gray
@@ -533,19 +584,16 @@ td.box
       background: orange
       color: white
   color: gray
+
+span.badge.up
+  color: white
+  background: #{greenBadgeBg}
+span.badge.down
+  color: white
+  background: #{blueBadgeBg}
                           |]
 
     
-  in [whamlet|
-      <div.row>
-        <div.col-md-2 id=control-table >
-          ^{control}
-        <div.col-md-10 id=bucket-table >
-          ^{bucketTable}
-          |] <> toWidget controlJS <> toWidget bucketCSS
-     
-
-
 -- * DB
 
 loadReport :: Int64 -> SqlHandler (Entity TaxReport)
@@ -636,6 +684,10 @@ loadCollectedTaxDetails (Entity reportKey TaxReport{..})  =
                 )
 
 -- | Load 
+loadTaxTypeMap = do
+  taxTypes <- selectList [] []
+  return $  mapFromList $ map (fanl entityKey) taxTypes
+
 loadBucketSummary :: Key TaxReport -> SqlHandler (Map (Bucket, Entity FA.TaxType) TaxSummary)
 loadBucketSummary key = do
   taxTypes <- selectList [] []
@@ -740,11 +792,26 @@ faTransToRuleInput FA.TransTaxDetail{..} = let
 
 
 computeBoxes :: Set (Bucket, Entity FA.TaxType) -> Map (Bucket, Entity FA.TaxType) TaxSummary -> [TaxBox] -> [(TaxBox, Double )]
-computeBoxes bucket'rates bucketMap1 boxes = let
+computeBoxes bucket'rates bucketMap boxes = let
+  values = map (computeBox bucket'rates bucketMap) boxes
+  in case lefts values of
+    [] -> zip boxes $ rights values
+    errors -> error $ unpack $ intercalate "\n" errors
+
+computeBox :: Set (Bucket, Entity FA.TaxType) -> Map (Bucket, Entity FA.TaxType) TaxSummary -> TaxBox -> Either Text Double 
+computeBox bucket'rates bucketMap1 box = let
   -- initialize all bucket with 0
   bucketMap0 = mapFromList $ map (, mempty) (toList bucket'rates)
   bucketMap = unionWith (<>) bucketMap1 bucketMap0
   buckets = groupAsMap (fst . fst) snd $ mapToList bucketMap
-  in [ (box, computeBoxAmount (tbRule box) buckets) | box <- boxes ]
+  in computeBoxAmount (tbRule box) buckets
 
+reportDetailToBucketMap :: Map FA.TaxTypeId (Entity FA.TaxType)
+                        -> TaxReportDetail
+                        -> Map (Bucket, Entity FA.TaxType) TaxSummary
+reportDetailToBucketMap taxTypeMap TaxReportDetail{..} = let
+  taxSummary = TaxSummary taxReportDetailNetAmount taxReportDetailTaxAmount
+  Just taxType = lookup (FA.TaxTypeKey taxReportDetailFaTaxType) taxTypeMap
+  key = (taxReportDetailBucket, taxType)
+  in singletonMap key taxSummary
 
