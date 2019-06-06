@@ -69,6 +69,8 @@ module Handler.Util
 , renderField
 , allCustomers
 , allSuppliers
+, entityNameH
+, entityNameMH
 , todayH
 , fiscalYearH
 , currentFAUser
@@ -629,6 +631,24 @@ allCustomers force = cacheEntities "all-customer-list" force
 
 allSuppliers :: Bool -> Handler (Map (Key  FA.Supplier) FA.Supplier)
 allSuppliers force = cacheEntities "all-supplier-list" force
+
+-- | Function  return the name of customer or a supplier
+entityNameMH :: Bool -> Handler (FATransType -> Maybe Int64 -> Maybe Text)
+entityNameMH force = do
+  customerMap <- allCustomers force
+  supplierMap <- allSuppliers force
+  let
+      go trans (Just cust ) | trans `elem` customerFATransactions
+                            , Just customer <- lookup (FA.DebtorsMasterKey $ fromIntegral cust) customerMap
+                            = Just (decodeHtmlEntities $ FA.debtorsMasterName customer)
+      go trans (Just supp ) | trans `elem` supplierFATransactions
+                            , Just supplier <- lookup (FA.SupplierKey $ fromIntegral supp) supplierMap
+                            = Just (decodeHtmlEntities $ FA.supplierSuppName supplier)
+      go _ _ = Nothing
+  return go
+  
+entityNameH :: Bool -> Handler (FATransType -> Maybe Int64 -> Text)
+entityNameH force = fromMaybe "" <$$$> entityNameMH force
 
 -- *** Current User
 currentFAUser :: Handler (Maybe FA.User)

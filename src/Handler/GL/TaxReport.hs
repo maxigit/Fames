@@ -184,6 +184,7 @@ renderReportView rule report mode = do
   settings <- unsafeGetReportSettings (taxReportType $ entityVal report)
   bucket'rates <- getBucketRateFromConfig report
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
+  personName <- entityNameH False
 
   taxMap <- runDB $ loadTaxTypeMap
   let boxValues :: [(TaxBox, TaxDetail -> Maybe Double)]
@@ -198,11 +199,11 @@ renderReportView rule report mode = do
   view <- case mode of
             TaxReportPendingView -> do
               details <- loadPendingTaxDetails rule report
-              return $ renderTaxDetailTable urlFn boxValues (taxReportStart $ entityVal report) details
+              return $ renderTaxDetailTable urlFn personName boxValues (taxReportStart $ entityVal report) details
                      >> collectButtonForm (entityKey report)
             TaxReportCollectedView -> do
               details <- loadCollectedTaxDetails report
-              return $ renderTaxDetailTable urlFn boxValues (taxReportStart $ entityVal report) details
+              return $ renderTaxDetailTable urlFn personName boxValues (taxReportStart $ entityVal report) details
                      >> rejectButtonForm (entityKey report)
             TaxReportBucketView -> do
               buckets <- runDB $ loadBucketSummary (entityKey report)
@@ -248,10 +249,11 @@ _to_remove_renderTransDifferedTable reportId = do
     })
                   |]
 
-renderTaxDetailTable :: (FATransType -> Int -> Text)
+renderTaxDetailTable :: (FATransType -> Int -> Text) -- ^ Url
+                     -> (FATransType -> Maybe Int64 -> Text) -- ^ Name
                      -> [(TaxBox, TaxDetail -> Maybe Double) ]
                      -> Day -> [TaxDetail] -> Widget
-renderTaxDetailTable urlFn boxes startDate taxDetails =  let
+renderTaxDetailTable urlFn personName boxes startDate taxDetails =  let
   hasBoxes = not $ null boxes 
   in [whamlet|
    <table *{datatable}>
@@ -261,6 +263,7 @@ renderTaxDetailTable urlFn boxes startDate taxDetails =  let
         <th> TransNo
         <th> TransType
         <th> Memo
+        <th> Person
         <th> netAmount
         <th>taxAmount
         <th>rate
@@ -277,6 +280,7 @@ renderTaxDetailTable urlFn boxes startDate taxDetails =  let
             <td.text-right>#{transNoWithLink urlFn "" (tdTransType detail) (tdTransNo detail) }
             <td.text-center>#{transactionIconSpan $ tdTransType detail }
             <td>#{maybe "" decodeHtmlEntities $ tdMemo detail }
+            <td>#{personName (tdTransType detail) (tdEntity detail)}
             <td.text-right>#{formatDouble' $ tdNetAmount detail }
             <td.text-right>#{formatDouble' $ tdTaxAmount detail }
             <td.text-right>#{formatDouble' $ (*) (tdRate detail) 100 }%
@@ -630,11 +634,14 @@ buildPendingTransTaxDetailsQuery (Tagged selectQuery) reportType startDate endDa
   let sql0 =  selectQuery <> " FROM 0_trans_tax_details fad"
           <>  " LEFT JOIN fames_tax_report_detail rd ON (tax_trans_detail_id = fad.id) "
           <>  " LEFT JOIN fames_tax_report r ON(r.tax_report_id =  rd.tax_report_id AND type = ?) "
+          <>  " LEFT JOIN 0_debtor_trans AS dt ON (fad.trans_no = dt.trans_no AND fad.trans_type = dt.type)"
+          <>  " LEFT JOIN 0_supp_trans AS st ON (fad.trans_no = st.trans_no AND fad.trans_type = st.type)"
           <> " WHERE (rd.tax_report_id is NULL OR ("
           <> "           abs (fad.net_amount * ex_rate - rd.net_amount) > 1e-4 "
           <> "                OR    abs (fad.amount * ex_rate - rd.tax_amount) > 1e-4 "
           <> "               )"
           <> "       ) AND fad.tran_date <= ?"
+          <> "       AND fad.trans_type != " <> tshow (fromEnum ST_CUSTDELIVERY) <> " "
       p0 = [ toPersistValue $ reportType
            , toPersistValue $ endDate
            ]
@@ -646,21 +653,24 @@ buildCollectedTaxDetailsQuery :: Tagged e Text -> Key TaxReport -> (Tagged e Tex
 buildCollectedTaxDetailsQuery (Tagged selectQuery) reportKey = 
   let sql0 =  selectQuery <> " FROM 0_trans_tax_details fad"
           <>  " JOIN fames_tax_report_detail rd ON (tax_trans_detail_id = fad.id) "
+          <>  " LEFT JOIN 0_debtor_trans AS dt ON (fad.trans_no = dt.trans_no AND fad.trans_type = dt.type)"
+          <>  " LEFT JOIN 0_supp_trans AS st ON (fad.trans_no = st.trans_no AND fad.trans_type = st.type)"
           <> " WHERE tax_report_id = ? "
           <> "      AND (("
           <> "           abs (fad.net_amount * ex_rate - rd.net_amount) <= 1e-4 "
           <> "                AND    abs (fad.amount * ex_rate - rd.tax_amount) <= 1e-4 "
           <> "               )"
           <> "       ) "
+          <> "       AND fad.trans_type != " <> tshow (fromEnum ST_CUSTDELIVERY) <> " "
       p0 = keyToValues reportKey
            
   in (Tagged sql0, p0)
 
-selectTt'MRd :: Tagged (Entity FA.TransTaxDetail, Maybe (Entity TaxReportDetail)) Text
-selectTt'MRd = Tagged "SELECT fad.*, rd.* /* ?? */ /* ?? */ " -- hack to use 
+selectTt'MRd :: Tagged (Entity FA.TransTaxDetail, Maybe (Entity TaxReportDetail), Single (Maybe Int64)) Text
+selectTt'MRd = Tagged "SELECT fad.*, rd.* /* ?? */ /* ?? */, COALESCE(debtor_no, supplier_id) " -- hack to use 
 
-selectTt'Rd :: Tagged (Entity FA.TransTaxDetail, Entity TaxReportDetail) Text
-selectTt'Rd = Tagged "SELECT fad.*, rd.* /* ?? */ /* ?? */ " -- hack to use 
+selectTt'Rd :: Tagged (Entity FA.TransTaxDetail, Entity TaxReportDetail, Single (Maybe Int64)) Text
+selectTt'Rd = Tagged "SELECT fad.*, rd.* /* ?? */ /* ?? */, COALESCE(debtor_no, supplier_id) " -- hack to use 
 
 selectCount :: Tagged (Single Int) Text
 selectCount = Tagged "SELECT count(*) "
@@ -670,7 +680,7 @@ runTaggedSql (Tagged sql, params) = rawSql sql params
 
 loadPendingTaxDetails :: Rule -> Entity TaxReport -> Handler [TaxDetail]
 loadPendingTaxDetails taxRule (Entity reportKey TaxReport{..}) =
-  loadTaxDetail (uncurry $ taxDetailFromDetailM reportKey (applyTaxRule taxRule . faTransToRuleInput))
+  loadTaxDetail (uncurry3Single $ taxDetailFromDetailM reportKey (\t p -> applyTaxRule taxRule $ faTransToRuleInput t p))
                 (buildPendingTransTaxDetailsQuery selectTt'MRd
                                                   taxReportType
                                                   Nothing
@@ -678,11 +688,12 @@ loadPendingTaxDetails taxRule (Entity reportKey TaxReport{..}) =
                 )
 
 loadCollectedTaxDetails (Entity reportKey TaxReport{..})  =
-  loadTaxDetail (uncurry taxDetailFromDetail)
+  loadTaxDetail (uncurry3Single taxDetailFromDetail)
                 (buildCollectedTaxDetailsQuery selectTt'Rd
                                                     reportKey 
                 )
 
+uncurry3Single f (trans , detail,  Single personm) = f trans detail personm
 -- | Load 
 loadTaxTypeMap = do
   taxTypes <- selectList [] []
@@ -709,31 +720,33 @@ loadBucketSummary key = do
 -- | Load transactions Report details For datatable
 getGLTaxReportDetailsR :: Int64 -> Handler Value
 getGLTaxReportDetailsR key = do
-  (rows, reportType) <- runDB $  do
-    (Entity _ TaxReport{..}) <- loadReport key
+  error "Not implemented"
+  -- 
+  -- (rows, reportType) <- runDB $  do
+  --   (Entity _ TaxReport{..}) <- loadReport key
 
-    let (Tagged sql, params) = buildPendingTransTaxDetailsQuery selectQ taxReportType Nothing taxReportEnd
-        selectQ = "SELECT fad.* /* ?? */ " -- hack to use 
-        -- we need to order them to get a consistent paging
-        order = " ORDER BY fad.tran_date, fad.id"
-        paging = " LIMIT 50000"
-    r <- rawSql (sql <> order <> paging) params
-    return (r, taxReportType)
-  TaxReportSettings{..} <- unsafeGetReportSettings reportType
-  let _types = rows :: [Entity FA.TransTaxDetail]
-      _report0 = TaxReportKey 0
-      showType = showShortTransType :: FATransType -> Text
-      toj (Entity _ trans@FA.TransTaxDetail{..}) = [ toJSON transTaxDetailTranDate
-                                             , toJSON transTaxDetailTransNo
-                                             , toJSON ((showType . toEnum ) <$> transTaxDetailTransType)
-                                             , toJSON transTaxDetailMemo
-                                             , toJSON transTaxDetailNetAmount
-                                             , toJSON transTaxDetailAmount
-                                             , toJSON transTaxDetailRate
-                                             , toJSON (applyTaxRule rules $ faTransToRuleInput trans)
-                                             ]
+  --   let (Tagged sql, params) = buildPendingTransTaxDetailsQuery selectQ taxReportType Nothing taxReportEnd
+  --       selectQ = "SELECT fad.* /* ?? */ " -- hack to use 
+  --       -- we need to order them to get a consistent paging
+  --       order = " ORDER BY fad.tran_date, fad.id"
+  --       paging = " LIMIT 50000"
+  --   r <- rawSql (sql <> order <> paging) params
+  --   return (r, taxReportType)
+  -- TaxReportSettings{..} <- unsafeGetReportSettings reportType
+  -- let _types = rows :: [Entity FA.TransTaxDetail]
+  --     _report0 = TaxReportKey 0
+  --     showType = showShortTransType :: FATransType -> Text
+  --     toj (Entity _ trans@FA.TransTaxDetail{..}) = [ toJSON transTaxDetailTranDate
+  --                                            , toJSON transTaxDetailTransNo
+  --                                            , toJSON ((showType . toEnum ) <$> transTaxDetailTransType)
+  --                                            , toJSON transTaxDetailMemo
+  --                                            , toJSON transTaxDetailNetAmount
+  --                                            , toJSON transTaxDetailAmount
+  --                                            , toJSON transTaxDetailRate
+  --                                            , toJSON (applyTaxRule rules $ faTransToRuleInput trans Nothing)
+  --                                            ]
 
-  returnJson $ object [ "data" .= (map toj rows) ]
+  -- returnJson $ object [ "data" .= (map toj rows) ]
   
 loadTaxDetail :: RawSql e 
               => (e -> Either Text TaxDetail)
@@ -782,10 +795,9 @@ getBucketRateFromConfig report = do
 
 
 -- * Rule
-faTransToRuleInput :: FA.TransTaxDetail -> RuleInput
-faTransToRuleInput FA.TransTaxDetail{..} = let
+faTransToRuleInput :: FA.TransTaxDetail -> Maybe Int64 -> RuleInput
+faTransToRuleInput FA.TransTaxDetail{..} riEntity = let
   riTransType = maybe (error "DB Problem") toEnum transTaxDetailTransType
-  riEntity = Nothing
   riTaxType = fromIntegral $ transTaxDetailTaxTypeId
   riTaxRate = transTaxDetailRate -- 1% = 1
   in RuleInput{..}
