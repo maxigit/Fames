@@ -637,8 +637,8 @@ buildPendingTransTaxDetailsQuery (Tagged selectQuery) reportType startDate endDa
           <>  " LEFT JOIN 0_debtor_trans AS dt ON (fad.trans_no = dt.trans_no AND fad.trans_type = dt.type)"
           <>  " LEFT JOIN 0_supp_trans AS st ON (fad.trans_no = st.trans_no AND fad.trans_type = st.type)"
           <> " WHERE (rd.tax_report_id is NULL OR ("
-          <> "           abs (fad.net_amount * ex_rate - rd.net_amount) > 1e-4 "
-          <> "                OR    abs (fad.amount * ex_rate - rd.tax_amount) > 1e-4 "
+          <> "           abs (fad.net_amount * ex_rate * " <> transSignSQL <> " - rd.net_amount) > 1e-4 "
+          <> "                OR    abs (fad.amount * ex_rate * " <> transSignSQL <> "- rd.tax_amount) > 1e-4 "
           <> "               )"
           <> "       ) AND fad.tran_date <= ?"
           <> "       AND fad.trans_type != " <> tshow (fromEnum ST_CUSTDELIVERY) <> " "
@@ -657,8 +657,8 @@ buildCollectedTaxDetailsQuery (Tagged selectQuery) reportKey =
           <>  " LEFT JOIN 0_supp_trans AS st ON (fad.trans_no = st.trans_no AND fad.trans_type = st.type)"
           <> " WHERE tax_report_id = ? "
           <> "      AND (("
-          <> "           abs (fad.net_amount * ex_rate - rd.net_amount) <= 1e-4 "
-          <> "                AND    abs (fad.amount * ex_rate - rd.tax_amount) <= 1e-4 "
+          <> "           abs (fad.net_amount * ex_rate * " <> transSignSQL <> "- rd.net_amount) <= 1e-4 "
+          <> "                AND    abs (fad.amount * ex_rate * " <> transSignSQL <> "- rd.tax_amount) <= 1e-4 "
           <> "               )"
           <> "       ) "
           <> "       AND fad.trans_type != " <> tshow (fromEnum ST_CUSTDELIVERY) <> " "
@@ -666,11 +666,23 @@ buildCollectedTaxDetailsQuery (Tagged selectQuery) reportKey =
            
   in (Tagged sql0, p0)
 
+
+-- | FA store all transactions detail with a positive amount
+-- To match the report detail, transaction needs to be reversed (or not)
+-- so that the amount is positive for output (tax to pay)
+transSignSQL :: Text
+transSignSQL = "IF(fad.trans_type IN ( " <> inputTrans <> "), -1, 1)" where
+  inputTrans = inTypes [ST_CUSTCREDIT, ST_SUPPINVOICE, ST_BANKDEPOSIT]
+
 selectTt'MRd :: Tagged (Entity FA.TransTaxDetail, Maybe (Entity TaxReportDetail), Single (Maybe Int64)) Text
-selectTt'MRd = Tagged "SELECT fad.*, rd.* /* ?? */ /* ?? */, COALESCE(debtor_no, supplier_id) " -- hack to use 
+selectTt'MRd = let
+  faSelect = "`fad`.`id`, `fad`.`trans_type`, `fad`.`trans_no`, `fad`.`tran_date`, `fad`.`tax_type_id`, `fad`.`rate`, `fad`.`ex_rate`, `fad`.`included_in_price`, "
+    <> transSignSQL <> " * `fad`.`net_amount`, "
+    <> transSignSQL <> " * `fad`.`amount`, `fad`.`memo` "
+  in Tagged $ "SELECT " <> faSelect <>  ", rd.* /* ?? */ /* ?? */, COALESCE(debtor_no, supplier_id) " -- hack to use 
 
 selectTt'Rd :: Tagged (Entity FA.TransTaxDetail, Entity TaxReportDetail, Single (Maybe Int64)) Text
-selectTt'Rd = Tagged "SELECT fad.*, rd.* /* ?? */ /* ?? */, COALESCE(debtor_no, supplier_id) " -- hack to use 
+selectTt'Rd = retag  selectTt'MRd
 
 selectCount :: Tagged (Single Int) Text
 selectCount = Tagged "SELECT count(*) "
