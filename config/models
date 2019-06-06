@@ -314,6 +314,7 @@ TaxReportDetail sql=fames_tax_report_detail json
   faTaxType Int
   -- mainly to have an index to optimize load bucket summary
   UniqueBRT report bucket rate taxTransDetail
+  UniqueBTR taxTransDetail report
   deriving Show
   deriving Eq
 
