@@ -16,6 +16,8 @@ data Rule
   | SupplierRule [Int64] Rule
   | TaxTypeRule  [Int64] Rule
   | TaxRateRule [Double]   Rule
+  | InputRule Rule
+  | OutputRule Rule
   deriving (Show, Read, Eq, Ord)
 
 defaultBucket :: Bucket
@@ -29,6 +31,7 @@ data RuleInput = RuleInput
  , riEntity :: Maybe Int64
  , riTaxType :: Int64
  , riTaxRate :: Double
+ , riAmount :: Double
  } deriving (Eq, Show, Read)
 
 

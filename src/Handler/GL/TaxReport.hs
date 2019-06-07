@@ -64,7 +64,9 @@ postGLNewTaxReportR name = do
   setSuccess "Report created sucessfully"
   let newRoute =GLR $ GLTaxReportR (fromSqlKey key) Nothing 
   pushLinks ("View tax report " <> taxReportReference) newRoute []
-  getGLTaxReportR (fromSqlKey key) Nothing >>= sendResponseStatus created201
+  -- collect details
+  postGLTaxReportCollectDetailsR (fromSqlKey key) >>= sendResponseStatus created201
+      -- getGLTaxReportR (fromSqlKey key) Nothing >>= sendResponseStatus created201
 
 getGLTaxReportR :: Int64 -> Maybe TaxReportViewMode -> Handler Html
 getGLTaxReportR key mode = do
@@ -281,8 +283,8 @@ renderTaxDetailTable urlFn personName boxes startDate taxDetails =  let
             <td.text-center>#{transactionIconSpan $ tdTransType detail }
             <td>#{maybe "" decodeHtmlEntities $ tdMemo detail }
             <td>#{personName (tdTransType detail) (tdEntity detail)}
-            <td.text-right>#{formatDouble' $ tdNetAmount detail }
-            <td.text-right>#{formatDouble' $ tdTaxAmount detail }
+            <td.text-right>#{formatDoubleWithSign $ tdNetAmount detail }
+            <td.text-right>#{formatDoubleWithSign $ tdTaxAmount detail }
             <td.text-right>#{formatDouble' $ (*) (tdRate detail) 100 }%
             <td>#{tdBucket detail}
             $if hasBoxes
@@ -672,7 +674,10 @@ buildCollectedTaxDetailsQuery (Tagged selectQuery) reportKey =
 -- so that the amount is positive for output (tax to pay)
 transSignSQL :: Text
 transSignSQL = "IF(fad.trans_type IN ( " <> inputTrans <> "), -1, 1)" where
-  inputTrans = inTypes [ST_CUSTCREDIT, ST_SUPPINVOICE, ST_BANKDEPOSIT]
+  inputTrans = inTypes [ ST_CUSTCREDIT, ST_CUSTPAYMENT -- refund
+                       , ST_SUPPINVOICE -- expenditure ST_BANKPAYMENT already -ve
+                       , ST_JOURNAL -- expenditures too
+                       ]
 
 selectTt'MRd :: Tagged (Entity FA.TransTaxDetail, Maybe (Entity TaxReportDetail), Single (Maybe Int64)) Text
 selectTt'MRd = let
@@ -793,6 +798,10 @@ getReportSettings name = do
 
 formatDouble' = F.sformat commasFixed
 
+formatDoubleWithSign amount = [shamlet|<span :negative:.text-danger>#{formatDouble' amount}|]
+  where negative = amount < -1e-2
+
+
 -- | Get the list of all  Bucket/rate configuration from the config
 -- (and the rate in the database)
 getBucketRateFromConfig :: Entity TaxReport -> Handler (Set (Bucket, Entity FA.TaxType ))
@@ -812,6 +821,7 @@ faTransToRuleInput FA.TransTaxDetail{..} riEntity = let
   riTransType = maybe (error "DB Problem") toEnum transTaxDetailTransType
   riTaxType = fromIntegral $ transTaxDetailTaxTypeId
   riTaxRate = transTaxDetailRate -- 1% = 1
+  riAmount = transTaxDetailAmount
   in RuleInput{..}
 
 

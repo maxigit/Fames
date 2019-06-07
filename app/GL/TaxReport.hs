@@ -58,6 +58,10 @@ applyTaxRuleM (TaxTypeRule taxtype rule ) input =
   guard (taxtype *== riTaxType input ) >> (applyTaxRuleM rule input)
 applyTaxRuleM (TaxRateRule taxrate rule ) input = 
   guard (taxrate *== riTaxRate input ) >> (applyTaxRuleM rule input)
+applyTaxRuleM (InputRule rule ) input = 
+  guard (riAmount input < 0) >> (applyTaxRuleM rule input)
+applyTaxRuleM (OutputRule rule ) input = 
+  guard (riAmount input > 0) >> (applyTaxRuleM rule input)
 
 isCustomer = (`elem` customerFATransactions)
 isSupplier = (`elem` supplierFATransactions)
@@ -105,6 +109,8 @@ computeBucketRates rule0 rateMap = let
   go (SupplierRule _ rule) = go rule
   go (TaxTypeRule  taxIds rule) = filter ((taxIds *==) . fromIntegral . FA.unTaxTypeKey . entityKey . snd) $ go rule
   go (TaxRateRule rates   rule) = filter ((rates *==) . FA.taxTypeRate . entityVal . snd) $ go rule
+  go (InputRule rule) = go rule
+  go (OutputRule rule) = go rule
   in setFromList (go rule0)
 
 -- | return true if it catches everyting
