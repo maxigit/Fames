@@ -738,7 +738,7 @@ loadBucketSummary key = do
   return $ mapFromList  [ ((bucket, taxType), tx )
                            | (Single bucket, Single taxId, Single net, Single tax) <- raws
                            , let tx = TaxSummary net tax
-                           , let Just taxType = lookup taxId rateMap
+                           , let taxType = fromMaybe (mkTaxEntity taxId tax ) $ lookup taxId rateMap
                            ]
   
 
@@ -851,9 +851,18 @@ computeBox bucket'rates bucketMap1 box = let
 reportDetailToBucketMap :: Map FA.TaxTypeId (Entity FA.TaxType)
                         -> TaxReportDetail
                         -> Map (Bucket, Entity FA.TaxType) TaxSummary
-reportDetailToBucketMap taxTypeMap TaxReportDetail{..} = let
+reportDetailToBucketMap taxTypeMap detail@TaxReportDetail{..} = let
   taxSummary = TaxSummary taxReportDetailNetAmount taxReportDetailTaxAmount
-  Just taxType = lookup (FA.TaxTypeKey taxReportDetailFaTaxType) taxTypeMap
+  taxType = fromMaybe (mkTaxFromDetail detail) $ lookup (FA.TaxTypeKey taxReportDetailFaTaxType) taxTypeMap
   key = (taxReportDetailBucket, taxType)
   in singletonMap key taxSummary
 
+-- | Create a tax entity in case the one used as been deleted
+mkTaxFromDetail TaxReportDetail{..} = mkTaxEntity (FA.TaxTypeKey taxReportDetailFaTaxType) taxReportDetailRate
+
+mkTaxEntity taxId rate = Entity taxId FA.TaxType{..} where
+  taxTypeRate = rate
+  taxTypeSalesGlCode = "0"
+  taxTypePurchasingGlCode = "0"
+  taxTypeName = "<deleted>"
+  taxTypeInactive = True
