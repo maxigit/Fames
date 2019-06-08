@@ -187,7 +187,6 @@ renderReportView rule report mode = do
   bucket'rates <- getBucketRateFromConfig report
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
   personName <- entityNameH False
-
   taxMap <- runDB $ loadTaxTypeMap
   let boxValues :: [(TaxBox, TaxDetail -> Maybe Double)]
       boxValues = [ (box, f)
@@ -196,16 +195,17 @@ renderReportView rule report mode = do
                                               (reportDetailToBucketMap taxMap $ tdReportDetail detail) 
                                               box
                   ]
+      taxName taxId = FA.taxTypeName . entityVal <$> lookup taxId taxMap
 
   let urlFn = urlForFA faURL
   view <- case mode of
             TaxReportPendingView -> do
               details <- loadPendingTaxDetails rule report
-              return $ renderTaxDetailTable urlFn personName boxValues (taxReportStart $ entityVal report) details
+              return $ renderTaxDetailTable urlFn personName taxName boxValues (taxReportStart $ entityVal report) details
                      >> collectButtonForm (entityKey report)
             TaxReportCollectedView -> do
               details <- loadCollectedTaxDetails report
-              return $ renderTaxDetailTable urlFn personName boxValues (taxReportStart $ entityVal report) details
+              return $ renderTaxDetailTable urlFn personName taxName boxValues (taxReportStart $ entityVal report) details
                      >> rejectButtonForm (entityKey report)
             TaxReportBucketView -> do
               buckets <- runDB $ loadBucketSummary (entityKey report)
@@ -253,9 +253,10 @@ _to_remove_renderTransDifferedTable reportId = do
 
 renderTaxDetailTable :: (FATransType -> Int -> Text) -- ^ Url
                      -> (FATransType -> Maybe Int64 -> Text) -- ^ Name
+                     -> (FA.TaxTypeId -> Maybe Text) -- ^ Tax type name
                      -> [(TaxBox, TaxDetail -> Maybe Double) ]
                      -> Day -> [TaxDetail] -> Widget
-renderTaxDetailTable urlFn personName boxes startDate taxDetails =  let
+renderTaxDetailTable urlFn personName taxName boxes startDate taxDetails =  let
   hasBoxes = not $ null boxes 
   in [whamlet|
    <table *{datatable}>
@@ -269,6 +270,7 @@ renderTaxDetailTable urlFn personName boxes startDate taxDetails =  let
         <th> netAmount
         <th>taxAmount
         <th>rate
+        <th>Tax Type
         <th>Bucket
         $if hasBoxes
           <th>Boxes
@@ -286,6 +288,12 @@ renderTaxDetailTable urlFn personName boxes startDate taxDetails =  let
             <td.text-right>#{formatDoubleWithSign $ tdNetAmount detail }
             <td.text-right>#{formatDoubleWithSign $ tdTaxAmount detail }
             <td.text-right>#{formatDouble' $ (*) (tdRate detail) 100 }%
+            <td>
+              $case taxName (FA.TaxTypeKey $ tdTaxTypeId detail)
+                $of Nothing
+                  ##{tshow $  tdTaxTypeId detail}
+                $of Just name
+                  #{name}
             <td>#{tdBucket detail}
             $if hasBoxes
               <td>
