@@ -31,6 +31,8 @@ module Import.NoFoundation
     , fanl, fanr
     , alignSorted
     , wordize
+    , commasFixedWith
+    , commasFixedWith'
     , commasFixed
     , commasFixed'
     , mapWithKeyM
@@ -143,21 +145,23 @@ formatHours duration = let
   in sformat (p2 % ":" % p2) h (round $ 60*m :: Int)
   
 -- ** Formating lforb
--- | display a amount to 2 dec with thousands separator
-commasFixed = later go where
+commasFixedWith roundFn digit = later go where
   go x = let
     (n,f) = properFraction x :: (Int, Double)
-    b = (commas' % "." % (left 2 '0' %. int)) -- n (floor $ 100 *  abs f)
-    in bprint b n (floor $ 100 *  abs f)
+    b = (commas' % "." % (left digit '0' %. int)) -- n (floor $ 100 *  abs f)
+    in bprint b n (roundFn $ (10^digit) *  abs f)
 
+-- | display a amount to 2 dec with thousands separator
+commasFixed = commasFixedWith floor 2
 -- | Sames as commasFixed but don't print commas if number is a whole number
-commasFixed' = later go where
+commasFixed' = commasFixedWith' floor 2
+commasFixedWith' roundFn digit = later go where
   go x = let
     (n,f) = properFraction x :: (Int, Double)
-    frac =  floor (100 * abs f)
+    frac =  roundFn ((10^digit) * abs f)
     fracB = if frac < 1
             then fconst mempty
-            else "." % left 2 '0' %. int
+            else "." % left n '0' %. int
     b = (commas' % fracB) -- n (floor $ 100 *  abs f)
     in bprint b n frac
 

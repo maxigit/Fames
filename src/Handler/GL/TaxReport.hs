@@ -804,7 +804,7 @@ getReportSettings name = do
   return $ lookup name settings
   
 
-formatDouble' = F.sformat commasFixed
+formatDouble' = F.sformat (commasFixedWith round 2)
 
 formatDoubleWithSign amount = [shamlet|<span :negative:.text-danger>#{formatDouble' amount}|]
   where negative = amount < -1e-2
