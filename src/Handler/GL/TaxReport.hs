@@ -312,10 +312,16 @@ renderTaxDetailTable urlFn personName taxName boxes startDate taxDetails =  let
             $forall (box, boxValue) <- boxes
               #{renderBoxForDetail box (boxValue detail)}
             <td>
-              $if old
-                old
-              $if pending
-                pending
+              <span>
+                $if old
+                  old
+                $else
+                  current
+              <span>
+                $if pending
+                  pending
+                $else
+                  normal
           |] <> toWidget commonCSS
 
 -- | Do pivot table  Bucket/Rate
@@ -650,15 +656,16 @@ buildPendingTransTaxDetailsQuery :: Tagged e Text -> Text -> Maybe Day -> Day ->
 buildPendingTransTaxDetailsQuery (Tagged selectQuery) reportType startDate endDate = 
 
   let sql0 =  selectQuery <> " FROM 0_trans_tax_details fad"
-          <>  " LEFT JOIN fames_tax_report_detail rd ON (rd.tax_trans_detail_id = fad.id) "
-          <>  " LEFT JOIN fames_tax_report r ON(r.tax_report_id =  rd.tax_report_id AND type = ?) "
+          <>  " LEFT JOIN (SELECT d.* FROM fames_tax_report_detail d "
+          <>  "            JOIN fames_tax_report USING(tax_report_id) WHERE type = ?) AS rd ON (rd.tax_trans_detail_id = fad.id) "
           <>  " LEFT JOIN 0_debtor_trans AS dt ON (fad.trans_no = dt.trans_no AND fad.trans_type = dt.type)"
           <>  " LEFT JOIN 0_supp_trans AS st ON (fad.trans_no = st.trans_no AND fad.trans_type = st.type)"
           -- already reported and aggregated
           <> " LEFT JOIN (  "
           <> "            SELECT tax_trans_detail_id, SUM(net_amount) net_amount, SUM(tax_amount) tax_amount  "
           <> "            FROM fames_tax_report_detail rd0  "
-          <> "            LEFT JOIN fames_tax_report r ON(r.tax_report_id =  rd0.tax_report_id AND type = ?)  "
+          <> "            JOIN fames_tax_report r USING (tax_report_id) "
+          <> "            WHERE type = ?  "
           <> "            GROUP BY tax_trans_detail_id  "
           <> " ) rd0  ON (rd0.tax_trans_detail_id = fad.id) "
           <> " WHERE ((rd.tax_report_id is NULL AND (abs(fad.amount) > 1e-4 OR abs(fad.net_amount) > 1e-4 )) " -- not accounting or null
@@ -681,11 +688,12 @@ buildCollectedTaxDetailsQuery :: Tagged e Text -> Key TaxReport -> (Tagged e Tex
 buildCollectedTaxDetailsQuery (Tagged selectQuery) reportKey = 
   let sql0 =  selectQuery <> " FROM 0_trans_tax_details fad"
           <>  " JOIN fames_tax_report_detail rd ON (rd.tax_trans_detail_id = fad.id) "
+          <>  " JOIN fames_tax_report r USING (tax_report_id) "
           <>  " LEFT JOIN 0_debtor_trans AS dt ON (fad.trans_no = dt.trans_no AND fad.trans_type = dt.type)"
           <>  " LEFT JOIN 0_supp_trans AS st ON (fad.trans_no = st.trans_no AND fad.trans_type = st.type)"
           -- we need all the report detail related to a transaction related to the current report
           -- the next join acts as a where clause
-          <>  " JOIN fames_tax_report_detail rd0 ON (rd0.tax_trans_detail_id = fad.id and rd0.tax_report_id = ?) "
+          <>  " JOIN (SELECT d.*, type FROM fames_tax_report_detail d JOIN fames_tax_report r0 USING(tax_report_id)) rd0 ON (rd0.tax_trans_detail_id = fad.id and rd0.tax_report_id = ? AND rd0.type = r.type) "
       orderBy = " ORDER BY fad.id "
       p0 = keyToValues reportKey
            
