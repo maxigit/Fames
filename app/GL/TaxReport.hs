@@ -17,6 +17,10 @@ data TaxSummary = TaxSummary
    } deriving (Eq, Read, Show, Ord)
 
 grossAmount TaxSummary{..} = netAmount + taxAmount
+
+reverseTaxSummary :: TaxSummary -> TaxSummary
+reverseTaxSummary TaxSummary{..} = TaxSummary (-netAmount) (-taxAmount)
+
 -- * Instance
 instance Semigroup TaxSummary where
   (TaxSummary net tax) <> (TaxSummary net' tax') = TaxSummary (net + net') (tax + tax')
@@ -28,13 +32,19 @@ deriving instance Eq FA.TaxType
 deriving instance Ord FA.TaxType
 -- type TaxBins = (Map TaxBin TaxSummary)
 -- Everything which has a net and tax amount
-class HasTaxAmounts a where
+class HasTaxSummary a where
   taxSummary :: a -> TaxSummary
 
-instance HasTaxAmounts FA.TransTaxDetail where
+instance HasTaxSummary FA.TransTaxDetail where
   taxSummary FA.TransTaxDetail{..} = let
     ex = (* transTaxDetailExRate)
     in TaxSummary (ex transTaxDetailNetAmount) (ex transTaxDetailAmount)
+instance HasTaxSummary TaxReportDetail where
+  taxSummary TaxReportDetail{..} = TaxSummary taxReportDetailNetAmount taxReportDetailTaxAmount
+
+instance HasTaxSummary e => HasTaxSummary (Entity e) where
+  taxSummary = taxSummary . entityVal
+
 -- * Rules
 infix 4 *==, *==?
 [] *== _ = True

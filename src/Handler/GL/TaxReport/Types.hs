@@ -1,25 +1,28 @@
 module Handler.GL.TaxReport.Types
 ( TaxDetail -- no constructor
-, taxDetailFromDetail
-, taxDetailFromBucket
-, taxDetailFromDetailM
+-- , taxDetailFromDetail
+-- , taxDetailFromBucket
+-- , taxDetailFromDetailM
+, taxDetailFromDetails
 , isNew
 , tdFADetail
 , tdReportDetail
-, tdDetailKey
-, tdTransType 
-, tdTransNo 
-, tdTranDate 
-, tdTaxTypeId 
-, tdRate 
-, tdExRate 
-, tdIncludedInPrice 
-, tdNetAmount 
-, tdTaxAmount 
-, tdMemo 
+-- , tdDetailKey
+, tdTransType
+, tdTransNo
+, tdTranDate
+, tdTaxTypeId
+, tdRate
+, tdExRate
+, tdIncludedInPrice
+, tdNetAmount
+, tdTaxAmount
+, tdMemo
 , tdBucket
 , tdDetailToSave
 , tdEntity
+, tdExistingKey
+, tdIsPending
 )
 where
 
@@ -28,68 +31,91 @@ import Import
 import qualified FA as FA
 import FA(TransTaxDetail(..))
 import GL.TaxReport.Types
+import GL.TaxReport
+import GL.FA
 
+-- * Type
 -- | A mix of FA trans tax detail and report
 -- A smart constructor makes sure that the information common
 -- to both report detail and trans matches
 data TaxDetail = PrivateTaxDetail
  { _private_faDetail :: TransTaxDetail
- , _private_detail :: TaxReportDetail
- , _private_detailKey :: Maybe (Key TaxReportDetail)
- , _privateEntity :: Maybe Int64 -- customer or supplier no
- } 
-
+ , _private_previousDetail :: [Entity TaxReportDetail] -- ^ Details from previous report
+ , _private_currentDetail :: Maybe (Entity TaxReportDetail) -- ^ current report detail
+ , _private_detailToSave :: TaxReportDetail
+ , _private_entity :: Maybe Int64
+ }
 
 -- * Constructor
+makeAndValidateDetail :: Key TaxReport
+                      -> (TransTaxDetail -> Maybe Int64 -> Bucket)
+                      -> Entity TransTaxDetail
+                      -> [Entity TaxReportDetail]
+                      -> Maybe (Entity TaxReportDetail)
+                      -> Maybe Int64
+                      -> Either Text TaxDetail
+makeAndValidateDetail report bucketFn (Entity transKey trans@TransTaxDetail{..}) previous currentm personm = do -- Either
+  -- check that all details belong to the correct transaction
+  let
+    errorTail = " for trans_tax_detail #" <> tshow transKey
+    details = currentm ?: previous
+    validate :: (Eq a, Show a) => Text -> a -> (TaxReportDetail -> a) -> Either Text ()
+    validate msg value getter = case filter (/= value) (map (getter . entityVal) details) of
+                                    [] -> Right ()
+                                    differents -> Left $  msg <> " differs : " <> tshow value <> " /= " <>  tshow differents <> errorTail
+  _ <- validate "Trans No" (transTaxDetailTransNo) (Just . taxReportDetailFaTransNo)
+  _ <- validate "Trans Type" (toEnum <$> transTaxDetailTransType) (Just . taxReportDetailFaTransType)
+  _ <- validate "Trans id" transKey taxReportDetailTaxTransDetail
+  -- normally, trans tax details are not modified but only voided ie set to 0.
+  -- this can only happen once, therefore we should get a maximum of two previous details
+  -- which in that case cancel each other and therefore have the same bucket.
+  -- we can therefore consider that they also have the same bucket. But we can check
+  let
+    previousBuckets = setFromList $ map (taxReportDetailBucket . entityVal) previous :: Set Bucket
+  when (length previousBuckets > 1) $ 
+    Left $ "Bucket differ: " <> tshow previousBuckets <> errorTail
+  -- to compute the expected report detail we ignore the current one
+  taxReportDetailFaTransType <- maybe (Left "TransType should not be null") (Right . toEnum) transTaxDetailTransType
+  taxReportDetailFaTransNo <- maybe (Left "TransType should not be null") Right transTaxDetailTransNo
+  let
+    oldsTx = mconcat $ map taxSummary previous
+    toSave = taxSummary trans <> reverseTaxSummary oldsTx
+    _private_faDetail = trans
+    _private_previousDetail = previous
+    _private_currentDetail = currentm
+    _private_detailToSave = TaxReportDetail{..}
+    _private_entity = personm
+    taxReportDetailNetAmount = netAmount toSave
+    taxReportDetailTaxAmount = taxAmount toSave
+    taxReportDetailReport = report
+    taxReportDetailTaxTransDetail = transKey
+    taxReportDetailRate = transTaxDetailRate / 100
+    taxReportDetailBucket = bucketFn trans personm
+    taxReportDetailFaTaxType = transTaxDetailTaxTypeId
 
-validateDetail :: Key TransTaxDetail ->  TaxDetail -> Either Text TaxDetail
-validateDetail key d@(PrivateTaxDetail TransTaxDetail{..} TaxReportDetail{..} _ _) = do
-     when (transTaxDetailTransType /= Just (fromEnum taxReportDetailFaTransType)) $ do
-        Left $ "Type differs : " <> tshow transTaxDetailTransType <> " /= " <> tshow taxReportDetailFaTransType
-     when (transTaxDetailTransNo /= Just taxReportDetailFaTransNo) $ do
-        Left $ "No differs : " <> tshow transTaxDetailTransNo <> " /= " <> tshow taxReportDetailFaTransNo
-     when (key /= taxReportDetailTaxTransDetail) $ do
-        Left $ "trans tax detail id differs : " <> tshow key <> " /= " <> tshow taxReportDetailTaxTransDetail
-     Right d
-  
+  Right PrivateTaxDetail{..}
 
-taxDetailFromDetail :: Entity TransTaxDetail -> Entity TaxReportDetail -> Maybe Int64 ->  Either Text TaxDetail  
-taxDetailFromDetail trans detail personm = validateDetail (entityKey trans)
-   $ PrivateTaxDetail (entityVal trans)
-               (entityVal detail)
-               (Just $ entityKey detail)
-               personm
 
-taxDetailFromBucket :: Key TaxReport -> Entity TransTaxDetail -> Maybe Int64 -> (TransTaxDetail -> Maybe Int64 -> Bucket) -> TaxDetail  
-taxDetailFromBucket report (Entity transKey trans@TransTaxDetail{..}) personm bucketFn = let
-  taxReportDetailReport = report
-  taxReportDetailTaxTransDetail = transKey
-  taxReportDetailNetAmount = transTaxDetailNetAmount * transTaxDetailExRate
-  taxReportDetailTaxAmount = transTaxDetailAmount * transTaxDetailExRate
-  taxReportDetailRate = transTaxDetailRate / 100
-  taxReportDetailBucket = bucketFn trans personm
-  taxReportDetailFaTransType = maybe (error "TransType should not be null") toEnum transTaxDetailTransType
-  taxReportDetailFaTransNo = fromMaybe (error "TransType should not be null") transTaxDetailTransNo
-  taxReportDetailFaTaxType = transTaxDetailTaxTypeId
 
-  in PrivateTaxDetail trans TaxReportDetail{..} Nothing personm
+
+taxDetailFromDetails :: (TransTaxDetail -> Maybe Int64 -> Bucket)
+                    -> Key TaxReport
+                    -> Entity TransTaxDetail
+                    -> [Entity TaxReportDetail]
+                    ->  Maybe Int64
+                    ->  Either Text TaxDetail
+taxDetailFromDetails bucketFn currentReport trans details personm = 
+  case partition ((== currentReport) . taxReportDetailReport . entityVal) details of
+    ([current], olds) -> makeAndValidateDetail currentReport bucketFn trans olds (Just current) personm
+    ([], olds) -> makeAndValidateDetail currentReport bucketFn trans olds Nothing personm
+    _ -> Left $ "Too many report details within the current report for transaction tax #" <> tshow (entityKey trans)
 
 isNew :: TaxDetail -> Bool
-isNew detail = isJust (_private_detailKey detail)
-
-taxDetailFromDetailM :: Key TaxReport
-                     -> (TransTaxDetail -> Maybe Int64 -> Bucket)
-                     -> Entity TransTaxDetail
-                     -> Maybe (Entity TaxReportDetail)
-                     -> Maybe Int64
-                     -> Either Text TaxDetail
-taxDetailFromDetailM report bucketFn trans Nothing personm = Right $ taxDetailFromBucket report trans personm bucketFn
-taxDetailFromDetailM report bucket trans (Just detail) personm = taxDetailFromDetail trans detail personm
+isNew detail = isNothing (_private_currentDetail detail)
 
 -- * Accessors
 tdFADetail = _private_faDetail
-tdReportDetail = _private_detail
-tdDetailKey = _private_detail
+tdReportDetail = _private_detailToSave
 
 tdTranDate = transTaxDetailTranDate . tdFADetail
 tdTaxTypeId = transTaxDetailTaxTypeId . tdFADetail
@@ -104,20 +130,15 @@ tdNetAmount = taxReportDetailNetAmount . tdReportDetail
 tdTaxAmount = taxReportDetailTaxAmount . tdReportDetail
 tdBucket = taxReportDetailBucket . tdReportDetail
 
-tdEntity = _privateEntity
+tdEntity = _private_entity
 -- * Compute difference with what the report should be
-tdDetailToSave d@PrivateTaxDetail{..}= case _private_detailKey of
-  Nothing -> -- doesn't exist in the db
-     Just _private_detail
-  Just _ -> tdDetailDiff  d
+tdDetailToSave = _private_detailToSave
+tdExistingKey = entityKey <$$> _private_currentDetail
 
-tdDetailDiff (PrivateTaxDetail TransTaxDetail{..} TaxReportDetail{..} _ _) = let
-  net = transTaxDetailNetAmount * transTaxDetailExRate - taxReportDetailNetAmount
-  tax = transTaxDetailAmount * transTaxDetailExRate - taxReportDetailTaxAmount
-  small x = abs x < 1e-4
-  in if all small [tax, net]
-     then Nothing
-     else Just $ TaxReportDetail{taxReportDetailNetAmount = net, taxReportDetailTaxAmount=tax,..}
-   
+-- | Is pending if there is something to save
+-- and it's different from what is alreday
+tdIsPending d@PrivateTaxDetail{..} =  fmap entityVal _private_currentDetail /= Just _private_detailToSave
+  && not (tdIsNull d ) 
 
-  
+tdIsNull detail  = amountNull taxAmount  && amountNull netAmount
+  where amountNull f = (abs . f . taxSummary $ _private_detailToSave detail) < 1e-2

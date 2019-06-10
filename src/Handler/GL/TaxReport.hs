@@ -91,7 +91,9 @@ postGLTaxReportCollectDetailsR key = do
     reportSettings  <- lift $ getReportSettings (taxReportType report)
     let reportRules = maybe defaultRule rules reportSettings
     details <- lift $ loadPendingTaxDetails reportRules (Entity rId report)
-    insertMany_ $ mapMaybe tdDetailToSave details
+    -- delete existing one which need to be replaced
+    mapM_ delete (mapMaybe tdExistingKey details )
+    insertMany_ $ map tdDetailToSave details
     return report
 
   setSuccess "Transaction tax details collected successfully"
@@ -642,39 +644,45 @@ buildPendingTransTaxDetailsQuery :: Tagged e Text -> Text -> Maybe Day -> Day ->
 buildPendingTransTaxDetailsQuery (Tagged selectQuery) reportType startDate endDate = 
 
   let sql0 =  selectQuery <> " FROM 0_trans_tax_details fad"
-          <>  " LEFT JOIN fames_tax_report_detail rd ON (tax_trans_detail_id = fad.id) "
+          <>  " LEFT JOIN fames_tax_report_detail rd ON (rd.tax_trans_detail_id = fad.id) "
           <>  " LEFT JOIN fames_tax_report r ON(r.tax_report_id =  rd.tax_report_id AND type = ?) "
           <>  " LEFT JOIN 0_debtor_trans AS dt ON (fad.trans_no = dt.trans_no AND fad.trans_type = dt.type)"
           <>  " LEFT JOIN 0_supp_trans AS st ON (fad.trans_no = st.trans_no AND fad.trans_type = st.type)"
+          -- already reported and aggregated
+          <> " LEFT JOIN (  "
+          <> "            SELECT tax_trans_detail_id, SUM(net_amount) net_amount, SUM(tax_amount) tax_amount  "
+          <> "            FROM fames_tax_report_detail rd0  "
+          <> "            LEFT JOIN fames_tax_report r ON(r.tax_report_id =  rd0.tax_report_id AND type = ?)  "
+          <> "            GROUP BY tax_trans_detail_id  "
+          <> " ) rd0  ON (rd0.tax_trans_detail_id = fad.id) "
           <> " WHERE (rd.tax_report_id is NULL OR ("
-          <> "           abs (fad.net_amount * ex_rate * " <> transSignSQL <> " - rd.net_amount) > 1e-4 "
-          <> "                OR    abs (fad.amount * ex_rate * " <> transSignSQL <> "- rd.tax_amount) > 1e-4 "
+          <> "           abs (fad.net_amount * ex_rate * " <> transSignSQL <> " - rd0.net_amount) > 1e-4 "
+          <> "                OR    abs (fad.amount * ex_rate * " <> transSignSQL <> "- rd0.tax_amount) > 1e-4 "
           <> "               )"
           <> "       ) AND fad.tran_date <= ?"
           <> "       AND fad.trans_type != " <> tshow (fromEnum ST_CUSTDELIVERY) <> " "
+      orderBy = " ORDER BY fad.id "
       p0 = [ toPersistValue $ reportType
+           , toPersistValue $ reportType
            , toPersistValue $ endDate
            ]
   in first Tagged $ case startDate of
-                Nothing -> (sql0, p0)
-                Just start -> (sql0 <> " AND fad.tran_date >= ? ", p0 <> [toPersistValue start])
+                Nothing -> (sql0 <> orderBy, p0)
+                Just start -> (sql0 <> " AND fad.tran_date >= ? " <> orderBy, p0 <> [toPersistValue start])
 
 buildCollectedTaxDetailsQuery :: Tagged e Text -> Key TaxReport -> (Tagged e Text, [PersistValue])
 buildCollectedTaxDetailsQuery (Tagged selectQuery) reportKey = 
   let sql0 =  selectQuery <> " FROM 0_trans_tax_details fad"
-          <>  " JOIN fames_tax_report_detail rd ON (tax_trans_detail_id = fad.id) "
+          <>  " JOIN fames_tax_report_detail rd ON (rd.tax_trans_detail_id = fad.id) "
           <>  " LEFT JOIN 0_debtor_trans AS dt ON (fad.trans_no = dt.trans_no AND fad.trans_type = dt.type)"
           <>  " LEFT JOIN 0_supp_trans AS st ON (fad.trans_no = st.trans_no AND fad.trans_type = st.type)"
-          <> " WHERE tax_report_id = ? "
-          <> "      AND (("
-          <> "           abs (fad.net_amount * ex_rate * " <> transSignSQL <> "- rd.net_amount) <= 1e-4 "
-          <> "                AND    abs (fad.amount * ex_rate * " <> transSignSQL <> "- rd.tax_amount) <= 1e-4 "
-          <> "               )"
-          <> "       ) "
-          <> "       AND fad.trans_type != " <> tshow (fromEnum ST_CUSTDELIVERY) <> " "
+          -- we need all the report detail related to a transaction related to the current report
+          -- the next join acts as a where clause
+          <>  " JOIN fames_tax_report_detail rd0 ON (rd0.tax_trans_detail_id = fad.id and rd0.tax_report_id = ?) "
+      orderBy = " ORDER BY fad.id "
       p0 = keyToValues reportKey
            
-  in (Tagged sql0, p0)
+  in (Tagged $ sql0 <> orderBy, p0)
 
 
 -- | FA store all transactions detail with a positive amount
@@ -687,14 +695,14 @@ transSignSQL = "IF(fad.trans_type IN ( " <> inputTrans <> "), -1, 1)" where
                        , ST_JOURNAL -- expenditures too
                        ]
 
-selectTt'MRd :: Tagged (Entity FA.TransTaxDetail, Maybe (Entity TaxReportDetail), Single (Maybe Int64)) Text
+selectTt'MRd :: Tagged (Entity FA.TransTaxDetail, (Maybe (Entity TaxReportDetail), Single (Maybe Int64))) Text
 selectTt'MRd = let
   faSelect = "`fad`.`id`, `fad`.`trans_type`, `fad`.`trans_no`, `fad`.`tran_date`, `fad`.`tax_type_id`, `fad`.`rate`, `fad`.`ex_rate`, `fad`.`included_in_price`, "
     <> transSignSQL <> " * `fad`.`net_amount`, "
     <> transSignSQL <> " * `fad`.`amount`, `fad`.`memo` "
   in Tagged $ "SELECT " <> faSelect <>  ", rd.* /* ?? */ /* ?? */, COALESCE(debtor_no, supplier_id) " -- hack to use 
 
-selectTt'Rd :: Tagged (Entity FA.TransTaxDetail, Entity TaxReportDetail, Single (Maybe Int64)) Text
+selectTt'Rd :: Tagged (Entity FA.TransTaxDetail, (Entity TaxReportDetail, Single (Maybe Int64))) Text
 selectTt'Rd = retag  selectTt'MRd
 
 selectCount :: Tagged (Single Int) Text
@@ -704,21 +712,42 @@ runTaggedSql :: RawSql r => (Tagged r Text, [PersistValue]) -> SqlHandler [r]
 runTaggedSql (Tagged sql, params) = rawSql sql params
 
 loadPendingTaxDetails :: Rule -> Entity TaxReport -> Handler [TaxDetail]
-loadPendingTaxDetails taxRule (Entity reportKey TaxReport{..}) =
-  loadTaxDetail (uncurry3Single $ taxDetailFromDetailM reportKey (\t p -> applyTaxRule taxRule $ faTransToRuleInput t p))
+loadPendingTaxDetails taxRule (Entity reportKey TaxReport{..}) = do
+  let mkDetail trans'detail''personms   =
+        let
+          ((trans,_) , _) = nuncons trans'detail''personms
+          (_, detail'personms) = unzip $ toNullable trans'detail''personms
+          (details, personms) = unzip detail'personms
+          bucketFn t p =  applyTaxRule taxRule (faTransToRuleInput t p)
+          personm = asum $ map unSingle personms
+        in taxDetailFromDetails bucketFn reportKey trans (catMaybes details)  personm
+  allDetails <- loadTaxDetail  mkDetail
+                (entityKey . fst)
                 (buildPendingTransTaxDetailsQuery selectTt'MRd
                                                   taxReportType
                                                   Nothing
                                                   taxReportEnd
                 )
+  return $ filter tdIsPending allDetails
 
-loadCollectedTaxDetails (Entity reportKey TaxReport{..})  =
-  loadTaxDetail (uncurry3Single taxDetailFromDetail)
+loadCollectedTaxDetails (Entity reportKey TaxReport{..})  = do
+  let mkDetail trans'detail''personms   =
+        let
+          ((trans,_) , _) = nuncons trans'detail''personms
+          (_, detail'personms) = unzip $ toNullable trans'detail''personms
+          (details, personms) = unzip detail'personms
+          [mainDetail] = filter ((== reportKey) . taxReportDetailReport . entityVal ) details
+          -- use bucket from current detail
+          bucketFn _ _ =  taxReportDetailBucket (entityVal mainDetail)
+          personm = asum $ map unSingle personms
+        in taxDetailFromDetails bucketFn reportKey trans (details)  personm
+  allDetails <- loadTaxDetail mkDetail
+                (entityKey . fst)
                 (buildCollectedTaxDetailsQuery selectTt'Rd
                                                     reportKey 
                 )
+  return $ filter (not . tdIsPending) allDetails
 
-uncurry3Single f (trans , detail,  Single personm) = f trans detail personm
 -- | Load 
 loadTaxTypeMap = do
   taxTypes <- selectList [] []
@@ -773,13 +802,16 @@ getGLTaxReportDetailsR key = do
 
   -- returnJson $ object [ "data" .= (map toj rows) ]
   
-loadTaxDetail :: RawSql e 
-              => (e -> Either Text TaxDetail)
+loadTaxDetail :: (RawSql e, Ord k, Eq k) 
+              => (NonNull [e] -> Either Text TaxDetail)
+              -> (e -> k)
               -> (Tagged e Text, [PersistValue])
               -> Handler [TaxDetail]
-loadTaxDetail mkDetail query  = do
+loadTaxDetail mkDetail key query  = do
   rows <- runDB $ runTaggedSql $ query
-  case mapM mkDetail rows of
+  -- group row by tax_trans_id
+  let grouped = groupBy ((==) `on` key ) $ sortOn key rows
+  case mapM (mkDetail) (mapMaybe fromNullable grouped) of
     Left err -> do
        setError "Inconsistent DB contact your administrator"
        error (unpack err)
@@ -852,10 +884,9 @@ reportDetailToBucketMap :: Map FA.TaxTypeId (Entity FA.TaxType)
                         -> TaxReportDetail
                         -> Map (Bucket, Entity FA.TaxType) TaxSummary
 reportDetailToBucketMap taxTypeMap detail@TaxReportDetail{..} = let
-  taxSummary = TaxSummary taxReportDetailNetAmount taxReportDetailTaxAmount
   taxType = fromMaybe (mkTaxFromDetail detail) $ lookup (FA.TaxTypeKey taxReportDetailFaTaxType) taxTypeMap
   key = (taxReportDetailBucket, taxType)
-  in singletonMap key taxSummary
+  in singletonMap key (taxSummary detail)
 
 -- | Create a tax entity in case the one used as been deleted
 mkTaxFromDetail TaxReportDetail{..} = mkTaxEntity (FA.TaxTypeKey taxReportDetailFaTaxType) taxReportDetailRate
