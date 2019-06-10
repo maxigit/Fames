@@ -664,7 +664,8 @@ buildPendingTransTaxDetailsQuery (Tagged selectQuery) reportType startDate endDa
           <> "            LEFT JOIN fames_tax_report r ON(r.tax_report_id =  rd0.tax_report_id AND type = ?)  "
           <> "            GROUP BY tax_trans_detail_id  "
           <> " ) rd0  ON (rd0.tax_trans_detail_id = fad.id) "
-          <> " WHERE (rd.tax_report_id is NULL OR ("
+          <> " WHERE ((rd.tax_report_id is NULL AND (abs(fad.amount) > 1e-4 OR abs(fad.net_amount) > 1e-4 )) " -- not accounting or null
+          <> "        OR ( " 
           <> "           abs (fad.net_amount * ex_rate * " <> transSignSQL <> " - rd0.net_amount) > 1e-4 "
           <> "                OR    abs (fad.amount * ex_rate * " <> transSignSQL <> "- rd0.tax_amount) > 1e-4 "
           <> "               )"
