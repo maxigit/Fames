@@ -516,3 +516,21 @@ clearAppCache :: Handler ()
 clearAppCache = do
   cache <- getsYesod appCache
   lift $ clearExpiryCache cache
+
+-- * Colours
+blueBadgeBg , grayBadgeBg , greenBadgeBg , amberBadgeBg , redBadgeBg , blackBadgeBg :: Text
+blueBadgeBg = "#29abe0"
+grayBadgeBg = "#cccccc"
+greenBadgeBg = "#93c54b"
+amberBadgeBg = "#f47c3c"
+redBadgeBg = "#d9534f"
+blackBadgeBg = "#000000"
+
+paleRed, paleGreen, paleBlue, paleAmber :: Text
+paleRed2, paleAmber2 :: Text-- , paleGreen, paleBlue, paleAmber :: Text
+paleRed = "#f2dede"
+paleRed2 = "#f2bebe"
+paleGreen = "#dff0d8"
+paleBlue = "#d0edf7"
+paleAmber = "#fcf8e3"
+paleAmber2 = "#fcd8b3"

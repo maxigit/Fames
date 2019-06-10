@@ -613,11 +613,6 @@ span.badge.up
 span.badge.down
   color: white
   background: #{blueBadgeBg}
-tr.odd.bg-danger
-  background: #{paleRed2} !important
-tr.odd.bg-warning
-  background: #{paleAmber2} !important
-
                           |]
 
     

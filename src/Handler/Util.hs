@@ -21,9 +21,6 @@ module Handler.Util
 , generateLabelsResponse
 , firstOperator
 , badgeSpan
-, blueBadgeBg , grayBadgeBg , greenBadgeBg , amberBadgeBg , redBadgeBg , blackBadgeBg
-, paleRed, paleGreen, paleBlue, paleAmber
-, paleRed2, paleAmber2 --, paleGreen, paleBlue, paleAmber
 , tshowM
 , showDouble
 , panel
@@ -502,24 +499,6 @@ badgeSpan badgeWidth qty bgM klass = do
       qs = tshow qty
       q = fromMaybe qs $  stripSuffix ".0" qs
   [shamlet|<span.badge class=#{klass} style="#{style}; #{bg}">#{q}|]
-
--- ** BadgeColour
-blueBadgeBg , grayBadgeBg , greenBadgeBg , amberBadgeBg , redBadgeBg , blackBadgeBg :: Text
-blueBadgeBg = "#29abe0"
-grayBadgeBg = "#cccccc"
-greenBadgeBg = "#93c54b"
-amberBadgeBg = "#f47c3c"
-redBadgeBg = "#d9534f"
-blackBadgeBg = "#000000"
-
-paleRed, paleGreen, paleBlue, paleAmber :: Text
-paleRed2, paleAmber2 :: Text-- , paleGreen, paleBlue, paleAmber :: Text
-paleRed = "#f2dede"
-paleRed2 = "#f2bebe"
-paleGreen = "#dff0d8"
-paleBlue = "#d0edf7"
-paleAmber = "#fcf8e3"
-paleAmber2 = "#fcd8b3"
 
 -- * Progress bars
 -- Display a time range within a global time range

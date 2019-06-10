@@ -34,6 +34,14 @@ table.table-striped
       background: white
     tr:hover
         background: lightgray
+    tr.odd.bg-danger
+      background: #{paleRed2} !important
+    tr.odd.bg-warning
+      background: #{paleAmber2} !important
+    tr.even.bg-danger
+      background: #{paleRed} !important
+    tr.even.bg-warning
+      background: #{paleAmber} !important
 
 .devel
   .navbar-static-top
