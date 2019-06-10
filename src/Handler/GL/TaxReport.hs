@@ -281,15 +281,15 @@ renderTaxDetailTable urlFn personName taxName boxes startDate taxDetails =  let
         <th.none>Status
     <tbody>
       $forall detail <- taxDetails 
-        $with (old, pending) <- (tdTranDate detail < startDate, tdIsPending detail)
-          <tr :old:.bg-danger :pending:.bg-danger>
+        $with (old, pending) <- (tdTranDate detail < startDate, tdIsPending detail && isJust (tdExistingKey detail))
+          <tr :old:.bg-danger :pending:.bg-warning>
             <td :old:.text-danger>#{tshow $ tdTranDate detail }
             <td.text-right>#{transNoWithLink urlFn "" (tdTransType detail) (tdTransNo detail) }
             <td.text-center>#{transactionIconSpan $ tdTransType detail }
             <td>#{maybe "" decodeHtmlEntities $ tdMemo detail }
             <td>#{personName (tdTransType detail) (tdEntity detail)}
-            <td.text-right :pending:.text-danger>#{formatDoubleWithSign $ tdNetAmount detail }
-            <td.text-right :pending:.text-danger>#{formatDoubleWithSign $ tdTaxAmount detail }
+            <td.text-right>#{formatDoubleWithSign $ tdNetAmount detail }
+            <td.text-right>#{formatDoubleWithSign $ tdTaxAmount detail }
             <td.text-right>#{formatDouble' $ (*) (tdRate detail) 100 }%
             <td>
               $case taxName (FA.TaxTypeKey $ tdTaxTypeId detail)
@@ -615,6 +615,8 @@ span.badge.down
   background: #{blueBadgeBg}
 tr.odd.bg-danger
   background: #{paleRed2} !important
+tr.odd.bg-warning
+  background: #{paleAmber2} !important
 
                           |]
 
