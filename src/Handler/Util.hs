@@ -23,6 +23,7 @@ module Handler.Util
 , badgeSpan
 , blueBadgeBg , grayBadgeBg , greenBadgeBg , amberBadgeBg , redBadgeBg , blackBadgeBg
 , paleRed, paleGreen, paleBlue, paleAmber
+, paleRed2 --, paleGreen, paleBlue, paleAmber
 , tshowM
 , showDouble
 , panel
@@ -512,7 +513,9 @@ redBadgeBg = "#d9534f"
 blackBadgeBg = "#000000"
 
 paleRed, paleGreen, paleBlue, paleAmber :: Text
+paleRed2 :: Text-- , paleGreen, paleBlue, paleAmber :: Text
 paleRed = "#f2dede"
+paleRed2 = "#f2bebe"
 paleGreen = "#dff0d8"
 paleBlue = "#d0edf7"
 paleAmber = "#fcf8e3"

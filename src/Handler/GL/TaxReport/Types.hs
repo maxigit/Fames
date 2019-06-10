@@ -1,3 +1,4 @@
+{-# LANGUAGE StandaloneDeriving #-}
 module Handler.GL.TaxReport.Types
 ( TaxDetail -- no constructor
 -- , taxDetailFromDetail
@@ -23,6 +24,7 @@ module Handler.GL.TaxReport.Types
 , tdEntity
 , tdExistingKey
 , tdIsPending
+, tdIsNull
 )
 where
 
@@ -45,6 +47,8 @@ data TaxDetail = PrivateTaxDetail
  , _private_detailToSave :: TaxReportDetail
  , _private_entity :: Maybe Int64
  }
+ deriving Show
+deriving instance Show TransTaxDetail
 
 -- * Constructor
 makeAndValidateDetail :: Key TaxReport
@@ -138,7 +142,7 @@ tdExistingKey = entityKey <$$> _private_currentDetail
 -- | Is pending if there is something to save
 -- and it's different from what is alreday
 tdIsPending d@PrivateTaxDetail{..} =  fmap entityVal _private_currentDetail /= Just _private_detailToSave
-  && not (tdIsNull d ) 
+  -- && not (tdIsNull d ) 
 
 tdIsNull detail  = amountNull taxAmount  && amountNull netAmount
   where amountNull f = (abs . f . taxSummary $ _private_detailToSave detail) < 1e-2

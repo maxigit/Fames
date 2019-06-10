@@ -93,7 +93,7 @@ postGLTaxReportCollectDetailsR key = do
     details <- lift $ loadPendingTaxDetails reportRules (Entity rId report)
     -- delete existing one which need to be replaced
     mapM_ delete (mapMaybe tdExistingKey details )
-    insertMany_ $ map tdDetailToSave details
+    insertMany_  $ map tdDetailToSave $ filter (not . tdIsNull) details
     return report
 
   setSuccess "Transaction tax details collected successfully"
@@ -278,17 +278,18 @@ renderTaxDetailTable urlFn personName taxName boxes startDate taxDetails =  let
           <th>Boxes
         $forall (TaxBox{..}, _) <- boxes
           <th.none>#{tbName} 
+        <th.none>Status
     <tbody>
       $forall detail <- taxDetails 
-        $with old <- tdTranDate detail < startDate
-          <tr :old:.bg-danger>
+        $with (old, pending) <- (tdTranDate detail < startDate, tdIsPending detail)
+          <tr :old:.bg-danger :pending:.bg-danger>
             <td :old:.text-danger>#{tshow $ tdTranDate detail }
             <td.text-right>#{transNoWithLink urlFn "" (tdTransType detail) (tdTransNo detail) }
             <td.text-center>#{transactionIconSpan $ tdTransType detail }
             <td>#{maybe "" decodeHtmlEntities $ tdMemo detail }
             <td>#{personName (tdTransType detail) (tdEntity detail)}
-            <td.text-right>#{formatDoubleWithSign $ tdNetAmount detail }
-            <td.text-right>#{formatDoubleWithSign $ tdTaxAmount detail }
+            <td.text-right :pending:.text-danger>#{formatDoubleWithSign $ tdNetAmount detail }
+            <td.text-right :pending:.text-danger>#{formatDoubleWithSign $ tdTaxAmount detail }
             <td.text-right>#{formatDouble' $ (*) (tdRate detail) 100 }%
             <td>
               $case taxName (FA.TaxTypeKey $ tdTaxTypeId detail)
@@ -310,7 +311,12 @@ renderTaxDetailTable urlFn personName taxName boxes startDate taxDetails =  let
                             #{tbName box}
             $forall (box, boxValue) <- boxes
               #{renderBoxForDetail box (boxValue detail)}
-          |] <> toWidget bucketCSS
+            <td>
+              $if old
+                old
+              $if pending
+                pending
+          |] <> toWidget commonCSS
 
 -- | Do pivot table  Bucket/Rate
 renderBucketTable :: Set (Bucket, Entity FA.TaxType) -- ^ Combination bucket/rate used by config
@@ -552,11 +558,11 @@ renderBoxConfigCheckerTable bucket'rates boxes =  let
           ^{control}
         <div.col-md-10 id=bucket-table >
           ^{bucketTable}
-          |] <> toWidget controlJS <> toWidget bucketCSS
+          |] <> toWidget controlJS <> toWidget commonCSS
      
 
 
-bucketCSS = [cassius|
+commonCSS = [cassius|
 td.box
   # mute span
   color: gray
@@ -607,6 +613,9 @@ span.badge.up
 span.badge.down
   color: white
   background: #{blueBadgeBg}
+tr.odd.bg-danger
+  background: #{paleRed2} !important
+
                           |]
 
     
@@ -746,7 +755,7 @@ loadCollectedTaxDetails (Entity reportKey TaxReport{..})  = do
                 (buildCollectedTaxDetailsQuery selectTt'Rd
                                                     reportKey 
                 )
-  return $ filter (not . tdIsPending) allDetails
+  return allDetails
 
 -- | Load 
 loadTaxTypeMap = do
