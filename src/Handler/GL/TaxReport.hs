@@ -73,11 +73,19 @@ getGLTaxReportR key mode = do
   report <- runDB $ loadReport key
   reportSettings  <- getReportSettings (taxReportType $ entityVal report)
   let reportRules = maybe defaultRule rules reportSettings
-  (before, inRange)  <- runDB $ countPendingTransTaxDetails (entityVal report)
-  view <- renderReportView reportRules report (fromMaybe TaxReportPendingView mode)
+  (before, withinPeriod)  <- runDB $ countPendingTransTaxDetails (entityVal report)
+  view <- renderReportView reportRules report (defaultViewMode before withinPeriod mode)
   when (before > 0) $ do
     setWarning "Some Transactions part of the  have been entered or modified before current report start date"
-  defaultLayout $ renderReportHeader report (before, inRange) >> view
+  defaultLayout $ renderReportHeader report (before, withinPeriod) >> view
+
+-- | Computes which view to use if not are provided.
+-- Depends on the state of the report.
+defaultViewMode :: Int -> Int -> Maybe TaxReportViewMode -> TaxReportViewMode
+defaultViewMode _ _ (Just mode) = mode
+defaultViewMode before withinPeriod Nothing = case (before, withinPeriod) of
+  (0, 0) -> TaxReportBoxesView
+  _ -> TaxReportPendingView
 
 postGLTaxReportR :: Int64 -> Maybe TaxReportViewMode -> Handler Html
 postGLTaxReportR key modem = return "todo"
@@ -138,12 +146,13 @@ renderReportList (name, settings) = runDB $ do
   return (name, widget)
 
 renderReportHeader :: Entity TaxReport -> (Int, Int)-> Widget
-renderReportHeader (Entity rId TaxReport{..}) (before, inRange) = do
-  let panelClass = case (taxReportStatus, taxReportSubmittedAt) of
-                     (Pending, Just _ ) -> "panel-danger" -- shoudn't happeellon
-                     (Pending, Nothing) -> "panel-warning" -- in progress
-                     (Process, Just _) -> "panel-success" -- done
-                     (Process, Nothing) -> "panel-success" -- shoudn't happen
+renderReportHeader (Entity rId TaxReport{..}) (before, withinPeriod) = do
+  let panelClass = case (taxReportStatus, taxReportSubmittedAt, before, withinPeriod) of
+                     (Pending, Just _, _, _) -> "panel-danger" -- shoudn't happeellon
+                     (Pending, Nothing , 0, 0) -> "panel-info" -- shoudn't happeellon
+                     (Pending, Nothing, _, _) -> "panel-warning" -- in progress
+                     (Process, Just _, _, _) -> "panel-success" -- done
+                     (Process, Nothing, _, _) -> "panel-success" -- shoudn't happen
       hasBefore = before > 0
       panel1 = panel panelClass taxReportReference  [whamlet|
    <table.table.table-border.table-striped>
@@ -163,11 +172,11 @@ renderReportHeader (Entity rId TaxReport{..}) (before, inRange) = do
        <th> Submitted
        <td> #{tshow taxReportSubmittedAt}
      <tr :hasBefore:.text-danger.bg-danger>
-       <th> Transaction out of report range  
+       <th> Transaction out of report period  
        <td> #{tshow before}
      <tr> 
-       <th> Transaction within report range  
-       <td> #{tshow inRange}
+       <th> Transaction within report period  
+       <td> #{tshow withinPeriod}
           |]
   panel1
 
@@ -639,7 +648,7 @@ loadReport key = do
 -- collectPendingTransTaxDetails ::  TaxReport -> SqlHandler [TaxReportDetail]
 countPendingTransTaxDetails :: TaxReport -> SqlHandler (Int, Int)
 countPendingTransTaxDetails TaxReport{..} =  do
-  [Single inRange] <- runTaggedSql (buildPendingTransTaxDetailsQuery selectCount
+  [Single withinPeriod] <- runTaggedSql (buildPendingTransTaxDetailsQuery selectCount
                                                               taxReportType
                                                               (Just taxReportStart)
                                                               taxReportEnd
@@ -650,7 +659,7 @@ countPendingTransTaxDetails TaxReport{..} =  do
                                                              ((-1) `addDays` taxReportStart)
                            )
 
-  return (before, inRange)                                                                                     
+  return (before, withinPeriod)                                                                                     
 
 buildPendingTransTaxDetailsQuery :: Tagged e Text -> Text -> Maybe Day -> Day -> (Tagged e Text, [PersistValue])
 buildPendingTransTaxDetailsQuery (Tagged selectQuery) reportType startDate endDate = 
