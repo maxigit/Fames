@@ -1,19 +1,19 @@
 -- * Create federated table to use with Drupal commerce
 INSTALL PLUGIN federated SONAME 'ha_federatedx.so';
 
+
 -- * Init
 -- You should create a dedicated user on the remote database
 -- with a host set.
 drop server if exists dc;
 
 create server 'dc' foreign data wrapper 'mysql' options
-( HOST host
+( HOST '172.17.0.1'
 , DATABASE 'commerce'
-, USER user
-, PASSWORD password
+, USER 'root'
+, PASSWORD 'mu'
 , PORT 3306
 , OWNER 'root'
-, SOCKET ''
 );
 
 create database if not exists commerceX;
@@ -22,8 +22,7 @@ create database if not exists commerceX;
 -- * Tables
 
 use commerceX;
-
--- MySQL dump 10.13  Distrib 5.7.18, for Linux (x86_64)
+-- MySQL dump 10.13  Distrib 5.7.26, for Linux (x86_64)
 --
 -- Host: 127.0.0.1    Database: commerce
 -- ------------------------------------------------------
@@ -35,7 +34,6 @@ use commerceX;
 --
 
 DROP TABLE IF EXISTS `accesslog`;
-
 CREATE TABLE `accesslog` (
   `aid` int(11) NOT NULL AUTO_INCREMENT COMMENT 'Primary Key: Unique accesslog ID.',
   `sid` varchar(128) NOT NULL DEFAULT '' COMMENT 'Browser session ID of user that visited page.',
@@ -49,8 +47,7 @@ CREATE TABLE `accesslog` (
   PRIMARY KEY (`aid`),
   KEY `accesslog_timestamp` (`timestamp`),
   KEY `uid` (`uid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
-
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Stores site access information for statistics.';
 
 --
 -- Table structure for table `actions`
@@ -64,7 +61,7 @@ CREATE TABLE `actions` (
   `parameters` longblob NOT NULL COMMENT 'Parameters to be passed to the callback function.',
   `label` varchar(255) NOT NULL DEFAULT '0' COMMENT 'Label of the action.',
   PRIMARY KEY (`aid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Stores action information.';
 
 --
 -- Table structure for table `advanced_help_index`
@@ -78,7 +75,7 @@ CREATE TABLE `advanced_help_index` (
   `language` varchar(12) NOT NULL DEFAULT '' COMMENT 'The language this search index relates to.',
   PRIMARY KEY (`sid`),
   KEY `language` (`language`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Stores search index correlations for advanced help topics.';
 
 --
 -- Table structure for table `authcache_p13n_key_value`
@@ -90,7 +87,7 @@ CREATE TABLE `authcache_p13n_key_value` (
   `collection` varchar(63) NOT NULL DEFAULT '' COMMENT 'Primary Key: Unique collection name.',
   `value` longblob COMMENT 'Serialized data.',
   PRIMARY KEY (`name`,`collection`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Generic key-value store for caching things not separated...';
 
 --
 -- Table structure for table `authmap`
@@ -104,7 +101,7 @@ CREATE TABLE `authmap` (
   `module` varchar(128) NOT NULL DEFAULT '' COMMENT 'Module which is controlling the authentication.',
   PRIMARY KEY (`aid`),
   UNIQUE KEY `authname` (`authname`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Stores distributed authentication mapping.';
 
 --
 -- Table structure for table `batch`
@@ -118,7 +115,7 @@ CREATE TABLE `batch` (
   `batch` longblob COMMENT 'A serialized array containing the processing data for the batch.',
   PRIMARY KEY (`bid`),
   KEY `token` (`token`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Stores details about batches (processes that run in...';
 
 --
 -- Table structure for table `block`
@@ -141,7 +138,7 @@ CREATE TABLE `block` (
   PRIMARY KEY (`bid`),
   UNIQUE KEY `tmd` (`theme`,`module`,`delta`),
   KEY `list` (`theme`,`status`,`region`,`weight`,`module`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Stores block settings, such as region and visibility...';
 
 --
 -- Table structure for table `block_current_search`
@@ -153,7 +150,7 @@ CREATE TABLE `block_current_search` (
   `searcher` varchar(128) NOT NULL COMMENT 'The machine-readable name of the searcher.',
   PRIMARY KEY (`delta`),
   KEY `searcher` (`searcher`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Sets up display criteria for blocks based on searcher';
 
 --
 -- Table structure for table `block_custom`
@@ -167,7 +164,7 @@ CREATE TABLE `block_custom` (
   `format` varchar(255) DEFAULT NULL COMMENT 'The filter_format.format of the block body.',
   PRIMARY KEY (`bid`),
   UNIQUE KEY `info` (`info`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Stores contents of custom-made blocks.';
 
 --
 -- Table structure for table `block_node_type`
@@ -180,7 +177,7 @@ CREATE TABLE `block_node_type` (
   `type` varchar(32) NOT NULL COMMENT 'The machine-readable name of this type from node_type.type.',
   PRIMARY KEY (`module`,`delta`,`type`),
   KEY `type` (`type`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Sets up display criteria for blocks based on content types';
 
 --
 -- Table structure for table `block_role`
@@ -193,7 +190,7 @@ CREATE TABLE `block_role` (
   `rid` int(10) unsigned NOT NULL COMMENT 'The user’s role ID from users_roles.rid.',
   PRIMARY KEY (`module`,`delta`,`rid`),
   KEY `rid` (`rid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Sets up access permissions for blocks based on user roles';
 
 --
 -- Table structure for table `blocked_ips`
@@ -205,7 +202,7 @@ CREATE TABLE `blocked_ips` (
   `ip` varchar(40) NOT NULL DEFAULT '' COMMENT 'IP address',
   PRIMARY KEY (`iid`),
   KEY `blocked_ip` (`ip`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Stores blocked IP addresses.';
 
 --
 -- Table structure for table `cache`
@@ -220,7 +217,7 @@ CREATE TABLE `cache` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Generic cache table for caching things not separated out...';
 
 --
 -- Table structure for table `cache_admin_menu`
@@ -235,7 +232,7 @@ CREATE TABLE `cache_admin_menu` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table for Administration menu to store client-side...';
 
 --
 -- Table structure for table `cache_authcache_debug`
@@ -250,7 +247,7 @@ CREATE TABLE `cache_authcache_debug` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table for authcache debug.';
 
 --
 -- Table structure for table `cache_authcache_key`
@@ -265,7 +262,7 @@ CREATE TABLE `cache_authcache_key` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table for mapping sessions to authcache keys.';
 
 --
 -- Table structure for table `cache_authcache_p13n`
@@ -280,7 +277,7 @@ CREATE TABLE `cache_authcache_p13n` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table for authcache p13n.';
 
 --
 -- Table structure for table `cache_block`
@@ -295,7 +292,7 @@ CREATE TABLE `cache_block` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table for the Block module to store already built...';
 
 --
 -- Table structure for table `cache_bootstrap`
@@ -310,7 +307,7 @@ CREATE TABLE `cache_bootstrap` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table for data required to bootstrap Drupal, may be...';
 
 --
 -- Table structure for table `cache_commerce_shipping_rates`
@@ -325,7 +322,7 @@ CREATE TABLE `cache_commerce_shipping_rates` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table for the temporary storage of base calculated...';
 
 --
 -- Table structure for table `cache_display_cache`
@@ -340,7 +337,7 @@ CREATE TABLE `cache_display_cache` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Generic cache table for caching things not separated out...';
 
 --
 -- Table structure for table `cache_entity_comment`
@@ -355,7 +352,7 @@ CREATE TABLE `cache_entity_comment` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table used to store comment entity records.';
 
 --
 -- Table structure for table `cache_entity_file`
@@ -370,7 +367,7 @@ CREATE TABLE `cache_entity_file` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table used to store file entity records.';
 
 --
 -- Table structure for table `cache_entity_message`
@@ -385,7 +382,7 @@ CREATE TABLE `cache_entity_message` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table used to store message entity records.';
 
 --
 -- Table structure for table `cache_entity_message_type`
@@ -400,7 +397,7 @@ CREATE TABLE `cache_entity_message_type` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table used to store message_type entity records.';
 
 --
 -- Table structure for table `cache_entity_message_type_category`
@@ -415,7 +412,7 @@ CREATE TABLE `cache_entity_message_type_category` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table used to store message_type_category entity...';
 
 --
 -- Table structure for table `cache_entity_node`
@@ -430,7 +427,7 @@ CREATE TABLE `cache_entity_node` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table used to store node entity records.';
 
 --
 -- Table structure for table `cache_entity_taxonomy_term`
@@ -445,7 +442,7 @@ CREATE TABLE `cache_entity_taxonomy_term` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table used to store taxonomy_term entity records.';
 
 --
 -- Table structure for table `cache_entity_taxonomy_vocabulary`
@@ -460,7 +457,7 @@ CREATE TABLE `cache_entity_taxonomy_vocabulary` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table used to store taxonomy_vocabulary entity...';
 
 --
 -- Table structure for table `cache_entity_user`
@@ -475,7 +472,7 @@ CREATE TABLE `cache_entity_user` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table used to store user entity records.';
 
 --
 -- Table structure for table `cache_field`
@@ -490,7 +487,7 @@ CREATE TABLE `cache_field` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Generic cache table for caching things not separated out...';
 
 --
 -- Table structure for table `cache_filter`
@@ -505,7 +502,7 @@ CREATE TABLE `cache_filter` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table for the Filter module to store already...';
 
 --
 -- Table structure for table `cache_form`
@@ -520,7 +517,7 @@ CREATE TABLE `cache_form` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table for the form system to store recently built...';
 
 --
 -- Table structure for table `cache_image`
@@ -535,7 +532,7 @@ CREATE TABLE `cache_image` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table used to store information about image...';
 
 --
 -- Table structure for table `cache_libraries`
@@ -550,7 +547,7 @@ CREATE TABLE `cache_libraries` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table to store library information.';
 
 --
 -- Table structure for table `cache_menu`
@@ -565,7 +562,7 @@ CREATE TABLE `cache_menu` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table for the menu system to store router...';
 
 --
 -- Table structure for table `cache_metatag`
@@ -580,7 +577,7 @@ CREATE TABLE `cache_metatag` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table for the generated meta tag output.';
 
 --
 -- Table structure for table `cache_page`
@@ -595,7 +592,7 @@ CREATE TABLE `cache_page` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table used to store compressed pages for anonymous...';
 
 --
 -- Table structure for table `cache_path`
@@ -610,7 +607,7 @@ CREATE TABLE `cache_path` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table for path alias lookup.';
 
 --
 -- Table structure for table `cache_path_alias`
@@ -625,7 +622,7 @@ CREATE TABLE `cache_path_alias` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table for URL aliases';
 
 --
 -- Table structure for table `cache_path_source`
@@ -640,7 +637,7 @@ CREATE TABLE `cache_path_source` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table for URL aliases';
 
 --
 -- Table structure for table `cache_rules`
@@ -655,7 +652,7 @@ CREATE TABLE `cache_rules` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table for the rules engine to store configured items.';
 
 --
 -- Table structure for table `cache_token`
@@ -670,7 +667,7 @@ CREATE TABLE `cache_token` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table for token information.';
 
 --
 -- Table structure for table `cache_update`
@@ -685,7 +682,7 @@ CREATE TABLE `cache_update` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table for the Update module to store information...';
 
 --
 -- Table structure for table `cache_views`
@@ -700,7 +697,7 @@ CREATE TABLE `cache_views` (
   `serialized` smallint(6) NOT NULL DEFAULT '0' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Generic cache table for caching things not separated out...';
 
 --
 -- Table structure for table `cache_views_data`
@@ -715,7 +712,7 @@ CREATE TABLE `cache_views_data` (
   `serialized` smallint(6) NOT NULL DEFAULT '1' COMMENT 'A flag to indicate whether content is serialized (1) or not (0).',
   PRIMARY KEY (`cid`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Cache table for views to store pre-rendered queries,...';
 
 --
 -- Table structure for table `cmp_menu_perms`
@@ -727,7 +724,7 @@ CREATE TABLE `cmp_menu_perms` (
   `cmp_permission_key` varchar(255) DEFAULT NULL COMMENT 'The perm_key from cmp_permissions for the permission that should be applied to the given menu path',
   PRIMARY KEY (`menu_path`),
   KEY `cmp_permission_key` (`cmp_permission_key`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Stores the custom permission to be used with user_access...';
 
 --
 -- Table structure for table `cmp_permissions`
@@ -740,7 +737,7 @@ CREATE TABLE `cmp_permissions` (
   `description` text COMMENT 'The description of the permission',
   PRIMARY KEY (`perm_key`),
   KEY `perm_name` (`perm_name`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Stores custom permissions that this module creates...';
 
 --
 -- Table structure for table `comment`
@@ -768,7 +765,7 @@ CREATE TABLE `comment` (
   KEY `comment_uid` (`uid`),
   KEY `comment_nid_language` (`nid`,`language`),
   KEY `comment_created` (`created`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Stores comments and associated data.';
 
 --
 -- Table structure for table `commerce_addressbook_defaults`
@@ -783,7 +780,7 @@ CREATE TABLE `commerce_addressbook_defaults` (
   PRIMARY KEY (`cad_id`),
   KEY `profile_id` (`profile_id`),
   KEY `uid` (`uid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Stores addressbook defaults by customer profile type.';
 
 --
 -- Table structure for table `commerce_autosku_patterns`
@@ -795,7 +792,7 @@ CREATE TABLE `commerce_autosku_patterns` (
   `pattern` longtext NOT NULL COMMENT 'Token replacement pattern.',
   `advanced` longblob COMMENT 'Serialized array of additional settings.',
   PRIMARY KEY (`product_type`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='TODO: please describe this table!';
 
 --
 -- Table structure for table `commerce_calculated_price`
@@ -817,7 +814,7 @@ CREATE TABLE `commerce_calculated_price` (
   KEY `module` (`module`),
   KEY `entity_type` (`entity_type`),
   KEY `entity_id` (`entity_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Stores pre-calculated dynamic prices.';
 
 --
 -- Table structure for table `commerce_checkout_pane`
@@ -834,7 +831,7 @@ CREATE TABLE `commerce_checkout_pane` (
   `enabled` tinyint(4) NOT NULL DEFAULT '1' COMMENT 'Boolean value indicating whether or not the pane is enabled.',
   `review` tinyint(4) NOT NULL DEFAULT '1' COMMENT 'Boolean value indicating whether or not the pane should appear on the checkout review.',
   PRIMARY KEY (`pane_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Checkout pane configuration data.';
 
 --
 -- Table structure for table `commerce_customer_profile`
@@ -855,7 +852,7 @@ CREATE TABLE `commerce_customer_profile` (
   KEY `uid` (`uid`),
   KEY `customer_profile_type` (`type`),
   KEY `uid_by_type` (`uid`,`type`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='The base table for customer profiles.';
 
 --
 -- Table structure for table `commerce_customer_profile_revision`
@@ -872,7 +869,7 @@ CREATE TABLE `commerce_customer_profile_revision` (
   `data` longblob COMMENT 'A serialized array of additional data.',
   PRIMARY KEY (`revision_id`),
   KEY `profile_id` (`profile_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Saves information about each saved revision of a commerce...';
 
 --
 -- Table structure for table `commerce_discount`
@@ -890,7 +887,7 @@ CREATE TABLE `commerce_discount` (
   `component_title` varchar(255) DEFAULT NULL COMMENT 'The component price title',
   PRIMARY KEY (`discount_id`),
   UNIQUE KEY `name` (`name`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='The base table for discounts.';
 
 --
 -- Table structure for table `commerce_discount_offer`
@@ -901,7 +898,7 @@ CREATE TABLE `commerce_discount_offer` (
   `discount_offer_id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'The internal identifier for any discount offer.',
   `type` varchar(255) NOT NULL DEFAULT '' COMMENT 'The discount offer type (bundle).',
   PRIMARY KEY (`discount_offer_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='The base table for discount offers.';
 
 --
 -- Table structure for table `commerce_flat_rate_service`
@@ -918,7 +915,7 @@ CREATE TABLE `commerce_flat_rate_service` (
   `currency_code` varchar(32) NOT NULL COMMENT 'The currency code of the base rate of the service.',
   `data` longtext COMMENT 'A serialized array of additional data.',
   PRIMARY KEY (`name`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Stores information about shipping services created...';
 
 --
 -- Table structure for table `commerce_line_item`
@@ -937,7 +934,7 @@ CREATE TABLE `commerce_line_item` (
   PRIMARY KEY (`line_item_id`),
   KEY `order_id` (`order_id`),
   KEY `line_item_type` (`type`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='The base table for line items.';
 
 --
 -- Table structure for table `commerce_order`
@@ -960,7 +957,7 @@ CREATE TABLE `commerce_order` (
   UNIQUE KEY `order_number` (`order_number`),
   UNIQUE KEY `revision_id` (`revision_id`),
   KEY `uid` (`uid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='The base table for orders.';
 
 --
 -- Table structure for table `commerce_order_revision`
@@ -980,7 +977,7 @@ CREATE TABLE `commerce_order_revision` (
   `data` longblob COMMENT 'A serialized array of additional data.',
   PRIMARY KEY (`revision_id`),
   KEY `order_id` (`order_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Saves information about each saved revision of a commerce...';
 
 --
 -- Table structure for table `commerce_payment_transaction`
@@ -1010,7 +1007,7 @@ CREATE TABLE `commerce_payment_transaction` (
   KEY `payment_method` (`payment_method`),
   KEY `uid` (`uid`),
   KEY `order_id` (`order_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Transaction information for every attempted payment.';
 
 --
 -- Table structure for table `commerce_payment_transaction_revision`
@@ -1033,7 +1030,7 @@ CREATE TABLE `commerce_payment_transaction_revision` (
   `data` longblob COMMENT 'A serialized array of additional data.',
   PRIMARY KEY (`revision_id`),
   KEY `transaction_id` (`transaction_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Saves information about each saved revision of a commerce...';
 
 --
 -- Table structure for table `commerce_product`
@@ -1057,7 +1054,7 @@ CREATE TABLE `commerce_product` (
   UNIQUE KEY `revision_id` (`revision_id`),
   KEY `product_type` (`type`),
   KEY `uid` (`uid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='The base table for products.';
 
 --
 -- Table structure for table `commerce_product_revision`
@@ -1077,7 +1074,7 @@ CREATE TABLE `commerce_product_revision` (
   PRIMARY KEY (`revision_id`),
   KEY `product_id` (`product_id`),
   KEY `revision_uid` (`revision_uid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Saves information about each saved revision of a commerce...';
 
 --
 -- Table structure for table `commerce_product_type`
@@ -1091,7 +1088,7 @@ CREATE TABLE `commerce_product_type` (
   `help` mediumtext NOT NULL COMMENT 'Help information shown to the user when creating a commerce_product of this type.',
   `revision` tinyint(4) NOT NULL DEFAULT '1' COMMENT 'Determine whether to create a new revision when a product of this type is updated.',
   PRIMARY KEY (`type`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Stores information about commerce_product types created...';
 
 --
 -- Table structure for table `commerce_tax_rate`
@@ -1109,7 +1106,7 @@ CREATE TABLE `commerce_tax_rate` (
   `module` varchar(255) NOT NULL DEFAULT '' COMMENT 'The name of the module that defines this tax type.',
   PRIMARY KEY (`name`),
   KEY `type` (`type`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Stores information about tax rates created via Tax UI.';
 
 --
 -- Table structure for table `commerce_tax_type`
@@ -1125,7 +1122,7 @@ CREATE TABLE `commerce_tax_type` (
   `round_mode` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'Integer indicating what type of rounding (if any) should be done for taxes of this type.',
   `module` varchar(255) NOT NULL DEFAULT '' COMMENT 'The name of the module that defines this tax type.',
   PRIMARY KEY (`name`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Stores information about tax types created via Tax UI.';
 
 --
 -- Table structure for table `contact`
@@ -1142,7 +1139,7 @@ CREATE TABLE `contact` (
   PRIMARY KEY (`cid`),
   UNIQUE KEY `category` (`category`),
   KEY `list` (`weight`,`category`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Contact form category settings.';
 
 --
 -- Table structure for table `ctools_css_cache`
@@ -1155,7 +1152,7 @@ CREATE TABLE `ctools_css_cache` (
   `css` longtext COMMENT 'CSS being stored.',
   `filter` tinyint(4) DEFAULT NULL COMMENT 'Whether or not this CSS needs to be filtered.',
   PRIMARY KEY (`cid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='A special cache used to store CSS that must be non-volatile.';
 
 --
 -- Table structure for table `ctools_object_cache`
@@ -1170,7 +1167,7 @@ CREATE TABLE `ctools_object_cache` (
   `data` longblob COMMENT 'Serialized data being stored.',
   PRIMARY KEY (`sid`,`obj`,`name`),
   KEY `updated` (`updated`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='A special cache used to store objects that are being...';
 
 --
 -- Table structure for table `current_search`
@@ -1182,7 +1179,7 @@ CREATE TABLE `current_search` (
   `label` varchar(255) NOT NULL DEFAULT '' COMMENT 'The human readable name of the configuration.',
   `settings` text COMMENT 'Serialized storage of general settings.',
   PRIMARY KEY (`name`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Current search block configurations.';
 
 --
 -- Table structure for table `date_format_locale`
@@ -1194,7 +1191,7 @@ CREATE TABLE `date_format_locale` (
   `type` varchar(64) NOT NULL COMMENT 'The date format type, e.g. medium.',
   `language` varchar(12) NOT NULL COMMENT 'A languages.language for this format to be used with.',
   PRIMARY KEY (`type`,`language`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Stores configured date formats for each locale.';
 
 --
 -- Table structure for table `date_format_type`
@@ -1207,7 +1204,7 @@ CREATE TABLE `date_format_type` (
   `locked` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'Whether or not this is a system provided format.',
   PRIMARY KEY (`type`),
   KEY `title` (`title`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Stores configured date format types.';
 
 --
 -- Table structure for table `date_formats`
@@ -1221,7 +1218,7 @@ CREATE TABLE `date_formats` (
   `locked` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'Whether or not this format can be modified.',
   PRIMARY KEY (`dfid`),
   UNIQUE KEY `formats` (`format`,`type`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Stores configured date formats.';
 
 --
 -- Table structure for table `facetapi`
@@ -1236,7 +1233,7 @@ CREATE TABLE `facetapi` (
   `enabled` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'Whether the facet is enabled.',
   `settings` blob COMMENT 'Serialized storage of general settings.',
   PRIMARY KEY (`name`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Facet configurations.';
 
 --
 -- Table structure for table `feeds_importer`
@@ -1247,7 +1244,7 @@ CREATE TABLE `feeds_importer` (
   `id` varchar(128) NOT NULL DEFAULT '' COMMENT 'Id of the fields object.',
   `config` longblob COMMENT 'Configuration of the feeds object.',
   PRIMARY KEY (`id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Configuration of feeds objects.';
 
 --
 -- Table structure for table `feeds_item`
@@ -1271,7 +1268,7 @@ CREATE TABLE `feeds_item` (
   KEY `global_lookup_url` (`entity_type`,`url`(128)),
   KEY `global_lookup_guid` (`entity_type`,`guid`(128)),
   KEY `imported` (`imported`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Tracks items such as nodes, terms, users.';
 
 --
 -- Table structure for table `feeds_log`
@@ -1294,7 +1291,7 @@ CREATE TABLE `feeds_log` (
   KEY `request_time` (`request_time`),
   KEY `log_time` (`log_time`),
   KEY `type` (`type`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Table that contains logs of feeds events.';
 
 --
 -- Table structure for table `feeds_push_subscriptions`
@@ -1312,7 +1309,20 @@ CREATE TABLE `feeds_push_subscriptions` (
   `post_fields` text COMMENT 'Fields posted.',
   PRIMARY KEY (`domain`,`subscriber_id`),
   KEY `timestamp` (`timestamp`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='PubSubHubbub subscriptions.';
+
+--
+-- Table structure for table `feeds_selfnode_processor_item`
+--
+
+DROP TABLE IF EXISTS `feeds_selfnode_processor_item`;
+CREATE TABLE `feeds_selfnode_processor_item` (
+  `id` varchar(128) NOT NULL DEFAULT '' COMMENT 'The id of the importer that created this item.',
+  `feed_nid` int(10) unsigned NOT NULL COMMENT 'Node id of the source.',
+  `imported` int(11) NOT NULL DEFAULT '0' COMMENT 'Import date of the feed item, as a Unix timestamp.',
+  `hash` varchar(32) NOT NULL DEFAULT '' COMMENT 'The hash of the source item.',
+  PRIMARY KEY (`feed_nid`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Tracks selfnode_processor nodes.';
 
 --
 -- Table structure for table `feeds_source`
@@ -1331,7 +1341,7 @@ CREATE TABLE `feeds_source` (
   KEY `id` (`id`),
   KEY `feed_nid` (`feed_nid`),
   KEY `id_source` (`id`,`source`(128))
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Source definitions for feeds.';
 
 --
 -- Table structure for table `feeds_tamper`
@@ -1348,7 +1358,7 @@ CREATE TABLE `feeds_tamper` (
   `description` varchar(255) NOT NULL DEFAULT '' COMMENT 'Description of this plugin.',
   PRIMARY KEY (`id`),
   KEY `importer` (`importer`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Table storing tamper instances.';
 
 --
 -- Table structure for table `field_config`
@@ -1378,7 +1388,7 @@ CREATE TABLE `field_config` (
   KEY `storage_module` (`storage_module`),
   KEY `type` (`type`),
   KEY `storage_type` (`storage_type`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `field_config_instance`
@@ -1396,7 +1406,7 @@ CREATE TABLE `field_config_instance` (
   PRIMARY KEY (`id`),
   KEY `field_name_bundle` (`field_name`,`entity_type`,`bundle`),
   KEY `deleted` (`deleted`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `field_data_body`
@@ -1421,7 +1431,7 @@ CREATE TABLE `field_data_body` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `body_format` (`body_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 20 (body)';
 
 --
 -- Table structure for table `field_data_comment_body`
@@ -1446,7 +1456,7 @@ CREATE TABLE `field_data_comment_body` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `comment_body_format` (`comment_body_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 21 (comment_body)';
 
 --
 -- Table structure for table `field_data_commerce_customer_address`
@@ -1482,7 +1492,7 @@ CREATE TABLE `field_data_commerce_customer_address` (
   KEY `entity_id` (`entity_id`),
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 1 (commerce_customer_address)';
 
 --
 -- Table structure for table `field_data_commerce_customer_billing`
@@ -1506,7 +1516,7 @@ CREATE TABLE `field_data_commerce_customer_billing` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_customer_billing_profile_id` (`commerce_customer_billing_profile_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 4 (commerce_customer_billing)';
 
 --
 -- Table structure for table `field_data_commerce_customer_shipping`
@@ -1530,7 +1540,7 @@ CREATE TABLE `field_data_commerce_customer_shipping` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_customer_shipping_profile_id` (`commerce_customer_shipping_profile_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 19 (commerce_customer_shipping)';
 
 --
 -- Table structure for table `field_data_commerce_discount_date`
@@ -1554,7 +1564,7 @@ CREATE TABLE `field_data_commerce_discount_date` (
   KEY `entity_id` (`entity_id`),
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 17 (commerce_discount_date)';
 
 --
 -- Table structure for table `field_data_commerce_discount_offer`
@@ -1578,7 +1588,7 @@ CREATE TABLE `field_data_commerce_discount_offer` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_discount_offer_target_id` (`commerce_discount_offer_target_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 13 (commerce_discount_offer)';
 
 --
 -- Table structure for table `field_data_commerce_discounts`
@@ -1602,7 +1612,7 @@ CREATE TABLE `field_data_commerce_discounts` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_discounts_target_id` (`commerce_discounts_target_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 16 (commerce_discounts)';
 
 --
 -- Table structure for table `field_data_commerce_display_path`
@@ -1627,7 +1637,7 @@ CREATE TABLE `field_data_commerce_display_path` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_display_path_format` (`commerce_display_path_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 8 (commerce_display_path)';
 
 --
 -- Table structure for table `field_data_commerce_fixed_amount`
@@ -1653,7 +1663,7 @@ CREATE TABLE `field_data_commerce_fixed_amount` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_fixed_amount_currency_price` (`commerce_fixed_amount_amount`,`commerce_fixed_amount_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 14 (commerce_fixed_amount)';
 
 --
 -- Table structure for table `field_data_commerce_free_products`
@@ -1677,7 +1687,7 @@ CREATE TABLE `field_data_commerce_free_products` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_free_products_product_id` (`commerce_free_products_product_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 66 (commerce_free_products)';
 
 --
 -- Table structure for table `field_data_commerce_free_shipping`
@@ -1702,7 +1712,7 @@ CREATE TABLE `field_data_commerce_free_shipping` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_free_shipping_format` (`commerce_free_shipping_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 65 (commerce_free_shipping)';
 
 --
 -- Table structure for table `field_data_commerce_line_items`
@@ -1726,7 +1736,7 @@ CREATE TABLE `field_data_commerce_line_items` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_line_items_line_item_id` (`commerce_line_items_line_item_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 2 (commerce_line_items)';
 
 --
 -- Table structure for table `field_data_commerce_order_total`
@@ -1752,7 +1762,7 @@ CREATE TABLE `field_data_commerce_order_total` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_order_total_currency_price` (`commerce_order_total_amount`,`commerce_order_total_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 3 (commerce_order_total)';
 
 --
 -- Table structure for table `field_data_commerce_percentage`
@@ -1775,7 +1785,7 @@ CREATE TABLE `field_data_commerce_percentage` (
   KEY `entity_id` (`entity_id`),
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 15 (commerce_percentage)';
 
 --
 -- Table structure for table `field_data_commerce_price`
@@ -1801,7 +1811,7 @@ CREATE TABLE `field_data_commerce_price` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_price_currency_price` (`commerce_price_amount`,`commerce_price_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 12 (commerce_price)';
 
 --
 -- Table structure for table `field_data_commerce_product`
@@ -1825,7 +1835,7 @@ CREATE TABLE `field_data_commerce_product` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_product_product_id` (`commerce_product_product_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 7 (commerce_product)';
 
 --
 -- Table structure for table `field_data_commerce_shipping_service`
@@ -1849,7 +1859,7 @@ CREATE TABLE `field_data_commerce_shipping_service` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_shipping_service_value` (`commerce_shipping_service_value`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 18 (commerce_shipping_service)';
 
 --
 -- Table structure for table `field_data_commerce_total`
@@ -1875,7 +1885,7 @@ CREATE TABLE `field_data_commerce_total` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_total_currency_price` (`commerce_total_amount`,`commerce_total_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 6 (commerce_total)';
 
 --
 -- Table structure for table `field_data_commerce_unit_price`
@@ -1901,7 +1911,55 @@ CREATE TABLE `field_data_commerce_unit_price` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_unit_price_currency_price` (`commerce_unit_price_amount`,`commerce_unit_price_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 5 (commerce_unit_price)';
+
+--
+-- Table structure for table `field_data_field_availability_date`
+--
+
+DROP TABLE IF EXISTS `field_data_field_availability_date`;
+CREATE TABLE `field_data_field_availability_date` (
+  `entity_type` varchar(128) NOT NULL DEFAULT '' COMMENT 'The entity type this data is attached to',
+  `bundle` varchar(128) NOT NULL DEFAULT '' COMMENT 'The field instance bundle to which this row belongs, used when deleting a field instance',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'A boolean indicating whether this data item has been deleted',
+  `entity_id` int(10) unsigned NOT NULL COMMENT 'The entity id this data is attached to',
+  `revision_id` int(10) unsigned DEFAULT NULL COMMENT 'The entity revision id this data is attached to, or NULL if the entity type is not versioned',
+  `language` varchar(32) NOT NULL DEFAULT '' COMMENT 'The language for this data item.',
+  `delta` int(10) unsigned NOT NULL COMMENT 'The sequence number for this data item, used for multi-value fields',
+  `field_availability_date_value` datetime DEFAULT NULL,
+  PRIMARY KEY (`entity_type`,`entity_id`,`deleted`,`delta`,`language`),
+  KEY `entity_type` (`entity_type`),
+  KEY `bundle` (`bundle`),
+  KEY `deleted` (`deleted`),
+  KEY `entity_id` (`entity_id`),
+  KEY `revision_id` (`revision_id`),
+  KEY `language` (`language`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 76 (field_availability_date)';
+
+--
+-- Table structure for table `field_data_field_availability_period`
+--
+
+DROP TABLE IF EXISTS `field_data_field_availability_period`;
+CREATE TABLE `field_data_field_availability_period` (
+  `entity_type` varchar(128) NOT NULL DEFAULT '' COMMENT 'The entity type this data is attached to',
+  `bundle` varchar(128) NOT NULL DEFAULT '' COMMENT 'The field instance bundle to which this row belongs, used when deleting a field instance',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'A boolean indicating whether this data item has been deleted',
+  `entity_id` int(10) unsigned NOT NULL COMMENT 'The entity id this data is attached to',
+  `revision_id` int(10) unsigned DEFAULT NULL COMMENT 'The entity revision id this data is attached to, or NULL if the entity type is not versioned',
+  `language` varchar(32) NOT NULL DEFAULT '' COMMENT 'The language for this data item.',
+  `delta` int(10) unsigned NOT NULL COMMENT 'The sequence number for this data item, used for multi-value fields',
+  `field_availability_period_value` varchar(11) DEFAULT NULL,
+  `field_availability_period_format` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`entity_type`,`entity_id`,`deleted`,`delta`,`language`),
+  KEY `entity_type` (`entity_type`),
+  KEY `bundle` (`bundle`),
+  KEY `deleted` (`deleted`),
+  KEY `entity_id` (`entity_id`),
+  KEY `revision_id` (`revision_id`),
+  KEY `language` (`language`),
+  KEY `field_availability_period_format` (`field_availability_period_format`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 77 (field_availability_period)';
 
 --
 -- Table structure for table `field_data_field_brand`
@@ -1925,7 +1983,7 @@ CREATE TABLE `field_data_field_brand` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_brand_tid` (`field_brand_tid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 37 (field_brand)';
 
 --
 -- Table structure for table `field_data_field_collection`
@@ -1949,7 +2007,7 @@ CREATE TABLE `field_data_field_collection` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_collection_tid` (`field_collection_tid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 38 (field_collection)';
 
 --
 -- Table structure for table `field_data_field_colour`
@@ -1973,7 +2031,7 @@ CREATE TABLE `field_data_field_colour` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_colour_tid` (`field_colour_tid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 36 (field_colour)';
 
 --
 -- Table structure for table `field_data_field_colour_code`
@@ -1998,7 +2056,7 @@ CREATE TABLE `field_data_field_colour_code` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_colour_code_format` (`field_colour_code_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 34 (field_colour_code)';
 
 --
 -- Table structure for table `field_data_field_headline`
@@ -2023,7 +2081,7 @@ CREATE TABLE `field_data_field_headline` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_headline_format` (`field_headline_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 33 (field_headline)';
 
 --
 -- Table structure for table `field_data_field_image`
@@ -2051,7 +2109,7 @@ CREATE TABLE `field_data_field_image` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_image_fid` (`field_image_fid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 29 (field_image)';
 
 --
 -- Table structure for table `field_data_field_images`
@@ -2079,7 +2137,7 @@ CREATE TABLE `field_data_field_images` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_images_fid` (`field_images_fid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 26 (field_images)';
 
 --
 -- Table structure for table `field_data_field_link`
@@ -2104,7 +2162,7 @@ CREATE TABLE `field_data_field_link` (
   KEY `entity_id` (`entity_id`),
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 30 (field_link)';
 
 --
 -- Table structure for table `field_data_field_price_pl_01`
@@ -2130,7 +2188,7 @@ CREATE TABLE `field_data_field_price_pl_01` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_01_currency_price` (`field_price_pl_01_amount`,`field_price_pl_01_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 48 (field_price_pl_01)';
 
 --
 -- Table structure for table `field_data_field_price_pl_02`
@@ -2156,7 +2214,7 @@ CREATE TABLE `field_data_field_price_pl_02` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_02_currency_price` (`field_price_pl_02_amount`,`field_price_pl_02_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 49 (field_price_pl_02)';
 
 --
 -- Table structure for table `field_data_field_price_pl_03`
@@ -2182,7 +2240,7 @@ CREATE TABLE `field_data_field_price_pl_03` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_03_currency_price` (`field_price_pl_03_amount`,`field_price_pl_03_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 50 (field_price_pl_03)';
 
 --
 -- Table structure for table `field_data_field_price_pl_04`
@@ -2208,7 +2266,7 @@ CREATE TABLE `field_data_field_price_pl_04` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_04_currency_price` (`field_price_pl_04_amount`,`field_price_pl_04_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 51 (field_price_pl_04)';
 
 --
 -- Table structure for table `field_data_field_price_pl_05`
@@ -2234,7 +2292,7 @@ CREATE TABLE `field_data_field_price_pl_05` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_05_currency_price` (`field_price_pl_05_amount`,`field_price_pl_05_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 52 (field_price_pl_05)';
 
 --
 -- Table structure for table `field_data_field_price_pl_06`
@@ -2260,7 +2318,7 @@ CREATE TABLE `field_data_field_price_pl_06` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_06_currency_price` (`field_price_pl_06_amount`,`field_price_pl_06_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 53 (field_price_pl_06)';
 
 --
 -- Table structure for table `field_data_field_price_pl_07`
@@ -2286,7 +2344,7 @@ CREATE TABLE `field_data_field_price_pl_07` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_07_currency_price` (`field_price_pl_07_amount`,`field_price_pl_07_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 54 (field_price_pl_07)';
 
 --
 -- Table structure for table `field_data_field_price_pl_08`
@@ -2312,7 +2370,7 @@ CREATE TABLE `field_data_field_price_pl_08` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_08_currency_price` (`field_price_pl_08_amount`,`field_price_pl_08_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 55 (field_price_pl_08)';
 
 --
 -- Table structure for table `field_data_field_price_pl_09`
@@ -2338,7 +2396,7 @@ CREATE TABLE `field_data_field_price_pl_09` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_09_currency_price` (`field_price_pl_09_amount`,`field_price_pl_09_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 56 (field_price_pl_09)';
 
 --
 -- Table structure for table `field_data_field_price_pl_10`
@@ -2364,7 +2422,7 @@ CREATE TABLE `field_data_field_price_pl_10` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_10_currency_price` (`field_price_pl_10_amount`,`field_price_pl_10_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 57 (field_price_pl_10)';
 
 --
 -- Table structure for table `field_data_field_price_pl_11`
@@ -2390,7 +2448,7 @@ CREATE TABLE `field_data_field_price_pl_11` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_11_currency_price` (`field_price_pl_11_amount`,`field_price_pl_11_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 58 (field_price_pl_11)';
 
 --
 -- Table structure for table `field_data_field_price_pl_12`
@@ -2416,7 +2474,7 @@ CREATE TABLE `field_data_field_price_pl_12` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_12_currency_price` (`field_price_pl_12_amount`,`field_price_pl_12_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 60 (field_price_pl_12)';
 
 --
 -- Table structure for table `field_data_field_price_pl_13`
@@ -2442,7 +2500,7 @@ CREATE TABLE `field_data_field_price_pl_13` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_13_currency_price` (`field_price_pl_13_amount`,`field_price_pl_13_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 64 (field_price_pl_13)';
 
 --
 -- Table structure for table `field_data_field_price_pl_14`
@@ -2468,7 +2526,189 @@ CREATE TABLE `field_data_field_price_pl_14` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_14_currency_price` (`field_price_pl_14_amount`,`field_price_pl_14_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 68 (field_price_pl_14)';
+
+--
+-- Table structure for table `field_data_field_price_pl_15`
+--
+
+DROP TABLE IF EXISTS `field_data_field_price_pl_15`;
+CREATE TABLE `field_data_field_price_pl_15` (
+  `entity_type` varchar(128) NOT NULL DEFAULT '' COMMENT 'The entity type this data is attached to',
+  `bundle` varchar(128) NOT NULL DEFAULT '' COMMENT 'The field instance bundle to which this row belongs, used when deleting a field instance',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'A boolean indicating whether this data item has been deleted',
+  `entity_id` int(10) unsigned NOT NULL COMMENT 'The entity id this data is attached to',
+  `revision_id` int(10) unsigned DEFAULT NULL COMMENT 'The entity revision id this data is attached to, or NULL if the entity type is not versioned',
+  `language` varchar(32) NOT NULL DEFAULT '' COMMENT 'The language for this data item.',
+  `delta` int(10) unsigned NOT NULL COMMENT 'The sequence number for this data item, used for multi-value fields',
+  `field_price_pl_15_amount` int(11) NOT NULL DEFAULT '0' COMMENT 'The price amount.',
+  `field_price_pl_15_currency_code` varchar(32) NOT NULL COMMENT 'The currency code for the price.',
+  `field_price_pl_15_data` longtext COMMENT 'A serialized array of additional price data.',
+  PRIMARY KEY (`entity_type`,`entity_id`,`deleted`,`delta`,`language`),
+  KEY `entity_type` (`entity_type`),
+  KEY `bundle` (`bundle`),
+  KEY `deleted` (`deleted`),
+  KEY `entity_id` (`entity_id`),
+  KEY `revision_id` (`revision_id`),
+  KEY `language` (`language`),
+  KEY `field_price_pl_15_currency_price` (`field_price_pl_15_amount`,`field_price_pl_15_currency_code`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 69 (field_price_pl_15)';
+
+--
+-- Table structure for table `field_data_field_price_pl_16`
+--
+
+DROP TABLE IF EXISTS `field_data_field_price_pl_16`;
+CREATE TABLE `field_data_field_price_pl_16` (
+  `entity_type` varchar(128) NOT NULL DEFAULT '' COMMENT 'The entity type this data is attached to',
+  `bundle` varchar(128) NOT NULL DEFAULT '' COMMENT 'The field instance bundle to which this row belongs, used when deleting a field instance',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'A boolean indicating whether this data item has been deleted',
+  `entity_id` int(10) unsigned NOT NULL COMMENT 'The entity id this data is attached to',
+  `revision_id` int(10) unsigned DEFAULT NULL COMMENT 'The entity revision id this data is attached to, or NULL if the entity type is not versioned',
+  `language` varchar(32) NOT NULL DEFAULT '' COMMENT 'The language for this data item.',
+  `delta` int(10) unsigned NOT NULL COMMENT 'The sequence number for this data item, used for multi-value fields',
+  `field_price_pl_16_amount` int(11) NOT NULL DEFAULT '0' COMMENT 'The price amount.',
+  `field_price_pl_16_currency_code` varchar(32) NOT NULL COMMENT 'The currency code for the price.',
+  `field_price_pl_16_data` longtext COMMENT 'A serialized array of additional price data.',
+  PRIMARY KEY (`entity_type`,`entity_id`,`deleted`,`delta`,`language`),
+  KEY `entity_type` (`entity_type`),
+  KEY `bundle` (`bundle`),
+  KEY `deleted` (`deleted`),
+  KEY `entity_id` (`entity_id`),
+  KEY `revision_id` (`revision_id`),
+  KEY `language` (`language`),
+  KEY `field_price_pl_16_currency_price` (`field_price_pl_16_amount`,`field_price_pl_16_currency_code`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 70 (field_price_pl_16)';
+
+--
+-- Table structure for table `field_data_field_price_pl_17`
+--
+
+DROP TABLE IF EXISTS `field_data_field_price_pl_17`;
+CREATE TABLE `field_data_field_price_pl_17` (
+  `entity_type` varchar(128) NOT NULL DEFAULT '' COMMENT 'The entity type this data is attached to',
+  `bundle` varchar(128) NOT NULL DEFAULT '' COMMENT 'The field instance bundle to which this row belongs, used when deleting a field instance',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'A boolean indicating whether this data item has been deleted',
+  `entity_id` int(10) unsigned NOT NULL COMMENT 'The entity id this data is attached to',
+  `revision_id` int(10) unsigned DEFAULT NULL COMMENT 'The entity revision id this data is attached to, or NULL if the entity type is not versioned',
+  `language` varchar(32) NOT NULL DEFAULT '' COMMENT 'The language for this data item.',
+  `delta` int(10) unsigned NOT NULL COMMENT 'The sequence number for this data item, used for multi-value fields',
+  `field_price_pl_17_amount` int(11) NOT NULL DEFAULT '0' COMMENT 'The price amount.',
+  `field_price_pl_17_currency_code` varchar(32) NOT NULL COMMENT 'The currency code for the price.',
+  `field_price_pl_17_data` longtext COMMENT 'A serialized array of additional price data.',
+  PRIMARY KEY (`entity_type`,`entity_id`,`deleted`,`delta`,`language`),
+  KEY `entity_type` (`entity_type`),
+  KEY `bundle` (`bundle`),
+  KEY `deleted` (`deleted`),
+  KEY `entity_id` (`entity_id`),
+  KEY `revision_id` (`revision_id`),
+  KEY `language` (`language`),
+  KEY `field_price_pl_17_currency_price` (`field_price_pl_17_amount`,`field_price_pl_17_currency_code`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 71 (field_price_pl_17)';
+
+--
+-- Table structure for table `field_data_field_price_pl_18`
+--
+
+DROP TABLE IF EXISTS `field_data_field_price_pl_18`;
+CREATE TABLE `field_data_field_price_pl_18` (
+  `entity_type` varchar(128) NOT NULL DEFAULT '' COMMENT 'The entity type this data is attached to',
+  `bundle` varchar(128) NOT NULL DEFAULT '' COMMENT 'The field instance bundle to which this row belongs, used when deleting a field instance',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'A boolean indicating whether this data item has been deleted',
+  `entity_id` int(10) unsigned NOT NULL COMMENT 'The entity id this data is attached to',
+  `revision_id` int(10) unsigned DEFAULT NULL COMMENT 'The entity revision id this data is attached to, or NULL if the entity type is not versioned',
+  `language` varchar(32) NOT NULL DEFAULT '' COMMENT 'The language for this data item.',
+  `delta` int(10) unsigned NOT NULL COMMENT 'The sequence number for this data item, used for multi-value fields',
+  `field_price_pl_18_amount` int(11) NOT NULL DEFAULT '0' COMMENT 'The price amount.',
+  `field_price_pl_18_currency_code` varchar(32) NOT NULL COMMENT 'The currency code for the price.',
+  `field_price_pl_18_data` longtext COMMENT 'A serialized array of additional price data.',
+  PRIMARY KEY (`entity_type`,`entity_id`,`deleted`,`delta`,`language`),
+  KEY `entity_type` (`entity_type`),
+  KEY `bundle` (`bundle`),
+  KEY `deleted` (`deleted`),
+  KEY `entity_id` (`entity_id`),
+  KEY `revision_id` (`revision_id`),
+  KEY `language` (`language`),
+  KEY `field_price_pl_18_currency_price` (`field_price_pl_18_amount`,`field_price_pl_18_currency_code`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 72 (field_price_pl_18)';
+
+--
+-- Table structure for table `field_data_field_price_pl_19`
+--
+
+DROP TABLE IF EXISTS `field_data_field_price_pl_19`;
+CREATE TABLE `field_data_field_price_pl_19` (
+  `entity_type` varchar(128) NOT NULL DEFAULT '' COMMENT 'The entity type this data is attached to',
+  `bundle` varchar(128) NOT NULL DEFAULT '' COMMENT 'The field instance bundle to which this row belongs, used when deleting a field instance',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'A boolean indicating whether this data item has been deleted',
+  `entity_id` int(10) unsigned NOT NULL COMMENT 'The entity id this data is attached to',
+  `revision_id` int(10) unsigned DEFAULT NULL COMMENT 'The entity revision id this data is attached to, or NULL if the entity type is not versioned',
+  `language` varchar(32) NOT NULL DEFAULT '' COMMENT 'The language for this data item.',
+  `delta` int(10) unsigned NOT NULL COMMENT 'The sequence number for this data item, used for multi-value fields',
+  `field_price_pl_19_amount` int(11) NOT NULL DEFAULT '0' COMMENT 'The price amount.',
+  `field_price_pl_19_currency_code` varchar(32) NOT NULL COMMENT 'The currency code for the price.',
+  `field_price_pl_19_data` longtext COMMENT 'A serialized array of additional price data.',
+  PRIMARY KEY (`entity_type`,`entity_id`,`deleted`,`delta`,`language`),
+  KEY `entity_type` (`entity_type`),
+  KEY `bundle` (`bundle`),
+  KEY `deleted` (`deleted`),
+  KEY `entity_id` (`entity_id`),
+  KEY `revision_id` (`revision_id`),
+  KEY `language` (`language`),
+  KEY `field_price_pl_19_currency_price` (`field_price_pl_19_amount`,`field_price_pl_19_currency_code`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 73 (field_price_pl_19)';
+
+--
+-- Table structure for table `field_data_field_price_pl_20`
+--
+
+DROP TABLE IF EXISTS `field_data_field_price_pl_20`;
+CREATE TABLE `field_data_field_price_pl_20` (
+  `entity_type` varchar(128) NOT NULL DEFAULT '' COMMENT 'The entity type this data is attached to',
+  `bundle` varchar(128) NOT NULL DEFAULT '' COMMENT 'The field instance bundle to which this row belongs, used when deleting a field instance',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'A boolean indicating whether this data item has been deleted',
+  `entity_id` int(10) unsigned NOT NULL COMMENT 'The entity id this data is attached to',
+  `revision_id` int(10) unsigned DEFAULT NULL COMMENT 'The entity revision id this data is attached to, or NULL if the entity type is not versioned',
+  `language` varchar(32) NOT NULL DEFAULT '' COMMENT 'The language for this data item.',
+  `delta` int(10) unsigned NOT NULL COMMENT 'The sequence number for this data item, used for multi-value fields',
+  `field_price_pl_20_amount` int(11) NOT NULL DEFAULT '0' COMMENT 'The price amount.',
+  `field_price_pl_20_currency_code` varchar(32) NOT NULL COMMENT 'The currency code for the price.',
+  `field_price_pl_20_data` longtext COMMENT 'A serialized array of additional price data.',
+  PRIMARY KEY (`entity_type`,`entity_id`,`deleted`,`delta`,`language`),
+  KEY `entity_type` (`entity_type`),
+  KEY `bundle` (`bundle`),
+  KEY `deleted` (`deleted`),
+  KEY `entity_id` (`entity_id`),
+  KEY `revision_id` (`revision_id`),
+  KEY `language` (`language`),
+  KEY `field_price_pl_20_currency_price` (`field_price_pl_20_amount`,`field_price_pl_20_currency_code`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 74 (field_price_pl_20)';
+
+--
+-- Table structure for table `field_data_field_price_pl_21`
+--
+
+DROP TABLE IF EXISTS `field_data_field_price_pl_21`;
+CREATE TABLE `field_data_field_price_pl_21` (
+  `entity_type` varchar(128) NOT NULL DEFAULT '' COMMENT 'The entity type this data is attached to',
+  `bundle` varchar(128) NOT NULL DEFAULT '' COMMENT 'The field instance bundle to which this row belongs, used when deleting a field instance',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'A boolean indicating whether this data item has been deleted',
+  `entity_id` int(10) unsigned NOT NULL COMMENT 'The entity id this data is attached to',
+  `revision_id` int(10) unsigned DEFAULT NULL COMMENT 'The entity revision id this data is attached to, or NULL if the entity type is not versioned',
+  `language` varchar(32) NOT NULL DEFAULT '' COMMENT 'The language for this data item.',
+  `delta` int(10) unsigned NOT NULL COMMENT 'The sequence number for this data item, used for multi-value fields',
+  `field_price_pl_21_amount` int(11) NOT NULL DEFAULT '0' COMMENT 'The price amount.',
+  `field_price_pl_21_currency_code` varchar(32) NOT NULL COMMENT 'The currency code for the price.',
+  `field_price_pl_21_data` longtext COMMENT 'A serialized array of additional price data.',
+  PRIMARY KEY (`entity_type`,`entity_id`,`deleted`,`delta`,`language`),
+  KEY `entity_type` (`entity_type`),
+  KEY `bundle` (`bundle`),
+  KEY `deleted` (`deleted`),
+  KEY `entity_id` (`entity_id`),
+  KEY `revision_id` (`revision_id`),
+  KEY `language` (`language`),
+  KEY `field_price_pl_21_currency_price` (`field_price_pl_21_amount`,`field_price_pl_21_currency_code`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 75 (field_price_pl_21)';
 
 --
 -- Table structure for table `field_data_field_product`
@@ -2492,7 +2732,7 @@ CREATE TABLE `field_data_field_product` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_product_product_id` (`field_product_product_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 27 (field_product)';
 
 --
 -- Table structure for table `field_data_field_product_category`
@@ -2516,7 +2756,7 @@ CREATE TABLE `field_data_field_product_category` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_product_category_tid` (`field_product_category_tid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 28 (field_product_category)';
 
 --
 -- Table structure for table `field_data_field_required_delivery_date`
@@ -2539,7 +2779,7 @@ CREATE TABLE `field_data_field_required_delivery_date` (
   KEY `entity_id` (`entity_id`),
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 62 (field_required_delivery_date)';
 
 --
 -- Table structure for table `field_data_field_rgb`
@@ -2564,7 +2804,7 @@ CREATE TABLE `field_data_field_rgb` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_rgb_format` (`field_rgb_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 35 (field_rgb)';
 
 --
 -- Table structure for table `field_data_field_special_request`
@@ -2589,7 +2829,7 @@ CREATE TABLE `field_data_field_special_request` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_special_request_format` (`field_special_request_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 63 (field_special_request)';
 
 --
 -- Table structure for table `field_data_field_stock_status`
@@ -2613,7 +2853,57 @@ CREATE TABLE `field_data_field_stock_status` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_stock_status_tid` (`field_stock_status_tid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 59 (field_stock_status)';
+
+--
+-- Table structure for table `field_data_field_table`
+--
+
+DROP TABLE IF EXISTS `field_data_field_table`;
+CREATE TABLE `field_data_field_table` (
+  `entity_type` varchar(128) NOT NULL DEFAULT '' COMMENT 'The entity type this data is attached to',
+  `bundle` varchar(128) NOT NULL DEFAULT '' COMMENT 'The field instance bundle to which this row belongs, used when deleting a field instance',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'A boolean indicating whether this data item has been deleted',
+  `entity_id` int(10) unsigned NOT NULL COMMENT 'The entity id this data is attached to',
+  `revision_id` int(10) unsigned DEFAULT NULL COMMENT 'The entity revision id this data is attached to, or NULL if the entity type is not versioned',
+  `language` varchar(32) NOT NULL DEFAULT '' COMMENT 'The language for this data item.',
+  `delta` int(10) unsigned NOT NULL COMMENT 'The sequence number for this data item, used for multi-value fields',
+  `field_table_value` longtext,
+  `field_table_format` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`entity_type`,`entity_id`,`deleted`,`delta`,`language`),
+  KEY `entity_type` (`entity_type`),
+  KEY `bundle` (`bundle`),
+  KEY `deleted` (`deleted`),
+  KEY `entity_id` (`entity_id`),
+  KEY `revision_id` (`revision_id`),
+  KEY `language` (`language`),
+  KEY `field_table_format` (`field_table_format`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 78 (field_table)';
+
+--
+-- Table structure for table `field_data_field_table_`
+--
+
+DROP TABLE IF EXISTS `field_data_field_table_`;
+CREATE TABLE `field_data_field_table_` (
+  `entity_type` varchar(128) NOT NULL DEFAULT '' COMMENT 'The entity type this data is attached to',
+  `bundle` varchar(128) NOT NULL DEFAULT '' COMMENT 'The field instance bundle to which this row belongs, used when deleting a field instance',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'A boolean indicating whether this data item has been deleted',
+  `entity_id` int(10) unsigned NOT NULL COMMENT 'The entity id this data is attached to',
+  `revision_id` int(10) unsigned DEFAULT NULL COMMENT 'The entity revision id this data is attached to, or NULL if the entity type is not versioned',
+  `language` varchar(32) NOT NULL DEFAULT '' COMMENT 'The language for this data item.',
+  `delta` int(10) unsigned NOT NULL COMMENT 'The sequence number for this data item, used for multi-value fields',
+  `field_table__value` longtext,
+  `field_table__format` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`entity_type`,`entity_id`,`deleted`,`delta`,`language`),
+  KEY `entity_type` (`entity_type`),
+  KEY `bundle` (`bundle`),
+  KEY `deleted` (`deleted`),
+  KEY `entity_id` (`entity_id`),
+  KEY `revision_id` (`revision_id`),
+  KEY `language` (`language`),
+  KEY `field_table__format` (`field_table__format`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 78 (field_table_)';
 
 --
 -- Table structure for table `field_data_field_tagline`
@@ -2638,7 +2928,7 @@ CREATE TABLE `field_data_field_tagline` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_tagline_format` (`field_tagline_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 31 (field_tagline)';
 
 --
 -- Table structure for table `field_data_field_trim_colour`
@@ -2662,7 +2952,7 @@ CREATE TABLE `field_data_field_trim_colour` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_trim_colour_tid` (`field_trim_colour_tid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 39 (field_trim_colour)';
 
 --
 -- Table structure for table `field_data_field_wholesale_price`
@@ -2688,7 +2978,7 @@ CREATE TABLE `field_data_field_wholesale_price` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_wholesale_price_currency_price` (`field_wholesale_price_amount`,`field_wholesale_price_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 40 (field_wholesale_price)';
 
 --
 -- Table structure for table `field_data_inline_conditions`
@@ -2712,7 +3002,7 @@ CREATE TABLE `field_data_inline_conditions` (
   KEY `entity_id` (`entity_id`),
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 67 (inline_conditions)';
 
 --
 -- Table structure for table `field_data_message_commerce_body`
@@ -2737,7 +3027,7 @@ CREATE TABLE `field_data_message_commerce_body` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_commerce_body_format` (`message_commerce_body_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 25 (message_commerce_body)';
 
 --
 -- Table structure for table `field_data_message_commerce_line_item`
@@ -2761,7 +3051,7 @@ CREATE TABLE `field_data_message_commerce_line_item` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_commerce_line_item_target_id` (`message_commerce_line_item_target_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 23 (message_commerce_line_item)';
 
 --
 -- Table structure for table `field_data_message_commerce_order`
@@ -2785,7 +3075,7 @@ CREATE TABLE `field_data_message_commerce_order` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_commerce_order_target_id` (`message_commerce_order_target_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 22 (message_commerce_order)';
 
 --
 -- Table structure for table `field_data_message_commerce_payment`
@@ -2809,7 +3099,7 @@ CREATE TABLE `field_data_message_commerce_payment` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_commerce_payment_target_id` (`message_commerce_payment_target_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 24 (message_commerce_payment)';
 
 --
 -- Table structure for table `field_data_message_order_display_name`
@@ -2834,7 +3124,7 @@ CREATE TABLE `field_data_message_order_display_name` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_order_display_name_format` (`message_order_display_name_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 11 (message_order_display_name)';
 
 --
 -- Table structure for table `field_data_message_text`
@@ -2859,7 +3149,7 @@ CREATE TABLE `field_data_message_text` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_text_format` (`message_text_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 9 (message_text)';
 
 --
 -- Table structure for table `field_data_message_text_subject`
@@ -2884,7 +3174,7 @@ CREATE TABLE `field_data_message_text_subject` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_text_subject_format` (`message_text_subject_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 10 (message_text_subject)';
 
 --
 -- Table structure for table `field_data_title_field`
@@ -2909,7 +3199,7 @@ CREATE TABLE `field_data_title_field` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `title_field_format` (`title_field_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 32 (title_field)';
 
 --
 -- Table structure for table `field_deleted_data_11`
@@ -2934,7 +3224,7 @@ CREATE TABLE `field_deleted_data_11` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_order_display_name_format` (`message_order_display_name_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 11 (message_order_display_name)';
 
 --
 -- Table structure for table `field_deleted_data_22`
@@ -2958,7 +3248,7 @@ CREATE TABLE `field_deleted_data_22` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_commerce_order_target_id` (`message_commerce_order_target_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 22 (message_commerce_order)';
 
 --
 -- Table structure for table `field_deleted_data_23`
@@ -2982,7 +3272,7 @@ CREATE TABLE `field_deleted_data_23` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_commerce_line_item_target_id` (`message_commerce_line_item_target_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 23 (message_commerce_line_item)';
 
 --
 -- Table structure for table `field_deleted_data_24`
@@ -3006,7 +3296,7 @@ CREATE TABLE `field_deleted_data_24` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_commerce_payment_target_id` (`message_commerce_payment_target_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 24 (message_commerce_payment)';
 
 --
 -- Table structure for table `field_deleted_data_25`
@@ -3031,7 +3321,7 @@ CREATE TABLE `field_deleted_data_25` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_commerce_body_format` (`message_commerce_body_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Data storage for field 25 (message_commerce_body)';
 
 --
 -- Table structure for table `field_deleted_revision_11`
@@ -3056,7 +3346,7 @@ CREATE TABLE `field_deleted_revision_11` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_order_display_name_format` (`message_order_display_name_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 11 (message_order...';
 
 --
 -- Table structure for table `field_deleted_revision_22`
@@ -3080,7 +3370,7 @@ CREATE TABLE `field_deleted_revision_22` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_commerce_order_target_id` (`message_commerce_order_target_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 22 (message_commerce...';
 
 --
 -- Table structure for table `field_deleted_revision_23`
@@ -3104,7 +3394,7 @@ CREATE TABLE `field_deleted_revision_23` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_commerce_line_item_target_id` (`message_commerce_line_item_target_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 23 (message_commerce...';
 
 --
 -- Table structure for table `field_deleted_revision_24`
@@ -3128,7 +3418,7 @@ CREATE TABLE `field_deleted_revision_24` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_commerce_payment_target_id` (`message_commerce_payment_target_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 24 (message_commerce...';
 
 --
 -- Table structure for table `field_deleted_revision_25`
@@ -3153,7 +3443,7 @@ CREATE TABLE `field_deleted_revision_25` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_commerce_body_format` (`message_commerce_body_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 25 (message_commerce...';
 
 --
 -- Table structure for table `field_group`
@@ -3172,7 +3462,7 @@ CREATE TABLE `field_group` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `identifier` (`identifier`),
   KEY `group_name` (`group_name`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Table that contains field group entries and settings.';
 
 --
 -- Table structure for table `field_revision_body`
@@ -3197,7 +3487,7 @@ CREATE TABLE `field_revision_body` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `body_format` (`body_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 20 (body)';
 
 --
 -- Table structure for table `field_revision_comment_body`
@@ -3222,7 +3512,7 @@ CREATE TABLE `field_revision_comment_body` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `comment_body_format` (`comment_body_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 21 (comment_body)';
 
 --
 -- Table structure for table `field_revision_commerce_customer_address`
@@ -3258,7 +3548,7 @@ CREATE TABLE `field_revision_commerce_customer_address` (
   KEY `entity_id` (`entity_id`),
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 1 (commerce_customer...';
 
 --
 -- Table structure for table `field_revision_commerce_customer_billing`
@@ -3282,7 +3572,7 @@ CREATE TABLE `field_revision_commerce_customer_billing` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_customer_billing_profile_id` (`commerce_customer_billing_profile_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 4 (commerce_customer...';
 
 --
 -- Table structure for table `field_revision_commerce_customer_shipping`
@@ -3306,7 +3596,7 @@ CREATE TABLE `field_revision_commerce_customer_shipping` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_customer_shipping_profile_id` (`commerce_customer_shipping_profile_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 19 (commerce_customer...';
 
 --
 -- Table structure for table `field_revision_commerce_discount_date`
@@ -3330,7 +3620,7 @@ CREATE TABLE `field_revision_commerce_discount_date` (
   KEY `entity_id` (`entity_id`),
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 17 (commerce_discount...';
 
 --
 -- Table structure for table `field_revision_commerce_discount_offer`
@@ -3354,7 +3644,7 @@ CREATE TABLE `field_revision_commerce_discount_offer` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_discount_offer_target_id` (`commerce_discount_offer_target_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 13 (commerce_discount...';
 
 --
 -- Table structure for table `field_revision_commerce_discounts`
@@ -3378,7 +3668,7 @@ CREATE TABLE `field_revision_commerce_discounts` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_discounts_target_id` (`commerce_discounts_target_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 16 (commerce_discounts)';
 
 --
 -- Table structure for table `field_revision_commerce_display_path`
@@ -3403,7 +3693,7 @@ CREATE TABLE `field_revision_commerce_display_path` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_display_path_format` (`commerce_display_path_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 8 (commerce_display_path)';
 
 --
 -- Table structure for table `field_revision_commerce_fixed_amount`
@@ -3429,7 +3719,7 @@ CREATE TABLE `field_revision_commerce_fixed_amount` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_fixed_amount_currency_price` (`commerce_fixed_amount_amount`,`commerce_fixed_amount_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 14 (commerce_fixed...';
 
 --
 -- Table structure for table `field_revision_commerce_free_products`
@@ -3453,7 +3743,7 @@ CREATE TABLE `field_revision_commerce_free_products` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_free_products_product_id` (`commerce_free_products_product_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 66 (commerce_free...';
 
 --
 -- Table structure for table `field_revision_commerce_free_shipping`
@@ -3478,7 +3768,7 @@ CREATE TABLE `field_revision_commerce_free_shipping` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_free_shipping_format` (`commerce_free_shipping_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 65 (commerce_free...';
 
 --
 -- Table structure for table `field_revision_commerce_line_items`
@@ -3502,7 +3792,7 @@ CREATE TABLE `field_revision_commerce_line_items` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_line_items_line_item_id` (`commerce_line_items_line_item_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 2 (commerce_line_items)';
 
 --
 -- Table structure for table `field_revision_commerce_order_total`
@@ -3528,7 +3818,7 @@ CREATE TABLE `field_revision_commerce_order_total` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_order_total_currency_price` (`commerce_order_total_amount`,`commerce_order_total_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 3 (commerce_order_total)';
 
 --
 -- Table structure for table `field_revision_commerce_percentage`
@@ -3551,7 +3841,7 @@ CREATE TABLE `field_revision_commerce_percentage` (
   KEY `entity_id` (`entity_id`),
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 15 (commerce_percentage)';
 
 --
 -- Table structure for table `field_revision_commerce_price`
@@ -3577,7 +3867,7 @@ CREATE TABLE `field_revision_commerce_price` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_price_currency_price` (`commerce_price_amount`,`commerce_price_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 12 (commerce_price)';
 
 --
 -- Table structure for table `field_revision_commerce_product`
@@ -3601,7 +3891,7 @@ CREATE TABLE `field_revision_commerce_product` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_product_product_id` (`commerce_product_product_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 7 (commerce_product)';
 
 --
 -- Table structure for table `field_revision_commerce_shipping_service`
@@ -3625,7 +3915,7 @@ CREATE TABLE `field_revision_commerce_shipping_service` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_shipping_service_value` (`commerce_shipping_service_value`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 18 (commerce_shipping...';
 
 --
 -- Table structure for table `field_revision_commerce_total`
@@ -3651,7 +3941,7 @@ CREATE TABLE `field_revision_commerce_total` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_total_currency_price` (`commerce_total_amount`,`commerce_total_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 6 (commerce_total)';
 
 --
 -- Table structure for table `field_revision_commerce_unit_price`
@@ -3677,7 +3967,55 @@ CREATE TABLE `field_revision_commerce_unit_price` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `commerce_unit_price_currency_price` (`commerce_unit_price_amount`,`commerce_unit_price_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 5 (commerce_unit_price)';
+
+--
+-- Table structure for table `field_revision_field_availability_date`
+--
+
+DROP TABLE IF EXISTS `field_revision_field_availability_date`;
+CREATE TABLE `field_revision_field_availability_date` (
+  `entity_type` varchar(128) NOT NULL DEFAULT '' COMMENT 'The entity type this data is attached to',
+  `bundle` varchar(128) NOT NULL DEFAULT '' COMMENT 'The field instance bundle to which this row belongs, used when deleting a field instance',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'A boolean indicating whether this data item has been deleted',
+  `entity_id` int(10) unsigned NOT NULL COMMENT 'The entity id this data is attached to',
+  `revision_id` int(10) unsigned NOT NULL COMMENT 'The entity revision id this data is attached to',
+  `language` varchar(32) NOT NULL DEFAULT '' COMMENT 'The language for this data item.',
+  `delta` int(10) unsigned NOT NULL COMMENT 'The sequence number for this data item, used for multi-value fields',
+  `field_availability_date_value` datetime DEFAULT NULL,
+  PRIMARY KEY (`entity_type`,`entity_id`,`revision_id`,`deleted`,`delta`,`language`),
+  KEY `entity_type` (`entity_type`),
+  KEY `bundle` (`bundle`),
+  KEY `deleted` (`deleted`),
+  KEY `entity_id` (`entity_id`),
+  KEY `revision_id` (`revision_id`),
+  KEY `language` (`language`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 76 (field_availability...';
+
+--
+-- Table structure for table `field_revision_field_availability_period`
+--
+
+DROP TABLE IF EXISTS `field_revision_field_availability_period`;
+CREATE TABLE `field_revision_field_availability_period` (
+  `entity_type` varchar(128) NOT NULL DEFAULT '' COMMENT 'The entity type this data is attached to',
+  `bundle` varchar(128) NOT NULL DEFAULT '' COMMENT 'The field instance bundle to which this row belongs, used when deleting a field instance',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'A boolean indicating whether this data item has been deleted',
+  `entity_id` int(10) unsigned NOT NULL COMMENT 'The entity id this data is attached to',
+  `revision_id` int(10) unsigned NOT NULL COMMENT 'The entity revision id this data is attached to',
+  `language` varchar(32) NOT NULL DEFAULT '' COMMENT 'The language for this data item.',
+  `delta` int(10) unsigned NOT NULL COMMENT 'The sequence number for this data item, used for multi-value fields',
+  `field_availability_period_value` varchar(11) DEFAULT NULL,
+  `field_availability_period_format` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`entity_type`,`entity_id`,`revision_id`,`deleted`,`delta`,`language`),
+  KEY `entity_type` (`entity_type`),
+  KEY `bundle` (`bundle`),
+  KEY `deleted` (`deleted`),
+  KEY `entity_id` (`entity_id`),
+  KEY `revision_id` (`revision_id`),
+  KEY `language` (`language`),
+  KEY `field_availability_period_format` (`field_availability_period_format`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 77 (field_availability...';
 
 --
 -- Table structure for table `field_revision_field_brand`
@@ -3701,7 +4039,7 @@ CREATE TABLE `field_revision_field_brand` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_brand_tid` (`field_brand_tid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 37 (field_brand)';
 
 --
 -- Table structure for table `field_revision_field_collection`
@@ -3725,7 +4063,7 @@ CREATE TABLE `field_revision_field_collection` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_collection_tid` (`field_collection_tid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 38 (field_collection)';
 
 --
 -- Table structure for table `field_revision_field_colour`
@@ -3749,7 +4087,7 @@ CREATE TABLE `field_revision_field_colour` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_colour_tid` (`field_colour_tid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 36 (field_colour)';
 
 --
 -- Table structure for table `field_revision_field_colour_code`
@@ -3774,7 +4112,7 @@ CREATE TABLE `field_revision_field_colour_code` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_colour_code_format` (`field_colour_code_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 34 (field_colour_code)';
 
 --
 -- Table structure for table `field_revision_field_headline`
@@ -3799,7 +4137,7 @@ CREATE TABLE `field_revision_field_headline` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_headline_format` (`field_headline_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 33 (field_headline)';
 
 --
 -- Table structure for table `field_revision_field_image`
@@ -3827,7 +4165,7 @@ CREATE TABLE `field_revision_field_image` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_image_fid` (`field_image_fid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 29 (field_image)';
 
 --
 -- Table structure for table `field_revision_field_images`
@@ -3855,7 +4193,7 @@ CREATE TABLE `field_revision_field_images` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_images_fid` (`field_images_fid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 26 (field_images)';
 
 --
 -- Table structure for table `field_revision_field_link`
@@ -3880,7 +4218,7 @@ CREATE TABLE `field_revision_field_link` (
   KEY `entity_id` (`entity_id`),
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 30 (field_link)';
 
 --
 -- Table structure for table `field_revision_field_price_pl_01`
@@ -3906,7 +4244,7 @@ CREATE TABLE `field_revision_field_price_pl_01` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_01_currency_price` (`field_price_pl_01_amount`,`field_price_pl_01_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 48 (field_price_pl_01)';
 
 --
 -- Table structure for table `field_revision_field_price_pl_02`
@@ -3932,7 +4270,7 @@ CREATE TABLE `field_revision_field_price_pl_02` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_02_currency_price` (`field_price_pl_02_amount`,`field_price_pl_02_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 49 (field_price_pl_02)';
 
 --
 -- Table structure for table `field_revision_field_price_pl_03`
@@ -3958,7 +4296,7 @@ CREATE TABLE `field_revision_field_price_pl_03` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_03_currency_price` (`field_price_pl_03_amount`,`field_price_pl_03_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 50 (field_price_pl_03)';
 
 --
 -- Table structure for table `field_revision_field_price_pl_04`
@@ -3984,7 +4322,7 @@ CREATE TABLE `field_revision_field_price_pl_04` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_04_currency_price` (`field_price_pl_04_amount`,`field_price_pl_04_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 51 (field_price_pl_04)';
 
 --
 -- Table structure for table `field_revision_field_price_pl_05`
@@ -4010,7 +4348,7 @@ CREATE TABLE `field_revision_field_price_pl_05` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_05_currency_price` (`field_price_pl_05_amount`,`field_price_pl_05_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 52 (field_price_pl_05)';
 
 --
 -- Table structure for table `field_revision_field_price_pl_06`
@@ -4036,7 +4374,7 @@ CREATE TABLE `field_revision_field_price_pl_06` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_06_currency_price` (`field_price_pl_06_amount`,`field_price_pl_06_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 53 (field_price_pl_06)';
 
 --
 -- Table structure for table `field_revision_field_price_pl_07`
@@ -4062,7 +4400,7 @@ CREATE TABLE `field_revision_field_price_pl_07` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_07_currency_price` (`field_price_pl_07_amount`,`field_price_pl_07_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 54 (field_price_pl_07)';
 
 --
 -- Table structure for table `field_revision_field_price_pl_08`
@@ -4088,7 +4426,7 @@ CREATE TABLE `field_revision_field_price_pl_08` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_08_currency_price` (`field_price_pl_08_amount`,`field_price_pl_08_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 55 (field_price_pl_08)';
 
 --
 -- Table structure for table `field_revision_field_price_pl_09`
@@ -4114,7 +4452,7 @@ CREATE TABLE `field_revision_field_price_pl_09` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_09_currency_price` (`field_price_pl_09_amount`,`field_price_pl_09_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 56 (field_price_pl_09)';
 
 --
 -- Table structure for table `field_revision_field_price_pl_10`
@@ -4140,7 +4478,7 @@ CREATE TABLE `field_revision_field_price_pl_10` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_10_currency_price` (`field_price_pl_10_amount`,`field_price_pl_10_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 57 (field_price_pl_10)';
 
 --
 -- Table structure for table `field_revision_field_price_pl_11`
@@ -4166,7 +4504,7 @@ CREATE TABLE `field_revision_field_price_pl_11` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_11_currency_price` (`field_price_pl_11_amount`,`field_price_pl_11_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 58 (field_price_pl_11)';
 
 --
 -- Table structure for table `field_revision_field_price_pl_12`
@@ -4192,7 +4530,7 @@ CREATE TABLE `field_revision_field_price_pl_12` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_12_currency_price` (`field_price_pl_12_amount`,`field_price_pl_12_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 60 (field_price_pl_12)';
 
 --
 -- Table structure for table `field_revision_field_price_pl_13`
@@ -4218,7 +4556,7 @@ CREATE TABLE `field_revision_field_price_pl_13` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_13_currency_price` (`field_price_pl_13_amount`,`field_price_pl_13_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 64 (field_price_pl_13)';
 
 --
 -- Table structure for table `field_revision_field_price_pl_14`
@@ -4244,7 +4582,189 @@ CREATE TABLE `field_revision_field_price_pl_14` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_price_pl_14_currency_price` (`field_price_pl_14_amount`,`field_price_pl_14_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 68 (field_price_pl_14)';
+
+--
+-- Table structure for table `field_revision_field_price_pl_15`
+--
+
+DROP TABLE IF EXISTS `field_revision_field_price_pl_15`;
+CREATE TABLE `field_revision_field_price_pl_15` (
+  `entity_type` varchar(128) NOT NULL DEFAULT '' COMMENT 'The entity type this data is attached to',
+  `bundle` varchar(128) NOT NULL DEFAULT '' COMMENT 'The field instance bundle to which this row belongs, used when deleting a field instance',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'A boolean indicating whether this data item has been deleted',
+  `entity_id` int(10) unsigned NOT NULL COMMENT 'The entity id this data is attached to',
+  `revision_id` int(10) unsigned NOT NULL COMMENT 'The entity revision id this data is attached to',
+  `language` varchar(32) NOT NULL DEFAULT '' COMMENT 'The language for this data item.',
+  `delta` int(10) unsigned NOT NULL COMMENT 'The sequence number for this data item, used for multi-value fields',
+  `field_price_pl_15_amount` int(11) NOT NULL DEFAULT '0' COMMENT 'The price amount.',
+  `field_price_pl_15_currency_code` varchar(32) NOT NULL COMMENT 'The currency code for the price.',
+  `field_price_pl_15_data` longtext COMMENT 'A serialized array of additional price data.',
+  PRIMARY KEY (`entity_type`,`entity_id`,`revision_id`,`deleted`,`delta`,`language`),
+  KEY `entity_type` (`entity_type`),
+  KEY `bundle` (`bundle`),
+  KEY `deleted` (`deleted`),
+  KEY `entity_id` (`entity_id`),
+  KEY `revision_id` (`revision_id`),
+  KEY `language` (`language`),
+  KEY `field_price_pl_15_currency_price` (`field_price_pl_15_amount`,`field_price_pl_15_currency_code`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 69 (field_price_pl_15)';
+
+--
+-- Table structure for table `field_revision_field_price_pl_16`
+--
+
+DROP TABLE IF EXISTS `field_revision_field_price_pl_16`;
+CREATE TABLE `field_revision_field_price_pl_16` (
+  `entity_type` varchar(128) NOT NULL DEFAULT '' COMMENT 'The entity type this data is attached to',
+  `bundle` varchar(128) NOT NULL DEFAULT '' COMMENT 'The field instance bundle to which this row belongs, used when deleting a field instance',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'A boolean indicating whether this data item has been deleted',
+  `entity_id` int(10) unsigned NOT NULL COMMENT 'The entity id this data is attached to',
+  `revision_id` int(10) unsigned NOT NULL COMMENT 'The entity revision id this data is attached to',
+  `language` varchar(32) NOT NULL DEFAULT '' COMMENT 'The language for this data item.',
+  `delta` int(10) unsigned NOT NULL COMMENT 'The sequence number for this data item, used for multi-value fields',
+  `field_price_pl_16_amount` int(11) NOT NULL DEFAULT '0' COMMENT 'The price amount.',
+  `field_price_pl_16_currency_code` varchar(32) NOT NULL COMMENT 'The currency code for the price.',
+  `field_price_pl_16_data` longtext COMMENT 'A serialized array of additional price data.',
+  PRIMARY KEY (`entity_type`,`entity_id`,`revision_id`,`deleted`,`delta`,`language`),
+  KEY `entity_type` (`entity_type`),
+  KEY `bundle` (`bundle`),
+  KEY `deleted` (`deleted`),
+  KEY `entity_id` (`entity_id`),
+  KEY `revision_id` (`revision_id`),
+  KEY `language` (`language`),
+  KEY `field_price_pl_16_currency_price` (`field_price_pl_16_amount`,`field_price_pl_16_currency_code`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 70 (field_price_pl_16)';
+
+--
+-- Table structure for table `field_revision_field_price_pl_17`
+--
+
+DROP TABLE IF EXISTS `field_revision_field_price_pl_17`;
+CREATE TABLE `field_revision_field_price_pl_17` (
+  `entity_type` varchar(128) NOT NULL DEFAULT '' COMMENT 'The entity type this data is attached to',
+  `bundle` varchar(128) NOT NULL DEFAULT '' COMMENT 'The field instance bundle to which this row belongs, used when deleting a field instance',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'A boolean indicating whether this data item has been deleted',
+  `entity_id` int(10) unsigned NOT NULL COMMENT 'The entity id this data is attached to',
+  `revision_id` int(10) unsigned NOT NULL COMMENT 'The entity revision id this data is attached to',
+  `language` varchar(32) NOT NULL DEFAULT '' COMMENT 'The language for this data item.',
+  `delta` int(10) unsigned NOT NULL COMMENT 'The sequence number for this data item, used for multi-value fields',
+  `field_price_pl_17_amount` int(11) NOT NULL DEFAULT '0' COMMENT 'The price amount.',
+  `field_price_pl_17_currency_code` varchar(32) NOT NULL COMMENT 'The currency code for the price.',
+  `field_price_pl_17_data` longtext COMMENT 'A serialized array of additional price data.',
+  PRIMARY KEY (`entity_type`,`entity_id`,`revision_id`,`deleted`,`delta`,`language`),
+  KEY `entity_type` (`entity_type`),
+  KEY `bundle` (`bundle`),
+  KEY `deleted` (`deleted`),
+  KEY `entity_id` (`entity_id`),
+  KEY `revision_id` (`revision_id`),
+  KEY `language` (`language`),
+  KEY `field_price_pl_17_currency_price` (`field_price_pl_17_amount`,`field_price_pl_17_currency_code`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 71 (field_price_pl_17)';
+
+--
+-- Table structure for table `field_revision_field_price_pl_18`
+--
+
+DROP TABLE IF EXISTS `field_revision_field_price_pl_18`;
+CREATE TABLE `field_revision_field_price_pl_18` (
+  `entity_type` varchar(128) NOT NULL DEFAULT '' COMMENT 'The entity type this data is attached to',
+  `bundle` varchar(128) NOT NULL DEFAULT '' COMMENT 'The field instance bundle to which this row belongs, used when deleting a field instance',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'A boolean indicating whether this data item has been deleted',
+  `entity_id` int(10) unsigned NOT NULL COMMENT 'The entity id this data is attached to',
+  `revision_id` int(10) unsigned NOT NULL COMMENT 'The entity revision id this data is attached to',
+  `language` varchar(32) NOT NULL DEFAULT '' COMMENT 'The language for this data item.',
+  `delta` int(10) unsigned NOT NULL COMMENT 'The sequence number for this data item, used for multi-value fields',
+  `field_price_pl_18_amount` int(11) NOT NULL DEFAULT '0' COMMENT 'The price amount.',
+  `field_price_pl_18_currency_code` varchar(32) NOT NULL COMMENT 'The currency code for the price.',
+  `field_price_pl_18_data` longtext COMMENT 'A serialized array of additional price data.',
+  PRIMARY KEY (`entity_type`,`entity_id`,`revision_id`,`deleted`,`delta`,`language`),
+  KEY `entity_type` (`entity_type`),
+  KEY `bundle` (`bundle`),
+  KEY `deleted` (`deleted`),
+  KEY `entity_id` (`entity_id`),
+  KEY `revision_id` (`revision_id`),
+  KEY `language` (`language`),
+  KEY `field_price_pl_18_currency_price` (`field_price_pl_18_amount`,`field_price_pl_18_currency_code`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 72 (field_price_pl_18)';
+
+--
+-- Table structure for table `field_revision_field_price_pl_19`
+--
+
+DROP TABLE IF EXISTS `field_revision_field_price_pl_19`;
+CREATE TABLE `field_revision_field_price_pl_19` (
+  `entity_type` varchar(128) NOT NULL DEFAULT '' COMMENT 'The entity type this data is attached to',
+  `bundle` varchar(128) NOT NULL DEFAULT '' COMMENT 'The field instance bundle to which this row belongs, used when deleting a field instance',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'A boolean indicating whether this data item has been deleted',
+  `entity_id` int(10) unsigned NOT NULL COMMENT 'The entity id this data is attached to',
+  `revision_id` int(10) unsigned NOT NULL COMMENT 'The entity revision id this data is attached to',
+  `language` varchar(32) NOT NULL DEFAULT '' COMMENT 'The language for this data item.',
+  `delta` int(10) unsigned NOT NULL COMMENT 'The sequence number for this data item, used for multi-value fields',
+  `field_price_pl_19_amount` int(11) NOT NULL DEFAULT '0' COMMENT 'The price amount.',
+  `field_price_pl_19_currency_code` varchar(32) NOT NULL COMMENT 'The currency code for the price.',
+  `field_price_pl_19_data` longtext COMMENT 'A serialized array of additional price data.',
+  PRIMARY KEY (`entity_type`,`entity_id`,`revision_id`,`deleted`,`delta`,`language`),
+  KEY `entity_type` (`entity_type`),
+  KEY `bundle` (`bundle`),
+  KEY `deleted` (`deleted`),
+  KEY `entity_id` (`entity_id`),
+  KEY `revision_id` (`revision_id`),
+  KEY `language` (`language`),
+  KEY `field_price_pl_19_currency_price` (`field_price_pl_19_amount`,`field_price_pl_19_currency_code`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 73 (field_price_pl_19)';
+
+--
+-- Table structure for table `field_revision_field_price_pl_20`
+--
+
+DROP TABLE IF EXISTS `field_revision_field_price_pl_20`;
+CREATE TABLE `field_revision_field_price_pl_20` (
+  `entity_type` varchar(128) NOT NULL DEFAULT '' COMMENT 'The entity type this data is attached to',
+  `bundle` varchar(128) NOT NULL DEFAULT '' COMMENT 'The field instance bundle to which this row belongs, used when deleting a field instance',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'A boolean indicating whether this data item has been deleted',
+  `entity_id` int(10) unsigned NOT NULL COMMENT 'The entity id this data is attached to',
+  `revision_id` int(10) unsigned NOT NULL COMMENT 'The entity revision id this data is attached to',
+  `language` varchar(32) NOT NULL DEFAULT '' COMMENT 'The language for this data item.',
+  `delta` int(10) unsigned NOT NULL COMMENT 'The sequence number for this data item, used for multi-value fields',
+  `field_price_pl_20_amount` int(11) NOT NULL DEFAULT '0' COMMENT 'The price amount.',
+  `field_price_pl_20_currency_code` varchar(32) NOT NULL COMMENT 'The currency code for the price.',
+  `field_price_pl_20_data` longtext COMMENT 'A serialized array of additional price data.',
+  PRIMARY KEY (`entity_type`,`entity_id`,`revision_id`,`deleted`,`delta`,`language`),
+  KEY `entity_type` (`entity_type`),
+  KEY `bundle` (`bundle`),
+  KEY `deleted` (`deleted`),
+  KEY `entity_id` (`entity_id`),
+  KEY `revision_id` (`revision_id`),
+  KEY `language` (`language`),
+  KEY `field_price_pl_20_currency_price` (`field_price_pl_20_amount`,`field_price_pl_20_currency_code`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 74 (field_price_pl_20)';
+
+--
+-- Table structure for table `field_revision_field_price_pl_21`
+--
+
+DROP TABLE IF EXISTS `field_revision_field_price_pl_21`;
+CREATE TABLE `field_revision_field_price_pl_21` (
+  `entity_type` varchar(128) NOT NULL DEFAULT '' COMMENT 'The entity type this data is attached to',
+  `bundle` varchar(128) NOT NULL DEFAULT '' COMMENT 'The field instance bundle to which this row belongs, used when deleting a field instance',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'A boolean indicating whether this data item has been deleted',
+  `entity_id` int(10) unsigned NOT NULL COMMENT 'The entity id this data is attached to',
+  `revision_id` int(10) unsigned NOT NULL COMMENT 'The entity revision id this data is attached to',
+  `language` varchar(32) NOT NULL DEFAULT '' COMMENT 'The language for this data item.',
+  `delta` int(10) unsigned NOT NULL COMMENT 'The sequence number for this data item, used for multi-value fields',
+  `field_price_pl_21_amount` int(11) NOT NULL DEFAULT '0' COMMENT 'The price amount.',
+  `field_price_pl_21_currency_code` varchar(32) NOT NULL COMMENT 'The currency code for the price.',
+  `field_price_pl_21_data` longtext COMMENT 'A serialized array of additional price data.',
+  PRIMARY KEY (`entity_type`,`entity_id`,`revision_id`,`deleted`,`delta`,`language`),
+  KEY `entity_type` (`entity_type`),
+  KEY `bundle` (`bundle`),
+  KEY `deleted` (`deleted`),
+  KEY `entity_id` (`entity_id`),
+  KEY `revision_id` (`revision_id`),
+  KEY `language` (`language`),
+  KEY `field_price_pl_21_currency_price` (`field_price_pl_21_amount`,`field_price_pl_21_currency_code`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 75 (field_price_pl_21)';
 
 --
 -- Table structure for table `field_revision_field_product`
@@ -4268,7 +4788,7 @@ CREATE TABLE `field_revision_field_product` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_product_product_id` (`field_product_product_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 27 (field_product)';
 
 --
 -- Table structure for table `field_revision_field_product_category`
@@ -4292,7 +4812,7 @@ CREATE TABLE `field_revision_field_product_category` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_product_category_tid` (`field_product_category_tid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 28 (field_product...';
 
 --
 -- Table structure for table `field_revision_field_required_delivery_date`
@@ -4315,7 +4835,7 @@ CREATE TABLE `field_revision_field_required_delivery_date` (
   KEY `entity_id` (`entity_id`),
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 62 (field_required...';
 
 --
 -- Table structure for table `field_revision_field_rgb`
@@ -4340,7 +4860,7 @@ CREATE TABLE `field_revision_field_rgb` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_rgb_format` (`field_rgb_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 35 (field_rgb)';
 
 --
 -- Table structure for table `field_revision_field_special_request`
@@ -4365,7 +4885,7 @@ CREATE TABLE `field_revision_field_special_request` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_special_request_format` (`field_special_request_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 63 (field_special...';
 
 --
 -- Table structure for table `field_revision_field_stock_status`
@@ -4389,7 +4909,57 @@ CREATE TABLE `field_revision_field_stock_status` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_stock_status_tid` (`field_stock_status_tid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 59 (field_stock_status)';
+
+--
+-- Table structure for table `field_revision_field_table`
+--
+
+DROP TABLE IF EXISTS `field_revision_field_table`;
+CREATE TABLE `field_revision_field_table` (
+  `entity_type` varchar(128) NOT NULL DEFAULT '' COMMENT 'The entity type this data is attached to',
+  `bundle` varchar(128) NOT NULL DEFAULT '' COMMENT 'The field instance bundle to which this row belongs, used when deleting a field instance',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'A boolean indicating whether this data item has been deleted',
+  `entity_id` int(10) unsigned NOT NULL COMMENT 'The entity id this data is attached to',
+  `revision_id` int(10) unsigned NOT NULL COMMENT 'The entity revision id this data is attached to',
+  `language` varchar(32) NOT NULL DEFAULT '' COMMENT 'The language for this data item.',
+  `delta` int(10) unsigned NOT NULL COMMENT 'The sequence number for this data item, used for multi-value fields',
+  `field_table_value` longtext,
+  `field_table_format` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`entity_type`,`entity_id`,`revision_id`,`deleted`,`delta`,`language`),
+  KEY `entity_type` (`entity_type`),
+  KEY `bundle` (`bundle`),
+  KEY `deleted` (`deleted`),
+  KEY `entity_id` (`entity_id`),
+  KEY `revision_id` (`revision_id`),
+  KEY `language` (`language`),
+  KEY `field_table_format` (`field_table_format`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 78 (field_table)';
+
+--
+-- Table structure for table `field_revision_field_table_`
+--
+
+DROP TABLE IF EXISTS `field_revision_field_table_`;
+CREATE TABLE `field_revision_field_table_` (
+  `entity_type` varchar(128) NOT NULL DEFAULT '' COMMENT 'The entity type this data is attached to',
+  `bundle` varchar(128) NOT NULL DEFAULT '' COMMENT 'The field instance bundle to which this row belongs, used when deleting a field instance',
+  `deleted` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'A boolean indicating whether this data item has been deleted',
+  `entity_id` int(10) unsigned NOT NULL COMMENT 'The entity id this data is attached to',
+  `revision_id` int(10) unsigned NOT NULL COMMENT 'The entity revision id this data is attached to',
+  `language` varchar(32) NOT NULL DEFAULT '' COMMENT 'The language for this data item.',
+  `delta` int(10) unsigned NOT NULL COMMENT 'The sequence number for this data item, used for multi-value fields',
+  `field_table__value` longtext,
+  `field_table__format` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`entity_type`,`entity_id`,`revision_id`,`deleted`,`delta`,`language`),
+  KEY `entity_type` (`entity_type`),
+  KEY `bundle` (`bundle`),
+  KEY `deleted` (`deleted`),
+  KEY `entity_id` (`entity_id`),
+  KEY `revision_id` (`revision_id`),
+  KEY `language` (`language`),
+  KEY `field_table__format` (`field_table__format`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 78 (field_table_)';
 
 --
 -- Table structure for table `field_revision_field_tagline`
@@ -4414,7 +4984,7 @@ CREATE TABLE `field_revision_field_tagline` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_tagline_format` (`field_tagline_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 31 (field_tagline)';
 
 --
 -- Table structure for table `field_revision_field_trim_colour`
@@ -4438,7 +5008,7 @@ CREATE TABLE `field_revision_field_trim_colour` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_trim_colour_tid` (`field_trim_colour_tid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 39 (field_trim_colour)';
 
 --
 -- Table structure for table `field_revision_field_wholesale_price`
@@ -4464,7 +5034,7 @@ CREATE TABLE `field_revision_field_wholesale_price` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `field_wholesale_price_currency_price` (`field_wholesale_price_amount`,`field_wholesale_price_currency_code`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 40 (field_wholesale...';
 
 --
 -- Table structure for table `field_revision_inline_conditions`
@@ -4488,7 +5058,7 @@ CREATE TABLE `field_revision_inline_conditions` (
   KEY `entity_id` (`entity_id`),
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 67 (inline_conditions)';
 
 --
 -- Table structure for table `field_revision_message_commerce_body`
@@ -4513,7 +5083,7 @@ CREATE TABLE `field_revision_message_commerce_body` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_commerce_body_format` (`message_commerce_body_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 25 (message_commerce...';
 
 --
 -- Table structure for table `field_revision_message_commerce_line_item`
@@ -4537,7 +5107,7 @@ CREATE TABLE `field_revision_message_commerce_line_item` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_commerce_line_item_target_id` (`message_commerce_line_item_target_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 23 (message_commerce...';
 
 --
 -- Table structure for table `field_revision_message_commerce_order`
@@ -4561,7 +5131,7 @@ CREATE TABLE `field_revision_message_commerce_order` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_commerce_order_target_id` (`message_commerce_order_target_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 22 (message_commerce...';
 
 --
 -- Table structure for table `field_revision_message_commerce_payment`
@@ -4585,7 +5155,7 @@ CREATE TABLE `field_revision_message_commerce_payment` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_commerce_payment_target_id` (`message_commerce_payment_target_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 24 (message_commerce...';
 
 --
 -- Table structure for table `field_revision_message_order_display_name`
@@ -4610,7 +5180,7 @@ CREATE TABLE `field_revision_message_order_display_name` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_order_display_name_format` (`message_order_display_name_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 11 (message_order...';
 
 --
 -- Table structure for table `field_revision_message_text`
@@ -4635,7 +5205,7 @@ CREATE TABLE `field_revision_message_text` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_text_format` (`message_text_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 9 (message_text)';
 
 --
 -- Table structure for table `field_revision_message_text_subject`
@@ -4660,7 +5230,7 @@ CREATE TABLE `field_revision_message_text_subject` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `message_text_subject_format` (`message_text_subject_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 10 (message_text_subject)';
 
 --
 -- Table structure for table `field_revision_title_field`
@@ -4685,7 +5255,7 @@ CREATE TABLE `field_revision_title_field` (
   KEY `revision_id` (`revision_id`),
   KEY `language` (`language`),
   KEY `title_field_format` (`title_field_format`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Revision archive storage for field 32 (title_field)';
 
 --
 -- Table structure for table `file_managed`
@@ -4706,7 +5276,7 @@ CREATE TABLE `file_managed` (
   KEY `uid` (`uid`),
   KEY `status` (`status`),
   KEY `timestamp` (`timestamp`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Stores information for uploaded files.';
 
 --
 -- Table structure for table `file_usage`
@@ -4723,7 +5293,7 @@ CREATE TABLE `file_usage` (
   KEY `type_id` (`type`,`id`),
   KEY `fid_count` (`fid`,`count`),
   KEY `fid_module` (`fid`,`module`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Track where a file is used.';
 
 --
 -- Table structure for table `filter`
@@ -4739,7 +5309,7 @@ CREATE TABLE `filter` (
   `settings` longblob COMMENT 'A serialized array of name value pairs that store the filter settings for the specific format.',
   PRIMARY KEY (`format`,`name`),
   KEY `list` (`weight`,`module`,`name`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Table that maps filters (HTML corrector) to text formats ...';
 
 --
 -- Table structure for table `filter_format`
@@ -4755,7 +5325,7 @@ CREATE TABLE `filter_format` (
   PRIMARY KEY (`format`),
   UNIQUE KEY `name` (`name`),
   KEY `status_weight` (`status`,`weight`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Stores text formats: custom groupings of filters, such as...';
 
 --
 -- Table structure for table `flood`
@@ -4771,7 +5341,7 @@ CREATE TABLE `flood` (
   PRIMARY KEY (`fid`),
   KEY `allow` (`event`,`identifier`,`timestamp`),
   KEY `purge` (`expiration`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Flood controls the threshold of events, such as the...';
 
 --
 -- Table structure for table `history`
@@ -4784,7 +5354,7 @@ CREATE TABLE `history` (
   `timestamp` int(11) NOT NULL DEFAULT '0' COMMENT 'The Unix timestamp at which the read occurred.',
   PRIMARY KEY (`uid`,`nid`),
   KEY `nid` (`nid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='A record of which users have read which nodes.';
 
 --
 -- Table structure for table `honeypot_user`
@@ -4796,7 +5366,7 @@ CREATE TABLE `honeypot_user` (
   `timestamp` int(10) unsigned NOT NULL COMMENT 'Date/time when the form submission failed, as Unix timestamp.',
   KEY `uid` (`uid`),
   KEY `timestamp` (`timestamp`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Table that stores failed attempts to submit a form.';
 
 --
 -- Table structure for table `image_effects`
@@ -4812,7 +5382,7 @@ CREATE TABLE `image_effects` (
   PRIMARY KEY (`ieid`),
   KEY `isid` (`isid`),
   KEY `weight` (`weight`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Stores configuration options for image effects.';
 
 --
 -- Table structure for table `image_styles`
@@ -4825,7 +5395,7 @@ CREATE TABLE `image_styles` (
   `label` varchar(255) NOT NULL DEFAULT '' COMMENT 'The style administrative name.',
   PRIMARY KEY (`isid`),
   UNIQUE KEY `name` (`name`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Stores configuration options for image styles.';
 
 --
 -- Table structure for table `job_schedule`
@@ -4851,7 +5421,7 @@ CREATE TABLE `job_schedule` (
   KEY `name_type` (`name`,`type`),
   KEY `next` (`next`),
   KEY `scheduled` (`scheduled`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Schedule of jobs to be executed.';
 
 --
 -- Table structure for table `masquerade`
@@ -4864,7 +5434,7 @@ CREATE TABLE `masquerade` (
   `uid_as` int(11) NOT NULL DEFAULT '0' COMMENT 'The users.uid this session is masquerading as.',
   KEY `sid` (`sid`,`uid_from`),
   KEY `sid_2` (`sid`,`uid_as`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Each masquerading user has their session recorded into...';
 
 --
 -- Table structure for table `masquerade_users`
@@ -4875,7 +5445,7 @@ CREATE TABLE `masquerade_users` (
   `uid_from` int(11) NOT NULL DEFAULT '0' COMMENT 'The users.uid that can masquerade as masquerade_users.uid_to.',
   `uid_to` int(11) NOT NULL DEFAULT '0' COMMENT 'The users.uid that masquerade_users.uid_from can masquerade as.',
   PRIMARY KEY (`uid_from`,`uid_to`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Per-user permission table granting permissions to switch...';
 
 --
 -- Table structure for table `megamenu`
@@ -4890,7 +5460,7 @@ CREATE TABLE `megamenu` (
   `slot_orientation` varchar(32) NOT NULL DEFAULT 'columnar' COMMENT 'Orientation CSS class to apply to slots (stacking or columnar)',
   `slot_attributes` tinytext COMMENT 'Custom CSS classes to apply to slots',
   PRIMARY KEY (`menu_name`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Stores the enabled state and other attributes of mega menus.';
 
 --
 -- Table structure for table `menu_custom`
@@ -4902,7 +5472,7 @@ CREATE TABLE `menu_custom` (
   `title` varchar(255) NOT NULL DEFAULT '' COMMENT 'Menu title; displayed at top of block.',
   `description` text COMMENT 'Menu description.',
   PRIMARY KEY (`menu_name`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Holds definitions for top-level custom menus (for example...';
 
 --
 -- Table structure for table `menu_links`
@@ -4940,7 +5510,7 @@ CREATE TABLE `menu_links` (
   KEY `menu_plid_expand_child` (`menu_name`,`plid`,`expanded`,`has_children`),
   KEY `menu_parents` (`menu_name`,`p1`,`p2`,`p3`,`p4`,`p5`,`p6`,`p7`,`p8`,`p9`),
   KEY `router_path` (`router_path`(128))
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Contains the individual links within a menu.';
 
 --
 -- Table structure for table `menu_router`
@@ -4975,7 +5545,7 @@ CREATE TABLE `menu_router` (
   KEY `fit` (`fit`),
   KEY `tab_parent` (`tab_parent`(64),`weight`,`title`),
   KEY `tab_root_weight_title` (`tab_root`(64),`weight`,`title`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Maps paths to various callbacks (access, page and title)';
 
 --
 -- Table structure for table `message`
@@ -4990,7 +5560,7 @@ CREATE TABLE `message` (
   `timestamp` int(10) unsigned NOT NULL COMMENT 'When the message instance was recorded.',
   `language` varchar(12) NOT NULL DEFAULT '' COMMENT 'The languages.language of this message.',
   PRIMARY KEY (`mid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='An instance of a message type (e.g. like a node is an...';
 
 --
 -- Table structure for table `message_type`
@@ -5010,7 +5580,7 @@ CREATE TABLE `message_type` (
   `data` longtext COMMENT 'Serialized array with general data.',
   PRIMARY KEY (`id`),
   UNIQUE KEY `name` (`name`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Storage for user-defined message templates.';
 
 --
 -- Table structure for table `message_type_category`
@@ -5026,7 +5596,7 @@ CREATE TABLE `message_type_category` (
   `module` varchar(255) DEFAULT NULL COMMENT 'The name of the providing module if the entity has been defined in code.',
   PRIMARY KEY (`id`),
   UNIQUE KEY `category` (`category`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Storage for user-defined message category.';
 
 --
 -- Table structure for table `metatag`
@@ -5041,7 +5611,7 @@ CREATE TABLE `metatag` (
   `revision_id` int(10) unsigned NOT NULL DEFAULT '0' COMMENT 'The revision_id for the entity object this data is attached to.',
   PRIMARY KEY (`entity_type`,`entity_id`,`revision_id`,`language`),
   KEY `type_revision` (`entity_type`,`revision_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `metatag_config`
@@ -5054,7 +5624,7 @@ CREATE TABLE `metatag_config` (
   `config` longblob NOT NULL COMMENT 'Serialized data containing the meta tag configuration.',
   PRIMARY KEY (`cid`),
   UNIQUE KEY `instance` (`instance`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Storage of meta tag configuration and defaults.';
 
 --
 -- Table structure for table `migrate_log`
@@ -5071,7 +5641,7 @@ CREATE TABLE `migrate_log` (
   `finalhighwater` varchar(255) DEFAULT NULL COMMENT 'Final highwater mark',
   `numprocessed` int(10) unsigned DEFAULT NULL COMMENT 'Number of items processed',
   PRIMARY KEY (`mlid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='History of migration processes';
 
 --
 -- Table structure for table `migrate_map_commercekickstartadpush`
@@ -5085,7 +5655,7 @@ CREATE TABLE `migrate_map_commercekickstartadpush` (
   `last_imported` int(10) unsigned NOT NULL DEFAULT '0' COMMENT 'UNIX timestamp of the last time this row was imported',
   `rollback_action` tinyint(3) unsigned NOT NULL DEFAULT '0' COMMENT 'Flag indicating what to do for this item on rollback',
   PRIMARY KEY (`sourceid1`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Mappings from source key to destination key';
 
 --
 -- Table structure for table `migrate_map_commercekickstartnode`
@@ -5099,7 +5669,7 @@ CREATE TABLE `migrate_map_commercekickstartnode` (
   `last_imported` int(10) unsigned NOT NULL DEFAULT '0' COMMENT 'UNIX timestamp of the last time this row was imported',
   `rollback_action` tinyint(3) unsigned NOT NULL DEFAULT '0' COMMENT 'Flag indicating what to do for this item on rollback',
   PRIMARY KEY (`sourceid1`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Mappings from source key to destination key';
 
 --
 -- Table structure for table `migrate_map_commercekickstartpages`
@@ -5113,7 +5683,7 @@ CREATE TABLE `migrate_map_commercekickstartpages` (
   `last_imported` int(10) unsigned NOT NULL DEFAULT '0' COMMENT 'UNIX timestamp of the last time this row was imported',
   `rollback_action` tinyint(3) unsigned NOT NULL DEFAULT '0' COMMENT 'Flag indicating what to do for this item on rollback',
   PRIMARY KEY (`sourceid1`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Mappings from source key to destination key';
 
 --
 -- Table structure for table `migrate_map_commercekickstartproduct`
@@ -5128,7 +5698,7 @@ CREATE TABLE `migrate_map_commercekickstartproduct` (
   `last_imported` int(10) unsigned NOT NULL DEFAULT '0' COMMENT 'UNIX timestamp of the last time this row was imported',
   `rollback_action` tinyint(3) unsigned NOT NULL DEFAULT '0' COMMENT 'Flag indicating what to do for this item on rollback',
   PRIMARY KEY (`sourceid1`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Mappings from source key to destination key';
 
 --
 -- Table structure for table `migrate_map_commercekickstartslideshow`
@@ -5142,7 +5712,7 @@ CREATE TABLE `migrate_map_commercekickstartslideshow` (
   `last_imported` int(10) unsigned NOT NULL DEFAULT '0' COMMENT 'UNIX timestamp of the last time this row was imported',
   `rollback_action` tinyint(3) unsigned NOT NULL DEFAULT '0' COMMENT 'Flag indicating what to do for this item on rollback',
   PRIMARY KEY (`sourceid1`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Mappings from source key to destination key';
 
 --
 -- Table structure for table `migrate_message_commercekickstartadpush`
@@ -5156,7 +5726,7 @@ CREATE TABLE `migrate_message_commercekickstartadpush` (
   `message` mediumtext NOT NULL,
   PRIMARY KEY (`msgid`),
   KEY `sourcekey` (`sourceid1`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Messages generated during a migration process';
 
 --
 -- Table structure for table `migrate_message_commercekickstartnode`
@@ -5170,7 +5740,7 @@ CREATE TABLE `migrate_message_commercekickstartnode` (
   `message` mediumtext NOT NULL,
   PRIMARY KEY (`msgid`),
   KEY `sourcekey` (`sourceid1`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Messages generated during a migration process';
 
 --
 -- Table structure for table `migrate_message_commercekickstartpages`
@@ -5184,7 +5754,7 @@ CREATE TABLE `migrate_message_commercekickstartpages` (
   `message` mediumtext NOT NULL,
   PRIMARY KEY (`msgid`),
   KEY `sourcekey` (`sourceid1`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Messages generated during a migration process';
 
 --
 -- Table structure for table `migrate_message_commercekickstartproduct`
@@ -5198,7 +5768,7 @@ CREATE TABLE `migrate_message_commercekickstartproduct` (
   `message` mediumtext NOT NULL,
   PRIMARY KEY (`msgid`),
   KEY `sourcekey` (`sourceid1`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Messages generated during a migration process';
 
 --
 -- Table structure for table `migrate_message_commercekickstartslideshow`
@@ -5212,7 +5782,7 @@ CREATE TABLE `migrate_message_commercekickstartslideshow` (
   `message` mediumtext NOT NULL,
   PRIMARY KEY (`msgid`),
   KEY `sourcekey` (`sourceid1`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Messages generated during a migration process';
 
 --
 -- Table structure for table `migrate_status`
@@ -5226,7 +5796,7 @@ CREATE TABLE `migrate_status` (
   `highwater` varchar(255) NOT NULL DEFAULT '' COMMENT 'Highwater mark for detecting updated content',
   `arguments` longblob COMMENT 'A serialized array of arguments to the migration constructor',
   PRIMARY KEY (`machine_name`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Status information for migrations';
 
 --
 -- Table structure for table `node`
@@ -5260,7 +5830,7 @@ CREATE TABLE `node` (
   KEY `tnid` (`tnid`),
   KEY `translate` (`translate`),
   KEY `language` (`language`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='The base table for nodes.';
 
 --
 -- Table structure for table `node_access`
@@ -5275,7 +5845,7 @@ CREATE TABLE `node_access` (
   `grant_update` tinyint(3) unsigned NOT NULL DEFAULT '0' COMMENT 'Boolean indicating whether a user with the realm/grant pair can edit this node.',
   `grant_delete` tinyint(3) unsigned NOT NULL DEFAULT '0' COMMENT 'Boolean indicating whether a user with the realm/grant pair can delete this node.',
   PRIMARY KEY (`nid`,`gid`,`realm`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Identifies which realm/grant pairs a user must possess in...';
 
 --
 -- Table structure for table `node_comment_statistics`
@@ -5293,7 +5863,7 @@ CREATE TABLE `node_comment_statistics` (
   KEY `node_comment_timestamp` (`last_comment_timestamp`),
   KEY `comment_count` (`comment_count`),
   KEY `last_comment_uid` (`last_comment_uid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Maintains statistics of node and comments posts to show ...';
 
 --
 -- Table structure for table `node_counter`
@@ -5306,7 +5876,7 @@ CREATE TABLE `node_counter` (
   `daycount` mediumint(8) unsigned NOT NULL DEFAULT '0' COMMENT 'The total number of times the node has been viewed today.',
   `timestamp` int(10) unsigned NOT NULL DEFAULT '0' COMMENT 'The most recent time the node has been viewed.',
   PRIMARY KEY (`nid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Access statistics for nodes.';
 
 --
 -- Table structure for table `node_revision`
@@ -5327,7 +5897,7 @@ CREATE TABLE `node_revision` (
   PRIMARY KEY (`vid`),
   KEY `nid` (`nid`),
   KEY `uid` (`uid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Stores information about each saved version of a node.';
 
 --
 -- Table structure for table `node_spambot`
@@ -5340,7 +5910,7 @@ CREATE TABLE `node_spambot` (
   `hostname` varchar(128) DEFAULT NULL,
   PRIMARY KEY (`nid`),
   KEY `uid` (`uid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Node table to track author IP addresses. For use by...';
 
 --
 -- Table structure for table `node_type`
@@ -5362,7 +5932,7 @@ CREATE TABLE `node_type` (
   `disabled` tinyint(4) NOT NULL DEFAULT '0' COMMENT 'A boolean indicating whether the node type is disabled.',
   `orig_type` varchar(255) NOT NULL DEFAULT '' COMMENT 'The original machine-readable name of this node type. This may be different from the current type name if the locked field is 0.',
   PRIMARY KEY (`type`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Stores information about all defined node types.';
 
 --
 -- Table structure for table `page_title`
@@ -5374,7 +5944,7 @@ CREATE TABLE `page_title` (
   `id` int(10) unsigned NOT NULL DEFAULT '0',
   `page_title` varchar(255) NOT NULL DEFAULT '',
   PRIMARY KEY (`type`,`id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `queue`
@@ -5390,7 +5960,7 @@ CREATE TABLE `queue` (
   PRIMARY KEY (`item_id`),
   KEY `name_created` (`name`,`created`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Stores items in queues.';
 
 --
 -- Table structure for table `redirect`
@@ -5414,7 +5984,7 @@ CREATE TABLE `redirect` (
   UNIQUE KEY `hash` (`hash`),
   KEY `expires` (`type`,`access`),
   KEY `source_language` (`source`,`language`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Stores information on redirects.';
 
 --
 -- Table structure for table `registry`
@@ -5429,7 +5999,7 @@ CREATE TABLE `registry` (
   `weight` int(11) NOT NULL DEFAULT '0' COMMENT 'The order in which this module’s hooks should be invoked relative to other modules. Equal-weighted modules are ordered by name.',
   PRIMARY KEY (`name`,`type`),
   KEY `hook` (`type`,`weight`,`module`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Each record is a function, class, or interface name and...';
 
 --
 -- Table structure for table `registry_file`
@@ -5440,7 +6010,7 @@ CREATE TABLE `registry_file` (
   `filename` varchar(255) NOT NULL COMMENT 'Path to the file.',
   `hash` varchar(64) NOT NULL COMMENT 'sha-256 hash of the file’s contents when last parsed.',
   PRIMARY KEY (`filename`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Files parsed to build the registry.';
 
 --
 -- Table structure for table `role`
@@ -5454,7 +6024,7 @@ CREATE TABLE `role` (
   PRIMARY KEY (`rid`),
   UNIQUE KEY `name` (`name`),
   KEY `name_weight` (`name`,`weight`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Stores user roles.';
 
 --
 -- Table structure for table `role_permission`
@@ -5467,7 +6037,7 @@ CREATE TABLE `role_permission` (
   `module` varchar(255) NOT NULL DEFAULT '' COMMENT 'The module declaring the permission.',
   PRIMARY KEY (`rid`,`permission`),
   KEY `permission` (`permission`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Stores the permissions assigned to user roles.';
 
 --
 -- Table structure for table `rules_config`
@@ -5490,7 +6060,7 @@ CREATE TABLE `rules_config` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `name` (`name`),
   KEY `plugin` (`plugin`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `rules_dependencies`
@@ -5502,7 +6072,7 @@ CREATE TABLE `rules_dependencies` (
   `module` varchar(255) NOT NULL COMMENT 'The name of the module that is required for the configuration.',
   PRIMARY KEY (`id`,`module`),
   KEY `module` (`module`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `rules_tags`
@@ -5513,7 +6083,7 @@ CREATE TABLE `rules_tags` (
   `id` int(10) unsigned NOT NULL COMMENT 'The primary identifier of the configuration.',
   `tag` varchar(255) NOT NULL COMMENT 'The tag string associated with this configuration',
   PRIMARY KEY (`id`,`tag`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `rules_trigger`
@@ -5524,7 +6094,7 @@ CREATE TABLE `rules_trigger` (
   `id` int(10) unsigned NOT NULL COMMENT 'The primary identifier of the configuration.',
   `event` varchar(127) NOT NULL DEFAULT '' COMMENT 'The name of the event on which the configuration should be triggered.',
   PRIMARY KEY (`id`,`event`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `search_api_db_custom_product_display_field_product_commerce_pri`
@@ -5536,7 +6106,7 @@ CREATE TABLE `search_api_db_custom_product_display_field_product_commerce_pri` (
   `value` float NOT NULL COMMENT 'The field’s value for this item.',
   PRIMARY KEY (`item_id`,`value`),
   KEY `value` (`value`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `search_api_db_custom_product_display_search_api_language`
@@ -5548,7 +6118,7 @@ CREATE TABLE `search_api_db_custom_product_display_search_api_language` (
   `value` varchar(255) DEFAULT NULL COMMENT 'The field’s value for this item.',
   PRIMARY KEY (`item_id`),
   KEY `value` (`value`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `search_api_db_product_display`
@@ -5557,26 +6127,10 @@ CREATE TABLE `search_api_db_custom_product_display_search_api_language` (
 DROP TABLE IF EXISTS `search_api_db_product_display`;
 CREATE TABLE `search_api_db_product_display` (
   `item_id` bigint(20) NOT NULL COMMENT 'The primary identifier of the item.',
-  `field_product_field_price_pl_01_amount_decimal_asc` float DEFAULT NULL COMMENT 'The field’s value for this item.',
-  `field_product_field_price_pl_01_amount_decimal_desc` float DEFAULT NULL COMMENT 'The field’s value for this item.',
-  `field_product_field_price_pl_02_amount_decimal_asc` bigint(20) DEFAULT NULL COMMENT 'The field’s value for this item.',
-  `field_product_field_price_pl_02_amount_decimal_desc` bigint(20) DEFAULT NULL COMMENT 'The field’s value for this item.',
-  `field_product_field_price_pl_03_amount_decimal_asc` varchar(255) COLLATE utf8_bin DEFAULT NULL COMMENT 'The field’s value for this item.',
-  `field_product_field_price_pl_03_amount_decimal_desc` varchar(255) COLLATE utf8_bin DEFAULT NULL COMMENT 'The field’s value for this item.',
-  `views` bigint(20) DEFAULT NULL COMMENT 'The field’s value for this item.',
   `day_views` bigint(20) DEFAULT NULL COMMENT 'The field’s value for this item.',
-  `changed` bigint(20) DEFAULT NULL COMMENT 'The field’s value for this item.',
   PRIMARY KEY (`item_id`),
-  KEY `field_product_field_price_pl_01_amount_decimal_asc` (`field_product_field_price_pl_01_amount_decimal_asc`),
-  KEY `field_product_field_price_pl_01_amount_decimal_desc` (`field_product_field_price_pl_01_amount_decimal_desc`),
-  KEY `field_product_field_price_pl_02_amount_decimal_asc` (`field_product_field_price_pl_02_amount_decimal_asc`),
-  KEY `field_product_field_price_pl_02_amount_decimal_desc` (`field_product_field_price_pl_02_amount_decimal_desc`),
-  KEY `field_product_field_price_pl_03_amount_decimal_asc` (`field_product_field_price_pl_03_amount_decimal_asc`(10)),
-  KEY `field_product_field_price_pl_03_amount_decimal_desc` (`field_product_field_price_pl_03_amount_decimal_desc`(10)),
-  KEY `views` (`views`),
-  KEY `day_views` (`day_views`),
-  KEY `changed` (`changed`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+  KEY `day_views` (`day_views`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `search_api_db_product_display_created`
@@ -5588,7 +6142,7 @@ CREATE TABLE `search_api_db_product_display_created` (
   `value` bigint(20) DEFAULT NULL,
   PRIMARY KEY (`item_id`),
   KEY `value` (`value`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `search_api_db_product_display_field_brand`
@@ -5600,7 +6154,7 @@ CREATE TABLE `search_api_db_product_display_field_brand` (
   `value` int(11) DEFAULT NULL COMMENT 'The field’s value for this item.',
   PRIMARY KEY (`item_id`),
   KEY `value` (`value`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `search_api_db_product_display_field_collection`
@@ -5612,7 +6166,7 @@ CREATE TABLE `search_api_db_product_display_field_collection` (
   `value` int(11) DEFAULT NULL COMMENT 'The field’s value for this item.',
   PRIMARY KEY (`item_id`),
   KEY `value` (`value`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `search_api_db_product_display_field_product_category`
@@ -5624,7 +6178,43 @@ CREATE TABLE `search_api_db_product_display_field_product_category` (
   `value` int(11) DEFAULT NULL COMMENT 'The field’s value for this item.',
   PRIMARY KEY (`item_id`),
   KEY `value` (`value`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_commerce_price_am_1`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_commerce_price_am_1`;
+CREATE TABLE `search_api_db_product_display_field_product_commerce_price_am_1` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_commerce_price_am_2`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_commerce_price_am_2`;
+CREATE TABLE `search_api_db_product_display_field_product_commerce_price_am_2` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_commerce_price_amou`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_commerce_price_amou`;
+CREATE TABLE `search_api_db_product_display_field_product_commerce_price_amou` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float NOT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`,`value`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `search_api_db_product_display_field_product_field_colour`
@@ -5636,7 +6226,187 @@ CREATE TABLE `search_api_db_product_display_field_product_field_colour` (
   `value` int(11) NOT NULL COMMENT 'The field’s value for this item.',
   PRIMARY KEY (`item_id`,`value`),
   KEY `value` (`value`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_01_1`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_01_1`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_01_1` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_01_2`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_01_2`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_01_2` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_01_a`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_01_a`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_01_a` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float NOT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`,`value`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_02_1`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_02_1`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_02_1` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_02_2`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_02_2`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_02_2` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_02_a`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_02_a`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_02_a` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float NOT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`,`value`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_03_1`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_03_1`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_03_1` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_03_2`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_03_2`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_03_2` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_03_a`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_03_a`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_03_a` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float NOT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`,`value`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_04_1`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_04_1`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_04_1` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_04_2`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_04_2`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_04_2` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_04_a`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_04_a`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_04_a` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float NOT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`,`value`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_05_1`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_05_1`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_05_1` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_05_2`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_05_2`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_05_2` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_05_a`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_05_a`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_05_a` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float NOT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`,`value`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `search_api_db_product_display_field_product_field_price_pl_06_`
@@ -5648,7 +6418,31 @@ CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_06_` (
   `value` float NOT NULL COMMENT 'The field’s value for this item.',
   PRIMARY KEY (`item_id`,`value`),
   KEY `value` (`value`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_06_1`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_06_1`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_06_1` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_06_2`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_06_2`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_06_2` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `search_api_db_product_display_field_product_field_price_pl_06_a`
@@ -5657,10 +6451,190 @@ CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_06_` (
 DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_06_a`;
 CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_06_a` (
   `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
-  `value` varchar(255) NOT NULL DEFAULT '' COMMENT 'The field’s value for this item.',
+  `value` float NOT NULL COMMENT 'The field’s value for this item.',
   PRIMARY KEY (`item_id`,`value`),
   KEY `value` (`value`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_07_1`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_07_1`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_07_1` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_07_2`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_07_2`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_07_2` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_07_a`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_07_a`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_07_a` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float NOT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`,`value`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_08_1`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_08_1`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_08_1` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_08_2`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_08_2`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_08_2` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_08_a`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_08_a`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_08_a` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float NOT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`,`value`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_09_1`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_09_1`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_09_1` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_09_2`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_09_2`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_09_2` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_09_a`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_09_a`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_09_a` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float NOT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`,`value`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_10_1`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_10_1`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_10_1` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_10_2`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_10_2`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_10_2` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_10_a`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_10_a`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_10_a` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float NOT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`,`value`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_11_1`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_11_1`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_11_1` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_11_2`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_11_2`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_11_2` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float DEFAULT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
+
+--
+-- Table structure for table `search_api_db_product_display_field_product_field_price_pl_11_a`
+--
+
+DROP TABLE IF EXISTS `search_api_db_product_display_field_product_field_price_pl_11_a`;
+CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_11_a` (
+  `item_id` int(11) NOT NULL COMMENT 'The primary identifier of the item.',
+  `value` float NOT NULL COMMENT 'The field’s value for this item.',
+  PRIMARY KEY (`item_id`,`value`),
+  KEY `value` (`value`)
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `search_api_db_product_display_field_product_field_price_pl_12_a`
@@ -5672,7 +6646,7 @@ CREATE TABLE `search_api_db_product_display_field_product_field_price_pl_12_a` (
   `value` float NOT NULL COMMENT 'The field’s value for this item.',
   PRIMARY KEY (`item_id`,`value`),
   KEY `value` (`value`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `search_api_db_product_display_field_product_field_stock_status`
@@ -5684,7 +6658,7 @@ CREATE TABLE `search_api_db_product_display_field_product_field_stock_status` (
   `value` int(11) NOT NULL COMMENT 'The field’s value for this item.',
   PRIMARY KEY (`item_id`,`value`),
   KEY `value` (`value`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `search_api_db_product_display_field_product_field_trim_colour`
@@ -5696,7 +6670,7 @@ CREATE TABLE `search_api_db_product_display_field_product_field_trim_colour` (
   `value` int(11) NOT NULL COMMENT 'The field’s value for this item.',
   PRIMARY KEY (`item_id`,`value`),
   KEY `value` (`value`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `search_api_db_product_display_field_product_title`
@@ -5709,7 +6683,7 @@ CREATE TABLE `search_api_db_product_display_field_product_title` (
   `score` float NOT NULL COMMENT 'The score associated with this token.',
   PRIMARY KEY (`item_id`,`word`),
   KEY `word` (`word`(10))
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `search_api_db_product_display_field_product_title_1`
@@ -5722,7 +6696,7 @@ CREATE TABLE `search_api_db_product_display_field_product_title_1` (
   `score` float NOT NULL COMMENT 'The score associated with this token.',
   PRIMARY KEY (`item_id`,`word`),
   KEY `word` (`word`(10))
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `search_api_db_product_display_field_product_title_2`
@@ -5735,7 +6709,7 @@ CREATE TABLE `search_api_db_product_display_field_product_title_2` (
   `score` float NOT NULL COMMENT 'The score associated with this token.',
   PRIMARY KEY (`item_id`,`word`),
   KEY `word` (`word`(10))
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `search_api_db_product_display_field_product_title_3`
@@ -5748,7 +6722,7 @@ CREATE TABLE `search_api_db_product_display_field_product_title_3` (
   `score` float NOT NULL COMMENT 'The score associated with this token.',
   PRIMARY KEY (`item_id`,`word`),
   KEY `word` (`word`(10))
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `search_api_db_product_display_search_api_aggregation_1`
@@ -5761,7 +6735,7 @@ CREATE TABLE `search_api_db_product_display_search_api_aggregation_1` (
   `score` float NOT NULL COMMENT 'The score associated with this token.',
   PRIMARY KEY (`item_id`,`word`),
   KEY `word` (`word`(10))
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `search_api_db_product_display_search_api_language`
@@ -5773,7 +6747,7 @@ CREATE TABLE `search_api_db_product_display_search_api_language` (
   `value` varchar(255) COLLATE utf8_bin DEFAULT NULL COMMENT 'The field’s value for this item.',
   PRIMARY KEY (`item_id`),
   KEY `value` (`value`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
 
 --
 -- Table structure for table `search_api_db_product_display_status`
@@ -5785,7 +6759,7 @@ CREATE TABLE `search_api_db_product_display_status` (
   `value` int(11) DEFAULT NULL COMMENT 'The field’s value for this item.',
   PRIMARY KEY (`item_id`),
   KEY `value` (`value`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `search_api_db_product_display_text`
@@ -5799,7 +6773,7 @@ CREATE TABLE `search_api_db_product_display_text` (
   `score` int(10) unsigned NOT NULL DEFAULT '0' COMMENT 'The score associated with this token.',
   PRIMARY KEY (`item_id`,`field_name`,`word`),
   KEY `word_field` (`word`(20),`field_name`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
 
 --
 -- Table structure for table `search_api_db_product_display_title`
@@ -5811,7 +6785,7 @@ CREATE TABLE `search_api_db_product_display_title` (
   `value` varchar(255) COLLATE utf8_bin DEFAULT NULL COMMENT 'The field’s value for this item.',
   PRIMARY KEY (`item_id`),
   KEY `value` (`value`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
 
 --
 -- Table structure for table `search_api_db_product_search_field_product_field_colour`
@@ -5823,7 +6797,7 @@ CREATE TABLE `search_api_db_product_search_field_product_field_colour` (
   `value` int(11) NOT NULL COMMENT 'The field’s value for this item.',
   PRIMARY KEY (`item_id`,`value`),
   KEY `value` (`value`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `search_api_db_product_search_search_api_language`
@@ -5835,7 +6809,7 @@ CREATE TABLE `search_api_db_product_search_search_api_language` (
   `value` varchar(255) DEFAULT NULL COMMENT 'The field’s value for this item.',
   PRIMARY KEY (`item_id`),
   KEY `value` (`value`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `search_api_db_product_search_title_field`
@@ -5848,7 +6822,7 @@ CREATE TABLE `search_api_db_product_search_title_field` (
   `score` float NOT NULL COMMENT 'The score associated with this token.',
   PRIMARY KEY (`item_id`,`word`),
   KEY `word` (`word`(10))
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `search_api_index`
@@ -5872,7 +6846,7 @@ CREATE TABLE `search_api_index` (
   KEY `item_type` (`item_type`),
   KEY `server` (`server`),
   KEY `enabled` (`enabled`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Stores all search indexes on a search_api_server.';
 
 --
 -- Table structure for table `search_api_item`
@@ -5885,7 +6859,7 @@ CREATE TABLE `search_api_item` (
   `changed` bigint(20) NOT NULL DEFAULT '1' COMMENT 'Either a flag or a timestamp to indicate if or when the item was changed since it was last indexed.',
   PRIMARY KEY (`item_id`,`index_id`),
   KEY `indexing` (`index_id`,`changed`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Stores the items which should be indexed for each index,...';
 
 --
 -- Table structure for table `search_api_server`
@@ -5905,7 +6879,7 @@ CREATE TABLE `search_api_server` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `machine_name` (`machine_name`),
   KEY `enabled` (`enabled`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Stores all search servers created through the Search API.';
 
 --
 -- Table structure for table `search_api_sort`
@@ -5928,7 +6902,7 @@ CREATE TABLE `search_api_sort` (
   PRIMARY KEY (`id`),
   KEY `field` (`index_id`,`field`(50)),
   KEY `enabled` (`enabled`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Stores all activated or configured sorts of a site.';
 
 --
 -- Table structure for table `search_api_task`
@@ -5943,7 +6917,7 @@ CREATE TABLE `search_api_task` (
   `data` mediumtext COMMENT 'Some data needed for the task, might be optional depending on the type.',
   PRIMARY KEY (`id`),
   KEY `server` (`server_id`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Stores pending tasks for servers.';
 
 --
 -- Table structure for table `security_review`
@@ -5959,7 +6933,7 @@ CREATE TABLE `security_review` (
   `skiptime` int(11) NOT NULL DEFAULT '0',
   `skipuid` int(11) DEFAULT NULL,
   PRIMARY KEY (`namespace`,`reviewcheck`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `semaphore`
@@ -5973,7 +6947,7 @@ CREATE TABLE `semaphore` (
   PRIMARY KEY (`name`),
   KEY `value` (`value`),
   KEY `expire` (`expire`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Table for holding semaphores, locks, flags, etc. that...';
 
 --
 -- Table structure for table `sequences`
@@ -5983,7 +6957,7 @@ DROP TABLE IF EXISTS `sequences`;
 CREATE TABLE `sequences` (
   `value` int(10) unsigned NOT NULL AUTO_INCREMENT COMMENT 'The value of the sequence.',
   PRIMARY KEY (`value`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Stores IDs.';
 
 --
 -- Table structure for table `sessions`
@@ -6002,7 +6976,7 @@ CREATE TABLE `sessions` (
   KEY `timestamp` (`timestamp`),
   KEY `uid` (`uid`),
   KEY `ssid` (`ssid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Drupal’s session handlers read and write into the...';
 
 --
 -- Table structure for table `site_verify`
@@ -6017,7 +6991,7 @@ CREATE TABLE `site_verify` (
   `meta` text NOT NULL,
   PRIMARY KEY (`svid`),
   KEY `engine` (`engine`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8;
 
 --
 -- Table structure for table `system`
@@ -6037,7 +7011,7 @@ CREATE TABLE `system` (
   PRIMARY KEY (`filename`),
   KEY `system_list` (`status`,`bootstrap`,`type`,`weight`,`name`),
   KEY `type_name` (`type`,`name`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='A list of all modules, themes, and theme engines that are...';
 
 --
 -- Table structure for table `taxonomy_index`
@@ -6051,7 +7025,7 @@ CREATE TABLE `taxonomy_index` (
   `created` int(11) NOT NULL DEFAULT '0' COMMENT 'The Unix timestamp when the node was created.',
   KEY `term_node` (`tid`,`sticky`,`created`),
   KEY `nid` (`nid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Maintains denormalized information about node/term...';
 
 --
 -- Table structure for table `taxonomy_menu`
@@ -6064,7 +7038,7 @@ CREATE TABLE `taxonomy_menu` (
   `vid` int(10) unsigned NOT NULL DEFAULT '0' COMMENT 'Vid for the tid.',
   PRIMARY KEY (`mlid`,`tid`),
   KEY `vid` (`vid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Links a taxonomy term to a menu item.';
 
 --
 -- Table structure for table `taxonomy_term_data`
@@ -6082,7 +7056,7 @@ CREATE TABLE `taxonomy_term_data` (
   KEY `taxonomy_tree` (`vid`,`weight`,`name`),
   KEY `vid_name` (`vid`,`name`),
   KEY `name` (`name`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Stores term information.';
 
 --
 -- Table structure for table `taxonomy_term_hierarchy`
@@ -6094,7 +7068,7 @@ CREATE TABLE `taxonomy_term_hierarchy` (
   `parent` int(10) unsigned NOT NULL DEFAULT '0' COMMENT 'Primary Key: The taxonomy_term_data.tid of the term’s parent. 0 indicates no parent.',
   PRIMARY KEY (`tid`,`parent`),
   KEY `parent` (`parent`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Stores the hierarchical relationship between terms.';
 
 --
 -- Table structure for table `taxonomy_tools_role_access`
@@ -6108,7 +7082,7 @@ CREATE TABLE `taxonomy_tools_role_access` (
   PRIMARY KEY (`entry_id`),
   KEY `taxonomy_tools_role_access_tid` (`tid`),
   KEY `taxonomy_tools_role_access_rid` (`rid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='The base table for Taxonomy Role Access records.';
 
 --
 -- Table structure for table `taxonomy_vocabulary`
@@ -6126,7 +7100,7 @@ CREATE TABLE `taxonomy_vocabulary` (
   PRIMARY KEY (`vid`),
   UNIQUE KEY `machine_name` (`machine_name`),
   KEY `list` (`weight`,`name`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Stores vocabulary information.';
 
 --
 -- Table structure for table `url_alias`
@@ -6141,7 +7115,7 @@ CREATE TABLE `url_alias` (
   PRIMARY KEY (`pid`),
   KEY `alias_language_pid` (`alias`,`language`,`pid`),
   KEY `source_language_pid` (`source`,`language`,`pid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='A list of URL aliases for Drupal paths; a user may visit...';
 
 --
 -- Table structure for table `users`
@@ -6171,7 +7145,7 @@ CREATE TABLE `users` (
   KEY `created` (`created`),
   KEY `mail` (`mail`),
   KEY `picture` (`picture`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Stores user data.';
 
 --
 -- Table structure for table `users_roles`
@@ -6183,7 +7157,7 @@ CREATE TABLE `users_roles` (
   `rid` int(10) unsigned NOT NULL DEFAULT '0' COMMENT 'Primary Key: role.rid for role.',
   PRIMARY KEY (`uid`,`rid`),
   KEY `rid` (`rid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Maps users to roles.';
 
 --
 -- Table structure for table `variable`
@@ -6194,7 +7168,7 @@ CREATE TABLE `variable` (
   `name` varchar(128) NOT NULL DEFAULT '' COMMENT 'The name of the variable.',
   `value` longblob NOT NULL COMMENT 'The value of the variable.',
   PRIMARY KEY (`name`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Named variable/value pairs created by Drupal core or any...';
 
 --
 -- Table structure for table `views_display`
@@ -6210,7 +7184,7 @@ CREATE TABLE `views_display` (
   `display_options` longtext COMMENT 'A serialized array of options for this display; it contains options that are generally only pertinent to that display plugin type.',
   PRIMARY KEY (`vid`,`id`),
   KEY `vid` (`vid`,`position`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='Stores information about each display attached to a view.';
 
 --
 -- Table structure for table `views_view`
@@ -6227,7 +7201,7 @@ CREATE TABLE `views_view` (
   `core` int(11) DEFAULT '0' COMMENT 'Stores the drupal core version of the view.',
   PRIMARY KEY (`vid`),
   UNIQUE KEY `name` (`name`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Stores the general data for a view.';
 
 --
 -- Table structure for table `watchdog`
@@ -6249,7 +7223,7 @@ CREATE TABLE `watchdog` (
   PRIMARY KEY (`wid`),
   KEY `type` (`type`),
   KEY `uid` (`uid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc"  DEFAULT CHARSET=utf8 COMMENT='Table that contains logs of all system events.';
 
 --
 -- Table structure for table `xmlsitemap`
@@ -6275,7 +7249,7 @@ CREATE TABLE `xmlsitemap` (
   KEY `access_status_loc` (`access`,`status`,`loc`),
   KEY `type_subtype` (`type`,`subtype`),
   KEY `language` (`language`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8 COMMENT='The base table for xmlsitemap links.';
 
 --
 -- Table structure for table `xmlsitemap_sitemap`
@@ -6290,333 +7264,1887 @@ CREATE TABLE `xmlsitemap_sitemap` (
   `chunks` int(10) unsigned NOT NULL DEFAULT '0',
   `max_filesize` int(10) unsigned NOT NULL DEFAULT '0',
   PRIMARY KEY (`smid`)
-) ENGINE="FEDERATED" DEFAULT CHARSET=utf8 CONNECTION="dc";
+) ENGINE="FEDERATED" CONNECTION="dc" DEFAULT CHARSET=utf8;
 
 
--- Dump completed on 2017-07-28 17:37:50
-
-
-
+-- Dump completed on 2019-06-12  9:43:36
 -- * Create view
 -- Persistent doesn't allow to use table for a different database
 -- We therefore we need to create a view in fa
+
 use fa;
+DROP TABLE IF EXISTS `dcx_accesslog`;
+DROP VIEW IF EXISTS `dcx_accesslog`;
+CREATE VIEW `dcx_accesslog` AS SELECT * FROM commerceX.`accesslog`;
 
 
-create view dcx_accesslog as select * from commerceX.accesslog;
-create view dcx_actions as select * from commerceX.actions;
-create view dcx_advanced_help_index as select * from commerceX.advanced_help_index;
-create view dcx_authcache_p13n_key_value as select * from commerceX.authcache_p13n_key_value;
-create view dcx_authmap as select * from commerceX.authmap;
-create view dcx_batch as select * from commerceX.batch;
-create view dcx_block as select * from commerceX.block;
-create view dcx_block_current_search as select * from commerceX.block_current_search;
-create view dcx_block_custom as select * from commerceX.block_custom;
-create view dcx_block_node_type as select * from commerceX.block_node_type;
-create view dcx_block_role as select * from commerceX.block_role;
-create view dcx_blocked_ips as select * from commerceX.blocked_ips;
-create view dcx_cache as select * from commerceX.cache;
-create view dcx_cache_admin_menu as select * from commerceX.cache_admin_menu;
-create view dcx_cache_authcache_debug as select * from commerceX.cache_authcache_debug;
-create view dcx_cache_authcache_key as select * from commerceX.cache_authcache_key;
-create view dcx_cache_authcache_p13n as select * from commerceX.cache_authcache_p13n;
-create view dcx_cache_block as select * from commerceX.cache_block;
-create view dcx_cache_bootstrap as select * from commerceX.cache_bootstrap;
-create view dcx_cache_commerce_shipping_rates as select * from commerceX.cache_commerce_shipping_rates;
-create view dcx_cache_display_cache as select * from commerceX.cache_display_cache;
-create view dcx_cache_entity_comment as select * from commerceX.cache_entity_comment;
-create view dcx_cache_entity_file as select * from commerceX.cache_entity_file;
-create view dcx_cache_entity_message as select * from commerceX.cache_entity_message;
-create view dcx_cache_entity_message_type as select * from commerceX.cache_entity_message_type;
-create view dcx_cache_entity_message_type_category as select * from commerceX.cache_entity_message_type_category;
-create view dcx_cache_entity_node as select * from commerceX.cache_entity_node;
-create view dcx_cache_entity_taxonomy_term as select * from commerceX.cache_entity_taxonomy_term;
-create view dcx_cache_entity_taxonomy_vocabulary as select * from commerceX.cache_entity_taxonomy_vocabulary;
-create view dcx_cache_entity_user as select * from commerceX.cache_entity_user;
-create view dcx_cache_field as select * from commerceX.cache_field;
-create view dcx_cache_filter as select * from commerceX.cache_filter;
-create view dcx_cache_form as select * from commerceX.cache_form;
-create view dcx_cache_image as select * from commerceX.cache_image;
-create view dcx_cache_libraries as select * from commerceX.cache_libraries;
-create view dcx_cache_menu as select * from commerceX.cache_menu;
-create view dcx_cache_metatag as select * from commerceX.cache_metatag;
-create view dcx_cache_page as select * from commerceX.cache_page;
-create view dcx_cache_path as select * from commerceX.cache_path;
-create view dcx_cache_path_alias as select * from commerceX.cache_path_alias;
-create view dcx_cache_path_source as select * from commerceX.cache_path_source;
-create view dcx_cache_rules as select * from commerceX.cache_rules;
-create view dcx_cache_token as select * from commerceX.cache_token;
-create view dcx_cache_update as select * from commerceX.cache_update;
-create view dcx_cache_views as select * from commerceX.cache_views;
-create view dcx_cache_views_data as select * from commerceX.cache_views_data;
-create view dcx_cmp_menu_perms as select * from commerceX.cmp_menu_perms;
-create view dcx_cmp_permissions as select * from commerceX.cmp_permissions;
-create view dcx_comment as select * from commerceX.comment;
-create view dcx_commerce_addressbook_defaults as select * from commerceX.commerce_addressbook_defaults;
-create view dcx_commerce_autosku_patterns as select * from commerceX.commerce_autosku_patterns;
-create view dcx_commerce_calculated_price as select * from commerceX.commerce_calculated_price;
-create view dcx_commerce_checkout_pane as select * from commerceX.commerce_checkout_pane;
-create view dcx_commerce_customer_profile as select * from commerceX.commerce_customer_profile;
-create view dcx_commerce_customer_profile_revision as select * from commerceX.commerce_customer_profile_revision;
-create view dcx_commerce_discount as select * from commerceX.commerce_discount;
-create view dcx_commerce_discount_offer as select * from commerceX.commerce_discount_offer;
-create view dcx_commerce_flat_rate_service as select * from commerceX.commerce_flat_rate_service;
-create view dcx_commerce_line_item as select * from commerceX.commerce_line_item;
-create view dcx_commerce_order as select * from commerceX.commerce_order;
-create view dcx_commerce_order_revision as select * from commerceX.commerce_order_revision;
-create view dcx_commerce_payment_transaction as select * from commerceX.commerce_payment_transaction;
-create view dcx_commerce_payment_transaction_revision as select * from commerceX.commerce_payment_transaction_revision;
-create view dcx_commerce_product as select * from commerceX.commerce_product;
-create view dcx_commerce_product_revision as select * from commerceX.commerce_product_revision;
-create view dcx_commerce_product_type as select * from commerceX.commerce_product_type;
-create view dcx_commerce_tax_rate as select * from commerceX.commerce_tax_rate;
-create view dcx_commerce_tax_type as select * from commerceX.commerce_tax_type;
-create view dcx_contact as select * from commerceX.contact;
-create view dcx_ctools_css_cache as select * from commerceX.ctools_css_cache;
-create view dcx_ctools_object_cache as select * from commerceX.ctools_object_cache;
-create view dcx_current_search as select * from commerceX.current_search;
-create view dcx_date_format_locale as select * from commerceX.date_format_locale;
-create view dcx_date_format_type as select * from commerceX.date_format_type;
-create view dcx_date_formats as select * from commerceX.date_formats;
-create view dcx_facetapi as select * from commerceX.facetapi;
-create view dcx_feeds_importer as select * from commerceX.feeds_importer;
-create view dcx_feeds_item as select * from commerceX.feeds_item;
-create view dcx_feeds_log as select * from commerceX.feeds_log;
-create view dcx_feeds_push_subscriptions as select * from commerceX.feeds_push_subscriptions;
-create view dcx_feeds_source as select * from commerceX.feeds_source;
-create view dcx_feeds_tamper as select * from commerceX.feeds_tamper;
-create view dcx_field_config as select * from commerceX.field_config;
-create view dcx_field_config_instance as select * from commerceX.field_config_instance;
-create view dcx_field_data_body as select * from commerceX.field_data_body;
-create view dcx_field_data_comment_body as select * from commerceX.field_data_comment_body;
-create view dcx_field_data_commerce_customer_address as select * from commerceX.field_data_commerce_customer_address;
-create view dcx_field_data_commerce_customer_billing as select * from commerceX.field_data_commerce_customer_billing;
-create view dcx_field_data_commerce_customer_shipping as select * from commerceX.field_data_commerce_customer_shipping;
-create view dcx_field_data_commerce_discount_date as select * from commerceX.field_data_commerce_discount_date;
-create view dcx_field_data_commerce_discount_offer as select * from commerceX.field_data_commerce_discount_offer;
-create view dcx_field_data_commerce_discounts as select * from commerceX.field_data_commerce_discounts;
-create view dcx_field_data_commerce_display_path as select * from commerceX.field_data_commerce_display_path;
-create view dcx_field_data_commerce_fixed_amount as select * from commerceX.field_data_commerce_fixed_amount;
-create view dcx_field_data_commerce_free_products as select * from commerceX.field_data_commerce_free_products;
-create view dcx_field_data_commerce_free_shipping as select * from commerceX.field_data_commerce_free_shipping;
-create view dcx_field_data_commerce_line_items as select * from commerceX.field_data_commerce_line_items;
-create view dcx_field_data_commerce_order_total as select * from commerceX.field_data_commerce_order_total;
-create view dcx_field_data_commerce_percentage as select * from commerceX.field_data_commerce_percentage;
-create view dcx_field_data_commerce_price as select * from commerceX.field_data_commerce_price;
-create view dcx_field_data_commerce_product as select * from commerceX.field_data_commerce_product;
-create view dcx_field_data_commerce_shipping_service as select * from commerceX.field_data_commerce_shipping_service;
-create view dcx_field_data_commerce_total as select * from commerceX.field_data_commerce_total;
-create view dcx_field_data_commerce_unit_price as select * from commerceX.field_data_commerce_unit_price;
-create view dcx_field_data_field_brand as select * from commerceX.field_data_field_brand;
-create view dcx_field_data_field_collection as select * from commerceX.field_data_field_collection;
-create view dcx_field_data_field_colour as select * from commerceX.field_data_field_colour;
-create view dcx_field_data_field_colour_code as select * from commerceX.field_data_field_colour_code;
-create view dcx_field_data_field_headline as select * from commerceX.field_data_field_headline;
-create view dcx_field_data_field_image as select * from commerceX.field_data_field_image;
-create view dcx_field_data_field_images as select * from commerceX.field_data_field_images;
-create view dcx_field_data_field_link as select * from commerceX.field_data_field_link;
-create view dcx_field_data_field_price_pl_01 as select * from commerceX.field_data_field_price_pl_01;
-create view dcx_field_data_field_price_pl_02 as select * from commerceX.field_data_field_price_pl_02;
-create view dcx_field_data_field_price_pl_03 as select * from commerceX.field_data_field_price_pl_03;
-create view dcx_field_data_field_price_pl_04 as select * from commerceX.field_data_field_price_pl_04;
-create view dcx_field_data_field_price_pl_05 as select * from commerceX.field_data_field_price_pl_05;
-create view dcx_field_data_field_price_pl_06 as select * from commerceX.field_data_field_price_pl_06;
-create view dcx_field_data_field_price_pl_07 as select * from commerceX.field_data_field_price_pl_07;
-create view dcx_field_data_field_price_pl_08 as select * from commerceX.field_data_field_price_pl_08;
-create view dcx_field_data_field_price_pl_09 as select * from commerceX.field_data_field_price_pl_09;
-create view dcx_field_data_field_price_pl_10 as select * from commerceX.field_data_field_price_pl_10;
-create view dcx_field_data_field_price_pl_11 as select * from commerceX.field_data_field_price_pl_11;
-create view dcx_field_data_field_price_pl_12 as select * from commerceX.field_data_field_price_pl_12;
-create view dcx_field_data_field_price_pl_13 as select * from commerceX.field_data_field_price_pl_13;
-create view dcx_field_data_field_price_pl_14 as select * from commerceX.field_data_field_price_pl_14;
-create view dcx_field_data_field_product as select * from commerceX.field_data_field_product;
-create view dcx_field_data_field_product_category as select * from commerceX.field_data_field_product_category;
-create view dcx_field_data_field_required_delivery_date as select * from commerceX.field_data_field_required_delivery_date;
-create view dcx_field_data_field_rgb as select * from commerceX.field_data_field_rgb;
-create view dcx_field_data_field_special_request as select * from commerceX.field_data_field_special_request;
-create view dcx_field_data_field_stock_status as select * from commerceX.field_data_field_stock_status;
-create view dcx_field_data_field_tagline as select * from commerceX.field_data_field_tagline;
-create view dcx_field_data_field_trim_colour as select * from commerceX.field_data_field_trim_colour;
-create view dcx_field_data_field_wholesale_price as select * from commerceX.field_data_field_wholesale_price;
-create view dcx_field_data_inline_conditions as select * from commerceX.field_data_inline_conditions;
-create view dcx_field_data_message_commerce_body as select * from commerceX.field_data_message_commerce_body;
-create view dcx_field_data_message_commerce_line_item as select * from commerceX.field_data_message_commerce_line_item;
-create view dcx_field_data_message_commerce_order as select * from commerceX.field_data_message_commerce_order;
-create view dcx_field_data_message_commerce_payment as select * from commerceX.field_data_message_commerce_payment;
-create view dcx_field_data_message_order_display_name as select * from commerceX.field_data_message_order_display_name;
-create view dcx_field_data_message_text as select * from commerceX.field_data_message_text;
-create view dcx_field_data_message_text_subject as select * from commerceX.field_data_message_text_subject;
-create view dcx_field_data_title_field as select * from commerceX.field_data_title_field;
-create view dcx_field_deleted_data_11 as select * from commerceX.field_deleted_data_11;
-create view dcx_field_deleted_data_22 as select * from commerceX.field_deleted_data_22;
-create view dcx_field_deleted_data_23 as select * from commerceX.field_deleted_data_23;
-create view dcx_field_deleted_data_24 as select * from commerceX.field_deleted_data_24;
-create view dcx_field_deleted_data_25 as select * from commerceX.field_deleted_data_25;
-create view dcx_field_deleted_revision_11 as select * from commerceX.field_deleted_revision_11;
-create view dcx_field_deleted_revision_22 as select * from commerceX.field_deleted_revision_22;
-create view dcx_field_deleted_revision_23 as select * from commerceX.field_deleted_revision_23;
-create view dcx_field_deleted_revision_24 as select * from commerceX.field_deleted_revision_24;
-create view dcx_field_deleted_revision_25 as select * from commerceX.field_deleted_revision_25;
-create view dcx_field_group as select * from commerceX.field_group;
-create view dcx_field_revision_body as select * from commerceX.field_revision_body;
-create view dcx_field_revision_comment_body as select * from commerceX.field_revision_comment_body;
-create view dcx_field_revision_commerce_customer_address as select * from commerceX.field_revision_commerce_customer_address;
-create view dcx_field_revision_commerce_customer_billing as select * from commerceX.field_revision_commerce_customer_billing;
-create view dcx_field_revision_commerce_customer_shipping as select * from commerceX.field_revision_commerce_customer_shipping;
-create view dcx_field_revision_commerce_discount_date as select * from commerceX.field_revision_commerce_discount_date;
-create view dcx_field_revision_commerce_discount_offer as select * from commerceX.field_revision_commerce_discount_offer;
-create view dcx_field_revision_commerce_discounts as select * from commerceX.field_revision_commerce_discounts;
-create view dcx_field_revision_commerce_display_path as select * from commerceX.field_revision_commerce_display_path;
-create view dcx_field_revision_commerce_fixed_amount as select * from commerceX.field_revision_commerce_fixed_amount;
-create view dcx_field_revision_commerce_free_products as select * from commerceX.field_revision_commerce_free_products;
-create view dcx_field_revision_commerce_free_shipping as select * from commerceX.field_revision_commerce_free_shipping;
-create view dcx_field_revision_commerce_line_items as select * from commerceX.field_revision_commerce_line_items;
-create view dcx_field_revision_commerce_order_total as select * from commerceX.field_revision_commerce_order_total;
-create view dcx_field_revision_commerce_percentage as select * from commerceX.field_revision_commerce_percentage;
-create view dcx_field_revision_commerce_price as select * from commerceX.field_revision_commerce_price;
-create view dcx_field_revision_commerce_product as select * from commerceX.field_revision_commerce_product;
-create view dcx_field_revision_commerce_shipping_service as select * from commerceX.field_revision_commerce_shipping_service;
-create view dcx_field_revision_commerce_total as select * from commerceX.field_revision_commerce_total;
-create view dcx_field_revision_commerce_unit_price as select * from commerceX.field_revision_commerce_unit_price;
-create view dcx_field_revision_field_brand as select * from commerceX.field_revision_field_brand;
-create view dcx_field_revision_field_collection as select * from commerceX.field_revision_field_collection;
-create view dcx_field_revision_field_colour as select * from commerceX.field_revision_field_colour;
-create view dcx_field_revision_field_colour_code as select * from commerceX.field_revision_field_colour_code;
-create view dcx_field_revision_field_headline as select * from commerceX.field_revision_field_headline;
-create view dcx_field_revision_field_image as select * from commerceX.field_revision_field_image;
-create view dcx_field_revision_field_images as select * from commerceX.field_revision_field_images;
-create view dcx_field_revision_field_link as select * from commerceX.field_revision_field_link;
-create view dcx_field_revision_field_price_pl_01 as select * from commerceX.field_revision_field_price_pl_01;
-create view dcx_field_revision_field_price_pl_02 as select * from commerceX.field_revision_field_price_pl_02;
-create view dcx_field_revision_field_price_pl_03 as select * from commerceX.field_revision_field_price_pl_03;
-create view dcx_field_revision_field_price_pl_04 as select * from commerceX.field_revision_field_price_pl_04;
-create view dcx_field_revision_field_price_pl_05 as select * from commerceX.field_revision_field_price_pl_05;
-create view dcx_field_revision_field_price_pl_06 as select * from commerceX.field_revision_field_price_pl_06;
-create view dcx_field_revision_field_price_pl_07 as select * from commerceX.field_revision_field_price_pl_07;
-create view dcx_field_revision_field_price_pl_08 as select * from commerceX.field_revision_field_price_pl_08;
-create view dcx_field_revision_field_price_pl_09 as select * from commerceX.field_revision_field_price_pl_09;
-create view dcx_field_revision_field_price_pl_10 as select * from commerceX.field_revision_field_price_pl_10;
-create view dcx_field_revision_field_price_pl_11 as select * from commerceX.field_revision_field_price_pl_11;
-create view dcx_field_revision_field_price_pl_12 as select * from commerceX.field_revision_field_price_pl_12;
-create view dcx_field_revision_field_price_pl_13 as select * from commerceX.field_revision_field_price_pl_13;
-create view dcx_field_revision_field_price_pl_14 as select * from commerceX.field_revision_field_price_pl_14;
-create view dcx_field_revision_field_product as select * from commerceX.field_revision_field_product;
-create view dcx_field_revision_field_product_category as select * from commerceX.field_revision_field_product_category;
-create view dcx_field_revision_field_required_delivery_date as select * from commerceX.field_revision_field_required_delivery_date;
-create view dcx_field_revision_field_rgb as select * from commerceX.field_revision_field_rgb;
-create view dcx_field_revision_field_special_request as select * from commerceX.field_revision_field_special_request;
-create view dcx_field_revision_field_stock_status as select * from commerceX.field_revision_field_stock_status;
-create view dcx_field_revision_field_tagline as select * from commerceX.field_revision_field_tagline;
-create view dcx_field_revision_field_trim_colour as select * from commerceX.field_revision_field_trim_colour;
-create view dcx_field_revision_field_wholesale_price as select * from commerceX.field_revision_field_wholesale_price;
-create view dcx_field_revision_inline_conditions as select * from commerceX.field_revision_inline_conditions;
-create view dcx_field_revision_message_commerce_body as select * from commerceX.field_revision_message_commerce_body;
-create view dcx_field_revision_message_commerce_line_item as select * from commerceX.field_revision_message_commerce_line_item;
-create view dcx_field_revision_message_commerce_order as select * from commerceX.field_revision_message_commerce_order;
-create view dcx_field_revision_message_commerce_payment as select * from commerceX.field_revision_message_commerce_payment;
-create view dcx_field_revision_message_order_display_name as select * from commerceX.field_revision_message_order_display_name;
-create view dcx_field_revision_message_text as select * from commerceX.field_revision_message_text;
-create view dcx_field_revision_message_text_subject as select * from commerceX.field_revision_message_text_subject;
-create view dcx_field_revision_title_field as select * from commerceX.field_revision_title_field;
-create view dcx_file_managed as select * from commerceX.file_managed;
-create view dcx_file_usage as select * from commerceX.file_usage;
-create view dcx_filter as select * from commerceX.filter;
-create view dcx_filter_format as select * from commerceX.filter_format;
-create view dcx_flood as select * from commerceX.flood;
-create view dcx_history as select * from commerceX.history;
-create view dcx_honeypot_user as select * from commerceX.honeypot_user;
-create view dcx_image_effects as select * from commerceX.image_effects;
-create view dcx_image_styles as select * from commerceX.image_styles;
-create view dcx_job_schedule as select * from commerceX.job_schedule;
-create view dcx_masquerade as select * from commerceX.masquerade;
-create view dcx_masquerade_users as select * from commerceX.masquerade_users;
-create view dcx_megamenu as select * from commerceX.megamenu;
-create view dcx_menu_custom as select * from commerceX.menu_custom;
-create view dcx_menu_links as select * from commerceX.menu_links;
-create view dcx_menu_router as select * from commerceX.menu_router;
-create view dcx_message as select * from commerceX.message;
-create view dcx_message_type as select * from commerceX.message_type;
-create view dcx_message_type_category as select * from commerceX.message_type_category;
-create view dcx_metatag as select * from commerceX.metatag;
-create view dcx_metatag_config as select * from commerceX.metatag_config;
-create view dcx_migrate_log as select * from commerceX.migrate_log;
-create view dcx_migrate_map_commercekickstartadpush as select * from commerceX.migrate_map_commercekickstartadpush;
-create view dcx_migrate_map_commercekickstartnode as select * from commerceX.migrate_map_commercekickstartnode;
-create view dcx_migrate_map_commercekickstartpages as select * from commerceX.migrate_map_commercekickstartpages;
-create view dcx_migrate_map_commercekickstartproduct as select * from commerceX.migrate_map_commercekickstartproduct;
-create view dcx_migrate_map_commercekickstartslideshow as select * from commerceX.migrate_map_commercekickstartslideshow;
-create view dcx_migrate_message_commercekickstartadpush as select * from commerceX.migrate_message_commercekickstartadpush;
-create view dcx_migrate_message_commercekickstartnode as select * from commerceX.migrate_message_commercekickstartnode;
-create view dcx_migrate_message_commercekickstartpages as select * from commerceX.migrate_message_commercekickstartpages;
-create view dcx_migrate_message_commercekickstartproduct as select * from commerceX.migrate_message_commercekickstartproduct;
-create view dcx_migrate_message_commercekickstartslideshow as select * from commerceX.migrate_message_commercekickstartslideshow;
-create view dcx_migrate_status as select * from commerceX.migrate_status;
-create view dcx_node as select * from commerceX.node;
-create view dcx_node_access as select * from commerceX.node_access;
-create view dcx_node_comment_statistics as select * from commerceX.node_comment_statistics;
-create view dcx_node_counter as select * from commerceX.node_counter;
-create view dcx_node_revision as select * from commerceX.node_revision;
-create view dcx_node_spambot as select * from commerceX.node_spambot;
-create view dcx_node_type as select * from commerceX.node_type;
-create view dcx_page_title as select * from commerceX.page_title;
-create view dcx_queue as select * from commerceX.queue;
-create view dcx_redirect as select * from commerceX.redirect;
-create view dcx_registry as select * from commerceX.registry;
-create view dcx_registry_file as select * from commerceX.registry_file;
-create view dcx_role as select * from commerceX.role;
-create view dcx_role_permission as select * from commerceX.role_permission;
-create view dcx_rules_config as select * from commerceX.rules_config;
-create view dcx_rules_dependencies as select * from commerceX.rules_dependencies;
-create view dcx_rules_tags as select * from commerceX.rules_tags;
-create view dcx_rules_trigger as select * from commerceX.rules_trigger;
-create view dcx_search_api_db_custom_product_display_field_product_commerce_pri as select * from commerceX.search_api_db_custom_product_display_field_product_commerce_pri;
-create view dcx_search_api_db_custom_product_display_search_api_language as select * from commerceX.search_api_db_custom_product_display_search_api_language;
-create view dcx_search_api_db_product_display as select * from commerceX.search_api_db_product_display;
-create view dcx_search_api_db_product_display_created as select * from commerceX.search_api_db_product_display_created;
-create view dcx_search_api_db_product_display_field_brand as select * from commerceX.search_api_db_product_display_field_brand;
-create view dcx_search_api_db_product_display_field_collection as select * from commerceX.search_api_db_product_display_field_collection;
-create view dcx_search_api_db_product_display_field_product_category as select * from commerceX.search_api_db_product_display_field_product_category;
-create view dcx_search_api_db_product_display_field_product_field_colour as select * from commerceX.search_api_db_product_display_field_product_field_colour;
-create view dcx_search_api_db_product_display_field_product_field_price_pl_06_ as select * from commerceX.search_api_db_product_display_field_product_field_price_pl_06_;
-create view dcx_search_api_db_product_display_field_product_field_price_pl_06_a as select * from commerceX.search_api_db_product_display_field_product_field_price_pl_06_a;
-create view dcx_search_api_db_product_display_field_product_field_price_pl_12_a as select * from commerceX.search_api_db_product_display_field_product_field_price_pl_12_a;
-create view dcx_search_api_db_product_display_field_product_field_stock_status as select * from commerceX.search_api_db_product_display_field_product_field_stock_status;
-create view dcx_search_api_db_product_display_field_product_field_trim_colour as select * from commerceX.search_api_db_product_display_field_product_field_trim_colour;
-create view dcx_search_api_db_product_display_field_product_title as select * from commerceX.search_api_db_product_display_field_product_title;
-create view dcx_search_api_db_product_display_field_product_title_1 as select * from commerceX.search_api_db_product_display_field_product_title_1;
-create view dcx_search_api_db_product_display_field_product_title_2 as select * from commerceX.search_api_db_product_display_field_product_title_2;
-create view dcx_search_api_db_product_display_field_product_title_3 as select * from commerceX.search_api_db_product_display_field_product_title_3;
-create view dcx_search_api_db_product_display_search_api_aggregation_1 as select * from commerceX.search_api_db_product_display_search_api_aggregation_1;
-create view dcx_search_api_db_product_display_search_api_language as select * from commerceX.search_api_db_product_display_search_api_language;
-create view dcx_search_api_db_product_display_status as select * from commerceX.search_api_db_product_display_status;
-create view dcx_search_api_db_product_display_text as select * from commerceX.search_api_db_product_display_text;
-create view dcx_search_api_db_product_display_title as select * from commerceX.search_api_db_product_display_title;
-create view dcx_search_api_db_product_search_field_product_field_colour as select * from commerceX.search_api_db_product_search_field_product_field_colour;
-create view dcx_search_api_db_product_search_search_api_language as select * from commerceX.search_api_db_product_search_search_api_language;
-create view dcx_search_api_db_product_search_title_field as select * from commerceX.search_api_db_product_search_title_field;
-create view dcx_search_api_index as select * from commerceX.search_api_index;
-create view dcx_search_api_item as select * from commerceX.search_api_item;
-create view dcx_search_api_server as select * from commerceX.search_api_server;
-create view dcx_search_api_sort as select * from commerceX.search_api_sort;
-create view dcx_search_api_task as select * from commerceX.search_api_task;
-create view dcx_security_review as select * from commerceX.security_review;
-create view dcx_semaphore as select * from commerceX.semaphore;
-create view dcx_sequences as select * from commerceX.sequences;
-create view dcx_sessions as select * from commerceX.sessions;
-create view dcx_site_verify as select * from commerceX.site_verify;
-create view dcx_system as select * from commerceX.system;
-create view dcx_taxonomy_index as select * from commerceX.taxonomy_index;
-create view dcx_taxonomy_menu as select * from commerceX.taxonomy_menu;
-create view dcx_taxonomy_term_data as select * from commerceX.taxonomy_term_data;
-create view dcx_taxonomy_term_hierarchy as select * from commerceX.taxonomy_term_hierarchy;
-create view dcx_taxonomy_tools_role_access as select * from commerceX.taxonomy_tools_role_access;
-create view dcx_taxonomy_vocabulary as select * from commerceX.taxonomy_vocabulary;
-create view dcx_url_alias as select * from commerceX.url_alias;
-create view dcx_users as select * from commerceX.users;
-create view dcx_users_roles as select * from commerceX.users_roles;
-create view dcx_variable as select * from commerceX.variable;
-create view dcx_views_display as select * from commerceX.views_display;
-create view dcx_views_view as select * from commerceX.views_view;
-create view dcx_watchdog as select * from commerceX.watchdog;
-create view dcx_xmlsitemap as select * from commerceX.xmlsitemap;
-create view dcx_xmlsitemap_sitemap as select * from commerceX.xmlsitemap_sitemap;
+DROP TABLE IF EXISTS `dcx_actions`;
+DROP VIEW IF EXISTS `dcx_actions`;
+CREATE VIEW `dcx_actions` AS SELECT * FROM commerceX.`actions`;
+
+
+DROP TABLE IF EXISTS `dcx_advanced_help_index`;
+DROP VIEW IF EXISTS `dcx_advanced_help_index`;
+CREATE VIEW `dcx_advanced_help_index` AS SELECT * FROM commerceX.`advanced_help_index`;
+
+
+DROP TABLE IF EXISTS `dcx_authcache_p13n_key_value`;
+DROP VIEW IF EXISTS `dcx_authcache_p13n_key_value`;
+CREATE VIEW `dcx_authcache_p13n_key_value` AS SELECT * FROM commerceX.`authcache_p13n_key_value`;
+
+
+DROP TABLE IF EXISTS `dcx_authmap`;
+DROP VIEW IF EXISTS `dcx_authmap`;
+CREATE VIEW `dcx_authmap` AS SELECT * FROM commerceX.`authmap`;
+
+
+DROP TABLE IF EXISTS `dcx_batch`;
+DROP VIEW IF EXISTS `dcx_batch`;
+CREATE VIEW `dcx_batch` AS SELECT * FROM commerceX.`batch`;
+
+
+DROP TABLE IF EXISTS `dcx_block`;
+DROP VIEW IF EXISTS `dcx_block`;
+CREATE VIEW `dcx_block` AS SELECT * FROM commerceX.`block`;
+
+
+DROP TABLE IF EXISTS `dcx_block_current_search`;
+DROP VIEW IF EXISTS `dcx_block_current_search`;
+CREATE VIEW `dcx_block_current_search` AS SELECT * FROM commerceX.`block_current_search`;
+
+
+DROP TABLE IF EXISTS `dcx_block_custom`;
+DROP VIEW IF EXISTS `dcx_block_custom`;
+CREATE VIEW `dcx_block_custom` AS SELECT * FROM commerceX.`block_custom`;
+
+
+DROP TABLE IF EXISTS `dcx_block_node_type`;
+DROP VIEW IF EXISTS `dcx_block_node_type`;
+CREATE VIEW `dcx_block_node_type` AS SELECT * FROM commerceX.`block_node_type`;
+
+
+DROP TABLE IF EXISTS `dcx_block_role`;
+DROP VIEW IF EXISTS `dcx_block_role`;
+CREATE VIEW `dcx_block_role` AS SELECT * FROM commerceX.`block_role`;
+
+
+DROP TABLE IF EXISTS `dcx_blocked_ips`;
+DROP VIEW IF EXISTS `dcx_blocked_ips`;
+CREATE VIEW `dcx_blocked_ips` AS SELECT * FROM commerceX.`blocked_ips`;
+
+
+DROP TABLE IF EXISTS `dcx_cache`;
+DROP VIEW IF EXISTS `dcx_cache`;
+CREATE VIEW `dcx_cache` AS SELECT * FROM commerceX.`cache`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_admin_menu`;
+DROP VIEW IF EXISTS `dcx_cache_admin_menu`;
+CREATE VIEW `dcx_cache_admin_menu` AS SELECT * FROM commerceX.`cache_admin_menu`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_authcache_debug`;
+DROP VIEW IF EXISTS `dcx_cache_authcache_debug`;
+CREATE VIEW `dcx_cache_authcache_debug` AS SELECT * FROM commerceX.`cache_authcache_debug`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_authcache_key`;
+DROP VIEW IF EXISTS `dcx_cache_authcache_key`;
+CREATE VIEW `dcx_cache_authcache_key` AS SELECT * FROM commerceX.`cache_authcache_key`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_authcache_p13n`;
+DROP VIEW IF EXISTS `dcx_cache_authcache_p13n`;
+CREATE VIEW `dcx_cache_authcache_p13n` AS SELECT * FROM commerceX.`cache_authcache_p13n`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_block`;
+DROP VIEW IF EXISTS `dcx_cache_block`;
+CREATE VIEW `dcx_cache_block` AS SELECT * FROM commerceX.`cache_block`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_bootstrap`;
+DROP VIEW IF EXISTS `dcx_cache_bootstrap`;
+CREATE VIEW `dcx_cache_bootstrap` AS SELECT * FROM commerceX.`cache_bootstrap`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_commerce_shipping_rates`;
+DROP VIEW IF EXISTS `dcx_cache_commerce_shipping_rates`;
+CREATE VIEW `dcx_cache_commerce_shipping_rates` AS SELECT * FROM commerceX.`cache_commerce_shipping_rates`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_display_cache`;
+DROP VIEW IF EXISTS `dcx_cache_display_cache`;
+CREATE VIEW `dcx_cache_display_cache` AS SELECT * FROM commerceX.`cache_display_cache`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_entity_comment`;
+DROP VIEW IF EXISTS `dcx_cache_entity_comment`;
+CREATE VIEW `dcx_cache_entity_comment` AS SELECT * FROM commerceX.`cache_entity_comment`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_entity_file`;
+DROP VIEW IF EXISTS `dcx_cache_entity_file`;
+CREATE VIEW `dcx_cache_entity_file` AS SELECT * FROM commerceX.`cache_entity_file`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_entity_message`;
+DROP VIEW IF EXISTS `dcx_cache_entity_message`;
+CREATE VIEW `dcx_cache_entity_message` AS SELECT * FROM commerceX.`cache_entity_message`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_entity_message_type`;
+DROP VIEW IF EXISTS `dcx_cache_entity_message_type`;
+CREATE VIEW `dcx_cache_entity_message_type` AS SELECT * FROM commerceX.`cache_entity_message_type`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_entity_message_type_category`;
+DROP VIEW IF EXISTS `dcx_cache_entity_message_type_category`;
+CREATE VIEW `dcx_cache_entity_message_type_category` AS SELECT * FROM commerceX.`cache_entity_message_type_category`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_entity_node`;
+DROP VIEW IF EXISTS `dcx_cache_entity_node`;
+CREATE VIEW `dcx_cache_entity_node` AS SELECT * FROM commerceX.`cache_entity_node`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_entity_taxonomy_term`;
+DROP VIEW IF EXISTS `dcx_cache_entity_taxonomy_term`;
+CREATE VIEW `dcx_cache_entity_taxonomy_term` AS SELECT * FROM commerceX.`cache_entity_taxonomy_term`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_entity_taxonomy_vocabulary`;
+DROP VIEW IF EXISTS `dcx_cache_entity_taxonomy_vocabulary`;
+CREATE VIEW `dcx_cache_entity_taxonomy_vocabulary` AS SELECT * FROM commerceX.`cache_entity_taxonomy_vocabulary`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_entity_user`;
+DROP VIEW IF EXISTS `dcx_cache_entity_user`;
+CREATE VIEW `dcx_cache_entity_user` AS SELECT * FROM commerceX.`cache_entity_user`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_field`;
+DROP VIEW IF EXISTS `dcx_cache_field`;
+CREATE VIEW `dcx_cache_field` AS SELECT * FROM commerceX.`cache_field`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_filter`;
+DROP VIEW IF EXISTS `dcx_cache_filter`;
+CREATE VIEW `dcx_cache_filter` AS SELECT * FROM commerceX.`cache_filter`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_form`;
+DROP VIEW IF EXISTS `dcx_cache_form`;
+CREATE VIEW `dcx_cache_form` AS SELECT * FROM commerceX.`cache_form`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_image`;
+DROP VIEW IF EXISTS `dcx_cache_image`;
+CREATE VIEW `dcx_cache_image` AS SELECT * FROM commerceX.`cache_image`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_libraries`;
+DROP VIEW IF EXISTS `dcx_cache_libraries`;
+CREATE VIEW `dcx_cache_libraries` AS SELECT * FROM commerceX.`cache_libraries`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_menu`;
+DROP VIEW IF EXISTS `dcx_cache_menu`;
+CREATE VIEW `dcx_cache_menu` AS SELECT * FROM commerceX.`cache_menu`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_metatag`;
+DROP VIEW IF EXISTS `dcx_cache_metatag`;
+CREATE VIEW `dcx_cache_metatag` AS SELECT * FROM commerceX.`cache_metatag`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_page`;
+DROP VIEW IF EXISTS `dcx_cache_page`;
+CREATE VIEW `dcx_cache_page` AS SELECT * FROM commerceX.`cache_page`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_path`;
+DROP VIEW IF EXISTS `dcx_cache_path`;
+CREATE VIEW `dcx_cache_path` AS SELECT * FROM commerceX.`cache_path`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_path_alias`;
+DROP VIEW IF EXISTS `dcx_cache_path_alias`;
+CREATE VIEW `dcx_cache_path_alias` AS SELECT * FROM commerceX.`cache_path_alias`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_path_source`;
+DROP VIEW IF EXISTS `dcx_cache_path_source`;
+CREATE VIEW `dcx_cache_path_source` AS SELECT * FROM commerceX.`cache_path_source`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_rules`;
+DROP VIEW IF EXISTS `dcx_cache_rules`;
+CREATE VIEW `dcx_cache_rules` AS SELECT * FROM commerceX.`cache_rules`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_token`;
+DROP VIEW IF EXISTS `dcx_cache_token`;
+CREATE VIEW `dcx_cache_token` AS SELECT * FROM commerceX.`cache_token`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_update`;
+DROP VIEW IF EXISTS `dcx_cache_update`;
+CREATE VIEW `dcx_cache_update` AS SELECT * FROM commerceX.`cache_update`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_views`;
+DROP VIEW IF EXISTS `dcx_cache_views`;
+CREATE VIEW `dcx_cache_views` AS SELECT * FROM commerceX.`cache_views`;
+
+
+DROP TABLE IF EXISTS `dcx_cache_views_data`;
+DROP VIEW IF EXISTS `dcx_cache_views_data`;
+CREATE VIEW `dcx_cache_views_data` AS SELECT * FROM commerceX.`cache_views_data`;
+
+
+DROP TABLE IF EXISTS `dcx_cmp_menu_perms`;
+DROP VIEW IF EXISTS `dcx_cmp_menu_perms`;
+CREATE VIEW `dcx_cmp_menu_perms` AS SELECT * FROM commerceX.`cmp_menu_perms`;
+
+
+DROP TABLE IF EXISTS `dcx_cmp_permissions`;
+DROP VIEW IF EXISTS `dcx_cmp_permissions`;
+CREATE VIEW `dcx_cmp_permissions` AS SELECT * FROM commerceX.`cmp_permissions`;
+
+
+DROP TABLE IF EXISTS `dcx_comment`;
+DROP VIEW IF EXISTS `dcx_comment`;
+CREATE VIEW `dcx_comment` AS SELECT * FROM commerceX.`comment`;
+
+
+DROP TABLE IF EXISTS `dcx_commerce_addressbook_defaults`;
+DROP VIEW IF EXISTS `dcx_commerce_addressbook_defaults`;
+CREATE VIEW `dcx_commerce_addressbook_defaults` AS SELECT * FROM commerceX.`commerce_addressbook_defaults`;
+
+
+DROP TABLE IF EXISTS `dcx_commerce_autosku_patterns`;
+DROP VIEW IF EXISTS `dcx_commerce_autosku_patterns`;
+CREATE VIEW `dcx_commerce_autosku_patterns` AS SELECT * FROM commerceX.`commerce_autosku_patterns`;
+
+
+DROP TABLE IF EXISTS `dcx_commerce_calculated_price`;
+DROP VIEW IF EXISTS `dcx_commerce_calculated_price`;
+CREATE VIEW `dcx_commerce_calculated_price` AS SELECT * FROM commerceX.`commerce_calculated_price`;
+
+
+DROP TABLE IF EXISTS `dcx_commerce_checkout_pane`;
+DROP VIEW IF EXISTS `dcx_commerce_checkout_pane`;
+CREATE VIEW `dcx_commerce_checkout_pane` AS SELECT * FROM commerceX.`commerce_checkout_pane`;
+
+
+DROP TABLE IF EXISTS `dcx_commerce_customer_profile`;
+DROP VIEW IF EXISTS `dcx_commerce_customer_profile`;
+CREATE VIEW `dcx_commerce_customer_profile` AS SELECT * FROM commerceX.`commerce_customer_profile`;
+
+
+DROP TABLE IF EXISTS `dcx_commerce_customer_profile_revision`;
+DROP VIEW IF EXISTS `dcx_commerce_customer_profile_revision`;
+CREATE VIEW `dcx_commerce_customer_profile_revision` AS SELECT * FROM commerceX.`commerce_customer_profile_revision`;
+
+
+DROP TABLE IF EXISTS `dcx_commerce_discount`;
+DROP VIEW IF EXISTS `dcx_commerce_discount`;
+CREATE VIEW `dcx_commerce_discount` AS SELECT * FROM commerceX.`commerce_discount`;
+
+
+DROP TABLE IF EXISTS `dcx_commerce_discount_offer`;
+DROP VIEW IF EXISTS `dcx_commerce_discount_offer`;
+CREATE VIEW `dcx_commerce_discount_offer` AS SELECT * FROM commerceX.`commerce_discount_offer`;
+
+
+DROP TABLE IF EXISTS `dcx_commerce_flat_rate_service`;
+DROP VIEW IF EXISTS `dcx_commerce_flat_rate_service`;
+CREATE VIEW `dcx_commerce_flat_rate_service` AS SELECT * FROM commerceX.`commerce_flat_rate_service`;
+
+
+DROP TABLE IF EXISTS `dcx_commerce_line_item`;
+DROP VIEW IF EXISTS `dcx_commerce_line_item`;
+CREATE VIEW `dcx_commerce_line_item` AS SELECT * FROM commerceX.`commerce_line_item`;
+
+
+DROP TABLE IF EXISTS `dcx_commerce_order`;
+DROP VIEW IF EXISTS `dcx_commerce_order`;
+CREATE VIEW `dcx_commerce_order` AS SELECT * FROM commerceX.`commerce_order`;
+
+
+DROP TABLE IF EXISTS `dcx_commerce_order_revision`;
+DROP VIEW IF EXISTS `dcx_commerce_order_revision`;
+CREATE VIEW `dcx_commerce_order_revision` AS SELECT * FROM commerceX.`commerce_order_revision`;
+
+
+DROP TABLE IF EXISTS `dcx_commerce_payment_transaction`;
+DROP VIEW IF EXISTS `dcx_commerce_payment_transaction`;
+CREATE VIEW `dcx_commerce_payment_transaction` AS SELECT * FROM commerceX.`commerce_payment_transaction`;
+
+
+DROP TABLE IF EXISTS `dcx_commerce_payment_transaction_revision`;
+DROP VIEW IF EXISTS `dcx_commerce_payment_transaction_revision`;
+CREATE VIEW `dcx_commerce_payment_transaction_revision` AS SELECT * FROM commerceX.`commerce_payment_transaction_revision`;
+
+
+DROP TABLE IF EXISTS `dcx_commerce_product`;
+DROP VIEW IF EXISTS `dcx_commerce_product`;
+CREATE VIEW `dcx_commerce_product` AS SELECT * FROM commerceX.`commerce_product`;
+
+
+DROP TABLE IF EXISTS `dcx_commerce_product_revision`;
+DROP VIEW IF EXISTS `dcx_commerce_product_revision`;
+CREATE VIEW `dcx_commerce_product_revision` AS SELECT * FROM commerceX.`commerce_product_revision`;
+
+
+DROP TABLE IF EXISTS `dcx_commerce_product_type`;
+DROP VIEW IF EXISTS `dcx_commerce_product_type`;
+CREATE VIEW `dcx_commerce_product_type` AS SELECT * FROM commerceX.`commerce_product_type`;
+
+
+DROP TABLE IF EXISTS `dcx_commerce_tax_rate`;
+DROP VIEW IF EXISTS `dcx_commerce_tax_rate`;
+CREATE VIEW `dcx_commerce_tax_rate` AS SELECT * FROM commerceX.`commerce_tax_rate`;
+
+
+DROP TABLE IF EXISTS `dcx_commerce_tax_type`;
+DROP VIEW IF EXISTS `dcx_commerce_tax_type`;
+CREATE VIEW `dcx_commerce_tax_type` AS SELECT * FROM commerceX.`commerce_tax_type`;
+
+
+DROP TABLE IF EXISTS `dcx_contact`;
+DROP VIEW IF EXISTS `dcx_contact`;
+CREATE VIEW `dcx_contact` AS SELECT * FROM commerceX.`contact`;
+
+
+DROP TABLE IF EXISTS `dcx_ctools_css_cache`;
+DROP VIEW IF EXISTS `dcx_ctools_css_cache`;
+CREATE VIEW `dcx_ctools_css_cache` AS SELECT * FROM commerceX.`ctools_css_cache`;
+
+
+DROP TABLE IF EXISTS `dcx_ctools_object_cache`;
+DROP VIEW IF EXISTS `dcx_ctools_object_cache`;
+CREATE VIEW `dcx_ctools_object_cache` AS SELECT * FROM commerceX.`ctools_object_cache`;
+
+
+DROP TABLE IF EXISTS `dcx_current_search`;
+DROP VIEW IF EXISTS `dcx_current_search`;
+CREATE VIEW `dcx_current_search` AS SELECT * FROM commerceX.`current_search`;
+
+
+DROP TABLE IF EXISTS `dcx_date_format_locale`;
+DROP VIEW IF EXISTS `dcx_date_format_locale`;
+CREATE VIEW `dcx_date_format_locale` AS SELECT * FROM commerceX.`date_format_locale`;
+
+
+DROP TABLE IF EXISTS `dcx_date_format_type`;
+DROP VIEW IF EXISTS `dcx_date_format_type`;
+CREATE VIEW `dcx_date_format_type` AS SELECT * FROM commerceX.`date_format_type`;
+
+
+DROP TABLE IF EXISTS `dcx_date_formats`;
+DROP VIEW IF EXISTS `dcx_date_formats`;
+CREATE VIEW `dcx_date_formats` AS SELECT * FROM commerceX.`date_formats`;
+
+
+DROP TABLE IF EXISTS `dcx_facetapi`;
+DROP VIEW IF EXISTS `dcx_facetapi`;
+CREATE VIEW `dcx_facetapi` AS SELECT * FROM commerceX.`facetapi`;
+
+
+DROP TABLE IF EXISTS `dcx_feeds_importer`;
+DROP VIEW IF EXISTS `dcx_feeds_importer`;
+CREATE VIEW `dcx_feeds_importer` AS SELECT * FROM commerceX.`feeds_importer`;
+
+
+DROP TABLE IF EXISTS `dcx_feeds_item`;
+DROP VIEW IF EXISTS `dcx_feeds_item`;
+CREATE VIEW `dcx_feeds_item` AS SELECT * FROM commerceX.`feeds_item`;
+
+
+DROP TABLE IF EXISTS `dcx_feeds_log`;
+DROP VIEW IF EXISTS `dcx_feeds_log`;
+CREATE VIEW `dcx_feeds_log` AS SELECT * FROM commerceX.`feeds_log`;
+
+
+DROP TABLE IF EXISTS `dcx_feeds_push_subscriptions`;
+DROP VIEW IF EXISTS `dcx_feeds_push_subscriptions`;
+CREATE VIEW `dcx_feeds_push_subscriptions` AS SELECT * FROM commerceX.`feeds_push_subscriptions`;
+
+
+DROP TABLE IF EXISTS `dcx_feeds_selfnode_processor_item`;
+DROP VIEW IF EXISTS `dcx_feeds_selfnode_processor_item`;
+CREATE VIEW `dcx_feeds_selfnode_processor_item` AS SELECT * FROM commerceX.`feeds_selfnode_processor_item`;
+
+
+DROP TABLE IF EXISTS `dcx_feeds_source`;
+DROP VIEW IF EXISTS `dcx_feeds_source`;
+CREATE VIEW `dcx_feeds_source` AS SELECT * FROM commerceX.`feeds_source`;
+
+
+DROP TABLE IF EXISTS `dcx_feeds_tamper`;
+DROP VIEW IF EXISTS `dcx_feeds_tamper`;
+CREATE VIEW `dcx_feeds_tamper` AS SELECT * FROM commerceX.`feeds_tamper`;
+
+
+DROP TABLE IF EXISTS `dcx_field_config`;
+DROP VIEW IF EXISTS `dcx_field_config`;
+CREATE VIEW `dcx_field_config` AS SELECT * FROM commerceX.`field_config`;
+
+
+DROP TABLE IF EXISTS `dcx_field_config_instance`;
+DROP VIEW IF EXISTS `dcx_field_config_instance`;
+CREATE VIEW `dcx_field_config_instance` AS SELECT * FROM commerceX.`field_config_instance`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_body`;
+DROP VIEW IF EXISTS `dcx_field_data_body`;
+CREATE VIEW `dcx_field_data_body` AS SELECT * FROM commerceX.`field_data_body`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_comment_body`;
+DROP VIEW IF EXISTS `dcx_field_data_comment_body`;
+CREATE VIEW `dcx_field_data_comment_body` AS SELECT * FROM commerceX.`field_data_comment_body`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_commerce_customer_address`;
+DROP VIEW IF EXISTS `dcx_field_data_commerce_customer_address`;
+CREATE VIEW `dcx_field_data_commerce_customer_address` AS SELECT * FROM commerceX.`field_data_commerce_customer_address`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_commerce_customer_billing`;
+DROP VIEW IF EXISTS `dcx_field_data_commerce_customer_billing`;
+CREATE VIEW `dcx_field_data_commerce_customer_billing` AS SELECT * FROM commerceX.`field_data_commerce_customer_billing`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_commerce_customer_shipping`;
+DROP VIEW IF EXISTS `dcx_field_data_commerce_customer_shipping`;
+CREATE VIEW `dcx_field_data_commerce_customer_shipping` AS SELECT * FROM commerceX.`field_data_commerce_customer_shipping`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_commerce_discount_date`;
+DROP VIEW IF EXISTS `dcx_field_data_commerce_discount_date`;
+CREATE VIEW `dcx_field_data_commerce_discount_date` AS SELECT * FROM commerceX.`field_data_commerce_discount_date`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_commerce_discount_offer`;
+DROP VIEW IF EXISTS `dcx_field_data_commerce_discount_offer`;
+CREATE VIEW `dcx_field_data_commerce_discount_offer` AS SELECT * FROM commerceX.`field_data_commerce_discount_offer`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_commerce_discounts`;
+DROP VIEW IF EXISTS `dcx_field_data_commerce_discounts`;
+CREATE VIEW `dcx_field_data_commerce_discounts` AS SELECT * FROM commerceX.`field_data_commerce_discounts`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_commerce_display_path`;
+DROP VIEW IF EXISTS `dcx_field_data_commerce_display_path`;
+CREATE VIEW `dcx_field_data_commerce_display_path` AS SELECT * FROM commerceX.`field_data_commerce_display_path`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_commerce_fixed_amount`;
+DROP VIEW IF EXISTS `dcx_field_data_commerce_fixed_amount`;
+CREATE VIEW `dcx_field_data_commerce_fixed_amount` AS SELECT * FROM commerceX.`field_data_commerce_fixed_amount`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_commerce_free_products`;
+DROP VIEW IF EXISTS `dcx_field_data_commerce_free_products`;
+CREATE VIEW `dcx_field_data_commerce_free_products` AS SELECT * FROM commerceX.`field_data_commerce_free_products`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_commerce_free_shipping`;
+DROP VIEW IF EXISTS `dcx_field_data_commerce_free_shipping`;
+CREATE VIEW `dcx_field_data_commerce_free_shipping` AS SELECT * FROM commerceX.`field_data_commerce_free_shipping`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_commerce_line_items`;
+DROP VIEW IF EXISTS `dcx_field_data_commerce_line_items`;
+CREATE VIEW `dcx_field_data_commerce_line_items` AS SELECT * FROM commerceX.`field_data_commerce_line_items`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_commerce_order_total`;
+DROP VIEW IF EXISTS `dcx_field_data_commerce_order_total`;
+CREATE VIEW `dcx_field_data_commerce_order_total` AS SELECT * FROM commerceX.`field_data_commerce_order_total`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_commerce_percentage`;
+DROP VIEW IF EXISTS `dcx_field_data_commerce_percentage`;
+CREATE VIEW `dcx_field_data_commerce_percentage` AS SELECT * FROM commerceX.`field_data_commerce_percentage`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_commerce_price`;
+DROP VIEW IF EXISTS `dcx_field_data_commerce_price`;
+CREATE VIEW `dcx_field_data_commerce_price` AS SELECT * FROM commerceX.`field_data_commerce_price`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_commerce_product`;
+DROP VIEW IF EXISTS `dcx_field_data_commerce_product`;
+CREATE VIEW `dcx_field_data_commerce_product` AS SELECT * FROM commerceX.`field_data_commerce_product`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_commerce_shipping_service`;
+DROP VIEW IF EXISTS `dcx_field_data_commerce_shipping_service`;
+CREATE VIEW `dcx_field_data_commerce_shipping_service` AS SELECT * FROM commerceX.`field_data_commerce_shipping_service`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_commerce_total`;
+DROP VIEW IF EXISTS `dcx_field_data_commerce_total`;
+CREATE VIEW `dcx_field_data_commerce_total` AS SELECT * FROM commerceX.`field_data_commerce_total`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_commerce_unit_price`;
+DROP VIEW IF EXISTS `dcx_field_data_commerce_unit_price`;
+CREATE VIEW `dcx_field_data_commerce_unit_price` AS SELECT * FROM commerceX.`field_data_commerce_unit_price`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_availability_date`;
+DROP VIEW IF EXISTS `dcx_field_data_field_availability_date`;
+CREATE VIEW `dcx_field_data_field_availability_date` AS SELECT * FROM commerceX.`field_data_field_availability_date`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_availability_period`;
+DROP VIEW IF EXISTS `dcx_field_data_field_availability_period`;
+CREATE VIEW `dcx_field_data_field_availability_period` AS SELECT * FROM commerceX.`field_data_field_availability_period`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_brand`;
+DROP VIEW IF EXISTS `dcx_field_data_field_brand`;
+CREATE VIEW `dcx_field_data_field_brand` AS SELECT * FROM commerceX.`field_data_field_brand`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_collection`;
+DROP VIEW IF EXISTS `dcx_field_data_field_collection`;
+CREATE VIEW `dcx_field_data_field_collection` AS SELECT * FROM commerceX.`field_data_field_collection`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_colour`;
+DROP VIEW IF EXISTS `dcx_field_data_field_colour`;
+CREATE VIEW `dcx_field_data_field_colour` AS SELECT * FROM commerceX.`field_data_field_colour`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_colour_code`;
+DROP VIEW IF EXISTS `dcx_field_data_field_colour_code`;
+CREATE VIEW `dcx_field_data_field_colour_code` AS SELECT * FROM commerceX.`field_data_field_colour_code`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_headline`;
+DROP VIEW IF EXISTS `dcx_field_data_field_headline`;
+CREATE VIEW `dcx_field_data_field_headline` AS SELECT * FROM commerceX.`field_data_field_headline`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_image`;
+DROP VIEW IF EXISTS `dcx_field_data_field_image`;
+CREATE VIEW `dcx_field_data_field_image` AS SELECT * FROM commerceX.`field_data_field_image`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_images`;
+DROP VIEW IF EXISTS `dcx_field_data_field_images`;
+CREATE VIEW `dcx_field_data_field_images` AS SELECT * FROM commerceX.`field_data_field_images`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_link`;
+DROP VIEW IF EXISTS `dcx_field_data_field_link`;
+CREATE VIEW `dcx_field_data_field_link` AS SELECT * FROM commerceX.`field_data_field_link`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_price_pl_01`;
+DROP VIEW IF EXISTS `dcx_field_data_field_price_pl_01`;
+CREATE VIEW `dcx_field_data_field_price_pl_01` AS SELECT * FROM commerceX.`field_data_field_price_pl_01`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_price_pl_02`;
+DROP VIEW IF EXISTS `dcx_field_data_field_price_pl_02`;
+CREATE VIEW `dcx_field_data_field_price_pl_02` AS SELECT * FROM commerceX.`field_data_field_price_pl_02`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_price_pl_03`;
+DROP VIEW IF EXISTS `dcx_field_data_field_price_pl_03`;
+CREATE VIEW `dcx_field_data_field_price_pl_03` AS SELECT * FROM commerceX.`field_data_field_price_pl_03`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_price_pl_04`;
+DROP VIEW IF EXISTS `dcx_field_data_field_price_pl_04`;
+CREATE VIEW `dcx_field_data_field_price_pl_04` AS SELECT * FROM commerceX.`field_data_field_price_pl_04`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_price_pl_05`;
+DROP VIEW IF EXISTS `dcx_field_data_field_price_pl_05`;
+CREATE VIEW `dcx_field_data_field_price_pl_05` AS SELECT * FROM commerceX.`field_data_field_price_pl_05`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_price_pl_06`;
+DROP VIEW IF EXISTS `dcx_field_data_field_price_pl_06`;
+CREATE VIEW `dcx_field_data_field_price_pl_06` AS SELECT * FROM commerceX.`field_data_field_price_pl_06`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_price_pl_07`;
+DROP VIEW IF EXISTS `dcx_field_data_field_price_pl_07`;
+CREATE VIEW `dcx_field_data_field_price_pl_07` AS SELECT * FROM commerceX.`field_data_field_price_pl_07`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_price_pl_08`;
+DROP VIEW IF EXISTS `dcx_field_data_field_price_pl_08`;
+CREATE VIEW `dcx_field_data_field_price_pl_08` AS SELECT * FROM commerceX.`field_data_field_price_pl_08`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_price_pl_09`;
+DROP VIEW IF EXISTS `dcx_field_data_field_price_pl_09`;
+CREATE VIEW `dcx_field_data_field_price_pl_09` AS SELECT * FROM commerceX.`field_data_field_price_pl_09`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_price_pl_10`;
+DROP VIEW IF EXISTS `dcx_field_data_field_price_pl_10`;
+CREATE VIEW `dcx_field_data_field_price_pl_10` AS SELECT * FROM commerceX.`field_data_field_price_pl_10`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_price_pl_11`;
+DROP VIEW IF EXISTS `dcx_field_data_field_price_pl_11`;
+CREATE VIEW `dcx_field_data_field_price_pl_11` AS SELECT * FROM commerceX.`field_data_field_price_pl_11`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_price_pl_12`;
+DROP VIEW IF EXISTS `dcx_field_data_field_price_pl_12`;
+CREATE VIEW `dcx_field_data_field_price_pl_12` AS SELECT * FROM commerceX.`field_data_field_price_pl_12`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_price_pl_13`;
+DROP VIEW IF EXISTS `dcx_field_data_field_price_pl_13`;
+CREATE VIEW `dcx_field_data_field_price_pl_13` AS SELECT * FROM commerceX.`field_data_field_price_pl_13`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_price_pl_14`;
+DROP VIEW IF EXISTS `dcx_field_data_field_price_pl_14`;
+CREATE VIEW `dcx_field_data_field_price_pl_14` AS SELECT * FROM commerceX.`field_data_field_price_pl_14`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_price_pl_15`;
+DROP VIEW IF EXISTS `dcx_field_data_field_price_pl_15`;
+CREATE VIEW `dcx_field_data_field_price_pl_15` AS SELECT * FROM commerceX.`field_data_field_price_pl_15`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_price_pl_16`;
+DROP VIEW IF EXISTS `dcx_field_data_field_price_pl_16`;
+CREATE VIEW `dcx_field_data_field_price_pl_16` AS SELECT * FROM commerceX.`field_data_field_price_pl_16`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_price_pl_17`;
+DROP VIEW IF EXISTS `dcx_field_data_field_price_pl_17`;
+CREATE VIEW `dcx_field_data_field_price_pl_17` AS SELECT * FROM commerceX.`field_data_field_price_pl_17`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_price_pl_18`;
+DROP VIEW IF EXISTS `dcx_field_data_field_price_pl_18`;
+CREATE VIEW `dcx_field_data_field_price_pl_18` AS SELECT * FROM commerceX.`field_data_field_price_pl_18`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_price_pl_19`;
+DROP VIEW IF EXISTS `dcx_field_data_field_price_pl_19`;
+CREATE VIEW `dcx_field_data_field_price_pl_19` AS SELECT * FROM commerceX.`field_data_field_price_pl_19`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_price_pl_20`;
+DROP VIEW IF EXISTS `dcx_field_data_field_price_pl_20`;
+CREATE VIEW `dcx_field_data_field_price_pl_20` AS SELECT * FROM commerceX.`field_data_field_price_pl_20`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_price_pl_21`;
+DROP VIEW IF EXISTS `dcx_field_data_field_price_pl_21`;
+CREATE VIEW `dcx_field_data_field_price_pl_21` AS SELECT * FROM commerceX.`field_data_field_price_pl_21`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_product`;
+DROP VIEW IF EXISTS `dcx_field_data_field_product`;
+CREATE VIEW `dcx_field_data_field_product` AS SELECT * FROM commerceX.`field_data_field_product`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_product_category`;
+DROP VIEW IF EXISTS `dcx_field_data_field_product_category`;
+CREATE VIEW `dcx_field_data_field_product_category` AS SELECT * FROM commerceX.`field_data_field_product_category`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_required_delivery_date`;
+DROP VIEW IF EXISTS `dcx_field_data_field_required_delivery_date`;
+CREATE VIEW `dcx_field_data_field_required_delivery_date` AS SELECT * FROM commerceX.`field_data_field_required_delivery_date`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_rgb`;
+DROP VIEW IF EXISTS `dcx_field_data_field_rgb`;
+CREATE VIEW `dcx_field_data_field_rgb` AS SELECT * FROM commerceX.`field_data_field_rgb`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_special_request`;
+DROP VIEW IF EXISTS `dcx_field_data_field_special_request`;
+CREATE VIEW `dcx_field_data_field_special_request` AS SELECT * FROM commerceX.`field_data_field_special_request`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_stock_status`;
+DROP VIEW IF EXISTS `dcx_field_data_field_stock_status`;
+CREATE VIEW `dcx_field_data_field_stock_status` AS SELECT * FROM commerceX.`field_data_field_stock_status`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_table`;
+DROP VIEW IF EXISTS `dcx_field_data_field_table`;
+CREATE VIEW `dcx_field_data_field_table` AS SELECT * FROM commerceX.`field_data_field_table`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_table_`;
+DROP VIEW IF EXISTS `dcx_field_data_field_table_`;
+CREATE VIEW `dcx_field_data_field_table_` AS SELECT * FROM commerceX.`field_data_field_table_`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_tagline`;
+DROP VIEW IF EXISTS `dcx_field_data_field_tagline`;
+CREATE VIEW `dcx_field_data_field_tagline` AS SELECT * FROM commerceX.`field_data_field_tagline`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_trim_colour`;
+DROP VIEW IF EXISTS `dcx_field_data_field_trim_colour`;
+CREATE VIEW `dcx_field_data_field_trim_colour` AS SELECT * FROM commerceX.`field_data_field_trim_colour`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_field_wholesale_price`;
+DROP VIEW IF EXISTS `dcx_field_data_field_wholesale_price`;
+CREATE VIEW `dcx_field_data_field_wholesale_price` AS SELECT * FROM commerceX.`field_data_field_wholesale_price`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_inline_conditions`;
+DROP VIEW IF EXISTS `dcx_field_data_inline_conditions`;
+CREATE VIEW `dcx_field_data_inline_conditions` AS SELECT * FROM commerceX.`field_data_inline_conditions`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_message_commerce_body`;
+DROP VIEW IF EXISTS `dcx_field_data_message_commerce_body`;
+CREATE VIEW `dcx_field_data_message_commerce_body` AS SELECT * FROM commerceX.`field_data_message_commerce_body`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_message_commerce_line_item`;
+DROP VIEW IF EXISTS `dcx_field_data_message_commerce_line_item`;
+CREATE VIEW `dcx_field_data_message_commerce_line_item` AS SELECT * FROM commerceX.`field_data_message_commerce_line_item`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_message_commerce_order`;
+DROP VIEW IF EXISTS `dcx_field_data_message_commerce_order`;
+CREATE VIEW `dcx_field_data_message_commerce_order` AS SELECT * FROM commerceX.`field_data_message_commerce_order`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_message_commerce_payment`;
+DROP VIEW IF EXISTS `dcx_field_data_message_commerce_payment`;
+CREATE VIEW `dcx_field_data_message_commerce_payment` AS SELECT * FROM commerceX.`field_data_message_commerce_payment`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_message_order_display_name`;
+DROP VIEW IF EXISTS `dcx_field_data_message_order_display_name`;
+CREATE VIEW `dcx_field_data_message_order_display_name` AS SELECT * FROM commerceX.`field_data_message_order_display_name`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_message_text`;
+DROP VIEW IF EXISTS `dcx_field_data_message_text`;
+CREATE VIEW `dcx_field_data_message_text` AS SELECT * FROM commerceX.`field_data_message_text`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_message_text_subject`;
+DROP VIEW IF EXISTS `dcx_field_data_message_text_subject`;
+CREATE VIEW `dcx_field_data_message_text_subject` AS SELECT * FROM commerceX.`field_data_message_text_subject`;
+
+
+DROP TABLE IF EXISTS `dcx_field_data_title_field`;
+DROP VIEW IF EXISTS `dcx_field_data_title_field`;
+CREATE VIEW `dcx_field_data_title_field` AS SELECT * FROM commerceX.`field_data_title_field`;
+
+
+DROP TABLE IF EXISTS `dcx_field_deleted_data_11`;
+DROP VIEW IF EXISTS `dcx_field_deleted_data_11`;
+CREATE VIEW `dcx_field_deleted_data_11` AS SELECT * FROM commerceX.`field_deleted_data_11`;
+
+
+DROP TABLE IF EXISTS `dcx_field_deleted_data_22`;
+DROP VIEW IF EXISTS `dcx_field_deleted_data_22`;
+CREATE VIEW `dcx_field_deleted_data_22` AS SELECT * FROM commerceX.`field_deleted_data_22`;
+
+
+DROP TABLE IF EXISTS `dcx_field_deleted_data_23`;
+DROP VIEW IF EXISTS `dcx_field_deleted_data_23`;
+CREATE VIEW `dcx_field_deleted_data_23` AS SELECT * FROM commerceX.`field_deleted_data_23`;
+
+
+DROP TABLE IF EXISTS `dcx_field_deleted_data_24`;
+DROP VIEW IF EXISTS `dcx_field_deleted_data_24`;
+CREATE VIEW `dcx_field_deleted_data_24` AS SELECT * FROM commerceX.`field_deleted_data_24`;
+
+
+DROP TABLE IF EXISTS `dcx_field_deleted_data_25`;
+DROP VIEW IF EXISTS `dcx_field_deleted_data_25`;
+CREATE VIEW `dcx_field_deleted_data_25` AS SELECT * FROM commerceX.`field_deleted_data_25`;
+
+
+DROP TABLE IF EXISTS `dcx_field_deleted_revision_11`;
+DROP VIEW IF EXISTS `dcx_field_deleted_revision_11`;
+CREATE VIEW `dcx_field_deleted_revision_11` AS SELECT * FROM commerceX.`field_deleted_revision_11`;
+
+
+DROP TABLE IF EXISTS `dcx_field_deleted_revision_22`;
+DROP VIEW IF EXISTS `dcx_field_deleted_revision_22`;
+CREATE VIEW `dcx_field_deleted_revision_22` AS SELECT * FROM commerceX.`field_deleted_revision_22`;
+
+
+DROP TABLE IF EXISTS `dcx_field_deleted_revision_23`;
+DROP VIEW IF EXISTS `dcx_field_deleted_revision_23`;
+CREATE VIEW `dcx_field_deleted_revision_23` AS SELECT * FROM commerceX.`field_deleted_revision_23`;
+
+
+DROP TABLE IF EXISTS `dcx_field_deleted_revision_24`;
+DROP VIEW IF EXISTS `dcx_field_deleted_revision_24`;
+CREATE VIEW `dcx_field_deleted_revision_24` AS SELECT * FROM commerceX.`field_deleted_revision_24`;
+
+
+DROP TABLE IF EXISTS `dcx_field_deleted_revision_25`;
+DROP VIEW IF EXISTS `dcx_field_deleted_revision_25`;
+CREATE VIEW `dcx_field_deleted_revision_25` AS SELECT * FROM commerceX.`field_deleted_revision_25`;
+
+
+DROP TABLE IF EXISTS `dcx_field_group`;
+DROP VIEW IF EXISTS `dcx_field_group`;
+CREATE VIEW `dcx_field_group` AS SELECT * FROM commerceX.`field_group`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_body`;
+DROP VIEW IF EXISTS `dcx_field_revision_body`;
+CREATE VIEW `dcx_field_revision_body` AS SELECT * FROM commerceX.`field_revision_body`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_comment_body`;
+DROP VIEW IF EXISTS `dcx_field_revision_comment_body`;
+CREATE VIEW `dcx_field_revision_comment_body` AS SELECT * FROM commerceX.`field_revision_comment_body`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_commerce_customer_address`;
+DROP VIEW IF EXISTS `dcx_field_revision_commerce_customer_address`;
+CREATE VIEW `dcx_field_revision_commerce_customer_address` AS SELECT * FROM commerceX.`field_revision_commerce_customer_address`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_commerce_customer_billing`;
+DROP VIEW IF EXISTS `dcx_field_revision_commerce_customer_billing`;
+CREATE VIEW `dcx_field_revision_commerce_customer_billing` AS SELECT * FROM commerceX.`field_revision_commerce_customer_billing`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_commerce_customer_shipping`;
+DROP VIEW IF EXISTS `dcx_field_revision_commerce_customer_shipping`;
+CREATE VIEW `dcx_field_revision_commerce_customer_shipping` AS SELECT * FROM commerceX.`field_revision_commerce_customer_shipping`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_commerce_discount_date`;
+DROP VIEW IF EXISTS `dcx_field_revision_commerce_discount_date`;
+CREATE VIEW `dcx_field_revision_commerce_discount_date` AS SELECT * FROM commerceX.`field_revision_commerce_discount_date`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_commerce_discount_offer`;
+DROP VIEW IF EXISTS `dcx_field_revision_commerce_discount_offer`;
+CREATE VIEW `dcx_field_revision_commerce_discount_offer` AS SELECT * FROM commerceX.`field_revision_commerce_discount_offer`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_commerce_discounts`;
+DROP VIEW IF EXISTS `dcx_field_revision_commerce_discounts`;
+CREATE VIEW `dcx_field_revision_commerce_discounts` AS SELECT * FROM commerceX.`field_revision_commerce_discounts`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_commerce_display_path`;
+DROP VIEW IF EXISTS `dcx_field_revision_commerce_display_path`;
+CREATE VIEW `dcx_field_revision_commerce_display_path` AS SELECT * FROM commerceX.`field_revision_commerce_display_path`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_commerce_fixed_amount`;
+DROP VIEW IF EXISTS `dcx_field_revision_commerce_fixed_amount`;
+CREATE VIEW `dcx_field_revision_commerce_fixed_amount` AS SELECT * FROM commerceX.`field_revision_commerce_fixed_amount`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_commerce_free_products`;
+DROP VIEW IF EXISTS `dcx_field_revision_commerce_free_products`;
+CREATE VIEW `dcx_field_revision_commerce_free_products` AS SELECT * FROM commerceX.`field_revision_commerce_free_products`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_commerce_free_shipping`;
+DROP VIEW IF EXISTS `dcx_field_revision_commerce_free_shipping`;
+CREATE VIEW `dcx_field_revision_commerce_free_shipping` AS SELECT * FROM commerceX.`field_revision_commerce_free_shipping`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_commerce_line_items`;
+DROP VIEW IF EXISTS `dcx_field_revision_commerce_line_items`;
+CREATE VIEW `dcx_field_revision_commerce_line_items` AS SELECT * FROM commerceX.`field_revision_commerce_line_items`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_commerce_order_total`;
+DROP VIEW IF EXISTS `dcx_field_revision_commerce_order_total`;
+CREATE VIEW `dcx_field_revision_commerce_order_total` AS SELECT * FROM commerceX.`field_revision_commerce_order_total`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_commerce_percentage`;
+DROP VIEW IF EXISTS `dcx_field_revision_commerce_percentage`;
+CREATE VIEW `dcx_field_revision_commerce_percentage` AS SELECT * FROM commerceX.`field_revision_commerce_percentage`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_commerce_price`;
+DROP VIEW IF EXISTS `dcx_field_revision_commerce_price`;
+CREATE VIEW `dcx_field_revision_commerce_price` AS SELECT * FROM commerceX.`field_revision_commerce_price`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_commerce_product`;
+DROP VIEW IF EXISTS `dcx_field_revision_commerce_product`;
+CREATE VIEW `dcx_field_revision_commerce_product` AS SELECT * FROM commerceX.`field_revision_commerce_product`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_commerce_shipping_service`;
+DROP VIEW IF EXISTS `dcx_field_revision_commerce_shipping_service`;
+CREATE VIEW `dcx_field_revision_commerce_shipping_service` AS SELECT * FROM commerceX.`field_revision_commerce_shipping_service`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_commerce_total`;
+DROP VIEW IF EXISTS `dcx_field_revision_commerce_total`;
+CREATE VIEW `dcx_field_revision_commerce_total` AS SELECT * FROM commerceX.`field_revision_commerce_total`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_commerce_unit_price`;
+DROP VIEW IF EXISTS `dcx_field_revision_commerce_unit_price`;
+CREATE VIEW `dcx_field_revision_commerce_unit_price` AS SELECT * FROM commerceX.`field_revision_commerce_unit_price`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_availability_date`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_availability_date`;
+CREATE VIEW `dcx_field_revision_field_availability_date` AS SELECT * FROM commerceX.`field_revision_field_availability_date`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_availability_period`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_availability_period`;
+CREATE VIEW `dcx_field_revision_field_availability_period` AS SELECT * FROM commerceX.`field_revision_field_availability_period`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_brand`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_brand`;
+CREATE VIEW `dcx_field_revision_field_brand` AS SELECT * FROM commerceX.`field_revision_field_brand`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_collection`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_collection`;
+CREATE VIEW `dcx_field_revision_field_collection` AS SELECT * FROM commerceX.`field_revision_field_collection`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_colour`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_colour`;
+CREATE VIEW `dcx_field_revision_field_colour` AS SELECT * FROM commerceX.`field_revision_field_colour`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_colour_code`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_colour_code`;
+CREATE VIEW `dcx_field_revision_field_colour_code` AS SELECT * FROM commerceX.`field_revision_field_colour_code`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_headline`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_headline`;
+CREATE VIEW `dcx_field_revision_field_headline` AS SELECT * FROM commerceX.`field_revision_field_headline`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_image`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_image`;
+CREATE VIEW `dcx_field_revision_field_image` AS SELECT * FROM commerceX.`field_revision_field_image`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_images`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_images`;
+CREATE VIEW `dcx_field_revision_field_images` AS SELECT * FROM commerceX.`field_revision_field_images`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_link`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_link`;
+CREATE VIEW `dcx_field_revision_field_link` AS SELECT * FROM commerceX.`field_revision_field_link`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_price_pl_01`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_price_pl_01`;
+CREATE VIEW `dcx_field_revision_field_price_pl_01` AS SELECT * FROM commerceX.`field_revision_field_price_pl_01`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_price_pl_02`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_price_pl_02`;
+CREATE VIEW `dcx_field_revision_field_price_pl_02` AS SELECT * FROM commerceX.`field_revision_field_price_pl_02`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_price_pl_03`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_price_pl_03`;
+CREATE VIEW `dcx_field_revision_field_price_pl_03` AS SELECT * FROM commerceX.`field_revision_field_price_pl_03`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_price_pl_04`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_price_pl_04`;
+CREATE VIEW `dcx_field_revision_field_price_pl_04` AS SELECT * FROM commerceX.`field_revision_field_price_pl_04`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_price_pl_05`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_price_pl_05`;
+CREATE VIEW `dcx_field_revision_field_price_pl_05` AS SELECT * FROM commerceX.`field_revision_field_price_pl_05`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_price_pl_06`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_price_pl_06`;
+CREATE VIEW `dcx_field_revision_field_price_pl_06` AS SELECT * FROM commerceX.`field_revision_field_price_pl_06`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_price_pl_07`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_price_pl_07`;
+CREATE VIEW `dcx_field_revision_field_price_pl_07` AS SELECT * FROM commerceX.`field_revision_field_price_pl_07`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_price_pl_08`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_price_pl_08`;
+CREATE VIEW `dcx_field_revision_field_price_pl_08` AS SELECT * FROM commerceX.`field_revision_field_price_pl_08`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_price_pl_09`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_price_pl_09`;
+CREATE VIEW `dcx_field_revision_field_price_pl_09` AS SELECT * FROM commerceX.`field_revision_field_price_pl_09`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_price_pl_10`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_price_pl_10`;
+CREATE VIEW `dcx_field_revision_field_price_pl_10` AS SELECT * FROM commerceX.`field_revision_field_price_pl_10`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_price_pl_11`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_price_pl_11`;
+CREATE VIEW `dcx_field_revision_field_price_pl_11` AS SELECT * FROM commerceX.`field_revision_field_price_pl_11`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_price_pl_12`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_price_pl_12`;
+CREATE VIEW `dcx_field_revision_field_price_pl_12` AS SELECT * FROM commerceX.`field_revision_field_price_pl_12`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_price_pl_13`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_price_pl_13`;
+CREATE VIEW `dcx_field_revision_field_price_pl_13` AS SELECT * FROM commerceX.`field_revision_field_price_pl_13`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_price_pl_14`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_price_pl_14`;
+CREATE VIEW `dcx_field_revision_field_price_pl_14` AS SELECT * FROM commerceX.`field_revision_field_price_pl_14`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_price_pl_15`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_price_pl_15`;
+CREATE VIEW `dcx_field_revision_field_price_pl_15` AS SELECT * FROM commerceX.`field_revision_field_price_pl_15`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_price_pl_16`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_price_pl_16`;
+CREATE VIEW `dcx_field_revision_field_price_pl_16` AS SELECT * FROM commerceX.`field_revision_field_price_pl_16`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_price_pl_17`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_price_pl_17`;
+CREATE VIEW `dcx_field_revision_field_price_pl_17` AS SELECT * FROM commerceX.`field_revision_field_price_pl_17`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_price_pl_18`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_price_pl_18`;
+CREATE VIEW `dcx_field_revision_field_price_pl_18` AS SELECT * FROM commerceX.`field_revision_field_price_pl_18`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_price_pl_19`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_price_pl_19`;
+CREATE VIEW `dcx_field_revision_field_price_pl_19` AS SELECT * FROM commerceX.`field_revision_field_price_pl_19`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_price_pl_20`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_price_pl_20`;
+CREATE VIEW `dcx_field_revision_field_price_pl_20` AS SELECT * FROM commerceX.`field_revision_field_price_pl_20`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_price_pl_21`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_price_pl_21`;
+CREATE VIEW `dcx_field_revision_field_price_pl_21` AS SELECT * FROM commerceX.`field_revision_field_price_pl_21`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_product`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_product`;
+CREATE VIEW `dcx_field_revision_field_product` AS SELECT * FROM commerceX.`field_revision_field_product`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_product_category`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_product_category`;
+CREATE VIEW `dcx_field_revision_field_product_category` AS SELECT * FROM commerceX.`field_revision_field_product_category`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_required_delivery_date`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_required_delivery_date`;
+CREATE VIEW `dcx_field_revision_field_required_delivery_date` AS SELECT * FROM commerceX.`field_revision_field_required_delivery_date`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_rgb`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_rgb`;
+CREATE VIEW `dcx_field_revision_field_rgb` AS SELECT * FROM commerceX.`field_revision_field_rgb`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_special_request`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_special_request`;
+CREATE VIEW `dcx_field_revision_field_special_request` AS SELECT * FROM commerceX.`field_revision_field_special_request`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_stock_status`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_stock_status`;
+CREATE VIEW `dcx_field_revision_field_stock_status` AS SELECT * FROM commerceX.`field_revision_field_stock_status`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_table`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_table`;
+CREATE VIEW `dcx_field_revision_field_table` AS SELECT * FROM commerceX.`field_revision_field_table`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_table_`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_table_`;
+CREATE VIEW `dcx_field_revision_field_table_` AS SELECT * FROM commerceX.`field_revision_field_table_`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_tagline`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_tagline`;
+CREATE VIEW `dcx_field_revision_field_tagline` AS SELECT * FROM commerceX.`field_revision_field_tagline`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_trim_colour`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_trim_colour`;
+CREATE VIEW `dcx_field_revision_field_trim_colour` AS SELECT * FROM commerceX.`field_revision_field_trim_colour`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_field_wholesale_price`;
+DROP VIEW IF EXISTS `dcx_field_revision_field_wholesale_price`;
+CREATE VIEW `dcx_field_revision_field_wholesale_price` AS SELECT * FROM commerceX.`field_revision_field_wholesale_price`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_inline_conditions`;
+DROP VIEW IF EXISTS `dcx_field_revision_inline_conditions`;
+CREATE VIEW `dcx_field_revision_inline_conditions` AS SELECT * FROM commerceX.`field_revision_inline_conditions`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_message_commerce_body`;
+DROP VIEW IF EXISTS `dcx_field_revision_message_commerce_body`;
+CREATE VIEW `dcx_field_revision_message_commerce_body` AS SELECT * FROM commerceX.`field_revision_message_commerce_body`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_message_commerce_line_item`;
+DROP VIEW IF EXISTS `dcx_field_revision_message_commerce_line_item`;
+CREATE VIEW `dcx_field_revision_message_commerce_line_item` AS SELECT * FROM commerceX.`field_revision_message_commerce_line_item`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_message_commerce_order`;
+DROP VIEW IF EXISTS `dcx_field_revision_message_commerce_order`;
+CREATE VIEW `dcx_field_revision_message_commerce_order` AS SELECT * FROM commerceX.`field_revision_message_commerce_order`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_message_commerce_payment`;
+DROP VIEW IF EXISTS `dcx_field_revision_message_commerce_payment`;
+CREATE VIEW `dcx_field_revision_message_commerce_payment` AS SELECT * FROM commerceX.`field_revision_message_commerce_payment`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_message_order_display_name`;
+DROP VIEW IF EXISTS `dcx_field_revision_message_order_display_name`;
+CREATE VIEW `dcx_field_revision_message_order_display_name` AS SELECT * FROM commerceX.`field_revision_message_order_display_name`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_message_text`;
+DROP VIEW IF EXISTS `dcx_field_revision_message_text`;
+CREATE VIEW `dcx_field_revision_message_text` AS SELECT * FROM commerceX.`field_revision_message_text`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_message_text_subject`;
+DROP VIEW IF EXISTS `dcx_field_revision_message_text_subject`;
+CREATE VIEW `dcx_field_revision_message_text_subject` AS SELECT * FROM commerceX.`field_revision_message_text_subject`;
+
+
+DROP TABLE IF EXISTS `dcx_field_revision_title_field`;
+DROP VIEW IF EXISTS `dcx_field_revision_title_field`;
+CREATE VIEW `dcx_field_revision_title_field` AS SELECT * FROM commerceX.`field_revision_title_field`;
+
+
+DROP TABLE IF EXISTS `dcx_file_managed`;
+DROP VIEW IF EXISTS `dcx_file_managed`;
+CREATE VIEW `dcx_file_managed` AS SELECT * FROM commerceX.`file_managed`;
+
+
+DROP TABLE IF EXISTS `dcx_file_usage`;
+DROP VIEW IF EXISTS `dcx_file_usage`;
+CREATE VIEW `dcx_file_usage` AS SELECT * FROM commerceX.`file_usage`;
+
+
+DROP TABLE IF EXISTS `dcx_filter`;
+DROP VIEW IF EXISTS `dcx_filter`;
+CREATE VIEW `dcx_filter` AS SELECT * FROM commerceX.`filter`;
+
+
+DROP TABLE IF EXISTS `dcx_filter_format`;
+DROP VIEW IF EXISTS `dcx_filter_format`;
+CREATE VIEW `dcx_filter_format` AS SELECT * FROM commerceX.`filter_format`;
+
+
+DROP TABLE IF EXISTS `dcx_flood`;
+DROP VIEW IF EXISTS `dcx_flood`;
+CREATE VIEW `dcx_flood` AS SELECT * FROM commerceX.`flood`;
+
+
+DROP TABLE IF EXISTS `dcx_history`;
+DROP VIEW IF EXISTS `dcx_history`;
+CREATE VIEW `dcx_history` AS SELECT * FROM commerceX.`history`;
+
+
+DROP TABLE IF EXISTS `dcx_honeypot_user`;
+DROP VIEW IF EXISTS `dcx_honeypot_user`;
+CREATE VIEW `dcx_honeypot_user` AS SELECT * FROM commerceX.`honeypot_user`;
+
+
+DROP TABLE IF EXISTS `dcx_image_effects`;
+DROP VIEW IF EXISTS `dcx_image_effects`;
+CREATE VIEW `dcx_image_effects` AS SELECT * FROM commerceX.`image_effects`;
+
+
+DROP TABLE IF EXISTS `dcx_image_styles`;
+DROP VIEW IF EXISTS `dcx_image_styles`;
+CREATE VIEW `dcx_image_styles` AS SELECT * FROM commerceX.`image_styles`;
+
+
+DROP TABLE IF EXISTS `dcx_job_schedule`;
+DROP VIEW IF EXISTS `dcx_job_schedule`;
+CREATE VIEW `dcx_job_schedule` AS SELECT * FROM commerceX.`job_schedule`;
+
+
+DROP TABLE IF EXISTS `dcx_masquerade`;
+DROP VIEW IF EXISTS `dcx_masquerade`;
+CREATE VIEW `dcx_masquerade` AS SELECT * FROM commerceX.`masquerade`;
+
+
+DROP TABLE IF EXISTS `dcx_masquerade_users`;
+DROP VIEW IF EXISTS `dcx_masquerade_users`;
+CREATE VIEW `dcx_masquerade_users` AS SELECT * FROM commerceX.`masquerade_users`;
+
+
+DROP TABLE IF EXISTS `dcx_megamenu`;
+DROP VIEW IF EXISTS `dcx_megamenu`;
+CREATE VIEW `dcx_megamenu` AS SELECT * FROM commerceX.`megamenu`;
+
+
+DROP TABLE IF EXISTS `dcx_menu_custom`;
+DROP VIEW IF EXISTS `dcx_menu_custom`;
+CREATE VIEW `dcx_menu_custom` AS SELECT * FROM commerceX.`menu_custom`;
+
+
+DROP TABLE IF EXISTS `dcx_menu_links`;
+DROP VIEW IF EXISTS `dcx_menu_links`;
+CREATE VIEW `dcx_menu_links` AS SELECT * FROM commerceX.`menu_links`;
+
+
+DROP TABLE IF EXISTS `dcx_menu_router`;
+DROP VIEW IF EXISTS `dcx_menu_router`;
+CREATE VIEW `dcx_menu_router` AS SELECT * FROM commerceX.`menu_router`;
+
+
+DROP TABLE IF EXISTS `dcx_message`;
+DROP VIEW IF EXISTS `dcx_message`;
+CREATE VIEW `dcx_message` AS SELECT * FROM commerceX.`message`;
+
+
+DROP TABLE IF EXISTS `dcx_message_type`;
+DROP VIEW IF EXISTS `dcx_message_type`;
+CREATE VIEW `dcx_message_type` AS SELECT * FROM commerceX.`message_type`;
+
+
+DROP TABLE IF EXISTS `dcx_message_type_category`;
+DROP VIEW IF EXISTS `dcx_message_type_category`;
+CREATE VIEW `dcx_message_type_category` AS SELECT * FROM commerceX.`message_type_category`;
+
+
+DROP TABLE IF EXISTS `dcx_metatag`;
+DROP VIEW IF EXISTS `dcx_metatag`;
+CREATE VIEW `dcx_metatag` AS SELECT * FROM commerceX.`metatag`;
+
+
+DROP TABLE IF EXISTS `dcx_metatag_config`;
+DROP VIEW IF EXISTS `dcx_metatag_config`;
+CREATE VIEW `dcx_metatag_config` AS SELECT * FROM commerceX.`metatag_config`;
+
+
+DROP TABLE IF EXISTS `dcx_migrate_log`;
+DROP VIEW IF EXISTS `dcx_migrate_log`;
+CREATE VIEW `dcx_migrate_log` AS SELECT * FROM commerceX.`migrate_log`;
+
+
+DROP TABLE IF EXISTS `dcx_migrate_map_commercekickstartadpush`;
+DROP VIEW IF EXISTS `dcx_migrate_map_commercekickstartadpush`;
+CREATE VIEW `dcx_migrate_map_commercekickstartadpush` AS SELECT * FROM commerceX.`migrate_map_commercekickstartadpush`;
+
+
+DROP TABLE IF EXISTS `dcx_migrate_map_commercekickstartnode`;
+DROP VIEW IF EXISTS `dcx_migrate_map_commercekickstartnode`;
+CREATE VIEW `dcx_migrate_map_commercekickstartnode` AS SELECT * FROM commerceX.`migrate_map_commercekickstartnode`;
+
+
+DROP TABLE IF EXISTS `dcx_migrate_map_commercekickstartpages`;
+DROP VIEW IF EXISTS `dcx_migrate_map_commercekickstartpages`;
+CREATE VIEW `dcx_migrate_map_commercekickstartpages` AS SELECT * FROM commerceX.`migrate_map_commercekickstartpages`;
+
+
+DROP TABLE IF EXISTS `dcx_migrate_map_commercekickstartproduct`;
+DROP VIEW IF EXISTS `dcx_migrate_map_commercekickstartproduct`;
+CREATE VIEW `dcx_migrate_map_commercekickstartproduct` AS SELECT * FROM commerceX.`migrate_map_commercekickstartproduct`;
+
+
+DROP TABLE IF EXISTS `dcx_migrate_map_commercekickstartslideshow`;
+DROP VIEW IF EXISTS `dcx_migrate_map_commercekickstartslideshow`;
+CREATE VIEW `dcx_migrate_map_commercekickstartslideshow` AS SELECT * FROM commerceX.`migrate_map_commercekickstartslideshow`;
+
+
+DROP TABLE IF EXISTS `dcx_migrate_message_commercekickstartadpush`;
+DROP VIEW IF EXISTS `dcx_migrate_message_commercekickstartadpush`;
+CREATE VIEW `dcx_migrate_message_commercekickstartadpush` AS SELECT * FROM commerceX.`migrate_message_commercekickstartadpush`;
+
+
+DROP TABLE IF EXISTS `dcx_migrate_message_commercekickstartnode`;
+DROP VIEW IF EXISTS `dcx_migrate_message_commercekickstartnode`;
+CREATE VIEW `dcx_migrate_message_commercekickstartnode` AS SELECT * FROM commerceX.`migrate_message_commercekickstartnode`;
+
+
+DROP TABLE IF EXISTS `dcx_migrate_message_commercekickstartpages`;
+DROP VIEW IF EXISTS `dcx_migrate_message_commercekickstartpages`;
+CREATE VIEW `dcx_migrate_message_commercekickstartpages` AS SELECT * FROM commerceX.`migrate_message_commercekickstartpages`;
+
+
+DROP TABLE IF EXISTS `dcx_migrate_message_commercekickstartproduct`;
+DROP VIEW IF EXISTS `dcx_migrate_message_commercekickstartproduct`;
+CREATE VIEW `dcx_migrate_message_commercekickstartproduct` AS SELECT * FROM commerceX.`migrate_message_commercekickstartproduct`;
+
+
+DROP TABLE IF EXISTS `dcx_migrate_message_commercekickstartslideshow`;
+DROP VIEW IF EXISTS `dcx_migrate_message_commercekickstartslideshow`;
+CREATE VIEW `dcx_migrate_message_commercekickstartslideshow` AS SELECT * FROM commerceX.`migrate_message_commercekickstartslideshow`;
+
+
+DROP TABLE IF EXISTS `dcx_migrate_status`;
+DROP VIEW IF EXISTS `dcx_migrate_status`;
+CREATE VIEW `dcx_migrate_status` AS SELECT * FROM commerceX.`migrate_status`;
+
+
+DROP TABLE IF EXISTS `dcx_node`;
+DROP VIEW IF EXISTS `dcx_node`;
+CREATE VIEW `dcx_node` AS SELECT * FROM commerceX.`node`;
+
+
+DROP TABLE IF EXISTS `dcx_node_access`;
+DROP VIEW IF EXISTS `dcx_node_access`;
+CREATE VIEW `dcx_node_access` AS SELECT * FROM commerceX.`node_access`;
+
+
+DROP TABLE IF EXISTS `dcx_node_comment_statistics`;
+DROP VIEW IF EXISTS `dcx_node_comment_statistics`;
+CREATE VIEW `dcx_node_comment_statistics` AS SELECT * FROM commerceX.`node_comment_statistics`;
+
+
+DROP TABLE IF EXISTS `dcx_node_counter`;
+DROP VIEW IF EXISTS `dcx_node_counter`;
+CREATE VIEW `dcx_node_counter` AS SELECT * FROM commerceX.`node_counter`;
+
+
+DROP TABLE IF EXISTS `dcx_node_revision`;
+DROP VIEW IF EXISTS `dcx_node_revision`;
+CREATE VIEW `dcx_node_revision` AS SELECT * FROM commerceX.`node_revision`;
+
+
+DROP TABLE IF EXISTS `dcx_node_spambot`;
+DROP VIEW IF EXISTS `dcx_node_spambot`;
+CREATE VIEW `dcx_node_spambot` AS SELECT * FROM commerceX.`node_spambot`;
+
+
+DROP TABLE IF EXISTS `dcx_node_type`;
+DROP VIEW IF EXISTS `dcx_node_type`;
+CREATE VIEW `dcx_node_type` AS SELECT * FROM commerceX.`node_type`;
+
+
+DROP TABLE IF EXISTS `dcx_page_title`;
+DROP VIEW IF EXISTS `dcx_page_title`;
+CREATE VIEW `dcx_page_title` AS SELECT * FROM commerceX.`page_title`;
+
+
+DROP TABLE IF EXISTS `dcx_queue`;
+DROP VIEW IF EXISTS `dcx_queue`;
+CREATE VIEW `dcx_queue` AS SELECT * FROM commerceX.`queue`;
+
+
+DROP TABLE IF EXISTS `dcx_redirect`;
+DROP VIEW IF EXISTS `dcx_redirect`;
+CREATE VIEW `dcx_redirect` AS SELECT * FROM commerceX.`redirect`;
+
+
+DROP TABLE IF EXISTS `dcx_registry`;
+DROP VIEW IF EXISTS `dcx_registry`;
+CREATE VIEW `dcx_registry` AS SELECT * FROM commerceX.`registry`;
+
+
+DROP TABLE IF EXISTS `dcx_registry_file`;
+DROP VIEW IF EXISTS `dcx_registry_file`;
+CREATE VIEW `dcx_registry_file` AS SELECT * FROM commerceX.`registry_file`;
+
+
+DROP TABLE IF EXISTS `dcx_role`;
+DROP VIEW IF EXISTS `dcx_role`;
+CREATE VIEW `dcx_role` AS SELECT * FROM commerceX.`role`;
+
+
+DROP TABLE IF EXISTS `dcx_role_permission`;
+DROP VIEW IF EXISTS `dcx_role_permission`;
+CREATE VIEW `dcx_role_permission` AS SELECT * FROM commerceX.`role_permission`;
+
+
+DROP TABLE IF EXISTS `dcx_rules_config`;
+DROP VIEW IF EXISTS `dcx_rules_config`;
+CREATE VIEW `dcx_rules_config` AS SELECT * FROM commerceX.`rules_config`;
+
+
+DROP TABLE IF EXISTS `dcx_rules_dependencies`;
+DROP VIEW IF EXISTS `dcx_rules_dependencies`;
+CREATE VIEW `dcx_rules_dependencies` AS SELECT * FROM commerceX.`rules_dependencies`;
+
+
+DROP TABLE IF EXISTS `dcx_rules_tags`;
+DROP VIEW IF EXISTS `dcx_rules_tags`;
+CREATE VIEW `dcx_rules_tags` AS SELECT * FROM commerceX.`rules_tags`;
+
+
+DROP TABLE IF EXISTS `dcx_rules_trigger`;
+DROP VIEW IF EXISTS `dcx_rules_trigger`;
+CREATE VIEW `dcx_rules_trigger` AS SELECT * FROM commerceX.`rules_trigger`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_custom_product_display_field_product_commerce_pri`;
+DROP VIEW IF EXISTS `dcx_search_api_db_custom_product_display_field_product_commerce_pri`;
+CREATE VIEW `dcx_search_api_db_custom_product_display_field_product_commerce_pri` AS SELECT * FROM commerceX.`search_api_db_custom_product_display_field_product_commerce_pri`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_custom_product_display_search_api_language`;
+DROP VIEW IF EXISTS `dcx_search_api_db_custom_product_display_search_api_language`;
+CREATE VIEW `dcx_search_api_db_custom_product_display_search_api_language` AS SELECT * FROM commerceX.`search_api_db_custom_product_display_search_api_language`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display`;
+CREATE VIEW `dcx_search_api_db_product_display` AS SELECT * FROM commerceX.`search_api_db_product_display`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_created`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_created`;
+CREATE VIEW `dcx_search_api_db_product_display_created` AS SELECT * FROM commerceX.`search_api_db_product_display_created`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_brand`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_brand`;
+CREATE VIEW `dcx_search_api_db_product_display_field_brand` AS SELECT * FROM commerceX.`search_api_db_product_display_field_brand`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_collection`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_collection`;
+CREATE VIEW `dcx_search_api_db_product_display_field_collection` AS SELECT * FROM commerceX.`search_api_db_product_display_field_collection`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_category`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_category`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_category` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_category`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_commerce_price_am_1`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_commerce_price_am_1`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_commerce_price_am_1` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_commerce_price_am_1`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_commerce_price_am_2`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_commerce_price_am_2`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_commerce_price_am_2` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_commerce_price_am_2`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_commerce_price_amou`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_commerce_price_amou`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_commerce_price_amou` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_commerce_price_amou`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_colour`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_colour`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_colour` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_colour`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_01_1`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_01_1`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_01_1` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_01_1`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_01_2`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_01_2`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_01_2` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_01_2`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_01_a`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_01_a`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_01_a` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_01_a`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_02_1`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_02_1`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_02_1` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_02_1`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_02_2`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_02_2`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_02_2` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_02_2`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_02_a`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_02_a`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_02_a` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_02_a`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_03_1`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_03_1`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_03_1` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_03_1`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_03_2`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_03_2`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_03_2` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_03_2`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_03_a`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_03_a`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_03_a` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_03_a`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_04_1`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_04_1`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_04_1` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_04_1`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_04_2`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_04_2`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_04_2` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_04_2`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_04_a`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_04_a`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_04_a` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_04_a`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_05_1`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_05_1`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_05_1` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_05_1`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_05_2`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_05_2`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_05_2` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_05_2`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_05_a`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_05_a`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_05_a` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_05_a`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_06_`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_06_`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_06_` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_06_`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_06_1`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_06_1`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_06_1` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_06_1`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_06_2`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_06_2`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_06_2` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_06_2`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_06_a`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_06_a`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_06_a` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_06_a`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_07_1`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_07_1`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_07_1` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_07_1`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_07_2`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_07_2`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_07_2` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_07_2`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_07_a`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_07_a`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_07_a` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_07_a`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_08_1`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_08_1`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_08_1` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_08_1`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_08_2`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_08_2`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_08_2` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_08_2`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_08_a`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_08_a`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_08_a` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_08_a`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_09_1`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_09_1`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_09_1` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_09_1`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_09_2`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_09_2`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_09_2` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_09_2`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_09_a`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_09_a`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_09_a` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_09_a`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_10_1`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_10_1`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_10_1` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_10_1`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_10_2`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_10_2`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_10_2` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_10_2`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_10_a`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_10_a`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_10_a` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_10_a`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_11_1`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_11_1`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_11_1` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_11_1`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_11_2`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_11_2`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_11_2` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_11_2`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_11_a`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_11_a`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_11_a` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_11_a`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_12_a`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_price_pl_12_a`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_price_pl_12_a` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_price_pl_12_a`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_stock_status`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_stock_status`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_stock_status` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_stock_status`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_field_trim_colour`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_field_trim_colour`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_field_trim_colour` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_field_trim_colour`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_title`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_title`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_title` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_title`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_title_1`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_title_1`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_title_1` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_title_1`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_title_2`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_title_2`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_title_2` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_title_2`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_field_product_title_3`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_field_product_title_3`;
+CREATE VIEW `dcx_search_api_db_product_display_field_product_title_3` AS SELECT * FROM commerceX.`search_api_db_product_display_field_product_title_3`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_search_api_aggregation_1`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_search_api_aggregation_1`;
+CREATE VIEW `dcx_search_api_db_product_display_search_api_aggregation_1` AS SELECT * FROM commerceX.`search_api_db_product_display_search_api_aggregation_1`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_search_api_language`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_search_api_language`;
+CREATE VIEW `dcx_search_api_db_product_display_search_api_language` AS SELECT * FROM commerceX.`search_api_db_product_display_search_api_language`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_status`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_status`;
+CREATE VIEW `dcx_search_api_db_product_display_status` AS SELECT * FROM commerceX.`search_api_db_product_display_status`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_text`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_text`;
+CREATE VIEW `dcx_search_api_db_product_display_text` AS SELECT * FROM commerceX.`search_api_db_product_display_text`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_display_title`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_display_title`;
+CREATE VIEW `dcx_search_api_db_product_display_title` AS SELECT * FROM commerceX.`search_api_db_product_display_title`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_search_field_product_field_colour`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_search_field_product_field_colour`;
+CREATE VIEW `dcx_search_api_db_product_search_field_product_field_colour` AS SELECT * FROM commerceX.`search_api_db_product_search_field_product_field_colour`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_search_search_api_language`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_search_search_api_language`;
+CREATE VIEW `dcx_search_api_db_product_search_search_api_language` AS SELECT * FROM commerceX.`search_api_db_product_search_search_api_language`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_db_product_search_title_field`;
+DROP VIEW IF EXISTS `dcx_search_api_db_product_search_title_field`;
+CREATE VIEW `dcx_search_api_db_product_search_title_field` AS SELECT * FROM commerceX.`search_api_db_product_search_title_field`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_index`;
+DROP VIEW IF EXISTS `dcx_search_api_index`;
+CREATE VIEW `dcx_search_api_index` AS SELECT * FROM commerceX.`search_api_index`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_item`;
+DROP VIEW IF EXISTS `dcx_search_api_item`;
+CREATE VIEW `dcx_search_api_item` AS SELECT * FROM commerceX.`search_api_item`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_server`;
+DROP VIEW IF EXISTS `dcx_search_api_server`;
+CREATE VIEW `dcx_search_api_server` AS SELECT * FROM commerceX.`search_api_server`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_sort`;
+DROP VIEW IF EXISTS `dcx_search_api_sort`;
+CREATE VIEW `dcx_search_api_sort` AS SELECT * FROM commerceX.`search_api_sort`;
+
+
+DROP TABLE IF EXISTS `dcx_search_api_task`;
+DROP VIEW IF EXISTS `dcx_search_api_task`;
+CREATE VIEW `dcx_search_api_task` AS SELECT * FROM commerceX.`search_api_task`;
+
+
+DROP TABLE IF EXISTS `dcx_security_review`;
+DROP VIEW IF EXISTS `dcx_security_review`;
+CREATE VIEW `dcx_security_review` AS SELECT * FROM commerceX.`security_review`;
+
+
+DROP TABLE IF EXISTS `dcx_semaphore`;
+DROP VIEW IF EXISTS `dcx_semaphore`;
+CREATE VIEW `dcx_semaphore` AS SELECT * FROM commerceX.`semaphore`;
+
+
+DROP TABLE IF EXISTS `dcx_sequences`;
+DROP VIEW IF EXISTS `dcx_sequences`;
+CREATE VIEW `dcx_sequences` AS SELECT * FROM commerceX.`sequences`;
+
+
+DROP TABLE IF EXISTS `dcx_sessions`;
+DROP VIEW IF EXISTS `dcx_sessions`;
+CREATE VIEW `dcx_sessions` AS SELECT * FROM commerceX.`sessions`;
+
+
+DROP TABLE IF EXISTS `dcx_site_verify`;
+DROP VIEW IF EXISTS `dcx_site_verify`;
+CREATE VIEW `dcx_site_verify` AS SELECT * FROM commerceX.`site_verify`;
+
+
+DROP TABLE IF EXISTS `dcx_system`;
+DROP VIEW IF EXISTS `dcx_system`;
+CREATE VIEW `dcx_system` AS SELECT * FROM commerceX.`system`;
+
+
+DROP TABLE IF EXISTS `dcx_taxonomy_index`;
+DROP VIEW IF EXISTS `dcx_taxonomy_index`;
+CREATE VIEW `dcx_taxonomy_index` AS SELECT * FROM commerceX.`taxonomy_index`;
+
+
+DROP TABLE IF EXISTS `dcx_taxonomy_menu`;
+DROP VIEW IF EXISTS `dcx_taxonomy_menu`;
+CREATE VIEW `dcx_taxonomy_menu` AS SELECT * FROM commerceX.`taxonomy_menu`;
+
+
+DROP TABLE IF EXISTS `dcx_taxonomy_term_data`;
+DROP VIEW IF EXISTS `dcx_taxonomy_term_data`;
+CREATE VIEW `dcx_taxonomy_term_data` AS SELECT * FROM commerceX.`taxonomy_term_data`;
+
+
+DROP TABLE IF EXISTS `dcx_taxonomy_term_hierarchy`;
+DROP VIEW IF EXISTS `dcx_taxonomy_term_hierarchy`;
+CREATE VIEW `dcx_taxonomy_term_hierarchy` AS SELECT * FROM commerceX.`taxonomy_term_hierarchy`;
+
+
+DROP TABLE IF EXISTS `dcx_taxonomy_tools_role_access`;
+DROP VIEW IF EXISTS `dcx_taxonomy_tools_role_access`;
+CREATE VIEW `dcx_taxonomy_tools_role_access` AS SELECT * FROM commerceX.`taxonomy_tools_role_access`;
+
+
+DROP TABLE IF EXISTS `dcx_taxonomy_vocabulary`;
+DROP VIEW IF EXISTS `dcx_taxonomy_vocabulary`;
+CREATE VIEW `dcx_taxonomy_vocabulary` AS SELECT * FROM commerceX.`taxonomy_vocabulary`;
+
+
+DROP TABLE IF EXISTS `dcx_url_alias`;
+DROP VIEW IF EXISTS `dcx_url_alias`;
+CREATE VIEW `dcx_url_alias` AS SELECT * FROM commerceX.`url_alias`;
+
+
+DROP TABLE IF EXISTS `dcx_users`;
+DROP VIEW IF EXISTS `dcx_users`;
+CREATE VIEW `dcx_users` AS SELECT * FROM commerceX.`users`;
+
+
+DROP TABLE IF EXISTS `dcx_users_roles`;
+DROP VIEW IF EXISTS `dcx_users_roles`;
+CREATE VIEW `dcx_users_roles` AS SELECT * FROM commerceX.`users_roles`;
+
+
+DROP TABLE IF EXISTS `dcx_variable`;
+DROP VIEW IF EXISTS `dcx_variable`;
+CREATE VIEW `dcx_variable` AS SELECT * FROM commerceX.`variable`;
+
+
+DROP TABLE IF EXISTS `dcx_views_display`;
+DROP VIEW IF EXISTS `dcx_views_display`;
+CREATE VIEW `dcx_views_display` AS SELECT * FROM commerceX.`views_display`;
+
+
+DROP TABLE IF EXISTS `dcx_views_view`;
+DROP VIEW IF EXISTS `dcx_views_view`;
+CREATE VIEW `dcx_views_view` AS SELECT * FROM commerceX.`views_view`;
+
+
+DROP TABLE IF EXISTS `dcx_watchdog`;
+DROP VIEW IF EXISTS `dcx_watchdog`;
+CREATE VIEW `dcx_watchdog` AS SELECT * FROM commerceX.`watchdog`;
+
+
+DROP TABLE IF EXISTS `dcx_xmlsitemap`;
+DROP VIEW IF EXISTS `dcx_xmlsitemap`;
+CREATE VIEW `dcx_xmlsitemap` AS SELECT * FROM commerceX.`xmlsitemap`;
+
+
+DROP TABLE IF EXISTS `dcx_xmlsitemap_sitemap`;
+DROP VIEW IF EXISTS `dcx_xmlsitemap_sitemap`;
+CREATE VIEW `dcx_xmlsitemap_sitemap` AS SELECT * FROM commerceX.`xmlsitemap_sitemap`;
+
+

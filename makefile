@@ -170,3 +170,11 @@ run_with_stack_trace: build_profile
 	stack exec --work-dir .stack-profile Fames -- $(RUN_CONFIG) +RTS -hy -p -xc
 	mkdir -p .prof
 	mv Fames.hp Fames.prof  .prof
+
+# Generate federated tables and view
+# use the local copy of the commerce database database 
+sql/commerce.schema:
+	mysqldump -uroot -pmu commerce --no-data  -h127.0.0.1 > $@
+
+sql/federated_dc.sql: sql/commerce.schema tools/create_federated.sh
+	tools/create_federated.sh sql/commerce.schema > $@
