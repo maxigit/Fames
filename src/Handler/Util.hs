@@ -26,6 +26,7 @@ module Handler.Util
 , panel
 , infoPanel
 , dangerPanel
+, warningPanel
 , primaryPanel
 , datatable, forDatatable, datatableNoPage, (<>.), (-.)
 , splitSnake
@@ -573,6 +574,7 @@ panel panelClass title body = [whamlet|
   
 infoPanel = panel "panel-info"
 dangerPanel = panel "panel-danger"
+warningPanel = panel "panel-warning"
 primaryPanel = panel "panel-primary"
 -- | split snake
 splitSnake ::  Text -> Text

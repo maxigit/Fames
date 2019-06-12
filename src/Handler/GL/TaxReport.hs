@@ -6,6 +6,8 @@ module Handler.GL.TaxReport
 , getGLTaxReportDetailsR
 , postGLTaxReportCollectDetailsR
 , postGLTaxReportRejectDetailsR
+, postGLTaxReportPreSubmitR
+, postGLTaxReportSubmitR
 ) where
 import Import hiding(RuleInput)
 import GL.TaxReport.Types
@@ -26,6 +28,7 @@ import qualified Data.Map as Map
 import Data.List(nub)
 
 -- * Handler
+
 -- | Display the list of the available tax reports
 getGLTaxReportsR :: Handler Html
 getGLTaxReportsR = do
@@ -118,6 +121,51 @@ postGLTaxReportRejectDetailsR key = do
   getGLTaxReportR key (Just TaxReportCollectedView) >>= sendResponseStatus created201
 
 
+-- | Check that the report is ready to be submitted 
+-- and ask the user confirmation
+postGLTaxReportPreSubmitR :: Int64 -> Handler Html
+postGLTaxReportPreSubmitR key = do
+  report <- runDB $ loadReport key
+  reportSettings  <- getReportSettings (taxReportType $ entityVal report)
+  -- let reportRules = maybe defaultRule rules reportSettings
+  (before, withinPeriod)  <- runDB $ countPendingTransTaxDetails (entityVal report)
+  forM (taxReportSubmittedAt (entityVal report)) $ \submitted -> do
+    let widget = warningPanel "Tax Return already submitted"
+                   [whamlet|<p>Tax return has already been submitted on the #{tshow submitted}  
+                           <p> Modification would have to be sent in the next return.
+                           ^{continueButtonForm (GLTaxReportR key (Just TaxReportBoxesView) )}
+              |]
+    (defaultLayout widget) >>= sendResponseStatus preconditionFailed412
+  -- checkExternalStatus report reportSettings
+    
+  when (True || before > 0) $ do
+    setWarning [shamlet|
+                      <p> Some transactions belonging to a previous tax period have been modified.
+                      <p> Depending on the type of tax report, type of transactions and the amounts involved. Those transactions needs to be collected in the current tax report, or being reported separately.
+                      <p> Form example, the HMRC VAT report requires any mistake above a specific amounts , or made  intentionnaly to be reported using the <a href="https://www.gov.uk/government/publications/vat-notification-of-errors-in-vat-returns-vat-652">VAT652</a> form.
+                      <p> For more detail, check the <a href="https://www.gov.uk/vat-corrections">HMRC</a> Page.
+                      |]
+  when (True || withinPeriod > 0) $ do
+    let widget = dangerPanel "Tax report incomplete" [whamlet|
+                        <p>Some transactions within the tax period haven't been collected.
+                        <p>Please collect them before submitting the report  "
+                        ^{continueButtonForm (GLTaxReportR key (Just TaxReportPendingView)) }
+                        |]
+    defaultLayout widget >>= sendResponseStatus preconditionFailed412
+
+  defaultLayout [whamlet|
+     The current tax report is ready to be submitted. Are you sure you want to proceed ?
+     ^{submitButtonForm (entityKey report)}
+     ^{cancelSubmitButtonForm (entityKey report)}
+                        |] 
+
+
+  
+
+-- | Submit the report
+postGLTaxReportSubmitR :: Int64 -> Handler Html
+postGLTaxReportSubmitR key = do
+  return "nothing done"
 -- * Render
 
 renderReportList :: (Text, TaxReportSettings) -> Handler (Text, Widget)
@@ -192,6 +240,28 @@ rejectButtonForm key = [whamlet|
     <button.btn.btn-danger type="submit"> Reject
                             |]
 
+preSubmitButtonForm :: Key TaxReport -> Widget
+preSubmitButtonForm key = [whamlet|
+  <form method=POST action="@{GLR $ GLTaxReportPreSubmitR $ fromSqlKey key}">
+    <button.btn.btn-danger type="submit"> Submit
+                               |]
+submitButtonForm :: Key TaxReport -> Widget
+submitButtonForm key = [whamlet|
+  <form method=POST action="@{GLR $ GLTaxReportSubmitR $ fromSqlKey key}">
+    <button.btn.btn-danger type="submit"> Submit
+                               |]
+
+cancelSubmitButtonForm :: Key TaxReport -> Widget
+cancelSubmitButtonForm key = [whamlet|
+  <form method=GET action="@{GLR $ GLTaxReportR (fromSqlKey key) Nothing}">
+    <button.btn.btn-warning type="submit"> Cancel
+                               |]
+
+continueButtonForm route = [whamlet|
+  <form method=GET action="@{GLR $ route}">
+    <button.btn.btn-primary type="submit"> Continue
+|]
+
 renderReportView :: Rule -> Entity TaxReport -> TaxReportViewMode ->  Handler Widget
 renderReportView rule report mode = do
   settings <- unsafeGetReportSettings (taxReportType $ entityVal report)
@@ -225,6 +295,7 @@ renderReportView rule report mode = do
               buckets <- runDB $ loadBucketSummary (entityKey report)
               let box'amounts = computeBoxes bucket'rates buckets (boxes settings)
               return $ renderBoxTable box'amounts
+                     >> preSubmitButtonForm (entityKey report)
             TaxReportConfigChecker -> do
               buckets <- getBucketRateFromConfig report
               return $ renderBoxConfigCheckerTable buckets (boxes settings)
