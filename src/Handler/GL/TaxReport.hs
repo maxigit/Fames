@@ -6,6 +6,7 @@ module Handler.GL.TaxReport
 , getGLTaxReportDetailsR
 , postGLTaxReportCollectDetailsR
 , postGLTaxReportRejectDetailsR
+, postGLTaxReportReopenR
 , postGLTaxReportPreSubmitR
 , postGLTaxReportSubmitR
 ) where
@@ -66,8 +67,6 @@ postGLNewTaxReportR name = do
     return (key, TaxReport{..})
   
   setSuccess "Report created sucessfully"
-  let newRoute =GLR $ GLTaxReportR (fromSqlKey key) Nothing 
-  pushLinks ("View tax report " <> taxReportReference) newRoute []
   -- collect details
   postGLTaxReportCollectDetailsR (fromSqlKey key) >>= sendResponseStatus created201
       -- getGLTaxReportR (fromSqlKey key) Nothing >>= sendResponseStatus created201
@@ -76,11 +75,15 @@ getGLTaxReportR :: Int64 -> Maybe TaxReportViewMode -> Handler Html
 getGLTaxReportR key mode = do
   report <- runDB $ loadReport key
   reportSettings  <- getReportSettings (taxReportType $ entityVal report)
-  let reportRules = maybe defaultRule rules reportSettings
+  let
+    reportRules = maybe defaultRule rules reportSettings
+    newRoute =GLR $ GLTaxReportR key Nothing 
   (before, withinPeriod)  <- runDB $ countPendingTransTaxDetails (entityVal report)
   view <- renderReportView reportRules report (defaultViewMode before withinPeriod mode)
   when (before > 0) $ do
     setWarning "Some Transactions part of the  have been entered or modified before current report start date"
+
+  pushLinks ("View tax report " <> taxReportReference (entityVal report)) newRoute []
   defaultLayout $ renderReportHeader report (before, withinPeriod) >> view
 
 -- | Computes which view to use if not are provided.
@@ -109,8 +112,6 @@ postGLTaxReportCollectDetailsR key = do
     return report
 
   setSuccess "Transaction tax details collected successfully"
-  let newRoute = GLR . GLTaxReportR key
-  pushLinks ("View tax report " <> taxReportReference report) (newRoute Nothing) []
   getGLTaxReportR key (Just TaxReportCollectedView) >>= sendResponseStatus created201
      
 postGLTaxReportRejectDetailsR :: Int64 -> Handler Html
@@ -122,6 +123,13 @@ postGLTaxReportRejectDetailsR key = do
   getGLTaxReportR key (Just TaxReportCollectedView) >>= sendResponseStatus created201
 
 
+postGLTaxReportReopenR :: Int64 -> Handler Html
+postGLTaxReportReopenR key = do
+  runDB $ do
+    report <- loadReport key
+    openReport report
+  getGLTaxReportR key (Just TaxReportCollectedView) >>= sendResponseStatus created201
+  
 -- | Check that the report is ready to be submitted 
 -- and ask the user confirmation
 postGLTaxReportPreSubmitR :: Int64 -> Handler Html
@@ -260,6 +268,11 @@ rejectButtonForm key = [whamlet|
     <button.btn.btn-danger type="submit"> Reject
                             |]
 
+reopenButtonForm :: Key TaxReport -> Widget
+reopenButtonForm key = [whamlet|
+  <form method=POST action="@{GLR $ GLTaxReportReopenR $ fromSqlKey key}">
+    <button.btn.btn-danger type="submit"> Reopen
+                            |]
 preSubmitButtonForm :: Key TaxReport -> Widget
 preSubmitButtonForm key = [whamlet|
   <form method=POST action="@{GLR $ GLTaxReportPreSubmitR $ fromSqlKey key}">
@@ -289,6 +302,7 @@ renderReportView rule report mode = do
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
   personName <- entityNameH False
   taxMap <- runDB $ loadTaxTypeMap
+  today <- todayH
   let boxValues :: [(TaxBox, TaxDetail -> Maybe Double)]
       boxValues = [ (box, f)
                   | box <- (boxes settings)
@@ -299,15 +313,22 @@ renderReportView rule report mode = do
       taxName taxId = FA.taxTypeName . entityVal <$> lookup taxId taxMap
 
   let urlFn = urlForFA faURL
+      status = (taxReportStatus (entityVal report), taxReportDateStatus settings today (entityVal report))
   view <- case mode of
             TaxReportPendingView -> do
               details <- loadPendingTaxDetails rule report
               return $ renderTaxDetailTable urlFn personName taxName boxValues (taxReportStart $ entityVal report) details
-                     >> collectButtonForm (entityKey report)
+                     >> case status of
+                         (_, Submitted) -> return ()
+                         (Process, _ ) -> reopenButtonForm (entityKey report)
+                         _ -> collectButtonForm (entityKey report)
             TaxReportCollectedView -> do
               details <- loadCollectedTaxDetails report
               return $ renderTaxDetailTable urlFn personName taxName boxValues (taxReportStart $ entityVal report) details
-                     >> rejectButtonForm (entityKey report)
+                     >> case status of
+                         (_, Submitted) -> return ()
+                         (Process, _ ) -> reopenButtonForm (entityKey report)
+                         _ -> rejectButtonForm (entityKey report)
             TaxReportBucketView -> do
               buckets <- runDB $ loadBucketSummary (entityKey report)
               return $ renderBucketTable bucket'rates buckets
@@ -315,7 +336,9 @@ renderReportView rule report mode = do
               buckets <- runDB $ loadBucketSummary (entityKey report)
               let box'amounts = computeBoxes bucket'rates buckets (boxes settings)
               return $ renderBoxTable box'amounts
-                     >> preSubmitButtonForm (entityKey report)
+                     >> case status of
+                          (_, Submitted) -> return ()
+                          _ -> preSubmitButtonForm (entityKey report)
             TaxReportConfigChecker -> do
               buckets <- getBucketRateFromConfig report
               return $ renderBoxConfigCheckerTable buckets (boxes settings)
@@ -965,7 +988,14 @@ closeReport settings report = do
       insertMany_ (map mkBox box'amounts)
       update (entityKey report) [TaxReportStatus =. Process]
 
-
+openReport :: Entity TaxReport -> SqlHandler ()
+openReport (Entity reportKey report) = do
+  when (isJust $ taxReportSubmittedAt (report)) $ do
+    error "Can't reopen a report which has already be submitted"
+  deleteWhere [TaxReportBoxReport ==. reportKey]
+  update reportKey [TaxReportStatus =. Pending]
+  lift $ setSuccess "Report has been succesfully reopened."
+  
   
 
   
@@ -1049,3 +1079,4 @@ mkTaxEntity taxId rate = Entity taxId FA.TaxType{..} where
   taxTypePurchasingGlCode = "0"
   taxTypeName = "<deleted>"
   taxTypeInactive = True
+
