@@ -130,6 +130,7 @@ postGLTaxReportPreSubmitR key = do
   Just reportSettings  <- getReportSettings (taxReportType $ entityVal report)
   -- let reportRules = maybe defaultRule rules reportSettings
   (before, withinPeriod)  <- runDB $ countPendingTransTaxDetails (entityVal report)
+  
   forM (taxReportSubmittedAt (entityVal report)) $ \submitted -> do
     let widget = warningPanel "Tax Return already submitted"
                    [whamlet|<p>Tax return has already been submitted on the #{tshow submitted}  
@@ -154,8 +155,11 @@ postGLTaxReportPreSubmitR key = do
                         |]
     defaultLayout widget >>= sendResponseStatus preconditionFailed412
 
+  when (taxReportStatus (entityVal report) == Pending ) $ closeReport reportSettings report
+  box'amounts <- runDB $ loadTaxBoxes reportSettings (entityKey report)
   defaultLayout [whamlet|
      The current tax report is ready to be submitted. Are you sure you want to proceed ?
+     ^{renderBoxTable box'amounts}
      ^{submitButtonForm (entityKey report)}
      ^{cancelSubmitButtonForm (entityKey report)}
                         |] 
@@ -719,6 +723,7 @@ span.badge.down
 
     
 -- * DB
+-- ** Loading
 
 loadReport :: Int64 -> SqlHandler (Entity TaxReport)
 loadReport key = do
@@ -928,6 +933,42 @@ loadTaxDetail mkDetail key query  = do
        error (unpack err)
     Right details -> return details
 
+loadSavedBoxes :: Key TaxReport -> SqlHandler ([Entity TaxReportBox])
+loadSavedBoxes reportKey = do
+  selectList [TaxReportBoxReport ==. reportKey] [Asc TaxReportBoxId]
+
+loadTaxBoxes :: TaxReportSettings -> Key TaxReport -> SqlHandler [(TaxBox, Double)]
+loadTaxBoxes settings reportKey = do
+  saveBoxes <- loadSavedBoxes reportKey
+  let
+    taxBoxMap = (mapFromList $ map (fanl tbName) (boxes settings)) :: Map Text TaxBox
+    taxBox0 name = TaxBox name Nothing Nothing (TaxBoxSum [])
+    mkTaxBox'Amount (Entity _ TaxReportBox{..}) = (box, taxReportBoxValue ) where
+      box = fromMaybe (taxBox0 taxReportBoxName) $ lookup taxReportBoxName taxBoxMap 
+  return $ map mkTaxBox'Amount saveBoxes
+-- ** Saving
+-- | Mark the report as done and save its boxes
+closeReport settings report = do
+  bucket'rates <- getBucketRateFromConfig report
+  runDB $ do
+      when (taxReportStatus (entityVal report) == Process) $ do
+        error "Report already closed"
+    -- load
+      buckets <- loadBucketSummary $ entityKey report
+
+      let
+        box'amounts = computeBoxes bucket'rates buckets (boxes settings)
+        mkBox (TaxBox{..}, amount) = TaxReportBox{..} where
+          taxReportBoxReport = entityKey report
+          taxReportBoxName = tbName
+          taxReportBoxValue = amount
+      insertMany_ (map mkBox box'amounts)
+      update (entityKey report) [TaxReportStatus =. Process]
+
+
+  
+
+  
 
 -- * Util
 -- | Return the setting corresponding to a report name.
