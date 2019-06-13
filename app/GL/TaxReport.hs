@@ -21,6 +21,14 @@ grossAmount TaxSummary{..} = netAmount + taxAmount
 reverseTaxSummary :: TaxSummary -> TaxSummary
 reverseTaxSummary TaxSummary{..} = TaxSummary (-netAmount) (-taxAmount)
 
+data TaxReportStatus
+  = Early -- ^ before start date
+  | Open -- ^ 
+  | Ready -- ^ to be processed
+  | Closed -- ^ close , read to submit
+  | Late 
+  | Submitted
+  deriving (Eq, Show, Read)
 -- * Instance
 instance Semigroup TaxSummary where
   (TaxSummary net tax) <> (TaxSummary net' tax') = TaxSummary (net + net') (tax + tax')
@@ -134,3 +142,25 @@ ruleCatchesAll (RuleList rules) = any ruleCatchesAll rules
 -- ruleCatchesAll (TaxTypeRule [] rule) = ruleCatchesAll rule
 -- ruleCatchesAll (TaxRateRule [] rule) = ruleCatchesAll rule
 ruleCatchesAll _ = False
+
+-- * Status
+
+taxReportDeadline :: TaxReportSettings -> TaxReport -> Day
+taxReportDeadline TaxReportSettings{..} TaxReport{..} = maybe id calculateDate deadline  $ taxReportEnd
+
+--                          |start|                 |end|          |deadline|
+-- open:     too early                 current             read(orange)y                  late
+-- close:                                                  to submit(orgg)              late
+-- submitted:                                                                       ok
+
+taxReportDateStatus :: TaxReportSettings -> Day -> TaxReport -> TaxReportStatus
+taxReportDateStatus settings today report@TaxReport{..} = let
+  deadline' =  taxReportDeadline settings report
+  in case (taxReportStatus, taxReportSubmittedAt) of
+    (_, Just _) -> Submitted
+    (_ , _) | today < taxReportStart -> Early
+    (_, _) | today > deadline' -> Late
+    (_, _) | today < taxReportEnd -> Open
+    -- between end and deadline
+    (Pending,_) -> Ready
+    (Process,_) -> Closed

@@ -177,7 +177,16 @@ postGLTaxReportSubmitR key = do
 renderReportList :: (Text, TaxReportSettings) -> Handler (Text, Widget)
 renderReportList (name, settings) = runDB $ do
   reports <- selectList [TaxReportType==. name] [Desc TaxReportEnd]
-  let widget = [whamlet|
+  today <- lift todayH
+  let
+    classFor state = case state of
+      Early -> "text-muted bg-muted" :: Text
+      Ready -> "text-warning bg-warning"
+      Closed -> "text-warning bg-warning"
+      Late -> "text-danger bg-danger"
+      Submitted -> "text-success bg-success"
+      _ -> ""
+    widget = [whamlet|
   <table *{datatable}>
     <thead>
       <tr>
@@ -187,15 +196,16 @@ renderReportList (name, settings) = runDB $ do
         <th> End
         <th> Status
         <th> Submitted
-    $forall (Entity reportKey TaxReport{..}) <- reports
+    $forall (Entity reportKey report@TaxReport{..}) <- reports
       <tr>
         <td> <a href="@{GLR $ GLTaxReportR (fromSqlKey reportKey) Nothing}">  
             #{tshow $ fromSqlKey reportKey}
         <td> #{taxReportReference}
-        <td> #{tshow taxReportStart}
-        <td> #{tshow taxReportEnd}
-        <td> #{tshow taxReportStatus}
-        <td> #{tshowM taxReportSubmittedAt}
+        <td.start> #{tshow taxReportStart}
+        <td.end> #{tshow taxReportEnd}
+        <td class="#{classFor $ taxReportDateStatus settings today report}">
+                    #{tshow taxReportStatus}
+        <td.submitted> #{tshowM taxReportSubmittedAt}
   |]
   return (name, widget)
 
