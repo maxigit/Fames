@@ -11,10 +11,28 @@ import Data.Text(strip)
 data TaxReportSettings  = TaxReportSettings
   { startDate :: Day -- ^ starting period of the first report
   , nextPeriod :: DateCalculator -- ^ how to calculate the next start from the last start
+  , deadline :: Maybe DateCalculator -- ^ deadline to submit the report
   , referenceFormat :: Text -- ^ format to use with format time to create reference
   , rules :: Rule
   , boxes :: [TaxBox]
+  , processor :: TaxProcessor
   }
+  deriving (Eq, Read, Show)
+data TaxProcessor
+  = HMRCProcessor HMRCProcessorParameters 
+  | ManualProcessor  ManualProcessorParameters-- ^ Don't submit anything but set the submitted date using the deadline or the submission date
+  deriving (Eq, Read, Show)
+
+data HMRCProcessorParameters = HMRCProcessorParameters
+       { url :: Text
+       , clientId :: Text
+       , clientSecret :: Text
+       , customerId :: Text
+       }
+  deriving (Eq, Read, Show)
+data ManualProcessorParameters = ManualProcessorParameters
+    { submissionDate :: Maybe DateCalculator -- ^ submission date calculated next period
+    }
   deriving (Eq, Read, Show)
 
 -- * JSON
@@ -89,5 +107,11 @@ $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField
                             , fieldLabelModifier = fromMaybe <*> stripPrefix "TaxBox"
                             , constructorTagModifier = fromMaybe <*> stripPrefix "TaxBox"
                             } ''TaxBoxRule)
+$(deriveJSON defaultOptions ''HMRCProcessorParameters)
+$(deriveJSON defaultOptions ''ManualProcessorParameters)
+$(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField
+                            , fieldLabelModifier = fromMaybe <*> stripPrefix "tp"
+                            , constructorTagModifier = fromMaybe <*> stripSuffix "Processor"
+                            } ''TaxProcessor)
 $(deriveJSON defaultOptions ''TaxReportSettings)
 

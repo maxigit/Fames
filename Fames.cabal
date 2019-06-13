@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0d1c207fa991f30e8f7080e54da30904d93435b01100ccf8d7df3ac8a5d1408c
+-- hash: 32f1f3b6e4504768dcd969de6ad4af4d97b1208eef8c20a82ffc78a9ab82be00
 
 name:           Fames
 version:        0.0.1
@@ -150,6 +150,7 @@ library
       Handler.GL.Payroll.QuickAdd
       Handler.GL.Payroll.Summary
       Handler.GL.TaxReport
+      Handler.GL.TaxReport.Processor
       Handler.GL.TaxReport.Types
       Handler.Home
       Handler.Items
@@ -521,6 +522,7 @@ test-suite ghcid
       Handler.GL.Payroll.QuickAdd
       Handler.GL.Payroll.Summary
       Handler.GL.TaxReport
+      Handler.GL.TaxReport.Processor
       Handler.GL.TaxReport.Types
       Handler.Home
       Handler.Items

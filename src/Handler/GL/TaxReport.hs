@@ -14,6 +14,7 @@ import GL.TaxReport.Types
 import GL.TaxReport.Settings
 import GL.TaxReport
 import Handler.GL.TaxReport.Types
+import Handler.GL.TaxReport.Processor
 import GL.Utils
 import Data.Time (addDays)
 import Database.Persist.MySQL(unSqlBackendKey)
@@ -126,7 +127,7 @@ postGLTaxReportRejectDetailsR key = do
 postGLTaxReportPreSubmitR :: Int64 -> Handler Html
 postGLTaxReportPreSubmitR key = do
   report <- runDB $ loadReport key
-  reportSettings  <- getReportSettings (taxReportType $ entityVal report)
+  Just reportSettings  <- getReportSettings (taxReportType $ entityVal report)
   -- let reportRules = maybe defaultRule rules reportSettings
   (before, withinPeriod)  <- runDB $ countPendingTransTaxDetails (entityVal report)
   forM (taxReportSubmittedAt (entityVal report)) $ \submitted -> do
@@ -136,16 +137,16 @@ postGLTaxReportPreSubmitR key = do
                            ^{continueButtonForm (GLTaxReportR key (Just TaxReportBoxesView) )}
               |]
     (defaultLayout widget) >>= sendResponseStatus preconditionFailed412
-  -- checkExternalStatus report reportSettings
+  checkExternalStatus report reportSettings
     
-  when (True || before > 0) $ do
+  when (before > 0) $ do
     setWarning [shamlet|
                       <p> Some transactions belonging to a previous tax period have been modified.
                       <p> Depending on the type of tax report, type of transactions and the amounts involved. Those transactions needs to be collected in the current tax report, or being reported separately.
                       <p> Form example, the HMRC VAT report requires any mistake above a specific amounts , or made  intentionnaly to be reported using the <a href="https://www.gov.uk/government/publications/vat-notification-of-errors-in-vat-returns-vat-652">VAT652</a> form.
                       <p> For more detail, check the <a href="https://www.gov.uk/vat-corrections">HMRC</a> Page.
                       |]
-  when (True || withinPeriod > 0) $ do
+  when (withinPeriod > 0) $ do
     let widget = dangerPanel "Tax report incomplete" [whamlet|
                         <p>Some transactions within the tax period haven't been collected.
                         <p>Please collect them before submitting the report  "
@@ -166,6 +167,11 @@ postGLTaxReportPreSubmitR key = do
 postGLTaxReportSubmitR :: Int64 -> Handler Html
 postGLTaxReportSubmitR key = do
   return "nothing done"
+  report <- runDB $ loadReport key
+  Just reportSettings  <- getReportSettings (taxReportType $ entityVal report)
+  processReturn report reportSettings
+  setSuccess "Report has been succesfully submitted"
+  getGLTaxReportsR  >>= sendResponseStatus created201
 -- * Render
 
 renderReportList :: (Text, TaxReportSettings) -> Handler (Text, Widget)
