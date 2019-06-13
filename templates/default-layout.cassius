@@ -8,6 +8,8 @@
 
 .data-toggler.collapsed:after
   content: '\e080'
+.collapsed .data-toggler:after
+  content: '\e080'
 
 span.guessed-value
   color:blue

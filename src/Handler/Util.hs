@@ -28,6 +28,10 @@ module Handler.Util
 , dangerPanel
 , warningPanel
 , primaryPanel
+, infoPanel'
+, dangerPanel'
+, warningPanel'
+, primaryPanel'
 , datatable, forDatatable, datatableNoPage, (<>.), (-.)
 , splitSnake
 , basePriceList
@@ -563,19 +567,31 @@ toHtmlWithBreak t  = [shamlet|
 showDouble :: Double -> Html
 showDouble x = toHtml $ ( (printf "%.4f" x) :: String )
   
-panel :: Text -> Text -> Widget -> Widget
-panel panelClass title body = [whamlet|
+-- | Display a panel. Makes it collapsible if an id is given
+panel :: Text -> Maybe Text -> Text -> Widget -> Widget
+panel panelClass Nothing title body = [whamlet|
   <div.panel class=#{panelClass}>
     <div.panel-heading>
       <h3>#{title}
     <div.panel-body>
       ^{body}
 |]
-  
-infoPanel = panel "panel-info"
-dangerPanel = panel "panel-danger"
-warningPanel = panel "panel-warning"
-primaryPanel = panel "panel-primary"
+panel panelClass (Just panelId) title body = [whamlet|
+  <div.panel class=#{panelClass}>
+    <div.panel-heading data-toggle="collapse" data-target="##{panelId}">
+      <h3.data-toggler>#{title}
+    <div.panel-body.in id="#{panelId}">
+      ^{body}
+|]
+infoPanel= infoPanel' Nothing
+dangerPanel = dangerPanel' Nothing
+warningPanel= warningPanel' Nothing
+primaryPanel= primaryPanel' Nothing
+
+infoPanel' = panel "panel-info"
+dangerPanel' = panel "panel-danger"
+warningPanel' = panel "panel-warning"
+primaryPanel' = panel "panel-primary"
 -- | split snake
 splitSnake ::  Text -> Text
 splitSnake t = pack $ intercalate " " $ Split.split  (Split.keepDelimsL $ Split.whenElt isUpper) (unpack t)

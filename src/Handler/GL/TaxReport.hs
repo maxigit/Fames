@@ -35,7 +35,7 @@ getGLTaxReportsR :: Handler Html
 getGLTaxReportsR = do
   settings <- appTaxReportSettings <$> getsYesod appSettings
   name'tables <- forM (mapToList settings) renderReportList
-  let panel name tableW = infoPanel name (tableW >> newW)
+  let panel name tableW = infoPanel' (Just $ "tax-report-panel-" <> name) name (tableW >> newW)
         where newW = [whamlet|
        <div.well>
          <form method=POST action=@{GLR $ GLNewTaxReportR name}>
@@ -208,7 +208,7 @@ renderReportHeader (Entity rId TaxReport{..}) (before, withinPeriod) = do
                      (Process, Just _, _, _) -> "panel-success" -- done
                      (Process, Nothing, _, _) -> "panel-success" -- shoudn't happen
       hasBefore = before > 0
-      panel1 = panel panelClass taxReportReference  [whamlet|
+      panel1 = panel panelClass Nothing taxReportReference  [whamlet|
    <table.table.table-border.table-striped>
      <tr>
        <th> Type
