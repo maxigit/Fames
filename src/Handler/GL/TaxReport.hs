@@ -9,6 +9,7 @@ module Handler.GL.TaxReport
 , postGLTaxReportReopenR
 , postGLTaxReportPreSubmitR
 , postGLTaxReportSubmitR
+, getGLTaxReportOAuthR
 ) where
 import Import hiding(RuleInput)
 import GL.TaxReport.Types
@@ -16,6 +17,7 @@ import GL.TaxReport.Settings
 import GL.TaxReport
 import Handler.GL.TaxReport.Types
 import Handler.GL.TaxReport.Processor
+import Handler.GL.TaxReport.HMRC
 import GL.Utils
 import Data.Time (addDays)
 import Database.Persist.MySQL(unSqlBackendKey)
@@ -184,6 +186,56 @@ postGLTaxReportSubmitR key = do
   processReturn report reportSettings
   setSuccess "Report has been succesfully submitted"
   getGLTaxReportsR  >>= sendResponseStatus created201
+
+
+-- ** HMRC OAuth2
+-- | Process The authorization code from HMRC
+getGLTaxReportOAuthR :: Handler Html
+getGLTaxReportOAuthR = do
+  codem <- lookupGetParam "code"
+  statem <- lookupGetParam "state"
+  case statem >>= readMay of
+    Nothing -> respondAuthError 
+    Just (reportType, keym) -> do
+      settings <- unsafeGetReportSettings reportType
+      case codem of
+        Just code | HMRCProcessor params <- processor settings -> do
+          setHMRCAuthorizationCode reportType params $ AuthorizationCode code
+          -- redirect to presubmit page
+          case keym of
+            Nothing -> getGLTaxReportsR
+            Just (key) -> postGLTaxReportPreSubmitR key
+        _ -> do -- 
+          respondAuthError 
+      
+respondAuthError  = do
+  error_code <- lookupGetParam "error_code"
+  error<- lookupGetParam "error"
+  error_description<- lookupGetParam "error_description" 
+  let
+    table = [whamlet|
+    <table.table.table-striped.table-hover>
+      <tr>
+        <th>Error
+        <td>#{tshowM error}
+      <tr>
+        <th>Error Code
+        <td>#{tshowM error_code}
+      <tr>
+        <th>Description
+        <td>#{tshowM error_description}
+                |]
+    w = dangerPanel "OAuth2 error" [whamlet|
+              <p>Can't authorize the application to use HMRC credentital
+              ^{table}
+                                             |]
+  defaultLayout w >>= sendResponseStatus badRequest400
+
+
+
+  
+  
+
 -- * Render
 
 renderReportList :: (Text, TaxReportSettings) -> Handler (Text, Widget)

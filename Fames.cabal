@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 32f1f3b6e4504768dcd969de6ad4af4d97b1208eef8c20a82ffc78a9ab82be00
+-- hash: 5af67753430e5f6c0dae16f59a4be6360824d84d20a24ec98a05906ec905b4d8
 
 name:           Fames
 version:        0.0.1
@@ -150,6 +150,7 @@ library
       Handler.GL.Payroll.QuickAdd
       Handler.GL.Payroll.Summary
       Handler.GL.TaxReport
+      Handler.GL.TaxReport.HMRC
       Handler.GL.TaxReport.Processor
       Handler.GL.TaxReport.Types
       Handler.Home
@@ -203,6 +204,7 @@ library
       WarehousePlanner.Display
       WarehousePlanner.Optimum
       WarehousePlanner.Report
+      Curl
       GL
       GL.FA
       GL.Payroll.Parser
@@ -329,6 +331,7 @@ executable Fames
   else
     ghc-options: -O2
   other-modules:
+      Curl
       GL
       GL.FA
       GL.Payroll.Parser
@@ -522,6 +525,7 @@ test-suite ghcid
       Handler.GL.Payroll.QuickAdd
       Handler.GL.Payroll.Summary
       Handler.GL.TaxReport
+      Handler.GL.TaxReport.HMRC
       Handler.GL.TaxReport.Processor
       Handler.GL.TaxReport.Types
       Handler.Home
@@ -569,6 +573,7 @@ test-suite ghcid
       Util.SameCons
       Util.Transformable
       Util.ValidField
+      Curl
       GL
       GL.FA
       GL.Payroll.Parser

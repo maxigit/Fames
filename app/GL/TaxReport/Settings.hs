@@ -24,7 +24,7 @@ data TaxProcessor
   deriving (Eq, Read, Show)
 
 data HMRCProcessorParameters = HMRCProcessorParameters
-       { url :: Text
+       { baseUrl :: Text
        , clientId :: Text
        , clientSecret :: Text
        , customerId :: Text

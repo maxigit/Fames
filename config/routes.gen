@@ -45,6 +45,7 @@
   /tax/reopen/#Int64 GLTaxReportReopenR POST !tax !save-tax
   /tax/pre-submit/#Int64/ GLTaxReportPreSubmitR POST !tax !tax-submit
   /tax/submit/#Int64/ GLTaxReportSubmitR POST !tax !tax-submit
+  /tax/oauth GLTaxReportOAuthR GET 
 
   /check GLCheckR GET POST !check !group=Check !title=Check
   /check/debtor_trans/#Int64/#Int64 GLCheckDebtorTransR GET !check 
