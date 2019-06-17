@@ -189,7 +189,8 @@ postGLTaxReportSubmitR key = do
   return "nothing done"
   report <- runDB $ loadReport key
   Just reportSettings  <- getReportSettings (taxReportType $ entityVal report)
-  processReturn report reportSettings
+  submitted <- submitReturn report reportSettings
+  runDB $ update reportKey [TaxReportSubmittedAt =. Just submitted]
   setSuccess "Report has been succesfully submitted"
   getGLTaxReportsR  >>= sendResponseStatus created201
 

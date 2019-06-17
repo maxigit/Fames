@@ -30,7 +30,8 @@ data HMRCProcessorParameters = HMRCProcessorParameters
        , customerId :: Text
        , vatNumber :: Text
 #if DEVELOPMENT
-       , govTestScenario :: Maybe Text -- ^ He
+       , obligationTestScenario :: Maybe Text -- ^ He
+       , submitTestScenario :: Maybe Text -- ^ He
 #endif
        }
   deriving (Eq, Read, Show)

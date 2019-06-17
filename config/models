@@ -279,6 +279,8 @@ TaxReport sql=fames_tax_report
   end Day
   status PendingStatus
   submittedAt Day Maybe
+  externalReference Maybe Text
+  externalData Value
   UniqueTR type reference
   UniqueTS type start
   deriving Show
@@ -289,7 +291,7 @@ TaxReportBox TaxReportDetail sql=fames_tax_report_boxes json
   Id sql=tax_report_boxes
   report TaxReportId sql=tax_report_id
   name Text
-  value  Double
+  value  Decimal
   UniqueRT report name
   deriving Show
   deriving Eq

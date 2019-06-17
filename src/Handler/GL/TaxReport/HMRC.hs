@@ -175,7 +175,7 @@ retrieveVATObligations reportType reportM params@HMRCProcessorParameters{..} = d
                         (CurlHttpHeaders $ catMaybes [ Just "Accept: application/vnd.hmrc.1.0+json"
                                                    , "Authorization: " <?> ("Bearer " <> accessToken token)
 #if DEVELOPMENT
-                                                   , "Gov-Test-Scenario: " <?> govTestScenario
+                                                   , "Gov-Test-Scenario: " <?> obligationTestScenario
 #endif
                                                    ]
                       )
@@ -186,3 +186,59 @@ retrieveVATObligations reportType reportM params@HMRCProcessorParameters{..} = d
     return r
   return $ either (error . unpack) (filterGood . findWithDefault [] "obligations" ) (obligationsE :: Either Text (Map Text [VATObligation]))
 
+
+box'fields =  [ ("B1", "vatDueSales")
+              , ("B2", "vatDueAcquisitions")
+              , ("B3", "totalVatDue")
+              , ("B4", "vatReclaimedCurrPeriod")
+              , ("B5", "netVatDue")
+              , ("B6", "totalValueSalesExVAT")
+              , ("B7", "totalValuePurchasesExVAT")
+              , ("B8", "totalValueGoodsSuppliedExVAT")
+              , ("B9", "totalAcquisitionsExVAT")
+              ] 
+submitHMRCReturn report@TaxReport{..} periodKey boxes params@H = do
+  token <- getHMRCToken reportType params
+  let endPoint = "/organisations/vat/"<>vatNumber<>"/returns" :: Text
+  -- let endPoint = "/organisations/vat/"<>vatNumber<>"/obligations" :: Text
+      url = unpack $ baseUrl <> endPoint 
+      boxMap = mapFromList $ map (fanl taxReportBoxName) boxes
+      mkBoxField  boxname fieldname =
+        case lookup boxName boxMap  <|> lookup fieldname boxMap of
+            Nothing -> Left "Can't find box " <> boxName <> " in current report"
+            Right box -> Right (fieldname <=> taxReportBoxValue box)
+
+       boxFieldsE = map mkBoxField box'fields
+       boxFields = case sequence  boxFieldsE of
+                    Left _ -> error $ show (lefts boxFieldsE)
+                    Right bf -> bf
+  r <- hxToHe . ioxToHx $ WithCurl $ do
+    curl <- lift initialize
+    let ?curl = curl
+    let
+      opts = curlPostFields $ "periodKey" <=> periodKey
+                            : "finalised:" <=> ("true" :: Text)
+                            : method_POST <> boxFields
+    curlJson url (
+                        (CurlHttpHeaders $ catMaybes [ Just "Accept: application/vnd.hmrc.1.0+json"
+                                                   , "Authorization: " <?> ("Bearer " <> accessToken token)
+#if DEVELOPMENT
+                                                   , "Gov-Test-Scenario: " <?> submitTestScenario
+#endif
+                                                   ]
+      : CurlVerbose True
+                      )
+                 
+  case r of
+      Left e -> error e
+      Right r -> return $ report { taxReportSubmitted = submeitted, taxReportExternalReference = periodKey}
+
+
+    
+
+  
+
+
+  
+
+  
