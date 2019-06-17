@@ -26,7 +26,9 @@ mergePostFields opts = let
 
   (posts, normals) = partition (isJust . getPostFields) opts
   fields = mapMaybe getPostFields posts
-  in CurlPostFields (concat fields) : normals
+  in case concat fields of
+    [] -> normals
+    fs  -> CurlPostFields fs : normals
 
 doCurlWith :: (?curl :: Curl)
          => (String -> Either Text r)
@@ -85,6 +87,8 @@ curlPostFields = CurlPostFields . catMaybes
 -- | Creates a 
 (<=>) :: CurlPostField a => String -> a -> Maybe String
 field <=> value = fmap ((field <> "=") <> ) (toCurlPostField value)
+(<?>) :: CurlPostField a => String -> a -> Maybe String
+field <?> value = fmap (field  <> ) (toCurlPostField value)
 
 -- | Like TagSoup.partitions but uses open AND close tag as separator (even though their are removed)
 -- This allow for example to only what's within a form
