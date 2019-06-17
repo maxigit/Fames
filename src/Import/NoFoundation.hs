@@ -18,6 +18,7 @@ module Import.NoFoundation
     , formatDouble
     , formatQuantity
     , formatHours
+    , formatTime0
     , showTransType
     , showShortTransType
     , transactionIcon
@@ -144,6 +145,8 @@ formatHours duration = let
   p2 = left 2 '0' %. F.int
   in sformat (p2 % ":" % p2) h (round $ 60*m :: Int)
   
+formatTime0 format time = fromString $ formatTime defaultTimeLocale format time
+
 -- ** Formating lforb
 commasFixedWith roundFn digit = later go where
   go x = let

@@ -14,7 +14,7 @@ import Data.Aeson.Types
 import Data.Time(diffUTCTime)
 
 -- * Types
-data VATObligation = HMRCVATObligation
+data VATObligation = VATObligation
    { start :: Day
    , end :: Day
    , due :: Day
@@ -52,7 +52,7 @@ getHMRCAuthorizationCode reportType HMRCProcessorParameters{..} reportM = do
 
   cvar <- getsYesod appCache
   cache <- readMVar cvar
-  traceShowM $ ("KEYS", keys cache, "KEY", cacheKey)
+  -- traceShowM $ ("KEYS", keys cache, "KEY", cacheKey)
   case lookup (show cacheKey) cache of
     Just mvar -> do -- extract value
       (dyn, _) <- readMVar mvar 
@@ -141,16 +141,28 @@ refreshHMRCToken reportType params@HMRCProcessorParameters{..} token = do
       curlJson url  opts 200  "Refreshing HMRC Token"
   return $ either (error . unpack) id tokenE
 
-retrieveVATObligation :: Text -> HMRCProcessorParameters -> Handler [VATObligation]
-retrieveVATObligation reportType params@HMRCProcessorParameters{..} = do
+retrieveVATObligations :: Text -> Maybe TaxReport -> HMRCProcessorParameters -> Handler [VATObligation]
+retrieveVATObligations reportType reportM params@HMRCProcessorParameters{..} = do
   token <- getHMRCToken reportType params Nothing
-  let endPoint = "/organisations/vat/"<>vatNumber<>"/obligations?status=O" :: Text
+  let endPoint = "/organisations/vat/"<>vatNumber<>"/obligations?":: Text
   -- let endPoint = "/organisations/vat/"<>vatNumber<>"/obligations" :: Text
-      url = unpack $ baseUrl <> endPoint
+      url = unpack $ baseUrl <> endPoint <> intercalate "&" params
+      params = case reportM of
+        Nothing -> ["status=O" ]-- only open return. Otherwise wee need to give date
+        Just TaxReport{..} -> [ formatTime0 "from=%Y-%m-%d" taxReportStart
+                              , formatTime0 "to=%Y-%m-%d" taxReportEnd
+                              ]
+        
 
 #if DEVELOPMENT
   traceShowM token
 #endif
+  -- only keep the obligation corresponding to given report if any
+  -- it's not clear how HMRc filters obligations, so we might get more than needed
+  let filterGood = case reportM of
+                    Nothing -> id
+                    Just TaxReport{..} -> let good VATObligation{..} = start == taxReportStart && end == taxReportEnd
+                                          in filter good
   obligationsE <- hxtoHe . ioxToHx $ withCurl $ do
     curl <- lift initialize
     let
@@ -172,7 +184,5 @@ retrieveVATObligation reportType params@HMRCProcessorParameters{..} = do
                     : [] -- method_POST
                       ) 200 "Fetching VAT obligations"
     return r
-  return $ either (error . unpack) (findWithDefault [] "obligations" ) (obligationsE :: Either Text (Map Text [VATObligation]))
+  return $ either (error . unpack) (filterGood . findWithDefault [] "obligations" ) (obligationsE :: Either Text (Map Text [VATObligation]))
 
-
-  

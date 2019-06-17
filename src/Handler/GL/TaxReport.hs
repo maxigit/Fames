@@ -141,14 +141,12 @@ postGLTaxReportPreSubmitR key = do
   -- let reportRules = maybe defaultRule rules reportSettings
   (before, withinPeriod)  <- runDB $ countPendingTransTaxDetails (entityVal report)
   
-  forM (taxReportSubmittedAt (entityVal report)) $ \submitted -> do
-    let widget = warningPanel "Tax Return already submitted"
-                   [whamlet|<p>Tax return has already been submitted on the #{tshow submitted}  
-                           <p> Modification would have to be sent in the next return.
-                           ^{continueButtonForm (GLTaxReportR key (Just TaxReportBoxesView) )}
-              |]
-    (defaultLayout widget) >>= sendResponseStatus preconditionFailed412
-  checkExternalStatus report reportSettings
+  forM (taxReportSubmittedAt (entityVal report)) (alreadySubmitted key)
+  externalStatus <- checkExternalStatus report reportSettings
+  case externalStatus of
+    Submitted submitted -> alreadySubmitted key submitted
+    Ready -> return ""
+    _ -> error $ "external VAT status inconsistent: " <> show externalStatus
     
   when (before > 0) $ do
     setWarning [shamlet|
@@ -175,6 +173,14 @@ postGLTaxReportPreSubmitR key = do
                         |] 
 
 
+alreadySubmitted :: Int64 -> Day -> Handler Html
+alreadySubmitted key submitted = do
+    let widget = warningPanel "Tax Return already submitted"
+                   [whamlet|<p>Tax return has already been submitted on the #{tshow submitted}  
+                           <p> Modification would have to be sent in the next return.
+                           ^{continueButtonForm (GLTaxReportR key (Just TaxReportBoxesView) )}
+              |]
+    (defaultLayout widget) >>= sendResponseStatus preconditionFailed412
   
 
 -- | Submit the report
@@ -247,8 +253,8 @@ renderReportList (name, settings) = runDB $ do
       Early -> "text-muted bg-muted" :: Text
       Ready -> "text-warning bg-warning"
       Closed -> "text-warning bg-warning"
-      Late -> "text-danger bg-danger"
-      Submitted -> "text-success bg-success"
+      Late _ -> "text-danger bg-danger"
+      Submitted _ -> "text-success bg-success"
       _ -> ""
     widget = [whamlet|
   <table *{datatable}>
@@ -371,14 +377,14 @@ renderReportView rule report mode = do
               details <- loadPendingTaxDetails rule report
               return $ renderTaxDetailTable urlFn personName taxName boxValues (taxReportStart $ entityVal report) details
                      >> case status of
-                         (_, Submitted) -> return ()
+                         (_, Submitted _) -> return ()
                          (Process, _ ) -> reopenButtonForm (entityKey report)
                          _ -> collectButtonForm (entityKey report)
             TaxReportCollectedView -> do
               details <- loadCollectedTaxDetails report
               return $ renderTaxDetailTable urlFn personName taxName boxValues (taxReportStart $ entityVal report) details
                      >> case status of
-                         (_, Submitted) -> return ()
+                         (_, Submitted _) -> return ()
                          (Process, _ ) -> reopenButtonForm (entityKey report)
                          _ -> rejectButtonForm (entityKey report)
             TaxReportBucketView -> do
@@ -389,7 +395,7 @@ renderReportView rule report mode = do
               let box'amounts = computeBoxes bucket'rates buckets (boxes settings)
               return $ renderBoxTable box'amounts
                      >> case status of
-                          (_, Submitted) -> return ()
+                          (_, Submitted _) -> return ()
                           _ -> preSubmitButtonForm (entityKey report)
             TaxReportConfigChecker -> do
               buckets <- getBucketRateFromConfig report

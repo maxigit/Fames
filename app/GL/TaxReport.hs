@@ -26,8 +26,8 @@ data TaxReportStatus
   | Open -- ^ 
   | Ready -- ^ to be processed
   | Closed -- ^ close , read to submit
-  | Late 
-  | Submitted
+  | Late Day -- ^ with deadline
+  | Submitted Day -- ^ With submissioon date
   deriving (Eq, Show, Read)
 -- * Instance
 instance Semigroup TaxSummary where
@@ -157,9 +157,9 @@ taxReportDateStatus :: TaxReportSettings -> Day -> TaxReport -> TaxReportStatus
 taxReportDateStatus settings today report@TaxReport{..} = let
   deadline' =  taxReportDeadline settings report
   in case (taxReportStatus, taxReportSubmittedAt) of
-    (_, Just _) -> Submitted
+    (_, Just submitted) -> Submitted submitted
     (_ , _) | today < taxReportStart -> Early
-    (_, _) | today > deadline' -> Late
+    (_, _) | today > deadline' -> Late deadline'
     (_, _) | today < taxReportEnd -> Open
     -- between end and deadline
     (Pending,_) -> Ready
