@@ -6,6 +6,7 @@ import ClassyPrelude.Yesod
 import Database.Persist.Quasi
 
 import ModelField
+import Data.Decimal
 
 import qualified FA as FA
 -- You can define all of your database entities in the entities file.

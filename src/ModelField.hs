@@ -4,10 +4,13 @@ module ModelField
 , PayrollFrequency(..)
 ) where 
 
-import ClassyPrelude.Yesod
+import ClassyPrelude.Yesod hiding(Proxy)
 import Database.Persist.Sql(PersistFieldSql(..))
 import Text.Printf(printf)
 import GL.Payroll.Timesheet (PayrollFrequency)
+import Data.Decimal
+import Data.Proxy
+
 -- * Warehouse
 -- | Where as a transaction has been processed or not.
 data PendingStatus = Pending | Process deriving (Eq, Read, Show, Enum, Bounded, Ord)
@@ -191,3 +194,30 @@ glViewUrlForFA :: Text -> FATransType -> Int -> Text
 glViewUrlForFA base type_ no = base <> "/" <> pack url where
   tp = fromEnum type_
   url = printf "gl/view/gl_trans_view.php?type_id=%d&trans_no=%d" tp no
+
+-- * PersistField Instance
+-- ** Value
+instance PersistField Value where
+  toPersistValue = toPersistValueJSON
+  fromPersistValue = fromPersistValueJSON
+
+instance PersistFieldSql Value where
+  sqlType _ = SqlBlob -- sqlType (Proxy :: Proxy Text)
+-- ** Decimal
+-- Persist Decimal type using Rationale
+instance PersistField Decimal where
+  toPersistValue = toPersistValue . toRational
+  fromPersistValue = fromPersistValue >=> first fromString . eitherFromRational
+instance PersistFieldSql Decimal where
+  sqlType _ = sqlType (Proxy :: Proxy Rational)
+
+instance ToJSON Decimal where
+  toJSON = toJSON . toRational
+
+instance FromJSON Decimal where
+  parseJSON v = do
+    r <- parseJSON v
+    case eitherFromRational r of
+      Left err -> fail err
+      Right dec -> return dec
+  

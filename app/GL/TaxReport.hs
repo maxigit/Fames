@@ -27,7 +27,7 @@ data TaxReportStatus
   | Ready -- ^ to be processed
   | Closed -- ^ close , read to submit
   | Late Day -- ^ with deadline
-  | Submitted Day -- ^ With submissioon date
+  | Submitted UTCTime -- ^ With submissioon date
   deriving (Eq, Show, Read)
 -- * Instance
 instance Semigroup TaxSummary where

@@ -64,9 +64,14 @@ postGLNewTaxReportR name = do
         taxReportEnd = (-1) `addDays` calculateDate (nextPeriod settings) taxReportStart
         taxReportStatus = Pending
         taxReportSubmittedAt = Nothing
+        taxReportExternalReference = Nothing
+        taxReportExternalData = Nothing
 
-    key <- insert TaxReport{..}
-    return (key, TaxReport{..})
+        report = TaxReport{..}
+
+
+    key <- insert report
+    return (key, report)
   
   setSuccess "Report created sucessfully"
   -- collect details
@@ -173,7 +178,7 @@ postGLTaxReportPreSubmitR key = do
                         |] 
 
 
-alreadySubmitted :: Int64 -> Day -> Handler Html
+alreadySubmitted :: Int64 -> UTCTime -> Handler Html
 alreadySubmitted key submitted = do
     let widget = warningPanel "Tax Return already submitted"
                    [whamlet|<p>Tax return has already been submitted on the #{tshow submitted}  
@@ -189,8 +194,11 @@ postGLTaxReportSubmitR key = do
   return "nothing done"
   report <- runDB $ loadReport key
   Just reportSettings  <- getReportSettings (taxReportType $ entityVal report)
-  submitted <- submitReturn report reportSettings
-  runDB $ update reportKey [TaxReportSubmittedAt =. Just submitted]
+  TaxReport{..} <- submitReturn report reportSettings
+  runDB $ update (entityKey report) [ TaxReportSubmittedAt =. taxReportSubmittedAt
+                                    , TaxReportExternalReference =. taxReportExternalReference 
+                                    , TaxReportExternalData =. taxReportExternalData
+                                    ]
   setSuccess "Report has been succesfully submitted"
   getGLTaxReportsR  >>= sendResponseStatus created201
 

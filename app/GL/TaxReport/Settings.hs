@@ -29,10 +29,10 @@ data HMRCProcessorParameters = HMRCProcessorParameters
        , clientSecret :: Text
        , customerId :: Text
        , vatNumber :: Text
-#if DEVELOPMENT
+        -- # if DEVELOPMENT
        , obligationTestScenario :: Maybe Text -- ^ He
        , submitTestScenario :: Maybe Text -- ^ He
-#endif
+       -- # endif
        }
   deriving (Eq, Read, Show)
 data ManualProcessorParameters = ManualProcessorParameters
