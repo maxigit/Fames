@@ -45,7 +45,7 @@ Generate tax report with the following features,
  - generate Tax report
  - save to HMRC (push with API And change status) or XML at the beginning
  - visualise previous ones
- - allows compta des modifs"
+ - allows compta des modifs
  id est include transaction entered in the past to be included in the present VAT Return
 (even though the transaction date belongs to a previous return)
    - 1. By associating each tax_trans to a tax return in Fames
@@ -322,3 +322,32 @@ TaxReportDetail
   amount Double
   
 
+** Curl
+ 
+#+begin_src sh :results output
+  curl -d '{ \
+  "periodKey": "#001",\
+  "vatDueSales": 100.00,\
+  "vatDueAcquisitions": 100.00,\
+  "totalVatDue": 200.00,\
+  "vatReclaimedCurrPeriod": 100.00,\
+  "netVatDue": 100.00,\
+  "totalValueSalesExVAT": 500,\
+  "totalValuePurchasesExVAT": 500,\
+  "totalValueGoodsSuppliedExVAT": 500,\
+  "totalAcquisitionsExVAT": 500,\
+  "finalised": true\
+}' \
+  -H 'Accept: application/vnd.hmrc.1.0+json' \
+  -H 'Content-Type: application/json'\
+  -H 'Authorization: Bearer e7c34865b684c7dfd9246b80eaed43da'\
+      https://test-api.service.hmrc.gov.uk/organisations/vat/661821243/returns
+#+end_src
+
+#+RESULTS:
+      
+
+
+#+end_src
+
+#+RESULTS:

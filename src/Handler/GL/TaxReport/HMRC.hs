@@ -11,7 +11,10 @@ import Data.Dynamic(fromDynamic)
 import Database.Persist.Sql (fromSqlKey)
 import Data.Aeson.TH(deriveJSON, defaultOptions, fieldLabelModifier, sumEncoding, SumEncoding(..))
 import Data.Aeson.Types
+import Data.Aeson(encode)
 import Data.Time(diffUTCTime)
+import Data.Decimal (realFracToDecimal, Decimal)
+import Data.Fixed
 
 -- * Types
 data VATObligation = VATObligation
@@ -23,7 +26,17 @@ data VATObligation = VATObligation
    } deriving (Eq, Show, Read)
 
 data VATReturn = VATReturn
-   { 
+   { vr_periodKey :: Text
+   , vr_vatDueSales :: Fixed E2
+   , vr_vatDueAcquisitions :: Fixed E2
+   , vr_totalVatDue :: Fixed E2
+   , vr_vatReclaimedCurrPeriod :: Fixed E2
+   , vr_netVatDue :: Fixed E2
+   , vr_totalValueSalesExVAT :: Fixed E0
+   , vr_totalValuePurchasesExVAT :: Fixed E0
+   , vr_totalValueGoodsSuppliedExVAT :: Fixed E0
+   , vr_totalAcquisitionsExVAT :: Fixed E0
+   , vr_finalised :: Bool
    } deriving (Eq, Show, Read)
 
 newtype AuthorizationCode = AuthorizationCode Text
@@ -37,6 +50,7 @@ data AuthorizationToken = AuthorizationToken
 
 $(deriveJSON defaultOptions {fieldLabelModifier = camelTo2 '_'  } ''AuthorizationToken)
 $(deriveJSON defaultOptions ''VATObligation)
+$(deriveJSON defaultOptions {fieldLabelModifier = drop 3} ''VATReturn)
 
 -- ** Connection to HMRC website
 
@@ -152,11 +166,9 @@ retrieveVATObligations reportType reportM params@HMRCProcessorParameters{..} = d
         Just TaxReport{..} -> [ formatTime0 "from=%Y-%m-%d" taxReportStart
                               , formatTime0 "to=%Y-%m-%d" taxReportEnd
                               ]
-        
-
-#if DEVELOPMENT
+-- #if DEVELOPMENT
   traceShowM token
-#endif
+-- #endif
   -- only keep the obligation corresponding to given report if any
   -- it's not clear how HMRc filters obligations, so we might get more than needed
   let filterGood = case reportM of
@@ -174,9 +186,9 @@ retrieveVATObligations reportType reportM params@HMRCProcessorParameters{..} = d
                     -- :
                         (CurlHttpHeaders $ catMaybes [ Just "Accept: application/vnd.hmrc.1.0+json"
                                                    , "Authorization: " <?> ("Bearer " <> accessToken token)
-#if DEVELOPMENT
+-- #if DEVELOPMENT
                                                    , "Gov-Test-Scenario: " <?> obligationTestScenario
-#endif
+ -- #endif
                                                    ]
                       )
       
@@ -187,16 +199,6 @@ retrieveVATObligations reportType reportM params@HMRCProcessorParameters{..} = d
   return $ either (error . unpack) (filterGood . findWithDefault [] "obligations" ) (obligationsE :: Either Text (Map Text [VATObligation]))
 
 
-box'fields =  [ ("B1", "vatDueSales")
-              , ("B2", "vatDueAcquisitions")
-              , ("B3", "totalVatDue")
-              , ("B4", "vatReclaimedCurrPeriod")
-              , ("B5", "netVatDue")
-              , ("B6", "totalValueSalesExVAT")
-              , ("B7", "totalValuePurchasesExVAT")
-              , ("B8", "totalValueGoodsSuppliedExVAT")
-              , ("B9", "totalAcquisitionsExVAT")
-              ]  :: [(Text, Text)]
 submitHMRCReturn :: TaxReport -> Text -> [TaxReportBox] -> HMRCProcessorParameters -> Handler TaxReport
 submitHMRCReturn report@TaxReport{..} periodKey boxes params@HMRCProcessorParameters{..} = do
   token <- getHMRCToken taxReportType params Nothing
@@ -204,30 +206,19 @@ submitHMRCReturn report@TaxReport{..} periodKey boxes params@HMRCProcessorParame
   let endPoint = "/organisations/vat/"<>vatNumber<>"/returns" :: Text
   -- let endPoint = "/organisations/vat/"<>vatNumber<>"/obligations" :: Text
       url = unpack $ baseUrl <> endPoint 
-      boxMap = mapFromList $ map (fanl taxReportBoxName) boxes :: Map Text TaxReportBox
-      mkBoxField  boxName fieldname =
-        case lookup boxName boxMap  <|> lookup fieldname boxMap of
-            Nothing -> Left $ "Can't find box " <> boxName <> " in current report"
-            Just box -> Right (unpack fieldname <=> realFracToDecimal 2 $ taxReportBoxValue box)
-
-      boxFieldsE = map (uncurry mkBoxField) box'fields
-      boxFields = case sequence  boxFieldsE of
-                    Left _ -> error $ show (lefts boxFieldsE)
-                    Right bf -> bf
+      vatReturn = either (error . unpack) id $ mkVatReturn periodKey True boxes
   r <- hxtoHe . ioxToHx $ withCurl $ do
     curl <- lift initialize
     let ?curl = curl
     let
-      opts = curlPostFields ( "periodKey" <=> periodKey
-                            : "finalised" <=> ("true" :: Text)
-                            : boxFields
-                            )
+      opts = curlPostFields [Just $ unpack . decodeUtf8 $  encode vatReturn] 
              :          (CurlHttpHeaders $ catMaybes [ Just "Accept: application/vnd.hmrc.1.0+json"
-                                                   , "Authorization: " <?> ("Bearer " <> accessToken token)
-#if DEVELOPMENT
-                                                   , "Gov-Test-Scenario: " <?> submitTestScenario
-#endif
-                                                   ]
+                                                     , Just "Content-Type: application/json"
+                                                     , "Authorization: " <?> ("Bearer " <> accessToken token)
+-- #if DEVELOPMENT
+                                                     , "Gov-Test-Scenario: " <?> submitTestScenario
+-- #endif
+                                                     ]
                         )
              : CurlVerbose True
              : method_POST 
@@ -244,10 +235,19 @@ submitHMRCReturn report@TaxReport{..} periodKey boxes params@HMRCProcessorParame
 
 
     
+mkVatReturn vr_periodKey vr_finalised boxes = do -- Either 
+  let
+    boxMap = mapFromList $ map (fanl taxReportBoxName) boxes :: Map Text TaxReportBox
+    getValue boxname = maybe  (Left $ "Box " <> boxname <> " doesn't exist") (Right . toFixed . taxReportBoxValue) (lookup boxname boxMap)
+    toFixed f = fromRational (toRational f)
+  vr_vatDueSales <- getValue "B1"
+  vr_vatDueAcquisitions <- getValue "B2"
+  vr_totalVatDue <- getValue "B3"
+  vr_vatReclaimedCurrPeriod <- getValue "B4"
+  vr_netVatDue <- getValue "B5"
+  vr_totalValueSalesExVAT <- getValue "B6"
+  vr_totalValuePurchasesExVAT <- getValue "B7"
+  vr_totalValueGoodsSuppliedExVAT <- getValue "B8"
+  vr_totalAcquisitionsExVAT <- getValue "B9"
 
-  
-
-
-  
-
-  
+  return VATReturn{..}
