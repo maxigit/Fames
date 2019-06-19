@@ -46,7 +46,7 @@ data ManualProcessorParameters = ManualProcessorParameters
 -- use then key of an object as the boxname and nested fields as  field
 instance FromJSON TaxBox where
   -- String use the name as the bucket
-  parseJSON v = withText "taxbox as string" (\s -> return $ TaxBox s Nothing Nothing (TaxBoxGross s ) ) v
+  parseJSON v = withText "taxbox as string" (\s -> return $ TaxBox s Nothing Nothing (TaxBoxGross s ) Nothing ) v
             <|> withObject "taxbox" parseObject v where
     parseObject o =  do
       case  mapToList o of
@@ -54,6 +54,7 @@ instance FromJSON TaxBox where
           let parseFields o = do
                   tbDescription  <- o .:? "description"
                   shouldBe <- o .:? "shouldBe"
+                  tbDecimal <- o .:? "decimal"
                   let tbShouldBe = case (take 3 . unpack . toLower) <$> (shouldBe :: Maybe Text) of
                         Just "neg" -> Just LT
                         Just "pos" -> Just GT
@@ -65,14 +66,14 @@ instance FromJSON TaxBox where
                   return TaxBox{tbRule=negateBucket tbRule,..}
               parseBucket (stripPrefix "-" -> Just bucket)  = do
                 TaxBox{..} <- parseBucket bucket
-                return TaxBox{tbRule=TaxBoxNegate tbRule, tbShouldBe= Just LT,..}
+                return TaxBox{tbRule=TaxBoxNegate tbRule, tbShouldBe= Just LT,tbDecimal=Nothing,..}
               parseBucket (stripPrefix "+" -> Just bucket)  = do
                 TaxBox{..} <- parseBucket bucket
                 return TaxBox{tbRule=tbRule, tbShouldBe = Just GT,..}
               parseBucket s  = case s of
-                "net" -> return  $ TaxBox tbName (Just $ tbName <> " net") Nothing (TaxBoxNet tbName )
-                "tax" -> return  $ TaxBox tbName (Just $ tbName <> " tax") Nothing (TaxBoxTax tbName )
-                "gross" -> return  $ TaxBox tbName (Just $ tbName <> " gross") Nothing (TaxBoxGross tbName )
+                "net" -> return  $ TaxBox tbName (Just $ tbName <> " net") Nothing (TaxBoxNet tbName ) Nothing
+                "tax" -> return  $ TaxBox tbName (Just $ tbName <> " tax") Nothing (TaxBoxTax tbName ) Nothing
+                "gross" -> return  $ TaxBox tbName (Just $ tbName <> " gross") Nothing (TaxBoxGross tbName ) Nothing
                 _ -> fail "Not a valid amount type"
 
           withText ("TaxBox bucket" <> show fields) parseBucket fields

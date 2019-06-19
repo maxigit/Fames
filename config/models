@@ -287,11 +287,11 @@ TaxReport sql=fames_tax_report
   deriving Eq
 
 -- Data submitted 
-TaxReportBox TaxReportDetail sql=fames_tax_report_boxes json
+TaxReportBox TaxReportDetail sql=fames_tax_report_boxes
   Id sql=tax_report_boxes
   report TaxReportId sql=tax_report_id
   name Text
-  value Double
+  value Decimal
   UniqueRT report name
   deriving Show
   deriving Eq

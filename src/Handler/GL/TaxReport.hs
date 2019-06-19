@@ -30,6 +30,7 @@ import Formatting as F
 import Data.Tagged
 import qualified Data.Map as Map
 import Data.List(nub)
+import Data.Decimal
 
 -- * Handler
 
@@ -370,10 +371,10 @@ renderReportView rule report mode = do
   personName <- entityNameH False
   taxMap <- runDB $ loadTaxTypeMap
   today <- todayH
-  let boxValues :: [(TaxBox, TaxDetail -> Maybe Double)]
+  let boxValues :: [(TaxBox, TaxDetail -> Maybe Decimal)]
       boxValues = [ (box, f)
                   | box <- (boxes settings)
-                  , let f detail = either (const Nothing) Just $ computeBox bucket'rates 
+                  , let f detail = either (const Nothing) Just $ computeBox bucket'rates  
                                               (reportDetailToBucketMap taxMap $ tdReportDetail detail) 
                                               box
                   ]
@@ -446,7 +447,7 @@ _to_remove_renderTransDifferedTable reportId = do
 renderTaxDetailTable :: (FATransType -> Int -> Text) -- ^ Url
                      -> (FATransType -> Maybe Int64 -> Text) -- ^ Name
                      -> (FA.TaxTypeId -> Maybe Text) -- ^ Tax type name
-                     -> [(TaxBox, TaxDetail -> Maybe Double) ]
+                     -> [(TaxBox, TaxDetail -> Maybe Decimal) ]
                      -> Day -> [TaxDetail] -> Widget
 renderTaxDetailTable urlFn personName taxName boxes startDate taxDetails =  let
   hasBoxes = not $ null boxes 
@@ -492,12 +493,13 @@ renderTaxDetailTable urlFn personName taxName boxes startDate taxDetails =  let
               <td>
                 $forall  (box, valueF) <- boxes
                   $maybe value <- valueF detail
-                      $if value > 0.01
-                       <span.badge.up data-toggle="tooltip" title="#{formatDouble' value}">
+                  $# value is decimal therefore we shouldn't have any rounding problem
+                      $if value > 0
+                       <span.badge.up data-toggle="tooltip" title="#{tshow value}">
                          #{tbName box}
                       $else
-                        $if value < -0.01
-                          <span.badge.down data-toggle="tooltip" title="#{formatDouble' value}">
+                        $if value < -0
+                          <span.badge.down data-toggle="tooltip" title="#{tshow value}">
                             #{tbName box}
             $forall (box, boxValue) <- boxes
               #{renderBoxForDetail box (boxValue detail)}
@@ -582,17 +584,18 @@ renderTaxSummary rateM TaxSummary{..} = let
 -- | Compute the contribution of a detail for a box
 -- and display it if needed. Also add a hidden field
 -- allowing to search transaction by box
+renderBoxForDetail :: TaxBox -> Maybe Decimal -> Html
 renderBoxForDetail box valuem =  case valuem of
-  Just value | abs value > 1e-2 -> [shamlet|
+  Just value | abs value > 0-> [shamlet|
       <td>
-        #{formatDouble' value}
+        #{tshow value}
         <span.hidden>box:#{tbName box}
                         |]
   _ -> [shamlet|<td>|]
 
 
 -- | Displays a table with the box values
-renderBoxTable :: [(TaxBox, Double)] -> Widget
+renderBoxTable :: [(TaxBox, Decimal)] -> Widget
 renderBoxTable box'amounts =
   let klass shouldBe amount = case shouldBe of
              Just LT -> "positive-bad" :: Text
@@ -615,7 +618,7 @@ renderBoxTable box'amounts =
       <tr class="#{klass tbShouldBe amount}">
         <td>#{tbName}
         <td>#{fromMaybe "" tbDescription}
-        <td.text-right>#{formatDouble' amount}
+        <td.text-right>#{tshow amount}
           |]
 
 -- | Display a bucket table showing each box
@@ -638,7 +641,9 @@ renderBoxConfigCheckerTable bucket'rates boxes =  let
   renderBoxFor mkTx bucket rate = let
     boxDetails =[ (tshow boxId, tbName, boxValue, up)
                 | (TaxBox{..}, boxId) <- box'ids
-                , let boxValue = either (error . unpack) id $ computeBoxAmount  tbRule (mkMap bucket mkTx)
+                , let boxValue = either (error . unpack) id $ computeBoxAmount  tbRule decimal (mkMap bucket mkTx)
+                      decimal = fromMaybe tbDefaultDecimal tbDecimal
+                      delta = 0.1^(decimal)
                 , let up = if boxValue > delta
                            then "up"
                            else if boxValue < (negate delta)
@@ -660,7 +665,7 @@ renderBoxConfigCheckerTable bucket'rates boxes =  let
        <td.box :taxFor0Rate:.tax-for-0rate class=#{intercalate " " klasses} data-boxup=#{tshow boxUps} data-boxdown=#{tshow boxDowns}>
          $forall  (boxId, boxName, boxValue, up) <- boxDetails
            $with partial <- partialFor boxValue
-            <span.glyphicon.box-selected :partial:.partial class="#{iconFor up} box-#{boxId} #{up}" data-toggle="tooltip" title="#{boxName} #{formatDouble' boxValue}" onClick="toggleBox(#{boxId});")>
+            <span.glyphicon.box-selected :partial:.partial class="#{iconFor up} box-#{boxId} #{up}" data-toggle="tooltip" title="#{boxName} #{tshow boxValue}" onClick="toggleBox(#{boxId});")>
                |]
        else
         [shamlet|
@@ -1027,15 +1032,17 @@ loadSavedBoxes :: Key TaxReport -> SqlHandler ([Entity TaxReportBox])
 loadSavedBoxes reportKey = do
   selectList [TaxReportBoxReport ==. reportKey] [Asc TaxReportBoxId]
 
-loadTaxBoxes :: TaxReportSettings -> Key TaxReport -> SqlHandler [(TaxBox, Double)]
+loadTaxBoxes :: TaxReportSettings -> Key TaxReport -> SqlHandler [(TaxBox, Decimal)]
 loadTaxBoxes settings reportKey = do
   saveBoxes <- loadSavedBoxes reportKey
   let
     taxBoxMap = (mapFromList $ map (fanl tbName) (boxes settings)) :: Map Text TaxBox
-    taxBox0 name = TaxBox name Nothing Nothing (TaxBoxSum [])
-    mkTaxBox'Amount (Entity _ TaxReportBox{..}) = (box, taxReportBoxValue ) where
+    taxBox0 name = TaxBox name Nothing Nothing (TaxBoxSum []) Nothing
+    mkTaxBox'Amount (Entity _ TaxReportBox{..}) = (box, roundTo dec taxReportBoxValue ) where
       box = fromMaybe (taxBox0 taxReportBoxName) $ lookup taxReportBoxName taxBoxMap 
+      dec = tbDecimal0 box
   return $ map mkTaxBox'Amount saveBoxes
+
 -- ** Saving
 -- | Mark the report as done and save its boxes
 closeReport settings report = do
@@ -1114,20 +1121,20 @@ faTransToRuleInput FA.TransTaxDetail{..} riEntity = let
   in RuleInput{..}
 
 
-computeBoxes :: Set (Bucket, Entity FA.TaxType) -> Map (Bucket, Entity FA.TaxType) TaxSummary -> [TaxBox] -> [(TaxBox, Double )]
+computeBoxes :: Set (Bucket, Entity FA.TaxType) -> Map (Bucket, Entity FA.TaxType) TaxSummary -> [TaxBox] -> [(TaxBox, Decimal )]
 computeBoxes bucket'rates bucketMap boxes = let
   values = map (computeBox bucket'rates bucketMap) boxes
   in case lefts values of
     [] -> zip boxes $ rights values
     errors -> error $ unpack $ intercalate "\n" errors
 
-computeBox :: Set (Bucket, Entity FA.TaxType) -> Map (Bucket, Entity FA.TaxType) TaxSummary -> TaxBox -> Either Text Double 
+computeBox :: Set (Bucket, Entity FA.TaxType) -> Map (Bucket, Entity FA.TaxType) TaxSummary -> TaxBox -> Either Text Decimal 
 computeBox bucket'rates bucketMap1 box = let
   -- initialize all bucket with 0
   bucketMap0 = mapFromList $ map (, mempty) (toList bucket'rates)
   bucketMap = unionWith (<>) bucketMap1 bucketMap0
   buckets = groupAsMap (fst . fst) snd $ mapToList bucketMap
-  in computeBoxAmount (tbRule box) buckets
+  in computeBoxAmount (tbRule box) (tbDecimal0 box) buckets
 
 reportDetailToBucketMap :: Map FA.TaxTypeId (Entity FA.TaxType)
                         -> TaxReportDetail

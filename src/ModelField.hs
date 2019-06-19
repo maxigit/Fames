@@ -204,20 +204,21 @@ instance PersistField Value where
 instance PersistFieldSql Value where
   sqlType _ = SqlBlob -- sqlType (Proxy :: Proxy Text)
 -- ** Decimal
--- Persist Decimal type using Rationale
 instance PersistField Decimal where
-  toPersistValue = toPersistValue . toRational
-  fromPersistValue = fromPersistValue >=> first fromString . eitherFromRational
+  toPersistValue = toPersistValue . tshow
+  fromPersistValue = fromPersistValue >=> f where
+    f :: Text -> Either Text Decimal
+    f = maybe (Left "Problem decoding Decimal" ) Right . readMay -- :: String -> Either Text Decimal
 instance PersistFieldSql Decimal where
   sqlType _ = sqlType (Proxy :: Proxy Rational)
 
-instance ToJSON Decimal where
-  toJSON = toJSON . toRational
+-- instance ToJSON Decimal where
+--   toJSON = Number (scientific kk)
 
-instance FromJSON Decimal where
-  parseJSON v = do
-    r <- parseJSON v
-    case eitherFromRational r of
-      Left err -> fail err
-      Right dec -> return dec
+-- instance FromJSON Decimal where
+--   parseJSON v = do
+--     r <- parseJSON v
+--     case eitherFromRational r of
+--       Left err -> fail err
+--       Right dec -> return dec
   

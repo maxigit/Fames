@@ -40,7 +40,11 @@ data TaxBox = TaxBox
    , tbDescription :: Maybe Text
    , tbShouldBe :: Maybe Ordering -- expected sign of amount
    , tbRule :: TaxBoxRule
+   , tbDecimal :: Maybe Word8
    } deriving (Eq, Show, Read)
+
+tbDefaultDecimal = 6
+tbDecimal0 = fromMaybe tbDefaultDecimal . tbDecimal
 
 -- | Rules to determine the content of a box
 data TaxBoxRule

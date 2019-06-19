@@ -9,6 +9,7 @@ import Import.NoFoundation
 import GL.TaxReport.Settings as GL.TaxReport
 import GL.TaxReport.Types 
 import Database.Persist.Sql (fromSqlKey)
+import Data.Decimal
 -- * Types
 -- | 
 data TaxSummary = TaxSummary
@@ -85,23 +86,25 @@ isCustomer = (`elem` customerFATransactions)
 isSupplier = (`elem` supplierFATransactions)
 
 -- * Boxes
-computeBoxAmount :: TaxBoxRule -> Map Bucket TaxSummary -> Either Text Amount
-computeBoxAmount rule0 buckets = case rule0 of
-    TaxBoxSum rules -> sum <$> mapM amountFor rules
-    TaxBoxNet bucket -> findBucket bucket netAmount 
-    TaxBoxTax bucket -> findBucket bucket taxAmount
-    TaxBoxGross bucket -> findBucket bucket (grossAmount)
-    TaxBoxSub rule1 rule2 -> liftA2 (-) (amountFor rule1) (amountFor rule2)
-    TaxBoxNegate rule -> negate <$>  amountFor rule
-    TaxBoxTaxWith rate bucket -> (\a -> a * rate / 100) <$> findBucket bucket netAmount
-    TaxBoxFloor rule -> fromIntegral . floor <$>  amountFor rule
-    TaxBoxCeil rule -> fromIntegral . ceiling <$> amountFor rule
-    TaxBoxRound dec rule -> let mul = 10^dec
-                                f x = fromIntegral (round $ x * mul) / mul
-                            in f <$> amountFor rule
-    TaxBoxBanker rule -> fromIntegral . round <$> amountFor rule
-  where amountFor rule = computeBoxAmount rule buckets
-        findBucket bucket fn = case lookup bucket buckets of
+computeBoxAmount :: TaxBoxRule -> Word8 -> Map Bucket TaxSummary -> Either Text Decimal
+computeBoxAmount rule dec buckets = realFracToDecimal dec <$> go rule buckets
+  where
+    go rule0 buckets = case rule0 of
+      TaxBoxSum rules -> sum <$> mapM amountFor rules
+      TaxBoxNet bucket -> findBucket bucket netAmount 
+      TaxBoxTax bucket -> findBucket bucket taxAmount
+      TaxBoxGross bucket -> findBucket bucket (grossAmount)
+      TaxBoxSub rule1 rule2 -> liftA2 (-) (amountFor rule1) (amountFor rule2)
+      TaxBoxNegate rule -> negate <$>  amountFor rule
+      TaxBoxTaxWith rate bucket -> (\a -> a * rate / 100) <$> findBucket bucket netAmount
+      TaxBoxFloor rule -> fromIntegral . floor <$>  amountFor rule
+      TaxBoxCeil rule -> fromIntegral . ceiling <$> amountFor rule
+      TaxBoxRound dec rule -> let mul = 10^dec
+                                  f x = fromIntegral (round $ x * mul) / mul
+                              in f <$> amountFor rule
+      TaxBoxBanker rule -> fromIntegral . round <$> amountFor rule
+    amountFor rule = go rule buckets
+    findBucket bucket fn = case lookup bucket buckets of
           Nothing -> Left $ "Bucket: " <> bucket <> " dosen't exit."
           Just summary -> Right $ fn summary
 
