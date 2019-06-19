@@ -121,3 +121,46 @@ $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField
                             } ''TaxProcessor)
 $(deriveJSON defaultOptions ''TaxReportSettings)
 
+
+-- * Function
+-- | Each processor can alter or add its own boxes to a report
+-- alterTaxReportSettings :: Text TaxReportSettings{..} = case processor
+alterTaxReportSettings :: TaxReportSettings -> Either Text TaxReportSettings
+alterTaxReportSettings settings@TaxReportSettings{..} = case processor of
+  HMRCProcessor _ -> alterHMRCSettings settings
+  _ -> Right settings
+
+-- |  Add calculated boxes and set decimal number to each boxes
+alterHMRCSettings :: TaxReportSettings -> Either Text TaxReportSettings
+alterHMRCSettings settings@TaxReportSettings{..} = do
+  let boxMap = mapFromList $ zip (map tbName boxes) boxes :: Map Text TaxBox
+      findBox boxname = maybe (Left $ "Box " <> boxname <> " not present in HMRC report") Right
+                      $ lookup boxname boxMap
+  b1' <- findBox "B1"
+  b2' <- findBox "B2"
+  -- b3 calculated
+  b4'<- findBox "B4"
+  -- b5 calculated
+  b6'<- findBox "B6" 
+  b7'<- findBox "B7"
+  b8'<- findBox "B8"
+  b9'<- findBox "B9"
+
+  let
+    [b1,b2,b4] = [b {tbDecimal = Just 2} | b <- [b1', b2', b4']]
+    b3 = TaxBox "B3" (Just "Total VAT due" )(Just GT) (TaxBoxSum $ map (TaxBoxRound 2 . tbRule) [b1, b2]) (Just 2)
+    [b5'3, b5'4] = map (TaxBoxRound 2 . tbRule) [b3, b4]
+    b5 = TaxBox "B5" (Just "Net to be payed to HMRC" ) Nothing (TaxBoxSub b5'3 b5'4 ) (Just 2)
+    [b6,b7,b8,b9] = [b {tbDecimal = Just 0} | b <- [b6',b7',b8',b9']]
+  -- get all other boxes
+  let newBoxes = [b1,b2,b3,b4,b5,b6,b7,b8,b9]
+      newBoxesName = map tbName newBoxes
+      others = filter ((`notElem` newBoxesName) . tbName) boxes
+  Right settings {boxes = newBoxes <> others}
+
+
+
+
+
+
+  

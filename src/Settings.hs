@@ -234,7 +234,9 @@ instance FromJSON AppSettings  where
         appPlannerDir <- o .:? "planner-dir" .!= "Planner"
         appReceiptTemplates <- o .:? "receipt-templates" .!= Map.fromList []
         appReportDeduceTax <- o .:? "report-deduce-tax" .!= False
-        appTaxReportSettings <- o .:? "tax-reports" .!= Map.fromList []
+        appTaxReportSettings' <- o .:? "tax-reports" .!= Map.fromList []
+        let appTaxReportSettings  = either (error . unpack) id $ traverse alterTaxReportSettings appTaxReportSettings'
+        
           
         appFavicon <- o .:? "favicon" .!= (if defaultDev then "Orange" else "" )
         
