@@ -96,7 +96,9 @@ computeBoxAmount rule0 buckets = case rule0 of
     TaxBoxTaxWith rate bucket -> (\a -> a * rate / 100) <$> findBucket bucket netAmount
     TaxBoxFloor rule -> fromIntegral . floor <$>  amountFor rule
     TaxBoxCeil rule -> fromIntegral . ceiling <$> amountFor rule
-    TaxBoxRound rule -> Left "not implemented yet"
+    TaxBoxRound dec rule -> let mul = 10^dec
+                                f x = fromIntegral (round $ x * mul) / mul
+                            in f <$> amountFor rule
     TaxBoxBanker rule -> fromIntegral . round <$> amountFor rule
   where amountFor rule = computeBoxAmount rule buckets
         findBucket bucket fn = case lookup bucket buckets of

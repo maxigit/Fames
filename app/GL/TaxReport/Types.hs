@@ -54,6 +54,6 @@ data TaxBoxRule
   -- rounding
   | TaxBoxFloor TaxBoxRule
   | TaxBoxCeil TaxBoxRule
-  | TaxBoxRound TaxBoxRule
+  | TaxBoxRound Int TaxBoxRule
   | TaxBoxBanker TaxBoxRule -- Banker round. round function in Haskell
   deriving (Show, Read, Eq)

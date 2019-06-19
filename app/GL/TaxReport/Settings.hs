@@ -90,7 +90,7 @@ negateBucket rule = case rule of
   TaxBoxSub r1 r2 -> TaxBoxSub (negateBucket r1) (negateBucket r2)
   TaxBoxFloor rule -> TaxBoxFloor (negateBucket rule)
   TaxBoxCeil rule -> TaxBoxCeil (negateBucket rule) 
-  TaxBoxRound rule -> TaxBoxRound (negateBucket rule)
+  TaxBoxRound dec rule -> TaxBoxRound dec (negateBucket rule)
   TaxBoxBanker rule -> TaxBoxBanker (negateBucket rule)
   other -> other
 
