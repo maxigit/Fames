@@ -287,7 +287,7 @@ TaxReport sql=fames_tax_report
   deriving Eq
 
 -- Data submitted 
-TaxReportBox TaxReportDetail sql=fames_tax_report_boxes
+TaxReportBox TaxReportDetail sql=fames_tax_report_box
   Id sql=tax_report_boxes
   report TaxReportId sql=tax_report_id
   name Text

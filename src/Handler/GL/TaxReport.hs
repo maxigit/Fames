@@ -495,11 +495,11 @@ renderTaxDetailTable urlFn personName taxName boxes startDate taxDetails =  let
                   $maybe value <- valueF detail
                   $# value is decimal therefore we shouldn't have any rounding problem
                       $if value > 0
-                       <span.badge.up data-toggle="tooltip" title="#{tshow value}">
+                       <span.badge.up data-toggle="tooltip" title="#{formatDecimal value}">
                          #{tbName box}
                       $else
                         $if value < -0
-                          <span.badge.down data-toggle="tooltip" title="#{tshow value}">
+                          <span.badge.down data-toggle="tooltip" title="#{formatDecimal value}">
                             #{tbName box}
             $forall (box, boxValue) <- boxes
               #{renderBoxForDetail box (boxValue detail)}
@@ -618,7 +618,7 @@ renderBoxTable box'amounts =
       <tr class="#{klass tbShouldBe amount}">
         <td>#{tbName}
         <td>#{fromMaybe "" tbDescription}
-        <td.text-right>#{tshow amount}
+        <td.text-right>#{formatDecimal amount}
           |]
 
 -- | Display a bucket table showing each box
@@ -1097,6 +1097,8 @@ formatDouble' = F.sformat (commasFixedWith round 2)
 formatDoubleWithSign amount = [shamlet|<span :negative:.text-danger>#{formatDouble' amount}|]
   where negative = amount < -1e-2
 
+formatDecimal :: Decimal -> Text
+formatDecimal x = F.sformat commasDecimal x
 
 -- | Get the list of all  Bucket/rate configuration from the config
 -- (and the rate in the database)
