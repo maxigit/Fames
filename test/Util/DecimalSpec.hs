@@ -11,10 +11,10 @@ roundingSpec = describe "@Rounding @current" $ do
     applyRounding (RoundDown 0) 0.9 `shouldBe` 0
   it "rounds up 0.1 to 1" $ do
     applyRounding (RoundUp 0) 0.1 `shouldBe` 1
-  it "rounds 0.5 to 0 " $ do
-    applyRounding (Round 0) 0.5 `shouldBe` 0
-  it "rounds 1.5 to 1 " $ do
-    applyRounding (Round 0) 1.5 `shouldBe` 1
+  it "rounds 0.5 to 1 " $ do
+    applyRounding (Round 0) 0.5 `shouldBe` 1
+  it "rounds 1.5 to 2 " $ do
+    applyRounding (Round 0) 1.5 `shouldBe` 2
   it "banker rounds 0.5 to 0 " $ do
     applyRounding (RoundBanker 0) 0.5 `shouldBe` 0
   it "banker rounds 1.5 to 2 " $ do
