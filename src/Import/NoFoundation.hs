@@ -36,6 +36,7 @@ module Import.NoFoundation
     , commasFixedWith'
     , commasFixed
     , commasFixed'
+    , commasDecimal
     , mapWithKeyM
     , pattern RJust
     , pattern RNothing
@@ -64,6 +65,7 @@ import Formatting as F
 import Data.Align(align)
 import Data.Monoid(First(..))
 import Data.Maybe (fromJust)
+import Data.Decimal
 
 import Text.Printf(printf)
 
@@ -148,6 +150,7 @@ formatHours duration = let
 formatTime0 format time = fromString $ formatTime defaultTimeLocale format time
 
 -- ** Formating lforb
+commasFixedWith :: Integral a => (Double -> a) -> Int -> Format r (Double -> r)
 commasFixedWith roundFn digit = later go where
   go x = let
     (n,f) = properFraction x :: (Int, Double)
@@ -155,9 +158,12 @@ commasFixedWith roundFn digit = later go where
     in bprint b n (roundFn $ (10^digit) *  abs f)
 
 -- | display a amount to 2 dec with thousands separator
+commasFixed :: Format r (Double -> r)
 commasFixed = commasFixedWith floor 2
 -- | Sames as commasFixed but don't print commas if number is a whole number
+commasFixed' :: Format r (Double -> r)
 commasFixed' = commasFixedWith' floor 2
+
 commasFixedWith' roundFn digit = later go where
   go x = let
     (n,f) = properFraction x :: (Int, Double)
@@ -170,10 +176,23 @@ commasFixedWith' roundFn digit = later go where
 
 -- | Like Formatting.commas but fix bug on negative value
 -- -125 - -,125
+
 commas' = later go where
   go n = if n < 0
          then bprint ("-" % commas) (abs n)
          else bprint commas  n
+
+-- | Display a decimal number with comma (thousand separator)
+commasDecimal = later go where 
+  go x = let
+    digit = fromIntegral $ decimalPlaces x :: Int
+    (n, f) = (fromIntegral $ decimalMantissa x :: Int) `divMod` (10^digit)
+    b = (commas' % "." % (left digit '0' %. int)) -- n (floor $ 100 *  abs f)
+    b0 = commas'
+    in case digit of
+      0 -> bprint b0 n -- no decimal  -> no dot 
+      _ -> bprint b n f
+
 -- * FA utilit
 showTransType :: IsString t => FATransType -> t
 showTransType ST_JOURNAL = "Journal Entry"
