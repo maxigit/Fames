@@ -5,6 +5,7 @@ import Data.Aeson.Types
 import GL.Payroll.Settings
 import GL.TaxReport.Types
 import Data.Text(strip)
+import Util.Decimal
 -- * Type
 -- | Main settins to define a report.
 -- The actual report name should be in the key map
@@ -54,7 +55,7 @@ instance FromJSON TaxBox where
           let parseFields o = do
                   tbDescription  <- o .:? "description"
                   shouldBe <- o .:? "shouldBe"
-                  tbDecimal <- o .:? "decimal"
+                  tbRound <- o .:? "rounding"
                   let tbShouldBe = case (take 3 . unpack . toLower) <$> (shouldBe :: Maybe Text) of
                         Just "neg" -> Just LT
                         Just "pos" -> Just GT
@@ -66,7 +67,7 @@ instance FromJSON TaxBox where
                   return TaxBox{tbRule=negateBucket tbRule,..}
               parseBucket (stripPrefix "-" -> Just bucket)  = do
                 TaxBox{..} <- parseBucket bucket
-                return TaxBox{tbRule=TaxBoxNegate tbRule, tbShouldBe= Just LT,tbDecimal=Nothing,..}
+                return TaxBox{tbRule=TaxBoxNegate tbRule, tbShouldBe= Just LT,tbRound=Nothing,..}
               parseBucket (stripPrefix "+" -> Just bucket)  = do
                 TaxBox{..} <- parseBucket bucket
                 return TaxBox{tbRule=tbRule, tbShouldBe = Just GT,..}
@@ -89,10 +90,10 @@ negateBucket rule = case rule of
   TaxBoxTaxWith rate (stripPrefix "-" -> Just bucket) -> TaxBoxNegate $ TaxBoxTaxWith rate (strip bucket) 
   TaxBoxSum rules -> TaxBoxSum (negateBucket <$> rules)
   TaxBoxSub r1 r2 -> TaxBoxSub (negateBucket r1) (negateBucket r2)
-  TaxBoxFloor rule -> TaxBoxFloor (negateBucket rule)
-  TaxBoxCeil rule -> TaxBoxCeil (negateBucket rule) 
-  TaxBoxRound dec rule -> TaxBoxRound dec (negateBucket rule)
-  TaxBoxBanker rule -> TaxBoxBanker (negateBucket rule)
+  TaxBoxFloor rounding rule -> TaxBoxFloor rounding (negateBucket rule)
+  TaxBoxCeil rounding rule -> TaxBoxCeil rounding (negateBucket rule) 
+  TaxBoxRound rounding rule -> TaxBoxRound rounding (negateBucket rule)
+  TaxBoxBanker rounding rule -> TaxBoxBanker rounding (negateBucket rule)
   other -> other
 
 
@@ -109,6 +110,7 @@ $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField
                             , constructorTagModifier = (fromMaybe <*> stripSuffix "Rule")
                                                        . (fromMaybe <*> stripPrefix "Rule")
                             } ''Rule)
+$(deriveJSON defaultOptions ''RoundingMethod)
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField
                             , fieldLabelModifier = fromMaybe <*> stripPrefix "TaxBox"
                             , constructorTagModifier = fromMaybe <*> stripPrefix "TaxBox"
@@ -147,11 +149,11 @@ alterHMRCSettings settings@TaxReportSettings{..} = do
   b9'<- findBox "B9"
 
   let
-    [b1,b2,b4] = [b {tbDecimal = Just 2} | b <- [b1', b2', b4']]
-    b3 = TaxBox "B3" (Just "Total VAT due" )(Just GT) (TaxBoxSum $ map (TaxBoxRound 2 . tbRule) [b1, b2]) (Just 2)
+    [b1,b2,b4] = [b {tbRound = Just $ Round 2} | b <- [b1', b2', b4']]
+    b3 = TaxBox "B3" (Just "Total VAT due" )(Just GT) (TaxBoxSum $ map (TaxBoxRound 2 . tbRule) [b1, b2]) (Just $ Round 2)
     [b5'3, b5'4] = map (TaxBoxRound 2 . tbRule) [b3, b4]
-    b5 = TaxBox "B5" (Just "Net to be payed to HMRC" ) Nothing (TaxBoxSub b5'3 b5'4 ) (Just 2)
-    [b6,b7,b8,b9] = [b {tbDecimal = Just 0} | b <- [b6',b7',b8',b9']]
+    b5 = TaxBox "B5" (Just "Net to be payed to HMRC" ) Nothing (TaxBoxSub b5'3 b5'4 ) (Just $ Round 2)
+    [b6,b7,b8,b9] = [b {tbRound = Just $ RoundDown 0} | b <- [b6',b7',b8',b9']]
   -- get all other boxes
   let newBoxes = [b1,b2,b3,b4,b5,b6,b7,b8,b9]
       newBoxesName = map tbName newBoxes

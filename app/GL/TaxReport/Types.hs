@@ -1,6 +1,7 @@
 module GL.TaxReport.Types where
 import ClassyPrelude
 import ModelField
+import Util.Decimal
 
 -- * Type
 type Bucket = Text
@@ -34,17 +35,16 @@ data RuleInput = RuleInput
  , riAmount :: Double
  } deriving (Eq, Show, Read)
 
-
 data TaxBox = TaxBox
    { tbName :: Text -- 
    , tbDescription :: Maybe Text
    , tbShouldBe :: Maybe Ordering -- expected sign of amount
    , tbRule :: TaxBoxRule
-   , tbDecimal :: Maybe Word8
+   , tbRound :: Maybe RoundingMethod
    } deriving (Eq, Show, Read)
 
 tbDefaultDecimal = 6
-tbDecimal0 = fromMaybe tbDefaultDecimal . tbDecimal
+tbRound0 = fromMaybe (RoundBanker tbDefaultDecimal) . tbRound
 
 -- | Rules to determine the content of a box
 data TaxBoxRule
@@ -56,8 +56,8 @@ data TaxBoxRule
   | TaxBoxNegate TaxBoxRule
   | TaxBoxTaxWith Double Bucket
   -- rounding
-  | TaxBoxFloor TaxBoxRule
-  | TaxBoxCeil TaxBoxRule
-  | TaxBoxRound Int TaxBoxRule
-  | TaxBoxBanker TaxBoxRule -- Banker round. round function in Haskell
+  | TaxBoxFloor Word8 TaxBoxRule
+  | TaxBoxCeil Word8 TaxBoxRule
+  | TaxBoxRound Word8 TaxBoxRule
+  | TaxBoxBanker Word8 TaxBoxRule -- Banker round. round function in Haskell
   deriving (Show, Read, Eq)

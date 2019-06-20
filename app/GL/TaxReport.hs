@@ -9,7 +9,7 @@ import Import.NoFoundation
 import GL.TaxReport.Settings as GL.TaxReport
 import GL.TaxReport.Types 
 import Database.Persist.Sql (fromSqlKey)
-import Data.Decimal
+import Util.Decimal
 -- * Types
 -- | 
 data TaxSummary = TaxSummary
@@ -86,8 +86,8 @@ isCustomer = (`elem` customerFATransactions)
 isSupplier = (`elem` supplierFATransactions)
 
 -- * Boxes
-computeBoxAmount :: TaxBoxRule -> Word8 -> Map Bucket TaxSummary -> Either Text Decimal
-computeBoxAmount rule dec buckets = realFracToDecimal dec <$> go rule buckets
+computeBoxAmount :: TaxBoxRule -> RoundingMethod -> Map Bucket TaxSummary -> Either Text Decimal
+computeBoxAmount rule rounding buckets = applyRounding rounding <$> go rule buckets
   where
     go rule0 buckets = case rule0 of
       TaxBoxSum rules -> sum <$> mapM amountFor rules
@@ -96,17 +96,16 @@ computeBoxAmount rule dec buckets = realFracToDecimal dec <$> go rule buckets
       TaxBoxGross bucket -> findBucket bucket (grossAmount)
       TaxBoxSub rule1 rule2 -> liftA2 (-) (amountFor rule1) (amountFor rule2)
       TaxBoxNegate rule -> negate <$>  amountFor rule
-      TaxBoxTaxWith rate bucket -> (\a -> a * rate / 100) <$> findBucket bucket netAmount
-      TaxBoxFloor rule -> fromIntegral . floor <$>  amountFor rule
-      TaxBoxCeil rule -> fromIntegral . ceiling <$> amountFor rule
-      TaxBoxRound dec rule -> let mul = 10^dec
-                                  f x = fromIntegral (round $ x * mul) / mul
-                              in f <$> amountFor rule
-      TaxBoxBanker rule -> fromIntegral . round <$> amountFor rule
-    amountFor rule = go rule buckets
+      TaxBoxTaxWith rate bucket -> (\a -> a *. (rate / 100)) <$> findBucket bucket netAmount
+      TaxBoxFloor dec rule -> applyRounding (RoundDown dec) <$>  amountFor rule
+      TaxBoxCeil dec rule -> applyRounding (RoundUp dec)<$> amountFor rule
+      TaxBoxRound dec rule -> applyRounding (Round dec)<$> amountFor rule
+      TaxBoxBanker dec rule -> applyRounding (RoundBanker dec) <$> amountFor rule
+    amountFor :: TaxBoxRule -> Either Text Decimal
+    amountFor rule = realFracToDecimal tbDefaultDecimal  <$> go rule buckets
     findBucket bucket fn = case lookup bucket buckets of
-          Nothing -> Left $ "Bucket: " <> bucket <> " dosen't exit."
-          Just summary -> Right $ fn summary
+          Nothing -> Left $ "Bucket: " <> bucket <> " doesn't exit."
+          Just summary -> Right . realFracToDecimal tbDefaultDecimal $ fn summary
 
 deriving instance (Show FA.TaxType)
 

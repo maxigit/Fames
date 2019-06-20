@@ -30,7 +30,7 @@ import Formatting as F
 import Data.Tagged
 import qualified Data.Map as Map
 import Data.List(nub)
-import Data.Decimal
+import Util.Decimal
 
 -- * Handler
 
@@ -640,13 +640,12 @@ renderBoxConfigCheckerTable bucket'rates boxes =  let
   box'ids = zip boxes [1 ::Int ..]
   renderBoxFor mkTx bucket rate = let
     boxDetails =[ (tshow boxId, tbName, boxValue, up)
-                | (TaxBox{..}, boxId) <- box'ids
-                , let boxValue = either (error . unpack) id $ computeBoxAmount  tbRule decimal (mkMap bucket mkTx)
-                      decimal = fromMaybe tbDefaultDecimal tbDecimal
-                      delta = 0.1^(decimal)
-                , let up = if boxValue > delta
+                | (b@TaxBox{..}, boxId) <- box'ids
+                , let boxValue = either (error . unpack) id $ computeBoxAmount  tbRule rounding (mkMap bucket mkTx)
+                      rounding = tbRound0 b
+                , let up = if decimalMantissa boxValue > 1
                            then "up"
-                           else if boxValue < (negate delta)
+                           else if decimalMantissa boxValue < -1
                            then "down"
                            else "no"
                 ]
@@ -1038,9 +1037,9 @@ loadTaxBoxes settings reportKey = do
   let
     taxBoxMap = (mapFromList $ map (fanl tbName) (boxes settings)) :: Map Text TaxBox
     taxBox0 name = TaxBox name Nothing Nothing (TaxBoxSum []) Nothing
-    mkTaxBox'Amount (Entity _ TaxReportBox{..}) = (box, roundTo dec taxReportBoxValue ) where
+    mkTaxBox'Amount (Entity _ TaxReportBox{..}) = (box, toDecimalWithRounding rounding taxReportBoxValue ) where
       box = fromMaybe (taxBox0 taxReportBoxName) $ lookup taxReportBoxName taxBoxMap 
-      dec = tbDecimal0 box
+      rounding = tbRound0 box
   return $ map mkTaxBox'Amount saveBoxes
 
 -- ** Saving
@@ -1136,7 +1135,7 @@ computeBox bucket'rates bucketMap1 box = let
   bucketMap0 = mapFromList $ map (, mempty) (toList bucket'rates)
   bucketMap = unionWith (<>) bucketMap1 bucketMap0
   buckets = groupAsMap (fst . fst) snd $ mapToList bucketMap
-  in computeBoxAmount (tbRule box) (tbDecimal0 box) buckets
+  in computeBoxAmount (tbRule box) (tbRound0 box) buckets
 
 reportDetailToBucketMap :: Map FA.TaxTypeId (Entity FA.TaxType)
                         -> TaxReportDetail
@@ -1155,4 +1154,3 @@ mkTaxEntity taxId rate = Entity taxId FA.TaxType{..} where
   taxTypePurchasingGlCode = "0"
   taxTypeName = "<deleted>"
   taxTypeInactive = True
-
