@@ -39,10 +39,11 @@ import CategoryRule(RegexSub(..), regexSub, subRegex)
 -- may be automattically saved to FA
 data ToRec = ToRec
     { trTrans :: B.Transaction
-    , trSaveHtml :: Maybe Html
+    , trSaveButtonHtml :: Maybe Html -- save button for auto
+    , trSaveObjectHtml :: Maybe Html -- object for auto
     }
 toRec :: B.Transaction -> ToRec
-toRec t = ToRec t Nothing
+toRec t = ToRec t Nothing Nothing
 
 
 commonCss = [cassius|
@@ -208,7 +209,7 @@ loadReconciliatedTrans dbConf settings =
       fas <- lift$ B.readFa options
       let ts = map B.faTransToTransaction fas
 
-      return ((map (flip ToRec Nothing) (filter (isNothing . B._sRecDate) ts), ts), Nothing)
+      return ((map toRec (filter (isNothing . B._sRecDate) ts), ts), Nothing)
 
 mkRecOptions dbConf BankStatementSettings{bsMode=BankUseStatement{..},..} =  let
       statementFiles = unpack bsStatementGlob
@@ -274,7 +275,8 @@ displaySummary today dbConf faURL title bankSettings@BankStatementSettings{..}= 
       (news, olds) = partition ((>= lastDay) . B._sDate)  (sortTrans banks)
       lastBanks = news <> (take (summaryLimit - length news) olds)
       lastW = renderTransactions bsSummaryPageSize True object faURL lastBanks hideBlacklisted (Just "Total") (const False)
-      tableW = renderToRecs bsRecSummaryPageSize True (liftA2 (<|>) trSaveHtml (toHtml <$$> object . trTrans))  faURL sorted hideBlacklisted (Just "Total") ((B.FA ==) . B._sSource)
+      number'object trec =  (trSaveButtonHtml trec, (liftA2 (<|>) trSaveObjectHtml (toHtml <$$> object . trTrans)) $ trec)
+      tableW = renderToRecs bsRecSummaryPageSize True number'object  faURL sorted hideBlacklisted (Just "Total") ((B.FA ==) . B._sSource)
       titleW = [shamlet|
         <div.row>
           <div.col-md-4>
@@ -325,7 +327,8 @@ displayLightSummary today dbConf faURL title bankSettings@BankStatementSettings{
       blacklist = map unpack bsLightBlacklist
       lastBanks = take 10 $ filter (keepLight blacklist) $ sortTrans banksUnfiltered
       lastW = renderTransactions bsSummaryPageSize False object faURL lastBanks (const []) (Just "Total") (const False)
-      tableW = renderToRecs bsRecSummaryPageSize False (liftA2 (<|>) trSaveHtml (toHtml <$$> object . trTrans)) faURL sorted  (const [])(Just "Total") ((B.FA ==) . B._sSource)
+      number'object trec =  (trSaveButtonHtml trec, (liftA2 (<|>) trSaveObjectHtml (toHtml <$$> object . trTrans)) $ trec)
+      tableW = renderToRecs bsRecSummaryPageSize False number'object faURL sorted  (const [])(Just "Total") ((B.FA ==) . B._sSource)
       titleW = [shamlet|
         <div.row>
           <div.col-md-4>
@@ -368,38 +371,21 @@ linkToFA urlForFA' trans = case (readMay (B._sType trans), B._sNumber trans) of
      <a href="#{urlForFA' (eType) no}" class="#{directionClass}" target=_blank data-toggle="tooltip" title="#{longType}">
        #{transactionIcon eType}
        |]
+  (Just t, Nothing) -> transactionIconSpan (toEnum t)
   _ -> toHtml (B._sType trans)
 
-transactionIcon :: FATransType -> Html
-transactionIcon eType = 
-  let ttype = showShortTransType eType :: Text
-  in [shamlet|
-       $case eType
-         $of ST_CUSTPAYMENT
-           <span.glyphicon.glyphicon-user.text-primary>
-           <span.glyphicon.glyphicon-arrow-right.text-success>
-         $of ST_SUPPAYMENT
-           <span.glyphicon.glyphicon-arrow-right.text-danger>
-           <span.glyphicon.glyphicon-user.text-info>
-         $of ST_BANKTRANSFER
-           <span.glyphicon.glyphicon-transfer>
-         $of ST_BANKPAYMENT
-           <span.glyphicon.glyphicon-arrow-left.text-danger>
-         $of ST_BANKDEPOSIT
-           <span.glyphicon.glyphicon-arrow-right.text-success>
-         $of _
-           #{ttype}
-           |]
 _not_used_transactionIcon' :: Text -> Html
 _not_used_transactionIcon' t = case readMay t of
   Just eType -> transactionIcon $ toEnum eType
   Nothing -> toHtml t
 renderTransactions :: Maybe Int -> Bool ->  (B.Transaction -> Maybe Text) -> Text -> [B.Transaction] -> (B.Transaction -> [Text]) -> Maybe Text -> (B.Transaction -> Bool) -> Widget
 renderTransactions pageSize canViewBalance object faURL sorted mkClasses totalTitle danger = 
-  renderToRecs pageSize canViewBalance (fmap toHtml . object . trTrans) faURL (map toRec sorted) mkClasses totalTitle danger
+  let
+    number'object =  (Nothing,) . fmap toHtml . object . trTrans
+  in renderToRecs pageSize canViewBalance number'object faURL (map toRec sorted) mkClasses totalTitle danger
 
-renderToRecs :: Maybe Int -> Bool ->  (ToRec -> Maybe Html) -> Text -> [ToRec] -> (B.Transaction -> [Text]) -> Maybe Text -> (B.Transaction -> Bool) -> Widget
-renderToRecs pageSize canViewBalance object faURL sorted mkClasses totalTitle danger =
+renderToRecs :: Maybe Int -> Bool ->  (ToRec -> ( Maybe Html, Maybe Html )) -> Text -> [ToRec] -> (B.Transaction -> [Text]) -> Maybe Text -> (B.Transaction -> Bool) -> Widget
+renderToRecs pageSize canViewBalance number'object faURL sorted mkClasses totalTitle danger =
       let (ins, outs) = partition (> 0) (map (B._sAmount . trTrans) sorted)
           inTotal = sum ins
           outTotal = sum outs
@@ -422,23 +408,29 @@ renderToRecs pageSize canViewBalance object faURL sorted mkClasses totalTitle da
               <th>Paid In
               $if canViewBalance
                 <th>Balance
-          $forall torec@(ToRec trans _ ) <- sorted
+          $forall torec@(ToRec trans _ _ ) <- sorted
             $with isDanger <- danger trans
-              <tr :isDanger:.text-danger :isDanger:.bg-danger class="#{intercalate " " (mkClasses trans)}">
-                  <td>#{tshow $ B._sDate trans}
-                  <td>#{tshow $ B._sSource trans}
-                  <td>^{linkToFA (urlForFA faURL) trans}
-                  <td>#{B._sDescription trans}
-                  <td.text-right>#{maybe "-" tshow $ B._sNumber trans}
-                  <td>#{fromMaybe "-" (object torec)}
-                  $if B._sAmount trans > 0
-                    <td>
-                    <td.text-right>#{tshow $  B._sAmount trans}
-                  $else
-                    <td.text-right>#{tshow $ negate  $    B._sAmount trans}
-                    <td>
-                 $if canViewBalance
-                    <td.text-right> ^{render $ fmap (fmap tshow)  $ B._sBalance trans}
+              $with (numberm, objectm) <- number'object torec
+                <tr :isDanger:.text-danger :isDanger:.bg-danger class="#{intercalate " " (mkClasses trans)}">
+                    <td>#{tshow $ B._sDate trans}
+                    <td>#{tshow $ B._sSource trans}
+                    <td>^{linkToFA (urlForFA faURL) trans}
+                    <td>#{B._sDescription trans}
+                    <td.text-right>
+                      $case numberm
+                        $of (Just num)
+                          #{num}
+                        $of Nothing
+                          #{maybe "-" tshow $ B._sNumber trans}
+                    <td>#{fromMaybe "-" objectm}
+                    $if B._sAmount trans > 0
+                      <td>
+                      <td.text-right>#{tshow $  B._sAmount trans}
+                    $else
+                      <td.text-right>#{tshow $ negate  $    B._sAmount trans}
+                      <td>
+                  $if canViewBalance
+                      <td.text-right> ^{render $ fmap (fmap tshow)  $ B._sBalance trans}
           <tr>
             $maybe totalTitle <-  totalTitle
               <th> #{totalTitle}
@@ -488,7 +480,8 @@ displayDetailsInPanel account bankSettings@BankStatementSettings{..} = do
   
   (,) (stransz, banks) _ <- loadReconciliatedTrans dbConf bankSettings
 
-  let tableW = renderToRecs Nothing True trSaveHtml faURL stransz (const []) (Just "Total") ((B.FA ==) . B._sSource)
+  let number'object =  liftA2 (,) trSaveButtonHtml trSaveObjectHtml 
+      tableW = renderToRecs Nothing True number'object faURL stransz (const []) (Just "Total") ((B.FA ==) . B._sSource)
       ok = null stransz
   return $ displayPanel (if ok then "succes" else "danger") ok account [whamlet|
             <div.row>
@@ -1104,26 +1097,36 @@ generatePrefillFundTransferLink faURL current target memo t@B.Transaction{..} = 
   -- find target name
   bankm <- runDB $ get (FA.BankAccountKey target)
   let targetName = maybe ("#" <> tshow target) FA.bankAccountBankAccountName bankm
-      html = [shamlet|
+      object =  [shamlet|
+    <span class="#{dirClass}">
+       <span.guessed-value>#{decodeHtmlEntities targetName}
+                        |]
+      save = [shamlet|
   <form method=POST action="#{faURL}/gl/bank_transfer.php" target=_blank>
     <input type=hidden name=DatePaid  value="#{formatTime defaultTimeLocale "%Y/%m/%d" _sDate}">
     <input type=hidden name=amount  value="#{tshow $ abs _sAmount}">
     <input type=hidden name=FromBankAccount  value="#{tshow from}">
     <input type=hidden name=ToBankAccount  value="#{tshow to}">
     <input type=hidden name=memo_  value="#{memo}">
-    <span class="#{dirClass}">
-       #{transactionIcon $ ST_BANKTRANSFER}
-       <span.guessed-value>#{decodeHtmlEntities targetName}
-    <button.btn.btn-sm.btn-danger>Save
+    #{saveButton}
     |]
-  return $ ToRec t  (Just html)
+  return $ ToRec t {B._sType = show (fromEnum ST_BANKTRANSFER) } (Just save)  (Just object)
 
 
+saveButton :: Html
+saveButton = [shamlet|
+   <button.btn.btn-sm.btn-danger>
+     <span.glyphicon.glyphicon-save data-toggle="tooltip" title="Save">
+   |]
 generatePrefillSupplierPaymentLink :: Text -> Int -> Int -> String ->  B.Transaction -> Handler ToRec
 generatePrefillSupplierPaymentLink faURL current target memo t@B.Transaction{..} | _sAmount < 0 = do
   suppm <- runDB $ get (FA.SupplierKey target)
   let targetName = maybe ("#" <> tshow target) FA.supplierSuppName suppm
-      html = [shamlet|
+      object =  [shamlet|
+    <span class>
+       <span.guessed-value>#{decodeHtmlEntities targetName}
+                        |]
+      save = [shamlet|
   <form method=GET action="#{faURL}/purchasing/supplier_payment.php" target=_blank>
     <input type=hidden name=DatePaid  value="#{formatTime defaultTimeLocale "%Y/%m/%d" _sDate}">
     <input type=hidden name=amount  value="#{tshow $ abs _sAmount}">
@@ -1131,18 +1134,20 @@ generatePrefillSupplierPaymentLink faURL current target memo t@B.Transaction{..}
     <input type=hidden name=supplier_id value="#{tshow target}">
     <input type=hidden name=memo_  value="#{memo}">
     <span>
-       #{transactionIcon $ ST_SUPPAYMENT}
-       <span.guessed-value>#{decodeHtmlEntities targetName}
-    <button.btn.btn-sm.btn-danger>Save
+    #{saveButton}
     |]
-  return $ ToRec t  (Just html)
+  return $ ToRec t {B._sType = show (fromEnum ST_SUPPAYMENT)}  (Just save) (Just object)
 generatePrefillSupplierPaymentLink faURL current target memo t@B.Transaction{..} = return $ toRec t
 
 generatePrefillCustomerPaymentLink :: Text -> Int -> Int -> String ->  B.Transaction -> Handler ToRec
 generatePrefillCustomerPaymentLink faURL current target memo t@B.Transaction{..} | _sAmount > 0 = do
   suppm <- runDB $ get (FA.DebtorsMasterKey target)
   let targetName = maybe ("#" <> tshow target) FA.debtorsMasterName suppm
-      html = [shamlet|
+      object = [shamlet|
+    <span>
+       <span.guessed-value>#{decodeHtmlEntities targetName}
+    |]
+      save = [shamlet|
   <form method=GET action="#{faURL}/sales/customer_payments.php" target=_blank>
     <input type=hidden name=DateBanked  value="#{formatTime defaultTimeLocale "%Y/%m/%d" _sDate}">
     <input type=hidden name=amount  value="#{tshow $ abs _sAmount}">
@@ -1150,11 +1155,9 @@ generatePrefillCustomerPaymentLink faURL current target memo t@B.Transaction{..}
     <input type=hidden name=customer_id value="#{tshow target}">
     <input type=hidden name=memo_  value="#{memo}">
     <span>
-       #{transactionIcon $ ST_CUSTPAYMENT}
-       <span.guessed-value>#{decodeHtmlEntities targetName}
-    <button.btn.btn-sm.btn-danger>Save
+    #{saveButton}
     |]
-  return $ ToRec t  (Just html)
+  return $ ToRec t {B._sType = show (fromEnum ST_CUSTPAYMENT)}  (Just save) (Just object)
 generatePrefillCustomerPaymentLink faURL current target memo t@B.Transaction{..} = return $ toRec t
 
 -- | Create rules for supplier and customer based on previous payment

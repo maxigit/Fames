@@ -17,6 +17,8 @@ import           Data.Time ( Day
                            , diffDays
                            -- , addGregorianMonthsClip
                            )
+import qualified FA as FA
+import Database.Persist(Entity(..))
 
 -- * Date calculator
 calculateDate :: DateCalculator -> Day -> Day
@@ -85,7 +87,7 @@ nextWeekDay :: DayOfWeek -> Day -> Day
 nextWeekDay  weekDay day = calculateDate (NextDayOfWeek weekDay weekDay) (addDays (-1) day)
   
 
--- * Helper (not using calculateDate)
+-- ** Helper (not using calculateDate)
 -- Adjust the start tax year to be in the
 -- same tax year as the given day
 adjustTaxYear :: Start -> Day -> Day
@@ -121,7 +123,7 @@ toYear d = y where (y, _, _ ) = toGregorian d
 previousMonthStartingAt :: Int -> Day -> Day
 previousMonthStartingAt d day = addGregorianMonthsClip (-1) $  calculateDate (DayOfMonth d d) day
 
--- * Date Folding
+-- ** Date Folding
 -- | Used to project a given a day into a given period. Useful for comparing or charting
 -- sales for different year.
 -- example 2017/03/01 for year starting on 2018/08/01 will be projected to 2018/03/01 (day) period_start 2017/01/01
@@ -166,7 +168,7 @@ foldTime (FoldWeekly) day0 = let
   day = nextWeekDay w (fromGregorian 2018 01 01)
   in (day, Start periodStart)
 
--- * Usefull
+-- ** Usefull
 previousVATQuarter :: Day -> (Day, Day)          
 previousVATQuarter day =  (start, end) where
   begMonth = calculateDate BeginningOfMonth day
@@ -176,3 +178,18 @@ previousVATQuarter day =  (start, end) where
   monthOffset = (month- 1) `mod` 3
   start = calculateDate (AddMonths (-monthOffset-3))  begMonth
   end = foldr (calculateDate) start [EndOfMonth, AddMonths 2]
+-- * Gl Transaction Releated
+data DebitCredit = Debit | Credit deriving (Eq, Read, Show, Ord, Enum, Bounded)
+
+class HasDebitCredit a where
+  debitCredit :: a -> DebitCredit
+
+instance HasDebitCredit FA.GlTran  where
+   debitCredit FA.GlTran{..} | glTranAmount > 0 = Debit
+                             | otherwise = Credit
+  
+instance (HasDebitCredit a) => HasDebitCredit (Entity a) where
+  debitCredit = debitCredit . entityVal
+
+isDebit :: HasDebitCredit a => a ->  Bool
+isDebit = ( == Debit) . debitCredit

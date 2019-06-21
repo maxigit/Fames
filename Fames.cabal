@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c6d5c55d416dd9c66c49554f99ea567bf23e515cddd284fe209f1b4ddfb1fa47
+-- hash: 2dd436bf25c1bd64bfe6caa074493918d8dc1f07bf7b167949f491fdf8675929
 
 name:           Fames
 version:        0.0.1
@@ -29,7 +29,7 @@ library
       fay-shared
   default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures NamedWildCards
   build-depends:
-      Decimal >=0.4.2 && <0.5
+      Decimal >=0.5.1 && <0.6
     , Glob
     , Metamorphosis >=0.1.0.1
     , aeson >=0.6 && <1.3
@@ -92,6 +92,7 @@ library
     , split
     , streaming-commons
     , tabular >=0.2.2.7 && <0.3
+    , tagged
     , tagsoup >=0.14.1 && <0.15
     , template-haskell
     , temporary
@@ -148,6 +149,10 @@ library
       Handler.GL.Payroll.Import
       Handler.GL.Payroll.QuickAdd
       Handler.GL.Payroll.Summary
+      Handler.GL.TaxReport
+      Handler.GL.TaxReport.HMRC
+      Handler.GL.TaxReport.Processor
+      Handler.GL.TaxReport.Types
       Handler.Home
       Handler.Items
       Handler.Items.Batches
@@ -189,6 +194,7 @@ library
       Settings
       Settings.StaticFiles
       Util.Cache
+      Util.Decimal
       Util.EnumTree
       Util.SameCons
       Util.Transformable
@@ -199,6 +205,7 @@ library
       WarehousePlanner.Display
       WarehousePlanner.Optimum
       WarehousePlanner.Report
+      Curl
       GL
       GL.FA
       GL.Payroll.Parser
@@ -206,6 +213,9 @@ library
       GL.Payroll.Settings
       GL.Payroll.Timesheet
       GL.Receipt
+      GL.TaxReport
+      GL.TaxReport.Settings
+      GL.TaxReport.Types
       GL.Utils
       Items
       Items.Internal
@@ -230,7 +240,7 @@ executable Fames
   default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures NamedWildCards
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -j6
   build-depends:
-      Decimal >=0.4.2 && <0.5
+      Decimal >=0.5.1 && <0.6
     , Fames
     , Glob
     , Metamorphosis >=0.1.0.1
@@ -294,6 +304,7 @@ executable Fames
     , split
     , streaming-commons
     , tabular >=0.2.2.7 && <0.3
+    , tagged
     , tagsoup >=0.14.1 && <0.15
     , template-haskell
     , temporary
@@ -321,6 +332,7 @@ executable Fames
   else
     ghc-options: -O2
   other-modules:
+      Curl
       GL
       GL.FA
       GL.Payroll.Parser
@@ -328,6 +340,9 @@ executable Fames
       GL.Payroll.Settings
       GL.Payroll.Timesheet
       GL.Receipt
+      GL.TaxReport
+      GL.TaxReport.Settings
+      GL.TaxReport.Types
       GL.Utils
       Items
       Items.Internal
@@ -354,7 +369,7 @@ test-suite ghcid
   default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures NamedWildCards
   ghc-options: -w -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      Decimal >=0.4.2 && <0.5
+      Decimal >=0.5.1 && <0.6
     , Glob
     , Metamorphosis >=0.1.0.1
     , QuickCheck
@@ -422,6 +437,7 @@ test-suite ghcid
     , split
     , streaming-commons
     , tabular >=0.2.2.7 && <0.3
+    , tagged
     , tagsoup >=0.14.1 && <0.15
     , template-haskell
     , temporary
@@ -469,6 +485,7 @@ test-suite ghcid
       Planner.InternalSpec
       RoleSpec
       TestImport
+      Util.DecimalSpec
       WH.BarcodeSpec
       WH.PackingList.InternalSpec
       BankReconciliate
@@ -509,6 +526,10 @@ test-suite ghcid
       Handler.GL.Payroll.Import
       Handler.GL.Payroll.QuickAdd
       Handler.GL.Payroll.Summary
+      Handler.GL.TaxReport
+      Handler.GL.TaxReport.HMRC
+      Handler.GL.TaxReport.Processor
+      Handler.GL.TaxReport.Types
       Handler.Home
       Handler.Items
       Handler.Items.Batches
@@ -550,10 +571,12 @@ test-suite ghcid
       Settings
       Settings.StaticFiles
       Util.Cache
+      Util.Decimal
       Util.EnumTree
       Util.SameCons
       Util.Transformable
       Util.ValidField
+      Curl
       GL
       GL.FA
       GL.Payroll.Parser
@@ -561,6 +584,9 @@ test-suite ghcid
       GL.Payroll.Settings
       GL.Payroll.Timesheet
       GL.Receipt
+      GL.TaxReport
+      GL.TaxReport.Settings
+      GL.TaxReport.Types
       GL.Utils
       Items
       Items.Internal
@@ -583,7 +609,7 @@ test-suite test
   default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures NamedWildCards
   ghc-options: -w -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      Decimal >=0.4.2 && <0.5
+      Decimal >=0.5.1 && <0.6
     , Fames
     , Glob
     , Metamorphosis >=0.1.0.1
@@ -624,7 +650,6 @@ test-suite test
     , gitrev >=0.1.3.1 && <1.4
     , hjsmin >=0.1 && <0.3
     , hspec >=2.0.0
-    , hspec-stack-rerun
     , http-conduit >=2.1 && <2.3
     , http-types >=0.9
     , lifted-async
@@ -652,6 +677,7 @@ test-suite test
     , split
     , streaming-commons
     , tabular >=0.2.2.7 && <0.3
+    , tagged
     , tagsoup >=0.14.1 && <0.15
     , template-haskell
     , temporary
@@ -699,6 +725,7 @@ test-suite test
       Planner.InternalSpec
       RoleSpec
       TestImport
+      Util.DecimalSpec
       WH.BarcodeSpec
       WH.PackingList.InternalSpec
       Paths_Fames

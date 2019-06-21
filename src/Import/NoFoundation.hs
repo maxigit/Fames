@@ -18,8 +18,12 @@ module Import.NoFoundation
     , formatDouble
     , formatQuantity
     , formatHours
+    , formatTime0
     , showTransType
     , showShortTransType
+    , transactionIcon
+    , transactionIconSpan
+    , transNoWithLink
     , decodeHtmlEntities
     , groupAsMap
     , groupAscAsMap
@@ -28,8 +32,11 @@ module Import.NoFoundation
     , fanl, fanr
     , alignSorted
     , wordize
+    , commasFixedWith
+    , commasFixedWith'
     , commasFixed
     , commasFixed'
+    , commasDecimal
     , mapWithKeyM
     , pattern RJust
     , pattern RNothing
@@ -58,6 +65,7 @@ import Formatting as F
 import Data.Align(align)
 import Data.Monoid(First(..))
 import Data.Maybe (fromJust)
+import Data.Decimal
 
 import Text.Printf(printf)
 
@@ -139,31 +147,52 @@ formatHours duration = let
   p2 = left 2 '0' %. F.int
   in sformat (p2 % ":" % p2) h (round $ 60*m :: Int)
   
--- ** Formating lforb
--- | display a amount to 2 dec with thousands separator
-commasFixed = later go where
-  go x = let
-    (n,f) = properFraction x :: (Int, Double)
-    b = (commas' % "." % (left 2 '0' %. int)) -- n (floor $ 100 *  abs f)
-    in bprint b n (floor $ 100 *  abs f)
+formatTime0 format time = fromString $ formatTime defaultTimeLocale format time
 
--- | Sames as commasFixed but don't print commas if number is a whole number
-commasFixed' = later go where
+-- ** Formating lforb
+commasFixedWith :: Integral a => (Double -> a) -> Int -> Format r (Double -> r)
+commasFixedWith roundFn digit = later go where
   go x = let
     (n,f) = properFraction x :: (Int, Double)
-    frac =  floor (100 * abs f)
+    b = (commas' % "." % (left digit '0' %. int)) -- n (floor $ 100 *  abs f)
+    in bprint b n (roundFn $ (10^digit) *  abs f)
+
+-- | display a amount to 2 dec with thousands separator
+commasFixed :: Format r (Double -> r)
+commasFixed = commasFixedWith floor 2
+-- | Sames as commasFixed but don't print commas if number is a whole number
+commasFixed' :: Format r (Double -> r)
+commasFixed' = commasFixedWith' floor 2
+
+commasFixedWith' roundFn digit = later go where
+  go x = let
+    (n,f) = properFraction x :: (Int, Double)
+    frac =  roundFn ((10^digit) * abs f)
     fracB = if frac < 1
             then fconst mempty
-            else "." % left 2 '0' %. int
+            else "." % left n '0' %. int
     b = (commas' % fracB) -- n (floor $ 100 *  abs f)
     in bprint b n frac
 
 -- | Like Formatting.commas but fix bug on negative value
 -- -125 - -,125
+
 commas' = later go where
   go n = if n < 0
          then bprint ("-" % commas) (abs n)
          else bprint commas  n
+
+-- | Display a decimal number with comma (thousand separator)
+commasDecimal = later go where 
+  go x = let
+    digit = fromIntegral $ decimalPlaces x :: Int
+    (n, f) = (fromIntegral $ decimalMantissa x :: Int) `divMod` (10^digit)
+    b = (commas' % "." % (left digit '0' %. int)) -- n (floor $ 100 *  abs f)
+    b0 = commas'
+    in case digit of
+      0 -> bprint b0 n -- no decimal  -> no dot 
+      _ -> bprint b n f
+
 -- * FA utilit
 showTransType :: IsString t => FATransType -> t
 showTransType ST_JOURNAL = "Journal Entry"
@@ -220,6 +249,97 @@ showShortTransType ST_SALESORDER = "S->@"
 showShortTransType ST_SALESQUOTE = "S->'"
 showShortTransType ST_COSTUPDATE = "CU"
 showShortTransType ST_DIMENSION = "D"
+
+data IconType = ICustomer
+              | ISupplier
+              | IStock
+              | IBank
+              | IAny
+              | IGL
+              | IInLeft
+              | IInRight
+              | IOutLeft
+              | IOutRight
+              | IInOut
+              | IOrder  -- loc
+              deriving (Eq, Show, Ord, Enum)
+
+-- order ICustomer -> Stock | Bank | GL | Supplier
+transactionIcons :: FATransType -> [IconType]
+transactionIcons eType = case eType of
+  ST_JOURNAL -> [IGL, IInOut, IGL ]
+  ST_BANKPAYMENT -> [ IBank, IOutRight, IAny ]
+  ST_BANKDEPOSIT -> [ IBank, IInLeft, IAny ]
+  ST_BANKTRANSFER -> [ IBank, IInOut, IBank ]
+  ST_SALESINVOICE -> [ ICustomer, IInRight, IGL ]
+  ST_CUSTCREDIT ->   [ ICustomer, IOutLeft, IGL ]
+  ST_CUSTPAYMENT -> [ ICustomer, IInRight, IBank ]
+  ST_CUSTDELIVERY -> [ ICustomer, IOutLeft, IStock ]
+  ST_LOCTRANSFER -> [ IStock, IInOut, IStock ]
+  ST_INVADJUST -> [ IStock, IInOut, IGL  ]
+  ST_PURCHORDER -> [ IOrder, IOutRight, ISupplier ]
+  ST_SUPPINVOICE -> [ IGL, IOutRight , ISupplier ]
+  ST_SUPPCREDIT -> [ IGL, IInLeft, ISupplier ]
+  ST_SUPPAYMENT -> [ IBank, IOutRight, ISupplier ]
+  ST_SUPPRECEIVE -> [ IStock, IInLeft, ISupplier ]
+  ST_WORKORDER -> [ IInRight, IOrder ]
+  ST_MANUISSUE -> [ ]
+  ST_MANURECEIVE -> [ IInRight, IStock]
+  ST_SALESORDER -> [ ICustomer, IInRight,  IOrder ]
+  ST_SALESQUOTE -> [ ICustomer, IInRight,  IOrder ]
+  ST_COSTUPDATE -> [  ]
+  ST_DIMENSION -> [  ]
+  
+itypeToIcon :: IconType -> Html
+itypeToIcon iType = [shamlet| <span.glyphicon class="glyphicon-#{glyph} #{class_}"> |]
+  where
+    glyph, class_ :: Text
+    (glyph, class_) = case iType of
+       ICustomer -> ("user", "text-primary")
+       ISupplier -> ("user", "text-info")
+       IStock -> ("home", "text-muted")
+       IBank -> ("stats", "text-muted")
+       IAny -> ("globe", "text-info")
+       IGL -> ("list", "text-muted")
+       IInLeft -> ("arrow-left", "text-success")
+       IInRight -> ("arrow-right", "text-success")
+       IOutLeft -> ("arrow-left", "text-danger")
+       IOutRight -> ("arrow-right", "text-danger")
+       IInOut -> ("transfer", "")
+       IOrder  -> ("shopping-cart", "text-muted")
+  
+transactionIcon :: FATransType -> Html
+transactionIcon eType = 
+  let ttype = showShortTransType eType :: Text
+  in [shamlet|
+       $case transactionIcons eType
+         $of []
+           #{ttype}
+         $of icons
+           $forall i <- icons
+             #{itypeToIcon i}
+          |]
+transactionIconSpan  :: FATransType -> Html
+transactionIconSpan eType =
+  [shamlet|
+     <span data-toggle="tooltip" title="#{longType}">
+       #{transactionIcon eType}
+       <span.hidden> #{longType}
+  |] where
+      longType = showTransType eType :: Text
+  
+ 
+transNoWithLink :: (FATransType -> Int -> Text) -> Text -> FATransType -> Int -> Html
+transNoWithLink urlForFA' class_ transType transNo = [shamlet|
+ <a href="#{urlForFA' transType transNo}"
+    class="#{class_}"
+    target=_blank
+    data-toggle="tooltip" 
+    title="#{longType} ##{tshow $ transNo}"
+    >##{tshow transNo}
+  |] where
+         longType = showTransType transType :: Text
+ 
 -- * Html 
 decodeHtmlEntities :: Text -> Text
 decodeHtmlEntities s = maybe s TS.fromTagText (headMay $ TS.parseTags s)

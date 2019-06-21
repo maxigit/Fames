@@ -14,7 +14,7 @@ check calculator s1 s2 = let
 
 
 spec = dateSpec >> periodSpec
-dateSpec = describe "@DateCalculator @current" $ do
+dateSpec = describe "@DateCalculator" $ do
   context "AddDays" $ do
     it "get same day" $ do
       check (AddDays 0) "2018-03-27" "2018-03-27"

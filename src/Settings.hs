@@ -29,6 +29,7 @@ import  Role
 import  CategoryRule
 import WH.Barcode
 import GL.Payroll.Settings
+import GL.TaxReport.Settings
 import GL.Receipt
 import qualified Data.Map as Map
 import Lens.Micro
@@ -108,6 +109,7 @@ data AppSettings = AppSettings
     -- each files will be concatenated in alphabetical order.
     , appReceiptTemplates :: Map Text ReceiptTemplate
     , appReportDeduceTax :: Bool -- ^ weither to deduce tax from tax included transaction
+    , appTaxReportSettings :: Map Text TaxReportSettings
     , appFavicon:: Text
     } deriving Show
 
@@ -232,6 +234,9 @@ instance FromJSON AppSettings  where
         appPlannerDir <- o .:? "planner-dir" .!= "Planner"
         appReceiptTemplates <- o .:? "receipt-templates" .!= Map.fromList []
         appReportDeduceTax <- o .:? "report-deduce-tax" .!= False
+        appTaxReportSettings' <- o .:? "tax-reports" .!= Map.fromList []
+        let appTaxReportSettings  = either (error . unpack) id $ traverse alterTaxReportSettings appTaxReportSettings'
+        
           
         appFavicon <- o .:? "favicon" .!= (if defaultDev then "Orange" else "" )
         

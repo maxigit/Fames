@@ -138,7 +138,7 @@ valueFor _ (ItemEvent ie qoh stake mod_) "Quantity On Hand" =
   in case ie of
        (Left move) | (toEnum . FA.stockMoveType $ tMove move) `elem` [ST_LOCTRANSFER, ST_INVADJUST]
                       && found == 0
-                      && mod_ == 0 -> Just (badgeSpan' okBadge qoh "", [])
+                      && mod_ == 0 -> Just (badgeSpan' okBadge qoh "", ["qoh"])
        _ -> Just ( -- toHtml (formatQuantity qoh)
                   badgeSpan' qohBadge qoh ""
                   >> badgeSpan' modBadge (- mod_) ""
@@ -159,7 +159,14 @@ valueFor _ (ItemEvent ie qoh (Just stake) mod_) "Stocktake" =
   in Just (stake' >> badgeSpan' modBadge mod_ "" >>  badgeSpan' outBadge lost "", [])
 valueFor _ (ItemEvent _ _ Nothing _) "Stocktake" = Nothing
 valueFor (urlForFA', renderUrl) (ItemEvent (Left (Move FA.StockMove{..} _ info adjM pickers packers)) __qoh __stake _)  col = case col of
-  "Type" -> Just (showTransType $ toEnum stockMoveType, [])
+  "Type" -> let direction = case stockMoveQty `compare` 0 of
+                              LT -> "text-danger" :: Text
+                              EQ -> ""
+                              GT -> "text-success"
+            in Just ([shamlet|
+                             <span class="#{direction}">
+                              #{transactionIconSpan $ toEnum stockMoveType}
+                             |], [])
   "#" -> Just ([shamlet|<a href="#{urlForFA' (toEnum stockMoveType) stockMoveTransNo}" target=_blank>#{stockMoveTransNo}|], [])
   "Reference" -> Just (case adjM of
                          Nothing -> toHtml (stockMoveReference)
@@ -183,7 +190,10 @@ valueFor (_, renderUrl) (ItemEvent (Right adj ) __qoh __stake _) col = let
   lost = max 0 diff
   found = max 0 (-diff)
   in case col of
-  "Type" -> Just ("Stocktake", [])
+  "Type" -> Just ([shamlet|
+                          <span.glyphicon.glyphicon-barcode.text-muted>
+                          <span.glyphicon.glyphicon-flash>
+                          <span.glyphicon.glyphicon-home.text-muted>|], [])
   "#" -> ( \a -> let adj_ =  stockAdjustmentDetailAdjustment a
                      adjId =  unSqlBackendKey $ unStockAdjustmentKey adj_
                  in ([hamlet|<a href="@{WarehouseR (WHStockAdjustmentViewR adjId)}" target=_blank>#{adjId}|] renderUrl

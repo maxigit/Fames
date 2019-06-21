@@ -8,6 +8,8 @@
 
 .data-toggler.collapsed:after
   content: '\e080'
+.collapsed .data-toggler:after
+  content: '\e080'
 
 span.guessed-value
   color:blue
@@ -34,6 +36,14 @@ table.table-striped
       background: white
     tr:hover
         background: lightgray
+    tr.odd.bg-danger
+      background: #{paleRed2} !important
+    tr.odd.bg-warning
+      background: #{paleAmber2} !important
+    tr.even.bg-danger
+      background: #{paleRed} !important
+    tr.even.bg-warning
+      background: #{paleAmber} !important
 
 .devel
   .navbar-static-top
@@ -46,3 +56,11 @@ table.table-striped
       display: none
   .sidebar-collapse
       display: block !important
+
+.negative-good .negative, .positive-good .positive, .negative-good.negative, .positive-good.positive
+  background: #dff0d8
+  color: #93c54b
+
+.negative-bad .negative, .positive-bad .positive, .negative-bad.negative, .positive-bad.positive
+  background: #fedede
+  color: #d0534f

@@ -36,6 +36,16 @@
 
   /vat GLVATR GET !vat !group=VAT !title=Main
   /vat/ecsl GLVATEcslR GET POST !vat !title=ECSL
+  /tax GLTaxReportsR  GET !tax !title=Tax_Reports
+  /tax/new/#Text GLNewTaxReportR POST !tax !save-tax
+  /tax/view/#Int64/#Maybe-TaxReportViewMode GLTaxReportR GET POST !tax
+  /tax/details/#Int64 GLTaxReportDetailsR GET !internal !tax
+  /tax/collect/#Int64 GLTaxReportCollectDetailsR POST !tax !save-tax
+  /tax/reject/#Int64 GLTaxReportRejectDetailsR POST !tax !save-tax
+  /tax/reopen/#Int64 GLTaxReportReopenR POST !tax !save-tax
+  /tax/pre-submit/#Int64/ GLTaxReportPreSubmitR POST !tax !tax-submit
+  /tax/submit/#Int64/ GLTaxReportSubmitR POST !tax !tax-submit
+  /tax/oauth GLTaxReportOAuthR GET 
 
   /check GLCheckR GET POST !check !group=Check !title=Check
   /check/debtor_trans/#Int64/#Int64 GLCheckDebtorTransR GET !check 

@@ -21,15 +21,18 @@ module Handler.Util
 , generateLabelsResponse
 , firstOperator
 , badgeSpan
-, blueBadgeBg , grayBadgeBg , greenBadgeBg , amberBadgeBg , redBadgeBg , blackBadgeBg
-, paleRed, paleGreen, paleBlue, paleAmber
 , tshowM
 , showDouble
 , panel
 , infoPanel
 , dangerPanel
+, warningPanel
 , primaryPanel
-, datatable, forDatatable, datatableNoPage, (<>.)
+, infoPanel'
+, dangerPanel'
+, warningPanel'
+, primaryPanel'
+, datatable, forDatatable, datatableNoPage, (<>.), (-.)
 , splitSnake
 , basePriceList
 , timeProgress
@@ -69,6 +72,8 @@ module Handler.Util
 , renderField
 , allCustomers
 , allSuppliers
+, entityNameH
+, entityNameMH
 , todayH
 , fiscalYearH
 , currentFAUser
@@ -500,21 +505,6 @@ badgeSpan badgeWidth qty bgM klass = do
       q = fromMaybe qs $  stripSuffix ".0" qs
   [shamlet|<span.badge class=#{klass} style="#{style}; #{bg}">#{q}|]
 
--- ** BadgeColour
-blueBadgeBg , grayBadgeBg , greenBadgeBg , amberBadgeBg , redBadgeBg , blackBadgeBg :: Text
-blueBadgeBg = "#29abe0"
-grayBadgeBg = "#cccccc"
-greenBadgeBg = "#93c54b"
-amberBadgeBg = "#f47c3c"
-redBadgeBg = "#d9534f"
-blackBadgeBg = "#000000"
-
-paleRed, paleGreen, paleBlue, paleAmber :: Text
-paleRed = "#f2dede"
-paleGreen = "#dff0d8"
-paleBlue = "#d0edf7"
-paleAmber = "#fcf8e3"
-
 -- * Progress bars
 -- Display a time range within a global time range
 -- (so that, all time range within the same page matches)
@@ -577,18 +567,31 @@ toHtmlWithBreak t  = [shamlet|
 showDouble :: Double -> Html
 showDouble x = toHtml $ ( (printf "%.4f" x) :: String )
   
-panel :: Text -> Text -> Widget -> Widget
-panel panelClass title body = [whamlet|
+-- | Display a panel. Makes it collapsible if an id is given
+panel :: Text -> Maybe Text -> Text -> Widget -> Widget
+panel panelClass Nothing title body = [whamlet|
   <div.panel class=#{panelClass}>
     <div.panel-heading>
       <h3>#{title}
     <div.panel-body>
       ^{body}
 |]
-  
-infoPanel = panel "panel-info"
-dangerPanel = panel "panel-danger"
-primaryPanel = panel "panel-primary"
+panel panelClass (Just panelId) title body = [whamlet|
+  <div.panel class=#{panelClass}>
+    <div.panel-heading data-toggle="collapse" data-target="##{panelId}">
+      <h3.data-toggler>#{title}
+    <div.panel-body.in id="#{panelId}">
+      ^{body}
+|]
+infoPanel= infoPanel' Nothing
+dangerPanel = dangerPanel' Nothing
+warningPanel= warningPanel' Nothing
+primaryPanel= primaryPanel' Nothing
+
+infoPanel' = panel "panel-info"
+dangerPanel' = panel "panel-danger"
+warningPanel' = panel "panel-warning"
+primaryPanel' = panel "panel-primary"
 -- | split snake
 splitSnake ::  Text -> Text
 splitSnake t = pack $ intercalate " " $ Split.split  (Split.keepDelimsL $ Split.whenElt isUpper) (unpack t)
@@ -603,6 +606,11 @@ datatableNoPage = (map ("class",) $ words "table table-hover table-striped datat
 klass <>.  attrs = mapToList $ insertWith go "class" klass m
   where m = mapFromList attrs :: Map Text Text
         go old new = old <> " " <> new
+-- Remove a class from a list of attributes
+(-.) :: [(Text, Text)] -> Text -> [(Text, Text)]
+attrs -.  klass = mapToList $ Map.adjust go "class" m
+  where m = mapFromList attrs :: Map Text Text
+        go = unwords . filter (/= klass) . words
 -- * Cached Value accross session
 -- cacheEntities :: PersistEntity e => Text -> Bool -> Handler (Map (Key e) e )
 cacheEntities cacheKey force = cache0 force cacheForEver cacheKey $ do
@@ -624,6 +632,24 @@ allCustomers force = cacheEntities "all-customer-list" force
 
 allSuppliers :: Bool -> Handler (Map (Key  FA.Supplier) FA.Supplier)
 allSuppliers force = cacheEntities "all-supplier-list" force
+
+-- | Function  return the name of customer or a supplier
+entityNameMH :: Bool -> Handler (FATransType -> Maybe Int64 -> Maybe Text)
+entityNameMH force = do
+  customerMap <- allCustomers force
+  supplierMap <- allSuppliers force
+  let
+      go trans (Just cust ) | trans `elem` customerFATransactions
+                            , Just customer <- lookup (FA.DebtorsMasterKey $ fromIntegral cust) customerMap
+                            = Just (decodeHtmlEntities $ FA.debtorsMasterName customer)
+      go trans (Just supp ) | trans `elem` supplierFATransactions
+                            , Just supplier <- lookup (FA.SupplierKey $ fromIntegral supp) supplierMap
+                            = Just (decodeHtmlEntities $ FA.supplierSuppName supplier)
+      go _ _ = Nothing
+  return go
+  
+entityNameH :: Bool -> Handler (FATransType -> Maybe Int64 -> Text)
+entityNameH force = fromMaybe "" <$$$> entityNameMH force
 
 -- *** Current User
 currentFAUser :: Handler (Maybe FA.User)

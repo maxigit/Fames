@@ -1018,19 +1018,16 @@ commonCss = [cassius|
     writing-mode: sideways-lr
 .just-right
   text-align: right
-.negative-good .negative, .positive-good .positive, .topOne
-  background: #dff0d8
-  color: #93c54b
 .topTwo
   background: #d0edf7
   color: #29abe0
-.negative-bad .negative, .positive-bad .positive
-  background: #fedede
-  color: #d0534f
 span.RunSum::before
   content: ">>"
 span.RunSumBack::before
   content: "<<"
+.topOne
+  background: #dff0d8
+  color: #93c54b
                    |]
 tableProcessor :: ReportParam -> NMap (Sum Double, TranQP) -> Widget 
 tableProcessor param@ReportParam{..} grouped = do

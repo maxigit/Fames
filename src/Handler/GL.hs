@@ -6,3 +6,5 @@ module Handler.GL
 import Handler.GL.Payroll as X
 import Handler.GL.GLEnterReceiptSheet as X
 import Handler.GL.Check as X
+import Handler.GL.TaxReport as X
+

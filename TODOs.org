@@ -1,414 +1,4 @@
-* DONE Sales Order report :  [5/5]
-  CLOSED: [2019-02-22 Fri 09:28]
-  - [X] Bug: not displaying summary (total) column as above
-  - [X] Bug: stock_id used to filter sku not working (for sales_orders)
-  - [X] Bug: category join not working
-  - [X] use quantity left instead of total quantity (from order details)
-Useful if we need to preview stock in the future (use in conjunction with delivery date)
-  - [X]  add bool to put forecast in sales or purchases
-Forecast are purchases, if we want to see if the forecast is enough to cope with the sales (we forecast what to buy)
-Forecast is a sales if we want to check if the stock is enough (we forecast what we will sales)
-* DONE Sales Order report :  [4/4]
-  CLOSED: [2019-02-21 Thu 15:19]
-  - [X] Sort QSales, how do we it ?
-    - [X] Have a special entry SalesOrder
-    - [X] and map it either to Sales or Purchase depending on parameters
-    - [X] Display in summary
-  - [X] sort speed problem
-    +- [ ]  use normal regex+
-    +- [ ]  don't load map+
-    - [X]  break loading of map
-  - [X]  add order category to order
-  - [X] param to load order or not
-    +- [ ] at that point, decide what we do we them+
-    Example, inward, outward, or sales, forecast , purchase ? etc 
-    +- [ ] update forecast param to be similar to orders+
-* TODO Planner [3/10]
-  - [X] Display style with different box sizes
-    - [X] filter with report param
-  - [ ] Display style boxes
-  - [ ] use tag to overwrite box dimension
-    - [ ] make sure virtual tags are updated
-  - [ ] clear colours ? nocolour ? -colour*
-  - [ ] filter shelfves with report param >
-  - [ ] filter moves report with report param
-  - [ ] generate move per single box
-  - [ ] add lxwxh syntax to orientation (limit stack up )
-    - [ ] allow diffenrt lxwxh for individual orientation
-  - [X] remove save buttons and co
-  - [X] make nav title nicer
-** [ ] Replace tags with regexp
-   - [X]  use regexp
-   - [X] update doc
-   - +[ ] add virtual field+
-     - +[ ] with format string+
-* TODO Chart
-** Today [12/24] 
-   - [ ] Big Rank Refactoring
-     - [ ]  bug when sorting period
-     When period are sorted, 2016 can be rank 1 of for different product
-     this result in either 
-       - a product being displayed on the wrong year (but with the same rank) if we only use rank in Eq, Show
-       - period been displayed more than onc  e
-     - [ ]  add a period weight ?
-     - [ ] Remove rank from NMap
-       - [ ] Add weight instead (but in the value not in the key)
-       - [ ]  sort when displaying ? (start from child) then sort afterward ?
-       - [ ] use DataTable
-   -[X] bugs (from Ellie)
-    - [X] avg price wrong for summary
-    - [X] period not working
-    - [X]  date range not working when empty
-    - [X] justify summary table right
-    - [X] 150 -> ,150
-    - [X] display - in red
-      - [X] done
-      - [X] change so that in can be in green if good (but unexpected)
-    - [-] Add margin to summary
-      - [X]  change heading
-    - [x] ADd best Init and best Tail
-    - [X] take adjustmen into account in left over and return calculation
-    - [X]  rename table to summary
-      - [X]  readd sliding year in options or is period enough ?
-    - [X] Adjustment wrond way ?
-    - [X]  Add formating function (% or normal, or forbidden)
-      - [X] percentage column, total, row
-        - [X] total above ?
-        - [X] column
-        - [X] use different scale for %
-        - [X] Add rank
-    - [ ] display serie as column in table
-    - [ ] use full rupture for column
-so we can juxtapose 100% and real number
-   - [X] pivot table
-     display table as chart (same field) with formatin
-   - [ ] Use it in chart and pitov
-   - [ ] add formating inparam (per column)
-   - [X] annonymize amount/qty
-   - [ ] Permissions
-     - [ ] adjust report param
-       - [ ] annonymize amount/qty
-       - [ ] limit date
-   - [ ] Change date parameter to accept automatic date
-   - [ ] filter customers
-   - [ ] Dashboards
-   - [ ] remove styleToVar in Handler.Item.Common
-** previous [11/13] 
-   - [X] Stock category
-     - [X]  add prices and categories
-     - [X]  conjunction
-     - [X] to JSON
-     - [X] Display categories
-       - [X]  in pages
-       - [X]  As modal window ?
-   - [X] Finish margin
-     - [X] add max, total and average  option to residual
-     - [X]  fixes bug, showing an extra "level" when residual
-   - [X] memoize TranQP virtual fieed
-   - [X] add QPType as virtual field
-   - [ ] date `mod` year
-   - [X]  Remove semigroup constraints on NMap
-     - [X] load customer/supplier
-   - [X] Make generic map level Map (Dynamic) (Either Map Value)
-     - [X]  use serie
-     - [X] with probably custom Dynamic type as key
-     - [X]  readd sorted and limit
-     - [X] get date working as date not text
-     - [X] move sliding year function to date calculator
-   - [X] Update Form
-     This is important to speed up testing
-     - [X] One line for rupture
-     - [X] sensible Default
-   - [X] Replace supplier /customer with supplierCustmenr Either Int Int
-   - [ ] display margin in EVERY band as average (and or max)  (and possibly adjust all band the
-   - [X] style graph (line and marker) per field quantity, min-price etc ...
-   - [X] setup two axes on for quantity and the other for amount (margin ?) (runsum q and runsum amount)
-   - [X]instead of having 2nd field-value : tick-them all and use the correct axis
-   - [X] use same colour for 
-** tasks [4/9]
-  - [X] Regroup Customer/Supplier in one
-  - [X] Create table for categories and use it
-  - [ ] display quantity and amount in graph tooltip
-  - [ ] add global button (tab) to use bar, scatter etc ...
-  - [X] add rank
-  - [X] add running sum
-  - [ ] perf 
-    - are some Map strict (categorie ?) instead of being lazy
-  - [ ] display margin (total)
-    - add it as on of the value so it appears in a separate serie or band etc ...
-  - [ ] Add option to use TraceParam as panel/band instead of serie
-  - [X] csv pivot (use column rupture)
-* TODO Delete from item index
-** TODO Website 
-  - [ ] createAndInsertProductPrices prices prod'revMKeys
-    - [ ] (go DC.FieldDataCommercePriceT)  p'rKeys
-    - [ ] (go' DC.FieldRevisionCommercePriceT)  p'rKeys
-  - [ ] createAndInsertProductColours bases prod'revMKeys
-    - [ ] (go DC.FieldDataFieldColourT) p'rKeys
-    - [ ] (go' DC.FieldRevisionFieldColourT) p'rKeys
-  - [ ] createAndInsertProductTrimColours (trims) prod'revMKeys
-    - [ ] (go DC.FieldDataFieldTrimColourT) p'rKeys
-    - [ ] (go' DC.FieldRevisionFieldTrimColourT) p'rKeys
-  - [ ] createAndInsertProductStockStatus prod'revMKeys
-    - [ ] (newProductStockStatus (Just 70) DC.FieldDataFieldStockStatusT) p'rKeys
-    - [ ] (newProductStockStatus (Just 70) DC.FieldRevisionFieldStockStatusT) p'rKeys
-   - [ ] createAndInsertDCLinks displayId displayRev sku'p'rs
-    - [ ] (go DC.FieldDataFieldProductT) p'rS
-    - [ ] (go' DC.FieldRevisionFieldProductT) p'rS
-  - [ ] createAndInsertDCPrices priceMaps sku'p'rs = do
-        - [ ]  createAndInsertDCPriceFor 1 DC.FieldDataFieldPricePl01T (DC.FieldRevisionFieldPricePl01T)
-        - [ ] reateAndInsertDCPriceFor 2 DC.FieldDataFieldPricePl02T DC.FieldRevisionFieldPricePl02T
-        - [ ] reateAndInsertDCPriceFor 3 DC.FieldDataFieldPricePl03T DC.FieldRevisionFieldPricePl03T
-        - [ ] reateAndInsertDCPriceFor 4 DC.FieldDataFieldPricePl04T DC.FieldRevisionFieldPricePl04T
-        - [ ] reateAndInsertDCPriceFor 5 DC.FieldDataFieldPricePl05T DC.FieldRevisionFieldPricePl05T
-        - [ ] reateAndInsertDCPriceFor 6 DC.FieldDataFieldPricePl06T DC.FieldRevisionFieldPricePl06T
-        - [ ] reateAndInsertDCPriceFor 7 DC.FieldDataFieldPricePl07T DC.FieldRevisionFieldPricePl07T
-        - [ ] reateAndInsertDCPriceFor 8 DC.FieldDataFieldPricePl08T DC.FieldRevisionFieldPricePl08T
-        - [ ] reateAndInsertDCPriceFor 9 DC.FieldDataFieldPricePl09T DC.FieldRevisionFieldPricePl09T
-        - [ ] reateAndInsertDCPriceFor 10 DC.FieldDataFieldPricePl10T DC.FieldRevisionFieldPricePl10T
-        - [ ] reateAndInsertDCPriceFor 11 DC.FieldDataFieldPricePl11T DC.FieldRevisionFieldPricePl11T
-        - [ ] reateAndInsertDCPriceFor 12 DC.FieldDataFieldPricePl12T DC.FieldRevisionFieldPricePl12T
-        - [ ] reateAndInsertDCPriceFor 13 DC.FieldDataFieldPricePl13T DC.FieldRevisionFieldPricePl13T
-        - [ ] reateAndInsertDCPriceFor 14 DC.FieldDataFieldPricePl14T DC.FieldRevisionFieldPricePl14T
-** TODO - [ ] Prices
-** TODO PO PRices
-** TODO All
-* Web status missing
-Web items need 
-- product variation
-- prices
-- link
-When creating missing, we need of course
-to create all, but prices only can be missing,
-or link only 
-** Added manually to make it work
-- set revision_id in field_data_field_product
-Revision is for the product display 
-#+BEGIN_SRC sql
- update field_data_field_product set revision_id = 208 where field_product_product_id = 211943
-
-#+END_SRC
-#+BEGIN_SRC  sql
-  insert into field_revision_field_product
-  value ('node', 'product_display', 0, 207, 208, 'und', 24, 211943)
-
-#+END_SRC
-
-#+BEGIN_SRC sql
- insert into commerce_product_revision 
- (product_id, sku, title, revision_uid, status)
- VALUE (211943,'ML16-CF9-CAO', 'ML16-CF9 (Cameo)', 1, 1)
-
-#+END_SRC
-
-
-** Updating dC manualy
-*** insert
-- commerce_product with revision
-- commerce_product_revision
-- field_data_commerce_price
-- field_data_field_colour : ID of the colour
-- field_data_field_product
-- field_data_field_stock_status
-- field_revision_commerce_price
-- field_revision_field_colour
-- field_revision_field_product
-- field_revision_field_stock_status
-*** updated
-- node
-- node_counter
-- xmlsitemap
-* DONE Web status  price
-  CLOSED: [2017-08-14 Mon 18:54]
-- [X] pass salesTypes as argument and use it to count column
-- [X] don't fail if price table doesn't existing
-- [X] implement diff and create webprice from FA Prices list
-and set it to base
-- [X] filter inactive price list?
-* TODO to finish Items creation update
-** TODO fix bug check button not working
- When refreshing a page "Search" checkbox and style are not in synck
- The easiest would probably be to reset the checkboxes
- It makes sense, since if we change the filter, the already checked box are not
- relevant anymore.
-** TODO display price column name
-** TODO display purchase information
-as supplier description
-** TODO fill 0_items table on item creation
-** TODO add update button
-Update existing item to match base.
-**Important** don't forget to not update cost prices !!!
-Only on visible panel
-** TODO select column to update
-** TODO add disable/enable button
-*** TODO Needs running status
-** TODO add delete button
-** TODO Web status
-Only work if nothing has been entered
-*** TODO create
-*** TODO update
-*** TODO enable/disable
-* Todo History [4/9] <2017-06-24 Sat> 
-- [ ] bug bd1-sir ...
-- [X] Group Adjustment details
-in case of new + found
-- [ ] don't update stocktake on stock adjusment
-Done. but hardcoded
-The problem is to differentiate genuine loc transfer
-from delivery. Need from location
-- [ ] move stock adjustment at the end of the day ?
-but not delivery
-- [X] try clever algo to reorder moves within a day
-- [X] Add customer name
-- [X] Add supplier name
-- [ ] Add loc from 
-- [ ] add operator
-  - [ ] stocktake
-  - [ ] pick 
-  - [ ] pack
-- [ ] display in blue when adjustment matches stocktake
-* TODO StockAdjustment to FA<2017-06-07 Wed>
-- [X] update adjustment as processed
-- [X] record the link between FA transactions and Fames ones
-- [ ] moves hardcoded value to config file
-- [X ] check adjusted quantity is used instead of original one
-Works but behavior is weird if we got a delivery between stocktake and adjustment ...
-
-* TODO StockAdjustment to FA <2017-06-03 Sat> 
-- [-] use CURL lib to generate
-  - [X] generate StockAdjustment FA Object - which mapp to 
-  - [ ] generate StockRename
-  - [X] generate Item Transfert Object - no persistence
-- [X] Stock adjustmen
-- [X] item transfer
-- [ ] Add Reject/process button
-Items which are not processed (and don't need to) need to
-be marked somehow so we don't try to process them again.
-- [ ] Record FA transaction reference, in either StockAdjustment or details
-- [-] Adjust quantity to not generate negative stock
-  - [X] display it along old original quantity (textcart comment ?)
-  - [-] find way to calculate actual quantities to adjustment
-    - [X] just floor quantity to 0
-* TODO TODO<2017-05-20 Sat> 
-** DONE StockAdjustment
-   CLOSED: [2017-06-03 Sat 14:23]
-   - [X] add modulo
-   On generate adjusment modulo 6 (for example) optional
-** DONE Collect MOP lost items
-   CLOSED: [2017-06-03 Sat 14:23]
-** DONE generate quickcheck
-   CLOSED: [2017-06-03 Sat 14:24]
-Allow stocktake without barcode.
-similar to 0 takes but doesn't
-For example if 24 of a styles are in stock
-but only 5 are checked.
-We don't want to invalidate the last stocktake (and not the box)
-as it's indicate where (location and barcode) are the styles
-if needs to be.
-However, those items won't be taken into account when calculating 
-stock adjustement if they have been already adjusted.
-
-In fact, a stocktake can be seen as a queue for pending adjustement.
-The real information where things are is in the boxtake table.
-*** DONE change ZeroTake to QuickTake
-    CLOSED: [2017-05-21 Sun 08:07]
-- [X] make sure that only zerotakes discard boxes
-- [ ] make sure style, operator and date are carried over
-*** DONE reuse style, operator and date
-    CLOSED: [2017-06-03 Sat 14:24]
-* DONE <2017-03-04 Sat> 
-** Edit packing list [7/9]
-- [X] add message
- to tell the user the PL have been edited
-- [X] use PL reference as first order ref
-- [X] implement delete details
-- [X] write tests for "edit details" features
-- [X] refactor
-  - [X] remove all view routes use parameter instead
-    - [X] where to put PL types used by routes ?
-- [X] display parsing error nicely
-- [ ] use user textcart to fill form on error
-- [ ] +Allow empty PL+
-  - [ ] what to do with the document key ? (Can't be null)
-   Doesn't work. Using the same document twice generate an error.
-- [-] edit PL info (not details)
-  - [ ] write tests
-  - [X] implement
-- [X] update document key table ?
-  - [X] easy when replacing
-
-* TODO <2017-01-08 Sun> 
-- [X] refactor stocktake to validate and save on the same workflow
-- [X] check stocktake dates in stockadj page
-- [ ] filter stockadj by 
-  - [ ] date
-  - [ ] stocktake
-- [X] add =complete style= button
-- [ ] add stocktake date if needed
-  but probably not as it's in the file.
-- [X] check override erase everything
-Doesn't, as it's not an update. It only overrides barcodes
-Maybe it should.
-- [  filter stocktake by
-  - [ ] style
-  - [ ] 
-- [ ] link stock_id in stock adj to stocktake 
-* PL
-- [ ] TODO check groups are valid
-- [-] deliver boxes
-  - [X] mark them as deliver
-  - [ ] generate automatic stocktake
-    Boxtakess are generated. We could instead generate a stocktake sheet
-to upload manually.
-* Features
-** TODO Stock Adjustment [0/2]
-*** TODO Generate stock adjustment from stock take amendment [0/2]
-- [ ] Generate the diff
-between the stock adj saved in db and the one which 
-should be generated from the actual stocktake.
-
-The new adj should set the parent to the original
-
- - [ ] add *parent* field in stock_adjustement
- - [ ] find all descendant
-When comparing expeced adj with one in DB , we need to not only 
-check for the adj to amend but also to all it's descendant and possibly ascendant.
-Basically, all adjustments related to the original one should be loaded and taken into consideration.
-** TODO Items
-Allows to create an update new variations.
-** Design
-The main page displays the (outer) cross product between selected styles and selected colours (from style)
-This done by filtering variations by regexp or SQL like expression the style and the colours.
-The first variations selected represent the style to overview, the second variations represent the colour to look at.
-For example the first selection returns
-
-| T-Shirt | Black |
-| T-Shirt | Blue  |
-| Cap     | Black |
-
-This correspond to T-Shirt and Cap[
-
-
-and the second selection returns
-| Hat | Black |
-| Hat | Red |
-This correspond to Black and Red.
-
-The *cross product* will be
-
-| T-Shirt | Black | Present |
-| T-Shirt | Blue | Extra |
-| T-Shrit | Red | Missing |
-| Cap | Black | Present |
-| Cap | Red | Missing |
-
-
-T-Shirt-Red and Cap-Rep are *missing*. T-Shirt blue is *extra* as not part of the selected colours.
-However Cap-Blue is not displayed as blue is not an expected colors
-
-
 * Bugs
-
 ** Drupal Commerce borked
 Delete Website items doesn't work if people have a pending order
 There is a link between commerce_line_item and the product
@@ -438,3 +28,326 @@ DC order interface.
  | Trace 1 | N/A    | Line  | Z/Subrow | Z/Size   | X            |
  | Trace 2 | N/A    | Line  | Z/Subrow | Z/Colour | Y            |
  | Trace 3 | N/A    | Line  | Z/Subrow |          | Z/Size       |
+* Tax Digital
+:PROPERTIES:
+:header-args: :engine mysql :dbhost 127.0.0.1 :dbuser root :dbpassword stag :database fa :dbport 3308
+:END:
+** Todo [/]
+*** TODO Generate all bucket when checking config
+    without that, evaluating a box with a bucket not present crashse
+*** TODO use bucket in config as well as bucket in data
+    when checking config
+    This way it will show bucket not present in the config but present in the data
+*** TODO check buckets are present in configuration when saving/publishing report
+*** TODO add tax selector in box rule  ?
+** Overiew
+Generate tax report with the following features, 
+ - generate Tax report
+ - save to HMRC (push with API And change status) or XML at the beginning
+ - visualise previous ones
+ - allows compta des modifs
+ id est include transaction entered in the past to be included in the present VAT Return
+(even though the transaction date belongs to a previous return)
+   - 1. By associating each tax_trans to a tax return in Fames
+     - PROS: 
+       - easy traceability
+        Can display easily transactions modified in the past
+       - allow two stages: Collect and then submit
+     - CONs:
+       - complicated
+       - need fames
+       - Might not work with transaction with have been modified (ex customer payment with PPD)
+       - Doesn't work straight of the box for voided transaction
+         => Solution : provides date to check in the past from 
+         - :thumbsup: reverse tax_trans_details instead of voiding to 0 TODO
+         - the same for update. Don't update
+   - 2. By saving last tax report figures (could be done in FA)
+     - PROS: 
+       - simpler
+       - can be done in FA
+     - CONs:
+       - rounding error ?
+       - no visibility on what changed
+   - 3. Always do from beginning of time: compute t2 - t1 by doing (t2 - t0) - (t1 -t0)
+     - CONs: 
+       - no visibility on what changed
+       - slow ?
+       - rounding error ?
+     - PROs:
+       - secure ?
+       - work even if transaction are amended or voided
+   - 4. associate date in FA (Tax report)
+     add return date into current tax report
+     for that we need to save at the some point the return date
+     and generate the report from  ....
+     
+     - PROs: quick.
+       - tax_trans_
+     - CONs:
+** FA vs Fames  
+:PROPERTIES:
+:COLUMNS:  %ITEM %MIGRATION %OVERALL_COMPLEXITY %RETURN %RETURN_STATUS %RETURN_PERIOD %PREVENT_RETURN_MODIFICATION %REPORT_LISTS %SAVE_REPORT %COLLECT_REPORT %MULTIPLE_REPORT
+:MIGRATION_ALL: hello
+:END:
+***  FA : trans_tax_details.return_date
+    :PROPERTIES:
+    :MIGRATION: add column
+    :COLLECT_REPORT:
+    :OVERALL_COMPLEXITY: Simple
+    :END:
+*** FAMEs :trans_tax_details.return_date
+    :PROPERTIES:
+    :MIGRATION: add column
+    :END:
+*** FAMEs :trans_tax_details.return_id
+    :PROPERTIES:
+    :MIGRATION: add tables
+    :RETURN:   Own entity
+    :RETURN_STATUS: Yes
+    :RETURN_PERIOD: Yes
+    :PREVENT_RETURN_MODIFICATION: via return status
+    :REPORT_LISTS: Own page
+    :SAVE_REPORT: Needed
+    :COLLECT_REPORT: Needed
+    :MULTIPLE_REPORT: No
+    :END:
+*** join tables : 
+    :PROPERTIES:
+    :MIGRATION: add tables
+    :RETURN:   Own entity
+    :RETURN_STATUS: Yes
+    :RETURN_PERIOD: Yes
+    :PREVENT_RETURN_MODIFICATION: via return status
+    :OVERALL_COMPLEXITY: Complex
+    :SAVE_REPORT: Needed
+    :MULTIPLE_REPORT: Yes
+    :END:
+    allow n-to-n map between tax_trans_details and reports (VAT ECSL)
+    
+    
+** Issues   [0/0]
+***  TODO Amend of old transaction
+****  void transaction delete or null tax_trans_details
+     #+BEGIN_SRC sql
+ select *
+
+     #+END_SRC
+****  update transaction (ex PPD)
+****  TODO Solution [0/3]
+ - [ ] modify FA to not void transaction tax but instead reverse it, even on update.
+ - [ ] Check if it works
+ - [ ] check and fix bugs when reload trans_tax for payment and co
+** Sandbox  
+*** Last tax_trans_detail
+    #+NAME: last_trans_tax_id
+    #+BEGIN_SRC sql
+      select max(id)
+      from 0_trans_tax_details
+    #+END_SRC
+
+    #+RESULTS:
+    | max(id) |
+    |---------|
+    |   39951 |
+
+*** tax_trans_detail of the day
+    #+BEGIN_SRC sql :no_web yes
+          select *
+          from 0_trans_tax_details
+          where 
+      id > 39962
+      -- tran_date > '2019-02-04'
+      -- order by tran_date, trans_no, id
+
+    #+END_SRC
+
+    #+RESULTS:
+    |    id | trans_type | trans_no |  tran_date | tax_type_id | rate | ex_rate | included_in_price | net_amount | amount | memo       |
+    |-------+------------+----------+------------+-------------+------+---------+-------------------+------------+--------+------------|
+    | 39963 |          1 |     2219 | 2019-02-05 |           1 |   20 |       1 |                 0 |       -100 |    -20 |            |
+    | 39964 |          1 |     2219 | 2019-02-05 |           1 |   20 |       1 |                 0 |        -50 |    -10 |            |
+    | 39965 |          1 |     2220 | 2019-02-05 |           1 |   20 |       1 |                 0 |       -100 |    -20 | stationary |
+    | 39966 |          1 |     2220 | 2019-02-05 |           1 |   20 |       1 |                 0 |        -50 |    -10 | drawing    |
+    | 39967 |          1 |     2219 | 2019-02-05 |           1 |   20 |       1 |                 0 |        150 |     30 |            |
+    | 39968 |          1 |     2221 | 2019-02-05 |           1 |   20 |       1 |                 0 |       -100 |    -20 | stationary |
+    | 39969 |          1 |     2221 | 2019-02-05 |           1 |   20 |       1 |                 0 |        -50 |    -10 | drawing    |
+    | 39970 |          1 |     2220 | 2019-02-05 |           1 |   20 |       1 |                 0 |         50 |     10 | drawing    |
+    | 39971 |          1 |     2220 | 2019-02-05 |           1 |   20 |       1 |                 0 |        100 |     20 | stationary |
+    | 39972 |          1 |     2221 | 2019-02-05 |           1 |   20 |       1 |                 0 |         50 |     10 | drawing    |
+    | 39973 |          1 |     2221 | 2019-02-05 |           1 |   20 |       1 |                 0 |        100 |     20 | stationary |
+
+    #+RESULTS:
+
+
+    #+BEGIN_SRC  sql
+	SELECT trans_type, trans_no, tran_date, tax_type_id, 0_trans_tax_details.rate, ex_rate,
+            included_in_price, -SUM(net_amount) AS net_amount, -SUM(amount) AS amount, memo
+		,0_tax_types.name AS tax_type_name, 
+		0_trans_tax_details.rate AS effective_rate, 
+		0_tax_types.rate AS rate
+		FROM 0_trans_tax_details,0_tax_types
+		WHERE trans_type = 1
+		AND trans_no >= 2219
+		AND (net_amount != 0 OR amount != 0)
+		AND 0_tax_types.id = 0_trans_tax_details.tax_type_id
+        GROUP BY trans_type, trans_no, tran_date, tax_type_id, 0_trans_tax_details.rate, ex_rate, included_in_price, memo
+        HAVING (net_amount != 0 OR amount != 0)
+    #+END_SRC
+
+*** TODO ECSL
+    
+   ECSL needs to be compatible with amend in the past. Allowing
+modifying transaction in the past for VAT purpose, means we will
+modify things in the past which have a impact on ECSL.
+
+**** cheque tax_trans matches ECSL query
+    
+*****  ECSL query
+      #+BEGIN_SRC sql
+        SELECT type, d.debtor_no, d.name AS cust_name, d.tax_id, 
+         SUM(CASE WHEN dt.type=11 THEN (ov_amount+ov_freight+ov_discount)*-1 
+             ELSE (ov_amount+ov_freight+ov_discount) 
+         END *dt.rate) AS total
+                 , SUM(ttd.net_amount), sum(ttd.amount)
+         FROM 0_debtor_trans dt
+         LEFT JOIN 0_debtors_master d ON d.debtor_no=dt.debtor_no 
+        LEFT JOIN 0_trans_tax_details ttd ON (dt.type = ttd.trans_type AND dt.trans_no = ttd.trans_no)
+          WHERE dt.type IN (10,11) -- ,12)
+          AND tax_id <> '' AND dt.tran_date >= '2018-10-01' AND dt.tran_date <= '2018-12-31' 
+          GROUP BY debtor_no, type
+           -- with rollup
+
+      #+END_SRC
+
+      #+RESULTS:
+      | type | debtor_no | cust_name                            | tax_id        |             total | SUM(ttd.net_amount) | sum(ttd.amount) |
+      |------+-----------+--------------------------------------+---------------+-------------------+---------------------+-----------------|
+      |   10 |        72 | DEBCOR LTD T/A Nells Closet          | IE9771830B    |            162.41 |              142.41 |               0 |
+      |   10 |       107 | Prepy&#039;s                         | IE6586514H    |               283 |                 263 |               0 |
+      |   10 |       133 | Hattitude                            | IE9770194R    | 610.9499999999999 |   530.9499999999999 |               0 |
+      |   10 |       213 | Annbury&#039;s                       | IE8500528C    |            960.26 |              920.26 |               0 |
+      |   10 |       229 | High Society                         | IE5158135B    |             204.6 |               184.6 |               0 |
+      |   10 |       253 | Jasmine Design                       | IE6322596L    |            1419.3 |              1399.3 |               0 |
+      |   10 |       302 | The Forgotten Lady                   | IE8254859I    |            328.35 |              308.35 |               0 |
+      |   10 |       336 | Glamorize                            | IE8953261P    |            972.06 |   932.0600000000001 |               0 |
+      |   10 |       445 | Liz Collins Boutique                 | IE8742612Q    |            443.99 |              423.99 |               0 |
+      |   10 |       457 | Desiree Boutique                     | IE5940553G    |            171.57 |              151.57 |               0 |
+      |   11 |       519 | Moffitts of Sligo                    | IE0036695Q    |               -20 |                  20 |               0 |
+      |   10 |       531 | Studia Maglia di Gimapietro Tirsa    | IT01900981000 |               562 |                 532 |               0 |
+      |   10 |       574 | Active Workout Solutions Ltd Ireland | IE9762518V    |            395.78 |              375.78 |               0 |
+
+      #+BEGIN_SRC sql
+select * from 0_trans_tax_details
+where  trans_type = 12 and trans_no in (8517, 8456)
+#+END_SRC
+
+#+RESULTS:
+|    id | trans_type | trans_no |  tran_date | tax_type_id | rate | ex_rate | included_in_price | net_amount | amount | memo |
+|-------+------------+----------+------------+-------------+------+---------+-------------------+------------+--------+------|
+| 38458 |         12 |     8456 | 2018-10-09 |           1 |   20 |       1 |                 0 |      22.65 |      0 | PPD  |
+| 38645 |         12 |     8517 | 2018-10-22 |           1 |   20 |       1 |                 0 |      13.95 |      0 | PPD  |
+
+      #+END_SRC
+
+
+*** Check transaction without tax details 
+
+    #+BEGIN_SRC sql :no_web yes
+      select trans_type , max(gl_date), count(*), max(trans_no) from
+      (select type as trans_type, type_no as trans_no, sum(amount), tran_date as gl_date
+      from
+          0_gl_trans
+          group by type, type_No
+                ) As gl
+      left join 0_trans_tax_details using (trans_type, trans_no)
+      where id is NULL
+            group by trans_type
+
+
+                select *
+                from 0_trans_tax_details
+                where 
+            id > 39962
+            -- tran_date > '2019-02-04'
+            -- order by tran_date, trans_no, id
+
+
+      select * from 0_gl_trans
+                      where type_no = 12265 And type = 10\G
+      select * from 0_trans_tax_details
+       where trans_no = 12265 And trans_type = 10
+    #+END_SRC
+
+** Bugs [1/1]
+*** DONE voided invoice displays PPD when 0
+    CLOSED: [2019-02-06 Wed 12:35]
+*** TODO make ECSL compatible with amend in the past
+*** TODO add PPD in ECSL 
+*** TODO add shipping (from invoice) in ECSL  ? [0/2]
+    - [ ] is it a different line ? service ?
+    - [ ] configure Tax to use shipping. However, this is not the case for Uk (why ?)
+   
+** Model
+ReportTransDetails
+   id --
+   transType FATransType Sqltype=Int
+   transNo Int
+   netAmount Double
+   taxAmount Double
+   overallAmount -- ??
+   bin TaxBin
+   report Maybe TaxReportId
+   Unique transType transNo bin report -- one bin per transaction per report
+   
+
+-- | Instance of a reporttype
+TaxReport
+  id --
+  type Text -- 
+  reference Text
+  submissionReference Maybe Text
+  startPeriod Day
+  endPeriod Day
+  submitted Day
+  status Status | Closed, Open redundant with submitted ?
+  details Map Text Double -- JSON with reportDetail
+  UniqueReference type Reference
+  UniqueTypeStart type start
+  
+  
+TaxReportDetail
+  id --
+  report ReportID
+  bin Text
+  amount Double
+  
+
+** Curl
+ 
+#+begin_src sh :results output
+  curl -d '{ \
+  "periodKey": "#001",\
+  "vatDueSales": 100.00,\
+  "vatDueAcquisitions": 100.00,\
+  "totalVatDue": 200.00,\
+  "vatReclaimedCurrPeriod": 100.00,\
+  "netVatDue": 100.00,\
+  "totalValueSalesExVAT": 500,\
+  "totalValuePurchasesExVAT": 500,\
+  "totalValueGoodsSuppliedExVAT": 500,\
+  "totalAcquisitionsExVAT": 500,\
+  "finalised": true\
+}' \
+  -H 'Accept: application/vnd.hmrc.1.0+json' \
+  -H 'Content-Type: application/json'\
+  -H 'Authorization: Bearer e7c34865b684c7dfd9246b80eaed43da'\
+      https://test-api.service.hmrc.gov.uk/organisations/vat/661821243/returns
+#+end_src
+
+#+RESULTS:
+      
+
+
+#+end_src
+
+#+RESULTS:

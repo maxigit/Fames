@@ -83,3 +83,16 @@ data PlannerViewMode = PlannerSummaryView
 instance PathPiece PlannerViewMode where
   fromPathPiece = readFromPathPiece
   toPathPiece = showToPathPiece
+
+-- * GL
+-- ** Tax Report
+data TaxReportViewMode = TaxReportPendingView -- ^ display transaction to collect
+                       | TaxReportCollectedView -- ^ transaction  already collected
+                       | TaxReportBucketView 
+                       | TaxReportBoxesView
+                       | TaxReportConfigChecker
+     deriving (Eq, Read, Show, Enum, Bounded)
+
+instance PathPiece TaxReportViewMode where
+  fromPathPiece = readFromPathPiece
+  toPathPiece = showToPathPiece

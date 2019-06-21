@@ -4,10 +4,13 @@ module ModelField
 , PayrollFrequency(..)
 ) where 
 
-import ClassyPrelude.Yesod
+import ClassyPrelude.Yesod hiding(Proxy)
 import Database.Persist.Sql(PersistFieldSql(..))
 import Text.Printf(printf)
 import GL.Payroll.Timesheet (PayrollFrequency)
+import Data.Decimal
+import Data.Proxy
+
 -- * Warehouse
 -- | Where as a transaction has been processed or not.
 data PendingStatus = Pending | Process deriving (Eq, Read, Show, Enum, Bounded, Ord)
@@ -134,10 +137,35 @@ instance Enum FATransType where
   toEnum 35 = ST_COSTUPDATE
   toEnum i = error $ "Can't convert " ++ show i ++ " to FATransType"
 
+customerFATransactions, supplierFATransactions :: [FATransType]
+customerFATransactions =  
+  [ ST_SALESINVOICE
+  , ST_CUSTCREDIT
+  , ST_CUSTPAYMENT
+  , ST_CUSTDELIVERY
+  , ST_SALESORDER
+  , ST_SALESQUOTE
+  ]
+
+supplierFATransactions = 
+  [ ST_PURCHORDER
+  , ST_SUPPINVOICE
+  , ST_SUPPCREDIT
+  , ST_SUPPAYMENT
+  , ST_SUPPRECEIVE
+  ]
+
+
 instance PersistField FATransType where
   toPersistValue = toPersistValue . fromEnum
   fromPersistValue = map toEnum . fromPersistValue
 
+
+instance ToJSON FATransType where
+  toJSON = toJSON . fromEnum
+
+instance FromJSON FATransType where
+  parseJSON o = toEnum <$> parseJSON o
 
 inTypes :: [FATransType] -> Text
 inTypes types = intercalate "," $ map (tshow . fromEnum) types
@@ -159,9 +187,38 @@ urlForFA base type_ no = base <> "/" <> pack url  where
     ST_BANKTRANSFER -> printf "gl/view/bank_transfer_view.php?trans_no=%d" no
     ST_BANKPAYMENT -> printf "gl/view/gl_payment_view.php?trans_no=%d" no
     ST_BANKDEPOSIT -> printf "gl/view/gl_deposit_view.php?trans_no=%d" no
+    ST_JOURNAL -> printf "gl/view/gl_trans_view.php?type_id=%d&trans_no=%d" tp no
     _ -> "not found"
 
 glViewUrlForFA :: Text -> FATransType -> Int -> Text
 glViewUrlForFA base type_ no = base <> "/" <> pack url where
   tp = fromEnum type_
   url = printf "gl/view/gl_trans_view.php?type_id=%d&trans_no=%d" tp no
+
+-- * PersistField Instance
+-- ** Value
+instance PersistField Value where
+  toPersistValue = toPersistValueJSON
+  fromPersistValue = fromPersistValueJSON
+
+instance PersistFieldSql Value where
+  sqlType _ = SqlBlob -- sqlType (Proxy :: Proxy Text)
+-- ** Decimal
+instance PersistField Decimal where
+  toPersistValue = toPersistValue . tshow
+  fromPersistValue = fromPersistValue >=> f where
+    f :: Text -> Either Text Decimal
+    f = maybe (Left "Problem decoding Decimal" ) Right . readMay -- :: String -> Either Text Decimal
+instance PersistFieldSql Decimal where
+  sqlType _ = sqlType (Proxy :: Proxy Rational)
+
+-- instance ToJSON Decimal where
+--   toJSON = Number (scientific kk)
+
+-- instance FromJSON Decimal where
+--   parseJSON v = do
+--     r <- parseJSON v
+--     case eitherFromRational r of
+--       Left err -> fail err
+--       Right dec -> return dec
+  
