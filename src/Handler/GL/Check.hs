@@ -319,53 +319,105 @@ getGLCheckDebtorTransR no tType = do
 <div.panel.panel-info>
   <div.panel-heading data-toggle=collapse data-target="#gls-panel"><h3> Gls
   <div.panel-body.collapse id=gls-panel>
-    ^{displayGls t}
+    ^{displayGls "gls-table" t}
 <div.panel.panel-info>
   <div.panel-heading data-toggle=collapse data-target="#generated-panel"><h3> Generated Gls
   <div.panel-body.collapse id=generated-panel>
-    ^{displayGls' newNonNull }
+    ^{displayGls' "generated-table" newNonNull }
 |]
   
 displayDetails TransactionSummary{..}  = [whamlet|
-<table.table.table-border.table-hover.table-striped>
-  <tr>
-    <th> StockId
-    <th> Unit Price
-    <th> Unit Tax
-    <th> Quantity
-    <th> Discount
-    <th> Standard Cost
-    <th> Sales Amount
-    <th> COGS Amount
-  $forall (Entity _ d@DebtorTransDetail{..}) <- tsDetails
+<table id=#{tableId} *{forDatatable}>
+  <thead>
     <tr>
-      <td> #{debtorTransDetailStockId}
-      $# <td> #{debtorTransDetailDescription}
-      <td> #{showDouble debtorTransDetailUnitPrice}
-      <td> #{showDouble debtorTransDetailUnitTax}
-      <td> #{showDouble debtorTransDetailQuantity}
-      <td> #{showDouble debtorTransDetailDiscountPercent}
-      <td> #{showDouble debtorTransDetailStandardCost}
-      <td> #{showDouble $ debtorTransDetailSalesAmount d}
-      <td> #{showDouble $ debtorTransDetailCOGSAmount d}
-|]
+      <th> StockId
+      <th> Unit Price
+      <th> Unit Tax
+      <th> Quantity
+      <th> Discount
+      <th> Standard Cost
+      <th> Sales Amount
+      <th> COGS Amount
+  <tfoot>
+    <tr>
+      <th>
+      <th>
+      <th>
+      <th>
+      <th>
+      <th>
+      <th>
+      <th>
+  <tbody>
+    $forall (Entity _ d@DebtorTransDetail{..}) <- tsDetails
+      <tr>
+        <td> #{debtorTransDetailStockId}
+        $# <td> #{debtorTransDetailDescription}
+        <td> #{showDouble debtorTransDetailUnitPrice}
+        <td> #{showDouble debtorTransDetailUnitTax}
+        <td> #{showDouble debtorTransDetailQuantity}
+        <td> #{showDouble debtorTransDetailDiscountPercent}
+        <td> #{showDouble debtorTransDetailStandardCost}
+        <td> #{showDouble $ debtorTransDetailSalesAmount d}
+        <td> #{showDouble $ debtorTransDetailCOGSAmount d}
+|] <> toWidget [julius|
+  $(document).ready(function () {
+  $(#{toJSON ("table#" <> tableId)}).dataTable( {
+    "footerCallback": function(tfoot, data, start, end, display ) {
+        var api = this.api();
+        for (i of [6,7]) {
+        $(api.column(i).footer()).html(
+          api.column(i, {filter:"applied"}).data().reduce(function(a,b) { return (parseFloat(a) || 0)+(parseFloat(b)||0);}, 0)
+        );
+        }
+      }
+    });
+  });
+|] where tableId = "table-details" :: Text
 
-displayGls TransactionSummary{..} = displayGls' (map entityVal tsGl)
-displayGls' tsGl = [whamlet|
-<table.table.table-border.table-hover.table-striped>
-  <tr>
-    <th> Account
-    <th> Memo
-    <th> Debit
-    <th> Credit
-    <th> Stock Id
-    <th> Dim
-    <th> Dim2
-    <th> Person Type
-    <th> Person
-  $forall gl <- tsGl
+displayGls tableId TransactionSummary{..} = displayGls' tableId (map entityVal tsGl)
+displayGls' :: Text -> [GlTran] -> Widget
+displayGls' tableId tsGl = [whamlet|
+<table id=#{tableId} *{forDatatable} data-paging=false>
+  <thead>
     <tr>
-      ^{displayGl gl}
+      <th> Account
+      <th> Memo
+      <th> Debit
+      <th> Credit
+      <th> Stock Id
+      <th> Dim
+      <th> Dim2
+      <th> Person Type
+      <th> Person
+  <tbody>
+    $forall gl <- tsGl
+      <tr>
+        ^{displayGl gl}
+  <tfoot>
+    <th> Total
+    <th>
+    <th>
+    <th>
+    <th>
+    <th>
+    <th>
+    <th>
+    <th>
+
+|] <> toWidget [julius|
+  $(document).ready(function () {
+  $(#{toJSON ("table#" <> tableId)}).dataTable( {
+    "footerCallback": function(tfoot, data, start, end, display ) {
+        var api = this.api();
+        for (i of [2,3]) {
+        $(api.column(i).footer()).html(
+          api.column(i, {filter:"applied"}).data().reduce(function(a,b) { return (parseFloat(a) || 0)+(parseFloat(b)||0);}, 0)
+        );
+        }
+      }
+    });
+  });
 |]
 
 
