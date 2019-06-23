@@ -251,6 +251,7 @@ getGLCheckDebtorTransR no tType = do
       newCredit = negate ( sum (map glTranAmount newCredits)) + tsTax t + tsShippingNet t
       glDiffs = alignGls (tsGl t) newGls
       glDiffStatus  = fixGls glDiffs
+      newNonNull = filter ((/= 0) . glTranAmount) newGls
   defaultLayout' [whamlet|
 <div.panel.panel-info>
   <div.panel-heading><h3>
@@ -322,7 +323,7 @@ getGLCheckDebtorTransR no tType = do
 <div.panel.panel-info>
   <div.panel-heading data-toggle=collapse data-target="#generated-panel"><h3> Generated Gls
   <div.panel-body.collapse id=generated-panel>
-    ^{displayGls' newGls}
+    ^{displayGls' newNonNull }
 |]
   
 displayDetails TransactionSummary{..}  = [whamlet|
