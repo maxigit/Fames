@@ -430,14 +430,19 @@ displayGl (GlTran{..}) =  [whamlet|
       $if glTranAmount > 0
         <td> #{showDouble glTranAmount}
         <td>
+          <span.hidden>debit:
       $else
         $if glTranAmount < 0
           <td>
+            <span.hidden>credit:
           <td> #{showDouble $ negate glTranAmount}
         $else
           <td>
           <td>
-      <td> #{fromMaybe "" glTranStockId}
+      <td>
+        $maybe stockId <- glTranStockId
+          <span.hidden>stockId:
+          #{stockId}
       <td> #{tshow glTranDimensionId}
       <td> #{tshow glTranDimension2Id}
       <td> #{maybe "" tshow glTranPersonTypeId}
