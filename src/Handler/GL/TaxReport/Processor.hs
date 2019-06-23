@@ -58,5 +58,6 @@ submitManual ManualProcessorParameters{..} settings (Entity reportKey report) = 
     -- to deadline of end of period
     date0 = taxReportDeadline settings report
     submitted = maybe id calculateDate submissionDate $ date0
-  return report {taxReportSubmittedAt = Just (UTCTime submitted 0) }
-  
+  return report { taxReportSubmittedAt = Just (UTCTime submitted 0)
+                , taxReportExternalReference = Just ("Manual:" <> taxReportReference report)
+                }
