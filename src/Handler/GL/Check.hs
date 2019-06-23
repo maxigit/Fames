@@ -410,11 +410,13 @@ displayGls' tableId tsGl = [whamlet|
   $(#{toJSON ("table#" <> tableId)}).dataTable( {
     "footerCallback": function(tfoot, data, start, end, display ) {
         var api = this.api();
+        var total = [];
         for (i of [2,3]) {
-        $(api.column(i).footer()).html(
-          api.column(i, {filter:"applied"}).data().reduce(function(a,b) { return (parseFloat(a) || 0)+(parseFloat(b)||0);}, 0)
-        );
+          total[i] = api.column(i, {filter:"applied"}).data().reduce(function(a,b) { return (parseFloat(a) || 0)+(parseFloat(b)||0);}, 0)
+        $(api.column(i).footer()).html( total[i]);
         }
+        // $(api.column(6).footer()).html("Balance");
+        $(api.column(1).footer()).html(total[3]-total[2]);
       }
     });
   });
@@ -423,6 +425,7 @@ displayGls' tableId tsGl = [whamlet|
 
 displayGl (GlTran{..}) =  [whamlet|
       <td> #{glTranAccount}
+        <span.hidden>account:#{glTranAccount}
       <td> #{glTranMemo}
       $if glTranAmount > 0
         <td> #{showDouble glTranAmount}
