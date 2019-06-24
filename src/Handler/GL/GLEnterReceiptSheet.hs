@@ -123,6 +123,7 @@ postGLEnterReceiptSheetR = do
 postGLSaveReceiptSheetToFAR :: Handler Html
 postGLSaveReceiptSheetToFAR = do
   ((resp,_), __enctype) <- runFormPost (hiddenFileForm Nothing)
+  faUrl <- getsYesod (pack . appFAExternalURL . appSettings)
   case resp of
     FormMissing -> error "missing"
     FormFailure msg ->  error $ "Form Failure:" ++ show msg
@@ -148,10 +149,10 @@ postGLSaveReceiptSheetToFAR = do
                 res <- runExceptT $ do
                     saveReceiptsToFA docKey settings (map snd err'receipts)
                 case res of
-                  Left err -> setError $ toHtml err
-                  Right ids -> do
-                    setSuccess $ [shamlet| #{length ids} Transactions saved successfully|]
-                getGLEnterReceiptSheetR
+                  Left err -> setError (toHtml err) >> getGLEnterReceiptSheetR
+                  Right header'type'ids -> do
+                    setSuccess $ [shamlet| #{length header'type'ids} Transactions saved successfully|]
+                    defaultLayout $ renderSavedTransactions (urlForFA faUrl) header'type'ids
               _ -> err
          _ -> err
 
@@ -225,6 +226,29 @@ tbody.invalid
         ^{render (i, receipt)}
 |]
 
+renderSavedTransactions :: (FATransType -> Int -> Text) -> [(ValidHeader, FATransType, Int)] -> Widget
+renderSavedTransactions urlForFA header'type'ids = do
+  [whamlet|
+<table *{datatable} data-paging=false>
+  <thead>
+    <tr>
+      <th>Type
+      <th>Trans No
+      <th>Date
+      <th>Counterparty 
+      <th>Amount
+      <th>Bank Account
+      <th>Comment
+ $forall (ReceiptHeader{..}, tType, pId) <- header'type'ids
+   <tr>
+     <td>#{transactionIcon tType}
+     <td>#{transNoWithLink urlForFA "" tType pId}
+     <td.date>^{render rowDate}
+     <td>^{render rowCounterparty}
+     <td.text-right>^{render rowTotal}
+     <td>^{render rowBankAccount}
+     <td>^{render rowComment}
+    |]
 t :: Text -> Text
 t = id
 
@@ -383,7 +407,7 @@ instance Renderable ([RawRow]) where
 
 instance Renderable (Reference s e) where
   render Reference{..} = [whamlet|
-     <span.referenceId>(#{refId}) <span.referenceName>#{refName}
+     <span.referenceId>(#{refId}) <span.referenceName>#{decodeHtmlEntities refName}
                                  |]
   
 columnMap :: Map String [String]
@@ -515,11 +539,10 @@ faReferenceMapH = runDB $ do
 
 
 -- * to Front Accounting
-saveReceiptsToFA :: Key DocumentKey -> AppSettings -> [(ValidHeader, [ValidItem])] -> ExceptT Text Handler [Int]
+saveReceiptsToFA :: Key DocumentKey -> AppSettings -> [(ValidHeader, [ValidItem])] -> ExceptT Text Handler [(ValidHeader, FATransType, Int)]
 saveReceiptsToFA docKey settings receipts0 = do
   let receipts = sortOn (rowDate . fst ) $ map roundReceipt receipts0
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
-      payments = map (mkPayment . first transformHeader) receipts
       mkPayment :: (ReceiptHeader 'FinalT, [ReceiptItem 'ValidT])  -> Either WFA.BankDeposit WFA.BankPayment
       mkPayment (ReceiptHeader{..}, items)  = if rowTotal >= 0
         then Right $ WFA.BankPayment rowDate
@@ -534,11 +557,12 @@ saveReceiptsToFA docKey settings receipts0 = do
              (refId rowBankAccount)
              rowComment
              (mkItems (map transformItem items))
-  forM payments $ \p -> do 
+  forM receipts $ \receipt@(header, _items) -> do 
+    let p = mkPayment . first transformHeader $  receipt
     (pId, transType) <- ExceptT . liftIO <$> WFA.postBankPaymentOrDeposit connectInfo  $ p
     hToHx $ runDB $  do
        insert_ $ TransactionMap transType pId GLReceiptE (fromIntegral $ unSqlBackendKey $ unDocumentKeyKey docKey) False
-    return pId
+    return (header, either (const ST_BANKDEPOSIT) (const ST_BANKPAYMENT) p, pId)
 
 
 mkItems :: [ReceiptItem 'FinalT] -> [WFA.GLItemD]
