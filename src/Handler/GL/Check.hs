@@ -242,6 +242,7 @@ loadGLFor transNo transType = do
 -- ** Check
 getGLCheckDebtorTransR :: Int64 -> Int64 -> Handler Html
 getGLCheckDebtorTransR no tType = do
+  force <- isJust <$> lookupGetParam "force"
   deduceTax <- appReportDeduceTax <$> getsYesod appSettings 
   let ?taxIncluded = deduceTax
       ?roundMethod = roundfa
@@ -303,7 +304,7 @@ getGLCheckDebtorTransR no tType = do
         <td> #{showWithStatus (tsExpectedDebit t) (fixedCredit glDiffStatus) }
       <tr>
         <td>
-        $if and [near (tsExpectedDebit t) (fixedDebit glDiffStatus), near (tsExpectedDebit t) (fixedCredit glDiffStatus) ]
+        $if force || (and [near (tsExpectedDebit t) (fixedDebit glDiffStatus), near (tsExpectedDebit t) (fixedCredit glDiffStatus) ])
           <td>
             <form role=form method=POST action=@{tsFixRoute t}>
               <button.btn.btn-danger type="submit" name="Fix" value="Fix">Fix
