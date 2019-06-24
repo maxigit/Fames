@@ -7,16 +7,18 @@ module Handler.GL.Check
 , postGLFixDebtorTransR
 ) where
 
-import Import
+import Import hiding(showDouble)
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 import FA
 import GL.Utils
-import Handler.Util
+-- import Handler.Util hiding(showDouble)
 import Data.These
 import Data.Align(align)
 import qualified Data.Map as Map
+import Util.Decimal
 
+showDouble x = tshow $ toDecimalWithRounding (Round 6) x
 -- * Types
 data TransactionSummary = TransactionSummary 
   { tsTransNo :: Int
@@ -51,7 +53,7 @@ tsTotalCredit t = sum [  - glTranAmount
 -- | Discount are entered separatily in invoice
 -- example 10 with 10% discount generate 10 + -1 (instead of 9)
 -- which add up to 11 credit and 11 debit
-tsDetailsSplitDiscount t = sum $ map (getAmount . entityVal) (tsDetails t) where
+tsDetailsSplitDiscount t = roundWith $ sum $ map (getAmount . entityVal) (tsDetails t) where
   getAmount = case tsTransType t of
                 ST_SALESINVOICE -> \x -> debtorTransDetailDiscountedAmount  x
                 _ -> const 0
@@ -131,6 +133,7 @@ postGLCheckR = do
   ((resp, formW), enctype) <- runFormPost (checkForm Nothing)
   deduceTax <- appReportDeduceTax <$> getsYesod appSettings 
   let ?taxIncluded = deduceTax
+      ?roundMethod = roundfa
   faUrl <- getsYesod (pack . appFAExternalURL . appSettings)
   case resp of
     FormMissing -> error "form missing"
@@ -241,6 +244,7 @@ getGLCheckDebtorTransR :: Int64 -> Int64 -> Handler Html
 getGLCheckDebtorTransR no tType = do
   deduceTax <- appReportDeduceTax <$> getsYesod appSettings 
   let ?taxIncluded = deduceTax
+      ?roundMethod = roundfa
   faUrl <- getsYesod (pack . appFAExternalURL . appSettings)
   t <- runDB $ do
     tm <- selectFirst [DebtorTranTransNo ==. fromIntegral no, DebtorTranType ==. fromIntegral tType] []
@@ -529,6 +533,7 @@ fixDebtorTrans :: Int64 -> Int64 -> SqlHandler ()
 fixDebtorTrans no tType =  do
   deduceTax <- appReportDeduceTax <$> getsYesod appSettings 
   let ?taxIncluded = deduceTax
+      ?roundMethod = roundfa
   tm <- selectFirst [DebtorTranTransNo ==. fromIntegral no, DebtorTranType ==. fromIntegral tType] []
   t <-  maybe (error $ "Transaction" <> show no <> " not found") loadCustomerSummary tm
 
@@ -544,8 +549,14 @@ fixDebtorTrans no tType =  do
   
 
 -- | Generate expected GL from details
-generateGLs :: (?taxIncluded :: Bool) => TransactionSummary -> SqlHandler [GlTran]
-generateGLs t@TransactionSummary{..} = do
+roundfa = RoundAbs (Round 2)
+roundWith x = let r = fromRational . toRational $ toDecimalWithRounding ?roundMethod   x
+                -- in traceShow("RoundWith", ?roundMethod, x, r) r
+                  in r
+generateGLs :: (?taxIncluded :: Bool, ?roundMethod :: RoundingMethod ) => TransactionSummary -> SqlHandler [GlTran]
+generateGLs summary = roundGl <$$> generateGLs'  summary where
+  roundGl GlTran{..} = GlTran{glTranAmount=roundWith glTranAmount,..} where
+generateGLs' t@TransactionSummary{..} = do
   glss <- forM tsDetails (\d@(Entity _ detail@DebtorTransDetail{..}) -> do
      stockMaster <- getJust (StockMasterKey debtorTransDetailStockId)
      branch <- getJust (CustBranchKey tsBranchId tsPersonId)
