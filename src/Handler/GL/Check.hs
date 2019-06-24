@@ -7,16 +7,18 @@ module Handler.GL.Check
 , postGLFixDebtorTransR
 ) where
 
-import Import
+import Import hiding(showDouble)
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 import FA
 import GL.Utils
-import Handler.Util
+-- import Handler.Util hiding(showDouble)
 import Data.These
 import Data.Align(align)
 import qualified Data.Map as Map
+import Util.Decimal
 
+showDouble x = tshow $ toDecimalWithRounding (Round 6) x
 -- * Types
 data TransactionSummary = TransactionSummary 
   { tsTransNo :: Int
@@ -51,7 +53,7 @@ tsTotalCredit t = sum [  - glTranAmount
 -- | Discount are entered separatily in invoice
 -- example 10 with 10% discount generate 10 + -1 (instead of 9)
 -- which add up to 11 credit and 11 debit
-tsDetailsSplitDiscount t = sum $ map (getAmount . entityVal) (tsDetails t) where
+tsDetailsSplitDiscount t = roundWith $ sum $ map (getAmount . entityVal) (tsDetails t) where
   getAmount = case tsTransType t of
                 ST_SALESINVOICE -> \x -> debtorTransDetailDiscountedAmount  x
                 _ -> const 0
@@ -131,6 +133,7 @@ postGLCheckR = do
   ((resp, formW), enctype) <- runFormPost (checkForm Nothing)
   deduceTax <- appReportDeduceTax <$> getsYesod appSettings 
   let ?taxIncluded = deduceTax
+      ?roundMethod = roundfa
   faUrl <- getsYesod (pack . appFAExternalURL . appSettings)
   case resp of
     FormMissing -> error "form missing"
@@ -239,8 +242,10 @@ loadGLFor transNo transType = do
 -- ** Check
 getGLCheckDebtorTransR :: Int64 -> Int64 -> Handler Html
 getGLCheckDebtorTransR no tType = do
+  force <- isJust <$> lookupGetParam "force"
   deduceTax <- appReportDeduceTax <$> getsYesod appSettings 
   let ?taxIncluded = deduceTax
+      ?roundMethod = roundfa
   faUrl <- getsYesod (pack . appFAExternalURL . appSettings)
   t <- runDB $ do
     tm <- selectFirst [DebtorTranTransNo ==. fromIntegral no, DebtorTranType ==. fromIntegral tType] []
@@ -251,6 +256,7 @@ getGLCheckDebtorTransR no tType = do
       newCredit = negate ( sum (map glTranAmount newCredits)) + tsTax t + tsShippingNet t
       glDiffs = alignGls (tsGl t) newGls
       glDiffStatus  = fixGls glDiffs
+      newNonNull = filter ((/= 0) . glTranAmount) newGls
   defaultLayout' [whamlet|
 <div.panel.panel-info>
   <div.panel-heading><h3>
@@ -298,7 +304,7 @@ getGLCheckDebtorTransR no tType = do
         <td> #{showWithStatus (tsExpectedDebit t) (fixedCredit glDiffStatus) }
       <tr>
         <td>
-        $if and [near (tsExpectedDebit t) (fixedDebit glDiffStatus), near (tsExpectedDebit t) (fixedCredit glDiffStatus) ]
+        $if force || (and [near (tsExpectedDebit t) (fixedDebit glDiffStatus), near (tsExpectedDebit t) (fixedCredit glDiffStatus) ])
           <td>
             <form role=form method=POST action=@{tsFixRoute t}>
               <button.btn.btn-danger type="submit" name="Fix" value="Fix">Fix
@@ -318,70 +324,130 @@ getGLCheckDebtorTransR no tType = do
 <div.panel.panel-info>
   <div.panel-heading data-toggle=collapse data-target="#gls-panel"><h3> Gls
   <div.panel-body.collapse id=gls-panel>
-    ^{displayGls t}
+    ^{displayGls "gls-table" t}
 <div.panel.panel-info>
   <div.panel-heading data-toggle=collapse data-target="#generated-panel"><h3> Generated Gls
   <div.panel-body.collapse id=generated-panel>
-    ^{displayGls' newGls}
+    ^{displayGls' "generated-table" newNonNull }
 |]
   
 displayDetails TransactionSummary{..}  = [whamlet|
-<table.table.table-border.table-hover.table-striped>
-  <tr>
-    <th> StockId
-    <th> Unit Price
-    <th> Unit Tax
-    <th> Quantity
-    <th> Discount
-    <th> Standard Cost
-    <th> Sales Amount
-    <th> COGS Amount
-  $forall (Entity _ d@DebtorTransDetail{..}) <- tsDetails
+<table id=#{tableId} *{forDatatable}>
+  <thead>
     <tr>
-      <td> #{debtorTransDetailStockId}
-      $# <td> #{debtorTransDetailDescription}
-      <td> #{showDouble debtorTransDetailUnitPrice}
-      <td> #{showDouble debtorTransDetailUnitTax}
-      <td> #{showDouble debtorTransDetailQuantity}
-      <td> #{showDouble debtorTransDetailDiscountPercent}
-      <td> #{showDouble debtorTransDetailStandardCost}
-      <td> #{showDouble $ debtorTransDetailSalesAmount d}
-      <td> #{showDouble $ debtorTransDetailCOGSAmount d}
-|]
+      <th> StockId
+      <th> Unit Price
+      <th> Unit Tax
+      <th> Quantity
+      <th> Discount
+      <th> Standard Cost
+      <th> Sales Amount
+      <th> COGS Amount
+  <tfoot>
+    <tr>
+      <th>
+      <th>
+      <th>
+      <th>
+      <th>
+      <th>
+      <th>
+      <th>
+  <tbody>
+    $forall (Entity _ d@DebtorTransDetail{..}) <- tsDetails
+      <tr>
+        <td> #{debtorTransDetailStockId}
+        $# <td> #{debtorTransDetailDescription}
+        <td> #{showDouble debtorTransDetailUnitPrice}
+        <td> #{showDouble debtorTransDetailUnitTax}
+        <td> #{showDouble debtorTransDetailQuantity}
+        <td> #{showDouble debtorTransDetailDiscountPercent}
+        <td> #{showDouble debtorTransDetailStandardCost}
+        <td> #{showDouble $ debtorTransDetailSalesAmount d}
+        <td> #{showDouble $ debtorTransDetailCOGSAmount d}
+|] <> toWidget [julius|
+  $(document).ready(function () {
+  $(#{toJSON ("table#" <> tableId)}).dataTable( {
+    "footerCallback": function(tfoot, data, start, end, display ) {
+        var api = this.api();
+        for (i of [6,7]) {
+        $(api.column(i).footer()).html(
+          api.column(i, {filter:"applied"}).data().reduce(function(a,b) { return (parseFloat(a) || 0)+(parseFloat(b)||0);}, 0)
+        );
+        }
+      }
+    });
+  });
+|] where tableId = "table-details" :: Text
 
-displayGls TransactionSummary{..} = displayGls' (map entityVal tsGl)
-displayGls' tsGl = [whamlet|
-<table.table.table-border.table-hover.table-striped>
-  <tr>
-    <th> Account
-    <th> Memo
-    <th> Debit
-    <th> Credit
-    <th> Stock Id
-    <th> Dim
-    <th> Dim2
-    <th> Person Type
-    <th> Person
-  $forall gl <- tsGl
+displayGls tableId TransactionSummary{..} = displayGls' tableId (map entityVal tsGl)
+displayGls' :: Text -> [GlTran] -> Widget
+displayGls' tableId tsGl = [whamlet|
+<table id=#{tableId} *{forDatatable} data-paging=false>
+  <thead>
     <tr>
-      ^{displayGl gl}
+      <th> Account
+      <th> Memo
+      <th> Debit
+      <th> Credit
+      <th> Stock Id
+      <th> Dim
+      <th> Dim2
+      <th> Person Type
+      <th> Person
+  <tbody>
+    $forall gl <- tsGl
+      <tr>
+        ^{displayGl gl}
+  <tfoot>
+    <th> Total
+    <th>
+    <th>
+    <th>
+    <th>
+    <th>
+    <th>
+    <th>
+    <th>
+
+|] <> toWidget [julius|
+  $(document).ready(function () {
+  $(#{toJSON ("table#" <> tableId)}).dataTable( {
+    "footerCallback": function(tfoot, data, start, end, display ) {
+        var api = this.api();
+        var total = [];
+        for (i of [2,3]) {
+          total[i] = api.column(i, {filter:"applied"}).data().reduce(function(a,b) { return (parseFloat(a) || 0)+(parseFloat(b)||0);}, 0)
+        $(api.column(i).footer()).html( total[i]);
+        }
+        // $(api.column(6).footer()).html("Balance");
+        $(api.column(1).footer()).html(total[3]-total[2]);
+      }
+    });
+  });
 |]
 
 
 displayGl (GlTran{..}) =  [whamlet|
       <td> #{glTranAccount}
+        <span.hidden>account:#{glTranAccount}
       <td> #{glTranMemo}
       $if glTranAmount > 0
         <td> #{showDouble glTranAmount}
         <td>
+          <span.hidden>debit:
       $else
         $if glTranAmount < 0
           <td>
+            <span.hidden>credit:
           <td> #{showDouble $ negate glTranAmount}
         $else
           <td>
           <td>
-      <td> #{fromMaybe "" glTranStockId}
+      <td>
+        $maybe stockId <- glTranStockId
+          <span.hidden>stockId:
+          #{stockId}
       <td> #{tshow glTranDimensionId}
       <td> #{tshow glTranDimension2Id}
       <td> #{maybe "" tshow glTranPersonTypeId}
@@ -468,6 +534,7 @@ fixDebtorTrans :: Int64 -> Int64 -> SqlHandler ()
 fixDebtorTrans no tType =  do
   deduceTax <- appReportDeduceTax <$> getsYesod appSettings 
   let ?taxIncluded = deduceTax
+      ?roundMethod = roundfa
   tm <- selectFirst [DebtorTranTransNo ==. fromIntegral no, DebtorTranType ==. fromIntegral tType] []
   t <-  maybe (error $ "Transaction" <> show no <> " not found") loadCustomerSummary tm
 
@@ -483,8 +550,14 @@ fixDebtorTrans no tType =  do
   
 
 -- | Generate expected GL from details
-generateGLs :: (?taxIncluded :: Bool) => TransactionSummary -> SqlHandler [GlTran]
-generateGLs t@TransactionSummary{..} = do
+roundfa = RoundAbs (Round 2)
+roundWith x = let r = fromRational . toRational $ toDecimalWithRounding ?roundMethod   x
+                -- in traceShow("RoundWith", ?roundMethod, x, r) r
+                  in r
+generateGLs :: (?taxIncluded :: Bool, ?roundMethod :: RoundingMethod ) => TransactionSummary -> SqlHandler [GlTran]
+generateGLs summary = roundGl <$$> generateGLs'  summary where
+  roundGl GlTran{..} = GlTran{glTranAmount=roundWith glTranAmount,..} where
+generateGLs' t@TransactionSummary{..} = do
   glss <- forM tsDetails (\d@(Entity _ detail@DebtorTransDetail{..}) -> do
      stockMaster <- getJust (StockMasterKey debtorTransDetailStockId)
      branch <- getJust (CustBranchKey tsBranchId tsPersonId)

@@ -10,11 +10,15 @@ import Data.Decimal
 -- * Decimal rounding
 
 
-data RoundingMethod = Round {roundDec :: Word8 }
-  | RoundUp {roundDec :: Word8 }
-  | RoundDown {roundDec :: Word8 }
-  | RoundBanker {roundDec :: Word8 }
+data RoundingMethod = Round {roundDec' :: Word8 }
+  | RoundUp {roundDec' :: Word8 }
+  | RoundDown {roundDec' :: Word8 }
+  | RoundBanker {roundDec' :: Word8 }
+  | RoundAbs RoundingMethod 
   deriving (Eq, Show, Read)
+
+roundDec (RoundAbs r) = roundDec r
+roundDec r = roundDec' r
 
 applyRounding :: RoundingMethod -> Decimal -> Decimal
 applyRounding method x = case method of
@@ -27,6 +31,7 @@ applyRounding method x = case method of
     in if lastDigit < 5
        then applyRounding (RoundDown dec) x
        else applyRounding (RoundUp dec) x
+  RoundAbs round -> signum x * applyRounding round (abs x)
     
 toDecimalWithRounding :: RealFrac f => RoundingMethod -> f -> Decimal
 toDecimalWithRounding method f = applyRounding method $ realFracToDecimal (roundDec method + 1) f
