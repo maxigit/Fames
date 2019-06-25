@@ -164,7 +164,7 @@ getGLBankR pagem = do
                               else displayLightSummary today dbConf faURL account bs
   panels <- forM (sortOn (bsPosition . snd) settings) display
   barW <- pageBar pagem
-  defaultLayout $ toWidget commonCss >> toWidget saveButtonJs >> barW >> dateBarW pagem >> (mconcat panels)
+  defaultLayout $ toWidget commonCss >> toWidget saveButtonJs >> barW >> dateBarW (todaym >>= readMay) pagem >> (mconcat panels)
 
 pageBar :: Maybe Int -> Handler Widget
 pageBar pagem = do
@@ -182,11 +182,12 @@ pageBar pagem = do
               <a href="@{GLR $ GLBankR (Just page)}"> #{nonEmpty title}
           |]
 
-dateBarW pagem = [whamlet|
+dateBarW :: Maybe Day -> Maybe Int -> Widget
+dateBarW todaym pagem = [whamlet|
   <div.well>
     <form method=GET action="@{GLR $ GLBankR pagem}">
       <label for=today>End date
-      <input type=date name="today">
+      <input type=date name="today" value="#{tshowM todaym}">
       <button.btn.btn-default type=submit>Submit
 |]
   
