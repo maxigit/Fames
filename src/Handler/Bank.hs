@@ -135,6 +135,13 @@ $(document).ready (function() {
 })
 |]
 
+saveButtonJs = [julius|
+  function hideSaveButton(elem) {
+     elem.classList.remove("btn-danger");
+     elem.classList.add("btn-muted");
+  }
+
+|]
 getGLBankR  :: Maybe Int -> Handler Html
 getGLBankR pagem = do
   today <- todayH
@@ -155,7 +162,7 @@ getGLBankR pagem = do
                               else displayLightSummary today dbConf faURL account bs
   panels <- forM (sortOn (bsPosition . snd) settings) display
   barW <- pageBar pagem
-  defaultLayout $ toWidget commonCss >> barW >> (mconcat panels)
+  defaultLayout $ toWidget commonCss >> toWidget saveButtonJs >> barW >> (mconcat panels)
 
 pageBar :: Maybe Int -> Handler Widget
 pageBar pagem = do
@@ -1115,8 +1122,9 @@ generatePrefillFundTransferLink faURL current target memo t@B.Transaction{..} = 
 
 saveButton :: Html
 saveButton = [shamlet|
-   <button.btn.btn-sm.btn-danger>
+   <button.btn.btn-sm.btn-danger onclick="hideSaveButton(this);"> 
      <span.glyphicon.glyphicon-save data-toggle="tooltip" title="Save">
+     <span.hidden>Save
    |]
 generatePrefillSupplierPaymentLink :: Text -> Int -> Int -> String ->  B.Transaction -> Handler ToRec
 generatePrefillSupplierPaymentLink faURL current target memo t@B.Transaction{..} | _sAmount < 0 = do
