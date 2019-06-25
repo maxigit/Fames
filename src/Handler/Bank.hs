@@ -144,7 +144,9 @@ saveButtonJs = [julius|
 |]
 getGLBankR  :: Maybe Int -> Handler Html
 getGLBankR pagem = do
-  today <- todayH
+  todaym <- lookupGetParam "today"
+  today <- maybe todayH return (todaym >>= readMay)
+
   dbConf <- appDatabaseConf <$> getsYesod appSettings
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
   settingss <- getsYesod (appBankStatements . appSettings)
@@ -162,7 +164,7 @@ getGLBankR pagem = do
                               else displayLightSummary today dbConf faURL account bs
   panels <- forM (sortOn (bsPosition . snd) settings) display
   barW <- pageBar pagem
-  defaultLayout $ toWidget commonCss >> toWidget saveButtonJs >> barW >> (mconcat panels)
+  defaultLayout $ toWidget commonCss >> toWidget saveButtonJs >> barW >> dateBarW pagem >> (mconcat panels)
 
 pageBar :: Maybe Int -> Handler Widget
 pageBar pagem = do
@@ -180,6 +182,13 @@ pageBar pagem = do
               <a href="@{GLR $ GLBankR (Just page)}"> #{nonEmpty title}
           |]
 
+dateBarW pagem = [whamlet|
+  <div.well>
+    <form method=GET action="@{GLR $ GLBankR pagem}">
+      <label for=today>End date
+      <input type=date name="today">
+      <button.btn.btn-default type=submit>Submit
+|]
   
 
 canViewBankStatement :: Role -> Text -> Bool
@@ -202,11 +211,12 @@ displayPanel' panelClass collapsed account title content =
         ^{content}
         |]
 
-loadReconciliatedTrans :: MySQLConf
+loadReconciliatedTrans :: Maybe Day
+                       -> MySQLConf
                        -> BankStatementSettings
                        -> Handler (([ToRec], [B.Transaction]), Maybe UTCTime)
-loadReconciliatedTrans dbConf settings = 
-  case mkRecOptions dbConf settings of
+loadReconciliatedTrans todaym dbConf settings =  do
+  result <- case mkRecOptions todaym dbConf settings of
     (Just path, options) -> do
       ((torec0, all), upTime) <- lift $ withCurrentDirectory path  ((,) <$> B.main' options <*> B.updateTime options)
       torec <- mapM (autoRec settings) torec0
@@ -217,26 +227,35 @@ loadReconciliatedTrans dbConf settings =
       let ts = map B.faTransToTransaction fas
 
       return ((map toRec (filter (isNothing . B._sRecDate) ts), ts), Nothing)
+  -- dates are fuzzy regarding the loading of FA Transaction
+  -- to compensate for the fact that date between FA Transaction and bank statement can differst
+  -- however, when given a end date, we don't want any unrec FA transaction after the end
+  return $ case (todaym) of
+            Nothing -> result
+            Just today -> let torecFiltered = filter ((<= today) . B._sDate . trTrans) torec
+                              ((torec, all), upTime) = result
+                          in ((torecFiltered, all), upTime)
+    
 
-mkRecOptions dbConf BankStatementSettings{bsMode=BankUseStatement{..},..} =  let
+mkRecOptions endDate dbConf BankStatementSettings{bsMode=BankUseStatement{..},..} =  let
       statementFiles = unpack bsStatementGlob
       faCredential = myConnInfo dbConf
       dailyFiles = unpack bsDailyGlob
       output = ""
       startDate = bsStartDate
-      endDate = Nothing -- Just today
+      -- endDate = today
       faMode = B.BankAccountId (bsBankAccount)
       aggregateMode = B.BEST
       initialBalance = Nothing
       discardFilter = unpack <$> bsDiscardRegex
   in (Just bsPath, B.Options{..})
-mkRecOptions dbConf BankStatementSettings{bsMode=BankNoStatement,..} =  let
+mkRecOptions endDate dbConf BankStatementSettings{bsMode=BankNoStatement,..} =  let
       statementFiles = " "
       faCredential = myConnInfo dbConf
       dailyFiles = " "
       output = ""
       startDate = bsStartDate
-      endDate = Nothing -- Just today
+      -- endDate = Nothing -- Just today
       faMode = B.BankAccountId (bsBankAccount)
       aggregateMode = B.BEST
       initialBalance = Nothing
@@ -262,7 +281,7 @@ displaySummary today dbConf faURL title bankSettings@BankStatementSettings{..}= 
   --     discardFilter = unpack <$> bsDiscardRegex
   
   -- (stransz, banks) <- lift $ withCurrentDirectory bsPath (B.main' options)
-  ((stransz, banks), updatedAtm) <- loadReconciliatedTrans dbConf bankSettings
+  ((stransz, banks), updatedAtm) <- loadReconciliatedTrans (Just today) dbConf bankSettings
   -- we sort by date
   tz <- lift getCurrentTimeZone
   let sortTrans = sortOn sorter
@@ -324,7 +343,7 @@ displaySummary today dbConf faURL title bankSettings@BankStatementSettings{..}= 
 displayLightSummary :: Day -> _DB -> Text -> Text ->  BankStatementSettings -> Handler Widget
 displayLightSummary today dbConf faURL title bankSettings@BankStatementSettings{..}= do
   object <- getObjectH
-  ((stranszUnfiltered, banksUnfiltered), updatedAtm) <- loadReconciliatedTrans dbConf bankSettings
+  ((stranszUnfiltered, banksUnfiltered), updatedAtm) <- loadReconciliatedTrans (Just today) dbConf bankSettings
   -- we sort by date
   tz <- lift getCurrentTimeZone
   let sortTrans = sortOn sorter
@@ -485,7 +504,7 @@ displayDetailsInPanel account bankSettings@BankStatementSettings{..} = do
   --     initialBalance = Nothing
   --     discardFilter = unpack <$> bsDiscardRegex
   
-  (,) (stransz, banks) _ <- loadReconciliatedTrans dbConf bankSettings
+  (,) (stransz, banks) _ <- loadReconciliatedTrans (Just today) dbConf bankSettings
 
   let number'object =  liftA2 (,) trSaveButtonHtml trSaveObjectHtml 
       tableW = renderToRecs Nothing True number'object faURL stransz (const []) (Just "Total") ((B.FA ==) . B._sSource)
@@ -547,7 +566,7 @@ renderReconciliate account param = do
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
   object <- getObjectH
   bankSettings <- settingsFor account
-  let optionsm = mkRecOptions dbConf bankSettings
+  let optionsm = mkRecOptions Nothing dbConf bankSettings
   st'sts0 <- case optionsm of
     (Nothing, options) -> do
       fas <- lift $ B.readFa options
@@ -1047,7 +1066,7 @@ getGLBankStatementGenR :: Text -> Handler TypedContent
 getGLBankStatementGenR account= do
   dbConf <- appDatabaseConf <$> getsYesod appSettings
   bankSettings <- settingsFor account
-  let (pathm, options) = mkRecOptions dbConf bankSettings
+  let (pathm, options) = mkRecOptions Nothing dbConf bankSettings
   let withDir = case pathm of
         Nothing -> id
         Just path -> withCurrentDirectory path
@@ -1171,7 +1190,7 @@ generatePrefillCustomerPaymentLink faURL current target memo t@B.Transaction{..}
 -- | Create rules for supplier and customer based on previous payment
 fillAutoSettingsCached bankSettings = cache0 False (cacheDay 1) ("bank-settings/" <> tshow (bsBankAccount bankSettings)) $ do
   dbConf <- appDatabaseConf <$> getsYesod appSettings
-  let optionsm = mkRecOptions dbConf bankSettings
+  let optionsm = mkRecOptions Nothing dbConf bankSettings
   recs <- case optionsm of
     (Nothing, _) -> return [] -- :: Handler [These B.HSBCTransacations B.FATransaction]
     (Just path, options) -> do
