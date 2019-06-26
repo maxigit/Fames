@@ -34,6 +34,7 @@ import Data.Decimal(realFracToDecimal)
 import Control.Monad.State(State, evalState)
 import qualified Text.Regex as Rg
 import CategoryRule(RegexSub(..), regexSub, subRegex)
+import Formatting as F
 -- Transaction to reconciliate
 -- Transaction from a statement missing in FA
 -- may be automattically saved to FA
@@ -452,12 +453,12 @@ renderToRecs pageSize canViewBalance number'object faURL sorted mkClasses totalT
                     <td>#{fromMaybe "-" objectm}
                     $if B._sAmount trans > 0
                       <td>
-                      <td.text-right>#{tshow $  B._sAmount trans}
+                      <td.text-right>#{showDecimal $  B._sAmount trans}
                     $else
-                      <td.text-right>#{tshow $ negate  $    B._sAmount trans}
+                      <td.text-right>#{showDecimal $ negate  $    B._sAmount trans}
                       <td>
                   $if canViewBalance
-                      <td.text-right> ^{render $ fmap (fmap tshow)  $ B._sBalance trans}
+                      <td.text-right> ^{render $ fmap (fmap showDecimal)  $ B._sBalance trans}
           <tr>
             $maybe totalTitle <-  totalTitle
               <th> #{totalTitle}
@@ -774,31 +775,31 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
               <td>#{fromMaybe "-" (object fatrans)}
               $if B._sAmount trans > 0
                   <td>
-                  <td.balance>#{tshow $  B._sAmount trans}
+                  <td.balance>#{showDecimal $  B._sAmount trans}
               $else
-                  <td.balance>#{tshow $ negate  $    B._sAmount trans}
+                  <td.balance>#{showDecimal $ negate  $    B._sAmount trans}
                   <td>
               $if liftA2 eqDouble (B._sBalance =<< transM) (B._sBalance =<< fatransM)  == Just True
                 <td.balance.balance-match.bg-success.text-success>
-                 ^{render $ fmap (fmap tshow) (B._sBalance trans) }
+                 ^{render $ fmap (fmap showDecimal) (B._sBalance trans) }
                 <td.balance>
-                 ^{render $ fmap (fmap tshow) (B._sBalance fatrans) }
+                 ^{render $ fmap (fmap showDecimal) (B._sBalance fatrans) }
               $else
                 <td.balance.balance-no-match>
-                 ^{render $ fmap (fmap tshow) (B._sBalance trans) }
+                 ^{render $ fmap (fmap showDecimal) (B._sBalance trans) }
                 <td.balance>
-                 ^{maybe "" (render . fmap tshow) (B._sBalance =<< fatransM) }
+                 ^{maybe "" (render . fmap showDecimal) (B._sBalance =<< fatransM) }
               $with [bal, balfa] <- map (maybe 0 validValue . B._sBalance) [trans, fatrans]
                   $with diff <- balfa - bal
                      <td>
                       <div.diff-balance>
                         $if diff > 0
-                          +#{tshow diff}
+                          +#{showDecimal diff}
                         $else
-                          #{tshow diff}
+                          #{showDecimal diff}
                 
               $with (checked, update) <- toCheck st'st
-                <td :update:.update-rec data-amount="#{tshow (B._sAmount trans)}">
+                <td :update:.update-rec data-amount="#{showDecimal (B._sAmount trans)}">
                   $if isThese st'st 
                     $if isJust (B._sRecDate fatrans)
                         <input type=hidden name="already-#{faId fatrans}" value=off>
@@ -1230,3 +1231,6 @@ rulesFromRec eType ruleFn recs =
   in  mapFromList [ (pack ref, ruleFn debtor)
                   | (ref, [debtor]) <-  Map.toList entity1
                   ]
+
+showDecimal :: B.Amount -> Text
+showDecimal = F.sformat commasDecimal
