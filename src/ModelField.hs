@@ -184,6 +184,7 @@ urlForFA base type_ no = base <> "/" <> pack url  where
     ST_SUPPRECEIVE -> printf "purchasing/view/view_grn.php?trans_no=%d" no
     ST_SUPPAYMENT -> printf "purchasing/view/view_supp_payment.php?trans_no=%d" no
     ST_SUPPINVOICE -> printf "purchasing/view/view_supp_invoice.php?trans_no=%d" no
+    ST_SUPPCREDIT -> printf "purchasing/view/view_supp_credit.php?trans_no=%d" no
     ST_BANKTRANSFER -> printf "gl/view/bank_transfer_view.php?trans_no=%d" no
     ST_BANKPAYMENT -> printf "gl/view/gl_payment_view.php?trans_no=%d" no
     ST_BANKDEPOSIT -> printf "gl/view/gl_deposit_view.php?trans_no=%d" no
