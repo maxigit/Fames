@@ -1081,10 +1081,11 @@ getGLBankStatementGenR account= do
              , let h = B.transactionToHsbcTrans t
              ]
       convertType t = maybe t (showTransType . toEnum) (readMay t)
-  let content = B.encodeHSBCTransactions hs 
+  let content = B.encodeHSBCTransactions (sortOn sorter hs )
       dates = map B._hDate hs
       minDate = minimumMay dates
       maxDate = maximumMay dates
+      sorter = liftA2 (,) B._hDate B._hDayPos
       filename = "gen-statement-" <> (maybe "" (formatTime defaultTimeLocale "%F") minDate)
                  <> "--" <> (maybe "" (formatTime defaultTimeLocale "%F") maxDate)
                  <> ".csv"
