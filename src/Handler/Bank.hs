@@ -134,7 +134,7 @@ $(document).ready (function() {
   $("label:contains('Opening Balance')+input").change(updateRecTotal);
   $("label:contains('Closing Balance')+input").change(updateRecTotal);
   $("input.toggle-all").change(toggleAll);
-  updateRecTotal(());
+  updateRecTotal();
 })
 |]
 
@@ -804,7 +804,7 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
                           #{showDecimal diff}
                 
               $with (checked, update) <- toCheck st'st
-                <td :update:.update-rec data-amount="#{showDecimal (B._sAmount trans)}">
+                <td :update:.update-rec data-amount="#{tshow (B._sAmount trans)}">
                   $if isThese st'st 
                     $if isJust (B._sRecDate fatrans)
                         <input type=hidden name="already-#{faId fatrans}" value=off>
