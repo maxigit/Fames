@@ -35,6 +35,8 @@ import Control.Monad.State(State, evalState)
 import qualified Text.Regex as Rg
 import CategoryRule(RegexSub(..), regexSub, subRegex)
 import Formatting as F
+import Util.Decimal
+
 -- Transaction to reconciliate
 -- Transaction from a statement missing in FA
 -- may be automattically saved to FA
@@ -248,7 +250,7 @@ mkRecOptions endDate dbConf BankStatementSettings{bsMode=BankUseStatement{..},..
       -- endDate = today
       faMode = B.BankAccountId (bsBankAccount)
       aggregateMode = B.BEST
-      initialBalance = Nothing
+      initialBalance = toDecimalWithRounding (Round 2) <$> bsInitialBalance
       discardFilter = unpack <$> bsDiscardRegex
   in (Just bsPath, B.Options{..})
 mkRecOptions endDate dbConf BankStatementSettings{bsMode=BankNoStatement,..} =  let
@@ -260,7 +262,7 @@ mkRecOptions endDate dbConf BankStatementSettings{bsMode=BankNoStatement,..} =  
       -- endDate = Nothing -- Just today
       faMode = B.BankAccountId (bsBankAccount)
       aggregateMode = B.BEST
-      initialBalance = Nothing
+      initialBalance = toDecimalWithRounding (Round 2) <$> bsInitialBalance
       discardFilter = unpack <$> bsDiscardRegex
   in (Nothing, B.Options{..})
 
@@ -571,6 +573,8 @@ renderReconciliate account param = do
   let optionsm = mkRecOptions Nothing dbConf bankSettings
   st'sts0 <- case optionsm of
     (Nothing, options) -> do
+      -- No statement file provided
+      -- Assume that payment out should reset the account balance to 0
       fas <- lift $ B.readFa options
       let ts = map B.faTransToTransaction fas
           autoBalance t = if B._sAmount t < 0 then Just (pure 0) else Nothing
@@ -678,10 +682,11 @@ rebalanceFA groups = let
                _ -> t
       
     
-  in case sortOn ((,) <$> B._sDate <*> B._sDayPos) fas of
+  result = case sortOn ((,) <$> B._sDate <*> B._sDayPos) fas of
        [] -> groups
        (fa:_) -> groupAsMap fst ( snd ) $ runBalance ((\a -> validValue a - B._sAmount fa ) <$> B._sBalance fa)
        -- (fa:_) -> runBalance ((\a -> validValue a - validValue a) <$> B._sBalance fa)
+  in traceShow(("FA Before", groups), ("FA AFter", result)) result
 
 getOpenings :: [These B.Transaction B.Transaction] -> (Maybe (ValidField B.Amount), Maybe (ValidField B.Amount))
 -- getOpenings st'sts = (headMay ts >>= (\t -> (subtract (B._sAmount t)) <$$> (B._sBalance t)) , lastMay ts >>= B._sBalance) where 
