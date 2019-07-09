@@ -1674,9 +1674,9 @@ renderDetailInfo marginM infos = do
       <th> Item cost 
       $if isJust marginM
         <th> RRP
-  $forall (style, di) <- mapToList infos
-    ^{row False style di}
-  <tr>
+  <tbody>
+    $forall (style, di) <- mapToList infos
+      ^{row False style di}
     ^{row True totalTitle (concat (toList infos))}
       |]
 
