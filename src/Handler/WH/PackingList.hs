@@ -1612,7 +1612,7 @@ reportFor param@ReportParam{..} = do
           <td> #{tshowM $ getDate packingListDeparture minimumEx}
           <td> #{tshowM $ getDate packingListArriving maximumEx}
           <td.text-right> #{formatDouble' $ sum cbms} m<sup>3</sub>
-          <td.text-right> #{maybe "" formatPerCbm  (lookup PackingListShippingE allCosts)  } /m<sup>3
+          <td.text-right>
           ^{costTds allCosts}
       <tr>
           <td>
@@ -1622,7 +1622,7 @@ reportFor param@ReportParam{..} = do
           <td>
           <td>
           <td.text-right> #{formatDouble' $ avg} m<sup>3</sub>
-          <td.text-right>
+          <td.text-right> #{maybe "" formatPerCbm  (lookup PackingListShippingE allCosts)  } /m<sup>3
           ^{costTds $ fmap perPL allCosts}
 <div.panel.panel-primary>
   <div.panel-heading data-toggle=collapse data-target=#pl-report-styles>
