@@ -78,7 +78,7 @@ getWHPackingListR :: Handler Html
 getWHPackingListR = do
   today <- todayH
   let lastYear = calculateDate (AddYears (-1)) today
-      reportParam = ReportParam (Just lastYear) (Just today) Nothing False Nothing
+      reportParam = ReportParam (Just lastYear) (Just today) Nothing False Nothing Nothing Nothing
   renderWHPackingList Validate Nothing (Just reportParam) ok200 (setInfo "Enter a packing list") (return ())
 
 renderWHPackingList :: Mode -> (Maybe UploadParam) -> Maybe ReportParam -> Status -> Handler () ->  Widget -> Handler Html
@@ -1467,6 +1467,8 @@ data ReportParam  = ReportParam
   , rpRate :: Maybe Double
   , rpInverseRate :: Bool 
   , rpMargin :: Maybe Double
+  , rpInclude :: Maybe Text
+  , rpExclude :: Maybe Text
   } 
 
 reportForm paramM = renderBootstrap3 BootstrapBasicForm form
@@ -1475,6 +1477,8 @@ reportForm paramM = renderBootstrap3 BootstrapBasicForm form
                             <*> aopt doubleField "rate" (rpRate <$> paramM)
                             <*> areq boolField "inverse" (rpInverseRate <$> paramM)
                             <*> aopt doubleField "margin" (rpMargin <$> paramM)
+                            <*> aopt textField "include ids" (rpInclude <$> paramM)
+                            <*> aopt textField "exclude ids" (rpExclude <$> paramM)
 
 reportFormWidget param = do
   (form, encType) <- generateFormPost (reportForm $ Just param)
@@ -1533,9 +1537,19 @@ reportFor param@ReportParam{..} = do
                           in \a rate0 -> if abs (rate0 -1) < 1e-2 -- already in home currency
                                      then a * rate0
                                      else a * rate
+      readIds :: Maybe Text -> [Int64]
+      readIds Nothing = []
+      readIds (Just s) = mapMaybe  readMay $ splitOn " "  s
+      includes = map toSqlKey $ readIds rpInclude
+      excludes = map toSqlKey $ readIds rpExclude
   -- load pl
   plXs <- runDB $ do
-    pls <- selectList [PackingListDeparture >=. rpStart, PackingListDeparture <=. rpEnd] []
+    pls' <- selectList ([ PackingListDeparture >=. rpStart
+                      , PackingListDeparture <=. rpEnd
+                      ]
+                      <>  PackingListId <-?. includes
+                      ) []
+    let pls = filter ((`notElem` excludes) . entityKey) pls'
     mapM (loadPLInfo rateFn) pls
   let cbms = map (fst.snd) plXs
       avg = perPL (sum cbms)
