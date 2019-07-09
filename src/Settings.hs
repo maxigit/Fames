@@ -111,6 +111,7 @@ data AppSettings = AppSettings
     , appReportDeduceTax :: Bool -- ^ weither to deduce tax from tax included transaction
     , appTaxReportSettings :: Map Text TaxReportSettings
     , appFavicon:: Text
+    , appStocktakeHistoryCategory :: Text
     } deriving Show
 
 data BankAutoReconciliateRule = BankAutoTransfer !Int
@@ -239,7 +240,7 @@ instance FromJSON AppSettings  where
         
           
         appFavicon <- o .:? "favicon" .!= (if defaultDev then "Orange" else "" )
-        
+        appStocktakeHistoryCategory  <- o .:? "stocktake-history-category" .!= "style"
 
         -- This code enables MySQL's strict mode, without which MySQL will truncate data.
         -- See https://github.com/yesodweb/persistent/wiki/Database-Configuration#strict-mode for details

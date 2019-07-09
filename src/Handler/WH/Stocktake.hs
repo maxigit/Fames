@@ -145,10 +145,12 @@ getWHStocktakeValidateR = do
 
 -- | Returns the latest stocktake date
 -- for each sytle
-getWHStocktakeHistoryR :: Handler Html
-getWHStocktakeHistoryR = do
+getWHStocktakeHistoryR :: Maybe Text -> Handler Html
+getWHStocktakeHistoryR categorym' = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   defaultLocation <- appFADefaultLocation . appSettings <$> getYesod
+  categorym <- lookupGetParam "category"
+  category <- getDefaultCategory (categorym  <|> categorym')
   let sql =  " SELECT category.value AS style, min(stock_take) take_date, max(alltake) latest"
           <> "        , SUM(quantity) quantity"
           <> " FROM "
@@ -168,7 +170,7 @@ getWHStocktakeHistoryR = do
           <> "    AND qoh.loc_code = ?"
           <> "    GROUP BY sm.stock_id"
           <> " ) last_stocktake"
-          <> " JOIN fames_item_category_cache AS category ON (category.category = 'style' AND category.stock_id = last_stocktake.stock_id) "
+          <> " JOIN fames_item_category_cache AS category ON (category.category = ? AND category.stock_id = last_stocktake.stock_id AND category.value  != '') "
           <> " GROUP BY style"
           <> " HAVING NOT (quantity = 0 AND take_date is NULL AND latest is NULL)"
           <> " ORDER BY take_date, latest, style"
@@ -176,9 +178,10 @@ getWHStocktakeHistoryR = do
       showDate Nothing = ""
       showDate (Just d) | d ==  nullDate = ""
       showDate (Just d) = tshow d
-  style'dates <- runDB $ rawSql sql [PersistText stockLike, PersistText defaultLocation ]
+  style'dates <- runDB $ rawSql sql [PersistText stockLike, PersistText defaultLocation, PersistText category ]
   let _types = style'dates :: [(Single Text, Single (Maybe Day), Single (Maybe Day), Single Double)]
   today <- todayH
+  categories <- categoriesH
   let (allMinDates, allMaxDates) = unzip [(mindate, maxdate) | (_, Single mindate, Single maxdate, _) <- style'dates]
       minAllDate = case catMaybes allMinDates of
         [] -> Nothing
@@ -198,6 +201,13 @@ getWHStocktakeHistoryR = do
 
   defaultLayout [whamlet|
 <div.panel.panel-info>
+  <div.well>
+    <form method=GET action="@{WarehouseR (WHStocktakeHistoryR categorym)}">
+      <select name=category>
+       $forall cat <- categories
+         $with selected <- cat == category
+          <option value="#{cat}" :selected:selected>#{cat}
+      <button.btn.btn-info type="submit">Search
   <div.panel-heading><h3>Stocktake History
   <div.panel-body>
     <table#stock-take-history *{"table-bordered" <>. datatable} data-page-length="50">
@@ -210,20 +220,26 @@ getWHStocktakeHistoryR = do
           <th> Last Partial
       $forall (Single style, Single mindate, Single latest, Single quantity) <- style'dates
         <tr>
-          <td><a href="@{WarehouseR (WHStocktakeHistoryStyleR style)}" > #{style}
+          <td><a href="@{WarehouseR (WHStocktakeHistoryStyleR categorym style)}" > #{style}
           <td>#{tshow $ floor quantity}
           <td>^{tp mindate latest }
           <td><a href="@?{(WarehouseR WHStocktakeR, [("date", showDate mindate)])}"> #{showDate mindate}
           <td><a href="@?{(WarehouseR WHStocktakeR, [("date", showDate latest)])}"> #{showDate latest}
 |]
 
+getDefaultCategory :: Maybe Text -> Handler Text
+getDefaultCategory categorym = do
+  defaultCategory <- appStocktakeHistoryCategory . appSettings <$> getYesod
+  return $ fromMaybe defaultCategory categorym
+
 -- | Returns the lastest stocktake date
 -- for each variation of a give style.
-getWHStocktakeHistoryStyleR :: Text -> Handler Html
-getWHStocktakeHistoryStyleR style = do
+getWHStocktakeHistoryStyleR :: Maybe Text -> Text -> Handler Html
+getWHStocktakeHistoryStyleR categorym style = do
   -- let styleLike = style <> "-%"
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   defaultLocation <- appFADefaultLocation . appSettings <$> getYesod
+  category <- getDefaultCategory categorym
   let sql =  " SELECT stock_id, min(stock_take) take_date, max(alltake) latest"
           <> "        , SUM(quantity) quantity"
           <> " FROM "
@@ -238,7 +254,7 @@ getWHStocktakeHistoryStyleR style = do
           <> "    ) "
           <> "    LEFT JOIN fames_document_key doc USING(document_key_id)"
           <> "    JOIN 0_denorm_qoh qoh ON (sm.stock_id = qoh.stock_id)"
-          <> "    JOIN fames_item_category_cache category ON (category.stock_id = sm.stock_id AND category.category = 'style' AND category.value = ? ) "
+          <> "    JOIN fames_item_category_cache category ON (category.stock_id = sm.stock_id AND category.category = ? AND category.value = ? ) "
           <> "    WHERE inactive = false"
           <> "    AND sm.stock_id like ?"
           <> "    AND qoh.loc_code = ?"
@@ -251,7 +267,7 @@ getWHStocktakeHistoryStyleR style = do
       showDate Nothing = ""
       showDate (Just d) | d ==  nullDate = ""
       showDate (Just d) = tshow d
-  style'dates <- runDB $ rawSql sql [PersistText style, PersistText stockLike, PersistText defaultLocation ]
+  style'dates <- runDB $ rawSql sql [PersistText category, PersistText style, PersistText stockLike, PersistText defaultLocation ]
   let _types = style'dates :: [(Single Text, Single (Maybe Day), Single (Maybe Day), Single Double)]
   today <- todayH
   let (allMinDates, allMaxDates) = unzip [(mindate, maxdate) | (_, Single mindate, Single maxdate, _) <- style'dates]

@@ -55,8 +55,8 @@
   /barcodes WHBarcodeR GET POST !group=Barcodes !title=Generate
 
   /stocktake WHStocktakeR GET !stocktake !group=Stock !title=Stocktake
-  /stocktake/history WHStocktakeHistoryR GET !stocktake !group=Stock !title=Stocktake_History
-  /stocktake/history/#Text WHStocktakeHistoryStyleR GET !stocktake
+  /stocktake/history/#Maybe-Text WHStocktakeHistoryR GET !stocktake !group=Stock !title=Stocktake_History
+  /stocktake/history/#Maybe-Text/#Text WHStocktakeHistoryStyleR GET !stocktake
   /stocktake/save WHStocktakeSaveR GET POST !stocktake/save
   /stocktake/validate WHStocktakeValidateR GET POST !stocktake !title=Process_Stocktake
   /stocktake/collect WHStocktakeCollectMOPR POST !stocktake/collect

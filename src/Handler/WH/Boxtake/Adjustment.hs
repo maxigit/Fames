@@ -249,7 +249,7 @@ displayBoxtakeAdjustments param@AdjustmentParam{..}  = do
         case aStyleSummary of
            -- style => stocktake to item history, allow to go the item history for the given sku
            True -> [whamlet|
-                            <a href="@{WarehouseR (WHStocktakeHistoryStyleR sku)}"
+                            <a href="@{WarehouseR (WHStocktakeHistoryStyleR Nothing sku)}"
                                 target=_blank
                              >#{qw}
                            |]
