@@ -238,6 +238,14 @@ instance FromRecord (Int -> HSBCDaily) where
     parseRecord r = HSBCDaily <$> (readTime ["%e/%m/%Y"] <$> r .! 0)
                                <*> r .! 1
                                <*> r .! 2
+-- | New HSBC Format after July 2019
+-- we lose some information (like balance and type) which are now present
+-- in the statement. That's not really a problem as we normally use the monthly statement
+instance FromNamedRecord (Int -> HSBCDaily) where
+  parseNamedRecord r = pure HSBCDaily
+                <*> (readTime ["%e %b %0Y"] <$> r .: "Date")
+                <*> r .: "Description"
+                <*> r .: "Amount"
 
 dailyToHTrans :: HSBCDaily -> HSBCTransactions
 dailyToHTrans = HSBCTransactions <$> _hsDate
@@ -430,6 +438,9 @@ readDaily discardPat path = do
     csv <- readWithFilter discardPat path
 
     let decodeHSBC = decode NoHeader csv
+        decodeNewHSBC = case decodeByName csv of
+          Left e -> Left e
+          Right (_,v) -> Right v
         decodePaypal = case decodeByName csv of
           Left e -> Left e
           Right (_, v) -> Right $ V.map (\bf i -> pToS (bf i)) v
@@ -440,7 +451,7 @@ readDaily discardPat path = do
     -- it is important to start with decodeHSBC because if a file as only one line
     -- trying to parse first with a decoder expecting a header will return a empty list
     -- instead of failing: the header is actually not used (and not checked if there is no lines)
-    case decodeHSBC <|> decodePaypal <|> decodeSantander of
+    case decodeNewHSBC <|> decodeHSBC <|> decodePaypal <|> decodeSantander of
         Left s -> error $ "can't parse Statement:" ++ path ++ "\n" ++ s
         Right v -> return . V.toList $ V.imap (\i f -> f (-i)) v -- Statements appears with
         -- the newest transaction on top, ie by descending date.
