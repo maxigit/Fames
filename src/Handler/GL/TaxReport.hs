@@ -373,9 +373,10 @@ renderReportView rule report mode = do
   personName <- entityNameH False
   taxMap <- runDB $ loadTaxTypeMap
   today <- todayH
+  boxes <- runDB $ getBoxes settings (map fst $ toList bucket'rates)
   let boxValues :: [(TaxBox, TaxDetail -> Maybe Decimal)]
       boxValues = [ (box, f)
-                  | box <- (boxes settings)
+                  | box <- boxes
                   , let f detail = either (const Nothing) Just $ computeBox bucket'rates  
                                               (reportDetailToBucketMap taxMap $ tdReportDetail detail) 
                                               box
@@ -404,14 +405,14 @@ renderReportView rule report mode = do
               return $ renderBucketTable bucket'rates buckets
             TaxReportBoxesView -> do
               buckets <- runDB $ loadBucketSummary (entityKey report)
-              let box'amounts = computeBoxes bucket'rates buckets (boxes settings)
+              let box'amounts = computeBoxes bucket'rates buckets boxes
               return $ renderBoxTable box'amounts
                      >> case status of
                           (_, Submitted _) -> return ()
                           _ -> preSubmitButtonForm (entityKey report)
             TaxReportConfigChecker -> do
               buckets <- getBucketRateFromConfig report
-              return $ renderBoxConfigCheckerTable buckets (boxes settings)
+              return $ renderBoxConfigCheckerTable buckets boxes
   let navs = [TaxReportPendingView .. ]
       myshow t0 = let t =  drop  12 $ splitSnake $ tshow t0
                   in take (length t - 4) t :: Text
@@ -1035,14 +1036,16 @@ loadSavedBoxes reportKey = do
 
 loadTaxBoxes :: TaxReportSettings -> Key TaxReport -> SqlHandler [(TaxBox, Decimal)]
 loadTaxBoxes settings reportKey = do
-  saveBoxes <- loadSavedBoxes reportKey
+  savedBoxes <- loadSavedBoxes reportKey
+  boxes <- getBoxes settings [] 
   let
-    taxBoxMap = (mapFromList $ map (fanl tbName) (boxes settings)) :: Map Text TaxBox
+    -- boxes are the one we loaded + the one from settings
+    taxBoxMap = (mapFromList $ map (fanl tbName) boxes) :: Map Text TaxBox
     taxBox0 name = TaxBox name Nothing Nothing (TaxBoxSum []) Nothing
     mkTaxBox'Amount (Entity _ TaxReportBox{..}) = (box, toDecimalWithRounding rounding taxReportBoxValue ) where
       box = fromMaybe (taxBox0 taxReportBoxName) $ lookup taxReportBoxName taxBoxMap 
       rounding = tbRound0 box
-  return $ map mkTaxBox'Amount saveBoxes
+  return $ map mkTaxBox'Amount savedBoxes
 
 -- ** Saving
 -- | Mark the report as done and save its boxes
@@ -1053,9 +1056,9 @@ closeReport settings report = do
         error "Report already closed"
     -- load
       buckets <- loadBucketSummary $ entityKey report
-
+      boxes <- getBoxes settings (map fst $ keys buckets)
       let
-        box'amounts = computeBoxes bucket'rates buckets (boxes settings)
+        box'amounts = computeBoxes bucket'rates buckets boxes
         mkBox (TaxBox{..}, amount) = TaxReportBox{..} where
           taxReportBoxReport = entityKey report
           taxReportBoxName = tbName

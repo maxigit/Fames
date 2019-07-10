@@ -18,13 +18,17 @@ submitReturn report settings = case processor settings of
   ManualProcessor params  -> submitManual params (settings) report
   HMRCProcessor params  -> submitHMRC params report settings
    
+-- | Allow a processor to alter boxes depending on buckets
+-- This is used for ECSL where each bucket corresponding to a box
+getBoxes :: TaxReportSettings -> [Bucket] -> SqlHandler [TaxBox]
+getBoxes settings _ = return $ boxesRaw settings
 
 -- * HMRC
 -- ** Types
   
 -- ** Main functions
 -- | Connect to HMRC and check the status of the current tax return.
--- Retrieve if needed the period reference needed to submit the return
+  -- Retrieve if needed the period reference needed to submit the return
 checkHMRCStatus :: Entity TaxReport -> HMRCProcessorParameters -> Handler TaxReportStatus
 checkHMRCStatus (Entity reportKey report@TaxReport{..}) settings = do
   -- get token for VAT obligation. hack to call getHMRC Token with a report id
@@ -61,3 +65,6 @@ submitManual ManualProcessorParameters{..} settings (Entity reportKey report) = 
   return report { taxReportSubmittedAt = Just (UTCTime submitted 0)
                 , taxReportExternalReference = Just ("Manual:" <> taxReportReference report)
                 }
+  
+-- * ECSL
+-- 

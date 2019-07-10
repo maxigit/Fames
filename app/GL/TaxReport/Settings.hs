@@ -15,7 +15,7 @@ data TaxReportSettings  = TaxReportSettings
   , deadline :: Maybe DateCalculator -- ^ deadline to submit the report
   , referenceFormat :: Text -- ^ format to use with format time to create reference
   , rules :: Rule
-  , boxes :: [TaxBox]
+  , boxesRaw :: [TaxBox] -- ^ should only be called by processor
   , processor :: TaxProcessor
   }
   deriving (Eq, Read, Show)
@@ -121,7 +121,7 @@ $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField
                             , fieldLabelModifier = fromMaybe <*> stripPrefix "tp"
                             , constructorTagModifier = fromMaybe <*> stripSuffix "Processor"
                             } ''TaxProcessor)
-$(deriveJSON defaultOptions ''TaxReportSettings)
+$(deriveJSON defaultOptions {fieldLabelModifier = (fromMaybe <*> stripSuffix "Raw")} ''TaxReportSettings)
 
 
 -- * Function
@@ -135,7 +135,7 @@ alterTaxReportSettings settings@TaxReportSettings{..} = case processor of
 -- |  Add calculated boxes and set decimal number to each boxes
 alterHMRCSettings :: TaxReportSettings -> Either Text TaxReportSettings
 alterHMRCSettings settings@TaxReportSettings{..} = do
-  let boxMap = mapFromList $ zip (map tbName boxes) boxes :: Map Text TaxBox
+  let boxMap = mapFromList $ zip (map tbName boxesRaw) boxesRaw :: Map Text TaxBox
       findBox boxname = maybe (Left $ "Box " <> boxname <> " not present in HMRC report") Right
                       $ lookup boxname boxMap
   b1' <- findBox "B1"
@@ -157,8 +157,8 @@ alterHMRCSettings settings@TaxReportSettings{..} = do
   -- get all other boxes
   let newBoxes = [b1,b2,b3,b4,b5,b6,b7,b8,b9]
       newBoxesName = map tbName newBoxes
-      others = filter ((`notElem` newBoxesName) . tbName) boxes
-  Right settings {boxes = newBoxes <> others}
+      others = filter ((`notElem` newBoxesName) . tbName) boxesRaw
+  Right settings {boxesRaw = newBoxes <> others}
 
 
 
