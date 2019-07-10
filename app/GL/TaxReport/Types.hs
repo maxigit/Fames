@@ -19,6 +19,7 @@ data Rule
   | TaxRateRule [Double]   Rule
   | InputRule Rule
   | OutputRule Rule
+  | CustomerCategory Text (Maybe Text)
   deriving (Show, Read, Eq, Ord)
 
 defaultBucket :: Bucket
@@ -33,7 +34,8 @@ data RuleInput = RuleInput
  , riTaxType :: Int64
  , riTaxRate :: Double
  , riAmount :: Double
- } deriving (Eq, Show, Read)
+ , riCustCategoryFinder:: Text -> Maybe Text
+ } -- deriving (Eq, Show, Read)
 
 data TaxBox = TaxBox
    { tbName :: Text -- 

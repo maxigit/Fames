@@ -31,6 +31,7 @@ import Data.Tagged
 import qualified Data.Map as Map
 import Data.List(nub)
 import Util.Decimal
+import Handler.Items.Category.Cache (customerCategoryFinderCached)
 
 -- * Handler
 
@@ -926,12 +927,13 @@ runTaggedSql (Tagged sql, params) = rawSql sql params
 
 loadPendingTaxDetails :: Rule -> Entity TaxReport -> Handler [TaxDetail]
 loadPendingTaxDetails taxRule (Entity reportKey TaxReport{..}) = do
+  custCategoryFinder <- customerCategoryFinderCached
   let mkDetail trans'detail''personms   =
         let
           ((trans,_) , _) = nuncons trans'detail''personms
           (_, detail'personms) = unzip $ toNullable trans'detail''personms
           (details, personms) = unzip detail'personms
-          bucketFn t p =  applyTaxRule taxRule (faTransToRuleInput t p)
+          bucketFn t p =  applyTaxRule taxRule (faTransToRuleInput custCategoryFinder t p)
           personm = asum $ map unSingle personms
         in taxDetailFromDetails bucketFn reportKey trans (catMaybes details)  personm
   allDetails <- loadTaxDetail  mkDetail
@@ -1118,12 +1120,16 @@ getBucketRateFromConfig report = do
 
 
 -- * Rule
-faTransToRuleInput :: FA.TransTaxDetail -> Maybe Int64 -> RuleInput
-faTransToRuleInput FA.TransTaxDetail{..} riEntity = let
+faTransToRuleInput :: (Text -> FA.DebtorsMasterId -> Maybe Text) -> FA.TransTaxDetail -> Maybe Int64 -> RuleInput
+faTransToRuleInput custCategoryFinder FA.TransTaxDetail{..} riEntity = let
   riTransType = maybe (error "DB Problem") toEnum transTaxDetailTransType
   riTaxType = fromIntegral $ transTaxDetailTaxTypeId
   riTaxRate = transTaxDetailRate -- 1% = 1
   riAmount = transTaxDetailAmount
+  riCustCategoryFinder category = do -- Maybe
+    guard (isCustomer riTransType)
+    customer <- riEntity
+    custCategoryFinder category (FA.DebtorsMasterKey $ fromIntegral customer)
   in RuleInput{..}
 
 

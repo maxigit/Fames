@@ -5,7 +5,7 @@ import GL.FA
 import GL.Utils
 -- import qualified GL.FA as FA
 import Data.Aeson
-import Import.NoFoundation
+import Import.NoFoundation hiding(CustomerCategory)
 import GL.TaxReport.Settings as GL.TaxReport
 import GL.TaxReport.Types 
 import Database.Persist.Sql (fromSqlKey)
@@ -81,6 +81,11 @@ applyTaxRuleM (InputRule rule ) input =
   guard (riAmount input < 0) >> (applyTaxRuleM rule input)
 applyTaxRuleM (OutputRule rule ) input = 
   guard (riAmount input > 0) >> (applyTaxRuleM rule input)
+applyTaxRuleM (CustomerCategory category suffix) input = do
+  guard (isCustomer (riTransType input))
+  case riCustCategoryFinder input category of
+    Just cat -> Just $ cat <> maybe "" ("-" <>) suffix
+    _ -> Nothing
 
 isCustomer = (`elem` customerFATransactions)
 isSupplier = (`elem` supplierFATransactions)
@@ -133,6 +138,7 @@ computeBucketRates rule0 rateMap = let
   go (TaxRateRule rates   rule) = filter ((rates *==) . FA.taxTypeRate . entityVal . snd) $ go rule
   go (InputRule rule) = go rule
   go (OutputRule rule) = go rule
+  go (CustomerCategory _ _) = error "TODO"
   in setFromList (go rule0)
 
 -- | return true if it catches everyting
