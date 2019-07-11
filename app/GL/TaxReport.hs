@@ -138,7 +138,7 @@ computeBucketRates rule0 rateMap = let
   go (TaxRateRule rates   rule) = filter ((rates *==) . FA.taxTypeRate . entityVal . snd) $ go rule
   go (InputRule rule) = go rule
   go (OutputRule rule) = go rule
-  go (CustomerCategory _ _) = error "TODO"
+  go (CustomerCategory _ _) = []
   in setFromList (go rule0)
 
 -- | return true if it catches everyting
