@@ -169,21 +169,22 @@ getACustomerCategoryR = do
   defaultLayout $ do
     [whamlet|
    <h2> Customers
-   <table.table.table-border.table-hover.table-striped>
-     <tr>
-       <th>Id
-       <th>Name
-       <th>Note
-       <th>Tax Code
-       <th>Currency
-       <th>Dimension 1
-       <th>Dimension 2
-       <th>First Order Date
-       <th>First Order Ref
-       <th>Last Order Date
-       <th>Last Order Ref
-       $forall cat <- cats
-        <th>#{cat}
+   <table *{datatable} data-paging=false>
+     <thead>
+      <tr>
+        <th>Id
+        <th>Name
+        <th>Note
+        <th>Tax Code
+        <th>Currency
+        <th>Dimension 1
+        <th>Dimension 2
+        <th>First Order Date
+        <th>First Order Ref
+        <th>Last Order Date
+        <th>Last Order Ref
+        $forall cat <- cats
+          <th>#{cat}
      $forall (key, info, dims, firstOrder, lastOrder) <- infos
        <tr>
         <td>##{tshow $ FA.unDebtorsMasterKey key}
