@@ -694,7 +694,7 @@ loadOrderCategoriesFor order_field orderSql params = do
              <> " ORDER BY order_id" 
 
   cats <- runDB $ rawSql sql params
-  return $ Map.fromAscListWith (<>) [ (orderCategoryOrderId, Map.singleton orderCategoryCategory orderCategoryValue )
+  return $ Map.fromListWith (<>) [ (orderCategoryOrderId, Map.singleton orderCategoryCategory orderCategoryValue )
                                     | (Entity _ OrderCategory{..}) <- cats
                                     ]
 
@@ -865,7 +865,7 @@ loadStockInfo param = do
       toInfo (Single sku, Single cost, Single price, Single qoh ) = (sku, ItemInitialInfo cost price qoh)
   rows <- runDB $ rawSql (sql <> intercalate " " w <> order) (toPersistValue base: toPersistValue stockDay : toPersistValue defaultLocation:  p)
   -- traceShowM("Stock Info", rows)
-  return . Map.fromAscList $ map toInfo rows
+  return . Map.fromList $ map toInfo rows
   
 -- * Converter
 -- ** StockMove

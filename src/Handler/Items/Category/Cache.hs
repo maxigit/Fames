@@ -94,7 +94,8 @@ categoryFinderCached = cache0 False cacheForEver "category-finder" $ do
                  <> "WHERE category = ?"
                  <> "ORDER by order_key"
          key'values <- runDB $ rawSql sql [PersistText category]
-         let skuMap = Map.fromAscList [ (key , value )
+         -- Don't use fromAscList
+         let skuMap = Map.fromList [ (key , value )
                                       | (Single key, Single value) <- key'values
                                       ]
          return (category, skuMap)
@@ -301,7 +302,7 @@ loadItemDeliveryForSku (FA.StockMasterKey sku) = do
   -- load qoh in each container
   qohs <- selectList [FA.DenormQohStockId ==. Just sku] [Asc FA.DenormQohLocCode]
 
-  let locQohMap = Map.fromAscList $ map ((fromJust . FA.denormQohLocCode &&& fromJust . FA.denormQohQuantity) . entityVal) qohs
+  let locQohMap = Map.fromList $ map ((fromJust . FA.denormQohLocCode &&& fromJust . FA.denormQohQuantity) . entityVal) qohs
       locTransMap = groupAscAsMap  FA.stockMoveLocCode (:[])  moves
       locs = align locTransMap locQohMap
 
@@ -417,7 +418,8 @@ customerCategoryFinderCached :: Handler (Text -> FA.DebtorsMasterId -> Maybe Tex
 customerCategoryFinderCached = cache0 False cacheForEver "customerCategory-finder" $ do
   refreshCustomerCategoryCache False
   customerCategories <- runDB $ selectList [] [Asc CustomerCategoryCustomerId, Asc CustomerCategoryCategory]
-  let debtor'catMap = Map.fromDistinctAscList [((customerCategoryCustomerId , customerCategoryCategory ), customerCategoryValue )
+  -- don't use fromAscLIs
+  let debtor'catMap = Map.fromList [((customerCategoryCustomerId , customerCategoryCategory ), customerCategoryValue )
                            | (Entity _ CustomerCategory{..}) <- customerCategories
                            ]
       finder customerCategory (FA.DebtorsMasterKey debtor) = Map.lookup (debtor, customerCategory) debtor'catMap
