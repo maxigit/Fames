@@ -1,3 +1,4 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 module GL.TaxReport.Settings where
 import ClassyPrelude
 import Data.Aeson.TH(deriveJSON, defaultOptions, fieldLabelModifier, sumEncoding, SumEncoding(..))
@@ -22,6 +23,7 @@ data TaxReportSettings  = TaxReportSettings
 data TaxProcessor
   = HMRCProcessor HMRCProcessorParameters 
   | ManualProcessor  ManualProcessorParameters-- ^ Don't submit anything but set the submitted date using the deadline or the submission date
+  | ECSLProcessor ECSLProcessorParameters -- ^ European community VAT
   deriving (Eq, Read, Show)
 
 data HMRCProcessorParameters = HMRCProcessorParameters
@@ -39,6 +41,12 @@ data HMRCProcessorParameters = HMRCProcessorParameters
 data ManualProcessorParameters = ManualProcessorParameters
     { submissionDate :: Maybe DateCalculator -- ^ submission date calculated next period
     }
+  deriving (Eq, Read, Show)
+data ECSLProcessorParameters = ECSLProcessorParameters
+  { outOfScope :: Maybe Bucket -- ^ Bucket used for tax out of ECSL scope
+  , vatNumber :: Text
+  , branch :: Text
+  }
   deriving (Eq, Read, Show)
 
 -- * JSON
@@ -117,6 +125,7 @@ $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField
                             } ''TaxBoxRule)
 $(deriveJSON defaultOptions ''HMRCProcessorParameters)
 $(deriveJSON defaultOptions ''ManualProcessorParameters)
+$(deriveJSON defaultOptions ''ECSLProcessorParameters)
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField
                             , fieldLabelModifier = fromMaybe <*> stripPrefix "tp"
                             , constructorTagModifier = fromMaybe <*> stripSuffix "Processor"

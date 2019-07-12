@@ -191,18 +191,20 @@ alreadySubmitted key submitted = do
   
 
 -- | Submit the report
-postGLTaxReportSubmitR :: Int64 -> Handler Html
+postGLTaxReportSubmitR :: Int64 -> Handler TypedContent
 postGLTaxReportSubmitR key = do
   return "nothing done"
   report <- runDB $ loadReport key
   Just reportSettings  <- getReportSettings (taxReportType $ entityVal report)
-  TaxReport{..} <- submitReturn report reportSettings
+  (TaxReport{..}, contentm )<- submitReturn report reportSettings
   runDB $ update (entityKey report) [ TaxReportSubmittedAt =. taxReportSubmittedAt
                                     , TaxReportExternalReference =. taxReportExternalReference 
                                     , TaxReportExternalData =. taxReportExternalData
                                     ]
   setSuccess "Report has been succesfully submitted"
-  getGLTaxReportsR  >>= sendResponseStatus created201
+  case contentm of
+    Nothing -> toTypedContent <$> getGLTaxReportsR  >>= sendResponseStatus created201
+    Just content -> return content
 
 
 -- ** HMRC OAuth2
@@ -374,15 +376,20 @@ renderReportView rule report mode = do
   personName <- entityNameH False
   taxMap <- runDB $ loadTaxTypeMap
   today <- todayH
-  boxes <- runDB $ getBoxes settings (map fst $ toList bucket'rates)
+  (boxes, bucketSummary) <- runDB $ do
+    bucketSummary <- loadBucketSummary (entityKey report)
+    let buckets = setFromList $ map fst (keys bucket'rates) <> map fst (keys bucketSummary) :: Set Bucket
+    boxes <- getBoxes settings buckets 
+    return (boxes, bucketSummary)
   let boxValues :: [(TaxBox, TaxDetail -> Maybe Decimal)]
       boxValues = [ (box, f)
                   | box <- boxes
-                  , let f detail = either (const Nothing) Just $ computeBox bucket'rates  
+                  , let f detail = either (const Nothing) Just $ computeBox bucket'rates0
                                               (reportDetailToBucketMap taxMap $ tdReportDetail detail) 
                                               box
                   ]
       taxName taxId = FA.taxTypeName . entityVal <$> lookup taxId taxMap
+      bucket'rates0 = setFromList . keys $ Map.filter (== ConfigBucket) bucket'rates :: Set (Bucket, Entity FA.TaxType)
 
   let urlFn = urlForFA faURL
       status = (taxReportStatus (entityVal report), taxReportDateStatus settings today (entityVal report))
@@ -402,18 +409,15 @@ renderReportView rule report mode = do
                          (Process, _ ) -> reopenButtonForm (entityKey report)
                          _ -> rejectButtonForm (entityKey report)
             TaxReportBucketView -> do
-              buckets <- runDB $ loadBucketSummary (entityKey report)
-              return $ renderBucketTable bucket'rates buckets
+              return $ renderBucketTable bucket'rates0 bucketSummary
             TaxReportBoxesView -> do
-              buckets <- runDB $ loadBucketSummary (entityKey report)
-              let box'amounts = computeBoxes bucket'rates buckets boxes
+              let box'amounts = computeBoxes bucket'rates0 bucketSummary boxes
               return $ renderBoxTable box'amounts
                      >> case status of
                           (_, Submitted _) -> return ()
                           _ -> preSubmitButtonForm (entityKey report)
             TaxReportConfigChecker -> do
-              buckets <- getBucketRateFromConfig report
-              return $ renderBoxConfigCheckerTable buckets boxes
+              return $ renderBoxConfigCheckerTable bucket'rates boxes
   let navs = [TaxReportPendingView .. ]
       myshow t0 = let t =  drop  12 $ splitSnake $ tshow t0
                   in take (length t - 4) t :: Text
@@ -629,12 +633,12 @@ renderBoxTable box'amounts =
 -- which bucket as an impact on. To do
 -- we calculate the value of each box
 -- by setting a bucket to 1 and look at the value of the box.
-renderBoxConfigCheckerTable :: Set (Bucket, Entity FA.TaxType) -> [TaxBox] ->  Widget
+renderBoxConfigCheckerTable :: Map (Bucket, Entity FA.TaxType) BucketType -> [TaxBox] ->  Widget
 renderBoxConfigCheckerTable bucket'rates boxes =  let
   buckets :: [Bucket] 
-  buckets = nub . sort . map fst $ toList bucket'rates
+  buckets = nub . sort . map fst $ keys bucket'rates
   rates :: [Entity FA.TaxType]
-  rates = nub . sort .map snd $ toList bucket'rates
+  rates = nub . sort .map snd $ keys bucket'rates
   mkTxs = [ TaxSummary 0 1 -- tax amount
           , TaxSummary 1 0  --net amount
           ]
@@ -647,9 +651,9 @@ renderBoxConfigCheckerTable bucket'rates boxes =  let
                 | (b@TaxBox{..}, boxId) <- box'ids
                 , let boxValue = either (error . unpack) id $ computeBoxAmount  tbRule rounding (mkMap bucket mkTx)
                       rounding = tbRound0 b
-                , let up = if decimalMantissa boxValue > 1
+                , let up = if decimalMantissa boxValue >= 1
                            then "up"
-                           else if decimalMantissa boxValue < -1
+                           else if decimalMantissa boxValue <= -1
                            then "down"
                            else "no"
                 ]
@@ -756,7 +760,8 @@ renderBoxConfigCheckerTable bucket'rates boxes =  let
       // $('td.box').attr('data-boxdown', "0");
       })
               |]
-  in [whamlet|
+  in
+    [whamlet|
       <div.row>
         <div.col-md-2 id=control-table >
           ^{control}
@@ -1039,7 +1044,9 @@ loadSavedBoxes reportKey = do
 loadTaxBoxes :: TaxReportSettings -> Key TaxReport -> SqlHandler [(TaxBox, Decimal)]
 loadTaxBoxes settings reportKey = do
   savedBoxes <- loadSavedBoxes reportKey
-  boxes <- getBoxes settings [] 
+  bucket'rateMap <- loadBucketSummary reportKey 
+  let buckets = setFromList (map fst $ keys bucket'rateMap) :: Set Bucket
+  boxes <- getBoxes settings buckets
   let
     -- boxes are the one we loaded + the one from settings
     taxBoxMap = (mapFromList $ map (fanl tbName) boxes) :: Map Text TaxBox
@@ -1048,6 +1055,7 @@ loadTaxBoxes settings reportKey = do
       box = fromMaybe (taxBox0 taxReportBoxName) $ lookup taxReportBoxName taxBoxMap 
       rounding = tbRound0 box
   return $ map mkTaxBox'Amount savedBoxes
+
 
 -- ** Saving
 -- | Mark the report as done and save its boxes
@@ -1058,9 +1066,11 @@ closeReport settings report = do
         error "Report already closed"
     -- load
       buckets <- loadBucketSummary $ entityKey report
-      boxes <- getBoxes settings (map fst $ keys buckets)
+      boxes <- getBoxes settings (setFromList $ map fst $ keys buckets)
+      mapM traceShowM (mapToList buckets)
+      mapM traceShowM boxes
       let
-        box'amounts = computeBoxes bucket'rates buckets boxes
+        box'amounts = computeBoxes (setFromList $ keys bucket'rates) buckets boxes
         mkBox (TaxBox{..}, amount) = TaxReportBox{..} where
           taxReportBoxReport = entityKey report
           taxReportBoxName = tbName
@@ -1106,16 +1116,23 @@ formatDoubleWithSign amount = [shamlet|<span :negative:.text-danger>#{formatDoub
 formatDecimal :: Decimal -> Text
 formatDecimal x = F.sformat commasDecimal x
 
+data BucketType = ConfigBucket | ExtraBucket deriving (Eq, Read, Show, Enum, Bounded)
 -- | Get the list of all  Bucket/rate configuration from the config
 -- (and the rate in the database)
-getBucketRateFromConfig :: Entity TaxReport -> Handler (Set (Bucket, Entity FA.TaxType ))
+getBucketRateFromConfig :: Entity TaxReport -> Handler (Map (Bucket, Entity FA.TaxType) BucketType )
 getBucketRateFromConfig report = do
   settings <- unsafeGetReportSettings (taxReportType $ entityVal report)
 
-  taxEntities <- runDB $ selectList [FA.TaxTypeInactive ==. False] []
-  return $ computeBucketRates (rules settings) $ mapFromList [ (key, e)
-                                                             | (Entity key e) <- taxEntities
-                                                             ]
+  runDB $ do
+    taxEntities <- selectList [FA.TaxTypeInactive ==. False] []
+    let configBucket'rates = computeBucketRates (rules settings) $ mapFromList [ (key, e)
+                                                                               | (Entity key e) <- taxEntities
+                                                                               ]
+    bucket'rates <- loadBucketSummary (entityKey report)
+
+    return $ mapFromList (zip (toList configBucket'rates)
+                                          (repeat ConfigBucket)
+                                     ) <> (const ExtraBucket <$> bucket'rates)
   
 
 
