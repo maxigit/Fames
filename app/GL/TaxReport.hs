@@ -86,7 +86,8 @@ applyTaxRuleM (CustomerCategory category suffix) input = do
   case riCustCategoryFinder input category of
     Just "" -> Nothing -- Just $ cat <> maybe "" (";" <>) suffix
     Just cat -> Just $ cat <> maybe "" (";" <>) suffix
-    _ -> error . unpack $ "Customer Category '" <> category <> "' for customer " <> tshow (riEntity input) <> ". Please refresh customer categories"
+    Nothing -> Nothing
+    -- _ -> error . unpack $ "Customer Category '" <> category <> "' for customer " <> tshow (riEntity input) <> ". Please refresh customer categories"
 
 isCustomer = (`elem` customerFATransactions)
 isSupplier = (`elem` supplierFATransactions)
