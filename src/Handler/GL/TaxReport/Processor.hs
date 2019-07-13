@@ -112,7 +112,7 @@ data ECSL = ECSL
   { eCountry :: Text
   , eCustomerGST :: Text
   , eCustomerName :: Maybe Text
-  , eAmount :: Integer
+  , eAmount :: Int
   , eIndicator :: Int
   } deriving (Eq, Show)
 -- ** Common
@@ -166,10 +166,10 @@ submitECSL params@ECSLProcessorParameters{..} report TaxReportSettings{..} = do
 boxToECSL :: TaxReportBox -> Either (Text, Maybe Text) ECSL
 boxToECSL (TaxReportBox{..}) = uncurry go <$> parseECSLBucket taxReportBoxName  where
   go taxCode eIndicator = ECSL{..} where
-    (eCountry, eCustomerGST) = splitAt 2 taxReportBoxName
+    (eCountry, eCustomerGST) = splitAt 2 taxCode
     eCustomerName = Nothing
-    eAmount = case decimalPlaces $ normalizeDecimal taxReportBoxValue  of
-      0 -> decimalMantissa taxReportBoxValue
+    eAmount = case decimalConvert (normalizeDecimal taxReportBoxValue) of
+      Just amount | 0 == decimalPlaces amount -> decimalMantissa amount
       _ -> error $ "ECSL Amount needs to be whole number" <>  " " <> show taxReportBoxValue
 
 
