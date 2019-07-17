@@ -110,6 +110,7 @@ data AppSettings = AppSettings
     , appReceiptTemplates :: Map Text ReceiptTemplate
     , appReportDeduceTax :: Bool -- ^ weither to deduce tax from tax included transaction
     , appTaxReportSettings :: Map Text TaxReportSettings
+    , appPackingListStickerTemplate :: Text -- ^ GLabels file to print stickers from packing list
     , appFavicon:: Text
     , appStocktakeHistoryCategory :: Text
     } deriving Show
@@ -239,6 +240,7 @@ instance FromJSON AppSettings  where
         -- let appTaxReportSettings  = either (error . unpack) id $ traverse alterTaxReportSettings appTaxReportSettings'
         
           
+        appPackingListStickerTemplate <- o .:? "packing-list-sticker-template" .!= "/config/delivery-stickers.glabels"
         appFavicon <- o .:? "favicon" .!= (if defaultDev then "Orange" else "" )
         appStocktakeHistoryCategory  <- o .:? "stocktake-history-category" .!= "style"
 

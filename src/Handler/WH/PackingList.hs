@@ -662,8 +662,9 @@ stickerSource today pl entities = do
 generateStickers :: PackingList -> [Entity PackingListDetail] -> Handler TypedContent
 generateStickers pl details = do
   today <- todayH
+  template <- appPackingListStickerTemplate <$> getsYesod appSettings
   generateLabelsResponse ("label" <> ( maybe "" ("-" <>) (packingListContainer pl) <> ".pdf") )
-                         "/config/delivery-stickers.glabels"
+                         template
                          (stickerSource today pl details)
 
 

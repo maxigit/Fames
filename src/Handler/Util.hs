@@ -92,7 +92,7 @@ import System.Directory (removeFile, createDirectoryIfMissing)
 import System.FilePath(takeDirectory)
 import System.IO.Temp (openTempFile)
 -- import System.Exit (ExitCode(..))
-import Data.Streaming.Process (streamingProcess, proc, Inherited(..), waitForStreamingProcess, env)
+import Data.Streaming.Process (streamingProcess, proc, Inherited(..), waitForStreamingProcess, env, ClosedStream(..))
 import qualified Data.Text.Lazy as LT
 import Text.Blaze.Html (Markup)
 import FA as FA hiding (unUserKey)
@@ -111,6 +111,7 @@ import System.Directory(listDirectory, doesDirectoryExist)
 import Data.Char(isUpper)
 import qualified Data.List.Split as Split 
 import Data.Aeson(encode)
+
 -- * Display entities
 -- | Display Persist entities as paginated table
 -- the filter is mainly there as a proxy to indicate
@@ -393,38 +394,31 @@ generateLabelsResponse ::
   -> ConduitT () Text Handler ()
   -> Handler TypedContent
 generateLabelsResponse outputName template labelSource = do
-  -- let types = (outputName, template) :: (Text, Text)
-  (tmp, thandle) <- liftIO $ openTempFile "/tmp/DocumentCache" (unpack outputName)
-  (pin, Inherited, perr, phandle ) <- streamingProcess (proc "glabels-3-batch"
-                                                        ["--input=-"
-                                                        , "--output"
-                                                        , tmp
-                                                        , (unpack template)
-                                                        ]
-                                                  ) {env = Just [("LANG", "C.UTF-8")]}
+  (_, (tmp, thandle)) <- allocateAcquire (mkAcquire (openTempFile "/tmp" (unpack outputName))
+                                    (\ (tmp, handle) -> removeFile tmp)
+                                   -- ^ Removing the file doesn't work so we just leave it there ... :-(
+                                   )
+  -- save csv so glabels can read it
+  -- for some reason using a temporary file for the input doesn't seem to work all the time
+  -- we need to use stdin instead
+  (pin, Inherited, Inherited, processHandle ) <- streamingProcess (proc "glabels-3-batch"
+                                                          ["--input"
+                                                          , "-"
+                                                          , "--output"
+                                                          , tmp
+                                                          , (unpack template)
+                                                          ]
+                                                    ) {env = Just [("LANG", "C.UTF-8")]}
   runConduit $ labelSource .| encodeUtf8C .| sinkHandle pin
   liftIO $ hClose pin
-  _exitCode <- waitForStreamingProcess phandle
   -- we would like to check the exitCode, unfortunately
   -- glabels doesn't set the exit code.
-  -- we need to stderr instead 
-  errorMessage <- sourceToList  $ sourceHandle perr 
-  -- let cleanUp = do
-  --       hClose perr
-
-  --       removeFile tmp
-  --       hClose thandle
-  --     addCleanup = error "TODO"
-
-  case errorMessage of
-    _ ->  do
-      setAttachment (fromStrict outputName)
-      respondSource "application/pdf"
-                    ({-const cleanUp `addCleanup`-} CB.sourceHandle thandle .| mapC (toFlushBuilder))
-
-    -- _ -> do
-    --     cleanUp
-    --     sendResponseStatus (toEnum 422) (mconcat (map decodeUtf8 errorMessage :: [Text]))
+  -- we need read to stderr instead, but there are too many warning and co.
+  -- instead we redirect stderr to Fames stderr
+  _exitCode <- waitForStreamingProcess processHandle
+  hClose thandle
+  setAttachment (fromStrict outputName)
+  sendFile "application/pdf" tmp
 
 -- * Operator
 -- | Returns the first active operator.
