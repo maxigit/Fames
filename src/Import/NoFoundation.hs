@@ -170,7 +170,7 @@ commasFixedWith' roundFn digit = later go where
     frac =  roundFn ((10^digit) * abs f)
     fracB = if frac < 1
             then fconst mempty
-            else "." % left n '0' %. int
+            else "." % left digit '0' %. int
     b = (commas' % fracB) -- n (floor $ 100 *  abs f)
     in bprint b n frac
 
