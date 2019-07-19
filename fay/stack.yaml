@@ -33,6 +33,8 @@ resolver: lts-8.24
 #  - auto-update
 #  - wai
 packages:
+- location: /home/max/Hackage/Fay/fay-jquery
+  extra-dep: true
 - .
 # Dependency packages to be pulled from upstream that are not in the resolver
 # using the same syntax as the packages field.

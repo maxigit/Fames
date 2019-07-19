@@ -5,11 +5,9 @@ module PlannerView where
 import FFIExample
 
 import DOM hiding(hasClass)
-import Fay.Text (fromString) 
-import qualified Fay.Text as FT
--- import Fay.Text
-import FFI
+import Data.Text (fromString) 
 import qualified Data.Text as T
+import FFI
 import           Fay.Yesod
 import           JQuery as JQ
 import           Prelude
@@ -20,7 +18,7 @@ main = do
   installNav'
   return ()
 
-main :: Fay ()
+main' :: Fay ()
 main' = return ()
 
 installNav' = do
@@ -49,7 +47,7 @@ ajaxReload url = do
   view <- select "#planner-view-view"
   JQ.setHtml ("<p>Loading...</p>") view
   ajaxReloadFFI url form (\html -> do
-                            JQ.setHtml (FT.pack $ T.unpack html) view
+                            JQ.setHtml html view
                             main'
                             )
   return ()

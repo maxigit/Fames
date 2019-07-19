@@ -17,6 +17,8 @@ packages:
   extra-dep: true
 - location: fames-persist
   extra-dep: true
+- location: /home/max/Hackage/Fay/fay-jquery
+  extra-dep: true
 - '.'
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:

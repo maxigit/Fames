@@ -5,9 +5,7 @@ module ItemsReport where
 import FFIExample
 
 import DOM hiding(hasClass)
-import Fay.Text (fromString) 
-import qualified Fay.Text as FT
--- import Fay.Text
+import Data.Text (fromString) 
 import FFI
 import qualified Data.Text as T
 import           Fay.Yesod
@@ -26,7 +24,7 @@ ajaxReload url = do
   table <- select "#items-report-result"
   JQ.setHtml ("<p>Loading...</p>") table
   ajaxReloadFFI url form (\html -> do
-                            JQ.setHtml (FT.pack $ T.unpack html) table
+                            JQ.setHtml html table
                             -- update url in address bar
                             replaceUrlInBar url
                             -- and in form action

@@ -8,13 +8,12 @@
 module FFIExample where
 
 
-import Fay.Text (fromString) 
-import qualified Fay.Text as FT
+-- import Data.Text (fromString ) 
 import           Prelude
-import Data.Text (Text, pack)
+import Data.Text (fromString, Text)
 import DOM
 import FFI
-import           JQuery hiding(Element)
+import           JQuery
 import qualified JQuery as JQ
   
 onKeyUp :: Element -> Fay () -> Fay ()
@@ -34,9 +33,6 @@ alert = ffi "alert(%1)"
 
 alertS :: String -> Fay ()
 alertS = ffi "alert(%1)"
-
-alert' :: FT.Text -> Fay ()
-alert' = ffi "alert(%1)"
 
 -- | Hide a JQuery
 jHide :: JQuery -> Fay ()
@@ -75,14 +71,15 @@ jsize :: JQuery -> Fay Int
 jsize = ffi "%1.size()"
 
 
-jToList :: JQuery -> Fay [JQ.Element]
+jToList :: JQuery -> Fay [Element]
 jToList = ffi "%1.toArray()"
 
+-- TODO remove
+parseInt' :: Text -> Fay Int
+parseInt' = parseInt 
 
-parseInt' :: FT.Text -> Fay Int
-parseInt' = parseInt . pack . FT.unpack
-
-jIsTrue :: FT.Text -> Fay Bool
+-- TODO rename
+jIsTrue :: Text -> Fay Bool
 jIsTrue = ffi "%1 === true"
 
 
@@ -115,8 +112,8 @@ installNav formSelector ajaxReload = do
                            ) nav
             ) navs
 
-ajaxReloadFFI :: FT.Text -> JQuery -> (a -> Fay ()) ->  Fay ()
+ajaxReloadFFI :: Text -> JQuery -> (a -> Fay ()) ->  Fay ()
 ajaxReloadFFI = ffi "$.ajax({url:%1, data:%2.serialize(), dataType:'json', type:'POST',success:%3})"
 
-replaceUrlInBar :: FT.Text -> Fay ()
+replaceUrlInBar :: Text -> Fay ()
 replaceUrlInBar = ffi "history.pushState(null,null,%1)"

@@ -5,13 +5,13 @@ module ItemsIndex where
 import FFIExample
 
 import DOM hiding(hasClass)
-import Fay.Text (fromString) 
-import qualified Fay.Text as FT
 -- import Fay.Text
 import FFI
+import Data.Text(fromString,Text,(<>))
 import qualified Data.Text as T
 import           Fay.Yesod
-import           JQuery as JQ
+import qualified          JQuery as JQ
+import JQuery
 import           Prelude
 import           SharedTypes
 
@@ -28,13 +28,13 @@ main' = do
   addCheckAll
   return ()
 installCallbacks = do
-    rows <- select "#items-index table > tbody > tr"
+    rows <- select ("#items-index table > tbody > tr" :: Text)
     jQueryMap installC rows
     return  ()
 
 
 
-installC :: Double -> JQ.Element -> Fay JQuery
+installC :: Double -> Element -> Fay JQuery
 installC index el = do
   row <- select el
   onclickBase row
@@ -48,7 +48,7 @@ onclickBase base = do
   case dklasses of
     Undefined -> return base
     Defined cs -> do
-      let classes = FT.splitOn (" ") cs
+      let classes = T.splitOn (' ') cs
           styles = findInClasses "style-" classes
           hideShow = if "base" `elem` classes then jToggleBase base else jHide
 
@@ -56,7 +56,7 @@ onclickBase base = do
             [style] ->  do
                 cell <- findSelector "td.description" base
                 onClick (\ev -> do
-                            hideShow =<< select ("#items-index table > tbody > tr.variation.style-" `FT.append` style )
+                            hideShow =<< select ("#items-index table > tbody > tr.variation.style-" <> style )
                             return False
                         ) cell
                 JQ.addClass "clickable" cell
@@ -68,7 +68,7 @@ onSelectBase' base = do
   Defined name <- JQ.getAttr "name" radio
   JQ.onChange ( do
 
-    let selector = ("tr.base input[type=radio][name='"`FT.append` name `FT.append` "']")
+    let selector = ("tr.base input[type=radio][name='"<> name <> "']")
     oldRadio <- select selector
     oldBase <- JQ.closestSelector "tr.base" oldRadio 
     JQ.removeClass "base" oldBase
@@ -84,7 +84,7 @@ onSelectBase base = do
   JQ.onChange (do
                   -- ajax call
                   updateWithAjax form (\html -> do
-                                          JQ.setHtml (FT.pack $ T.unpack html) table
+                                          JQ.setHtml html table
                                           main'
                                       )
                ) radio
@@ -108,12 +108,13 @@ ajaxReload url = do
   table <- select "#items-table"
   JQ.setHtml ("<p>Loading...</p>") table
   ajaxReloadFFI url form (\html -> do
-                            JQ.setHtml (FT.pack $ T.unpack html) table
+                            JQ.setHtml html table
                             main'
                             )
   return ()
 
 
+findInClasses :: Text -> [Text] -> [Text]
 findInClasses prefix [] = []
 findInClasses prefix (c:cs) =
   let cs' = findInClasses prefix cs
@@ -121,10 +122,12 @@ findInClasses prefix (c:cs) =
        Just suffix -> suffix : cs'
        Nothing -> cs'
        
+stripPrefix ::Text -> Text -> Maybe Text
 stripPrefix pre s = let
-  l = FT.length pre
-  in if FT.take l s  == pre
-     then Just (FT.drop l s)
+  l = T.length pre
+  in if T.take l s  == pre
+     then Just (T.drop l s)
+
      else Nothing
                                 
 
@@ -179,7 +182,7 @@ installLabelCallbacks = do
   return ()
 
 -- | Install label callback to select or deselect row with similar label
-installL :: Double -> JQ.Element -> Fay JQuery
+installL :: Double -> Element -> Fay JQuery
 installL index el = do
   label <- select el
   parentRow <- JQ.closestSelector "tr" label
@@ -191,7 +194,7 @@ installL index el = do
       -- find rows matching the same label
 
         onClick (\ev -> do
-                    others <- select ("[data-label='" `FT.append` value  `FT.append` "']")
+                    others <- select ("[data-label='" <> value  <> "']")
                     targets <- JQ.closestSelector "tr" others
                     -- depending on the value of the current row
                     -- we either select or unselect all the targets

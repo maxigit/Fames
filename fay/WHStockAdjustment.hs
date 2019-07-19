@@ -5,11 +5,9 @@ module WHStockAdjustment where
 import FFIExample hiding(onChange)
 
 import DOM hiding(hasClass)
-import Fay.Text (fromString) 
-import qualified Fay.Text as FT
--- import Fay.Text
-import FFI
+import Data.Text (fromString,(<>), Text, pack)
 import qualified Data.Text as T
+import FFI
 import           Fay.Yesod
 import           JQuery as JQ
 import           Prelude
@@ -40,7 +38,7 @@ main = do
            ) moduloInput
   installActiveCallback
 
-installC :: Double -> JQ.Element -> Fay JQuery
+installC :: Double -> Element -> Fay JQuery
 installC index el = do
   row <- select el
   moves <- findMoves row
@@ -53,7 +51,7 @@ installC index el = do
 findMoves :: JQuery -> Fay JQuery
 findMoves row = do
   Defined sku <- JQ.getAttr "data-sku" row
-  select ("tr.move.sku-" `FT.append` sku)
+  select ("tr.move.sku-" <> sku)
   
 findSelectMoves :: JQuery -> Fay JQuery
 findSelectMoves row = do
@@ -61,7 +59,7 @@ findSelectMoves row = do
   findSelector "select" moveRows
 
   
-updateQohOnChange :: JQuery -> Double -> JQ.Element -> Fay JQuery
+updateQohOnChange :: JQuery -> Double -> Element -> Fay JQuery
 updateQohOnChange row index input = do
   jSelect <- select input
   -- find options
@@ -96,7 +94,7 @@ updateBadges row = do
   qBefore <- quantityBefore row jSelect
   let newQoh = qoh oqties + qBefore
   -- update QOH cell
-  setText (FT.pack . show $ newQoh) spanQoh
+  setText (pack . show $ newQoh) spanQoh
   -- update bagde sizes
   modulo <- getModuloValue
   let nqties = oqties {qoh = newQoh, qModulo = modulo}
@@ -104,13 +102,13 @@ updateBadges row = do
 
       updateBadge (accessor, klass) = do
         let q = accessor badges
-        badge <- findSelector ("span.badge." `FT.append` klass) row
+        badge <- findSelector ("span.badge." <> klass) row
         case badgeWidth q of
           Nothing -> jHide badge
           Just w -> do
             jShow badge
-            setText (FT.pack $ show q ) badge
-            setCss "width" (FT.pack (show w) `FT.append` "em") badge >> return ()
+            setText (pack $ show q ) badge
+            setCss "width" (pack (show w) <> "em") badge >> return ()
 
 
   mapM_ updateBadge [(bMissing, "missing"), (bMissingMod, "missing-mod")
@@ -167,7 +165,7 @@ getAllActiveBoxes :: Fay JQuery
 getAllActiveBoxes = do
   select "#stock-adjustment table tr td.active input"
 
-installUpdateActive :: JQuery -> Double -> JQ.Element -> Fay  JQuery
+installUpdateActive :: JQuery -> Double -> Element -> Fay  JQuery
 installUpdateActive master _ el = do
   j <- select el
   onChange (do
@@ -179,7 +177,7 @@ installUpdateActive master _ el = do
   return j
   
 
-setRowActiveStyle :: JQuery -> FT.Text -> JQuery -> Fay JQuery 
+setRowActiveStyle :: JQuery -> Text -> JQuery -> Fay JQuery 
 setRowActiveStyle master checkedStr boxes = do
   checked <- jIsTrue checkedStr
   let opacity = if checked then "1" else "0.5"
