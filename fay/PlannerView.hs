@@ -1,6 +1,6 @@
 {-# LANGUAGE RebindableSyntax #-}
 {-# LANGUAGE OverloadedStrings #-}
-module ItemsIndex where
+module PlannerView where
 
 import FFIExample
 

@@ -1,0 +1,15 @@
+name: Fames
+version: '0.0.1'
+license: UnspecifiedLicense
+dependencies:
+# - text
+- fay >=0.21.2.1 && <0.24
+- fay-jquery >=0.6 && <0.7
+- fay-text >=0.3 && <0.4
+- fay-dom
+- fay-base
+
+library:
+  source-dirs:
+  - .
+  - ../fay-shared
