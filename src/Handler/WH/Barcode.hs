@@ -35,8 +35,6 @@ import Handler.Util(setAttachment, generateLabelsResponse, renderField)
 import Data.Time
 import qualified Data.Text.Lazy as LT
  
-barcodeFayWidget = return () --  $(fayFile "WH/Barcode")
-
 withAngularApp :: Maybe Text -> Widget -> Widget
 withAngularApp modM widget = do
   case modM of
@@ -102,7 +100,7 @@ barcodeForm bparams date start extra = do
                        <*> numberRes
                        <*> dateRes
                        <*> ((\o -> if o then Csv else GLabels) <$> onlyRes)
-  return (result, widget >> barcodeFayWidget)
+  return (result, widget)
   where allTemplates = [(bi, template)
                        | (bparam,bi) <- zip bparams ns
                        , template <- bpTemplates bparam
