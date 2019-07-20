@@ -1,0 +1,27 @@
+div.well.dropzone-active
+  border: solid #{greenBadgeBg} 2px
+  background: #{paleGreen}
+
+div.well.dragged
+  opacity: 0.5
+  border: dashed #{amberBadgeBg} 2px
+  background: #{paleAmber2}
+
+div.well.dnd-started
+  border: solid black 2px
+
+  [draggable=true]:not(.dragged):not(.dropzone-active)
+    border: dashed #{grayBadgeBg} 2px
+    background: #{paleBlue}
+  [draggable=true] *
+    pointer-events: none
+
+
+
+// For test only
+.dnd-target
+  border: dashed red 2px
+  background: red
+.dnd-source
+  border: dashed green 2px
+  background: green

@@ -58,16 +58,34 @@ reportForm cols paramM extra = do
   (fAdjustment, vAdjustment) <- mreq checkBoxField "Adjustment" (rpLoadAdjustment <$> paramM)
   (fForecast, vForecast) <- mopt (selectFieldList forecastDirOptions) "Forecast Profile" (rpForecastDir <$> paramM)
   (fForecastInOut, vForecastInOut) <- mopt (selectField optionsEnum) "Forecast Mode" (rpForecastInOut <$> paramM)
-  let fields = [ Right $ mapM_ renderField [vFrom, vTo, vPeriod, vPeriodN]
-               , Right $ mapM_ renderField [vStockFilter, vCategoryToFilter, vCategoryFilter]
-               , Right wPanel, Right wBand, Right wSerie
-               , Right vColRupture
-               , Right wTrace1, Right wTrace2, Right wTrace3
-               , Right $ mapM_ renderField [vSales, vOrder, vPurchases, vAdjustment]
-               , Right $ mapM_ renderField [vForecast, vForecastInOut]
+  let fields = [ Left $ mapM_ renderField [vFrom, vTo, vPeriod, vPeriodN]
+               , Left $ mapM_ renderField [vStockFilter, vCategoryToFilter, vCategoryFilter]
+               , Right ("panel-rupture" :: Text, [wPanel, wBand, wSerie , vColRupture ])
+               , Right ("panel-trace", [ wTrace1, wTrace2, wTrace3 ])
+               , Left $ mapM_ renderField [vSales, vOrder, vPurchases, vAdjustment]
+               , Left $ mapM_ renderField [vForecast, vForecastInOut]
                ]
-  let form = [whamlet|#{extra}|] >> mapM_ (either renderField inline) fields
-      inline w = [whamlet| <div.form-inline>^{w}|]
+  let form = [whamlet|#{extra}|] >> mapM_ (either inline dragablePanel) fields >> dragAndDropW
+      inline w = [whamlet| <div.well.well-sm.form-inline>^{w}|]
+      dragablePanel (panelId, ws) =  [whamlet|
+           <div.well style="background:white" id="#{panelId}">
+             $forall w <- ws
+               <div.well.well-sm.form-inline
+                      style="cursor:move"
+                      draggable="true"
+                      ondragstart="startDrag('#{panelId}',event)"
+                      ondragend="endDrag('#{panelId}',event)"
+                      ondragover="dragOver('#{panelId}',event)"
+                      ondragenter="dragEnter('#{panelId}',event)"
+                      ondragLeave="dragLeave('#{panelId}',event)"
+                      ondrop="drop('#{panelId}',event)"
+               >
+                  <span.glyphicon.glyphicon-move>
+                  ^{w}
+                                  |]
+      dragAndDropW = $(widgetFile "Items/report-dnd")
+      -- julius = $(juliusFileReload "/home/max/devel/mae/Fames/src/Handler/Items/Reports/dnd-form.julius")
+      -- cassius = $(cassiusFileReload "/home/max/devel/mae/Fames/src/Handler/Items/Reports/dnd-form.cassius")
       report = mkReport today deduceTax fFrom  fTo
           fPeriod  fPeriodN
           fCategoryToFilter  fCategoryFilter
