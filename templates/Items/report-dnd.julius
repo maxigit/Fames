@@ -8,9 +8,11 @@ function startDrag(wellId, e) {
     }
     
     e.dataTransfer.setData("text/x-fames;target-id", event.target.id);
-    e.dataTransfer.setData("text/x-fames;wellId", wellId);
-    e.dataTransfer.setData("Text", JSON.stringify(getLabelValueMap(e.target)));
-    e.dataTransfer.dropEffect = "none";
+    e.dataTransfer.setData("text/x-fames;wellid", wellId);
+    var json = JSON.stringify(getLabelValueMap(e.target));
+    e.dataTransfer.setData("Text", json);
+    e.dataTransfer.setData("text/plain", json);
+    e.dataTransfer.dropEffect = "copy";
     e.dataTransfer.effectAllowed = "copyMove";
 
 }
@@ -24,7 +26,7 @@ function dragOver(wellId, e) {
     // e.classList.add("dragged-over");
 }
 function dragEnter(wellId, e) {
-    eWellId = e.dataTransfer.getData("text/x-fames;wellId");
+    eWellId = e.dataTransfer.getData("text/x-fames;wellid");
     if (eWellId == null || eWellId == wellId) {
       e.target.classList.add("dropzone-active");
         if(eWellId == null) e.dataTransfer.dropEffect = "copy";
@@ -43,12 +45,16 @@ function dragLeave(wellId, e) {
 
 function drop(wellId, e) {
     e.preventDefault();
-    var draggedId = e.dataTransfer.getData("text/x-fames;target-id")
-    var dragged = document.getElementById(draggedId);
-    // well = document.getElementById(wellId)
-    // $(well).find(".dropzone-active").removeClass("dropzone-active")
     e.currentTarget.classList.remove("dropzone-active");
-    swapInputValues(dragged, e.currentTarget);
+    var draggedId = e.dataTransfer.getData("text/x-fames;target-id")
+    if (draggedId) {
+      var dragged = document.getElementById(draggedId);
+      swapInputValues(dragged, e.currentTarget);
+    } else {
+        var json = e.dataTransfer.getData("text/plain");
+        applyObject(JSON.parse(json), e.currentTarget)
+        
+    }
 
 }
 
@@ -62,14 +68,26 @@ function swapInputValues(p1, p2) {
     for(var key in m1) {
         var input1 = m1[key];
         var input2 = m2[key];
-        var value = input1.value;
         if (input1 && input2) {
+            var value = input1.value;
             input1.value = input2.value;
             input2.value = value;
         }
     }
 
 
+}
+
+function applyObject(json, e) {
+    m1 = getLabelInputMapByLabel(e);
+    for (var key in json) {
+        var input = m1[key];
+        if (input) {
+            input.value = json[key];
+        }
+        
+    }
+    
 }
 
 // get all input
@@ -84,8 +102,13 @@ function getLabelInputMapByIdx(elem) {
 
 function getLabelInputMapByLabel(elem) {
     var result = {};
+    var map = {"type 2":"type", "type 3":"type",
+               "Band": "Panel", "Series": "Panel", "Columns":"Panel" };
     $(elem).find('label[for]').each(function (i, label) {
-          result[label.innerText] = document.getElementById(label.getAttribute('for'));
+        // we need to alter the key so that trace1 trace2 etc are trace
+        var key0 = label.innerText;
+        var key = map[key0] || key0;
+        result[key] = document.getElementById(label.getAttribute('for'));
       }
     );
     return result;
