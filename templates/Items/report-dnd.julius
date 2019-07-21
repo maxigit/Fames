@@ -8,7 +8,10 @@ function startDrag(wellId, e) {
     }
     
     e.dataTransfer.setData("Text", event.target.id);
-    e.dataTransfer.dropEffect = "move";
+    e.dataTransfer.setData("text/x-fames/wellId", wellId);
+    e.dataTransfer.dropEffect = "none";
+    e.dataTransfer.effectAllowed = "copyMove";
+
 }
 function endDrag(wellId, e) {
     e.target.classList.remove("dragged")
@@ -20,10 +23,21 @@ function dragOver(wellId, e) {
     // e.classList.add("dragged-over");
 }
 function dragEnter(wellId, e) {
-    e.target.classList.add("dropzone-active");
+    eWellId = e.dataTransfer.getData("text/x-fames/wellId");
+    if (eWellId == null || eWellId == wellId) {
+      e.target.classList.add("dropzone-active");
+        if(eWeeId == null) e.dataTransfer.dropEffect = "copy";
+        else e.dataTransfer.dropEffect = "move";
+    }
+    else {
+        e.dataTransfer.dropEffect = "none";
+    }
+
+        
 }
 function dragLeave(wellId, e) {
     e.target.classList.remove("dropzone-active");
+    e.dataTransfer.dropEffect = "none";
 }
 
 function drop(wellId, e) {
