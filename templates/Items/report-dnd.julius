@@ -26,10 +26,11 @@ function dragOver(wellId, e) {
     // e.classList.add("dragged-over");
 }
 function dragEnter(wellId, e) {
-    eWellId = e.dataTransfer.getData("text/x-fames;wellid");
+    var eWellId = null;
+    if (e.dataTranfer) eWellId = e.dataTransfer.getData("text/x-fames;wellid");
     if (eWellId == null || eWellId == wellId) {
       e.target.classList.add("dropzone-active");
-        if(eWellId == null) e.dataTransfer.dropEffect = "copy";
+        if(eWellId == null || e.ctrlKey) e.dataTransfer.dropEffect = "copy";
         else e.dataTransfer.dropEffect = "move";
     }
     else {
@@ -49,7 +50,8 @@ function drop(wellId, e) {
     var draggedId = e.dataTransfer.getData("text/x-fames;target-id")
     if (draggedId) {
       var dragged = document.getElementById(draggedId);
-      swapInputValues(dragged, e.currentTarget);
+      if(e.ctrlKey) copyInputValues(dragged, e.currentTarget);
+        else swapInputValues(dragged, e.currentTarget);
     } else {
         var json = e.dataTransfer.getData("text/plain");
         applyObject(JSON.parse(json), e.currentTarget)
@@ -78,6 +80,20 @@ function swapInputValues(p1, p2) {
 
 }
 
+function copyInputValues(p1, p2) {
+    m1 = getLabelInputMapByIdx(p1);
+    m2 = getLabelInputMapByIdx(p2);
+
+    for(var key in m1) {
+        var input1 = m1[key];
+        var input2 = m2[key];
+        if (input1 && input2) {
+            input2.value = input1.value;
+        }
+    }
+
+
+}
 function applyObject(json, e) {
     m1 = getLabelInputMapByLabel(e);
     for (var key in json) {
