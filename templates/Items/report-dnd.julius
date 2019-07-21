@@ -7,7 +7,7 @@ function startDrag(wellId, e) {
         e.target.id = "dragged-" + new Date().getTime();
     }
     
-    e.dataTransfer.setData("text/x-fames;target-id", event.target.id);
+    e.dataTransfer.setData("text/x-fames;source-id", event.target.id);
     e.dataTransfer.setData("text/x-fames;wellid", wellId);
     var json = JSON.stringify(getLabelValueMap(e.target));
     e.dataTransfer.setData("Text", json);
@@ -23,23 +23,34 @@ function endDrag(wellId, e) {
 }
 function dragOver(wellId, e) {
     e.preventDefault();
+    dragEnter(wellId, e)
     // e.classList.add("dragged-over");
 }
 function dragEnter(wellId, e) {
+    var draggedId = e.dataTransfer.getData("text/x-fames;source-id")
+    if (draggedId == e.currentTarget.id) {
+        e.dataTransfer.dropEffect = "none";
+        return false;
+    }
     var eWellId = null;
-    if (e.dataTranfer) eWellId = e.dataTransfer.getData("text/x-fames;wellid");
+    if (e.dataTransfer) eWellId = e.dataTransfer.getData("text/x-fames;wellid");
     if (eWellId == null || eWellId == wellId) {
-      e.target.classList.add("dropzone-active");
-        if(eWellId == null || e.ctrlKey) e.dataTransfer.dropEffect = "copy";
+          e.currentTarget.classList.add("dropzone-active");
+        if(eWellId == null || e.ctrlKey) {
+            e.dataTransfer.dropEffect = "copy";
+            if (e.target != e.currentTarget) {
+              e.target.classList.add("dnd-target");
+            }
+        }
         else e.dataTransfer.dropEffect = "move";
     }
     else {
         e.dataTransfer.dropEffect = "none";
     }
-
         
 }
 function dragLeave(wellId, e) {
+    e.target.classList.remove("dnd-target")
     e.target.classList.remove("dropzone-active");
     e.dataTransfer.dropEffect = "none";
 }
@@ -47,10 +58,13 @@ function dragLeave(wellId, e) {
 function drop(wellId, e) {
     e.preventDefault();
     e.currentTarget.classList.remove("dropzone-active");
-    var draggedId = e.dataTransfer.getData("text/x-fames;target-id")
+    e.target.classList.remove("dnd-target");
+    var draggedId = e.dataTransfer.getData("text/x-fames;source-id")
     if (draggedId) {
       var dragged = document.getElementById(draggedId);
-      if(e.ctrlKey) copyInputValues(dragged, e.currentTarget);
+        if(e.ctrlKey) {
+            copyInputValues(dragged, e.currentTarget, e.target);
+        }
         else swapInputValues(dragged, e.currentTarget);
     } else {
         var json = e.dataTransfer.getData("text/plain");
@@ -80,11 +94,24 @@ function swapInputValues(p1, p2) {
 
 }
 
-function copyInputValues(p1, p2) {
+// Copy input values from p1 to p2
+// if start is provided skip field before target
+function copyInputValues(p1, p2, startElement) {
     m1 = getLabelInputMapByIdx(p1);
     m2 = getLabelInputMapByIdx(p2);
 
+    // look for startElement in m2
+    var n = 0;
+    for (var key in m2) {
+        if (m2[key] == startElement) {
+            n = key;
+            break;
+        }
+        
+    }
+
     for(var key in m1) {
+        if (key < n) continue;
         var input1 = m1[key];
         var input2 = m2[key];
         if (input1 && input2) {

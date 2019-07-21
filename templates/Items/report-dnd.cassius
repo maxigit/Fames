@@ -13,15 +13,17 @@ div.well.dnd-started
   [draggable=true]:not(.dragged):not(.dropzone-active)
     border: dashed #{grayBadgeBg} 2px
     background: #{paleBlue}
-  [draggable=true] *
-    pointer-events: none
 
 
+div.well.dropzone-active .dnd-target[name]
+  border: dashed #{greenBadgeBg} 2px !important
 
-// For test only
-.dnd-target
+.dnd-target-disabled
   border: dashed red 2px
-  background: red
+  background: red 
+  color: darkred 
+
 .dnd-source
-  border: dashed green 2px
-  background: green
+  border: dashed green 2px !important
+  background: green !important
+  color: darkgreen !important
