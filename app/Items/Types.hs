@@ -250,7 +250,13 @@ instance Monoid TranQP where
   mappend = (<>)
 -- type TranQP = Map QPType QPrice
 tranQP :: QPType -> QPrice -> TranQP
-tranQP qtype qp = let
+tranQP qtype qp = tranQP' extra qtype qp where
+     extra = ioToQPType (qpIO qp)
+
+ioToQPType io = case io of
+                  Inward -> [QPPurchase]
+                  Outward -> [QPSales]
+tranQP' extra qtype qp = let
   qtypes = case qtype of
                    QPSalesInvoice -> [QPSales, QPInvoice ]
                    QPSalesCredit -> [QPSales, QPCredit]
@@ -260,11 +266,11 @@ tranQP qtype qp = let
                    -- depending on the use, forecast can be seen 
                    -- as a sales (to forecast the left over stock for example)
                    -- or as a purchase, to compare to the actual sales
-                   QPSalesForecast -> if qpIO qp == Inward then [QPPurchase] else [QPSales]
+                   QPSalesForecast -> extra
                    -- depending on the use, sales order can be seen 
                    -- as a sales (to add current sales to 
                    -- or as a purchase, to compare to the actual sales (excluding the order)
-                   QPSalesOrder -> if qpIO qp == Inward then [QPPurchase] else [QPSales]
+                   QPSalesOrder -> extra
                    QPSummary -> [minBound..maxBound]
                    _ -> error $ "Fix ME: creating with TranQP with " <> show qtype
   -- for adjustment, we want the quantity to be parts of the summary

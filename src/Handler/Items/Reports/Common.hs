@@ -49,7 +49,7 @@ data ReportParam = ReportParam
   , rpLoadPurchases :: Bool
   , rpLoadAdjustment :: Bool
   -- , rpLoadForecast :: Bool
-  , rpForecast :: Maybe (FilePath, InOutward)
+  , rpForecast :: (Maybe FilePath, Maybe InOutward)
   }  deriving Show
 data OrderDateColumn = OOrderDate | ODeliveryDate deriving (Eq, Show)
 data SalesInfoMode = SSalesOnly | SSalesAndOrderInfo deriving (Eq, Show)
@@ -61,11 +61,11 @@ paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
  
 rpJustFrom ReportParam{..} = fromMaybe rpToday rpFrom
 rpJustTo ReportParam{..} = fromMaybe rpToday rpTo
-rpLoadForecast = isJust . rpForecast
+rpLoadForecast = isJust . rpForecastDir
 rpLoadSales = isJust . rpLoadSalesAndInfo
 rpLoadOrderInfo = (== Just SSalesAndOrderInfo) . rpLoadSalesAndInfo
-rpForecastDir = fmap fst . rpForecast
-rpForecastInOut = fmap snd . rpForecast
+rpForecastDir = fst . rpForecast
+rpForecastInOut = snd . rpForecast
 
 t :: Text -> Text
 t x = x
@@ -542,8 +542,8 @@ loadItemTransactions param grouper = do
   skuToStyleVar <- skuToStyleVarH
   adjustments <- loadIf rpLoadAdjustment $ loadStockAdjustments stockInfo param
   forecasts <- case rpForecast param of
-    Nothing -> return []
-    Just (forecastDir, io) -> loadItemForecast io forecastDir stockInfo (rpJustFrom param) (rpJustTo param)
+    (Nothing, _) -> return []
+    (Just forecastDir, io) -> loadItemForecast io forecastDir stockInfo (rpJustFrom param) (rpJustTo param)
   -- for efficiency reason
   -- it is better to group sales and purchase separately and then merge them
   sales <- loadIf rpLoadSales $ loadItemSales param

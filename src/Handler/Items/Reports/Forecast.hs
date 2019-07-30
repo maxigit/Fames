@@ -73,7 +73,7 @@ loadSkuSpeed filepath = do
     Right rows -> return rows
 
 -- | Generate fake transactions corresponding to forecast sales
-loadItemForecast ::  InOutward -> FilePath -> (Map Text ItemInitialInfo) -> Day -> Day -> Handler [(TranKey, TranQP)]
+loadItemForecast ::  Maybe InOutward -> FilePath -> (Map Text ItemInitialInfo) -> Day -> Day -> Handler [(TranKey, TranQP)]
 loadItemForecast io forecastDir infoMap start end = do
   catFinder <- categoryFinderCached
   settings <- getsYesod appSettings
@@ -88,8 +88,10 @@ loadItemForecast io forecastDir infoMap start end = do
   let skuSpeeds = concat skuSpeedMap 
   return $ concatMap (skuSpeedRowToTransInfo infoMap profile start end io) skuSpeeds
 
-skuSpeedRowToTransInfo infoMap profileFor start end io (SkuSpeedRow sku speed) =
-  case (profileFor sku, lookup sku infoMap) of
+skuSpeedRowToTransInfo infoMap profileFor start end iom (SkuSpeedRow sku speed) =
+  let io = fromMaybe Outward iom  -- ^ like sales
+      extra = maybe [] ioToQPType iom
+  in case (profileFor sku, lookup sku infoMap) of
     (Just profile, Just info) -> do -- []
       (day0, weight) <- weightsForRange profile start end
       guard (weight > 1e-6)
@@ -107,7 +109,7 @@ skuSpeedRowToTransInfo infoMap profileFor start end io (SkuSpeedRow sku speed) =
                     Nothing Nothing mempty
 
           qp = mkQPrice io (weight * speed) (fromMaybe 0 $ iiSalesPrice info)
-          tqp = tranQP QPSalesForecast qp
+          tqp = tranQP' extra QPSalesForecast qp
       return (key, tqp)
     _ -> []
     
