@@ -61,6 +61,7 @@ reportForm cols paramM extra = do
   (fAdjustment, vAdjustment) <- mreq checkBoxField "Adjustment" (rpLoadAdjustment <$> paramM)
   (fForecast, vForecast) <- mopt (selectFieldList forecastDirOptions) "Forecast Profile" (rpForecastDir <$> paramM)
   (fForecastInOut, vForecastInOut) <- mopt (selectFieldList forecastOptions) "Forecast Mode" (rpForecastInOut <$> paramM)
+  (fForecastStart, vForecastStart) <- mopt dayField "start" (Just $ rpForecastStart =<< paramM )
   (fColourMode, vColourMode) <- mreq (selectField optionsEnum) "Chart Colour Mode" (rpColourMode <$> paramM)
   (fGroupTrace, vGroupTrace) <- mopt (selectField optionsEnum) "Trace Group Mode" (rpTraceGroupMode <$> paramM)
   let fields = [ Left $ mapM_ renderField [vFrom, vTo, vPeriod, vPeriodN]
@@ -68,7 +69,7 @@ reportForm cols paramM extra = do
                , Right ("panel-rupture" :: Text, [wPanel, wBand, wSerie , vColRupture ])
                , Right ("panel-trace", [ wTrace1, wTrace2, wTrace3 ])
                , Left $ mapM_ renderField [vSales, vOrder, vPurchases, vAdjustment]
-               , Left $ mapM_ renderField [vForecast, vForecastInOut]
+               , Left $ mapM_ renderField [vForecast, vForecastInOut, vForecastStart]
                , Left $ mapM_ renderField [vColourMode, vGroupTrace]
                ]
   let form = [whamlet|#{extra}|] >> mapM_ (either inline dragablePanel) fields >> dragAndDropW
@@ -97,7 +98,7 @@ reportForm cols paramM extra = do
           fCategoryToFilter  fCategoryFilter
           fStockFilter  fPanel  fBand  fSerie
           fColRupture  fTrace1  fTrace2  fTrace3
-          fSales  fOrder fPurchases  fAdjustment (liftA2 (,) fForecast fForecastInOut) fColourMode fGroupTrace
+          fSales  fOrder fPurchases  fAdjustment (liftA3 (,,) fForecast fForecastInOut fForecastStart) fColourMode fGroupTrace
   return (report , form)
  
   
@@ -214,7 +215,7 @@ getItemsReportR' mode = do
                            emptyTrace --  rpDataParam2 :: DataParams
                            emptyTrace --  rpDataParam3 :: DataParams
                            (Just SSalesOnly) Nothing
-                           True True (Nothing, Nothing)
+                           True True (Nothing, Nothing, Nothing)
                            minBound Nothing
         _ -> ReportParam   today
                            deduceTax
@@ -233,7 +234,7 @@ getItemsReportR' mode = do
                            emptyTrace --  rpDataParam2 :: DataParams
                            emptyTrace --  rpDataParam3 :: DataParams
                            (Just SSalesOnly) Nothing
-                           True True (Nothing, Nothing)
+                           True True (Nothing, Nothing, Nothing)
                            minBound Nothing
 
   renderReportForm ItemsReportR mode (Just defaultReportParam) ok200 Nothing

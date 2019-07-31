@@ -49,7 +49,7 @@ data ReportParam = ReportParam
   , rpLoadPurchases :: Bool
   , rpLoadAdjustment :: Bool
   -- , rpLoadForecast :: Bool
-  , rpForecast :: (Maybe FilePath, Maybe InOutward)
+  , rpForecast :: (Maybe FilePath, Maybe InOutward, Maybe Day)
   , rpColourMode :: ColourMode
   , rpTraceGroupMode :: Maybe TraceGroupMode
   }  deriving Show
@@ -68,8 +68,9 @@ rpJustTo ReportParam{..} = fromMaybe rpToday rpTo
 rpLoadForecast = isJust . rpForecastDir
 rpLoadSales = isJust . rpLoadSalesAndInfo
 rpLoadOrderInfo = (== Just SSalesAndOrderInfo) . rpLoadSalesAndInfo
-rpForecastDir = fst . rpForecast
-rpForecastInOut = snd . rpForecast
+rpForecastDir param = dir where (dir, _, _) = rpForecast param
+rpForecastInOut param = io where (_, io, _) = rpForecast param
+rpForecastStart param = start where (_, _, start) = rpForecast param
 
 t :: Text -> Text
 t x = x
@@ -547,8 +548,8 @@ loadItemTransactions param grouper = do
   skuToStyleVar <- skuToStyleVarH
   adjustments <- loadIf rpLoadAdjustment $ loadStockAdjustments stockInfo param
   forecasts <- case rpForecast param of
-    (Nothing, _) -> return []
-    (Just forecastDir, io) -> loadItemForecast io forecastDir stockInfo (rpJustFrom param) (rpJustTo param)
+    (Nothing, _, _) -> return []
+    (Just forecastDir, io, forecastStart) -> loadItemForecast io forecastDir stockInfo (fromMaybe (rpJustFrom param) forecastStart) (rpJustTo param)
   -- for efficiency reason
   -- it is better to group sales and purchase separately and then merge them
   sales <- loadIf rpLoadSales $ loadItemSales param
