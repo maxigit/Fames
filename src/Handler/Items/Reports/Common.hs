@@ -231,8 +231,8 @@ smoothDotStyle axis color = [("type", String "scatter")
 cumulAmountStyle 3 = smoothStyle CumulAmountAxis
 cumulAmountStyle 2 = smoothDotStyle CumulAmountAxis
 cumulAmountStyle _ = markerLineStyle CumulAmountAxis
-quantityStyle 2 = hvStyle QuantityAxis
-quantityStyle n = smoothDotStyle QuantityAxis
+quantityStyle 2 = hvStyle QuantityAxis `nameStyle` "Quantity"
+quantityStyle n = smoothDotStyle QuantityAxis `nameStyle` "Quantity"
 hvStyle axis color = [("type", String "scatter")
                       ,("name", String "Quantity")
                       ,("line", [aesonQQ|{
@@ -245,6 +245,7 @@ hvStyle axis color = [("type", String "scatter")
                 -- , ("showlegend", toJSON False)
               ]
 
+nameStyle styleFn name col = styleFn col <> [("name", String name)]
 axisFor axis = ("yaxis", ax) where
   ax = case axis of
          PriceAxis ->  "y5"

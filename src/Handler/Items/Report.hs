@@ -127,7 +127,8 @@ traceForm traceN nomode suffix p = do
                                     , ("CumulAmount (Out)" ,   [(qpAmount Outward, VAmount, cumulAmountStyle traceN, RunSum)] )
                                     , ("CumulAmount Backward (Out)" ,   [(qpAmount Outward, VAmount, cumulAmountStyle traceN, RunSumBack)] )
                                     , ("CumulAmount (In)" ,   [(qpAmount Inward, VAmount, cumulAmountStyle traceN, RunSum)] )
-                                    , ("Stock" ,   [(qpQty Inward, VQuantity, quantityStyle traceN, RunSum)] )
+                                    , ("Stock" ,   [(qpQty Inward, VQuantity , quantityStyle traceN `nameStyle` "Stock"
+                                                    , RunSum)] )
                                     , amountOutOption traceN
                                     , amountInOption traceN
                                     , ("Amount (Bare)",   [(_qpAmount, VAmount, amountStyle traceN, RSNormal)])
