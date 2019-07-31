@@ -50,10 +50,12 @@ data ReportParam = ReportParam
   , rpLoadAdjustment :: Bool
   -- , rpLoadForecast :: Bool
   , rpForecast :: (Maybe FilePath, Maybe InOutward)
+  , rpColourMode :: ColourMode
   }  deriving Show
 data OrderDateColumn = OOrderDate | ODeliveryDate deriving (Eq, Show)
 data SalesInfoMode = SSalesOnly | SSalesAndOrderInfo deriving (Eq, Show)
 data OrderQuantityMode = OOrderedQuantity | OQuantityLeft deriving (Eq, Show)
+data ColourMode = Panel'Band'Colour | Band'Colour'Serie | Panel'Colour'Serie | TraceColour deriving (Eq, Show, Bounded, Enum, Ord)
 paramToCriteria :: ReportParam -> [Filter FA.StockMove]
 paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
                                   (rpTo <&> (FA.StockMoveTranDate <=.)) ?:
@@ -1241,9 +1243,13 @@ nmapToListWithRank nmap = do -- []
   return (rank'key:rks, wa)
 
 -- ** Plot
+insertNullNMapLevel nmap = NMap (nmapMargin nmap) (Nothing:nmapLevels nmap) (Map.singleton (mkNMapKey PersistNull) nmap )
 chartProcessor :: ReportParam -> NMap (Sum Double, TranQP) -> Widget 
 chartProcessor param grouped = do
-  renderPanelWith  "items-report-chart" grouped (plotChartDiv param $ \n -> max 350 (900 `div` n))
+  case rpColourMode param of
+    Band'Colour'Serie -> -- no panel, use band instead
+      renderPanelWith  "items-report-chart" (insertNullNMapLevel grouped) (plotChartDiv param $ \n -> max 350 (900 `div` n))
+    _ -> renderPanelWith  "items-report-chart" grouped (plotChartDiv param $ \n -> max 350 (900 `div` n))
         
 renderPanelWith reportId grouped panelProcessor =  do
   let asList = nmapToNMapListWithRank grouped
@@ -1297,10 +1303,16 @@ rpDataParam0s = join . rpDataParam0ss
 plotChartDiv :: ReportParam -> (Int -> Int ) -> NMap (Sum Double, TranQP) -> Text -> NMap (Sum Double, TranQP) -> Widget 
 plotChartDiv param heightForBands all plotId0 panels = do
   let plotSeries bandName plotId bands =
-        seriesChartProcessor all panels (rpSerie param)
+        let band'colours = case rpColourMode param of
+              mode | mode == Band'Colour'Serie || mode == Panel'Colour'Serie -> zip [ (serie, Just $ pvToText (nkKey key))
+                                       | (key, serie) <- (nmapToNMapList bands)
+                                       ] (map repeat defaultColors)
+                      -- ^ aggregate band and serie
+              _ ->[((bands, Nothing), cycle defaultColors)]
+        in seriesChartProcessor all panels (rpSerie param)
                              (isNothing $ cpColumn $ rpSerie param)
-                             (rpDataParam0s param) bandName plotId bands
-  renderPlotDiv plotSeries heightForBands plotId0 panels
+                             (rpDataParam0s param) bandName plotId band'colours
+  renderPlotDiv plotSeries heightForBands plotId0 (if rpColourMode param == Panel'Colour'Serie then insertNullNMapLevel panels else panels)
 
 -- | Draw a plot per band within a panel
 -- renderPlotDiv :: (_ -> _)
@@ -1455,8 +1467,8 @@ formatSerieValuesNMap formatAmount formatPercent mode all panel band f nmap =
   nmap' = convert nmap
   convert xs = ((),) <$> xs
 
-traceParamForChart mono asList params =  let
-    colorIds = zip (cycle defaultColors) [1::Int ..]
+traceParamForChart mono asList params colours =  let
+    colorIds = zip (colours) [1::Int ..]
     in [ (param, name'group, color :: Text, groupId :: Int)
        | (param, pcId) <- zip params colorIds
        , (name'group, gcId) <- zip asList colorIds
@@ -1465,12 +1477,28 @@ traceParamForChart mono asList params =  let
        ] -- ) (cycle defaultColors) [1 :: Int ..]
 
 seriesChartProcessor :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
-  -> ColumnRupture -> Bool -> [DataParam]-> Text -> Text -> NMap (Sum Double, TranQP)  -> Widget 
-seriesChartProcessor all panel rupture mono params name plotId grouped = do
+  -> ColumnRupture
+  -> Bool
+  -> [DataParam]
+  -> Text
+  -> Text
+  -> [((NMap (Sum Double, TranQP), Maybe Text), [Text] )] -- ^ Series , colour fun
+  -> Widget 
+seriesChartProcessor all panel rupture mono0 params name plotId grouped'colour = do
      let -- ysFor :: Maybe NormalizeMode -> (b -> Maybe Double) -> [ (a, b) ] -> [ Maybe Value ]
-         ysFor normM f g = map (fmap toJSON) $ formatSerieValues formatDouble (printf "%0.1f")normM all panel grouped f g
-         asList = (if cpReverse rupture then reverse else id ) $ nmapToNMapListWithRank grouped
-         jsData = map (traceFor textValuesFor ysFor) (traceParamForChart mono asList  params)
+         jsData = do -- List
+           ((grouped, tracePrefix), colours) <- grouped'colour
+           let ysFor normM f g = map (fmap toJSON) $ formatSerieValues formatDouble (printf "%0.1f")normM all panel grouped f g
+               asList = (if cpReverse rupture then reverse else id ) $ [ ((r, prefixedKey ), nmap)
+                                                                       | ((r, key), nmap) <- nmapToNMapListWithRank grouped
+                                                                       , let prefixedKey = case tracePrefix of
+                                                                               Nothing -> key
+                                                                               Just pre -> mkNMapKey $ intercalate " - " . filter (not . null) $ [ pre, pvToText (nkKey key)]
+                                                                       ]
+               mono = case tracePrefix of
+                 Nothing -> mono0
+                 Just _ -> True
+           map (traceFor textValuesFor ysFor) (traceParamForChart mono asList  params colours)
      toWidgetBody [julius|
           Plotly.plot( #{toJSON plotId}
                     , #{toJSON jsData} 

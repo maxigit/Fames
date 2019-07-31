@@ -61,12 +61,13 @@ reportForm cols paramM extra = do
   (fAdjustment, vAdjustment) <- mreq checkBoxField "Adjustment" (rpLoadAdjustment <$> paramM)
   (fForecast, vForecast) <- mopt (selectFieldList forecastDirOptions) "Forecast Profile" (rpForecastDir <$> paramM)
   (fForecastInOut, vForecastInOut) <- mopt (selectFieldList forecastOptions) "Forecast Mode" (rpForecastInOut <$> paramM)
+  (fColourMode, vColourMode) <- mreq (selectField optionsEnum) "Chart Colour Mode" (rpColourMode <$> paramM)
   let fields = [ Left $ mapM_ renderField [vFrom, vTo, vPeriod, vPeriodN]
                , Left $ mapM_ renderField [vStockFilter, vCategoryToFilter, vCategoryFilter]
                , Right ("panel-rupture" :: Text, [wPanel, wBand, wSerie , vColRupture ])
                , Right ("panel-trace", [ wTrace1, wTrace2, wTrace3 ])
                , Left $ mapM_ renderField [vSales, vOrder, vPurchases, vAdjustment]
-               , Left $ mapM_ renderField [vForecast, vForecastInOut]
+               , Left $ mapM_ renderField [vForecast, vForecastInOut, vColourMode]
                ]
   let form = [whamlet|#{extra}|] >> mapM_ (either inline dragablePanel) fields >> dragAndDropW
       inline w = [whamlet| <div.well.well-sm.form-inline>^{w}|]
@@ -94,7 +95,7 @@ reportForm cols paramM extra = do
           fCategoryToFilter  fCategoryFilter
           fStockFilter  fPanel  fBand  fSerie
           fColRupture  fTrace1  fTrace2  fTrace3
-          fSales  fOrder fPurchases  fAdjustment (liftA2 (,) fForecast fForecastInOut)
+          fSales  fOrder fPurchases  fAdjustment (liftA2 (,) fForecast fForecastInOut) fColourMode
   return (report , form)
  
   
@@ -104,13 +105,15 @@ mkReport today deduceTax fFrom  fTo
    fCategoryToFilter  fCategoryFilter
    fStockFilter  fPanel  fBand  fSerie
    fColRupture  fTrace1  fTrace2  fTrace3
-   fSales  fOrder fPurchases  fAdjustment fForecast =
+   fSales  fOrder fPurchases  fAdjustment fForecast
+   fColourMode =
   ReportParam <$> pure today <*> pure deduceTax <*> fFrom <*> fTo
   <*> fPeriod <*> fPeriodN
   <*> fCategoryToFilter <*> fCategoryFilter
   <*> fStockFilter <*> fPanel <*> fBand <*> fSerie
   <*> fColRupture <*> fTrace1 <*> fTrace2 <*> fTrace3
   <*> fSales <*> fOrder <*> fPurchases <*> fAdjustment <*> fForecast
+  <*> fColourMode
   -- noneOption, amountOutOption, amountInOption :: ToJSON a =>  (Text, [(QPrice -> Amount, a -> [(Text, Value)], RunSum)])
 traceForm :: Int -> Bool -> String -> Maybe DataParams -> MForm Handler (FormResult DataParams, Widget)
 traceForm traceN nomode suffix p = do
@@ -209,6 +212,7 @@ getItemsReportR' mode = do
                            emptyTrace --  rpDataParam3 :: DataParams
                            (Just SSalesOnly) Nothing
                            True True (Nothing, Nothing)
+                           minBound
         _ -> ReportParam   today
                            deduceTax
                            (Just past) --  rpFrom :: Maybe Day
@@ -227,6 +231,7 @@ getItemsReportR' mode = do
                            emptyTrace --  rpDataParam3 :: DataParams
                            (Just SSalesOnly) Nothing
                            True True (Nothing, Nothing)
+                           minBound
 
   renderReportForm ItemsReportR mode (Just defaultReportParam) ok200 Nothing
 
