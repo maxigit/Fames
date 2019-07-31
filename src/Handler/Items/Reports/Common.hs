@@ -1310,7 +1310,7 @@ plotChartDiv param heightForBands all plotId0 panels = do
                       -- ^ aggregate band and serie
               _ ->[((bands, Nothing), cycle defaultColors)]
         in seriesChartProcessor all panels (rpSerie param)
-                             (isNothing $ cpColumn $ rpSerie param)
+                             ((isNothing $ cpColumn $ rpSerie param) || rpColourMode param == TraceColour) -- mono use a different colour for each trace instead of each serie
                              (rpDataParam0s param) bandName plotId band'colours
   renderPlotDiv plotSeries heightForBands plotId0 (if rpColourMode param == Panel'Colour'Serie then insertNullNMapLevel panels else panels)
 
