@@ -51,12 +51,13 @@ data ReportParam = ReportParam
   -- , rpLoadForecast :: Bool
   , rpForecast :: (Maybe FilePath, Maybe InOutward)
   , rpColourMode :: ColourMode
-  , rpGroupTrace :: Bool
+  , rpTraceGroupMode :: Maybe TraceGroupMode
   }  deriving Show
 data OrderDateColumn = OOrderDate | ODeliveryDate deriving (Eq, Show)
 data SalesInfoMode = SSalesOnly | SSalesAndOrderInfo deriving (Eq, Show)
 data OrderQuantityMode = OOrderedQuantity | OQuantityLeft deriving (Eq, Show)
 data ColourMode = Panel'Band'Serie | Band'Colour'Serie | Panel'Colour'Serie | TraceColour deriving (Eq, Show, Bounded, Enum, Ord)
+data TraceGroupMode = GroupSeries | GroupTraces deriving (Eq, Show, Bounded, Enum, Ord)
 paramToCriteria :: ReportParam -> [Filter FA.StockMove]
 paramToCriteria ReportParam{..} = (rpFrom <&> (FA.StockMoveTranDate >=.)) ?:
                                   (rpTo <&> (FA.StockMoveTranDate <=.)) ?:
@@ -241,7 +242,7 @@ hvStyle axis color = [("type", String "scatter")
                                 }|])
                 , ("marker", [aesonQQ|{symbol: "square-open"}|])
                 , axisFor axis
-                , ("showlegend", toJSON False)
+                -- , ("showlegend", toJSON False)
               ]
 
 axisFor axis = ("yaxis", ax) where
@@ -278,7 +279,7 @@ pricesStyle = [(qpMinPrice , VPrice,  const [ ("style", String "scatter")
                              , ("fillcolor", String "transparent")
                              , ("mode", String "markers")
                              , ("connectgaps", toJSON True )
-                             , ("showlegend", toJSON False )
+                             -- , ("showlegend", toJSON False )
                              ], RSNormal)
                ,(qpAveragePrice, VPrice , \color -> [ ("style", String "scatter")
                              , ("fill", String "tonexty")
@@ -1315,7 +1316,7 @@ plotChartDiv param heightForBands all plotId0 panels = do
               _ ->[((bands, Nothing), zip (cycle defaultColors) [1 :: Int ..])]
         in seriesChartProcessor all panels (rpSerie param)
                              ((isNothing $ cpColumn $ rpSerie param) || rpColourMode param == TraceColour) -- mono use a different colour for each trace instead of each serie
-                             (rpGroupTrace param)
+                             (rpTraceGroupMode param)
                              (rpDataParam0s param) bandName plotId band'colours
   renderPlotDiv plotSeries heightForBands plotId0 (if rpColourMode param == Panel'Colour'Serie then insertNullNMapLevel panels else panels)
 
@@ -1472,19 +1473,22 @@ formatSerieValuesNMap formatAmount formatPercent mode all panel band f nmap =
   nmap' = convert nmap
   convert xs = ((),) <$> xs
 
-traceParamForChart mono groupTrace asList params colorIds =  let
+traceParamForChart mono traceGroupMode asList params colorIds =  let
     colorIds0 = zip (map fst colorIds) [1..]
-    in [ (param, name'group, color :: Text, groupId :: Int)
+    in [ (param, name'group, color :: Text, groupId :: Maybe Int)
        | (param, pcId) <- zip params colorIds0
        , (name'group, gcId) <- zip asList colorIds
        -- if there is only one series, we don't need to group legend and colour by serie
        , let (color, _groupId) = if mono {-length grouped == 1-} then pcId else gcId
-       , let (_color, groupId) = if groupTrace  then pcId else gcId
-       ] -- ) (cycle defaultColors) [1 :: Int ..]
+       , let groupId = case traceGroupMode  of
+               Nothing -> Nothing
+               Just GroupTraces -> Just (snd pcId)
+               Just GroupSeries -> Just (snd gcId)
+       ] 
 
 seriesChartProcessor :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
   -> ColumnRupture
-  -> Bool -> Bool
+  -> Bool -> Maybe TraceGroupMode
   -> [DataParam]
   -> Text
   -> Text
@@ -1527,7 +1531,7 @@ traceFor :: ([(PersistValue, (Sum Double, TranQP))] -> [Value]) -- ^ generate x 
             , ((Int, NMapKey) -- ^ rank and trace/serie name
               , NMap (Sum Double, TranQP)) -- ^ values to graph
               , Text -- ^ colour
-              , Int -- ^ group id
+              , Maybe Int -- ^ group id
               )
          -> Value
 traceFor xsFor ysFor (param, (name', g'), color,groupId) = let
@@ -1540,8 +1544,7 @@ traceFor xsFor ysFor (param, (name', g'), color,groupId) = let
                 , "y" .=  ysFor normMode fn g''
                 , "connectgaps" .=  False 
                 , "type" .=  String "scatter"  
-                , "legendgroup" .= groupId
-                ]
+                ] <> maybe [] (return .("legendgroup" .=))  groupId
                 -- <> maybe [] (\color -> [("color", String color)]) colorM
                 <> tpChartOptions tp color
                 <> (if name == PersistNull then [] else ["name" .= nkeyWithRank name'])

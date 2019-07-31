@@ -62,7 +62,7 @@ reportForm cols paramM extra = do
   (fForecast, vForecast) <- mopt (selectFieldList forecastDirOptions) "Forecast Profile" (rpForecastDir <$> paramM)
   (fForecastInOut, vForecastInOut) <- mopt (selectFieldList forecastOptions) "Forecast Mode" (rpForecastInOut <$> paramM)
   (fColourMode, vColourMode) <- mreq (selectField optionsEnum) "Chart Colour Mode" (rpColourMode <$> paramM)
-  (fGroupTrace, vGroupTrace) <- mreq checkBoxField "Group Trace" (rpGroupTrace <$> paramM)
+  (fGroupTrace, vGroupTrace) <- mopt (selectField optionsEnum) "Trace Group Mode" (rpTraceGroupMode <$> paramM)
   let fields = [ Left $ mapM_ renderField [vFrom, vTo, vPeriod, vPeriodN]
                , Left $ mapM_ renderField [vStockFilter, vCategoryToFilter, vCategoryFilter]
                , Right ("panel-rupture" :: Text, [wPanel, wBand, wSerie , vColRupture ])
@@ -214,7 +214,7 @@ getItemsReportR' mode = do
                            emptyTrace --  rpDataParam3 :: DataParams
                            (Just SSalesOnly) Nothing
                            True True (Nothing, Nothing)
-                           minBound False
+                           minBound Nothing
         _ -> ReportParam   today
                            deduceTax
                            (Just past) --  rpFrom :: Maybe Day
@@ -233,7 +233,7 @@ getItemsReportR' mode = do
                            emptyTrace --  rpDataParam3 :: DataParams
                            (Just SSalesOnly) Nothing
                            True True (Nothing, Nothing)
-                           minBound False
+                           minBound Nothing
 
   renderReportForm ItemsReportR mode (Just defaultReportParam) ok200 Nothing
 
