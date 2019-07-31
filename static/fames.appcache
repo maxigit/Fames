@@ -1,0 +1,22 @@
+CACHE MANIFEST
+#  Cdn
+https://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.4/jquery.js
+https://cdnjs.cloudflare.com/ajax/libs/js-cookie/2.0.3/js.cookie.min.js
+https://cdn.plot.ly/plotly-latest.min.js">
+# local
+#/static/DataTables-1.10.18/css/dataTables.bootstrap.css
+#/static/DataTables-1.10.18/js/jquery.dataTables.js
+#/static/DataTables-1.10.18/js/dataTables.bootstrap.js
+#/static/Responsive-2.2.2/js/dataTables.responsive.js
+#/static/Responsive-2.2.2/js/responsive.bootstrap.js
+#/static/Responsive-2.2.2/css/responsive.dataTables.css
+#/static/Responsive-2.2.2/css/responsive.bootstrap.css
+#/static/FixedHeader-3.1.4/js/dataTables.fixedHeader.js
+#/static/FixedHeader-3.1.4/js/fixedHeader.bootstrap.js
+#/static/FixedHeader-3.1.4/css/fixedHeader.dataTables.css
+#/static/FixedHeader-3.1.4/css/fixedHeader.bootstrap.css
+#/static/Buttons-1.5.6/js/dataTables.buttons.js
+#/static/Buttons-1.5.6/js/buttons.bootstrap.js
+#/static/Buttons-1.5.6/js/buttons.colVis.js
+#/static/Buttons-1.5.6/css/buttons.dataTables.css
+#/static/Buttons-1.5.6/css/buttons.bootstrap.css
