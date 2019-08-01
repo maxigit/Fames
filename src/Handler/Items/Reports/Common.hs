@@ -47,6 +47,8 @@ data ReportParam = ReportParam
   -- , rpLoadOrderInfo :: Bool
   , rpLoadSalesOrders :: Maybe (InOutward, OrderDateColumn, OrderQuantityMode)
   , rpLoadPurchases :: Bool
+  , rpPurchasesDateOffset :: Maybe Int -- ^ Days to add to purchase date
+  , rpLoadPurchaseOrders  :: Maybe (OrderDateColumn, OrderQuantityMode)
   , rpLoadAdjustment :: Bool
   -- , rpLoadForecast :: Bool
   , rpForecast :: (Maybe FilePath, Maybe InOutward, Maybe Day)
@@ -556,15 +558,17 @@ loadItemTransactions param grouper = do
   salesOrdersM <- forM (rpLoadSalesOrders param) $ \(io, dateColumn, qtyMode) -> loadItemOrders param io dateColumn qtyMode
   let salesOrders = fromMaybe [] salesOrdersM
   purchases <- loadIf rpLoadPurchases $ loadItemPurchases param
+  purchaseOrders <- forM (rpLoadPurchaseOrders param) $ \(dateColumn, qtyMode) -> loadPurchaseOrders param dateColumn qtyMode
   let salesGroups = grouper' sales
       orderGroups = grouper' salesOrders
       purchaseGroups = grouper'  purchases
+      purchaseOrderGroups = grouper'  $ fromMaybe [] purchaseOrders
       adjGroups = grouper' adjustments
       forecastGroups = grouper' forecasts
       grouper' = grouper . fmap (computeCategory skuToStyleVar categories catFinder custCategories custCatFinder) 
         
 
-  return $ salesGroups <> purchaseGroups <> adjGroups <> forecastGroups <> orderGroups
+  return $ salesGroups <> purchaseGroups <> adjGroups <> forecastGroups <> orderGroups <> purchaseOrderGroups
 
 createInitialStock infoMap day = mapMaybe go (mapToList infoMap) where
   go (sku, info) = do --maybe
@@ -767,9 +771,40 @@ loadItemPurchases param = do
                                     , (" AND category.category = ? ", PersistText catToFilter)
                                     ]
                        <> generateTranDateIntervals param
+      alterDate = maybe id (addDays . fromIntegral)  (rpPurchasesDateOffset param)
   purch <- runDB $ rawSql (sql <> intercalate " " w) p
-  return $ map purchToTransInfo purch
+  return $ map (purchToTransInfo alterDate) purch
 
+loadPurchaseOrders :: ReportParam -> OrderDateColumn -> OrderQuantityMode -> Handler [(TranKey, TranQP)]
+loadPurchaseOrders param orderDateColumn qtyMode = do
+  stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
+  let catFilterM = (,) <$> rpCategoryToFilter param <*> rpCategoryFilter param
+      sql = intercalate " " $
+        "SELECT ??, ??" :
+        "FROM 0_purch_order_details" :
+        "JOIN 0_purch_orders USING (order_no)" :
+        (if isJust catFilterM then "JOIN fames_item_category_cache AS category ON (stock_id == item_code)" else "" ) :
+        "WHERE item_code LIKE '" <> stockLike <> "'" :
+        ( case qtyMode of
+            OOrderedQuantity -> "AND quantity_ordered != 0"
+            OQuantityLeft -> "AND quantity_received != 0"
+        ) :
+        []
+      (w,p) = unzip $ (rpStockFilter param <&> (\e -> let (keyw, v) = filterEKeyword e
+                                                  in (" AND item_code " <> keyw <> " ?", PersistText v)
+                                                 )) ?:
+                        case catFilterM of
+                          Nothing -> []
+                          Just (catToFilter, catFilter) ->
+                                  let (keyw, v) = filterEKeyword catFilter
+                                  in [ (" AND category.value " <> keyw <> " ?", PersistText v)
+                                     , (" AND category.category = ? ", PersistText catToFilter)
+                                     ]
+                                     <> generateTranDateIntervals param
+  pos <- runDB $ rawSql (sql <> intercalate " " w) p
+  return $ map (poToTransInfo orderDateColumn qtyMode ) pos
+
+  
 
 loadStockAdjustments :: Map Text ItemInitialInfo -> ReportParam -> Handler [(TranKey, TranQP)]
 loadStockAdjustments infoMap param = do
@@ -944,14 +979,15 @@ orderDetailToTransInfo io qtyMode orderCategoryMap (Entity _ FA.SalesOrderDetail
   tqp = tranQP QPSalesOrder qp
 
 -- ** Purchase info
-purchToTransInfo :: (Entity SuppInvoiceItem, Single Day, Single Double, Single Int64)
+purchToTransInfo :: (Day -> Day)
+                 -> (Entity SuppInvoiceItem, Single Day, Single Double, Single Int64)
                  -> (TranKey, TranQP)
-purchToTransInfo ( Entity _ FA.SuppInvoiceItem{..}
+purchToTransInfo alterDate ( Entity _ FA.SuppInvoiceItem{..}
                   , Single suppTranTranDate
                   , Single suppTranRate
                   , Single supplierId) = (key, tqp) where
   suppTranType = fromMaybe (error "supplier transaction should have a ty B") suppInvoiceItemSuppTransType
-  key = TranKey suppTranTranDate (Just $ Right supplierId)
+  key = TranKey (alterDate suppTranTranDate) (Just $ Right supplierId)
                 suppInvoiceItemStockId Nothing Nothing  mempty mempty
                 (toEnum suppTranType)
                 Nothing Nothing mempty
@@ -962,6 +998,25 @@ purchToTransInfo ( Entity _ FA.SuppInvoiceItem{..}
     else_ -> error $ "Shouldn't process transaction of type " <> show else_
   qp io = mkQPrice io suppInvoiceItemQuantity price
   price = suppInvoiceItemUnitPrice*suppTranRate
+
+-- ** Purchase Order Detail
+poToTransInfo :: OrderDateColumn -> OrderQuantityMode -> (Entity PurchOrderDetail, Entity PurchOrder) -> (TranKey, TranQP)
+poToTransInfo orderDateColumn qtyMode (Entity _ FA.PurchOrderDetail{..}, Entity _ FA.PurchOrder{..}) = (key, tqp) where
+  key = TranKey date (Just . Right $ fromIntegral purchOrderSupplierId)
+                purchOrderDetailItemCode Nothing Nothing mempty mempty
+                ST_PURCHORDER
+                Nothing Nothing mempty
+  tqp = tranQP QPPurchInvoice (mkQPrice Inward qty price)
+  price = purchOrderDetailUnitPrice 
+  qty = case qtyMode of
+          OOrderedQuantity -> purchOrderDetailQuantityOrdered
+          OQuantityLeft -> purchOrderDetailQuantityOrdered - purchOrderDetailQuantityReceived
+  date = case orderDateColumn of
+    OOrderDate -> purchOrderOrdDate
+    ODeliveryDate -> purchOrderDetailDeliveryDate
+  
+               
+  
 
 -- * Reports
 -- ** Common
