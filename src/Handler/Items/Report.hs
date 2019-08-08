@@ -313,7 +313,7 @@ postItemsReportFor route mode = do
       case readMay =<< actionM of
 
         Just ReportCsv -> do
-              result <- itemReportWithRank param grouper (fmap snd) --  (fmap (fmap (summarize . map snd)))
+              result <- itemReportWithRank param (filter (isJust . cpColumn) grouper) (fmap snd) --  (fmap (fmap (summarize . map snd)))
               let source = yieldMany (map (<> "\n") (toCsv param result))
               setAttachment . fromStrict $ "items-report-" <> (tshowM $ colName <$> (cpColumn $ rpPanelRupture param)) <> "-"
                                               <> (tshowM $ colName <$> (cpColumn $ rpBand param)) <> ".csv"
