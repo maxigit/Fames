@@ -313,8 +313,11 @@ postItemsReportFor route mode = do
       case readMay =<< actionM of
 
         Just ReportCsv -> do
-              result <- itemReportWithRank param (filter (isJust . cpColumn) grouper) (fmap snd) --  (fmap (fmap (summarize . map snd)))
-              let source = yieldMany (map (<> "\n") (toCsv param result))
+              let (grouper', formatter) = case fromMaybe ReportTable mode  of
+                    ReportTable ->  (tableGrouper, summaryToCsv)
+                    _ -> (grouper, tracesToCsv)
+              result <- itemReportWithRank param (filter (isJust . cpColumn) grouper') (fmap snd) --  (fmap (fmap (summarize . map snd)))
+              let source = yieldMany (map (<> "\n") (formatter param result))
               setAttachment . fromStrict $ "items-report-" <> (tshowM $ colName <$> (cpColumn $ rpPanelRupture param)) <> "-"
                                               <> (tshowM $ colName <$> (cpColumn $ rpBand param)) <> ".csv"
               respondSource "text/csv" (source =$= mapC toFlushBuilder)

@@ -189,7 +189,7 @@ lineStyle axis color = [("type", String "scatter")
                     ,("name", String "Amount")
                     ,("mode", String "lines")
                     , axisFor axis
-                    ,("line", [aesonQQ|{
+                    ,("line", [aesonQQ| {
                                color: #{color}
                                 }|])
                     ]
@@ -1093,11 +1093,10 @@ span.RunSumBack::before
 tableProcessor :: ReportParam -> NMap (Sum Double, TranQP) -> Widget 
 tableProcessor param@ReportParam{..} grouped = do
   let levels = drop 1 $ nmapLevels grouped
-      -- don't display sales order if it's includeg in either sales or purchase
-      displayOrders = case rpLoadSalesOrders of
-                    Nothing -> False
-                    Just (Outward, _, _) ->  not (rpLoadSales param) -- included in sales but no sales
-                    Just (Inward, _, _) -> not rpLoadPurchases --  included in purchases but no purchases
+      qpCols :: [(Text, (ValueType -> InOutward -> Maybe Double -> Widget) -> TranQP -> Widget) ]
+      qpCols = concatMap ($ param) [qpSalesColumns, qpOrderColumns, qpForecastColumns, qpPurchasesColumns]
+      adjCols = qpAdjustmentColumns param
+
   toWidget commonCss
   [whamlet|
     $forall (h1, group1) <- nmapToNMapListWithRank grouped
@@ -1110,34 +1109,9 @@ tableProcessor param@ReportParam{..} grouped = do
               <tr>
                 $forall level <-  levels
                   <th> #{fromMaybe "" level}
-                $if rpLoadSales param
-                  <th> Sales Qty
-                  <th> Sales Amount
-                  <th> Sales Min Price
-                  <th> Sales max Price
-                  <th> Sales Average Price
-                $if displayOrders
-                  <th> Sales Order Qty
-                  <th> Sales Order Amount
-                  <th> Sales Order Min Price
-                  <th> Sales Order max Price
-                  <th> Sales Order Average Price
-                $if rpLoadForecast param
-                  <th> Forecast Qty
-                  <th> Forecast Amount
-                  <th> Forecast Min Price
-                  <th> Forecast max Price
-                  <th> Forecast Average Price
-                $if rpLoadPurchases
-                  <th> Purch Qty
-                  <th> Purch Amount
-                  <th> Purch Min Price
-                  <th> Purch Max Price
-                  <th> Purch Average Price
-                $if rpLoadAdjustment
-                  <th> Loss Qty
-                  <th> Loss Amount
-                  <th> Leftover
+                $forall title <- map fst qpCols <> map fst adjCols
+                  <th> #{title}
+                <th> Leftover
                 <th> Profit Amount
                 <th> Sales Through
                 <th> %Loss (Qty)
@@ -1148,21 +1122,10 @@ tableProcessor param@ReportParam{..} grouped = do
                         <td>
                            #{nkeyWithRank key}
                        
-                      $if rpLoadSales param
-                        ^{showQp Outward $ salesQPrice qp}
-                      $if displayOrders
-                        $case rpLoadSalesOrders
-                          $of Just (Outward, _, _)
-                            ^{showQp Outward $ salesQPrice qp}
-                          $of Just (Inward, _, _)
-                            ^{showQp Inward $ purchQPrice qp}
-                          $of Nothing
-                      $if rpLoadForecast param
-                        ^{showQp Outward $ forecastQPrice qp}
-                      $if rpLoadPurchases
-                        ^{showQp Inward $ purchQPrice qp}
-                      $if rpLoadAdjustment
-                        ^{showQpAdj $ adjQPrice qp}
+                      $forall (_, fn) <- qpCols
+                        ^{fn showQp qp }
+                      $forall (_, fn) <- adjCols
+                        ^{fn showQpAdj qp}
                       ^{showQpMargin qp}
               $if not (null levels)
                 $with (_,qpt) <- (nmapMargin group1)
@@ -1170,53 +1133,30 @@ tableProcessor param@ReportParam{..} grouped = do
                       <td> Total
                       $forall level <- drop 1 levels
                         <td>
-                      $if rpLoadSales param
-                        ^{showQp Outward $ salesQPrice qpt}
-                      $if displayOrders
-                        $case rpLoadSalesOrders
-                          $of Just (Outward, _, _)
-                            ^{showQp Outward $ salesQPrice qpt}
-                          $of Just (Inward, _, _)
-                            ^{showQp Inward $ purchQPrice qpt}
-                          $of Nothing
-                      $if rpLoadForecast param
-                        ^{showQp Outward $ forecastQPrice qpt}
-                      $if rpLoadPurchases
-                        ^{showQp Inward $ purchQPrice qpt}
-                      $if rpLoadAdjustment
-                        ^{showQpAdj $ adjQPrice qpt}
+                      $forall (_, fn) <- qpCols
+                        ^{fn showQp qpt }
+                      $forall (_, fn) <- adjCols
+                        ^{fn showQpAdj qpt}
                       ^{showQpMargin qpt}
                       |]
   where
-      showQp _ Nothing = [whamlet|
-                                  <td>
-                                  <td>
-                                  <td>
-                                  <td>
-                                  <td>
-                                  |]
-      showQp io (Just qp) = let
+      showQp :: ValueType -> InOutward -> Maybe Double -> Widget
+      showQp shape io Nothing = [whamlet| <td> |]
+      showQp shape io (Just value) = let
         klass = case io of
           Inward -> "negative-good" :: Text
           Outward -> "negative-bad"
-        in [whamlet|
-                                  <td.just-right class="#{klass}"> #{formatQuantity (qpQty io qp)}
-                                  <td.just-right class="#{klass}"> #{formatAmount (qpAmount io qp)}
-                                  <td.just-right class="#{klass}"> #{formatPrice (qpMinPrice qp) }
-                                  <td.just-right class="#{klass}"> #{formatPrice (qpMaxPrice qp) }
-                                  <td.just-right class="#{klass}"> #{formatPrice (qpAveragePrice qp)}
-                                  |]
+        in [whamlet| <td.just-right class="#{klass}"> #{formatDouble'' RSNormal shape  value} |]
       -- Adjustment are different because the price is negative
       -- posting quantity are good
       -- but negative amount are good too (cost )
-      showQpAdj Nothing = [whamlet|
+      showQpAdj _ Nothing = [whamlet|
                                   <td>
                                   <td>
                                   |]
-      showQpAdj (Just qp) = [whamlet|
-                                  <td.just-right.negative-good.positive-bad> #{formatQuantity (qpQty Inward qp)}
-                                  <td.just-right.negative-good> #{formatAmount (qpAmount Outward qp)}
-                                  |]
+      showQpAdj shape (Just value) = case shape of
+        VQuantity -> [whamlet| <td.just-right.negative-good.positive-bad> #{formatDouble'' RSNormal shape value}|]
+        _ {-VAmount-} -> [whamlet| <td.just-right.negative-good> #{formatDouble'' RSNormal shape value} |]
       -- ignore margin
       showQpMargin tqp = do
         let _qp = summaryQPrice tqp
@@ -1239,35 +1179,89 @@ tableProcessor param@ReportParam{..} grouped = do
                 <td.just-right.negative-bad> #{formatPercentage margin}
                 |]
 
+qpSalesColumns, qpOrderColumns  , qpForecastColumns, qpPurchasesColumns 
+  :: ReportParam
+  -> [( Text,
+       (ValueType -> InOutward -> Maybe Double -> t)
+       -> TranQP
+       -> t
+      )
+     ]
+qpSalesColumns param@ReportParam{..} = 
+  if rpLoadSales param
+  then qpColumns "Sales" Outward salesQPrice
+  else []
+qpOrderColumns param@ReportParam{..} =
+  case rpLoadSalesOrders of
+    Just (Outward, _, _) | not (rpLoadSales param) -> -- included in sales but no sales displayed
+                           qpColumns "Sales Order" Outward salesQPrice
+    Just (Inward, _, _) | not rpLoadPurchases  ->
+                          qpColumns "Sales order" Inward purchQPrice
+    _ -> []
+
+qpForecastColumns param@ReportParam{..} =
+  if rpLoadForecast param 
+  then qpColumns "Forecast" Outward purchQPrice
+  else []
+
+qpPurchasesColumns param@ReportParam{..} = 
+  if rpLoadPurchases
+  then qpColumns "Purch" Inward purchQPrice
+  else []
+
+qpColumns name io getQP =
+   [ go "Qty" VQuantity (qpQty io)
+   , go "Amount" VAmount (qpAmount io)
+   , go "Min Price" VPrice qpMinPrice
+   , go "Max Price" VPrice qpMaxPrice
+   , go "Avg Price" VPrice qpAveragePrice
+   ]
+   where go suffix shape qpValue = (name <> " " <> suffix
+                                    , \display tran -> display shape io (qpValue <$> getQP tran) 
+                                    )
+-- qpAdjustmentColumns param@ReportParam{..} =
+--   if rpLoadAdjustment
+--   then 
+
+qpAdjustmentColumns param@ReportParam{..} | rpLoadAdjustment == False = []
+qpAdjustmentColumns param@ReportParam{..} = 
+  [ go "Qty" VQuantity (qpQty Inward)
+  , go "Amount" VAmount (qpAmount Outward)
+  ]
+   where go suffix shape qpValue = ("Loss" <> " " <> suffix
+                                    , \display tran -> display shape (qpValue <$> adjQPrice tran) 
+                                    )
 
 -- *** Csv
-qpToCsv io Nothing = ["", "", "", ""]
-qpToCsv io (Just qp) = [ tshow (qpQty io qp)
-                       , tshow (qpAmount io qp)
-                       , tshow (qpMinPrice qp)
-                       , tshow (qpMaxPrice qp)
-                       ]
-toCsv param grouped' = let
-  header = intercalate "," $ (map tshowM $ nmapLevels grouped') <>
-                          [  "Sales Qty"
-                          ,  "Sales Amount"
-                          ,  "Sales Min Price"
-                          ,  "Sales max Price"
-                          ,  "Purch Qty"
-                          ,  "Purch Amount"
-                          ,  "Purch Min Price"
-                          ,  "Purch max Price"
-                          ,  "Adjustment Qty"
-                          ,  "Adjustment Amount"
-                          ,  "Adjustment Min Price"
-                          ,  "Adjustment max Price"
-                          ]
+-- | To Csv using table summary
+summaryToCsv param grouped' = let
+  qpCols = concatMap ($ param) [qpSalesColumns, qpOrderColumns, qpForecastColumns, qpPurchasesColumns]
+  adjCols = qpAdjustmentColumns param
+  header = intercalate "," $ (map tshowM $ nmapLevels grouped') <> map fst qpCols  <> map fst adjCols
+  format _ _ Nothing = ""
+  format _ _ (Just x) = tshow x
+  format' _ Nothing = ""
+  format' _ (Just x) = tshow x
   in header : do
     (keys, qp) <- nmapToList grouped'
     return $ intercalate "," $  ( map  (pvToText . nkKey) keys )
-                             <> (qpToCsv Outward $ salesQPrice qp)
-                             <> (qpToCsv Inward $ purchQPrice qp)
-                             <> (qpToCsv Inward $ adjQPrice qp)
+                             <> [ fn format qp | (_, fn) <- qpCols ]
+                             <> [ fn format' qp | (_, fn) <- adjCols ]
+-- | To Csv using traces for columns
+tracesToCsv param grouped' = let
+  header = intercalate "," $ (map tshowM $ nmapLevels grouped') <> map tshow traceNames
+  dataParams = rpDataParam0s param
+  traceNames = [ name <> " " <> drop 1 (tshow (tpValueType trace))
+               | p <-  [rpDataParam,  rpDataParam2 , rpDataParam3] <*> [param]
+               , let (name, traces) = unIdentifiable $ dpDataTraceParams p
+               , trace <- traces -- not used but to get the count correct
+               ] -- map (fst . unIdentifiable) $ map dpDataTraceParams $ [rpDataParam,  rpDataParam2 , rpDataParam3] <*> [param]
+  valueFromTraces tran = [ tshowM (dataParamGetter dp tran)
+                         | dp <- dataParams
+                         ]
+  in header : do
+    (keys, tran) <- nmapToList grouped'
+    return $ intercalate "," $  ( map  (pvToText . nkKey) keys ) <> valueFromTraces tran
 -- *** Sort and limit
 sortAndLimitTranQP :: [ColumnRupture] -> NMap TranQP -> NMap (Sum Double, TranQP)
 sortAndLimitTranQP ruptures nmap = let
@@ -2008,50 +2002,6 @@ formatQuantity = formatDouble''  RSNormal VQuantity
 formatPrice = formatDouble''  RSNormal VPrice
 formatPercentage = formatDouble''  RSNormal VPercentage
       
--- ** Csv
-  
-itemToCsv param panelGrouperM colGrouper = do
-  let grouper =  groupTranQPs param [panelGrouperM, colGrouper]
-  -- no need to group, we display everything, including all category and columns
-  cols <- getCols
-  categories <- categoriesH
-  grouped <- loadItemTransactions param grouper
-  let -- trans :: [(TranKey, TranQP)]
-      trans = map snd $ nmapToList grouped
-  let qpCols = [  "Sales Qty"
-               ,  "Sales Amount"
-               ,  "Sales Min Price"
-               ,  "Sales max Price"
-               ,  "Purch Qty"
-               ,  "Purch Amount"
-               ,  "Purch Min Price"
-               ,  "Purch max Price"
-               ,  "Adjustment Qty"
-               ,  "Adjustment Amount"
-               ,  "Adjustment Min Price"
-               ,  "Adjustment max Price"
-               ]
-      extraCols = map colName cols
-      header = intercalate "," $ extraCols <> qpCols <> categories
-
-      csvLines = header : do  -- []
-        (qp) <- trans
-        return $ intercalate "," (
-          -- [pvToText $ colFn col param key | col <- cols]
-            (qpToCsv Outward $ salesQPrice qp)
-            <> (qpToCsv Inward $ purchQPrice qp)
-            <> (qpToCsv Inward $ adjQPrice qp)
-            -- <> (map (tshowM . flip Map.lookup (tkCategory key)) categories)
-                                 )
-      source = yieldMany (map (<> "\n") csvLines)
-  setAttachment  "items-report.csv"
-  respondSource "text/csv" (source =$= mapC toFlushBuilder)
-                 
-
-
-
-
-  
   
 -- *** Plot
 
