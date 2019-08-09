@@ -314,7 +314,7 @@ postItemsReportFor route mode = do
 
         Just ReportCsv -> do
               let (grouper', formatter) = case fromMaybe ReportTable mode  of
-                    ReportTable ->  (tableGrouper, summaryToCsv)
+                    ReportTable ->  (tableGrouper, summaryToCsv QPMinMax)
                     _ -> (grouper, tracesToCsv)
               result <- itemReportWithRank param (filter (isJust . cpColumn) grouper') (fmap snd) --  (fmap (fmap (summarize . map snd)))
               let source = yieldMany (map (<> "\n") (formatter param result))
@@ -322,7 +322,15 @@ postItemsReportFor route mode = do
                                               <> (tshowM $ colName <$> (cpColumn $ rpBand param)) <> ".csv"
               respondSource "text/csv" (source =$= mapC toFlushBuilder)
         Just ReportRaw -> do
-             error "FIXME" -- itemToCsv param panel band
+             let grouper' = grouper <> map mkRupture (filter (`notElem` columnInGrouper) cols) -- all columns with grouper first
+                 columnInGrouper = mapMaybe cpColumn grouper
+                 mkRupture cols = emptyRupture  {cpColumn = Just cols}
+                 formatter = summaryToCsv QPOnly
+             result <- itemReportWithRank param (filter (isJust . cpColumn) grouper') (fmap snd) --  (fmap (fmap (summarize . map snd)))
+             let source = yieldMany (map (<> "\n") (formatter param result))
+             setAttachment . fromStrict $ "items-report-raw-" <> tshowM (rpFrom param) <> "-" 
+                                                               <> tshowM (rpTo param) <> ".csv"
+             respondSource "text/csv" (source =$= mapC toFlushBuilder)
         _ -> do
               report <- case mode of
                     Just ReportChart -> itemReportWithRank param grouper (chartProcessor param)

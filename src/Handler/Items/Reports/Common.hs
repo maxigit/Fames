@@ -1074,6 +1074,7 @@ nkeyWithRank (i, NMapKey key) = tshow i <> "-" <> pvToText key
 -- nkeyWithRank :: NMapKey -> Text
 -- nkeyWithRank (NMapKey key)  = pvToText key
 
+data QPColumnFilter = QPOnly | QPMinMax | QPAll deriving (Eq, Show, Ord, Enum, Bounded)
 commonCss = [cassius|
 .text90
     writing-mode: sideways-lr
@@ -1094,7 +1095,7 @@ tableProcessor :: ReportParam -> NMap (Sum Double, TranQP) -> Widget
 tableProcessor param@ReportParam{..} grouped = do
   let levels = drop 1 $ nmapLevels grouped
       qpCols :: [(Text, (ValueType -> InOutward -> Maybe Double -> Widget) -> TranQP -> Widget) ]
-      qpCols = concatMap ($ param) [qpSalesColumns, qpOrderColumns, qpForecastColumns, qpPurchasesColumns]
+      qpCols = concatMap (\f -> f QPAll param) [qpSalesColumns, qpOrderColumns, qpForecastColumns, qpPurchasesColumns]
       adjCols = qpAdjustmentColumns param
 
   toWidget commonCss
@@ -1180,45 +1181,50 @@ tableProcessor param@ReportParam{..} grouped = do
                 |]
 
 qpSalesColumns, qpOrderColumns  , qpForecastColumns, qpPurchasesColumns 
-  :: ReportParam
+  :: QPColumnFilter
+  -> ReportParam
   -> [( Text,
        (ValueType -> InOutward -> Maybe Double -> t)
        -> TranQP
        -> t
       )
      ]
-qpSalesColumns param@ReportParam{..} = 
+qpSalesColumns qpFilter param@ReportParam{..} = 
   if rpLoadSales param
-  then qpColumns "Sales" Outward salesQPrice
+  then qpColumns qpFilter "Sales" Outward salesQPrice
   else []
-qpOrderColumns param@ReportParam{..} =
+qpOrderColumns qpFilter param@ReportParam{..} =
   case rpLoadSalesOrders of
     Just (Outward, _, _) | not (rpLoadSales param) -> -- included in sales but no sales displayed
-                           qpColumns "Sales Order" Outward salesQPrice
+                           qpColumns qpFilter "Sales Order" Outward salesQPrice
     Just (Inward, _, _) | not rpLoadPurchases  ->
-                          qpColumns "Sales order" Inward purchQPrice
+                          qpColumns qpFilter "Sales order" Inward purchQPrice
     _ -> []
 
-qpForecastColumns param@ReportParam{..} =
+qpForecastColumns qpFilter param@ReportParam{..} =
   if rpLoadForecast param 
-  then qpColumns "Forecast" Outward purchQPrice
+  then qpColumns qpFilter "Forecast" Outward purchQPrice
   else []
 
-qpPurchasesColumns param@ReportParam{..} = 
+qpPurchasesColumns qpFilter param@ReportParam{..} = 
   if rpLoadPurchases
-  then qpColumns "Purch" Inward purchQPrice
+  then qpColumns qpFilter "Purch" Inward purchQPrice
   else []
 
-qpColumns name io getQP =
-   [ go "Qty" VQuantity (qpQty io)
-   , go "Amount" VAmount (qpAmount io)
-   , go "Min Price" VPrice qpMinPrice
-   , go "Max Price" VPrice qpMaxPrice
-   , go "Avg Price" VPrice qpAveragePrice
-   ]
-   where go suffix shape qpValue = (name <> " " <> suffix
-                                    , \display tran -> display shape io (qpValue <$> getQP tran) 
-                                    )
+qpColumns qpFilter name io getQP = case qpFilter of
+  QPOnly -> qps
+  QPMinMax -> qps <> minmax
+  QPAll -> qps <> minmax <> avg
+  where qps = [ go "Qty" VQuantity (qpQty io)
+              , go "Amount" VAmount (qpAmount io)
+              ]
+        minmax = [ go "Min Price" VPrice qpMinPrice
+                 , go "Max Price" VPrice qpMaxPrice
+                 ]
+        avg = [go "Avg Price" VPrice qpAveragePrice ]
+        go suffix shape qpValue = (name <> " " <> suffix
+                                  , \display tran -> display shape io (qpValue <$> getQP tran) 
+                                  )
 -- qpAdjustmentColumns param@ReportParam{..} =
 --   if rpLoadAdjustment
 --   then 
@@ -1234,8 +1240,8 @@ qpAdjustmentColumns param@ReportParam{..} =
 
 -- *** Csv
 -- | To Csv using table summary
-summaryToCsv param grouped' = let
-  qpCols = concatMap ($ param) [qpSalesColumns, qpOrderColumns, qpForecastColumns, qpPurchasesColumns]
+summaryToCsv qpMode param grouped' = let
+  qpCols = concatMap (\f -> f qpMode param) [qpSalesColumns, qpOrderColumns, qpForecastColumns, qpPurchasesColumns]
   adjCols = qpAdjustmentColumns param
   header = intercalate "," $ (map tshowM $ nmapLevels grouped') <> map fst qpCols  <> map fst adjCols
   format _ _ Nothing = ""
