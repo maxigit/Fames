@@ -325,7 +325,7 @@ postItemsReportFor route mode = do
              let grouper' = grouper <> map mkRupture (filter (`notElem` columnInGrouper) cols) -- all columns with grouper first
                  columnInGrouper = mapMaybe cpColumn grouper
                  mkRupture cols = emptyRupture  {cpColumn = Just cols}
-                 formatter = summaryToCsv QPOnly
+                 formatter = summaryToCsv QPAvg
              result <- itemReportWithRank param (filter (isJust . cpColumn) grouper') (fmap snd) --  (fmap (fmap (summarize . map snd)))
              let source = yieldMany (map (<> "\n") (formatter param result))
              setAttachment . fromStrict $ "items-report-raw-" <> tshowM (rpFrom param) <> "-" 

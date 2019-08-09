@@ -1074,7 +1074,7 @@ nkeyWithRank (i, NMapKey key) = tshow i <> "-" <> pvToText key
 -- nkeyWithRank :: NMapKey -> Text
 -- nkeyWithRank (NMapKey key)  = pvToText key
 
-data QPColumnFilter = QPOnly | QPMinMax | QPAll deriving (Eq, Show, Ord, Enum, Bounded)
+data QPColumnFilter = QPOnly | QPMinMax | QPAvg | QPAll deriving (Eq, Show, Ord, Enum, Bounded)
 commonCss = [cassius|
 .text90
     writing-mode: sideways-lr
@@ -1210,6 +1210,7 @@ qpColumns qpFilter name io getQP = case qpFilter of
   QPOnly -> qps
   QPMinMax -> qps <> minmax
   QPAll -> qps <> minmax <> avg
+  QPAvg -> qps <> avg
   where qps = [ go "Qty" VQuantity (qpQty io)
               , go "Amount" VAmount (qpAmount io)
               ]
