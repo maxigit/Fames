@@ -1099,13 +1099,8 @@ tableProcessor param@ReportParam{..} grouped = do
       adjCols = qpAdjustmentColumns param
 
   toWidget commonCss
-  [whamlet|
-    $forall (h1, group1) <- nmapToNMapListWithRank grouped
-        <div.panel.panel-info>
-         $with name <- nkeyWithRank h1
-          <div.panel-heading data-toggle="collapse" data-target="#report-panel-#{name}">
-            <h2>#{nkeyWithRank h1}
-          <div.panel-body.collapse.in id="report-panel-#{name}">
+  forM_ (zip [1..] $ nmapToNMapListWithRank grouped) $ \(n, (h1, group1)) -> do
+    infoPanel' (Just $ "item-report-panel-" <> tshow n) (nkeyWithRank h1) [whamlet|
             <table.table.table-hover.table-striped.table-hover>
               <tr>
                 $forall level <-  levels
