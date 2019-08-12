@@ -121,6 +121,9 @@ data BoxId s = BoxId (STRef s (Box s)) deriving (Eq)
 instance Show (BoxId s) where
   show _ = "<<Boxref>>"
 
+-- Tag equivalent to a page break in a document
+-- Indicate if the given box should start a new row or a new shelf
+data BoxBreak = StartNewSlot | StartNewRow | StartNewShelf deriving (Eq, Show, Read)
 data Box s = Box { _boxId      :: BoxId s
                , boxShelf :: Maybe (ShelfId s)
                , boxStyle    :: !String
@@ -131,6 +134,7 @@ data Box s = Box { _boxId      :: BoxId s
                , boxBoxOrientations :: [Orientation]  -- ^ allowed orientation
                , boxTags :: Set String --
                , boxPriorities :: (Int, Int, Int ) -- Global, within style, within content , default is 100
+               , boxBreak :: Maybe BoxBreak
                } deriving (Show, Eq)
 
 boxKey :: Box s -> [Char]
@@ -510,7 +514,7 @@ newBox style content dim or shelf ors tags = do
         dtags = dimensionTags dim
 
     ref <- lift $ newSTRef (error "should never been called. undefined. Base.hs:338")
-    let box = Box (BoxId ref) (Just $ shelfId shelf) style content dim mempty or ors (tags' <> dtags) defaultPriorities
+    let box = Box (BoxId ref) (Just $ shelfId shelf) style content dim mempty or ors (tags' <> dtags) defaultPriorities (extractBoxBreak tags')
     shelf' <- findShelf shelf
     linkBox (BoxId ref) shelf'
     lift $ writeSTRef ref box
@@ -692,9 +696,9 @@ fillShelf exitMode  s (Similar bs) = do
         left = (drop (nl*nh*nw)) orderedBox  ++ otherBoxes
 
     case (nl*nw*nh, exitMode) of
-         (0, _ ) -> return (left, Nothing)
-         (_ , ExitOnTop) -> return (left, Just shelf)
-         _ ->  fillShelf exitMode  s (Similar (map boxId left))
+         (0, _ ) -> return (left, Nothing) -- we can't fit any. Shelf is full
+         (_ , ExitOnTop) -> return (left, Just shelf) -- ^ exit on top, we stop there, but the shelf is not full
+         _ ->  fillShelf exitMode  s (Similar (map boxId left)) -- ^ try to fit what's left in the same shelf
 
     where shiftBox ori box offset = do
             updateBox (\b -> b { orientation = ori
@@ -830,7 +834,10 @@ updateBoxTags' tags box = let
   to_add = Set.fromList $ rights parsed
   to_remove = Set.fromList $ lefts parsed
   new = (btags <> to_add) Set.\\ to_remove
-  in updateDimFromTags to_add $ box {boxTags = new, boxPriorities = extractPriorities new}
+  in updateDimFromTags to_add $ box { boxTags = new
+                                    , boxPriorities = extractPriorities new
+                                    , boxBreak = extractBoxBreak new
+                                    }
 
 
 updateBoxTags :: [[Char]] -> Box s -> WH (Box s) s
@@ -927,6 +934,14 @@ extractPriority tag = let
   [content, style, global]= take 3 $ priorities  <> repeat Nothing
   in (global, style, content)
 
+newSlotTag = "@start-new-slot"
+newRowTag = "@start-new-row"
+newShelfTag = "@start-new-shelf"
+extractBoxBreak :: Set String -> Maybe BoxBreak
+extractBoxBreak tags | newSlotTag `elem` tags = Just StartNewSlot
+                     | newRowTag `elem` tags = Just StartNewRow
+                     | newShelfTag `elem` tags = Just StartNewShelf 
+                     | otherwise = Nothing
 
 -- * Misc
 -- | reorder box so they are ordered by column across all
