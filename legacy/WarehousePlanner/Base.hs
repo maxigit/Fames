@@ -10,7 +10,7 @@ import Control.Monad.State
 import Data.Monoid
 import qualified Data.Map.Strict as Map'
 import Data.List(sort, sortBy, groupBy, nub, (\\), union, maximumBy, delete, stripPrefix)
-import Data.Maybe(catMaybes, fromMaybe)
+import Data.Maybe(catMaybes, fromMaybe, isJust)
 import Control.Applicative
 import Data.Ord (comparing, Down(..))
 import Data.List.Split(splitOn)
@@ -690,14 +690,25 @@ fillShelf exitMode  s (Similar bs) = do
                   ]
      --  turn all boxes
         orderedBox = sortBy (compare `on` boxRank) firstGroup
-    zipWithM (shiftBox bestO) orderedBox offsets
+        -- check if there is any break
+        -- but within the box potentially move 
+        box'Offset = zip orderedBox offsets
+        (boxesToMove, breakm) = case break (isJust . boxBreak . fst) box'Offset of
+          ([] , (xo@(x,_):(y,_):_)) | Just br <- boxBreak y ->  ([xo], Just br)  -- ^ to break
+          ([] , xs) -> (xs, Nothing) -- break is at the beginning, ignore
+          (before, [] ) -> (before, Nothing)
+          (before, ((x,_offset):_)) | b <- boxBreak x ->  (before, b)
+    -- traceShowM("Found break", mapMaybe (boxBreak . fst) box'Offset, breakm)
+    mapM_ (uncurry $ shiftBox bestO) boxesToMove
     let otherBoxes = concat [bs | (_, bs) <- tail groups ]
+        left = (drop (length boxesToMove)) orderedBox  ++ otherBoxes
 
-        left = (drop (nl*nh*nw)) orderedBox  ++ otherBoxes
-
-    case (nl*nw*nh, exitMode) of
-         (0, _ ) -> return (left, Nothing) -- we can't fit any. Shelf is full
-         (_ , ExitOnTop) -> return (left, Just shelf) -- ^ exit on top, we stop there, but the shelf is not full
+    case (nl*nw*nh, exitMode, breakm) of
+         (0, _, _ ) -> return (left, Nothing) -- we can't fit any. Shelf is full
+         (_, _, Just StartNewSlot) -> fillShelf exitMode  s (Similar (map boxId left)) -- ^ try to fit what's left in the same shelf
+         (_ , ExitOnTop, _) -> return (left, Just shelf) -- ^ exit on top, we stop there, but the shelf is not full
+         (_, ExitLeft, Just StartNewShelf) -> return (left, Nothing)  -- ^ pretends the shelf is full
+         -- (_, ExitLeft, Just StartNewRow) -> return (left, Nothing)  -- ^ pretends the shelf is full
          _ ->  fillShelf exitMode  s (Similar (map boxId left)) -- ^ try to fit what's left in the same shelf
 
     where shiftBox ori box offset = do
