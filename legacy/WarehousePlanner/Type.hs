@@ -104,7 +104,8 @@ data Warehouse s = Warehouse { boxes :: Seq (BoxId s)
              } -- deriving Show
 type WH a s = StateT  (Warehouse s) (ST s) a
 data ExitMode = ExitOnTop | ExitLeft deriving (Show, Eq, Ord, Enum)
-newtype Similar b = Similar [b]
+-- | a list of box of similar size
+
 type Corner = (Double, Double)
 
 -- * Classes
@@ -259,3 +260,5 @@ shelfNameTag :: Shelf s -> String
 shelfNameTag s = shelfName s ++ maybe "" ("#"++) (shelfTag s)
 
 -- ** Warehouse
+
+-- ** Similar
