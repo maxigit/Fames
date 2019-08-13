@@ -51,7 +51,6 @@ import Data.Ord (comparing, Down(..))
 import Data.List.Split(splitOn)
 import Data.Foldable (asum)
 import Data.Function(on)
-import Data.Function(on)
 import Data.Traversable (traverse, sequenceA)
 import Data.STRef
 import Control.Monad.ST
@@ -64,6 +63,7 @@ import qualified Data.Set as Set
 import Data.Either(lefts,rights)
 import Data.Maybe(maybeToList, mapMaybe)
 import WarehousePlanner.Type
+import WarehousePlanner.SimilarBy
 import Diagrams.Prelude(white)
 
 import qualified System.FilePath.Glob as Glob
@@ -82,9 +82,9 @@ maxUsedOffset proj shelf = do
     boxes <- findBoxByShelf shelf
     return $ foldr (\b r -> max r ((proj.boxOffset') b)) 0 boxes
 
-lengthUsed, __unused_widthUsed, heightUsed :: Shelf s -> WH Double s
+lengthUsed, widthUsed, heightUsed :: Shelf s -> WH Double s
 lengthUsed = maxUsedOffset dLength
-__unused_widthUsed = maxUsedOffset dWidth
+widthUsed = maxUsedOffset dWidth
 heightUsed = maxUsedOffset dHeight
 
 
@@ -434,6 +434,7 @@ howMany (Dimension l w h) (Dimension lb wb hb) = ( fit l lb
         fit d db = floor (max 0 (d-0) /(db+0))
 
 
+type SimilarBoxes s = SimilarBy Dimension (Box s)
 -- Move "physicaly" a box into a shelf if there is enough space
 -- Boxes are supposed to be the same size.
 -- Sometime we want to arrange boxes in column across boxes
@@ -445,76 +446,83 @@ howMany (Dimension l w h) (Dimension lb wb hb) = ( fit l lb
 -- This type is just for information.
 -- There is nothign to enforce the object similarity.
 -- return the shelf itself if not empty
-fillShelf :: (Box' b, Shelf' shelf) => ExitMode -> shelf s -> Similar (b s) -> WH ([Box s], Maybe (Shelf s))  s
-fillShelf _ _ (Similar []) = return ([], Nothing)
-fillShelf exitMode  s (Similar bs) = do
+fillShelf :: (Shelf' shelf)
+          => ExitMode
+          -> shelf s
+          -> SimilarBoxes s
+          -> WH ( Maybe (SimilarBoxes s)
+                , Maybe (Shelf s)
+                )  s
+fillShelf exitMode  s simBoxes0 = do
+    let simBoxes@(SimilarBy dim b bs) = sortSimilarOn boxRank simBoxes0
     shelf <- findShelf s
-    boxes <- T.mapM findBox bs
+    let boxes = b : bs
     -- first we need to find how much space is left
-    boxesIn <- findBoxByShelf s
     lused <- lengthUsed shelf
     hused <- heightUsed shelf
+    wused <- widthUsed shelf
+    case  (boxBreak b, lused*hused*wused > 0) of
+      (Just StartNewShelf, True ) -> return (Just simBoxes, Nothing ) -- shelf non empty, start new shelf
+      _ -> do
+      boxo <- gets boxOrientations
+      let orientations = boxo b shelf
+      let (bestO, nl_, nw, nh, (lused', hused')) =
+                          bestArrangement orientations
+                                            [ (Dimension (max 0 (shelfL -l)) shelfW (max 0 (shelfH-h)), (l,h))
+                                            | (Dimension shelfL shelfW shelfH) <- [ minDim shelf, maxDim shelf ]
+                                          -- try min and max. Choose min if  possible
+                                            , (l,h) <- [(lused,0), (0,hused)] -- simplified algorithm
+                                            ] dim
+          nl = if exitMode == ExitLeft then nl_ else min 1 nl_
+          Dimension l' w' h' = rotate bestO dim
 
-    let groups = Map'.toList $ Map'.fromListWith (flip(<>)) [(_boxDim b, [b]) | b <- boxes]
-        -- we assume here that all boxes with the same dimension share the same orientation policy.
-
-        (dim, firstGroup) = head groups
-
-    boxo <- gets boxOrientations
-    let orientations = boxo (head firstGroup) shelf
-    let (bestO, nl_, nw, nh, (lused', hused')) =
-                        bestArrangement orientations
-                                          [ (Dimension (max 0 (shelfL -l)) shelfW (max 0 (shelfH-h)), (l,h))
-                                          | (Dimension shelfL shelfW shelfH) <- [ minDim shelf, maxDim shelf ]
-                                        -- try min and max. Choose min if  possible
-                                          -- , (l,h) <- extremeCorners  boxesIn -- alternative algo
-                                          , (l,h) <- [(lused,0), (0,hused)] -- simplified algorithm
-                                          ] dim
-        nl = if exitMode == ExitLeft then nl_ else min 1 nl_
-        Dimension l' w' h' = rotate bestO dim
-
-        offsets = [Dimension (lused' + l'*fromIntegral il)
-                             (w'* fromIntegral iw)
-                             (hused' + h'*fromIntegral ih)
-                  | (il, iw ,ih) <-  case (shelfFillingStrategy shelf) of
-                                ColumnFirst -> [(il, iw, ih)
-                                    | il <- [0..nl-1]
-                                    , ih <- [0..nh-1]
-                                    , iw <- [0..nw-1]
-                                    ]
-                                RowFirst -> [(il, iw, ih)
-                                    | ih <- [0..nh-1]
-                                    , iw <- [0..nw-1]
-                                    , il <- [0..nl-1]
-                                    ]
-                  ]
-     --  turn all boxes
-        orderedBox = sortBy (compare `on` boxRank) firstGroup
-        -- check if there is any break
-        -- but within the box potentially move 
-        box'Offset = zip orderedBox offsets
-        (boxesToMove, breakm) = case break (isJust . boxBreak . fst) box'Offset of
-          ([] , (xo@(x,_):(y,_):_)) | Just br <- boxBreak y ->  ([xo], Just br)  -- ^ to break
-          ([] , xs) -> (xs, Nothing) -- break is at the beginning, ignore
-          (before, [] ) -> (before, Nothing)
-          (before, ((x,_offset):_)) | b <- boxBreak x ->  (before, b)
-    -- traceShowM("Found break", mapMaybe (boxBreak . fst) box'Offset, breakm)
-    mapM_ (uncurry $ shiftBox bestO) boxesToMove
-    let otherBoxes = concat [bs | (_, bs) <- tail groups ]
-        left = (drop (length boxesToMove)) orderedBox  ++ otherBoxes
-
-    case (nl*nw*nh, exitMode, breakm) of
-         (0, _, _ ) -> return (left, Nothing) -- we can't fit any. Shelf is full
-         (_, _, Just StartNewSlot) -> fillShelf exitMode  s (Similar (map boxId left)) -- ^ try to fit what's left in the same shelf
-         (_ , ExitOnTop, _) -> return (left, Just shelf) -- ^ exit on top, we stop there, but the shelf is not full
-         (_, ExitLeft, Just StartNewShelf) -> return (left, Nothing)  -- ^ pretends the shelf is full
-         -- (_, ExitLeft, Just StartNewRow) -> return (left, Nothing)  -- ^ pretends the shelf is full
-         _ ->  fillShelf exitMode  s (Similar (map boxId left)) -- ^ try to fit what's left in the same shelf
+          offsets = [Dimension (lused' + l'*fromIntegral il)
+                              (w'* fromIntegral iw)
+                              (hused' + h'*fromIntegral ih)
+                    | (il, iw ,ih) <-  case (shelfFillingStrategy shelf) of
+                                  ColumnFirst -> [(il, iw, ih)
+                                      | il <- [0..nl-1]
+                                      , ih <- [0..nh-1]
+                                      , iw <- [0..nw-1]
+                                      ]
+                                  RowFirst -> [(il, iw, ih)
+                                      | ih <- [0..nh-1]
+                                      , iw <- [0..nw-1]
+                                      , il <- [0..nl-1]
+                                      ]
+                    ]
+          -- but within the box potentially move 
+          box'Offsets = assignOffsetWithBreaks Nothing boxes offsets
+      -- traceShowM("Found break", mapMaybe (boxBreak . fst) box'Offset, breakm)
+      mapM_ (uncurry $ shiftBox bestO) box'Offsets
+      let leftm = dropSimilar (length box'Offsets) simBoxes
+      case (nl*nw*nh, exitMode) of
+          -- (0, _) -> return (leftm, Nothing) -- we can't fit any. Shelf is full
+          (_ , ExitOnTop) -> return (leftm, Just shelf) -- ^ exit on top, we stop there, but the shelf is not full
+          (_, ExitLeft) -> return (leftm, Nothing)  -- ^ pretends the shelf is full
+          -- _ ->  fillShelfm exitMode  shelf leftm -- ^ try to fit what's left in the same shelf
 
     where shiftBox ori box offset = do
             updateBox (\b -> b { orientation = ori
                                , boxOffset = offset}) box
             assignShelf (Just s) box
+          -- fillShelfm x s Nothing = return (Nothing, Just s)
+          -- fillShelfm x s (Just lefts) = fillShelf x s lefts
+
+
+-- |  Assign offset to boxes so they can be moved
+-- taking  boxBreak into account. Basically a zip but can skip some offset or break
+assignOffsetWithBreaks :: Maybe Dimension ->   [Box s] -> [Dimension] -> [(Box s, Dimension)]
+assignOffsetWithBreaks _ [] _  = []
+assignOffsetWithBreaks _ _ []  = []
+assignOffsetWithBreaks Nothing (box:bs) (offset:os) =  (box, offset) : assignOffsetWithBreaks (Just offset) bs os -- ignore the first break
+assignOffsetWithBreaks (Just previous) bs@(box:_) os@(offset:_) = case boxBreak box of
+  Nothing -> assignOffsetWithBreaks Nothing bs os
+  Just StartNewShelf -> [] -- break
+  Just StartNewRow -> assignOffsetWithBreaks Nothing bs (dropWhile sameRow os)
+  Just StartNewSlot -> assignOffsetWithBreaks Nothing bs (dropWhile sameSlot os)
+  where sameSlot o = dHeight o <= dHeight previous  && dLength o <= dLength previous -- && dWidth o >= dWidth previous
+        sameRow o =  dLength o <= dLength previous -- || dWidth o <= dWidth previous
 
 
 
@@ -531,19 +539,31 @@ moveBoxes exitMode bs ss = do
   boxes <- mapM findBox bs
   let layers = groupBy ((==)  `on` boxGlobalPriority) $ sortBy (comparing boxGlobalPriority) boxes
   lefts <- forM layers $ \layer -> do
-    let groups = map Similar (groupBy ((==) `on` _boxDim) $ sortBy (comparing _boxDim) layer )
-    -- traceShowM ("GRoups", length groups, map (\(Similar g@(g1:_)) -> (show $ length g, show $ _boxDim g1, show . _roundDim $ boxDim g1 )) groups)
+    let groups = groupSimilar _boxDim layer
+    -- traceShowM ("GRoups", length groups, map (\(SimilarBy dim g1 g ) -> (show $ length g + 1, show . _roundDim $ dim )) groups)
     lefts <- mapM (\g -> moveSimilarBoxes exitMode g ss) groups
-    return $ concat lefts
+    return $ concatMap unSimilar $ catMaybes lefts
   return $ concat lefts
 
 _roundDim :: Dimension -> [Int]
 _roundDim (Dimension l w h) = map (round . (*100)) [l,w,h]
 
  
+-- | Move boxes of similar size to the given shelf if possible
+moveSimilarBoxes :: (Shelf' shelf) => ExitMode -> SimilarBoxes s -> [shelf s] -> WH (Maybe (SimilarBoxes s)) s
+moveSimilarBoxes exitMode bs ss = moveSimilarBoxesAndRetry exitMode bs ss []
 
-moveSimilarBoxes :: (Box' b , Shelf' shelf) => ExitMode -> Similar (b s) -> [shelf s] -> WH [Box s] s
-moveSimilarBoxes exitMode bs ss = moveSimilarBoxes' exitMode bs ss []
+-- | moves boxes into give shelf and retry nonfull shelves until all necessary
+-- useful to fill selves using ExitONTop strategy
+moveSimilarBoxesAndRetry :: (Shelf' shelf) => ExitMode -> SimilarBoxes s -> [shelf s] -> [shelf s] -> WH (Maybe (SimilarBoxes s)) s
+moveSimilarBoxesAndRetry _ boxes [] [] = return (Just boxes)
+moveSimilarBoxesAndRetry exitMode bs [] trieds = moveSimilarBoxesAndRetry exitMode bs (reverse trieds) [] -- can loop but normally ss is null
+moveSimilarBoxesAndRetry exitMode boxes  (s:ss') trieds = do
+    left <- fillShelf exitMode s boxes
+    case left of
+        (Nothing , _) -> return Nothing
+        (Just bs', Nothing)  -> moveSimilarBoxesAndRetry exitMode bs' (ss') trieds -- discard current Shelf
+        (Just bs', Just _)  -> moveSimilarBoxesAndRetry exitMode bs' ss' (s:trieds)
 
 
 boxRank :: Box s -> (String, Int, String, Int)
@@ -561,17 +581,6 @@ boxStylePriority  box = p where (_,p,_)  = boxPriorities box
 -- look at @n in tags
 boxGlobalPriority  :: Box s -> Int
 boxGlobalPriority  box = p where (p, _, _) = boxPriorities box
-
-moveSimilarBoxes' :: (Box' b , Shelf' shelf) => ExitMode -> Similar (b s) -> [shelf s] -> [shelf s] -> WH [Box s] s
-moveSimilarBoxes' _ (Similar bs) [] [] = mapM findBox bs
-moveSimilarBoxes' exitMode bs [] ss = moveSimilarBoxes' exitMode bs (reverse ss) [] -- can loop but normal ss is null
-moveSimilarBoxes' exitMode (Similar []) _  _ = return []
-moveSimilarBoxes' exitMode (Similar bs) (s:ss') ss'' = do
-    left <- fillShelf exitMode s (Similar bs)
-    case left of
-        ([], Nothing) -> return []
-        (bs', Nothing)  -> moveSimilarBoxes' exitMode (Similar bs') (ss') ss'' -- discard current box
-        (bs', Just _)  -> moveSimilarBoxes' exitMode (Similar bs') ss' (s:ss'')
 
 
 -- | Rearrange boxes within their own shelves

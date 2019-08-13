@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 68f02664d8e791bf658280632ae595facd5d29e1943a1b462b2c5f2a351dad03
+-- hash: bb33c8ff654bc6390a3ca61bb12a1feb214782e223540d9433b7ea5325d86dae
 
 name:           Fames
 version:        0.0.1
@@ -205,6 +205,7 @@ library
       WarehousePlanner.Display
       WarehousePlanner.Optimum
       WarehousePlanner.Report
+      WarehousePlanner.SimilarBy
       WarehousePlanner.Type
       Curl
       GL
@@ -495,6 +496,7 @@ test-suite ghcid
       WarehousePlanner.Display
       WarehousePlanner.Optimum
       WarehousePlanner.Report
+      WarehousePlanner.SimilarBy
       WarehousePlanner.Type
       SharedStockAdjustment
       SharedTypes
