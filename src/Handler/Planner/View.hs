@@ -474,24 +474,38 @@ If the first word of a section is one of the valid section name, the whole conte
     B,prop=second
     ,XXX$[prop] -- create XXXfirst tag for A and XXXsecond for B
 <h3>
+  <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-break">
+     Breaks And Slots
+<div.pre.collapse id=info-section-break>
+  Normally, when moves boxes to shelves, shelves are filled continuously without any break between
+    boxes of the same dimensions. Breaks can be introduced using special break tags.
+    By tagging a given box with a break tag, the box is guaranteed to either start a new shelf, a new slice (row or column depending of the shelf filling strategy)
+    or a new slot (no box "behind"). The corresponding tags are
+    <ul>
+      <li> <code>@start-new-shelf</code> first box of an entire shelf
+      <li> <code>@start-new-slice</code> first box of a row/column
+      <li> <code>@start-new-slot</code> no box behind
+
+    
+<h3>
   <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-box-attributes">
      Box attributes
 <div.pre.collapse id=info-section-box-attributes>
   Certain attributes like the current location or orientation of a box can be used to set a new tag
   with the corresponding value. The following attributes are available.
   <ul>
-    <li> ${shelfname} # current shelf
-    <li> ${shelftag} # tag of the current shelf
-    <li> ${orientation} # current orientation
-    <li> ${style} # current box style
-    <li> ${content} # current box content (or colour)
-    <li> ${boxname} # box style + content
-    <li> ${dimension} # box dimension in cm
-    <li> ${offset} # box offset (within the shelf) in cm
-    <li> ${coordinate} # box coordinate (as if row and column of similar boxes) (start at 1)
-    <li> ${ol} $ length coordinate
-    <li> ${ow} $ width coordinate
-    <li> ${oh} $ height coordinate
+    <li> <code>${shelfname}</code> # current shelf
+    <li> <code>${shelftag}</code> # tag of the current shelf
+    <li> <code>${orientation}</code> # current orientation
+    <li> <code>${style}</code> # current box style
+    <li> <code>${content}</code> # current box content (or colour)
+    <li> <code>${boxname}</code> # box style + content
+    <li> <code>${dimension}</code> # box dimension in cm
+    <li> <code>${offset}</code> # box offset (within the shelf) in cm
+    <li> <code>${coordinate}</code> # box coordinate (as if row and column of similar boxes) (start at 1)
+    <li> <code>${ol}</code> $ length coordinate
+    <li> <code>${ow}</code> $ width coordinate
+    <li> <code>${oh}</code> $ height coordinate
 
   Example
   <pre>

@@ -2,7 +2,42 @@
 {-# LANGUAGE LiberalTypeSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoOverloadedStrings #-}
-module WarehousePlanner.Base where
+module WarehousePlanner.Base
+( newShelf
+, newBox
+, moveBoxes
+, updateBoxTags
+, updateBox
+, updateShelf
+, boxStyleAndContent
+, extractTag
+, extractTags
+, tagToOnOff
+, expandAttribute'
+, expandAttribute
+, findShelfByName
+, findBoxByStyleAndShelfNames
+, findBoxByShelf
+, findBoxByStyle
+, shelfBoxes
+, splitBoxSelector
+, patternToMatchers
+, orTrue
+, howMany
+, filterBoxByTag
+, filterByTag
+, filterShelfByTag
+, buildWarehouse
+, emptyWarehouse
+, defaultShelf
+, incomingShelf
+, aroundArrangement 
+, bestArrangement
+, usedDepth
+, printDim
+, module WarehousePlanner.Type
+)
+where
 import Prelude
 import Text.Printf(printf)
 import Data.Vector(Vector)
@@ -10,13 +45,11 @@ import Control.Monad.State
 import Data.Monoid
 import qualified Data.Map.Strict as Map'
 import Data.List(sort, sortBy, groupBy, nub, (\\), union, maximumBy, delete, stripPrefix)
-import Data.Maybe(catMaybes, fromMaybe)
+import Data.Maybe(catMaybes, fromMaybe, isJust)
 import Control.Applicative
 import Data.Ord (comparing, Down(..))
 import Data.List.Split(splitOn)
 import Data.Foldable (asum)
-import Data.Function(on)
-import Diagrams.Prelude(Colour, white)
 import Data.Function(on)
 import Data.Traversable (traverse, sequenceA)
 import Data.STRef
@@ -29,6 +62,9 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Either(lefts,rights)
 import Data.Maybe(maybeToList, mapMaybe)
+import WarehousePlanner.Type
+import WarehousePlanner.SimilarBy
+import Diagrams.Prelude(white)
 
 import qualified System.FilePath.Glob as Glob
 import Text.Read (readMaybe)
@@ -36,181 +72,8 @@ import Text.Read (readMaybe)
 
 import Debug.Trace
 
-data Dimension = Dimension { dLength :: !Double
-                           , dWidth  :: !Double
-                           , dHeight :: !Double
-                           } deriving (Show, Eq, Ord)
-
-volume :: Dimension -> Double
-volume (Dimension l w h) = l*w*h
-floorSpace :: Dimension -> Double
-floorSpace (Dimension l w _) = l*w
 
 
-instance Monoid Dimension where
-    mempty = Dimension 0 0 0
-    mappend (Dimension l w h) (Dimension l' w' h') =
-            Dimension (l+l') (w+w') (h+h')
-
-data Direction = Vertical | Depth | Horizontal deriving (Show, Eq, Ord, Enum)
-
-data Flow = LeftToRight | RightToLeft deriving (Show, Eq, Ord, Enum)
-defaultFlow = LeftToRight
-
--- | How to filter box by number.
--- When selecting boxes, we first limit the number of boxes per content, then shelves then total
--- Filtering by content means only n boxes of the same style content will be selected.
--- This is use full to for example only keep one box of each variations and move them on top
-data BoxNumberSelector = BoxNumberSelector
-   { nsPerContent :: Maybe Int
-   , nsPerShelf :: Maybe Int
-   , nsTotal :: Maybe Int
-   } deriving (Show, Read)
-           
-
--- | How something is oriented. It indicates  the direction of
--- the normal of the given face.
-data Orientation = Orientation {  top :: !Direction, front :: !Direction } deriving (Show, Eq, Ord)
-up = Orientation Vertical Depth
-tiltedForward = Orientation Depth Vertical
-tiltedRight = Orientation Horizontal Depth
-tiltedFR = Orientation Depth Horizontal
-rotatedSide = Orientation Horizontal Vertical
-rotatedUp = Orientation Vertical Horizontal
-
-showOrientation :: Orientation -> String
-showOrientation o | o == up             =  "^ "
-                  | o == tiltedForward  =  "= "
-                  | o == tiltedRight    =  "> "
-                  | o == tiltedFR       =  "| "
-                  | o == rotatedUp      =  "' "
-                  | o == rotatedSide      =  "@ "
-                  | otherwise           =  "tA "
-
-readOrientation c = case c of
-    '^' -> up
-    '=' -> tiltedForward
-    '>' -> tiltedRight
-    '|' -> tiltedFR
-    '\'' -> rotatedUp
-    '@' -> rotatedSide
-    _ -> error ("can't parse orientation '" ++ show c )
-
-allOrientations = [ up
-                  , rotatedUp
-                  , tiltedForward
-                  , tiltedFR
-                  , tiltedRight
-                  , rotatedSide
-                  , rotatedUp
-                  ]
-
-rotate :: Orientation -> Dimension -> Dimension
-rotate o (Dimension l w h)
-    | o == up             =  Dimension l w h
-    | o == tiltedForward  =  Dimension l h w
-    | o == tiltedRight    =  Dimension h w l
-    | o == tiltedFR       =  Dimension w h l
-    | o == rotatedUp    =  Dimension w l h
-    | o == rotatedSide    =  Dimension h l w
-    | True  = error $ "Unexpected rotation" <> show o
-
--- | Every box belongs to a shelf.
--- Non placed boxes belongs to the special default shelf
-data BoxId s = BoxId (STRef s (Box s)) deriving (Eq)
-instance Show (BoxId s) where
-  show _ = "<<Boxref>>"
-
-data Box s = Box { _boxId      :: BoxId s
-               , boxShelf :: Maybe (ShelfId s)
-               , boxStyle    :: !String
-               , boxContent  :: !String
-               , _boxDim     :: !Dimension
-               , boxOffset   :: !Dimension
-               , orientation :: !Orientation -- ^ orientation of the box
-               , boxBoxOrientations :: [Orientation]  -- ^ allowed orientation
-               , boxTags :: Set String --
-               , boxPriorities :: (Int, Int, Int ) -- Global, within style, within content , default is 100
-               } deriving (Show, Eq)
-
-boxKey :: Box s -> [Char]
-boxKey b = (boxStyle b) ++ (boxContent b)
-boxSku b = boxStyle b ++ "-" ++ boxContent b
-boxTagList :: Box s -> [String]
-boxTagList = Set.toList . boxTags
-
--- | Return global dimension according
--- to box orientation
-boxDim :: Box s -> Dimension
-boxDim box = rotate (orientation box) (_boxDim box)
-
-
-boxVolume :: Box s -> Double
-boxVolume = volume . boxDim
-
--- | Returns box offset + box itself
-boxOffset' :: Box s -> Dimension
-boxOffset' b = boxOffset b <> boxDim b
-class BoxIdable a where
-    boxId :: a s -> BoxId s
-
-instance BoxIdable BoxId where
-    boxId b = b
-
-instance BoxIdable Box where
-    boxId = _boxId
-
-class (BoxIdable b) => Box' b where
-  findBox :: b s  -> WH (Box s) s
-instance Box' Box where
-  findBox b = findBox (boxId b) -- "reload" the box in caes it has been modified
-instance Box' BoxId where
-  findBox (BoxId ref) = lift $ readSTRef ref
-
-
-class Referable a where
-  type Ref a :: *
-  getRef :: a -> Ref a
-
-instance Referable (Box s) where
-  type Ref (Box s) = STRef s (Box s)
-  getRef box = getRef (boxId box)
-
-instance Referable (BoxId s) where
-  type Ref (BoxId s) = STRef s (Box s)
-  getRef (BoxId ref) = ref
-
-instance Referable (Shelf s) where
-  type Ref (Shelf s) = STRef s (Shelf s)
-  getRef shelf = getRef (shelfId shelf)
-
-instance Referable (ShelfId s) where
-  type Ref (ShelfId s) = STRef s (Shelf s)
-  getRef (ShelfId ref) = ref
-
-
-
--- | Shelf have a min and max dimension. This allows shelf to be overloaded
--- or boxes to stick out.
-data ShelfId s = ShelfId (STRef s (Shelf s))  deriving (Eq)
-instance Show (ShelfId s) where
-  show _ = "<<ShelfId>>"
-data Shelf s = Shelf { _shelfId  :: ShelfId s
-                   , _shelfBoxes :: [BoxId s]
-                   , shelfName :: !String
-                   , shelfTag :: Maybe String
-                   , minDim    :: !Dimension
-                   , maxDim    :: !Dimension
-                   , flow      :: !Flow
-                   , shelfBoxOrientator :: !BoxOrientator
-                   , shelfFillingStrategy :: !FillingStrategy
-                   } deriving (Show, Eq)
-
-shelfVolume :: Shelf s -> Double
-shelfVolume = volume . minDim
-
-shelfNameTag :: Shelf s -> String
-shelfNameTag s = shelfName s ++ maybe "" ("#"++) (shelfTag s)
 -- | Computes the max length or height used within a shelf
 -- | by all the boxes. Should be able to be cached.
 -- maxUsedOffset :: (Dimension -> Double) -> Shelf -> WH
@@ -225,55 +88,12 @@ widthUsed = maxUsedOffset dWidth
 heightUsed = maxUsedOffset dHeight
 
 
--- | Gives orientation to a box
-data BoxOrientator = DefaultOrientation
-    | ForceOrientations ![Orientation]
-    | BoxOrientations
-    | FilterOrientations ![Orientation]
-    | AddOrientations ![Orientation] ![Orientation]
-    deriving (Show, Eq, Ord)
-
--- | Which way fill shelves
-
-data FillingStrategy = RowFirst | ColumnFirst deriving (Show, Eq, Enum, Ord)
-
-class ShelfIdable a where
-    shelfId :: a s -> ShelfId s
-
-instance ShelfIdable ShelfId where
-    shelfId b = b
-
-instance ShelfIdable Shelf where
-    shelfId = _shelfId
-
-
-class (ShelfIdable b) => Shelf' b where
-  findShelf :: b s  -> WH (Shelf s) s
-instance Shelf' Shelf where
-  findShelf s = findShelf (shelfId s) -- reload the shef
-instance Shelf' ShelfId where
-  findShelf (ShelfId ref) = lift $ readSTRef ref
-
 
 -- | Nested groups of shelves, used for display
-data ShelfGroup' s = ShelfGroup [ShelfGroup' s] Direction
-                | ShelfProxy (s)
-                deriving (Show)
-type ShelfGroup s = ShelfGroup' (ShelfId s)
 
-groupToShelfIds :: ShelfGroup s -> [ShelfId s]
-groupToShelfIds (ShelfProxy sid) = [sid]
-groupToShelfIds (ShelfGroup  groups _ ) = concatMap groupToShelfIds groups
-
-instance Monoid (ShelfGroup s) where
-    mempty = ShelfGroup [] Vertical
-    mappend sg@(ShelfGroup g d) sg'@(ShelfGroup g' d')
-        | d == d' = ShelfGroup (g `mappend` g') d
-        | otherwise = ShelfGroup [sg, sg'] Vertical
-
-    mappend sg@(ShelfGroup g d) s = ShelfGroup (g++[s]) d
-    mappend s sg@(ShelfGroup g d) = ShelfGroup (s:g) d
-    mappend sg sg' = ShelfGroup [sg, sg'] Vertical
+__unused_groupToShelfIds :: ShelfGroup s -> [ShelfId s]
+__unused_groupToShelfIds (ShelfProxy sid) = [sid]
+__unused_groupToShelfIds (ShelfGroup  groups _ ) = concatMap __unused_groupToShelfIds groups
 
 
 rackUp :: Shelf' shelf => [shelf s] -> ShelfGroup s
@@ -301,19 +121,6 @@ buildRack xs = do
     let sorted = sortBy (comparing shelfName) shelves
 
     return $ rackUp sorted
-
--- | State containing bays of boxes
--- boxOrientations : function returning a list
--- of possible box orientiations within a shelf for a given box.
--- as well as the number of boxes which can be used for the depth (min and max)
--- setting min to 1, allow forcing boxes stick out
-data Warehouse s = Warehouse { boxes :: Seq (BoxId s)
-                           , shelves :: Seq (ShelfId s)
-                           , shelfGroup :: ShelfGroup s
-                           , colors :: Box s -> Colour Double
-                           , shelfColors :: Shelf s -> (Maybe (Colour Double), Maybe (Colour Double))
-                           , boxOrientations :: Box s -> Shelf s -> [(Orientation, Int, Int)]
-             } -- deriving Show
 
  -- | shelf use as error, ie everything not fitting anywhere
 defaultShelf :: WH (ShelfId s) s
@@ -476,7 +283,6 @@ limitBy key n boxes = let
   
 
 
-emptyWarehouse = Warehouse mempty mempty mempty (const white) (const (Nothing, Nothing)) defaultBoxOrientations
 defaultBoxOrientations box shelf =
     let orientations = case (shelfBoxOrientator shelf)  of
             (DefaultOrientation) ->  [up, rotatedUp]
@@ -488,8 +294,8 @@ defaultBoxOrientations box shelf =
             AddOrientations lefts rights -> lefts `union` boxBoxOrientations box `union` rights
     in map (\o -> (o,0,1)) orientations
 
+emptyWarehouse = Warehouse mempty mempty mempty (const white) (const (Nothing, Nothing)) defaultBoxOrientations
 
-type WH a s = StateT  (Warehouse s) (ST s) a
 newShelf :: String -> Maybe String -> Dimension -> Dimension -> BoxOrientator -> FillingStrategy -> WH (Shelf s) s
 newShelf name tag minD maxD boxOrientator fillStrat = do
         warehouse <- get
@@ -510,7 +316,7 @@ newBox style content dim or shelf ors tags = do
         dtags = dimensionTags dim
 
     ref <- lift $ newSTRef (error "should never been called. undefined. Base.hs:338")
-    let box = Box (BoxId ref) (Just $ shelfId shelf) style content dim mempty or ors (tags' <> dtags) defaultPriorities
+    let box = Box (BoxId ref) (Just $ shelfId shelf) style content dim mempty or ors (tags' <> dtags) defaultPriorities (extractBoxBreak tags')
     shelf' <- findShelf shelf
     linkBox (BoxId ref) shelf'
     lift $ writeSTRef ref box
@@ -628,6 +434,7 @@ howMany (Dimension l w h) (Dimension lb wb hb) = ( fit l lb
         fit d db = floor (max 0 (d-0) /(db+0))
 
 
+type SimilarBoxes s = SimilarBy Dimension (Box s)
 -- Move "physicaly" a box into a shelf if there is enough space
 -- Boxes are supposed to be the same size.
 -- Sometime we want to arrange boxes in column across boxes
@@ -635,71 +442,99 @@ howMany (Dimension l w h) (Dimension lb wb hb) = ( fit l lb
 -- we need to fill only one column, go to the next shelves, then
 -- start again with the bottom boxes with the remaining shelves.
 -- This the purpose of the ExitOnTop mode.
-data ExitMode = ExitOnTop | ExitLeft deriving (Show, Eq, Ord, Enum)
 -- | List of "similar" object. In case of boxes of the same dimension.
 -- This type is just for information.
 -- There is nothign to enforce the object similarity.
 -- return the shelf itself if not empty
-newtype Similar b = Similar [b]
-fillShelf :: (Box' b, Shelf' shelf) => ExitMode -> shelf s -> Similar (b s) -> WH ([Box s], Maybe (Shelf s))  s
-fillShelf _ _ (Similar []) = return ([], Nothing)
-fillShelf exitMode  s (Similar bs) = do
+fillShelf :: (Shelf' shelf)
+          => ExitMode
+          -> shelf s
+          -> SimilarBoxes s
+          -> WH ( Maybe (SimilarBoxes s)
+                , Maybe (Shelf s)
+                )  s
+fillShelf exitMode  s simBoxes0 = do
+    let simBoxes@(SimilarBy dim b bs) = sortSimilarOn boxRank simBoxes0
     shelf <- findShelf s
-    boxes <- T.mapM findBox bs
+    let boxes = b : bs
     -- first we need to find how much space is left
-    boxesIn <- findBoxByShelf s
     lused <- lengthUsed shelf
     hused <- heightUsed shelf
+    wused <- widthUsed shelf
+    case  (boxBreak b, lused*hused*wused > 0) of
+      (Just StartNewShelf, True ) -> return (Just simBoxes, Nothing ) -- shelf non empty, start new shelf
+      _ -> do
+      boxo <- gets boxOrientations
+      let orientations = boxo b shelf
+      let (bestO, nl_, nw, nh, (lused', hused')) =
+                          bestArrangement orientations
+                                            [ (Dimension (max 0 (shelfL -l)) shelfW (max 0 (shelfH-h)), (l,h))
+                                            | (Dimension shelfL shelfW shelfH) <- [ minDim shelf, maxDim shelf ]
+                                          -- try min and max. Choose min if  possible
+                                            , (l,h) <- [(lused,0), (0,hused)] -- simplified algorithm
+                                            ] dim
+          nl = if exitMode == ExitLeft then nl_ else min 1 nl_
+          Dimension l' w' h' = rotate bestO dim
 
-    let groups = Map'.toList $ Map'.fromListWith (flip(<>)) [(_boxDim b, [b]) | b <- boxes]
-        -- we assume here that all boxes with the same dimension share the same orientation policy.
-
-        (dim, firstGroup) = head groups
-
-    boxo <- gets boxOrientations
-    let orientations = boxo (head firstGroup) shelf
-    let (bestO, nl_, nw, nh, (lused', hused')) =
-                        bestArrangement orientations
-                                          [ (Dimension (max 0 (shelfL -l)) shelfW (max 0 (shelfH-h)), (l,h))
-                                          | (Dimension shelfL shelfW shelfH) <- [ minDim shelf, maxDim shelf ]
-                                        -- try min and max. Choose min if  possible
-                                          -- , (l,h) <- extremeCorners  boxesIn -- alternative algo
-                                          , (l,h) <- [(lused,0), (0,hused)] -- simplified algorithm
-                                          ] dim
-        nl = if exitMode == ExitLeft then nl_ else min 1 nl_
-        Dimension l' w' h' = rotate bestO dim
-
-        offsets = [Dimension (lused' + l'*fromIntegral il)
-                             (w'* fromIntegral iw)
-                             (hused' + h'*fromIntegral ih)
-                  | (il, iw ,ih) <-  case (shelfFillingStrategy shelf) of
-                                ColumnFirst -> [(il, iw, ih)
-                                    | il <- [0..nl-1]
-                                    , ih <- [0..nh-1]
-                                    , iw <- [0..nw-1]
-                                    ]
-                                RowFirst -> [(il, iw, ih)
-                                    | ih <- [0..nh-1]
-                                    , iw <- [0..nw-1]
-                                    , il <- [0..nl-1]
-                                    ]
-                  ]
-     --  turn all boxes
-        orderedBox = sortBy (compare `on` boxRank) firstGroup
-    zipWithM (shiftBox bestO) orderedBox offsets
-    let otherBoxes = concat [bs | (_, bs) <- tail groups ]
-
-        left = (drop (nl*nh*nw)) orderedBox  ++ otherBoxes
-
-    case (nl*nw*nh, exitMode) of
-         (0, _ ) -> return (left, Nothing)
-         (_ , ExitOnTop) -> return (left, Just shelf)
-         _ ->  fillShelf exitMode  s (Similar (map boxId left))
+          offsets = [Dimension (lused' + l'*fromIntegral il)
+                              (w'* fromIntegral iw)
+                              (hused' + h'*fromIntegral ih)
+                    | (il, iw ,ih) <-  case (shelfFillingStrategy shelf) of
+                                  ColumnFirst -> [(il, iw, ih)
+                                      | il <- [0..nl-1]
+                                      , ih <- [0..nh-1]
+                                      , iw <- [0..nw-1]
+                                      ]
+                                  RowFirst -> [(il, iw, ih)
+                                      | ih <- [0..nh-1]
+                                      , il <- [0..nl-1]
+                                      , iw <- [0..nw-1] -- width first
+                                      ]
+                     -- ^ with the current algorithm only looking
+                     -- at the length and height used (and ignoring the depth )
+                     -- we need to fill the depth (width) first, whichever filling row or column first
+                     -- this might not be the expected Deadzone behavior but until we try
+                     -- to find the biggest brick available (instead of the biggest 2d rectangle)
+                     -- it seems a better solution
+                     -- if modified modify assignOffsetWithBreaks accordingly
+                    ]
+          -- but within the box potentially move 
+          box'Offsets = assignOffsetWithBreaks (shelfFillingStrategy shelf) Nothing boxes offsets
+      -- traceShowM("Found break", mapMaybe (boxBreak . fst) box'Offset, breakm)
+      mapM_ (uncurry $ shiftBox bestO) box'Offsets
+      let leftm = dropSimilar (length box'Offsets) simBoxes
+      case (nl*nw*nh, exitMode) of
+          -- (0, _) -> return (leftm, Nothing) -- we can't fit any. Shelf is full
+          (_ , ExitOnTop) -> return (leftm, Just shelf) -- ^ exit on top, we stop there, but the shelf is not full
+          (_, ExitLeft) -> return (leftm, Nothing)  -- ^ pretends the shelf is full
+          -- _ ->  fillShelfm exitMode  shelf leftm -- ^ try to fit what's left in the same shelf
 
     where shiftBox ori box offset = do
             updateBox (\b -> b { orientation = ori
                                , boxOffset = offset}) box
             assignShelf (Just s) box
+          -- fillShelfm x s Nothing = return (Nothing, Just s)
+          -- fillShelfm x s (Just lefts) = fillShelf x s lefts
+
+
+-- |  Assign offset to boxes so they can be moved
+-- taking  boxBreak into account. Basically a zip but can skip some offset or break
+assignOffsetWithBreaks :: FillingStrategy -> Maybe Dimension ->   [Box s] -> [Dimension] -> [(Box s, Dimension)]
+assignOffsetWithBreaks _ _ [] _  = []
+assignOffsetWithBreaks _ _ _ []  = []
+assignOffsetWithBreaks strat Nothing (box:bs) (offset:os) =  (box, offset) : assignOffsetWithBreaks strat (Just offset) bs os -- ignore the first break
+assignOffsetWithBreaks strat (Just previous) bs@(box:_) os@(offset:_) = case boxBreak box of
+  Nothing -> assignOffsetWithBreaks strat Nothing bs os
+  Just StartNewShelf -> [] -- break
+  Just StartNewSlice -> assignOffsetWithBreaks strat Nothing bs (dropWhile sameRow os)
+  Just StartNewSlot -> assignOffsetWithBreaks strat Nothing bs (dropWhile sameSlot os)
+  where sameSlot o = case strat of
+          _ColumnFirst -> dHeight o <= dHeight previous  && dLength o <= dLength previous
+          -- RowFirst -> dHeight o <= dHeight previous  && dWidth o <= dWidth previous
+        sameRow o =  case strat of
+          ColumnFirst -> dLength o <= dLength previous -- || dWidth o <= dWidth previous
+          RowFirst -> dHeight o <= dHeight previous -- || dWidth o <= dWidth previous
+
 
 
 
@@ -716,19 +551,31 @@ moveBoxes exitMode bs ss = do
   boxes <- mapM findBox bs
   let layers = groupBy ((==)  `on` boxGlobalPriority) $ sortBy (comparing boxGlobalPriority) boxes
   lefts <- forM layers $ \layer -> do
-    let groups = map Similar (groupBy ((==) `on` _boxDim) $ sortBy (comparing _boxDim) layer )
-    -- traceShowM ("GRoups", length groups, map (\(Similar g@(g1:_)) -> (show $ length g, show $ _boxDim g1, show . roundDim $ boxDim g1 )) groups)
+    let groups = groupSimilar _boxDim layer
+    -- traceShowM ("GRoups", length groups, map (\(SimilarBy dim g1 g ) -> (show $ length g + 1, show . _roundDim $ dim )) groups)
     lefts <- mapM (\g -> moveSimilarBoxes exitMode g ss) groups
-    return $ concat lefts
+    return $ concatMap unSimilar $ catMaybes lefts
   return $ concat lefts
 
-roundDim :: Dimension -> [Int]
-roundDim (Dimension l w h) = map (round . (*100)) [l,w,h]
+_roundDim :: Dimension -> [Int]
+_roundDim (Dimension l w h) = map (round . (*100)) [l,w,h]
 
  
+-- | Move boxes of similar size to the given shelf if possible
+moveSimilarBoxes :: (Shelf' shelf) => ExitMode -> SimilarBoxes s -> [shelf s] -> WH (Maybe (SimilarBoxes s)) s
+moveSimilarBoxes exitMode bs ss = moveSimilarBoxesAndRetry exitMode bs ss []
 
-moveSimilarBoxes :: (Box' b , Shelf' shelf) => ExitMode -> Similar (b s) -> [shelf s] -> WH [Box s] s
-moveSimilarBoxes exitMode bs ss = moveSimilarBoxes' exitMode bs ss []
+-- | moves boxes into give shelf and retry nonfull shelves until all necessary
+-- useful to fill selves using ExitONTop strategy
+moveSimilarBoxesAndRetry :: (Shelf' shelf) => ExitMode -> SimilarBoxes s -> [shelf s] -> [shelf s] -> WH (Maybe (SimilarBoxes s)) s
+moveSimilarBoxesAndRetry _ boxes [] [] = return (Just boxes)
+moveSimilarBoxesAndRetry exitMode bs [] trieds = moveSimilarBoxesAndRetry exitMode bs (reverse trieds) [] -- can loop but normally ss is null
+moveSimilarBoxesAndRetry exitMode boxes  (s:ss') trieds = do
+    left <- fillShelf exitMode s boxes
+    case left of
+        (Nothing , _) -> return Nothing
+        (Just bs', Nothing)  -> moveSimilarBoxesAndRetry exitMode bs' (ss') trieds -- discard current Shelf
+        (Just bs', Just _)  -> moveSimilarBoxesAndRetry exitMode bs' ss' (s:trieds)
 
 
 boxRank :: Box s -> (String, Int, String, Int)
@@ -746,17 +593,6 @@ boxStylePriority  box = p where (_,p,_)  = boxPriorities box
 -- look at @n in tags
 boxGlobalPriority  :: Box s -> Int
 boxGlobalPriority  box = p where (p, _, _) = boxPriorities box
-
-moveSimilarBoxes' :: (Box' b , Shelf' shelf) => ExitMode -> Similar (b s) -> [shelf s] -> [shelf s] -> WH [Box s] s
-moveSimilarBoxes' _ (Similar bs) [] [] = mapM findBox bs
-moveSimilarBoxes' exitMode bs [] ss = moveSimilarBoxes' exitMode bs (reverse ss) [] -- can loop but normal ss is null
-moveSimilarBoxes' exitMode (Similar []) _  _ = return []
-moveSimilarBoxes' exitMode (Similar bs) (s:ss') ss'' = do
-    left <- fillShelf exitMode s (Similar bs)
-    case left of
-        ([], Nothing) -> return []
-        (bs', Nothing)  -> moveSimilarBoxes' exitMode (Similar bs') (ss') ss'' -- discard current box
-        (bs', Just _)  -> moveSimilarBoxes' exitMode (Similar bs') ss' (s:ss'')
 
 
 -- | Rearrange boxes within their own shelves
@@ -830,7 +666,10 @@ updateBoxTags' tags box = let
   to_add = Set.fromList $ rights parsed
   to_remove = Set.fromList $ lefts parsed
   new = (btags <> to_add) Set.\\ to_remove
-  in updateDimFromTags to_add $ box {boxTags = new, boxPriorities = extractPriorities new}
+  in updateDimFromTags to_add $ box { boxTags = new
+                                    , boxPriorities = extractPriorities new
+                                    , boxBreak = extractBoxBreak new
+                                    }
 
 
 updateBoxTags :: [[Char]] -> Box s -> WH (Box s) s
@@ -927,6 +766,14 @@ extractPriority tag = let
   [content, style, global]= take 3 $ priorities  <> repeat Nothing
   in (global, style, content)
 
+newSlotTag = "@start-new-slot"
+newSliceTag = "@start-new-slice"
+newShelfTag = "@start-new-shelf"
+extractBoxBreak :: Set String -> Maybe BoxBreak
+extractBoxBreak tags | newSlotTag `elem` tags = Just StartNewSlot
+                     | newSliceTag `elem` tags = Just StartNewSlice 
+                     | newShelfTag `elem` tags = Just StartNewShelf 
+                     | otherwise = Nothing
 
 -- * Misc
 -- | reorder box so they are ordered by column across all
@@ -971,6 +818,7 @@ shelfBoxes = do
 
 
 -- * Box corners operation
+  {-
 extremeCorners :: [Box s] -> [(Double, Double)]
 extremeCorners boxes = let
     cs =  [(l+ol, h+oh) | b <- boxes
@@ -982,7 +830,6 @@ extremeCorners boxes = let
     in foldr (addCorner) [(0,0)] cs'
 
 
-type Corner = (Double, Double)
 -- | Intersect a corner to list of corner
 -- The corner is "hidden" if it's smaller than the existing one
 addCorner :: Corner -> [Corner] -> [Corner]
@@ -994,6 +841,7 @@ splitCorner :: Corner -> Corner -> [Corner]
 splitCorner (cx,cy) (cx',cy')
     | cx <= cx' || cy <= cy' = [(cx', cy')] -- corner shadowed
     | otherwise = [ (cx', cy), (cx,cy')]
+-}
 
 
 -- * Misc
