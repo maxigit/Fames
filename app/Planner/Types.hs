@@ -39,6 +39,7 @@ data HeaderType
   | MovesAndTagsH
   | OrientationsH 
   | TransformTagsH
+  | ClonesH
   | TitleH
   deriving (Show, Read, Eq, Ord)
 

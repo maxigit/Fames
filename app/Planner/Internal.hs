@@ -99,6 +99,7 @@ parseDrawer h = case toLower (strip h) of
   "transform" -> Right TransformTagsH
   "transform tags" -> Right TransformTagsH
   "orientations" -> Right OrientationsH
+  "clones" -> Right ClonesH
   _ -> Left $ h <> " is not a valid drawer."
   
 
@@ -297,6 +298,7 @@ executeStep (Step header sha _) =
           MovesAndTagsH -> execute $ readMovesAndTags path
           OrientationsH -> execute $ setOrientationRules defaultOrientations path
           TransformTagsH -> execute $ readTransformTags path
+          ClonesH -> execute $ readClones path
           TitleH -> return $ return ()
 
 -- | Retrieve the number of line in the layout file

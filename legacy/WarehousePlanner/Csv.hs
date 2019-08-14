@@ -16,7 +16,7 @@ import qualified Text.Parsec as P
 import qualified Text.Parsec.String as P
 import qualified Text.ParserCombinators.Parsec.Token as P
 import Control.Applicative
-import Data.Maybe(maybeToList, catMaybes)
+import Data.Maybe(maybeToList, catMaybes, fromMaybe)
 import Control.Monad.State
 import Text.Regex.TDFA ((=~))
 import qualified Text.Regex as Rg
@@ -221,14 +221,15 @@ newShelfWithFormula dimW dimW' boxo strategy name tag = do
   dim' <- dimW'
   newShelf name tag dim dim' boxo strategy
 
-
+-- | Read a csv described a list of box with no location
+-- boxes are put in the default location and tagged with the new tag
 readBoxes :: [Orientation] -> (String -> (String, String)) -> String -> IO (WH [Box s] s)
 readBoxes boxOrientations splitter filename = do
     csvData <- BL.readFile filename
 
     case Csv.decode  Csv.HasHeader csvData of
         Left err ->  do putStrLn err; return (return [])
-        Right (rows) -> return $ do
+        Right rows -> return $ do
             let v = Vec.forM rows $ \(style', qty, l, w, h) -> do
                         let dim = Dimension l w h
                             _types = qty :: Int
@@ -240,6 +241,32 @@ readBoxes boxOrientations splitter filename = do
 
             concat `fmap` (Vec.toList `fmap` v)
 
+-- | Read a csv file cloning existing boxes
+-- This can be used to create ghosts, ie fake boxes
+-- used to reserve some space. 
+readClones :: String -> IO (WH [Box s] s)
+readClones filename = do
+    csvData <- BL.readFile filename
+    case Csv.decode  Csv.HasHeader csvData of
+        Left err ->  do putStrLn err; return (return [])
+        Right rows -> return $ do  -- IO
+          cloness <- forM (Vec.toList rows) $ \(selector, qty, content'tags) -> do -- WH
+                let (content0, tags) = extractTags content'tags
+                    content = if null content0 then Nothing else Just content0
+                s0 <- incomingShelf
+                
+                boxIds <- findBoxByStyleAndShelfNames selector
+                boxes <- mapM findBox boxIds
+                let box'qtys = (liftA2 (,)  boxes [1..qty :: Int]) -- cross product
+                forM box'qtys  $ \(box, i) ->
+                    newBox (boxStyle box)
+                            (fromMaybe (boxContent box) content) -- use provided content if possible
+                            (_boxDim box)
+                            (orientation box)
+                            s0
+                            (boxBoxOrientations box)
+                            (Set.toList (boxTags box) <> tags)
+          return $ concat cloness
 
 -- | Split a file so
 -- a|b|c d|e f   => [[[a,b,c] [d,e] [f]]]
@@ -498,3 +525,4 @@ parseOrientationRule defOrs cs = let
     [] -> defOrs
     s -> readOrientations defOrs s
   in [(o, min_, max_) | o <- ors ]
+  
