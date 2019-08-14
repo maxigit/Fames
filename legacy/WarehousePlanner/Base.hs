@@ -464,50 +464,50 @@ fillShelf exitMode  s simBoxes0 = do
     case  (boxBreak b, lused*hused*wused > 0) of
       (Just StartNewShelf, True ) -> return (Just simBoxes, Nothing ) -- shelf non empty, start new shelf
       _ -> do
-      boxo <- gets boxOrientations
-      let orientations = boxo b shelf
-      let (bestO, nl_, nw, nh, (lused', hused')) =
-                          bestArrangement orientations
-                                            [ (Dimension (max 0 (shelfL -l)) shelfW (max 0 (shelfH-h)), (l,h))
-                                            | (Dimension shelfL shelfW shelfH) <- [ minDim shelf, maxDim shelf ]
-                                          -- try min and max. Choose min if  possible
-                                            , (l,h) <- [(lused,0), (0,hused)] -- simplified algorithm
-                                            ] dim
-          nl = if exitMode == ExitLeft then nl_ else min 1 nl_
-          Dimension l' w' h' = rotate bestO dim
+        boxo <- gets boxOrientations
+        let orientations = boxo b shelf
+        let (bestO, nl_, nw, nh, (lused', hused')) =
+                            bestArrangement orientations
+                                              [ (Dimension (max 0 (shelfL -l)) shelfW (max 0 (shelfH-h)), (l,h))
+                                              | (Dimension shelfL shelfW shelfH) <- [ minDim shelf, maxDim shelf ]
+                                            -- try min and max. Choose min if  possible
+                                              , (l,h) <- [(lused,0), (0,hused)] -- simplified algorithm
+                                              ] dim
+            nl = if exitMode == ExitLeft then nl_ else min 1 nl_
+            Dimension l' w' h' = rotate bestO dim
 
-          offsets = [Dimension (lused' + l'*fromIntegral il)
-                              (w'* fromIntegral iw)
-                              (hused' + h'*fromIntegral ih)
-                    | (il, iw ,ih) <-  case (shelfFillingStrategy shelf) of
-                                  ColumnFirst -> [(il, iw, ih)
-                                      | il <- [0..nl-1]
-                                      , ih <- [0..nh-1]
-                                      , iw <- [0..nw-1]
-                                      ]
-                                  RowFirst -> [(il, iw, ih)
-                                      | ih <- [0..nh-1]
-                                      , il <- [0..nl-1]
-                                      , iw <- [0..nw-1] -- width first
-                                      ]
-                     -- ^ with the current algorithm only looking
-                     -- at the length and height used (and ignoring the depth )
-                     -- we need to fill the depth (width) first, whichever filling row or column first
-                     -- this might not be the expected Deadzone behavior but until we try
-                     -- to find the biggest brick available (instead of the biggest 2d rectangle)
-                     -- it seems a better solution
-                     -- if modified modify assignOffsetWithBreaks accordingly
-                    ]
-          -- but within the box potentially move 
-          box'Offsets = assignOffsetWithBreaks (shelfFillingStrategy shelf) Nothing boxes offsets
-      -- traceShowM("Found break", mapMaybe (boxBreak . fst) box'Offset, breakm)
-      mapM_ (uncurry $ shiftBox bestO) box'Offsets
-      let leftm = dropSimilar (length box'Offsets) simBoxes
-      case (nl*nw*nh, exitMode) of
-          -- (0, _) -> return (leftm, Nothing) -- we can't fit any. Shelf is full
-          (_ , ExitOnTop) -> return (leftm, Just shelf) -- ^ exit on top, we stop there, but the shelf is not full
-          (_, ExitLeft) -> return (leftm, Nothing)  -- ^ pretends the shelf is full
-          -- _ ->  fillShelfm exitMode  shelf leftm -- ^ try to fit what's left in the same shelf
+            offsets = [Dimension (lused' + l'*fromIntegral il)
+                                (w'* fromIntegral iw)
+                                (hused' + h'*fromIntegral ih)
+                      | (il, iw ,ih) <-  case (shelfFillingStrategy shelf) of
+                                    ColumnFirst -> [(il, iw, ih)
+                                        | il <- [0..nl-1]
+                                        , ih <- [0..nh-1]
+                                        , iw <- [0..nw-1]
+                                        ]
+                                    RowFirst -> [(il, iw, ih)
+                                        | ih <- [0..nh-1]
+                                        , il <- [0..nl-1]
+                                        , iw <- [0..nw-1] -- width first
+                                        ]
+                       -- ^ with the current algorithm only looking
+                       -- at the length and height used (and ignoring the depth )
+                       -- we need to fill the depth (width) first, whichever filling row or column first
+                       -- this might not be the expected Deadzone behavior but until we try
+                       -- to find the biggest brick available (instead of the biggest 2d rectangle)
+                       -- it seems a better solution
+                       -- if modified modify assignOffsetWithBreaks accordingly
+                      ]
+            -- but within the box potentially move 
+            box'Offsets = assignOffsetWithBreaks (shelfFillingStrategy shelf) Nothing boxes offsets
+        -- traceShowM("Found break", mapMaybe (boxBreak . fst) box'Offset, breakm)
+        mapM_ (uncurry $ shiftBox bestO) box'Offsets
+        let leftm = dropSimilar (length box'Offsets) simBoxes
+        case (nl*nw*nh, exitMode) of
+            -- (0, _) -> return (leftm, Nothing) -- we can't fit any. Shelf is full
+            (_ , ExitOnTop) -> return (leftm, Just shelf) -- ^ exit on top, we stop there, but the shelf is not full
+            (_, ExitLeft) -> return (leftm, Nothing)  -- ^ pretends the shelf is full
+            -- _ ->  fillShelfm exitMode  shelf leftm -- ^ try to fit what's left in the same shelf
 
     where shiftBox ori box offset = do
             updateBox (\b -> b { orientation = ori
