@@ -526,7 +526,7 @@ assignOffsetWithBreaks strat Nothing (box:bs) (offset:os) =  (box, offset) : ass
 assignOffsetWithBreaks strat (Just previous) bs@(box:_) os@(offset:_) = case boxBreak box of
   Nothing -> assignOffsetWithBreaks strat Nothing bs os
   Just StartNewShelf -> [] -- break
-  Just StartNewRow -> assignOffsetWithBreaks strat Nothing bs (dropWhile sameRow os)
+  Just StartNewSlice -> assignOffsetWithBreaks strat Nothing bs (dropWhile sameRow os)
   Just StartNewSlot -> assignOffsetWithBreaks strat Nothing bs (dropWhile sameSlot os)
   where sameSlot o = case strat of
           _ColumnFirst -> dHeight o <= dHeight previous  && dLength o <= dLength previous
@@ -767,11 +767,11 @@ extractPriority tag = let
   in (global, style, content)
 
 newSlotTag = "@start-new-slot"
-newRowTag = "@start-new-row"
+newSliceTag = "@start-new-slice"
 newShelfTag = "@start-new-shelf"
 extractBoxBreak :: Set String -> Maybe BoxBreak
 extractBoxBreak tags | newSlotTag `elem` tags = Just StartNewSlot
-                     | newRowTag `elem` tags = Just StartNewRow
+                     | newSliceTag `elem` tags = Just StartNewSlice 
                      | newShelfTag `elem` tags = Just StartNewShelf 
                      | otherwise = Nothing
 

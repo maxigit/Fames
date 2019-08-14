@@ -47,7 +47,9 @@ instance Show (BoxId s) where
 
 -- Tag equivalent to a page break in a document
 -- Indicate if the given box should start a new row or a new shelf
-data BoxBreak = StartNewSlot | StartNewRow | StartNewShelf deriving (Eq, Show, Read)
+data BoxBreak = StartNewSlot
+              | StartNewSlice -- new row or column according to shelf strategy
+              | StartNewShelf deriving (Eq, Show, Read)
 data Box s = Box { _boxId      :: BoxId s
                , boxShelf :: Maybe (ShelfId s)
                , boxStyle    :: !String
