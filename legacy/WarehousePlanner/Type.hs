@@ -124,10 +124,11 @@ class Referable a where
 
 
 -- * Instances
+instance Semigroup Dimension where
+    (Dimension l w h) <> (Dimension l' w' h') =
+            Dimension (l+l') (w+w') (h+h')
 instance Monoid Dimension where
     mempty = Dimension 0 0 0
-    mappend (Dimension l w h) (Dimension l' w' h') =
-            Dimension (l+l') (w+w') (h+h')
 
 instance BoxIdable BoxId where
     boxId b = b
@@ -170,16 +171,17 @@ instance Shelf' Shelf where
 instance Shelf' ShelfId where
   findShelf (ShelfId ref) = lift $ readSTRef ref
 
-instance Monoid (ShelfGroup s) where
-    mempty = ShelfGroup [] Vertical
-    mappend sg@(ShelfGroup g d) sg'@(ShelfGroup g' d')
-        | d == d' = ShelfGroup (g `mappend` g') d
+instance Semigroup (ShelfGroup s) where
+    sg@(ShelfGroup g d) <> sg'@(ShelfGroup g' d')
+        | d == d' = ShelfGroup (g <> g') d
         | otherwise = ShelfGroup [sg, sg'] Vertical
 
-    mappend sg@(ShelfGroup g d) s = ShelfGroup (g++[s]) d
-    mappend s sg@(ShelfGroup g d) = ShelfGroup (s:g) d
-    mappend sg sg' = ShelfGroup [sg, sg'] Vertical
+    sg@(ShelfGroup g d) <> s = ShelfGroup (g++[s]) d
+    s <> sg@(ShelfGroup g d) = ShelfGroup (s:g) d
+    sg <> sg' = ShelfGroup [sg, sg'] Vertical
 
+instance Monoid (ShelfGroup s) where
+    mempty = ShelfGroup [] Vertical
 
 -- * Utilities
 -- ** Dimensions

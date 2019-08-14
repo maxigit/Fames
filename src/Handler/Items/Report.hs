@@ -329,7 +329,7 @@ postItemsReportFor route mode = do
              let source = yieldMany (map (<> "\n") (formatter param result))
              setAttachment . fromStrict $ "items-report-raw-" <> tshowM (rpFrom param) <> "-" 
                                                                <> tshowM (rpTo param) <> ".csv"
-             respondSource "text/csv" (source =$= mapC toFlushBuilder)
+             respondSource "text/csv" (source .| mapC toFlushBuilder)
         _ -> do
               report <- case mode of
                     Just ReportChart -> itemReportWithRank param grouper (chartProcessor param)

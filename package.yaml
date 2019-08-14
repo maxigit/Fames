@@ -120,11 +120,6 @@ library:
   - condition: (flag(dev)) || (flag(library-only))
     then:
       ghc-options:
-      - -fwarn-tabs
-      - -fwarn-incomplete-patterns
-      - -fwarn-incomplete-record-updates
-      - -fwarn-missing-fields
-      - -fwarn-unused-binds
       # - -Werror
       - -fno-warn-partial-type-signatures
       - -fno-max-relevant-binds

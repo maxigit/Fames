@@ -33,7 +33,7 @@ extra-deps:
 #- Metamorphosis-0.1.0.1
 # - intero-0.1.32
 - fay-0.24.0.3
-- fay-jquery-0.6.1.0
+# - fay-jquery-0.6.1.0
 - fay-text-0.3.2.2
 - yesod-fay-0.10.0
 - yesod-media-simple-0.2.0.1
