@@ -487,12 +487,19 @@ fillShelf exitMode  s simBoxes0 = do
                                       ]
                                   RowFirst -> [(il, iw, ih)
                                       | ih <- [0..nh-1]
-                                      , iw <- [0..nw-1]
                                       , il <- [0..nl-1]
+                                      , iw <- [0..nw-1] -- width first
                                       ]
+                     -- ^ with the current algorithm only looking
+                     -- at the length and height used (and ignoring the depth )
+                     -- we need to fill the depth (width) first, whichever filling row or column first
+                     -- this might not be the expected Deadzone behavior but until we try
+                     -- to find the biggest brick available (instead of the biggest 2d rectangle)
+                     -- it seems a better solution
+                     -- if modified modify assignOffsetWithBreaks accordingly
                     ]
           -- but within the box potentially move 
-          box'Offsets = assignOffsetWithBreaks Nothing boxes offsets
+          box'Offsets = assignOffsetWithBreaks (shelfFillingStrategy shelf) Nothing boxes offsets
       -- traceShowM("Found break", mapMaybe (boxBreak . fst) box'Offset, breakm)
       mapM_ (uncurry $ shiftBox bestO) box'Offsets
       let leftm = dropSimilar (length box'Offsets) simBoxes
@@ -512,17 +519,22 @@ fillShelf exitMode  s simBoxes0 = do
 
 -- |  Assign offset to boxes so they can be moved
 -- taking  boxBreak into account. Basically a zip but can skip some offset or break
-assignOffsetWithBreaks :: Maybe Dimension ->   [Box s] -> [Dimension] -> [(Box s, Dimension)]
-assignOffsetWithBreaks _ [] _  = []
-assignOffsetWithBreaks _ _ []  = []
-assignOffsetWithBreaks Nothing (box:bs) (offset:os) =  (box, offset) : assignOffsetWithBreaks (Just offset) bs os -- ignore the first break
-assignOffsetWithBreaks (Just previous) bs@(box:_) os@(offset:_) = case boxBreak box of
-  Nothing -> assignOffsetWithBreaks Nothing bs os
+assignOffsetWithBreaks :: FillingStrategy -> Maybe Dimension ->   [Box s] -> [Dimension] -> [(Box s, Dimension)]
+assignOffsetWithBreaks _ _ [] _  = []
+assignOffsetWithBreaks _ _ _ []  = []
+assignOffsetWithBreaks strat Nothing (box:bs) (offset:os) =  (box, offset) : assignOffsetWithBreaks strat (Just offset) bs os -- ignore the first break
+assignOffsetWithBreaks strat (Just previous) bs@(box:_) os@(offset:_) = case boxBreak box of
+  Nothing -> assignOffsetWithBreaks strat Nothing bs os
   Just StartNewShelf -> [] -- break
-  Just StartNewRow -> assignOffsetWithBreaks Nothing bs (dropWhile sameRow os)
-  Just StartNewSlot -> assignOffsetWithBreaks Nothing bs (dropWhile sameSlot os)
-  where sameSlot o = dHeight o <= dHeight previous  && dLength o <= dLength previous -- && dWidth o >= dWidth previous
-        sameRow o =  dLength o <= dLength previous -- || dWidth o <= dWidth previous
+  Just StartNewRow -> assignOffsetWithBreaks strat Nothing bs (dropWhile sameRow os)
+  Just StartNewSlot -> assignOffsetWithBreaks strat Nothing bs (dropWhile sameSlot os)
+  where sameSlot o = case strat of
+          _ColumnFirst -> dHeight o <= dHeight previous  && dLength o <= dLength previous
+          -- RowFirst -> dHeight o <= dHeight previous  && dWidth o <= dWidth previous
+        sameRow o =  case strat of
+          ColumnFirst -> dLength o <= dLength previous -- || dWidth o <= dWidth previous
+          RowFirst -> dHeight o <= dHeight previous -- || dWidth o <= dWidth previous
+
 
 
 
