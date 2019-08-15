@@ -201,18 +201,18 @@ If the first word of a section is one of the valid section name, the whole conte
           When moves boxes to a new set of shelves, shelves are filled by alphabetical order. For example
           the command
           <pre>
-          :Moves:
-          stock_id,location
-          ,A|B|C
+            :Moves:
+            stock_id,location
+            ,A|B|C
           Will move all boxes to the  shelves A, B and C starting by filling A, the filling B and so on.
           Boxes are stacked in column form left to right.
           It is however sometimes desirable to carry on filling the same column on the next shelf
           rather than creating a new column on the current shelf. This can be achieved by specifying
           the "exit on top" option by starting the location with <code>^</code>
           <pre>
-          :Moves:
-          stock_id,location
-          ,^A|B|C
+            :Moves:
+            stock_id,location
+            ,^A|B|C
 
           The code above, will fill the first colum into shelf A, then a column in B and then C.
           When the first column in C is full, it will start a 2nd column in A, then B  etc ...
@@ -241,6 +241,30 @@ If the first word of a section is one of the valid section name, the whole conte
             stock_id,location#tag
             #new,A#-new
           Moves all new boxes (with the new tag) to A and unset the new tag.
+      <li>
+        <h4>
+          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-clone"> Cloning and Deleting
+        <div.pre.collapse id=info-section-clone>
+          Allows to duplicate the given boxes. Used in conjunction with =:Deletes:= it can be used to do slotting
+          by creating fake boxes (ghosts) which will make sure a slot is full and the remove later.
+          For example
+          <pre>
+            :Clones:
+            stock_id,quantity,tag
+            A^1,4,ghost
+          will create 4 boxes with the tag <code>ghost</code> for each colur of A.
+          <code>^1</code> makes sure we are doing the cloning operation once per colour. Without it, we will have 4 clones for every box.
+
+          To create slots of for, we could move all As by 4 with
+          <pre>
+             :Moves:
+             stock_id,location
+             A^4,destination
+          No more that 4 of each colour will be moved using the ghosts if necessary.
+          We can then delete the ghost uting <code>:Delete:</code>
+          <pre>
+            :Delete:
+            A#ghost
       <li>
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-transformtags"> Transform (transform tags)
