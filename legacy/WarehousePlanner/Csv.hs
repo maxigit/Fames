@@ -275,7 +275,7 @@ readDeletes filename = do
   return $ do -- IO
       boxess <- forM (lines content) $ \selector -> do -- WH
         boxes <- findBoxByStyleAndShelfNames selector
-        return [] -- deleteBoxes boxes
+        deleteBoxes boxes
       return (concat boxess)
 
 -- | Split a file so

@@ -5,6 +5,7 @@
 module WarehousePlanner.Base
 ( newShelf
 , newBox
+, deleteBoxes
 , moveBoxes
 , updateBoxTags
 , updateBox
@@ -387,6 +388,24 @@ linkBox box shelf = do
       shelf' = shelf { _shelfBoxes = boxes' }
   updateShelf (const shelf') shelf'
   return ()
+
+deleteBoxes :: [BoxId s] -> WH [Box s] s
+deleteBoxes boxIds = do
+  deleted <- forM boxIds $ \boxId -> do
+                box <- findBox boxId
+                oldShelfM <- traverse findShelf (boxShelf box)
+                traverse (unlinkBox boxId) oldShelfM
+                return box
+  wh <- get
+  put wh { boxes = Seq.fromList $ (toList $ boxes wh ) \\ boxIds }
+  return deleted
+    
+
+
+
+
+  
+
 -- | find the best way to arrange some boxes within the given space
 -- For the same number of boxes. use the biggest diagonal first, then  the smallest shelf
 bestArrangement :: Show a => [(Orientation, Int, Int)] -> [(Dimension, a)] -> Dimension -> (Orientation, Int, Int, Int, a)
