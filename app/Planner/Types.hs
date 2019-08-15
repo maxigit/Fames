@@ -40,6 +40,7 @@ data HeaderType
   | OrientationsH 
   | TransformTagsH
   | ClonesH
+  | DeletesH
   | TitleH
   deriving (Show, Read, Eq, Ord)
 

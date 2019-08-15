@@ -268,6 +268,15 @@ readClones filename = do
                             (Set.toList (boxTags box) <> tags)
           return $ concat cloness
 
+readDeletes :: String -> IO (WH [Box s] s)
+readDeletes filename = do
+  content <- readFile filename
+  return $ do -- IO
+      boxess <- forM (lines content) $ \selector -> do -- WH
+        boxes <- findBoxByStyleAndShelfNames selector
+        return [] -- deleteBoxes boxes
+      return (concat boxess)
+
 -- | Split a file so
 -- a|b|c d|e f   => [[[a,b,c] [d,e] [f]]]
 -- Line starting with < will be reversed

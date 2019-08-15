@@ -99,7 +99,10 @@ parseDrawer h = case toLower (strip h) of
   "transform" -> Right TransformTagsH
   "transform tags" -> Right TransformTagsH
   "orientations" -> Right OrientationsH
+  "clone" -> Right ClonesH
   "clones" -> Right ClonesH
+  "delete" -> Right DeletesH
+  "deletes" -> Right DeletesH
   _ -> Left $ h <> " is not a valid drawer."
   
 
@@ -299,6 +302,7 @@ executeStep (Step header sha _) =
           OrientationsH -> execute $ setOrientationRules defaultOrientations path
           TransformTagsH -> execute $ readTransformTags path
           ClonesH -> execute $ readClones path
+          DeletesH -> execute $ readDeletes path
           TitleH -> return $ return ()
 
 -- | Retrieve the number of line in the layout file
@@ -309,3 +313,8 @@ scenarioLayoutSize Scenario{..} =
     Just layout -> do
       l <- retrieveContent layout
       return (maybe 0 (length . lines) l)
+
+
+
+
+
