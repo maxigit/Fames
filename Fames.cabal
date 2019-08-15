@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0b37fe495d999dc2115f99eb84593bf95f14e2013df4b65c98f7d57504121bec
+-- hash: b618a16976cd862c1d4decf384916b0d19a48bccfb44a85caab1b0d900fefb16
 
 name:           Fames
 version:        0.0.1
@@ -229,7 +229,7 @@ library
     , yesod-media-simple >=0.2.0.1 && <0.2.1
     , yesod-static >=1.4.0.3 && <1.6
   if (flag(dev)) || (flag(library-only))
-    ghc-options: -fno-warn-partial-type-signatures -fno-max-relevant-binds -O0 -j6
+    ghc-options: -fno-warn-partial-type-signatures -O0 -j6
     cpp-options: -DDEVELOPMENT
   else
     ghc-options: -w -fwarn-tabs -Wno-type-defaults -O2 -j6

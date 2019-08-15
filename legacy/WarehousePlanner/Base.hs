@@ -503,8 +503,8 @@ fillShelf exitMode  s simBoxes0 = do
         -- traceShowM("Found break", mapMaybe (boxBreak . fst) box'Offset, breakm)
         mapM_ (uncurry $ shiftBox bestO) box'Offsets
         let leftm = dropSimilar (length box'Offsets) simBoxes
-        case (nl*nw*nh, exitMode) of
-            -- (0, _) -> return (leftm, Nothing) -- we can't fit any. Shelf is full
+        case (box'Offsets, exitMode) of
+            ([], _) -> return (leftm, Nothing) -- we can't fit any. Shelf is full
             (_ , ExitOnTop) -> return (leftm, Just shelf) -- ^ exit on top, we stop there, but the shelf is not full
             (_, ExitLeft) -> return (leftm, Nothing)  -- ^ pretends the shelf is full
             -- _ ->  fillShelfm exitMode  shelf leftm -- ^ try to fit what's left in the same shelf
