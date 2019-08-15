@@ -257,15 +257,16 @@ readClones filename = do
                 
                 boxIds <- findBoxByStyleAndShelfNames selector
                 boxes <- mapM findBox boxIds
-                let box'qtys = (liftA2 (,)  boxes [1..qty :: Int]) -- cross product
-                forM box'qtys  $ \(box, i) ->
-                    newBox (boxStyle box)
+                let box'qtys =  [(box, q) | box <- boxes , q <- [1..qty :: Int]] -- cross product
+                forM box'qtys  $ \(box, i) -> do
+                    box <- newBox (boxStyle box)
                             (fromMaybe (boxContent box) content) -- use provided content if possible
                             (_boxDim box)
                             (orientation box)
                             s0
                             (boxBoxOrientations box)
-                            (Set.toList (boxTags box) <> tags)
+                            (Set.toList (boxTags box))
+                    updateBoxTags tags box
           return $ concat cloness
 
 readDeletes :: String -> IO (WH [Box s] s)
@@ -316,7 +317,7 @@ readMovesAndTagsWith  rowProcessor filename = do
 processMovesAndTags :: (String, Maybe [Char], Maybe [Char]) -> WH [Box s] s
 processMovesAndTags (style, tagM, locationM) = do
   boxes0 <- findBoxByStyleAndShelfNames style
-  forM locationM $ \location' -> do
+  forM_ locationM $ \location' -> do
     let (location, exitMode) = case location' of
                                   ('^':loc) -> (loc, ExitOnTop)
                                   _ -> (location', ExitLeft)
