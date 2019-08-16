@@ -17,13 +17,33 @@
    - [X] ShelfBreak
    - [X] SlotBreak
    - +[ ] BayBreak+
-* TODO Ghost using Add /duplicate [/]
-  - [ ] Add delete
+* DONE Ghost using Add /duplicate [2/2]
+  CLOSED: [2019-08-16 Fri 08:56]
+  - [X] Add delete
 So we can delete ghost at the end of the script
-  - [ ] Add clone
+  - [X] Add clone
 So we can create  ghosts
-** Link to Fames [0/6]
+* Optimize
+  - [ ] Add speed zone 
+    - [ ] MAt
+    - [ ] Delete
+  - [ ] Tag = Map Text [Text]
+  - [ ] use colour property
+    - [ ] use colour property
+    - [ ] add stripe
+    - [ ] use rgb
+* Link to Fames [0/7]
+   - [ ] Add external comman
+     - [ ] format
+   #+begin_example
+   * External*
+   :EXTERN:
+   fames:pl/
+   :END:
+   #+end_example  
+       fames:
    - [ ] read current box situations
+     - [ ]  Generat
    - [ ] read PL
 total and left
    - [ ]  read stock status (to create ghost form
@@ -34,8 +54,4 @@ total and left
      - [ ] previous location
      - [ ] batch
        
-* Optimize
-  - [ ] move from Legacy and use ClassyPrelude
-  - [ ] String to Text
-  - [ ] Tag = Map Text [Either Int Text]
 
