@@ -23,10 +23,10 @@
 So we can delete ghost at the end of the script
   - [X] Add clone
 So we can create  ghosts
-* Optimize
-  - [ ] Add speed zone 
-    - [ ] MAt
-    - [ ] Delete
+* Optimize [1/3]
+  - [X] Add speed zone 
+    - [X] MAt
+    - [X] Delete
   - [ ] Tag = Map Text [Text]
   - [ ] use colour property
     - [ ] use colour property
@@ -40,6 +40,11 @@ So we can create  ghosts
    :EXTERN:
    fames:pl/
    :END:
+   
+or  
+@plugin:url 
+@fames:...
+@https:...
    #+end_example  
        fames:
    - [ ] read current box situations

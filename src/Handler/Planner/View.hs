@@ -19,7 +19,7 @@ import Text.Blaze.Html.Renderer.Text(renderHtml)
 import Util.Cache
 import WarehousePlanner.Base
 import WarehousePlanner.Report
-import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
+import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3, withLargeInput, bfs)
 import qualified Yesod.Media.Simple as M
 import Data.Text(strip, splitOn)
 import qualified Data.Map as Map
@@ -31,12 +31,14 @@ data ScenarioDisplayMode = NormalM | CompactM | InitialM | ExpandedM deriving (E
 data FormParam = FormParam
   { pPlannerDir :: Maybe FilePath -- ^ directory containings planner files
   , pOrgfile :: Maybe Textarea -- ^ text to add to the content of pPlannerDir
+  , pTAMSection :: Maybe Textarea -- ^ Tags and Moves section, don't need header and drawer decoration
+  , pDeleteSection :: Maybe Textarea-- ^ Delete section, don't need header and drawer decoration
   , pDisplayMode :: Maybe ScenarioDisplayMode -- ^ How to re-render the scenario in the textarea field
   , pViewMode :: Maybe PlannerViewMode -- ^ How to view the warehouse
   , pParameter :: Maybe Text
   } deriving (Show, Read)
 
-defaultParam = FormParam Nothing Nothing Nothing Nothing Nothing
+defaultParam = FormParam Nothing Nothing Nothing Nothing Nothing Nothing Nothing
 
 -- * Handler
 getPViewR :: Maybe PlannerViewMode -> Handler TypedContent
@@ -46,7 +48,7 @@ getPViewR viewMode = do
 
 postPViewR :: Maybe PlannerViewMode -> Handler TypedContent
 postPViewR viewMode = do
-  ((resp, _), _) <- runFormPost =<< paramForm Nothing
+  ((resp, _), _) <- runFormPost $ paramForm Nothing
   case resp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
@@ -68,16 +70,38 @@ getPImageR sha i width = do
   
 -- * Form
 
-paramForm :: Maybe FormParam -> Handler _
-paramForm param = do
-  plannerDirOptions <- getPlannerDirOptions
+paramForm :: Maybe FormParam -> Html -> MForm Handler (FormResult FormParam, Widget)
+paramForm param extra = do
+  plannerDirOptions <- lift getPlannerDirOptions
+  (fPlannerDir, vPlannerDir) <- mopt (selectFieldList plannerDirOptions) "Planner Directory" (pPlannerDir <$> param)
+  (fOrgfile, vOrgfile) <- mopt textareaField (bfs ("Scenario" :: Text)) (pOrgfile <$> param)
+  (fTAM, vTAM) <- mopt textareaField (bfs ("Tag and Move" :: Text)) (pTAMSection <$> param)
+  (fDel, vDel) <- mopt textareaField (bfs ("Delete" :: Text)) (pDeleteSection <$> param)
+  -- (fDis, vDis) <- pure (pDisplayMode =<< param)
+  -- (f)pure (pViewMode =<< param)
+  (fReportParam, vReportParam) <- mopt textField (bfs ("report parameter" :: Text)) (pParameter <$> param)
+
   let form = FormParam
-          <$> aopt (selectFieldList plannerDirOptions) "Planner Directory" (pPlannerDir <$> param)
-          <*> aopt textareaField "Scenario" (pOrgfile <$> param)
+          <$> fPlannerDir
+          <*> fOrgfile
+          <*> fTAM
+          <*> fDel
           <*> pure (pDisplayMode =<< param)
           <*> pure (pViewMode =<< param)
-          <*> aopt textField "report parameter" (pParameter <$> param)
-  return $ renderBootstrap3 BootstrapBasicForm form
+          <*> fReportParam
+      groupId = "planner-param-group" :: Text
+  let widget = [whamlet|
+    #{extra}
+    <div.form-inline>
+     ^{renderField vPlannerDir}
+     <span.data-toggler.collapsed data-toggle="collapse" data-target="##{groupId}"> More
+    <div.row.collapse id=#{groupId}>
+      ^{renderField vOrgfile}
+      ^{renderField vTAM}
+      ^{renderField vDel}
+      ^{renderField vReportParam}
+                       |]
+  return (form, widget)
 
 getPlannerDirOptions :: Handler [(Text, FilePath)]
 getPlannerDirOptions = getSubdirOptions appPlannerDir
@@ -590,6 +614,27 @@ If the first word of a section is one of the valid section name, the whole conte
   the barcode in the report
 |]
 
+-- |  Concatenate all section of the section of the org file into one
+fullOrgfile :: FormParam -> Maybe Text
+fullOrgfile param = case catMaybes [orgfile, tam, del] of
+  [] -> Nothing
+  texts -> Just (unlines texts)
+  where orgfile = unTextarea <$> pOrgfile param
+        tam :: Maybe Text
+        tam =  pTAMSection param <&> \t -> unlines
+                    [ ":Tags and Moves:"
+                    , "stock_id,tagsAndmoves"
+                    , unTextarea t
+                    , ":END:"
+                    ]
+        del =  pDeleteSection param <&> \t -> unlines
+                    [ ":Delete:" :: Text
+                    , unTextarea t
+                    , ":END:"
+                    ]
+        
+        
+     
 renderView :: FormParam -> Handler TypedContent
 renderView param0 = do
   today <- todayH
@@ -597,7 +642,7 @@ renderView param0 = do
   let mode = modeS >>=readMay
       vmode = pViewMode param0
   scenariosEM <-  forM (pPlannerDir param0) readScenariosFromDir 
-  scenarioEM <- forM (pOrgfile param0) (readScenario . unTextarea)
+  scenarioEM <- forM (fullOrgfile param0) readScenario
   Right extra <- readScenario "* Best Available shelves for"
   (param, widget) <- case liftA2 (,) (sequence scenariosEM) (sequence scenarioEM) of
       Left err -> setInfo plannerDoc >> setError (toHtml err) >> return (param0, "Invalid scenario")
@@ -630,14 +675,15 @@ renderView param0 = do
               -- PlannerBoxGroupReport -> renderBoxGroupReport
           return (param, w)
     
-  (formW, encType) <- generateFormPost =<< paramForm (Just param)
+  (formW, encType) <- generateFormPost $ paramForm (Just param)
   let navs = [PlannerSummaryView .. ]
       navClass nav = if vmode == Just nav then "active" else "" :: Html
       fay = $(fayFile "PlannerView") -- js to post form when tab change
       mainW = [whamlet|
 <form #planner-view-form role=form method=post action="@{PlannerR (PViewR (pViewMode param))}" encType="#{encType}">
-  ^{formW}
-  <button type="submit" .btn .btn-default name="mode" value="NormalM">Submit
+  <div.well>
+    ^{formW}
+    <button type="submit" .btn .btn-default name="mode" value="NormalM">Submit
   <ul.nav.nav-tabs>
     $forall nav <- navs
       <li class="#{navClass nav}">
