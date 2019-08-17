@@ -12,7 +12,10 @@ import Data.STRef
 import Control.Monad.ST
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Data.Map (Map)
+import qualified Data.Map as Map
 import Data.Sequence (Seq)
+import Data.List(intercalate)
 
 -- * Types
 data Dimension = Dimension { dLength :: !Double
@@ -50,6 +53,8 @@ instance Show (BoxId s) where
 data BoxBreak = StartNewSlot
               | StartNewSlice -- new row or column according to shelf strategy
               | StartNewShelf deriving (Eq, Show, Read)
+-- | Tags with optionals value
+type Tags = Map String (Set String)
 data Box s = Box { _boxId      :: BoxId s
                , boxShelf :: Maybe (ShelfId s)
                , boxStyle    :: !String
@@ -58,7 +63,7 @@ data Box s = Box { _boxId      :: BoxId s
                , boxOffset   :: !Dimension
                , orientation :: !Orientation -- ^ orientation of the box
                , boxBoxOrientations :: [Orientation]  -- ^ allowed orientation
-               , boxTags :: Set String --
+               , boxTags :: Tags -- ^ tags with optional values
                , boxPriorities :: (Int, Int, Int ) -- Global, within style, within content , default is 100
                , boxBreak :: Maybe BoxBreak
                } deriving (Show, Eq)
@@ -241,7 +246,15 @@ boxKey :: Box s -> [Char]
 boxKey b = (boxStyle b) ++ (boxContent b)
 boxSku b = boxStyle b ++ "-" ++ boxContent b
 boxTagList :: Box s -> [String]
-boxTagList = Set.toList . boxTags
+boxTagList = map flattenTag'Values . Map.toList . boxTags
+-- | convenience function transforming  the result to list
+-- Can be easier to pattern match
+boxTagValues :: Box s -> String -> [ String ]
+boxTagValues box tag = maybe [] (Set.toList) (Map.lookup tag (boxTags box))
+boxTagValuem :: Box s -> String -> Maybe String
+boxTagValuem box tag = fmap flattenTagValues (Map.lookup tag (boxTags box))
+boxTagIsPresent :: Box s -> String -> Bool
+boxTagIsPresent box tag = Map.member tag (boxTags box)
 
 -- | Return global dimension according
 -- to box orientation
@@ -255,6 +268,15 @@ boxVolume = volume . boxDim
 -- | Returns box offset + box itself
 boxOffset' :: Box s -> Dimension
 boxOffset' b = boxOffset b <> boxDim b
+
+-- ** Tags
+flattenTagValues :: Set String -> String
+flattenTagValues = intercalate ";" . Set.toList
+flattenTag'Values :: (String, Set String) -> String
+flattenTag'Values (tag, values) = case flattenTagValues values of
+                      "" ->tag
+                      flat -> tag ++ "=" ++ flat
+
 -- ** Shelves
 shelfVolume :: Shelf s -> Double
 shelfVolume = volume . minDim

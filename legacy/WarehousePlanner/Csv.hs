@@ -259,14 +259,15 @@ readClones filename = do
                 boxes <- mapM findBox boxIds
                 let box'qtys =  [(box, q) | box <- boxes , q <- [1..qty :: Int]] -- cross product
                 forM box'qtys  $ \(box, i) -> do
-                    box <- newBox (boxStyle box)
+                    newbox <- newBox (boxStyle box)
                             (fromMaybe (boxContent box) content) -- use provided content if possible
                             (_boxDim box)
                             (orientation box)
                             s0
                             (boxBoxOrientations box)
-                            (Set.toList (boxTags box))
-                    updateBoxTags tags box
+                            [] --  no tags, copy them later
+                    updateBoxTags (map parseTagOperation  tags)
+                                  newbox  {boxTags = boxTags box} -- copy tags
           return $ concat cloness
 
 readDeletes :: String -> IO (WH [Box s] s)
@@ -329,7 +330,7 @@ processMovesAndTags (style, tagM, locationM) = do
     Nothing -> return boxes
     Just tag  -> do
       let tags = splitOn "#" tag
-      mapM (updateBoxTags tags) boxes
+      mapM (updateBoxTags $ map parseTagOperation tags) boxes
 
 -- | read a file assigning tags to styles
 -- returns left boxes
@@ -397,11 +398,10 @@ transformTags style tagPattern tagSub = do
 transformTagsFor :: RegexOrFn s -> String -> Box s -> WH (Maybe (Box s)) s
 transformTagsFor tagPat' tagSub box = do
   tagPat <- either return ($ box) tagPat'
-  let tags0 = boxTags box
-      tags = concatMap (splitOn "#" . (\t -> Rg.subRegex tagPat t tagSub)) (Set.toList tags0)
-  if Set.toList tags0 == tags
-  then return Nothing
-  else Just <$> updateBoxTags tags box
+  let tagOps = map parseTagOperation $
+               concatMap (splitOn "#" . (\t -> Rg.subRegex tagPat t tagSub))
+               (boxTagList box)
+  Just <$> updateBoxTags tagOps box
 
 -- | Read box dimension on their location
 readStockTake :: [Orientation] -> (String -> (String, String)) -> String -> IO (WH ([Box s], [String]) s)

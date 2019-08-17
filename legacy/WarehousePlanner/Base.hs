@@ -2,6 +2,7 @@
 {-# LANGUAGE LiberalTypeSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoOverloadedStrings #-}
+{-# LANGUAGE DeriveTraversable #-}
 module WarehousePlanner.Base
 ( newShelf
 , newBox
@@ -13,6 +14,7 @@ module WarehousePlanner.Base
 , boxStyleAndContent
 , extractTag
 , extractTags
+, parseTagOperation
 , tagToOnOff
 , expandAttribute'
 , expandAttribute
@@ -45,6 +47,8 @@ import Data.Vector(Vector)
 import Control.Monad.State
 import Data.Monoid
 import qualified Data.Map.Strict as Map'
+import qualified Data.Map.Lazy as Map
+import Data.Map.Merge.Lazy(merge, preserveMissing, mapMaybeMissing, zipWithMaybeMatched)
 import Data.List(sort, sortBy, groupBy, nub, (\\), union, maximumBy, delete, stripPrefix)
 import Data.Maybe(catMaybes, fromMaybe, isJust)
 import Control.Applicative
@@ -74,6 +78,18 @@ import Text.Read (readMaybe)
 import Debug.Trace
 
 
+-- | Internal types to deal with tag and tag operations
+-- we use a parametrized type only to get fmap for free
+data TagOperationF s = -- ClearTagValues  use SetValue []
+                    SetTag -- no value
+                  | RemoveTag 
+                  | SetValues [s]
+                  | AddValue s
+                  | RemoveValue s
+                  deriving (Eq, Show, Read, Functor, Foldable, Traversable)
+
+type TagOperation = TagOperationF String
+type Tag'Operation = (String, TagOperation)
 
 -- | Computes the max length or height used within a shelf
 -- | by all the boxes. Should be able to be cached.
@@ -308,16 +324,15 @@ newShelf name tag minD maxD boxOrientator fillStrat = do
         return shelf
 
 newBox :: Shelf' shelf => String -> String ->  Dimension -> Orientation -> shelf s  -> [Orientation]-> [String] -> WH (Box s) s
-newBox style content dim or shelf ors tags = do
+newBox style content dim or shelf ors tagStrings = do
     warehouse <- get
-    let tags' = Set.fromList $ case content of
-          "" -> tags
-          _ -> ('\'':content): map (map replaceSlash) tags
-          -- create tag of dimension
-        dtags = dimensionTags dim
+    let tags' = map (parseTagOperation . map replaceSlash) tagStrings
+        dtags = dimensionTagOps dim
+        tags = fromMaybe mempty $ modifyTags (tags' <> dtags) mempty
+                                  --   ^ apply dimension tags after tags so dimension override tags
 
     ref <- lift $ newSTRef (error "should never been called. undefined. Base.hs:338")
-    let box = Box (BoxId ref) (Just $ shelfId shelf) style content dim mempty or ors (tags' <> dtags) defaultPriorities (extractBoxBreak tags')
+    let box = Box (BoxId ref) (Just $ shelfId shelf) style content dim mempty or ors tags defaultPriorities (extractBoxBreak tags)
     shelf' <- findShelf shelf
     linkBox (BoxId ref) shelf'
     lift $ writeSTRef ref box
@@ -325,29 +340,56 @@ newBox style content dim or shelf ors tags = do
                   }
     return box
 
--- | Generates tag for dimensions. Used when creating a box
--- but also to delete the existing one when updating a box dimension
-dimensionTags :: Dimension  -> Set String
-dimensionTags dim = Set.fromList [dshow 'l' dLength, dshow 'w' dWidth, dshow 'h' dHeight]
-  where dshow c f = '\'' : c : show (floor $ 100 * f dim)
+-- | Parses a string  to Tag operation
+-- the general syntax [-]tag[=[-+]value]
+-- tag create the tag if n
+-- -tag remove the tag
+-- tag=val set the value
+-- tag=+val or tag+=val add the value to the existing value
+-- tag=-val or tag-=val and -tag=val remove the value
+parseTagOperation :: String -> Tag'Operation
+parseTagOperation s = 
+  case break (== '=') s of
+    ('-':tag, [])           -> (tag, RemoveTag)
+    (tag, [])               -> (tag, SetTag )
+    ('-':tag, '=':[])      -> (tag, SetValues [] ) -- clear tag
+    ('-':tag, '=':val)      -> (tag, RemoveValue val )
+    ('-':tag, val)          -> (tag <> val, RemoveTag)
+    (tag, '=':'-':val)      -> (tag, RemoveValue val)
+    -- (tag, '-':'=':val)      -> (tag, RemoveValue val)
+    (tag, '=':'+':val)      -> (tag, AddValue val)
+    -- (tag, '+':'=':val)      -> (tag, AddValue val)
+    (tag, '=':val)          -> (tag, SetValues $ split val)
+    (tag, val)              -> (tag <> val , SetTag)
+  where split = splitOn ";"
+  
+  
+-- | Generates tag operation for dimensions. Used when creating a box
+-- to update the dimension tags. 
+dimensionTagOps :: Dimension  -> [Tag'Operation]
+dimensionTagOps dim = [dshow 'l' dLength, dshow 'w' dWidth, dshow 'h' dHeight]
+  where dshow c f = ( '\'' : c : []
+                    , SetValues [show (floor $ 100 * f dim)]
+                    )
 
 -- | Extract new dimensions from tags
-extractDimensions :: Dimension -> Set String -> Maybe Dimension
+-- use given dimension for missing elements
+-- return Nothing, if nothing has changed, allowing optimisation upstream
+extractDimensions :: Dimension -> Tags -> Maybe Dimension
 extractDimensions dim tags = case (go "'l", go "'w", go "'h") of
   (Nothing, Nothing, Nothing) -> Nothing
   (l, w, h) -> Just dim { dLength = fromMaybe (dLength dim) l
-                        , dWidth = fromMaybe (dWidth dim) w
-                        , dHeight = fromMaybe (dHeight dim) h
-                        }
-  where go prefix = msum $ map (go' prefix) (Set.toList tags)
-        go' prefix tag = (/100) `fmap` (stripPrefix prefix tag >>= readMaybe) 
+                                , dWidth = fromMaybe (dWidth dim) w
+                                , dHeight = fromMaybe (dHeight dim) h
+                                }
+  where go prefix = case maybe [] (Set.toList) (Map.lookup prefix tags) of
+          [value] -> (/100) `fmap`readMaybe value  
 
-updateDimFromTags :: Set String -> Box s -> Box s
-updateDimFromTags tags box = case extractDimensions (_boxDim box) tags of
+-- | Change the dimension of the box according to its tag
+updateDimFromTags :: Box s -> Box s
+updateDimFromTags box = case extractDimensions (_boxDim box) (boxTags box) of
   Nothing -> box
-  Just dim -> let to_add = dimensionTags dim
-                  to_remove = dimensionTags (_boxDim box)
-               in box { boxTags = (boxTags box Set.\\ to_remove) <> to_add, _boxDim = dim  }
+  Just dim -> box { _boxDim = dim  }
 
  
 -- | Assign a box to shelf regardless of if there is enough space
@@ -677,26 +719,54 @@ updateShelfByName f n = findShelfByName n >>= mapM (updateShelf f)
 
 
 -- | Add or remove the given tags to the give box
-updateBoxTags' tags box = let
-  btags = boxTags box
-  parse ('-':tag) = Left tag
-  parse tag = Right tag
-  parsed = map parse tags
-  to_add = Set.fromList $ rights parsed
-  to_remove = Set.fromList $ lefts parsed
-  new = (btags <> to_add) Set.\\ to_remove
-  in updateDimFromTags to_add $ box { boxTags = new
+updateBoxTags' :: [Tag'Operation] -> Box s -> Box s
+updateBoxTags' [] box = box -- no needed but faster, because we don't have to destruct and 
+updateBoxTags' tag'ops box = case modifyTags tag'ops (boxTags box) of
+  Nothing -> box
+  Just new -> updateDimFromTags box { boxTags = new
                                     , boxPriorities = extractPriorities new
                                     , boxBreak = extractBoxBreak new
                                     }
 
+-- | Update the value associateda to a tag operation. Return Nothing if the tag needs to be destroyed
+applyTagOperation :: TagOperation -> (Set String) -> Maybe (Set String)
+applyTagOperation RemoveTag _ = Nothing 
+applyTagOperation SetTag olds = Just olds
+applyTagOperation (SetValues news) _ = Just $ Set.fromList news
+applyTagOperation (AddValue value) olds = Just $ Set.insert value olds 
+applyTagOperation (RemoveValue value) olds = Just $ Set.delete value olds
 
-updateBoxTags :: [[Char]] -> Box s -> WH (Box s) s
+applyTagOperations :: [TagOperation] -> (Set String) -> Maybe (Set String)
+applyTagOperations tag'ops tags = foldM (flip applyTagOperation) tags tag'ops
+
+
+-- | Apply tag operations to a set of tags. Return nothing
+-- if nothing has changed. Knowing nothing has changed should
+-- allow some optimization upstream
+modifyTags :: [Tag'Operation] -> Tags -> Maybe Tags
+modifyTags [] tags = Nothing
+modifyTags tag'ops tags = Just $ merge  opsOnly tagsOnly tagsAndOp tag'opsMap tags where
+    tagsOnly = preserveMissing
+    opsOnly = mapMaybeMissing $ \_ ops -> applyTagOperations ops mempty
+    tagsAndOp = zipWithMaybeMatched $ \_ -> applyTagOperations
+    -- tagoperation should be applied in order so we should be able to put them in a map
+    -- however every key works independently of the othere, so at least
+    -- as we group each operation by key and respect the order, this should be
+    tag'opsMap :: Map.Map String [TagOperation]
+    tag'opsMap = Map.fromListWith (<>)  (map (fmap (:[])) tag'ops)
+
+updateBoxTags :: [Tag'Operation] -> Box s -> WH (Box s) s
 updateBoxTags tags0 box = do
   -- remove '''
-  tags1 <- mapM (expandAttribute box) tags0
-  let tags = map (map replaceSlash) tags1
-  updateBox (updateBoxTags' $ filter (not . null) tags) box
+  tags1 <- mapM (mapM $ mapM (expandAttribute box)) tags0
+       --                 ^--  each value in Operation
+       --     ^    ^-- each value of the TagOperation
+       --     +------ snd of the (,)
+  let tags = [ (replaceSlashes tag, fmap replaceSlashes values )
+             | (tag, values) <- tags1
+             ]
+      replaceSlashes = map replaceSlash
+  updateBox (updateBoxTags' tags) box
 
 boxStyleAndContent :: Box s -> String
 boxStyleAndContent b = case boxContent b of
@@ -748,8 +818,7 @@ expandAttribute' ('$':'{':'o':'r':'i':'e':'n':'t':'a':'t':'i':'o':'n':'}':xs) = 
 expandAttribute' ('$':'[':xs') | (pat', _:xs')<- break (== ']') xs' = Just $ \box -> do
                                ex <- expandAttribute box xs'
                                pat <- expandAttribute box pat'
-                               let pre = pat ++ "="
-                               return $ maybe ex (++ex) (asum $ map (stripPrefix $ pre) (Set.toList $ boxTags box))
+                               return $ maybe ex (++ ex) (boxTagValuem box pat)
 expandAttribute' (x:xs) = fmap (\f b -> (x:) <$> f b) (expandAttribute' xs)
 expandAttribute' [] = Nothing
 
@@ -765,9 +834,9 @@ printDim  (Dimension l w h) = printf "%0.1fx%0.1fx%0.1f" l w h
 -- bare number = content priority, 
 -- @number style priority
 -- @@number global priority
-extractPriorities :: Set String -> (Int, Int, Int)
+extractPriorities :: Tags -> (Int, Int, Int)
 extractPriorities tags = let
-  prioritiess = map extractPriority (Set.toList tags)
+  prioritiess = map extractPriority (Map.keys tags)
   (globals, styles, contents) = unzip3 prioritiess
   go :: [Maybe Int] -> Int
   go ps = fromMaybe defaultPriority $ getLast $ mconcat (map Last (Just 100 : ps))
@@ -785,14 +854,12 @@ extractPriority tag = let
   [content, style, global]= take 3 $ priorities  <> repeat Nothing
   in (global, style, content)
 
-newSlotTag = "@start-new-slot"
-newSliceTag = "@start-new-slice"
-newShelfTag = "@start-new-shelf"
-extractBoxBreak :: Set String -> Maybe BoxBreak
-extractBoxBreak tags | newSlotTag `elem` tags = Just StartNewSlot
-                     | newSliceTag `elem` tags = Just StartNewSlice 
-                     | newShelfTag `elem` tags = Just StartNewShelf 
-                     | otherwise = Nothing
+extractBoxBreak :: Tags -> Maybe BoxBreak
+extractBoxBreak tags = case maybe [] (Set.toList) (Map.lookup "@start" tags) of
+  ["new-slot"] -> Just StartNewSlot
+  ["new-slice"] -> Just StartNewSlice 
+  ["new-shelf"] ->Just StartNewShelf 
+  _ -> Nothing
 
 -- * Misc
 -- | reorder box so they are ordered by column across all

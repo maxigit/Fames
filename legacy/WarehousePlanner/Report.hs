@@ -395,8 +395,9 @@ generateMOPLocations :: WH [String] s
 generateMOPLocations = generateMoves' (Just "stock_id,location") boxName printGroup where
   -- use box style unless the box is tagged as exception
   boxName box = let tags = boxTags box
-                    comment = F.asum $ map (stripPrefix "mop-comment=") (boxTagList box)
-                in case ("mop-exclude" `elem` tags , "mop-exception" `elem` tags) of
+                    comment = boxTagValuem box "mop-comment"
+                    hasTag = boxTagIsPresent box
+                in case (hasTag "mop-exclude", hasTag "mop-exception") of
                    (True, _) -> Nothing -- skipped
                    (False, True) -> Just $ (boxStyleAndContent box, comment)
                    (False, False) -> Just $ (boxStyle box, comment)
@@ -412,8 +413,7 @@ generateGenericReport :: Day -> String -> WH [String] s
 generateGenericReport today prefix = do
   s'bS <- shelfBoxes
   -- group by group if exists
-  let groupKey box = let tags = boxTags box
-                 in F.asum $ map (stripPrefix $ prefix ++ "-group=") (Set.toList tags)
+  let groupKey box = boxTagValuem box (prefix ++ "-group")
       groups0 = Map'.fromListWith (<>) [ (gkey, [s'b])
                                     | s'b <- s'bS
                                     , let gkey = groupKey (snd s'b)
@@ -434,11 +434,10 @@ generateGenericReport today prefix = do
         
   
 generateGenericReport' today prefix s'bs = generateMovesFor Nothing boxKey printGroup s'bs where
-  boxKey box = let tags = boxTags box
-               in F.asum $ map (stripPrefix $ prefix ++ "-key=") (Set.toList tags)
+  boxKey box = boxTagValuem box (prefix ++ "-key")
   printGroup boxKey [] shelfNames = boxKey
   printGroup boxKey boxes@(box:_) shelfNames = let
-    value0 = F.asum $ map (stripPrefix (prefix ++ "-value=")) (boxTagList box)
+    value0 = boxTagValuem box (prefix ++ "-value")
     value = maybe boxKey (expandReportValue today boxes shelfNames ) value0
     in value
 

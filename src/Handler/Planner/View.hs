@@ -244,6 +244,8 @@ If the first word of a section is one of the valid section name, the whole conte
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-tags"> Tags
         <div.pre.collapse id=info-section-tags>
+          <h5> WArning <h5>
+          <span.bg-danger> TODO Tag are now properties. The documentation needs to be modified accordingly
           Allows to set a tag to a selection of boxes. Tags can be used to display boxes differently (via a colour)
           or select them (when moving or even tagging boxes).
 
@@ -530,9 +532,9 @@ If the first word of a section is one of the valid section name, the whole conte
     By tagging a given box with a break tag, the box is guaranteed to either start a new shelf, a new slice (row or column depending of the shelf filling strategy)
     or a new slot (no box "behind"). The corresponding tags are
     <ul>
-      <li> <code>@start-new-shelf</code> first box of an entire shelf
-      <li> <code>@start-new-slice</code> first box of a row/column
-      <li> <code>@start-new-slot</code> no box behind
+      <li> <code>@start=new-shelf</code> first box of an entire shelf
+      <li> <code>@start=new-slice</code> first box of a row/column
+      <li> <code>@start=new-slot</code> no box behind
 
     
 <h3>
