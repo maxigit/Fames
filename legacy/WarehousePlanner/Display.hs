@@ -132,7 +132,10 @@ renderBox shelf box = do
                      [] -> (boxStyle box ++ "\n" ++ showOrientation (orientation box) ++ " " ++ boxContent box)
                      _ -> unlines title  
                         
-    let   r = rect l h  # lc border' # fc background # lwL 2 #scale 0.95 # pad 1.05
+    let   r = (r' $ rect l h  # lc border' # fc background # lwL 2) #scale 0.95 # pad 1.05
+          r' = case background2 of
+                 Nothing -> id
+                 Just bg2 -> \r0 -> circle (min l h / 3) # fc bg2 #lwL 0 `atop` r0
           t = scaledText l h titles
               # fc foreground
           diagram_ = t `atop` r

@@ -315,6 +315,7 @@ defaultBoxOrientations box shelf =
 defaultBoxStyling = BoxStyling{..} where
   foreground = black
   background = white
+  background2 = Nothing
   border = Nothing
   title = []
   barTitle = Nothing
