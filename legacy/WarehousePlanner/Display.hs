@@ -141,7 +141,7 @@ renderBox shelf box = do
           diagram_ = t `atop` r
           diagram = offsetBox True shelf box diagram_
 
-          boxBar =  renderBoxBar box barTitle foreground background border'
+          boxBar =  renderBoxBar box barTitle foreground background border' background2
           backBag = if displayBarGauge
                     then renderBoxBarBg shelf
                     else mempty
@@ -152,11 +152,14 @@ renderBox shelf box = do
               (2, offsetBar backBag),
               (1, offsetBar boxBar)]
 
-renderBoxBar :: Box s -> Maybe String -> Colour Double -> Colour Double -> Colour Double -> Diagram B
-renderBoxBar box titlem foreground background border =
+renderBoxBar :: Box s -> Maybe String
+             -> Colour Double -> Colour Double -> Colour Double -> Maybe (Colour Double)
+             -> Diagram B
+renderBoxBar box titlem foreground background border circlem =
   let Dimension _l w _h = boxDim box
       Dimension _ox oy _oz = boxOffset box
-      t = maybe mempty (fc foreground . scaledText w w)  titlem 
+      c = maybe mempty (\col -> circle (3/2) # lwL 0 # fc col ) circlem
+      t = maybe mempty (fc foreground . scaledText w w)  titlem  `atop` c
   in depthBar'' ((atop t) . (lwL 1 . lc $ blend 0.5  border background )) w oy (background)
   -- in depthBar'  w oy (background)
 
