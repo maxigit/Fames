@@ -1,6 +1,6 @@
 module Handler.Planner.Exec where
 
-import Import hiding(get)
+import Import hiding(get, toLower)
 import Planner.Types
 import Planner.Internal
 import WarehousePlanner.Base
@@ -124,6 +124,8 @@ stylingFromTags box = let
   background = wheat `fromMaybe` colorFromTag box "bg"
   border = colorFromTag box "border"
   title = boxTagValues box "title"
+  barTitle= boxTagValuem box "bar-title"
+  displayBarGauge = not (boxTagIsPresent box "no-bar-gauge")
   in BoxStyling{..}
   
 -- | Transform tag value to colours

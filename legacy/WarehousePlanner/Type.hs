@@ -119,7 +119,9 @@ data BoxStyling = BoxStyling
   { foreground :: Colour Double -- ^ Text colour
   , background :: Colour Double -- ^ Background colour
   , border :: Maybe (Colour Double)  -- ^ border colour if different from foreground
-  , title :: [ String ] -- ^ text to display
+  , title :: [ String ] -- ^ text to display 
+  , barTitle :: Maybe String -- ^ text to display in the bar
+  , displayBarGauge :: Bool -- ^ to display or the bar gauge
   } deriving (Show, Eq, Read)
   
 -- * Classes

@@ -127,18 +127,21 @@ renderBox shelf box = do
     BoxStyling{..} <- gets boxStyling `ap` return box
     let   Dimension l w h = boxDim box
           Dimension ox oy oz = boxOffset box
+          border' = fromMaybe foreground border
           titles = case title of
                      [] -> (boxStyle box ++ "\n" ++ showOrientation (orientation box) ++ " " ++ boxContent box)
                      _ -> unlines title  
                         
-    let   r = rect l h  # lc (fromMaybe foreground border) # fc background # lwL 2 #scale 0.95 # pad 1.05
+    let   r = rect l h  # lc border' # fc background # lwL 2 #scale 0.95 # pad 1.05
           t = scaledText l h titles
               # fc foreground
           diagram_ = t `atop` r
           diagram = offsetBox True shelf box diagram_
 
-          boxBar =  renderBoxBar box background
-          backBag = renderBoxBarBg shelf
+          boxBar =  renderBoxBar box barTitle foreground background border'
+          backBag = if displayBarGauge
+                    then renderBoxBarBg shelf
+                    else mempty
 
           -- offset and scale to 
           offsetBar bar = offsetBox False shelf box $ bar # translate (r2 (5,5) ) 
@@ -146,11 +149,12 @@ renderBox shelf box = do
               (2, offsetBar backBag),
               (1, offsetBar boxBar)]
 
-renderBoxBar :: Box s -> Colour Double -> Diagram B
-renderBoxBar box background =
+renderBoxBar :: Box s -> Maybe String -> Colour Double -> Colour Double -> Colour Double -> Diagram B
+renderBoxBar box titlem foreground background border =
   let Dimension _l w _h = boxDim box
       Dimension _ox oy _oz = boxOffset box
-  in depthBar'' (lwL 1 . lc $ blend 0.5  black background ) w oy (background)
+      t = maybe mempty (fc foreground . scaledText w w)  titlem 
+  in depthBar'' ((atop t) . (lwL 1 . lc $ blend 0.5  border background )) w oy (background)
   -- in depthBar'  w oy (background)
 
     
