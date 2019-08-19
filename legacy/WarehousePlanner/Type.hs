@@ -119,6 +119,7 @@ data BoxStyling = BoxStyling
   { foreground :: Colour Double -- ^ Text colour
   , background :: Colour Double -- ^ Background colour
   , border :: Maybe (Colour Double)  -- ^ border colour if different from foreground
+  , title :: [ String ] -- ^ text to display
   } deriving (Show, Eq, Read)
   
 -- * Classes

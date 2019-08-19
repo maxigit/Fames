@@ -125,10 +125,15 @@ offsetBox fromBoxCenter shelf box diagram  = let
 renderBox :: Shelf s -> Box s -> WH [(Int, Diagram B)] s
 renderBox shelf box = do
     BoxStyling{..} <- gets boxStyling `ap` return box
-    let Dimension l w h = boxDim box
-        Dimension ox oy oz = boxOffset box
-    let   r = rect l h  # lc foreground # fc background # lwL 2 #scale 0.95 # pad 1.05
-          t = scaledText l h (boxStyle box ++ "\n" ++ showOrientation (orientation box) ++ " " ++ boxContent box)
+    let   Dimension l w h = boxDim box
+          Dimension ox oy oz = boxOffset box
+          titles = case title of
+                     [] -> (boxStyle box ++ "\n" ++ showOrientation (orientation box) ++ " " ++ boxContent box)
+                     _ -> unlines title  
+                        
+    let   r = rect l h  # lc (fromMaybe foreground border) # fc background # lwL 2 #scale 0.95 # pad 1.05
+          t = scaledText l h titles
+              # fc foreground
           diagram_ = t `atop` r
           diagram = offsetBox True shelf box diagram_
 

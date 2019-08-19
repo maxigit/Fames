@@ -316,6 +316,7 @@ defaultBoxStyling = BoxStyling{..} where
   foreground = black
   background = white
   border = Nothing
+  title = []
 
 emptyWarehouse = Warehouse mempty mempty mempty (const defaultBoxStyling) (const (Nothing, Nothing)) defaultBoxOrientations
 
