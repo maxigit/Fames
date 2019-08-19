@@ -10,7 +10,9 @@ import Util.Cache
 import Unsafe.Coerce (unsafeCoerce)
 import Control.Monad.State (put,get)
 import Data.Colour (Colour,blend,over, affineCombo)
-import Data.Colour.Names (readColourName,wheat)
+import Data.Colour.Names (readColourName,black,wheat)
+import Data.Colour.SRGB(sRGB24read)
+import Data.Char(isHexDigit,toLower)
 
 -- * Type
 -- | Typeable version of Warehouse. Needed to be cached.
@@ -63,7 +65,7 @@ copyWarehouse = do
   -- buildGroup <- copyShelfGroup (shelfGroup wh0)
   buildGroup <- mapM copyShelf (shelves wh0)
   return $ do
-    put emptyWarehouse { colors = unsafeCoerce $ colors wh0
+    put emptyWarehouse { boxStyling = unsafeCoerce $ boxStyling wh0
                        , shelfColors = unsafeCoerce $ shelfColors wh0
                        , boxOrientations = unsafeCoerce $ boxOrientations wh0
                        }
@@ -105,14 +107,32 @@ copyBox box@Box{..} = return $ \shelf -> do
 -- underscores are stripped before looking for the color name
 -- this allow the same colours to be used more that once
 -- example, navy#_navy#white,  will use navy twice
-colorFromTag :: Box s -> Colour Double
-colorFromTag box = let
-  colors = mapMaybe readColourName (map (dropWhile (=='_')) (boxTagList box))
+colorFromTag :: Box s -> String -> Maybe (Colour Double)
+colorFromTag box tag = let
+  colors = mapMaybe valueToColour (boxTagValues box tag)
   in case colors of
-  [] -> wheat
-  [col] -> col
+  [] -> Nothing
+  [col] -> Just col
   (col:cols) -> let w = 1/fromIntegral (length colors) -- ALL colors
-                in affineCombo (map (w,) cols) col
+                in Just $ affineCombo (map (w,) cols) col
+
+-- | Extract styling information from tag as properties
+-- use fg= foregroung
+stylingFromTags :: Box s -> BoxStyling
+stylingFromTags box = let
+  foreground = black `fromMaybe` colorFromTag box "fg"
+  background = wheat `fromMaybe` colorFromTag box "bg"
+  border = colorFromTag box "border"
+  in BoxStyling{..}
+  
+-- | Transform tag value to colours
+-- Try to read standard name or use hexadecimal
+valueToColour :: String -> Maybe (Colour Double)
+valueToColour s = case dropWhile (=='_') s of
+  [] -> Nothing
+  cs | all isHexDigit cs && length cs == 3 -> Just $ sRGB24read (s >>= (replicate 2))
+  cs | all isHexDigit cs && length cs == 6 -> Just $ sRGB24read s
+  dropped -> readColourName (map Data.Char.toLower dropped)
 
 -- | blend all colours equaly.
 -- folding using normal blend would not work as
@@ -151,7 +171,7 @@ execScenario sc@Scenario{..} = do
             execM <- liftIO $ mapM executeStep toExecutes
             (_, w') <- runWH emptyWarehouse  $ do
               wCopy <- wCopyM
-              put wCopy { colors = colorFromTag}
+              put wCopy { boxStyling = stylingFromTags}
               sequence_ execM
             -- traceShowM ("Scenario step => execute", subKey)
             cacheWarehouseIn subKey w'

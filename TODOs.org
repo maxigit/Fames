@@ -23,40 +23,49 @@
 So we can delete ghost at the end of the script
   - [X] Add clone
 So we can create  ghosts
-* Optimize [1/3]
-  - [X] Add speed zone 
-    - [X] MAt
-    - [X] Delete
-  - [ ] Tag = Map Text [Text]
-  - [ ] use colour property
-    - [ ] use colour property
-    - [ ] add stripe
-    - [ ] use rgb
-* Link to Fames [0/7]
-   - [ ] Add external comman
-     - [ ] format
-   #+begin_example
-   * External*
-   :EXTERN:
-   fames:pl/
-   :END:
+** Bug [0/6]
+   - [ ] update doc 'l => 'l=
+   - [ ] update property section
+   - [ ] check similar group are sorting by prioriry
+** Optimize [2/4]
+   - [X] Add speed zone 
+     - [X] MAt
+     - [X] Delete
+   - [X] Tag = Map Text (Set Text)
+   - [ ] add original tag in section
+ Replace hardcoded tag when creating box
+ Might be used to tag all boxes which have been moved or in error
+   - [ ] use colour property
+     - [ ] use colour property
+     - [ ] add stripe
+     - [ ] use rgb
+     - [ ] display tag/content
+** Link to Fames [0/7]
+    - [ ] Add external command
+      - [ ] format
+    #+begin_example
+    * External*
+    :EXTERN:
+    fames:pl/
+    :END:
    
-or  
-@plugin:url 
-@fames:...
-@https:...
-   #+end_example  
-       fames:
-   - [ ] read current box situations
-     - [ ]  Generat
-   - [ ] read PL
-total and left
-   - [ ]  read stock status (to create ghost form
-     - [ ] create ghost from box not existing anymore
-   - [ ] include other files
-   - [ ] automatize box down
-   - [ ]  read tag from box situations
-     - [ ] previous location
-     - [ ] batch
+ or  
+ @plugin:url 
+ @fames:...
+ @https:...
+    #+end_example  
+        fames:
+    - [ ] read current box situations
+      - [ ]  Generat
+    - [ ] read PL
+ total and left
+    - [ ]  read stock status (to create ghost form
+      - [ ] create ghost from box not existing anymore
+    - [ ] include other files
+    - [ ] automatize box down
+    - [ ]  read tag from box situations
+      - [ ] previous location
+      - [ ] batch
        
 
+:TAM#new:

@@ -105,7 +105,7 @@ type ShelfGroup s = ShelfGroup' (ShelfId s)
 data Warehouse s = Warehouse { boxes :: Seq (BoxId s)
                            , shelves :: Seq (ShelfId s)
                            , shelfGroup :: ShelfGroup s
-                           , colors :: Box s -> Colour Double
+                           , boxStyling :: Box s -> BoxStyling
                            , shelfColors :: Shelf s -> (Maybe (Colour Double), Maybe (Colour Double))
                            , boxOrientations :: Box s -> Shelf s -> [(Orientation, Int, Int)]
              } -- deriving Show
@@ -114,6 +114,13 @@ data ExitMode = ExitOnTop | ExitLeft deriving (Show, Eq, Ord, Enum)
 
 type Corner = (Double, Double)
 
+-- | how to render boxes
+data BoxStyling = BoxStyling
+  { foreground :: Colour Double -- ^ Text colour
+  , background :: Colour Double -- ^ Background colour
+  , border :: Maybe (Colour Double)  -- ^ border colour if different from foreground
+  } deriving (Show, Eq, Read)
+  
 -- * Classes
 class ShelfIdable a where
     shelfId :: a s -> ShelfId s

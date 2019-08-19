@@ -3,6 +3,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoOverloadedStrings #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE RecordWildCards #-}
 module WarehousePlanner.Base
 ( newShelf
 , newBox
@@ -69,7 +70,7 @@ import Data.Either(lefts,rights)
 import Data.Maybe(maybeToList, mapMaybe)
 import WarehousePlanner.Type
 import WarehousePlanner.SimilarBy
-import Diagrams.Prelude(white)
+import Diagrams.Prelude(white, black)
 
 import qualified System.FilePath.Glob as Glob
 import Text.Read (readMaybe)
@@ -311,7 +312,12 @@ defaultBoxOrientations box shelf =
             AddOrientations lefts rights -> lefts `union` boxBoxOrientations box `union` rights
     in map (\o -> (o,0,1)) orientations
 
-emptyWarehouse = Warehouse mempty mempty mempty (const white) (const (Nothing, Nothing)) defaultBoxOrientations
+defaultBoxStyling = BoxStyling{..} where
+  foreground = black
+  background = white
+  border = Nothing
+
+emptyWarehouse = Warehouse mempty mempty mempty (const defaultBoxStyling) (const (Nothing, Nothing)) defaultBoxOrientations
 
 newShelf :: String -> Maybe String -> Dimension -> Dimension -> BoxOrientator -> FillingStrategy -> WH (Shelf s) s
 newShelf name tag minD maxD boxOrientator fillStrat = do
@@ -522,11 +528,13 @@ fillShelf exitMode  s simBoxes0 = do
     lused <- lengthUsed shelf
     hused <- heightUsed shelf
     wused <- widthUsed shelf
+    traceShowM ("FILL", shelfName shelf, minDim shelf, maxDim shelf, _boxDim b, "Used", lused, hused, wused  )
     case  (boxBreak b, lused*hused*wused > 0) of
       (Just StartNewShelf, True ) -> return (Just simBoxes, Nothing ) -- shelf non empty, start new shelf
       _ -> do
         boxo <- gets boxOrientations
         let orientations = boxo b shelf
+        traceShowM ("ORIENTATION", orientations)
         let (bestO, nl_, nw, nh, (lused', hused')) =
                             bestArrangement orientations
                                               [ (Dimension (max 0 (shelfL -l)) shelfW (max 0 (shelfH-h)), (l,h))
@@ -610,11 +618,19 @@ moveBoxes :: (Box' b , Shelf' shelf) => ExitMode -> [b s] -> [shelf s] -> WH [Bo
 
 moveBoxes exitMode bs ss = do
   boxes <- mapM findBox bs
+  shelves <- mapM findShelf ss
   let layers = groupBy ((==)  `on` boxGlobalPriority) $ sortBy (comparing boxGlobalPriority) boxes
   lefts <- forM layers $ \layer -> do
     let groups = groupSimilar _boxDim layer
+    traceShowM ("MOVES to:", map shelfName shelves, length boxes, " (boxes)"  )
+    -- forM groups $ \(SimilarBy dim _ boxes) -> traceShowM ("  GROUP", dim, 1 + length boxes)
     -- traceShowM ("GRoups", length groups, map (\(SimilarBy dim g1 g ) -> (show $ length g + 1, show . _roundDim $ dim )) groups)
-    lefts <- mapM (\g -> moveSimilarBoxes exitMode g ss) groups
+    lefts <- mapM (\g -> do
+                      let SimilarBy dim _ boxes = g
+                      left <- moveSimilarBoxes exitMode g ss
+                      traceShowM ("  GROUP", dim, 1 + length boxes, "LEFT", maybe 0  (length . unSimilar) left)
+                      return left
+                  ) groups
     return $ concatMap unSimilar $ catMaybes lefts
   return $ concat lefts
 
@@ -803,6 +819,25 @@ expandAttribute' ('$':'{':'s':'h':'e':'l':'f':'t':'a':'g':'}':xs) = Just $ \box 
     Just sId -> do
       shelf <- findShelf sId
       return $ fromMaybe "" (shelfTag shelf) ++ ex
+expandAttribute' ('$':'{':'f':'i':'t':'}':xs) = Just $ \box -> do
+  ex <-  expandAttribute box xs
+  case boxShelf box of
+    Nothing -> return ex
+    Just sId -> do
+      shelf <- findShelf sId
+      let   Dimension xn yn zn = minDim shelf
+            Dimension xx yx zx = maxDim shelf
+            -- Dimension xx yx zx = maxDim shelf
+            Dimension l w h = boxDim box
+            Dimension ox oy oz = boxOffset box
+            fit = case ( (ox+l) > xn || (oy+w) > yn || (oz+h) > zn  
+                          , (ox+l) > xx || (oy+w) > yx || (oz+h) > zx
+                          ) of
+                      (_, True) -> "out"
+                      (True, False) -> "tight"
+                      (False, False) -> "fit"
+      return $ fit ++ ex
+
 expandAttribute' ('$':'{':'o':'l':'}':xs) = Just $ \box -> let (Dimension ol _ _ ) = boxCoordinate box in fmap ((show $ round ol) ++) (expandAttribute box xs)
 expandAttribute' ('$':'{':'o':'w':'}':xs) = Just $ \box -> let (Dimension _ ow _ ) = boxCoordinate box in fmap ((show $ round ow) ++) (expandAttribute box xs)
 expandAttribute' ('$':'{':'o':'h':'}':xs) = Just $ \box -> let (Dimension _ _ oh ) = boxCoordinate box in fmap ((show $ round oh) ++) (expandAttribute box xs)
