@@ -337,7 +337,8 @@ newBox style content dim or shelf ors tagStrings = do
     warehouse <- get
     let tags' = map (parseTagOperation . map replaceSlash) tagStrings
         dtags = dimensionTagOps dim
-        tags = fromMaybe mempty $ modifyTags (tags' <> dtags) mempty
+        contentTag = ('\'':content, SetTag)
+        tags = fromMaybe mempty $ modifyTags (contentTag : tags' <> dtags) mempty
                                   --   ^ apply dimension tags after tags so dimension override tags
 
     ref <- lift $ newSTRef (error "should never been called. undefined. Base.hs:338")
@@ -531,13 +532,11 @@ fillShelf exitMode  s simBoxes0 = do
     lused <- lengthUsed shelf
     hused <- heightUsed shelf
     wused <- widthUsed shelf
-    traceShowM ("FILL", shelfName shelf, minDim shelf, maxDim shelf, _boxDim b, "Used", lused, hused, wused  )
     case  (boxBreak b, lused*hused*wused > 0) of
       (Just StartNewShelf, True ) -> return (Just simBoxes, Nothing ) -- shelf non empty, start new shelf
       _ -> do
         boxo <- gets boxOrientations
         let orientations = boxo b shelf
-        traceShowM ("ORIENTATION", orientations)
         let (bestO, nl_, nw, nh, (lused', hused')) =
                             bestArrangement orientations
                                               [ (Dimension (max 0 (shelfL -l)) shelfW (max 0 (shelfH-h)), (l,h))
@@ -625,15 +624,9 @@ moveBoxes exitMode bs ss = do
   let layers = groupBy ((==)  `on` boxGlobalPriority) $ sortBy (comparing boxGlobalPriority) boxes
   lefts <- forM layers $ \layer -> do
     let groups = groupSimilar _boxDim layer
-    traceShowM ("MOVES to:", map shelfName shelves, length boxes, " (boxes)"  )
     -- forM groups $ \(SimilarBy dim _ boxes) -> traceShowM ("  GROUP", dim, 1 + length boxes)
     -- traceShowM ("GRoups", length groups, map (\(SimilarBy dim g1 g ) -> (show $ length g + 1, show . _roundDim $ dim )) groups)
-    lefts <- mapM (\g -> do
-                      let SimilarBy dim _ boxes = g
-                      left <- moveSimilarBoxes exitMode g ss
-                      traceShowM ("  GROUP", dim, 1 + length boxes, "LEFT", maybe 0  (length . unSimilar) left)
-                      return left
-                  ) groups
+    lefts <- mapM (\g -> moveSimilarBoxes exitMode g ss) groups
     return $ concatMap unSimilar $ catMaybes lefts
   return $ concat lefts
 
