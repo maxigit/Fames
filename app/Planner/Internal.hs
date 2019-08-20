@@ -9,7 +9,7 @@ import Control.Monad.ST (runST, stToIO, RealWorld)
 import Control.Monad.State (evalStateT,runStateT)
 import Control.Monad.Except (ExceptT(..), runExceptT)
 import Control.Monad.Writer (tell, execWriter)
-import Data.Text(strip)
+import Data.Text(strip,splitOn)
 import qualified Data.Text as Text
 import System.Directory (doesFileExist, listDirectory)
 import System.FilePath (takeExtension)
@@ -82,34 +82,38 @@ extractDrawer s = do
   return $ fmap (\d -> HeaderL d "") drawerE
 
 parseDrawer :: Text -> Either Text HeaderType
-parseDrawer h = case toLower (strip h) of
-  "layout" -> Right LayoutH
-  "shelves" -> Right ShelvesH
-  "initial" -> Right InitialH
-  "stocktake" -> Right StocktakeH
-  "boxes" -> Right BoxesH
-  "moves" -> Right MovesH
-  "tags" -> Right TagsH
-  "moves and tags" -> Right MovesAndTagsH
-  "movesandtags" -> Right MovesAndTagsH
-  "mat" -> Right MovesAndTagsH
-  "tags and moves" -> Right MovesAndTagsH
-  "tagsandmoves" -> Right MovesAndTagsH
-  "tam" -> Right MovesAndTagsH
-  "transform" -> Right TransformTagsH
-  "transform tags" -> Right TransformTagsH
-  "orientations" -> Right OrientationsH
-  "clone" -> Right ClonesH
-  "clones" -> Right ClonesH
-  "delete" -> Right DeletesH
-  "deletes" -> Right DeletesH
-  _ -> Left $ h <> " is not a valid drawer."
+parseDrawer h = case splitOn "#" (toLower (strip h)) of
+  ("layout":[]) -> Right LayoutH
+  ("shelves":[]) -> Right ShelvesH
+  ("initial":[]) -> Right InitialH
+  ("stocktake":tags) -> Right $ StocktakeH tags
+  ("boxes":tags) -> Right $ BoxesH tags
+  ("moves":[]) -> Right MovesH
+  ("tags":[]) -> Right TagsH
+  ("moves and tags":[]) -> Right MovesAndTagsH
+  ("movesandtags":[]) -> Right MovesAndTagsH
+  ("mat":[]) -> Right MovesAndTagsH
+  ("tags and moves":[]) -> Right MovesAndTagsH
+  ("tagsandmoves":[]) -> Right MovesAndTagsH
+  ("tam":[]) -> Right MovesAndTagsH
+  ("transform":[]) -> Right TransformTagsH
+  ("transform tags":[]) -> Right TransformTagsH
+  ("orientations":[]) -> Right OrientationsH
+  ("clone":tags) -> Right $ ClonesH tags
+  ("clones":tags) -> Right $ ClonesH tags
+  ("delete":[]) -> Right DeletesH
+  ("deletes":[]) -> Right DeletesH
+  _parsed -> Left $ tshow _parsed <> " is not a valid drawer."
   
 
 writeHeader :: HeaderType -> Text
-writeHeader header = let
-  u = toUpper (tshow header)
-  in Text.init u
+writeHeader header =
+  case header of
+        StocktakeH tags -> intercalate "#" ("Stockake":tags)
+        BoxesH tags -> intercalate "#" ("Boxes":tags)
+        ClonesH tags -> intercalate "#" ("Clones":tags)
+        _ -> Text.init $ toUpper (tshow header)
+        --    ^ remove the trailing H
 
 -- | Read a scenario text file. Needs IO to cache each sections into
 -- in tempory file. 
@@ -294,14 +298,14 @@ executeStep (Step header sha _) =
           LayoutH -> return $ return ()
           ShelvesH -> execute $ readShelves2 BoxOrientations path
           InitialH -> return $ return ()
-          StocktakeH -> execute $ readStockTake defaultOrientations splitStyle path
-          BoxesH -> execute $ readBoxes defaultOrientations splitStyle path
+          StocktakeH tags -> execute $ readStockTake (map unpack tags) defaultOrientations splitStyle path
+          BoxesH tags -> execute $ readBoxes (map unpack tags) defaultOrientations splitStyle path
           MovesH -> execute $ readMoves path
           TagsH -> execute $ readTags path
           MovesAndTagsH -> execute $ readMovesAndTags path
           OrientationsH -> execute $ setOrientationRules defaultOrientations path
           TransformTagsH -> execute $ readTransformTags path
-          ClonesH -> execute $ readClones path
+          ClonesH tags -> execute $ readClones (map unpack tags) path
           DeletesH -> execute $ readDeletes path
           TitleH -> return $ return ()
 

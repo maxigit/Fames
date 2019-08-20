@@ -23,11 +23,11 @@
 So we can delete ghost at the end of the script
   - [X] Add clone
 So we can create  ghosts
-** Bug [0/6]
+** TODO Bug [0/6]
    - [ ] update doc 'l => 'l=
    - [ ] update property section
    - [ ] check similar group are sorting by prioriry
-** Optimize [2/4]
+** Optimize [3/5]
    - [X] Add speed zone 
      - [X] MAt
      - [X] Delete
@@ -35,11 +35,15 @@ So we can create  ghosts
    - [ ] add original tag in section
  Replace hardcoded tag when creating box
  Might be used to tag all boxes which have been moved or in error
-   - [ ] use colour property
-     - [ ] use colour property
-     - [ ] add stripe
-     - [ ] use rgb
-     - [ ] display tag/content
+ - [ ] in TAM only tag what has been moved
+   - [ ] update doc
+   - [ ] tag moved or left
+ - [X] 
+   - [X] use colour property
+     - [X] use colour property
+     - [X] add circle
+     - [X] use rgb
+     - [X] display tag/content
 ** Link to Fames [0/7]
     - [ ] Add external command
       - [ ] format

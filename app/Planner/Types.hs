@@ -32,14 +32,14 @@ data HeaderType
   = LayoutH
   | ShelvesH
   | InitialH
-  | StocktakeH
-  | BoxesH 
+  | StocktakeH [Text]
+  | BoxesH  [Text]
   | MovesH 
   | TagsH 
   | MovesAndTagsH
   | OrientationsH 
   | TransformTagsH
-  | ClonesH
+  | ClonesH [Text]
   | DeletesH
   | TitleH
   deriving (Show, Read, Eq, Ord)

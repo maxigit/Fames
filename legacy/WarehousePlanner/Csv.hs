@@ -223,8 +223,8 @@ newShelfWithFormula dimW dimW' boxo strategy name tag = do
 
 -- | Read a csv described a list of box with no location
 -- boxes are put in the default location and tagged with the new tag
-readBoxes :: [Orientation] -> (String -> (String, String)) -> String -> IO (WH [Box s] s)
-readBoxes boxOrientations splitter filename = do
+readBoxes :: [String] -> [Orientation] -> (String -> (String, String)) -> String -> IO (WH [Box s] s)
+readBoxes defaultTags boxOrientations splitter filename = do
     csvData <- BL.readFile filename
 
     case Csv.decode  Csv.HasHeader csvData of
@@ -237,15 +237,15 @@ readBoxes boxOrientations splitter filename = do
                             (style, content) = splitter name
                         s0 <- incomingShelf
 
-                        forM [1..qty] $   \i -> newBox style content dim (head boxOrientations) s0 boxOrientations ("new" : tags)
+                        forM [1..qty] $   \i -> newBox style content dim (head boxOrientations) s0 boxOrientations (defaultTags ++ tags)
 
             concat `fmap` (Vec.toList `fmap` v)
 
 -- | Read a csv file cloning existing boxes
 -- This can be used to create ghosts, ie fake boxes
 -- used to reserve some space. 
-readClones :: String -> IO (WH [Box s] s)
-readClones filename = do
+readClones :: [String] -> String -> IO (WH [Box s] s)
+readClones defaultTags filename = do
     csvData <- BL.readFile filename
     case Csv.decode  Csv.HasHeader csvData of
         Left err ->  do putStrLn err; return (return [])
@@ -266,7 +266,7 @@ readClones filename = do
                             s0
                             (boxBoxOrientations box)
                             [] --  no tags, copy them later
-                    updateBoxTags (map parseTagOperation  tags)
+                    updateBoxTags (map parseTagOperation $ defaultTags ++  tags)
                                   newbox  {boxTags = boxTags box} -- copy tags
           return $ concat cloness
 
@@ -404,8 +404,8 @@ transformTagsFor tagPat' tagSub box = do
   Just <$> updateBoxTags tagOps box
 
 -- | Read box dimension on their location
-readStockTake :: [Orientation] -> (String -> (String, String)) -> String -> IO (WH ([Box s], [String]) s)
-readStockTake newBoxOrientations splitStyle filename = do
+readStockTake :: [String] -> [Orientation] -> (String -> (String, String)) -> String -> IO (WH ([Box s], [String]) s)
+readStockTake defaultTags newBoxOrientations splitStyle filename = do
     csvData <- BL.readFile filename
     case Csv.decode  Csv.HasHeader csvData of
         Left err ->  do putStrLn err; return (return ([], []))
@@ -433,7 +433,7 @@ readStockTake newBoxOrientations splitStyle filename = do
                                     (head boxOrs)
                                    s0
                                    boxOrs -- create box in the "ERROR self)
-                                   ("take" : tags)
+                                   (defaultTags ++ tags)
                         let boxes = concat boxesS
                         shelves <- (mapM findShelf) =<< findShelfByName shelf
                         leftOvers <- moveBoxes ExitLeft boxes shelves
