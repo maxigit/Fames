@@ -302,8 +302,8 @@ readWarehouse filename = buildWarehouse `fmap` readLayout filename
 
 -- | read a file assigning styles to locations
 -- returns left boxes
-readMoves :: String -> IO ( WH [Box s] s)
-readMoves = readMovesAndTagsWith (\(style, location) -> processMovesAndTags (style, Nothing, Just location))
+readMoves :: [String] -> String -> IO ( WH [Box s] s)
+readMoves tags = readMovesAndTagsWith (\(style, location) -> processMovesAndTags (style, tags, Just location))
 
 
 readMovesAndTagsWith :: Csv.FromRecord r => (r -> WH [Box s] s) -> String -> IO (WH [Box s] s)
@@ -315,10 +315,17 @@ readMovesAndTagsWith  rowProcessor filename = do
           v <- Vec.forM rows rowProcessor
           return $ concat (Vec.toList v)
 
-processMovesAndTags :: (String, Maybe [Char], Maybe [Char]) -> WH [Box s] s
-processMovesAndTags (style, tagM, locationM) = do
+-- | Move and tag boxes.
+-- If a location is provided, only boxes which have been moved will be tagged -
+-- leftovers (boxes not fitting ) will be untagged boxes which haven't
+-- That way, a tag can either be set on succesfully moved boxed
+-- or set on failure (by providing a negative tag).
+-- This tagging/untagging ensure that after a move only the moved boxes
+-- have the expecting tag (regardless of the previous tags on the boxes)
+processMovesAndTags :: (String, [String], Maybe [Char]) -> WH [Box s] s
+processMovesAndTags (style, tags, locationM) = do
   boxes0 <- findBoxByStyleAndShelfNames style
-  forM_ locationM $ \location' -> do
+  leftoverss <- forM locationM $ \location' -> do
     let (location, exitMode) = case location' of
                                   ('^':loc) -> (loc, ExitOnTop)
                                   _ -> (location', ExitLeft)
@@ -326,16 +333,20 @@ processMovesAndTags (style, tagM, locationM) = do
     shelvesS <- mapM findShelfByName locations
     aroundArrangement (moveBoxes exitMode) boxes0 ((nub.concat) shelvesS)
   boxes <- mapM findBox boxes0
-  case tagM of
-    Nothing -> return boxes
-    Just tag  -> do
-      let tags = splitOn "#" tag
-      mapM (updateBoxTags $ map parseTagOperation tags) boxes
+  case tags of
+    [] -> return boxes
+    _  -> do
+      let tagOps = map parseTagOperation tags
+          untagOps = negateTagOperations tagOps
+      new <- mapM (updateBoxTags tagOps) boxes
+      traceShowM("UNTAG", untagOps, length $ concat leftoverss)
+      mapM (updateBoxTags untagOps) (concat leftoverss)
+      return new
 
 -- | read a file assigning tags to styles
 -- returns left boxes
 readTags :: String -> IO ( WH [Box s] s)
-readTags = readMovesAndTagsWith (\(style, tag) -> processMovesAndTags (style, Just tag, Nothing))
+readTags = readMovesAndTagsWith (\(style, tag) -> processMovesAndTags (style, splitOn "#" tag, Nothing))
 
 -- | Read tags or moves. Normally we could consider
 -- that by default, we have a location, unless we start with '#'
@@ -347,16 +358,16 @@ readTags = readMovesAndTagsWith (\(style, tag) -> processMovesAndTags (style, Ju
 -- /location
 -- #tag/location
 -- location,tag
-readMovesAndTags :: String -> IO (WH [Box s] s)
-readMovesAndTags = readMovesAndTagsWith go where
+readMovesAndTags :: [String] -> String -> IO (WH [Box s] s)
+readMovesAndTags tags0 = readMovesAndTagsWith go where
   go (style, tag'location) =
-    let (tagM, locM) = splitTagsAndLocation tag'location
-    in processMovesAndTags (style, tagM, locM)
+    let (tags, locM) = splitTagsAndLocation tag'location
+    in processMovesAndTags (style, tags0 <> tags, locM)
 
 splitTagsAndLocation tag'locations
    -- | (tag, _:location@(_:_)) <- break (=='/') tag'locations = (just tag, just location)
-   | (location , _:tag@(_:_)) <- break (=='#') tag'locations = (just tag, just location)
-   | otherwise = (Nothing, Just tag'locations)
+   | (location , _:tag@(_:_)) <- break (=='#') tag'locations = (splitOn "#" tag, just location)
+   | otherwise = ([], Just tag'locations)
    where just [] = Nothing
          just s = Just s
     

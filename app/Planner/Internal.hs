@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeOperators #-}
 module Planner.Internal where
 
 import ClassyPrelude.Yesod hiding (Content)
@@ -16,6 +17,7 @@ import System.FilePath (takeExtension)
 
 import Unsafe.Coerce (unsafeCoerce)
 import Model.DocumentKey
+import GHC.Generics
 
 -- * Example
 warehouseExamble :: WH (ShelfGroup s) s
@@ -53,7 +55,7 @@ parseLine line | "-- END " `isPrefixOf` line          = Right EndL
 
 -- | Regroup lines into section
 linesToSections :: [TypedLine] -> [Either Text Section]
-linesToSections lines = reverse $ go lines (MovesH, "") ([]) [] where
+linesToSections lines = reverse $ go lines (MovesH [], "") ([]) [] where
   go :: [TypedLine] -> (HeaderType, Text) -> [Text] -> [Either Text Section] -> [Either Text Section]
   go [] header current sections = merge header current sections
   go ((CommentL):ls) header current sections = go ls header current sections
@@ -82,38 +84,60 @@ extractDrawer s = do
   return $ fmap (\d -> HeaderL d "") drawerE
 
 parseDrawer :: Text -> Either Text HeaderType
-parseDrawer h = case splitOn "#" (toLower (strip h)) of
-  ("layout":[]) -> Right LayoutH
-  ("shelves":[]) -> Right ShelvesH
-  ("initial":[]) -> Right InitialH
-  ("stocktake":tags) -> Right $ StocktakeH tags
-  ("boxes":tags) -> Right $ BoxesH tags
-  ("moves":[]) -> Right MovesH
-  ("tags":[]) -> Right TagsH
-  ("moves and tags":[]) -> Right MovesAndTagsH
-  ("movesandtags":[]) -> Right MovesAndTagsH
-  ("mat":[]) -> Right MovesAndTagsH
-  ("tags and moves":[]) -> Right MovesAndTagsH
-  ("tagsandmoves":[]) -> Right MovesAndTagsH
-  ("tam":[]) -> Right MovesAndTagsH
-  ("transform":[]) -> Right TransformTagsH
-  ("transform tags":[]) -> Right TransformTagsH
-  ("orientations":[]) -> Right OrientationsH
-  ("clone":tags) -> Right $ ClonesH tags
-  ("clones":tags) -> Right $ ClonesH tags
-  ("delete":[]) -> Right DeletesH
-  ("deletes":[]) -> Right DeletesH
-  _parsed -> Left $ tshow _parsed <> " is not a valid drawer."
+parseDrawer h = case splitOn "#" h of
+  [] -> Left $ "'' not a valid drawer."
+  (x:xs) -> case toLower (strip x):xs of
+    ("layout":[]) -> Right LayoutH
+    ("shelves":[]) -> Right ShelvesH
+    ("initial":[]) -> Right InitialH
+    ("stocktake":tags) -> Right $ StocktakeH tags
+    ("boxes":tags) -> Right $ BoxesH tags
+    ("moves":tags) -> Right $ MovesH tags
+    ("tags":[]) -> Right TagsH
+    ("moves and tags":tags) -> Right $ MovesAndTagsH tags
+    ("movesandtags":tags) -> Right $ MovesAndTagsH tags
+    ("mat":tags) -> Right $ MovesAndTagsH tags
+    ("tags and moves":tags) -> Right $ MovesAndTagsH tags
+    ("tagsandmoves":tags) -> Right $ MovesAndTagsH tags
+    ("tam":tags) -> Right $ MovesAndTagsH tags
+    ("transform":[]) -> Right TransformTagsH
+    ("transform tags":[]) -> Right TransformTagsH
+    ("orientations":[]) -> Right OrientationsH
+    ("clone":tags) -> Right $ ClonesH tags
+    ("clones":tags) -> Right $ ClonesH tags
+    ("delete":[]) -> Right DeletesH
+    ("deletes":[]) -> Right DeletesH
+    _parsed -> Left $ h <> " is not a valid drawer."
   
 
+class GWriteHeader f where
+  gwriteHeader :: f a -> Text
+
+instance GWriteHeader U1 where -- Single constructor
+  gwriteHeader rep = ""
+instance (GWriteHeader a , GWriteHeader b) => GWriteHeader (a :+: b) where -- Single constructor
+  gwriteHeader (L1 x) = gwriteHeader x
+  gwriteHeader (R1 x) = gwriteHeader x
+instance GWriteHeader (K1 i [Text] ) where
+  gwriteHeader (K1 []) = ""
+  gwriteHeader (K1 xs) = "#" <> intercalate "#" xs
+instance GWriteHeader a => GWriteHeader (D1 c a) where
+  gwriteHeader m@(M1 x) = gwriteHeader x 
+-- | get the constructor and remove the trailing H
+instance (Constructor c, GWriteHeader a) => GWriteHeader (C1 c a) where
+  gwriteHeader m@(M1 x) = (Text.init . pack $ conName m) <>  gwriteHeader x
+instance GWriteHeader a => GWriteHeader (S1 c a) where
+  gwriteHeader m@(M1 x) = gwriteHeader x
+
+    
 writeHeader :: HeaderType -> Text
-writeHeader header =
-  case header of
-        StocktakeH tags -> intercalate "#" ("Stockake":tags)
-        BoxesH tags -> intercalate "#" ("Boxes":tags)
-        ClonesH tags -> intercalate "#" ("Clones":tags)
-        _ -> Text.init $ toUpper (tshow header)
-        --    ^ remove the trailing H
+writeHeader = gwriteHeader . from
+  -- case header of
+  --       StocktakeH tags -> intercalate "#" ("Stockake":tags)
+  --       BoxesH tags -> intercalate "#" ("Boxes":tags)
+  --       ClonesH tags -> intercalate "#" ("Clones":tags)
+  --       _ -> Text.init $ toUpper (tshow header)
+  --       --    ^ remove the trailing H
 
 -- | Read a scenario text file. Needs IO to cache each sections into
 -- in tempory file. 
@@ -300,9 +324,9 @@ executeStep (Step header sha _) =
           InitialH -> return $ return ()
           StocktakeH tags -> execute $ readStockTake (map unpack tags) defaultOrientations splitStyle path
           BoxesH tags -> execute $ readBoxes (map unpack tags) defaultOrientations splitStyle path
-          MovesH -> execute $ readMoves path
+          MovesH tags -> execute $ readMoves (map unpack tags) path
           TagsH -> execute $ readTags path
-          MovesAndTagsH -> execute $ readMovesAndTags path
+          MovesAndTagsH tags -> execute $ readMovesAndTags (map unpack tags) path
           OrientationsH -> execute $ setOrientationRules defaultOrientations path
           TransformTagsH -> execute $ readTransformTags path
           ClonesH tags -> execute $ readClones (map unpack tags) path

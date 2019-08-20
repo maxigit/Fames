@@ -1,8 +1,10 @@
+{-# LANGUAGE DeriveGeneric #-}
 module Planner.Types where
 
 import ClassyPrelude
 import Model.DocumentKey
 import WarehousePlanner.Base
+import GHC.Generics(Generic)
 
 
 type Content = Either DocumentHash [Text]
@@ -34,15 +36,15 @@ data HeaderType
   | InitialH
   | StocktakeH [Text]
   | BoxesH  [Text]
-  | MovesH 
+  | MovesH  [Text]
   | TagsH 
-  | MovesAndTagsH
+  | MovesAndTagsH [Text] -- not needed but to be compatible with Moves
   | OrientationsH 
   | TransformTagsH
   | ClonesH [Text]
   | DeletesH
   | TitleH
-  deriving (Show, Read, Eq, Ord)
+  deriving (Show, Read, Eq, Ord, Generic)
 
 -- * Scenario
 -- | Description of warehouse. Initial stage plus way modify it.

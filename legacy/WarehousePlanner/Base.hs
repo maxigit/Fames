@@ -16,6 +16,7 @@ module WarehousePlanner.Base
 , extractTag
 , extractTags
 , parseTagOperation
+, negateTagOperations
 , tagToOnOff
 , expandAttribute'
 , expandAttribute
@@ -374,6 +375,16 @@ parseTagOperation s =
     (tag, val)              -> (tag <> val , SetTag)
   where split = splitOn ";"
   
+  
+negateTagOperations :: [Tag'Operation] -> [Tag'Operation]
+negateTagOperations tags = do
+  (tag, op) <- tags
+  map (tag, ) $ case op of
+    RemoveTag -> [SetTag]
+    SetTag -> [RemoveTag]
+    SetValues values -> map RemoveValue values
+    RemoveValue val -> [AddValue val]
+    AddValue val -> [RemoveValue val]
   
 -- | Generates tag operation for dimensions. Used when creating a box
 -- to update the dimension tags. 
