@@ -1,18 +1,26 @@
 $newline text
 Displays a Planner (a visual view of the warehouse with its content).
-The planner is a set of files compatible with Emacs org-mode.
-Files are read from the given subdirectory (if any) and/or read from the text area.
-A planner file is made of different sections. Each section correspond to an org-mode heading (beginning with one more <code>*</code>).
-If the first word of a section is one of the valid section name, the whole content of the heading will be treated processed according to the section type.
+The planner is a set of files using a subset of Emacs org-mode syntax (mainly headings and drawer)s.
+The use of of org-mode is for convenience only and provide folding of syntax highlighting for free.
+Files are read from the given subdirectory (if any) and/or read from the text area(s).
+A planner file is made of different sections. Each section corresponds to an org-mode drawer (starting and finishing with <code>:</code>). A section can be used to described shelfves, boxes but also move or tag shelves.
 <h3>
   <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-sections">Sections
 <div.pre.collapse id=info-section-sections>
+    All sections follows the <a href="http://orgmode.org/manual/Drawers.html">org-mode drawer</a> syntax and are composed of a 
+    <ul>
+      <li> a headline specify the section type and eventual parameters, for example <code>:Shelves:</code> or <code><:Moves#parameter1#paramter2:></code>
+      <li> a body, for example <code>T-Shirt,shelf A</code>
+      <li> and optional end marker <code>:END:</code>.
+    Sections accepting parameters will have <code>[#parametes]</code> next to their names.
+    Most sections body are a CSV (comma separated files) which expect a header (ie the name of each column).
+    Forgetting the header might result in the first line be interpreted as the header and therefore skipped.
     <ul> 
       <li>
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-shelves"> Shelves (Mandatory)
         <div.pre.collapse id=info-section-shelves>
-            Describes set of shelves. Should be a csv with the following header :
+            Describes set of shelves. Should be a CSV with the following header :
             <pre>name,comment,length,width,height,type
             <h5> Special shelves
             The two first declared shelves have a special meaning.
@@ -33,7 +41,7 @@ If the first word of a section is one of the valid section name, the whole conte
               A[01] => A0 A1
               A[ABx]X => AAX ABX AxX
 
-            If diferent ranger are given, all combination will generated
+            More than one ranges can be provided, in this case all combinations will be generated.
             Example
             <pre>
               [ABC][123] => A1 A2 A3 B1 B2 B3 C1 C2 C3
@@ -41,7 +49,8 @@ If the first word of a section is one of the valid section name, the whole conte
             Shelf dimension depending on the dimension on another shelf can be expressed using shelf dimension.
             This can be useful when shelf are back to back or one shelf is not physically a shelf but the space
             leftover between a shelf and wall. Basic arithmetic can be performed and the the same dimension of another
-            shelf can referenced using <code>{...}</code>. Wildcard (<code>%</code>,<code>_</code>,<code>+</code> and <code>-</code>) can be used to modify the name of the current shelf itsef.
+            shelf can be referenced using <code>{...}</code>.  Wildcard (<code>_</code>,<code>+</code> and <code>-</code>) can be used to modify the corresponding character of the current shelf itsef.
+            <code>%</code> can be used to match all left characters
             Example
             <pre>
               name,comment,length,width,height,type
@@ -49,6 +58,9 @@ If the first word of a section is one of the valid section name, the whole conte
               A2,,100,{_-},20, -- same width as A1 
               B1,,200-{A_},-- length 200 - length of A1
               B2,,200-{A_},-- length 200 - length of A2
+              B20,,200-{A%},-- length 200 - length of A20
+            For A2, <code>_</code> refers to the first character of the current shelf, i.e, <code>A</code> and <code>-</code> refers to the second character (<code>2</code>)  minus 1 -> <code>1</code>
+            For A3, the <code>_</code> is in the second position and therefore correspond to the second character of <code>B1</code> : <code>1</code>.
             <h5>shelf types
             The shelf type determines the default boxes orientation and filling strategy. The current shelf style are
             <ul>
@@ -60,15 +72,15 @@ If the first word of a section is one of the valid section name, the whole conte
             The tag can be used to select shelf when doing box moves, but is also used to
             group shelves when displaying the summary. Shelves with a tag starting with a <code>_</code>
             are considered as virtual shelves and are not taken in to account when calculated used spaces
-            and floor space. Also, shelves with the <code>sep</code> are seen as separator : shelves
+            and floor space. Also, shelves with the <code>sep</code> tag are seen as separator : shelves
             present for layout purpose only and are excluded from the summary as well as being displayed
-            differently.
+              differently.
       <li>
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-layout"> Layout (Mandatory)
         <div.pre.collapse id=info-section-layout>
           Describes how shelves should be displayed.
-          Shelves are displayed as a matrix (row and column) of bays. A bay being a set of shelves stacked together.
+          Shelves are displayed as a matrix (row and column) of bays. A bay being a set of shelves stacked together from bottom to top.
           Each line of the layout section describe a row.
           Columns are separated by one or more space and each element of a bay by a pipe <code>|</code>
 
@@ -76,33 +88,35 @@ If the first word of a section is one of the valid section name, the whole conte
             <pre>
                 A1|A2|A3 B1|B2
                 C D E
+
+          <code>A1|A2|A3</code> form a bay of 3 shelves, A1 at the bottom, and A3 at the top next to a bay of 2 shelves B1 with B2 on top.
       <li>
         <h4>
-          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-stocktake">  Stocktake
+          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-stocktake">  Stocktake[#Tag]
         <div.pre.collapse id=info-section-stocktake>
-          Describes a set of boxes with their location and eventually orientation. It is a csv with the following header
+          Describes a set of boxes with their location and eventually orientation. It is a CSV with the following header
           <pre>Bay No,Style,QTY,Length,Width,Height,Orientations
+          Tags provided in the section name, will be applied to the created boxes.
+          For example, all boxes created in the section <code>:Stocktake#tag1#tag2</code> will be tagged with <code>tag1</code> and <code>tag2</code>
       <li>
         <h4>
-          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-boxes"> Boxes
+          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-boxes"> Boxes[#Tag]
         <div.pre.collapse id=info-section-boxes>
           A set of boxes without initial location. They will be put in the <code>pending</code> shelf.
-          It is a csv with the following header :
+          It is a CSV with the following header :
           <pre>style,quantity,l,w,h
-          Please not, that boxes created this way will be tagged with the <code>new</code> tag.
-          It is the user responsibilities to remove this tag when needed.
+          Tags provided in the section name, will be applied to the created boxes.
       <li>
         <h4>
-          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-moves"> Moves
+          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-moves"> Moves[#Tag]
         <div.pre.collapse id=info-section-moves>
           Describes a set of moves boxes to shelves. The first column describe a set of boxes to moves to
           a set of shelves. If multiple shelves are given, the Planner will fill the shelf in the given order
           and use the optimal orientation. If all boxes can't fit the given shelves, the excedendatary boxes will
-          be moved to the error shelf.
-          It is csv with the following header:
+          be moved to the <b>error</b> shelf.
+          It is CSV with the following header:
           <pre>stock_id,location
-          Please not the stock_id and location are in fact boxes and shelves selectors
-
+          Please not the stock_id and location are in fact boxes and shelves selectors (see selectors sections).
           <h5> Filling order, Exit on top
           When moves boxes to a new set of shelves, shelves are filled by alphabetical order. For example
           the command
@@ -122,24 +136,34 @@ If the first word of a section is one of the valid section name, the whole conte
 
           The code above, will fill the first colum into shelf A, then a column in B and then C.
           When the first column in C is full, it will start a 2nd column in A, then B  etc ...
+          <tagging>
+          Tags provided as section parameter will be applied to the boxes <b>successfully</b> moved
+          whereas boxes which couldn't be moved (not enough space in the destination) will see those tags negated.
+          For example, let's say that we are trying to move 3 boxes in a shelf with <code>:Moves#moved#-error</code> but only the first 2
+          are moved successfully, the two first boxes with see <code>moved</code> and <code>-error</code> applied (which result in adding the tag moved
+          but remove the tag error, whilst the last box will see the <code>-moved</code> and <code>error</code> apply.
+          As a result the two first boxes will have the tag <code>moved</code> and the last one the tag <code>error</code>.
       <li>
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-tags"> Tags
         <div.pre.collapse id=info-section-tags>
-          <h5> WArning <h5>
-          <span.bg-danger> TODO Tag are now properties. The documentation needs to be modified accordingly
-          Allows to set a tag to a selection of boxes. Tags can be used to display boxes differently (via a colour)
-          or select them (when moving or even tagging boxes).
-
-          Boxes tagged with a colour name will be displayed with this colours. If a box is tagged with different colours, the result will be
-          the mix of the colours. As a tag can only be set once per box, to change the weight of a colour by tagging it more than once, an underscore (or more) can be added before a colour name.
-          This way, tags will different (example #black and #_black), but will be seen twice as the black colour, but will be seen twice as the black colour.
-
-          Example <code>black#_black#white</code> will display a box in dark gray (black is counted twice)
+          Tag allow boxes to be selected (via selector) to be either moved or tagged but also change their behavior (colour, priority, etc ...) via properties.
           A Tag can be removed by setting with <code>-</code>
+          The body is a CSV with the following header
+          <pre> stock_id,tag
+          Example
+          <pre>
+            :TAG:
+            stock_id,tag
+            ,#tag1
+            A,#-tag1
+            #tag1,#bg=red
+
+          The first line, tag all boxes with <code>tag1</code>. The second line remove <code>tag1</code> from the A boxes.
+          The last line set the background property of the box tagged with <code>tag1</code> to red.
       <li>
         <h4>
-          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-movesandtags"> MAT (moves and tags)
+          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-movesandtags"> MAT[#Tag] (moves and tags)
         <div.pre.collapse id=info-section-movesandtags>
           Allows to move and tag at the same time a set of boxes. This can be faster and less verbose than creating a move and
           a tag section. Tags needs to start with a <code>#</code> and location CAN start with <code>/</code>
@@ -148,7 +172,8 @@ If the first word of a section is one of the valid section name, the whole conte
             :MAT:
             stock_id,location#tag
             #new,A#-new
-          Moves all new boxes (with the new tag) to A and unset the new tag.
+          Moves all new boxes (with the new tag) to A and unset the new tag. Note that tag parameters will also be added to the "per-line" tag.
+          As in <code>:Moves</code> tags are applied positively to boxes successfully moved and negatively to leftover.
       <li>
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-clone"> Cloning and Deleting
@@ -160,6 +185,11 @@ If the first word of a section is one of the valid section name, the whole conte
             :Clones:
             stock_id,quantity,tag
             A^1,4,ghost
+          or  (note the position of the tag <code>ghost</code>
+          <pre>
+            :Clones#ghost:
+            stock_id,quantity,tag
+            A^1,4,
           will create 4 boxes with the tag <code>ghost</code> for each colur of A.
           <code>^1</code> makes sure we are doing the cloning operation once per colour. Without it, we will have 4 clones for every box.
 
@@ -182,7 +212,7 @@ If the first word of a section is one of the valid section name, the whole conte
           by substituing the pattern with the substitution string  which is then splitted using <code>#</code>.
           Other tags can be removed by generating a <i>negative</i> tag (using <code>-</code>).
           The original tag is not deleted but can be done using <code>-\0</code>.
-          It is a csv with the following header
+          It is a CSV with the following header
           <pre>
              stock_id,pat(tern),sub(stitue)
 
@@ -230,7 +260,7 @@ If the first word of a section is one of the valid section name, the whole conte
         <div.pre.collapse id=info-section-orientations>
           Specifies the boxes configuration within a shelves (if they are stacked up, on the side, how many etc).
           Boxes of a given style can be given different configuration for different shelves by specifing the shelf
-          in the box selector. This is a csv with the following header:
+          in the box selector. This is a CSV with the following header:
           <code>stock_id,orientation
 
           Orientation must have the following format <code>min-depth : max-depth  orientations</code>
@@ -304,9 +334,9 @@ If the first word of a section is one of the valid section name, the whole conte
       Even though pattern globing can only create disjunction (OR), conjunction (AND) can be achieve using tags.
       Example
       <pre>
-        %RED|%XL => select things which are red OR extra large..
-        %RED,red => tag all RED thing
-        %XL,xl => tag all XL things
+        *ED|*XL => select things which are red OR extra large..
+        *RED,red => tag all RED thing
+        *XL,xl => tag all XL things
         #red#xl => select thing which are red AND extra large.
         
     <li>
@@ -399,12 +429,45 @@ If the first word of a section is one of the valid section name, the whole conte
   <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-property">
      Properties
 <div.pre.collapse id=info-section-property>
-  Tag with the shape <code>propery=value</code> are properties. Their value can be expanded to create tag. 
+  Tags come in two flavours, tag (a simple word) or property (name <code>=</code>value). The main difference between both is assign a property value
+  erase the previous one.
+  For example, adding the tag <code>color-red</code> then <code>color-green</code> result in the box being tagged with two tags <code>color-red</code> and <code>color-green</code>.
+  In the contrary, adding the tag <code>color=red</code> then <code>color=green</code> result in the box being tagged with one tag <code>color=green</code>. In this case,
+  <code>color</code> is a property therefore  tagging with <code>color=green</code> change the value of color (previously red) to green.
+
   Example
   <pre>
     A,prop=first --> A boxes have the tag 'prop=first'
     B,prop=second
     ,XXX$[prop] -- create XXXfirst tag for A and XXXsecond for B
+
+  Properties can have more than one value, which can be used for example to mix colours. Values are separated by <code>;</code> and can be added or removed using <code>=+</code> or <code>=-</code>
+
+  For example
+  <pre>
+    color=red#color=green => color=green (green override red)
+    color=red#color=+green => color=green;red (add green red)
+    color=red;green => color=green;red (set two values : red and green)
+    color=red;green,#color=-red => color=green (remove green for red and green
+
+  <h5> rendering properties
+  Some special property are used to control the rendering of of a box. For example assigning <code>bg=red</code> will set the background of the box to red.
+  Those properties are
+  <ul>
+    <li> <code>bg</code> background colour
+    <li> <code>fg</code> foreground (text) colour
+    <li> <code>border</code> border colour
+    <li> <code>circle</code> display a big circle of the given colour on the box. Ideal to mark boxes.
+    <li> <code>bar-title</code> text to display instead of the box name
+  There is also a special tag <code>no-bar-gauge</code> which disable the colour gauge behind box bar.
+
+  All property colours accept more than one colours (separated by <code>;</code>) which are colour names their hexadecimal description (for example "white" or "ffffff" ) . If multiples colours are given they will be mixed.
+  However, each colour can only appear once (in the list of colour). It is however possible to give more weight to a colour by prefixing its name with a underscore.
+  For example 
+  <pre>
+      black#white => mid gray
+      black#_black#white => dark gray
+      black#_white#white => light gray
 <h3>
   <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-break">
      Breaks And Slots
@@ -428,6 +491,7 @@ If the first word of a section is one of the valid section name, the whole conte
   <ul>
     <li> <code>${shelfname}</code> # current shelf
     <li> <code>${shelftag}</code> # tag of the current shelf
+    <li> <code>${fit}</code> # How the box fits in the shelf : fit, tight, or out
     <li> <code>${orientation}</code> # current orientation
     <li> <code>${style}</code> # current box style
     <li> <code>${content}</code> # current box content (or colour)
