@@ -748,7 +748,7 @@ updateBoxTags' [] box = box -- no needed but faster, because we don't have to de
 updateBoxTags' tag'ops box = case modifyTags tag'ops (boxTags box) of
   Nothing -> box
   Just new -> updateDimFromTags box { boxTags = new
-                                    , boxPriorities = extractPriorities new
+                                    , boxPriorities = extractPriorities new (boxPriorities box)
                                     , boxBreak = extractBoxBreak new
                                     }
 
@@ -881,14 +881,13 @@ printDim  (Dimension l w h) = printf "%0.1fx%0.1fx%0.1f" l w h
 -- bare number = content priority, 
 -- @number style priority
 -- @@number global priority
-extractPriorities :: Tags -> (Int, Int, Int)
-extractPriorities tags = let
+extractPriorities :: Tags -> (Int, Int, Int) -> (Int, Int, Int)
+extractPriorities tags (g0, s0, c0) = let
   prioritiess = map extractPriority (Map.keys tags)
   (globals, styles, contents) = unzip3 prioritiess
-  go :: [Maybe Int] -> Int
-  go ps = fromMaybe defaultPriority $ getLast $ mconcat (map Last (Just 100 : ps))
-  in (go globals, go styles, go contents)
-   
+  go :: Int -> [Maybe Int] -> Int
+  go p0 ps = fromMaybe p0 $ getLast $ mconcat (map Last (ps))
+  in (go g0 globals, go s0 styles, go c0 contents)
 
 
 -- read 0 or more priorite. Priority have the following format
@@ -898,7 +897,7 @@ extractPriorities tags = let
 extractPriority :: String -> (Maybe Int, Maybe Int, Maybe Int)
 extractPriority tag = let
   priorities = map readMaybe $ splitOn "@" tag
-  [content, style, global]= take 3 $ priorities  <> repeat Nothing
+  ps@[content, style, global]= take 3 $ priorities  <> repeat Nothing
   in (global, style, content)
 
 extractBoxBreak :: Tags -> Maybe BoxBreak
