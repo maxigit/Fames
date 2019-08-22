@@ -15,6 +15,7 @@ import qualified Data.Text as Text
 import System.Directory (doesFileExist, listDirectory)
 import System.FilePath (takeExtension)
 
+import Debug.Trace as T
 import Unsafe.Coerce (unsafeCoerce)
 import Model.DocumentKey
 import GHC.Generics
@@ -38,13 +39,13 @@ warehouseExamble  = do
 parseScenarioFile :: Text -> Either Text [Section]
 parseScenarioFile text = do -- Either
   lineTypes <- traverse parseLine (map strip $ lines text) 
-  sequence $ linesToSections lineTypes
+  T.traceShowId $ sequence $ linesToSections lineTypes
   
 
 -- | Transform a line of text to a typed line
 parseLine :: Text -> Either Text TypedLine
 parseLine line | "-- END " `isPrefixOf` line          = Right EndL
-               | ":END:" `isPrefixOf` line            = Right CommentL
+               | ":END:" `isPrefixOf` line            = Right EndSectionL
                | "-- " `isPrefixOf` line              = Right $ CommentL
                | Just drawer <- extractDrawer line      = drawer
                | Just sha <- stripPrefix "@" line     = Right $ HashL (DocumentHash $ strip sha)
@@ -55,21 +56,33 @@ parseLine line | "-- END " `isPrefixOf` line          = Right EndL
 
 -- | Regroup lines into section
 linesToSections :: [TypedLine] -> [Either Text Section]
-linesToSections lines = reverse $ go lines (MovesH [], "") ([]) [] where
-  go :: [TypedLine] -> (HeaderType, Text) -> [Text] -> [Either Text Section] -> [Either Text Section]
+linesToSections lines = reverse $ go lines Nothing [] [] where
+  go :: [TypedLine] -- ^ lines to parse
+     -> Maybe (HeaderType, Text) --  ^ header for current body
+     -> [Text] -- ^ line of the current body in reverse order
+     -> [Either Text Section] -- ^ previously parsed in reverse order
+     -> [Either Text Section]
+  go ((HeaderL newHeader title):ls) header current sections = -- start new section
+        go ls (Just (newHeader, title)) [] (merge header current sections)
+  go [] Nothing current sections = sections
   go [] header current sections = merge header current sections
   go ((CommentL):ls) header current sections = go ls header current sections
   go ((EndL):_) header current sections = go [] header current sections
-  go ((HeaderL newHeader title):ls) header current sections = -- start new section
-        go ls (newHeader, title) [] (merge header current sections)
+  go ((EndSectionL):ls) header current sections = -- close section 
+        go ls Nothing [] (merge header current sections)
+  -- not in section, skip
+  go ((TextL _):ls) Nothing current sections = go ls Nothing current sections
   go ((TextL txt):ls) header current sections = go ls header (txt:current) sections
   -- Only one hash can be in a section. Close the previous section and open a new one at the same time
-  go ((HashL sha):ls) header@(ht,title) [] sections = go ls header [] (Right (Section ht (Left sha) title) :sections)
+  go ((HashL sha):ls) header@(Just (ht,title)) [] sections = go ls header [] (Right (Section ht (Left sha) title) :sections)
   go ls@((HashL _):_) header current sections = go ls header [] (go [] header current sections)
-  merge :: (HeaderType, Text)  -> [Text] -> [Either Text Section] -> [Either Text Section]
-  merge (TitleH, title) [] sections = Right (Section TitleH (Right []) title): sections
+  -- 
+  -- Close the current section and  merge similar section if possible
+  merge :: Maybe (HeaderType, Text)  -> [Text] -> [Either Text Section] -> [Either Text Section]
+  merge Nothing _ sections = sections
+  merge (Just (TitleH, title)) [] sections = Right (Section TitleH (Right []) title): sections
   merge header [] sections = sections
-  merge header@(ht,title) current sections = Right (Section ht (Right (reverse current)) title) : sections
+  merge (Just header@(ht,title)) current sections = Right (Section ht (Right (reverse current)) title) : sections
 
 -- | Header is like "*** [HEADER] title"
 extractHeader :: Text -> Maybe HeaderType

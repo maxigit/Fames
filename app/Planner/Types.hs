@@ -26,6 +26,7 @@ data TypedLine = CommentL
               | HeaderL HeaderType Text
               | TextL Text
               | EndL
+              | EndSectionL
               | HashL DocumentHash
               deriving (Show, Read, Eq, Ord)
 
