@@ -9,10 +9,10 @@ A planner file is made of different sections. Each section corresponds to an org
 <div.pre.collapse id=info-section-sections>
     All sections follows the <a href="http://orgmode.org/manual/Drawers.html">org-mode drawer</a> syntax and are composed of a 
     <ul>
-      <li> a headline specify the section type and eventual parameters, for example <code>:Shelves:</code> or <code><:Moves#parameter1#paramter2:></code>
+      <li> a headline specify the section type and eventual parameters, for example <code>:Shelves:</code> or <code><:Moves_parameter1_paramter2:></code>
       <li> a body, for example <code>T-Shirt,shelf A</code>
       <li> and optional end marker <code>:END:</code>.
-    Sections accepting parameters will have <code>[#parametes]</code> next to their names.
+    Sections accepting parameters will have <code>[_parametes]</code> next to their names.
     Most sections body are a CSV (comma separated files) which expect a header (ie the name of each column).
     Forgetting the header might result in the first line be interpreted as the header and therefore skipped.
     <ul> 
@@ -92,15 +92,15 @@ A planner file is made of different sections. Each section corresponds to an org
           <code>A1|A2|A3</code> form a bay of 3 shelves, A1 at the bottom, and A3 at the top next to a bay of 2 shelves B1 with B2 on top.
       <li>
         <h4>
-          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-stocktake">  Stocktake[#Tag]
+          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-stocktake">  Stocktake[_Tag]
         <div.pre.collapse id=info-section-stocktake>
           Describes a set of boxes with their location and eventually orientation. It is a CSV with the following header
           <pre>Bay No,Style,QTY,Length,Width,Height,Orientations
           Tags provided in the section name, will be applied to the created boxes.
-          For example, all boxes created in the section <code>:Stocktake#tag1#tag2</code> will be tagged with <code>tag1</code> and <code>tag2</code>
+          For example, all boxes created in the section <code>:Stocktake-tag1-tag2</code> will be tagged with <code>tag1</code> and <code>tag2</code>
       <li>
         <h4>
-          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-boxes"> Boxes[#Tag]
+          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-boxes"> Boxes[=Tag]
         <div.pre.collapse id=info-section-boxes>
           A set of boxes without initial location. They will be put in the <code>pending</code> shelf.
           It is a CSV with the following header :
@@ -108,7 +108,7 @@ A planner file is made of different sections. Each section corresponds to an org
           Tags provided in the section name, will be applied to the created boxes.
       <li>
         <h4>
-          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-moves"> Moves[#Tag]
+          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-moves"> Moves[=Tag]
         <div.pre.collapse id=info-section-moves>
           Describes a set of moves boxes to shelves. The first column describe a set of boxes to moves to
           a set of shelves. If multiple shelves are given, the Planner will fill the shelf in the given order
@@ -139,7 +139,7 @@ A planner file is made of different sections. Each section corresponds to an org
           <tagging>
           Tags provided as section parameter will be applied to the boxes <b>successfully</b> moved
           whereas boxes which couldn't be moved (not enough space in the destination) will see those tags negated.
-          For example, let's say that we are trying to move 3 boxes in a shelf with <code>:Moves#moved#-error</code> but only the first 2
+          For example, let's say that we are trying to move 3 boxes in a shelf with <code>:Moves_moved_-error</code> but only the first 2
           are moved successfully, the two first boxes with see <code>moved</code> and <code>-error</code> applied (which result in adding the tag moved
           but remove the tag error, whilst the last box will see the <code>-moved</code> and <code>error</code> apply.
           As a result the two first boxes will have the tag <code>moved</code> and the last one the tag <code>error</code>.
@@ -163,7 +163,7 @@ A planner file is made of different sections. Each section corresponds to an org
           The last line set the background property of the box tagged with <code>tag1</code> to red.
       <li>
         <h4>
-          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-movesandtags"> MAT[#Tag] (moves and tags)
+          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-movesandtags"> MAT[=Tag] (moves and tags)
         <div.pre.collapse id=info-section-movesandtags>
           Allows to move and tag at the same time a set of boxes. This can be faster and less verbose than creating a move and
           a tag section. Tags needs to start with a <code>#</code> and location CAN start with <code>/</code>
@@ -187,7 +187,7 @@ A planner file is made of different sections. Each section corresponds to an org
             A^1,4,ghost
           or  (note the position of the tag <code>ghost</code>
           <pre>
-            :Clones#ghost:
+            :Clones-ghost:
             stock_id,quantity,tag
             A^1,4,
           will create 4 boxes with the tag <code>ghost</code> for each colur of A.

@@ -84,7 +84,7 @@ extractDrawer s = do
   return $ fmap (\d -> HeaderL d "") drawerE
 
 parseDrawer :: Text -> Either Text HeaderType
-parseDrawer h = case splitOn "#" h of
+parseDrawer h = case splitOn "_" h of
   [] -> Left $ "'' not a valid drawer."
   (x:xs) -> case toLower (strip x):xs of
     ("layout":[]) -> Right LayoutH
@@ -120,7 +120,7 @@ instance (GWriteHeader a , GWriteHeader b) => GWriteHeader (a :+: b) where -- Si
   gwriteHeader (R1 x) = gwriteHeader x
 instance GWriteHeader (K1 i [Text] ) where
   gwriteHeader (K1 []) = ""
-  gwriteHeader (K1 xs) = "#" <> intercalate "#" xs
+  gwriteHeader (K1 xs) = "_" <> intercalate "_" xs
 instance GWriteHeader a => GWriteHeader (D1 c a) where
   gwriteHeader m@(M1 x) = gwriteHeader x 
 -- | get the constructor and remove the trailing H
