@@ -360,7 +360,7 @@ A planner file is made of different sections. Each section corresponds to an org
       <h4> number restriction
       The <code>^</code> symbol is used to select only a certain number of boxes per variation/content, per shelf, and in total
       <pre>
-         content ^ shelf ^ total ^
+         ^ content ^ shelf ^ total
 
       Example
       <pre>
@@ -458,7 +458,8 @@ A planner file is made of different sections. Each section corresponds to an org
     <li> <code>fg</code> foreground (text) colour
     <li> <code>border</code> border colour
     <li> <code>circle</code> display a big circle of the given colour on the box. Ideal to mark boxes.
-    <li> <code>bar-title</code> text to display instead of the box name
+    <li> <code>title</code> text to display instead of the box name
+    <li> <code>bar-title</code> text to display in the box bar (for each depth).
   There is also a special tag <code>no-bar-gauge</code> which disable the colour gauge behind box bar.
 
   All property colours accept more than one colours (separated by <code>;</code>) which are colour names their hexadecimal description (for example "white" or "ffffff" ) . If multiples colours are given they will be mixed.
@@ -502,7 +503,9 @@ A planner file is made of different sections. Each section corresponds to an org
     <li> <code>${ol}</code> $ length coordinate
     <li> <code>${ow}</code> $ width coordinate
     <li> <code>${oh}</code> $ height coordinate
-
+    <li> <code>${@content}</code> $ content priority
+    <li> <code>${@style}</code> $ style priority
+    <li> <code>${@global}</code> $ global priority
   Example
   <pre>
     /pending,loc=$shelfname  => All boxes in the pending location will be tagged with "loc=pending".

@@ -339,7 +339,7 @@ processMovesAndTags (style, tags, locationM) = do
       let tagOps = map parseTagOperation tags
           untagOps = negateTagOperations tagOps
       new <- mapM (updateBoxTags tagOps) boxes
-      traceShowM("UNTAG", untagOps, length $ concat leftoverss)
+      -- traceShowM("UNTAG", untagOps, length $ concat leftoverss)
       mapM (updateBoxTags untagOps) (concat leftoverss)
       return new
 
