@@ -24,6 +24,7 @@ import Control.Comonad
 import Handler.Util
 import Control.Monad.Reader(mapReaderT)
 import qualified Data.Map as Map
+import Debug.Trace
 -- * Types
 -- | SQL text filter expression. Can be use either the LIKE syntax or the Regex one.
 -- Regex one starts with '/'.
@@ -60,6 +61,9 @@ data IndexColumn = GLColumn Text
             | RadioColumn
             | StockIdColumn
             | StatusColumn
+            | GLStatusColumn
+            | SalesPriceStatusColumn
+            | PurchasePriceStatusColumn
             | FAStatusColumn Text
             | WebStatusColumn Text
             | WebPriceColumn Int
@@ -411,7 +415,7 @@ loadVariations cache param = do
                     then id
                     else (List.filter ((/= VarExtra) . fst))
 
-  let result =  mapMaybe (filterFromParam param) $ map (\(base, vars)
+  let result =  mapMaybe (filterFromParam param cache) $ map (\(base, vars)
                   -> (base, filterExtra vars)
                 ) itemGroups
   mapM_ (startDelayed . snd) delayeds
@@ -420,25 +424,35 @@ loadVariations cache param = do
 -- This is needed To be able to copy price or other information when creating missing
 -- product. 
 -- However, we only keep the base variation if there is any valid variations
-filterFromParam :: IndexParam ->  (ItemInfo ( ItemMasterAndPrices Identity)
-                                  , [ ( VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text]) )) ]
-                                  )
-                              -> Maybe (ItemInfo ( ItemMasterAndPrices Identity)
-                                       , [ ( VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text]) )) ]
-                                       )
-filterFromParam param@IndexParam{..} (base, vars0) = let
+filterFromParam :: IndexParam -> IndexCache
+  ->  (ItemInfo ( ItemMasterAndPrices Identity)
+      , [ ( VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text]) )) ]
+      )
+  -> Maybe (ItemInfo ( ItemMasterAndPrices Identity)
+           , [ ( VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text]) )) ]
+           )
+filterFromParam param@IndexParam{..} cache (base, vars0) = let
   baseInfo = iiInfo base
+  baseInfo' = iiInfo $ computeDiff base base -- hack to convert to .. ((,) [Text])
+  -- baseInfo' = ItemMasterAndPrices
+  --    (runIdentity . aStockMasterFToStockMasterF <$> impMaster baseInfo )
+  --    (runIdentity . aPriceFToPriceF <$$> impSalesPrices baseInfo )
+  --    (runIdentity . aPurchDataFToPurchDataF <$$> impPurchasePrices baseInfo )
+  --    (runIdentity . aItemStatusFToItemStatusF <$$> impFAStatus baseInfo )
+  --    (runIdentity . aItemWebStatusFToItemWebStatusF <$$> impWebStatus baseInfo )
+  --    (runIdentity . aWebPriceFToWebPriceF <$$> impWebPrice baseInfo )
   vars = filter (keepVar . snd) vars0
-  keepVar i = isBaseVariation i || statusOk i
-  statusOk :: (Applicative f, Comonad f) => ItemInfo (ItemMasterAndPrices f) -> Bool
-  statusOk i = all (\f -> f param i) [ glStatusOk baseInfo
-                                     , salesPriceStatusOk baseInfo
-                                     , purchasePriceStatusOk baseInfo
-                                     [ faStatusOk, webStatusOk
+  keepVar i = isBaseVariation i || statusOk baseInfo' i
+  statusOk :: (Applicative f, Comonad f, Eq (StockMasterF f), Eq (PriceF f), Eq (PurchDataF f))
+    => ItemMasterAndPrices f  -> ItemInfo (ItemMasterAndPrices f) -> Bool
+  statusOk b i = all (\fn -> fn param i) [ glStatusOk b
+                                     , salesPriceStatusOk (priceListsToKeep cache param) b
+                                     , purchasePriceStatusOk (suppliersToKeep cache param) b
+                                     , faStatusOk, webStatusOk
                                      ]
   isBaseVariation ItemInfo{..} = return iiVariation == ipBaseVariation 
   in case () of
-       _ | not (statusOk base) -> Just (base, vars0) -- return everything in case base is not the correct one
+       _ | not (statusOk baseInfo base) -> Just (base, vars0) -- return everything in case base is not the correct one
        _ | null (drop 1 vars) -> Nothing
        _                      -> Just (base, vars)
 
@@ -458,9 +472,21 @@ checkStatuses paramStatuses itemStatus param item =
 webStatusOk :: (Applicative f, Comonad f) => IndexParam -> ItemInfo (ItemMasterAndPrices f) -> Bool
 webStatusOk = checkStatuses ipWebStatusFilter (fmap webDisplayStatus . impWebStatus .iiInfo)
 
-glStatusOk base = checkStatuses ipGLStatusFilter (fmap (glStatus base) . iiInfo)
-salesPriceStatusOk base = checkStatuses ipSalesPriceStatusFilter (fmap (salesPricesStatus base) . iiInfo)
-purchasePriceStatusOk base = checkStatuses ipPurchasePriceStatusFilter (fmap (purchasePricesStatus base) . iiInfo)
+glStatusOk :: (Applicative f, Comonad f, Eq (StockMasterF f))
+           => (ItemMasterAndPrices f)
+           -> IndexParam
+           -> ItemInfo (ItemMasterAndPrices f)
+           -> Bool
+glStatusOk base = checkStatuses ipGLStatusFilter (Just . glStatus base . iiInfo)
+salesPriceStatusOk ::
+  (Comonad w, Applicative w, Eq (PriceF w)) =>
+  [Key SalesType]
+  -> ItemMasterAndPrices w
+  -> IndexParam
+  -> ItemInfo (ItemMasterAndPrices w)
+  -> Bool
+salesPriceStatusOk base priceListIds = checkStatuses ipSalesPriceStatusFilter (Just . salesPricesStatus base priceListIds . iiInfo)
+purchasePriceStatusOk base priceListIds = checkStatuses ipPurchasePriceStatusFilter (Just . purchasePricesStatus base priceListIds . iiInfo)
 
 
 -- ** Sales prices
@@ -501,11 +527,11 @@ loadSalesPrices param = do
      _ -> return []
 
 -- | get selected price list ids
-priceListsToKeep :: (?skuToStyleVar :: Text -> (Text,Text))
-              => IndexCache -> IndexParam -> Handler [Key SalesType]
-priceListsToKeep cache params = do
+priceListsToKeep :: -- (?skuToStyleVar :: Text -> (Text,Text))
+              IndexCache -> IndexParam -> [Key SalesType]
+priceListsToKeep cache params =
   let plIds =  map (entityKey) (icPriceLists cache)
-  return $ filter (\(SalesTypeKey i) -> (priceColumnCheckId i) `elem` ipColumns params) plIds
+  in filter (\(SalesTypeKey i) -> (priceColumnCheckId i) `elem` ipColumns params) plIds
   
 -- ** Purchase prices
 -- | Load purchase prices
@@ -544,11 +570,10 @@ loadPurchasePrices param = do
             
      _ -> return []
   
-suppliersToKeep :: (?skuToStyleVar :: Text -> (Text,Text))
-              => IndexCache -> IndexParam -> Handler [Key Supplier]
-suppliersToKeep cache params = do
-  let suppIds = keys (icSupplierNames cache)
-  return $ (map SupplierKey) (filter (\i -> (supplierColumnCheckId i) `elem` ipColumns params) (suppIds))
+suppliersToKeep :: IndexCache -> IndexParam -> [Key Supplier]
+suppliersToKeep cache params = let
+  suppIds = keys (icSupplierNames cache)
+  in (map SupplierKey) (filter (\i -> (supplierColumnCheckId i) `elem` ipColumns params) (suppIds))
 
 -- ** FA Status
 -- | Load item status, needed to know if an item can be deactivated or deleted safely
@@ -713,7 +738,7 @@ lookupVars varMap = mapMaybe (flip Map.lookup varMap) . variationToVars
 -- ** Table Infos
 -- | List or columns for a given mode
 columnsFor :: IndexCache -> ItemViewMode -> [ItemInfo (ItemMasterAndPrices f)] -> [IndexColumn]
-columnsFor _ ItemGLView _ = map GLColumn cols where
+columnsFor _ ItemGLView _ = GLStatusColumn : map GLColumn cols where
   cols = [ "categoryId"
          , "taxTypeId"
          , "description"
@@ -736,9 +761,9 @@ columnsFor _ ItemGLView _ = map GLColumn cols where
          , "noSale"
          , "editable"
          ] :: [Text]
-columnsFor _ ItemPriceView infos = map PriceColumn cols where
+columnsFor _ ItemPriceView infos = SalesPriceStatusColumn : map PriceColumn cols where
   cols = salesPricesColumns $ map  iiInfo  infos
-columnsFor _ ItemPurchaseView infos = map PurchaseColumn cols where
+columnsFor _ ItemPurchaseView infos = PurchasePriceStatusColumn :map PurchaseColumn cols where
   cols = purchasePricesColumns $ map  iiInfo  infos
 columnsFor cache ItemFAStatusView _ =
   map FAStatusColumn fas where
@@ -747,7 +772,7 @@ columnsFor cache ItemFAStatusView _ =
         , "On Demand"
         , "On Demand (all)"
         , "On Order"
-        , "Status"
+        , "Running Status"
         ]
 columnsFor cache ItemWebStatusView infos =
   columnsFor cache ItemFAStatusView infos
@@ -799,6 +824,7 @@ itemsTable cache param = do
                                   VarMissing -> [shamlet| <span.label.label-warning data-label=missing> Missing |]
                                   VarExtra -> [shamlet| <span.label.label-info data-label=extra> Extra |]
                                   VarOk -> [shamlet||]
+            base = iiInfo $ computeDiff item0 item0
             val col = case col of
                         CheckColumn ->
                           Just ([], [shamlet|<input type=checkbox name="check-#{sku}" :checked:checked>|])
@@ -827,10 +853,22 @@ itemsTable cache param = do
                         WebStatusColumn name -> columnForWebStatus name (impWebStatus master)
                         WebPriceColumn i -> columnForWebPrice i =<< impWebPrices master
                         CategoryColumn catName -> columnForCategory catName <$> icCategoryFinder cache catName (FA.StockMasterKey sku)
+                        GLStatusColumn -> case snd $ glStatus base master of
+                          GLOk ->  Just ([], [shamlet|<span.label.label-success data-label=glok>Ok|])
+                          GLDiffers ->  Just ([], [shamlet|<span.label.label-danger data-label=gldiffers>diff|])
+                          GLDescriptionDiffers ->  Just ([], [shamlet|<span.label.label-warning data-label=gldescription>description|])
+                        SalesPriceStatusColumn -> case snd $ salesPricesStatus [] base master of
+                          PriceOk ->  Just ([], [shamlet|<span.label.label-success data-label=sales-prices-ok>Ok|])
+                          PriceMissing ->  Just ([], [shamlet|<span.label.label-warning data-label=sales-prices-missing>Missing|])
+                          PriceDiffers ->  Just ([], [shamlet|<span.label.label-danger data-label=sales-prices-differ>Diff|])
+                        PurchasePriceStatusColumn -> case snd $ purchasePricesStatus [] base master of
+                          PriceOk ->  Just ([], [shamlet|<span.label.label-success data-label=purchase-prices-ok>Ok|])
+                          PriceMissing ->  Just ([], [shamlet|<span.label.label-warning data-label=purchase-prices-missing>Missing|])
+                          PriceDiffers ->  Just ([], [shamlet|<span.label.label-danger data-label=purchase-prices-differ>Diff|])
 
 
             differs = or diffs where
-              diffs = [ "text-danger" `elem `kls
+              diffs = Debug.Trace.traceShow("colos", map (fmap fst. val) columns) $ Debug.Trace.traceShowId [ "text-danger" `elem `kls
                       | col <- columns
                       , let kls = maybe [] fst (val col)
                       ]
@@ -922,7 +960,7 @@ columnForFAStatus col iStatus@ItemStatusF{..} =
     "On Demand" -> Just (toHtml . tshow <$> isfOnDemand)
     "On Demand (all)" -> Just (toHtml . tshow <$> isfAllOnDemand)
     "On Order" -> Just (toHtml . tshow <$> isfOnOrder)
-    "Status" -> Just (statusBadge <$> faRunningStatus iStatus )
+    "Running Status" -> Just (statusBadge <$> faRunningStatus iStatus )
     _ -> Nothing
   where statusBadge st = case st of
           FARunning ->  [shamlet|<span.label.label-success data-label=running
@@ -1158,6 +1196,9 @@ getColumnToTitle cache param = do
                              then Right name
                              else Left (toHtml name, ["text-danger"])
             CategoryColumn t -> Right t
+            GLStatusColumn -> Right "GL Status"
+            SalesPriceStatusColumn ->  Right "Sales Price Status"
+            PurchasePriceStatusColumn ->  Right "Purchase Price Status"
           in toh title
     return go
 
@@ -1279,7 +1320,7 @@ deleteSalesPrices params = do
   cache <- fillIndexCache
   -- timestamp <- round <$> liftIO getPOSIXTime
   itemGroups <- loadVariationsToKeep cache (params {ipBases = mempty}) 
-  plIds <- priceListsToKeep cache params
+  let plIds = priceListsToKeep cache params
   -- delete all prices selected by the user for all given variations
   let deletePairs =
         [ [FA.PriceStockId ==. iiSku info, PriceSalesTypeId ==. unSalesTypeKey plId]
@@ -1296,7 +1337,7 @@ deletePurchasePrices  params = do
   cache <- fillIndexCache
   -- timestamp <- round <$> liftIO getPOSIXTime
   itemGroups <- loadVariationsToKeep cache (params {ipBases = mempty}) 
-  supplierIds <- suppliersToKeep cache params
+  let supplierIds = suppliersToKeep cache params
   -- delete all prices selected by the user for all given variations
   let deletePairs =
         [ [FA.PurchDataStockId ==. iiSku info, PurchDataSupplierId ==. supplierId]
