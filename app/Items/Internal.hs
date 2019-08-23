@@ -214,6 +214,46 @@ webDisplayStatus ItemWebStatusF{..} =  status <$> iwfProductDisplay <*> iwfActiv
                         (Nothing, True) -> WebUnlinked
                         (Nothing, False) -> WebMissing
   
+-- | Check if prices identical
+salesPricesStatus :: (Applicative f, Eq (PriceF f))
+                   => (ItemMasterAndPrices f)
+                  -> (ItemMasterAndPrices f)
+                  -> f PriceStatus
+salesPricesStatus base var = pure $ pricesStatus (impSalesPrices base) (impSalesPrices var)
+
+pricesStatus :: Eq a => Maybe (IntMap a) -> Maybe (IntMap a) -> PriceStatus
+pricesStatus basem varm = 
+  case (basem, varm) of
+            (Nothing, _) -> PriceOk
+            (Just _, Nothing) -> PriceMissing
+            (Just base, Just var) -> go base var
+  where go bases vars =
+          let onlyInBases = IntMap.differenceWith cmpValue bases vars
+              onlyInVars = IntMap.differenceWith cmpValue bases vars
+              cmpValue a b | a == b = Nothing
+              cmpValue a _ = Just a
+          in case (IntMap.null onlyInBases, IntMap.null onlyInVars) of
+               (True, True ) -> PriceOk
+               (True, False) -> PriceMissing
+               _ -> PriceDiffers
+         
+                       
+
+       
+purchasePricesStatus :: (Applicative f, Eq (PurchDataF f))
+                   => (ItemMasterAndPrices f)
+                   -> (ItemMasterAndPrices f)
+                  -> f PriceStatus
+purchasePricesStatus base var = pure $ pricesStatus (impPurchasePrices base) (impPurchasePrices var)
+
+glStatus :: (Applicative f, Eq (StockMasterF f))
+                   => (ItemMasterAndPrices f)
+                   -> (ItemMasterAndPrices f)
+                  -> f GLStatus
+glStatus basem varm = pure $ case (impMaster basem, impMaster varm) of
+  (Just base, Just var) | base == var -> GLOk
+  (Just base, Just var) | base == var {smfDescription = smfDescription base} -> GLDescriptionDiffers
+  _ -> GLDiffers
 
 -- ** Prices
 -- | Computes  theoretical prices based on default price and price list info.

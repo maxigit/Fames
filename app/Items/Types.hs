@@ -176,6 +176,17 @@ data WebDisplayStatus = WebOk -- ^ is active and has a product display : shows o
                       | WebUnlinked -- ^  orphan variation without a product display
                       deriving (Show, Read, Eq, Enum, Bounded)
 
+data PriceStatus =  PriceOk -- ^ All prices are the same within a group for all (selected) price lists
+                 | PriceMissing
+                 | PriceDiffers
+                 deriving (Show, Read, Eq, Enum, Bounded)
+
+data GLStatus = GLOk -- ^ Everything is the same within  a group
+              | GLDescriptionDiffers -- ^ Only the description differs
+              | GLDiffers -- ^ 
+              deriving (Show, Read, Eq, Enum, Bounded)
+
+
 -- * Reporting
 type Quantity = Double
 type Amount = Double

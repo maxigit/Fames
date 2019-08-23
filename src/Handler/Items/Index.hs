@@ -40,6 +40,9 @@ data IndexParam = IndexParam
   , ipColumns :: [Text] -- ^ columns to act upon
   , ipMode :: ItemViewMode
   , ipClearCache :: Bool -- ^ Clear cache
+  , ipGLStatusFilter :: Maybe [GLStatus]
+  , ipSalesPriceStatusFilter :: Maybe [PriceStatus]
+  , ipPurchasePriceStatusFilter :: Maybe [PriceStatus]
   , ipFAStatusFilter :: Maybe [FARunningStatus]
   , ipWebStatusFilter :: Maybe [WebDisplayStatus]
   , ipBaseVariation:: Maybe Text -- ^ to keep when filtering element, so that missing have a base
@@ -139,8 +142,9 @@ paramDef mode = IndexParam Nothing Nothing Nothing -- SKU category
                            False True
                            mempty empty empty
                            (fromMaybe ItemGLView mode)
-                           False
-                           Nothing Nothing Nothing
+                           False -- ^ clear c
+                           Nothing Nothing Nothing Nothing Nothing -- status filter
+                           Nothing -- ^ base variation
 -- indexForm :: (MonadHandler m,
 --               RenderMessage (HandlerSite m) FormMessage)
 --           => [Text]
@@ -161,10 +165,14 @@ indexForm categories groups param = renderBootstrap3 BootstrapBasicForm form
           <*> pure (ipColumns param)
           <*> pure (ipMode param)
           <*> pure False
-          <*> (aopt (multiSelectField rstatus) "Running status" (Just $ ipFAStatusFilter param)) 
-          <*> (aopt (multiSelectField wstatus) "Web Display status" (Just $ ipWebStatusFilter param)) 
+          <*> (aopt (mkStatusOptions 2) "GL status" (Just $ ipGLStatusFilter param)) 
+          <*> (aopt (mkStatusOptions 5) "Sales Price status" (Just $ ipSalesPriceStatusFilter param)) 
+          <*> (aopt (mkStatusOptions 5) "Purchase Price status" (Just $ ipPurchasePriceStatusFilter param)) 
+          <*> (aopt (mkStatusOptions 2) "Running status" (Just $ ipFAStatusFilter param)) 
+          <*> (aopt (mkStatusOptions 3) "Web Display status" (Just $ ipWebStatusFilter param)) 
           <*> (aopt textField "include variation" (Just $ ipBaseVariation param))
         groups' =  map (\g -> (g,g)) groups
+        mkStatusOptions n = multiSelectField $ optionsPairs $ map (fanl (drop n . tshow)) [minBound..maxBound]
         rstatus = optionsPairs $ map (fanl (drop 2 . tshow)) [minBound..maxBound]
         wstatus = optionsPairs $ map (fanl (drop 3 . tshow)) [minBound..maxBound]
         categoryOptions = [(cat, cat) | cat <-categories ]
@@ -314,6 +322,8 @@ adjustDescription varMap var0 var desc =
       in appEndo (mconcat endos) desc
 -- * Load DB 
 -- ** StockMaster info
+-- |  Load all variations matching the criteria
+-- regardless or whether they've been checked or not
 loadVariations :: (?skuToStyleVar :: Text -> (Text, Text))
                 => IndexCache -> IndexParam
                -> Handler [ (ItemInfo (ItemMasterAndPrices Identity) -- base
@@ -351,6 +361,8 @@ loadVariations cache param = do
                     ->  [ Delayed Handler [ItemInfo (ItemMasterAndPrices Identity)]]
       adjustSources sources = toList $ Map.fromList
         (
+          (if null (ipSalesPriceStatusFilter param) then Nothing else Just delayedSalesPrices) ?:
+          (if null (ipPurchasePriceStatusFilter param) then Nothing else Just delayedPurchasePrices) ?:
           (if null (ipFAStatusFilter param) then Nothing else Just delayedStatus) ?:
           (if null (ipWebStatusFilter param) then Nothing else Just delayedWebStatus) ?:
           sources
@@ -414,24 +426,42 @@ filterFromParam :: IndexParam ->  (ItemInfo ( ItemMasterAndPrices Identity)
                               -> Maybe (ItemInfo ( ItemMasterAndPrices Identity)
                                        , [ ( VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text]) )) ]
                                        )
-filterFromParam p@IndexParam{..} (base, vars0) = let
-  vars = filter (statusOk . snd) vars0
-  statusOk i = (faStatusOk p i && webStatusOk p i) || isBaseVariation i
+filterFromParam param@IndexParam{..} (base, vars0) = let
+  baseInfo = iiInfo base
+  vars = filter (keepVar . snd) vars0
+  keepVar i = isBaseVariation i || statusOk i
+  statusOk :: (Applicative f, Comonad f) => ItemInfo (ItemMasterAndPrices f) -> Bool
+  statusOk i = all (\f -> f param i) [ glStatusOk baseInfo
+                                     , salesPriceStatusOk baseInfo
+                                     , purchasePriceStatusOk baseInfo
+                                     [ faStatusOk, webStatusOk
+                                     ]
   isBaseVariation ItemInfo{..} = return iiVariation == ipBaseVariation 
-  in if null vars || (not (faStatusOk p base && webStatusOk p base) && null (drop 1 vars) && isJust ipBaseVariation)
-     then Nothing
-     else Just (base, vars)
+  in case () of
+       _ | not (statusOk base) -> Just (base, vars0) -- return everything in case base is not the correct one
+       _ | null (drop 1 vars) -> Nothing
+       _                      -> Just (base, vars)
 
 faStatusOk :: (Applicative f, Comonad f) => IndexParam -> ItemInfo (ItemMasterAndPrices f) -> Bool
-faStatusOk IndexParam{..} ItemInfo{..} = case (ipFAStatusFilter, fmap faRunningStatus (impFAStatus iiInfo)) of
-    (Nothing, _) -> True
-    (Just s@(_:_), Just statusM)  -> extract statusM `elem` s
-    _ -> False
+faStatusOk = checkStatuses ipFAStatusFilter (fmap faRunningStatus . impFAStatus . iiInfo)
+
+-- | Check if statuses are given that 
+checkStatuses :: (Eq status, Comonad w)
+  => (param -> Maybe [status]) -> (item -> Maybe (w status)) -> param -> item -> Bool
+checkStatuses paramStatuses itemStatus param item =
+  case (paramStatuses param, itemStatus item) of
+    (Nothing, _) -> True -- not statuses to check
+    (Just [], _) -> True -- not statuses to check
+    (Just nonnull, Just statusM)  -> extract statusM `elem` nonnull
+    (_, Nothing) -> False -- not item status to check
+
 webStatusOk :: (Applicative f, Comonad f) => IndexParam -> ItemInfo (ItemMasterAndPrices f) -> Bool
-webStatusOk IndexParam{..} ItemInfo{..} = case (ipWebStatusFilter, fmap webDisplayStatus (impWebStatus iiInfo)) of
-    (Nothing, _) -> True
-    (Just s@(_:_), Just statusM)  -> extract statusM `elem` s
-    _ -> False
+webStatusOk = checkStatuses ipWebStatusFilter (fmap webDisplayStatus . impWebStatus .iiInfo)
+
+glStatusOk base = checkStatuses ipGLStatusFilter (fmap (glStatus base) . iiInfo)
+salesPriceStatusOk base = checkStatuses ipSalesPriceStatusFilter (fmap (salesPricesStatus base) . iiInfo)
+purchasePriceStatusOk base = checkStatuses ipPurchasePriceStatusFilter (fmap (purchasePricesStatus base) . iiInfo)
+
 
 -- ** Sales prices
 -- | Load sales prices 
@@ -636,6 +666,7 @@ loadWebPriceFor (fKeyword, p) pId = do
          , let webPrices = ItemPriceF (mapFromList [(fromIntegral pId, Identity (price /100))])
          ]
   
+-- | Load variations which have been checked (using the checkbox)
 loadVariationsToKeep :: (?skuToStyleVar :: Text -> (Text, Text))
                 => IndexCache -> IndexParam
                -> Handler [ (ItemInfo (ItemMasterAndPrices Identity) -- base
