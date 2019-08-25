@@ -437,8 +437,8 @@ filterFromParam param@IndexParam{..} cache (base, vars0) = let
   keepVar i = isBaseVariation i || statusOk i
   -- statusOk :: (Applicative f, Comonad f, Eq (StockMasterF f), Eq (PriceF f), Eq (PurchDataF f))
   --   => ItemMasterAndPrices f  -> ItemInfo (ItemMasterAndPrices f) -> Bool
-  statusOk i = all (\fn -> fn param i) [ -- glStatusOk b
-                                      salesPriceStatusOk (priceListsToKeep cache param)
+  statusOk i = all (\fn -> fn param i) [ glStatusOk
+                                     , salesPriceStatusOk (priceListsToKeep cache param)
                                      , purchasePriceStatusOk (suppliersToKeep cache param)
                                      , faStatusOk, webStatusOk
                                      ]
@@ -468,12 +468,19 @@ checkStatuses paramStatuses itemStatus param item =
 webStatusOk :: (Applicative f, Comonad f) => IndexParam -> ItemInfo (ItemMasterAndPrices f) -> Bool
 webStatusOk = checkStatuses ipWebStatusFilter (fmap webDisplayStatus . impWebStatus .iiInfo)
 
-glStatusOk :: (Applicative f, Comonad f, Eq (StockMasterF f))
-           => (ItemMasterAndPrices f)
-           -> IndexParam
-           -> ItemInfo (ItemMasterAndPrices f)
-           -> Bool
-glStatusOk base = checkStatuses ipGLStatusFilter (Just . glStatus base . iiInfo)
+glStatusOk = checkStatuses ipGLStatusFilter (Just . ([],) .  glStatus . iiInfo)
+glStatus :: ItemMasterAndPrices ((,) [Text]) -> GLStatus
+glStatus item = case impMaster item of
+  Nothing -> GLDiffers
+  Just master' -> let
+    master = master' {smfMaterialCost  = ([], 0)} -- we know that cost is always different
+    (classes, _) = aStockMasterFToStockMaster master :: ([Text], StockMaster)
+    in Debug.Trace.traceShow ("GL status", master,classes) $ case (filter (not . null) classes) of
+              [] -> GLOk
+              ["text-danger"] | fst (smfDescription master) == ["text-danger"] -> GLDescriptionDiffers
+              _ -> GLDiffers
+    
+    
 -- salesPriceStatusOk ::
 --   [Key SalesType]
 --   -> ItemMasterAndPrices ((,) Text)
@@ -874,7 +881,7 @@ itemsTable cache param = do
                         WebStatusColumn name -> columnForWebStatus name (impWebStatus master)
                         WebPriceColumn i -> columnForWebPrice i =<< impWebPrices master
                         CategoryColumn catName -> columnForCategory catName <$> icCategoryFinder cache catName (FA.StockMasterKey sku)
-                        GLStatusColumn -> case snd $ glStatus base master of
+                        GLStatusColumn -> case glStatus master of
                           GLOk ->  Just ([], [shamlet|<span.label.label-success data-label=glok>Ok|])
                           GLDiffers ->  Just ([], [shamlet|<span.label.label-danger data-label=gldiffers>diff|])
                           GLDescriptionDiffers ->  Just ([], [shamlet|<span.label.label-warning data-label=gldescription>description|])
@@ -889,7 +896,7 @@ itemsTable cache param = do
 
 
             differs = or diffs where
-              diffs = Debug.Trace.traceShow("colos", map (fmap fst. val) columns) $ Debug.Trace.traceShowId [ "text-danger" `elem `kls
+              diffs = [ "text-danger" `elem `kls
                       | col <- columns
                       , let kls = maybe [] fst (val col)
                       ]

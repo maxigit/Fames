@@ -213,15 +213,6 @@ webDisplayStatus ItemWebStatusF{..} =  status <$> iwfProductDisplay <*> iwfActiv
                         (Just _, False) -> WebHidden
                         (Nothing, True) -> WebUnlinked
                         (Nothing, False) -> WebMissing
-  
-glStatus :: (Applicative f, Eq (StockMasterF f))
-                   => (ItemMasterAndPrices f)
-                   -> (ItemMasterAndPrices f)
-                  -> f GLStatus
-glStatus basem varm = pure $ case (impMaster basem, impMaster varm) of
-  (Just base, Just var) | base == var -> GLOk
-  (Just base, Just var) | base == var {smfDescription = smfDescription base} -> GLDescriptionDiffers
-  _ -> GLDiffers
 
 -- ** Prices
 -- | Computes  theoretical prices based on default price and price list info.
