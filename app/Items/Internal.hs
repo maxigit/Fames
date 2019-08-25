@@ -214,49 +214,6 @@ webDisplayStatus ItemWebStatusF{..} =  status <$> iwfProductDisplay <*> iwfActiv
                         (Nothing, True) -> WebUnlinked
                         (Nothing, False) -> WebMissing
   
--- | Check if prices identical
-salesPricesStatus :: (Applicative f, Eq (PriceF f))
-                  => [Key SalesType] -- ^ keys to look at
-                  -> (ItemMasterAndPrices f)
-                  -> (ItemMasterAndPrices f)
-                  -> f PriceStatus
-salesPricesStatus validKeys base var = pure $ pricesStatus (IntSet.fromList $ map unSalesTypeKey validKeys)
-                                                           (impSalesPrices base)
-                                                           (impSalesPrices var)
-
-pricesStatus :: Eq a => IntSet -> Maybe (IntMap a) -> Maybe (IntMap a) -> PriceStatus
-pricesStatus validKeys basem varm = 
-  case (basem, varm) of
-            (Nothing, _) -> PriceOk
-            (Just _, Nothing) -> PriceMissing
-            (Just base, Just var) -> go base var
-  where go bases0 vars0 =
-          let onlyInBases = IntMap.differenceWith cmpValue bases vars
-              onlyInVars = IntMap.differenceWith cmpValue vars bases
-              keepValid m = if IntSet.null validKeys
-                          then m
-                          else IntMap.filterWithKey (\k _ -> k `IntSet.member` validKeys) m
-              bases = keepValid bases0
-              vars = keepValid vars0
-              cmpValue a b | a == b = Nothing
-              cmpValue a _ = Just a
-          in case (IntMap.null onlyInBases, IntMap.null onlyInVars) of
-               (True, True ) -> PriceOk
-               (True, False) -> PriceMissing
-               _ -> PriceDiffers
-         
-                       
-
-       
-purchasePricesStatus :: (Applicative f, Eq (PurchDataF f))
-                     => [Key Supplier] -- ^ keys to look at
-                     -> (ItemMasterAndPrices f)
-                     -> (ItemMasterAndPrices f)
-                     -> f PriceStatus
-purchasePricesStatus validKeys base var = pure $ pricesStatus (IntSet.fromList $ map unSupplierKey validKeys)
-                                                              (impPurchasePrices base)
-                                                              (impPurchasePrices var)
-
 glStatus :: (Applicative f, Eq (StockMasterF f))
                    => (ItemMasterAndPrices f)
                    -> (ItemMasterAndPrices f)

@@ -1,3 +1,9 @@
+* Items
+** Filtering odd items
+   - [ ] add price is set for retail list
+   - [ ] tidy up
+   - [ ] filter doesn't work
+   - [ ] price list filter doesn't work
 * Planner [1/3]
 ** +DONE Speedup Tags+
    CLOSED: [2019-08-12 Mon 15:30]

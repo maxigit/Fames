@@ -16,6 +16,7 @@ import Text.Blaze.Html.Renderer.Text(renderHtml)
 import qualified Data.List as List
 import Database.Persist.MySQL hiding(replace)
 import qualified Data.IntMap.Strict as IntMap
+import qualified Data.IntSet as IntSet
 import Text.Printf (printf)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Util.Cache
@@ -432,29 +433,24 @@ filterFromParam :: IndexParam -> IndexCache
            , [ ( VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text]) )) ]
            )
 filterFromParam param@IndexParam{..} cache (base, vars0) = let
-  baseInfo = iiInfo base
-  baseInfo' = iiInfo $ computeDiff base base -- hack to convert to .. ((,) [Text])
-  -- baseInfo' = ItemMasterAndPrices
-  --    (runIdentity . aStockMasterFToStockMasterF <$> impMaster baseInfo )
-  --    (runIdentity . aPriceFToPriceF <$$> impSalesPrices baseInfo )
-  --    (runIdentity . aPurchDataFToPurchDataF <$$> impPurchasePrices baseInfo )
-  --    (runIdentity . aItemStatusFToItemStatusF <$$> impFAStatus baseInfo )
-  --    (runIdentity . aItemWebStatusFToItemWebStatusF <$$> impWebStatus baseInfo )
-  --    (runIdentity . aWebPriceFToWebPriceF <$$> impWebPrice baseInfo )
   vars = filter (keepVar . snd) vars0
-  keepVar i = isBaseVariation i || statusOk baseInfo' i
-  statusOk :: (Applicative f, Comonad f, Eq (StockMasterF f), Eq (PriceF f), Eq (PurchDataF f))
-    => ItemMasterAndPrices f  -> ItemInfo (ItemMasterAndPrices f) -> Bool
-  statusOk b i = all (\fn -> fn param i) [ glStatusOk b
-                                     , salesPriceStatusOk (priceListsToKeep cache param) b
-                                     , purchasePriceStatusOk (suppliersToKeep cache param) b
+  keepVar i = isBaseVariation i || statusOk i
+  -- statusOk :: (Applicative f, Comonad f, Eq (StockMasterF f), Eq (PriceF f), Eq (PurchDataF f))
+  --   => ItemMasterAndPrices f  -> ItemInfo (ItemMasterAndPrices f) -> Bool
+  statusOk i = all (\fn -> fn param i) [ -- glStatusOk b
+                                      salesPriceStatusOk (priceListsToKeep cache param)
+                                     , purchasePriceStatusOk (suppliersToKeep cache param)
                                      , faStatusOk, webStatusOk
                                      ]
-  isBaseVariation ItemInfo{..} = return iiVariation == ipBaseVariation 
-  in case () of
-       _ | not (statusOk baseInfo base) -> Just (base, vars0) -- return everything in case base is not the correct one
-       _ | null (drop 1 vars) -> Nothing
-       _                      -> Just (base, vars)
+  -- | variation given as parameter or base one
+  isBaseVariation info = case ipBaseVariation of
+    Just v -> iiVariation info == v 
+    Nothing -> iiVariation info == iiVariation base
+  in case vars of
+       []                        -> Nothing
+       [b] | not (statusOk (snd b)) -> Just (base, vars0) -- return everything in case base is not the correct one
+       [_]                       -> Nothing -- status correct no need to display
+       _                        -> Just (base, vars)
 
 faStatusOk :: (Applicative f, Comonad f) => IndexParam -> ItemInfo (ItemMasterAndPrices f) -> Bool
 faStatusOk = checkStatuses ipFAStatusFilter (fmap faRunningStatus . impFAStatus . iiInfo)
@@ -478,16 +474,41 @@ glStatusOk :: (Applicative f, Comonad f, Eq (StockMasterF f))
            -> ItemInfo (ItemMasterAndPrices f)
            -> Bool
 glStatusOk base = checkStatuses ipGLStatusFilter (Just . glStatus base . iiInfo)
-salesPriceStatusOk ::
-  (Comonad w, Applicative w, Eq (PriceF w)) =>
-  [Key SalesType]
-  -> ItemMasterAndPrices w
-  -> IndexParam
-  -> ItemInfo (ItemMasterAndPrices w)
-  -> Bool
-salesPriceStatusOk base priceListIds = checkStatuses ipSalesPriceStatusFilter (Just . salesPricesStatus base priceListIds . iiInfo)
-purchasePriceStatusOk base priceListIds = checkStatuses ipPurchasePriceStatusFilter (Just . purchasePricesStatus base priceListIds . iiInfo)
+-- salesPriceStatusOk ::
+--   [Key SalesType]
+--   -> ItemMasterAndPrices ((,) Text)
+--   -> IndexParam
+--   -> Bool
+salesPriceStatusOk priceListIds = checkStatuses ipSalesPriceStatusFilter (Just . ([],) . (salesPricesStatus priceListIds) . iiInfo)
+salesPricesStatus :: [Key SalesType] ->  ItemMasterAndPrices ((,) [Text]) -> PriceStatus
+salesPricesStatus priceListIds item = case impSalesPrices item of
+  Nothing -> PriceMissing
+  Just prices0 ->  let
+    prices = case priceListIds of
+      [] -> prices0
+      _ -> IntMap.filterWithKey (\k _ -> k `IntSet.member` validKeys) prices0
+    validKeys = (IntSet.fromList $ map unSalesTypeKey priceListIds)
+    classes = filter (not . null) $ concatMap (fst . pfPrice) (toList prices) :: [Text]
+    in case ("text-danger" `elem` classes, classes) of
+      (True, _ ) -> PriceDiffers
+      (_, (_:_)) -> PriceMissing -- or extra which means the base is missing
+      _ -> PriceOk
 
+    
+purchasePriceStatusOk priceListIds = checkStatuses ipPurchasePriceStatusFilter (Just . ([],) . purchasePricesStatus priceListIds . iiInfo)
+purchasePricesStatus :: [Key Supplier] ->  ItemMasterAndPrices ((,) [Text]) -> PriceStatus
+purchasePricesStatus supplierIds item = case impPurchasePrices item of
+  Nothing -> PriceMissing
+  Just prices0 ->  let
+    prices = case supplierIds of
+      [] -> prices0
+      _ -> IntMap.filterWithKey (\k _ -> k `IntSet.member` validKeys) prices0
+    validKeys = (IntSet.fromList $ map unSupplierKey supplierIds)
+    classes = filter (not . null) $ concatMap (fst . pdfPrice) (toList prices) :: [Text]
+    in case ("text-danger" `elem` classes, classes) of
+      (True, _ ) -> PriceDiffers
+      (_, (_:_)) -> PriceMissing -- or extra which means the base is missing
+      _ -> PriceOk
 
 -- ** Sales prices
 -- | Load sales prices 
@@ -857,11 +878,11 @@ itemsTable cache param = do
                           GLOk ->  Just ([], [shamlet|<span.label.label-success data-label=glok>Ok|])
                           GLDiffers ->  Just ([], [shamlet|<span.label.label-danger data-label=gldiffers>diff|])
                           GLDescriptionDiffers ->  Just ([], [shamlet|<span.label.label-warning data-label=gldescription>description|])
-                        SalesPriceStatusColumn -> case snd $ salesPricesStatus [] base master of
+                        SalesPriceStatusColumn -> case salesPricesStatus (priceListsToKeep cache param ) master of
                           PriceOk ->  Just ([], [shamlet|<span.label.label-success data-label=sales-prices-ok>Ok|])
                           PriceMissing ->  Just ([], [shamlet|<span.label.label-warning data-label=sales-prices-missing>Missing|])
                           PriceDiffers ->  Just ([], [shamlet|<span.label.label-danger data-label=sales-prices-differ>Diff|])
-                        PurchasePriceStatusColumn -> case snd $ purchasePricesStatus [] base master of
+                        PurchasePriceStatusColumn -> case purchasePricesStatus (suppliersToKeep cache param) master of
                           PriceOk ->  Just ([], [shamlet|<span.label.label-success data-label=purchase-prices-ok>Ok|])
                           PriceMissing ->  Just ([], [shamlet|<span.label.label-warning data-label=purchase-prices-missing>Missing|])
                           PriceDiffers ->  Just ([], [shamlet|<span.label.label-danger data-label=purchase-prices-differ>Diff|])
@@ -1950,5 +1971,4 @@ changeWebActivation activate param = do
                             , DC.CommerceProductRevisionTRevisionTimestamp =. timestamp
                             ]
     mapM_ updateProduct products
-  
   
