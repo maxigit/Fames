@@ -25,7 +25,7 @@ import Control.Comonad
 import Handler.Util
 import Control.Monad.Reader(mapReaderT)
 import qualified Data.Map as Map
-import Debug.Trace
+  
 -- * Types
 -- | SQL text filter expression. Can be use either the LIKE syntax or the Regex one.
 -- Regex one starts with '/'.
@@ -357,8 +357,7 @@ loadVariations cache param = do
   -- mapM_ startDelayed delayeds
   let [ delayedSalesPrices , delayedPurchasePrices
         , delayedStatus
-        , delayedWebStatus
-        , delayedWebPrices 
+        , delayedWebStatus , delayedWebPrices 
         ] = delayeds
   let -- adjustSources ::
     -- Add sources needed by filter and remove duplicate
@@ -397,15 +396,22 @@ loadVariations cache param = do
     ItemGLView -> []
     ItemPriceView -> [delayedSalesPrices]
     ItemPurchaseView -> [delayedPurchasePrices]
+    ItemAllStatusView -> [delayedSalesPrices, delayedPurchasePrices, delayedStatus, delayedWebStatus, delayedWebPrices]
     ItemAllView -> [delayedSalesPrices, delayedPurchasePrices]
     ItemFAStatusView -> [delayedStatus]
     ItemWebStatusView -> [delayedSalesPrices, delayedStatus, delayedWebStatus, delayedWebPrices]
     ItemCategoryView -> []
     )
 
-  let itemStyles = mergeInfoSources ( map stockItemMasterToItem styles
-                                    : infoSources
-                                    )
+  let itemStyles = filterActive $ mergeInfoSources ( map stockItemMasterToItem styles
+                                                   : infoSources
+                                                   ) 
+      filterActive = if ipShowInactive param
+                     then id
+                     else  (List.filter (maybe False (not . runIdentity . smfInactive) . (impMaster . iiInfo)))
+                     -- ^ only keep active variations
+                     -- impMaster not present, means the variations hasn't been loaded (ie filtered)
+                     -- so we are not showing it
       itemVars =  case variations of
         Left keys -> map (snd . ?skuToStyleVar . unStockMasterKey) keys
         Right vars -> vars
@@ -475,7 +481,7 @@ glStatus item = case impMaster item of
   Just master' -> let
     master = master' {smfMaterialCost  = ([], 0)} -- we know that cost is always different
     (classes, _) = aStockMasterFToStockMaster master :: ([Text], StockMaster)
-    in Debug.Trace.traceShow ("GL status", master,classes) $ case (filter (not . null) classes) of
+    in case (filter (not . null) classes) of
               [] -> GLOk
               ["text-danger"] | fst (smfDescription master) == ["text-danger"] -> GLDescriptionDiffers
               _ -> GLDiffers
@@ -812,6 +818,7 @@ columnsFor cache ItemWebStatusView infos =
   -- so we also show missing prices list
   webPrices = List.nub . sort $ (keys (icPriceListNames cache)) <> (icWebPriceList cache)
 
+columnsFor _ ItemAllStatusView _ =  [StatusColumn, GLStatusColumn, SalesPriceStatusColumn, PurchasePriceStatusColumn, FAStatusColumn "Running Status", WebStatusColumn "Web Status"]
 columnsFor _ ItemAllView _ = []
 columnsFor cache ItemCategoryView _ = map CategoryColumn (icCategories cache)
 
@@ -837,7 +844,7 @@ itemsTable cache param = do
 
 
 
-  let columns = [CheckColumn, RadioColumn, StockIdColumn, StatusColumn] ++ columnsFor cache (ipMode param) allItems
+  let columns = [CheckColumn, RadioColumn, StockIdColumn] ++ columnsFor cache (ipMode param) allItems
 
   -- Church encoding ?
   let itemToF :: ItemInfo (ItemMasterAndPrices Identity)

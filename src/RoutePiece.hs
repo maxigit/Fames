@@ -36,6 +36,7 @@ instance PathPiece PLViewMode where
 -- * Items
 -- ** ItemIndex
 data ItemViewMode = ItemGLView
+                   | ItemAllStatusView
                    | ItemPriceView
                    | ItemPurchaseView
                    | ItemFAStatusView

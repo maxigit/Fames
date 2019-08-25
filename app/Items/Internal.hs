@@ -139,16 +139,17 @@ faToWebStatus style fa = case faRunningStatus <$> fa of
 -- | Check for each styles if they all variations present in variations
 -- variations
 -- joinStyleVariations :: [ItemInfo a] -> [ItemInfo b] -> [(VariationStatus , ItemInfo a)]
-joinStyleVariations :: Map Text (Text, Text)
-                    -> (ItemInfo a -> Text -> ItemInfo a)
-                    -> (ItemInfo a -> ItemInfo a -> ItemInfo diff)
-                    -> [ItemInfo a]
-                    -> [Text] -- ^ all possible variations
-                    -> [( ItemInfo a
+joinStyleVariations :: Copointed a =>  Map Text (Text, Text)
+                    -> (ItemInfo (ItemMasterAndPrices a) -> Text -> ItemInfo (ItemMasterAndPrices a))
+                    -> (ItemInfo (ItemMasterAndPrices a) -> ItemInfo (ItemMasterAndPrices a) -> ItemInfo diff)
+                    -> [ItemInfo (ItemMasterAndPrices a)]
+                    -> [Text] -- ^ All possible variations
+                    -> [( ItemInfo (ItemMasterAndPrices a)
                         , [(VariationStatus, ItemInfo diff)]
                         )]
 joinStyleVariations bases adjustBase computeDiff_ items vars = let
   styles = Map.fromListWith (flip (<>))  [(iiStyle item, [item]) | item <- items]
+  -- | if base is not defined, find the first active
 
   in map (\(_, variations@(var:_)) -> let
              -- bases Map a style to the base sku. We need to find the sku then item
@@ -156,7 +157,12 @@ joinStyleVariations bases adjustBase computeDiff_ items vars = let
              varsForBase = if null vars
                            then map iiVariation variations
                            else vars
-             base = fromMaybe var $ Map.lookup (iiStyle var) bases
+             -- | if the base is not set, find the first active variation
+             base0 = case filter (isActive) variations of
+                         [] -> var
+                         (x:_) -> x
+             isActive = maybe True (not . copoint . smfInactive) . (impMaster . iiInfo)
+             base = fromMaybe base0 $ Map.lookup (iiStyle var) bases
                >>= flip Map.lookup varMap
              in ( base
                 , computeItemsStatus adjustBase computeDiff_
