@@ -1,5 +1,11 @@
 {-# LANGUAGE OverloadedStrings, ImplicitParams #-}
-module Handler.Items.Index where
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TypeApplications #-}
+module Handler.Items.Index
+( getItemsIndexR
+, postItemsIndexR
+)
+where
 
 import Import hiding(replace)
 import Handler.Table
@@ -25,6 +31,7 @@ import Control.Comonad
 import Handler.Util
 import Control.Monad.Reader(mapReaderT)
 import qualified Data.Map as Map
+import qualified Generics.OneLiner as OL
   
 -- * Types
 -- | SQL text filter expression. Can be use either the LIKE syntax or the Regex one.
@@ -65,11 +72,28 @@ data IndexColumn = GLColumn Text
             | GLStatusColumn
             | SalesPriceStatusColumn
             | PurchasePriceStatusColumn
-            | FAStatusColumn Text
-            | WebStatusColumn Text
+            | FAStatusColumn FAStatusColumn
+            | WebStatusColumn WebColumn
             | WebPriceColumn Int
             | CategoryColumn Text -- (Text -> Maybe Text)
             deriving Show
+
+data WebColumn = WebStatusC | WebProductDisplay 
+  deriving (Show, Enum, Bounded, Eq, Ord, Generic)
+
+data FAStatusColumn
+  = QuantityOnHand AllOrAvailable
+  | OnDemand AllOrAvailable
+  | OnOrder
+  | RunningStatus
+  deriving (Show, Generic)
+
+-- | In FA : some location are "disabled" location
+-- meaning they should be ignored (ie lOST for lost item)
+-- or CANCELLED for cancelled order
+-- this type describe if we are interested in relevant quantities
+-- of everything
+data AllOrAvailable = FAAvailable | FAAll deriving (Show, Enum, Bounded, Eq, Ord, Generic)
 
 -- | Preloaded data to be used by the handler
 data IndexCache = IndexCache
@@ -235,7 +259,7 @@ styleQuery IndexParam{..} =
     [] -> Left "Please enter a styles or category filter expression (SQL like expression or regexp starting with '/'')"
     wheres -> Right  ( selectClause ++ joinClause ++ makeWhere (wheres ++ activeWhere)
                       , p0 <> p1 )
--- | Return Persistent filter corresponding to selected it
+-- | Return Persistent filter corresponding to selected checkbox
 selectedItemsFilter :: IsString a => IndexParam -> Either a  [ Filter FA.StockMaster ]
 selectedItemsFilter param = 
   case ipChecked param of
@@ -339,8 +363,18 @@ loadVariations :: (?skuToStyleVar :: Text -> (Text, Text))
                             )
                           ]
 loadVariations cache param = do
-  -- pre cache variations parts
   let forceCache = ipClearCache param
+  -- pre cache variations parts
+  -- parts of ItemMasterAndPrices Are loaded and cached asynchronouly.
+  -- This allow to preload and cache everything, ready to be seen by the user
+  -- when activated the corresponding time and at the same time
+  -- make data available if needed.
+  -- The cache include the paramter in the key, however
+  -- some parameter like which items are check on the mode are irrelevant
+  -- and therefore overriden.
+  -- Base it's also irrelevant even thought it has an impact
+  -- on the calculation of the status, it doesn't have
+  -- an impact on the loaded data
   delayeds <- mapM (\(p,a) -> (p,) <$> preCache0 forceCache
                                         (cacheDelay) (p
                                            , param { ipMode = ItemPriceView
@@ -799,26 +833,19 @@ columnsFor _ ItemPriceView infos = SalesPriceStatusColumn : map PriceColumn cols
   cols = salesPricesColumns $ map  iiInfo  infos
 columnsFor _ ItemPurchaseView infos = PurchasePriceStatusColumn :map PurchaseColumn cols where
   cols = purchasePricesColumns $ map  iiInfo  infos
-columnsFor cache ItemFAStatusView _ =
-  map FAStatusColumn fas where
-  fas = [ "Quantity On Hand"
-        , "Quantity On Hand (all)"
-        , "On Demand"
-        , "On Demand (all)"
-        , "On Order"
-        , "Running Status"
-        ]
+columnsFor cache ItemFAStatusView _ = map FAStatusColumn fas where
+  fas = OL.create @Bounded [minBound,maxBound] 
+
 columnsFor cache ItemWebStatusView infos =
   columnsFor cache ItemFAStatusView infos
-  <> map WebStatusColumn webs
+  <> map WebStatusColumn (OL.create [])
   <> map WebPriceColumn webPrices
   where
-  webs = ["Web Status", "Product Display"]
   -- union of FA prices list AND web prices
   -- so we also show missing prices list
   webPrices = List.nub . sort $ (keys (icPriceListNames cache)) <> (icWebPriceList cache)
 
-columnsFor _ ItemAllStatusView _ =  [StatusColumn, GLStatusColumn, SalesPriceStatusColumn, PurchasePriceStatusColumn, FAStatusColumn "Running Status", WebStatusColumn "Web Status"]
+columnsFor _ ItemAllStatusView _ =  [StatusColumn, GLStatusColumn, SalesPriceStatusColumn, PurchasePriceStatusColumn, FAStatusColumn RunningStatus, WebStatusColumn WebStatusC]
 columnsFor _ ItemAllView _ = []
 columnsFor cache ItemCategoryView _ = map CategoryColumn (icCategories cache)
 
@@ -827,6 +854,7 @@ itemsTable :: (?skuToStyleVar :: Text -> (Text, Text))
                 => IndexCache -> IndexParam ->  Handler Widget
 itemsTable cache param = do
   let checkedItems = if null (ipChecked param) then Nothing else Just (ipChecked param)
+  renderUrl <- getUrlRenderParams
   renderUrl <- getUrlRenderParams
   itemGroups <- loadVariations cache param
 
@@ -884,8 +912,8 @@ itemsTable cache param = do
                         GLColumn name ->  columnForSMI name =<< impMaster master
                         PriceColumn i -> columnForPrices i =<< impSalesPrices master 
                         PurchaseColumn i -> columnForPurchData i =<< impPurchasePrices master 
-                        FAStatusColumn name -> columnForFAStatus name =<< impFAStatus master
-                        WebStatusColumn name -> columnForWebStatus name (impWebStatus master)
+                        FAStatusColumn col -> columnForFAStatus col =<< impFAStatus master
+                        WebStatusColumn col -> columnForWebStatus col (impWebStatus master)
                         WebPriceColumn i -> columnForWebPrice i =<< impWebPrices master
                         CategoryColumn catName -> columnForCategory catName <$> icCategoryFinder cache catName (FA.StockMasterKey sku)
                         GLStatusColumn -> case glStatus master of
@@ -987,16 +1015,15 @@ columnForPurchData colInt purchData = do -- Maybe
   value <- IntMap.lookup colInt purchData
   return $ toHtml . tshow <$> pdfPrice value where
 
-columnForFAStatus :: Text -> (ItemStatusF ((,) [Text])) -> Maybe ([Text], Html)
+columnForFAStatus :: FAStatusColumn -> (ItemStatusF ((,) [Text])) -> Maybe ([Text], Html)
 columnForFAStatus col iStatus@ItemStatusF{..} =
   case col of
-    "Quantity On Hand" -> Just (toHtml . tshow <$> isfQoh)
-    "Quantity On Hand (all)" -> Just (toHtml . tshow <$> isfAllQoh)
-    "On Demand" -> Just (toHtml . tshow <$> isfOnDemand)
-    "On Demand (all)" -> Just (toHtml . tshow <$> isfAllOnDemand)
-    "On Order" -> Just (toHtml . tshow <$> isfOnOrder)
-    "Running Status" -> Just (statusBadge <$> faRunningStatus iStatus )
-    _ -> Nothing
+    QuantityOnHand FAAvailable -> Just (toHtml . tshow <$> isfQoh)
+    QuantityOnHand FAAll-> Just (toHtml . tshow <$> isfAllQoh)
+    OnDemand FAAvailable-> Just (toHtml . tshow <$> isfOnDemand)
+    OnDemand FAAll -> Just (toHtml . tshow <$> isfAllOnDemand)
+    OnOrder-> Just (toHtml . tshow <$> isfOnOrder)
+    RunningStatus -> Just (statusBadge <$> faRunningStatus iStatus )
   where statusBadge st = case st of
           FARunning ->  [shamlet|<span.label.label-success data-label=running
                               data-toggle="tooltip" title="#{running}"
@@ -1016,13 +1043,13 @@ columnForFAStatus col iStatus@ItemStatusF{..} =
         ghost = "The item exists in the system but is not used whatsoever. It could be safely deleted" :: Text
 
 
-columnForWebStatus :: Text -> Maybe (ItemWebStatusF ((,) [Text])) -> Maybe ([Text], Html)
+columnForWebStatus :: WebColumn -> Maybe (ItemWebStatusF ((,) [Text])) -> Maybe ([Text], Html)
 columnForWebStatus col wStatusM =
   let w  = (iwfActive `traverse` wStatusM)
   in case col of
-    "Web Status" -> let
+    WebStatusC -> let
       in  Just (showActive <$>  w)
-    "Product Display" ->
+    WebProductDisplay ->
       case sequence w of
         Just (_, True) ->  Just $ maybe ([], [shamlet|<span.label.label-danger data-label="unlinked"
                                                       data-toggle="tooltip" title="The variation exists but is not linked to a product display."
@@ -1033,7 +1060,6 @@ columnForWebStatus col wStatusM =
                                       (fmap toHtml)
                                       (sequence . iwfProductDisplay =<<  wStatusM) 
         Nothing -> Nothing
-    _ -> Nothing
   where showActive (Just True) = [shamlet|<span data-label="web-active"
                                           data-toggle="tooltip" title="The variation exists and will show on the product display page (if any)."
                                           >Active|]
@@ -1222,8 +1248,18 @@ getColumnToTitle cache param = do
                                    <input type="checkbox" name="col-check-#{supplierColumnCheckId i}" :checked:checked>|]
                           , ["purch_price"]
                           )
-            FAStatusColumn t -> Right t
-            WebStatusColumn t -> Right t
+            FAStatusColumn t -> Right $ case t of
+                QuantityOnHand FAAvailable -> "Quantity On Hand (Avl)"
+                QuantityOnHand FAAll -> "Quantity On Hand (All)"
+                OnDemand FAAvailable -> "On Demand (Avl)"
+                OnDemand FAAll -> "On Demand (All)"
+                OnOrder -> "On Order"
+                RunningStatus -> "Running Status"
+              
+            WebStatusColumn t -> Right $ case t of
+                WebStatusC -> "Web Status"
+                WebProductDisplay  -> "Product Display"
+              
             WebPriceColumn i -> -- check if the prices list exists in FA or Web
               case lookup i priceListNames of
                 Nothing -> Left (toHtml $ "#" <> tshow i, ["text-danger"]) -- only web

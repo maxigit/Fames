@@ -58,7 +58,7 @@ dependencies:
 - Glob
 - mtl >=2.2 && <2.3
 - path-pieces >=0.2 && <0.3
-- generics-sop
+- one-liner >= 1.0 && <2
 - Metamorphosis >= 0.1.0.1
 - fames-persist
 - microlens >= 0.4.1.1 && < 0.5
