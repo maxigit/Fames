@@ -487,9 +487,8 @@ filterFromParam param@IndexParam{..} cache (base, vars0) = let
     Just v -> iiVariation info == v 
     Nothing -> iiVariation info == iiVariation base
   in case vars of
-       []                        -> Nothing
-       [b] | not (statusOk (snd b)) -> Just (base, vars0) -- return everything in case base is not the correct one
-       [_]                       -> Nothing -- status correct no need to display
+       []                       -> Nothing
+       [b] | not (statusOk (snd b)) -> Nothing -- base incorrect, don't display
        _                        -> Just (base, vars)
 
 faStatusOk :: (Applicative f, Comonad f) => IndexParam -> ItemInfo (ItemMasterAndPrices f) -> Bool
@@ -500,8 +499,8 @@ checkStatuses :: (Eq status, Comonad w)
   => (param -> Maybe [status]) -> (item -> Maybe (w status)) -> param -> item -> Bool
 checkStatuses paramStatuses itemStatus param item =
   case (paramStatuses param, itemStatus item) of
-    (Nothing, _) -> True -- not statuses to check
-    (Just [], _) -> True -- not statuses to check
+    (Nothing, _) -> True -- no statuses to check
+    (Just [], _) -> True -- no statuses to check
     (Just nonnull, Just statusM)  -> extract statusM `elem` nonnull
     (_, Nothing) -> False -- not item status to check
 
