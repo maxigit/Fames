@@ -139,7 +139,9 @@ faToWebStatus style fa = case faRunningStatus <$> fa of
 -- | Check for each styles if they all variations present in variations
 -- variations
 -- joinStyleVariations :: [ItemInfo a] -> [ItemInfo b] -> [(VariationStatus , ItemInfo a)]
-joinStyleVariations :: Copointed a =>  Map Text (Text, Text)
+joinStyleVariations :: Copointed a
+                    =>  Map Text (Text, Text)
+                    -> [Text] -- ^ help to find the base if not given
                     -> (ItemInfo (ItemMasterAndPrices a) -> Text -> ItemInfo (ItemMasterAndPrices a))
                     -> (ItemInfo (ItemMasterAndPrices a) -> ItemInfo (ItemMasterAndPrices a) -> ItemInfo diff)
                     -> [ItemInfo (ItemMasterAndPrices a)]
@@ -147,7 +149,7 @@ joinStyleVariations :: Copointed a =>  Map Text (Text, Text)
                     -> [( ItemInfo (ItemMasterAndPrices a)
                         , [(VariationStatus, ItemInfo diff)]
                         )]
-joinStyleVariations bases adjustBase computeDiff_ items vars = let
+joinStyleVariations bases baseCandidates adjustBase computeDiff_ items vars = let
   styles = Map.fromListWith (flip (<>))  [(iiStyle item, [item]) | item <- items]
   -- | if base is not defined, find the first active
 
@@ -158,9 +160,14 @@ joinStyleVariations bases adjustBase computeDiff_ items vars = let
                            then map iiVariation variations
                            else vars
              -- | if the base is not set, find the first active variation
-             base0 = case filter (isActive) variations of
-                         [] -> var
-                         (x:_) -> x
+             -- but preferably the one true for baseCandidate
+             weightMap = Map.fromList (zip baseCandidates [1..])
+             weight v = Map.findWithDefault (1 + length baseCandidates) v weightMap
+             base0 = case sortOn (weight . iiVariation)
+                        $ filter (isActive) variations
+                     of
+                          [] -> var
+                          (x:_) ->  x
              isActive = maybe True (not . copoint . smfInactive) . (impMaster . iiInfo)
              base = fromMaybe base0 $ Map.lookup (iiStyle var) bases
                >>= flip Map.lookup varMap

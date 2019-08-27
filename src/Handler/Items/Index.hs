@@ -17,7 +17,7 @@ import Handler.Items.Common
 import Handler.Items.Category.Cache
 import qualified Data.Map as Map
 import Data.Monoid(Endo(..), appEndo)
-import Data.Text(toTitle, replace, strip)
+import Data.Text(toTitle, replace, strip, splitOn)
 import Text.Blaze.Html.Renderer.Text(renderHtml)
 import qualified Data.List as List
 import Database.Persist.MySQL hiding(replace)
@@ -199,7 +199,7 @@ indexForm categories groups param = renderBootstrap3 BootstrapBasicForm form
           <*> (aopt (mkStatusOptions 5) "Purchase Price status" (Just $ ipPurchasePriceStatusFilter param)) 
           <*> (aopt (mkStatusOptions 2) "Running status" (Just $ ipFAStatusFilter param)) 
           <*> (aopt (mkStatusOptions 3) "Web Display status" (Just $ ipWebStatusFilter param)) 
-          <*> (aopt textField "include variation" (Just $ ipBaseVariation param))
+          <*> (aopt textField "base candidates" (Just $ ipBaseVariation param))
         groups' =  map (\g -> (g,g)) groups
         mkStatusOptions n = multiSelectField $ optionsPairs $ map (fanl (drop n . tshow)) [minBound..maxBound]
         rstatus = optionsPairs $ map (fanl (drop 2 . tshow)) [minBound..maxBound]
@@ -211,12 +211,16 @@ indexForm categories groups param = renderBootstrap3 BootstrapBasicForm form
 fillTableParams :: IndexParam -> Handler IndexParam
 fillTableParams params0 = do
   (params,_) <- runRequestBody
-  let checked = mapMaybe (stripPrefix "check-" . fst)  params
-      bases = Map.fromList $ mapMaybe (\(k,v) -> stripPrefix "base-" k <&> (\b -> (b, v))
+  let checked False  = mapMaybe (stripPrefix "check-" . fst)  params
+      checked True =[]
+      bases False = Map.fromList $ mapMaybe (\(k,v) -> stripPrefix "base-" k <&> (\b -> (b, v))
                                      ) params
+      bases True = mempty
       columns = mapMaybe (stripPrefix "col-check-" . fst) params
       clearCache = lookup "button" params == Just "refresh"
-  return $ params0 {ipChecked = checked, ipBases=bases, ipColumns=columns, ipClearCache = clearCache}
+      resetVariations = lookup "button" params == Just "clear-variations"
+      
+  return $ params0 {ipChecked = checked resetVariations, ipBases=bases resetVariations, ipColumns=columns, ipClearCache = clearCache}
    
 
 -- getPostIndexParam :: IndexParam -> Handler (IndexParam, _
@@ -446,10 +450,12 @@ loadVariations cache param = do
                      -- ^ only keep active variations
                      -- impMaster not present, means the variations hasn't been loaded (ie filtered)
                      -- so we are not showing it
+      baseCandidates = maybe [] (splitOn "|") (ipBaseVariation param)
       itemVars =  case variations of
         Left keys -> map (snd . ?skuToStyleVar . unStockMasterKey) keys
         Right vars -> vars
       itemGroups = joinStyleVariations (?skuToStyleVar <$> bases)
+                                        baseCandidates
                                         (adjustBase cache) computeDiff
                                         itemStyles itemVars
       filterExtra = if ipShowExtra param
@@ -474,7 +480,7 @@ filterFromParam :: IndexParam -> IndexCache
            )
 filterFromParam param@IndexParam{..} cache (base, vars0) = let
   vars = filter (keepVar . snd) vars0
-  keepVar i = isBaseVariation i || statusOk i
+  keepVar i = isBase i || statusOk i
   -- statusOk :: (Applicative f, Comonad f, Eq (StockMasterF f), Eq (PriceF f), Eq (PurchDataF f))
   --   => ItemMasterAndPrices f  -> ItemInfo (ItemMasterAndPrices f) -> Bool
   statusOk i = all (\fn -> fn param i) [ glStatusOk
@@ -483,9 +489,7 @@ filterFromParam param@IndexParam{..} cache (base, vars0) = let
                                      , faStatusOk, webStatusOk
                                      ]
   -- | variation given as parameter or base one
-  isBaseVariation info = case ipBaseVariation of
-    Just v -> iiVariation info == v 
-    Nothing -> iiVariation info == iiVariation base
+  isBase info = iiVariation base == iiVariation info
   in case vars of
        []                       -> Nothing
        [b] | not (statusOk (snd b)) -> Nothing -- base incorrect, don't display
@@ -1192,6 +1196,7 @@ $('[data-toggle="tooltip"]').tooltip();
     <div.well>
       ^{form}
       <button type="submit" name="button" value="search" class="btn btn-default">Search
+      <button type="submit" name="button" value="clear-variations" class="btn btn-primary">Clear/Set Variations
       <button type="submit" name="button" value="refresh" class="btn btn-info">Refresh Cache
     <ul.nav.nav-tabs>
       $forall nav <- navs
