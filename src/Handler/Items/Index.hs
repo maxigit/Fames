@@ -174,37 +174,64 @@ paramDef mode = IndexParam Nothing Nothing Nothing -- SKU category
                            False -- ^ clear c
                            Nothing Nothing Nothing Nothing Nothing -- status filter
                            Nothing -- ^ base variation
+
+-- g :: Applicative f => (f (Double -> Bool -> ABC)) -> _ -> f ABC
+-- g  = a <*> undefined
 -- indexForm :: (MonadHandler m,
 --               RenderMessage (HandlerSite m) FormMessage)
 --           => [Text]
 --           -> IndexParam
 --           -> Markup
 --           -> MForm m (FormResult IndexParam, WidgetT (HandlerSite m) IO ())
-indexForm categories groups param = renderBootstrap3 BootstrapBasicForm form
-  where form = IndexParam
-          <$> (aopt filterEField "Sku" (Just $ ipSKU param))
-          <*> (aopt (selectFieldList categoryOptions) "Category" (Just $ ipCategory param))
-          <*> (aopt filterEField "Category Filter" (Just $ ipCategoryFilter param))
-          <*> (aopt filterEField "variations" (Just $ ipVariationsF param))
-          <*> (aopt (selectFieldList groups') "variation group" (Just $ ipVariationGroup param))
-          <*> (areq boolField "Show Inactive" (Just $ ipShowInactive param))
-          <*> (areq boolField "Show Extra" (Just $ ipShowExtra param))
+indexForm :: [Text]
+          -> _
+          -> IndexParam
+          -> Html
+          -> MForm Handler (FormResult IndexParam, Widget)
+indexForm categories groups param extra = do
+    (f1, w1 ) <- renderBootstrap3 BootstrapBasicForm form1 extra
+    (f2, w2 ) <- renderBootstrap3 BootstrapBasicForm (form2 $ pure (\a b f -> f a b )) ""
+    (f2', w2' ) <- renderBootstrap3 BootstrapBasicForm (form2' $ pure (\a b f -> f a b)) ""
+    (f3, _unused_w3 ) <- renderBootstrap3 BootstrapBasicForm (form3 $ pure (\a b c d e f -> f a b c d e)) ""
+    (f4, w4 ) <- renderBootstrap3 BootstrapBasicForm (form4 $ pure (\a b c d e f -> f a b c d e)) ""
+    (f5, w5 ) <- renderBootstrap3 BootstrapBasicForm (form5 $ pure (\a f -> f a)) ""
+    let f = f1 <**> f2 <**> f2' <**> f3 <**> f4 <**> f5
+        ws = map renderInline [w1 , w2, w2', w4 , w5]
+    return (f, mconcat ws )
+  where form1 = IndexParam
+          <$> (aopt filterEField (bfs' "Sku") (Just $ ipSKU param))
+          <*> (aopt (selectFieldList categoryOptions) (bfs' "Category") (Just $ ipCategory param))
+          <*> (aopt filterEField (bfs' "Category Filter") (Just $ ipCategoryFilter param))
+        form2 f = f
+          <*> (aopt filterEField (bfs' "variations") (Just $ ipVariationsF param))
+          <*> (aopt (selectFieldList groups') (bfs' "variation group") (Just $ ipVariationGroup param))
+        form2' f = f
+          <*> (areq boolField (bfs' "Show Inactive") (Just $ ipShowInactive param))
+          <*> (areq boolField (bfs' "Show Extra") (Just $ ipShowExtra param))
+        form3 f = f
           <*> pure (ipBases param)
           <*> pure (ipChecked param)
           <*> pure (ipColumns param)
           <*> pure (ipMode param)
           <*> pure False
-          <*> (aopt (mkStatusOptions 2) "GL status" (Just $ ipGLStatusFilter param)) 
-          <*> (aopt (mkStatusOptions 5) "Sales Price status" (Just $ ipSalesPriceStatusFilter param)) 
-          <*> (aopt (mkStatusOptions 5) "Purchase Price status" (Just $ ipPurchasePriceStatusFilter param)) 
-          <*> (aopt (mkStatusOptions 2) "Running status" (Just $ ipFAStatusFilter param)) 
-          <*> (aopt (mkStatusOptions 3) "Web Display status" (Just $ ipWebStatusFilter param)) 
-          <*> (aopt textField "base candidates" (Just $ ipBaseVariation param))
+        form4 f = f
+          <*> (aopt (mkStatusOptions 2) (bfs' "GL status") (Just $ ipGLStatusFilter param)) 
+          <*> (aopt (mkStatusOptions 5) (bfs' "Sales Price status") (Just $ ipSalesPriceStatusFilter param)) 
+          <*> (aopt (mkStatusOptions 5) (bfs' "Purchase Price status") (Just $ ipPurchasePriceStatusFilter param)) 
+          <*> (aopt (mkStatusOptions 2) (bfs' "Running status") (Just $ ipFAStatusFilter param)) 
+          <*> (aopt (mkStatusOptions 3) (bfs' "Web Display status") (Just $ ipWebStatusFilter param)) 
+        form5 f = f
+          <*> (aopt textField (bfs' "base candidates") (Just $ ipBaseVariation param))
+        -- form = form2 form1
         groups' =  map (\g -> (g,g)) groups
         mkStatusOptions n = multiSelectField $ optionsPairs $ map (fanl (drop n . tshow)) [minBound..maxBound]
         rstatus = optionsPairs $ map (fanl (drop 2 . tshow)) [minBound..maxBound]
         wstatus = optionsPairs $ map (fanl (drop 3 . tshow)) [minBound..maxBound]
         categoryOptions = [(cat, cat) | cat <-categories ]
+        bfs' t = t --  bfs (t :: Text)
+        renderInline w = [whamlet|<div.well>
+                                     <div.form-inline>^{w}
+                                 |]
 
 -- | Fill the parameters which are not in the form but have to be extracted
 -- from the request parameters
@@ -1193,7 +1220,7 @@ $('[data-toggle="tooltip"]').tooltip();
   let widget = [whamlet|
 <div #items-index>
   <form #items-form role=form method=post action=@{ItemsR (ItemsIndexR (Just mode))} enctype=#{encType}>
-    <div.well>
+    <div.form>
       ^{form}
       <button type="submit" name="button" value="search" class="btn btn-default">Search
       <button type="submit" name="button" value="clear-variations" class="btn btn-primary">Clear/Set Variations
