@@ -216,6 +216,7 @@ parseBoxList text = mapMaybe go (lines text)
           chooseInner <$> case split (`elem` (",xX\t" :: [Char])) (strip line) of
             [l,w,h] -> Just ("", mkDim0 line l w h, Nothing)
             [s,l,w,h] -> Just (s, mkDim0 line l w h, Nothing)
+            [s,l,w,h,""] -> Just (s, mkDim0 line l w h, Nothing)
             [l,w,h, il, iw, ih] -> Just ("", mkDim0 line l w h, (mkDimM il iw ih))
             [s,l,w,h, il, iw, ih] -> Just (s, mkDim0 line l w h, (mkDimM il iw ih))
             _ -> Nothing
