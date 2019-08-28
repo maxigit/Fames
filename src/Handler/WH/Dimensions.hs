@@ -16,7 +16,7 @@ import qualified Yesod.Media.Simple as M
 import Diagrams.Prelude hiding(iso)
 import Diagrams.Backend.Cairo
 import Data.Ord(comparing)
-import Data.Text (splitOn, strip)
+import Data.Text (splitOn, strip, split)
 import Data.Maybe (fromJust)
 -- import Linear.Affine ((.-.))
 
@@ -55,7 +55,7 @@ validateParam (l,w,h,il,iw,ih,style) =
 
 
 bulkForm text = renderBootstrap3 BootstrapBasicForm form where
-  form = unTextarea <$> areq textareaField "dimensions" (fmap Textarea text)
+  form = unTextarea <$> areq textareaField (bfs ("dimensions" :: Text)) (fmap Textarea text)
   
 -- * Requests
 
@@ -213,15 +213,20 @@ loadBoxForStyles style =  do
 parseBoxList :: Text -> [(Text, Dimension, Maybe Dimension)]
 parseBoxList text = mapMaybe go (lines text)
   where go line =
-          case splitOn "," (strip line) of
-            [l,w,h] -> Just ("", mkDim0 l w h, Nothing)
-            [s,l,w,h] -> Just (s, mkDim0 l w h, Nothing)
-            [l,w,h, il, iw, ih] -> Just ("", mkDim0 l w h, (mkDimM il iw ih))
-            [s,l,w,h, il, iw, ih] -> Just (s, mkDim0 l w h, (mkDimM il iw ih))
+          chooseInner <$> case split (`elem` (",xX\t" :: [Char])) (strip line) of
+            [l,w,h] -> Just ("", mkDim0 line l w h, Nothing)
+            [s,l,w,h] -> Just (s, mkDim0 line l w h, Nothing)
+            [l,w,h, il, iw, ih] -> Just ("", mkDim0 line l w h, (mkDimM il iw ih))
+            [s,l,w,h, il, iw, ih] -> Just (s, mkDim0 line l w h, (mkDimM il iw ih))
             _ -> Nothing
-        c = readMay :: Text -> Maybe Double
-        mkDim0 l w h = fromJust $ mkDimM l w h
+        c = readMay . (stripSuffix' "cm") . toLower :: Text -> Maybe Double
+        stripSuffix' pre s = fromMaybe s $ stripSuffix pre s
+        mkDim0 line l w h = fromMaybe (error $ "Can't parse dimension for " ++ unpack line) $ mkDimM l w h
         mkDimM l w h = liftA3 Dimension (c l) (c w) (c h)
+        -- swap inner and outer boxes if necessary
+        chooseInner (style, b1, Just b2) | volume b1 < volume b2 = (style, b2, Just b1)
+        chooseInner x                                            = x
+                    
 
 routeFor (Dimension l w h) Nothing = WarehouseR $ WHDimensionOuterR ((fromIntegral.round) l) (round w) (round h)
 routeFor (Dimension l w h) (Just (Dimension il iw ih))
@@ -252,8 +257,13 @@ displayBox outer innerm   = let
 innerBoxes :: Dimension -> Dimension -> [PDimension]
 innerBoxes outer inner =
   let orientations = zip3 allOrientations (repeat 0) (repeat 6)
-      best = bestArrangement orientations [(outer, ())] inner
-      (ori, nl, nw, nh, _) = best
+      -- try with shrunk box by 1 cm first
+      best0 = bestArrangement orientations [(outer, ())] inner
+      shrink (Dimension x y z) = Dimension (x-1) (y-1) (z-1)
+      best = bestArrangement orientations [(shrink outer, ())] inner
+      (ori, nl, nw, nh, _) = case best of
+         (ori, nl, nw, nh, _) | nl*nw*nw > 0 -> best
+         _ -> best0
       (Dimension l w h) = W.rotate ori inner
   in reverse $ [ PDimension (Dimension l0 w0 h0) inner ori
                | iw <- [1..nw]
