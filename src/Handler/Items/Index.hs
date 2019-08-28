@@ -54,6 +54,7 @@ data IndexParam = IndexParam
   , ipPurchasePriceStatusFilter :: Maybe [PriceStatus]
   , ipFAStatusFilter :: Maybe [FARunningStatus]
   , ipWebStatusFilter :: Maybe [WebDisplayStatus]
+  , ipWebPriceStatusFilter :: Maybe [PriceStatus]
   , ipBaseVariation:: Maybe Text -- ^ to keep when filtering element, so that missing have a base
   } deriving (Eq, Show, Read)
 
@@ -73,12 +74,13 @@ data IndexColumn = GLColumn Text
             | SalesPriceStatusColumn
             | PurchasePriceStatusColumn
             | FAStatusColumn FAStatusColumn
-            | WebStatusColumn WebColumn
+            | WebStatusColumn WebColumn -- situaton of variations/ active hidden, link
             | WebPriceColumn Int
+            | WebPriceStatusColumn --  does web prices matches FA ?
             | CategoryColumn Text -- (Text -> Maybe Text)
             deriving Show
 
-data WebColumn = WebStatusC | WebProductDisplay 
+data WebColumn = WebStatusC | WebProductDisplay
   deriving (Show, Enum, Bounded, Eq, Ord, Generic)
 
 data FAStatusColumn
@@ -172,7 +174,7 @@ paramDef mode = IndexParam Nothing Nothing Nothing -- SKU category
                            mempty empty empty
                            (fromMaybe ItemGLView mode)
                            False -- ^ clear c
-                           Nothing Nothing Nothing Nothing Nothing -- status filter
+                           Nothing Nothing Nothing Nothing Nothing Nothing -- status filter
                            Nothing -- ^ base variation
 
 -- g :: Applicative f => (f (Double -> Bool -> ABC)) -> _ -> f ABC
@@ -193,7 +195,7 @@ indexForm categories groups param extra = do
     (f2, w2 ) <- renderBootstrap3 BootstrapBasicForm (form2 $ pure (\a b f -> f a b )) ""
     (f2', w2' ) <- renderBootstrap3 BootstrapBasicForm (form2' $ pure (\a b f -> f a b)) ""
     (f3, _unused_w3 ) <- renderBootstrap3 BootstrapBasicForm (form3 $ pure (\a b c d e f -> f a b c d e)) ""
-    (f4, w4 ) <- renderBootstrap3 BootstrapBasicForm (form4 $ pure (\a b c d e f -> f a b c d e)) ""
+    (f4, w4 ) <- renderBootstrap3 BootstrapBasicForm (form4 $ pure (\a b c d e x f -> f a b c d e x)) ""
     (f5, w5 ) <- renderBootstrap3 BootstrapBasicForm (form5 $ pure (\a f -> f a)) ""
     let f = f1 <**> f2 <**> f2' <**> f3 <**> f4 <**> f5
         ws = map renderInline [w1 , w2, w2', w4 , w5]
@@ -220,6 +222,7 @@ indexForm categories groups param extra = do
           <*> (aopt (mkStatusOptions 5) (bfs' "Purchase Price status") (Just $ ipPurchasePriceStatusFilter param)) 
           <*> (aopt (mkStatusOptions 2) (bfs' "Running status") (Just $ ipFAStatusFilter param)) 
           <*> (aopt (mkStatusOptions 3) (bfs' "Web Display status") (Just $ ipWebStatusFilter param)) 
+          <*> (aopt (mkStatusOptions 5) (bfs' "Web Price status") (Just $ ipWebPriceStatusFilter param)) 
         form5 f = f
           <*> (aopt textField (bfs' "base candidates") (Just $ ipBaseVariation param))
         -- form = form2 form1
@@ -434,6 +437,7 @@ loadVariations cache param = do
           (if null (ipPurchasePriceStatusFilter param) then Nothing else Just delayedPurchasePrices) ?:
           (if null (ipFAStatusFilter param) then Nothing else Just delayedStatus) ?:
           (if null (ipWebStatusFilter param) then Nothing else Just delayedWebStatus) ?:
+          (if null (ipWebPriceStatusFilter param) then Nothing else Just delayedWebPrices) ?:
           sources
         )
 
@@ -513,7 +517,7 @@ filterFromParam param@IndexParam{..} cache (base, vars0) = let
   statusOk i = all (\fn -> fn param i) [ glStatusOk
                                      , salesPriceStatusOk (priceListsToKeep cache param)
                                      , purchasePriceStatusOk (suppliersToKeep cache param)
-                                     , faStatusOk, webStatusOk
+                                     , faStatusOk, webStatusOk, webPriceStatusOk (webPriceListToKeep cache param)
                                      ]
   -- | variation given as parameter or base one
   isBase info = iiVariation base == iiVariation info
@@ -543,7 +547,12 @@ glStatus :: ItemMasterAndPrices ((,) [Text]) -> GLStatus
 glStatus item = case impMaster item of
   Nothing -> GLDiffers
   Just master' -> let
-    master = master' {smfMaterialCost  = ([], 0)} -- we know that cost is always different
+    master = master' { smfActualCost  = ([], 0)
+                     , smfLastCost  = ([], 0)
+                     , smfMaterialCost  = ([], 0)
+                     , smfLabourCost  = ([], 0)
+                     , smfOverheadCost  = ([], 0)
+                     } -- costs can be different, so we don't check them
     (classes, _) = aStockMasterFToStockMaster master :: ([Text], StockMaster)
     in case (filter (not . null) classes) of
               [] -> GLOk
@@ -558,14 +567,15 @@ glStatus item = case impMaster item of
 --   -> Bool
 salesPriceStatusOk priceListIds = checkStatuses ipSalesPriceStatusFilter (Just . ([],) . (salesPricesStatus priceListIds) . iiInfo)
 salesPricesStatus :: [Key SalesType] ->  ItemMasterAndPrices ((,) [Text]) -> PriceStatus
-salesPricesStatus priceListIds item = case impSalesPrices item of
-  Nothing -> PriceMissing
-  Just prices0 ->  let
+salesPricesStatus priceListIds item = maybe PriceMissing (pricesStatus pfPrice unSalesTypeKey priceListIds) (impSalesPrices item)
+
+-- pricesStatus :: [Key SalesType] -> IntMap (PriceF ((,) [Text])) -> PriceStatus
+pricesStatus getPrice unkey priceListIds prices0 =  let
     prices = case priceListIds of
       [] -> prices0
       _ -> IntMap.filterWithKey (\k _ -> k `IntSet.member` validKeys) prices0
-    validKeys = (IntSet.fromList $ map unSalesTypeKey priceListIds)
-    classes = filter (not . null) $ concatMap (fst . pfPrice) (toList prices) :: [Text]
+    validKeys = (IntSet.fromList $ map unkey priceListIds)
+    classes = filter (not . null) $ concatMap (fst . getPrice) (toList prices) :: [Text]
     in case ("text-danger" `elem` classes, classes) of
       (True, _ ) -> PriceDiffers
       (_, (_:_)) -> PriceMissing -- or extra which means the base is missing
@@ -574,19 +584,12 @@ salesPricesStatus priceListIds item = case impSalesPrices item of
     
 purchasePriceStatusOk priceListIds = checkStatuses ipPurchasePriceStatusFilter (Just . ([],) . purchasePricesStatus priceListIds . iiInfo)
 purchasePricesStatus :: [Key Supplier] ->  ItemMasterAndPrices ((,) [Text]) -> PriceStatus
-purchasePricesStatus supplierIds item = case impPurchasePrices item of
-  Nothing -> PriceMissing
-  Just prices0 ->  let
-    prices = case supplierIds of
-      [] -> prices0
-      _ -> IntMap.filterWithKey (\k _ -> k `IntSet.member` validKeys) prices0
-    validKeys = (IntSet.fromList $ map unSupplierKey supplierIds)
-    classes = filter (not . null) $ concatMap (fst . pdfPrice) (toList prices) :: [Text]
-    in case ("text-danger" `elem` classes, classes) of
-      (True, _ ) -> PriceDiffers
-      (_, (_:_)) -> PriceMissing -- or extra which means the base is missing
-      _ -> PriceOk
+purchasePricesStatus supplierIds item = maybe PriceMissing (pricesStatus pdfPrice unSupplierKey supplierIds) (impPurchasePrices item)
 
+webPriceStatusOk priceListIds = checkStatuses ipWebPriceStatusFilter (fmap (([],) . webPriceStatus priceListIds) . impWebPrices . iiInfo)
+webPriceStatus :: [Key SalesType] -> ItemPriceF ((,) [Text]) -> PriceStatus
+webPriceStatus priceListIds (ItemPriceF prices) = pricesStatus id unSalesTypeKey priceListIds prices
+  
 -- ** Sales prices
 -- | Load sales prices 
     -- loadSalesPrices :: IndexParam -> Handler [ItemInfo (ItemMasterAndPrices Identity)]
@@ -875,7 +878,7 @@ columnsFor cache ItemWebStatusView infos =
   -- so we also show missing prices list
   webPrices = List.nub . sort $ (keys (icPriceListNames cache)) <> (icWebPriceList cache)
 
-columnsFor _ ItemAllStatusView _ =  [StatusColumn, GLStatusColumn, SalesPriceStatusColumn, PurchasePriceStatusColumn, FAStatusColumn RunningStatus, WebStatusColumn WebStatusC]
+columnsFor _ ItemAllStatusView _ =  [StatusColumn, GLStatusColumn, SalesPriceStatusColumn, PurchasePriceStatusColumn, FAStatusColumn RunningStatus, WebPriceStatusColumn, WebStatusColumn WebStatusC]
 columnsFor _ ItemAllView _ = []
 columnsFor cache ItemCategoryView _ = map CategoryColumn (icCategories cache)
 
@@ -958,6 +961,11 @@ itemsTable cache param = do
                           PriceOk ->  Just ([], [shamlet|<span.label.label-success data-label=purchase-prices-ok>Ok|])
                           PriceMissing ->  Just ([], [shamlet|<span.label.label-warning data-label=purchase-prices-missing>Missing|])
                           PriceDiffers ->  Just ([], [shamlet|<span.label.label-danger data-label=purchase-prices-differ>Diff|])
+                        WebPriceStatusColumn -> case webPriceStatus (webPriceListToKeep cache param ) <$> impWebPrices master of
+                          Nothing -> Nothing
+                          Just PriceOk ->  Just ([], [shamlet|<span.label.label-success data-label=web-prices-ok>Ok|])
+                          Just PriceMissing ->  Just ([], [shamlet|<span.label.label-warning data-label=web-prices-missing>Missing|])
+                          Just PriceDiffers ->  Just ([], [shamlet|<span.label.label-danger data-label=web-prices-differ>Diff|])
 
 
             differs = or diffs where
@@ -1073,7 +1081,9 @@ columnForFAStatus col iStatus@ItemStatusF{..} =
         ghost = "The item exists in the system but is not used whatsoever. It could be safely deleted" :: Text
 
 
-columnForWebStatus :: WebColumn -> Maybe (ItemWebStatusF ((,) [Text])) -> Maybe ([Text], Html)
+columnForWebStatus :: WebColumn
+                   -> Maybe (ItemWebStatusF ((,) [Text]))
+                   -> Maybe ([Text], Html)
 columnForWebStatus col wStatusM =
   let w  = (iwfActive `traverse` wStatusM)
   in case col of
@@ -1290,7 +1300,7 @@ getColumnToTitle cache param = do
             WebStatusColumn t -> Right $ case t of
                 WebStatusC -> "Web Status"
                 WebProductDisplay  -> "Product Display"
-              
+            WebPriceStatusColumn  -> Right "Web Prices (vs FA)"
             WebPriceColumn i -> -- check if the prices list exists in FA or Web
               case lookup i priceListNames of
                 Nothing -> Left (toHtml $ "#" <> tshow i, ["text-danger"]) -- only web
@@ -1509,7 +1519,8 @@ deleteDC params = do
         let pId'revIds = [ (p,r) | (_, p, r) <- sku'pId'revIds ]
         mapM_ go pId'revIds
   
-  
+webPriceListToKeep _ _  = []
+
 createMissingProducts
   :: IndexCache
   -> [((VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text]))), Double)]
