@@ -6,6 +6,8 @@ module GL.Payroll.Settings where
 import ClassyPrelude
 import Data.Aeson.TH(deriveJSON, defaultOptions, fieldLabelModifier, sumEncoding, SumEncoding(..))
 import Data.Aeson.Types
+import Data.Aeson
+import Data.Text(splitOn)
 
 -- * Types
 -- ** For config
@@ -58,6 +60,7 @@ data PayrollSettings = PayrollSettings
   , wagesBankAccount :: Int
   , externals :: Map Text PayrollExternalSettings
   , views :: Map Text [Text]
+  -- , formulas :: Map Text PayrollFormula
   } deriving (Show, Read, Eq, Ord)
 
 
@@ -91,6 +94,11 @@ predCyclic d = pred d
 succCyclic Sunday = Monday
 succCyclic d = succ d
 
+-- ** Formula
+-- | Simple formula to 
+data PayrollFormula = Deduce Text Double  -- deduce a constant from an external value
+  deriving (Show, Read, Eq, Ord)
+
 -- * JSON
 instance ToJSONKey (Maybe DayOfWeek) where
   toJSONKey = toJSONKeyText myKey where
@@ -100,6 +108,13 @@ instance FromJSONKey (Maybe DayOfWeek) where
   fromJSONKey = FromJSONKeyValue parseW  where
     parseW v = (Just <$> parseJSON  v) <|> return Nothing
        
+instance ToJSON PayrollFormula where
+  toJSON (Deduce key value) = String $ key <> "-"  <> tshow value
+
+instance FromJSON PayrollFormula where
+  parseJSON =  withText "deduce" $ \t -> case splitOn "-" t of
+      [val, (readMay -> Just x  )] ->  return $ Deduce val x
+      _ ->  mzero
   
   
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField}''DayOfWeek)
