@@ -114,7 +114,11 @@ validate param key = do
                                  TS.filterTimesheet (const False) isDACUnlocked timesheet  `forM` (displayShifts displayDAC . TS._deductionAndCosts)
                                  displayTimesheetCalendar timedShifts (timesheetPayrooForSummary timesheet)
                                  -- TS.filterTimesheet isShiftDurationUnlocked (const True) timesheet `forM` displayTimesheet
-                                 TS.filterTimesheet isShiftViewable isDACUnlocked timesheet `forM` (displayEmployeeSummary . timesheetPayrooForSummary)
+                                 TS.filterTimesheet isShiftViewable isDACUnlocked timesheet `forM` (\ts -> do
+                                      let vs = case toList (views (appPayroll settings) ) of
+                                                    [] -> [[]]
+                                                    vs -> vs
+                                      forM vs $ \cols -> displayEmployeeSummary' (columnWeightFromList cols) . timesheetPayrooForSummary $ ts)
                                  return ()
                              )
 

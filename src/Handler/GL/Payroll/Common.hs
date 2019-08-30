@@ -456,13 +456,16 @@ columnWeightFromList colnames col _ = let
   
 tweakSummary :: TS.EmployeeSummary Text Text -> TS.EmployeeSummary Text Text
 tweakSummary emp =  let
-  -- val = either (const 0) (-118) (unlock ?viewPayrollAmountPermissions emp ^. TS.gross)
   val118 = (\x -> x - 118) <$> emp ^. TS.gross -- unside a locker
-  val512 = (\x -> x - 118) <$> emp ^. TS.gross -- unside a locker
-  deducs = emp ^. TS.deductions
-  in emp & TS.deductions .~ deducs <> mapFromList [("Qualified Earnings (W)", val118)
-                                                  ,("Qualified Earnings (M)", val512)
-                                                  ]
+  val512 = (\x -> x - 512) <$> emp ^. TS.gross -- unside a locker
+  deducs = emp ^. TS.netDeductions
+  suffixKeys suffix = Map.mapKeysMonotonic (<> suffix) 
+  in emp & TS.netDeductions .~ deducs <> mapFromList [("Qualified Earnings (W)", val118)
+                                                     ,("Qualified Earnings (M)", val512)
+                                                     ]
+         & TS.deductions %~ (suffixKeys "(e)")
+         & TS.costs %~ (suffixKeys "(r)")
+  
 -- | Return columns compatibles with employeeSummaryTable
 employeeSummaryColumns :: [TS.EmployeeSummary Text e]
                        -> ([(Maybe (TS.EmployeeSummary Text e -> Map Text TS.Amount),

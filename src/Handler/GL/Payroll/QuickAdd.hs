@@ -31,6 +31,9 @@ saveQuickAdd  save text key  = do
   viewPayrollDurationPermissions' <- viewPayrollAmountPermissions
   let ?viewPayrollAmountPermissions = viewPayrollAmountPermissions'
       ?viewPayrollDurationPermissions = viewPayrollDurationPermissions'
+  let views_ = case toList (views payrollSettings) of
+                 [] -> [[]]
+                 vs -> vs
   runExceptT $ do
     timesheets <- ExceptT . return $ splitTimesheet text
 
@@ -72,7 +75,8 @@ saveQuickAdd  save text key  = do
                      ^{displayEmployeeSummary (timesheetPayrooForSummary timesheet)}
                    <div.well>
                      <h3> Final
-                     ^{displayEmployeeSummary mergedTts'}
+                     $forall cols <- views_
+                      ^{displayEmployeeSummary' (columnWeightFromList cols) mergedTts'}
                          |]
         _ -> ExceptT . return $ Left $ "No timesheet with reference '"  <> ref <> "''"
 
