@@ -57,6 +57,7 @@ data PayrollSettings = PayrollSettings
   , grnWorkLocation :: Text
   , wagesBankAccount :: Int
   , externals :: Map Text PayrollExternalSettings
+  , views :: Map Text [Text]
   } deriving (Show, Read, Eq, Ord)
 
 

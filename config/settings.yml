@@ -37,6 +37,7 @@ copyright: Insert copyright statement here
 #analytics: UA-YOURCODE
 payroll:
   employees: {}
+  views: {}
   firstTaxWeek: "2017-03-31"
   firstTaxMonth: "2017-03-26"
   wagesSupplier: 65

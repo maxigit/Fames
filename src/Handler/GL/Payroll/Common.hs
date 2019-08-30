@@ -429,17 +429,38 @@ displayDAC = let
 -- | Displays a table with all payment information for each employee t
 displayEmployeeSummary :: (?viewPayrollAmountPermissions :: (Text -> Granted))
                        => TS.Timesheet Text Text -> Widget
-displayEmployeeSummary timesheet = let
+displayEmployeeSummary = displayEmployeeSummary' (columnWeightFromList [])
+displayEmployeeSummary' :: (?viewPayrollAmountPermissions :: (Text -> Granted), Ord weight)
+                        => (Text -> Int -> Maybe weight) -- ^ column weight
+                        -> TS.Timesheet Text Text -> Widget
+displayEmployeeSummary' columnWeight timesheet= let
   summaries = TS.paymentSummary timesheet
-  (cols, colnames) = employeeSummaryColumns summaries
+  (cols0, colnames) = employeeSummaryColumns summaries
+  -- weight return a maybe weight
+  cols = map fst
+       . sortOn snd
+       $ [ (col, weight)
+         | (col@(_, colname), i) <- zip cols0 [1..]
+         , Just weight <- [columnWeight colname i]
+         ]
   rows = employeeSummaryRows summaries
   in employeeSummaryTable cols colnames rows
 
--- | Display a table with all payment informaiton
--- the rows are different from the summaries. This allows
--- the header to generate different column that then one actually needed.
--- this is usefull when displaying different timesheet in different tables
--- but with all the table  having the same header.
+-- | Computes a weight function compatible with displayEmployeeSummary'
+-- by taking a list of column name to display in order
+columnWeightFromList :: [Text] -> (Text -> Int -> Maybe Int)
+columnWeightFromList [] col i = Just i
+columnWeightFromList colnames col _ = let
+  weights = Map.fromList (zip colnames [1..])
+  in lookup col weights
+  
+
+-- | Return columns compatibles with employeeSummaryTable
+employeeSummaryColumns :: [TS.EmployeeSummary Text e]
+                       -> ([(Maybe (TS.EmployeeSummary Text e -> Map Text TS.Amount),
+                             Text)] -- ^ columns (value getter, column name)
+                          , (a, Text) -> (Html, [a1]) -- ^ function to render column names
+                          )
 employeeSummaryColumns summaries = let 
   toCols getter = map (Just getter,)  .  Map.keys $ mconcat $ map getter summaries
   deductions =  toCols TS._deductions
@@ -464,6 +485,11 @@ employeeSummaryColumns summaries = let
   colNames (_, col) = (toHtmlWithBreak col, [])
   in (columns, colNames)
 
+-- | Display a table with all payment informaiton
+-- the rows are different from the summaries. This allows
+-- the header to generate different column that then one actually needed.
+-- this is usefull when displaying different timesheet in different tables
+-- but with all the table  having the same header.
 employeeSummaryTable columns colNames rows = let 
   table =  displayTableRowsAndHeader columns colNames rows 
   in [whamlet|

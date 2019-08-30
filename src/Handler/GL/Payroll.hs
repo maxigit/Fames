@@ -194,6 +194,7 @@ getGLPayrollViewR key = do
   modelE <- loadTimesheet key
   viewPayrollAmountPermissions' <- viewPayrollAmountPermissions
   viewPayrollDurationPermissions' <- viewPayrollDurationPermissions
+  psettings <- appPayroll <$> getsYesod appSettings
   let ?viewPayrollAmountPermissions = viewPayrollAmountPermissions'
       ?viewPayrollDurationPermissions = viewPayrollDurationPermissions'
       -- Date used for invoice and payment
@@ -213,10 +214,16 @@ getGLPayrollViewR key = do
           --           ]
           dacsReport = ("Deductions and Costs" :: Text, displayShifts displayDAC . TS._deductionAndCosts, TS.filterTimesheet (const False) isDACUnlocked )
           summaryReport = ("Summary", displayEmployeeSummary , TS.filterTimesheet isShiftViewable isDACUnlocked)
+          summaries0 = [(viewName, displayEmployeeSummary' (columnWeightFromList colnames)  , TS.filterTimesheet isShiftViewable isDACUnlocked)
+                  | (viewName, colnames) <- Map.toList $ views psettings
+                  ]
+          summaries = case summaries0 of
+            [] -> [summaryReport]
+            ss -> ss
       timedShifts <- loadTimedShiftsFromTS ts'
       let calendar = ("Calendar", displayTimesheetCalendar timedShifts, TS.filterTimesheet isShiftDurationUnlocked (const False) )
           -- reports = [(name, report  . TS._shifts, TS.filterTimesheet isShiftViewable (const False) ) | (name, report)  <- reports']
-          reports0 = [calendar, dacsReport, summaryReport]
+          reports0 = [calendar, dacsReport] <> summaries
           reports = reports0 <> (if timesheetStatus ts /= Process
                                 then [("Generate Payments", addFAForm . generatePaymentForm, TS.filterTimesheet isShiftViewable isDACUnlocked)]
                                 else  [] )
