@@ -633,7 +633,12 @@ moveBoxes :: (Box' b , Shelf' shelf) => ExitMode -> [b s] -> [shelf s] -> WH [Bo
 moveBoxes exitMode bs ss = do
   boxes <- mapM findBox bs
   shelves <- mapM findShelf ss
-  let layers = groupBy ((==)  `on` boxGlobalPriority) $ sortBy (comparing boxGlobalPriority) boxes
+  let layers = groupBy ((==)  `on` boxGlobalRank) $ sortBy (comparing boxGlobalRank) boxes
+      boxGlobalRank box = (boxGlobalPriority box, boxStyle box, boxStylePriority box,  _boxDim box)
+      -- ^ we need to regroup box by style and size
+      -- However we take into the account priority within the style before the dimension
+      -- so that we can set the priority
+        
   lefts <- forM layers $ \layer -> do
     let groups = groupSimilar _boxDim layer
     -- forM groups $ \(SimilarBy dim _ boxes) -> traceShowM ("  GROUP", dim, 1 + length boxes)
