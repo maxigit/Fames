@@ -40,6 +40,7 @@ filterForm paramM = let
   in renderBootstrap3 BootstrapBasicForm form
 
 -- * Handler
+{-# NOINLINE getGLPayrollSummaryR #-}
 getGLPayrollSummaryR :: Handler Html
 getGLPayrollSummaryR = do
   today <- todayH
@@ -50,6 +51,7 @@ getGLPayrollSummaryR = do
                                  Nothing
                                  mempty)
 
+{-# NOINLINE postGLPayrollSummaryR #-}
 postGLPayrollSummaryR :: Handler Html
 postGLPayrollSummaryR = do
   ((resp, formW), encType) <- runFormPost (filterForm Nothing)

@@ -374,6 +374,7 @@ authFA = AuthPlugin "fa" dispatch loginWidget
               <td colspan="2">
                  <button type="submit" .btn .btn-success>_{Msg.LoginTitle}
         |]
+{-# NOINLINE postLoginR #-}
 postLoginR :: AuthHandler App TypedContent
 postLoginR = do
   (username, password) <- ( runInputPost

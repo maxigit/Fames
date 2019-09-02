@@ -70,6 +70,7 @@ batchCategoryIndexForm categories batchName = renderBootstrap3 BootstrapInlineFo
              <*> areq hiddenField ("" { fsName = Just "category-filter"}) (Just batchName)
 -- * Handler
 -- ** All batches
+{-# NOINLINE getItemBatchesR #-}
 getItemBatchesR :: Handler Html
 getItemBatchesR = do
   renderUrl <- getUrlRenderParams
@@ -100,6 +101,7 @@ getItemBatchesR = do
             |]
 
 
+{-# NOINLINE postItemBatchesR #-}
 postItemBatchesR :: Handler Html
 postItemBatchesR = do
   return ""
@@ -107,6 +109,7 @@ postItemBatchesR = do
   
 -- ** Single Batch
 -- display a batch
+{-# NOINLINE getItemBatchR #-}
 getItemBatchR :: Int64 -> Handler Html
 getItemBatchR key = do
   let batchKey = BatchKey (fromIntegral key)
@@ -126,6 +129,7 @@ getItemBatchR key = do
             |]
 
 -- display page to create a new batch
+{-# NOINLINE getItemNewBatchR #-}
 getItemNewBatchR :: Handler Html
 getItemNewBatchR = do
   -- ret
@@ -138,6 +142,7 @@ getItemNewBatchR = do
       <button.btn.btn-default type="submit" name="action" value="Cancel"> Cancel
       |]
                                                      
+{-# NOINLINE postItemNewBatchR #-}
 postItemNewBatchR :: Handler Html
 postItemNewBatchR = do
   today <- todayH
@@ -146,9 +151,11 @@ postItemNewBatchR = do
   setSuccess "Batch has been successfuly saved!"
   redirect (ItemsR . ItemBatchR $ unSqlBackendKey (unBatchKey key))
 
+{-# NOINLINE getItemEditBatchR #-}
 getItemEditBatchR :: Int64 -> Handler Html
 getItemEditBatchR key = return "Todo"
  
+{-# NOINLINE postItemEditBatchR #-}
 postItemEditBatchR :: Int64 -> Handler Html
 postItemEditBatchR key = return "Todo"
 
@@ -176,6 +183,7 @@ uploadBatchExtra =  do
            <*> aopt (selectField operatorOptions) "Operator" Nothing
            <*> areq (selectFieldList $ zip categories categories) "Operator" Nothing
          )
+{-# NOINLINE postItemBatchUploadMatchesR #-}
 postItemBatchUploadMatchesR :: Handler Html
 postItemBatchUploadMatchesR = do
   extra <- uploadBatchExtra
@@ -203,6 +211,7 @@ postItemBatchUploadMatchesR = do
   w <- renderParsingResult (\msg w' -> return( msg >> w')) onSuccess parsingResult
   defaultLayout w
 
+{-# NOINLINE postItemBatchSaveMatchesR #-}
 postItemBatchSaveMatchesR :: Handler Html
 postItemBatchSaveMatchesR = do
   actionM <- lookupPostParam "action"
@@ -236,6 +245,7 @@ postItemBatchSaveMatchesR = do
   -- return "Todo"
     
 -- ** Match Table
+{-# NOINLINE getItemBatchMatchTableR #-}
 getItemBatchMatchTableR :: Handler Html
 getItemBatchMatchTableR = do
   param <- getMatchTableParam 
@@ -318,6 +328,7 @@ loadMatchTable MatchTableParam{..} = do
 
   return tableW
       
+{-# NOINLINE getItemBatchExpandMatchesR #-}
 getItemBatchExpandMatchesR :: Handler Html 
 getItemBatchExpandMatchesR = do
   limitM <- lookupGetParam "limit"
@@ -368,6 +379,7 @@ expandAllMatches = runDB $ do
   return (guessed, batchName')
 
 -- | Saves expanded matches
+{-# NOINLINE postItemBatchExpandMatchesR #-}
 postItemBatchExpandMatchesR :: Handler Html
 postItemBatchExpandMatchesR = do
   (guessed,_) <- expandAllMatches

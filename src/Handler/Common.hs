@@ -10,6 +10,7 @@ import Import
 favicon= $(embedFile "config/favicon.ico")
 faviconDOrange= $(embedFile "config/favicon-dorange.ico")
 faviconPurple= $(embedFile "config/favicon-purple.ico")
+{-# NOINLINE getFaviconR #-}
 getFaviconR :: Handler TypedContent
 getFaviconR = do
   faviconName <- appFavicon <$> getsYesod appSettings
@@ -21,6 +22,7 @@ getFaviconR = do
                         _ -> favicon
                      )
 
+{-# NOINLINE getRobotsR #-}
 getRobotsR :: Handler TypedContent
 getRobotsR = return $ TypedContent typePlain
                     $ toContent $(embedFile "config/robots.txt")

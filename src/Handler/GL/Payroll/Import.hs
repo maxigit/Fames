@@ -52,6 +52,7 @@ importForm paramM = let
                  <*> pure (mempty)
   in renderBootstrap3 BootstrapBasicForm form
 -- * Handler
+{-# NOINLINE getGLPayrollImportR #-}
 getGLPayrollImportR :: Handler Html
 getGLPayrollImportR = do
   today <- todayH
@@ -307,6 +308,7 @@ dim2Finder = do
   return $ flip lookup byDim2
   
 
+{-# NOINLINE postGLPayrollImportR #-}
 postGLPayrollImportR :: Handler Html
 postGLPayrollImportR =  do
   ((resp, formW), encType) <- runFormPost (importForm Nothing)

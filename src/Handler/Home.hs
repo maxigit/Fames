@@ -12,6 +12,7 @@ import Text.Julius (RawJS (..))
 -- The majority of the code you will write in Yesod lives in these handler
 -- functions. You can spread them across multiple files if you are so
 -- inclined, or create a single monolithic file.
+{-# NOINLINE getHomeR #-}
 getHomeR :: Handler Html
 getHomeR = do
     mains <- mainLinks
@@ -25,5 +26,6 @@ getHomeR = do
         $(widgetFile "homepage")
         $(fayFile "Home")
 
+{-# NOINLINE postHomeR #-}
 postHomeR :: Handler Html
 postHomeR = getHomeR

@@ -47,11 +47,13 @@ setInfoToDoc = do
   html <- withUrlRenderer (pageBody doc)
   setInfo $ html
   
+{-# NOINLINE getPViewR #-}
 getPViewR :: Maybe PlannerViewMode -> Handler TypedContent
 getPViewR viewMode = do
   setInfoToDoc
   renderView defaultParam {pViewMode = viewMode}
 
+{-# NOINLINE postPViewR #-}
 postPViewR :: Maybe PlannerViewMode -> Handler TypedContent
 postPViewR viewMode = do
   ((resp, _), _) <- runFormPost $ paramForm Nothing
@@ -60,6 +62,7 @@ postPViewR viewMode = do
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess param -> renderView param {pViewMode = viewMode <|> pViewMode param }
 
+{-# NOINLINE getPImageR #-}
 getPImageR :: Text -> Int64 -> Int64 -> Handler TypedContent
 getPImageR sha i width = do
   scenarioM <- cacheScenarioOut sha

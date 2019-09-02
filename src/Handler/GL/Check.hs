@@ -124,10 +124,12 @@ checkForm paramM = renderBootstrap3 BootstrapBasicForm form where
                     <*> aopt dayField "to" (pTo <$> paramM)
                     <*> areq boolField "Display All" (pDisplayAll <$> paramM <|> Just False )
 
+{-# NOINLINE getGLCheckR #-}
 getGLCheckR :: Handler Html
 getGLCheckR = renderCheck defaultParam Nothing
 
 itext t = t :: Text
+{-# NOINLINE postGLCheckR #-}
 postGLCheckR :: Handler Html
 postGLCheckR = do
   ((resp, formW), enctype) <- runFormPost (checkForm Nothing)
@@ -240,6 +242,7 @@ loadGLFor transNo transType = do
              [Asc GlTranId]
 
 -- ** Check
+{-# NOINLINE getGLCheckDebtorTransR #-}
 getGLCheckDebtorTransR :: Int64 -> Int64 -> Handler Html
 getGLCheckDebtorTransR no tType = do
   force <- isJust <$> lookupGetParam "force"
@@ -524,6 +527,7 @@ debtorTransDetailDiscountedAmount DebtorTransDetail{..} =
       else debtorTransDetailUnitPrice)
   * (debtorTransDetailDiscountPercent)
   
+{-# NOINLINE postGLFixDebtorTransR #-}
 postGLFixDebtorTransR :: Int64 -> Int64 -> Handler Html
 postGLFixDebtorTransR no tType = do
   runDB $ fixDebtorTrans no tType

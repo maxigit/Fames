@@ -57,10 +57,12 @@ data UploadParam = UploadParam
 
 -- * Requests
 -- ** Boxtake history
+{-# NOINLINE getWHBoxtakeR #-}
 getWHBoxtakeR :: Handler Html
 getWHBoxtakeR = do
   renderBoxtakes defaultInquiryParam
 
+{-# NOINLINE postWHBoxtakeR #-}
 postWHBoxtakeR :: Handler Html
 postWHBoxtakeR = do
   ((resp, _), _) <- runFormPost (inquiryForm Nothing)
@@ -70,6 +72,7 @@ postWHBoxtakeR = do
     FormSuccess param -> renderBoxtakes param
 
 -- | Display the detail of a box given a barcode.
+{-# NOINLINE getWHBoxtakeDetailR #-}
 getWHBoxtakeDetailR :: Text -> Handler Html
 getWHBoxtakeDetailR barcode = do
   boxtakem <- runDB $ getBy  (UniqueBB barcode)
@@ -80,12 +83,15 @@ getWHBoxtakeDetailR barcode = do
       Just boxtake -> return $ renderBoxtakeDetail operatorsMap boxtake stocktakes
   
 -- ** Upload
+{-# NOINLINE getWHBoxtakeValidateR #-}
 getWHBoxtakeValidateR :: Handler Html
 getWHBoxtakeValidateR = renderBoxtakeSheet Validate Nothing 202 (return ()) (return ())
 
+{-# NOINLINE postWHBoxtakeValidateR #-}
 postWHBoxtakeValidateR :: Handler TypedContent
 postWHBoxtakeValidateR = processBoxtakeSheet Validate
 
+{-# NOINLINE postWHBoxtakeSaveR #-}
 postWHBoxtakeSaveR :: Handler TypedContent
 postWHBoxtakeSaveR = do
   actionM <- lookupPostParam "action"
@@ -94,6 +100,7 @@ postWHBoxtakeSaveR = do
     _ -> processBoxtakeSheet Save
 
 -- * Planner
+{-# NOINLINE getWHBoxtakePlannerR #-}
 getWHBoxtakePlannerR :: Handler TypedContent
 getWHBoxtakePlannerR = do
   let source = plannerSource
@@ -147,11 +154,13 @@ spreadSheetToCsv = processBoxtakeSheet' Save go
 -- Boxtake Adjustment allows to validate or invalidate boxtake
 -- depending on the actual stock
 
+{-# NOINLINE getWHBoxtakeAdjustmentR #-}
 getWHBoxtakeAdjustmentR :: Handler TypedContent
 getWHBoxtakeAdjustmentR = do
   setWarning "Make sure orderXtra cache has been reset on FrontAccounting"
   flip renderBoxtakeAdjustments Nothing =<< defaultAdjustmentParamH
 
+{-# NOINLINE postWHBoxtakeAdjustmentR #-}
 postWHBoxtakeAdjustmentR :: Handler TypedContent
 postWHBoxtakeAdjustmentR = do
   ((resp, _ ) , _) <- adjustmentForm <$> defaultAdjustmentParamH >>= runFormPost
@@ -166,6 +175,7 @@ postWHBoxtakeAdjustmentR = do
 
 -- | Narrow the search to the given style.
 -- Used mainly as a target from link
+{-# NOINLINE getWHBoxtakeAdjustmentForR #-}
 getWHBoxtakeAdjustmentForR :: Text -> Bool ->  Handler TypedContent
 getWHBoxtakeAdjustmentForR style skipOk = do
   param0 <- defaultAdjustmentParamH

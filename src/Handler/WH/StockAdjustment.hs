@@ -101,6 +101,7 @@ getQuantityBefore params =
   -- We need to sum those quantites ()
   let sku'qtys = mapMaybe (traverse readMay) params
   in Map.fromListWith (+) sku'qtys
+{-# NOINLINE getWHStockAdjustmentR #-}
 getWHStockAdjustmentR :: Handler Html
 getWHStockAdjustmentR = do
   renderStockAdjustment
@@ -140,6 +141,7 @@ renderStockAdjustment = do
 
 
 
+{-# NOINLINE postWHStockAdjustmentR #-}
 postWHStockAdjustmentR :: Handler Html
 postWHStockAdjustmentR = do
   action <- lookupPostParam "action"
@@ -544,6 +546,7 @@ loadAdjustmentTakes key = do
   map entityVal <$>  selectList [StocktakeAdjustment ==. Just adjKey] [Asc StocktakeStockId]
 
   
+{-# NOINLINE getWHStockAdjustmentViewR #-}
 getWHStockAdjustmentViewR :: Int64 -> Handler Html
 getWHStockAdjustmentViewR key = do
   let mainLocationLoc = Just (FA.LocationKey "DEF")
@@ -630,6 +633,7 @@ getWHStockAdjustmentViewR key = do
 -- Everything is done within the same transaction even though we can be posting more than
 -- one transactions. if on fail, everything will be rollbacked even though previous transcation
 -- in FA might persists. They might needs to be cleaned manually
+{-# NOINLINE postWHStockAdjustmentToFAR #-}
 postWHStockAdjustmentToFAR ::  Int64 -> Handler Html
 postWHStockAdjustmentToFAR key = do
   let mainLocationLoc = Just (FA.LocationKey "DEF")
@@ -665,6 +669,7 @@ postWHStockAdjustmentToFAR key = do
       getWHStockAdjustmentR
 
   
+{-# NOINLINE postWHStockAdjustmentRejectR #-}
 postWHStockAdjustmentRejectR :: Int64 -> Handler Html
 postWHStockAdjustmentRejectR adjId = do
   rejectStockAdj adjId

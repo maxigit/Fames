@@ -134,6 +134,7 @@ overrideParamFromUrl param@IndexParam{..} = do
   
   
   
+{-# NOINLINE getItemsIndexR #-}
 getItemsIndexR :: Maybe ItemViewMode -> Handler TypedContent
 getItemsIndexR mode = do
   skuToStyleVar <- skuToStyleVarH
@@ -141,6 +142,7 @@ getItemsIndexR mode = do
   param <- overrideParamFromUrl (paramDef mode)
   renderIndex param ok200
 
+{-# NOINLINE postItemsIndexR #-}
 postItemsIndexR :: Maybe ItemViewMode -> Handler TypedContent
 postItemsIndexR mode = do
   action <- lookupPostParam "button"

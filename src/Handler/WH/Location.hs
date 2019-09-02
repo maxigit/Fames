@@ -11,6 +11,7 @@ import qualified Data.Map as Map
 
 -- * Requests
 -- | Displays the list of locations
+{-# NOINLINE getWHStocktakeLocationR #-}
 getWHStocktakeLocationR :: Handler Html
 getWHStocktakeLocationR = do
   locations <- appStockLocationsInverse . appSettings <$> getYesod
@@ -28,6 +29,7 @@ getWHStocktakeLocationR = do
         <td> #{location}: #{shelf}
 |]
 
+{-# NOINLINE getWHLocationListR #-}
 getWHLocationListR :: Handler TypedContent
 getWHLocationListR = do
   source <- csvSource
@@ -35,6 +37,7 @@ getWHLocationListR = do
   respondSource "text/csv" (source .| mapC toFlushBuilder)
   
   
+{-# NOINLINE getWHLocationStickersR #-}
 getWHLocationStickersR :: Handler TypedContent
 getWHLocationStickersR = do
   source <- csvSource

@@ -190,6 +190,7 @@ getForecastDirOptions = getSubdirOptions appForecastProfilesDir
 
 -- * Handler
 
+{-# NOINLINE getItemsReportR #-}
 getItemsReportR :: Maybe ReportMode -> Handler TypedContent
 getItemsReportR mode = do
   actionM <- lookupGetParam "action"
@@ -252,6 +253,7 @@ getItemsReportR' mode = do
 
   renderReportForm ItemsReportR mode (Just defaultReportParam) ok200 Nothing
 
+{-# NOINLINE getItemsReport2R #-}
 getItemsReport2R :: Maybe ReportMode -> Handler Html
 getItemsReport2R mode = do
   redirect $ ItemsR (ItemsReportR (Just ReportChart))
@@ -341,9 +343,11 @@ postItemsReportFor route mode = do
               renderReportForm route mode (Just param) ok200 (Just report)
 
 
+{-# NOINLINE postItemsReport2R #-}
 postItemsReport2R :: Maybe ReportMode -> Handler TypedContent
 postItemsReport2R mode = postItemsReportFor ItemsReport2R  (mode <|> Just ReportCsv)
 
+{-# NOINLINE postItemsReport3R #-}
 postItemsReport3R :: Maybe ReportMode -> Handler TypedContent
 postItemsReport3R = postItemsReportFor ItemsReport3R 
 -- ** Renders

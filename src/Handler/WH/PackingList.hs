@@ -74,6 +74,7 @@ uploadForm param = renderBootstrap3 BootstrapBasicForm form
             <*> (aopt textareaField "comment" (fmap comment param) )
             <*> (areq textareaField "spreadsheet" (fmap spreadsheet param) )
 
+{-# NOINLINE getWHPackingListR #-}
 getWHPackingListR :: Handler Html
 getWHPackingListR = do
   today <- todayH
@@ -169,6 +170,7 @@ transposeM lines_  =
 
 
 
+{-# NOINLINE postWHPackingListR #-}
 postWHPackingListR :: Handler Html
 postWHPackingListR = do
   action <- lookupPostParam "action"
@@ -363,9 +365,11 @@ detailToBoxtake param docKey detail = Boxtake
 -- ** View
 
 
+{-# NOINLINE getWHPackingListViewR #-}
 getWHPackingListViewR :: Int64 -> Maybe PLViewMode -> Handler TypedContent
 getWHPackingListViewR key mode = viewPackingList (fromMaybe Details mode) key (return ())
 
+{-# NOINLINE postWHPackingListEditDetailsR #-}
 postWHPackingListEditDetailsR :: Int64 -> Handler TypedContent
 postWHPackingListEditDetailsR key = do
   actionM <- lookupPostParam "action"
@@ -380,6 +384,7 @@ postWHPackingListEditDetailsR key = do
         Nothing -> error "Action missing"
         Just action -> updatePackingListDetails action key cart
 
+{-# NOINLINE postWHPackingListEditInvoicesR #-}
 postWHPackingListEditInvoicesR :: Int64 -> Handler TypedContent
 postWHPackingListEditInvoicesR key = do
   -- actionM <- lookupPostParam "action"
@@ -391,6 +396,7 @@ postWHPackingListEditInvoicesR key = do
       sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
     FormSuccess cart -> updatePackingListInvoices key cart
 
+{-# NOINLINE postWHPackingListEditR #-}
 postWHPackingListEditR :: Int64 -> Handler TypedContent
 postWHPackingListEditR key = do
   ((resp, view), __encType)  <- runFormPost (editForm Nothing Nothing)
@@ -401,6 +407,7 @@ postWHPackingListEditR key = do
       sendResponseStatus (toEnum 400) =<< defaultLayout [whamlet|^{view}|]
     FormSuccess param -> updatePackingList key param
 
+{-# NOINLINE postWHPackingListDeliverR #-}
 postWHPackingListDeliverR :: Int64 -> Handler TypedContent
 postWHPackingListDeliverR key = do
   ((resp, view), __encType) <- runFormPost (deliverDetailsForm Nothing)
@@ -1494,6 +1501,7 @@ reportFormWidget param = do
     <button.btn.btn-primary>Summary
           |]
   
+{-# NOINLINE postWHPackingListReportR #-}
 postWHPackingListReportR :: Handler Html
 postWHPackingListReportR = do
   ((resp, view), _encType) <- runFormPost (reportForm Nothing)

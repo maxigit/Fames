@@ -485,6 +485,7 @@ settingsFor account = do
     Nothing -> error $ "Bank Account " <> unpack account <> " not found!"
     Just settings -> return settings
   
+{-# NOINLINE getGLBankDetailsR #-}
 getGLBankDetailsR :: Text -> Handler Html
 getGLBankDetailsR account = do
   settings <- settingsFor account
@@ -540,11 +541,13 @@ recForm  paramM = renderBootstrap3 BootstrapBasicForm form  where
                   <*> areq doubleField "Closing Balance" (rpClosingBalance <$> paramM)
                   <*> aopt dayField "reconciliate" (rpRecDate <$> paramM)
 
+{-# NOINLINE getGLBankReconciliateR #-}
 getGLBankReconciliateR :: Text -> Handler Html
 getGLBankReconciliateR account = do
   today <- todayH
   renderReconciliate account defaultParam  {rpStartDate = Just $ calculateDate (AddMonths (-3)) today}
   
+{-# NOINLINE postGLBankReconciliateR #-}
 postGLBankReconciliateR :: Text -> Handler Html
 postGLBankReconciliateR account = do
   ((resp, formW), encType) <- runFormPost (recForm Nothing)
@@ -896,6 +899,7 @@ getObjectH = do
   return (getObject customerMap supplierMap)
 
 -- * Help : How to get the required files
+{-# NOINLINE getGLBankHelpR #-}
 getGLBankHelpR :: Handler Html
 getGLBankHelpR = do
   let panels  = map (uncurry $ displayPanel "primary" True)
@@ -953,6 +957,7 @@ fxForm paramM = renderBootstrap3 BootstrapBasicForm form  where
                  <*> areq dayField "end" (fxEnd <$> paramM)
                  <*> areq textField "" (fxCurrency <$> paramM)
 
+{-# NOINLINE getGLBankFXR #-}
 getGLBankFXR :: Handler Html
 getGLBankFXR = do
   today <- todayH
@@ -968,6 +973,7 @@ getGLBankFXR = do
   renderFX (FXParam{..}) -- (return ())
 
 
+{-# NOINLINE postGLBankFXR #-}
 postGLBankFXR :: Handler Html
 postGLBankFXR = do
   ((resp, formW), encType) <- runFormPost (fxForm Nothing)
@@ -1069,6 +1075,7 @@ transferToFXs (Single fxDate, Single fxDescription, Single fxFXAmount, Single fx
 -- known balances. This is a case of cash account.
 -- The procedure is then to generate a statement with the unreconciliated
 -- transaction and add the balance manually  in the generated file.
+{-# NOINLINE getGLBankStatementGenR #-}
 getGLBankStatementGenR :: Text -> Handler TypedContent
 getGLBankStatementGenR account= do
   dbConf <- appDatabaseConf <$> getsYesod appSettings

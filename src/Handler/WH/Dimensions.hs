@@ -61,9 +61,11 @@ bulkForm text = renderBootstrap3 BootstrapBasicForm form where
 
 mkDimension l w h = Dimension (c l) (c w) (c h) where
   c = fromIntegral
+{-# NOINLINE getWHDimensionOuterR #-}
 getWHDimensionOuterR :: Int64 -> Int64 -> Int64 -> Handler TypedContent
 getWHDimensionOuterR l w h = renderImage (mkDimension l w h) Nothing
 
+{-# NOINLINE getWHDimensionInnerR #-}
 getWHDimensionInnerR :: Int64 -> Int64 -> Int64
                     ->Int64 -> Int64 -> Int64
                     ->  Handler TypedContent
@@ -80,6 +82,7 @@ renderImage outer inner = do
       diag = displayBox outer inner
   M.renderContent (M.SizedDiagram size diag)
 
+{-# NOINLINE getWHDimensionR #-}
 getWHDimensionR :: Handler Html
 getWHDimensionR = renderDimensionR Nothing Nothing
 
@@ -105,11 +108,13 @@ renderDimensionR outer0 inner0 = do
   ^{renderBoxes boxes}
 |]
 
+{-# NOINLINE getWHDimensionBulkR #-}
 getWHDimensionBulkR :: Handler Html
 getWHDimensionBulkR = do
   renderBulk Nothing
 
 
+{-# NOINLINE postWHDimensionBulkR #-}
 postWHDimensionBulkR :: Handler Html
 postWHDimensionBulkR = do
   ((resp, view), _encType) <- runFormPost (bulkForm Nothing)

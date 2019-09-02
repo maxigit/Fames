@@ -18,6 +18,7 @@ import qualified Handler.Items.Category.Cache as Cache
 
 -- | Page to test administrator authentication.
 -- might be empty
+{-# NOINLINE getAIndexR #-}
 getAIndexR :: Handler Html
 getAIndexR = do
   args <- getArgs
@@ -68,6 +69,7 @@ You are logged as Administrator !
 
 
 -- | Test the connection with Front Accounting
+{-# NOINLINE getATestFAR #-}
 getATestFAR :: Handler Html
 getATestFAR = do
   setting <- appSettings <$> getYesod
@@ -86,6 +88,7 @@ Trying to connect to URL #{tshow $ appFAURL setting} with user #{tshow $ appFAUs
 
 
 -- | Displays status of the cache
+{-# NOINLINE getACacheR #-}
 getACacheR :: Handler Html
 getACacheR = do
   cvar <- getsYesod appCache
@@ -137,12 +140,14 @@ getACacheR = do
                           |]
 
 -- * Clear the cache
+{-# NOINLINE postACacheR #-}
 postACacheR :: Handler Html
 postACacheR = do
   clearAppCache
   getACacheR
 
 -- ** Item Categories
+{-# NOINLINE getAResetCategoryCacheR #-}
 getAResetCategoryCacheR :: Handler Html
 getAResetCategoryCacheR = do
   catm <- lookupGetParam "category"
@@ -154,6 +159,7 @@ getAResetCategoryCacheR = do
     Just cat -> getItemsCategoryTermsR cat
 
 -- ** Customer Categories
+{-# NOINLINE getAResetCustomerCategoryCacheR #-}
 getAResetCustomerCategoryCacheR :: Handler Html
 getAResetCustomerCategoryCacheR = do
   Cache.refreshCustomerCategoryCache True
@@ -161,6 +167,7 @@ getAResetCustomerCategoryCacheR = do
   getACustomerCategoryR
   
 -- | Displays all customer, their info and computed category
+{-# NOINLINE getACustomerCategoryR #-}
 getACustomerCategoryR :: Handler Html
 getACustomerCategoryR = do
   infos <- Cache.loadDebtorsMasterRuleInfos
@@ -206,6 +213,7 @@ getACustomerCategoryR = do
 -- ** Order Categories
 -- | Recomputes the categories for ALL orders
 -- usefull when a new category is created
+{-# NOINLINE getAResetOrderCategoryCacheR #-}
 getAResetOrderCategoryCacheR :: Handler Html
 getAResetOrderCategoryCacheR = do
   Cache.refreshOrderCategoryCache (Just 1000)
@@ -213,6 +221,7 @@ getAResetOrderCategoryCacheR = do
   getAOrderCategoryR
 
 -- | Computes the categories for ALL orders 
+{-# NOINLINE getAResetAllOrderCategoryCacheR #-}
 getAResetAllOrderCategoryCacheR :: Handler Html
 getAResetAllOrderCategoryCacheR = do
   Cache.refreshOrderCategoryCache Nothing
@@ -221,6 +230,7 @@ getAResetAllOrderCategoryCacheR = do
 
 -- | Computes category only for the new orders (limited by a number)
 -- can be called 
+{-# NOINLINE getAComputeNewOrderCategoryCacheR #-}
 getAComputeNewOrderCategoryCacheR :: Handler Html
 getAComputeNewOrderCategoryCacheR = do
   Cache.refreshNewOrderCategoryCache (Just 1000)
@@ -284,6 +294,7 @@ displayPendingOrderCategory = runDB $ do
 
 -- * Masquerade
 masquerade = "masquerade-user" :: Text
+{-# NOINLINE getAMasqueradeR #-}
 getAMasqueradeR :: Handler Html
 getAMasqueradeR = do
   defaultLayout $ do
@@ -294,6 +305,7 @@ getAMasqueradeR = do
        <button.btn.btn-danger type="Submit">Submit
             |]
 
+{-# NOINLINE postAMasqueradeR #-}
 postAMasqueradeR :: Handler Html
 postAMasqueradeR = do
   userM <- lookupPostParam masquerade

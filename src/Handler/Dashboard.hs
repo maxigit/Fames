@@ -53,6 +53,7 @@ reportDiv reportId = do
                    ^{w}
                    |]
 -- Display a dashboard made of different report depending on the configuration file
+{-# NOINLINE getDMainR #-}
 getDMainR :: Handler Html
 getDMainR = do
   now <- liftIO $ getCurrentTime
@@ -107,6 +108,7 @@ getDMainR = do
     Last update #{tshow now}
   |]
 -- | Same as main but display qty and amount instead of percent
+{-# NOINLINE getDMainFullR #-}
 getDMainFullR :: Handler Html
 getDMainFullR = do
   now <- liftIO $ getCurrentTime
@@ -186,6 +188,7 @@ getDMainFullR = do
   --                     |]
 
 -- Run report by name (find in configuration file)
+{-# NOINLINE getDCustomR #-}
 getDCustomR :: Text -> Int64 -> Int64 -> Handler Html
 getDCustomR reportName width height = do
   role <- currentRole
@@ -210,6 +213,7 @@ getDCustomR reportName width height = do
 --  | Top20ItemJanuary
 --  deriving (Show, Eq, Enum, Bounded)
 -- | Display full year (fiscal and las 52 weeks)
+{-# NOINLINE getDYearR #-}
 getDYearR :: Handler Html
 getDYearR = do
   now <- liftIO $ getCurrentTime

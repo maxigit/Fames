@@ -36,6 +36,7 @@ import Handler.Items.Category.Cache (customerCategoryFinderCached)
 -- * Handler
 
 -- | Display the list of the available tax reports
+{-# NOINLINE getGLTaxReportsR #-}
 getGLTaxReportsR :: Handler Html
 getGLTaxReportsR = do
   settings <- appTaxReportSettings <$> getsYesod appSettings
@@ -53,6 +54,7 @@ getGLTaxReportsR = do
      |]
 
 -- | Create a report for the given type
+{-# NOINLINE postGLNewTaxReportR #-}
 postGLNewTaxReportR :: Text -> Handler Html
 postGLNewTaxReportR name = do
   settings <- unsafeGetReportSettings name
@@ -80,6 +82,7 @@ postGLNewTaxReportR name = do
   postGLTaxReportCollectDetailsR (fromSqlKey key) >>= sendResponseStatus created201
       -- getGLTaxReportR (fromSqlKey key) Nothing >>= sendResponseStatus created201
 
+{-# NOINLINE getGLTaxReportR #-}
 getGLTaxReportR :: Int64 -> Maybe TaxReportViewMode -> Handler Html
 getGLTaxReportR key mode = do
   report <- runDB $ loadReport key
@@ -103,10 +106,12 @@ defaultViewMode before withinPeriod Nothing = case (before, withinPeriod) of
   (0, 0) -> TaxReportBoxesView
   _ -> TaxReportPendingView
 
+{-# NOINLINE postGLTaxReportR #-}
 postGLTaxReportR :: Int64 -> Maybe TaxReportViewMode -> Handler Html
 postGLTaxReportR key modem = return "todo"
 
 
+{-# NOINLINE postGLTaxReportCollectDetailsR #-}
 postGLTaxReportCollectDetailsR :: Int64 -> Handler Html
 postGLTaxReportCollectDetailsR key = do
   let rId = TaxReportKey (fromIntegral key)
@@ -123,6 +128,7 @@ postGLTaxReportCollectDetailsR key = do
   setSuccess "Transaction tax details collected successfully"
   getGLTaxReportR key (Just TaxReportCollectedView) >>= sendResponseStatus created201
      
+{-# NOINLINE postGLTaxReportRejectDetailsR #-}
 postGLTaxReportRejectDetailsR :: Int64 -> Handler Html
 postGLTaxReportRejectDetailsR key = do
   let rId = TaxReportKey (fromIntegral key)
@@ -132,6 +138,7 @@ postGLTaxReportRejectDetailsR key = do
   getGLTaxReportR key (Just TaxReportCollectedView) >>= sendResponseStatus created201
 
 
+{-# NOINLINE postGLTaxReportReopenR #-}
 postGLTaxReportReopenR :: Int64 -> Handler Html
 postGLTaxReportReopenR key = do
   runDB $ do
@@ -141,6 +148,7 @@ postGLTaxReportReopenR key = do
   
 -- | Check that the report is ready to be submitted 
 -- and ask the user confirmation
+{-# NOINLINE postGLTaxReportPreSubmitR #-}
 postGLTaxReportPreSubmitR :: Int64 -> Handler Html
 postGLTaxReportPreSubmitR key = do
   report <- runDB $ loadReport key
@@ -191,6 +199,7 @@ alreadySubmitted key submitted = do
   
 
 -- | Submit the report
+{-# NOINLINE postGLTaxReportSubmitR #-}
 postGLTaxReportSubmitR :: Int64 -> Handler TypedContent
 postGLTaxReportSubmitR key = do
   return "nothing done"
@@ -209,6 +218,7 @@ postGLTaxReportSubmitR key = do
 
 -- ** HMRC OAuth2
 -- | Process The authorization code from HMRC
+{-# NOINLINE getGLTaxReportOAuthR #-}
 getGLTaxReportOAuthR :: Handler Html
 getGLTaxReportOAuthR = do
   codem <- lookupGetParam "code"
@@ -992,6 +1002,7 @@ loadBucketSummary key = do
   
 
 -- | Load transactions Report details For datatable
+{-# NOINLINE getGLTaxReportDetailsR #-}
 getGLTaxReportDetailsR :: Int64 -> Handler Value
 getGLTaxReportDetailsR key = do
   error "Not implemented"

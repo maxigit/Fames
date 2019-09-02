@@ -43,6 +43,7 @@ import Lens.Micro.Extras (preview)
 
 -- | process GET for GLEnterReceiptSheetR route
 -- used to upload a receip sheet.
+{-# NOINLINE getGLEnterReceiptSheetR #-}
 getGLEnterReceiptSheetR :: Handler Html
 getGLEnterReceiptSheetR = renderGLEnterReceiptSheet Nothing 200 ""  (return ())
 
@@ -77,6 +78,7 @@ postTextForm paramM = renderBootstrap3 BootstrapBasicForm $ (,)
   <$> areq textField "Sheet name" (fst <$> paramM )
   <*> areq textareaField "Receipts" (snd <$> paramM)
 
+{-# NOINLINE postGLEnterReceiptSheetR #-}
 postGLEnterReceiptSheetR :: Handler Html
 postGLEnterReceiptSheetR = do
   ((textResp, __postTextW), __enctype) <- runFormPost (postTextForm Nothing)
@@ -120,6 +122,7 @@ postGLEnterReceiptSheetR = do
   renderParsingResult ((\msg pre -> msg  >> renderGLEnterReceiptSheet param 422 "" pre ) :: Handler () -> Widget -> Handler Html)
                       (onSuccess . map (fanl (validateConsistency minDay)))
                       receipts
+{-# NOINLINE postGLSaveReceiptSheetToFAR #-}
 postGLSaveReceiptSheetToFAR :: Handler Html
 postGLSaveReceiptSheetToFAR = do
   ((resp,_), __enctype) <- runFormPost (hiddenFileForm Nothing)

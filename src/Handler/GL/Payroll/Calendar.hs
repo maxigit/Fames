@@ -39,6 +39,7 @@ filterForm paramM = let
   in renderBootstrap3 BootstrapBasicForm form
 
 -- * Handler
+{-# NOINLINE getGLPayrollCalendarR #-}
 getGLPayrollCalendarR :: Handler Html
 getGLPayrollCalendarR = do
   today <- todayH
@@ -50,6 +51,7 @@ getGLPayrollCalendarR = do
                                    Nothing
              )
 
+{-# NOINLINE postGLPayrollCalendarR #-}
 postGLPayrollCalendarR :: Handler Html
 postGLPayrollCalendarR = do
   ((resp, formW), encType) <- runFormPost (filterForm Nothing)

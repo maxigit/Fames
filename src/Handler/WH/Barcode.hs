@@ -107,6 +107,7 @@ barcodeForm bparams date start extra = do
                        ]
         ns = [1..] :: [Int]
 
+{-# NOINLINE getWHBarcodeR #-}
 getWHBarcodeR :: Handler Html
 getWHBarcodeR = do
   now <- utctDay <$> liftIO getCurrentTime
@@ -131,6 +132,7 @@ renderGetWHBarcodeR date  start = do
       ^{table}
 |]
 
+{-# NOINLINE postWHBarcodeR #-}
 postWHBarcodeR :: Handler TypedContent 
 postWHBarcodeR = do
   bparams <- getBarcodeParams

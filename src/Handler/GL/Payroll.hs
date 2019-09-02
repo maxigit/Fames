@@ -78,11 +78,13 @@ voidForm = renderBootstrap3 BootstrapBasicForm form where
   
 -- * Handlers
 -- ** upload and show timesheets
+{-# NOINLINE getGLPayrollR #-}
 getGLPayrollR :: Handler Html
 getGLPayrollR = do
   pendingW <-displayPendingSheets
   lastW <-displayLastSheets 100
   renderMain Validate Nothing ok200 (setInfo ([shamlet|<h3>Enter a timesheet|] >> timesheetStyleCheat)) (pendingW >> lastW)
+{-# NOINLINE postGLPayrollValidateR #-}
 postGLPayrollValidateR :: Handler Html
 postGLPayrollValidateR = do
   actionM <- lookupPostParam "action"
@@ -146,6 +148,7 @@ postGLPayrollSaveR = do
           else validate (param { upPreviousKey = Nothing}) key
 
 
+{-# NOINLINE postGLPayrollToFAR #-}
 postGLPayrollToFAR :: Int64 -> Handler Html
 postGLPayrollToFAR key = do
   setting <- appSettings <$> getYesod
@@ -192,6 +195,7 @@ setFaParamPayments param = do
 
   
 -- ** Individual timesheet
+{-# NOINLINE getGLPayrollViewR #-}
 getGLPayrollViewR :: Int64 -> Handler Html
 getGLPayrollViewR key = do
   operatorMap <- allOperators
@@ -261,13 +265,16 @@ getGLPayrollViewR key = do
               <button type="submit" .btn.btn-danger>Void in FrontAccounting
                               |]
 
+{-# NOINLINE getGLPayrollEditR #-}
 getGLPayrollEditR :: Int64 -> Handler Html
 getGLPayrollEditR key = return "todo"
+{-# NOINLINE postGLPayrollEditR #-}
 postGLPayrollEditR :: Int64 -> Handler Html
 postGLPayrollEditR key = return "todo"
 
 -- | Delete the timesheet and its component
 -- unless it has transaction linked to it
+{-# NOINLINE postGLPayrollRejectR #-}
 postGLPayrollRejectR :: Int64 -> Handler Html
 postGLPayrollRejectR tId = do
   let key = TimesheetKey $ SqlBackendKey tId
@@ -299,6 +306,7 @@ postGLPayrollRejectR tId = do
 
   
 
+{-# NOINLINE postGLPayrollToPayrooR #-}
 postGLPayrollToPayrooR :: Int64 -> Handler TypedContent
 postGLPayrollToPayrooR key = do
   header <- headerFromSettings
@@ -333,6 +341,7 @@ postGLPayrollToPayrooR key = do
         Left e -> error $ "Problem generating payroo csv: " <> unpack e
 
 -- ** Void
+{-# NOINLINE getGLPayrollVoidFAR #-}
 getGLPayrollVoidFAR :: Int64 -> Handler Html
 getGLPayrollVoidFAR timesheetId = do
   faURL <- getsYesod (pack . appFAExternalURL . appSettings) :: Handler Text
@@ -372,6 +381,7 @@ getGLPayrollVoidFAR timesheetId = do
       |]
   
   
+{-# NOINLINE postGLPayrollVoidFAR #-}
 postGLPayrollVoidFAR :: Int64 -> Handler Html
 postGLPayrollVoidFAR timesheetId = do
   today <- todayH

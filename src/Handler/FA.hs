@@ -8,6 +8,7 @@ import Import
 import FA
 import Handler.FA.Def
 {-
+{-# NOINLINE getFAUsersR #-}
 getFAUsersR :: Handler Html
 getFAUsersR = do
   entities <- runDB $ selectList [] []
@@ -17,6 +18,7 @@ getFAUsersR = do
 
 
 
+{-# NOINLINE getFABankAccountsR #-}
 getFABankAccountsR :: Handler Html
 getFABankAccountsR = do
   entities <- runDB $ selectList [] []

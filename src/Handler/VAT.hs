@@ -38,10 +38,12 @@ ecslForm paramM = renderBootstrap3 BootstrapBasicForm form where
                      <*> areq textField "Contact" (epContactName <$> paramM)
 -- * Handler
 --------------------------------------------------------------------------------
+{-# NOINLINE getGLVATR #-}
 getGLVATR :: Handler Html
 getGLVATR = getGLVATEcslR
 
 --------------------------------------------------------------------------------
+{-# NOINLINE getGLVATEcslR #-}
 getGLVATEcslR :: Handler Html
 getGLVATEcslR = do
   today <- todayH
@@ -55,6 +57,7 @@ getGLVATEcslR = do
 
 
 --------------------------------------------------------------------------------
+{-# NOINLINE postGLVATEcslR #-}
 postGLVATEcslR :: Handler TypedContent
 postGLVATEcslR = do
   ((resp, formW), encType) <- runFormPost (ecslForm Nothing)
@@ -73,6 +76,7 @@ postGLVATEcslR = do
   
 --------------------------------------------------------------------------------
 -- * Render
+{-# NOINLINE renderGLVATEcslR #-}
 renderGLVATEcslR :: ECSLParam -> Widget -> Handler Html
 renderGLVATEcslR param result = do
   (form, encType) <- generateFormPost (ecslForm $ Just param)

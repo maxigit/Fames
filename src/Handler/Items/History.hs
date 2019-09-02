@@ -16,6 +16,7 @@ data FormParams = FormParams
   , pLocation :: Maybe Text
   }
 
+{-# NOINLINE getItemsHistoryR #-}
 getItemsHistoryR :: Text -> Handler Html
 getItemsHistoryR sku = do
   faUrl <- getsYesod (pack . appFAExternalURL . appSettings)

@@ -10,6 +10,7 @@ import qualified FA as FA
 
 -- * List of categories
 -- | Displays the list of categories
+{-# NOINLINE getItemsCategoryR #-}
 getItemsCategoryR :: Handler Html
 getItemsCategoryR = do
   cats <- categoriesH
@@ -22,6 +23,7 @@ getItemsCategoryR = do
              #{cat}
                  |]
 
+{-# NOINLINE getItemsCategoryTermsR #-}
 getItemsCategoryTermsR :: Text -> Handler Html
 getItemsCategoryTermsR name = do
   let sql = "select value, count(*) FROM fames_item_category_cache WHERE category = ? GROUP BY value"
@@ -70,6 +72,7 @@ categoryTesterForm param = renderBootstrap3 BootstrapBasicForm form
          <*> aopt textareaField "delivery  rule" (tpDeliveryRule <$> param)
          <*> areq boolField "show fields" (tpShowFields <$> param)
 
+{-# NOINLINE getItemsCategoryTesterR #-}
 getItemsCategoryTesterR :: Handler Html
 getItemsCategoryTesterR = do
   rulesMaps <- appCategoryRules <$> getsYesod appSettings
@@ -79,6 +82,7 @@ getItemsCategoryTesterR = do
       filter = ""
   renderCategoryTester (TesterParam filter configuration deliveryConf False) Nothing
 
+{-# NOINLINE postItemsCategoryTesterR #-}
 postItemsCategoryTesterR :: Handler Html
 postItemsCategoryTesterR = do
   ((resp, formW), encType) <- runFormPost (categoryTesterForm Nothing)

@@ -77,6 +77,7 @@ data FormParam = FormParam
  }
 
 -- * Requests
+{-# NOINLINE getWHStocktakeR #-}
 getWHStocktakeR :: Handler Html
 getWHStocktakeR = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
@@ -119,6 +120,7 @@ help = [shamlet|
     blank and the date and operator MUST be filled.
     <li> a barcode WITHOUT colour AND quantity : this indicates a barcode lookup. In this case, the content (variations and corresponding quantities) as well as the box dimensions would be filled using the information in the database provided previously for the given barcode. To not be confused with a line where the barcode quantity has been forgotten, it is required that both the quantity and the colour are left blank.
 |]
+{-# NOINLINE getWHStocktakeValidateR #-}
 getWHStocktakeValidateR :: Handler Html
 getWHStocktakeValidateR = do
   mop0 <- collectFromMOP
@@ -145,6 +147,7 @@ getWHStocktakeValidateR = do
 
 -- | Returns the latest stocktake date
 -- for each sytle
+{-# NOINLINE getWHStocktakeHistoryR #-}
 getWHStocktakeHistoryR :: Maybe Text -> Handler Html
 getWHStocktakeHistoryR categorym' = do
   stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
@@ -234,6 +237,7 @@ getDefaultCategory categorym = do
 
 -- | Returns the lastest stocktake date
 -- for each variation of a give style.
+{-# NOINLINE getWHStocktakeHistoryStyleR #-}
 getWHStocktakeHistoryStyleR :: Maybe Text -> Text -> Handler Html
 getWHStocktakeHistoryStyleR categorym style = do
   -- let styleLike = style <> "-%"
@@ -309,16 +313,20 @@ getWHStocktakeHistoryStyleR categorym style = do
   
 
 
+{-# NOINLINE postWHStocktakeValidateR #-}
 postWHStocktakeValidateR :: Handler Html
 postWHStocktakeValidateR = processStocktakeSheet Validate
 
 
+{-# NOINLINE getWHStocktakeSaveR #-}
 getWHStocktakeSaveR :: Handler Html
 getWHStocktakeSaveR = renderWHStocktake Save Nothing 200 (setInfo "Enter Stocktake") (return ())
 
+{-# NOINLINE postWHStocktakeSaveR #-}
 postWHStocktakeSaveR :: Handler Html
 postWHStocktakeSaveR = processStocktakeSheet Save
 
+{-# NOINLINE postWHStocktakeCollectMOPR #-}
 postWHStocktakeCollectMOPR :: Handler Html
 postWHStocktakeCollectMOPR = processStocktakeSheet CollectMOP
 
