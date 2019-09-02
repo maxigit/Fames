@@ -43,10 +43,10 @@ getBoxes settings buckets = either (error . unpack) id <$> case processor settin
   _ -> return . Right $ boxesRaw settings
 
 -- | Displays for debugging purpose the status all submissions 
-displayExternalStatuses :: Entity TaxReport -> TaxReportSettings -> Handler Widget
-displayExternalStatuses (Entity _ report) settings = case processor settings of
-  HMRCProcessor params -> displayHMRCStatuses report params
-  _ -> setInfo "Processor doesn't provide statuses" >> return ""
+displayExternalStatuses :: Text -> TaxReportSettings -> Handler Widget
+displayExternalStatuses reportType settings = case processor settings of
+  HMRCProcessor params -> displayHMRCStatuses reportType params
+  _ -> return "Processor doesn't provide statuses"
 
 -- * HMRC
 -- ** Types
@@ -58,7 +58,7 @@ checkHMRCStatus :: Entity TaxReport -> HMRCProcessorParameters -> Handler TaxRep
 checkHMRCStatus (Entity reportKey report@TaxReport{..}) settings = do
   -- get token for VAT obligation. hack to call getHMRC Token with a report id
   -- so that we are redirected to the correct page
-  getHMRCToken taxReportType settings (Just reportKey)
+  getHMRCToken taxReportType settings
   obligations <- retrieveVATObligations taxReportType (Just report)settings
   -- traceShowM ("OBLIGATIONS", obligations)
   case obligations of
@@ -106,9 +106,27 @@ getHMRCBoxes settings@TaxReportSettings{..} =  do
       others = filter ((`notElem` newBoxesName) . tbName) boxesRaw
   Right $ newBoxes <> others
 
-displayHMRCStatuses :: TaxReport -> HMRCProcessorParameters -> Handler Widget
-displayHMRCStatuses report param =
-  return "Todo"
+displayHMRCStatuses :: Text -> HMRCProcessorParameters -> Handler Widget
+displayHMRCStatuses reportType param = do
+  obligations <- retrieveVATObligations reportType Nothing param
+  return [whamlet|
+<table *{datatable}>
+ <thead>
+   <th>Start
+   <th>End
+   <th>Due
+   $# <th>Period Key
+   <th>Received
+ <tbody>
+   $forall VATObligation{..} <- obligations
+     <tr>
+       <td> #{tshow start}
+       <td> #{tshow end}
+       <td> #{tshow due}
+       $# <td> #{periodKey}
+       <td> #{tshowM received}
+|]
+
 -- * Manual
 -- Set the submitted date 
 submitManual ManualProcessorParameters{..} settings (Entity reportKey report) = do

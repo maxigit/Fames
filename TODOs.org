@@ -8,6 +8,7 @@
    - [ ] Add somehow a page to display
 obligations, as admin or in the VAT Page ?
 At the moment it's easier to just add a page 
+   - [ ] Display current scenario
 
    
    

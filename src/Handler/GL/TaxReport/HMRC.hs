@@ -59,13 +59,14 @@ data AuthKey = HMRCAuthKey Text  -- report Type
              | HMRCTokenKey Text
                deriving Show
 
-getHMRCAuthorizationCode :: Text -> HMRCProcessorParameters -> Maybe TaxReportId -> Handler AuthorizationCode
-getHMRCAuthorizationCode reportType HMRCProcessorParameters{..} reportM = do
+getHMRCAuthorizationCode :: Text -> HMRCProcessorParameters -> Handler AuthorizationCode
+getHMRCAuthorizationCode reportType HMRCProcessorParameters{..} = do
   -- retrieve the authoration 
   let cacheKey = HMRCAuthKey reportType
 
   cvar <- getsYesod appCache
   cache <- readMVar cvar
+  refereeM <- getCurrentRoute
   -- traceShowM $ ("KEYS", keys cache, "KEY", cacheKey)
   case lookup (show cacheKey) cache of
     Just mvar -> do -- extract value
@@ -79,7 +80,7 @@ getHMRCAuthorizationCode reportType HMRCProcessorParameters{..} reportM = do
                                      , "client_id=" <> clientId
                                      , "scope=read:vat+write:vat"
                                      , "redirect_uri=http://localhost:3000/gl/tax/oauth" 
-                                     , "state=" <> tshow (reportType, fromSqlKey <$> reportM)
+                                     , "state=" <> tshow (reportType, refereeM) --  fromSqlKey <$> reportM)
                                      ] 
       redirect (authUrl :: Text)
   
@@ -87,14 +88,14 @@ setHMRCAuthorizationCode ::  Text -> HMRCProcessorParameters -> AuthorizationCod
 setHMRCAuthorizationCode reportType parameters (AuthorizationCode code) = do 
   -- cache0 True (cacheDay 1) HMRCAuthKey (return code)
   -- we don't cache the authorization anymore, we just convert it to a token straight away
-  setWarning "HMRC authorization code processed"
+  setInfo "HMRC authorization code processed"
   cache0 True (cacheMinute 10) (HMRCAuthKey reportType)  (return code)
-  getHMRCToken reportType parameters Nothing
+  getHMRCToken reportType parameters
   return ()
 
 
-getHMRCToken :: Text -> HMRCProcessorParameters -> (Maybe TaxReportId) -> Handler AuthorizationToken
-getHMRCToken reportType params reportM = do
+getHMRCToken :: Text -> HMRCProcessorParameters -> Handler AuthorizationToken
+getHMRCToken reportType params = do
   cvar <- getsYesod appCache
   cache <- readMVar cvar
   let storeToken token = cache0 True (cacheHour 4) cacheKey (return token)
@@ -114,15 +115,15 @@ getHMRCToken reportType params reportM = do
             else
               return token
     Nothing -> do
-      token <- curlHMRCToken reportType params reportM 
+      token <- curlHMRCToken reportType params
       storeToken token
                      
 
-curlHMRCToken :: Text -> HMRCProcessorParameters -> (Maybe TaxReportId) -> Handler AuthorizationToken
-curlHMRCToken reportType params@HMRCProcessorParameters{..} reportM = do
+curlHMRCToken :: Text -> HMRCProcessorParameters -> Handler AuthorizationToken
+curlHMRCToken reportType params@HMRCProcessorParameters{..} = do
   let endPoint = "/oauth/token" :: Text
       url = unpack $ baseUrl <> endPoint
-  AuthorizationCode code <- getHMRCAuthorizationCode reportType params reportM
+  AuthorizationCode code <- getHMRCAuthorizationCode reportType params
   tokenE <- hxtoHe . ioxToHx $ withCurl $ do
       curl <- lift initialize
       let ?curl = curl
@@ -157,7 +158,9 @@ refreshHMRCToken reportType params@HMRCProcessorParameters{..} token = do
 
 retrieveVATObligations :: Text -> Maybe TaxReport -> HMRCProcessorParameters -> Handler [VATObligation]
 retrieveVATObligations reportType reportM params@HMRCProcessorParameters{..} = do
-  token <- getHMRCToken reportType params Nothing
+  token <- getHMRCToken reportType params
+  forM obligationTestScenario $ \testScenario -> do
+    setWarning [shamlet|Using Gov Test Scenario: #{tshow testScenario}|]
   let endPoint = "/organisations/vat/"<>vatNumber<>"/obligations?":: Text
   -- let endPoint = "/organisations/vat/"<>vatNumber<>"/obligations" :: Text
       url = unpack $ baseUrl <> endPoint <> intercalate "&" params
@@ -201,7 +204,7 @@ retrieveVATObligations reportType reportM params@HMRCProcessorParameters{..} = d
 
 submitHMRCReturn :: TaxReport -> Text -> [TaxReportBox] -> HMRCProcessorParameters -> Handler TaxReport
 submitHMRCReturn report@TaxReport{..} periodKey boxes params@HMRCProcessorParameters{..} = do
-  token <- getHMRCToken taxReportType params Nothing
+  token <- getHMRCToken taxReportType params
   now <- liftIO getCurrentTime 
   let endPoint = "/organisations/vat/"<>vatNumber<>"/returns" :: Text
   -- let endPoint = "/organisations/vat/"<>vatNumber<>"/obligations" :: Text

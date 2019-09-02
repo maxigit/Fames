@@ -10,6 +10,7 @@ module Handler.GL.TaxReport
 , postGLTaxReportPreSubmitR
 , postGLTaxReportSubmitR
 , getGLTaxReportOAuthR
+, getGLTaxReportStatusesR
 ) where
 import Import hiding(RuleInput)
 import GL.TaxReport.Types
@@ -56,6 +57,7 @@ getGLTaxReportsR = do
 -- | Create a report for the given type
 {-# NOINLINE postGLNewTaxReportR #-}
 postGLNewTaxReportR :: Text -> Handler Html
+  
 postGLNewTaxReportR name = do
   settings <- unsafeGetReportSettings name
   (key, TaxReport{..}) <- runDB $ do
@@ -215,25 +217,33 @@ postGLTaxReportSubmitR key = do
     Nothing -> toTypedContent <$> getGLTaxReportsR  >>= sendResponseStatus created201
     Just content -> return content
 
+{-# NOINLINE getGLTaxReportStatusesR #-}
+getGLTaxReportStatusesR :: Text -> Handler Html
+getGLTaxReportStatusesR name = do
+  settings <- unsafeGetReportSettings name
+  w <- displayExternalStatuses name settings
+  defaultLayout $ infoPanel name w
 
 -- ** HMRC OAuth2
 -- | Process The authorization code from HMRC
 {-# NOINLINE getGLTaxReportOAuthR #-}
-getGLTaxReportOAuthR :: Handler Html
+getGLTaxReportOAuthR :: Handler TypedContent
 getGLTaxReportOAuthR = do
   codem <- lookupGetParam "code"
   statem <- lookupGetParam "state"
   case statem >>= readMay of
     Nothing -> respondAuthError 
-    Just (reportType, keym) -> do
+    Just (reportType, routem) -> do
       settings <- unsafeGetReportSettings reportType
       case codem of
         Just code | HMRCProcessor params <- processor settings -> do
           setHMRCAuthorizationCode reportType params $ AuthorizationCode code
           -- redirect to presubmit page
-          case keym of
-            Nothing -> getGLTaxReportsR
-            Just (key) -> postGLTaxReportPreSubmitR key
+          case routem of
+            Nothing -> toTypedContent <$> getGLTaxReportsR
+            Just (GLR (GLTaxReportPreSubmitR reportId)) ->  postGLTaxReportSubmitR reportId
+            Just (route) -> toTypedContent <$> (redirect (route :: Route App) :: Handler Html) --  we use redirect
+            -- to be sure we the result go through normal authorization
         _ -> do -- 
           respondAuthError 
       
