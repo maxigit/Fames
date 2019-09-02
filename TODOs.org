@@ -1,9 +1,16 @@
-* Items
-** Filtering odd items
-   - [ ] add price is set for retail list
-   - [ ] tidy up
-   - [ ] filter doesn't work
-   - [ ] price list filter doesn't work
+* MTD [0%]
+** TODO Hide Reference [0/2]
+   - [ ] Find where
+   - [ ] hide every where
+** TODO Deal with correction threshold [/]
+   we can't just get correction from the past if they are above a threshouold
+** TODO Improce scenario test case [0/0]
+   - [ ] Add somehow a page to display
+obligations, as admin or in the VAT Page ?
+At the moment it's easier to just add a page 
+
+   
+   
 * Planner [1/3]
 ** +DONE Speedup Tags+
    CLOSED: [2019-08-12 Mon 15:30]
@@ -29,21 +36,23 @@
 So we can delete ghost at the end of the script
   - [X] Add clone
 So we can create  ghosts
-** TODO Bug [0/6]
-   - [ ] update doc 'l => 'l=
-   - [ ] update property section
-   - [ ] check similar group are sorting by prioriry
-** Optimize [3/5]
+** DONE Bug [3/3]
+   CLOSED: [2019-09-02 Mon 11:14]
+   - [X] update doc 'l => 'l=
+   - [X] update property section
+   - [X] check similar group are sorting by prioriry
+** DONE Optimize [5/5]
+   CLOSED: [2019-09-02 Mon 11:14]
    - [X] Add speed zone 
      - [X] MAt
      - [X] Delete
    - [X] Tag = Map Text (Set Text)
-   - [ ] add original tag in section
+   - [X] add original tag in section
  Replace hardcoded tag when creating box
  Might be used to tag all boxes which have been moved or in error
- - [ ] in TAM only tag what has been moved
-   - [ ] update doc
-   - [ ] tag moved or left
+ - [X] in TAM only tag what has been moved
+   - [X] update doc
+   - [X] tag moved or left
  - [X] 
    - [X] use colour property
      - [X] use colour property

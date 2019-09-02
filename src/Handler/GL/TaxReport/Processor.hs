@@ -1,5 +1,11 @@
 {-# LANGUAGE DisambiguateRecordFields #-} 
-module Handler.GL.TaxReport.Processor where
+module Handler.GL.TaxReport.Processor
+( checkExternalStatus
+, submitReturn
+, getBoxes
+, displayExternalStatuses
+)
+where
 import Import
 import GL.TaxReport.Types
 import GL.TaxReport.Settings
@@ -36,6 +42,11 @@ getBoxes settings buckets = either (error . unpack) id <$> case processor settin
   ECSLProcessor params -> Right <$> getECSLBoxes params settings buckets
   _ -> return . Right $ boxesRaw settings
 
+-- | Displays for debugging purpose the status all submissions 
+displayExternalStatuses :: Entity TaxReport -> TaxReportSettings -> Handler Widget
+displayExternalStatuses (Entity _ report) settings = case processor settings of
+  HMRCProcessor params -> displayHMRCStatuses report params
+  _ -> setInfo "Processor doesn't provide statuses" >> return ""
 
 -- * HMRC
 -- ** Types
@@ -94,6 +105,10 @@ getHMRCBoxes settings@TaxReportSettings{..} =  do
       newBoxesName = map tbName newBoxes
       others = filter ((`notElem` newBoxesName) . tbName) boxesRaw
   Right $ newBoxes <> others
+
+displayHMRCStatuses :: TaxReport -> HMRCProcessorParameters -> Handler Widget
+displayHMRCStatuses report param =
+  return "Todo"
 -- * Manual
 -- Set the submitted date 
 submitManual ManualProcessorParameters{..} settings (Entity reportKey report) = do
