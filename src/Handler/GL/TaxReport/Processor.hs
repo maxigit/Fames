@@ -19,6 +19,7 @@ import qualified Text.Regex as Rg
 import Formatting
 import Formatting.Time(year, month)
 import qualified FA as FA
+import Text.Shakespeare.Text (st)
 
 
 -- * Main Dispatchers
@@ -126,7 +127,15 @@ displayHMRCStatuses reportType param = do
        $# <td> #{periodKey}
        <td> #{tshowM received}
 |]
+{-# NOINLINE hmrcLegalDeclaration #-}
+hmrcLegalDeclaration :: Text
+hmrcLegalDeclaration = [st|
+When you submit this VAT information you are making a legal declaration that the information is true and complete. A false declaration can result in prosecution.
 
+Declaration text to be used if only Agents make the submission;
+
+I confirm that my client has received a copy of the information contained in this return and approved the information as being correct and complete to the best of their knowledge and belie
+|]
 -- * Manual
 -- Set the submitted date 
 submitManual ManualProcessorParameters{..} settings (Entity reportKey report) = do

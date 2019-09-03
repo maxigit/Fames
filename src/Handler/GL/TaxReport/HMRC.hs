@@ -195,7 +195,7 @@ retrieveVATObligations reportType reportM params@HMRCProcessorParameters{..} = d
                         (CurlHttpHeaders $ catMaybes [ Just "Accept: application/vnd.hmrc.1.0+json"
                                                    , "Authorization: " <?> ("Bearer " <> accessToken token)
 -- #if DEVELOPMENT
-                                                   -- , "Gov-Test-Scenario: " <?> obligationTestScenario
+                                                   , "Gov-Test-Scenario: " <?> obligationTestScenario
  -- #endif
                                                    ]
                       )
