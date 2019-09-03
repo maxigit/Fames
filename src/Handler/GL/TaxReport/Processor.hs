@@ -1,9 +1,11 @@
 {-# LANGUAGE DisambiguateRecordFields #-} 
 module Handler.GL.TaxReport.Processor
-( checkExternalStatus
+( mkTaxProcessor
+, TaxProcessor()
+, checkExternalStatus
 , submitReturn
-, getBoxes
 , displayExternalStatuses
+, getBoxes
 )
 where
 import Import
@@ -22,32 +24,61 @@ import qualified FA as FA
 import Text.Shakespeare.Text (st)
 
 
--- * Main Dispatchers
-checkExternalStatus :: Entity TaxReport -> TaxReportSettings -> Handler TaxReportStatus
-checkExternalStatus report settings  = case processor settings of
-  ManualProcessor _ -> return Ready
-  HMRCProcessor params -> checkHMRCStatus report params
-  ECSLProcessor _ -> return Ready
+-- * Type
+data TaxProcessor = TaxProcessor
+  { checkExternalStatus :: Entity TaxReport -> Handler TaxReportStatus
+  , submitReturn :: Entity TaxReport -> Handler (TaxReport, Maybe TypedContent)
+  , displayExternalStatuses :: Text -> Handler Widget
+  , getBoxes :: Set Bucket -> SqlHandler [TaxBox]
+  -- ^ Allow a processor to alter boxes depending on buckets
+  -- This is used for ECSL where each bucket corresponding to a box
+  }
 
-submitReturn :: Entity TaxReport -> TaxReportSettings -> Handler (TaxReport, Maybe TypedContent)
-submitReturn report settings = case processor settings of
-  ManualProcessor params  -> (,Nothing) <$> submitManual params (settings) report
-  HMRCProcessor params  -> (,Nothing) <$> submitHMRC params report settings
-  ECSLProcessor params -> submitECSL params report settings
+
+-- * Processors
+-- ** Manual
+emptyProcessor :: TaxReportSettings ->  TaxProcessor
+emptyProcessor settings = TaxProcessor {..} where
+  checkExternalStatus _ = return Ready
+  submitReturn (Entity _ report)= return  (report, Nothing)
+  displayExternalStatuses _ =  return "Processor doesn't provide statuses"
+  getBoxes _ = return $ boxesRaw settings
+
+mkTaxProcessor :: TaxReportSettings -> TaxProcessor
+mkTaxProcessor settings = case processor settings of
+  ManualProcessor params -> mkManualProcessor params settings
+  HMRCProcessor params -> mkHMRCProcessor params settings
+  ECSLProcessor params -> mkECSLProcessor params settings
+  
+mkManualProcessor :: ManualProcessorParameters -> TaxReportSettings -> TaxProcessor
+mkManualProcessor params settings = (emptyProcessor settings)
+  { submitReturn = \report -> (,Nothing) <$> submitManual params (settings) report
+  }
+
+-- ** ECSL
+mkECSLProcessor :: ECSLProcessorParameters -> TaxReportSettings -> TaxProcessor
+mkECSLProcessor params settings = (emptyProcessor settings)
+  { submitReturn = \report -> submitECSL params report settings
+  }
+-- ** HMRC
+mkHMRCProcessor :: HMRCProcessorParameters -> TaxReportSettings -> TaxProcessor
+mkHMRCProcessor params settings = (emptyProcessor settings)
+  { checkExternalStatus = \report -> checkHMRCStatus report params
+  , submitReturn = \report -> (,Nothing) <$> submitHMRC params report settings
+  , getBoxes = \_ ->  return . either (error . unpack) id $ getHMRCBoxes settings
+  , displayExternalStatuses = \reportType -> displayHMRCStatuses reportType params
+  }
+
+-- * Main Dispatchers
+
    
 -- | Allow a processor to alter boxes depending on buckets
 -- This is used for ECSL where each bucket corresponding to a box
-getBoxes :: TaxReportSettings -> Set Bucket -> SqlHandler [TaxBox]
-getBoxes settings buckets = either (error . unpack) id <$> case processor settings of
+getBoxesOld :: TaxReportSettings -> Set Bucket -> SqlHandler [TaxBox]
+getBoxesOld settings buckets = either (error . unpack) id <$> case processor settings of
   HMRCProcessor _ -> return $ getHMRCBoxes settings
   ECSLProcessor params -> Right <$> getECSLBoxes params settings buckets
   _ -> return . Right $ boxesRaw settings
-
--- | Displays for debugging purpose the status all submissions 
-displayExternalStatuses :: Text -> TaxReportSettings -> Handler Widget
-displayExternalStatuses reportType settings = case processor settings of
-  HMRCProcessor params -> displayHMRCStatuses reportType params
-  _ -> return "Processor doesn't provide statuses"
 
 -- * HMRC
 -- ** Types

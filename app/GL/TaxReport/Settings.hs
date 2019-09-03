@@ -17,10 +17,10 @@ data TaxReportSettings  = TaxReportSettings
   , referenceFormat :: Text -- ^ format to use with format time to create reference
   , rules :: Rule
   , boxesRaw :: [TaxBox] -- ^ should only be called by processor
-  , processor :: TaxProcessor
+  , processor :: TaxProcessorSettings
   }
   deriving (Eq, Read, Show)
-data TaxProcessor
+data TaxProcessorSettings
   = HMRCProcessor HMRCProcessorParameters 
   | ManualProcessor  ManualProcessorParameters-- ^ Don't submit anything but set the submitted date using the deadline or the submission date
   | ECSLProcessor ECSLProcessorParameters -- ^ European community VAT
@@ -129,7 +129,7 @@ $(deriveJSON defaultOptions ''ECSLProcessorParameters)
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField
                             , fieldLabelModifier = fromMaybe <*> stripPrefix "tp"
                             , constructorTagModifier = fromMaybe <*> stripSuffix "Processor"
-                            } ''TaxProcessor)
+                            } ''TaxProcessorSettings)
 $(deriveJSON defaultOptions {fieldLabelModifier = (fromMaybe <*> stripSuffix "Raw")} ''TaxReportSettings)
 
 

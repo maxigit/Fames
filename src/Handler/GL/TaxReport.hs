@@ -59,7 +59,7 @@ getGLTaxReportsR = do
 postGLNewTaxReportR :: Text -> Handler Html
   
 postGLNewTaxReportR name = do
-  settings <- unsafeGetReportSettings name
+  (settings, processor) <- unsafeGetReportSettings name
   (key, TaxReport{..}) <- runDB $ do
     lasts <- selectList [TaxReportType ==. name] [Desc TaxReportStart]
     let taxReportStart = case lasts of
@@ -88,9 +88,9 @@ postGLNewTaxReportR name = do
 getGLTaxReportR :: Int64 -> Maybe TaxReportViewMode -> Handler Html
 getGLTaxReportR key mode = do
   report <- runDB $ loadReport key
-  reportSettings  <- getReportSettings (taxReportType $ entityVal report)
+  reportSettings'processor  <- getReportSettings (taxReportType $ entityVal report)
   let
-    reportRules = maybe defaultRule rules reportSettings
+    reportRules = maybe defaultRule (rules. fst) reportSettings'processor
     newRoute =GLR $ GLTaxReportR key Nothing 
   (before, withinPeriod)  <- runDB $ countPendingTransTaxDetails (entityVal report)
   view <- renderReportView reportRules report (defaultViewMode before withinPeriod mode)
@@ -119,8 +119,8 @@ postGLTaxReportCollectDetailsR key = do
   let rId = TaxReportKey (fromIntegral key)
   report <- runDB $ do
     report <- getJust rId
-    reportSettings  <- lift $ getReportSettings (taxReportType report)
-    let reportRules = maybe defaultRule rules reportSettings
+    reportSettings'processor  <- lift $ getReportSettings (taxReportType report)
+    let reportRules = maybe defaultRule (rules . fst) reportSettings'processor 
     details <- lift $ loadPendingTaxDetails reportRules (Entity rId report)
     -- delete existing one which need to be replaced
     mapM_ delete (mapMaybe tdExistingKey details )
@@ -154,12 +154,12 @@ postGLTaxReportReopenR key = do
 postGLTaxReportPreSubmitR :: Int64 -> Handler Html
 postGLTaxReportPreSubmitR key = do
   report <- runDB $ loadReport key
-  Just reportSettings  <- getReportSettings (taxReportType $ entityVal report)
+  Just (reportSettings, processor)  <- getReportSettings (taxReportType $ entityVal report)
   -- let reportRules = maybe defaultRule rules reportSettings
   (before, withinPeriod)  <- runDB $ countPendingTransTaxDetails (entityVal report)
   
   forM (taxReportSubmittedAt (entityVal report)) (alreadySubmitted key)
-  externalStatus <- checkExternalStatus report reportSettings
+  externalStatus <- checkExternalStatus processor report
   case externalStatus of
     Submitted submitted -> alreadySubmitted key submitted
     Ready -> return ""
@@ -180,8 +180,8 @@ postGLTaxReportPreSubmitR key = do
                         |]
     defaultLayout widget >>= sendResponseStatus preconditionFailed412
 
-  when (taxReportStatus (entityVal report) == Pending ) $ closeReport reportSettings report
-  box'amounts <- runDB $ loadTaxBoxes reportSettings (entityKey report)
+  when (taxReportStatus (entityVal report) == Pending ) $ closeReport processor report
+  box'amounts <- runDB $ loadTaxBoxes processor (entityKey report)
   defaultLayout [whamlet|
      The current tax report is ready to be submitted. Are you sure you want to proceed ?
      ^{renderBoxTable box'amounts}
@@ -206,8 +206,8 @@ postGLTaxReportSubmitR :: Int64 -> Handler TypedContent
 postGLTaxReportSubmitR key = do
   return "nothing done"
   report <- runDB $ loadReport key
-  Just reportSettings  <- getReportSettings (taxReportType $ entityVal report)
-  (TaxReport{..}, contentm )<- submitReturn report reportSettings
+  Just (reportSettings, processor)  <- getReportSettings (taxReportType $ entityVal report)
+  (TaxReport{..}, contentm )<- submitReturn processor report
   runDB $ update (entityKey report) [ TaxReportSubmittedAt =. taxReportSubmittedAt
                                     , TaxReportExternalReference =. taxReportExternalReference 
                                     , TaxReportExternalData =. taxReportExternalData
@@ -220,8 +220,8 @@ postGLTaxReportSubmitR key = do
 {-# NOINLINE getGLTaxReportStatusesR #-}
 getGLTaxReportStatusesR :: Text -> Handler Html
 getGLTaxReportStatusesR name = do
-  settings <- unsafeGetReportSettings name
-  w <- displayExternalStatuses name settings
+  (settings, processor) <- unsafeGetReportSettings name
+  w <- displayExternalStatuses processor name
   defaultLayout $ infoPanel name w
 
 -- ** HMRC OAuth2
@@ -234,7 +234,7 @@ getGLTaxReportOAuthR = do
   case statem >>= readMay of
     Nothing -> respondAuthError 
     Just (reportType, routem) -> do
-      settings <- unsafeGetReportSettings reportType
+      (settings, _) <- unsafeGetReportSettings reportType
       case codem of
         Just code | HMRCProcessor params <- processor settings -> do
           setHMRCAuthorizationCode reportType params $ AuthorizationCode code
@@ -390,7 +390,7 @@ continueButtonForm route = [whamlet|
 
 renderReportView :: Rule -> Entity TaxReport -> TaxReportViewMode ->  Handler Widget
 renderReportView rule report mode = do
-  settings <- unsafeGetReportSettings (taxReportType $ entityVal report)
+  (settings, processor) <- unsafeGetReportSettings (taxReportType $ entityVal report)
   bucket'rates <- getBucketRateFromConfig report
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
   personName <- entityNameH False
@@ -399,7 +399,7 @@ renderReportView rule report mode = do
   (boxes, bucketSummary) <- runDB $ do
     bucketSummary <- loadBucketSummary (entityKey report)
     let buckets = setFromList $ map fst (keys bucket'rates) <> map fst (keys bucketSummary) :: Set Bucket
-    boxes <- getBoxes settings buckets 
+    boxes <- getBoxes processor buckets 
     return (boxes, bucketSummary)
   let boxValues :: [(TaxBox, TaxDetail -> Maybe Decimal)]
       boxValues = [ (box, f)
@@ -1062,12 +1062,12 @@ loadSavedBoxes :: Key TaxReport -> SqlHandler ([Entity TaxReportBox])
 loadSavedBoxes reportKey = do
   selectList [TaxReportBoxReport ==. reportKey] [Asc TaxReportBoxId]
 
-loadTaxBoxes :: TaxReportSettings -> Key TaxReport -> SqlHandler [(TaxBox, Decimal)]
-loadTaxBoxes settings reportKey = do
+loadTaxBoxes :: TaxProcessor -> Key TaxReport -> SqlHandler [(TaxBox, Decimal)]
+loadTaxBoxes processor reportKey = do
   savedBoxes <- loadSavedBoxes reportKey
   bucket'rateMap <- loadBucketSummary reportKey 
   let buckets = setFromList (map fst $ keys bucket'rateMap) :: Set Bucket
-  boxes <- getBoxes settings buckets
+  boxes <- getBoxes processor buckets
   let
     -- boxes are the one we loaded + the one from settings
     taxBoxMap = (mapFromList $ map (fanl tbName) boxes) :: Map Text TaxBox
@@ -1080,14 +1080,14 @@ loadTaxBoxes settings reportKey = do
 
 -- ** Saving
 -- | Mark the report as done and save its boxes
-closeReport settings report = do
+closeReport  processor report = do
   bucket'rates <- getBucketRateFromConfig report
   runDB $ do
       when (taxReportStatus (entityVal report) == Process) $ do
         error "Report already closed"
     -- load
       buckets <- loadBucketSummary $ entityKey report
-      boxes <- getBoxes settings (setFromList $ map fst $ keys buckets)
+      boxes <- getBoxes processor  (setFromList $ map fst $ keys buckets)
       -- mapM traceShowM (mapToList buckets)
       -- mapM traceShowM boxes
       let
@@ -1116,17 +1116,17 @@ openReport (Entity reportKey report) = do
 -- Normally, all the function calling should have been given
 -- a valid report name. Unless the user is typing randorm url.
 -- in which case it is legitimate  to raise an error ;-)
-unsafeGetReportSettings :: Text -> Handler TaxReportSettings
+unsafeGetReportSettings :: Text -> Handler (TaxReportSettings, TaxProcessor)
 unsafeGetReportSettings name = do
   r <- getReportSettings name
   case r of
     Nothing -> error $ unpack $ "Can't tax settings for " <> name
     Just settings -> return settings
 
-getReportSettings :: Text -> Handler (Maybe TaxReportSettings)
+getReportSettings :: Text -> Handler (Maybe (TaxReportSettings, TaxProcessor))
 getReportSettings name = do
   settings <- appTaxReportSettings <$> getsYesod appSettings
-  return $ lookup name settings
+  return $ fmap (fanr mkTaxProcessor)  $ lookup name settings
   
 
 formatDouble' = F.sformat (commasFixedWith round 4)
@@ -1142,7 +1142,7 @@ data BucketType = ConfigBucket | ExtraBucket deriving (Eq, Read, Show, Enum, Bou
 -- (and the rate in the database)
 getBucketRateFromConfig :: Entity TaxReport -> Handler (Map (Bucket, Entity FA.TaxType) BucketType )
 getBucketRateFromConfig report = do
-  settings <- unsafeGetReportSettings (taxReportType $ entityVal report)
+  (settings, _) <- unsafeGetReportSettings (taxReportType $ entityVal report)
 
   runDB $ do
     taxEntities <- selectList [FA.TaxTypeInactive ==. False] []

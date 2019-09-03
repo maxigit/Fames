@@ -13,8 +13,13 @@ At the moment it's easier to just add a page
    
 ** Query to reset state To match
 #+begin_src  sql
-update fames_tax_report set submitted_at = null, status = 'Pending', start = '2018/01/01' , end ='2018-03-31' where tax_report_id in (28);
-delete from fames_tax_report_box where tax_report_id =  28;
+  -- We need to create some tax report for the first n quarter of 2018
+  -- it easier to override
+  update fames_tax_report set submitted_at = null, status = 'Pending', start = '2018/01/01' , end ='2018-03-31' where tax_report_id in (22);
+  update fames_tax_report set submitted_at = null, status = 'Pending', start = '2018/04/01' , end ='2018-06-30' where tax_report_id in (23);
+  update fames_tax_report set submitted_at = null, status = 'Pending', start = '2018/07/01' , end ='2018-09-30' where tax_report_id in (24);
+  update fames_tax_report set submitted_at = null, status = 'Pending', start = '2018/10/01' , end ='2018-12-31' where tax_report_id in (25);
+  delete from fames_tax_report_box where tax_report_id in (22,23,24,25)
 #+end_src
 
    
