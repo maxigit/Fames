@@ -258,7 +258,7 @@ mkVatReturn vr_periodKey vr_finalised boxes = do -- Either
   vr_vatDueAcquisitions <- getValue "B2"
   vr_totalVatDue <- getValue "B3"
   vr_vatReclaimedCurrPeriod <- getValue "B4"
-  vr_netVatDue <- getValue "B5"
+  vr_netVatDue <- abs <$> getValue "B5"
   vr_totalValueSalesExVAT <- getValue0 "B6"
   vr_totalValuePurchasesExVAT <- getValue0 "B7"
   vr_totalValueGoodsSuppliedExVAT <- getValue0 "B8"
