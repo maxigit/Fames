@@ -11,10 +11,11 @@ import Data.Dynamic(fromDynamic)
 import Database.Persist.Sql (fromSqlKey)
 import Data.Aeson.TH(deriveJSON, defaultOptions, fieldLabelModifier, sumEncoding, SumEncoding(..))
 import Data.Aeson.Types
-import Data.Aeson(encode)
+import Data.Aeson(encode,eitherDecode)
 import Data.Time(diffUTCTime)
 import Data.Decimal (realFracToDecimal, Decimal)
 import Data.Fixed
+import Data.Yaml.Pretty(encodePretty, defConfig) 
 
 -- * Types
 data VATObligation = VATObligation
@@ -135,7 +136,7 @@ curlHMRCToken reportType params@HMRCProcessorParameters{..} = do
                              , "code" <=> code
                              ] : CurlVerbose True : method_POST
       -- traceShowM ("OPT", opt)
-      curlJson url  opts 200  "Getting HMRC Token"
+      curlJson url  opts [200]  "Getting HMRC Token"
   return $ either (error . unpack) id tokenE
   
 refreshHMRCToken :: Text -> HMRCProcessorParameters -> AuthorizationToken -> Handler AuthorizationToken
@@ -153,7 +154,7 @@ refreshHMRCToken reportType params@HMRCProcessorParameters{..} token = do
                                        , "refresh_token" <=> (refreshToken token)
                                        ] : CurlVerbose True : method_POST
       -- traceShowM ("OPT", opt)
-      curlJson url  opts 200  "Refreshing HMRC Token"
+      curlJson url  opts [200]  "Refreshing HMRC Token"
   return $ either (error . unpack) id tokenE
 
 retrieveVATObligations :: Text -> Maybe TaxReport -> HMRCProcessorParameters -> Handler [VATObligation]
@@ -178,26 +179,30 @@ retrieveVATObligations reportType reportM params@HMRCProcessorParameters{..} = d
                     Nothing -> id
                     Just TaxReport{..} -> let good VATObligation{..} = start == taxReportStart && end == taxReportEnd
                                           in filter good
+      go e json = case e of
+                    200 -> case fromJSON json of
+                              Success obs -> Right obs
+                              Error e -> Left (pack e)
+                    _ -> Left . decodeUtf8 $ encodePretty defConfig json 
   obligationsE <- hxtoHe . ioxToHx $ withCurl $ do
     curl <- lift initialize
     let
       ?curl = curl
-      
-    r <- curlJson url (-- curlPostFields [ -- Just "from=2018/01/11"
+    r <- doCurlWithJson go url (-- curlPostFields [ -- Just "from=2018/01/11"
                                      --, Just "to=2019/02/01"
                                      -- ]
                     -- :
                         (CurlHttpHeaders $ catMaybes [ Just "Accept: application/vnd.hmrc.1.0+json"
                                                    , "Authorization: " <?> ("Bearer " <> accessToken token)
 -- #if DEVELOPMENT
-                                                   , "Gov-Test-Scenario: " <?> obligationTestScenario
+                                                   -- , "Gov-Test-Scenario: " <?> obligationTestScenario
  -- #endif
                                                    ]
                       )
       
                       : CurlVerbose True
                     : [] -- method_POST
-                      ) 200 "Fetching VAT obligations"
+                      ) [200, 400, 403] "Fetching VAT obligations"
     return r
   return $ either (error . unpack) (filterGood . findWithDefault [] "obligations" ) (obligationsE :: Either Text (Map Text [VATObligation]))
 
@@ -225,7 +230,12 @@ submitHMRCReturn report@TaxReport{..} periodKey boxes params@HMRCProcessorParame
                         )
              : CurlVerbose True
              : method_POST 
-    curlJson url opts 201 "submitting VAT return"
+      go e json = do -- Either
+        case (e) of
+          201 -> return json
+          _ -> Left . decodeUtf8 $ encodePretty defConfig json 
+            
+    doCurlWithJson go url opts [201, 400, 403] "submitting VAT return"
                  
   case r of
       Left e -> error $ unpack e

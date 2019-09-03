@@ -57,14 +57,14 @@ withFACurlDo user password m = do
     lift $ setopts curl opts
     -- r <- docurl ?baseURL (loginOptions <> [CurlCookieJar "cookies", CurlCookieSession True])
     _ <- curlSoup ?baseURL (loginOptions <> [CurlCookieJar "cookies", CurlCookieSession True])
-                  200 "log in FrontAccounting"
+                  [200] "log in FrontAccounting"
     lift $ setopts curl [CurlCookieFile "cookies"]
     m
 
 -- | send a request using curl an return a tag soup if successfull
 curlSoup :: (?curl :: Curl)
-         => URLString -> [CurlOption] -> Int -> Text -> ExceptT Text IO [Tag String]
-curlSoup = doCurlWith go where
+         => URLString -> [CurlOption] -> [Int] -> Text -> ExceptT Text IO [Tag String]
+curlSoup = doCurlWith (const go) where
   go body = let
     tags = parseTags body
     in case (extractErrorMsgFromSoup tags) of
@@ -195,14 +195,14 @@ addAdjustmentDetail StockAdjustmentDetail{..} = do
                              , "std_cost" <=> adjCost
                              , "qty" <=> adjQuantity
                              ] : method_POST
-  curlSoup ajaxInventoryAdjustmentURL items 200 "add items"
+  curlSoup ajaxInventoryAdjustmentURL items [200] "add items"
   
 
 postStockAdjustment :: FAConnectInfo -> StockAdjustment -> IO (Either Text Int)
 postStockAdjustment connectInfo stockAdj = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
-    _ <- curlSoup newAdjustmentURL method_GET 200 "Problem trying to create a new inventory adjustment"
+    _ <- curlSoup newAdjustmentURL method_GET [200] "Problem trying to create a new inventory adjustment"
     _ <- mapM addAdjustmentDetail (adjDetails (stockAdj :: StockAdjustment))
     let process = curlPostFields [ "ref" <=> (unpack $ adjReference (stockAdj :: StockAdjustment))
                                  , Just "Process=Process"
@@ -212,7 +212,7 @@ postStockAdjustment connectInfo stockAdj = do
                                  , "Increase" <=> if adjAdjType stockAdj == PositiveAdjustment 
                                                      then "1" else "0" :: String
                                  ] : method_POST
-    tags <- curlSoup ajaxInventoryAdjustmentURL process 200 "process inventory adjustment"
+    tags <- curlSoup ajaxInventoryAdjustmentURL process [200] "process inventory adjustment"
     case extractAddedId' "AddedID" "adjustment" tags  of
             Left e -> throwError $ "Inventory Adjustment creation failed:" <> e
             Right faId -> return faId
@@ -223,7 +223,7 @@ postLocationTransfer :: FAConnectInfo -> LocationTransfer -> IO (Either Text Int
 postLocationTransfer connectInfo locTrans = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
-    _ <- curlSoup newLocationTransferURL method_GET 200 "Problem trying to create a new location transfer"
+    _ <- curlSoup newLocationTransferURL method_GET [200] "Problem trying to create a new location transfer"
     _ <- mapM addLocationTransferDetail (ltrDetails (locTrans :: LocationTransfer))
     let process = curlPostFields [ "ref" <=> ltrReference locTrans
                                  , Just "Process=Process"
@@ -232,7 +232,7 @@ postLocationTransfer connectInfo locTrans = do
                                  , "ToStockLocation" <=> unpack (ltrLocationTo locTrans) 
                                  , Just "type=0" -- @TODO config file
                                  ] : method_POST
-    tags <- curlSoup (toAjax locationTransferURL) process 200 "process location transfer"
+    tags <- curlSoup (toAjax locationTransferURL) process [200] "process location transfer"
     case extractAddedId' "AddedID" "location transfer" tags  of
             Left e -> throwError $ "Location Transfer creation failed:" <> e
             Right faId -> return faId
@@ -251,7 +251,7 @@ addLocationTransferDetail LocationTransferDetail{..} = do
                              , Just "std_cost=0"
                              , "qty" <=> show ltrQuantity
                              ] : method_POST
-  curlSoup (toAjax locationTransferURL) items 200 "add items"
+  curlSoup (toAjax locationTransferURL) items [200] "add items"
 
 
 -- ** GL
@@ -259,7 +259,7 @@ postBankPayment :: FAConnectInfo -> BankPayment -> IO (Either Text Int)
 postBankPayment connectInfo payment = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
-    new <- curlSoup newBankPaymentURL method_GET 200 "Problem trying to create new bank payment"
+    new <- curlSoup newBankPaymentURL method_GET [200] "Problem trying to create new bank payment"
     _ <- mapM addBankPaymentItems (bpItems payment)
     let ref = case extractInputValue "ref" new of
                   Nothing -> Left "Can't find GRN reference"
@@ -274,7 +274,7 @@ postBankPayment connectInfo payment = do
                                  , "memo_"  <=> bpMemo payment
                                  , Just "Process=Process"
                                  ] : method_POST
-    tags <- curlSoup (toAjax bankPaymentURL) process 200 "Create bank payment"
+    tags <- curlSoup (toAjax bankPaymentURL) process [200] "Create bank payment"
     case extractAddedId' "AddedID" "bank payment" tags of
       Left e -> throwError $ "Bank payment creation failed:" <> e
       Right faId -> return faId
@@ -290,14 +290,14 @@ addBankPaymentItems GLItem{..} = do
                               , "LineMemo" <=> gliMemo
                               , Just "AddItem=Add%20Item"
                               ] :method_POST
-  curlSoup (ajaxBankPaymentItemURL) fields 200 "add GL items"
+  curlSoup (ajaxBankPaymentItemURL) fields [200] "add GL items"
 
 -- | TODO factorize with postBankPayment
 postBankDeposit :: FAConnectInfo -> BankDeposit -> IO (Either Text Int)
 postBankDeposit connectInfo deposit = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
-    new <- curlSoup newBankDepositURL method_GET 200 "Problem trying to create new bank deposit"
+    new <- curlSoup newBankDepositURL method_GET [200] "Problem trying to create new bank deposit"
     _ <- mapM addBankDepositItems (bdItems deposit)
     let ref = case extractInputValue "ref" new of
                   Nothing -> Left "Can't find GRN reference"
@@ -312,7 +312,7 @@ postBankDeposit connectInfo deposit = do
                                  , "memo_"  <=> bdMemo deposit
                                  , Just "Process=Process"
                                  ] : method_POST
-    tags <- curlSoup (toAjax bankDepositURL) process 200 "Create bank deposit"
+    tags <- curlSoup (toAjax bankDepositURL) process [200] "Create bank deposit"
     case extractAddedId' "AddedDep" "bank deposit" tags of
       Left e -> throwError $ "Bank deposit creation failed:" <> e
       Right faId -> return faId
@@ -333,7 +333,7 @@ addBankDepositItems GLItem{..} = do
                               , "LineMemo" <=> gliMemo
                               , Just "AddItem=Add%20Item"
                               ] :method_POST
-  curlSoup (ajaxBankDepositItemURL) fields 200 "add GL items"
+  curlSoup (ajaxBankDepositItemURL) fields [200] "add GL items"
   
 -- ** Purchase
 -- *** GRN
@@ -341,7 +341,7 @@ postGRN :: FAConnectInfo -> GRN -> IO (Either Text Int)
 postGRN connectInfo grn = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
-    new <- curlSoup newGRNURL method_GET 200 "Problem trying to create a new GRN"
+    new <- curlSoup newGRNURL method_GET [200] "Problem trying to create a new GRN"
     _ <- mapM addGRNDetail (grnDetails grn)
     
     let ref = case extractInputValue "ref" new of
@@ -356,7 +356,7 @@ postGRN connectInfo grn = do
                                  , "Comments" <=> grnMemo grn
                                  , Just "Commit=Process%20GRN" -- Pressing commit button
                                  ] : method_POST
-    tags <- curlSoup (ajaxGRNURL) process 200 "Create GRN"
+    tags <- curlSoup (ajaxGRNURL) process [200] "Create GRN"
     case extractAddedId' "AddedGRN" "grn" tags of
       Left e -> throwError $ "GRN creation failed:" <> e
       Right faId -> return faId
@@ -369,7 +369,7 @@ addGRNDetail GRNDetail{..} = do
                               , "qty" <=> show grnQuantity
                               , "price" <=> show grnPrice
                               ] : method_POST
-  curlSoup ajaxGRNURL fields 200 "add items"
+  curlSoup ajaxGRNURL fields [200] "add items"
   
 -- *** Invoice
 postPurchaseInvoice :: FAConnectInfo -> PurchaseInvoice -> IO (Either Text Int)
@@ -377,11 +377,11 @@ postPurchaseInvoice connectInfo PurchaseInvoice{..} = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
     _ <- curlSoup newPurchaseInvoiceURL  method_GET
-                         200 "Problem trying to create a new purchase invoice"
+                         [200] "Problem trying to create a new purchase invoice"
     -- we need to change the supplier id
     response <- curlSoup ajaxPurchaseInvoiceURL (curlPostFields [ "supplier_id" <=> poiSupplier
                                                                 , "tran_date" <=> poiDate] : method_POST)
-                        200 "Problem changing supplier"
+                        [200] "Problem changing supplier"
     del <- addPurchaseInvoiceDeliveries response poiDeliveryIds
     _ <- mapM addPurchaseInvoiceDetail poiGLItems
     ref <- case extractInputValue "reference" response of
@@ -395,7 +395,7 @@ postPurchaseInvoice connectInfo PurchaseInvoice{..} = do
                                  , "Comments" <=> poiMemo
                                  , Just "PostInvoice=Enter%20Invoice" -- Pressing commit button
                                  ] : method_POST
-    tags <- curlSoup (ajaxPurchaseInvoiceURL) process 200 "Create Purchase Invoice"
+    tags <- curlSoup (ajaxPurchaseInvoiceURL) process [200] "Create Purchase Invoice"
     case extractAddedId' "AddedID" "purchase invoice" tags of
       Left e -> throwError $ "Purchase invoice creation failed:\n" <> e
       Right faId -> return faId
@@ -410,7 +410,7 @@ addPurchaseInvoiceDetail GLItem{..} = do
                               , "memo_" <=> gliMemo
                               , Just "AddGLCodeToTrans=1"
                               ] :method_POST
-  curlSoup (ajaxPurchaseInvoiceURL) fields 200 "add GL items"
+  curlSoup (ajaxPurchaseInvoiceURL) fields [200] "add GL items"
 
 -- **** Invoice Purchase Order Delivery
 -- | Find all the fields corresponding to the invoicable delivery
@@ -424,7 +424,7 @@ addPurchaseInvoiceDeliveries tags deliveryIds = do
   let extra = curlPostFields [ Just "InvGRNAll=1"
                              ] : method_POST
   fields <- ExceptT $ return $ extractDeliveryItems tags deliveryIds 
-  curlSoup (ajaxPurchaseInvoiceURL) (fields ++ extra) 200 "add delivery items"
+  curlSoup (ajaxPurchaseInvoiceURL) (fields ++ extra) [200] "add delivery items"
 
 extractDeliveryItems :: [Tag String] -> [(Int, Maybe Int)] -> Either Text [CurlOption]
 extractDeliveryItems tags deliveryId'ns = do -- Either
@@ -466,13 +466,13 @@ postPurchaseCreditNote connectInfo PurchaseCreditNote{..} = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
     _ <- curlSoup (newPurchaseCreditNoteURL pcnInvoiceNo )  method_GET
-                         200 "Problem trying to create a new Credit Note"
+                         [200] "Problem trying to create a new Credit Note"
     -- we need to change the supplier id
     response <- curlSoup ajaxPurchaseCreditNoteURL (curlPostFields [ "supplier_id" <=> pcnSupplier
                                                                    , "tran_date" <=> pcnDate
                                                                    , "invoice_no" <=> pcnInvoiceNo
                                                                    ] : method_POST)
-                        200 "Problem changing supplier"
+                        [200] "Problem changing supplier"
     -- del <- addPurchaseCreditNoteDeliveries response pcnDeliveryIds
     _ <- mapM addPurchaseCreditNoteDetail pcnGLItems
     ref <- case extractInputValue "reference" response of
@@ -487,7 +487,7 @@ postPurchaseCreditNote connectInfo PurchaseCreditNote{..} = do
                                  , "Comments" <=> pcnMemo
                                  , Just "PostCreditNote=Enter%20CreditNote" -- Pressing commit button
                                  ] : method_POST
-    tags <- curlSoup (ajaxPurchaseCreditNoteURL) process 200 "Create Purchase CreditNote"
+    tags <- curlSoup (ajaxPurchaseCreditNoteURL) process [200] "Create Purchase CreditNote"
     case extractAddedId' "AddedID" "purchase invoice" tags of
       Left e -> throwError $ "Purchase invoice creation failed:\n" <> e
       Right faId -> return faId
@@ -502,7 +502,7 @@ addPurchaseCreditNoteDetail GLItem{..} = do
                               , "memo_" <=> gliMemo
                               , Just "AddGLCodeToTrans=1"
                               ] :method_POST
-  curlSoup (ajaxPurchaseCreditNoteURL) fields 200 "add GL items"
+  curlSoup (ajaxPurchaseCreditNoteURL) fields [200] "add GL items"
 
 -- **** Credit Items from Invoice
 -- | Find all the fields corresponding to the invoicable delivery
@@ -516,7 +516,7 @@ _addPurchaseCreditNoteDeliveries tags deliveryIds = do
   let extra = curlPostFields [ Just "InvGRNAll=1"
                              ] : method_POST
   fields <- ExceptT $ return $ extractDeliveryItems tags deliveryIds 
-  curlSoup (ajaxPurchaseCreditNoteURL) (fields ++ extra) 200 "add delivery items"
+  curlSoup (ajaxPurchaseCreditNoteURL) (fields ++ extra) [200] "add delivery items"
 
 -- *** Payment
 postSupplierPayment :: FAConnectInfo -> SupplierPayment -> IO (Either Text Int)
@@ -524,7 +524,7 @@ postSupplierPayment connectInfo SupplierPayment{..} = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
     _ <- curlSoup newSupplierPaymentURL method_GET
-                  200 "Problem creating supplier payment"
+                  [200] "Problem creating supplier payment"
     -- we need to change the supplier and reception date to
     -- make correct transactions appears
     response <- curlSoup ajaxSupplierPaymentURL (curlPostFields [ "supplier_id" <=> spSupplier
@@ -533,7 +533,7 @@ postSupplierPayment connectInfo SupplierPayment{..} = do
                                                                 , Just "_bank_account_update=1"
                                                                 , "DatePaid" <=> spDate
                                                                 ] : method_POST)
-                  200 "Problem  setting payment supplier"
+                  [200] "Problem  setting payment supplier"
     let ref = case extractInputValue "ref" response of
                   Nothing -> error "Can't find Payment reference"
                   Just r -> r
@@ -547,7 +547,7 @@ postSupplierPayment connectInfo SupplierPayment{..} = do
                                  , Just "ProcessSuppPayment=1"
                                  , "TotalNumberOfAllocs" <=> maxAllocated
                                  ] : method_POST
-    tags <- curlSoup (ajaxSupplierPaymentURL) (process ++ allocFields) 200 "Create Supplier Payment"
+    tags <- curlSoup (ajaxSupplierPaymentURL) (process ++ allocFields) [200] "Create Supplier Payment"
     case extractAddedId' "AddedID" "supplier payment" tags of
       Left e -> throwError $ "Supplier payment creation failed:\n" <> e
       Right faId -> return faId
@@ -669,7 +669,7 @@ postVoid connectInfo VoidTransaction{..} = do
                               , Just "ConfirmVoiding=1"
                               ] : method_POST
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
-    tags <- curlSoup ajaxVoidTransactionUrl fields 200 "Void Transaction"
+    tags <- curlSoup ajaxVoidTransactionUrl fields [200] "Void Transaction"
     case extractSuccessMsgFromSoup tags of
       Right msg | "Selected transaction has been voided." `ClassyPrelude.isPrefixOf` msg -> return 1
       Right e ->  throwError $ "Unexpected success msg: ["  <> e <> "]"

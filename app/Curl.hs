@@ -31,33 +31,37 @@ mergePostFields opts = let
     fs  -> CurlPostFields fs : normals
 
 doCurlWith :: (?curl :: Curl)
-         => (String -> Either Text r)
+         => (Int -> String -> Either Text r)
          -> URLString -- ^ Url
          -> [CurlOption] -- ^ Options
-         -> Int -- ^ Expected status
+         -> [Int] -- ^ Expected status
          -> Text -- ^ To add to error message
          -> ExceptT Text IO r
 doCurlWith cont url opts status msg = do
   -- traceShowM ("POST to CURL", url, opts)
   r <- docurl url (mergePostFields opts)
   -- traceShowM ("RESP", respStatus r, respBody r)
-  when (respCurlCode r /= CurlOK || respStatus r /= status) $ do
+  when (respCurlCode r /= CurlOK || respStatus r `notElem` status) $ do
       throwError $ {- traceShowId $ -} unlines [ "Failed to : " <> msg
                            , "CURL status: " <> tshow (respCurlCode r)
                            , "HTTP status :" <> pack (respStatusLine r)
                            , "when accessing URL: '" <> tshow url <> "'"
                            , "If the problem persits, contact your administrator."
                            ]
-  ExceptT $ return $ cont (respBody r)
+  ExceptT $ return $ cont (respStatus r) (respBody r)
 
 curlJson :: (?curl :: Curl, FromJSON json)
          => URLString -- ^ Url
          -> [CurlOption] -- ^ Options
-         -> Int -- ^ Expected status
+         -> [Int] -- ^ Expected status
          -> Text -- ^ To add to error message
          -> ExceptT Text IO json
-curlJson = doCurlWith go where
+curlJson = doCurlWith (const go) where
   go = first fromString . eitherDecodeStrict . fromString
+
+doCurlWithJson cont = doCurlWith go where
+  go err = cont err <=< first fromString . eitherDecodeStrict . fromString
+  
 -- *** Post Paramters
 class CurlPostField a where
   toCurlPostField :: a -> Maybe String
