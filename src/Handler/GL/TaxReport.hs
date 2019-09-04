@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-deprecations #-}
 module Handler.GL.TaxReport
 ( getGLTaxReportsR
 , postGLNewTaxReportR 
@@ -154,6 +155,7 @@ postGLTaxReportReopenR key = do
 postGLTaxReportPreSubmitR :: Int64 -> Handler Html
 postGLTaxReportPreSubmitR key = do
   report <- runDB $ loadReport key
+  traceShowM ("REPORT SUBMIt", report)
   Just (reportSettings, processor)  <- getReportSettings (taxReportType $ entityVal report)
   -- let reportRules = maybe defaultRule rules reportSettings
   (before, withinPeriod)  <- runDB $ countPendingTransTaxDetails (entityVal report)
@@ -165,6 +167,7 @@ postGLTaxReportPreSubmitR key = do
     Ready -> return ""
     _ -> error $ "external VAT status inconsistent: " <> show externalStatus
     
+  presubmitW <- preSubmitCheck processor report
   when (before > 0) $ do
     setWarning [shamlet|
                       <p> Some transactions belonging to a previous tax period have been modified.
@@ -182,9 +185,10 @@ postGLTaxReportPreSubmitR key = do
 
   when (taxReportStatus (entityVal report) == Pending ) $ closeReport processor report
   box'amounts <- runDB $ loadTaxBoxes processor (entityKey report)
+  setInfo "The current tax report is ready to be submitted. Are you sure you want to proceed ?"
   defaultLayout [whamlet|
-     The current tax report is ready to be submitted. Are you sure you want to proceed ?
-     ^{renderBoxTable box'amounts}
+     ^{presubmitW}
+"     ^{renderBoxTable box'amounts}
      ^{submitButtonForm (entityKey report)}
      ^{cancelSubmitButtonForm (entityKey report)}
                         |] 
@@ -241,7 +245,8 @@ getGLTaxReportOAuthR = do
           -- redirect to presubmit page
           case routem of
             Nothing -> toTypedContent <$> getGLTaxReportsR
-            Just (GLR (GLTaxReportPreSubmitR reportId)) ->  postGLTaxReportSubmitR reportId
+            Just (GLR (GLTaxReportSubmitR reportId)) ->  postGLTaxReportSubmitR reportId
+            Just (GLR (GLTaxReportPreSubmitR reportId)) ->  toTypedContent <$> postGLTaxReportPreSubmitR reportId
             Just (route) -> toTypedContent <$> (redirect (route :: Route App) :: Handler Html) --  we use redirect
             -- to be sure we the result go through normal authorization
         _ -> do -- 

@@ -5,6 +5,7 @@ module Handler.GL.TaxReport.Processor
 , checkExternalStatus
 , submitReturn
 , displayExternalStatuses
+, preSubmitCheck
 , getBoxes
 )
 where
@@ -32,6 +33,8 @@ data TaxProcessor = TaxProcessor
   , getBoxes :: Set Bucket -> SqlHandler [TaxBox]
   -- ^ Allow a processor to alter boxes depending on buckets
   -- This is used for ECSL where each bucket corresponding to a box
+  , preSubmitCheck ::  Entity TaxReport -> Handler Widget
+  -- ^ specific check and legal requirement
   }
 
 
@@ -43,6 +46,7 @@ emptyProcessor settings = TaxProcessor {..} where
   submitReturn (Entity _ report)= return  (report, Nothing)
   displayExternalStatuses _ =  return "Processor doesn't provide statuses"
   getBoxes _ = return $ boxesRaw settings
+  preSubmitCheck = \_ -> return ""
 
 mkTaxProcessor :: TaxReportSettings -> TaxProcessor
 mkTaxProcessor settings = case processor settings of
@@ -67,6 +71,7 @@ mkHMRCProcessor params settings = (emptyProcessor settings)
   , submitReturn = \report -> (,Nothing) <$> submitHMRC params report settings
   , getBoxes = \_ ->  return . either (error . unpack) id $ getHMRCBoxes settings
   , displayExternalStatuses = \reportType -> displayHMRCStatuses reportType params
+  , preSubmitCheck = hmrcPreSubmitCheck
   }
 
 -- * Main Dispatchers
@@ -167,6 +172,22 @@ Declaration text to be used if only Agents make the submission;
 
 I confirm that my client has received a copy of the information contained in this return and approved the information as being correct and complete to the best of their knowledge and belie
 |]
+
+-- | Display the legal declaration but within a form with a
+-- mandatory check button
+hmrcPreSubmitCheck :: Entity TaxReport -> Handler Widget
+hmrcPreSubmitCheck _ = do
+  ((_,view), encType) <- runFormPost $ hmrcPreSubmitForm
+  return view
+
+hmrcPreSubmitForm :: Html -> MForm Handler (FormResult Bool, Widget)
+hmrcPreSubmitForm _ =  do
+  (f, v) <- mreq checkBoxField "Confirm" Nothing
+  let widget = infoPanel "Legal Declaration" [whamlet| 
+          #{hmrcLegalDeclaration}
+          ^{renderField v}
+          |]
+  return (f, widget)
 -- * Manual
 -- Set the submitted date 
 submitManual ManualProcessorParameters{..} settings (Entity reportKey report) = do

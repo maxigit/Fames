@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ImplicitParams #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 module Handler.GL.TaxReport.HMRC where
 import Import
 import Network.Curl
@@ -215,6 +216,7 @@ submitHMRCReturn report@TaxReport{..} periodKey boxes params@HMRCProcessorParame
   -- let endPoint = "/organisations/vat/"<>vatNumber<>"/obligations" :: Text
       url = unpack $ baseUrl <> endPoint 
       vatReturn = either (error . unpack) id $ mkVatReturn periodKey True boxes
+  traceShowM ("VATRe", vatReturn)
   r <- hxtoHe . ioxToHx $ withCurl $ do
     curl <- lift initialize
     let ?curl = curl
