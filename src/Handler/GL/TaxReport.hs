@@ -308,7 +308,7 @@ renderReportList (name, settings) = runDB $ do
         <th> End
         <th> Status
         <th> Submitted
-        <th> External Reference
+        $#<th> External Reference
     $forall (Entity reportKey report@TaxReport{..}) <- reports
       <tr>
         <td> <a href="@{GLR $ GLTaxReportR (fromSqlKey reportKey) Nothing}">  
@@ -319,7 +319,7 @@ renderReportList (name, settings) = runDB $ do
         <td class="#{classFor $ taxReportDateStatus settings today report}">
                     #{tshow taxReportStatus}
         <td.submitted> #{tshowM taxReportSubmittedAt}
-        <td.submitted> #{fromMaybe "" taxReportExternalReference}
+        $#<td.submitted> #{fromMaybe "" taxReportExternalReference}
   |]
   return (name, widget)
 
