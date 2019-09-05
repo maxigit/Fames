@@ -28,7 +28,7 @@ import Text.Shakespeare.Text (st)
 -- * Type
 data TaxProcessor = TaxProcessor
   { checkExternalStatus :: Entity TaxReport -> Handler TaxReportStatus
-  , submitReturn :: Entity TaxReport -> Handler (TaxReport, Maybe TypedContent)
+  , submitReturn :: Entity TaxReport -> Handler (Either Text (TaxReport, Maybe TypedContent))
   , displayExternalStatuses :: Text -> Handler Widget
   , getBoxes :: Set Bucket -> SqlHandler [TaxBox]
   -- ^ Allow a processor to alter boxes depending on buckets
@@ -43,7 +43,7 @@ data TaxProcessor = TaxProcessor
 emptyProcessor :: TaxReportSettings ->  TaxProcessor
 emptyProcessor settings = TaxProcessor {..} where
   checkExternalStatus _ = return Ready
-  submitReturn (Entity _ report)= return  (report, Nothing)
+  submitReturn (Entity _ report)= return $ Right (report, Nothing)
   displayExternalStatuses _ =  return "Processor doesn't provide statuses"
   getBoxes _ = return $ boxesRaw settings
   preSubmitCheck = \_ -> return ""
@@ -56,7 +56,7 @@ mkTaxProcessor settings = case processor settings of
   
 mkManualProcessor :: ManualProcessorParameters -> TaxReportSettings -> TaxProcessor
 mkManualProcessor params settings = (emptyProcessor settings)
-  { submitReturn = \report -> (,Nothing) <$> submitManual params (settings) report
+  { submitReturn = \report -> (Right . (,Nothing)) <$> submitManual params (settings) report
   }
 
 -- ** ECSL
@@ -68,7 +68,7 @@ mkECSLProcessor params settings = (emptyProcessor settings)
 mkHMRCProcessor :: HMRCProcessorParameters -> TaxReportSettings -> TaxProcessor
 mkHMRCProcessor params settings = (emptyProcessor settings)
   { checkExternalStatus = \report -> checkHMRCStatus report params
-  , submitReturn = \report -> (,Nothing) <$> submitHMRC params report settings
+  , submitReturn = \report -> (,Nothing) <$$> submitHMRC params report settings
   , getBoxes = \_ ->  return . either (error . unpack) id $ getHMRCBoxes settings
   , displayExternalStatuses = \reportType -> displayHMRCStatuses reportType params
   , preSubmitCheck = hmrcPreSubmitCheck
@@ -105,16 +105,25 @@ checkHMRCStatus (Entity reportKey report@TaxReport{..}) settings = do
     -- [] -> return Submitted -- treats not present as already submitted, or not required
     _ ->  error "Problem retrieving the VAT obligations"
 
-submitHMRC :: HMRCProcessorParameters -> Entity TaxReport -> TaxReportSettings  -> Handler TaxReport
+submitHMRC :: HMRCProcessorParameters -> Entity TaxReport -> TaxReportSettings  -> Handler (Either Text TaxReport)
 submitHMRC params report _settings = do
-  obligations <- retrieveVATObligations (taxReportType $ entityVal report) (Just $ entityVal report) params
-  pKey <- case obligations of
-    [obligation] -> case received obligation of
-         Nothing -> return $ periodKey obligation
-         Just submitted -> error "Report already submitted"
-    _ -> error "No period key found. Can't submit report "
-  boxes <- runDB $ selectList [TaxReportBoxReport ==. entityKey report] []
-  submitHMRCReturn (entityVal report) pKey (map entityVal boxes) params
+  -- check user has read legal requirement
+  ((result,view), encType) <- runFormPost $ hmrcPreSubmitForm
+  case result of
+    FormMissing -> error "missing"
+    FormFailure msg ->  error $ "Form Failure:" ++ show msg
+    FormSuccess False -> return $ Left "Please read and agree the legal declaration"
+    FormSuccess confirmed -> do
+        
+
+      obligations <- retrieveVATObligations (taxReportType $ entityVal report) (Just $ entityVal report) params
+      pKey <- case obligations of
+        [obligation] -> case received obligation of
+            Nothing -> return $ periodKey obligation
+            Just submitted -> error "Report already submitted"
+        _ -> error "No period key found. Can't submit report "
+      boxes <- runDB $ selectList [TaxReportBoxReport ==. entityKey report] []
+      Right <$> submitHMRCReturn (entityVal report) pKey (map entityVal boxes) params
 
 getHMRCBoxes ::  TaxReportSettings -> Either Text [TaxBox]
 getHMRCBoxes settings@TaxReportSettings{..} =  do
@@ -164,8 +173,8 @@ displayHMRCStatuses reportType param = do
        <td> #{tshowM received}
 |]
 {-# NOINLINE hmrcLegalDeclaration #-}
-hmrcLegalDeclaration :: Text
-hmrcLegalDeclaration = [st|
+hmrcLegalDeclaration :: Html
+hmrcLegalDeclaration = [shamlet|$newline text
 When you submit this VAT information you are making a legal declaration that the information is true and complete. A false declaration can result in prosecution.
 
 Declaration text to be used if only Agents make the submission;
@@ -181,9 +190,10 @@ hmrcPreSubmitCheck _ = do
   return view
 
 hmrcPreSubmitForm :: Html -> MForm Handler (FormResult Bool, Widget)
-hmrcPreSubmitForm _ =  do
+hmrcPreSubmitForm extra =  do
   (f, v) <- mreq checkBoxField "Confirm" Nothing
   let widget = infoPanel "Legal Declaration" [whamlet| 
+          #{extra}
           #{hmrcLegalDeclaration}
           ^{renderField v}
           |]
@@ -243,7 +253,7 @@ getECSLBoxes ECSLProcessorParameters{..} TaxReportSettings{..} buckets = do
 
 -- ** Submit
 submitECSL :: ECSLProcessorParameters -> Entity TaxReport -> TaxReportSettings
-           -> Handler ( TaxReport, Maybe TypedContent )
+           -> Handler (Either Text ( TaxReport, Maybe TypedContent ))
 submitECSL params@ECSLProcessorParameters{..} report TaxReportSettings{..} = do
   now <- liftIO $ getCurrentTime
   boxes <- runDB $ selectList [TaxReportBoxReport ==. entityKey report] []
@@ -252,7 +262,7 @@ submitECSL params@ECSLProcessorParameters{..} report TaxReportSettings{..} = do
   userm <- currentFAUser
   let    contactName = maybe "" FA.userRealName userm
   (content, attachmentName) <- generateECSLCSV contactName (entityVal report) params ecls
-  return ( (entityVal report) { taxReportSubmittedAt = Just now
+  return $ Right ( (entityVal report) { taxReportSubmittedAt = Just now
                 , taxReportExternalReference = Just attachmentName
                 }
          , Just content)

@@ -187,9 +187,8 @@ postGLTaxReportPreSubmitR key = do
   box'amounts <- runDB $ loadTaxBoxes processor (entityKey report)
   setInfo "The current tax report is ready to be submitted. Are you sure you want to proceed ?"
   defaultLayout [whamlet|
-     ^{presubmitW}
-"     ^{renderBoxTable box'amounts}
-     ^{submitButtonForm (entityKey report)}
+"    ^{renderBoxTable box'amounts}
+     ^{submitButtonForm presubmitW (entityKey report)}
      ^{cancelSubmitButtonForm (entityKey report)}
                         |] 
 
@@ -211,15 +210,20 @@ postGLTaxReportSubmitR key = do
   return "nothing done"
   report <- runDB $ loadReport key
   Just (reportSettings, processor)  <- getReportSettings (taxReportType $ entityVal report)
-  (TaxReport{..}, contentm )<- submitReturn processor report
-  runDB $ update (entityKey report) [ TaxReportSubmittedAt =. taxReportSubmittedAt
-                                    , TaxReportExternalReference =. taxReportExternalReference 
-                                    , TaxReportExternalData =. taxReportExternalData
-                                    ]
-  setSuccess "Report has been succesfully submitted"
-  case contentm of
-    Nothing -> toTypedContent <$> getGLTaxReportsR  >>= sendResponseStatus created201
-    Just content -> return content
+  result <- submitReturn processor report
+  case result of
+    Left err ->  do
+      setError (toHtml err)
+      toTypedContent <$> postGLTaxReportPreSubmitR key
+    Right (TaxReport{..}, contentm ) -> do
+        runDB $ update (entityKey report) [ TaxReportSubmittedAt =. taxReportSubmittedAt
+                                          , TaxReportExternalReference =. taxReportExternalReference 
+                                          , TaxReportExternalData =. taxReportExternalData
+                                          ]
+        setSuccess "Report has been succesfully submitted"
+        case contentm of
+          Nothing -> toTypedContent <$> getGLTaxReportsR  >>= sendResponseStatus created201
+          Just content -> return content
 
 {-# NOINLINE getGLTaxReportStatusesR #-}
 getGLTaxReportStatusesR :: Text -> Handler Html
@@ -376,9 +380,10 @@ preSubmitButtonForm key = [whamlet|
   <form method=POST action="@{GLR $ GLTaxReportPreSubmitR $ fromSqlKey key}">
     <button.btn.btn-danger type="submit"> Submit
                                |]
-submitButtonForm :: Key TaxReport -> Widget
-submitButtonForm key = [whamlet|
+submitButtonForm :: Widget -> Key TaxReport -> Widget
+submitButtonForm pre key = [whamlet|
   <form method=POST action="@{GLR $ GLTaxReportSubmitR $ fromSqlKey key}">
+    ^{pre}
     <button.btn.btn-danger type="submit"> Submit
                                |]
 
