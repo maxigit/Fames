@@ -3,7 +3,7 @@ module Model.DocumentKey where
 import Foundation
 import Import.NoFoundation
 import qualified Crypto.Hash as Crypto
-import Web.PathPieces
+
 
 -- | TODO: Needs to be an enum and used as such in DocumentKey model
 newtype DocumentType = DocumentType Text

@@ -7,7 +7,7 @@
 module GL.Payroll.Timesheet  where
 
 import Prelude
-import           Data.Decimal
+
 import           Data.Time ( Day
                            , LocalTime
                            , TimeOfDay
@@ -21,20 +21,20 @@ import           Data.Time ( Day
                            , addGregorianMonthsClip
                            )
 import Data.Time.Calendar.WeekDate (toWeekDate)
-import qualified Data.Time as Time
-import           Control.Applicative
 
-import qualified Text.Parsec as P
+
+
+
 import Data.Maybe
 
-import Lens.Micro hiding(index)
+import Lens.Micro
 import Lens.Micro.TH
 import Data.Semigroup
 import Data.List.NonEmpty(nonEmpty)
 import Data.Semigroup.Generator(reduceWith1)
-import Data.Semigroup.Reducer(Reducer(..))
-import Data.Ord(comparing)
-import Data.Function(on)
+
+
+
 import Text.Printf(printf)
 import Data.These
 import Data.Bifunctor (bimap)
@@ -42,7 +42,7 @@ import qualified Data.Map as Map
 import Data.Map(Map)
 import Locker
 import Data.Text (Text)
-import Data.Either(isRight)
+
 import GL.Utils
 
 -- * Type alias
@@ -127,7 +127,7 @@ instance HasShiftType st => HasShiftType (a, d, st) where
 instance HasShiftType k => HasShiftType (Shift k) where
   shiftType = shiftKey.shiftType
 
--- hourlyRate :: Getter (Shift k) Amount
+hourlyRate :: HasShift s k => Getting r s Amount
 hourlyRate = to $ (/) <$> (^.cost) <*> (^.duration)
 
 -- | Deduction and costs
@@ -137,8 +137,10 @@ data DeductionAndCost key = DeductionAndCost
   } deriving (Eq, Read, Show, Functor, Foldable, Traversable)
 makeClassy ''DeductionAndCost
 
+dacDeduction, dacCost :: (HasDeductionAndCost c key, Applicative f) => (Amount -> f Amount) -> c -> f c
 dacDeduction = dacDac . here
 dacCost = dacDac . there
+dacTotal :: HasDeductionAndCost s key => s -> Amount
 dacTotal dac =  go dacDeduction +  go dacCost where go f = fromMaybe 0 (dac ^? f)
 
 data PayrollFrequency = Weekly | Monthly deriving (Eq, Read, Show, Enum, Bounded, Ord)
@@ -172,7 +174,7 @@ mapPayee f ts =  ts { _deductionAndCosts = map f' (_deductionAndCosts ts) }
           in dac { _dacKey = (p', e) }
 
 newTimesheet :: PayrollFrequency -> Day -> Timesheet p e
-newTimesheet frequency day = Timesheet [] day frequency []
+newTimesheet l_frequency l_day = Timesheet [] l_day l_frequency []
 
 -- ** Period
 -- ** EmployeeSummary
@@ -202,39 +204,40 @@ makeLenses ''Period
 -- | End of a period
 periodEnd :: Timesheet p e -> Day
 periodEnd ts = let
-  day = _periodStart ts
+  l_day = _periodStart ts
   in case _frequency ts of
-       Weekly -> addDays 6 day
-       Monthly -> addDays (-1) (addGregorianMonthsClip 1 day )
+       Weekly -> addDays 6 l_day
+       Monthly -> addDays (-1) (addGregorianMonthsClip 1 l_day )
 
 -- | Adjust period year so it includes the given date
 adjustPeriodYearFor :: Day -> Period -> Period
-adjustPeriodYearFor day period = let
-  newStart = adjustTaxYear (period ^. pStart) day
+adjustPeriodYearFor l_day period = let
+  newStart = adjustTaxYear (period ^. pStart) l_day
   in period & pStart .~ Start newStart
 
 
 periodNameFor :: Day -> Period ->  String
-periodNameFor day period = let
+periodNameFor l_day period = let
   (format, n) = case _periodFrequency period of
-    Weekly -> ("%02d", snd $ weekNumber (_pStart period ) day )
-    Monthly ->  ("M%02d", snd $  monthNumber (_pStart period ) day)
+    Weekly -> ("%02d", snd $ weekNumber (_pStart period ) l_day )
+    Monthly ->  ("M%02d", snd $  monthNumber (_pStart period ) l_day)
   in printf format n
 
 refFormatter :: (Integer -> String -> String)
              -> Period
              -> Day
              -> String
-refFormatter formatter period day = let
-  period' = adjustPeriodYearFor day period
+refFormatter formatter period l_day = let
+  period' = adjustPeriodYearFor l_day period
   Start start =  period' ^. pStart
   (year, _, _) = toGregorian start
-  in formatter year (periodNameFor day period')
+  in formatter year (periodNameFor l_day period')
 
 -- | Only there for testing reason
 -- Allows to resave transactions even if they already exists
 -- in front accountin
-referencePrefix = "" :: String
+referencePrefix :: String
+referencePrefix = ""
 shortRef :: Period -> Day -> String
 shortRef = refFormatter go where
   go year name = printf "%s%02d%s" referencePrefix (year `mod` 100) name
@@ -244,9 +247,10 @@ longRef = refFormatter go where
   go year name = printf "%s%d/%s" referencePrefix year name
 
 
-dayRef period day = let
-  (_, _, weekDay) = toWeekDate day
-  (_, _, monthDay) = toGregorian day
+dayRef :: Period -> Day -> String
+dayRef period l_day = let
+  (_, _, weekDay) = toWeekDate l_day
+  (_, _, monthDay) = toGregorian l_day
   dayS = case weekDay of
           1 -> "Mon" :: String
           2 -> "Tue"
@@ -255,7 +259,7 @@ dayRef period day = let
           5 -> "Fri"
           6 -> "Sat"
           7 -> "Sun"
-          _ -> error "Week day > 7"
+          _ -> error "Week l_day > 7"
   in case _periodFrequency period of
        Weekly -> dayS
        Monthly -> printf "%s-%02d" dayS monthDay
@@ -290,6 +294,10 @@ instance (Ord p, Semigroup e) => Semigroup (EmployeeSummary p e) where
 -- * Locking
 
 
+filterTimesheet :: (Shift (e, Day, ShiftType) -> Bool) -- ^ Shift filter
+                -> (DeductionAndCost (p, e) -> Bool) -- ^ DAC filter
+                -> Timesheet p e
+                -> Maybe (Timesheet p e) -- ^ returns nothing if everything has been filtered
 filterTimesheet sFilter iFilter ts = 
   case  ( filter sFilter (_shifts ts)
         , filter iFilter (_deductionAndCosts ts)

@@ -121,7 +121,7 @@ normalizeTemplate template = case template of
        [one] -> one
        -- (CompountTemplate us):ts' -> CompoundTemplate (us <> ts')
        manys -> CompoundTemplate manys
-  all -> all
+  l_all -> l_all
 
 expandTemplate :: FA.ReferenceMap -> ReceiptTemplate' (Const Text) -> Either Text (ReceiptTemplate' Identity)
 expandTemplate refMap (BankAccountSetter (Const text)) = BankAccountSetter . Identity <$> FA.findReferenceEither refMap text
@@ -133,8 +133,8 @@ expandTemplate refMap (ItemDimension2Setter (Const text)) = ItemDimension2Setter
 expandTemplate refMap (ItemVATDeducer (Const text)) = ItemVATDeducer . Identity <$> FA.findReferenceEither refMap text
 expandTemplate refMap (ItemTaxMapper (mapping)) = ItemTaxMapper <$> traverse ((fmap Identity) . FA.findReferenceEither refMap . getConst) mapping
 expandTemplate refMap (ItemGLAccountMapper (mapping)) = ItemGLAccountMapper <$> traverse ((fmap Identity) . FA.findReferenceEither refMap . getConst) mapping
-expandTemplate refMap (CounterpartySetter text) = Right $ CounterpartySetter text
-expandTemplate refMap (ItemMemoSetter text) = Right $ ItemMemoSetter  text
+expandTemplate __refMap (CounterpartySetter text) = Right $ CounterpartySetter text
+expandTemplate __refMap (ItemMemoSetter text) = Right $ ItemMemoSetter  text
    
 -- ** JSON
 -- parseJSON = withObject "primary"
@@ -142,28 +142,29 @@ expandTemplate refMap (ItemMemoSetter text) = Right $ ItemMemoSetter  text
 instance FromJSON (ReceiptTemplate' (Const Text)) where
   parseJSON = fmap normalizeTemplate . parseJSON'
 
+parseJSON' :: Value -> Parser (ReceiptTemplate' (Const Text))
 parseJSON' (Object o) = CompoundTemplate <$> traverse (uncurry parsePair) (sortOn fst $ mapToList o)
 parseJSON' (Array a) = CompoundTemplate <$> traverse parseJSON' (toList a)
-parseJSON' json = error (show json)
+parseJSON' l_json = error (show l_json)
 
 parsePair :: Text -> Value -> Parser (ReceiptTemplate' (Const Text))
 parsePair key value = case toLower key of
   "counterparty" -> flip (withText "Counterparty") value (return . CounterpartySetter)
   "bank" -> flip (withText "BankAccount") value (return . BankAccountSetter . Const )
   "bankalias" -> do -- flip (withObject "BankAlias") value (return . BankAccountSetter . fmap Const )
-      pairs <- parseJSON value
-      return $ BankAccountMapper (fmap Const pairs)
+      l_pairs <- parseJSON value
+      return $ BankAccountMapper (fmap Const l_pairs)
   "tax" -> flip (withText "tax") value (return . ItemVATDeducer . Const)
   "memo" -> flip (withText "Memo") value (return . ItemMemoSetter)
   "glaccount" -> flip (withText "glAccount") value (return . ItemGLAccountSetter . Const)
   "dimension1" -> ItemDimension1Setter <$> parseJSON value
   "dimension2" -> ItemDimension2Setter <$> parseJSON value
   "taxalias" -> do
-      pairs <- parseJSON value
-      return $ ItemTaxMapper (fmap Const pairs)
+      l_pairs <- parseJSON value
+      return $ ItemTaxMapper (fmap Const l_pairs)
   "glalias" -> do
-      pairs <- parseJSON value
-      return $ ItemGLAccountMapper (fmap Const pairs)
+      l_pairs <- parseJSON value
+      return $ ItemGLAccountMapper (fmap Const l_pairs)
   _ -> typeMismatch (show key ++ " not a recognized key for") value
 
 instance ToJSON (ReceiptTemplate' (Const Text)) where

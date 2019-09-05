@@ -17,6 +17,7 @@ data RoundingMethod = Round {roundDec' :: Word8 }
   | RoundAbs RoundingMethod 
   deriving (Eq, Show, Read)
 
+roundDec :: RoundingMethod -> Word8
 roundDec (RoundAbs r) = roundDec r
 roundDec r = roundDec' r
 
@@ -31,7 +32,7 @@ applyRounding method x = case method of
     in if lastDigit < 5
        then applyRounding (RoundDown dec) x
        else applyRounding (RoundUp dec) x
-  RoundAbs round -> signum x * applyRounding round (abs x)
+  RoundAbs l_round -> signum x * applyRounding l_round (abs x)
     
 toDecimalWithRounding :: RealFrac f => RoundingMethod -> f -> Decimal
 toDecimalWithRounding method f = applyRounding method $ realFracToDecimal (roundDec method + 1) f

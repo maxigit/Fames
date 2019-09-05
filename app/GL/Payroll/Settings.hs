@@ -6,7 +6,7 @@ module GL.Payroll.Settings where
 import ClassyPrelude
 import Data.Aeson.TH(deriveJSON, defaultOptions, fieldLabelModifier, sumEncoding, SumEncoding(..))
 import Data.Aeson.Types
-import Data.Aeson
+
 import Data.Text(splitOn)
 
 -- * Types
@@ -88,9 +88,11 @@ data DateCalculator
 data DayOfWeek = Monday | Tuesday | Wednesday | Thursday | Friday | Saturday | Sunday
   deriving (Show, Read, Eq, Ord, Enum, Bounded)
           
+predCyclic :: DayOfWeek -> DayOfWeek
 predCyclic Monday = Sunday
 predCyclic d = pred d
 
+succCyclic :: DayOfWeek -> DayOfWeek
 succCyclic Sunday = Monday
 succCyclic d = succ d
 

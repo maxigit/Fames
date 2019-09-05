@@ -2,8 +2,8 @@
 module Curl where
 import Network.Curl
 import Text.HTML.TagSoup 
-import Text.HTML.TagSoup.Match
-import Text.Regex.TDFA
+
+
 import ClassyPrelude
 import Control.Monad.Except
 import Data.Decimal
@@ -21,7 +21,7 @@ withCurl = mapExceptT withCurlDo
 -- Otherewise, only the last one is kept, which can cause problem
 mergePostFields :: [CurlOption] -> [CurlOption]
 mergePostFields opts = let
-  getPostFields (CurlPostFields fields) = Just fields
+  getPostFields (CurlPostFields p_fields) = Just p_fields
   getPostFields _ = Nothing
 
   (posts, normals) = partition (isJust . getPostFields) opts
@@ -59,6 +59,13 @@ curlJson :: (?curl :: Curl, FromJSON json)
 curlJson = doCurlWith (const go) where
   go = first fromString . eitherDecodeStrict . fromString
 
+doCurlWithJson :: (FromJSON b, ?curl::Curl)
+  => (Int -> b -> Either Text r)
+  -> URLString -- ^ 
+  -> [CurlOption]
+  -> [Int] -- ^ Expected statuses
+  -> Text -- ^ To add to error message
+  -> ExceptT Text IO r
 doCurlWithJson cont = doCurlWith go where
   go err = cont err <=< first fromString . eitherDecodeStrict . fromString
   
@@ -105,7 +112,7 @@ partitionWithClose :: (Tag String) -> [Tag String] -> [[Tag String]]
 partitionWithClose tag tags = let
   parts = partitions isOk tags
   (isOk, filterClose) = case tag of
-           TagOpen name attrs -> let
+           TagOpen name __attrs -> let
                close = TagClose name
                ok t = t ~== tag || t ~== close
                -- create filter to remove close tags

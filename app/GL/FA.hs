@@ -48,15 +48,15 @@ data ReferenceMap  = ReferenceMap
 class Referable s e where
   getReferenceMap'Name :: ReferenceMap -> (IntMap (Reference s e), Text)
 
-instance Referable BankAccountR () where
+instance Referable 'BankAccountR () where
   getReferenceMap'Name refMap = (rmBankAccountMap refMap, "bank account")
-instance Referable GLAccountR () where
+instance Referable 'GLAccountR () where
   getReferenceMap'Name refMap = (rmGLAccountMap refMap, "GL account")
-instance Referable Dimension1R () where
+instance Referable 'Dimension1R () where
   getReferenceMap'Name refMap = (rmDimension1Map refMap, "Dimension 1")
-instance Referable Dimension2R () where
+instance Referable 'Dimension2R () where
   getReferenceMap'Name refMap = (rmDimension2Map refMap, "Dimension 2")
-instance Referable TaxRefR (Double, Int) where
+instance Referable 'TaxRefR (Double, Int) where
   getReferenceMap'Name refMap = (rmTaxMap refMap, "tax")
 
 
@@ -65,6 +65,7 @@ findReferenceEither refMap ref =
   let (refm, name) = getReferenceMap'Name refMap
   in either (Left . ((name <> ": ") <>)) Right (parseReference refm ref)
 
+findReference :: Referable r e => ReferenceMap -> Text -> Maybe (Reference r e)
 findReference refMap ref = either (const Nothing) Just $ findReferenceEither refMap ref
 
 -- | find a reference by glob pattern. Should only match one.
@@ -74,7 +75,7 @@ findReferenceByPattern refMap ref = let
   in case filter (Glob.match pat . unpack . cleanName . refName) (toList refMap) of
         [] -> Left $ "No match found for " <> ref
         [one] -> Right one
-        all -> Left $ "Too many matches found for " <> ref <> " " <> tshow (map refName all)
+        all_ -> Left $ "Too many matches found for " <> ref <> " " <> tshow (map refName all_)
      
 -- | Strip and lower
 cleanName :: Text -> Text
@@ -85,12 +86,12 @@ buildRefMap i'ref'active'extras = mapFromList [(i, Reference i ref active extra)
 
 -- | lookup by id or name the reference
 parseReference :: IntMap (Reference r e) -> Text -> Either Text (Reference r e)
-parseReference refMap ref =
-  case Text.stripPrefix "#" ref of
+parseReference refMap ref0 =
+  case Text.stripPrefix "#" ref0 of
     Just ref | Just refId <- readMay ref -> maybe (Left $ "No match found for id" <> ref) Right $ lookup refId  refMap
-    Nothing | Just refId <- readMay ref,  Just found <- lookup refId refMap -> Right found
-            | otherwise ->  findReferenceByPattern refMap ref
-    _ -> Left $ "No match found for " <> ref
+    Nothing | Just refId <- readMay ref0,  Just found <- lookup refId refMap -> Right found
+            | otherwise ->  findReferenceByPattern refMap ref0
+    _ -> Left $ "No match found for " <> ref0
 
 
 -- * Payment related

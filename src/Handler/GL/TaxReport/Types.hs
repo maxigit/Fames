@@ -30,11 +30,11 @@ where
 
 
 import Import
-import qualified FA as FA
+
 import FA(TransTaxDetail(..))
 import GL.TaxReport.Types
 import GL.TaxReport
-import GL.FA
+
 
 -- * Type
 -- | A mix of FA trans tax detail and report

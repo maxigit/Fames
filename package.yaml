@@ -120,15 +120,18 @@ library:
   - condition: (flag(dev)) || (flag(library-only))
     then:
       ghc-options:
-      # - -Werror
-      - -fno-warn-partial-type-signatures
+      - -Werror
+      # - -W
+      - -Wno-partial-type-signatures
+      - -Wno-type-defaults
       # - -fno-max-relevant-binds
       - -O0
       - -j6
       cpp-options: -DDEVELOPMENT
     else:
       ghc-options:
-      - -w
+      # - -w
+      - -W
       - -fwarn-tabs
       - -Wno-type-defaults
       - -O2

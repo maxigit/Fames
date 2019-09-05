@@ -23,14 +23,14 @@ where
   
 import Control.Applicative
 import Data.Maybe
-import Control.Monad.State(State, evalState, get, put)
+import Control.Monad.State(State,evalState, get, put)
 
-import Lens.Micro
+import Lens.Micro hiding(filtered)
 import Lens.Micro.TH
 import Data.Csv hiding(Options)
 -- import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Char8 as BL
-import Data.Vector(Vector)
+import qualified Data.ByteString as BS
 import qualified Data.Vector as V
 import Data.These
 import Data.Align(align)
@@ -41,7 +41,7 @@ import Data.Text (strip)
 import System.FilePath.Glob (glob)
 import System.Directory(getModificationTime)
 import Data.Decimal
-import Data.List (sortBy, sortOn, minimumBy, maximumBy, foldl', mapAccumL, nub, dropWhileEnd)
+import Data.List (sortBy, sortOn, minimumBy, mapAccumL, dropWhileEnd)
 import Data.Ord (comparing)
 import Data.String
 import Data.Time(Day, parseTimeM, formatTime, diffDays, addDays, UTCTime)
@@ -55,17 +55,17 @@ import Data.Monoid
 import Data.Generator(reduceWith)
 
 import qualified Database.MySQL.Simple as SQL
-import qualified Database.MySQL.Simple.QueryResults as SQL
+-- import qualified Database.MySQL.Simple.QueryResults as SQL
 import Prelude hiding(read)
 import Text.Read(readMaybe)
-import Debug.Trace
 import qualified Text.Parsec as P
 
-import Text.Regex.TDFA((=~))
+import Text.Regex.TDFA() -- (=~))
 import qualified Text.Regex.TDFA.ByteString as Rg
 import qualified Text.Regex.Base as R
 -- import qualified Text.Parsec.Char as P
 
+read :: Read p => String -> p
 read s = case readMaybe s of
   Nothing -> error $ "can't read ["   ++ s ++ "]"
   Just r -> r
@@ -79,7 +79,7 @@ instance {-# OVERLAPPING #-} FromField (Maybe Decimal) where
         t <- parseField f
         case strip t of
             "" -> return Nothing
-            s  -> Just <$> parseField f
+            _  -> Just <$> parseField f
 
 instance FromField Decimal where
     parseField f = do
@@ -103,6 +103,8 @@ readTimeE formats str= case concat $ map (parseTimeM True defaultTimeLocale) for
   [date] -> Right date
   _ -> Left $ "ambiguous parsing for time : " ++ str
 
+parseDebit :: (FromField (Maybe b), Num b, Show b)
+           => BS.ByteString -> BS.ByteString -> NamedRecord -> Parser b
 parseDebit debit credit r = do
     dAmount <- r .: debit
     cAmount <- r .: credit
@@ -151,7 +153,7 @@ instance FromNamedRecord (Int -> FATransaction) where
 fetchFA :: Maybe Decimal -> SQL.ConnectInfo -> Int -> Maybe Day -> Maybe Day -> IO [FATransaction]
 fetchFA balance0 cinfo bankAccount startM endM = do
     conn <- SQL.connect cinfo
-    rows <- SQL.query_ conn (fromString q)
+    rows <- SQL.query_ conn (fromString sql)
     let      befores = case startM of
                      Nothing -> []
                      Just start -> takeWhile (\(_,_,_,day,_,_,_) -> day < start) rows
@@ -163,7 +165,7 @@ fetchFA balance0 cinfo bankAccount startM endM = do
     where q0 = "SELECT type, trans_no, ref, trans_date, CAST(person_id as CHAR(100)), amount, reconciled"
                          ++ " FROM 0_bank_trans"
                          ++ " WHERE amount <> 0 AND bank_act = "  ++ show bankAccount
-          q = reduceWith appEndo ws q0 ++ " ORDER BY trans_date, id"
+          sql = reduceWith appEndo ws q0 ++ " ORDER BY trans_date, id"
 
           ws = catMaybes
                    [ startM <&> \start q -> q ++ " AND trans_date >= '"
@@ -306,18 +308,21 @@ sToS SantanderTransaction{..} pos = HSBCDaily
          
 -- ** Parsec parser
 
--- parseSStatment :: P.Parsec s u SantanderStatement
+parseSantanderStatement :: P.Stream s m Char
+                        => P.ParsecT s u m SantanderStatement
 parseSantanderStatement = do
   P.spaces
   -- date
-  from <- either fail return . (readTimeE ["%e/%m/%Y"]) =<< parseAttribute "From:"
-  to <- either fail return . (readTimeE ["%e/%m/%Y"]) =<< parseAttribute "to"
+  l_from <- either fail return . (readTimeE ["%e/%m/%Y"]) =<< parseAttribute "From:"
+  l_to <- either fail return . (readTimeE ["%e/%m/%Y"]) =<< parseAttribute "to"
   -- account
   account <- parseAttribute "Account:"
   -- transactions
   trans <- many parseSantanderTransaction
-  return $ SantanderStatement from to account trans
+  return $ SantanderStatement l_from l_to account trans
 
+parseSantanderTransaction :: forall s (m :: * -> *) u. P.Stream s m Char
+                          => P.ParsecT s u m SantanderTransaction
 parseSantanderTransaction = do
   P.spaces
   date <- either fail return . (readTimeE ["%e/%m/%Y"]) =<< parseAttribute "Date:"
@@ -327,13 +332,15 @@ parseSantanderTransaction = do
   return $ SantanderTransaction date desc amount balance
 -- parseAttribute :: Read a => String -> P.Parsec s u a
 
+nonSpace :: P.Stream s m Char => P.ParsecT s u m Char
 nonSpace = P.satisfy $ liftA2 (&&) isAscii  (not . isSpace)
+skippable :: P.Stream s m Char => P.ParsecT s u m Char
 skippable = P.satisfy $ liftA2 (||) isSpace (not . isAscii)
--- parseAttribute :: String -> P.Parsec s u String
+parseAttribute :: P.Stream s m Char => String -> P.ParsecT s u m [Char]
 parseAttribute field = do
-  P.string field >> P.many skippable
+  _ <- P.string field >> P.many skippable
   v <- P.many1 (P.satisfy $ \c -> isAscii c && c /= '\n' && c /= '\r')
-  P.many1 skippable
+  _ <- P.many1 skippable
   return v
   -- case readMaybe v of
   --   Nothing -> error $ "Can't convert " ++ show v ++ " to a " ++ field
@@ -378,7 +385,7 @@ mergeTrans transs dailyss = let
             orderedStatements
             (tail orderedStatements ++ [(error "Shoudn't be evaluated", Nothing)])
   filterStatement :: HSBCDaily -> Maybe Day -> Bool
-  filterStatement s Nothing = True
+  filterStatement _ Nothing = True
   filterStatement s (Just d) = _hsDate s < d
 
 
@@ -402,7 +409,7 @@ readCsv' discardPat path = do
     let csv = stripUtf8Bom csv'
     return $ case decodeByName csv of
         Left s -> Left s
-        Right (h,v) -> Right . V.toList $ V.imap (&) v
+        Right (__header,v) -> Right . V.toList $ V.imap (&) v
 
 -- | Remove Byte order Mark if necessary
 stripUtf8Bom :: BL.ByteString -> BL.ByteString
@@ -463,7 +470,7 @@ encodeHSBCTransactions hs = encodeDefaultOrderedByName hs
 
 -- * Main functions
 --  | Group transaction of different source by amounts.
--- reconciliate :: Vector HSBCTransactions -> Vector FATransaction -> Map Amount (These [HSBCTransactions] [FATransaction])
+reconciliate :: [HSBCTransactions] -> [FATransaction] -> Map Amount (These [HSBCTransactions] [FATransaction])
 reconciliate hsbcs fas = align groupH groupF where
     groupH = groupBy _hAmount hsbcs
     groupF = groupBy _fAmount fas
@@ -481,9 +488,9 @@ data AggregateMode = DEBUG | ALL | TAIL | BEST | ALL_BEST  deriving (Show, Eq)
 
 -- | Remove all matching transactions and only keep the *bad* ones.
 bads :: AggregateMode ->  Map Amount (These [HSBCTransactions] [FATransaction]) -> [(Amount, These [HSBCTransactions] [FATransaction])]
-bads mode m = let
+bads mode0 m = let
     list = Map.toList m
-    filtered = concatMap (goodM mode) list
+    filtered = concatMap (goodM mode0) list
     sorted = sortBy (comparing (negate.abs.fst)) filtered
     goodM mode (a, t) = (,) a <$> good mode t
     good :: AggregateMode -> These [HSBCTransactions] [FATransaction] -> [(These [HSBCTransactions] [FATransaction])]
@@ -499,14 +506,15 @@ bads mode m = let
               (hs', fs') = zipTail hs fs
               (hs'', fs'', hfs''0) = best [] hs fs
               (hs''0, fs''0) = unzip hfs''0 -- matched pair
-    good mode t  = return t
+    good __mode t  = return t
     in sorted
 
 -- | keep the tail left after a zip
 -- [1,2,3] [a,b] -> ([3], [])
+zipTail :: [a] -> [b] -> ([a], [b])
 zipTail [] ys = ([], ys)
 zipTail xs [] = (xs, [])
-zipTail (x:xs) (y:ys) = zipTail xs ys
+zipTail (_:xs) (_:ys) = zipTail xs ys
 
 distance :: HSBCTransactions -> FATransaction -> Int
 distance h f = abs .fromInteger $ diffDays (_hDate h) (_fDate f)
@@ -524,9 +532,9 @@ best hfs [] fs = ([],fs, hfs)
 best hfs hs [] = (hs,[], hfs)
 best hfs (h:hs) (f:fs) | distance h f == 0 =  best ((h,f):hfs) hs fs -- not necessary but too speed up
 best hfs hs fs = if minDistance < 31
-                then best ((hs !! hi,fs !! fi):hfs) (deleteAt hi hs) (deleteAt fi fs)
+                then best ((hs !! hi1,fs !! fi1):hfs) (deleteAt hi1 hs) (deleteAt fi1 fs)
                 else (hs, fs, hfs) where
-    ((hi,fi),minDistance) = minimumBy (comparing snd) pairs
+    ((hi1,fi1),minDistance) = minimumBy (comparing snd) pairs
     pairs = [((hi, fi), distance h f) | (h, hi) <- hs `zip` [0..], (f,fi) <- fs `zip` [0..]]
     deleteAt i xs =  head' ++ (tail tail')
         where (head', tail') = splitAt i xs
@@ -608,6 +616,7 @@ fillBalance transs = let
   sorted = sortOn (liftA2 (,) _sDate _sDayPos) transs
   in flip evalState Nothing (mapM updateBalanceS sorted)
 
+updateBalanceS :: Transaction -> State (Maybe Amount) Transaction
 updateBalanceS trans = do
   prevBalanceM <- get
   case (_sBalance trans, prevBalanceM) of
@@ -660,8 +669,9 @@ main' opt = do
 
   return (filtered, map hsbcTransToTransaction hss)
 
-filterDate sDate eDate opt = reduceWith appEndo $ catMaybes
-                [ startDate opt <&> \d -> filter ((>=d). sDate)
+filterDate :: (a -> Day) -> (a -> Day) -> Options -> [a] -> [a]
+filterDate a_sDate eDate opt = reduceWith appEndo $ catMaybes
+                [ startDate opt <&> \d -> filter ((>=d). a_sDate)
                 , endDate opt <&> \d -> filter ((<=d). eDate)
                 ]
 
@@ -712,6 +722,6 @@ thisFirst (These a b) = a { _sNumber = _sNumber b, _sObject = _sObject b}
 thatFirst :: These Transaction Transaction -> Transaction
 thatFirst (This a) = a
 thatFirst (That a) = a
-thatFirst (These a b) = b { _sNumber = _sNumber b, _sObject = _sObject b}
+thatFirst (These __a b) = b { _sNumber = _sNumber b, _sObject = _sObject b}
 
   

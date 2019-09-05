@@ -15,7 +15,7 @@ module Foundation
 
 
 import Import.NoFoundation hiding(toList)
-import Yesod.Core.Handler
+
 import Database.Persist.Sql (ConnectionPool, runSqlPool, runSqlConn)
 import Database.Persist.MySQL (myConnInfo, withMySQLConn)
 import Text.Hamlet          (hamletFile)

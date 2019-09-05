@@ -9,8 +9,7 @@ where
 
 import Data.List((!!))
 import Data.Dynamic
-import Diagrams.Backend.Cairo
-import Diagrams.Prelude hiding(iso)
+import Diagrams.Prelude hiding(iso, width, size)
 import Handler.Planner.Exec
 import Import
 import Planner.Internal
@@ -18,12 +17,11 @@ import Planner.Types
 import Text.Blaze.Html.Renderer.Text(renderHtml)
 import Util.Cache
 import WarehousePlanner.Base
-import WarehousePlanner.Report
-import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3, withLargeInput, bfs)
+import WarehousePlanner.Report hiding(report)
+import Yesod.Form.Bootstrap3 (bfs)
 import qualified Yesod.Media.Simple as M
-import Data.Text(strip, splitOn)
+import Data.Text(splitOn)
 import qualified Data.Map as Map
-import Handler.Util
 import Control.Monad.State
 
 -- * Type
@@ -38,6 +36,7 @@ data FormParam = FormParam
   , pParameter :: Maybe Text
   } deriving (Show, Read)
 
+defaultParam :: FormParam
 defaultParam = FormParam Nothing Nothing Nothing Nothing Nothing Nothing Nothing
 
 -- * Handler
@@ -118,6 +117,7 @@ getPlannerDirOptions = getSubdirOptions appPlannerDir
 
 -- * Rendering
 -- ** General
+plannerDoc :: Widget
 plannerDoc = do
   let plannerDoc' = $(widgetFile "Planner/doc")
   [whamlet|
@@ -210,8 +210,8 @@ renderView param0 = do
       html <- defaultLayout (mainW >> fay)
       return (html :: Html)
     provideRep $ do -- Ajax. return table
-      div <- widgetToPageContent widget
-      html <- withUrlRenderer (pageBody div)
+      l_div <- widgetToPageContent widget
+      html <- withUrlRenderer (pageBody l_div)
       returnJson (renderHtml html)
 
 -- _unused_expandScenario :: FormParam -> Scenario -> Handler FormParam
@@ -306,7 +306,7 @@ renderBoxGroupReport selectorM = renderConsoleReport report where
     groupBoxesReport boxes
   
 
--- renderConsoleReport :: Scenario )Scenario -> Handler Widget
+renderConsoleReport ::  WH [String] __RealWord -> Scenario -> Handler Widget
 renderConsoleReport report scenario = do
   (rows) <- renderReport scenario report
   return [whamlet|
@@ -323,7 +323,7 @@ renderHistory = do
   info <- mapM (\km ->traverse readMVar km) (Map.toList cache)
   let sorted = sortBy (comparing $ Down . fst) info
       scenarios = [ (t,s)
-                  | (k, (d, t)) <- sorted
+                  | (__k, (d, t)) <- sorted
                   , let smm = Data.Dynamic.fromDynamic d :: Maybe (Maybe (Scenario, Int))
                   , Just (Just (s, _)) <- return $  smm
                   ]

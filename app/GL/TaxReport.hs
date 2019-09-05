@@ -4,11 +4,11 @@ import qualified FA as FA
 import GL.FA
 import GL.Utils
 -- import qualified GL.FA as FA
-import Data.Aeson
+
 import Import.NoFoundation hiding(CustomerCategory)
 import GL.TaxReport.Settings as GL.TaxReport
 import GL.TaxReport.Types 
-import Database.Persist.Sql (fromSqlKey)
+
 import Util.Decimal
 -- * Types
 -- | 

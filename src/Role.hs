@@ -1,7 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude, OverloadedStrings #-}
 module Role where
 
-import ClassyPrelude.Yesod
+import ClassyPrelude.Yesod hiding(wreq, parseRequest)
 import qualified Data.Text as Text
 import qualified Data.Set as Set
 -- * Types
@@ -46,7 +46,7 @@ data Role = Administrator -- ^ As access to everything
 filterPermissions :: WriteRequest -> Set Text -> Role -> Set Text
 filterPermissions _ _ Administrator = mempty
 filterPermissions wreq perms (RoleGroup roles) = foldl' (filterPermissions wreq) perms roles
-filterPermissions wreq perms (RolePermission grants) = perms \\ setFromList [g | (g, w, atts) <- toList grants, w >= wreq]
+filterPermissions wreq perms (RolePermission grants) = perms \\ setFromList [g | (g, w, __atts) <- toList grants, w >= wreq]
 filterPermissions _ perms (RoleRoute _ _) = perms
 
 authorizeFromAttributes :: Role -> Set Text -> WriteRequest -> Bool
@@ -79,13 +79,13 @@ instance FromJSON Role where
     roles <- mapM parseJSON (toList os)
     return $ RoleGroup roles
   parseJSON Null = return $ RoleGroup []
-  parseJSON (String s) = case (Text.splitAt 1 s) of
-    ("/", _) -> let (route, wreq) = isWriteReq s in return $ RoleRoute route wreq
-    _ -> return . RolePermission . setFromList $ map (parseRequest) (words s)
-    where parseRequest s0 = let (s', wreq) = isWriteReq s0
+  parseJSON (String s0) = case (Text.splitAt 1 s0) of
+    ("/", _) -> let (route, wreq) = isWriteReq s0 in return $ RoleRoute route wreq
+    _ -> return . RolePermission . setFromList $ map (parseRequest) (words s0)
+    where parseRequest s1 = let (s', wreq) = isWriteReq s1
                                 (s, attrs) = case Text.splitOn "#" s' of
                                                [] -> ("", [])
-                                               (prefix:attrs) -> (prefix, attrs)
+                                               (prefix:l_attrs) -> (prefix, l_attrs)
                             in (s, wreq, setFromList attrs)
           isWriteReq r | not (null r), Text.last r == '+' = (initEx r, WriteRequest)
                                 | otherwise = (r, ReadRequest)

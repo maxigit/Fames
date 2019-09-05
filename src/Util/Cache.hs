@@ -29,7 +29,7 @@ import Data.Map.Strict(Map)
 import UnliftIO
 import UnliftIO.Concurrent(threadDelay)
 import Data.Time
-import Debug.Trace
+
 import Unsafe.Coerce(unsafeCoerce)
 import Type.Reflection
 

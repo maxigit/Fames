@@ -9,7 +9,6 @@ import Metamorphosis.Applicative
 import FA
 import Language.Haskell.TH.Syntax
 import Lens.Micro
-import qualified GHC.Generics as GHC
 import Data.IntMap.Strict (IntMap)
 import qualified Data.Map as Map
 import ModelField
@@ -383,7 +382,7 @@ nmapFromList level xs = let
 -- | Creates a deep NMap from a list a some levels specifications
 groupAsNMap :: Monoid v => [(Maybe Text, k -> NMapKey)] -> [(k, v)] -> NMap v
 groupAsNMap [] trans  = NLeaf (mconcat $ map snd trans)
-groupAsNMap gs@((level, grouper):groupers) trans = let
+groupAsNMap gs@((__level, grouper):groupers) trans = let
   grouped = groupAsMap (grouper . fst) (:[]) trans
   m = fmap (groupAsNMap groupers) grouped
   in NMap (mconcat $ map nmapMargin $ toList m)(map fst gs) m
@@ -405,9 +404,9 @@ sortAndLimit :: (Ord w, Monoid w)
                        , Bool) -- reverse
                 ]  -> NMap TranQP -> NMap (w ,TranQP)
 sortAndLimit  [] nmap = fmap (mempty,) nmap
-sortAndLimit  (Just (sortFn, modeM, limitM, reverseOrder):cols) (NLeaf a) = NLeaf (sortFn (NMapKey PersistNull) a, a)
-sortAndLimit  (Nothing:cols) (NLeaf a) = NLeaf (mempty, a)
-sortAndLimit  (Nothing:cols) (NMap mr levels m) = let nmaps = fmap (sortAndLimit cols) m
+sortAndLimit  (Just (sortFn, __modeM, __limitM, __reverseOrder):__cols) (NLeaf a) = NLeaf (sortFn (NMapKey PersistNull) a, a)
+sortAndLimit  (Nothing:__cols) (NLeaf a) = NLeaf (mempty, a)
+sortAndLimit  (Nothing:cols) (NMap __mr levels m) = let nmaps = fmap (sortAndLimit cols) m
                                                   in NMap (nmapMargin $ mconcat $ toList nmaps) levels nmaps
 sortAndLimit  (Just (sortFn, modeM, limitM, reverseOrder):cols) (NMap mr levels m) = let
   sorted' = sortOn fst [ (fst (nmapMargin newmap),  (key, newmap))
@@ -416,7 +415,7 @@ sortAndLimit  (Just (sortFn, modeM, limitM, reverseOrder):cols) (NMap mr levels 
                        , let newmap =  updateMarginWeight (sortFn key) nmap
                        ]
   updateMarginWeight f (NLeaf (_,a)) = NLeaf (f a, a)
-  updateMarginWeight f (NMap (_, mr) levels m) = NMap (f mr, mr) levels m
+  updateMarginWeight f (NMap (_, l_mr) l_levels l_m) = NMap (f l_mr, l_mr) l_levels l_m
   sorted = (if reverseOrder then reverse else id) sorted'
   (bests, residuals) = case limitM of
     Nothing -> (sorted, [])
@@ -432,7 +431,7 @@ makeResidual :: Monoid w
   -> [(NMapKey, NMap (w, TranQP))]
   -> [(NMapKey, NMap (w, TranQP))]
   -> [(NMapKey, NMap (w, TranQP))]
-makeResidual Nothing bests residuals = bests
+makeResidual Nothing bests __residuals = bests
 makeResidual (Just RMResidual) bests residuals = bests <> [aggregateResiduals "Last" residuals]
 makeResidual (Just RMResidualAvg) bests residuals = bests <> averageResiduals "Last" residuals
 makeResidual (Just RMTotal) bests residuals = averageResiduals "All" (bests <> residuals)
@@ -451,7 +450,7 @@ aggregateResiduals title key'nmaps = ( NMapKey (PersistText $ title <> "-" <> ts
                                      , mconcat $ map snd key'nmaps
                                      )
 averageResiduals :: (Monoid w) => Text  -> [(NMapKey, NMap (w, TranQP))] -> [(NMapKey, NMap (w, TranQP))]
-averageResiduals title [] = []
+averageResiduals __title [] = []
 averageResiduals title key'nmaps = let
   n = length key'nmaps
   nmap = mconcat (map snd key'nmaps)

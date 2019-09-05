@@ -86,7 +86,7 @@ import Data.Conduit.List (consume)
 import Data.Text.Encoding(decodeLatin1)
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
                               ) -- withSmallInput)
-import qualified Data.Conduit.Binary as CB
+
 -- import Data.Conduit.List (consume)
 import System.Directory (removeFile, createDirectoryIfMissing)
 import System.FilePath(takeDirectory)

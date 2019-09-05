@@ -6,15 +6,15 @@ import Import
 import Network.Curl
 import Curl
 import GL.TaxReport.Settings 
-import Control.Monad.Except
+
 import Util.Cache
 import Data.Dynamic(fromDynamic)
-import Database.Persist.Sql (fromSqlKey)
+
 import Data.Aeson.TH(deriveJSON, defaultOptions, fieldLabelModifier, sumEncoding, SumEncoding(..))
 import Data.Aeson.Types
 import Data.Aeson(encode,eitherDecode)
 import Data.Time(diffUTCTime)
-import Data.Decimal (realFracToDecimal, Decimal)
+
 import Data.Fixed
 import Data.Yaml.Pretty(encodePretty, defConfig) 
 
@@ -91,8 +91,8 @@ setHMRCAuthorizationCode reportType parameters (AuthorizationCode code) = do
   -- cache0 True (cacheDay 1) HMRCAuthKey (return code)
   -- we don't cache the authorization anymore, we just convert it to a token straight away
   setInfo "HMRC authorization code processed"
-  cache0 True (cacheMinute 10) (HMRCAuthKey reportType)  (return code)
-  getHMRCToken reportType parameters
+  _ <- cache0 True (cacheMinute 10) (HMRCAuthKey reportType)  (return code)
+  _ <- getHMRCToken reportType parameters
   return ()
 
 
@@ -141,7 +141,7 @@ curlHMRCToken reportType params@HMRCProcessorParameters{..} = do
   return $ either (error . unpack) id tokenE
   
 refreshHMRCToken :: Text -> HMRCProcessorParameters -> AuthorizationToken -> Handler AuthorizationToken
-refreshHMRCToken reportType params@HMRCProcessorParameters{..} token = do
+refreshHMRCToken __reportType HMRCProcessorParameters{..} token = do
   let endPoint = "/oauth/token" :: Text
       url = unpack $ baseUrl <> endPoint
   tokenE <- hxtoHe . ioxToHx $ withCurl $ do
@@ -161,12 +161,12 @@ refreshHMRCToken reportType params@HMRCProcessorParameters{..} token = do
 retrieveVATObligations :: Text -> Maybe TaxReport -> HMRCProcessorParameters -> Handler [VATObligation]
 retrieveVATObligations reportType reportM params@HMRCProcessorParameters{..} = do
   token <- getHMRCToken reportType params
-  forM obligationTestScenario $ \testScenario -> do
+  forM_ obligationTestScenario $ \testScenario -> do
     setWarning [shamlet|Using Gov Test Scenario: #{tshow testScenario}|]
   let endPoint = "/organisations/vat/"<>vatNumber<>"/obligations?":: Text
   -- let endPoint = "/organisations/vat/"<>vatNumber<>"/obligations" :: Text
-      url = unpack $ baseUrl <> endPoint <> intercalate "&" params
-      params = case reportM of
+      url = unpack $ baseUrl <> endPoint <> intercalate "&" l_params
+      l_params = case reportM of
         Nothing -> ["status=O" ]-- only open return. Otherwise wee need to give date
         Just TaxReport{..} -> [ formatTime0 "from=%Y-%m-%d" taxReportStart
                               , formatTime0 "to=%Y-%m-%d" taxReportEnd
@@ -180,7 +180,7 @@ retrieveVATObligations reportType reportM params@HMRCProcessorParameters{..} = d
                     Nothing -> id
                     Just TaxReport{..} -> let good VATObligation{..} = start == taxReportStart && end == taxReportEnd
                                           in filter good
-      go e json = case e of
+      go err json = case err of
                     200 -> case fromJSON json of
                               Success obs -> Right obs
                               Error e -> Left (pack e)
@@ -250,6 +250,7 @@ submitHMRCReturn report@TaxReport{..} periodKey boxes params@HMRCProcessorParame
 
 
     
+mkVatReturn :: Text -> Bool -> [TaxReportBox] -> Either Text VATReturn
 mkVatReturn vr_periodKey vr_finalised boxes = do -- Either 
   let
     boxMap = mapFromList $ map (fanl taxReportBoxName) boxes :: Map Text TaxReportBox

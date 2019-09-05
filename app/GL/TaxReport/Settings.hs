@@ -1,4 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 module GL.TaxReport.Settings where
 import ClassyPrelude
 import Data.Aeson.TH(deriveJSON, defaultOptions, fieldLabelModifier, sumEncoding, SumEncoding(..))
@@ -57,9 +58,9 @@ instance FromJSON TaxBox where
   -- String use the name as the bucket
   parseJSON v = withText "taxbox as string" (\s -> return $ TaxBox s Nothing Nothing (TaxBoxGross s ) Nothing ) v
             <|> withObject "taxbox" parseObject v where
-    parseObject o =  do
-      case  mapToList o of
-        [(tbName, fields)] -> do
+    parseObject o0 =  do
+      case  mapToList o0 of
+        [(l_tbName, fields)] -> do
           let parseFields o = do
                   tbDescription  <- o .:? "description"
                   shouldBe <- o .:? "shouldBe"
@@ -72,7 +73,7 @@ instance FromJSON TaxBox where
                         _ -> Nothing
                   -- allow simple rule or rule list
                   tbRule <- (o .: "rules") <|> (TaxBoxSum <$> o .: "rules")
-                  return TaxBox{tbRule=negateBucket tbRule,..}
+                  return TaxBox{tbRule=negateBucket tbRule,tbName=l_tbName,..}
               parseBucket (stripPrefix "-" -> Just bucket)  = do
                 TaxBox{..} <- parseBucket bucket
                 return TaxBox{tbRule=TaxBoxNegate tbRule, tbShouldBe= Just LT,tbRound=Nothing,..}
@@ -80,18 +81,18 @@ instance FromJSON TaxBox where
                 TaxBox{..} <- parseBucket bucket
                 return TaxBox{tbRule=tbRule, tbShouldBe = Just GT,..}
               parseBucket s  = case s of
-                "net" -> return  $ TaxBox tbName (Just $ tbName <> " net") Nothing (TaxBoxNet tbName ) Nothing
-                "tax" -> return  $ TaxBox tbName (Just $ tbName <> " tax") Nothing (TaxBoxTax tbName ) Nothing
-                "gross" -> return  $ TaxBox tbName (Just $ tbName <> " gross") Nothing (TaxBoxGross tbName ) Nothing
+                "net" -> return  $ TaxBox l_tbName (Just $ l_tbName <> " net") Nothing (TaxBoxNet l_tbName ) Nothing
+                "tax" -> return  $ TaxBox l_tbName (Just $ l_tbName <> " tax") Nothing (TaxBoxTax l_tbName ) Nothing
+                "gross" -> return  $ TaxBox l_tbName (Just $ l_tbName <> " gross") Nothing (TaxBoxGross l_tbName ) Nothing
                 _ -> fail "Not a valid amount type"
 
           withText ("TaxBox bucket" <> show fields) parseBucket fields
             <|> withObject "TaxBox fields" parseFields fields
-        _ -> fail $ "Too many keys for " <> show o
+        _ -> fail $ "Too many keys for " <> show o0
 
 -- | Negate bucket rule when name start with -
 negateBucket :: TaxBoxRule -> TaxBoxRule
-negateBucket rule = case rule of
+negateBucket rule0 = case rule0 of
   TaxBoxNet (stripPrefix "-" -> Just bucket) -> TaxBoxNegate $ TaxBoxNet (strip bucket) 
   TaxBoxTax (stripPrefix "-" -> Just bucket) -> TaxBoxNegate $ TaxBoxTax (strip bucket) 
   TaxBoxGross (stripPrefix "-" -> Just bucket) -> TaxBoxNegate $ TaxBoxGross (strip bucket) 

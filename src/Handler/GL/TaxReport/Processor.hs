@@ -14,11 +14,11 @@ import GL.TaxReport.Types
 import GL.TaxReport.Settings
 import GL.TaxReport
 import GL.Utils
-import Handler.GL.TaxReport.Types
+
 import Handler.GL.TaxReport.HMRC
 import Util.Decimal
-import Text.Regex.TDFA ((=~))
-import qualified Text.Regex as Rg
+
+
 import Formatting
 import Formatting.Time(year, month)
 import qualified FA as FA

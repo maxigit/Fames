@@ -10,7 +10,7 @@
 module Util.EnumTree where
 
 import Prelude
-import Data.Monoid
+
 import GHC.Generics
 import Data.Foldable (toList)
 

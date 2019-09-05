@@ -14,9 +14,9 @@ module Locker
 
 where
 
-import ClassyPrelude.Yesod
-import qualified Data.Text as Text
-import qualified Data.Set as Set
+import ClassyPrelude.Yesod hiding(wreq)
+
+
 import Role
 import qualified Debug.Trace as D
 import Data.Either(isRight)
@@ -43,7 +43,8 @@ unlock unlocker (Locker roles value) = case filter ((== Forbidden). unlocker) (t
     [] -> Right value
     missings -> Left missings
 
-isUnlocked granter = isRight . unlock granter
+isUnlocked :: (r -> Granted) -> Locker r b -> Bool
+isUnlocked l_granter = isRight . unlock l_granter
   
 permissions :: Locker r a -> [r]
 permissions (Locker rs _)  = toList rs
@@ -51,10 +52,12 @@ permissions (Locker rs _)  = toList rs
 restrict :: Ord r => [r] ->  Locker r a -> Locker r a
 restrict rs' (Locker rs x) = Locker (rs <> setFromList rs') x
 
+_unlock' :: Ord p => ((p, r) -> Granted) -> p -> Locker r a -> Either [(p, r)] a
 _unlock' unlocker privilege (Locker roles value) = unlock unlocker $ Locker (setFromList $ map (privilege,) (toList roles)) value
 
 -- * Unsafe
 -- use prelude version issue a warning. 
+unsafeUnlock :: Show r => Locker r p -> p
 unsafeUnlock (Locker rs x) = D.traceShow ("Unsafe UNLOCK requiring " <> show rs) x 
 
 -- * Instances
@@ -88,12 +91,12 @@ instance (Ord r, Fractional a) => Fractional (Locker r a) where
 -- Show Instance which is readable if there is no permission required
 -- but not otherwise
 instance (Show r, Show a) => Show (Locker r a) where
-  show l@(Locker rs v) = "Locker " <> show rs <> " ("
+  show l@(Locker rs __v) = "Locker " <> show rs <> " ("
                          <> (showLock (const Forbidden) l)
                          <>  ")" 
 
 showLock  :: (Show r, Show a) => (r -> Granted) ->  (Locker r a ) -> String
-showLock  unlocker lock = case unlock unlocker lock of
+showLock  unlocker l_lock = case unlock unlocker l_lock of
   Left required -> "Requires: " <> show required
   Right value -> show value
   
@@ -112,6 +115,7 @@ granter role0 (priv, r) = let
   role = filterRole attribute role0
   in roleToGranted role wreq r
 
+roleToGranted :: Role -> WriteRequest -> Text -> Granted
 roleToGranted role wreq r = if null  (filterPermissions wreq (setFromList [r])  role)
   then Granted
   else Forbidden

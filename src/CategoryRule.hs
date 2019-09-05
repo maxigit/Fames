@@ -1,18 +1,17 @@
 module CategoryRule where
 
-import ClassyPrelude.Yesod
-import qualified Data.Text as Text
+import ClassyPrelude.Yesod hiding(replace)
+
 import qualified Data.Map as Map
 import Data.Aeson
-import Data.Aeson.Types(Parser, typeMismatch)
-import Text.Regex.TDFA ((=~))
+
 import qualified Text.Regex as Rg
 
 data PriceRanger = PriceRanger (Maybe Double) (Maybe Double) String deriving Show
 data RegexSub = RegexSub { rsRegex :: Rg.Regex, rsOriginal, rsReplace :: String }
 instance Show RegexSub where
   show (RegexSub _ regex replace) = "regexSub " ++ show regex ++ " " ++ replace
--- | Category rule. The phantom type is there to indicate on which the category shoulp apply
+-- | Category rule0. The phantom type is there to indicate on which the category shoulp apply
 data CategoryRule a
   = SkuTransformer RegexSub
   -- | CategoryConjunction [CategoryRule] RegexSub -- regex on the result of all concatenation split by [an number]
@@ -38,10 +37,12 @@ data RuleInput = RuleInput
   { categoryMap :: Map String String
   , salesPrice :: Maybe Double
   }
+regexSub :: String -> String -> RegexSub
 regexSub regex replace = RegexSub (Rg.mkRegex $ regex ++ ".*") regex replace
 instance FromJSON (CategoryRule a) where
   parseJSON v = parseJSON' "" v 
 
+parseJSON' :: Text -> Value -> _Parser (CategoryRule a)
 parseJSON' key0 v = let
     parseSkuString t = case break (=='/') (unpack t) of
       (regex, '/':replace) -> return $ SkuTransformer (regexSub regex replace)
@@ -61,10 +62,10 @@ parseJSON' key0 v = let
     -- parse pair either a disjunction, we throw the name away
     -- or a sku
     -- parsePair :: Text -> Value -> Parser (CategoryRule a)
-    parsePair key v = withText "replace" (\t -> return $ SkuTransformer (regexSub (unpack t) (unpack key))) v
-                          <|> withArray "sublist" (parseDisjunction key) v
-                          <|> withObject "matcher" (parseMatcher key) v
-                          <|> parseJSON' key v
+    parsePair key value = withText "replace" (\t -> return $ SkuTransformer (regexSub (unpack t) (unpack key))) value
+                          <|> withArray "sublist" (parseDisjunction key) value
+                          <|> withObject "matcher" (parseMatcher key) value
+                          <|> parseJSON' key value
 
     -- parseMatcher :: Text -> Object -> Parser (CategoryRule a)
 
@@ -76,28 +77,28 @@ parseJSON' key0 v = let
                        <|> (parseDisjunction key =<< o .: "rules")
         
 
-      source <- fmap unpackT <$> o .:? "source"
-      case source of
+      source0 <- fmap unpackT <$> o .:? "source0"
+      case source0 of
         Just "sku" -> parseRegex 
         Just "sales_price"  -> SalesPriceRanger <$> (PriceRanger <$> (o .:? "from") <*> (o .:? "to") <*> pure (unpack key))
-        -- Just other -> typeMismatch ("source " ++ other ++ " invalid" ) (Object o)
+        -- Just other -> typeMismatch ("source0 " ++ other ++ " invalid" ) (Object o)
         -- Just s -> SourceTransformer s . SkuTransformer <$> (RegexSub <$> (unpackT <$> o .: "match")  <*> pure (unpack key))
         --
         Just s -> SourceTransformer s <$> parseRegex  
         Nothing -> parseObject o
                                              
     -- check if contains if and then
-    parseCondition key o = do
+    parseCondition _key o = do
       condition <- o .: "if"
-      rule <- o .: "then"
-      return $ CategoryCondition condition rule
+      rule0 <- o .: "then"
+      return $ CategoryCondition condition rule0
       
 
       
     in withText "sub string" parseSkuString v
-       <|> withArray "rule list" (parseDisjunction key0) v
-       <|> withObject "rule object - condition" (parseCondition key0) v
-       <|> withObject "rule object" (parseMatcher key0) v
+       <|> withArray "rule0 list" (parseDisjunction key0) v
+       <|> withObject "rule0 object - condition" (parseCondition key0) v
+       <|> withObject "rule0 object" (parseMatcher key0) v
 
 unpackT :: Text -> String
 unpackT = unpack
@@ -105,9 +106,9 @@ instance ToJSON (CategoryRule a) where
   toJSON (SkuTransformer (RegexSub _ origin replace)) = object [ pack replace .= origin ]  -- origin <> "/" <> replace
   toJSON (CategoryDisjunction rules) = toJSON  rules
   toJSON (SalesPriceRanger (PriceRanger fromM toM target)) = object [pack target .= paramJ] where
-    paramJ = object ["source" .= ("sales_price" :: Text), "from" .= fromM, "to" .= toM]
-  toJSON (SourceTransformer source rule) = object ["source" .= source, "rules" .= rule ]
-  toJSON (CategoryCondition condition rule) = object ["if" .= condition, "then" .= rule]
+    paramJ = object ["source0" .= ("sales_price" :: Text), "from" .= fromM, "to" .= toM]
+  toJSON (SourceTransformer source0 rule0) = object ["source0" .= source0, "rules" .= rule0 ]
+  toJSON (CategoryCondition condition rule0) = object ["if" .= condition, "then" .= rule0]
   
 
 
@@ -116,11 +117,11 @@ instance ToJSON (CategoryRule a) where
 -- We can't compute the value of each category individually because
 -- a category can depend on another.
 computeCategories :: Map String Rg.Regex -> [(String, (CategoryRule a))] -> RuleInput -> String -> Map String String
-computeCategories catRegexCache rules input source = let
+computeCategories catRegexCache rules input source0 = let
   x = foldl' go input  rules
-  go i (category, rule) = i { categoryMap = maybe mempty
+  go i (category, rule0) = i { categoryMap = maybe mempty
                                                   (Map.singleton category)
-                                                  (computeCategory catRegexCache source i rule)
+                                                  (computeCategory catRegexCache source0 i rule0)
                                             <> categoryMap i
                             }
 
@@ -128,14 +129,14 @@ computeCategories catRegexCache rules input source = let
   in categoryMap x
 
 computeCategory :: Map String Rg.Regex -> String -> RuleInput -> (CategoryRule a) -> Maybe String
-computeCategory catRegexCache source input rule = case rule of
-      SkuTransformer rsub -> subRegex rsub source
+computeCategory catRegexCache source0 input rule = case rule of
+      SkuTransformer rsub -> subRegex rsub source0
       SalesPriceRanger ranger ->  salesPrice input >>= flip checkPriceRange ranger
       SourceTransformer source subrule -> computeCategory catRegexCache (expandSource catRegexCache (categoryMap input) source) input subrule
-      CategoryDisjunction rules -> asum $ map (computeCategory catRegexCache source input) rules
-      CategoryCondition condition rule ->  case computeCategory catRegexCache source input condition of
+      CategoryDisjunction rules -> asum $ map (computeCategory catRegexCache source0 input) rules
+      CategoryCondition condition rule0 ->  case computeCategory catRegexCache source0 input condition of
                                                 Nothing -> Nothing
-                                                Just _ -> computeCategory catRegexCache source input rule
+                                                Just _ -> computeCategory catRegexCache source0 input rule0
         
 
 subRegex :: RegexSub -> String -> Maybe String
@@ -153,7 +154,7 @@ checkPriceRange price (PriceRanger from to target) =
   else Nothing
   
   
--- | set the current text source to the target expanded with category
+-- | set the current text source0 to the target expanded with category
 expandSource :: Map String Rg.Regex ->  Map String String -> String -> String
 expandSource regexCache inputMap format = let
   expanded = foldl' sub format (Map.toList inputMap)
@@ -161,9 +162,10 @@ expandSource regexCache inputMap format = let
                             in Rg.subRegex regex s value
   in expanded
   
--- | Regex as match in source tranform
+-- | Regex as match in source0 tranform
 -- "$cat1 - $cat2"" will search and replace for the value
 -- of category cat1 and cat2
+mkCategoryRegex :: String -> Rg.Regex
 mkCategoryRegex category = Rg.mkRegex $ "(\\$" ++ category ++ "\\>)|(\\$\\{" ++ category ++ "\\})"
 
   

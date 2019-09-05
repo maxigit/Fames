@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.0.
+-- This file has been generated from package.yaml by hpack version 0.31.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 98b13d3f6aa48359130b763c220c5f4ffffa1663db6c7f1a173bacf7a2565d41
+-- hash: 328917b61a7f70868bf44042b62424d61d61e3b66acf95d53e0b3b884cd7944d
 
 name:           Fames
 version:        0.0.1
@@ -229,10 +229,10 @@ library
     , yesod-media-simple >=0.2.0.1 && <0.2.1
     , yesod-static >=1.4.0.3 && <1.6
   if (flag(dev)) || (flag(library-only))
-    ghc-options: -fno-warn-partial-type-signatures -O0 -j6
+    ghc-options: -Werror -Wno-partial-type-signatures -Wno-type-defaults -O0 -j6
     cpp-options: -DDEVELOPMENT
   else
-    ghc-options: -w -fwarn-tabs -Wno-type-defaults -O2 -j6
+    ghc-options: -W -fwarn-tabs -Wno-type-defaults -O2 -j6
   default-language: Haskell2010
 
 executable Fames

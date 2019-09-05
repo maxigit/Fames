@@ -10,15 +10,14 @@ module Handler.Bank
 ) where
 
 
-import Import
+import Import hiding(object)
 import qualified BankReconciliate as B
 import BankReconciliate()
 import Database.Persist.MySQL     (MySQLConf (..), Single(..), rawSql)
 import System.Directory
-import Text.Regex.TDFA ((=~), makeRegex, Regex)
-import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
-                              withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
-import Data.These
+import Text.Regex.TDFA ((=~)) -- , makeRegex, Regex)
+import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
+-- import Data.These
 import Data.Time (diffDays,addDays, formatTime, defaultTimeLocale, utcToLocalTime, getCurrentTimeZone)
 import Lens.Micro.Extras (preview)
 import FA as FA
@@ -30,10 +29,11 @@ import qualified Data.Map as Map
 import Formatting
 import Handler.CsvUtils
 import Util.Cache
-import Data.Decimal(realFracToDecimal)
+-- import Data.Decimal(realFracToDecimal)
 import Control.Monad.State(State, evalState)
 import qualified Text.Regex as Rg
-import CategoryRule(RegexSub(..), regexSub, subRegex)
+-- import CategoryRule(RegexSub(..), regexSub, subRegex)
+import CategoryRule(regexSub, subRegex)
 import Formatting as F
 import Util.Decimal
 
@@ -49,6 +49,7 @@ toRec :: B.Transaction -> ToRec
 toRec t = ToRec t Nothing Nothing
 
 
+commonCss :: __Css
 commonCss = [cassius|
 tr.private
   font-style: italic
@@ -70,6 +71,7 @@ td.balance > span:not(.guessed-value)
   font-weight: bold
 |]
 
+recJs :: __Julius
 recJs = [julius|
 
 function updateRecTotal () {
@@ -138,6 +140,7 @@ $(document).ready (function() {
 })
 |]
 
+saveButtonJs :: __Julius
 saveButtonJs = [julius|
   function hideSaveButton(elem) {
      elem.classList.remove("btn-danger");
@@ -204,6 +207,7 @@ canViewBankLightStatement role account = authorizeFromAttributes role (setFromLi
 -- | Displays a collapsible panel 
 displayPanel :: Text -> Bool -> Text -> Widget -> Widget
 displayPanel panelClass collapsed account = displayPanel' panelClass collapsed account [shamlet|<h2>#{account}|]
+displayPanel' :: Text -> Bool -> Text -> Html -> Widget -> Widget
 displayPanel' panelClass collapsed account title content =
   let panelId = "bank-"  <> filter (' ' /=) account
       expanded = not collapsed
@@ -222,9 +226,9 @@ loadReconciliatedTrans :: Maybe Day
 loadReconciliatedTrans todaym dbConf settings =  do
   result <- case mkRecOptions todaym dbConf settings of
     (Just path, options) -> do
-      ((torec0, all), upTime) <- liftIO $ withCurrentDirectory path  ((,) <$> B.main' options <*> B.updateTime options)
+      ((torec0, l_all), upTime) <- liftIO $ withCurrentDirectory path  ((,) <$> B.main' options <*> B.updateTime options)
       torec <- mapM (autoRec settings) torec0
-      return ((torec, all ), upTime)
+      return ((torec, l_all ), upTime)
     (Nothing, options) -> do
       -- fake the same system by setting fake path and load the transaction
       fas <- liftIO$ B.readFa options
@@ -237,10 +241,11 @@ loadReconciliatedTrans todaym dbConf settings =  do
   return $ case (todaym) of
             Nothing -> result
             Just today -> let torecFiltered = filter ((<= today) . B._sDate . trTrans) torec
-                              ((torec, all), upTime) = result
-                          in ((torecFiltered, all), upTime)
+                              ((torec, l_all), upTime) = result
+                          in ((torecFiltered, l_all), upTime)
     
 
+mkRecOptions :: Maybe Day -> MySQLConf -> BankStatementSettings -> (Maybe FilePath, B.Options)
 mkRecOptions endDate dbConf BankStatementSettings{bsMode=BankUseStatement{..},..} =  let
       statementFiles = unpack bsStatementGlob
       faCredential = myConnInfo dbConf
@@ -496,20 +501,9 @@ displayDetailsInPanel account bankSettings@BankStatementSettings{..} = do
   today <- todayH
   dbConf <- appDatabaseConf <$> getsYesod appSettings
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
-  object <- getObjectH
-  -- let options = B.Options{..}
-  --     statementFiles = unpack bsStatementGlob
-  --     faCredential = myConnInfo dbConf
-  --     dailyFiles = unpack bsDailyGlob
-  --     output = ""
-  --     startDate = bsStartDate
-  --     endDate = Nothing -- Just today
-  --     faMode = B.BankAccountId (bsBankAccount)
-  --     aggregateMode = B.BEST
-  --     initialBalance = Nothing
-  --     discardFilter = unpack <$> bsDiscardRegex
+  __object <- getObjectH
   
-  (,) (stransz, banks) _ <- loadReconciliatedTrans (Just today) dbConf bankSettings
+  (,) (stransz, __banks) _ <- loadReconciliatedTrans (Just today) dbConf bankSettings
 
   let number'object =  liftA2 (,) trSaveButtonHtml trSaveObjectHtml 
       tableW = renderToRecs Nothing True number'object faURL stransz (const []) (Just "Total") ((B.FA ==) . B._sSource)
@@ -532,8 +526,10 @@ data RecParam = RecParam
    , rpClosingBalance :: Double
    , rpRecDate :: Maybe Day
    } deriving Show
+defaultParam :: RecParam
 defaultParam = RecParam Nothing 0 Nothing  0 Nothing
 
+recForm :: Maybe RecParam -> Html -> MForm Handler (FormResult RecParam, Widget)
 recForm  paramM = renderBootstrap3 BootstrapBasicForm form  where
   form = RecParam <$> aopt dayField "start" (rpStartDate <$> paramM)
                   <*> areq doubleField "Opening Balance" (rpOpeningBalance <$> paramM)
@@ -550,7 +546,7 @@ getGLBankReconciliateR account = do
 {-# NOINLINE postGLBankReconciliateR #-}
 postGLBankReconciliateR :: Text -> Handler Html
 postGLBankReconciliateR account = do
-  ((resp, formW), encType) <- runFormPost (recForm Nothing)
+  ((resp, __formW), __encType) <- runFormPost (recForm Nothing)
   case resp of
     FormMissing -> error "Form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
@@ -674,8 +670,8 @@ rebalanceFA groups = let
   fas = mapMaybe (preview there) (concatMap snd groupList)
   runBalance balance0 = flip evalState balance0 (traverse (traverse runBalanceS) groupList)
   runBalanceS :: [These B.Transaction B.Transaction] -> State _amount [These B.Transaction B.Transaction]
-  runBalanceS group = do
-    flip traverse  group $ \thf -> do
+  runBalanceS l_group = do
+    flip traverse  l_group $ \thf -> do
       traverse forceUpdateBalanceS thf
   forceUpdateBalanceS t' = do
     t <- B.updateBalanceS (t' {B._sBalance = Nothing}) -- clear balance, so that it gets updated
@@ -830,17 +826,17 @@ saveReconciliation account recDate = do
   (params, _) <- runRequestBody
   BankStatementSettings{..} <- settingsFor account
   let toSet' = catMaybes [ decodeKey key
-              | (key', value) <- params
+              | (key', __value) <- params
               -- , value == "on"
               , Just key <-  [stripPrefix "set-rec-" key']
               ]
       already = catMaybes [ decodeKey key
-                | (key', value) <- params
+                | (key', __value) <- params
                 , Just key <-  [stripPrefix "already-rec-" key']
                 ]
       
       tokeep = catMaybes [ decodeKey key
-               | (key', value) <- params
+               | (key', __value) <- params
                -- , value == "on"
                , Just key <-  [stripPrefix "keepset-rec-" key']
                ]
@@ -853,6 +849,7 @@ saveReconciliation account recDate = do
 -- saveRecDate :: Day -> [(Int, Int)] -> Handler ()
 -- bank account is needed to not update both
 -- side of a bank transfer
+saveRecDate :: Text -> Day -> [(Int, Int)] -> SqlHandler ()
 saveRecDate bankAccount recDate transIds = do
   forM_ transIds $ \(t, no) -> 
      updateWhere [ FA.BankTranType ==. Just t
@@ -861,7 +858,7 @@ saveRecDate bankAccount recDate transIds = do
                  ]
                  [ FA.BankTranReconciled =. Just recDate]
 
--- unsetRecDate :: [(Int, Int)] -> Handler ()
+unsetRecDate :: Text -> [(Int, Int)] -> SqlHandler ()
 unsetRecDate bankAccount transIds = do
   forM_ transIds $ \(t, no) -> 
      updateWhere [ FA.BankTranType ==. Just t
@@ -952,6 +949,7 @@ ccardHelp = [whamlet|
 data FXParam = FXParam { fxStart :: Day, fxEnd :: Day, fxCurrency :: Text}
   deriving (Show, Eq)
 
+fxForm :: Maybe FXParam -> Html -> MForm Handler (FormResult FXParam, Widget)
 fxForm paramM = renderBootstrap3 BootstrapBasicForm form  where
   form = FXParam <$> areq dayField "start" (fxStart <$> paramM)
                  <*> areq dayField "end" (fxEnd <$> paramM)
@@ -976,7 +974,7 @@ getGLBankFXR = do
 {-# NOINLINE postGLBankFXR #-}
 postGLBankFXR :: Handler Html
 postGLBankFXR = do
-  ((resp, formW), encType) <- runFormPost (fxForm Nothing)
+  ((resp, __formW), __encType) <- runFormPost (fxForm Nothing)
   case resp of
     FormMissing -> error "Form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
@@ -1021,6 +1019,7 @@ renderFX param  = do
   
 
 -- We are only interested in money in, ie when we buy 
+loadFXTrans :: FXParam -> Handler [FXTrans (Double, Double)]
 loadFXTrans param = do
   setWarning( "This report doesn't use (yet) supplier payments but only bank transfer")
   loadFXTransfers param
@@ -1056,14 +1055,18 @@ loadFXTransfers FXParam{..} = do
   rows <- runDB $ rawSql sql [toPersistValue fxCurrency, toPersistValue fxStart, toPersistValue fxEnd] 
   let fxTrans = map transferToFXs rows
       fxTransPlus = mapAccumL runBalance (0,0) fxTrans
-      runBalance (totalHome, totalFX) FXTrans{..} = ((newHome, newFX), FXTrans{..} ) where
+      runBalance (totalHome, totalFX) FXTrans{..} = ((newHome, newFX), FXTrans{fxExtra=l_fxExtra,..} ) where
         newHome = totalHome + fxHomeAmount
         newFX = totalFX + fxFXAmount
-        fxExtra = (newHome, newFX)
+        l_fxExtra = (newHome, newFX)
 
   return (snd fxTransPlus)
 
 
+transferToFXs :: ( Single Day, Single Text, Single Double, Single Double
+                 , Single Int, Single Int
+                 )
+              -> FXTrans ()
 transferToFXs (Single fxDate, Single fxDescription, Single fxFXAmount, Single fxHomeAmount, Single fxTransNo, Single fxTransType) = FXTrans{..}
   where fxRate = fxFXAmount/fxHomeAmount
         fxExtra = ()
@@ -1114,7 +1117,7 @@ autoRec settings0 t = do
   let rules' = concatMap mapToList bsRules 
       description = toLower $ B._sDescription t
       parseRegex s = case break (=='/') (toLower s) of
-        (regex, '/':replace ) -> regexSub regex replace
+        (regex, '/':l_replace ) -> regexSub regex l_replace
         (regex, "") -> regexSub regex description
         _ -> error "Pattern should be exhaustive"
 
