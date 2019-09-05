@@ -33,7 +33,7 @@ data TaxProcessor = TaxProcessor
   , getBoxes :: Set Bucket -> SqlHandler [TaxBox]
   -- ^ Allow a processor to alter boxes depending on buckets
   -- This is used for ECSL where each bucket corresponding to a box
-  , preSubmitCheck ::  Entity TaxReport -> Handler Widget
+  , preSubmitCheck ::  Entity TaxReport -> Handler (Maybe Widget)
   -- ^ specific check and legal requirement
   }
 
@@ -46,7 +46,7 @@ emptyProcessor settings = TaxProcessor {..} where
   submitReturn (Entity _ report)= return $ Right (report, Nothing)
   displayExternalStatuses _ =  return "Processor doesn't provide statuses"
   getBoxes _ = return $ boxesRaw settings
-  preSubmitCheck = \_ -> return ""
+  preSubmitCheck = \_ -> return (Just "")
 
 mkTaxProcessor :: TaxReportSettings -> TaxProcessor
 mkTaxProcessor settings = case processor settings of
@@ -174,21 +174,48 @@ displayHMRCStatuses reportType param = do
 |]
 {-# NOINLINE hmrcLegalDeclaration #-}
 hmrcLegalDeclaration :: Html
-hmrcLegalDeclaration = [shamlet|$newline text
-When you submit this VAT information you are making a legal declaration that the information is true and complete. A false declaration can result in prosecution.
-
-Declaration text to be used if only Agents make the submission;
-
-I confirm that my client has received a copy of the information contained in this return and approved the information as being correct and complete to the best of their knowledge and belie
+hmrcLegalDeclaration = [shamlet|
+<p>When you submit this VAT information you are making a legal declaration that the information is true and complete. A false declaration can result in prosecution.
+<p>Declaration text to be used if only Agents make the submission;
+<p>I confirm that my client has received a copy of the information contained in this return and approved the information as being correct and complete to the best of their knowledge and belie
 |]
 
 -- | Display the legal declaration but within a form with a
 -- mandatory check button
-hmrcPreSubmitCheck :: Entity TaxReport -> Handler Widget
-hmrcPreSubmitCheck _ = do
+hmrcPreSubmitCheck :: Entity TaxReport -> Handler (Maybe Widget)
+hmrcPreSubmitCheck report = do
+  let hmrcBase = "https://www.gov.uk/guidance/how-to-correct-vat-errors-and-make-adjustments-or-claims-vat-notice-70045" :: Text
+  -- check that there is not too much correction in the past
+  (before, __withinPeriod)  <- runDB $ countPendingTransTaxDetails (entityVal report)
+  -- correctionStatus <- getHMRCorrectionStatus before
+  let correctionStatus = CorrectionManual
   ((_,view), encType) <- runFormPost $ hmrcPreSubmitForm
-  return view
+  -- according to HMRC methods of correcting
+  case correctionStatus of
+    CorrectionManual -> do
+      setError $ "The amount of correction on already submitted returns is above the threshold. Please contact your Accountant" <> hmrcMethodsForCorrectingErrors
+      return Nothing
+    CorrectionDisplayNotice -> do -- display notice message
+      return . Right $ dangerPanel "Legal Declaration" [whamlet|
+         <h3>
+           <p> The amount of correction on already submitted returns might be above the threshold authorized by HMRC.
+           <p> Please refers to HMRC <a href="#{hmrcBase}#methods-for-correcting-errors">notice</a> before submitting the return. 
+        <p>There are 2 methods for correcting errors:
+        <ul>
+          <li>method 1 – for errors of a net value that do not exceed £10,000, or errors of a net value between £10,000 and £50,000 that do not exceed the limit described in <a href="#{hmrcBase}#Method-1">paragraph 4.3</a>
+          <li>method 2 – for errors of a net value between £10,000 and £50,000 that exceed the limit in <a href="#{hmrcBase}#Method-1">paragraph 4.3</a>, or for net errors greater than £50,000.00, or if you so choose, for errors of any size
+        ^{view}
+        |]
+    CorrectionOK -> return $ Just view
 
+getHMRCorrectionSt :: Double -> CorrectionStatus
+getHMRCorrectionSt before0 = case () of 
+  _ | before >  50000 -> CorrectionManual
+  _ | before >  0 -> CorrectionDisplayNotice
+  _                   -> CorrectionOK
+  where before = abs before0
+   
+  
 hmrcPreSubmitForm :: Html -> MForm Handler (FormResult Bool, Widget)
 hmrcPreSubmitForm extra =  do
   (f, v) <- mreq checkBoxField "Confirm" Nothing

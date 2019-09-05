@@ -168,13 +168,6 @@ postGLTaxReportPreSubmitR key = do
     _ -> error $ "external VAT status inconsistent: " <> show externalStatus
     
   presubmitW <- preSubmitCheck processor report
-  when (before > 0) $ do
-    setWarning [shamlet|
-                      <p> Some transactions belonging to a previous tax period have been modified.
-                      <p> Depending on the type of tax report, type of transactions and the amounts involved. Those transactions needs to be collected in the current tax report, or being reported separately.
-                      <p> Form example, the HMRC VAT report requires any mistake above a specific amounts , or made  intentionnaly to be reported using the <a href="https://www.gov.uk/government/publications/vat-notification-of-errors-in-vat-returns-vat-652">VAT652</a> form.
-                      <p> For more detail, check the <a href="https://www.gov.uk/vat-corrections">HMRC</a> Page.
-                      |]
   when (withinPeriod > 0) $ do
     let widget = dangerPanel "Tax report incomplete" [whamlet|
                         <p>Some transactions within the tax period haven't been collected.
@@ -188,7 +181,8 @@ postGLTaxReportPreSubmitR key = do
   setInfo "The current tax report is ready to be submitted. Are you sure you want to proceed ?"
   defaultLayout [whamlet|
 "    ^{renderBoxTable box'amounts}
-     ^{submitButtonForm presubmitW (entityKey report)}
+     $case <- presubmitW
+      ^{submitButtonForm pre (entityKey report)}
      ^{cancelSubmitButtonForm (entityKey report)}
                         |] 
 

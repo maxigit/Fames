@@ -54,6 +54,13 @@ $(deriveJSON defaultOptions {fieldLabelModifier = camelTo2 '_'  } ''Authorizatio
 $(deriveJSON defaultOptions ''VATObligation)
 $(deriveJSON defaultOptions {fieldLabelModifier = drop 3} ''VATReturn)
 
+-- | Weither corrections from the past can be submitted or
+data CorrectionStatus
+  = CorrectionOK -- ^ No correction neeed
+  | CorrectionDisplayNotice -- ^ ask the user to check that correctin are within threshold
+  | CorrectionManual -- ^ Can't do it. Things in the past needs to be uncollected
+  deriving Show
+
 -- ** Connection to HMRC website
 
 --  Key used to cache auth information

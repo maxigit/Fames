@@ -1,14 +1,16 @@
-* MTD [0%]
-** TODO Hide Reference [0/2]
-   - [ ] Find where
-   - [ ] hide every where
+* MTD [66%]
+** DONE Hide Reference [2/2]
+   CLOSED: [2019-09-05 Thu 16:44]
+   - [X] Find where
+   - [X] hide every where
 ** TODO Deal with correction threshold [/]
    we can't just get correction from the past if they are above a threshouold
-** TODO Improce scenario test case [0/0]
-   - [ ] Add somehow a page to display
+** DONE Improce scenario test case [2/2]
+   CLOSED: [2019-09-05 Thu 16:44]
+   - [X] Add somehow a page to display
 obligations, as admin or in the VAT Page ?
 At the moment it's easier to just add a page 
-   - [ ] Display current scenario
+   - [X] Display current scenario
 
    
 ** Query to reset state To match
@@ -23,12 +25,13 @@ At the moment it's easier to just add a page
 #+end_src
 
    
-* Planner [1/3]
+* Planner [2/3]
 ** +DONE Speedup Tags+
    CLOSED: [2019-08-12 Mon 15:30]
    by using a set, instead of splitting a String on demand
 ** TODO Split colours from TAgs
-** TODO Make Map for properties
+** DONE Make Map for properties
+   CLOSED: [2019-09-05 Thu 16:44]
    This mean that p=x and p=y won't be allowed (p=y will override p=x)
    however p+y (or p+=y) will set property to [x,y]
    With, that colour can be erased by doing colour=. At the moment there is no way to remove all colours
