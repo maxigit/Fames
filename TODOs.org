@@ -1,9 +1,10 @@
-* MTD [66%]
+* MTD [100%]
 ** DONE Hide Reference [2/2]
    CLOSED: [2019-09-05 Thu 16:44]
    - [X] Find where
    - [X] hide every where
-** TODO Deal with correction threshold [/]
+** DONE Deal with correction threshold [/]
+   CLOSED: [2019-09-09 Mon 16:37]
    we can't just get correction from the past if they are above a threshouold
 ** DONE Improce scenario test case [2/2]
    CLOSED: [2019-09-05 Thu 16:44]
@@ -14,6 +15,13 @@ At the moment it's easier to just add a page
 
    
 ** Query to reset state To match
+** TODO Fraud prevention
+** TODO Error [1/3]
+   - [X] when retrieving obligations
+   displays erro
+   - [ ] when submitting
+   Displays error and close the report.
+   Resubmitting later works
 #+begin_src  sql
   -- We need to create some tax report for the first n quarter of 2018
   -- it easier to override

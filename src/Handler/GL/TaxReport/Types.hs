@@ -25,6 +25,7 @@ module Handler.GL.TaxReport.Types
 , tdExistingKey
 , tdIsPending
 , tdIsNull
+, TaxProcessor(..)
 )
 where
 
@@ -49,6 +50,17 @@ data TaxDetail = PrivateTaxDetail
  }
  deriving Show
 deriving instance Show TransTaxDetail
+
+data TaxProcessor = TaxProcessor
+  { checkExternalStatus :: Entity TaxReport -> Handler TaxReportStatus
+  , submitReturn :: Entity TaxReport -> Handler (Either Text (TaxReport, Maybe TypedContent))
+  , displayExternalStatuses :: Text -> Handler Widget
+  , getBoxes :: Set Bucket -> SqlHandler [TaxBox]
+  -- ^ Allow a processor to alter boxes depending on buckets
+  -- This is used for ECSL where each bucket corresponding to a box
+  , preSubmitCheck ::  Entity TaxReport -> Handler (Maybe Widget)
+  -- ^ specific check and legal requirement
+  }
 
 -- * Constructor
 makeAndValidateDetail :: Key TaxReport

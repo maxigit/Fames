@@ -178,7 +178,7 @@ postGLTaxReportPreSubmitR key = do
     defaultLayout widget >>= sendResponseStatus preconditionFailed412
 
   when (taxReportStatus (entityVal report) == Pending ) $ closeReport processor report
-  box'amounts <- runDB $ loadTaxBoxes processor (entityKey report)
+  box'amounts <- runDB $ loadTaxBoxes processor AllBuckets (entityKey report)
   setInfo "The current tax report is ready to be submitted. Are you sure you want to proceed ?"
   defaultLayout [whamlet|
 "    ^{renderBoxTable box'amounts}
@@ -402,7 +402,7 @@ renderReportView rule report mode = do
   taxMap <- runDB $ loadTaxTypeMap
   today <- todayH
   (boxes, bucketSummary) <- runDB $ do
-    bucketSummary <- loadBucketSummary (entityKey report)
+    bucketSummary <- loadBucketSummary AllBuckets (entityKey report)
     let buckets = setFromList $ map fst (keys bucket'rates) <> map fst (keys bucketSummary) :: Set Bucket
     boxes <- getBoxes processor buckets 
     return (boxes, bucketSummary)
@@ -850,3 +850,54 @@ span.badge.down
                           |]
 
     
+
+-- ** Saving
+-- | Mark the report as done and save its boxes
+closeReport  :: TaxProcessor -> Entity TaxReport -> Handler ()
+closeReport  processor report = do
+  bucket'rates <- getBucketRateFromConfig report
+  runDB $ do
+    when (taxReportStatus (entityVal report) == Process) $ do
+          error "Report already closed"
+    box'amounts <- loadTaxBoxesFromBuckets processor AllBuckets (entityKey report) bucket'rates
+    let   mkBox (TaxBox{..}, amount) = TaxReportBox{..} where
+            taxReportBoxReport = entityKey report
+            taxReportBoxName = tbName
+            taxReportBoxValue = amount
+    insertMany_ (map mkBox box'amounts)
+    update (entityKey report) [TaxReportStatus =. Process]
+
+openReport :: Entity TaxReport -> SqlHandler ()
+openReport (Entity reportKey report) = do
+  when (isJust $ taxReportSubmittedAt (report)) $ do
+    error "Can't reopen a report which has already be submitted"
+  deleteWhere [TaxReportBoxReport ==. reportKey]
+  update reportKey [TaxReportStatus =. Pending]
+  lift $ setSuccess "Report has been succesfully reopened."
+  
+
+-- ** Util
+-- | Return the setting corresponding to a report name.
+-- Normally, all the function calling should have been given
+-- a valid report name. Unless the user is typing randorm url.
+-- in which case it is legitimate  to raise an error ;-)
+unsafeGetReportSettings :: Text -> Handler (TaxReportSettings, TaxProcessor)
+unsafeGetReportSettings name = do
+  r <- getReportSettings name
+  case r of
+    Nothing -> error $ unpack $ "Can't tax settings for " <> name
+    Just settings -> return settings
+
+getReportSettings :: Text -> Handler (Maybe (TaxReportSettings, TaxProcessor))
+getReportSettings name = do
+  settings <- appTaxReportSettings <$> getsYesod appSettings
+  return $ fmap (fanr mkTaxProcessor)  $ lookup name settings
+  
+-- | Get the list of all  Bucket/rate configuration from the config
+-- (and the rate in the database)
+getBucketRateFromConfig :: Entity TaxReport -> Handler (Map (Bucket, Entity FA.TaxType) BucketType )
+getBucketRateFromConfig report = do
+  (settings, _) <- unsafeGetReportSettings (taxReportType $ entityVal report)
+  getBucketRateFromSettings (entityKey report) settings
+
+  

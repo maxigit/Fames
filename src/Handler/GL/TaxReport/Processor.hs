@@ -1,4 +1,5 @@
 {-# LANGUAGE DisambiguateRecordFields #-} 
+{-# LANGUAGE MultiWayIf #-}
 module Handler.GL.TaxReport.Processor
 ( mkTaxProcessor
 , TaxProcessor()
@@ -16,7 +17,10 @@ import GL.TaxReport
 import GL.Utils
 
 import Handler.GL.TaxReport.HMRC
+import Handler.GL.TaxReport.Common
+import Handler.GL.TaxReport.Types
 import Util.Decimal
+import Data.Fixed
 
 
 import Formatting
@@ -26,16 +30,6 @@ import Text.Shakespeare.Text (st)
 
 
 -- * Type
-data TaxProcessor = TaxProcessor
-  { checkExternalStatus :: Entity TaxReport -> Handler TaxReportStatus
-  , submitReturn :: Entity TaxReport -> Handler (Either Text (TaxReport, Maybe TypedContent))
-  , displayExternalStatuses :: Text -> Handler Widget
-  , getBoxes :: Set Bucket -> SqlHandler [TaxBox]
-  -- ^ Allow a processor to alter boxes depending on buckets
-  -- This is used for ECSL where each bucket corresponding to a box
-  , preSubmitCheck ::  Entity TaxReport -> Handler (Maybe Widget)
-  -- ^ specific check and legal requirement
-  }
 
 
 -- * Processors
@@ -66,13 +60,29 @@ mkECSLProcessor params settings = (emptyProcessor settings)
   }
 -- ** HMRC
 mkHMRCProcessor :: HMRCProcessorParameters -> TaxReportSettings -> TaxProcessor
-mkHMRCProcessor params settings = (emptyProcessor settings)
-  { checkExternalStatus = \report -> checkHMRCStatus report params
-  , submitReturn = \report -> (,Nothing) <$$> submitHMRC params report settings
-  , getBoxes = \_ ->  return . either (error . unpack) id $ getHMRCBoxes settings
-  , displayExternalStatuses = \reportType -> displayHMRCStatuses reportType params
-  , preSubmitCheck = hmrcPreSubmitCheck
-  }
+mkHMRCProcessor params settings = processor where
+  processor = (emptyProcessor settings)
+                    { checkExternalStatus = \report -> checkHMRCStatus report params
+                    , submitReturn = \report -> (,Nothing) <$$> submitHMRC params report settings
+                    , getBoxes = \_ ->  return . either (error . unpack) id $ getHMRCBoxes settings
+                    , displayExternalStatuses = \reportType -> displayHMRCStatuses reportType params
+                    , preSubmitCheck = hmrcPreSubmitCheck getStatus
+                    } 
+  getStatus reportId = getHMRCCorrectionStatus loadReturn reportId
+  loadReturn reportId whichBucket = do
+    bucket'rates <- getBucketRateFromSettings reportId settings
+    boxes <- runDB $ loadTaxBoxesFromBuckets processor  whichBucket reportId bucket'rates
+    -- ^ recompute boxes for the corresponding bucket mode
+    -- which are never saved in the database
+    case mkVatReturn "<periodKey>" False (map (mkBox reportId) boxes) of
+      Left err -> error (unpack err)
+      Right ret -> return ret
+  -- ^ loadTaxBoxes need the processor to use getBoxes
+  mkBox reportId (TaxBox{..}, amount) = TaxReportBox{..} where
+          taxReportBoxReport = reportId
+          taxReportBoxName = tbName
+          taxReportBoxValue = amount
+  
 
 -- * Main Dispatchers
 
@@ -190,31 +200,47 @@ hmrcMethodsForCorrectingErrors = [shamlet|
 
 -- | Display the legal declaration but within a form with a
 -- mandatory check button
-hmrcPreSubmitCheck :: Entity TaxReport -> Handler (Maybe Widget)
-hmrcPreSubmitCheck report = do
+hmrcPreSubmitCheck :: (Key TaxReport -> Handler (CorrectionStatus, Fixed E2) ) -- ^ status loader
+                   -> Entity TaxReport
+                   -> Handler (Maybe Widget)
+hmrcPreSubmitCheck getStatus report = do
   -- check that there is not too much correction in the past
-  let correctionStatus = CorrectionDisplayNotice
   ((_,view), encType) <- runFormPost $ hmrcPreSubmitForm
-  -- according to HMRC methods of correcting
+  (correctionStatus, vat) <- getStatus (entityKey report)
   case correctionStatus of
     CorrectionManual -> do
-      setError $ "The amount of correction on already submitted returns is above the threshold. Please contact your Accountant" <> hmrcMethodsForCorrectingErrors
+      setError $ [shamlet|<h3>This return contains corrections of already submitted returns.
+                          <p> The correction amount (#{showFixed False vat}) above the authorised threshold.
+                          <p>Please contact your Accountant
+                          |]
+                 <> hmrcMethodsForCorrectingErrors
       return Nothing
     CorrectionDisplayNotice -> do -- display notice message
       return . Just $ dangerPanel "Legal Declaration" [whamlet|
-         <h3>
-           <p> The amount of correction on already submitted returns might be above the threshold authorized by HMRC.
+         <h3> This return contains corrections of already submitted returns.
+         <p> The correction amount (#{showFixed False vat}) seems to be within the authorized threshold.
+         <p> Before submitting the return, please verity the above is correct.
          ^{hmrcMethodsForCorrectingErrors}
         ^{view}
         |]
     CorrectionOK -> return . Just $ infoPanel "Legal Declaration" view
 
-getHMRCorrectionSt :: Double -> CorrectionStatus
-getHMRCorrectionSt before0 = case () of 
-  _ | before >  50000 -> CorrectionManual
-  _ | before >  0 -> CorrectionDisplayNotice
-  _                   -> CorrectionOK
-  where before = abs before0
+getHMRCCorrectionStatus :: (Key TaxReport -> WhichBucket -> Handler VATReturn) -> Key TaxReport -> Handler (CorrectionStatus, Fixed E2)
+getHMRCCorrectionStatus loadReturn report = do
+  outReturn <- loadReturn report BucketsOut 
+  let vat = abs (vr_netVatDue outReturn)
+  status <- if | vat == 0 -> return $ CorrectionOK
+               | vat > 50000 -> return CorrectionManual
+               | vat >= 10000 -> do
+                         allReturn <- loadReturn report AllBuckets
+                         let total = abs (vr_totalValueSalesExVAT allReturn)
+                         if vat >= (fromRational $ toRational total) * 0.01
+                           -- ^ total is E0 fixed, so we have to convert to E2 before multiplying by 0.01
+                           -- otherwise 0.0.1 get converted to 0
+                           then return CorrectionManual
+                           else return CorrectionDisplayNotice
+               | otherwise -> return $ CorrectionDisplayNotice
+  return (status, vat)
    
   
 hmrcPreSubmitForm :: Html -> MForm Handler (FormResult Bool, Widget)
