@@ -180,15 +180,20 @@ hmrcLegalDeclaration = [shamlet|
 <p>I confirm that my client has received a copy of the information contained in this return and approved the information as being correct and complete to the best of their knowledge and belie
 |]
 
+hmrcMethodsForCorrectingErrors = [shamlet|
+           <p> Please refers to HMRC <a href="#{hmrcBase}#methods-for-correcting-errors" target="_blank">notice</a> before submitting the return. 
+        <p>There are 2 methods for correcting errors:
+        <ul>
+          <li>method 1 – for errors of a net value that do not exceed £10,000, or errors of a net value between £10,000 and £50,000 that do not exceed the limit described in <a href="#{hmrcBase}#Method-1" target="_blank">paragraph 4.3</a>
+          <li>method 2 – for errors of a net value between £10,000 and £50,000 that exceed the limit in <a href="#{hmrcBase}#Method-1" target="_blank">paragraph 4.3</a>, or for net errors greater than £50,000.00, or if you so choose, for errors of any size
+          |] where hmrcBase = "https://www.gov.uk/guidance/how-to-correct-vat-errors-and-make-adjustments-or-claims-vat-notice-70045" :: Text
+
 -- | Display the legal declaration but within a form with a
 -- mandatory check button
 hmrcPreSubmitCheck :: Entity TaxReport -> Handler (Maybe Widget)
 hmrcPreSubmitCheck report = do
-  let hmrcBase = "https://www.gov.uk/guidance/how-to-correct-vat-errors-and-make-adjustments-or-claims-vat-notice-70045" :: Text
   -- check that there is not too much correction in the past
-  (before, __withinPeriod)  <- runDB $ countPendingTransTaxDetails (entityVal report)
-  -- correctionStatus <- getHMRCorrectionStatus before
-  let correctionStatus = CorrectionManual
+  let correctionStatus = CorrectionDisplayNotice
   ((_,view), encType) <- runFormPost $ hmrcPreSubmitForm
   -- according to HMRC methods of correcting
   case correctionStatus of
@@ -196,17 +201,13 @@ hmrcPreSubmitCheck report = do
       setError $ "The amount of correction on already submitted returns is above the threshold. Please contact your Accountant" <> hmrcMethodsForCorrectingErrors
       return Nothing
     CorrectionDisplayNotice -> do -- display notice message
-      return . Right $ dangerPanel "Legal Declaration" [whamlet|
+      return . Just $ dangerPanel "Legal Declaration" [whamlet|
          <h3>
            <p> The amount of correction on already submitted returns might be above the threshold authorized by HMRC.
-           <p> Please refers to HMRC <a href="#{hmrcBase}#methods-for-correcting-errors">notice</a> before submitting the return. 
-        <p>There are 2 methods for correcting errors:
-        <ul>
-          <li>method 1 – for errors of a net value that do not exceed £10,000, or errors of a net value between £10,000 and £50,000 that do not exceed the limit described in <a href="#{hmrcBase}#Method-1">paragraph 4.3</a>
-          <li>method 2 – for errors of a net value between £10,000 and £50,000 that exceed the limit in <a href="#{hmrcBase}#Method-1">paragraph 4.3</a>, or for net errors greater than £50,000.00, or if you so choose, for errors of any size
+         ^{hmrcMethodsForCorrectingErrors}
         ^{view}
         |]
-    CorrectionOK -> return $ Just view
+    CorrectionOK -> return . Just $ infoPanel "Legal Declaration" view
 
 getHMRCorrectionSt :: Double -> CorrectionStatus
 getHMRCorrectionSt before0 = case () of 
@@ -219,7 +220,7 @@ getHMRCorrectionSt before0 = case () of
 hmrcPreSubmitForm :: Html -> MForm Handler (FormResult Bool, Widget)
 hmrcPreSubmitForm extra =  do
   (f, v) <- mreq checkBoxField "Confirm" Nothing
-  let widget = infoPanel "Legal Declaration" [whamlet| 
+  let widget = [whamlet| 
           #{extra}
           #{hmrcLegalDeclaration}
           ^{renderField v}
