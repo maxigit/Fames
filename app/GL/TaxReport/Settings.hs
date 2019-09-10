@@ -33,6 +33,7 @@ data HMRCProcessorParameters = HMRCProcessorParameters
        , clientSecret :: Text
        , customerId :: Text
        , vatNumber :: Text
+       , redirectURI :: Maybe Text -- ^ base url to redirect to
         -- # if DEVELOPMENT
        , obligationTestScenario :: Maybe Text -- ^ He
        , submitTestScenario :: Maybe Text -- ^ He

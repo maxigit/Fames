@@ -88,7 +88,8 @@ getHMRCAuthorizationCode reportType HMRCProcessorParameters{..} = do
         authUrl = intercalate "&"  $ [ baseUrl <> "/oauth/authorize?response_type=code"
                                      , "client_id=" <> clientId
                                      , "scope=read:vat+write:vat"
-                                     , "redirect_uri=http://localhost:3000/gl/tax/oauth" 
+                                     , "redirect_uri=" <> fromMaybe "http://localhost:3000" redirectURI
+                                                       <> "/gl/tax/oauth" 
                                      , "state=" <> tshow (reportType, refereeM) --  fromSqlKey <$> reportM)
                                      ] 
       redirect (authUrl :: Text)
