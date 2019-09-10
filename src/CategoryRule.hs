@@ -77,11 +77,11 @@ parseJSON' key0 v = let
                        <|> (parseDisjunction key =<< o .: "rules")
         
 
-      source0 <- fmap unpackT <$> o .:? "source0"
+      source0 <- fmap unpackT <$> o .:? "source"
       case source0 of
         Just "sku" -> parseRegex 
         Just "sales_price"  -> SalesPriceRanger <$> (PriceRanger <$> (o .:? "from") <*> (o .:? "to") <*> pure (unpack key))
-        -- Just other -> typeMismatch ("source0 " ++ other ++ " invalid" ) (Object o)
+        -- Just other -> typeMismatch ("source " ++ other ++ " invalid" ) (Object o)
         -- Just s -> SourceTransformer s . SkuTransformer <$> (RegexSub <$> (unpackT <$> o .: "match")  <*> pure (unpack key))
         --
         Just s -> SourceTransformer s <$> parseRegex  
@@ -96,9 +96,9 @@ parseJSON' key0 v = let
 
       
     in withText "sub string" parseSkuString v
-       <|> withArray "rule0 list" (parseDisjunction key0) v
-       <|> withObject "rule0 object - condition" (parseCondition key0) v
-       <|> withObject "rule0 object" (parseMatcher key0) v
+       <|> withArray "rule list" (parseDisjunction key0) v
+       <|> withObject "rule object - condition" (parseCondition key0) v
+       <|> withObject "rule object" (parseMatcher key0) v
 
 unpackT :: Text -> String
 unpackT = unpack
@@ -106,8 +106,8 @@ instance ToJSON (CategoryRule a) where
   toJSON (SkuTransformer (RegexSub _ origin replace)) = object [ pack replace .= origin ]  -- origin <> "/" <> replace
   toJSON (CategoryDisjunction rules) = toJSON  rules
   toJSON (SalesPriceRanger (PriceRanger fromM toM target)) = object [pack target .= paramJ] where
-    paramJ = object ["source0" .= ("sales_price" :: Text), "from" .= fromM, "to" .= toM]
-  toJSON (SourceTransformer source0 rule0) = object ["source0" .= source0, "rules" .= rule0 ]
+    paramJ = object ["source" .= ("sales_price" :: Text), "from" .= fromM, "to" .= toM]
+  toJSON (SourceTransformer source0 rule0) = object ["source" .= source0, "rules" .= rule0 ]
   toJSON (CategoryCondition condition rule0) = object ["if" .= condition, "then" .= rule0]
   
 
