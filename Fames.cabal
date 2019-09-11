@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: adc9c78ece7bc697cfb9e83a04c6b0f82567c2502ae70e2daa4bf4724c803be5
+-- hash: 25f522757e1af4d8934eb8b8e9e24810a555192e279b373ae046b60f34ef689b
 
 name:           Fames
 version:        0.0.1
@@ -72,6 +72,7 @@ library
       Handler.Items.Reports.Forecast
       Handler.Planner
       Handler.Planner.Exec
+      Handler.Planner.FamesImport
       Handler.Planner.View
       Handler.Table
       Handler.Util
@@ -450,6 +451,7 @@ test-suite ghcid
       Handler.Items.Reports.Forecast
       Handler.Planner
       Handler.Planner.Exec
+      Handler.Planner.FamesImport
       Handler.Planner.View
       Handler.Table
       Handler.Util

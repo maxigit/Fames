@@ -44,6 +44,7 @@ data HeaderType
   | TransformTagsH
   | ClonesH [Text]
   | DeletesH
+  | ImportH
   | TitleH
   deriving (Show, Read, Eq, Ord, Generic)
 

@@ -11,6 +11,7 @@ import Data.List((!!))
 import Data.Dynamic
 import Diagrams.Prelude hiding(iso, width, size)
 import Handler.Planner.Exec
+import Handler.Planner.FamesImport(importFamesDispatch)
 import Import
 import Planner.Internal
 import Planner.Types
@@ -154,9 +155,9 @@ renderView param0 = do
   modeS <- lookupPostParam "mode"
   let mode = modeS >>=readMay
       vmode = pViewMode param0
-  scenariosEM <-  forM (pPlannerDir param0) readScenariosFromDir 
-  scenarioEM <- forM (fullOrgfile param0) readScenario
-  Right extra <- readScenario "* Best Available shelves for"
+  scenariosEM <-  forM (pPlannerDir param0) (readScenariosFromDir importFamesDispatch) 
+  scenarioEM <- forM (fullOrgfile param0) (readScenario importFamesDispatch)
+  Right extra <- readScenario importFamesDispatch "* Best Available shelves for"
   (param, widget) <- case liftA2 (,) (sequence scenariosEM) (sequence scenarioEM) of
       Left err -> setInfoToDoc >> setError (toHtml err) >> return (param0, "Invalid scenario")
       Right (scenariosM, scenarioM) ->  do

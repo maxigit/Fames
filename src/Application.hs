@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -fno-warn-orphans #-}{-# OPTIONS_GHC  #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Application
     ( getApplicationDev
     , appMain

@@ -1,5 +1,19 @@
 {-# LANGUAGE TypeOperators #-}
-module Planner.Internal where
+module Planner.Internal
+( scenarioKey
+, scenarioLayoutSize
+, runWH
+, warehouseScenarioKey
+, executeStep
+, execWH
+, contentPath
+, sSortedSteps
+, readScenariosFromDir
+, readScenario
+, savePointScenario
+, scenarioToTextWithHash
+)
+where 
 
 import ClassyPrelude.Yesod hiding (Content)
 import WarehousePlanner.Display
@@ -15,7 +29,6 @@ import qualified Data.Text as Text
 import System.Directory (doesFileExist, listDirectory)
 import System.FilePath (takeExtension)
 
-import Debug.Trace as T
 import Unsafe.Coerce (unsafeCoerce)
 import Model.DocumentKey
 import GHC.Generics
@@ -39,7 +52,7 @@ warehouseExamble  = do
 parseScenarioFile :: Text -> Either Text [Section]
 parseScenarioFile text = do -- Either
   lineTypes <- traverse parseLine (map strip $ lines text) 
-  T.traceShowId $ sequence $ linesToSections lineTypes
+  sequence $ linesToSections lineTypes
   
 
 -- | Transform a line of text to a typed line
@@ -120,6 +133,7 @@ parseDrawer h = case splitOn "_" h of
     ("clones":tags) -> Right $ ClonesH tags
     ("delete":[]) -> Right DeletesH
     ("deletes":[]) -> Right DeletesH
+    ("import":[]) -> Right ImportH
     _parsed -> Left $ h <> " is not a valid drawer."
   
 
@@ -160,24 +174,32 @@ writeHeader = gwriteHeader . from
 -- can be read by the legacy planner.
 -- To avoid creating the same temporary file over and over, which
 -- just cache them once and use a SHA identify them.
-readScenario :: MonadIO m => Text -> m (Either Text Scenario)
-readScenario text = do
+readScenario :: MonadIO m
+             => (Section -> m (Either Text [Section])) -- ^ section expander, mainly to import sections for URI
+             -> Text
+             -> m (Either Text Scenario)
+readScenario expandSection text = do
   runExceptT $ do
-    sections <-   ExceptT . return $ (parseScenarioFile text)
+    sections0 <-   ExceptT . return $ (parseScenarioFile text)
+    sections <- concat <$> ExceptT ( sequence <$> mapM expandSection sections0)
     steps' <- mapM (\s -> ExceptT $ cacheSection s) sections
     ExceptT . return $ makeScenario steps' 
 
 -- | Read a sceanrio from a directory. Only read '.org'
 -- Concatene all files in alphabetical order
 -- readScenarioDir :: MonadIO m => FilePath -> m Either [Step]
-readScenariosFromDir :: MonadIO io => FilePath -> io (Either Text [Scenario])
-readScenariosFromDir path = liftIO $ do
-  entries0 <- listDirectory path
-  let entries = map (path </>) (sort  entries0)
-      isOrg = (== ".org") . takeExtension
-  files <- filterM  doesFileExist (filter isOrg entries)
-  contents <-  mapM readFile files
-  scenariosE <- mapM (readScenario . decodeUtf8) contents
+readScenariosFromDir :: MonadIO io
+                     => (Section -> io (Either Text [Section]))
+                     -- ^ section expander, mainly to import sections for URI
+                     -> FilePath -> io (Either Text [Scenario])
+readScenariosFromDir expandSection path = do
+  contents <- liftIO $ do
+    entries0 <- listDirectory path
+    let entries = map (path </>) (sort  entries0)
+        isOrg = (== ".org") . takeExtension
+    files <- filterM  doesFileExist (filter isOrg entries)
+    mapM readFile files
+  scenariosE <- mapM (readScenario expandSection . decodeUtf8) contents
   return $ sequence scenariosE
   
 savePointScenario = Scenario Nothing [SavingPoint] Nothing

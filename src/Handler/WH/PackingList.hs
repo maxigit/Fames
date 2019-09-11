@@ -21,6 +21,8 @@ module Handler.WH.PackingList
 , EditMode(..)
 -- , postWHPackingListViewR
 , postWHPackingListReportR
+, toPlanner
+, WithDetails(..)
 ) where
 
 import Import
@@ -480,7 +482,7 @@ viewPackingList mode key pre = do
                                  Textcart -> renderTextcart
                                  StickerCsv -> renderStickers today
                                  Chalk -> renderChalk corridors
-                                 Planner -> renderPlanner False
+                                 Planner -> renderPlanner WithDetails
                                  PlannerColourless -> renderPlannerColourless
                                  Stickers ->  error "Shoudn't happen"
                                  EditDetails ->  error "Shoudn't happen"
@@ -732,8 +734,17 @@ $forall zone <- sliced
 |]
 
 -- | CSV compatible with WarehousePlanner
-renderPlanner :: Bool -> PackingList -> [Entity PackingListDetail] -> Html
-renderPlanner withDetails _ details = let
+data WithDetails = WithDetails | NoDetail deriving (Eq, Show)
+renderPlanner :: WithDetails -> PackingList -> [Entity PackingListDetail] -> Html
+renderPlanner withDetails pl details = let
+  rows = toPlanner withDetails pl details
+  in [shamlet|
+             $forall row <- rows
+              <p>#{row}
+             |]
+
+toPlanner :: WithDetails -> PackingList -> [Entity PackingListDetail] -> [Text]
+toPlanner withDetails PackingList{..} details = let
   groups = Map.fromListWith (+) [ ( ( style detail
                                    , packingListDetailLength
                                    , packingListDetailWidth
@@ -745,29 +756,28 @@ renderPlanner withDetails _ details = let
                                ]
   style PackingListDetail{..} = packingListDetailStyle
                              <> (content $ Map.toList packingListDetailContent )
-                             <> if not withDetails
+                             <>  (maybe "" ("#pl-vessel=" <>) packingListVessel)
+                             <>  (maybe "" ("#pl-container=" <>) packingListContainer)
+                             <>  (maybe "" ("#pl-departure=" <>) $ fmap tshow packingListDeparture)
+                             <>  (maybe "" ("#pl-arriving=" <>) $ fmap tshow packingListArriving)
+                             <> if withDetails == withDetails
                                 then ("#barcode=" <> packingListDetailBarcode )
                                      <> ("#reference=" <> packingListDetailReference )
                                      <> ("#boxNumber=" <> tshow packingListDetailBoxNumber )
                                  else ""
   content [] = ""
   content ((col,__qty):cs) = "-" <> col <> if null cs then "" else "*"
-  in [shamlet|
-style,quantity,l,w,h
-$forall ((style, l, w, h),qty) <- Map.toList groups
-    <br>
-    #{style}
-    , #{tshow qty}
-    , #{l} 
-    , #{w}
-    , #{h}
-|]
+  header = "style,quantity,l,w,h"
+  detailToText ((style, l, w, h),qty) = intercalate "," $
+    [style , tshow qty ]
+    <> map tshow [ l , w , h]
+  in header : map detailToText (Map.toList groups) 
 
 -- | CSV compatible with warehousePlanner. Identical to {renderPlanner}
 -- but remove colour information so that it's easier to know actuall how many boxes
 -- are coming for a given style.
 renderPlannerColourless :: PackingList -> [Entity PackingListDetail] -> Html
-renderPlannerColourless pl details = renderPlanner True pl (map removeColour details) where
+renderPlannerColourless pl details = renderPlanner NoDetail pl (map removeColour details) where
   removeColour (Entity key detail) = Entity  key detail {packingListDetailContent = Map.fromList []}
 
 
