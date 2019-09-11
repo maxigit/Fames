@@ -11,6 +11,8 @@ module Handler.WH.Boxtake
 , getWHBoxtakeAdjustmentR
 , postWHBoxtakeAdjustmentR
 , getWHBoxtakeAdjustmentForR
+, boxSourceToCsv
+, plannerSource
 ) where
 
 import Import hiding(Planner)
@@ -108,7 +110,7 @@ getWHBoxtakePlannerR = do
   
 renderPlannerCsv boxSources = do
   today <- todayH
-  let source = boxSourceToCsv today boxSources
+  let source = boxSourceToSection today boxSources
   setAttachment ("10-Planner-" <> fromStrict (tshow today) <> ".org")
   respondSourceDB "text/plain" (source .| mapC (toFlushBuilder))
 
@@ -132,13 +134,15 @@ toPlanner (Entity (BoxtakeKey boxId) Boxtake{..}) =
               , "location=" <> boxtakeLocation
               ] ::  [Text]
 
-boxSourceToCsv today boxSources = do
+boxSourceToSection today boxSources = do
   yield ("* Stocktake from Planner  [" <> tshow today <> "]\n")
   yield (":STOCKTAKE:\n")
-  yield ("Bay No,Style,QTY,Length,Width,Height,Orientations\n" :: Text)
-  boxSources .| mapC toPlanner
+  boxSourceToCsv boxSources
   yield (":END:\n")
 
+boxSourceToCsv boxSources = do
+  yield ("Bay No,Style,QTY,Length,Width,Height,Orientations\n" :: Text)
+  boxSources .| mapC toPlanner
   
 spreadSheetToCsv :: Handler TypedContent
 spreadSheetToCsv = processBoxtakeSheet' Save go
