@@ -11,7 +11,7 @@ Add in dropdown menu
   - [X] other planner report
   - [-] sku status
     - [X] fa status Running, ghost etc ...
-    - [ ] Web status Available
+    - [X] Web status Available
     - [ ] Web colour Base/trim hex
     - [ ] Item category ?
   - [ ] Box open, quantity ?

@@ -18,6 +18,7 @@ import Database.Persist.Sql (toSqlKey)
 import Data.Conduit.List (consume)
 import Data.Text(splitOn)
 import System.FilePath.Glob(globDir1, compile, match)
+import Database.Persist.MySQL     (Single(..), rawSql)
 -- * Type
 -- data FamesImport
 --   = ImportPackingList (Key PackingList) -- ^ import packing list
@@ -45,6 +46,8 @@ mkYesodSubData "FI" [parseRoutes|
   /stocktake/#FilePath/#Text StocktakeReport
 /variationStatus/active/#Text FIVariationStatusActive
 /variationStatus/all/#Text FIVariationStatusAll
+/stockStatus/active/#Text FIStockStatusActive
+/stockStatus/all/#Text FIStockStatusAll
 |]
 -- *  Dispatcher
 importFamesDispatch :: Section -> Handler (Either Text [Section])
@@ -72,6 +75,8 @@ importFamesDispatch (Section ImportH (Right content) _) = do
             StocktakeReport path reportParam -> executeReport (StocktakeH tags) path reportParam
           FIVariationStatusActive skus -> ret $ importVariationStatus ActiveBoxes skus
           FIVariationStatusAll skus -> ret $ importVariationStatus AllBoxes skus
+          FIStockStatusActive skus -> ret $ importStockStatus ActiveBoxes skus
+          FIStockStatusAll skus -> ret $ importStockStatus AllBoxes skus
   return $ (fmap concat) $  sequence sectionss
 importFamesDispatch section = return $ Right [section]
 
@@ -194,6 +199,34 @@ importVariationStatus which skuLike = do
 
   return $ Section TagsH (Right $ "selector,tags" : content) ("* FA status")
   
+importStockStatus :: WhichBoxes -> Text -> Handler Section
+importStockStatus which skus = do
+  skuToStyleVar <- I.skuToStyleVarH
+  let sql0 = "SELECT stock_id, state  FROM warehouse.fi_stock JOIN 0_stock_master using (stock_id) WHERE stock_id like ?"
+      p = [ toPersistValue skus ]
+      sql  = case which of
+        AllBoxes -> sql0
+        ActiveBoxes -> sql0 <> " AND inactive = 0"
+  rows <- runDB $ rawSql sql p
+  let content = map go rows
+      go (Single (skuToStyleVar ->  (style, var)), Single status) = style <> "#'" <> var <> ",stock-status=" <> status
+                                                                                         <> "#stock-status-colour=" <> colorFor status
+                                                                                         <> "#stock-short-status=" <> short status
+      colorFor status = case status of
+        "available" -> "green"
+        "low stock" -> "orange"
+        "coming soon" -> "blue"
+        "expected later" -> "black"
+        _ -> "grey"
+      short status = case status of
+        "available" -> "AV"
+        "low stock" -> "LS"
+        "coming soon" -> "CS"
+        "expected later" -> "EL"
+        _ -> "SO"
+  return $ Section TagsH (Right $ "selector,tags" : content) ("* Stock status")
+
+
 indexParam :: I.IndexParam
 indexParam = I.IndexParam{..} where
   ipSKU = Nothing
