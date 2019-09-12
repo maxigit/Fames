@@ -4,6 +4,9 @@
 module Handler.Items.Index
 ( getItemsIndexR
 , postItemsIndexR
+, loadVariations
+, fillIndexCache
+, IndexParam(..)
 )
 where
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE ImplicitParams #-}
 module Handler.Planner.FamesImport
 ( importFamesDispatch
 ) where
@@ -9,6 +10,10 @@ import WarehousePlanner.Report
 import qualified Handler.WH.PackingList as PL
 import qualified Handler.WH.Boxtake as Box
 import qualified Handler.Planner.Exec as Exec
+import qualified Handler.Items.Index as I
+import qualified Handler.Items.Common as I
+import qualified Items.Internal as I
+import qualified Items.Types as I
 import Database.Persist.Sql (toSqlKey)
 import Data.Conduit.List (consume)
 import Data.Text(splitOn)
@@ -38,6 +43,8 @@ mkYesodSubData "FI" [parseRoutes|
   /clone/#FilePath/#Text CloneReport
   /delete/#FilePath/#Text DeleteReport
   /stocktake/#FilePath/#Text StocktakeReport
+/variationStatus/active/#Text FIVariationStatusActive
+/variationStatus/all/#Text FIVariationStatusAll
 |]
 -- *  Dispatcher
 importFamesDispatch :: Section -> Handler (Either Text [Section])
@@ -63,6 +70,8 @@ importFamesDispatch (Section ImportH (Right content) _) = do
             CloneReport path reportParam -> executeReport (ClonesH tags) path reportParam
             DeleteReport path reportParam -> executeReport DeletesH path reportParam
             StocktakeReport path reportParam -> executeReport (StocktakeH tags) path reportParam
+          FIVariationStatusActive skus -> ret $ importVariationStatus ActiveBoxes skus
+          FIVariationStatusAll skus -> ret $ importVariationStatus AllBoxes skus
   return $ (fmap concat) $  sequence sectionss
 importFamesDispatch section = return $ Right [section]
 
@@ -95,7 +104,7 @@ importActiveBoxtakes tags = do
 -- with scan and status information.
 -- The main difference with ActiveBoxtakes
 -- is that it doesn't create boxes but only tags
-data WhichBoxes = AllBoxes | ActiveBoxes
+data WhichBoxes = AllBoxes | ActiveBoxes deriving (Eq, Show)
 importBoxStatus whichBoxes prefix a_tags = do
   today <- todayH
   operators <- allOperators
@@ -160,8 +169,52 @@ executeReport headerType path reportParam0 = do
                  ]
       
 
-
+-- ** FA status
+-- | Create tags for each variations for FA and Website status
+-- corresponding to the All statuses tabs in item report
+importVariationStatus :: WhichBoxes -> Text -> Handler Section
+importVariationStatus which skuLike = do
+  cache <- I.fillIndexCache
+  skuToStyleVar <- I.skuToStyleVarH
+  let ?skuToStyleVar = skuToStyleVar
+  itemGroups <- I.loadVariations cache indexParam  {I.ipMode = ItemFAStatusView }
+                                                   {I.ipShowInactive = which == AllBoxes}
+                                                   {I.ipSKU = Just $ LikeFilter skuLike }
   
+  let rows  = [(style, var, runningStatus)
+              | (__base, vars) <- itemGroups
+              , (__varStatus, (I.ItemInfo style  var  info)) <- vars
+              , Just (_, runningStatus) <- [I.faRunningStatus <$> I.impFAStatus info]
+              ]
+      content = [ style <> "#'" <> var <> ",fa-status=" <> tagFor status
+                --           ^ the variaton is a special tag
+                | (style, var, status) <- rows
+                ]
+      tagFor = drop 2 . toLower . tshow
+
+  return $ Section TagsH (Right $ "selector,tags" : content) ("* FA status")
+  
+indexParam :: I.IndexParam
+indexParam = I.IndexParam{..} where
+  ipSKU = Nothing
+  ipCategory = Nothing
+  ipCategoryFilter = Nothing
+  ipVariationsF = Nothing
+  ipVariationGroup = Nothing
+  ipShowInactive = True
+  ipShowExtra = False
+  ipBases = mempty
+  ipChecked = []
+  ipColumns = []
+  ipMode = ItemFAStatusView
+  ipClearCache = False
+  ipGLStatusFilter = Nothing
+  ipSalesPriceStatusFilter = Nothing
+  ipPurchasePriceStatusFilter = Nothing
+  ipFAStatusFilter = Nothing
+  ipWebStatusFilter = Nothing
+  ipWebPriceStatusFilter = Nothing
+  ipBaseVariation= Nothing
 
 
 
