@@ -1,16 +1,22 @@
-* TODO Planner [0/9]
-  - [ ] Operator name in box status
-  - [ ] Box status for ALL boxes (not just inactive)
+* TODO Planner [5/13]
+  - [X] Operator name in box status
+  - [X] Box status for ALL boxes (not just inactive)
 Allows to see operator or date of boxes which are dead but still on the planner
-  - [ ] local file
-  - [ ] load scenario from dir or file
+  - [X] local file
+  - [X] Allow glob pattern in import files
+  - [X] load scenario from dir or file
+  use /*
+  - [ ] Exclude files from include
+ so we can load a full dir except the stock for example
   - [ ] other planner report
   - [ ] sku status
     - [ ] fa status Running, ghost etc ...
     - [ ] Web status Available
     - [ ] Web colour Base/trim hex
+    - [ ] Item category ?
   - [ ] Box open, quantity ?
   - [ ] Box of a given style or stu
+  - [ ] preview result, builder page
 Query the boxtake history to import dead box
 Allows to generate ghost
   - [ ] Add tag to boxtake

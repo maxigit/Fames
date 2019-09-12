@@ -4,11 +4,13 @@ module Handler.Planner.FamesImport
 -- Import methods connecting Fames live database to the planner
 import Import
 import Planner.Types
+import Planner.Internal
 import qualified Handler.WH.PackingList as PL
 import qualified Handler.WH.Boxtake as Box
 import Database.Persist.Sql (toSqlKey)
 import Data.Conduit.List (consume)
 import Data.Text(splitOn)
+import System.FilePath.Glob(globDir1, compile, match)
 -- * Type
 -- data FamesImport
 --   = ImportPackingList (Key PackingList) -- ^ import packing list
@@ -25,21 +27,25 @@ mkYesodSubData "FI" [parseRoutes|
 /activeBoxes FIActiveBoxes
 /boxStatus/active/#Text FIBoxStatusActive
 /boxStatus/all/#Text FIBoxStatusAll
+/file/+[FilePath] FILocalFile
 |]
 -- *  Dispatcher
 importFamesDispatch :: Section -> Handler (Either Text [Section])
 importFamesDispatch (Section ImportH (Right content) _) = do
-  sections <- forM content $ \uri ->  do
+  sectionss <- forM content $ \uri ->  do
     let (main:tags) = splitOn "#" uri
         pieces = splitOn "/" main
+        ret :: Handler Section -> Handler (Either Text [Section])
+        ret m = Right . (:[]) <$> m
     case (parseRoute (pieces, [])) of
       Nothing -> return $ Left $ uri <> " is not a valid import"
-      Just fi -> Right <$> case fi of
-          FIPackingList plId -> importPackingList (toSqlKey plId) tags
-          FIActiveBoxes -> importActiveBoxtakes tags
-          FIBoxStatusActive prefix -> importBoxStatus ActiveBoxes prefix tags
-          FIBoxStatusAll prefix -> importBoxStatus AllBoxes prefix tags
-  return $ sequence sections
+      Just fi -> case fi of
+          FIPackingList plId -> ret $ importPackingList (toSqlKey plId) tags
+          FIActiveBoxes -> ret $ importActiveBoxtakes tags
+          FIBoxStatusActive prefix -> ret $ importBoxStatus ActiveBoxes prefix tags
+          FIBoxStatusAll prefix -> ret $ importBoxStatus AllBoxes prefix tags
+          FILocalFile path -> readLocalFile (intercalate "/" path) tags
+  return $ (fmap concat) $  sequence sectionss
 importFamesDispatch section = return $ Right [section]
 
 
@@ -94,10 +100,18 @@ importBoxStatus whichBoxes prefix a_tags = do
   let content = header:rows
   return $ Section (TagsH) (Right content) ("* Tags from Fames DB [" <> tshow today <> "]")
   
-  
-  
 
   
+readLocalFile :: FilePath -> [Text] -> Handler (Either Text [Section])
+readLocalFile pat excluded = do
+  plannerDir <- appPlannerDir <$> getsYesod appSettings
+  files <- liftIO $ globDir1 (compile pat) plannerDir
+  let orgs = filter valid files
+      exPats = map (compile . unpack . ("/**/" <>) ) excluded
+      valid f =  all ($ f) $ fileValid : map (\p -> not . match p) exPats
+  contents <- mapM readFile orgs
+  let sectionss = traverse (parseScenarioFile . decodeUtf8)  contents
+  return $ fmap concat sectionss
 
 
 

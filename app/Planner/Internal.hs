@@ -12,6 +12,8 @@ module Planner.Internal
 , readScenario
 , savePointScenario
 , scenarioToTextWithHash
+, parseScenarioFile
+, fileValid
 )
 where 
 
@@ -196,12 +198,12 @@ readScenariosFromDir expandSection path = do
   contents <- liftIO $ do
     entries0 <- listDirectory path
     let entries = map (path </>) (sort  entries0)
-        isOrg = (== ".org") . takeExtension
-    files <- filterM  doesFileExist (filter isOrg entries)
+    files <- filterM  doesFileExist (filter fileValid entries)
     mapM readFile files
   scenariosE <- mapM (readScenario expandSection . decodeUtf8) contents
   return $ sequence scenariosE
   
+fileValid = (== ".org") . takeExtension
 savePointScenario = Scenario Nothing [SavingPoint] Nothing
 
 -- | Save a content to a temporary file if needed
