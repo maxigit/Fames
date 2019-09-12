@@ -21,9 +21,10 @@ import Data.Text(splitOn)
 -- that we can dispatch on later
 data FI
 mkYesodSubData "FI" [parseRoutes|
-/packinglist/#Int64 FIPackingList
+/packingList/#Int64 FIPackingList
 /activeBoxes FIActiveBoxes
-/boxStatus/#Maybe-Text FIBoxStatus
+/boxStatus/active/#Text FIBoxStatusActive
+/boxStatus/all/#Text FIBoxStatusAll
 |]
 -- *  Dispatcher
 importFamesDispatch :: Section -> Handler (Either Text [Section])
@@ -36,7 +37,8 @@ importFamesDispatch (Section ImportH (Right content) _) = do
       Just fi -> Right <$> case fi of
           FIPackingList plId -> importPackingList (toSqlKey plId) tags
           FIActiveBoxes -> importActiveBoxtakes tags
-          FIBoxStatus prefix -> importBoxStatus prefix tags
+          FIBoxStatusActive prefix -> importBoxStatus ActiveBoxes prefix tags
+          FIBoxStatusAll prefix -> importBoxStatus AllBoxes prefix tags
   return $ sequence sections
 importFamesDispatch section = return $ Right [section]
 
@@ -69,17 +71,24 @@ importActiveBoxtakes tags = do
 -- with scan and status information.
 -- The main difference with ActiveBoxtakes
 -- is that it doesn't create boxes but only tags
-importBoxStatus a_prefix a_tags = do
+data WhichBoxes = AllBoxes | ActiveBoxes
+importBoxStatus whichBoxes prefix a_tags = do
   today <- todayH
-  let source = Box.plannerSource
-      prefix = fromMaybe "" a_prefix
+  operators <- allOperators
+  let source = case whichBoxes of
+        AllBoxes -> selectSource [] []
+        ActiveBoxes -> Box.plannerSource
+      -- prefix = fromMaybe "" a_prefix
       getTags (Entity _ Boxtake{..}) = "#barcode=" <> boxtakeBarcode <> "," <> (intercalate "#" tags)
               where
                 tags = [ prefix <> "location="  <> boxtakeLocation
-                       , prefix <> "status=active"
+                       , prefix <> "status=" <> if boxtakeActive then "active" else "inactive"
                        , prefix <> "date=" <> tshow boxtakeDate
                        , prefix <> "reference=" <> boxtakeReference
-                       ] <> tags
+                       , prefix <> "operator=" <> maybe (tshow $ unOperatorKey $ boxtakeOperator)
+                                                        operatorNickname
+                                                        (lookup boxtakeOperator operators)
+                       ] <> a_tags
       header = "selector,tags"
   rows <- (runDB $ runConduit $ source .| mapC getTags .| consume)
   let content = header:rows
