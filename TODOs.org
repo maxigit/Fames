@@ -1,4 +1,4 @@
-* TODO Planner [6/13]
+* TODO Planner [7/15]
   - [X] Operator name in box status
   - [X] Box status for ALL boxes (not just inactive)
 Allows to see operator or date of boxes which are dead but still on the planner
@@ -9,13 +9,14 @@ Add in dropdown menu
   - [X] Exclude files from include
  so we can load a full dir except the stock for example
   - [X] other planner report
-  - [-] sku status
+  - [X] sku status
     - [X] fa status Running, ghost etc ...
     - [X] Web status Available
     - [X] Web colour Base/trim hex
-    - [ ] Item category ?
+    - [X] Item category ?
 Usefull for batches
-  - [ ] Box open, quantity ?
+  - [ ] Box open, quantity ? 
+  - [ ] Live Boxes  -- apply box adjusment virtually ww 
   - [ ] Box of a given style or stu
   - [ ] List all avaiable tags and their values ? (if not too many)
 in a datatable and count
@@ -23,6 +24,10 @@ in a datatable and count
 Query the boxtake history to import dead box
 Allows to generate ghost
   - [ ] Add tag to boxtake
+  - [ ] Optimisation
+    - [ ] ditch TDFA regex for C one
+    - [ ] remove globbing when not needed
+    - [ ] Add Map/Hash style Box ?
 Add tags to the BOXES sections
 * MTD [60%]
 ** DONE Hide Reference [2/2]

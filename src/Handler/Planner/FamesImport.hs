@@ -20,6 +20,7 @@ import Data.Conduit.List (consume)
 import Data.Text(splitOn)
 import System.FilePath.Glob(globDir1, compile, match)
 import Database.Persist.MySQL     (Single(..), rawSql)
+import qualified Data.Map as Map
 -- * Type
 -- data FamesImport
 --   = ImportPackingList (Key PackingList) -- ^ import packing list
@@ -50,6 +51,7 @@ mkYesodSubData "FI" [parseRoutes|
 /stockStatus/active/#Text FIStockStatusActive
 /stockStatus/all/#Text FIStockStatusAll
 /colour/variations/#Text FIColourTransform
+/category/#Text/+[Text] FICategory
 |]
 -- *  Dispatcher
 importFamesDispatch :: Section -> Handler (Either Text [Section])
@@ -80,6 +82,7 @@ importFamesDispatch (Section ImportH (Right content) _) = do
           FIStockStatusActive skus -> ret $ importStockStatus ActiveBoxes skus
           FIStockStatusAll skus -> ret $ importStockStatus AllBoxes skus
           FIColourTransform name -> ret $ importColourDefinitions name
+          FICategory skus categories -> ret $ importCategory skus categories
   return $ (fmap concat) $  sequence sectionss
 importFamesDispatch section = return $ Right [section]
 
@@ -270,3 +273,23 @@ importColourDefinitions name0 =  do
   mapM print content
 
   return $ Section (TransformTagsH) (Right $ "selector,pat,subst" : content) ("* Colour transform")
+
+-- ** Category
+importCategory skus categories = do
+  skuToStyleVar <- I.skuToStyleVarH
+  cats <- runDB $ selectList ( filterE id ItemCategoryStockId (Just $ LikeFilter skus)
+                             <> [ ItemCategoryCategory <-. categories
+                                ]
+                             )
+                             [Asc ItemCategoryStockId ]
+  -- for efficiency we group all the categories in one line
+  -- so that the planner has only to find once each boxes and apply all the tags
+  let grouped = Map.fromListWith (<>) [ (itemCategoryStockId, [(itemCategoryCategory, itemCategoryValue)])
+                             | (Entity _ ItemCategory{..})  <- cats
+                             ]
+      content =  [ style <> "#'"  <> var <> "," <> (intercalate "#" (map mkTag cat'values))
+                 | (sku, cat'values) <- Map.toList grouped
+                 , let (style,var) = skuToStyleVar sku
+                 ]
+      mkTag (category, value) = "cat-" <> category <> "=" <> value
+  return $ Section TagsH (Right $ "selector,tags" : content) ("* Categories " <> intercalate " " categories) 
