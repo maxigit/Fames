@@ -1,4 +1,5 @@
 {-# LANGUAGE ImplicitParams #-}
+
 module Handler.Planner.FamesImport
 ( importFamesDispatch
 ) where
@@ -48,6 +49,7 @@ mkYesodSubData "FI" [parseRoutes|
 /variationStatus/all/#Text FIVariationStatusAll
 /stockStatus/active/#Text FIStockStatusActive
 /stockStatus/all/#Text FIStockStatusAll
+/colour/variations/#Text FIColourTransform
 |]
 -- *  Dispatcher
 importFamesDispatch :: Section -> Handler (Either Text [Section])
@@ -77,6 +79,7 @@ importFamesDispatch (Section ImportH (Right content) _) = do
           FIVariationStatusAll skus -> ret $ importVariationStatus AllBoxes skus
           FIStockStatusActive skus -> ret $ importStockStatus ActiveBoxes skus
           FIStockStatusAll skus -> ret $ importStockStatus AllBoxes skus
+          FIColourTransform name -> ret $ importColourDefinitions name
   return $ (fmap concat) $  sequence sectionss
 importFamesDispatch section = return $ Right [section]
 
@@ -250,4 +253,20 @@ indexParam = I.IndexParam{..} where
   ipBaseVariation= Nothing
 
 
+-- ** Website color
+-- | Transform colour name with RGB value
+importColourDefinitions :: Text -> Handler Section
+importColourDefinitions name0 =  do
+  let query = "SELECT field_colour_code_value, field_rgb_value FROM field_data_field_colour_code NATURAL JOIN field_data_field_rgb "
+      name = case name0 of
+        "" -> "col"
+        _ -> name0
+  col'rgbs <- runDCDB $ rawSql query []
+  let content = map transform col'rgbs 
+      transform (Single colour, Single rgb) = "," <> name <> "\\(" <> colour <> "\\)," <> clean rgb
+      clean ('#':rgb) = clean rgb
+      clean rgb = pack rgb
 
+  mapM print content
+
+  return $ Section (TransformTagsH) (Right $ "selector,pat,subst" : content) ("* Colour transform")

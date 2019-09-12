@@ -12,8 +12,9 @@ Add in dropdown menu
   - [-] sku status
     - [X] fa status Running, ghost etc ...
     - [X] Web status Available
-    - [ ] Web colour Base/trim hex
+    - [X] Web colour Base/trim hex
     - [ ] Item category ?
+Usefull for batches
   - [ ] Box open, quantity ?
   - [ ] Box of a given style or stu
   - [ ] List all avaiable tags and their values ? (if not too many)
