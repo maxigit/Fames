@@ -14,6 +14,7 @@ module Planner.Internal
 , scenarioToTextWithHash
 , parseScenarioFile
 , fileValid
+, writeHeader
 )
 where 
 
@@ -78,7 +79,7 @@ linesToSections lines = reverse $ go lines Nothing [] [] where
      -> [Either Text Section] -- ^ previously parsed in reverse order
      -> [Either Text Section]
   go ((HeaderL newHeader title):ls) header current sections = -- start new section
-        go ls (Just (newHeader, title)) [] (merge header current sections)
+    go ls (Just (newHeader, title)) [] (merge header current sections)
   go [] Nothing current sections = sections
   go [] header current sections = merge header current sections
   go ((CommentL):ls) header current sections = go ls header current sections

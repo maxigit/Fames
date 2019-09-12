@@ -4,9 +4,9 @@
 Allows to see operator or date of boxes which are dead but still on the planner
   - [X] local file
   - [X] Allow glob pattern in import files
-  - [X] load scenario from dir or file
-  use /*
-  - [ ] Exclude files from include
+  - [ ] load scenario from dir or file
+Add in dropdown menu
+  - [X] Exclude files from include
  so we can load a full dir except the stock for example
   - [ ] other planner report
   - [ ] sku status

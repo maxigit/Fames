@@ -5,8 +5,10 @@ module Handler.Planner.FamesImport
 import Import
 import Planner.Types
 import Planner.Internal
+import WarehousePlanner.Report
 import qualified Handler.WH.PackingList as PL
 import qualified Handler.WH.Boxtake as Box
+import qualified Handler.Planner.Exec as Exec
 import Database.Persist.Sql (toSqlKey)
 import Data.Conduit.List (consume)
 import Data.Text(splitOn)
@@ -28,6 +30,14 @@ mkYesodSubData "FI" [parseRoutes|
 /boxStatus/active/#Text FIBoxStatusActive
 /boxStatus/all/#Text FIBoxStatusAll
 /file/+[FilePath] FILocalFile
+/plannerReport FIPlannerReport:
+  /tags/#FilePath/#Text TagReport
+  /boxes/#FilePath/#Text BoxReport
+  /movesAndTags/#FilePath/#Text MATReport
+  /orientations/#FilePath/#Text OrientationReport
+  /clone/#FilePath/#Text CloneReport
+  /delete/#FilePath/#Text DeleteReport
+  /stocktake/#FilePath/#Text StocktakeReport
 |]
 -- *  Dispatcher
 importFamesDispatch :: Section -> Handler (Either Text [Section])
@@ -44,7 +54,15 @@ importFamesDispatch (Section ImportH (Right content) _) = do
           FIActiveBoxes -> ret $ importActiveBoxtakes tags
           FIBoxStatusActive prefix -> ret $ importBoxStatus ActiveBoxes prefix tags
           FIBoxStatusAll prefix -> ret $ importBoxStatus AllBoxes prefix tags
-          FILocalFile path -> readLocalFile (intercalate "/" path) tags
+          FILocalFile path -> readLocalFiles (intercalate "/" path) tags
+          FIPlannerReport report -> case report of
+            TagReport path reportParam -> executeReport TagsH path reportParam
+            BoxReport path reportParam -> executeReport (BoxesH tags) path reportParam
+            MATReport path reportParam -> executeReport (MovesAndTagsH tags) path reportParam
+            OrientationReport path reportParam -> executeReport OrientationsH path reportParam
+            CloneReport path reportParam -> executeReport (ClonesH tags) path reportParam
+            DeleteReport path reportParam -> executeReport DeletesH path reportParam
+            StocktakeReport path reportParam -> executeReport (StocktakeH tags) path reportParam
   return $ (fmap concat) $  sequence sectionss
 importFamesDispatch section = return $ Right [section]
 
@@ -101,9 +119,10 @@ importBoxStatus whichBoxes prefix a_tags = do
   return $ Section (TagsH) (Right content) ("* Tags from Fames DB [" <> tshow today <> "]")
   
 
-  
-readLocalFile :: FilePath -> [Text] -> Handler (Either Text [Section])
-readLocalFile pat excluded = do
+-- | Read local files using glob pattern(s)
+-- Uses the same directory as the planner
+readLocalFiles :: FilePath -> [Text] -> Handler (Either Text [Section])
+readLocalFiles pat excluded = do
   plannerDir <- appPlannerDir <$> getsYesod appSettings
   files <- liftIO $ globDir1 (compile pat) plannerDir
   let orgs = filter valid files
@@ -112,6 +131,37 @@ readLocalFile pat excluded = do
   contents <- mapM readFile orgs
   let sectionss = traverse (parseScenarioFile . decodeUtf8)  contents
   return $ fmap concat sectionss
+
+--  | Execute the report from another planner
+executeReport :: HeaderType -> FilePath -> Text -> Handler (Either Text [Section])
+executeReport headerType path reportParam0 = do
+  let reportParam = if null reportParam0 then "report" else reportParam0
+  scenarioE <- readScenariosFromDir importFamesDispatch path
+  today <- todayH
+  content <- case scenarioE of
+    Left _ ->  error $ "Scenario: " <> unpack path <> " doesn't exist"
+    Right scenarios -> do
+      let report = generateGenericReport today (unpack reportParam)
+          scenario = mconcat scenarios
+      rows <- Exec.renderReport scenario report 
+      return $ map pack rows
+  -- add a dummy csv header if needed
+  let addHeader content =
+        if writeHeader headerType `elem` ["Boxes", "Moves", "Tags", "MovesAndTags"
+                                         , "Orientations", "TransformTags", "Stocktake"
+                                         ]
+        then ("selector,action":content)
+        else content
+  return $ Right [Section headerType
+                          (Right $ addHeader content)
+                          ("* " <> writeHeader headerType
+                            <> " from " <> pack path <>"[" <> tshow today <> "]"
+                          )
+                 ]
+      
+
+
+  
 
 
 
