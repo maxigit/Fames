@@ -24,10 +24,11 @@ in a datatable and count
 Query the boxtake history to import dead box
 Allows to generate ghost
   - [ ] Add tag to boxtake
-  - [ ] Optimisation
+  - [-] Optimisation
     - [ ] ditch TDFA regex for C one
-    - [ ] remove globbing when not needed
+    - [X] remove globbing when not needed
     - [ ] Add Map/Hash style Box ?
+    - [ ] Filter tag components (key and value) Independently, instead of matching flattened value
 Add tags to the BOXES sections
 * MTD [60%]
 ** DONE Hide Reference [2/2]

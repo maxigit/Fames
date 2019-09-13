@@ -381,11 +381,11 @@ A planner file is made of different sections. Each section corresponds to an org
         <li> content priority (priority within content)
       By default, all priorities  are set 100. Priorities can be modified by assigning the special tags
       <ul>
-        <li> <code>@global</code> global priority
-        <li> <code>@style</code> priority within the same style
-        <li> <code>@content</code> priority within box of the same content (styles and variations)
+        <li> <code>@global</code> global priority. Can be used to move a box first. 
+        <li> <code>@style</code> priority within the same style. Can be use to move a box at the beginning of a style.
+        <li> <code>@content</code> priority within box of the same content (styles and variations). Can be 
       
-      For example, given fox boxes, A-Black, A-Red, B-Black, B-Red. Boxes will be stacked in the following order
+      For example, given fox boxes, A-Black, A-Red, B-Black, B-Red. Boxes will be stacked in the following  fs order
       <ul>
         <li> B-Black
         <li> B-Red

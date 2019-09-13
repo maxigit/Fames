@@ -51,7 +51,7 @@ import Data.Monoid
 import qualified Data.Map.Strict as Map'
 import qualified Data.Map.Lazy as Map
 import Data.Map.Merge.Lazy(merge, preserveMissing, mapMaybeMissing, zipWithMaybeMatched)
-import Data.List(sort, sortBy, groupBy, nub, (\\), union, maximumBy, delete, stripPrefix)
+import Data.List(sort, sortBy, groupBy, nub, (\\), union, maximumBy, delete, stripPrefix, partition)
 import Data.Maybe(catMaybes, fromMaybe, isJust)
 import Control.Applicative
 import Data.Ord (comparing, Down(..))
@@ -183,46 +183,93 @@ filterShelfByTag :: Maybe String -> Shelf s -> Bool
 filterShelfByTag tagM shelf = case tagM of
   Nothing -> True
   Just tag -> let (on,off) = tagToOnOff tag
-              in filterByTag on off (maybeToList $ shelfTag shelf)
+              in filterByTag on off (Map.fromList  $ (fmap (,mempty)) <$> maybeToList $ shelfTag shelf)
 
-filterBoxByTag :: [String -> Bool] -> [String -> Bool] -> Box s -> Bool
-filterBoxByTag ons offs box =  filterByTag ons offs (boxTagList box)
+filterBoxByTag :: [(String, [String]) -> Bool] -> [(String, [String]) -> Bool] -> Box s -> Bool
+filterBoxByTag ons offs box =  filterByTag ons offs (boxTags box)
 
 -- | all tags from the left must belong to the right
 -- ex if box as tag A B C, A#B should match but not A#E
-filterByTag :: [String -> Bool] -> [String -> Bool] -> [String] -> Bool
+filterByTag :: [(String, [String]) -> Bool] -> [(String, [String]) -> Bool] -> Tags -> Bool
 filterByTag on off tags = let
-  selectorMatched matcher = any matcher tags
+  selectorMatched matcher = any matcher $ fmap (fmap toList) (Map.toList tags)
   in all selectorMatched (on) -- 
      && not (any selectorMatched (off))
 
-tagToOnOff :: String -> ([String -> Bool], [String -> Bool])
+tagToOnOff :: String -> ([(String, [String] ) -> Bool], [(String, [String]) -> Bool])
 tagToOnOff selector =  let
   selectors = map ok $ splitOn "#" selector
   ok ('-':t) = Left t
   ok t = Right t
   on = rights selectors
   off = lefts selectors
-  matchers ss = map matchGlob ss
+  matchers ss = map matchTagGlob ss
   in (matchers on, matchers off)
-patternToMatchers :: String -> [(String -> Bool)]
+-- | Match a glob pattern against a property name and its value
+patternToMatchers :: String -> [(String  -> Bool)]
 patternToMatchers "" = [const True]
-patternToMatchers pat = map mkGlob (splitOn "|" pat) where
+patternToMatchers pat = map (\p v -> mkGlob p (v,[])) (splitOn "|" pat) where
   mkGlob ('!':pat) = not . mkGlob pat
-  mkGlob pat = matchGlob pat
+  mkGlob pat = matchTagGlob pat
 
--- | Compile a match against a glob pattern if Necessary
+-- | Pattern can either match the property name
+-- a property value(s)
+-- or both  ie when the tag is flatten to key=value1;value2 ...
+-- Trying to only match component when possible should be much faster
+-- key -- key only
+-- key= key on something
+-- =value one value
+-- =+value 
+-- key=value  key 
+-- key=+value  key 
+-- key=value1;value2  value1 and value2 only
+-- key=+value1;value2  at least value1 and value2
+matchTagGlob :: String -> (String, [String]) -> Bool
+matchTagGlob pat = case break ('=' ==) pat of
+  (onProp, []) -> \(prop, values ) -> null values && matchKey onProp prop
+  -- ^ tag without values
+  (onProp, '=':'+':onValues) -> \(prop, values) -> matchKey onProp prop && matchSome onValues values 
+  (onProp, '=':onValues) -> \(prop, values) -> matchKey onProp prop && matchAll onValues values 
+  -- ^ property, can have values
+  where matchSome onValues values = case applyPatternToValues (splitOn ";" onValues) values of
+                                      ([], _) -> True -- all pattern used
+                                      _ -> False
+        matchAll onValues values = case applyPatternToValues (splitOn ";" onValues) values of
+                                      ([], []) -> True -- all pats used and all values matched
+                                      _ -> False
+        matchKey "" = const True
+        matchKey key = matchGlob key
+
+-- | Apply pattern and return left over (pattern not used and values not matched)
+applyPatternToValues :: [String] -> [String] -> ([String -> Bool], [String] )
+applyPatternToValues pats = applyPatternToValues' [] (map matchGlob pats)
+applyPatternToValues' failed [] values =  (failed, values)
+applyPatternToValues' failed pats [] =  (failed <> pats, [])
+applyPatternToValues' failed (pat:pats) values =
+  case partition pat values of 
+    ([], _) ->  -- no matches
+      applyPatternToValues'  (pat:failed) pats values
+    ((_:_), lefts) -> applyPatternToValues'  (failed) pats lefts
+    -- ^ at least one match. So lefts is smaller than values
+
+
+
+-- | Compiles a match against a glob pattern if Necessary
 matchGlob :: String -> (String -> Bool)
+matchGlob "" = const True
 matchGlob s = let
   specials = filter (`elem` "*?[]{}") s
   in case specials of
      [] -> (== s)
      _ ->  Glob.match $ Glob.compile s
 
+isGlob :: String -> Bool
+isGlob s = not (null specials)
+  where specials = filter (`elem` "*?[]{}") s
 findByName :: WH [a s] s -> (a s -> String) -> String -> WH [a s] s
 findByName objects objectName "" = objects
 findByName objects objectName name = do
-   let matchers = patternToMatchers name --  map (Glob.match . Glob.compile) (splitOn "|" name) :: [String -> Bool]
+   let matchers = patternToMatchers name  --  map (Glob.match . Glob.compile) (splitOn "|" name) :: [String -> Bool]
    filter (\o -> any ($ (objectName o)) matchers) <$> objects
 
 splitBoxSelector :: String -> (String, Maybe String,  BoxNumberSelector, String, Maybe String)
