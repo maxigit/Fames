@@ -203,13 +203,21 @@ tagToOnOff selector =  let
   ok t = Right t
   on = rights selectors
   off = lefts selectors
-  matchers ss = map (Glob.match . Glob.compile) ss
+  matchers ss = map matchGlob ss
   in (matchers on, matchers off)
 patternToMatchers :: String -> [(String -> Bool)]
 patternToMatchers "" = [const True]
 patternToMatchers pat = map mkGlob (splitOn "|" pat) where
   mkGlob ('!':pat) = not . mkGlob pat
-  mkGlob pat = Glob.match $ Glob.compile pat
+  mkGlob pat = matchGlob pat
+
+-- | Compile a match against a glob pattern if Necessary
+matchGlob :: String -> (String -> Bool)
+matchGlob s = let
+  specials = filter (`elem` "*?[]{}") s
+  in case specials of
+     [] -> (== s)
+     _ ->  Glob.match $ Glob.compile s
 
 findByName :: WH [a s] s -> (a s -> String) -> String -> WH [a s] s
 findByName objects objectName "" = objects
