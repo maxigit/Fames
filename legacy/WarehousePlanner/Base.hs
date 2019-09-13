@@ -896,22 +896,18 @@ printDim  (Dimension l w h) = printf "%0.1fx%0.1fx%0.1f" l w h
 -- @@number global priority
 extractPriorities :: Tags -> (Int, Int, Int) -> (Int, Int, Int)
 extractPriorities tags (g0, s0, c0) = let
-  prioritiess = map extractPriority (Map.keys tags)
-  (globals, styles, contents) = unzip3 prioritiess
-  go :: Int -> [Maybe Int] -> Int
-  go p0 ps = fromMaybe p0 $ getLast $ mconcat (map Last (ps))
-  in (go g0 globals, go s0 styles, go c0 contents)
+  go key p0 = fromMaybe p0 $ extractPriority key tags 
+  in (go "@global" g0 , go "@style" s0, go "@content" c0 )
 
 
--- read 0 or more priorite. Priority have the following format
--- content@style@global. Empty priorite are allowed
--- so @@ is a shortcut for global
 
-extractPriority :: String -> (Maybe Int, Maybe Int, Maybe Int)
-extractPriority tag = let
-  priorities = map readMaybe $ splitOn "@" tag
-  ps@[content, style, global]= take 3 $ priorities  <> repeat Nothing
-  in (global, style, content)
+extractPriority :: String -> Tags -> Maybe Int
+extractPriority key tags = do
+  set <- Map.lookup key tags
+  case mapMaybe readMaybe (toList set) of
+    (n:_) -> Just n
+    _ -> Nothing
+
 
 extractBoxBreak :: Tags -> Maybe BoxBreak
 extractBoxBreak tags = case maybe [] (Set.toList) (Map.lookup "@start" tags) of
