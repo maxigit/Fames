@@ -1,7 +1,6 @@
 {-# LANGUAGE TupleSections, BangPatterns #-}
 {-# LANGUAGE LiberalTypeSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE NoOverloadedStrings #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE RecordWildCards #-}
 module WarehousePlanner.Base
@@ -43,26 +42,26 @@ module WarehousePlanner.Base
 , module WarehousePlanner.Type
 )
 where
-import Prelude
+import ClassyPrelude
 import Text.Printf(printf)
 import Data.Vector(Vector)
-import Control.Monad.State
 import Data.Monoid
 import qualified Data.Map.Strict as Map'
 import qualified Data.Map.Lazy as Map
+import Control.Monad.State(gets, get, put)
 import Data.Map.Merge.Lazy(merge, preserveMissing, mapMaybeMissing, zipWithMaybeMatched)
-import Data.List(sort, sortBy, groupBy, nub, (\\), union, maximumBy, delete, stripPrefix, partition)
-import Data.Maybe(catMaybes, fromMaybe, isJust)
+-- import Data.List(sort, sortBy, groupBy, nub, (\\), union, maximumBy, delete, stripPrefix, partition)
+import Data.List(cycle)
+import qualified Data.List as List
+import Data.Maybe(isJust)
 import Control.Applicative
 import Data.Ord (comparing, Down(..))
-import Data.List.Split(splitOn)
 import Data.Foldable (asum)
 import Data.Function(on)
 import Data.Traversable (traverse, sequenceA)
 import Data.STRef
 import Control.Monad.ST
 import Data.Sequence (Seq, (|>))
-import Data.Foldable (toList)
 import qualified Data.Traversable as T
 import qualified Data.Sequence as Seq
 import Data.Set (Set)
@@ -72,9 +71,9 @@ import Data.Maybe(maybeToList, mapMaybe)
 import WarehousePlanner.Type
 import WarehousePlanner.SimilarBy
 import Diagrams.Prelude(white, black)
+import Data.Text (splitOn)
 
 import qualified System.FilePath.Glob as Glob
-import Text.Read (readMaybe)
 
 
 import Debug.Trace
@@ -90,8 +89,8 @@ data TagOperationF s = -- ClearTagValues  use SetValue []
                   | RemoveValue s
                   deriving (Eq, Show, Read, Functor, Foldable, Traversable)
 
-type TagOperation = TagOperationF String
-type Tag'Operation = (String, TagOperation)
+type TagOperation = TagOperationF Text
+type Tag'Operation = (Text, TagOperation)
 
 -- | Computes the max length or height used within a shelf
 -- | by all the boxes. Should be able to be cached.
@@ -119,21 +118,21 @@ rackUp :: Shelf' shelf => [shelf s] -> ShelfGroup s
 rackUp ss = ShelfGroup (reverse g) Vertical where
     g = map (ShelfProxy . shelfId) ss
 
-buildWarehouse :: [[[String]]] -> WH (ShelfGroup s) s
+buildWarehouse :: [[[Text]]] -> WH (ShelfGroup s) s
 buildWarehouse xsss = do
     bays <- mapM buildBay xsss
     return $ ShelfGroup bays  Vertical
 
-buildBay :: [[String]] -> WH (ShelfGroup s) s
+buildBay :: [[Text]] -> WH (ShelfGroup s) s
 buildBay xss = do
     racks <- mapM buildRack xss
     return $ ShelfGroup racks Horizontal
 
-buildRack :: [String] -> WH (ShelfGroup s) s
+buildRack :: [Text] -> WH (ShelfGroup s) s
 buildRack xs = do
     idsS <- mapM ( \x ->  do
             case x of
-                '-':name ->  fmap (map shelfId) $ updateShelfByName (\s -> s { flow = RightToLeft }) name
+                (uncons -> Just ('-', name)) ->  fmap (map shelfId) $ updateShelfByName (\s -> s { flow = RightToLeft }) name
                 name ->  findShelfByName name
             ) xs
     shelves <- mapM findShelf (concat idsS)
@@ -157,7 +156,7 @@ findBoxByShelf shelf = do
   mapM findBox boxIds
 
 
-findBoxByStyle :: String -> WH [BoxId s] s
+findBoxByStyle :: Text -> WH [BoxId s] s
 findBoxByStyle style = do
   boxIds <- toList <$> gets boxes
   fmap (map boxId) (findByName (mapM findBox boxIds) (boxStyle)  style)
@@ -171,7 +170,7 @@ findShelvesByBoxes :: Box' b => [b s] -> WH ([ShelfId s]) s
 findShelvesByBoxes boxes = fmap catMaybes (mapM findShelfByBox boxes)
 
 -- | find shelf by name and tag
-findShelfByName :: String -> WH [ShelfId s] s
+findShelfByName :: Text -> WH [ShelfId s] s
 findShelfByName name' = do
   let (name, tagM) = extractTag name'
   shelfIds <- toList <$> gets shelves
@@ -179,37 +178,37 @@ findShelfByName name' = do
   let shelves1 = filter (filterShelfByTag tagM) shelves0
   return $ map shelfId shelves1
 
-filterShelfByTag :: Maybe String -> Shelf s -> Bool
+filterShelfByTag :: Maybe Text -> Shelf s -> Bool
 filterShelfByTag tagM shelf = case tagM of
   Nothing -> True
   Just tag -> let (on,off) = tagToOnOff tag
               in filterByTag on off (Map.fromList  $ (fmap (,mempty)) <$> maybeToList $ shelfTag shelf)
 
-filterBoxByTag :: [(String, [String]) -> Bool] -> [(String, [String]) -> Bool] -> Box s -> Bool
+filterBoxByTag :: [(Text, [Text]) -> Bool] -> [(Text, [Text]) -> Bool] -> Box s -> Bool
 filterBoxByTag ons offs box =  filterByTag ons offs (boxTags box)
 
 -- | all tags from the left must belong to the right
 -- ex if box as tag A B C, A#B should match but not A#E
-filterByTag :: [(String, [String]) -> Bool] -> [(String, [String]) -> Bool] -> Tags -> Bool
+filterByTag :: [(Text, [Text]) -> Bool] -> [(Text, [Text]) -> Bool] -> Tags -> Bool
 filterByTag on off tags = let
   selectorMatched matcher = any matcher $ fmap (fmap toList) (Map.toList tags)
   in all selectorMatched (on) -- 
      && not (any selectorMatched (off))
 
-tagToOnOff :: String -> ([(String, [String] ) -> Bool], [(String, [String]) -> Bool])
+tagToOnOff :: Text -> ([(Text, [Text] ) -> Bool], [(Text, [Text]) -> Bool])
 tagToOnOff selector =  let
   selectors = map ok $ splitOn "#" selector
-  ok ('-':t) = Left t
+  ok (uncons -> Just ('-', t)) = Left t
   ok t = Right t
   on = rights selectors
   off = lefts selectors
   matchers ss = map matchTagGlob ss
   in (matchers on, matchers off)
 -- | Match a glob pattern against a property name and its value
-patternToMatchers :: String -> [(String  -> Bool)]
+patternToMatchers :: Text -> [(Text  -> Bool)]
 patternToMatchers "" = [const True]
 patternToMatchers pat = map (\p v -> mkGlob p (v,[])) (splitOn "|" pat) where
-  mkGlob ('!':pat) = not . mkGlob pat
+  mkGlob (uncons -> Just ('!', pat)) = not . mkGlob pat
   mkGlob pat = matchTagGlob pat
 
 -- | Pattern can either match the property name
@@ -224,12 +223,12 @@ patternToMatchers pat = map (\p v -> mkGlob p (v,[])) (splitOn "|" pat) where
 -- key=+value  key 
 -- key=value1;value2  value1 and value2 only
 -- key=+value1;value2  at least value1 and value2
-matchTagGlob :: String -> (String, [String]) -> Bool
+matchTagGlob :: Text -> (Text, [Text]) -> Bool
 matchTagGlob pat = case break ('=' ==) pat of
-  (onProp, []) -> \(prop, values ) -> null values && matchKey onProp prop
+  (onProp, "") -> \(prop, values ) -> null values && matchKey onProp prop
   -- ^ tag without values
-  (onProp, '=':'+':onValues) -> \(prop, values) -> matchKey onProp prop && matchSome onValues values 
-  (onProp, '=':onValues) -> \(prop, values) -> matchKey onProp prop && matchAll onValues values 
+  (onProp, (stripPrefix "=+" -> Just onValues)) -> \(prop, values) -> matchKey onProp prop && matchSome onValues values 
+  (onProp, (uncons -> Just ('=', onValues))) -> \(prop, values) -> matchKey onProp prop && matchAll onValues values 
   -- ^ property, can have values
   where matchSome onValues values = case applyPatternToValues (splitOn ";" onValues) values of
                                       ([], _) -> True -- all pattern used
@@ -241,7 +240,7 @@ matchTagGlob pat = case break ('=' ==) pat of
         matchKey key = matchGlob key
 
 -- | Apply pattern and return left over (pattern not used and values not matched)
-applyPatternToValues :: [String] -> [String] -> ([String -> Bool], [String] )
+applyPatternToValues :: [Text] -> [Text] -> ([Text -> Bool], [Text] )
 applyPatternToValues pats = applyPatternToValues' [] (map matchGlob pats)
 applyPatternToValues' failed [] values =  (failed, values)
 applyPatternToValues' failed pats [] =  (failed <> pats, [])
@@ -255,24 +254,28 @@ applyPatternToValues' failed (pat:pats) values =
 
 
 -- | Compiles a match against a glob pattern if Necessary
-matchGlob :: String -> (String -> Bool)
+specials = "*?[]{}"
+matchGlob :: Text -> (Text -> Bool)
 matchGlob "" = const True
-matchGlob s = let
-  specials = filter (`elem` "*?[]{}") s
-  in case specials of
-     [] -> (== s)
-     _ ->  Glob.match $ Glob.compile s
+matchGlob s = 
+  if isGlob s
+  then (== s)
+  else let glob = Glob.compile (unpack s) -- TODO Use regex instead
+       in \v -> Glob.match glob (unpack v)
+                                         
 
-isGlob :: String -> Bool
-isGlob s = not (null specials)
-  where specials = filter (`elem` "*?[]{}") s
-findByName :: WH [a s] s -> (a s -> String) -> String -> WH [a s] s
+isGlob :: Text -> Bool
+isGlob s = case splitOn specials s of
+  [_no_split_] -> False
+  _ -> True
+
+findByName :: WH [a s] s -> (a s -> Text) -> Text -> WH [a s] s
 findByName objects objectName "" = objects
 findByName objects objectName name = do
-   let matchers = patternToMatchers name  --  map (Glob.match . Glob.compile) (splitOn "|" name) :: [String -> Bool]
+   let matchers = patternToMatchers name  --  map (Glob.match . Glob.compile) (splitOn "|" name) :: [Text -> Bool]
    filter (\o -> any ($ (objectName o)) matchers) <$> objects
 
-splitBoxSelector :: String -> (String, Maybe String,  BoxNumberSelector, String, Maybe String)
+splitBoxSelector :: Text -> (Text, Maybe Text,  BoxNumberSelector, Text, Maybe Text)
 splitBoxSelector pat = let
   (styleMax, location') = break (=='/') pat
   (style', nMax) = break (=='^') styleMax
@@ -281,11 +284,11 @@ splitBoxSelector pat = let
   in  (style, boxtag, parseBoxNumberSelector (drop 1 nMax), drop 1 location, locTag)
 
 -- | Syntax content^shelf^total
-parseBoxNumberSelector :: String -> BoxNumberSelector
+parseBoxNumberSelector :: Text -> BoxNumberSelector
 parseBoxNumberSelector "" = BoxNumberSelector Nothing Nothing Nothing
 parseBoxNumberSelector s = let
   splits = splitOn "^" s
-  parsed = map readMaybe splits 
+  parsed = map readMay splits 
   [content, shelves, total] = take 3 $ parsed <> cycle [Nothing]
   in BoxNumberSelector content shelves total
 
@@ -301,13 +304,13 @@ orTrue bs = or bs
 -- it needs to be before the shelf condition
 --
 -- syntax is  Box#tag^3/shelf#tag : 3 box from shelf shelf
-findBoxByStyleAndShelfNames :: String -> WH [BoxId s] s
+findBoxByStyleAndShelfNames :: Text -> WH [BoxId s] s
 findBoxByStyleAndShelfNames style'' = do
   let (style, boxtag, nMax, location, locTag) = splitBoxSelector style''
       inShelves name  = or $ patternToMatchers location <*> [name]
       -- locations = splitOn "|" (drop 1 location)
       -- inShelves _ [] = True
-      -- inShelves shelfName ('!':pattern_) = not $  Glob.match (Glob.compile pattern_) shelfName
+      -- inShelves shelfName ((uncons -> Just ('!', pattern_)) = not $  Glob.match (Glob.compile pattern_) shelfName
       -- inShelves shelfName pattern_ = Glob.match (Glob.compile pattern_) shelfName
   -- all boxes matching name
   allBoxesBeforeTag' <- findBoxByStyle style
@@ -339,7 +342,7 @@ findBoxByStyleAndShelfNames style'' = do
 
 
 -- | Limit a box selections by numbers
-limitByNumber :: BoxNumberSelector -> [(Box s, String)] -> [(Box s, String)]
+limitByNumber :: BoxNumberSelector -> [(Box s, Text)] -> [(Box s, Text)]
 limitByNumber bn@(BoxNumberSelector contentN shelfN totalN) boxes0 = let
   sorted = sortBy (comparing  $ ((,) <$> boxGlobalPriority <*> boxRank) . fst ) boxes0
   boxes1 = maybe id (limitBy (boxSku . fst)) contentN $ sorted
@@ -364,8 +367,8 @@ defaultBoxOrientations box shelf =
             (BoxOrientations) -> case boxBoxOrientations box of
                                     [] ->  [up, rotatedUp]
                                     ors -> ors
-            FilterOrientations orientations -> boxBoxOrientations box \\ orientations
-            AddOrientations lefts rights -> lefts `union` boxBoxOrientations box `union` rights
+            FilterOrientations orientations -> boxBoxOrientations box List.\\ orientations
+            AddOrientations lefts rights -> lefts `List.union` boxBoxOrientations box `List.union` rights
     in map (\o -> (o,0,1)) orientations
 
 defaultBoxStyling = BoxStyling{..} where
@@ -379,7 +382,7 @@ defaultBoxStyling = BoxStyling{..} where
 
 emptyWarehouse = Warehouse mempty mempty mempty (const defaultBoxStyling) (const (Nothing, Nothing)) defaultBoxOrientations
 
-newShelf :: String -> Maybe String -> Dimension -> Dimension -> BoxOrientator -> FillingStrategy -> WH (Shelf s) s
+newShelf :: Text -> Maybe Text -> Dimension -> Dimension -> BoxOrientator -> FillingStrategy -> WH (Shelf s) s
 newShelf name tag minD maxD boxOrientator fillStrat = do
         warehouse <- get
         ref <- lift (newSTRef (error "should never been called. Base.hs:327"))
@@ -389,12 +392,12 @@ newShelf name tag minD maxD boxOrientator fillStrat = do
         put warehouse { shelves = shelves warehouse  |> ShelfId ref }
         return shelf
 
-newBox :: Shelf' shelf => String -> String ->  Dimension -> Orientation -> shelf s  -> [Orientation]-> [String] -> WH (Box s) s
-newBox style content dim or shelf ors tagStrings = do
+newBox :: Shelf' shelf => Text -> Text ->  Dimension -> Orientation -> shelf s  -> [Orientation]-> [Text] -> WH (Box s) s
+newBox style content dim or shelf ors tagTexts = do
     warehouse <- get
-    let tags' = map (parseTagOperation . map replaceSlash) tagStrings
+    let tags' = map (parseTagOperation . omap replaceSlash) tagTexts
         dtags = dimensionTagOps dim
-        contentTag = ('\'':content, SetTag)
+        contentTag = (cons '\'' content, SetTag)
         tags = fromMaybe mempty $ modifyTags (contentTag : tags' <> dtags) mempty
                                   --   ^ apply dimension tags after tags so dimension override tags
 
@@ -414,19 +417,19 @@ newBox style content dim or shelf ors tagStrings = do
 -- tag=val set the value
 -- tag=+val or tag+=val add the value to the existing value
 -- tag=-val or tag-=val and -tag=val remove the value
-parseTagOperation :: String -> Tag'Operation
+parseTagOperation :: Text -> Tag'Operation
 parseTagOperation s = 
   case break (== '=') s of
-    ('-':tag, [])           -> (tag, RemoveTag)
-    (tag, [])               -> (tag, SetTag )
-    ('-':tag, '=':[])      -> (tag, SetValues [] ) -- clear tag
-    ('-':tag, '=':val)      -> (tag, RemoveValue val )
-    ('-':tag, val)          -> (tag <> val, RemoveTag)
-    (tag, '=':'-':val)      -> (tag, RemoveValue val)
-    -- (tag, '-':'=':val)      -> (tag, RemoveValue val)
-    (tag, '=':'+':val)      -> (tag, AddValue val)
-    -- (tag, '+':'=':val)      -> (tag, AddValue val)
-    (tag, '=':val)          -> (tag, SetValues $ split val)
+    (uncons -> Just ('-', tag), "")           -> (tag, RemoveTag)
+    (tag, "")               -> (tag, SetTag )
+    (uncons -> Just ('-', tag), "=")      -> (tag, SetValues [] ) -- clear tag
+    (uncons -> Just ('-', tag), (uncons -> Just ('=', val)))      -> (tag, RemoveValue val )
+    (uncons -> Just ('-', tag), val)          -> (tag <> val, RemoveTag)
+    (tag, (stripPrefix "=-" -> Just val))      -> (tag, RemoveValue val)
+    -- (tag, (stripPrefix "-=" -> Just val))      -> (tag, RemoveValue val)
+    (tag, (stripPrefix "=+" -> Just val))      -> (tag, AddValue val)
+    -- (tag, (stripPrefix "+=" -> Just val))      -> (tag, AddValue val)
+    (tag, (uncons -> Just ('=', val)))          -> (tag, SetValues $ split val)
     (tag, val)              -> (tag <> val , SetTag)
   where split = splitOn ";"
   
@@ -445,8 +448,8 @@ negateTagOperations tags = do
 -- to update the dimension tags. 
 dimensionTagOps :: Dimension  -> [Tag'Operation]
 dimensionTagOps dim = [dshow 'l' dLength, dshow 'w' dWidth, dshow 'h' dHeight]
-  where dshow c f = ( '\'' : c : []
-                    , SetValues [show (floor $ 100 * f dim)]
+  where dshow c f = ( pack $ '\'' : c : []
+                    , SetValues [tshow (floor $ 100 * f dim)]
                     )
 
 -- | Extract new dimensions from tags
@@ -460,7 +463,7 @@ extractDimensions dim tags = case (go "'l", go "'w", go "'h") of
                                 , dHeight = fromMaybe (dHeight dim) h
                                 }
   where go prefix = case maybe [] (Set.toList) (Map.lookup prefix tags) of
-          [value] -> (/100) `fmap`readMaybe value  
+          [value] -> (/100) `fmap` readMay value  
 
 -- | Change the dimension of the box according to its tag
 updateDimFromTags :: Box s -> Box s
@@ -516,7 +519,7 @@ deleteBoxes boxIds = do
                 traverse (unlinkBox boxId) oldShelfM
                 return box
   wh <- get
-  put wh { boxes = Seq.fromList $ (toList $ boxes wh ) \\ boxIds }
+  put wh { boxes = Seq.fromList $ (toList $ boxes wh ) List.\\ boxIds }
   return deleted
     
 
@@ -549,7 +552,7 @@ bestArrangement orientations shelves box = let
                  ]
     in
         -- trace ({-show shelves ++ show box ++-}  show bests) $
-        (snd . head) bests
+        (snd . headEx) bests
 
 
 -- | * test
@@ -723,7 +726,7 @@ moveSimilarBoxesAndRetry exitMode boxes  (s:ss') trieds = do
         (Just bs', Just _)  -> moveSimilarBoxesAndRetry exitMode bs' ss' (s:trieds)
 
 
-boxRank :: Box s -> (String, Int, String, Int)
+boxRank :: Box s -> (Text, Int, Text, Int)
 boxRank box = ( boxStyle box , boxStylePriority box, boxContent box, boxContentPriority box)
 -- | get the priority of a box. At the moment it is extracted from the tag.
 -- we might set it as an attribute to speed things up
@@ -746,7 +749,7 @@ rearrangeShelves :: Shelf' shelf => [shelf s] -> WH [Box s] s
 rearrangeShelves ss = do
     -- first we need to remove the boxes from their current location
     boxes <- concat `fmap` mapM findBoxByShelf ss
-    let nothing = head $ Nothing: map Just ss -- trick to force type
+    let nothing = headEx $ Nothing: map Just ss -- trick to force type
     mapM_ (\b -> assignShelf  nothing b ) boxes
     left <- moveBoxes ExitLeft boxes ss
     s0 <- defaultShelf
@@ -761,11 +764,11 @@ aroundArrangement arrangement boxes shelves = do
     let shelfIds = map shelfId shelves
     oldShelveIds <- findShelvesByBoxes boxes
     -- remove all boxes from their actuall shelf
-    let nothing = head $ Nothing : map Just shelves -- trick to typecheck
+    let nothing = headEx $ Nothing : map Just shelves -- trick to typecheck
     mapM (assignShelf nothing) boxes
     -- rearrange what's left in each individual space
     -- so that there is as much space left as possible
-    let os = nub $ oldShelveIds ++ shelfIds
+    let os = List.nub $ oldShelveIds ++ shelfIds
 
 
     mapM rearrangeShelves (map (:[]) os)
@@ -798,7 +801,7 @@ updateShelf f s =  do
     return shelf'
 
 
-updateShelfByName :: (Shelf s -> Shelf s) -> String -> WH [Shelf s] s
+updateShelfByName :: (Shelf s -> Shelf s) -> Text -> WH [Shelf s] s
 updateShelfByName f n = findShelfByName n >>= mapM (updateShelf f)
 
 
@@ -813,14 +816,14 @@ updateBoxTags' tag'ops box = case modifyTags tag'ops (boxTags box) of
                                     }
 
 -- | Update the value associateda to a tag operation. Return Nothing if the tag needs to be destroyed
-applyTagOperation :: TagOperation -> (Set String) -> Maybe (Set String)
+applyTagOperation :: TagOperation -> (Set Text) -> Maybe (Set Text)
 applyTagOperation RemoveTag _ = Nothing 
 applyTagOperation SetTag olds = Just olds
 applyTagOperation (SetValues news) _ = Just $ Set.fromList news
 applyTagOperation (AddValue value) olds = Just $ Set.insert value olds 
 applyTagOperation (RemoveValue value) olds = Just $ Set.delete value olds
 
-applyTagOperations :: [TagOperation] -> (Set String) -> Maybe (Set String)
+applyTagOperations :: [TagOperation] -> (Set Text) -> Maybe (Set Text)
 applyTagOperations tag'ops tags = foldM (flip applyTagOperation) tags tag'ops
 
 
@@ -836,7 +839,7 @@ modifyTags tag'ops tags = Just $ merge  opsOnly tagsOnly tagsAndOp tag'opsMap ta
     -- tagoperation should be applied in order so we should be able to put them in a map
     -- however every key works independently of the othere, so at least
     -- as we group each operation by key and respect the order, this should be
-    tag'opsMap :: Map.Map String [TagOperation]
+    tag'opsMap :: Map.Map Text [TagOperation]
     tag'opsMap = Map.fromListWith (<>)  (map (fmap (:[])) tag'ops)
 
 updateBoxTags :: [Tag'Operation] -> Box s -> WH (Box s) s
@@ -849,10 +852,10 @@ updateBoxTags tags0 box = do
   let tags = [ (replaceSlashes tag, fmap replaceSlashes values )
              | (tag, values) <- tags1
              ]
-      replaceSlashes = map replaceSlash
+      replaceSlashes = omap replaceSlash
   updateBox (updateBoxTags' tags) box
 
-boxStyleAndContent :: Box s -> String
+boxStyleAndContent :: Box s -> Text
 boxStyleAndContent b = case boxContent b of
   "" -> boxStyle b
   c -> boxStyle b ++ "-" ++ c
@@ -866,28 +869,28 @@ boxCoordinate box  = let (Dimension ol ow oh) = boxOffset box
 -- | Box attribute can be used to create new tag
 -- example, /pending,#previous=$shelfname on a
 -- will add the tag previous=pending to all items in the pending shelf
-expandAttribute :: Box s -> String -> WH String s
+expandAttribute :: Box s -> Text -> WH Text s
 expandAttribute box toExpand = maybe (return toExpand) ($ box) (expandAttribute' toExpand)
 -- | Workhorse for expandAttribute. The difference is it actually doesn't need a box
 -- to know if it needs expansion or not
 -- If an attribute is found, we can safely call expandAttribute (recursively), as we are
 -- only interested in doest in need expansion or not
-expandAttribute' :: String -> Maybe (Box s -> WH String s)
-expandAttribute' ('$':'{':'s':'h':'e':'l':'f':'n':'a':'m':'e':'}':xs) = Just $ \box ->  do
+expandAttribute' :: Text -> Maybe (Box s -> WH Text s)
+expandAttribute' (stripPrefix "${shelfname}" -> Just xs) = Just $ \box ->  do
   ex <-  expandAttribute box xs
   case boxShelf box of
     Nothing -> return ex
     Just sId -> do
       shelf <- findShelf sId
       return $ shelfName shelf ++ ex
-expandAttribute' ('$':'{':'s':'h':'e':'l':'f':'t':'a':'g':'}':xs) = Just $ \box -> do
+expandAttribute' (stripPrefix "${shelftag}" -> Just xs) = Just $ \box -> do
   ex <-  expandAttribute box xs
   case boxShelf box of
     Nothing -> return ex
     Just sId -> do
       shelf <- findShelf sId
       return $ fromMaybe "" (shelfTag shelf) ++ ex
-expandAttribute' ('$':'{':'f':'i':'t':'}':xs) = Just $ \box -> do
+expandAttribute' (stripPrefix "${fit}" -> Just xs) = Just $ \box -> do
   ex <-  expandAttribute box xs
   case boxShelf box of
     Nothing -> return ex
@@ -906,28 +909,28 @@ expandAttribute' ('$':'{':'f':'i':'t':'}':xs) = Just $ \box -> do
                       (False, False) -> "fit"
       return $ fit ++ ex
 
-expandAttribute' ('$':'{':'o':'l':'}':xs) = Just $ \box -> let (Dimension ol _ _ ) = boxCoordinate box in fmap ((show $ round ol) ++) (expandAttribute box xs)
-expandAttribute' ('$':'{':'o':'w':'}':xs) = Just $ \box -> let (Dimension _ ow _ ) = boxCoordinate box in fmap ((show $ round ow) ++) (expandAttribute box xs)
-expandAttribute' ('$':'{':'o':'h':'}':xs) = Just $ \box -> let (Dimension _ _ oh ) = boxCoordinate box in fmap ((show $ round oh) ++) (expandAttribute box xs)
-expandAttribute' ('$':'{':'@':'}':xs) = Just $ \box -> let (global, style, content) = boxPriorities box in fmap ((show content ++ "@" ++ show style ++ "@" ++ show global) ++) (expandAttribute box xs)
-expandAttribute' ('$':'{':'@':'c':'o':'n':'t':'e':'n':'t':'}':xs) = Just $ \box -> fmap ((show $ boxContentPriority box) ++) (expandAttribute box xs)
-expandAttribute' ('$':'{':'@':'s':'t':'y':'l':'e':'}':xs) = Just $ \box -> fmap ((show $ boxStylePriority box) ++) (expandAttribute box xs)
-expandAttribute' ('$':'{':'@':'g':'l':'o':'b':'a':'l':'}':xs) = Just $ \box -> fmap ((show $ boxGlobalPriority box) ++) (expandAttribute box xs)
-expandAttribute' ('$':'{':'s':'t':'y':'l':'e':'}':xs) =  Just $ \box -> fmap ((boxStyle box) ++) (expandAttribute box xs)
-expandAttribute' ('$':'{':'c':'o':'n':'t':'e':'n':'t':'}':xs) =  Just $ \box -> fmap ((boxContent box) ++) (expandAttribute box xs)
-expandAttribute' ('$':'{':'b':'o':'x':'n':'a':'m':'e':'}':xs) =  Just $ \box -> fmap ((boxStyleAndContent box) ++) (expandAttribute box xs)
-expandAttribute' ('$':'{':'c':'o':'o':'r':'d':'i':'n':'a':'t':'e':'}':xs) =  Just $ \box -> let (Dimension ol ow oh) = boxCoordinate box
-                                                                                                roundi i = (round i) :: Int
-                                                                                            in fmap ((printf "%d:%d:%d" (roundi ol) (roundi ow) (roundi oh)) ++) (expandAttribute box xs)
-expandAttribute' ('$':'{':'o':'f':'f':'s':'e':'t':'}':xs) =  Just $ \box -> fmap ((printDim $ boxOffset box) ++) (expandAttribute box xs)
-expandAttribute' ('$':'{':'d':'i':'m':'e':'n':'s':'i':'o':'n':'}':xs) =  Just $ \box -> fmap ((printDim (_boxDim box)) ++) (expandAttribute box xs)
-expandAttribute' ('$':'{':'o':'r':'i':'e':'n':'t':'a':'t':'i':'o':'n':'}':xs) = Just $ \box -> fmap (showOrientation (orientation box) ++) (expandAttribute box xs)
-expandAttribute' ('$':'[':xs') | (pat', _:xs')<- break (== ']') xs' = Just $ \box -> do
+expandAttribute' (stripPrefix "${ol}" -> Just xs) = Just $ \box -> let (Dimension ol _ _ ) = boxCoordinate box in fmap ((tshow $ round ol) <>) (expandAttribute box xs)
+expandAttribute' (stripPrefix "${ow}" -> Just xs) = Just $ \box -> let (Dimension _ ow _ ) = boxCoordinate box in fmap ((tshow $ round ow) <>) (expandAttribute box xs)
+expandAttribute' (stripPrefix "${oh}" -> Just xs) = Just $ \box -> let (Dimension _ _ oh ) = boxCoordinate box in fmap ((tshow $ round oh) <>) (expandAttribute box xs)
+expandAttribute' (stripPrefix "${@}" -> Just xs) = Just $ \box -> let (global, style, content) = boxPriorities box in fmap ((tshow content <> "@" <> tshow style <> "@" <> tshow global) <>) (expandAttribute box xs)
+expandAttribute' (stripPrefix "${@content}" -> Just xs) = Just $ \box -> fmap ((tshow $ boxContentPriority box) <>) (expandAttribute box xs)
+expandAttribute' (stripPrefix "${@style}" -> Just xs) = Just $ \box -> fmap ((tshow $ boxStylePriority box) <>) (expandAttribute box xs)
+expandAttribute' (stripPrefix "${@global}" -> Just xs) = Just $ \box -> fmap ((tshow $ boxGlobalPriority box) <>) (expandAttribute box xs)
+expandAttribute' (stripPrefix "${style}" -> Just xs) =  Just $ \box -> fmap ((boxStyle box) <>) (expandAttribute box xs)
+expandAttribute' (stripPrefix "${content}" -> Just xs) =  Just $ \box -> fmap ((boxContent box) <>) (expandAttribute box xs)
+expandAttribute' (stripPrefix "${boxname}" -> Just xs) =  Just $ \box -> fmap ((boxStyleAndContent box) <>) (expandAttribute box xs)
+expandAttribute' (stripPrefix "${coordinate}" -> Just xs) =  Just $ \box -> let (Dimension ol ow oh) = boxCoordinate box
+                                                                                roundi i = (round i) :: Int
+                                                                            in fmap ((pack $ printf "%d:%d:%d" (roundi ol) (roundi ow) (roundi oh)) <>) (expandAttribute box xs)
+expandAttribute' (stripPrefix "${offset}" -> Just xs) =  Just $ \box -> fmap ((printDim $ boxOffset box) <>) (expandAttribute box xs)
+expandAttribute' (stripPrefix "${dimension}" -> Just xs) =  Just $ \box -> fmap ((printDim $ _boxDim box) <>) (expandAttribute box xs)
+expandAttribute' (stripPrefix "${orientation}" -> Just xs) = Just $ \box -> fmap (showOrientation (orientation box) <>) (expandAttribute box xs)
+expandAttribute' (stripPrefix "$[" -> Just xs') | (pat', uncons -> Just (_,xs'))<- break (== ']') xs' = Just $ \box -> do
                                ex <- expandAttribute box xs'
                                pat <- expandAttribute box pat'
-                               return $ maybe ex (++ ex) (boxTagValuem box pat)
-expandAttribute' (x:xs) = fmap (\f b -> (x:) <$> f b) (expandAttribute' xs)
-expandAttribute' [] = Nothing
+                               return $ maybe ex (<> ex) (boxTagValuem box pat)
+expandAttribute' (uncons -> Just (x, xs)) = fmap (\f b -> (cons x) <$> f b) (expandAttribute' xs)
+expandAttribute' "" = Nothing
 
 replaceSlash '/' = '\''
 replaceSlash c  = c
@@ -936,7 +939,8 @@ defaultPriority :: Int
 defaultPriority = 100
 defaultPriorities = (defaultPriority, defaultPriority, defaultPriority)
 
-printDim  (Dimension l w h) = printf "%0.1fx%0.1fx%0.1f" l w h
+printDim :: Dimension -> Text
+printDim  (Dimension l w h) = pack $ printf "%0.1fx%0.1fx%0.1f" l w h
 -- | Convert a set of tags to prioties
 -- bare number = content priority, 
 -- @number style priority
@@ -948,10 +952,10 @@ extractPriorities tags (g0, s0, c0) = let
 
 
 
-extractPriority :: String -> Tags -> Maybe Int
+extractPriority :: Text -> Tags -> Maybe Int
 extractPriority key tags = do
   set <- Map.lookup key tags
-  case mapMaybe readMaybe (toList set) of
+  case mapMaybe readMay (toList set) of
     (n:_) -> Just n
     _ -> Nothing
 
@@ -970,7 +974,7 @@ extractBoxBreak tags = case maybe [] (Set.toList) (Map.lookup "@start" tags) of
 -- sortAccross ss = do
 --     -- first we need to remove the boxes from their current location
 --     boxes <- concat `fmap` mapM findBoxByShelf ss
---     let nothing = head $ Nothing : map Just ss -- trick to typecheck
+--     let nothing = headEx $ Nothing : map Just ss -- trick to typecheck
 --     mapM (assignShelf  nothing) boxes
 --     left <- iteration ss boxes
 --     s0 <- defaultShelf
@@ -984,10 +988,10 @@ extractBoxBreak tags = case maybe [] (Set.toList) (Map.lookup "@start" tags) of
 --               then return left
 --               else iteration ss left
 
-usedDepth :: Shelf' shelf => shelf s -> WH (String, Double) s
+usedDepth :: Shelf' shelf => shelf s -> WH (Text, Double) s
 usedDepth s = do
   boxes <- findBoxByShelf s
-  return $ maximumBy (comparing snd) (("<empty>",0)
+  return $ List.maximumBy (comparing snd) (("<empty>",0)
                          :[(boxStyle b, dWidth (boxOffset' b))
                    | b <- boxes
                    ])
@@ -1037,12 +1041,12 @@ splitCorner (cx,cy) (cx',cy')
 -- | Shelve or box name can have a tag, which is
 -- a prefix starting with :
 -- example T-shirt#shirt
-extractTag :: String -> (String, Maybe String)
+extractTag :: Text -> (Text, Maybe Text)
 extractTag name = let (prefix, suffix) = break (=='#') name
              in case suffix of
-                  '#':tag -> (prefix, Just tag)
+                  (uncons -> Just ('#', tag)) -> (prefix, Just tag)
                   _ -> (prefix, Nothing)
 
-extractTags :: String -> (String, [String])
+extractTags :: Text -> (Text, [Text])
 extractTags name = (style, maybe [] (splitOn "#") tagM) where
   (style, tagM) = extractTag name

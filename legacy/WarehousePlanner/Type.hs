@@ -1,7 +1,6 @@
 {-# LANGUAGE TupleSections, BangPatterns #-}
 {-# LANGUAGE LiberalTypeSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE NoOverloadedStrings #-}
 module WarehousePlanner.Type where
 import Prelude
 import Data.Vector(Vector)
@@ -13,9 +12,10 @@ import Control.Monad.ST
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Map (Map)
-import qualified Data.Map as Map
+import qualified Data.Map as Map 
 import Data.Sequence (Seq)
-import Data.List(intercalate)
+-- import Data.List(intercalate)
+import Data.Text hiding(map)
 
 -- * Types
 data Dimension = Dimension { dLength :: !Double
@@ -33,9 +33,9 @@ defaultFlow = LeftToRight
 -- Filtering by content means only n boxes of the same style content will be selected.
 -- This is use full to for example only keep one box of each variations and move them on top
 data BoxNumberSelector = BoxNumberSelector
-   { nsPerContent :: Maybe Int
-   , nsPerShelf :: Maybe Int
-   , nsTotal :: Maybe Int
+   { nsPerContent :: !(Maybe Int)
+   , nsPerShelf :: !(Maybe Int)
+   , nsTotal :: !(Maybe Int)
    } deriving (Show, Read)
            
 
@@ -54,27 +54,27 @@ data BoxBreak = StartNewSlot
               | StartNewSlice -- new row or column according to shelf strategy
               | StartNewShelf deriving (Eq, Show, Read)
 -- | Tags with optionals value
-type Tags = Map String (Set String)
+type Tags = Map Text (Set Text)
 data Box s = Box { _boxId      :: BoxId s
                , boxShelf :: Maybe (ShelfId s)
-               , boxStyle    :: !String
-               , boxContent  :: !String
+               , boxStyle    :: !Text
+               , boxContent  :: !Text
                , _boxDim     :: !Dimension
                , boxOffset   :: !Dimension
                , orientation :: !Orientation -- ^ orientation of the box
                , boxBoxOrientations :: [Orientation]  -- ^ allowed orientation
                , boxTags :: Tags -- ^ tags with optional values
-               , boxPriorities :: (Int, Int, Int ) -- Global, within style, within content , default is 100
-               , boxBreak :: Maybe BoxBreak
+               , boxPriorities :: !(Int, Int, Int ) -- Global, within style, within content , default is 100
+               , boxBreak :: !(Maybe BoxBreak)
                } deriving (Show, Eq)
 data ShelfId s = ShelfId (STRef s (Shelf s))  deriving (Eq)
 
 -- | Shelf have a min and max dimension. This allows shelf to be overloaded
 -- or boxes to stick out.
-data Shelf s = Shelf { _shelfId  :: ShelfId s
+data Shelf s = Shelf { _shelfId  :: !(ShelfId s)
                    , _shelfBoxes :: [BoxId s]
-                   , shelfName :: !String
-                   , shelfTag :: Maybe String
+                   , shelfName :: !Text
+                   , shelfTag :: !(Maybe Text)
                    , minDim    :: !Dimension
                    , maxDim    :: !Dimension
                    , flow      :: !Flow
@@ -120,8 +120,8 @@ data BoxStyling = BoxStyling
   , background :: Colour Double -- ^ Background colour
   , background2 :: Maybe (Colour Double) -- ^ 2nd Background colour
   , border :: Maybe (Colour Double)  -- ^ border colour if different from foreground
-  , title :: [ String ] -- ^ text to display 
-  , barTitle :: Maybe String -- ^ text to display in the bar
+  , title :: [ Text ] -- ^ text to display 
+  , barTitle :: Maybe Text -- ^ text to display in the bar
   , displayBarGauge :: Bool -- ^ to display or the bar gauge
   } deriving (Show, Eq, Read)
   
@@ -192,7 +192,7 @@ instance Semigroup (ShelfGroup s) where
         | d == d' = ShelfGroup (g <> g') d
         | otherwise = ShelfGroup [sg, sg'] Vertical
 
-    sg@(ShelfGroup g d) <> s = ShelfGroup (g++[s]) d
+    sg@(ShelfGroup g d) <> s = ShelfGroup (g<>[s]) d
     s <> sg@(ShelfGroup g d) = ShelfGroup (s:g) d
     sg <> sg' = ShelfGroup [sg, sg'] Vertical
 
@@ -215,7 +215,7 @@ tiltedFR = Orientation Depth Horizontal
 rotatedSide = Orientation Horizontal Vertical
 rotatedUp = Orientation Vertical Horizontal
 
-showOrientation :: Orientation -> String
+showOrientation :: Orientation -> Text
 showOrientation o | o == up             =  "^ "
                   | o == tiltedForward  =  "= "
                   | o == tiltedRight    =  "> "
@@ -231,7 +231,7 @@ readOrientation c = case c of
     '|' -> tiltedFR
     '\'' -> rotatedUp
     '@' -> rotatedSide
-    _ -> error ("can't parse orientation '" ++ show c )
+    _ -> error ("can't parse orientation '" <> show c )
 
 allOrientations = [ up
                   , rotatedUp
@@ -253,18 +253,18 @@ rotate o (Dimension l w h)
     | True  = error $ "Unexpected rotation" <> show o
 
 -- ** Boxes
-boxKey :: Box s -> [Char]
-boxKey b = (boxStyle b) ++ (boxContent b)
-boxSku b = boxStyle b ++ "-" ++ boxContent b
-boxTagList :: Box s -> [String]
+boxKey :: Box s -> Text
+boxKey b = (boxStyle b) <> (boxContent b)
+boxSku b = boxStyle b <> "-" <> boxContent b
+boxTagList :: Box s -> [Text]
 boxTagList = map flattenTag'Values . Map.toList . boxTags
 -- | convenience function transforming  the result to list
 -- Can be easier to pattern match
-boxTagValues :: Box s -> String -> [ String ]
+boxTagValues :: Box s -> Text -> [ Text ]
 boxTagValues box tag = maybe [] (Set.toList) (Map.lookup tag (boxTags box))
-boxTagValuem :: Box s -> String -> Maybe String
+boxTagValuem :: Box s -> Text -> Maybe Text
 boxTagValuem box tag = fmap flattenTagValues (Map.lookup tag (boxTags box))
-boxTagIsPresent :: Box s -> String -> Bool
+boxTagIsPresent :: Box s -> Text -> Bool
 boxTagIsPresent box tag = Map.member tag (boxTags box)
 
 -- | Return global dimension according
@@ -276,24 +276,24 @@ boxDim box = rotate (orientation box) (_boxDim box)
 boxVolume :: Box s -> Double
 boxVolume = volume . boxDim
 
--- | Returns box offset + box itself
+-- | Returns box offset <> box itself
 boxOffset' :: Box s -> Dimension
 boxOffset' b = boxOffset b <> boxDim b
 
 -- ** Tags
-flattenTagValues :: Set String -> String
+flattenTagValues :: Set Text -> Text
 flattenTagValues = intercalate ";" . Set.toList
-flattenTag'Values :: (String, Set String) -> String
+flattenTag'Values :: (Text, Set Text) -> Text
 flattenTag'Values (tag, values) = case flattenTagValues values of
                       "" ->tag
-                      flat -> tag ++ "=" ++ flat
+                      flat -> tag <> "=" <> flat
 
 -- ** Shelves
 shelfVolume :: Shelf s -> Double
 shelfVolume = volume . minDim
 
-shelfNameTag :: Shelf s -> String
-shelfNameTag s = shelfName s ++ maybe "" ("#"++) (shelfTag s)
+shelfNameTag :: Shelf s -> Text
+shelfNameTag s = shelfName s <> maybe "" ("#"<>) (shelfTag s)
 
 -- ** Warehouse
 

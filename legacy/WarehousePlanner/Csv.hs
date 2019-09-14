@@ -6,38 +6,41 @@ import qualified Data.Csv as Csv
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Vector as Vec
 import Control.Monad
-import Data.List.Split (splitOn)
+-- import Data.List.Split (splitOn)
 import Data.List(nub, union, groupBy, sortBy)
-import Data.Char(toLower, isDigit)
+import qualified Data.List as List
+import Data.Char(isDigit)
 import Data.Ord(comparing)
-import Prelude
+import ClassyPrelude hiding(readFile)
 import Text.Read(readMaybe)
 import qualified Text.Parsec as P
-import qualified Text.Parsec.String as P
+import qualified Text.Parsec.Text as P
 import qualified Text.ParserCombinators.Parsec.Token as P
 import Control.Applicative
-import Data.Maybe(maybeToList, catMaybes, fromMaybe)
+import Data.Maybe(maybeToList, fromMaybe)
 import Control.Monad.State
 import Text.Regex.TDFA ((=~))
 import qualified Text.Regex as Rg
 import qualified Text.Regex.Base.RegexLike as Rg
 import qualified Data.Set as Set
+import Data.Text(splitOn)
+import Data.Text.IO(readFile)
 
 import Debug.Trace
-readShelves :: String -> IO (WH [Shelf s] s)
+readShelves :: FilePath-> IO (WH [Shelf s] s)
 readShelves filename = do
     csvData <- BL.readFile filename
 
     case Csv.decode  Csv.HasHeader csvData of
-        Left err ->  do putStrLn err; return (return [])
+        Left err -> error err --  do putStrLn (pack err); return (return [])
         Right (rows) -> return $ do
             let v = Vec.forM rows $ \(name, first, last, description, l, w, h) ->
                         let dim = Dimension l w h
                             dim' = Dimension l (w+10) h
                             last' = maybe first id last
-                            _types = (first, description) :: (Int, String)
+                            _types = (first, description) :: (Int, Text)
                         in forM [first..last'] $ \i ->
-                                        let shelfName = name ++ "." ++ show i
+                                        let shelfName = name <> "." <> tshow i
                                         in newShelf shelfName Nothing dim dim' DefaultOrientation ColumnFirst
 
             concat `fmap` (Vec.toList `fmap` v)
@@ -52,18 +55,18 @@ readShelves filename = do
 --  example for A123
 --  {B%} -> B123
 --  {B_+-} -> B132
-readShelves2 :: BoxOrientator -> String -> IO (WH [Shelf s] s)
+readShelves2 :: BoxOrientator -> FilePath-> IO (WH [Shelf s] s)
 readShelves2 defaultOrientator filename = do
     csvData <- BL.readFile filename
 
     case Csv.decode  Csv.HasHeader csvData of
-        Left err ->  do putStrLn err; return (return [])
+        Left err ->  error err -- do putStrLn err; return (return [])
         Right (rows) -> return $ do
             v <- Vec.forM rows $ \(name, description, l, w, h, shelfType) ->
                         let dim = (,,) l w h
                             dim' = (,,) l w h
-                            _types = description :: String
-                            (_shelfO, fillStrat) = case map toLower shelfType of
+                            _types = description :: Text
+                            (_shelfO, fillStrat) = case toLower (shelfType :: Text) of
                                 "deadzone" ->  (AddOrientations [] [up, rotatedUp ], RowFirst)
                                 "shelf" -> (ForceOrientations [tiltedForward, tiltedFR], ColumnFirst)
                                 _ -> (defaultOrientator, ColumnFirst)
@@ -87,20 +90,20 @@ readShelves2 defaultOrientator filename = do
 -- will be added to the last element
 -- example:
 --   A[123#top] => A1 A2 A3#top
-expand :: String -> [(String, Maybe String)]
+expand :: Text -> [(Text, Maybe Text)]
 expand name = let
   (fix, vars) = break (=='[') name
   in case vars of
     "" -> [extractTag fix]
-    ('[':vars) -> case break (==']') vars of
-        (_,"") -> error $ "unbalanced brackets in " ++ name
+    (uncons -> Just ('[', vars)) -> case break (==']') vars of
+        (_,"") -> error $ "unbalanced brackets in " ++ unpack name
         (elements'tag, rest) -> do
               -- check if there is any tag at the end
               let (elements, tag) = extractTag elements'tag
                   n  = length elements
-              (e,i) <- zip elements [1..n]
+              (e,i) <- zip (unpack elements) [1..n]
               (expanded, exTag) <- expand (drop 1 rest)
-              return (fix++e:expanded, exTag <|> if i == n then tag else Nothing)
+              return (fix <> cons e expanded, exTag <|> if i == n then tag else Nothing)
     _ -> error "Should not happen" -- We've been breaking on [
 
 
@@ -110,10 +113,10 @@ data Expr = AddE Expr Expr
           | MulE Expr Expr
           | DivE Expr Expr
           | ValE Double
-          | RefE String (Dimension -> Double)
+          | RefE Text (Dimension -> Double)
 
-parseExpr :: (Dimension -> Double) -> String -> Expr
-parseExpr defaultAccessor s =  case P.parse (parseExpr' defaultAccessor <* P.eof) s s of
+parseExpr :: (Dimension -> Double) -> Text -> Expr
+parseExpr defaultAccessor s =  case P.parse (parseExpr' defaultAccessor <* P.eof) (unpack s) s of
   Left err -> error (show err)
   Right  exp -> exp
 
@@ -154,7 +157,7 @@ parseRef accessor = do
   ref <- P.many1 (P.alphaNum <|> P.oneOf ".+-%_\\")
   acc <- P.option accessor $ P.char ':' *> parseAccessor
   P.char '}'
-  return $ RefE ref acc
+  return $ RefE (pack ref) acc
 
 parseAccessor = P.choice $ map  (\(s ,a) -> P.string s >> return a)
                 [ ("length", dLength)
@@ -163,13 +166,13 @@ parseAccessor = P.choice $ map  (\(s ,a) -> P.string s >> return a)
                 ]
 
 
-evalOperator :: String -> (Double -> Double -> Double) -> Expr -> Expr -> WH Double s
+evalOperator :: Text -> (Double -> Double -> Double) -> Expr -> Expr -> WH Double s
 evalOperator shelfName op e1 e2 = do
     v1 <- evalExpr shelfName e1
     v2 <- evalExpr shelfName e2
     return (v1 `op` v2)
 
-evalExpr :: String -> Expr -> WH Double s
+evalExpr :: Text -> Expr -> WH Double s
 evalExpr shelfName (AddE e1 e2) = evalOperator shelfName (+) e1 e2
 evalExpr shelfName (SubE e1 e2) = evalOperator shelfName (-) e1 e2
 evalExpr shelfName (MulE e1 e2) = evalOperator shelfName (*) e1 e2
@@ -182,39 +185,39 @@ evalExpr shelfName (RefE ref accessor) = do
   let refName = transformRef shelfName ref
   ids <- findShelfByName refName
   shelf <- case ids of
-              [] -> error $ "Can't find shelf " ++ refName ++ " when evaluating formula"
+              [] -> error $ "Can't find shelf " ++ unpack refName ++ " when evaluating formula"
               [id] ->  findShelf id
-              _ -> error $ "Find multiple shelves for " ++ shelfName ++ "when evaluating formula."
+              _ -> error $ "Find multiple shelves for " ++ unpack shelfName ++ "when evaluating formula."
   return $ (accessor.minDim) shelf
 
 
-transformRef :: String -> String -> String
-transformRef  [] ref = ref
-transformRef origin "%" = origin
-transformRef os ('\\':c:cs) = c:transformRef os cs
-transformRef (o:os) (c:cs) = case c of
-  '_' -> o:transformRef os cs
-  '+' -> (succ o):transformRef os cs
-  '-' -> (pred o):transformRef os cs
-  _ -> c:transformRef os cs
-
-transformRef _ [] = []
+transformRef :: Text -> Text -> Text
+transformRef a b = pack (transformRef' (unpack a) (unpack b))
+transformRef'  "" ref = ref
+transformRef' origin "%" = origin
+transformRef' os ('\\':c:cs) = c:transformRef' os cs
+transformRef' (o:os) (c:cs) = case c of
+  '_' -> o:transformRef' os cs
+  '+' -> (succ o):transformRef' os cs
+  '-' -> (pred o):transformRef' os cs
+  _ -> c:transformRef' os cs
+transformRef' _ [] = []
 
 -- transformRef os cs = error $ "Non-exhaustive patterns catch "
 --    ++ "\n\t[" ++ os ++ "]\n\t[" ++ cs  ++ "]"
 
-dimToFormula :: String -> (String, String, String) -> WH Dimension s
+dimToFormula :: Text -> (Text, Text, Text) -> WH Dimension s
 dimToFormula name (ls, ws, hs) = do
   l <- eval dLength ls
   w <- eval dWidth ws
   h <- eval dHeight hs
   return $ Dimension l w h
-  where eval :: (Dimension -> Double) -> String -> WH Double s
+  where eval :: (Dimension -> Double) -> Text -> WH Double s
         eval accessor s = evalExpr name (parseExpr accessor s)
 
 
 -- | Create a new shelf using formula
-newShelfWithFormula :: (WH Dimension s) -> (WH Dimension s) -> BoxOrientator -> FillingStrategy -> String -> Maybe String ->  WH (Shelf s) s
+newShelfWithFormula :: (WH Dimension s) -> (WH Dimension s) -> BoxOrientator -> FillingStrategy -> Text -> Maybe Text ->  WH (Shelf s) s
 
 newShelfWithFormula dimW dimW' boxo strategy name tag = do
   dim <- dimW
@@ -223,12 +226,12 @@ newShelfWithFormula dimW dimW' boxo strategy name tag = do
 
 -- | Read a csv described a list of box with no location
 -- boxes are put in the default location and tagged with the new tag
-readBoxes :: [String] -> [Orientation] -> (String -> (String, String)) -> String -> IO (WH [Box s] s)
+readBoxes :: [Text] -> [Orientation] -> (Text -> (Text, Text)) -> FilePath -> IO (WH [Box s] s)
 readBoxes defaultTags boxOrientations splitter filename = do
     csvData <- BL.readFile filename
 
     case Csv.decode  Csv.HasHeader csvData of
-        Left err ->  do putStrLn err; return (return [])
+        Left err -> error err  -- do putStrLn err; return (return [])
         Right rows -> return $ do
             let v = Vec.forM rows $ \(style', qty, l, w, h) -> do
                         let dim = Dimension l w h
@@ -237,18 +240,18 @@ readBoxes defaultTags boxOrientations splitter filename = do
                             (style, content) = splitter name
                         s0 <- incomingShelf
 
-                        forM [1..qty] $   \i -> newBox style content dim (head boxOrientations) s0 boxOrientations (defaultTags ++ tags)
+                        forM [1..qty] $   \i -> newBox style content dim (headEx boxOrientations) s0 boxOrientations (defaultTags <> tags)
 
             concat `fmap` (Vec.toList `fmap` v)
 
 -- | Read a csv file cloning existing boxes
 -- This can be used to create ghosts, ie fake boxes
 -- used to reserve some space. 
-readClones :: [String] -> String -> IO (WH [Box s] s)
+readClones :: [Text] -> FilePath-> IO (WH [Box s] s)
 readClones defaultTags filename = do
     csvData <- BL.readFile filename
     case Csv.decode  Csv.HasHeader csvData of
-        Left err ->  do putStrLn err; return (return [])
+        Left err ->  error err -- do putStrLn err; return (return [])
         Right rows -> return $ do  -- IO
           cloness <- forM (Vec.toList rows) $ \(selector, qty, content'tags) -> do -- WH
                 let (content0, tags) = extractTags content'tags
@@ -270,7 +273,7 @@ readClones defaultTags filename = do
                                   newbox  {boxTags = boxTags box} -- copy tags
           return $ concat cloness
 
-readDeletes :: String -> IO (WH [Box s] s)
+readDeletes :: FilePath-> IO (WH [Box s] s)
 readDeletes filename = do
   content <- readFile filename
   return $ do -- IO
@@ -284,33 +287,33 @@ readDeletes filename = do
 -- Line starting with < will be reversed
 -- < a|b|c => c b a
 -- > stays as normal (just there so on can disable and reenable easily << by transforming then to >>
-readLayout :: String -> IO [[[ String ]]]
+readLayout :: FilePath -> IO [[[ Text ]]]
 readLayout filename = do
     content <- readFile filename
 
-    return $ map processLine (filter (not . comment) $ lines content)
-    where processLine ('<':line) = reverse (processLine line)
-          processLine ('>':line) = processLine line
+    return $ map (processLine) (filter (not . comment) $ lines content)
+    where processLine (uncons -> Just ('<', line)) = reverse (processLine line)
+          processLine (uncons -> Just ('>', line)) = processLine line
           processLine line = map (splitOn "|")  (words line)
-          comment ('#':_) = True -- line starting with #
-          comment [] = True -- or empty line
+          comment (uncons -> Just ('#',_)) = True -- line starting with #
+          comment "" = True -- or empty line
           comment _ = False
 
-readWarehouse :: String -> IO (WH (ShelfGroup s) s)
+readWarehouse :: FilePath -> IO (WH (ShelfGroup s) s)
 readWarehouse filename = buildWarehouse `fmap` readLayout filename
 
 
 -- | read a file assigning styles to locations
 -- returns left boxes
-readMoves :: [String] -> String -> IO ( WH [Box s] s)
+readMoves :: [Text] -> FilePath -> IO ( WH [Box s] s)
 readMoves tags = readMovesAndTagsWith (\(style, location) -> processMovesAndTags (style, tags, Just location))
 
 
-readMovesAndTagsWith :: Csv.FromRecord r => (r -> WH [Box s] s) -> String -> IO (WH [Box s] s)
+readMovesAndTagsWith :: Csv.FromRecord r => (r -> WH [Box s] s) -> FilePath -> IO (WH [Box s] s)
 readMovesAndTagsWith  rowProcessor filename = do
     csvData <- BL.readFile filename
     case Csv.decode  Csv.HasHeader csvData of
-        Left err ->  putStrLn err >> return (return [])
+        Left err ->  error err -- putStrLn err >> return (return [])
         Right (rows) -> return $ do
           v <- Vec.forM rows rowProcessor
           return $ concat (Vec.toList v)
@@ -322,12 +325,12 @@ readMovesAndTagsWith  rowProcessor filename = do
 -- or set on failure (by providing a negative tag).
 -- This tagging/untagging ensure that after a move only the moved boxes
 -- have the expecting tag (regardless of the previous tags on the boxes)
-processMovesAndTags :: (String, [String], Maybe [Char]) -> WH [Box s] s
+processMovesAndTags :: (Text, [Text], Maybe Text) -> WH [Box s] s
 processMovesAndTags (style, tags, locationM) = do
   boxes0 <- findBoxByStyleAndShelfNames style
   leftoverss <- forM locationM $ \location' -> do
-    let (location, exitMode) = case location' of
-                                  ('^':loc) -> (loc, ExitOnTop)
+    let (location, exitMode) = case uncons location' of
+                                  Just ('^', loc) -> (loc, ExitOnTop)
                                   _ -> (location', ExitLeft)
     let locations = splitOn "|" location
     shelvesS <- mapM findShelfByName locations
@@ -345,7 +348,7 @@ processMovesAndTags (style, tags, locationM) = do
 
 -- | read a file assigning tags to styles
 -- returns left boxes
-readTags :: String -> IO ( WH [Box s] s)
+readTags :: FilePath -> IO ( WH [Box s] s)
 readTags = readMovesAndTagsWith (\(style, tag) -> processMovesAndTags (style, splitOn "#" tag, Nothing))
 
 -- | Read tags or moves. Normally we could consider
@@ -358,27 +361,28 @@ readTags = readMovesAndTagsWith (\(style, tag) -> processMovesAndTags (style, sp
 -- /location
 -- #tag/location
 -- location,tag
-readMovesAndTags :: [String] -> String -> IO (WH [Box s] s)
+readMovesAndTags :: [Text] -> FilePath -> IO (WH [Box s] s)
 readMovesAndTags tags0 = readMovesAndTagsWith go where
   go (style, tag'location) =
     let (tags, locM) = splitTagsAndLocation tag'location
     in processMovesAndTags (style, tags0 <> tags, locM)
 
+splitTagsAndLocation :: Text -> ([Text], Maybe Text)
 splitTagsAndLocation tag'locations
    -- | (tag, _:location@(_:_)) <- break (=='/') tag'locations = (just tag, just location)
-   | (location , _:tag@(_:_)) <- break (=='#') tag'locations = (splitOn "#" tag, just location)
+   | (location , uncons -> Just (_,tag@(uncons -> Just _))) <- break (=='#') tag'locations = (splitOn "#" tag, just location)
    | otherwise = ([], Just tag'locations)
-   where just [] = Nothing
+   where just "" = Nothing
          just s = Just s
     
 
 
-readOrientations :: [Orientation] -> String -> [Orientation]
-readOrientations def os = case os of
-    [] -> []
-    '*':_ -> allOrientations -- all
-    '%':os' -> def `union` readOrientations def os'  -- def
-    o:os' -> [readOrientation o] `union` readOrientations def os'
+readOrientations :: [Orientation] -> Text -> [Orientation]
+readOrientations def os = case uncons os of
+    Nothing -> []
+    Just ('*', _) -> allOrientations -- all
+    Just ('%', os') -> def `List.union` readOrientations def os'  -- def
+    Just (o, os') -> [readOrientation o] `List.union` readOrientations def os'
 
 -- * Read transform tags
 -- | Temporary type to read a regex using Cassava
@@ -388,17 +392,17 @@ instance Csv.FromField (Either Rg.Regex (Box s -> WH Rg.Regex s)) where
   parseField s = do
     r <- Csv.parseField s
     case expandAttribute' r of
-      Nothing -> Left <$> Rg.makeRegexM r
+      Nothing -> Left <$> Rg.makeRegexM (unpack r)
       Just f -> return . Right $ \box -> do
               r'  <- expandAttribute box r
-              Rg.makeRegexM r'
+              Rg.makeRegexM (unpack r')
 
 -- | Read transform tags
-readTransformTags :: String -> IO (WH [Box s] s)
+readTransformTags :: FilePath -> IO (WH [Box s] s)
 readTransformTags = readMovesAndTagsWith (\(style, tagPat, tagSub) -> transformTags style tagPat tagSub)
 
  -- | Apply {transformTagsFor} to the matching boxes
-transformTags :: String -> RegexOrFn s -> String -> WH [Box s] s
+transformTags :: Text -> RegexOrFn s -> Text -> WH [Box s] s
 transformTags style tagPattern tagSub = do
   boxes0 <- findBoxByStyleAndShelfNames style
   boxes <- mapM findBox boxes0
@@ -406,31 +410,31 @@ transformTags style tagPattern tagSub = do
   
 -- | Regex tags substitutions. Each tags is matched and applied separately
 -- The tag is not removed. To do so add a `#-\0` at the end
-transformTagsFor :: RegexOrFn s -> String -> Box s -> WH (Maybe (Box s)) s
+transformTagsFor :: RegexOrFn s -> Text -> Box s -> WH (Maybe (Box s)) s
 transformTagsFor tagPat' tagSub box = do
   tagPat <- either return ($ box) tagPat'
   let tagOps = map parseTagOperation $
-               concatMap (splitOn "#" . (\t -> Rg.subRegex tagPat t tagSub))
+               concatMap (splitOn "#" . (\t -> pack $ Rg.subRegex tagPat (unpack t) (unpack tagSub)))
                (boxTagList box)
   Just <$> updateBoxTags tagOps box
 
 -- | Read box dimension on their location
-readStockTake :: [String] -> [Orientation] -> (String -> (String, String)) -> String -> IO (WH ([Box s], [String]) s)
+readStockTake :: [Text] -> [Orientation] -> (Text -> (Text, Text)) -> FilePath -> IO (WH ([Box s], [Text]) s)
 readStockTake defaultTags newBoxOrientations splitStyle filename = do
     csvData <- BL.readFile filename
     case Csv.decode  Csv.HasHeader csvData of
-        Left err ->  do putStrLn err; return (return ([], []))
+        Left err ->  error err -- do putStrLn err; return (return ([], []))
         Right (rowsV) -> return $ do
             -- we get bigger box first : -l*w*h
             let rows = [ ((qty, content, tags),  (-(l*w*h), shelf, style', l,w,h, if null os then "%" else os))
                        | (shelf, style, qty, l, w, h, os)
-                       <- Vec.toList (rowsV ::  Vec.Vector (String, String, Int, Double, Double, Double, String))
+                       <- Vec.toList (rowsV ::  Vec.Vector (Text, Text, Int, Double, Double, Double, Text))
                        , let (name, tags) = extractTags style
                        , let (style', content) = splitStyle name
                        ]
             -- groups similar
-                groups = groupBy (\a b -> snd a == snd b)
-                       $ sortBy (comparing snd) rows
+                groups = List.groupBy (\a b -> snd a == snd b)
+                       $ List.sortBy (comparing snd) rows
 
             v <- forM groups $ \rows@((_, (_,shelf, style, l, w, h, os)):_) -> do
                         s0 <- defaultShelf
@@ -441,7 +445,7 @@ readStockTake defaultTags newBoxOrientations splitStyle filename = do
                             newBox style
                                     content
                                     dim
-                                    (head boxOrs)
+                                    (headEx boxOrs)
                                    s0
                                    boxOrs -- create box in the "ERROR self)
                                    (defaultTags ++ tags)
@@ -450,7 +454,7 @@ readStockTake defaultTags newBoxOrientations splitStyle filename = do
                         leftOvers <- moveBoxes ExitLeft boxes shelves
 
                         let errs = if not (null leftOvers)
-                                      then map (\b -> "ERROR: box " ++ show b ++ " doesn't fit in " ++ shelf) leftOvers
+                                      then map (\b -> "ERROR: box " <> tshow b <> " doesn't fit in " <> shelf) leftOvers
                                       else []
 
                         -- detect if any error occurs
@@ -469,11 +473,11 @@ readStockTake defaultTags newBoxOrientations splitStyle filename = do
 
 
 -- * read orientation rules
-readOrientationRules :: [Orientation] -> String -> IO (Box s -> Shelf s -> Maybe [(Orientation, Int, Int)])
+readOrientationRules :: [Orientation] -> FilePath -> IO (Box s -> Shelf s -> Maybe [(Orientation, Int, Int)])
 readOrientationRules defOrs filename = do
     csvData <- BL.readFile filename
     case Csv.decode  Csv.HasHeader csvData of
-        Left err ->  do putStrLn err; return (\s b -> Nothing)
+        Left err ->  error err -- do putStrLn err; return (\s b -> Nothing)
         Right (rows) -> do
             let rules = fmap (\ (boxSelectors, orientations) ->
                         let (style, boxTagM, _, location, locationTagM) = splitBoxSelector boxSelectors
@@ -498,7 +502,7 @@ readOrientationRules defOrs filename = do
             return fn
                            
 
-setOrientationRules :: [Orientation] -> String -> IO (WH () s)
+setOrientationRules :: [Orientation] -> FilePath -> IO (WH () s)
 setOrientationRules defOrs filename = do
   fn <- readOrientationRules defOrs filename
 
@@ -528,13 +532,13 @@ setOrientationRules defOrs filename = do
 -- example:
 -- 9 -- max 9
 -- 1:9 -- min 1
-parseOrientationRule:: [Orientation] -> String -> [(Orientation, Int, Int)]
+parseOrientationRule:: [Orientation] -> Text -> [(Orientation, Int, Int)]
 parseOrientationRule defOrs cs = let
   (ns, cs') = span (isDigit) cs
-  n0 = read ns
-  (nM, cs'') = case cs' of
-                  (':':s) -> let (ns', leftover) = span (isDigit) s
-                             in (Just ( readMaybe ns' :: Maybe Int), leftover)
+  Just n0 = readMay ns
+  (nM, cs'') = case uncons cs' of
+                  Just (':', s) -> let (ns', leftover) = span (isDigit) s
+                             in (Just ( readMay ns' :: Maybe Int), leftover)
                   _ -> (Nothing, cs')
   -- if only one number, use it as the maximum
   (min_, max_) = case nM of
@@ -543,7 +547,7 @@ parseOrientationRule defOrs cs = let
     Just (Just n) -> (n0, n)
 
   ors = case cs'' of
-    [] -> defOrs
+    "" -> defOrs
     s -> readOrientations defOrs s
   in [(o, min_, max_) | o <- ors ]
   
