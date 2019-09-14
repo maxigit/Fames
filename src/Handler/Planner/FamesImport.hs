@@ -161,10 +161,10 @@ executeReport headerType path reportParam0 = do
   content <- case scenarioE of
     Left _ ->  error $ "Scenario: " <> unpack path <> " doesn't exist"
     Right scenarios -> do
-      let report = generateGenericReport today (unpack reportParam)
+      let report = generateGenericReport today reportParam
           scenario = mconcat scenarios
       rows <- Exec.renderReport scenario report 
-      return $ map pack rows
+      return rows
   -- add a dummy csv header if needed
   let addHeader content =
         if writeHeader headerType `elem` ["Boxes", "Moves", "Tags", "MovesAndTags"

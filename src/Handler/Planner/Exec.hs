@@ -107,7 +107,7 @@ copyBox box@Box{..} = return $ \shelf -> do
 -- underscores are stripped before looking for the color name
 -- this allow the same colours to be used more that once
 -- example, navy#_navy#white,  will use navy twice
-colorFromTag :: Box s -> String -> Maybe (Colour Double)
+colorFromTag :: Box s -> Text -> Maybe (Colour Double)
 colorFromTag box tag = let
   colors = mapMaybe valueToColour (boxTagValues box tag)
   in case colors of
@@ -131,12 +131,13 @@ stylingFromTags box = let
   
 -- | Transform tag value to colours
 -- Try to read standard name or use hexadecimal
-valueToColour :: String -> Maybe (Colour Double)
-valueToColour s = case dropWhile (=='_') s of
+valueToColour :: Text -> Maybe (Colour Double)
+valueToColour t = case dropWhile (=='_') s of
   [] -> Nothing
   cs | all isHexDigit cs && length cs == 3 -> Just $ sRGB24read (s >>= (replicate 2))
   cs | all isHexDigit cs && length cs == 6 -> Just $ sRGB24read s
   dropped -> readColourName (map Data.Char.toLower dropped)
+  where s = unpack t
 
 -- | blend all colours equaly.
 -- folding using normal blend would not work as

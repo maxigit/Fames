@@ -41,9 +41,9 @@ warehouseExamble :: WH (ShelfGroup s) s
 warehouseExamble  = do
   let dim0 = Dimension 270 80 145
   let dim1 = Dimension 31 34 72
-  shelves <- mapM (  \i -> newShelf ("A1" <> show i) Nothing dim0  dim0 DefaultOrientation ColumnFirst ) [1..50]
+  shelves <- mapM (  \i -> newShelf ("A1" <> tshow i) Nothing dim0  dim0 DefaultOrientation ColumnFirst ) [1..50]
   let shelfid = shelfId (headEx shelves)
-  boxes <- mapM (\i -> newBox "style" (show i) dim1 up shelfid [up] []) [1..300]
+  boxes <- mapM (\i -> newBox "style" (tshow i) dim1 up shelfid [up] []) [1..300]
   moveBoxes ExitLeft boxes shelves
   -- rearrangeShelves [shelf, shelf2]
   
@@ -360,14 +360,14 @@ executeStep (Step header sha _) =
           LayoutH -> return $ return ()
           ShelvesH -> execute $ readShelves2 BoxOrientations path
           InitialH -> return $ return ()
-          StocktakeH tags -> execute $ readStockTake (map unpack tags) defaultOrientations splitStyle path
-          BoxesH tags -> execute $ readBoxes (map unpack tags) defaultOrientations splitStyle path
-          MovesH tags -> execute $ readMoves (map unpack tags) path
+          StocktakeH tags -> execute $ readStockTake tags defaultOrientations splitStyle path
+          BoxesH tags -> execute $ readBoxes tags defaultOrientations splitStyle path
+          MovesH tags -> execute $ readMoves tags path
           TagsH -> execute $ readTags path
-          MovesAndTagsH tags -> execute $ readMovesAndTags (map unpack tags) path
+          MovesAndTagsH tags -> execute $ readMovesAndTags tags path
           OrientationsH -> execute $ setOrientationRules defaultOrientations path
           TransformTagsH -> execute $ readTransformTags path
-          ClonesH tags -> execute $ readClones (map unpack tags) path
+          ClonesH tags -> execute $ readClones (tags) path
           DeletesH -> execute $ readDeletes path
           TitleH -> return $ return ()
 

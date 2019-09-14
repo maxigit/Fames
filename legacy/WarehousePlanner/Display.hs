@@ -1,13 +1,14 @@
 {-# LANGUAGE FlexibleContexts, TypeFamilies #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
 module WarehousePlanner.Display where
 
-import Prelude
+import ClassyPrelude
 import WarehousePlanner.Base
 import Diagrams.Prelude hiding(Box)
-import Control.Monad.State
+import Control.Monad.State(get, gets)
 import Diagrams.Backend.Cairo 
-import Data.Maybe
+-- import Data.Maybe
 import qualified Data.Map as Map
 
 display :: WH (Diagram B) s
@@ -72,7 +73,7 @@ renderBoxes shelf = let
         boxes <- findBoxByShelf shelf
         z'diags <-  mapM (renderBox shelf) boxes
         let zMap = Map.fromListWith atop (concat z'diags)
-        return $ foldl atop mempty (Map.elems zMap)
+        return $ foldl' atop mempty (Map.elems zMap)
 
 depthBar :: Double -> Double -> Diagram B
 depthBar w used = let
@@ -129,7 +130,7 @@ renderBox shelf box = do
           Dimension ox oy oz = boxOffset box
           border' = fromMaybe foreground border
           titles = case title of
-                     [] -> (boxStyle box ++ "\n" ++ showOrientation (orientation box) ++ " " ++ boxContent box)
+                     [] -> (boxStyle box <> "\n" <> showOrientation (orientation box) <> " " <> boxContent box)
                      _ -> unlines title  
                         
     let   r = (r' $ rect l h  # lc border' # fc background # lwL 2) #scale 0.95 # pad 1.05
@@ -152,7 +153,7 @@ renderBox shelf box = do
               (2, offsetBar backBag),
               (1, offsetBar boxBar)]
 
-renderBoxBar :: Box s -> Maybe String
+renderBoxBar :: Box s -> Maybe Text
              -> Colour Double -> Colour Double -> Colour Double -> Maybe (Colour Double)
              -> Diagram B
 renderBoxBar box titlem foreground background border circlem =
@@ -169,10 +170,10 @@ renderBoxBarBg shelf = gaugeBar yn
     where   Dimension _xn yn _zn = minDim shelf
     
 -- | draw text scaled to fit given rectangle
--- scaledText :: Double -> Double-> String -> Diagram b
+-- scaledText :: Double -> Double-> Text -> Diagram b
 scaledText x y s =  let
     (x0, y0) = (10,3) 
     (sX, sY) =  (x/x0, y/y0)
-    in text s & scale (min sX sY)
+    in text (unpack s) & scale (min sX sY)
 
 

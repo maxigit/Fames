@@ -173,17 +173,17 @@ renderView param0 = do
               PlannerShelvesReport-> renderShelvesReport scenario
               PlannerShelvesGroupReport-> renderShelvesGroupReport scenario
               PlannerAllReport -> renderConsoleReport reportAll scenario
-              PlannerBestBoxesFor -> renderConsoleReport (bestBoxesFor (unpack $ fromMaybe "" (pParameter param))) scenario
-              PlannerBestShelvesFor -> renderConsoleReport (bestShelvesFor (unpack $ fromMaybe "" (pParameter param))) scenario
+              PlannerBestBoxesFor -> renderConsoleReport (bestBoxesFor (fromMaybe "" (pParameter param))) scenario
+              PlannerBestShelvesFor -> renderConsoleReport (bestShelvesFor (fromMaybe "" (pParameter param))) scenario
               PlannerBestAvailableShelvesFor -> let
                 -- needed to use a different key to cache the warehouse
                 -- as this report modify the warehouse. We don't want it to modify the cached one
-                in renderConsoleReport (bestAvailableShelvesFor (unpack $ fromMaybe "" (pParameter param))) (scenario `mappend` extra)
+                in renderConsoleReport (bestAvailableShelvesFor (fromMaybe "" (pParameter param))) (scenario `mappend` extra)
 
               PlannerGenerateMoves -> renderConsoleReport (generateMoves boxStyle) scenario
               PlannerGenerateMovesWithTags -> renderConsoleReport (generateMoves boxStyleWithTags) scenario
               PlannerGenerateMOPLocations -> renderConsoleReport (generateMOPLocations) scenario
-              PlannerGenericReport -> renderConsoleReport (generateGenericReport today (maybe "report" unpack $ pParameter param)) scenario
+              PlannerGenericReport -> renderConsoleReport (generateGenericReport today (fromMaybe "report" $ pParameter param)) scenario
               PlannerScenarioHistory -> renderHistory
               PlannerBoxGroupReport -> renderBoxGroupReport (pParameter param) scenario
               -- PlannerBoxGroupReport -> renderBoxGroupReport
@@ -280,8 +280,8 @@ renderSummaryReport scenario = do
 renderShelvesReport :: Scenario -> Handler Widget
 renderShelvesReport scenario = do
   (header':rows') <- renderReport scenario shelvesReport
-  let header = splitOn "," (pack header')
-      rows = map (splitOn "," . pack) rows'
+  let header = splitOn "," header'
+      rows = map (splitOn ",") rows'
   return [whamlet|
 <table.table.table-striped.table-hover>
   <tr>
@@ -302,12 +302,12 @@ renderBoxGroupReport selectorM = renderConsoleReport report where
   report = do
     boxIds <- case selectorM of
       Nothing -> toList <$> gets boxes
-      Just pat -> findBoxByStyleAndShelfNames (unpack pat)
+      Just pat -> findBoxByStyleAndShelfNames pat
     boxes <- mapM findBox boxIds
     groupBoxesReport boxes
   
 
-renderConsoleReport ::  WH [String] __RealWord -> Scenario -> Handler Widget
+renderConsoleReport ::  WH [Text] __RealWord -> Scenario -> Handler Widget
 renderConsoleReport report scenario = do
   (rows) <- renderReport scenario report
   return [whamlet|
