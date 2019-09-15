@@ -160,7 +160,7 @@ run:
 	stack exec  Fames -- ${RUN_CONFIG}
 
 build_profile:
-	stack build --profile --work-dir .stack-profile --flag Fames:-dev
+	stack build --profile --work-dir .stack-profile --flag Fames:-dev --library-profiling --executable-profiling
 
 profile: build_profile
 	stack exec --work-dir .stack-profile Fames -- $(RUN_CONFIG) +RTS -p
