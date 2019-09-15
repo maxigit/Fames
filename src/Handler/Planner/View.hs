@@ -302,7 +302,7 @@ renderBoxGroupReport selectorM = renderConsoleReport report where
   report = do
     boxIds <- case selectorM of
       Nothing -> toList <$> gets boxes
-      Just pat -> findBoxByStyleAndShelfNames pat
+      Just pat -> findBoxByNameAndShelfNames (parseBoxSelector pat)
     boxes <- mapM findBox boxIds
     groupBoxesReport boxes
   

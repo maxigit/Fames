@@ -1,3 +1,4 @@
+- Change type of Text to NameSelector to report function
 * TODO Planner [7/15]
   - [X] Operator name in box status
   - [X] Box status for ALL boxes (not just inactive)
@@ -28,7 +29,7 @@ Allows to generate ghost
     - [ ] ditch TDFA regex for C one
     - [X] remove globbing when not needed
     - [ ] Add Map/Hash style Box ?
-    - [ ] Filter tag components (key and value) Independently, instead of matching flattened value
+    - [X] Filter tag components (key and value) Independently, instead of matching flattened value
 Add tags to the BOXES sections
 * MTD [60%]
 ** DONE Hide Reference [2/2]

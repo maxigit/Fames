@@ -14,6 +14,7 @@ import qualified Data.Set as Set
 import Data.Map (Map)
 import qualified Data.Map as Map 
 import Data.Sequence (Seq)
+import qualified System.FilePath.Glob as Glob
 -- import Data.List(intercalate)
 import Data.Text hiding(map)
 
@@ -63,7 +64,7 @@ data Box s = Box { _boxId      :: BoxId s
                , boxOffset   :: !Dimension
                , orientation :: !Orientation -- ^ orientation of the box
                , boxBoxOrientations :: [Orientation]  -- ^ allowed orientation
-               , boxTags :: Tags -- ^ tags with optional values
+               , boxTags :: !Tags -- ^ tags with optional values
                , boxPriorities :: !(Int, Int, Int ) -- Global, within style, within content , default is 100
                , boxBreak :: !(Maybe BoxBreak)
                } deriving (Show, Eq)
@@ -74,7 +75,7 @@ data ShelfId s = ShelfId (STRef s (Shelf s))  deriving (Eq)
 data Shelf s = Shelf { _shelfId  :: !(ShelfId s)
                    , _shelfBoxes :: [BoxId s]
                    , shelfName :: !Text
-                   , shelfTag :: !(Maybe Text)
+                   , shelfTag :: !Tags
                    , minDim    :: !Dimension
                    , maxDim    :: !Dimension
                    , flow      :: !Flow
@@ -288,12 +289,57 @@ flattenTag'Values (tag, values) = case flattenTagValues values of
                       "" ->tag
                       flat -> tag <> "=" <> flat
 
+flattenTags :: Tags -> [Text]
+flattenTags = map flattenTag'Values . Map.toList 
 -- ** Shelves
 shelfVolume :: Shelf s -> Double
 shelfVolume = volume . minDim
 
 shelfNameTag :: Shelf s -> Text
-shelfNameTag s = shelfName s <> maybe "" ("#"<>) (shelfTag s)
+shelfNameTag s = intercalate "#" ( shelfName s
+                                 : (flattenTags (shelfTag s))
+                                 )
+-- ** Selectors
+-- | Some cases are overlapping but it is on purpose
+-- so that we can speed up 
+data TagSelector  a
+          = TagHasKey !MatchPattern -- ^ check present of key not is value
+          | TagHasNotKey !MatchPattern -- ^ check present of key not is value
+          | TagIsKey !MatchPattern -- ^ present with no value
+          -- | TagHasNotKey !MatchPattern -- ^ not present  (in all values)
+          -- | TagIsKeyAndValue Text Text -- ^ check key and value
+          | TagIsKeyAndValues !MatchPattern ![MatchPattern] -- ^ check key and all values are exact
+          | TagHasKeyAndValues !MatchPattern ![MatchPattern] -- ^ check key and at least all values are present
+          | TagHasValues ![MatchPattern]
+          | TagHasNotValues ![MatchPattern]
+          | TagHasKeyAndNotValues !MatchPattern ![MatchPattern] -- ^ check key and at least all values are present
+          deriving Show
+          -- deriving (Eq,Show,Ord)
+
+data MatchPattern
+   = MatchFull !Text
+   | MatchAnything
+   | MatchGlob !Glob.Pattern
+   deriving (Eq, Show)
+   -- | MatchRegext Text
+
+data NameSelector a = NameMatches [MatchPattern] -- matches one of
+                    | NameDoesNotMatch [MatchPattern] -- matche none of
+  deriving (Eq, Show)
+
+data Selector a  = Selector 
+  { nameSelector :: !(NameSelector a)   -- disjunctions OR betweens names
+  , tagSelectors :: ![TagSelector a] -- conjunctions AND
+  }
+  deriving (Show)
+
+
+data BoxSelector s = BoxSelector
+  { boxSelectors :: !(Selector (Box s))
+  , shelfSelectors :: !(Selector (Shelf s))
+  , numberSelector :: !(BoxNumberSelector)
+  } deriving (Show)
+
 
 -- ** Warehouse
 

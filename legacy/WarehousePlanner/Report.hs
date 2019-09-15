@@ -69,7 +69,7 @@ bestBoxesFor :: Text -> WH [Text] s
 bestBoxesFor shelf = do
     boxIds <- toList <$> gets boxes
     boxes' <- mapM findBox boxIds
-    shelves <- findShelfByName shelf >>= mapM findShelf
+    shelves <- findShelfBySelector (Selector (matchName shelf) []) >>= mapM findShelf
     getOr <- gets boxOrientations
 
     let groups  = Map'.fromList (map (\b -> ((boxDim b, boxStyle b), b)) boxes')
@@ -93,7 +93,7 @@ bestHeightForShelf :: Text -> WH (IO ()) s
 bestHeightForShelf shelf = do
     boxIds <- toList <$> gets boxes
     boxes' <- mapM findBox boxIds
-    shelves <- findShelfByName shelf >>= mapM findShelf
+    shelves <- findShelfBySelector (Selector (matchName shelf) []) >>= mapM findShelf
     getOr <- gets boxOrientations
 
     let groups  = Map'.fromList (map (\b -> ((boxDim b, boxStyle b), b)) boxes')
@@ -108,7 +108,7 @@ bestHeightForShelf shelf = do
 
         bests = sortBy (compare `on` fst) tries
         reportHeight shelf  (box, or, (n,k,m)) = do
-          similarBoxes <- findBoxByStyle (boxStyle box)
+          similarBoxes <- findBoxByNameSelector (matchName $ boxStyle box)
           let box' = box { orientation = or }
           let lengthRatio = ( dLength (boxDim box') * (fromIntegral n)
                             / dLength (minDim shelf)
@@ -161,7 +161,7 @@ bestArrangement' orientations shelves box = let
 report :: Shelf s -> Box s -> WH Text s
 report shelf box = do
     getOr <- gets boxOrientations
-    similarBoxes <- findBoxByStyle (boxStyle box)
+    similarBoxes <- findBoxByNameSelector (matchName $ boxStyle box)
     let (or,n,k,m,_) = bestArrangement (getOr box shelf) [(maxDim shelf, shelf)] (_boxDim box)
         ratio = boxVolume box * fromIntegral (n * k * m) / shelfVolume shelf
         numberOfBoxes = length similarBoxes
@@ -181,7 +181,7 @@ report shelf box = do
 -- Doesn't take into account boxes already there.
 bestShelvesFor :: Text -> WH [Text]s
 bestShelvesFor style = do
-    boxes <- findBoxByStyle  style >>= mapM findBox
+    boxes <- findBoxByNameSelector (matchName $ style) >>= mapM findBox
     shelves <- toList <$> gets shelves >>= mapM findShelf
     or <- gets boxOrientations
 
@@ -194,7 +194,7 @@ bestShelvesFor style = do
 -- depends on what's already there.
 bestAvailableShelvesFor :: Text -> WH [Text] s
 bestAvailableShelvesFor style = do
-    boxes <- findBoxByStyle  style >>= mapM findBox
+    boxes <- findBoxByNameSelector  (matchName $ style) >>= mapM findBox
     or <- gets boxOrientations
     let  box = headEx boxes
     shelves <- toList <$> gets shelves >>= mapM findShelf
@@ -256,8 +256,11 @@ summarizeShelves shelves = do
 summary :: WH ([[Text]], [Text])  s
 summary = do
     ss <- toList <$> gets shelves >>= mapM findShelf
-    let groups = Map'.fromListWith (<>) [ (shelfTag s, [s])
-                                        | s <- filter ((/= Just "sep") . shelfTag ) ss
+    -- group shelves using summary property
+    -- summary=no mean don't display
+    let groups = Map'.fromListWith (<>) [ (summaryGroup, [s])
+                                        | s <- filter (applyTagSelectors (maybeToList $ parseTagSelector "!sep")  shelfTag) ss
+                                        , let summaryGroup = flattenTagValues <$>lookup "summary" (shelfTag s)
                                         ]
     infos' <- traverse summarizeShelves groups
     let infos = Map'.mapWithKey adjust infos'
@@ -318,8 +321,8 @@ shelvesReport = do
           let left = w - depth
 
           -- find max depth
-          return $ pack $ printf "%s%s,%s,%0.2f,%0.2f,%0.2f,%0.2f,%.0f%%\n"
-                    (shelfName shelf) (maybe "" (cons '#') (shelfTag shelf))
+          return $ pack $ printf "%s,%s,%0.2f,%0.2f,%0.2f,%0.2f,%.0f%%\n"
+                    (shelfNameTag shelf)
                     (pack $ printf "%s (%0.2f)" name depth :: Text)
                     l w h
                     left
@@ -330,7 +333,7 @@ shelvesReport = do
 listShelfTags :: WH ([Text]) s
 listShelfTags = do
   ss <- toList <$> gets shelves >>= mapM findShelf
-  return . List.nub . sort $ catMaybes (map shelfTag ss)
+  return . List.nub . sort $ concat (map (flattenTags . shelfTag) ss)
 
 shelfTagsReport :: WH (IO ()) s
 shelfTagsReport = do
@@ -510,15 +513,12 @@ groupShelves :: (Shelf s -> Bool) -> WH [(Shelf s, [Text])] s
 groupShelves exclude = do
   ss <- toList <$> gets shelves >>= mapM findShelf
   let groups = Map'.fromListWith (<>) [ (shelfKey s, [s])
-                                      | s <- filter (keepTag . shelfTag) ss
+                                      | s <- filter (applyTagSelectors (mapMaybe parseTagSelector ["!sep", "!error"])
+                                                                       shelfTag) ss
                                       , exclude s == False
                                       ]
-      keepTag (Just "sep") = False
-      keepTag (Just ('e':<_)) = False
-      keepTag _ = True
-                               
       regroup ss = let sorted = sortBy (comparing shelfName) ss
-                   in (headEx sorted, map shelfNameTag sorted)
+                   in (headEx sorted, map shelfName sorted)
 
   return $ map (regroup) (Map'.elems groups)
 
@@ -643,7 +643,7 @@ newPair wh res (Just res') =
     -- check if both residuals can actually fit
     let addShelf shelf = do
           newShelf (shelfName shelf)
-            (shelfTag shelf)
+            (Just $ intercalate "#" $ flattenTags $  shelfTag shelf)
             (maxDim shelf)
             (maxDim shelf)
             (shelfBoxOrientator shelf)
@@ -732,22 +732,18 @@ reportPairs percThreshold = do
   -- removes every boxes which are already in and the shelf itself
   ss <- mapM findShelf =<< toList <$> gets shelves
 
-
-  let keepTag (Just "sep") = False
-      keepTag (Just ('e':<_)) = False
-      -- keepTag (Just ("top")) = False
-      keepTag _ = True
-
-  shelfBoxes <- catMaybes <$> forM (filter (keepTag . shelfTag) ss) ( \shelf -> do
+  shelfBoxes <- catMaybes <$> forM (filter (applyTagSelectors (mapMaybe parseTagSelector ["!sep", "!error"]) shelfTag) ss) ( \shelf -> do
     boxes <- findBoxByShelf shelf
     return $ if null boxes then Nothing else Just (shelfName shelf, map boxKey boxes)
     )
 
+
   let shelvesToSkip = Set.fromList (map fst shelfBoxes )
       boxesToSkip = Set.fromList (concatMap snd shelfBoxes)
+      isTop = maybeToList (parseTagSelector "top")
     
   boxGroups <- groupBoxes (\b -> boxKey b `Set.member` boxesToSkip)
-  shelfGroups <- groupShelves (\s -> shelfName s `Set.member` shelvesToSkip || shelfTag s == Just "top" )
+  shelfGroups <- groupShelves (\s -> shelfName s `Set.member` shelvesToSkip || applyTagSelectors isTop shelfTag s)
 
   boxo <- gets boxOrientations
 

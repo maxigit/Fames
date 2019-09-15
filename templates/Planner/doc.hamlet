@@ -68,10 +68,9 @@ A planner file is made of different sections. Each section corresponds to an org
               <li> deadzone : allow up column first
               <li> other, column first
             <h5> Tag
-            On the contrary of boxes, shelves can only have one tag (or none).
-            The tag can be used to select shelf when doing box moves, but is also used to
-            group shelves when displaying the summary. Shelves with a tag starting with a <code>_</code>
-            are considered as virtual shelves and are not taken in to account when calculated used spaces
+            Tags can be used to select shelf when doing box moves, but is also used to
+            group shelves when displaying the summary. Shelves are grouped using the <code>summary</code> property.
+            Note that shelves with a summary value starting with a <code>_</code> are considered as virtual shelves and are not taken in to account when calculated used spaces
             and floor space. Also, shelves with the <code>sep</code> tag are seen as separator : shelves
             present for layout purpose only and are excluded from the summary as well as being displayed
               differently.
@@ -493,7 +492,7 @@ A planner file is made of different sections. Each section corresponds to an org
   with the corresponding value. The following attributes are available.
   <ul>
     <li> <code>${shelfname}</code> # current shelf
-    <li> <code>${shelftag}</code> # tag of the current shelf
+    <li> <code>${shelftags}</code> # tag of the current shelf
     <li> <code>${fit}</code> # How the box fits in the shelf : fit, tight, or out
     <li> <code>${orientation}</code> # current orientation
     <li> <code>${style}</code> # current box style

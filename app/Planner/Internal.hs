@@ -370,6 +370,7 @@ executeStep (Step header sha _) =
           ClonesH tags -> execute $ readClones (tags) path
           DeletesH -> execute $ readDeletes path
           TitleH -> return $ return ()
+          ImportH -> return $ return ()
 
 -- | Retrieve the number of line in the layout file
 scenarioLayoutSize :: MonadIO m => Scenario -> m Int

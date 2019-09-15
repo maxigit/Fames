@@ -16,20 +16,16 @@ module WarehousePlanner.Base
 , extractTags
 , parseTagOperation
 , negateTagOperations
-, tagToOnOff
 , expandAttribute'
 , expandAttribute
-, findShelfByName
-, findBoxByStyleAndShelfNames
+, findShelfBySelector
+, findBoxByNameAndShelfNames
 , findBoxByShelf
-, findBoxByStyle
+, findBoxByNameSelector
 , shelfBoxes
-, splitBoxSelector
-, patternToMatchers
 , orTrue
 , howMany
 , filterBoxByTag
-, filterByTag
 , filterShelfByTag
 , buildWarehouse
 , emptyWarehouse
@@ -39,10 +35,16 @@ module WarehousePlanner.Base
 , bestArrangement
 , usedDepth
 , printDim
+, parseSelector
+, parseBoxSelector
+, parseTagSelector
+, applyTagSelectors
+, applyNameSelector
+, matchName
 , module WarehousePlanner.Type
 )
 where
-import ClassyPrelude
+import ClassyPrelude hiding (uncons, stripPrefix)
 import Text.Printf(printf)
 import Data.Vector(Vector)
 import Data.Monoid
@@ -71,12 +73,12 @@ import Data.Maybe(maybeToList, mapMaybe)
 import WarehousePlanner.Type
 import WarehousePlanner.SimilarBy
 import Diagrams.Prelude(white, black)
-import Data.Text (splitOn)
+import Data.Text (splitOn, uncons, stripPrefix)
 
 import qualified System.FilePath.Glob as Glob
 
 
-import Debug.Trace
+-- import qualified Debug.Trace as T
 
 
 -- | Internal types to deal with tag and tag operations
@@ -98,7 +100,7 @@ type Tag'Operation = (Text, TagOperation)
 maxUsedOffset :: (Dimension -> Double) -> Shelf s -> WH Double s
 maxUsedOffset proj shelf = do
     boxes <- findBoxByShelf shelf
-    return $ foldr (\b r -> max r ((proj.boxOffset') b)) 0 boxes
+    return $ foldr (\box r -> max r ((proj.boxOffset') box)) 0 boxes
 
 lengthUsed, widthUsed, heightUsed :: Shelf s -> WH Double s
 lengthUsed = maxUsedOffset dLength
@@ -133,7 +135,7 @@ buildRack xs = do
     idsS <- mapM ( \x ->  do
             case x of
                 (uncons -> Just ('-', name)) ->  fmap (map shelfId) $ updateShelfByName (\s -> s { flow = RightToLeft }) name
-                name ->  findShelfByName name
+                name ->  findShelfBySelector (parseSelector name)
             ) xs
     shelves <- mapM findShelf (concat idsS)
     let sorted = sortBy (comparing shelfName) shelves
@@ -156,132 +158,47 @@ findBoxByShelf shelf = do
   mapM findBox boxIds
 
 
-findBoxByStyle :: Text -> WH [BoxId s] s
-findBoxByStyle style = do
+findBoxByNameSelector :: (NameSelector (Box s)) -> WH [Box s] s
+findBoxByNameSelector selector = do
   boxIds <- toList <$> gets boxes
-  fmap (map boxId) (findByName (mapM findBox boxIds) (boxStyle)  style)
+  filterByNameSelector (mapM findBox boxIds) (boxStyle)  selector
 
-findShelfByBox :: Box' b => b s -> WH (Maybe (ShelfId s)) s
-findShelfByBox b = do
-  box <- findBox b
+findShelfByBox :: Box' box => box s -> WH (Maybe (ShelfId s)) s
+findShelfByBox box = do
+  box <- findBox box
   return $ boxShelf box
 
-findShelvesByBoxes :: Box' b => [b s] -> WH ([ShelfId s]) s
+findShelvesByBoxes :: Box' box => [box s] -> WH ([ShelfId s]) s
 findShelvesByBoxes boxes = fmap catMaybes (mapM findShelfByBox boxes)
 
 -- | find shelf by name and tag
-findShelfByName :: Text -> WH [ShelfId s] s
-findShelfByName name' = do
-  let (name, tagM) = extractTag name'
+findShelfBySelector :: Selector (Shelf s) -> WH [ShelfId s] s
+findShelfBySelector (Selector nameSel tagSels ) = do
   shelfIds <- toList <$> gets shelves
-  shelves0 <-  findByName (mapM findShelf shelfIds) shelfName  name
-  let shelves1 = filter (filterShelfByTag tagM) shelves0
+  shelves0 <-  filterByNameSelector (mapM findShelf shelfIds) shelfName  nameSel
+  let shelves1 = filter (applyTagSelectors tagSels shelfTag) shelves0
   return $ map shelfId shelves1
 
-filterShelfByTag :: Maybe Text -> Shelf s -> Bool
-filterShelfByTag tagM shelf = case tagM of
-  Nothing -> True
-  Just tag -> let (on,off) = tagToOnOff tag
-              in filterByTag on off (Map.fromList  $ (fmap (,mempty)) <$> maybeToList $ shelfTag shelf)
+matchName :: Text -> NameSelector s
+matchName name = NameMatches [MatchFull name]
 
-filterBoxByTag :: [(Text, [Text]) -> Bool] -> [(Text, [Text]) -> Bool] -> Box s -> Bool
-filterBoxByTag ons offs box =  filterByTag ons offs (boxTags box)
+filterShelfByTag :: [TagSelector (Shelf s)] -> Shelf s -> Bool
+filterShelfByTag selectors shelf = applyTagSelectors selectors shelfTag shelf
 
--- | all tags from the left must belong to the right
--- ex if box as tag A B C, A#B should match but not A#E
-filterByTag :: [(Text, [Text]) -> Bool] -> [(Text, [Text]) -> Bool] -> Tags -> Bool
-filterByTag on off tags = let
-  selectorMatched matcher = any matcher $ fmap (fmap toList) (Map.toList tags)
-  in all selectorMatched (on) -- 
-     && not (any selectorMatched (off))
-
-tagToOnOff :: Text -> ([(Text, [Text] ) -> Bool], [(Text, [Text]) -> Bool])
-tagToOnOff selector =  let
-  selectors = map ok $ splitOn "#" selector
-  ok (uncons -> Just ('-', t)) = Left t
-  ok t = Right t
-  on = rights selectors
-  off = lefts selectors
-  matchers ss = map matchTagGlob ss
-  in (matchers on, matchers off)
--- | Match a glob pattern against a property name and its value
-patternToMatchers :: Text -> [(Text  -> Bool)]
-patternToMatchers "" = [const True]
-patternToMatchers pat = map (\p v -> mkGlob p (v,[])) (splitOn "|" pat) where
-  mkGlob (uncons -> Just ('!', pat)) = not . mkGlob pat
-  mkGlob pat = matchTagGlob pat
-
--- | Pattern can either match the property name
--- a property value(s)
--- or both  ie when the tag is flatten to key=value1;value2 ...
--- Trying to only match component when possible should be much faster
--- key -- key only
--- key= key on something
--- =value one value
--- =+value 
--- key=value  key 
--- key=+value  key 
--- key=value1;value2  value1 and value2 only
--- key=+value1;value2  at least value1 and value2
-matchTagGlob :: Text -> (Text, [Text]) -> Bool
-matchTagGlob pat = case break ('=' ==) pat of
-  (onProp, "") -> \(prop, values ) -> null values && matchKey onProp prop
-  -- ^ tag without values
-  (onProp, (stripPrefix "=+" -> Just onValues)) -> \(prop, values) -> matchKey onProp prop && matchSome onValues values 
-  (onProp, (uncons -> Just ('=', onValues))) -> \(prop, values) -> matchKey onProp prop && matchAll onValues values 
-  -- ^ property, can have values
-  where matchSome onValues values = case applyPatternToValues (splitOn ";" onValues) values of
-                                      ([], _) -> True -- all pattern used
-                                      _ -> False
-        matchAll onValues values = case applyPatternToValues (splitOn ";" onValues) values of
-                                      ([], []) -> True -- all pats used and all values matched
-                                      _ -> False
-        matchKey "" = const True
-        matchKey key = matchGlob key
-
--- | Apply pattern and return left over (pattern not used and values not matched)
-applyPatternToValues :: [Text] -> [Text] -> ([Text -> Bool], [Text] )
-applyPatternToValues pats = applyPatternToValues' [] (map matchGlob pats)
-applyPatternToValues' failed [] values =  (failed, values)
-applyPatternToValues' failed pats [] =  (failed <> pats, [])
-applyPatternToValues' failed (pat:pats) values =
-  case partition pat values of 
-    ([], _) ->  -- no matches
-      applyPatternToValues'  (pat:failed) pats values
-    ((_:_), lefts) -> applyPatternToValues'  (failed) pats lefts
-    -- ^ at least one match. So lefts is smaller than values
-
-
+filterBoxByTag :: [TagSelector (Box s)]-> Box s -> Bool
+filterBoxByTag selectors box =  applyTagSelectors selectors boxTags box
 
 -- | Compiles a match against a glob pattern if Necessary
-specials = "*?[]{}"
-matchGlob :: Text -> (Text -> Bool)
-matchGlob "" = const True
-matchGlob s = 
-  if isGlob s
-  then (== s)
-  else let glob = Glob.compile (unpack s) -- TODO Use regex instead
-       in \v -> Glob.match glob (unpack v)
-                                         
-
+specials = "*?[]{}" :: String
 isGlob :: Text -> Bool
-isGlob s = case splitOn specials s of
-  [_no_split_] -> False
-  _ -> True
+isGlob s = case break (`List.elem` specials) s of
+  (_, uncons -> Just _) -> True
+  _ -> False
 
-findByName :: WH [a s] s -> (a s -> Text) -> Text -> WH [a s] s
-findByName objects objectName "" = objects
-findByName objects objectName name = do
-   let matchers = patternToMatchers name  --  map (Glob.match . Glob.compile) (splitOn "|" name) :: [Text -> Bool]
-   filter (\o -> any ($ (objectName o)) matchers) <$> objects
-
-splitBoxSelector :: Text -> (Text, Maybe Text,  BoxNumberSelector, Text, Maybe Text)
-splitBoxSelector pat = let
-  (styleMax, location') = break (=='/') pat
-  (style', nMax) = break (=='^') styleMax
-  (style, boxtag) = extractTag style'
-  (location, locTag) = extractTag location'
-  in  (style, boxtag, parseBoxNumberSelector (drop 1 nMax), drop 1 location, locTag)
+filterByNameSelector :: WH [a s] s -> (a s -> Text) -> (NameSelector (a s)) -> WH [a s] s
+filterByNameSelector objects objectName selector = do
+   let matcher= applyNameSelector selector objectName
+   filter matcher <$> objects
 
 -- | Syntax content^shelf^total
 parseBoxNumberSelector :: Text -> BoxNumberSelector
@@ -304,41 +221,33 @@ orTrue bs = or bs
 -- it needs to be before the shelf condition
 --
 -- syntax is  Box#tag^3/shelf#tag : 3 box from shelf shelf
-findBoxByStyleAndShelfNames :: Text -> WH [BoxId s] s
-findBoxByStyleAndShelfNames style'' = do
-  let (style, boxtag, nMax, location, locTag) = splitBoxSelector style''
-      inShelves name  = or $ patternToMatchers location <*> [name]
+findBoxByNameAndShelfNames :: BoxSelector s -> WH [BoxId s] s
+findBoxByNameAndShelfNames (BoxSelector boxSel shelfSel numSel) = do
       -- locations = splitOn "|" (drop 1 location)
       -- inShelves _ [] = True
       -- inShelves shelfName ((uncons -> Just ('!', pattern_)) = not $  Glob.match (Glob.compile pattern_) shelfName
       -- inShelves shelfName pattern_ = Glob.match (Glob.compile pattern_) shelfName
   -- all boxes matching name
-  allBoxesBeforeTag' <- findBoxByStyle style
-  allBoxesBeforeTag <- mapM findBox allBoxesBeforeTag'
-  -- filter by tag if any
-  let allBoxes = case boxtag of
-                  Nothing -> allBoxesBeforeTag
-                  Just bt -> do
-                    let  (on, off) = tagToOnOff bt
-                         fb = filterBoxByTag on off 
-                    filter  fb allBoxesBeforeTag
-
-  boxesWithShelfName <- mapM ( \b -> do
-      shelfIdM <- findShelfByBox (boxId b)
+  allBoxesBeforeTag <- findBoxByNameSelector (nameSelector boxSel)
+  let allBoxes = filter (applyTagSelectors (tagSelectors boxSel) boxTags) allBoxesBeforeTag
+  box'shelfms <- forM allBoxes $ \box -> do
+      shelfIdM <- findShelfByBox (boxId box)
       shelfM <- traverse findShelf shelfIdM
       let shelf = case shelfM of
-                    Just shelf'  -> if filterShelfByTag locTag shelf'
-                                              then shelfM
-                                              else Nothing
-                    _ -> shelfM
+                    Just shelf'  -> if applyNameSelector (nameSelector shelfSel) shelfName shelf'
+                                      && applyTagSelectors (tagSelectors shelfSel) shelfTag shelf'
+                                    then shelfM
+                                    else Nothing
+                    _ -> Nothing
 
-      return $ sequenceA (b, shelfName <$> shelf)
-      ) allBoxes
+      return $ (box, shelf)
 
 
-  let box'nameS =  [ bs | bs@(_, shelfName) <- catMaybes boxesWithShelfName, inShelves shelfName ]
+  -- we need the shelf name to sort box by shelves
+  let box'nameS =  [ (box, shelfName shelf) | (box, Just shelf) <- box'shelfms] 
+        
   -- filter boxes by number
-  return . map (boxId  . fst) $ limitByNumber nMax box'nameS
+  return . map (boxId  . fst) $ limitByNumber numSel box'nameS
 
 
 -- | Limit a box selections by numbers
@@ -383,10 +292,14 @@ defaultBoxStyling = BoxStyling{..} where
 emptyWarehouse = Warehouse mempty mempty mempty (const defaultBoxStyling) (const (Nothing, Nothing)) defaultBoxOrientations
 
 newShelf :: Text -> Maybe Text -> Dimension -> Dimension -> BoxOrientator -> FillingStrategy -> WH (Shelf s) s
-newShelf name tag minD maxD boxOrientator fillStrat = do
+newShelf name tagm minD maxD boxOrientator fillStrat = do
+        let tags = case splitOn "#" <$> tagm of
+              Nothing -> mempty
+              Just [""] -> mempty
+              Just tags' -> fromMaybe mempty $ modifyTags (map parseTagOperation tags') mempty
         warehouse <- get
         ref <- lift (newSTRef (error "should never been called. Base.hs:327"))
-        let shelf = Shelf (ShelfId ref) [] name tag minD maxD LeftToRight boxOrientator fillStrat
+        let shelf = Shelf (ShelfId ref) [] name tags minD maxD LeftToRight boxOrientator fillStrat
         lift $ writeSTRef ref shelf
 
         put warehouse { shelves = shelves warehouse  |> ShelfId ref }
@@ -476,8 +389,8 @@ updateDimFromTags box = case extractDimensions (_boxDim box) (boxTags box) of
 -- left or not.
 -- For a "real" move see moveBox
 assignShelf :: (Box' box,  Shelf' shelf) => Maybe (shelf s) -> box s -> WH () s
-assignShelf s b = do
-    box <- findBox b
+assignShelf s box = do
+    box <- findBox box
     oldShelfM <- traverse findShelf (boxShelf box)
     newShelfM <- traverse findShelf s
 
@@ -486,7 +399,7 @@ assignShelf s b = do
     when (oldShelfM /= newShelfM) $ do
       traverse (unlinkBox (boxId box)) oldShelfM
       traverse (linkBox (boxId box)) newShelfM
-      updateBox (\b -> b { boxShelf = shelfId `fmap` s }) box
+      updateBox (\box -> box { boxShelf = shelfId `fmap` s }) box
       return ()
 
 -- | Unlink a box from a shelf without
@@ -559,7 +472,7 @@ bestArrangement orientations shelves box = let
 {-
 dx = Dimension 192 100 145
 dn = Dimension 160 100 145
-b = Dimension 47 39 85
+box = Dimension 47 39 85
 os = [tiltedForward, tiltedFR]
 -}
 
@@ -595,18 +508,18 @@ fillShelf :: (Shelf' shelf)
                 , Maybe (Shelf s)
                 )  s
 fillShelf exitMode  s simBoxes0 = do
-    let simBoxes@(SimilarBy dim b bs) = sortSimilarOn boxRank simBoxes0
+    let simBoxes@(SimilarBy dim box bs) = sortSimilarOn boxRank simBoxes0
     shelf <- findShelf s
-    let boxes = b : bs
+    let boxes = box : bs
     -- first we need to find how much space is left
     lused <- lengthUsed shelf
     hused <- heightUsed shelf
     wused <- widthUsed shelf
-    case  (boxBreak b, lused*hused*wused > 0) of
+    case  (boxBreak box, lused*hused*wused > 0) of
       (Just StartNewShelf, True ) -> return (Just simBoxes, Nothing ) -- shelf non empty, start new shelf
       _ -> do
         boxo <- gets boxOrientations
-        let orientations = boxo b shelf
+        let orientations = boxo box shelf
         let (bestO, nl_, nw, nh, (lused', hused')) =
                             bestArrangement orientations
                                               [ (Dimension (max 0 (shelfL -l)) shelfW (max 0 (shelfH-h)), (l,h))
@@ -651,7 +564,7 @@ fillShelf exitMode  s simBoxes0 = do
             -- _ ->  fillShelfm exitMode  shelf leftm -- ^ try to fit what's left in the same shelf
 
     where shiftBox ori box offset = do
-            updateBox (\b -> b { orientation = ori
+            updateBox (\box -> box { orientation = ori
                                , boxOffset = offset}) box
             assignShelf (Just s) box
           -- fillShelfm x s Nothing = return (Nothing, Just s)
@@ -686,7 +599,7 @@ assignOffsetWithBreaks strat (Just previous) bs@(box:_) os@(offset:_) = case box
 -- Boxes are move in sequence and and try to fill shelve
 -- in sequence. If they are not enough space the left boxes
 -- are returned.
-moveBoxes :: (Box' b , Shelf' shelf) => ExitMode -> [b s] -> [shelf s] -> WH [Box s] s
+moveBoxes :: (Box' box , Shelf' shelf) => ExitMode -> [box s] -> [shelf s] -> WH [Box s] s
 
 moveBoxes exitMode bs ss = do
   boxes <- mapM findBox bs
@@ -750,7 +663,7 @@ rearrangeShelves ss = do
     -- first we need to remove the boxes from their current location
     boxes <- concat `fmap` mapM findBoxByShelf ss
     let nothing = headEx $ Nothing: map Just ss -- trick to force type
-    mapM_ (\b -> assignShelf  nothing b ) boxes
+    mapM_ (\box -> assignShelf  nothing box ) boxes
     left <- moveBoxes ExitLeft boxes ss
     s0 <- defaultShelf
     mapM (assignShelf (Just s0)) left
@@ -786,9 +699,9 @@ aroundArrangement arrangement boxes shelves = do
 
 
 
-updateBox :: (Box' b) =>  (Box s ->  Box s) -> b s-> WH (Box s) s
-updateBox f b = do
-    box <- findBox b
+updateBox :: (Box' box) =>  (Box s ->  Box s) -> box s-> WH (Box s) s
+updateBox f box = do
+    box <- findBox box
     let box' = f box
     lift $ writeSTRef (getRef box') box'
     return box'
@@ -802,7 +715,7 @@ updateShelf f s =  do
 
 
 updateShelfByName :: (Shelf s -> Shelf s) -> Text -> WH [Shelf s] s
-updateShelfByName f n = findShelfByName n >>= mapM (updateShelf f)
+updateShelfByName f n = findShelfBySelector (Selector (NameMatches [MatchFull n]) [] ) >>= mapM (updateShelf f)
 
 
 -- | Add or remove the given tags to the give box
@@ -856,9 +769,9 @@ updateBoxTags tags0 box = do
   updateBox (updateBoxTags' tags) box
 
 boxStyleAndContent :: Box s -> Text
-boxStyleAndContent b = case boxContent b of
-  "" -> boxStyle b
-  c -> boxStyle b ++ "-" ++ c
+boxStyleAndContent box = case boxContent box of
+  "" -> boxStyle box
+  c -> boxStyle box ++ "-" ++ c
   
 -- | Box coordinate as if the shelf was full of this box
 -- give the offest divide by the dimension of the box + 1
@@ -883,13 +796,13 @@ expandAttribute' (stripPrefix "${shelfname}" -> Just xs) = Just $ \box ->  do
     Just sId -> do
       shelf <- findShelf sId
       return $ shelfName shelf ++ ex
-expandAttribute' (stripPrefix "${shelftag}" -> Just xs) = Just $ \box -> do
+expandAttribute' (stripPrefix "${shelftags}" -> Just xs) = Just $ \box -> do
   ex <-  expandAttribute box xs
   case boxShelf box of
     Nothing -> return ex
     Just sId -> do
       shelf <- findShelf sId
-      return $ fromMaybe "" (shelfTag shelf) ++ ex
+      return $ (intercalate "#" . flattenTags $ shelfTag shelf) <> ex
 expandAttribute' (stripPrefix "${fit}" -> Just xs) = Just $ \box -> do
   ex <-  expandAttribute box xs
   case boxShelf box of
@@ -929,7 +842,7 @@ expandAttribute' (stripPrefix "$[" -> Just xs') | (pat', uncons -> Just (_,xs'))
                                ex <- expandAttribute box xs'
                                pat <- expandAttribute box pat'
                                return $ maybe ex (<> ex) (boxTagValuem box pat)
-expandAttribute' (uncons -> Just (x, xs)) = fmap (\f b -> (cons x) <$> f b) (expandAttribute' xs)
+expandAttribute' (uncons -> Just (x, xs)) = fmap (\f box -> (cons x) <$> f box) (expandAttribute' xs)
 expandAttribute' "" = Nothing
 
 replaceSlash '/' = '\''
@@ -992,8 +905,8 @@ usedDepth :: Shelf' shelf => shelf s -> WH (Text, Double) s
 usedDepth s = do
   boxes <- findBoxByShelf s
   return $ List.maximumBy (comparing snd) (("<empty>",0)
-                         :[(boxStyle b, dWidth (boxOffset' b))
-                   | b <- boxes
+                         :[(boxStyle box, dWidth (boxOffset' box))
+                   | box <- boxes
                    ])
 
 
@@ -1006,16 +919,16 @@ shelfBoxes = do
     ss <- mapM findShelf =<< (toList <$> gets shelves)
     sbsS <- mapM (\s -> do bs <- findBoxByShelf s ; return (s, bs)) ss
 
-    return [(s, b) | (s, bs) <- sbsS, b <- bs]
+    return [(s, box) | (s, bs) <- sbsS, box <- bs]
 
 
 -- * Box corners operation
   {-
 extremeCorners :: [Box s] -> [(Double, Double)]
 extremeCorners boxes = let
-    cs =  [(l+ol, h+oh) | b <- boxes
-                        , let Dimension l _ h = boxDim b
-                        , let Dimension ol _ oh = boxOffset b
+    cs =  [(l+ol, h+oh) | box <- boxes
+                        , let Dimension l _ h = boxDim box
+                        , let Dimension ol _ oh = boxOffset box
            ]
     -- sort corner by
     cs'  = reverse cs
@@ -1050,3 +963,121 @@ extractTag name = let (prefix, suffix) = break (=='#') name
 extractTags :: Text -> (Text, [Text])
 extractTags name = (style, maybe [] (splitOn "#") tagM) where
   (style, tagM) = extractTag name
+
+-- * Selectors
+-- ** Applying
+-- | The phantom type guarantie that we are selecting the correct item
+applyNameSelector :: NameSelector a -> (a -> Text) -> a -> Bool
+applyNameSelector (NameMatches []) _ _ = True
+applyNameSelector (NameMatches pats) name o = any (flip applyPattern (name o)) pats
+applyNameSelector (NameDoesNotMatch pats) name o = not $ any (flip applyPattern (name o)) pats
+
+
+applyTagSelector :: TagSelector s -> Tags -> Bool
+applyTagSelector (TagHasKey pat) tags = case pat of
+  MatchFull key -> key `member` tags
+  MatchAnything -> True
+  MatchGlob glob -> not (null ks) where ks = filter (Glob.match glob . unpack) (keys tags)
+applyTagSelector (TagHasNotKey pat) tags = not $ applyTagSelector (TagHasKey pat) tags
+applyTagSelector (TagIsKey pat) tags = case pat of
+  MatchFull key -> lookup key tags == Just mempty
+  MatchAnything -> True
+  MatchGlob glob ->  case filter (Glob.match glob . unpack) (keys tags) of
+    [__one] -> True
+    _ -> False
+applyTagSelector (TagIsKeyAndValues pat valuePats) tags = case pat of
+  MatchFull key | Just values <- lookup key tags -> matchesAllAndAll valuePats  values
+  MatchAnything -> True
+  MatchGlob glob ->  case filter (Glob.match glob . unpack) (keys tags) of
+    [key] | Just values <- lookup key tags -> matchesAllAndAll valuePats values
+    _ -> False
+  _ -> False
+applyTagSelector (TagHasKeyAndValues pat valuePats) tags = case pat of
+  MatchFull key | Just values <- lookup key tags -> matchesAllAndSome valuePats  values
+  MatchAnything -> True
+  MatchGlob glob ->  case filter (Glob.match glob . unpack) (keys tags) of
+    [key] | Just values <- lookup key tags -> matchesAllAndSome valuePats values
+    _ -> False
+  _ -> False
+applyTagSelector (TagHasValues valuePat) tags = let
+  tagValues = mconcat (Map.elems tags)
+  in matchesAllAndSome valuePat tagValues
+applyTagSelector (TagHasNotValues valuePat) tags = not $ applyTagSelector (TagHasValues valuePat) tags
+applyTagSelector (TagHasKeyAndNotValues key valuePat) tags = not (applyTagSelector (TagHasKeyAndValues key valuePat) tags)
+
+applyTagSelectors :: [TagSelector s] -> (s -> Tags) -> s -> Bool
+applyTagSelectors [] _ _ = True
+applyTagSelectors selectors tags o = all (flip applyTagSelector (tags o)) selectors
+
+-- | Check all pattern are matched and matches all values
+matchesAllAndAll :: [MatchPattern] -> Set Text -> Bool
+matchesAllAndAll pats vals = case unmatched pats vals of
+  ([], []) -> True
+  _ -> False 
+-- | Check all pattern matches a value (but not all values have to be matches)
+matchesAllAndSome :: [MatchPattern] -> Set Text -> Bool
+matchesAllAndSome pats val = case unmatched pats val of
+  ([], _) -> True
+  _ -> False
+
+unmatched :: [MatchPattern] -> Set Text -> ([MatchPattern], [Text])
+unmatched pats0 valSet = go [] pats0 (Set.toList valSet) where
+  go unused pats [] = (pats <> unused , [])
+  go unused [] vals = (unused, vals)
+  go unused (pat:pats) vals = case List.partition (applyPattern pat) vals of
+    ([], _) -> go (pat:unused) pats vals
+    -- ^ doesn't match anything, add to unused
+    (_, vals') -> go unused pats vals'
+
+    
+  
+
+-- ** Parsing
+-- | split on |
+parseSelector :: Text -> Selector a
+parseSelector s = case splitOn "#" s of
+  [] -> Selector(NameMatches []) []
+  (name:tags) -> Selector (parseNameSelector name) (mapMaybe parseTagSelector tags)
+
+parseNameSelector selector = let
+  (constr, pat) = case uncons selector of
+       Just ('!', sel) -> (,) NameDoesNotMatch sel
+       _ ->  (,) NameMatches selector
+  in constr $ map parseMatchPattern (splitOn "|" pat)
+
+parseTagSelector :: Text -> Maybe (TagSelector s)
+parseTagSelector tag | null tag =  Nothing
+parseTagSelector tag = Just $ case break ('='  ==) tag of
+  (key, "")  -> case uncons key of
+                Just ('-', nokey) -> TagHasNotKey $ parseMatchPattern nokey
+                Just ('!', nokey) -> TagHasNotKey $ parseMatchPattern nokey
+                _ -> TagIsKey $ parseMatchPattern key
+  ("", stripPrefix "=-" -> Just values) -> TagHasNotValues  (mkValues values)
+  ("", stripPrefix "=!" -> Just values) -> TagHasNotValues  (mkValues values)
+  ("", stripPrefix "=" -> Just values) -> TagHasValues  (mkValues values)
+  -- ("", stripPrefix "=!" -> Just values) -> TagHasNotValues  (mkValues values)
+  (key, stripPrefix "=+" -> Just values) -> TagHasKeyAndValues (parseMatchPattern key) (mkValues values)
+  (key, stripPrefix "=-" -> Just values) -> TagHasKeyAndNotValues (parseMatchPattern key) (mkValues values)
+  (key, stripPrefix "=!" -> Just values) -> TagHasKeyAndNotValues (parseMatchPattern key) (mkValues values)
+  (key, stripPrefix "=" -> Just values) -> TagIsKeyAndValues (parseMatchPattern key) (mkValues values)
+  where mkValues = map parseMatchPattern . fromList . splitOn ";"
+  
+parseMatchPattern :: Text -> MatchPattern
+parseMatchPattern "" = MatchAnything
+parseMatchPattern pat | isGlob pat= MatchGlob (Glob.compile $ unpack pat)
+parseMatchPattern pat = MatchFull pat
+  
+
+parseBoxSelector :: Text -> BoxSelector s
+parseBoxSelector selector = let
+  (box'numbers, drop 1 -> location) = break (=='/') selector
+  (box, drop 1 ->numbers) = break (=='^') box'numbers
+  in BoxSelector (parseSelector box)
+              (parseSelector location)
+              (parseBoxNumberSelector numbers)
+
+applyPattern :: MatchPattern -> Text -> Bool
+applyPattern pat value = case pat of
+  MatchAnything -> True
+  MatchFull value0 -> value == value0
+  MatchGlob glob -> Glob.match glob (unpack value)

@@ -41,7 +41,7 @@ readShelves filename = do
                             _types = (first, description) :: (Int, Text)
                         in forM [first..last'] $ \i ->
                                         let shelfName = name <> "." <> tshow i
-                                        in newShelf shelfName Nothing dim dim' DefaultOrientation ColumnFirst
+                                        in newShelf shelfName mempty dim dim' DefaultOrientation ColumnFirst
 
             concat `fmap` (Vec.toList `fmap` v)
 
@@ -183,7 +183,7 @@ evalExpr _ (ValE v) = return v
 
 evalExpr shelfName (RefE ref accessor) = do
   let refName = transformRef shelfName ref
-  ids <- findShelfByName refName
+  ids <- findShelfBySelector (Selector (NameMatches [MatchFull refName]) [])
   shelf <- case ids of
               [] -> error $ "Can't find shelf " ++ unpack refName ++ " when evaluating formula"
               [id] ->  findShelf id
@@ -219,10 +219,10 @@ dimToFormula name (ls, ws, hs) = do
 -- | Create a new shelf using formula
 newShelfWithFormula :: (WH Dimension s) -> (WH Dimension s) -> BoxOrientator -> FillingStrategy -> Text -> Maybe Text ->  WH (Shelf s) s
 
-newShelfWithFormula dimW dimW' boxo strategy name tag = do
+newShelfWithFormula dimW dimW' boxo strategy name tags = do
   dim <- dimW
   dim' <- dimW'
-  newShelf name tag dim dim' boxo strategy
+  newShelf name tags dim dim' boxo strategy
 
 -- | Read a csv described a list of box with no location
 -- boxes are put in the default location and tagged with the new tag
@@ -258,7 +258,7 @@ readClones defaultTags filename = do
                     content = if null content0 then Nothing else Just content0
                 s0 <- incomingShelf
                 
-                boxIds <- findBoxByStyleAndShelfNames selector
+                boxIds <- findBoxByNameAndShelfNames selector
                 boxes <- mapM findBox boxIds
                 let box'qtys =  [(box, q) | box <- boxes , q <- [1..qty :: Int]] -- cross product
                 forM box'qtys  $ \(box, i) -> do
@@ -278,7 +278,7 @@ readDeletes filename = do
   content <- readFile filename
   return $ do -- IO
       boxess <- forM (lines content) $ \selector -> do -- WH
-        boxes <- findBoxByStyleAndShelfNames selector
+        boxes <- findBoxByNameAndShelfNames (parseBoxSelector selector)
         deleteBoxes boxes
       return (concat boxess)
 
@@ -319,22 +319,22 @@ readMovesAndTagsWith  rowProcessor filename = do
           return $ concat (Vec.toList v)
 
 -- | Move and tag boxes.
--- If a location is provided, only boxes which have been moved will be tagged -
+-- If a location (destination) is provided, only boxes which have been moved will be tagged -
 -- leftovers (boxes not fitting ) will be untagged boxes which haven't
 -- That way, a tag can either be set on succesfully moved boxed
 -- or set on failure (by providing a negative tag).
 -- This tagging/untagging ensure that after a move only the moved boxes
 -- have the expecting tag (regardless of the previous tags on the boxes)
-processMovesAndTags :: (Text, [Text], Maybe Text) -> WH [Box s] s
+processMovesAndTags :: (BoxSelector s, [Text], Maybe Text ) -> WH [Box s] s
 processMovesAndTags (style, tags, locationM) = do
-  boxes0 <- findBoxByStyleAndShelfNames style
+  boxes0 <- findBoxByNameAndShelfNames style
   leftoverss <- forM locationM $ \location' -> do
     let (location, exitMode) = case uncons location' of
                                   Just ('^', loc) -> (loc, ExitOnTop)
                                   _ -> (location', ExitLeft)
-    let locations = splitOn "|" location
-    shelvesS <- mapM findShelfByName locations
-    aroundArrangement (moveBoxes exitMode) boxes0 ((nub.concat) shelvesS)
+    -- let locations = splitOn "|" location
+    shelves <- findShelfBySelector (parseSelector location)
+    aroundArrangement (moveBoxes exitMode) boxes0 shelves
   boxes <- mapM findBox boxes0
   case tags of
     [] -> return boxes
@@ -397,14 +397,24 @@ instance Csv.FromField (Either Rg.Regex (Box s -> WH Rg.Regex s)) where
               r'  <- expandAttribute box r
               Rg.makeRegexM (unpack r')
 
+instance Csv.FromField (BoxSelector a) where
+  parseField s = do
+    x <- Csv.parseField s
+    return $ parseBoxSelector x
+    
+instance Csv.FromField (Selector a) where
+  parseField s = do
+    x <- Csv.parseField s
+    return $ parseSelector x
+
 -- | Read transform tags
 readTransformTags :: FilePath -> IO (WH [Box s] s)
 readTransformTags = readMovesAndTagsWith (\(style, tagPat, tagSub) -> transformTags style tagPat tagSub)
 
  -- | Apply {transformTagsFor} to the matching boxes
-transformTags :: Text -> RegexOrFn s -> Text -> WH [Box s] s
+transformTags :: BoxSelector s -> RegexOrFn s -> Text -> WH [Box s] s
 transformTags style tagPattern tagSub = do
-  boxes0 <- findBoxByStyleAndShelfNames style
+  boxes0 <- findBoxByNameAndShelfNames style
   boxes <- mapM findBox boxes0
   catMaybes <$> mapM (transformTagsFor tagPattern tagSub) boxes
   
@@ -450,7 +460,7 @@ readStockTake defaultTags newBoxOrientations splitStyle filename = do
                                    boxOrs -- create box in the "ERROR self)
                                    (defaultTags ++ tags)
                         let boxes = concat boxesS
-                        shelves <- (mapM findShelf) =<< findShelfByName shelf
+                        shelves <- (mapM findShelf) =<< findShelfBySelector (Selector (NameMatches [MatchFull shelf]) [])
                         leftOvers <- moveBoxes ExitLeft boxes shelves
 
                         let errs = if not (null leftOvers)
@@ -479,22 +489,17 @@ readOrientationRules defOrs filename = do
     case Csv.decode  Csv.HasHeader csvData of
         Left err ->  error err -- do putStrLn err; return (\s b -> Nothing)
         Right (rows) -> do
-            let rules = fmap (\ (boxSelectors, orientations) ->
-                        let (style, boxTagM, _, location, locationTagM) = splitBoxSelector boxSelectors
-                            validate shelf box = let
-                              boxPatterns = patternToMatchers style
-                              locPatterns = patternToMatchers location
-                              ors = parseOrientationRule defOrs orientations
-                              (on, off) = maybe ([],[]) tagToOnOff boxTagM
-
-                              in if and [ orTrue $ boxPatterns <*> [boxStyle box]
-                                        , orTrue $ locPatterns <*> [shelfName shelf]
-                                        , filterShelfByTag locationTagM shelf
-                                        , filterBoxByTag on off box
-                                        ]
-                                  then Just ors
-                                  else Nothing
-                         in validate
+            let rules = fmap (\(boxSelectors, orientations) ->
+                        let
+                            ors = parseOrientationRule defOrs orientations
+                            (BoxSelector boxSel shelfSel _) = parseBoxSelector boxSelectors
+                            validate shelf box = if applyNameSelector (nameSelector boxSel) boxStyle box
+                                                    && applyTagSelectors (tagSelectors boxSel) boxTags box
+                                                    && applyNameSelector (nameSelector shelfSel) shelfName shelf
+                                                    && applyTagSelectors (tagSelectors shelfSel) shelfTag shelf
+                                                 then Just ors
+                                                 else Nothing
+                        in validate
                         ) (Vec.toList rows)
                 fn box shelf = case catMaybes $ [rule shelf box | rule <- rules ] of
                                   [] -> Nothing
