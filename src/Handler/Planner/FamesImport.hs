@@ -10,6 +10,7 @@ import Planner.Internal
 import WarehousePlanner.Report
 import qualified Handler.WH.PackingList as PL
 import qualified Handler.WH.Boxtake as Box
+import qualified Handler.WH.Boxtake.Adjustment as Box
 import qualified Handler.Planner.Exec as Exec
 import qualified Handler.Items.Index as I
 import qualified Handler.Items.Common as I
@@ -37,6 +38,7 @@ mkYesodSubData "FI" [parseRoutes|
 /activeBoxes FIActiveBoxes
 /boxStatus/active/#Text FIBoxStatusActive
 /boxStatus/all/#Text FIBoxStatusAll
+/boxStatus/live/#Text FIBoxStatusLive
 /file/+[FilePath] FILocalFile
 /plannerReport FIPlannerReport:
   /tags/#FilePath/#Text TagReport
@@ -68,6 +70,7 @@ importFamesDispatch (Section ImportH (Right content) _) = do
           FIActiveBoxes -> ret $ importActiveBoxtakes tags
           FIBoxStatusActive prefix -> ret $ importBoxStatus ActiveBoxes prefix tags
           FIBoxStatusAll prefix -> ret $ importBoxStatus AllBoxes prefix tags
+          FIBoxStatusLive prefix -> ret $ importBoxStatusLive AllBoxes prefix tags
           FILocalFile path -> readLocalFiles (intercalate "/" path) tags
           FIPlannerReport report -> case report of
             TagReport path reportParam -> executeReport TagsH path reportParam
@@ -255,7 +258,32 @@ indexParam = I.IndexParam{..} where
   ipWebPriceStatusFilter = Nothing
   ipBaseVariation= Nothing
 
+-- ** Live box status adjusted with realive QOH
+importBoxStatusLive :: WhichBoxes -> Text -> [Text] -> Handler Section
+importBoxStatusLive which prefix tags = do
+  let param =  Box.AdjustmentParam{..}
+      aStyleFilter = Nothing
+      aLocation = ""
+      aSkipOk = False
+      aShowDetails = True
+      aStyleSummary =  False
+  infos <- runDB $ Box.loadAdjustementInfo  param
+  let summaries = toList infos >>= Box.computeInfoSummary
+  let header = "selector,tags"
+  let content = header:rows
+      rows = [  "#barcode=" <> boxtakeBarcode
+               <> ","
+               <> intercalate "#" [ prefix <> "box-live-status=" <> tshow (Box.boxStatus statusbox)
+                                  ]
+             | summary <- summaries
+             , statusbox <- Box.ssBoxes summary
+             , let (Entity _ Boxtake{..}, _) = Box.usedSubject statusbox
+             ]
 
+  return $ Section (TagsH) (Right content) ("* Tags from box status live")
+
+  
+  
 -- ** Website color
 -- | Transform colour name with RGB value
 importColourDefinitions :: Text -> Handler Section
