@@ -32,7 +32,7 @@ readShelves filename = do
     csvData <- BL.readFile filename
 
     case Csv.decode  Csv.HasHeader csvData of
-        Left err -> error err --  do putStrLn (pack err); return (return [])
+        Left err ->  error $ "File:" <> filename <> " " <>  err -- putStrLn err >> return (return [])
         Right (rows) -> return $ do
             let v = Vec.forM rows $ \(name, first, last, description, l, w, h) ->
                         let dim = Dimension l w h
@@ -60,7 +60,7 @@ readShelves2 defaultOrientator filename = do
     csvData <- BL.readFile filename
 
     case Csv.decode  Csv.HasHeader csvData of
-        Left err ->  error err -- do putStrLn err; return (return [])
+        Left err ->  error $ "File:" <> filename <> " " <>  err -- putStrLn err >> return (return [])
         Right (rows) -> return $ do
             v <- Vec.forM rows $ \(name, description, l, w, h, shelfType) ->
                         let dim = (,,) l w h
@@ -231,7 +231,7 @@ readBoxes defaultTags boxOrientations splitter filename = do
     csvData <- BL.readFile filename
 
     case Csv.decode  Csv.HasHeader csvData of
-        Left err -> error err  -- do putStrLn err; return (return [])
+        Left err ->  error $ "File:" <> filename <> " " <>  err -- putStrLn err >> return (return [])
         Right rows -> return $ do
             let v = Vec.forM rows $ \(style', qty, l, w, h) -> do
                         let dim = Dimension l w h
@@ -251,7 +251,7 @@ readClones :: [Text] -> FilePath-> IO (WH [Box s] s)
 readClones defaultTags filename = do
     csvData <- BL.readFile filename
     case Csv.decode  Csv.HasHeader csvData of
-        Left err ->  error err -- do putStrLn err; return (return [])
+        Left err ->  error $ "File:" <> filename <> " " <>  err -- putStrLn err >> return (return [])
         Right rows -> return $ do  -- IO
           cloness <- forM (Vec.toList rows) $ \(selector, qty, content'tags) -> do -- WH
                 let (content0, tags) = extractTags content'tags
@@ -313,7 +313,7 @@ readMovesAndTagsWith :: Csv.FromRecord r => (r -> WH [Box s] s) -> FilePath -> I
 readMovesAndTagsWith  rowProcessor filename = do
     csvData <- BL.readFile filename
     case Csv.decode  Csv.HasHeader csvData of
-        Left err ->  error err -- putStrLn err >> return (return [])
+        Left err ->  error $ "File:" <> filename <> " " <>  err -- putStrLn err >> return (return [])
         Right (rows) -> return $ do
           v <- Vec.forM rows rowProcessor
           return $ concat (Vec.toList v)
@@ -433,7 +433,7 @@ readStockTake :: [Text] -> [Orientation] -> (Text -> (Text, Text)) -> FilePath -
 readStockTake defaultTags newBoxOrientations splitStyle filename = do
     csvData <- BL.readFile filename
     case Csv.decode  Csv.HasHeader csvData of
-        Left err ->  error err -- do putStrLn err; return (return ([], []))
+        Left err ->  error $ "File:" <> filename <> " " <>  err -- putStrLn err >> return (return [])
         Right (rowsV) -> return $ do
             -- we get bigger box first : -l*w*h
             let rows = [ ((qty, content, tags),  (-(l*w*h), shelf, style', l,w,h, if null os then "%" else os))
@@ -487,7 +487,7 @@ readOrientationRules :: [Orientation] -> FilePath -> IO (Box s -> Shelf s -> May
 readOrientationRules defOrs filename = do
     csvData <- BL.readFile filename
     case Csv.decode  Csv.HasHeader csvData of
-        Left err ->  error err -- do putStrLn err; return (\s b -> Nothing)
+        Left err ->  error $ "File:" <> filename <> " " <>  err -- putStrLn err >> return (return [])
         Right (rows) -> do
             let rules = fmap (\(boxSelectors, orientations) ->
                         let
