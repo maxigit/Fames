@@ -17,7 +17,7 @@ import qualified Handler.Items.Common as I
 import qualified Items.Internal as I
 import qualified Items.Types as I
 import Database.Persist.Sql (toSqlKey)
-import Data.Conduit.List (consume)
+import Data.Conduit.List (consume, sourceList)
 import Data.Text(splitOn)
 import System.FilePath.Glob(globDir1, compile, match)
 import Database.Persist.MySQL     (Single(..), rawSql)
@@ -36,6 +36,7 @@ data FI
 mkYesodSubData "FI" [parseRoutes|
 /packingList/#Int64 FIPackingList
 /activeBoxes FIActiveBoxes
+/activeBoxes/live FIActiveBoxesLive
 /boxStatus/active/#Text FIBoxStatusActive
 /boxStatus/all/#Text FIBoxStatusAll
 /boxStatus/live/#Text FIBoxStatusLive
@@ -68,6 +69,7 @@ importFamesDispatch (Section ImportH (Right content) _) = do
       Just fi -> case fi of
           FIPackingList plId -> ret $ importPackingList (toSqlKey plId) tags
           FIActiveBoxes -> ret $ importActiveBoxtakes tags
+          FIActiveBoxesLive -> ret $ importActiveBoxtakesLive tags
           FIBoxStatusActive prefix -> ret $ importBoxStatus ActiveBoxes prefix tags
           FIBoxStatusAll prefix -> ret $ importBoxStatus AllBoxes prefix tags
           FIBoxStatusLive prefix -> ret $ importBoxStatusLive AllBoxes prefix tags
@@ -283,6 +285,29 @@ importBoxStatusLive which prefix tags = do
   return $ Section (TagsH) (Right content) ("* Tags from box status live")
 
   
+importActiveBoxtakesLive :: [Text] -> Handler Section
+importActiveBoxtakesLive tags = do
+  today <- todayH
+  let param =  Box.AdjustmentParam{..}
+      aStyleFilter = Nothing
+      aLocation = ""
+      aSkipOk = False
+      aShowDetails = True
+      aStyleSummary =  False
+  infos <- runDB $ Box.loadAdjustementInfo  param
+  let summaries = toList infos >>= Box.computeInfoSummary
+      boxes = [ boxE
+              | summary <- summaries
+              , statusbox <- Box.ssBoxes summary
+              , let (boxE, _) = Box.usedSubject statusbox
+              , Box.boxStatus statusbox /= Box.BoxInactive
+              ]
+      source  =  Box.boxSourceToCsv (sourceList boxes)
+  content <- (runDB $ runConduit $ source .| consume)
+  return $ Section (StocktakeH tags) (Right content) ("* Live Stocktake from Fames DB [" <> tshow today <> "]")
+  
+
+
   
 -- ** Website color
 -- | Transform colour name with RGB value
