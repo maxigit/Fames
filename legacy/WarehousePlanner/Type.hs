@@ -109,9 +109,30 @@ data Warehouse s = Warehouse { boxes :: Seq (BoxId s)
                            , boxStyling :: Box s -> BoxStyling
                            , shelfColors :: Shelf s -> (Maybe (Colour Double), Maybe (Colour Double))
                            , boxOrientations :: Box s -> Shelf s -> [(Orientation, Int, Int)]
+                           , whCacheM :: Maybe (STRef s (OperationCache s))
+                           -- ^ a cache. We use maybe to that an empty warehouse can be created "purely"
+                           -- Should probably be part of of the WH 
+                           
              } -- deriving Show
 type WH a s = StateT  (Warehouse s) (ST s) a
 data ExitMode = ExitOnTop | ExitLeft deriving (Show, Eq, Ord, Enum)
+
+-- | Misc data to speed up warehouse operations
+-- depending on the value, it should be setup by the caller or the callee
+data OperationCache s  = OperationCache
+  { propertyStats :: Map Text PropertyStats
+  }
+emptyOperationCache = OperationCache mempty
+
+-- | Statistics relative to a property 
+-- used valued and number of values
+-- this is used to convert a property value to its rank or index
+-- The rank can be used to chose a colour in a color scale.
+data PropertyStats = PropertyStats
+   { totalCount :: Int
+   , valueRank :: Map Text Int -- sorted by occurence
+   , valueIndex :: Map Text Int -- sorted alpha
+   } deriving Show
 
 type Corner = (Double, Double)
 

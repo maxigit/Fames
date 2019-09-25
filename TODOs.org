@@ -1,5 +1,5 @@
 - Change type of Text to NameSelector to report function
-* TODO Planner [7/15]
+* TODO Planner [7/17]
   - [X] Operator name in box status
   - [X] Box status for ALL boxes (not just inactive)
 Allows to see operator or date of boxes which are dead but still on the planner
@@ -16,6 +16,14 @@ Add in dropdown menu
     - [X] Web colour Base/trim hex
     - [X] Item category ?
 Usefull for batches
+  - [ ] ColorMap
+    - [ ] load colour map files
+    - [ ] add brewer and scales
+    - [ ] colour for shelves (so metallic are mettalic)
+  - [ ] Transform properties
+    - [ ] add count
+    - [ ] % of count (so that we can use scales
+    - [ ] date : minus today, log ?
   - [ ] Box open, quantity ? 
   - [ ] Live Boxes  -- apply box adjusment virtually ww 
   - [ ] Box of a given style or stu

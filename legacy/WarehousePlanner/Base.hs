@@ -74,6 +74,7 @@ import WarehousePlanner.Type
 import WarehousePlanner.SimilarBy
 import Diagrams.Prelude(white, black)
 import Data.Text (splitOn, uncons, stripPrefix)
+import Data.Char (isLetter)
 
 import qualified System.FilePath.Glob as Glob
 
@@ -289,7 +290,7 @@ defaultBoxStyling = BoxStyling{..} where
   barTitle = Nothing
   displayBarGauge = True
 
-emptyWarehouse = Warehouse mempty mempty mempty (const defaultBoxStyling) (const (Nothing, Nothing)) defaultBoxOrientations
+emptyWarehouse = Warehouse mempty mempty mempty (const defaultBoxStyling) (const (Nothing, Nothing)) defaultBoxOrientations Nothing
 
 newShelf :: Text -> Maybe Text -> Dimension -> Dimension -> BoxOrientator -> FillingStrategy -> WH (Shelf s) s
 newShelf name tagm minD maxD boxOrientator fillStrat = do
@@ -842,8 +843,28 @@ expandAttribute' (stripPrefix "$[" -> Just xs') | (pat', uncons -> Just (_,xs'))
                                ex <- expandAttribute box xs'
                                pat <- expandAttribute box pat'
                                return $ maybe ex (<> ex) (boxTagValuem box pat)
+
+expandAttribute' (stripStatFunction "$rank" -> Just (arg, prop, xs)) = Just $ \box -> do
+  expandStatistic valueRank arg box prop xs
+expandAttribute' (stripStatFunction  "$index" -> Just (arg, prop, xs)) = Just $ \box -> do
+  expandStatistic valueIndex arg box prop xs
 expandAttribute' (uncons -> Just (x, xs)) = fmap (\f box -> (cons x) <$> f box) (expandAttribute' xs)
 expandAttribute' "" = Nothing
+
+expandStatistic :: (PropertyStats -> Map Text Int) -> Maybe (Char, Int) -> Box s -> Text -> Text -> WH Text s
+expandStatistic fn arg box prop xs = do
+  let values = boxTagValues box prop
+  stats <- propertyStatsFor prop
+  ex <- expandAttribute box xs
+  return $ case values of
+    [] -> ex
+    (value:_) -> let
+      adjust i = case arg of
+        Just ('-', n) -> min i n
+        Just ('%', n) -> (i-1 `mod` n) + 1
+        Just ('^', n) -> round $ fromIntegral i / fromIntegral (totalCount stats) * fromIntegral n
+        _ -> i
+      in maybe ex (\i -> tshow (adjust i) <> ex) (lookup value $ fn stats) 
 
 replaceSlash '/' = '\''
 replaceSlash c  = c
@@ -851,6 +872,28 @@ replaceSlash c  = c
 defaultPriority :: Int
 defaultPriority = 100
 defaultPriorities = (defaultPriority, defaultPriority, defaultPriority)
+
+-- | Parse strat function name and its parameter
+-- example
+--  - $rank
+--  - $rank-100 - normalize to 100
+--  - $rank^100 - cut to 99 and everything above = 100
+--  - $rank%100 - modulo 100
+
+stripStatFunction :: Text -- ^ prefix
+                  -> Text -- ^ text  to parse
+                  -> Maybe (Maybe (Char, Int) -- operator number
+                           , Text
+                           , Text) -- left over
+stripStatFunction prefix (stripPrefix prefix -> Just xs')  = do
+  let (t', uncons -> Just (_, xs)) = break (==']') xs'
+      (pre, prop0) = break (=='[') t'
+  (_, prop) <- uncons prop0
+  case pre of
+    (uncons -> Just (op, argtext)) | not (isLetter op) , Just arg <- readMay argtext -> Just (Just (op, arg), prop, xs)
+    "" -> Just (Nothing, prop, xs)
+    _ -> Nothing
+stripStatFunction _ _ = Nothing
 
 printDim :: Dimension -> Text
 printDim  (Dimension l w h) = pack $ printf "%0.1fx%0.1fx%0.1f" l w h
@@ -1081,3 +1124,63 @@ applyPattern pat value = case pat of
   MatchAnything -> True
   MatchFull value0 -> value == value0
   MatchGlob glob -> Glob.match glob (unpack value)
+
+-- * Warehouse Cache
+-- ** Property stats
+-- | Retrieve property stats (and compute if needed)
+propertyStatsFor :: Text -> WH PropertyStats s
+propertyStatsFor prop = do
+  cacheRef <- whCache
+  cache <- lift $ readSTRef cacheRef
+  case lookup prop (propertyStats cache) of
+    Just stat -> return stat
+    Nothing -> computePropertyStats prop
+
+-- | Computes or refresh the statistics for the given property
+computePropertyStats :: Text -> WH PropertyStats s
+computePropertyStats prop = do
+  -- scann all object and make a map of the different values
+  wh <- get
+  boxList <- mapM findBox $ toList (boxes wh)
+  let values = [ value
+               | box <- boxList
+               , value <- boxTagValues box prop
+               ]
+      stats = mkPropertyStats values
+  -- update cache
+  cacheRef <- whCache
+  lift $ modifySTRef cacheRef  (\cache -> cache {propertyStats = Map.insert prop stats (propertyStats cache) })
+  return stats
+  
+mkPropertyStats :: [Text] -> PropertyStats
+mkPropertyStats values = PropertyStats{..} where
+  totalCount = length valueRank
+  value'count = Map.fromListWith (+) $ map (,1) values
+  valueRank = Map.fromList $ zip (map fst $ sortOn (Down . snd )
+                                            (Map.toList value'count)
+                                 )
+                                 [1..]
+  valueIndex = Map.fromList $ zip (sort $ keys valueRank) [1..]
+  
+clearCache :: WH () s
+clearCache = do
+  cachem <- gets whCacheM
+  case cachem of
+    Nothing -> return ()
+    Just cache -> lift $ writeSTRef cache (emptyOperationCache)
+  
+-- | Create an empty cache if necessary
+whCache :: WH (STRef s (OperationCache s)) s
+whCache = do
+  cachem <- gets whCacheM
+  case cachem of
+    Just cache -> return cache
+    Nothing -> do
+      cacheRef <- lift $ newSTRef emptyOperationCache 
+      wh <- get
+      put wh {whCacheM = Just cacheRef}
+      return $ cacheRef
+      
+  
+  
+ 
