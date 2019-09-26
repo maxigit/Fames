@@ -76,6 +76,7 @@ import WarehousePlanner.SimilarBy
 import Diagrams.Prelude(white, black)
 import Data.Text (splitOn, uncons, stripPrefix)
 import Data.Char (isLetter)
+import Data.Time (diffDays)
 
 import qualified System.FilePath.Glob as Glob
 
@@ -844,11 +845,53 @@ expandAttribute' (stripPrefix "$[" -> Just xs') | (pat', uncons -> Just (_,xs'))
                                ex <- expandAttribute box xs'
                                pat <- expandAttribute box pat'
                                return $ maybe ex (<> ex) (boxTagValuem box pat)
-
+-- get the rank of the tag value
 expandAttribute' (stripStatFunction "$rank" -> Just (arg, prop, xs)) = Just $ \box -> do
   expandStatistic valueRank arg box prop xs
 expandAttribute' (stripStatFunction  "$index" -> Just (arg, prop, xs)) = Just $ \box -> do
   expandStatistic valueIndex arg box prop xs
+-- | convert date to days since today
+expandAttribute' (stripStatFunction "$ago" -> Just (arg, prop, xs) ) = Just  $ \box -> do
+  let valuem = boxTagValuem box prop
+  stats <- propertyStatsFor prop
+  let dates = keys (valueIndex stats)
+  ex <- expandAttribute box xs
+  return $ case (readMay =<< minimumMay dates, readMay =<< maximumMay dates, readMay =<< valuem) of
+    (Just minDate, Just maxDate, Just currentDate) -> let
+      daysAgo = diffDays maxDate currentDate
+      range = diffDays maxDate minDate
+      d = case arg of
+        Just ('-', 0) -> -- normalize a year to n
+               (daysAgo `div` 365) + 1
+        Just ('-', n) -> -- normalize range to n
+               daysAgo * fromIntegral n `div` range + 1
+        Just ('%', 0) -> -- normalize a year to n
+               (daysAgo -1) `mod` 365 + 1
+        Just ('%', n) -> -- normalize a year to n
+               (daysAgo -1) `mod` range + 1
+        Just ('^', 0) -> case daysAgo of -- log day, week etc
+          0 -> 1
+          1 -> 2
+          2 -> 3
+          d | d <= 7 -> 4
+          d | d <= 14 -> 5 -- 2 weeks
+          d | d <= 31 -> 6
+          d | d <= 61 -> 7
+          d | d <= 91 -> 9 -- 3 months
+          d | d <= 183 -> 10 -- 6 months
+          d | d <= 365 -> 11 -- 12 months
+          _ -> 12
+        Just ('^', n) -> let -- log 
+                 daysAgo' = fromIntegral daysAgo
+                 n' = fromIntegral n
+                 range' = fromIntegral range
+                 lambda = log n' / range' :: Double
+                 in round $ exp (lambda *  daysAgo')
+        Nothing -> daysAgo
+      in tshow (d :: Integer) <> ex
+    _ -> "<not a date>" <> ex
+
+
 expandAttribute' (uncons -> Just (x, xs)) = fmap (\f box -> (cons x) <$> f box) (expandAttribute' xs)
 expandAttribute' "" = Nothing
 
