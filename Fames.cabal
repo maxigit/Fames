@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 25f522757e1af4d8934eb8b8e9e24810a555192e279b373ae046b60f34ef689b
+-- hash: 233bfb615333c8bc5388da6adfd4efe8eb41b487315430779d5e543895f728fa
 
 name:           Fames
 version:        0.0.1
@@ -128,6 +128,7 @@ library
       Items
       Items.Internal
       Items.Types
+      Planner.Colour
       Planner.Internal
       Planner.Types
       WH.Barcode
@@ -192,6 +193,7 @@ library
     , mysql
     , mysql-simple
     , one-liner >=1.0 && <2
+    , palette >=0.3 && <0.4
     , parsec >=3.1 && <3.2
     , path-pieces >=0.2 && <0.3
     , persistent >=2.0 && <2.8
@@ -231,7 +233,7 @@ library
     , yesod-media-simple >=0.2.0.1 && <0.2.1
     , yesod-static >=1.4.0.3 && <1.6
   if (flag(dev)) || (flag(library-only))
-    ghc-options: -Werror -Wno-partial-type-signatures -Wno-type-defaults -O0 -j6
+    ghc-options: -Werror -Wincomplete-patterns -Wno-partial-type-signatures -Wno-type-defaults -O0 -j6
     cpp-options: -DDEVELOPMENT
   else
     ghc-options: -W -fwarn-tabs -Wno-type-defaults -O2 -j6
@@ -255,6 +257,7 @@ executable Fames
       Items
       Items.Internal
       Items.Types
+      Planner.Colour
       Planner.Internal
       Planner.Types
       WH.Barcode
@@ -315,6 +318,7 @@ executable Fames
     , mysql
     , mysql-simple
     , one-liner >=1.0 && <2
+    , palette >=0.3 && <0.4
     , parsec >=3.1 && <3.2
     , path-pieces >=0.2 && <0.3
     , persistent >=2.0 && <2.8
@@ -499,6 +503,7 @@ test-suite ghcid
       Items
       Items.Internal
       Items.Types
+      Planner.Colour
       Planner.Internal
       Planner.Types
       WH.Barcode
@@ -566,6 +571,7 @@ test-suite ghcid
     , mysql
     , mysql-simple
     , one-liner >=1.0 && <2
+    , palette >=0.3 && <0.4
     , parsec >=3.1 && <3.2
     , path-pieces >=0.2 && <0.3
     , persistent
@@ -696,6 +702,7 @@ test-suite test
     , mysql
     , mysql-simple
     , one-liner >=1.0 && <2
+    , palette >=0.3 && <0.4
     , parsec >=3.1 && <3.2
     , path-pieces >=0.2 && <0.3
     , persistent

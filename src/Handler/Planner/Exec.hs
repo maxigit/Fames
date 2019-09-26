@@ -3,6 +3,7 @@ module Handler.Planner.Exec where
 import Import hiding(get, toLower)
 import Planner.Types
 import Planner.Internal
+import Planner.Colour(readFromPalette)
 import WarehousePlanner.Base
 import WarehousePlanner.Csv
 import WarehousePlanner.Display
@@ -136,7 +137,7 @@ valueToColour t = case dropWhile (=='_') s of
   [] -> Nothing
   cs | all isHexDigit cs && length cs == 3 -> Just $ sRGB24read (s >>= (replicate 2))
   cs | all isHexDigit cs && length cs == 6 -> Just $ sRGB24read s
-  dropped -> readColourName (map Data.Char.toLower dropped)
+  dropped -> readFromPalette (pack dropped) <|> readColourName (map Data.Char.toLower dropped)
   where s = unpack t
 
 -- | blend all colours equaly.
