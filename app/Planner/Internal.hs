@@ -355,7 +355,7 @@ executeStep (Step header sha _) =
                        in (style, drop 1 colour)
       execute step = do
         s <- step
-        return (s >> return ())
+        return (s >> clearCache)
   in case header of
           LayoutH -> return $ return ()
           ShelvesH -> execute $ readShelves2 BoxOrientations path

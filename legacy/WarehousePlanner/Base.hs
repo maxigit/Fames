@@ -42,6 +42,7 @@ module WarehousePlanner.Base
 , applyNameSelector
 , matchName
 , module WarehousePlanner.Type
+, clearCache
 )
 where
 import ClassyPrelude hiding (uncons, stripPrefix)
