@@ -862,7 +862,7 @@ expandStatistic fn arg box prop xs = do
     (value:_) -> let
       adjust i = case arg of
         Just ('-', n) -> min i n
-        Just ('%', n) -> (i-1 `mod` n) + 1
+        Just ('%', n) -> (i-1) `mod` n + 1
         Just ('^', n) -> round $ fromIntegral i / fromIntegral (totalCount stats) * fromIntegral n
         _ -> i
       in maybe ex (\i -> tshow (adjust i) <> ex) (lookup value $ fn stats) 
