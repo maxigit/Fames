@@ -121,8 +121,9 @@ data ExitMode = ExitOnTop | ExitLeft deriving (Show, Eq, Ord, Enum)
 -- depending on the value, it should be setup by the caller or the callee
 data OperationCache s  = OperationCache
   { propertyStats :: Map Text PropertyStats
+  , boxTagMapMap :: Map Text (Map Text [Box s])
   }
-emptyOperationCache = OperationCache mempty
+emptyOperationCache = OperationCache mempty mempty
 
 -- | Statistics relative to a property 
 -- used valued and number of values

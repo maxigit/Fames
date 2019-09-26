@@ -3,6 +3,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
 module WarehousePlanner.Base
 ( newShelf
 , newBox
@@ -225,11 +226,40 @@ orTrue bs = or bs
 --
 -- syntax is  Box#tag^3/shelf#tag : 3 box from shelf shelf
 findBoxByNameAndShelfNames :: BoxSelector s -> WH [BoxId s] s
+findBoxByNameAndShelfNames ( BoxSelector ( Selector (NameMatches [])
+                                                    [ TagIsKeyAndValues (MatchFull prop)
+                                                                        [MatchFull value]
+                                                    ]
+                                         ) shelfSel numSel
+                           ) = do
+  -- optimisation to find box by prop=value
+  -- we create a Map and cache it in case it is reused later
+  boxMap <- getOrCreateBoxTagMap prop 
+  -- TODO factorize with below
+  let allBoxes  = fromMaybe [] (lookup value boxMap)
+  box'shelfms <- forM allBoxes $ \box -> do
+      shelfIdM <- findShelfByBox (boxId box)
+      shelfM <- traverse findShelf shelfIdM
+      let shelf = case shelfM of
+                    Just shelf'  -> if applyNameSelector (nameSelector shelfSel) shelfName shelf'
+                                      && applyTagSelectors (tagSelectors shelfSel) shelfTag shelf'
+                                    then shelfM
+                                    else Nothing
+                    _ -> Nothing
+
+      return $ (box, shelf)
+
+
+  -- we need the shelf name to sort box by shelves
+  let box'nameS =  [ (box, shelfName shelf) | (box, Just shelf) <- box'shelfms] 
+        
+  -- filter boxes by number
+  return . map (boxId  . fst) $ limitByNumber numSel box'nameS
+
+
+
+
 findBoxByNameAndShelfNames (BoxSelector boxSel shelfSel numSel) = do
-      -- locations = splitOn "|" (drop 1 location)
-      -- inShelves _ [] = True
-      -- inShelves shelfName ((uncons -> Just ('!', pattern_)) = not $  Glob.match (Glob.compile pattern_) shelfName
-      -- inShelves shelfName pattern_ = Glob.match (Glob.compile pattern_) shelfName
   -- all boxes matching name
   allBoxesBeforeTag <- findBoxByNameSelector (nameSelector boxSel)
   let allBoxes = filter (applyTagSelectors (tagSelectors boxSel) boxTags) allBoxesBeforeTag
@@ -1226,5 +1256,25 @@ whCache = do
       return $ cacheRef
       
   
+getOrCreateBoxTagMap :: Text -> WH (Map Text [Box s])  s
+getOrCreateBoxTagMap prop = do
+  cacheRef <- whCache
+  cache <- lift $ readSTRef cacheRef 
+  case lookup prop (boxTagMapMap cache) of
+    Just boxMap -> traceShow ("Reuse cache for prop: " <> prop) $ return boxMap
+    Nothing -> do
+      boxMap <- __getBoxTagMap prop
+      lift $ modifySTRef cacheRef (\cache -> cache {boxTagMapMap = Map.insert prop boxMap (boxTagMapMap cache)})
+      return boxMap
+
+__getBoxTagMap :: Text -> WH (Map Text [Box s]) s
+__getBoxTagMap prop = do
+  boxIds <- gets boxes
+  boxes <- mapM findBox boxIds
+  return $ Map.fromListWith (<>) [ (value, [box])
+                                 | box <- toList boxes
+                                 , value <- boxTagValues box prop
+                                 ]
+
   
  
