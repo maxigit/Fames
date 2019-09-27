@@ -900,17 +900,13 @@ expandAttribute' (stripStatFunction "$ago" -> Just (arg, prop, xs) ) = Just  $ \
         Just ('%', n) -> -- normalize a year to n
                (daysAgo -1) `mod` range + 1
         Just ('^', 0) -> case daysAgo of -- log day, week etc
-          0 -> 1
-          1 -> 2
-          2 -> 3
-          d | d <= 7 -> 4
-          d | d <= 14 -> 5 -- 2 weeks
-          d | d <= 31 -> 6
-          d | d <= 61 -> 7
-          d | d <= 91 -> 9 -- 3 months
-          d | d <= 183 -> 10 -- 6 months
-          d | d <= 365 -> 11 -- 12 months
-          _ -> 12
+          d | d <= 7 -> 1 -- last week
+          d | d <= 31 -> 2 -- last month
+          d | d <= 91 -> 3 -- last quarter
+          d | d <= 183 -> 4 -- last 6 months
+          d | d <= 365 -> 5 -- last year
+          d | d <= 3*365 -> 6 -- last 3 years
+          _ -> 7
         Just ('^', n) -> let -- log 
                  daysAgo' = fromIntegral daysAgo
                  n' = fromIntegral n
