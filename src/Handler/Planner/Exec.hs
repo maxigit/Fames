@@ -66,10 +66,10 @@ copyWarehouse = do
   -- buildGroup <- copyShelfGroup (shelfGroup wh0)
   buildGroup <- mapM copyShelf (shelves wh0)
   return $ do
-    put emptyWarehouse { boxStyling = unsafeCoerce $ boxStyling wh0
-                       , shelfColors = unsafeCoerce $ shelfColors wh0
-                       , boxOrientations = unsafeCoerce $ boxOrientations wh0
-                       }
+    put (emptyWarehouse $ whDay wh0) { boxStyling = unsafeCoerce $ boxStyling wh0
+                                    , shelfColors = unsafeCoerce $ shelfColors wh0
+                                    , boxOrientations = unsafeCoerce $ boxOrientations wh0
+                                    }
     sequence buildGroup
     get
 
@@ -157,9 +157,9 @@ defOrs = [ tiltedForward, tiltedFR ]
 -- and the initial step corresponding to the previous one.
 execScenario :: Scenario -> Handler (Warehouse RealWorld)
 execScenario sc@Scenario{..} = do
+  today <- todayH
   initialM <- join <$> cacheWarehouseOut `mapM` sInitialState
-  let warehouse0 = maybe emptyWarehouse unfreeze initialM
-  go warehouse0 [] (sSortedSteps sc) where
+  let warehouse0 = maybe (emptyWarehouse today) unfreeze initialM
       go :: Warehouse RealWorld -> [Step] -> [Step] -> Handler (Warehouse RealWorld)
       go w _ [] = return w
       go warehouse (previous) (steps0) = do
@@ -175,7 +175,7 @@ execScenario sc@Scenario{..} = do
         w <- case wM of
           Nothing -> do
             execM <- liftIO $ mapM executeStep toExecutes
-            (_, w') <- runWH emptyWarehouse  $ do
+            (_, w') <- runWH (emptyWarehouse today)  $ do
               wCopy <- wCopyM
               put wCopy { boxStyling = stylingFromTags}
               sequence_ execM
@@ -185,6 +185,7 @@ execScenario sc@Scenario{..} = do
           Just w' -> {-traceShowM ("Scenario Step => use cache", subKey) >>-} (return $ unfreeze w')
         -- carry on with the remaing steps
         go w (allPreviousSteps) steps
+  go warehouse0 [] (sSortedSteps sc) where
   
 
 execWithCache :: Scenario -> Handler (Warehouse RealWorld)

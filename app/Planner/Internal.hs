@@ -339,7 +339,9 @@ warehouseToDiagram warehouse = do
   diag <- execWH0 warehouse exec
   return diag
 
-execWH0 wh = execWH emptyWarehouse
+execWH0 wh exec  = do
+  today <- utctDay <$> getCurrentTime
+  execWH (emptyWarehouse today) exec
 
 execWH warehouse0 wh = liftIO $ stToIO $ evalStateT wh warehouse0
 

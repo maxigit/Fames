@@ -673,7 +673,7 @@ newPair wh res (Just res') =
 
 
         ors = boxOrientations wh
-        wh' = emptyWarehouse {boxOrientations=ors}
+        wh' = (emptyWarehouse (whDay wh)) {boxOrientations=ors}
         (toFit, notFit, toFit', notFit' ) = unsafePerformIO $ unsafeSTToIO (evalStateT tryW wh')
 
       in case (notFit, notFit') of

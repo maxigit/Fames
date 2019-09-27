@@ -322,7 +322,7 @@ defaultBoxStyling = BoxStyling{..} where
   barTitle = Nothing
   displayBarGauge = True
 
-emptyWarehouse = Warehouse mempty mempty mempty (const defaultBoxStyling) (const (Nothing, Nothing)) defaultBoxOrientations Nothing
+emptyWarehouse today = Warehouse mempty mempty mempty (const defaultBoxStyling) (const (Nothing, Nothing)) defaultBoxOrientations Nothing today
 
 newShelf :: Text -> Maybe Text -> Dimension -> Dimension -> BoxOrientator -> FillingStrategy -> WH (Shelf s) s
 newShelf name tagm minD maxD boxOrientator fillStrat = do
@@ -882,23 +882,24 @@ expandAttribute' (stripStatFunction  "$index" -> Just (arg, prop, xs)) = Just $ 
   expandStatistic valueIndex arg box prop xs
 -- | convert date to days since today
 expandAttribute' (stripStatFunction "$ago" -> Just (arg, prop, xs) ) = Just  $ \box -> do
+  maxDate <- gets whDay
   let valuem = boxTagValuem box prop
   stats <- propertyStatsFor prop
   let dates = keys (valueIndex stats)
   ex <- expandAttribute box xs
-  return $ case (readMay =<< minimumMay dates, readMay =<< maximumMay dates, readMay =<< valuem) of
-    (Just minDate, Just maxDate, Just currentDate) -> let
+  return $ case (readMay =<< minimumMay dates, readMay =<< valuem) of
+    (Just minDate, Just currentDate) -> let
       daysAgo = diffDays maxDate currentDate
       range = diffDays maxDate minDate
       d = case arg of
         Just ('-', 0) -> -- normalize a year to n
                (daysAgo `div` 365) + 1
         Just ('-', n) -> -- normalize range to n
-               daysAgo * fromIntegral n `div` range + 1
+               min (daysAgo * fromIntegral n `div` range + 1) (fromIntegral n)
         Just ('%', 0) -> -- normalize a year to n
                (daysAgo -1) `mod` 365 + 1
         Just ('%', n) -> -- normalize a year to n
-               (daysAgo -1) `mod` range + 1
+               (daysAgo -1) * fromIntegral n `mod` range + 1
         Just ('^', 0) -> case daysAgo of -- log day, week etc
           d | d <= 7 -> 1 -- last week
           d | d <= 31 -> 2 -- last month
@@ -912,7 +913,7 @@ expandAttribute' (stripStatFunction "$ago" -> Just (arg, prop, xs) ) = Just  $ \
                  n' = fromIntegral n
                  range' = fromIntegral range
                  lambda = log n' / range' :: Double
-                 in round $ exp (lambda *  daysAgo')
+                 in min (fromIntegral n) $ round $ exp (lambda *  daysAgo')
         Nothing -> daysAgo
       in tshow (d :: Integer) <> ex
     _ -> "<not a date>" <> ex

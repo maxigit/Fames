@@ -17,6 +17,7 @@ import Data.Sequence (Seq)
 import qualified System.FilePath.Glob as Glob
 -- import Data.List(intercalate)
 import Data.Text hiding(map)
+import Data.Time (Day)
 
 -- * Types
 data Dimension = Dimension { dLength :: !Double
@@ -110,6 +111,7 @@ data Warehouse s = Warehouse { boxes :: Seq (BoxId s)
                            , shelfColors :: Shelf s -> (Maybe (Colour Double), Maybe (Colour Double))
                            , boxOrientations :: Box s -> Shelf s -> [(Orientation, Int, Int)]
                            , whCacheM :: Maybe (STRef s (OperationCache s))
+                           , whDay :: Day -- Today usefull to compute date operation
                            -- ^ a cache. We use maybe to that an empty warehouse can be created "purely"
                            -- Should probably be part of of the WH 
                            
