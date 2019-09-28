@@ -150,7 +150,7 @@ readLocalFiles :: FilePath -> [Text] -> Handler (Either Text [Section])
 readLocalFiles pat excluded = do
   plannerDir <- appPlannerDir <$> getsYesod appSettings
   files <- liftIO $ globDir1 (compile pat) plannerDir
-  let orgs = filter valid files
+  let orgs = filter valid $ sort files
       exPats = map (compile . unpack . ("/**/" <>) ) excluded
       valid f =  all ($ f) $ fileValid : map (\p -> not . match p) exPats
   contents <- mapM readFile orgs

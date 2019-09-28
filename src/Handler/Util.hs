@@ -377,10 +377,12 @@ getSubdirOptions :: (AppSettings -> FilePath) -> Handler [(Text, FilePath)]
 getSubdirOptions appDir = do
   mainDir <- appDir <$> getsYesod appSettings
   exists <- liftIO $ doesDirectoryExist mainDir
+  -- hide hidden files
+  let hidden path = toLower path `elem` ["util", "utils", "include", "includes", "hidden"]
   if exists
     then do
           entries <- liftIO $ listDirectory mainDir
-          dirs <- liftIO $ filterM (doesDirectoryExist . (mainDir </>)) entries
+          dirs <- liftIO $ filterM (doesDirectoryExist . (mainDir </>)) (filter (not . hidden) entries)
           -- traceShowM (forecastDir, entries, dirs)
           return [(pack dir, mainDir </> dir) | dir <- dirs]
     else do
