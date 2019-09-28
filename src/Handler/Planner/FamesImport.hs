@@ -263,9 +263,10 @@ indexParam = I.IndexParam{..} where
 -- ** Live box status adjusted with realive QOH
 importBoxStatusLive :: WhichBoxes -> Text -> [Text] -> Handler Section
 importBoxStatusLive which prefix tags = do
+  defaultLocation <- appFADefaultLocation <$> getsYesod appSettings 
   let param =  Box.AdjustmentParam{..}
       aStyleFilter = Nothing
-      aLocation = ""
+      aLocation = defaultLocation
       aSkipOk = False
       aShowDetails = True
       aStyleSummary =  False
@@ -288,9 +289,10 @@ importBoxStatusLive which prefix tags = do
 importActiveBoxtakesLive :: [Text] -> Handler Section
 importActiveBoxtakesLive tags = do
   today <- todayH
+  defaultLocation <- appFADefaultLocation <$> getsYesod appSettings 
   let param =  Box.AdjustmentParam{..}
       aStyleFilter = Nothing
-      aLocation = ""
+      aLocation = defaultLocation
       aSkipOk = False
       aShowDetails = True
       aStyleSummary =  False
