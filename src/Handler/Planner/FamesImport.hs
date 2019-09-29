@@ -64,7 +64,8 @@ importFamesDispatch (Section ImportH (Right content) _) = do
         pieces = splitOn "/" main
         ret :: Handler Section -> Handler (Either Text [Section])
         ret m = Right . (:[]) <$> m
-    case (parseRoute (pieces, [])) of
+    case (parseRoute (pieces, []) <|> parseRoute (pieces ++ [""], [])) of
+      --                                                  ^ similutate missing / to url which needs it
       Nothing -> return $ Left $ uri <> " is not a valid import"
       Just fi -> case fi of
           FIPackingList plId -> ret $ importPackingList (toSqlKey plId) tags
