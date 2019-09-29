@@ -264,20 +264,20 @@ indexParam = I.IndexParam{..} where
 -- ** Live box status adjusted with realive QOH
 importBoxStatusLive :: WhichBoxes -> Text -> [Text] -> Handler Section
 importBoxStatusLive which prefix tags = do
-  defaultLocation <- appFADefaultLocation <$> getsYesod appSettings 
-  let param =  Box.AdjustmentParam{..}
-      aStyleFilter = Nothing
-      aLocation = defaultLocation
-      aSkipOk = False
-      aShowDetails = True
-      aStyleSummary =  False
-  infos <- runDB $ Box.loadAdjustementInfo  param
-  let summaries = toList infos >>= Box.computeInfoSummary
+  summaries <- loadLiveSummaries
+  operators <- allOperators
   let header = "selector,tags"
   let content = header:rows
       rows = [  "#barcode=" <> boxtakeBarcode
                <> ","
-               <> intercalate "#" [ prefix <> "box-live-status=" <> tshow (Box.boxStatus statusbox)
+               <> intercalate "#" [ prefix <> "live-status=" <> tshow (Box.boxStatus statusbox)
+                                  , prefix <> "status=" <> if boxtakeActive then "active" else "inactive"
+                                  , prefix <> "date" <> tshow boxtakeDate
+                                  , prefix <> "location" <> tshow boxtakeLocation
+                                  , prefix <> "reference=" <> boxtakeReference
+                                  , prefix <> "operator=" <> maybe (tshow $ unOperatorKey $ boxtakeOperator)
+                                                        operatorNickname
+                                                        (lookup boxtakeOperator operators)
                                   ]
              | summary <- summaries
              , statusbox <- Box.ssBoxes summary
@@ -286,10 +286,7 @@ importBoxStatusLive which prefix tags = do
 
   return $ Section (TagsH) (Right content) ("* Tags from box status live")
 
-  
-importActiveBoxtakesLive :: [Text] -> Handler Section
-importActiveBoxtakesLive tags = do
-  today <- todayH
+loadLiveSummaries = do
   defaultLocation <- appFADefaultLocation <$> getsYesod appSettings 
   let param =  Box.AdjustmentParam{..}
       aStyleFilter = Nothing
@@ -299,11 +296,22 @@ importActiveBoxtakesLive tags = do
       aStyleSummary =  False
   infos <- runDB $ Box.loadAdjustementInfo  param
   let summaries = toList infos >>= Box.computeInfoSummary
-      boxes = [ boxE
+  return summaries
+
+  
+importActiveBoxtakesLive :: [Text] -> Handler Section
+importActiveBoxtakesLive tags = do
+  today <- todayH
+  summaries <- loadLiveSummaries
+  let boxes = [ Entity boxKey boxtake  {boxtakeDescription= Just $ (fromMaybe ""  $ boxtakeDescription boxtake) <> extraTags}
               | summary <- summaries
               , statusbox <- Box.ssBoxes summary
-              , let (boxE, _) = Box.usedSubject statusbox
+              , let (Entity boxKey boxtake, _) = Box.usedSubject statusbox
               , Box.boxStatus statusbox /= Box.BoxInactive
+              , let tags = [ "#live-status=" <> tshow (Box.boxStatus statusbox)
+                       ]
+              , let extraTags = mconcat tags
+
               ]
       source  =  Box.boxSourceToCsv (sourceList boxes)
   content <- (runDB $ runConduit $ source .| consume)
