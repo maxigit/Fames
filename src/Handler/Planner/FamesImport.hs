@@ -282,6 +282,9 @@ importBoxStatusLive which prefix tags = do
              | summary <- summaries
              , statusbox <- Box.ssBoxes summary
              , let (Entity _ Boxtake{..}, _) = Box.usedSubject statusbox
+             , case which of
+                 AllBoxes -> True
+                 ActiveBoxes -> boxtakeActive
              ]
 
   return $ Section (TagsH) (Right content) ("* Tags from box status live")
