@@ -260,7 +260,7 @@ instance FromNamedRecord (Int -> HSBCDaily) where
   parseNamedRecord record = pure HSBCDaily
                 <*> (readTime ["%e %b %0Y"] <$> r .: "Date")
                 <*> r .: "Description"
-                <*> r .: "Amount"
+                <*> (r .: "Amount" <|> parseDebit "Paid in" "Paid out" r)
                 where r = cleanRecord record
 
 dailyToHTrans :: HSBCDaily -> HSBCTransactions
