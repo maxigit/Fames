@@ -91,10 +91,11 @@ extractAddedId' addedTag info tags = let
 extractErrorMsgFromSoup :: [Tag [Element String]] -> Maybe Text
 extractErrorMsgFromSoup tags = let
   errors = sections (~== TagOpen ("div" :: String) [("class", "err_msg")]) tags
-  msgs = map (headEx .drop 1) errors -- get next tag
+  -- ^ get ALL div.err_msg (they can be many)
+  msgs = map (takeWhile (~/= (TagClose ("div" :: String)))) errors
   in case msgs of
     [] -> Nothing
-    _ -> Just . pack $ unlines (mapMaybe maybeTagText msgs)
+    _ -> Just . pack $ unlines (concatMap (mapMaybe maybeTagText) msgs)
 
 extractSuccessMsgFromSoup :: [Tag [Element String]] -> Either Text Text
 extractSuccessMsgFromSoup tags = let
