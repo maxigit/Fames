@@ -27,7 +27,7 @@ import Control.Monad.State(State,evalState, get, put)
 
 import Lens.Micro hiding(filtered)
 import Lens.Micro.TH
-import Data.Csv hiding(Options)
+import Data.Csv hiding(Options, (.:), lookup)
 -- import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Char8 as BL
 import qualified Data.ByteString as BS
@@ -35,13 +35,15 @@ import qualified Data.Vector as V
 import Data.These
 import Data.Align(align)
 import Data.Map(Map)
+import qualified Data.HashMap.Strict as H
 import qualified Data.Map as Map
-import Data.Text (strip)
+import Data.Text (Text,strip, toLower)
+import Data.Text.Encoding (decodeUtf8)
 
 import System.FilePath.Glob (glob)
 import System.Directory(getModificationTime)
 import Data.Decimal
-import Data.List (sortBy, sortOn, minimumBy, mapAccumL, dropWhileEnd)
+import Data.List (sortBy, sortOn, minimumBy, mapAccumL, dropWhileEnd, lookup)
 import Data.Ord (comparing)
 import Data.String
 import Data.Time(Day, parseTimeM, formatTime, diffDays, addDays, UTCTime)
@@ -72,6 +74,15 @@ read s = case readMaybe s of
 -- * Inputs
 -- ** Field converters
 
+-- | Compare key ignoring the case and stripping
+newtype CleanedRecord = CleanedRecord [(Text,  BS.ByteString)] deriving Show
+cleanRecord :: NamedRecord  -> CleanedRecord
+cleanRecord record =  CleanedRecord [ (clean k, v) | (k, v) <- H.toList record]
+
+
+(CleanedRecord cleaned) .: key = maybe mempty parseField $ clean key `lookup` cleaned where
+clean :: BS.ByteString -> Text
+clean = strip . toLower . decodeUtf8
 type Amount = Decimal
 
 instance {-# OVERLAPPING #-} FromField (Maybe Decimal) where
@@ -104,7 +115,7 @@ readTimeE formats str= case concat $ map (parseTimeM True defaultTimeLocale) for
   _ -> Left $ "ambiguous parsing for time : " ++ str
 
 parseDebit :: (FromField (Maybe b), Num b, Show b)
-           => BS.ByteString -> BS.ByteString -> NamedRecord -> Parser b
+           => BS.ByteString -> BS.ByteString -> CleanedRecord -> Parser b
 parseDebit debit credit r = do
     dAmount <- r .: debit
     cAmount <- r .: credit
@@ -139,7 +150,7 @@ data FATransaction = FATransaction
 makeClassy ''FATransaction
 
 instance FromNamedRecord (Int -> FATransaction) where
-    parseNamedRecord r = pure FATransaction
+    parseNamedRecord record = pure FATransaction
                 <*> r .: "Type"
                 <*> r .: "#"
                 <*> r .: "Reference"
@@ -148,6 +159,7 @@ instance FromNamedRecord (Int -> FATransaction) where
                 <*> parseDebit "Debit" "Credit" r
                 <*> r .: "Balance"
                 <*> pure Nothing
+                where r = cleanRecord record
 
 -- | Read from DB
 fetchFA :: Maybe Decimal -> SQL.ConnectInfo -> Int -> Maybe Day -> Maybe Day -> IO [FATransaction]
@@ -198,12 +210,13 @@ data HSBCTransactions = HSBCTransactions
 makeClassy ''HSBCTransactions
 
 instance FromNamedRecord (Int -> HSBCTransactions) where
-    parseNamedRecord r = pure HSBCTransactions
+    parseNamedRecord record = pure HSBCTransactions
       <*> (readTime ["%e-%b-%y", "%e %b %0Y", "%F"] <$> r .: "Date")
          <*> r .: "Type"
          <*> r .: "Description"
          <*> parseDebit "Paid in" "Paid out" r -- opposite to HSBC
          <*> (fmap Provided <$> r .: "Balance")
+         where r = cleanRecord record
 
 instance ToNamedRecord HSBCTransactions where
   -- we use %F to be easily sortable in excel
@@ -244,10 +257,11 @@ instance FromRecord (Int -> HSBCDaily) where
 -- we lose some information (like balance and type) which are now present
 -- in the statement. That's not really a problem as we normally use the monthly statement
 instance FromNamedRecord (Int -> HSBCDaily) where
-  parseNamedRecord r = pure HSBCDaily
+  parseNamedRecord record = pure HSBCDaily
                 <*> (readTime ["%e %b %0Y"] <$> r .: "Date")
                 <*> r .: "Description"
                 <*> r .: "Amount"
+                where r = cleanRecord record
 
 dailyToHTrans :: HSBCDaily -> HSBCTransactions
 dailyToHTrans = HSBCTransactions <$> _hsDate
@@ -271,13 +285,14 @@ data PaypalTransaction = PaypalTransaction
 
 makeClassy ''PaypalTransaction
 instance FromNamedRecord (Int -> PaypalTransaction) where
-  parseNamedRecord r = pure PaypalTransaction
+  parseNamedRecord record = pure PaypalTransaction
                 <*> (readTime ["%e/%m/%Y"] <$> r .: "Date")
                 <*> r .: " Name"
                 <*> r .: " Type"
                 -- <*> r .: "Status"
                 <*> r .: " Currency"
                 <*> r .: " Net" -- we want the net not the gross , as the gross include fees
+                where r = cleanRecord record
 
 pToS :: PaypalTransaction -> HSBCDaily
 pToS = HSBCDaily <$> _pDate
