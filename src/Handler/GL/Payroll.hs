@@ -548,6 +548,7 @@ postTimesheetToFA :: FAParam
                   -> Handler (Either Text Int)
 postTimesheetToFA param key timesheet shifts items = do
       settings <- appSettings <$> getYesod
+      mkAccount <- mkAccountH
       let today = ffDate param
       let tsOId = modelToTimesheetOpId timesheet shifts items
       runExceptT $ do
@@ -558,9 +559,9 @@ postTimesheetToFA param key timesheet shifts items = do
                       ) <$> ts
              tsPayment =  (\(Entity _ op, settings, shiftKey) -> operatorNickname op) <$> ts
          grnIds <- saveGRNs settings key tsSkus
-         invoiceId <- saveInvoice today settings ts grnIds
+         invoiceId <- saveInvoice mkAccount today settings ts grnIds
          paymentIds <- savePayments today (ffReferenceSuffix param) (ffPayments param) settings key tsPayment invoiceId
-         credits <- saveExternalPayments settings key invoiceId today ts
+         credits <- saveExternalPayments settings key invoiceId mkAccount today ts
          return invoiceId
 
 

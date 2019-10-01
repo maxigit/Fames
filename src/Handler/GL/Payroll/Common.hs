@@ -22,12 +22,14 @@ import Data.These
 import Data.List.NonEmpty (NonEmpty(..))
 import  qualified WH.FA.Types as WFA
 import  qualified WH.FA.Curl as WFA
+import qualified FA as FA
 import Control.Monad.Except
 import Text.Printf(printf)
 import qualified Data.Map as Map
 import Handler.Util
 import Data.List(iterate, cycle)
 import Locker
+import  Util.Cache
 
 -- ** Orphan Instances
 instance TS.Display Text where
@@ -270,6 +272,22 @@ timesheetOpIdToTextH :: TS.Timesheet p (OperatorId, PayrollShiftId)
 timesheetOpIdToTextH ts = do
   employeeInfos <- getEmployeeInfo
   return $ timesheetOpIdToText employeeInfos ts
+
+-- ** GL Account
+-- | GL Account should be Int, however
+-- There definition in FA Allows leading 0 and so need to be converted to Text
+-- A solution would be to format them using printf like.
+-- Instead, we load all account from the DB And create a Map
+mkAccountH :: Handler (Int -> WFA.GLAccount)
+mkAccountH = cache0 False (cacheMinute 5) "gl-account-maker" $ do
+  accounts <- runDB $ selectList [] []
+  let accountMap = [ (asNum, account)
+                   | (Entity key _) <- accounts
+                   , let account = FA.unChartMasterKey key
+                   , Just asNum <- [readMay account]
+                   ]
+  return $ \acc -> WFA.GLAccount $ findWithDefault (tshow acc) acc accountMap
+  
 
 -- * Configuration
 
@@ -871,12 +889,12 @@ saveGRNs settings key timesheet = do
        ) grns
 
 -- ** Invoice
-saveInvoice :: Day
+saveInvoice :: (Int -> WFA.GLAccount) -> Day
             -> AppSettings
             -> TS.Timesheet (Text, PayrollExternalSettings) _
             -> [(Int, [PayrollShiftId])]
             -> ExceptT Text Handler Int
-saveInvoice today settings timesheet deliveries = do
+saveInvoice mkAccount today settings timesheet deliveries = do
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       psettings = appPayroll settings
       ref = invoiceRef (appPayroll settings) timesheet
@@ -888,7 +906,7 @@ saveInvoice today settings timesheet deliveries = do
                                      (addDays 10 today)
                                      "" -- memo
                                      [(id, Just (length keys)) | (id, keys) <- deliveries]
-                                     (itemsForCosts timesheet)
+                                     (itemsForCosts mkAccount timesheet)
   faId <- ExceptT $ liftIO $ WFA.postPurchaseInvoice connectInfo invoice
   ExceptT $ runDB $ do
     insertMany_ [ TransactionMap ST_SUPPINVOICE faId PayrollShiftE (fromIntegral $ unSqlBackendKey $ unPayrollShiftKey key) False
@@ -903,17 +921,18 @@ saveInvoice today settings timesheet deliveries = do
 -- Only the costs are added to the invoice, as the invoice reflects
 -- what the employer has to pay  in total.
 -- The deduction are paid by the employees and so are not releveant for the final invoice.
-itemsForCosts :: TS.Timesheet (Text, PayrollExternalSettings)
+itemsForCosts :: (Int -> WFA.GLAccount)
+              -> TS.Timesheet (Text, PayrollExternalSettings)
                               (Entity Operator, EmployeeSettings, PayrollShiftId)
               -> [WFA.GLItem]
-itemsForCosts timesheet = let
+itemsForCosts mkAccount timesheet = let
   costs = filter (isJust . preview TS.dacCost) (TS._deductionAndCosts timesheet)
   mkItem dac = let
    ((payee, payeeSettings), (opE, opSettings, _)) = TS._dacKey dac
    Just amount = preview TS.dacCost dac
    account = costGlAccount payeeSettings
    memo = payee <> " " <> (operatorNickname $ entityVal opE)
-   in  WFA.GLItem account
+   in  WFA.GLItem (mkAccount account)
                   (dimension1 (opSettings :: EmployeeSettings ))
                   (dimension2 (opSettings :: EmployeeSettings))
                   (unsafeUnlock amount)
@@ -1003,14 +1022,15 @@ employeePayment ref paymentDate paymentMap settings invM summary = do -- Maybe
 saveExternalPayments :: AppSettings
                      -> TimesheetId
                      -> Int -- ^ Invoice num
+                     -> (Int -> WFA.GLAccount) -- ^ Convert account no to account in Text (might include adding leading 0)
                      -> Day -- ^ transaction date
                      -> TS.Timesheet (Text, PayrollExternalSettings) emp 
                      ->  ExceptT Text Handler [Either (Int, Maybe Int) Int]
-saveExternalPayments settings key invoiceNo day timesheet = do
+saveExternalPayments settings key invoiceNo mkAccount day timesheet = do
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       psettings = appPayroll settings
       reference = invoiceRef psettings timesheet
-      pairs = (makeExternalPayments psettings (Just invoiceNo) day reference timesheet) -- :: [( WFA.PurchaseCreditNote, WFA.PurchaseInvoice)]
+      pairs = (makeExternalPayments psettings (Just invoiceNo) mkAccount day reference timesheet) -- :: [( WFA.PurchaseCreditNote, WFA.PurchaseInvoice)]
       tId = fromIntegral . unSqlBackendKey $ unTimesheetKey key
 
   ids <- mapExceptT liftIO $ forM pairs $ either
@@ -1036,16 +1056,17 @@ saveExternalPayments settings key invoiceNo day timesheet = do
 
 makeExternalPayments :: PayrollSettings
                      -> Maybe Int  -- ^ Invoice number
+                     -> (Int -> WFA.GLAccount)
                      -> Day -- ^ transaction date
                      -> Text -- ^ invoice reference
                      -> TS.Timesheet (Text, PayrollExternalSettings) emp
                      -> [Either (WFA.PurchaseCreditNote, WFA.PurchaseInvoice)
                                  WFA.SupplierPayment]
-makeExternalPayments psettings invoiceNo day ref ts = let
+makeExternalPayments psettings invoiceNo mkAccount day ref ts = let
   -- We need to group payments by type, ie supplier, reference and due date
   -- Then payments  needs to be group by GLAccount, dimensions
   -- group by Settings (supplier)
-  externalItems = concatMap (dacToExternalItems day ref . fmap fst) (TS._deductionAndCosts ts)
+  externalItems = concatMap (dacToExternalItems mkAccount day ref . fmap fst) (TS._deductionAndCosts ts)
   (pairs, payments) = partitionEithers externalItems
   pairMap = unifiesRef pairs
   paymentMap = unifiesRef payments
@@ -1081,7 +1102,8 @@ unifiesRef xs = let
   
 
 -- | Return a list of either payment to be made or GL Item to be credited and invoiced
-dacToExternalItems :: Day
+dacToExternalItems :: (Int -> WFA.GLAccount)
+             -> Day
              -> Text 
              -> TS.DeductionAndCost (Text, PayrollExternalSettings)
              -> [ Either ((Int, Text, Day), WFA.GLItem) -- credit/invoice
@@ -1089,7 +1111,7 @@ dacToExternalItems :: Day
                          ((Int, Text, Day), Double) -- payment
                          -- ^ Bank Account
                 ] 
-dacToExternalItems day tsReference dac = let
+dacToExternalItems mkAccount day tsReference dac = let
     (payee, settings) = dac ^. TS.dacKey
     extract memo_ amountPrism settingsFn = case (unsafeUnlock <$> dac ^? amountPrism,  settingsFn settings) of
       (Just amount, Just set) | amount > 1e-2 -> let
@@ -1097,7 +1119,7 @@ dacToExternalItems day tsReference dac = let
                              due = calculateDate (paymentTerm set) day 
                              in case paymentSettings set of
                                (DACSupplierSettings supplier glAccount dim1 dim2 memo)  -> 
-                                     let item = WFA.GLItem glAccount dim1 dim2 amount Nothing (memo <|> Just memo_)
+                                     let item = WFA.GLItem (mkAccount glAccount) dim1 dim2 amount Nothing (memo <|> Just memo_)
                                      in [Left ((supplier, ref, due), item)]
                                (DACPaymentSettings bankAccount)  ->  [Right ((bankAccount, ref, due), amount )]
       _ -> []

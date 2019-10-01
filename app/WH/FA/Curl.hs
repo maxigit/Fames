@@ -74,6 +74,8 @@ curlSoup = doCurlWith (const go) where
 instance CurlPostField Day where 
   toCurlPostField = Just . toFADate
 
+instance CurlPostField GLAccount where
+  toCurlPostField = toCurlPostField . unGLAccount
 -- ** Util
 -- | Extract the Id from the process adjustment response
 extractAddedId' :: String -> String -> [Tag String] -> Either Text Int

@@ -15,6 +15,10 @@ data FAConnectInfo = FAConnectInfo
   , faPassword :: String
   }  deriving (Eq, Show)
 
+-- | An GLAccount. Even though GLAccount should be Int
+-- the formatting matters, so we need to store them as Text
+newtype GLAccount = GLAccount {unGLAccount :: Text}
+  deriving (Eq, Show, Read, Ord)
 -- * Items
 -- ** StockAdjustment
 -- | Information needed to post a FA stock adjustment
@@ -104,7 +108,7 @@ data PurchaseInvoice = PurchaseInvoice
   } deriving (Eq, Show)
 
 data GLItem' a = GLItem
-  { gliAccount :: !Int
+  { gliAccount :: !GLAccount -- ^ can't be a int as leading 0 matters ...
   , gliDimension1 :: !(Maybe Int)
   , gliDimension2 :: !(Maybe Int)
   , gliAmount :: !a 

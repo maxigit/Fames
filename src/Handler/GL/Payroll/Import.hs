@@ -493,6 +493,7 @@ importCredits param = do
 importExternalPayment :: _ -> ExceptT Text Handler _
 importExternalPayment invoice = do
   settings <- appSettings <$> getYesod
+  mkAccount <- lift $ mkAccountH
   let inv = trans invoice
       invoiceNo = FA.suppTranTransNo inv
       day = FA.suppTranTranDate inv
@@ -512,6 +513,7 @@ importExternalPayment invoice = do
   saveExternalPayments settings
                        tId
                        invoiceNo
+                       mkAccount
                        day
                        ts
 

@@ -9,6 +9,7 @@ module Handler.GL.GLEnterReceiptSheet where
 import Import hiding(InvalidHeader)
 -- import GL.Receipt
 import Handler.GL.GLEnterReceiptSheet.ReceiptRow
+import Handler.GL.Payroll.Common(mkAccountH)
 
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import Handler.CsvUtils
@@ -544,6 +545,7 @@ faReferenceMapH = runDB $ do
 -- * to Front Accounting
 saveReceiptsToFA :: Key DocumentKey -> AppSettings -> [(ValidHeader, [ValidItem])] -> ExceptT Text Handler [(ValidHeader, FATransType, Int)]
 saveReceiptsToFA docKey settings receipts0 = do
+  mkAccount <- lift mkAccountH
   let receipts = sortOn (rowDate . fst ) $ map roundReceipt receipts0
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       mkPayment :: (ReceiptHeader 'FinalT, [ReceiptItem 'ValidT])  -> Either WFA.BankDeposit WFA.BankPayment
@@ -553,13 +555,13 @@ saveReceiptsToFA docKey settings receipts0 = do
              rowCounterparty
              (refId rowBankAccount)
              rowComment
-             (mkItems (map transformItem items))
+             (mkItems mkAccount (map transformItem items))
         else Left $ WFA.BankDeposit rowDate
              Nothing
              rowCounterparty
              (refId rowBankAccount)
              rowComment
-             (mkItems (map transformItem items))
+             (mkItems mkAccount (map transformItem items))
   forM receipts $ \receipt@(header, _items) -> do 
     let p = mkPayment . first transformHeader $  receipt
     (pId, transType) <- ExceptT . liftIO <$> WFA.postBankPaymentOrDeposit connectInfo  $ p
@@ -568,12 +570,12 @@ saveReceiptsToFA docKey settings receipts0 = do
     return (header, either (const ST_BANKDEPOSIT) (const ST_BANKPAYMENT) p, pId)
 
 
-mkItems :: [ReceiptItem 'FinalT] -> [WFA.GLItemD]
-mkItems items = let
+mkItems :: (Int -> WFA.GLAccount) -> [ReceiptItem 'FinalT] -> [WFA.GLItemD]
+mkItems mkAccount items = let
   byTax = groupAsMap (\ReceiptItem{..} -> (rowTax, refId <$> rowGLDimension1, refId <$> rowGLDimension2)) (:[]) items
   taxes = Map.mapWithKey mkTax byTax
   mkItem :: ReceiptItem 'FinalT -> WFA.GLItemD
-  mkItem ReceiptItem{..} = WFA.GLItem (refId rowGLAccount)
+  mkItem ReceiptItem{..} = WFA.GLItem (mkAccount $ refId rowGLAccount)
                                           (refId <$> rowGLDimension1)
                                           (refId <$> rowGLDimension2)
                                           (abs $ realFracToDecimal 2 $ rowNetAmount)
@@ -589,7 +591,7 @@ mkItems items = let
     -- we need Sum of netAmount of each times + tax = initial net
     tax = total - netItem
     
-    in glItems <> [WFA.GLItem (snd $ refExtra taxRef)
+    in glItems <> [WFA.GLItem (mkAccount $ snd $ refExtra taxRef)
                   dim1 
                   dim2 
                   tax
