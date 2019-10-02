@@ -106,8 +106,8 @@ instance ToField Day where
     toField d = fromString $ formatTime defaultTimeLocale "%d %b %Y" d
 
 
-readTime :: [String ]-> String -> Day
-readTime formats s = either error id (readTimeE formats s)
+parseTime :: [String ]-> String -> Parser Day
+parseTime formats s = either fail return (readTimeE formats s)
 readTimeE :: [String ]-> String -> Either String Day
 readTimeE formats str= case concat $ map (parseTimeM True defaultTimeLocale) formats <*> [str] of
   [] -> Left $ "can't parse time : " ++ str
@@ -154,7 +154,7 @@ instance FromNamedRecord (Int -> FATransaction) where
                 <*> r .: "Type"
                 <*> r .: "#"
                 <*> r .: "Reference"
-                <*> (readTime ["%Y/%m/%d"] <$>  r .: "Date")
+                <*> (parseTime ["%Y/%m/%d"] =<<  r .: "Date")
                 <*> r .: "Person/Item"
                 <*> parseDebit "Debit" "Credit" r
                 <*> r .: "Balance"
@@ -211,7 +211,7 @@ makeClassy ''HSBCTransactions
 
 instance FromNamedRecord (Int -> HSBCTransactions) where
     parseNamedRecord record = pure HSBCTransactions
-      <*> (readTime ["%e-%b-%y", "%e %b %0Y", "%F"] <$> r .: "Date")
+      <*> (parseTime ["%e-%b-%y", "%e %b %0Y", "%F"] =<< r .: "Date")
          <*> r .: "Type"
          <*> r .: "Description"
          <*> parseDebit "Paid in" "Paid out" r -- opposite to HSBC
@@ -250,7 +250,7 @@ data HSBCDaily = HSBCDaily
     } deriving (Show, Read, Generic)
 
 instance FromRecord (Int -> HSBCDaily) where
-    parseRecord r = HSBCDaily <$> (readTime ["%e/%m/%Y"] <$> r .! 0)
+    parseRecord r = HSBCDaily <$> (parseTime ["%e/%m/%Y"] =<< r .! 0)
                                <*> r .! 1
                                <*> r .! 2
 -- | New HSBC Format after July 2019
@@ -258,7 +258,7 @@ instance FromRecord (Int -> HSBCDaily) where
 -- in the statement. That's not really a problem as we normally use the monthly statement
 instance FromNamedRecord (Int -> HSBCDaily) where
   parseNamedRecord record = pure HSBCDaily
-                <*> (readTime ["%e %b %0Y"] <$> r .: "Date")
+                <*> (parseTime ["%e %b %0Y"] =<< r .: "Date")
                 <*> r .: "Description"
                 <*> (r .: "Amount" <|> parseDebit "Paid in" "Paid out" r)
                 where r = cleanRecord record
@@ -286,7 +286,7 @@ data PaypalTransaction = PaypalTransaction
 makeClassy ''PaypalTransaction
 instance FromNamedRecord (Int -> PaypalTransaction) where
   parseNamedRecord record = pure PaypalTransaction
-                <*> (readTime ["%e/%m/%Y"] <$> r .: "Date")
+                <*> (parseTime ["%e/%m/%Y"] =<< r .: "Date")
                 <*> r .: " Name"
                 <*> r .: " Type"
                 -- <*> r .: "Status"
@@ -473,7 +473,7 @@ readDaily discardPat path = do
     -- it is important to start with decodeHSBC because if a file as only one line
     -- trying to parse first with a decoder expecting a header will return a empty list
     -- instead of failing: the header is actually not used (and not checked if there is no lines)
-    case decodeNewHSBC <|> decodeHSBC <|> decodePaypal <|> decodeSantander of
+    case decodeHSBC <|> decodeNewHSBC <|> decodePaypal <|> decodeSantander of
         Left s -> error $ "can't parse Statement:" ++ path ++ "\n" ++ s
         Right v -> return . V.toList $ V.imap (\i f -> f (-i)) v -- Statements appears with
         -- the newest transaction on top, ie by descending date.
