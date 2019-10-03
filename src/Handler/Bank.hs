@@ -1088,12 +1088,15 @@ getGLBankStatementGenR account= do
         Nothing -> id
         Just path -> withCurrentDirectory path
        
-  (hts, _) <- liftIO $ withDir (B.loadAllTrans options)
+  (hts0, _) <- liftIO $ withDir (B.loadAllTrans options)
+  let hts = map (fmap B.cleanThese) hts0
   let fas = concat $ catThat $ map snd hts
       hs = [ h  {B._hBalance = Nothing, B._hType = convertType (B._hType h) } -- reset balance
              | fa <- fas
              , let t = B.faTransToTransaction fa
              , let h = B.transactionToHsbcTrans t
+             , let hdate = B._hDate h
+             , maybe True (<= hdate) (B.startDate options)
              ]
       convertType t = maybe t (showTransType . toEnum) (readMay t)
   let content = B.encodeHSBCTransactions (sortOn sorter hs )

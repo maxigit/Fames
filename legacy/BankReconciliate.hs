@@ -486,9 +486,14 @@ encodeHSBCTransactions hs = encodeDefaultOrderedByName hs
 -- * Main functions
 --  | Group transaction of different source by amounts.
 reconciliate :: [HSBCTransactions] -> [FATransaction] -> Map Amount (These [HSBCTransactions] [FATransaction])
-reconciliate hsbcs fas = align groupH groupF where
+reconciliate hsbcs fas = fmap cleanThese $ align groupH groupF where
     groupH = groupBy _hAmount hsbcs
     groupF = groupBy _fAmount fas
+
+cleanThese :: These [a] [b] -> These [a] [b]
+cleanThese (These [] bs) = That bs
+cleanThese (These as []) = This as
+cleanThese th = th
 
 groupBy :: Ord k => (a -> k) -> [a] -> Map k [a]
 groupBy k as = Map.fromListWith (++) as' where
@@ -715,9 +720,10 @@ updateTime opt = do
 
 -- | finishes the zip work by get a list of possible pair
 rezip :: These [HSBCTransactions] [FATransaction] -> [These HSBCTransactions FATransaction]
-rezip  (This hs) = map This hs
-rezip  (That fs) = map That fs
-rezip (These hs fs) = align hs fs
+rezip = rezip' . cleanThese
+rezip'  (This hs) = map This hs
+rezip'  (That fs) = map That fs
+rezip' (These hs fs) = align hs fs
 
 -- | Regroup bads by matching pair. we lose the amount grouping
 -- but we are here trying to display match, not discrepencies
