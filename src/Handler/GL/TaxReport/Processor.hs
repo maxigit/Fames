@@ -113,7 +113,8 @@ checkHMRCStatus (Entity reportKey report@TaxReport{..}) settings = do
          Nothing -> return Ready
          Just submitted -> return $ Submitted (UTCTime submitted 0)
     -- [] -> return Submitted -- treats not present as already submitted, or not required
-    _ ->  error "Problem retrieving the VAT obligations"
+    [] -> error "No obligations"
+    _ ->  error $ "Too many obligations: " <> show obligations
 
 submitHMRC :: HMRCProcessorParameters -> Entity TaxReport -> TaxReportSettings  -> Handler (Either Text TaxReport)
 submitHMRC params report _settings = do

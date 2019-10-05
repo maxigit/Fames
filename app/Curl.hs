@@ -7,7 +7,8 @@ import Text.HTML.TagSoup
 import ClassyPrelude
 import Control.Monad.Except
 import Data.Decimal
-import Data.Aeson(eitherDecodeStrict, FromJSON)
+import Data.Aeson(eitherDecodeStrict, FromJSON, Value)
+import Data.Yaml.Pretty(encodePretty, defConfig) 
 
 -- ** Curl
 docurl:: (?curl :: Curl) => URLString -> [CurlOption] -> ExceptT Text IO CurlResponse
@@ -32,23 +33,26 @@ mergePostFields opts = let
 
 doCurlWith :: (?curl :: Curl)
          => (Int -> String -> Either Text r)
+         -> (Int -> String -> Maybe Text)
          -> URLString -- ^ Url
          -> [CurlOption] -- ^ Options
          -> [Int] -- ^ Expected status
          -> Text -- ^ To add to error message
          -> ExceptT Text IO r
-doCurlWith cont url opts status msg = do
+doCurlWith onsuccess onfailure url opts status msg = do
   -- traceShowM ("POST to CURL", url, opts)
   r <- docurl url (mergePostFields opts)
   -- traceShowM ("RESP", respStatus r, respBody r)
   when (respCurlCode r /= CurlOK || respStatus r `notElem` status) $ do
-      throwError $ {- traceShowId $ -} unlines [ "Failed to : " <> msg
-                           , "CURL status: " <> tshow (respCurlCode r)
-                           , "HTTP status :" <> pack (respStatusLine r)
-                           , "when accessing URL: '" <> tshow url <> "'"
-                           , "If the problem persits, contact your administrator."
-                           ]
-  ExceptT $ return $ cont (respStatus r) (respBody r)
+      throwError . {- traceShowId $ -} unlines $
+        [ "Failed to : " <> msg
+        , "CURL status: " <> tshow (respCurlCode r)
+        , "HTTP status: " <> pack (respStatusLine r)
+        ] <> maybeToList ( ("Body: " <>) <$> onfailure (respStatus r) (respBody r)) <>
+        [ "when accessing URL: '" <> tshow url <> "'"
+        , "If the problem persits, contact your administrator."
+        ]
+  ExceptT $ return $ onsuccess (respStatus r) (respBody r)
 
 curlJson :: (?curl :: Curl, FromJSON json)
          => URLString -- ^ Url
@@ -56,19 +60,12 @@ curlJson :: (?curl :: Curl, FromJSON json)
          -> [Int] -- ^ Expected status
          -> Text -- ^ To add to error message
          -> ExceptT Text IO json
-curlJson = doCurlWith (const go) where
-  go = first fromString . eitherDecodeStrict . fromString
+curlJson = doCurlWith (const success) (const failure) where
+  success = first fromString . eitherDecodeStrict . fromString
+  failure body = Just $ case eitherDecodeStrict (fromString body)  of
+    Left _ -> fromString body
+    Right json -> decodeUtf8 $ encodePretty defConfig (json :: Value)
 
-doCurlWithJson :: (FromJSON b, ?curl::Curl)
-  => (Int -> b -> Either Text r)
-  -> URLString -- ^ 
-  -> [CurlOption]
-  -> [Int] -- ^ Expected statuses
-  -> Text -- ^ To add to error message
-  -> ExceptT Text IO r
-doCurlWithJson cont = doCurlWith go where
-  go err = cont err <=< first fromString . eitherDecodeStrict . fromString
-  
 -- *** Post Paramters
 class CurlPostField a where
   toCurlPostField :: a -> Maybe String

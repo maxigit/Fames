@@ -197,7 +197,7 @@ retrieveVATObligations reportType reportM params@HMRCProcessorParameters{..} = d
     curl <- lift initialize
     let
       ?curl = curl
-    r <- doCurlWithJson go url (-- curlPostFields [ -- Just "from=2018/01/11"
+    r <- curlJson url (-- curlPostFields [ -- Just "from=2018/01/11"
                                      --, Just "to=2019/02/01"
                                      -- ]
                     -- :
@@ -211,7 +211,7 @@ retrieveVATObligations reportType reportM params@HMRCProcessorParameters{..} = d
       
                       : CurlVerbose True
                     : [] -- method_POST
-                      ) [200, 400, 403] "Fetching VAT obligations"
+                      ) [200] "Fetching VAT obligations"
     return r
   return $ either (error . unpack) (filterGood . findWithDefault [] "obligations" ) (obligationsE :: Either Text (Map Text [VATObligation]))
 
@@ -240,12 +240,7 @@ submitHMRCReturn report@TaxReport{..} periodKey boxes params@HMRCProcessorParame
                         )
              : CurlVerbose True
              : method_POST 
-      go e json = do -- Either
-        case (e) of
-          201 -> return json
-          _ -> Left . decodeUtf8 $ encodePretty defConfig json 
-            
-    doCurlWithJson go url opts [201, 400, 403] "submitting VAT return"
+    curlJson url opts [201] "submitting VAT return"
                  
   case r of
       Left e -> error $ unpack e

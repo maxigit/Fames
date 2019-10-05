@@ -64,7 +64,7 @@ withFACurlDo user password m = do
 -- | send a request using curl an return a tag soup if successfull
 curlSoup :: (?curl :: Curl)
          => URLString -> [CurlOption] -> [Int] -> Text -> ExceptT Text IO [Tag String]
-curlSoup = doCurlWith (const go) where
+curlSoup = doCurlWith (const go) (const $ const Nothing) where
   go body = let
     tags = parseTags body
     in case (extractErrorMsgFromSoup tags) of
