@@ -70,21 +70,23 @@ GHCID_EXTRA= --reload=.ghcid-reload --reload=../fames-config/staging.yml --resta
 ghcid-old:
 	ghcid --command="stack exec ghci --test -- -iapp -ilegacy -isrc -ifay-shared -itest -iconfig/fa -hide-package=cryptonite  -w test/Spec.hs"   --test ":main --rerun --color"
 
-ghcid-current:
-	ghcid --command="stack ghci :ghcid" --test ":main --color -m@current --rerun --rerun-all-on-success" $(GHCID_EXTRA)
-ghcid-test:
-	ghcid --command="stack ghci :ghcid" --test ":main --color"
+ghcid-focus: reset-hspec
+	ghcid --command="stack ghci :ghcid" --test ":main --color -m@focus --rerun --rerun-all-on-success" $(GHCID_EXTRA)
+ghcid-test-all: reset-hspec
+	ghcid --command="stack ghci :ghcid" --test ":main --color" $(GHCID_EXTRA) 
 ghcid-test-force:
 	ghcid --command="stack ghci :test --ghc-options=-w --ghc-options=-fdefer-type-errors" --test ":main --color"
 ghcid:
 	ghcid --command="stack ghci --ghc-options=-w" $(GHCID_EXTRA)
 ghcid-run:
 	ghcid --command="stack ghci" --test "appMain" $(GHCID_EXTRA)
-ghcid-force:
+ghcid-run-force:
 	ghcid --command="stack ghci --ghc-options=-w --ghc-options=-fdefer-type-errors" --test "appMain" $(GHCID_EXTRA)
-ghcid-now:
+ghcid-run-now:
 	ghcid --command="stack ghci --ghc-options=-w" --test "appMain" $(GHCID_EXTRA)
 
+reset-hspec:
+	rm -rf .hspc-failures
 # Generate FrontAccounting model
 config/tables/xx%: config/fa-models
 

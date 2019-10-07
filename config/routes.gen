@@ -7,7 +7,6 @@
 
 / HomeR GET POST
 
-/comments CommentR POST
 /gl GLR !GL:
   /enter_receipts_sheet GLEnterReceiptSheetR GET POST !gl !group=Receipts !title=Enter_Receipt
   /save_receipts_sheet GLSaveReceiptSheetToFAR POST !gl-save 

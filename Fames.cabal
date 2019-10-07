@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e3acf731dbd33328012687673f5d27f70b885da0c8bb8c4d6ea49231e81d6d84
+-- hash: dce3e831e481bc31f475cb7a6207cd0be95af6550bbe55e6eca0f3cb6d4d4ad7
 
 name:           Fames
 version:        0.0.1
@@ -30,7 +30,6 @@ library
       Foundation
       Handler.Administrator
       Handler.Bank
-      Handler.Comment
       Handler.Common
       Handler.CsvUtils
       Handler.Dashboard
@@ -374,11 +373,9 @@ test-suite ghcid
       GL.Payroll.UtilsSpec
       GL.ReceiptProcessingSpec
       Handler.AuthSpec
-      Handler.CommentSpec
       Handler.CommonSpec
       Handler.FaSpec
       Handler.GLEnterReceiptSheetSpec
-      Handler.HomeSpec
       Handler.ItemReportSpec
       Handler.Items.BatchSpec
       Handler.WHBarcodeSpec
@@ -413,7 +410,6 @@ test-suite ghcid
       Foundation
       Handler.Administrator
       Handler.Bank
-      Handler.Comment
       Handler.Common
       Handler.CsvUtils
       Handler.Dashboard
@@ -623,11 +619,9 @@ test-suite test
       GL.Payroll.UtilsSpec
       GL.ReceiptProcessingSpec
       Handler.AuthSpec
-      Handler.CommentSpec
       Handler.CommonSpec
       Handler.FaSpec
       Handler.GLEnterReceiptSheetSpec
-      Handler.HomeSpec
       Handler.ItemReportSpec
       Handler.Items.BatchSpec
       Handler.WHBarcodeSpec

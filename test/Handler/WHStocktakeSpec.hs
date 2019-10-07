@@ -25,8 +25,10 @@ uploadSTSheet route status path overrideM = do
        get (WarehouseR WHStocktakeValidateR)
   statusIs 200
 
+
   runDB $ do
     insertUnique $ Operator "John" "Smith" "Jack" True
+  foundation <- getTestYesod
   request $ do
     setMethod "POST"
     setUrl (WarehouseR route)
@@ -41,13 +43,14 @@ uploadSTSheet route status path overrideM = do
         
       Just over -> do
         sheet <- liftIO $ readFile path
-        let key = computeDocumentKey  sheet
-        liftIO  $ writeFile ("/tmp/" <> unpack (unDocumentHash key)) sheet
+        (DocumentHash key, path') <- liftIO $ unsafeHandler foundation $ cacheByteString Nothing sheet
+
         addToken_ "form#upload-form"
-        addPostParam "f1" (tshow $ Just key)
-        addPostParam "f2" (tshow $ Just (path))
+        addPostParam "f1" ("Just " <> key)
+        addPostParam "f2" (tshow $ Just (path'))
         addPostParam "f7" $ if over then "yes" else "no"
 
+  -- printBody
   statusIs status
 
 boxtakeLengthShouldBe expected = do

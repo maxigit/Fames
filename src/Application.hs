@@ -38,7 +38,6 @@ import Handler.Administrator
 import Handler.Common
 import Handler.Fay
 import Handler.Home
-import Handler.Comment
 import Handler.GL
 import Handler.FA
 import Handler.FAX

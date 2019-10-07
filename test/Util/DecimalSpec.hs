@@ -6,7 +6,7 @@ import Test.QuickCheck(property, (===), (==>), elements)
 
 spec = roundingSpec
 
-roundingSpec = describe "@Rounding @current" $ do
+roundingSpec = describe "@Rounding" $ do
   it "rounds down 0.9 to 0" $ do
     applyRounding (RoundDown 0) 0.9 `shouldBe` 0
   it "rounds up 0.1 to 1" $ do
