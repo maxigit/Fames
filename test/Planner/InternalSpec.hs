@@ -25,7 +25,7 @@ pureSpec = describe "Parsing Scenario file @planner" $ do
                        ]
 
     parseScenarioFile text `shouldBe` Right [ Section LayoutH (Right ["A|B|C"]) ""
-                                           , Section MovesH (Right ["move 1", "move 2"]) ""
+                                           , Section (MovesH []) (Right ["move 1", "move 2"]) ""
                                            ]
   it "parses scenario with headings" $ do
     let text = unlines [ "* Layout"
@@ -41,7 +41,7 @@ pureSpec = describe "Parsing Scenario file @planner" $ do
     parseScenarioFile text `shouldBe` Right [ Section TitleH (Right []) "* Layout"
                                             , Section LayoutH (Right ["A|B|C"]) ""
                                             , Section TitleH (Right []) "* Initial Moves"
-                                            , Section MovesH (Right ["move 1", "move 2"]) ""
+                                            , Section (MovesH []) (Right ["move 1", "move 2"]) ""
                                             ]
   it "parses complex scenario"  $ do
     let text = unlines [ ":LAYOUT:"
@@ -57,10 +57,10 @@ pureSpec = describe "Parsing Scenario file @planner" $ do
                        ]
 
     parseScenarioFile text `shouldBe` Right [ Section LayoutH (Right ["A|B|C"]) ""
-                                           , Section MovesH (Left (DocumentHash "sha1")) ""
-                                           , Section MovesH (Right ["move 1", "move 2"]) ""
-                                           , Section MovesH (Left (DocumentHash "sha2")) ""
-                                           , Section MovesH (Right ["move 3", "move 4"]) ""
+                                           , Section (MovesH []) (Left (DocumentHash "sha1")) ""
+                                           , Section (MovesH []) (Right ["move 1", "move 2"]) ""
+                                           , Section (MovesH []) (Left (DocumentHash "sha2")) ""
+                                           , Section (MovesH []) (Right ["move 3", "move 4"]) ""
                                            ]
 
   it "rejects scenario with unknown section" $ do
@@ -113,7 +113,7 @@ ioSpec = describe "Reading scenario @planner" $ do
                        ]
 
     [sha1, sha2] <- mapM ( \t -> do
-                               sc <- readScenario t
+                               sc <- readScenario ( return . Right . (:[])) t
                                return $ scenarioKey `fmap` sc
                          )
                        [text, text2]
@@ -141,7 +141,7 @@ ioSpec = describe "Reading scenario @planner" $ do
                        ]
 
     [sha1, sha2] <- mapM ( \t -> do
-                               sc <- readScenario t
+                               sc <- readScenario ( return . Right . (:[])) t
                                return $ scenarioKey `fmap` sc
                          )
                        [text, text2]
@@ -169,7 +169,7 @@ ioSpec = describe "Reading scenario @planner" $ do
                        ]
 
     [sha1, sha2] <- mapM ( \t -> do
-                               sc <- readScenario t
+                               sc <- readScenario ( return . Right . (:[])) t
                                return $ scenarioKey `fmap` sc
                          )
                        [text, text2]
@@ -187,7 +187,7 @@ ioSpec = describe "Reading scenario @planner" $ do
                         , "move 4"
                         ]
     Right (DocumentHash shaPart1) <- do
-                  sc <- readScenario part1
+                  sc <- readScenario ( return . Right . (:[])) part1
                   return $ scenarioKey `fmap` sc
 
     let text1 = part1 <> part2
@@ -195,7 +195,7 @@ ioSpec = describe "Reading scenario @planner" $ do
                         , "@" ++ shaPart1] ++ part2
 
     [sha1, sha2] <- mapM ( \t -> do
-                               sc <- readScenario t
+                               sc <- readScenario ( return . Right . (:[])) t
                                return $ scenarioKey `fmap` sc
                          )
                        [text1, text2]

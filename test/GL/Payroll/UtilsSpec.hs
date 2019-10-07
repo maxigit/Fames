@@ -133,7 +133,8 @@ periodSpec = describe "@Period" $ do
     let folding = FoldWeekly
     it "stays in current period" $ do
       foldTime  folding (fromGregorian 2018 06 08)
-             `shouldBe` (fromGregorian 2018 06 04, Start (fromGregorian 2018 06 08))
+             `shouldBe` (fromGregorian 2018 01 05, Start (fromGregorian 2018 06 04))
+             --                   ^ Weekly fold to 2018-01-01
     -- it "find previous period" $ do
     --   foldTime  folding (fromGregorian 2017 03 02)
     --          `shouldBe` (fromGregorian 2018 01 02, Start (fromGregorian 2018 03 01))

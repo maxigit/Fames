@@ -410,6 +410,7 @@ extractDimensions dim tags = case (go "'l", go "'w", go "'h") of
                                 }
   where go prefix = case maybe [] (Set.toList) (Map.lookup prefix tags) of
           [value] -> (/100) `fmap` readMay value  
+          _ -> Nothing
 
 -- | Change the dimension of the box according to its tag
 updateDimFromTags :: Box s -> Box s
@@ -914,13 +915,14 @@ expandAttribute' (stripStatFunction "$ago" -> Just (arg, prop, xs) ) = Just  $ \
                  range' = fromIntegral range
                  lambda = log n' / range' :: Double
                  in min (fromIntegral n) $ round $ exp (lambda *  daysAgo')
-        Nothing -> daysAgo
+        _ -> daysAgo
       in tshow (d :: Integer) <> ex
     _ -> "<not a date>" <> ex
 
 
 expandAttribute' (uncons -> Just (x, xs)) = fmap (\f box -> (cons x) <$> f box) (expandAttribute' xs)
-expandAttribute' "" = Nothing
+expandAttribute' ("") = Nothing
+expandAttribute' _ = error "Bug. All pattern should be caught"
 
 expandStatistic :: (PropertyStats -> Map Text Int) -> Maybe (Char, Int) -> Box s -> Text -> Text -> WH Text s
 expandStatistic fn arg box prop xs = do
@@ -1174,6 +1176,7 @@ parseTagSelector tag = Just $ case break ('='  ==) tag of
   (key, stripPrefix "=-" -> Just values) -> TagHasKeyAndNotValues (parseMatchPattern key) (mkValues values)
   (key, stripPrefix "=!" -> Just values) -> TagHasKeyAndNotValues (parseMatchPattern key) (mkValues values)
   (key, stripPrefix "=" -> Just values) -> TagIsKeyAndValues (parseMatchPattern key) (mkValues values)
+  (key, _) -> error "Bug. Result of break = should start with = or being captured earlier"
   where mkValues = map parseMatchPattern . fromList . splitOn ";"
   
 parseMatchPattern :: Text -> MatchPattern

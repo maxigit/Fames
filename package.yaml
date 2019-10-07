@@ -204,7 +204,6 @@ tests:
     - shakespeare
     - transformers
     - hspec >=2.0.0
-    # - hspec-stack-rerun
     - QuickCheck
     - classy-prelude
     - classy-prelude-yesod
@@ -239,7 +238,6 @@ tests:
     - shakespeare
     - transformers
     - hspec >=2.0.0
-    - hspec-stack-rerun
     - QuickCheck
     - classy-prelude
     - classy-prelude-yesod
