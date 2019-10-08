@@ -19,6 +19,7 @@ module Handler.WH.Stocktake
 ) where
 
 import Import hiding(length, (\\), Null)
+import qualified Data.Set as Set
 import Handler.Util
 import Handler.CsvUtils hiding(FieldTF, RawT, PartialT, ValidT, FinalT)
 import qualified Handler.CsvUtils as CU
@@ -530,13 +531,17 @@ processStocktakeSheet mode = do
             -- it is legitimate to also inacite the boxes. We know (or think) the boxes
             -- have disappeared.
             when (pStyleComplete param /= StyleAddition) (do
-              let -- skusForFull = map stocktakeStockId (filter stocktakeActive stocktakes)
-                  (_zeros, nonZeros)= partition (\r -> rowQuantity r == Known 0)  quicks
-                  -- skusForZeros = zipWith makeSku (map rowStyle quicks) (map rowColour zeros)
-                  skusForNonZeros = zipWith makeSku (map rowStyle quicks) (map rowColour nonZeros)
-              -- invalidPreviousTakes (skusForFull ++ skusForZeros)
-              -- We don't deactivate boxes at the moment.
-              invalidPreviousStocktakes  skusForNonZeros
+              let skusForFull = map stocktakeStockId (filter stocktakeActive stocktakes)
+                  (zeros, nonZeros)= partition (\r -> rowQuantity r == Known 0)  quicks
+                  skusForAll = skusForFull  <> skusForZeros
+                  skusForNonZeros = zipWith makeSku (map rowStyle nonZeros) (map rowColour nonZeros)
+                  skusForZeros = zipWith makeSku (map rowStyle zeros) (map rowColour zeros)
+                  skusToDisable = setFromList skusForAll Set.\\ setFromList skusForNonZeros
+              -- traceShowM ("NON Z", skusForAll, skusForNonZeros, skusToDisable)
+                  -- when (null nonZeros)
+                  --   invalidPreviousTakes (skusForFull ++ skusForZeros)
+              invalidateBoxesBySku skusToDisable
+              invalidPreviousStocktakes  $ toList skusToDisable -- skusForNonZeros
               return ()
               )
 
@@ -642,6 +647,10 @@ _isBarcodeQuick = isPrefixOf quickPrefix
 --                                      [StocktakeActive =. False ]
 --   mapM_ invalid skus
    
+
+invalidateBoxesBySku :: Set Text -> SqlHandler ()
+invalidateBoxesBySku skus = forM_ (toList skus)  $ \sku -> do
+  updateWhere [BoxtakeDescription ==. Just sku] [BoxtakeActive =. False]
 
 -- Should update the location history
 -- using deactivateBoxt function.
