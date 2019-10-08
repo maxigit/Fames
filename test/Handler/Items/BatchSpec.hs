@@ -1,8 +1,6 @@
 module Handler.Items.BatchSpec where
 
 import TestImport
-import Handler.Items.Batches
-import Handler.Items.Batches.Matches
 import Handler.Items.Batches.Matches
 import ModelField
 import Test.QuickCheck(property, (===), (==>), Arbitrary(..), arbitraryBoundedEnum)

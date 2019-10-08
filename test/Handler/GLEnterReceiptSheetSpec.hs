@@ -4,10 +4,8 @@ module Handler.GLEnterReceiptSheetSpec (spec) where
 
 import TestImport
 
-import Handler.GL.GLEnterReceiptSheet
 import Handler.CsvUtils
 import Data.Csv (decode, HasHeader(NoHeader))
-import Text.Shakespeare.Text (st)
 
 spec :: Spec
 spec = describe "@GLReceipt" $ pureSpec
@@ -20,13 +18,13 @@ postReceiptSheet status sheet = do
     setMethod "POST"
     setUrl (GLR GLEnterReceiptSheetR)
     addToken_ "form#text-form " --"" "#text-form"
-    byLabel "Sheet name" "test 1"
-    byLabel "Receipts" sheet
+    byLabelExact "Sheet name" "test 1"
+    byLabelExact "Receipts" sheet
 
   -- printBody
   statusIs status
 
-uploadReceiptSheet status encoding path = do
+uploadReceiptSheet status path = do
   get (GLR GLEnterReceiptSheetR)
   statusIs 200
 
@@ -34,8 +32,8 @@ uploadReceiptSheet status encoding path = do
     setMethod "POST"
     setUrl (GLR GLEnterReceiptSheetR)
     addToken_ "form#upload-form "
-    fileByLabel "upload" ("test/Handler/GLEnterReceiptSheetSpec/" ++ path) "text/plain"
-    byLabel "encoding" (tshow $ 1) -- fromEnum encoding)
+    fileByLabelExact "upload" ("test/Handler/GLEnterReceiptSheetSpec/" ++ path) "text/plain"
+    byLabelExact "encoding" (tshow $ 1) -- fromEnum encoding)
 
   -- printBody
   statusIs status

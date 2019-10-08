@@ -1,11 +1,7 @@
-{-# OPTIONS_GHC -fno-warn-type-defaults #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 -- TODO remove:
-{-# OPTIONS_GHC -Wno-name-shadowing #-}
-{-# OPTIONS_GHC -Wno-unused-matches #-}
 module Handler.WH.PackingList
 ( getWHPackingListR
 , postWHPackingListR
@@ -40,12 +36,11 @@ import WH.PackingList.Internal
 import Text.Printf(printf)
 import Data.Conduit.List (consume)
 import Data.Text(splitOn,strip)
-import Text.Blaze.Html(Markup, ToMarkup)
+import Text.Blaze.Html(Markup)
 import GL.Utils
 import qualified FA as FA
 import Formatting
 import Data.Align(align)
-import Data.These
 import Handler.Items.Common(skuToStyleVarH, dutyForH)
 
 data Mode = Validate | Save deriving (Eq, Read, Show)
@@ -214,7 +209,7 @@ processUpload mode param = do
       key = computeDocumentKey bytes
 
   (documentKey'msgM) <- runDB $ loadAndCheckDocumentKey key
-  forM documentKey'msgM  $ \(Entity _ doc, msg) -> do
+  forM documentKey'msgM  $ \(_, msg) -> do
     case mode of
       Validate -> setWarning msg >> return ""
       Save -> renderWHPackingList Save (Just param) Nothing expectationFailed417 (setError msg) (return ()) -- should exit
@@ -235,7 +230,7 @@ processUpload mode param = do
 
   renderParsingResult (renderWHPackingList mode (Just param) Nothing badRequest400) 
                       (onSuccess mode)
-                      (parsePackingList (orderRef param) bytes)
+    (parsePackingList (orderRef param) bytes)
 
   -- | Update denormalized fields, ie boxesToDeliver_d
 updateDenorm :: Key PackingList -> SqlHandler ()
@@ -1167,7 +1162,7 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
                     go order (FullBox full:rows0) partials groups = go order rows0 []  ((partials, full):groups)
                     go order (PartialBox partial:rows0) partials groups = go order rows0 (partials++[partial]) groups
                     go order (OrderRef order':rows0) [] groups = ((order, groups) :) <$> go order' rows0 [] []
-                    go order (OrderRef order':rows0) _ _ = Left [(transformOrder order') {plColour = Left (InvalidValueError "Box not closed" "") } ]
+                    go __order (OrderRef order':__rows0) _ _ = Left [(transformOrder order') {plColour = Left (InvalidValueError "Box not closed" "") } ]
                     -- go _ _ _ _ = error "PackingList::groupRow should not append"
               validateGroup :: PLBoxGroup -> Either [PLRaw] PLBoxGroup 
               validateGroup grp@(partials, main) = let
@@ -1276,8 +1271,8 @@ parseInvoiceList plKey cart = let
 
 -- * Render
 instance Num () where
-  a + b = ()
-  a * b = ()
+  () + () = ()
+  () * () = ()
   abs () = ()
   signum () = 1
   fromInteger _ = 0
@@ -1337,8 +1332,7 @@ renderHeaderRow = [whamlet|
     -- <th>Vol/CNT
     -- <th>Total Vol
 
--- renderRows :: (ToMarkup a) => (r -> a) -> [r] -> Widget
-renderRows :: _ => (r -> a) -> [r] -> Widget
+renderRows :: Renderable r => (r -> Text) -> [r] -> Widget
 renderRows classFor rows = do
   [whamlet|
 <table *{"table-bordered" <>. datatable}>
@@ -1350,7 +1344,7 @@ renderRows classFor rows = do
 
 
 instance Renderable PLRaw where render = renderRow
-instance Renderable [PLRaw] where render = renderRows (const ("" :: String))
+instance Renderable [PLRaw] where render = renderRows (const ("" :: Text))
 
 
 instance Renderable [ParseDeliveryError] where
@@ -1514,7 +1508,7 @@ reportFormWidget param = do
 {-# NOINLINE postWHPackingListReportR #-}
 postWHPackingListReportR :: Handler Html
 postWHPackingListReportR = do
-  ((resp, view), _encType) <- runFormPost (reportForm Nothing)
+  ((resp, __view), __encType) <- runFormPost (reportForm Nothing)
   case resp of
     FormMissing -> error "Form Missing"
     FormFailure a -> error $ "Form failure : " ++ show a

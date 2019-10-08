@@ -11,11 +11,8 @@ import Handler.CsvUtils
 import Handler.Items.Common
 import Handler.Items.Category.Cache
 import Data.Text(toTitle, splitOn)
-import qualified FA as FA
-import Data.Maybe(fromJust)
-import Handler.Table
+import qualified FA
 import Database.Persist.Sql -- (rawSql, Single(..))
-import Data.Char(ord)
 import Data.Either(isRight)
 import qualified Data.Map as Map
 import qualified Data.Text as Text
@@ -168,7 +165,7 @@ scoreToQuality = mErrorToQuality . scoreToMError
 mErrorToQuality :: MatchError -> MatchQuality
 mErrorToQuality d = let
   qs = [Bad .. Identical]
-  go d [] = error "proven to not happen"
+  go _ [] = error "proven to not happen"
   go d (q:qs) | d >= (qualityToMError q) = q
               | otherwise =  go d qs
   in    go d qs
@@ -234,8 +231,8 @@ sequenceMatchRow MatchRow{..} = MatchRow <$> source <*> sourceColour
                     
 -- | Fill missing field from previous row if needed
 fillFromPrevious :: MatchRow 'PartialT -> MatchRow 'PartialT -> MatchRow 'PartialT
-fillFromPrevious p@(MatchRow source0 _sourceColour0 _targetColour0 target0 _quality0 _comment0)
-                  r@(MatchRow source sourceColour targetColour target quality comment)
+fillFromPrevious (MatchRow source0 _sourceColour0 _targetColour0 target0 _quality0 _comment0)
+                  (MatchRow source sourceColour targetColour target quality comment)
   = MatchRow (source <|> guess <$> source0 )
              sourceColour
              targetColour
@@ -455,7 +452,7 @@ buildTableForSku renderMatches sku'batches columnBatches (ForBuildTable matches)
 
   -- targets = nub $ sort (map batchMatchTarget matches)
   columns0 = [ ( fromMaybe batchName batchAlias -- Column name :: Text
-               , \((style, colour), batch ) -> Left . renderMatches <$> lookup (entityKey batch, colour, batchId ) matchMap
+               , \((__style, colour), batch ) -> Left . renderMatches <$> lookup (entityKey batch, colour, batchId ) matchMap
                                   
                )
             | (Entity batchId Batch{..}) <- columnBatches
@@ -607,9 +604,9 @@ median2 xs = case length xs `divMod` 2 of
 mergeBatchMatches :: BatchMergeMode -> Text ->  [ [BatchMatch]] -> Maybe [BatchMatch]
 mergeBatchMatches _ _ [] = Nothing
 mergeBatchMatches _ _ [matches] = Just matches
-mergeBatchMatches MergeRaisesError sku matchess | [ms] <-  nub matchess = Just ms
+mergeBatchMatches MergeRaisesError __sku matchess | [ms] <-  nub matchess = Just ms
 mergeBatchMatches MergeRaisesError sku _ = error $ "Multiple batches for " <> unpack sku
-mergeBatchMatches SafeMatch sku matchess = let
+mergeBatchMatches SafeMatch _ matchess = let
   matches = concatMap (aggregateScore AverageMatches . (map (batchMatchTargetColour &&& batchMatchScore))) matchess
   -- group by colour and take the worst of it
   col'scoreMap' :: Map Text [MatchScore]
@@ -736,7 +733,7 @@ connectMatches scoreLimiter batchNameFn ma mb = do -- maybe
    let [keysa, keysb] = map batchMatchKeys [ma, mb]
        ifOne [a]  = Just a
        ifOne _ = Nothing
-   common@(cBatch,cColour) <- ifOne $ keysa `List.intersect` keysb
+   common <- ifOne $ keysa `List.intersect` keysb
    (batchMatchSource, batchMatchSourceColour) <- ifOne $ filter (/= common) keysa
    (batchMatchTarget, batchMatchTargetColour) <- ifOne $ filter (/= common) keysb
    batchMatchScore <- scoreLimiter batchMatchSource batchMatchTarget  batchMatchScore0

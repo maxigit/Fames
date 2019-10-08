@@ -66,7 +66,7 @@ install:
 install_local:
 	rsync -z .stack-work/install/x86_64-linux/lts-8.24/8.0.2/bin/Fames ../fames-config/bin/Fames
 
-GHCID_EXTRA= --reload=.ghcid-reload --reload=../fames-config/staging.yml --restart=.ghcid-restart -h20
+GHCID_EXTRA= --reload=.ghcid-reload --reload=../fames-config/staging.yml --restart=.ghcid-restart # -h65
 ghcid-old:
 	ghcid --command="stack exec ghci --test -- -iapp -ilegacy -isrc -ifay-shared -itest -iconfig/fa -hide-package=cryptonite  -w test/Spec.hs"   --test ":main --rerun --color"
 

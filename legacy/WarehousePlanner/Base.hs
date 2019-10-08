@@ -3,7 +3,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wno-deprecations #-}
 module WarehousePlanner.Base
 ( newShelf
 , newBox
@@ -48,8 +47,6 @@ module WarehousePlanner.Base
 where
 import ClassyPrelude hiding (uncons, stripPrefix)
 import Text.Printf(printf)
-import Data.Vector(Vector)
-import Data.Monoid
 import qualified Data.Map.Strict as Map'
 import qualified Data.Map.Lazy as Map
 import Control.Monad.State(gets, get, put)
@@ -57,21 +54,14 @@ import Data.Map.Merge.Lazy(merge, preserveMissing, mapMaybeMissing, zipWithMaybe
 -- import Data.List(sort, sortBy, groupBy, nub, (\\), union, maximumBy, delete, stripPrefix, partition)
 import Data.List(cycle)
 import qualified Data.List as List
-import Data.Maybe(isJust)
-import Control.Applicative
 import Data.Ord (comparing, Down(..))
-import Data.Foldable (asum)
 import Data.Function(on)
-import Data.Traversable (traverse, sequenceA)
+import Data.Traversable (traverse)
 import Data.STRef
-import Control.Monad.ST
-import Data.Sequence (Seq, (|>))
-import qualified Data.Traversable as T
+import Data.Sequence ((|>))
 import qualified Data.Sequence as Seq
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Data.Either(lefts,rights)
-import Data.Maybe(maybeToList, mapMaybe)
 import WarehousePlanner.Type
 import WarehousePlanner.SimilarBy
 import Diagrams.Prelude(white, black)
@@ -285,7 +275,7 @@ findBoxByNameAndShelfNames (BoxSelector boxSel shelfSel numSel) = do
 
 -- | Limit a box selections by numbers
 limitByNumber :: BoxNumberSelector -> [(Box s, Text)] -> [(Box s, Text)]
-limitByNumber bn@(BoxNumberSelector contentN shelfN totalN) boxes0 = let
+limitByNumber (BoxNumberSelector contentN shelfN totalN) boxes0 = let
   sorted = sortBy (comparing  $ ((,) <$> boxGlobalPriority <*> boxRank) . fst ) boxes0
   boxes1 = maybe id (limitBy (boxSku . fst)) contentN $ sorted
   boxes2 = maybe id (limitBy snd) shelfN $ boxes1
@@ -611,7 +601,7 @@ assignOffsetWithBreaks :: FillingStrategy -> Maybe Dimension ->   [Box s] -> [Di
 assignOffsetWithBreaks _ _ [] _  = []
 assignOffsetWithBreaks _ _ _ []  = []
 assignOffsetWithBreaks strat Nothing (box:bs) (offset:os) =  (box, offset) : assignOffsetWithBreaks strat (Just offset) bs os -- ignore the first break
-assignOffsetWithBreaks strat (Just previous) bs@(box:_) os@(offset:_) = case boxBreak box of
+assignOffsetWithBreaks strat (Just previous) bs@(box:_) os@(__offset:_) = case boxBreak box of
   Nothing -> assignOffsetWithBreaks strat Nothing bs os
   Just StartNewShelf -> [] -- break
   Just StartNewSlice -> assignOffsetWithBreaks strat Nothing bs (dropWhile sameRow os)
@@ -637,7 +627,6 @@ moveBoxes :: (Box' box , Shelf' shelf) => ExitMode -> [box s] -> [shelf s] -> WH
 
 moveBoxes exitMode bs ss = do
   boxes <- mapM findBox bs
-  shelves <- mapM findShelf ss
   let layers = groupBy ((==)  `on` boxGlobalRank) $ sortBy (comparing boxGlobalRank) boxes
       boxGlobalRank box = (boxGlobalPriority box, boxStyle box, boxStylePriority box,  _boxDim box)
       -- ^ we need to regroup box by style and size
@@ -778,7 +767,7 @@ applyTagOperations tag'ops tags = foldM (flip applyTagOperation) tags tag'ops
 -- if nothing has changed. Knowing nothing has changed should
 -- allow some optimization upstream
 modifyTags :: [Tag'Operation] -> Tags -> Maybe Tags
-modifyTags [] tags = Nothing
+modifyTags [] __tags = Nothing
 modifyTags tag'ops tags = Just $ merge  opsOnly tagsOnly tagsAndOp tag'opsMap tags where
     tagsOnly = preserveMissing
     opsOnly = mapMaybeMissing $ \_ ops -> applyTagOperations ops mempty
@@ -1145,9 +1134,6 @@ unmatched pats0 valSet = go [] pats0 (Set.toList valSet) where
     -- ^ doesn't match anything, add to unused
     (_, vals') -> go unused pats vals'
 
-    
-  
-
 -- ** Parsing
 -- | split on |
 parseSelector :: Text -> Selector a
@@ -1176,7 +1162,7 @@ parseTagSelector tag = Just $ case break ('='  ==) tag of
   (key, stripPrefix "=-" -> Just values) -> TagHasKeyAndNotValues (parseMatchPattern key) (mkValues values)
   (key, stripPrefix "=!" -> Just values) -> TagHasKeyAndNotValues (parseMatchPattern key) (mkValues values)
   (key, stripPrefix "=" -> Just values) -> TagIsKeyAndValues (parseMatchPattern key) (mkValues values)
-  (key, _) -> error "Bug. Result of break = should start with = or being captured earlier"
+  _ -> error "Bug. Result of break = should start with = or being captured earlier"
   where mkValues = map parseMatchPattern . fromList . splitOn ";"
   
 parseMatchPattern :: Text -> MatchPattern
@@ -1261,7 +1247,7 @@ getOrCreateBoxTagMap prop = do
   cacheRef <- whCache
   cache <- lift $ readSTRef cacheRef 
   case lookup prop (boxTagMapMap cache) of
-    Just boxMap -> traceShow ("Reuse cache for prop: " <> prop) $ return boxMap
+    Just boxMap -> {-traceShow ("Reuse cache for prop: " <> prop) $ -} return boxMap
     Nothing -> do
       boxMap <- __getBoxTagMap prop
       lift $ modifySTRef cacheRef (\cache -> cache {boxTagMapMap = Map.insert prop boxMap (boxTagMapMap cache)})
@@ -1275,6 +1261,3 @@ __getBoxTagMap prop = do
                                  | box <- toList boxes
                                  , value <- boxTagValues box prop
                                  ]
-
-  
- 

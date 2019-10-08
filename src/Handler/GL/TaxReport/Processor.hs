@@ -26,7 +26,6 @@ import Data.Fixed
 import Formatting
 import Formatting.Time(year, month)
 import qualified FA as FA
-import Text.Shakespeare.Text (st)
 
 
 -- * Type
@@ -85,16 +84,6 @@ mkHMRCProcessor params settings = processor where
   
 
 -- * Main Dispatchers
-
-   
--- | Allow a processor to alter boxes depending on buckets
--- This is used for ECSL where each bucket corresponding to a box
-getBoxesOld :: TaxReportSettings -> Set Bucket -> SqlHandler [TaxBox]
-getBoxesOld settings buckets = either (error . unpack) id <$> case processor settings of
-  HMRCProcessor _ -> return $ getHMRCBoxes settings
-  ECSLProcessor params -> Right <$> getECSLBoxes params settings buckets
-  _ -> return . Right $ boxesRaw settings
-
 -- * HMRC
 -- ** Types
   
@@ -102,7 +91,7 @@ getBoxesOld settings buckets = either (error . unpack) id <$> case processor set
 -- | Connect to HMRC and check the status of the current tax return.
   -- Retrieve if needed the period reference needed to submit the return
 checkHMRCStatus :: Entity TaxReport -> HMRCProcessorParameters -> Handler TaxReportStatus
-checkHMRCStatus (Entity reportKey report@TaxReport{..}) settings = do
+checkHMRCStatus (Entity _ report@TaxReport{..}) settings = do
   -- get token for VAT obligation. hack to call getHMRC Token with a report id
   -- so that we are redirected to the correct page
   getHMRCToken taxReportType settings
@@ -119,25 +108,25 @@ checkHMRCStatus (Entity reportKey report@TaxReport{..}) settings = do
 submitHMRC :: HMRCProcessorParameters -> Entity TaxReport -> TaxReportSettings  -> Handler (Either Text TaxReport)
 submitHMRC params report _settings = do
   -- check user has read legal requirement
-  ((result,view), encType) <- runFormPost $ hmrcPreSubmitForm
+  ((result,__view), __encType) <- runFormPost $ hmrcPreSubmitForm
   case result of
     FormMissing -> error "missing"
     FormFailure msg ->  error $ "Form Failure:" ++ show msg
     FormSuccess False -> return $ Left "Please read and agree the legal declaration"
-    FormSuccess confirmed -> do
+    FormSuccess __confirmed -> do
         
 
       obligations <- retrieveVATObligations (taxReportType $ entityVal report) (Just $ entityVal report) params
       pKey <- case obligations of
         [obligation] -> case received obligation of
             Nothing -> return $ periodKey obligation
-            Just submitted -> error "Report already submitted"
+            Just __submitted -> error "Report already submitted"
         _ -> error "No period key found. Can't submit report "
       boxes <- runDB $ selectList [TaxReportBoxReport ==. entityKey report] []
       Right <$> submitHMRCReturn (entityVal report) pKey (map entityVal boxes) params
 
 getHMRCBoxes ::  TaxReportSettings -> Either Text [TaxBox]
-getHMRCBoxes settings@TaxReportSettings{..} =  do
+getHMRCBoxes TaxReportSettings{..} =  do
   let boxMap = mapFromList $ zip (map tbName boxesRaw) boxesRaw :: Map Text TaxBox
       findBox boxname = maybe (Left $ "Box " <> boxname <> " not present in HMRC report") Right
                       $ lookup boxname boxMap
@@ -175,7 +164,7 @@ displayHMRCStatuses reportType param = do
    $# <th>Period Key
    <th>Received
  <tbody>
-   $forall VATObligation{..} <- obligations
+   $forall VATObligation{periodKey=_,..} <- obligations
      <tr>
        <td> #{tshow start}
        <td> #{tshow end}
@@ -206,7 +195,7 @@ hmrcPreSubmitCheck :: (Key TaxReport -> Handler (CorrectionStatus, Fixed E2) ) -
                    -> Handler (Maybe Widget)
 hmrcPreSubmitCheck getStatus report = do
   -- check that there is not too much correction in the past
-  ((_,view), encType) <- runFormPost $ hmrcPreSubmitForm
+  ((_,view), __encType) <- runFormPost $ hmrcPreSubmitForm
   (correctionStatus, vat) <- getStatus (entityKey report)
   case correctionStatus of
     CorrectionManual -> do
@@ -255,7 +244,7 @@ hmrcPreSubmitForm extra =  do
   return (f, widget)
 -- * Manual
 -- Set the submitted date 
-submitManual ManualProcessorParameters{..} settings (Entity reportKey report) = do
+submitManual ManualProcessorParameters{..} settings (Entity _ report) = do
   let
     -- applly submiission date calculator if available
     -- to deadline of end of period
@@ -283,27 +272,28 @@ parseECSLBucket bucket = case break (==';') bucket of
     _ -> Left (taxCode , Just indicator')
 
 --  ** Compute boxes
-getECSLBoxes  :: ECSLProcessorParameters -> TaxReportSettings -> Set Bucket -> SqlHandler [TaxBox]
-getECSLBoxes ECSLProcessorParameters{..} TaxReportSettings{..} buckets = do
-  -- for each bucket which match the box regexp
-  -- traceShowM ("Bukets for boxes" , buckets )
-  let bucketBoxes = do -- []
-       bucket <- toList buckets
-       let rule = TaxBoxNet bucket
-           rounding = RoundDown 0
-       -- traceShowM ("BUCKET", bucket, break (==';') bucket)
-       case parseECSLBucket bucket of
-          Left (_, Nothing) | Just bucket == outOfScope -> [TaxBox bucket (Just "Out of ECSL scope") Nothing rule (Just rounding)]
-          Left (taxCode, indicatorm) -> [TaxBox bucket indicatorm (Just EQ) rule (Just rounding)]
-          Right (taxCode, indicator) -> let
-                                       description i = Just $ "Sales for "  <> taxCode <> " " <> toS i
-                                       toS i = case (i :: Int) of
-                                         0 -> "of Goods"
-                                         2 -> "as intermediary"
-                                         3 -> "of Services"
-                                         _ -> "<ERROR: unknow indicator " <> tshow i <> ">"
-                                   in [TaxBox bucket (description indicator) (Just GT) rule (Just rounding)]
-  return $ boxesRaw <> bucketBoxes
+  -- not used ?
+-- getECSLBoxes  :: ECSLProcessorParameters -> TaxReportSettings -> Set Bucket -> SqlHandler [TaxBox]
+-- getECSLBoxes ECSLProcessorParameters{..} TaxReportSettings{..} buckets = do
+--   -- for each bucket which match the box regexp
+--   -- traceShowM ("Bukets for boxes" , buckets )
+--   let bucketBoxes = do -- []
+--        bucket <- toList buckets
+--        let rule = TaxBoxNet bucket
+--            rounding = RoundDown 0
+--        -- traceShowM ("BUCKET", bucket, break (==';') bucket)
+--        case parseECSLBucket bucket of
+--           Left (_, Nothing) | Just bucket == outOfScope -> [TaxBox bucket (Just "Out of ECSL scope") Nothing rule (Just rounding)]
+--           Left (__taxCode, indicatorm) -> [TaxBox bucket indicatorm (Just EQ) rule (Just rounding)]
+--           Right (taxCode, indicator) -> let
+--                                        description i = Just $ "Sales for "  <> taxCode <> " " <> toS i
+--                                        toS i = case (i :: Int) of
+--                                          0 -> "of Goods"
+--                                          2 -> "as intermediary"
+--                                          3 -> "of Services"
+--                                          _ -> "<ERROR: unknow indicator " <> tshow i <> ">"
+--                                    in [TaxBox bucket (description indicator) (Just GT) rule (Just rounding)]
+--   return $ boxesRaw <> bucketBoxes
     
 
 -- ** Submit
@@ -339,7 +329,7 @@ generateECSLCSV contactName TaxReport{..} ECSLProcessorParameters{..} ecsls = do
             , format ("\n"%stext%","%stext%","%year%","%month%",GBP,"%stext%",0")
                          vatNumber branch start start contactName
             ] ++ map go ecsls
-      go e@ECSL{..} = format ("\n"%stext%","%stext%","%int%","%int) eCountry eCustomerGST eAmount eIndicator
+      go ECSL{..} = format ("\n"%stext%","%stext%","%int%","%int) eCountry eCustomerGST eAmount eIndicator
       source = yieldMany csv
       attachmentName = format ("ecsl-"%year%"-"%month%".csv") start start
   setAttachment attachmentName

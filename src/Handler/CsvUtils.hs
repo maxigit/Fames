@@ -342,7 +342,7 @@ invFieldToHtml invField =
     let (class_, value) = case invField of
           ParsingError _ v -> ("parsing-error" :: Text, v)
           MissingValueError _ -> ("missing-value" :: Text,"Empty")
-          InvalidValueError e v -> ("invalid-value" :: Text, v)
+          InvalidValueError e v -> ("invalid-value" :: Text, "'" <> v <> "'" <> e)
     in [shamlet|
 <span class="#{class_}">
   <span.description>#{invalidFieldError invField}

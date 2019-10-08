@@ -1,5 +1,4 @@
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 -- * Overview
 -- | Miscellaneous functions to help rendering
 -- | and/or accessing the database
@@ -92,7 +91,7 @@ import System.Directory (removeFile, createDirectoryIfMissing)
 import System.FilePath(takeDirectory)
 import System.IO.Temp (openTempFile)
 -- import System.Exit (ExitCode(..))
-import Data.Streaming.Process (streamingProcess, proc, Inherited(..), waitForStreamingProcess, env, ClosedStream(..))
+import Data.Streaming.Process (streamingProcess, proc, Inherited(..), waitForStreamingProcess, env)
 import qualified Data.Text.Lazy as LT
 import Text.Blaze.Html (Markup)
 import FA as FA hiding (unUserKey)
@@ -332,7 +331,7 @@ cacheByteString :: (MonadIO m, MonadResource m) => Maybe (DocumentHash -> FilePa
 cacheByteString base bs = do
   let key = computeDocumentKey bs
       path = fromMaybe (defaultPathMaker) base $ key
-  exist <- liftIO $ doesFileExist path
+  -- exist <- liftIO $ doesFileExist path
   liftIO $ createDirectoryIfMissing True (takeDirectory path)
   writeFile path  bs
 
@@ -397,7 +396,7 @@ generateLabelsResponse ::
   -> Handler TypedContent
 generateLabelsResponse outputName template labelSource = do
   (_, (tmp, thandle)) <- allocateAcquire (mkAcquire (openTempFile "/tmp" (unpack outputName))
-                                    (\ (tmp, handle) -> removeFile tmp)
+                                    (\ (tmp, __handle) -> removeFile tmp)
                                    -- ^ Removing the file doesn't work so we just leave it there ... :-(
                                    )
   -- save csv so glabels can read it

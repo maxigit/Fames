@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-deprecations #-}
 module Handler.GL.TaxReport
 ( getGLTaxReportsR
 , postGLNewTaxReportR 
@@ -23,18 +22,11 @@ import Handler.GL.TaxReport.HMRC
 import Handler.GL.TaxReport.Common
 import GL.Utils
 import Data.Time (addDays)
-import Database.Persist.MySQL(unSqlBackendKey)
-import Database.Persist.Sql (rawSql, RawSql, fromSqlKey, toSqlKey, Single(..))
-import Data.Aeson(encode)
+import Database.Persist.Sql (fromSqlKey)
 import qualified FA as FA
-import Metamorphosis
-import Lens.Micro
-import Formatting as F
-import Data.Tagged
 import qualified Data.Map as Map
 import Data.List(nub)
 import Util.Decimal
-import Handler.Items.Category.Cache (customerCategoryFinderCached)
 
 -- * Handler
 
@@ -61,7 +53,7 @@ getGLTaxReportsR = do
 postGLNewTaxReportR :: Text -> Handler Html
   
 postGLNewTaxReportR name = do
-  (settings, processor) <- unsafeGetReportSettings name
+  (settings, __processor) <- unsafeGetReportSettings name
   (key, TaxReport{..}) <- runDB $ do
     lasts <- selectList [TaxReportType ==. name] [Desc TaxReportStart]
     let taxReportStart = case lasts of
@@ -112,14 +104,14 @@ defaultViewMode before withinPeriod Nothing = case (before, withinPeriod) of
 
 {-# NOINLINE postGLTaxReportR #-}
 postGLTaxReportR :: Int64 -> Maybe TaxReportViewMode -> Handler Html
-postGLTaxReportR key modem = return "todo"
+postGLTaxReportR __key __modem = return "todo"
 
 
 {-# NOINLINE postGLTaxReportCollectDetailsR #-}
 postGLTaxReportCollectDetailsR :: Int64 -> Handler Html
 postGLTaxReportCollectDetailsR key = do
   let rId = TaxReportKey (fromIntegral key)
-  report <- runDB $ do
+  runDB $ do
     report <- getJust rId
     reportSettings'processor  <- lift $ getReportSettings (taxReportType report)
     let reportRules = maybe defaultRule (rules . fst) reportSettings'processor 
@@ -127,7 +119,6 @@ postGLTaxReportCollectDetailsR key = do
     -- delete existing one which need to be replaced
     mapM_ delete (mapMaybe tdExistingKey details )
     insertMany_  $ map tdDetailToSave $ filter (not . tdIsNull) details
-    return report
 
   setSuccess "Transaction tax details collected successfully"
   getGLTaxReportR key (Just TaxReportCollectedView) >>= sendResponseStatus created201
@@ -156,10 +147,10 @@ postGLTaxReportReopenR key = do
 postGLTaxReportPreSubmitR :: Int64 -> Handler Html
 postGLTaxReportPreSubmitR key = do
   report <- runDB $ loadReport key
-  traceShowM ("REPORT SUBMIt", report)
-  Just (reportSettings, processor)  <- getReportSettings (taxReportType $ entityVal report)
+  -- traceShowM ("REPORT SUBMIt", report)
+  Just (__reportSettings, processor)  <- getReportSettings (taxReportType $ entityVal report)
   -- let reportRules = maybe defaultRule rules reportSettings
-  (before, withinPeriod)  <- runDB $ countPendingTransTaxDetails (entityVal report)
+  (__before, withinPeriod)  <- runDB $ countPendingTransTaxDetails (entityVal report)
   
   forM (taxReportSubmittedAt (entityVal report)) (alreadySubmitted key)
   externalStatus <- checkExternalStatus processor report
@@ -204,7 +195,7 @@ postGLTaxReportSubmitR :: Int64 -> Handler TypedContent
 postGLTaxReportSubmitR key = do
   return "nothing done"
   report <- runDB $ loadReport key
-  Just (reportSettings, processor)  <- getReportSettings (taxReportType $ entityVal report)
+  Just (__reportSettings, processor)  <- getReportSettings (taxReportType $ entityVal report)
   result <- submitReturn processor report
   case result of
     Left err ->  do
@@ -223,7 +214,7 @@ postGLTaxReportSubmitR key = do
 {-# NOINLINE getGLTaxReportStatusesR #-}
 getGLTaxReportStatusesR :: Text -> Handler Html
 getGLTaxReportStatusesR name = do
-  (settings, processor) <- unsafeGetReportSettings name
+  (__settings, processor) <- unsafeGetReportSettings name
   w <- displayExternalStatuses processor name
   defaultLayout $ infoPanel name w
 
@@ -304,22 +295,22 @@ renderReportList (name, settings) = runDB $ do
         <th> Status
         <th> Submitted
         $#<th> External Reference
-    $forall (Entity reportKey report@TaxReport{..}) <- reports
+    $forall (Entity reportKey report) <- reports
       <tr>
         <td> <a href="@{GLR $ GLTaxReportR (fromSqlKey reportKey) Nothing}">  
             #{tshow $ fromSqlKey reportKey}
-        <td> #{taxReportReference}
-        <td.start> #{tshow taxReportStart}
-        <td.end> #{tshow taxReportEnd}
+        <td> #{taxReportReference report}
+        <td.start> #{tshow $ taxReportStart report}
+        <td.end> #{tshow $ taxReportEnd report}
         <td class="#{classFor $ taxReportDateStatus settings today report}">
-                    #{tshow taxReportStatus}
-        <td.submitted> #{tshowM taxReportSubmittedAt}
-        $#<td.submitted> #{fromMaybe "" taxReportExternalReference}
+                    #{tshow $ taxReportStatus report}
+        <td.submitted> #{tshowM $ taxReportSubmittedAt report}
+        $#<td.submitted> #{fromMaybe "" $ taxReportExternalReference report}
   |]
   return (name, widget)
 
 renderReportHeader :: Entity TaxReport -> (Int, Int)-> Widget
-renderReportHeader (Entity rId TaxReport{..}) (before, withinPeriod) = do
+renderReportHeader (Entity _ TaxReport{..}) (before, withinPeriod) = do
   let panelClass = case (taxReportStatus, taxReportSubmittedAt, before, withinPeriod) of
                      (Pending, Just _, _, _) -> "panel-danger" -- shoudn't happeellon
                      (Pending, Nothing , 0, 0) -> "panel-info" -- shoudn't happeellon
@@ -500,8 +491,8 @@ renderTaxDetailTable urlFn personName taxName boxes startDate taxDetails =  let
         <th>Bucket
         $if hasBoxes
           <th>Boxes
-        $forall (TaxBox{..}, _) <- boxes
-          <th.none>#{tbName} 
+        $forall (box, _) <- boxes
+          <th.none>#{tbName box} 
         <th.none>Status
     <tbody>
       $forall detail <- taxDetails 
@@ -564,17 +555,17 @@ renderBucketTable bucket'rates bucketMap = let
      <thead>
        <tr>
          <th>Bucket
-         $forall (Entity (FA.TaxTypeKey taxId) FA.TaxType{..}, _) <- taxTypes
+         $forall (Entity (FA.TaxTypeKey taxId) tax@FA.TaxType{taxTypeInactive}, _) <- taxTypes
            <th :taxTypeInactive:.text-danger :taxTypeInactive:.bg-danger data-toggle='tooltip' :taxTypeInactive:title="TaxType is Inactive">
-              <div>##{tshow taxId} #{taxTypeName}
-              <div>#{formatDouble' taxTypeRate}%
+              <div>##{tshow taxId} #{FA.taxTypeName tax}
+              <div>#{formatDouble' (FA.taxTypeRate tax)}%
          <th>Total
      <tbody>
        $forall (bucket, txs) <- buckets
          $with bucketIn <-  notElem bucket confBuckets
           <tr :bucketIn:.bg-danger :bucketIn:.text-danger data-toggle="tooltip" :bucketIn:title="Bucket #{bucket} not in current report configuration">
               <td>#{bucket}
-            $forall (taxType@(Entity _ FA.TaxType{..}), _) <- taxTypes
+            $forall (taxType@(Entity _ FA.TaxType{taxTypeInactive,taxTypeRate}), _) <- taxTypes
               $case lookup (bucket, taxType) bucketMap
                 $of Just tx
                   $with invalidBucket <- notElem (bucket, taxType) bucket'rates
@@ -589,7 +580,7 @@ renderBucketTable bucket'rates bucketMap = let
        <tfoot>
          <tr>
            <th> Total
-           $forall (Entity _ FA.TaxType{..}, txs ) <- taxTypes
+           $forall (Entity _ FA.TaxType{taxTypeRate}, txs ) <- taxTypes
              <td>
                 ^{renderTaxSummary (Just $ taxTypeRate) $ mconcat txs}
            $with allTxs <- toList bucketMap
@@ -647,7 +638,7 @@ renderBoxTable box'amounts =
         <th>Box
         <th>Description
         <th>Amount
-    $forall (TaxBox{..}, amount) <- box'amounts
+    $forall (TaxBox{tbName,tbShouldBe,tbDescription}, amount) <- box'amounts
       <tr class="#{klass tbShouldBe amount}">
         <td>#{tbName}
         <td>#{fromMaybe "" tbDescription}
@@ -682,7 +673,7 @@ renderBoxConfigCheckerTable bucket'rates boxes =  let
                            then "down"
                            else "no"
                 ]
-    klasses = [ "box-" <> boxId  <> "-" <> up  | (boxId, boxName, value, up) <- boxDetails ]
+    klasses = [ "box-" <> boxId  <> "-" <> up  | (boxId, __boxName, __value, up) <- boxDetails ]
     boxUps = length $ filter (== "up") [up | (_,_,_,up) <- boxDetails]
     boxDowns = length $ filter (== "down") [up | (_,_,_,up) <- boxDetails]
     iconFor "up" = "glyphicon-arrow-up boxup" :: Text
@@ -731,7 +722,7 @@ renderBoxConfigCheckerTable bucket'rates boxes =  let
         <th>Boxes
           <input.master-box type=checkbox onChange="toggleAll()" checked>
      <tbody>
-       $forall (TaxBox{..}, boxId) <- box'ids
+       $forall (TaxBox{tbName}, boxId) <- box'ids
          <tr>
           <td>
             <label>#{tbName}
@@ -899,5 +890,3 @@ getBucketRateFromConfig :: Entity TaxReport -> Handler (Map (Bucket, Entity FA.T
 getBucketRateFromConfig report = do
   (settings, _) <- unsafeGetReportSettings (taxReportType $ entityVal report)
   getBucketRateFromSettings (entityKey report) settings
-
-  

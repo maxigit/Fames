@@ -3,29 +3,9 @@
 module Handler.WH.Barcode where
 
 import Import
-import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
-                              withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
--- TODO
-  -- TODO clean code (Conduit)
-  -- TODO clean import (conduit, cabal)
-  -- DONE manage error in calling gllabels
-  -- TODO fix template retrieving from form
-  --  DONE load from config
-  -- DONE add many template
-     -- TODO with description (in config)
-  -- DONE use glabels
-  -- refactor , clean
-     -- field creation DONE
-     -- angular -> fay ?
-     -- remove [Template] param, just return a Barcode with a list
-     -- use angular Yesod ?
-  -- split into function DONE
-  -- bracket tmp file DONE
-
 import Formatting
 import Formatting.Time
 import WH.Barcode
-import Data.List((!!))
 import Handler.Util(setAttachment, generateLabelsResponse, renderField)
 -- import Data.Streaming.Process (streamingProcess, proc, ClosedStream(..), waitForStreamingProcess)
 -- import System.IO.Temp (openTempFile)
@@ -33,7 +13,6 @@ import Handler.Util(setAttachment, generateLabelsResponse, renderField)
 -- import qualified Data.Conduit.Binary as CB
 -- import System.Directory (removeFile)
 import Data.Time
-import qualified Data.Text.Lazy as LT
  
 withAngularApp :: Maybe Text -> Widget -> Widget
 withAngularApp modM widget = do
@@ -136,7 +115,7 @@ renderGetWHBarcodeR date  start = do
 postWHBarcodeR :: Handler TypedContent 
 postWHBarcodeR = do
   bparams <- getBarcodeParams
-  ((resp, textW), encType) <- runFormPost $ barcodeForm bparams Nothing Nothing
+  ((resp, __textW), __encType) <- runFormPost $ barcodeForm bparams Nothing Nothing
   case resp of
     FormMissing -> error "missing"
     FormFailure msg ->  error $ "Form Failure:" ++ show msg
@@ -216,7 +195,7 @@ outputFile prefix start end ext =
 -- | generates a sequence of barcodes given a prefix
 -- roll to the next prefix if needed
 -- generateBarcodes :: Text -> (Maybe Day) -> Int -> Handler [Text]
-generateBarcodes code dayM 0 = return []
+generateBarcodes _ _ 0 = return []
 generateBarcodes code dayM nb = do
   today <- todayH
   let date = fromMaybe today dayM

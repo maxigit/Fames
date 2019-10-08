@@ -15,8 +15,7 @@ import Import
 import qualified Yesod.Media.Simple as M
 import Diagrams.Prelude hiding(iso)
 import Diagrams.Backend.Cairo
-import Data.Ord(comparing)
-import Data.Text (splitOn, strip, split)
+import Data.Text (strip, split)
 import Data.Maybe (fromJust)
 -- import Linear.Affine ((.-.))
 
@@ -35,7 +34,7 @@ data PDimension = PDimension
   }
 
 -- * Forms
-singleForm outer inner = renderBootstrap3 BootstrapBasicForm form
+singleForm = renderBootstrap3 BootstrapBasicForm form
   where
     form = (,,,,,,) <$> (areq intField "outer length" Nothing)
               <*> (areq intField "outer width" Nothing)
@@ -84,11 +83,11 @@ renderImage outer inner = do
 
 {-# NOINLINE getWHDimensionR #-}
 getWHDimensionR :: Handler Html
-getWHDimensionR = renderDimensionR Nothing Nothing
+getWHDimensionR = renderDimensionR 
 
-renderDimensionR outer0 inner0 = do
+renderDimensionR = do
   setInfo ("Start style with  ! or < (inner box volume) to use inner boxes")
-  ((resp, form), encType) <- runFormGet (singleForm outer0 inner0)
+  ((resp, form), encType) <- runFormGet singleForm
   boxes <- case resp of
     FormMissing -> return []
     FormFailure a -> do
@@ -268,7 +267,7 @@ innerBoxes outer inner =
       shrink (Dimension x y z) = Dimension (x-1) (y-1) (z-1)
       best = bestArrangement orientations [(shrink outer, ())] inner
       (ori, nl, nw, nh, _) = case best of
-         (ori, nl, nw, nh, _) | nl*nw*nw > 0 -> best
+         (__ori, nl, nw, __nh, _) | nl*nw*nw > 0 -> best
          _ -> best0
       (Dimension l w h) = W.rotate ori inner
   in reverse $ [ PDimension (Dimension l0 w0 h0) inner ori

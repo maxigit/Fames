@@ -4,6 +4,7 @@ import TestImport
 import Items.Internal
 import Items.Types
 import Test.QuickCheck(property, (===), (==>))
+import qualified Data.IntMap as IM
 
 
 iMaster = (StockMasterF {smfCategoryId = Identity 23
@@ -120,12 +121,55 @@ bug = describe "bug" $ do
                                                                            , impWebPrices = Nothing}   }
     let bobF = ItemInfo {iiStyle = "Bob"
                        , iiVariation ="White"
-                       , iiInfo = ItemMasterAndPrices {impMaster = Nothing -- Just iMaster
-                                                      , impSalesPrices = Nothing -- Just iPrices
-                                                      , impPurchasePrices = Nothing
-                                                      , impFAStatus = Nothing -- Just iFA
-                                                      , impWebStatus = Nothing -- Just iWebStatus
-                                                      , impWebPrices = Nothing}   }
+                       , iiInfo = ItemMasterAndPrices {
+                           impMaster = Just (StockMasterF {smfCategoryId = ([] ,23)
+                                                          , smfTaxTypeId = ([] ,1)
+                                                          , smfDescription = ([] ,"Bob. White")
+                                                          , smfLongDescription = ([] ,"")
+                                                          , smfUnits = ([] ,"ea.")
+                                                          , smfMbFlag = ([] ,"B")
+                                                          , smfSalesAccount = ([] ,"4000")
+                                                          , smfCogsAccount = ([] ,"5001")
+                                                          , smfInventoryAccount = ([] ,"1001")
+                                                          , smfAdjustmentAccount = ([] ,"8610")
+                                                          , smfAssemblyAccount = ([] ,"1001")
+                                                          , smfDimensionId = ([] ,Just 17)
+                                                          , smfDimension2Id = ([] ,Just 0)
+                                                          , smfActualCost = ([] ,0.0)
+                                                          , smfLastCost = ([] ,0.0)
+                                                          , smfMaterialCost = ([] ,0.0)
+                                                          , smfLabourCost = ([] ,0.0)
+                                                          , smfOverheadCost = ([] ,0.0)
+                                                          , smfInactive = ([] ,True)
+                                                          , smfNoSale = ([] ,False)
+                                                          , smfEditable = ([] ,False)})
+                           , impSalesPrices = Just (IM.fromList [(11 ,PriceF { pfStockId = ([] ,"Bob-White")
+                                                                          , pfSalesTypeId = ([] ,11)
+                                                                          , pfCurrAbrev = ([] ,"GBP")
+                                                                          , pfPrice = ([] ,8.0)})
+                                                             ,(13 ,PriceF {pfStockId = ([] ,"Bob-White")
+                                                                          , pfSalesTypeId = ([] ,13)
+                                                                          , pfCurrAbrev = ([] ,"GBP")
+                                                                          , pfPrice = ([] ,8.0)})
+                                                             ,(15 ,PriceF {pfStockId = ([] ,"Bob-White")
+                                                                          , pfSalesTypeId = ([] ,15)
+                                                                          , pfCurrAbrev = ([] ,"GBP")
+                                                                          , pfPrice = ([] ,8.0)})
+                                                             ,(16 ,PriceF {pfStockId = ([] ,"Bob-White")
+                                                                          , pfSalesTypeId = ([] ,16)
+                                                                          , pfCurrAbrev = ([] ,"GBP")
+                                                                          , pfPrice = ([] ,8.0)})])
+                           , impPurchasePrices = Just (IM.fromList [])
+                           , impFAStatus = Just (ItemStatusF {isfQoh = ([] ,0)
+                                                             , isfAllQoh = ([] ,0)
+                                                             , isfOnDemand = ([] ,0)
+                                                             , isfAllOnDemand = ([] ,0)
+                                                             , isfOnOrder = ([] ,0)
+                                                             , isfUsed = ([] ,False)})
+                           , impWebStatus = Just (ItemWebStatusF {iwfProductDisplay = ([] ,Nothing)
+                                                                 , iwfActive = (["text-danger"] ,True)})
+                           , impWebPrices = Just (ItemPriceF (IM.fromList []))}}
+
     computeDiff bob bob `shouldBe`  bobF
     
 shouldBeAlmost a b = (abs (a-b) <1e-6) `shouldBe` True

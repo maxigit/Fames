@@ -56,6 +56,8 @@ mkYesodSubData "FI" [parseRoutes|
 /colour/variations/#Text FIColourTransform
 /category/#Text/+[Text] FICategory
 |]
+
+__avoid_unused_warning_for_resourcesFI = resourcesFI 
 -- *  Dispatcher
 importFamesDispatch :: Section -> Handler (Either Text [Section])
 importFamesDispatch (Section ImportH (Right content) _) = do
@@ -263,7 +265,7 @@ indexParam = I.IndexParam{..} where
 
 -- ** Live box status adjusted with realive QOH
 importBoxStatusLive :: WhichBoxes -> Text -> [Text] -> Handler Section
-importBoxStatusLive which prefix tags = do
+importBoxStatusLive which prefix __tags = do
   summaries <- loadLiveSummaries
   operators <- allOperators
   let header = "selector,tags"

@@ -2,7 +2,7 @@ module Util.DecimalSpec (spec) where
 import Prelude
 import Test.Hspec
 import Util.Decimal
-import Test.QuickCheck(property, (===), (==>), elements)
+import Test.QuickCheck(property, (===), elements)
 
 spec = roundingSpec
 
@@ -30,6 +30,7 @@ roundingSpec = describe "@Rounding" $ do
                       1 -> RoundUp 2
                       2 -> Round 2
                       3 -> RoundBanker 2
+                      _ -> error "Bug r0 shoulb be element [0..3]"
            return $ applyRounding r x' === x'
   it "convert back on forth without loss" $ property $
       \x ->

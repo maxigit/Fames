@@ -5,20 +5,15 @@ where
 
 -- * Import
 import Import
-import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
-                              withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 import Handler.Table
 import qualified GL.Payroll.Timesheet as TS
 import qualified GL.Payroll.Report as TS
-import GL.Payroll.Parser
 import GL.Payroll.Settings
 import GL.Utils
-import Data.Text (strip)
 import Database.Persist.MySQL
 import Data.Time.Calendar
 import Lens.Micro.Extras (view, preview)
 import Lens.Micro hiding ((<&>))
-import Data.These
 import Data.List.NonEmpty (NonEmpty(..))
 import  qualified WH.FA.Types as WFA
 import  qualified WH.FA.Curl as WFA
@@ -26,7 +21,6 @@ import qualified FA as FA
 import Control.Monad.Except
 import Text.Printf(printf)
 import qualified Data.Map as Map
-import Handler.Util
 import Data.List(iterate, cycle)
 import Locker
 import  Util.Cache
@@ -467,7 +461,7 @@ displayEmployeeSummary' columnWeight timesheet= let
 -- | Computes a weight function compatible with displayEmployeeSummary'
 -- by taking a list of column name to display in order
 columnWeightFromList :: [Text] -> (Text -> Int -> Maybe Int)
-columnWeightFromList [] col i = Just i
+columnWeightFromList [] __col i = Just i
 columnWeightFromList colnames col _ = let
   weights = Map.fromList (zip colnames [1..])
   in lookup col weights
@@ -712,7 +706,7 @@ calendarFn :: (?viewPayrollDurationPermissions :: Text -> Granted)
            -> Day
            -> Either Bool Integer
            -> Maybe (Html, [Text])
-calendarFn shiftMap (operator,color) weekStart (Left False) = Just $ ([shamlet|<span style="color:#{color}">#{operator}|], [])
+calendarFn __shiftMap (operator,color) __weekStart (Left False) = Just $ ([shamlet|<span style="color:#{color}">#{operator}|], [])
 calendarFn shiftMap (operator,color) weekStart (Left True) = do -- Maybe
   -- display total, for that we need all the shifts for the given week
   let days = map (`addDays` weekStart) [0..6]
@@ -832,7 +826,7 @@ rowTotal periodStart shiftMap operators = let
 -- * To Front Accounting
 -- ** GRN
 saveGRNs :: AppSettings -> TimesheetId -> TS.Timesheet _ (TS.Sku, PayrollShiftId) -> ExceptT Text Handler [(Int, [PayrollShiftId])]
-saveGRNs settings key timesheet = do
+saveGRNs settings __key timesheet = do
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       psettings = appPayroll settings
       -- in order to know which shifts go into which textcarts
@@ -1045,7 +1039,7 @@ saveExternalPayments settings key invoiceNo mkAccount day timesheet = do
       )
   lift $ runDB $ insertMany_ $ concatMap
         (\x -> case x of
-                 Left (crId, Nothing) -> error "Should not happend" --  [ TransactionMap ST_SUPPCREDIT crId TimesheetE tId
+                 Left (__crId, Nothing) -> error "Should not happend" --  [ TransactionMap ST_SUPPCREDIT crId TimesheetE tId
                  Left (crId, Just invId) -> [ TransactionMap ST_SUPPCREDIT crId TimesheetE tId False
                                             , TransactionMap ST_SUPPINVOICE invId TimesheetE tId False
                                             ]
@@ -1217,7 +1211,7 @@ voidTransactions date commentFn criteria= do
     Right _ -> return (length trans)
 
 voidFATransaction :: WFA.FAConnectInfo -> Day -> Maybe Text -> Entity TransactionMap -> ExceptT Text Handler ()
-voidFATransaction connectInfo vtDate comment (Entity tId TransactionMap{..}) = do
+voidFATransaction connectInfo vtDate comment (Entity __tId TransactionMap{..}) = do
   let vtTransNo = transactionMapFaTransNo
       vtTransType = transactionMapFaTransType
       vtComment = Just $ fromMaybe "Voided by Fames" comment

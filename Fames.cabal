@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: dce3e831e481bc31f475cb7a6207cd0be95af6550bbe55e6eca0f3cb6d4d4ad7
+-- hash: fb5f688bd14d55649e6e94acbc8c83278d2d4ddc02e03b4c5d0dd29e7e4176b9
 
 name:           Fames
 version:        0.0.1
@@ -232,7 +232,7 @@ library
     , yesod-media-simple >=0.2.0.1 && <0.2.1
     , yesod-static >=1.4.0.3 && <1.6
   if (flag(dev)) || (flag(library-only))
-    ghc-options: -Werror -Wincomplete-patterns -Wno-partial-type-signatures -Wno-type-defaults -O0 -j6
+    ghc-options: -Werror -Wincomplete-patterns -W -Wno-partial-type-signatures -Wno-type-defaults -O0 -j6
     cpp-options: -DDEVELOPMENT
   else
     ghc-options: -W -fwarn-tabs -Wno-type-defaults -O2 -j6
@@ -376,7 +376,6 @@ test-suite ghcid
       Handler.CommonSpec
       Handler.FaSpec
       Handler.GLEnterReceiptSheetSpec
-      Handler.ItemReportSpec
       Handler.Items.BatchSpec
       Handler.WHBarcodeSpec
       Handler.WHBoxtake.AdjustementSpec
@@ -622,7 +621,6 @@ test-suite test
       Handler.CommonSpec
       Handler.FaSpec
       Handler.GLEnterReceiptSheetSpec
-      Handler.ItemReportSpec
       Handler.Items.BatchSpec
       Handler.WHBarcodeSpec
       Handler.WHBoxtake.AdjustementSpec

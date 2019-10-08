@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -fno-warn-unused-imports #-}
 module DC (module X) where 
 import DC133 as X
 import DC20 as X

@@ -1,6 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Handler.FA
-( module Handler.FA
+( module FA
 , module Handler.FA.Def
 ) where
 

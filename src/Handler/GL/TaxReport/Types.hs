@@ -153,7 +153,7 @@ tdExistingKey = entityKey <$$> _private_currentDetail
 
 -- | Is pending if there is something to save
 -- and it's different from what is alreday
-tdIsPending d@PrivateTaxDetail{..} =  fmap entityVal _private_currentDetail /= Just _private_detailToSave
+tdIsPending PrivateTaxDetail{..} =  fmap entityVal _private_currentDetail /= Just _private_detailToSave
   -- && not (tdIsNull d ) 
 
 tdIsNull detail  = amountNull taxAmount  && amountNull netAmount

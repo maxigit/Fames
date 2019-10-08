@@ -7,7 +7,6 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.Vector as Vec
 import Control.Monad
 -- import Data.List.Split (splitOn)
-import Data.List(nub, union, groupBy, sortBy)
 import qualified Data.List as List
 import Data.Char(isDigit)
 import Data.Ord(comparing)
@@ -15,18 +14,13 @@ import ClassyPrelude hiding(readFile)
 import Text.Read(readMaybe)
 import qualified Text.Parsec as P
 import qualified Text.Parsec.Text as P
-import qualified Text.ParserCombinators.Parsec.Token as P
-import Control.Applicative
-import Data.Maybe(maybeToList, fromMaybe)
+import Data.Maybe(fromMaybe)
 import Control.Monad.State
-import Text.Regex.TDFA ((=~))
 import qualified Text.Regex as Rg
 import qualified Text.Regex.Base.RegexLike as Rg
-import qualified Data.Set as Set
 import Data.Text(splitOn)
 import Data.Text.IO(readFile)
 
-import Debug.Trace
 readShelves :: FilePath-> IO (WH [Shelf s] s)
 readShelves filename = do
     csvData <- BL.readFile filename
@@ -240,7 +234,7 @@ readBoxes defaultTags boxOrientations splitter filename = do
                             (style, content) = splitter name
                         s0 <- incomingShelf
 
-                        forM [1..qty] $   \i -> newBox style content dim (headEx boxOrientations) s0 boxOrientations (defaultTags <> tags)
+                        forM [1..qty] $   \_ -> newBox style content dim (headEx boxOrientations) s0 boxOrientations (defaultTags <> tags)
 
             concat `fmap` (Vec.toList `fmap` v)
 
@@ -261,7 +255,7 @@ readClones defaultTags filename = do
                 boxIds <- findBoxByNameAndShelfNames selector
                 boxes <- mapM findBox boxIds
                 let box'qtys =  [(box, q) | box <- boxes , q <- [1..qty :: Int]] -- cross product
-                forM box'qtys  $ \(box, i) -> do
+                forM box'qtys  $ \(box, _) -> do
                     newbox <- newBox (boxStyle box)
                             (fromMaybe (boxContent box) content) -- use provided content if possible
                             (_boxDim box)
@@ -393,7 +387,7 @@ instance Csv.FromField (Either Rg.Regex (Box s -> WH Rg.Regex s)) where
     r <- Csv.parseField s
     case expandAttribute' r of
       Nothing -> Left <$> Rg.makeRegexM (unpack r)
-      Just f -> return . Right $ \box -> do
+      Just _ -> return . Right $ \box -> do
               r'  <- expandAttribute box r
               Rg.makeRegexM (unpack r')
 
@@ -451,7 +445,7 @@ readStockTake defaultTags newBoxOrientations splitStyle filename = do
                         let dim = Dimension l w h
                             boxOrs = readOrientations newBoxOrientations os
                         boxesS <- forM rows $ \((qty, content, tags),_) ->
-                          forM [1..qty] $   \i -> do
+                          forM [1..qty] $   \_ -> do
                             newBox style
                                     content
                                     dim

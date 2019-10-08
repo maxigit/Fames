@@ -10,7 +10,7 @@ import WarehousePlanner.Display
 import Util.Cache
 import Unsafe.Coerce (unsafeCoerce)
 import Control.Monad.State (put,get)
-import Data.Colour (Colour,blend,over, affineCombo)
+import Data.Colour (Colour,affineCombo)
 import Data.Colour.Names (readColourName,black,wheat)
 import Data.Colour.SRGB(sRGB24read)
 import Data.Char(isHexDigit,toLower)

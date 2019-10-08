@@ -15,7 +15,6 @@ import Data.Align(align)
 import qualified Data.Map as Map
 import Metamorphosis
 import FA
-import qualified Data.IntMap.Strict as IntMap
 import qualified Data.IntSet as IntSet
 import qualified Data.Monoid as Monoid
 import Database.Persist

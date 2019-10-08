@@ -5,19 +5,11 @@ import GL.TaxReport.Types
 import GL.TaxReport.Settings
 import GL.TaxReport
 import Handler.GL.TaxReport.Types
-import Handler.GL.TaxReport.HMRC
-import GL.Utils
 import Data.Time (addDays)
-import Database.Persist.MySQL(unSqlBackendKey)
-import Database.Persist.Sql (rawSql, RawSql, fromSqlKey, toSqlKey, Single(..))
-import Data.Aeson(encode)
+import Database.Persist.Sql (rawSql, RawSql, Single(..))
 import qualified FA as FA
-import Metamorphosis
-import Lens.Micro
 import Formatting as F
 import Data.Tagged
-import qualified Data.Map as Map
-import Data.List(nub)
 import Util.Decimal
 import Handler.Items.Category.Cache (customerCategoryFinderCached)
 
@@ -189,7 +181,6 @@ loadBucketSummary mode key = do
                  <> "JOIN fames_tax_report USING(tax_report_id)"
       inCond =  " fad.tran_date >= start AND fad.tran_date <= end "
       outCond =  " fad.tran_date < start "
-      condParams = []
       (join', where') = case mode of
         AllBuckets -> ("", "")
         BucketsIn ->  (joinTrans, " AND (" <> inCond <> ")")
@@ -205,7 +196,7 @@ loadBucketSummary mode key = do
 -- | Load transactions Report details For datatable
 {-# NOINLINE getGLTaxReportDetailsR #-}
 getGLTaxReportDetailsR :: Int64 -> Handler Value
-getGLTaxReportDetailsR key = do
+getGLTaxReportDetailsR __key = do
   error "Not implemented"
   -- 
   -- (rows, reportType) <- runDB $  do

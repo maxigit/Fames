@@ -3,8 +3,6 @@
 {-# LANGUAGE TypeFamilies #-}
 module WarehousePlanner.Type where
 import Prelude
-import Data.Vector(Vector)
-import Data.Monoid
 import Control.Monad.State
 import Diagrams.Prelude(Colour)
 import Data.STRef
@@ -217,8 +215,8 @@ instance Semigroup (ShelfGroup s) where
         | d == d' = ShelfGroup (g <> g') d
         | otherwise = ShelfGroup [sg, sg'] Vertical
 
-    sg@(ShelfGroup g d) <> s = ShelfGroup (g<>[s]) d
-    s <> sg@(ShelfGroup g d) = ShelfGroup (s:g) d
+    (ShelfGroup g d) <> s = ShelfGroup (g<>[s]) d
+    s <> (ShelfGroup g d) = ShelfGroup (s:g) d
     sg <> sg' = ShelfGroup [sg, sg'] Vertical
 
 instance Monoid (ShelfGroup s) where

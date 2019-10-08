@@ -7,14 +7,12 @@ module Handler.GL.Payroll.Summary
 where
 -- * Import
 import Import
-import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
-                              withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
+import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import Handler.GL.Payroll.Common
 import GL.Payroll.Settings
 import GL.Utils
 import qualified GL.Payroll.Timesheet as TS
 import qualified GL.Payroll.Report as TS
-import Data.Maybe
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Time (addGregorianMonthsClip, addDays)
 import Locker
@@ -54,7 +52,7 @@ getGLPayrollSummaryR = do
 {-# NOINLINE postGLPayrollSummaryR #-}
 postGLPayrollSummaryR :: Handler Html
 postGLPayrollSummaryR = do
-  ((resp, formW), encType) <- runFormPost (filterForm Nothing)
+  ((resp, __formW), __encType) <- runFormPost (filterForm Nothing)
   case resp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
@@ -94,7 +92,7 @@ processSummary param =  do
       totals = [total | (_,_, total) <- groups]
       (cols, colnames) = employeeSummaryColumns totals
   return [whamlet|
-   $forall (day, ss, total) <- groups
+   $forall (day, ss, __total) <- groups
      <div.panel.panel-info>
        <div.panel-heading> #{tshow day}
        <div.panel-body>

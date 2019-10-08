@@ -3,26 +3,19 @@ module Handler.GL.Payroll.QuickAdd
 where
 -- * Import
 import Import
-import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
-                              withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
 import Handler.GL.Payroll.Common
 import GL.Payroll.Settings
 import qualified GL.Payroll.Timesheet as TS
-import qualified GL.Payroll.Report as TS
 import qualified GL.Payroll.Parser as TS
-import Data.Maybe
-import Data.List.NonEmpty (NonEmpty(..))
-import Data.Time (addGregorianMonthsClip)
 import Data.Either
 import Data.List.Split
 import Control.Monad.Except (ExceptT(..), runExceptT)
 import Data.Text (strip)
-import Locker
 import Database.Persist.Sql(unSqlBackendKey)
 
 -- * Quick Add
 saveQuickAdd :: Bool -> Text -> DocumentHash -> Handler (Either Text Widget)
-saveQuickAdd  save text key  = do
+saveQuickAdd  save text __key  = do
   header <- headerFromSettings
   opFinder <- operatorFinderWithError
   operatorMap <- allOperators
@@ -46,7 +39,7 @@ saveQuickAdd  save text key  = do
           let tsOId = modelToTimesheetOpId oldE oldShifts oldItems
               oldTts' = map (\(op, _) -> maybe (tshow op) operatorNickname (lookup op operatorMap)) tsOId
           timesheet <- ExceptT. return $ generateAdds header key frequency start texts
-          (model, shiftsFn, itemsFn) <- ExceptT . return $ timesheetOpIdToModel ref <$> timesheetEmployeeToOpId opFinder timesheet
+          (__model, shiftsFn, itemsFn) <- ExceptT . return $ timesheetOpIdToModel ref <$> timesheetEmployeeToOpId opFinder timesheet
           let shifts = shiftsFn key
               items = itemsFn key
               shifts0 = map (Entity (PayrollShiftKey 0)) shifts
@@ -100,7 +93,7 @@ splitTimesheet text = do
 
 
 generateAdds :: [Text] -> _ -> PayrollFrequency -> Day -> [Text] -> Either Text (TS.Timesheet String TS.PayrooEmployee)
-generateAdds header key frequency start texts = do
+generateAdds header __key frequency start texts = do
   let toParse = (tshow frequency <> " " <>  tshow start) : header <> texts
   ts <- parseFastTimesheet' toParse
   return ts

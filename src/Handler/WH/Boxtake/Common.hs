@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 module Handler.WH.Boxtake.Common
 where
 

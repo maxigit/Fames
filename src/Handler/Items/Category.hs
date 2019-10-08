@@ -2,7 +2,6 @@ module Handler.Items.Category where
 import Import
 import Database.Persist.MySQL
 import Yesod.Form.Bootstrap3
-import Handler.Util
 import Handler.Table
 import Handler.Items.Category.Cache
 import Data.Yaml(decodeEither', encode)
@@ -85,7 +84,7 @@ getItemsCategoryTesterR = do
 {-# NOINLINE postItemsCategoryTesterR #-}
 postItemsCategoryTesterR :: Handler Html
 postItemsCategoryTesterR = do
-  ((resp, formW), encType) <- runFormPost (categoryTesterForm Nothing)
+  ((resp, __formW), __encType) <- runFormPost (categoryTesterForm Nothing)
   case resp of
     FormMissing -> error "Form missing"
     FormFailure a -> error $ "Form failure : " ++ show a

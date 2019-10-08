@@ -7,17 +7,13 @@ module Handler.GL.Payroll.Calendar
 where
 -- * Import
 import Import
-import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
-                              withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
+import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import Handler.GL.Payroll.Common
 import GL.Payroll.Settings
 import GL.Utils
 import qualified GL.Payroll.Timesheet as TS
-import qualified GL.Payroll.Report as TS
-import Data.Maybe
-import Data.List.NonEmpty (NonEmpty(..))
 import Data.Time (addGregorianMonthsClip)
-import Lens.Micro ((^.),_3,(%~))
+import Lens.Micro ((^.))
 -- * Forms
 -- ** Type
 data CalendarParam = CalendarParam
@@ -54,7 +50,7 @@ getGLPayrollCalendarR = do
 {-# NOINLINE postGLPayrollCalendarR #-}
 postGLPayrollCalendarR :: Handler Html
 postGLPayrollCalendarR = do
-  ((resp, formW), encType) <- runFormPost (filterForm Nothing)
+  ((resp, __formW), __encType) <- runFormPost (filterForm Nothing)
   case resp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
@@ -79,7 +75,6 @@ renderMain paramM = do
 -- ** Process
 processCalendar :: CalendarParam -> Handler Widget
 processCalendar param =  do
-  settings <- appSettings <$> getYesod
   timesheets <- loadTimesheet' param
   viewPayrollDurationPermissions' <- viewPayrollDurationPermissions
   let ?viewPayrollDurationPermissions = viewPayrollDurationPermissions'

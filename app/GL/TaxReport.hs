@@ -94,9 +94,9 @@ isSupplier = (`elem` supplierFATransactions)
 
 -- * Boxes
 computeBoxAmount :: TaxBoxRule -> RoundingMethod -> Map Bucket TaxSummary -> Either Text Decimal
-computeBoxAmount rule rounding buckets = applyRounding rounding <$> go rule buckets
+computeBoxAmount rule rounding buckets = applyRounding rounding <$> go rule
   where
-    go rule0 buckets = case rule0 of
+    go rule0 = case rule0 of
       TaxBoxSum rules -> sum <$> mapM amountFor rules
       TaxBoxNet bucket -> findBucket bucket netAmount 
       TaxBoxTax bucket -> findBucket bucket taxAmount
@@ -109,7 +109,7 @@ computeBoxAmount rule rounding buckets = applyRounding rounding <$> go rule buck
       TaxBoxRound dec rule -> applyRounding (Round dec)<$> amountFor rule
       TaxBoxBanker dec rule -> applyRounding (RoundBanker dec) <$> amountFor rule
     amountFor :: TaxBoxRule -> Either Text Decimal
-    amountFor rule = realFracToDecimal tbDefaultDecimal  <$> go rule buckets
+    amountFor rule = realFracToDecimal tbDefaultDecimal  <$> go rule
     findBucket bucket fn = case lookup bucket buckets of
           Nothing -> Left $ "Bucket: " <> bucket <> " doesn't exit."
           Just summary -> Right . realFracToDecimal tbDefaultDecimal $ fn summary

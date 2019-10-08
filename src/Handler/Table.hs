@@ -4,7 +4,6 @@ module Handler.Table where
 import Import
 import Lens.Micro.Extras(view)
 import Data.Text(toTitle)
-import Handler.Util
 
 displayTable :: [col] -- ^ index of columns to display
              -> (col -> (Html, [Text])) -- ^ column index to header and class

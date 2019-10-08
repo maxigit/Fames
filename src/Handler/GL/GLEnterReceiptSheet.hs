@@ -14,12 +14,10 @@ import Handler.GL.Payroll.Common(mkAccountH)
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import Handler.CsvUtils
 import qualified Data.Csv as Csv
-import Data.Either
 import Control.Monad.Except
 import Text.Blaze.Html(ToMarkup())
-import qualified Data.List.Split  as S
-import Data.List(nub,mapAccumL)
-import GL.Receipt(ReceiptTemplateExpanded, ReceiptTemplate, expandTemplate)
+import Data.List(mapAccumL)
+import GL.Receipt(ReceiptTemplateExpanded, expandTemplate)
 import GL.FA
 import GL.Utils
 import qualified FA as FA
@@ -28,11 +26,6 @@ import  qualified WH.FA.Curl as WFA
 import Data.Maybe(fromJust)
 import Data.Decimal
 import Database.Persist.Sql(Single(..), rawSql, unSqlBackendKey)
--- import Text.Printf (printf)
--- import qualified Data.Text as Text
--- import qualified Data.Text.Read as Text
--- import Data.Ratio (approxRational)
--- import qualified Data.ByteString as BL
 import qualified Data.Map as Map
 import Lens.Micro.Extras (preview)
 -- | Entry point to enter a receipts spreadsheet
@@ -239,6 +232,7 @@ renderSavedTransactions urlForFA header'type'ids = do
       <th>Type
       <th>Trans No
       <th>Date
+      <th>Template
       <th>Counterparty 
       <th>Amount
       <th>Bank Account
@@ -248,6 +242,7 @@ renderSavedTransactions urlForFA header'type'ids = do
      <td>#{transactionIcon tType}
      <td>#{transNoWithLink urlForFA "" tType pId}
      <td.date>^{render rowDate}
+     <td>^{render rowTemplate}
      <td>^{render rowCounterparty}
      <td.text-right>^{render rowTotal}
      <td>^{render rowBankAccount}
@@ -480,7 +475,7 @@ makeReceipt rows = map (map reverse) <$> r where
         [] -> Right []
         This header : rs -> Right $ go header [] rs 
         These header item :rs -> Right $ go header [item] rs
-        That item : rs -> Left [These (ReceiptHeader (Left (MissingValueError "GL item without header") ) RNothing RNothing RNothing RNothing (transform $ rowItemTemplate item)) (transformItem item)]
+        That item : __rs -> Left [These (ReceiptHeader (Left (MissingValueError "GL item without header") ) RNothing RNothing RNothing RNothing (transform $ rowItemTemplate item)) (transformItem item)]
   go :: PartialHeader -> [PartialItem] -> [PartialRow]  -> [(PartialHeader, [PartialItem])]
   go h is [] = [(h, is)]
   go h is (These header item : rows) = (h, is) : go header [item] rows

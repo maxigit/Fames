@@ -9,17 +9,14 @@
 -- | Parsing state. Keep default values which can be used over different lines.
 module GL.Payroll.Parser where
 import Prelude hiding(read)
-import Lens.Micro hiding(index)
+import Lens.Micro
 import Lens.Micro.TH
 import Control.Applicative
 import Control.Monad (foldM)
-import Data.List(foldl')
 import Data.Maybe
-import           Data.Decimal
 import Text.Regex.TDFA ((=~))
 import GL.Payroll.Timesheet
 import           Data.Time ( Day
-                           , LocalTime
                            , TimeOfDay
                            , makeTimeOfDayValid
                            , addDays
@@ -32,9 +29,7 @@ import Data.Time.Format    ( defaultTimeLocale, wDays)
 import qualified Data.Map as Map
 import Data.Map(Map)
 import Text.Read (readMaybe)
-import Data.These
 import Data.Align (align)
-import Debug.Trace
 import Locker
 
 data Current = Current
@@ -244,7 +239,7 @@ token s = case mapMaybe match cases of
                       , ("_", \_ -> Right SkipT)
                       , ("\\|", \_ -> Right PipeT)
                       , ("@([[:alpha:]][[:alnum:]]*)" , \(_, [name]) -> Right $ ExternalT name )
-                      , ( "(" ++ amount ++ ")?\\^(" ++ amount ++ ")?" , \r@(_, [deduction, _dec,  cost, _dec']) -> Right $ DeductionAndCostT (lockA <$> readMaybe deduction) (lockA <$> readMaybe cost) )
+                      , ( "(" ++ amount ++ ")?\\^(" ++ amount ++ ")?" , \(_, [deduction, _dec,  cost, _dec']) -> Right $ DeductionAndCostT (lockA <$> readMaybe deduction) (lockA <$> readMaybe cost) )
                       ]
               amount = "-?[0-9]+(.[0-9]+)?"
               hhmm = "([0-9]{1,2}):([0-9]{2})"
@@ -281,7 +276,7 @@ parseFastTimesheet lines = do -- Either
     case tokenss of
         ([DayT start]:tokenss') -> go (initCurrent Weekly start) tokenss'
         ([FrequencyT frequency, DayT start]:tokenss') -> go (initCurrent frequency start) tokenss'
-        otherwise -> Left $ "File should start with the week start date"
+        _ -> Left $ "File should start with the week start date"
 
 -- | Process a full line of tokens.
 -- One line should correspond to only one operators.

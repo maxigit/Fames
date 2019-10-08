@@ -1,28 +1,21 @@
 module Handler.Items.Reports.Common where
 
 import Import hiding(computeCategory, formatAmount, formatQuantity)
-import Handler.Table
 import Items.Types
 import Handler.Items.Common
 import Handler.Items.Reports.Forecast
 import Handler.Items.Category.Cache
-import Handler.Util
 import FA
 import Data.Time(addDays, formatTime, defaultTimeLocale)
 import qualified Data.Map as Map
-import Data.List.NonEmpty (NonEmpty(..))
-import Data.List(cycle,scanl,scanl1,scanr1, (!!))
-import Database.Persist.MySQL(unSqlBackendKey, rawSql, Single(..))
+import Data.List(cycle,scanl,scanl1,scanr1)
+import Database.Persist.MySQL(rawSql, Single(..))
 import Data.Aeson.QQ(aesonQQ)
-import GL.Utils(calculateDate, foldTime, Start(..), PeriodFolding(..), dayOfWeek, monthNumber, toYear)
+import GL.Utils(calculateDate, foldTime, Start(..), PeriodFolding(..), dayOfWeek, toYear)
 import GL.Payroll.Settings
-import Database.Persist.Sql hiding (Column)
 import Text.Printf(printf)
 import Formatting
 import Data.Monoid(Sum(..), First(..))
-import Data.Align(align)
-import Data.These 
-import Lens.Micro.Extras (preview)
 
 -- * Param
 data ReportParam = ReportParam
@@ -118,9 +111,9 @@ type Weight = (Sum Double, First PersistValue)
 --   compare (Weight False _ _ ) (Weight True _ _) =  LT
 
 cpSorter :: ColumnRupture -> NMapKey -> TranQP -> Weight
-cpSorter r@ColumnRupture{..} = case getIdentified $ dpDataTraceParams cpSortBy of
-    (tp :_)->  \k tqp -> (Sum $ fromMaybe 0 $ (tpValueGetter tp) <$> (lookupGrouped (dpDataType cpSortBy) $ tqp), mempty)
-    _ -> \k tqp -> (mempty ,First (Just $ nkKey k))
+cpSorter ColumnRupture{..} = case getIdentified $ dpDataTraceParams cpSortBy of
+    (tp :_)->  \__k tqp -> (Sum $ fromMaybe 0 $ (tpValueGetter tp) <$> (lookupGrouped (dpDataType cpSortBy) $ tqp), mempty)
+    _ -> \k __tqp -> (mempty ,First (Just $ nkKey k))
           
   
 --
@@ -229,7 +222,7 @@ cumulAmountStyle 3 = smoothStyle CumulAmountAxis
 cumulAmountStyle 2 = smoothDotStyle CumulAmountAxis
 cumulAmountStyle _ = markerLineStyle CumulAmountAxis
 quantityStyle 2 = hvStyle QuantityAxis `nameStyle` "Quantity"
-quantityStyle n = smoothDotStyle QuantityAxis `nameStyle` "Quantity"
+quantityStyle _ = smoothDotStyle QuantityAxis `nameStyle` "Quantity"
 hvStyle axis color = [("type", String "scatter")
                       ,("name", String "Quantity")
                       ,("line", [aesonQQ|{
@@ -301,8 +294,8 @@ data PeriodFolding'
   | PFWeekly
   deriving (Show, Eq)
 
-periodOptions :: Day -> Maybe Day -> [(Text, PeriodFolding')]
-periodOptions today from = let
+periodOptions :: [(Text, PeriodFolding')]
+periodOptions = let
   in [("Whole Year", PFWholeYear)
      ,("Sliding Year (to today)", PFSlidingYearTomorrow)
      ,("Sliding Year (from)", PFSlidingYearFrom)
@@ -361,7 +354,6 @@ getCols = do
   return cols
 getColsWithDefault :: Handler ([Column], (Column, Column, Column))
 getColsWithDefault = do
-  today <- todayH
   supplierCustomerColumn <- supplierCustomerColumnH
   categoryColumns <- categoryColumnsH
   customerCategoryColumns <- customerCategoryColumnsH
@@ -537,7 +529,6 @@ loadItemTransactions param grouper = do
   let loadIf f loader = if f param then loader else return []
   categories <- categoriesH
   custCategories <- customerCategoriesH
-  stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   catFinder <- categoryFinderCached
   stockInfo <- loadStockInfo param
   custCatFinder <- customerCategoryFinderCached
@@ -616,7 +607,7 @@ generateDateIntervals date_column param = let
     (fromM, toM, Nothing)  -> [ (fromM, toM) ]
     -- (Just from, Nothing, Just n) -> -- go n year ago
     --       [ (Just (calculateDate (AddYears (-n)) from), Nothing) ]
-    (Nothing, Just to, Just n) -> -- go n year ago
+    (Nothing, Just to, Just _) -> -- go n year ago
           [ (Nothing, Just to) ]
     (Just from, toM, Just n) -> let
       period i = case rpPeriod param of
@@ -1121,7 +1112,7 @@ tableProcessor param@ReportParam{..} grouped = do
                 $with (_,qpt) <- (nmapMargin group1)
                     <tr.total>
                       <td> Total
-                      $forall level <- drop 1 levels
+                      $forall __level <- drop 1 levels
                         <td>
                       $forall (_, fn) <- qpCols
                         ^{fn showQp qpt }
@@ -1131,7 +1122,7 @@ tableProcessor param@ReportParam{..} grouped = do
                       |]
   where
       showQp :: ValueType -> InOutward -> Maybe Double -> Widget
-      showQp shape io Nothing = [whamlet| <td> |]
+      showQp __shape __io Nothing = [whamlet| <td> |]
       showQp shape io (Just value) = let
         klass = case io of
           Inward -> "negative-good" :: Text
@@ -1195,7 +1186,7 @@ qpForecastColumns qpFilter param@ReportParam{..} =
   then qpColumns qpFilter "Forecast" Outward purchQPrice
   else []
 
-qpPurchasesColumns qpFilter param@ReportParam{..} = 
+qpPurchasesColumns qpFilter ReportParam{..} = 
   if rpLoadPurchases
   then qpColumns qpFilter "Purch" Inward purchQPrice
   else []
@@ -1219,8 +1210,8 @@ qpColumns qpFilter name io getQP = case qpFilter of
 --   if rpLoadAdjustment
 --   then 
 
-qpAdjustmentColumns param@ReportParam{..} | rpLoadAdjustment == False = []
-qpAdjustmentColumns param@ReportParam{..} = 
+qpAdjustmentColumns ReportParam{..} | rpLoadAdjustment == False = []
+qpAdjustmentColumns ReportParam{..} = 
   [ go "Qty" VQuantity (qpQty Inward)
   , go "Amount" VAmount (qpAmount Outward)
   ]
@@ -1265,8 +1256,8 @@ sortAndLimitTranQP ruptures nmap = let
   mkCol (ColumnRupture{..}) = case (getIdentified (dpDataTraceParams cpSortBy), cpColumn, cpReverse) of
     (_, Nothing, False) -> Nothing
     ([], _col, False) -> Nothing
-    ([], _, True) -> Just (\k mr -> Sum 0 , cpRankMode, cpLimitTo, cpReverse)
-    ((tp :_), _,_) -> Just ( \k mr -> Sum $ fromMaybe 0 $ (tpValueGetter tp) <$> (lookupGrouped (dpDataType cpSortBy) $ mr)
+    ([], _, True) -> Just (\_ _ -> Sum 0 , cpRankMode, cpLimitTo, cpReverse)
+    ((tp :_), _,_) -> Just ( \_ mr -> Sum $ fromMaybe 0 $ (tpValueGetter tp) <$> (lookupGrouped (dpDataType cpSortBy) $ mr)
                            , cpRankMode
                            , cpLimitTo
                            , cpReverse
@@ -1282,7 +1273,7 @@ nmapToNMapListWithRank  nmap =
                , not (null n)
                ]
       sorted = sortOn fst asList
-  in zipWith (\i ((w,k), n) -> ((i,k), n)) [1..]  sorted
+  in zipWith (\i ((_,k), n) -> ((i,k), n)) [1..]  sorted
 
 nmapToListWithRank :: Ord w => NMap (w, a) -> [([(Int, NMapKey)], (w,a))]
 nmapToListWithRank (NLeaf x) = [([], x)]
@@ -1630,14 +1621,14 @@ traceParamsForBubble param =
       expand dps = map Just $ dataParamsToDataParam0s dps
       expanded = case q'tp'norms of
             -- if the first param is null and the second is only one, then 2nd is the colour
-            ( (DataParamsU _ [] _) : q@(DataParamsU qtype [tparam] norm) : others) -> (Nothing: expand q) : map expand others
+            ( (DataParamsU _ [] _) : q@(DataParamsU __qtype [__tparam] __norm) : others) -> (Nothing: expand q) : map expand others
             ( q@(DataParamsU _ [_] _) : q'@(DataParamsU _ [_] _) : others) -> (expand q <>  expand q') : map expand others
             _ -> map expand q'tp'norms
   in filter (not . null) expanded
   
 seriesBubbleProcessor :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
   -> ColumnRupture -> Bool -> [[Maybe DataParam]]-> Text -> Text -> NMap (Sum Double, TranQP)  -> Widget 
-seriesBubbleProcessor all panel rupture mono paramss name plotId grouped = do
+seriesBubbleProcessor all panel __rupture __mono paramss name plotId grouped = do
      let asList = nmapToNMapListWithRank grouped
          jsDatas = map (bubbleTrace all panel grouped asList) paramss
      toWidgetBody [julius|
@@ -1665,7 +1656,7 @@ bubbleTrace all panel band asList params =
                 in formatSerieValues id id normMode all panel band fn runsumed 
             _ -> replicate (length grp) Nothing
         (xs, ys, vs, texts, colours, symbols) = unzip6 [  (x, y, abs <$> v, text, colour, symbol)
-                              | ((name,group), n) <- zip asList  [1..]
+                              | ((name,group), _) <- zip asList  [1..]
                               , let gForSize = runSumFor getSize'p group
                               , let gForColor = runSumFor getColour'p group
                               , ((k,_), v, colour) <- zip3 (nmapToNMapList group) gForSize gForColor
@@ -1709,7 +1700,7 @@ bubbleTrace all panel band asList params =
                                                                              _ -> diameter
                                             <> case getColour'p of
                                                   Nothing -> ["colorscale" .= t "Greens"]
-                                                  Just (_,p) -> ["color" .= colours] <> case catMaybes colours of
+                                                  Just (_,_) -> ["color" .= colours] <> case catMaybes colours of
                                                     [] -> []
                                                     css -> let mx = maximumEx (map abs css)
                                                                (cmin, cscale) =  if minimumEx css < 0
@@ -1751,7 +1742,7 @@ renderScatterPlotDiv param heightForBands all plotId0 panels = do
 
 seriesScatterProcessor :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
   -> ColumnRupture -> Bool -> [[Maybe DataParam]]-> Text -> Text -> NMap (Sum Double, TranQP)  -> Widget 
-seriesScatterProcessor all panel rupture mono paramss name plotId grouped = do
+seriesScatterProcessor all panel __rupture __mono paramss name plotId grouped = do
      let asList = nmapToNMapListWithRank grouped
          jsDatas = map (scatterTrace all panel grouped asList) paramss
      toWidgetBody [julius|
@@ -1845,7 +1836,7 @@ panelPivotProcessor tparams reportId = createKeyRankProcessor go where
   
 
 -- each nmap is band
-bandPivotProcessor tparams panelId key rank parents ruptures = createKeyRankProcessor go key rank parents ruptures where
+bandPivotProcessor tparams __panelId key rank parents ruptures = createKeyRankProcessor go key rank parents ruptures where
   (_, (ColumnRupture{..},_)) = ruptures
   go key rank =  let sub = collectColumnsForPivot tparams
                           -- get the list of the columns for that we need to
@@ -1927,7 +1918,7 @@ panelPivotProcessorXXX param all plotId0 grouped = do
 -- | Display an html table (pivot) for each series
 bandPivotProcessorXXX :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
   -> ColumnRupture -> Bool -> [DataParam]-> Text -> Text -> NMap (Sum Double, TranQP)  -> Widget 
-bandPivotProcessorXXX all panel rupture mono params name plotId grouped = let
+bandPivotProcessorXXX all panel rupture __mono params name __plotId grouped = let
   name'serieS = nmapToNMapListWithRank grouped
   -- it's a set but should be sorted by rank
   -- The same columns can appears in different series with a different rank

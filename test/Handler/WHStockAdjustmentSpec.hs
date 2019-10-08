@@ -4,7 +4,6 @@ module Handler.WHStockAdjustmentSpec where
 import TestImport
 import Handler.WH.StockAdjustment
 import SharedStockAdjustment
-import Yesod.Auth (requireAuthId)
 import FA hiding(User)
 
 spec :: Spec
@@ -15,7 +14,7 @@ defLoc = FA.LocationKey "DEF" :: FA.LocationId
 
 prepareDB = do
       Just (Entity userId user) <- runDB $  selectFirst [] []
-      let types = user :: User
+      let _types = user :: User
       
       processedAt <- liftIO getCurrentTime
       runDB $ do
@@ -62,9 +61,9 @@ postAdjustment modulo sku def lost = do
     setUrl (WarehouseR WHStockAdjustmentR)
     addToken_ "form#stock-adjustement"
     addPostParam "f2" "no" -- download
-    byLabel "sort by" (tshow $ 1)
-    byLabel "mode" (tshow $ 3)
-    forM modulo $ \m -> byLabel "modulo" (tshow (m :: Int))
+    byLabelExact "sort by" (tshow $ 1)
+    byLabelExact "mode" (tshow $ 3)
+    forM modulo $ \m -> byLabelExact "modulo" (tshow (m :: Int))
     addPostParam "action" "save"
     mapM_ (\sku' -> addPostParam ("active-"<>sku') (if sku' == sku then "on" else "" ))
           ["A", "B", "C", "Before", "After", "Before'", "After'"]
@@ -189,7 +188,7 @@ appSpec = withAppWipe BypassAuth $ describe "StockAdjustment" $ do
     let postA qBefores = do
             logAsAdmin
             Just (Entity userId user) <- runDB $  selectFirst [] []
-            let types = user :: User
+            let _types = user :: User
             
             processedAt <- liftIO getCurrentTime
             runDB $ do
@@ -212,9 +211,9 @@ appSpec = withAppWipe BypassAuth $ describe "StockAdjustment" $ do
               setUrl (WarehouseR WHStockAdjustmentR)
               addToken_ "form#stock-adjustement"
               addPostParam "f2" "no" -- download
-              byLabel "sort by" (tshow $ 1)
-              byLabel "mode" (tshow $ 3)
-              byLabel "modulo" "6"
+              byLabelExact "sort by" (tshow $ 1)
+              byLabelExact "mode" (tshow $ 3)
+              byLabelExact "modulo" "6"
               addPostParam "action" "save"
               addPostParam "active-Bug" "on"
               mapM_ (addPostParam "Bug") (map tshow qBefores)

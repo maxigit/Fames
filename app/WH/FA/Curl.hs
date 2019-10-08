@@ -23,7 +23,6 @@ import Control.Monad.State
 import Data.List(isPrefixOf)
 import qualified Data.Map as Map
 import Data.Monoid(Sum(Sum))
-import Data.Decimal
 
 import qualified Prelude as Prelude
 import Text.HTML.TagSoup 
@@ -385,7 +384,7 @@ postPurchaseInvoice connectInfo PurchaseInvoice{..} = do
     response <- curlSoup ajaxPurchaseInvoiceURL (curlPostFields [ "supplier_id" <=> poiSupplier
                                                                 , "tran_date" <=> poiDate] : method_POST)
                         [200] "Problem changing supplier"
-    del <- addPurchaseInvoiceDeliveries response poiDeliveryIds
+    _ <- addPurchaseInvoiceDeliveries response poiDeliveryIds
     _ <- mapM addPurchaseInvoiceDetail poiGLItems
     ref <- case extractInputValue "reference" response of
                   Nothing -> throwError "Can't find Invoice reference"

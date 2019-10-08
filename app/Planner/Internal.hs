@@ -19,11 +19,10 @@ module Planner.Internal
 where 
 
 import ClassyPrelude.Yesod hiding (Content)
-import WarehousePlanner.Display
 import WarehousePlanner.Base
 import WarehousePlanner.Csv
 import Planner.Types
-import Control.Monad.ST (runST, stToIO, RealWorld)
+import Control.Monad.ST (stToIO)
 import Control.Monad.State (evalStateT,runStateT)
 import Control.Monad.Except (ExceptT(..), runExceptT)
 import Control.Monad.Writer (tell, execWriter)
@@ -32,7 +31,6 @@ import qualified Data.Text as Text
 import System.Directory (doesFileExist, listDirectory)
 import System.FilePath (takeExtension)
 
-import Unsafe.Coerce (unsafeCoerce)
 import Model.DocumentKey
 import GHC.Generics
 
@@ -49,6 +47,7 @@ warehouseExamble  = do
   
   return $ ShelfGroup (map (ShelfProxy .shelfId) shelves) Vertical
 
+__use_binding = warehouseExamble
 
 -- * Parsing
 -- | Read and cut a scenario file into different component
@@ -80,7 +79,7 @@ linesToSections lines = reverse $ go lines Nothing [] [] where
      -> [Either Text Section]
   go ((HeaderL newHeader title):ls) header current sections = -- start new section
     go ls (Just (newHeader, title)) [] (merge header current sections)
-  go [] Nothing current sections = sections
+  go [] Nothing __current sections = sections
   go [] header current sections = merge header current sections
   go ((CommentL):ls) header current sections = go ls header current sections
   go ((EndL):_) header current sections = go [] header current sections
@@ -97,13 +96,13 @@ linesToSections lines = reverse $ go lines Nothing [] [] where
   merge :: Maybe (HeaderType, Text)  -> [Text] -> [Either Text Section] -> [Either Text Section]
   merge Nothing _ sections = sections
   merge (Just (TitleH, title)) [] sections = Right (Section TitleH (Right []) title): sections
-  merge header [] sections = sections
-  merge (Just header@(ht,title)) current sections = Right (Section ht (Right (reverse current)) title) : sections
+  merge __header [] sections = sections
+  merge (Just (ht,title)) current sections = Right (Section ht (Right (reverse current)) title) : sections
 
 -- | Header is like "*** [HEADER] title"
 extractHeader :: Text -> Maybe HeaderType
 extractHeader line = case words line of
-  (stars:section:_) | isStars stars -> Just TitleH
+  (stars:__section:_) | isStars stars -> Just TitleH
   _ -> Nothing
   where isStars = all ((==) '*') 
   
@@ -144,7 +143,7 @@ class GWriteHeader f where
   gwriteHeader :: f a -> Text
 
 instance GWriteHeader U1 where -- Single constructor
-  gwriteHeader rep = ""
+  gwriteHeader _ = ""
 instance (GWriteHeader a , GWriteHeader b) => GWriteHeader (a :+: b) where -- Single constructor
   gwriteHeader (L1 x) = gwriteHeader x
   gwriteHeader (R1 x) = gwriteHeader x
@@ -152,12 +151,12 @@ instance GWriteHeader (K1 i [Text] ) where
   gwriteHeader (K1 []) = ""
   gwriteHeader (K1 xs) = "_" <> intercalate "_" xs
 instance GWriteHeader a => GWriteHeader (D1 c a) where
-  gwriteHeader m@(M1 x) = gwriteHeader x 
+  gwriteHeader (M1 x) = gwriteHeader x 
 -- | get the constructor and remove the trailing H
 instance (Constructor c, GWriteHeader a) => GWriteHeader (C1 c a) where
   gwriteHeader m@(M1 x) = (Text.init . pack $ conName m) <>  gwriteHeader x
 instance GWriteHeader a => GWriteHeader (S1 c a) where
-  gwriteHeader m@(M1 x) = gwriteHeader x
+  gwriteHeader (M1 x) = gwriteHeader x
 
     
 writeHeader :: HeaderType -> Text
@@ -290,8 +289,8 @@ sectionToText Section{..} = execWriter $ do
        Right texts -> tell texts
     return ()
 
-scenarioToFullText :: MonadIO m => Scenario -> m Text
-scenarioToFullText scenario =  do
+__scenarioToFullText :: MonadIO m => Scenario -> m Text
+__scenarioToFullText scenario =  do
   let sections = scenarioToSections scenario
   expanded <- mapM unCacheSection sections
   return $ sectionsToText expanded
@@ -330,19 +329,6 @@ sSortedSteps Scenario{..} = let
   in  map snd sorted
 
 -- * Rendering
-
-
-warehouseToDiagram warehouse = do
-  let exec = do
-        group <- warehouse
-        renderGroup group
-  diag <- execWH0 warehouse exec
-  return diag
-
-execWH0 wh exec  = do
-  today <- utctDay <$> getCurrentTime
-  execWH (emptyWarehouse today) exec
-
 execWH warehouse0 wh = liftIO $ stToIO $ evalStateT wh warehouse0
 
 -- runWH :: MonadIO m => Warehouse s -> WH a s -> m (a, Warehouse s)

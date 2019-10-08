@@ -4,10 +4,8 @@ module Handler.WHPackingListSpec where
 
 import TestImport
 import Text.Shakespeare.Text (st)
-import Yesod.Auth (requireAuthId)
-import Database.Persist.Sql (toSqlKey)
 import Network.HTTP.Types.Status
-import Data.List (dropWhileEnd, (!!))
+import Data.List (dropWhileEnd)
 import Handler.WH.PackingList
 import qualified Data.Map as Map
 import Handler.CsvUtils
@@ -26,16 +24,16 @@ uploadPLSheet mode status sheet = do
     setMethod "POST"
     setUrl route
     addToken_ "form#upload-form"
-    byLabel "order ref" "order-16017"
-    byLabel "invoice ref" "INV-16107&16137A.xls"
-    byLabel "container" "C1"
-    byLabel "vessel" "Britanny Ferry/Bretagne"
-    byLabel "spreadsheet" sheet
-    byLabel "departure" "2016-12-01"
-    byLabel "arriving" "2017-01-15"
+    byLabelExact "order ref" "order-16017"
+    byLabelExact "invoice ref" "INV-16107&16137A.xls"
+    byLabelExact "container" "C1"
+    byLabelExact "vessel" "Britanny Ferry/Bretagne"
+    byLabelExact "spreadsheet" sheet
+    byLabelExact "departure" "2016-12-01"
+    byLabelExact "arriving" "2017-01-15"
     addPostParam "action" (tshow mode)
     
-    -- byLabel "encoding" (tshow 1)
+    -- byLabelExact "encoding" (tshow 1)
   -- printBody
 
   statusIs (fromEnum status)
@@ -57,7 +55,7 @@ updateDetails action status cart = do
     setMethod "POST"
     setUrl route
     addToken_ "form#edit-details"
-    byLabel "cart" cart
+    byLabelExact "cart" cart
     addPostParam "action" (tshow action)
   statusIs (fromEnum status)
 
@@ -86,10 +84,10 @@ deliver status cart = do
     setMethod "POST"
     setUrl route
     addToken_ "form#deliver-details"
-    byLabel "cart" cart
-    byLabel "operator" "1"
-    byLabel "date" "2017-03-11"
-    byLabel "location" "Default"
+    byLabelExact "cart" cart
+    byLabelExact "operator" "1"
+    byLabelExact "date" "2017-03-11"
+    byLabelExact "location" "Default"
 
   statusIs (fromEnum status)
 

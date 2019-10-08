@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wno-missing-fields #-}
 module WH.PackingList.InternalSpec where
 
 import TestImport
@@ -49,14 +50,14 @@ pureSpec  = do
     let box = newBox dim1 "A"
         zone = Zone "Z1" (Dimension 70  160 200 ) []  -- fix 2 4 3
     it "fits" $ do
-      slice (box 11)  zone `shouldBe` ( Just $ Slice (box 11) 1 4 3 31 (4*34)
+      slice (box 11)  zone `shouldBe` ( Just $ Slice (box 11) 1 4 3 (31 + margin) (4*34)
                                       , Nothing
                                       )
     it "doesn't fit" $ do
       let slices = [ Slice (box 24) 2 4 3 62 136]
       slice (box 15)  zone {zoneSlices = slices} `shouldBe` ( Nothing, Just $ box 15)
     it "overflow" $ do
-      slice (box 25)  zone `shouldBe` ( Just $ Slice (box 24) 2 4 3 (2*31) (4*34)
+      slice (box 25)  zone `shouldBe` ( Just $ Slice (box 24) 2 4 3 (2*31 + margin) (4*34)
                                       , Just $ box 1
                                       )
 
@@ -71,7 +72,7 @@ pureSpec  = do
     it "returns correct slice" $ do
       let box = newBox dim1 "A" 4
           zone = Zone "Z1" (Dimension 200 200 200 ) [] 
-          slice  = Slice box 1 2 3 31 (2*34)
+          slice  = Slice box 1 2 3 (31+margin) (2*34)
       tryFitOne (newBox dim1 "A" 4) (Zone "Z1" (Dimension 200 200 200 ) [] ) `shouldBe`
           Just zone { zoneSlices = [slice]}
   describe "#fitOneRow" $ do

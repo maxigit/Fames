@@ -155,7 +155,7 @@ postWHStockAdjustmentR = do
   ((resp, view), encType) <- runFormPost (paramForm mode)
   case resp of
     FormMissing -> error "Form missing"
-    FormFailure a -> defaultLayout [whamlet|^{view}|]
+    FormFailure _ -> defaultLayout [whamlet|^{view}|]
     FormSuccess param0 -> do
       let activeRows = getActiveRows pp
           qBefore = getQuantityBefore pp
@@ -218,7 +218,7 @@ postWHStockAdjustmentR = do
       <th> Last move
       <th> Comment
     $forall pre <- rows
-      $with ((qties, badges, before), mainLocationMoves, lostMoves) <- (toOrigAndBadges' pre, (movesAt $ mainLocation pre), movesAt $ lost pre)
+      $with ((qties, badges, before), mainLocationMoves, __lostMoves) <- (toOrigAndBadges' pre, (movesAt $ mainLocation pre), movesAt $ lost pre)
         <tr class="#{classesFor mainLocationMoves}"
             id="#{encodedSku pre}-row"
             data-sku="#{encodedSku pre}"
@@ -308,7 +308,7 @@ lastMove pre = max (date (mainLocation pre)) (date (lost pre))
 -- return also the date of the last move (the one corresponding to given quantity).
 -- Needed to detect if the stocktake is sure or not.
 qohFor :: (Single Text, Single Int,  Single Day, Single (Maybe Text)) -> Handler (Maybe PreAdjust)
-qohFor r@(Single sku, Single qtake, Single date, Single comment) = do
+qohFor r@(Single sku, Single __qtake, Single date, Single comment) = do
   adj <-  PreAdjust
          <$> pure sku
          <*> quantitiesFor "DEF" r
@@ -321,7 +321,7 @@ qohFor r@(Single sku, Single qtake, Single date, Single comment) = do
 
 -- | Retrive the quantities available for the given location at the given date
 quantitiesFor :: Text -> (Single Text, Single Int, Single Day, Single (Maybe Text)) -> Handler LocationInfo 
-quantitiesFor loc (Single sku, Single take, Single date, Single comment) = do
+quantitiesFor loc (Single sku, Single take, Single date, Single __comment) = do
   let (minDate, maxDate) = unsureRange date
       sql = "SELECT SUM(qty) qoh"
             <> ", SUM(qty) qoh_at"

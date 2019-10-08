@@ -2,7 +2,7 @@
   Welcome to Fames!
 
 <div.list-group.table-of-contents>
-  $forall (ix, (main, route,  subs)) <- ix'links
+  $forall (ix, (main, _route,  subs)) <- ix'links
     $with panelId <- "home-panel-" <> tshow ix
         <div.list-group-item>
           <h4.data-toggler.collapsed data-toggle=collapse data-target=##{panelId}>

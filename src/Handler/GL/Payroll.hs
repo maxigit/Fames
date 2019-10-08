@@ -18,9 +18,7 @@ module Handler.GL.Payroll
 ) where
 -- * Import
 import Import
-import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
-                              withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
-import Handler.Table
+import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import qualified GL.Payroll.Timesheet as TS
 import qualified GL.Payroll.Report as TS
 import Handler.GL.Payroll.Common
@@ -32,21 +30,11 @@ import GL.Payroll.Parser
 import GL.Payroll.Settings
 import Data.Text (strip)
 import Database.Persist.MySQL
-import Data.Time.Calendar
-import Lens.Micro.Extras (view, preview)
-import Lens.Micro hiding ((<&>))
-import Data.These
+import Lens.Micro.Extras (preview)
 import Data.Align
-import Data.List.NonEmpty (NonEmpty(..))
 import Data.List(nub)
-import  qualified WH.FA.Types as WFA
-import  qualified WH.FA.Curl as WFA
 import Control.Monad.Except
-import Text.Printf(printf)
 import qualified Data.Map as Map
-import Handler.Util
-import Locker
-
 
 -- * Types
 data Mode = Validate | Save deriving (Eq, Read, Show)
@@ -106,7 +94,7 @@ validate param key = do
                   timedShifts <- loadTimedShiftsFromTS $ timesheetPayrooForSummary timesheet
                   let ref = invoiceRef (appPayroll settings) timesheet :: String
                   (documentKey'msgM) <- runDB $ loadAndCheckDocumentKey key
-                  forM documentKey'msgM  $ \(Entity _ doc, msg) -> do
+                  forM documentKey'msgM  $ \(Entity _ __doc, msg) -> do
                                  setWarning msg >> return ""
                   renderMain Save
                              (Just param {upPreviousKey = Just key})
@@ -151,9 +139,8 @@ postGLPayrollSaveR = do
 {-# NOINLINE postGLPayrollToFAR #-}
 postGLPayrollToFAR :: Int64 -> Handler Html
 postGLPayrollToFAR key = do
-  setting <- appSettings <$> getYesod
   modelE <- loadTimesheet key
-  ((resp, formW), enctype) <- runFormPost faForm
+  ((resp, __formW), __enctype) <- runFormPost faForm
   faParam' <- case resp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
@@ -267,10 +254,10 @@ getGLPayrollViewR key = do
 
 {-# NOINLINE getGLPayrollEditR #-}
 getGLPayrollEditR :: Int64 -> Handler Html
-getGLPayrollEditR key = return "todo"
+getGLPayrollEditR __key = return "todo"
 {-# NOINLINE postGLPayrollEditR #-}
 postGLPayrollEditR :: Int64 -> Handler Html
-postGLPayrollEditR key = return "todo"
+postGLPayrollEditR __key = return "todo"
 
 -- | Delete the timesheet and its component
 -- unless it has transaction linked to it
@@ -309,9 +296,9 @@ postGLPayrollRejectR tId = do
 {-# NOINLINE postGLPayrollToPayrooR #-}
 postGLPayrollToPayrooR :: Int64 -> Handler TypedContent
 postGLPayrollToPayrooR key = do
-  header <- headerFromSettings
-  operatorMap <- allOperators
-  opFinder <- operatorFinderWithError
+  -- header <- headerFromSettings
+  -- operatorMap <- allOperators
+  -- opFinder <- operatorFinderWithError
   modelE <- loadTimesheet key
   viewPayrollAmountPermissions' <- viewPayrollAmountPermissions
   viewPayrollDurationPermissions' <- viewPayrollDurationPermissions
@@ -385,7 +372,7 @@ getGLPayrollVoidFAR timesheetId = do
 postGLPayrollVoidFAR :: Int64 -> Handler Html
 postGLPayrollVoidFAR timesheetId = do
   today <- todayH
-  ((resp, formW), enctype) <- runFormPost voidForm
+  ((resp, __formW), __enctype) <- runFormPost voidForm
   keepPayment <- case resp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
@@ -440,7 +427,7 @@ saveQuickadd  param key = do
         wE <- saveQuickAdd True (unTextarea $ upTimesheet param) key
         case wE of
           Left e -> setError (toHtml e) >> renderMain Validate (Just param) badRequest400 (setInfo "Enter a valid timesheet") (return ())
-          Right w -> do
+          Right __w -> do
             setSuccess "Quickadds processed properly"
             getGLPayrollR
             -- renderMain Validate Nothing created201 msg w
@@ -516,7 +503,7 @@ Example, <code>Alice Mon _ Mon 8</code>, means Alice worked 8 hours on the 2nd M
 -- * Processing
 processTimesheet :: Mode -> (UploadParam -> DocumentHash -> Handler r) -> Handler r
 processTimesheet mode post = do
-  ((resp, formW), enctype) <- runFormPost (uploadForm mode Nothing)
+  ((resp, __formW), __enctype) <- runFormPost (uploadForm mode Nothing)
   case resp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show (mode, a)
@@ -553,15 +540,15 @@ postTimesheetToFA param key timesheet shifts items = do
       let tsOId = modelToTimesheetOpId timesheet shifts items
       runExceptT $ do
          ts <- ExceptT $ timesheetOpIdToO'SH tsOId
-         let tsSkus = ( \(op,setting, shiftKey) -> ( TS.Sku . unpack . faSKU $  setting
+         let tsSkus = ( \(__op,setting, shiftKey) -> ( TS.Sku . unpack . faSKU $  setting
                                                  , shiftKey
                                                  )
                       ) <$> ts
-             tsPayment =  (\(Entity _ op, settings, shiftKey) -> operatorNickname op) <$> ts
+             tsPayment =  (\(Entity _ op, __settings, __shiftKey) -> operatorNickname op) <$> ts
          grnIds <- saveGRNs settings key tsSkus
          invoiceId <- saveInvoice mkAccount today settings ts grnIds
-         paymentIds <- savePayments today (ffReferenceSuffix param) (ffPayments param) settings key tsPayment invoiceId
-         credits <- saveExternalPayments settings key invoiceId mkAccount today ts
+         __paymentIds <- savePayments today (ffReferenceSuffix param) (ffPayments param) settings key tsPayment invoiceId
+         __credits <- saveExternalPayments settings key invoiceId mkAccount today ts
          return invoiceId
 
 

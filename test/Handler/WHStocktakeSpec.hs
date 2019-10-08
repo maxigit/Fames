@@ -5,7 +5,6 @@ module Handler.WHStocktakeSpec where
 import TestImport
 import Text.Shakespeare.Text (sbt)
 import ModelField
-import Yesod.Auth (requireAuthId)
 import Database.Persist.Sql (toSqlKey)
 import qualified Data.List as List
 import Model.DocumentKey
@@ -32,13 +31,13 @@ uploadSTSheet route status path overrideM = do
   request $ do
     setMethod "POST"
     setUrl (WarehouseR route)
-    byLabel "encoding" (tshow 1)
-    byLabel "stylecomplete" (tshow 1)
-    byLabel "displaymode" (tshow 1)
+    byLabelExact "encoding" (tshow 1)
+    byLabelExact "stylecomplete" (tshow 1)
+    byLabelExact "displaymode" (tshow 1)
     case overrideM of
       Nothing -> do
         addToken_ "form#upload-form"
-        fileByLabel "upload" path "text/plain"
+        fileByLabelExact "upload" path "text/plain"
         addPostParam "f6" "no"
         
       Just over -> do
@@ -105,7 +104,7 @@ updateSTSheet status sheet = do
   uploadSTSheet WHStocktakeSaveR status path (Just True)
   -- uploadSTSheet WHStocktakeSaveR status path (Just False)
 
-findBarcodes getBarcode = do
+findBarcodes = do
   entities <- runDB $ selectList [] []
   return $ map (stocktakeBarcode . entityVal) entities
 
@@ -130,7 +129,7 @@ appSpec = withAppWipe BypassAuth $ do
         saveSTSheet 200 [sbt|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment
                             |t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack,
                             |]
-        barcodes <- findBarcodes stocktakeBarcode
+        barcodes <- findBarcodes
         let types = barcodes :: [Text]
         liftIO $ barcodes `shouldBe`  ["ST16NV00399X"]
 
@@ -138,7 +137,7 @@ appSpec = withAppWipe BypassAuth $ do
         saveSTSheet 200 [sbt|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment
                             |t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack,
                             |]
-        barcodes <- findBarcodes boxtakeBarcode
+        barcodes <- findBarcodes 
         let types = barcodes :: [Text]
         liftIO $ barcodes `shouldBe`  ["ST16NV00399X"]
 
@@ -158,7 +157,7 @@ appSpec = withAppWipe BypassAuth $ do
 --         saveSTSheet 200 [sbt|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment
 -- t-shirt,black,120,shelf-2,ST16NV00399X,34,20,17,2016/11/10,Jack,
 -- |]
---         barcodes <- findBarcodes boxtakeBarcode
+--         barcodes <- findBarcodes 
 --         let types = barcodes :: [Text]
 --         liftIO $ barcodes `shouldBe`  ["ST16NV00399X"]
 
@@ -245,7 +244,7 @@ appSpec = withAppWipe BypassAuth $ do
         saveSTSheet 200 [sbt|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment
                             |t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack,
                             |]
-        Just (Entity oldKey old) <- runDB $ getBy (UniqueSB "ST16NV00399X" 1)
+        Just (Entity oldKey _) <- runDB $ getBy (UniqueSB "ST16NV00399X" 1)
         -- create document
         now <- liftIO getCurrentTime
         let adj = StockAdjustment "test" now Pending (toSqlKey 1)
@@ -389,7 +388,7 @@ appSpec = withAppWipe BypassAuth $ do
                               |]
         lengthShouldBe [BoxtakeActive ==. True] 1 
 
-      it "does invalidate previous stocktakes" $ do
+      it "@focus does invalidate previous stocktakes" $ do
         saveSTSheet 200 [sbt|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment
                               |t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack,
                               |,red,0,,,,,,,,
@@ -546,10 +545,8 @@ appSpec = withAppWipe BypassAuth $ do
                               |t-shirtD,black,7,,0,,,,2017/05/19,Jack,
                               |]
                               --                 ^ no barcode = quicktake
-          stocktakeStatusShouldBe [ ("ST16NV00399X", True) -- changed
+          boxtakeStatusShouldBe [ ("ST16NV00399X", True) -- changed
                                 ]
-          stocktakeLengthShouldBe 2
-
 
       context "zero take" $ do
         it "does NOT invalidate previous boxes" $ do

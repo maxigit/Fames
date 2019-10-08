@@ -11,7 +11,6 @@ import Import
 import Handler.Items.Reports.Common
 import Items.Types
 import GL.Utils
-import GL.Payroll.Settings
 import qualified Data.Map as Map
 import Formatting
 import Data.Aeson.QQ(aesonQQ)
@@ -46,6 +45,7 @@ reportDiv reportId = do
     Left err -> return [whamlet|
        <div id=#{reportId}>
          The report #{reportId} doesn't exists. Contact your administrator.
+         <div> #{err}
                         |]
     Right w -> do
       return [whamlet|
@@ -119,6 +119,7 @@ getDMainFullR = do
           Left err -> return [whamlet|
              <div id=#{reportId}>
                The report #{reportId} doesn't exists. Contact your administrator.
+               <div> #{err}
                               |]
           Right w -> do
             return [whamlet|
@@ -249,7 +250,7 @@ getDYearR = do
   |]
 
 dispatchReport :: Text -> Int64 -> Int64 -> Handler (Either Text Widget)
-dispatchReport reportName width height = do
+dispatchReport reportName __width __height = do
   today <- todayH
   fiscalYear <- fiscalYearH
   let slidingMonth = calculateDate (AddMonths (-1)) today
@@ -536,7 +537,7 @@ top100ItemYearChart plotName = do
   
 
 -- each nmap is band
-bandPivotRankProcessor tparams panelId key rank parents ruptures = createKeyRankProcessor go key rank parents ruptures where
+bandPivotRankProcessor tparams __panelId key rank parents ruptures = createKeyRankProcessor go key rank parents ruptures where
   (serieRupture, (columRupture,_)) = ruptures
   go key rank =  let sub = collectColumnsForPivotRank tparams
                           -- get the list of the columns for that we need to
@@ -577,7 +578,7 @@ bandPivotRankProcessor tparams panelId key rank parents ruptures = createKeyRank
 -- get the list of the columns for that we need to
  -- nmap is a serie
 collectColumnsForPivotRank :: [DataParams] -> NMapKey -> Int -> _parents -> _ruptures -> NMap TranQP -> [(_, Map (Int, NMapKey) Widget)]
-collectColumnsForPivotRank tparams key rank parents ruptures@(r, ()) nmap = let
+collectColumnsForPivotRank tparams key __rank parents ruptures@(r, ()) nmap = let
   (band, (panel, (all, ()))) = parents
   -- we are within a serie, we need to get all the used columns
   -- form nmap and return them upstream
@@ -610,7 +611,7 @@ collectColumnsForPivotRank tparams key rank parents ruptures@(r, ()) nmap = let
             | (column, _) <- columns -- only use trace or nmap keys instead
             , Just rankForCol <- return $ lookup column rankTrace
             ]
-  widget rank column = let
+  widget __rank column = let
     -- isTop = rank == 1
     -- isTop2 = rank == 2
           -- <div :isTop:.topOne :isTop2:.topTwo>#{pvToText $ nkKey key}

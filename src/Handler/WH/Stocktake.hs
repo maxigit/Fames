@@ -19,25 +19,19 @@ module Handler.WH.Stocktake
 ) where
 
 import Import hiding(length, (\\), Null)
-import qualified Data.Set as Set
-import Handler.Util
 import Handler.CsvUtils hiding(FieldTF, RawT, PartialT, ValidT, FinalT)
-import qualified Handler.CsvUtils as CU
 import Handler.WH.Barcode
 import WH.Barcode
-import Data.List(scanl, init, length, head, (\\), nub)
+import Data.List(scanl, length, (\\), nub)
 import qualified Data.List as List
-import Data.Either
-import System.Directory (doesFileExist)
 import Data.Time(fromGregorian, addDays)
 
 import Database.Persist.Sql
 import qualified Data.Csv as Csv
 import Yesod.Form.Bootstrap3 
-import qualified System.FilePath.Glob as Glob
 import qualified Data.Map.Strict as Map
 
-import qualified FA as FA
+import qualified FA
 import qualified Data.Set as Set
 import Text.Blaze(Markup)
 
@@ -81,7 +75,6 @@ data FormParam = FormParam
 {-# NOINLINE getWHStocktakeR #-}
 getWHStocktakeR :: Handler Html
 getWHStocktakeR = do
-  stockLike <- appFAStockLikeFilter . appSettings <$> getYesod
   sId <- lookupGetParam "id"
   stockId <- lookupGetParam "stock_id"
   style <- lookupGetParam "style"
@@ -97,8 +90,8 @@ getWHStocktakeR = do
         , (\k -> StocktakeDocumentKey ==. DocumentKeyKey' (SqlBackendKey k) ) <$> (docId >>= readMay)
         ]
   let orderBy = concat $ catMaybes
-          [ style <&> (\_ -> [Asc StocktakeStockId, Asc StocktakeDate] )
-          , date <&> (\_ -> [Asc StocktakeStockId])
+          [ style <&> (const [Asc StocktakeStockId, Asc StocktakeDate] )
+          , date <&> (const [Asc StocktakeStockId])
           ]
 
   entityTableHandler' (WarehouseR WHStocktakeR) (filter :: [Filter Stocktake]) orderBy
@@ -417,11 +410,11 @@ renderValidRows param rows = do
 -- to "save" the validation processing.
 processStocktakeSheet :: SavingMode -> Handler Html 
 processStocktakeSheet mode = do
-  ((fileResp, postFileW), enctype) <- runFormPost (uploadForm mode Nothing)
+  ((fileResp, __postFileW), __enctype) <- runFormPost (uploadForm mode Nothing)
   case fileResp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show (mode, a)
-    FormSuccess param@(FormParam fileInfoM keyM pathM encoding commentM complete display override) -> do
+    FormSuccess param@(FormParam fileInfoM keyM pathM encoding commentM __complete __display __override) -> do
       skpM <- readUploadOrCacheUTF8 encoding fileInfoM keyM pathM
       (spreadsheet, key, path) <- case skpM of
         Just s'k'p -> return s'k'p
@@ -432,7 +425,7 @@ processStocktakeSheet mode = do
       -- check if the document has already been uploaded
       -- and reject it.
       (documentKey'msgM) <- runDB $ loadAndCheckDocumentKey key
-      forM documentKey'msgM  $ \(Entity _ doc, msg) -> do
+      forM documentKey'msgM  $ \(_ , msg) -> do
         case (mode, pOveridde param) of
           (Save, False) -> renderWHStocktake Validate Nothing  422 (setError msg) (return ()) -- should exit
           _ -> setWarning msg >> return ""
@@ -466,7 +459,7 @@ processStocktakeSheet mode = do
       renderParsingResult (renderWHStocktake mode ((Just newParam)) 422)
                           (process newParam docKey mode finalizer)
                           (takes)
-  where process  param doc Validate finalizer rows = do
+  where process  param __doc Validate __finalizer rows = do
           widget <- renderValidRows param rows
           renderWHStocktake Save (Just param) 200 (setSuccess "Validation ok!") widget
         process param doc mode finalizer rows | mode == Save || mode == CollectMOP = do
@@ -504,7 +497,7 @@ processStocktakeSheet mode = do
             let boxtakes0 = do
                   group <- groups
                   let descriptionF = case group of
-                                        [row] -> id
+                                        [__one_row] -> id
                                         (_:_) -> (<> "*")
                                         _ -> error "shouldn't happen"
                   take 1 $ mapMaybe (toBoxtake keyId descriptionF) group
@@ -541,7 +534,7 @@ processStocktakeSheet mode = do
                   -- when (null nonZeros)
                   --   invalidPreviousTakes (skusForFull ++ skusForZeros)
               invalidateBoxesBySku skusToDisable
-              invalidPreviousStocktakes  $ toList skusToDisable -- skusForNonZeros
+              invalidPreviousStocktakes  $ skusForNonZeros <> skusForAll
               return ()
               )
 
@@ -833,15 +826,15 @@ validateRows skus (row:rows) = do
                        in transformRow (p :: PartialRow)
         BLookupST lookup -> let p = transformRow lookup  
                        in transformRow (p :: PartialRow)
-        BLookedupST lookup -> error "Shouldn't happen"
+        BLookedupST _ -> error "Shouldn't happen"
   -- we need to check that the last barcode is not guessed
   
       errors = map (either id (transformRow')) filleds
       -- ignore quicktake barcode when determining if a sequence of barcode is correct or not.
       validBarcode (FullST row) = Just (rowBarcode row)
-      validBarcode (QuickST row) = Nothing 
-      validBarcode (BLookupST row) = Nothing 
-      validBarcode (BLookedupST row) = error "Shouldn't happen"
+      validBarcode (QuickST _) = Nothing 
+      validBarcode (BLookupST _) = Nothing 
+      validBarcode (BLookedupST _) = error "Shouldn't happen"
                
   valids <- sequence  filleds <|&> const errors
   
@@ -856,21 +849,21 @@ validateRows skus (row:rows) = do
 -- | The big parsing method which detect depending on the available value
 -- which type of row we are having.
 validateRow :: Set Text -> ValidationMode -> PartialRow -> Either RawRow ValidRow
-validateRow skus validateMode row@(TakeRow (Just rowStyle) (Just rowColour)
+validateRow __skus __validateMode (TakeRow (Just rowStyle) (Just rowColour)
                                    (Just rowQuantity@(Provided (Known _)))
                                   Nothing (Just (Provided "0")) Nothing Nothing Nothing
                                    (Just rowDate) (Just rowOperator) rowComment)
   = Right . QuickST $ TakeRow{rowLocation=(), rowBarcode=() 
                             , rowLength=(), rowWidth=(), rowHeight=()
                             , .. }
-validateRow skus validateMode row@(TakeRow (Just rowStyle) (Just rowColour)
+validateRow __skus __validateMode (TakeRow (Just rowStyle) (Just rowColour)
                                    (Just rowQuantity@(Provided (Known 0)))
                                   _ _ _ _ _
                                    (Just rowDate) (Just rowOperator) rowComment)
   = Right . QuickST $ TakeRow{rowLocation=(), rowBarcode=() 
                             , rowLength=(), rowWidth=(), rowHeight=()
                             , .. }
-validateRow skus validateMode row@(TakeRow (Just rowStyle) (Nothing) (Nothing)
+validateRow __skus __validateMode (TakeRow (Just rowStyle) (Nothing) (Nothing)
                                    (Just rowLocation) (Just rowBarcode)
                                   _ _ _ (Just rowDate) (Just rowOperator) rowComment)
   = Right . BLookupST $ TakeRow{rowColour=(),rowQuantity=() 
@@ -898,7 +891,7 @@ validateRow _ _ invalid =  Left $ transformRow invalid
 
 
 fillFromPrevious :: Set Text -> Either RawRow ValidRow -> PartialRow -> Either RawRow ValidRow
-fillFromPrevious skus (Left prev) partial =
+fillFromPrevious skus (Left _) partial =
   case validateRow skus CheckBarcode partial of
     Left _ ->  Left $ transformRow partial
     Right valid -> Right valid -- We don't need to check the sequence barcode as the row the previous row is invalid anyway
@@ -1234,7 +1227,7 @@ lookupBarcodes (ParsingCorrect rows) = do
   finalizeds <- runDB $ mapM lookupBarcode rows
   case sequence finalizeds of
     Right valids -> return (ParsingCorrect (concat valids))
-    Left invalids -> return (InvalidData [] (lefts finalizeds)
+    Left _ -> return (InvalidData [] (lefts finalizeds)
                                          (concatMap (either return
                                                             (map transformValid')
                                                     )
@@ -1246,7 +1239,7 @@ lookupBarcodes (ParsingCorrect rows) = do
 lookupBarcodes result = return result
 
 lookupBarcode :: ValidRow -> SqlHandler (Either RawRow [ValidRow])
-lookupBarcode valid@(BLookupST row@TakeRow{..}) = do
+lookupBarcode valid@(BLookupST TakeRow{..}) = do
   let barcode = validValue rowBarcode
       style = validValue rowStyle
       raw = transformValid' valid
@@ -1261,9 +1254,9 @@ lookupBarcode valid@(BLookupST row@TakeRow{..}) = do
   stocktakes <- selectList [StocktakeBarcode ==. barcode] []
   variations <- case stocktakes of
     [] -> lookupPackingListDetail checkStyle barcode
-    (Entity _ st0:es) -> return $ case checkStyle (stocktakeStockId st0) (map (stocktakeStockId . entityVal) stocktakes) of
+    (Entity _ st0:_) -> return $ case checkStyle (stocktakeStockId st0) (map (stocktakeStockId . entityVal) stocktakes) of
                                        Nothing -> Right  [(drop 1 colour, stocktakeQuantity st)
-                                                         | (Entity key st) <- stocktakes  
+                                                         | (Entity _ st) <- stocktakes  
                                                          , let Just colour = stripPrefix style (stocktakeStockId st)
                                                          ]
                                        Just err -> Left err
@@ -1360,7 +1353,7 @@ finalizeRow :: ValidRow -> FinalRow
 finalizeRow (FullST row) = FinalFull (transformRow row)
 finalizeRow (QuickST row) = FinalQuick (transformRow row)
 
-finalizeRow (BLookupST row) = error "Shouldn't happend"
+finalizeRow (BLookupST _) = error "Shouldn't happend"
 finalizeRow (BLookedupST row) = FinalBarcodeLookup (transformRow row)
 
 styleFor :: ValidRow -> ValidField Text
@@ -1511,10 +1504,10 @@ instance Renderable ValidRow where
   render (FullST row) = render row
   render (QuickST row) = render row
   render (BLookedupST row) = render row
-  render (BLookupST row) = error "Shouldn't happen"
+  render (BLookupST _) = error "Shouldn't happen"
 
 instance Renderable Operator' where
-  render (Operator' opId op) = render $ operatorNickname op
+  render (Operator' _ op) = render $ operatorNickname op
 
 instance Renderable Location' where
   render loc = [whamlet|
@@ -1523,7 +1516,7 @@ instance Renderable Location' where
 |]
 
 classForRaw :: RawRow -> Text                                 
-classForRaw raw = ""
+classForRaw _ = ""
 -- classForRaw raw = case validateRaw (const Nothing) (const Nothing) raw of
 --   Left _ -> "invalid bg-danger"
 --   Right row -> case validateRow mempty NoCheckBarcode row of

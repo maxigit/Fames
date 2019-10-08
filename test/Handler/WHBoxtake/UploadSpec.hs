@@ -74,7 +74,7 @@ pureSpec = do
         -- last step before 2 previous test
         -- let (state, rows) = mapAccumR makeRow (Just d1, Just oe1, Just "E00.01/1", Nothing) [br1]
         -- state `shouldBe` (Just d1, Just oe1, Just "E00.01/1", Just be1)
-        let (state,rows) = mapAccumL makeRow state1 extraStep
+        let (state,__rows) = mapAccumL makeRow state1 extraStep
         state `shouldBe` state2
 
       it "close section after error. process barcode" $ do

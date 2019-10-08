@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -fno-warn-missing-signatures -fno-warn-unused-binds #-}
 {-# LANGUAGE QuasiQuotes#-}
 module Legacy.BankReconciliateSpec where
 import Prelude
@@ -26,39 +25,39 @@ santanderSpec = describe "@Santander" $ do
         let input = [lbt|
             |Date: 20/09/2018
             |Description: BANK GIRO CREDIT, New York
-            |Amount: 39.50 	
-            |Balance: 337.97 
+            |Amount: 39.50
+            |Balance: 337.97
             |]
 
         parseLT parseSantanderTransaction input `shouldBe`
            Right (SantanderTransaction
                    (fromGregorian 2018 09 20)
                    "BANK GIRO CREDIT, New York"
-                   39.50	
-                   337.97 
+                   39.50
+                   337.97
                  )
      it "parses statement" $ do
 
        let input = [lbt|
                        |From: 20/03/2018 to 20/09/2018
-                       |							
+                       |
                        |Account: XXXX XXXX XXXX 1234
-                       |						
+                       |
                        |Date: 20/09/2018
-                       |Description: BANK GIRO CREDIT , New York                                            
-                       |Amount: 139.50 	
-                       |Balance: 337.97 
-                       |						
+                       |Description: BANK GIRO CREDIT , New York
+                       |Amount: 139.50
+                       |Balance: 337.97
+                       |
                        |Date: 19/09/2018
-                       |Description: DUALITY 150910, Boston                                            
-                       |Amount: 773.00 	
-                       |Balance: 198.47 
+                       |Description: DUALITY 150910, Boston
+                       |Amount: 773.00
+                       |Balance: 198.47
                        |]
            trans = [ SantanderTransaction
                          (fromGregorian 2018 09 20)
                          "BANK GIRO CREDIT , New York"
-                         139.5	
-                         337.97 
+                         139.5
+                         337.97
                    , SantanderTransaction
                          (fromGregorian 2018 09 19)
                          "DUALITY 150910, Boston"
@@ -72,4 +71,3 @@ santanderSpec = describe "@Santander" $ do
                        "XXXX XXXX XXXX 1234"
                        trans
                      )
-

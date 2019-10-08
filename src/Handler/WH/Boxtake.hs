@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 module Handler.WH.Boxtake
 ( getWHBoxtakeR
 , postWHBoxtakeR
@@ -20,12 +19,12 @@ import Yesod.Form.Bootstrap3
 import Handler.CsvUtils
 import Data.List(nub)
 import qualified Data.Map.Strict as Map
-import Database.Persist.MySQL(unSqlBackendKey)
 import Text.Printf(printf)
 import Handler.WH.Boxtake.Common
 import Handler.WH.Boxtake.Upload
 import Handler.WH.Boxtake.Adjustment
 import Data.Conduit.List(sourceList)
+import Database.Persist.Sql (fromSqlKey)
 -- * Types
 data RuptureMode = BarcodeRupture | LocationRupture | DescriptionRupture
   deriving (Eq, Read, Show, Enum, Bounded)
@@ -120,7 +119,7 @@ plannerSource = selectSource [BoxtakeActive ==. True] [Asc BoxtakeLocation, Asc 
   -- boxes .| mapC toPlanner
   
 toPlanner :: (Entity Boxtake) -> Text
-toPlanner (Entity (BoxtakeKey boxId) Boxtake{..}) = 
+toPlanner (Entity _ Boxtake{..}) = 
   boxtakeLocation
   <> "," <> (fromMaybe "" boxtakeDescription) <> (mconcat $ map ("#" <>) tags )
   <> ",1"
@@ -173,7 +172,7 @@ postWHBoxtakeAdjustmentR = do
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess param -> do
       actionM <- lookupPostParam "action"
-      when (actionM == Just "Process") (processBoxtakeAdjustment param)
+      when (actionM == Just "Process") processBoxtakeAdjustment
       result <- displayBoxtakeAdjustments param
       renderBoxtakeAdjustments param (Just result)
 
@@ -350,12 +349,15 @@ renderStocktakes opMap stocktakes = do
      <th> Quantity
      <th> Date
      <th> Active
+     <th> Operator
   $forall (Entity _ stocktake) <- stocktakes
     <tr>
       <td> #{stocktakeStockId stocktake}
       <td> #{tshow (stocktakeQuantity stocktake)}
       <td> #{tshow (stocktakeDate stocktake)}
       <td> #{displayActive (stocktakeActive stocktake)}
+      $with opId <- stocktakeOperator stocktake
+        <td> #{maybe ("#" <> tshow (fromSqlKey opId)) operatorNickname (lookup opId opMap)}
           |]
 
 renderSummary :: BoxtakeInquiryParam -> [Entity Boxtake] -> Widget
@@ -512,7 +514,7 @@ processBoxtakeSheet' :: SavingMode
                      -> (SavingMode -> UploadParam -> ([Session], [StyleMissing]) -> Handler TypedContent)
                      -> Handler TypedContent
 processBoxtakeSheet' mode onSuccess = do
-  ((fileResp, postFileW), enctype) <- runFormPost (uploadForm mode Nothing)
+  ((fileResp, __postFileW), __enctype) <- runFormPost (uploadForm mode Nothing)
   case fileResp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show (mode, a)
@@ -530,7 +532,7 @@ processBoxtakeSheet' mode onSuccess = do
           let paramWithKey = param0 {uFileKey=Just key, uFilePath=Just path}
           sessions <- parseScan uWipeMode spreadsheet
           documentKey'msgM <- runDB $ loadAndCheckDocumentKey key
-          docM <- forM documentKey'msgM $  \(entity,  msg) -> do
+          _ <- forM documentKey'msgM $  \(entity,  msg) -> do
               setWarning msg
               return entity
 
@@ -553,7 +555,7 @@ processBoxtakeMove Validate param (sessions, styleMissings) = do
     return $ renderSessions renderUrl sessions styleMissings
   renderBoxtakeSheet Save (Just param) (fromEnum ok200) (setSuccess "Spreadsheet valid") sessionW
 
-processBoxtakeMove Save param (sessions, styleMissings) = do
+processBoxtakeMove Save _ (sessions, styleMissings) = do
   runDB $ do
         today <- todayH
         let maxDate = fromMaybe today $ maximumMay (map sessionDate sessions)

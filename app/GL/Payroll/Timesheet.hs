@@ -9,15 +9,9 @@ module GL.Payroll.Timesheet  where
 import Prelude
 
 import           Data.Time ( Day
-                           , LocalTime
                            , TimeOfDay
-                           , makeTimeOfDayValid
                            , addDays
-                           , timeOfDayToTime
-                           , formatTime
-                           ,fromGregorian
                            , toGregorian
-                           , diffDays
                            , addGregorianMonthsClip
                            )
 import Data.Time.Calendar.WeekDate (toWeekDate)

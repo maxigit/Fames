@@ -201,6 +201,6 @@ freeZoneDimension zone = (zoneDimension zone) { dLength = lengthLeft zone}
 -- ex: [1,2,3] -> [(1, [2,3]), (2, [1,3]), (3, [1,2])
 holes :: [a] -> [(a, [a])]
 holes xs = go [] xs where
-  go lefts [] = []
+  go _ [] = []
   go xs0 (x:xs) = (x, reverse xs0++xs) : go (x:xs0) xs
   

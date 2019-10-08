@@ -33,7 +33,7 @@ renderGroup (ShelfProxy i) = do
     renderShelf shelf
 
 renderSlices :: ShelfGroup s -> WH [Diagram B] s
-renderSlices (ShelfGroup gs direction) = mapM renderGroup gs
+renderSlices (ShelfGroup gs __direction) = mapM renderGroup gs
 renderSlices shelf@(ShelfProxy _) = do
     diag <- renderGroup shelf
     return [diag]
@@ -126,8 +126,7 @@ offsetBox fromBoxCenter shelf box diagram  = let
 renderBox :: Shelf s -> Box s -> WH [(Int, Diagram B)] s
 renderBox shelf box = do
     BoxStyling{..} <- gets boxStyling `ap` return box
-    let   Dimension l w h = boxDim box
-          Dimension ox oy oz = boxOffset box
+    let   Dimension l __w h = boxDim box
           border' = fromMaybe foreground border
           titles = case title of
                      [] -> (boxStyle box <> "\n" <> showOrientation (orientation box) <> " " <> boxContent box)

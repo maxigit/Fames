@@ -2,10 +2,7 @@
 module RoleSpec where
 
 import TestImport
-import Import.NoFoundation
-import Role
-
-import Data.Yaml (decode)
+import Data.Yaml (decodeThrow)
 import Text.Shakespeare.Text (st)
 
 spec :: Spec
@@ -59,7 +56,7 @@ pureSpec = do
       authorizeFromPath (RoleRoute "/fa/gl_trans/*" ReadRequest) "/fa/gl_trans/3" WriteRequest `shouldBe` False
     
   describe "#Yaml" $ do
-    let shouldDecodeTo yaml result = decode (encodeUtf8 yaml) `shouldBe` Just result
+    let shouldDecodeTo yaml result = decodeThrow (encodeUtf8 yaml) `shouldBe` Just result
     it "decodes Administrator" $ do
       "Administrator" `shouldDecodeTo` Administrator
 

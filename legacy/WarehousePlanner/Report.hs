@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 -- | Miscelaneous reporting functions
 module WarehousePlanner.Report
 ( reportAll
@@ -21,10 +20,8 @@ module WarehousePlanner.Report
 , boxStyleWithTags
 ) where
 
--- import Control.Monad.ST (runST, stToIO, RealWorld)
 import WarehousePlanner.Base
 import WarehousePlanner.Optimum
--- import Prelude hiding(pack $ printf)
 import ClassyPrelude
 import Control.Monad.ST.Unsafe(unsafeSTToIO)
 import System.IO.Unsafe(unsafePerformIO)
@@ -32,24 +29,14 @@ import Control.Monad.State(get, gets, evalStateT)
 import Text.Printf(printf)
 import qualified Data.Map.Strict as Map'
 import qualified Data.Set as Set
--- import qualified Data.Vector as Vec
 import qualified Data.Sequence as Seq
 import Data.Sequence (Seq)
 import Data.Function(on)
--- import Data.List (sortBy, partition, intercalate, nub, sort, tails, stripPrefix)
 import qualified Data.List as List
 import Data.Ord (comparing, Down(..))
-import Control.Applicative
-import Data.Monoid
--- import qualified Data.Foldable as F
--- import qualified Data.Traversable  as T
--- import Data.Maybe
 import Data.Time(Day, formatTime, defaultTimeLocale)
 
 import Text.Tabular as Tabul
-import qualified Text.Tabular.AsciiArt as TAscii
-import qualified Text.Tabular.Html as THtml
-import qualified Text.Tabular.Csv as TCsv
 import Data.Text(replace)
 
 -- pattern (:<) :: Text -> Maybe (Char, Text)
@@ -59,7 +46,7 @@ reportAll = do
     sb <- shelfBoxes
     let groups =  Map'.fromListWith (+) (map (\(s,b) -> ((shelfName s, boxDim b, orientation b, boxStyle b), (1::Int))) sb)
     return $ map toString (Map'.toList groups)
-    where toString ((name, dim, o, style), count) =
+    where toString ((name, __dim, o, style), count) =
             name
                 <> ", " <> style
                 <> ", " <> tshow count  <> ", " <> showOrientation o
@@ -107,7 +94,7 @@ bestHeightForShelf shelf = do
             ]
 
         bests = sortBy (compare `on` fst) tries
-        reportHeight shelf  (box, or, (n,k,m)) = do
+        reportHeight shelf  (box, or, (n,k,__m)) = do
           similarBoxes <- findBoxByNameSelector (matchName $ boxStyle box)
           let box' = box { orientation = or }
           let lengthRatio = ( dLength (boxDim box') * (fromIntegral n)
@@ -399,8 +386,7 @@ generateMovesFor header boxKey printGroup box'shelfs = do
 generateMOPLocations :: WH [Text] s
 generateMOPLocations = generateMoves' (Just "stock_id,location") boxName printGroup where
   -- use box style unless the box is tagged as exception
-  boxName box = let tags = boxTags box
-                    comment = boxTagValuem box "mop-comment"
+  boxName box = let comment = boxTagValuem box "mop-comment"
                     hasTag = boxTagIsPresent box
                 in case (hasTag "mop-exclude", hasTag "mop-exception") of
                    (True, _) -> Nothing -- skipped
@@ -412,6 +398,7 @@ generateMOPLocations = generateMoves' (Just "stock_id,location") boxName printGr
            (Nothing, name:names) -> intercalate "|" (name : groupNames names) 
            (Just comment, [name]) -> intercalate "|" [name , comment]
            (Just comment, name:names) -> intercalate "|" (name : groupNames names)  <> " " <> comment
+           ( _, []) -> error "Bug, names shouldn't be empty"
                                         
 -- | Generate a generic report using tags prefixed by the report param
 generateGenericReport :: Day -> Text -> WH [Text] s
@@ -440,7 +427,7 @@ generateGenericReport today prefix = do
   
 generateGenericReport' today prefix s'bs = generateMovesFor Nothing boxKey printGroup s'bs where
   boxKey box = boxTagValuem box (prefix <> "-key")
-  printGroup boxKey [] shelfNames = boxKey
+  printGroup boxKey [] __shelfNames = boxKey
   printGroup boxKey boxes@(box:_) shelfNames = let
     value0 = boxTagValuem box (prefix <> "-value")
     value = maybe boxKey (expandReportValue today boxes shelfNames ) value0
@@ -539,7 +526,7 @@ groupShelvesReport' :: WH (IO ()) s
 groupShelvesReport' = do
   groups <- groupShelves (const False)
   return $ do
-    forM_ (sortBy (comparing (shelfName . fst)) groups) $ \(s, names) -> do
+    forM_ (sortBy (comparing (shelfName . fst)) groups) $ \(_, names) -> do
       forM_ names $ \name -> putStrLn $ name <> " => " <> (headEx names)
 
 type BoxKey = (Dimension, Text, [Orientation])
@@ -631,7 +618,7 @@ data Pair s  = Pair
   } deriving (Eq, Show)
 
 newPair :: Warehouse s -> Residual s -> Maybe (Residual s) -> Maybe (Pair s)
-newPair wh res Nothing  =  let
+newPair _ res Nothing  =  let
   n1 = rUsedShelves res
   wastedVolume = rVolumeLeftForLO res + rVolumeLeftForAllFull res
   in Just $ Pair res Nothing wastedVolume n1 0 (LeftOnly (rBoxLeft res)) (rVolumeLeftForLO res)
@@ -650,7 +637,7 @@ newPair wh res (Just res') =
             (shelfFillingStrategy shelf)
         addBoxes res shelf = do
           let box = rBox res
-          forM [1..rBoxLeft res] $ \i -> newBox (boxStyle box)
+          forM [1..rBoxLeft res] $ \_ -> newBox (boxStyle box)
                                              (boxContent box)
                                              (_boxDim box)
                                              (rOrientation res) -- current orientation
@@ -666,7 +653,7 @@ newPair wh res (Just res') =
           boxes' <- addBoxes res' def
           left <- moveBoxes ExitOnTop boxes [shelf]
           left' <- moveBoxes ExitOnTop boxes' [shelf]
-          shelfR <- findShelf shelf
+          -- shelfR <- findShelf shelf
 
           -- traceShowM ("RES", length boxes, length left, length boxes', length left')
           return (length boxes, length left, length boxes', length left')
@@ -689,6 +676,7 @@ newPair wh res (Just res') =
                         (totalWasted)
           -- does not mix
           (0, _) -> Nothing
+          (_, _) -> error "Bug"
 
 pTotalShelves :: Pair s -> Int
 pTotalShelves = go <$> pN1 <*> pN2 <*> pMixed where
@@ -789,4 +777,5 @@ showPair pair = let res = pRes1 pair
                   <> tshow (pN1 pair) <> ":" <> (tshow $ rPercentageUsedForFull res) <> "%  | " <> tshow q <> " _ | "
                   <> (pack $ printf " wasted:%0.2f  " (pWastedVolume pair))
                   <> printDim (boxDim $ rBox res) <> (pack $ printf "(%d)" $ rBoxPerShelf res)
+    _ -> error "Bug"
 

@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -fno-warn-unused-imports #-}
 module FA (module X) where 
 import FAxx59 as X
 import FAxx43 as X

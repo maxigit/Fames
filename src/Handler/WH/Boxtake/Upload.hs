@@ -344,7 +344,6 @@ sessionStyles Session{..} = let
 
 loadMissingFromStyle :: Set Text -> Text -> SqlHandler (Maybe StyleMissing)
 loadMissingFromStyle barcodeSet style = do
-  today <- todayH
   allboxes <- selectList ( (BoxtakeActive ==. True)
                            :(filterE Just BoxtakeDescription (Just $ LikeFilter (style <> "%")))
                          )

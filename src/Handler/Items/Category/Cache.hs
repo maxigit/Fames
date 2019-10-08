@@ -16,16 +16,15 @@ module Handler.Items.Category.Cache
 
 import  Import
 import FA as FA hiding (unUserKey)
-import Database.Persist.MySQL(unSqlBackendKey, rawSql, Single(..), RawSql(..))
+import Database.Persist.MySQL(rawSql, Single(..), RawSql(..))
 import qualified Data.Map as LMap
 import qualified Data.Map.Strict as Map
 import qualified Data.List as Data.List
 import Data.Maybe(fromJust)
 import Data.Align(align)
-import Data.These
 import Lens.Micro.Extras (preview)
 import Text.Printf(printf) 
-import Data.Time (diffDays, addGregorianMonthsClip)
+import Data.Time (diffDays)
 -- * Types
 -- ** Items
 data StockMasterRuleInfo = StockMasterRuleInfo
@@ -140,7 +139,7 @@ refreshCategoryFor textm stockFilterM = do
   
 -- | Compute the given category using existing value for other categories
 computeOneCategory :: Text -> [Map Text DeliveryCategoryRule] -> ItemCategoryRule -> StockMasterRuleInfo -> SqlHandler [ItemCategory]
-computeOneCategory cat deliveryRules rule ruleInfo@StockMasterRuleInfo{..} = do
+computeOneCategory cat __deliveryRules rule ruleInfo@StockMasterRuleInfo{..} = do
   deliveryRules <- appDeliveryCategoryRules <$> getsYesod appSettings
   catFinder <- lift categoryFinderCached
   categories <- lift categoriesH
@@ -328,9 +327,9 @@ loadItemDeliveryForSku (FA.StockMasterKey sku) = do
 -- items are use FIFO
 partitionDeliveriesFIFO :: These [FA.StockMove] Double -> ([FA.StockMove], [FA.StockMove])
 partitionDeliveriesFIFO (This moves) = (moves, []) -- nothing left
-partitionDeliveriesFIFO (That qho) = ([], []) -- should raise an error ?
+partitionDeliveriesFIFO (That _) = ([], []) -- should raise an error ?
 partitionDeliveriesFIFO (These moves 0) = partitionDeliveriesFIFO (This moves)
-partitionDeliveriesFIFO (These [] qoh) = ([], [])
+partitionDeliveriesFIFO (These [] _) = ([], [])
 partitionDeliveriesFIFO (These moves' qoh) = let
   moves = sortOn FA.stockMoveTranDate moves'
   quantities = map FA.stockMoveQty moves
@@ -347,7 +346,7 @@ partitionDeliveriesFIFO (These moves' qoh) = let
          else ( used ++ [ (run, current {stockMoveQty = toUse})]
               , (run, current {stockMoveQty = FA.stockMoveQty current - toUse}):leftover
               )
-    r@(used, []) ->  r
+    r ->  r
   in
      -- traceShow ("QS", quantities, "Running", map fst running) 
      -- $ traceShow ("SPLIT", map (FA.stockMoveQty . snd) used', map (FA.stockMoveQty . snd) leftover')  $
@@ -584,7 +583,7 @@ applyOrderCategoryRules rules =
 
                   ]
       catRegexCache = mapFromList (map (liftA2 (,) id mkCategoryRegex) (inputKeys <> map fst rules))
-  in \(Entity orderId FA.SalesOrder{..}) -> let
+  in \(Entity __orderId FA.SalesOrder{..}) -> let
         ruleInput = RuleInput (mapFromList riList) (Just $ salesOrderTotal)
         riList = ("date", show salesOrderOrdDate) :
                  ("delivery-date", show salesOrderDeliveryDate) :

@@ -7,16 +7,13 @@ where
 
 -- * Import
 import Import
-import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
-                              withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
+import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import Handler.GL.Payroll.Common
 import GL.Payroll.Settings
 import GL.Utils
 import qualified GL.Payroll.Timesheet as TS
-import qualified GL.Payroll.Report as TS
 import Data.Maybe
-import Data.List.NonEmpty (NonEmpty(..))
-import Data.Time (addDays, addGregorianMonthsClip)
+import Data.Time (addGregorianMonthsClip)
 import qualified FA as FA
 import Database.Persist.MySQL(unSqlBackendKey) -- , rawSql, Single(..))
 import Control.Monad.Except
@@ -98,7 +95,7 @@ importSummary param = do
             <th>Shifts
             <th>Total
             <th>
-        $forall invoice@( Invoice inv _gls _items _allocs selected ts tidM ) <- invoices
+        $forall invoice@( Invoice inv _gls _items _allocs selected __ts tidM ) <- invoices
           $with hasTimesheet <- isJust tidM
             <tr :hasTimesheet:.has-timesheet>
               <td>
@@ -246,7 +243,7 @@ modalInvoice invoice =  let
 invoiceModalRef inv = "modal-" <> tshow (FA.suppTranTransNo (trans inv))
                                         
 loadInvoice :: ImportParam -> Entity FA.SuppTran -> Handler Invoice
-loadInvoice param (Entity invKey inv) = do
+loadInvoice param (Entity _ inv) = do
   -- find timesheet
   -- traceShowM ("loading invoice", invKey)
   let no = FA.suppTranTransNo inv
@@ -311,7 +308,7 @@ dim2Finder = do
 {-# NOINLINE postGLPayrollImportR #-}
 postGLPayrollImportR :: Handler Html
 postGLPayrollImportR =  do
-  ((resp, formW), encType) <- runFormPost (importForm Nothing)
+  ((resp, __formW), __encType) <- runFormPost (importForm Nothing)
   case resp of
     FormMissing -> error "form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
@@ -387,7 +384,7 @@ mkShift
      -> (FA.SuppInvoiceItem, t, FA.GrnBatch)
      -> Key Timesheet
      -> PayrollShift
-mkShift opFinder (item, grn, batch) tId = let
+mkShift opFinder (item, __grn, batch) tId = let
   duration = FA.suppInvoiceItemQuantity item
   cost = (fromIntegral $  ceiling (100 * duration * FA.suppInvoiceItemUnitPrice item) )/ 100
   typ = case unpack $ fromJust $ FA.grnBatchLocCode batch of

@@ -14,14 +14,10 @@ module Handler.Items.Batches
 ) where
 
 import Import
-import Items.Types
 import Handler.Items.Common
-import Handler.Util
 import Handler.Table
 import Yesod.Form.Bootstrap3 (renderBootstrap3, BootstrapFormLayout(..))
-import Text.Blaze.Html.Renderer.Text(renderHtml)
 import qualified Data.List as List
-import Data.Text(toTitle)
 import Database.Persist.Sql -- (unSqlBackendKey)
 
 import Handler.Items.Batches.Matches
@@ -153,11 +149,11 @@ postItemNewBatchR = do
 
 {-# NOINLINE getItemEditBatchR #-}
 getItemEditBatchR :: Int64 -> Handler Html
-getItemEditBatchR key = return "Todo"
+getItemEditBatchR __key = return "Todo"
  
 {-# NOINLINE postItemEditBatchR #-}
 postItemEditBatchR :: Int64 -> Handler Html
-postItemEditBatchR key = return "Todo"
+postItemEditBatchR __key = return "Todo"
 
 -- saveMatchesForm :: Maybe (Encoding, ((DocumentHash, Text), (_, _, _))) -> _ -> _ (Form (Encoding, (DocumentHash, Text)), _ ) 
 saveMatchesForm encoding'hash'''pathM''day'''operator = renderBootstrap3 BootstrapBasicForm  form where
@@ -187,7 +183,7 @@ uploadBatchExtra =  do
 postItemBatchUploadMatchesR :: Handler Html
 postItemBatchUploadMatchesR = do
   extra <- uploadBatchExtra
-  ((fileInfo,encoding, (day, operator, batchCategory)), (view, encType)) <- unsafeRunFormPost (uploadFileFormInline extra)
+  ((fileInfo,encoding, (day, operator, batchCategory)), (__view, __encType)) <- unsafeRunFormPost (uploadFileFormInline extra)
   Just (bytes, hash, path ) <- readUploadOrCacheUTF8 encoding (Just fileInfo) Nothing Nothing
   when (isNothing operator) $
     setWarning [shamlet|No operator has been set. The matches will be considered as <b>GUESS</b>|]
@@ -297,7 +293,7 @@ loadMatchTable MatchTableParam{..} | Just skuFilter <- mtSkuFilter = do
                  -- Hack column to display variation name
                      col = map hack col0
                      hack (colName, getter) | colName == descriptionName = let
-                                                fn row@((_, var), batches) = getter row  <|> (Right . toPersistValue <$> lookup var varMap) 
+                                                fn row@((_, var), __batches) = getter row  <|> (Right . toPersistValue <$> lookup var varMap) 
                                                 in (colName, fn)
                      hack c = c 
                  return $ displayTable col title rows
@@ -344,7 +340,7 @@ getItemBatchExpandMatchesR = do
       <td>Target Colour
       <td>Quality
       <td>Comment
-  $forall BatchMatch{..} <- limit guessed
+  $forall BatchMatch{batchMatchDate=_,batchMatchDocumentKey=_,..} <- limit guessed
     <tr>
       <td>#{batchName' batchMatchSource}
       <td>#{batchMatchSourceColour}
@@ -408,7 +404,7 @@ loadBatchMatchTable batchKey = do
 
 -- * Rendering
 renderBatch :: Entity Batch -> Widget
-renderBatch batchEntity@(Entity _ Batch{..}) = infoPanel ("Batch: " <> batchName) [whamlet|
+renderBatch (Entity _ Batch{..}) = infoPanel ("Batch: " <> batchName) [whamlet|
 <table.table>
   <tr>
     <th>Name

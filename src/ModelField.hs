@@ -1,7 +1,7 @@
 -- | For TH stage problem
 module ModelField
 ( module ModelField
-, PayrollFrequency(..)
+, PayrollFrequency
 ) where 
 
 import ClassyPrelude.Yesod hiding(Proxy)

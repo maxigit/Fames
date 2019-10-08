@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ImplicitParams #-}
-{-# OPTIONS_GHC -Wno-deprecations #-}
 module Handler.GL.TaxReport.HMRC where
 import Import
 import Network.Curl
@@ -10,13 +9,12 @@ import GL.TaxReport.Settings
 import Util.Cache
 import Data.Dynamic(fromDynamic)
 
-import Data.Aeson.TH(deriveJSON, defaultOptions, fieldLabelModifier, sumEncoding, SumEncoding(..))
+import Data.Aeson.TH(deriveJSON, defaultOptions, fieldLabelModifier)
 import Data.Aeson.Types
-import Data.Aeson(encode,eitherDecode)
+import Data.Aeson(encode)
 import Data.Time(diffUTCTime)
 
 import Data.Fixed
-import Data.Yaml.Pretty(encodePretty, defConfig) 
 
 -- * Types
 data VATObligation = VATObligation
@@ -188,11 +186,11 @@ retrieveVATObligations reportType reportM params@HMRCProcessorParameters{..} = d
                     Nothing -> id
                     Just TaxReport{..} -> let good VATObligation{..} = start == taxReportStart && end == taxReportEnd
                                           in filter good
-      go err json = case err of
-                    200 -> case fromJSON json of
-                              Success obs -> Right obs
-                              Error e -> Left (pack e)
-                    _ -> Left . decodeUtf8 $ encodePretty defConfig json 
+      -- go err json = case err of
+      --               200 -> case fromJSON json of
+      --                         Success obs -> Right obs
+      --                         Error e -> Left (pack e)
+      --               _ -> Left . decodeUtf8 $ encodePretty defConfig json 
   obligationsE <- hxtoHe . ioxToHx $ withCurl $ do
     curl <- lift initialize
     let
@@ -224,7 +222,7 @@ submitHMRCReturn report@TaxReport{..} periodKey boxes params@HMRCProcessorParame
   -- let endPoint = "/organisations/vat/"<>vatNumber<>"/obligations" :: Text
       url = unpack $ baseUrl <> endPoint 
       vatReturn = either (error . unpack) id $ mkVatReturn periodKey True boxes
-  traceShowM ("VATRe", vatReturn)
+  -- traceShowM ("VATRe", vatReturn)
   r <- hxtoHe . ioxToHx $ withCurl $ do
     curl <- lift initialize
     let ?curl = curl

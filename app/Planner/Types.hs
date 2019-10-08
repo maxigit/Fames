@@ -3,7 +3,6 @@ module Planner.Types where
 
 import ClassyPrelude
 import Model.DocumentKey
-import WarehousePlanner.Base
 import GHC.Generics(Generic)
 
 
@@ -58,8 +57,8 @@ data Scenario = Scenario
   } deriving (Read, Show)
 
 instance Semigroup Scenario where
-  _ <> sc@(Scenario (Just i') _ _)  = sc
-  (Scenario i steps l) <> (Scenario i' steps' l') = Scenario i (steps <> steps') (l' <|> l)
+  _ <> sc@(Scenario (Just _i') _ _)  = sc
+  (Scenario i steps l) <> (Scenario _i' steps' l') = Scenario i (steps <> steps') (l' <|> l)
 instance Monoid Scenario where
   mempty = Scenario Nothing [] Nothing
   

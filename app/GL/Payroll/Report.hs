@@ -4,32 +4,18 @@ module GL.Payroll.Report where
 import Prelude
 import Lens.Micro
 import Lens.Micro.Extras
-import Control.Applicative
 import           Data.Map(Map)
 import qualified Data.Map as Map
 import GL.Payroll.Timesheet
 import           Data.Time ( Day
-                           , LocalTime
-                           , TimeOfDay
-                           , makeTimeOfDayValid
                            , addDays
-                           , timeOfDayToTime
                            , formatTime
                            )
-import Data.Time.Format    ( defaultTimeLocale, wDays)
-import Data.Semigroup
-import Data.List.NonEmpty(nonEmpty)
-import Data.Semigroup.Generator(reduceWith1)
-import Data.Semigroup.Reducer(Reducer(..))
-import Data.Ord(comparing)
-import Data.Function(on)
+import Data.Time.Format    (defaultTimeLocale)
 import Data.These
 import Data.Align
 import Locker
 import Data.Text (Text)
-
-
-import System.Directory(createDirectory)
 import System.FilePath((</>))
 -- * Formatting
 -- ** Display
@@ -105,7 +91,7 @@ groupDacsBy f ss = let
     in [s { _dacKey = k } | (k,s) <- Map.toList groups]
 
 instance Display () where
-  display st = ""
+  display _st = ""
     
 groupBy :: Ord k =>  (a->k) -> [a] -> Map k [a]
 groupBy key as =
@@ -144,7 +130,7 @@ instance Display Textcart where
 -- | Write a textcart into a file
 -- The name depend on the date
 writeTextcart :: String -> Textcart -> IO ()
-writeTextcart dir cart@(Textcart (d, st, ss)) = do
+writeTextcart dir cart@(Textcart (d, st, __ss)) = do
     -- createDirectory dir
     let path = (show st) ++ "-" ++ formatTime defaultTimeLocale "%F-%A.txt" d
     putStrLn $  "saving Texcart : " ++ path

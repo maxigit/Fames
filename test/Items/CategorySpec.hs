@@ -3,15 +3,10 @@
 module Items.CategorySpec (spec) where
 
 import TestImport
-import Items.Internal
-import Items.Types
-import qualified FA as FA
+import qualified FA
 import qualified Data.Map as Map
-import CategoryRule
-import Handler.Util
-import Data.Yaml(decodeEither)
+import Data.Yaml(decodeEither')
 import Text.Shakespeare.Text (sbt)
-import qualified Data.Map as Map
 
 defStock = FA.StockMaster{..} where
   stockMasterCategoryId =  1
@@ -37,12 +32,12 @@ defStock = FA.StockMaster{..} where
   stockMasterEditable = True
 
 applyJSONRules stock json =
-  case decodeEither $ encodeUtf8 json of
+  case decodeEither' $ encodeUtf8 json of
     Right rulesMap ->  let
       (FA.StockMasterKey sku) = entityKey stock
       input = RuleInput mempty (Just 15)
       resultMap = computeCategories mempty (join $ map Map.toList rulesMap) input (unpack sku)
-      in traceShow ("RULES", rulesMap) $ Map.toList resultMap
+      in Map.toList resultMap
     Left err -> error (show err)
 
 spec = describe "@Category StockMaster to category" $ do

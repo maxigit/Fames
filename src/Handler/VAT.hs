@@ -7,10 +7,8 @@ module Handler.VAT
 
 import Import
 import Database.Persist.MySQL     (Single(..), rawSql)
-import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
-                              withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
+import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import GL.Utils
-import GL.Payroll.Settings
 import Formatting
 import Formatting.Time(year, month)
 import qualified FA as FA
@@ -60,7 +58,7 @@ getGLVATEcslR = do
 {-# NOINLINE postGLVATEcslR #-}
 postGLVATEcslR :: Handler TypedContent
 postGLVATEcslR = do
-  ((resp, formW), encType) <- runFormPost (ecslForm Nothing)
+  ((resp, __formW), __encType) <- runFormPost (ecslForm Nothing)
   case resp of
     FormMissing -> error "Form missing"
     FormFailure a -> error $ "Form failure : " ++ show a

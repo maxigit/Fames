@@ -29,11 +29,7 @@ import qualified Data.IntSet as IntSet
 import Text.Printf (printf)
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import Util.Cache
-import Control.Monad(zipWithM_)
 import Control.Comonad
-import Handler.Util
-import Control.Monad.Reader(mapReaderT)
-import qualified Data.Map as Map
 import qualified Generics.OneLiner as OL
   
 -- * Types
@@ -233,8 +229,8 @@ indexForm categories groups param extra = do
         -- form = form2 form1
         groups' =  map (\g -> (g,g)) groups
         mkStatusOptions n = multiSelectField $ optionsPairs $ map (fanl (drop n . tshow)) [minBound..maxBound]
-        rstatus = optionsPairs $ map (fanl (drop 2 . tshow)) [minBound..maxBound]
-        wstatus = optionsPairs $ map (fanl (drop 3 . tshow)) [minBound..maxBound]
+        -- rstatus = optionsPairs $ map (fanl (drop 2 . tshow)) [minBound..maxBound]
+        -- wstatus = optionsPairs $ map (fanl (drop 3 . tshow)) [minBound..maxBound]
         categoryOptions = [(cat, cat) | cat <-categories ]
         bfs' t = t --  bfs (t :: Text)
         renderInline w = [whamlet|<div.well>
@@ -311,7 +307,7 @@ checkFilter param sku =
   let set = setFromList (ipChecked param) :: Set Text
       toKeep sku = case ipChecked param of
         [] -> True
-        cs -> sku `member` set
+        _non_empty -> sku `member` set
   in toKeep sku
 
 -- ** Preloaded Cache
@@ -871,7 +867,7 @@ columnsFor _ ItemPriceView infos = SalesPriceStatusColumn : map PriceColumn cols
   cols = salesPricesColumns $ map  iiInfo  infos
 columnsFor _ ItemPurchaseView infos = PurchasePriceStatusColumn :map PurchaseColumn cols where
   cols = purchasePricesColumns $ map  iiInfo  infos
-columnsFor cache ItemFAStatusView _ = map FAStatusColumn fas where
+columnsFor _ ItemFAStatusView _ = map FAStatusColumn fas where
   fas = OL.create @Bounded [minBound,maxBound] 
 
 columnsFor cache ItemWebStatusView infos =
@@ -892,7 +888,6 @@ itemsTable :: (?skuToStyleVar :: Text -> (Text, Text))
                 => IndexCache -> IndexParam ->  Handler Widget
 itemsTable cache param = do
   let checkedItems = if null (ipChecked param) then Nothing else Just (ipChecked param)
-  renderUrl <- getUrlRenderParams
   renderUrl <- getUrlRenderParams
   itemGroups <- loadVariations cache param
 
@@ -925,7 +920,7 @@ itemsTable cache param = do
                                   VarMissing -> [shamlet| <span.label.label-warning data-label=missing> Missing |]
                                   VarExtra -> [shamlet| <span.label.label-info data-label=extra> Extra |]
                                   VarOk -> [shamlet||]
-            base = iiInfo $ computeDiff item0 item0
+            -- base = iiInfo $ computeDiff item0 item0
             val col = case col of
                         CheckColumn ->
                           Just ([], [shamlet|<input type=checkbox name="check-#{sku}" :checked:checked>|])
@@ -1156,7 +1151,7 @@ buttonStatus param DeactivateBtn = case ipMode param of
   ItemPurchaseView -> BtnHidden
   _ -> BtnActive
   
-buttonStatus param DeleteBtn = BtnActive
+buttonStatus __param DeleteBtn = BtnActive
 
 buttonName :: Button -> Text
 buttonName CreateMissingBtn = "Create Missings"
@@ -1471,7 +1466,7 @@ createDCMissings :: (?skuToStyleVar :: Text -> (Text, Text))
 createDCMissings params = do
   cache <- fillIndexCache
   basePl <- basePriceList
-  timestamp <- round <$> liftIO getPOSIXTime
+  -- timestamp <- round <$> liftIO getPOSIXTime
   itemGroups <- loadVariationsToKeep cache (params {ipShowInactive = True, ipBases = mempty}) 
   -- we need to create everything which is missing in the correct order
   let go (baseInfo, group') = runDB $ do
@@ -1505,8 +1500,8 @@ deleteDC :: (?skuToStyleVar :: Text -> (Text, Text))
                 => IndexParam -> Handler ()
 deleteDC params = do
   cache <- fillIndexCache
-  basePl <- basePriceList
-  timestamp <- round <$> liftIO getPOSIXTime
+  -- basePl <- basePriceList
+  -- timestamp <- round <$> liftIO getPOSIXTime
   itemGroups <- loadVariationsToKeep cache (params {ipShowInactive = True, ipBases = mempty}) 
 
   let skus = [ iiSku info
@@ -1530,7 +1525,7 @@ createMissingProducts
   :: IndexCache
   -> [((VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text]))), Double)]
   -> _ (Map Text (DC.CommerceProductTId, DC.CommerceProductRevisionTId))
-createMissingProducts cache group = do
+createMissingProducts __cache group = do
   timestamp <- round <$> liftIO getPOSIXTime
   colorMap <- lift loadDCColorMap
   catFinder <- lift categoryFinderCached
@@ -1611,7 +1606,7 @@ createAndInsertNewProducts timestamp skus =  do
 createAndInsertNewProductRevisions
   :: Int -> [Entity DC.CommerceProductT]
   -> SqlHandler [(DC.CommerceProductTId, DC.CommerceProductRevisionTId)]
-createAndInsertNewProductRevisions timestamp pEntities = do
+createAndInsertNewProductRevisions __timestamp pEntities = do
   let revs = map newProductRev  pEntities
   revIds <- insertMany revs
   let product'revIds = zip (map entityKey pEntities) revIds
@@ -1782,10 +1777,10 @@ createMissingDCLinks
   -> [(VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text])))] -- ^ variations
   -> Map Text (DC.CommerceProductTId, DC.CommerceProductRevisionTId)
   -> SqlHandler ()
-createMissingDCLinks cache style group p'rMap = do
+createMissingDCLinks __cache style group p'rMap = do
   -- only keep item which doesn't have a produc display
   let skus = [ iiSku info
-             | (status, info) <-  group
+             | (__status, info) <-  group
              , let mm = iiInfo info
              , isNothing $ join $ snd (iwfProductDisplay `traverse` impWebStatus mm) 
              ]
@@ -1867,7 +1862,7 @@ createAndInsertDCLinks displayId displayRev d's'p'r = do
 --   -> Int
 --   -> (Int, _ )
 --   -> b
-newProductDCLink displayId displayRev mk delta (pId, revId) = mk
+newProductDCLink displayId displayRev mk delta (pId, __revId) = mk
   "node"
   "product_display"
   False
@@ -1877,7 +1872,7 @@ newProductDCLink displayId displayRev mk delta (pId, revId) = mk
   delta
   (Just pId)
 
-newProductDCLink' displayId displayRev mk delta (pId, revId) = mk
+newProductDCLink' displayId displayRev mk delta (pId, __revId) = mk
   "node"
   "product_display"
   False
@@ -1942,7 +1937,7 @@ createMissingWebPrices cache group p'revMap = do
   basePl <- lift basePriceList
 
   let sku'prices = [ (sku, priceMap)
-           | (status, info) <- group
+           | (__status, info) <- group
            , Just priceMap <- return $ impSalesPrices (iiInfo info)
            , let sku = iiSku info
            ]
@@ -1998,7 +1993,7 @@ changeFAActivation activate param = do
   clearAppCache
 
 changeActivation :: Bool -> IndexParam -> _ -> _ -> Handler ()
-changeActivation activate param activeFilter updateFn =  runDB $ do
+changeActivation __activate param activeFilter updateFn =  runDB $ do
   -- we set ShowInactive to true to not filter anything yet using (StockMasterInactive)
   -- as it will be done before
   entities <- case selectedItemsFilter param {ipMode = ItemGLView, ipShowInactive = True } of

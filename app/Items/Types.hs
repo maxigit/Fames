@@ -1,6 +1,4 @@
 {-# LANGUAGE DeriveGeneric, DeriveFunctor, DeriveAnyClass #-}
-{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
-{-# OPTIONS_GHC -Wno-missing-methods #-}
 module Items.Types where
 
 import ClassyPrelude

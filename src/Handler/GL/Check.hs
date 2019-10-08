@@ -8,12 +8,10 @@ module Handler.GL.Check
 ) where
 
 import Import hiding(showDouble)
-import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
-                              withSmallInput, bootstrapSubmit,BootstrapSubmit(..))
+import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import FA
 import GL.Utils
 -- import Handler.Util hiding(showDouble)
-import Data.These
 import Data.Align(align)
 import qualified Data.Map as Map
 import Util.Decimal
@@ -132,7 +130,7 @@ itext t = t :: Text
 {-# NOINLINE postGLCheckR #-}
 postGLCheckR :: Handler Html
 postGLCheckR = do
-  ((resp, formW), enctype) <- runFormPost (checkForm Nothing)
+  ((resp, __formW), __enctype) <- runFormPost (checkForm Nothing)
   deduceTax <- appReportDeduceTax <$> getsYesod appSettings 
   let ?taxIncluded = deduceTax
       ?roundMethod = roundfa
@@ -334,7 +332,9 @@ getGLCheckDebtorTransR no tType = do
     ^{displayGls' "generated-table" newNonNull }
 |]
   
-displayDetails TransactionSummary{..}  = [whamlet|
+displayDetails TransactionSummary{..}  = let
+  __use_all_ = TransactionSummary{..}
+ in  [whamlet|
 <table id=#{tableId} *{forDatatable}>
   <thead>
     <tr>
@@ -357,15 +357,15 @@ displayDetails TransactionSummary{..}  = [whamlet|
       <th>
       <th>
   <tbody>
-    $forall (Entity _ d@DebtorTransDetail{..}) <- tsDetails
+    $forall (Entity _ d) <- tsDetails
       <tr>
-        <td> #{debtorTransDetailStockId}
-        $# <td> #{debtorTransDetailDescription}
-        <td> #{showDouble debtorTransDetailUnitPrice}
-        <td> #{showDouble debtorTransDetailUnitTax}
-        <td> #{showDouble debtorTransDetailQuantity}
-        <td> #{showDouble debtorTransDetailDiscountPercent}
-        <td> #{showDouble debtorTransDetailStandardCost}
+        <td> #{debtorTransDetailStockId d}
+        $# <td> #{debtorTransDetailDescription d}
+        <td> #{showDouble $ debtorTransDetailUnitPrice d}
+        <td> #{showDouble $ debtorTransDetailUnitTax d}
+        <td> #{showDouble $ debtorTransDetailQuantity d}
+        <td> #{showDouble $ debtorTransDetailDiscountPercent d}
+        <td> #{showDouble $ debtorTransDetailStandardCost d}
         <td> #{showDouble $ debtorTransDetailSalesAmount d}
         <td> #{showDouble $ debtorTransDetailCOGSAmount d}
 |] <> toWidget [julius|
@@ -562,7 +562,7 @@ generateGLs :: (?taxIncluded :: Bool, ?roundMethod :: RoundingMethod ) => Transa
 generateGLs summary = roundGl <$$> generateGLs'  summary where
   roundGl GlTran{..} = GlTran{glTranAmount=roundWith glTranAmount,..} where
 generateGLs' t@TransactionSummary{..} = do
-  glss <- forM tsDetails (\d@(Entity _ detail@DebtorTransDetail{..}) -> do
+  glss <- forM tsDetails (\d@(Entity _ DebtorTransDetail{..}) -> do
      stockMaster <- getJust (StockMasterKey debtorTransDetailStockId)
      branch <- getJust (CustBranchKey tsBranchId tsPersonId)
      debtor <- getJust (DebtorsMasterKey tsPersonId)

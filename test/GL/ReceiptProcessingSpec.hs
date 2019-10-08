@@ -4,12 +4,12 @@ module GL.ReceiptProcessingSpec (spec) where
 import TestImport
 import qualified GL.FA as FA
 import GL.Receipt
-import Data.Yaml(decodeEither)
-import Control.Applicative (Const(..))
+import Data.Yaml(decodeEither')
 
 spec :: Spec
 spec = paymentSpecs >> jsonSpecs
 
+decodeEither = first show . decodeEither'
 paymentSpecs = parallel $ describe "@parallel @Receipt #Receipt translator" $ do
   it "Generates a simple payment with tax type" $ do
     let receipt =  Receipt "" "" "" 0  [ReceiptItem 7501 100 (TaxType 0.20 2200)]
@@ -47,7 +47,7 @@ jsonSpecs = parallel $ describe "@parallel @Receipt #parseJSON" $ do
      decodeEither "- counterparty: A\n- bank: B" `shouldBe` (rightR $ CompoundTemplate [CounterpartySetter "A", BankAccountSetter "B"])
 
   -- it "parses VAT" $ do
-  --   -- decodeEither "vat:\n  rate: 20\n  tax: VAT 20%" `shouldBe` Right (ItemVATDeducer $ FA.TaxRef 0.20 "VAT 20%")
-  --   decodeEither "vat:\n  rate: 20\n  tax: VAT 20%" `shouldBe` 
+  --   -- decodeEither' "vat:\n  rate: 20\n  tax: VAT 20%" `shouldBe` Right (ItemVATDeducer $ FA.TaxRef 0.20 "VAT 20%")
+  --   decodeEither' "vat:\n  rate: 20\n  tax: VAT 20%" `shouldBe` 
   --     (rightR $ CompoundTemplate [CounterpartySetter "A", BankAccountSetter "B"])
 

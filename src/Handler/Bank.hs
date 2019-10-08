@@ -1185,7 +1185,7 @@ generatePrefillSupplierPaymentLink faURL current target memo t@B.Transaction{..}
     #{saveButton}
     |]
   return $ ToRec t {B._sType = show (fromEnum ST_SUPPAYMENT)}  (Just save) (Just object)
-generatePrefillSupplierPaymentLink faURL current target memo t@B.Transaction{..} = return $ toRec t
+generatePrefillSupplierPaymentLink __faURL __current __target __memo t@B.Transaction{..} = return $ toRec t
 
 generatePrefillCustomerPaymentLink :: Text -> Int -> Int -> String ->  B.Transaction -> Handler ToRec
 generatePrefillCustomerPaymentLink faURL current target memo t@B.Transaction{..} | _sAmount > 0 = do
@@ -1206,7 +1206,7 @@ generatePrefillCustomerPaymentLink faURL current target memo t@B.Transaction{..}
     #{saveButton}
     |]
   return $ ToRec t {B._sType = show (fromEnum ST_CUSTPAYMENT)}  (Just save) (Just object)
-generatePrefillCustomerPaymentLink faURL current target memo t@B.Transaction{..} = return $ toRec t
+generatePrefillCustomerPaymentLink __faURL __current __target __memo t@B.Transaction{..} = return $ toRec t
 
 -- | Create rules for supplier and customer based on previous payment
 fillAutoSettingsCached bankSettings = cache0 False (cacheDay 1) ("bank-settings/" <> tshow (bsBankAccount bankSettings)) $ do

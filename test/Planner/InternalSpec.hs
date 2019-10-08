@@ -2,9 +2,6 @@
 module Planner.InternalSpec where
 
 import TestImport
-import Items.Internal
-import Items.Types
-
 import Planner.Types
 import Planner.Internal
 import Model.DocumentKey

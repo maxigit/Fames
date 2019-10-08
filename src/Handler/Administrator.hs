@@ -4,13 +4,11 @@ import Import
 import WH.FA.Curl (testFAConnection)
 import WH.FA.Types (FAConnectInfo(..))
 import Data.Yaml.Pretty(encodePretty, defConfig)
-import Data.Dynamic (dynTypeRep, Dynamic, fromDynamic)
+import Data.Dynamic (dynTypeRep, Dynamic)
 import Util.Cache
 import qualified Data.Map as Map
-import Items.Types
 import Text.Pretty.Simple
 import Development.GitRev
-import Database.Persist.MySQL(unSqlBackendKey, Single(..))
 import FA as FA hiding (unUserKey)
 import Database.Persist.MySQL     (Single(..), rawSql)
 import Handler.Items.Category(getItemsCategoryTermsR)

@@ -10,14 +10,9 @@ module Handler.Items.Report
 import Import
 import Items.Types
 import Handler.Items.Reports.Common
-import Handler.Items.Common
-import Handler.Util
-import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,)
 import Text.Blaze.Html.Renderer.Text(renderHtml)
 import qualified Data.List as List
-import qualified FA as FA
 import GL.Utils
-import GL.Payroll.Settings
 
 -- * Form
 reportForm :: [Column] -> Maybe ReportParam -> Html -> MForm Handler (FormResult ReportParam, Widget)
@@ -46,7 +41,7 @@ reportForm cols paramM extra = do
                   ]
   (fFrom, vFrom) <- mopt dayField "from" (Just $ rpFrom =<< paramM )
   (fTo, vTo) <- mopt dayField "to" (Just $ rpTo =<< paramM)
-  (fPeriod, vPeriod) <- mopt (selectFieldList $ periodOptions today (rpFrom =<< paramM)) "period" (Just $ rpPeriod' =<< paramM)
+  (fPeriod, vPeriod) <- mopt (selectFieldList periodOptions) "period" (Just $ rpPeriod' =<< paramM)
   (fPeriodN, vPeriodN) <- mopt intField "number" (Just $ rpNumberOfPeriods =<< paramM)
   (fCategoryToFilter, vCategoryToFilter) <- mopt (selectFieldList categoryOptions ) "category" (Just $ rpCategoryToFilter =<< paramM)
   (fCategoryFilter, vCategoryFilter) <- mopt filterEField  "filter" (Just $ rpCategoryFilter =<< paramM)
@@ -255,7 +250,7 @@ getItemsReportR' mode = do
 
 {-# NOINLINE getItemsReport2R #-}
 getItemsReport2R :: Maybe ReportMode -> Handler Html
-getItemsReport2R mode = do
+getItemsReport2R _ = do
   redirect $ ItemsR (ItemsReportR (Just ReportChart))
   -- renderReportForm ItemsReport2R mode Nothing ok200 Nothing
 
@@ -295,7 +290,6 @@ adjustParamDates param = do
 -- | React on post. Actually used GET So should be removed
 postItemsReportR = postItemsReportFor ItemsReportR 
 postItemsReportFor route mode = do
-  today <- todayH
   cols <- getCols
   (formRan, actionM) <- runFormAndGetAction (reportForm cols Nothing)
   let ((resp, _), _) = formRan

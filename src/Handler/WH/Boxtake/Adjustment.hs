@@ -31,7 +31,7 @@ usedSubject (Used _ e) = e
 usedSubject (Unused e) = e 
 usedQuantity :: UsedStatus e -> Maybe Double
 usedQuantity (Used q _) = Just q 
-usedQuantity (Unused e) = Nothing 
+usedQuantity (Unused _) = Nothing 
 isUsed :: UsedStatus e -> Bool
 isUsed (Used _ _) = True
 isUsed (Unused _) = False
@@ -113,7 +113,7 @@ locationPriority location = break (== '/') location
 
 -- | Assign and use the quantity for a given stock take
 assignQuantityToStocktake :: (Map Text Double) -> StocktakePlus -> (Map Text Double, UsedStatus StocktakePlus)
-assignQuantityToStocktake qohs s@(Entity _ Stocktake{..}, bId) =
+assignQuantityToStocktake qohs s@(Entity _ Stocktake{..}, __bId) =
   case lookup stocktakeStockId qohs of
     Just q | let used = min q $ fromIntegral stocktakeQuantity 
            , let leftover = q - used
@@ -134,7 +134,7 @@ usedStocktakeToBoxes boxes stocktakes = let
 goUsedStocktakeToBoxes  :: These (Entity Boxtake) [UsedStatus StocktakePlus] -> [(Text, UsedStatus BoxtakePlus)] -- UsedStatus BoxtakePlus
 goUsedStocktakeToBoxes t = case t of
   This boxe -> unused boxe
-  That stocktakes -> error "Shouldn't happen" -- all stockake belong intialy to a box
+  That __stocktakes -> error "Shouldn't happen" -- all stockake belong intialy to a box
   These boxe stocktakes -> case filter isUsed stocktakes of
                              [] -> unused boxe
                              useds -> do
@@ -269,7 +269,7 @@ xxx :: AdjustmentParam
     -> _ -- (Maybe Text -> _ -> Widget)
     -> StyleInfoSummary
     -> Widget
-xxx param@AdjustmentParam{..} decorateSku decorateQuantity StyleInfoSummary{..} =
+xxx AdjustmentParam{..} decorateSku decorateQuantity StyleInfoSummary{..} =
   [whamlet|
     <tbody.summary-group :aShowDetails:.with-details>
       <tr.summary-row>
@@ -348,8 +348,8 @@ classForBox b = case boxStatus b of
 -- * Adjustment
 -- | Inactivate and reactivate the given boxes
   
-processBoxtakeAdjustment :: AdjustmentParam -> Handler ()
-processBoxtakeAdjustment param = do
+processBoxtakeAdjustment :: Handler ()
+processBoxtakeAdjustment = do
   today <- todayH
   (pp, _) <- runRequestBody
   let toDeactivate = extractBoxIdFromParam "deactivate-" pp

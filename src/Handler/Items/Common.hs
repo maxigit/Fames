@@ -3,8 +3,6 @@ module Handler.Items.Common where
 import Import
 import Items
 import Data.Text(splitOn)
-import qualified Data.Map as Map
-import Data.Time.Calendar
 import qualified FA
 import Handler.Items.Category.Cache
 

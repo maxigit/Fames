@@ -24,18 +24,21 @@
 :set args ../fames-config/development.yml ../fames-config/staging.yml ../fames-config/variations.yml ../fames-config/default.yml
 :set prompt "> "
 :set +m
--- :set -W
+:set -W
+:set -Werror
 :set -Wno-partial-type-signatures
-:set -Wno-orphans
-:set -Wno-name-shadowing
-:set -Wno-missing-signatures
-:set -Wno-unused-imports
-:set -Wno-unused-matches
-:set -Wno-unused-do-bind
-:set -Wno-unticked-promoted-constructors
-:set -Wno-unused-local-binds
-:set -Wno-unused-top-binds
-:set -Wno-dodgy-exports
-:set -Wno-dodgy-imports
-:set -Wno-missing-pattern-synonym-signatures
-:set -Wno-incomplete-patterns
+:set -Wno-type-defaults
+-- :set -Wno-orphans
+-- :set -Wno-name-shadowing
+-- :set -Wno-missing-signatures
+-- :set -Wunused-imports
+-- :set -Wno-unused-matches
+-- :set -Wunused-matches
+-- :set -Wno-unused-do-bind
+-- :set -Wno-unticked-promoted-constructors
+-- :set -Wno-unused-local-binds
+-- :set -Wno-unused-top-binds
+-- :set -Wno-dodgy-exports
+-- :set -Wno-dodgy-imports
+-- :set -Wno-missing-pattern-synonym-signatures
+:set -Wincomplete-patterns
