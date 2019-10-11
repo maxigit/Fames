@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric, DeriveFunctor, DeriveAnyClass #-}
+{-# OPTIONS_GHC -Wno-missing-exported-signatures #-}
 module Items.Types where
 
 import ClassyPrelude
@@ -475,7 +476,7 @@ makeResidualNoRank rank best residuals = let
 
 appendNMap :: (a -> a -> a) -> NMap a -> NMap a -> NMap a
 appendNMap appN (NLeaf x) (NLeaf y) =  NLeaf (x `appN` y)
-appendNMap appN (NMap mr ls m) (NMap mr' ls' m') = let
+appendNMap appN (NMap mr ls0 m) (NMap mr' ls0' m') = let
   mergeLevels ls ls' = take (max (length ls) (length ls'))
                       $ zipWith mergeLevel (ls <> repeat Nothing) (ls' <> repeat Nothing)
   mergeLevel Nothing l = l
@@ -483,7 +484,7 @@ appendNMap appN (NMap mr ls m) (NMap mr' ls' m') = let
   mergeLevel (Just l) (Just l') | l == l' = Just l
                                 | otherwise = Just $ l <> "|" <> l'
   in normalizeNMap $ NMap (mr `appN` mr')
-                       (mergeLevels ls ls')
+                       (mergeLevels ls0 ls0')
                        (unionWith (appendNMap appN) m m')
 appendNMap appN  n n' = normalizeNMap $ appendNMap appN 
   (NMap (nmapMargin n)

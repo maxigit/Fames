@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- | For TH stage problem
 module ModelField
 ( module ModelField

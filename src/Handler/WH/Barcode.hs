@@ -3,9 +3,10 @@
 module Handler.WH.Barcode where
 
 import Import
-import Formatting
+import Formatting hiding(now)
 import Formatting.Time
 import WH.Barcode
+import qualified Data.Text.Lazy as L
 import Handler.Util(setAttachment, generateLabelsResponse, renderField)
 -- import Data.Streaming.Process (streamingProcess, proc, ClosedStream(..), waitForStreamingProcess)
 -- import System.IO.Temp (openTempFile)
@@ -18,7 +19,7 @@ withAngularApp :: Maybe Text -> Widget -> Widget
 withAngularApp modM widget = do
   case modM of
      Nothing -> [whamlet|<div ng-app>^{widget}|]
-     Just mod -> [whamlet|<div ng-app=#{mod}>^{widget}|]
+     Just module_ -> [whamlet|<div ng-app=#{module_}>^{widget}|]
   addScriptRemote "https://ajax.googleapis.com/ajax/libs/angularjs/1.5.6/angular.min.js"
 
 barcodeForm :: [BarcodeParams]
@@ -145,7 +146,7 @@ postWHBarcodeR = do
           Nothing -> do
             let start = fromMaybe 1 startM
                 end = endFor start
-            insert $ BarcodeSeed prefix' end
+            _ <- insert $ BarcodeSeed prefix' end
             return $ Right (start, end)
           (Just (Entity sId (BarcodeSeed _ lastUsed))) -> do
             -- check if start set by user is valid
@@ -185,7 +186,7 @@ postWHBarcodeR = do
                   (GLabels, Nothing) -> error "SHOULD NOT HAPPEN!. Call to glabels without template." 
 
 
--- outputFile :: Text -> Int -> Int -> Text -> Text
+outputFile :: L.Text -> Int -> Int -> L.Text -> L.Text
 outputFile prefix start end ext =
   format ("barcodes-"%text%"-"%int%"-"%int%"."%text) prefix start end ext
 
@@ -194,7 +195,7 @@ outputFile prefix start end ext =
 
 -- | generates a sequence of barcodes given a prefix
 -- roll to the next prefix if needed
--- generateBarcodes :: Text -> (Maybe Day) -> Int -> Handler [Text]
+generateBarcodes :: Text -> (Maybe Day) -> Int -> SqlHandler [Text]
 generateBarcodes _ _ 0 = return []
 generateBarcodes code dayM nb = do
   today <- todayH
@@ -212,7 +213,7 @@ generateBarcodes code dayM nb = do
       let start = 1
           end = endFor start
 
-      insert $ BarcodeSeed prefix' end
+      _ <- insert $ BarcodeSeed prefix' end
       return (start,end)
 
     Just (Entity sId (BarcodeSeed _ lastUsed)) -> do

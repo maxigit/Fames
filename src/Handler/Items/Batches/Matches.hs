@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Handler.Items.Batches.Matches where
 
 import Import hiding((.:))
@@ -121,9 +122,9 @@ instance Csv.FromField [(Either InvalidField (Maybe (ValidField Text)), Either I
   parseField field | null field = return []
   parseField field = do
     let parseQuality colour line = do
-          let (qualityBS, rest) = break (`elem` (",;\t" :: ByteString)) line
+          let (qualityBS, rest_) = break (`elem` (",;\t" :: ByteString)) line
           quality <- Csv.parseField qualityBS
-          rets <- Csv.parseField (stripBS ",;\t " rest)
+          rets <- Csv.parseField (stripBS ",;\t " rest_)
           return $ (colour, fromMaybe (Right (Just $ Provided Close)) quality) : rets
         (colourBS, rest) = break (`elem` (":+=-," :: ByteString)) field
     colour <- Csv.parseField colourBS
@@ -166,8 +167,8 @@ mErrorToQuality :: MatchError -> MatchQuality
 mErrorToQuality d = let
   qs = [Bad .. Identical]
   go _ [] = error "proven to not happen"
-  go d (q:qs) | d >= (qualityToMError q) = q
-              | otherwise =  go d qs
+  go d' (q:qs') | d >= (qualityToMError q) = q
+              | otherwise =  go d' qs'
   in    go d qs
 mergeMError :: MatchError -> MatchError -> Maybe MatchError
 mergeMError a b= case a + b of
@@ -212,6 +213,9 @@ parseMatchRows batchCategory bytes = do
                  Left _ -> InvalidData [] (lefts (map snd raw'validEs)) [ either id (const raw)  rawOrValid | (raw, rawOrValid) <- raw'validEs ]
       
         
+parseMatchRowsGo :: ByteString
+                 -> Either (ParsingResult (MatchRow 'RawT) result)
+                           [(MatchRow 'RawT, MatchRow 'PartialT)]
 parseMatchRowsGo bytes = do -- Either
       let columnMap = mapFromList $ map (,[]) ["Source", "SourceColour", "TargetColour", "Quality", "Comment"]
           columnMap' = mapFromList $ map (,[]) ["SKU"]
@@ -225,6 +229,14 @@ parseMatchRowsGo bytes = do -- Either
       -- to raw in validation failed on other row
 
 -- | sequence through fields functor
+sequenceMatchRow :: (Applicative f,
+                           FieldTF s1 (ForRowT s1 Text Text (Entity Batch) (Entity Batch))
+                           ~ f (FieldTF
+                                  s2 (ForRowT s2 Text Text (Entity Batch) (Entity Batch))),
+                           FieldTF s1 Text ~ f (FieldTF s2 Text),
+                           FieldTF s1 MatchQuality ~ f (FieldTF s2 MatchQuality),
+                           FieldTF s1 (Maybe Text) ~ f (FieldTF s2 (Maybe Text))) =>
+                          MatchRow s1 -> f (MatchRow s2)
 sequenceMatchRow MatchRow{..} = MatchRow <$> source <*> sourceColour
                                           <*> targetColour <*> target
                                           <*> quality <*> comment
@@ -491,9 +503,9 @@ buildTableForSkuMerged mergeMode renderMatches sku'batches columnBatches (ForBui
                         matches
 
   -- targets = nub $ sort (map batchMatchTarget matches)
-  scoreFinder matchMap targetBatch ((style, colour), batches) = let
+  scoreFinder matchMap' targetBatch ((style, colour), batches) = let
     -- find all match for all batches
-    matchess  = mapMaybe (\batch -> lookup (entityKey batch, colour, targetBatch) matchMap) batches
+    matchess  = mapMaybe (\batch -> lookup (entityKey batch, colour, targetBatch) matchMap') batches
     in mergeBatchMatches mergeMode (styleVarToSku style colour) matchess
 
   columns0 = [ ( fromMaybe batchName batchAlias -- Column name :: Text
@@ -510,8 +522,8 @@ buildTableForSkuMerged mergeMode renderMatches sku'batches columnBatches (ForBui
   -- batchMap = groupAsMap entityKey  (\(Entity _ Batch{..}) -> fromMaybe batchName batchAlias ) (columnBatches)
   skuBatchesMap = groupAsMap fst ((:[]) . snd) sku'batches
   rowsForTables = [ (colFn, [])
-                  | sku'batches <- Map.toList skuBatchesMap
-                  , let colFn (_colname,  getter) = getter sku'batches <&> (,[]) . either id (toHtml . renderPersistValue)
+                  | sku'batches_ <- Map.toList skuBatchesMap
+                  , let colFn (_colname,  getter) = getter sku'batches_ <&> (,[]) . either id (toHtml . renderPersistValue)
                   ]
   in ( columns
      , \(col, _) -> (toHtml col, [])
@@ -633,11 +645,11 @@ mergeBatchMatches SafeMatch _ matchess = let
 -- with the alias set to the style name
 -- lookp the batch name be "inside" the actual batch category
 loadSkuBatches :: Text -> FilterExpression -> SqlHandler [(Text, Key Batch)]
-loadSkuBatches batchCategory filterE = do
+loadSkuBatches batchCategory filterE_ = do
   let sql = "SELECT stock_id, batch_id FROM fames_item_category_cache "
             <> " JOIN fames_batch ON (value RLIKE concat('(.*| )*', name, '( |.*)*')) "
             <> "WHERE value != '' AND category = ? AND stock_id " <> keyw <> " ?"
-      (keyw, v )  = filterEKeyword filterE
+      (keyw, v )  = filterEKeyword filterE_
   rows <- rawSql sql [toPersistValue batchCategory, toPersistValue v]
   return $ map (\(Single sku, Single batchId) -> (sku, batchId)) rows
 
@@ -705,6 +717,7 @@ filterBestMatches olds news = let
 data SameKeys = SameKeys [BatchMatch]
 -- remove duplicate and removes guessed if needed
 -- or keep the best guess
+keepBests :: SameKeys -> [BatchMatch]
 keepBests (SameKeys matches) =
   case partition (isNothing . batchMatchOperator) matches of
     (guesseds, []) -> take 1 (sortOn ((,) <$> batchMatchScore -- worst quality first
@@ -719,6 +732,7 @@ keepBests (SameKeys matches) =
 --   score = unMatchScore batchMatchScore
 
 -- | HACK to identity new created matches 
+noDocumentKey :: Key DocumentKey
 noDocumentKey = DocumentKeyKey' 0
 -- | Prefix indicating that the dot line represent the current match
 -- useful to filter it nested graph in comments
@@ -748,8 +762,10 @@ connectMatches scoreLimiter batchNameFn ma mb = do -- maybe
    guard $ batchMatchSourceColour == batchMatchTargetColour  || scoreToQuality batchMatchScore > Bad
    Just BatchMatch{batchMatchDate=batchMatchDate',..}
 
+batchMatchesToDot :: Maybe Text -> (Key Batch -> Text) -> BatchMatch -> BatchMatch -> Text
 batchMatchesToDot colorM batchNameFn ma mb = matchToDot colorM batchNameFn ma <> matchToDot colorM batchNameFn mb
 
+matchToDot :: Maybe Text -> (Key Batch -> Text) -> BatchMatch -> Text
 matchToDot colorM batchNameFn m = "\"" <> (batchNameFn $ batchMatchSource m) <> "-"  <> (batchMatchSourceColour m)
         <> "\" -- \"" <> (batchNameFn $ batchMatchTarget m) <> "-" <> (batchMatchTargetColour m)
         <> "\" [label=\"" <> qualityToShortHtml (scoreToQuality $ batchMatchScore m) <> "("<> (tshow . floor . unMatchScore $ batchMatchScore m) <> ")\""
@@ -757,7 +773,7 @@ matchToDot colorM batchNameFn m = "\"" <> (batchNameFn $ batchMatchSource m) <> 
         <> ", fontcolor=" <> color m
         <> "];\n"
         <> maybe "" comments  (batchMatchComment m) where
-      color m = case (colorM, batchMatchOperator m) of
+      color m_ = case (colorM, batchMatchOperator m_) of
                   (Just c, _) -> c
                   (Nothing, Nothing) -> "blue"
                   (Nothing, Just _ ) -> "black"

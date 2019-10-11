@@ -7,6 +7,7 @@ import Import
 -- These handlers embed files in the executable at compile time to avoid a
 -- runtime dependency, and for efficiency.
 
+favicon, faviconDOrange, faviconPurple :: ByteString
 favicon= $(embedFile "config/favicon.ico")
 faviconDOrange= $(embedFile "config/favicon-dorange.ico")
 faviconPurple= $(embedFile "config/favicon-purple.ico")

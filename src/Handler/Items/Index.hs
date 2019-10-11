@@ -10,7 +10,7 @@ module Handler.Items.Index
 )
 where
 
-import Import hiding(replace)
+import Import hiding(replace, product)
 import Handler.Table
 import Yesod.Form.Bootstrap3
 import FA
@@ -124,7 +124,7 @@ overrideParamFromUrl param@IndexParam{..} = do
   sku <- readFilterExpression <$$> lookupGetParam "sku"
   let category = case categoryIndex >>= readMay of
         Nothing -> categoryIndex -- category name
-        Just index -> listToMaybe $ drop index categories
+        Just index_ -> listToMaybe $ drop index_ categories
   return $ param { ipSKU = ipSKU <|> sku
                  , ipCategory = ipCategory <|> category
                  , ipCategoryFilter = ipCategoryFilter <|> categoryFilter
@@ -207,7 +207,7 @@ indexForm categories groups param extra = do
           <*> (aopt filterEField (bfs' "Category Filter") (Just $ ipCategoryFilter param))
         form2 f = f
           <*> (aopt filterEField (bfs' "variations") (Just $ ipVariationsF param))
-          <*> (aopt (selectFieldList groups') (bfs' "variation group") (Just $ ipVariationGroup param))
+          <*> (aopt (selectFieldList groups') (bfs' "variation group_") (Just $ ipVariationGroup param))
         form2' f = f
           <*> (areq boolField (bfs' "Show Inactive") (Just $ ipShowInactive param))
           <*> (areq boolField (bfs' "Show Extra") (Just $ ipShowExtra param))
@@ -276,13 +276,13 @@ styleQuery IndexParam{..} =
       (where0, p0) = case ipSKU of
           Nothing -> ("", [])
           Just styleE ->  let (keyw, v) = filterEKeyword styleE
-                              where0 = " stock_id " <> keyw <> " ?"
-                          in (where0, [toPersistValue v])
+                              where_ = " stock_id " <> keyw <> " ?"
+                          in (where_, [toPersistValue v])
       (joinClause, where1 , p1) = case (ipCategory, ipCategoryFilter) of
-                       (Just category, Just catFilter) -> let joinClause = " JOIN fames_item_category_cache AS category USING (stock_id) "
+                       (Just category, Just catFilter) -> let joinClause0 = " JOIN fames_item_category_cache AS category USING (stock_id) "
                                                               (catw, catv) = filterEKeyword catFilter
                                                               whereCat = [ "category.category = ? " , " category.value " <> catw <> "? " ]
-                                                          in (joinClause, whereCat, [toPersistValue category, toPersistValue catv])
+                                                          in (joinClause0, whereCat, [toPersistValue category, toPersistValue catv])
                        _ -> ("", [], [])
       makeWhere [] = ""
       makeWhere ws = " WHERE " <> intercalate " AND " ws
@@ -303,19 +303,19 @@ selectedItemsFilter param =
 
 -- | Generates function to filter sku based on items which have been checked (checkbox)
 checkFilter :: IndexParam -> Text -> Bool
-checkFilter param sku = 
+checkFilter param sku0 = 
   let set = setFromList (ipChecked param) :: Set Text
       toKeep sku = case ipChecked param of
         [] -> True
         _non_empty -> sku `member` set
-  in toKeep sku
+  in toKeep sku0
 
 -- ** Preloaded Cache
 fillIndexCache :: Handler IndexCache
 fillIndexCache = do
   categories <- categoriesH
   catFinder <- categoryFinderCached
-  cache0 False (cacheHour 1) "index/static"  $ do
+  cache0 False (cacheHour 1) "index_/static"  $ do
       salesTypes <- runDB $ selectList [] [] -- [Entity SalesType]
       let priceListNames = mapFromList [ (k, salesTypeSalesType t)
                                       | (Entity (SalesTypeKey k) t) <- salesTypes
@@ -326,7 +326,7 @@ fillIndexCache = do
 
       -- don't load webprices if the DC database is not configured
       dcConf <- getsYesod (appDatabaseDCConf . appSettings)
-      webPriceList <- case dcConf of
+      webPriceList_ <- case dcConf of
         Nothing -> return []
         Just _ -> do
           rows <- runDCDB $ rawSql "SHOW TABLES LIKE 'field_data_field_price%'" []
@@ -335,7 +335,7 @@ fillIndexCache = do
                  , Just pId <- return $ readMay =<< stripPrefix "field_data_field_price_pl_" (table :: Text)
                  ]
 
-      return $ IndexCache salesTypes priceListNames supplierNames webPriceList catFinder categories
+      return $ IndexCache salesTypes priceListNames supplierNames webPriceList_ catFinder categories
   
   
 -- ** StyleAdjustment
@@ -484,7 +484,7 @@ loadVariations cache param = do
                      -- so we are not showing it
       baseCandidates = maybe [] (splitOn "|") (ipBaseVariation param)
       itemVars =  case variations of
-        Left keys -> map (snd . ?skuToStyleVar . unStockMasterKey) keys
+        Left keys' -> map (snd . ?skuToStyleVar . unStockMasterKey) keys'
         Right vars -> vars
       itemGroups = joinStyleVariations (?skuToStyleVar <$> bases)
                                         baseCandidates
@@ -612,10 +612,10 @@ loadSalesPrices param = do
 
            let group_ = groupBy ((==) `on `priceStockId) (map entityVal prices)
                maps = map (\priceGroup@(one:_) -> let
-                              pricesF = mapFromList [ ( priceSalesTypeId p
-                                                      , runIdentity $ aPriceToPriceF p
+                              pricesF = mapFromList [ ( priceSalesTypeId p'
+                                                      , runIdentity $ aPriceToPriceF p'
                                                       )
-                                                    | p <- priceGroup
+                                                    | p' <- priceGroup
                                                     ]
                               (style, var) = ?skuToStyleVar (priceStockId one)
                               master = mempty { impSalesPrices = Just pricesF }
@@ -656,10 +656,10 @@ loadPurchasePrices param = do
 
            let group_ = groupBy ((==) `on `purchDataStockId) (map entityVal prices)
                maps = map (\priceGroup@(one:_) -> let
-                              pricesF = mapFromList [ ( purchDataSupplierId p
-                                                      , runIdentity $ aPurchDataToPurchDataF p
+                              pricesF = mapFromList [ ( purchDataSupplierId p'
+                                                      , runIdentity $ aPurchDataToPurchDataF p'
                                                       )
-                                                    | p <- priceGroup
+                                                    | p' <- priceGroup
                                                     ]
                               (style, var) = ?skuToStyleVar (purchDataStockId one)
                               master = mempty { impPurchasePrices = Just pricesF }
@@ -945,8 +945,8 @@ itemsTable cache param = do
                         GLColumn name ->  columnForSMI name =<< impMaster master
                         PriceColumn i -> columnForPrices i =<< impSalesPrices master 
                         PurchaseColumn i -> columnForPurchData i =<< impPurchasePrices master 
-                        FAStatusColumn col -> columnForFAStatus col =<< impFAStatus master
-                        WebStatusColumn col -> columnForWebStatus col (impWebStatus master)
+                        FAStatusColumn col' -> columnForFAStatus col' =<< impFAStatus master
+                        WebStatusColumn col' -> columnForWebStatus col' (impWebStatus master)
                         WebPriceColumn i -> columnForWebPrice i =<< impWebPrices master
                         CategoryColumn catName -> columnForCategory catName <$> icCategoryFinder cache catName (FA.StockMasterKey sku)
                         GLStatusColumn -> case glStatus master of
@@ -995,7 +995,7 @@ itemsTable cache param = do
           )
 
 
-      -- We keep row grouped so we can change the style of the first one of every group.
+      -- We keep row grouped so we can change the style of the first one of every group_.
       rowGroup = map (\(base, vars) -> map (itemToF base) vars) itemGroups
       styleFirst ((fn, klasses):rs) = (fn, "style-start":klasses):rs
       styleFirst [] = error "Shouldn't happend"
@@ -1006,7 +1006,7 @@ itemsTable cache param = do
         
 
   return $ displayTable columns columnToTitle
-                        (concat  (zipWith styleGroup (List.cycle ["group-2","group-3"])
+                        (concat  (zipWith styleGroup (List.cycle ["group_-2","group_-3"])
                                     .map styleFirst $ rowGroup))
                       
 
@@ -1173,7 +1173,7 @@ renderIndex param0 status = do
     then permissionDenied "Contact your system administrator"
     else return ()
   let css = [cassius|
-#items-index
+#items-index_
   tr.unchecked
     font-weight: normal
   tr
@@ -1182,25 +1182,25 @@ renderIndex param0 status = do
     writing-mode: sideways-lr
   .clickable
     cursor: pointer
-  tr.base.group-1 
+  tr.base.group_-1 
     background: #f2dede
-  tr.base.group-2 
+  tr.base.group_-2 
     background: #dff0d8
-  tr.base.group-3 
+  tr.base.group_-3 
     background: #d0edf7
-  tr.base.group-4 
+  tr.base.group_-4 
     background: #fcf8e3
   .base
     font-weight: 500
   tr.style-start
     border-top: 3px solid black
-  tr.group-1
+  tr.group_-1
     border-left: solid #d0534f
-  tr.group-2
+  tr.group_-2
     border-left: solid #93c54b
-  tr.group-3
+  tr.group_-3
     border-left: solid #29abe0
-  tr.group-4
+  tr.group_-4
     border-left: solid #f47c3c
   td.text-danger
     font-weight: bold
@@ -1228,7 +1228,7 @@ $('[data-toggle="tooltip"]').tooltip();
         #{renderButton param "danger" DeleteBtn}
         |]
   let widget = [whamlet|
-<div #items-index>
+<div #items-index_>
   <form #items-form role=form method=post action=@{ItemsR (ItemsIndexR (Just mode))} enctype=#{encType}>
     <div.form>
       ^{form}
@@ -1473,7 +1473,7 @@ createDCMissings params = do
         -- find items with no product information in DC
         -- ie, ItemWebStatusF not present 
         -- also we can't create product which doesn't have a price
-        -- let missingProduct group = isJust (_ group)
+        -- let missingProduct group_ = isJust (_ group_)
           let groupE = [ if toKeep
                          then Right (s'i, price)
                          else Left (iiSku info)
@@ -1484,15 +1484,15 @@ createDCMissings params = do
                        -- filter item with no base price
                        , Just price <- return $ masterPrice basePl mm
                        ]
-          let group = rights groupE
+          let group_ = rights groupE
           -- mapM (\sku -> lift $ setWarning (toHtml $ "Can't create " ++ sku ++ "as it doesn't exist in FA, or doesn't have a sale price. Please create it first.")
           --      ) (lefts groupE)
              
 
            
-          product'revMap <- createMissingProducts cache group
-          createMissingDCLinks cache (iiStyle $ baseInfo) (map fst group) product'revMap
-          createMissingWebPrices cache (map fst group) product'revMap
+          product'revMap <- createMissingProducts cache group_
+          createMissingDCLinks cache (iiStyle $ baseInfo) (map fst group_) product'revMap
+          createMissingWebPrices cache (map fst group_) product'revMap
           return ()
   mapM_ go itemGroups
   
@@ -1505,8 +1505,8 @@ deleteDC params = do
   itemGroups <- loadVariationsToKeep cache (params {ipShowInactive = True, ipBases = mempty}) 
 
   let skus = [ iiSku info
-             | (_, group) <- itemGroups
-             , (_, info) <- group
+             | (_, group_) <- itemGroups
+             , (_, info) <- group_
              ] 
 
       go pId'revId = do
@@ -1525,15 +1525,15 @@ createMissingProducts
   :: IndexCache
   -> [((VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text]))), Double)]
   -> _ (Map Text (DC.CommerceProductTId, DC.CommerceProductRevisionTId))
-createMissingProducts __cache group = do
+createMissingProducts __cache group_ = do
   timestamp <- round <$> liftIO getPOSIXTime
   colorMap <- lift loadDCColorMap
   catFinder <- lift categoryFinderCached
   -- find items with no product information in DC
   -- ie, ItemWebStatusF not present 
-  -- let missingProduct group = isJust (_ group)
+  -- let missingProduct group_ = isJust (_ group_)
   let infos  = [ (info, price)
-              | ((_, info), price) <- group
+              | ((_, info), price) <- group_
               , isNothing (impWebStatus (iiInfo info))
               ]
   let skus = map (iiSku.fst) infos
@@ -1554,11 +1554,11 @@ createMissingProducts __cache group = do
         
 -- deleteProduct :: (DC.CommerceProductTId, Maybe DC.CommerceProductRevisionTId) -> _ ()
 deleteProduct p'r = do
-  deleteProductStockStatus p'r
-  deleteProductTrimColour p'r
-  deleteProductColour p'r
-  deleteProductPrice p'r
-  deleteCommerceProduct p'r
+  _ <- deleteProductStockStatus p'r
+  _ <- deleteProductTrimColour p'r
+  _ <- deleteProductColour p'r
+  _ <- deleteProductPrice p'r
+  _ <- deleteCommerceProduct p'r
   return ()
 
 
@@ -1742,8 +1742,8 @@ createAndInsertProductStockStatus p'rKeys = do
   createAndInsertFields (newProductStockStatus (Just 70) DC.FieldDataFieldStockStatusT) p'rKeys
   createAndInsertRevFields (newProductStockStatus (Just 70) DC.FieldRevisionFieldStockStatusT) p'rKeys
 
-newProductStockStatus status  mkStatus pId'revId =
-  newProductField mkStatus pId'revId status
+newProductStockStatus status  mkStatus_ pId'revId =
+  newProductField mkStatus_ pId'revId status
                       --       newFieldProduct productDisplayId productId delta = DC.FieldDataFieldProductT{..} where
           --        fieldDataFieldProductTEntityType = "node"
 --        fieldDataFieldProductTBundle = "product_display"
@@ -1777,10 +1777,10 @@ createMissingDCLinks
   -> [(VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text])))] -- ^ variations
   -> Map Text (DC.CommerceProductTId, DC.CommerceProductRevisionTId)
   -> SqlHandler ()
-createMissingDCLinks __cache style group p'rMap = do
+createMissingDCLinks __cache style group_ p'rMap = do
   -- only keep item which doesn't have a produc display
   let skus = [ iiSku info
-             | (__status, info) <-  group
+             | (__status, info) <-  group_
              , let mm = iiInfo info
              , isNothing $ join $ snd (iwfProductDisplay `traverse` impWebStatus mm) 
              ]
@@ -1933,11 +1933,11 @@ createMissingWebPrices
   -> [(VariationStatus, ItemInfo (ItemMasterAndPrices ((,) [Text])))] -- ^ variations
   -> Map Text (DC.CommerceProductTId, DC.CommerceProductRevisionTId)
   -> SqlHandler ()
-createMissingWebPrices cache group p'revMap = do
+createMissingWebPrices cache group_ p'revMap = do
   basePl <- lift basePriceList
 
   let sku'prices = [ (sku, priceMap)
-           | (__status, info) <- group
+           | (__status, info) <- group_
            , Just priceMap <- return $ impSalesPrices (iiInfo info)
            , let sku = iiSku info
            ]
@@ -1968,10 +1968,10 @@ createAndInsertDCPrices priceMaps sku'p'rs = do
         
   mapM_ go creators
 
-createAndInsertDCPriceFor index mk mkRev priceMaps sku'p'rs = do
+createAndInsertDCPriceFor index_ mk mkRev priceMaps sku'p'rs = do
   let (prices, p'rs) = unzip [(price, (p,r))
                                  | (priceMap,  (_, p, r)) <- zip priceMaps sku'p'rs
-                                 , Just price <- return $ lookup index priceMap
+                                 , Just price <- return $ lookup index_ priceMap
                                  ]
   createAndInsertFields' (map (newProductFieldPrice mk) prices) p'rs
   createAndInsertRevFields' (map (newProductFieldPrice mkRev) prices) p'rs
@@ -1986,10 +1986,10 @@ newProductFieldPrice mk price p'r =
 -- ** Activation
 -- | Activates/deactivate and item in FrontAccounting.
 changeFAActivation :: Bool -> IndexParam -> Handler ()
-changeFAActivation activate param = do
-  changeActivation activate param
-                   [StockMasterInactive ==. activate]
-                   (flip update [StockMasterInactive =. not activate])
+changeFAActivation activate_ param = do
+  changeActivation activate_ param
+                   [StockMasterInactive ==. activate_]
+                   (flip update [StockMasterInactive =. not activate_])
   clearAppCache
 
 changeActivation :: Bool -> IndexParam -> _ -> _ -> Handler ()
@@ -2020,16 +2020,16 @@ deactivate param = case (ipMode param ) of
   _ -> changeFAActivation False param
   
 changeWebActivation :: Bool -> IndexParam -> Handler ()
-changeWebActivation activate param = do
+changeWebActivation activate_ param = do
   muser <- maybeAuth
   timestamp <- round <$> liftIO getPOSIXTime
   let usertext = maybe "" (\u -> " by user:" <> userIdent (entityVal u)) muser
-  changeActivation activate param [] $ \key -> do
+  changeActivation activate_ param [] $ \key -> do
     let sku = unStockMasterKey key
     --     sql = " UPDATE dcx_commerce_product p "
     --        <> " SET p.status = ?, p.changed = ?"
     --        <> " WHERE p.sku = ? "
-    --     pactivate = PersistBool activate
+    --     pactivate = PersistBool activate_
     --     ptimestamp = PersistInt64 timestamp
 
     -- rawExecute sql [ pactivate, ptimestamp, PersistText sku]
@@ -2049,7 +2049,7 @@ changeWebActivation activate param = do
     products <- selectList [DC.CommerceProductTSku ==. sku] []
     let updateProduct (Entity pKey product) = do
           let pId = DC.unCommerceProductTKey pKey
-          update pKey [ DC.CommerceProductTStatus =. activate
+          update pKey [ DC.CommerceProductTStatus =. activate_
                      , DC.CommerceProductTChanged =. timestamp
                      ]
 
@@ -2058,7 +2058,7 @@ changeWebActivation activate param = do
                 updateWhere [ DC.CommerceProductRevisionTProductId ==. pId 
                             , DC.CommerceProductRevisionTId ==. DC.CommerceProductRevisionTKey revId
                             ]
-                            [ DC.CommerceProductRevisionTStatus =. activate
+                            [ DC.CommerceProductRevisionTStatus =. activate_
                             , DC.CommerceProductRevisionTLog =. ("Updated by Fames" <> usertext)
                             , DC.CommerceProductRevisionTRevisionTimestamp =. timestamp
                             ]

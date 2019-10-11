@@ -28,6 +28,9 @@
 :set -Werror
 :set -Wno-partial-type-signatures
 :set -Wno-type-defaults
+:set -Wno-missing-local-signatures
+:set -Wno-missing-signatures
+:set -Wmissing-exported-signatures
 -- :set -Wno-orphans
 -- :set -Wno-name-shadowing
 -- :set -Wno-missing-signatures

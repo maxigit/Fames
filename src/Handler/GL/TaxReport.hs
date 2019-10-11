@@ -36,7 +36,7 @@ getGLTaxReportsR :: Handler Html
 getGLTaxReportsR = do
   settings <- appTaxReportSettings <$> getsYesod appSettings
   name'tables <- forM (mapToList settings) renderReportList
-  let panel name tableW = infoPanel' (Just $ "tax-report-panel-" <> name) name (tableW >> newW)
+  let panel_ name tableW = infoPanel' (Just $ "tax-report-panel-" <> name) name (tableW >> newW)
         where newW = [whamlet|
        <div.well>
          <form method=POST action=@{GLR $ GLNewTaxReportR name}>
@@ -45,7 +45,7 @@ getGLTaxReportsR = do
   defaultLayout [whamlet|
    <h1.jumbotron> Tax report
    $forall (name, tableW) <- name'tables
-     ^{panel name tableW }
+     ^{panel_ name tableW }
      |]
 
 -- | Create a report for the given type
@@ -57,7 +57,7 @@ postGLNewTaxReportR name = do
   (key, TaxReport{..}) <- runDB $ do
     lasts <- selectList [TaxReportType ==. name] [Desc TaxReportStart]
     let taxReportStart = case lasts of
-          (Entity _ report: _) -> 1 `addDays` (Import.taxReportEnd report)
+          (Entity _ report_: _) -> 1 `addDays` (Import.taxReportEnd report_)
           [] -> startDate settings
         taxReportType = name
         taxReportReference = pack $ formatTime defaultTimeLocale (unpack $ referenceFormat settings) taxReportStart
@@ -152,9 +152,9 @@ postGLTaxReportPreSubmitR key = do
   -- let reportRules = maybe defaultRule rules reportSettings
   (__before, withinPeriod)  <- runDB $ countPendingTransTaxDetails (entityVal report)
   
-  forM (taxReportSubmittedAt (entityVal report)) (alreadySubmitted key)
+  _ <- forM (taxReportSubmittedAt (entityVal report)) (alreadySubmitted key)
   externalStatus <- checkExternalStatus processor report
-  case externalStatus of
+  _ <- case externalStatus of
     Submitted submitted -> alreadySubmitted key submitted
     Ready -> return ""
     _ -> error $ "external VAT status inconsistent: " <> show externalStatus
@@ -193,7 +193,6 @@ alreadySubmitted key submitted = do
 {-# NOINLINE postGLTaxReportSubmitR #-}
 postGLTaxReportSubmitR :: Int64 -> Handler TypedContent
 postGLTaxReportSubmitR key = do
-  return "nothing done"
   report <- runDB $ loadReport key
   Just (__reportSettings, processor)  <- getReportSettings (taxReportType $ entityVal report)
   result <- submitReturn processor report
@@ -244,14 +243,14 @@ getGLTaxReportOAuthR = do
       
 respondAuthError  = do
   error_code <- lookupGetParam "error_code"
-  error<- lookupGetParam "error"
+  error_param <- lookupGetParam "error"
   error_description<- lookupGetParam "error_description" 
   let
     table = [whamlet|
     <table.table.table-striped.table-hover>
       <tr>
         <th>Error
-        <td>#{tshowM error}
+        <td>#{tshowM error_param}
       <tr>
         <th>Error Code
         <td>#{tshowM error_code}

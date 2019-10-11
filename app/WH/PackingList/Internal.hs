@@ -110,13 +110,13 @@ fitOneRow' triedBoxes zones [] =  (zones, triedBoxes)
 fitOneRow' triedBoxes zones (box:boxes) = let
   -- find best zone if any
   tries = catMaybes $ map (tryFitOne'  box) (holes zones)
-  tryFitOne' box (z, zs) = fmap (,zs) (tryFitOne box z)
+  tryFitOne' box_ (z, zs) = fmap (,zs) (tryFitOne box_ z)
   -- minimize width left
   -- rank zone = traceShow ("TO RANK", (fst zone)) (rank' zone)
-  rank (Zone _ zdim (slice:_), _) = width - usedWidth where
+  rank (Zone _ zdim (slice_:_), _) = width - usedWidth where
     -- we know there is at least one slice and the one we need is the first one.
     width = dWidth zdim
-    usedWidth = slWidth slice
+    usedWidth = slWidth slice_
   rank _ = error "never happen"
   in case fromNullable tries of
         Nothing -> fitOneRow' (box:triedBoxes) zones boxes
@@ -131,15 +131,15 @@ fitAllRow' usedZones zones [] = (usedZones ++ zones, [])
 fitAllRow' usedZones [] boxes = (usedZones, boxes) 
 fitAllRow' usedZones (zone:zones) bs@(box:boxes) = case slice box zone of
   (Nothing, Just _) -> fitAllRow' (zone:usedZones) zones bs
-  (Just slice, Nothing) -> fitAllRow' usedZones (addSlice zone slice: zones) (boxes)
-  (Just slice, Just box') -> let -- the box is split, we need to change the placement to end and beging
+  (Just slice_, Nothing) -> fitAllRow' usedZones (addSlice zone slice_: zones) (boxes)
+  (Just slice_, Just box') -> let -- the box is split, we need to change the placement to end and beging
     box'' = box' {boxPlacement = Begining}
-    lastBox = slBox slice
-    slice' = slice {slBox = lastBox { boxPlacement = End}}
+    lastBox = slBox slice_
+    slice' = slice_ {slBox = lastBox { boxPlacement = End}}
     in fitAllRow' usedZones (addSlice zone slice': zones) (box'':boxes)
   _ -> error "should not happen"
   
-
+divUp :: Integral a => a -> a -> a
 divUp p q = (p+q-1) `div` q
 
 -- | Arrange boxes into a slice to fit the given zone
@@ -157,7 +157,7 @@ slice box zone = let
                                               -- to the bottom of the highest box
                           nw = min wmax (n `divUp`  nh)
                           nl = min lmax (n `divUp` (nh*nw))
-                          slice = Slice { slBox = box {boxNumber = fitted}
+                          slice_ = Slice { slBox = box {boxNumber = fitted}
                                         , slNL = nl
                                         , slNW = nw
                                         , slNH = nh
@@ -169,11 +169,11 @@ slice box zone = let
                           boxm = if leftOver <= 0
                                 then Nothing
                                 else Just $ box { boxNumber = leftOver}
-                          in (Just slice, boxm)
+                          in (Just slice_ , boxm)
       _ -> (Nothing, Just box)
 
 addSlice :: Zone -> Slice -> Zone
-addSlice zone slice = zone {zoneSlices = slice : zoneSlices zone}
+addSlice zone slice_ = zone {zoneSlices = slice_ : zoneSlices zone}
   
 -- | Can a full style in the given zone within a single row ?
 tryFitOne :: Box -> Zone -> Maybe Zone
@@ -181,7 +181,7 @@ tryFitOne box zone = let
   _bDim = boxDimension box
   _zDim = zoneDimension zone
   in case slice box zone of
-       (Just slice, Nothing) | slNL slice == 1 -> Just $ addSlice zone slice
+       (Just slice_, Nothing) | slNL slice_ == 1 -> Just $ addSlice zone slice_
        _ -> Nothing
 
 -- | Computes the length left in the zone, given the slices already in it.
@@ -202,5 +202,5 @@ freeZoneDimension zone = (zoneDimension zone) { dLength = lengthLeft zone}
 holes :: [a] -> [(a, [a])]
 holes xs = go [] xs where
   go _ [] = []
-  go xs0 (x:xs) = (x, reverse xs0++xs) : go (x:xs0) xs
+  go ys0 (y:ys) = (y, reverse ys0++ys) : go (y:ys0) ys
   

@@ -1,4 +1,5 @@
 {-# LANGUAGE StandaloneDeriving #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Planner.Colour
 ( readFromPalette
 )

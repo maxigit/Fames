@@ -20,7 +20,6 @@ data CategoryRule a
   | SalesPriceRanger PriceRanger
   | SourceTransformer String (CategoryRule a)
   | CategoryCondition (CategoryRule a) (CategoryRule a) -- uses second category  only if the first one matches
-  -- | FACategory RegexSub
   deriving Show
 
 data CustomerCat

@@ -1,11 +1,11 @@
 {-# LANGUAGE ImplicitParams #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-} -- TODO remove
 -- | Displays a calendar view of the selected shifts
 module Handler.GL.Payroll.Calendar
 ( getGLPayrollCalendarR
 , postGLPayrollCalendarR
 )
 where
--- * Import
 import Import
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import Handler.GL.Payroll.Common

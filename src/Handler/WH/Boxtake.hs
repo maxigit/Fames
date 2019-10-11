@@ -114,6 +114,7 @@ renderPlannerCsv boxSources = do
   respondSourceDB "text/plain" (source .| mapC (toFlushBuilder))
 
 -- plannerSource :: _ => Source m Text
+plannerSource :: ConduitM () (Entity Boxtake) SqlHandler ()
 plannerSource = selectSource [BoxtakeActive ==. True] [Asc BoxtakeLocation, Asc BoxtakeDescription]
   -- yield "Bay No,Style,QTY,Length,Width,Height,Orientations\n"
   -- boxes .| mapC toPlanner
@@ -139,6 +140,7 @@ boxSourceToSection today boxSources = do
   boxSourceToCsv boxSources
   yield (":END:\n")
 
+boxSourceToCsv :: Monad m => ConduitM i (Entity Boxtake) m () -> ConduitT i Text m ()
 boxSourceToCsv boxSources = do
   yield ("Bay No,Style,QTY,Length,Width,Height,Orientations\n" :: Text)
   boxSources .| mapC toPlanner
@@ -542,7 +544,7 @@ processBoxtakeSheet' mode onSuccess = do
                               sessions
 
 processBoxtakeSheet :: SavingMode -> Handler TypedContent
-processBoxtakeSheet mode = processBoxtakeSheet' mode go where
+processBoxtakeSheet mode0 = processBoxtakeSheet' mode0 go where
   go mode param sessions = fmap toTypedContent $ processBoxtakeMove mode param sessions
 
 processBoxtakeMove :: SavingMode
@@ -590,10 +592,10 @@ renderBoxtakeAdjustments param resultM = do
 -- * DB Access
 loadBoxtakes :: BoxtakeInquiryParam -> Handler [Entity Boxtake]
 loadBoxtakes param = do
-  let filter = filterE id BoxtakeBarcode (pBarcode param)
-            <> filterE id BoxtakeLocation (pLocation param)
-            <> filterE Just BoxtakeDescription (pDescription param)
-  opts <- case filter of
+  let filter_ = filterE id BoxtakeBarcode (pBarcode param)
+              <> filterE id BoxtakeLocation (pLocation param)
+              <> filterE Just BoxtakeDescription (pDescription param)
+  opts <- case filter_ of
         [] -> do -- no filter, we want the last ones
                 setWarning "Only the last 50 boxtakes are being displayed. Please refine the filter to get a full selection"
                 return [Desc BoxtakeId, LimitTo 50]
@@ -605,7 +607,7 @@ loadBoxtakes param = do
   let active = if pShowInactive param
                then []
                else [BoxtakeActive ==. True]
-  runDB $ selectList (active <> filter) opts
+  runDB $ selectList (active <> filter_) opts
   
 -- * Util
 

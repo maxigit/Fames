@@ -1,11 +1,11 @@
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-} -- TODO remove
+{-# OPTIONS_GHC -Wno-name-shadowing #-} -- TODO remove
 module Handler.GL.Payroll.Import
 ( getGLPayrollImportR
 , postGLPayrollImportR
 )
 where
-
--- * Import
 import Import
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import Handler.GL.Payroll.Common

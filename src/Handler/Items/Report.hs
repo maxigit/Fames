@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-unused-top-binds #-} -- TODO remove
+{-# OPTIONS_GHC -Wno-missing-exported-signatures #-} -- TODO remove
 module Handler.Items.Report
 ( getItemsReportR
 , postItemsReportR
@@ -128,7 +130,7 @@ traceForm :: Int -> Bool -> String -> Maybe DataParams -> MForm Handler (FormRes
 traceForm traceN nomode suffix p = do
   let
     dataTypeOptions = optionsPairs [(drop 2 (tshow qtype), qtype) | qtype <- [minBound..maxBound]]
-    dataValueOptions = map (\(t, tps'runsum) -> (t, Identifiable (t, (map mkTraceParam tps'runsum))))
+    dataValueOptions = map (\(t_, tps'runsum) -> (t_, Identifiable (t_, (map mkTraceParam tps'runsum))))
                                     [ noneOption
                                     , ("QA-Sales", quantityAmountStyle traceN Outward)
                                     , ("CumulAmount (Out)" ,   [(qpAmount Outward, VAmount, cumulAmountStyle traceN, RunSum)] )
@@ -199,7 +201,6 @@ getItemsReportR' mode = do
   let -- emptyRupture = ColumnRupture Nothing emptyTrace Nothing Nothing False
       bestSales = DataParams QPSales (mkIdentifialParam $ amountInOption 1) Nothing
       sales = DataParams QPSales (mkIdentifialParam $ amountOutOption 1) Nothing
-      emptyTrace = DataParams QPSales (mkIdentifialParam noneOption) Nothing
       past = calculateDate (AddMonths (-3)) today
       tomorrow = calculateDate (AddDays 1) today
   
@@ -275,10 +276,10 @@ runFormAndGetAction form = do
 -- `calculate-from=[AddMonths (-3)]&calculate-to=[AddMonths 0]`
 adjustParamDates :: ReportParam -> Handler ReportParam
 adjustParamDates param = do
-  newFrom <- update (rpFrom param) "calculate-from"
-  newTo <- update (rpTo param) "calculate-to"
+  newFrom <- update_ (rpFrom param) "calculate-from"
+  newTo <- update_ (rpTo param) "calculate-to"
   return param {rpFrom = newFrom, rpTo = newTo }
-  where update day field = do
+  where update_ day field = do
           calc <- lookupGetParam field
           return $ case fmap readMay calc of
                      Just (Just cs@(_:_)) -> Just $ foldl'(flip ($)) (rpToday param) (map calculateDate cs)
@@ -298,13 +299,13 @@ postItemsReportFor route mode = do
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess param0 -> do
       param <- adjustParamDates param0
-      let panel = rpPanelRupture param
+      let panel_ = rpPanelRupture param
           band = rpBand param
           serie = rpSerie param
           col = rpColumnRupture param
           -- for table, the exact meaning of the rupture doesn't matter
-          tableGrouper = panel : filter (isJust . cpColumn) [band, serie]
-          grouper = [ panel, band, serie, col]
+          tableGrouper = panel_ : filter (isJust . cpColumn) [band, serie]
+          grouper = [ panel_, band, serie, col]
       case readMay =<< actionM of
 
         Just ReportCsv -> do
@@ -319,7 +320,7 @@ postItemsReportFor route mode = do
         Just ReportRaw -> do
              let grouper' = grouper <> map mkRupture (filter (`notElem` columnInGrouper) cols) -- all columns with grouper first
                  columnInGrouper = mapMaybe cpColumn grouper
-                 mkRupture cols = emptyRupture  {cpColumn = Just cols}
+                 mkRupture cols_ = emptyRupture  {cpColumn = Just cols_}
                  formatter = summaryToCsv QPAvg
              result <- itemReportWithRank param (filter (isJust . cpColumn) grouper') (fmap snd) --  (fmap (fmap (summarize . map snd)))
              let source = yieldMany (map (<> "\n") (formatter param result))
@@ -392,8 +393,8 @@ renderReportForm  route modeM paramM status resultM = do
       html <- sendResponseStatus status =<< defaultLayout (toWidget commonCss >> widget >> fay) 
       return (html :: Html)
     provideRep $ do -- Ajax. return result
-      div <- widgetToPageContent (fromMaybe (return ()) resultM)
-      html <- withUrlRenderer (pageBody div)
+      div_ <- widgetToPageContent (fromMaybe (return ()) resultM)
+      html <- withUrlRenderer (pageBody div_)
       returnJson (renderHtml html)
 
 reportDoc = [shamlet|

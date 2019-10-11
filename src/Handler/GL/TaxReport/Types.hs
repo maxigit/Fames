@@ -1,4 +1,5 @@
 {-# LANGUAGE StandaloneDeriving #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Handler.GL.TaxReport.Types
 ( TaxDetail -- no constructor
 -- , taxDetailFromDetail
@@ -130,31 +131,49 @@ isNew :: TaxDetail -> Bool
 isNew detail = isNothing (_private_currentDetail detail)
 
 -- * Accessors
+tdFADetail :: TaxDetail -> TransTaxDetail
 tdFADetail = _private_faDetail
+tdReportDetail :: TaxDetail -> TaxReportDetail
 tdReportDetail = _private_detailToSave
 
+tdTranDate :: TaxDetail -> Day
 tdTranDate = transTaxDetailTranDate . tdFADetail
+tdTaxTypeId :: TaxDetail -> Int
 tdTaxTypeId = transTaxDetailTaxTypeId . tdFADetail
+tdExRate :: TaxDetail -> Double
 tdExRate = transTaxDetailExRate . tdFADetail
+tdIncludedInPrice :: TaxDetail -> Bool
 tdIncludedInPrice = transTaxDetailIncludedInPrice . tdFADetail
+tdMemo :: TaxDetail -> Maybe Text
 tdMemo = transTaxDetailMemo . tdFADetail
 
+tdTransType :: TaxDetail -> FATransType
 tdTransType = taxReportDetailFaTransType . tdReportDetail
+tdTransNo :: TaxDetail -> Int
 tdTransNo = taxReportDetailFaTransNo . tdReportDetail
+tdRate :: TaxDetail -> Double
 tdRate = taxReportDetailRate . tdReportDetail
+tdNetAmount :: TaxDetail -> Double
 tdNetAmount = taxReportDetailNetAmount . tdReportDetail
+tdTaxAmount :: TaxDetail -> Double
 tdTaxAmount = taxReportDetailTaxAmount . tdReportDetail
+tdBucket :: TaxDetail -> Text
 tdBucket = taxReportDetailBucket . tdReportDetail
 
+tdEntity :: TaxDetail -> Maybe Int64
 tdEntity = _private_entity
 -- * Compute difference with what the report should be
+tdDetailToSave :: TaxDetail -> TaxReportDetail
 tdDetailToSave = _private_detailToSave
+tdExistingKey :: TaxDetail -> Maybe (Key TaxReportDetail)
 tdExistingKey = entityKey <$$> _private_currentDetail
 
 -- | Is pending if there is something to save
 -- and it's different from what is alreday
+tdIsPending :: TaxDetail -> Bool
 tdIsPending PrivateTaxDetail{..} =  fmap entityVal _private_currentDetail /= Just _private_detailToSave
   -- && not (tdIsNull d ) 
 
+tdIsNull :: TaxDetail -> Bool
 tdIsNull detail  = amountNull taxAmount  && amountNull netAmount
   where amountNull f = (abs . f . taxSummary $ _private_detailToSave detail) < 1e-2

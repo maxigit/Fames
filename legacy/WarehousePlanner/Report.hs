@@ -22,7 +22,7 @@ module WarehousePlanner.Report
 
 import WarehousePlanner.Base
 import WarehousePlanner.Optimum
-import ClassyPrelude
+import ClassyPrelude hiding(or)
 import Control.Monad.ST.Unsafe(unsafeSTToIO)
 import System.IO.Unsafe(unsafePerformIO)
 import Control.Monad.State(get, gets, evalStateT)
@@ -94,14 +94,14 @@ bestHeightForShelf shelf = do
             ]
 
         bests = sortBy (compare `on` fst) tries
-        reportHeight shelf  (box, or, (n,k,__m)) = do
+        reportHeight shelf_  (box, or, (n,k,__m)) = do
           similarBoxes <- findBoxByNameSelector (matchName $ boxStyle box)
           let box' = box { orientation = or }
           let lengthRatio = ( dLength (boxDim box') * (fromIntegral n)
-                            / dLength (minDim shelf)
+                            / dLength (minDim shelf_)
                             )
               widthRatio = ( dWidth (boxDim box') * (fromIntegral k)
-                           / dWidth (minDim shelf)
+                           / dWidth (minDim shelf_)
                            )
               height = dHeight (boxDim box')
               recommendedHeight = height * (fromIntegral ((ceiling (130/height)) :: Int))
@@ -297,12 +297,12 @@ occupiedVolume s = do
 shelvesReport :: WH [Text] s
 shelvesReport = do
   ss <- toList <$> gets shelves >>= mapM findShelf
-  ls <- mapM  report ss
+  ls <- mapM  report_ ss
 
   return $ ("name,comment,length,width,height,depthLeft,usedRatio") : ls
 
-  where report :: Shelf s -> WH Text s
-        report shelf = do
+  where report_ :: Shelf s -> WH Text s
+        report_ shelf = do
           let (Dimension l w h) = minDim shelf
           (name, depth) <- usedDepth shelf
           let left = w - depth
@@ -332,12 +332,12 @@ shelfTagsReport = do
 boxesReport :: WH (IO ()) s
 boxesReport = do
   sbS <- shelfBoxes
-  ios <- mapM report sbS
+  ios <- mapM report_ sbS
 
   return $ sequence_ ((putStrLn "style,content,location"):ios)
 
-  where -- report :: Box s -> WH (IO ()) s
-        report (shelf, box) = do
+  where -- report_ :: Box s -> WH (IO ()) s
+        report_ (shelf, box) = do
           let (nl, nw, nh) = howMany (maxDim shelf) (boxDim box)
           return $ printf "%s,%s,%s,%s,%dx%dx%d\n" (boxStyle box) (boxContent box) (shelfName shelf) (showOrientation (orientation box)) nl nw nh
   
@@ -355,6 +355,7 @@ groupNames names = let
 
   in map toName (Map'.toList groups)
 
+boxStyleWithTags :: Box s -> Text
 boxStyleWithTags b = let
   isVirtual ('\'':<_) = True
   isVirtual _ = False
@@ -362,21 +363,21 @@ boxStyleWithTags b = let
   in intercalate "#" (boxStyleAndContent b : tags)
  
 generateMoves :: (Box s -> Text) -> WH [Text] s
-generateMoves boxName = generateMoves' (Just "stock_id,location") (Just . boxName) printGroup where
-     printGroup boxName _ shelves = boxName <> "," <> intercalate "|" (groupNames shelves)
+generateMoves boxName0 = generateMoves' (Just "stock_id,location") (Just . boxName0) printGroup where
+     printGroup  boxName' _ shelves = boxName' <> "," <> intercalate "|" (groupNames shelves)
 -- generateMoves' :: (Box s -> Text) -> (Box s -> [Text]) -> WH [Text] s
 generateMoves' :: (Ord k, Eq k)
                => Maybe Text -- ^ Header
                -> (Box s -> Maybe k) -- ^ box key
                ->  (k -> [Box s] -> [Text]  -> Text) -- ^ string from key, boxes and unique shelfnames
                -> WH [Text] s
-generateMoves' header boxKey printGroup = do
+generateMoves' header boxKey0 printGroup = do
  s'bS <- shelfBoxes
- generateMovesFor header boxKey printGroup s'bS 
-generateMovesFor header boxKey printGroup box'shelfs = do
+ generateMovesFor header boxKey0 printGroup s'bS 
+generateMovesFor header boxKey0 printGroup box'shelfs = do
  let groups = Map'.fromListWith (<>) [ (key, [(b, shelfName s)])
                                      | (s,b) <- box'shelfs
-                                     , Just key <- [boxKey b]
+                                     , Just key <- [boxKey0 b]
                                      -- , "mop-exclude" `notElem` boxTags b
                                      ]
      printGroup' (key, box'shelves) = printGroup key boxes (List.nub $ sort shelves) where (boxes, shelves) = unzip box'shelves
@@ -393,7 +394,7 @@ generateMOPLocations = generateMoves' (Just "stock_id,location") boxName printGr
                    (False, True) -> Just $ (boxStyleAndContent box, comment)
                    (False, False) -> Just $ (boxStyle box, comment)
  -- add comment from tag
-  printGroup (boxName, boxComment) _ shelves = boxName <> "," <>
+  printGroup (boxName_, boxComment) _ shelves = boxName_ <> "," <>
     case (boxComment, shelves) of
            (Nothing, name:names) -> intercalate "|" (name : groupNames names) 
            (Just comment, [name]) -> intercalate "|" [name , comment]
@@ -425,12 +426,12 @@ generateGenericReport today prefix = do
   return $ concat rs
         
   
-generateGenericReport' today prefix s'bs = generateMovesFor Nothing boxKey printGroup s'bs where
-  boxKey box = boxTagValuem box (prefix <> "-key")
-  printGroup boxKey [] __shelfNames = boxKey
-  printGroup boxKey boxes@(box:_) shelfNames = let
+generateGenericReport' today prefix s'bs = generateMovesFor Nothing boxKey0 printGroup s'bs where
+  boxKey0 box = boxTagValuem box (prefix <> "-key")
+  printGroup boxKey_ [] __shelfNames = boxKey_
+  printGroup boxKey_ boxes@(box:_) shelfNames = let
     value0 = boxTagValuem box (prefix <> "-value")
-    value = maybe boxKey (expandReportValue today boxes shelfNames ) value0
+    value = maybe boxKey_ (expandReportValue today boxes shelfNames ) value0
     in value
 
 
@@ -504,7 +505,7 @@ groupShelves exclude = do
                                                                        shelfTag) ss
                                       , exclude s == False
                                       ]
-      regroup ss = let sorted = sortBy (comparing shelfName) ss
+      regroup ss_ = let sorted = sortBy (comparing shelfName) ss_
                    in (headEx sorted, map shelfName sorted)
 
   return $ map (regroup) (Map'.elems groups)
@@ -553,7 +554,7 @@ groupBoxesReport :: [Box s] -> WH [Text] s
 groupBoxesReport boxes = do
   groups <- groupBoxes' boxes
   let withVolumes = [(volume (boxDim b) * (fromIntegral q), b'q) | b'q@(b,q) <- groups ]
-  let sorted = map snd $ sortBy (comparing (\(rank, (volume, _)) -> (rank, Down volume))) (zip [1..] withVolumes)
+  let sorted = map snd $ sortBy (comparing (\(rank, (volume_, _)) -> (rank, Down volume_))) (zip [1..] withVolumes)
   forM sorted $ \(v, (box, qty)) -> do
       let d = _boxDim box
       return $ (boxStyle box ) <> (concatMap showOrientation (boxBoxOrientations box )) <>   " x "  <> tshow qty
@@ -635,12 +636,12 @@ newPair wh res (Just res') =
             (maxDim shelf)
             (shelfBoxOrientator shelf)
             (shelfFillingStrategy shelf)
-        addBoxes res shelf = do
-          let box = rBox res
-          forM [1..rBoxLeft res] $ \_ -> newBox (boxStyle box)
+        addBoxes res_ shelf = do
+          let box = rBox res_
+          forM [1..rBoxLeft res_] $ \_ -> newBox (boxStyle box)
                                              (boxContent box)
                                              (_boxDim box)
-                                             (rOrientation res) -- current orientation
+                                             (rOrientation res_) -- current orientation
                                              shelf
                                              (boxBoxOrientations box)
                                              (boxTagList box)
@@ -720,14 +721,14 @@ reportPairs percThreshold = do
   -- removes every boxes which are already in and the shelf itself
   ss <- mapM findShelf =<< toList <$> gets shelves
 
-  shelfBoxes <- catMaybes <$> forM (filter (applyTagSelectors (mapMaybe parseTagSelector ["!sep", "!error"]) shelfTag) ss) ( \shelf -> do
+  shelfBoxes_ <- catMaybes <$> forM (filter (applyTagSelectors (mapMaybe parseTagSelector ["!sep", "!error"]) shelfTag) ss) ( \shelf -> do
     boxes <- findBoxByShelf shelf
     return $ if null boxes then Nothing else Just (shelfName shelf, map boxKey boxes)
     )
 
 
-  let shelvesToSkip = Set.fromList (map fst shelfBoxes )
-      boxesToSkip = Set.fromList (concatMap snd shelfBoxes)
+  let shelvesToSkip = Set.fromList (map fst shelfBoxes_ )
+      boxesToSkip = Set.fromList (concatMap snd shelfBoxes_)
       isTop = maybeToList (parseTagSelector "top")
     
   boxGroups <- groupBoxes (\b -> boxKey b `Set.member` boxesToSkip)

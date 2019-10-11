@@ -147,6 +147,7 @@ PackingListDetail sql=fames_packinglist_detail
   delivered Bool default=False
   UniquePLD packingList reference style boxNumber
   UniquePLB barcode
+  deriving Show
 
 -- * Payroll
 

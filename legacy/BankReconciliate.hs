@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RecordWildCards #-}
--- * Overview
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- | This script perform the reconciliation between
 -- bank statements from HSBC (UK) and  FrontAccounting,
 -- ie it detects and displays the discrepencies between the two.
@@ -27,7 +27,7 @@ import Control.Monad.State(State,evalState, get, put)
 
 import Lens.Micro hiding(filtered)
 import Lens.Micro.TH
-import Data.Csv hiding(Options, (.:), lookup)
+import Data.Csv hiding(Options, (.:), lookup, record)
 -- import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Char8 as BL
 import qualified Data.ByteString as BS
@@ -80,6 +80,7 @@ cleanRecord :: NamedRecord  -> CleanedRecord
 cleanRecord record =  CleanedRecord [ (clean k, v) | (k, v) <- H.toList record]
 
 
+(.:) :: FromField a => CleanedRecord -> BS.ByteString -> Parser a
 (CleanedRecord cleaned) .: key = maybe mempty parseField $ clean key `lookup` cleaned where
 clean :: BS.ByteString -> Text
 clean = strip . toLower . decodeUtf8
@@ -721,6 +722,7 @@ updateTime opt = do
 -- | finishes the zip work by get a list of possible pair
 rezip :: These [HSBCTransactions] [FATransaction] -> [These HSBCTransactions FATransaction]
 rezip = rezip' . cleanThese
+rezip' :: These [a] [b] -> [These a b]
 rezip'  (This hs) = map This hs
 rezip'  (That fs) = map That fs
 rezip' (These hs fs) = align hs fs

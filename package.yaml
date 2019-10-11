@@ -126,6 +126,7 @@ library:
       - -W
       - -Wno-partial-type-signatures
       - -Wno-type-defaults
+      - -Wno-missing-local-signatures
       # - -fno-max-relevant-binds
       - -O0
       - -j6

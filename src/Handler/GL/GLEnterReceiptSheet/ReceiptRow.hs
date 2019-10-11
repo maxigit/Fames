@@ -1,7 +1,11 @@
 {-# LANGUAGE TypeFamilies, DataKinds #-}
 {-# LANGUAGE LiberalTypeSynonyms #-}
 {-# LANGUAGE PatternSynonyms #-}
-module Handler.GL.GLEnterReceiptSheet.ReceiptRow where
+{-# OPTIONS_GHC -Wno-unused-do-bind #-} -- TODO remove
+{-# OPTIONS_GHC -Wno-name-shadowing #-} -- TODO remove
+{-# OPTIONS_GHC -Wno-missing-exported-signatures #-} -- TODO remove
+module Handler.GL.GLEnterReceiptSheet.ReceiptRow
+where
 
 
 import Import hiding(InvalidHeader)
@@ -64,13 +68,59 @@ type PartialItem = ReceiptItem 'PartialT
 -- instance {-#OVERLAPPING #-}Show (InvalidRow) where show = showReceiptRow InvalidRowT
          
 
-
-
+pattern EmptyItem :: forall (s :: RowTypes) e a e1 a1 e2 a2 e3 a3 e4 a4 e5 a5.
+                     (FieldTF s (RefTF s (Maybe Dimension1Ref)) ~ Either e (Maybe a),
+                       FieldTF s (Maybe Text) ~ Either e1 (Maybe a1),
+                       FieldTF s (RefTF s GLAccountRef) ~ Either e2 (Maybe a2),
+                       FieldTF s Double ~ Either e3 (Maybe a3),
+                       FieldTF s (RefTF s TaxRef) ~ Either e4 (Maybe a4),
+                       FieldTF s (RefTF s (Maybe Dimension2Ref))
+                       ~ Either e5 (Maybe a5)) =>
+                     ReceiptItem s
 pattern EmptyItem = ReceiptItem RNothing RNothing RNothing RNothing RNothing RNothing RNothing RNothing
 -- | Check if a header is empty. Don't look at template, as it will be picked up by the item too.
+
+pattern EmptyHeader :: forall (s :: RowTypes) e a e1 a1 e2 a2 e3 a3 e4 a4.
+                       (FieldTF s (Maybe Text) ~ Either e (Maybe a),
+                         FieldTF s Text ~ Either e1 (Maybe a1),
+                         FieldTF s Day ~ Either e2 (Maybe a2),
+                         FieldTF s (RefTF s BankAccountRef) ~ Either e3 (Maybe a3),
+                         FieldTF s Double ~ Either e4 (Maybe a4)) =>
+                       ReceiptHeader s
 pattern EmptyHeader <- ReceiptHeader RNothing RNothing RNothing RNothing RNothing _
+pattern NonHeaderRow :: forall (s :: RowTypes) e a e1 a1 e2 a2 e3 a3 e4 a4 (s1 :: RowTypes).
+                        (FieldTF s (Maybe Text) ~ Either e (Maybe a),
+                          FieldTF s Text ~ Either e1 (Maybe a1),
+                          FieldTF s Day ~ Either e2 (Maybe a2),
+                          FieldTF s (RefTF s BankAccountRef) ~ Either e3 (Maybe a3),
+                          FieldTF s Double ~ Either e4 (Maybe a4)) =>
+                        RefFieldTF s1 GLAccountRef
+                     -> FieldTF s1 Double
+                     -> FieldTF s1 Double
+                     -> FieldTF s1 (Maybe Text)
+                     -> RefFieldTF s1 TaxRef
+                     -> RefFieldTF s1 (Maybe Dimension1Ref)
+                     -> RefFieldTF s1 (Maybe Dimension2Ref)
+                     -> FieldTF s1 (Maybe Text)
+                     -> These (ReceiptHeader s) (ReceiptItem s1)
 pattern NonHeaderRow gl amount net memo tax dim1 dim2 itemTemplate <- These (ReceiptHeader RNothing RNothing RNothing RNothing RNothing _) (ReceiptItem gl amount net memo tax dim1 dim2 itemTemplate)
 -- pattern RowP gl amount net memo tax dim1 dim2 = These (ReceiptHeader () () () () ()) (ReceiptItem gl amount net memo tax dim1 dim2)
+
+pattern NonItemRow :: forall (s :: RowTypes) e a e1 a1 e2 a2 e3 a3 e4 a4 e5 a5 (s1 :: RowTypes).
+                      (FieldTF s (RefTF s (Maybe Dimension1Ref)) ~ Either e (Maybe a),
+                        FieldTF s (Maybe Text) ~ Either e1 (Maybe a1),
+                        FieldTF s (RefTF s GLAccountRef) ~ Either e2 (Maybe a2),
+                        FieldTF s Double ~ Either e3 (Maybe a3),
+                        FieldTF s (RefTF s TaxRef) ~ Either e4 (Maybe a4),
+                        FieldTF s (RefTF s (Maybe Dimension2Ref))
+                        ~ Either e5 (Maybe a5)) =>
+                      FieldTF s1 Day
+                   -> FieldTF s1 Text
+                   -> RefFieldTF s1 BankAccountRef
+                   -> FieldTF s1 (Maybe Text)
+                   -> FieldTF s1 Double
+                   -> FieldTF s1 (Maybe Text)
+                   -> These (ReceiptHeader s1) (ReceiptItem s)
 pattern NonItemRow date counterparty bank comment total template = These (ReceiptHeader date counterparty bank comment total template  ) (ReceiptItem RNothing RNothing RNothing RNothing RNothing RNothing RNothing RNothing)
                                              
 -- showReceiptRow rType row = show "ReceiptRow " ++ show rType ++ show row

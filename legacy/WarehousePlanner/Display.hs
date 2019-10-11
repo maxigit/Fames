@@ -4,8 +4,8 @@
 module WarehousePlanner.Display where
 
 import ClassyPrelude
-import WarehousePlanner.Base
-import Diagrams.Prelude hiding(Box)
+import WarehousePlanner.Base hiding(up)
+import Diagrams.Prelude hiding(Box,offset,direction)
 import Control.Monad.State(get, gets)
 import Diagrams.Backend.Cairo 
 -- import Data.Maybe
@@ -23,10 +23,10 @@ display = do
 renderGroup :: ShelfGroup s -> WH (Diagram B) s
 renderGroup (ShelfGroup gs direction) = do
     rendered <- mapM renderGroup gs
-    return $ pad (1.05) $ cat direction (map alignB rendered)
-    where cat  Vertical = vcat 
-          cat  Horizontal = hcat
-          cat  Depth = hcat -- should not happen
+    return $ pad (1.05) $ cat_ direction (map alignB rendered)
+    where cat_  Vertical = vcat 
+          cat_  Horizontal = hcat
+          cat_  Depth = hcat -- should not happen
     
 renderGroup (ShelfProxy i) = do
     shelf <- findShelf i
@@ -58,14 +58,14 @@ renderShelf shelf = do
         bar' = (alignL bar # translateX 5) `atop` alignL t
         t' = scaledText ln hn (shelfName shelf) #lc darkblue
         diagram = r -- t `atop` r
-        align = case flow shelf of
+        align_ = case flow shelf of
                     LeftToRight -> alignBL
                     RightToLeft -> alignBR
 
     boxes <- renderBoxes shelf
     
 
-    return $ alignBL $ centerX ((align boxes) `atop` (align diagram)) === (centerX bar')
+    return $ alignBL $ centerX ((align_ boxes) `atop` (align_ diagram)) === (centerX bar')
 
 renderBoxes :: Shelf s -> WH (Diagram B) s
 renderBoxes shelf = let 
@@ -99,11 +99,11 @@ gaugeBar w = let
                           ]
              )
 depthBar' :: Double -> Double -> Colour Double -> Diagram B
-depthBar' width offset colour = depthBar'' (lwL 1 . lc colour) width offset colour
--- depthBar' = depthBar'' (lwL 1) --  . lc colour) width offset colour
+depthBar' width_ offset colour = depthBar'' (lwL 1 . lc colour) width_ offset colour
+-- depthBar' = depthBar'' (lwL 1) --  . lc colour) width_ offset colour
 depthBar'' :: (Diagram B -> Diagram B) -> Double -> Double -> Colour Double -> Diagram B
-depthBar'' up l l0 colour = translate (r2 (scale l0, 0)) . alignBL $ rect (scale l) 4 # fc colour # up
-  where scale x = x /3
+depthBar'' up l l0 colour = translate (r2 (scale_ l0, 0)) . alignBL $ rect (scale_ l) 4 # fc colour # up
+  where scale_ x = x /3
 
 -- | render a Box within a shelf. 
 -- Boxes are stack vertically until they reach the maximum.
@@ -169,7 +169,7 @@ renderBoxBarBg shelf = gaugeBar yn
     where   Dimension _xn yn _zn = minDim shelf
     
 -- | draw text scaled to fit given rectangle
--- scaledText :: Double -> Double-> Text -> Diagram b
+scaledText :: Double -> Double-> Text -> Diagram B
 scaledText x y s =  let
     (x0, y0) = (10,3) 
     (sX, sY) =  (x/x0, y/y0)

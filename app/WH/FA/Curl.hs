@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ImplicitParams #-}
--- * Import
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- | Post event to FA using Curl
 module WH.FA.Curl
 ( postStockAdjustment
@@ -445,9 +445,9 @@ extractDeliveryItems tags deliveryId'ns = do -- Either
           _) | Just d <- readMay (delivery :: String) -> d == deliveryId
         _ -> False
       findForDelivery :: [[Tag String ]] -> (Int, Maybe Int) -> Either Text [[Tag String]]
-      findForDelivery rows (deliveryId, n)  = let
+      findForDelivery rows (deliveryId, n0)  = let
         found = filter (matchDelivery deliveryId) rows
-        in case (found, n) of
+        in case (found, n0) of
                   (_, Just n) -> if n == length found
                                  then Right found
                                  else Left . pack $  "Found " ++ show (length found) ++ " items in delivery "

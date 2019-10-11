@@ -2,7 +2,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 module Handler.WH.Boxtake.Upload where
 
-import Import
+import Import hiding(all)
 import Handler.CsvUtils
 import Data.List(mapAccumL, (!!))
 import Handler.Table
@@ -60,14 +60,17 @@ data WipeMode = FullShelves -- ^ Wipe all boxes previously on the scanned locati
 -- * Util
 
 -- | Reverse op parseRawScan
+rawText :: RawScanRow -> Text
 rawText (RawDate d) = tshow d
 rawText (RawOperator o) = o
 rawText (RawLocation l) = "LC" <> l
 rawText (RawBarcode b) = b
 
+rowVolume :: Row -> Double
 rowVolume row = maybe 0 volume (rowBoxtake row) where
   volume (Entity _ box) = boxVolume box
 
+boxVolume :: Boxtake -> Double
 boxVolume Boxtake{..} = boxtakeLength*boxtakeWidth*boxtakeHeight/1000000
 
 rowIsFound :: Row -> Bool
@@ -124,8 +127,8 @@ parseScan wipeMode spreadsheet = do -- Either
           case sequence rows of
             Left _ -> -- there is some error
               return $ InvalidData [] (filter isLeft rows) rows
-            Right rights -> do
-              let (_, fullEs) = mapAccumL makeRow (Nothing, Nothing, Nothing, Nothing) rights
+            Right rights_ -> do
+              let (_, fullEs) = mapAccumL makeRow (Nothing, Nothing, Nothing, Nothing) rights_
               case  sequence (catMaybes fullEs) of
                 Left _ -> let -- errors, we need to join them with initial rows
                   joinError raw _ (Just (Left e)) = Left (InvalidValueError e (rawText raw))
@@ -167,7 +170,7 @@ makeRow (daym ,opm, locm, lastbox) row = case (row, lastbox) of
                           , loc == newLoc
                     -- clear the next location so it needs be provide again
                     -> ((daym, opm, Nothing, lastbox), Just $ Right (Row Nothing loc day op))
-  (LocationRow loc, lastbox) -> ((daym, opm, Just loc, lastbox), Nothing)
+  (LocationRow loc, lastbox_) -> ((daym, opm, Just loc, lastbox_), Nothing)
   (BoxRow box, _) | (Just day, Just op, Just loc) <- (daym, opm, locm)
                     -> ((daym, opm, locm, Just box), Just $ Right (Row (Just box) loc day op))
   (BoxRow _  , _)   -> let messages = execWriter $ do
@@ -223,6 +226,8 @@ makeSession rows = do
     
 
 -- extractUnique :: Ord b => Text -> (b -> Text) -> (a -> b) -> [a] -> Either Text b
+
+extractUnique :: (Ord k) => Text -> (b -> Text) -> (b -> k) -> (a -> b) -> [a] -> Either Text b
 extractUnique fieldname toText toKey field rows = let
   all = Map.fromList $ [(toKey f, f) | r <- rows, let f = field r ]
   in case toList all of
@@ -267,8 +272,8 @@ renderRows renderUrl rows  =
             value 6 = Just ( toHtml . tshow $ boxtakeDate, [])
             value _ = Nothing
             oldLocation = boxtakeLocation 
-            locationSet = Set.fromList $ (splitOn "|" oldLocation)
-            inOld = newLocation `elem` locationSet  || oldLocation == "DEF"
+            locationSet_ = Set.fromList $ (splitOn "|" oldLocation)
+            inOld = newLocation `elem` locationSet_  || oldLocation == "DEF"
             newLocation = rowLocation
             rowClasses = case (inOld, rowIsFound row ) of
                          (_, True) -> ["bg-info"]

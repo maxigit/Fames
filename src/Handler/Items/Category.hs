@@ -40,7 +40,7 @@ getItemsCategoryTermsR name = do
           <input type=hidden name=category value="#{name}"> 
           <label for=stockFilterF> Skus
           <input#stockFilterF type="text" name=stockFilter>
-          <button.btn.btn-danger> Reset category for all items
+          <button.btn.btn-danger> Reset category for all_ items
       <div.well>
           <table#item-categories *{datatable} data-paging=false>
             <thead>
@@ -51,7 +51,7 @@ getItemsCategoryTermsR name = do
               <tr>
                 <td>#{term}
                 <td>
-                  <a href=@?{(ItemsR (ItemsIndexR Nothing), [("category", name), ("category-filter", term)])}>#{co}
+                  <a href=@?{(ItemsR (ItemsIndexR Nothing), [("category", name), ("category-filter_", term)])}>#{co}
                  |]
 
 
@@ -78,8 +78,8 @@ getItemsCategoryTesterR = do
   deliveryRules <- appDeliveryCategoryRules <$> getsYesod appSettings
   let configuration = Textarea . decodeUtf8 $ encode rulesMaps
       deliveryConf = Just . Textarea . decodeUtf8 $ encode deliveryRules
-      filter = ""
-  renderCategoryTester (TesterParam filter configuration deliveryConf False) Nothing
+      filter_ = ""
+  renderCategoryTester (TesterParam filter_ configuration deliveryConf False) Nothing
 
 {-# NOINLINE postItemsCategoryTesterR #-}
 postItemsCategoryTesterR :: Handler Html
@@ -131,8 +131,8 @@ loadCategoriesWidget (TesterParam stockFilter configuration deliveryConf showFie
     (_, Left err) -> setError "Error in delivery configuration" >> return [whamlet|<div.well>#{err}|]
     (Right ruleMaps, Right deliveryRules) -> do
       let rules = map (first unpack) (concatMap mapToList ruleMaps)
-          all = if showFields then  allFields else []
-          categories = Nothing : map Just all <>   map (Just . fst) rules 
+          all_ = if showFields then  allFields else []
+          categories = Nothing : map Just all_ <>   map (Just . fst) rules 
           headerFn = (,[]) . maybe "sku" toHtml
           makeRow :: (Key FA.StockMaster, Map String String) -> (Maybe String -> (Maybe (Html, [Text])), [Text])
           makeRow (sku, cats) = let

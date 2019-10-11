@@ -1,6 +1,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-} -- TODO remove
 -- TODO remove:
 module Handler.WH.PackingList
 ( getWHPackingListR
@@ -39,7 +41,7 @@ import Data.Text(splitOn,strip)
 import Text.Blaze.Html(Markup)
 import GL.Utils
 import qualified FA as FA
-import Formatting
+import Formatting hiding(bytes)
 import Data.Align(align)
 import Handler.Items.Common(skuToStyleVarH, dutyForH)
 
@@ -129,7 +131,6 @@ viewPLLists = do
                                             , PackingListBoxesToDeliver_d >. 0
                                             ]
                                  ] [Desc PackingListArriving]
-  today <- todayH
   let pls = map entityVal entities
       minDate = Just $ List.minimum (today : catMaybes (map (packingListDeparture) pls))
       maxDate = Just $ List.maximum (today : catMaybes (map (packingListArriving) pls))
@@ -209,7 +210,7 @@ processUpload mode param = do
       key = computeDocumentKey bytes
 
   (documentKey'msgM) <- runDB $ loadAndCheckDocumentKey key
-  forM documentKey'msgM  $ \(_, msg) -> do
+  _ <- forM documentKey'msgM  $ \(_, msg) -> do
     case mode of
       Validate -> setWarning msg >> return ""
       Save -> renderWHPackingList Save (Just param) Nothing expectationFailed417 (setError msg) (return ()) -- should exit
@@ -1127,7 +1128,7 @@ parsePackingList orderRef bytes = either id ParsingCorrect $ do
         -- Right $  valids
 
         where validate :: PLRaw -> Either PLRaw PLValid
-              validate raw@PLRow{..} = do
+              validate raw = do
                 partial <- traverseRow raw <|&> const raw
                 case partial of
                  _ | Just full <- traverseRow (partial :: PLPartial) -> Right (FullBox full)
@@ -1234,7 +1235,7 @@ parseDeliverList cart = let
   toKeys = map (PackingListDetailKey . SqlBackendKey)
 
   in case sequence parsed of
-      Right keys -> let ks = map fst keys
+      Right keys_ -> let ks = map fst keys_
                     in ParsingCorrect (toKeys $ rights ks, toKeys $ lefts ks)
 
       Left _ -> InvalidFormat $ map (ParseDeliveryError . map snd) parsed
@@ -1376,7 +1377,7 @@ savePLFromRows key param sections = do
                      else barcodes'
     let details = zipWith ($) detailFns barcodes
 
-    insertMany details
+    insertMany_ details
     return (pl, details)
 
 createPLFromForm :: DocumentKeyId -> Int -> UploadParam ->  PackingList
@@ -1821,12 +1822,12 @@ computeSupplierCosts pl rateFn styleFn invoices shippInfo = do
         _ -> return ()
 
   -- As we only have one quantity field (the PL),  we to set the invoice amount accordingly
-  let combineInfo inv pl = let
+  let combineInfo inv pl_ = let
        invAmount = fromMaybe 0 (lookup PackingListInvoiceE (diCostMap inv))
-       costMap = diCostMap pl
-       in pl { diCostMap = insertMap PackingListInvoiceE
+       costMap = diCostMap pl_
+       in pl_ { diCostMap = insertMap PackingListInvoiceE
                                      ( invAmount * (fromIntegral $ diQty inv)
-                                                 / (fromIntegral $ diQty pl)
+                                                 / (fromIntegral $ diQty pl_)
                                      ) costMap
              }
   return $ fmap (these id id combineInfo) paired

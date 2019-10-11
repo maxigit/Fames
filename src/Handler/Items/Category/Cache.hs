@@ -14,7 +14,7 @@ module Handler.Items.Category.Cache
 , StockMasterRuleInfo(..)
 ) where
 
-import  Import
+import  Import hiding(leftover, force)
 import FA as FA hiding (unUserKey)
 import Database.Persist.MySQL(rawSql, Single(..), RawSql(..))
 import qualified Data.Map as LMap

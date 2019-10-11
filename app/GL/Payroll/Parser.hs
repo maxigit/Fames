@@ -1,12 +1,11 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleContexts #-}
--- * FastTimesheet Parser
 -- The fast timesheet format allows
 -- to enter quickly a timesheet.
 -- For that, each day can be written a line and the parser
 -- will detect the correct field, regardless of their order, depending on their *shape*.
 
--- | Parsing state. Keep default values which can be used over different lines.
+-- | Parsing state. Keep default values which can be used over different lines_.
 module GL.Payroll.Parser where
 import Prelude hiding(read)
 import Lens.Micro
@@ -43,7 +42,10 @@ data Current = Current
 
 makeClassy ''Current
 
+initCurrent :: PayrollFrequency -> Day -> Current
 initCurrent period start = Current Nothing Nothing Nothing  (newTimesheet period start) (Map.empty) Nothing
+
+currentWeekStart :: (HasCurrent c, Functor f) => (Day -> f Day) -> c -> f c
 currentWeekStart =  currentTimesheet . periodStart 
 
 setEmploye :: PayrooEmployee -> Current -> Current
@@ -79,16 +81,17 @@ addNewEmployee emp u =  do
 addShift :: Duration -> Maybe TimeOfDay ->  Current -> Maybe Current
 addShift = addShift' Work
 addShift' :: ShiftType -> Duration -> Maybe TimeOfDay ->  Current -> Maybe Current
-addShift' shiftType duration start u = do
+addShift' shiftType_ duration_ start u = do
     emp <- u ^. currentEmployee
     rate <- emp ^. defaultHourlyRate <|> u ^. currentHourlyRate
-    let adjustedDuration = roundDuration (unsafeUnlock rate) <$> duration
-        cost = rate * adjustedDuration
-    day <- u ^. currentDay
-    let s = Shift (emp, day, shiftType) start adjustedDuration cost
+    let adjustedDuration = roundDuration (unsafeUnlock rate) <$> duration_
+        cost_ = rate * adjustedDuration
+    day_ <- u ^. currentDay
+    let s = Shift (emp, day_, shiftType_) start adjustedDuration cost_
     return $  u & currentTimesheet . shifts %~ (++ [s])
 
-roundDuration rate duration = let
+roundDuration :: (RealFrac a1, RealFrac a2) => a1 -> a2 -> a2
+roundDuration rate duration_ = let
   -- let take a rate of 7.48
   pences = floor (rate * 100) `mod` 100 -- 48
   -- we need to find x so, that x*.48  is multiple of 1
@@ -98,7 +101,7 @@ roundDuration rate duration = let
   -- worth case scenario, gcd = 1
   m' = fromIntegral m
   -- we have to round up so that the employee is not loosing out
-  in fromIntegral (ceiling (duration * m')) / m'
+  in fromIntegral (ceiling (duration_ * m')) / m'
 
 
 -- | Find the given week day (Mon, Sun) within the current week (in Week mode)
@@ -133,7 +136,12 @@ backDay u = do
     else return u
 
 
--- lastShift :: Current -> Maybe Shift
+-- Lens or Prism ?  return a maybe
+-- Current -> Maybe (Shift ...)
+lastShift :: (HasCurrent c, Applicative f) =>
+             (Shift (PayrooEmployee, Day, ShiftType)
+          -> f (Shift (PayrooEmployee, Day, ShiftType)))
+          -> c -> f c
 lastShift = currentTimesheet.shifts._last
     
 addDeductionAndCost :: Current -> (Maybe Amount) -> (Maybe  Amount) -> Maybe Current
@@ -152,6 +160,7 @@ data WeekDay = WeekDay { shortName :: String
 weekDays :: [WeekDay]
 weekDays = [WeekDay short full i | ((full, short),i)  <- zip (wDays defaultTimeLocale) [1..] ]
 
+weekDaysAL :: [(String, WeekDay)]
 weekDaysAL = [(shortName d ,d) | d <- weekDays ] 
         ++ [(fullName d ,d) | d <- weekDays ] 
 
@@ -159,8 +168,8 @@ parseWeekDay :: String -> Maybe WeekDay
 parseWeekDay s = lookup s weekDaysAL
 
 dayToWeekDay :: Day -> Maybe WeekDay
-dayToWeekDay day = parseWeekDay dayName where
-    dayName = formatTime defaultTimeLocale "%a" day
+dayToWeekDay day_ = parseWeekDay dayName where
+    dayName = formatTime defaultTimeLocale "%a" day_
 -- * Tokenizer
 
 
@@ -179,10 +188,15 @@ data Token = NameT String
            | ExternalT String
            deriving (Show, Eq)
 
+read :: Read a => String -> String -> a
 read msg s = fromMaybe (error $ "can't read " ++ show s ++ " to " ++ msg ) $ readMaybe s
+readLockD :: String -> String -> Duration
 readLockD msg s = lockD (read msg s)
+readLockA :: String -> String -> Amount
 readLockA msg s = lockA (read msg s)
+lockA :: Double -> Amount
 lockA = lock ["Payroll/internal/amount"]
+lockD :: Double -> Duration 
 lockD = lock ["Payroll/internal/duration"]
 token :: String -> Either String Token
 token s = case mapMaybe match cases of
@@ -190,7 +204,7 @@ token s = case mapMaybe match cases of
             (h:_) -> h
         where cases = [ ("[[:alpha:]][[:alnum:]]*", 
                         \(name, _) -> Right $ case (parseWeekDay name, readMaybe name) of
-                                                (_, Just frequency) -> FrequencyT frequency
+                                                (_, Just frequency_) -> FrequencyT frequency_
                                                 (Just w, _) -> WeekDayT w
                                                 (Nothing, Nothing) -> NameT name
                                         )
@@ -211,18 +225,18 @@ token s = case mapMaybe match cases of
                       , ("([0-9]+(.[0-9+])?)x([^[:space:]]+)", \(_, [mul, _, leftover]) -> do -- Either
                                               subtoken <- token leftover
                                               case subtoken of
-                                                    DurationT typ duration -> Right $ MultiplierT (read "mul" mul) typ duration
-                                                    _ -> Left $ s ++ " is not a valid duration"
+                                                    DurationT typ duration_ -> Right $ MultiplierT (read "mul" mul) typ duration_
+                                                    _ -> Left $ s ++ " is not a valid duration_"
                         )
                       , ("([0-9]{1,2})h([0-9]{2})", \(_, [hh, mm]) -> Right $ DurationT Work ((readLockD "Dur:hh" hh + readLockD "Dur:mm" mm / 60)))
                       , ("!([^[:space:]]+)", (\(_, groups) -> do -- Either
                                               subtokens <- mapM token groups 
                                               case subtokens of
-                                                   [DurationT _ duration] -> Right (DurationT Holiday duration)
-                                                   _ -> Left $ s ++ " is not a valid duration"
+                                                   [DurationT _ duration_] -> Right (DurationT Holiday duration_)
+                                                   _ -> Left $ s ++ " is not a valid duration_"
                                              ))
                       , ("#([0-9]+)", Right . PayrollIdT . read "payrollId" . head. snd)
-                      , ("[0-9]+(.[0-9]+)?", Right . DurationT Work . readLockD "duration" .fst)
+                      , ("[0-9]+(.[0-9]+)?", Right . DurationT Work . readLockD "duration_" .fst)
                       , ("\\$([0-9]+(.[0-9]+)?)", Right . RateT . readLockA "rate" . head. snd)
                       , ( "([0-9]{4})/([0-9]{2})/([0-9]{2})"
                             , \(_, [y,m,d]) -> Right $ DayT (Time.fromGregorian 
@@ -239,14 +253,14 @@ token s = case mapMaybe match cases of
                       , ("_", \_ -> Right SkipT)
                       , ("\\|", \_ -> Right PipeT)
                       , ("@([[:alpha:]][[:alnum:]]*)" , \(_, [name]) -> Right $ ExternalT name )
-                      , ( "(" ++ amount ++ ")?\\^(" ++ amount ++ ")?" , \(_, [deduction, _dec,  cost, _dec']) -> Right $ DeductionAndCostT (lockA <$> readMaybe deduction) (lockA <$> readMaybe cost) )
+                      , ( "(" ++ amount ++ ")?\\^(" ++ amount ++ ")?" , \(_, [deduction, _dec,  cost_, _dec']) -> Right $ DeductionAndCostT (lockA <$> readMaybe deduction) (lockA <$> readMaybe cost_) )
                       ]
               amount = "-?[0-9]+(.[0-9]+)?"
               hhmm = "([0-9]{1,2}):([0-9]{2})"
 
               match (r,f) = case s =~ ("^"++r++"$") of
                     (_,[],_,_) -> Nothing
-                    (p,m,s,captures) -> let _types = (p, s) :: (String, String)
+                    (p,m,s',captures) -> let _types = (p, s') :: (String, String)
                                             in Just (f (m,captures))
 
 data Parser a = Parser
@@ -260,7 +274,7 @@ readFastTimesheet epath path = do
         (Nothing, contentLined) -> return contentLined
         (Just e, (header:body)) -> do
             employees <- readFile e
-            return $ header:lines employees++body
+            return $ header : lines employees ++ body
         _ -> error "Employe without body"
     case parseFastTimesheet content' of
       Left e -> error e
@@ -269,14 +283,14 @@ readFastTimesheet epath path = do
 
 
 parseFastTimesheet :: [String] -> Either String (Timesheet String PayrooEmployee)
-parseFastTimesheet lines = do -- Either
-    tokenss <- mapM (mapM token . tokeninize) lines -- :: [[Either Token]]
+parseFastTimesheet lines_ = do -- Either
+    tokenss <- mapM (mapM token . tokeninize) lines_ -- :: [[Either Token]]
     let go :: Current -> [[Token]] -> Either String (Timesheet String PayrooEmployee)
-        go current tss = (^.currentTimesheet) <$> foldM processLine current tss
+        go current_ tss = (^.currentTimesheet) <$> foldM processLine current_ tss
     case tokenss of
         ([DayT start]:tokenss') -> go (initCurrent Weekly start) tokenss'
-        ([FrequencyT frequency, DayT start]:tokenss') -> go (initCurrent frequency start) tokenss'
-        _ -> Left $ "File should start with the week start date"
+        ([FrequencyT frequency_, DayT start]:tokenss') -> go (initCurrent frequency_ start) tokenss'
+        _ -> Left "File should start with the week start date"
 
 -- | Process a full line of tokens.
 -- One line should correspond to only one operators.
@@ -294,21 +308,21 @@ processLine u toks = case toks of
             addNewEmployee' name name "" Nothing pid
         [NameT name, PayrollIdT pid, RateT rate] -> 
             addNewEmployee' name name "" (Just rate) pid
-        [ NameT alias , NameT firstname , NameT surname
+        [ NameT alias , NameT firstname , NameT surname_
             , PayrollIdT pid ] -> 
-            addNewEmployee' alias firstname surname Nothing pid
-        [ NameT alias , NameT firstname , NameT surname
+            addNewEmployee' alias firstname surname_ Nothing pid
+        [ NameT alias , NameT firstname , NameT surname_
             , PayrollIdT pid, RateT rate ] -> 
-            addNewEmployee' alias firstname surname (Just rate) pid
+            addNewEmployee' alias firstname surname_ (Just rate) pid
         -- set current hourly rate
         [RateT rate] -> Right $ u & currentHourlyRate ?~ rate
         -- set current date
-        [DayT day] -> Right $ u & currentDay ?~ day
+        [DayT day_] -> Right $ u & currentDay ?~ day_
         [] -> Right u
         _  -> do
               u' <- foldM processShift u toks
               -- only update some attributes of global states
-              -- only update the current day if the user has changed
+              -- only update the current day_ if the user has changed
               Right $ u & currentTimesheet.shifts
                              .~ u'^.currentTimesheet.shifts
                         & currentDay
@@ -319,11 +333,11 @@ processLine u toks = case toks of
                         & currentEmployee .~ u'^.currentEmployee
                         & currentTimesheet.deductionAndCosts .~ u' ^. currentTimesheet.deductionAndCosts
 
-        where addNewEmployee' alias firstname surname rate pid =
-                maybe (Left $ "Couldn't create new employee" ++ show (alias, firstname, surname))
+        where addNewEmployee' alias firstname surname_ rate pid =
+                maybe (Left $ "Couldn't create new employee" ++ show (alias, firstname, surname_))
                       Right
                       ( addNewEmployee (PayrooEmployee firstname
-                                               surname
+                                               surname_
                                                pid
                                                (Employee alias rate)
                                       )
@@ -339,7 +353,7 @@ processShift u t =  case t of
                               )
                               Right 
                               (setEmployeByNickname name u)
-        (DayT day )  -> Right $ u & currentDay ?~ day
+        (DayT day_ )  -> Right $ u & currentDay ?~ day_
         (RateT rate) -> Right $ u & currentHourlyRate ?~ rate
                           & currentEmployee.mapped %~ (\e -> e & defaultHourlyRate ?~ rate ) 
                            -- override employe hourly rate temporatily
@@ -368,20 +382,13 @@ processShift u t =  case t of
 -- | Split a line into usefull tokens.
 -- Basically split on spaces but also deals with '-' and '|'
 tokeninize :: String -> [String]
-tokeninize s = filter (not.null) $ go [] [] (stripL s) where
-    go words word (c:s)
+tokeninize s0 = filter (not.null) $ go [] [] (stripL s0) where
+    go words_ word (c:s)
         -- break on |
-        | c == '|' = go (words ++ [word]++[[c]]) "" (s)
-        -- don't break on - and remove trailing space and stick
-        -- it to the previous word
-        -- colides with negative amount, so we removed it.
-        -- | c == '-' =  let (words', word') = if null word
-        --                                     then (init words, last words)
-        --                                     else (words, word)
-        --               in go words' (word'++[c]) (stripL s)
-        | c == ' ' || c == '\t' = go (words ++ [word ]) []           (stripL s)
-        | otherwise = go words              (word++[c])  s
-    go words word [] = words ++ [word]
+        | c == '|' = go (words_ ++ [word]++[[c]]) "" (s)
+        | c == ' ' || c == '\t' = go (words_ ++ [word ]) []           (stripL s)
+        | otherwise = go words_              (word++[c])  s
+    go words_ word [] = words_ ++ [word]
     stripL [] = []
     stripL (c:cs) | c == ' ' || c == '\t' = stripL cs
                   | otherwise = (c:cs)

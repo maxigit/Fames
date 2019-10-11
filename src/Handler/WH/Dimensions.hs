@@ -9,11 +9,11 @@ module Handler.WH.Dimensions
 
 import Yesod.Form.Bootstrap3
 import Database.Persist.MySQL
-import WarehousePlanner.Base hiding(rotate)
+import WarehousePlanner.Base hiding(rotate,up)
 import qualified WarehousePlanner.Base as W
 import Import
 import qualified Yesod.Media.Simple as M
-import Diagrams.Prelude hiding(iso)
+import Diagrams.Prelude hiding(iso, offset,dims,outer,pre,view,text)
 import Diagrams.Backend.Cairo
 import Data.Text (strip, split)
 import Data.Maybe (fromJust)
@@ -33,6 +33,7 @@ data PDimension = PDimension
   , _unused_pOr :: Orientation 
   }
 
+
 -- * Forms
 singleForm = renderBootstrap3 BootstrapBasicForm form
   where
@@ -50,7 +51,7 @@ validateParam (l,w,h,il,iw,ih,style) =
       Nothing -> Left ( Dimension (fromIntegral l) (fromIntegral w) (fromIntegral h)
                       , Dimension <$> (fromIntegral <$> il) <*> (fromIntegral <$> iw) <*> (fromIntegral <$> ih)
                       )
-      Just style -> Right style
+      Just style_ -> Right style_
 
 
 bulkForm text = renderBootstrap3 BootstrapBasicForm form where
@@ -75,11 +76,11 @@ getWHDimensionInnerR l w h il iw ih = renderImage (mkDimension l w h) (Just $ mk
 renderImage :: Dimension -> Maybe Dimension -> Handler TypedContent
 renderImage outer inner = do
   imgW <- lookupGetParam "width"
-  -- let size = mkWidth (fromMaybe 800 $ imgW >>= readMay)
+  -- let size_ = mkWidth (fromMaybe 800 $ imgW >>= readMay)
   let w = fromMaybe 800 $ imgW >>= readMay 
-      size = dims2D w w
+      size_ = dims2D w w
       diag = displayBox outer inner
-  M.renderContent (M.SizedDiagram size diag)
+  M.renderContent (M.SizedDiagram size_ diag)
 
 {-# NOINLINE getWHDimensionR #-}
 getWHDimensionR :: Handler Html
@@ -244,7 +245,7 @@ displayBox outer innerm   = let
   disp = map displayFacetISO
   (fg_ , facets) = case innerm of
              -- no inner, or in fact no outer ...
-             Nothing -> ([], innerBoxToFacets up outer)
+             Nothing -> ([], innerBoxToFacets W.up outer)
              Just inner -> let
                background = outerBoxToFacets outer
                foreground = outerBoxToFacets' outer
@@ -267,7 +268,7 @@ innerBoxes outer inner =
       shrink (Dimension x y z) = Dimension (x-1) (y-1) (z-1)
       best = bestArrangement orientations [(shrink outer, ())] inner
       (ori, nl, nw, nh, _) = case best of
-         (__ori, nl, nw, __nh, _) | nl*nw*nw > 0 -> best
+         (__ori, nl_, nw_, nh_, _) | nl_*nw_*nh_ > 0 -> best
          _ -> best0
       (Dimension l w h) = W.rotate ori inner
   in reverse $ [ PDimension (Dimension l0 w0 h0) inner ori
@@ -342,8 +343,8 @@ innerPToFacets (PDimension  off dim ori) = let
   
 
  
-_unused_rotateFacet ori (Facet off bg dims) = Facet (W.rotate ori off) bg (map (W.rotate ori) dims)
-translateFacet off0 (Facet off1 bg dims) = Facet (off0 `mappend` off1) bg dims
+_unused_rotateFacet ori (Facet off bg_ dims) = Facet (W.rotate ori off) bg_ (map (W.rotate ori) dims)
+translateFacet off0 (Facet off1 bg_ dims) = Facet (off0 `mappend` off1) bg_ dims
 
 facetCenter (Facet offset _ points) = let
   Dimension gl gw gh = mconcat points 

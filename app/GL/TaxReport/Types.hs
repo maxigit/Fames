@@ -45,7 +45,10 @@ data TaxBox = TaxBox
    , tbRound :: Maybe RoundingMethod
    } deriving (Eq, Show, Read)
 
+tbDefaultDecimal :: Word8
 tbDefaultDecimal = 6
+
+tbRound0 :: TaxBox -> RoundingMethod
 tbRound0 = fromMaybe (RoundBanker tbDefaultDecimal) . tbRound
 
 -- | Rules to determine the content of a box

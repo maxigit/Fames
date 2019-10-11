@@ -291,7 +291,8 @@ displayPendingOrderCategory = runDB $ do
   
 
 -- * Masquerade
-masquerade = "masquerade-user" :: Text
+masquerade :: Text
+masquerade = "masquerade-user"
 {-# NOINLINE getAMasqueradeR #-}
 getAMasqueradeR :: Handler Html
 getAMasqueradeR = do

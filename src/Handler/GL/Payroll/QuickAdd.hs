@@ -1,7 +1,6 @@
 {-# LANGUAGE ImplicitParams #-}
 module Handler.GL.Payroll.QuickAdd
 where
--- * Import
 import Import
 import Handler.GL.Payroll.Common
 import GL.Payroll.Settings

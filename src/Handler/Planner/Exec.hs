@@ -1,3 +1,8 @@
+{-# OPTIONS_GHC -Wno-unused-top-binds #-} -- TODO remove
+{-# OPTIONS_GHC -Wno-missing-exported-signatures #-} -- TODO remove
+{-# OPTIONS_GHC -Wno-name-shadowing #-} -- TODO remove
+{-# OPTIONS_GHC -Wno-unused-do-bind #-} -- TODO remove
+{-# OPTIONS_GHC -Wno-orphans #-} -- TODO remove
 module Handler.Planner.Exec where
 
 import Import hiding(get, toLower)

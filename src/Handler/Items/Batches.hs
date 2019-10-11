@@ -13,7 +13,7 @@ module Handler.Items.Batches
 , postItemBatchExpandMatchesR
 ) where
 
-import Import
+import Import hiding(hash)
 import Handler.Items.Common
 import Handler.Table
 import Yesod.Form.Bootstrap3 (renderBootstrap3, BootstrapFormLayout(..))
@@ -192,7 +192,7 @@ postItemBatchUploadMatchesR = do
   let onSuccess rows = do
         -- check if the spreadhsheet has already been uploaded
         (documentKey'msgM) <- runDB $ loadAndCheckDocumentKey hash
-        forM documentKey'msgM $ \(_, msg) -> do
+        forM_ documentKey'msgM $ \(_, msg) -> do
            setWarning msg
         setSuccess "Spreadsheet parsed successfully"
         (uploadFileFormW, encType) <- generateFormPost $ saveMatchesForm (Just (encoding, ((hash, path), (day, operator, batchCategory))))
@@ -213,8 +213,8 @@ postItemBatchSaveMatchesR = do
   actionM <- lookupPostParam "action"
   case actionM of
     Just "save" -> do
-      ((encoding, ((hash, path), (day, operator, batchCategory)) ), _) <- unsafeRunFormPost (saveMatchesForm Nothing)
-      Just (bytes, hash, _) <- readUploadOrCacheUTF8 encoding Nothing (Just hash) (Just path)
+      ((encoding, ((hash0, path), (day, operator, batchCategory)) ), _) <- unsafeRunFormPost (saveMatchesForm Nothing)
+      Just (bytes, hash, _) <- readUploadOrCacheUTF8 encoding Nothing (Just hash0) (Just path)
       let onSuccess valids = runDB $ do
             let finals = map finalizeRow valids
             (documentKey'msgM) <- loadAndCheckDocumentKey hash
@@ -229,15 +229,6 @@ postItemBatchSaveMatchesR = do
     _ ->  return ()
   getItemBatchesR
      
-      
-
-
-
-      
-  
-
-
-  
   -- return "Todo"
     
 -- ** Match Table
@@ -289,14 +280,14 @@ loadMatchTable MatchTableParam{..} | Just skuFilter <- mtSkuFilter = do
                Nothing -> return $ displayTable `uncurry3` buildTableForSku (colour'AsQualitysToHtml' opMap mtAggregationMode mtDisplayMode) style''var'batchs columnBatches  matches
                Just mergeMode -> do
                  varMap <- appVariations <$> getsYesod appSettings
-                 let (col0,title,rows) = buildTableForSkuMerged mergeMode (colour'AsQualitysToHtml' opMap mtAggregationMode mtDisplayMode) style''var'batchs columnBatches  matches
+                 let (col0,title,rows_) = buildTableForSkuMerged mergeMode (colour'AsQualitysToHtml' opMap mtAggregationMode mtDisplayMode) style''var'batchs columnBatches  matches
                  -- Hack column to display variation name
                      col = map hack col0
                      hack (colName, getter) | colName == descriptionName = let
                                                 fn row@((_, var), __batches) = getter row  <|> (Right . toPersistValue <$> lookup var varMap) 
                                                 in (colName, fn)
                      hack c = c 
-                 return $ displayTable col title rows
+                 return $ displayTable col title rows_
   return tableW
    
 
@@ -444,10 +435,10 @@ roleRadioColumns =  map (uncurry go) [ ("Don't use" :: Text, "" :: Text)
   
 batchSummaryColumns:: [( Text, (Entity Batch, BatchSummary) -> Either Html PersistValue ) ]
 batchSummaryColumns =
-  [ ("Colours", render bsColourCount)
-  , ("Batches", render bsBatchCount)
+  [ ("Colours", render_ bsColourCount)
+  , ("Batches", render_ bsBatchCount)
   ]
-  where render getInt (_, BatchSummary{..})  =
+  where render_ getInt (_, BatchSummary{..})  =
           case (getInt bsGiven, getInt bsTotal) of
             (0, 0)  -> Left ""
             (given, total) -> Left
@@ -487,8 +478,8 @@ colour'AsQualitysToHtml' opMap AllMatches displayMode matches = let
                          LimitCloses -> (filterCloses (scoreToQuality . batchMatchScore), qualityToShortHtml)
   filtered = filterQ matches
   c'q'gs = [((batchMatchTargetColour, batchMatchScore) , isNothing batchMatchOperator) | BatchMatch{..} <-  filtered ]
-  keys = List.nub . sort $ concatMap batchMatchKeys filtered
-  divId = intercalate "-"  [tshow batchId  <> "--" <> col | (BatchKey (SqlBackendKey batchId), col) <- keys ]
+  keys_ = List.nub . sort $ concatMap batchMatchKeys filtered
+  divId = intercalate "-"  [tshow batchId  <> "--" <> col | (BatchKey (SqlBackendKey batchId), col) <- keys_ ]
   in [shamlet|
     <div.  style="witdh=100%">
        <span.data-toggler.collapsed data-toggle="collapse" data-target="##{divId}">

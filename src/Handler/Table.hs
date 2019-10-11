@@ -61,6 +61,7 @@ entityColumnToColDisplay :: e -> (Text, e -> Either Html PersistValue) -> Maybe 
 entityColumnToColDisplay entity (name, getter) =
   Just ( either id (toHtml . renderPersistValueEraseNull) $ getter entity, [name] )
 
+renderPersistValueEraseNull :: PersistValue -> Text
 renderPersistValueEraseNull PersistNull = ""
 renderPersistValueEraseNull pv = renderPersistValue pv
 

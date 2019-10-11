@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# Language CPP #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Foundation
 ( module Foundation
 , module RoutePiece
@@ -14,7 +15,7 @@ module Foundation
 ) where
 
 
-import Import.NoFoundation hiding(toList)
+import Import.NoFoundation hiding(toList, force)
 
 import Database.Persist.Sql (ConnectionPool, runSqlPool, runSqlConn)
 import Database.Persist.MySQL (myConnInfo, withMySQLConn)
@@ -112,6 +113,7 @@ instance EnumTreeable (Route App)
 -- Using Generic instead of TH means we have to derive each subsites routes manually.
 -- However, it's not really a problem, as forgetting it generate a compile error, which is
 -- much better than having to manage the list manually and forget to add new routes.
+routeTree :: EnumTree (Route App)
 routeTree = enumTree  :: EnumTree (Route App)
 data A = A Int | B Int deriving (Show, Generic)
 instance SameCons (A)
@@ -119,6 +121,7 @@ instance SameCons (A)
 -- | A convenient synonym for creating forms.
 type Form x = Html -> MForm (HandlerFor App) (FormResult x, Widget)
 
+devel :: Bool
 devel = 
 #if DEVELOPMENT
                     True
@@ -146,6 +149,7 @@ currentRole = do
        -- traceShowM ("Mask", masqueradeM, masqueradeM <|> (userIdent . entityVal <$> mu))
        return $ roleFor (appRoleFor settings) userM
 
+masqueradeUser :: Handler (Maybe Text)
 masqueradeUser = lookupSession "masquerade-user"
 -- Please see the documentation for the Yesod typeclass. There are a number
 -- of settings which can be configured by overriding methods here.
@@ -215,7 +219,7 @@ instance Yesod App where
       
 
     isAuthorized route r = do
-       let wreq = if r then WriteRequest else ReadRequest
+       let wreq_ = if r then WriteRequest else ReadRequest
        mu <- maybeAuth
        role <- currentRole
        -- anonymous users are given the role <anonymous>, which might
@@ -227,15 +231,15 @@ instance Yesod App where
                         Just _  -> Unauthorized "Permissions required"
            routeUrl = mconcat [ "/" <> p | p <- fst (renderRoute route)]
        
-       if authorizeFromPath role routeUrl wreq
-          || authorizeFromAttributes role (routeAttrs route) wreq
+       if authorizeFromPath role routeUrl wreq_
+          || authorizeFromAttributes role (routeAttrs route) wreq_
           then return Authorized
           else do
             masqueradeM <- masqueradeUser
             -- in Masquerade mode, log the reason why it is not authorized
             case (mu, masqueradeM ) of
               (Just _, Just _) -> do
-                let privileges = authorizeFromAttributes' role (routeAttrs route) wreq
+                let privileges = authorizeFromAttributes' role (routeAttrs route) wreq_
                 $(logWarn) (tshow (routeUrl,  privileges))
               _ -> return ()
             return denied
@@ -289,6 +293,10 @@ instance YesodPersistRunner App where
 -- | Run Persistent action on DC database.
 -- As we are not expecting it be used much
 -- we don't create a pool but create connection when needed
+runDCDB :: (MonadUnliftIO m1, MonadPlus m2, MonadHandler m1,
+             IsPersistBackend backend, HandlerSite m1 ~ App,
+             BaseBackend backend ~ SqlBackend) =>
+           ReaderT backend m1 (m2 a) -> m1 (m2 a)
 runDCDB action = do
   master <- appSettings <$> getYesod 
   let dcConfM = appDatabaseDCConf master
@@ -451,8 +459,11 @@ sideLinks (Just route) = let
      | (group_@((_,name):_)) <- groups
      , isJust name
      ]
+
 sideLinks _ = []
 
+sideLinksWithAuth :: Maybe (Route App)
+                  -> Handler [(Text, [((Text, Route App), Bool)])]
 sideLinksWithAuth currentRoute = do
   let sideLinks0 = sideLinks currentRoute
   mapM (mapM (mapM (\l@(_,r) -> do

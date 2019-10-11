@@ -57,6 +57,8 @@ instance Display ShiftType where
 instance Display k =>  Display (Shift k) where
     display s = displayShift show show s
 
+displayShift :: (HasShift s k, Display k) =>
+                (Amount -> [Char]) -> (Duration -> [Char]) -> s -> [Char]
 displayShift amountF durationF s = display (s ^. shiftKey)
                     ++  "\t" ++ (durationF $ s ^. duration)
                     ++ "\t@" ++ (amountF $ s ^. hourlyRate)
@@ -68,11 +70,13 @@ displayShift amountF durationF s = display (s ^. shiftKey)
 instance Display k => Display (DeductionAndCost k) where
   display = displayDAC show show 
 
+displayDAC :: (HasDeductionAndCost s a, Display a) =>
+              (Amount -> [Char]) -> (Amount -> [Char]) -> s -> [Char]
 displayDAC amountF durationF dac = "@" ++ display (dac ^. dacKey) ++ " "
-                 ++ maybe "" durationF duration
+                 ++ maybe "" durationF _duration
                  ++ "^"
-                 ++ maybe "" amountF cost where
-                        (duration, cost) = these (\a -> (Just a, Nothing))
+                 ++ maybe "" amountF _cost where
+                        (_duration, _cost) = these (\a -> (Just a, Nothing))
                                                  (\b -> (Nothing, Just b))
                                                  (\a b -> (Just a , Just b))
                                                  (dac ^. dacDac)
@@ -105,8 +109,8 @@ newtype Sku = Sku { sku :: String } deriving (Eq, Ord, Read, Show)
 newtype Textcart = Textcart (Day, ShiftType, [Shift Sku])
 textcarts :: ShiftType -> Timesheet p Sku -> [Textcart]
 textcarts st ts = let 
-    filtered = filter ((== st) . view shiftType) (ts ^. shifts)
-    byDays = groupBy (^.day) filtered
+    _filtered = filter ((== st) . view shiftType) (ts ^. shifts)
+    byDays = groupBy (^.day) _filtered
     in [Textcart (d, st, groupShiftsBy (view _1) ss) | (d,ss) <- Map.toList byDays]
 
 instance Display Textcart where
@@ -156,6 +160,7 @@ payroo ts =
 period :: Day -> Day
 period = addDays 6
 
+formatDay :: Day -> String
 formatDay = formatTime defaultTimeLocale "%d/%m/%y"
 
 formatShift :: ( ?viewPayrollAmountPermissions :: (Text -> Granted)
@@ -173,6 +178,9 @@ formatShift s = "Employer" -- Employer / Client / Branch Reference
                 ++ "," ++ either (const "") show (unlock ?viewPayrollAmountPermissions (s^.hourlyRate))-- Rate
                 ++ "," -- Payslip Message"
 
+writePayroo :: (?viewPayrollAmountPermissions::Text -> Granted,
+                 ?viewPayrollDurationPermissions::Text -> Granted) =>
+               FilePath -> Timesheet p PayrooEmployee -> IO ()
 writePayroo dir ts = do
     let path = formatTime defaultTimeLocale "%F" (ts ^. periodStart)
            ++ "-"
@@ -183,35 +191,35 @@ writePayroo dir ts = do
 
 -- * Payment summary
 paymentSummary :: (Ord e, Ord p) => Timesheet p e -> [EmployeeSummary p e]
-paymentSummary timesheet = let
+paymentSummary timesheet_ = let
   -- group shifts and dacs per operators
-  employeeTotal' = groupBy (^.shiftKey._1) (timesheet ^. shifts)
+  employeeTotal' = groupBy (^.shiftKey._1) (timesheet_ ^. shifts)
   -- group shifts w
   employeeTotal'' = fmap (groupBy _shiftKey . groupShiftsBy (^._3)) employeeTotal'
   employeeTotal = fmap (fmap (map $ fmap (const ()))) employeeTotal'' -- replace ShifKey with ()
-  employeeDACS' = groupBy (^.dacKey._2)  (timesheet ^. deductionAndCosts)
+  employeeDACS' = groupBy (^.dacKey._2)  (timesheet_ ^. deductionAndCosts)
   employeeDACS = fmap (fmap (fmap fst)) employeeDACS'
   employeeMap = align employeeTotal employeeDACS
   in map mkSummary (Map.toList employeeMap)
   
 mkSummary :: Ord p => (e, These (Map ShiftType [Shift ()]) [DeductionAndCost p]) -> EmployeeSummary p e
 mkSummary (emp, These shiftMap dacs) = let
-  gross = sum $ concatMap (map _cost) (Map.elems shiftMap)
-  net = gross - deduction
-  final = net  - netDeduction
-  totalCost = gross + cost_
-  netDeductions = Map.empty
+  gross_ = sum $ concatMap (map _cost) (Map.elems shiftMap)
+  net_ = gross_ - deduction_
+  final = net_  - netDeduction
+  totalCost_ = gross_ + cost_
+  netDeductions_ = Map.empty
   mkMap getter  = Map.fromList [(payee, amount)
                                | dac <- dacs
                                , Just amount <- return (dac ^? getter)
                                , let payee = dac ^. dacKey
                                ]
-  deductions = mkMap dacDeduction
-  costs = mkMap dacCost
-  deduction = sum (Map.elems deductions)
-  cost_ = sum (Map.elems costs)
-  netDeduction = sum (Map.elems netDeductions)
+  deductions_ = mkMap dacDeduction
+  costs_ = mkMap dacCost
+  deduction_ = sum (Map.elems deductions_)
+  cost_ = sum (Map.elems costs_)
+  netDeduction = sum (Map.elems netDeductions_)
   hours = fmap (sum . (map _duration)) shiftMap
-  in EmployeeSummary emp final totalCost net gross deductions netDeductions costs hours
+  in EmployeeSummary emp final totalCost_ net_ gross_ deductions_ netDeductions_ costs_ hours
 mkSummary (emp, This s) = mkSummary (emp , These s [])
 mkSummary (emp, That dacs) = mkSummary (emp , These Map.empty dacs)

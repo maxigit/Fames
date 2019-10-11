@@ -158,8 +158,8 @@ findBoxByNameSelector selector = do
   filterByNameSelector (mapM findBox boxIds) (boxStyle)  selector
 
 findShelfByBox :: Box' box => box s -> WH (Maybe (ShelfId s)) s
-findShelfByBox box = do
-  box <- findBox box
+findShelfByBox box' = do
+  box <- findBox box'
   return $ boxShelf box
 
 findShelvesByBoxes :: Box' box => [box s] -> WH ([ShelfId s]) s
@@ -205,6 +205,7 @@ parseBoxNumberSelector s = let
 
 -- | TODO Should be true be seems to work like that
 -- this will mean, that we need a normal or 
+orTrue :: [Bool] -> Bool
 orTrue [] = False
 orTrue bs = or bs
 -- | Find box for a given style but only belonging
@@ -286,8 +287,8 @@ limitByNumber (BoxNumberSelector contentN shelfN totalN) boxes0 = let
 -- limitBy :: Ord k => (Box s -> k) -> Int -> [Box s] -> [a]
 limitBy key n boxes = let
   sorted = sortBy (comparing  $ ((,) <$> boxGlobalPriority <*> boxRank) . fst ) boxes
-  group = Map'.fromListWith (flip(<>)) [(key box, [box]) | box <- sorted]
-  limited = fmap (take n . sortBy (comparing $ boxRank . fst) ) group
+  group_ = Map'.fromListWith (flip(<>)) [(key box, [box]) | box <- sorted]
+  limited = fmap (take n . sortBy (comparing $ boxRank . fst) ) group_
   in concat (Map'.elems limited)
   
 
@@ -295,12 +296,12 @@ limitBy key n boxes = let
 defaultBoxOrientations box shelf =
     let orientations = case (shelfBoxOrientator shelf)  of
             (DefaultOrientation) ->  [up, rotatedUp]
-            (ForceOrientations orientations) -> orientations
+            (ForceOrientations orientations_) -> orientations_
             (BoxOrientations) -> case boxBoxOrientations box of
                                     [] ->  [up, rotatedUp]
                                     ors -> ors
-            FilterOrientations orientations -> boxBoxOrientations box List.\\ orientations
-            AddOrientations lefts rights -> lefts `List.union` boxBoxOrientations box `List.union` rights
+            FilterOrientations orientations_ -> boxBoxOrientations box List.\\ orientations_
+            AddOrientations lefts_ rights_ -> lefts_ `List.union` boxBoxOrientations box `List.union` rights_
     in map (\o -> (o,0,1)) orientations
 
 defaultBoxStyling = BoxStyling{..} where
@@ -312,6 +313,7 @@ defaultBoxStyling = BoxStyling{..} where
   barTitle = Nothing
   displayBarGauge = True
 
+emptyWarehouse :: Day -> Warehouse s
 emptyWarehouse today = Warehouse mempty mempty mempty (const defaultBoxStyling) (const (Nothing, Nothing)) defaultBoxOrientations Nothing today
 
 newShelf :: Text -> Maybe Text -> Dimension -> Dimension -> BoxOrientator -> FillingStrategy -> WH (Shelf s) s
@@ -329,7 +331,7 @@ newShelf name tagm minD maxD boxOrientator fillStrat = do
         return shelf
 
 newBox :: Shelf' shelf => Text -> Text ->  Dimension -> Orientation -> shelf s  -> [Orientation]-> [Text] -> WH (Box s) s
-newBox style content dim or shelf ors tagTexts = do
+newBox style content dim or_ shelf ors tagTexts = do
     warehouse <- get
     let tags' = map (parseTagOperation . omap replaceSlash) tagTexts
         dtags = dimensionTagOps dim
@@ -338,7 +340,7 @@ newBox style content dim or shelf ors tagTexts = do
                                   --   ^ apply dimension tags after tags so dimension override tags
 
     ref <- lift $ newSTRef (error "should never been called. undefined. Base.hs:338")
-    let box = Box (BoxId ref) (Just $ shelfId shelf) style content dim mempty or ors tags defaultPriorities (extractBoxBreak tags)
+    let box = Box (BoxId ref) (Just $ shelfId shelf) style content dim mempty or_ ors tags defaultPriorities (extractBoxBreak tags)
     shelf' <- findShelf shelf
     linkBox (BoxId ref) shelf'
     lift $ writeSTRef ref box
@@ -413,17 +415,17 @@ updateDimFromTags box = case extractDimensions (_boxDim box) (boxTags box) of
 -- left or not.
 -- For a "real" move see moveBox
 assignShelf :: (Box' box,  Shelf' shelf) => Maybe (shelf s) -> box s -> WH () s
-assignShelf s box = do
-    box <- findBox box
+assignShelf s box0 = do
+    box <- findBox box0
     oldShelfM <- traverse findShelf (boxShelf box)
     newShelfM <- traverse findShelf s
 
     -- if box belong to a shelf
     -- we need to update the shelf to remove the link to the box
     when (oldShelfM /= newShelfM) $ do
-      traverse (unlinkBox (boxId box)) oldShelfM
-      traverse (linkBox (boxId box)) newShelfM
-      updateBox (\box -> box { boxShelf = shelfId `fmap` s }) box
+      mapM_ (unlinkBox (boxId box)) oldShelfM
+      mapM_ (linkBox (boxId box)) newShelfM
+      _ <- updateBox (\box_ -> box_ { boxShelf = shelfId `fmap` s }) box
       return ()
 
 -- | Unlink a box from a shelf without
@@ -434,7 +436,7 @@ unlinkBox box shelf = do
       boxes' = delete box boxes
 
       shelf' = shelf { _shelfBoxes = boxes' }
-  updateShelf (const shelf') shelf'
+  _ <- updateShelf (const shelf') shelf'
   return ()
 
 -- | link a box from a shelf without
@@ -445,15 +447,15 @@ linkBox box shelf = do
       boxes' = box:boxes
 
       shelf' = shelf { _shelfBoxes = boxes' }
-  updateShelf (const shelf') shelf'
+  _ <- updateShelf (const shelf') shelf'
   return ()
 
 deleteBoxes :: [BoxId s] -> WH [Box s] s
 deleteBoxes boxIds = do
-  deleted <- forM boxIds $ \boxId -> do
-                box <- findBox boxId
+  deleted <- forM boxIds $ \boxId_ -> do
+                box <- findBox boxId_
                 oldShelfM <- traverse findShelf (boxShelf box)
-                traverse (unlinkBox boxId) oldShelfM
+                mapM_ (unlinkBox boxId_) oldShelfM
                 return box
   wh <- get
   put wh { boxes = Seq.fromList $ (toList $ boxes wh ) List.\\ boxIds }
@@ -587,12 +589,12 @@ fillShelf exitMode  s simBoxes0 = do
             (_, ExitLeft) -> return (leftm, Nothing)  -- ^ pretends the shelf is full
             -- _ ->  fillShelfm exitMode  shelf leftm -- ^ try to fit what's left in the same shelf
 
-    where shiftBox ori box offset = do
-            updateBox (\box -> box { orientation = ori
-                               , boxOffset = offset}) box
-            assignShelf (Just s) box
+    where shiftBox ori box' offset = do
+            _ <- updateBox (\box_ -> box_ { orientation = ori
+                               , boxOffset = offset}) box'
+            assignShelf (Just s) box'
           -- fillShelfm x s Nothing = return (Nothing, Just s)
-          -- fillShelfm x s (Just lefts) = fillShelf x s lefts
+          -- fillShelfm x s (Just lefts_) = fillShelf x s lefts_
 
 
 -- |  Assign offset to boxes so they can be moved
@@ -633,13 +635,13 @@ moveBoxes exitMode bs ss = do
       -- However we take into the account priority within the style before the dimension
       -- so that we can set the priority
         
-  lefts <- forM layers $ \layer -> do
+  lefts_ <- forM layers $ \layer -> do
     let groups = groupSimilar _boxDim layer
     -- forM groups $ \(SimilarBy dim _ boxes) -> traceShowM ("  GROUP", dim, 1 + length boxes)
     -- traceShowM ("GRoups", length groups, map (\(SimilarBy dim g1 g ) -> (show $ length g + 1, show . _roundDim $ dim )) groups)
-    lefts <- mapM (\g -> moveSimilarBoxes exitMode g ss) groups
-    return $ concatMap unSimilar $ catMaybes lefts
-  return $ concat lefts
+    lefts' <- mapM (\g -> moveSimilarBoxes exitMode g ss) groups
+    return $ concatMap unSimilar $ catMaybes lefts'
+  return $ concat lefts_
 
 _roundDim :: Dimension -> [Int]
 _roundDim (Dimension l w h) = map (round . (*100)) [l,w,h]
@@ -689,29 +691,32 @@ rearrangeShelves ss = do
     mapM_ (\box -> assignShelf  nothing box ) boxes
     left <- moveBoxes ExitLeft boxes ss
     s0 <- defaultShelf
-    mapM (assignShelf (Just s0)) left
+    mapM_ (assignShelf (Just s0)) left
 
     return left
 
 -- | Remove boxes for shelvese and rearrange
 -- shelves before doing any move
 -- aroundArrangement  :: WH a -> WH a
+aroundArrangement :: (Shelf' shelf, Box' box, Box' box2)
+                  => ([box s] -> [shelf s] -> WH [box2 s] s)
+                  -> [box s] -> [shelf s] -> WH [box2 s] s
 aroundArrangement arrangement boxes shelves = do
     let shelfIds = map shelfId shelves
     oldShelveIds <- findShelvesByBoxes boxes
     -- remove all boxes from their actuall shelf
     let nothing = headEx $ Nothing : map Just shelves -- trick to typecheck
-    mapM (assignShelf nothing) boxes
+    _ <- mapM (assignShelf nothing) boxes
     -- rearrange what's left in each individual space
     -- so that there is as much space left as possible
     let os = List.nub $ oldShelveIds ++ shelfIds
 
 
-    mapM rearrangeShelves (map (:[]) os)
+    _ <- mapM rearrangeShelves (map (:[]) os)
 
     left <- arrangement boxes shelves
     s0 <- defaultShelf
-    mapM (assignShelf (Just s0)) left
+    mapM_ (assignShelf (Just s0)) left
     return left
 
 
@@ -723,8 +728,8 @@ aroundArrangement arrangement boxes shelves = do
 
 
 updateBox :: (Box' box) =>  (Box s ->  Box s) -> box s-> WH (Box s) s
-updateBox f box = do
-    box <- findBox box
+updateBox f box0 = do
+    box <- findBox box0
     let box' = f box
     lift $ writeSTRef (getRef box') box'
     return box'
@@ -774,7 +779,7 @@ modifyTags tag'ops tags = Just $ merge  opsOnly tagsOnly tagsAndOp tag'opsMap ta
     tagsAndOp = zipWithMaybeMatched $ \_ -> applyTagOperations
     -- tagoperation should be applied in order so we should be able to put them in a map
     -- however every key works independently of the othere, so at least
-    -- as we group each operation by key and respect the order, this should be
+    -- as we group_ each operation by key and respect the order, this should be
     tag'opsMap :: Map.Map Text [TagOperation]
     tag'opsMap = Map.fromListWith (<>)  (map (fmap (:[])) tag'ops)
 
@@ -861,7 +866,7 @@ expandAttribute' (stripPrefix "${coordinate}" -> Just xs) =  Just $ \box -> let 
 expandAttribute' (stripPrefix "${offset}" -> Just xs) =  Just $ \box -> fmap ((printDim $ boxOffset box) <>) (expandAttribute box xs)
 expandAttribute' (stripPrefix "${dimension}" -> Just xs) =  Just $ \box -> fmap ((printDim $ _boxDim box) <>) (expandAttribute box xs)
 expandAttribute' (stripPrefix "${orientation}" -> Just xs) = Just $ \box -> fmap (showOrientation (orientation box) <>) (expandAttribute box xs)
-expandAttribute' (stripPrefix "$[" -> Just xs') | (pat', uncons -> Just (_,xs'))<- break (== ']') xs' = Just $ \box -> do
+expandAttribute' (stripPrefix "$[" -> Just xs'') | (pat', uncons -> Just (_,xs'))<- break (== ']') xs'' = Just $ \box -> do
                                ex <- expandAttribute box xs'
                                pat <- expandAttribute box pat'
                                return $ maybe ex (<> ex) (boxTagValuem box pat)
@@ -891,12 +896,12 @@ expandAttribute' (stripStatFunction "$ago" -> Just (arg, prop, xs) ) = Just  $ \
         Just ('%', n) -> -- normalize a year to n
                (daysAgo -1) * fromIntegral n `mod` range + 1
         Just ('^', 0) -> case daysAgo of -- log day, week etc
-          d | d <= 7 -> 1 -- last week
-          d | d <= 31 -> 2 -- last month
-          d | d <= 91 -> 3 -- last quarter
-          d | d <= 183 -> 4 -- last 6 months
-          d | d <= 365 -> 5 -- last year
-          d | d <= 3*365 -> 6 -- last 3 years
+          d' | d' <= 7 -> 1 -- last week
+          d' | d' <= 31 -> 2 -- last month
+          d' | d' <= 91 -> 3 -- last quarter
+          d' | d' <= 183 -> 4 -- last 6 months
+          d' | d' <= 365 -> 5 -- last year
+          d' | d' <= 3*365 -> 6 -- last 3 years
           _ -> 7
         Just ('^', n) -> let -- log 
                  daysAgo' = fromIntegral daysAgo
@@ -1250,7 +1255,7 @@ getOrCreateBoxTagMap prop = do
     Just boxMap -> {-traceShow ("Reuse cache for prop: " <> prop) $ -} return boxMap
     Nothing -> do
       boxMap <- __getBoxTagMap prop
-      lift $ modifySTRef cacheRef (\cache -> cache {boxTagMapMap = Map.insert prop boxMap (boxTagMapMap cache)})
+      lift $ modifySTRef cacheRef (\cache' -> cache' {boxTagMapMap = Map.insert prop boxMap (boxTagMapMap cache')})
       return boxMap
 
 __getBoxTagMap :: Text -> WH (Map Text [Box s]) s

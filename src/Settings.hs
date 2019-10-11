@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# Language CPP #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_HADDOCK hide #-}
 -- | Settings are centralized, as much as possible, into this file. This
 -- includes database connection settings, static file locations, etc.
 -- In addition, you can configure a number of different aspects of Yesod
@@ -118,7 +119,7 @@ data AppSettings = AppSettings
 data BankAutoReconciliateRule = BankAutoTransfer !Int
   | BankAutoSupplier !Int
   | BankAutoCustomer !Int
-  -- | BankAutoCustomer !Int
+  -- BankAutoCustomer !Int
   deriving (Show, Read, Eq, Ord)
 data BankStatementMode = BankUseStatement
   { bsPath :: FilePath -- Where to find the statement files

@@ -1,5 +1,6 @@
 {-# LANGUAGE PatternSynonyms, LiberalTypeSynonyms, DeriveFunctor, DataKinds, PolyKinds #-}
 {-# LANGUAGE StandaloneDeriving #-} 
+{-# OPTIONS_GHC -Wno-orphans #-}
 -- | Miscellaneous functions and types to parse and render CSV.
 module Handler.CsvUtils
 ( module Handler.CsvUtils
@@ -172,6 +173,8 @@ parseMulti columnMap m colname =  do
             -- return $ trace (show (colname, t, res )) res
             return res
 
+(.:) :: Csv.FromField a
+     => Csv.NamedRecord -> ByteString -> Csv.Parser (Either InvalidField a)
 m .: field = do
   e <- m Csv..: field -- parse text
   toError e <$> (m Csv..: field) -- parse Either Csv.Field
@@ -338,6 +341,7 @@ instance Renderable InvalidField where
     toWidget (invFieldToHtml invField)
     invFieldEmptyWidget
 
+invFieldToHtml :: InvalidField -> Html
 invFieldToHtml invField = 
     let (class_, value) = case invField of
           ParsingError _ v -> ("parsing-error" :: Text, v)
@@ -351,6 +355,7 @@ invFieldToHtml invField =
 
 
 -- | Basic css and js for InvalidField
+invFieldEmptyWidget :: Widget
 invFieldEmptyWidget =  do
     toWidget [cassius|
 .parsing-error, .missing-value, .invalid-value

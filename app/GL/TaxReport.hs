@@ -1,6 +1,7 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 module GL.TaxReport where
 import ClassyPrelude 
-import qualified FA as FA
+import qualified FA
 import GL.FA
 import GL.Utils
 -- import qualified GL.FA as FA
@@ -17,6 +18,7 @@ data TaxSummary = TaxSummary
    , taxAmount :: Amount
    } deriving (Eq, Read, Show, Ord)
 
+grossAmount :: TaxSummary -> Amount
 grossAmount TaxSummary{..} = netAmount + taxAmount
 
 reverseTaxSummary :: TaxSummary -> TaxSummary
@@ -56,31 +58,33 @@ instance HasTaxSummary e => HasTaxSummary (Entity e) where
 
 -- * Rules
 infix 4 *==, *==?
+(*==) :: Eq a => [a] -> a -> Bool
 [] *== _ = True
 as *== b = b `elem` as
+(*==?) :: Eq a => [a] -> Maybe a -> Bool
 _ *==? Nothing = False
 as *==? (Just b) = as *== b
 
 
 applyTaxRule :: Rule -> RuleInput -> Bucket
-applyTaxRule rule input = fromMaybe defaultBucket (applyTaxRuleM rule input)
+applyTaxRule rule_ input = fromMaybe defaultBucket (applyTaxRuleM rule_ input)
 applyTaxRuleM :: Rule -> RuleInput -> Maybe Bucket
 applyTaxRuleM (BucketRule bucket) _ = Just bucket
-applyTaxRuleM (RuleList rules ) input = asum $ [ applyTaxRuleM rule input | rule <- rules ]
-applyTaxRuleM (TransactionRule ttype rule ) input = 
-  guard (ttype *== riTransType input) >> (applyTaxRuleM rule input)
-applyTaxRuleM (CustomerRule cust rule ) input = 
-  guard (isCustomer (riTransType input) && cust *==? riEntity input) >> (applyTaxRuleM rule input)
-applyTaxRuleM (SupplierRule cust rule ) input = 
-  guard (isSupplier (riTransType input) && cust *==? riEntity input) >> (applyTaxRuleM rule input)
-applyTaxRuleM (TaxTypeRule taxtype rule ) input = 
-  guard (taxtype *== riTaxType input ) >> (applyTaxRuleM rule input)
-applyTaxRuleM (TaxRateRule taxrate rule ) input = 
-  guard (taxrate *== riTaxRate input ) >> (applyTaxRuleM rule input)
-applyTaxRuleM (InputRule rule ) input = 
-  guard (riAmount input < 0) >> (applyTaxRuleM rule input)
-applyTaxRuleM (OutputRule rule ) input = 
-  guard (riAmount input > 0) >> (applyTaxRuleM rule input)
+applyTaxRuleM (RuleList rules ) input = asum $ [ applyTaxRuleM rule_ input | rule_ <- rules ]
+applyTaxRuleM (TransactionRule ttype rule_ ) input = 
+  guard (ttype *== riTransType input) >> (applyTaxRuleM rule_ input)
+applyTaxRuleM (CustomerRule cust rule_ ) input = 
+  guard (isCustomer (riTransType input) && cust *==? riEntity input) >> (applyTaxRuleM rule_ input)
+applyTaxRuleM (SupplierRule cust rule_ ) input = 
+  guard (isSupplier (riTransType input) && cust *==? riEntity input) >> (applyTaxRuleM rule_ input)
+applyTaxRuleM (TaxTypeRule taxtype rule_ ) input = 
+  guard (taxtype *== riTaxType input ) >> (applyTaxRuleM rule_ input)
+applyTaxRuleM (TaxRateRule taxrate rule_ ) input = 
+  guard (taxrate *== riTaxRate input ) >> (applyTaxRuleM rule_ input)
+applyTaxRuleM (InputRule rule_ ) input = 
+  guard (riAmount input < 0) >> (applyTaxRuleM rule_ input)
+applyTaxRuleM (OutputRule rule_ ) input = 
+  guard (riAmount input > 0) >> (applyTaxRuleM rule_ input)
 applyTaxRuleM (CustomerCategory category suffix) input = do
   guard (isCustomer (riTransType input))
   case riCustCategoryFinder input category of
@@ -89,6 +93,7 @@ applyTaxRuleM (CustomerCategory category suffix) input = do
     Nothing -> Nothing
     -- _ -> error . unpack $ "Customer Category '" <> category <> "' for customer " <> tshow (riEntity input) <> ". Please refresh customer categories"
 
+isCustomer, isSupplier :: FATransType -> Bool
 isCustomer = (`elem` customerFATransactions)
 isSupplier = (`elem` supplierFATransactions)
 
@@ -102,14 +107,14 @@ computeBoxAmount rule rounding buckets = applyRounding rounding <$> go rule
       TaxBoxTax bucket -> findBucket bucket taxAmount
       TaxBoxGross bucket -> findBucket bucket (grossAmount)
       TaxBoxSub rule1 rule2 -> liftA2 (-) (amountFor rule1) (amountFor rule2)
-      TaxBoxNegate rule -> negate <$>  amountFor rule
+      TaxBoxNegate rule_ -> negate <$>  amountFor rule_
       TaxBoxTaxWith rate bucket -> (\a -> a *. (rate / 100)) <$> findBucket bucket netAmount
-      TaxBoxFloor dec rule -> applyRounding (RoundDown dec) <$>  amountFor rule
-      TaxBoxCeil dec rule -> applyRounding (RoundUp dec)<$> amountFor rule
-      TaxBoxRound dec rule -> applyRounding (Round dec)<$> amountFor rule
-      TaxBoxBanker dec rule -> applyRounding (RoundBanker dec) <$> amountFor rule
+      TaxBoxFloor dec rule_ -> applyRounding (RoundDown dec) <$>  amountFor rule_
+      TaxBoxCeil dec rule_ -> applyRounding (RoundUp dec)<$> amountFor rule_
+      TaxBoxRound dec rule_ -> applyRounding (Round dec)<$> amountFor rule_
+      TaxBoxBanker dec rule_ -> applyRounding (RoundBanker dec) <$> amountFor rule_
     amountFor :: TaxBoxRule -> Either Text Decimal
-    amountFor rule = realFracToDecimal tbDefaultDecimal  <$> go rule
+    amountFor rule_ = realFracToDecimal tbDefaultDecimal  <$> go rule_
     findBucket bucket fn = case lookup bucket buckets of
           Nothing -> Left $ "Bucket: " <> bucket <> " doesn't exit."
           Just summary -> Right . realFracToDecimal tbDefaultDecimal $ fn summary
@@ -129,17 +134,17 @@ computeBucketRates rule0 rateMap = let
   -- transform what's next as if it was an else clause
   -- ie a rules with the other tax
   go (RuleList []) = []
-  go (RuleList (rule:rules)) = go rule <> case rule of
+  go (RuleList (rule_:rules)) = go rule_ <> case rule_ of
     TaxTypeRule taxIds sub |  ruleCatchesAll sub   -> let otherIds = filter (`notElem` taxIds) rateIds
                               in go (TaxTypeRule otherIds (RuleList rules))
     _ -> go (RuleList rules) 
-  go (TransactionRule _ rule) = go rule
-  go (CustomerRule _ rule)  = go rule
-  go (SupplierRule _ rule) = go rule
-  go (TaxTypeRule  taxIds rule) = filter ((taxIds *==) . fromIntegral . FA.unTaxTypeKey . entityKey . snd) $ go rule
-  go (TaxRateRule rates   rule) = filter ((rates *==) . FA.taxTypeRate . entityVal . snd) $ go rule
-  go (InputRule rule) = go rule
-  go (OutputRule rule) = go rule
+  go (TransactionRule _ rule_) = go rule_
+  go (CustomerRule _ rule_)  = go rule_
+  go (SupplierRule _ rule_) = go rule_
+  go (TaxTypeRule  taxIds rule_) = filter ((taxIds *==) . fromIntegral . FA.unTaxTypeKey . entityKey . snd) $ go rule_
+  go (TaxRateRule rates_   rule_) = filter ((rates_ *==) . FA.taxTypeRate . entityVal . snd) $ go rule_
+  go (InputRule rule_) = go rule_
+  go (OutputRule rule_) = go rule_
   go (CustomerCategory _ _) = []
   in setFromList (go rule0)
 
@@ -148,11 +153,11 @@ computeBucketRates rule0 rateMap = let
 ruleCatchesAll :: Rule -> Bool
 ruleCatchesAll (BucketRule _) = True
 ruleCatchesAll (RuleList rules) = any ruleCatchesAll rules
--- ruleCatchesAll (TransactionRule [] rule) = ruleCatchesAll rule
--- ruleCatchesAll (SupplierRule [] rule) = ruleCatchesAll rule
--- ruleCatchesAll (CustomerRule [] rule) = ruleCatchesAll rule
--- ruleCatchesAll (TaxTypeRule [] rule) = ruleCatchesAll rule
--- ruleCatchesAll (TaxRateRule [] rule) = ruleCatchesAll rule
+-- ruleCatchesAll (TransactionRule [] rule_) = ruleCatchesAll rule_
+-- ruleCatchesAll (SupplierRule [] rule_) = ruleCatchesAll rule_
+-- ruleCatchesAll (CustomerRule [] rule_) = ruleCatchesAll rule_
+-- ruleCatchesAll (TaxTypeRule [] rule_) = ruleCatchesAll rule_
+-- ruleCatchesAll (TaxRateRule [] rule_) = ruleCatchesAll rule_
 ruleCatchesAll _ = False
 
 -- * Status

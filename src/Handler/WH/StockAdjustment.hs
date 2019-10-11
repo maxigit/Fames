@@ -1,5 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Handler.WH.StockAdjustment where
+module Handler.WH.StockAdjustment
+( getWHStockAdjustmentR
+, getWHStockAdjustmentViewR
+, postWHStockAdjustmentR
+, postWHStockAdjustmentToFAR
+, postWHStockAdjustmentRejectR
+, nextWorkingDay
+, previousWorkingDay
+) where
 
 import Import
 import Yesod.Form.Bootstrap3
@@ -110,7 +118,7 @@ getWHStockAdjustmentR = do
 
 renderStockAdjustment :: Handler Html
 renderStockAdjustment = do
-  (paramForm, encType) <- generateFormPost (paramForm View)
+  (paramForm', encType) <- generateFormPost (paramForm View)
   pendings <- renderPending
   lastAdjs <- renderLast 50
   lastTakes <- renderTakes 50
@@ -133,7 +141,7 @@ renderStockAdjustment = do
 <div.panel> 
   <div.panel-body>
     <form.well #stock-adjustement role=form method=post action=@{WarehouseR WHStockAdjustmentR} enctype=#{encType}>
-      ^{paramForm}
+      ^{paramForm'}
       <button type="submit" name="submit" .btn.btn-default>Submit
 |]
 
@@ -294,6 +302,7 @@ data PreAdjust = PreAdjust
 adjustInfos :: PreAdjust -> [LocationInfo]
 adjustInfos adj  = [mainLocation, lost] <*> [adj]
 
+route :: PreAdjust -> Route App
 route pre = ItemsR $ ItemsHistoryR (sku pre)
 
 data MoveInfo = MoveInfo
@@ -303,6 +312,7 @@ data MoveInfo = MoveInfo
  , movePickedQty :: !Int
  } deriving (Eq, Read, Show)
 
+lastMove :: PreAdjust -> Maybe Day
 lastMove pre = max (date (mainLocation pre)) (date (lost pre)) 
 -- | Returns the qoh at the date of the stocktake.
 -- return also the date of the last move (the one corresponding to given quantity).
@@ -321,7 +331,7 @@ qohFor r@(Single sku, Single __qtake, Single date, Single comment) = do
 
 -- | Retrive the quantities available for the given location at the given date
 quantitiesFor :: Text -> (Single Text, Single Int, Single Day, Single (Maybe Text)) -> Handler LocationInfo 
-quantitiesFor loc (Single sku, Single take, Single date, Single __comment) = do
+quantitiesFor loc (Single sku, Single take_, Single date, Single __comment) = do
   let (minDate, maxDate) = unsureRange date
       sql = "SELECT SUM(qty) qoh"
             <> ", SUM(qty) qoh_at"
@@ -350,7 +360,7 @@ quantitiesFor loc (Single sku, Single take, Single date, Single __comment) = do
                    <> " JOIN mop.operator ON (operatorId = operator.id)"
                    <> " WHERE typeId = 1"
                    <> " GROUP BY orderId, sku"
-      toMove (Single date, Single debtor, Single operators, Single qty) = MoveInfo date debtor operators qty
+      toMove (Single date_, Single debtor, Single operators_, Single qty) = MoveInfo date_ debtor operators_ qty
                     
   (results, moves) <- runDB $ do
     results <- rawSql sql [PersistText sku, PersistDay date, PersistText loc]
@@ -360,7 +370,7 @@ quantitiesFor loc (Single sku, Single take, Single date, Single __comment) = do
 
   return $ case results of
     [] -> LocationInfo loc Nothing 0 0 Nothing []
-    [(Single qoh, Single at, Single last)] -> LocationInfo loc (Just take) (fromMaybe 0 at) (fromMaybe 0 qoh) (last) (map toMove moves)
+    [(Single qoh, Single at, Single last_)] -> LocationInfo loc (Just take_) (fromMaybe 0 at) (fromMaybe 0 qoh) (last_) (map toMove moves)
     _ -> error "query should return 1 value at the most"
 
 
@@ -450,7 +460,7 @@ rejectTakes FormParam{..} pres' = do
         stocktakeDoc <&> (\key -> StocktakeDocumentKey ==. (DocumentKeyKey' $ SqlBackendKey key ) )
         ]
       
-  runDB $
+  _ <- runDB $
      (flip traverse) pres  $ \pre -> 
          deleteWhere ([StocktakeStockId ==. sku pre
                       , StocktakeActive ==. True
@@ -535,12 +545,14 @@ renderTakes limit = do
 -- | Load an adjustment from its key. We assume, as the key as been provided
 -- and should come from somewhere, that the adjusment exists
 -- loadAdjustment :: Int64 -> Handler Maybe (([StockAdjustmentDetail], StockAdjustmenty))
+loadAdjustment :: Int64 -> SqlHandler ([StockAdjustmentDetail], StockAdjustment)
 loadAdjustment key = do
   let adjKey  = (SqlBackendKey key)
   adj <- getJust (StockAdjustmentKey adjKey)
   entities <- selectList [StockAdjustmentDetailAdjustment ==. StockAdjustmentKey adjKey] []
   return (map entityVal entities, adj)
 
+loadAdjustmentTakes :: Int64 -> SqlHandler [Stocktake]
 loadAdjustmentTakes key = do
   let adjKey  = StockAdjustmentKey (SqlBackendKey key)
   map entityVal <$>  selectList [StocktakeAdjustment ==. Just adjKey] [Asc StocktakeStockId]
@@ -563,17 +575,17 @@ getWHStockAdjustmentViewR key = do
   
   Carts{..} <- adjustCarts date $ splitDetails mainLocationLoc lostLoc details 
 
-  let renderStockId stockId = [whamlet|<a href="@{route}" target="_blank">#{stockId}|]
-        where route = ItemsR (ItemsHistoryR stockId)
+  let renderStockId stockId = [whamlet|<a href="@{route'}" target="_blank">#{stockId}|]
+        where route' = ItemsR (ItemsHistoryR stockId)
       renderStockIdFor = renderStockId . stockAdjustmentDetailStockId 
   let renderDetails :: Text -> Text -> [(StockAdjustmentDetail, Int)] -> Widget
-      renderDetails title class_ details = [whamlet|
+      renderDetails title class_ details' = [whamlet|
 <div.panel. class="panel-#{class_}">
   <div.panel-heading>
     <h3> #{title}
   <div.panel-body>
     <p.well>
-      $forall (d, qty) <- details
+      $forall (d, qty) <- details'
        ^{renderStockIdFor d}
        #{qty} 
        $with oqty <- stockAdjustmentDetailQuantity d
@@ -582,26 +594,26 @@ getWHStockAdjustmentViewR key = do
        <br>
                           |]
   let renderDetails' :: Text -> Text -> [(StockAdjustmentDetail, Double)] -> Widget
-      renderDetails' title class_ details = [whamlet|
+      renderDetails' title class_ details' = [whamlet|
 <div.panel. class="panel-#{class_}">
   <div.panel-heading>
     <h3> #{title}
   <div.panel-body>
     <p.well>
-      $forall (d, cost) <- details
+      $forall (d, cost) <- details'
         ^{renderStockIdFor d}
         #{stockAdjustmentDetailQuantity d}
         #{dollar}#{tshow cost}
         <br>
                           |] where dollar = "$" :: Text
 
-  let renderTakes' takes = [whamlet|
+  let renderTakes' takes' = [whamlet|
 <div.panel. class="panel-primary">
   <div.panel-heading>
     <h3> Stocktakes
   <div.panel-body>
     <p.well>
-      $forall take <- takes
+      $forall take <- takes'
         ^{renderStockId (stocktakeStockId take) }
         #{stocktakeQuantity take}
         #{tshow $ stocktakeDate take}
@@ -654,7 +666,7 @@ postWHStockAdjustmentToFAR key = do
     (postLocationTransferToFA connectInfo cFound)
     (postLocationTransferToFA connectInfo cLost)
   case err of
-    Left err -> setError (toHtml err)  >> getWHStockAdjustmentViewR key
+    Left err1 -> setError (toHtml err1)  >> getWHStockAdjustmentViewR key
     Right (adjId, t1, t2  ) -> do
       runDB $ do
         update (StockAdjustmentKey $ SqlBackendKey key) [StockAdjustmentStatus =. Process]
@@ -695,6 +707,7 @@ preToOriginal modulo pre = (OriginalQuantities qtake (qoh-before) qlost modulo ,
   -- | We want to pass the original quantities (without move) to the data- in html
   -- however the badges needs to be computed as if
   -- the "before" select boxes needs have been selected
+toOrigAndBadges :: Maybe Int -> PreAdjust -> (OriginalQuantities, BadgeQuantities, Int)
 toOrigAndBadges modulo pre = (orig, computeBadges orig {qoh = qoh orig + before}, before)
   where (orig, before) = preToOriginal modulo pre
 
@@ -781,6 +794,7 @@ findMaxQuantity date detail = do
 -- | Post a stock adjusmtent to FrontAccounting and update
 -- Fames db accordingly.
 -- postStockAdjustmentToFA :: WFA.StockAdjustment -> ExceptT Text IO (Maybe Int)
+postStockAdjustmentToFA :: WFA.FAConnectInfo -> WFA.StockAdjustment -> ExceptT Text Handler (Maybe Int)
 postStockAdjustmentToFA connectInfo adj = do
   if null (WFA.adjDetails adj)
     then return Nothing
@@ -794,6 +808,7 @@ postStockAdjustmentToFA connectInfo adj = do
 -- | Post a location transfer to FrontAccounting and update
 -- Fames db accordingly.
 -- postLocationTransferToFA :: WFA.LocationTransfer -> ExceptT Text IO (Maybe Int)
+postLocationTransferToFA :: WFA.FAConnectInfo -> WFA.LocationTransfer -> ExceptT Text Handler (Maybe Int)
 postLocationTransferToFA connectInfo trans = do
   if null (WFA.ltrDetails trans)
     then return Nothing

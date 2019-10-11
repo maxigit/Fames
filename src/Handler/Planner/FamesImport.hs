@@ -1,5 +1,6 @@
 {-# LANGUAGE ImplicitParams #-}
-
+{-# OPTIONS_GHC -Wno-name-shadowing #-} -- TODO remove
+{-# OPTIONS_GHC -Wno-unused-do-bind #-} -- TODO remove
 module Handler.Planner.FamesImport
 ( importFamesDispatch
 ) where

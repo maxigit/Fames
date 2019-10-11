@@ -1,6 +1,9 @@
-module Handler.Items.Reports.Common where
+{-# OPTIONS_GHC -Wno-unused-top-binds #-} -- TODO remove
+{-# OPTIONS_GHC -Wno-missing-exported-signatures #-} -- TODO remove
+module Handler.Items.Reports.Common
+where
 
-import Import hiding(computeCategory, formatAmount, formatQuantity)
+import Import hiding(computeCategory, formatAmount, formatQuantity, panel, trace, all)
 import Items.Types
 import Handler.Items.Common
 import Handler.Items.Reports.Forecast
@@ -14,7 +17,7 @@ import Data.Aeson.QQ(aesonQQ)
 import GL.Utils(calculateDate, foldTime, Start(..), PeriodFolding(..), dayOfWeek, toYear)
 import GL.Payroll.Settings
 import Text.Printf(printf)
-import Formatting
+import Formatting hiding(base)
 import Data.Monoid(Sum(..), First(..))
 
 -- * Param
@@ -86,9 +89,21 @@ data DataParams' f g = DataParams
 
 type DataParams = DataParams' Identifiable []
 
+pattern DataParamsU :: forall (g :: * -> *).
+                       QPType
+                    -> g TraceParam
+                    -> Maybe NormalizeMode
+                    -> DataParams' Identifiable g
 pattern DataParamsU qtype tps normMode <- DataParams qtype (Identifiable (_, tps)) normMode
+
 type DataParam = DataParams' Identity Identity
+
+pattern DataParam :: QPType
+                  -> TraceParam
+                  -> Maybe NormalizeMode
+                  -> DataParams' Identity Identity
 pattern DataParam qtype tp normMode = DataParams qtype (Identity (Identity tp)) normMode
+
 deriving instance Show DataParams
 deriving instance Show DataParam
 
@@ -141,7 +156,7 @@ data NormalizeMode = NormalizeMode
   }
   deriving (Show, Eq)
   
--- Type of value, used to format it accordingly
+-- Type of value, used to format_ it accordingly
 data ValueType
   = VAmount --
   | VQuantity
@@ -377,7 +392,7 @@ getColsWithDefault = do
              ]  <> dateColumns <> categoryColumns <> customerCategoryColumns <> orderCategoryColumns
   return (cols, (defaultBand, defaultSerie, defaultTime))
            
-mkIdentifialParam  (t, tp'runsumS) = Identifiable (t, map mkTraceParam tp'runsumS)
+mkIdentifialParam  (tp, tp'runsumS) = Identifiable (tp, map mkTraceParam tp'runsumS)
 mkTraceParam (f, vtype, options, runsum) = TraceParam f vtype options runsum
 -- ** Default parameters
 -- | Column colFn take a ReportParam as a parameter.
@@ -405,13 +420,13 @@ mkDateColumn (name, fn) = Column name fn' where
   fn' p tk = let (d0, _) = foldDay p tk
                  d = fn d0
               in case (rpPeriod p) of
-                Just FoldWeekly -> -- format
+                Just FoldWeekly -> -- format_
                   let w = dayOfWeek d
                   in NMapKey (PersistText $ tshow w)
-                -- Just (FoldYearly _) -> -- format
+                -- Just (FoldYearly _) -> -- format_
                 --   let (_,m,_) = toGregorian d
                 --   in NMapKey (Just $ m)  (PersistText $ pack $ formatTime defaultTimeLocale "%B" d) 
-                -- Just (FoldMonthly _) -> -- format
+                -- Just (FoldMonthly _) -> -- format_
                 --   let (_,_,m) = toGregorian d
                 --   in NMapKey Nothing  (PersistInt64 $ fromIntegral m)
                 _ ->  NMapKey (PersistDay d)
@@ -449,10 +464,10 @@ periodColumn = Column "Period" getPeriod where
       getPeriod p tkey = let
         (_, Start d) = foldDay p tkey
         in case rpPeriod p of
-             Just (FoldMonthly _) -> -- format
+             Just (FoldMonthly _) -> -- format_
                let (_,_m,_) = toGregorian d
                in NMapKey (PersistText $ pack $ formatTime defaultTimeLocale "%B" d) 
-             Just (FoldYearly _) -> -- format
+             Just (FoldYearly _) -> -- format_
                let (_y,_,_) = toGregorian d
                -- in NMapKey (Just $ fromIntegral y) (PersistText $ pack $ printf "%d-%d" y (y+1))
                -- at the mooment we display the rank-the value, so printing y-y+1
@@ -509,8 +524,8 @@ dateColumnsFor prefix mkDateCol
                      , ("Day", id)
                      ]
 w52 = Column "52W" (\p tk -> let day0 = addDays 1 $ fromMaybe (rpToday p) (rpTo p)
-                                 year = slidingYear day0 (tkDay tk)
-                             in mkNMapKey . PersistDay $ fromGregorian year 1 1
+                                 year_ = slidingYear day0 (tkDay tk)
+                             in mkNMapKey . PersistDay $ fromGregorian year_ 1 1
                    )
 -- ** Default options
 emptyRupture = ColumnRupture Nothing emptyTrace Nothing Nothing False
@@ -538,7 +553,7 @@ loadItemTransactions param grouper = do
     (Nothing, _, _) -> return []
     (Just forecastDir, io, forecastStart) -> loadItemForecast io forecastDir stockInfo (fromMaybe (rpJustFrom param) forecastStart) (rpJustTo param)
   -- for efficiency reason
-  -- it is better to group sales and purchase separately and then merge them
+  -- it is better to group_ sales and purchase separately and then merge them
   sales <- loadIf rpLoadSales $ loadItemSales param
   salesOrdersM <- forM (rpLoadSalesOrders param) $ \(io, dateColumn, qtyMode) -> loadItemOrders param io dateColumn qtyMode
   let salesOrders = fromMaybe [] salesOrdersM
@@ -605,9 +620,9 @@ generateDateIntervals date_column param = let
   intervals = case (rpFrom param, rpTo param, rpNumberOfPeriods param) of
     (Nothing, Nothing, _)  -> [ (Nothing, Nothing) ]
     (fromM, toM, Nothing)  -> [ (fromM, toM) ]
-    -- (Just from, Nothing, Just n) -> -- go n year ago
+    -- (Just from, Nothing, Just n) -> -- go n year_ ago
     --       [ (Just (calculateDate (AddYears (-n)) from), Nothing) ]
-    (Nothing, Just to, Just _) -> -- go n year ago
+    (Nothing, Just to, Just _) -> -- go n year_ ago
           [ (Nothing, Just to) ]
     (Just from, toM, Just n) -> let
       period i = case rpPeriod param of
@@ -888,7 +903,7 @@ loadStockInfo param = do
                                     , (" AND category.category = ? ", PersistText catToFilter)
                                     ]
       qoh = "SELECT stock_id, SUM(qty) as qty FROM 0_stock_moves WHERE tran_date < ? AND loc_code = ? GROUP BY stock_id"
-      toInfo (Single sku, Single cost, Single price, Single qoh ) = (sku, ItemInitialInfo cost price qoh)
+      toInfo (Single sku, Single cost, Single price, Single qoh_ ) = (sku, ItemInitialInfo cost price qoh_)
   rows <- runDB $ rawSql (sql <> intercalate " " w <> order) (toPersistValue base: toPersistValue stockDay : toPersistValue defaultLocation:  p)
   -- traceShowM("Stock Info", rows)
   return . Map.fromList $ map toInfo rows
@@ -1097,9 +1112,9 @@ tableProcessor param@ReportParam{..} grouped = do
                 <th> Sales Through
                 <th> %Loss (Qty)
                 <th> Margin 
-              $forall (keys, (_,qp)) <- nmapToListWithRank group1
+              $forall (keys_, (_,qp)) <- nmapToListWithRank group1
                     <tr>
-                      $forall key <- keys
+                      $forall key <- keys_
                         <td>
                            #{nkeyWithRank key}
                        
@@ -1225,14 +1240,14 @@ summaryToCsv qpMode param grouped' = let
   qpCols = concatMap (\f -> f qpMode param) [qpSalesColumns, qpOrderColumns, qpForecastColumns, qpPurchasesColumns]
   adjCols = qpAdjustmentColumns param
   header = intercalate "," $ (map (fromMaybe "") $ nmapLevels grouped') <> map fst qpCols  <> map fst adjCols
-  format _ _ Nothing = ""
-  format _ _ (Just x) = tshow x
+  format_ _ _ Nothing = ""
+  format_ _ _ (Just x) = tshow x
   format' _ Nothing = ""
   format' _ (Just x) = tshow x
   in header : do
-    (keys, qp) <- nmapToList grouped'
-    return $ intercalate "," $  ( map  (pvToText . nkKey) keys )
-                             <> [ fn format qp | (_, fn) <- qpCols ]
+    (keys_, qp) <- nmapToList grouped'
+    return $ intercalate "," $  ( map  (pvToText . nkKey) keys_ )
+                             <> [ fn format_ qp | (_, fn) <- qpCols ]
                              <> [ fn format' qp | (_, fn) <- adjCols ]
 -- | To Csv using traces for columns
 tracesToCsv param grouped' = let
@@ -1247,8 +1262,8 @@ tracesToCsv param grouped' = let
                          | dp <- dataParams
                          ]
   in header : do
-    (keys, tran) <- nmapToList grouped'
-    return $ intercalate "," $  ( map  (pvToText . nkKey) keys ) <> valueFromTraces tran
+    (keys_, tran) <- nmapToList grouped'
+    return $ intercalate "," $  ( map  (pvToText . nkKey) keys_ ) <> valueFromTraces tran
 -- *** Sort and limit
 sortAndLimitTranQP :: [ColumnRupture] -> NMap TranQP -> NMap (Sum Double, TranQP)
 sortAndLimitTranQP ruptures nmap = let
@@ -1267,12 +1282,12 @@ sortAndLimitTranQP ruptures nmap = let
 
 nmapToNMapListWithRank :: Ord w =>  NMap (w, a) -> [((Int, NMapKey), NMap (w,a))]
 nmapToNMapListWithRank  nmap =
-  let asList = [ ( (fst (nmapMargin n), k)
+  let asList_ = [ ( (fst (nmapMargin n), k)
                  , n)
                | (k, n) <- nmapToNMapList nmap
                , not (null n)
                ]
-      sorted = sortOn fst asList
+      sorted = sortOn fst asList_
   in zipWith (\i ((_,k), n) -> ((i,k), n)) [1..]  sorted
 
 nmapToListWithRank :: Ord w => NMap (w, a) -> [([(Int, NMapKey)], (w,a))]
@@ -1292,8 +1307,8 @@ chartProcessor param grouped = do
     _ -> renderPanelWith  "items-report-chart" grouped (plotChartDiv param $ \n -> max 350 (900 `div` n))
         
 renderPanelWith reportId grouped panelProcessor =  do
-  let asList = nmapToNMapListWithRank grouped
-  forM_ (zip asList [1 :: Int ..]) $ \((panelKey, nmap), i) -> do
+  let asList_ = nmapToNMapListWithRank grouped
+  forM_ (zip asList_ [1 :: Int ..]) $ \((panelKey, nmap), i) -> do
      let plotId = reportId <> "-plot-" <> "-" <> tshow i 
          panelName = nkeyWithRank panelKey
          panelId = reportId <> "-panel-" <> panelName
@@ -1313,7 +1328,7 @@ renderPanelWith reportId grouped panelProcessor =  do
 --                   -> w
 processRupturesWith subProcessor parents (rupture, subruptures) nmap =  let
   key'nmaps = nmapToNMapList nmap
-  weigher (k,t) = cpSorter rupture k  (nmapMargin t)
+  weigher (k,t_) = cpSorter rupture k  (nmapMargin t_)
   sorted = sortOn weigher key'nmaps
   rev = if cpReverse rupture then reverse else id
   (bests, residuals) = case cpLimitTo rupture of
@@ -1362,10 +1377,10 @@ plotChartDiv param heightForBands all plotId0 panels = do
 -- renderPlotDiv :: (_ -> _)
 --                    ->  (Int -> Int ) -> NMap (Sum Double, TranQP) -> Text -> NMap (Sum Double, TranQP) -> Widget 
 renderPlotDiv plotSeries heightForBands plotId0 panels = do
-  let asList = nmapToNMapListWithRank panels
-      numberOfBands = length asList
+  let asList_ = nmapToNMapListWithRank panels
+      numberOfBands = length asList_
       plotHeight = heightForBands numberOfBands -- max 350 (900 `div` numberOfBands)
-  forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
+  forM_ (zip asList_ [1:: Int ..]) $ \((bandName, bands), i) ->
         do
           let -- byColumn = nmapToNMapList grouped -- fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) (unNMap TranQP' bands)
               plot = plotSeries (nkeyWithRank bandName) plotId bands 
@@ -1402,20 +1417,20 @@ formatSerieValues :: (Double -> t) -> (Double -> t)
                   -> [Maybe t]
 formatSerieValues formatValue formatPercent mode all panel band f nmap = let
   -- key'valueS = [(mkNMapKey (PersistText t), v) | (t, v ) <- text'valueS]
-  keys = map fst (nmapToNMapList nmap)
+  keys_ = map fst (nmapToNMapList nmap)
   output = formatSerieValuesNMapXXX formatValue formatPercent mode all panel band f nmap
-  in map (flip lookup output ) keys
+  in map (flip lookup output ) keys_
 
 nmapRunSum :: (Monoid b) => RunSum -> NMap b -> NMap b
-nmapRunSum runsum nmap = let
-  nmap' = [ (key, mconcat (toList nmap))  | (key, nmap) <- nmapToNMapList nmap ] -- flatten everything if needed
+nmapRunSum runsum nmap0 = let
+  nmap' = [ (key, mconcat (toList nmap))  | (key, nmap) <- nmapToNMapList nmap0 ] -- flatten everything if needed
   key'sumS =  case runsum of
-       RunSum     -> let (keys, tqs) = unzip nmap'
-                     in zip keys (scanl1 mappend tqs)
-       RunSumBack -> let (keys, tqs) = unzip nmap'
-                     in zip keys (scanr1 mappend tqs)
+       RunSum     -> let (keys_, tqs) = unzip nmap'
+                     in zip keys_ (scanl1 mappend tqs)
+       RunSumBack -> let (keys_, tqs) = unzip nmap'
+                     in zip keys_ (scanr1 mappend tqs)
        RSNormal   -> nmap'
-  in nmapFromList (join . headMay $ nmapLevels nmap) key'sumS
+  in nmapFromList (join . headMay $ nmapLevels nmap0) key'sumS
 
 -- allows to get the tail or init but always leave a element
 -- if needed
@@ -1433,9 +1448,9 @@ formatSerieValuesNMapXXX :: Monoid w =>
                   -> (TranQP -> Maybe Double) -- get a value from a tran
                   -> NMap (w,  TranQP)-- list of tran to convert
                   -> Map NMapKey t
-formatSerieValuesNMapXXX formatAmount formatPercent mode all panel band f0 nmap = let
+formatSerieValuesNMapXXX formatAmount_ formatPercent mode all panel band f0 nmap = let
            f = f0 . snd
-           computeMargin t = case nmMargin <$> mode of
+           computeMargin t_ = case nmMargin <$> mode of
              (Just NMTruncated) -> NLeaf (mconcat subMargins)
              (Just NMFirst) -> NLeaf (headEx subMargins)
              (Just NMLast) -> NLeaf (lastEx subMargins)
@@ -1445,22 +1460,22 @@ formatSerieValuesNMapXXX formatAmount formatPercent mode all panel band f0 nmap 
                         -- regroup margin by column TODO computes on0
                         -- all data are already grouped by column, but at the deepest level of nesting
                         -- we need to bring it up
-                        alls = nmapToList t
+                        alls = nmapToList t_
                         in groupAsNMap [(Nothing, lastEx)] alls
              (Just NMRank) -> case nmTarget <$> mode of
                Just NMSerie ->  let -- column by serie , we need the full serie for each column key
                         -- we need to duplicate the levels ... So lookup of a column
                         -- gives the map of all columns/values
-                        keys = map fst asList
-                        in NMap (nmapMargin nmap) [] (mapFromList $ [(key, nmap ) | key <- keys ] )
+                        keys_ = map fst asList_
+                        in NMap (nmapMargin nmap) [] (mapFromList $ [(key, nmap ) | key <- keys_ ] )
                _ -> let -- by band
                         -- regroup margin by column TODO computes on0
                         -- all data are already grouped by column, but at the deepest level of nesting
                         -- we need to bring it up, but keep the list of value
-                        alls = [(take 2 $ reverse keys, nmap) | (keys, nmap) <- nmapToList band ]
+                        alls = [(take 2 $ reverse keys_, nmap_) | (keys_, nmap_) <- nmapToList band ]
                         in groupAsNMap [(Nothing, headEx), (Nothing, lastEx)] alls
-             _ -> NLeaf (nmapMargin t)
-             where subMargins = map (nmapMargin . snd) (nmapToNMapList t)
+             _ -> NLeaf (nmapMargin t_)
+             where subMargins = map (nmapMargin . snd) (nmapToNMapList t_)
            margins = case (nmMargin <$> mode, nmTarget <$> mode)  of
              (Just NMColumn, Just NMSerie ) -> computeMargin band -- otherwise, everything is 100%
              (Just NMRank, _ ) -> computeMargin band -- 
@@ -1470,8 +1485,8 @@ formatSerieValuesNMapXXX formatAmount formatPercent mode all panel band f0 nmap 
              (_ ) -> computeMargin nmap
            marginMap = nmapToMap margins
 
-           asList = nmapToNMapList nmap
-           key'tranS = nmapMargin <$$>  asList
+           asList_ = nmapToNMapList nmap
+           key'tranS = nmapMargin <$$>  asList_
            -- normalize
            -- normalize = case mapMaybe f [nmapMargin grouped] of
            normalize (col, tqp) = (f tqp >>= go) <&> (col,) where
@@ -1491,7 +1506,7 @@ formatSerieValuesNMapXXX formatAmount formatPercent mode all panel band f0 nmap 
                    rank <- lookup x rankMap
                    return $ formatPercent (fromIntegral rank)
                  Just _ -> Just $ formatPercent $ x * 100 / abs norm
-                 Nothing -> Just $ formatAmount x
+                 Nothing -> Just $ formatAmount_ x
            result = mapMaybe normalize key'tranS
            in mapFromList result
 
@@ -1503,20 +1518,20 @@ formatSerieValuesNMap :: (Double -> t) -> (Double -> t)
                   -> (TranQP -> Maybe Double) -- get a value from a tran
                   -> NMap TranQP-- list of tran to convert
                   -> Map NMapKey t
-formatSerieValuesNMap formatAmount formatPercent mode all panel band f nmap = 
-  formatSerieValuesNMapXXX formatAmount formatPercent mode all' panel' band' f nmap' where
+formatSerieValuesNMap formatAmount_ formatPercent mode all panel band f nmap = 
+  formatSerieValuesNMapXXX formatAmount_ formatPercent mode all' panel' band' f nmap' where
   all' = convert all
   panel' = convert panel
   band' = convert band
   nmap' = convert nmap
   convert xs = ((),) <$> xs
 
-traceParamForChart mono traceGroupMode asList params colorIds =  let
+traceParamForChart mono traceGroupMode asList_ params colorIds =  let
     colorIds0 = zip (map fst colorIds) [1..]
     in [ (param, name'group, color :: Text, groupId :: Maybe Int)
        | (param, pcId) <- zip params colorIds0
-       , (name'group, gcId) <- zip asList colorIds
-       -- if there is only one series, we don't need to group legend and colour by serie
+       , (name'group, gcId) <- zip asList_ colorIds
+       -- if there is only one series, we don't need to group_ legend and colour by serie
        , let (color, _groupId) = if mono {-length grouped == 1-} then pcId else gcId
        , let groupId = case traceGroupMode  of
                Nothing -> Nothing
@@ -1537,13 +1552,13 @@ seriesChartProcessor all panel rupture mono groupTrace params name plotId groupe
          jsData = do -- List
            ((grouped, tracePrefix), colours) <- grouped'colour
            let ysFor normM f g = map (fmap toJSON) $ formatSerieValues formatDouble (printf "%0.1f")normM all panel grouped f g
-               asList = (if cpReverse rupture then reverse else id ) $ [ ((r, prefixedKey ), nmap)
+               asList_ = (if cpReverse rupture then reverse else id ) $ [ ((r, prefixedKey ), nmap)
                                                                        | ((r, key), nmap) <- nmapToNMapListWithRank grouped
                                                                        , let prefixedKey = case tracePrefix of
                                                                                Nothing -> key
                                                                                Just pre -> mkNMapKey $ intercalate " - " . filter (not . null) $ [ pre, pvToText (nkKey key)]
                                                                        ]
-           map (traceFor textValuesFor ysFor) (traceParamForChart mono groupTrace asList  params colours)
+           map (traceFor textValuesFor ysFor) (traceParamForChart mono groupTrace asList_  params colours)
      toWidgetBody [julius|
           Plotly.plot( #{toJSON plotId}
                     , #{toJSON jsData} 
@@ -1569,7 +1584,7 @@ traceFor :: ([(PersistValue, (Sum Double, TranQP))] -> [Value]) -- ^ generate x 
             , ((Int, NMapKey) -- ^ rank and trace/serie name
               , NMap (Sum Double, TranQP)) -- ^ values to graph
               , Text -- ^ colour
-              , Maybe Int -- ^ group id
+              , Maybe Int -- ^ group_ id
               )
          -> Value
 traceFor xsFor ysFor (param, (name', g'), color,groupId) = let
@@ -1613,7 +1628,7 @@ renderBubblePlotDiv param heightForBands all plotId0 panels = do
 -- | Normally, value (or trace params) given in then report parameter
 -- should generate traces with first the size and then the colour.
 -- things get more complicated because some trace can generated 1 or to 2 params (or nothing)
--- depending on the configuration we group (or not) traces to be pair of size/colour
+-- depending on the configuration we group_ (or not) traces to be pair of size/colour
 traceParamsForBubble :: ReportParam -> [[Maybe DataParam]] 
 traceParamsForBubble param = 
   let q'tp'norms = [rpDataParam, rpDataParam2] <*> [param]
@@ -1629,8 +1644,8 @@ traceParamsForBubble param =
 seriesBubbleProcessor :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
   -> ColumnRupture -> Bool -> [[Maybe DataParam]]-> Text -> Text -> NMap (Sum Double, TranQP)  -> Widget 
 seriesBubbleProcessor all panel __rupture __mono paramss name plotId grouped = do
-     let asList = nmapToNMapListWithRank grouped
-         jsDatas = map (bubbleTrace all panel grouped asList) paramss
+     let asList_ = nmapToNMapListWithRank grouped
+         jsDatas = map (bubbleTrace all panel grouped asList_) paramss
      toWidgetBody [julius|
           Plotly.plot( #{toJSON plotId}
                     , #{toJSON jsDatas}
@@ -1647,7 +1662,7 @@ seriesBubbleProcessor all panel __rupture __mono paramss name plotId grouped = d
 -- bubbleTrace :: [((Int, NMapKey), NMap (Sum Double, TranQP))]
 --             -> [Maybe DataParam]
 --             -> Value
-bubbleTrace all panel band asList params =  
+bubbleTrace all panel band asList_ params =  
     let (getSize'p : getColour'p :  _) = (map (fmap $ fanl dataParamGetter) params) <> repeat Nothing
         runSumFor getFn'p grp =
           case getFn'p of
@@ -1655,15 +1670,15 @@ bubbleTrace all panel band asList params =
                 let runsumed = nmapRunSum (tpRunSum tp) $ grp
                 in formatSerieValues id id normMode all panel band fn runsumed 
             _ -> replicate (length grp) Nothing
-        (xs, ys, vs, texts, colours, symbols) = unzip6 [  (x, y, abs <$> v, text, colour, symbol)
-                              | ((name,group), _) <- zip asList  [1..]
-                              , let gForSize = runSumFor getSize'p group
-                              , let gForColor = runSumFor getColour'p group
-                              , ((k,_), v, colour) <- zip3 (nmapToNMapList group) gForSize gForColor
+        (xs, ys, vs, texts, colours, symbols) = unzip6 [  (x, y, abs <$> v, text_, colour, symbol)
+                              | ((name,group_), _) <- zip asList_  [1..]
+                              , let gForSize = runSumFor getSize'p group_
+                              , let gForColor = runSumFor getColour'p group_
+                              , ((k,_), v, colour) <- zip3 (nmapToNMapList group_) gForSize gForColor
                               , let x = pvToText $ nkKey k --  :: Int --  # of the serie
                               , let y = nkeyWithRank $ name --  n :: Int --  # of the serie
                               -- , let v =  (fst <$> getSize'p) >>= ($ gsm)  :: Maybe Double -- # of  for the colun
-                              , let text = fmap (\vv -> ( x <> " " <> tshow vv)) v
+                              , let text_ = fmap (\vv -> ( x <> " " <> tshow vv)) v
                               -- , let colour = (fst <$> getColour'p) >>= ($ gcm)
                               , let symbol = if maybe False (<0) v then t "diamond" else "circle"
                               ]
@@ -1743,8 +1758,8 @@ renderScatterPlotDiv param heightForBands all plotId0 panels = do
 seriesScatterProcessor :: NMap (Sum Double, TranQP) -> NMap (Sum Double, TranQP)
   -> ColumnRupture -> Bool -> [[Maybe DataParam]]-> Text -> Text -> NMap (Sum Double, TranQP)  -> Widget 
 seriesScatterProcessor all panel __rupture __mono paramss name plotId grouped = do
-     let asList = nmapToNMapListWithRank grouped
-         jsDatas = map (scatterTrace all panel grouped asList) paramss
+     let asList_ = nmapToNMapListWithRank grouped
+         jsDatas = map (scatterTrace all panel grouped asList_) paramss
      toWidgetBody [julius|
           Plotly.plot( #{toJSON plotId}
                     , #{toJSON jsDatas}
@@ -1764,7 +1779,7 @@ scatterTrace :: NMap (Sum Double, TranQP)
              ->   [((Int, NMapKey), NMap (Sum Double, TranQP))]
             -> [Maybe DataParam]
             -> Value
-scatterTrace all panel band asList params =  
+scatterTrace all panel band asList_ params =  
     let (getX'p : getY'p : getSize'p:  _) = (map (fmap $ fanl dataParamGetter) params) <> repeat Nothing
         runSumFor getFn'p grp =
           case getFn'p of
@@ -1773,15 +1788,15 @@ scatterTrace all panel band asList params =
                 in formatSerieValues id id normMode all panel band fn runsumed 
             _ -> replicate (length grp) Nothing
         (xs, ys, vs, texts, colours, symbols) = unzip6
-                              [  (x, y, abs <$> v, text, colour, symbol)
-                              | ((name,group), colour) <- zip asList  defaultColors
-                              , let gForSize = runSumFor getSize'p group
-                              , let gForX = runSumFor getX'p group
-                              , let gForY = runSumFor getY'p group
-                              , ((k,_), x, y, v) <- zip4 (nmapToNMapList group) gForX gForY gForSize
+                              [  (x, y, abs <$> v, text_, colour, symbol)
+                              | ((name,group_), colour) <- zip asList_  defaultColors
+                              , let gForSize = runSumFor getSize'p group_
+                              , let gForX = runSumFor getX'p group_
+                              , let gForY = runSumFor getY'p group_
+                              , ((k,_), x, y, v) <- zip4 (nmapToNMapList group_) gForX gForY gForSize
                               -- , let v =  (fst <$> getSize'p) >>= ($ gsm)  :: Maybe Double -- # of  for the colun
                               -- , let text = pvToText . nkKey $ snd name --  fmap (\vv -> (( pvToText . nkKey $ snd name ) <> " " <> tshow vv)) v
-                              , let text = intercalate " - " . filter (not . null) $ map (pvToText . nkKey)   [snd name, k]
+                              , let text_ = intercalate " - " . filter (not . null) $ map (pvToText . nkKey)   [snd name, k]
                               -- , let colour = (fst <$> getColour'p) >>= ($ gcm)
                               , let symbol = if maybe False (<0) v then t "diamond" else "circle"
                               ]
@@ -1836,7 +1851,7 @@ panelPivotProcessor tparams reportId = createKeyRankProcessor go where
   
 
 -- each nmap is band
-bandPivotProcessor tparams __panelId key rank parents ruptures = createKeyRankProcessor go key rank parents ruptures where
+bandPivotProcessor tparams __panelId key0 rank0 parents ruptures = createKeyRankProcessor go key0 rank0 parents ruptures where
   (_, (ColumnRupture{..},_)) = ruptures
   go key rank =  let sub = collectColumnsForPivot tparams
                           -- get the list of the columns for that we need to
@@ -1844,7 +1859,7 @@ bandPivotProcessor tparams __panelId key rank parents ruptures = createKeyRankPr
                      widget cw =  let
                           (cols, widgetFs) = unzip cw
                           -- colmns comes with a weight, we need to add up those weight sort
-                          -- the keys according to it
+                          -- the keys_ according to it
                           columnMap = Map.fromListWith (<>) $ join cols
                           sorted' = map fst (sortOn snd $ mapToList columnMap)
                           sorted = if cpReverse then reverse sorted' else sorted'
@@ -1867,7 +1882,7 @@ bandPivotProcessor tparams __panelId key rank parents ruptures = createKeyRankPr
 -- get the list of the columns for that we need to
  -- nmap is a serie
 collectColumnsForPivot :: [DataParams] -> NMapKey -> Int -> _parents -> _ruptures -> NMap TranQP -> [(_, _ -> Widget)]
-collectColumnsForPivot tparams key rank parents ruptures@(r, ()) nmap = let
+collectColumnsForPivot tparams key rank0 parents ruptures@(r, ()) nmap = let
   (band, (panel, (all, ()))) = parents
   -- we are within a serie, we need to get all the used columns
   -- form nmap and return them upstream
@@ -1889,7 +1904,7 @@ collectColumnsForPivot tparams key rank parents ruptures@(r, ()) nmap = let
            ]
   widget col's = [whamlet|
    <tr>
-     <td>#{nkeyWithRank (rank, key)}
+     <td>#{nkeyWithRank (rank0, key)}
      $forall column <- col's
         <td>
           $forall trace <- traces
@@ -1905,8 +1920,8 @@ pivotProcessorXXX param grouped = do
 
 panelPivotProcessorXXX :: ReportParam -> NMap (Sum Double, TranQP) -> Text -> NMap (Sum Double, TranQP) -> Widget 
 panelPivotProcessorXXX param all plotId0 grouped = do
-  let asList = nmapToNMapListWithRank grouped
-  forM_ (zip asList [1:: Int ..]) $ \((bandName, bands), i) ->
+  let asList_ = nmapToNMapListWithRank grouped
+  forM_ (zip asList_ [1:: Int ..]) $ \((bandName, bands), i) ->
         do
           let -- byColumn = nmapToNMapList grouped -- fmap (groupAsMap (mkGrouper param (Just $ rpColumnRupture param) . fst) snd) (unNMap TranQP' bands)
               plot = bandPivotProcessorXXX all grouped (rpSerie param) (isNothing $ cpColumn $ rpSerie param) (rpDataParam0s param) (nkeyWithRank bandName) plotId bands 
@@ -1994,5 +2009,3 @@ formatPercentage = formatDouble''  RSNormal VPercentage
 
 -- ** Utils
 -- splitToGroups :: (a -> k) -> (a -> a') ->   [(a,b)] -> [(k, (a',b))]
-
-  

@@ -1,11 +1,11 @@
 {-# LANGUAGE ImplicitParams #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-} -- TODO remove
 -- | Displays a summary of all the timesheet
 module Handler.GL.Payroll.Summary
 ( getGLPayrollSummaryR
 , postGLPayrollSummaryR
 )
 where
--- * Import
 import Import
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import Handler.GL.Payroll.Common

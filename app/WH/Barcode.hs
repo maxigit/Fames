@@ -1,3 +1,4 @@
+{-# OPTIONS_HADDOCK hide #-}
 module WH.Barcode where
 import ClassyPrelude.Yesod hiding(Builder)
 import Data.Text.Lazy.Builder (fromLazyText, Builder)

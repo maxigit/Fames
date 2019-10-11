@@ -24,6 +24,9 @@ fillBest :: (Box s -> [(Orientation, Int, Int)] -> [Shelf s] -> [Shelf s])
 fillBest  fit boxes shelves = do
     aroundArrangement (fillBest' fit) boxes shelves
 
+fillBest' :: Shelf' shelf =>
+             (Box s -> [(Orientation, Int, Int)] -> t -> [shelf s])
+          -> [Box s] -> t -> WH [Box s] s
 fillBest' fit boxes shelves = do
         boxo <- gets boxOrientations
         let groups = reverse . Map'.toList $ Map'.fromListWith (++) tuples

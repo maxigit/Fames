@@ -48,6 +48,7 @@ dutyForH = do
 
 -- ** Sku form info
 
+iiSku :: ItemInfo a -> Text
 iiSku (ItemInfo style var _ ) = styleVarToSku style var
 
 -- | Split a variation name to variations

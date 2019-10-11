@@ -1,6 +1,6 @@
 module Handler.WH.Boxtake.Adjustment
 where
-import Import hiding(Planner)
+import Import hiding(Planner, leftover)
 import Database.Persist.Sql(Single(..), rawSql, unSqlBackendKey)
 import Database.Persist.MySQL -- (BackendKey(SqlBackendKey))
 import qualified Data.Map as Map
@@ -139,10 +139,10 @@ goUsedStocktakeToBoxes t = case t of
                              [] -> unused boxe
                              useds -> do
                                -- scan all item and get what's i
-                               (Used q splus: t, i) <- zip <$> tails <*> inits $ useds
+                               (Used q splus: t_, i) <- zip <$> tails <*> inits $ useds
                                let s = fst splus
                                return ( stocktakeStockId $ entityVal s
-                                      , Used q (boxe, s: map ( fst. usedSubject) (i<>t))
+                                      , Used q (boxe, s: map ( fst. usedSubject) (i<>t_))
                                       )
   where unused b = [(fromMaybe "" $ boxtakeDescription (entityVal b), Unused (b, []))]
 
@@ -164,6 +164,7 @@ data AdjustmentParam = AdjustmentParam
   , aStyleSummary :: Bool -- ^ display summary for styles vs variations
   } 
 
+defaultAdjustmentParamH :: Handler AdjustmentParam
 defaultAdjustmentParamH = do
   defaultLocation <- appFADefaultLocation <$> getsYesod appSettings 
   return $ AdjustmentParam Nothing defaultLocation True False True
@@ -175,13 +176,13 @@ defaultAdjustmentParamH = do
 -- select active and inactive boxes
 loadBoxForAdjustment :: AdjustmentParam -> SqlHandler (Map Text [(Entity Boxtake, [Entity Stocktake])])
 loadBoxForAdjustment param = do
-  let filter = filterE Just BoxtakeDescription (filterEAddWildcardRight <$> aStyleFilter param)
+  let filter_ = filterE Just BoxtakeDescription (filterEAddWildcardRight <$> aStyleFilter param)
   skuToStyleVar <- lift skuToStyleVarH 
   let descrToStyle sku = let cleaned = fromMaybe sku  (stripSuffix "*" sku)
                              (style, _) = skuToStyleVar cleaned
                          in style
                          
-  boxtakes <- selectList filter  [Asc BoxtakeDescription, Desc BoxtakeActive, Desc BoxtakeDate]
+  boxtakes <- selectList filter_  [Asc BoxtakeDescription, Desc BoxtakeActive, Desc BoxtakeDate]
   withStocktake <- loadStocktakes' boxtakes
   let key = maybe "" descrToStyle . boxtakeDescription . entityVal . fst
   return $ groupAscAsMap key (:[]) withStocktake
@@ -243,40 +244,41 @@ displayBoxtakeAdjustments param@AdjustmentParam{..}  = do
              False -> [whamlet|
                    <a href="@?{(WarehouseR WHStocktakeR, [("stock_id", sku)])}" > #{sku}
                               |]
-      decorateQuantity _ Nothing qw = toWidget $ toHtml qw
-      decorateQuantity AdjustmentParam{..} (Just sku) qw =
-        case aStyleSummary of
-           -- style => stocktake to item history, allow to go the item history for the given sku
-           True -> [whamlet|
-                            <a href="@{WarehouseR (WHStocktakeHistoryStyleR Nothing sku)}"
-                                target=_blank
-                             >#{qw}
-                           |]
-           -- sku -- item history
-           False -> [whamlet|
-                             <a href="@{ItemsR (ItemsHistoryR sku)}"
-                                target=_blank
-                             >#{qw}
-                           |]
   return [whamlet|
   <table.table.table-border.table-hover>
     $forall s <- summaries
      ^{xxx param decorateSku (decorateQuantity param) s}
      |]
 
+decorateQuantity :: AdjustmentParam -> Maybe Text -> String -> Widget
+decorateQuantity _ Nothing qw = toWidget $ toHtml qw
+decorateQuantity AdjustmentParam{..} (Just sku) qw =
+  case aStyleSummary of
+      -- style => stocktake to item history, allow to go the item history for the given sku
+      True -> [whamlet|
+                      <a href="@{WarehouseR (WHStocktakeHistoryStyleR Nothing sku)}"
+                          target=_blank
+                        >#{qw}
+                      |]
+      -- sku -- item history
+      False -> [whamlet|
+                        <a href="@{ItemsR (ItemsHistoryR sku)}"
+                          target=_blank
+                        >#{qw}
+                      |]
 xxx :: AdjustmentParam
     -> (Text -> Widget)
     -> _ -- (Maybe Text -> _ -> Widget)
     -> StyleInfoSummary
     -> Widget
-xxx AdjustmentParam{..} decorateSku decorateQuantity StyleInfoSummary{..} =
+xxx AdjustmentParam{..} decorateSku _decorateQuantity StyleInfoSummary{..} =
   [whamlet|
     <tbody.summary-group :aShowDetails:.with-details>
       <tr.summary-row>
         $if aShowDetails
           <td.checkboxColumn><input type="checkbox" checked>
         <td.styleColumn colspan=2>^{maybe mempty decorateSku ssSku }
-        <td.varQuantity>^{decorateQuantity ssSku (formatQuantity ssQoh)}
+        <td.varQuantity>^{_decorateQuantity ssSku (formatQuantity ssQoh)}
            $with leftOver <- ssQoh - ssQUsed
               $if leftOver > 0
                 <span.badge>#{formatQuantity leftOver}

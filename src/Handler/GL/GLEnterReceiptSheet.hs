@@ -4,6 +4,9 @@
 {-# LANGUAGE DeriveFunctor, GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-missing-exported-signatures #-} -- TODO remove
+{-# OPTIONS_GHC -Wno-unused-do-bind #-} -- TODO remove
+{-# OPTIONS_GHC -Wno-name-shadowing #-} -- TODO remove
 module Handler.GL.GLEnterReceiptSheet where
 
 import Import hiding(InvalidHeader)

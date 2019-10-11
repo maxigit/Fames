@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 -- | Miscelaneous functions to read and write shelves and boxes from csv
 module WarehousePlanner.Csv where
 
@@ -5,7 +6,7 @@ import WarehousePlanner.Base
 import qualified Data.Csv as Csv
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Vector as Vec
-import Control.Monad
+import Control.Monad hiding(mapM_)
 -- import Data.List.Split (splitOn)
 import qualified Data.List as List
 import Data.Char(isDigit)
@@ -15,7 +16,7 @@ import Text.Read(readMaybe)
 import qualified Text.Parsec as P
 import qualified Text.Parsec.Text as P
 import Data.Maybe(fromMaybe)
-import Control.Monad.State
+import Control.Monad.State hiding(fix,mapM_)
 import qualified Text.Regex as Rg
 import qualified Text.Regex.Base.RegexLike as Rg
 import Data.Text(splitOn)
@@ -28,12 +29,12 @@ readShelves filename = do
     case Csv.decode  Csv.HasHeader csvData of
         Left err ->  error $ "File:" <> filename <> " " <>  err -- putStrLn err >> return (return [])
         Right (rows) -> return $ do
-            let v = Vec.forM rows $ \(name, first, last, description, l, w, h) ->
+            let v = Vec.forM rows $ \(name, first_, last_, description, l, w, h) ->
                         let dim = Dimension l w h
                             dim' = Dimension l (w+10) h
-                            last' = maybe first id last
-                            _types = (first, description) :: (Int, Text)
-                        in forM [first..last'] $ \i ->
+                            last' = maybe first_ id last_
+                            _types = (first_, description) :: (Int, Text)
+                        in forM [first_..last'] $ \i ->
                                         let shelfName = name <> "." <> tshow i
                                         in newShelf shelfName mempty dim dim' DefaultOrientation ColumnFirst
 
@@ -86,8 +87,8 @@ readShelves2 defaultOrientator filename = do
 --   A[123#top] => A1 A2 A3#top
 expand :: Text -> [(Text, Maybe Text)]
 expand name = let
-  (fix, vars) = break (=='[') name
-  in case vars of
+  (fix, vars0) = break (=='[') name
+  in case vars0 of
     "" -> [extractTag fix]
     (uncons -> Just ('[', vars)) -> case break (==']') vars of
         (_,"") -> error $ "unbalanced brackets in " ++ unpack name
@@ -112,7 +113,7 @@ data Expr = AddE Expr Expr
 parseExpr :: (Dimension -> Double) -> Text -> Expr
 parseExpr defaultAccessor s =  case P.parse (parseExpr' defaultAccessor <* P.eof) (unpack s) s of
   Left err -> error (show err)
-  Right  exp -> exp
+  Right  expr -> expr
 
 parseExpr' :: (Dimension -> Double) -> P.Parser Expr
 parseExpr' accessor = (P.try (parseOp accessor))
@@ -129,6 +130,7 @@ parseVal = do
                   Nothing -> error $ "Can't parse [" ++ s ++ "]"
                   Just v -> ValE v
 
+parseOp :: (Dimension -> Double) -> P.ParsecT Text () Identity Expr
 parseOp accessor = do
   e1 <- parseTerminalExpr accessor
   P.spaces
@@ -147,12 +149,13 @@ parseOp accessor = do
 
 parseRef :: (Dimension -> Double) -> P.Parser Expr
 parseRef accessor = do
-  P.char '{'
+  _ <- P.char '{'
   ref <- P.many1 (P.alphaNum <|> P.oneOf ".+-%_\\")
   acc <- P.option accessor $ P.char ':' *> parseAccessor
-  P.char '}'
+  _ <- P.char '}'
   return $ RefE (pack ref) acc
 
+parseAccessor :: P.Stream s m Char => P.ParsecT s u m (Dimension -> Double)
 parseAccessor = P.choice $ map  (\(s ,a) -> P.string s >> return a)
                 [ ("length", dLength)
                 , ("width", dWidth  )
@@ -180,13 +183,14 @@ evalExpr shelfName (RefE ref accessor) = do
   ids <- findShelfBySelector (Selector (NameMatches [MatchFull refName]) [])
   shelf <- case ids of
               [] -> error $ "Can't find shelf " ++ unpack refName ++ " when evaluating formula"
-              [id] ->  findShelf id
+              [id_] ->  findShelf id_
               _ -> error $ "Find multiple shelves for " ++ unpack shelfName ++ "when evaluating formula."
   return $ (accessor.minDim) shelf
 
 
 transformRef :: Text -> Text -> Text
 transformRef a b = pack (transformRef' (unpack a) (unpack b))
+transformRef'  :: String -> String -> String
 transformRef'  "" ref = ref
 transformRef' origin "%" = origin
 transformRef' os ('\\':c:cs) = c:transformRef' os cs
@@ -337,7 +341,7 @@ processMovesAndTags (style, tags, locationM) = do
           untagOps = negateTagOperations tagOps
       new <- mapM (updateBoxTags tagOps) boxes
       -- traceShowM("UNTAG", untagOps, length $ concat leftoverss)
-      mapM (updateBoxTags untagOps) (concat leftoverss)
+      _ <- mapM (updateBoxTags untagOps) (concat leftoverss)
       return new
 
 -- | read a file assigning tags to styles
@@ -430,15 +434,14 @@ readStockTake defaultTags newBoxOrientations splitStyle filename = do
         Left err ->  error $ "File:" <> filename <> " " <>  err -- putStrLn err >> return (return [])
         Right (rowsV) -> return $ do
             -- we get bigger box first : -l*w*h
-            let rows = [ ((qty, content, tags),  (-(l*w*h), shelf, style', l,w,h, if null os then "%" else os))
-                       | (shelf, style, qty, l, w, h, os)
+            let rows0 = [ ((qty, content, tags),  (-(l*w*h), shelf, style', l,w,h, if null os then "%" else os)) | (shelf, style, qty, l, w, h, os)
                        <- Vec.toList (rowsV ::  Vec.Vector (Text, Text, Int, Double, Double, Double, Text))
                        , let (name, tags) = extractTags style
                        , let (style', content) = splitStyle name
                        ]
             -- groups similar
                 groups = List.groupBy (\a b -> snd a == snd b)
-                       $ List.sortBy (comparing snd) rows
+                       $ List.sortBy (comparing snd) rows0
 
             v <- forM groups $ \rows@((_, (_,shelf, style, l, w, h, os)):_) -> do
                         s0 <- defaultShelf
@@ -509,7 +512,7 @@ setOrientationRules defOrs filename = do
     old <- gets boxOrientations
     let new box shelf = case fn box shelf of
           Nothing ->  old box shelf
-          Just or -> or
+          Just or_ -> or_
 
     wh <- get
     put wh {boxOrientations = new}

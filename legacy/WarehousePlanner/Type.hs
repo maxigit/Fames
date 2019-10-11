@@ -26,6 +26,8 @@ data Dimension = Dimension { dLength :: !Double
 
 data Direction = Vertical | Depth | Horizontal deriving (Show, Eq, Ord, Enum)
 data Flow = LeftToRight | RightToLeft deriving (Show, Eq, Ord, Enum)
+
+defaultFlow :: Flow
 defaultFlow = LeftToRight
 
 -- | How to filter box by number.
@@ -123,6 +125,7 @@ data OperationCache s  = OperationCache
   { propertyStats :: Map Text PropertyStats
   , boxTagMapMap :: Map Text (Map Text [Box s])
   }
+emptyOperationCache :: OperationCache s
 emptyOperationCache = OperationCache mempty mempty
 
 -- | Statistics relative to a property 
@@ -231,6 +234,7 @@ floorSpace (Dimension l w _) = l*w
 -- ** Boxes
 
 -- ** Orientations
+up, tiltedForward, tiltedRight, tiltedFR, rotatedSide, rotatedUp :: Orientation
 up = Orientation Vertical Depth
 tiltedForward = Orientation Depth Vertical
 tiltedRight = Orientation Horizontal Depth
@@ -247,6 +251,7 @@ showOrientation o | o == up             =  "^ "
                   | o == rotatedSide      =  "@ "
                   | otherwise           =  "tA "
 
+readOrientation :: Char -> Orientation
 readOrientation c = case c of
     '^' -> up
     '=' -> tiltedForward
@@ -256,6 +261,7 @@ readOrientation c = case c of
     '@' -> rotatedSide
     _ -> error ("can't parse orientation '" <> show c )
 
+allOrientations :: [Orientation]
 allOrientations = [ up
                   , rotatedUp
                   , tiltedForward
@@ -278,6 +284,7 @@ rotate o (Dimension l w h)
 -- ** Boxes
 boxKey :: Box s -> Text
 boxKey b = (boxStyle b) <> (boxContent b)
+boxSku :: Box s -> Text
 boxSku b = boxStyle b <> "-" <> boxContent b
 boxTagList :: Box s -> [Text]
 boxTagList = map flattenTag'Values . Map.toList . boxTags

@@ -1,6 +1,8 @@
 {-# LANGUAGE ImplicitParams #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-} -- TODO remove
+{-# OPTIONS_GHC -Wno-missing-exported-signatures #-} -- TODO remove
+{-# OPTIONS_GHC -Wno-unused-do-bind #-} -- TODO remove
 module Handler.GL.Payroll
--- * Export
 ( getGLPayrollR
 , postGLPayrollValidateR
 , postGLPayrollSaveR
@@ -16,7 +18,6 @@ module Handler.GL.Payroll
 , module Handler.GL.Payroll.Calendar
 , module Handler.GL.Payroll.Import
 ) where
--- * Import
 import Import
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import qualified GL.Payroll.Timesheet as TS

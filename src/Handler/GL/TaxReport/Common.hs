@@ -135,6 +135,7 @@ loadPendingTaxDetails taxRule (Entity reportKey TaxReport{..}) = do
                 )
   return $ filter tdIsPending allDetails
 
+loadCollectedTaxDetails :: Entity TaxReport -> Handler [TaxDetail]
 loadCollectedTaxDetails (Entity reportKey TaxReport{..})  = do
   let mkDetail trans'detail''personms   =
         let
@@ -154,6 +155,7 @@ loadCollectedTaxDetails (Entity reportKey TaxReport{..})  = do
   return allDetails
 
 -- | Load 
+loadTaxTypeMap :: SqlHandler (Map FA.TaxTypeId (Entity FA.TaxType))
 loadTaxTypeMap = do
   taxTypes <- selectList [] []
   return $  mapFromList $ map (fanl entityKey) taxTypes
@@ -292,8 +294,10 @@ getBucketRateFromSettings reportId settings  = runDB $ do
 
 -- * Util
 
+formatDouble' :: Double -> Text
 formatDouble' = F.sformat (commasFixedWith round 4)
 
+formatDoubleWithSign :: Double -> Html
 formatDoubleWithSign amount = [shamlet|<span :negative:.text-danger>#{formatDouble' amount}|]
   where negative = amount < -1e-2
 
@@ -339,8 +343,10 @@ reportDetailToBucketMap taxTypeMap detail@TaxReportDetail{..} = let
   in singletonMap key (taxSummary detail)
 
 -- | Create a tax entity in case the one used as been deleted
+mkTaxFromDetail :: TaxReportDetail -> Entity FA.TaxType
 mkTaxFromDetail TaxReportDetail{..} = mkTaxEntity (FA.TaxTypeKey taxReportDetailFaTaxType) taxReportDetailRate
 
+mkTaxEntity :: Key FA.TaxType -> Double -> Entity FA.TaxType
 mkTaxEntity taxId rate = Entity taxId FA.TaxType{..} where
   taxTypeRate = rate
   taxTypeSalesGlCode = "0"

@@ -5,6 +5,7 @@
 {-# LANGUAGE UndecidableSuperClasses, RankNTypes #-}
 {-# LANGUAGE FlexibleContexts, ScopedTypeVariables #-}
 {-# LANGUAGE AllowAmbiguousTypes, StandaloneDeriving #-}
+{-# OPTIONS_GHC -Wno-missing-exported-signatures #-}
 -- | Main pure functions related to items ...
 module Items.Internal where
 

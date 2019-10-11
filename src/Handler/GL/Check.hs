@@ -1,5 +1,6 @@
 {-# LANGUAGE ImplicitParams #-} 
 {-# LANGUAGE StandaloneDeriving #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Handler.GL.Check
 ( getGLCheckR 
 , postGLCheckR 
@@ -7,7 +8,7 @@ module Handler.GL.Check
 , postGLFixDebtorTransR
 ) where
 
-import Import hiding(showDouble)
+import Import hiding(showDouble, force)
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
 import FA
 import GL.Utils

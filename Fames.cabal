@@ -4,11 +4,12 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: fb5f688bd14d55649e6e94acbc8c83278d2d4ddc02e03b4c5d0dd29e7e4176b9
+-- hash: 1420ad0de62e5b66154fa522d218156a4ca3d7b18cde7e83b249339966294a58
 
 name:           Fames
 version:        0.0.1
 license:        UnspecifiedLicense
+license-file:   LICENSE
 build-type:     Simple
 
 flag dev
@@ -232,7 +233,7 @@ library
     , yesod-media-simple >=0.2.0.1 && <0.2.1
     , yesod-static >=1.4.0.3 && <1.6
   if (flag(dev)) || (flag(library-only))
-    ghc-options: -Werror -Wincomplete-patterns -W -Wno-partial-type-signatures -Wno-type-defaults -O0 -j6
+    ghc-options: -Werror -Wincomplete-patterns -W -Wno-partial-type-signatures -Wno-type-defaults -Wno-missing-local-signatures -O0 -j6
     cpp-options: -DDEVELOPMENT
   else
     ghc-options: -W -fwarn-tabs -Wno-type-defaults -O2 -j6

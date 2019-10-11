@@ -1,5 +1,4 @@
 {-# LANGUAGE PartialTypeSignatures #-}
--- * Overview
 -- | Miscellaneous functions to help rendering
 -- | and/or accessing the database
 module Handler.Util
@@ -78,9 +77,8 @@ module Handler.Util
 , currentFAUser
 , getSubdirOptions
 ) where
--- ** Import
 import Foundation
-import Import.NoFoundation
+import Import.NoFoundation hiding(exp)
 import Data.Conduit.List (consume)
 import Data.Text.Encoding(decodeLatin1)
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3,
@@ -200,6 +198,7 @@ uploadFileForm :: _ a
                              Handler
                              (FormResult (FileInfo, Encoding, a), Widget) 
 uploadFileForm = renderBootstrap3 BootstrapBasicForm . uploadFileForm'
+-- uploadFileForm' :: a -> AForm Handler (FileInfo, Encoding, a)
 uploadFileForm' fields = 
   ((,,)
    <$> areq fileField "file" Nothing
@@ -207,6 +206,8 @@ uploadFileForm' fields =
    <*> fields
   )
 
+uploadFileFormInline ::  _ a -- (a -> AForm Handler (FileInfo, Encoding, a))
+                     -> Markup -> MForm Handler (FormResult (FileInfo, Encoding, a), Widget)
 uploadFileFormInline = renderBootstrap3 BootstrapInlineForm . uploadFileForm'
 
 uploadFileFormWithComment :: Markup
@@ -219,16 +220,15 @@ uploadFileFormWithComment :: Markup
 uploadFileFormWithComment = uploadFileForm (aopt textareaField "comment" Nothing)
 
 --  | Generate a form meant to be used to reload cache using readUploadOrCache
--- hiddenFileForm
---   :: DocumentHash
---      -> Maybe (DocumentHash, FilePath)
---      -> _ (FormResult (DocumentHash, FilePath), Widget)
+hiddenFileForm :: PathPiece t => Maybe (DocumentHash, t) -> Markup -> MForm Handler (FormResult (DocumentHash, t), Widget)
 hiddenFileForm key'pathM = renderBootstrap3 BootstrapBasicForm form where
   form =
     (,) <$> areq hiddenField  "key" (fmap fst  key'pathM)
         <*> areq hiddenField "path" (fmap snd key'pathM)
    
 
+unsafeRunFormPost :: (Markup -> MForm Handler (FormResult a, Widget))
+                 -> Handler (a, (Widget, Enctype))
 unsafeRunFormPost form = do
   ((resp, view), encType) <- runFormPost form
   case resp of
@@ -239,6 +239,16 @@ unsafeRunFormPost form = do
     FormSuccess x -> do
       return (x, (view, encType))
 
+-- unsafeRunFormGet :: (Yesod site, ToWidget site a1) =>
+--                     (Markup
+-- -> transformers-0.5.5.0:Control.Monad.Trans.RWS.Lazy.RWST
+--                       (Maybe (Env, FileEnv), site, [Lang])
+--                       Enctype
+--                       Ints
+--                       (Handler)
+--                       (FormResult a2, a1))
+unsafeRunFormGet :: (Markup -> MForm Handler (FormResult a, Widget))
+                 -> Handler (a, (Widget, Enctype))
 unsafeRunFormGet form = do
   ((resp, view), encType) <- runFormGet form
   case resp of
@@ -432,6 +442,7 @@ firstOperator = do
 
 
 -- * SQL
+(<-?.) :: PersistField typ => EntityField v typ -> [typ] -> [Filter v]
 _ <-?. []  =  []
 a <-?. list  =   [a <-. list]
 -- ** Filtering Expressions (Like or Regexp)
@@ -578,11 +589,13 @@ panel panelClass (Just panelId) title body = [whamlet|
     <div.panel-body.in id="#{panelId}">
       ^{body}
 |]
+infoPanel, dangerPanel, warningPanel, primaryPanel :: Text -> Widget -> Widget
 infoPanel= infoPanel' Nothing
 dangerPanel = dangerPanel' Nothing
 warningPanel= warningPanel' Nothing
 primaryPanel= primaryPanel' Nothing
 
+infoPanel', dangerPanel', warningPanel', primaryPanel' :: Maybe Text -> Text -> Widget -> Widget
 infoPanel' = panel "panel-info"
 dangerPanel' = panel "panel-danger"
 warningPanel' = panel "panel-warning"
@@ -608,7 +621,7 @@ attrs -.  klass = mapToList $ Map.adjust go "class" m
         go = unwords . filter (/= klass) . words
 -- * Cached Value accross session
 -- cacheEntities :: PersistEntity e => Text -> Bool -> Handler (Map (Key e) e )
-cacheEntities cacheKey force = cache0 force cacheForEver cacheKey $ do
+cacheEntities cacheKey force_ = cache0 force_ cacheForEver cacheKey $ do
   entities <- runDB $ selectList [] []
   return $ mapFromList [(key, entity) | (Entity key entity) <- entities ]
 
@@ -623,16 +636,16 @@ basePriceList = cache0 False cacheForEver "base-price-list" $ do
   
 -- *** Customer and Supplier map
 allCustomers :: Bool -> Handler (Map (Key  FA.DebtorsMaster) FA.DebtorsMaster)
-allCustomers force = cacheEntities "all-customer-list" force
+allCustomers force_ = cacheEntities "all-customer-list" force_
 
 allSuppliers :: Bool -> Handler (Map (Key  FA.Supplier) FA.Supplier)
-allSuppliers force = cacheEntities "all-supplier-list" force
+allSuppliers force_ = cacheEntities "all-supplier-list" force_
 
 -- | Function  return the name of customer or a supplier
 entityNameMH :: Bool -> Handler (FATransType -> Maybe Int64 -> Maybe Text)
-entityNameMH force = do
-  customerMap <- allCustomers force
-  supplierMap <- allSuppliers force
+entityNameMH force_ = do
+  customerMap <- allCustomers force_
+  supplierMap <- allSuppliers force_
   let
       go trans (Just cust ) | trans `elem` customerFATransactions
                             , Just customer <- lookup (FA.DebtorsMasterKey $ fromIntegral cust) customerMap
@@ -644,7 +657,7 @@ entityNameMH force = do
   return go
   
 entityNameH :: Bool -> Handler (FATransType -> Maybe Int64 -> Text)
-entityNameH force = fromMaybe "" <$$$> entityNameMH force
+entityNameH force_ = fromMaybe "" <$$$> entityNameMH force_
 
 -- *** Current User
 currentFAUser :: Handler (Maybe FA.User)
@@ -774,7 +787,7 @@ orderCategoriesH = do
 
 -- * Misc
 -- todayH :: Handler Day
--- todayH :: MonadIO io => io Day
+todayH :: MonadIO io => io Day
 todayH = utctDay <$> liftIO getCurrentTime
 
 -- | Find beginning of fiscal year

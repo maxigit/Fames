@@ -23,7 +23,7 @@ import Util.Decimal
 import Data.Fixed
 
 
-import Formatting
+import Formatting hiding (now)
 import Formatting.Time(year, month)
 import qualified FA as FA
 
@@ -94,7 +94,7 @@ checkHMRCStatus :: Entity TaxReport -> HMRCProcessorParameters -> Handler TaxRep
 checkHMRCStatus (Entity _ report@TaxReport{..}) settings = do
   -- get token for VAT obligation. hack to call getHMRC Token with a report id
   -- so that we are redirected to the correct page
-  getHMRCToken taxReportType settings
+  _ <- getHMRCToken taxReportType settings
   obligations <- retrieveVATObligations taxReportType (Just report)settings
   -- traceShowM ("OBLIGATIONS", obligations)
   case obligations of

@@ -42,7 +42,7 @@ warehouseExamble  = do
   shelves <- mapM (  \i -> newShelf ("A1" <> tshow i) Nothing dim0  dim0 DefaultOrientation ColumnFirst ) [1..50]
   let shelfid = shelfId (headEx shelves)
   boxes <- mapM (\i -> newBox "style" (tshow i) dim1 up shelfid [up] []) [1..300]
-  moveBoxes ExitLeft boxes shelves
+  _ <- moveBoxes ExitLeft boxes shelves
   -- rearrangeShelves [shelf, shelf2]
   
   return $ ShelfGroup (map (ShelfProxy .shelfId) shelves) Vertical
@@ -71,8 +71,8 @@ parseLine line | "-- END " `isPrefixOf` line          = Right EndL
 
 -- | Regroup lines into section
 linesToSections :: [TypedLine] -> [Either Text Section]
-linesToSections lines = reverse $ go lines Nothing [] [] where
-  go :: [TypedLine] -- ^ lines to parse
+linesToSections lines_ = reverse $ go lines_ Nothing [] [] where
+  go :: [TypedLine] -- ^ lines_ to parse
      -> Maybe (HeaderType, Text) --  ^ header for current body
      -> [Text] -- ^ line of the current body in reverse order
      -> [Either Text Section] -- ^ previously parsed in reverse order
@@ -203,7 +203,10 @@ readScenariosFromDir expandSection path = do
   scenariosE <- mapM (readScenario expandSection . decodeUtf8) contents
   return $ sequence scenariosE
   
+fileValid :: FilePath -> Bool
 fileValid = (== ".org") . takeExtension
+
+savePointScenario :: Scenario
 savePointScenario = Scenario Nothing [SavingPoint] Nothing
 
 -- | Save a content to a temporary file if needed
@@ -280,6 +283,7 @@ scenarioToTextWithHash scenario = sectionsToText $ scenarioToSections scenario
 sectionsToText :: [Section] -> Text
 sectionsToText sections = unlines $ concatMap sectionToText sections
 
+emptyHash :: DocumentHash
 emptyHash = computeDocumentKey ""
 sectionToText :: Section -> [Text]
 sectionToText Section{..} = execWriter $ do
@@ -298,8 +302,8 @@ __scenarioToFullText scenario =  do
 
 scenarioToSections :: Scenario -> [Section]
 scenarioToSections Scenario{..} = execWriter $ do  -- []
-  forM sInitialState (\state -> tell [Section InitialH (Left state) "* INITIAL"])
-  forM sLayout (\layout -> tell [Section LayoutH (Left layout) "* LAYOUT"])
+  _ <- forM sInitialState (\state -> tell [Section InitialH (Left state) "* INITIAL"])
+  _ <- forM sLayout (\layout -> tell [Section LayoutH (Left layout) "* LAYOUT"])
   forM sSteps (\s -> case s of
                   Step header sha title -> tell [Section header (Left sha) title]
                   SavingPoint -> return ()
@@ -329,9 +333,10 @@ sSortedSteps Scenario{..} = let
   in  map snd sorted
 
 -- * Rendering
+execWH :: MonadIO m => Warehouse RealWorld -> WH a RealWorld -> m a
 execWH warehouse0 wh = liftIO $ stToIO $ evalStateT wh warehouse0
 
--- runWH :: MonadIO m => Warehouse s -> WH a s -> m (a, Warehouse s)
+runWH :: MonadIO m => Warehouse RealWorld -> WH a RealWorld -> m (a, Warehouse RealWorld)
 runWH warehouse0 wh = liftIO $ stToIO $ runStateT wh warehouse0
 
 executeStep :: Step -> IO (WH () s)

@@ -7,12 +7,12 @@ module Handler.Dashboard
 )
 where
 
-import Import
+import Import hiding(all)
 import Handler.Items.Reports.Common
 import Items.Types
 import GL.Utils
 import qualified Data.Map as Map
-import Formatting
+import Formatting hiding(now)
 import Data.Aeson.QQ(aesonQQ)
 
 pivotCss = [cassius|
@@ -72,10 +72,10 @@ getDMainR = do
     toWidgetHead commonCss
     toWidgetHead pivotCss
     [whamlet|
-  <div.panel.panel-primary>
-    <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-1">
+  <div.panel_.panel_-primary>
+    <div.panel_-heading data-toggle=collapse data-target="#dashboard-panel_-1">
       <h2> Monthly Sales
-    <div.panel-body.pivot-inline id=dashboard-panel-1>
+    <div.panel_-body.pivot-inline id=dashboard-panel_-1>
       <div.row>
         <div.col-md-12>
           ^{currentMonthPcent}
@@ -89,10 +89,10 @@ getDMainR = do
         <div.col-md-4.display10>
           <h4> Top Item Monthly
           ^{topSkuMonthPcent}
-  <div.panel.panel-primary>
-    <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-2">
+  <div.panel_.panel_-primary>
+    <div.panel_-heading data-toggle=collapse data-target="#dashboard-panel_-2">
       <h2> Since January
-    <div.panel-body.pivot-inline id=dashboard-panel-2>
+    <div.panel_-body.pivot-inline id=dashboard-panel_-2>
       <div.row>
         <div.col-md-4.display10 >
           <h4> Top Styles 
@@ -112,8 +112,8 @@ getDMainR = do
 getDMainFullR :: Handler Html
 getDMainFullR = do
   now <- liftIO $ getCurrentTime
-  let reportDiv :: Text -> Handler Widget
-      reportDiv reportId = do
+  let reportDiv' :: Text -> Handler Widget
+      reportDiv' reportId = do
         widgetE <- dispatchReport reportId 800 400
         case widgetE of
           Left err -> return [whamlet|
@@ -128,13 +128,13 @@ getDMainFullR = do
                          |]
 
   -- refactor
-  currentMonthFull <- reportDiv "salesCurrentMonthFull" 
-  topStyleMonthFull <- reportDiv "top20StyleMonthFull" 
-  topColourMonthFull <- reportDiv "top20ColourMonthFull" 
-  topSkuMonthFull <- reportDiv "top20ItemMonthFull" 
-  topStyleJanuaryFull <- reportDiv "top20StyleJanuaryFull" 
-  topColourJanuaryFull <- reportDiv "top20ColourJanuaryFull" 
-  topSkuJanuaryFull <- reportDiv "top20ItemJanuaryFull" 
+  currentMonthFull <- reportDiv' "salesCurrentMonthFull" 
+  topStyleMonthFull <- reportDiv' "top20StyleMonthFull" 
+  topColourMonthFull <- reportDiv' "top20ColourMonthFull" 
+  topSkuMonthFull <- reportDiv' "top20ItemMonthFull" 
+  topStyleJanuaryFull <- reportDiv' "top20StyleJanuaryFull" 
+  topColourJanuaryFull <- reportDiv' "top20ColourJanuaryFull" 
+  topSkuJanuaryFull <- reportDiv' "top20ItemJanuaryFull" 
 
 
   cacheSeconds (3600*23)
@@ -143,10 +143,10 @@ getDMainFullR = do
     toWidgetHead commonCss
     toWidgetHead pivotCss 
     [whamlet|
-  <div.panel.panel-primary>
-    <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-1">
+  <div.panel_.panel_-primary>
+    <div.panel_-heading data-toggle=collapse data-target="#dashboard-panel_-1">
       <h2> Monthly Sales
-    <div.panel-body.pivot-inline id=dashboard-panel-1>
+    <div.panel_-body.pivot-inline id=dashboard-panel_-1>
       <div.row>
         <div.col-md-12>
           ^{currentMonthFull}
@@ -160,10 +160,10 @@ getDMainFullR = do
         <div.col-md-4.display10>
           <h4> Top Item Monthly
           ^{topSkuMonthFull}
-  <div.panel.panel-primary>
-    <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-2">
+  <div.panel_.panel_-primary>
+    <div.panel_-heading data-toggle=collapse data-target="#dashboard-panel_-2">
       <h2> Since January
-    <div.panel-body.pivot-inline id=dashboard-panel-2>
+    <div.panel_-body.pivot-inline id=dashboard-panel_-2>
       <div.row>
         <div.col-md-4.display10 >
           <h4> Top Styles 
@@ -228,10 +228,10 @@ getDYearR = do
   defaultLayout $ do
     addScriptRemote "https://cdn.plot.ly/plotly-latest.min.js"
     [whamlet|
-  <div.panel.panel-primary>
-    <div.panel-heading data-toggle=collapse data-target="#dashboard-panel-1">
+  <div.panel_.panel_-primary>
+    <div.panel_-heading data-toggle=collapse data-target="#dashboard-panel_-1">
       <h2> Full Year
-    <div.panel-body.pivot-inline id=dashboard-panel-1>
+    <div.panel_-body.pivot-inline id=dashboard-panel_-1>
       <div.row>
         <div.col-md-12>
           ^{slidingFull}
@@ -348,8 +348,8 @@ salesCurrentMonth f plotName = do
       rpBand = emptyRupture
       rpSerie = ColumnRupture  (Just periodColumn) (DataParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing True
       columnRupture = ColumnRupture  (Just dailyColumn) (DataParams QPSummary (Identifiable ("Column", [])) Nothing) Nothing Nothing False
-      rpDataParam = DataParams QPSales (mkIdentifialParam cumulSales) (Just $ NormalizeMode NMBestInit NMBand )
-      rpDataParam2 = DataParams QPSales (mkIdentifialParam amountSales) (Just $ NormalizeMode NMTotal NMBand )
+      rpDataParam = DataParams QPSales (mkIdentifialParam cumulSales_) (Just $ NormalizeMode NMBestInit NMBand )
+      rpDataParam2 = DataParams QPSales (mkIdentifialParam amountSales_) (Just $ NormalizeMode NMTotal NMBand )
       rpDataParam3 = emptyTrace
       rpLoadSalesAndInfo = Just SSalesOnly
       rpLoadSalesOrders = Nothing
@@ -360,8 +360,8 @@ salesCurrentMonth f plotName = do
       rpForecast = (Nothing, Nothing, Nothing)
       rpColourMode = minBound
       rpTraceGroupMode = Nothing
-      amountSales = ("Amount (Out)" ,   [(qpAmount Outward, VAmount, amountStyle, RSNormal)] )
-      amountStyle color = [("type", String "scatter")
+      amountSales_ = ("Amount (Out)" ,   [(qpAmount Outward, VAmount, amountStyle_, RSNormal)] )
+      amountStyle_ color = [("type", String "scatter")
                       ,("mode", String "lines")
                       ,("name", String "Sales")
                       ,("line", [aesonQQ|{
@@ -372,8 +372,8 @@ salesCurrentMonth f plotName = do
                                 }|])
                 , ("marker", [aesonQQ|{symbol: "square"}|])
               ]
-      cumulSales = ("CumulAmount (Out)" ,   [(qpAmount Outward, VAmount, cumulStyle, RunSum)] )
-      cumulStyle color = [("type", String "scatter")
+      cumulSales_ = ("CumulAmount (Out)" ,   [(qpAmount Outward, VAmount, cumulStyle_, RunSum)] )
+      cumulStyle_ color = [("type", String "scatter")
                       ,("mode", String "lines")
                       ,("name", String "Sales")
                       ,("line", [aesonQQ|{
@@ -520,24 +520,24 @@ top100ItemYearChart plotName = do
 -- pivotRankProcessor tparams = 
 --   processRupturesWith (panelPivotRankProcessor tparams "items-report-pivotRank") ()
   
--- -- each nmap is a panel
+-- -- each nmap is a panel_
 -- panelPivotRankProcessor :: [DataParams] -> Text -> NMapKey -> Int -> _ -> _ -> NMap TranQP ->  Widget
 -- panelPivotRankProcessor tparams reportId = createKeyRankProcessor go where
 --   go key rank = let panelName = nkeyWithRank (rank, key)
---                     panelId = reportId <> "-panel-" <> panelName
+--                     panelId = reportId <> "-panel_-" <> panelName
 --                     sub = bandPivotRankProcessor tparams panelId
 --                     widget children = [whamlet|
---                                <div.panel.panel-info>
---                                  <div.panel-heading data-toggle="collapse" data-target="#{panelId}">
+--                                <div.panel_.panel_-info>
+--                                  <div.panel_-heading data-toggle="collapse" data-target="#{panelId}">
 --                                    <h2>#{panelName}
---                                  <div.panel-body.collapse.in id="#{panelId}" style="max-height:2000px; overflow:auto">
+--                                  <div.panel_-body.collapse.in id="#{panelId}" style="max-height:2000px; overflow:auto">
 --                                    ^{children}
 --                        |]
 --                     in (sub, widget)
   
 
 -- each nmap is band
-bandPivotRankProcessor tparams __panelId key rank parents ruptures = createKeyRankProcessor go key rank parents ruptures where
+bandPivotRankProcessor tparams __panelId key0 rank0 parents ruptures = createKeyRankProcessor go key0 rank0 parents ruptures where
   (serieRupture, (columRupture,_)) = ruptures
   go key rank =  let sub = collectColumnsForPivotRank tparams
                           -- get the list of the columns for that we need to
@@ -579,7 +579,7 @@ bandPivotRankProcessor tparams __panelId key rank parents ruptures = createKeyRa
  -- nmap is a serie
 collectColumnsForPivotRank :: [DataParams] -> NMapKey -> Int -> _parents -> _ruptures -> NMap TranQP -> [(_, Map (Int, NMapKey) Widget)]
 collectColumnsForPivotRank tparams key __rank parents ruptures@(r, ()) nmap = let
-  (band, (panel, (all, ()))) = parents
+  (band, (panel_, (all, ()))) = parents
   -- we are within a serie, we need to get all the used columns
   -- form nmap and return them upstream
   columns = processRupturesWith (\k _ _mar _  n -> [(k, cpSorter r k (nmapMargin n) )]) parents ruptures nmap
@@ -595,14 +595,14 @@ collectColumnsForPivotRank tparams key __rank parents ruptures@(r, ()) nmap = le
   -- all, we only need the first one, change format function to get an Integer (the rank)
   rankTrace:_ = [formatSerieValuesNMap floor
                                   floor
-                                  normMode all panel band
+                                  normMode all panel_ band
                                   (fmap (tpValueGetter tp) . lookupGrouped qtype) (nmapRunSum (tpRunSum tp) nmap)
            | DataParams qtype tps normMode <- tparams
            , tp <- getIdentified tps
            ]
   _:traces = [formatSerieValuesNMap (formatDouble' tp)
                                   (formatPercent tp normMode)
-                                  normMode all panel band
+                                  normMode all panel_ band
                                   (fmap (tpValueGetter tp) . lookupGrouped qtype) (nmapRunSum (tpRunSum tp) nmap)
              | DataParams qtype tps normMode <- tparams
              , tp <- getIdentified tps

@@ -88,6 +88,13 @@ loadItemForecast io forecastDir infoMap start end = do
   let skuSpeeds = concat skuSpeedMap 
   return $ concatMap (skuSpeedRowToTransInfo infoMap profile start end io) skuSpeeds
 
+skuSpeedRowToTransInfo :: Map Text ItemInitialInfo
+                       -> (Text -> Maybe SeasonProfile)
+                       -> Day
+                       -> Day
+                       -> Maybe InOutward
+                       -> SkuSpeedRow
+                       -> [(TranKey, TranQP)]
 skuSpeedRowToTransInfo infoMap profileFor start end iom (SkuSpeedRow sku speed) =
   let io = fromMaybe Outward iom  -- ^ like sales
       extra = maybe [] ioToQPType iom

@@ -81,7 +81,7 @@ getWHStocktakeR = do
   active <- lookupGetParam "active"
   docId <- lookupGetParam "doc_key"
   date <- lookupGetParam "date"
-  let filter = catMaybes
+  let filter_ = catMaybes
         [ (\i -> StocktakeId ==. StocktakeKey (SqlBackendKey i)) <$> (sId >>= readMay)
         , (StocktakeStockId ==. ) <$> stockId
         , (\like -> Filter StocktakeStockId (Left $ like <> "%") (BackendSpecificFilter "LIKE")) <$> style
@@ -94,7 +94,7 @@ getWHStocktakeR = do
           , date <&> (const [Asc StocktakeStockId])
           ]
 
-  entityTableHandler' (WarehouseR WHStocktakeR) (filter :: [Filter Stocktake]) orderBy
+  entityTableHandler' (WarehouseR WHStocktakeR) (filter_ :: [Filter Stocktake]) orderBy
 
 help :: Html
 help = [shamlet|
@@ -425,7 +425,7 @@ processStocktakeSheet mode = do
       -- check if the document has already been uploaded
       -- and reject it.
       (documentKey'msgM) <- runDB $ loadAndCheckDocumentKey key
-      forM documentKey'msgM  $ \(_ , msg) -> do
+      _ <- forM documentKey'msgM  $ \(_ , msg) -> do
         case (mode, pOveridde param) of
           (Save, False) -> renderWHStocktake Validate Nothing  422 (setError msg) (return ()) -- should exit
           _ -> setWarning msg >> return ""
@@ -462,7 +462,7 @@ processStocktakeSheet mode = do
   where process  param __doc Validate __finalizer rows = do
           widget <- renderValidRows param rows
           renderWHStocktake Save (Just param) 200 (setSuccess "Validation ok!") widget
-        process param doc mode finalizer rows | mode == Save || mode == CollectMOP = do
+        process param doc mode_ finalizer rows | mode_ == Save || mode_ == CollectMOP = do
           missings <- case pStyleComplete param of
             StyleComplete -> map QuickST <$> generateMissings rows
             _ -> return []
@@ -495,12 +495,12 @@ processStocktakeSheet mode = do
             let stocktakes0 =  concatMap (groupToStocktakes keyId) groups
             stocktakes <- deactivateOldStocktakes stocktakes0
             let boxtakes0 = do
-                  group <- groups
-                  let descriptionF = case group of
+                  group_ <- groups
+                  let descriptionF = case group_ of
                                         [__one_row] -> id
                                         (_:_) -> (<> "*")
                                         _ -> error "shouldn't happen"
-                  take 1 $ mapMaybe (toBoxtake keyId descriptionF) group
+                  take 1 $ mapMaybe (toBoxtake keyId descriptionF) group_
                 boxtakes = deactivateOldBoxtakes stocktakes boxtakes0
             -- traceShowM("ST", stocktakes, boxtakes)
           
@@ -561,7 +561,7 @@ processStocktakeSheet mode = do
                                                                     , stocktakeOperator s
                                                                     ) : stocktakeHistory old
                                               ]
-                  mapM (\b -> do
+                  mapM_ (\b -> do
                     let unique = UniqueBB (boxtakeBarcode b)
                     existM <- getBy unique
                     case existM of
@@ -609,7 +609,7 @@ quickPrefix :: Text
 insertQuickTakes :: Key DocumentKey -> [FinalQuickRow] -> SqlHandler ()
 -- insertQuickTakes _ [] = return ()
 insertQuickTakes docId quicks = do
-  let count = length quicks
+  let count_ = length quicks
 
       toStockTake barcode TakeRow{..} =
         Stocktake (makeSku rowStyle rowColour)
@@ -626,7 +626,7 @@ insertQuickTakes docId quicks = do
                   rowComment
         where Known qty = rowQuantity
 
-  barcodes <- generateBarcodes quickPrefix  Nothing count
+  barcodes <- generateBarcodes quickPrefix  Nothing count_
   let quicktakes = zipWith toStockTake barcodes quicks
 
   insertMany_ quicktakes
@@ -677,9 +677,9 @@ updateLookedUp docKey i'rows = do
   case olds of
     [] -> -- doesn't exits we need to insert them instead updating
           -- we probably pulled the information from the packing list
-         mapM insert_ (groupToStocktakes docKey i'rows)
+         mapM_ insert_ (groupToStocktakes docKey i'rows)
           
-    _ -> mapM (\(Entity key old) ->
+    _ -> mapM_ (\(Entity key old) ->
             update key [ StocktakeOperator =. (opId $ rowOperator s)
                        , StocktakeDate =.  rowDate s
                        , StocktakeDocumentKey =. docKey
@@ -733,13 +733,13 @@ data TakeRowType = RawT | PartialT | FullT
   | QuickT | FinalQuickT
   |  BarcodeLookupT -- | FinalBarcodeLookupT
   | FinalT deriving (Eq, Read, Show)
-type RawRow = TakeRow RawT -- Raw data. Contains if the original text value if necessary
-type PartialRow = TakeRow PartialT -- Well formatted row. Can contains blank
-type FullRow = TakeRow FullT -- Contains valid value with guessed/provided indicator
-type QuickRow = TakeRow QuickT -- Quick take. No item founds, therefore no quantities, barcode, box dimensions, etc ...
-type BarcodeLookupRow = TakeRow BarcodeLookupT -- Barcode lookup. Rescan an already scanned boxed
-type FinalFullRow = TakeRow FinalT -- Contains value with ornement
-type FinalQuickRow = TakeRow FinalQuickT -- Contains value with ornement
+type RawRow = TakeRow 'RawT -- Raw data. Contains if the original text value if necessary
+type PartialRow = TakeRow 'PartialT -- Well formatted row. Can contains blank
+type FullRow = TakeRow 'FullT -- Contains valid value with guessed/provided indicator
+type QuickRow = TakeRow 'QuickT -- Quick take. No item founds, therefore no quantities, barcode, box dimensions, etc ...
+type BarcodeLookupRow = TakeRow 'BarcodeLookupT -- Barcode lookup. Rescan an already scanned boxed
+type FinalFullRow = TakeRow 'FinalT -- Contains value with ornement
+type FinalQuickRow = TakeRow 'FinalQuickT -- Contains value with ornement
 -- type FinalBarcodeLookupRow = TakeRow FinalBarcodeLookupT -- Barcode lookup. Rescan an already scanned boxed
 
 type family  FieldTF (s :: TakeRowType) a z lk where
@@ -824,14 +824,14 @@ validateRows skus (row:rows) = do
                        in transformRow (p :: PartialRow)
         QuickST quick -> let p = transformRow quick  
                        in transformRow (p :: PartialRow)
-        BLookupST lookup -> let p = transformRow lookup  
+        BLookupST lookup_ -> let p = transformRow lookup_  
                        in transformRow (p :: PartialRow)
         BLookedupST _ -> error "Shouldn't happen"
   -- we need to check that the last barcode is not guessed
   
       errors = map (either id (transformRow')) filleds
       -- ignore quicktake barcode when determining if a sequence of barcode is correct or not.
-      validBarcode (FullST row) = Just (rowBarcode row)
+      validBarcode (FullST row_) = Just (rowBarcode row_)
       validBarcode (QuickST _) = Nothing 
       validBarcode (BLookupST _) = Nothing 
       validBarcode (BLookedupST _) = error "Shouldn't happen"
@@ -903,7 +903,7 @@ fillFromPrevious skus (Right (QuickST previous)) partial =
       quantity = rowQuantity partial
       location = rowLocation partial
       barcode  = rowBarcode partial
-      length   = rowLength partial
+      length_   = rowLength partial
       width    = rowWidth partial
       height   = rowHeight partial
       date     = rowDate partial `fillValue` transform (rowDate previous)
@@ -911,7 +911,7 @@ fillFromPrevious skus (Right (QuickST previous)) partial =
       comment  = rowComment partial
       raw = (TakeRow (Just <$> style) (Right colour) (Right quantity)
                     (Right location) (Right barcode)
-                    (Right length) (Right width) (Right height)
+                    (Right length_) (Right width) (Right height)
                     (Just <$> date) (Just <$> operator) (Right comment) :: RawRow)
   in validateRow skus CheckBarcode =<< validateRaw (const Nothing) (const Nothing)  raw
 
@@ -921,7 +921,7 @@ fillFromPrevious skus (Right (BLookupST previous)) partial = let
       quantity = rowQuantity partial
       location = rowLocation partial `fillValue` transform (rowLocation previous)
       barcode  = rowBarcode partial
-      length   = rowLength partial
+      length_   = rowLength partial
       width    = rowWidth partial
       height   = rowHeight partial
       date     = rowDate partial `fillValue` transform (rowDate previous)
@@ -930,7 +930,7 @@ fillFromPrevious skus (Right (BLookupST previous)) partial = let
 
       raw = (TakeRow (Just <$> style) (Right colour) (Right quantity)
                     (Just <$> location) (Right barcode)
-                    (Right length) (Right width) (Right height)
+                    (Right length_) (Right width) (Right height)
                     (Just <$> date) (Just <$> operator) (Right comment):: RawRow)
       in validateRow skus CheckBarcode =<< validateRaw (const Nothing) (const Nothing)  raw
 
@@ -944,7 +944,7 @@ fillFromPrevious skus (Right (FullST previous)) partial
       quantity = rowQuantity partial `fillValue` transform (rowQuantity previous)
       location = rowLocation partial `fillValue` transform (rowLocation previous)
       barcode  = rowBarcode partial `fillBarcode` transform (rowBarcode previous)
-      length   = rowLength partial `fillValue` transform (rowLength previous)
+      length_   = rowLength partial `fillValue` transform (rowLength previous)
       width    = rowWidth partial `fillValue` transform (rowWidth previous)
       height   = rowHeight partial `fillValue` transform (rowHeight previous)
       date     = rowDate partial `fillValue` transform (rowDate previous)
@@ -953,7 +953,7 @@ fillFromPrevious skus (Right (FullST previous)) partial
 
       raw = (TakeRow (Just <$> style) (Just <$> colour) (Just <$> quantity)
                     (Just <$> location) (Just <$> barcode)
-                    (Just <$> length) (Just <$> width) (Just <$> height)
+                    (Just <$> length_) (Just <$> width) (Just <$> height)
                     (Just <$> date) (Just <$> operator) (Right comment) :: RawRow)
       a /~ b = (guess <$> a) /=(guess <$> b)
       modifiers = case (rowBarcode partial, rowQuantity partial) of
@@ -966,8 +966,8 @@ fillFromPrevious skus (Right (FullST previous)) partial
                            (maybe "" (tshow . validValue) (rowLocation partial))
                          }
             else id
-          , if length /~ Right (rowLength previous)
-            then \r -> r {rowLength = Left $ ParsingError (tshow (length, rowLength previous)) -- "Doesn't match original box"
+          , if length_ /~ Right (rowLength previous)
+            then \r -> r {rowLength = Left $ ParsingError (tshow (length_, rowLength previous)) -- "Doesn't match original box"
                            (maybe "" (tshow . validValue) (rowLength partial))
                          }
             else id
@@ -1023,15 +1023,15 @@ fillBarcode new prevE =
 
       -- add prefix if missing
       let prefix' = if null prefix then prefix0 else prefix
-          new = formatBarcode prefix' n
+          new_ = formatBarcode prefix' n
       -- check suffix is correct
-      (_,_,newC) <- splitBarcodeE new
+      (_,_,newC) <- splitBarcodeE new_
 
       case (newC == c, prev) of
         (False, _) -> Left $ ParsingError "Invalid Barcode" (validValue barcode)
-        (_, Guessed _ ) | n /= n0+1 -> Left $ ParsingError "Barcode Sequence broken" (toStrict new)
+        (_, Guessed _ ) | n /= n0+1 -> Left $ ParsingError "Barcode Sequence broken" (toStrict new_)
         _ | n == n0 -> Left $ ParsingError "Barcode alread in use" (validValue barcode)
-        _  -> Right $ Provided (toStrict new)
+        _  -> Right $ Provided (toStrict new_)
 
     (Just barcode, _)  -> Right (barcode)
     (Nothing,_) -> do -- Either
@@ -1079,10 +1079,10 @@ newtype StIndex = StIndex Int deriving (Eq, Show)
 toStocktakeF :: DocumentKeyId -> FinalFullRow -> Maybe (StIndex -> Stocktake)
 toStocktakeF docId TakeRow{..} = case rowQuantity of
   Unknown -> Nothing
-  Known quantity -> Just $ \(StIndex index) -> Stocktake (makeSku rowStyle rowColour)
+  Known quantity -> Just $ \(StIndex index_) -> Stocktake (makeSku rowStyle rowColour)
                       quantity
                       rowBarcode
-                      index
+                      index_
                       (faLocation rowLocation)
                       rowDate
                       True
@@ -1106,8 +1106,8 @@ toBoxtake docId descriptionFn (col, TakeRow{..}) =
                  []
 
 groupToStocktakes :: DocumentKeyId -> [(Int, FinalFullRow)] -> [Stocktake]
-groupToStocktakes docId group = let
-  stockFns = mapMaybe (toStocktakeF docId . snd) group
+groupToStocktakes docId group_ = let
+  stockFns = mapMaybe (toStocktakeF docId . snd) group_
   in zipWith ($) stockFns (map StIndex [1..])
 
 -- | Generates quicktake corresponding to variations which exits for a given style
@@ -1285,7 +1285,6 @@ lookupBarcode valid@(BLookupST TakeRow{..}) = do
   
 lookupBarcode row = return . return $ return row
 
-deriving instance Show PackingListDetail
 -- | Fetch box content information from a packing list 
 lookupPackingListDetail :: (Text -> [t] -> Maybe a) -> Text -> SqlHandler (Either a [(Text, Int)])
 lookupPackingListDetail checkStyle barcode = do
@@ -1378,11 +1377,11 @@ instance Csv.FromNamedRecord RawRow where
     <*> (allFormatsDay <$$$$> m `parse` "Date Checked" )
     <*> m  Csv..: "Operator"
     <*> m  `parse` "Comment"
-    where parse m colname = do
+    where parse m_ colname = do
             -- parse as a text. To get the cell content
-            t <- m Csv..: colname
+            t <- m_ Csv..: colname
             -- the real value to parse, can fail
-            val <- m Csv..: colname
+            val <- m_ Csv..: colname
             return $ toError t val
 
 instance Csv.FromField (Either InvalidField (Maybe (ValidField (Operator')))) where
