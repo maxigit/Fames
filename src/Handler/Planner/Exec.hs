@@ -16,7 +16,7 @@ import Util.Cache
 import Unsafe.Coerce (unsafeCoerce)
 import Control.Monad.State (put,get)
 import Data.Colour (Colour,affineCombo)
-import Data.Colour.Names (readColourName,black,wheat)
+import Data.Colour.Names (readColourName,black,white, wheat, darkorange, lightsteelblue, royalblue)
 import Data.Colour.SRGB(sRGB24read)
 import Data.Char(isHexDigit,toLower)
 
@@ -72,7 +72,7 @@ copyWarehouse = do
   buildGroup <- mapM copyShelf (shelves wh0)
   return $ do
     put (emptyWarehouse $ whDay wh0) { boxStyling = unsafeCoerce $ boxStyling wh0
-                                    , shelfColors = unsafeCoerce $ shelfColors wh0
+                                    , shelfStyling = unsafeCoerce $ shelfStyling wh0
                                     , boxOrientations = unsafeCoerce $ boxOrientations wh0
                                     }
     sequence buildGroup
@@ -106,16 +106,16 @@ copyShelf sId = do
   
 copyBox :: Box t -> WH (ShelfId s -> WH (Box s) s) t
 copyBox box@Box{..} = return $ \shelf -> do
-  newBox <- newBox boxStyle boxContent _boxDim orientation shelf boxBoxOrientations (boxTagList box)
+  newBox <- newBox boxStyle boxContent _boxDim orientation shelf boxBoxOrientations (getTagList box)
   updateBox (\b -> b { boxOffset = boxOffset, boxTags = boxTags}) newBox
 
 -- * Exec
 -- underscores are stripped before looking for the color name
 -- this allow the same colours to be used more that once
 -- example, navy#_navy#white,  will use navy twice
-colorFromTag :: Box s -> Text -> Maybe (Colour Double)
+colorFromTag :: HasTags tagged => tagged -> Text -> Maybe (Colour Double)
 colorFromTag box tag = let
-  colors = mapMaybe valueToColour (boxTagValues box tag)
+  colors = mapMaybe valueToColour (getTagValues box tag)
   in case colors of
   [] -> Nothing
   [col] -> Just col
@@ -130,10 +130,23 @@ stylingFromTags box = let
   background = wheat `fromMaybe` colorFromTag box "bg"
   background2 = colorFromTag box "circle"
   border = colorFromTag box "border"
-  title = boxTagValues box "title"
-  barTitle= boxTagValuem box "bar-title"
-  displayBarGauge = not (boxTagIsPresent box "no-bar-gauge")
+  title = getTagValues box "title"
+  barTitle= getTagValuem box "bar-title"
+  displayBarGauge = not (tagIsPresent box "no-bar-gauge")
   in BoxStyling{..}
+
+shelfStylingFromTags :: Shelf s -> ShelfStyling
+shelfStylingFromTags shelf = let
+  isSeparator = tagIsPresent shelf "sep"
+  foreground = black `fromMaybe` colorFromTag shelf "fg"
+  background = (if isSeparator then white else lightsteelblue) `fromMaybe` colorFromTag shelf "bg"
+  border = royalblue `fromMaybe` colorFromTag shelf "border"
+  barBackground = darkorange `fromMaybe` colorFromTag shelf "bar-bg"
+  barForeground = black `fromMaybe` colorFromTag shelf "bar-fg"
+  title = getTagValues shelf "title"
+  barTitle= getTagValuem shelf "bar-title"
+  displayBarGauge = not (tagIsPresent shelf "no-bar-gauge") && not isSeparator
+  in ShelfStyling{..}
   
 -- | Transform tag value to colours
 -- Try to read standard name or use hexadecimal
@@ -182,7 +195,7 @@ execScenario sc@Scenario{..} = do
             execM <- liftIO $ mapM executeStep toExecutes
             (_, w') <- runWH (emptyWarehouse today)  $ do
               wCopy <- wCopyM
-              put wCopy { boxStyling = stylingFromTags}
+              put wCopy { boxStyling = stylingFromTags, shelfStyling = shelfStylingFromTags }
               sequence_ execM
             -- traceShowM ("Scenario step => execute", subKey)
             cacheWarehouseIn subKey w'

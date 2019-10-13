@@ -1,6 +1,8 @@
 {-# LANGUAGE TupleSections, BangPatterns #-}
 {-# LANGUAGE LiberalTypeSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DisambiguateRecordFields #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 module WarehousePlanner.Type where
 import Prelude
 import Control.Monad.State
@@ -46,7 +48,7 @@ data BoxNumberSelector = BoxNumberSelector
 data Orientation = Orientation {  top :: !Direction, front :: !Direction } deriving (Show, Eq, Ord)
 -- | Every box belongs to a shelf.
 -- Non placed boxes belongs to the special default shelf
-data BoxId s = BoxId (STRef s (Box s)) deriving (Eq)
+newtype BoxId s = BoxId (STRef s (Box s)) deriving (Eq)
 instance Show (BoxId s) where
   show _ = "<<Boxref>>"
 
@@ -69,7 +71,7 @@ data Box s = Box { _boxId      :: BoxId s
                , boxPriorities :: !(Int, Int, Int ) -- Global, within style, within content , default is 100
                , boxBreak :: !(Maybe BoxBreak)
                } deriving (Show, Eq)
-data ShelfId s = ShelfId (STRef s (Shelf s))  deriving (Eq)
+newtype ShelfId s = ShelfId (STRef s (Shelf s))  deriving (Eq)
 
 -- | Shelf have a min and max dimension. This allows shelf to be overloaded
 -- or boxes to stick out.
@@ -108,7 +110,7 @@ data Warehouse s = Warehouse { boxes :: Seq (BoxId s)
                            , shelves :: Seq (ShelfId s)
                            , shelfGroup :: ShelfGroup s
                            , boxStyling :: Box s -> BoxStyling
-                           , shelfColors :: Shelf s -> (Maybe (Colour Double), Maybe (Colour Double))
+                           , shelfStyling :: Shelf s -> ShelfStyling
                            , boxOrientations :: Box s -> Shelf s -> [(Orientation, Int, Int)]
                            , whCacheM :: Maybe (STRef s (OperationCache s))
                            , whDay :: Day -- Today usefull to compute date operation
@@ -151,6 +153,16 @@ data BoxStyling = BoxStyling
   , displayBarGauge :: Bool -- ^ to display or the bar gauge
   } deriving (Show, Eq, Read)
   
+data ShelfStyling = ShelfStyling
+  { foreground :: Colour Double -- ^ Text colour
+  , background :: Colour Double -- ^ Background colour
+  , barForeground :: Colour Double -- ^ Text colour
+  , barBackground :: Colour Double -- ^ Background colour
+  , border :: (Colour Double)  -- ^ border colour 
+  , title :: [ Text ] -- ^ text to display 
+  , barTitle :: Maybe Text -- ^ text to display in the bar
+  , displayBarGauge :: Bool -- ^ to display or the bar gauge
+  } deriving (Show, Eq, Read)
 -- * Classes
 class ShelfIdable a where
     shelfId :: a s -> ShelfId s
@@ -164,6 +176,8 @@ class Referable a where
   type Ref a :: *
   getRef :: a -> Ref a
 
+class HasTags a where
+  getTags :: a -> Tags
 
 -- * Instances
 instance Semigroup Dimension where
@@ -212,6 +226,9 @@ instance Shelf' Shelf where
   findShelf s = findShelf (shelfId s) -- reload the shef
 instance Shelf' ShelfId where
   findShelf (ShelfId ref) = lift $ readSTRef ref
+
+instance HasTags (Box s) where getTags = boxTags
+instance HasTags (Shelf s) where getTags = shelfTag
 
 instance Semigroup (ShelfGroup s) where
     sg@(ShelfGroup g d) <> sg'@(ShelfGroup g' d')
@@ -286,16 +303,16 @@ boxKey :: Box s -> Text
 boxKey b = (boxStyle b) <> (boxContent b)
 boxSku :: Box s -> Text
 boxSku b = boxStyle b <> "-" <> boxContent b
-boxTagList :: Box s -> [Text]
-boxTagList = map flattenTag'Values . Map.toList . boxTags
+getTagList :: HasTags tagged => tagged -> [Text]
+getTagList = map flattenTag'Values . Map.toList . getTags
 -- | convenience function transforming  the result to list
 -- Can be easier to pattern match
-boxTagValues :: Box s -> Text -> [ Text ]
-boxTagValues box tag = maybe [] (Set.toList) (Map.lookup tag (boxTags box))
-boxTagValuem :: Box s -> Text -> Maybe Text
-boxTagValuem box tag = fmap flattenTagValues (Map.lookup tag (boxTags box))
-boxTagIsPresent :: Box s -> Text -> Bool
-boxTagIsPresent box tag = Map.member tag (boxTags box)
+getTagValues :: HasTags tagged => tagged -> Text -> [ Text ]
+getTagValues box tag = maybe [] (Set.toList) (Map.lookup tag (getTags box))
+getTagValuem :: HasTags tagged => tagged -> Text -> Maybe Text
+getTagValuem box tag = fmap flattenTagValues (Map.lookup tag (getTags box))
+tagIsPresent :: HasTags tagged => tagged -> Text -> Bool
+tagIsPresent box tag = Map.member tag (getTags box)
 
 -- | Return global dimension according
 -- to box orientation

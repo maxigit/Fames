@@ -41,22 +41,25 @@ renderSlices shelf@(ShelfProxy _) = do
 renderShelf :: Shelf s -> WH (Diagram B) s
 renderShelf shelf = do            
     (_, used) <- usedDepth shelf
-    (fgM, bgM) <- gets shelfColors `ap` return shelf 
-    let (Dimension l _w h) = maxDim shelf
+    styling@ShelfStyling{..} <- gets shelfStyling <*> return shelf
+    let (Dimension l __w h) = maxDim shelf
         (Dimension ln wn hn) = minDim shelf
-        rmax = rect l h # lc royalblue # lwL 2 -- # fc white
-        isSeparator = wn < 10
-        rmin = rect ln hn # fc (fromMaybe (if isSeparator then white else lightsteelblue) fgM)
+        rmax = rect l h # lc border # lwL 2 -- # fc white
+        rmin = rect ln hn # fc background
                           # lwL 0
                           # translate (r2 (- (l-ln)/2, -(h-hn)/2))
         -- r = rmin `atop` rmax
         r = t' `atop` rmax`atop` rmin  
-        t = scaledText 50 20 (shelfName shelf) `atop` rect l 15 # fc (fromMaybe darkorange bgM) # lc royalblue # lwL 2
+        shelfTitle = case title of
+          [] -> shelfName shelf
+          _ -> intercalate "\n" title
+        barTitle_ = fromMaybe (shelfName shelf) barTitle
+        t = scaledText 50 20 barTitle_  #lc barForeground `atop` rect l 15 # fc (barBackground) # lc border # lwL 2
         -- display the depth bar relative to the full length,as that's what we are losing
         wn' = ln
-        bar = if not isSeparator then depthBar wn' (used*wn'/wn) else mempty
+        bar = if displayBarGauge then depthBar styling wn' (used*wn'/wn) else mempty
         bar' = (alignL bar # translateX 5) `atop` alignL t
-        t' = scaledText ln hn (shelfName shelf) #lc darkblue
+        t' = scaledText ln hn shelfTitle #lc (error "darkblue")
         diagram = r -- t `atop` r
         align_ = case flow shelf of
                     LeftToRight -> alignBL
@@ -75,10 +78,10 @@ renderBoxes shelf = let
         let zMap = Map.fromListWith atop (concat z'diags)
         return $ foldl' atop mempty (Map.elems zMap)
 
-depthBar :: Double -> Double -> Diagram B
-depthBar w used = let
-  shelfBar = depthBar'' (lc black . lwL 1) w 0 lightsteelblue
-  usedBar = depthBar'' (lc black . lwL 1)  used 0 darkorange
+depthBar :: ShelfStyling -> Double -> Double -> Diagram B
+depthBar ShelfStyling{..} w used = let
+  shelfBar = depthBar'' (lc black . lwL 1) w 0 background
+  usedBar = depthBar'' (lc black . lwL 1)  used 0 barBackground
   -- threshold1 = depthBar' (w*0.70) 0 red 
   -- threshold2 = depthBar' (w*0.85) 0 orange 
   in mconcat ( map alignL [ usedBar

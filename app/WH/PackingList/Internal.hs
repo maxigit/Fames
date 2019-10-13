@@ -1,3 +1,4 @@
+{-# LANGUAGE DisambiguateRecordFields #-}
 module WH.PackingList.Internal
 ( module WH.PackingList.Internal
 , Dimension(..)
@@ -40,7 +41,7 @@ data Slice = Slice
 data Placement = Begining | Middle | End deriving(Show, Eq, Ord)
 data Box = Box
   { boxDimension :: Dimension
-  , boxStyle :: Style
+  , boxStyle_ :: Style
   , boxNumber :: Int -- number of similar boxes
   , boxPlacement :: Placement
   } deriving (Show, Eq)
@@ -82,7 +83,7 @@ sortSlices slices = let
 groupByStyle :: [Box] -> Map Style Box
 groupByStyle boxes = let
   -- collect all boxes of same style
-  groups = Map.fromListWith (<>) [ (boxStyle box, opoint box)
+  groups = Map.fromListWith (<>) [ (boxStyle_ box, opoint box)
                                  | box <- boxes
                                  ]
   in fmap aggregateGroupBox groups

@@ -701,7 +701,7 @@ renderChalk _ _ details = let
 
           ]
   --
-  convertSlice (Slice{..}, offset) = (boxStyle slBox, slNL, slNH, slLength, slNW, slWidth, offset)
+  convertSlice (Slice{..}, offset) = (boxStyle_ slBox, slNL, slNH, slLength, slNW, slWidth, offset)
   processSlices slices = map convertSlice (sortSlices slices)
   sliced = findSlices zones boxes
 

@@ -359,7 +359,7 @@ boxStyleWithTags :: Box s -> Text
 boxStyleWithTags b = let
   isVirtual ('\'':<_) = True
   isVirtual _ = False
-  tags = filter (not . isVirtual) (boxTagList b)
+  tags = filter (not . isVirtual) (getTagList b)
   in intercalate "#" (boxStyleAndContent b : tags)
  
 generateMoves :: (Box s -> Text) -> WH [Text] s
@@ -387,8 +387,8 @@ generateMovesFor header boxKey0 printGroup box'shelfs = do
 generateMOPLocations :: WH [Text] s
 generateMOPLocations = generateMoves' (Just "stock_id,location") boxName printGroup where
   -- use box style unless the box is tagged as exception
-  boxName box = let comment = boxTagValuem box "mop-comment"
-                    hasTag = boxTagIsPresent box
+  boxName box = let comment = getTagValuem box "mop-comment"
+                    hasTag = tagIsPresent box
                 in case (hasTag "mop-exclude", hasTag "mop-exception") of
                    (True, _) -> Nothing -- skipped
                    (False, True) -> Just $ (boxStyleAndContent box, comment)
@@ -406,7 +406,7 @@ generateGenericReport :: Day -> Text -> WH [Text] s
 generateGenericReport today prefix = do
   s'bS <- shelfBoxes
   -- group by group if exists
-  let groupKey box = boxTagValuem box (prefix <> "-group")
+  let groupKey box = getTagValuem box (prefix <> "-group")
       groups0 = Map'.fromListWith (<>) [ (gkey, [s'b])
                                     | s'b <- s'bS
                                     , let gkey = groupKey (snd s'b)
@@ -427,10 +427,10 @@ generateGenericReport today prefix = do
         
   
 generateGenericReport' today prefix s'bs = generateMovesFor Nothing boxKey0 printGroup s'bs where
-  boxKey0 box = boxTagValuem box (prefix <> "-key")
+  boxKey0 box = getTagValuem box (prefix <> "-key")
   printGroup boxKey_ [] __shelfNames = boxKey_
   printGroup boxKey_ boxes@(box:_) shelfNames = let
-    value0 = boxTagValuem box (prefix <> "-value")
+    value0 = getTagValuem box (prefix <> "-value")
     value = maybe boxKey_ (expandReportValue today boxes shelfNames ) value0
     in value
 
@@ -644,7 +644,7 @@ newPair wh res (Just res') =
                                              (rOrientation res_) -- current orientation
                                              shelf
                                              (boxBoxOrientations box)
-                                             (boxTagList box)
+                                             (getTagList box)
 
         tryW = do
           -- traceShowM ("NEW PAIR", res, res')

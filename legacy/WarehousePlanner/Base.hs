@@ -64,7 +64,7 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import WarehousePlanner.Type
 import WarehousePlanner.SimilarBy
-import Diagrams.Prelude(white, black)
+import Diagrams.Prelude(white, black, darkorange, royalblue)
 import Data.Text (splitOn, uncons, stripPrefix)
 import Data.Char (isLetter)
 import Data.Time (diffDays)
@@ -313,8 +313,20 @@ defaultBoxStyling = BoxStyling{..} where
   barTitle = Nothing
   displayBarGauge = True
 
+defaultShelfStyling = ShelfStyling{..} where
+  foreground = black
+  background = white
+  barForeground = black
+  barBackground = darkorange
+  border = royalblue
+  title = []
+  barTitle = Nothing
+  displayBarGauge = True
 emptyWarehouse :: Day -> Warehouse s
-emptyWarehouse today = Warehouse mempty mempty mempty (const defaultBoxStyling) (const (Nothing, Nothing)) defaultBoxOrientations Nothing today
+emptyWarehouse today = Warehouse mempty mempty mempty
+                                 (const defaultBoxStyling)
+                                 (const defaultShelfStyling)
+                                 defaultBoxOrientations Nothing today
 
 newShelf :: Text -> Maybe Text -> Dimension -> Dimension -> BoxOrientator -> FillingStrategy -> WH (Shelf s) s
 newShelf name tagm minD maxD boxOrientator fillStrat = do
@@ -869,7 +881,7 @@ expandAttribute' (stripPrefix "${orientation}" -> Just xs) = Just $ \box -> fmap
 expandAttribute' (stripPrefix "$[" -> Just xs'') | (pat', uncons -> Just (_,xs'))<- break (== ']') xs'' = Just $ \box -> do
                                ex <- expandAttribute box xs'
                                pat <- expandAttribute box pat'
-                               return $ maybe ex (<> ex) (boxTagValuem box pat)
+                               return $ maybe ex (<> ex) (getTagValuem box pat)
 -- get the rank of the tag value
 expandAttribute' (stripStatFunction "$rank" -> Just (arg, prop, xs)) = Just $ \box -> do
   expandStatistic valueRank arg box prop xs
@@ -878,7 +890,7 @@ expandAttribute' (stripStatFunction  "$index" -> Just (arg, prop, xs)) = Just $ 
 -- | convert date to days since today
 expandAttribute' (stripStatFunction "$ago" -> Just (arg, prop, xs) ) = Just  $ \box -> do
   maxDate <- gets whDay
-  let valuem = boxTagValuem box prop
+  let valuem = getTagValuem box prop
   stats <- propertyStatsFor prop
   let dates = keys (valueIndex stats)
   ex <- expandAttribute box xs
@@ -920,7 +932,7 @@ expandAttribute' _ = error "Bug. All pattern should be caught"
 
 expandStatistic :: (PropertyStats -> Map Text Int) -> Maybe (Char, Int) -> Box s -> Text -> Text -> WH Text s
 expandStatistic fn arg box prop xs = do
-  let values = boxTagValues box prop
+  let values = getTagValues box prop
   stats <- propertyStatsFor prop
   ex <- expandAttribute box xs
   return $ case values of
@@ -1209,7 +1221,7 @@ computePropertyStats prop = do
   boxList <- mapM findBox $ toList (boxes wh)
   let values = [ value
                | box <- boxList
-               , value <- boxTagValues box prop
+               , value <- getTagValues box prop
                ]
       stats = mkPropertyStats values
   -- update cache
@@ -1264,5 +1276,5 @@ __getBoxTagMap prop = do
   boxes <- mapM findBox boxIds
   return $ Map.fromListWith (<>) [ (value, [box])
                                  | box <- toList boxes
-                                 , value <- boxTagValues box prop
+                                 , value <- getTagValues box prop
                                  ]

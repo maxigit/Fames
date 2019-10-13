@@ -423,7 +423,7 @@ transformTagsFor tagPat' tagSub box = do
   tagPat <- either return ($ box) tagPat'
   let tagOps = map parseTagOperation $
                concatMap (splitOn "#" . (\t -> pack $ Rg.subRegex tagPat (unpack t) (unpack tagSub)))
-               (boxTagList box)
+               (getTagList box)
   Just <$> updateBoxTags tagOps box
 
 -- | Read box dimension on their location
