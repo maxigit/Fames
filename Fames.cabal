@@ -4,12 +4,11 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1420ad0de62e5b66154fa522d218156a4ca3d7b18cde7e83b249339966294a58
+-- hash: 6819783862e50fc70a07d2ed0069798d7bd624067e98c53d9a3e8408fe586852
 
 name:           Fames
 version:        0.0.1
-license:        UnspecifiedLicense
-license-file:   LICENSE
+license:        MIT
 build-type:     Simple
 
 flag dev
