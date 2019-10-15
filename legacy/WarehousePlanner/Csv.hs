@@ -330,8 +330,8 @@ processMovesAndTags (style, tags, locationM) = do
     let (location, exitMode) = case uncons location' of
                                   Just ('^', loc) -> (loc, ExitOnTop)
                                   _ -> (location', ExitLeft)
-    -- let locations = splitOn "|" location
-    shelves <- findShelfBySelector (parseSelector location)
+    let locations = splitOn "|" location
+    shelves <- findShelfBySelectors (map parseSelector locations)
     aroundArrangement (moveBoxes exitMode) boxes0 shelves
   boxes <- mapM findBox boxes0
   case tags of

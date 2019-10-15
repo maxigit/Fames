@@ -20,6 +20,7 @@ module WarehousePlanner.Base
 , expandAttribute'
 , expandAttribute
 , findShelfBySelector
+, findShelfBySelectors
 , findShelvesByBoxNameAndNames
 , findBoxByNameAndShelfNames
 , findBoxByShelf
@@ -169,11 +170,25 @@ findShelvesByBoxes boxes = fmap catMaybes (mapM findShelfByBox boxes)
 
 -- | find shelf by name and tag
 findShelfBySelector :: Selector (Shelf s) -> WH [ShelfId s] s
-findShelfBySelector (Selector nameSel tagSels ) = do
+findShelfBySelector selector = map shelfId <$> findShelfBySelector' selector
+findShelfBySelector' :: Selector (Shelf s) -> WH [Shelf s] s 
+findShelfBySelector' (Selector nameSel tagSels ) = do
   shelfIds <- toList <$> gets shelves
   shelves0 <-  filterByNameSelector (mapM findShelf shelfIds) shelfName  nameSel
   let shelves1 = filter (applyTagSelectors tagSels shelfTag) shelves0
-  return $ map shelfId shelves1
+  return shelves1
+-- | Find shelf by name and tag
+-- but respect alternative order
+-- ie B|A will return B before A
+-- B*|A* will return Bs (sorted alphabetically) the A* (alphabetically)
+findShelfBySelectors :: [Selector (Shelf s)] -> WH [ShelfId s] s
+findShelfBySelectors selectors = do
+  shelvess <- mapM findShelfBySelector' selectors
+  return [ shelfId shelf
+         | shelves <- shelvess
+         , shelf <- sortOn shelfName shelves
+         ]
+
 
 matchName :: Text -> NameSelector s
 matchName name = NameMatches [MatchFull name]
