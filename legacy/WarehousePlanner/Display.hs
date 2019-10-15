@@ -54,12 +54,12 @@ renderShelf shelf = do
           [] -> shelfName shelf
           _ -> intercalate "\n" title
         barTitle_ = fromMaybe (shelfName shelf) barTitle
-        t = scaledText 50 20 barTitle_  #lc barForeground `atop` rect l 15 # fc (barBackground) # lc border # lwL 2
+        t = scaledText 50 20 barTitle_  #fc barForeground `atop` rect l 15 # fc (barBackground) # lc border # lwL 2
         -- display the depth bar relative to the full length,as that's what we are losing
         wn' = ln
         bar = if displayBarGauge then depthBar styling wn' (used*wn'/wn) else mempty
         bar' = (alignL bar # translateX 5) `atop` alignL t
-        t' = scaledText ln hn shelfTitle #lc (error "darkblue")
+        t' = scaledText ln hn shelfTitle #fc foreground 
         diagram = r -- t `atop` r
         align_ = case flow shelf of
                     LeftToRight -> alignBL
