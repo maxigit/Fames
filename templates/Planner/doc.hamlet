@@ -5,8 +5,8 @@ The use of of org-mode is for convenience only and provide folding of syntax hig
 Files are read from the given subdirectory (if any) and/or read from the text area(s).
 A planner file is made of different sections. Each section corresponds to an org-mode drawer (starting and finishing with <code>:</code>). A section can be used to described shelfves, boxes but also move or tag shelves.
 <h3>
-  <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-sections">Sections
-<div.pre.collapse id=info-section-sections>
+  <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-sections">Sections
+<div.pre.collapse :expanded:.in id=info-section-sections>
     All sections follows the <a href="http://orgmode.org/manual/Drawers.html">org-mode drawer</a> syntax and are composed of a 
     <ul>
       <li> a headline specify the section type and eventual parameters, for example <code>:Shelves:</code> or <code><:Moves_parameter1_paramter2:></code>
@@ -18,8 +18,8 @@ A planner file is made of different sections. Each section corresponds to an org
     <ul> 
       <li>
         <h4>
-          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-shelves"> Shelves (Mandatory)
-        <div.pre.collapse id=info-section-shelves>
+          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-shelves"> Shelves (Mandatory)
+        <div.pre.collapse :expanded:.in id=info-section-shelves>
             Describes set of shelves. Should be a CSV with the following header :
             <pre>name,comment,length,width,height,type
             <h5> Special shelves
@@ -76,8 +76,8 @@ A planner file is made of different sections. Each section corresponds to an org
               differently.
       <li>
         <h4>
-          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-layout"> Layout (Mandatory)
-        <div.pre.collapse id=info-section-layout>
+          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-layout"> Layout (Mandatory)
+        <div.pre.collapse :expanded:.in id=info-section-layout>
           Describes how shelves should be displayed.
           Shelves are displayed as a matrix (row and column) of bays. A bay being a set of shelves stacked together from bottom to top.
           Each line of the layout section describe a row.
@@ -91,24 +91,24 @@ A planner file is made of different sections. Each section corresponds to an org
           <code>A1|A2|A3</code> form a bay of 3 shelves, A1 at the bottom, and A3 at the top next to a bay of 2 shelves B1 with B2 on top.
       <li>
         <h4>
-          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-stocktake">  Stocktake[_Tag]
-        <div.pre.collapse id=info-section-stocktake>
+          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-stocktake">  Stocktake[_Tag]
+        <div.pre.collapse :expanded:.in id=info-section-stocktake>
           Describes a set of boxes with their location and eventually orientation. It is a CSV with the following header
           <pre>Bay No,Style,QTY,Length,Width,Height,Orientations
           Tags provided in the section name, will be applied to the created boxes.
           For example, all boxes created in the section <code>:Stocktake-tag1-tag2</code> will be tagged with <code>tag1</code> and <code>tag2</code>
       <li>
         <h4>
-          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-boxes"> Boxes[=Tag]
-        <div.pre.collapse id=info-section-boxes>
+          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-boxes"> Boxes[=Tag]
+        <div.pre.collapse :expanded:.in id=info-section-boxes>
           A set of boxes without initial location. They will be put in the <code>pending</code> shelf.
           It is a CSV with the following header :
           <pre>style,quantity,l,w,h
           Tags provided in the section name, will be applied to the created boxes.
       <li>
         <h4>
-          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-moves"> Moves[=Tag]
-        <div.pre.collapse id=info-section-moves>
+          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-moves"> Moves[=Tag]
+        <div.pre.collapse :expanded:.in id=info-section-moves>
           Describes a set of moves boxes to shelves. The first column describe a set of boxes to moves to
           a set of shelves. If multiple shelves are given, the Planner will fill the shelf in the given order
           and use the optimal orientation. If all boxes can't fit the given shelves, the excedendatary boxes will
@@ -144,8 +144,8 @@ A planner file is made of different sections. Each section corresponds to an org
           As a result the two first boxes will have the tag <code>moved</code> and the last one the tag <code>error</code>.
       <li>
         <h4>
-          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-tags"> Tags
-        <div.pre.collapse id=info-section-tags>
+          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-tags"> Tags
+        <div.pre.collapse :expanded:.in id=info-section-tags>
           Tag allow boxes to be selected (via selector) to be either moved or tagged but also change their behavior (colour, priority, etc ...) via properties.
           A Tag can be removed by setting with <code>-</code>
           The body is a CSV with the following header
@@ -162,8 +162,8 @@ A planner file is made of different sections. Each section corresponds to an org
           The last line set the background property of the box tagged with <code>tag1</code> to red.
       <li>
         <h4>
-          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-movesandtags"> MAT[=Tag] (moves and tags)
-        <div.pre.collapse id=info-section-movesandtags>
+          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-movesandtags"> MAT[=Tag] (moves and tags)
+        <div.pre.collapse :expanded:.in id=info-section-movesandtags>
           Allows to move and tag at the same time a set of boxes. This can be faster and less verbose than creating a move and
           a tag section. Tags needs to start with a <code>#</code> and location CAN start with <code>/</code>
           Example
@@ -175,8 +175,8 @@ A planner file is made of different sections. Each section corresponds to an org
           As in <code>:Moves</code> tags are applied positively to boxes successfully moved and negatively to leftover.
       <li>
         <h4>
-          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-clone"> Cloning and Deleting
-        <div.pre.collapse id=info-section-clone>
+          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-clone"> Cloning and Deleting
+        <div.pre.collapse :expanded:.in id=info-section-clone>
           Allows to duplicate the given boxes. Used in conjunction with =:Deletes:= it can be used to do slotting
           by creating fake boxes (ghosts) which will make sure a slot is full and the remove later.
           For example
@@ -204,8 +204,8 @@ A planner file is made of different sections. Each section corresponds to an org
             A#ghost
       <li>
         <h4>
-          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-transformtags"> Transform (transform tags)
-        <div.pre.collapse id=info-section-transformtags>
+          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-transformtags"> Transform (transform tags)
+        <div.pre.collapse :expanded:.in id=info-section-transformtags>
           Allow to use POSIX regular expression to subsitute existing tags into new ones.
           Each tag of the selecting boxes are matched against the pattern. A set of new tags is generated
           by substituing the pattern with the substitution string  which is then splitted using <code>#</code>.
@@ -255,8 +255,8 @@ A planner file is made of different sections. Each section corresponds to an org
             
       <li>
         <h4>
-          <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-orientations"> Orientations
-        <div.pre.collapse id=info-section-orientations>
+          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-orientations"> Orientations
+        <div.pre.collapse :expanded:.in id=info-section-orientations>
           Specifies the boxes configuration within a shelves (if they are stacked up, on the side, how many etc).
           Boxes of a given style can be given different configuration for different shelves by specifing the shelf
           in the box selector. This is a CSV with the following header:
@@ -290,9 +290,9 @@ A planner file is made of different sections. Each section corresponds to an org
             ,4^ -- up to 4 levels, stacking boxes up
     <div>
 <h3>
-  <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-selectors">
+  <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-selectors">
     Boxes and shelves selector
-<div.pre.collapse id=info-section-selectors>
+<div.pre.collapse :expanded:.in id=info-section-selectors>
   Most operations, (moving and tagging) operates on boxes. To do so, a set of boxes is selected and then the operation is applied.
   The main way of selecting a box is by specifying a style, which will select all boxes of the given style. However, more complex selection
   can be selecting boxes by tags and locations (as well as location tag). The format of a box selector is the following
@@ -415,9 +415,9 @@ A planner file is made of different sections. Each section corresponds to an org
 
       The content priority could be used for example, to select which one of the B-Black boxes to get first.
 <h3>
-  <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-virtual-tags">
+  <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-virtual-tags">
      Virtual tags
-<div.pre.collapse id=info-section-virtual-tags>
+<div.pre.collapse :expanded:.in id=info-section-virtual-tags>
   Virtual tags are tags which are not set by the user, but automatically set depending the box content and/or the box itself. It allows
   to select style by variations (<code>'</code>content) and dimensions (in 1/10th of mm) (<code>'l</code>length, <code>'w</code>width,<code>'h</code>height ).
 
@@ -427,9 +427,9 @@ A planner file is made of different sections. Each section corresponds to an org
       TShirt#'RED  => all red T-shirt (with a content of Red)
   Virtual tags can also be used to change the dimension of a box. Setting for example the tag <code>'h3400</code> will change the box size to 34 cm.
 <h3>
-  <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-property">
+  <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-property">
      Properties
-<div.pre.collapse id=info-section-property>
+<div.pre.collapse :expanded:.in id=info-section-property>
   Tags come in two flavours, tag (a simple word) or property (name <code>=</code>value). The main difference between both is assign a property value
   erase the previous one.
   For example, adding the tag <code>color-red</code> then <code>color-green</code> result in the box being tagged with two tags <code>color-red</code> and <code>color-green</code>.
@@ -471,9 +471,9 @@ A planner file is made of different sections. Each section corresponds to an org
       black#_black#white => dark gray
       black#_white#white => light gray
 <h3>
-  <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-break">
+  <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-break">
      Breaks And Slots
-<div.pre.collapse id=info-section-break>
+<div.pre.collapse :expanded:.in id=info-section-break>
   Normally, when moves boxes to shelves, shelves are filled continuously without any break between
     boxes of the same dimensions. Breaks can be introduced using special break tags.
     By tagging a given box with a break tag, the box is guaranteed to either start a new shelf, a new slice (row or column depending of the shelf filling strategy)
@@ -485,9 +485,9 @@ A planner file is made of different sections. Each section corresponds to an org
 
     
 <h3>
-  <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-box-attributes">
+  <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-box-attributes">
      Box attributes
-<div.pre.collapse id=info-section-box-attributes>
+<div.pre.collapse :expanded:.in id=info-section-box-attributes>
   Certain attributes like the current location or orientation of a box can be used to set a new tag
   with the corresponding value. The following attributes are available.
   <ul>
@@ -511,9 +511,9 @@ A planner file is made of different sections. Each section corresponds to an org
   <pre>
     /pending,loc=$shelfname  => All boxes in the pending location will be tagged with "loc=pending".
 <h3>
-  <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-mop-export">
+  <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-mop-export">
      Mop export
-<div.pre.collapse id=info-section-mop-export>
+<div.pre.collapse :expanded:.in id=info-section-mop-export>
   The location of all the boxes can be exported to MOP (via the generateMOPLocation).
   By default, locations are given for each style (regardless of the content) in the form of the pattern matching all used shelves.
   The location of a particular variation (style + content) can exported separately using the tag <code>mop-exception</code>.
@@ -526,9 +526,9 @@ A planner file is made of different sections. Each section corresponds to an org
     :END:
   Arbitrary comments can also be added to a box using the tag <code>mop-comment=<i>your comment</i></code>.
 <h3>
-  <span.data-toggler.collapsed data-toggle=collapse data-target="#info-section-generic-report">
+  <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-generic-report">
      Generic report
-<div.pre.collapse id=info-section-generic-report>
+<div.pre.collapse :expanded:.in id=info-section-generic-report>
   A generic report can generated using special tags. All boxes will be grouped first using the special tag <code><i>report</i>-group</code>
   and then <code><i>report</i>-key</code>.
   For each group (having the same key), a line will be displayed with the content of  <code><i>report</i>-group</code> (for the first

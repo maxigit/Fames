@@ -128,6 +128,7 @@
 
 /planner PlannerR !planner:
   /view/#Maybe-PlannerViewMode PViewR GET POST !group=Planner !title=View
+  /doc PDocR GET !title=Help
   /image/#Text/#Int64/#Int64 PImageR GET
   
 /dashboard DashboardR !dashboard:

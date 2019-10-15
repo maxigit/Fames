@@ -2,6 +2,7 @@ module Handler.Planner.View
 ( getPViewR
 , postPViewR
 , getPImageR
+, getPDocR
 )
 
 where
@@ -77,6 +78,17 @@ getPImageR sha i width = do
           Right diags -> cache0 False (cacheMinute 10) ("DIAG", width, i, sha) $
                                 sendResponseDiag width (diags !! min (fromIntegral i) (layoutSize-1))
   
+getPDocR :: Handler Html
+getPDocR = do
+  let expanded = True
+  let plannerDoc' = $(widgetFile "Planner/doc")
+  defaultLayout $ primaryPanel "Planner Quick Reference" plannerDoc'
+  -- defaultLayout [whamlet|
+  --  <h1.jumbotron>Planner Quick Reference
+  --  <div.well>
+  --    ^{plannerDoc'}
+  --                       |]
+
 -- * Form
 
 paramForm :: Maybe FormParam -> Html -> MForm Handler (FormResult FormParam, Widget)
@@ -129,6 +141,7 @@ getPlannerPathOptions = do
 -- ** General
 plannerDoc :: Widget
 plannerDoc = do
+  let expanded = False
   let plannerDoc' = $(widgetFile "Planner/doc")
   [whamlet|
 <h2>
