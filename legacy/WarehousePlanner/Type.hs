@@ -380,10 +380,26 @@ data Selector a  = Selector
   deriving (Show)
 
 
+pattern SelectAnything :: Selector a
+pattern SelectAnything <- Selector (matchAnyNames -> True) []
+
+
+matchAnyNames :: NameSelector a -> Bool
+matchAnyNames (NameMatches []) = True
+matchAnyNames (NameMatches [MatchAnything]) = True
+matchAnyNames (NameDoesNotMatch []) = True
+matchAnyNames _ = False
+
+
 data BoxSelector s = BoxSelector
   { boxSelectors :: !(Selector (Box s))
   , shelfSelectors :: !(Selector (Shelf s))
   , numberSelector :: !(BoxNumberSelector)
+  } deriving (Show)
+
+data ShelfSelector s = ShelfSelector
+  { boxSelectors :: !(Selector (Box s))
+  , shelfSelectors :: !(Selector (Shelf s))
   } deriving (Show)
 
 

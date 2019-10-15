@@ -39,6 +39,7 @@ data HeaderType
   | MovesH  [Text]
   | TagsH 
   | MovesAndTagsH [Text] -- not needed but to be compatible with Moves
+  | ShelfTagsH
   | OrientationsH 
   | TransformTagsH
   | ClonesH [Text]

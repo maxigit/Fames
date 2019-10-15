@@ -304,11 +304,11 @@ readWarehouse filename = buildWarehouse `fmap` readLayout filename
 -- | read a file assigning styles to locations
 -- returns left boxes
 readMoves :: [Text] -> FilePath -> IO ( WH [Box s] s)
-readMoves tags = readMovesAndTagsWith (\(style, location) -> processMovesAndTags (style, tags, Just location))
+readMoves tags = readFromRecordWith (\(style, location) -> processMovesAndTags (style, tags, Just location))
 
 
-readMovesAndTagsWith :: Csv.FromRecord r => (r -> WH [Box s] s) -> FilePath -> IO (WH [Box s] s)
-readMovesAndTagsWith  rowProcessor filename = do
+readFromRecordWith :: Csv.FromRecord r => (r -> WH [a s] s) -> FilePath -> IO (WH [a s] s)
+readFromRecordWith  rowProcessor filename = do
     csvData <- BL.readFile filename
     case Csv.decode  Csv.HasHeader csvData of
         Left err ->  error $ "File:" <> filename <> " " <>  err -- putStrLn err >> return (return [])
@@ -347,7 +347,7 @@ processMovesAndTags (style, tags, locationM) = do
 -- | read a file assigning tags to styles
 -- returns left boxes
 readTags :: FilePath -> IO ( WH [Box s] s)
-readTags = readMovesAndTagsWith (\(style, tag) -> processMovesAndTags (style, splitOn "#" tag, Nothing))
+readTags = readFromRecordWith (\(style, tag) -> processMovesAndTags (style, splitOn "#" tag, Nothing))
 
 -- | Read tags or moves. Normally we could consider
 -- that by default, we have a location, unless we start with '#'
@@ -360,7 +360,7 @@ readTags = readMovesAndTagsWith (\(style, tag) -> processMovesAndTags (style, sp
 -- #tag/location
 -- location,tag
 readMovesAndTags :: [Text] -> FilePath -> IO (WH [Box s] s)
-readMovesAndTags tags0 = readMovesAndTagsWith go where
+readMovesAndTags tags0 = readFromRecordWith go where
   go (style, tag'location) =
     let (tags, locM) = splitTagsAndLocation tag'location
     in processMovesAndTags (style, tags0 <> tags, locM)
@@ -382,6 +382,13 @@ readOrientations def os = case uncons os of
     Just ('%', os') -> def `List.union` readOrientations def os'  -- def
     Just (o, os') -> [readOrientation o] `List.union` readOrientations def os'
 
+-- * Read Shelf Tags
+readShelfTags :: FilePath -> IO (WH [Shelf s] s)
+readShelfTags = readFromRecordWith go where
+  go (selector, splitOn "#" -> tags) = do
+    shelves <- findShelvesByBoxNameAndNames selector
+    let tagOps = map parseTagOperation tags
+    mapM (updateShelfTags tagOps) shelves
 -- * Read transform tags
 -- | Temporary type to read a regex using Cassava
 -- Usefull so that regex validation is done when reading the file
@@ -400,6 +407,12 @@ instance Csv.FromField (BoxSelector a) where
     x <- Csv.parseField s
     return $ parseBoxSelector x
     
+instance Csv.FromField (ShelfSelector a) where
+  parseField s = do
+    x <- Csv.parseField s
+    let (BoxSelector boxSel selfSel _ ) = parseBoxSelector x
+    return (ShelfSelector boxSel selfSel)
+
 instance Csv.FromField (Selector a) where
   parseField s = do
     x <- Csv.parseField s
@@ -407,7 +420,7 @@ instance Csv.FromField (Selector a) where
 
 -- | Read transform tags
 readTransformTags :: FilePath -> IO (WH [Box s] s)
-readTransformTags = readMovesAndTagsWith (\(style, tagPat, tagSub) -> transformTags style tagPat tagSub)
+readTransformTags = readFromRecordWith (\(style, tagPat, tagSub) -> transformTags style tagPat tagSub)
 
  -- | Apply {transformTagsFor} to the matching boxes
 transformTags :: BoxSelector s -> RegexOrFn s -> Text -> WH [Box s] s

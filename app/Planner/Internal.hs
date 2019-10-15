@@ -129,6 +129,9 @@ parseDrawer h = case splitOn "_" h of
     ("tags and moves":tags) -> Right $ MovesAndTagsH tags
     ("tagsandmoves":tags) -> Right $ MovesAndTagsH tags
     ("tam":tags) -> Right $ MovesAndTagsH tags
+    ("shelf tags":[]) -> Right $ ShelfTagsH
+    ("shelftags":[]) -> Right $ ShelfTagsH
+    ("tag shelves":[]) -> Right $ ShelfTagsH
     ("transform":[]) -> Right TransformTagsH
     ("transform tags":[]) -> Right TransformTagsH
     ("orientations":[]) -> Right OrientationsH
@@ -374,6 +377,7 @@ executeStep (Step header sha _) =
           MovesH tags -> execute $ readMoves tags path
           TagsH -> execute $ readTags path
           MovesAndTagsH tags -> execute $ readMovesAndTags tags path
+          ShelfTagsH -> execute $ readShelfTags path
           OrientationsH -> execute $ setOrientationRules defaultOrientations path
           TransformTagsH -> execute $ readTransformTags path
           ClonesH tags -> execute $ readClones (tags) path

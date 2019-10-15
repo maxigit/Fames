@@ -11,6 +11,7 @@ module WarehousePlanner.Base
 , updateBoxTags
 , updateBox
 , updateShelf
+, updateShelfTags
 , boxStyleAndContent
 , extractTag
 , extractTags
@@ -19,6 +20,7 @@ module WarehousePlanner.Base
 , expandAttribute'
 , expandAttribute
 , findShelfBySelector
+, findShelvesByBoxNameAndNames
 , findBoxByNameAndShelfNames
 , findBoxByShelf
 , findBoxByNameSelector
@@ -290,6 +292,24 @@ limitBy key n boxes = let
   group_ = Map'.fromListWith (flip(<>)) [(key box, [box]) | box <- sorted]
   limited = fmap (take n . sortBy (comparing $ boxRank . fst) ) group_
   in concat (Map'.elems limited)
+  
+-- | Use similar syntax to boxes but returns shelves instead
+findShelvesByBoxNameAndNames :: ShelfSelector s -> WH [Shelf s] s
+findShelvesByBoxNameAndNames (ShelfSelector SelectAnything shelfSel) = findShelfBySelector shelfSel >>= mapM findShelf
+findShelvesByBoxNameAndNames (ShelfSelector (Selector boxNameSel boxTagSel) shelfSel) = do
+  shelves0 <- findShelfBySelector shelfSel >>= mapM findShelf
+  -- only keep shelf for which boxes are ok
+  let keepShelf shelf = do
+        boxes0 <- findBoxByShelf shelf
+        boxes <- filterByNameSelector (return boxes0) boxStyle boxNameSel
+        case boxes of
+          [] -> return False -- box selector is not null we need some boxes
+          _ -> do
+            return $ all (filterBoxByTag boxTagSel) boxes
+  filterM keepShelf shelves0
+
+
+
   
 
 
@@ -768,6 +788,12 @@ updateBoxTags' tag'ops box = case modifyTags tag'ops (boxTags box) of
                                     , boxBreak = extractBoxBreak new
                                     }
 
+updateShelfTags' :: [Tag'Operation] -> Shelf s -> Shelf s
+updateShelfTags' [] shelf = shelf -- no needed but faster, because we don't have to destruct and 
+updateShelfTags' tag'ops shelf = case modifyTags tag'ops (shelfTag shelf) of
+  Nothing -> shelf
+  Just new -> shelf { shelfTag = new
+                                    }
 -- | Update the value associateda to a tag operation. Return Nothing if the tag needs to be destroyed
 applyTagOperation :: TagOperation -> (Set Text) -> Maybe (Set Text)
 applyTagOperation RemoveTag _ = Nothing 
@@ -807,6 +833,14 @@ updateBoxTags tags0 box = do
              ]
       replaceSlashes = omap replaceSlash
   updateBox (updateBoxTags' tags) box
+
+updateShelfTags :: [Tag'Operation] -> Shelf s -> WH (Shelf s) s
+updateShelfTags tags0 shelf =  do
+  let tags = [ (replaceSlashes tag, fmap replaceSlashes values )
+             | (tag, values) <- tags0
+             ]
+      replaceSlashes = omap replaceSlash
+  updateShelf (updateShelfTags' tags) shelf
 
 boxStyleAndContent :: Box s -> Text
 boxStyleAndContent box = case boxContent box of
