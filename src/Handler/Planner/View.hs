@@ -23,12 +23,13 @@ import qualified Yesod.Media.Simple as M
 import Data.Text(splitOn)
 import qualified Data.Map as Map
 import Control.Monad.State
+import System.Directory (listDirectory)
 
 -- * Type
 data ScenarioDisplayMode = NormalM | CompactM | InitialM | ExpandedM deriving (Eq, Show, Read)
 data FormParam = FormParam
-  { pPlannerDir :: Maybe FilePath -- ^ directory containings planner files
-  , pOrgfile :: Maybe Textarea -- ^ text to add to the content of pPlannerDir
+  { pPlannerPath :: Maybe FilePath -- ^ planner file to load
+  , pOrgfile :: Maybe Textarea -- ^ text to add to the content of pPlannerPath
   , pTAMSection :: Maybe Textarea -- ^ Tags and Moves section, don't need header and drawer decoration
   , pDeleteSection :: Maybe Textarea-- ^ Delete section, don't need header and drawer decoration
   , pDisplayMode :: Maybe ScenarioDisplayMode -- ^ How to re-render the scenario in the textarea field
@@ -80,8 +81,8 @@ getPImageR sha i width = do
 
 paramForm :: Maybe FormParam -> Html -> MForm Handler (FormResult FormParam, Widget)
 paramForm param extra = do
-  plannerDirOptions <- lift getPlannerDirOptions
-  (fPlannerDir, vPlannerDir) <- mopt (selectFieldList plannerDirOptions) "Planner Directory" (pPlannerDir <$> param)
+  plannerPathOptions <- lift getPlannerPathOptions
+  (fPlannerPath, vPlannerPath) <- mopt (selectFieldList plannerPathOptions) "Planner File" (pPlannerPath <$> param)
   (fOrgfile, vOrgfile) <- mopt textareaField (bfs ("Scenario" :: Text)) (pOrgfile <$> param)
   (fTAM, vTAM) <- mopt textareaField (bfs ("Tag and Move" :: Text)) (pTAMSection <$> param)
   (fDel, vDel) <- mopt textareaField (bfs ("Delete" :: Text)) (pDeleteSection <$> param)
@@ -90,7 +91,7 @@ paramForm param extra = do
   (fReportParam, vReportParam) <- mopt textField (bfs ("report parameter" :: Text)) (pParameter <$> param)
 
   let form = FormParam
-          <$> fPlannerDir
+          <$> fPlannerPath
           <*> fOrgfile
           <*> fTAM
           <*> fDel
@@ -101,7 +102,7 @@ paramForm param extra = do
   let widget = [whamlet|
     #{extra}
     <div.form-inline>
-     ^{renderField vPlannerDir}
+     ^{renderField vPlannerPath}
      <span.data-toggler.collapsed data-toggle="collapse" data-target="##{groupId}"> More
     <div.row.collapse id=#{groupId}>
       ^{renderField vOrgfile}
@@ -111,8 +112,17 @@ paramForm param extra = do
                        |]
   return (form, widget)
 
-getPlannerDirOptions :: Handler [(Text, FilePath)]
-getPlannerDirOptions = getSubdirOptions appPlannerDir
+__getPlannerDirOptions :: Handler [(Text, FilePath)]
+__getPlannerDirOptions = getSubdirOptions appPlannerDir
+
+getPlannerPathOptions :: Handler [(Text, FilePath)]
+getPlannerPathOptions = do
+  dir <- appPlannerDir <$> getsYesod appSettings
+  entries <- liftIO $ listDirectory dir
+  -- only keep ".org" files
+  return $ catMaybes [(,dir </> path) <$> stripSuffix ".org" (pack path)
+                    | path <- entries
+                    ]
 
 
 -- * Rendering
@@ -154,16 +164,16 @@ renderView param0 = do
   modeS <- lookupPostParam "mode"
   let mode = modeS >>=readMay
       vmode = pViewMode param0
-  scenariosEM <-  forM (pPlannerDir param0) (readScenariosFromDir importFamesDispatch) 
+  scenarioFromFileEM <-  forM (pPlannerPath param0) (readScenarioFromPath importFamesDispatch) 
   scenarioEM <- forM (fullOrgfile param0) (readScenario importFamesDispatch)
   Right extra <- readScenario importFamesDispatch "* Best Available shelves for"
-  (param, widget) <- case liftA2 (,) (sequence scenariosEM) (sequence scenarioEM) of
+  (param, widget) <- case liftA2 (,) (sequence scenarioFromFileEM) (sequence scenarioEM) of
       Left err -> setInfoToDoc >> setError (toHtml err) >> return (param0, "Invalid scenario")
-      Right (scenariosM, scenarioM) ->  do
+      Right (scenarioFromFileM, scenarioM) ->  do
           -- param <- expandScenario (param0 {pDisplayMode = mode}) scenario
           -- we intersperce before the catMaybe so that there a savingPoint after  the last file even
           -- if there is no extra scenario
-          let scenario = mconcat . catMaybes $ (intersperse (Just savePointScenario) $ (sequence scenariosM <> [scenarioM]))
+          let scenario = mconcat . catMaybes $ (intersperse (Just savePointScenario) $ (scenarioFromFileM : [scenarioM]))
           let param = param0 {pDisplayMode = mode}
           w <- case fromMaybe PlannerSummaryView (pViewMode param) of
               PlannerSummaryView-> renderSummaryReport scenario

@@ -9,6 +9,7 @@ module Planner.Internal
 , contentPath
 , sSortedSteps
 , readScenariosFromDir
+, readScenarioFromPath
 , readScenario
 , savePointScenario
 , scenarioToTextWithHash
@@ -188,7 +189,7 @@ readScenario expandSection text = do
     ExceptT . return $ makeScenario steps' 
 
 -- | Read a sceanrio from a directory. Only read '.org'
--- Concatene all files in alphabetical order
+-- Concatenate all files in alphabetical order
 -- readScenarioDir :: MonadIO m => FilePath -> m Either [Step]
 readScenariosFromDir :: MonadIO io
                      => (Section -> io (Either Text [Section]))
@@ -202,6 +203,21 @@ readScenariosFromDir expandSection path = do
     mapM readFile files
   scenariosE <- mapM (readScenario expandSection . decodeUtf8) contents
   return $ sequence scenariosE
+
+-- | Read one scenario file
+readScenarioFromPath :: MonadIO io
+                     => (Section -> io (Either Text [Section]))
+                     -- ^ section expander, mainly to import sections for URI
+                     -> FilePath -> io (Either Text Scenario)
+readScenarioFromPath expandSection path = do
+  exists <-  liftIO $ doesFileExist path
+  if exists
+    then do
+      content <- liftIO $ readFile path
+      readScenario expandSection $ decodeUtf8 content
+    else
+      return $ Left $ "File " <> tshow path <> "doesn't exist."
+
   
 fileValid :: FilePath -> Bool
 fileValid = (== ".org") . takeExtension
