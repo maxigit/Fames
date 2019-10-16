@@ -275,8 +275,8 @@ importBoxStatusLive which prefix __tags = do
                <> ","
                <> intercalate "#" [ prefix <> "live-status=" <> tshow (Box.boxStatus statusbox)
                                   , prefix <> "status=" <> if boxtakeActive then "active" else "inactive"
-                                  , prefix <> "date" <> tshow boxtakeDate
-                                  , prefix <> "location" <> tshow boxtakeLocation
+                                  , prefix <> "date=" <> tshow boxtakeDate
+                                  , prefix <> "location=" <> tshow boxtakeLocation
                                   , prefix <> "reference=" <> boxtakeReference
                                   , prefix <> "operator=" <> maybe (tshow $ unOperatorKey $ boxtakeOperator)
                                                         operatorNickname

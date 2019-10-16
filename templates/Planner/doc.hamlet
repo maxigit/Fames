@@ -22,7 +22,7 @@ A planner file is made of different sections. Each section corresponds to an org
         <div.pre.collapse :expanded:.in id=info-section-shelves>
             Describes set of shelves. Should be a CSV with the following header :
             <pre>name,comment,length,width,height,type
-            <h5> Special shelves
+            <h4> Special shelves
             The two first declared shelves have a special meaning.
             The first one is the <code>error</code> shelf and the second one is the <code>pending</code> shelf.
             The error shelf is used when ever a move try to fit more boxses than possible in the given shelf.
@@ -31,7 +31,7 @@ A planner file is made of different sections. Each section corresponds to an org
             created within the <code>pending</code> shelf.
             It is best practice to name those shelves <code>error</code> and <code>pending</code> (or equivalent).
 
-            <h5> Name expansion
+            <h4> Name expansion
             Groups of similar shelves can be created in one line using name expansion. Before creating a shelf,
             the name is expanded into one or many shelf names. One shelf will be created of each of the resulting name.
             Shelf name are split with the <code>|</code> separator, then when encountering <code>[..]</code>, name will be expanded by generating a name for each character within the bracket.
@@ -45,7 +45,7 @@ A planner file is made of different sections. Each section corresponds to an org
             Example
             <pre>
               [ABC][123] => A1 A2 A3 B1 B2 B3 C1 C2 C3
-            <h5> dimension formula 
+            <h4> dimension formula 
             Shelf dimension depending on the dimension on another shelf can be expressed using shelf dimension.
             This can be useful when shelf are back to back or one shelf is not physically a shelf but the space
             leftover between a shelf and wall. Basic arithmetic can be performed and the the same dimension of another
@@ -61,13 +61,13 @@ A planner file is made of different sections. Each section corresponds to an org
               B20,,200-{A%},-- length 200 - length of A20
             For A2, <code>_</code> refers to the first character of the current shelf, i.e, <code>A</code> and <code>-</code> refers to the second character (<code>2</code>)  minus 1 -> <code>1</code>
             For A3, the <code>_</code> is in the second position and therefore correspond to the second character of <code>B1</code> : <code>1</code>.
-            <h5>shelf types
+            <h4>shelf types
             The shelf type determines the default boxes orientation and filling strategy. The current shelf style are
             <ul>
               <li> Shelf (normal first) : tilted row first
               <li> deadzone : allow up column first
               <li> other, column first
-            <h5> Tag
+            <h4> Tag
             Tags can be used to select shelf when doing box moves, but is also used to
             group shelves when displaying the summary. Shelves are grouped using the <code>summary</code> property.
             Note that shelves with a summary value starting with a <code>_</code> are considered as virtual shelves and are not taken in to account when calculated used spaces
@@ -116,7 +116,7 @@ A planner file is made of different sections. Each section corresponds to an org
           It is CSV with the following header:
           <pre>stock_id,location
           Please not the stock_id and location are in fact boxes and shelves selectors (see selectors sections).
-          <h5> Filling order, Exit on top
+          <h4> Filling order, Exit on top
           When moves boxes to a new set of shelves, shelves are filled by alphabetical order. For example
           the command
           <pre>
@@ -173,6 +173,19 @@ A planner file is made of different sections. Each section corresponds to an org
             #new,A#-new
           Moves all new boxes (with the new tag) to A and unset the new tag. Note that tag parameters will also be added to the "per-line" tag.
           As in <code>:Moves</code> tags are applied positively to boxes successfully moved and negatively to leftover.
+        <h4>
+          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-shelf-tags"> SHELF_TAGS (shelf tags)
+        <div.pre.collapse :expanded:.in id=info-section-shelf-tags>
+          Tag the shelves containing selected boxes. 
+          Tags can be used to specify the styling of a shelves.
+          Example
+          <pre>
+            :SHELF_TAG:
+            stock_id,tag
+            A,tag -- tag all shelves containing A
+            /S,tag -- tag shelves with name S
+            /#sep,fg=blue -- set the foreground of all shelves having the `sep` tag
+            #new/#top,tag -- tag all 'top' shelves containing a items with the new tag
       <li>
         <h4>
           <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-clone"> Cloning and Deleting
@@ -270,7 +283,7 @@ A planner file is made of different sections. Each section corresponds to an org
 
           All T-shirt on top shelves (with the tag <code>top</code>) are up, whereas T-shirt in other shelves
           are being laid on the side.
-          <h5> Orientations
+          <h4> Orientations
           <pre>
             * all 
             % default orientations
@@ -280,7 +293,7 @@ A planner file is made of different sections. Each section corresponds to an org
             | tilted forward & right
             ' rotated up
             @ rotated side
-          <h5> Depth specification
+          <h4> Depth specification
           By default, boxes are stacked using only one level of depth. This way, no boxes hide behind others and so all boxes are visible.
           To enable the use of multiple depth and allow boxes to hide each other, a minimum and max depth can set (before)
           <pre>
@@ -288,6 +301,89 @@ A planner file is made of different sections. Each section corresponds to an org
             ,1: -- use a mininum of 2
             ,4 -- similar to 1:4
             ,4^ -- up to 4 levels, stacking boxes up
+      <li>
+        <h4>
+          <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-import"> Import
+        <div.pre.collapse :expanded:.in id=info-section-import>
+          Allows to import whole planner files either from existing files or generated on the fly from <code>Fames</code>. Each line correspond to an import and will be replaced with the result of the import. Some imports accepts tags. Tags are given by "tagging" the import line using <code>thing_to_import#tag1#tag#...</code>
+          <ul>
+            <li><code>/packingList/</code>plId[<code>#</code>tags]
+                <p> imports the <b>undelivered</b> boxes present in packing list with given id. All boxes will the be tags with the provided tags as well as packing list information. Is equivalent to the <code>Planner</code> tabs on the corresponding packing list page.
+            <li><code>/activeBoxes></code>[<code>#</code>tags]
+                <p> Import all active boxes from Fames, .i.e boxes created from a boxtake or stocktake with the active status. If tags are provided all boxes will be tagged with the given tags. Is equivalent to the file downloadable in  "Warehouse/Packing List/Export Planner". Miscellaneous tags are set according to the box information (as known location, last scan date, operators, etc ...).
+            <li><code>/activeBoxes/live</code>[<code>#</code>prefix]
+                <p>  Import all active boxes (like <code>/activeBoxes</code>) but also inactive boxes which needs to be reactivated in order match the "live" quantity on hand (taken from Front Accounting).  Boxes are tagged with <code>live-statuts</code> which could be either
+                <pre> 
+                  BoxUsed --  The box is active and used (has items in it)
+                  BoxToActivate --  The box is inactive but need reactivation  (has items in it)
+                  BoxToDeActivate --  The box is active but need to be deactivated as it is thought to be empty.
+
+                <p> The box status is equivalent to the status found in "Warehouse/Boxtake/Box adjustment". If a tag is provided it will be used to prefix the many tags added to the box (live-status, status, date, location, reference and operator).
+            <li><code>boxStatus/active</code>/prefix
+                <p> Similar to <code>activeBoxes</code> but instead of importing boxes, create a tag file tagging existing boxes with  the box information (using the barcode as a key). 
+            <li><code>boxStatus/all</code>/prefix
+                <p> Similar to <code>boxStatus/</code> but will create a tag file for <b>ALL</b> boxes (active and inactive).
+            <li><code>boxStatus/live</code>/prefix
+                <p> Similar to <code>activeStatus/live</code> but will create a tag file instead of creating boxes.
+            <li><code>file/</code>pattern[<code>#</code>exclusive-pattern]
+                <> Import all files matching the glob pattern. Files are local to the planner template directory.
+                Tags can be used to filter out some file matched by the original pattern.
+                Example
+                <pre>
+                   file/Base.org --  Base.org file
+                   file/Base/* -- all file present in the Base folder
+                   file/Base/*#moves.org -- all file present in the Base folder except Base/moves.org
+                   file/Base/moves.org -- Base/moves.org only
+            <li><code>/plannerReport/</code>section</code>/<code>path</code>[<code>/</code>report-parameter
+                <p> The plannerReport command allows to run a "generic report" from another planner file and wrap in any of standard section like :Moves:, :Boxes: etc ...
+                    Path represents the path of the planner to execute.
+                    Section tells how to wrap the result of the report. Valid values are 
+                <pre>
+                  tags -- :TAGS:
+                  boxes -- :MOVES:
+                  movesAndTags -- :MAT:
+                  orientations  -- :ORIENTATIONS:
+                  clone --  :CLONE:
+                  delete -- :DELETE:
+                  stocktake -- :STOKTAKE:
+                <p> Finaly, report-parameter indicates which report to run.
+                    Example
+                <pre>
+                  planner/boxes/Base.org
+                  -- ^ calls the main report from the <code>Base.org</code> planner file and wrap it in a :BOXES: drawer.
+                  planner/orientations/Base.org/ori
+                  -- ^ calls the <code>ori</code> report from the <code>Base.org</code> planner file and wrap it in a :BOXES: drawer.
+            <li><code>variationStatus/active/</code>skus
+                  Generates a tag files for all active variations corresponding to the  running status tabs in "Item/Index". The tag is <code>fa-status</code> and possible values are running, asleep dead and ghost.
+                  A skus filter must be provided.
+                  Example
+                  <pre>
+                    variationStatus/active/% all active variations
+                    variationStatus/active/M% all active variations starting with M
+            <li><code>variationStatus/all/</code>skus
+               <p> Similar to <code>variationStatus/active</code> but get all variations even if they are inactive.
+            <li><code>stockStatus/active/</code>skus
+              <p> Generates a tag (<code>stock-status</code> all active variations corresponding to the stock status, .i.e Available, Low Stock, Coming soon or Expected later. The tag <code>stock-short-status</code> and <code>stock-status-colour</code> are also available.
+            <li><code>stockStatus/all/</code>skus
+               <p> Similar to <code>stockStatus/active</code> but get all variations even if they are inactive.
+            <li><code>colour/variations/</code>#tag
+               <p> Replace for the given tag then name of colour (from the webiste) by is rgb value.
+                   For example colour all boxes with the colour of their content can be achieved with the following
+                   <pre>
+                      :TAG:
+                      selector,tag
+                      ,#bg=${content}
+                      -- ^ use the content property as the background colour
+                      :END:
+                      :IMPORT:
+                      colour/variations/bg
+                      -- ^ replace the colour name in the tag bg by its value
+                      :END:
+            <li><code>category/</code>skus<code>/</code>categories
+              <p> Generate a tag file tagging each box with the corresponding Fames categories. Each category will use the tag <code>cat-</code> followed by the category name.
+            Example
+            <pre>
+              category/%/batches/best-batch tags all boxes with the tags cat-batches and cat-best-batch
     <div>
 <h3>
   <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-selectors">
@@ -343,7 +439,7 @@ A planner file is made of different sections. Each section corresponds to an org
       A glob pattern on the name of the box.
     <li>
       <h4> tags
-      Starts should start and be separated with <code>#</code>). Only boxes with ALL tags will be selected.
+      Starts should start and be separated with <code>#</code>. Only boxes with ALL tags will be selected.
       Preceding a tag with <code>-</code> means boxes wich don't have this tag.
 
       Example
@@ -450,19 +546,21 @@ A planner file is made of different sections. Each section corresponds to an org
     color=red#color=+green => color=green;red (add green red)
     color=red;green => color=green;red (set two values : red and green)
     color=red;green,#color=-red => color=green (remove green for red and green
-
-  <h5> rendering properties
-  Some special property are used to control the rendering of of a box. For example assigning <code>bg=red</code> will set the background of the box to red.
+  <h4> Rendering properties
+  Some special property are used to control the rendering of of boxes and shelfves. For example assigning <code>bg=red</code> will set the background of the box to red.
   Those properties are
   <ul>
-    <li> <code>bg</code> background colour
-    <li> <code>fg</code> foreground (text) colour
-    <li> <code>border</code> border colour
-    <li> <code>circle</code> display a big circle of the given colour on the box. Ideal to mark boxes.
-    <li> <code>title</code> text to display instead of the box name
-    <li> <code>bar-title</code> text to display in the box bar (for each depth).
-  There is also a special tag <code>no-bar-gauge</code> which disable the colour gauge behind box bar.
+    <li> <code>bg</code> background colour (shelves and boxes)
+    <li> <code>fg</code> foreground (text) colour (shelves and boxes)
+    <li> <code>border</code> border colour (shelves and boxes)
+    <li> <code>circle</code> display a big circle of the given colour on the box. Ideal to mark boxes. (boxes only)
+    <li> <code>title</code> text to display instead of the box or shelf name (shelves and boxes)
+    <li> <code>bar-title</code> text to display in the box bar (for each depth) or shelf bar.
+    <li> <code>bar-bg</code> colour of the shelf bar (shelf bar).
+    <li> <code>bar-fg</code> colour of the text of the shelf bar (shelf bar).
+    <li> <code>no-bar-gauge</code> if present, disable the colour gauge behind the box bar  or in the shelf bar.
 
+  <h4> Colours
   All property colours accept more than one colours (separated by <code>;</code>) which are colour names their hexadecimal description (for example "white" or "ffffff" ) . If multiples colours are given they will be mixed.
   However, each colour can only appear once (in the list of colour). It is however possible to give more weight to a colour by prefixing its name with a underscore.
   For example 
@@ -470,6 +568,72 @@ A planner file is made of different sections. Each section corresponds to an org
       black#white => mid gray
       black#_black#white => dark gray
       black#_white#white => light gray
+  Colour palettes defined in  haskell <a href="http://hackage.haskell.org/package/palette">palette package</a> can be used.
+  A colour is represented by the palette name, the number of colour it contains (if the palette of different variant) a dash and the colour index starting a 1.
+  Example
+  <pre>
+    YlGn4-1 -- first colour of the 4 colours variant of the YlGn palette.
+    YlGn9-8 -- 8th colour of the 9 colours variant of the YlGn palette.
+    wheel24-2 -- 2nd of a colour wheel
+
+  The palettes available are the one from the <a href="http://hackage.haskell.org/package/palette-0.3.0.2/docs/Data-Colour-Palette-BrewerSet.html">Brewer Set</a> and the <a href="http://hackage.haskell.org/package/palette-0.3.0.2/docs/Data-Colour-Palette-ColorSet.html">ColorSet</a>. Note that <code>rybColor</code> is name <code>wheel24</code> and the <code>d3Colors</code> 2 and for used double indexing
+  Example
+  <pre>
+    d3Colors44-1  first  colour of the bright version of d3Color4
+    --       ^ bright
+    d3Colors41-1  first  colour of the dark version of d3Color4
+    --       ^ dark
+  <h4> Indexing property values
+  Tag values can be indexed within the range of all the values taken by this tag across all the boxes.
+  The index is the index of the value of the values sorted alphabetically whereas the rank is the index
+  of the value sorted by number of occurance.
+  For example, if we have 1 boxes scanned by operator A, 3 boxes by operator B And 2 by operator C
+  <pre>
+    Box1#operator=A
+    Box2#operator=B
+    Box3#opertor=B
+    Box4#opertor=B
+    Box5#opertor=C
+    Box6#opertor=C
+
+  The index of  A is 1, B is 2 and C is 3, whereas the rank of A is 3 (only 1 occurrence), B is 1 (3 occurrences) and C is 2.
+  To get the rank or the index the special property syntax is <code>$index</code>op<code>[</code>tag<code>]</code> and <code>$rank</code>op<code>[</code>tag<code>]</code> where op is an optional operator <code>-</code> <code>%</code> or <code>^</code> followed by an integer.
+
+  <pre>
+    -n -- limit the index to n 
+    %n -- cycle within n value (index modulo n)
+    ^n -- map all indexes to the range 1-n
+
+  Example, given the previous boxes
+  <pre>
+     &#36;index[operator] -- A -> 1,  B ->  2, C -> 3
+     &#36;rank[operator] -- A -> 3,  B ->  1, C -> 2
+     &#36;index-2[operator] -- A -> 1,  B ->  2, C -> 2 (limit to 2)
+     &#36;index%2[operator] -- A -> 1,  B ->  2, C -> 1 (cycle to 2)
+     &#36;index^5[operator] -- A -> 1,  B ->  3, C -> 5 
+
+  This can used to given a different colours to each boxes depending on the operator
+  <pre>
+    bg=Spectral10-$index%10[operator]
+  Where Spectral10 is the 10 colours variant of the Spectral palette 
+  Of course different colours can be mixed 
+  <pre>
+    bg=Spectral10-$index%10[style];Greys4-$index^4[style]
+  Let's suppose we have 40 different styles. $index%10 will return 1 for 1, 11, 21 etc ...
+  But $index^4 will return 1 for 1-10, 2, for 2-19 etc ...
+  This way each of the 40 styles have a different colours. 
+  
+  For dates, the <code$ago</code>op<code>[</code>tag<code>]</code> transform the date not into a index but to an integer but the number of days ago (from today). Operators have a different meaning (subject to change)
+  <pre> 
+    &#36;ago[date] -- number of days ago
+    &#36;ago-0[date] -- number of years ago
+    &#36;ago-n[date] -- normalize  date range To n
+    &#36;ago-n[date] -- normalize  date range To n
+    &#36;ago%n[date] -- year moduln n
+    &#36;ago^0[date] -- within last week (1) , month (2), 3 moths (3), 6 months (4)
+                             , year (5) , 3 years (6), more (7)
+    &#36;ago^n[date] -- log so that the current date range go from 1 to n
+  
 <h3>
   <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-break">
      Breaks And Slots
@@ -537,23 +701,23 @@ A planner file is made of different sections. Each section corresponds to an org
   to be defined within the same plan. 
   The following group attributes will be expanded :
   <ul>
-    <li> ${count} : number of boxes within the group
-    <li> ${shelf-count} : number of different shelves
-    <li> ${locations} list of shelves (compacted)
-    <li> ${shelves} list of shelves
-    <li> ${total-volume} : total volumes in m^3
-    <li> ${style-count} : number of different styles
-    <li> ${content-count} : number of different content
-    <li> ${dimensions-count} : number of different dimensions
-    <li> ${orientations} : different orientations
-    <li> ${count-orientations} : number of different dimensions
-    <li> ${today} : today's date with the following format <code>YYYY-MM-DD</code>
+    <li> <code>${count}<\code> : number of boxes within the group
+    <li> <code>${shelf-count}<\code> : number of different shelves
+    <li> <code>${locations}<\code> list of shelves (compacted)
+    <li> <code>${shelves}<\code> list of shelves
+    <li> <code>${total-volume}<\code> : total volumes in m^3
+    <li> <code>${style-count}<\code> : number of different styles
+    <li> <code>${content-count}<\code> : number of different content
+    <li> <code>${dimensions-count}<\code> : number of different dimensions
+    <li> <code>${orientations}<\code> : different orientations
+    <li> <code>${count-orientations}<\code> : number of different dimensions
+    <li> <code>${today}<\code> : today's date with the following format <code>YYYY-MM-DD</code>
   Symbols would can't be used without being interpreted by the parser can be expanded using
   <ul>
-    <li> ${hash} <code>#</code>
-    <li> ${comma} <code>,</code>
-    <li> ${divide} <code>/</code>
-    <li> ${dollar} <code>$</code>
+    <li> <code>${hash}<\code> <code>#</code>
+    <li> <code>${comma}<\code> <code>,</code>
+    <li> <code>${divide}<\code> <code>/</code>
+    <li> <code>${dollar}<\code> <code>$</code>
 
   Example, to generate a valid TAG File tagging each box using its unique barcode tag with its location
   <pre>

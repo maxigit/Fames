@@ -968,7 +968,7 @@ expandAttribute' (stripStatFunction "$ago" -> Just (arg, prop, xs) ) = Just  $ \
                  daysAgo' = fromIntegral daysAgo
                  n' = fromIntegral n
                  range' = fromIntegral range
-                 lambda = log n' / range' :: Double
+                 lambda = range' / log n' :: Double
                  in min (fromIntegral n) $ round $ exp (lambda *  daysAgo')
         _ -> daysAgo
       in tshow (d :: Integer) <> ex
@@ -1327,3 +1327,4 @@ __getBoxTagMap prop = do
                                  | box <- toList boxes
                                  , value <- getTagValues box prop
                                  ]
+

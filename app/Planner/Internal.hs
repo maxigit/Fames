@@ -121,6 +121,7 @@ parseDrawer h = case splitOn "_" h of
     ("initial":[]) -> Right InitialH
     ("stocktake":tags) -> Right $ StocktakeH tags
     ("boxes":tags) -> Right $ BoxesH tags
+    ("moves":"and":"tags":tags) -> Right $ MovesAndTagsH tags
     ("moves":tags) -> Right $ MovesH tags
     ("tags":[]) -> Right TagsH
     ("moves and tags":tags) -> Right $ MovesAndTagsH tags
@@ -131,6 +132,7 @@ parseDrawer h = case splitOn "_" h of
     ("tam":tags) -> Right $ MovesAndTagsH tags
     ("shelf tags":[]) -> Right $ ShelfTagsH
     ("shelftags":[]) -> Right $ ShelfTagsH
+    ("shelf":"tags":[]) -> Right $ ShelfTagsH
     ("tag shelves":[]) -> Right $ ShelfTagsH
     ("transform":[]) -> Right TransformTagsH
     ("transform tags":[]) -> Right TransformTagsH

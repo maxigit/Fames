@@ -32,7 +32,7 @@ readBrewerSet name =
        | cat <- [minBound..maxBound] :: [ColorCat]
        , (stripPrefix  (tshow cat) -> (Just (readMay -> Just n))) <- [name]
        ] of
-    [(n,  cat)] -> Just (\i -> brewerSet cat n !! (i `mod` n))
+    [(n,  cat)] -> Just (\i -> brewerSet cat n !! (i `min` n))
     _ -> Nothing
     
 -- * Read from Palette.ColorSet
