@@ -701,23 +701,23 @@ A planner file is made of different sections. Each section corresponds to an org
   to be defined within the same plan. 
   The following group attributes will be expanded :
   <ul>
-    <li> <code>${count}<\code> : number of boxes within the group
-    <li> <code>${shelf-count}<\code> : number of different shelves
-    <li> <code>${locations}<\code> list of shelves (compacted)
-    <li> <code>${shelves}<\code> list of shelves
-    <li> <code>${total-volume}<\code> : total volumes in m^3
-    <li> <code>${style-count}<\code> : number of different styles
-    <li> <code>${content-count}<\code> : number of different content
-    <li> <code>${dimensions-count}<\code> : number of different dimensions
-    <li> <code>${orientations}<\code> : different orientations
-    <li> <code>${count-orientations}<\code> : number of different dimensions
-    <li> <code>${today}<\code> : today's date with the following format <code>YYYY-MM-DD</code>
+    <li> <code>${count}</code> : number of boxes within the group
+    <li> <code>${shelf-count}</code> : number of different shelves
+    <li> <code>${locations}</code> list of shelves (compacted)
+    <li> <code>${shelves}</code> list of shelves
+    <li> <code>${total-volume}</code> : total volumes in m^3
+    <li> <code>${style-count}</code> : number of different styles
+    <li> <code>${content-count}</code> : number of different content
+    <li> <code>${dimensions-count}</code> : number of different dimensions
+    <li> <code>${orientations}</code> : different orientations
+    <li> <code>${count-orientations}</code> : number of different dimensions
+    <li> <code>${today}</code> : today's date with the following format <code>YYYY-MM-DD</code>
   Symbols would can't be used without being interpreted by the parser can be expanded using
   <ul>
-    <li> <code>${hash}<\code> <code>#</code>
-    <li> <code>${comma}<\code> <code>,</code>
-    <li> <code>${divide}<\code> <code>/</code>
-    <li> <code>${dollar}<\code> <code>$</code>
+    <li> <code>${hash}</code> <code>#</code>
+    <li> <code>${comma}</code> <code>,</code>
+    <li> <code>${divide}</code> <code>/</code>
+    <li> <code>${dollar}</code> <code>$</code>
 
   Example, to generate a valid TAG File tagging each box using its unique barcode tag with its location
   <pre>

@@ -364,4 +364,3 @@ renderHistory = do
         $forall l <- lines (scenarioToTextWithHash scenario)
           #{l}<br>
 |]
-
