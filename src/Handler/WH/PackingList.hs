@@ -742,22 +742,22 @@ renderPlanner withDetails pl details = let
 toPlanner :: WithDetails -> PackingList -> [Entity PackingListDetail] -> [Text]
 toPlanner withDetails PackingList{..} details = let
   groups = Map.fromListWith (+) [ ( ( style detail
-                                   , packingListDetailLength
-                                   , packingListDetailWidth
-                                   , packingListDetailHeight
-                                   )
+                                    , packingListDetailLength
+                                    , packingListDetailWidth
+                                    , packingListDetailHeight
+                                    )
                                  , (1 :: Int)
                                  )
                                | (Entity _ detail@PackingListDetail{..}) <- details
                                ]
   style PackingListDetail{..} = packingListDetailStyle
                              <> (content $ Map.toList packingListDetailContent )
-                             <>  (maybe "" ("#pl-vessel=" <>) packingListVessel)
-                             <>  (maybe "" ("#pl-container=" <>) packingListContainer)
-                             <>  (maybe "" ("#pl-departure=" <>) $ fmap tshow packingListDeparture)
-                             <>  (maybe "" ("#pl-arriving=" <>) $ fmap tshow packingListArriving)
-                             <> if withDetails == withDetails
+                             <> if withDetails == WithDetails
                                 then ("#barcode=" <> packingListDetailBarcode )
+                                     <>  (maybe "" ("#pl-vessel=" <>) packingListVessel)
+                                     <>  (maybe "" ("#pl-container=" <>) packingListContainer)
+                                     <>  (maybe "" ("#pl-departure=" <>) $ fmap tshow packingListDeparture)
+                                     <>  (maybe "" ("#pl-arriving=" <>) $ fmap tshow packingListArriving)
                                      <> ("#reference=" <> packingListDetailReference )
                                      <> ("#boxNumber=" <> tshow packingListDetailBoxNumber )
                                  else ""
