@@ -164,14 +164,14 @@ readLocalFiles pat excluded = do
 --  | Execute the report from another planner
 executeReport :: HeaderType -> FilePath -> Text -> Handler (Either Text [Section])
 executeReport headerType path reportParam0 = do
+  plannerDir <- appPlannerDir <$> getsYesod appSettings
   let reportParam = if null reportParam0 then "report" else reportParam0
-  scenarioE <- readScenariosFromDir importFamesDispatch path
+  scenarioE <- readScenarioFromPath importFamesDispatch (plannerDir </> path)
   today <- todayH
   content <- case scenarioE of
     Left _ ->  error $ "Scenario: " <> unpack path <> " doesn't exist"
-    Right scenarios -> do
+    Right scenario -> do
       let report = generateGenericReport today reportParam
-          scenario = mconcat scenarios
       rows <- Exec.renderReport scenario report 
       return rows
   -- add a dummy csv header if needed
