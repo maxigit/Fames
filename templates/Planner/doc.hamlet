@@ -334,7 +334,7 @@ A planner file is made of different sections. Each section corresponds to an org
                    file/Base/* -- all file present in the Base folder
                    file/Base/*#moves.org -- all file present in the Base folder except Base/moves.org
                    file/Base/moves.org -- Base/moves.org only
-            <li><code>/plannerReport/</code>section</code>/<code>path</code>[<code>/</code>report-parameter
+            <li><code>/plannerReport/</code>section</code>/<code>path</code>[<code>#</code>report-parameter
                 <p> The plannerReport command allows to run a "generic report" from another planner file and wrap in any of standard section like :Moves:, :Boxes: etc ...
                     Path represents the path of the planner to execute.
                     Section tells how to wrap the result of the report. Valid values are 
