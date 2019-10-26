@@ -43,13 +43,13 @@ mkYesodSubData "FI" [parseRoutes|
 /boxStatus/live/#Text FIBoxStatusLive
 /file/+[FilePath] FILocalFile
 /plannerReport FIPlannerReport:
-  /tags/#FilePath/#Text TagReport
-  /boxes/#FilePath/#Text BoxReport
-  /movesAndTags/#FilePath/#Text MATReport
-  /orientations/#FilePath/#Text OrientationReport
-  /clone/#FilePath/#Text CloneReport
-  /delete/#FilePath/#Text DeleteReport
-  /stocktake/#FilePath/#Text StocktakeReport
+  /tags/+[FilePath] TagReport
+  /boxes/+[FilePath] BoxReport
+  /movesAndTags/+[FilePath] MATReport
+  /orientations/+[FilePath] OrientationReport
+  /clone/+[FilePath] CloneReport
+  /delete/+[FilePath] DeleteReport
+  /stocktake/+[FilePath] StocktakeReport
 /variationStatus/active/#Text FIVariationStatusActive
 /variationStatus/all/#Text FIVariationStatusAll
 /stockStatus/active/#Text FIStockStatusActive
@@ -81,14 +81,16 @@ importFamesDispatch (Section ImportH (Right content) _) = do
             sectionsX <- heToHx $ readLocalFiles (intercalate "/" path) tags
             ssx <- mapM (heToHx . importFamesDispatch) sectionsX
             return $ concat ssx
-          FIPlannerReport report -> case report of
-            TagReport path reportParam -> executeReport TagsH path reportParam
-            BoxReport path reportParam -> executeReport (BoxesH tags) path reportParam
-            MATReport path reportParam -> executeReport (MovesAndTagsH tags) path reportParam
-            OrientationReport path reportParam -> executeReport OrientationsH path reportParam
-            CloneReport path reportParam -> executeReport (ClonesH tags) path reportParam
-            DeleteReport path reportParam -> executeReport DeletesH path reportParam
-            StocktakeReport path reportParam -> executeReport (StocktakeH tags) path reportParam
+          FIPlannerReport report -> let
+            reportParam = headMay tags
+            in case report of
+              TagReport path -> executeReport TagsH path reportParam
+              BoxReport path -> executeReport (BoxesH tags) path reportParam
+              MATReport path -> executeReport (MovesAndTagsH tags) path reportParam
+              OrientationReport path -> executeReport OrientationsH path reportParam
+              CloneReport path -> executeReport (ClonesH tags) path reportParam
+              DeleteReport path -> executeReport DeletesH path reportParam
+              StocktakeReport path -> executeReport (StocktakeH tags) path reportParam
           FIVariationStatusActive skus -> ret $ importVariationStatus ActiveBoxes skus
           FIVariationStatusAll skus -> ret $ importVariationStatus AllBoxes skus
           FIStockStatusActive skus -> ret $ importStockStatus ActiveBoxes skus
@@ -165,10 +167,11 @@ readLocalFiles pat excluded = do
   return $ fmap concat sectionss
 
 --  | Execute the report from another planner
-executeReport :: HeaderType -> FilePath -> Text -> Handler (Either Text [Section])
-executeReport headerType path reportParam0 = do
+executeReport :: HeaderType -> [FilePath] -> Maybe Text -> Handler (Either Text [Section])
+executeReport headerType paths reportParamM = do
+  let path = intercalate "/" paths
   plannerDir <- appPlannerDir <$> getsYesod appSettings
-  let reportParam = if null reportParam0 then "report" else reportParam0
+  let reportParam = fromMaybe "report" reportParamM
   scenarioE <- readScenarioFromPath importFamesDispatch (plannerDir </> path)
   today <- todayH
   content <- case scenarioE of
