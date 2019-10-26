@@ -370,7 +370,7 @@ A planner file is made of different sections. Each section corresponds to an org
                <p> Replace for the given tag then name of colour (from the webiste) by is rgb value.
                    For example colour all boxes with the colour of their content can be achieved with the following
                    <pre>
-                      :TAG:
+                      :TAGS:
                       selector,tag
                       ,#bg=${content}
                       -- ^ use the content property as the background colour
