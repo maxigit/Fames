@@ -77,7 +77,10 @@ importFamesDispatch (Section ImportH (Right content) _) = do
           FIBoxStatusActive prefix -> ret $ importBoxStatus ActiveBoxes prefix tags
           FIBoxStatusAll prefix -> ret $ importBoxStatus AllBoxes prefix tags
           FIBoxStatusLive prefix -> ret $ importBoxStatusLive AllBoxes prefix tags
-          FILocalFile path -> readLocalFiles (intercalate "/" path) tags
+          FILocalFile path -> hxtoHe $ do
+            sectionsX <- heToHx $ readLocalFiles (intercalate "/" path) tags
+            ssx <- mapM (heToHx . importFamesDispatch) sectionsX
+            return $ concat ssx
           FIPlannerReport report -> case report of
             TagReport path reportParam -> executeReport TagsH path reportParam
             BoxReport path reportParam -> executeReport (BoxesH tags) path reportParam
