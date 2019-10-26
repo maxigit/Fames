@@ -152,7 +152,7 @@ A planner file is made of different sections. Each section corresponds to an org
           <pre> stock_id,tag
           Example
           <pre>
-            :TAG:
+            :TAGS:
             stock_id,tag
             ,#tag1
             A,#-tag1
