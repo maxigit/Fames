@@ -190,13 +190,13 @@ purgeExpired cvar = liftIO $ modifyMVar_ cvar go
               newKeys'mvar <- filterM (toKeep now) keys'mvar
               cacheFromMap $ Map.fromAscList newKeys'mvar
         toKeep now (_, mvar) = do
-           (_ , expireAt) <- takeMVar mvar
+           (_ , expireAt) <- readMVar mvar
            return $ expireAt > now
 
 cacheFromMap :: MonadIO io => Map String (MVar (Dynamic, UTCTime)) -> io ExpiryCache
 cacheFromMap cache | cache == mempty = return Nothing
 cacheFromMap cache = do
-  _'exps <- mapM takeMVar (Map.elems cache)
+  _'exps <- mapM readMVar (Map.elems cache)
   let expireAt = minimum (map snd _'exps)
   return $  Just (expireAt, cache)
 
