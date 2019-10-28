@@ -33,11 +33,11 @@ data WarehouseCache = WarehouseCache (Warehouse ()) deriving (Show, Typeable)
 
 cacheWarehouseIn :: DocumentHash -> Warehouse s -> Handler (Maybe WarehouseCache)
 cacheWarehouseIn (DocumentHash key) warehouse = do
-  cache0 False (cacheDay 1) ("warehouse", key) (return . Just $ freeze warehouse)
+  cache0 False (cacheHour 1) ("warehouse", key) (return . Just $ freeze warehouse)
 
 cacheWarehouseOut :: DocumentHash -> Handler (Maybe WarehouseCache)
 cacheWarehouseOut (DocumentHash key) = do
-  wcache <- cache0 False (cacheDay 1) ("warehouse", key) (return Nothing)
+  wcache <- cache0 False (cacheHour 1) ("warehouse", key) (return Nothing)
   -- This hack creates a key if the warehouse doesn't exists
   case wcache of
     Nothing -> do
@@ -57,7 +57,7 @@ cacheScenarioIn :: Scenario -> Handler (Text, Int)
 cacheScenarioIn sc = do
   let (DocumentHash key) = scenarioKey sc
   layoutSize <- scenarioLayoutSize sc
-  cache0 False (cacheDay 1) ("scenario", key) (return $ Just (sc, layoutSize))
+  cache0 False (cacheHour 1) ("scenario", key) (return $ Just (sc, layoutSize))
   return (key, layoutSize)
 
 cacheScenarioOut :: Text -> Handler (Maybe (Scenario, Int))
