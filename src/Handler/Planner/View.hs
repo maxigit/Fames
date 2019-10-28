@@ -342,7 +342,7 @@ $forall row <- rows
 renderHistory :: Handler Widget
 renderHistory = do
   cvar <- getsYesod appCache
-  cache <- readMVar cvar
+  cache <- toCacheMap <$> readMVar cvar
   info <- mapM (\km ->traverse readMVar km) (Map.toList cache)
   let sorted = sortBy (comparing $ Down . fst) info
       scenarios = [ (t,s)

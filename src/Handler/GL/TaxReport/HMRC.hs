@@ -72,7 +72,7 @@ getHMRCAuthorizationCode reportType HMRCProcessorParameters{..} = do
   let cacheKey = HMRCAuthKey reportType
 
   cvar <- getsYesod appCache
-  cache <- readMVar cvar
+  cache <- toCacheMap <$> readMVar cvar
   refereeM <- getCurrentRoute
   -- traceShowM $ ("KEYS", keys cache, "KEY", cacheKey)
   case lookup (show cacheKey) cache of
@@ -105,7 +105,7 @@ setHMRCAuthorizationCode reportType parameters (AuthorizationCode code) = do
 getHMRCToken :: Text -> HMRCProcessorParameters -> Handler AuthorizationToken
 getHMRCToken reportType params = do
   cvar <- getsYesod appCache
-  cache <- readMVar cvar
+  cache <- toCacheMap <$> readMVar cvar
   let storeToken token = cache0 True (cacheHour 4) cacheKey (return token)
       cacheKey = HMRCTokenKey reportType
   case lookup (show cacheKey) cache of

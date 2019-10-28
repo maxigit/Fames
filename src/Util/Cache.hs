@@ -8,6 +8,7 @@ module Util.Cache
 , DelayedStatus
 , CacheDelay
 , ExpiryCache
+, toCacheMap
 , cacheSecond
 , cacheHour
 , cacheMinute
@@ -30,6 +31,7 @@ import UnliftIO
 import UnliftIO.Concurrent(threadDelay)
 import Data.Time
 
+import Control.Monad (filterM)
 import Unsafe.Coerce(unsafeCoerce)
 import Type.Reflection
 
@@ -117,55 +119,92 @@ statusDelayed d = liftIO $ do
 -- * Cached
 -- | Mutable Map with expiry date
 -- A value of Nothing means the MVar
-type ExpiryCache = Map String (MVar (Dynamic, UTCTime))
+type ExpiryCache = Maybe (UTCTime, Map String (MVar (Dynamic, UTCTime)))
+                         -- ^ next time a value expires. Used to check if the cache needs purging or not
 
 -- ** Standard cache
 newExpiryCache :: IO (MVar ExpiryCache)
-newExpiryCache = newMVar mempty
+newExpiryCache = newMVar Nothing
 
 clearExpiryCache :: MVar ExpiryCache -> IO ()
-clearExpiryCache cvar = swapMVar cvar mempty >> return ()
+clearExpiryCache cvar = swapMVar cvar Nothing >> return ()
 -- Compute or use the cached value.
 -- There is no way to get a value from the cache without actually
 -- specifying the way to compute value. This is to make sure
 -- the retrieved value is of the correct type.
 expCache :: (Show k, Typeable v, MonadIO io) => Bool -> MVar ExpiryCache -> k -> io v -> CacheDelay -> io v
-expCache force cvar key vio (CacheDelay seconds)  = do
+expCache force cvar key vio (CacheDelay seconds)  = purgeExpired cvar >> do
+  now <- liftIO $ getCurrentTime
+  let expireAt = addUTCTime (fromIntegral seconds)  now
   let k = show key
   -- we release cvar as soon as possible
   let putV mvar = do
                   v <- vio
-                  now <- liftIO $ getCurrentTime
-                  liftIO $ putMVar mvar (toDyn v, addUTCTime (fromIntegral seconds) now)
+                  liftIO $ putMVar mvar (toDyn v, expireAt)
                   return v
-  let getCachedMVar cache = do
-        case Map.lookup k cache of
+  let getCachedMVar cachem = do
+        case Map.lookup k =<< (fmap snd cachem) of
           Nothing -> liftIO $ do -- key need creating
             mvar <- newEmptyMVar
             let todo = putV mvar
-            return (Map.insert k mvar cache, Left todo)
+            return $ ( Just $ case cachem of
+                                Nothing -> (expireAt, Map.singleton k mvar)
+                                Just (minExp, cache) ->
+                                  (min minExp expireAt, Map.insert k mvar cache)
+                     , Left todo
+                     )
+
           Just mvar -> do
-            return (cache, Right mvar)
+            return (cachem, Right mvar)
   (todo'mvar) <- liftIO $ modifyMVar cvar getCachedMVar 
   case todo'mvar of
     Left todo -> do
       todo
     Right mvar -> do
       (d, t) <- liftIO $ takeMVar mvar
-      now <- liftIO $ getCurrentTime
       if now <= t && not force
         then do
           liftIO $ putMVar mvar (d, t)
           return $ fromDyn d (error "Wrong type for cached key.")
         else do
           putV mvar
-
+-- | Purge from the cache the given key
 purgeKey :: (MonadIO io, Show k) => MVar ExpiryCache -> k -> io ()
 purgeKey cvar key = liftIO $ modifyMVar_ cvar go
-  where go cache = do
+  where go Nothing = return Nothing
+        go (Just (_, cache)) = do
           let k = show key
-          return $ Map.delete k cache
+          cacheFromMap (Map.delete k cache)
     
+-- | Purge from the cache all expired value
+purgeExpired :: (MonadIO io) => MVar ExpiryCache -> io ()
+purgeExpired cvar = liftIO $ modifyMVar_ cvar go
+  where go Nothing = return Nothing
+        go cachem@(Just (nextExpiry, cache)) = do
+          now <- getCurrentTime
+          if now < nextExpiry -- 
+            then -- too early
+              return cachem
+            else do -- there are keys to expires
+              let keys'mvar = Map.toList cache
+              newKeys'mvar <- filterM (toKeep now) keys'mvar
+              cacheFromMap $ Map.fromAscList newKeys'mvar
+        toKeep now (_, mvar) = do
+           (_ , expireAt) <- takeMVar mvar
+           return $ expireAt > now
+
+cacheFromMap :: MonadIO io => Map String (MVar (Dynamic, UTCTime)) -> io ExpiryCache
+cacheFromMap cache | cache == mempty = return Nothing
+cacheFromMap cache = do
+  _'exps <- mapM takeMVar (Map.elems cache)
+  let expireAt = minimum (map snd _'exps)
+  return $  Just (expireAt, cache)
+
+-- | Convert an ExpiryCache to a Map
+toCacheMap :: ExpiryCache -> Map String (MVar (Dynamic, UTCTime))
+toCacheMap Nothing = mempty
+toCacheMap (Just (_, cache)) = cache
+  
 -- ** Delayed cache
 
 cacheSecond, cacheMinute, cacheHour, cacheDay :: Int -> CacheDelay

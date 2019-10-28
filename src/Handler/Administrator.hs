@@ -91,7 +91,7 @@ getACacheR :: Handler Html
 getACacheR = do
   cvar <- getsYesod appCache
   now <- liftIO $ getCurrentTime
-  cache <- readMVar cvar
+  cache <- toCacheMap <$> readMVar cvar
   let expired t = t > now
   -- sort by expiry date desc
   info <- mapM (\km ->traverse readMVar km) (Map.toList cache) 
