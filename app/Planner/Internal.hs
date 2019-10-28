@@ -312,7 +312,7 @@ sectionToText Section{..} = execWriter $ do
     tell [sectionTitle] --  $ ["* " <> writeHeader sectionType]
     case sectionContent of
        Left k@(DocumentHash key) -> if k /= emptyHash then tell ["@" <> key] else return ()
-       Right texts -> tell texts
+       Right texts -> tell [":" <> writeHeader sectionType <> ":"] >> tell texts >> tell [":END:"]
     return ()
 
 scenarioToFullText :: MonadIO m => Scenario -> m Text
