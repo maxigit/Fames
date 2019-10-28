@@ -206,8 +206,11 @@ renderView param0 = do
               PlannerGenerateMovesWithTags -> renderConsoleReport (generateMoves boxStyleWithTags) scenario
               PlannerGenerateMOPLocations -> renderConsoleReport (generateMOPLocations) scenario
               PlannerGenericReport -> renderConsoleReport (generateGenericReport today (fromMaybe "report" $ pParameter param)) scenario
-              PlannerScenarioHistory -> renderHistory
               PlannerBoxGroupReport -> renderBoxGroupReport (pParameter param) scenario
+              PlannerExport -> do
+                fulltext <- scenarioToFullText scenario
+                return [whamlet|#{toHtmlWithBreak fulltext}|]
+
               -- PlannerBoxGroupReport -> renderBoxGroupReport
           return (param, w)
     
@@ -339,8 +342,8 @@ $forall row <- rows
                  |]
 
 -- | Show scenario in cache
-renderHistory :: Handler Widget
-renderHistory = do
+__unused_renderHistory :: Handler Widget
+__unused_renderHistory = do
   cvar <- getsYesod appCache
   cache <- toCacheMap <$> readMVar cvar
   info <- mapM (\km ->traverse readMVar km) (Map.toList cache)

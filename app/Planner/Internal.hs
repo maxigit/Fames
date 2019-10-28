@@ -16,6 +16,7 @@ module Planner.Internal
 , parseScenarioFile
 , fileValid
 , writeHeader
+, scenarioToFullText
 )
 where 
 
@@ -314,8 +315,8 @@ sectionToText Section{..} = execWriter $ do
        Right texts -> tell texts
     return ()
 
-__scenarioToFullText :: MonadIO m => Scenario -> m Text
-__scenarioToFullText scenario =  do
+scenarioToFullText :: MonadIO m => Scenario -> m Text
+scenarioToFullText scenario =  do
   let sections = scenarioToSections scenario
   expanded <- mapM unCacheSection sections
   return $ sectionsToText expanded

@@ -76,10 +76,10 @@ data PlannerViewMode = PlannerSummaryView
                      | PlannerGenerateMovesWithTags
                      | PlannerGenerateMOPLocations
                      | PlannerGenericReport
-                     | PlannerScenarioHistory
+                     -- | PlannerScenarioHistory
                      | PlannerBoxGroupReport -- ^ box dimensions and number summary per style
                      -- | PlannerBoxGroupWarningReport -- ^ only group with different size Boxes
-                     -- | PlannerExport -- ^ Reexport a planner. Can be usefull to see where is what
+                     | PlannerExport -- ^ Reexport a planner. Can be usefull to see where is what
   deriving (Eq, Read, Show, Enum, Bounded)
 instance PathPiece PlannerViewMode where
   fromPathPiece = readFromPathPiece
