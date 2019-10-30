@@ -131,7 +131,9 @@ stylingFromTags box = let
   background2 = colorFromTag box "circle"
   border = colorFromTag box "border"
   title = getTagValues box "title"
-  barTitle= getTagValuem box "bar-title"
+  barTitle= case getTagValues box "bar-title" of
+               [] -> Nothing
+               vs -> Just $ intercalate "\n" vs
   displayBarGauge = not (tagIsPresent box "no-bar-gauge")
   in BoxStyling{..}
 
