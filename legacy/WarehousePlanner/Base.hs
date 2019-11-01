@@ -382,7 +382,7 @@ newBox style content dim or_ shelf ors tagTexts = do
     warehouse <- get
     let tags' = map (parseTagOperation . omap replaceSlash) tagTexts
         dtags = dimensionTagOps dim
-        contentTag = (cons '\'' content, SetTag)
+        contentTag = (omap replaceSlash $ cons '\'' content, SetTag)
         tags = fromMaybe mempty $ modifyTags (contentTag : tags' <> dtags) mempty
                                   --   ^ apply dimension tags after tags so dimension override tags
 
