@@ -38,7 +38,7 @@ import Data.Map(Map)
 import qualified Data.HashMap.Strict as H
 import qualified Data.Map as Map
 import Data.Text (Text,strip, toLower)
-import Data.Text.Encoding (decodeUtf8)
+import Data.Text.Encoding (decodeUtf8', decodeLatin1)
 
 import System.FilePath.Glob (glob)
 import System.Directory(getModificationTime)
@@ -83,7 +83,7 @@ cleanRecord record =  CleanedRecord [ (clean k, v) | (k, v) <- H.toList record]
 (.:) :: FromField a => CleanedRecord -> BS.ByteString -> Parser a
 (CleanedRecord cleaned) .: key = maybe mempty parseField $ clean key `lookup` cleaned where
 clean :: BS.ByteString -> Text
-clean = strip . toLower . decodeUtf8
+clean bs = strip . toLower . either (const $  decodeLatin1 bs) id $ decodeUtf8' bs
 type Amount = Decimal
 
 instance {-# OVERLAPPING #-} FromField (Maybe Decimal) where
