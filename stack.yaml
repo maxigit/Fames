@@ -64,3 +64,17 @@ extra-package-dbs: []
 # Allow a newer minor version of GHC than the snapshot specifies
 # compiler-check: newer-minor
 allow-newer: true
+nix:
+  enable: true
+  packages:
+    - pkg-config
+    - curl
+    - openssl
+    - libmysql
+    - pcre
+    - zlib
+    - glib
+    - cairo
+    - pango
+  path:
+    - nixpkgs=/home/max/.nix-defexpr/channels/nixos-19.09
