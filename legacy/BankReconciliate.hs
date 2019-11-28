@@ -448,7 +448,7 @@ readWithFilter :: Maybe String -> String -> IO BL.ByteString
 readWithFilter discardPatM path = do
     csv' <- BL.readFile path
     case discardPatM of
-      Nothing -> return csv'
+      Nothing -> return . BL.unlines $ BL.lines csv' -- add newline at the of a file if needed
       Just discardPat -> do
         let pat :: Rg.Regex
             pat =  R.makeRegex (BL.pack discardPat)
