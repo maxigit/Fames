@@ -66,24 +66,25 @@ install:
 install_local:
 	rsync -z .stack-work/install/x86_64-linux/lts-8.24/8.0.2/bin/Fames ../fames-config/bin/Fames
 
-GHCID_EXTRA= --reload=.ghcid-reload --reload=../fames-config/staging.yml --restart=.ghcid-restart # -h65
+GHCID_EXTRA= # --reload=.ghcid-reload --reload=../fames-config/staging.yml --restart=.ghcid-restart # -h65
+GHCID= LC_ALL=C.UTF-8 ghcid 
 ghcid-old:
-	ghcid --command="stack exec ghci --test -- -iapp -ilegacy -isrc -ifay-shared -itest -iconfig/fa -hide-package=cryptonite  -w test/Spec.hs"   --test ":main --rerun --color"
+	$(GHCID) --command="stack exec ghci --test -- -iapp -ilegacy -isrc -ifay-shared -itest -iconfig/fa -hide-package=cryptonite  -w test/Spec.hs"   --test ":main --rerun --color"
 
 ghcid-focus: reset-hspec
-	ghcid --command="stack ghci :ghcid" --test ":main --color -m@focus --rerun --rerun-all-on-success" $(GHCID_EXTRA)
+	$(GHCID) --command="stack ghci :ghcid" --test ":main --color -m@focus --rerun --rerun-all-on-success" $(GHCID_EXTRA)
 ghcid-test-all: reset-hspec
-	ghcid --command="stack ghci :ghcid" --test ":main --color" $(GHCID_EXTRA) 
+	$(GHCID) --command="stack ghci :ghcid" --test ":main --color" $(GHCID_EXTRA) 
 ghcid-test-force:
-	ghcid --command="stack ghci :test --ghc-options=-w --ghc-options=-fdefer-type-errors" --test ":main --color"
+	$(GHCID) --command="stack ghci :test --ghc-options=-w --ghc-options=-fdefer-type-errors" --test ":main --color"
 ghcid:
-	ghcid --command="stack ghci --ghc-options=-w" $(GHCID_EXTRA)
+	$(GHCID) --command="stack ghci --ghc-options=-w" $(GHCID_EXTRA)
 ghcid-run:
-	ghcid --command="stack ghci" --test "appMain" $(GHCID_EXTRA)
+	$(GHCID) --command="stack ghci" --test "appMain" $(GHCID_EXTRA)
 ghcid-run-force:
-	ghcid --command="stack ghci --ghc-options=-w --ghc-options=-fdefer-type-errors" --test "appMain" $(GHCID_EXTRA)
+	$(GHCID) --command="stack ghci --ghc-options=-w --ghc-options=-fdefer-type-errors" --test "appMain" $(GHCID_EXTRA)
 ghcid-run-now:
-	ghcid --command="stack ghci --ghc-options=-w" --test "appMain" $(GHCID_EXTRA)
+	$(GHCID) --command="stack ghci --ghc-options=-w" --test "appMain" $(GHCID_EXTRA)
 
 reset-hspec:
 	rm -rf .hspc-failures
