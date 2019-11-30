@@ -182,3 +182,11 @@ sql/commerce.schema:
 
 sql/federated_dc.sql: sql/commerce.schema tools/create_federated.sh
 	tools/create_federated.sh sql/commerce.schema > $@
+
+ctags:
+	LC_ALL=C.UTF-8 haskdogs
+
+# incremental
+itags:
+	LC_ALL=C.UTF-8 haskdogs -i % --hasktags-args "-x -c -a" | sort -u -o tags tags
+
