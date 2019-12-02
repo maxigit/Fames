@@ -21,6 +21,7 @@ packages:
 extra-deps:
 - /home/max/devel/metamorphosis
 - /home/max/Hackage/Fay/fay-jquery
+- /home/max/Hackage/Fay/fay
 # - git: https://github.com/yesodweb/yesod
   # commit: f3fc735a25eb3d5c051c761b59070eb9a0e4e156
 #- say-0.1.0.0
@@ -32,9 +33,10 @@ extra-deps:
 # - intero-0.1.32
 - git: https://github.com/fpco/yesod-fay
   commit: 7c87550a3450b1d476737eee34bf2a09b9048751
-- fay-0.24.0.3
+  #- fay-0.24.0.3
 # - fay-jquery-0.6.1.0
 - fay-text-0.3.2.2
+- fay-base-0.21.1.0
 # - yesod-fay-0.10.0
 - yesod-media-simple-0.2.0.1
 
@@ -76,5 +78,8 @@ nix:
     - glib
     - cairo
     - pango
+    # to compile FAY
+    - haskellPackages.cpphs
+    - ghc
   path:
     - nixpkgs=/home/max/.nix-defexpr/channels/nixos-19.09
