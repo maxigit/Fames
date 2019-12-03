@@ -48,7 +48,7 @@ onclickBase base = do
   case dklasses of
     Undefined -> return base
     Defined cs -> do
-      let classes = T.splitOn (' ') cs
+      let classes = T.splitOn (" ") cs
           styles = findInClasses "style-" classes
           hideShow = if "base" `elem` classes then jToggleBase base else jHide
 
