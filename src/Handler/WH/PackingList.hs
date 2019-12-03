@@ -505,15 +505,7 @@ viewPackingList mode key pre = do
                   $forall (field, value) <- fields
                       <b>#{field}
                       #{fromMaybe "" value}
-              <table.table.table-border.table-hover.table-striped>
-                $forall (event, Entity _ trans) <- invoices
-                  <tr>
-                   <td> #{fromMaybe (tshow $ transactionMapEventType event) (showEvent event)}
-                   <td> #{decodeHtmlEntities $ FA.suppTranSuppReference trans}
-                   <td.text-right> #{formatDouble' $ (FA.suppTranOvAmount trans * FA.suppTranRate trans)}
-                   <td.text-right> #{formatDouble' $ (FA.suppTranOvDiscount trans * FA.suppTranRate trans)}
-                   <td.text-right> #{tshow $ FA.suppTranRate trans}
-                   <td> <a href="#{urlForFA faUrl (transactionMapFaTransType event) (transactionMapFaTransNo event)}" target=_blank>##{transactionMapFaTransNo event}
+              ^{renderCostingInformation faUrl invoices}
 
             <p>#{documentKeyComment docKey}
                 |]
@@ -526,6 +518,18 @@ viewPackingList mode key pre = do
           ^{entitiesWidget}
                 |]
     _ -> notFound
+
+renderCostingInformation faUrl invoices = [whamlet|
+   <table.table.table-border.table-hover.table-striped>
+     $forall (event, Entity _ trans) <- invoices
+       <tr>
+        <td> #{fromMaybe (tshow $ transactionMapEventType event) (showEvent event)}
+        <td> #{decodeHtmlEntities $ FA.suppTranSuppReference trans}
+        <td.text-right> #{formatDouble' $ (FA.suppTranOvAmount trans * FA.suppTranRate trans)}
+        <td.text-right> #{formatDouble' $ (FA.suppTranOvDiscount trans * FA.suppTranRate trans)}
+        <td.text-right> #{tshow $ FA.suppTranRate trans}
+        <td> <a href="#{urlForFA faUrl (transactionMapFaTransType event) (transactionMapFaTransNo event)}" target=_blank>##{transactionMapFaTransNo event}
+|]
 
 data DeliveryParam = DeliveryParam
   { dpCart :: !Text
@@ -1525,8 +1529,13 @@ transMapFilter plKey =
       
 loadInvoicesNoFor :: PackingListId -> SqlHandler [Entity TransactionMap]
 loadInvoicesNoFor plKey = do
-    ids <- selectList ((TransactionMapFaTransType ==. ST_SUPPINVOICE) : transMapFilter plKey) []
-    return ids
+    -- check permisions 
+    role <- lift currentRole
+    let authorized = null $ filterPermissions ReadRequest
+                                             (setFromList ["supplier_invoice"]) role
+    if authorized
+    then selectList ((TransactionMapFaTransType ==. ST_SUPPINVOICE) : transMapFilter plKey) []
+    else return []
     
 -- loadInvoicesNoFor (Entity plKey _)= do
 --     ids <- selectList [TransactionMapFaTransType ==. ST_SUPPINVOICE, TransactionMapEventNo ==. fromIntegral (unSqlBackendKey (unPackingListKey plKey)) ] []
