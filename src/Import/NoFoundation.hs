@@ -185,6 +185,7 @@ commas' = later go where
 -- | Display a decimal number with comma (thousand separator)
 commasDecimal :: Integral a => Format r (DecimalRaw a -> r)
 commasDecimal = later go where 
+  go x | x < 0 = "-" <> go (-x)
   go x = let
     digit = fromIntegral $ decimalPlaces x :: Int
     (n, f) = (fromIntegral $ decimalMantissa x :: Int) `divMod` (10^digit)
