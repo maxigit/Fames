@@ -55,8 +55,11 @@ data DisplayMode = DisplayAll | DisplayMissingOnly | HideMissing
 -- 0 takes form missing variations
 -- StyleAddition just add new boxes to the actual stock take.
 -- Should be used ideally for delivery 
+-- StyleNoAdjustment is similar to StyleAddition but also set the stocktake as inactive.
+-- This is usefull to record a stocktake has been done (and register the corresponding barcode)
+-- without triggering a 
 
-data StyleComplete = StyleComplete | StyleIncomplete | StyleAddition
+data StyleComplete = StyleComplete | StyleIncomplete | StyleAddition | StyleNoAdjustment
   deriving (Eq, Read, Show, Enum, Bounded)
 
 -- | Should be Either FileInfo (Text, Text)
@@ -492,7 +495,11 @@ processStocktakeSheet mode = do
                 Just (Entity k _ ) -> replace k doc >> return k
 
 
-            let stocktakes0 =  concatMap (groupToStocktakes keyId) groups
+            let stocktakes0 =  map alterActive $ concatMap (groupToStocktakes keyId) groups
+                -- ^ If NoAdjustment set stocktake to inactive = 
+                alterActive = if pStyleComplete param == StyleNoAdjustment
+                                 then \s -> s { stocktakeActive = False }
+                                 else id
             stocktakes <- deactivateOldStocktakes stocktakes0
             let boxtakes0 = do
                   group_ <- groups
@@ -523,7 +530,7 @@ processStocktakeSheet mode = do
             -- Quick check with 0 are different. It means we haven't found any, therefore
             -- it is legitimate to also inacite the boxes. We know (or think) the boxes
             -- have disappeared.
-            when (pStyleComplete param /= StyleAddition) (do
+            when (pStyleComplete param `notElem` [StyleAddition , StyleNoAdjustment]) (do
               let skusForFull = map stocktakeStockId (filter stocktakeActive stocktakes)
                   (zeros, nonZeros)= partition (\r -> rowQuantity r == Known 0)  quicks
                   skusForAll = skusForFull  <> skusForZeros
