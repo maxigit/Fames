@@ -139,7 +139,7 @@ curlHMRCToken reportType params@HMRCProcessorParameters{..} = do
          opts = curlPostFields [ "client_secret" <=> clientSecret
                              , "client_id" <=> clientId
                              , Just "grant_type=authorization_code"
-                             , Just "redirect_uri=http://localhost:3000/gl/tax/oauth"
+                             , "redirect_uri" <=> (fromMaybe "http://localhost:3000" redirectURI <> "/gl/tax/oauth" )
                              , "code" <=> code
                              ] : CurlVerbose True : method_POST
       -- traceShowM ("OPT", opt)
@@ -157,7 +157,7 @@ refreshHMRCToken __reportType HMRCProcessorParameters{..} token = do
         opts = curlPostFields [ "client_secret" <=> clientSecret
                                        , "client_id" <=> clientId
                                        , Just "grant_type=authorization_code"
-                                       , Just "redirect_uri=http://localhost:3000/gl/tax/oauth"
+                                       , "redirect_uri=" <=> (fromMaybe "http://localhost:3000" redirectURI <> "/gl/tax/oauth" )
                                        , "refresh_token" <=> (refreshToken token)
                                        ] : CurlVerbose True : method_POST
       -- traceShowM ("OPT", opt)

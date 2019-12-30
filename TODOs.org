@@ -57,6 +57,14 @@ At the moment it's easier to just add a page
    
 ** Query to reset state To match
 ** TODO Fraud prevention
+ * Working URI
+ redirect URI works when set to
+
+       http://localhost:3000/gl/tax/oauth
+
+       ONly 3000 because 3000 was hardcoded, fixed.
+
+but 3443 doesn't work. Is 3000 hardcoded somewhere ?
 ** TODO Error [1/2]
    - [X] when retrieving obligations
    displays erro
