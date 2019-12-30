@@ -38,6 +38,11 @@ data HMRCProcessorParameters = HMRCProcessorParameters
        , obligationTestScenario :: Maybe Text -- ^ He
        , submitTestScenario :: Maybe Text -- ^ He
        -- # endif
+       , govClientTimezone :: Text
+       , govClientLocalIPs :: Text
+       , govClientMACAddress :: Text
+       , govClientDeviceId :: Maybe Text
+       , govClientUserAgent :: Maybe Text
        }
   deriving (Eq, Read, Show)
 data ManualProcessorParameters = ManualProcessorParameters

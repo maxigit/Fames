@@ -13,6 +13,7 @@ import Data.Aeson.TH(deriveJSON, defaultOptions, fieldLabelModifier)
 import Data.Aeson.Types
 import Data.Aeson(encode)
 import Data.Time(diffUTCTime)
+import Development.GitRev
 
 import Data.Fixed
 import Data.Yaml.Pretty(encodePretty, defConfig)
@@ -168,6 +169,7 @@ refreshHMRCToken __reportType HMRCProcessorParameters{..} token = do
 retrieveVATObligations :: Text -> Maybe TaxReport -> HMRCProcessorParameters -> Handler [VATObligation]
 retrieveVATObligations reportType reportM params@HMRCProcessorParameters{..} = do
   token <- getHMRCToken reportType params
+  fraudPreventionHeaders <- fraudPreventionHeadersH params
   forM_ obligationTestScenario $ \testScenario -> do
     setWarning [shamlet|Using Gov Test Scenario: #{tshow testScenario}|]
   let endPoint = "/organisations/vat/"<>vatNumber<>"/obligations?":: Text
@@ -205,7 +207,7 @@ retrieveVATObligations reportType reportM params@HMRCProcessorParameters{..} = d
 -- #if DEVELOPMENT
                                                    , "Gov-Test-Scenario: " <?> obligationTestScenario
  -- #endif
-                                                   ]
+                                                   ] <> fraudPreventionHeaders
                       )
       
                       : CurlVerbose True
@@ -218,6 +220,7 @@ retrieveVATObligations reportType reportM params@HMRCProcessorParameters{..} = d
 submitHMRCReturn :: TaxReport -> Text -> [TaxReportBox] -> HMRCProcessorParameters -> Handler TaxReport
 submitHMRCReturn report@TaxReport{..} periodKey boxes params@HMRCProcessorParameters{..} = do
   token <- getHMRCToken taxReportType params
+  fraudPreventionHeaders <- fraudPreventionHeadersH params
   now <- liftIO getCurrentTime 
   let endPoint = "/organisations/vat/"<>vatNumber<>"/returns" :: Text
   -- let endPoint = "/organisations/vat/"<>vatNumber<>"/obligations" :: Text
@@ -235,7 +238,7 @@ submitHMRCReturn report@TaxReport{..} periodKey boxes params@HMRCProcessorParame
 -- #if DEVELOPMENT
                                                      , "Gov-Test-Scenario: " <?> submitTestScenario
 -- #endif
-                                                     ]
+                                                     ] <> fraudPreventionHeaders
                         )
              : CurlVerbose True
              : method_POST 
@@ -276,6 +279,7 @@ mkVatReturn vr_periodKey vr_finalised boxes = do -- Either
 validateHMRCFraudPreventionHeaders :: Text -> HMRCProcessorParameters -> Handler Html
 validateHMRCFraudPreventionHeaders taxReportType params = do
   token <- getHMRCToken taxReportType params
+  fraudPreventionHeaders <- fraudPreventionHeadersH params
   let endPoint = "/test/fraud-prevention-headers/validate" 
       url = unpack $ baseUrl params <> endPoint
       pprint :: Value -> Text
@@ -287,18 +291,35 @@ validateHMRCFraudPreventionHeaders taxReportType params = do
                (CurlHttpHeaders $ catMaybes [ Just "Accept: application/vnd.hmrc.1.0+json"
                                             , Just "Content-Type: application/json"
                                             , "Authorization: " <?> ("Bearer " <> accessToken token)
-                                            ]
+                                            ] <> fraudPreventionHeaders
                )
                : CurlVerbose True
                : [] -- method_POST
          ) [] "Fetching VAT obligations"
     return (json :: Value)
   defaultLayout [whamlet|
+     <ul>
+       $forall h <- fraudPreventionHeaders
+         <li>#{h}
      <textarea style='width=100%;height=20em' readonly>#{either tshow pprint result}|]
 
 
 
   
+fraudPreventionHeadersH :: HMRCProcessorParameters -> Handler [String]
+fraudPreventionHeadersH HMRCProcessorParameters{..} = do
+  muser <- maybeAuth
+  let githash = $gitHash :: String
+  return $ catMaybes
+   [ Just "Gov-Client-Connection-Method: OTHER_DIRECT"
+   , "Gov-Client-Device-ID: " <?> govClientDeviceId
+   , "Gov-Client-User-IDs:  os=" <?> (userIdent . entityVal <$> muser)
+   , "Gov-Client-Timezone:" <?> govClientTimezone
+   , "Gov-Client-Local-IPs: " <?> govClientLocalIPs 
+   , "Gov-Client-User-Agent: " <?>  govClientUserAgent
+   , "Gov-Client-MAC-Addresses: " <?>  govClientMACAddress
+   , Just $ "Gov-Vendor-Version: fames="  <> githash
+   ]
 
   
   
