@@ -13,6 +13,7 @@ import FA as FA hiding (unUserKey)
 import Database.Persist.MySQL     (Single(..), rawSql)
 import Handler.Items.Category(getItemsCategoryTermsR)
 import qualified Handler.Items.Category.Cache as Cache
+import GL.TaxReport.Settings
 
 -- | Page to test administrator authentication.
 -- might be empty
@@ -38,6 +39,7 @@ You are logged as Administrator !
   <li>
     <a href="@{AdministratorR ATestFAR}">
       Test FrontAccounting Connection
+  ^{taxReportChecks settings}
 <div.panel.panel-info>
   <div.panel-heading>
     <h3> executables arguments
@@ -316,4 +318,20 @@ postAMasqueradeR = do
       role <- currentRole
       $(logWarn) . toStrict $ pShow ("NEW ROLE", role)
   getAMasqueradeR
+
+
+-- * Tax report
+-- List all report which needs check fraud previons
+taxReportChecks :: AppSettings -> Widget
+taxReportChecks settings = let
+  reports = [ reportType
+            | (reportType, repSettings) <- Map.toList (appTaxReportSettings settings)
+            -- only display HMRCProcessor
+            , HMRCProcessor _  <- [processor repSettings]
+            ]
+  in [whamlet|
+      $forall reportType <- reports
+        <li>
+         <a href=@{GLR $ GLTaxReportValidateFraudPreventionHeadersR reportType}>#{reportType} : Validate Fraud Headers
+      |]
 

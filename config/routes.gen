@@ -46,6 +46,7 @@
   /tax/submit/#Int64/ GLTaxReportSubmitR POST !tax !tax-submit
   /tax/oauth GLTaxReportOAuthR GET 
   /tax/statuses/#Text GLTaxReportStatusesR GET !tax !debug-tax
+  /tax/checkFraudHeader/#Text GLTaxReportValidateFraudPreventionHeadersR GET !tax !debug-tax
 
   /check GLCheckR GET POST !check !group=Check !title=Check
   /check/debtor_trans/#Int64/#Int64 GLCheckDebtorTransR GET !check 

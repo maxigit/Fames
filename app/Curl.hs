@@ -43,7 +43,7 @@ doCurlWith onsuccess onfailure url opts status msg = do
   -- traceShowM ("POST to CURL", url, opts)
   r <- docurl url (mergePostFields opts)
   -- traceShowM ("RESP", respStatus r, respBody r)
-  when (respCurlCode r /= CurlOK || respStatus r `notElem` status) $ do
+  when (respCurlCode r /= CurlOK || (respStatus r `notElem` status && not (null status))) $ do
       throwError . {- traceShowId $ -} unlines $
         [ "Failed to : " <> msg
         , "CURL status: " <> tshow (respCurlCode r)

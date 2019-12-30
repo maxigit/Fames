@@ -197,7 +197,3 @@ handler h = getAppSettings >>= makeFoundation >>= flip unsafeHandler h
 db :: ReaderT SqlBackend Handler a -> IO a
 db = handler . runDB
 
-
-
-
-  

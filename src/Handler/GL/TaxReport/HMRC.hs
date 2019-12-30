@@ -15,6 +15,7 @@ import Data.Aeson(encode)
 import Data.Time(diffUTCTime)
 
 import Data.Fixed
+import Data.Yaml.Pretty(encodePretty, defConfig)
 
 -- * Types
 data VATObligation = VATObligation
@@ -269,3 +270,35 @@ mkVatReturn vr_periodKey vr_finalised boxes = do -- Either
   vr_totalAcquisitionsExVAT <- getValue0 "B9"
 
   return VATReturn{..}
+
+-- * Fraud Validation headers
+-- | Validates the fraud preventions using HMRC test website
+validateHMRCFraudPreventionHeaders :: Text -> HMRCProcessorParameters -> Handler Html
+validateHMRCFraudPreventionHeaders taxReportType params = do
+  token <- getHMRCToken taxReportType params
+  let endPoint = "/test/fraud-prevention-headers/validate" 
+      url = unpack $ baseUrl params <> endPoint
+      pprint :: Value -> Text
+      pprint = decodeUtf8 . encodePretty defConfig
+  result <- hxtoHe . ioxToHx $ withCurl $ do
+    curl <- lift initialize
+    let ?curl = curl
+    json <- curlJson url (
+               (CurlHttpHeaders $ catMaybes [ Just "Accept: application/vnd.hmrc.1.0+json"
+                                            , Just "Content-Type: application/json"
+                                            , "Authorization: " <?> ("Bearer " <> accessToken token)
+                                            ]
+               )
+               : CurlVerbose True
+               : [] -- method_POST
+         ) [] "Fetching VAT obligations"
+    return (json :: Value)
+  defaultLayout [whamlet|
+     <textarea style='width=100%;height=20em' readonly>#{either tshow pprint result}|]
+
+
+
+  
+
+  
+  

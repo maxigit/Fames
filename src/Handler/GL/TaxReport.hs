@@ -11,6 +11,7 @@ module Handler.GL.TaxReport
 , postGLTaxReportSubmitR
 , getGLTaxReportOAuthR
 , getGLTaxReportStatusesR
+, getGLTaxReportValidateFraudPreventionHeadersR
 ) where
 import Import hiding(RuleInput)
 import GL.TaxReport.Types
@@ -266,6 +267,12 @@ respondAuthError  = do
 
 
 
+getGLTaxReportValidateFraudPreventionHeadersR :: Text -> Handler Html
+getGLTaxReportValidateFraudPreventionHeadersR report = do
+  (settings, _) <- unsafeGetReportSettings report
+  case processor settings of
+   HMRCProcessor params -> validateHMRCFraudPreventionHeaders report params
+   _ -> return "Nothing to validate"
   
   
 
