@@ -56,6 +56,7 @@ mkManualProcessor params settings = (emptyProcessor settings)
 mkECSLProcessor :: ECSLProcessorParameters -> TaxReportSettings -> TaxProcessor
 mkECSLProcessor params settings = (emptyProcessor settings)
   { submitReturn = \report -> submitECSL params report settings
+  , getBoxes = getECSLBoxes params settings
   }
 -- ** HMRC
 mkHMRCProcessor :: HMRCProcessorParameters -> TaxReportSettings -> TaxProcessor
@@ -272,28 +273,27 @@ parseECSLBucket bucket = case break (==';') bucket of
     _ -> Left (taxCode , Just indicator')
 
 --  ** Compute boxes
-  -- not used ?
--- getECSLBoxes  :: ECSLProcessorParameters -> TaxReportSettings -> Set Bucket -> SqlHandler [TaxBox]
--- getECSLBoxes ECSLProcessorParameters{..} TaxReportSettings{..} buckets = do
---   -- for each bucket which match the box regexp
---   -- traceShowM ("Bukets for boxes" , buckets )
---   let bucketBoxes = do -- []
---        bucket <- toList buckets
---        let rule = TaxBoxNet bucket
---            rounding = RoundDown 0
---        -- traceShowM ("BUCKET", bucket, break (==';') bucket)
---        case parseECSLBucket bucket of
---           Left (_, Nothing) | Just bucket == outOfScope -> [TaxBox bucket (Just "Out of ECSL scope") Nothing rule (Just rounding)]
---           Left (__taxCode, indicatorm) -> [TaxBox bucket indicatorm (Just EQ) rule (Just rounding)]
---           Right (taxCode, indicator) -> let
---                                        description i = Just $ "Sales for "  <> taxCode <> " " <> toS i
---                                        toS i = case (i :: Int) of
---                                          0 -> "of Goods"
---                                          2 -> "as intermediary"
---                                          3 -> "of Services"
---                                          _ -> "<ERROR: unknow indicator " <> tshow i <> ">"
---                                    in [TaxBox bucket (description indicator) (Just GT) rule (Just rounding)]
---   return $ boxesRaw <> bucketBoxes
+getECSLBoxes  :: ECSLProcessorParameters -> TaxReportSettings -> Set Bucket -> SqlHandler [TaxBox]
+getECSLBoxes ECSLProcessorParameters{..} TaxReportSettings{..} buckets = do
+  -- for each bucket which match the box regexp
+  -- traceShowM ("Bukets for boxes" , buckets )
+  let bucketBoxes = do -- []
+       bucket <- toList buckets
+       let rule = TaxBoxNet bucket
+           rounding = RoundDown 0
+       -- traceShowM ("BUCKET", bucket, break (==';') bucket)
+       case parseECSLBucket bucket of
+          Left (_, Nothing) | Just bucket == outOfScope -> [TaxBox bucket (Just "Out of ECSL scope") Nothing rule (Just rounding)]
+          Left (__taxCode, indicatorm) -> [TaxBox bucket indicatorm (Just EQ) rule (Just rounding)]
+          Right (taxCode, indicator) -> let
+                                       description i = Just $ "Sales for "  <> taxCode <> " " <> toS i
+                                       toS i = case (i :: Int) of
+                                         0 -> "of Goods"
+                                         2 -> "as intermediary"
+                                         3 -> "of Services"
+                                         _ -> "<ERROR: unknow indicator " <> tshow i <> ">"
+                                   in [TaxBox bucket (description indicator) (Just GT) rule (Just rounding)]
+  return $ boxesRaw <> bucketBoxes
     
 
 -- ** Submit
