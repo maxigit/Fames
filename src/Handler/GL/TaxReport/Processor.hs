@@ -57,6 +57,11 @@ mkECSLProcessor :: ECSLProcessorParameters -> TaxReportSettings -> TaxProcessor
 mkECSLProcessor params settings = (emptyProcessor settings)
   { submitReturn = \report -> submitECSL params report settings
   , getBoxes = getECSLBoxes params settings
+  , preSubmitCheck = \_ -> return . Just $ dangerPanel "Note" [whamlet|
+     <p> Negative amount are displayed in red but are actually valid.
+     <p> However, it might be the result of a wrong configuration.
+     <p> Please check negative values are correct before submitting the report.
+     |]
   }
 -- ** HMRC
 mkHMRCProcessor :: HMRCProcessorParameters -> TaxReportSettings -> TaxProcessor
