@@ -506,6 +506,8 @@ renderLast limit =  do
 renderAdjustments :: [Entity StockAdjustment] -> Handler Widget
 renderAdjustments adjustments0 = do
   let adjustments = sortOn (Down . stockAdjustmentDate . entityVal) adjustments0
+  a'details <- zip adjustments <$> mapM (loadDetailSummary . entityKey) adjustments
+  let qtyFor getter cart = sum $ map stockAdjustmentDetailQuantity $ getter cart
   return [whamlet|
 <table *{datatable}>
   <thead>
@@ -514,14 +516,28 @@ renderAdjustments adjustments0 = do
       <th> Date
       <th> Comment
       <th> Statement
-  $forall (Entity k adj) <- adjustments
+      <th> Lost
+      <th> Found
+      <th> New
+  $forall (Entity k adj, cart) <- a'details
     <tr>
       <td> <a target=_blank href=@{WarehouseR (WHStockAdjustmentViewR (unSqlBackendKey $ unStockAdjustmentKey k) )}>
        ##{tshow $ unSqlBackendKey $ unStockAdjustmentKey k}
       <td> #{tshow $ stockAdjustmentDate adj}
       <td> #{take 50 $ stockAdjustmentComment adj}
       <td> #{tshow $ stockAdjustmentStatus adj}
+      <td> ^{badgeSpan' (qtyFor cLost cart) (Just redBadgeBg) "" }
+      $# <td> ^{badgeSpan' (qtyFor cFound cart - qtyFor cNew cart) (Just blueBadgeBg) "" }
+      <td> ^{badgeSpan' (qtyFor cFound cart) (Just blueBadgeBg) "" }
+      <td> ^{badgeSpan' (qtyFor cNew cart) (Just greenBadgeBg) "" }
 |]
+
+loadDetailSummary :: Key StockAdjustment -> Handler DetailCarts
+loadDetailSummary adjKey = do 
+  AppSettings{..} <- getsYesod appSettings
+  let [main,lost] = map FA.LocationKey  [appFADefaultLocation, appFALostLocation]
+  entities <- runDB $ selectList [StockAdjustmentDetailAdjustment ==. adjKey] []
+  return $ splitDetails (Just main) (Just lost) (map entityVal entities)
 
 renderTakes :: Int -> Handler Widget
 renderTakes limit = do
