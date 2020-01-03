@@ -152,6 +152,7 @@ renderStockAdjustment = do
 {-# NOINLINE postWHStockAdjustmentR #-}
 postWHStockAdjustmentR :: Handler Html
 postWHStockAdjustmentR = do
+  AppSettings{..}  <- getsYesod appSettings
   action <- lookupPostParam "action"
   let mode = case action of
             Just "save" -> Save
@@ -180,7 +181,7 @@ postWHStockAdjustmentR = do
                 <> " GROUP BY stock_id "
 
       stocktakes <- runDB $ rawSql sql p
-      results <- catMaybes <$> mapM qohFor stocktakes
+      results <- catMaybes <$> mapM (qohFor appFADefaultLocation appFALostLocation) stocktakes
       let withDiff = [(abs (quantityTake0 (mainLocation pre) - quantityAt (mainLocation pre)), pre) |  pre <- results]
           f  (q, pre) = (maybe True (q >=) (minQty param))
                    &&  (maybe True (q <=) (maxQty param))
@@ -317,12 +318,12 @@ lastMove pre = max (date (mainLocation pre)) (date (lost pre))
 -- | Returns the qoh at the date of the stocktake.
 -- return also the date of the last move (the one corresponding to given quantity).
 -- Needed to detect if the stocktake is sure or not.
-qohFor :: (Single Text, Single Int,  Single Day, Single (Maybe Text)) -> Handler (Maybe PreAdjust)
-qohFor r@(Single sku, Single __qtake, Single date, Single comment) = do
+qohFor :: Text -> Text -> (Single Text, Single Int,  Single Day, Single (Maybe Text)) -> Handler (Maybe PreAdjust)
+qohFor mainLoc lostLoc r@(Single sku, Single __qtake, Single date, Single comment) = do
   adj <-  PreAdjust
          <$> pure sku
-         <*> quantitiesFor "DEF" r
-         <*> quantitiesFor "LOST" r
+         <*> quantitiesFor mainLoc r
+         <*> quantitiesFor lostLoc r
          <*> pure date
          <*> pure comment
   return $ if all noInfo (adjustInfos adj)
@@ -564,8 +565,9 @@ loadAdjustmentTakes key = do
 {-# NOINLINE getWHStockAdjustmentViewR #-}
 getWHStockAdjustmentViewR :: Int64 -> Handler Html
 getWHStockAdjustmentViewR key = do
-  let mainLocationLoc = Just (FA.LocationKey "DEF")
-      lostLoc = Just (FA.LocationKey "LOST")
+  setting <- appSettings <$> getYesod
+  let mainLocationLoc = Just (FA.LocationKey $ appFADefaultLocation setting)
+      lostLoc = Just (FA.LocationKey $ appFALostLocation setting)
 
   
   ((details, adj), takes) <-runDB $ do
@@ -651,8 +653,9 @@ getWHStockAdjustmentViewR key = do
 {-# NOINLINE postWHStockAdjustmentToFAR #-}
 postWHStockAdjustmentToFAR ::  Int64 -> Handler Html
 postWHStockAdjustmentToFAR key = do
-  let mainLocationLoc = Just (FA.LocationKey "DEF")
-      lostLoc = Just (FA.LocationKey "LOST")
+  setting <- appSettings <$> getYesod
+  let mainLocationLoc = Just (FA.LocationKey $ appFADefaultLocation setting)
+      lostLoc = Just (FA.LocationKey $ appFALostLocation setting)
       baseref = "FamesAdj#" <> tshow key
   date <- utctDay <$> liftIO getCurrentTime
 
@@ -661,8 +664,8 @@ postWHStockAdjustmentToFAR key = do
     setError "The adjustment has already been processed. It can't be processed twice."
     sendResponseStatus (toEnum 412) =<< getWHStockAdjustmentViewR key
   carts <- adjustCarts date $ splitDetails mainLocationLoc lostLoc details
-  let Carts{..} = detailsToCartFA baseref date carts
-  setting <- appSettings <$> getYesod
+  let Carts{..} = detailsToCartFA (appFADefaultLocation setting) (appFALostLocation setting)
+                                  baseref date carts
   let connectInfo = WFA.FAConnectInfo (appFAURL setting) (appFAUser setting) (appFAPassword setting)
   err <- runExceptT  $ liftM3 (,,)
     (postStockAdjustmentToFA connectInfo cNew)
@@ -723,10 +726,10 @@ splitDetails mainLocationLoc lostLoc details = let
   cNew = filter ((== Nothing) . stockAdjustmentDetailFrom ) details
   in Carts{..}
   
-detailsToCartFA :: Text -> Day -> DetailCarts' -> FACarts
-detailsToCartFA ref date (Carts news losts founds) = let
+detailsToCartFA :: Text -> Text ->  Text -> Day -> DetailCarts' -> FACarts
+detailsToCartFA mainLoc lostLoc ref date (Carts news losts founds) = let
   new = WFA.StockAdjustment (ref<> "-new")
-                        "DEF"
+                        mainLoc
                         date
                         [ WFA.StockAdjustmentDetail (stockAdjustmentDetailStockId d)
                                                     (fromIntegral $ qty)
@@ -738,7 +741,7 @@ detailsToCartFA ref date (Carts news losts founds) = let
                         WFA.PositiveAdjustment
 
   lost = WFA.LocationTransfer (ref<> "-lost")
-                        "DEF" "LOST"
+                        mainLoc lostLoc
                         date
                         [ WFA.LocationTransferDetail (stockAdjustmentDetailStockId d)
                                                      qty
@@ -746,7 +749,7 @@ detailsToCartFA ref date (Carts news losts founds) = let
                         , qty > 0
                         ]
   found = WFA.LocationTransfer (ref<> "-found")
-                        "LOST" "DEF"
+                        lostLoc mainLoc
                         date
                         [ WFA.LocationTransferDetail (stockAdjustmentDetailStockId d)
                                                      qty
