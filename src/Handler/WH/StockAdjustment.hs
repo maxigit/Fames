@@ -503,7 +503,8 @@ renderLast limit =  do
   renderAdjustments (reverse lasts)
 
 renderAdjustments :: [Entity StockAdjustment] -> Handler Widget
-renderAdjustments adjustments = do
+renderAdjustments adjustments0 = do
+  let adjustments = sortOn (Down . stockAdjustmentDate . entityVal) adjustments0
   return [whamlet|
 <table *{datatable}>
   <thead>
@@ -523,8 +524,10 @@ renderAdjustments adjustments = do
 
 renderTakes :: Int -> Handler Widget
 renderTakes limit = do
-  rtakes <- runDB $ selectList [DocumentKeyType ==. "stocktake"] [LimitTo limit, Desc DocumentKeyId]
-  let takes = reverse rtakes
+  rtakes <- runDB $ selectList [DocumentKeyType ==. "stocktake"] [LimitTo limit
+                                                                 , Desc DocumentKeyProcessedAt
+                                                                 , Desc DocumentKeyId]
+  let takes = rtakes
   return [whamlet|
 <table *{datatable}>
   <thead>
