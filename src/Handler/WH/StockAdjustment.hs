@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wno-deprecations #-}
+
 module Handler.WH.StockAdjustment
 ( getWHStockAdjustmentR
 , getWHStockAdjustmentViewR
@@ -544,7 +546,7 @@ renderTakes limit = do
   rtakes <- runDB $ selectList [DocumentKeyType ==. "stocktake"] [LimitTo limit
                                                                  , Desc DocumentKeyProcessedAt
                                                                  , Desc DocumentKeyId]
-  let takes = rtakes
+  take'sums <- zip rtakes <$>  (runDB $ mapM (loadTakeSummary . entityKey) rtakes)
   return [whamlet|
 <table *{datatable}>
   <thead>
@@ -552,15 +554,38 @@ renderTakes limit = do
       <th> Id
       <th> Date
       <th> Comment
-  $forall (Entity k doc) <- takes
+      <th> Barcodes
+      <th> Quick
+      <th> MOP
+  $forall (Entity k doc, (total, quick, mop)) <- take'sums
     <tr>
       <td> ##{tshow $ unSqlBackendKey $ unDocumentKeyKey k}
       <td> #{tshow $ documentKeyProcessedAt doc}
       <td> #{take 50 $ documentKeyComment doc}
+      <td> ^{badgeSpan' total Nothing ""}
+      <td> ^{badgeSpan' quick (Just redBadgeBg) ""}
+      <td> ^{badgeSpan' mop (Just blueBadgeBg) ""}
 |]
+
+-- Count for a given stocktake the number of real stocktake (with barcode)
+-- vs zerotakes
+loadTakeSummary :: Key DocumentKey -> SqlHandler (Int, Int, Int)
+loadTakeSummary docKey = do
+  let sql =  " select count(*) "
+          <> ", sum(if(barcode like 'ZT%' and quantity <> 0 and comment not like 'MOP%', 1, 0))"
+          <> ", sum(if(comment like 'MOP%', 1, 0)) "
+          <> " from fames_stocktake "
+          <> " where document_key_id = ?  and `index` = 1  "
+  results <- rawSql sql [toPersistValue docKey]
+  traceShowM (sql, results)
+  return $ case results of 
+    [(Single total, Single (fromMaybe 0 -> quick), Single (fromMaybe 0 -> mop))] -> (total -quick-mop, quick , mop)
+    [] -> (0,0,0)
+    (_:_) -> error $ "Query with a SUM shoudln't return more than one row" <> show results
 
         -- <a href="@{WarehouseR WHStockAdjustmentR}&stock_id=#{tshow . unSqlBackendKey $ unStockAdjustmentKey k}">
 
+-- select * from fames_stocktake where document_key_Id = 1223
 
 -- | Load an adjustment from its key. We assume, as the key as been provided
 -- and should come from somewhere, that the adjusment exists
