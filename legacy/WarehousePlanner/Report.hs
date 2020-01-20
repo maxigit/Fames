@@ -402,7 +402,7 @@ generateMOPLocations = generateMoves' (Just "stock_id,location") boxName printGr
   -- because the first displayed shelf is used to sort style by location
   sortShelves = List.nub
               . map shelfName
-              . sortOn (Down . flip tagIsPresent  "mop-priority") 
+              . sortOn ((,) <$> (Down . flip tagIsPresent  "mop-priority") <*> shelfName)
               . filter (not . flip tagIsPresent "mop-exclude")
   -- add comment from tag
   printGroup (boxName_, boxComment) _ shelves = boxName_ <> "," <>
