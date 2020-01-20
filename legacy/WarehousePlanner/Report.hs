@@ -362,25 +362,29 @@ boxStyleWithTags b = let
   tags = filter (not . isVirtual) (getTagList b)
   in intercalate "#" (boxStyleAndContent b : tags)
  
+
+shelvesToNames :: [Shelf s ] -> [Text]
+shelvesToNames = List.nub . sort . map shelfName
+
 generateMoves :: (Box s -> Text) -> WH [Text] s
 generateMoves boxName0 = generateMoves' (Just "stock_id,location") (Just . boxName0) printGroup where
-     printGroup  boxName' _ shelves = boxName' <> "," <> intercalate "|" (groupNames shelves)
+     printGroup  boxName' _ shelves = boxName' <> "," <> intercalate "|" (groupNames $ shelvesToNames shelves)
 -- generateMoves' :: (Box s -> Text) -> (Box s -> [Text]) -> WH [Text] s
 generateMoves' :: (Ord k, Eq k)
                => Maybe Text -- ^ Header
                -> (Box s -> Maybe k) -- ^ box key
-               ->  (k -> [Box s] -> [Text]  -> Text) -- ^ string from key, boxes and unique shelfnames
+               ->  (k -> [Box s] -> [Shelf s]  -> Text) -- ^ string from key, boxes and unique shelfnames
                -> WH [Text] s
 generateMoves' header boxKey0 printGroup = do
  s'bS <- shelfBoxes
  generateMovesFor header boxKey0 printGroup s'bS 
 generateMovesFor header boxKey0 printGroup box'shelfs = do
- let groups = Map'.fromListWith (<>) [ (key, [(b, shelfName s)])
+ let groups = Map'.fromListWith (<>) [ (key, [(b, s)])
                                      | (s,b) <- box'shelfs
                                      , Just key <- [boxKey0 b]
                                      -- , "mop-exclude" `notElem` boxTags b
                                      ]
-     printGroup' (key, box'shelves) = printGroup key boxes (List.nub $ sort shelves) where (boxes, shelves) = unzip box'shelves
+     printGroup' (key, box'shelves) = printGroup key boxes shelves where (boxes, shelves) = unzip box'shelves
  return $ maybe id   (:) header $  map printGroup' (Map'.toList groups)
   
 -- | Generates files compatible with MOP
@@ -393,9 +397,16 @@ generateMOPLocations = generateMoves' (Just "stock_id,location") boxName printGr
                    (True, _) -> Nothing -- skipped
                    (False, True) -> Just $ (boxStyleAndContent box, comment)
                    (False, False) -> Just $ (boxStyle box, comment)
- -- add comment from tag
+ 
+  -- display shelf we pick from first. This is needed
+  -- because the first displayed shelf is used to sort style by location
+  sortShelves = List.nub
+              . map shelfName
+              . sortOn (Down . flip tagIsPresent  "mop-priority") 
+              . filter (not . flip tagIsPresent "mop-exclude")
+  -- add comment from tag
   printGroup (boxName_, boxComment) _ shelves = boxName_ <> "," <>
-    case (boxComment, shelves) of
+    case (boxComment, sortShelves shelves) of
            (Nothing, name:names) -> intercalate "|" (name : groupNames names) 
            (Just comment, [name]) -> intercalate "|" [name , comment]
            (Just comment, name:names) -> intercalate "|" (name : groupNames names)  <> " " <> comment
@@ -418,7 +429,7 @@ generateGenericReport today prefix = do
   rs <- forM (Map'.toList groups) $ \(gkey, s'bs) -> do
     -- display the group only if it's not null
     let withTitle items = case gkey of
-                            Just s | not (null s) -> expandReportValue today boxes (List.nub $ sort $ map shelfName shelves) s : items
+                            Just s | not (null s) -> expandReportValue today boxes (shelvesToNames shelves) s : items
                             _ -> items
         (shelves, boxes) = unzip s'bs
     items <- generateGenericReport' today prefix s'bs
@@ -426,12 +437,13 @@ generateGenericReport today prefix = do
   return $ concat rs
         
   
+generateGenericReport':: Day -> Text -> [(Shelf s, Box s)] -> WH [Text] s
 generateGenericReport' today prefix s'bs = generateMovesFor Nothing boxKey0 printGroup s'bs where
   boxKey0 box = getTagValuem box (prefix <> "-key")
   printGroup boxKey_ [] __shelfNames = boxKey_
   printGroup boxKey_ boxes@(box:_) shelfNames = let
     value0 = getTagValuem box (prefix <> "-value")
-    value = maybe boxKey_ (expandReportValue today boxes shelfNames ) value0
+    value = maybe boxKey_ (expandReportValue today boxes $ shelvesToNames shelfNames ) value0
     in value
 
 
