@@ -69,6 +69,8 @@ data FormParam = FormParam
   , comment :: Maybe Text
   , activeRows :: Set Text
   , quantityBefore :: Map Text Int -- ^ Quantity to substract from qoh
+  , minDate :: Maybe Day -- ^ force date
+  , maxDate :: Maybe Day -- ^ force date
   } deriving (Eq, Read, Show)
 
 
@@ -89,6 +91,8 @@ paramForm mode = renderBootstrap3 BootstrapBasicForm  form
                    View -> pure Nothing)
             <*> pure (Set.fromList [])
             <*> pure (Map.fromList [])
+            <*> aopt dayField "min Date" (Nothing)
+            <*> aopt dayField "max Date" (Nothing)
 
 -- Holds different information relative to adjusment, lost, new etc ...
 data Carts adj trans = Carts { cNew :: adj, cLost :: trans, cFound :: trans} deriving Show
@@ -171,6 +175,7 @@ postWHStockAdjustmentR = do
       let activeRows = getActiveRows pp
           qBefore = getQuantityBefore pp
       let param = param0 {activeRows = activeRows, quantityBefore = qBefore}
+
       let (w,p) = unzip $ catMaybes
                   [ style param <&>  (\like -> (" AND stock_id like ?", PersistText like))
                   , stocktakeDoc param <&> (\key -> (" AND document_key_id = ?", PersistInt64 key))
@@ -183,7 +188,7 @@ postWHStockAdjustmentR = do
                 <> " GROUP BY stock_id "
 
       stocktakes <- runDB $ rawSql sql p
-      results <- catMaybes <$> mapM (qohFor appFADefaultLocation appFALostLocation) stocktakes
+      results <- catMaybes <$> mapM (qohFor appFADefaultLocation appFALostLocation (minDate param, maxDate param)) stocktakes
       let withDiff = [(abs (quantityTake0 (mainLocation pre) - quantityAt (mainLocation pre)), pre) |  pre <- results]
           f  (q, pre) = (maybe True (q >=) (minQty param))
                    &&  (maybe True (q <=) (maxQty param))
@@ -320,12 +325,12 @@ lastMove pre = max (date (mainLocation pre)) (date (lost pre))
 -- | Returns the qoh at the date of the stocktake.
 -- return also the date of the last move (the one corresponding to given quantity).
 -- Needed to detect if the stocktake is sure or not.
-qohFor :: Text -> Text -> (Single Text, Single Int,  Single Day, Single (Maybe Text)) -> Handler (Maybe PreAdjust)
-qohFor mainLoc lostLoc r@(Single sku, Single __qtake, Single date, Single comment) = do
+qohFor :: Text -> Text -> (Maybe Day, Maybe Day) ->  (Single Text, Single Int,  Single Day, Single (Maybe Text)) -> Handler (Maybe PreAdjust)
+qohFor mainLoc lostLoc dateRange r@(Single sku, Single __qtake, Single date, Single comment) = do
   adj <-  PreAdjust
          <$> pure sku
-         <*> quantitiesFor mainLoc r
-         <*> quantitiesFor lostLoc r
+         <*> quantitiesFor mainLoc dateRange r
+         <*> quantitiesFor lostLoc dateRange r
          <*> pure date
          <*> pure comment
   return $ if all noInfo (adjustInfos adj)
@@ -333,9 +338,10 @@ qohFor mainLoc lostLoc r@(Single sku, Single __qtake, Single date, Single commen
               else Just adj
 
 -- | Retrive the quantities available for the given location at the given date
-quantitiesFor :: Text -> (Single Text, Single Int, Single Day, Single (Maybe Text)) -> Handler LocationInfo 
-quantitiesFor loc (Single sku, Single take_, Single date, Single __comment) = do
-  let (minDate, maxDate) = unsureRange date
+quantitiesFor :: Text -> (Maybe Day, Maybe Day) -> (Single Text, Single Int, Single Day, Single (Maybe Text)) -> Handler LocationInfo 
+quantitiesFor loc (minDateM, maxDateM) (Single sku, Single take_, Single date, Single __comment) = do
+  -- force date range from URL
+  let (minDate0, maxDate0) = unsureRange date
       sql = "SELECT SUM(qty) qoh"
             <> ", SUM(qty) qoh_at"
             <> ", MAX(tran_date)  "
@@ -343,6 +349,8 @@ quantitiesFor loc (Single sku, Single take_, Single date, Single __comment) = do
             <> "WHERE stock_id = ? "
             <> "AND tran_date <= ? "
             <> "AND loc_code = ?"
+      minDate = minimum $ minDate0 `ncons` (toList minDateM)
+      maxDate = maximum $ maxDate0 `ncons` (toList  maxDateM)
 
   -- extract all relevant moves within the unsure range
   let sqlForMoves = "SELECT moves.tran_date, COALESCE(debtor.name, '<>'), COALESCE(operators, 'no op'), SUM(moves.qty) "
@@ -830,7 +838,7 @@ findMaxQuantity date detail = do
     Just loc -> do
       let sku = stockAdjustmentDetailStockId detail
           qty = stockAdjustmentDetailQuantity detail
-      locInfo <- quantitiesFor (FA.unLocationKey loc)  (Single sku, Single 0, Single date, Single Nothing)
+      locInfo <- quantitiesFor (FA.unLocationKey loc) (Nothing, Nothing)  (Single sku, Single 0, Single date, Single Nothing)
 
       
       -- to generate negative quantities, we can move more than the qoh at date
