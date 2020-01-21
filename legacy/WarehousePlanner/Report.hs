@@ -405,16 +405,16 @@ generateMOPLocations = generateMoves' (Just "stock_id,location") boxName printGr
               . sortOn ((,) <$> (Down . flip tagIsPresent  "mop-priority") <*> shelfName)
               . filter (not . flip tagIsPresent "mop-exclude")
   -- truncate 
-  groupNames2 names = case groupNames names of
-   (x:y:z:xs) -> [x,y, "..."]
-   xs -> xs
+  groupNames2 name names = case groupNames names of
+   (x:y:_:_) -> intercalate "|" [name, x,y] <> " ..."
+   xs -> intercalate "|" (name:xs)
   -- add comment from tag
   printGroup (boxName_, boxComment) _ shelves = boxName_ <> "," <>
     case (boxComment, sortShelves shelves) of
-           (Nothing, name:names) -> intercalate "|" (name : groupNames2 names) 
-           (Just comment, [name]) -> intercalate "|" [name , comment]
-           (Just comment, name:names) -> intercalate "|" (name : groupNames2 names)  <> " " <> comment
-           ( _, []) -> error "Bug, names shouldn't be empty"
+           (Nothing, name:names) -> groupNames2 name names 
+           (Just comment, [name]) -> name <> " " <> comment
+           (Just comment, name:names) -> (groupNames2 name names)  <> " " <> comment
+           ( commentM, []) -> fromMaybe "" commentM
                                         
 -- | Generate a generic report using tags prefixed by the report param
 generateGenericReport :: Day -> Text -> WH [Text] s
