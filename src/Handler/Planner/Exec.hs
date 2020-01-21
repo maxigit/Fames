@@ -135,6 +135,8 @@ stylingFromTags box = let
                [] -> Nothing
                vs -> Just $ intercalate "\n" vs
   displayBarGauge = not (tagIsPresent box "no-bar-gauge")
+  offsetBarGaugeX = getTagValuem box "bar-gauge-x" >>= readMay
+  offsetBarGaugeY = getTagValuem box "bar-gauge-y" >>= readMay
   in BoxStyling{..}
 
 shelfStylingFromTags :: Shelf s -> ShelfStyling

@@ -151,6 +151,8 @@ data BoxStyling = BoxStyling
   , title :: [ Text ] -- ^ text to display 
   , barTitle :: Maybe Text -- ^ text to display in the bar
   , displayBarGauge :: Bool -- ^ to display or the bar gauge
+  , offsetBarGaugeX :: Maybe Double
+  , offsetBarGaugeY :: Maybe Double
   } deriving (Show, Eq, Read)
   
 data ShelfStyling = ShelfStyling

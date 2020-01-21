@@ -150,7 +150,12 @@ renderBox shelf box = do
                     else mempty
 
           -- offset and scale to 
-          offsetBar bar = offsetBox False shelf box $ bar # translate (r2 (5,5) ) 
+          Dimension _ ow' _ = boxCoordinate box
+          oy = fromMaybe 0 offsetBarGaugeY * (ow' -1)
+          ox = fromMaybe 0 offsetBarGaugeX * (ow' -1)
+               
+
+          offsetBar bar = offsetBox False shelf box $ bar # translate (r2 (5-ox,5-oy) ) 
     return $ [(3, diagram),
               (2, offsetBar backBag),
               (1, offsetBar boxBar)]

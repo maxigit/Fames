@@ -46,6 +46,7 @@ module WarehousePlanner.Base
 , matchName
 , module WarehousePlanner.Type
 , clearCache
+, boxCoordinate
 )
 where
 import ClassyPrelude hiding (uncons, stripPrefix)
@@ -347,6 +348,8 @@ defaultBoxStyling = BoxStyling{..} where
   title = []
   barTitle = Nothing
   displayBarGauge = True
+  offsetBarGaugeX = Nothing
+  offsetBarGaugeY = Nothing
 
 defaultShelfStyling = ShelfStyling{..} where
   foreground = black
@@ -864,6 +867,7 @@ boxStyleAndContent box = case boxContent box of
   
 -- | Box coordinate as if the shelf was full of this box
 -- give the offest divide by the dimension of the box + 1
+boxCoordinate :: Box s -> Dimension
 boxCoordinate box  = let (Dimension ol ow oh) = boxOffset box
                          (Dimension l w h) = boxDim box
                          go o d = (o / d) + 1

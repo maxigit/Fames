@@ -563,6 +563,8 @@ A planner file is made of different sections. Each section corresponds to an org
     <li> <code>bar-bg</code> colour of the shelf bar (shelf bar).
     <li> <code>bar-fg</code> colour of the text of the shelf bar (shelf bar).
     <li> <code>no-bar-gauge</code> if present, disable the colour gauge behind the box bar  or in the shelf bar.
+    <li> <code>bar-gauge-x</code> if present, offset the bar gauge by x times the box index.
+    <li> <code>bar-gauge-y</code> if present, offset the bar gauge by y times the box index.
 
   <h4> Colours
   All property colours accept more than one colours (separated by <code>;</code>) which are colour names their hexadecimal description (for example "white" or "ffffff" ) . If multiples colours are given they will be mixed.
@@ -693,6 +695,8 @@ A planner file is made of different sections. Each section corresponds to an org
     /#_*,mop-exclude
     :END:
   Arbitrary comments can also be added to a box using the tag <code>mop-comment=<i>your comment</i></code>.
+  Finaly, shelves with the tag <code>mop-priority</code> will be used first when deciding which shelf is to display first.
+  Shelves with the tag <code>mop-excluded</code> will be excluded.
 <h3>
   <span.data-toggler.collapsed data-toggle=collapse :expanded:.in data-target="#info-section-generic-report">
      Generic report
