@@ -202,7 +202,7 @@ getGLPayrollViewR key = do
     Just (tse, shifts, items) -> do
       let ts = entityVal tse
           tsOId = modelToTimesheetOpId tse shifts items
-          ts' = map (\(op, _) -> maybe (tshow op) operatorNickname (lookup op operatorMap)) tsOId
+          ts' = map (\(op, _) -> maybe (tshow op) operatorFullname (lookup op operatorMap)) tsOId
           -- reports' = [ ("Timesheet" :: Text, displayShifts)
           --           , ("By Employees", displayShifts . (TS.groupShiftsBy id))
           --           , ("By Week", displayShifts . (TS.groupShiftsBy (\(e,_,_) -> e)))
@@ -552,5 +552,7 @@ postTimesheetToFA param key timesheet shifts items = do
          __credits <- saveExternalPayments settings key invoiceId mkAccount today ts
          return invoiceId
 
+operatorFullname :: Operator -> Text
+operatorFullname Operator{..} = operatorSurname <> ", " <> operatorNickname
 
   
