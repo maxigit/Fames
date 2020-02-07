@@ -446,13 +446,15 @@ displayDAC = let
 -- | Displays a table with all payment information for each employee t
 displayEmployeeSummary :: (?viewPayrollAmountPermissions :: (Text -> Granted))
                        => TS.Timesheet Text Text -> Widget
-displayEmployeeSummary = displayEmployeeSummary' (columnWeightFromList [])
-displayEmployeeSummary' :: (?viewPayrollAmountPermissions :: (Text -> Granted), Ord weight)
-                        => (Text -> Int -> Maybe weight) -- ^ column weight
+displayEmployeeSummary = displayEmployeeSummary' []
+displayEmployeeSummary' :: (?viewPayrollAmountPermissions :: (Text -> Granted) )
+                        => [ ( Text, [PayrollFormula] ) ]
                         -> TS.Timesheet Text Text -> Widget
-displayEmployeeSummary' columnWeight timesheet= let
-  summaries = map tweakSummary $ TS.paymentSummary timesheet
+displayEmployeeSummary' formulas timesheet= let
+  columnWeight = columnWeightFromList (map fst formulas)
+  summaries = map (tweakSummary formulas) $ TS.paymentSummary timesheet
   (cols0, colnames) = employeeSummaryColumns summaries
+  
   -- weight return a maybe weight
   cols = map fst
        . sortOn snd
@@ -471,17 +473,47 @@ columnWeightFromList colnames col _ = let
   weights = Map.fromList (zip colnames [1..])
   in lookup col weights
   
-tweakSummary :: TS.EmployeeSummary Text Text -> TS.EmployeeSummary Text Text
-tweakSummary emp =  let
+-- Add virtual columns corresponding to the give formulas
+tweakSummary :: [(Text, [PayrollFormula])] -> TS.EmployeeSummary Text Text -> TS.EmployeeSummary Text Text
+tweakSummary formulas emp =  let
   val118 = (\x -> x - 118) <$> emp ^. TS.gross -- unside a locker
   val512 = (\x -> x - 512) <$> emp ^. TS.gross -- unside a locker
   deducs = emp ^. TS.netDeductions
   suffixKeys suffix = Map.mapKeysMonotonic (<> suffix) 
-  in emp & TS.netDeductions .~ deducs <> mapFromList [("Qualified Earnings (W)", val118)
-                                                     ,("Qualified Earnings (M)", val512)
-                                                     ]
-         & TS.deductions %~ (suffixKeys "(e)")
-         & TS.costs %~ (suffixKeys "(r)")
+  emp' = emp & TS.deductions %~ (suffixKeys "(e)")
+                 & TS.costs %~ (suffixKeys "(r)")
+  in emp' & TS.netDeductions .~ deducs <> mapFromList ([ ("Qualified Earnings (W)", val118)
+                                                       , ("Qualified Earnings (M)", val512)
+                                                       ] <> 
+                                                       [ (name, evalFormulas emp' formula)
+                                                       | (name, formula) <- formulas
+                                                       , [PFVariable name] /= formula
+                                                       , [] /= formula
+                                                       -- ^ we need to filter normal field
+                                                       -- but only keep calculated formula
+                                                       ] 
+                                                     )
+
+evalFormulas :: TS.EmployeeSummary Text Text -> [PayrollFormula] -> TS.Amount
+evalFormulas emp = sum . map (fromMaybe 0 . evalFormula emp) 
+evalFormula :: TS.EmployeeSummary Text Text -> PayrollFormula -> Maybe TS.Amount
+evalFormula  emp formula = let
+   values = TS._deductions emp
+             <> TS._netDeductions emp
+             <> TS._costs emp
+             <> Map.fromList ([ ("Gross",  TS._gross emp)
+                             , ("Net", TS._net emp)
+                             , ("To Pay", TS._finalPayment emp)
+                             , ("Total Cost", TS._totalCost emp)
+                             ]
+                             <> [(tshow k, h)
+                                | (k,h)  <- Map.toList (TS._totalHours emp)
+                                ]
+                             )
+   in case formula of
+       PFVariable var -> lookup var values
+       PFNegVariable var -> negate <$$> lookup var values
+       PFValue v -> return (pure v)
   
 -- | Return columns compatibles with employeeSummaryTable
 employeeSummaryColumns :: [TS.EmployeeSummary Text e]

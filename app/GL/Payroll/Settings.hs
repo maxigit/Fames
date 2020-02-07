@@ -7,8 +7,6 @@ import ClassyPrelude
 import Data.Aeson.TH(deriveJSON, defaultOptions, fieldLabelModifier, sumEncoding, SumEncoding(..))
 import Data.Aeson.Types
 
-import Data.Text(splitOn)
-
 -- * Types
 -- ** For config
 data EmployeeSettings = EmployeeSettings
@@ -59,7 +57,7 @@ data PayrollSettings = PayrollSettings
   , grnWorkLocation :: Text
   , wagesBankAccount :: Int
   , externals :: Map Text PayrollExternalSettings
-  , views :: Map Text [Text]
+  , views :: Map Text [(Text, [PayrollFormula]) ]
   -- , formulas :: Map Text PayrollFormula
   } deriving (Show, Read, Eq, Ord)
 
@@ -98,7 +96,9 @@ succCyclic d = succ d
 
 -- ** Formula
 -- | Simple formula to 
-data PayrollFormula = Deduce Text Double  -- deduce a constant from an external value
+data PayrollFormula = PFVariable Text
+                    | PFValue Double
+                    | PFNegVariable Text
   deriving (Show, Read, Eq, Ord)
 
 -- * JSON
@@ -110,14 +110,33 @@ instance FromJSONKey (Maybe DayOfWeek) where
   fromJSONKey = FromJSONKeyValue parseW  where
     parseW v = (Just <$> parseJSON  v) <|> return Nothing
        
+instance {-# OVERLAPPING #-}  ToJSON (Text, [PayrollFormula]) where
+  toJSON (var, []) = String var
+  toJSON (var, [PFVariable var']) | var == var' = String var
+  toJSON (var, vs) = object [ var .= vs ]
+
+instance {-# OVERLAPPING #-} FromJSON (Text, [PayrollFormula]) where
+  parseJSON v = withText "variable" (\s -> return (s, [PFVariable s])) v
+             <|> withObject ("named formula") (\o -> do
+                 case mapToList o of
+                        [(var, f)] -> (var,) <$> parseJSON f
+                        _ -> fail "Named formula should have only one key value pair"
+             ) v
+
+-- There valid code to instanciate FromJSON and ToJSON
+-- but will result in (Text, [PayrollFormula]) to be valid
+-- and therefore overlapp with ours
 instance ToJSON PayrollFormula where
-  toJSON (Deduce key value) = String $ key <> "-"  <> tshow value
+  toJSON (PFVariable var) = toJSON var
+  toJSON (PFNegVariable var) = toJSON $ "-" <> var
+  toJSON (PFValue val) = toJSON val
 
 instance FromJSON PayrollFormula where
-  parseJSON =  withText "deduce" $ \t -> case splitOn "-" t of
-      [val, (readMay -> Just x  )] ->  return $ Deduce val x
-      _ ->  mzero
-  
+  parseJSON v = withScientific "constant" (\_ -> PFValue <$> parseJSON v) v --  return $ PFValue $ toRealFloat f) v
+            <|> withText "value" (\val -> return $ case stripPrefix "-" val of
+                                       Nothing -> PFVariable val
+                                       Just negated -> PFNegVariable negated
+                               ) v
   
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField}''DayOfWeek)
 $(deriveJSON defaultOptions ''EmployeeSettings)
