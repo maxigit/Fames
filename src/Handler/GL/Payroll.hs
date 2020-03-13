@@ -354,24 +354,26 @@ getGLPayrollVoidFAR timesheetId = do
       <table.table.table-hover.table-strip>
         <tr>
             <th> Trans Type
-            <th>
             <th> Trans No
             <th> Event Type
-            <th> Reference
             <th> Supplier
+            <th> Reference
+            <th>
+            <th> Amount
             <th> Voided
         $forall ((transType, transNo, voided ), trans, events) <- withSuppTrans
           $with entityName <- entityNameMH transType . fmap fromIntegral
             <tr :voided:.text-muded>
               <td> #{t $ showTransType transType}
-              <td>     #{transactionIconSpan transType}
               <td>
                 <a href="#{urlForFA faURL transType transNo}">#{tshow transNo} 
               <td>
                 $forall event <- nub (sort events)
                   <span>#{tshow event}
-              <td> #{maybe "" FA.suppTranReference trans}
               <td> #{fromMaybe "" $ (entityName . FA.suppTranSupplierId) =<< trans}
+              <td> #{maybe "" FA.suppTranReference trans}
+              <td>     #{transactionIconSpan transType}
+              <td> #{maybe "" (showDouble . FA.suppTranOvAmount) trans}
               <td>
                 $if voided
                      Voided
