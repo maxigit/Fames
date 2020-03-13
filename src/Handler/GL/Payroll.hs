@@ -36,6 +36,7 @@ import Data.Align
 import Data.List(nub)
 import Control.Monad.Except
 import qualified Data.Map as Map
+import qualified FA as FA
 
 -- * Types
 data Mode = Validate | Save deriving (Eq, Read, Show)
@@ -330,6 +331,7 @@ postGLPayrollToPayrooR key = do
 {-# NOINLINE getGLPayrollVoidFAR #-}
 getGLPayrollVoidFAR :: Int64 -> Handler Html
 getGLPayrollVoidFAR timesheetId = do
+  entityNameMH <- entityNameMH False
   faURL <- getsYesod (pack . appFAExternalURL . appSettings) :: Handler Text
   (voidFormW, voidEncType) <- generateFormPost voidForm
   -- display things to delete
@@ -340,24 +342,37 @@ getGLPayrollVoidFAR timesheetId = do
       tranMap = groupAsMap (liftA3 (,,) transactionMapFaTransType transactionMapFaTransNo transactionMapVoided . entityVal)
                            ((:[]) . transactionMapEventType . entityVal)
                            transactions
+  -- load FA supp transaction information
+  withSuppTrans <- runDB $ forM (mapToList tranMap)
+                             $ \(t@(transType, transNo, __voided ), events) -> do
+           trans <- selectFirst [ FA.SuppTranTransNo ==. transNo
+                                , FA.SuppTranType ==. fromEnum transType
+                                ] []
+           return (t, fmap entityVal trans, events)
+  let
       transTable = [whamlet|
       <table.table.table-hover.table-strip>
         <tr>
             <th> Trans Type
             <th> Trans No
             <th> Event Type
+            <th> Reference
+            <th> Supplier
             <th> Voided
-        $forall ((transType, transNo, voided ), events) <- mapToList tranMap
-          <tr :voided:.text-muded>
-            <td> #{t $ showTransType transType}
-            <td>
-              <a href="#{urlForFA faURL transType transNo}">#{tshow transNo}
-            <td>
-              $forall event <- nub (sort events)
-                <span>#{tshow event}
-            <td>
-              $if voided
-                   Voided
+        $forall ((transType, transNo, voided ), trans, events) <- withSuppTrans
+          $with entityName <- entityNameMH transType . fmap fromIntegral
+            <tr :voided:.text-muded>
+              <td> #{t $ showTransType transType}
+              <td>
+                <a href="#{urlForFA faURL transType transNo}">#{tshow transNo}
+              <td>
+                $forall event <- nub (sort events)
+                  <span>#{tshow event}
+              <td> #{maybe "" FA.suppTranReference trans}
+              <td> #{fromMaybe "" $ (entityName . FA.suppTranSupplierId) =<< trans}
+              <td>
+                $if voided
+                     Voided
                    |]
   defaultLayout $ infoPanel ("Transaction for timesheet #" <> tshow timesheetId) [whamlet|
      <form role=form method=POST action="@{GLR $ GLPayrollVoidFAR timesheetId}" encType="#{voidEncType}">
