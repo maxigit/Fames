@@ -300,7 +300,7 @@ itypeToIcon iType = [shamlet| <span.glyphicon class="glyphicon-#{glyph} #{class_
        ICustomer -> ("user", "text-primary")
        ISupplier -> ("user", "text-info")
        IStock -> ("home", "text-muted")
-       IBank -> ("stats", "text-muted")
+       IBank -> ("stats", "text-warning")
        IAny -> ("globe", "text-info")
        IGL -> ("list", "text-muted")
        IInLeft -> ("arrow-left", "text-success")
