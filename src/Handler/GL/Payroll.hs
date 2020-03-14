@@ -200,8 +200,13 @@ getGLPayrollViewR key = do
     Nothing -> error $ "Can't load Timesheet with id #" ++ show key
     Just (tse, shifts, items) -> do
       let ts = entityVal tse
+          tsOId :: TS.Timesheet Text (OperatorId, PayrollShiftId)
           tsOId = modelToTimesheetOpId tse shifts items
+
+          ts' :: TS.Timesheet Text Text
           ts' = map (\(op, _) -> maybe (tshow op) operatorFullname (lookup op operatorMap)) tsOId
+          tsFull'Nick :: TS.Timesheet Text (Text, Text)
+          tsFull'Nick = map (\(op, _) -> maybe (tshow op, tshow op) (liftA2 (,) operatorFullname operatorNickname) (lookup op operatorMap)) tsOId
           -- reports' = [ ("Timesheet" :: Text, displayShifts)
           --           , ("By Employees", displayShifts . (TS.groupShiftsBy id))
           --           , ("By Week", displayShifts . (TS.groupShiftsBy (\(e,_,_) -> e)))
@@ -220,8 +225,9 @@ getGLPayrollViewR key = do
           -- reports = [(name, report  . TS._shifts, TS.filterTimesheet isShiftViewable (const False) ) | (name, report)  <- reports']
           reports0 = [calendar, dacsReport] <> summaries
           reports = reports0 <> (if timesheetStatus ts /= Process
-                                then [("Generate Payments", addFAForm . generatePaymentForm, TS.filterTimesheet isShiftViewable isDACUnlocked)]
+                                then [("Generate Payments", forceFull'Nick $ addFAForm . generatePaymentForm, TS.filterTimesheet isShiftViewable isDACUnlocked )]
                                 else  [] )
+          forceFull'Nick f _ = f tsFull'Nick
           addFAForm w = [whamlet|
             <form role=form method=post action=@{GLR $ GLPayrollToFAR key} enctype=#{faEncType}>
               ^{w}

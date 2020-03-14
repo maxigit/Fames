@@ -618,11 +618,11 @@ generatePaymentForm timesheet = let
        <th> Date
      $forall summary <- summaries
        <tr>
-         <td> #{toHtml $ TS._sumEmployee summary}
+         <td> #{toHtml $ fst $ TS._sumEmployee summary}
          <td.text-right>
-            <input type=number step=0.01 min=0 name="payment-amount-for-#{TS._sumEmployee summary}" value="#{formatDouble' $ TS._net summary}">
+            <input type=number step=0.01 min=0 name="payment-amount-for-#{snd (TS._sumEmployee summary)}" value="#{formatDouble' $ TS._net summary}">
          <td>
-            <input name="payment-date-for-#{TS._sumEmployee summary}" type=date>
+            <input name="payment-date-for-#{snd (TS._sumEmployee summary)}" type=date>
              |]
 
 -- ** Calendar
