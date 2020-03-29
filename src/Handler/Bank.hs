@@ -1143,7 +1143,7 @@ mkReceipt account B.Transaction{..} = F.sformat (F.string F.% ",,"  F.%F.string 
     (formatTime defaultTimeLocale "%F" _sDate) 
     _sDescription
     account
-    _sAmount
+    (- _sAmount)
 
       
 
