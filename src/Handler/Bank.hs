@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Handler.Bank 
 ( getGLBankR
 , getGLBankDetailsR
@@ -7,6 +8,7 @@ module Handler.Bank
 , getGLBankFXR
 , postGLBankFXR
 , getGLBankStatementGenR
+, getGLBankReceiptsGenR
 ) where
 
 
@@ -343,6 +345,8 @@ displaySummary today dbConf faURL title bankSettings@BankStatementSettings{..}= 
               <a href="@{GLR (GLBankDetailsR title)}"> Details
             <div.col-md-2><h4>
               <a href="@{GLR (GLBankReconciliateR title)}"> Reconciliate
+            <div.col-md-2><h4>
+              <a href="@{GLR (GLBankReceiptsGenR today title)}"> Download Receipt Sheet
         ^{tableW}
         <div>
            <h3> Last #{summaryLimit}
@@ -1109,6 +1113,40 @@ getGLBankStatementGenR account= do
                  <> ".csv"
   setAttachment $ fromString filename
   respond "text/csv" content
+-- * Generate receipt
+-- Generate a csv file compatible with GL Receipt 
+-- corresponding to all transactions which doesn't have a "save" button
+-- ie transaction not caught by autoRec.
+getGLBankReceiptsGenR :: Day -> Text -> Handler TypedContent
+getGLBankReceiptsGenR today account = do
+  dbConf <- appDatabaseConf <$> getsYesod appSettings
+  bankSettings <- settingsFor account
+  ((stransz, _banks), _updatedAtm) <- loadReconciliatedTrans (Just today) dbConf bankSettings
+ 
+  let notRecs = map trTrans $ filter (isNothing . trSaveButtonHtml) stransz
+      content = unlines $ receiptHeader : map (mkReceipt accountName) notRecs
+      accountName = tshow (bsBankAccount bankSettings)
+      dates = map B._sDate notRecs
+      minDate = minimumMay dates
+      maxDate = maximumMay dates
+      filename = "receipts-" <> unpack account <> "-" <> (maybe "" (formatTime defaultTimeLocale "%F") minDate)
+                 <> "--" <> (maybe "" (formatTime defaultTimeLocale "%F") maxDate)
+                 <> ".csv"
+  setAttachment $ fromString filename
+  respond "text/csv" content
+
+  
+receiptHeader :: Text
+receiptHeader="date,template,counterparty,bank account,comment,total,gl account,amount,net amount,memo,tax rate,dimension1,dimension2"
+mkReceipt :: Text -> B.Transaction -> Text
+mkReceipt account B.Transaction{..} = F.sformat (F.string F.% ",,"  F.%F.string % "," F.% F.stext% ",,\"" F.% commasDecimal F.% "\",,,,,,,")
+    (formatTime defaultTimeLocale "%F" _sDate) 
+    (fromMaybe "" _sObject)
+    account
+    _sAmount
+
+      
+
 -- * Auto rec
 -- generate FA transactions to match statement ones.
 -- This can be for example, supplier payment corresponding to outsanding invoice

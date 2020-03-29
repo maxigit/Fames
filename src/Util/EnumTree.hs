@@ -10,6 +10,7 @@
 module Util.EnumTree where
 
 import Prelude
+import Data.Time(Day)
 
 import GHC.Generics
 import Data.Foldable (toList)
@@ -45,6 +46,9 @@ instance EnumTreeable (Maybe a) where
 instance EnumTreeable () where
   enumTree = EnumTree []
 instance EnumTreeable [a] where
+  enumTree = EnumTree []
+
+instance EnumTreeable Day where
   enumTree = EnumTree []
 
 class GEnumTreeable f where
