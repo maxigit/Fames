@@ -119,7 +119,8 @@ data AppSettings = AppSettings
 data BankAutoReconciliateRule = BankAutoTransfer !Int
   | BankAutoSupplier !Int
   | BankAutoCustomer !Int
-  -- BankAutoCustomer !Int
+  | BankAutoSkip -- used to force rule ignore a specific regex 
+  -- usually caugh otherwise by a too lax auto-generated rule
   deriving (Show, Read, Eq, Ord)
 data BankStatementMode = BankUseStatement
   { bsPath :: FilePath -- Where to find the statement files
