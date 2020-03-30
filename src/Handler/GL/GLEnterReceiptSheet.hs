@@ -20,7 +20,7 @@ import qualified Data.Csv as Csv
 import Control.Monad.Except
 import Text.Blaze.Html(ToMarkup())
 import Data.List(mapAccumL)
-import GL.Receipt(ReceiptTemplateExpanded, expandTemplate)
+import GL.Receipt(ReceiptTemplateExpanded, expandTemplate, ReceiptTemplate'(..))
 import GL.FA
 import GL.Utils
 import qualified FA as FA
@@ -42,7 +42,15 @@ import Lens.Micro.Extras (preview)
 -- used to upload a receip sheet.
 {-# NOINLINE getGLEnterReceiptSheetR #-}
 getGLEnterReceiptSheetR :: Handler Html
-getGLEnterReceiptSheetR = renderGLEnterReceiptSheet Nothing 200 ""  (return ())
+getGLEnterReceiptSheetR = do
+  renderGLEnterReceiptSheet Nothing 200 ""  (return ())
+
+getGLReceiptTemplatesR :: Handler Html
+getGLReceiptTemplatesR = do
+  templateMap0 <- appReceiptTemplates <$> getsYesod appSettings
+  refMap <- faReferenceMapH
+  templateMap <- either (error . show) return $  traverse (expandTemplate refMap) templateMap0
+  defaultLayout ( renderTemplates templateMap )
 
 -- | Render a page with a form to upload a receipt sheet
 -- via text or file. It can also display the content of the previous attempt if any.
@@ -63,10 +71,9 @@ renderGLEnterReceiptSheet param status title pre = do
       <form #upload-form role=form method=post action=@{GLR GLEnterReceiptSheetR} enctype=#{upEncType}>
          ^{uploadFileFormW}
          <button type="submit" .btn .btn-default>Process
-   <li> Or use an existing document
-        Not implemented
-   <li> Or download a spreadsheet template
-        Not implemented
+   <li> Spreadsheet template can be downloaded from the bank summary page.
+   <li> List of available 
+     <a href=@{GLR GLReceiptTemplatesR}> templates
 |]
 
 type Param = (Text, Textarea)   
@@ -597,3 +604,51 @@ mkItems mkAccount items = let
                   Nothing
                   ]
   in join $ toList taxes
+
+renderTemplates :: Map Text ReceiptTemplateExpanded -> Widget
+renderTemplates templateMap = infoPanel "Template" [whamlet|
+<table *{datatable} data-page-length=200>
+  <thead>
+    <tr>
+      <th> Name
+      <th> Counterparty
+      <th> Bank Account
+      <th> GL Account
+      <th> VAT
+      <th> Memo
+      <th> Dimension 1
+      <th> Dimension 2
+  <tbody>
+    $forall (name, template) <- Map.toList templateMap
+      <tr>
+        <td> #{name}
+        <td> #{get counterparty template}
+        <td> #{get bankAccount template}
+        <td> #{get glAccount template}
+        <td> #{get vat template}
+        <td> #{get memo template}
+        <td> #{get dimension1 template}
+        <td> #{get dimension2 template}
+|]
+  where get part t = fromMaybe "" $ case t of
+                       CompoundTemplate ts -> headMay $ mapMaybe part ts
+                       _ -> part t
+        counterparty (CounterpartySetter t) = Just t
+        counterparty _ = Nothing
+        bankAccount (BankAccountSetter (Identity c)) = Just $ refName c
+        bankAccount _ = Nothing
+        glAccount (ItemGLAccountSetter (Identity c)) = Just $ tshow (refId c) <> " - " <> refName c
+        glAccount _ = Nothing
+        vat (ItemVATDeducer (Identity c)) = Just $ refName c
+        vat _ = Nothing
+        memo (ItemMemoSetter c) = Just $ c
+        memo _ = Nothing
+        dimension1 (ItemDimension1Setter (Identity c)) =Just $ tshow (refId c) <> " - " <> refName c 
+        dimension1 _ = Nothing
+        dimension2 (ItemDimension2Setter (Identity c)) =Just $ tshow (refId c) <> " - " <> refName c 
+        dimension2 _ = Nothing
+         
+        
+        
+
+

@@ -10,6 +10,7 @@
 /gl GLR !GL:
   /enter_receipts_sheet GLEnterReceiptSheetR GET POST !gl !group=Receipts !title=Enter_Receipt
   /save_receipts_sheet GLSaveReceiptSheetToFAR POST !gl-save 
+  /receipt_templates GLReceiptTemplatesR GET !gl !title=Receipt_Template
 
   /payroll GLPayrollR GET !payroll !group=Payroll !title=Payroll
   /payroll/validate GLPayrollValidateR POST !payroll
