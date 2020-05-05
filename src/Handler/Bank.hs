@@ -602,7 +602,7 @@ renderReconciliate account param = do
       st'sts = case rpStartDate param of
                 Nothing -> st'sts1
                 Just _ -> let adjustedStart = minimumEx $ map (mergeTheseWith B._sDate B._sDate min) st'sts1
-                          in traceShow("ADJU", adjustedStart) $ filter (transFilter2 adjustedStart) st'sts0
+                          in  filter (transFilter2 adjustedStart) st'sts0
       -- exclude a pair if both date are outside the range
       transFilter _tartDate t | d <- mergeTheseWith B._sDate B._sDate max t,   Just start <- (bsStartDate bankSettings), d < start = False
       transFilter _tartDate t | d <- mergeTheseWith B._sDate B._sDate min t,   Just end <- rpEndDate param , d > end  = False
@@ -712,7 +712,6 @@ rebalanceFA groups = let
      let dayPos0 = dayPos  firstFa
          toDeduces = filter (\t -> dayPos t <= dayPos0) fas
      firstBalance <- B._sBalance firstFa
-     traceShowM(firstFa, toDeduces)
      Just $ validValue firstBalance - sum (map B._sAmount toDeduces)
   result = case initialBalance of
        Nothing -> groups
