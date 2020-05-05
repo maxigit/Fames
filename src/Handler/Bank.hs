@@ -589,18 +589,32 @@ renderReconciliate account param = do
           -- group by rec
       return $ map (bimap B.hsbcTransToTransaction B.faTransToTransaction)  byDays
   let
-      st'sts = filter transFilter $ st'sts0
+      -- first we need to find the oldest transaction which is within the range
+      -- then we need to find all the transactions newest that this date
+      -- even thought they could in theory been filtered.
+      -- This happen when a FA transaction is before the start date
+      -- but is HSBC matching transaction is before.
+      -- We need then all the transactions between those 2 dates. 
+      st'sts1 = filter (transFilter $ rpStartDate param) $ st'sts0
       recGroup' = groupAsMap (B._sRecDate . B.thatFirst) (:[]) st'sts
       -- sort FA Transaction within each group by pos and recalculate the balance
       recGroup = resortFA recGroup'
+      st'sts = case rpStartDate param of
+                Nothing -> st'sts1
+                Just _ -> let adjustedStart = minimumEx $ map (mergeTheseWith B._sDate B._sDate min) st'sts1
+                          in traceShow("ADJU", adjustedStart) $ filter (transFilter2 adjustedStart) st'sts0
       -- exclude a pair if both date are outside the range
-      transFilter t | d <- mergeTheseWith B._sDate B._sDate max t,   Just start <- (bsStartDate bankSettings), d < start = False
-      transFilter t | d <- mergeTheseWith B._sDate B._sDate min t,   Just end <- rpEndDate param , d > end  = False
-      transFilter t@(These _ fa) = isNothing (B._sRecDate fa) -- not reconciliated, must show
-                              || ( maybe True (mergeTheseWith B._sDate B._sDate  max t >=)  (rpStartDate param)
+      transFilter _tartDate t | d <- mergeTheseWith B._sDate B._sDate max t,   Just start <- (bsStartDate bankSettings), d < start = False
+      transFilter _tartDate t | d <- mergeTheseWith B._sDate B._sDate min t,   Just end <- rpEndDate param , d > end  = False
+      transFilter startDate t@(These _ fa) = isNothing (B._sRecDate fa) -- not reconciliated, must show
+                              || ( maybe True (mergeTheseWith B._sDate B._sDate  max t >=)  startDate
                                   && maybe True (mergeTheseWith B._sDate B._sDate  min t <=)  (rpEndDate param)
                                   )
-      transFilter _ = True
+      transFilter _ _ = True
+      -- transFilter or contains a FA transaction post the adjusted start
+      transFilter2 adjustedStart (These _ fa) | B._sDate fa  >= adjustedStart = True
+      transFilter2 adjustedStart (That fa) | B._sDate fa  >= adjustedStart = True
+      transFilter2 _ t = transFilter (rpStartDate param) t
 
       -- filterDate  = B.filterDate (mergeTheseWith B._sDate B._sDate  max)
       --                            (mergeTheseWith B._sDate B._sDate min)
@@ -665,6 +679,7 @@ resortFA groups = let
   --   _ -> thfs
   in rebalanceFA sorted
   
+dayPos = (,) <$> B._sDate <*> B._sDayPos
 -- | Recalculate FA balance according to their new order
 rebalanceFA :: Map (Maybe Day) [These B.Transaction B.Transaction] -> Map (Maybe Day) [These B.Transaction B.Transaction]
 rebalanceFA groups = let
@@ -683,12 +698,25 @@ rebalanceFA groups = let
     return $ case (validValue <$> B._sBalance t, validValue <$> B._sBalance t') of
                (Just b, Just b') | b == b' -> t { B._sBalance = Just (Provided b)  }
                _ -> t
-      
-    
-  result = case sortOn ((,) <$> B._sDate <*> B._sDayPos) fas of
-       [] -> groups
-       (fa:_) -> groupAsMap fst ( snd ) $ runBalance ((\a -> validValue a - B._sAmount fa ) <$> B._sBalance fa)
-       -- (fa:_) -> runBalance ((\a -> validValue a - validValue a) <$> B._sBalance fa)
+  -- find initial balance
+  -- for that we need the initial FA transactiion
+  -- but deduce from it, all the fa transactions which will be
+  -- "seen" after it which have already been accounting in the initial balance
+  -- for example if the new order is C B A E F
+  -- the balance in C includes  A and B 
+  -- to get the balance before C we need to deduce fro current C balance
+  -- A, B and C's amount.
+  --
+  initialBalance = do -- Maybe
+     firstFa <- headMay fas
+     let dayPos0 = dayPos  firstFa
+         toDeduces = filter (\t -> dayPos t <= dayPos0) fas
+     firstBalance <- B._sBalance firstFa
+     traceShowM(firstFa, toDeduces)
+     Just $ validValue firstBalance - sum (map B._sAmount toDeduces)
+  result = case initialBalance of
+       Nothing -> groups
+       Just _ -> groupAsMap fst ( snd ) $ runBalance initialBalance
   in result
 
 getOpenings :: [These B.Transaction B.Transaction] -> (Maybe (ValidField B.Amount), Maybe (ValidField B.Amount))
