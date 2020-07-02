@@ -646,11 +646,29 @@ renderReconciliate account param = do
           <input.rec-difference value="#{formatDouble $ (rpClosingBalance param - rpOpeningBalance param) - reconciliated}" readonly>
           |]
       emptyPanel = displayPanel "info" False  " " "" -- needed so that the statusBar doesn't hide the bottom of the last relevant panel
+      -- | Display a warning if some transaction needed to be reconciliated are before 
+      -- check if some transactions to reconcilated belong to a group in the past
+      lastGroup = maximumMay $ catMaybes $ Map.keys recGroup
+      toRecGroup = Map.lookup Nothing recGroup
+      youngestTorec = minimumMay $ map (mergeTheseWith B._sDate B._sDate min) (fromMaybe [] toRecGroup)
+      showWarning = case (lastGroup, youngestTorec) of
+                     (Just last, Just toRec) -> toRec < last
+                     _ -> False
+
+      warning = displayPanel' "warning" False "warning" [shamlet|<h2>Important !|]
+        [whamlet|
+          <p> The balance on the bank statement side is the balance as it appears on the bank statement.
+          <p> Therefore if transactions are not in order (which happen when an old transaction) hasn't been reconciliated and therefore is moved to the top panel,
+          <p> the balance might not correspond to the balance on the FA side
+          (which has been rebalanced to follow the order of the transaction are they are displayed).
+        |]
 
   defaultLayout $ do
       toWidget commonCss
       toWidget recJs
       [whamlet|
+      $if showWarning
+        ^{warning}
       <form.form-inline action="@{GLR (GLBankReconciliateR account)}" method=POST enctype="#{encType}">
         <div.well>
           ^{form}
