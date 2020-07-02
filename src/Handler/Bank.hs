@@ -718,22 +718,26 @@ rebalanceFA groups = let
        Just _ -> groupAsMap fst ( snd ) $ runBalance initialBalance
   in result
 
-getOpenings :: [These B.Transaction B.Transaction] -> (Maybe (ValidField B.Amount), Maybe (ValidField B.Amount))
+getOpenings :: [These B.Transaction B.Transaction] -> (Maybe (ValidField B.Amount), Maybe (ValidField B.Amount), Bool)
+-- ^ Bool if end balances matches
 -- getOpenings st'sts = (headMay ts >>= (\t -> (subtract (B._sAmount t)) <$$> (B._sBalance t)) , lastMay ts >>= B._sBalance) where 
 --   ts = case partitionThese st'sts of
 --     ([], ([], fas)) -> fas
 --     _ -> mapMaybe (preview here) st'sts
-getOpenings st'sts = (headMay ts >>= (\t -> (subtract (B._sAmount t)) <$$> (B._sBalance t)) , lastMay ts >>= B._sBalance) where 
+getOpenings st'sts = (headMay ts >>= (\t -> (subtract (B._sAmount t)) <$$> (B._sBalance t)) , lastMay ts >>= B._sBalance, ok ) where 
   -- if first hsbc balance is unknow us FA
   ts = case headMay st'sts >>= preview here >>= B._sBalance of
          Just _ -> mapMaybe (preview here) st'sts -- all bank
          Nothing -> mapMaybe (preview there) st'sts -- all fast
+  balanceEqual (Just (These hsbc fa)) =  fmap validValue (B._sBalance hsbc) == fmap validValue (B._sBalance fa)
+  balanceEqual _ =  False
+  ok = balanceEqual (headMay st'sts) || balanceEqual (lastMay st'sts)
 
 displayRecGroup :: (These B.Transaction B.Transaction -> (Bool, Bool)) -> Text -> (B.Transaction -> Maybe Text) -> (Maybe Day, [These B.Transaction B.Transaction]) -> Widget 
 displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
   -- st'sts = sortOn (((,) <$> B._sDate <*> B._sDayPos) . B.thisFirst) st'sts0
   st'sts = st'sts0
-  (opening', close') = getOpenings st'sts
+  (opening', close', ok) = getOpenings st'sts
   opening = validValue <$> opening'
   close = validValue <$> close'
   title = [shamlet|
@@ -842,7 +846,7 @@ displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
                     $else
                         <input type=checkbox name="set-#{faId fatrans}":checked:checked :checked:data-init-checked>
               |]
-  in displayPanel' ("primary" :: Text) False (tshowM recDateM) title widget
+  in displayPanel' (if ok then "success" else "danger" :: Text) False (tshowM recDateM) title widget
 
 -- | Computes the checkbox prefix for a transaction.
 faId :: B.Transaction -> Text
