@@ -612,9 +612,9 @@ renderReconciliate account param = do
                                   )
       transFilter _ _ = True
       -- transFilter or contains a FA transaction post the adjusted start
-      transFilter2 adjustedStart (These _ fa) | B._sDate fa  >= adjustedStart = True
-      transFilter2 adjustedStart (That fa) | B._sDate fa  >= adjustedStart = True
-      transFilter2 _ t = transFilter (rpStartDate param) t
+      transFilter2 _ t | d <- mergeTheseWith B._sDate B._sDate min t,   Just end <- rpEndDate param , d > end  = False
+      transFilter2 adjustedStart t | d <- mergeTheseWith B._sDate B._sDate max t,   d >= adjustedStart = True
+      transFilter2 _ _ = False -- transFilter (rpStartDate param) t
 
       -- filterDate  = B.filterDate (mergeTheseWith B._sDate B._sDate  max)
       --                            (mergeTheseWith B._sDate B._sDate min)
