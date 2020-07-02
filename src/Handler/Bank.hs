@@ -680,6 +680,7 @@ resortFA groups = let
   in rebalanceFA sorted
   
 dayPos = (,) <$> B._sDate <*> B._sDayPos
+
 -- | Recalculate FA balance according to their new order
 rebalanceFA :: Map (Maybe Day) [These B.Transaction B.Transaction] -> Map (Maybe Day) [These B.Transaction B.Transaction]
 rebalanceFA groups = let
@@ -731,7 +732,7 @@ getOpenings st'sts = (headMay ts >>= (\t -> (subtract (B._sAmount t)) <$$> (B._s
          Nothing -> mapMaybe (preview there) st'sts -- all fast
   balanceEqual (Just (These hsbc fa)) =  fmap validValue (B._sBalance hsbc) == fmap validValue (B._sBalance fa)
   balanceEqual _ =  False
-  ok = balanceEqual (headMay st'sts) || balanceEqual (lastMay st'sts)
+  ok = balanceEqual (headMay st'sts) && balanceEqual (lastMay st'sts)
 
 displayRecGroup :: (These B.Transaction B.Transaction -> (Bool, Bool)) -> Text -> (B.Transaction -> Maybe Text) -> (Maybe Day, [These B.Transaction B.Transaction]) -> Widget 
 displayRecGroup toCheck faURL object (recDateM, st'sts0) = let
