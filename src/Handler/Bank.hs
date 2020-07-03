@@ -652,7 +652,7 @@ renderReconciliate account param = do
       toRecGroup = Map.lookup Nothing recGroup
       youngestTorec = minimumMay $ map (mergeTheseWith B._sDate B._sDate min) (fromMaybe [] toRecGroup)
       showWarning = case (lastGroup, youngestTorec) of
-                     (Just last, Just toRec) -> toRec < last
+                     (Just last_, Just youngest) -> youngest < last_
                      _ -> False
 
       warning = displayPanel' "warning" False "warning" [shamlet|<h2>Important !|]
