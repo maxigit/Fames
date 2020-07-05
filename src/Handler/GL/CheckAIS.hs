@@ -99,7 +99,10 @@ processCheck CheckParam{..} = do
         <td> #{formatDouble (debtorTranOvFreightTax tran)}
  |]
 
-  return $ primaryPanel "Summary" summary >> primaryPanel "AIS" (aisRemittanceAdvice customerName transGroups)
+  return $ do
+    primaryPanel "Summary" summary 
+    primaryPanel "AIS" (aisRemittanceAdvice customerName transGroups)
+    primaryPanel "FrontAccount" (frontAccounting customerName transGroups)
 
 -- | Display information to match AIS remittance advice
 -- so we can easily spot the difference
@@ -130,7 +133,7 @@ aisRemittanceAdvice customerName groups =
       <tr>
         <td.c0> 
         <td.c1>
-        <td.c2> AIS BILING
+        <td.c2> AIS BILLING
         <td.c3>
         <td.c4> -
         <td.c5> #{formatDouble (aisBilling group)}
@@ -236,4 +239,54 @@ reverseIfCredit ST_CUSTCREDIT DebtorTran{..} =
              ,..}
 reverseIfCredit _ t = t 
 
+
+frontAccounting :: (DebtorTran -> Text) -> [[DebtorTran]] -> Widget
+frontAccounting customerName groups = do
+  let trans = concat groups
+  [whamlet|
+  <table *{datatable}>
+    <thead>
+      <tr>
+        <th> Customer
+        <th> Action
+        <th data-class-name="text-right"> Total Invoice
+        <th data-class-name="text-right"> Discount
+        <th data-class-name="text-right"> Amount to pay
+    $forall tran <- trans
+      <tr>
+        <td> #{customerName tran }
+        <td> 
+          $if debtorTranType tran == fromEnum ST_CUSTCREDIT 
+            Bank Deposit (to Customer)
+          $else
+            Customer Payment
+        <td> #{formatDouble (totalInvoice tran)}
+        <td> #{formatDouble (aisDiscount' tran)}
+        <td> #{formatDouble (totalInvoice tran - aisDiscount' tran)}
+    <tr>
+      <th> Total
+      <th> 
+      <th> #{formatDouble (sumMap totalInvoice trans)}
+      <th> #{formatDouble (aisDiscount trans)}
+      <th> #{formatDouble (sumMap totalInvoice trans - aisDiscount trans)}
+  <table *{datatable}>
+    <thead>
+      <tr>
+        <th> Billing Net
+        <th> Tax  
+        <th> Total Billing  
+    $forall group <- groups
+      <tr>
+        <td> AIS BILLING
+        <td> #{formatDouble $ 0 - aisBillingNet group}
+        <td> #{formatDouble $ 0 - aisBillingTax group}
+        <td> #{formatDouble $ 0 - aisBilling group}
+    <tr>
+      <th> Total
+      <th> #{formatDouble $ 0 - aisBillingNet trans}
+      <th> #{formatDouble $ 0 - aisBillingTax trans}
+      <th> #{formatDouble $ 0 - aisBilling trans}
+    |]
+  
+  
 
