@@ -29,3 +29,5 @@ Fames.*
 sql/bug*
 .hspec-failures
 TAGS
+tags
+.tags
