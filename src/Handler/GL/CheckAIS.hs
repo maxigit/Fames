@@ -219,7 +219,7 @@ loadTransactionGroups Nothing = return []
 loadTransactionGroups (Just groups) = mapM loadTransactionGroup (splitOn (",") groups)
 
 loadTransactionGroup :: Text -> Handler [DebtorTran]
-loadTransactionGroup group = catMaybes <$> mapM loadTransaction (splitOn " " group)
+loadTransactionGroup group_ = catMaybes <$> mapM loadTransaction (splitOn " " group_)
 
 loadTransaction :: Text -> Handler (Maybe DebtorTran)
 loadTransaction tran = do
