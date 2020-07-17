@@ -89,7 +89,7 @@
   /boxtake/save WHBoxtakeSaveR POST !boxtake_save
   /boxtake/planner WHBoxtakePlannerR GET !title=Export_Planner !boxtake
   /boxtake/adjustment WHBoxtakeAdjustmentR GET POST !boxtake_save !title=Boxtake_Adjustment
-  /boxtake/adjustment-for/#Text/#Bool WHBoxtakeAdjustmentForR GET !boxtake
+  /boxtake/adjustment-for/#Text/#Bool/#Maybe-Day WHBoxtakeAdjustmentForR GET !boxtake
 
   /dimensions WHDimensionR GET !dimension !title=Dimension 
   /dimensions/bulk WHDimensionBulkR GET POST !title=Dimensions_Bulk !dimension

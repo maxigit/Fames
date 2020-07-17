@@ -162,12 +162,13 @@ data AdjustmentParam = AdjustmentParam
   , aSkipOk :: Bool -- ^ don't show things with nothing to do
   , aShowDetails :: Bool -- ^ don't show boxes. 
   , aStyleSummary :: Bool -- ^ display summary for styles vs variations
+  , aDate :: Maybe Day -- ^ stock date
   } 
 
 defaultAdjustmentParamH :: Handler AdjustmentParam
 defaultAdjustmentParamH = do
   defaultLocation <- appFADefaultLocation <$> getsYesod appSettings 
-  return $ AdjustmentParam Nothing defaultLocation True False True
+  return $ AdjustmentParam Nothing defaultLocation True False True Nothing
 -- * Render
 -- * DB
 -- | Load all boxes needed to display and compute adjustment
@@ -191,18 +192,33 @@ loadBoxForAdjustment param = do
 loadQohForAdjustment :: AdjustmentParam -> SqlHandler (Map Text [(Text, Double)])
 loadQohForAdjustment param = do
   let defaultLocation = aLocation param
-  -- join denorm table with category: style
-  let sql = " SELECT value as style, stock_id, quantity "
-         <> " FROM fames_item_category_cache "
-         <> " JOIN 0_denorm_qoh USING (stock_id)"
-         <> " WHERE loc_code = ? AND category = 'style' AND quantity != 0 "
       orderBy = " ORDER BY style, stock_id DESC"
-      (w,p) = case filterEKeyword <$> aStyleFilter param of
-        Nothing -> ("",  [] )
-        Just (keyword, v) -> (" AND value " <> keyword <> " ? " , [toPersistValue v])
+  let (sql, p) = case aDate param of
+        Nothing -> 
+          -- join denorm table with category: style
+          let sql = " SELECT value as style, stock_id, quantity "
+                 <> " FROM fames_item_category_cache "
+                 <> " JOIN 0_denorm_qoh USING (stock_id)"
+                 <> " WHERE loc_code = ? AND category = 'style' AND quantity != 0 "
+              (w,p) = case filterEKeyword <$> aStyleFilter param of
+                Nothing -> ("",  [] )
+                Just (keyword, v) -> (" AND value " <> keyword <> " ? " , [toPersistValue v])
+           in (sql <> w, p) 
+        Just today ->  
+          -- use stock moves table, slower
+          let sql = " SELECT value as style, stock_id, sum(qty) quantity "
+                 <> " FROM fames_item_category_cache "
+                 <> " JOIN 0_stock_moves USING (stock_id)"
+                 <> " WHERE loc_code = ? AND category = 'style' "
+              after = " AND tran_date <= ? "
+                    <> " GROUP BY stock_id HAVING quantity != 0 "
+              (w,p) = case filterEKeyword <$> aStyleFilter param of
+                Nothing -> ("",  [] )
+                Just (keyword, v) -> (" AND value " <> keyword <> " ? " , [toPersistValue v])
+          in (sql <> w <> after, p ++ [toPersistValue today] )
       convert :: (Single Text, Single (Text), Single Double) -> (Text, (Text, Double))
       convert (Single style, Single var, Single quantity) = (style, (var, quantity))
-  raw <- rawSql (sql <>  w <> orderBy) (toPersistValue defaultLocation :p)
+  raw <- rawSql (sql <> orderBy) (toPersistValue defaultLocation :p)
   return $ groupAscAsMap fst (return . snd) (map convert raw)
   
 
@@ -236,12 +252,13 @@ displayBoxtakeAdjustments param@AdjustmentParam{..}  = do
       decorateSku sku = case aStyleSummary of
              -- style => drilldown
              True -> [whamlet|
-                             <a href="@{WarehouseR (WHBoxtakeAdjustmentForR sku aSkipOk)}"
+                             <a href="@{WarehouseR (WHBoxtakeAdjustmentForR sku aSkipOk aDate)}"
                                 target=_blank
                              >#{sku}
                      |]
              -- sku => link to item stocktake history
-             False -> [whamlet|
+             False -> let
+               in [whamlet|
                    <a href="@?{(WarehouseR WHStocktakeR, [("stock_id", sku)])}" > #{sku}
                               |]
   return [whamlet|

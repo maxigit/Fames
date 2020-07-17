@@ -23,6 +23,7 @@ import Data.Text(splitOn)
 import System.FilePath.Glob(globDir1, compile, match)
 import Database.Persist.MySQL     (Single(..), rawSql)
 import qualified Data.Map as Map
+import GL.Utils
 -- * Type
 -- data FamesImport
 --   = ImportPackingList (Key PackingList) -- ^ import packing list
@@ -38,9 +39,13 @@ mkYesodSubData "FI" [parseRoutes|
 /packingList/#Int64 FIPackingList
 /activeBoxes FIActiveBoxes
 /activeBoxes/live FIActiveBoxesLive
+/activeBoxes/live/at/#Day FIActiveBoxesLiveAt
+/activeBoxes/live/ago/#Int FIActiveBoxesLiveAgo
 /boxStatus/active/#Text FIBoxStatusActive
 /boxStatus/all/#Text FIBoxStatusAll
 /boxStatus/live/#Text FIBoxStatusLive
+/boxStatus/live/at/#Day/#Text FIBoxStatusLiveAt
+/boxStatus/live/ago/#Int/#Text FIBoxStatusLiveAgo
 /file/+[FilePath] FILocalFile
 /plannerReport FIPlannerReport:
   /tags/+[FilePath] TagReport
@@ -69,16 +74,24 @@ importFamesDispatch (Section ImportH (Right content) _) = do
         pieces = splitOn "/" main
         ret :: Handler Section -> Handler (Either Text [Section])
         ret m = Right . (:[]) <$> m
+        calcDate :: Int -> Handler Day
+        calcDate days = do
+          today <- todayH
+          return $ calculateDate (AddDays $ -days) today
     case (parseRoute (pieces, []) <|> parseRoute (pieces ++ [""], [])) of
       --                                                  ^ similutate missing / to url which needs it
       Nothing -> return $ Left $ uri <> " is not a valid import"
       Just fi -> case fi of
           FIPackingList plId -> ret $ importPackingList (toSqlKey plId) tags
           FIActiveBoxes -> ret $ importActiveBoxtakes tags
-          FIActiveBoxesLive -> ret $ importActiveBoxtakesLive tags
+          FIActiveBoxesLive -> ret $ importActiveBoxtakesLive Nothing tags
+          FIActiveBoxesLiveAt date -> ret $ importActiveBoxtakesLive (Just date) tags
+          FIActiveBoxesLiveAgo days -> calcDate days >>=  \date -> ret $ importActiveBoxtakesLive (Just date) tags
           FIBoxStatusActive prefix -> ret $ importBoxStatus ActiveBoxes prefix tags
           FIBoxStatusAll prefix -> ret $ importBoxStatus AllBoxes prefix tags
-          FIBoxStatusLive prefix -> ret $ importBoxStatusLive AllBoxes prefix tags
+          FIBoxStatusLive prefix -> ret $ importBoxStatusLive Nothing AllBoxes prefix tags
+          FIBoxStatusLiveAt date prefix -> ret $ importBoxStatusLive (Just date) AllBoxes prefix tags
+          FIBoxStatusLiveAgo days prefix -> calcDate days >>= \date -> ret $ importBoxStatusLive (Just date) AllBoxes prefix tags
           FILocalFile path -> hxtoHe $ do
             sectionsX <- heToHx $ readLocalFiles (intercalate "/" path) tags
             ssx <- mapM (heToHx . importFamesDispatch) sectionsX
@@ -298,9 +311,9 @@ indexParam = I.IndexParam{..} where
   ipBaseVariation= Nothing
 
 -- ** Live box status adjusted with realive QOH
-importBoxStatusLive :: WhichBoxes -> Text -> [Text] -> Handler Section
-importBoxStatusLive which prefix __tags = do
-  summaries <- loadLiveSummaries
+importBoxStatusLive :: Maybe Day -> WhichBoxes -> Text -> [Text] -> Handler Section
+importBoxStatusLive todaym which prefix __tags = do
+  summaries <- loadLiveSummaries todaym
   operators <- allOperators
   let header = "selector,tags"
   let content = header:rows
@@ -325,7 +338,7 @@ importBoxStatusLive which prefix __tags = do
 
   return $ Section (TagsH) (Right content) ("* Tags from box status live")
 
-loadLiveSummaries = do
+loadLiveSummaries todaym = do
   defaultLocation <- appFADefaultLocation <$> getsYesod appSettings 
   let param =  Box.AdjustmentParam{..}
       aStyleFilter = Nothing
@@ -333,15 +346,16 @@ loadLiveSummaries = do
       aSkipOk = False
       aShowDetails = True
       aStyleSummary =  False
+      aDate = todaym
   infos <- runDB $ Box.loadAdjustementInfo  param
   let summaries = toList infos >>= Box.computeInfoSummary
   return summaries
 
   
-importActiveBoxtakesLive :: [Text] -> Handler Section
-importActiveBoxtakesLive tags = do
-  today <- todayH
-  summaries <- loadLiveSummaries
+importActiveBoxtakesLive :: Maybe Day -> [Text] -> Handler Section
+importActiveBoxtakesLive todaym tags = do
+  today <- maybe todayH return todaym
+  summaries <- loadLiveSummaries todaym
   let boxes = [ Entity boxKey boxtake  {boxtakeDescription= Just $ (fromMaybe ""  $ boxtakeDescription boxtake) <> extraTags}
               | summary <- summaries
               , statusbox <- Box.ssBoxes summary

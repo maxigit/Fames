@@ -329,6 +329,10 @@ A planner file is made of different sections. Each section corresponds to an org
                   BoxUsed --  The box is active and used (has items in it)
                   BoxToActivate --  The box is inactive but need reactivation  (has items in it)
                   BoxToDeActivate --  The box is active but need to be deactivated as it is thought to be empty.
+            <li><code>/activeBoxes/live/at/</code>date[<code>#</code>prefix]
+                <p>  Sames as <code>activeBoxes/live</code> but uses the given date (YYYY-MM-DD) to compute the status of the boxes instead of today
+            <li><code>/activeBoxes/live/ago/</code>days[<code>#</code>prefix]
+                <p>  Sames as <code>activeBoxes/live</code> but compute the box status <code>days</code> ago instead of today
 
                 <p> The box status is equivalent to the status found in "Warehouse/Boxtake/Box adjustment". If a tag is provided it will be used to prefix the many tags added to the box (live-status, status, date, location, reference and operator).
             <li><code>boxStatus/active</code>/prefix
@@ -337,6 +341,10 @@ A planner file is made of different sections. Each section corresponds to an org
                 <p> Similar to <code>boxStatus/</code> but will create a tag file for <b>ALL</b> boxes (active and inactive).
             <li><code>boxStatus/live</code>/prefix
                 <p> Similar to <code>activeStatus/live</code> but will create a tag file instead of creating boxes.
+            <li><code>boxStatus/live/at/</code>date/prefix
+                <p> Similar to <code>boxStatus/live</code> but uses the given date instead of today
+            <li><code>boxStatus/live/ago/</code>days/prefix
+                <p> Similar to <code>boxStatus/live</code> but <code>days</code> ago instead of today.
             <li><code>file/</code>pattern[<code>#</code>exclusive-pattern]
                 <> Import all files matching the glob pattern. Files are local to the planner template directory.
                 Tags can be used to filter out some file matched by the original pattern.

@@ -181,13 +181,14 @@ postWHBoxtakeAdjustmentR = do
 -- | Narrow the search to the given style.
 -- Used mainly as a target from link
 {-# NOINLINE getWHBoxtakeAdjustmentForR #-}
-getWHBoxtakeAdjustmentForR :: Text -> Bool ->  Handler TypedContent
-getWHBoxtakeAdjustmentForR style skipOk = do
+getWHBoxtakeAdjustmentForR :: Text -> Bool -> Maybe Day -> Handler TypedContent
+getWHBoxtakeAdjustmentForR style skipOk todaym = do
   param0 <- defaultAdjustmentParamH
   let param = param0 { aStyleFilter = Just (LikeFilter style)
                     , aShowDetails = True
                     , aSkipOk = skipOk
                     , aStyleSummary = False
+                    , aDate = todaym
                     }
   renderBoxtakeAdjustments param =<< Just <$> displayBoxtakeAdjustments param
 
@@ -227,6 +228,7 @@ adjustmentForm param = renderBootstrap3 BootstrapBasicForm form where
                          <*> areq boolField "Skip OK" (Just $ aSkipOk param)
                          <*> areq boolField "Show Details" (Just $ aShowDetails param)
                          <*> areq boolField "Group Style" (Just $ aStyleSummary param)
+                         <*> aopt dayField "Stock Valuation Date" (Just $ aDate param)
 
 -- * Rendering
 -- ** Boxtake history
