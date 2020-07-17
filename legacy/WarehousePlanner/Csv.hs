@@ -6,7 +6,7 @@ import WarehousePlanner.Base
 import qualified Data.Csv as Csv
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Vector as Vec
-import Control.Monad hiding(mapM_)
+import Control.Monad hiding(mapM_,foldM)
 -- import Data.List.Split (splitOn)
 import qualified Data.List as List
 import Data.Char(isDigit)
@@ -16,7 +16,7 @@ import Text.Read(readMaybe)
 import qualified Text.Parsec as P
 import qualified Text.Parsec.Text as P
 import Data.Maybe(fromMaybe)
-import Control.Monad.State hiding(fix,mapM_)
+import Control.Monad.State hiding(fix,mapM_,foldM)
 import qualified Text.Regex as Rg
 import qualified Text.Regex.Base.RegexLike as Rg
 import Data.Text(splitOn)
@@ -323,17 +323,30 @@ readFromRecordWith  rowProcessor filename = do
 -- or set on failure (by providing a negative tag).
 -- This tagging/untagging ensure that after a move only the moved boxes
 -- have the expecting tag (regardless of the previous tags on the boxes)
+-- Locations separated by " " will processed in sucession with the leftover
+-- so that ^A|B C|D is equivalent to
+--     ^A|B#moved
+--     #-moved,^C|D.
+-- This normally doesn't change anything in ExiftLeft mode
+-- but in ExitTop mode make sure the same set of shelves is reuse
+-- before going to the left
+-- example ^A|B|C|D will exit on top of B  and fill C (even though
+-- there might be space left to create a new column in A)
+-- ^A|B C|D will exit B to A  until A and B are full
 processMovesAndTags :: (BoxSelector s, [Text], Maybe Text ) -> WH [Box s] s
 processMovesAndTags (style, tags, locationM) = do
   boxes0 <- findBoxByNameAndShelfNames style
+  boxes <- mapM findBox boxes0
   leftoverss <- forM locationM $ \location' -> do
     let (location, exitMode) = case uncons location' of
                                   Just ('^', loc) -> (loc, ExitOnTop)
                                   _ -> (location', ExitLeft)
-    let locations = splitOn "|" location
-    shelves <- findShelfBySelectors (map parseSelector locations)
-    aroundArrangement (moveBoxes exitMode) boxes0 shelves
-  boxes <- mapM findBox boxes0
+    let locationss = map (splitOn "|") (splitOn " " location)
+    -- reuse leftover of previous locations between " " same syntax as Layout
+    foldM (\boxes locations -> do
+               shelves <- findShelfBySelectors (map parseSelector locations)
+               aroundArrangement (moveBoxes exitMode) boxes shelves
+          ) boxes locationss
   case tags of
     [] -> return boxes
     _  -> do

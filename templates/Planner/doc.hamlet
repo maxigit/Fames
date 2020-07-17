@@ -135,7 +135,19 @@ A planner file is made of different sections. Each section corresponds to an org
 
           The code above, will fill the first colum into shelf A, then a column in B and then C.
           When the first column in C is full, it will start a 2nd column in A, then B  etc ...
-          <tagging>
+
+          Separating shelves with <code> </code> will indicate them as separate bay. 
+          <pre>
+            :Move:
+            :Moves:
+            stock_id,location
+            ,^A|B C
+
+          The code above, will fill the first columen in shelf A, then a column in B and then restart
+          in A and so on until there is not column left in A and B. It will then start filling up C.
+          (This syntax is similar to the syntax of the <b>Layout</b> section).
+
+          <h4> Tagging
           Tags provided as section parameter will be applied to the boxes <b>successfully</b> moved
           whereas boxes which couldn't be moved (not enough space in the destination) will see those tags negated.
           For example, let's say that we are trying to move 3 boxes in a shelf with <code>:Moves_moved_-error</code> but only the first 2
