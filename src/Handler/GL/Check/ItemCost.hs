@@ -68,13 +68,17 @@ getGLCheckItemCostItemViewR account item = do
               <th> FaTransType
               <th> MovedId
               <th> GlDetail
-              <th> FaAmount
+              <th> FA Amount
+              <th> Quantity
+              <th> Cost
+              <th> Move Cost
               <th> CorrectAmount
               <th> QOHBefore
-              <th> Quantity
               <th> QOHAfter
               <th> CostBefore
               <th> CostAfter
+              <th> Stock Value
+              <th> FA Stock Value
               <th> CostValidation
         <tbody>
           $forall ItemCostTransaction{..} <- trans
@@ -86,12 +90,16 @@ getGLCheckItemCostItemViewR account item = do
               <td> #{tshowM itemCostTransactionMoveId}
               <td> #{tshowM itemCostTransactionGlDetail}
               <td> #{formatDouble itemCostTransactionFaAmount}
+              <td> #{formatDouble itemCostTransactionQuantity}
+              <td> #{formatDouble itemCostTransactionCost}
+              <td> #{formatDouble itemCostTransactionMoveCost}
               <td> #{formatDouble itemCostTransactionCorrectAmount}
               <td> #{formatDouble itemCostTransactionQohBefore}
-              <td> #{formatDouble itemCostTransactionQuantity}
               <td> #{formatDouble itemCostTransactionQohAfter}
               <td> #{formatDouble itemCostTransactionCostBefore}
               <td> #{formatDouble itemCostTransactionCostAfter}
+              <td> #{formatDouble itemCostTransactionStockValue}
+              <td> #{formatDouble itemCostTransactionFaStockValue}
               <td> #{tshowM itemCostTransactionItemCostValidation}
     |]
 

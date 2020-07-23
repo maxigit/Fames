@@ -162,18 +162,22 @@ computeItemCostTransactions (Account account0) sm'gls0 = let
        -- TODO : everything below
        account = maybe account0 (FA.glTranAccount . entityVal) (preview there sm'gl)
        faAmount = maybe 0 (FA.glTranAmount . entityVal) (preview there sm'gl)
-       correctAmount = 0
+       correctAmount = quantity * cost
        qohBefore = maybe 0 itemCostTransactionQohAfter previous
        qohAfter = qohBefore + quantity
+       cost =  case (preview there sm'gl) of
+                  (Just (Entity _ gl)) | faTransType `elem` [ST_SUPPRECEIVE, ST_INVADJUST, ST_COSTUPDATE ]
+                                       , quantity /= 0 -> FA.glTranAmount gl / quantity
+                  _ -> costBefore
+       moveCost = maybe 0 (FA.stockMoveStandardCost . entityVal) (preview here sm'gl)
        costBefore = maybe 0 itemCostTransactionCostAfter previous
        costAfter =
-         if quantity /= 0
-         then stockValuation / quantity
+         if qohAfter /= 0
+         then stockValue / qohAfter
          else costBefore 
+       faStockValue = maybe 0 itemCostTransactionFaStockValue previous + faAmount
               
-       stockValuation = case previous of
-          Nothing -> 0
-          Just prev -> itemCostTransactionCostAfter prev * itemCostTransactionQohAfter prev
+       stockValue = maybe 0 itemCostTransactionStockValue previous + cost * quantity
        in Just $ ItemCostTransaction
               { itemCostTransactionDate = date
               , itemCostTransactionMoveId = moveId
@@ -188,7 +192,11 @@ computeItemCostTransactions (Account account0) sm'gls0 = let
               , itemCostTransactionQohAfter = qohAfter
               , itemCostTransactionQuantity = quantity
               , itemCostTransactionCostBefore = costBefore
+              , itemCostTransactionCost = cost
+              , itemCostTransactionMoveCost = moveCost
               , itemCostTransactionCostAfter = costAfter
+              , itemCostTransactionStockValue = stockValue
+              , itemCostTransactionFaStockValue = faStockValue
               , itemCostTransactionItemCostValidation = Nothing
              }
     in catMaybes $ scanl'  mkTrans Nothing sm'gls

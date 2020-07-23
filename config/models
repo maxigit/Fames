@@ -350,7 +350,11 @@ ItemCostTransaction sql=check_item_cost_transaction
   qohAfter Double
   quantity Double
   costBefore Double
+  cost Double
   costAfter Double
+  stockValue Double
+  faStockValue Double
+  moveCost Double -- current transaction cost price
   itemCostValidation ItemCostValidationId Maybe
   UniqueM moveId !force
   UniqueG glDetail !force
