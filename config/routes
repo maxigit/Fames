@@ -56,7 +56,7 @@
   /check/ais GLCheckAISR GET POST !check !title=AIS
   /check/item_cost GLCheckItemCostR GET !check !title=Inventory_Cost !fix
   /check/item_cost/account/#Text GLCheckItemCostAccountViewR GET !check !fix
-  /check/item_cost/item/#Text GLCheckItemCostItemViewR GET !check !fix
+  /check/item_cost/item/#Text/#Maybe-Text GLCheckItemCostItemViewR GET !check !fix
 
 /warehouse WarehouseR !warehouse:
   /barcodes WHBarcodeR GET !group=Barcodes !title=Generate

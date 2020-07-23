@@ -54,8 +54,9 @@
   /check/debtor_trans/#Int64/#Int64 GLCheckDebtorTransR GET !check 
   !/check/debtor_trans/fix/#Int64/#Int64 GLFixDebtorTransR POST !check !fix
   /check/ais GLCheckAISR GET POST !check !title=AIS
-  /check/inventory_cost GLCheckItemCostR GET !check !title=Inventory_Cost !fix
-  /check/inventory_cost/account/#Text GLCheckItemCostAccountViewR GET !check !fix
+  /check/item_cost GLCheckItemCostR GET !check !title=Inventory_Cost !fix
+  /check/item_cost/account/#Text GLCheckItemCostAccountViewR GET !check !fix
+  /check/item_cost/item/#Text/#Maybe-Text GLCheckItemCostItemViewR GET !check !fix
 
 /warehouse WarehouseR !warehouse:
   /barcodes WHBarcodeR GET !group=Barcodes !title=Generate

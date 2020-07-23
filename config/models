@@ -337,6 +337,7 @@ ItemCostValidation sql=check_item_cost_validation
 -- on a stock account might not have a corresponding stock moves
 ItemCostTransaction sql=check_item_cost_transaction
   Id sql=item_cost_transaction_id
+  date Day
   moveId Int Maybe
   glDetail Int Maybe
   faTransNo Int
@@ -345,7 +346,12 @@ ItemCostTransaction sql=check_item_cost_transaction
   account Text
   faAmount Double
   correctAmount Double
-  item_cost_validation ItemCostValidationId Maybe
+  qohBefore Double
+  qohAfter Double
+  quantity Double
+  costBefore Double
+  costAfter Double
+  itemCostValidation ItemCostValidationId Maybe
   UniqueM moveId !force
   UniqueG glDetail !force
   deriving Show
