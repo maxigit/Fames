@@ -24,7 +24,7 @@ getGLCheckInventoryCostR = do
         <tbody>
           $forall AccountSummary{..} <- summaries
            <tr>
-            <td> #{fromAccount asAccount}
+            <td> #{fromAccount asAccount} - #{asAccountName}
             <td> #{formatDouble asGLAmount}
             <td> #{maybe "" formatDouble asCorrectAmount}
             <td> #{formatDouble asStockValuation}

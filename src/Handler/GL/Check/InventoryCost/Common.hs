@@ -14,6 +14,7 @@ data Account = Account { fromAccount:: Text } deriving (Eq, Show)
 
 data AccountSummary = AccountSummary
   { asAccount :: Account
+  , asAccountName :: Text
   , asGLAmount :: Double
   , asCorrectAmount :: Maybe Double
   , asStockValuation :: Double
@@ -29,6 +30,7 @@ getStockAccounts = do
 getAccountSummary :: Account -> Handler AccountSummary
 getAccountSummary account = do
   asGLAmount <- glBalanceFor account
+  asAccountName <- getAccountName account
   asCorrectAmount <- return Nothing
   asStockValuation <- stockValuationFor account
   return AccountSummary{asAccount=account,..}
@@ -41,8 +43,16 @@ glBalanceFor (Account account) = do
  case rows of
    [] -> return 0
    [(Single total)] -> return $ fromMaybe 0 total
-   _ -> error "glBalanceFor should only returns one row. Please contact your Admininstrator"
+   _ -> error "glBalanceFor should only returns one row. Please contact your Admininstrator!"
 
+
+getAccountName :: Account -> Handler Text
+getAccountName (Account account) = do
+  let sql = "select account_name from 0_chart_master where account_code = ?"
+  rows <- runDB $ rawSql sql [toPersistValue account]
+  case rows of
+   [(Single name)] -> return $ decodeHtmlEntities name
+   _ -> error "The unexpected happened. Contact your Administrator!"
 
 stockValuationFor :: Account -> Handler Double
 stockValuationFor account = do
