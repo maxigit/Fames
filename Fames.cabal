@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.1.
+-- This file has been generated from package.yaml by hpack version 0.34.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: aba75d6fda7f5b3732e12386307c7c806a64fcfb9999f8b8a8003757b94d9b93
+-- hash: 96408e0b236651c2223f2614590ec7b3911e31b7e1873f0ac8a4c651d8e09e90
 
 name:           Fames
 version:        0.0.1
@@ -44,6 +44,8 @@ library
       Handler.Fay
       Handler.GL
       Handler.GL.Check
+      Handler.GL.Check.InventoryCost
+      Handler.GL.Check.InventoryCost.Common
       Handler.GL.CheckAIS
       Handler.GL.GLEnterReceiptSheet
       Handler.GL.GLEnterReceiptSheet.ReceiptRow
@@ -424,6 +426,8 @@ test-suite ghcid
       Handler.Fay
       Handler.GL
       Handler.GL.Check
+      Handler.GL.Check.InventoryCost
+      Handler.GL.Check.InventoryCost.Common
       Handler.GL.CheckAIS
       Handler.GL.GLEnterReceiptSheet
       Handler.GL.GLEnterReceiptSheet.ReceiptRow

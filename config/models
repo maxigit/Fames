@@ -317,6 +317,40 @@ TaxReportDetail sql=fames_tax_report_detail json
   deriving Eq
 
 
+-- * Item cost check
+-- Defines a group of item cost transaction
+-- known to be correct, in the way
+-- that the sum of the faAmount matches exactly the sum of the correctAmount
+ItemCostValidation sql=check_item_cost_validation
+  comment Text
+  operator OperatorId
+  validationDate Day
+  lastTransaction Day
+  firstTransaction Day
+  account Text
+  sku Text Maybe
+
+-- Gather the information coming a stock moves and
+-- it's corresponding gl_trans
+-- Some transaction coming from manual adjusment
+-- on a stock account might not have a corresponding stock moves
+ItemCostTransaction sql=check_item_cost_transaction
+  Id sql=item_cost_transaction
+  moveId Int Maybe
+  glDetail Int Maybe
+  faTransNo Int
+  faTransType FATransType sqltype=Int
+  sku Text Maybe
+  account Text
+  faAmount Double
+  correctAmount Double
+  validation ItemCostValidationId Maybe
+  UniqueM moveId !force
+  UniqueG glDetail !force
+  deriving Show
+  deriving Eq
+
+
 
   
 
