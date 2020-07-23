@@ -14,6 +14,7 @@ import Database.Persist.Sql  (rawSql, Single(..))
 import qualified FA as FA
 import Lens.Micro.Extras (preview)
 import Data.Monoid(First(..))
+import Data.List(scanl')
 
 -- * Types
 data Account = Account { fromAccount:: Text } deriving (Eq, Show)
@@ -143,32 +144,54 @@ loadPendingTransactionCountFor account = do
 -- | This is the core routine which recalcuate the correct standard cost 
 -- and correct gl amount.
 computeItemCostTransactions :: Account -> [These (Entity FA.StockMove) (Entity FA.GlTran)] -> [ItemCostTransaction]
-computeItemCostTransactions (Account account) sm'gls0 = let 
+computeItemCostTransactions (Account account0) sm'gls0 = let 
     -- first we need to make sure there is no duplicate 
     sm'gls = fixDuplicates sm'gls0
-    mkTrans sm'gl = let
+    mkTrans previous sm'gl = let
        get :: (FA.StockMove -> a) 
            -> (FA.GlTran -> a)
            -> a
        get fa fb = mergeTheseWith (fa . entityVal) (fb . entityVal) const sm'gl
-       itemCostTransactionDate  = get FA.stockMoveTranDate FA.glTranTranDate
-       itemCostTransactionMoveId = FA.unStockMoveKey . entityKey <$> preview here sm'gl
-       itemCostTransactionGlDetail = FA.unGlTranKey . entityKey <$> preview there sm'gl
-       itemCostTransactionFaTransNo = get FA.stockMoveTransNo FA.glTranTypeNo
-       itemCostTransactionFaTransType = toEnum $ get FA.stockMoveType FA.glTranType
-       itemCostTransactionSku = get (Just . FA.stockMoveStockId) FA.glTranStockId
+       quantity = maybe 0 (FA.stockMoveQty . entityVal) (preview here sm'gl)
+       date  = get FA.stockMoveTranDate FA.glTranTranDate
+       moveId = FA.unStockMoveKey . entityKey <$> preview here sm'gl
+       glDetail = FA.unGlTranKey . entityKey <$> preview there sm'gl
+       faTransNo = get FA.stockMoveTransNo FA.glTranTypeNo
+       faTransType = toEnum $ get FA.stockMoveType FA.glTranType
+       sku = get (Just . FA.stockMoveStockId) FA.glTranStockId
        -- TODO : everything below
-       itemCostTransactionAccount = maybe account (FA.glTranAccount . entityVal) (preview there sm'gl)
-       itemCostTransactionFaAmount = maybe 0 (FA.glTranAmount . entityVal) (preview there sm'gl)
-       itemCostTransactionCorrectAmount = 0
-       itemCostTransactionQohBefore = 0
-       itemCostTransactionQohAfter = 0
-       itemCostTransactionQuantity = maybe 0 (FA.stockMoveQty . entityVal) (preview here sm'gl)
-       itemCostTransactionCostBefore = 0
-       itemCostTransactionCostAfter = 0
-       itemCostTransactionItemCostValidation = Nothing
-       in ItemCostTransaction{..}
-    in map mkTrans sm'gls
+       account = maybe account0 (FA.glTranAccount . entityVal) (preview there sm'gl)
+       faAmount = maybe 0 (FA.glTranAmount . entityVal) (preview there sm'gl)
+       correctAmount = 0
+       qohBefore = maybe 0 itemCostTransactionQohAfter previous
+       qohAfter = qohBefore + quantity
+       costBefore = maybe 0 itemCostTransactionCostAfter previous
+       costAfter =
+         if quantity /= 0
+         then stockValuation / quantity
+         else costBefore 
+              
+       stockValuation = case previous of
+          Nothing -> 0
+          Just prev -> itemCostTransactionCostAfter prev * itemCostTransactionQohAfter prev
+       in Just $ ItemCostTransaction
+              { itemCostTransactionDate = date
+              , itemCostTransactionMoveId = moveId
+              , itemCostTransactionGlDetail = glDetail
+              , itemCostTransactionFaTransNo = faTransNo
+              , itemCostTransactionFaTransType = faTransType
+              , itemCostTransactionSku = sku
+              , itemCostTransactionAccount = account
+              , itemCostTransactionFaAmount = faAmount
+              , itemCostTransactionCorrectAmount = correctAmount
+              , itemCostTransactionQohBefore = qohBefore
+              , itemCostTransactionQohAfter = qohAfter
+              , itemCostTransactionQuantity = quantity
+              , itemCostTransactionCostBefore = costBefore
+              , itemCostTransactionCostAfter = costAfter
+              , itemCostTransactionItemCostValidation = Nothing
+             }
+    in catMaybes $ scanl'  mkTrans Nothing sm'gls
 
 -- | If a transaction contains the same items many times, for example 2 moves and 2 gl_trans  
 -- instead of having 2 element in the list we will have the 4 (the cross product resulting from the join)
