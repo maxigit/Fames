@@ -47,7 +47,7 @@ getGLCheckItemCostAccountViewR account = do
           <tr>
             <td>
               <a href="@{GLR $ GLCheckItemCostItemViewR account sku}">
-                #{fromMaybe "" sku}
+                #{fromMaybe "<unknow sku>" sku}
             <td> #{tshow count}
     |]
 
@@ -55,7 +55,9 @@ getGLCheckItemCostAccountViewR account = do
 getGLCheckItemCostItemViewR :: Text -> Maybe Text -> Handler Html
 getGLCheckItemCostItemViewR account item = do
   trans0 <- loadMovesAndTransactions (Account account) item
+  faURL <- getsYesod (pack . appFAExternalURL . appSettings)
   let trans = computeItemCostTransactions (Account account) trans0
+      urlFn = urlForFA faURL
   defaultLayout $
     infoPanel (fromMaybe account item)  [whamlet|
 
@@ -79,10 +81,10 @@ getGLCheckItemCostItemViewR account item = do
             $with _unused <- (itemCostTransactionAccount, itemCostTransactionSku)
             <tr>
               <td> #{tshow itemCostTransactionDate}
-              <td> #{tshow itemCostTransactionFaTransNo}
-              <td> #{tshow itemCostTransactionFaTransType}
-              <td> #{tshow itemCostTransactionMoveId}
-              <td> #{tshow itemCostTransactionGlDetail}
+              <td> #{transNoWithLink urlFn ""  itemCostTransactionFaTransType itemCostTransactionFaTransNo}
+              <td> #{transactionIcon itemCostTransactionFaTransType}
+              <td> #{tshowM itemCostTransactionMoveId}
+              <td> #{tshowM itemCostTransactionGlDetail}
               <td> #{formatDouble itemCostTransactionFaAmount}
               <td> #{formatDouble itemCostTransactionCorrectAmount}
               <td> #{formatDouble itemCostTransactionQohBefore}

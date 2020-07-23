@@ -163,7 +163,7 @@ computeItemCostTransactions (Account account) sm'gls0 = let
        itemCostTransactionCorrectAmount = 0
        itemCostTransactionQohBefore = 0
        itemCostTransactionQohAfter = 0
-       itemCostTransactionQuantity = 0
+       itemCostTransactionQuantity = maybe 0 (FA.stockMoveQty . entityVal) (preview here sm'gl)
        itemCostTransactionCostBefore = 0
        itemCostTransactionCostAfter = 0
        itemCostTransactionItemCostValidation = Nothing
@@ -185,13 +185,14 @@ fixDuplicates move'gls = let
          (m'g:_)  -> let
             moves = mapMaybe getFirst $ toList $ groupAsMap entityKey (First . Just) $ mapMaybe (preview here) m'gs
             gls = mapMaybe getFirst $ toList $ groupAsMap entityKey (First . Just) $ mapMaybe (preview there) m'gs
-            in if length moves * length gls /= length m'gs && length moves /= length gls
-               then
-                 error $ "Not cartesian product for " ++ (show $ transKey m'g) 
-                       ++ " moves: " ++ show (length moves)
-                       ++ " gls: " ++ show (length gls) 
-               else -- correct, with just zip them
-                 zipWith These moves gls 
+            in case (length moves , length gls) of
+               (0, 0 ) ->  []
+               (0, _ ) -> map That gls
+               (_, 0 ) -> map This moves
+               (moveLength, glLength) | moveLength == glLength && moveLength * glLength == length m'gs -> zipWith These moves gls 
+               _ -> error $ "Not cartesian product for " ++ (show $ transKey m'g) 
+                          ++ " moves: " ++ show (length moves)
+                          ++ " gls: " ++ show (length gls) 
 
          _ -> error "unexpected"
   in concatMap unduplicate trans
