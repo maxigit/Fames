@@ -130,6 +130,7 @@ loadMovesAndTransactions' (Account account) sku = do
          <> " LEFT JOIN check_item_cost_transaction i ON (0_stock_moves.trans_id = move_id OR 0_gl_trans.counter = gl_detail) "
          <> " WHERE (0_gl_trans.account = ? OR 0_gl_trans.account is NULL) AND 0_stock_moves.stock_id =  ? "
          <> "   AND i.item_cost_transaction_id is NULL "
+         <> "   AND 0_stock_moves.qty <> 0"
          <> " ORDER BY 0_stock_moves.tran_date, 0_stock_moves.trans_id"
          <> " LIMIT 100" -- TODO remove
       mkTrans m'g = case m'g of
@@ -143,6 +144,7 @@ loadTransactionsWithNoMoves' (Account account) sku = do
          <> " LEFT JOIN 0_stock_moves ON ( 0_stock_moves.stock_id = 0_gl_trans.stock_id"
          <> "                            AND 0_stock_moves.type = 0_gl_trans.type"
          <> "                            AND 0_stock_moves.trans_no = 0_gl_trans.type_no"
+         <> "                            AND 0_stock_moves.qty <> 0"
          <> "                            )"
          <> " LEFT JOIN check_item_cost_transaction i ON (0_gl_trans.counter = i.gl_detail) "
          <> " WHERE 0_gl_trans.account = ? AND 0_gl_trans.stock_id = ? "
