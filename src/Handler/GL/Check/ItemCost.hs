@@ -15,7 +15,7 @@ getGLCheckItemCostR = do
   summaries <- mapM getAccountSummary accounts
   defaultLayout 
     [whamlet|
-      <table *{datatable}>
+      <table data-page-length=200 *{datatable}>
         <thead>
           <tr>
             <th> Account
@@ -45,7 +45,7 @@ getGLCheckItemCostAccountViewR account = do
   sku'counts <- loadPendingTransactionCountFor (Account account)
   defaultLayout 
     [whamlet|
-     <table *{datatable}>
+     <table *{datatable} data-page-length=200>
       <thead>
         <th> Stock Id
         <th> Unchecked moves
@@ -69,7 +69,7 @@ getGLCheckItemCostItemViewR account item = do
   defaultLayout $
     infoPanel (fromMaybe account item)  [whamlet|
 
-      <table *{datatable}>
+      <table data-page-length=200 *{datatable}>
         <thead>
               <th> Date
               <th> No
