@@ -60,7 +60,11 @@ getGLCheckItemCostItemViewR account item = do
   let trans = computeItemCostTransactions (Account account) trans0
       urlFn = urlForFA faURL
       glUrlFn = glViewUrlForFA faURL
-      equal a b = abs (a - b) < 1e-2
+      equal = equal' 1e-6
+      equal' e a b = abs (a - b) < e
+      classFor e a b = if equal' e a b
+                     then "bg-warning text-warning" :: Text
+                     else "bg-danger text-danger"
   defaultLayout $
     infoPanel (fromMaybe account item)  [whamlet|
 
@@ -91,7 +95,7 @@ getGLCheckItemCostItemViewR account item = do
                 <td.bg-success.text-success>
                   #{formatDouble' itemCostTransactionFaAmount}
               $else
-                <td.bg-danger.text-danger data-tople="tooltip"
+                <td class="#{classFor 0.5 itemCostTransactionFaAmount itemCostTransactionCorrectAmount}" data-tople="tooltip"
                   title="diff: #{formatDouble' $ itemCostTransactionFaAmount - itemCostTransactionCorrectAmount}">
                   <div> FA: #{formatDouble' itemCostTransactionFaAmount}
                   <div> SB: #{formatDouble' itemCostTransactionCorrectAmount}
@@ -100,7 +104,7 @@ getGLCheckItemCostItemViewR account item = do
                 <td.bg-success.text-success>
                   #{formatDouble' itemCostTransactionCost}
               $else
-                <td.bg-danger.text-danger data-toggle="tooltip"
+                <td class="#{classFor 0.01 itemCostTransactionCost itemCostTransactionMoveCost}" data-toggle="tooltip"
                   title="#{formatDouble' $ itemCostTransactionCost - itemCostTransactionMoveCost}"
                   >
                   <div> Move: #{formatDouble' itemCostTransactionMoveCost}
@@ -108,7 +112,7 @@ getGLCheckItemCostItemViewR account item = do
               $if equal itemCostTransactionStockValue itemCostTransactionFaStockValue
                 <td.bg-success.text-success> #{formatDouble' itemCostTransactionStockValue}
               $else
-                <td.bg-danger.text-danger data-toggle="tooltip"
+                <td class="#{classFor 0.5 itemCostTransactionFaStockValue itemCostTransactionStockValue}" data-toggle="tooltip"
                 title="diff: #{formatDouble' $ itemCostTransactionFaStockValue - itemCostTransactionStockValue}" >
                   <div> FA: #{formatDouble' itemCostTransactionFaStockValue}
                   <div> SB: #{formatDouble' itemCostTransactionStockValue}
