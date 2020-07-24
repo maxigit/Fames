@@ -182,30 +182,36 @@ computeItemCostTransactions (Account account0) sm'gls0 = let
     -- first we need to make sure there is no duplicate 
     sm'gls = fixDuplicates sm'gls0
     mkTrans previous sm'gl = let
+       smM = preview here sm'gl
+       glM = preview there sm'gl
        get :: (FA.StockMove -> a) 
            -> (FA.GlTran -> a)
            -> a
        get fa fb = mergeTheseWith (fa . entityVal) (fb . entityVal) const sm'gl
-       quantity = maybe 0 (FA.stockMoveQty . entityVal) (preview here sm'gl)
+       quantity = maybe 0 (FA.stockMoveQty . entityVal) (smM)
        date  = get FA.stockMoveTranDate FA.glTranTranDate
-       moveId = FA.unStockMoveKey . entityKey <$> preview here sm'gl
-       glDetail = FA.unGlTranKey . entityKey <$> preview there sm'gl
+       moveId = FA.unStockMoveKey . entityKey <$> smM
+       glDetail = FA.unGlTranKey . entityKey <$> glM
        faTransNo = get FA.stockMoveTransNo FA.glTranTypeNo
        faTransType = toEnum $ get FA.stockMoveType FA.glTranType
        sku = get (Just . FA.stockMoveStockId) FA.glTranStockId
        -- TODO : everything below
-       account = maybe account0 (FA.glTranAccount . entityVal) (preview there sm'gl)
-       faAmount = maybe 0 (FA.glTranAmount . entityVal) (preview there sm'gl)
-       correctAmount = quantity * cost
+       account = maybe account0 (FA.glTranAccount . entityVal) (glM)
+       faAmount = maybe 0 (FA.glTranAmount . entityVal) (glM)
+       correctAmount = if faTransType `elem` [ST_COSTUPDATE , ST_SUPPINVOICE, ST_SUPPCREDIT]
+                       then faAmount
+                       else quantity * cost
        qohBefore = maybe 0 itemCostTransactionQohAfter previous
        qohAfter = qohBefore + quantity       
        -- Try in order (gl transaction cost), previous, move
-       cost' =  case (preview there sm'gl) of
+       cost' =  case (glM) of
                   (Just (Entity _ gl)) | faTransType `elem` [ST_SUPPRECEIVE, ST_INVADJUST, ST_COSTUPDATE ]
                                        , quantity /= 0 -> FA.glTranAmount gl / quantity
                   _ -> 0
-       cost = fromMaybe 0 $ headMay $ filter (/=0) [cost', costBefore, moveCost]
-       moveCost = maybe 0 (FA.stockMoveStandardCost . entityVal) (preview here sm'gl)
+       cost = if faTransType `elem` [ST_SUPPRECEIVE, ST_LOCTRANSFER] && isNothing glM
+              then 0 -- wait for corresponding invoice
+              else fromMaybe 0 $ headMay $ filter (/=0) [cost', costBefore, moveCost]
+       moveCost = maybe 0 (FA.stockMoveStandardCost . entityVal) (smM)
        costBefore = maybe 0 itemCostTransactionCostAfter previous
        costAfter =
          if qohAfter /= 0
@@ -213,7 +219,7 @@ computeItemCostTransactions (Account account0) sm'gls0 = let
          else 0
        faStockValue = maybe 0 itemCostTransactionFaStockValue previous + faAmount
               
-       stockValue = maybe 0 itemCostTransactionStockValue previous + cost * quantity
+       stockValue = maybe 0 itemCostTransactionStockValue previous + correctAmount
        in Just $ ItemCostTransaction
               { itemCostTransactionDate = date
               , itemCostTransactionMoveId = moveId
