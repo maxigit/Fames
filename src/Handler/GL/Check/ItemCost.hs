@@ -2,6 +2,7 @@ module Handler.GL.Check.ItemCost
 ( getGLCheckItemCostR
 , getGLCheckItemCostAccountViewR
 , getGLCheckItemCostItemViewR
+, postGLCheckItemCostAccountCollectR
 )
 where
 
@@ -30,7 +31,17 @@ getGLCheckItemCostR = do
                <a href=@{GLR $ GLCheckItemCostAccountViewR (fromAccount asAccount)}>
                  #{fromAccount asAccount} - #{asAccountName}
             <td> #{formatDouble asGLAmount}
-            <td> #{maybe "" formatDouble' asCorrectAmount}
+            $case asCorrectAmount
+              $of (Just correct)
+                $if equal correct asGLAmount
+                  <td.bg-success.text-success>
+                      #{formatDouble correct}
+                $else
+                  <td class="#{classFor 100 asGLAmount correct}">
+                      <div>SB: #{formatDouble correct}
+                      <div>Diff:  #{formatDouble $ correct - asGLAmount}
+              $of Nothing
+                <td>
             <td> #{formatDouble asStockValuation}
             $if equal' 0.01 asGLAmount asStockValuation
               <td>
@@ -42,28 +53,45 @@ getGLCheckItemCostR = do
 
 getGLCheckItemCostAccountViewR :: Text -> Handler Html
 getGLCheckItemCostAccountViewR account = do
-  sku'counts <- loadPendingTransactionCountFor (Account account)
+  sku'count'lasts <- loadPendingTransactionCountFor (Account account)
   defaultLayout 
     [whamlet|
      <table *{datatable} data-page-length=200>
       <thead>
         <th> Stock Id
         <th> Unchecked moves
+        <th> Checked GL
+        <th> Checked Correct
       <tbody>
-        $forall (sku, count) <- sku'counts
+        $forall (sku, count, lastm) <- sku'count'lasts
           <tr>
             <td>
               <a href="@{GLR $ GLCheckItemCostItemViewR account sku}">
                 #{fromMaybe "<unknow sku>" sku}
             <td> #{tshow count}
+            $case lastm
+              $of (Just last)
+                $if equal (itemCostTransactionFaStockValue last) (itemCostTransactionStockValue last)
+                  <td.bg-success.text-success> #{formatDouble (itemCostTransactionStockValue last)}
+                $else
+                  <td class="#{classFor 0.5 (itemCostTransactionFaStockValue last) (itemCostTransactionStockValue last)}" data-toggle="tooltip"
+                  title="diff: #{formatDouble $ (itemCostTransactionFaStockValue last) - (itemCostTransactionStockValue last)}" >
+                    <div> FA: #{formatDouble (itemCostTransactionFaStockValue last)}
+                <td> : #{formatDouble (itemCostTransactionStockValue last)}
+              $of Nothing
+                <td>
+                <td>
+     <form method=POST action="@{GLR $ GLCheckItemCostAccountCollectR account}">  
+       <button.btn.btn-danger type="sumbit"> Collect
     |]
 
 
 getGLCheckItemCostItemViewR :: Text -> Maybe Text -> Handler Html
 getGLCheckItemCostItemViewR account item = do
-  trans0 <- loadMovesAndTransactions (Account account) item
+  lastm <- loadLastTransaction (Account account) item
+  trans0 <- loadMovesAndTransactions (entityVal <$> lastm) (Account account) item
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
-  let trans = computeItemCostTransactions (Account account) trans0
+  let trans = computeItemCostTransactions (entityVal <$> lastm) (Account account) trans0
       urlFn = urlForFA faURL
       glUrlFn = glViewUrlForFA faURL
   defaultLayout $
@@ -87,7 +115,7 @@ getGLCheckItemCostItemViewR account item = do
               <th data-class-name="text-right"> GlDetail
         <tbody>
           $forall ItemCostTransaction{..} <- trans
-            $with _unused <- (itemCostTransactionAccount, itemCostTransactionSku)
+            $with _unused <- (itemCostTransactionAccount, itemCostTransactionSku, itemCostTransactionIsLast)
             <tr>
               <td> #{tshow itemCostTransactionDate}
               <td> #{transNoWithLink urlFn ""  itemCostTransactionFaTransType itemCostTransactionFaTransNo}
@@ -125,6 +153,16 @@ getGLCheckItemCostItemViewR account item = do
               <td> #{tshowM itemCostTransactionMoveId}
               <td> #{tshowM itemCostTransactionGlDetail}
     |]
+
+-- * Saving
+postGLCheckItemCostAccountCollectR :: Text -> Handler Html
+postGLCheckItemCostAccountCollectR account = do
+  sku'counts <- loadPendingTransactionCountFor (Account account)
+  let skus = [sku | (sku,count,_) <- sku'counts, count /= 0]
+  mapM_ (collectCostTransactions (Account account)) skus
+  getGLCheckItemCostAccountViewR account
+
+
 
 formatDouble' :: Double -> Text
 formatDouble' = F.sformat (commasFixedWith' round 6)

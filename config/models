@@ -354,10 +354,13 @@ ItemCostTransaction sql=check_item_cost_transaction
   costAfter Double
   stockValue Double
   faStockValue Double
+  isLast Checkmark nullable
   moveCost Double -- current transaction cost price
   itemCostValidation ItemCostValidationId Maybe
   UniqueM moveId !force
   UniqueG glDetail !force
+  UniqueASL  account sku isLast !force
+  -- in theory we don't the account, but we might if the account changed in the lifetime of an item
   deriving Show
   deriving Eq
 

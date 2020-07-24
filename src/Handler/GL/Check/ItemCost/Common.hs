@@ -6,6 +6,8 @@ module Handler.GL.Check.ItemCost.Common
 , loadPendingTransactionCountFor
 , loadMovesAndTransactions
 , computeItemCostTransactions
+, collectCostTransactions
+, loadLastTransaction
 )
 where
 
@@ -38,7 +40,7 @@ getAccountSummary :: Account -> Handler AccountSummary
 getAccountSummary account = do
   asGLAmount <- glBalanceFor account
   asAccountName <- getAccountName account
-  asCorrectAmount <- return Nothing
+  asCorrectAmount <- getTotalCost account
   asStockValuation <- stockValuationFor account
   return AccountSummary{asAccount=account,..}
 
@@ -52,6 +54,17 @@ glBalanceFor (Account account) = do
    [(Single total)] -> return $ fromMaybe 0 total
    _ -> error "glBalanceFor should only returns one row. Please contact your Admininstrator!"
 
+
+getTotalCost :: Account -> Handler (Maybe Double)
+getTotalCost (Account account) = do
+  let sql = "select sum(stock_value) from check_item_cost_transaction "
+         <> " WHERE account = ?"
+         <> " AND is_last is not null"
+  rows <- runDB $ rawSql sql [toPersistValue account]
+  case rows of
+    [] -> return Nothing
+    [(Single total)] -> return $ total
+    _ -> error "glTotalCost should only returns one row. Please contact your Admininstrator!"
 
 getAccountName :: Account -> Handler Text
 getAccountName (Account account) = do
@@ -90,21 +103,26 @@ stockValuation (sku, cost) = do
 -- Load And join stock moves & gl trans of a given account and sku
 -- If the sku is not provided, load the gl trans which doesn't have the stock_id set.
 -- ONly load transaction not saved in inventory_cost_transaction
-loadMovesAndTransactions :: Account -> Maybe Text -> Handler [These (Entity FA.StockMove) (Entity FA.GlTran)]  
-loadMovesAndTransactions (Account account) Nothing = do
+loadMovesAndTransactions :: (Maybe ItemCostTransaction) -> Account -> Maybe Text -> Handler [These (Entity FA.StockMove) (Entity FA.GlTran)]  
+loadMovesAndTransactions lastm (Account account) Nothing = do
+  let maxGl = lastm >>= itemCostTransactionMoveId
   let sql = "SELECT ?? FROM 0_gl_trans "
-         <> " LEFT JOIN check_item_cost_transaction i ON (0_gl_trans.counter = i.gl_detail) "
+         -- <> " LEFT JOIN check_item_cost_transaction i ON (0_gl_trans.counter = i.gl_detail) "
          <> " WHERE 0_gl_trans.account = ? AND 0_gl_trans.stock_id IS NULL"
-         <> "   AND i.item_cost_transaction_id is NULL "
+         -- <> "   AND i.item_cost_transaction_id is NULL "
+         <> ( if isJust maxGl
+              then  "                      AND 0_gl_trans.counter > ?" 
+              else "" )
          <> " ORDER BY 0_gl_trans.tran_date, 0_gl_trans.counter"
          <> " LIMIT 100" -- TODO remove
       mkTrans = That
-  rows <- runDB $ rawSql sql [toPersistValue account]
+  rows <- runDB $ rawSql sql $ [toPersistValue account]
+                               ++ maybe [] (pure . toPersistValue) maxGl
   return $ map mkTrans rows
 
-loadMovesAndTransactions account (Just sku) = do
-   withMoves <- loadMovesAndTransactions' account sku
-   glOnly <- loadTransactionsWithNoMoves' account sku
+loadMovesAndTransactions lastm account (Just sku) = do
+   withMoves <- loadMovesAndTransactions' lastm account sku
+   glOnly <- loadTransactionsWithNoMoves' lastm account sku
    -- interleave two sort lists as sorted
    let interleave [] ys = ys
        interleave xs [] = xs
@@ -121,39 +139,63 @@ loadMovesAndTransactions account (Just sku) = do
    return $ interleave withMoves glOnly
 
 
-loadMovesAndTransactions' (Account account) sku = do
-  let sql = "SELECT ??, ?? FROM 0_stock_moves "
+loadMovesAndTransactions' lastm (Account account) sku = do
+  -- instead of checking if there is already an item in check_item_cost_transaction
+  -- we filter moves and gl trans by only using the one
+  -- newer than the ids found in the last ItemCostTransaction
+  -- ids in table are sequential, so it should work.
+  -- This is much faster than the initial behavior which is slow
+  -- even though it's is using index (BTree)
+  let maxGl = lastm >>= itemCostTransactionMoveId
+      maxMove = lastm >>= itemCostTransactionMoveId
+      sql = "SELECT ??, ?? FROM 0_stock_moves "
          <> " LEFT JOIN 0_gl_trans ON ( 0_stock_moves.stock_id = 0_gl_trans.stock_id"
          <> "                            AND 0_stock_moves.type = 0_gl_trans.type"
          <> "                            AND 0_stock_moves.trans_no = 0_gl_trans.type_no"
+         <> ( if isJust maxGl
+              then  "                      AND 0_gl_trans.counter > ?" 
+              else "" )
          <> "                            )"
-         <> " LEFT JOIN check_item_cost_transaction i ON (0_stock_moves.trans_id = move_id OR 0_gl_trans.counter = gl_detail) "
+         -- <> " LEFT JOIN check_item_cost_transaction i ON (0_stock_moves.trans_id = move_id OR 0_gl_trans.counter = gl_detail) "
          <> " WHERE (0_gl_trans.account = ? OR 0_gl_trans.account is NULL) AND 0_stock_moves.stock_id =  ? "
-         <> "   AND i.item_cost_transaction_id is NULL "
+         -- <> "   AND i.item_cost_transaction_id is NULL "
          <> "   AND 0_stock_moves.qty <> 0"
+         <> (if isJust maxMove
+            then  "                      AND 0_stock_moves.trans_id > ?" 
+            else "")
          <> " ORDER BY 0_stock_moves.tran_date, 0_stock_moves.trans_id"
          <> " LIMIT 100" -- TODO remove
       mkTrans m'g = case m'g of
                       (m, Nothing ) -> This m
                       (m, Just g ) -> These m g
-  rows <- runDB $ rawSql sql [toPersistValue account, toPersistValue sku]
+  rows <- runDB $ rawSql sql $ maybe [] (pure . toPersistValue) maxGl
+                               ++ [ toPersistValue account
+                                  , toPersistValue sku
+                                  ]
+                                ++ maybe [] (pure . toPersistValue) maxMove
   return $ map mkTrans rows
 
-loadTransactionsWithNoMoves' (Account account) sku = do
-  let sql = "SELECT ?? FROM 0_gl_trans "
+loadTransactionsWithNoMoves' lastm (Account account) sku = do
+  let maxGl = lastm >>= itemCostTransactionMoveId
+      sql = "SELECT ?? FROM 0_gl_trans "
          <> " LEFT JOIN 0_stock_moves ON ( 0_stock_moves.stock_id = 0_gl_trans.stock_id"
          <> "                            AND 0_stock_moves.type = 0_gl_trans.type"
          <> "                            AND 0_stock_moves.trans_no = 0_gl_trans.type_no"
          <> "                            AND 0_stock_moves.qty <> 0"
          <> "                            )"
-         <> " LEFT JOIN check_item_cost_transaction i ON (0_gl_trans.counter = i.gl_detail) "
+         -- <> " LEFT JOIN check_item_cost_transaction i ON (0_gl_trans.counter = i.gl_detail) "
          <> " WHERE 0_gl_trans.account = ? AND 0_gl_trans.stock_id = ? "
-         <> "   AND i.item_cost_transaction_id IS NULL"
+         -- <> "   AND i.item_cost_transaction_id IS NULL"
          <> "   AND 0_stock_moves.stock_id IS NULL "
+         <> ( if isJust maxGl
+              then  "                      AND 0_gl_trans.counter > ?" 
+              else "" )
          <> " ORDER BY 0_gl_trans.tran_date, 0_gl_trans.counter"
          <> " LIMIT 100" -- TODO remove
       mkTrans = That
-  rows <- runDB $ rawSql sql [toPersistValue account, toPersistValue sku]
+  rows <- runDB $ rawSql sql $ [toPersistValue account, toPersistValue sku]
+                               ++ maybe [] (pure . toPersistValue) maxGl
+                        
   return $ map mkTrans rows
 
 
@@ -165,13 +207,14 @@ loadMovesAndTransactionsFor account = do
   mapM_ computesTransactionCheck skums
   -}
 
-loadPendingTransactionCountFor :: Account -> Handler [(Maybe Text, Int)]
+loadPendingTransactionCountFor :: Account -> Handler [(Maybe Text, Int, Maybe ItemCostTransaction)]
 loadPendingTransactionCountFor account = do
   sku'_s <- getItemFor account
   let skums = Nothing : map (Just . fst) sku'_s
   forM skums $ \skum -> do
-    trans <- loadMovesAndTransactions account skum
-    return (skum, length trans)
+    lastm <- loadLastTransaction account skum
+    trans <- loadMovesAndTransactions (entityVal <$> lastm) account skum
+    return (skum, length trans, entityVal <$> lastm)
 
 
 
@@ -179,8 +222,8 @@ loadPendingTransactionCountFor account = do
 
 -- | This is the core routine which recalcuate the correct standard cost 
 -- and correct gl amount.
-computeItemCostTransactions :: Account -> [These (Entity FA.StockMove) (Entity FA.GlTran)] -> [ItemCostTransaction]
-computeItemCostTransactions (Account account0) sm'gls0 = let 
+computeItemCostTransactions :: (Maybe ItemCostTransaction) -> Account -> [These (Entity FA.StockMove) (Entity FA.GlTran)] -> [ItemCostTransaction]
+computeItemCostTransactions lastm (Account account0) sm'gls0 = let 
     -- first we need to make sure there is no duplicate 
     sm'gls = fixDuplicates sm'gls0
     mkTrans previous sm'gl = let
@@ -242,8 +285,9 @@ computeItemCostTransactions (Account account0) sm'gls0 = let
               , itemCostTransactionStockValue = stockValue
               , itemCostTransactionFaStockValue = faStockValue
               , itemCostTransactionItemCostValidation = Nothing
+              , itemCostTransactionIsLast = Inactive
              }
-    in catMaybes $ scanl'  mkTrans Nothing sm'gls
+    in catMaybes $ scanl'  mkTrans lastm sm'gls
 
 -- | If a transaction contains the same items many times, for example 2 moves and 2 gl_trans  
 -- instead of having 2 element in the list we will have the 4 (the cross product resulting from the join)
@@ -275,5 +319,23 @@ fixDuplicates move'gls = let
 
 
 
+collectCostTransactions :: Account -> (Maybe Text) -> Handler ()
+collectCostTransactions account skum = do
+  lastEm <- loadLastTransaction account skum
+  let lastm = entityVal <$> lastEm
+  trans0 <- loadMovesAndTransactions lastm account skum
+  let trans = computeItemCostTransactions lastm account trans0
+  runDB $ 
+     case reverse trans of
+        [] -> return ()
+        (last: reversed) -> do
+           forM lastEm $ \last -> update (entityKey last) [ItemCostTransactionIsLast =. Inactive]
+           insertMany_ (reverse reversed)
+           insert_ last {itemCostTransactionIsLast = Active}
   
+  
+loadLastTransaction :: Account -> (Maybe Text)  -> Handler (Maybe (Entity ItemCostTransaction))
+loadLastTransaction (Account account) skum = do
+  runDB $ getBy (UniqueASL account skum Active) 
+ 
 
