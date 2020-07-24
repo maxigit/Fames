@@ -97,7 +97,7 @@ getGLCheckItemCostItemViewR account item = do
                   <div> SB: #{formatDouble' itemCostTransactionCorrectAmount}
               <td> #{formatDouble' itemCostTransactionQuantity}
               $if equal itemCostTransactionCost itemCostTransactionMoveCost
-                <td.bd-success.text-success>
+                <td.bg-success.text-success>
                   #{formatDouble' itemCostTransactionCost}
               $else
                 <td.bg-danger.text-danger data-toggle="tooltip"
