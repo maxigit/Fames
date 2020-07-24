@@ -210,7 +210,7 @@ computeItemCostTransactions (Account account0) sm'gls0 = let
        costAfter =
          if qohAfter /= 0
          then stockValue / qohAfter
-         else costBefore 
+         else 0
        faStockValue = maybe 0 itemCostTransactionFaStockValue previous + faAmount
               
        stockValue = maybe 0 itemCostTransactionStockValue previous + cost * quantity
