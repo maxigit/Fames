@@ -59,6 +59,7 @@ getGLCheckItemCostItemViewR account item = do
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
   let trans = computeItemCostTransactions (Account account) trans0
       urlFn = urlForFA faURL
+      glUrlFn = glViewUrlForFA faURL
       equal a b = abs (a - b) < 1e-2
   defaultLayout $
     infoPanel (fromMaybe account item)  [whamlet|
@@ -85,7 +86,7 @@ getGLCheckItemCostItemViewR account item = do
             <tr>
               <td> #{tshow itemCostTransactionDate}
               <td> #{transNoWithLink urlFn ""  itemCostTransactionFaTransType itemCostTransactionFaTransNo}
-              <td> #{transactionIcon itemCostTransactionFaTransType}
+              <td> #{transIconWithLink glUrlFn "" itemCostTransactionFaTransType itemCostTransactionFaTransNo}
               $if equal itemCostTransactionFaAmount itemCostTransactionCorrectAmount
                 <td.bg-success.text-success>
                   #{formatDouble' itemCostTransactionFaAmount}
