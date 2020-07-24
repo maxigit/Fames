@@ -102,14 +102,33 @@ loadMovesAndTransactions (Account account) Nothing = do
   rows <- runDB $ rawSql sql [toPersistValue account]
   return $ map mkTrans rows
 
-loadMovesAndTransactions (Account account) (Just sku) = do
+loadMovesAndTransactions account (Just sku) = do
+   withMoves <- loadMovesAndTransactions' account sku
+   glOnly <- loadTransactionsWithNoMoves' account sku
+   -- interleave two sort lists as sorted
+   let interleave [] ys = ys
+       interleave xs [] = xs
+       interleave (x:xs) ys@(y:_) | x `before` y = x : interleave xs  ys
+       interleave xs (y:ys) = y : interleave xs  ys
+       -- compare date then gl counter
+      
+       get fa fb = mergeTheseWith (fa . entityVal) (fb . entityVal) const
+       before a b = key a < key b
+        where key x =  ( get FA.stockMoveTranDate FA.glTranTranDate x
+                       , entityKey <$> preview there x
+                       , entityKey <$> preview here x
+                       )
+   return $ interleave withMoves glOnly
+
+
+loadMovesAndTransactions' (Account account) sku = do
   let sql = "SELECT ??, ?? FROM 0_stock_moves "
          <> " LEFT JOIN 0_gl_trans ON ( 0_stock_moves.stock_id = 0_gl_trans.stock_id"
          <> "                            AND 0_stock_moves.type = 0_gl_trans.type"
          <> "                            AND 0_stock_moves.trans_no = 0_gl_trans.type_no"
          <> "                            )"
          <> " LEFT JOIN check_item_cost_transaction i ON (0_stock_moves.trans_id = move_id OR 0_gl_trans.counter = gl_detail) "
-         <> " WHERE 0_gl_trans.account = ? AND 0_stock_moves.stock_id =  ? "
+         <> " WHERE (0_gl_trans.account = ? OR 0_gl_trans.account is NULL) AND 0_stock_moves.stock_id =  ? "
          <> "   AND i.item_cost_transaction_id is NULL "
          <> " ORDER BY 0_stock_moves.tran_date, 0_stock_moves.trans_id"
          <> " LIMIT 100" -- TODO remove
@@ -119,6 +138,21 @@ loadMovesAndTransactions (Account account) (Just sku) = do
   rows <- runDB $ rawSql sql [toPersistValue account, toPersistValue sku]
   return $ map mkTrans rows
 
+loadTransactionsWithNoMoves' (Account account) sku = do
+  let sql = "SELECT ?? FROM 0_gl_trans "
+         <> " LEFT JOIN 0_stock_moves ON ( 0_stock_moves.stock_id = 0_gl_trans.stock_id"
+         <> "                            AND 0_stock_moves.type = 0_gl_trans.type"
+         <> "                            AND 0_stock_moves.trans_no = 0_gl_trans.type_no"
+         <> "                            )"
+         <> " LEFT JOIN check_item_cost_transaction i ON (0_gl_trans.counter = i.gl_detail) "
+         <> " WHERE 0_gl_trans.account = ? AND 0_gl_trans.stock_id = ? "
+         <> "   AND i.item_cost_transaction_id IS NULL"
+         <> "   AND 0_stock_moves.stock_id IS NULL "
+         <> " ORDER BY 0_gl_trans.tran_date, 0_gl_trans.counter"
+         <> " LIMIT 100" -- TODO remove
+      mkTrans = That
+  rows <- runDB $ rawSql sql [toPersistValue account, toPersistValue sku]
+  return $ map mkTrans rows
 
 
 {-
@@ -164,11 +198,13 @@ computeItemCostTransactions (Account account0) sm'gls0 = let
        faAmount = maybe 0 (FA.glTranAmount . entityVal) (preview there sm'gl)
        correctAmount = quantity * cost
        qohBefore = maybe 0 itemCostTransactionQohAfter previous
-       qohAfter = qohBefore + quantity
-       cost =  case (preview there sm'gl) of
+       qohAfter = qohBefore + quantity       
+       -- Try in order (gl transaction cost), previous, move
+       cost' =  case (preview there sm'gl) of
                   (Just (Entity _ gl)) | faTransType `elem` [ST_SUPPRECEIVE, ST_INVADJUST, ST_COSTUPDATE ]
                                        , quantity /= 0 -> FA.glTranAmount gl / quantity
-                  _ -> costBefore
+                  _ -> 0
+       cost = fromMaybe 0 $ headMay $ filter (/=0) [cost', costBefore, moveCost]
        moveCost = maybe 0 (FA.stockMoveStandardCost . entityVal) (preview here sm'gl)
        costBefore = maybe 0 itemCostTransactionCostAfter previous
        costAfter =

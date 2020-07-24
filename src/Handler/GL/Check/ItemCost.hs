@@ -7,6 +7,7 @@ where
 
 import Import
 import Handler.GL.Check.ItemCost.Common
+import Formatting as F
 
 getGLCheckItemCostR :: Handler Html
 getGLCheckItemCostR = do
@@ -27,9 +28,9 @@ getGLCheckItemCostR = do
             <td> 
                <a href=@{GLR $ GLCheckItemCostAccountViewR (fromAccount asAccount)}>
                  #{fromAccount asAccount} - #{asAccountName}
-            <td> #{formatDouble asGLAmount}
-            <td> #{maybe "" formatDouble asCorrectAmount}
-            <td> #{formatDouble asStockValuation}
+            <td> #{formatDouble' asGLAmount}
+            <td> #{maybe "" formatDouble' asCorrectAmount}
+            <td> #{formatDouble' asStockValuation}
     |]
 
 
@@ -87,31 +88,33 @@ getGLCheckItemCostItemViewR account item = do
               <td> #{transactionIcon itemCostTransactionFaTransType}
               $if equal itemCostTransactionFaAmount itemCostTransactionCorrectAmount
                 <td.bg-success.text-success>
-                  #{formatDouble itemCostTransactionFaAmount}
+                  #{formatDouble' itemCostTransactionFaAmount}
               $else
                 <td.bg-danger.text-danger>
-                  <div> FA: #{formatDouble itemCostTransactionFaAmount}
-                  <div> SB: #{formatDouble itemCostTransactionCorrectAmount}
-              <td> #{formatDouble itemCostTransactionQuantity}
+                  <div> FA: #{formatDouble' itemCostTransactionFaAmount}
+                  <div> SB: #{formatDouble' itemCostTransactionCorrectAmount}
+              <td> #{formatDouble' itemCostTransactionQuantity}
               $if equal itemCostTransactionCost itemCostTransactionMoveCost
                 <td.bd-success.text-success>
-                  #{formatDouble itemCostTransactionCost}
+                  #{formatDouble' itemCostTransactionCost}
               $else
                 <td.bg-danger.text-danger>
-                  <div> Move: #{formatDouble itemCostTransactionMoveCost}
-                  <div> SB: #{formatDouble itemCostTransactionCost}
+                  <div> Move: #{formatDouble' itemCostTransactionMoveCost}
+                  <div> SB: #{formatDouble' itemCostTransactionCost}
               $if equal itemCostTransactionStockValue itemCostTransactionFaStockValue
-                <td.bg-success.text-success> #{formatDouble itemCostTransactionStockValue}
+                <td.bg-success.text-success> #{formatDouble' itemCostTransactionStockValue}
               $else
                 <td.bg-danger.text-danger>
-                  <div> FA: #{formatDouble itemCostTransactionFaStockValue}
-                  <div> SB: #{formatDouble itemCostTransactionStockValue}
-              <td> #{formatDouble itemCostTransactionQohBefore}
-              <td> #{formatDouble itemCostTransactionQohAfter}
-              <td> #{formatDouble itemCostTransactionCostBefore}
-              <td> #{formatDouble itemCostTransactionCostAfter}
+                  <div> FA: #{formatDouble' itemCostTransactionFaStockValue}
+                  <div> SB: #{formatDouble' itemCostTransactionStockValue}
+              <td> #{formatDouble' itemCostTransactionQohBefore}
+              <td> #{formatDouble' itemCostTransactionQohAfter}
+              <td> #{formatDouble' itemCostTransactionCostBefore}
+              <td> #{formatDouble' itemCostTransactionCostAfter}
               <td> #{tshowM itemCostTransactionItemCostValidation}
               <td> #{tshowM itemCostTransactionMoveId}
               <td> #{tshowM itemCostTransactionGlDetail}
     |]
 
+formatDouble' :: Double -> Text
+formatDouble' = F.sformat (commasFixedWith round 6)
