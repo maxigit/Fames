@@ -19,18 +19,24 @@ getGLCheckItemCostR = do
         <thead>
           <tr>
             <th> Account
-            <th> GL Balance
-            <th> Correct Balance
-            <th> Stock Valuation
+            <th data-class-name="text-right"> GL Balance
+            <th data-class-name="text-right"> Correct Balance
+            <th data-class-name="text-right"> Stock Valuation
+            <th data-class-name="text-right"> Difference
         <tbody>
           $forall AccountSummary{..} <- summaries
            <tr>
             <td> 
                <a href=@{GLR $ GLCheckItemCostAccountViewR (fromAccount asAccount)}>
                  #{fromAccount asAccount} - #{asAccountName}
-            <td> #{formatDouble' asGLAmount}
+            <td> #{formatDouble asGLAmount}
             <td> #{maybe "" formatDouble' asCorrectAmount}
-            <td> #{formatDouble' asStockValuation}
+            <td> #{formatDouble asStockValuation}
+            $if equal' 0.01 asGLAmount asStockValuation
+              <td>
+              
+            $else
+              <td class="#{classFor 100 asGLAmount asStockValuation}"> #{formatDouble $ asGLAmount - asStockValuation}
     |]
 
 
@@ -60,11 +66,6 @@ getGLCheckItemCostItemViewR account item = do
   let trans = computeItemCostTransactions (Account account) trans0
       urlFn = urlForFA faURL
       glUrlFn = glViewUrlForFA faURL
-      equal = equal' 1e-6
-      equal' e a b = abs (a - b) < e
-      classFor e a b = if equal' e a b
-                     then "bg-warning text-warning" :: Text
-                     else "bg-danger text-danger"
   defaultLayout $
     infoPanel (fromMaybe account item)  [whamlet|
 
@@ -127,3 +128,9 @@ getGLCheckItemCostItemViewR account item = do
 
 formatDouble' :: Double -> Text
 formatDouble' = F.sformat (commasFixedWith' round 6)
+
+equal = equal' 1e-6
+equal' e a b = abs (a - b) < e
+classFor e a b = if equal' e a b
+                 then "bg-warning text-warning" :: Text
+                 else "bg-danger text-danger"
