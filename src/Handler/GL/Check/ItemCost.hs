@@ -58,28 +58,26 @@ getGLCheckItemCostItemViewR account item = do
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
   let trans = computeItemCostTransactions (Account account) trans0
       urlFn = urlForFA faURL
+      equal a b = abs (a - b) < 1e-2
   defaultLayout $
     infoPanel (fromMaybe account item)  [whamlet|
 
       <table *{datatable}>
         <thead>
               <th> Date
-              <th> FaTransNo
-              <th> FaTransType
-              <th> MovedId
-              <th> GlDetail
-              <th> FA Amount
+              <th> No
+              <th> Type
+              <th> Amount
               <th> Quantity
               <th> Cost
-              <th> Move Cost
-              <th> CorrectAmount
+              <th> Stock Value
               <th> QOHBefore
               <th> QOHAfter
               <th> CostBefore
               <th> CostAfter
-              <th> Stock Value
-              <th> FA Stock Value
               <th> CostValidation
+              <th> MovedId
+              <th> GlDetail
         <tbody>
           $forall ItemCostTransaction{..} <- trans
             $with _unused <- (itemCostTransactionAccount, itemCostTransactionSku)
@@ -87,19 +85,33 @@ getGLCheckItemCostItemViewR account item = do
               <td> #{tshow itemCostTransactionDate}
               <td> #{transNoWithLink urlFn ""  itemCostTransactionFaTransType itemCostTransactionFaTransNo}
               <td> #{transactionIcon itemCostTransactionFaTransType}
-              <td> #{tshowM itemCostTransactionMoveId}
-              <td> #{tshowM itemCostTransactionGlDetail}
-              <td> #{formatDouble itemCostTransactionFaAmount}
+              $if equal itemCostTransactionFaAmount itemCostTransactionCorrectAmount
+                <td.bg-success.text-success>
+                  #{formatDouble itemCostTransactionFaAmount}
+              $else
+                <td.bg-danger.text-danger>
+                  <div> FA: #{formatDouble itemCostTransactionFaAmount}
+                  <div> SB: #{formatDouble itemCostTransactionCorrectAmount}
               <td> #{formatDouble itemCostTransactionQuantity}
-              <td> #{formatDouble itemCostTransactionCost}
-              <td> #{formatDouble itemCostTransactionMoveCost}
-              <td> #{formatDouble itemCostTransactionCorrectAmount}
+              $if equal itemCostTransactionCost itemCostTransactionMoveCost
+                <td.bd-success.text-success>
+                  #{formatDouble itemCostTransactionCost}
+              $else
+                <td.bg-danger.text-danger>
+                  <div> Move: #{formatDouble itemCostTransactionMoveCost}
+                  <div> SB: #{formatDouble itemCostTransactionCost}
+              $if equal itemCostTransactionStockValue itemCostTransactionFaStockValue
+                <td.bg-success.text-success> #{formatDouble itemCostTransactionStockValue}
+              $else
+                <td.bg-danger.text-danger>
+                  <div> FA: #{formatDouble itemCostTransactionFaStockValue}
+                  <div> SB: #{formatDouble itemCostTransactionStockValue}
               <td> #{formatDouble itemCostTransactionQohBefore}
               <td> #{formatDouble itemCostTransactionQohAfter}
               <td> #{formatDouble itemCostTransactionCostBefore}
               <td> #{formatDouble itemCostTransactionCostAfter}
-              <td> #{formatDouble itemCostTransactionStockValue}
-              <td> #{formatDouble itemCostTransactionFaStockValue}
               <td> #{tshowM itemCostTransactionItemCostValidation}
+              <td> #{tshowM itemCostTransactionMoveId}
+              <td> #{tshowM itemCostTransactionGlDetail}
     |]
 
