@@ -68,17 +68,17 @@ getGLCheckItemCostItemViewR account item = do
               <th> Date
               <th> No
               <th> Type
-              <th> Amount
-              <th> Quantity
-              <th> Cost
-              <th> Stock Value
-              <th> QOHBefore
-              <th> QOHAfter
-              <th> CostBefore
-              <th> CostAfter
+              <th data-class-name="text-right"> Amount
+              <th data-class-name="text-right"> Quantity
+              <th data-class-name="text-right"> Cost
+              <th data-class-name="text-right"> Stock Value
+              <th data-class-name="text-right"> QOHBefore
+              <th data-class-name="text-right"> QOHAfter
+              <th data-class-name="text-right"> CostBefore
+              <th data-class-name="text-right"> CostAfter
               <th> CostValidation
-              <th> MovedId
-              <th> GlDetail
+              <th data-class-name="text-right"> MovedId
+              <th data-class-name="text-right"> GlDetail
         <tbody>
           $forall ItemCostTransaction{..} <- trans
             $with _unused <- (itemCostTransactionAccount, itemCostTransactionSku)
@@ -90,7 +90,8 @@ getGLCheckItemCostItemViewR account item = do
                 <td.bg-success.text-success>
                   #{formatDouble' itemCostTransactionFaAmount}
               $else
-                <td.bg-danger.text-danger>
+                <td.bg-danger.text-danger data-tople="tooltip"
+                  title="diff: #{formatDouble' $ itemCostTransactionFaAmount - itemCostTransactionCorrectAmount}">
                   <div> FA: #{formatDouble' itemCostTransactionFaAmount}
                   <div> SB: #{formatDouble' itemCostTransactionCorrectAmount}
               <td> #{formatDouble' itemCostTransactionQuantity}
@@ -98,13 +99,16 @@ getGLCheckItemCostItemViewR account item = do
                 <td.bd-success.text-success>
                   #{formatDouble' itemCostTransactionCost}
               $else
-                <td.bg-danger.text-danger>
+                <td.bg-danger.text-danger data-toggle="tooltip"
+                  title="#{formatDouble' $ itemCostTransactionCost - itemCostTransactionMoveCost}"
+                  >
                   <div> Move: #{formatDouble' itemCostTransactionMoveCost}
                   <div> SB: #{formatDouble' itemCostTransactionCost}
               $if equal itemCostTransactionStockValue itemCostTransactionFaStockValue
                 <td.bg-success.text-success> #{formatDouble' itemCostTransactionStockValue}
               $else
-                <td.bg-danger.text-danger>
+                <td.bg-danger.text-danger data-toggle="tooltip"
+                title="diff: #{formatDouble' $ itemCostTransactionFaStockValue - itemCostTransactionStockValue}" >
                   <div> FA: #{formatDouble' itemCostTransactionFaStockValue}
                   <div> SB: #{formatDouble' itemCostTransactionStockValue}
               <td> #{formatDouble' itemCostTransactionQohBefore}
@@ -117,4 +121,4 @@ getGLCheckItemCostItemViewR account item = do
     |]
 
 formatDouble' :: Double -> Text
-formatDouble' = F.sformat (commasFixedWith round 6)
+formatDouble' = F.sformat (commasFixedWith' round 6)
