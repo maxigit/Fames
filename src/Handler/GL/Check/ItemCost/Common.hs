@@ -115,7 +115,6 @@ loadMovesAndTransactions lastm (Account account) Nothing = do
               then  "                      AND 0_gl_trans.counter > ?" 
               else "" )
          <> " ORDER BY 0_gl_trans.tran_date, 0_gl_trans.counter"
-         <> " LIMIT 100" -- TODO remove
       mkTrans = That
   rows <- runDB $ rawSql sql $ [toPersistValue account]
                                ++ maybe [] (pure . toPersistValue) maxGl
@@ -165,7 +164,6 @@ loadMovesAndTransactions' lastm (Account account) sku = do
             then  "                      AND 0_stock_moves.trans_id > ?" 
             else "")
          <> " ORDER BY 0_stock_moves.tran_date, 0_stock_moves.trans_id"
-         <> " LIMIT 100" -- TODO remove
       mkTrans m'g = case m'g of
                       (m, Nothing ) -> This m
                       (m, Just g ) -> These m g
@@ -192,7 +190,6 @@ loadTransactionsWithNoMoves' lastm (Account account) sku = do
               then  "                      AND 0_gl_trans.counter > ?" 
               else "" )
          <> " ORDER BY 0_gl_trans.tran_date, 0_gl_trans.counter"
-         <> " LIMIT 100" -- TODO remove
       mkTrans = That
   rows <- runDB $ rawSql sql $ [toPersistValue account, toPersistValue sku]
                                ++ maybe [] (pure . toPersistValue) maxGl
