@@ -344,7 +344,7 @@ collectCostTransactions account skum = do
   trans0 <- loadMovesAndTransactions lastm account skum
   let trans = computeItemCostTransactions lastm account trans0
   runDB $ 
-     case reverse trans of
+     case sortOn (Down . ((,) <$> itemCostTransactionMoveId <*> itemCostTransactionGlDetail)) trans of
         [] -> return ()
         (last: reversed) -> do
            forM lastEm $ \last -> update (entityKey last) [ItemCostTransactionIsLast =. Inactive]
