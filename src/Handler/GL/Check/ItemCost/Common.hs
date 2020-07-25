@@ -14,6 +14,7 @@ where
 import Import
 import Database.Persist.Sql  (rawSql, Single(..))
 import qualified FA as FA
+import qualified Data.Map as Map
 import Lens.Micro.Extras (preview)
 import Data.Monoid(First(..))
 import Data.List(scanl')
@@ -293,8 +294,7 @@ computeItemCostTransactions lastm (Account account0) sm'gls0 = let
 -- instead of having 2 element in the list we will have the 4 (the cross product resulting from the join)
 fixDuplicates :: [These (Entity FA.StockMove) (Entity FA.GlTran)] -> [These (Entity FA.StockMove) (Entity FA.GlTran)]
 fixDuplicates move'gls = let
-  -- we assume that moves are sorted by transaction, so we can group them by transaction no and type 
-  trans = groupBy ((==) `on` transKey)  move'gls
+  trans = groupBy ((==) `on` transKey)  (sortOn transKey move'gls)
   transKey :: These (Entity FA.StockMove) (Entity FA.GlTran) -> (Int, Int)
   transKey = mergeTheseWith (((,) <$> FA.stockMoveTransNo <*> FA.stockMoveType) . entityVal)
                             (((,) <$> FA.glTranTypeNo <*> FA.glTranType) . entityVal)
@@ -302,19 +302,40 @@ fixDuplicates move'gls = let
   unduplicate m'gs = case m'gs of
          [m'g] -> [m'g]
          (m'g:_)  -> let
-            moves = mapMaybe getFirst $ toList $ groupAsMap entityKey (First . Just) $ mapMaybe (preview here) m'gs
+            (moves, cancellingPairs) = removeCancellingMoves $ mapMaybe getFirst $ toList $ groupAsMap entityKey (First . Just) $ mapMaybe (preview here) m'gs
             gls = mapMaybe getFirst $ toList $ groupAsMap entityKey (First . Just) $ mapMaybe (preview there) m'gs
-            in case (length moves , length gls) of
-               (0, 0 ) ->  []
-               (0, _ ) -> map That gls
-               (_, 0 ) -> map This moves
-               (moveLength, glLength) | moveLength == glLength && moveLength * glLength == length m'gs -> zipWith These moves gls 
-               _ -> error $ "Not cartesian product for " ++ (show $ transKey m'g) 
-                          ++ " moves: " ++ show (length moves)
-                          ++ " gls: " ++ show (length gls) 
+            in ( case (length moves , length gls) of
+                 (0, 0 ) ->  []
+                 (0, _ ) -> map That gls
+                 (_, 0 ) -> map This moves
+                 (moveLength, glLength) | moveLength == glLength && (moveLength + length cancellingPairs) * glLength == length m'gs -> zipWith These moves gls 
+                 _ -> error $ "Not cartesian product for " ++ (show $ transKey m'g) 
+                            ++ " moves: " ++ show (length moves)
+                            ++ " gls: " ++ show (length gls) 
+               ) ++ map This cancellingPairs
 
          _ -> error "unexpected"
   in concatMap unduplicate trans
+
+-- | some transactions contains moves which cancelled each others
+-- this is probably due to the way voiding some transaction is (was?) handled
+removeCancellingMoves :: [Entity FA.StockMove] -> ([Entity FA.StockMove], [Entity FA.StockMove])
+removeCancellingMoves moves = let
+   -- group moves by cost and absolute quantity
+   groups = Map.fromListWith (<>) [ ((abs (FA.stockMoveQty move), FA.stockMoveStandardCost move)
+                           , [e]
+                           )
+                         | e@(Entity _ move)  <- moves
+                         ]
+   cleanGroup mvs = let
+       (negs,pos) = partition ((<0) . FA.stockMoveQty . entityVal) mvs
+       cancelling = zip negs pos
+       leftover = concatMap (drop (length cancelling)) [negs, pos]
+       in (leftover, concatMap (\(a,b) -> [a,b]) cancelling)
+   (allLeftover, allCancelling) = mconcat $ map cleanGroup (toList groups)
+   in (sortOn entityKey allLeftover, sortOn entityKey allCancelling)
+
+
 
 
 
