@@ -2,6 +2,7 @@ module Handler.GL.Check.ItemCost
 ( getGLCheckItemCostR
 , getGLCheckItemCostAccountViewR
 , getGLCheckItemCostItemViewR
+, getGLCheckItemCostItemViewSavedR
 , postGLCheckItemCostAccountCollectR
 )
 where
@@ -69,9 +70,11 @@ getGLCheckItemCostAccountViewR account = do
         $forall (sku, count, lastm) <- sku'count'lasts
           <tr>
             <td>
-              <a href="@{GLR $ GLCheckItemCostItemViewR account sku}">
+              <a href="@{GLR $ GLCheckItemCostItemViewSavedR account sku}">
                 #{fromMaybe "<unknow sku>" sku}
-            <td> #{tshow count}
+            <td> 
+              <a href="@{GLR $ GLCheckItemCostItemViewR account sku}">
+                #{tshow count}
             $case lastm
               $of (Just last)
                 $if equal (itemCostTransactionFaStockValue last) (itemCostTransactionStockValue last)
@@ -98,12 +101,21 @@ getGLCheckItemCostItemViewR :: Text -> Maybe Text -> Handler Html
 getGLCheckItemCostItemViewR account item = do
   lastm <- loadLastTransaction (Account account) item
   trans0 <- loadMovesAndTransactions (entityVal <$> lastm) (Account account) item
-  faURL <- getsYesod (pack . appFAExternalURL . appSettings)
   let trans = computeItemCostTransactions (entityVal <$> lastm) (Account account) trans0
-      urlFn = urlForFA faURL
+  renderTransactions (fromMaybe account item) trans
+
+getGLCheckItemCostItemViewSavedR :: Text -> Maybe Text -> Handler Html
+getGLCheckItemCostItemViewSavedR account item = do
+    trans <- runDB $ selectList [ItemCostTransactionAccount ==. account, ItemCostTransactionSku ==. item] []
+    renderTransactions (fromMaybe account item) (map entityVal trans)
+
+renderTransactions :: Text -> [ItemCostTransaction] -> Handler Html 
+renderTransactions title trans = do
+  faURL <- getsYesod (pack . appFAExternalURL . appSettings)
+  let urlFn = urlForFA faURL
       glUrlFn = glViewUrlForFA faURL
   defaultLayout $
-    infoPanel (fromMaybe account item)  [whamlet|
+    infoPanel title  [whamlet|
 
       <table data-page-length=200 *{datatable}>
         <thead>
