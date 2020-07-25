@@ -54,6 +54,9 @@ getGLCheckItemCostR = do
 getGLCheckItemCostAccountViewR :: Text -> Handler Html
 getGLCheckItemCostAccountViewR account = do
   sku'count'lasts <- loadPendingTransactionCountFor (Account account)
+  let totalCount = sum $ [count | (_,count,_) <- sku'count'lasts] 
+      faStockValue = sum $ [ itemCostTransactionFaStockValue last | (_,_,Just last) <- sku'count'lasts] 
+      stockValue = sum $ [ itemCostTransactionStockValue last | (_,_,Just last) <- sku'count'lasts] 
   defaultLayout 
     [whamlet|
      <table *{datatable} data-page-length=200>
@@ -76,11 +79,16 @@ getGLCheckItemCostAccountViewR account = do
                 $else
                   <td class="#{classFor 0.5 (itemCostTransactionFaStockValue last) (itemCostTransactionStockValue last)}" data-toggle="tooltip"
                   title="diff: #{formatDouble $ (itemCostTransactionFaStockValue last) - (itemCostTransactionStockValue last)}" >
-                    <div> FA: #{formatDouble (itemCostTransactionFaStockValue last)}
-                <td> : #{formatDouble (itemCostTransactionStockValue last)}
+                    #{formatDouble (itemCostTransactionFaStockValue last)}
+                <td> #{formatDouble (itemCostTransactionStockValue last)}
               $of Nothing
                 <td>
                 <td>
+      <tfoot>
+        <th> Total
+        <th> #{tshow totalCount}
+        <th> #{formatDouble faStockValue }
+        <th> #{formatDouble stockValue}
      <form method=POST action="@{GLR $ GLCheckItemCostAccountCollectR account}">  
        <button.btn.btn-danger type="sumbit"> Collect
     |]
