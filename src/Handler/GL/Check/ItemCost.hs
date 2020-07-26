@@ -56,8 +56,8 @@ getGLCheckItemCostAccountViewR :: Text -> Handler Html
 getGLCheckItemCostAccountViewR account = do
   sku'count'lasts <- loadPendingTransactionCountFor (Account account)
   let totalCount = sum $ [count | (_,count,_) <- sku'count'lasts] 
-      faStockValue = sum $ [ itemCostTransactionFaStockValue last | (_,_,Just last) <- sku'count'lasts] 
-      stockValue = sum $ [ itemCostTransactionStockValue last | (_,_,Just last) <- sku'count'lasts] 
+      faStockValue = sum $ [ itemCostSummaryFaStockValue last | (_,_,Just last) <- sku'count'lasts] 
+      stockValue = sum $ [ itemCostSummaryStockValue last | (_,_,Just last) <- sku'count'lasts] 
   defaultLayout 
     [whamlet|
      <table *{datatable} data-page-length=200>
@@ -77,13 +77,13 @@ getGLCheckItemCostAccountViewR account = do
                 #{tshow count}
             $case lastm
               $of (Just last)
-                $if equal (itemCostTransactionFaStockValue last) (itemCostTransactionStockValue last)
-                  <td.bg-success.text-success> #{formatDouble (itemCostTransactionStockValue last)}
+                $if equal (itemCostSummaryFaStockValue last) (itemCostSummaryStockValue last)
+                  <td.bg-success.text-success> #{formatDouble (itemCostSummaryStockValue last)}
                 $else
-                  <td class="#{classFor 0.5 (itemCostTransactionFaStockValue last) (itemCostTransactionStockValue last)}" data-toggle="tooltip"
-                  title="diff: #{formatDouble $ (itemCostTransactionFaStockValue last) - (itemCostTransactionStockValue last)}" >
-                    #{formatDouble (itemCostTransactionFaStockValue last)}
-                <td> #{formatDouble (itemCostTransactionStockValue last)}
+                  <td class="#{classFor 0.5 (itemCostSummaryFaStockValue last) (itemCostSummaryStockValue last)}" data-toggle="tooltip"
+                  title="diff: #{formatDouble $ (itemCostSummaryFaStockValue last) - (itemCostSummaryStockValue last)}" >
+                    #{formatDouble (itemCostSummaryFaStockValue last)}
+                <td> #{formatDouble (itemCostSummaryStockValue last)}
               $of Nothing
                 <td>
                 <td>
@@ -99,7 +99,7 @@ getGLCheckItemCostAccountViewR account = do
 
 getGLCheckItemCostItemViewR :: Text -> Maybe Text -> Handler Html
 getGLCheckItemCostItemViewR account item = do
-  lastm <- loadLastTransaction (Account account) item
+  lastm <- loadCostSummary (Account account) item
   trans0 <- loadMovesAndTransactions (entityVal <$> lastm) (Account account) item
   let trans = computeItemCostTransactions (entityVal <$> lastm) (Account account) trans0
   renderTransactions (fromMaybe account item) trans
@@ -135,7 +135,7 @@ renderTransactions title trans = do
               <th data-class-name="text-right"> GlDetail
         <tbody>
           $forall ItemCostTransaction{..} <- trans
-            $with _unused <- (itemCostTransactionAccount, itemCostTransactionSku, itemCostTransactionIsLast)
+            $with _unused <- (itemCostTransactionAccount, itemCostTransactionSku)
             <tr>
               <td> #{tshow itemCostTransactionDate}
               <td> #{transNoWithLink urlFn ""  itemCostTransactionFaTransType itemCostTransactionFaTransNo}

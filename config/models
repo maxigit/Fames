@@ -354,16 +354,31 @@ ItemCostTransaction sql=check_item_cost_transaction
   costAfter Double
   stockValue Double
   faStockValue Double
-  isLast Checkmark nullable
   moveCost Double -- current transaction cost price
   itemCostValidation ItemCostValidationId Maybe
   UniqueM moveId !force
   UniqueG glDetail !force
-  UniqueASL  account sku isLast !force
-  -- in theory we don't the account, but we might if the account changed in the lifetime of an item
   deriving Show
   deriving Eq
 
+
+-- | Keep the last information 
+-- move and details can be used to filter stock_moves and gl_trans
+ItemCostSummary sql=check_item_cost_summary
+  Id sql=item_cost_transaction_id
+  date Day
+  moveId Int Maybe
+  glDetail Int Maybe
+  sku Text Maybe
+  account Text
+  qohAfter Double
+  costAfter Double
+  stockValue Double
+  faStockValue Double
+  UniqueAS  account sku !force
+  -- in theory we don't the account, but we might if the account changed in the lifetime of an item
+  deriving Show
+  deriving Eq
 
 
   
