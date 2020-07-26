@@ -54,10 +54,12 @@ getGLCheckItemCostR = do
 
 getGLCheckItemCostAccountViewR :: Text -> Handler Html
 getGLCheckItemCostAccountViewR account = do
-  sku'count'lasts <- loadPendingTransactionCountFor (Account account)
+  sku'count'lasts0 <- loadPendingTransactionCountFor (Account account)
   let totalCount = sum $ [count | (_,count,_) <- sku'count'lasts] 
       faStockValue = sum $ [ itemCostSummaryFaStockValue last | (_,_,Just last) <- sku'count'lasts] 
       stockValue = sum $ [ itemCostSummaryStockValue last | (_,_,Just last) <- sku'count'lasts] 
+      -- filter items with no transaction neither summary (so not used at all)
+      sku'count'lasts = filter (\(_, count, lastm) -> count /= 0 || isJust lastm) sku'count'lasts0
   defaultLayout 
     [whamlet|
      <table *{datatable} data-page-length=200>
