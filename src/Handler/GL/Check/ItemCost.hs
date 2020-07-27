@@ -16,16 +16,20 @@ getGLCheckItemCostR :: Handler Html
 getGLCheckItemCostR = do
   accounts <- getStockAccounts
   summaries <- mapM getAccountSummary accounts
+  let glBalance = sum (map asGLAmount summaries)
+      stockValue = sum (map asStockValuation summaries)
+      correctValue = sum (mapMaybe asCorrectAmount summaries)
   defaultLayout 
     [whamlet|
-      <table data-page-length=200 *{datatable}>
+      <table data-page-length=10 *{datatable}>
         <thead>
           <tr>
             <th> Account
             <th data-class-name="text-right"> GL Balance
             <th data-class-name="text-right"> Correct Balance
+            <th data-class-name="text-right"> GL Balance - Correct 
             <th data-class-name="text-right"> Stock Valuation
-            <th data-class-name="text-right"> Difference
+            <th data-class-name="text-right"> Stock Valuation - Correct
         <tbody>
           $forall AccountSummary{..} <- summaries
            <tr>
@@ -38,18 +42,30 @@ getGLCheckItemCostR = do
                 $if equal correct asGLAmount
                   <td.bg-success.text-success>
                       #{formatDouble correct}
+                  <td.bg-success.text-success>
+                      #{formatDouble $ abs $ asGLAmount - correct}
                 $else
                   <td class="#{classFor 100 asGLAmount correct}">
-                      <div>SB: #{formatDouble correct}
-                      <div>Diff:  #{formatDouble $ correct - asGLAmount}
+                      #{formatDouble correct}
+                  <td class="#{classFor 100 asGLAmount correct}">
+                      #{formatDouble $ abs $ correct - asGLAmount}
               $of Nothing
+                <td>
                 <td>
             <td> #{formatDouble asStockValuation}
             $if equal' 0.01 asGLAmount asStockValuation
-              <td>
-              
+              <td.bg-success.text-sucess>
+                #{formatDouble $ abs $ asGLAmount - asStockValuation}
             $else
               <td class="#{classFor 100 asGLAmount asStockValuation}"> #{formatDouble $ asGLAmount - asStockValuation}
+        <tfoot>
+          <tr>
+            <th> Total
+            <th> #{formatDouble glBalance}
+            <th> #{formatDouble correctValue}
+            <th> #{formatDouble $ glBalance - correctValue}
+            <th> #{formatDouble $ stockValue}
+            <th> #{formatDouble $ stockValue - correctValue}
     |]
 
 
