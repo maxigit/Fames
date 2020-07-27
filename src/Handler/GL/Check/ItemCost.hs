@@ -63,10 +63,11 @@ getGLCheckItemCostAccountViewR account = do
       sku'count'lasts = filter (\(_, count, lastm) -> count /= 0 || isJust lastm) sku'count'lasts0
   defaultLayout 
     [whamlet|
-     <table *{datatable} data-page-length=200>
+     <table *{datatable}>
       <thead>
         <th> Stock Id
         <th> Unchecked moves
+        <th> Gl - Correct
         <th> Checked GL
         <th> Checked Correct
       <tbody>
@@ -81,13 +82,16 @@ getGLCheckItemCostAccountViewR account = do
             $case lastm
               $of (Just last)
                 $if equal (itemCostSummaryFaStockValue last) (itemCostSummaryStockValue last)
+                  <td.bg-success.text-success> #{formatDouble (abs $ itemCostSummaryStockValue last - itemCostSummaryFaStockValue last)}
                   <td.bg-success.text-success> #{formatDouble (itemCostSummaryStockValue last)}
                 $else
-                  <td class="#{classFor 0.5 (itemCostSummaryFaStockValue last) (itemCostSummaryStockValue last)}" data-toggle="tooltip"
-                  title="diff: #{formatDouble $ (itemCostSummaryFaStockValue last) - (itemCostSummaryStockValue last)}" >
+                  <td."#{classFor 0.5 (itemCostSummaryFaStockValue last) (itemCostSummaryStockValue last)}" >
+                       #{formatDouble (abs $ itemCostSummaryStockValue last - itemCostSummaryFaStockValue last)}
+                  <td class="#{classFor 0.5 (itemCostSummaryFaStockValue last) (itemCostSummaryStockValue last)}">
                     #{formatDouble (itemCostSummaryFaStockValue last)}
                 <td> #{formatDouble (itemCostSummaryStockValue last)}
               $of Nothing
+                <td>
                 <td>
                 <td>
       <tfoot>
