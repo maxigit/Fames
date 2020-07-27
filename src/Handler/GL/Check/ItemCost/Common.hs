@@ -109,6 +109,7 @@ loadMovesAndTransactions lastm (Account account) Nothing = do
   let sql = "SELECT ?? FROM 0_gl_trans "
          -- <> " LEFT JOIN check_item_cost_transaction i ON (0_gl_trans.counter = i.gl_detail) "
          <> " WHERE 0_gl_trans.account = ? AND 0_gl_trans.stock_id IS NULL"
+         <> "   AND 0_gl_trans.amount <> 0 "
          -- <> "   AND i.item_cost_transaction_id is NULL "
          <> ( if isJust maxGl
               then  "                      AND 0_gl_trans.counter > ?" 
@@ -157,6 +158,7 @@ loadMovesAndTransactions' lastm (Account account) sku = do
          <> "                            )"
          -- <> " LEFT JOIN check_item_cost_transaction i ON (0_stock_moves.trans_id = move_id OR 0_gl_trans.counter = gl_detail) "
          <> " WHERE (0_gl_trans.account = ? OR 0_gl_trans.account is NULL) AND 0_stock_moves.stock_id =  ? "
+         <> "   AND 0_gl_trans.amount <> 0 "
          -- <> "   AND i.item_cost_transaction_id is NULL "
          <> "   AND 0_stock_moves.qty <> 0"
          <> (if isJust maxMove
@@ -183,6 +185,7 @@ loadTransactionsWithNoMoves' lastm (Account account) sku = do
          <> "                            )"
          -- <> " LEFT JOIN check_item_cost_transaction i ON (0_gl_trans.counter = i.gl_detail) "
          <> " WHERE 0_gl_trans.account = ? AND 0_gl_trans.stock_id = ? "
+         <> "   AND 0_gl_trans.amount <> 0 "
          -- <> "   AND i.item_cost_transaction_id IS NULL"
          <> "   AND 0_stock_moves.stock_id IS NULL "
          <> ( if isJust maxGl
