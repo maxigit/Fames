@@ -332,6 +332,15 @@ fixDuplicates move'gls = let
                  (0, _ ) -> Right $ map That gls
                  (_, 0 ) -> Right $ map This moves
                  (moveLength, glLength) | moveLength == glLength && (moveLength + length cancellingPairs) * glLength == length m'gs -> Right $ zipWith These moves gls 
+                 (1, 2) | (FA.stockMoveType . entityVal <$> preview here m'g) == Just (fromEnum ST_INVADJUST)
+                        , abs (sum (map (FA.glTranAmount . entityVal) gls)) < 1e-4
+                        ->
+                          -- ^ Inventory adjustment uses by mistake the same GL ACcount as the stock account and adjustment account
+                          -- In that case the stock account should be matched with the moves
+                          let direction = maybe False ((>0) . FA.stockMoveQty . entityVal) (preview here m'g)
+                          in case  (moves, partition ((== direction) . ((>0) . FA.glTranAmount . entityVal)) gls) of
+                               ([move], ([conv], [div])) -> Right $ [These move conv, That div]
+                               _ -> error ( "Unexpected happend") -- ^ we know we have 2 gl transactions
                  _ -> Left ( "Not cartesian product for " ++ (tshow $ transKey m'g) 
                             ++ " moves: " ++ tshow (length moves)
                             ++ " gls: " ++ tshow (length gls) 
