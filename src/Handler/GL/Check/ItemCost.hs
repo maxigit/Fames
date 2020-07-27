@@ -63,13 +63,13 @@ getGLCheckItemCostAccountViewR account = do
       sku'count'lasts = filter (\(_, count, lastm) -> count /= 0 || isJust lastm) sku'count'lasts0
   defaultLayout 
     [whamlet|
-     <table *{datatable}>
+     <table data-page-length=10 *{datatable}>
       <thead>
         <th> Stock Id
         <th> Unchecked moves
-        <th> Gl - Correct
-        <th> Checked GL
-        <th> Checked Correct
+        <th data-class-name="text-right"> Gl - Correct
+        <th data-class-name="text-right"> Checked GL
+        <th data-class-name="text-right"> Checked Correct
       <tbody>
         $forall (sku, count, lastm) <- sku'count'lasts
           <tr>
@@ -97,6 +97,7 @@ getGLCheckItemCostAccountViewR account = do
       <tfoot>
         <th> Total
         <th> #{tshow totalCount}
+        <th> #{formatDouble $ faStockValue - stockValue }
         <th> #{formatDouble faStockValue }
         <th> #{formatDouble stockValue}
      <form method=POST action="@{GLR $ GLCheckItemCostAccountCollectR account}">  

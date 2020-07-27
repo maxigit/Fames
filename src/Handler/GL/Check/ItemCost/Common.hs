@@ -34,6 +34,10 @@ data AccountSummary = AccountSummary
 getStockAccounts :: Handler [Account]
 getStockAccounts = do
   let sql = "select distinct(inventory_account) from 0_stock_master"
+  -- stockLike <- readFilterExpression . appFAStockLikeFilter . appSettings <$> getYesod
+  -- let sql = "select distinct(account) from 0_gl_trans where stock_id is not null and stock_id " <> filterEToSQL stockLike
+  --        <> " and amount <> 0"
+  --        ^ Find all accounts used by any stock transaction (filter by stock like)
   rows <- runDB $ rawSql sql []
   return $ map (Account . unSingle) rows
 
@@ -82,7 +86,8 @@ stockValuationFor account = do
 
 getItemFor :: Account -> Handler [(Text, Double)]
 getItemFor (Account account) = do
-  let sql = "select stock_id, material_cost from 0_stock_master where inventory_account = ?"
+  -- let sql = "select stock_id, material_cost from 0_stock_master where inventory_account = ?"
+  let sql = "select stock_id, material_cost from 0_stock_master where stock_id IN (select distinct stock_id from 0_gl_trans where account = ?)"
   runDB $ map (bimap unSingle unSingle)  <$> rawSql sql [toPersistValue account]
 
 -- | Stock valuation for 
