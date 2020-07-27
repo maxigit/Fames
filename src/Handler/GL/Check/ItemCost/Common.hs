@@ -219,7 +219,7 @@ loadPendingTransactionCountFor account = do
 
 -- | This is the core routine which recalcuate the correct standard cost 
 -- and correct gl amount.
-computeItemCostTransactions :: (Maybe ItemCostSummary) -> Account -> [These (Entity FA.StockMove) (Entity FA.GlTran)] -> [ItemCostTransaction]
+computeItemCostTransactions :: (Maybe ItemCostSummary) -> Account -> [These (Entity FA.StockMove) (Entity FA.GlTran)] -> Either (Text, [These (Entity FA.StockMove) (Entity FA.GlTran)])  [ItemCostTransaction]
 computeItemCostTransactions summarym (Account account0) sm'gls0 = let 
     -- first we need to make sure there is no duplicate 
     lastm = case summarym of
@@ -307,11 +307,12 @@ computeItemCostTransactions summarym (Account account0) sm'gls0 = let
               , itemCostTransactionFaStockValue = faStockValue
               , itemCostTransactionItemCostValidation = Nothing
              }
-    in catMaybes $ scanl'  mkTrans lastm sm'gls
+    in fmap (catMaybes . scanl'  mkTrans lastm) sm'gls
 
 -- | If a transaction contains the same items many times, for example 2 moves and 2 gl_trans  
 -- instead of having 2 element in the list we will have the 4 (the cross product resulting from the join)
-fixDuplicates :: [These (Entity FA.StockMove) (Entity FA.GlTran)] -> [These (Entity FA.StockMove) (Entity FA.GlTran)]
+-- In case duplicates can't be fixed returns (Left) the faulty transactions
+fixDuplicates :: [These (Entity FA.StockMove) (Entity FA.GlTran)] -> Either (Text, [These (Entity FA.StockMove) (Entity FA.GlTran)]) [These (Entity FA.StockMove) (Entity FA.GlTran)]
 fixDuplicates move'gls = let
   trans = groupBy ((==) `on` transKey)  (sortOn transKey move'gls)
   transKey :: These (Entity FA.StockMove) (Entity FA.GlTran) -> (Int, Int)
@@ -319,22 +320,23 @@ fixDuplicates move'gls = let
                             (((,) <$> FA.glTranTypeNo <*> FA.glTranType) . entityVal)
                             const
   unduplicate m'gs = case m'gs of
-         [m'g] -> [m'g]
+         [m'g] -> Right [m'g]
          (m'g:_)  -> let
             (moves, cancellingPairs) = removeCancellingMoves $ mapMaybe getFirst $ toList $ groupAsMap entityKey (First . Just) $ mapMaybe (preview here) m'gs
             gls = mapMaybe getFirst $ toList $ groupAsMap entityKey (First . Just) $ mapMaybe (preview there) m'gs
             in ( case (length moves , length gls) of
-                 (0, 0 ) ->  []
-                 (0, _ ) -> map That gls
-                 (_, 0 ) -> map This moves
-                 (moveLength, glLength) | moveLength == glLength && (moveLength + length cancellingPairs) * glLength == length m'gs -> zipWith These moves gls 
-                 _ -> error $ "Not cartesian product for " ++ (show $ transKey m'g) 
-                            ++ " moves: " ++ show (length moves)
-                            ++ " gls: " ++ show (length gls) 
-               ) ++ map This cancellingPairs
+                 (0, 0 ) ->  Right []
+                 (0, _ ) -> Right $ map That gls
+                 (_, 0 ) -> Right $ map This moves
+                 (moveLength, glLength) | moveLength == glLength && (moveLength + length cancellingPairs) * glLength == length m'gs -> Right $ zipWith These moves gls 
+                 _ -> Left ( "Not cartesian product for " ++ (tshow $ transKey m'g) 
+                            ++ " moves: " ++ tshow (length moves)
+                            ++ " gls: " ++ tshow (length gls) 
+                            , m'gs)
+               ) <&> (++ (map This cancellingPairs))
 
-         _ -> error "unexpected"
-  in concatMap unduplicate trans
+         _ -> Left ( "unexpected", m'gs)
+  in concat <$> mapM unduplicate trans
 
 -- | some transactions contains moves which cancelled each others
 -- this is probably due to the way voiding some transaction is (was?) handled
@@ -359,29 +361,30 @@ removeCancellingMoves moves = let
 
 
 
-collectCostTransactions :: Account -> (Maybe Text) -> Handler ()
+collectCostTransactions :: Account -> (Maybe Text) -> Handler (Either (Text, [These (Entity FA.StockMove) (Entity FA.GlTran)]) ())
 collectCostTransactions account skum = do
   lastEm <- loadCostSummary account skum
   let lastm = entityVal <$> lastEm
   trans0 <- loadMovesAndTransactions lastm account skum
-  let trans = computeItemCostTransactions lastm account trans0
-  runDB $ 
-     case lastMay trans of
-        Nothing -> return ()
-        Just summary  -> do
-           insertMany_ trans
-           let itemCostSummaryDate = itemCostTransactionDate  summary
-               itemCostSummaryMoveId = maximumMay $ mapMaybe itemCostTransactionMoveId trans :: Maybe Int
-               itemCostSummaryGlDetail = maximumMay $ mapMaybe itemCostTransactionGlDetail trans
-               itemCostSummarySku = itemCostTransactionSku summary
-               itemCostSummaryAccount = itemCostTransactionAccount summary
-               itemCostSummaryQohAfter = itemCostTransactionQohAfter summary
-               itemCostSummaryCostAfter = itemCostTransactionCostAfter summary
-               itemCostSummaryStockValue = itemCostTransactionStockValue summary
-               itemCostSummaryFaStockValue = itemCostTransactionFaStockValue summary
-           case lastEm of
-             Nothing -> insert_ ItemCostSummary{..}
-             Just (Entity key _) -> repsert key ItemCostSummary{..}
+  let transE = computeItemCostTransactions lastm account trans0
+  forM transE $ \trans -> 
+    runDB $ 
+       case lastMay trans of
+          Nothing -> return ()
+          Just summary  -> do
+             insertMany_ trans
+             let itemCostSummaryDate = itemCostTransactionDate  summary
+                 itemCostSummaryMoveId = maximumMay $ mapMaybe itemCostTransactionMoveId trans :: Maybe Int
+                 itemCostSummaryGlDetail = maximumMay $ mapMaybe itemCostTransactionGlDetail trans
+                 itemCostSummarySku = itemCostTransactionSku summary
+                 itemCostSummaryAccount = itemCostTransactionAccount summary
+                 itemCostSummaryQohAfter = itemCostTransactionQohAfter summary
+                 itemCostSummaryCostAfter = itemCostTransactionCostAfter summary
+                 itemCostSummaryStockValue = itemCostTransactionStockValue summary
+                 itemCostSummaryFaStockValue = itemCostTransactionFaStockValue summary
+             case lastEm of
+               Nothing -> insert_ ItemCostSummary{..}
+               Just (Entity key _) -> repsert key ItemCostSummary{..}
   
   
 loadCostSummary :: Account -> (Maybe Text)  -> Handler (Maybe (Entity ItemCostSummary))

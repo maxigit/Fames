@@ -10,6 +10,7 @@ where
 import Import
 import Handler.GL.Check.ItemCost.Common
 import Formatting as F
+import qualified FA as FA
 
 getGLCheckItemCostR :: Handler Html
 getGLCheckItemCostR = do
@@ -103,8 +104,8 @@ getGLCheckItemCostItemViewR :: Text -> Maybe Text -> Handler Html
 getGLCheckItemCostItemViewR account item = do
   lastm <- loadCostSummary (Account account) item
   trans0 <- loadMovesAndTransactions (entityVal <$> lastm) (Account account) item
-  let trans = computeItemCostTransactions (entityVal <$> lastm) (Account account) trans0
-  renderTransactions (fromMaybe account item) trans
+  let transE = computeItemCostTransactions (entityVal <$> lastm) (Account account) trans0
+  either (renderDuplicates account) (renderTransactions (fromMaybe account item)) transE
 
 getGLCheckItemCostItemViewSavedR :: Text -> Maybe Text -> Handler Html
 getGLCheckItemCostItemViewSavedR account item = do
@@ -176,13 +177,74 @@ renderTransactions title trans = do
               <td> #{tshowM itemCostTransactionGlDetail}
     |]
 
+-- | Displays stockmoves and gl trans resulting of a "duplicate"
+-- : we can' not untangle their cartesian product. (see fixDuplicates)
+renderDuplicates :: Text -> (Text, [These (Entity FA.StockMove) (Entity FA.GlTran)]) -> Handler Html
+renderDuplicates account (err,move'gls) = do
+  faURL <- getsYesod (pack . appFAExternalURL . appSettings)
+  let urlFn = urlForFA faURL
+      glUrlFn = glViewUrlForFA faURL
+  defaultLayout $
+    dangerPanel (account) [whamlet|
+      <div.bg-danger.text-danger>
+        #{err}
+      <table *{datatable}>
+        <thead>
+          <th> Date
+          <th> Quantity
+          <th> Cost/Amount
+          <th> Sku
+          <th> Location
+          <th>
+          <th>
+          <th> Id
+        <tbody>
+          $forall m'g <- move'gls
+            <tr>
+              $case m'g
+                $of (This (Entity moveId move))
+                  <td> #{tshow $ FA.stockMoveTranDate  move}
+                  <td> #{formatDouble' $ FA.stockMoveQty  move}
+                  <td> #{formatDouble' $ FA.stockMoveStandardCost  move}
+                  <td> #{tshow $ FA.stockMoveStockId  move}
+                  <td> #{tshow $ FA.stockMoveLocCode  move}
+                  <td> #{transNoWithLink urlFn "" (toEnum $ FA.stockMoveType move) (FA.stockMoveTransNo move)}
+                  <td> #{transIconWithLink glUrlFn "" (toEnum $ FA.stockMoveType move) (FA.stockMoveTransNo move)}
+                  <td> #{tshow $ FA.unStockMoveKey moveId}
+                $of (That (Entity detailId gl))
+                  <td> #{tshow $ FA.glTranTranDate gl}
+                  <td> 
+                  <td> #{formatDouble' $ FA.glTranAmount  gl}
+                  <td> #{tshowM $ FA.glTranStockId  gl}
+                  <td> 
+                  <td> #{transNoWithLink urlFn "" (toEnum $ FA.glTranType gl) (FA.glTranTypeNo gl)}
+                  <td> #{transIconWithLink glUrlFn "" (toEnum $ FA.glTranType gl) (FA.glTranTypeNo gl)}
+                  <td> #{tshow $ FA.unGlTranKey detailId}
+                $of (These (Entity moveId move) (Entity detailId gl))
+                  <td> #{tshow $ FA.stockMoveTranDate  move}
+                  <td> #{formatDouble' $ FA.stockMoveQty  move}
+                  <td>
+                    <div> #{formatDouble' $ FA.stockMoveStandardCost  move}
+                    <div> #{formatDouble' $ FA.glTranAmount  gl}
+                  <td> #{tshow $ FA.stockMoveStockId  move}
+                  <td> #{tshow $ FA.stockMoveLocCode  move}
+                  <td> #{transNoWithLink urlFn "" (toEnum $ FA.stockMoveType move) (FA.stockMoveTransNo move)}
+                  <td> #{transIconWithLink glUrlFn "" (toEnum $ FA.stockMoveType move) (FA.stockMoveTransNo move)}
+                  <td> 
+                    <div>#{tshow $ FA.unStockMoveKey moveId} 
+                    <div>#{tshow $ FA.unGlTranKey detailId}
+
+    |]
+    
 -- * Saving
 postGLCheckItemCostAccountCollectR :: Text -> Handler Html
 postGLCheckItemCostAccountCollectR account = do
   sku'counts <- loadPendingTransactionCountFor (Account account)
   let skus = [sku | (sku,count,_) <- sku'counts, count /= 0]
-  mapM_ (collectCostTransactions (Account account)) skus
-  getGLCheckItemCostAccountViewR account
+  transE <- mapM (collectCostTransactions (Account account)) skus
+  case partitionEithers transE of
+    ([], _ ) -> getGLCheckItemCostAccountViewR account
+    (duplicatess, _ ) -> mconcat <$> mapM (renderDuplicates account) duplicatess
 
 
 
