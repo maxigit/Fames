@@ -401,6 +401,7 @@ collectCostTransactions account skum = do
   
 loadCostSummary :: Account -> (Maybe Text)  -> Handler (Maybe (Entity ItemCostSummary))
 loadCostSummary (Account account) skum = do
-  runDB $ getBy (UniqueAS account skum ) 
+  runDB $ selectFirst [ItemCostSummaryAccount ==. account, ItemCostSummarySku ==. skum] []
+     
  
 
