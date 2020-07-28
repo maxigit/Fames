@@ -4,6 +4,7 @@ module Handler.GL.Check.ItemCost
 , getGLCheckItemCostItemViewR
 , getGLCheckItemCostItemViewSavedR
 , postGLCheckItemCostAccountCollectR
+, postGLCheckItemCostCollectAllR
 )
 where
 
@@ -51,6 +52,9 @@ getGLCheckItemCostR = do
                       #{formatDouble $ abs $ correct - asGLAmount}
               $of Nothing
                 <td>
+                    <form method=POST action="@{GLR $ GLCheckItemCostAccountCollectR (fromAccount asAccount)}">  
+                       <button.btn.btn-danger type="sumbit"> Collect
+                   
                 <td>
             <td> #{formatDouble asStockValuation}
             $if equal' 0.01 asGLAmount asStockValuation
@@ -66,6 +70,8 @@ getGLCheckItemCostR = do
             <th> #{formatDouble $ glBalance - correctValue}
             <th> #{formatDouble $ stockValue}
             <th> #{formatDouble $ stockValue - correctValue}
+     <form method=POST action="@{GLR $ GLCheckItemCostCollectAllR}">  
+       <button.btn.btn-danger type="sumbit"> Collect All
     |]
 
 
@@ -266,6 +272,12 @@ postGLCheckItemCostAccountCollectR account = do
   case partitionEithers transE of
     ([], _ ) -> getGLCheckItemCostAccountViewR account
     (duplicatess, _ ) -> mconcat <$> mapM (renderDuplicates account) duplicatess
+
+postGLCheckItemCostCollectAllR :: Handler Html
+postGLCheckItemCostCollectAllR = do
+  accounts <- getStockAccounts
+  mapM (postGLCheckItemCostAccountCollectR . fromAccount) accounts
+  redirect $ GLR GLCheckItemCostR
 
 
 

@@ -57,6 +57,7 @@
   /check/item_cost GLCheckItemCostR GET !check !title=Inventory_Cost !fix
   /check/item_cost/account/#Text GLCheckItemCostAccountViewR GET !check
   /check/item_cost/collect/account/#Text GLCheckItemCostAccountCollectR POST !check !fix
+  /check/item_cost/collect/all GLCheckItemCostCollectAllR POST !check !fix
   /check/item_cost/item/pending/#Text/#Maybe-Text GLCheckItemCostItemViewR GET !check !fix
   /check/item_cost/item/done/#Text/#Maybe-Text GLCheckItemCostItemViewSavedR GET !check !fix
 
