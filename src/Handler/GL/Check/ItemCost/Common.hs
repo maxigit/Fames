@@ -160,6 +160,7 @@ loadMovesAndTransactions' lastm (Account account) sku = do
          <> " LEFT JOIN 0_gl_trans ON ( 0_stock_moves.stock_id = 0_gl_trans.stock_id"
          <> "                            AND 0_stock_moves.type = 0_gl_trans.type"
          <> "                            AND 0_stock_moves.trans_no = 0_gl_trans.type_no"
+         <> "                            AND 0_gl_trans.amount <> 0 "
          <> ( if isJust maxGl
               then  "                      AND 0_gl_trans.counter > ?" 
               else "" )
@@ -167,7 +168,6 @@ loadMovesAndTransactions' lastm (Account account) sku = do
          <> "LEFT JOIN (SELECT MIN(id) as seq, trans_no, type FROM 0_audit_trail GROUP BY trans_no, type) as audit ON (0_stock_moves.trans_no = audit.trans_no AND 0_stock_moves.type = audit.type) "
          -- <> " LEFT JOIN check_item_cost_transaction i ON (0_stock_moves.trans_id = move_id OR 0_gl_trans.counter = gl_detail) "
          <> " WHERE (0_gl_trans.account = ? OR 0_gl_trans.account is NULL) AND 0_stock_moves.stock_id =  ? "
-         <> "   AND 0_gl_trans.amount <> 0 "
          -- <> "   AND i.item_cost_transaction_id is NULL "
          <> "   AND 0_stock_moves.qty <> 0"
          <> (if isJust maxMove
