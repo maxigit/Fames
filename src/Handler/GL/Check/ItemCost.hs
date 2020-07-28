@@ -220,7 +220,7 @@ renderDuplicates account (err,move'gls) = do
           <th>
           <th> Id
         <tbody>
-          $forall m'g <- move'gls
+          $forall (m'g, _) <- move'gls
             <tr>
               $case m'g
                 $of (This (Entity moveId move))

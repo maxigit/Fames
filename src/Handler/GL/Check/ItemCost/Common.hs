@@ -32,7 +32,7 @@ data AccountSummary = AccountSummary
   }
   deriving (Show)
 
-type Matched = These (Entity FA.StockMove) (Entity FA.GlTran)
+type Matched = (These (Entity FA.StockMove) (Entity FA.GlTran), Int)
 -- * Summaries
 getStockAccounts :: Handler [Account]
 getStockAccounts = do
@@ -114,8 +114,9 @@ stockValuation (sku, cost) = do
 loadMovesAndTransactions :: (Maybe ItemCostSummary) -> Account -> Maybe Text -> Handler [Matched]  
 loadMovesAndTransactions lastm (Account account) Nothing = do
   let maxGl = lastm >>= itemCostSummaryGlDetail
-  let sql = "SELECT ?? FROM 0_gl_trans "
+  let sql = "SELECT ??,seq FROM 0_gl_trans "
          -- <> " LEFT JOIN check_item_cost_transaction i ON (0_gl_trans.counter = i.gl_detail) "
+         <> "LEFT JOIN (SELECT MIN(id) AS seq, trans_no, type FROM 0_audit_trail GROUP BY trans_no, type) as audit ON (audit.trans_no = 0_gl_trans.type_no AND  audit.type = 0_gl_trans.type) "
          <> " WHERE 0_gl_trans.account = ? AND 0_gl_trans.stock_id IS NULL"
          <> "   AND 0_gl_trans.amount <> 0 "
          -- <> "   AND i.item_cost_transaction_id is NULL "
@@ -123,7 +124,7 @@ loadMovesAndTransactions lastm (Account account) Nothing = do
               then  "                      AND 0_gl_trans.counter > ?" 
               else "" )
          <> " ORDER BY 0_gl_trans.tran_date, 0_gl_trans.counter"
-      mkTrans = That
+      mkTrans (gl, Single seq)= (That gl, seq)
   rows <- runDB $ rawSql sql $ [toPersistValue account]
                                ++ maybe [] (pure . toPersistValue) maxGl
   return $ map mkTrans rows
@@ -140,9 +141,8 @@ loadMovesAndTransactions lastm account (Just sku) = do
       
        get fa fb = mergeTheseWith (fa . entityVal) (fb . entityVal) const
        before a b = key a < key b
-        where key x =  ( get FA.stockMoveTranDate FA.glTranTranDate x
-                       , entityKey <$> preview there x
-                       , entityKey <$> preview here x
+        where key (x, seq) =  ( get FA.stockMoveTranDate FA.glTranTranDate x
+                       , seq
                        )
    return $ interleave withMoves glOnly
 
@@ -156,7 +156,7 @@ loadMovesAndTransactions' lastm (Account account) sku = do
   -- even though it's is using index (BTree)
   let maxGl = lastm >>= itemCostSummaryGlDetail
       maxMove = lastm >>= itemCostSummaryMoveId
-      sql = "SELECT ??, ?? FROM 0_stock_moves "
+      sql = "SELECT ??, ??, seq FROM 0_stock_moves "
          <> " LEFT JOIN 0_gl_trans ON ( 0_stock_moves.stock_id = 0_gl_trans.stock_id"
          <> "                            AND 0_stock_moves.type = 0_gl_trans.type"
          <> "                            AND 0_stock_moves.trans_no = 0_gl_trans.type_no"
@@ -164,6 +164,7 @@ loadMovesAndTransactions' lastm (Account account) sku = do
               then  "                      AND 0_gl_trans.counter > ?" 
               else "" )
          <> "                            )"
+         <> "LEFT JOIN (SELECT MIN(id) as seq, trans_no, type FROM 0_audit_trail GROUP BY trans_no, type) as audit ON (0_stock_moves.trans_no = audit.trans_no AND 0_stock_moves.type = audit.type) "
          -- <> " LEFT JOIN check_item_cost_transaction i ON (0_stock_moves.trans_id = move_id OR 0_gl_trans.counter = gl_detail) "
          <> " WHERE (0_gl_trans.account = ? OR 0_gl_trans.account is NULL) AND 0_stock_moves.stock_id =  ? "
          <> "   AND 0_gl_trans.amount <> 0 "
@@ -172,10 +173,10 @@ loadMovesAndTransactions' lastm (Account account) sku = do
          <> (if isJust maxMove
             then  "                      AND 0_stock_moves.trans_id > ?" 
             else "")
-         <> " ORDER BY 0_stock_moves.tran_date, 0_stock_moves.trans_id"
+         <> " ORDER BY 0_stock_moves.tran_date, seq, 0_stock_moves.trans_id"
       mkTrans m'g = case m'g of
-                      (m, Nothing ) -> This m
-                      (m, Just g ) -> These m g
+                      (m, Nothing, Single seq ) -> (This m, seq)
+                      (m, Just g, Single seq ) -> (These m g, seq)
   rows <- runDB $ rawSql sql $ maybe [] (pure . toPersistValue) maxGl
                                ++ [ toPersistValue account
                                   , toPersistValue sku
@@ -185,13 +186,14 @@ loadMovesAndTransactions' lastm (Account account) sku = do
 
 loadTransactionsWithNoMoves' lastm (Account account) sku = do
   let maxGl = lastm >>= itemCostSummaryGlDetail
-      sql = "SELECT ?? FROM 0_gl_trans "
+      sql = "SELECT ??, seq FROM 0_gl_trans "
          <> " LEFT JOIN 0_stock_moves ON ( 0_stock_moves.stock_id = 0_gl_trans.stock_id"
          <> "                            AND 0_stock_moves.type = 0_gl_trans.type"
          <> "                            AND 0_stock_moves.trans_no = 0_gl_trans.type_no"
          <> "                            AND 0_stock_moves.qty <> 0"
          <> "                            )"
          -- <> " LEFT JOIN check_item_cost_transaction i ON (0_gl_trans.counter = i.gl_detail) "
+         <> "LEFT JOIN (SELECT MIN(id) AS seq, trans_no, type FROM 0_audit_trail GROUP BY trans_no, type) as audit ON (audit.trans_no = 0_gl_trans.type_no AND  audit.type = 0_gl_trans.type) "
          <> " WHERE 0_gl_trans.account = ? AND 0_gl_trans.stock_id = ? "
          <> "   AND 0_gl_trans.amount <> 0 "
          -- <> "   AND i.item_cost_transaction_id IS NULL"
@@ -200,7 +202,7 @@ loadTransactionsWithNoMoves' lastm (Account account) sku = do
               then  "                      AND 0_gl_trans.counter > ?" 
               else "" )
          <> " ORDER BY 0_gl_trans.tran_date, 0_gl_trans.counter"
-      mkTrans = That
+      mkTrans (gl, Single seq) = (That gl, seq)
   rows <- runDB $ rawSql sql $ [toPersistValue account, toPersistValue sku]
                                ++ maybe [] (pure . toPersistValue) maxGl
                         
@@ -258,7 +260,7 @@ computeItemCostTransactions summarym (Account account0) sm'gls0 = let
             in Just ItemCostTransaction{..}
           
     sm'gls = fixDuplicates sm'gls0
-    mkTrans previous sm'gl = let
+    mkTrans previous (sm'gl, _seq) = let
        smM = preview here sm'gl
        glM = preview there sm'gl
        get :: (FA.StockMove -> a) 
@@ -325,21 +327,22 @@ computeItemCostTransactions summarym (Account account0) sm'gls0 = let
 -- In case duplicates can't be fixed returns (Left) the faulty transactions
 fixDuplicates :: [Matched] -> Either (Text, [Matched]) [Matched]
 fixDuplicates move'gls = let
-  trans = groupBy ((==) `on` transKey)  (sortOn transKey move'gls)
-  transKey :: Matched -> (Int, Int)
+  trans = groupBy ((==) `on` snd)  (move'gls)
   transKey = mergeTheseWith (((,) <$> FA.stockMoveTransNo <*> FA.stockMoveType) . entityVal)
                             (((,) <$> FA.glTranTypeNo <*> FA.glTranType) . entityVal)
                             const
+  --  ^ already sorted by date and audit.id (sequence)
+  unduplicate :: [Matched] -> Either (Text, [Matched]) [Matched]
   unduplicate m'gs = case m'gs of
          [m'g] -> Right [m'g]
-         (m'g:_)  -> let
-            (moves, cancellingPairs) = removeCancellingMoves $ mapMaybe getFirst $ toList $ groupAsMap entityKey (First . Just) $ mapMaybe (preview here) m'gs
-            gls = mapMaybe getFirst $ toList $ groupAsMap entityKey (First . Just) $ mapMaybe (preview there) m'gs
+         ((m'g,seqN):_)  -> let
+            (moves, cancellingPairs) = removeCancellingMoves $ mapMaybe getFirst $ toList $ groupAsMap entityKey (First . Just) $ mapMaybe (preview here . fst) m'gs
+            gls = mapMaybe getFirst $ toList $ groupAsMap entityKey (First . Just) $ mapMaybe (preview there . fst) m'gs
             in ( case (length moves , length gls) of
                  (0, 0 ) ->  Right []
-                 (0, _ ) -> Right $ map That gls
-                 (_, 0 ) -> Right $ map This moves
-                 (moveLength, glLength) | moveLength == glLength && (moveLength + length cancellingPairs) * glLength == length m'gs -> Right $ zipWith These moves gls 
+                 (0, _ ) -> Right $ map (\g -> (That g, seqN)) gls
+                 (_, 0 ) -> Right $ map (\m -> (This m, seqN)) moves
+                 (moveLength, glLength) | moveLength == glLength && (moveLength + length cancellingPairs) * glLength == length m'gs -> Right $ zipWith (\m g -> (These m g, seqN)) moves gls 
                  (1, 2) -- | (FA.stockMoveType . entityVal <$> preview here m'g) == Just (fromEnum ST_INVADJUST)
                         | abs (sum (map (FA.glTranAmount . entityVal) gls)) < 1e-4
                         ->
@@ -347,13 +350,13 @@ fixDuplicates move'gls = let
                           -- In that case the stock account should be matched with the moves
                           let direction = maybe False ((>0) . FA.stockMoveQty . entityVal) (preview here m'g)
                           in case  (moves, partition ((== direction) . ((>0) . FA.glTranAmount . entityVal)) gls) of
-                               ([move], ([conv], [div])) -> Right $ [These move conv, That div]
+                               ([move], ([conv], [div])) -> Right $ [(These move conv, seqN), (That div, seqN)]
                                _ -> error ( "Unexpected happend") -- ^ we know we have 2 gl transactions
                  _ -> Left ( "Not cartesian product for " ++ (tshow $ transKey m'g) 
                             ++ " moves: " ++ tshow (length moves)
                             ++ " gls: " ++ tshow (length gls) 
                             , m'gs)
-               ) <&> (++ (map This cancellingPairs))
+               ) <&> (++ (map (\m -> (This m, seqN)) cancellingPairs))
 
          _ -> Left ( "unexpected", m'gs)
   in concat <$> mapM unduplicate trans
