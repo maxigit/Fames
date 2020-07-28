@@ -200,7 +200,7 @@ renderTransactions title trans = do
 
 -- | Displays stockmoves and gl trans resulting of a "duplicate"
 -- : we can' not untangle their cartesian product. (see fixDuplicates)
-renderDuplicates :: Text -> (Text, [These (Entity FA.StockMove) (Entity FA.GlTran)]) -> Handler Html
+renderDuplicates :: Text -> (Text, [Matched]) -> Handler Html
 renderDuplicates account (err,move'gls) = do
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
   let urlFn = urlForFA faURL

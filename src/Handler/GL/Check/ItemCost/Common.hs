@@ -8,6 +8,7 @@ module Handler.GL.Check.ItemCost.Common
 , computeItemCostTransactions
 , collectCostTransactions
 , loadCostSummary
+, Matched
 )
 where
 
@@ -30,6 +31,8 @@ data AccountSummary = AccountSummary
   , asStockValuation :: Double
   }
   deriving (Show)
+
+type Matched = These (Entity FA.StockMove) (Entity FA.GlTran)
 -- * Summaries
 getStockAccounts :: Handler [Account]
 getStockAccounts = do
@@ -108,7 +111,7 @@ stockValuation (sku, cost) = do
 -- Load And join stock moves & gl trans of a given account and sku
 -- If the sku is not provided, load the gl trans which doesn't have the stock_id set.
 -- ONly load transaction not saved in inventory_cost_transaction
-loadMovesAndTransactions :: (Maybe ItemCostSummary) -> Account -> Maybe Text -> Handler [These (Entity FA.StockMove) (Entity FA.GlTran)]  
+loadMovesAndTransactions :: (Maybe ItemCostSummary) -> Account -> Maybe Text -> Handler [Matched]  
 loadMovesAndTransactions lastm (Account account) Nothing = do
   let maxGl = lastm >>= itemCostSummaryGlDetail
   let sql = "SELECT ?? FROM 0_gl_trans "
@@ -227,7 +230,7 @@ loadPendingTransactionCountFor account = do
 
 -- | This is the core routine which recalcuate the correct standard cost 
 -- and correct gl amount.
-computeItemCostTransactions :: (Maybe ItemCostSummary) -> Account -> [These (Entity FA.StockMove) (Entity FA.GlTran)] -> Either (Text, [These (Entity FA.StockMove) (Entity FA.GlTran)])  [ItemCostTransaction]
+computeItemCostTransactions :: (Maybe ItemCostSummary) -> Account -> [Matched] -> Either (Text, [Matched])  [ItemCostTransaction]
 computeItemCostTransactions summarym (Account account0) sm'gls0 = let 
     -- first we need to make sure there is no duplicate 
     lastm = case summarym of
@@ -320,10 +323,10 @@ computeItemCostTransactions summarym (Account account0) sm'gls0 = let
 -- | If a transaction contains the same items many times, for example 2 moves and 2 gl_trans  
 -- instead of having 2 element in the list we will have the 4 (the cross product resulting from the join)
 -- In case duplicates can't be fixed returns (Left) the faulty transactions
-fixDuplicates :: [These (Entity FA.StockMove) (Entity FA.GlTran)] -> Either (Text, [These (Entity FA.StockMove) (Entity FA.GlTran)]) [These (Entity FA.StockMove) (Entity FA.GlTran)]
+fixDuplicates :: [Matched] -> Either (Text, [Matched]) [Matched]
 fixDuplicates move'gls = let
   trans = groupBy ((==) `on` transKey)  (sortOn transKey move'gls)
-  transKey :: These (Entity FA.StockMove) (Entity FA.GlTran) -> (Int, Int)
+  transKey :: Matched -> (Int, Int)
   transKey = mergeTheseWith (((,) <$> FA.stockMoveTransNo <*> FA.stockMoveType) . entityVal)
                             (((,) <$> FA.glTranTypeNo <*> FA.glTranType) . entityVal)
                             const
@@ -378,7 +381,7 @@ removeCancellingMoves moves = let
 
 
 
-collectCostTransactions :: Account -> (Maybe Text) -> Handler (Either (Text, [These (Entity FA.StockMove) (Entity FA.GlTran)]) ())
+collectCostTransactions :: Account -> (Maybe Text) -> Handler (Either (Text, [Matched]) ())
 collectCostTransactions account skum = do
   lastEm <- loadCostSummary account skum
   let lastm = entityVal <$> lastEm
