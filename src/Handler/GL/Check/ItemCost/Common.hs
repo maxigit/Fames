@@ -2,6 +2,7 @@ module Handler.GL.Check.ItemCost.Common
 ( getStockAccounts
 , Account(..)
 , AccountSummary(..)
+, CheckInfo(..)
 , getAccountSummary
 , loadPendingTransactionCountFor
 , loadMovesAndTransactions
@@ -9,6 +10,7 @@ module Handler.GL.Check.ItemCost.Common
 , collectCostTransactions
 , loadCostSummary
 , Matched
+, loadCheckInfo
 )
 where
 
@@ -32,6 +34,15 @@ data AccountSummary = AccountSummary
   }
   deriving (Show)
 
+-- | Result of a quick sanity check
+data CheckInfo  = CheckInfo
+  { icAccount :: Account
+  , icSku :: Maybe Text
+  , icCostDiscrepency :: Bool -- ^ 
+  , icNegativeQOH :: Bool
+  , icCostVariation :: Bool -- ^ 
+  }
+  deriving (Show)
 type Matched = (These (Entity FA.StockMove) (Entity FA.GlTran), Int)
 -- * Summaries
 getStockAccounts :: Handler [Account]
@@ -108,6 +119,7 @@ stockValuation (sku, cost) = do
   
 
 -- * Account  details
+-- ** Loading
 -- Load And join stock moves & gl trans of a given account and sku
 -- If the sku is not provided, load the gl trans which doesn't have the stock_id set.
 -- ONly load transaction not saved in inventory_cost_transaction
@@ -227,9 +239,11 @@ loadPendingTransactionCountFor account = do
     return (skum, length trans, entityVal <$> lastm)
 
 
+loadCostSummary :: Account -> (Maybe Text)  -> Handler (Maybe (Entity ItemCostSummary))
+loadCostSummary (Account account) skum = do
+  runDB $ selectFirst [ItemCostSummaryAccount ==. account, ItemCostSummarySku ==. skum] []
 
-
-
+-- ** Computing cost transaction
 -- | This is the core routine which recalcuate the correct standard cost 
 -- and correct gl amount.
 computeItemCostTransactions :: (Maybe ItemCostSummary) -> Account -> [Matched] -> Either (Text, [Matched])  [ItemCostTransaction]
@@ -381,6 +395,7 @@ removeCancellingMoves moves = let
 
 
 
+-- ** Collect and Save
 
 
 
@@ -408,11 +423,29 @@ collectCostTransactions account skum = do
              case lastEm of
                Nothing -> insert_ ItemCostSummary{..}
                Just (Entity key _) -> repsert key ItemCostSummary{..}
-  
-  
-loadCostSummary :: Account -> (Maybe Text)  -> Handler (Maybe (Entity ItemCostSummary))
-loadCostSummary (Account account) skum = do
-  runDB $ selectFirst [ItemCostSummaryAccount ==. account, ItemCostSummarySku ==. skum] []
      
  
 
+-- * sanity check
+-- | Detect all Sku/Account which look suspect
+-- (not much variation in cost price, too much discrepency between FA and calculated etc ...
+loadCheckInfo :: Handler [CheckInfo]
+loadCheckInfo = do
+  let sql = "SELECT  account, sku "
+         ++ " , MAX(COALESCE(correct_amount != 0 AND fa_amount != 0 AND abs(1-LEAST(correct_amount, fa_amount)/GREATEST(correct_amount, fa_amount))>0.1,False)) as cost_discrepency"
+          ++ ", MAX(qoh_after < 0) as negative_qoh "
+         ++ " , MAX(COALESCE(cost_before != 0 AND cost_after != 0 AND abs(1-LEAST(cost_before, cost_after)/GREATEST(cost_before, cost_after))>0.25,False)) as cost_variation"
+          ++ " FROM check_item_cost_transaction "
+          ++ " WHERE fa_trans_type NOT IN (16)" -- filter location transfer
+          ++ " AND item_cost_validation IS NULL "
+          ++ " GROUP BY account, sku "
+          ++ " HAVING cost_discrepency > 0 OR negative_qoh > 0 OR cost_variation > 0"
+      mkCheck (Single account
+              , Single icSku
+              , Single icCostDiscrepency
+              , Single icNegativeQOH
+              , Single icCostVariation
+              ) = CheckInfo{icAccount=Account account ,..}
+
+  rows <- runDB $ rawSql sql []
+  return $ map mkCheck rows

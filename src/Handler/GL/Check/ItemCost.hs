@@ -5,6 +5,7 @@ module Handler.GL.Check.ItemCost
 , getGLCheckItemCostItemViewSavedR
 , postGLCheckItemCostAccountCollectR
 , postGLCheckItemCostCollectAllR
+, getGLCheckItemCostCheckR
 )
 where
 
@@ -13,6 +14,8 @@ import Handler.GL.Check.ItemCost.Common
 import Formatting as F
 import qualified FA as FA
 
+
+-- * Rendering
 getGLCheckItemCostR :: Handler Html
 getGLCheckItemCostR = do
   accounts <- getStockAccounts
@@ -198,7 +201,7 @@ renderTransactions title trans = do
               <td> #{formatDouble' itemCostTransactionQohBefore}
               <td> #{formatDouble' itemCostTransactionQohAfter}
               <td> #{formatDouble' itemCostTransactionCostBefore}
-              <td> #{formatDouble' itemCostTransactionCostAfter}
+              <td class="#{classForRel 0.25 itemCostTransactionCostBefore itemCostTransactionCostAfter}"> #{formatDouble' itemCostTransactionCostAfter}
               <td> #{tshowM itemCostTransactionItemCostValidation}
               <td> #{tshowM itemCostTransactionMoveId}
               <td> #{tshowM itemCostTransactionGlDetail}
@@ -263,6 +266,40 @@ renderDuplicates account (err,move'gls) = do
 
     |]
     
+getGLCheckItemCostCheckR :: Handler Html
+getGLCheckItemCostCheckR = do
+  checks <- loadCheckInfo
+  defaultLayout [whamlet|
+    <table *{datatable}>
+      <thead>
+        <th> Sku
+        <th> Account
+        <th> Cost Discrepency
+        <th> Negative QOH
+        <th> Cost Variation
+      <tbody>
+        $forall CheckInfo{..} <- checks
+          <tr>
+            <td> <a href="@{GLR $ GLCheckItemCostItemViewSavedR (fromAccount icAccount) icSku}">
+               #{fromMaybe "" icSku}
+            <td> <a href="@{GLR $ GLCheckItemCostAccountViewR (fromAccount icAccount)}">
+               #{fromAccount icAccount}
+            $if icCostDiscrepency
+              <td.bg-danger.text-danger>
+                Amount Vs FA variation > 10%
+            $else
+              <td>
+            $if icNegativeQOH
+              <td.bg-danger.text-danger>
+                Negative QOH
+            $else
+              <td>
+            $if icCostVariation
+              <td.bg-warning.text-warning>
+                cost before Vs after variation > 25%
+            $else
+              <td>
+  |]
 -- * Saving
 postGLCheckItemCostAccountCollectR :: Text -> Handler Html
 postGLCheckItemCostAccountCollectR account = do
@@ -289,3 +326,6 @@ equal' e a b = abs (a - b) < e
 classFor e a b = if equal' e a b
                  then "bg-warning text-warning" :: Text
                  else "bg-danger text-danger"
+classForRel r a b = if a /= 0 && b/= 0 && (1- min a b / max a b) > r
+                 then "bg-warning text-warning" :: Text
+                 else ""
