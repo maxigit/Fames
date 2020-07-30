@@ -401,12 +401,46 @@ removeCancellingMoves moves = let
 
 -- ** Collect and Save
 
+-- | Load the last summary or the last summary of another account
+-- if the item used a previous account
+loadInitialSummary :: Account -> (Maybe Text) -> Handler (Maybe (Either ItemCostSummary
+                                                                        (Entity ItemCostSummary) ))
+loadInitialSummary account@(Account acc) skum = do
+  summarym <- loadCostSummary account skum
+  case (summarym, skum) of
+    (Just _, _) -> return $ fmap Right summarym
+    (Nothing, Nothing) -> return Nothing
+    (Nothing, Just sku) -> do
+      settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
+      case  settingsm >>= lookup account . accounts >>= lookup sku . items >>= initial of
+        Just (FromAccount oldAccount) -> do
+                   sumEM <- loadCostSummary oldAccount skum
+                   case sumEM of
+                      Just (Entity _ summary) -> return . Just $ Left summary { itemCostSummaryAccount = acc}
+                      _ -> error . unpack $ "Can't load old account summary for " <> acc <> " " <>  sku
+        Just (InitialData{..}) -> return . Just $ Left 
+                 ItemCostSummary{ itemCostSummaryDate = startDate
+                                , itemCostSummaryAccount = acc
+                                , itemCostSummaryMoveId = Nothing
+                                , itemCostSummaryGlDetail = Nothing
+                                , itemCostSummarySku = Just sku
+                                , itemCostSummaryQohAfter = initialQoh
+                                , itemCostSummaryCostAfter = if initialQoh /= 0
+                                                             then initialBalance / initialQoh  
+                                                             else 0
+                                , itemCostSummaryStockValue = initialBalance
+                                , itemCostSummaryFaStockValue = initialBalance
+                                }
+
+        _ -> return Nothing
+
+      
 
 
 collectCostTransactions :: Account -> (Maybe Text) -> Handler (Either (Text, [Matched]) ())
 collectCostTransactions account skum = do
-  lastEm <- loadCostSummary account skum
-  let lastm = entityVal <$> lastEm
+  lastEm <- loadInitialSummary account skum
+  let lastm = either id entityVal <$> lastEm
   trans0 <- loadMovesAndTransactions lastm account skum
   let transE = computeItemCostTransactions lastm account trans0
   forM transE $ \trans -> 
@@ -425,8 +459,8 @@ collectCostTransactions account skum = do
                  itemCostSummaryStockValue = itemCostTransactionStockValue summary
                  itemCostSummaryFaStockValue = itemCostTransactionFaStockValue summary
              case lastEm of
-               Nothing -> insert_ ItemCostSummary{..}
-               Just (Entity key _) -> repsert key ItemCostSummary{..}
+               Just (Right (Entity key _)) -> repsert key ItemCostSummary{..}
+               _ -> insert_ ItemCostSummary{..}
      
  
 
