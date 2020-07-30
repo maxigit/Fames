@@ -48,12 +48,16 @@ type Matched = (These (Entity FA.StockMove) (Entity FA.GlTran), Int)
 -- * Summaries
 getStockAccounts :: Handler [Account]
 getStockAccounts = do
-  let sql = "select distinct(inventory_account) from 0_stock_master"
-  -- stockLike <- readFilterExpression . appFAStockLikeFilter . appSettings <$> getYesod
+  let sql0 = "select distinct(inventory_account) from 0_stock_master"
+  settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
+  let (sql, params) = case settingsm of
+             Nothing -> (sql0, [])
+             Just settings -> let (keyword, stockLike) = filterEKeyword $ readFilterExpression (stockFilter settings)
+                              in (sql0 <> " WHERE stock_id " <> keyword <> " ? ", [toPersistValue stockLike])
   -- let sql = "select distinct(account) from 0_gl_trans where stock_id is not null and stock_id " <> filterEToSQL stockLike
   --        <> " and amount <> 0"
   --        ^ Find all accounts used by any stock transaction (filter by stock like)
-  rows <- runDB $ rawSql sql []
+  rows <- runDB $ rawSql sql  params
   return $ map (Account . unSingle) rows
 
 getAccountSummary :: Account -> Handler AccountSummary
@@ -108,7 +112,6 @@ getItemFor (Account account) = do
 -- | Stock valuation for 
 stockValuation :: (Text, Double) -> Handler Double
 stockValuation (sku, cost) = do
-  -- defaultLocation <- appFADefaultLocation . appSettings <$> getYesod
   let sql = "select sum(qty) from 0_stock_moves where stock_id = ?"
   rows <- runDB $ rawSql sql [toPersistValue sku]
   case rows of

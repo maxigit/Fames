@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4815a20b306f79064e693b7d590b6f5e88ed46c47c3a8dec8177a663340aae8b
+-- hash: 3057ebe6ddafcc98a6d4cb7cb111cdcaa3e97b4af28869699e39041d94ea1751
 
 name:           Fames
 version:        0.0.1
@@ -46,7 +46,6 @@ library
       Handler.GL.Check
       Handler.GL.Check.ItemCost
       Handler.GL.Check.ItemCost.Common
-      Handler.GL.Check.Settings
       Handler.GL.CheckAIS
       Handler.GL.GLEnterReceiptSheet
       Handler.GL.GLEnterReceiptSheet.ReceiptRow
@@ -118,6 +117,7 @@ library
       WarehousePlanner.Type
       Curl
       GL
+      GL.Check.ItemCostSettings
       GL.FA
       GL.Payroll.Parser
       GL.Payroll.Report
@@ -247,6 +247,7 @@ executable Fames
   other-modules:
       Curl
       GL
+      GL.Check.ItemCostSettings
       GL.FA
       GL.Payroll.Parser
       GL.Payroll.Report
@@ -429,7 +430,6 @@ test-suite ghcid
       Handler.GL.Check
       Handler.GL.Check.ItemCost
       Handler.GL.Check.ItemCost.Common
-      Handler.GL.Check.Settings
       Handler.GL.CheckAIS
       Handler.GL.GLEnterReceiptSheet
       Handler.GL.GLEnterReceiptSheet.ReceiptRow
@@ -493,6 +493,7 @@ test-suite ghcid
       Util.ValidField
       Curl
       GL
+      GL.Check.ItemCostSettings
       GL.FA
       GL.Payroll.Parser
       GL.Payroll.Report
