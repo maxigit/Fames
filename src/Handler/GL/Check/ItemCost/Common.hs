@@ -11,6 +11,7 @@ module Handler.GL.Check.ItemCost.Common
 , loadCostSummary
 , Matched
 , loadCheckInfo
+, itemSettings
 )
 where
 
@@ -127,9 +128,10 @@ stockValuation (sku, cost) = do
 -- Load And join stock moves & gl trans of a given account and sku
 -- If the sku is not provided, load the gl trans which doesn't have the stock_id set.
 -- ONly load transaction not saved in inventory_cost_transaction
-loadMovesAndTransactions :: (Maybe ItemCostSummary) -> Account -> Maybe Text -> Handler [Matched]  
-loadMovesAndTransactions lastm (Account account) Nothing = do
+loadMovesAndTransactions :: (Maybe ItemCostSummary) -> Maybe Day -> Account -> Maybe Text -> Handler [Matched]  
+loadMovesAndTransactions lastm endDatem (Account account) Nothing = do
   let maxGl = lastm >>= itemCostSummaryGlDetail
+  let startDatem = itemCostSummaryDate <$>  lastm
   let sql = "SELECT ??,seq FROM 0_gl_trans "
          -- <> " LEFT JOIN check_item_cost_transaction i ON (0_gl_trans.counter = i.gl_detail) "
          <> "LEFT JOIN (SELECT MIN(id) AS seq, trans_no, type FROM 0_audit_trail GROUP BY trans_no, type) as audit ON (audit.trans_no = 0_gl_trans.type_no AND  audit.type = 0_gl_trans.type) "
@@ -139,15 +141,23 @@ loadMovesAndTransactions lastm (Account account) Nothing = do
          <> ( if isJust maxGl
               then  "                      AND 0_gl_trans.counter > ?" 
               else "" )
+         <> ( if isJust startDatem
+              then  "                      AND 0_gl_trans.tran_date > ?" 
+              else "" )
+         <> ( if isJust endDatem
+              then  "                      AND 0_gl_trans.tran_date <= ?" 
+              else "" )
          <> " ORDER BY 0_gl_trans.tran_date, 0_gl_trans.counter"
       mkTrans (gl, Single seq)= (That gl, seq)
   rows <- runDB $ rawSql sql $ [toPersistValue account]
                                ++ maybe [] (pure . toPersistValue) maxGl
+                               ++ maybe [] (pure . toPersistValue) startDatem
+                               ++ maybe [] (pure . toPersistValue) endDatem
   return $ map mkTrans rows
 
-loadMovesAndTransactions lastm account (Just sku) = do
-   withMoves <- loadMovesAndTransactions' lastm account sku
-   glOnly <- loadTransactionsWithNoMoves' lastm account sku
+loadMovesAndTransactions lastm endDatem account (Just sku) = do
+   withMoves <- loadMovesAndTransactions' lastm endDatem account sku
+   glOnly <- loadTransactionsWithNoMoves' lastm endDatem account sku
    -- interleave two sort lists as sorted
    let interleave [] ys = ys
        interleave xs [] = xs
@@ -163,7 +173,7 @@ loadMovesAndTransactions lastm account (Just sku) = do
    return $ interleave withMoves glOnly
 
 
-loadMovesAndTransactions' lastm (Account account) sku = do
+loadMovesAndTransactions' lastm endDatem (Account account) sku = do
   -- instead of checking if there is already an item in check_item_cost_transaction
   -- we filter moves and gl trans by only using the one
   -- newer than the ids found in the last ItemCostTransaction
@@ -172,6 +182,7 @@ loadMovesAndTransactions' lastm (Account account) sku = do
   -- even though it's is using index (BTree)
   let maxGl = lastm >>= itemCostSummaryGlDetail
       maxMove = lastm >>= itemCostSummaryMoveId
+      startDatem = itemCostSummaryDate <$>  lastm
       sql = "SELECT ??, ??, seq FROM 0_stock_moves "
          <> " LEFT JOIN 0_gl_trans ON ( 0_stock_moves.stock_id = 0_gl_trans.stock_id"
          <> "                            AND 0_stock_moves.type = 0_gl_trans.type"
@@ -189,6 +200,12 @@ loadMovesAndTransactions' lastm (Account account) sku = do
          <> (if isJust maxMove
             then  "                      AND 0_stock_moves.trans_id > ?" 
             else "")
+         <> ( if isJust startDatem
+              then  "                      AND 0_stock_moves.tran_date > ?" 
+              else "" )
+         <> ( if isJust endDatem
+              then  "                      AND 0_stock_moves.tran_date <= ?" 
+              else "" )
          <> " ORDER BY 0_stock_moves.tran_date, seq, 0_stock_moves.trans_id"
       mkTrans m'g = case m'g of
                       (m, Nothing, Single seq ) -> (This m, seq)
@@ -198,10 +215,13 @@ loadMovesAndTransactions' lastm (Account account) sku = do
                                   , toPersistValue sku
                                   ]
                                 ++ maybe [] (pure . toPersistValue) maxMove
+                               ++ maybe [] (pure . toPersistValue) startDatem
+                               ++ maybe [] (pure . toPersistValue) endDatem
   return $ map mkTrans rows
 
-loadTransactionsWithNoMoves' lastm (Account account) sku = do
+loadTransactionsWithNoMoves' lastm endDatem (Account account) sku = do
   let maxGl = lastm >>= itemCostSummaryGlDetail
+      startDatem = itemCostSummaryDate <$>  lastm
       sql = "SELECT ??, seq FROM 0_gl_trans "
          <> " LEFT JOIN 0_stock_moves ON ( 0_stock_moves.stock_id = 0_gl_trans.stock_id"
          <> "                            AND 0_stock_moves.type = 0_gl_trans.type"
@@ -217,10 +237,18 @@ loadTransactionsWithNoMoves' lastm (Account account) sku = do
          <> ( if isJust maxGl
               then  "                      AND 0_gl_trans.counter > ?" 
               else "" )
+         <> ( if isJust startDatem
+              then  "                      AND 0_gl_trans.tran_date > ?" 
+              else "" )
+         <> ( if isJust endDatem
+              then  "                      AND 0_gl_trans.tran_date <= ?" 
+              else "" )
          <> " ORDER BY 0_gl_trans.tran_date, 0_gl_trans.counter"
       mkTrans (gl, Single seq) = (That gl, seq)
   rows <- runDB $ rawSql sql $ [toPersistValue account, toPersistValue sku]
                                ++ maybe [] (pure . toPersistValue) maxGl
+                               ++ maybe [] (pure . toPersistValue) startDatem
+                               ++ maybe [] (pure . toPersistValue) endDatem
                         
   return $ map mkTrans rows
 
@@ -235,11 +263,13 @@ loadMovesAndTransactionsFor account = do
 
 loadPendingTransactionCountFor :: Account -> Handler [(Maybe Text, Int, Maybe ItemCostSummary)]
 loadPendingTransactionCountFor account = do
+  settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
   sku'_s <- getItemFor account
   let skums = Nothing : map (Just . fst) sku'_s
   forM skums $ \skum -> do
+    let endDatem = skum >>= itemSettings settingsm account >>= closingDate
     lastm <- loadCostSummary account skum
-    trans <- loadMovesAndTransactions (entityVal <$> lastm) account skum
+    trans <- loadMovesAndTransactions (entityVal <$> lastm) endDatem account skum
     return (skum, length trans, entityVal <$> lastm)
 
 
@@ -412,7 +442,7 @@ loadInitialSummary account@(Account acc) skum = do
     (Nothing, Nothing) -> return Nothing
     (Nothing, Just sku) -> do
       settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
-      case  settingsm >>= lookup account . accounts >>= lookup sku . items >>= initial of
+      case  itemSettings settingsm account sku >>= initial of
         Just (FromAccount oldAccount) -> do
                    sumEM <- loadCostSummary oldAccount skum
                    case sumEM of
@@ -440,8 +470,10 @@ loadInitialSummary account@(Account acc) skum = do
 collectCostTransactions :: Account -> (Maybe Text) -> Handler (Either (Text, [Matched]) ())
 collectCostTransactions account skum = do
   lastEm <- loadInitialSummary account skum
-  let lastm = either id entityVal <$> lastEm
-  trans0 <- loadMovesAndTransactions lastm account skum
+  settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
+  let endDatem = skum >>= itemSettings settingsm account >>= closingDate
+      lastm = either id entityVal <$> lastEm
+  trans0 <- loadMovesAndTransactions lastm endDatem account skum
   let transE = computeItemCostTransactions lastm account trans0
   forM transE $ \trans -> 
     runDB $ 
@@ -487,3 +519,8 @@ loadCheckInfo = do
 
   rows <- runDB $ rawSql sql []
   return $ map mkCheck rows
+
+-- *  Utils
+itemSettings :: Maybe Settings -> Account -> Text -> Maybe ItemSettings
+itemSettings settingsm account sku = 
+  settingsm >>= lookup account . accounts >>= lookup sku . items 

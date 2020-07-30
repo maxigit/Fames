@@ -13,6 +13,7 @@ import Import
 import Handler.GL.Check.ItemCost.Common
 import Formatting as F
 import qualified FA as FA
+import GL.Check.ItemCostSettings
 
 
 -- * Rendering
@@ -133,7 +134,9 @@ getGLCheckItemCostAccountViewR account = do
 getGLCheckItemCostItemViewR :: Text -> Maybe Text -> Handler Html
 getGLCheckItemCostItemViewR account item = do
   lastm <- loadCostSummary (Account account) item
-  trans0 <- loadMovesAndTransactions (entityVal <$> lastm) (Account account) item
+  settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
+  let endDatem =  item >>= itemSettings settingsm (Account account) >>= closingDate
+  trans0 <- loadMovesAndTransactions (entityVal <$> lastm) endDatem (Account account) item
   let transE = computeItemCostTransactions (entityVal <$> lastm) (Account account) trans0
   either (renderDuplicates account) (renderTransactions (fromMaybe account item)) transE
 
