@@ -15,6 +15,7 @@ module Handler.GL.Check.ItemCost.Common
 where
 
 import Import
+import GL.Check.ItemCostSettings
 import Database.Persist.Sql  (rawSql, Single(..))
 import qualified FA as FA
 import qualified Data.Map as Map
@@ -22,8 +23,8 @@ import Lens.Micro.Extras (preview)
 import Data.Monoid(First(..))
 import Data.List(scanl')
 
+
 -- * Types
-data Account = Account { fromAccount:: Text } deriving (Eq, Show)
 
 data AccountSummary = AccountSummary
   { asAccount :: Account

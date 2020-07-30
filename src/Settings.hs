@@ -31,6 +31,7 @@ import  CategoryRule
 import WH.Barcode
 import GL.Payroll.Settings
 import GL.TaxReport.Settings
+import qualified GL.Check.ItemCostSettings as ItemCost
 import GL.Receipt
 import qualified Data.Map as Map
 
@@ -114,6 +115,7 @@ data AppSettings = AppSettings
     , appPackingListStickerTemplate :: Text -- ^ GLabels file to print stickers from packing list
     , appFavicon:: Text
     , appStocktakeHistoryCategory :: Text
+    , appCheckItemCostSetting :: Maybe ItemCost.Settings
     } deriving Show
 
 data BankAutoReconciliateRule = BankAutoTransfer !Int
@@ -246,6 +248,7 @@ instance FromJSON AppSettings  where
         appPackingListStickerTemplate <- o .:? "packing-list-sticker-template" .!= "/config/delivery-stickers.glabels"
         appFavicon <- o .:? "favicon" .!= (if defaultDev then "Orange" else "" )
         appStocktakeHistoryCategory  <- o .:? "stocktake-history-category" .!= "style"
+        appCheckItemCostSetting <- o .:? "check-item-cost" .!= Nothing
 
         -- This code enables MySQL's strict mode, without which MySQL will truncate data.
         -- See https://github.com/yesodweb/persistent/wiki/Database-Configuration#strict-mode for details
