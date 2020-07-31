@@ -15,7 +15,7 @@ module WH.FA.Curl
 , postVoid
 ) where
 
-import ClassyPrelude
+import ClassyPrelude hiding(traceM)
 import WH.FA.Types
 import Network.Curl
 import Control.Monad.Except
@@ -23,12 +23,12 @@ import Control.Monad.State
 import Data.List(isPrefixOf)
 import qualified Data.Map as Map
 import Data.Monoid(Sum(Sum))
-
 import qualified Prelude as Prelude
 import Text.HTML.TagSoup 
 import Text.HTML.TagSoup.Match
 import Text.Regex.TDFA
 import Curl
+import Debug.Trace(traceM)
 
 -- * Misc
 -- ** FA specific
@@ -386,17 +386,19 @@ postPurchaseInvoice connectInfo PurchaseInvoice{..} = do
                         [200] "Problem changing supplier"
     _ <- addPurchaseInvoiceDeliveries response poiDeliveryIds
     _ <- mapM addPurchaseInvoiceDetail poiGLItems
-    ref <- case extractInputValue "reference" response of
+    refm <- case extractInputValue "reference" response of
                   Nothing -> throwError "Can't find Invoice reference"
                   Just r -> return r
-    let process = curlPostFields [ "supplier_id" <=> poiSupplier
-                                 , "reference" <=> fromMaybe ref poiReference
+    let ref = fromMaybe refm poiReference
+        process = curlPostFields [ "supplier_id" <=> poiSupplier
+                                 , "reference" <=> ref
                                  , "supp_reference" <=> poiSupplierReference
                                  , "tran_date" <=> poiDate
                                  , "due_date" <=> poiDueDate
                                  , "Comments" <=> poiMemo
                                  , Just "PostInvoice=Enter%20Invoice" -- Pressing commit button
                                  ] : method_POST
+    traceM . unpack $ "POST purchase invoice with ref " <> ref <> " to " <> tshow poiSupplier
     tags <- curlSoup (ajaxPurchaseInvoiceURL) process [200] "Create Purchase Invoice"
     case extractAddedId' "AddedID" "purchase invoice" tags of
       Left e -> throwError $ "Purchase invoice creation failed:\n" <> e
@@ -477,11 +479,12 @@ postPurchaseCreditNote connectInfo PurchaseCreditNote{..} = do
                         [200] "Problem changing supplier"
     -- del <- addPurchaseCreditNoteDeliveries response pcnDeliveryIds
     _ <- mapM addPurchaseCreditNoteDetail pcnGLItems
-    ref <- case extractInputValue "reference" response of
+    refm <- case extractInputValue "reference" response of
                   Nothing -> throwError "Can't find CreditNote reference"
                   Just r -> return r
+    let ref = fromMaybe refm pcnReference
     let process = curlPostFields [ "supplier_id" <=> pcnSupplier
-                                 , "reference" <=> fromMaybe ref pcnReference
+                                 , "reference" <=> refm
                                  , "supp_reference" <=> pcnSupplierReference
                                  , "tran_date" <=> pcnDate
                                  , "due_date" <=> pcnDueDate
@@ -489,6 +492,7 @@ postPurchaseCreditNote connectInfo PurchaseCreditNote{..} = do
                                  , "Comments" <=> pcnMemo
                                  , Just "PostCreditNote=Enter%20CreditNote" -- Pressing commit button
                                  ] : method_POST
+    traceM . unpack $ "POST purchase credit note with ref " <> ref <> " to " <> tshow pcnSupplier
     tags <- curlSoup (ajaxPurchaseCreditNoteURL) process [200] "Create Purchase CreditNote"
     case extractAddedId' "AddedID" "purchase invoice" tags of
       Left e -> throwError $ "Purchase invoice creation failed:\n" <> e
@@ -536,19 +540,21 @@ postSupplierPayment connectInfo SupplierPayment{..} = do
                                                                 , "DatePaid" <=> spDate
                                                                 ] : method_POST)
                   [200] "Problem  setting payment supplier"
-    let ref = case extractInputValue "ref" response of
+    let refm = case extractInputValue "ref" response of
                   Nothing -> error "Can't find Payment reference"
                   Just r -> r
+        ref = fromMaybe refm spReference
     (allocFields, maxAllocated) <-  ExceptT . return $ makeSupplierPaymentAlloctionFields response spAllocatedTransactions
     let process = curlPostFields [ "supplier_id" <=> spSupplier
                                  , "bank_account" <=> spBankAccount
                                  , "DatePaid" <=> spDate
                                  , "amount" <=> spTotalAmount
-                                 , "ref" <=> fromMaybe ref spReference
+                                 , "ref" <=> ref
                                  , "charge" <=> spBankCharge
                                  , Just "ProcessSuppPayment=1"
                                  , "TotalNumberOfAllocs" <=> maxAllocated
                                  ] : method_POST
+    traceM . unpack $ "POST supplier payment with ref:" <> ref <> " to " <> tshow spSupplier
     tags <- curlSoup (ajaxSupplierPaymentURL) (process ++ allocFields) [200] "Create Supplier Payment"
     case extractAddedId' "AddedID" "supplier payment" tags of
       Left e -> throwError $ "Supplier payment creation failed:\n" <> e
