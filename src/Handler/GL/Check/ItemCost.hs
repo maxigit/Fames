@@ -6,6 +6,7 @@ module Handler.GL.Check.ItemCost
 , postGLCheckItemCostAccountCollectR
 , postGLCheckItemCostCollectAllR
 , getGLCheckItemCostCheckR
+, postGLCheckItemCostPurgeR
 )
 where
 
@@ -75,7 +76,9 @@ getGLCheckItemCostR = do
             <th> #{formatDouble $ stockValue}
             <th> #{formatDouble $ stockValue - correctValue}
      <form method=POST action="@{GLR $ GLCheckItemCostCollectAllR}">  
-       <button.btn.btn-danger type="sumbit"> Collect All
+       <button.btn.btn-warning type="sumbit"> Collect All
+     <form method=POST action="@{GLR $ GLCheckItemCostPurgeR}">  
+       <button.btn.btn-danger type="sumbit"> Purge All
     |]
 
 
@@ -320,6 +323,13 @@ postGLCheckItemCostCollectAllR = do
   redirect $ GLR GLCheckItemCostR
 
 
+postGLCheckItemCostPurgeR :: Handler Html
+postGLCheckItemCostPurgeR = do
+  runDB $ do
+    deleteWhere [ItemCostTransactionItemCostValidation ==. Nothing]
+    deleteWhere ( [] :: [Filter ItemCostSummary])
+  redirect $ GLR GLCheckItemCostR
+-- * Util
 
 formatDouble' :: Double -> Text
 formatDouble' = F.sformat (commasFixedWith' round 6)
