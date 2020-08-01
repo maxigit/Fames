@@ -44,7 +44,7 @@ instance ToJSONKey Account where
   toJSONKey = toJSONKeyText fromAccount
 instance FromJSONKey Account where
   fromJSONKey = FromJSONKeyText Account
-$(deriveJSON defaultOptions ''Account)
+$(deriveJSON defaultOptions { unwrapUnaryRecords = True} ''Account)
 $(deriveJSON defaultOptions ''AccountSettings)
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField }  ''InitialSettings)
 $(deriveJSON defaultOptions ''ItemSettings)
