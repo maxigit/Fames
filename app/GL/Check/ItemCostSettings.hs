@@ -9,6 +9,7 @@ data Account = Account { fromAccount:: Text } deriving (Eq, Show, Read, Ord)
 data Settings =  Settings
   {  stockFilter ::  Text  -- to convert to FilterExpression
   ,  accounts :: Map Account AccountSettings
+  ,  extraAccounts :: Maybe [Account]
   }
   deriving (Show, Read, Eq, Ord)
 
@@ -40,11 +41,20 @@ data InitialSettings
 
   
 -- * JSON
+instance FromJSON Account where
+  parseJSON v = withText ("Account as Text")  (return . Account)  v
+                <|> (do
+                          i <- parseJSON v  
+                          return (Account $ tshow (i :: Int))
+                          )
+
+instance ToJSON Account where
+   toJSON (Account account) = String account
+  
 instance ToJSONKey Account where
   toJSONKey = toJSONKeyText fromAccount
 instance FromJSONKey Account where
   fromJSONKey = FromJSONKeyText Account
-$(deriveJSON defaultOptions { unwrapUnaryRecords = True} ''Account)
 $(deriveJSON defaultOptions ''AccountSettings)
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField }  ''InitialSettings)
 $(deriveJSON defaultOptions ''ItemSettings)

@@ -20,6 +20,7 @@ import GL.Check.ItemCostSettings
 import Database.Persist.Sql  (rawSql, Single(..))
 import qualified FA as FA
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Lens.Micro.Extras (preview)
 import Data.Monoid(First(..))
 import Data.List(scanl')
@@ -59,7 +60,9 @@ getStockAccounts = do
   --        <> " and amount <> 0"
   --        ^ Find all accounts used by any stock transaction (filter by stock like)
   rows <- runDB $ rawSql sql  params
-  return $ map (Account . unSingle) rows
+  -- add extra accounts
+  let accountSet = Set.fromList $ map (Account . unSingle) rows <> fromMaybe [] (extraAccounts =<< settingsm)
+  return $ toList accountSet
 
 getAccountSummary :: Account -> Handler AccountSummary
 getAccountSummary account = do
@@ -96,6 +99,7 @@ getAccountName (Account account) = do
   rows <- runDB $ rawSql sql [toPersistValue account]
   case rows of
    [(Single name)] -> return $ decodeHtmlEntities name
+   [] -> error . unpack $ "Account " <> account <> " doesn't not exist!"
    _ -> error "The unexpected happened. Contact your Administrator!"
 
 stockValuationFor :: Account -> Handler Double
