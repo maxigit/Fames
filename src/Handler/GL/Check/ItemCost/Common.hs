@@ -111,8 +111,16 @@ stockValuationFor account = do
 getItemFor :: Account -> Handler [(Text, Double)]
 getItemFor (Account account) = do
   -- let sql = "select stock_id, material_cost from 0_stock_master where inventory_account = ?"
-  let sql = "select stock_id, material_cost from 0_stock_master where stock_id IN (select distinct stock_id from 0_gl_trans where account = ?)"
-  runDB $ map (bimap unSingle unSingle)  <$> rawSql sql [toPersistValue account]
+  settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
+  let sql0 = "SELECT stock_id, material_cost "
+          <> " FROM 0_stock_master "
+          <> " WHERE stock_id IN (SELECT distinct stock_id  "
+          <> "                    FROM 0_gl_trans where account = ?)"
+      (sql, params) = case settingsm of
+             Nothing -> (sql0, [])
+             Just settings -> let (keyword, stockLike) = filterEKeyword $ readFilterExpression (stockFilter settings)
+                              in (sql0 <> " AND stock_id " <> keyword <> " ? ", [toPersistValue stockLike])
+  runDB $ map (bimap unSingle unSingle)  <$> rawSql sql ([toPersistValue account] ++ params)
 
 -- | Stock valuation for 
 stockValuation :: (Text, Double) -> Handler Double
