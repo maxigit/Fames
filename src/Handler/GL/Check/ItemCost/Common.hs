@@ -379,7 +379,8 @@ computeItemCostTransactions summarym (Account account0) sm'gls0 = let
               , itemCostTransactionFaStockValue = faStockValue
               , itemCostTransactionItemCostValidation = Nothing
              }
-    in fmap (catMaybes . scanl'  mkTrans lastm) sm'gls
+    in fmap (catMaybes . drop 1 . scanl'  mkTrans lastm) sm'gls
+    --                   ^^^^^^ remove the initial value (lastm)  inserted by scanl
 
 -- | If a transaction contains the same items many times, for example 2 moves and 2 gl_trans  
 -- instead of having 2 element in the list we will have the 4 (the cross product resulting from the join)
