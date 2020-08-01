@@ -200,15 +200,15 @@ loadMovesAndTransactions' lastm endDatem (Account account) sku = do
          <> "                            AND 0_stock_moves.type = 0_gl_trans.type"
          <> "                            AND 0_stock_moves.trans_no = 0_gl_trans.type_no"
          <> "                            AND 0_gl_trans.amount <> 0 "
-         <> ( if isJust maxGl
-              then  "                      AND 0_gl_trans.counter > ?" 
-              else "" )
          <> "                            )"
          <> "LEFT JOIN (SELECT MIN(id) as seq, trans_no, type FROM 0_audit_trail GROUP BY trans_no, type) as audit ON (0_stock_moves.trans_no = audit.trans_no AND 0_stock_moves.type = audit.type) "
          -- <> " LEFT JOIN check_item_cost_transaction i ON (0_stock_moves.trans_id = move_id OR 0_gl_trans.counter = gl_detail) "
          <> " WHERE (0_gl_trans.account = ? OR 0_gl_trans.account is NULL) AND 0_stock_moves.stock_id =  ? "
          -- <> "   AND i.item_cost_transaction_id is NULL "
          <> "   AND 0_stock_moves.qty <> 0"
+         <> ( if isJust maxGl
+              then  "                      AND 0_gl_trans.counter > ?" 
+              else "" )
          <> (if isJust maxMove
             then  "                      AND 0_stock_moves.trans_id > ?" 
             else "")
@@ -222,11 +222,10 @@ loadMovesAndTransactions' lastm endDatem (Account account) sku = do
       mkTrans m'g = case m'g of
                       (m, Nothing, Single seq ) -> (This m, seq)
                       (m, Just g, Single seq ) -> (These m g, seq)
-  rows <- runDB $ rawSql sql $ maybe [] (pure . toPersistValue) maxGl
-                               ++ [ toPersistValue account
-                                  , toPersistValue sku
-                                  ]
-                                ++ maybe [] (pure . toPersistValue) maxMove
+  rows <- runDB $ rawSql sql $ [ toPersistValue account
+                               , toPersistValue sku ]
+                               ++ maybe [] (pure . toPersistValue) maxGl
+                               ++ maybe [] (pure . toPersistValue) maxMove
                                ++ maybe [] (pure . toPersistValue) startDatem
                                ++ maybe [] (pure . toPersistValue) endDatem
   return $ map mkTrans rows
