@@ -458,7 +458,7 @@ loadInitialSummary account@(Account acc) skum = do
         Just (FromAccount oldAccount) -> do
                    sumEM <- loadCostSummary oldAccount skum
                    case sumEM of
-                      Just (Entity _ summary) -> return . Just $ Left summary { itemCostSummaryAccount = acc}
+                      Just (Entity _ summary) -> return . Just $ Left summary { itemCostSummaryAccount = acc, itemCostSummaryFaStockValue = 0}
                       _ -> error . unpack $ "Can't load old account summary for " <> acc <> " " <>  sku
         Just (InitialData{..}) -> return . Just $ Left 
                  ItemCostSummary{ itemCostSummaryDate = startDate
@@ -471,7 +471,7 @@ loadInitialSummary account@(Account acc) skum = do
                                                              then initialBalance / initialQoh  
                                                              else 0
                                 , itemCostSummaryStockValue = initialBalance
-                                , itemCostSummaryFaStockValue = initialBalance
+                                , itemCostSummaryFaStockValue = 0
                                 }
 
         _ -> return Nothing
