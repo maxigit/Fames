@@ -23,7 +23,6 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Lens.Micro.Extras (preview)
 import Data.Monoid(First(..))
-import Data.List(scanl')
 
 
 -- * Types
@@ -292,95 +291,148 @@ loadCostSummary (Account account) skum = do
 -- | This is the core routine which recalcuate the correct standard cost 
 -- and correct gl amount.
 computeItemCostTransactions :: (Maybe ItemCostSummary) -> Account -> [Matched] -> Either (Text, [Matched])  [ItemCostTransaction]
-computeItemCostTransactions summarym (Account account0) sm'gls0 = let 
+computeItemCostTransactions summarym (Account __account0) sm'gls0 = let 
     -- first we need to make sure there is no duplicate 
     lastm = case summarym of
-      Nothing -> Nothing
-      Just ItemCostSummary{..} -> let
-            itemCostTransactionDate = itemCostSummaryDate
-            itemCostTransactionMoveId = itemCostSummaryMoveId
-            itemCostTransactionGlDetail = itemCostSummaryGlDetail
-            itemCostTransactionFaTransNo = 0
-            itemCostTransactionFaTransType = ST_INVADJUST
-            itemCostTransactionSku = itemCostSummarySku
-            itemCostTransactionAccount = itemCostSummaryAccount
-            itemCostTransactionFaAmount = 0
-            itemCostTransactionCorrectAmount = 0
-            itemCostTransactionQohBefore = 0
-            itemCostTransactionQohAfter = itemCostSummaryQohAfter
-            itemCostTransactionQuantity = 0
-            itemCostTransactionCostBefore = 0
-            itemCostTransactionCost = 0
-            itemCostTransactionCostAfter = itemCostSummaryCostAfter
-            itemCostTransactionStockValue = itemCostSummaryStockValue
-            itemCostTransactionFaStockValue = itemCostSummaryFaStockValue
-            itemCostTransactionMoveCost = 0
-            itemCostTransactionItemCostValidation = Nothing
-            in Just ItemCostTransaction{..}
-          
+      Nothing -> Initial
+      Just ItemCostSummary{..} -> 
+            WithPrevious $ RunningState itemCostSummaryQohAfter
+                                        itemCostSummaryCostAfter
+                                        itemCostSummaryStockValue
+                                        itemCostSummaryStockValue
+                                        itemCostSummaryFaStockValue
     sm'gls = fixDuplicates sm'gls0
-    mkTrans previous (sm'gl, _seq) = let
-       smM = preview here sm'gl
-       glM = preview there sm'gl
-       get :: (FA.StockMove -> a) 
-           -> (FA.GlTran -> a)
-           -> a
-       get fa fb = mergeTheseWith (fa . entityVal) (fb . entityVal) const sm'gl
-       quantity = maybe 0 (FA.stockMoveQty . entityVal) (smM)
-       date  = get FA.stockMoveTranDate FA.glTranTranDate
-       moveId = FA.unStockMoveKey . entityKey <$> smM
-       glDetail = FA.unGlTranKey . entityKey <$> glM
-       faTransNo = get FA.stockMoveTransNo FA.glTranTypeNo
-       faTransType = toEnum $ get FA.stockMoveType FA.glTranType
-       sku = get (Just . FA.stockMoveStockId) FA.glTranStockId
-       -- TODO : everything below
-       account = maybe account0 (FA.glTranAccount . entityVal) (glM)
-       faAmount = maybe 0 (FA.glTranAmount . entityVal) (glM)
-       correctAmount = if faTransType `elem` [ST_COSTUPDATE , ST_SUPPINVOICE, ST_SUPPCREDIT]
-                       then faAmount
-                       else quantity * cost
-       qohBefore = maybe 0 itemCostTransactionQohAfter previous
-       qohAfter = qohBefore + quantity       
-       -- Try in order (gl transaction cost), previous, move
-       cost' =  case (glM) of
-                  (Just (Entity _ gl)) | faTransType `elem` [ST_SUPPRECEIVE, ST_INVADJUST, ST_COSTUPDATE ]
-                                       , quantity /= 0 -> FA.glTranAmount gl / quantity
-                  _ -> 0
-       cost = if faTransType `elem` [ST_SUPPRECEIVE, ST_LOCTRANSFER] && isNothing glM
-              then 0 -- wait for corresponding invoice
-              else fromMaybe 0 $ headMay $ filter (/=0) [cost', costBefore, moveCost]
-       moveCost = maybe 0 (FA.stockMoveStandardCost . entityVal) (smM)
-       costBefore = maybe 0 itemCostTransactionCostAfter previous
-       costAfter =
-         if qohAfter /= 0
-         then stockValue / qohAfter
-         else 0
-       faStockValue = maybe 0 itemCostTransactionFaStockValue previous + faAmount
-              
-       stockValue = maybe 0 itemCostTransactionStockValue previous + correctAmount
-       in Just $ ItemCostTransaction
-              { itemCostTransactionDate = date
-              , itemCostTransactionMoveId = moveId
-              , itemCostTransactionGlDetail = glDetail
-              , itemCostTransactionFaTransNo = faTransNo
-              , itemCostTransactionFaTransType = faTransType
-              , itemCostTransactionSku = sku
-              , itemCostTransactionAccount = account
-              , itemCostTransactionFaAmount = faAmount
-              , itemCostTransactionCorrectAmount = correctAmount
-              , itemCostTransactionQohBefore = qohBefore
-              , itemCostTransactionQohAfter = qohAfter
-              , itemCostTransactionQuantity = quantity
-              , itemCostTransactionCostBefore = costBefore
-              , itemCostTransactionCost = cost
-              , itemCostTransactionMoveCost = moveCost
-              , itemCostTransactionCostAfter = costAfter
-              , itemCostTransactionStockValue = stockValue
-              , itemCostTransactionFaStockValue = faStockValue
-              , itemCostTransactionItemCostValidation = Nothing
-             }
-    in fmap (catMaybes . drop 1 . scanl'  mkTrans lastm) sm'gls
-    --                   ^^^^^^ remove the initial value (lastm)  inserted by scanl
+    in fmap (computeItemHistory lastm) sm'gls
+
+-- | Main function
+data HistoryState
+  = Initial
+  | WaitingForStock RunningState [Matched]
+  | WithPrevious RunningState
+  | SupplierInvoiceWaitingForGRN RunningState Matched [Matched]
+  | SupplierGRNWaitingForInvoice RunningState Matched [Matched]
+
+data RunningState = RunningState
+  { qoh :: Double
+  , cost :: Double
+  , stockValue :: Double
+  , expectedBalance :: Double
+  , faBalance :: Double
+  }
+
+instance Semigroup RunningState where
+  a <> b = let totalQoh = qoh a + qoh b
+               totalValue = stockValue a + stockValue b 
+           in RunningState totalQoh
+                           (if totalQoh == 0 
+                           then cost b
+                           else totalValue / totalQoh
+                           )
+                           totalValue
+                           (expectedBalance a + expectedBalance b)
+                           (faBalance a + faBalance b)
+
+instance Monoid RunningState where
+  mempty = RunningState 0 0 0 0 0
+
+
+computeItemHistory :: HistoryState -> [Matched] -> [ItemCostTransaction]
+computeItemHistory _ [] = []
+computeItemHistory previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) = let
+  faTransType = toEnum $ mergeTheseWith (FA.stockMoveType . entityVal)  (FA.glTranType . entityVal) const sm'gl
+  smeM = preview here sm'gl
+  gleM = preview there sm'gl
+  smM = entityVal <$> smeM
+  glM = entityVal <$> gleM
+  moveQuantityM = FA.stockMoveQty <$> smM
+  moveCostM = FA.stockMoveStandardCost  <$> smM
+  faAmountM = FA.glTranAmount <$> glM
+  in case (faTransType, previousState) of
+    (_             , Initial) ->
+        computeItemHistory (WaitingForStock mempty []) all_
+    (ST_SUPPRECEIVE, (WaitingForStock previous toprocess)) -> 
+        computeItemHistory (SupplierGRNWaitingForInvoice previous sm'gl'seq toprocess) sm'gls
+    (ST_SUPPINVOICE, (WaitingForStock previous toprocess)) ->
+        computeItemHistory (SupplierInvoiceWaitingForGRN previous sm'gl'seq toprocess) sm'gls
+    (_, (WaitingForStock previous toprocess)) ->
+        computeItemHistory (WaitingForStock previous (sm'gl'seq: toprocess)) sm'gls
+    (ST_SUPPRECEIVE, SupplierGRNWaitingForInvoice previous grn toprocess)  ->
+        historyForGrnInvoice previous grn sm'gl'seq toprocess sm'gls
+    (_              , SupplierGRNWaitingForInvoice previous grn toprocess)  ->
+        computeItemHistory (SupplierGRNWaitingForInvoice previous grn (sm'gl'seq:toprocess)) sm'gls
+    (ST_SUPPINVOICE, SupplierInvoiceWaitingForGRN previous inv toprocess)  ->
+        historyForGrnInvoice previous sm'gl'seq inv toprocess sm'gls 
+    (_             , SupplierInvoiceWaitingForGRN previous inv toprocess)  ->
+        computeItemHistory (SupplierInvoiceWaitingForGRN previous inv (sm'gl'seq:toprocess)) sm'gls
+    (ST_SUPPINVOICE, WithPrevious previous) | Just quantity <- moveQuantityM
+                                            , Just moveCost <- moveCostM
+                                            , Just faAmount <- faAmountM  ->
+      let newSummary = updateSummary previous quantity moveCost faAmount
+      in makeItemCostTransaction previous sm'gl'seq newSummary : computeItemHistory (WithPrevious newSummary)  sm'gls
+    (ST_SUPPINVOICE, WithPrevious previous) -> 
+      computeItemHistory (SupplierInvoiceWaitingForGRN previous sm'gl'seq []) sm'gls
+    (ST_SUPPRECEIVE, WithPrevious previous) | Just quantity <- moveQuantityM 
+                                            , Just moveCost <- moveCostM
+                                            , Just faAmount <- faAmountM  ->
+      let newSummary = updateSummary previous quantity moveCost faAmount
+      in makeItemCostTransaction previous sm'gl'seq newSummary : computeItemHistory (WithPrevious newSummary)  sm'gls
+    (ST_SUPPRECEIVE, WithPrevious previous) -> 
+      computeItemHistory (SupplierGRNWaitingForInvoice previous sm'gl'seq []) sm'gls
+    -- Transaction not affecting the cost price
+    (_,             WithPrevious previous)              | Just quantity <-  moveQuantityM 
+                                                        , quantity /= 0
+                                                        , quantity > qoh previous -> -- negative quantities
+        computeItemHistory (WaitingForStock previous [sm'gl'seq]) sm'gls
+    (_            , WithPrevious previous)              | Just quantity <-  moveQuantityM 
+                                                        , quantity <= qoh previous  ->
+      let newSummary = updateSummaryQoh previous quantity 
+      in makeItemCostTransaction previous sm'gl'seq newSummary : computeItemHistory (WithPrevious newSummary)  sm'gls
+    (_            , WithPrevious previous)              | amount <- fromMaybe 0 faAmountM ->
+      let newSummary = previous <> (mempty {faBalance = amount}) 
+      in makeItemCostTransaction previous sm'gl'seq newSummary : computeItemHistory (WithPrevious newSummary)  sm'gls
+
+
+-- | combine the GRN and invoices and process all the pending transaction (in reverse order)
+historyForGrnInvoice :: RunningState -> Matched -> Matched ->  [Matched] -> [Matched] -> [ItemCostTransaction]
+historyForGrnInvoice previous grn inv toprocess sm'gls = let
+  smeM = preview here (fst grn)
+  gleM = preview there (fst inv)
+  smM = entityVal <$> smeM
+  glM = entityVal <$> gleM
+  in case (smM, glM ) of
+    (Just sm, Just gl) -> let
+      newSummary = updateSummary previous (FA.stockMoveQty sm) (FA.stockMoveStandardCost sm) (FA.glTranAmount gl)
+      in makeItemCostTransaction previous grn newSummary
+        : makeItemCostTransaction newSummary inv newSummary
+        : computeItemHistory (WithPrevious newSummary) (reverse toprocess ++ sm'gls)
+    _ -> error "Unexpected happended. Grn should be a GRN and inv a Supplier Invoice"
+
+
+-- | Update the running state given a quantity and cost (and check overall amount)
+updateSummary :: RunningState -> Double -> Double -> Double -> RunningState
+updateSummary previous quantity cost amount = 
+  previous <> RunningState  quantity
+                            cost
+                            (quantity*cost)
+                            (quantity*cost)
+                            amount
+
+
+updateSummaryQoh :: RunningState -> Double -> RunningState
+updateSummaryQoh previous quantity = updateSummary previous quantity (cost previous) (quantity * cost previous)
+
+makeItemCostTransaction :: RunningState -> Matched -> RunningState -> ItemCostTransaction
+makeItemCostTransaction = error "todo"
+       -- smM = preview here sm'gl
+       -- glM = preview there sm'gl
+       -- get :: (FA.StockMove -> a) 
+       --     -> (FA.GlTran -> a)
+       --     -> a
+  
+  
+  
+
+  
 
 -- | If a transaction contains the same items many times, for example 2 moves and 2 gl_trans  
 -- instead of having 2 element in the list we will have the 4 (the cross product resulting from the join)
