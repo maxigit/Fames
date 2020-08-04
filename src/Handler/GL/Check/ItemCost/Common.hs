@@ -432,8 +432,7 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
                                                         , quantity /= 0
                                                         , qoh previous + quantity < 0 -> -- negative quantities
         computeItemHistory account0 (WaitingForStock previous [sm'gl'seq]) sm'gls
-    (_            , WithPrevious allowN previous)              | Just quantity <-  moveQuantityM 
-                                                        , qoh previous + quantity >= 0  ->
+    (_            , WithPrevious allowN previous)              | Just quantity <-  moveQuantityM  ->
       let (newSummary, newTrans) = updateSummaryQoh previous quantity  (fromMaybe 0 faAmountM)
       in makeItemCostTransaction account0 previous sm'gl'seq newSummary ( newTrans {tComment = tComment newTrans <> " " <> tshow allowN})
          : computeItemHistory account0 (WithPrevious allowN newSummary)  sm'gls
