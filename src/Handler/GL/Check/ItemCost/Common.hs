@@ -314,6 +314,14 @@ data HistoryState
   | WithPrevious AllowNegative RunningState
   | SupplierInvoiceWaitingForGRN RunningState Matched [Matched]
   | SupplierGRNWaitingForInvoice RunningState Matched [Matched]
+instance Show HistoryState where
+  show state = case state of
+    Initial -> "I"
+    WaitingForStock _ _ -> "WaitingForStock"
+    WithPrevious _ _ -> "WithPrevious"
+    SupplierGRNWaitingForInvoice _ _ _ -> "SupplierGRNWaitingForInvoice"
+    SupplierInvoiceWaitingForGRN _ inv _ -> "SupplierInvoiceWaitingForGRN" <> show (snd inv)
+
 
 data RunningState = RunningState
   { qoh :: Double
@@ -377,12 +385,17 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
     -- Initial state, wait for a delivery first
     (_             , Initial) ->
         computeItemHistory account0 (WaitingForStock mempty []) all_
-    -- Waiting For Stock
+    (ST_SUPPINVOICE, WithPrevious allowN previous) | Just faAmount <- faAmountM, fmap FA.glTranMemo glM == Just "GRN Provision"  ->
+      --- ^^^ dont' see this invoice as a real one. It can happend when a GRN as an invoice
+      -- but there is a different of price when the invoice is processed (exchange rate differnt or price updated manually)
+      -- Waiting For Stock
+      let (newSummary, newTrans) = updateSummaryFromAmount previous 0 0 faAmount
+      in makeItemCostTransaction account0 previous sm'gl'seq newSummary newTrans : computeItemHistory account0 (WithPrevious allowN newSummary)  sm'gls
     (ST_SUPPRECEIVE, (WaitingForStock previous toprocess)) | Just _ <- faAmountM -> 
         historyForGrnInvoice account0 previous sm'gl'seq [] toprocess sm'gls
     (ST_SUPPRECEIVE, (WaitingForStock previous toprocess)) -> 
         computeItemHistory account0 (SupplierGRNWaitingForInvoice previous sm'gl'seq toprocess) sm'gls
-    (ST_SUPPINVOICE, (WaitingForStock previous toprocess)) ->
+    (ST_SUPPINVOICE, (WaitingForStock previous toprocess))->
         computeItemHistory account0 (SupplierInvoiceWaitingForGRN previous sm'gl'seq toprocess) sm'gls
     (_, (WaitingForStock previous toprocess)) ->
         computeItemHistory account0 (WaitingForStock previous (sm'gl'seq: toprocess)) sm'gls
@@ -402,7 +415,7 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
                                             , Just faAmount <- faAmountM  ->
       let (newSummary, newTrans) = updateSummaryFromAmount previous quantity moveCost faAmount
       in makeItemCostTransaction account0 previous sm'gl'seq newSummary newTrans : computeItemHistory account0 (WithPrevious allowN newSummary)  sm'gls
-    (ST_SUPPINVOICE, WithPrevious _ previous) -> 
+    (ST_SUPPINVOICE, WithPrevious _ previous) ->
       computeItemHistory account0 (SupplierInvoiceWaitingForGRN previous sm'gl'seq []) sm'gls
     -- Supplier GRN
     (ST_SUPPRECEIVE, WithPrevious allowN previous) | Just quantity <- moveQuantityM 
