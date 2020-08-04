@@ -172,7 +172,9 @@ commasFixedWith' roundFn digit = later go where
             then fconst mempty
             else "." % left digit '0' %. int
     b = (commas' % fracB) -- n (floor $ 100 *  abs f)
-    in bprint b n frac
+    in if x < 0 && n == 0
+       then bprint ("-" % b) n frac
+       else bprint b n frac
 
 -- | Like Formatting.commas but fix bug on negative value
 -- -125 - -,125
