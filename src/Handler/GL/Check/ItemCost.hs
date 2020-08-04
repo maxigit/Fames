@@ -208,7 +208,8 @@ renderTransactions title trans = do
                   <div> FA: #{formatDouble' itemCostTransactionFaStockValue}
                   <div> SB: #{formatDouble' itemCostTransactionStockValue}
               <td> #{formatDouble' itemCostTransactionQohBefore}
-              <td> #{formatDouble' itemCostTransactionQohAfter}
+              $with isNeg <- itemCostTransactionQohAfter < 0
+                <td :isNeg:.bg-danger :isNeg:.text-danger > #{formatDouble' itemCostTransactionQohAfter}
               <td> #{formatDouble' itemCostTransactionCostBefore}
               <td class="#{classForRel 0.25 itemCostTransactionCostBefore itemCostTransactionCostAfter}"> #{formatDouble' itemCostTransactionCostAfter}
               <td> #{itemCostTransactionComment}

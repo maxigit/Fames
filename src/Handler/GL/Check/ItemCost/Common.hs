@@ -450,7 +450,7 @@ historyForGrnInvoice account0 previous grn invs toprocess sm'gls = let
     (Just sm) -> let
       (newSummary, newTrans) = updateSummaryFromAmount previous (FA.stockMoveQty sm) (FA.stockMoveStandardCost sm) glAmount
       in makeItemCostTransaction account0 previous grn newSummary newTrans
-        : [ makeItemCostTransaction account0 newSummary inv newSummary (Transaction 0 0 0 "balance updated with GRN")
+        : [ makeItemCostTransaction account0 newSummary inv newSummary (Transaction 0 0 0 " |  balance updated with GRN")
           | inv <- allInvoices
           ]
         ++ computeItemHistory account0 (WithPrevious PreventNegative newSummary) (reverse toprocess ++ sm'gls)
