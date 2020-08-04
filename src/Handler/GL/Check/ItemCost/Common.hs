@@ -307,6 +307,7 @@ computeItemCostTransactions summarym account0 sm'gls0 = let
 
 -- | Main function
 data AllowNegative = AllowNegative | DontAllowNegative
+  deriving (Eq, Show)
 data HistoryState
   = Initial
   | WaitingForStock RunningState [Matched]
@@ -326,6 +327,7 @@ data Transaction = Transaction
   { tQuantity :: Double
   , tCost :: Double
   , tAmount :: Double
+  , tComment :: Text
   }
 
 instance Semigroup RunningState where
@@ -409,7 +411,7 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
     (ST_SUPPRECEIVE, WithPrevious _ previous) -> 
       computeItemHistory account0 (SupplierGRNWaitingForInvoice previous sm'gl'seq []) sm'gls
     (ST_LOCTRANSFER, WithPrevious allowN previous ) -> -- skip
-      makeItemCostTransaction account0 previous sm'gl'seq previous (Transaction 0 0 0) : computeItemHistory account0 (WithPrevious allowN previous)  sm'gls
+      makeItemCostTransaction account0 previous sm'gl'seq previous (Transaction 0 0 0 "skipped") : computeItemHistory account0 (WithPrevious allowN previous)  sm'gls
     -- Transaction not affecting the cost price
     (_,             WithPrevious DontAllowNegative previous)              | Just quantity <-  moveQuantityM 
                                                         , quantity /= 0
@@ -418,10 +420,11 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
     (_            , WithPrevious allowN previous)              | Just quantity <-  moveQuantityM 
                                                         , quantity <= qoh previous  ->
       let (newSummary, newTrans) = updateSummaryQoh previous quantity 
-      in makeItemCostTransaction account0 previous sm'gl'seq newSummary newTrans : computeItemHistory account0 (WithPrevious allowN newSummary)  sm'gls
+      in makeItemCostTransaction account0 previous sm'gl'seq newSummary ( newTrans {tComment = tComment newTrans <> " " <> tshow allowN})
+         : computeItemHistory account0 (WithPrevious allowN newSummary)  sm'gls
     (_            , WithPrevious allowN previous)              | amount <- fromMaybe 0 faAmountM ->
       let newSummary  = previous <> (mempty {faBalance = amount}) 
-          newTrans = Transaction 0 0 amount
+          newTrans = Transaction 0 0 amount (tshow allowN)
       in makeItemCostTransaction account0 previous sm'gl'seq newSummary newTrans : computeItemHistory account0 (WithPrevious allowN newSummary)  sm'gls
 
 
@@ -436,7 +439,7 @@ historyForGrnInvoice account0 previous grn inv toprocess sm'gls = let
     (Just sm, Just gl) -> let
       (newSummary, newTrans) = updateSummary previous (FA.stockMoveQty sm) (FA.stockMoveStandardCost sm) (FA.glTranAmount gl)
       in makeItemCostTransaction account0 previous grn newSummary newTrans
-        : makeItemCostTransaction account0 newSummary inv newSummary (Transaction 0 0 0)
+        : makeItemCostTransaction account0 newSummary inv newSummary (Transaction 0 0 0 "")
         : computeItemHistory account0 (WithPrevious DontAllowNegative newSummary) (reverse toprocess ++ sm'gls)
     _ -> error "Unexpected happended. Grn should be a GRN and inv a Supplier Invoice"
 
@@ -449,11 +452,13 @@ updateSummary previous quantity cost amount =
                             (quantity*cost)
                             (quantity*cost)
                             amount
-  , Transaction quantity cost amount )
+  , Transaction quantity cost amount "updateSummary: use given cost" )
 
 
 updateSummaryQoh :: RunningState -> Double -> (RunningState, Transaction)
-updateSummaryQoh previous quantity = updateSummary previous quantity (standardCost previous) (quantity * standardCost previous)
+updateSummaryQoh previous quantity = let
+ (start, trans) = updateSummary previous quantity (standardCost previous) (quantity * standardCost previous)
+ in (start, trans {tComment = "from Qoh: use previous cost"})
 
 makeItemCostTransaction :: Account -> RunningState-> Matched -> RunningState -> Transaction -> ItemCostTransaction
 makeItemCostTransaction (Account account0) previous (sm'gl, _) new trans =  let
@@ -493,6 +498,7 @@ makeItemCostTransaction (Account account0) previous (sm'gl, _) new trans =  let
               , itemCostTransactionStockValue = stockValue new
               , itemCostTransactionFaStockValue = faBalance new
               , itemCostTransactionItemCostValidation = Nothing
+              , itemCostTransactionComment = tComment trans
              }
   
   

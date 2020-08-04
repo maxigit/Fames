@@ -356,6 +356,7 @@ ItemCostTransaction sql=check_item_cost_transaction
   faStockValue Double
   moveCost Double -- current transaction cost price
   itemCostValidation ItemCostValidationId Maybe
+  comment Text
   UniqueM moveId !force
   UniqueG glDetail !force
   deriving Show

@@ -169,6 +169,7 @@ renderTransactions title trans = do
               <th data-class-name="text-right"> QOHAfter
               <th data-class-name="text-right"> CostBefore
               <th data-class-name="text-right"> CostAfter
+              <th> Comment
               <th> CostValidation
               <th data-class-name="text-right"> MovedId
               <th data-class-name="text-right"> GlDetail
@@ -208,6 +209,7 @@ renderTransactions title trans = do
               <td> #{formatDouble' itemCostTransactionQohAfter}
               <td> #{formatDouble' itemCostTransactionCostBefore}
               <td class="#{classForRel 0.25 itemCostTransactionCostBefore itemCostTransactionCostAfter}"> #{formatDouble' itemCostTransactionCostAfter}
+              <td> #{itemCostTransactionComment}
               <td> #{tshowM itemCostTransactionItemCostValidation}
               <td> #{tshowM itemCostTransactionMoveId}
               <td> #{tshowM itemCostTransactionGlDetail}
