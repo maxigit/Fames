@@ -354,13 +354,13 @@ computeItemHistory account0 previousState [] =
       case preview here (fst grn) of 
         Nothing -> error "Unexpected happend.Shoudl be a GRN"
         Just (Entity _ move) -> 
-          let (newSummary, newTrans) = updateSummary previous (FA.stockMoveQty move) (FA.stockMoveStandardCost move) 0
+          let (newSummary, newTrans) = updateSummaryFromCost previous (FA.stockMoveQty move) (FA.stockMoveStandardCost move)
           in makeItemCostTransaction account0 previous grn newSummary newTrans : computeItemHistory account0 (WithPrevious PreventNegative newSummary)  (reverse toprocess)
     SupplierInvoiceWaitingForGRN previous inv toprocess -> 
       case preview there (fst inv) of
         Nothing -> error "Unexpected happend.Shoudl be a Invoice"
         Just (Entity _ gl) ->
-          let (newSummary, newTrans) = updateSummary previous 0 0 (FA.glTranAmount gl)
+          let (newSummary, newTrans) = updateSummaryFromAmount previous 0 0 (FA.glTranAmount gl)
           in makeItemCostTransaction account0 previous inv newSummary newTrans : computeItemHistory account0 (WithPrevious PreventNegative newSummary)  (reverse toprocess)
     _ -> []
 
@@ -400,7 +400,7 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
     (ST_SUPPINVOICE, WithPrevious allowN previous) | Just quantity <- moveQuantityM
                                             , Just moveCost <- moveCostM
                                             , Just faAmount <- faAmountM  ->
-      let (newSummary, newTrans) = updateSummary previous quantity moveCost faAmount
+      let (newSummary, newTrans) = updateSummaryFromAmount previous quantity moveCost faAmount
       in makeItemCostTransaction account0 previous sm'gl'seq newSummary newTrans : computeItemHistory account0 (WithPrevious allowN newSummary)  sm'gls
     (ST_SUPPINVOICE, WithPrevious _ previous) -> 
       computeItemHistory account0 (SupplierInvoiceWaitingForGRN previous sm'gl'seq []) sm'gls
@@ -408,7 +408,7 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
     (ST_SUPPRECEIVE, WithPrevious allowN previous) | Just quantity <- moveQuantityM 
                                             , Just moveCost <- moveCostM
                                             , Just faAmount <- faAmountM  ->
-      let (newSummary, newTrans) = updateSummary previous quantity moveCost faAmount
+      let (newSummary, newTrans) = updateSummaryFromAmount previous quantity moveCost faAmount
       in makeItemCostTransaction account0 previous sm'gl'seq newSummary newTrans : computeItemHistory account0 (WithPrevious allowN newSummary)  sm'gls
     (ST_SUPPRECEIVE, WithPrevious _ previous) -> 
       computeItemHistory account0 (SupplierGRNWaitingForInvoice previous sm'gl'seq []) sm'gls
@@ -448,7 +448,7 @@ historyForGrnInvoice account0 previous grn invs toprocess sm'gls = let
                  ]
   in case (smM ) of
     (Just sm) -> let
-      (newSummary, newTrans) = updateSummary previous (FA.stockMoveQty sm) (FA.stockMoveStandardCost sm) glAmount
+      (newSummary, newTrans) = updateSummaryFromAmount previous (FA.stockMoveQty sm) (FA.stockMoveStandardCost sm) glAmount
       in makeItemCostTransaction account0 previous grn newSummary newTrans
         : [ makeItemCostTransaction account0 newSummary inv newSummary (Transaction 0 0 0 "balance updated with GRN")
           | inv <- allInvoices
@@ -458,20 +458,59 @@ historyForGrnInvoice account0 previous grn invs toprocess sm'gls = let
 
 
 -- | Update the running state given a quantity and cost (and check overall amount)
-updateSummary :: RunningState -> Double -> Double -> Double -> (RunningState, Transaction)
-updateSummary previous quantity cost amount = 
-  ( previous <> RunningState  quantity
-                            cost
-                            (quantity*cost)
-                            (quantity*cost)
-                            amount
-  , Transaction quantity cost amount "updateSummary: use given cost" )
+updateSummaryFromAmount :: RunningState -> Double -> Double -> Double -> (RunningState, Transaction)
+updateSummaryFromAmount previous 0 givenCost amount =  
+    ( previous <> RunningState  0
+                              givenCost
+                              amount
+                              amount
+                              amount
+    , Transaction 0 givenCost amount $ "Q0" )
+updateSummaryFromAmount previous quantity givenCost amount =  let
+  -- check if the original cost matches the given one (modulo rounding error)
+  -- if so use the original 
+  in if round (givenCost * quantity * 100) == round (amount * 100)
+  then 
+    ( previous <> RunningState  quantity
+                              givenCost
+                              (quantity*givenCost)
+                              amount
+                              amount
+    , Transaction quantity givenCost amount $ "STICKY " <> tshow (amount/quantity) <> " -> " <> tshow givenCost )
+  else
+    let cost = amount / quantity
+    in ( previous <> RunningState  quantity
+                              cost
+                              (quantity*cost)
+                              (round2 $ quantity*cost)
+                              amount
+    , Transaction quantity cost amount $ "UNSTICKY " <> tshow (amount/quantity) <> " <> " <> tshow givenCost )
 
+
+updateSummaryFromCost :: RunningState -> Double -> Double -> (RunningState, Transaction)
+updateSummaryFromCost previous quantity givenCost = let
+  amount = givenCost * quantity
+  rounded = round2 amount
+  in  ( previous <> RunningState  quantity
+                              givenCost
+                              amount
+                              rounded
+                              rounded
+     , Transaction quantity givenCost amount $ "Q*GivenCost")
 
 updateSummaryQoh :: RunningState -> Double -> (RunningState, Transaction)
 updateSummaryQoh previous quantity = let
- (start, trans) = updateSummary previous quantity (standardCost previous) (quantity * standardCost previous)
- in (start, trans {tComment = "from Qoh: use previous cost"})
+  cost = standardCost previous
+  amount = cost * quantity
+  rounded = round2 amount
+  in  ( previous <> RunningState  quantity
+                              cost
+                              amount
+                              rounded
+                              rounded
+     , Transaction quantity cost amount $ "Q*previousCost" )
+
+round2 = (/100) . fromIntegral . round . (*100)
 
 makeItemCostTransaction :: Account -> RunningState-> Matched -> RunningState -> Transaction -> ItemCostTransaction
 makeItemCostTransaction (Account account0) previous (sm'gl, _) new trans =  let
@@ -500,7 +539,7 @@ makeItemCostTransaction (Account account0) previous (sm'gl, _) new trans =  let
               , itemCostTransactionSku = sku
               , itemCostTransactionAccount = account
               , itemCostTransactionFaAmount = faAmount
-              , itemCostTransactionCorrectAmount = tAmount trans
+              , itemCostTransactionCorrectAmount = round2 $ tAmount trans
               , itemCostTransactionQohBefore = qoh previous
               , itemCostTransactionQohAfter = qoh new
               , itemCostTransactionQuantity = tQuantity trans
