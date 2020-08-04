@@ -433,12 +433,14 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
 -- | combine the GRN and invoices and process all the pending transaction (in reverse order)
 -- check beforehand if the next transaction is not a invoice as well (from the same transaction)
 historyForGrnInvoice :: Account -> RunningState -> Matched -> [Matched] ->  [Matched] -> [Matched] -> [ItemCostTransaction]
-historyForGrnInvoice account0 previous grn (invs@(inv:_)) toprocess (sm'gl:sm'gls)
+historyForGrnInvoice account0 previous grn (invs@(inv:_)) toprocess (sm'gls)
   | Just (Entity _ gl) <- preview there (fst inv)
-  , Just (Entity _ gl1) <- preview there (fst sm'gl)
-  , FA.glTranType gl1 == FA.glTranType gl
-  , FA.glTranTypeNo gl1 == FA.glTranTypeNo gl
-  = historyForGrnInvoice account0 previous grn (sm'gl : invs) toprocess sm'gls
+  , (similars@(_:_), leftover) <- partition (\sm'gl -> case preview there (fst sm'gl) of
+                                               Just (Entity _ gl1) -> FA.glTranType gl1 == FA.glTranType gl && FA.glTranTypeNo gl1 == FA.glTranTypeNo gl
+                                               _ -> False
+                                          )
+                                          (reverse toprocess ++ take 1 sm'gls)
+  = historyForGrnInvoice account0 previous grn (reverse similars ++ invs) [] (leftover ++ drop 1 sm'gls)
 historyForGrnInvoice account0 previous grn invs toprocess sm'gls = let
   smeM = preview here (fst grn)
   smM = entityVal <$> smeM
