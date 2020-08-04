@@ -411,7 +411,7 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
     -- Transaction not affecting the cost price
     (_,             WithPrevious previous)              | Just quantity <-  moveQuantityM 
                                                         , quantity /= 0
-                                                        , quantity > qoh previous -> -- negative quantities
+                                                        , qoh previous + quantity < 0 -> -- negative quantities
         computeItemHistory account0 (WaitingForStock previous [sm'gl'seq]) sm'gls
     (_            , WithPrevious previous)              | Just quantity <-  moveQuantityM 
                                                         , quantity <= qoh previous  ->
