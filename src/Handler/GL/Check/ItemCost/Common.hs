@@ -378,6 +378,8 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
     (_             , Initial) ->
         computeItemHistory account0 (WaitingForStock mempty []) all_
     -- Waiting For Stock
+    (ST_SUPPRECEIVE, (WaitingForStock previous toprocess)) | Just _ <- faAmountM -> 
+        historyForGrnInvoice account0 previous sm'gl'seq [] toprocess sm'gls
     (ST_SUPPRECEIVE, (WaitingForStock previous toprocess)) -> 
         computeItemHistory account0 (SupplierGRNWaitingForInvoice previous sm'gl'seq toprocess) sm'gls
     (ST_SUPPINVOICE, (WaitingForStock previous toprocess)) ->
@@ -386,12 +388,12 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
         computeItemHistory account0 (WaitingForStock previous (sm'gl'seq: toprocess)) sm'gls
     -- Waiting for Supplier invoice
     (ST_SUPPINVOICE, SupplierGRNWaitingForInvoice previous grn toprocess)  ->
-        historyForGrnInvoice account0 previous grn (sm'gl'seq,[]) toprocess sm'gls
+        historyForGrnInvoice account0 previous grn [sm'gl'seq] toprocess sm'gls
     (_              , SupplierGRNWaitingForInvoice previous grn toprocess)  ->
         computeItemHistory account0 (SupplierGRNWaitingForInvoice previous grn (sm'gl'seq:toprocess)) sm'gls
     -- Waiting for Grn
     (ST_SUPPRECEIVE, SupplierInvoiceWaitingForGRN previous inv toprocess)  ->
-        historyForGrnInvoice account0 previous sm'gl'seq (inv, []) toprocess sm'gls 
+        historyForGrnInvoice account0 previous sm'gl'seq [inv] toprocess sm'gls 
     (_             , SupplierInvoiceWaitingForGRN previous inv toprocess)  ->
         computeItemHistory account0 (SupplierInvoiceWaitingForGRN previous inv (sm'gl'seq:toprocess)) sm'gls
     -- Supplier Invoice
@@ -430,19 +432,19 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
 
 -- | combine the GRN and invoices and process all the pending transaction (in reverse order)
 -- check beforehand if the next transaction is not a invoice as well (from the same transaction)
-historyForGrnInvoice :: Account -> RunningState -> Matched -> (Matched, [Matched]) ->  [Matched] -> [Matched] -> [ItemCostTransaction]
-historyForGrnInvoice account0 previous grn (inv, invs) toprocess (sm'gl:sm'gls)
+historyForGrnInvoice :: Account -> RunningState -> Matched -> [Matched] ->  [Matched] -> [Matched] -> [ItemCostTransaction]
+historyForGrnInvoice account0 previous grn (invs@(inv:_)) toprocess (sm'gl:sm'gls)
   | Just (Entity _ gl) <- preview there (fst inv)
   , Just (Entity _ gl1) <- preview there (fst sm'gl)
   , FA.glTranType gl1 == FA.glTranType gl
   , FA.glTranTypeNo gl1 == FA.glTranTypeNo gl
-  = historyForGrnInvoice account0 previous grn (inv, sm'gl : invs) toprocess sm'gls
-historyForGrnInvoice account0 previous grn (inv, invs) toprocess sm'gls = let
+  = historyForGrnInvoice account0 previous grn (sm'gl : invs) toprocess sm'gls
+historyForGrnInvoice account0 previous grn invs toprocess sm'gls = let
   smeM = preview here (fst grn)
   smM = entityVal <$> smeM
-  allInvoices = inv : reverse invs
+  allInvoices = reverse invs
   glAmount = sum [ FA.glTranAmount inv 
-                 | Just (Entity _ inv) <- map (preview there  . fst) allInvoices
+                 | Just (Entity _ inv) <- map (preview there  . fst) $ grn : allInvoices
                  ]
   in case (smM ) of
     (Just sm) -> let
