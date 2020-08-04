@@ -207,10 +207,16 @@ renderTransactions title trans = do
                 title="diff: #{formatDouble' $ itemCostTransactionFaStockValue - itemCostTransactionStockValue}" >
                   <div> FA: #{formatDouble' itemCostTransactionFaStockValue}
                   <div> SB: #{formatDouble' itemCostTransactionStockValue}
-              <td> #{formatDouble' itemCostTransactionQohBefore}
+              $if equal itemCostTransactionQohBefore itemCostTransactionQohAfter
+                <td>
+              $else
+                <td> #{formatDouble' itemCostTransactionQohBefore}
               $with isNeg <- itemCostTransactionQohAfter < 0
                 <td :isNeg:.bg-danger :isNeg:.text-danger > #{formatDouble' itemCostTransactionQohAfter}
-              <td> #{formatDouble' itemCostTransactionCostBefore}
+              $if equal itemCostTransactionCostBefore itemCostTransactionCostAfter
+                <td> 
+              $else
+                <td> #{formatDouble' itemCostTransactionCostBefore}
               <td class="#{classForRel 0.25 itemCostTransactionCostBefore itemCostTransactionCostAfter}"> #{formatDouble' itemCostTransactionCostAfter}
               <td> #{itemCostTransactionComment}
               <td> #{tshowM itemCostTransactionItemCostValidation}
