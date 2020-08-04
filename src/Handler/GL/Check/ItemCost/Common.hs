@@ -296,7 +296,7 @@ computeItemCostTransactions summarym account0 sm'gls0 = let
     lastm = case summarym of
       Nothing -> Initial
       Just ItemCostSummary{..} -> 
-            WithPrevious DontAllowNegative
+            WithPrevious PreventNegative
               $ RunningState itemCostSummaryQohAfter
                              itemCostSummaryCostAfter
                              itemCostSummaryStockValue
@@ -306,7 +306,7 @@ computeItemCostTransactions summarym account0 sm'gls0 = let
     in fmap (computeItemHistory account0 lastm) sm'gls
 
 -- | Main function
-data AllowNegative = AllowNegative | DontAllowNegative
+data AllowNegative = AllowNegative | PreventNegative
   deriving (Eq, Show)
 data HistoryState
   = Initial
@@ -355,13 +355,13 @@ computeItemHistory account0 previousState [] =
         Nothing -> error "Unexpected happend.Shoudl be a GRN"
         Just (Entity _ move) -> 
           let (newSummary, newTrans) = updateSummary previous (FA.stockMoveQty move) (FA.stockMoveStandardCost move) 0
-          in makeItemCostTransaction account0 previous grn newSummary newTrans : computeItemHistory account0 (WithPrevious DontAllowNegative newSummary)  (reverse toprocess)
+          in makeItemCostTransaction account0 previous grn newSummary newTrans : computeItemHistory account0 (WithPrevious PreventNegative newSummary)  (reverse toprocess)
     SupplierInvoiceWaitingForGRN previous inv toprocess -> 
       case preview there (fst inv) of
         Nothing -> error "Unexpected happend.Shoudl be a Invoice"
         Just (Entity _ gl) ->
           let (newSummary, newTrans) = updateSummary previous 0 0 (FA.glTranAmount gl)
-          in makeItemCostTransaction account0 previous inv newSummary newTrans : computeItemHistory account0 (WithPrevious DontAllowNegative newSummary)  (reverse toprocess)
+          in makeItemCostTransaction account0 previous inv newSummary newTrans : computeItemHistory account0 (WithPrevious PreventNegative newSummary)  (reverse toprocess)
     _ -> []
 
 computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) = let
@@ -386,12 +386,12 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
         computeItemHistory account0 (WaitingForStock previous (sm'gl'seq: toprocess)) sm'gls
     -- Waiting for Supplier invoice
     (ST_SUPPINVOICE, SupplierGRNWaitingForInvoice previous grn toprocess)  ->
-        historyForGrnInvoice account0 previous grn sm'gl'seq toprocess sm'gls
+        historyForGrnInvoice account0 previous grn (sm'gl'seq,[]) toprocess sm'gls
     (_              , SupplierGRNWaitingForInvoice previous grn toprocess)  ->
         computeItemHistory account0 (SupplierGRNWaitingForInvoice previous grn (sm'gl'seq:toprocess)) sm'gls
     -- Waiting for Grn
     (ST_SUPPRECEIVE, SupplierInvoiceWaitingForGRN previous inv toprocess)  ->
-        historyForGrnInvoice account0 previous sm'gl'seq inv toprocess sm'gls 
+        historyForGrnInvoice account0 previous sm'gl'seq (inv, []) toprocess sm'gls 
     (_             , SupplierInvoiceWaitingForGRN previous inv toprocess)  ->
         computeItemHistory account0 (SupplierInvoiceWaitingForGRN previous inv (sm'gl'seq:toprocess)) sm'gls
     -- Supplier Invoice
@@ -413,7 +413,7 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
     (ST_LOCTRANSFER, WithPrevious allowN previous ) -> -- skip
       makeItemCostTransaction account0 previous sm'gl'seq previous (Transaction 0 0 0 "skipped") : computeItemHistory account0 (WithPrevious allowN previous)  sm'gls
     -- Transaction not affecting the cost price
-    (_,             WithPrevious DontAllowNegative previous)              | Just quantity <-  moveQuantityM 
+    (_,             WithPrevious PreventNegative previous)              | Just quantity <-  moveQuantityM 
                                                         , quantity /= 0
                                                         , qoh previous + quantity < 0 -> -- negative quantities
         computeItemHistory account0 (WaitingForStock previous [sm'gl'seq]) sm'gls
@@ -429,18 +429,29 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
 
 
 -- | combine the GRN and invoices and process all the pending transaction (in reverse order)
-historyForGrnInvoice :: Account -> RunningState -> Matched -> Matched ->  [Matched] -> [Matched] -> [ItemCostTransaction]
-historyForGrnInvoice account0 previous grn inv toprocess sm'gls = let
+-- check beforehand if the next transaction is not a invoice as well (from the same transaction)
+historyForGrnInvoice :: Account -> RunningState -> Matched -> (Matched, [Matched]) ->  [Matched] -> [Matched] -> [ItemCostTransaction]
+historyForGrnInvoice account0 previous grn (inv, invs) toprocess (sm'gl:sm'gls)
+  | Just (Entity _ gl) <- preview there (fst inv)
+  , Just (Entity _ gl1) <- preview there (fst sm'gl)
+  , FA.glTranType gl1 == FA.glTranType gl
+  , FA.glTranTypeNo gl1 == FA.glTranTypeNo gl
+  = historyForGrnInvoice account0 previous grn (inv, sm'gl : invs) toprocess sm'gls
+historyForGrnInvoice account0 previous grn (inv, invs) toprocess sm'gls = let
   smeM = preview here (fst grn)
-  gleM = preview there (fst inv)
   smM = entityVal <$> smeM
-  glM = entityVal <$> gleM
-  in case (smM, glM ) of
-    (Just sm, Just gl) -> let
-      (newSummary, newTrans) = updateSummary previous (FA.stockMoveQty sm) (FA.stockMoveStandardCost sm) (FA.glTranAmount gl)
+  allInvoices = inv : reverse invs
+  glAmount = sum [ FA.glTranAmount inv 
+                 | Just (Entity _ inv) <- map (preview there  . fst) allInvoices
+                 ]
+  in case (smM ) of
+    (Just sm) -> let
+      (newSummary, newTrans) = updateSummary previous (FA.stockMoveQty sm) (FA.stockMoveStandardCost sm) glAmount
       in makeItemCostTransaction account0 previous grn newSummary newTrans
-        : makeItemCostTransaction account0 newSummary inv newSummary (Transaction 0 0 0 "")
-        : computeItemHistory account0 (WithPrevious DontAllowNegative newSummary) (reverse toprocess ++ sm'gls)
+        : [ makeItemCostTransaction account0 newSummary inv newSummary (Transaction 0 0 0 "balance updated with GRN")
+          | inv <- allInvoices
+          ]
+        ++ computeItemHistory account0 (WithPrevious PreventNegative newSummary) (reverse toprocess ++ sm'gls)
     _ -> error "Unexpected happended. Grn should be a GRN and inv a Supplier Invoice"
 
 
