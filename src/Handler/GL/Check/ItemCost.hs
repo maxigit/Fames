@@ -198,8 +198,10 @@ renderTransactions title trans = do
                   >
                   <div> Move: #{formatDouble' itemCostTransactionMoveCost}
                   <div> SB: #{formatDouble' itemCostTransactionCost}
-              $if equal itemCostTransactionStockValue itemCostTransactionFaStockValue
-                <td.bg-success.text-success> #{formatDouble' itemCostTransactionStockValue}
+              $if equal' 0.01 itemCostTransactionStockValue itemCostTransactionFaStockValue
+                <td.bg-success.text-success data-toggle="tooltip"
+                 title="#{formatDouble' itemCostTransactionFaStockValue}">
+                  #{formatDouble' itemCostTransactionStockValue}
               $else
                 <td class="#{classFor 0.5 itemCostTransactionFaStockValue itemCostTransactionStockValue}" data-toggle="tooltip"
                 title="diff: #{formatDouble' $ itemCostTransactionFaStockValue - itemCostTransactionStockValue}" >
