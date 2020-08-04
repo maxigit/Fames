@@ -354,7 +354,7 @@ computeItemHistory account0 previousState [] =
       case preview here (fst grn) of 
         Nothing -> error "Unexpected happend.Shoudl be a GRN"
         Just (Entity _ move) -> 
-          let (newSummary, newTrans) = updateSummaryFromCost previous (FA.stockMoveQty move) (FA.stockMoveStandardCost move)
+          let (newSummary, newTrans) = updateSummaryFromCost previous (FA.stockMoveQty move) (FA.stockMoveStandardCost move) 0
           in makeItemCostTransaction account0 previous grn newSummary newTrans : computeItemHistory account0 (WithPrevious PreventNegative newSummary)  (reverse toprocess)
     SupplierInvoiceWaitingForGRN previous inv toprocess -> 
       case preview there (fst inv) of
@@ -421,7 +421,7 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
         computeItemHistory account0 (WaitingForStock previous [sm'gl'seq]) sm'gls
     (_            , WithPrevious allowN previous)              | Just quantity <-  moveQuantityM 
                                                         , quantity <= qoh previous  ->
-      let (newSummary, newTrans) = updateSummaryQoh previous quantity 
+      let (newSummary, newTrans) = updateSummaryQoh previous quantity  (fromMaybe 0 faAmountM)
       in makeItemCostTransaction account0 previous sm'gl'seq newSummary ( newTrans {tComment = tComment newTrans <> " " <> tshow allowN})
          : computeItemHistory account0 (WithPrevious allowN newSummary)  sm'gls
     (_            , WithPrevious allowN previous)              | amount <- fromMaybe 0 faAmountM ->
@@ -489,19 +489,19 @@ updateSummaryFromAmount previous quantity givenCost amount =  let
     , Transaction quantity cost amount $ "UNSTICKY " <> tshow (amount/quantity) <> " <> " <> tshow givenCost )
 
 
-updateSummaryFromCost :: RunningState -> Double -> Double -> (RunningState, Transaction)
-updateSummaryFromCost previous quantity givenCost = let
+updateSummaryFromCost :: RunningState -> Double -> Double -> Double -> (RunningState, Transaction)
+updateSummaryFromCost previous quantity givenCost faAmount = let
   amount = givenCost * quantity
   rounded = round2 amount
   in  ( previous <> RunningState  quantity
                               givenCost
                               amount
                               rounded
-                              rounded
+                              faAmount
      , Transaction quantity givenCost amount $ "Q*GivenCost")
 
-updateSummaryQoh :: RunningState -> Double -> (RunningState, Transaction)
-updateSummaryQoh previous quantity = let
+updateSummaryQoh :: RunningState -> Double -> Double -> (RunningState, Transaction)
+updateSummaryQoh previous quantity faAmount = let
   cost = standardCost previous
   amount = cost * quantity
   rounded = round2 amount
@@ -509,7 +509,7 @@ updateSummaryQoh previous quantity = let
                               cost
                               amount
                               rounded
-                              rounded
+                              faAmount
      , Transaction quantity cost amount $ "Q*previousCost" )
 
 round2 = (/100) . fromIntegral . round . (*100)
