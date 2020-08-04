@@ -182,12 +182,12 @@ renderTransactions title trans = do
               <td> #{transIconWithLink glUrlFn "" itemCostTransactionFaTransType itemCostTransactionFaTransNo}
               $if equal itemCostTransactionFaAmount itemCostTransactionCorrectAmount
                 <td.bg-success.text-success>
-                  #{formatDouble' itemCostTransactionFaAmount}
+                  #{formatDouble itemCostTransactionFaAmount}
               $else
                 <td class="#{classFor 0.5 itemCostTransactionFaAmount itemCostTransactionCorrectAmount}" data-tople="tooltip"
-                  title="diff: #{formatDouble' $ itemCostTransactionFaAmount - itemCostTransactionCorrectAmount}">
-                  <div> FA: #{formatDouble' itemCostTransactionFaAmount}
-                  <div> SB: #{formatDouble' itemCostTransactionCorrectAmount}
+                  title="diff: #{formatDouble $ itemCostTransactionFaAmount - itemCostTransactionCorrectAmount}">
+                  <div> FA: #{formatDouble itemCostTransactionFaAmount}
+                  <div> SB: #{formatDouble itemCostTransactionCorrectAmount}
               <td> #{formatDouble' itemCostTransactionQuantity}
               $if equal itemCostTransactionCost itemCostTransactionMoveCost
                 <td.bg-success.text-success>
