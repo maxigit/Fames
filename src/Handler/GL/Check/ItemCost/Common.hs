@@ -395,6 +395,9 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
         historyForGrnInvoice account0 previous sm'gl'seq [] toprocess sm'gls
     (ST_SUPPRECEIVE, (WaitingForStock previous toprocess)) -> 
         computeItemHistory account0 (SupplierGRNWaitingForInvoice previous sm'gl'seq toprocess) sm'gls
+    (ST_INVADJUST, WaitingForStock previous toprocess) | Just _ <- moveQuantityM
+                                                       , Just _ <- faAmountM  ->
+        historyForGrnInvoice account0 previous sm'gl'seq [] toprocess sm'gls
     (ST_SUPPINVOICE, (WaitingForStock previous toprocess))->
         computeItemHistory account0 (SupplierInvoiceWaitingForGRN previous sm'gl'seq toprocess) sm'gls
     (_, (WaitingForStock previous toprocess)) ->
@@ -425,6 +428,13 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
       in makeItemCostTransaction account0 previous sm'gl'seq newSummary newTrans : computeItemHistory account0 (WithPrevious allowN newSummary)  sm'gls
     (ST_SUPPRECEIVE, WithPrevious _ previous) -> 
       computeItemHistory account0 (SupplierGRNWaitingForInvoice previous sm'gl'seq []) sm'gls
+    --  Inventory Adjustment
+    (ST_INVADJUST, WithPrevious allowN previous) | Just quantity <- moveQuantityM
+                                            , Just moveCost <- moveCostM
+                                            , Just faAmount <- faAmountM  ->
+      let (newSummary, newTrans) = updateSummaryFromAmount previous quantity moveCost faAmount
+      in makeItemCostTransaction account0 previous sm'gl'seq newSummary newTrans : computeItemHistory account0 (WithPrevious allowN newSummary)  sm'gls
+    -- Location Tranfer
     (ST_LOCTRANSFER, WithPrevious allowN previous ) -> -- skip
       makeItemCostTransaction account0 previous sm'gl'seq previous (Transaction 0 0 0 "skipped") : computeItemHistory account0 (WithPrevious allowN previous)  sm'gls
     -- Transaction not affecting the cost price
