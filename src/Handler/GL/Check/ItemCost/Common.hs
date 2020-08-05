@@ -459,6 +459,7 @@ historyForGrnInvoice account0 previous grn (invs@(inv:_)) toprocess (sm'gls)
   | Just (Entity _ gl) <- preview there (fst inv)
   , (similars@(_:_), leftover) <- partition (\sm'gl -> case preview there (fst sm'gl) of
                                                Just (Entity _ gl1) -> FA.glTranType gl1 == FA.glTranType gl && FA.glTranTypeNo gl1 == FA.glTranTypeNo gl
+                                                               && FA.glTranMemo gl1 == "GRN Provision"
                                                _ -> False
                                           )
                                           (reverse toprocess ++ take 1 sm'gls)
