@@ -257,7 +257,7 @@ renderDuplicates account (err,move'gls) = do
                   <td> #{tshow $ FA.stockMoveLocCode  move}
                   <td> #{transNoWithLink urlFn "" (toEnum $ FA.stockMoveType move) (FA.stockMoveTransNo move)}
                   <td> #{transIconWithLink glUrlFn "" (toEnum $ FA.stockMoveType move) (FA.stockMoveTransNo move)}
-                  <td> #{tshow $ FA.unStockMoveKey moveId}
+                  <td> move: #{tshow $ FA.unStockMoveKey moveId}
                 $of (That (Entity detailId gl))
                   <td> #{tshow $ FA.glTranTranDate gl}
                   <td> 
@@ -266,7 +266,7 @@ renderDuplicates account (err,move'gls) = do
                   <td> 
                   <td> #{transNoWithLink urlFn "" (toEnum $ FA.glTranType gl) (FA.glTranTypeNo gl)}
                   <td> #{transIconWithLink glUrlFn "" (toEnum $ FA.glTranType gl) (FA.glTranTypeNo gl)}
-                  <td> #{tshow $ FA.unGlTranKey detailId}
+                  <td> gl: #{tshow $ FA.unGlTranKey detailId}
                 $of (These (Entity moveId move) (Entity detailId gl))
                   <td> #{tshow $ FA.stockMoveTranDate  move}
                   <td> #{formatDouble' $ FA.stockMoveQty  move}
@@ -278,8 +278,8 @@ renderDuplicates account (err,move'gls) = do
                   <td> #{transNoWithLink urlFn "" (toEnum $ FA.stockMoveType move) (FA.stockMoveTransNo move)}
                   <td> #{transIconWithLink glUrlFn "" (toEnum $ FA.stockMoveType move) (FA.stockMoveTransNo move)}
                   <td> 
-                    <div>#{tshow $ FA.unStockMoveKey moveId} 
-                    <div>#{tshow $ FA.unGlTranKey detailId}
+                    <div>move: #{tshow $ FA.unStockMoveKey moveId} 
+                    <div>gl: #{tshow $ FA.unGlTranKey detailId}
 
     |]
     
