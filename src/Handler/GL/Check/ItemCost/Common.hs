@@ -360,7 +360,7 @@ computeItemHistory account0 previousState [] =
     WaitingForStock previous toprocess -> computeItemHistory account0 (WithPrevious AllowNegative previous) (reverse toprocess)
     SupplierGRNWaitingForInvoice previous grn toprocess ->
       case preview here (fst grn) of 
-        Nothing -> error "Unexpected happend.Shoudl be a GRN"
+        Nothing -> error $ "Unexpected happend.Shoudl be a GRN : Invoice id :" <> show (entityKey <$> preview there (fst grn))
         Just (Entity _ move) -> 
           let (newSummary, newTrans) = updateSummaryFromCost previous (FA.stockMoveQty move) (FA.stockMoveStandardCost move) 0
           in makeItemCostTransaction account0 previous grn newSummary newTrans : computeItemHistory account0 (WithPrevious PreventNegative newSummary)  (reverse toprocess)
@@ -479,7 +479,7 @@ historyForGrnInvoice account0 previous grn invs toprocess sm'gls = let
           | inv <- allInvoices
           ]
         ++ computeItemHistory account0 (WithPrevious PreventNegative newSummary) (reverse toprocess ++ sm'gls)
-    _ -> error "Unexpected happended. Grn should be a GRN and inv a Supplier Invoice"
+    _ -> error $ "Unexpected happended. Grn should be a GRN and inv a Supplier Invoice " <> show (entityKey <$> preview there (fst grn))
 
 
 -- | Update the running state given a quantity and cost (and check overall amount)
