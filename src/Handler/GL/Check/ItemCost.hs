@@ -49,12 +49,12 @@ getGLCheckItemCostR = do
                   <td.bg-success.text-success>
                       #{formatDouble correct}
                   <td.bg-success.text-success>
-                      #{formatDouble $ abs $ asGLAmount - correct}
+                      #{formatAbs asGLAmount correct}
                 $else
                   <td class="#{classFor 100 asGLAmount correct}">
                       #{formatDouble correct}
                   <td class="#{classFor 100 asGLAmount correct}">
-                      #{formatDouble $ abs $ correct - asGLAmount}
+                      #{formatAbs correct asGLAmount}
               $of Nothing
                 <td>
                     <form method=POST action="@{GLR $ GLCheckItemCostAccountCollectR (fromAccount asAccount)}">  
@@ -64,9 +64,10 @@ getGLCheckItemCostR = do
             <td> #{formatDouble asStockValuation}
             $if equal' 0.01 asGLAmount asStockValuation
               <td.bg-success.text-sucess>
-                #{formatDouble $ abs $ asGLAmount - asStockValuation}
+                #{formatAbs asGLAmount asStockValuation}
             $else
-              <td class="#{classFor 100 asGLAmount asStockValuation}"> #{formatDouble $ asGLAmount - asStockValuation}
+              <td class="#{classFor 100 asGLAmount asStockValuation}">
+                #{formatAbs asGLAmount asStockValuation}
         <tfoot>
           <tr>
             <th> Total
@@ -115,7 +116,7 @@ getGLCheckItemCostAccountViewR account = do
                   <td.bg-success.text-success> #{formatDouble (itemCostSummaryStockValue last)}
                 $else
                   <td."#{classFor 0.5 (itemCostSummaryFaStockValue last) (itemCostSummaryStockValue last)}" >
-                       #{formatDouble (abs $ itemCostSummaryStockValue last - itemCostSummaryFaStockValue last)}
+                       #{formatAbs (itemCostSummaryStockValue last) (itemCostSummaryFaStockValue last)}
                   <td class="#{classFor 0.5 (itemCostSummaryFaStockValue last) (itemCostSummaryStockValue last)}">
                     #{formatDouble (itemCostSummaryFaStockValue last)}
                 <td> #{formatDouble (itemCostSummaryStockValue last)}
@@ -346,6 +347,13 @@ postGLCheckItemCostPurgeR = do
 formatDouble' :: Double -> Text
 formatDouble' = F.sformat (commasFixedWith' round 6)
 
+formatAbs :: Double -> Double -> Html
+formatAbs  a b = [shamlet|
+     <span.bracketed :isNegative:.negative data-toggle="tooltip" 
+            title="#{ formatDouble diff }"
+     > #{formatDouble (abs diff)}|]
+      where diff = a - b
+            isNegative = diff < 0
 equal = equal' 1e-6
 equal' e a b = abs (a - b) < e
 classFor e a b = if equal' e a b

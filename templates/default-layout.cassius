@@ -64,3 +64,15 @@ table.table-striped
 .negative-bad .negative, .positive-bad .positive, .negative-bad.negative, .positive-bad.positive
   background: #fedede
   color: #d0534f
+
+.bracketed
+  &:before
+   content: "["
+  &:after
+   content: "]"
+
+.bracketed.negative
+  &:before
+   content: "("
+  &:after
+   content: ")"
