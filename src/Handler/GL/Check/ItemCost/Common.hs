@@ -599,13 +599,19 @@ fixDuplicates move'gls = let
   unduplicate m'gs = case m'gs of
          [m'g] -> Right [m'g]
          ((m'g,seqN):_)  -> let
-            (moves, cancellingPairs) = removeCancellingMoves $ mapMaybe getFirst $ toList $ groupAsMap entityKey (First . Just) $ mapMaybe (preview here . fst) m'gs
+            (moves, cancellingPairs) = case removeCancellingMoves $ mapMaybe getFirst $ toList $ groupAsMap entityKey (First . Just) $ mapMaybe (preview here . fst) m'gs of
+                ([], cancellings) |  length cancellings == glLength && length cancellings  * glLength == length m'gs -> (cancellings, [])
+                 -- ^ ignore cancelling pairs in case the gls cancel each other as well
+                 --  happened when "removing" a GRN
+                 --  the GRN is modified to have a negative stock + corresponding gl
+                m'c -> m'c
+            glLength = length gls
             gls = mapMaybe getFirst $ toList $ groupAsMap entityKey (First . Just) $ mapMaybe (preview there . fst) m'gs
             in ( case (length moves , length gls) of
                  (0, 0 ) ->  Right []
                  (0, _ ) -> Right $ map (\g -> (That g, seqN)) gls
                  (_, 0 ) -> Right $ map (\m -> (This m, seqN)) moves
-                 (moveLength, glLength) | moveLength == glLength && (moveLength + length cancellingPairs) * glLength == length m'gs -> Right $ zipWith (\m g -> (These m g, seqN)) moves gls 
+                 (moveLength, _) | moveLength == glLength && (moveLength + length cancellingPairs) * glLength == length m'gs -> Right $ zipWith (\m g -> (These m g, seqN)) moves gls 
                  (1, 2) -- | (FA.stockMoveType . entityVal <$> preview here m'g) == Just (fromEnum ST_INVADJUST)
                         | abs (sum (map (FA.glTranAmount . entityVal) gls)) < 1e-4
                         ->
