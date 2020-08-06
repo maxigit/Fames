@@ -174,10 +174,11 @@ renderTransactions title trans = do
               <th data-class-name="text-right"> MovedId
               <th data-class-name="text-right"> GlDetail
         <tbody>
-          $forall ItemCostTransaction{..} <- trans
+          $forall (ItemCostTransaction{..},previousDate) <- zip trans (Nothing : map (Just . itemCostTransactionDate) trans)
             $with _unused <- (itemCostTransactionAccount, itemCostTransactionSku)
             <tr>
-              <td> #{tshow itemCostTransactionDate}
+              $with inFuture <- Just itemCostTransactionDate < previousDate
+                <td :inFuture:.bg-danger :inFuture:.text-danger> #{tshow itemCostTransactionDate}
               <td> #{transNoWithLink urlFn ""  itemCostTransactionFaTransType itemCostTransactionFaTransNo}
               <td> #{transIconWithLink glUrlFn "" itemCostTransactionFaTransType itemCostTransactionFaTransNo}
               $if equal itemCostTransactionFaAmount itemCostTransactionCorrectAmount
