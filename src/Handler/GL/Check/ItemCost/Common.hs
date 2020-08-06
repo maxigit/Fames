@@ -345,9 +345,10 @@ instance Semigroup RunningState where
   a <> b = let totalQoh = qoh a + qoh b
                totalValue = stockValue a + stockValue b 
            in RunningState totalQoh
-                           (if totalQoh == 0 
-                           then standardCost b
-                           else totalValue / totalQoh
+                           (case (totalQoh, standardCost b) of
+                                  (0, 0) -> standardCost a
+                                  (0, sc) -> sc
+                                  _ -> totalValue / totalQoh
                            )
                            totalValue
                            (expectedBalance a + expectedBalance b)
@@ -451,7 +452,7 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
          <$> computeItemHistory account0 (WithPrevious allowN newSummary)  sm'gls
     (_            , WithPrevious allowN previous)              | amount <- fromMaybe 0 faAmountM ->
       let newSummary  = previous <> (mempty {faBalance = amount}) 
-          newTrans = Transaction 0 0 amount (tshow allowN)
+          newTrans = Transaction 0 0 amount ("Fallback " <> tshow allowN)
       in ((makeItemCostTransaction account0 previous sm'gl'seq newSummary newTrans) :) <$> computeItemHistory account0 (WithPrevious allowN newSummary)  sm'gls
 
 
