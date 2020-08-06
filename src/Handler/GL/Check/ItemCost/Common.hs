@@ -723,9 +723,10 @@ collectCostTransactions account skum = do
 loadCheckInfo :: Handler [CheckInfo]
 loadCheckInfo = do
   let sql = "SELECT  account, sku "
-         ++ " , MAX(COALESCE(correct_amount != 0 AND fa_amount != 0 AND abs(1-LEAST(correct_amount, fa_amount)/GREATEST(correct_amount, fa_amount))>0.1,False)) as cost_discrepency"
+         ++ " , MAX(IF(fa_trans_type IN (20,25), 0, COALESCE(correct_amount != 0 AND fa_amount != 0 AND abs(1-LEAST(correct_amount, fa_amount)/GREATEST(correct_amount, fa_amount))>0.1,False))) as cost_discrepency"
           ++ ", MAX(qoh_after < 0) as negative_qoh "
-         ++ " , MAX(COALESCE(cost_before != 0 AND cost_after != 0 AND abs(1-LEAST(cost_before, cost_after)/GREATEST(cost_before, cost_after))>0.25,False)) as cost_variation"
+         ++ " , MAX(IF(fa_trans_type IN (20,25), 0, COALESCE(cost_before != 0 AND cost_after != 0 AND abs(1-LEAST(cost_before, cost_after)/GREATEST(cost_before, cost_after))>0.25,False))) as cost_variation"
+         --             ^ the cost can change between a GRN and its invoice. We only case if the dodgy cost price has an impact (ie has been used instead of being calculated)
           ++ " FROM check_item_cost_transaction "
           ++ " WHERE fa_trans_type NOT IN (16)" -- filter location transfer
           ++ " AND item_cost_validation IS NULL "
