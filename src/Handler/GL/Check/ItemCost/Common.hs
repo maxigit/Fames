@@ -407,6 +407,9 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
     (ST_INVADJUST, WaitingForStock previous toprocess) | Just _ <- moveQuantityM
                                                        , Just _ <- faAmountM  ->
         historyForGrnInvoice account0 previous sm'gl'seq [] toprocess sm'gls
+    (ST_WORKORDER, WaitingForStock previous toprocess) | Just _ <- moveQuantityM
+                                                       , Just _ <- faAmountM  ->
+        historyForGrnInvoice account0 previous sm'gl'seq [] toprocess sm'gls
     (ST_SUPPINVOICE, (WaitingForStock previous toprocess))->
         computeItemHistory account0 (SupplierInvoiceWaitingForGRN previous sm'gl'seq toprocess) sm'gls
     (_, (WaitingForStock previous toprocess)) ->
