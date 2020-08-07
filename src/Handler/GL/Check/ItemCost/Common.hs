@@ -748,10 +748,10 @@ collectCostTransactions account skum = do
 loadCheckInfo :: Handler [CheckInfo]
 loadCheckInfo = do
   let sql0 = "SELECT  account, sku "
-         ++ " , MAX(IF(fa_trans_type IN (20,25), 0, fa_amount - correct_amount)) as amount_discrepency "
-         ++ " , MAX(IF(fa_trans_type IN (20,25) AND move_cost <> 0, 0, move_cost - cost)) as cost_discrepency "
+         ++ " , MAX(IF(fa_trans_type IN (20,25), 0, abs(fa_amount - correct_amount))) as amount_discrepency "
+         ++ " , MAX(IF(fa_trans_type IN (20,25) OR move_cost = 0, 0, abs(move_cost - cost))) as cost_discrepency "
           ++ ", MAX(qoh_after < 0) as negative_qoh "
-         ++ " , MAX(IF(fa_trans_type IN (20,25) OR abs(cost_before*cost_after) < 1e-2, 0, cost_after - cost_before )) as cost_variation"
+         ++ " , MAX(IF(fa_trans_type IN (20,25) OR abs(cost_before*cost_after) < 1e-2, 0, abs(cost_after - cost_before) )) as cost_variation"
          --             ^ the cost can change between a GRN and its invoice. We only case if the dodgy cost price has an impact (ie has been used instead of being calculated)
           ++ " FROM check_item_cost_transaction "
           ++ " WHERE fa_trans_type NOT IN (16)" -- filter location transfer
@@ -762,7 +762,7 @@ loadCheckInfo = do
           ++ ", IF(abs(qoh_after) < 1e-2 AND abs(stock_value) > 0.1,stock_value,0) as null_stock "
           ++ " FROM  ( " ++ sql0++ ") AS check_info  "
           ++ " LEFT JOIN check_item_cost_summary USING(sku, account) "
-          ++ " HAVING abs(cost_discrepency) > 1e-2 OR negative_qoh > 0 OR abs(cost_variation) > 1e-2 OR abs(null_stock) > 1e-2 OR abs(null_stock_fa) > 1e-2"
+          ++ " HAVING abs(amount_discrepency) > 1e-2 OR abs(cost_discrepency) > 1e-2 OR negative_qoh > 0 OR abs(cost_variation) > 1e-2 OR abs(null_stock) > 1e-2 OR abs(null_stock_fa) > 1e-2"
            
       mkCheck (Single account
               , Single icSku
