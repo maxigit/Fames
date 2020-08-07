@@ -24,6 +24,7 @@ getGLCheckItemCostR = do
   summaries <- mapM getAccountSummary accounts
   let glBalance = sum (map asGLAmount summaries)
       stockValue = sum (map asStockValuation summaries)
+      qoh = sum (map asQuantity summaries)
       correctValue = sum (mapMaybe asCorrectAmount summaries)
   defaultLayout  $ do
     setTitle  "Check Item cost"
@@ -37,6 +38,7 @@ getGLCheckItemCostR = do
             <th data-class-name="text-right"> GL Balance - Correct 
             <th data-class-name="text-right"> Stock Valuation
             <th data-class-name="text-right"> Stock Valuation - Correct
+            <th data-class-name="text-right"> Quantity oN Hand
         <tbody>
           $forall AccountSummary{..} <- summaries
            <tr>
@@ -69,6 +71,7 @@ getGLCheckItemCostR = do
             $else
               <td class="#{classFor 100 asGLAmount asStockValuation}">
                 #{formatAbs asGLAmount asStockValuation}
+            <td> #{formatDouble' asQuantity}
         <tfoot>
           <tr>
             <th> Total
@@ -77,6 +80,7 @@ getGLCheckItemCostR = do
             <th> #{formatDouble $ glBalance - correctValue}
             <th> #{formatDouble $ stockValue}
             <th> #{formatDouble $ stockValue - correctValue}
+            <th> #{formatDouble' $ qoh}
      <form method=POST action="@{GLR $ GLCheckItemCostCollectAllR}">  
        <button.btn.btn-warning type="sumbit"> Collect All
      <form method=POST action="@{GLR $ GLCheckItemCostPurgeR}">  

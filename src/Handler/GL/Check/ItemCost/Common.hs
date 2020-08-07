@@ -33,6 +33,7 @@ data AccountSummary = AccountSummary
   , asGLAmount :: Double
   , asCorrectAmount :: Maybe Double
   , asStockValuation :: Double
+  , asQuantity :: Double
   }
   deriving (Show)
 
@@ -68,7 +69,7 @@ getAccountSummary account = do
   asGLAmount <- glBalanceFor account
   asAccountName <- getAccountName account
   asCorrectAmount <- getTotalCost account
-  asStockValuation <- stockValuationFor account
+  (asStockValuation, asQuantity) <- stockValuationFor account
   return AccountSummary{asAccount=account,..}
 
 
@@ -101,11 +102,11 @@ getAccountName (Account account) = do
    [] -> error . unpack $ "Account " <> account <> " doesn't not exist!"
    _ -> error "The unexpected happened. Contact your Administrator!"
 
-stockValuationFor :: Account -> Handler Double
+stockValuationFor :: Account -> Handler (Double, Double)
 stockValuationFor account = do
   sku'costs <- getItemFor account
   values <- mapM stockValuation sku'costs
-  return $ sum values
+  return $ (sum (map fst values), sum (map snd values))
 
 getItemFor :: Account -> Handler [(Text, Double)]
 getItemFor (Account account) = do
@@ -122,13 +123,13 @@ getItemFor (Account account) = do
   runDB $ map (bimap unSingle unSingle)  <$> rawSql sql ([toPersistValue account] ++ params)
 
 -- | Stock valuation for 
-stockValuation :: (Text, Double) -> Handler Double
+stockValuation :: (Text, Double) -> Handler (Double, Double)
 stockValuation (sku, cost) = do
   let sql = "select sum(qty) from 0_stock_moves where stock_id = ?"
   rows <- runDB $ rawSql sql [toPersistValue sku]
   case rows of
-        [] -> return 0
-        [(Single qty)] -> return $ maybe 0 (*cost) qty
+        [] -> return (0,0)
+        [(Single qtym)] -> return $ maybe (0,0) (\q -> (q*cost, q)) qtym
         _ -> error "The unpexcted happend"
 
 
