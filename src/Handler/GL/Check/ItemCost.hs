@@ -347,12 +347,12 @@ getGLCheckItemCostCheckR = do
                 #{formatAbs 0 icCostVariation}
             $else
               <td>
-            $if icNullFAStockDiscrepency > 0
+            $if abs icNullFAStockDiscrepency > 0
               <td.bg-danger.text-danger>
                 #{formatAbs 0 icNullFAStockDiscrepency}
             $else
               <td>
-            $if icNullStockDiscrepency > 0
+            $if abs icNullStockDiscrepency > 0
               <td.bg-danger.text-danger>
                 #{formatAbs 0 icNullStockDiscrepency}
             $else
@@ -374,11 +374,11 @@ getGLCheckItemCostCheckR = do
                   <span>badvariation
                 $else
                   <span.hidden>variationok
-                $if icNullFAStockDiscrepency > 0
+                $if abs icNullFAStockDiscrepency > 0
                   <span>badfa
                 $else
                   <span.hidden>faok
-                $if icNullStockDiscrepency > 0
+                $if abs icNullStockDiscrepency > 0
                   <span>badstock
                 $else
                   <span.hidden>stockok
