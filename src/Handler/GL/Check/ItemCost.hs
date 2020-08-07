@@ -341,9 +341,9 @@ getGLCheckItemCostCheckR = do
                 Negative QOH
             $else
               <td>
-            $if icCostVariation
+            $if abs icCostVariation > 0.01
               <td.bg-warning.text-warning>
-                cost before Vs after variation > 25%
+                #{formatAbs 0 icCostVariation}
             $else
               <td>
             $if icNullFAStockDiscrepency > 0

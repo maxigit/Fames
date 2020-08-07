@@ -45,7 +45,7 @@ data CheckInfo  = CheckInfo
   , icAmountDiscrepency :: Double -- ^ 
   , icCostDiscrepency :: Double -- ^ 
   , icNegativeQOH :: Bool
-  , icCostVariation :: Bool -- ^ 
+  , icCostVariation :: Double -- ^ 
   , icNullFAStockDiscrepency :: Double -- ^ qoh 0 but GL balance not null
   , icNullStockDiscrepency :: Double -- ^ qoh 0 but GL balance not null
   }
@@ -733,7 +733,7 @@ loadCheckInfo = do
          ++ " , MAX(IF(fa_trans_type IN (20,25), 0, fa_amount - correct_amount)) as amount_discrepency "
          ++ " , MAX(IF(fa_trans_type IN (20,25) AND move_cost <> 0, 0, move_cost - cost)) as cost_discrepency "
           ++ ", MAX(qoh_after < 0) as negative_qoh "
-         ++ " , MAX(IF(fa_trans_type IN (20,25), 0, COALESCE(cost_before != 0 AND cost_after != 0 AND abs(1-LEAST(cost_before, cost_after)/GREATEST(cost_before, cost_after))>0.25,False))) as cost_variation"
+         ++ " , MAX(IF(fa_trans_type IN (20,25) AND cost_before <> 0, 0, cost_after - cost_before )) as cost_variation"
          --             ^ the cost can change between a GRN and its invoice. We only case if the dodgy cost price has an impact (ie has been used instead of being calculated)
           ++ " FROM check_item_cost_transaction "
           ++ " WHERE fa_trans_type NOT IN (16)" -- filter location transfer
