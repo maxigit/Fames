@@ -336,12 +336,12 @@ getGLCheckItemCostCheckR = do
                #{fromMaybe "" icSku}
             <td> <a href="@{GLR $ GLCheckItemCostAccountViewR (fromAccount icAccount)}">
                #{fromAccount icAccount}
-            $if abs icAmountDiscrepency > 0.01
+            $if abs icAmountDiscrepency > 1
               <td.bg-danger.text-danger>
                 #{formatAbs 0 icAmountDiscrepency}
             $else
               <td>
-            $if abs icCostDiscrepency > 0.01
+            $if abs icCostDiscrepency > 0.5
               <td.bg-danger.text-danger>
                 #{formatAbs 0 icCostDiscrepency}
             $else
@@ -351,7 +351,7 @@ getGLCheckItemCostCheckR = do
                 Negative QOH
             $else
               <td>
-            $if abs icCostVariation > 0.01
+            $if abs icCostVariation > 0.5
               <td.bg-warning.text-warning>
                 #{formatAbs 0 icCostVariation}
             $else
@@ -367,11 +367,11 @@ getGLCheckItemCostCheckR = do
             $else
               <td>
             <td> 
-                $if abs icAmountDiscrepency > 0.01
+                $if abs icAmountDiscrepency > 1
                   <span>badamount
                 $else
                   <span.hidden>amountok
-                $if abs icCostDiscrepency > 0.01
+                $if abs icCostDiscrepency > 0.5
                   <span>badcost
                 $else
                   <span.hidden>costok
@@ -379,7 +379,7 @@ getGLCheckItemCostCheckR = do
                   <span>badqoh
                 $else
                   <span.hidden>qohok
-                $if abs icCostVariation > 0.01
+                $if abs icCostVariation > 0.5
                   <span>badvariation
                 $else
                   <span.hidden>variationok

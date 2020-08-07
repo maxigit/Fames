@@ -762,7 +762,7 @@ loadCheckInfo = do
           ++ ", IF(abs(qoh_after) < 1e-2 AND abs(stock_value) > 0.1,stock_value,0) as null_stock "
           ++ " FROM  ( " ++ sql0++ ") AS check_info  "
           ++ " LEFT JOIN check_item_cost_summary USING(sku, account) "
-          ++ " HAVING abs(amount_discrepency) > 1e-2 OR abs(cost_discrepency) > 1e-2 OR negative_qoh > 0 OR abs(cost_variation) > 1e-2 OR abs(null_stock) > 1e-2 OR abs(null_stock_fa) > 1e-2"
+          ++ " HAVING abs(amount_discrepency) >1 OR abs(cost_discrepency) > 0.5 OR negative_qoh > 0 OR abs(cost_variation) > 0.5 OR abs(null_stock) > 1e-2 OR abs(null_stock_fa) > 1e-2"
            
       mkCheck (Single account
               , Single icSku
