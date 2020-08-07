@@ -32,6 +32,7 @@ data AccountSummary = AccountSummary
   , asAccountName :: Text
   , asGLAmount :: Double
   , asCorrectAmount :: Maybe Double
+  , asCorrectQoh :: Maybe Double
   , asStockValuation :: Double
   , asQuantity :: Double
   }
@@ -68,7 +69,7 @@ getAccountSummary :: Account -> Handler AccountSummary
 getAccountSummary account = do
   asGLAmount <- glBalanceFor account
   asAccountName <- getAccountName account
-  asCorrectAmount <- getTotalCost account
+  (asCorrectAmount, asCorrectQoh) <- getTotalCost account
   (asStockValuation, asQuantity) <- stockValuationFor account
   return AccountSummary{asAccount=account,..}
 
@@ -83,14 +84,14 @@ glBalanceFor (Account account) = do
    _ -> error "glBalanceFor should only returns one row. Please contact your Admininstrator!"
 
 
-getTotalCost :: Account -> Handler (Maybe Double)
+getTotalCost :: Account -> Handler (Maybe Double, Maybe Double)
 getTotalCost (Account account) = do
-  let sql = "select sum(stock_value) from check_item_cost_summary "
+  let sql = "select sum(stock_value), sum(qoh_after) from check_item_cost_summary "
          <> " WHERE account = ?"
   rows <- runDB $ rawSql sql [toPersistValue account]
   case rows of
-    [] -> return Nothing
-    [(Single total)] -> return $ total
+    [] -> return (Nothing, Nothing)
+    [(Single total, Single qoh)] -> return (total, qoh)
     _ -> error "glTotalCost should only returns one row. Please contact your Admininstrator!"
 
 getAccountName :: Account -> Handler Text

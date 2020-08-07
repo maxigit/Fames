@@ -26,6 +26,7 @@ getGLCheckItemCostR = do
       stockValue = sum (map asStockValuation summaries)
       qoh = sum (map asQuantity summaries)
       correctValue = sum (mapMaybe asCorrectAmount summaries)
+      correctQoh = sum (mapMaybe asCorrectQoh summaries)
   defaultLayout  $ do
     setTitle  "Check Item cost"
     [whamlet|
@@ -38,7 +39,8 @@ getGLCheckItemCostR = do
             <th data-class-name="text-right"> GL Balance - Correct 
             <th data-class-name="text-right"> Stock Valuation
             <th data-class-name="text-right"> Stock Valuation - Correct
-            <th data-class-name="text-right"> Quantity oN Hand
+            <th data-class-name="text-right"> QOH (FA)
+            <th data-class-name="text-right"> QOH - Correct
         <tbody>
           $forall AccountSummary{..} <- summaries
            <tr>
@@ -72,6 +74,7 @@ getGLCheckItemCostR = do
               <td class="#{classFor 100 asGLAmount asStockValuation}">
                 #{formatAbs asGLAmount asStockValuation}
             <td> #{formatDouble' asQuantity}
+            <td> #{maybe "-" (formatAbs asQuantity) asCorrectQoh}
         <tfoot>
           <tr>
             <th> Total
@@ -81,6 +84,7 @@ getGLCheckItemCostR = do
             <th> #{formatDouble $ stockValue}
             <th> #{formatDouble $ stockValue - correctValue}
             <th> #{formatDouble' $ qoh}
+            <th> #{formatAbs qoh correctQoh}
      <form method=POST action="@{GLR $ GLCheckItemCostCollectAllR}">  
        <button.btn.btn-warning type="sumbit"> Collect All
      <form method=POST action="@{GLR $ GLCheckItemCostPurgeR}">  
