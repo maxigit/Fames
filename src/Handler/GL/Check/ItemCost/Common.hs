@@ -438,11 +438,15 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
     (ST_SUPPRECEIVE, WithPrevious _ previous) -> 
       computeItemHistory account0 (SupplierGRNWaitingForInvoice previous sm'gl'seq []) sm'gls
     --  Inventory Adjustment
-    (ST_INVADJUST, WithPrevious allowN previous) | Just quantity <- moveQuantityM
-                                            , Just moveCost <- moveCostM
-                                            , Just faAmount <- faAmountM  ->
-      let (newSummary, newTrans) = updateSummaryFromAmount previous quantity moveCost faAmount
-      in ((makeItemCostTransaction account0 previous sm'gl'seq newSummary newTrans) :) <$> computeItemHistory account0 (WithPrevious allowN newSummary)  sm'gls
+    --  We should use the cost move when it is a genuine adjustment
+    --  but use  amount when it is a rename : so that both items transaction matches
+    --   but we wont, so there is no need for a special case
+    --   The case when we are waiting for stock and need a positive delivery is alreayd caught upstream 
+    -- (ST_INVADJUST, WithPrevious allowN previous) | Just quantity <- moveQuantityM
+    --                                         , Just moveCost <- moveCostM
+    --                                         , Just faAmount <- faAmountM  ->
+    --   let (newSummary, newTrans) = updateSummaryFromAmount previous quantity moveCost faAmount
+    --   in ((makeItemCostTransaction account0 previous sm'gl'seq newSummary newTrans) :) <$> computeItemHistory account0 (WithPrevious allowN newSummary)  sm'gls
     -- Location Tranfer
     (ST_LOCTRANSFER, WithPrevious allowN previous ) -> -- skip
       ((makeItemCostTransaction account0 previous sm'gl'seq previous (Transaction 0 0 0 "skipped")) :) <$> computeItemHistory account0 (WithPrevious allowN previous)  sm'gls
@@ -533,6 +537,17 @@ updateSummaryFromCost previous quantity givenCost faAmount = let
      , Transaction quantity givenCost amount $ "Q*GivenCost")
 
 updateSummaryQoh :: RunningState -> Double -> Double -> (RunningState, Transaction)
+updateSummaryQoh previous quantity faAmount | standardCost previous == 0, quantity /= 0 = let
+  -- use amount
+  cost = amount / quantity
+  amount = faAmount
+  rounded = round2 amount
+  in  ( previous <> RunningState  quantity
+                              cost
+                              amount
+                              rounded
+                              faAmount
+     , Transaction quantity cost amount $ "Q*0" )
 updateSummaryQoh previous quantity faAmount = let
   cost = standardCost previous
   amount = cost * quantity
