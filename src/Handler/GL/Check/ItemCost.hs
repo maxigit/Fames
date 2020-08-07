@@ -311,9 +311,12 @@ getGLCheckItemCostCheckR = do
       <thead>
         <th> Sku
         <th> Account
-        <th> Cost Discrepency
+        <th> <span>Amount Discrepency
+        <th> <span>Cost Discrepency
+             <span> FA vs Correct
         <th> Negative QOH
-        <th> Cost Variation
+        <th> <span>Cost Variation
+             <span> Before vs After
         <th> Empty Stock (FA)
         <th> Empty Stock 
       <tbody>
@@ -323,9 +326,14 @@ getGLCheckItemCostCheckR = do
                #{fromMaybe "" icSku}
             <td> <a href="@{GLR $ GLCheckItemCostAccountViewR (fromAccount icAccount)}">
                #{fromAccount icAccount}
-            $if icCostDiscrepency
+            $if abs icAmountDiscrepency > 0.01
               <td.bg-danger.text-danger>
-                Amount Vs FA variation > 10%
+                #{formatAbs 0 icAmountDiscrepency}
+            $else
+              <td>
+            $if abs icCostDiscrepency > 0.01
+              <td.bg-danger.text-danger>
+                #{formatAbs 0 icCostDiscrepency}
             $else
               <td>
             $if icNegativeQOH

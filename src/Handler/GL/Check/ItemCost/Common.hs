@@ -42,7 +42,8 @@ data AccountSummary = AccountSummary
 data CheckInfo  = CheckInfo
   { icAccount :: Account
   , icSku :: Maybe Text
-  , icCostDiscrepency :: Bool -- ^ 
+  , icAmountDiscrepency :: Double -- ^ 
+  , icCostDiscrepency :: Double -- ^ 
   , icNegativeQOH :: Bool
   , icCostVariation :: Bool -- ^ 
   , icNullFAStockDiscrepency :: Double -- ^ qoh 0 but GL balance not null
@@ -729,7 +730,8 @@ collectCostTransactions account skum = do
 loadCheckInfo :: Handler [CheckInfo]
 loadCheckInfo = do
   let sql0 = "SELECT  account, sku "
-         ++ " , MAX(IF(fa_trans_type IN (20,25), 0, COALESCE(correct_amount != 0 AND fa_amount != 0 AND abs(1-LEAST(correct_amount, fa_amount)/GREATEST(correct_amount, fa_amount))>0.1,False))) as cost_discrepency"
+         ++ " , MAX(IF(fa_trans_type IN (20,25), 0, fa_amount - correct_amount)) as amount_discrepency "
+         ++ " , MAX(IF(fa_trans_type IN (20,25) AND move_cost <> 0, 0, move_cost - cost)) as cost_discrepency "
           ++ ", MAX(qoh_after < 0) as negative_qoh "
          ++ " , MAX(IF(fa_trans_type IN (20,25), 0, COALESCE(cost_before != 0 AND cost_after != 0 AND abs(1-LEAST(cost_before, cost_after)/GREATEST(cost_before, cost_after))>0.25,False))) as cost_variation"
          --             ^ the cost can change between a GRN and its invoice. We only case if the dodgy cost price has an impact (ie has been used instead of being calculated)
@@ -742,10 +744,11 @@ loadCheckInfo = do
           ++ ", IF(abs(qoh_after) < 1e-2 AND abs(stock_value) > 0.1,stock_value,0) as null_stock "
           ++ " FROM  ( " ++ sql0++ ") AS check_info  "
           ++ " LEFT JOIN check_item_cost_summary USING(sku, account) "
-          ++ " HAVING cost_discrepency > 0 OR negative_qoh > 0 OR cost_variation > 0 OR null_stock > 0"
+          ++ " HAVING abs(cost_discrepency) > 1e-2 OR negative_qoh > 0 OR cost_variation > 0 OR null_stock > 0"
            
       mkCheck (Single account
               , Single icSku
+              , Single icAmountDiscrepency
               , Single icCostDiscrepency
               , Single icNegativeQOH
               , Single icCostVariation
