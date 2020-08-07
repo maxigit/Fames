@@ -37,8 +37,9 @@ getGLCheckItemCostR = do
             <th data-class-name="text-right"> GL Balance
             <th data-class-name="text-right"> Correct Balance
             <th data-class-name="text-right"> GL Balance - Correct 
-            <th data-class-name="text-right"> Stock Valuation
             <th data-class-name="text-right"> Stock Valuation - Correct
+            <th data-class-name="text-right"> Stock Valuation
+            <th data-class-name="text-right"> Stock Valuation - GL
             <th data-class-name="text-right"> QOH (FA)
             <th data-class-name="text-right"> QOH - Correct
         <tbody>
@@ -60,11 +61,18 @@ getGLCheckItemCostR = do
                       #{formatDouble correct}
                   <td class="#{classFor 100 asGLAmount correct}">
                       #{formatAbs correct asGLAmount}
+                $if equal' 0.01 asGLAmount asStockValuation
+                  <td.bg-success.text-sucess>
+                    #{formatAbs correct asStockValuation}
+                $else
+                  <td class="#{classFor 100 asGLAmount asStockValuation}">
+                    #{formatAbs correct asStockValuation}
               $of Nothing
                 <td>
                     <form method=POST action="@{GLR $ GLCheckItemCostAccountCollectR (fromAccount asAccount)}">  
                        <button.btn.btn-danger type="sumbit"> Collect
                    
+                <td>
                 <td>
             <td> #{formatDouble asStockValuation}
             $if equal' 0.01 asGLAmount asStockValuation
@@ -81,8 +89,9 @@ getGLCheckItemCostR = do
             <th> #{formatDouble glBalance}
             <th> #{formatDouble correctValue}
             <th> #{formatDouble $ glBalance - correctValue}
-            <th> #{formatDouble $ stockValue}
             <th> #{formatDouble $ stockValue - correctValue}
+            <th> #{formatDouble $ stockValue}
+            <th> #{formatDouble $ stockValue - glBalance}
             <th> #{formatDouble' $ qoh}
             <th> #{formatAbs qoh correctQoh}
      <form method=POST action="@{GLR $ GLCheckItemCostCollectAllR}">  
