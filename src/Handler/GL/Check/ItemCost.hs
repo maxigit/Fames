@@ -319,6 +319,7 @@ getGLCheckItemCostCheckR = do
              <span> Before vs After
         <th> Empty Stock (FA)
         <th> Empty Stock 
+        <th> summary Stock 
       <tbody>
         $forall CheckInfo{..} <- checks
           <tr>
@@ -356,6 +357,31 @@ getGLCheckItemCostCheckR = do
                 #{formatAbs 0 icNullStockDiscrepency}
             $else
               <td>
+            <td> 
+                $if abs icAmountDiscrepency > 0.01
+                  <span>badamount
+                $else
+                  <span.hidden>amountok
+                $if abs icCostDiscrepency > 0.01
+                  <span>badcost
+                $else
+                  <span.hidden>costok
+                $if icNegativeQOH
+                  <span>badqoh
+                $else
+                  <span.hidden>qohok
+                $if abs icCostVariation > 0.01
+                  <span>badvariation
+                $else
+                  <span.hidden>variationok
+                $if icNullFAStockDiscrepency > 0
+                  <span>badfa
+                $else
+                  <span.hidden>faok
+                $if icNullStockDiscrepency > 0
+                  <span>badstock
+                $else
+                  <span.hidden>stockok
   |]
 -- * Saving
 postGLCheckItemCostAccountCollectR :: Text -> Handler Html
