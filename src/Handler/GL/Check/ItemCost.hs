@@ -25,7 +25,8 @@ getGLCheckItemCostR = do
   let glBalance = sum (map asGLAmount summaries)
       stockValue = sum (map asStockValuation summaries)
       correctValue = sum (mapMaybe asCorrectAmount summaries)
-  defaultLayout 
+  defaultLayout  $ do
+    setTitle  "Check Item cost"
     [whamlet|
       <table data-page-length=10 *{datatable}>
         <thead>
@@ -91,7 +92,8 @@ getGLCheckItemCostAccountViewR account = do
       stockValue = sum $ [ itemCostSummaryStockValue last | (_,_,Just last) <- sku'count'lasts] 
       -- filter items with no transaction neither summary (so not used at all)
       sku'count'lasts = filter (\(_, count, lastm) -> count /= 0 || isJust lastm) sku'count'lasts0
-  defaultLayout 
+  defaultLayout $ do
+    setTitle . toHtml $ "Item Cost - View Account " <> account
     [whamlet|
      <table data-page-length=10 *{datatable}>
       <thead>
@@ -142,19 +144,25 @@ getGLCheckItemCostItemViewR account item = do
   let endDatem =  item >>= itemSettings settingsm (Account account) >>= closingDate
   trans0 <- loadMovesAndTransactions (entityVal <$> lastm) endDatem (Account account) item
   let transE = computeItemCostTransactions (entityVal <$> lastm) (Account account) trans0
-  either (renderDuplicates account) (renderTransactions (fromMaybe account item)) transE
+  w <- either (renderDuplicates account) (renderTransactions (fromMaybe account item)) transE
+  defaultLayout $ do
+    setTitle . toHtml $ "Item Cost - pending " <> account <> maybe " (All)" ("/" <>) item
+    w
 
 getGLCheckItemCostItemViewSavedR :: Text -> Maybe Text -> Handler Html
 getGLCheckItemCostItemViewSavedR account item = do
     trans <- runDB $ selectList [ItemCostTransactionAccount ==. account, ItemCostTransactionSku ==. item] []
-    renderTransactions (fromMaybe account item) (map entityVal trans)
+    w <-  renderTransactions (fromMaybe account item) (map entityVal trans)
+    defaultLayout $ do
+      setTitle . toHtml $ "Item Cost Item - done " <> account <> maybe " (All)" ("/" <>) item
+      w
 
-renderTransactions :: Text -> [ItemCostTransaction] -> Handler Html 
+renderTransactions :: Text -> [ItemCostTransaction] -> Handler Widget 
 renderTransactions title trans = do
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
   let urlFn = urlForFA faURL
       glUrlFn = glViewUrlForFA faURL
-  defaultLayout $
+  return $
     infoPanel title  [whamlet|
 
       <table data-page-length=200 *{datatable}>
@@ -228,12 +236,12 @@ renderTransactions title trans = do
 
 -- | Displays stockmoves and gl trans resulting of a "duplicate"
 -- : we can' not untangle their cartesian product. (see fixDuplicates)
-renderDuplicates :: Text -> (Text, [Matched]) -> Handler Html
+renderDuplicates :: Text -> (Text, [Matched]) -> Handler Widget
 renderDuplicates account (err,move'gls) = do
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
   let urlFn = urlForFA faURL
       glUrlFn = glViewUrlForFA faURL
-  defaultLayout $
+  return $
     dangerPanel (account) [whamlet|
       <div.bg-danger.text-danger>
         #{err}
@@ -288,7 +296,9 @@ renderDuplicates account (err,move'gls) = do
 getGLCheckItemCostCheckR :: Handler Html
 getGLCheckItemCostCheckR = do
   checks <- loadCheckInfo
-  defaultLayout [whamlet|
+  defaultLayout $ do
+    setTitle "Item Cost Check all"
+    [whamlet|
     <table *{datatable}>
       <thead>
         <th> Sku
@@ -327,7 +337,11 @@ postGLCheckItemCostAccountCollectR account = do
   transE <- mapM (collectCostTransactions (Account account)) skus
   case partitionEithers transE of
     ([], _ ) -> getGLCheckItemCostAccountViewR account
-    (duplicatess, _ ) -> mconcat <$> mapM (renderDuplicates account) duplicatess
+    (duplicatess, _ ) -> do
+      w <- mconcat <$> mapM (renderDuplicates account) duplicatess
+      defaultLayout $ do
+        setTitle . toHtml $ "Item Cost - collect error " <> account 
+        w
 
 postGLCheckItemCostCollectAllR :: Handler Html
 postGLCheckItemCostCollectAllR = do
