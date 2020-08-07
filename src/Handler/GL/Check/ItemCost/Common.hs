@@ -45,6 +45,7 @@ data CheckInfo  = CheckInfo
   , icCostDiscrepency :: Bool -- ^ 
   , icNegativeQOH :: Bool
   , icCostVariation :: Bool -- ^ 
+  , icNullFAStockDiscrepency :: Double -- ^ qoh 0 but GL balance not null
   }
   deriving (Show)
 type Matched = (These (Entity FA.StockMove) (Entity FA.GlTran), Int)
@@ -726,7 +727,7 @@ collectCostTransactions account skum = do
 -- (not much variation in cost price, too much discrepency between FA and calculated etc ...
 loadCheckInfo :: Handler [CheckInfo]
 loadCheckInfo = do
-  let sql = "SELECT  account, sku "
+  let sql0 = "SELECT  account, sku "
          ++ " , MAX(IF(fa_trans_type IN (20,25), 0, COALESCE(correct_amount != 0 AND fa_amount != 0 AND abs(1-LEAST(correct_amount, fa_amount)/GREATEST(correct_amount, fa_amount))>0.1,False))) as cost_discrepency"
           ++ ", MAX(qoh_after < 0) as negative_qoh "
          ++ " , MAX(IF(fa_trans_type IN (20,25), 0, COALESCE(cost_before != 0 AND cost_after != 0 AND abs(1-LEAST(cost_before, cost_after)/GREATEST(cost_before, cost_after))>0.25,False))) as cost_variation"
@@ -735,12 +736,18 @@ loadCheckInfo = do
           ++ " WHERE fa_trans_type NOT IN (16)" -- filter location transfer
           ++ " AND item_cost_validation IS NULL "
           ++ " GROUP BY account, sku "
-          ++ " HAVING cost_discrepency > 0 OR negative_qoh > 0 OR cost_variation > 0"
+      sql = "SELECT check_info.* "
+          ++ ", IF(abs(qoh_after) < 1e-2 AND abs(fa_stock_value) > 0.1,fa_stock_value,0) as null_stock "
+          ++ " FROM  ( " ++ sql0++ ") AS check_info  "
+          ++ " LEFT JOIN check_item_cost_summary USING(sku, account) "
+          ++ " HAVING cost_discrepency > 0 OR negative_qoh > 0 OR cost_variation > 0 OR null_stock > 0"
+           
       mkCheck (Single account
               , Single icSku
               , Single icCostDiscrepency
               , Single icNegativeQOH
               , Single icCostVariation
+              , Single icNullFAStockDiscrepency
               ) = CheckInfo{icAccount=Account account ,..}
 
   rows <- runDB $ rawSql sql []
