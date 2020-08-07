@@ -46,6 +46,7 @@ data CheckInfo  = CheckInfo
   , icNegativeQOH :: Bool
   , icCostVariation :: Bool -- ^ 
   , icNullFAStockDiscrepency :: Double -- ^ qoh 0 but GL balance not null
+  , icNullStockDiscrepency :: Double -- ^ qoh 0 but GL balance not null
   }
   deriving (Show)
 type Matched = (These (Entity FA.StockMove) (Entity FA.GlTran), Int)
@@ -738,6 +739,7 @@ loadCheckInfo = do
           ++ " GROUP BY account, sku "
       sql = "SELECT check_info.* "
           ++ ", IF(abs(qoh_after) < 1e-2 AND abs(fa_stock_value) > 0.1,fa_stock_value,0) as null_stock "
+          ++ ", IF(abs(qoh_after) < 1e-2 AND abs(stock_value) > 0.1,stock_value,0) as null_stock "
           ++ " FROM  ( " ++ sql0++ ") AS check_info  "
           ++ " LEFT JOIN check_item_cost_summary USING(sku, account) "
           ++ " HAVING cost_discrepency > 0 OR negative_qoh > 0 OR cost_variation > 0 OR null_stock > 0"
@@ -748,6 +750,7 @@ loadCheckInfo = do
               , Single icNegativeQOH
               , Single icCostVariation
               , Single icNullFAStockDiscrepency
+              , Single icNullStockDiscrepency
               ) = CheckInfo{icAccount=Account account ,..}
 
   rows <- runDB $ rawSql sql []

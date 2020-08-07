@@ -314,7 +314,8 @@ getGLCheckItemCostCheckR = do
         <th> Cost Discrepency
         <th> Negative QOH
         <th> Cost Variation
-        <th> Empty Stock not null
+        <th> Empty Stock (FA)
+        <th> Empty Stock 
       <tbody>
         $forall CheckInfo{..} <- checks
           <tr>
@@ -340,6 +341,11 @@ getGLCheckItemCostCheckR = do
             $if icNullFAStockDiscrepency > 0
               <td.bg-danger.text-danger>
                 #{formatAbs 0 icNullFAStockDiscrepency}
+            $else
+              <td>
+            $if icNullStockDiscrepency > 0
+              <td.bg-danger.text-danger>
+                #{formatAbs 0 icNullStockDiscrepency}
             $else
               <td>
   |]
