@@ -7,6 +7,8 @@ module Handler.GL.Check.ItemCost
 , postGLCheckItemCostCollectAllR
 , getGLCheckItemCostCheckR
 , postGLCheckItemCostPurgeR
+, postGLCheckItemCostPurgeAccountR
+, postGLCheckItemCostPurgeAccountItemR
 )
 where
 
@@ -150,7 +152,9 @@ getGLCheckItemCostAccountViewR account = do
         <th> #{formatDouble faStockValue }
         <th> #{formatDouble stockValue}
      <form method=POST action="@{GLR $ GLCheckItemCostAccountCollectR account}">  
-       <button.btn.btn-danger type="sumbit"> Collect
+       <button.btn.btn-warning type="sumbit"> Collect
+     <form method=POST action="@{GLR $ GLCheckItemCostPurgeAccountR account}">
+        <button.btn.btn-danger type="submit"> Purge
     |]
 
 
@@ -173,6 +177,10 @@ getGLCheckItemCostItemViewSavedR account item = do
     defaultLayout $ do
       setTitle . toHtml $ "Item Cost Item - done " <> account <> maybe " (All)" ("/" <>) item
       w
+      [whamlet|
+      <form method=POST action="@{GLR $ GLCheckItemCostPurgeAccountItemR account item}">
+        <button.btn.btn-danger type="submit"> Purge
+      |]
 
 renderTransactions :: Text -> [ItemCostTransaction] -> Handler Widget 
 renderTransactions title trans = do
@@ -418,6 +426,23 @@ postGLCheckItemCostPurgeR = do
   runDB $ do
     deleteWhere [ItemCostTransactionItemCostValidation ==. Nothing]
     deleteWhere ( [] :: [Filter ItemCostSummary])
+  redirect $ GLR GLCheckItemCostR
+
+postGLCheckItemCostPurgeAccountR :: Text -> Handler Html
+postGLCheckItemCostPurgeAccountR account = do
+  runDB $ do
+    deleteWhere [ItemCostTransactionAccount ==. account, ItemCostTransactionItemCostValidation ==. Nothing]
+    deleteWhere ( [ItemCostSummaryAccount ==. account ] :: [Filter ItemCostSummary])
+  redirect $ GLR GLCheckItemCostR
+
+postGLCheckItemCostPurgeAccountItemR :: Text -> Maybe Text -> Handler Html
+postGLCheckItemCostPurgeAccountItemR account sku = do
+  runDB $ do
+    deleteWhere [ ItemCostTransactionAccount ==. account
+                , ItemCostTransactionSku ==. sku
+                , ItemCostTransactionItemCostValidation ==. Nothing
+                ]
+    deleteWhere ( [ItemCostSummaryAccount ==. account, ItemCostSummarySku ==. sku ] :: [Filter ItemCostSummary])
   redirect $ GLR GLCheckItemCostR
 -- * Util
 

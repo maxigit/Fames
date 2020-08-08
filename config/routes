@@ -62,6 +62,8 @@
   /check/item_cost/item/done/#Text/#Maybe-Text GLCheckItemCostItemViewSavedR GET !check !fix
   /check/item_cost/check/ GLCheckItemCostCheckR GET !checkA !title=Check_Item_Cost
   /check/item_cost/purge/ GLCheckItemCostPurgeR POST !check
+  /check/item_cost/purge-account/#Text GLCheckItemCostPurgeAccountR POST !check
+  /check/item_cost/purge-item/#Text/#Maybe-Text GLCheckItemCostPurgeAccountItemR POST !check
 
 /warehouse WarehouseR !warehouse:
   /barcodes WHBarcodeR GET !group=Barcodes !title=Generate
