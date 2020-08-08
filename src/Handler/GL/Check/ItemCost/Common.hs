@@ -451,11 +451,12 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
     --  but use  amount when it is a rename : so that both items transaction matches
     --   but we wont, so there is no need for a special case
     --   The case when we are waiting for stock and need a positive delivery is alreayd caught upstream 
-    -- (ST_INVADJUST, WithPrevious allowN previous) | Just quantity <- moveQuantityM
-    --                                         , Just moveCost <- moveCostM
-    --                                         , Just faAmount <- faAmountM  ->
-    --   let (newSummary, newTrans) = updateSummaryFromAmount previous quantity moveCost faAmount
-    --   in ((makeItemCostTransaction account0 previous sm'gl'seq newSummary newTrans) :) <$> computeItemHistory account0 (WithPrevious allowN newSummary)  sm'gls
+    (ST_INVADJUST, WithPrevious allowN previous) | Just quantity <- moveQuantityM
+                                            , Just moveCost <- moveCostM
+                                            , quantity + qoh previous /= 0 -- if 0 adjustment to set the stock to 0 therefore the gl balance to 0 to
+                                            , Just faAmount <- faAmountM  ->
+      let (newSummary, newTrans) = updateSummaryFromAmount previous quantity moveCost faAmount
+      in ((makeItemCostTransaction account0 previous sm'gl'seq newSummary newTrans) :) <$> computeItemHistory account0 (WithPrevious allowN newSummary)  sm'gls
     -- Location Tranfer
     (ST_LOCTRANSFER, WithPrevious allowN previous ) -> -- skip
       ((makeItemCostTransaction account0 previous sm'gl'seq previous (Transaction 0 0 0 "skipped")) :) <$> computeItemHistory account0 (WithPrevious allowN previous)  sm'gls
