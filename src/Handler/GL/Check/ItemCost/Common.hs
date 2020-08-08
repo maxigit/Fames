@@ -151,8 +151,10 @@ loadMovesAndTransactions lastm endDatem (Account account) Nothing = do
   let sql = "SELECT ??,seq FROM 0_gl_trans "
          -- <> " LEFT JOIN check_item_cost_transaction i ON (0_gl_trans.counter = i.gl_detail) "
          <> "LEFT JOIN (SELECT MIN(id) AS seq, trans_no, type FROM 0_audit_trail GROUP BY trans_no, type) as audit ON (audit.trans_no = 0_gl_trans.type_no AND  audit.type = 0_gl_trans.type) "
+         <> " LEFT JOIN 0_voided ON (0_gl_trans.type = 0_voided.type AND 0_gl_trans.type_no = 0_voided.id ) "
          <> " WHERE 0_gl_trans.account = ? AND 0_gl_trans.stock_id IS NULL"
-         <> "   AND 0_gl_trans.amount <> 0 "
+         <> "   AND 0_voided.id IS NULL "
+          -- not needed becauce we filter voided    <> "   AND 0_gl_trans.amount <> 0 "
          -- <> "   AND i.item_cost_transaction_id is NULL "
          <> ( if isJust maxGl
               then  "                      AND 0_gl_trans.counter > ?" 
@@ -208,7 +210,9 @@ loadMovesAndTransactions' lastm endDatem (Account account) sku = do
          <> "                            )"
          <> "LEFT JOIN (SELECT MIN(id) as seq, trans_no, type FROM 0_audit_trail GROUP BY trans_no, type) as audit ON (0_stock_moves.trans_no = audit.trans_no AND 0_stock_moves.type = audit.type) "
          -- <> " LEFT JOIN check_item_cost_transaction i ON (0_stock_moves.trans_id = move_id OR 0_gl_trans.counter = gl_detail) "
+         <> " LEFT JOIN 0_voided ON (0_stock_moves.type = 0_voided.type AND 0_stock_moves.trans_no = 0_voided.id ) "
          <> " WHERE  0_stock_moves.stock_id =  ? "
+         <> "   AND 0_voided.id IS NULL "
          -- <> "   AND i.item_cost_transaction_id is NULL "
          <> "   AND 0_stock_moves.qty <> 0"
          <> ( if isJust maxGl
@@ -246,8 +250,10 @@ loadTransactionsWithNoMoves' lastm endDatem (Account account) sku = do
          <> "                            )"
          -- <> " LEFT JOIN check_item_cost_transaction i ON (0_gl_trans.counter = i.gl_detail) "
          <> "LEFT JOIN (SELECT MIN(id) AS seq, trans_no, type FROM 0_audit_trail GROUP BY trans_no, type) as audit ON (audit.trans_no = 0_gl_trans.type_no AND  audit.type = 0_gl_trans.type) "
+         <> " LEFT JOIN 0_voided ON (0_gl_trans.type = 0_voided.type AND 0_gl_trans.type_no = 0_voided.id ) "
          <> " WHERE 0_gl_trans.account = ? AND 0_gl_trans.stock_id = ? "
          <> "   AND 0_gl_trans.amount <> 0 "
+         <> "   AND 0_voided.id IS NULL "
          -- <> "   AND i.item_cost_transaction_id IS NULL"
          <> "   AND 0_stock_moves.stock_id IS NULL "
          <> ( if isJust maxGl
