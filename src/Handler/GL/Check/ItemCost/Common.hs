@@ -404,7 +404,12 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
       --- ^^^ dont' see this invoice as a real one. It can happend when a GRN as an invoice
       -- but there is a different of price when the invoice is processed (exchange rate differnt or price updated manually)
       -- Waiting For Stock
-      let (newSummary, newTrans) = updateSummaryFromAmount previous 0 0 faAmount
+      let (newSummary, newTrans) = if qoh previous == 0
+                                   -- ^ the adjustement is updating a stock which should be null and stay null (0 items on hand, 0 comming)
+                                   -- therefore processing it do adjust the cost price doesn't make sense.
+                                   then let (newSummary, trans) = updateSummaryFromAmount previous 0 0 faAmount
+                                        in (newSummary {stockValue = 0, expectedBalance =  0} , trans { tComment = "Z - GRN provision"})
+                                   else updateSummaryFromAmount previous 0 0 faAmount
       in ((makeItemCostTransaction account0 previous sm'gl'seq newSummary newTrans) :) <$> computeItemHistory account0 (WithPrevious allowN newSummary)  sm'gls
     (ST_SUPPRECEIVE, (WaitingForStock previous toprocess)) | Just _ <- faAmountM -> 
         historyForGrnInvoice account0 previous sm'gl'seq [] toprocess sm'gls
