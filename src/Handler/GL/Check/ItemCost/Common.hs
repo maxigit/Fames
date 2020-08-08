@@ -420,17 +420,17 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
         computeItemHistory account0 (SupplierInvoiceWaitingForGRN previous sm'gl'seq toprocess) sm'gls
     (_, (WaitingForStock previous toprocess)) ->
         computeItemHistory account0 (WaitingForStock previous (sm'gl'seq: toprocess)) sm'gls
-    -- Waiting for Supplier invoice
+    ------------------- Waiting for Supplier invoice ------------------------------
     (ST_SUPPINVOICE, SupplierGRNWaitingForInvoice previous grn toprocess)  ->
         historyForGrnInvoice account0 previous grn [sm'gl'seq] toprocess sm'gls
     (_              , SupplierGRNWaitingForInvoice previous grn toprocess)  ->
         computeItemHistory account0 (SupplierGRNWaitingForInvoice previous grn (sm'gl'seq:toprocess)) sm'gls
-    -- Waiting for Grn
+    -------------------------------- Waiting for Grn ------------------------------
     (ST_SUPPRECEIVE, SupplierInvoiceWaitingForGRN previous inv toprocess)  ->
         historyForGrnInvoice account0 previous sm'gl'seq [inv] toprocess sm'gls 
     (_             , SupplierInvoiceWaitingForGRN previous inv toprocess)  ->
         computeItemHistory account0 (SupplierInvoiceWaitingForGRN previous inv (sm'gl'seq:toprocess)) sm'gls
-    -- Supplier Invoice
+    -------------------------------- Supplier Invoice------------------------------
     (ST_SUPPINVOICE, WithPrevious allowN previous) | Just quantity <- moveQuantityM
                                             , Just moveCost <- moveCostM
                                             , Just faAmount <- faAmountM  ->
@@ -438,7 +438,7 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
       in ((makeItemCostTransaction account0 previous sm'gl'seq newSummary newTrans) :) <$> computeItemHistory account0 (WithPrevious allowN newSummary)  sm'gls
     (ST_SUPPINVOICE, WithPrevious _ previous) ->
       computeItemHistory account0 (SupplierInvoiceWaitingForGRN previous sm'gl'seq []) sm'gls
-    -- Supplier GRN
+    -------------------------------- Supplier GRN------------------------------
     (ST_SUPPRECEIVE, WithPrevious allowN previous) | Just quantity <- moveQuantityM 
                                             , Just moveCost <- moveCostM
                                             , Just faAmount <- faAmountM  ->
