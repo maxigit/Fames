@@ -68,30 +68,30 @@ getStockAccounts = do
   let accountSet = Set.fromList $ map (Account . unSingle) rows <> fromMaybe [] (extraAccounts =<< settingsm)
   return $ toList accountSet
 
-getAccountSummary :: Account -> Handler AccountSummary
-getAccountSummary account = do
-  asGLAmount <- glBalanceFor account
+getAccountSummary :: Day -> Account -> Handler AccountSummary
+getAccountSummary date account = do
+  asGLAmount <- glBalanceFor date account
   asAccountName <- getAccountName account
-  (asCorrectAmount, asCorrectQoh) <- getTotalCost account
-  (asStockValuation, asQuantity) <- stockValuationFor account
+  (asCorrectAmount, asCorrectQoh) <- getTotalCost date account
+  (asStockValuation, asQuantity) <- stockValuationFor date account
   return AccountSummary{asAccount=account,..}
 
 
-glBalanceFor :: Account -> Handler Double
-glBalanceFor (Account account) = do
- let sql = "select sum(amount) from 0_gl_trans where account = ? "
- rows <- runDB $ rawSql sql [toPersistValue account]
+glBalanceFor :: Day -> Account -> Handler Double
+glBalanceFor date (Account account) = do
+ let sql = "select sum(amount) from 0_gl_trans where account = ? AND tran_date <= ? "
+ rows <- runDB $ rawSql sql [toPersistValue account, toPersistValue date]
  case rows of
    [] -> return 0
    [(Single total)] -> return $ fromMaybe 0 total
    _ -> error "glBalanceFor should only returns one row. Please contact your Admininstrator!"
 
 
-getTotalCost :: Account -> Handler (Maybe Double, Maybe Double)
-getTotalCost (Account account) = do
-  let sql = "select sum(stock_value), sum(qoh_after) from check_item_cost_summary "
-         <> " WHERE account = ?"
-  rows <- runDB $ rawSql sql [toPersistValue account]
+getTotalCost :: Day -> Account -> Handler (Maybe Double, Maybe Double)
+getTotalCost date (Account account) = do
+  let sql = "select sum(stock_value), sum(qoh_after) from check_item_cost_summary  "
+         <> " WHERE account = ? and date <= ? "
+  rows <- runDB $ rawSql sql [toPersistValue account, toPersistValue date]
   case rows of
     [] -> return (Nothing, Nothing)
     [(Single total, Single qoh)] -> return (total, qoh)
@@ -106,12 +106,13 @@ getAccountName (Account account) = do
    [] -> error . unpack $ "Account " <> account <> " doesn't not exist!"
    _ -> error "The unexpected happened. Contact your Administrator!"
 
-stockValuationFor :: Account -> Handler (Double, Double)
-stockValuationFor account = do
+stockValuationFor :: Day -> Account -> Handler (Double, Double)
+stockValuationFor date account = do
   sku'costs <- getItemFor account
-  values <- mapM stockValuation sku'costs
+  values <- mapM (stockValuation date) sku'costs
   return $ (sum (map fst values), sum (map snd values))
 
+-- | Get Sku and (actual) cost price 
 getItemFor :: Account -> Handler [(Text, Double)]
 getItemFor (Account account) = do
   -- let sql = "select stock_id, material_cost from 0_stock_master where inventory_account = ?"
@@ -126,11 +127,11 @@ getItemFor (Account account) = do
                               in (sql0 <> " AND stock_id " <> keyword <> " ? ", [toPersistValue stockLike])
   runDB $ map (bimap unSingle unSingle)  <$> rawSql sql ([toPersistValue account] ++ params)
 
--- | Stock valuation for 
-stockValuation :: (Text, Double) -> Handler (Double, Double)
-stockValuation (sku, cost) = do
-  let sql = "select sum(qty) from 0_stock_moves where stock_id = ?"
-  rows <- runDB $ rawSql sql [toPersistValue sku]
+-- | Stock valuation for return stock valuation + qoh for given stock price
+stockValuation :: Day -> (Text, Double) -> Handler (Double, Double)
+stockValuation date (sku, cost) = do
+  let sql = "select sum(qty) from 0_stock_moves where stock_id = ? and tran_date <= ? "
+  rows <- runDB $ rawSql sql [toPersistValue sku, toPersistValue date]
   case rows of
         [] -> return (0,0)
         [(Single qtym)] -> return $ maybe (0,0) (\q -> (q*cost, q)) qtym
@@ -283,13 +284,13 @@ loadMovesAndTransactionsFor account = do
   mapM_ computesTransactionCheck skums
   -}
 
-loadPendingTransactionCountFor :: Account -> Handler [(Maybe Text, Int, Maybe ItemCostSummary)]
-loadPendingTransactionCountFor account = do
+loadPendingTransactionCountFor :: Day -> Account -> Handler [(Maybe Text, Int, Maybe ItemCostSummary)]
+loadPendingTransactionCountFor date account = do
   settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
   sku'_s <- getItemFor account
   let skums = Nothing : map (Just . fst) sku'_s
   forM skums $ \skum -> do
-    let endDatem = skum >>= itemSettings settingsm account >>= closingDate
+    let endDatem = Just . maybe date (min date) $ skum >>= itemSettings settingsm account >>= closingDate
     lastm <- loadCostSummary account skum
     trans <- loadMovesAndTransactions (entityVal <$> lastm) endDatem account skum
     return (skum, length trans, entityVal <$> lastm)
@@ -727,11 +728,11 @@ loadInitialSummary account@(Account acc) skum = do
       
 
 
-collectCostTransactions :: Account -> (Maybe Text) -> Handler (Either (Text, [Matched]) ())
-collectCostTransactions account skum = do
+collectCostTransactions :: Day -> Account -> (Maybe Text) -> Handler (Either (Text, [Matched]) ())
+collectCostTransactions date account skum = do
   lastEm <- loadInitialSummary account skum
   settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
-  let endDatem = skum >>= itemSettings settingsm account >>= closingDate
+  let endDatem = Just . maybe date (min date)  $ skum >>= itemSettings settingsm account >>= closingDate
       lastm = either id entityVal <$> lastEm
   trans0 <- loadMovesAndTransactions lastm endDatem account skum
   let transE = computeItemCostTransactions lastm account trans0

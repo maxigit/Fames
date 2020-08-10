@@ -18,19 +18,21 @@ import Formatting as F
 import qualified FA as FA
 import GL.Check.ItemCostSettings
 
+import Yesod.Form.Bootstrap3
 
 -- * Rendering
 getGLCheckItemCostR :: Handler Html
 getGLCheckItemCostR = do
   accounts <- getStockAccounts
-  summaries <- mapM getAccountSummary accounts
+  (date, form, encType) <- extractDateFromUrl
+  summaries <- mapM (getAccountSummary date) accounts
   let glBalance = sum (map asGLAmount summaries)
       stockValue = sum (map asStockValuation summaries)
       qoh = sum (map asQuantity summaries)
       correctValue = sum (mapMaybe asCorrectAmount summaries)
       correctQoh = sum (mapMaybe asCorrectQoh summaries)
   defaultLayout  $ do
-    setTitle  "Check Item cost"
+    setTitle  . toHtml  $ "Check Item cost - " <> tshow date
     [whamlet|
       <table data-page-length=10 *{datatable}>
         <thead>
@@ -96,7 +98,11 @@ getGLCheckItemCostR = do
             <th> #{formatDouble $ stockValue - glBalance}
             <th> #{formatDouble' $ qoh}
             <th> #{formatAbs qoh correctQoh}
-     <form method=POST action="@{GLR $ GLCheckItemCostCollectAllR}">  
+     <form method=GET action="@{GLR $ GLCheckItemCostR}" enctype="#{UrlEncoded}">  
+       ^{form}
+       <button.btn.btn-primary type="sumbit"> Refresh
+     <form method=POST action="@{GLR $ GLCheckItemCostCollectAllR}" enctype="#{encType}">  
+       ^{form}
        <button.btn.btn-warning type="sumbit"> Collect All
      <form method=POST action="@{GLR $ GLCheckItemCostPurgeR}">  
        <button.btn.btn-danger type="sumbit"> Purge All
@@ -105,7 +111,8 @@ getGLCheckItemCostR = do
 
 getGLCheckItemCostAccountViewR :: Text -> Handler Html
 getGLCheckItemCostAccountViewR account = do
-  sku'count'lasts0 <- loadPendingTransactionCountFor (Account account)
+  (date, form, encType) <- extractDateFromUrl
+  sku'count'lasts0 <- loadPendingTransactionCountFor date (Account account)
   let totalCount = sum $ [count | (_,count,_) <- sku'count'lasts] 
       faStockValue = sum $ [ itemCostSummaryFaStockValue last | (_,_,Just last) <- sku'count'lasts] 
       stockValue = sum $ [ itemCostSummaryStockValue last | (_,_,Just last) <- sku'count'lasts] 
@@ -151,10 +158,11 @@ getGLCheckItemCostAccountViewR account = do
         <th> #{formatDouble $ faStockValue - stockValue }
         <th> #{formatDouble faStockValue }
         <th> #{formatDouble stockValue}
-     <form method=POST action="@{GLR $ GLCheckItemCostAccountCollectR account}">  
+     <form method=POST action="@{GLR $ GLCheckItemCostAccountCollectR account}" enctype="#{encType}">  
+       ^{form}
        <button.btn.btn-warning type="sumbit"> Collect
      <form method=POST action="@{GLR $ GLCheckItemCostPurgeAccountR account}">
-        <button.btn.btn-danger type="submit"> Purge
+       <button.btn.btn-danger type="submit"> Purge
     |]
 
 
@@ -403,9 +411,10 @@ getGLCheckItemCostCheckR = do
 -- * Saving
 postGLCheckItemCostAccountCollectR :: Text -> Handler Html
 postGLCheckItemCostAccountCollectR account = do
-  sku'counts <- loadPendingTransactionCountFor (Account account)
+  (date, _form, _encType) <- extractDateFromUrl
+  sku'counts <- loadPendingTransactionCountFor date (Account account)
   let skus = [sku | (sku,count,_) <- sku'counts, count /= 0]
-  transE <- mapM (collectCostTransactions (Account account)) skus
+  transE <- mapM (collectCostTransactions date (Account account)) skus
   case partitionEithers transE of
     ([], _ ) -> getGLCheckItemCostAccountViewR account
     (duplicatess, _ ) -> do
@@ -445,6 +454,22 @@ postGLCheckItemCostPurgeAccountItemR account sku = do
     deleteWhere ( [ItemCostSummaryAccount ==. account, ItemCostSummarySku ==. sku ] :: [Filter ItemCostSummary])
   redirect $ GLR GLCheckItemCostR
 -- * Util
+
+dateForm datem = renderBootstrap3 BootstrapInlineForm form where
+  form = areq dayField "date" datem 
+extractDateFromUrl :: Handler (Day, Widget, Enctype) 
+extractDateFromUrl  = do
+  today <- todayH
+  let form' = dateForm (Just today)
+  ((resp, form), encType) <- runFormPostNoToken form'
+  case resp of
+    FormSuccess date -> return (date, form, encType)
+    _ -> do
+      ((resp, form), encType) <- runFormGet form'
+      case resp of
+        FormSuccess date -> return (date, form, encType)
+        _ -> return (today, form, encType)
+
 
 formatDouble' :: Double -> Text
 formatDouble' = F.sformat (commasFixedWith' round 6)
