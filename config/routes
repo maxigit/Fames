@@ -64,6 +64,9 @@
   /check/item_cost/purge/ GLCheckItemCostPurgeR POST !check
   /check/item_cost/purge-account/#Text GLCheckItemCostPurgeAccountR POST !check
   /check/item_cost/purge-item/#Text/#Maybe-Text GLCheckItemCostPurgeAccountItemR POST !check
+  /check/item_cost/update-gl-item/#Text/#Maybe-Text GLCheckItemCostUpdateGLAccountItemR POST !check
+  /check/item_cost/update-gl-account/#Text GLCheckItemCostUpdateGLAccountR POST !check
+  /check/item_cost/update-gl-account GLCheckItemCostUpdateGLR POST !check
 
 /warehouse WarehouseR !warehouse:
   /barcodes WHBarcodeR GET !group=Barcodes !title=Generate

@@ -9,6 +9,9 @@ module Handler.GL.Check.ItemCost
 , postGLCheckItemCostPurgeR
 , postGLCheckItemCostPurgeAccountR
 , postGLCheckItemCostPurgeAccountItemR
+, postGLCheckItemCostUpdateGLR
+, postGLCheckItemCostUpdateGLAccountR
+, postGLCheckItemCostUpdateGLAccountItemR
 )
 where
 
@@ -429,6 +432,7 @@ postGLCheckItemCostCollectAllR = do
   mapM (postGLCheckItemCostAccountCollectR . fromAccount) accounts
   redirect $ GLR GLCheckItemCostR
 
+-- ** Purge
 
 postGLCheckItemCostPurgeR :: Handler Html
 postGLCheckItemCostPurgeR = do
@@ -453,6 +457,20 @@ postGLCheckItemCostPurgeAccountItemR account sku = do
                 ]
     deleteWhere ( [ItemCostSummaryAccount ==. account, ItemCostSummarySku ==. sku ] :: [Filter ItemCostSummary])
   redirect $ GLR GLCheckItemCostR
+-- ** Upate GL
+--
+postGLCheckItemCostUpdateGLR :: Handler Html
+postGLCheckItemCostUpdateGLR = do
+  return ""
+postGLCheckItemCostUpdateGLAccountR :: Text -> Handler Html
+postGLCheckItemCostUpdateGLAccountR account = do
+  return ""
+postGLCheckItemCostUpdateGLAccountItemR :: Text -> Maybe Text -> Handler Html
+postGLCheckItemCostUpdateGLAccountItemR account skum = do
+  summary <- loadCostSummary (Account account) skum
+  error "load account (cogs or adju ?) stock_master" fixGLBalance (maybeToList summary)
+  redirect $ GLR $ GLCheckItemCostItemViewR account skum
+
 -- * Util
 
 dateForm datem = renderBootstrap3 BootstrapInlineForm form where

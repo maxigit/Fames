@@ -12,6 +12,7 @@ module Handler.GL.Check.ItemCost.Common
 , Matched
 , loadCheckInfo
 , itemSettings
+, fixGLBalance
 )
 where
 
@@ -756,6 +757,27 @@ collectCostTransactions date account skum = do
                _ -> insert_ ItemCostSummary{..}
      
  
+
+-- * Fixing
+-- Generates a journal entry to balance all summary
+fixGLBalance :: [(Entity ItemCostSummary, Account)] -> Handler ()
+fixGLBalance summaries = do
+  let gls = [ ( stockValue
+              , itemCostTransactionSku
+              , adjAccount
+              , amount
+              )
+            | (Entity _ ItemCostSummary{..}, adjAccount) <-  summaries
+            , let stockValue = if abs itemCostSummaryQohAfter > 1e-2
+                               then 0
+                               else itemCostSummaryStockValue
+            , let amount = stockValue - itemCostSummaryFaStockValue
+            , abs amount  > 1e-2
+            ]
+  -- postJournalEntry gls
+  -- updateSummaryes summaries
+  error "post journal entry" gls
+  
 
 -- * sanity check
 -- | Detect all Sku/Account which look suspect
