@@ -8,6 +8,7 @@ module WH.FA.Curl
 , testFAConnection
 , postBankPayment
 , postBankPaymentOrDeposit
+, postJournalEntry
 , postGRN
 , postPurchaseInvoice
 , postSupplierPayment
@@ -158,7 +159,13 @@ newBankDepositURL :: (?baseURL :: URLString) => URLString
 newBankDepositURL = bankDepositURL <>  "?NewDeposit=Yes"
 ajaxBankDepositItemURL :: (?baseURL :: URLString) => URLString
 ajaxBankDepositItemURL = toAjax bankDepositURL 
-
+-- *** Journal
+journalEntryURL :: (?baseURL :: URLString) => URLString
+journalEntryURL = ?baseURL <> "/gl/gl_journal.php"
+newJournalEntryURL :: (?baseURL :: URLString) => URLString
+newJournalEntryURL = journalEntryURL <> "?NewJournal=Yes"
+ajaxJournalItemURL :: (?baseURL :: URLString) => URLString
+ajaxJournalItemURL = toAjax journalEntryURL
 -- *** Purchases
 grnURL, newGRNURL, ajaxGRNURL :: (?baseURL :: URLString) => URLString
 grnURL = ?baseURL <> "/purchasing/po_entry_items.php"
@@ -257,6 +264,7 @@ addLocationTransferDetail LocationTransferDetail{..} = do
 
 
 -- ** GL
+-- *** Bank Payment
 postBankPayment :: FAConnectInfo -> BankPayment -> IO (Either Text Int)
 postBankPayment connectInfo payment = do
   let ?baseURL = faURL connectInfo
@@ -337,6 +345,41 @@ addBankDepositItems GLItem{..} = do
                               ] :method_POST
   curlSoup (ajaxBankDepositItemURL) fields [200] "add GL items"
   
+
+
+-- ** Journal Entry
+postJournalEntry :: FAConnectInfo -> JournalEntry -> IO (Either Text Int)
+postJournalEntry connectInfo journal = do
+  let ?baseURL = faURL connectInfo
+  runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
+    new <- curlSoup newJournalEntryURL method_GET [200] "Problem trying to create a new journal entry"
+    _ <- mapM addJournalItem  (jeItems journal)
+    let ref = case extractInputValue "ref" new of
+                  Nothing -> Left "Can't find Journal reference"
+                  Just r -> Right r
+    let process = curlPostFields [ "date_" <=> jeDate journal
+                                 , "ref" <=> either error id ref
+                                 , Just "Reverse=0" -- miscellaneous
+                                 , "memo_"  <=> jeMemo journal
+                                 , Just "Process=Process"
+                                 ] : method_POST
+    tags <- curlSoup (toAjax journalEntryURL) process [200] "Create journal entry"
+    case extractAddedId' "AddedID" "Journal entry" tags of
+      Left e -> throwError $ "Journal entry creation failed:" <> e
+      Right faId -> do
+        return faId
+
+addJournalItem GLItem{..} = do
+  let fields = curlPostFields [  "code_id" <=> gliAccount
+                              , "amount" <=> gliAmount
+                              , "tax_net_amount" <=> gliTaxOutput
+                              , "dimension_id" <=> fromMaybe 0 gliDimension1
+                              , "dimension2_id" <=> fromMaybe 0 gliDimension2
+                              , "LineMemo" <=>  gliMemo 
+                              , Just "AddItem=Add%20Item"
+                              ] :method_POST
+  curlSoup (ajaxJournalItemURL) fields [200] "add GL items"
+
 -- ** Purchase
 -- *** GRN
 postGRN :: FAConnectInfo -> GRN -> IO (Either Text Int)

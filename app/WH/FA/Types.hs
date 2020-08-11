@@ -75,6 +75,15 @@ data BankDeposit = BankDeposit
   , bdItems :: [GLItemD]
   } deriving (Eq, Show)
 
+
+-- ** Journal Entry
+data JournalEntry = JournalENtry
+  { jeDate :: !Day
+  , jeReference :: !(Maybe Text)
+  , jeItems :: [GLItemD]
+  , jeMemo :: !(Maybe Text)
+  } deriving (Eq, Show)
+
 -- * Purchases
 -- ** GRN
 data GRN = GRN
