@@ -185,12 +185,16 @@ getGLCheckItemCostItemViewSavedR :: Text -> Maybe Text -> Handler Html
 getGLCheckItemCostItemViewSavedR account item = do
     trans <- runDB $ selectList [ItemCostTransactionAccount ==. account, ItemCostTransactionSku ==. item] []
     w <-  renderTransactions (fromMaybe account item) (map entityVal trans)
+    (_, form, encType) <-  extractDateFromUrl
     defaultLayout $ do
       setTitle . toHtml $ "Item Cost Item - done " <> account <> maybe " (All)" ("/" <>) item
       w
       [whamlet|
       <form method=POST action="@{GLR $ GLCheckItemCostPurgeAccountItemR account item}">
         <button.btn.btn-danger type="submit"> Purge
+      <form method=POST action="@{GLR $ GLCheckItemCostUpdateGLAccountItemR account item}" encType=#{encType}>
+        ^{form}
+        <button.btn.btn-danger type="submit"> Fix Gl
       |]
 
 renderTransactions :: Text -> [ItemCostTransaction] -> Handler Widget 
@@ -463,12 +467,16 @@ postGLCheckItemCostUpdateGLR :: Handler Html
 postGLCheckItemCostUpdateGLR = do
   return ""
 postGLCheckItemCostUpdateGLAccountR :: Text -> Handler Html
-postGLCheckItemCostUpdateGLAccountR account = do
+postGLCheckItemCostUpdateGLAccountR _account = do
   return ""
 postGLCheckItemCostUpdateGLAccountItemR :: Text -> Maybe Text -> Handler Html
 postGLCheckItemCostUpdateGLAccountItemR account skum = do
+  (date, _, _) <- extractDateFromUrl
   summary <- loadCostSummary (Account account) skum
-  error "load account (cogs or adju ?) stock_master" fixGLBalance (maybeToList summary)
+  faId <- fixGLBalance date (maybeToList summary)
+  setSuccess [shamlet|
+     Journaly entry ##{tshow faId} created.
+             |]
   redirect $ GLR $ GLCheckItemCostItemViewR account skum
 
 -- * Util

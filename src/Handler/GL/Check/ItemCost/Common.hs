@@ -18,12 +18,15 @@ where
 
 import Import
 import GL.Check.ItemCostSettings
-import Database.Persist.Sql  (rawSql, Single(..))
+import Database.Persist.Sql  (rawSql, Single(..), rawExecute)
 import qualified FA as FA
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Lens.Micro.Extras (preview)
 import Data.Monoid(First(..))
+import  qualified WH.FA.Types as WFA
+import  qualified WH.FA.Curl as WFA
+import Util.Decimal
 
 
 -- * Types
@@ -760,24 +763,71 @@ collectCostTransactions date account skum = do
 
 -- * Fixing
 -- Generates a journal entry to balance all summary
-fixGLBalance :: [(Entity ItemCostSummary, Account)] -> Handler ()
-fixGLBalance summaries = do
-  let gls = [ ( stockValue
-              , itemCostTransactionSku
-              , adjAccount
-              , amount
-              )
-            | (Entity _ ItemCostSummary{..}, adjAccount) <-  summaries
+fixGLBalance :: Day -> [Entity ItemCostSummary] -> Handler (Maybe Int)
+fixGLBalance date summaries = do
+  settings <- getsYesod appSettings
+  let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
+      journalm = generateJournal date sum'accounts
+      sum'accounts = [ ( e
+                       ,  fromMaybe (error $ "No fixing account set up for Account : " <> unpack itemCostSummaryAccount)
+                                    (accountm <|> defaultAccount)
+                       )
+                     | e@(Entity _ ItemCostSummary{..}) <- summaries
+                     , let accountm = accountMap >>= lookup (Account itemCostSummaryAccount)  >>= fixAccount
+                     ]
+      defaultAccount = appCheckItemCostSetting settings >>= defaultFixAccount
+      accountMap = accounts <$> appCheckItemCostSetting settings
+  case (journalm, summaries) of
+    (Nothing, []) ->
+      setInfo "No summary to post" >> return Nothing
+    (Nothing, _) ->
+      setInfo "Nothing to post : all GL line are 0" >> return Nothing
+    (Just journal, _) -> do
+        faIdE <- liftIO $  WFA.postJournalEntry connectInfo journal
+        case faIdE of
+          Left e -> setError (toHtml e) >> return Nothing
+          Right faId -> do
+            setStockIdFromMemo faId
+            return (Just faId)
+  
+-- | Generates a JournalEntry ready to be posted to FA
+-- returns Nothing if there is nothing to do (no line nonnull)
+generateJournal :: Day -> [(Entity ItemCostSummary, Account)] -> Maybe (WFA.JournalEntry)
+generateJournal date sum'accounts = 
+  let gls = concat
+            [ [mkItem itemCostSummaryAccount itemCostSummarySku (-amount) memo
+              ,mkItem (fromAccount adjAccount) itemCostSummarySku amount memo
+              ]
+            |   (Entity _ ItemCostSummary{..}, adjAccount) <-  sum'accounts
             , let stockValue = if abs itemCostSummaryQohAfter > 1e-2
                                then 0
                                else itemCostSummaryStockValue
-            , let amount = stockValue - itemCostSummaryFaStockValue
-            , abs amount  > 1e-2
+            , let amount =  toDecimalWithRounding (RoundBanker 2) $ stockValue - itemCostSummaryFaStockValue
+            , abs amount  > 0
+            , let memo = pack $ "Clear GL Balance from " <>  formatDouble itemCostSummaryFaStockValue <> " to " <> formatDouble stockValue :: Text
             ]
-  -- postJournalEntry gls
-  -- updateSummaryes summaries
-  error "post journal entry" gls
+      mkItem account skum gliAmount memo   =
+                WFA.GLItem { gliDimension1 = Nothing
+                           , gliDimension2 = Nothing
+                           , gliTaxOutput = Nothing
+                           , gliMemo = Just $ memo <> maybe "" (":stock_id=" <>) skum
+                           , gliAccount = WFA.GLAccount account
+                           -- ^ hack to set the stock_id in the gl_trans table
+                           -- updated afterward with a SQL query
+                           , ..
+                           }
+  in if null gls
+     then Nothing
+     else Just $ WFA.JournalEntry date Nothing gls (Just "Cost adjustment (Fames)")
   
+
+setStockIdFromMemo :: Int -> Handler ()
+setStockIdFromMemo fa_trans_no =  do
+  let sql = "UPDATE 0_gl_trans "
+          <> "SET stock_id = REGEXP_REPLACE(memo_, \".*:stock_id=(.*)$\", \"\\\\1\") "
+          <> ", memo_ = REGEXP_REPLACE(memo_, \"(.*):stock_id=.*\", \"\\\\1\") "
+          <> " WHERE type_no = ? AND type = ? "
+  runDB $ rawExecute sql [toPersistValue fa_trans_no, toPersistValue (fromEnum ST_JOURNAL)]
 
 -- * sanity check
 -- | Detect all Sku/Account which look suspect

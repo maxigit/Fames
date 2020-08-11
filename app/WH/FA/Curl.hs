@@ -359,7 +359,7 @@ postJournalEntry connectInfo journal = do
                   Just r -> Right r
     let process = curlPostFields [ "date_" <=> jeDate journal
                                  , "ref" <=> either error id ref
-                                 , Just "Reverse=0" -- miscellaneous
+                                 -- , Just "Reverse=0" -- miscellaneous
                                  , "memo_"  <=> jeMemo journal
                                  , Just "Process=Process"
                                  ] : method_POST
@@ -371,8 +371,8 @@ postJournalEntry connectInfo journal = do
 
 addJournalItem GLItem{..} = do
   let fields = curlPostFields [  "code_id" <=> gliAccount
-                              , "amount" <=> gliAmount
-                              , "tax_net_amount" <=> gliTaxOutput
+                              , (if gliAmount >= 0 then "AmountDebit" else "AmountCredit")
+                                <=> abs gliAmount
                               , "dimension_id" <=> fromMaybe 0 gliDimension1
                               , "dimension2_id" <=> fromMaybe 0 gliDimension2
                               , "LineMemo" <=>  gliMemo 

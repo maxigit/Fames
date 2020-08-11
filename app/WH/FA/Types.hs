@@ -77,7 +77,7 @@ data BankDeposit = BankDeposit
 
 
 -- ** Journal Entry
-data JournalEntry = JournalENtry
+data JournalEntry = JournalEntry
   { jeDate :: !Day
   , jeReference :: !(Maybe Text)
   , jeItems :: [GLItemD]

@@ -10,12 +10,14 @@ data Settings =  Settings
   {  stockFilter ::  Text  -- to convert to FilterExpression
   ,  accounts :: Map Account AccountSettings
   ,  extraAccounts :: Maybe [Account]
+  ,  defaultFixAccount :: Maybe Account
   }
   deriving (Show, Read, Eq, Ord)
 
 
 data AccountSettings = AccountSettings
   {  items :: Map Text ItemSettings
+  ,  fixAccount :: Maybe Account
   }
   deriving (Show, Read, Eq, Ord)
 
