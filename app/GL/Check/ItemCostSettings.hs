@@ -11,6 +11,7 @@ data Settings =  Settings
   ,  accounts :: Map Account AccountSettings
   ,  extraAccounts :: Maybe [Account]
   ,  defaultFixAccount :: Maybe Account
+  ,  defaultDate :: Maybe Day
   }
   deriving (Show, Read, Eq, Ord)
 

@@ -506,7 +506,10 @@ dateForm datem = renderBootstrap3 BootstrapInlineForm form where
 extractDateFromUrl :: Handler (Day, Widget, Enctype) 
 extractDateFromUrl  = do
   today <- todayH
-  let form' = dateForm (Just today)
+  settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
+  let date = fromMaybe today (defaultDate =<< settingsm)
+
+  let form' = dateForm (Just date)
   ((resp, form), encType) <- runFormPostNoToken form'
   case resp of
     FormSuccess date -> return (date, form, encType)
@@ -514,7 +517,7 @@ extractDateFromUrl  = do
       ((resp, form), encType) <- runFormGet form'
       case resp of
         FormSuccess date -> return (date, form, encType)
-        _ -> return (today, form, encType)
+        _ -> return (date, form, encType)
 
 
 formatDouble' :: Double -> Text

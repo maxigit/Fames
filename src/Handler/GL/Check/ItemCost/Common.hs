@@ -153,29 +153,21 @@ loadMovesAndTransactions :: (Maybe ItemCostSummary) -> Maybe Day -> Account -> M
 loadMovesAndTransactions lastm endDatem (Account account) Nothing = do
   let maxGl = lastm >>= itemCostSummaryGlDetail
   let startDatem = itemCostSummaryDate <$>  lastm
-  let sql = "SELECT ??,seq FROM 0_gl_trans "
-         -- <> " LEFT JOIN check_item_cost_transaction i ON (0_gl_trans.counter = i.gl_detail) "
-         <> "LEFT JOIN (SELECT MIN(id) AS seq, trans_no, type FROM 0_audit_trail GROUP BY trans_no, type) as audit ON (audit.trans_no = 0_gl_trans.type_no AND  audit.type = 0_gl_trans.type) "
-         <> " LEFT JOIN 0_voided ON (0_gl_trans.type = 0_voided.type AND 0_gl_trans.type_no = 0_voided.id ) "
-         <> " WHERE 0_gl_trans.account = ? AND 0_gl_trans.stock_id IS NULL"
-         <> "   AND 0_voided.id IS NULL "
-          -- not needed becauce we filter voided    <> "   AND 0_gl_trans.amount <> 0 "
-         -- <> "   AND i.item_cost_transaction_id is NULL "
-         <> ( if isJust maxGl
-              then  "                      AND 0_gl_trans.counter > ?" 
-              else "" )
-         <> ( if isJust startDatem
-              then  "                      AND 0_gl_trans.tran_date > ?" 
-              else "" )
-         <> ( if isJust endDatem
-              then  "                      AND 0_gl_trans.tran_date <= ?" 
-              else "" )
-         <> " ORDER BY 0_gl_trans.tran_date, 0_gl_trans.counter"
+  let (sqls, paramss) = unzip 
+        [ ( "SELECT ??,seq FROM 0_gl_trans "
+            <> "LEFT JOIN (SELECT MIN(id) AS seq, trans_no, type FROM 0_audit_trail GROUP BY trans_no, type) as audit ON (audit.trans_no = 0_gl_trans.type_no AND  audit.type = 0_gl_trans.type) "
+            <> " LEFT JOIN 0_voided ON (0_gl_trans.type = 0_voided.type AND 0_gl_trans.type_no = 0_voided.id ) "
+            <> " WHERE 0_gl_trans.account = ? AND 0_gl_trans.stock_id IS NULL"
+            <> "   AND 0_voided.id IS NULL "
+          , [toPersistValue account])
+        , filterTransactionFromSummary maxGl startDatem "0_gl_trans.counter" "0_gl_trans.tran_date"
+        , case endDatem of
+             Just endDate  -> (" AND 0_gl_trans.tran_date <= ?" , [toPersistValue endDate] )
+             _ -> ("", [])
+        , ( " ORDER BY 0_gl_trans.tran_date, seq", [])
+        ]
       mkTrans (gl, Single seq)= (That gl, seq)
-  rows <- runDB $ rawSql sql $ [toPersistValue account]
-                               ++ maybe [] (pure . toPersistValue) maxGl
-                               ++ maybe [] (pure . toPersistValue) startDatem
-                               ++ maybe [] (pure . toPersistValue) endDatem
+  rows <- runDB $ rawSql (concat sqls) (concat paramss)
   return $ map mkTrans rows
 
 loadMovesAndTransactions lastm endDatem account (Just sku) = do
@@ -206,77 +198,76 @@ loadMovesAndTransactions' lastm endDatem (Account account) sku = do
   let maxGl = lastm >>= itemCostSummaryGlDetail
       maxMove = lastm >>= itemCostSummaryMoveId
       startDatem = itemCostSummaryDate <$>  lastm
-      sql = "SELECT ??, ??, seq FROM 0_stock_moves "
-         <> " LEFT JOIN 0_gl_trans ON ( 0_stock_moves.stock_id = 0_gl_trans.stock_id"
-         <> "                            AND 0_stock_moves.type = 0_gl_trans.type"
-         <> "                            AND 0_stock_moves.trans_no = 0_gl_trans.type_no"
-         <> "                            AND 0_gl_trans.amount <> 0 "
-         <> "                            AND (0_gl_trans.account = ? OR 0_gl_trans.account is NULL) "
+      (sqls, paramss) = unzip
+        [ ("SELECT ??, ??, seq FROM 0_stock_moves "
+           <> " LEFT JOIN 0_gl_trans ON ( 0_stock_moves.stock_id = 0_gl_trans.stock_id"
+           <> "                            AND 0_stock_moves.type = 0_gl_trans.type"
+           <> "                            AND 0_stock_moves.trans_no = 0_gl_trans.type_no"
+           <> "                            AND 0_gl_trans.amount <> 0 "
+           <> "                            AND (0_gl_trans.account = ? OR 0_gl_trans.account is NULL) "
          <> "                            )"
-         <> "LEFT JOIN (SELECT MIN(id) as seq, trans_no, type FROM 0_audit_trail GROUP BY trans_no, type) as audit ON (0_stock_moves.trans_no = audit.trans_no AND 0_stock_moves.type = audit.type) "
-         -- <> " LEFT JOIN check_item_cost_transaction i ON (0_stock_moves.trans_id = move_id OR 0_gl_trans.counter = gl_detail) "
-         <> " LEFT JOIN 0_voided ON (0_stock_moves.type = 0_voided.type AND 0_stock_moves.trans_no = 0_voided.id ) "
-         <> " WHERE  0_stock_moves.stock_id =  ? "
-         <> "   AND 0_voided.id IS NULL "
-         -- <> "   AND i.item_cost_transaction_id is NULL "
-         <> "   AND 0_stock_moves.qty <> 0"
-         <> ( if isJust maxGl
-              then  "                      AND 0_gl_trans.counter > ?" 
-              else "" )
-         <> (if isJust maxMove
-            then  "                      AND 0_stock_moves.trans_id > ?" 
-            else "")
-         <> ( if isJust startDatem
-              then  "                      AND 0_stock_moves.tran_date > ?" 
-              else "" )
-         <> ( if isJust endDatem
-              then  "                      AND 0_stock_moves.tran_date <= ?" 
-              else "" )
-         <> " ORDER BY 0_stock_moves.tran_date, seq, 0_stock_moves.trans_id"
+           , [toPersistValue account] )
+         , ( "LEFT JOIN (SELECT MIN(id) as seq, trans_no, type FROM 0_audit_trail GROUP BY trans_no, type) as audit "
+           <> " ON (0_stock_moves.trans_no = audit.trans_no AND 0_stock_moves.type = audit.type) "
+           <> " LEFT JOIN 0_voided ON (0_stock_moves.type = 0_voided.type AND 0_stock_moves.trans_no = 0_voided.id ) "
+           <> " WHERE  0_stock_moves.stock_id =  ? "
+           , [toPersistValue sku] )
+
+         , ( "   AND 0_voided.id IS NULL "
+             <> "   AND 0_stock_moves.qty <> 0"
+             , [])
+        , filterTransactionFromSummary maxGl startDatem "0_gl_trans.counter" "0_gl_trans.tran_date"
+        , filterTransactionFromSummary maxMove startDatem "0_stock_moves.trans_id" "0_stock_moves.tran_date"
+        , case endDatem of
+            Just endDate -> (" AND 0_stock_moves.tran_date <= ?",  [toPersistValue endDate])
+            Nothing -> ("", [])
+        , (" ORDER BY 0_stock_moves.tran_date, seq, 0_stock_moves.trans_id", [])
+        ]
       mkTrans m'g = case m'g of
                       (m, Nothing, Single seq ) -> (This m, seq)
                       (m, Just g, Single seq ) -> (These m g, seq)
-  rows <- runDB $ rawSql sql $ [ toPersistValue account
-                               , toPersistValue sku ]
-                               ++ maybe [] (pure . toPersistValue) maxGl
-                               ++ maybe [] (pure . toPersistValue) maxMove
-                               ++ maybe [] (pure . toPersistValue) startDatem
-                               ++ maybe [] (pure . toPersistValue) endDatem
+  rows <- runDB $ rawSql (concat sqls)  (concat paramss)
   return $ map mkTrans rows
+
+filterTransactionFromSummary maxId startDatem idField dateField =
+        case (maxId, startDatem) of
+            (Just id_, Just startDate) -> ( " AND ((" <> idField <> "> ? AND " <> dateField <> " = ?) OR " <> dateField <> " > ?)  " 
+                                     , [toPersistValue id_, toPersistValue startDate, toPersistValue startDate] )
+             -- ^ we use gl.counter only the day of the summary, to know what transaction haven't been collected
+             -- but created since the collection.
+             -- It only works on the day because we can have transaction < counter with date >= summary.date.
+             -- It happens when transaction are not entered in chronological order.
+            (_, Just startDate) ->  ( " AND " <> dateField <> " > ?"
+                                    ,  [toPersistValue startDate])
+            _ -> ("", [])
 
 loadTransactionsWithNoMoves' lastm endDatem (Account account) sku = do
   let maxGl = lastm >>= itemCostSummaryGlDetail
       startDatem = itemCostSummaryDate <$>  lastm
-      sql = "SELECT ??, seq FROM 0_gl_trans "
-         <> " LEFT JOIN 0_stock_moves ON ( 0_stock_moves.stock_id = 0_gl_trans.stock_id"
-         <> "                            AND 0_stock_moves.type = 0_gl_trans.type"
-         <> "                            AND 0_stock_moves.trans_no = 0_gl_trans.type_no"
-         <> "                            AND 0_stock_moves.qty <> 0"
-         <> "                            )"
-         -- <> " LEFT JOIN check_item_cost_transaction i ON (0_gl_trans.counter = i.gl_detail) "
-         <> "LEFT JOIN (SELECT MIN(id) AS seq, trans_no, type FROM 0_audit_trail GROUP BY trans_no, type) as audit ON (audit.trans_no = 0_gl_trans.type_no AND  audit.type = 0_gl_trans.type) "
-         <> " LEFT JOIN 0_voided ON (0_gl_trans.type = 0_voided.type AND 0_gl_trans.type_no = 0_voided.id ) "
-         <> " WHERE 0_gl_trans.account = ? AND 0_gl_trans.stock_id = ? "
-         <> "   AND 0_gl_trans.amount <> 0 "
-         <> "   AND 0_voided.id IS NULL "
-         -- <> "   AND i.item_cost_transaction_id IS NULL"
-         <> "   AND 0_stock_moves.stock_id IS NULL "
-         <> ( if isJust maxGl
-              then  "                      AND 0_gl_trans.counter > ?" 
-              else "" )
-         <> ( if isJust startDatem
-              then  "                      AND 0_gl_trans.tran_date > ?" 
-              else "" )
-         <> ( if isJust endDatem
-              then  "                      AND 0_gl_trans.tran_date <= ?" 
-              else "" )
-         <> " ORDER BY 0_gl_trans.tran_date, 0_gl_trans.counter"
+      (sqls, paramss) = unzip
+        [ ( "SELECT ??, seq FROM 0_gl_trans "
+           <> " LEFT JOIN 0_stock_moves ON ( 0_stock_moves.stock_id = 0_gl_trans.stock_id"
+           <> "                            AND 0_stock_moves.type = 0_gl_trans.type"
+           <> "                            AND 0_stock_moves.trans_no = 0_gl_trans.type_no"
+           <> "                            AND 0_stock_moves.qty <> 0"
+           <> "                            )"
+           -- <> " LEFT JOIN check_item_cost_transaction i ON (0_gl_trans.counter = i.gl_detail) "
+           <> "LEFT JOIN (SELECT MIN(id) AS seq, trans_no, type FROM 0_audit_trail GROUP BY trans_no, type) as audit ON (audit.trans_no = 0_gl_trans.type_no AND  audit.type = 0_gl_trans.type) "
+           <> " LEFT JOIN 0_voided ON (0_gl_trans.type = 0_voided.type AND 0_gl_trans.type_no = 0_voided.id ) "
+           <> " WHERE 0_gl_trans.account = ? AND 0_gl_trans.stock_id = ? "
+          ,  [toPersistValue account, toPersistValue sku])
+        ,  ( "   AND 0_gl_trans.amount <> 0 "
+           <> "   AND 0_voided.id IS NULL "
+           <> "   AND 0_stock_moves.stock_id IS NULL "
+         , [])
+        , filterTransactionFromSummary maxGl startDatem "0_gl_trans.counter" "0_gl_trans.tran_date"
+        , case endDatem of
+             Just endDate  -> (" AND 0_gl_trans.tran_date <= ?" , [toPersistValue endDate] )
+             _ -> ("", [])
+        , ( " ORDER BY 0_gl_trans.tran_date, seq", [])
+        ]
       mkTrans (gl, Single seq) = (That gl, seq)
-  rows <- runDB $ rawSql sql $ [toPersistValue account, toPersistValue sku]
-                               ++ maybe [] (pure . toPersistValue) maxGl
-                               ++ maybe [] (pure . toPersistValue) startDatem
-                               ++ maybe [] (pure . toPersistValue) endDatem
-                        
+  rows <- runDB $ rawSql (concat sqls) (concat paramss)
   return $ map mkTrans rows
 
 
