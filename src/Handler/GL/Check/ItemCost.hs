@@ -109,6 +109,9 @@ getGLCheckItemCostR = do
        <button.btn.btn-warning type="sumbit"> Collect All
      <form method=POST action="@{GLR $ GLCheckItemCostPurgeR}">  
        <button.btn.btn-danger type="sumbit"> Purge All
+     <form method=POST action="@{GLR $ GLCheckItemCostUpdateGLR}">  
+       ^{form}
+       <button.btn.btn-warning type="sumbit"> Fix Gl
     |]
 
 
@@ -166,6 +169,9 @@ getGLCheckItemCostAccountViewR account = do
        <button.btn.btn-warning type="sumbit"> Collect
      <form method=POST action="@{GLR $ GLCheckItemCostPurgeAccountR account}">
        <button.btn.btn-danger type="submit"> Purge
+     <form method=POST action="@{GLR $ GLCheckItemCostUpdateGLAccountR account}">
+       ^{form}
+       <button.btn.btn-warning type="submit"> Fix Gl
     |]
 
 
@@ -194,7 +200,7 @@ getGLCheckItemCostItemViewSavedR account item = do
         <button.btn.btn-danger type="submit"> Purge
       <form method=POST action="@{GLR $ GLCheckItemCostUpdateGLAccountItemR account item}" encType=#{encType}>
         ^{form}
-        <button.btn.btn-danger type="submit"> Fix Gl
+        <button.btn.btn-warning type="submit"> Fix Gl
       |]
 
 renderTransactions :: Text -> [ItemCostTransaction] -> Handler Widget 
@@ -465,10 +471,24 @@ postGLCheckItemCostPurgeAccountItemR account sku = do
 --
 postGLCheckItemCostUpdateGLR :: Handler Html
 postGLCheckItemCostUpdateGLR = do
-  return ""
+  (date, _, _) <- extractDateFromUrl
+  summaries <- runDB $ selectList [] []
+  faId <- fixGLBalance date summaries
+  setSuccess [shamlet|
+     Journaly entry ##{tshow faId} created.
+             |]
+  redirect $ GLR $ GLCheckItemCostR
+
 postGLCheckItemCostUpdateGLAccountR :: Text -> Handler Html
-postGLCheckItemCostUpdateGLAccountR _account = do
-  return ""
+postGLCheckItemCostUpdateGLAccountR account = do
+  (date, _, _) <- extractDateFromUrl
+  summaries <- runDB $ selectList [ItemCostSummaryAccount ==. account] []
+  faId <- fixGLBalance date summaries
+  setSuccess [shamlet|
+     Journaly entry ##{tshow faId} created.
+             |]
+  redirect $ GLR $ GLCheckItemCostAccountViewR account
+
 postGLCheckItemCostUpdateGLAccountItemR :: Text -> Maybe Text -> Handler Html
 postGLCheckItemCostUpdateGLAccountItemR account skum = do
   (date, _, _) <- extractDateFromUrl

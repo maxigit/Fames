@@ -795,8 +795,8 @@ fixGLBalance date summaries = do
 generateJournal :: Day -> [(Entity ItemCostSummary, Account)] -> Maybe (WFA.JournalEntry)
 generateJournal date sum'accounts = 
   let gls = concat
-            [ [mkItem itemCostSummaryAccount itemCostSummarySku (-amount) memo
-              ,mkItem (fromAccount adjAccount) itemCostSummarySku amount memo
+            [ [mkItem itemCostSummaryAccount itemCostSummarySku amount memo
+              ,mkItem (fromAccount adjAccount) itemCostSummarySku (-amount) memo
               ]
             |   (Entity _ ItemCostSummary{..}, adjAccount) <-  sum'accounts
             , let stockValue = if abs itemCostSummaryQohAfter > 1e-2
