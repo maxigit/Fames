@@ -796,7 +796,7 @@ generateJournal date sum'accounts =
               ,mkItem (fromAccount adjAccount) itemCostSummarySku (-amount) memo
               ]
             |   (Entity _ ItemCostSummary{..}, adjAccount) <-  sum'accounts
-            , let stockValue = if abs itemCostSummaryQohAfter > 1e-2
+            , let stockValue = if abs itemCostSummaryQohAfter < 1e-2
                                then 0
                                else itemCostSummaryStockValue
             , let amount =  toDecimalWithRounding (RoundBanker 2) $ stockValue - itemCostSummaryFaStockValue
