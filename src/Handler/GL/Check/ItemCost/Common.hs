@@ -768,11 +768,19 @@ fixGLBalance date summaries = do
                      ]
       defaultAccount = appCheckItemCostSetting settings >>= defaultFixAccount
       accountMap = accounts <$> appCheckItemCostSetting settings
+      validate faIds =  do
+            let comment = "Fix GL Balance"
+            validationm <- validateFromSummary date comment summaries
+            forM validationm $ \(Entity validation _)  -> do
+                let mkTransMap journalId=  TransactionMap ST_JOURNAL journalId ItemCostValidationE (fromIntegral $ fromSqlKey validation) False
+                runDB $ insertMany_  $ map mkTransMap  faIds
   case (journalm, summaries) of
     (Nothing, []) ->
       setInfo "No summary to post" >> return Nothing
-    (Nothing, _) ->
-      setInfo "Nothing to post : all GL line are 0, or fixing date before summary date." >> return Nothing
+    (Nothing, _) -> do
+      setInfo "Nothing to post : all GL line are 0, or fixing date before summary date."
+      validate []
+      return Nothing
     (Just journal, _) -> do
         faIdE <- liftIO $  WFA.postJournalEntry connectInfo journal
         case faIdE of
@@ -780,11 +788,7 @@ fixGLBalance date summaries = do
           Right faId -> do
             setStockIdFromMemo faId
             _ <- mapM (refreshSummary date) summaries
-            let comment = "Fix GL Balance"
-            validationm <- validateFromSummary date comment summaries
-            forM validationm $ \(Entity validation _)  -> do
-                let mkTransMap journalId=  TransactionMap ST_JOURNAL journalId ItemCostValidationE (fromIntegral $ fromSqlKey validation) False
-                runDB $ insertMany_  $ map mkTransMap  [faId]
+            validate [faId]
             return (Just faId)
 
 -- | Generates a JournalEntry ready to be posted to FA
