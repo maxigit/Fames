@@ -324,12 +324,10 @@ TaxReportDetail sql=fames_tax_report_detail json
 ItemCostValidation sql=check_item_cost_validation
   Id sql=item_cost_validation_id
   comment Text
-  operator OperatorId
+  userId UserId
   validationDate Day
   lastTransaction Day
-  firstTransaction Day
-  account Text
-  sku Text Maybe
+  -- firstTransaction Day
 
 -- Gather the information coming a stock moves and
 -- it's corresponding gl_trans

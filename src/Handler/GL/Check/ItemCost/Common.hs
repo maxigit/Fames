@@ -18,7 +18,7 @@ where
 
 import Import
 import GL.Check.ItemCostSettings
-import Database.Persist.Sql  (rawSql, Single(..), rawExecute)
+import Database.Persist.Sql  (rawSql, Single(..), rawExecute, fromSqlKey)
 import qualified FA as FA
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -780,6 +780,11 @@ fixGLBalance date summaries = do
           Right faId -> do
             setStockIdFromMemo faId
             _ <- mapM (refreshSummary date) summaries
+            let comment = "Fix GL Balance"
+            validationm <- validateFromSummary date comment summaries
+            forM validationm $ \(Entity validation _)  -> do
+                let mkTransMap journalId=  TransactionMap ST_JOURNAL journalId ItemCostValidationE (fromIntegral $ fromSqlKey validation) False
+                runDB $ insertMany_  $ map mkTransMap  [faId]
             return (Just faId)
 
 -- | Generates a JournalEntry ready to be posted to FA
@@ -828,6 +833,24 @@ refreshSummary :: Day -> Entity ItemCostSummary -> Handler (Either (Text, [Match
 refreshSummary day e = do
   let summary = entityVal e
   collectCostTransactions day (Account $ itemCostSummaryAccount summary) (itemCostSummarySku summary) 
+
+
+-- * Validation
+validateFromSummary :: Day -> Text -> [Entity ItemCostSummary] -> Handler (Maybe (Entity ItemCostValidation))
+validateFromSummary _date _comment [] = return Nothing
+validateFromSummary date comment summaries = do
+  userId <- requireAuthId
+  let validation = ItemCostValidation comment userId date lastTransaction
+      lastTransaction = maximumEx $ map (itemCostSummaryDate . entityVal) summaries
+  runDB $ do
+      key <- insert validation
+      forM summaries $ \(Entity _ ItemCostSummary{..}) -> do
+        updateWhere [ItemCostTransactionSku ==. itemCostSummarySku
+                    , ItemCostTransactionAccount ==. itemCostSummaryAccount
+                    , ItemCostTransactionItemCostValidation ==. Nothing
+                    ]
+                    [ ItemCostTransactionItemCostValidation =. Just key ]
+      return . Just $ Entity key validation
 
 
 -- * sanity check

@@ -20,6 +20,7 @@ import Handler.GL.Check.ItemCost.Common
 import Formatting as F
 import qualified FA as FA
 import GL.Check.ItemCostSettings
+import Database.Persist.Sql  (fromSqlKey)
 
 import Yesod.Form.Bootstrap3
 
@@ -275,7 +276,7 @@ renderTransactions title trans = do
                 <td> #{formatDouble' itemCostTransactionCostBefore}
               <td class="#{classForRel 0.25 itemCostTransactionCostBefore itemCostTransactionCostAfter}"> #{formatDouble' itemCostTransactionCostAfter}
               <td> #{itemCostTransactionComment}
-              <td> #{tshowM itemCostTransactionItemCostValidation}
+              <td> #{maybe "" (tshow . fromSqlKey) itemCostTransactionItemCostValidation}
               <td> #{tshowM itemCostTransactionMoveId}
               <td> #{tshowM itemCostTransactionGlDetail}
     |]

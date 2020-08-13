@@ -53,6 +53,7 @@ data EventType = StockAdjustmentE
                | PackingListDutyE -- ^ duty invoice for a delivery
                | PackingListInvoiceE -- ^ supplier invoice for a delivery
                | GLReceiptE
+               | ItemCostValidationE -- ^ fixing of gl or cost price 
   deriving (Eq, Show, Ord, Enum, Bounded)
 
 -- | derivePersistField uses String instead of an INt
