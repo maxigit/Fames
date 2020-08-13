@@ -772,7 +772,7 @@ fixGLBalance date summaries = do
     (Nothing, []) ->
       setInfo "No summary to post" >> return Nothing
     (Nothing, _) ->
-      setInfo "Nothing to post : all GL line are 0" >> return Nothing
+      setInfo "Nothing to post : all GL line are 0, or fixing date before summary date." >> return Nothing
     (Just journal, _) -> do
         faIdE <- liftIO $  WFA.postJournalEntry connectInfo journal
         case faIdE of
@@ -796,6 +796,7 @@ generateJournal date sum'accounts =
             , let amount =  toDecimalWithRounding (RoundBanker 2) $ stockValue - itemCostSummaryFaStockValue
             , abs amount  > 0
             , let memo = pack $ "Clear GL Balance from " <>  formatDouble itemCostSummaryFaStockValue <> " to " <> formatDouble stockValue :: Text
+            , date >= itemCostSummaryDate -- only fix balance after the current summary
             ]
       mkItem account skum gliAmount memo   =
                 WFA.GLItem { gliDimension1 = Nothing
