@@ -779,8 +779,9 @@ fixGLBalance date summaries = do
           Left e -> setError (toHtml e) >> return Nothing
           Right faId -> do
             setStockIdFromMemo faId
+            _ <- mapM (refreshSummary date) summaries
             return (Just faId)
-  
+
 -- | Generates a JournalEntry ready to be posted to FA
 -- returns Nothing if there is nothing to do (no line nonnull)
 generateJournal :: Day -> [(Entity ItemCostSummary, Account)] -> Maybe (WFA.JournalEntry)
@@ -820,6 +821,14 @@ setStockIdFromMemo fa_trans_no =  do
           <> ", memo_ = REGEXP_REPLACE(memo_, \"(.*):stock_id=.*\", \"\\\\1\") "
           <> " WHERE type_no = ? AND type = ? "
   runDB $ rawExecute sql [toPersistValue fa_trans_no, toPersistValue (fromEnum ST_JOURNAL)]
+
+-- | collect new transaction on summary' day and update it.
+-- Used after fixing the GL balance
+refreshSummary :: Day -> Entity ItemCostSummary -> Handler (Either (Text, [Matched]) ())
+refreshSummary day e = do
+  let summary = entityVal e
+  collectCostTransactions day (Account $ itemCostSummaryAccount summary) (itemCostSummarySku summary) 
+
 
 -- * sanity check
 -- | Detect all Sku/Account which look suspect
