@@ -828,7 +828,7 @@ generateJournal date sum'accounts =
                            }
   in if null gls
      then Nothing
-     else Just $ WFA.JournalEntry date Nothing gls (Just "Cost adjustment (Fames)")
+     else Just $ WFA.JournalEntry date Nothing gls (Just "Stock balance adjustment (Fames)")
   
 
 setStockIdFromMemo :: Int -> Handler ()
