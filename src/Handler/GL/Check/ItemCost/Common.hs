@@ -767,10 +767,7 @@ fixGLBalance date summaries = do
  -- today <- todayH
   settings <- getsYesod appSettings
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
-      account'skus = [ itemCostSummaryAccount <> maybe "" ("/"<>) itemCostSummarySku
-                     | (Entity _ ItemCostSummary{..}) <- summaries
-                     ]
-      ref = intercalate " - " $ ( nub $ mapMaybe ($ account'skus) [minimumMay, maximumMay] ) <>   [tshow $ length summaries]
+      ref = skuRange summaries
       journals = generateJournals chunkSize  date sum'accounts
       sum'accounts = [ ( e
                        ,  fromMaybe (error $ "No fixing account set up for Account : " <> unpack itemCostSummaryAccount)
@@ -804,16 +801,24 @@ fixGLBalance date summaries = do
             _ <- mapM (refreshSummary date) summaries
             validate faIds
 
+skuRange :: [(Entity ItemCostSummary)] ->  Text
+skuRange summaries = 
+  let account'skus = [ itemCostSummaryAccount <> maybe "" ("/"<>) itemCostSummarySku
+                     | (Entity _ ItemCostSummary{..}) <- summaries
+                     ]
+  in intercalate " - " $ ( nub $ mapMaybe ($ account'skus) [minimumMay, maximumMay] ) <>   [tshow $ length summaries]
 -- | Generates a JournalEntry ready to be posted to FA
 -- returns Nothing if there is nothing to do (no line nonnull)
 generateJournals :: Int -> Day -> [(Entity ItemCostSummary, Account)] -> [WFA.JournalEntry]
 -- generateJournals :: Day -> [(Entity ItemCostSummary, Account)] -> Maybe (WFA.JournalEntry)
 generateJournals chunkSize date sum'accounts = 
-  let gls = concat
-            [ [mkItem itemCostSummaryAccount itemCostSummarySku amount memo
+  let glss'es = 
+            [ ([mkItem itemCostSummaryAccount itemCostSummarySku amount memo
               ,mkItem (fromAccount adjAccount) itemCostSummarySku (-amount) memo
               ]
-            |   (Entity _ ItemCostSummary{..}, adjAccount) <-  sum'accounts
+              ,  e) -- we need to know which entity have been filtered or not
+              -- so that we can call sku range to set the journal memo
+            |   (e@(Entity _ ItemCostSummary{..}), adjAccount) <-  sum'accounts
             , let stockValue = if abs itemCostSummaryQohAfter < 1e-2
                                then 0
                                else itemCostSummaryStockValue
@@ -835,9 +840,11 @@ generateJournals chunkSize date sum'accounts =
 
       mkJournal gls' = case splitAt chunkSize gls' of
                       ([], _ ) -> Nothing
-                      (s1, s2) -> Just ( WFA.JournalEntry date Nothing s1 (Just "Stock balance adjustment (Fames)")
+                      (s1'e, s2) -> let (ss1, es) = unzip s1'e
+                                        s1 = concat ss1
+                                    in Just ( WFA.JournalEntry date Nothing s1 (Just $ "Stock balance adjustment " <> skuRange es  <> " (fames)")
                                        , s2)
-  in unfoldr mkJournal gls
+  in unfoldr mkJournal glss'es
   
 
 setStockIdFromMemo :: Int -> Handler ()

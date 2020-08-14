@@ -457,12 +457,14 @@ getGLCheckItemCostValidationViewR vId = do
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
   let urlFn = urlForFA faURL
       glUrlFn = glViewUrlForFA faURL
+      sql = "SELECT ??, memo_"
+           <> " FROM fames_transaction_map "
+           <> " LEFT JOIN 0_comments ON (fa_trans_type = 0_comments.type AND 0_comments.id = fa_trans_no) "
+           <> " WHERE event_type = ? AND event_no = ? "
+      unMaybeText = fromMaybe ( "" :: Text )
   (ItemCostValidation{..}, trans) <- runDB $
     liftA2 (,) (getJust (toSqlKey vId) )
-               (selectList [ TransactionMapEventType ==. ItemCostValidationE
-                        , TransactionMapEventNo ==. fromIntegral vId
-                        ] []
-                        )
+               (rawSql sql [toPersistValue (fromEnum ItemCostValidationE) , toPersistValue vId])
   glTable <- renderValidationGL vId
   defaultLayout [whamlet|
       <table.table>
@@ -480,12 +482,14 @@ getGLCheckItemCostValidationViewR vId = do
         <thead>
             <th> Trans Type
             <th> Trans No
+            <th> Memo
             <th> Voided
-        $forall (Entity _tId TransactionMap{..}) <- trans
+        $forall (Entity _tId TransactionMap{..}, Single memom) <- trans
             $with _unused <- (transactionMapEventNo, transactionMapEventType)
             <tr :transactionMapVoided:.text-muted>
               <td> #{transNoWithLink urlFn ""  transactionMapFaTransType transactionMapFaTransNo}
               <td> #{transIconWithLink glUrlFn "" transactionMapFaTransType transactionMapFaTransNo}
+              <td> #{unMaybeText memom}
               <td>
                 $if transactionMapVoided
                      Voided
@@ -500,7 +504,7 @@ renderValidationGL vId = do
   let sql = "SELECT account, account_name, sum(GREATEST(amount,0)), SUM(GREATEST(-amount,0)) "
            <> " FROM 0_gl_trans "
            <> " JOIN 0_chart_master ON (account = account_code) "
-           <> " JOIN fames_transaction_map ON( fa_trans_type = type AND fa_trans_no =  type_no) "
+           <> " JOIN fames_transaction_map ON( fa_trans_type = 0_gl_trans.type AND fa_trans_no =  type_no) "
            <> " WHERE event_type = ? AND event_no = ? "
            <> " GROUP BY account "
   rows <- runDB $ rawSql sql [toPersistValue (fromEnum ItemCostValidationE) , toPersistValue vId]
