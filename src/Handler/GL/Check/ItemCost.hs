@@ -77,7 +77,7 @@ getGLCheckItemCostR = do
                     #{formatAbs correct asStockValuation}
               $of Nothing
                 <td>
-                    <form method=POST action="@{GLR $ GLCheckItemCostAccountCollectR (fromAccount asAccount)}">  
+                    <form.form-inline method=POST action="@{GLR $ GLCheckItemCostAccountCollectR (fromAccount asAccount)}">  
                        <button.btn.btn-danger type="sumbit"> Collect
                    
                 <td>
@@ -102,15 +102,15 @@ getGLCheckItemCostR = do
             <th> #{formatDouble $ stockValue - glBalance}
             <th> #{formatDouble' $ qoh}
             <th> #{formatAbs qoh correctQoh}
-     <form method=GET action="@{GLR $ GLCheckItemCostR}" enctype="#{UrlEncoded}">  
+     <form.form-inline method=GET action="@{GLR $ GLCheckItemCostR}" enctype="#{UrlEncoded}">  
        ^{form}
        <button.btn.btn-primary type="sumbit"> Refresh
-     <form method=POST action="@{GLR $ GLCheckItemCostCollectAllR}" enctype="#{encType}">  
+     <form.form-inline method=POST action="@{GLR $ GLCheckItemCostCollectAllR}" enctype="#{encType}">  
        ^{form}
        <button.btn.btn-warning type="sumbit"> Collect All
-     <form method=POST action="@{GLR $ GLCheckItemCostPurgeR}">  
+     <form.form-inline method=POST action="@{GLR $ GLCheckItemCostPurgeR}">  
        <button.btn.btn-danger type="sumbit"> Purge All
-     <form method=POST action="@{GLR $ GLCheckItemCostUpdateGLR}">  
+     <form.form-inline method=POST action="@{GLR $ GLCheckItemCostUpdateGLR}">  
        ^{form}
        <button.btn.btn-warning type="sumbit"> Fix Gl
     |]
@@ -165,12 +165,12 @@ getGLCheckItemCostAccountViewR account = do
         <th> #{formatDouble $ faStockValue - stockValue }
         <th> #{formatDouble faStockValue }
         <th> #{formatDouble stockValue}
-     <form method=POST action="@{GLR $ GLCheckItemCostAccountCollectR account}" enctype="#{encType}">  
+     <form.form-inline method=POST action="@{GLR $ GLCheckItemCostAccountCollectR account}" enctype="#{encType}">  
        ^{form}
        <button.btn.btn-warning type="sumbit"> Collect
-     <form method=POST action="@{GLR $ GLCheckItemCostPurgeAccountR account}">
+     <form.form-inline method=POST action="@{GLR $ GLCheckItemCostPurgeAccountR account}">
        <button.btn.btn-danger type="submit"> Purge
-     <form method=POST action="@{GLR $ GLCheckItemCostUpdateGLAccountR account}">
+     <form.form-inline method=POST action="@{GLR $ GLCheckItemCostUpdateGLAccountR account}">
        ^{form}
        <button.btn.btn-warning type="submit"> Fix Gl
     |]
@@ -197,9 +197,9 @@ getGLCheckItemCostItemViewSavedR account item = do
       setTitle . toHtml $ "Item Cost Item - done " <> account <> maybe " (All)" ("/" <>) item
       w
       [whamlet|
-      <form method=POST action="@{GLR $ GLCheckItemCostPurgeAccountItemR account item}">
+      <form.form-inline method=POST action="@{GLR $ GLCheckItemCostPurgeAccountItemR account item}">
         <button.btn.btn-danger type="submit"> Purge
-      <form method=POST action="@{GLR $ GLCheckItemCostUpdateGLAccountItemR account item}" encType=#{encType}>
+      <form.form-inline method=POST action="@{GLR $ GLCheckItemCostUpdateGLAccountItemR account item}" encType=#{encType}>
         ^{form}
         <button.btn.btn-warning type="submit"> Fix Gl
       |]
