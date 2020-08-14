@@ -763,6 +763,7 @@ collectCostTransactions date account skum = do
 -- Generates a journal entry to balance all summary
 fixGLBalance :: Day -> [Entity ItemCostSummary] -> Handler (Maybe Int)
 fixGLBalance date summaries = do
+  today <- todayH
   settings <- getsYesod appSettings
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       journalm = generateJournal date sum'accounts
@@ -776,7 +777,7 @@ fixGLBalance date summaries = do
       defaultAccount = appCheckItemCostSetting settings >>= defaultFixAccount
       accountMap = accounts <$> appCheckItemCostSetting settings
       validate faIds =  do
-            let comment = "Fix GL Balance"
+            let comment = "Fix GL Balance (on " <> tshow today  <> ")"
             validationm <- validateFromSummary date comment summaries
             forM validationm $ \(Entity validation _)  -> do
                 let mkTransMap journalId=  TransactionMap ST_JOURNAL journalId ItemCostValidationE (fromIntegral $ fromSqlKey validation) False
