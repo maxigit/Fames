@@ -849,11 +849,11 @@ refreshSummary day e = do
 
 -- * Validation
 validateFromSummary :: Day -> Text -> [Entity ItemCostSummary] -> Handler (Maybe (Entity ItemCostValidation))
-validateFromSummary _date _comment [] = return Nothing
+-- validateFromSummary _date _comment [] = return Nothing
 validateFromSummary date comment summaries = do
   userId <- requireAuthId
   let validation = ItemCostValidation comment userId date lastTransaction False
-      lastTransaction = maximumEx $ map (itemCostSummaryDate . entityVal) summaries
+      lastTransaction = fromMaybe date $ maximumMay $ map (itemCostSummaryDate . entityVal) summaries
   runDB $ do
       key <- insert validation
       forM summaries $ \(Entity _ ItemCostSummary{..}) -> do

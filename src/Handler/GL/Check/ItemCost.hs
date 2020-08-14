@@ -482,7 +482,7 @@ getGLCheckItemCostValidationViewR vId = do
             <th> Voided
         $forall (Entity _tId TransactionMap{..}) <- trans
             $with _unused <- (transactionMapEventNo, transactionMapEventType)
-            <tr :transactionMapVoided:.text-muded>
+            <tr :transactionMapVoided:.text-muted>
               <td> #{transNoWithLink urlFn ""  transactionMapFaTransType transactionMapFaTransNo}
               <td> #{transIconWithLink glUrlFn "" transactionMapFaTransType transactionMapFaTransNo}
               <td>
@@ -576,7 +576,7 @@ postGLCheckItemCostVoidValidationR :: Int64 -> Handler Html
 postGLCheckItemCostVoidValidationR vId = do
   n <- voidValidation (toSqlKey vId)
   setInfo [shamlet|<h2> #{tshow n} transactions have voided|]
-  redirect . GLR $ GLCheckItemCostVoidValidationR vId
+  redirect . GLR $ GLCheckItemCostValidationViewR vId
 -- * Util
 
 dateForm datem = renderBootstrap3 BootstrapInlineForm form where
