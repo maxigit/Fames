@@ -29,7 +29,7 @@ import  qualified WH.FA.Types as WFA
 import  qualified WH.FA.Curl as WFA
 import Util.Decimal
 import Control.Monad.Except (runExceptT, ExceptT(..))
-import Data.List(nub)
+import Data.List(nub, unfoldr)
 
 
 -- * Types
@@ -762,7 +762,7 @@ collectCostTransactions date account skum = do
 
 -- * Fixing
 -- Generates a journal entry to balance all summary
-fixGLBalance :: Day -> [Entity ItemCostSummary] -> Handler (Maybe Int)
+fixGLBalance :: Day -> [Entity ItemCostSummary] -> Handler (Maybe (Entity ItemCostValidation))
 fixGLBalance date summaries = do
  -- today <- todayH
   settings <- getsYesod appSettings
@@ -771,7 +771,7 @@ fixGLBalance date summaries = do
                      | (Entity _ ItemCostSummary{..}) <- summaries
                      ]
       ref = intercalate " - " $ ( nub $ mapMaybe ($ account'skus) [minimumMay, maximumMay] ) <>   [tshow $ length summaries]
-      journalm = generateJournal date sum'accounts
+      journals = generateJournals chunkSize  date sum'accounts
       sum'accounts = [ ( e
                        ,  fromMaybe (error $ "No fixing account set up for Account : " <> unpack itemCostSummaryAccount)
                                     (accountm <|> defaultAccount)
@@ -780,34 +780,35 @@ fixGLBalance date summaries = do
                      , let accountm = accountMap >>= lookup (Account itemCostSummaryAccount)  >>= fixAccount
                      ]
       defaultAccount = appCheckItemCostSetting settings >>= defaultFixAccount
+      chunkSize = fromMaybe 200 (appCheckItemCostSetting settings >>= batchSize)
       accountMap = accounts <$> appCheckItemCostSetting settings
       validate faIds =  do
             let comment = "Fix GL Balance " <> ref --  (on " <> tshow today  <> ")"
             validationm <- validateFromSummary date comment summaries
-            forM validationm $ \(Entity validation _)  -> do
+            forM validationm $ \v@(Entity validation _)  -> do
                 let mkTransMap journalId=  TransactionMap ST_JOURNAL journalId ItemCostValidationE (fromIntegral $ fromSqlKey validation) False
                 runDB $ insertMany_  $ map mkTransMap  faIds
-  case (journalm, summaries) of
-    (Nothing, []) ->
+                return v
+  case (journals, summaries) of
+    ([], []) ->
       setInfo "No summary to post" >> return Nothing
-    (Nothing, _) -> do
+    ([], _) -> do
       setInfo "Nothing to post : all GL line are 0, or fixing date before summary date."
       validate []
-      return Nothing
-    (Just journal, _) -> do
-        faIdE <- liftIO $  WFA.postJournalEntry connectInfo journal
-        case faIdE of
+    (_, _) -> do
+        faIdsE <- liftIO $  mapM (WFA.postJournalEntry connectInfo) journals
+        case sequence faIdsE of
           Left e -> setError (toHtml e) >> return Nothing
-          Right faId -> do
-            setStockIdFromMemo faId
+          Right faIds -> do
+            mapM setStockIdFromMemo faIds
             _ <- mapM (refreshSummary date) summaries
-            validate [faId]
-            return (Just faId)
+            validate faIds
 
 -- | Generates a JournalEntry ready to be posted to FA
 -- returns Nothing if there is nothing to do (no line nonnull)
-generateJournal :: Day -> [(Entity ItemCostSummary, Account)] -> Maybe (WFA.JournalEntry)
-generateJournal date sum'accounts = 
+generateJournals :: Int -> Day -> [(Entity ItemCostSummary, Account)] -> [WFA.JournalEntry]
+-- generateJournals :: Day -> [(Entity ItemCostSummary, Account)] -> Maybe (WFA.JournalEntry)
+generateJournals chunkSize date sum'accounts = 
   let gls = concat
             [ [mkItem itemCostSummaryAccount itemCostSummarySku amount memo
               ,mkItem (fromAccount adjAccount) itemCostSummarySku (-amount) memo
@@ -831,9 +832,12 @@ generateJournal date sum'accounts =
                            -- updated afterward with a SQL query
                            , ..
                            }
-  in if null gls
-     then Nothing
-     else Just $ WFA.JournalEntry date Nothing gls (Just "Stock balance adjustment (Fames)")
+
+      mkJournal gls' = case splitAt chunkSize gls' of
+                      ([], _ ) -> Nothing
+                      (s1, s2) -> Just ( WFA.JournalEntry date Nothing s1 (Just "Stock balance adjustment (Fames)")
+                                       , s2)
+  in unfoldr mkJournal gls
   
 
 setStockIdFromMemo :: Int -> Handler ()

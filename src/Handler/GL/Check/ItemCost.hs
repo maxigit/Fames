@@ -576,31 +576,46 @@ postGLCheckItemCostUpdateGLR :: Handler Html
 postGLCheckItemCostUpdateGLR = do
   (date, _, _) <- extractDateFromUrl
   summaries <- runDB $ selectList [] []
-  faId <- fixGLBalance date summaries
-  setSuccess [shamlet|
-     Journaly entry ##{tshow faId} created.
-             |]
-  redirect $ GLR $ GLCheckItemCostValidationsViewR
+  validationm <- fixGLBalance date summaries
+  case validationm of
+    Nothing ->  do
+      setWarning [shamlet| Not validation saved|]
+      redirect $ GLR $ GLCheckItemCostValidationsViewR
+    Just (Entity key _ ) -> do
+        setSuccess [shamlet|
+           Journaly entry ##{tshow (fromSqlKey key)} created.
+                   |]
+        redirect $ GLR $ GLCheckItemCostValidationViewR (fromSqlKey key)
 
 postGLCheckItemCostUpdateGLAccountR :: Text -> Handler Html
 postGLCheckItemCostUpdateGLAccountR account = do
   (date, _, _) <- extractDateFromUrl
   summaries <- runDB $ selectList [ItemCostSummaryAccount ==. account] []
-  faId <- fixGLBalance date summaries
-  setSuccess [shamlet|
-     Journaly entry ##{tshow faId} created.
-             |]
-  redirect $ GLR $ GLCheckItemCostValidationsViewR
+  validationm <- fixGLBalance date summaries
+  case validationm of
+    Nothing ->  do
+      setWarning [shamlet| Not validation saved|]
+      redirect $ GLR $ GLCheckItemCostValidationsViewR
+    Just (Entity key _ ) -> do
+        setSuccess [shamlet|
+           Journaly entry ##{tshow (fromSqlKey key)} created.
+                   |]
+        redirect $ GLR $ GLCheckItemCostValidationViewR (fromSqlKey key)
 
 postGLCheckItemCostUpdateGLAccountItemR :: Text -> Maybe Text -> Handler Html
 postGLCheckItemCostUpdateGLAccountItemR account skum = do
   (date, _, _) <- extractDateFromUrl
   summary <- loadCostSummary (Account account) skum
-  faId <- fixGLBalance date (maybeToList summary)
-  setSuccess [shamlet|
-     Journaly entry ##{tshow faId} created.
-             |]
-  redirect $ GLR $ GLCheckItemCostValidationsViewR
+  validationm <- fixGLBalance date (maybeToList summary)
+  case validationm of
+    Nothing ->  do
+      setWarning [shamlet| Not validation saved|]
+      redirect $ GLR $ GLCheckItemCostValidationsViewR
+    Just (Entity key _ ) -> do
+        setSuccess [shamlet|
+           Journaly entry ##{tshow (fromSqlKey key)} created.
+                   |]
+        redirect $ GLR $ GLCheckItemCostValidationViewR (fromSqlKey key)
 
 -- * Voiding
 postGLCheckItemCostVoidValidationR :: Int64 -> Handler Html

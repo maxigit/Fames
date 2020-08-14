@@ -12,6 +12,7 @@ data Settings =  Settings
   ,  extraAccounts :: Maybe [Account]
   ,  defaultFixAccount :: Maybe Account
   ,  defaultDate :: Maybe Day
+  ,  batchSize :: Maybe Int -- maximum number of item to process when posting to FA
   }
   deriving (Show, Read, Eq, Ord)
 
