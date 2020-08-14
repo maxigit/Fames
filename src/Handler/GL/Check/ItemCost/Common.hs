@@ -39,6 +39,7 @@ data AccountSummary = AccountSummary
   , asCorrectQoh :: Maybe Double
   , asStockValuation :: Double
   , asQuantity :: Double
+  , asCollectDate :: Maybe Day
   }
   deriving (Show)
 
@@ -76,7 +77,7 @@ getAccountSummary :: Day -> Account -> Handler AccountSummary
 getAccountSummary date account = do
   asGLAmount <- glBalanceFor date account
   asAccountName <- getAccountName account
-  (asCorrectAmount, asCorrectQoh) <- getTotalCost date account
+  (asCorrectAmount, asCorrectQoh, asCollectDate) <- getTotalCost date account
   (asStockValuation, asQuantity) <- stockValuationFor date account
   return AccountSummary{asAccount=account,..}
 
@@ -91,14 +92,18 @@ glBalanceFor date (Account account) = do
    _ -> error "glBalanceFor should only returns one row. Please contact your Admininstrator!"
 
 
-getTotalCost :: Day -> Account -> Handler (Maybe Double, Maybe Double)
+getTotalCost :: Day -> Account -> Handler (Maybe Double, Maybe Double, Maybe Day)
 getTotalCost date (Account account) = do
-  let sql = "select sum(stock_value), sum(qoh_after) from check_item_cost_summary  "
-         <> " WHERE account = ? and date <= ? "
-  rows <- runDB $ rawSql sql [toPersistValue account, toPersistValue date]
+  let sql = "SELECT sum(stock_value), sum(qoh_after), max(date) "
+         <> " FROM check_item_cost_summary  "
+         <> " WHERE account = ? " --  and date <= ? "
+  rows <- runDB $ rawSql sql [toPersistValue account] -- , toPersistValue date]
   case rows of
-    [] -> return (Nothing, Nothing)
-    [(Single total, Single qoh)] -> return (total, qoh)
+    [] -> return (Nothing, Nothing, Nothing)
+    [(Single total, Single qoh, Single collectDate)] -> 
+      if collectDate > Just date
+      then return (Nothing, Nothing, collectDate)
+      else return (total, qoh, collectDate)
     _ -> error "glTotalCost should only returns one row. Please contact your Admininstrator!"
 
 getAccountName :: Account -> Handler Text

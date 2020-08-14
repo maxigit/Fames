@@ -38,10 +38,12 @@ getGLCheckItemCostR = do
   defaultLayout  $ do
     setTitle  . toHtml  $ "Check Item cost - " <> tshow date
     [whamlet|
+      <h2> Check Item cost #{tshow date}
       <table data-page-length=10 *{datatable}>
         <thead>
           <tr>
             <th> Account
+            <th> Collect Date
             <th data-class-name="text-right"> GL Balance
             <th data-class-name="text-right"> Correct Balance
             <th data-class-name="text-right"> GL Balance - Correct 
@@ -56,6 +58,10 @@ getGLCheckItemCostR = do
             <td> 
                <a href=@{GLR $ GLCheckItemCostAccountViewR (fromAccount asAccount)}>
                  #{fromAccount asAccount} - #{asAccountName}
+            <td> #{tshowM asCollectDate} 
+                <form.form-inline method=POST action="@{GLR $ GLCheckItemCostAccountCollectR (fromAccount asAccount)}">  
+                   <span.hidden> ^{form}
+                   <button.btn.btn-danger type="sumbit"> Collect
             <td> #{formatDouble asGLAmount}
             $case asCorrectAmount
               $of (Just correct)
@@ -77,9 +83,6 @@ getGLCheckItemCostR = do
                     #{formatAbs correct asStockValuation}
               $of Nothing
                 <td>
-                    <form.form-inline method=POST action="@{GLR $ GLCheckItemCostAccountCollectR (fromAccount asAccount)}">  
-                       <button.btn.btn-danger type="sumbit"> Collect
-                   
                 <td>
                 <td>
             <td> #{formatDouble asStockValuation}
