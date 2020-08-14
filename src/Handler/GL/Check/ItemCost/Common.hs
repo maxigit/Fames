@@ -29,6 +29,7 @@ import  qualified WH.FA.Types as WFA
 import  qualified WH.FA.Curl as WFA
 import Util.Decimal
 import Control.Monad.Except (runExceptT, ExceptT(..))
+import Data.List(nub)
 
 
 -- * Types
@@ -763,9 +764,13 @@ collectCostTransactions date account skum = do
 -- Generates a journal entry to balance all summary
 fixGLBalance :: Day -> [Entity ItemCostSummary] -> Handler (Maybe Int)
 fixGLBalance date summaries = do
-  today <- todayH
+ -- today <- todayH
   settings <- getsYesod appSettings
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
+      account'skus = [ itemCostSummaryAccount <> maybe "" ("/"<>) itemCostSummarySku
+                     | (Entity _ ItemCostSummary{..}) <- summaries
+                     ]
+      ref = intercalate " - " $ ( nub $ mapMaybe ($ account'skus) [minimumMay, maximumMay] ) <>   [tshow $ length summaries]
       journalm = generateJournal date sum'accounts
       sum'accounts = [ ( e
                        ,  fromMaybe (error $ "No fixing account set up for Account : " <> unpack itemCostSummaryAccount)
@@ -777,7 +782,7 @@ fixGLBalance date summaries = do
       defaultAccount = appCheckItemCostSetting settings >>= defaultFixAccount
       accountMap = accounts <$> appCheckItemCostSetting settings
       validate faIds =  do
-            let comment = "Fix GL Balance (on " <> tshow today  <> ")"
+            let comment = "Fix GL Balance " <> ref --  (on " <> tshow today  <> ")"
             validationm <- validateFromSummary date comment summaries
             forM validationm $ \(Entity validation _)  -> do
                 let mkTransMap journalId=  TransactionMap ST_JOURNAL journalId ItemCostValidationE (fromIntegral $ fromSqlKey validation) False

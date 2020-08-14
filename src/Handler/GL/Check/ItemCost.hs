@@ -447,7 +447,7 @@ getGLCheckItemCostValidationsViewR = do
           <td> <a href="@{GLR $ GLCheckItemCostValidationViewR (fromSqlKey key)}" > ##{tshow $ fromSqlKey key}
           <td> #{tshow itemCostValidationValidationDate}
           <td> #{tshow itemCostValidationLastTransaction}
-          <td> #{tshow itemCostValidationComment}
+          <td> #{itemCostValidationComment}
           <td> #{tshow $ fromSqlKey itemCostValidationUserId}
           <td> #{tshow itemCostValidationVoided}
   |]
