@@ -744,7 +744,7 @@ collectCostTransactions date account skum = do
           Nothing -> return ()
           Just summary  -> do
              insertMany_ trans
-             let itemCostSummaryDate = itemCostTransactionDate  summary
+             let itemCostSummaryDate = fromMaybe (error "Unexpected happen") $ maximumMay $ map itemCostTransactionDate  trans
                  itemCostSummaryMoveId = maximumMay $ mapMaybe itemCostTransactionMoveId trans :: Maybe Int
                  itemCostSummaryGlDetail = maximumMay $ mapMaybe itemCostTransactionGlDetail trans
                  itemCostSummarySku = itemCostTransactionSku summary
