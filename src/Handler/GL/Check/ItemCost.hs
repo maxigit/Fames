@@ -23,7 +23,7 @@ import Handler.GL.Check.ItemCost.Common
 import Formatting as F
 import qualified FA as FA
 import GL.Check.ItemCostSettings
-import Database.Persist.Sql  (fromSqlKey, toSqlKey)
+import Database.Persist.Sql  (fromSqlKey, toSqlKey, Single(..), rawSql)
 
 import Yesod.Form.Bootstrap3
 
@@ -463,6 +463,7 @@ getGLCheckItemCostValidationViewR vId = do
                         , TransactionMapEventNo ==. fromIntegral vId
                         ] []
                         )
+  glTable <- renderValidationGL vId
   defaultLayout [whamlet|
       <table.table>
         <tr>
@@ -489,10 +490,40 @@ getGLCheckItemCostValidationViewR vId = do
                 $if transactionMapVoided
                      Voided
           
+      ^{glTable}
       <form.form-inline method=POST action="@{GLR $ GLCheckItemCostVoidValidationR vId}">  
              <button.btn.btn-danger type="sumbit"> Void
     |]
 
+renderValidationGL :: Int64 -> Handler Widget
+renderValidationGL vId = do
+  let sql = "SELECT account, account_name, sum(amount) "
+           <> " FROM 0_gl_trans "
+           <> " JOIN 0_chart_master ON (account = account_code) "
+           <> " JOIN fames_transaction_map ON( fa_trans_type = type AND fa_trans_no =  type_no) "
+           <> " WHERE event_type = ? AND event_no = ? "
+           <> " GROUP BY account "
+  rows <- runDB $ rawSql sql [toPersistValue (fromEnum ItemCostValidationE) , toPersistValue vId]
+  let _types = rows:: [(Single Text, Single Text, Single Double)]
+  return [whamlet|
+   <table *{datatable}>
+    <thead>
+      <th> Account
+      <th> Debit
+      <th> Credit
+    <tbody>
+      $forall (Single account, Single accountName, Single amount) <- rows
+        <tr>
+          <td> #{account} - #{accountName}
+          $if amount >= 0
+            <td> #{formatDouble amount}
+            <td>
+          $else
+            <td>
+            <td> #{formatDouble (negate amount)}
+  |]
+
+  
 -- * Saving
 postGLCheckItemCostAccountCollectR :: Text -> Handler Html
 postGLCheckItemCostAccountCollectR account = do
