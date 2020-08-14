@@ -497,30 +497,28 @@ getGLCheckItemCostValidationViewR vId = do
 
 renderValidationGL :: Int64 -> Handler Widget
 renderValidationGL vId = do
-  let sql = "SELECT account, account_name, sum(amount) "
+  let sql = "SELECT account, account_name, sum(GREATEST(amount,0)), SUM(GREATEST(-amount,0)) "
            <> " FROM 0_gl_trans "
            <> " JOIN 0_chart_master ON (account = account_code) "
            <> " JOIN fames_transaction_map ON( fa_trans_type = type AND fa_trans_no =  type_no) "
            <> " WHERE event_type = ? AND event_no = ? "
            <> " GROUP BY account "
   rows <- runDB $ rawSql sql [toPersistValue (fromEnum ItemCostValidationE) , toPersistValue vId]
-  let _types = rows:: [(Single Text, Single Text, Single Double)]
+  let _types = rows:: [(Single Text, Single Text, Single Double, Single Double)]
   return [whamlet|
    <table *{datatable}>
     <thead>
       <th> Account
       <th> Debit
       <th> Credit
+      <th> Balance
     <tbody>
-      $forall (Single account, Single accountName, Single amount) <- rows
+      $forall (Single account, Single accountName, Single debit, Single credit) <- rows
         <tr>
           <td> #{account} - #{accountName}
-          $if amount >= 0
-            <td> #{formatDouble amount}
-            <td>
-          $else
-            <td>
-            <td> #{formatDouble (negate amount)}
+          <td> #{formatDouble debit}
+          <td> #{formatDouble credit}
+          <td> #{formatAbs debit credit}
   |]
 
   

@@ -845,7 +845,7 @@ setStockIdFromMemo fa_trans_no =  do
   let sql = "UPDATE 0_gl_trans "
           <> "SET stock_id = REGEXP_REPLACE(memo_, \".*:stock_id=(.*)$\", \"\\\\1\") "
           <> ", memo_ = REGEXP_REPLACE(memo_, \"(.*):stock_id=.*\", \"\\\\1\") "
-          <> " WHERE type_no = ? AND type = ? "
+          <> " WHERE memo_ like '%:stock_id=%' AND type_no = ? AND type = ? "
   runDB $ rawExecute sql [toPersistValue fa_trans_no, toPersistValue (fromEnum ST_JOURNAL)]
 
 -- | collect new transaction on summary' day and update it.
