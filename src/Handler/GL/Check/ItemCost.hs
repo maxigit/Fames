@@ -12,6 +12,9 @@ module Handler.GL.Check.ItemCost
 , postGLCheckItemCostUpdateGLR
 , postGLCheckItemCostUpdateGLAccountR
 , postGLCheckItemCostUpdateGLAccountItemR
+, getGLCheckItemCostValidationsViewR
+, getGLCheckItemCostValidationViewR
+, postGLCheckItemCostVoidValidationR
 )
 where
 
@@ -20,7 +23,7 @@ import Handler.GL.Check.ItemCost.Common
 import Formatting as F
 import qualified FA as FA
 import GL.Check.ItemCostSettings
-import Database.Persist.Sql  (fromSqlKey)
+import Database.Persist.Sql  (fromSqlKey, toSqlKey)
 
 import Yesod.Form.Bootstrap3
 
@@ -425,6 +428,71 @@ getGLCheckItemCostCheckR = do
                 $else
                   <span.hidden>stockok
   |]
+
+getGLCheckItemCostValidationsViewR :: Handler Html
+getGLCheckItemCostValidationsViewR = do
+  validations <- runDB $ selectList [] [Desc ItemCostValidationValidationDate, Desc ItemCostValidationLastTransaction]
+  defaultLayout [whamlet|
+  <table *{datatable}>
+    <thead>
+      <th> Id
+      <th> Date
+      <th> Last 
+      <th> Comment
+      <th> User
+      <th> Voided
+    <tbody>
+      $forall (Entity key ItemCostValidation{..}) <- validations
+        <tr>
+          <td> <a href="@{GLR $ GLCheckItemCostValidationViewR (fromSqlKey key)}" > ##{tshow $ fromSqlKey key}
+          <td> #{tshow itemCostValidationValidationDate}
+          <td> #{tshow itemCostValidationLastTransaction}
+          <td> #{tshow itemCostValidationComment}
+          <td> #{tshow $ fromSqlKey itemCostValidationUserId}
+          <td> #{tshow itemCostValidationVoided}
+  |]
+
+getGLCheckItemCostValidationViewR :: Int64 -> Handler Html
+getGLCheckItemCostValidationViewR vId = do
+  faURL <- getsYesod (pack . appFAExternalURL . appSettings)
+  let urlFn = urlForFA faURL
+      glUrlFn = glViewUrlForFA faURL
+  (ItemCostValidation{..}, trans) <- runDB $
+    liftA2 (,) (getJust (toSqlKey vId) )
+               (selectList [ TransactionMapEventType ==. ItemCostValidationE
+                        , TransactionMapEventNo ==. fromIntegral vId
+                        ] []
+                        )
+  defaultLayout [whamlet|
+      <table.table>
+        <tr>
+          <th> Validation date
+          <td> #{tshow itemCostValidationValidationDate}
+          <th> Last Transaction
+          <td> #{tshow itemCostValidationLastTransaction}
+          <th> User Id
+          <td> #{tshow $ fromSqlKey itemCostValidationUserId }
+        <tr>
+          <th> comment
+          <td colspan=4> #{itemCostValidationComment}
+      <table *{datatable}>
+        <thead>
+            <th> Trans Type
+            <th> Trans No
+            <th> Voided
+        $forall (Entity _tId TransactionMap{..}) <- trans
+            $with _unused <- (transactionMapEventNo, transactionMapEventType)
+            <tr :transactionMapVoided:.text-muded>
+              <td> #{transNoWithLink urlFn ""  transactionMapFaTransType transactionMapFaTransNo}
+              <td> #{transIconWithLink glUrlFn "" transactionMapFaTransType transactionMapFaTransNo}
+              <td>
+                $if transactionMapVoided
+                     Voided
+          
+      <form.form-inline method=POST action="@{GLR $ GLCheckItemCostVoidValidationR vId}">  
+             <button.btn.btn-danger type="sumbit"> Void
+    |]
+
 -- * Saving
 postGLCheckItemCostAccountCollectR :: Text -> Handler Html
 postGLCheckItemCostAccountCollectR account = do
@@ -481,7 +549,7 @@ postGLCheckItemCostUpdateGLR = do
   setSuccess [shamlet|
      Journaly entry ##{tshow faId} created.
              |]
-  redirect $ GLR $ GLCheckItemCostR
+  redirect $ GLR $ GLCheckItemCostValidationsViewR
 
 postGLCheckItemCostUpdateGLAccountR :: Text -> Handler Html
 postGLCheckItemCostUpdateGLAccountR account = do
@@ -491,7 +559,7 @@ postGLCheckItemCostUpdateGLAccountR account = do
   setSuccess [shamlet|
      Journaly entry ##{tshow faId} created.
              |]
-  redirect $ GLR $ GLCheckItemCostAccountViewR account
+  redirect $ GLR $ GLCheckItemCostValidationsViewR
 
 postGLCheckItemCostUpdateGLAccountItemR :: Text -> Maybe Text -> Handler Html
 postGLCheckItemCostUpdateGLAccountItemR account skum = do
@@ -501,8 +569,14 @@ postGLCheckItemCostUpdateGLAccountItemR account skum = do
   setSuccess [shamlet|
      Journaly entry ##{tshow faId} created.
              |]
-  redirect $ GLR $ GLCheckItemCostItemViewR account skum
+  redirect $ GLR $ GLCheckItemCostValidationsViewR
 
+-- * Voiding
+postGLCheckItemCostVoidValidationR :: Int64 -> Handler Html
+postGLCheckItemCostVoidValidationR vId = do
+  n <- voidValidation (toSqlKey vId)
+  setInfo [shamlet|<h2> #{tshow n} transactions have voided|]
+  redirect . GLR $ GLCheckItemCostVoidValidationR vId
 -- * Util
 
 dateForm datem = renderBootstrap3 BootstrapInlineForm form where

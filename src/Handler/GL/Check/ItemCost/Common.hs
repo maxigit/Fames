@@ -13,6 +13,7 @@ module Handler.GL.Check.ItemCost.Common
 , loadCheckInfo
 , itemSettings
 , fixGLBalance
+, voidValidation
 )
 where
 
@@ -27,6 +28,7 @@ import Data.Monoid(First(..))
 import  qualified WH.FA.Types as WFA
 import  qualified WH.FA.Curl as WFA
 import Util.Decimal
+import Control.Monad.Except (runExceptT, ExceptT(..))
 
 
 -- * Types
@@ -849,12 +851,12 @@ validateFromSummary :: Day -> Text -> [Entity ItemCostSummary] -> Handler (Maybe
 validateFromSummary _date _comment [] = return Nothing
 validateFromSummary date comment summaries = do
   userId <- requireAuthId
-  let validation = ItemCostValidation comment userId date lastTransaction
+  let validation = ItemCostValidation comment userId date lastTransaction False
       lastTransaction = maximumEx $ map (itemCostSummaryDate . entityVal) summaries
   runDB $ do
       key <- insert validation
       forM summaries $ \(Entity _ ItemCostSummary{..}) -> do
-        updateWhere [ItemCostTransactionSku ==. itemCostSummarySku
+        updateWhere [ ItemCostTransactionSku ==. itemCostSummarySku
                     , ItemCostTransactionAccount ==. itemCostSummaryAccount
                     , ItemCostTransactionItemCostValidation ==. Nothing
                     ]
@@ -862,6 +864,40 @@ validateFromSummary date comment summaries = do
       return . Just $ Entity key validation
 
 
+voidValidation :: Key ItemCostValidation -> Handler Int
+voidValidation key = do
+  today <- todayH
+  settings <- getsYesod appSettings
+  let vId = fromSqlKey key
+      connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
+      commentFn = const . Just $ "Item cost Validation # " <> tshow vId <> " voided"
+  trans <- runDB $ selectList [ TransactionMapEventType ==. ItemCostValidationE
+                               , TransactionMapEventNo ==. fromIntegral vId
+                               , TransactionMapVoided ==. False
+                               ] []
+  e <- runExceptT $ mapM (\tran -> voidFATransaction connectInfo today (commentFn . entityVal $ tran) tran) $ trans
+  case e of
+    Left err -> error (unpack err)
+    Right _ -> do
+      runDB $ updateWhere  [ItemCostValidationId ==. key] [ItemCostValidationVoided =. True]
+      return (length trans)
+
+-- TODO factorize with Handler.GL.Payroll.Common
+voidFATransaction :: WFA.FAConnectInfo -> Day -> Maybe Text -> Entity TransactionMap -> ExceptT Text Handler ()
+voidFATransaction connectInfo vtDate comment (Entity __tId TransactionMap{..}) = do
+  let vtTransNo = transactionMapFaTransNo
+      vtTransType = transactionMapFaTransType
+      vtComment = Just $ fromMaybe "Voided by Fames" comment
+  ExceptT $ liftIO $ WFA.postVoid connectInfo WFA.VoidTransaction{..}
+  -- mark the transaction as voided (all the rows)  not just the one matching the curren entity
+  lift $  runDB $ updateWhere [ TransactionMapFaTransType ==. transactionMapFaTransType
+                              , TransactionMapFaTransNo ==. transactionMapFaTransNo
+                              ] [TransactionMapVoided =. True]
+  return ()
+    
+  
+
+--
 -- * sanity check
 -- | Detect all Sku/Account which look suspect
 -- (not much variation in cost price, too much discrepency between FA and calculated etc ...

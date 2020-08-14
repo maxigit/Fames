@@ -327,6 +327,7 @@ ItemCostValidation sql=check_item_cost_validation
   userId UserId
   validationDate Day
   lastTransaction Day
+  voided Bool
   -- firstTransaction Day
 
 -- Gather the information coming a stock moves and

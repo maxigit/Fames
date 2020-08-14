@@ -67,6 +67,10 @@
   /check/item_cost/update-gl-item/#Text/#Maybe-Text GLCheckItemCostUpdateGLAccountItemR POST !check
   /check/item_cost/update-gl-account/#Text GLCheckItemCostUpdateGLAccountR POST !check
   /check/item_cost/update-gl-account GLCheckItemCostUpdateGLR POST !check
+  /check/item_cost/validations GLCheckItemCostValidationsViewR GET  !title=Item_Cost_Validations
+  /check/item_cost/validation/#Int64 GLCheckItemCostValidationViewR GET 
+  /check/item_cost/validation/void/#Int64 GLCheckItemCostVoidValidationR POST
+
 
 /warehouse WarehouseR !warehouse:
   /barcodes WHBarcodeR GET !group=Barcodes !title=Generate
