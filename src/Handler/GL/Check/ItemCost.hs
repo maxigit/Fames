@@ -600,7 +600,7 @@ postGLCheckItemCostUpdateGLR = do
       redirect $ GLR $ GLCheckItemCostValidationsViewR
     Just (Entity key _ ) -> do
         setSuccess [shamlet|
-           Journaly entry ##{tshow (fromSqlKey key)} created.
+           Validation ##{tshow (fromSqlKey key)} created.
                    |]
         redirect $ GLR $ GLCheckItemCostValidationViewR (fromSqlKey key)
 
@@ -615,7 +615,7 @@ postGLCheckItemCostUpdateGLAccountR account = do
       redirect $ GLR $ GLCheckItemCostValidationsViewR
     Just (Entity key _ ) -> do
         setSuccess [shamlet|
-           Journaly entry ##{tshow (fromSqlKey key)} created.
+           Validation ##{tshow (fromSqlKey key)} created.
                    |]
         redirect $ GLR $ GLCheckItemCostValidationViewR (fromSqlKey key)
 
@@ -630,7 +630,7 @@ postGLCheckItemCostUpdateGLAccountItemR account skum = do
       redirect $ GLR $ GLCheckItemCostValidationsViewR
     Just (Entity key _ ) -> do
         setSuccess [shamlet|
-           Journaly entry ##{tshow (fromSqlKey key)} created.
+           Validation ##{tshow (fromSqlKey key)} created.
                    |]
         redirect $ GLR $ GLCheckItemCostValidationViewR (fromSqlKey key)
 
