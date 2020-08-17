@@ -812,11 +812,13 @@ skuRange summaries =
 generateJournals :: Int -> Day -> [(Entity ItemCostSummary, Account)] -> [WFA.JournalEntry]
 -- generateJournals :: Day -> [(Entity ItemCostSummary, Account)] -> Maybe (WFA.JournalEntry)
 generateJournals chunkSize date sum'accounts = 
-  let glss'es = 
-            [ ([mkItem itemCostSummaryAccount itemCostSummarySku amount memo
+  let (glss'es, sum -> total) =  unzip
+            [ (([mkItem itemCostSummaryAccount itemCostSummarySku amount memo
               ,mkItem (fromAccount adjAccount) itemCostSummarySku (-amount) memo
               ]
               ,  e) -- we need to know which entity have been filtered or not
+              , amount
+              )
               -- so that we can call sku range to set the journal memo
             |   (e@(Entity _ ItemCostSummary{..}), adjAccount) <-  sum'accounts
             , let stockValue = if abs itemCostSummaryQohAfter < 1e-2
@@ -842,7 +844,7 @@ generateJournals chunkSize date sum'accounts =
                       ([], _ ) -> Nothing
                       (s1'e, s2) -> let (ss1, es) = unzip s1'e
                                         s1 = concat ss1
-                                    in Just ( WFA.JournalEntry date Nothing s1 (Just $ "Stock balance adjustment " <> skuRange es  <> " (fames)")
+                                    in Just ( WFA.JournalEntry date Nothing s1 (Just $ "Stock balance adjustment : " <> tshow total <> " " <> skuRange es  <> " (fames)")
                                        , s2)
   in unfoldr mkJournal glss'es
   
