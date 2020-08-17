@@ -770,7 +770,7 @@ fixGLBalance date summaries = do
   settings <- getsYesod appSettings
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       ref = skuRange summaries
-      journals = generateJournals chunkSize  date sum'accounts
+      (journals, total) = generateJournals chunkSize  date sum'accounts
       sum'accounts = [ ( e
                        ,  fromMaybe (error $ "No fixing account set up for Account : " <> unpack itemCostSummaryAccount)
                                     (accountm <|> defaultAccount)
@@ -784,7 +784,7 @@ fixGLBalance date summaries = do
       validate faIds =  do
             let comment = "Fix GL Balance " <> ref --  (on " <> tshow today  <> ")"
             _ <- mapM (refreshSummary date) summaries
-            validationm <- validateFromSummary date comment summaries
+            validationm <- validateFromSummary date comment summaries total
             forM validationm $ \v@(Entity validation _)  -> do
                 let mkTransMap journalId=  TransactionMap ST_JOURNAL journalId ItemCostValidationE (fromIntegral $ fromSqlKey validation) False
                 runDB $ insertMany_  $ map mkTransMap  faIds
@@ -811,7 +811,7 @@ skuRange summaries =
   in intercalate " - " $ ( nub $ mapMaybe ($ account'skus) [minimumMay, maximumMay] ) <>   [tshow $ length summaries]
 -- | Generates a JournalEntry ready to be posted to FA
 -- returns Nothing if there is nothing to do (no line nonnull)
-generateJournals :: Int -> Day -> [(Entity ItemCostSummary, Account)] -> [WFA.JournalEntry]
+generateJournals :: Int -> Day -> [(Entity ItemCostSummary, Account)] -> ([WFA.JournalEntry], Double)
 -- generateJournals :: Day -> [(Entity ItemCostSummary, Account)] -> Maybe (WFA.JournalEntry)
 generateJournals chunkSize date sum'accounts = 
   let (glss'es, sum -> total) =  unzip
@@ -848,7 +848,7 @@ generateJournals chunkSize date sum'accounts =
                                         s1 = concat ss1
                                     in Just ( WFA.JournalEntry date Nothing s1 (Just $ "Stock balance adjustment : " <> tshow total <> " " <> skuRange es  <> " (fames)")
                                        , s2)
-  in unfoldr mkJournal glss'es
+  in (unfoldr mkJournal glss'es, fromRational $ toRational total)
   
 
 setStockIdFromMemo :: Int -> Handler ()
@@ -868,11 +868,11 @@ refreshSummary day e = do
 
 
 -- * Validation
-validateFromSummary :: Day -> Text -> [Entity ItemCostSummary] -> Handler (Maybe (Entity ItemCostValidation))
+validateFromSummary :: Day -> Text -> [Entity ItemCostSummary] -> Double -> Handler (Maybe (Entity ItemCostValidation))
 -- validateFromSummary _date _comment [] = return Nothing
-validateFromSummary date comment summaries = do
+validateFromSummary date comment summaries total = do
   userId <- requireAuthId
-  let validation = ItemCostValidation comment userId date lastTransaction False
+  let validation = ItemCostValidation comment userId date lastTransaction False total
       lastTransaction = fromMaybe date $ maximumMay $ map (itemCostSummaryDate . entityVal) summaries
   runDB $ do
       key <- insert validation

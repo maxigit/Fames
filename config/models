@@ -328,6 +328,7 @@ ItemCostValidation sql=check_item_cost_validation
   validationDate Day
   lastTransaction Day
   voided Bool
+  total Double
   -- firstTransaction Day
 
 -- Gather the information coming a stock moves and

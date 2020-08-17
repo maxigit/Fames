@@ -453,6 +453,7 @@ getGLCheckItemCostValidationsViewR = do
       <th> Id
       <th> Date
       <th> Last 
+      <th> Total
       <th> Comment
       <th> User
       <th> Voided
@@ -462,6 +463,7 @@ getGLCheckItemCostValidationsViewR = do
           <td> <a href="@{GLR $ GLCheckItemCostValidationViewR (fromSqlKey key)}" > ##{tshow $ fromSqlKey key}
           <td> #{tshow itemCostValidationValidationDate}
           <td> #{tshow itemCostValidationLastTransaction}
+          <td> #{formatAbs 0 itemCostValidationTotal}
           <td> #{itemCostValidationComment}
           <td> #{tshow $ fromSqlKey itemCostValidationUserId}
           <td> #{tshow itemCostValidationVoided}
@@ -491,8 +493,10 @@ getGLCheckItemCostValidationViewR vId = do
           <th> User Id
           <td> #{tshow $ fromSqlKey itemCostValidationUserId }
         <tr>
+          <th> Total
+          <th> #{formatDouble itemCostValidationTotal }
           <th> comment
-          <td colspan=4> #{itemCostValidationComment}
+          <td colspan=2> #{itemCostValidationComment}
       <table *{datatable}>
         <thead>
             <th> Trans Type
