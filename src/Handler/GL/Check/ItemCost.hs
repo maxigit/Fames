@@ -130,7 +130,16 @@ getGLCheckItemCostAccountViewR account = do
       faStockValue = sum $ [ itemCostSummaryFaStockValue last | (_,_,Just last) <- sku'count'lasts] 
       stockValue = sum $ [ itemCostSummaryStockValue last | (_,_,Just last) <- sku'count'lasts] 
       -- filter items with no transaction neither summary (so not used at all)
-      sku'count'lasts = filter (\(_, count, lastm) -> count /= 0 || isJust lastm) sku'count'lasts0
+      sku'count'lasts = filter (\(_, count, lastm) -> count /= 0 || isJust lastm) 
+                      . filter (\(_,count, lastm) -> fmap (isSummaryValid count) lastm /= Just True)
+                     $ sku'count'lasts0
+      
+      -- don't display summary if they have been validated in the future
+      isSummaryValid count ItemCostSummary{..} =
+        count == 0 
+        -- && itemCostSummaryDate >= date
+        -- && equal' 1e-4 itemCostSummaryStockValue itemCostSummaryFaStockValue
+        && itemCostSummaryValidated
   defaultLayout $ do
     setTitle . toHtml $ "Item Cost - View Account " <> account
     [whamlet|
@@ -138,6 +147,8 @@ getGLCheckItemCostAccountViewR account = do
       <thead>
         <th> Stock Id
         <th> Unchecked moves
+        <th> Collect Date
+        <th> Validated
         <th data-class-name="text-right"> Gl - Correct
         <th data-class-name="text-right"> Checked GL
         <th data-class-name="text-right"> Checked Correct
@@ -152,6 +163,8 @@ getGLCheckItemCostAccountViewR account = do
                 #{tshow count}
             $case lastm
               $of (Just last)
+                <td> #{tshow $ itemCostSummaryDate last}
+                <td>#{tshow $ itemCostSummaryValidated last}
                 $if equal (itemCostSummaryFaStockValue last) (itemCostSummaryStockValue last)
                   <td.bg-success.text-success> #{formatDouble (abs $ itemCostSummaryStockValue last - itemCostSummaryFaStockValue last)}
                   <td.bg-success.text-success> #{formatDouble (itemCostSummaryStockValue last)}
@@ -162,6 +175,8 @@ getGLCheckItemCostAccountViewR account = do
                     #{formatDouble (itemCostSummaryFaStockValue last)}
                 <td> #{formatDouble (itemCostSummaryStockValue last)}
               $of Nothing
+                <td>
+                <td>
                 <td>
                 <td>
                 <td>

@@ -187,6 +187,6 @@ ctags:
 	LC_ALL=C.UTF-8 haskdogs
 
 # incremental
-itags:
-	LC_ALL=C.UTF-8 haskdogs -i % --hasktags-args "-x -c -a" | sort -u -o tags tags
+%.itags:
+	LC_ALL=C.UTF-8 haskdogs -i $* --hasktags-args "-x -c -a" | sort -u -o tags tags
 

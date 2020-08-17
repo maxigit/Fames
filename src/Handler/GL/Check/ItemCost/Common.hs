@@ -724,6 +724,7 @@ loadInitialSummary account@(Account acc) skum = do
                                                              else 0
                                 , itemCostSummaryStockValue = initialBalance
                                 , itemCostSummaryFaStockValue = 0
+                                , itemCostSummaryValidated = False
                                 }
 
         _ -> return Nothing
@@ -754,6 +755,7 @@ collectCostTransactions date account skum = do
                  itemCostSummaryCostAfter = itemCostTransactionCostAfter summary
                  itemCostSummaryStockValue = itemCostTransactionStockValue summary
                  itemCostSummaryFaStockValue = itemCostTransactionFaStockValue summary
+                 itemCostSummaryValidated = abs (itemCostSummaryStockValue - itemCostSummaryFaStockValue) < 1e-2 && all (isJust . itemCostTransactionItemCostValidation) trans
              case lastEm of
                Just (Right (Entity key _)) -> repsert key ItemCostSummary{..}
                _ -> insert_ ItemCostSummary{..}
@@ -781,6 +783,7 @@ fixGLBalance date summaries = do
       accountMap = accounts <$> appCheckItemCostSetting settings
       validate faIds =  do
             let comment = "Fix GL Balance " <> ref --  (on " <> tshow today  <> ")"
+            _ <- mapM (refreshSummary date) summaries
             validationm <- validateFromSummary date comment summaries
             forM validationm $ \v@(Entity validation _)  -> do
                 let mkTransMap journalId=  TransactionMap ST_JOURNAL journalId ItemCostValidationE (fromIntegral $ fromSqlKey validation) False
@@ -798,7 +801,6 @@ fixGLBalance date summaries = do
           Left e -> setError (toHtml e) >> return Nothing
           Right faIds -> do
             mapM setStockIdFromMemo faIds
-            _ <- mapM (refreshSummary date) summaries
             validate faIds
 
 skuRange :: [(Entity ItemCostSummary)] ->  Text
@@ -874,12 +876,15 @@ validateFromSummary date comment summaries = do
       lastTransaction = fromMaybe date $ maximumMay $ map (itemCostSummaryDate . entityVal) summaries
   runDB $ do
       key <- insert validation
-      forM summaries $ \(Entity _ ItemCostSummary{..}) -> do
+      forM summaries $ \(Entity sumkey ItemCostSummary{..}) -> do
         updateWhere [ ItemCostTransactionSku ==. itemCostSummarySku
                     , ItemCostTransactionAccount ==. itemCostSummaryAccount
                     , ItemCostTransactionItemCostValidation ==. Nothing
                     ]
                     [ ItemCostTransactionItemCostValidation =. Just key ]
+                    -- set summary to validated, if balance matches
+        updateWhere [ItemCostSummaryId ==. sumkey]
+                    [ItemCostSummaryValidated =. True ]
       return . Just $ Entity key validation
 
 

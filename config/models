@@ -375,6 +375,7 @@ ItemCostSummary sql=check_item_cost_summary
   costAfter Double
   stockValue Double
   faStockValue Double
+  validated Bool
   UniqueAS  account sku !force
   -- in theory we don't the account, but we might if the account changed in the lifetime of an item
   deriving Show
