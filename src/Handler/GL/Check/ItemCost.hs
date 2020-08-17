@@ -134,12 +134,13 @@ getGLCheckItemCostAccountViewR account = do
                       . filter (\(_,count, lastm) -> fmap (isSummaryValid count) lastm /= Just True)
                      $ sku'count'lasts0
       
-      -- don't display summary if they have been validated in the future
+      -- don't display summary if they have been collected in the future
+      -- or are valid without new transaction
       isSummaryValid count ItemCostSummary{..} =
-        count == 0 
-        -- && itemCostSummaryDate >= date
+        (count == 0 
+        && itemCostSummaryValidated)
+        || itemCostSummaryDate >= date
         -- && equal' 1e-4 itemCostSummaryStockValue itemCostSummaryFaStockValue
-        && itemCostSummaryValidated
   defaultLayout $ do
     setTitle . toHtml $ "Item Cost - View Account " <> account <> " - " <> tshow date
     [whamlet|
