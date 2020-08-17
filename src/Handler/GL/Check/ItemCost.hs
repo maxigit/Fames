@@ -141,7 +141,7 @@ getGLCheckItemCostAccountViewR account = do
         -- && equal' 1e-4 itemCostSummaryStockValue itemCostSummaryFaStockValue
         && itemCostSummaryValidated
   defaultLayout $ do
-    setTitle . toHtml $ "Item Cost - View Account " <> account
+    setTitle . toHtml $ "Item Cost - View Account " <> account <> " - " <> tshow date
     [whamlet|
      <table data-page-length=10 *{datatable}>
       <thead>
@@ -186,6 +186,9 @@ getGLCheckItemCostAccountViewR account = do
         <th> #{formatDouble $ faStockValue - stockValue }
         <th> #{formatDouble faStockValue }
         <th> #{formatDouble stockValue}
+     <form.form-inline method=GET action="@{GLR $ GLCheckItemCostAccountViewR account}" enctype="#{encType}">  
+       ^{form}
+       <button.btn.btn-primary type="sumbit"> Refresh
      <form.form-inline method=POST action="@{GLR $ GLCheckItemCostAccountCollectR account}" enctype="#{encType}">  
        ^{form}
        <button.btn.btn-warning type="sumbit"> Collect
