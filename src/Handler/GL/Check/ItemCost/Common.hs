@@ -894,21 +894,28 @@ updateCosts summaries = do
        return $ Just (Entity vId validation)
   
 updateCost :: WFA.FAConnectInfo -> Day ->  Entity ItemCostSummary -> Handler (Maybe (Int, Double))
-updateCost connectInfo today(Entity _ ItemCostSummary{..}) | Just sku <- itemCostSummarySku   = do
+updateCost connectInfo today (Entity _ summary@ItemCostSummary{..}) | Just sku <- itemCostSummarySku   = do
   let sql = "select material_cost from 0_stock_master "
             <> " where stock_id = ? " 
-  rows <- runDB $ rawSql sql [toPersistValue itemCostSummarySku ]
-  case rows of
-    [Single currentCost] {- |  currentCost /= itemCostSummaryCostAfter -} -> do
-          faIdm <- liftIO $ WFA.postCostUpdate connectInfo (WFA.CostUpdate sku itemCostSummaryCostAfter)
-          case faIdm of
-            Right (Just faId) -> do
-              runDB $ insert $ FA.Comment (fromEnum ST_COSTUPDATE) faId (Just today) (Just $ sku  <> " Fames Cost Adjustement")
-              return $ Just (faId, round2 (itemCostSummaryStockValue - currentCost * itemCostSummaryQohAfter))
-            Right Nothing -> return Nothing
-            Left err  -> error $ unpack err
-    -- [_] -> return $ Just (0, 0)
-    _ -> error $ "Item " <> unpack sku <> " doesn't exist in 0_stock_master "
+      
+  pendings <- loadMovesAndTransactions (Just summary) Nothing (Account itemCostSummaryAccount) itemCostSummarySku
+  if null pendings
+  then do
+    rows <- runDB $ rawSql sql [toPersistValue itemCostSummarySku ]
+    case rows of
+      [Single currentCost] {- |  currentCost /= itemCostSummaryCostAfter -} -> do
+            faIdm <- liftIO $ WFA.postCostUpdate connectInfo (WFA.CostUpdate sku itemCostSummaryCostAfter)
+            case faIdm of
+              Right (Just faId) -> do
+                runDB $ insert $ FA.Comment (fromEnum ST_COSTUPDATE) faId (Just today) (Just $ sku  <> " Fames Cost Adjustement")
+                return $ Just (faId, round2 (itemCostSummaryStockValue - currentCost * itemCostSummaryQohAfter))
+              Right Nothing -> return Nothing
+              Left err  -> error $ unpack err
+      -- [_] -> return $ Just (0, 0)
+      _ -> error $ "Item " <> unpack sku <> " doesn't exist in 0_stock_master "
+  else do
+    logInfoN ("Skip cost update for " <> sku) 
+    return Nothing -- nothing should be pending, refuse to update the cost
 updateCost _ _ _ = return $ Nothing
     
     
