@@ -148,7 +148,7 @@ ajaxInventoryAdjustmentURL  :: (?baseURL :: URLString) => URLString
 ajaxInventoryAdjustmentURL = toAjax inventoryAdjustmentURL
 
 costUpdateURL :: (?baseURL :: URLString) => URLString
-costUpdateURL = ?baseURL <> "/cost_update.php"
+costUpdateURL = ?baseURL <> "/inventory/cost_update.php"
 -- *** GL
 bankPaymentURL :: (?baseURL :: URLString) => URLString
 bankPaymentURL = ?baseURL <> "/gl/gl_bank.php"
@@ -277,11 +277,23 @@ postCostUpdate connectInfo CostUpdate{..} = do
   let params = curlPostFields [ Just "UpdateData=Update"
                               , "stock_id" <=> unpack cuSku
                               , "material_cost" <=> show cuCost
+                              , Just "labour_cost=0"
+                              , Just "overhead_cost=0"
                               ] : method_POST
-  runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
-    tags <- curlSoup (toAjax costUpdateURL) params [200] "Cost has been update"
+  traceShowM ("POST params", params)
+  e <- runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
+    tags <- curlSoup (toAjax costUpdateURL) params [200] "Cost has been updated"
     case tags  of
-      _ -> return Nothing
+      _ -> do
+        traceShowM ("Input", extractAllInputValues  tags)
+        traceShowM ("Error", extractErrorMsgFromSoup  tags)
+        return Nothing
+  traceShowM ("posterr", e)
+  let sameCostMsg = "The new cost is the same as the old cost" :: Text
+    -- "The new cost is the same as the old cost. Cost was not updated.\n" 
+  case e of
+    Left err  | take (length sameCostMsg) err == sameCostMsg  -> return $ Right Nothing
+    e -> return e
   
   
   

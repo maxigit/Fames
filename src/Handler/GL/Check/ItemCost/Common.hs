@@ -876,7 +876,6 @@ refreshSummary day e = do
 updateCosts :: [Entity ItemCostSummary] -> Handler (Maybe (Entity ItemCostValidation))
 updateCosts summaries = do
   settings <- getsYesod appSettings
-  error "get actual cost price"
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
   faIdms  <-  mapM (updateCost connectInfo) summaries
   case catMaybes faIdms of
@@ -895,17 +894,17 @@ updateCosts summaries = do
   
 updateCost :: WFA.FAConnectInfo -> Entity ItemCostSummary -> Handler (Maybe (Int, Double))
 updateCost connectInfo {- today -} (Entity _ ItemCostSummary{..}) | Just sku <- itemCostSummarySku   = do
-  let sql = "select standard_cost from 0_stock_master "
+  let sql = "select material_cost from 0_stock_master "
             <> " where stock_id = ? " 
   rows <- runDB $ rawSql sql [toPersistValue itemCostSummarySku ]
   case rows of
-    [Single currentCost] |  currentCost /= itemCostSummaryCostAfter -> do
+    [Single currentCost] {- |  currentCost /= itemCostSummaryCostAfter -} -> do
           faIdm <- liftIO $ WFA.postCostUpdate connectInfo (WFA.CostUpdate sku itemCostSummaryCostAfter)
           case faIdm of
             Right (Just faId) -> return $ Just (faId, round2 (itemCostSummaryStockValue - currentCost * itemCostSummaryQohAfter))
             Right Nothing -> return Nothing
             Left err  -> error $ unpack err
-    [_] -> return $ Just (0, 0)
+    -- [_] -> return $ Just (0, 0)
     _ -> error $ "Item " <> unpack sku <> " doesn't exist in 0_stock_master "
 updateCost _  _ = return $ Nothing
     
