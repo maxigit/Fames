@@ -134,6 +134,10 @@ getGLCheckItemCostAccountViewR account = do
   (date, form, encType) <- extractDateFromUrl
   today <- todayH
   sku'count'lasts0 <- loadPendingTransactionCountFor date (Account account)
+
+  itemInfos <- if date == today
+               then itemTodayInfo (Account account)
+               else return mempty
   let totalCount = sum $ [count | (_,count,_) <- sku'count'lasts] 
       faStockValue = sum $ [ itemCostSummaryFaStockValue last | (_,_,Just last) <- sku'count'lasts] 
       stockValue = sum $ [ itemCostSummaryStockValue last | (_,_,Just last) <- sku'count'lasts] 
@@ -161,6 +165,10 @@ getGLCheckItemCostAccountViewR account = do
         <th data-class-name="text-right"> Gl - Correct
         <th data-class-name="text-right"> Checked GL
         <th data-class-name="text-right"> Checked Correct
+        <th data-class-name="text-right"> Correct Cost
+        <th data-class-name="text-right"> Current Cost
+        <th data-class-name="text-right"> Stock Balance
+        <th data-class-name="text-right"> QOH
       <tbody>
         $forall (sku, count, lastm) <- sku'count'lasts
           <tr>
@@ -189,9 +197,30 @@ getGLCheckItemCostAccountViewR account = do
                 <td>
                 <td>
                 <td>
+            $case (sku >>= flip lookup itemInfos, lastm)
+              $of (Just (cost, qoh), Just last) 
+                $with stock <- cost * qoh
+                  <td> #{formatDouble' (itemCostSummaryCostAfter last)}
+                  $with ok <- equal cost (itemCostSummaryCostAfter last)
+                    <td."#{classFor 0.01 cost (itemCostSummaryCostAfter last)}" :ok:.text-sucess :ok:.bg-success> #{formatDouble' cost}
+                  $with ok <- equal (itemCostSummaryStockValue last) stock
+                    <td."#{classFor 0.01 stock (itemCostSummaryStockValue last)}" :ok:.text-success :ok:.bg-success> #{formatAbs stock (itemCostSummaryStockValue last)}
+                  <td> #{formatDouble qoh}
+              $of (Just (qoh, cost), Nothing ) 
+                <td>
+                <td> #{formatDouble' cost}
+                <td> 
+                <td> #{formatDouble' qoh}
+              $of _
+                <td>
+                <td>
+                <td>
+                <td>
       <tfoot>
         <th> Total
         <th> #{tshow totalCount}
+        <th>
+        <th>
         <th> #{formatDouble $ faStockValue - stockValue }
         <th> #{formatDouble faStockValue }
         <th> #{formatDouble stockValue}

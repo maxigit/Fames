@@ -4,6 +4,7 @@ module Handler.GL.Check.ItemCost.Common
 , AccountSummary(..)
 , CheckInfo(..)
 , getAccountSummary
+, itemTodayInfo
 , loadPendingTransactionCountFor
 , loadMovesAndTransactions
 , computeItemCostTransactions
@@ -152,6 +153,15 @@ stockValuation date (sku, cost) = do
 
 
   
+-- | Return qoh stock valuation and current cost price
+itemTodayInfo :: Account -> Handler (Map Text (Double, Double))
+itemTodayInfo (Account account) = do
+  let sql = "select stock_id, sum(qty), material_cost from 0_stock_moves "
+          <>  " join 0_stock_master USING(stock_id) "
+          <> " WHERE  inventory_account = ? "
+          <> " GROUP BY stock_id "
+  rows <- runDB $ rawSql sql [toPersistValue account]
+  return . mapFromList $ map (\(Single sku, Single qoh, Single cost) -> (sku, (cost, qoh))) rows
 
 -- * Account  details
 -- ** Loading
