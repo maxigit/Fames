@@ -14,6 +14,7 @@ module WH.FA.Curl
 , postSupplierPayment
 , postPurchaseCreditNote
 , postVoid
+, postCostUpdate
 ) where
 
 import ClassyPrelude hiding(traceM)
@@ -145,6 +146,9 @@ newAdjustmentURL ::  (?baseURL :: URLString) => URLString
 newAdjustmentURL = inventoryAdjustmentURL <> "?NewAdjustment=1"
 ajaxInventoryAdjustmentURL  :: (?baseURL :: URLString) => URLString
 ajaxInventoryAdjustmentURL = toAjax inventoryAdjustmentURL
+
+costUpdateURL :: (?baseURL :: URLString) => URLString
+costUpdateURL = ?baseURL <> "/cost_update.php"
 -- *** GL
 bankPaymentURL :: (?baseURL :: URLString) => URLString
 bankPaymentURL = ?baseURL <> "/gl/gl_bank.php"
@@ -263,6 +267,24 @@ addLocationTransferDetail LocationTransferDetail{..} = do
   curlSoup (toAjax locationTransferURL) items [200] "add items"
 
 
+-- ** Cost Update
+-- Returns the id of the journal entry if created.
+-- If the cost is the same or there is no item left
+-- no gl will be generated
+postCostUpdate :: FAConnectInfo -> CostUpdate -> IO (Either Text (Maybe Int))
+postCostUpdate connectInfo CostUpdate{..} = do
+  let ?baseURL = faURL connectInfo
+  let params = curlPostFields [ Just "UpdateData=Update"
+                              , "stock_id" <=> unpack cuSku
+                              , "material_cost" <=> show cuCost
+                              ] : method_POST
+  runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
+    tags <- curlSoup (toAjax costUpdateURL) params [200] "Cost has been update"
+    case tags  of
+      _ -> return Nothing
+  
+  
+  
 -- ** GL
 -- *** Bank Payment
 postBankPayment :: FAConnectInfo -> BankPayment -> IO (Either Text Int)

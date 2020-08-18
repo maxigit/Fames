@@ -15,6 +15,9 @@ module Handler.GL.Check.ItemCost
 , getGLCheckItemCostValidationsViewR
 , getGLCheckItemCostValidationViewR
 , postGLCheckItemCostVoidValidationR
+, postGLCheckItemCostUpdateCostR
+, postGLCheckItemCostUpdateCostAccountR
+, postGLCheckItemCostUpdateCostAccountItemR
 )
 where
 
@@ -119,6 +122,9 @@ getGLCheckItemCostR = do
      <form.form-inline method=POST action="@{GLR $ GLCheckItemCostUpdateGLR}">  
        ^{form}
        <button.btn.btn-warning type="sumbit"> Fix Gl
+     <form.form-inline method=POST action="@{GLR $ GLCheckItemCostUpdateCostR}">  
+       ^{form}
+       <button.btn.btn-warning type="sumbit"> Update Cost
     |]
 
 
@@ -198,6 +204,9 @@ getGLCheckItemCostAccountViewR account = do
      <form.form-inline method=POST action="@{GLR $ GLCheckItemCostUpdateGLAccountR account}">
        ^{form}
        <button.btn.btn-warning type="submit"> Fix Gl
+     <form.form-inline method=POST action="@{GLR $ GLCheckItemCostUpdateCostAccountR account}">
+       ^{form}
+       <button.btn.btn-warning type="submit"> Update cost
     |]
 
 
@@ -227,6 +236,9 @@ getGLCheckItemCostItemViewSavedR account item = do
       <form.form-inline method=POST action="@{GLR $ GLCheckItemCostUpdateGLAccountItemR account item}" encType=#{encType}>
         ^{form}
         <button.btn.btn-warning type="submit"> Fix Gl
+      <form.form-inline method=POST action="@{GLR $ GLCheckItemCostUpdateCostAccountItemR account item}" encType=#{encType}>
+        ^{form}
+        <button.btn.btn-warning type="submit"> Update Cost
       |]
 
 renderTransactions :: Text -> [ItemCostTransaction] -> Handler Widget 
@@ -632,6 +644,50 @@ postGLCheckItemCostUpdateGLAccountItemR account skum = do
   (date, _, _) <- extractDateFromUrl
   summary <- loadCostSummary (Account account) skum
   validationm <- fixGLBalance date (maybeToList summary)
+  case validationm of
+    Nothing ->  do
+      setWarning [shamlet| Not validation saved|]
+      redirect $ GLR $ GLCheckItemCostValidationsViewR
+    Just (Entity key _ ) -> do
+        setSuccess [shamlet|
+           Validation ##{tshow (fromSqlKey key)} created.
+                   |]
+        redirect $ GLR $ GLCheckItemCostValidationViewR (fromSqlKey key)
+--
+-- ** Upate Cost
+--
+postGLCheckItemCostUpdateCostR :: Handler Html
+postGLCheckItemCostUpdateCostR = do
+  summaries <- runDB $ selectList [] []
+  validationm <- updateCosts summaries
+  case validationm of
+    Nothing ->  do
+      setWarning [shamlet| Not validation saved|]
+      redirect $ GLR $ GLCheckItemCostValidationsViewR
+    Just (Entity key _ ) -> do
+        setSuccess [shamlet|
+           Validation ##{tshow (fromSqlKey key)} created.
+                   |]
+        redirect $ GLR $ GLCheckItemCostValidationViewR (fromSqlKey key)
+
+postGLCheckItemCostUpdateCostAccountR :: Text -> Handler Html
+postGLCheckItemCostUpdateCostAccountR account = do
+  summaries <- runDB $ selectList [ItemCostSummaryAccount ==. account] []
+  validationm <- updateCosts summaries
+  case validationm of
+    Nothing ->  do
+      setWarning [shamlet| Not validation saved|]
+      redirect $ GLR $ GLCheckItemCostValidationsViewR
+    Just (Entity key _ ) -> do
+        setSuccess [shamlet|
+           Validation ##{tshow (fromSqlKey key)} created.
+                   |]
+        redirect $ GLR $ GLCheckItemCostValidationViewR (fromSqlKey key)
+
+postGLCheckItemCostUpdateCostAccountItemR :: Text -> Maybe Text -> Handler Html
+postGLCheckItemCostUpdateCostAccountItemR account skum = do
+  summary <- loadCostSummary (Account account) skum
+  validationm <- updateCosts (maybeToList summary)
   case validationm of
     Nothing ->  do
       setWarning [shamlet| Not validation saved|]

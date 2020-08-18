@@ -70,6 +70,9 @@
   /check/item_cost/validations GLCheckItemCostValidationsViewR GET  !title=Item_Cost_Validations
   /check/item_cost/validation/#Int64 GLCheckItemCostValidationViewR GET 
   /check/item_cost/validation/void/#Int64 GLCheckItemCostVoidValidationR POST
+  /check/item_cost/update-cost-item/#Text/#Maybe-Text GLCheckItemCostUpdateCostAccountItemR POST !check
+  /check/item_cost/update-cost-account/#Text GLCheckItemCostUpdateCostAccountR POST !check
+  /check/item_cost/update-cost-account GLCheckItemCostUpdateCostR POST !check
 
 
 /warehouse WarehouseR !warehouse:

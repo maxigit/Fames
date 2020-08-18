@@ -13,6 +13,7 @@ module Handler.GL.Check.ItemCost.Common
 , loadCheckInfo
 , itemSettings
 , fixGLBalance
+, updateCosts
 , voidValidation
 )
 where
@@ -763,6 +764,7 @@ collectCostTransactions date account skum = do
  
 
 -- * Fixing
+-- ** Balance
 -- Generates a journal entry to balance all summary
 fixGLBalance :: Day -> [Entity ItemCostSummary] -> Handler (Maybe (Entity ItemCostValidation))
 fixGLBalance date summaries = do
@@ -866,6 +868,53 @@ refreshSummary day e = do
   let summary = entityVal e
   collectCostTransactions day (Account $ itemCostSummaryAccount summary) (itemCostSummarySku summary) 
 
+
+-- ** Cost update
+-- Update the standard cost using FA
+-- on the given date, but only on the style
+-- where the last transaction is before that date
+updateCosts :: [Entity ItemCostSummary] -> Handler (Maybe (Entity ItemCostValidation))
+updateCosts summaries = do
+  settings <- getsYesod appSettings
+  error "get actual cost price"
+  let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
+  faIdms  <-  mapM (updateCost connectInfo) summaries
+  case catMaybes faIdms of
+    [] -> setInfo "Nothing to update" >> return Nothing
+    faId'totals -> do
+     setInfo "Cost updates" 
+     userId <- requireAuthId
+     today <- todayH
+     let comment = "Cost update - " <> pack (formatDouble (sum (map snd faId'totals))) <> " - " <> skuRange summaries
+         mkTransMap vid faId = TransactionMap ST_COSTUPDATE faId ItemCostValidationE (fromIntegral $ fromSqlKey vid) False
+     runDB $ do
+       let validation = ItemCostValidation comment userId today today False 0
+       vId <- insert validation
+       insertMany_ (map (mkTransMap vId . fst) faId'totals)
+       return $ Just (Entity vId validation)
+  
+updateCost :: WFA.FAConnectInfo -> Entity ItemCostSummary -> Handler (Maybe (Int, Double))
+updateCost connectInfo {- today -} (Entity _ ItemCostSummary{..}) | Just sku <- itemCostSummarySku   = do
+  let sql = "select standard_cost from 0_stock_master "
+            <> " where stock_id = ? " 
+  rows <- runDB $ rawSql sql [toPersistValue itemCostSummarySku ]
+  case rows of
+    [Single currentCost] |  currentCost /= itemCostSummaryCostAfter -> do
+          faIdm <- liftIO $ WFA.postCostUpdate connectInfo (WFA.CostUpdate sku itemCostSummaryCostAfter)
+          case faIdm of
+            Right (Just faId) -> return $ Just (faId, round2 (itemCostSummaryStockValue - currentCost * itemCostSummaryQohAfter))
+            Right Nothing -> return Nothing
+            Left err  -> error $ unpack err
+    [_] -> return $ Just (0, 0)
+    _ -> error $ "Item " <> unpack sku <> " doesn't exist in 0_stock_master "
+updateCost _  _ = return $ Nothing
+    
+    
+
+
+
+
+  
 
 -- * Validation
 validateFromSummary :: Day -> Text -> [Entity ItemCostSummary] -> Double -> Handler (Maybe (Entity ItemCostValidation))

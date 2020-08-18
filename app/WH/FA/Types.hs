@@ -54,6 +54,11 @@ data LocationTransferDetail = LocationTransferDetail
   , ltrQuantity :: !Int
   } deriving (Eq, Show)
 
+-- ** CostUpdate
+data CostUpdate = CostUpdate
+  { cuSku :: !Text
+  , cuCost :: Double
+  }
 -- * GL
 -- ** Payments
 data BankPayment = BankPayment
