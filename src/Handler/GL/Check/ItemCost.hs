@@ -35,6 +35,7 @@ getGLCheckItemCostR :: Handler Html
 getGLCheckItemCostR = do
   accounts <- getStockAccounts
   (date, form, encType) <- extractDateFromUrl
+  today <- todayH
   summaries <- mapM (getAccountSummary date) accounts
   let glBalance = sum (map asGLAmount summaries)
       stockValue = sum (map asStockValuation summaries)
@@ -122,15 +123,16 @@ getGLCheckItemCostR = do
      <form.form-inline method=POST action="@{GLR $ GLCheckItemCostUpdateGLR}">  
        ^{form}
        <button.btn.btn-warning type="sumbit"> Fix Gl
-     <form.form-inline method=POST action="@{GLR $ GLCheckItemCostUpdateCostR}">  
-       ^{form}
-       <button.btn.btn-warning type="sumbit"> Update Cost
+     $if date == today
+       <form.form-inline method=POST action="@{GLR $ GLCheckItemCostUpdateCostR}">  
+         <button.btn.btn-warning type="sumbit"> Update Cost
     |]
 
 
 getGLCheckItemCostAccountViewR :: Text -> Handler Html
 getGLCheckItemCostAccountViewR account = do
   (date, form, encType) <- extractDateFromUrl
+  today <- todayH
   sku'count'lasts0 <- loadPendingTransactionCountFor date (Account account)
   let totalCount = sum $ [count | (_,count,_) <- sku'count'lasts] 
       faStockValue = sum $ [ itemCostSummaryFaStockValue last | (_,_,Just last) <- sku'count'lasts] 
@@ -204,9 +206,9 @@ getGLCheckItemCostAccountViewR account = do
      <form.form-inline method=POST action="@{GLR $ GLCheckItemCostUpdateGLAccountR account}">
        ^{form}
        <button.btn.btn-warning type="submit"> Fix Gl
-     <form.form-inline method=POST action="@{GLR $ GLCheckItemCostUpdateCostAccountR account}">
-       ^{form}
-       <button.btn.btn-warning type="submit"> Update cost
+     $if date == today
+       <form.form-inline method=POST action="@{GLR $ GLCheckItemCostUpdateCostAccountR account}">
+         <button.btn.btn-warning type="submit"> Update cost
     |]
 
 
@@ -226,7 +228,8 @@ getGLCheckItemCostItemViewSavedR :: Text -> Maybe Text -> Handler Html
 getGLCheckItemCostItemViewSavedR account item = do
     trans <- runDB $ selectList [ItemCostTransactionAccount ==. account, ItemCostTransactionSku ==. item] []
     w <-  renderTransactions (fromMaybe account item) (map entityVal trans)
-    (_, form, encType) <-  extractDateFromUrl
+    today <- todayH
+    (date, form, encType) <-  extractDateFromUrl
     defaultLayout $ do
       setTitle . toHtml $ "Item Cost Item - done " <> account <> maybe " (All)" ("/" <>) item
       w
@@ -236,9 +239,9 @@ getGLCheckItemCostItemViewSavedR account item = do
       <form.form-inline method=POST action="@{GLR $ GLCheckItemCostUpdateGLAccountItemR account item}" encType=#{encType}>
         ^{form}
         <button.btn.btn-warning type="submit"> Fix Gl
-      <form.form-inline method=POST action="@{GLR $ GLCheckItemCostUpdateCostAccountItemR account item}" encType=#{encType}>
-        ^{form}
-        <button.btn.btn-warning type="submit"> Update Cost
+      $if date == today
+        <form.form-inline method=POST action="@{GLR $ GLCheckItemCostUpdateCostAccountItemR account item}" encType=#{encType}>
+          <button.btn.btn-warning type="submit"> Update Cost
       |]
 
 renderTransactions :: Text -> [ItemCostTransaction] -> Handler Widget 
