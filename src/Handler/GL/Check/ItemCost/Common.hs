@@ -876,8 +876,9 @@ refreshSummary day e = do
 updateCosts :: [Entity ItemCostSummary] -> Handler (Maybe (Entity ItemCostValidation))
 updateCosts summaries = do
   settings <- getsYesod appSettings
+  today <- todayH
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
-  faIdms  <-  mapM (updateCost connectInfo) summaries
+  faIdms  <-  mapM (updateCost connectInfo today) summaries
   case catMaybes faIdms of
     [] -> setInfo "Nothing to update" >> return Nothing
     faId'totals -> do
@@ -892,8 +893,8 @@ updateCosts summaries = do
        insertMany_ (map (mkTransMap vId . fst) faId'totals)
        return $ Just (Entity vId validation)
   
-updateCost :: WFA.FAConnectInfo -> Entity ItemCostSummary -> Handler (Maybe (Int, Double))
-updateCost connectInfo {- today -} (Entity _ ItemCostSummary{..}) | Just sku <- itemCostSummarySku   = do
+updateCost :: WFA.FAConnectInfo -> Day ->  Entity ItemCostSummary -> Handler (Maybe (Int, Double))
+updateCost connectInfo today(Entity _ ItemCostSummary{..}) | Just sku <- itemCostSummarySku   = do
   let sql = "select material_cost from 0_stock_master "
             <> " where stock_id = ? " 
   rows <- runDB $ rawSql sql [toPersistValue itemCostSummarySku ]
@@ -901,12 +902,14 @@ updateCost connectInfo {- today -} (Entity _ ItemCostSummary{..}) | Just sku <- 
     [Single currentCost] {- |  currentCost /= itemCostSummaryCostAfter -} -> do
           faIdm <- liftIO $ WFA.postCostUpdate connectInfo (WFA.CostUpdate sku itemCostSummaryCostAfter)
           case faIdm of
-            Right (Just faId) -> return $ Just (faId, round2 (itemCostSummaryStockValue - currentCost * itemCostSummaryQohAfter))
+            Right (Just faId) -> do
+              runDB $ insert $ FA.Comment (fromEnum ST_COSTUPDATE) faId (Just today) (Just $ sku  <> " Fames Cost Adjustement")
+              return $ Just (faId, round2 (itemCostSummaryStockValue - currentCost * itemCostSummaryQohAfter))
             Right Nothing -> return Nothing
             Left err  -> error $ unpack err
     -- [_] -> return $ Just (0, 0)
     _ -> error $ "Item " <> unpack sku <> " doesn't exist in 0_stock_master "
-updateCost _  _ = return $ Nothing
+updateCost _ _ _ = return $ Nothing
     
     
 

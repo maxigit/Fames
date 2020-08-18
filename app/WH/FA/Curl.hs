@@ -131,6 +131,12 @@ extractInputsToCurl :: [Tag String] -> CurlOption
 extractInputsToCurl tags = curlPostFields $ [name <=> value | (name, value) <- extractAllInputValues tags]
 
 
+extractAllHRefs :: [Tag String] -> [(String)]
+extractAllHRefs tags = mapMaybe extractHRef tags
+extractHRef  tag | (tag ~== TagOpen ("a" :: String) [("href", "")]) =
+  Just (fromAttrib "href" tag )
+extractHRef  _ = Nothing
+
 -- ** Test
 testFAConnection :: FAConnectInfo -> IO (Either Text ())
 testFAConnection connectInfo = do
@@ -280,21 +286,25 @@ postCostUpdate connectInfo CostUpdate{..} = do
                               , Just "labour_cost=0"
                               , Just "overhead_cost=0"
                               ] : method_POST
-  traceShowM ("POST params", params)
   e <- runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
     tags <- curlSoup (toAjax costUpdateURL) params [200] "Cost has been updated"
-    case tags  of
-      _ -> do
-        traceShowM ("Input", extractAllInputValues  tags)
-        traceShowM ("Error", extractErrorMsgFromSoup  tags)
-        return Nothing
-  traceShowM ("posterr", e)
+    case mapMaybe (=~~ (".*gl/view/gl_trans_view.php\\?type_id=([0-9]+)&trans_no=([0-9]+)" :: String)) (extractAllHRefs tags)  of
+       -- example ("href","../gl/view/gl_trans_view.php?type_id=35&trans_no=330")     hrefs -> do
+       [h@(_,_,_,[_typeId,transNo])] -> do
+        let _types = h :: (String, String, String, [String])
+        return . Just $ Prelude.read transNo
+       _WTF -> {- traceShowM ("WTF"
+                         ,_WTF
+                         , mapMaybe (=~~ (".*gl/view/gl_trans_view.php\\?type_id=([0-9]*)&trans_no=([0-9]*)" :: String)) (extractAllHRefs tags)
+                        :: [(String, String, String, [String])]
+                         , (extractAllHRefs tags)
+
+                        )  >> -} return Nothing
   let sameCostMsg = "The new cost is the same as the old cost" :: Text
     -- "The new cost is the same as the old cost. Cost was not updated.\n" 
   case e of
     Left err  | take (length sameCostMsg) err == sameCostMsg  -> return $ Right Nothing
     e -> return e
-  
   
   
 -- ** GL
