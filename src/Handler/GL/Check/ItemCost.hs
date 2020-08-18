@@ -248,7 +248,7 @@ getGLCheckItemCostItemViewR account item = do
   let endDatem =  item >>= itemSettings settingsm (Account account) >>= closingDate
   trans0 <- loadMovesAndTransactions (entityVal <$> lastm) endDatem (Account account) item
   let transE = computeItemCostTransactions (entityVal <$> lastm) (Account account) trans0
-  w <- either (renderDuplicates account) (renderTransactions (fromMaybe account item)) transE
+  w <- either (renderDuplicates account) (renderTransactions (fromMaybe account item) Nothing) transE
   defaultLayout $ do
     setTitle . toHtml $ "Item Cost - pending " <> account <> maybe " (All)" ("/" <>) item
     w
@@ -256,7 +256,13 @@ getGLCheckItemCostItemViewR account item = do
 getGLCheckItemCostItemViewSavedR :: Text -> Maybe Text -> Handler Html
 getGLCheckItemCostItemViewSavedR account item = do
     trans <- runDB $ selectList [ItemCostTransactionAccount ==. account, ItemCostTransactionSku ==. item] []
-    w <-  renderTransactions (fromMaybe account item) (map entityVal trans)
+
+    info <- case item of
+        Nothing -> return Nothing
+        Just sku -> do 
+          info <- itemTodayInfo (Account account)
+          return $ lookup sku info
+    w <-  renderTransactions (fromMaybe account item) (fmap fst info) (map entityVal trans)
     today <- todayH
     (date, form, encType) <-  extractDateFromUrl
     defaultLayout $ do
@@ -273,8 +279,8 @@ getGLCheckItemCostItemViewSavedR account item = do
           <button.btn.btn-warning type="submit"> Update Cost
       |]
 
-renderTransactions :: Text -> [ItemCostTransaction] -> Handler Widget 
-renderTransactions title trans = do
+renderTransactions :: Text -> Maybe Double ->  [ItemCostTransaction] -> Handler Widget 
+renderTransactions title costm trans = do
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
   let urlFn = urlForFA faURL
       glUrlFn = glViewUrlForFA faURL
@@ -348,6 +354,35 @@ renderTransactions title trans = do
               <td> #{maybe "" (tshow . fromSqlKey) itemCostTransactionItemCostValidation}
               <td> #{tshowM itemCostTransactionMoveId}
               <td> #{tshowM itemCostTransactionGlDetail}
+        <tfoot>
+          <th>
+          <th>
+          <th>
+          <th>
+          <th>
+          $case (lastMay trans, costm)
+            $of (Nothing, Just cost)
+              <th>  #{formatDouble' cost}
+            $of (Just last, Just cost)
+              $if equal cost (itemCostTransactionCostAfter last)
+                <th.bg-success.text-success>
+                  #{formatDouble' cost}
+              $else
+                <th class="#{classFor 0.01 cost (itemCostTransactionCostAfter last)}" data-toggle="tooltip"
+                  title="#{formatDouble' $ cost - (itemCostTransactionCostAfter last)}"
+                  > #{formatDouble' cost }
+            $of _
+              <th>
+          <th>
+          <th>
+          <th>
+          <th>
+          <th> #{maybe "" (formatDouble' . itemCostTransactionCostAfter) (lastMay trans)}
+          <th>
+          <th>
+          <th>
+          <th>
+
     |]
 
 -- | Displays stockmoves and gl trans resulting of a "duplicate"
