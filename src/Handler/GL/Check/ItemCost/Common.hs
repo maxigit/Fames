@@ -101,7 +101,7 @@ glBalanceFor date (Account account) = do
 
 getTotalCost :: Day -> Account -> Handler (Maybe Double, Maybe Double, Maybe Day)
 getTotalCost date (Account account) = do
-  let sql = "SELECT sum(stock_value), sum(qoh_after), max(date) "
+  let sql = "SELECT sum(round(stock_value, 2)), sum(qoh_after), max(date) "
          <> " FROM check_item_cost_summary  "
          <> " WHERE account = ? " --  and date <= ? "
   rows <- runDB $ rawSql sql [toPersistValue account] -- , toPersistValue date]
@@ -126,7 +126,7 @@ stockValuationFor :: Day -> Account -> Handler (Double, Double)
 stockValuationFor date account = do
   sku'costs <- getItemFor account
   values <- mapM (stockValuation date) sku'costs
-  return $ (sum (map fst values), sum (map snd values))
+  return $ (sum (map (round2 . fst) values), sum (map snd values))
 
 -- | Get Sku and (actual) cost price 
 getItemFor :: Account -> Handler [(Text, Double)]

@@ -140,7 +140,7 @@ getGLCheckItemCostAccountViewR account = do
                else return mempty
   let totalCount = sum $ [count | (_,count,_) <- sku'count'lasts] 
       faStockValue = sum $ [ itemCostSummaryFaStockValue last | (_,_,Just last) <- sku'count'lasts] 
-      stockValue = sum $ [ itemCostSummaryStockValue last | (_,_,Just last) <- sku'count'lasts] 
+      __stockValue = sum $ [ itemCostSummaryStockValue last | (_,_,Just last) <- sku'count'lasts] 
       stockValueRounded = sum $ [ itemCostSummaryStockValueRounded last | (_,_,Just last) <- sku'count'lasts] 
       -- filter items with no transaction neither summary (so not used at all)
       sku'count'lasts = filter (\(_, count, lastm) -> count /= 0 || isJust lastm) 
@@ -228,7 +228,7 @@ getGLCheckItemCostAccountViewR account = do
         <th>
         <th> #{formatDouble $ faStockValue - stockValueRounded }
         <th> #{formatDouble faStockValue }
-        <th> #{formatDouble stockValue}
+        <th> #{formatDouble stockValueRounded}
      <form.form-inline method=GET action="@{GLR $ GLCheckItemCostAccountViewR account}" enctype="#{encType}">  
        ^{form}
        <button.btn.btn-primary type="sumbit"> Refresh
