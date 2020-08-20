@@ -896,10 +896,11 @@ updateCosts summaries = do
      setInfo "Cost updates" 
      userId <- requireAuthId
      today <- todayH
-     let comment = "Cost update - " <> pack (formatDouble (sum (map snd faId'totals))) <> " - " <> skuRange summaries
+     let comment = "Cost update - " <> skuRange summaries
          mkTransMap vid faId = TransactionMap ST_COSTUPDATE faId ItemCostValidationE (fromIntegral $ fromSqlKey vid) False
+         total = sum $ map snd faId'totals
      runDB $ do
-       let validation = ItemCostValidation comment userId today today False 0
+       let validation = ItemCostValidation comment userId today today False total
        vId <- insert validation
        insertMany_ (map (mkTransMap vId . fst) faId'totals)
        return $ Just (Entity vId validation)
@@ -919,7 +920,7 @@ updateCost connectInfo today (Entity _ summary@ItemCostSummary{..}) | Just sku <
             case faIdm of
               Right (Just faId) -> do
                 runDB $ insert $ FA.Comment (fromEnum ST_COSTUPDATE) faId (Just today) (Just $ sku  <> " Fames Cost Adjustement")
-                return $ Just (faId, round2 (itemCostSummaryStockValue - currentCost * itemCostSummaryQohAfter))
+                return $ Just (faId, itemCostSummaryStockValueRounded summary - round2(currentCost * itemCostSummaryQohAfter))
               Right Nothing -> return Nothing
               Left err  -> error $ unpack err
       -- [_] -> return $ Just (0, 0)
