@@ -141,6 +141,7 @@ getGLCheckItemCostAccountViewR account = do
   let totalCount = sum $ [count | (_,count,_) <- sku'count'lasts] 
       faStockValue = sum $ [ itemCostSummaryFaStockValue last | (_,_,Just last) <- sku'count'lasts] 
       stockValue = sum $ [ itemCostSummaryStockValue last | (_,_,Just last) <- sku'count'lasts] 
+      stockValueRounded = sum $ [ itemCostSummaryStockValueRounded last | (_,_,Just last) <- sku'count'lasts] 
       -- filter items with no transaction neither summary (so not used at all)
       sku'count'lasts = filter (\(_, count, lastm) -> count /= 0 || isJust lastm) 
                       . filter (\(_,count, lastm) -> fmap (isSummaryValid count) lastm /= Just True)
@@ -148,12 +149,11 @@ getGLCheckItemCostAccountViewR account = do
       
       -- don't display summary if they have been collected in the future
       -- or are valid without new transaction
-      isSummaryValid count ItemCostSummary{..} =
+      isSummaryValid count s@ItemCostSummary{..} =
         (count == 0 
         && itemCostSummaryValidated
-        && equal' 1e-2 itemCostSummaryStockValue itemCostSummaryFaStockValue
-        && equal' 1e-2
-                 itemCostSummaryStockValue
+        && equal (itemCostSummaryStockValueRounded s) itemCostSummaryFaStockValue
+        && equal itemCostSummaryStockValue
                  (maybe 0 (\(c,q) -> c*q) (itemCostSummarySku >>= flip lookup itemInfos))
         )
         || itemCostSummaryDate > date
@@ -187,15 +187,15 @@ getGLCheckItemCostAccountViewR account = do
               $of (Just last)
                 <td> #{tshow $ itemCostSummaryDate last}
                 <td>#{tshow $ itemCostSummaryValidated last}
-                $if equal (itemCostSummaryFaStockValue last) (itemCostSummaryStockValue last)
-                  <td.bg-success.text-success> #{formatDouble (abs $ itemCostSummaryStockValue last - itemCostSummaryFaStockValue last)}
-                  <td.bg-success.text-success> #{formatDouble (itemCostSummaryStockValue last)}
+                $if equal (itemCostSummaryFaStockValue last) (itemCostSummaryStockValueRounded last)
+                  <td.bg-success.text-success> #{formatDouble (abs $ itemCostSummaryStockValueRounded last - itemCostSummaryFaStockValue last)}
+                  <td.bg-success.text-success> #{formatDouble (itemCostSummaryStockValueRounded last)}
                 $else
-                  <td."#{classFor 0.5 (itemCostSummaryFaStockValue last) (itemCostSummaryStockValue last)}" >
-                       #{formatAbs (itemCostSummaryStockValue last) (itemCostSummaryFaStockValue last)}
-                  <td class="#{classFor 0.5 (itemCostSummaryFaStockValue last) (itemCostSummaryStockValue last)}">
+                  <td."#{classFor 0.5 (itemCostSummaryFaStockValue last) (itemCostSummaryStockValueRounded last)}" >
+                       #{formatAbs (itemCostSummaryStockValueRounded last) (itemCostSummaryFaStockValue last)}
+                  <td class="#{classFor 0.5 (itemCostSummaryFaStockValue last) (itemCostSummaryStockValueRounded last)}">
                     #{formatDouble (itemCostSummaryFaStockValue last)}
-                <td> #{formatDouble (itemCostSummaryStockValue last)}
+                <td> #{formatDouble (itemCostSummaryStockValueRounded last)}
               $of Nothing
                 <td>
                 <td>
@@ -226,7 +226,7 @@ getGLCheckItemCostAccountViewR account = do
         <th> #{tshow totalCount}
         <th>
         <th>
-        <th> #{formatDouble $ faStockValue - stockValue }
+        <th> #{formatDouble $ faStockValue - stockValueRounded }
         <th> #{formatDouble faStockValue }
         <th> #{formatDouble stockValue}
      <form.form-inline method=GET action="@{GLR $ GLCheckItemCostAccountViewR account}" enctype="#{encType}">  
@@ -310,7 +310,7 @@ renderTransactions title costm trans = do
               <th data-class-name="text-right"> MovedId
               <th data-class-name="text-right"> GlDetail
         <tbody>
-          $forall (ItemCostTransaction{..},previousDate) <- zip trans (Nothing : map (Just . itemCostTransactionDate) trans)
+          $forall (t@ItemCostTransaction{..},previousDate) <- zip trans (Nothing : map (Just . itemCostTransactionDate) trans)
             $with _unused <- (itemCostTransactionAccount, itemCostTransactionSku)
             <tr>
               $with inFuture <- Just itemCostTransactionDate < previousDate
@@ -335,7 +335,7 @@ renderTransactions title costm trans = do
                   >
                   <div> Move: #{formatDouble' itemCostTransactionMoveCost}
                   <div> SB: #{formatDouble' itemCostTransactionCost}
-              $if equal' 0.01 itemCostTransactionStockValue itemCostTransactionFaStockValue
+              $if equal (itemCostTransactionStockValueRounded t) itemCostTransactionFaStockValue
                 <td.bg-success.text-success data-toggle="tooltip"
                  title="#{formatDouble' itemCostTransactionFaStockValue}">
                   #{formatDouble' itemCostTransactionStockValue}
@@ -378,7 +378,16 @@ renderTransactions title costm trans = do
                   > #{formatDouble' cost }
             $of _
               <th>
-          <th>
+          $case (lastMay trans)
+            $of (Just last)
+              $with (stock , fa) <- (itemCostTransactionStockValueRounded last, itemCostTransactionFaStockValue last)
+                $if equal stock fa
+                  <th.bg-success.text-success> 0
+                $else
+                  <th."#{classFor 0.5 stock fa}">
+                    #{formatAbs stock fa}
+            $of Nothing
+              <th>
           <th>
           <th>
           <th>

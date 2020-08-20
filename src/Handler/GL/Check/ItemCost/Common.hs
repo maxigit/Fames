@@ -16,6 +16,8 @@ module Handler.GL.Check.ItemCost.Common
 , fixGLBalance
 , updateCosts
 , voidValidation
+, itemCostTransactionStockValueRounded
+, itemCostSummaryStockValueRounded
 )
 where
 
@@ -591,7 +593,6 @@ updateSummaryQoh previous quantity faAmount = let
                               faAmount
      , Transaction quantity cost amount $ "Q*previousCost" )
 
-round2 = (/100) . fromIntegral . round . (*100)
 
 makeItemCostTransaction :: Account -> RunningState-> Matched -> RunningState -> Transaction -> ItemCostTransaction
 makeItemCostTransaction (Account account0) previous (sm'gl, _) new trans =  let
@@ -834,11 +835,11 @@ generateJournals chunkSize date sum'accounts =
               , amount
               )
               -- so that we can call sku range to set the journal memo
-            |   (e@(Entity _ ItemCostSummary{..}), adjAccount) <-  sum'accounts
+            |   (e@(Entity _ s@ItemCostSummary{..}), adjAccount) <-  sum'accounts
             , let stockValue = if abs itemCostSummaryQohAfter < 1e-2
                                then 0
-                               else itemCostSummaryStockValue
-            , let amount =  toDecimalWithRounding (RoundBanker 2) $ stockValue - itemCostSummaryFaStockValue
+                               else itemCostSummaryStockValueRounded s
+            , let amount =  toDecimalWithRounding (Round 2) $ stockValue - itemCostSummaryFaStockValue
             , abs amount  > 0
             , let memo = pack $ "Clear GL Balance from " <>  formatDouble itemCostSummaryFaStockValue <> " to " <> formatDouble stockValue :: Text
             , date >= itemCostSummaryDate -- only fix balance after the current summary
@@ -1029,3 +1030,11 @@ loadCheckInfo = do
 itemSettings :: Maybe Settings -> Account -> Text -> Maybe ItemSettings
 itemSettings settingsm account sku = 
   settingsm >>= lookup account . accounts >>= lookup sku . items 
+
+
+round2 = (/100) . fromIntegral . round . (*100)
+
+itemCostSummaryStockValueRounded :: ItemCostSummary -> Double
+itemCostSummaryStockValueRounded = round2 . itemCostSummaryStockValue
+itemCostTransactionStockValueRounded :: ItemCostTransaction -> Double
+itemCostTransactionStockValueRounded = round2 . itemCostTransactionStockValue
