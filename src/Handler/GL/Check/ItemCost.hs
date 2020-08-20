@@ -150,8 +150,13 @@ getGLCheckItemCostAccountViewR account = do
       -- or are valid without new transaction
       isSummaryValid count ItemCostSummary{..} =
         (count == 0 
-        && itemCostSummaryValidated)
-        || itemCostSummaryDate >= date
+        && itemCostSummaryValidated
+        && equal' 1e-2 itemCostSummaryStockValue itemCostSummaryFaStockValue
+        && equal' 1e-2
+                 itemCostSummaryStockValue
+                 (maybe 0 (\(c,q) -> c*q) (itemCostSummarySku >>= flip lookup itemInfos))
+        )
+        || itemCostSummaryDate > date
         -- && equal' 1e-4 itemCostSummaryStockValue itemCostSummaryFaStockValue
   defaultLayout $ do
     setTitle . toHtml $ "Item Cost - View Account " <> account <> " - " <> tshow date
