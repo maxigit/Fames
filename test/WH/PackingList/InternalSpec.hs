@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-missing-fields #-}
-module WH.PackingList.InternalSpec where
+module WH.PackingList.InternalSpec (spec) where
 
 import TestImport
 import WH.PackingList.Internal

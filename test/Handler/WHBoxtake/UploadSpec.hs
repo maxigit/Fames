@@ -1,4 +1,4 @@
-module Handler.WHBoxtake.UploadSpec where
+module Handler.WHBoxtake.UploadSpec (spec) where
 
 import TestImport
 import Handler.WH.Boxtake.Upload

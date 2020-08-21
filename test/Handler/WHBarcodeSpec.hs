@@ -1,4 +1,4 @@
-module Handler.WHBarcodeSpec where
+module Handler.WHBarcodeSpec (spec) where
 
 import TestImport
 import Handler.WH.Barcode

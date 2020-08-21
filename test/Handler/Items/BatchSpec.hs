@@ -1,4 +1,4 @@
-module Handler.Items.BatchSpec where
+module Handler.Items.BatchSpec (spec) where
 
 import TestImport
 import Handler.Items.Batches.Matches

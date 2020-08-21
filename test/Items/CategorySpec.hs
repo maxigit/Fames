@@ -40,6 +40,7 @@ applyJSONRules stock json =
       in Map.toList resultMap
     Left err -> error (show err)
 
+spec :: Spec
 spec = describe "@Category StockMaster to category" $ do
   describe "#fromJSON" $ it "" pending
   describe "#toJSON" $ it "" pending

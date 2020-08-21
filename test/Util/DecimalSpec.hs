@@ -4,6 +4,7 @@ import Test.Hspec
 import Util.Decimal
 import Test.QuickCheck(property, (===), elements)
 
+spec :: Spec
 spec = roundingSpec
 
 roundingSpec = describe "@Rounding" $ do
@@ -37,3 +38,4 @@ roundingSpec = describe "@Rounding" $ do
           let r = Round 2
               d = toDecimalWithRounding r (x :: Double)
           in toDecimalWithRounding r ( realFracToDecimal 2 d) === d
+spec :: Spec

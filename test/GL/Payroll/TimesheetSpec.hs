@@ -9,6 +9,7 @@ import Data.Time
 
 startFrom year month day = Start (fromGregorian year month day)
 mkPeriod freq year month day = Period freq (startFrom year month day)
+spec :: Spec
 spec = describe "@Timesheet" $ do
   context "adjustTaxYear" $ do
     it "" $ do adjustTaxYear (startFrom 2017 01 01) (fromGregorian 2017 01 01) `shouldBe` fromGregorian 2017 01 01
