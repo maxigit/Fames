@@ -28,7 +28,10 @@ applyRounding method x = case method of
   RoundBanker dec -> roundTo' round dec x
   Round dec -> let -- normal, do the rounding manually
     -- we need to check the we are in the case 0.5 (with correct deci)
-    lastDigit =  (decimalMantissa x `div` fromIntegral (decimalPlaces x - dec - 1)) `mod` 10
+    -- lastDigit =  (decimalMantissa x `div` fromIntegral (decimalPlaces x - dec - 1)) `mod` 10
+    lastDigit = 
+      -- traceShow ("x", x, dec) $ traceShowId  $
+      (decimalMantissa x `div` (fromIntegral $ 10 ^ (decimalPlaces x - dec - 1)))`mod` 10
     in if lastDigit < 5
                  then applyRounding (RoundDown dec) x
                  else applyRounding (RoundUp dec) x

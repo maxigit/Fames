@@ -1037,7 +1037,7 @@ itemSettings settingsm account sku =
 -- opposed to Haskell rounding (bankers rounding) 
 -- round2 = (/100) . fromIntegral . round . (*100) 
 round2 :: (RealFrac a, Fractional b) => a -> b
-round2 =  fromRational . toRational . toDecimalWithRounding' 6 (Round  2) 
+round2 =  fromRational . toRational . toDecimalWithRounding' 20 (Round  2) 
 
 itemCostSummaryStockValueRounded :: ItemCostSummary -> Double
 itemCostSummaryStockValueRounded = round2 . itemCostSummaryStockValue
