@@ -18,6 +18,7 @@ module Handler.GL.Check.ItemCost.Common
 , voidValidation
 , itemCostTransactionStockValueRounded
 , itemCostSummaryStockValueRounded
+, round2
 )
 where
 
@@ -1035,7 +1036,8 @@ itemSettings settingsm account sku =
 -- We want "normal" rounding (sames as the one used by Mysql and php)
 -- opposed to Haskell rounding (bankers rounding) 
 -- round2 = (/100) . fromIntegral . round . (*100) 
-round2 =  fromRational . toRational . toDecimalWithRounding (Round  2) 
+round2 :: (RealFrac a, Fractional b) => a -> b
+round2 =  fromRational . toRational . toDecimalWithRounding' 6 (Round  2) 
 
 itemCostSummaryStockValueRounded :: ItemCostSummary -> Double
 itemCostSummaryStockValueRounded = round2 . itemCostSummaryStockValue

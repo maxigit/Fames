@@ -140,7 +140,7 @@ getGLCheckItemCostAccountViewR account = do
                else return mempty
   let totalCount = sum $ [count | (_,count,_) <- sku'count'lasts] 
       faStockValue = sum $ [ itemCostSummaryFaStockValue last | (_,_,Just last) <- sku'count'lasts] 
-      stockValue = sum $ [ itemCostSummaryStockValue last | (_,_,Just last) <- sku'count'lasts] 
+      stockValue = sum $ [ (cost*qoh) | (cost, qoh) <-  toList itemInfos ]
       stockValueRounded = sum $ [ itemCostSummaryStockValueRounded last | (_,_,Just last) <- sku'count'lasts] 
       -- filter items with no transaction neither summary (so not used at all)
       sku'count'lasts = filter (\(_, count, lastm) -> count /= 0 || isJust lastm) 
