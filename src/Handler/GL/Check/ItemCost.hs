@@ -106,10 +106,10 @@ getGLCheckItemCostR = do
             <th> Total
             <th> #{formatDouble glBalance}
             <th> #{formatDouble correctValue}
-            <th> #{formatDouble $ glBalance - correctValue}
-            <th> #{formatDouble $ stockValue - correctValue}
+            <th> #{formatAbs glBalance correctValue}
+            <th> #{formatAbs stockValue correctValue}
             <th> #{formatDouble $ stockValue}
-            <th> #{formatDouble $ stockValue - glBalance}
+            <th> #{formatAbs stockValue glBalance}
             <th> #{formatDouble' $ qoh}
             <th> #{formatAbs qoh correctQoh}
      <form.form-inline method=GET action="@{GLR $ GLCheckItemCostR}" enctype="#{UrlEncoded}">  
@@ -140,7 +140,7 @@ getGLCheckItemCostAccountViewR account = do
                else return mempty
   let totalCount = sum $ [count | (_,count,_) <- sku'count'lasts] 
       faStockValue = sum $ [ itemCostSummaryFaStockValue last | (_,_,Just last) <- sku'count'lasts] 
-      __stockValue = sum $ [ itemCostSummaryStockValue last | (_,_,Just last) <- sku'count'lasts] 
+      stockValue = sum $ [ itemCostSummaryStockValue last | (_,_,Just last) <- sku'count'lasts] 
       stockValueRounded = sum $ [ itemCostSummaryStockValueRounded last | (_,_,Just last) <- sku'count'lasts] 
       -- filter items with no transaction neither summary (so not used at all)
       sku'count'lasts = filter (\(_, count, lastm) -> count /= 0 || isJust lastm) 
@@ -226,9 +226,12 @@ getGLCheckItemCostAccountViewR account = do
         <th> #{tshow totalCount}
         <th>
         <th>
-        <th> #{formatDouble $ faStockValue - stockValueRounded }
+        <th> #{formatAbs faStockValue stockValueRounded }
         <th> #{formatDouble faStockValue }
         <th> #{formatDouble stockValueRounded}
+        <th>
+        <th>
+        <th> #{formatDouble $ stockValue }
      <form.form-inline method=GET action="@{GLR $ GLCheckItemCostAccountViewR account}" enctype="#{encType}">  
        ^{form}
        <button.btn.btn-primary type="sumbit"> Refresh
