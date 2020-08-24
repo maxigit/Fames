@@ -16,6 +16,18 @@ roundingSpec = describe "@Rounding" $ do
     applyRounding (Round 0) 0.5 `shouldBe` 1
   it "rounds 1.5 to 2 " $ do
     applyRounding (Round 0) 1.5 `shouldBe` 2
+  it "rounds 1.5472 to 1.5 " $ do
+    applyRounding (Round 1) 1.5472 `shouldBe` 1.5
+  it "rounds 2.5472 to 1.5 " $ do
+    applyRounding (Round 1) 2.5472 `shouldBe` 2.5
+  it "to decimal 1.5472 to 1.5 " $ do
+    toDecimalWithRounding (Round 1) 1.5472 `shouldBe` 1.5
+  it "to decimal 2.5472 to 1.5 " $ do
+    toDecimalWithRounding (Round 1) 2.5472 `shouldBe` 2.5
+  it "rounds 243.35472 to 243.35" $ do
+    applyRounding (Round 2) 243.35472 `shouldBe` 243.35
+  it "to decimal 243.35472 to 243.35" $ do
+    toDecimalWithRounding (Round 2) 243.35472 `shouldBe` 243.35
   it "banker rounds 0.5 to 0 " $ do
     applyRounding (RoundBanker 0) 0.5 `shouldBe` 0
   it "banker rounds 1.5 to 2 " $ do
@@ -38,4 +50,3 @@ roundingSpec = describe "@Rounding" $ do
           let r = Round 2
               d = toDecimalWithRounding r (x :: Double)
           in toDecimalWithRounding r ( realFracToDecimal 2 d) === d
-spec :: Spec

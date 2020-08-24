@@ -27,12 +27,13 @@ applyRounding method x = case method of
   RoundDown dec -> roundTo' floor dec x
   RoundBanker dec -> roundTo' round dec x
   Round dec -> let -- normal, do the rounding manually
-    x' = roundTo (dec+1) x
-    lastDigit = decimalMantissa x' `mod` 10
+    -- we need to check the we are in the case 0.5 (with correct deci)
+    lastDigit = traceShow ("x", x, dec) $ traceShowId (decimalMantissa x `div` decimalPlaces x - dec - 1) `mod` 10
     in if lastDigit < 5
-       then applyRounding (RoundDown dec) x
-       else applyRounding (RoundUp dec) x
+                 then applyRounding (RoundDown dec) x
+                 else applyRounding (RoundUp dec) x
+        
   RoundAbs l_round -> signum x * applyRounding l_round (abs x)
     
 toDecimalWithRounding :: RealFrac f => RoundingMethod -> f -> Decimal
-toDecimalWithRounding method f = applyRounding method $ realFracToDecimal (roundDec method + 1) f
+toDecimalWithRounding method f = applyRounding method $ realFracToDecimal (roundDec method + 6) f

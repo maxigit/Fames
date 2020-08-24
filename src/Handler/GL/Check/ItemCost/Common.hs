@@ -1032,8 +1032,10 @@ itemSettings :: Maybe Settings -> Account -> Text -> Maybe ItemSettings
 itemSettings settingsm account sku = 
   settingsm >>= lookup account . accounts >>= lookup sku . items 
 
-
-round2 = (/100) . fromIntegral . round . (*100)
+-- We want "normal" rounding (sames as the one used by Mysql and php)
+-- opposed to Haskell rounding (bankers rounding) 
+-- round2 = (/100) . fromIntegral . round . (*100) 
+round2 =  fromRational . toRational . toDecimalWithRounding (Round  2) 
 
 itemCostSummaryStockValueRounded :: ItemCostSummary -> Double
 itemCostSummaryStockValueRounded = round2 . itemCostSummaryStockValue
