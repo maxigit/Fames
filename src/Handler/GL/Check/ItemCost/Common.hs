@@ -828,7 +828,7 @@ skuRange summaries =
 generateJournals :: Int -> Day -> [(Entity ItemCostSummary, Account)] -> ([WFA.JournalEntry], Double)
 -- generateJournals :: Day -> [(Entity ItemCostSummary, Account)] -> Maybe (WFA.JournalEntry)
 generateJournals chunkSize date sum'accounts = 
-  let (glss'es, sum -> total) =  unzip
+  let (glss''es'total ) =  
             [ (([mkItem itemCostSummaryAccount itemCostSummarySku amount memo
               ,mkItem (fromAccount adjAccount) itemCostSummarySku (-amount) memo
               ]
@@ -856,13 +856,14 @@ generateJournals chunkSize date sum'accounts =
                            , ..
                            }
 
-      mkJournal gls' = case splitAt chunkSize gls' of
+      mkJournal gls'total = case splitAt chunkSize gls'total of
                       ([], _ ) -> Nothing
-                      (s1'e, s2) -> let (ss1, es) = unzip s1'e
-                                        s1 = concat ss1
-                                    in Just ( WFA.JournalEntry date Nothing s1 (Just $ "Stock balance adjustment : " <> tshow total <> " " <> skuRange es  <> " (fames)")
-                                       , s2)
-  in (unfoldr mkJournal glss'es, fromRational $ toRational total)
+                      (s1''e'totals, s2) -> let (ss1, es) = unzip s1'e
+                                                (s1'e, sum -> total) =  unzip s1''e'totals
+                                                s1 = concat ss1
+                                             in Just ( WFA.JournalEntry date Nothing s1 (Just $ "Stock balance adjustment : " <> tshow total <> " " <> skuRange es  <> " (fames)")
+                                                , s2)
+  in (unfoldr mkJournal glss''es'total, fromRational $ toRational $ sum (map snd glss''es'total))
   
 
 setStockIdFromMemo :: Int -> Handler ()
@@ -917,7 +918,7 @@ updateCost connectInfo today (Entity _ summary@ItemCostSummary{..}) | Just sku <
     rows <- runDB $ rawSql sql [toPersistValue itemCostSummarySku ]
     case rows of
       [Single currentCost] | abs (currentCost - itemCostSummaryCostAfter) > 1e-6 -> do
-            faIdm <- liftIO $ WFA.postCostUpdate connectInfo (traceShowId $ WFA.CostUpdate sku itemCostSummaryCostAfter)
+            faIdm <- liftIO $ WFA.postCostUpdate connectInfo (WFA.CostUpdate sku itemCostSummaryCostAfter)
             case faIdm of
               Right (Just faId) -> do
                 runDB $ insert $ FA.Comment (fromEnum ST_COSTUPDATE) faId (Just today) (Just $ sku  <> " Fames Cost Adjustement")
