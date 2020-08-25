@@ -916,15 +916,15 @@ updateCost connectInfo today (Entity _ summary@ItemCostSummary{..}) | Just sku <
   then do
     rows <- runDB $ rawSql sql [toPersistValue itemCostSummarySku ]
     case rows of
-      [Single currentCost] | abs (currentCost - itemCostSummaryCostAfter) < 1e-6 -> do
-            faIdm <- liftIO $ WFA.postCostUpdate connectInfo (WFA.CostUpdate sku itemCostSummaryCostAfter)
+      [Single currentCost] | abs (currentCost - itemCostSummaryCostAfter) > 1e-6 -> do
+            faIdm <- liftIO $ WFA.postCostUpdate connectInfo (traceShowId $ WFA.CostUpdate sku itemCostSummaryCostAfter)
             case faIdm of
               Right (Just faId) -> do
                 runDB $ insert $ FA.Comment (fromEnum ST_COSTUPDATE) faId (Just today) (Just $ sku  <> " Fames Cost Adjustement")
-                return $ Just (faId, itemCostSummaryStockValueRounded summary - round2(currentCost * itemCostSummaryQohAfter))
+                return $ Just (faId, round2 $ itemCostSummaryStockValue - currentCost * itemCostSummaryQohAfter)
               Right Nothing -> return Nothing
               Left err  -> error $ unpack err
-      [_] -> return $ Just (0, 0)
+      [_] -> return $ Nothing
       _ -> error $ "Item " <> unpack sku <> " doesn't exist in 0_stock_master "
   else do
     logInfoN ("Skip cost update for " <> sku) 
