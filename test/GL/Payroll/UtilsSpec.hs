@@ -13,6 +13,7 @@ check calculator s1 s2 = let
   in calculateDate calculator d1 `shouldBe` d2
 
 
+spec :: Spec
 spec = dateSpec >> periodSpec
 dateSpec = describe "@DateCalculator" $ do
   context "AddDays" $ do

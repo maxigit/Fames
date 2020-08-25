@@ -8,4 +8,5 @@ import Handler.GL.GLEnterReceiptSheet as X
 import Handler.GL.Check as X
 import Handler.GL.CheckAIS as X
 import Handler.GL.TaxReport as X
+import Handler.GL.Check.ItemCost as X
 

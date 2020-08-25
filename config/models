@@ -317,6 +317,71 @@ TaxReportDetail sql=fames_tax_report_detail json
   deriving Eq
 
 
+-- * Item cost check
+-- Defines a group of item cost transaction
+-- known to be correct, in the way
+-- that the sum of the faAmount matches exactly the sum of the correctAmount
+ItemCostValidation sql=check_item_cost_validation
+  Id sql=item_cost_validation_id
+  comment Text
+  userId UserId
+  validationDate Day
+  lastTransaction Day
+  voided Bool
+  total Double
+  -- firstTransaction Day
+
+-- Gather the information coming a stock moves and
+-- it's corresponding gl_trans
+-- Some transaction coming from manual adjusment
+-- on a stock account might not have a corresponding stock moves
+ItemCostTransaction sql=check_item_cost_transaction
+  Id sql=item_cost_transaction_id
+  date Day
+  moveId Int Maybe
+  glDetail Int Maybe
+  faTransNo Int
+  faTransType FATransType sqltype=Int
+  sku Text Maybe
+  account Text
+  faAmount Double
+  correctAmount Double
+  qohBefore Double
+  qohAfter Double
+  quantity Double
+  costBefore Double
+  cost Double
+  costAfter Double
+  stockValue Double
+  faStockValue Double
+  moveCost Double -- current transaction cost price
+  itemCostValidation ItemCostValidationId Maybe
+  comment Text
+  UniqueM moveId !force
+  UniqueG glDetail !force
+  deriving Show
+  deriving Eq
+
+
+-- | Keep the last information 
+-- move and details can be used to filter stock_moves and gl_trans
+ItemCostSummary sql=check_item_cost_summary
+  Id sql=item_cost_transaction_id
+  date Day
+  moveId Int Maybe
+  glDetail Int Maybe
+  sku Text Maybe
+  account Text
+  qohAfter Double
+  costAfter Double
+  stockValue Double
+  faStockValue Double
+  validated Bool
+  UniqueAS  account sku !force
+  -- in theory we don't the account, but we might if the account changed in the lifetime of an item
+  deriving Show
+  deriving Eq
+
 
   
 

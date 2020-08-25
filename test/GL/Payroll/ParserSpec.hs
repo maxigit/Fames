@@ -16,6 +16,7 @@ makeDay i = Time.addDays i day0
 
 lockAD x = lockA x >>= lockD
 alice = PayrooEmployee  "Alice" "" 1 (Employee "Alice" Nothing)
+spec :: Spec
 spec = describe "@Payroll" $ do
     describe "#Tokenizer" $ do
         it "parses payrollId" $ do

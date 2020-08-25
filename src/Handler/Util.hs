@@ -493,7 +493,7 @@ filterEKeyword ::  FilterExpression -> (Text, Text)
 filterEKeyword (LikeFilter f) = ("LIKE", f)
 filterEKeyword (RegexFilter f) = ("RLIKE", f)
 filterEToSQL :: FilterExpression -> Text
-filterEToSQL exp = let (key, v) = filterEKeyword exp in key <> " '" <> v <> "''"
+filterEToSQL exp = let (key, v) = filterEKeyword exp in key <> " '" <> v <> "'"
 
 filterEAddWildcardRight :: FilterExpression -> FilterExpression
 filterEAddWildcardRight (LikeFilter f) = LikeFilter (f<>"%")

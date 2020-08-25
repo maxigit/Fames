@@ -23,6 +23,7 @@ module Import.NoFoundation
     , transactionIcon
     , transactionIconSpan
     , transNoWithLink
+    , transIconWithLink
     , decodeHtmlEntities
     , groupAsMap
     , groupAscAsMap
@@ -171,7 +172,9 @@ commasFixedWith' roundFn digit = later go where
             then fconst mempty
             else "." % left digit '0' %. int
     b = (commas' % fracB) -- n (floor $ 100 *  abs f)
-    in bprint b n frac
+    in if x < 0 && n == 0
+       then bprint ("-" % b) n frac
+       else bprint b n frac
 
 -- | Like Formatting.commas but fix bug on negative value
 -- -125 - -,125
@@ -332,15 +335,19 @@ transactionIconSpan eType =
   
  
 transNoWithLink :: (FATransType -> Int -> Text) -> Text -> FATransType -> Int -> Html
-transNoWithLink urlForFA' class_ transType transNo = [shamlet|
+transNoWithLink =  transNoWithLink'  (\_ transNo -> "#" <> tshow transNo)
+transNoWithLink' showTrans urlForFA' class_ transType transNo = [shamlet|
  <a href="#{urlForFA' transType transNo}"
     class="#{class_}"
     target=_blank
     data-toggle="tooltip" 
     title="#{longType} ##{tshow $ transNo}"
-    >##{tshow transNo}
+    >#{showTrans transType transNo}
   |] where
          longType = showTransType transType :: Text
+
+transIconWithLink :: (FATransType -> Int -> Text) -> Text -> FATransType -> Int -> Html
+transIconWithLink =  transNoWithLink'  (\transType _ -> transactionIcon transType)
  
 -- * Html 
 decodeHtmlEntities :: Text -> Text

@@ -8,11 +8,13 @@ module WH.FA.Curl
 , testFAConnection
 , postBankPayment
 , postBankPaymentOrDeposit
+, postJournalEntry
 , postGRN
 , postPurchaseInvoice
 , postSupplierPayment
 , postPurchaseCreditNote
 , postVoid
+, postCostUpdate
 ) where
 
 import ClassyPrelude hiding(traceM)
@@ -129,6 +131,12 @@ extractInputsToCurl :: [Tag String] -> CurlOption
 extractInputsToCurl tags = curlPostFields $ [name <=> value | (name, value) <- extractAllInputValues tags]
 
 
+extractAllHRefs :: [Tag String] -> [(String)]
+extractAllHRefs tags = mapMaybe extractHRef tags
+extractHRef  tag | (tag ~== TagOpen ("a" :: String) [("href", "")]) =
+  Just (fromAttrib "href" tag )
+extractHRef  _ = Nothing
+
 -- ** Test
 testFAConnection :: FAConnectInfo -> IO (Either Text ())
 testFAConnection connectInfo = do
@@ -144,6 +152,9 @@ newAdjustmentURL ::  (?baseURL :: URLString) => URLString
 newAdjustmentURL = inventoryAdjustmentURL <> "?NewAdjustment=1"
 ajaxInventoryAdjustmentURL  :: (?baseURL :: URLString) => URLString
 ajaxInventoryAdjustmentURL = toAjax inventoryAdjustmentURL
+
+costUpdateURL :: (?baseURL :: URLString) => URLString
+costUpdateURL = ?baseURL <> "/inventory/cost_update.php"
 -- *** GL
 bankPaymentURL :: (?baseURL :: URLString) => URLString
 bankPaymentURL = ?baseURL <> "/gl/gl_bank.php"
@@ -158,7 +169,13 @@ newBankDepositURL :: (?baseURL :: URLString) => URLString
 newBankDepositURL = bankDepositURL <>  "?NewDeposit=Yes"
 ajaxBankDepositItemURL :: (?baseURL :: URLString) => URLString
 ajaxBankDepositItemURL = toAjax bankDepositURL 
-
+-- *** Journal
+journalEntryURL :: (?baseURL :: URLString) => URLString
+journalEntryURL = ?baseURL <> "/gl/gl_journal.php"
+newJournalEntryURL :: (?baseURL :: URLString) => URLString
+newJournalEntryURL = journalEntryURL <> "?NewJournal=Yes"
+ajaxJournalItemURL :: (?baseURL :: URLString) => URLString
+ajaxJournalItemURL = toAjax journalEntryURL
 -- *** Purchases
 grnURL, newGRNURL, ajaxGRNURL :: (?baseURL :: URLString) => URLString
 grnURL = ?baseURL <> "/purchasing/po_entry_items.php"
@@ -256,7 +273,42 @@ addLocationTransferDetail LocationTransferDetail{..} = do
   curlSoup (toAjax locationTransferURL) items [200] "add items"
 
 
+-- ** Cost Update
+-- Returns the id of the journal entry if created.
+-- If the cost is the same or there is no item left
+-- no gl will be generated
+postCostUpdate :: FAConnectInfo -> CostUpdate -> IO (Either Text (Maybe Int))
+postCostUpdate connectInfo CostUpdate{..} = do
+  let ?baseURL = faURL connectInfo
+  let params = curlPostFields [ Just "UpdateData=Update"
+                              , "stock_id" <=> unpack cuSku
+                              , "material_cost" <=> show cuCost
+                              , Just "labour_cost=0"
+                              , Just "overhead_cost=0"
+                              ] : method_POST
+  e <- runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
+    tags <- curlSoup (toAjax costUpdateURL) params [200] "Cost has been updated"
+    case mapMaybe (=~~ (".*gl/view/gl_trans_view.php\\?type_id=([0-9]+)&trans_no=([0-9]+)" :: String)) (extractAllHRefs tags)  of
+       -- example ("href","../gl/view/gl_trans_view.php?type_id=35&trans_no=330")     hrefs -> do
+       [h@(_,_,_,[_typeId,transNo])] -> do
+        let _types = h :: (String, String, String, [String])
+        return . Just $ Prelude.read transNo
+       _WTF -> {- traceShowM ("WTF"
+                         ,_WTF
+                         , mapMaybe (=~~ (".*gl/view/gl_trans_view.php\\?type_id=([0-9]*)&trans_no=([0-9]*)" :: String)) (extractAllHRefs tags)
+                        :: [(String, String, String, [String])]
+                         , (extractAllHRefs tags)
+
+                        )  >> -} return Nothing
+  let sameCostMsg = "The new cost is the same as the old cost" :: Text
+    -- "The new cost is the same as the old cost. Cost was not updated.\n" 
+  case e of
+    Left err  | take (length sameCostMsg) err == sameCostMsg  -> return $ Right Nothing
+    e -> return e
+  
+  
 -- ** GL
+-- *** Bank Payment
 postBankPayment :: FAConnectInfo -> BankPayment -> IO (Either Text Int)
 postBankPayment connectInfo payment = do
   let ?baseURL = faURL connectInfo
@@ -337,6 +389,41 @@ addBankDepositItems GLItem{..} = do
                               ] :method_POST
   curlSoup (ajaxBankDepositItemURL) fields [200] "add GL items"
   
+
+
+-- ** Journal Entry
+postJournalEntry :: FAConnectInfo -> JournalEntry -> IO (Either Text Int)
+postJournalEntry connectInfo journal = do
+  let ?baseURL = faURL connectInfo
+  runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
+    new <- curlSoup newJournalEntryURL method_GET [200] "Problem trying to create a new journal entry"
+    _ <- mapM addJournalItem  (jeItems journal)
+    let ref = case extractInputValue "ref" new of
+                  Nothing -> Left "Can't find Journal reference"
+                  Just r -> Right r
+    let process = curlPostFields [ "date_" <=> jeDate journal
+                                 , "ref" <=> either error id ref
+                                 -- , Just "Reverse=0" -- miscellaneous
+                                 , "memo_"  <=> jeMemo journal
+                                 , Just "Process=Process"
+                                 ] : method_POST
+    tags <- curlSoup (toAjax journalEntryURL) process [200] "Create journal entry"
+    case extractAddedId' "AddedID" "Journal entry" tags of
+      Left e -> throwError $ "Journal entry creation failed:" <> e
+      Right faId -> do
+        return faId
+
+addJournalItem GLItem{..} = do
+  let fields = curlPostFields [  "code_id" <=> gliAccount
+                              , (if gliAmount >= 0 then "AmountDebit" else "AmountCredit")
+                                <=> abs gliAmount
+                              , "dimension_id" <=> fromMaybe 0 gliDimension1
+                              , "dimension2_id" <=> fromMaybe 0 gliDimension2
+                              , "LineMemo" <=>  gliMemo 
+                              , Just "AddItem=Add%20Item"
+                              ] :method_POST
+  curlSoup (ajaxJournalItemURL) fields [200] "add GL items"
+
 -- ** Purchase
 -- *** GRN
 postGRN :: FAConnectInfo -> GRN -> IO (Either Text Int)

@@ -54,9 +54,29 @@
   /check/debtor_trans/#Int64/#Int64 GLCheckDebtorTransR GET !check 
   !/check/debtor_trans/fix/#Int64/#Int64 GLFixDebtorTransR POST !check !fix
   /check/ais GLCheckAISR GET POST !check !title=AIS
+  /check/item_cost GLCheckItemCostR GET !check !title=Inventory_Cost !fix
+  /check/item_cost/account/#Text GLCheckItemCostAccountViewR GET !check
+  /check/item_cost/collect/account/#Text GLCheckItemCostAccountCollectR POST !check !fix
+  /check/item_cost/collect/all GLCheckItemCostCollectAllR POST !check !fix
+  /check/item_cost/item/pending/#Text/#Maybe-Text GLCheckItemCostItemViewR GET !check !fix
+  /check/item_cost/item/done/#Text/#Maybe-Text GLCheckItemCostItemViewSavedR GET !check !fix
+  /check/item_cost/check/ GLCheckItemCostCheckR GET !checkA !title=Check_Item_Cost
+  /check/item_cost/purge/ GLCheckItemCostPurgeR POST !check
+  /check/item_cost/purge-account/#Text GLCheckItemCostPurgeAccountR POST !check
+  /check/item_cost/purge-item/#Text/#Maybe-Text GLCheckItemCostPurgeAccountItemR POST !check
+  /check/item_cost/update-gl-item/#Text/#Maybe-Text GLCheckItemCostUpdateGLAccountItemR POST !check
+  /check/item_cost/update-gl-account/#Text GLCheckItemCostUpdateGLAccountR POST !check
+  /check/item_cost/update-gl-account GLCheckItemCostUpdateGLR POST !check
+  /check/item_cost/validations GLCheckItemCostValidationsViewR GET  !title=Item_Cost_Validations
+  /check/item_cost/validation/#Int64 GLCheckItemCostValidationViewR GET 
+  /check/item_cost/validation/void/#Int64 GLCheckItemCostVoidValidationR POST
+  /check/item_cost/update-cost-item/#Text/#Maybe-Text GLCheckItemCostUpdateCostAccountItemR POST !check
+  /check/item_cost/update-cost-account/#Text GLCheckItemCostUpdateCostAccountR POST !check
+  /check/item_cost/update-cost-account GLCheckItemCostUpdateCostR POST !check
+
 
 /warehouse WarehouseR !warehouse:
-  /barcodes WHBarcodeR GET POST !group=Barcodes !title=Generate
+  /barcodes WHBarcodeR GET !group=Barcodes !title=Generate
 
   /stocktake WHStocktakeR GET !stocktake !group=Stock !title=Stocktake
   /stocktake/history/#Maybe-Text WHStocktakeHistoryR GET !stocktake !group=Stock !title=Stocktake_History

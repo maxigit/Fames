@@ -1,5 +1,5 @@
 {-# LANGUAGE QuasiQuotes#-}
-module Legacy.BankReconciliateSpec where
+module Legacy.BankReconciliateSpec (spec) where
 import Prelude
 import BankReconciliate
 
@@ -11,6 +11,7 @@ import Text.Parsec(parse)
 import Data.Time
 
 parseLT p i = parse p "" (encodeUtf8 i)
+spec :: Spec
 spec = pureSpec
 pureSpec = santanderSpec
 santanderSpec = describe "@Santander" $ do

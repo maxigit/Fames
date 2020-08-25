@@ -369,7 +369,7 @@ getGLPayrollVoidFAR timesheetId = do
             <th> Voided
         $forall ((transType, transNo, voided ), trans, events) <- withSuppTrans
           $with entityName <- entityNameMH transType . fmap fromIntegral
-            <tr :voided:.text-muded>
+            <tr :voided:.text-muted>
               <td> #{t $ showTransType transType}
               <td>
                 <a href="#{urlForFA faURL transType transNo}">#{tshow transNo} 

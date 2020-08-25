@@ -54,6 +54,11 @@ data LocationTransferDetail = LocationTransferDetail
   , ltrQuantity :: !Int
   } deriving (Eq, Show)
 
+-- ** CostUpdate
+data CostUpdate = CostUpdate
+  { cuSku :: !Text
+  , cuCost :: Double
+  } deriving (Eq, Show)
 -- * GL
 -- ** Payments
 data BankPayment = BankPayment
@@ -73,6 +78,15 @@ data BankDeposit = BankDeposit
   , bdBankAccount :: !Int
   , bdMemo :: !(Maybe Text)
   , bdItems :: [GLItemD]
+  } deriving (Eq, Show)
+
+
+-- ** Journal Entry
+data JournalEntry = JournalEntry
+  { jeDate :: !Day
+  , jeReference :: !(Maybe Text)
+  , jeItems :: [GLItemD]
+  , jeMemo :: !(Maybe Text)
   } deriving (Eq, Show)
 
 -- * Purchases
