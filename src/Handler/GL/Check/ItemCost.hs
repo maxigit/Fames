@@ -395,7 +395,11 @@ renderTransactions title costm trans = do
           <th>
           <th>
           <th> #{maybe "" (formatDouble' . itemCostTransactionCostAfter) (lastMay trans)}
-          <th>
+          $case (lastMay trans, costm)
+            $of (Just last, Just cost)
+              <th> #{formatAbs (cost * itemCostTransactionQohAfter last) (itemCostTransactionStockValueRounded last)}
+            $of _ 
+              <th>
           <th>
           <th>
           <th>
