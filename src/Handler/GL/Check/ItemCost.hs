@@ -82,7 +82,7 @@ getGLCheckItemCostR = do
                       #{formatDouble correct}
                   <td class="#{classFor 100 asGLAmount correct}">
                       #{formatAbs correct asGLAmount}
-                $if equal' 0.01 asGLAmount asStockValuation
+                $if equal' 0.09 correct asStockValuation
                   <td.bg-success.text-sucess>
                     #{formatAbs correct asStockValuation}
                 $else
@@ -93,7 +93,7 @@ getGLCheckItemCostR = do
                 <td>
                 <td>
             <td> #{formatDouble asStockValuation}
-            $if equal' 0.01 asGLAmount asStockValuation
+            $if equal' 0.09 asGLAmount asStockValuation
               <td.bg-success.text-sucess>
                 #{formatAbs asGLAmount asStockValuation}
             $else
