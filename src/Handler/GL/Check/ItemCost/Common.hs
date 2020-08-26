@@ -67,12 +67,12 @@ type Matched = (These (Entity FA.StockMove) (Entity FA.GlTran), Int)
 -- * Summaries
 getStockAccounts :: Handler [Account]
 getStockAccounts = do
-  let sql0 = "select distinct(inventory_account) from 0_stock_master"
+  let sql0 = "SELECT DISTINCT(inventory_account) FROM 0_stock_master WHERE mb_flag <> 'D' "
   settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
   let (sql, params) = case settingsm of
              Nothing -> (sql0, [])
              Just settings -> let (keyword, stockLike) = filterEKeyword $ readFilterExpression (stockFilter settings)
-                              in (sql0 <> " WHERE stock_id " <> keyword <> " ? ", [toPersistValue stockLike])
+                              in (sql0 <> " AND stock_id " <> keyword <> " ? ", [toPersistValue stockLike])
   -- let sql = "select distinct(account) from 0_gl_trans where stock_id is not null and stock_id " <> filterEToSQL stockLike
   --        <> " and amount <> 0"
   --        ^ Find all accounts used by any stock transaction (filter by stock like)
@@ -138,6 +138,7 @@ getItemFor (Account account) = do
           <> " FROM 0_stock_master "
           <> " WHERE stock_id IN (SELECT distinct stock_id  "
           <> "                    FROM 0_gl_trans where account = ?)"
+          <> " AND mb_flag <> 'D'"                    
       (sql, params) = case settingsm of
              Nothing -> (sql0, [])
              Just settings -> let (keyword, stockLike) = filterEKeyword $ readFilterExpression (stockFilter settings)
@@ -162,6 +163,7 @@ itemTodayInfo (Account account) = do
   let sql = "select stock_id, sum(qty), material_cost from 0_stock_moves "
           <>  " join 0_stock_master USING(stock_id) "
           <> " WHERE  inventory_account = ? "
+          <> " AND mb_flag <> 'D'"
           <> " GROUP BY stock_id "
   rows <- runDB $ rawSql sql [toPersistValue account]
   return . mapFromList $ map (\(Single sku, Single qoh, Single cost) -> (sku, (cost, qoh))) rows
