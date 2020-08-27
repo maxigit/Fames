@@ -385,7 +385,7 @@ renderTransactions title costm trans = do
             $of (Just last)
               $with (stock , fa) <- (itemCostTransactionStockValueRounded last, itemCostTransactionFaStockValue last)
                 $if equal stock fa
-                  <th.bg-success.text-success> 0
+                  <th.bg-success.text-success> [0.00]
                 $else
                   <th."#{classFor 0.5 stock fa}">
                     #{formatAbs stock fa}
