@@ -443,8 +443,8 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
         historyForGrnInvoice account0 previous sm'gl'seq [] toprocess sm'gls
     (ST_SUPPRECEIVE, (WaitingForStock previous toprocess)) -> 
         computeItemHistory account0 (SupplierGRNWaitingForInvoice previous sm'gl'seq toprocess) sm'gls
-    (ST_INVADJUST, WaitingForStock previous toprocess) | Just _ <- moveQuantityM
-                                                       , Just _ <- faAmountM  ->
+    (ST_INVADJUST, WaitingForStock previous toprocess) | Just qty <- moveQuantityM
+                                                       , isJust faAmountM || qty > 0 -> 
         historyForGrnInvoice account0 previous sm'gl'seq [] toprocess sm'gls
     (ST_WORKORDER, WaitingForStock previous toprocess) | Just _ <- moveQuantityM
                                                        , Just _ <- faAmountM  ->
@@ -526,9 +526,12 @@ historyForGrnInvoice account0 previous grn invs toprocess sm'gls = let
   smeM = preview here (fst grn)
   smM = entityVal <$> smeM
   allInvoices = reverse invs
-  glAmount = sum [ FA.glTranAmount inv 
-                 | Just (Entity _ inv) <- map (preview there  . fst) $ grn : allInvoices
-                 ]
+  glAmount = case (invs, smM) of
+              ([], Just sm) | standardCost previous == 0 ->  -- no invoices uses move prices if there is no cost price
+                 FA.stockMoveQty sm * FA.stockMoveStandardCost sm
+              _ -> sum [ FA.glTranAmount inv 
+                       | Just (Entity _ inv) <- map (preview there  . fst) $ grn : allInvoices
+                       ]
   in case (smM ) of
     (Just sm) -> let
       (newSummary, newTrans) = updateSummaryFromAmount previous (FA.stockMoveQty sm) (FA.stockMoveStandardCost sm) glAmount
