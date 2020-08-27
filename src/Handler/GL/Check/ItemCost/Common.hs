@@ -394,7 +394,13 @@ instance Monoid RunningState where
 computeItemHistory :: Account -> HistoryState -> [Matched] -> Either Text [ItemCostTransaction]
 computeItemHistory account0 previousState [] =  
   case previousState of
-    WaitingForStock previous toprocess -> computeItemHistory account0 (WithPrevious AllowNegative previous) (reverse toprocess)
+    WaitingForStock previous toprocess -> 
+    -- start again but allow negative.
+    -- We also need to use the first know cost price
+      case reverse toprocess of
+        sm'gls@((sm'gl,_):_) | Just sm <- entityVal <$> preview here sm'gl -> 
+            computeItemHistory account0 (WithPrevious AllowNegative previous { standardCost = FA.stockMoveStandardCost sm}) sm'gls
+        sm'gls ->  computeItemHistory account0 (WithPrevious AllowNegative previous) sm'gls
     SupplierGRNWaitingForInvoice previous grn toprocess ->
       case preview here (fst grn) of 
         Nothing -> Left $ "Unexpected happend.Shoudl be a GRN : Invoice id :" <> tshow (entityKey <$> preview there (fst grn))
@@ -419,7 +425,7 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
   moveCostM = FA.stockMoveStandardCost  <$> smM
   faAmountM = FA.glTranAmount <$> glM
   in case (faTransType, previousState) of
-    -- Initial state, wait for a delivery first
+    ------------------- Initial state, --------------------------------------------
     (_             , Initial) ->
         computeItemHistory account0 (WaitingForStock mempty []) all_
     (ST_SUPPINVOICE, WithPrevious allowN previous) | Just faAmount <- faAmountM, fmap FA.glTranMemo glM == Just "GRN Provision"  ->
@@ -486,10 +492,10 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
                                             , Just faAmount <- faAmountM  ->
       let (newSummary, newTrans) = updateSummaryFromAmount previous quantity moveCost faAmount
       in ((makeItemCostTransaction account0 previous sm'gl'seq newSummary newTrans) :) <$> computeItemHistory account0 (WithPrevious allowN newSummary)  sm'gls
-    -- Location Tranfer
+    -------------------------------- Location Tranfer ------------------------
     (ST_LOCTRANSFER, WithPrevious allowN previous ) -> -- skip
       ((makeItemCostTransaction account0 previous sm'gl'seq previous (Transaction 0 0 0 "skipped")) :) <$> computeItemHistory account0 (WithPrevious allowN previous)  sm'gls
-    -- Transaction not affecting the cost price
+    -------------------------------- Transaction not affecting the cost price
     (_,             WithPrevious PreventNegative previous)              | Just quantity <-  moveQuantityM 
                                                         , quantity /= 0
                                                         , qoh previous + quantity < 0 -> -- negative quantities
