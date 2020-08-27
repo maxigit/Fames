@@ -363,25 +363,27 @@ data RunningState = RunningState
   , stockValue :: Double
   , expectedBalance :: Double
   , faBalance :: Double
-  }
+  } deriving Show
 
 data Transaction = Transaction
   { tQuantity :: Double
   , tCost :: Double
   , tAmount :: Double
   , tComment :: Text
-  }
+  } deriving Show
 
 instance Semigroup RunningState where
   a <> b = let totalQoh = qoh a + qoh b
                totalValue = stockValue a + stockValue b 
-           in RunningState totalQoh
-                           (case (totalQoh, standardCost b) of
-                                  (0, 0) -> standardCost a
-                                  (0, sc) -> sc
+               cost = case (totalQoh, standardCost a,standardCost b) of
+                                  (0, ca, 0) -> ca
+                                  (0, _, cb) -> cb
+                                  (_, 0, cb) -> cb
                                   _ -> totalValue / totalQoh
-                           )
-                           totalValue
+               stock = totalQoh * cost
+           in traceShow ("Running") $ traceShowId $ RunningState totalQoh
+                           cost
+                           stock
                            (expectedBalance a + expectedBalance b)
                            (faBalance a + faBalance b)
 
@@ -532,6 +534,7 @@ historyForGrnInvoice account0 previous grn invs toprocess sm'gls = let
     _ -> Left $ "Unexpected happended. Grn should be a GRN and inv a Supplier Invoice " <> tshow (entityKey <$> preview there (fst grn))
 
 
+-- *** Update Running State
 -- | Update the running state given a quantity and cost (and check overall amount)
 updateSummaryFromAmount :: RunningState -> Double -> Double -> Double -> (RunningState, Transaction)
 updateSummaryFromAmount previous 0 givenCost amount =  
@@ -641,7 +644,7 @@ makeItemCostTransaction (Account account0) previous (sm'gl, _) new trans =  let
   
   
 
-  
+-- ***    PRocess transactions
 
 -- | If a transaction contains the same items many times, for example 2 moves and 2 gl_trans  
 -- instead of having 2 element in the list we will have the 4 (the cross product resulting from the join)
