@@ -674,6 +674,8 @@ fixDuplicates move'gls = let
                  -- ^ ignore cancelling pairs in case the gls cancel each other as well
                  --  happened when "removing" a GRN
                  --  the GRN is modified to have a negative stock + corresponding gl
+                ([], _) |  glLength == 0 ->  ([], [])
+                -- ^ filter out totally cancelling moves. Appears when GRN have been removed or inventory transfer
                 m'c -> m'c
             glLength = length gls
             gls = mapMaybe getFirst $ toList $ groupAsMap entityKey (First . Just) $ mapMaybe (preview there . fst) m'gs
