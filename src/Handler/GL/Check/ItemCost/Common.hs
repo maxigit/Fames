@@ -381,7 +381,7 @@ instance Semigroup RunningState where
                                   (_, 0, cb) -> cb
                                   _ -> totalValue / totalQoh
                stock = totalQoh * cost
-           in traceShow ("Running") $ traceShowId $ RunningState totalQoh
+           in RunningState totalQoh
                            cost
                            stock
                            (expectedBalance a + expectedBalance b)
@@ -405,7 +405,10 @@ computeItemHistory account0 previousState [] =
       case preview here (fst grn) of 
         Nothing -> Left $ "Unexpected happend.Shoudl be a GRN : Invoice id :" <> tshow (entityKey <$> preview there (fst grn))
         Just (Entity _ move) -> 
-          let (newSummary, newTrans) = updateSummaryFromCost previous (FA.stockMoveQty move) (FA.stockMoveStandardCost move) 0
+          let (newSummary, newTrans) = 
+                case (standardCost previous, FA.stockMoveStandardCost move ) of 
+                  (0, moveCost) -> updateSummaryFromCost "Given" previous (FA.stockMoveQty move) moveCost 0
+                  (previousCost, _) -> updateSummaryFromCost "Previous" previous (FA.stockMoveQty move) previousCost 0
           in ((makeItemCostTransaction account0 previous grn newSummary newTrans) :) <$> computeItemHistory account0 (WithPrevious PreventNegative newSummary)  (reverse toprocess)
     SupplierInvoiceWaitingForGRN previous inv toprocess -> 
       case preview there (fst inv) of
@@ -456,6 +459,11 @@ computeItemHistory account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) 
     ------------------- Waiting for Supplier invoice ------------------------------
     (ST_SUPPINVOICE, SupplierGRNWaitingForInvoice previous grn toprocess)  ->
         historyForGrnInvoice account0 previous grn [sm'gl'seq] toprocess sm'gls
+    -- GRN which have been "removed" can match their matching counterpart
+    (ST_SUPPRECEIVE, SupplierGRNWaitingForInvoice previous grn toprocess) | Just qty <- moveQuantityM
+                                                                          , Just (Entity _ grnMove) <- preview here (fst grn)
+                                                                          , FA.stockMoveQty grnMove == -qty   ->
+        historyForGrnInvoice account0 previous (nullifyQuantity grn) [nullifyQuantity sm'gl'seq] toprocess (sm'gls)
     (_              , SupplierGRNWaitingForInvoice previous grn toprocess)  ->
         computeItemHistory account0 (SupplierGRNWaitingForInvoice previous grn (sm'gl'seq:toprocess)) sm'gls
     -------------------------------- Waiting for Grn ------------------------------
@@ -574,8 +582,8 @@ updateSummaryFromAmount previous quantity givenCost amount =  let
     , Transaction quantity cost amount $ "UNSTICKY " <> tshow (amount/quantity) <> " <> " <> tshow givenCost )
 
 
-updateSummaryFromCost :: RunningState -> Double -> Double -> Double -> (RunningState, Transaction)
-updateSummaryFromCost previous quantity givenCost faAmount = let
+updateSummaryFromCost :: Text -> RunningState -> Double -> Double -> Double -> (RunningState, Transaction)
+updateSummaryFromCost source previous quantity givenCost faAmount = let
   amount = givenCost * quantity
   rounded = round2 amount
   in  ( previous <> RunningState  quantity
@@ -583,7 +591,8 @@ updateSummaryFromCost previous quantity givenCost faAmount = let
                               amount
                               rounded
                               faAmount
-     , Transaction quantity givenCost amount $ "Q*GivenCost")
+     , Transaction quantity givenCost amount $ "Q*" <> source <> "Cost")
+
 
 updateSummaryQoh :: RunningState -> Double -> Double -> (RunningState, Transaction)
 updateSummaryQoh previous quantity faAmount | standardCost previous == 0, quantity /= 0 = let
@@ -674,7 +683,7 @@ fixDuplicates move'gls = let
                  -- ^ ignore cancelling pairs in case the gls cancel each other as well
                  --  happened when "removing" a GRN
                  --  the GRN is modified to have a negative stock + corresponding gl
-                ([], _) |  glLength == 0 ->  ([], [])
+                -- ([], _) |  glLength == 0 ->  ([], [])
                 -- ^ filter out totally cancelling moves. Appears when GRN have been removed or inventory transfer
                 m'c -> m'c
             glLength = length gls
@@ -1060,3 +1069,9 @@ itemCostSummaryStockValueRounded :: ItemCostSummary -> Double
 itemCostSummaryStockValueRounded = round2 . itemCostSummaryStockValue
 itemCostTransactionStockValueRounded :: ItemCostTransaction -> Double
 itemCostTransactionStockValueRounded = round2 . itemCostTransactionStockValue
+
+
+nullifyQuantity :: Matched -> Matched
+nullifyQuantity (This (Entity moveId move), seq) = (This (Entity moveId move { FA.stockMoveQty = 0, FA.stockMoveStandardCost = 0}) , seq)
+nullifyQuantity (These (Entity moveId  move) gl, seq) = (These (Entity moveId move { FA.stockMoveQty = 0, FA.stockMoveStandardCost = 0}) gl , seq)
+nullifyQuantity m = m
