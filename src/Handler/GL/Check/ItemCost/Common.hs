@@ -550,12 +550,12 @@ historyForGrnInvoice behaviors_ account0 previous grn invs toprocess sm'gls = le
   allInvoices = reverse invs
   in case (smM ) of
     (Just sm) -> 
-      (case (invs, behavior) of
+      (case (mapMaybe (preview there .fst) (grn: allInvoices), behavior) of
         ([], Just UsePreviousCost) -> Right $ updateSummaryFromCost "Previous'" previous (FA.stockMoveQty sm) (standardCost previous) 0
         ([], Just UseMoveCost) -> Right $ updateSummaryFromCost "Move'" previous (FA.stockMoveQty sm) (FA.stockMoveStandardCost sm) 0
         ([], _) -> Left $ "No grn-without-invoice behavior defined for " <> showForError grn 
-        _       -> let glAmount = sum [ FA.glTranAmount inv 
-                               | Just (Entity _ inv) <- map (preview there  . fst) $ grn : allInvoices
+        (gls, _)       -> let glAmount = sum [ FA.glTranAmount inv 
+                               | (Entity _ inv) <- gls
                                ]
                    in Right $ updateSummaryFromAmount previous (FA.stockMoveQty sm) (FA.stockMoveStandardCost sm) glAmount
       ) >>= (\(newSummary, newTrans) -> 
