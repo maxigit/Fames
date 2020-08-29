@@ -3,23 +3,40 @@ where
 import ClassyPrelude
 import Data.Aeson.TH(deriveJSON, defaultOptions, {- fieldLabelModifier, -} sumEncoding, SumEncoding(..))
 import Data.Aeson.Types
+import Data.Text(splitOn)
 -- * Type
 data Account = Account { fromAccount:: Text } deriving (Eq, Show, Read, Ord)
+
+data Behavior
+  = Skip
+  | UsePreviousCost
+  | UseMoveCost
+  | GenerateError 
+  deriving (Eq, Show, Read, Ord)
+
+data BehaviorSubject
+  = ForTransaction Int Int
+  -- | ForMove Int
+  | ForGrnWithoutInvoice
+  deriving (Eq, Show, Read, Ord)
+
 -- * Settings
 data Settings =  Settings
-  {  stockFilter ::  Text  -- to convert to FilterExpression
-  ,  accounts :: Map Account AccountSettings
-  ,  extraAccounts :: Maybe [Account]
-  ,  defaultFixAccount :: Maybe Account
-  ,  defaultDate :: Maybe Day
-  ,  batchSize :: Maybe Int -- maximum number of item to process when posting to FA
+  { stockFilter ::  Text  -- to convert to FilterExpression
+  , accounts :: Map Account AccountSettings
+  , extraAccounts :: Maybe [Account]
+  , defaultFixAccount :: Maybe Account
+  , defaultDate :: Maybe Day
+  , batchSize :: Maybe Int -- maximum number of item to process when posting to FA
+  , behaviors:: Maybe BehaviorMap
   }
   deriving (Show, Read, Eq, Ord)
 
+type BehaviorMap = Map BehaviorSubject Behavior
 
 data AccountSettings = AccountSettings
-  {  items :: Map Text ItemSettings
-  ,  fixAccount :: Maybe Account
+  { items :: Map Text ItemSettings
+  , fixAccount :: Maybe Account
   }
   deriving (Show, Read, Eq, Ord)
 
@@ -45,6 +62,7 @@ data InitialSettings
 
   
 -- * JSON
+----------------------------------------------------
 instance FromJSON Account where
   parseJSON v = withText ("Account as Text")  (return . Account)  v
                 <|> (do
@@ -59,7 +77,33 @@ instance ToJSONKey Account where
   toJSONKey = toJSONKeyText fromAccount
 instance FromJSONKey Account where
   fromJSONKey = FromJSONKeyText Account
+
+----------------------------------------------------
+instance FromJSONKey BehaviorSubject where
+  fromJSONKey = FromJSONKeyTextParser $ parseJSON . String
+instance  ToJSONKey BehaviorSubject  where
+  toJSONKey = toJSONKeyText behaviorSubjectToText
+
+instance FromJSON BehaviorSubject where
+  parseJSON = withText ("BehaviorSubject") p where
+    p s | ws@[_,_] <- splitOn "/" s  =
+      case map readMay ws of
+        [Just type_, Just no] -> return $ ForTransaction type_ no
+        _ -> fail $ unpack s <>  " no of the shape Int/Int "
+    p "grn-without-invoice" = return ForGrnWithoutInvoice
+    p s  = fail $ unpack s  <> " is not BehaviorSubject"
+
+instance  ToJSON BehaviorSubject where
+  toJSON = String . behaviorSubjectToText  where
+
+
+behaviorSubjectToText :: BehaviorSubject -> Text
+behaviorSubjectToText = go where
+    go (ForTransaction type_ no) = tshow type_ <> "/" <> tshow no
+    go ForGrnWithoutInvoice = "grn-without-invoice"
+----------------------------------------------------
 $(deriveJSON defaultOptions ''AccountSettings)
+$(deriveJSON defaultOptions ''Behavior)
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField }  ''InitialSettings)
 $(deriveJSON defaultOptions ''ItemSettings)
 $(deriveJSON defaultOptions ''Settings)

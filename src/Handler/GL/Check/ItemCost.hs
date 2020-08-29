@@ -254,8 +254,9 @@ getGLCheckItemCostItemViewR account item = do
   lastm <- loadCostSummary (Account account) item
   settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
   let endDatem =  item >>= itemSettings settingsm (Account account) >>= closingDate
+      behaviors_ = fromMaybe mempty (settingsm >>= behaviors)
   trans0 <- loadMovesAndTransactions (entityVal <$> lastm) endDatem (Account account) item
-  let transE = computeItemCostTransactions (entityVal <$> lastm) (Account account) trans0
+  let transE = computeItemCostTransactions behaviors_ (entityVal <$> lastm) (Account account) trans0
   w <- either (renderDuplicates account) (renderTransactions (fromMaybe account item) Nothing) transE
   defaultLayout $ do
     setTitle . toHtml $ "Item Cost - pending " <> account <> maybe " (All)" ("/" <>) item
@@ -435,8 +436,8 @@ renderDuplicates account (err,move'gls) = do
                   <td> #{tshow $ FA.stockMoveTranDate  move}
                   <td> #{formatDouble' $ FA.stockMoveQty  move}
                   <td> #{formatDouble' $ FA.stockMoveStandardCost  move}
-                  <td> #{tshow $ FA.stockMoveStockId  move}
-                  <td> #{tshow $ FA.stockMoveLocCode  move}
+                  <td> #{FA.stockMoveStockId  move}
+                  <td> #{FA.stockMoveLocCode  move}
                   <td> #{transNoWithLink urlFn "" (toEnum $ FA.stockMoveType move) (FA.stockMoveTransNo move)}
                   <td> #{transIconWithLink glUrlFn "" (toEnum $ FA.stockMoveType move) (FA.stockMoveTransNo move)}
                   <td> move: #{tshow $ FA.unStockMoveKey moveId}
@@ -444,7 +445,7 @@ renderDuplicates account (err,move'gls) = do
                   <td> #{tshow $ FA.glTranTranDate gl}
                   <td> 
                   <td> #{formatDouble' $ FA.glTranAmount  gl}
-                  <td> #{tshowM $ FA.glTranStockId  gl}
+                  <td> #{fromMaybe "" $ FA.glTranStockId  gl}
                   <td> 
                   <td> #{transNoWithLink urlFn "" (toEnum $ FA.glTranType gl) (FA.glTranTypeNo gl)}
                   <td> #{transIconWithLink glUrlFn "" (toEnum $ FA.glTranType gl) (FA.glTranTypeNo gl)}
@@ -455,8 +456,8 @@ renderDuplicates account (err,move'gls) = do
                   <td>
                     <div> #{formatDouble' $ FA.stockMoveStandardCost  move}
                     <div> #{formatDouble' $ FA.glTranAmount  gl}
-                  <td> #{tshow $ FA.stockMoveStockId  move}
-                  <td> #{tshow $ FA.stockMoveLocCode  move}
+                  <td> #{FA.stockMoveStockId  move}
+                  <td> #{FA.stockMoveLocCode  move}
                   <td> #{transNoWithLink urlFn "" (toEnum $ FA.stockMoveType move) (FA.stockMoveTransNo move)}
                   <td> #{transIconWithLink glUrlFn "" (toEnum $ FA.stockMoveType move) (FA.stockMoveTransNo move)}
                   <td> 
