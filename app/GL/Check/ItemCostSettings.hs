@@ -13,6 +13,7 @@ data Behavior
   | UseMoveCost
   | GenerateError 
   | BehaveIf BehaviorSubject Behavior
+  | BehaveIfe BehaviorSubject Behavior Behavior
   deriving (Eq, Show, Read, Ord)
 
 data BehaviorSubject

@@ -1122,9 +1122,14 @@ behaviorFor behaviors_ subjects (sm'gl, _) = let
 
 behaviorFor' :: BehaviorMap -> [BehaviorSubject] -> Maybe Behavior
 behaviorFor' behaviors_ subjects = 
-  case asum $ map (flip lookup behaviors_)  subjects of
-    Just (BehaveIf condition behavior) -> behaviorFor' (mapFromList  [(condition, behavior)]) subjects 
-    b -> b
+  go ( asum $ map (flip lookup behaviors_)  subjects)
+  where
+  go bm =
+    case bm  of
+        Just (BehaveIf condition behavior) -> behaviorFor' (mapFromList  [(condition, behavior)]) subjects 
+        Just (BehaveIfe condition t e) -> behaviorFor' (mapFromList  [(condition, t)]) subjects 
+                                       <|> go (Just e)
+        b -> b
       
   
   
