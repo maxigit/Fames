@@ -45,3 +45,4 @@
 -- :set -Wno-missing-pattern-synonym-signatures
 :set -Wincomplete-patterns
 :set args ../fames-config/development.yml ../fames-config/staging.yml ../fames-config/variations.yml ../fames-config/default.yml ../fames-config/item-cost.yml
+:set -fobject-code
