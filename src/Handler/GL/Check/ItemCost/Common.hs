@@ -204,9 +204,8 @@ loadMovesAndTransactions lastm endDatem account (Just sku) = do
        interleave xs (y:ys) = y : interleave xs  ys
        -- compare date then gl counter
       
-       get fa fb = mergeTheseWith (fa . entityVal) (fb . entityVal) const
        before a b = key a < key b
-        where key (x, seq) =  ( get FA.stockMoveTranDate FA.glTranTranDate x
+        where key (x, seq) =  ( gett FA.stockMoveTranDate FA.glTranTranDate x
                        , seq
                        )
    return $ interleave withMoves glOnly
@@ -640,16 +639,12 @@ makeItemCostTransaction :: Account -> RunningState-> Matched -> RunningState -> 
 makeItemCostTransaction (Account account0) previous (sm'gl, _) new trans =  let
        smM = preview here sm'gl
        glM = preview there sm'gl
-       get :: (FA.StockMove -> a) 
-           -> (FA.GlTran -> a)
-           -> a
-       get fa fb = mergeTheseWith (fa . entityVal) (fb . entityVal) const sm'gl
-       date  = get FA.stockMoveTranDate FA.glTranTranDate
+       date  = gett FA.stockMoveTranDate FA.glTranTranDate sm'gl
        moveId = FA.unStockMoveKey . entityKey <$> smM
        glDetail = FA.unGlTranKey . entityKey <$> glM
-       faTransNo = get FA.stockMoveTransNo FA.glTranTypeNo
-       faTransType = toEnum $ get FA.stockMoveType FA.glTranType
-       sku = get (Just . FA.stockMoveStockId) FA.glTranStockId
+       faTransNo = gett FA.stockMoveTransNo FA.glTranTypeNo sm'gl
+       faTransType = toEnum $ gett FA.stockMoveType FA.glTranType sm'gl
+       sku = gett (Just . FA.stockMoveStockId) FA.glTranStockId sm'gl
        -- TODO : everything below
        account = maybe account0 (FA.glTranAccount . entityVal) (glM)
        faAmount = maybe 0 (FA.glTranAmount . entityVal) (glM)
@@ -1095,6 +1090,9 @@ nullifyQuantity (This (Entity moveId move), seq) = (This (Entity moveId move { F
 nullifyQuantity (These (Entity moveId  move) gl, seq) = (These (Entity moveId move { FA.stockMoveQty = 0, FA.stockMoveStandardCost = 0}) gl , seq)
 nullifyQuantity m = m
 
+gett ::  (FA.StockMove -> a) -> (FA.GlTran -> a) -> These (Entity FA.StockMove) (Entity FA.GlTran) -> a
+gett fa fb = mergeTheseWith (fa . entityVal) (fb . entityVal) const
+
 -- | Show reference in error message
 showForError :: Matched -> Text
 showForError (This (Entity moveId FA.StockMove{..}), _) =
@@ -1113,14 +1111,21 @@ showForError (That (Entity glId FA.GlTran{..}), _ ) =
 
 behaviorFor :: BehaviorMap -> [BehaviorSubject] -> Matched -> Maybe Behavior
 behaviorFor behaviors_ subjects (sm'gl, _) = let
-  get fa fb = mergeTheseWith (fa . entityVal) (fb . entityVal) const sm'gl
-  faTransNo = get FA.stockMoveTransNo FA.glTranTypeNo
-  faTransType = get FA.stockMoveType FA.glTranType
-  in behaviorFor' behaviors_ (ForTransaction faTransType faTransNo:subjects)
+  faTransNo = gett FA.stockMoveTransNo FA.glTranTypeNo sm'gl
+  faTransType = gett FA.stockMoveType FA.glTranType sm'gl
+  other = ForSku (gett (Just . FA.stockMoveStockId) FA.glTranStockId sm'gl)
+        : if (gett FA.stockMoveStandardCost FA.glTranAmount sm'gl) == 0
+           then [ForNullCost]
+           else []
+
+  in behaviorFor' behaviors_ (ForTransaction faTransType faTransNo : other ++ subjects)
 
 behaviorFor' :: BehaviorMap -> [BehaviorSubject] -> Maybe Behavior
 behaviorFor' behaviors_ subjects = 
-  asum $ map (flip lookup behaviors_) subjects
+  case asum $ map (flip lookup behaviors_)  subjects of
+    Just (BehaveIf condition behavior) -> behaviorFor' (mapFromList  [(condition, behavior)]) subjects 
+    b -> b
+      
   
   
   

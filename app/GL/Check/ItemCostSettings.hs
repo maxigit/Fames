@@ -12,12 +12,15 @@ data Behavior
   | UsePreviousCost
   | UseMoveCost
   | GenerateError 
+  | BehaveIf BehaviorSubject Behavior
   deriving (Eq, Show, Read, Ord)
 
 data BehaviorSubject
   = ForTransaction Int Int
   -- | ForMove Int
   | ForGrnWithoutInvoice
+  | ForSku (Maybe Text)
+  | ForNullCost
   deriving (Eq, Show, Read, Ord)
 
 -- * Settings
@@ -91,6 +94,9 @@ instance FromJSON BehaviorSubject where
         [Just type_, Just no] -> return $ ForTransaction type_ no
         _ -> fail $ unpack s <>  " no of the shape Int/Int "
     p "grn-without-invoice" = return ForGrnWithoutInvoice
+    p "cost=0" = return ForNullCost
+    p "no-sku" = return $ ForSku Nothing
+    p (stripPrefix "sku=" -> Just sku) = return $ ForSku (Just sku)
     p s  = fail $ unpack s  <> " is not BehaviorSubject"
 
 instance  ToJSON BehaviorSubject where
@@ -101,9 +107,12 @@ behaviorSubjectToText :: BehaviorSubject -> Text
 behaviorSubjectToText = go where
     go (ForTransaction type_ no) = tshow type_ <> "/" <> tshow no
     go ForGrnWithoutInvoice = "grn-without-invoice"
+    go (ForSku Nothing)  = "no-sku"
+    go (ForSku (Just sku))  = "sku=" <> sku
+    go ForNullCost = "cost=0"
 ----------------------------------------------------
 $(deriveJSON defaultOptions ''AccountSettings)
-$(deriveJSON defaultOptions ''Behavior)
+$(deriveJSON defaultOptions { sumEncoding = UntaggedValue}  ''Behavior)
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField }  ''InitialSettings)
 $(deriveJSON defaultOptions ''ItemSettings)
 $(deriveJSON defaultOptions ''Settings)
