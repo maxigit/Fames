@@ -4,6 +4,7 @@ module Handler.GL.Check.ItemCost
 , getGLCheckItemCostItemViewR
 , getGLCheckItemCostItemViewSavedR
 , postGLCheckItemCostAccountCollectR
+, postGLCheckItemCostItemCollectR
 , postGLCheckItemCostCollectAllR
 , getGLCheckItemCostCheckR
 , postGLCheckItemCostPurgeR
@@ -252,6 +253,7 @@ getGLCheckItemCostAccountViewR account = do
 getGLCheckItemCostItemViewR :: Text -> Maybe Text -> Handler Html
 getGLCheckItemCostItemViewR account item = do
   lastm <- loadCostSummary (Account account) item
+  (_date, form, encType) <-  extractDateFromUrl
   settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
   let endDatem =  item >>= itemSettings settingsm (Account account) >>= closingDate
       behaviors_ = fromMaybe mempty (settingsm >>= behaviors)
@@ -261,6 +263,12 @@ getGLCheckItemCostItemViewR account item = do
   defaultLayout $ do
     setTitle . toHtml $ "Item Cost - pending " <> account <> maybe " (All)" ("/" <>) item
     w
+    [whamlet|
+    <form.form-inline method=POST action="@{GLR $GLCheckItemCostItemCollectR account item}" encType=#{encType}>
+       ^{form}
+      <button.btn.btn-warning type="submit"> Collect
+
+    |]
 
 getGLCheckItemCostItemViewSavedR :: Text -> Maybe Text -> Handler Html
 getGLCheckItemCostItemViewSavedR account item = do
@@ -289,6 +297,7 @@ getGLCheckItemCostItemViewSavedR account item = do
       |]
 
 renderTransactions :: Text -> Maybe Double ->  [ItemCostTransaction] -> Handler Widget 
+
 renderTransactions title costm trans = do
   faURL <- getsYesod (pack . appFAExternalURL . appSettings)
   let urlFn = urlForFA faURL
@@ -658,13 +667,26 @@ postGLCheckItemCostAccountCollectR account = do
   let skus = [sku | (sku,count,_) <- sku'counts, count /= 0]
   transE <- mapM (collectCostTransactions date (Account account)) skus
   case partitionEithers transE of
-    ([], _ ) -> getGLCheckItemCostAccountViewR account
+    ([], _ ) -> redirect $ GLR (GLCheckItemCostAccountViewR account)
     (duplicatess, _ ) -> do
       w <- mconcat <$> mapM (renderDuplicates account) duplicatess
       defaultLayout $ do
         setTitle . toHtml $ "Item Cost - collect error " <> account 
         w
 
+postGLCheckItemCostItemCollectR :: Text -> Maybe Text -> Handler Html
+postGLCheckItemCostItemCollectR account skum = do
+  (date, _form, _encType) <- extractDateFromUrl
+  sku'counts <- loadPendingTransactionCountFor date (Account account)
+  let skus = [sku | (sku,count,_) <- sku'counts, count /= 0, sku == skum]
+  transE <- mapM (collectCostTransactions date (Account account)) skus
+  case partitionEithers transE of
+    ([], _ ) -> redirect $ GLR (GLCheckItemCostItemViewSavedR account skum)
+    (duplicatess, _ ) -> do
+      w <- mconcat <$> mapM (renderDuplicates account) duplicatess
+      defaultLayout $ do
+        setTitle . toHtml $ "Item Cost - collect error " <> account 
+        w
 postGLCheckItemCostCollectAllR :: Handler Html
 postGLCheckItemCostCollectAllR = do
   accounts <- getStockAccounts
