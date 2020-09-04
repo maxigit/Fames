@@ -14,6 +14,7 @@ data Behavior
   | UseMoveCost
   | GenerateError 
   | WaitForGrn Int -- invoice only matching the given GRN
+  | WaitForStock Double -- wait for given quantity
   | BehaveIf BehaviorSubject Behavior
   | BehaveIfe BehaviorSubject Behavior Behavior
   deriving (Eq, Show, Read, Ord)
@@ -91,6 +92,7 @@ instance FromJSON Behavior where
     withText ("Behavior") p v
     <|> withArray ("Ife") a v
     <|> withObject ("GRN") grn v
+    <|> withObject ("Stock") stock v
     where
     p "Skip" = return Skip
     p "FAOnly" = return FAOnly
@@ -112,6 +114,7 @@ instance FromJSON Behavior where
     grn o = do
       grnId <- o .: "WaitForGrn"
       return $ WaitForGrn grnId
+    stock o = WaitForStock <$>  o .: "WaitForStock"
 
     -- a [cond, t] = BehaveIf cond t
 
@@ -122,7 +125,8 @@ instance ToJSON Behavior where
     UsePreviousCost -> String "UsePreviousCost"
     UseMoveCost -> String "UseMoveCost"
     GenerateError -> String "GenerateError"
-    WaitForGrn grn -> object [ "WaitForGRN" .= toJSON grn] 
+    WaitForGrn grn -> object [ "WaitForGrn" .= toJSON grn] 
+    WaitForStock qty -> object [ "WaitForStock" .= toJSON qty] 
     BehaveIf cond then_ -> toJSON [toJSON cond, toJSON then_]
     BehaveIfe cond then_ else_ -> toJSON [toJSON cond, toJSON then_, toJSON else_]
 ----------------------------------------------------

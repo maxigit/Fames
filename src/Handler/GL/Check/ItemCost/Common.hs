@@ -343,7 +343,8 @@ data AllowNegative = AllowNegative | PreventNegative
   deriving (Eq, Show)
 data HistoryState
   = Initial
-  | WaitingForStock RunningState [Matched]
+  | WaitingForStock Double RunningState [Matched]
+  --                ^ mininum quantity, standard 1
   | WithPrevious AllowNegative RunningState
   | SupplierInvoiceWaitingForGRN (Maybe Int) RunningState Matched [Matched]
   --                                                                ^   skipped transaction to processe (in reverse order)
@@ -353,7 +354,7 @@ data HistoryState
 instance Show HistoryState where
   show state = case state of
     Initial -> "I"
-    WaitingForStock _ _ -> "WaitingForStock"
+    WaitingForStock qty _ _ -> "WaitingForStock "  <> show qty
     WithPrevious _ _ -> "WithPrevious"
     SupplierGRNWaitingForInvoice _ _ _ -> "SupplierGRNWaitingForInvoice"
     SupplierInvoiceWaitingForGRN grnm _ inv _ -> "SupplierInvoiceWaitingForGRN" <> show (grnm, snd inv)
@@ -396,7 +397,7 @@ instance Monoid RunningState where
 computeItemHistory :: BehaviorMap -> Account -> HistoryState -> [Matched] -> Either Text [ItemCostTransaction]
 computeItemHistory behaviors_ account0 previousState [] =  
   case previousState of
-    WaitingForStock previous toprocess -> 
+    WaitingForStock _ previous toprocess -> 
     -- start again but allow negative.
     -- We also need to use the first know cost price
       case reverse toprocess of
@@ -439,10 +440,17 @@ computeItemHistory behaviors_ account0 previousState all_@(sm'gl'seq@(sm'gl, _se
   moveQuantityM = FA.stockMoveQty <$> smM
   moveCostM = FA.stockMoveStandardCost  <$> smM
   faAmountM = FA.glTranAmount <$> glM
+  enoughStock = case previousState of
+    WaitingForStock reqQty previous _ | Just qty <- moveQuantityM
+                                      -> qoh previous + qty >= reqQty 
+    _ -> False
   in case (faTransType, previousState) of
     ------------------- Initial state, --------------------------------------------
     (_             , Initial) ->
-        computeItemHistory behaviors_ account0 (WaitingForStock mempty []) all_
+        let reqQty = case behavior of
+                        Just (WaitForStock qty) -> qty
+                        _ -> 1
+        in computeItemHistory behaviors_ account0 (WaitingForStock reqQty mempty []) all_
     ------------------- GRN Provision and FAONly  , --------------------------------------------
     (_, WithPrevious allowN previous) | Just faAmount <- faAmountM, behavior == Just FAOnly ->
       let (newSummary, newTrans) = if qoh previous == 0 
@@ -458,25 +466,27 @@ computeItemHistory behaviors_ account0 previousState all_@(sm'gl'seq@(sm'gl, _se
       -- but there is a different of price when the invoice is processed (exchange rate differnt or price updated manually)
       -- Waiting For Stock
     ------------------- Waiting for stock ------------------------------------------------------
-    (ST_SUPPRECEIVE, (WaitingForStock previous toprocess)) | Just _ <- faAmountM -> 
+    (ST_SUPPRECEIVE, (WaitingForStock _ previous toprocess)) | Just _ <- faAmountM, enoughStock -> 
         historyForGrnInvoice behaviors_ account0 previous sm'gl'seq [] toprocess sm'gls
-    (ST_SUPPRECEIVE, (WaitingForStock previous toprocess)) | behavior `elem` map Just [UseMoveCost, UsePreviousCost] -> 
+    (ST_SUPPRECEIVE, (WaitingForStock _ previous toprocess)) | enoughStock, behavior `elem` map Just [UseMoveCost, UsePreviousCost] -> 
         historyForGrnInvoice behaviors_ account0 previous sm'gl'seq [] toprocess sm'gls
-    (ST_SUPPRECEIVE, (WaitingForStock previous toprocess)) -> 
+    (ST_SUPPRECEIVE, (WaitingForStock _ previous toprocess)) | enoughStock -> 
         computeItemHistory behaviors_ account0 (SupplierGRNWaitingForInvoice previous sm'gl'seq toprocess) sm'gls
-    (ST_INVADJUST, WaitingForStock previous toprocess) | Just qty <- moveQuantityM
-                                                       , isJust faAmountM || qty > 0 -> 
+    (ST_INVADJUST, WaitingForStock _ previous toprocess) | Just qty <- moveQuantityM
+                                                         , enoughStock
+                                                         , isJust faAmountM || qty > 0 -> 
         historyForGrnInvoice behaviors_ account0 previous sm'gl'seq [] toprocess sm'gls
-    (ST_WORKORDER, WaitingForStock previous toprocess) | Just _ <- moveQuantityM
+    (ST_WORKORDER, WaitingForStock _ previous toprocess) | Just _ <- moveQuantityM
+                                                       , enoughStock
                                                        , Just _ <- faAmountM  ->
         historyForGrnInvoice behaviors_ account0 previous sm'gl'seq [] toprocess sm'gls
-    (ST_SUPPINVOICE, (WaitingForStock previous toprocess))->
+    (ST_SUPPINVOICE, (WaitingForStock _ previous toprocess))->
         let grnIdm = case behavior of
                     Just (WaitForGrn grnId) -> Just grnId
                     _ -> Nothing
         in computeItemHistory behaviors_ account0 (SupplierInvoiceWaitingForGRN grnIdm previous sm'gl'seq toprocess) sm'gls
-    (_, (WaitingForStock previous toprocess)) ->
-        computeItemHistory behaviors_ account0 (WaitingForStock previous (sm'gl'seq: toprocess)) sm'gls
+    (_, (WaitingForStock qty previous toprocess)) ->
+        computeItemHistory behaviors_ account0 (WaitingForStock qty previous (sm'gl'seq: toprocess)) sm'gls
     ------------------- Waiting for Supplier invoice ------------------------------
     (ST_SUPPINVOICE, SupplierGRNWaitingForInvoice previous grn toprocess)  ->
         historyForGrnInvoice behaviors_ account0 previous grn [sm'gl'seq] toprocess sm'gls
@@ -534,7 +544,10 @@ computeItemHistory behaviors_ account0 previousState all_@(sm'gl'seq@(sm'gl, _se
     (_,             WithPrevious PreventNegative previous)              | Just quantity <-  moveQuantityM 
                                                         , quantity /= 0
                                                         , qoh previous + quantity < 0 -> -- negative quantities
-        computeItemHistory behaviors_ account0 (WaitingForStock previous [sm'gl'seq]) sm'gls
+        let reqQty = case behavior of
+                        Just (WaitForStock qty) -> qty
+                        _ -> 1
+        in computeItemHistory behaviors_ account0 (WaitingForStock reqQty previous [sm'gl'seq]) sm'gls
     (_            , WithPrevious allowN previous)              | Just quantity <-  moveQuantityM  ->
       let (newSummary, newTrans) = updateSummaryQoh previous quantity  (fromMaybe 0 faAmountM)
       in ((makeItemCostTransaction account0 previous sm'gl'seq newSummary ( newTrans {tComment = tComment newTrans <> " " <> tshow allowN})) :)
