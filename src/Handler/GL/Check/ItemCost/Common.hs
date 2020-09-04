@@ -609,6 +609,7 @@ updateSummaryFromAmount previous 0 givenCost amount =
 updateSummaryFromAmount previous quantity givenCost amount =  let
   -- check if the original cost matches the given one (modulo rounding error)
   -- if so use the original 
+  oldCost = standardCost previous
   in if round (givenCost * quantity * 100) == round (amount * 100)
   then 
     ( previous <> RunningState  quantity
@@ -616,8 +617,18 @@ updateSummaryFromAmount previous quantity givenCost amount =  let
                               (quantity*givenCost)
                               amount
                               amount
-    , Transaction quantity givenCost amount $ "STICKY " <> tshow (amount/quantity) <> " -> " <> tshow givenCost )
+    , Transaction quantity givenCost amount $ "STICKY(given) " <> tshow (amount/quantity) <> " -> " <> tshow givenCost )
   else
+    -- check with current cost price
+    if round (oldCost * quantity * 100) == round (amount * 100)
+    then 
+      ( previous <> RunningState  quantity
+                                oldCost
+                                (quantity*oldCost)
+                                amount
+                                amount
+      , Transaction quantity givenCost amount $ "STICKY(old) " <> tshow (amount/quantity) <> " -> " <> tshow oldCost )
+    else 
     let cost = amount / quantity
     in ( previous <> RunningState  quantity
                               cost
