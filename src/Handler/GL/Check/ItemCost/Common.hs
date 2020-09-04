@@ -345,7 +345,10 @@ data HistoryState
   = Initial
   | WaitingForStock RunningState [Matched]
   | WithPrevious AllowNegative RunningState
-  | SupplierInvoiceWaitingForGRN RunningState Matched [Matched]
+  | SupplierInvoiceWaitingForGRN (Maybe Int) RunningState Matched [Matched]
+  --                                                                ^   skipped transaction to processe (in reverse order)
+  --                                                      ^   invioice
+  --                             ^ GRN to match eventually
   | SupplierGRNWaitingForInvoice RunningState Matched [Matched]
 instance Show HistoryState where
   show state = case state of
@@ -353,7 +356,7 @@ instance Show HistoryState where
     WaitingForStock _ _ -> "WaitingForStock"
     WithPrevious _ _ -> "WithPrevious"
     SupplierGRNWaitingForInvoice _ _ _ -> "SupplierGRNWaitingForInvoice"
-    SupplierInvoiceWaitingForGRN _ inv _ -> "SupplierInvoiceWaitingForGRN" <> show (snd inv)
+    SupplierInvoiceWaitingForGRN grnm _ inv _ -> "SupplierInvoiceWaitingForGRN" <> show (grnm, snd inv)
 
 
 data RunningState = RunningState
@@ -413,10 +416,11 @@ computeItemHistory behaviors_ account0 previousState [] =
             ) >>= (\(newSummary, newTrans) ->
             ((makeItemCostTransaction account0 previous grn newSummary newTrans) :) <$> computeItemHistory behaviors_ account0 (WithPrevious PreventNegative newSummary)  (reverse toprocess)
             )
-    SupplierInvoiceWaitingForGRN previous inv toprocess -> 
-      case preview there (fst inv) of
-        Nothing -> Left "Unexpected happend.Shoudl be a Invoice"
-        Just (Entity _ gl) ->
+    SupplierInvoiceWaitingForGRN grnM previous inv toprocess -> 
+      case (preview there (fst inv), grnM)  of
+        (Nothing, _) -> Left $ "Unexpected happend.Shoudl be a Invoice " <> showForError inv
+        (_, Just grnId) -> Left $ "GRN # " <> tshow grnId <> " not found for " <> showForError inv
+        (Just (Entity _ gl), Nothing) ->
           let (newSummary, newTrans) = updateSummaryFromAmount previous 0 0 (FA.glTranAmount gl)
           in ((makeItemCostTransaction account0 previous inv newSummary newTrans) :) <$> computeItemHistory behaviors_ account0 (WithPrevious PreventNegative newSummary)  (reverse toprocess)
     _ -> Right []
@@ -426,7 +430,8 @@ computeItemHistory behaviors_ account0 previousState (sm'gl'seq:sm'gls)
       ((makeItemCostTransaction account0 mempty sm'gl'seq mempty (Transaction 0 0 0 "skipped (behavior)")) :) <$> computeItemHistory behaviors_ account0 previousState  sm'gls
 computeItemHistory behaviors_ account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) = let
   behavior = behaviorFor behaviors_ [] sm'gl'seq 
-  faTransType = toEnum $ mergeTheseWith (FA.stockMoveType . entityVal)  (FA.glTranType . entityVal) const sm'gl
+  faTransType = toEnum $ gett FA.stockMoveType FA.glTranType sm'gl
+  faTransNo = gett FA.stockMoveTransNo FA.glTranTypeNo sm'gl
   smeM = preview here sm'gl
   gleM = preview there sm'gl
   smM = entityVal <$> smeM
@@ -447,7 +452,7 @@ computeItemHistory behaviors_ account0 previousState all_@(sm'gl'seq@(sm'gl, _se
                                         in (newSummary {stockValue = 0, expectedBalance =  0} , trans { tComment = "Z - FA Only"})
                                    else updateSummaryFromAmount previous 0 0 faAmount <&> (\t -> t {tComment = tComment t <> " FA ONly"})
       in ((makeItemCostTransaction account0 previous sm'gl'seq newSummary newTrans) :) <$> computeItemHistory behaviors_ account0 (WithPrevious allowN newSummary)  sm'gls
-    (ST_SUPPINVOICE, WithPrevious _allowN _previous) | Just _ <- faAmountM, isGrnProvision sm'gl'seq ->
+    (ST_SUPPINVOICE, WithPrevious _allowN _previous) | Just _ <- faAmountM, isGrnProvision sm'gl'seq , behavior == Nothing ->
         Left $ "No behavior defined for GRN provision "  <> showForError sm'gl'seq
       --- ^^^ dont' see this invoice as a real one. It can happend when a GRN as an invoice
       -- but there is a different of price when the invoice is processed (exchange rate differnt or price updated manually)
@@ -466,7 +471,10 @@ computeItemHistory behaviors_ account0 previousState all_@(sm'gl'seq@(sm'gl, _se
                                                        , Just _ <- faAmountM  ->
         historyForGrnInvoice behaviors_ account0 previous sm'gl'seq [] toprocess sm'gls
     (ST_SUPPINVOICE, (WaitingForStock previous toprocess))->
-        computeItemHistory behaviors_ account0 (SupplierInvoiceWaitingForGRN previous sm'gl'seq toprocess) sm'gls
+        let grnIdm = case behavior of
+                    Just (WaitForGrn grnId) -> Just grnId
+                    _ -> Nothing
+        in computeItemHistory behaviors_ account0 (SupplierInvoiceWaitingForGRN grnIdm previous sm'gl'seq toprocess) sm'gls
     (_, (WaitingForStock previous toprocess)) ->
         computeItemHistory behaviors_ account0 (WaitingForStock previous (sm'gl'seq: toprocess)) sm'gls
     ------------------- Waiting for Supplier invoice ------------------------------
@@ -480,10 +488,10 @@ computeItemHistory behaviors_ account0 previousState all_@(sm'gl'seq@(sm'gl, _se
     (_              , SupplierGRNWaitingForInvoice previous grn toprocess)  ->
         computeItemHistory behaviors_ account0 (SupplierGRNWaitingForInvoice previous grn (sm'gl'seq:toprocess)) sm'gls
     -------------------------------- Waiting for Grn ------------------------------
-    (ST_SUPPRECEIVE, SupplierInvoiceWaitingForGRN previous inv toprocess)  ->
+    (ST_SUPPRECEIVE, SupplierInvoiceWaitingForGRN grnIdm previous inv toprocess) | grnIdm `elem` [Nothing, Just faTransNo]   ->
         historyForGrnInvoice behaviors_ account0 previous sm'gl'seq [inv] toprocess sm'gls 
-    (_             , SupplierInvoiceWaitingForGRN previous inv toprocess)  ->
-        computeItemHistory behaviors_ account0 (SupplierInvoiceWaitingForGRN previous inv (sm'gl'seq:toprocess)) sm'gls
+    (_             , SupplierInvoiceWaitingForGRN grnIdm previous inv toprocess)  ->
+        computeItemHistory behaviors_ account0 (SupplierInvoiceWaitingForGRN grnIdm previous inv (sm'gl'seq:toprocess)) sm'gls
     -------------------------------- Supplier Invoice------------------------------
     (ST_SUPPINVOICE, WithPrevious allowN previous) | Just quantity <- moveQuantityM
                                             , Just moveCost <- moveCostM
@@ -491,7 +499,10 @@ computeItemHistory behaviors_ account0 previousState all_@(sm'gl'seq@(sm'gl, _se
       let (newSummary, newTrans) = updateSummaryFromAmount previous quantity moveCost faAmount
       in ((makeItemCostTransaction account0 previous sm'gl'seq newSummary newTrans) :) <$> computeItemHistory behaviors_ account0 (WithPrevious allowN newSummary)  sm'gls
     (ST_SUPPINVOICE, WithPrevious _ previous) ->
-      computeItemHistory behaviors_ account0 (SupplierInvoiceWaitingForGRN previous sm'gl'seq []) sm'gls
+        let grnIdm = case behavior of
+                    Just (WaitForGrn grnId) -> Just grnId
+                    _ -> Nothing
+        in computeItemHistory behaviors_ account0 (SupplierInvoiceWaitingForGRN grnIdm previous sm'gl'seq []) sm'gls
     -------------------------------- Supplier GRN------------------------------
     (ST_SUPPRECEIVE, WithPrevious allowN previous) | Just quantity <- moveQuantityM 
                                             , Just moveCost <- moveCostM

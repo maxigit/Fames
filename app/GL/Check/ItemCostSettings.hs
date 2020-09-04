@@ -13,6 +13,7 @@ data Behavior
   | UsePreviousCost
   | UseMoveCost
   | GenerateError 
+  | WaitForGrn Int -- invoice only matching the given GRN
   | BehaveIf BehaviorSubject Behavior
   | BehaveIfe BehaviorSubject Behavior Behavior
   deriving (Eq, Show, Read, Ord)
@@ -85,6 +86,46 @@ instance FromJSONKey Account where
   fromJSONKey = FromJSONKeyText Account
 
 ----------------------------------------------------
+instance FromJSON Behavior where
+  parseJSON v = 
+    withText ("Behavior") p v
+    <|> withArray ("Ife") a v
+    <|> withObject ("GRN") grn v
+    where
+    p "Skip" = return Skip
+    p "FAOnly" = return FAOnly
+    p "UsePreviousCost" = return UsePreviousCost
+    p "UseMoveCost" = return UseMoveCost
+    p "GenerateError" = return GenerateError
+    p s = fail $ unpack s <> " is not a Behavior"
+    a as = case toList as of
+      [condv, thenv] -> do
+        cond <- parseJSON condv
+        then_ <- parseJSON thenv
+        return $ BehaveIf  cond then_
+      [condv, thenv, elsev] -> do
+        cond <- parseJSON condv
+        then_ <- parseJSON thenv
+        else_ <- parseJSON elsev
+        return $ BehaveIfe  cond then_ else_
+      _ -> fail "Not an ife conditions"
+    grn o = do
+      grnId <- o .: "WaitForGrn"
+      return $ WaitForGrn grnId
+
+    -- a [cond, t] = BehaveIf cond t
+
+instance ToJSON Behavior where
+  toJSON b = case b of
+    Skip -> String "Skip"
+    FAOnly -> String "FAOnly"
+    UsePreviousCost -> String "UsePreviousCost"
+    UseMoveCost -> String "UseMoveCost"
+    GenerateError -> String "GenerateError"
+    WaitForGrn grn -> object [ "WaitForGRN" .= toJSON grn] 
+    BehaveIf cond then_ -> toJSON [toJSON cond, toJSON then_]
+    BehaveIfe cond then_ else_ -> toJSON [toJSON cond, toJSON then_, toJSON else_]
+----------------------------------------------------
 instance FromJSONKey BehaviorSubject where
   fromJSONKey = FromJSONKeyTextParser $ parseJSON . String
 instance  ToJSONKey BehaviorSubject  where
@@ -117,7 +158,6 @@ behaviorSubjectToText = go where
     go ForNullCost = "cost=0"
 ----------------------------------------------------
 $(deriveJSON defaultOptions ''AccountSettings)
-$(deriveJSON defaultOptions { sumEncoding = UntaggedValue}  ''Behavior)
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField }  ''InitialSettings)
 $(deriveJSON defaultOptions ''ItemSettings)
 $(deriveJSON defaultOptions ''Settings)
