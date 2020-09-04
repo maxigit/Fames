@@ -8,7 +8,8 @@ import Data.Text(splitOn)
 data Account = Account { fromAccount:: Text } deriving (Eq, Show, Read, Ord)
 
 data Behavior
-  = Skip
+  = Skip -- as didn't exist
+  | FAOnly -- like skip but update the FA running balance
   | UsePreviousCost
   | UseMoveCost
   | GenerateError 
@@ -20,6 +21,7 @@ data BehaviorSubject
   = ForTransaction Int Int
   -- | ForMove Int
   | ForGrnWithoutInvoice
+  | ForGrnProvision
   | ForSku (Maybe Text)
   | ForNullCost
   deriving (Eq, Show, Read, Ord)
@@ -95,6 +97,7 @@ instance FromJSON BehaviorSubject where
         [Just type_, Just no] -> return $ ForTransaction type_ no
         _ -> fail $ unpack s <>  " no of the shape Int/Int "
     p "grn-without-invoice" = return ForGrnWithoutInvoice
+    p "grn-provision" = return ForGrnProvision
     p "cost=0" = return ForNullCost
     p "no-sku" = return $ ForSku Nothing
     p (stripPrefix "sku=" -> Just sku) = return $ ForSku (Just sku)
@@ -108,6 +111,7 @@ behaviorSubjectToText :: BehaviorSubject -> Text
 behaviorSubjectToText = go where
     go (ForTransaction type_ no) = tshow type_ <> "/" <> tshow no
     go ForGrnWithoutInvoice = "grn-without-invoice"
+    go ForGrnProvision = "grn-provision"
     go (ForSku Nothing)  = "no-sku"
     go (ForSku (Just sku))  = "sku=" <> sku
     go ForNullCost = "cost=0"

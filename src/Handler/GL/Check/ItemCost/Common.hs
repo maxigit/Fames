@@ -438,17 +438,21 @@ computeItemHistory behaviors_ account0 previousState all_@(sm'gl'seq@(sm'gl, _se
     ------------------- Initial state, --------------------------------------------
     (_             , Initial) ->
         computeItemHistory behaviors_ account0 (WaitingForStock mempty []) all_
-    (ST_SUPPINVOICE, WithPrevious allowN previous) | Just faAmount <- faAmountM, fmap FA.glTranMemo glM == Just "GRN Provision"  ->
-      --- ^^^ dont' see this invoice as a real one. It can happend when a GRN as an invoice
-      -- but there is a different of price when the invoice is processed (exchange rate differnt or price updated manually)
-      -- Waiting For Stock
-      let (newSummary, newTrans) = if qoh previous == 0
+    ------------------- GRN Provision and FAONly  , --------------------------------------------
+    (_, WithPrevious allowN previous) | Just faAmount <- faAmountM, behavior == Just FAOnly ->
+      let (newSummary, newTrans) = if qoh previous == 0 
                                    -- ^ the adjustement is updating a stock which should be null and stay null (0 items on hand, 0 comming)
                                    -- therefore processing it do adjust the cost price doesn't make sense.
                                    then let (newSummary, trans) = updateSummaryFromAmount previous 0 0 faAmount
-                                        in (newSummary {stockValue = 0, expectedBalance =  0} , trans { tComment = "Z - GRN provision"})
-                                   else updateSummaryFromAmount previous 0 0 faAmount
+                                        in (newSummary {stockValue = 0, expectedBalance =  0} , trans { tComment = "Z - FA Only"})
+                                   else updateSummaryFromAmount previous 0 0 faAmount <&> (\t -> t {tComment = tComment t <> " FA ONly"})
       in ((makeItemCostTransaction account0 previous sm'gl'seq newSummary newTrans) :) <$> computeItemHistory behaviors_ account0 (WithPrevious allowN newSummary)  sm'gls
+    (ST_SUPPINVOICE, WithPrevious _allowN _previous) | Just _ <- faAmountM, isGrnProvision sm'gl'seq ->
+        Left $ "No behavior defined for GRN provision "  <> showForError sm'gl'seq
+      --- ^^^ dont' see this invoice as a real one. It can happend when a GRN as an invoice
+      -- but there is a different of price when the invoice is processed (exchange rate differnt or price updated manually)
+      -- Waiting For Stock
+    ------------------- Waiting for stock ------------------------------------------------------
     (ST_SUPPRECEIVE, (WaitingForStock previous toprocess)) | Just _ <- faAmountM -> 
         historyForGrnInvoice behaviors_ account0 previous sm'gl'seq [] toprocess sm'gls
     (ST_SUPPRECEIVE, (WaitingForStock previous toprocess)) | behavior `elem` map Just [UseMoveCost, UsePreviousCost] -> 
@@ -537,7 +541,7 @@ historyForGrnInvoice behaviors_ account0 previous grn (invs@(inv:_)) toprocess (
   | Just (Entity _ gl) <- preview there (fst inv)
   , (similars@(_:_), leftover) <- partition (\sm'gl -> case preview there (fst sm'gl) of
                                                Just (Entity _ gl1) -> FA.glTranType gl1 == FA.glTranType gl && FA.glTranTypeNo gl1 == FA.glTranTypeNo gl
-                                                               && FA.glTranMemo gl1 == "GRN Provision"
+                                                               && isGrnProvision sm'gl
                                                _ -> False
                                           )
                                           (reverse toprocess ++ take 1 sm'gls)
@@ -1093,6 +1097,9 @@ nullifyQuantity m = m
 gett ::  (FA.StockMove -> a) -> (FA.GlTran -> a) -> These (Entity FA.StockMove) (Entity FA.GlTran) -> a
 gett fa fb = mergeTheseWith (fa . entityVal) (fb . entityVal) const
 
+isGrnProvision :: Matched -> Bool
+isGrnProvision (sm'gl, _) = fmap (FA.glTranMemo . entityVal) (preview there sm'gl) == Just "GRN Provision"
+
 -- | Show reference in error message
 showForError :: Matched -> Text
 showForError (This (Entity moveId FA.StockMove{..}), _) =
@@ -1105,19 +1112,21 @@ showForError (These (Entity moveId FA.StockMove{..}) (Entity glId _), _ ) =
   <> " " <> stockMoveStockId
 showForError (That (Entity glId FA.GlTran{..}), _ ) =
   tshow (toEnum glTranType :: FATransType) <> " " <> tshow glTranType <> "/" <> tshow  glTranTypeNo
-  <>  tshow (FA.unGlTranKey glId )
+  <> " " <>   tshow (FA.unGlTranKey glId )
   <> " " <> fromMaybe "" glTranStockId
 -- * Behavior
 
 behaviorFor :: BehaviorMap -> [BehaviorSubject] -> Matched -> Maybe Behavior
-behaviorFor behaviors_ subjects (sm'gl, _) = let
+behaviorFor behaviors_ subjects sm'gl'seq@(sm'gl, _) = let
   faTransNo = gett FA.stockMoveTransNo FA.glTranTypeNo sm'gl
   faTransType = gett FA.stockMoveType FA.glTranType sm'gl
   other = ForSku (gett (Just . FA.stockMoveStockId) FA.glTranStockId sm'gl)
         : if (gett FA.stockMoveStandardCost FA.glTranAmount sm'gl) == 0
-           then [ForNullCost]
-           else []
-
+             then [ForNullCost]
+             else []
+        <> if isGrnProvision sm'gl'seq 
+             then [ForGrnProvision] 
+             else []
   in behaviorFor' behaviors_ (ForTransaction faTransType faTransNo : other ++ subjects)
 
 behaviorFor' :: BehaviorMap -> [BehaviorSubject] -> Maybe Behavior
