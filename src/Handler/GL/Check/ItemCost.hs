@@ -485,14 +485,27 @@ getGLCheckItemCostCheckR = do
       <thead>
         <th> Sku
         <th> Account
-        <th> <span>Amount Discrepency
-        <th> <span>Cost Discrepency
-             <span> FA vs Correct
-        <th> Negative QOH
-        <th> <span>Cost Variation
-             <span> Before vs After
-        <th> Empty Stock (FA)
-        <th> Empty Stock 
+        <th data-toggle="tooltip"
+            title="Maximum difference between the FA amount and the correct amount across all transactions."
+            > <span>Amount Discrepency
+        <th data-toggle="tooltip"
+            title="Maximium difference between the stock move cost and the correct cost across all transactions."
+              > <span>Cost Discrepency
+                <span> FA vs Correct
+        <th data-toggle="tootlip"
+            title="Wether the item encountered a negative quantity on hand at some point."
+            > Negative QOH
+        <th data-toggle="tooltip"
+            title="Maximum variation of the correct cost between 2 consecutive transaction."
+            > <span>Cost Variation
+               <span> Before vs After
+        <th data-toggle="tooltip"
+            title="Wether there is no stock left but a residual value in GL stock in FA."
+            > Empty Stock (FA)
+        <th data-toggle="tooltip"
+            title="Wether there is no stock left but a residual value in correct stock value."
+            >
+            Empty Stock 
         <th> summary Stock 
       <tbody>
         $forall CheckInfo{..} <- checks
