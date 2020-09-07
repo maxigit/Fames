@@ -9,6 +9,7 @@ data Account = Account { fromAccount:: Text } deriving (Eq, Show, Read, Ord)
 
 data Behavior
   = Skip -- as didn't exist
+  | Close -- don't process any transaction
   | FAOnly -- like skip but update the FA running balance
   | UsePreviousCost
   | UseMoveCost
@@ -26,6 +27,8 @@ data BehaviorSubject
   | ForGrnProvision
   | ForSku (Maybe Text)
   | ForNullCost
+  | ForAccount Text
+  | ForSalesWithoutInvoice
   deriving (Eq, Show, Read, Ord)
 
 -- * Settings
@@ -95,6 +98,7 @@ instance FromJSON Behavior where
     <|> withObject ("Stock") stock v
     where
     p "Skip" = return Skip
+    p "Close" = return Close
     p "FAOnly" = return FAOnly
     p "UsePreviousCost" = return UsePreviousCost
     p "UseMoveCost" = return UseMoveCost
@@ -121,6 +125,7 @@ instance FromJSON Behavior where
 instance ToJSON Behavior where
   toJSON b = case b of
     Skip -> String "Skip"
+    Close -> String "Close"
     FAOnly -> String "FAOnly"
     UsePreviousCost -> String "UsePreviousCost"
     UseMoveCost -> String "UseMoveCost"
@@ -143,13 +148,16 @@ instance FromJSON BehaviorSubject where
         _ -> fail $ unpack s <>  " no of the shape Int/Int "
     p "grn-without-invoice" = return ForGrnWithoutInvoice
     p "grn-provision" = return ForGrnProvision
+    p "sales-without-invoice" = return ForSalesWithoutInvoice
     p "cost=0" = return ForNullCost
     p "no-sku" = return $ ForSku Nothing
     p (stripPrefix "sku=" -> Just sku) = return $ ForSku (Just sku)
+    p (stripPrefix "account=" -> Just account) = return $ ForAccount account
     p s  = fail $ unpack s  <> " is not BehaviorSubject"
 
 instance  ToJSON BehaviorSubject where
   toJSON = String . behaviorSubjectToText  where
+
 
 
 behaviorSubjectToText :: BehaviorSubject -> Text
@@ -159,7 +167,9 @@ behaviorSubjectToText = go where
     go ForGrnProvision = "grn-provision"
     go (ForSku Nothing)  = "no-sku"
     go (ForSku (Just sku))  = "sku=" <> sku
+    go (ForAccount account)  = "account=" <> account
     go ForNullCost = "cost=0"
+    go ForSalesWithoutInvoice = "sales-without-invoice"
 ----------------------------------------------------
 $(deriveJSON defaultOptions ''AccountSettings)
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField }  ''InitialSettings)

@@ -405,7 +405,7 @@ computeItemHistory behaviors_ account0 previousState [] =
             computeItemHistory behaviors_ account0 (WithPrevious AllowNegative previous { standardCost = FA.stockMoveStandardCost sm}) sm'gls
         sm'gls ->  computeItemHistory behaviors_ account0 (WithPrevious AllowNegative previous) sm'gls
     SupplierGRNWaitingForInvoice previous grn toprocess ->
-      let behavior = behaviorFor behaviors_ [ForGrnWithoutInvoice] grn
+      let behavior = behaviorFor account0 behaviors_ [ForGrnWithoutInvoice] grn
       in case preview here (fst grn) of 
           Nothing -> Left $ "Unexpected happend.Shoudl be a GRN : Invoice id :" <> showForError grn
           Just (Entity _  move) -> 
@@ -427,10 +427,13 @@ computeItemHistory behaviors_ account0 previousState [] =
     _ -> Right []
 
 computeItemHistory behaviors_ account0 previousState (sm'gl'seq:sm'gls) 
-  | Just Skip <- behaviorFor behaviors_ [] sm'gl'seq  =
+  | Just Skip <- behaviorFor account0 behaviors_ [] sm'gl'seq  =
       ((makeItemCostTransaction account0 mempty sm'gl'seq mempty (Transaction 0 0 0 "skipped (behavior)")) :) <$> computeItemHistory behaviors_ account0 previousState  sm'gls
+computeItemHistory behaviors_ account0 (WithPrevious _ _) (sm'gl'seq:_)
+  | Just Close <- behaviorFor account0 behaviors_ [] sm'gl'seq =
+     Right []
 computeItemHistory behaviors_ account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) = let
-  behavior = behaviorFor behaviors_ [] sm'gl'seq 
+  behavior = behaviorFor account0 behaviors_ [] sm'gl'seq 
   faTransType = toEnum $ gett FA.stockMoveType FA.glTranType sm'gl
   faTransNo = gett FA.stockMoveTransNo FA.glTranTypeNo sm'gl
   smeM = preview here sm'gl
@@ -540,6 +543,9 @@ computeItemHistory behaviors_ account0 previousState all_@(sm'gl'seq@(sm'gl, _se
     -------------------------------- Location Tranfer ------------------------
     (ST_LOCTRANSFER, WithPrevious allowN previous ) -> -- skip
       ((makeItemCostTransaction account0 previous sm'gl'seq previous (Transaction 0 0 0 "skipped")) :) <$> computeItemHistory behaviors_ account0 (WithPrevious allowN previous)  sm'gls
+    -------------------------------- Sales with no invoices
+    (ST_CUSTDELIVERY, _ ) | isNothing glM , isNothing behavior -> -- skip
+        Left $ "No behavior defined for sales without invoice"  <> showForError sm'gl'seq
     -------------------------------- Transaction not affecting the cost price
     (_,             WithPrevious PreventNegative previous)              | Just quantity <-  moveQuantityM 
                                                         , quantity /= 0
@@ -573,7 +579,7 @@ historyForGrnInvoice behaviors_ account0 previous grn (invs@(inv:_)) toprocess (
 historyForGrnInvoice behaviors_ account0 previous grn invs toprocess sm'gls = let
   smeM = preview here (fst grn)
   smM = entityVal <$> smeM
-  behavior = behaviorFor behaviors_ [ForGrnWithoutInvoice] grn
+  behavior = behaviorFor account0 behaviors_ [ForGrnWithoutInvoice] grn
   allInvoices = reverse invs
   in case (smM ) of
     (Just sm) -> 
@@ -1151,16 +1157,20 @@ showForError (That (Entity glId FA.GlTran{..}), _ ) =
   <> " " <> fromMaybe "" glTranStockId
 -- * Behavior
 
-behaviorFor :: BehaviorMap -> [BehaviorSubject] -> Matched -> Maybe Behavior
-behaviorFor behaviors_ subjects sm'gl'seq@(sm'gl, _) = let
+behaviorFor :: Account -> BehaviorMap -> [BehaviorSubject] -> Matched -> Maybe Behavior
+behaviorFor (Account account) behaviors_ subjects sm'gl'seq@(sm'gl, _) = let
   faTransNo = gett FA.stockMoveTransNo FA.glTranTypeNo sm'gl
   faTransType = gett FA.stockMoveType FA.glTranType sm'gl
   other = ForSku (gett (Just . FA.stockMoveStockId) FA.glTranStockId sm'gl)
+        : ForAccount account
         : if (gett FA.stockMoveStandardCost FA.glTranAmount sm'gl) == 0
              then [ForNullCost]
              else []
         <> if isGrnProvision sm'gl'seq 
              then [ForGrnProvision] 
+             else []
+        <> if toEnum faTransType == ST_CUSTDELIVERY && isNothing (preview there sm'gl)
+             then [ForSalesWithoutInvoice]
              else []
   in behaviorFor' behaviors_ (ForTransaction faTransType faTransNo : other ++ subjects)
 
