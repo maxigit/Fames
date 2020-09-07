@@ -208,10 +208,16 @@ getGLCheckItemCostAccountViewR account = do
                 $with stock <- cost * qoh
                   <td> #{formatDouble' (itemCostSummaryCostAfter last)}
                   $with ok <- equal cost (itemCostSummaryCostAfter last)
-                    <td."#{classFor 0.01 cost (itemCostSummaryCostAfter last)}" :ok:.text-sucess :ok:.bg-success> #{formatDouble' cost}
+                    $if ok
+                      <td.text-success.bg-success> #{formatDouble' cost}
+                    $else
+                      <td."#{classFor 0.01 cost (itemCostSummaryCostAfter last)}"> #{formatDouble' cost}
                   $with ok <- equal (itemCostSummaryStockValue last) stock
-                    <td."#{classFor 0.01 stock (itemCostSummaryStockValue last)}" :ok:.text-success :ok:.bg-success> #{formatAbs stock (itemCostSummaryStockValue last)}
-                  <td> #{formatDouble qoh}
+                    $if ok
+                      <td.text-success.bg-success> #{formatAbs stock (itemCostSummaryStockValue last)}
+                    $else
+                      <td."#{classFor 0.01 stock (itemCostSummaryStockValue last)}"> #{formatAbs stock (itemCostSummaryStockValue last)}
+                    <td> #{formatDouble qoh}
               $of (Just (qoh, cost), Nothing ) 
                 <td>
                 <td> #{formatDouble' cost}
