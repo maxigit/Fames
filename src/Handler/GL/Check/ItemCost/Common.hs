@@ -524,7 +524,7 @@ computeItemHistory behaviors_ account0 previousState all_@(sm'gl'seq@(sm'gl, _se
       historyForGrnInvoice behaviors_ account0 previous sm'gl'seq [] [] sm'gls 
     (ST_SUPPRECEIVE, WithPrevious _ previous) -> 
       computeItemHistory behaviors_ account0 (SupplierGRNWaitingForInvoice previous sm'gl'seq []) sm'gls
-    --  Inventory Adjustment
+    -------------------------------  Inventory Adjustment ---------------------
     --  We should use the cost move when it is a genuine adjustment
     --  but use  the fa amount when it is a rename : so that both items transaction matches
     --  we do that by checking the person_id 
