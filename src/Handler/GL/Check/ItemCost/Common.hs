@@ -63,7 +63,9 @@ data CheckInfo  = CheckInfo
   , icNullStockDiscrepency :: Double -- ^ qoh 0 but GL balance not null
   }
   deriving (Show)
-type Matched = (These (Entity FA.StockMove) (Entity FA.GlTran), Int)
+-- | Wether a transaction is part of a cancelling pair or not
+data  Cancelling = Cancelling | Normal deriving (Show, Eq)
+type Matched = (These (Entity FA.StockMove) (Entity FA.GlTran), (Int, Cancelling))
 -- * Summaries
 getStockAccounts :: Handler [Account]
 getStockAccounts = do
@@ -190,7 +192,7 @@ loadMovesAndTransactions lastm endDatem (Account account) Nothing = do
              _ -> ("", [])
         , ( " ORDER BY 0_gl_trans.tran_date, seq", [])
         ]
-      mkTrans (gl, Single seq)= (That gl, seq)
+      mkTrans (gl, Single seq)= (That gl, (seq, Normal))
   rows <- runDB $ rawSql (concat sqls) (concat paramss)
   return $ map mkTrans rows
 
@@ -205,12 +207,13 @@ loadMovesAndTransactions lastm endDatem account (Just sku) = do
        -- compare date then gl counter
       
        before a b = key a < key b
-        where key (x, seq) =  ( gett FA.stockMoveTranDate FA.glTranTranDate x
+        where key (x, (seq, _)) =  ( gett FA.stockMoveTranDate FA.glTranTranDate x
                        , seq
                        )
    return $ interleave withMoves glOnly
 
 
+loadMovesAndTransactions' :: (Maybe ItemCostSummary) -> Maybe Day -> Account -> Text -> Handler [Matched]
 loadMovesAndTransactions' lastm endDatem (Account account) sku = do
   -- instead of checking if there is already an item in check_item_cost_transaction
   -- we filter moves and gl trans by only using the one
@@ -247,8 +250,8 @@ loadMovesAndTransactions' lastm endDatem (Account account) sku = do
         , (" ORDER BY 0_stock_moves.tran_date, seq, 0_stock_moves.trans_id", [])
         ]
       mkTrans m'g = case m'g of
-                      (m, Nothing, Single seq ) -> (This m, seq)
-                      (m, Just g, Single seq ) -> (These m g, seq)
+                      (m, Nothing, Single seq ) -> (This m, (seq, Normal))
+                      (m, Just g, Single seq ) -> (These m g, (seq, Normal))
   rows <- runDB $ rawSql (concat sqls)  (concat paramss)
   return $ map mkTrans rows
 
@@ -289,7 +292,7 @@ loadTransactionsWithNoMoves' lastm endDatem (Account account) sku = do
              _ -> ("", [])
         , ( " ORDER BY 0_gl_trans.tran_date, seq", [])
         ]
-      mkTrans (gl, Single seq) = (That gl, seq)
+      mkTrans (gl, Single seq) = (That gl, (seq, Normal))
   rows <- runDB $ rawSql (concat sqls) (concat paramss)
   return $ map mkTrans rows
 
@@ -432,7 +435,7 @@ computeItemHistory behaviors_ account0 previousState (sm'gl'seq:sm'gls)
 computeItemHistory behaviors_ account0 (WithPrevious _ _) (sm'gl'seq:_)
   | Just Close <- behaviorFor account0 behaviors_ [] sm'gl'seq =
      Right []
-computeItemHistory behaviors_ account0 previousState all_@(sm'gl'seq@(sm'gl, _seq):sm'gls) = let
+computeItemHistory behaviors_ account0 previousState all_@(sm'gl'seq@(sm'gl, (_seq, cancelling)):sm'gls) = let
   behavior = behaviorFor account0 behaviors_ [] sm'gl'seq 
   faTransType = toEnum $ gett FA.stockMoveType FA.glTranType sm'gl
   faTransNo = gett FA.stockMoveTransNo FA.glTranTypeNo sm'gl
@@ -544,7 +547,7 @@ computeItemHistory behaviors_ account0 previousState all_@(sm'gl'seq@(sm'gl, _se
     (ST_LOCTRANSFER, WithPrevious allowN previous ) -> -- skip
       ((makeItemCostTransaction account0 previous sm'gl'seq previous (Transaction 0 0 0 "skipped")) :) <$> computeItemHistory behaviors_ account0 (WithPrevious allowN previous)  sm'gls
     -------------------------------- Sales with no invoices
-    (ST_CUSTDELIVERY, _ ) | isNothing glM , isNothing behavior -> -- skip
+    (ST_CUSTDELIVERY, _ ) | isNothing glM , isNothing behavior, cancelling /= Cancelling -> -- skip
         Left $ "No behavior defined for sales without invoice"  <> showForError sm'gl'seq
     -------------------------------- Transaction not affecting the cost price
     (_,             WithPrevious PreventNegative previous)              | Just quantity <-  moveQuantityM 
@@ -727,7 +730,7 @@ makeItemCostTransaction (Account account0) previous (sm'gl, _) new trans =  let
 -- In case duplicates can't be fixed returns (Left) the faulty transactions
 fixDuplicates :: [Matched] -> Either (Text, [Matched]) [Matched]
 fixDuplicates move'gls = let
-  trans = groupBy ((==) `on` snd)  (move'gls)
+  trans = groupBy ((==) `on` (fst . snd))  (move'gls)
   transKey = mergeTheseWith (((,) <$> FA.stockMoveTransNo <*> FA.stockMoveType) . entityVal)
                             (((,) <$> FA.glTranTypeNo <*> FA.glTranType) . entityVal)
                             const
@@ -764,7 +767,7 @@ fixDuplicates move'gls = let
                             ++ " moves: " ++ tshow (length moves)
                             ++ " gls: " ++ tshow (length gls) 
                             , m'gs)
-               ) <&> (++ (map (\m -> (This m, seqN)) cancellingPairs))
+               ) <&> (++ (map (\m -> (This m, const Cancelling <$> seqN)) cancellingPairs))
 
          _ -> Left ( "unexpected", m'gs)
   in concat <$> mapM unduplicate trans
