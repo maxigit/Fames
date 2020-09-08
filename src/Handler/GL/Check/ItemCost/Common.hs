@@ -463,7 +463,7 @@ computeItemHistory behaviors_ account0 previousState all_@(sm'gl'seq@(sm'gl, _se
                                         in (newSummary {stockValue = 0, expectedBalance =  0} , trans { tComment = "Z - FA Only"})
                                    else updateSummaryFromAmount previous 0 0 faAmount <&> (\t -> t {tComment = tComment t <> " FA ONly"})
       in ((makeItemCostTransaction account0 previous sm'gl'seq newSummary newTrans) :) <$> computeItemHistory behaviors_ account0 (WithPrevious allowN newSummary)  sm'gls
-    (ST_SUPPINVOICE, WithPrevious _allowN _previous) | Just _ <- faAmountM, isGrnProvision sm'gl'seq , behavior == Nothing ->
+    (ST_SUPPINVOICE, WithPrevious _allowN _previous) | Just _ <- faAmountM, Just _ <- FA.glTranStockId =<< glM, isGrnProvision sm'gl'seq , behavior == Nothing ->
         Left $ "No behavior defined for GRN provision "  <> showForError sm'gl'seq
       --- ^^^ dont' see this invoice as a real one. It can happend when a GRN as an invoice
       -- but there is a different of price when the invoice is processed (exchange rate differnt or price updated manually)
