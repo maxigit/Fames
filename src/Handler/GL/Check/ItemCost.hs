@@ -580,6 +580,7 @@ getGLCheckItemCostCheckR = do
 getGLCheckItemCostValidationsViewR :: Handler Html
 getGLCheckItemCostValidationsViewR = do
   validations <- runDB $ selectList [] [Desc ItemCostValidationValidationDate, Desc ItemCostValidationLastTransaction]
+  let total = sum [ itemCostValidationTotal | (Entity _ ItemCostValidation{..}) <- validations, itemCostValidationVoided == False ]
   defaultLayout [whamlet|
   <table *{datatable}>
     <thead>
@@ -600,6 +601,14 @@ getGLCheckItemCostValidationsViewR = do
           <td> #{itemCostValidationComment}
           <td> #{tshow $ fromSqlKey itemCostValidationUserId}
           <td> #{tshow itemCostValidationVoided}
+    <tfoot>
+          <td>
+          <td>
+          <td>
+          <td> #{formatAbs 0 total}
+          <td>
+          <td>
+          <td>
   |]
 
 getGLCheckItemCostValidationViewR :: Int64 -> Handler Html
