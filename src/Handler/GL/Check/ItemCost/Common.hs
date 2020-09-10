@@ -9,6 +9,7 @@ module Handler.GL.Check.ItemCost.Common
 , loadMovesAndTransactions
 , computeItemCostTransactions
 , collectCostTransactions
+, loadInitialSummary
 , loadCostSummary
 , Matched
 , loadCheckInfo
@@ -312,9 +313,9 @@ loadPendingTransactionCountFor date account = do
   let skums = Nothing : map (Just . fst) sku'_s
   forM skums $ \skum -> do
     let endDatem = Just . maybe date (min date) $ skum >>= itemSettings settingsm account >>= closingDate
-    lastm <- loadCostSummary account skum
-    trans <- loadMovesAndTransactions (entityVal <$> lastm) endDatem account skum
-    return (skum, length trans, entityVal <$> lastm)
+    lastm <- either id entityVal <$$> loadInitialSummary account skum
+    trans <- loadMovesAndTransactions lastm endDatem account skum
+    return (skum, length trans, lastm)
 
 
 loadCostSummary :: Account -> (Maybe Text)  -> Handler (Maybe (Entity ItemCostSummary))

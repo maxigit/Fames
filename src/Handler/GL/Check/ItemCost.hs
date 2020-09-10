@@ -259,13 +259,13 @@ getGLCheckItemCostAccountViewR account = do
 
 getGLCheckItemCostItemViewR :: Text -> Maybe Text -> Handler Html
 getGLCheckItemCostItemViewR account item = do
-  lastm <- loadCostSummary (Account account) item
+  lastm <- either id entityVal <$$> loadInitialSummary (Account account) item
   (_date, form, encType) <-  extractDateFromUrl
   settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
   let endDatem =  item >>= itemSettings settingsm (Account account) >>= closingDate
       behaviors_ = fromMaybe mempty (settingsm >>= behaviors)
-  trans0 <- loadMovesAndTransactions (entityVal <$> lastm) endDatem (Account account) item
-  let transE = computeItemCostTransactions behaviors_ (entityVal <$> lastm) (Account account) trans0
+  trans0 <- loadMovesAndTransactions lastm endDatem (Account account) item
+  let transE = computeItemCostTransactions behaviors_ lastm (Account account) trans0
   w <- either (renderDuplicates account) (renderTransactions (fromMaybe account item) Nothing) transE
   defaultLayout $ do
     setTitle . toHtml $ "Item Cost - pending " <> account <> maybe " (All)" ("/" <>) item
