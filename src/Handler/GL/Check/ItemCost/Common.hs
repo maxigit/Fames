@@ -1062,7 +1062,9 @@ voidValidation key = do
   case e of
     Left err -> error (unpack err)
     Right _ -> do
-      runDB $ updateWhere  [ItemCostValidationId ==. key] [ItemCostValidationVoided =. True, ItemCostValidationTotal =. 0]
+      runDB $ do
+        updateWhere  [ItemCostValidationId ==. key] [ItemCostValidationVoided =. True, ItemCostValidationTotal =. 0]
+        updateWhere [ItemCostTransactionItemCostValidation ==. Just key] [ItemCostTransactionItemCostValidation =. Nothing]
       return (length trans)
 
 -- TODO factorize with Handler.GL.Payroll.Common
