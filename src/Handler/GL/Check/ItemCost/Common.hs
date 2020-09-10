@@ -547,7 +547,7 @@ computeItemHistory behaviors_ account0 previousState all_@(sm'gl'seq@(sm'gl, (_s
     (ST_LOCTRANSFER, WithPrevious allowN previous ) -> -- skip
       ((makeItemCostTransaction account0 previous sm'gl'seq previous (Transaction 0 0 0 "skipped")) :) <$> computeItemHistory behaviors_ account0 (WithPrevious allowN previous)  sm'gls
     -------------------------------- Sales with no invoices
-    (ST_CUSTDELIVERY, _ ) | isNothing glM , isNothing behavior, cancelling /= Cancelling -> -- skip
+    (ST_CUSTDELIVERY, _ ) | isNothing glM , isNothing behavior, cancelling /= Cancelling, Just cost <- moveCostM, cost /= 0  -> -- skip
         Left $ "No behavior defined for sales without invoice"  <> showForError sm'gl'seq
     -------------------------------- Transaction not affecting the cost price
     (_,             WithPrevious PreventNegative previous)              | Just quantity <-  moveQuantityM 
