@@ -105,6 +105,7 @@ getGLCheckItemCostR = do
         <tfoot>
           <tr>
             <th> Total
+            <th>
             <th> #{formatDouble glBalance}
             <th> #{formatDouble correctValue}
             <th> #{formatAbs glBalance correctValue}
