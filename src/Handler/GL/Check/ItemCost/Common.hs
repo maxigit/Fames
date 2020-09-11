@@ -465,7 +465,9 @@ computeItemHistory behaviors_ account0 previousState all_@(sm'gl'seq@(sm'gl, (_s
                                    -- therefore processing it do adjust the cost price doesn't make sense.
                                    then let (newSummary, trans) = updateSummaryFromAmount previous 0 0 faAmount
                                         in (newSummary {stockValue = 0, expectedBalance =  0} , trans { tComment = "Z - FA Only"})
-                                   else updateSummaryFromAmount previous 0 0 faAmount <&> (\t -> t {tComment = tComment t <> " FA ONly"})
+                                   else (previous  {faBalance = faBalance previous + faAmount} 
+                                        ,   Transaction 0 0 0  " FA ONly"
+                                        )
       in ((makeItemCostTransaction account0 previous sm'gl'seq newSummary newTrans) :) <$> computeItemHistory behaviors_ account0 (WithPrevious allowN newSummary)  sm'gls
     (ST_SUPPINVOICE, WithPrevious _allowN _previous) | Just _ <- faAmountM, Just _ <- FA.glTranStockId =<< glM, isGrnProvision sm'gl'seq , behavior == Nothing ->
         Left $ "No behavior defined for GRN provision "  <> showForError sm'gl'seq
