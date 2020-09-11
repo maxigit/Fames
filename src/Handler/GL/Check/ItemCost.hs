@@ -689,14 +689,21 @@ renderValidationGL vId = do
 
   
 -- * Saving
+loadAndCollectAccount account = do
+  (date, _form, _encType) <- extractDateFromUrl
+  sku'counts <- loadPendingTransactionCountFor date account
+  let skus = [sku | (sku,count,_) <- sku'counts, count /= 0]
+  mapM (collectCostTransactions date account) skus
+
 postGLCheckItemCostAccountCollectR :: Text -> Handler Html
 postGLCheckItemCostAccountCollectR account = do
-  (date, _form, _encType) <- extractDateFromUrl
-  sku'counts <- loadPendingTransactionCountFor date (Account account)
-  let skus = [sku | (sku,count,_) <- sku'counts, count /= 0]
-  transE <- mapM (collectCostTransactions date (Account account)) skus
+  transE <- loadAndCollectAccount (Account account)
+  renderWithDuplicate (redirect $ GLR (GLCheckItemCostAccountViewR account)) account transE
+
+renderWithDuplicate :: Handler Html -> Text ->  [Either (Text, [Matched]) ()] -> Handler Html
+renderWithDuplicate onSuccess account transE =
   case partitionEithers transE of
-    ([], _ ) -> redirect $ GLR (GLCheckItemCostAccountViewR account)
+    ([], _ ) -> onSuccess
     (duplicatess, _ ) -> do
       w <- mconcat <$> mapM (renderDuplicates account) duplicatess
       defaultLayout $ do
@@ -709,18 +716,13 @@ postGLCheckItemCostItemCollectR account skum = do
   sku'counts <- loadPendingTransactionCountFor date (Account account)
   let skus = [sku | (sku,count,_) <- sku'counts, count /= 0, sku == skum]
   transE <- mapM (collectCostTransactions date (Account account)) skus
-  case partitionEithers transE of
-    ([], _ ) -> redirect $ GLR (GLCheckItemCostItemViewSavedR account skum)
-    (duplicatess, _ ) -> do
-      w <- mconcat <$> mapM (renderDuplicates account) duplicatess
-      defaultLayout $ do
-        setTitle . toHtml $ "Item Cost - collect error " <> account 
-        w
+  renderWithDuplicate (redirect $ GLR (GLCheckItemCostItemViewSavedR account skum)) account transE
+
 postGLCheckItemCostCollectAllR :: Handler Html
 postGLCheckItemCostCollectAllR = do
   accounts <- getStockAccounts
-  mapM (postGLCheckItemCostAccountCollectR . fromAccount) accounts
-  redirect $ GLR GLCheckItemCostR
+  transEs <- mapM loadAndCollectAccount accounts
+  renderWithDuplicate (redirect $ GLR (GLCheckItemCostR)) "Any"  (concat transEs)
 
 -- ** Purge
 
