@@ -852,9 +852,15 @@ collectCostTransactions = collectCostTransactions' False
 -- The fixing transactions needs to be collected
 collectCostTransactions' :: Bool -> Day -> Account -> (Maybe Text) -> Handler (Either (Text, [Matched]) ())
 collectCostTransactions' force date account skum = do
-  lastEm <- loadInitialSummary account skum
+  lastEm' <- loadInitialSummary account skum
   settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
-  let endDatem = Just . maybe date (min date)  $ skum >>= itemSettings settingsm account >>= closingDate
+  let settings = skum >>= itemSettings settingsm account
+  lastEm <- case (lastEm', settings >>= initial , force) of
+            (Nothing, Just (FromAccount oldAccount), False) -> do
+              collectCostTransactions date oldAccount skum
+              loadInitialSummary account skum
+            _ -> return lastEm'
+  let endDatem = Just . maybe date (min date)  $ settings >>= closingDate
       lastm = either id entityVal <$> lastEm
       behaviors_ = fromMaybe mempty (settingsm >>= behaviors)
   trans0 <- if force
