@@ -259,7 +259,8 @@ getGLCheckItemCostAccountViewR account = do
 
 getGLCheckItemCostItemViewR :: Text -> Maybe Text -> Handler Html
 getGLCheckItemCostItemViewR account item = do
-  lastm <- either id entityVal <$$> loadInitialSummary (Account account) item
+  let onOldAccount oldAccount = error $ unpack  $ "Can't load old account summary for " <> fromAccount oldAccount <> " " <>  fromMaybe "" item
+  lastm <- either id entityVal <$$> loadInitialSummary (Account account) onOldAccount item
   (_date, form, encType) <-  extractDateFromUrl
   settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
   let endDatem =  item >>= itemSettings settingsm (Account account) >>= closingDate

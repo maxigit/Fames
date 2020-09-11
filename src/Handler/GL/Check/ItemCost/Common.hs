@@ -313,7 +313,7 @@ loadPendingTransactionCountFor date account = do
   let skums = Nothing : map (Just . fst) sku'_s
   forM skums $ \skum -> do
     let endDatem = Just . maybe date (min date) $ skum >>= itemSettings settingsm account >>= closingDate
-    lastm <- either id entityVal <$$> loadInitialSummary account skum
+    lastm <- either id entityVal <$$> loadInitialSummary account (\_ -> return Nothing ) skum
     trans <- loadMovesAndTransactions lastm endDatem account skum
     return (skum, length trans, lastm)
 
@@ -799,9 +799,14 @@ removeCancellingMoves moves = let
 
 -- | Load the last summary or the last summary of another account
 -- if the item used a previous account
-loadInitialSummary :: Account -> (Maybe Text) -> Handler (Maybe (Either ItemCostSummary
-                                                                        (Entity ItemCostSummary) ))
-loadInitialSummary account@(Account acc) skum = do
+loadInitialSummary :: Account
+                   -> (Account -> Handler (Maybe ItemCostSummary))
+                   -> (Maybe Text)
+                   -> Handler (Maybe (Either ItemCostSummary
+                                             (Entity ItemCostSummary)
+                                     )
+                              )
+loadInitialSummary account@(Account acc) onOldAccount skum = do
   summarym <- loadCostSummary account skum
   case (summarym, skum) of
     (Just _, _) -> return $ fmap Right summarym
@@ -821,7 +826,9 @@ loadInitialSummary account@(Account acc) skum = do
                         return . Just $ Left summary { itemCostSummaryAccount = acc
                                                                               , itemCostSummaryFaStockValue = 0
                                                                               , itemCostSummaryDate = newDate}
-                      _ -> error . unpack $ "Can't load old account summary for " <> acc <> " " <>  sku
+                      _ -> do
+                        summ <- onOldAccount oldAccount --  error . unpack $ "Can't load old account summary for " <> acc <> " " <>  sku
+                        return $ fmap Left summ
         Just (InitialData{..}) -> return . Just $ Left 
                  ItemCostSummary{ itemCostSummaryDate = startDate
                                 , itemCostSummaryAccount = acc
@@ -852,14 +859,18 @@ collectCostTransactions = collectCostTransactions' False
 -- The fixing transactions needs to be collected
 collectCostTransactions' :: Bool -> Day -> Account -> (Maybe Text) -> Handler (Either (Text, [Matched]) ())
 collectCostTransactions' force date account skum = do
-  lastEm' <- loadInitialSummary account skum
   settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
   let settings = skum >>= itemSettings settingsm account
-  lastEm <- case (lastEm', settings >>= initial , force) of
-            (Nothing, Just (FromAccount oldAccount), False) -> do
-              collectCostTransactions date oldAccount skum
-              loadInitialSummary account skum
-            _ -> return lastEm'
+      onOldAccount oldAccount =
+        if force
+        then return Nothing
+        else do -- collect and load old account
+            collectCostTransactions date oldAccount skum
+            lastEm' <- loadInitialSummary account (\_ -> return Nothing) skum
+            case lastEm' of
+              Just (Left summ) -> return (Just summ)
+              _ -> return Nothing
+  lastEm <- loadInitialSummary account onOldAccount skum
   let endDatem = Just . maybe date (min date)  $ settings >>= closingDate
       lastm = either id entityVal <$> lastEm
       behaviors_ = fromMaybe mempty (settingsm >>= behaviors)
