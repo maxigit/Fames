@@ -1038,11 +1038,17 @@ updateCost connectInfo today (Entity _ summary@ItemCostSummary{..}) | Just sku <
             <> " where stock_id = ? " 
       
   pendings <- loadMovesAndTransactions (Just summary) Nothing (Account itemCostSummaryAccount) itemCostSummarySku
+  settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
   if null pendings
   then do
     rows <- runDB $ rawSql sql [toPersistValue itemCostSummarySku ]
     case rows of
-      [Single currentCost] | abs (currentCost - itemCostSummaryCostAfter) > 1e-6 -> do
+      [Single currentCost] | abs (currentCost - itemCostSummaryCostAfter) > 1e-6 
+                           , (itemSettings settingsm (Account itemCostSummaryAccount) sku >>= closingDate) == Nothing
+                           -- ^ For closed item, cost should not be udated using the old account as it will be using an old cost price
+                           -- and a wrong account. We just skip them
+                           -- The cost will be updated when updating the item for the correct account
+                           -> do
             faIdm <- liftIO $ WFA.postCostUpdate connectInfo (WFA.CostUpdate sku itemCostSummaryCostAfter)
             case faIdm of
               Right (Just faId) -> do
