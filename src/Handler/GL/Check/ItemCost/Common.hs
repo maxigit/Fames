@@ -129,7 +129,16 @@ getAccountName (Account account) = do
 stockValuationFor :: Day -> Account -> Handler (Double, Double)
 stockValuationFor date account = do
   sku'costs <- getItemFor account
-  values <- mapM (stockValuation date) sku'costs
+  settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
+
+  -- don't check the stock of item which have been closed.
+  -- Otherwise they will be counted twice (for the old and the new account)
+  let old (sku,_) =
+          case itemSettings settingsm account sku >>= closingDate  of
+                Just close -> close <= date
+                _ -> False
+
+  values <- mapM (stockValuation date) $ filter (not . old) sku'costs
   return $ (sum (map (round2 . fst) values), sum (map snd values))
 
 -- | Get Sku and (actual) cost price 
@@ -325,8 +334,8 @@ loadCostSummary (Account account) skum = do
 -- ** Computing cost transaction
 -- | This is the core routine which recalcuate the correct standard cost 
 -- and correct gl amount.
-computeItemCostTransactions :: BehaviorMap -> (Maybe ItemCostSummary) -> Account -> [Matched] -> Either (Text, [Matched])  [ItemCostTransaction]
-computeItemCostTransactions behaviors_ summarym account0 sm'gls0 = let 
+computeItemCostTransactions :: BehaviorMap -> Maybe Double -> (Maybe ItemCostSummary) -> Account -> [Matched] -> Either (Text, [Matched])  [ItemCostTransaction]
+computeItemCostTransactions behaviors_ finalBalance summarym account0 sm'gls0 = let 
     -- first we need to make sure there is no duplicate 
     lastm = case summarym of
       Nothing -> Initial
@@ -339,7 +348,13 @@ computeItemCostTransactions behaviors_ summarym account0 sm'gls0 = let
                              itemCostSummaryFaStockValue
     sm'glsE = fixDuplicates sm'gls0
     in either Left
-              (\sm'gls -> computeItemHistory behaviors_ account0 lastm sm'gls <|&> (,sm'gls))
+              (\sm'gls -> case (finalBalance, computeItemHistory behaviors_ account0 lastm sm'gls <|&> (,sm'gls)) of
+                            (Just final, Right trans) |(last: reversed) <- reverse trans
+                                                      -> Right $ reverse reversed ++ [last { itemCostTransactionStockValue = final
+                                                                                           , itemCostTransactionComment = itemCostTransactionComment last <> " final balance"
+                                                                                      }]
+                            (_, history) -> history
+              )
               sm'glsE
 
 -- | Main function
@@ -825,6 +840,8 @@ loadInitialSummary account@(Account acc) onOldAccount skum = do
                                         Just d -> d
                         return . Just $ Left summary { itemCostSummaryAccount = acc
                                                                               , itemCostSummaryFaStockValue = 0
+                                                                              , itemCostSummaryStockValue = itemCostSummaryCostAfter summary * itemCostSummaryQohAfter summary
+                                                                              -- ^ needs to be recalculated because
                                                                               , itemCostSummaryDate = newDate}
                       _ -> do
                         summ <- onOldAccount oldAccount --  error . unpack $ "Can't load old account summary for " <> acc <> " " <>  sku
@@ -874,10 +891,14 @@ collectCostTransactions' force date account skum = do
   let endDatem = Just . maybe date (min date)  $ settings >>= closingDate
       lastm = either id entityVal <$> lastEm
       behaviors_ = fromMaybe mempty (settingsm >>= behaviors)
+      finalBalance = case settings >>= closingDate of
+                    Just closing | closing <= date -> Just 0
+                    -- ^ If the item is "closed" is final balance should be 0
+                    _ -> Nothing
   trans0 <- if force
             then loadMovesAndTransactions ((\s ->  s{itemCostSummaryDate = date}) <$> lastm) (Just date) account skum
             else loadMovesAndTransactions lastm endDatem account skum
-  let transE = computeItemCostTransactions behaviors_ lastm account trans0
+  let transE = computeItemCostTransactions behaviors_ finalBalance lastm account trans0
   forM transE $ \trans -> 
     runDB $ 
        case lastMay trans of
