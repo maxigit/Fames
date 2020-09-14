@@ -53,6 +53,7 @@ getGLCheckItemCostR = do
             <th> Account
             <th> Collect Date
             <th data-class-name="text-right"> GL Balance
+            <th data-class-name="text-right"> Out of Scope
             <th data-class-name="text-right"> Correct Balance
             <th data-class-name="text-right"> GL Balance - Correct 
             <th data-class-name="text-right"> Stock Valuation - Correct
@@ -71,6 +72,10 @@ getGLCheckItemCostR = do
                    <span.hidden> ^{form}
                    <button.btn.btn-danger type="sumbit"> Collect
             <td> #{formatDouble asGLAmount}
+            $if equal asGLAmountOutOfScope  0
+              <td>
+            $else
+              <td.bg-danger.text-danger> #{formatDouble asGLAmountOutOfScope}
             $case asCorrectAmount
               $of (Just correct)
                 $if equal correct asGLAmount
@@ -107,6 +112,7 @@ getGLCheckItemCostR = do
             <th> Total
             <th>
             <th> #{formatDouble glBalance}
+            <th> 
             <th> #{formatDouble correctValue}
             <th> #{formatAbs glBalance correctValue}
             <th> #{formatAbs stockValue correctValue}

@@ -43,7 +43,8 @@ import Data.List(nub, unfoldr)
 data AccountSummary = AccountSummary
   { asAccount :: Account
   , asAccountName :: Text
-  , asGLAmount :: Double
+  , asGLAmount :: Double -- all items
+  , asGLAmountOutOfScope :: Double -- for itmes not in stockFilter
   , asCorrectAmount :: Maybe Double
   , asCorrectQoh :: Maybe Double
   , asStockValuation :: Double
@@ -72,7 +73,8 @@ getStockAccounts :: Handler [Account]
 getStockAccounts = do
   let sql0 = "SELECT DISTINCT(inventory_account) FROM 0_stock_master WHERE mb_flag <> 'D' "
   settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
-  let (sql, params) = case settingsm of
+  let (sql, params) =
+        case settingsm of
              Nothing -> (sql0, [])
              Just settings -> let (keyword, stockLike) = filterEKeyword $ readFilterExpression (stockFilter settings)
                               in (sql0 <> " AND stock_id " <> keyword <> " ? ", [toPersistValue stockLike])
@@ -86,21 +88,27 @@ getStockAccounts = do
 
 getAccountSummary :: Day -> Account -> Handler AccountSummary
 getAccountSummary date account = do
-  asGLAmount <- glBalanceFor date account
+  (asGLAmount, asGLAmountOutOfScope) <- glBalanceFor date account
   asAccountName <- getAccountName account
   (asCorrectAmount, asCorrectQoh, asCollectDate) <- getTotalCost date account
   (asStockValuation, asQuantity) <- stockValuationFor date account
   return AccountSummary{asAccount=account,..}
 
 
-glBalanceFor :: Day -> Account -> Handler Double
+glBalanceFor :: Day -> Account -> Handler (Double, Double)
 glBalanceFor date (Account account) = do
- let sql = "select sum(amount) from 0_gl_trans where account = ? AND tran_date <= ? "
- rows <- runDB $ rawSql sql [toPersistValue account, toPersistValue date]
- case rows of
-   [] -> return 0
-   [(Single total)] -> return $ fromMaybe 0 total
-   _ -> error "glBalanceFor should only returns one row. Please contact your Admininstrator!"
+  settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
+  let sql = "select sum(amount) "
+           <> ", sum(IF(stock_id IS NULL OR stock_id " <> keyword <> " ?, 0, amount))"
+           <> " from 0_gl_trans where account = ? AND tran_date <= ? "
+      (keyword, stockLike) = case settingsm of
+        Just settings -> filterEKeyword $ readFilterExpression (stockFilter settings)
+        Nothing -> ("LIKE", "%")
+  rows <- runDB $ rawSql sql [toPersistValue stockLike, toPersistValue account, toPersistValue date]
+  case rows of
+    [] -> return (0,0)
+    [(Single total, Single total')] -> return $ (fromMaybe 0 total, fromMaybe 0 total' )
+    _ -> error "glBalanceFor should only returns one row. Please contact your Admininstrator!"
 
 
 getTotalCost :: Day -> Account -> Handler (Maybe Double, Maybe Double, Maybe Day)
