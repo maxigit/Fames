@@ -227,21 +227,21 @@ loadMovesAndTransactions' lastm endDatem (Account account) sku = do
       startDatem = itemCostSummaryDate <$>  lastm
       (sqls, paramss) = unzip
         [ ("SELECT ??, ??, seq FROM 0_stock_moves "
+           <> " LEFT JOIN 0_voided ON (0_stock_moves.type = 0_voided.type AND 0_stock_moves.trans_no = 0_voided.id ) "
            <> " LEFT JOIN 0_gl_trans ON ( 0_stock_moves.stock_id = 0_gl_trans.stock_id"
            <> "                            AND 0_stock_moves.type = 0_gl_trans.type"
            <> "                            AND 0_stock_moves.trans_no = 0_gl_trans.type_no"
            <> "                            AND 0_gl_trans.amount <> 0 "
+           <> "                            AND 0_voided.id IS NULL "
            <> "                            AND (0_gl_trans.account = ? OR 0_gl_trans.account is NULL) "
          <> "                            )"
            , [toPersistValue account] )
          , ( "LEFT JOIN (SELECT MIN(id) as seq, trans_no, type FROM 0_audit_trail GROUP BY trans_no, type) as audit "
            <> " ON (0_stock_moves.trans_no = audit.trans_no AND 0_stock_moves.type = audit.type) "
-           <> " LEFT JOIN 0_voided ON (0_stock_moves.type = 0_voided.type AND 0_stock_moves.trans_no = 0_voided.id ) "
            <> " WHERE  0_stock_moves.stock_id =  ? "
            , [toPersistValue sku] )
 
-         , ( "   AND 0_voided.id IS NULL "
-             <> "   AND 0_stock_moves.qty <> 0"
+         , ( "   AND 0_stock_moves.qty <> 0"
              , [])
         , filterTransactionFromSummary maxGl startDatem "0_gl_trans.counter" "0_gl_trans.tran_date"
         , filterTransactionFromSummary maxMove startDatem "0_stock_moves.trans_id" "0_stock_moves.tran_date"
