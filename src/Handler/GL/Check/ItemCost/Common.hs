@@ -258,13 +258,13 @@ loadMovesAndTransactions' lastm endDatem (Account account) sku = do
 
 filterTransactionFromSummary maxId startDatem idField dateField =
         case (maxId, startDatem) of
-            (Just id_, Just startDate) -> ( " AND ((" <> idField <> "> ? AND " <> dateField <> " = ?) OR " <> dateField <> " > ?)  " 
+            (Just id_, Just startDate) -> ( " AND ((" <> idField <> "> ? AND " <> dateField <> " = ?) OR " <> dateField <> " > ? OR " <> dateField <> " is NULL)  " 
                                      , [toPersistValue id_, toPersistValue startDate, toPersistValue startDate] )
              -- ^ we use gl.counter only the day of the summary, to know what transaction haven't been collected
              -- but created since the collection.
              -- It only works on the day because we can have transaction < counter with date >= summary.date.
              -- It happens when transaction are not entered in chronological order.
-            (_, Just startDate) ->  ( " AND " <> dateField <> " > ?"
+            (_, Just startDate) ->  ( " AND (" <> dateField <> " > ? OR " <> dateField <> " is NULL )"
                                     ,  [toPersistValue startDate])
             _ -> ("", [])
 
