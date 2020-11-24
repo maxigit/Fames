@@ -964,7 +964,7 @@ fixGLBalance date summaries = do
       setInfo "Nothing to post : all GL line are 0, or fixing date before summary date."
       validate []
     (_, _) -> do
-        faIdsE <- liftIO $  mapM (WFA.postJournalEntry connectInfo) journals
+        faIdsE <- liftIO $  seq journals $ mapM (WFA.postJournalEntry connectInfo) journals
         case sequence faIdsE of
           Left e -> setError (toHtml e) >> return Nothing
           Right faIds -> do
