@@ -756,13 +756,13 @@ aroundArrangement arrangement boxes shelves = do
     oldShelveIds <- findShelvesByBoxes boxes
     -- remove all boxes from their actuall shelf
     let nothing = headEx $ Nothing : map Just shelves -- trick to typecheck
-    _ <- mapM (assignShelf nothing) boxes
+    mapM_ (assignShelf nothing) boxes
     -- rearrange what's left in each individual space
     -- so that there is as much space left as possible
     let os = List.nub $ oldShelveIds ++ shelfIds
 
 
-    _ <- mapM rearrangeShelves (map (:[]) os)
+    mapM_ (\s -> rearrangeShelves s >> return ()) (map (:[]) os)
 
     left <- arrangement boxes shelves
     s0 <- defaultShelf

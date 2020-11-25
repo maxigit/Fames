@@ -17,7 +17,7 @@ module WH.FA.Curl
 , postCostUpdate
 ) where
 
-import ClassyPrelude hiding(traceM)
+import ClassyPrelude hiding(traceM, mapM_)
 import WH.FA.Types
 import Network.Curl
 import Control.Monad.Except
@@ -222,7 +222,7 @@ postStockAdjustment connectInfo stockAdj = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
     _ <- curlSoup newAdjustmentURL method_GET [200] "Problem trying to create a new inventory adjustment"
-    _ <- mapM addAdjustmentDetail (adjDetails (stockAdj :: StockAdjustment))
+    mapM_ addAdjustmentDetail (adjDetails (stockAdj :: StockAdjustment))
     let process = curlPostFields [ "ref" <=> (unpack $ adjReference (stockAdj :: StockAdjustment))
                                  , Just "Process=Process"
                                  , "AdjDate" <=>  toFADate (adjDate stockAdj)
@@ -243,7 +243,7 @@ postLocationTransfer connectInfo locTrans = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
     _ <- curlSoup newLocationTransferURL method_GET [200] "Problem trying to create a new location transfer"
-    _ <- mapM addLocationTransferDetail (ltrDetails (locTrans :: LocationTransfer))
+    mapM_ addLocationTransferDetail (ltrDetails (locTrans :: LocationTransfer))
     let process = curlPostFields [ "ref" <=> ltrReference locTrans
                                  , Just "Process=Process"
                                  , "AdjDate" <=>  toFADate (ltrDate locTrans)
@@ -314,7 +314,7 @@ postBankPayment connectInfo payment = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
     new <- curlSoup newBankPaymentURL method_GET [200] "Problem trying to create new bank payment"
-    _ <- mapM addBankPaymentItems (bpItems payment)
+    mapM_ addBankPaymentItems (bpItems payment)
     let ref = case extractInputValue "ref" new of
                   Nothing -> Left "Can't find GRN reference"
                   Just r -> Right r
@@ -352,7 +352,7 @@ postBankDeposit connectInfo deposit = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
     new <- curlSoup newBankDepositURL method_GET [200] "Problem trying to create new bank deposit"
-    _ <- mapM addBankDepositItems (bdItems deposit)
+    mapM_ addBankDepositItems (bdItems deposit)
     let ref = case extractInputValue "ref" new of
                   Nothing -> Left "Can't find GRN reference"
                   Just r -> Right r
@@ -397,7 +397,7 @@ postJournalEntry connectInfo journal = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
     new <- curlSoup newJournalEntryURL method_GET [200] "Problem trying to create a new journal entry"
-    _ <- mapM addJournalItem  (jeItems journal)
+    mapM_ addJournalItem  (jeItems journal)
     let ref = case extractInputValue "ref" new of
                   Nothing -> Left "Can't find Journal reference"
                   Just r -> Right r
@@ -431,7 +431,7 @@ postGRN connectInfo grn = do
   let ?baseURL = faURL connectInfo
   runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
     new <- curlSoup newGRNURL method_GET [200] "Problem trying to create a new GRN"
-    _ <- mapM addGRNDetail (grnDetails grn)
+    mapM_ addGRNDetail (grnDetails grn)
     
     let ref = case extractInputValue "ref" new of
                   Nothing -> error "Can't find GRN reference"
@@ -472,7 +472,7 @@ postPurchaseInvoice connectInfo PurchaseInvoice{..} = do
                                                                 , "tran_date" <=> poiDate] : method_POST)
                         [200] "Problem changing supplier"
     _ <- addPurchaseInvoiceDeliveries response poiDeliveryIds
-    _ <- mapM addPurchaseInvoiceDetail poiGLItems
+    mapM_ addPurchaseInvoiceDetail poiGLItems
     refm <- case extractInputValue "reference" response of
                   Nothing -> throwError "Can't find Invoice reference"
                   Just r -> return r
@@ -565,7 +565,7 @@ postPurchaseCreditNote connectInfo PurchaseCreditNote{..} = do
                                                                    ] : method_POST)
                         [200] "Problem changing supplier"
     -- del <- addPurchaseCreditNoteDeliveries response pcnDeliveryIds
-    _ <- mapM addPurchaseCreditNoteDetail pcnGLItems
+    mapM_ addPurchaseCreditNoteDetail pcnGLItems
     refm <- case extractInputValue "reference" response of
                   Nothing -> throwError "Can't find CreditNote reference"
                   Just r -> return r

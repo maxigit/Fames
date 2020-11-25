@@ -23,7 +23,7 @@ module Handler.GL.Check.ItemCost.Common
 )
 where
 
-import Import
+import Import hiding(mapM_)
 import GL.Check.ItemCostSettings
 import Database.Persist.Sql  (rawSql, Single(..), rawExecute, fromSqlKey)
 import qualified FA as FA
@@ -34,7 +34,7 @@ import Data.Monoid(First(..))
 import  qualified WH.FA.Types as WFA
 import  qualified WH.FA.Curl as WFA
 import Util.Decimal
-import Control.Monad.Except (runExceptT, ExceptT(..))
+import Control.Monad.Except (runExceptT, ExceptT(..), mapM_)
 import Data.List(nub, unfoldr)
 
 
@@ -951,7 +951,7 @@ fixGLBalance date summaries = do
       accountMap = accounts <$> appCheckItemCostSetting settings
       validate faIds =  do
             let comment = "Fix GL Balance " <> ref --  (on " <> tshow today  <> ")"
-            _ <- mapM (refreshSummary date) summaries
+            mapM_ (refreshSummary date) summaries
             validationm <- validateFromSummary date comment summaries total
             forM validationm $ \v@(Entity validation _)  -> do
                 let mkTransMap journalId=  TransactionMap ST_JOURNAL journalId ItemCostValidationE (fromIntegral $ fromSqlKey validation) False
