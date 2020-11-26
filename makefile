@@ -158,7 +158,7 @@ brestart: build restart
 build:
 	stack build
 
-RUN_CONFIG= ../fames-config/development.yml ../fames-config/staging.yml ../fames-config/variations.yml ../fames-config/default.yml
+RUN_CONFIG= ../fames-config/development.yml ../fames-config/staging.yml ../fames-config/variations.yml ../fames-config/default.yml ../fames-config/item-cost.yml
 run:
 	stack exec  Fames -- ${RUN_CONFIG}
 
