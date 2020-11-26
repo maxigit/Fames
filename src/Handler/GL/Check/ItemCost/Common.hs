@@ -35,7 +35,8 @@ import  qualified WH.FA.Types as WFA
 import  qualified WH.FA.Curl as WFA
 import Util.Decimal
 import Control.Monad.Except (runExceptT, ExceptT(..), mapM_)
-import Data.List(nub, unfoldr)
+import Data.List(nub)
+import Data.Conduit.List(chunksOf)
 
 
 -- * Types
@@ -932,73 +933,86 @@ collectCostTransactions' force date account skum = do
 -- * Fixing
 -- ** Balance
 -- Generates a journal entry to balance all summary
-fixGLBalance :: Day -> [Entity ItemCostSummary] -> Handler (Maybe (Entity ItemCostValidation))
-fixGLBalance date summaries = do
+fixGLBalance :: Day -> ConduitM () (Entity ItemCostSummary) SqlHandler ()
+             -> Handler (Maybe (Entity ItemCostValidation))
+fixGLBalance date summariesC = do
  -- today <- todayH
   settings <- getsYesod appSettings
+  summaries <- runDB $ runConduit $ summariesC .| sinkList
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       ref = skuRange summaries
-      (journals, total) = generateJournals chunkSize  date sum'accounts
-      sum'accounts = [ ( e
-                       ,  fromMaybe (error $ "No fixing account set up for Account : " <> unpack itemCostSummaryAccount)
-                                    (accountm <|> defaultAccount)
-                       )
-                     | e@(Entity _ ItemCostSummary{..}) <- summaries
-                     , let accountm = accountMap >>= lookup (Account itemCostSummaryAccount)  >>= fixAccount
-                     ]
+      journal'totalC = sum'accounts .| generateJournals chunkSize  date
+      sum'accounts :: ConduitM () (Entity ItemCostSummary, Account) Handler ()
+      sum'accounts = runDBSource summariesC .| mapC 
+                       (\e@(Entity _ ItemCostSummary{..}) ->
+                           let accountm = accountMap >>= lookup (Account itemCostSummaryAccount)  >>= fixAccount
+                           in ( e
+                              ,  fromMaybe (error $ "No fixing account set up for Account : " <> unpack itemCostSummaryAccount)
+                                           (accountm <|> defaultAccount)
+                              )
+                     )
       defaultAccount = appCheckItemCostSetting settings >>= defaultFixAccount
       chunkSize = fromMaybe 200 (appCheckItemCostSetting settings >>= batchSize)
       accountMap = accounts <$> appCheckItemCostSetting settings
-      validate faIds =  do
+      validate faIds total =  do
             let comment = "Fix GL Balance " <> ref --  (on " <> tshow today  <> ")"
-            mapM_ (refreshSummary date) summaries
+            mapM_ (refreshSummary date) (summaries :: [Entity ItemCostSummary])
             validationm <- validateFromSummary date comment summaries total
             forM validationm $ \v@(Entity validation _)  -> do
                 let mkTransMap journalId=  TransactionMap ST_JOURNAL journalId ItemCostValidationE (fromIntegral $ fromSqlKey validation) False
                 runDB $ insertMany_  $ map mkTransMap  faIds
                 return v
-  case (journals, summaries) of
-    ([], []) ->
-      setInfo "No summary to post" >> return Nothing
-    ([], _) -> do
-      setInfo "Nothing to post : all GL line are 0, or fixing date before summary date."
-      validate []
-    (_, _) -> do
-        faIdsE <- liftIO $  seq journals $ mapM (WFA.postJournalEntry connectInfo) journals
-        case sequence faIdsE of
+      -- we need to post each journal but also
+      -- break if any error happend
+      postAndValidate :: ConduitM (WFA.JournalEntry, Decimal) Void Handler (Either Text ([Int], Decimal))
+      postAndValidate = do
+        xm <- await
+        case xm of
+          Nothing ->  return $ Right ([], 0)
+          Just (journal, amount) -> do
+            faIdE <- liftIO $ WFA.postJournalEntry connectInfo journal
+            case faIdE of
+              Right faId -> do
+                lift $ setStockIdFromMemo faId
+                ids'total <- postAndValidate
+                case ids'total of
+                  Right (faIds, total) -> return $ Right $ (faId : faIds, total+amount)
+                  Left err -> return $ Left err
+              Left err -> return $ Left err
+        
+  faIds'totalE <- runConduit $ journal'totalC .| postAndValidate
+  case faIds'totalE of
           Left e -> setError (toHtml e) >> return Nothing
-          Right faIds -> do
-            mapM setStockIdFromMemo faIds
-            validate faIds
+          Right (faIds, total) -> validate faIds (fromRational $ toRational $ total)
 
 skuRange :: [(Entity ItemCostSummary)] ->  Text
-skuRange summaries = 
+skuRange summaries =
   let account'skus = [ itemCostSummaryAccount <> maybe "" ("/"<>) itemCostSummarySku
                      | (Entity _ ItemCostSummary{..}) <- summaries
                      ]
   in intercalate " - " $ ( nub $ mapMaybe ($ account'skus) [minimumMay, maximumMay] ) <>   [tshow $ length summaries]
 -- | Generates a JournalEntry ready to be posted to FA
 -- returns Nothing if there is nothing to do (no line nonnull)
-generateJournals :: Int -> Day -> [(Entity ItemCostSummary, Account)] -> ([WFA.JournalEntry], Double)
--- generateJournals :: Day -> [(Entity ItemCostSummary, Account)] -> Maybe (WFA.JournalEntry)
-generateJournals chunkSize date sum'accounts = 
-  let (glss''es'total ) =  
-            [ (([mkItem itemCostSummaryAccount itemCostSummarySku amount memo
-              ,mkItem (fromAccount adjAccount) itemCostSummarySku (-amount) memo
-              ]
-              ,  e) -- we need to know which entity have been filtered or not
-              , amount
-              )
-              -- so that we can call sku range to set the journal memo
-            |   (e@(Entity _ s@ItemCostSummary{..}), adjAccount) <-  sum'accounts
-            , let stockValue = if abs itemCostSummaryQohAfter < 1e-2
-                               then 0
-                               else itemCostSummaryStockValueRounded s
-            , let amount =  toDecimalWithRounding (Round 2) $ stockValue - itemCostSummaryFaStockValue
-            , abs amount  > 0
-            , let memo = pack $ "Clear GL Balance from " <>  formatDouble itemCostSummaryFaStockValue <> " to " <> formatDouble stockValue :: Text
-            , date >= itemCostSummaryDate -- only fix balance after the current summary
-            ]
+generateJournals :: Int -> Day
+                 -> ConduitM (Entity ItemCostSummary, Account) (WFA.JournalEntry, Decimal) Handler ()
+generateJournals chunkSize date = 
+  let gls''e'total (e@(Entity _ s@ItemCostSummary{..}), adjAccount)  =  do
+                let stockValue = if abs itemCostSummaryQohAfter < 1e-2
+                                 then 0
+                                 else itemCostSummaryStockValueRounded s
+                    amount =  toDecimalWithRounding (Round 2) $ stockValue - itemCostSummaryFaStockValue
+                    memo = pack $ "Clear GL Balance from " <>  formatDouble itemCostSummaryFaStockValue <> " to " <> formatDouble stockValue :: Text
+                if (abs amount  > 0)  && (date >= itemCostSummaryDate) -- only fix balance after the current summary
+                then 
+                  yield ( ( [ mkItem itemCostSummaryAccount itemCostSummarySku amount memo
+                            , mkItem (fromAccount adjAccount) itemCostSummarySku (-amount) memo
+                            ]
+                          ,  e
+                          ) -- we need to know which entity have been filtered or not
+                        , amount
+                        ) 
+                else return ()
+
       mkItem account skum gliAmount memo   =
                 WFA.GLItem { gliDimension1 = Nothing
                            , gliDimension2 = Nothing
@@ -1009,16 +1023,15 @@ generateJournals chunkSize date sum'accounts =
                            -- updated afterward with a SQL query
                            , ..
                            }
-
-      mkJournal gls'total = case splitAt chunkSize gls'total of
-                      ([], _ ) -> Nothing
-                      (s1''e'totals, s2) -> let (ss1, es) = unzip s1'e
-                                                (s1'e, sum -> total) =  unzip s1''e'totals
-                                                s1 = concat ss1
-                                             in Just ( WFA.JournalEntry date Nothing s1 (Just $ "Stock balance adjustment : " <> tshow total <> " " <> skuRange es  <> " (fames)")
-                                                , s2)
-  in (unfoldr mkJournal glss''es'total, fromRational $ toRational $ sum (map snd glss''es'total))
-  
+      mkJournal gls''e'totalS = 
+                      let (glss, es) = unzip gls'eS
+                          (gls'eS, sum -> total) =  unzip gls''e'totalS
+                          gls = concat glss
+                      in ( WFA.JournalEntry date Nothing gls (Just $ "Stock balance adjustment : " <> tshow total <> " " <> skuRange es  <> " (fames)")
+                         , total
+                         )
+      
+  in awaitForever gls''e'total .| chunksOf chunkSize .| mapC mkJournal
 
 setStockIdFromMemo :: Int -> Handler ()
 setStockIdFromMemo fa_trans_no =  do
