@@ -941,7 +941,7 @@ fixGLBalance date summariesC = do
   summaries <- runDB $ runConduit $ summariesC .| sinkList
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       ref = skuRange summaries
-      journal'totalC = sum'accounts .| generateJournals chunkSize  date
+      journal'total'entitiesC = sum'accounts .| generateJournals chunkSize  date
       sum'accounts :: ConduitM () (Entity ItemCostSummary, Account) Handler ()
       sum'accounts = runDBSource summariesC .| mapC 
                        (\e@(Entity _ ItemCostSummary{..}) ->
@@ -956,7 +956,6 @@ fixGLBalance date summariesC = do
       accountMap = accounts <$> appCheckItemCostSetting settings
       validate faIds total =  do
             let comment = "Fix GL Balance " <> ref --  (on " <> tshow today  <> ")"
-            mapM_ (refreshSummary date) (summaries :: [Entity ItemCostSummary])
             validationm <- validateFromSummary date comment summaries total
             forM validationm $ \v@(Entity validation _)  -> do
                 let mkTransMap journalId=  TransactionMap ST_JOURNAL journalId ItemCostValidationE (fromIntegral $ fromSqlKey validation) False
@@ -964,23 +963,24 @@ fixGLBalance date summariesC = do
                 return v
       -- we need to post each journal but also
       -- break if any error happend
-      postAndValidate :: ConduitM (WFA.JournalEntry, Decimal) Void Handler (Either Text ([Int], Decimal))
+      postAndValidate :: ConduitM (WFA.JournalEntry, Decimal, [Entity ItemCostSummary]) Void Handler (Either Text ([Int], Decimal))
       postAndValidate = do
         xm <- await
         case xm of
           Nothing ->  return $ Right ([], 0)
-          Just (journal, amount) -> do
+          Just (journal, amount, summaries) -> do
             faIdE <- liftIO $ WFA.postJournalEntry connectInfo journal
             case faIdE of
               Right faId -> do
                 lift $ setStockIdFromMemo faId
+                lift $ mapM_ (refreshSummary date) summaries
                 ids'total <- postAndValidate
                 case ids'total of
                   Right (faIds, total) -> return $ Right $ (faId : faIds, total+amount)
                   Left err -> return $ Left err
               Left err -> return $ Left err
         
-  faIds'totalE <- runConduit $ journal'totalC .| postAndValidate
+  faIds'totalE <- runConduit $ journal'total'entitiesC .| postAndValidate
   case faIds'totalE of
           Left e -> setError (toHtml e) >> return Nothing
           Right (faIds, total) -> validate faIds (fromRational $ toRational $ total)
@@ -994,7 +994,7 @@ skuRange summaries =
 -- | Generates a JournalEntry ready to be posted to FA
 -- returns Nothing if there is nothing to do (no line nonnull)
 generateJournals :: Int -> Day
-                 -> ConduitM (Entity ItemCostSummary, Account) (WFA.JournalEntry, Decimal) Handler ()
+                 -> ConduitM (Entity ItemCostSummary, Account) (WFA.JournalEntry, Decimal, [Entity ItemCostSummary]) Handler ()
 generateJournals chunkSize date = 
   let gls''e'total (e@(Entity _ s@ItemCostSummary{..}), adjAccount)  =  do
                 let stockValue = if abs itemCostSummaryQohAfter < 1e-2
@@ -1029,6 +1029,7 @@ generateJournals chunkSize date =
                           gls = concat glss
                       in ( WFA.JournalEntry date Nothing gls (Just $ "Stock balance adjustment : " <> tshow total <> " " <> skuRange es  <> " (fames)")
                          , total
+                         , es
                          )
       
   in awaitForever gls''e'total .| chunksOf chunkSize .| mapC mkJournal
