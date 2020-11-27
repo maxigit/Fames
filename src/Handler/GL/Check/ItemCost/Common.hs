@@ -933,12 +933,15 @@ collectCostTransactions' force date account skum = do
 -- * Fixing
 -- ** Balance
 -- Generates a journal entry to balance all summary
-fixGLBalance :: Day -> ConduitM () (Entity ItemCostSummary) SqlHandler ()
+fixGLBalance :: Day -> [Entity ItemCostSummary]
              -> Handler (Maybe (Entity ItemCostValidation))
-fixGLBalance date summariesC = do
+fixGLBalance date summaries = do
  -- today <- todayH
   settings <- getsYesod appSettings
-  summaries <- runDB $ runConduit $ summariesC .| sinkList
+  let summariesC = yieldMany summaries
+  -- ^ using a Conduit source for ItemCostSummary seems to
+  -- timeout the sql connection, as we are processing (post To FA, update in DB)
+  -- as long as we are consuming the data
   let connectInfo = WFA.FAConnectInfo (appFAURL settings) (appFAUser settings) (appFAPassword settings)
       ref = skuRange summaries
       journal'total'entitiesC = sum'accounts .| generateJournals chunkSize  date
@@ -968,12 +971,12 @@ fixGLBalance date summariesC = do
         xm <- await
         case xm of
           Nothing ->  return $ Right ([], 0)
-          Just (journal, amount, summaries) -> do
+          Just (journal, amount, toRefresh) -> do
             faIdE <- liftIO $ WFA.postJournalEntry connectInfo journal
             case faIdE of
               Right faId -> do
                 lift $ setStockIdFromMemo faId
-                lift $ mapM_ (refreshSummary date) summaries
+                lift $ mapM_ (refreshSummary date) toRefresh
                 ids'total <- postAndValidate
                 case ids'total of
                   Right (faIds, total) -> return $ Right $ (faId : faIds, total+amount)

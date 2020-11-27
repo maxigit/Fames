@@ -761,7 +761,7 @@ postGLCheckItemCostPurgeAccountItemR account sku = do
 postGLCheckItemCostUpdateGLR :: Handler Html
 postGLCheckItemCostUpdateGLR = do
   (date, _, _) <- extractDateFromUrl
-  let summaries = selectSource [] []
+  summaries <- runDB $ selectList [] []
   validationm <- fixGLBalance date summaries
   case validationm of
     Nothing ->  do
@@ -776,7 +776,7 @@ postGLCheckItemCostUpdateGLR = do
 postGLCheckItemCostUpdateGLAccountR :: Text -> Handler Html
 postGLCheckItemCostUpdateGLAccountR account = do
   (date, _, _) <- extractDateFromUrl
-  let summaries = selectSource [ItemCostSummaryAccount ==. account] []
+  summaries <- runDB $ selectList [ItemCostSummaryAccount ==. account] []
   validationm <- fixGLBalance date summaries
   case validationm of
     Nothing ->  do
@@ -792,7 +792,7 @@ postGLCheckItemCostUpdateGLAccountItemR :: Text -> Maybe Text -> Handler Html
 postGLCheckItemCostUpdateGLAccountItemR account skum = do
   (date, _, _) <- extractDateFromUrl
   summary <- loadCostSummary (Account account) skum
-  validationm <- fixGLBalance date (yieldMany $ maybeToList summary)
+  validationm <- fixGLBalance date (maybeToList summary)
   case validationm of
     Nothing ->  do
       setWarning [shamlet| Not validation saved|]
