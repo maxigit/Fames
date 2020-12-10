@@ -674,7 +674,7 @@ renderReconciliate account param = do
         <div.well>
           ^{form}
           <button.btn.btn-primary name=action value="submit">Submit
-          <button.btn.btn-info name=action value="next">Submit
+          <button.btn.btn-default name=action value="next">Next
         <div.row>
           <div.col-md-2>
             <h3> Details
