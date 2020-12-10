@@ -695,9 +695,9 @@ nextPeriod param =
   case (rpStartDate param, rpEndDate param, rpRecDate param) of
             (Just start, Just end, Just rec) -> let
               (_, startMonth,_) = toGregorian start
-              (_, endMonth,_) = toGregorian end
+              (_, endMonth,_) = toGregorian rec
               offset = calculateDate $ AddMonths  (endMonth - startMonth `mod` 12)
-              in Just $ defaultParam { rpStartDate = Just (1 `addDays` end)
+              in Just $ defaultParam { rpStartDate = Just (1 `addDays` rec)
                                      , rpEndDate = Just $ offset end
                                      , rpOpeningBalance = rpClosingBalance param
                                      , rpRecDate = Just $ offset rec
