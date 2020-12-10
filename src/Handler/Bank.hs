@@ -558,6 +558,7 @@ postGLBankReconciliateR account = do
         actionM <- lookupPostParam "action"
         case actionM of
           Nothing -> getGLBankReconciliateR account
+          Just "next" | Just next <-  nextPeriod param -> renderReconciliate account next
           Just action -> do
             when (action == "reconciliate") $
               case rpRecDate param of
@@ -673,6 +674,7 @@ renderReconciliate account param = do
         <div.well>
           ^{form}
           <button.btn.btn-primary name=action value="submit">Submit
+          <button.btn.btn-info name=action value="next">Submit
         <div.row>
           <div.col-md-2>
             <h3> Details
@@ -687,6 +689,21 @@ renderReconciliate account param = do
               |]
   
 
+-- | Generates a form to go the next reconcialte period
+nextPeriod :: RecParam -> Maybe RecParam
+nextPeriod param = 
+  case (rpStartDate param, rpEndDate param, rpRecDate param) of
+            (Just start, Just end, Just rec) -> let
+              (_, startMonth,_) = toGregorian start
+              (_, endMonth,_) = toGregorian end
+              offset = calculateDate $ AddMonths  (endMonth - startMonth `mod` 12)
+              in Just $ defaultParam { rpStartDate = Just (1 `addDays` end)
+                                     , rpEndDate = Just $ offset end
+                                     , rpOpeningBalance = rpClosingBalance param
+                                     , rpRecDate = Just $ offset rec
+                                     }
+            _ -> Nothing
+  
 resortFA :: Map (Maybe Day) [These B.Transaction B.Transaction] -> Map (Maybe Day) [These B.Transaction B.Transaction]
 resortFA groups = let
   sorted = sortFas <$> groups
