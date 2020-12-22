@@ -13,6 +13,7 @@ data Behavior
   | FAOnly -- like skip but update the FA running balance
   | UsePreviousCost
   | UseMoveCost
+  | SetMoveCost Double
   | GenerateError 
   | WaitForGrn Int -- invoice only matching the given GRN
   | WaitForStock Double -- wait for given quantity
@@ -96,6 +97,7 @@ instance FromJSON Behavior where
     <|> withArray ("Ife") a v
     <|> withObject ("GRN") grn v
     <|> withObject ("Stock") stock v
+    <|> withObject ("Set") set v
     where
     p "Skip" = return Skip
     p "Close" = return Close
@@ -119,6 +121,9 @@ instance FromJSON Behavior where
       grnId <- o .: "WaitForGrn"
       return $ WaitForGrn grnId
     stock o = WaitForStock <$>  o .: "WaitForStock"
+    set o = do
+      cost <- o .: "SetMoveCost"
+      return $ SetMoveCost cost
 
     -- a [cond, t] = BehaveIf cond t
 
@@ -129,6 +134,7 @@ instance ToJSON Behavior where
     FAOnly -> String "FAOnly"
     UsePreviousCost -> String "UsePreviousCost"
     UseMoveCost -> String "UseMoveCost"
+    SetMoveCost cost -> object [ "SetMoveCost" .= toJSON cost ]
     GenerateError -> String "GenerateError"
     WaitForGrn grn -> object [ "WaitForGrn" .= toJSON grn] 
     WaitForStock qty -> object [ "WaitForStock" .= toJSON qty] 

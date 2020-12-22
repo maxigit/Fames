@@ -440,6 +440,7 @@ computeItemHistory behaviors_ account0 previousState [] =
              ( case (behavior, standardCost previous, FA.stockMoveStandardCost move ) of 
                     (Just Skip, _, _) -> Right $ (previous, Transaction 0 0 0 "skipped (behavior)")
                     (Just UseMoveCost, _0, moveCost) -> Right $ updateSummaryFromCost "Move" previous (FA.stockMoveQty move) moveCost 0
+                    (Just (SetMoveCost setCost), _0, _moveCost) -> Right $ updateSummaryFromCost "Set" previous (FA.stockMoveQty move) setCost 0
                     (Just UsePreviousCost, previousCost, _) -> Right $ updateSummaryFromCost "Previous" previous (FA.stockMoveQty move) previousCost 0
                     _ -> Left $ "Unspecified behavior for GRN without invoice #" <> showForError grn
             ) >>= (\(newSummary, newTrans) ->
@@ -585,7 +586,12 @@ computeItemHistory behaviors_ account0 previousState all_@(sm'gl'seq@(sm'gl, (_s
                         _ -> 1
         in computeItemHistory behaviors_ account0 (WaitingForStock reqQty previous [sm'gl'seq]) sm'gls
     (_            , WithPrevious allowN previous)              | Just quantity <-  moveQuantityM  ->
-      let (newSummary, newTrans) = updateSummaryQoh previous quantity  (fromMaybe 0 faAmountM)
+      let (newSummary, newTrans) = 
+            case behavior of
+              Just UseMoveCost | Just moveCost <- moveCostM -> updateSummaryFromCost "Move" previous quantity moveCost faAmount
+              Just (SetMoveCost cost) -> updateSummaryFromCost "Set" previous quantity cost faAmount
+              _ -> updateSummaryQoh previous quantity  faAmount
+          faAmount = fromMaybe 0 faAmountM
       in ((makeItemCostTransaction account0 previous sm'gl'seq newSummary ( newTrans {tComment = tComment newTrans <> " " <> tshow allowN})) :)
          <$> computeItemHistory behaviors_ account0 (WithPrevious allowN newSummary)  sm'gls
     (_            , WithPrevious allowN previous)              | amount <- fromMaybe 0 faAmountM ->
