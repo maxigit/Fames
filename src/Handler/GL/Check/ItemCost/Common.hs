@@ -215,9 +215,9 @@ loadMovesAndTransactions lastm endDatem (Account account) Nothing = do
   rows <- runDB $ rawSql (concat sqls) (concat paramss)
   return $ map mkTrans rows
 
-loadMovesAndTransactions lastm endDatem account (Just sku) = do
+loadMovesAndTransactions lastm endDatem account skum@(Just sku) = do
    withMoves <- loadMovesAndTransactions' lastm endDatem account sku
-   glOnly <- loadTransactionsWithNoMoves' lastm endDatem account sku
+   glOnly <- loadTransactionsWithNoMoves' lastm endDatem account skum
    -- interleave two sort lists as sorted
    let interleave [] ys = ys
        interleave xs [] = xs
@@ -286,7 +286,8 @@ filterTransactionFromSummary maxId startDatem idField dateField =
                                     ,  [toPersistValue startDate])
             _ -> ("", [])
 
-loadTransactionsWithNoMoves' lastm endDatem (Account account) sku = do
+loadTransactionsWithNoMoves' :: (Maybe ItemCostSummary) -> (Maybe Day) -> Account -> (Maybe Text) -> Handler [Matched]
+loadTransactionsWithNoMoves' lastm endDatem (Account account) skum = do
   let maxGl = lastm >>= itemCostSummaryGlDetail
       startDatem = itemCostSummaryDate <$>  lastm
       (sqls, paramss) = unzip
@@ -299,8 +300,11 @@ loadTransactionsWithNoMoves' lastm endDatem (Account account) sku = do
            -- <> " LEFT JOIN check_item_cost_transaction i ON (0_gl_trans.counter = i.gl_detail) "
            <> "LEFT JOIN (SELECT MIN(id) AS seq, trans_no, type FROM 0_audit_trail GROUP BY trans_no, type) as audit ON (audit.trans_no = 0_gl_trans.type_no AND  audit.type = 0_gl_trans.type) "
            <> " LEFT JOIN 0_voided ON (0_gl_trans.type = 0_voided.type AND 0_gl_trans.type_no = 0_voided.id ) "
-           <> " WHERE 0_gl_trans.account = ? AND 0_gl_trans.stock_id = ? "
-          ,  [toPersistValue account, toPersistValue sku])
+           <> " WHERE 0_gl_trans.account = ?"
+          ,  [toPersistValue account])
+        , case skum of
+            Just sku -> ( " AND 0_gl_trans.stock_id = ? ", [toPersistValue sku])
+            Nothing -> (" AND 0_gl_trans.stock_id IS NULL ", [])
         ,  ( "   AND 0_gl_trans.amount <> 0 "
            <> "   AND 0_voided.id IS NULL "
            <> "   AND 0_stock_moves.stock_id IS NULL "
