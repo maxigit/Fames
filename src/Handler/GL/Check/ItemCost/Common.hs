@@ -157,14 +157,15 @@ getItemFor (Account account) = do
   settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
   let sql0 = "SELECT stock_id, material_cost "
           <> " FROM 0_stock_master "
-          <> " WHERE stock_id IN (SELECT distinct stock_id  "
+          <> " WHERE (stock_id IN (SELECT distinct stock_id  "
           <> "                    FROM 0_gl_trans where account = ?)"
+          <> "       OR inventory_account = ?)"
           <> " AND mb_flag <> 'D'"                    
       (sql, params) = case settingsm of
              Nothing -> (sql0, [])
              Just settings -> let (keyword, stockLike) = filterEKeyword $ readFilterExpression (stockFilter settings)
                               in (sql0 <> " AND stock_id " <> keyword <> " ? ", [toPersistValue stockLike])
-  runDB $ map (bimap unSingle unSingle)  <$> rawSql sql ([toPersistValue account] ++ params)
+  runDB $ map (bimap unSingle unSingle)  <$> rawSql sql ([toPersistValue account, toPersistValue account] ++ params)
 
 -- | Stock valuation for return stock valuation + qoh for given stock price
 stockValuation :: Day -> (Text, Double) -> Handler (Double, Double)
