@@ -911,7 +911,14 @@ collectCostTransactions' forRefresh date account skum = do
                     -- ^ If the item is "closed" is final balance should be 0
                     _ -> Nothing
   trans0 <- if forRefresh
-            then loadTransactionsWithNoMoves' ((\s ->  s{itemCostSummaryDate = date}) <$> lastm) (Just date) account skum
+            then loadTransactionsWithNoMoves' ((\s ->  s{itemCostSummaryDate = date
+                                                        ,itemCostSummaryGlDetail = itemCostSummaryGlDetail s <|> Just 0
+                                                        -- ^ If there is no gl details in the summary,
+                                                        -- We need to force checking GL on the fixing day
+                                                        -- To do so we need give a Gl id
+                                                        -- Without that, we will only check AFTER the given date
+                                                        }) <$> lastm)
+                                              (Just date) account skum
                  -- ^ load transaction on the day, corresponding to result of fixGLBalance
                  -- we tweak the itemCostSummaryDate to be the same as date.
                  -- This date is used as the starting date.
