@@ -16,6 +16,7 @@ module Handler.GL.Check.ItemCost.Common
 , itemSettings
 , fixGLBalance
 , updateCosts
+, purgeTransactions
 , voidValidation
 , itemCostTransactionStockValueRounded
 , itemCostSummaryStockValueRounded
@@ -36,8 +37,7 @@ import  qualified WH.FA.Curl as WFA
 import Util.Decimal
 import Control.Monad.Except (runExceptT, ExceptT(..), mapM_)
 import Data.List(nub)
-import Data.Conduit.List(chunksOf)
-
+import Data.Conduit.List(chunksOf, groupOn1)
 
 -- * Types
 
@@ -930,26 +930,61 @@ collectCostTransactions' forRefresh date account skum = do
             else loadMovesAndTransactions lastm endDatem account skum
   let transE = computeItemCostTransactions behaviors_ finalBalance lastm account trans0
   forM transE $ \trans -> 
-    runDB $ 
-       case lastMay trans of
-          Nothing -> return ()
-          Just summary  -> do
-             insertMany_ trans
-             let itemCostSummaryDate = fromMaybe (error "Unexpected happen") $ maximumMay $ map itemCostTransactionDate  trans
-                 itemCostSummaryMoveId = maximumMay $ mapMaybe itemCostTransactionMoveId trans :: Maybe Int
-                 itemCostSummaryGlDetail = maximumMay $ mapMaybe itemCostTransactionGlDetail trans
-                 itemCostSummarySku = itemCostTransactionSku summary
-                 itemCostSummaryAccount = itemCostTransactionAccount summary
-                 itemCostSummaryQohAfter = itemCostTransactionQohAfter summary
-                 itemCostSummaryCostAfter = itemCostTransactionCostAfter summary
-                 itemCostSummaryStockValue = itemCostTransactionStockValue summary
-                 itemCostSummaryFaStockValue = itemCostTransactionFaStockValue summary
-                 itemCostSummaryValidated = abs (itemCostSummaryStockValue - itemCostSummaryFaStockValue) < 1e-2 && all (isJust . itemCostTransactionItemCostValidation) trans
-             case lastEm of
-               Just (Right (Entity key _)) -> repsert key ItemCostSummary{..}
-               _ -> insert_ ItemCostSummary{..}
-     
+    runDB $ do
+       insertMany_ trans
+       updateSummaryFromTransactions lastEm trans
  
+updateSummaryFromTransactions :: Maybe (Either e (Entity ItemCostSummary)) -> [ItemCostTransaction] -> SqlHandler ()
+updateSummaryFromTransactions lastEm trans =
+  case lastMay trans of
+    Nothing -> return ()
+    Just summary -> do
+      let itemCostSummaryDate = fromMaybe (error "Unexpected happen") $ maximumMay $ map itemCostTransactionDate  trans
+          itemCostSummaryMoveId = maximumMay $ mapMaybe itemCostTransactionMoveId trans :: Maybe Int
+          itemCostSummaryGlDetail = maximumMay $ mapMaybe itemCostTransactionGlDetail trans
+          itemCostSummarySku = itemCostTransactionSku summary
+          itemCostSummaryAccount = itemCostTransactionAccount summary
+          itemCostSummaryQohAfter = itemCostTransactionQohAfter summary
+          itemCostSummaryCostAfter = itemCostTransactionCostAfter summary
+          itemCostSummaryStockValue = itemCostTransactionStockValue summary
+          itemCostSummaryFaStockValue = itemCostTransactionFaStockValue summary
+          itemCostSummaryValidated = abs (itemCostSummaryStockValue - itemCostSummaryFaStockValue) < 1e-2 && all (isJust . itemCostTransactionItemCostValidation) trans
+      case lastEm of
+        Just (Right (Entity key _)) -> repsert key ItemCostSummary{..}
+        _ -> insert_ ItemCostSummary{..}
+
+-- ** Purging
+-- | Delete all selected transactions but also the ones which are after
+purgeTransactions :: [Filter ItemCostTransaction] -> Handler ()
+purgeTransactions criteria = do
+  -- we know that transaction are saved in the proper order
+  -- so for each item/account we need the first item matching the criteria
+  -- and delete every thing onward
+  let firstSource = selectSource criteria [ Asc ItemCostTransactionSku
+                                             , Asc ItemCostTransactionAccount
+                                             , Asc ItemCostTransactionId]
+
+                      .| groupOn1 (((,) <$> itemCostTransactionSku <*> itemCostTransactionAccount) . entityVal )
+                      .| mapC (head . uncurry ncons)
+      purge (Entity key ItemCostTransaction{..}) = do
+        deleteWhere [ ItemCostTransactionSku ==. itemCostTransactionSku
+                    , ItemCostTransactionAccount ==. itemCostTransactionAccount
+                    , ItemCostTransactionId >=. key
+                    ]
+
+        deleteWhere [ ItemCostSummarySku ==. itemCostTransactionSku
+                    , ItemCostSummaryAccount ==. itemCostTransactionAccount
+                    ]
+        trans <- selectList [ ItemCostTransactionSku ==. itemCostTransactionSku
+                            , ItemCostTransactionAccount ==. itemCostTransactionAccount
+                            ] [ Asc ItemCostTransactionId ]
+        updateSummaryFromTransactions Nothing $ map entityVal trans
+  -- we have to do it in two steps
+  -- first load the first ids to purge
+  -- second do the purge
+  -- because we are reading and deleting the same table
+  firsts <- runConduit $ runDBSource firstSource .| sinkList
+  runDB $ mapM_ purge firsts
 
 -- * Fixing
 -- ** Balance

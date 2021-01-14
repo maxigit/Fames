@@ -735,27 +735,21 @@ postGLCheckItemCostCollectAllR = do
 
 postGLCheckItemCostPurgeR :: Handler Html
 postGLCheckItemCostPurgeR = do
-  runDB $ do
-    deleteWhere [ItemCostTransactionItemCostValidation ==. Nothing]
-    deleteWhere ( [] :: [Filter ItemCostSummary])
+  purgeTransactions [ItemCostTransactionItemCostValidation ==. Nothing]
   redirect $ GLR GLCheckItemCostR
 
 postGLCheckItemCostPurgeAccountR :: Text -> Handler Html
 postGLCheckItemCostPurgeAccountR account = do
-  runDB $ do
-    deleteWhere [ItemCostTransactionAccount ==. account, ItemCostTransactionItemCostValidation ==. Nothing]
-    deleteWhere ( [ItemCostSummaryAccount ==. account ] :: [Filter ItemCostSummary])
-  redirect $ GLR GLCheckItemCostR
+  purgeTransactions [ItemCostTransactionAccount ==. account, ItemCostTransactionItemCostValidation ==. Nothing]
+  redirect $ GLR $ GLCheckItemCostAccountViewR account
 
 postGLCheckItemCostPurgeAccountItemR :: Text -> Maybe Text -> Handler Html
 postGLCheckItemCostPurgeAccountItemR account sku = do
-  runDB $ do
-    deleteWhere [ ItemCostTransactionAccount ==. account
-                , ItemCostTransactionSku ==. sku
-                , ItemCostTransactionItemCostValidation ==. Nothing
-                ]
-    deleteWhere ( [ItemCostSummaryAccount ==. account, ItemCostSummarySku ==. sku ] :: [Filter ItemCostSummary])
-  redirect $ GLR GLCheckItemCostR
+  purgeTransactions [ ItemCostTransactionAccount ==. account
+                    , ItemCostTransactionSku ==. sku
+                    , ItemCostTransactionItemCostValidation ==. Nothing
+                    ]
+  redirect $ GLR $ GLCheckItemCostItemViewR account sku
 -- ** Upate GL
 --
 postGLCheckItemCostUpdateGLR :: Handler Html
