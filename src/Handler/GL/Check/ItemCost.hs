@@ -1,3 +1,4 @@
+{-# LANGUAGE ImplicitParams #-}
 module Handler.GL.Check.ItemCost
 ( getGLCheckItemCostR
 , getGLCheckItemCostAccountViewR
@@ -19,6 +20,7 @@ module Handler.GL.Check.ItemCost
 , postGLCheckItemCostUpdateCostR
 , postGLCheckItemCostUpdateCostAccountR
 , postGLCheckItemCostUpdateCostAccountItemR
+, getGLCheckItemCostCheckPastR
 )
 where
 
@@ -271,6 +273,7 @@ getGLCheckItemCostItemViewR account item = do
   settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
   let endDatem =  item >>= itemSettings settingsm (Account account) >>= closingDate
       behaviors_ = fromMaybe mempty (settingsm >>= behaviors)
+  let ?collectMode = Collectables
   trans0 <- loadMovesAndTransactions lastm endDatem (Account account) item
   let transE = computeItemCostTransactions behaviors_ Nothing lastm (Account account) trans0
   w <- either (renderDuplicates account) (renderTransactions (fromMaybe account item) Nothing) transE
@@ -694,6 +697,21 @@ renderValidationGL vId = do
           <td> #{formatAbs debit credit}
   |]
 
+-- | Check whether new transactions have been entered
+-- in the past (i.e. before the last collection date)
+-- and are therefore unreachable
+getGLCheckItemCostCheckPastR :: Handler Html
+getGLCheckItemCostCheckPastR = do
+  accounts <- getStockAccounts
+  uncollectables <- mapM loadUncollectables accounts
+  let onSuccess = do
+        setSuccess "All transactions are collectables"
+        return ""
+
+      mkDuplicate _ [] = Right ()
+      mkDuplicate (Account account) uns = Left ("Account " <> account, uns)
+
+  renderWithDuplicate onSuccess "Uncollectables Transactions" $ zipWith mkDuplicate accounts uncollectables
   
 -- * Saving
 loadAndCollectAccount account = do

@@ -1,3 +1,4 @@
+{-# LANGUAGE ImplicitParams #-}
 module Handler.GL.Check.ItemCost.Common
 ( getStockAccounts
 , Account(..)
@@ -7,10 +8,12 @@ module Handler.GL.Check.ItemCost.Common
 , itemTodayInfo
 , loadPendingTransactionCountFor
 , loadMovesAndTransactions
+, CollectMode(Collectables)
 , computeItemCostTransactions
 , collectCostTransactions
 , loadInitialSummary
 , loadCostSummary
+, loadUncollectables
 , Matched
 , loadCheckInfo
 , itemSettings
@@ -38,6 +41,7 @@ import Util.Decimal
 import Control.Monad.Except (runExceptT, ExceptT(..), mapM_)
 import Data.List(nub)
 import Data.Conduit.List(chunksOf, groupOn1)
+import Data.Time (addDays)
 
 -- * Types
 
@@ -195,7 +199,7 @@ itemTodayInfo (Account account) = do
 -- Load And join stock moves & gl trans of a given account and sku
 -- If the sku is not provided, load the gl trans which doesn't have the stock_id set.
 -- ONly load transaction not saved in inventory_cost_transaction
-loadMovesAndTransactions :: (Maybe ItemCostSummary) -> Maybe Day -> Account -> Maybe Text -> Handler [Matched]  
+loadMovesAndTransactions :: (?collectMode :: CollectMode) => (Maybe ItemCostSummary) -> Maybe Day -> Account -> Maybe Text -> Handler [Matched]  
 loadMovesAndTransactions lastm endDatem (Account account) Nothing = do
   let maxGl = lastm >>= itemCostSummaryGlDetail
   let startDatem = itemCostSummaryDate <$>  lastm
@@ -233,7 +237,7 @@ loadMovesAndTransactions lastm endDatem account skum@(Just sku) = do
    return $ interleave withMoves glOnly
 
 
-loadMovesAndTransactions' :: (Maybe ItemCostSummary) -> Maybe Day -> Account -> Text -> Handler [Matched]
+loadMovesAndTransactions' :: (?collectMode :: CollectMode) => (Maybe ItemCostSummary) -> Maybe Day -> Account -> Text -> Handler [Matched]
 loadMovesAndTransactions' lastm endDatem (Account account) sku = do
   -- instead of checking if there is already an item in check_item_cost_transaction
   -- we filter moves and gl trans by only using the one
@@ -275,19 +279,26 @@ loadMovesAndTransactions' lastm endDatem (Account account) sku = do
   rows <- runDB $ rawSql (concat sqls)  (concat paramss)
   return $ map mkTrans rows
 
+
+data CollectMode = Collectables | Uncollectables
+-- filterTransactionFromSummary :: Maybe a -> Maybe a1 -> a2 -> a2 -> (a2, [PersistValue])
 filterTransactionFromSummary maxId startDatem idField dateField =
-        case (maxId, startDatem) of
-            (Just id_, Just startDate) -> ( " AND ((" <> idField <> "> ? AND " <> dateField <> " = ?) OR " <> dateField <> " > ? OR " <> dateField <> " is NULL)  " 
+        case (?collectMode, maxId, startDatem) of
+            (Uncollectables, Just id_, _) -> ( " AND " <> idField <> "> ? "
+                                             , [ toPersistValue id_ ]
+                                             )
+            (_, Just id_, Just startDate) -> ( " AND ((" <> idField <> "> ? AND " <> dateField <> " = ?) OR " <> dateField <> " > ? OR " <> dateField <> " is NULL)  " 
                                      , [toPersistValue id_, toPersistValue startDate, toPersistValue startDate] )
              -- ^ we use gl.counter only the day of the summary, to know what transaction haven't been collected
              -- but created since the collection.
              -- It only works on the day because we can have transaction < counter with date >= summary.date.
              -- It happens when transaction are not entered in chronological order.
-            (_, Just startDate) ->  ( " AND (" <> dateField <> " > ? OR " <> dateField <> " is NULL )"
+            (_, _, Just startDate) ->  ( " AND (" <> dateField <> " > ? OR " <> dateField <> " is NULL )"
                                     ,  [toPersistValue startDate])
             _ -> ("", [])
 
-loadTransactionsWithNoMoves' :: (Maybe ItemCostSummary) -> (Maybe Day) -> Account -> (Maybe Text) -> Handler [Matched]
+loadTransactionsWithNoMoves' :: (?collectMode :: CollectMode) 
+                             => (Maybe ItemCostSummary) -> (Maybe Day) -> Account -> (Maybe Text) -> Handler [Matched]
 loadTransactionsWithNoMoves' lastm endDatem (Account account) skum = do
   let maxGl = lastm >>= itemCostSummaryGlDetail
       startDatem = itemCostSummaryDate <$>  lastm
@@ -334,6 +345,7 @@ loadPendingTransactionCountFor date account = do
   settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
   sku'_s <- getItemFor account
   let skums = Nothing : map (Just . fst) sku'_s
+  let ?collectMode = Collectables
   forM skums $ \skum -> do
     let endDatem = Just . maybe date (min date) $ skum >>= itemSettings settingsm account >>= closingDate
     lastm <- either id entityVal <$$> loadInitialSummary account (\_ -> return Nothing ) skum
@@ -344,6 +356,21 @@ loadPendingTransactionCountFor date account = do
 loadCostSummary :: Account -> (Maybe Text)  -> Handler (Maybe (Entity ItemCostSummary))
 loadCostSummary (Account account) skum = do
   runDB $ selectFirst [ItemCostSummaryAccount ==. account, ItemCostSummarySku ==. skum] []
+
+
+loadUncollectables :: Account -> Handler [Matched]
+loadUncollectables account = do
+  sku'_s <- getItemFor account
+  let skums = Nothing : map (Just . fst) sku'_s
+  let ?collectMode = Uncollectables
+  fmap catMaybes $ forM skums $ \skum -> do
+    lastm <- either id entityVal <$$> loadInitialSummary account (\_ -> return Nothing ) skum
+    case lastm of
+      Just last_ -> do
+        -- load transactions not collected before the summary
+        trans <- loadMovesAndTransactions lastm (Just $ (-1) `addDays`  itemCostSummaryDate last_) account skum
+        return $ headMay $ trans
+      _ -> return Nothing
 
 -- ** Computing cost transaction
 -- | This is the core routine which recalcuate the correct standard cost 
@@ -897,6 +924,7 @@ collectCostTransactions = collectCostTransactions' False
 collectCostTransactions' :: Bool -> Day -> Account -> (Maybe Text) -> Handler (Either (Text, [Matched]) ())
 collectCostTransactions' forRefresh date account skum = do
   settingsm <- appCheckItemCostSetting . appSettings <$> getYesod
+  let ?collectMode = Collectables
   let settings = skum >>= itemSettings settingsm account
       onOldAccount oldAccount =
         if forRefresh
@@ -1136,6 +1164,7 @@ updateCosts summaries = do
   
 updateCost :: WFA.FAConnectInfo -> Day ->  Entity ItemCostSummary -> Handler (Maybe (Int, Double))
 updateCost connectInfo today (Entity _ summary@ItemCostSummary{..}) | Just sku <- itemCostSummarySku   = do
+  let ?collectMode = Collectables
   let sql = "select material_cost from 0_stock_master "
             <> " where stock_id = ? " 
       
