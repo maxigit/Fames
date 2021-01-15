@@ -967,9 +967,14 @@ updateSummaryFromTransactions lastEm trans =
   case lastMay trans of
     Nothing -> return ()
     Just summary -> do
+      let summaryMoveId  = lastM >>= itemCostSummaryMoveId
+          summaryGlDetail  = lastM >>= itemCostSummaryGlDetail
+          lastM = case lastEm of
+                    Just (Right e) -> Just (entityVal e)
+                    _ -> Nothing
       let itemCostSummaryDate = fromMaybe (error "Unexpected happen") $ maximumMay $ map itemCostTransactionDate  trans
-          itemCostSummaryMoveId = maximumMay $ mapMaybe itemCostTransactionMoveId trans :: Maybe Int
-          itemCostSummaryGlDetail = maximumMay $ mapMaybe itemCostTransactionGlDetail trans
+          itemCostSummaryMoveId = maximumMay $ summaryMoveId ?: mapMaybe itemCostTransactionMoveId trans :: Maybe Int
+          itemCostSummaryGlDetail = maximumMay $ summaryGlDetail ?: mapMaybe itemCostTransactionGlDetail trans
           itemCostSummarySku = itemCostTransactionSku summary
           itemCostSummaryAccount = itemCostTransactionAccount summary
           itemCostSummaryQohAfter = itemCostTransactionQohAfter summary
