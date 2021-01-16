@@ -21,6 +21,8 @@ module Handler.GL.Check.ItemCost
 , postGLCheckItemCostUpdateCostAccountR
 , postGLCheckItemCostUpdateCostAccountItemR
 , getGLCheckItemCostCheckPastR
+, postGLCheckItemCostCheckPastRefreshR
+, postGLCheckItemCostCheckPastPurgeR
 )
 where
 
@@ -30,6 +32,7 @@ import Formatting as F
 import qualified FA as FA
 import GL.Check.ItemCostSettings
 import Database.Persist.Sql  (fromSqlKey, toSqlKey, Single(..), rawSql)
+import Control.Monad (zipWithM_, zipWithM)
 
 import Yesod.Form.Bootstrap3
 
@@ -704,15 +707,52 @@ getGLCheckItemCostCheckPastR :: Handler Html
 getGLCheckItemCostCheckPastR = do
   accounts <- getStockAccounts
   uncollectables <- mapM loadUncollectables accounts
-  let onSuccess = do
-        setSuccess "All transactions are collectables"
-        return ""
+  let renderDuplicates_ _ [] = return ""
+      renderDuplicates_ (Account account) duplicates =
+        renderDuplicates account ("Uncollectables", duplicates)
 
-      mkDuplicate _ [] = Right ()
-      mkDuplicate (Account account) uns = Left ("Account " <> account, uns)
-
-  renderWithDuplicate onSuccess "Uncollectables Transactions" $ zipWith mkDuplicate accounts uncollectables
+  w <- mconcat <$> zipWithM renderDuplicates_ accounts uncollectables
+  defaultLayout $ do
+    setTitle "Item Cost - Check uncollectable transactions"
+    w
+    [whamlet|
+    <form.from-inline method=POST action="@{GLR $ GLCheckItemCostCheckPastRefreshR}">
+      <button.btn.btn-warning> Refresh
+    <form.from-inline method=POST action="@{GLR $ GLCheckItemCostCheckPastPurgeR}">
+      <button.btn.btn-danger> Purge
+      |]
+      
   
+
+postGLCheckItemCostCheckPastPurgeR :: Handler Html
+postGLCheckItemCostCheckPastPurgeR = do
+  accounts <- getStockAccounts
+  uncollectables <- mapM loadUncollectables accounts
+  
+  let toCriteria (Account account) (th, _) =
+           [ ItemCostTransactionSku ==. gett (Just . FA.stockMoveStockId)  FA.glTranStockId th
+           , ItemCostTransactionAccount ==. account
+           , ItemCostTransactionDate >=. gett FA.stockMoveTranDate FA.glTranTranDate th
+           ]
+
+      purge account = mapM_ $ purgeTransactions . toCriteria account
+  zipWithM_ purge accounts uncollectables
+  setSuccess "Uncollectables items purged succesfully"
+  getGLCheckItemCostR
+  
+
+postGLCheckItemCostCheckPastRefreshR :: Handler Html
+postGLCheckItemCostCheckPastRefreshR = do
+  accounts <- getStockAccounts
+  uncollectables <- mapM loadUncollectables accounts
+  let refreshAccount ths account = do
+        mapM_ ( refreshSummaryFrom account
+              . gett (Just . FA.stockMoveStockId)  FA.glTranStockId
+              . fst
+              ) ths
+  runDB $ zipWithM_ refreshAccount uncollectables accounts
+  getGLCheckItemCostCheckPastR
+
 -- * Saving
 loadAndCollectAccount account = do
   (date, _form, _encType) <- extractDateFromUrl

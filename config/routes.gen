@@ -75,6 +75,8 @@
   /check/item_cost/update-cost-account/#Text GLCheckItemCostUpdateCostAccountR POST !check
   /check/item_cost/update-cost-account GLCheckItemCostUpdateCostR POST !check
   /check/item_cost/check_past/ GLCheckItemCostCheckPastR GET !check !title=Check_Past
+  /check/item_cost/check_past/refresh_summary GLCheckItemCostCheckPastRefreshR POST !check !fix
+  /check/item_cost/check_past/purge GLCheckItemCostCheckPastPurgeR POST !check !fix
 
 
 /warehouse WarehouseR !warehouse:

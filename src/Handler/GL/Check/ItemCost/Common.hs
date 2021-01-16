@@ -20,10 +20,12 @@ module Handler.GL.Check.ItemCost.Common
 , fixGLBalance
 , updateCosts
 , purgeTransactions
+, refreshSummaryFrom 
 , voidValidation
 , itemCostTransactionStockValueRounded
 , itemCostSummaryStockValueRounded
 , round2
+, gett
 )
 where
 
@@ -1004,20 +1006,26 @@ purgeTransactions criteria = do
                     , ItemCostTransactionAccount ==. itemCostTransactionAccount
                     , ItemCostTransactionId >=. key
                     ]
-
-        deleteWhere [ ItemCostSummarySku ==. itemCostTransactionSku
-                    , ItemCostSummaryAccount ==. itemCostTransactionAccount
-                    ]
-        trans <- selectList [ ItemCostTransactionSku ==. itemCostTransactionSku
-                            , ItemCostTransactionAccount ==. itemCostTransactionAccount
-                            ] [ Asc ItemCostTransactionId ]
-        updateSummaryFromTransactions Nothing $ map entityVal trans
+        refreshSummaryFrom (Account itemCostTransactionAccount) itemCostTransactionSku
   -- we have to do it in two steps
   -- first load the first ids to purge
   -- second do the purge
   -- because we are reading and deleting the same table
   firsts <- runConduit $ runDBSource firstSource .| sinkList
   runDB $ mapM_ purge firsts
+
+
+-- | Delete and recalculate the summary of the given items.
+-- Needed to fix bug (corrected) generating incorrect summary
+refreshSummaryFrom :: Account -> Maybe Text -> SqlHandler ()
+refreshSummaryFrom (Account account) skum = do
+  deleteWhere [ ItemCostSummarySku ==. skum
+              , ItemCostSummaryAccount ==. account
+              ]
+  trans <- selectList [ ItemCostTransactionSku ==. skum
+                      , ItemCostTransactionAccount ==. account
+                      ] [ Asc ItemCostTransactionId ]
+  updateSummaryFromTransactions Nothing $ map entityVal trans
 
 -- * Fixing
 -- ** Balance
