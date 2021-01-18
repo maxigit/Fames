@@ -116,6 +116,11 @@ instance FromJSON Behavior where
         then_ <- parseJSON thenv
         else_ <- parseJSON elsev
         return $ BehaveIfe  cond then_ else_
+      (condv:thenv: elsev@(_cond2:_)) | True -> do -- chain all cond1 then1 cond2 then2 cond3 then3 ...
+        cond <- parseJSON condv
+        then_ <- parseJSON thenv
+        else_ <- a (fromList elsev)
+        return $ BehaveIfe  cond then_ else_
       _ -> fail "Not an ife conditions"
     grn o = do
       grnId <- o .: "WaitForGrn"
