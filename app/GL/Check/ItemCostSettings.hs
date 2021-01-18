@@ -148,6 +148,7 @@ instance  ToJSONKey BehaviorSubject  where
 
 instance FromJSON BehaviorSubject where
   parseJSON = withText ("BehaviorSubject") p where
+    p (stripPrefix "sku=" -> Just sku) = return $ ForSku (Just sku)
     p s | ws@[_,_] <- splitOn "/" s  =
       case map readMay ws of
         [Just type_, Just no] -> return $ ForTransaction type_ no
@@ -157,7 +158,6 @@ instance FromJSON BehaviorSubject where
     p "sales-without-invoice" = return ForSalesWithoutInvoice
     p "cost=0" = return ForNullCost
     p "no-sku" = return $ ForSku Nothing
-    p (stripPrefix "sku=" -> Just sku) = return $ ForSku (Just sku)
     p (stripPrefix "account=" -> Just account) = return $ ForAccount account
     p s  = fail $ unpack s  <> " is not BehaviorSubject"
 
