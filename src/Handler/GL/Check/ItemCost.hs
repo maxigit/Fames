@@ -42,12 +42,14 @@ getGLCheckItemCostR = do
   accounts <- getStockAccounts
   (date, form, encType) <- extractDateFromUrl
   today <- todayH
-  summaries <- mapM (getAccountSummary date) accounts
+  summaries0 <- mapM (getAccountSummary date) accounts
   let glBalance = sum (map asGLAmount summaries)
       stockValue = sum (map asStockValuation summaries)
       qoh = sum (map asQuantity summaries)
       correctValue = sum (mapMaybe asCorrectAmount summaries)
       correctQoh = sum (mapMaybe asCorrectQoh summaries)
+    -- move account collected in the future first
+      summaries = sortOn (\s -> (Down (asCollectDate s > Just date))) summaries0
   defaultLayout  $ do
     setTitle  . toHtml  $ "Check Item cost - " <> tshow date
     [whamlet|
@@ -68,50 +70,51 @@ getGLCheckItemCostR = do
             <th data-class-name="text-right"> QOH - Correct
         <tbody>
           $forall AccountSummary{..} <- summaries
-           <tr>
-            <td> 
-               <a href=@{GLR $ GLCheckItemCostAccountViewR (fromAccount asAccount)}>
-                 #{fromAccount asAccount} - #{asAccountName}
-            <td> #{tshowM asCollectDate} 
-                <form.form-inline method=POST action="@{GLR $ GLCheckItemCostAccountCollectR (fromAccount asAccount)}">  
-                   <span.hidden> ^{form}
-                   <button.btn.btn-danger type="sumbit"> Collect
-            <td> #{formatDouble asGLAmount}
-            $if equal asGLAmountOutOfScope  0
-              <td>
-            $else
-              <td.bg-danger.text-danger> #{formatDouble asGLAmountOutOfScope}
-            $case asCorrectAmount
-              $of (Just correct)
-                $if equal correct asGLAmount
-                  <td.bg-success.text-success>
-                      #{formatDouble correct}
-                  <td.bg-success.text-success>
-                      #{formatAbs asGLAmount correct}
-                $else
-                  <td class="#{classFor 100 asGLAmount correct}">
-                      #{formatDouble correct}
-                  <td class="#{classFor 100 asGLAmount correct}">
-                      #{formatAbs correct asGLAmount}
-                $if equal' 0.09 correct asStockValuation
-                  <td.bg-success.text-sucess>
-                    #{formatAbs correct asStockValuation}
-                $else
-                  <td class="#{classFor 100 asGLAmount asStockValuation}">
-                    #{formatAbs correct asStockValuation}
-              $of Nothing
+            $with danger <- asCollectDate > Just date
+             <tr :danger:.bg-danger>
+              <td > 
+                 <a href=@{GLR $ GLCheckItemCostAccountViewR (fromAccount asAccount)}>
+                   #{fromAccount asAccount} - #{asAccountName}
+              <td :danger:.text-danger> #{tshowM asCollectDate} 
+                  <form.form-inline method=POST action="@{GLR $ GLCheckItemCostAccountCollectR (fromAccount asAccount)}">  
+                     <span.hidden> ^{form}
+                     <button.btn.btn-danger type="sumbit"> Collect
+              <td> #{formatDouble asGLAmount}
+              $if equal asGLAmountOutOfScope  0
                 <td>
-                <td>
-                <td>
-            <td> #{formatDouble asStockValuation}
-            $if equal' 0.09 asGLAmount asStockValuation
-              <td.bg-success.text-sucess>
-                #{formatAbs asGLAmount asStockValuation}
-            $else
-              <td class="#{classFor 100 asGLAmount asStockValuation}">
-                #{formatAbs asGLAmount asStockValuation}
-            <td> #{formatDouble' asQuantity}
-            <td> #{maybe "-" (formatAbs asQuantity) asCorrectQoh}
+              $else
+                <td.bg-danger.text-danger> #{formatDouble asGLAmountOutOfScope}
+              $case asCorrectAmount
+                $of (Just correct)
+                  $if equal correct asGLAmount
+                    <td.bg-success.text-success>
+                        #{formatDouble correct}
+                    <td.bg-success.text-success>
+                        #{formatAbs asGLAmount correct}
+                  $else
+                    <td class="#{classFor 100 asGLAmount correct}">
+                        #{formatDouble correct}
+                    <td class="#{classFor 100 asGLAmount correct}">
+                        #{formatAbs correct asGLAmount}
+                  $if equal' 0.09 correct asStockValuation
+                    <td.bg-success.text-sucess>
+                      #{formatAbs correct asStockValuation}
+                  $else
+                    <td class="#{classFor 100 asGLAmount asStockValuation}">
+                      #{formatAbs correct asStockValuation}
+                $of Nothing
+                  <td>
+                  <td>
+                  <td>
+              <td> #{formatDouble asStockValuation}
+              $if equal' 0.09 asGLAmount asStockValuation
+                <td.bg-success.text-sucess>
+                  #{formatAbs asGLAmount asStockValuation}
+              $else
+                <td class="#{classFor 100 asGLAmount asStockValuation}">
+                  #{formatAbs asGLAmount asStockValuation}
+              <td> #{formatDouble' asQuantity}
+              <td> #{maybe "-" (formatAbs asQuantity) asCorrectQoh}
         <tfoot>
           <tr>
             <th> Total
