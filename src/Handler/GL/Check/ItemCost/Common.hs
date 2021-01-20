@@ -288,7 +288,8 @@ filterTransactionFromSummary maxId startDatem idField dateField =
         case (?collectMode, maxId, startDatem) of
             (Uncollectables, Just id_, _) -> ( " AND " <> idField <> "> ? "
                                              , [ toPersistValue id_ ]
-                                             )
+                                            )
+            (Uncollectables, Nothing, _) -> ("" , [])
             (_, Just id_, Just startDate) -> ( " AND ((" <> idField <> "> ? AND " <> dateField <> " = ?) OR " <> dateField <> " > ? OR " <> dateField <> " is NULL)  " 
                                      , [toPersistValue id_, toPersistValue startDate, toPersistValue startDate] )
              -- ^ we use gl.counter only the day of the summary, to know what transaction haven't been collected
