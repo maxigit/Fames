@@ -106,6 +106,8 @@ deriving instance Generic (PlannerR)
 instance EnumTreeable PlannerR
 deriving instance Generic (DashboardR)
 instance EnumTreeable DashboardR
+deriving instance Generic CustomersR
+instance EnumTreeable CustomersR
 
 instance EnumTreeable (Route App)
 
@@ -420,6 +422,7 @@ mainLinks = do
              , ("Items", ItemsR ItemsCategoryR)
              , ("Warehouse", WarehouseR WHStockAdjustmentR)
              , ("Planner", PlannerR (PViewR Nothing))
+             , ("Customers", CustomersR (CustInvoicesR))
              , ("Admin", AdministratorR AIndexR)
              , ("FA",  FA'R FADebtorsMasterR)
              , ("FAX",  FAX'R FAXItemRequestsR)

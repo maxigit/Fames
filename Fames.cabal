@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.2.
+-- This file has been generated from package.yaml by hpack version 0.34.3.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3057ebe6ddafcc98a6d4cb7cb111cdcaa3e97b4af28869699e39041d94ea1751
+-- hash: 9cdb1807f2710ec5e529d7764321f8e7984aff74d43f5cf3d2009c692fd3ea71
 
 name:           Fames
 version:        0.0.1
@@ -32,6 +32,8 @@ library
       Handler.Bank
       Handler.Common
       Handler.CsvUtils
+      Handler.Customers
+      Handler.Customers.Invoices
       Handler.Dashboard
       Handler.DC
       Handler.DC.Def
@@ -416,6 +418,8 @@ test-suite ghcid
       Handler.Bank
       Handler.Common
       Handler.CsvUtils
+      Handler.Customers
+      Handler.Customers.Invoices
       Handler.Dashboard
       Handler.DC
       Handler.DC.Def

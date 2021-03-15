@@ -141,6 +141,10 @@
   /batch/match_table ItemBatchMatchTableR GET !batch
   /batch/expand ItemBatchExpandMatchesR GET POST !batch !title=Expand_Batches
 
+/customers CustomersR !customers: 
+  /invoices CustInvoicesR GET !group=Customers !title=Invoices
+  /invoice/commodity_codes/#Int64 CustInvoiceCCodesR GET
+  /invoice/forDPD/#Int64 CustInvoiceDPDR POST
 /administrator AdministratorR !administrator:
   / AIndexR GET !group=Info !title=Index
   /testfa  ATestFAR GET !group=Test !title=FA_Connection
