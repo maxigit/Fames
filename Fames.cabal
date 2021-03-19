@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.3.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9cdb1807f2710ec5e529d7764321f8e7984aff74d43f5cf3d2009c692fd3ea71
+-- hash: ea5d28be4389c25f27b51b91e7bec1b16e3e75eb2c39a001911d5dfdcdadb3c5
 
 name:           Fames
 version:        0.0.1
@@ -150,14 +150,36 @@ library
       legacy
       app
       fay-shared
-  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures NamedWildCards
+  default-extensions:
+      TemplateHaskell
+      QuasiQuotes
+      OverloadedStrings
+      NoImplicitPrelude
+      MultiParamTypeClasses
+      TypeFamilies
+      GADTs
+      GeneralizedNewtypeDeriving
+      FlexibleContexts
+      FlexibleInstances
+      EmptyDataDecls
+      NoMonomorphismRestriction
+      RankNTypes
+      DeriveDataTypeable
+      ViewPatterns
+      TupleSections
+      RecordWildCards
+      PatternGuards
+      PatternSynonyms
+      StandaloneDeriving
+      PartialTypeSignatures
+      NamedWildCards
   build-depends:
       Decimal >=0.5.1 && <0.6
     , Glob
     , Metamorphosis >=0.1.0.1
     , aeson >=0.6 && <1.3
     , aeson-qq
-    , base >=4 && <5
+    , base ==4.*
     , blaze-html
     , blaze-markup
     , bytestring >=0.9 && <0.11
@@ -174,15 +196,15 @@ library
     , cryptohash
     , curl >=1.3.8 && <1.4
     , data-default
-    , diagrams-cairo >=1.4 && <1.5
+    , diagrams-cairo ==1.4.*
     , diagrams-lib >=1.4.1.2 && <1.5
-    , diagrams-svg >=1.4 && <1.5
+    , diagrams-svg ==1.4.*
     , directory >=1.1 && <1.4
     , fames-persist
     , fast-logger >=2.2 && <2.5
     , fay >=0.24.0.2 && <0.25
-    , fay-jquery >=0.6 && <0.7
-    , fay-text >=0.3 && <0.4
+    , fay-jquery ==0.6.*
+    , fay-text ==0.3.*
     , file-embed
     , filepath >=1.4.1.1 && <1.5
     , formatting
@@ -193,25 +215,25 @@ library
     , microlens >=0.4.1.1 && <0.5
     , microlens-th >=0.4.1.1 && <0.5
     , monad-control >=0.3 && <1.1
-    , monad-logger >=0.3 && <0.4
-    , mtl >=2.2 && <2.3
+    , monad-logger ==0.3.*
+    , mtl ==2.2.*
     , mysql
     , mysql-simple
     , one-liner >=1.0 && <2
-    , palette >=0.3 && <0.4
-    , parsec >=3.1 && <3.2
-    , path-pieces >=0.2 && <0.3
+    , palette ==0.3.*
+    , parsec ==3.1.*
+    , path-pieces ==0.2.*
     , persistent >=2.0 && <2.8
     , persistent-mysql >=2.1.2 && <2.7
     , persistent-template >=2.0 && <2.6
     , pointed >=5
     , pretty-simple
-    , reducers >=3.12 && <3.13
+    , reducers ==3.12.*
     , regex-base
     , regex-compat-tdfa
     , regex-tdfa >=1.2.2 && <1.3
     , safe
-    , shakespeare >=2.0 && <2.1
+    , shakespeare ==2.0.*
     , split
     , streaming-commons
     , tabular >=0.2.2.7 && <0.3
@@ -226,10 +248,10 @@ library
     , unordered-containers
     , vector
     , wai
-    , wai-extra >=3.0 && <3.1
+    , wai-extra ==3.0.*
     , wai-logger >=2.2 && <2.4
     , warp >=3.0 && <3.3
-    , yaml >=0.8 && <0.9
+    , yaml ==0.8.*
     , yesod >=1.4.1 && <1.5
     , yesod-auth >=1.4.0 && <1.5
     , yesod-core >=1.4.17 && <1.5
@@ -274,7 +296,29 @@ executable Fames
       Paths_Fames
   hs-source-dirs:
       app
-  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures NamedWildCards
+  default-extensions:
+      TemplateHaskell
+      QuasiQuotes
+      OverloadedStrings
+      NoImplicitPrelude
+      MultiParamTypeClasses
+      TypeFamilies
+      GADTs
+      GeneralizedNewtypeDeriving
+      FlexibleContexts
+      FlexibleInstances
+      EmptyDataDecls
+      NoMonomorphismRestriction
+      RankNTypes
+      DeriveDataTypeable
+      ViewPatterns
+      TupleSections
+      RecordWildCards
+      PatternGuards
+      PatternSynonyms
+      StandaloneDeriving
+      PartialTypeSignatures
+      NamedWildCards
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -j6
   build-depends:
       Decimal >=0.5.1 && <0.6
@@ -283,7 +327,7 @@ executable Fames
     , Metamorphosis >=0.1.0.1
     , aeson >=0.6 && <1.3
     , aeson-qq
-    , base >=4 && <5
+    , base ==4.*
     , blaze-html
     , blaze-markup
     , bytestring >=0.9 && <0.11
@@ -300,15 +344,15 @@ executable Fames
     , cryptohash
     , curl >=1.3.8 && <1.4
     , data-default
-    , diagrams-cairo >=1.4 && <1.5
+    , diagrams-cairo ==1.4.*
     , diagrams-lib >=1.4.1.2 && <1.5
-    , diagrams-svg >=1.4 && <1.5
+    , diagrams-svg ==1.4.*
     , directory >=1.1 && <1.4
     , fames-persist
     , fast-logger >=2.2 && <2.5
     , fay >=0.24.0.2 && <0.25
-    , fay-jquery >=0.6 && <0.7
-    , fay-text >=0.3 && <0.4
+    , fay-jquery ==0.6.*
+    , fay-text ==0.3.*
     , file-embed
     , filepath >=1.4.1.1 && <1.5
     , formatting
@@ -319,25 +363,25 @@ executable Fames
     , microlens >=0.4.1.1 && <0.5
     , microlens-th >=0.4.1.1 && <0.5
     , monad-control >=0.3 && <1.1
-    , monad-logger >=0.3 && <0.4
-    , mtl >=2.2 && <2.3
+    , monad-logger ==0.3.*
+    , mtl ==2.2.*
     , mysql
     , mysql-simple
     , one-liner >=1.0 && <2
-    , palette >=0.3 && <0.4
-    , parsec >=3.1 && <3.2
-    , path-pieces >=0.2 && <0.3
+    , palette ==0.3.*
+    , parsec ==3.1.*
+    , path-pieces ==0.2.*
     , persistent >=2.0 && <2.8
     , persistent-mysql >=2.1.2 && <2.7
     , persistent-template >=2.0 && <2.6
     , pointed >=5
     , pretty-simple
-    , reducers >=3.12 && <3.13
+    , reducers ==3.12.*
     , regex-base
     , regex-compat-tdfa
     , regex-tdfa >=1.2.2 && <1.3
     , safe
-    , shakespeare >=2.0 && <2.1
+    , shakespeare ==2.0.*
     , split
     , streaming-commons
     , tabular >=0.2.2.7 && <0.3
@@ -352,10 +396,10 @@ executable Fames
     , unordered-containers
     , vector
     , wai
-    , wai-extra >=3.0 && <3.1
+    , wai-extra ==3.0.*
     , wai-logger >=2.2 && <2.4
     , warp >=3.0 && <3.3
-    , yaml >=0.8 && <0.9
+    , yaml ==0.8.*
     , yesod >=1.4.1 && <1.5
     , yesod-auth >=1.4.0 && <1.5
     , yesod-core >=1.4.17 && <1.5
@@ -526,7 +570,29 @@ test-suite ghcid
       fay-shared
       src
       app
-  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures NamedWildCards
+  default-extensions:
+      TemplateHaskell
+      QuasiQuotes
+      OverloadedStrings
+      NoImplicitPrelude
+      MultiParamTypeClasses
+      TypeFamilies
+      GADTs
+      GeneralizedNewtypeDeriving
+      FlexibleContexts
+      FlexibleInstances
+      EmptyDataDecls
+      NoMonomorphismRestriction
+      RankNTypes
+      DeriveDataTypeable
+      ViewPatterns
+      TupleSections
+      RecordWildCards
+      PatternGuards
+      PatternSynonyms
+      StandaloneDeriving
+      PartialTypeSignatures
+      NamedWildCards
   ghc-options: -w -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Decimal >=0.5.1 && <0.6
@@ -552,15 +618,15 @@ test-suite ghcid
     , cryptohash
     , curl >=1.3.8 && <1.4
     , data-default
-    , diagrams-cairo >=1.4 && <1.5
+    , diagrams-cairo ==1.4.*
     , diagrams-lib >=1.4.1.2 && <1.5
-    , diagrams-svg >=1.4 && <1.5
+    , diagrams-svg ==1.4.*
     , directory >=1.1 && <1.4
     , fames-persist
     , fast-logger >=2.2 && <2.5
     , fay >=0.24.0.2 && <0.25
-    , fay-jquery >=0.6 && <0.7
-    , fay-text >=0.3 && <0.4
+    , fay-jquery ==0.6.*
+    , fay-text ==0.3.*
     , file-embed
     , filepath >=1.4.1.1 && <1.5
     , formatting
@@ -574,19 +640,19 @@ test-suite ghcid
     , microlens-th >=0.4.1.1 && <0.5
     , monad-control >=0.3 && <1.1
     , monad-logger
-    , mtl >=2.2 && <2.3
+    , mtl ==2.2.*
     , mysql
     , mysql-simple
     , one-liner >=1.0 && <2
-    , palette >=0.3 && <0.4
-    , parsec >=3.1 && <3.2
-    , path-pieces >=0.2 && <0.3
+    , palette ==0.3.*
+    , parsec ==3.1.*
+    , path-pieces ==0.2.*
     , persistent
     , persistent-mysql
     , persistent-template >=2.0 && <2.6
     , pointed >=5
     , pretty-simple
-    , reducers >=3.12 && <3.13
+    , reducers ==3.12.*
     , regex-base
     , regex-compat-tdfa
     , regex-tdfa >=1.2.2 && <1.3
@@ -608,7 +674,7 @@ test-suite ghcid
     , unordered-containers
     , vector
     , wai
-    , wai-extra >=3.0 && <3.1
+    , wai-extra ==3.0.*
     , wai-logger >=2.2 && <2.4
     , warp >=3.0 && <3.3
     , yaml
@@ -653,7 +719,29 @@ test-suite test
       Paths_Fames
   hs-source-dirs:
       test
-  default-extensions: TemplateHaskell QuasiQuotes OverloadedStrings NoImplicitPrelude MultiParamTypeClasses TypeFamilies GADTs GeneralizedNewtypeDeriving FlexibleContexts FlexibleInstances EmptyDataDecls NoMonomorphismRestriction RankNTypes DeriveDataTypeable ViewPatterns TupleSections RecordWildCards PatternGuards PatternSynonyms StandaloneDeriving PartialTypeSignatures NamedWildCards
+  default-extensions:
+      TemplateHaskell
+      QuasiQuotes
+      OverloadedStrings
+      NoImplicitPrelude
+      MultiParamTypeClasses
+      TypeFamilies
+      GADTs
+      GeneralizedNewtypeDeriving
+      FlexibleContexts
+      FlexibleInstances
+      EmptyDataDecls
+      NoMonomorphismRestriction
+      RankNTypes
+      DeriveDataTypeable
+      ViewPatterns
+      TupleSections
+      RecordWildCards
+      PatternGuards
+      PatternSynonyms
+      StandaloneDeriving
+      PartialTypeSignatures
+      NamedWildCards
   ghc-options: -w -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Decimal >=0.5.1 && <0.6
@@ -680,15 +768,15 @@ test-suite test
     , cryptohash
     , curl >=1.3.8 && <1.4
     , data-default
-    , diagrams-cairo >=1.4 && <1.5
+    , diagrams-cairo ==1.4.*
     , diagrams-lib >=1.4.1.2 && <1.5
-    , diagrams-svg >=1.4 && <1.5
+    , diagrams-svg ==1.4.*
     , directory >=1.1 && <1.4
     , fames-persist
     , fast-logger >=2.2 && <2.5
     , fay >=0.24.0.2 && <0.25
-    , fay-jquery >=0.6 && <0.7
-    , fay-text >=0.3 && <0.4
+    , fay-jquery ==0.6.*
+    , fay-text ==0.3.*
     , file-embed
     , filepath >=1.4.1.1 && <1.5
     , formatting
@@ -702,19 +790,19 @@ test-suite test
     , microlens-th >=0.4.1.1 && <0.5
     , monad-control >=0.3 && <1.1
     , monad-logger
-    , mtl >=2.2 && <2.3
+    , mtl ==2.2.*
     , mysql
     , mysql-simple
     , one-liner >=1.0 && <2
-    , palette >=0.3 && <0.4
-    , parsec >=3.1 && <3.2
-    , path-pieces >=0.2 && <0.3
+    , palette ==0.3.*
+    , parsec ==3.1.*
+    , path-pieces ==0.2.*
     , persistent
     , persistent-mysql
     , persistent-template >=2.0 && <2.6
     , pointed >=5
     , pretty-simple
-    , reducers >=3.12 && <3.13
+    , reducers ==3.12.*
     , regex-base
     , regex-compat-tdfa
     , regex-tdfa >=1.2.2 && <1.3
@@ -736,7 +824,7 @@ test-suite test
     , unordered-containers
     , vector
     , wai
-    , wai-extra >=3.0 && <3.1
+    , wai-extra ==3.0.*
     , wai-logger >=2.2 && <2.4
     , warp >=3.0 && <3.3
     , yaml
