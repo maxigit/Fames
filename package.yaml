@@ -123,6 +123,7 @@ library:
     then:
       ghc-options:
       - -Werror
+      # - -Wincomplete-record-updates
       - -Wincomplete-patterns
       - -W
       - -Wno-partial-type-signatures

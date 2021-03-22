@@ -7,13 +7,14 @@ module Handler.Customers.Invoices
 
 import Import
 import qualified FA as FA
+import Customers.Settings
 import Yesod.Form.Bootstrap3
 import Handler.Items.Category.Cache
 import Data.List(nub)
 import Data.Maybe(fromJust)
 import Handler.Customers.DPD
 import Data.ISO3166_CountryCodes
- 
+import qualified Data.Map as Map
 --  _____                      
 -- |_   _|   _ _ __   ___  ___ 
 --   | || | | | '_ \ / _ \/ __|
@@ -31,8 +32,13 @@ data InvoiceInfo = InvoiceInfo
   , iiDetails :: [FA.DebtorTransDetail]
   }
 
-
-  
+data CustomerInfo = CustomerInfo
+  { cuDebtorNo :: Int64
+  , cuDebtor :: FA.DebtorsMaster
+  , cuBranch  :: FA.CustBranch
+  , cuContact :: Maybe  FA.CrmPerson
+  , custBranchArea :: FA.Area
+  } 
 
 --                     __                  _   _                 
 --                    / _|_   _ _ __   ___| |_(_) ___  _ __  ___ 
@@ -139,45 +145,58 @@ getCustInvoiceCCodesR key = do
 postCustInvoiceDPDR :: Int64 -> Handler TypedContent
 postCustInvoiceDPDR key =  do
   info <- runDB$ loadInvoiceInfo key
+  settingsm <- getsYesod (appDPDSettings . appSettings)
+  let settings = fromMaybe (error "Shipping settings missing. Please contact your administrator.")
+                           settingsm
+
+
   ((resp, __formW), __encType) <- runFormPost (shippingForm Nothing)
   case resp of
     FormMissing -> error "Form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess params -> do
       categoryFinder <- categoryFinderCached
-      let delivery = mkDelivery info params
-          productDetails = map (mkProductDetail categoryFinder UsePPD ) (iiDetails info)
+      let delivery = mkDelivery info params settings
+          productDetails = map (setParcelNb . mkProductDetail categoryFinder UsePPD ) (iiDetails info)
+          setParcelNb = case shNoOfPackages params of
+                            1 -> \detail -> detail { parcel = Right 1 }
+                            _ -> id
       
-          filename = show key <> ".csv"
-      setAttachment $ fromString filename
+          filename = shCustomerName params <> "-Invoice-" <> tshow  key <> ".csv"
+      setAttachment $ fromString $ unpack filename
       respondSource ("text/csv") (makeDPDSource delivery productDetails .| mapC toFlushBuilder)
   
-mkDelivery :: InvoiceInfo -> ShippingForm -> Double -> Either Text Double -> Delivery
-mkDelivery info ShippingForm{..} customValue totalWeight = Delivery{..} where
+mkDelivery :: InvoiceInfo -> ShippingForm -> DPDSettings -> Double -> Delivery
+mkDelivery info ShippingForm{..} DPDSettings{..} customValue =
+  Delivery{
+    shipperContactTelephone = mconcat $ words shipperContactTelephone
+    ,..
+  } where
+  reference = shCustomerName
   organisation'name = shCustomerName
   addressLine1'property'street = shAddress1
   addressLine2'locality = shAddress2
   addressLine3'City = shCity
   addressLine4'County'State = shCountyState
   postCode_7 = mconcat $ words shPostalCode -- remove space to fit in 7 chars
-  countryCode_2 = shCountry
+  countryCode_2 = fromJust shCountry
   additional_information = ""
   contactName = shContact
-  contactTelephoneNumber = shTelephone
+  contactTelephoneNumber = mconcat $ words shTelephone
   -- customValue = customValue
   description = "<description>"
   noOfPackages = shNoOfPackages
   notificationEmail = fromMaybe "" shNotificationEmail
-  notificationSMSNumber = fromMaybe "" shNotificationText
-  serviceCode = InternationalClassic
-  totalWeightKg = totalWeight
-  generateCustomData = Y
+  notificationSMSNumber = mconcat $ words $ fromMaybe "" shNotificationText
+  serviceCode = shServiceCode
+  totalWeightKg = shWeight
+  generateCustomData = if shGenerateCustomData then Y else N
   invoiceType = Commercial
   invoiceReference = FA.debtorTranReference $ iiInvoice info
   countryOfOrigin = GB
   shipping'freightCost = FA.debtorTranOvFreight $ iiInvoice info
   reasonForExport = Sale
-  receiverVAT'PID'EORI =  "<EORI>"
+  receiverVAT'PID'EORI = fromMaybe "" shTaxId
   
 data UsePPD = UsePPD | NoPPD deriving (Show, Read)
 
@@ -185,8 +204,10 @@ mkProductDetail :: (Text -> FA.StockMasterId -> Maybe Text) -> UsePPD -> FA.Debt
 mkProductDetail categoryFor usePPD FA.DebtorTransDetail{..} = ProductDetail{..} where
   identifier = PRD
   productCode = debtorTransDetailStockId
-  harmonisedCode =  fromCat "commodity_code" "<Commodity Code>"
-  unitWeight = maybe (Left  "<Unit Weight (Kg)>") Right (fromCat' "unit-weight" >>= readMay)
+  harmonisedCode = take 8 $  fromCat "commodity_code" "<CoCode>"
+  unitWeight = maybe (Left  "<Unit Weight (Kg)>")
+                     (Right . (*1000))
+                     (fromCat' "unit-weight-g" >>= readMay)
   parcel = Left "<Box number>"
   description = fromCat "dpd-description" "<Description>"
   productType = fromCat "dpd-product-type" "<Product Type>"
@@ -202,7 +223,7 @@ mkProductDetail categoryFor usePPD FA.DebtorTransDetail{..} = ProductDetail{..} 
   
 data ShippingForm = ShippingForm
   { shCustomerName :: Text
-  , shCountry :: CountryCode
+  , shCountry :: Maybe CountryCode -- mandatory but we need to not have a default value
   , shPostalCode :: Text
   , shAddress1 :: Text
   , shAddress2 :: Maybe Text
@@ -214,8 +235,10 @@ data ShippingForm = ShippingForm
   , shNotificationText :: Maybe Text
   , shNoOfPackages :: Int
   , shWeight :: Double
+  , shGenerateCustomData :: Bool
+  , shTaxId :: Maybe Text
   -- , shCustomValue ::  Double
-  -- , shService :: Text
+  , shServiceCode :: ServiceCode
   } deriving Show
 
   
@@ -223,19 +246,20 @@ data ShippingForm = ShippingForm
 -- and modify it if necessary.
 -- Also returns an extra widget with extra information like
 -- full address, order comments etc ...
-fillShippingForm :: InvoiceInfo -> Maybe FA.CrmPerson  -> Handler ShippingForm
-fillShippingForm info personm = runDB $ do
+fillShippingForm :: InvoiceInfo -> CustomerInfo -> Handler ShippingForm
+fillShippingForm info customerInfo = runDB $ do
   -- Get address and Co
-  customer <- getJust (FA.DebtorsMasterKey $ fromMaybe 0 $ FA.debtorTranDebtorNo $ iiInvoice info)
+  let customer = cuDebtor customerInfo
+      personm = cuContact customerInfo
   let order = case reverse (iiDelivery'orders info) of
                  (_,o):_ -> o
                  [] -> error "Unexpected happend. Invoice should have an order"
 
 
-  let shCustomerName =  FA.debtorsMasterName customer
-      shCountry = GB
+  let shCustomerName = decodeHtmlEntities $  FA.debtorsMasterName customer
+      (shCountry, shGenerateCustomData, shServiceCode) = customerCountryInfo customerInfo
       (shAddress1, shAddress2, shCity, shPostalCode, shCountyState) =
-        case lines (FA.salesOrderDeliveryAddress order) of
+        case lines (decodeHtmlEntities $ FA.salesOrderDeliveryAddress order) of
           [add1,city,zip] -> (add1, Nothing, city, zip, Nothing)
           [add1, add2, city, zip, county] -> (add1, Just add2, city, zip, Just county)
           [add1, add2, city, zip] -> (add1, Just add2, city, zip, Nothing)
@@ -248,14 +272,31 @@ fillShippingForm info personm = runDB $ do
       shNotificationText =  ((personm >>= FA.crmPersonPhone2) <|> (personm >>= FA.crmPersonPhone)) <|> (Just "<Text>")
       shNoOfPackages = 1
       shWeight = 9
+      shTaxId = Just $ FA.debtorsMasterTaxId customer
       -- shCustomValue ::  Double
       -- shService = ""
   return ShippingForm{..}
- 
+
+customerCountryInfo :: CustomerInfo -> (Maybe CountryCode, Bool, ServiceCode)
+customerCountryInfo CustomerInfo{..} = 
+  case FA.areaDescription custBranchArea of 
+    "UK" -> (Just GB, False, ParcelNextDay)
+    "Northern Ireland" -> (Just GB, True, ParcelTwoDay)
+    "Rep. of Ireland" -> (Just IE, True, ParcelTwoDay)
+    "Europe" -> -- extract the code from the VAT
+      ( lookup (take 2 $ FA.debtorsMasterTaxId cuDebtor) countryMap
+      , True
+      , InternationalClassic
+      )
+    _ -> (Nothing, True, InternationalClassic)
+  where
+    countryMap = Map.fromList $ map (fanl tshow) [minBound..maxBound]
+
+
 shippingForm :: Maybe ShippingForm  -> Html -> MForm Handler (FormResult ShippingForm, Widget)
 shippingForm ship = renderBootstrap3 BootstrapBasicForm form where
   form = ShippingForm <$> areq textField "Customer Name" (ship <&> shCustomerName)
-                      <*> areq (selectField countryOptions) "Country" (ship <&> shCountry)
+                      <*> aopt (selectField countryOptions) "Country" (ship <&> shCountry)
                       <*> areq textField "Postal/Zip Code" (ship <&> shPostalCode)
                       <*> areq textField "Address 1" (ship <&> shAddress1)
                       <*> aopt textField "Address 2" (ship <&> shAddress2)
@@ -267,8 +308,12 @@ shippingForm ship = renderBootstrap3 BootstrapBasicForm form where
                       <*> aopt textField "Notification Text" (ship <&> shNotificationText)
                       <*> areq intField "No of Packages" (ship <&> shNoOfPackages)
                       <*> areq doubleField "Weight" (ship <&> shWeight)
+                      <*> areq boolField "Custom Data" (ship <&> shGenerateCustomData)
+                      <*> aopt textField "EORI" (ship <&> shTaxId)
+                      <*> areq (selectField serviceOptions) "Service" (ship <&> shServiceCode)
 
   countryOptions = optionsPairs $ map (fanl (p . readableCountryName)) [minBound..maxBound]
+  serviceOptions = optionsPairs $ map (fanl tshow) [minBound..maxBound]
   p :: String -> Text
   p = pack
     
@@ -280,12 +325,12 @@ shippingForm ship = renderBootstrap3 BootstrapBasicForm form where
 -- dpdExportFrom :: FA.DebtorTrans -> FA.SalesOrder -> Form
 dpdExportFrom info = do
   let FA.DebtorTran{..} = iiInvoice info
-  contactm <- runDB $ loadContactFor (fromJust debtorTranDebtorNo) $ Just debtorTranBranchCode
-  shipping <- fillShippingForm info contactm
+  customerInfo <- runDB $ loadCustomerInfo (fromJust debtorTranDebtorNo) debtorTranBranchCode
+  shipping <- fillShippingForm info customerInfo
   (form, encType) <- generateFormPost $ shippingForm $ Just shipping
   return [whamlet|
     ^{invoiceSummary info}
-    ^{contactSummary contactm}
+    ^{contactSummary $ cuContact customerInfo}
     <form.form method=POST action="@{CustomersR $ CustInvoiceDPDR $ iiKey info}" enctype="#{encType}">
       ^{form}
       <button.btn.btn-warning> Download
@@ -415,7 +460,13 @@ loadContactFor debtor branchm = do
   case branchD ++ custD ++ branchG ++ custG of
     [] -> return Nothing
     ((Entity _ contact):_) -> get $ FA.CrmPersonKey $ FA.crmContactPersonId contact
-  
 
-  
+loadCustomerInfo :: Int ->Int -> SqlHandler CustomerInfo
+loadCustomerInfo debtorNo branchNo = do
+  let cuDebtorNo = fromIntegral debtorNo
+  cuDebtor <- getJust $ FA.DebtorsMasterKey debtorNo
+  cuBranch <- getJust $ FA.CustBranchKey branchNo debtorNo
+  cuContact <- loadContactFor debtorNo (Just branchNo)
+  custBranchArea <- getJust $ FA.AreaKey $ fromJust $ FA.custBranchArea cuBranch
 
+  return $ CustomerInfo{..}

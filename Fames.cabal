@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f69a8992ed29edb84f95be7440233f3f10fd0b60892e84671ee41dd0bb1d45f0
+-- hash: 47ce032ed9440c1fd64779d61f9c4dfda598139c53381618eab5d0608550dbfb
 
 name:           Fames
 version:        0.0.1
@@ -119,6 +119,7 @@ library
       WarehousePlanner.SimilarBy
       WarehousePlanner.Type
       Curl
+      Customers.Settings
       GL
       GL.Check.ItemCostSettings
       GL.FA
@@ -272,6 +273,7 @@ executable Fames
   main-is: main.hs
   other-modules:
       Curl
+      Customers.Settings
       GL
       GL.Check.ItemCostSettings
       GL.FA
@@ -544,6 +546,7 @@ test-suite ghcid
       Util.Transformable
       Util.ValidField
       Curl
+      Customers.Settings
       GL
       GL.Check.ItemCostSettings
       GL.FA

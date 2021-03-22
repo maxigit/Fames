@@ -20,7 +20,8 @@ import Data.ISO3166_CountryCodes
 -- | Shipping Import Mandatory Fields
 -- all optional field have are Maybe
 data Delivery = Delivery
-  { organisation'name :: Text
+  { reference :: Text
+  , organisation'name :: Text
   , addressLine1'property'street :: Text
   , addressLine2'locality :: Maybe Text
   , addressLine3'City :: Text
@@ -36,28 +37,33 @@ data Delivery = Delivery
   , notificationEmail :: Text
   , notificationSMSNumber :: Text
   , serviceCode :: ServiceCode
-  , totalWeightKg :: Either Text Double
+  , totalWeightKg :: Double
   , generateCustomData :: YesNo
   , invoiceType :: InvoiceType
   , invoiceReference :: Text
-  -- , shipperAddressLine1'property'street :: Text
-  -- , shipperAddressLine2'locality :: Maybe Text
-  -- , shipperAddressLine3'City :: Text
-  -- , shipperAddressLine4'County'State :: Maybe Text
-  -- , shipperContactName :: Text
+  , shipperAddressLine1_property'street :: Text
+  , shipperAddressLine2 :: Maybe Text
+  , shipperAddressLine3_city :: Text
+  , shipperAddressLine4 :: Maybe Text
+  , shipperPostcode :: Text
+  , shipperCountryCode :: Text
+  , shipperContactName :: Text
+  , shipperContactTelephone :: Text
+  , shipperOrganisation :: Text
+  , shipperEORI :: Text
   , countryOfOrigin :: CountryCode -- GB origin of the parcel
   , shipping'freightCost :: Double
   , reasonForExport :: ReasonForExport
   , receiverVAT'PID'EORI :: Text
   } deriving (Show, Read)
 
-data YesNo = Y | N deriving (Show, Read)
+data YesNo = Y | N deriving (Show, Read, Eq)
 data ServiceCode = ParcelTwoDay
                  | ParcelNextDay
                  | ExpressPak1NextDay
                  | ExpressPak5NextDay
                  | InternationalClassic
-                 deriving (Show, Read)
+                 deriving (Show, Read, Eq, Ord, Bounded, Enum)
 data ReasonForExport = Sale
   deriving (Show, Read)
 
@@ -85,7 +91,7 @@ data PRD = PRD deriving (Show, Read)
 instance ToField CountryCode where
   toField = toField . show
 instance ToField ServiceCode where
-  toField sc = case sc of
+  toField sc = "2^" ++ case sc of
     ParcelTwoDay -> "11"
     ParcelNextDay -> "12"
     ExpressPak1NextDay -> "68"
@@ -109,7 +115,8 @@ instance ToField ReasonForExport where
 instance ToNamedRecord Delivery where
   toNamedRecord = namedRecord . deliveryToFields
 deliveryToFields Delivery{..} =
-    [ "Delivery organisation/name" .= organisation'name
+    [ "Delivery customer ref. 1" .= reference
+    , "Delivery organisation/name" .= organisation'name
     , "Delivery address line1 (property/street)" .= addressLine1'property'street
     , "Delivery address line2 (locality)" .= addressLine2'locality
     , "Delivery address line3 (City)" .= addressLine3'City
@@ -125,59 +132,65 @@ deliveryToFields Delivery{..} =
     , "Delivery notification email" .= notificationEmail
     , "Delivery notification SMS Number" .= notificationSMSNumber
     , "Delivery service code" .= serviceCode
-    , "Delivery totar weight (kg)" .= either toField toField totalWeightKg
+    , "Delivery total weight (kg)" .= totalWeightKg
     , "Generate customData" .= generateCustomData
     , "Invoice Type" .= invoiceType
     , "Invoice Reference" .= invoiceReference
-    -- , shipper addressLine1'property'street :: Text
-    -- , shipper addressLine2'locality :: Maybe Text
-    -- , shipper addressLine3'City :: Text
-    -- , shipper addressLine4'County'State :: Maybe Text
-    -- , shipper contactName :: Text
     , "Country of Origin" .= countryOfOrigin
     , "Shipping/Freight Cost" .= shipping'freightCost
     , "Reason for Export" .= reasonForExport
     , "Receiver's VAT/PID/EORI No." .= receiverVAT'PID'EORI
+    , "shipperAddressLine1_property'street" .= shipperAddressLine1_property'street
+    , "shipperAddressLine2" .= shipperAddressLine2
+    , "shipperAddressLine3_city" .= shipperAddressLine3_city
+    , "shipperAddressLine4" .= shipperAddressLine4
+    , "shipperPostcode" .= shipperPostcode
+    , "shipperCountryCode" .= shipperCountryCode
+    , "shipperContactName" .= shipperContactName
+    , "shipperContactTelephone" .= shipperContactTelephone
+    , "shipperOrganisation" .= shipperOrganisation
+    , "shipperEORI" .= shipperEORI
     ]
 
 instance ToNamedRecord ProductDetail where
   toNamedRecord = namedRecord . productDetailToFields
 
 productDetailToFields ProductDetail{..} =
-    [ "Identifier" .= identifier
+    [ "PRD" .= identifier
+    , "Parcel" .= either toField toField parcel
     , "ProductCode" .= productCode
+    , "ProductType" .= productType
+    , "Description" .= description
+    , "Fabric Content" .= t "Fabric"
+    , "ItemOrigin" .= itemOrigin
     , "HarmonisedCode" .= harmonisedCode
     , "UnitWeight" .= either toField toField unitWeight
-    , "Parcel" .= either toField toField parcel
-    , "Description" .= description
-    , "ProductType" .= productType
-    , "ItemOrigin" .= itemOrigin
     , "Quantity" .= quantity
     , "UnitValue" .= unitValue
     ]
 
+t :: Text -> Text
+t = id
+
 -- * Stream
-makeDPDSource :: (Double -> Either Text Double -> Delivery ) -> [ProductDetail] -> ConduitT () (L.ByteString) Handler ()
+makeDPDSource :: (Double -> Delivery ) -> [ProductDetail] -> ConduitT () (L.ByteString) Handler ()
 makeDPDSource _ [] = error "Invoice without product details"
 makeDPDSource delivery' details@(detail:_) = do
   let totalCost = sum $ map (liftA2 (*) unitValue (fromIntegral . quantity)) details
-      totalWeight = sum <$> traverse weightE details
-      weightE ProductDetail{..} = do
-        w <- unitWeight
-        Right $ w * fromIntegral quantity
-      delivery = delivery' totalCost totalWeight
+      delivery = delivery' totalCost
       devHeader = header $ map fst $ deliveryToFields delivery
       detailHeader = header $ map fst $ productDetailToFields detail
       opt = defaultEncodeOptions
-      noHeader = opt {encIncludeHeader = False }
+      optPipe = defaultEncodeOptions { encDelimiter = 124 }
+      noHeader o = o {encIncludeHeader = False }
   --------------------------------------------------
   -- Headers first ...
-  yield $ encodeByNameWith opt devHeader ([] :: [Delivery])
+  yield $ encodeByNameWith optPipe devHeader ([] :: [Delivery])
   yield $ encodeByNameWith opt detailHeader ([] :: [ProductDetail])
   -- Then no header
-  yield $ encodeByNameWith noHeader devHeader [delivery]
-  yield $ encodeByNameWith noHeader detailHeader details
-
-  
+  yield $ encodeByNameWith (noHeader optPipe) devHeader [delivery]
+  if generateCustomData delivery == Y
+     then yield $ encodeByNameWith (noHeader opt) detailHeader details
+     else return ()
 
 

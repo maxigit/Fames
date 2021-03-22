@@ -34,6 +34,7 @@ import GL.TaxReport.Settings
 import qualified GL.Check.ItemCostSettings as ItemCost
 import GL.Receipt
 import qualified Data.Map as Map
+import Customers.Settings
 
 
 
@@ -116,6 +117,7 @@ data AppSettings = AppSettings
     , appFavicon:: Text
     , appStocktakeHistoryCategory :: Text
     , appCheckItemCostSetting :: Maybe ItemCost.Settings
+    , appDPDSettings :: Maybe DPDSettings
     } deriving Show
 
 data BankAutoReconciliateRule = BankAutoTransfer !Int
@@ -249,6 +251,7 @@ instance FromJSON AppSettings  where
         appFavicon <- o .:? "favicon" .!= (if defaultDev then "Orange" else "" )
         appStocktakeHistoryCategory  <- o .:? "stocktake-history-category" .!= "style"
         appCheckItemCostSetting <- o .:? "check-item-cost" .!= Nothing
+        appDPDSettings <- o .:? "shipping-dpd"
 
         -- This code enables MySQL's strict mode, without which MySQL will truncate data.
         -- See https://github.com/yesodweb/persistent/wiki/Database-Configuration#strict-mode for details
