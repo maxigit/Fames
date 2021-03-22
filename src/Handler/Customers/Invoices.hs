@@ -156,9 +156,9 @@ mkDelivery :: InvoiceInfo -> ShippingForm -> Double -> Either Text Double -> Del
 mkDelivery info ShippingForm{..} customValue totalWeight = Delivery{..} where
   organisation'name = shCustomerName
   addressLine1'property'street = shAddress1
-  addressLine2'locality = Just shAddress2
+  addressLine2'locality = shAddress2
   addressLine3'City = shCity
-  addressLine4'County'State = Just shCountyState
+  addressLine4'County'State = shCountyState
   postCode_7 = mconcat $ words shPostalCode -- remove space to fit in 7 chars
   countryCode_2 = shCountry
   additional_information = ""
@@ -167,8 +167,8 @@ mkDelivery info ShippingForm{..} customValue totalWeight = Delivery{..} where
   -- customValue = customValue
   description = "<description>"
   noOfPackages = shNoOfPackages
-  notificationEmail = shNotificationEmail
-  notificationSMSNumber = shNotificationText
+  notificationEmail = fromMaybe "" shNotificationEmail
+  notificationSMSNumber = fromMaybe "" shNotificationText
   serviceCode = InternationalClassic
   totalWeightKg = totalWeight
   generateCustomData = Y
@@ -205,13 +205,13 @@ data ShippingForm = ShippingForm
   , shCountry :: CountryCode
   , shPostalCode :: Text
   , shAddress1 :: Text
-  , shAddress2 :: Text
+  , shAddress2 :: Maybe Text
   , shCity :: Text
-  , shCountyState :: Text
+  , shCountyState :: Maybe Text
   , shContact :: Text
   , shTelephone :: Text
-  , shNotificationEmail :: Text
-  , shNotificationText :: Text
+  , shNotificationEmail :: Maybe Text
+  , shNotificationText :: Maybe Text
   , shNoOfPackages :: Int
   , shWeight :: Double
   -- , shCustomValue ::  Double
@@ -236,16 +236,16 @@ fillShippingForm info personm = runDB $ do
       shCountry = GB
       (shAddress1, shAddress2, shCity, shPostalCode, shCountyState) =
         case lines (FA.salesOrderDeliveryAddress order) of
-          [add1,city,zip] -> (add1, "", city, zip, "")
-          [add1, add2, city, zip, county] -> (add1, add2, city, zip, county)
-          [add1, add2, city, zip] -> (add1, add2, city, zip, "")
-          _ ->                       (""  , ""  , ""  , "" , "")
+          [add1,city,zip] -> (add1, Nothing, city, zip, Nothing)
+          [add1, add2, city, zip, county] -> (add1, Just add2, city, zip, Just county)
+          [add1, add2, city, zip] -> (add1, Just add2, city, zip, Nothing)
+          _ ->                       (""  , Nothing  , ""  , "" , Nothing)
       shContact = intercalate " " $ catMaybes [ FA.crmPersonName <$> personm
                                               , personm >>= FA.crmPersonName2
                                               ]
       shTelephone = fromMaybe "<Phone>" (personm >>= FA.crmPersonPhone)
-      shNotificationEmail = fromMaybe "<Email>" (personm >>= FA.crmPersonEmail)
-      shNotificationText = fromMaybe "<Text>" ((personm >>= FA.crmPersonPhone2) <|> (personm >>= FA.crmPersonPhone))
+      shNotificationEmail =  (personm >>= FA.crmPersonEmail) <|> (Just "<Email>")
+      shNotificationText =  ((personm >>= FA.crmPersonPhone2) <|> (personm >>= FA.crmPersonPhone)) <|> (Just "<Text>")
       shNoOfPackages = 1
       shWeight = 9
       -- shCustomValue ::  Double
@@ -258,13 +258,13 @@ shippingForm ship = renderBootstrap3 BootstrapBasicForm form where
                       <*> areq (selectField countryOptions) "Country" (ship <&> shCountry)
                       <*> areq textField "Postal/Zip Code" (ship <&> shPostalCode)
                       <*> areq textField "Address 1" (ship <&> shAddress1)
-                      <*> areq textField "Address 2" (ship <&> shAddress2)
+                      <*> aopt textField "Address 2" (ship <&> shAddress2)
                       <*> areq textField "City" (ship <&> shCity)
-                      <*> areq textField "County/State" (ship <&> shCountyState)
+                      <*> aopt textField "County/State" (ship <&> shCountyState)
                       <*> areq textField "Contact" (ship <&> shContact)
                       <*> areq textField "Telephone" (ship <&> shTelephone)
-                      <*> areq textField "Notification Email" (ship <&> shNotificationEmail)
-                      <*> areq textField "Notification Text" (ship <&> shNotificationText)
+                      <*> aopt textField "Notification Email" (ship <&> shNotificationEmail)
+                      <*> aopt textField "Notification Text" (ship <&> shNotificationText)
                       <*> areq intField "No of Packages" (ship <&> shNoOfPackages)
                       <*> areq doubleField "Weight" (ship <&> shWeight)
 
