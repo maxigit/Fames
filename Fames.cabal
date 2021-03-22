@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ea5d28be4389c25f27b51b91e7bec1b16e3e75eb2c39a001911d5dfdcdadb3c5
+-- hash: f69a8992ed29edb84f95be7440233f3f10fd0b60892e84671ee41dd0bb1d45f0
 
 name:           Fames
 version:        0.0.1
@@ -33,6 +33,7 @@ library
       Handler.Common
       Handler.CsvUtils
       Handler.Customers
+      Handler.Customers.DPD
       Handler.Customers.Invoices
       Handler.Dashboard
       Handler.DC
@@ -212,6 +213,7 @@ library
     , gitrev >=0.1.3.1 && <1.4
     , hjsmin >=0.1 && <0.3
     , http-conduit >=2.1 && <2.3
+    , iso3166-country-codes
     , microlens >=0.4.1.1 && <0.5
     , microlens-th >=0.4.1.1 && <0.5
     , monad-control >=0.3 && <1.1
@@ -360,6 +362,7 @@ executable Fames
     , gitrev >=0.1.3.1 && <1.4
     , hjsmin >=0.1 && <0.3
     , http-conduit >=2.1 && <2.3
+    , iso3166-country-codes
     , microlens >=0.4.1.1 && <0.5
     , microlens-th >=0.4.1.1 && <0.5
     , monad-control >=0.3 && <1.1
@@ -463,6 +466,7 @@ test-suite ghcid
       Handler.Common
       Handler.CsvUtils
       Handler.Customers
+      Handler.Customers.DPD
       Handler.Customers.Invoices
       Handler.Dashboard
       Handler.DC
@@ -636,6 +640,7 @@ test-suite ghcid
     , hspec >=2.0.0
     , http-conduit >=2.1 && <2.3
     , http-types >=0.9
+    , iso3166-country-codes
     , microlens >=0.4.1.1 && <0.5
     , microlens-th >=0.4.1.1 && <0.5
     , monad-control >=0.3 && <1.1
@@ -786,6 +791,7 @@ test-suite test
     , hspec >=2.0.0
     , http-conduit >=2.1 && <2.3
     , http-types >=0.9
+    , iso3166-country-codes
     , microlens >=0.4.1.1 && <0.5
     , microlens-th >=0.4.1.1 && <0.5
     , monad-control >=0.3 && <1.1

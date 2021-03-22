@@ -1,3 +1,4 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 module Handler.Customers.Invoices
 ( getCustInvoicesR
 , getCustInvoiceCCodesR
@@ -10,7 +11,9 @@ import Yesod.Form.Bootstrap3
 import Handler.Items.Category.Cache
 import Data.List(nub)
 import Data.Maybe(fromJust)
-
+import Handler.Customers.DPD
+import Data.ISO3166_CountryCodes
+ 
 --  _____                      
 -- |_   _|   _ _ __   ___  ___ 
 --   | || | | | '_ \ / _ \/ __|
@@ -135,18 +138,71 @@ getCustInvoiceCCodesR key = do
 -- | Upload a cs
 postCustInvoiceDPDR :: Int64 -> Handler TypedContent
 postCustInvoiceDPDR key =  do
-  let csv =  ["Hello"
-             ,"De lu"
-             ] :: [Text]
-      source = yieldMany csv
-      filename = show key <> ".csv"
-  setAttachment $ fromString filename
-  respondSource ("text/csv") (source .| mapC toFlushBuilder)
+  info <- runDB$ loadInvoiceInfo key
+  ((resp, __formW), __encType) <- runFormPost (shippingForm Nothing)
+  case resp of
+    FormMissing -> error "Form missing"
+    FormFailure a -> error $ "Form failure : " ++ show a
+    FormSuccess params -> do
+      categoryFinder <- categoryFinderCached
+      let delivery = mkDelivery info params
+          productDetails = map (mkProductDetail categoryFinder UsePPD ) (iiDetails info)
+      
+          filename = show key <> ".csv"
+      setAttachment $ fromString filename
+      respondSource ("text/csv") (makeDPDSource delivery productDetails .| mapC toFlushBuilder)
+  
+mkDelivery :: InvoiceInfo -> ShippingForm -> Double -> Either Text Double -> Delivery
+mkDelivery info ShippingForm{..} customValue totalWeight = Delivery{..} where
+  organisation'name = shCustomerName
+  addressLine1'property'street = shAddress1
+  addressLine2'locality = Just shAddress2
+  addressLine3'City = shCity
+  addressLine4'County'State = Just shCountyState
+  postCode_7 = mconcat $ words shPostalCode -- remove space to fit in 7 chars
+  countryCode_2 = shCountry
+  additional_information = ""
+  contactName = shContact
+  contactTelephoneNumber = shTelephone
+  -- customValue = customValue
+  description = "<description>"
+  noOfPackages = shNoOfPackages
+  notificationEmail = shNotificationEmail
+  notificationSMSNumber = shNotificationText
+  serviceCode = InternationalClassic
+  totalWeightKg = totalWeight
+  generateCustomData = Y
+  invoiceType = Commercial
+  invoiceReference = FA.debtorTranReference $ iiInvoice info
+  countryOfOrigin = GB
+  shipping'freightCost = FA.debtorTranOvFreight $ iiInvoice info
+  reasonForExport = Sale
+  receiverVAT'PID'EORI =  "<EORI>"
+  
+data UsePPD = UsePPD | NoPPD deriving (Show, Read)
+
+mkProductDetail :: (Text -> FA.StockMasterId -> Maybe Text) -> UsePPD -> FA.DebtorTransDetail -> ProductDetail
+mkProductDetail categoryFor usePPD FA.DebtorTransDetail{..} = ProductDetail{..} where
+  identifier = PRD
+  productCode = debtorTransDetailStockId
+  harmonisedCode =  fromCat "commodity_code" "<Commodity Code>"
+  unitWeight = maybe (Left  "<Unit Weight (Kg)>") Right (fromCat' "unit-weight" >>= readMay)
+  parcel = Left "<Box number>"
+  description = fromCat "dpd-description" "<Description>"
+  productType = fromCat "dpd-product-type" "<Product Type>"
+  itemOrigin = fromCat "dpd-origin" "<Item Origin>"
+  quantity = round $ debtorTransDetailQuantity
+  unitValue = case usePPD of
+                UsePPD -> debtorTransDetailUnitPrice * (1-debtorTransDetailPpd)
+                NoPPD  -> debtorTransDetailUnitPrice
+  ---------------------------------------------------------------------------
+  fromCat cat def = fromMaybe def $ fromCat' cat
+  fromCat' cat = categoryFor cat $ FA.StockMasterKey debtorTransDetailStockId
   
   
 data ShippingForm = ShippingForm
   { shCustomerName :: Text
-  , shCountry :: Text
+  , shCountry :: CountryCode
   , shPostalCode :: Text
   , shAddress1 :: Text
   , shAddress2 :: Text
@@ -177,7 +233,7 @@ fillShippingForm info personm = runDB $ do
 
 
   let shCustomerName =  FA.debtorsMasterName customer
-      shCountry = ""
+      shCountry = GB
       (shAddress1, shAddress2, shCity, shPostalCode, shCountyState) =
         case lines (FA.salesOrderDeliveryAddress order) of
           [add1,city,zip] -> (add1, "", city, zip, "")
@@ -196,20 +252,25 @@ fillShippingForm info personm = runDB $ do
       -- shService = ""
   return ShippingForm{..}
  
-shippingForm ShippingForm{..} = renderBootstrap3 BootstrapBasicForm form where
-  form = ShippingForm <$> areq textField "Customer Name" (Just shCustomerName)
-                      <*> areq textField "Country" (Just shCountry)
-                      <*> areq textField "Postal/Zip Code" (Just shPostalCode)
-                      <*> areq textField "Address 1" (Just shAddress1)
-                      <*> areq textField "Address 2" (Just shAddress2)
-                      <*> areq textField "City" (Just shCity)
-                      <*> areq textField "County/State" (Just shCountyState)
-                      <*> areq textField "Contact" (Just shContact)
-                      <*> areq textField "Telephone" (Just shTelephone)
-                      <*> areq textField "Notification Email" (Just shNotificationEmail)
-                      <*> areq textField "Notification Text" (Just shNotificationText)
-                      <*> areq intField "No of Packages" (Just shNoOfPackages)
-                      <*> areq doubleField "Weight" (Just shWeight)
+shippingForm :: Maybe ShippingForm  -> Html -> MForm Handler (FormResult ShippingForm, Widget)
+shippingForm ship = renderBootstrap3 BootstrapBasicForm form where
+  form = ShippingForm <$> areq textField "Customer Name" (ship <&> shCustomerName)
+                      <*> areq (selectField countryOptions) "Country" (ship <&> shCountry)
+                      <*> areq textField "Postal/Zip Code" (ship <&> shPostalCode)
+                      <*> areq textField "Address 1" (ship <&> shAddress1)
+                      <*> areq textField "Address 2" (ship <&> shAddress2)
+                      <*> areq textField "City" (ship <&> shCity)
+                      <*> areq textField "County/State" (ship <&> shCountyState)
+                      <*> areq textField "Contact" (ship <&> shContact)
+                      <*> areq textField "Telephone" (ship <&> shTelephone)
+                      <*> areq textField "Notification Email" (ship <&> shNotificationEmail)
+                      <*> areq textField "Notification Text" (ship <&> shNotificationText)
+                      <*> areq intField "No of Packages" (ship <&> shNoOfPackages)
+                      <*> areq doubleField "Weight" (ship <&> shWeight)
+
+  countryOptions = optionsPairs $ map (fanl (p . readableCountryName)) [minBound..maxBound]
+  p :: String -> Text
+  p = pack
     
   
 -- | Create form allowing to check and prefill information 
@@ -221,7 +282,7 @@ dpdExportFrom info = do
   let FA.DebtorTran{..} = iiInvoice info
   contactm <- runDB $ loadContactFor (fromJust debtorTranDebtorNo) $ Just debtorTranBranchCode
   shipping <- fillShippingForm info contactm
-  (form, encType) <- generateFormPost $ shippingForm shipping
+  (form, encType) <- generateFormPost $ shippingForm $ Just shipping
   return [whamlet|
     ^{invoiceSummary info}
     ^{contactSummary contactm}

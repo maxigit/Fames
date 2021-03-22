@@ -87,6 +87,7 @@ dependencies:
 - mysql-simple
 - comonad
 - tagged
+- iso3166-country-codes
 default-extensions:
 - TemplateHaskell
 - QuasiQuotes
