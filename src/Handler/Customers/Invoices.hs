@@ -130,8 +130,9 @@ getCustInvoiceCCodesR key = do
             <tr>
               <td> #{FA.debtorTransDetailStockId detail}
               <td> #{tshow $ FA.debtorTransDetailQuantity detail}
-              <td> #{formatDouble $ FA.debtorTransDetailUnitPrice detail}
-              <td> #{formatDouble $ FA.debtorTransDetailUnitPrice detail * (1 - FA.debtorTransDetailPpd detail)}
+              $with price <- FA.debtorTransDetailUnitPrice detail * (1 - FA.debtorTransDetailDiscountPercent detail)
+                <td> #{formatDouble $ price }
+                <td> #{formatDouble $ price * (1 - FA.debtorTransDetailPpd detail)}
               <td> #{ccode detail}
               <td> #{weight detail}
               <td> #{duty detail}
@@ -214,8 +215,8 @@ mkProductDetail categoryFor usePPD FA.DebtorTransDetail{..} = ProductDetail{..} 
   itemOrigin = fromCat "dpd-origin" "<Item Origin>"
   quantity = round $ debtorTransDetailQuantity
   unitValue = case usePPD of
-                UsePPD -> debtorTransDetailUnitPrice * (1-debtorTransDetailPpd)
-                NoPPD  -> debtorTransDetailUnitPrice
+                UsePPD -> debtorTransDetailUnitPrice * (1-debtorTransDetailDiscountPercent) * (1-debtorTransDetailPpd) 
+                NoPPD  -> debtorTransDetailUnitPrice * (1 - debtorTransDetailDiscountPercent)
   ---------------------------------------------------------------------------
   fromCat cat def = fromMaybe def $ fromCat' cat
   fromCat' cat = categoryFor cat $ FA.StockMasterKey debtorTransDetailStockId

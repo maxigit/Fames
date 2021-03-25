@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE TypeApplications #-}
 -- | Generate CSV to be imported
 -- using MyDPD local (shipping)
 module Handler.Customers.DPD
@@ -16,6 +17,7 @@ import Import    hiding((.=))
 import Data.Csv
 import qualified Data.ByteString.Lazy as L
 import Data.ISO3166_CountryCodes
+import Text.Printf(printf)
 
 -- | Shipping Import Mandatory Fields
 -- all optional field have are Maybe
@@ -163,9 +165,9 @@ productDetailToFields ProductDetail{..} =
     , "Description" .= description
     , "ItemOrigin" .= itemOrigin
     , "HarmonisedCode" .= harmonisedCode
-    , "UnitWeight" .= either toField (toField . max 0.01) unitWeight
+    , "UnitWeight" .= either toField (toField @String . printf "%.2f" . max 0.01) unitWeight
     , "Quantity" .= quantity
-    , "UnitValue" .= unitValue
+    , "UnitValue" .=(  printf "%.2f" $ max 0.01 unitValue :: String)
     ]
 
 -- * Stream
