@@ -295,25 +295,28 @@ customerCountryInfo CustomerInfo{..} =
 
 shippingForm :: Maybe ShippingForm  -> Html -> MForm Handler (FormResult ShippingForm, Widget)
 shippingForm ship = renderBootstrap3 BootstrapBasicForm form where
-  form = ShippingForm <$> areq textField "Customer Name" (ship <&> shCustomerName)
+  form = ShippingForm <$> areq textField (f 35 "Customer Name") (ship <&> take 35 . shCustomerName)
                       <*> aopt (selectField countryOptions) "Country" (ship <&> shCountry)
-                      <*> areq textField "Postal/Zip Code" (ship <&> shPostalCode)
-                      <*> areq textField "Address 1" (ship <&> shAddress1)
-                      <*> aopt textField "Address 2" (ship <&> shAddress2)
-                      <*> areq textField "City" (ship <&> shCity)
-                      <*> aopt textField "County/State" (ship <&> shCountyState)
-                      <*> areq textField "Contact" (ship <&> shContact)
-                      <*> areq textField "Telephone" (ship <&> shTelephone)
-                      <*> aopt textField "Notification Email" (ship <&> shNotificationEmail)
-                      <*> aopt textField "Notification Text" (ship <&> shNotificationText)
+                      <*> areq textField (f 7 "Postal/Zip Code") (ship <&> take 7 . shPostalCode)
+                      <*> areq textField (f 35 "Address 1") (ship <&> take 35 . shAddress1)
+                      <*> aopt textField (f 35 "Address 2") (ship <&> fmap (take 35) . shAddress2)
+                      <*> areq textField (f 35 "City") (ship <&> take 35 . shCity)
+                      <*> aopt textField (f 35 "County/State") (ship <&> fmap (take 35) . shCountyState)
+                      <*> areq textField (f 25 "Contact") (ship <&> take 25 . shContact)
+                      <*> areq textField (f 15 "Telephone") (ship <&> take 15 .  shTelephone)
+                      <*> aopt textField (f 35 "Notification Email") (ship <&> fmap (take 35) . shNotificationEmail)
+                      <*> aopt textField (f 35 "Notification Text") (ship <&>  fmap (take 35) .shNotificationText)
                       <*> areq intField "No of Packages" (ship <&> shNoOfPackages)
                       <*> areq doubleField "Weight" (ship <&> shWeight)
                       <*> areq boolField "Custom Data" (ship <&> shGenerateCustomData)
-                      <*> aopt textField "EORI" (ship <&> shTaxId)
+                      <*> aopt textField (f 14 "EORI") (ship <&>  fmap (take 35) .shTaxId)
                       <*> areq (selectField serviceOptions) "Service" (ship <&> shServiceCode)
 
   countryOptions = optionsPairs $ map (fanl (p . readableCountryName)) [minBound..maxBound]
   serviceOptions = optionsPairs $ map (fanl tshow) [minBound..maxBound]
+  -- fixed length text
+  f n f = f { fsAttrs=[("maxlength", tshow n)] }
+  -- help type inference
   p :: String -> Text
   p = pack
     
