@@ -131,7 +131,7 @@ getCustInvoiceCCodesR key = do
               <td> #{FA.debtorTransDetailStockId detail}
               <td> #{tshow $ FA.debtorTransDetailQuantity detail}
               <td> #{formatDouble $ FA.debtorTransDetailUnitPrice detail}
-              <td> #{formatDouble $ FA.debtorTransDetailUnitPrice detail - FA.debtorTransDetailPpd detail}
+              <td> #{formatDouble $ FA.debtorTransDetailUnitPrice detail * (1 - FA.debtorTransDetailPpd detail)}
               <td> #{ccode detail}
               <td> #{weight detail}
               <td> #{duty detail}
