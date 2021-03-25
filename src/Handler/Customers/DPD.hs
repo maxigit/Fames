@@ -164,7 +164,7 @@ productDetailToFields ProductDetail{..} =
     , "Fabric Content" .= t "Fabric"
     , "ItemOrigin" .= itemOrigin
     , "HarmonisedCode" .= harmonisedCode
-    , "UnitWeight" .= either toField toField unitWeight
+    , "UnitWeight" .= either toField (toField . max 0.01) unitWeight
     , "Quantity" .= quantity
     , "UnitValue" .= unitValue
     ]
