@@ -161,16 +161,12 @@ productDetailToFields ProductDetail{..} =
     , "ProductCode" .= productCode
     , "ProductType" .= productType
     , "Description" .= description
-    , "Fabric Content" .= t "Fabric"
     , "ItemOrigin" .= itemOrigin
     , "HarmonisedCode" .= harmonisedCode
     , "UnitWeight" .= either toField (toField . max 0.01) unitWeight
     , "Quantity" .= quantity
     , "UnitValue" .= unitValue
     ]
-
-t :: Text -> Text
-t = id
 
 -- * Stream
 makeDPDSource :: (Double -> Delivery ) -> [ProductDetail] -> ConduitT () (L.ByteString) Handler ()

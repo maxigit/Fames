@@ -113,7 +113,7 @@ getCustInvoiceCCodesR key = do
   let categoryFor cat detail = categoryFinder cat $ FA.StockMasterKey 
                                                   $ FA.debtorTransDetailStockId detail
   let ccode = fromMaybe "<Commodity Code>" . categoryFor "commodity_code"
-  let weight = fromMaybe "<Weight>" . categoryFor "weight"
+  let weight = fromMaybe "<Weight>" . categoryFor "unit-weight-g"
   let duty = fromMaybe "<Duty>" . categoryFor "duty"
   let table = [whamlet|
       <table *{datatable}>
@@ -206,7 +206,7 @@ mkProductDetail categoryFor usePPD FA.DebtorTransDetail{..} = ProductDetail{..} 
   productCode = debtorTransDetailStockId
   harmonisedCode = take 8 $  fromCat "commodity_code" "<CoCode>"
   unitWeight = maybe (Left  "<Unit Weight (Kg)>")
-                     (Right . (*1000))
+                     (Right . (/1000))
                      (fromCat' "unit-weight-g" >>= readMay)
   parcel = Left "<Box number>"
   description = fromCat "dpd-description" "<Description>"
@@ -382,7 +382,7 @@ contactSummary (Just FA.CrmPerson{..}) =
               <td> #{value}
   |]
   where col'vals =
-         [ ("Reference" :: String,  Just crmPersonRef)
+         [ ("Reference" :: String,  Just $ decodeHtmlEntities  crmPersonRef)
          , ("Name",  Just crmPersonName)
          , ("Name2",  crmPersonName2)
          , ("Email",  crmPersonEmail)
