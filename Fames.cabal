@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 47ce032ed9440c1fd64779d61f9c4dfda598139c53381618eab5d0608550dbfb
+-- hash: e9de285d2f535daa9fc49e61ed729d08be0a26915a296faf6211f687a2d94dcb
 
 name:           Fames
 version:        0.0.1
@@ -35,6 +35,7 @@ library
       Handler.Customers
       Handler.Customers.DPD
       Handler.Customers.Invoices
+      Handler.Customers.ShippingDetails
       Handler.Dashboard
       Handler.DC
       Handler.DC.Def
@@ -470,6 +471,7 @@ test-suite ghcid
       Handler.Customers
       Handler.Customers.DPD
       Handler.Customers.Invoices
+      Handler.Customers.ShippingDetails
       Handler.Dashboard
       Handler.DC
       Handler.DC.Def

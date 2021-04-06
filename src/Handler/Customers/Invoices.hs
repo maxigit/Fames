@@ -1,4 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE NamedFieldPuns #-}
 module Handler.Customers.Invoices
 ( getCustInvoicesR
 , getCustInvoiceCCodesR
@@ -13,6 +14,7 @@ import Handler.Items.Category.Cache
 import Data.List(nub)
 import Data.Maybe(fromJust)
 import Handler.Customers.DPD
+import Handler.Customers.ShippingDetails
 import Data.ISO3166_CountryCodes
 import qualified Data.Map as Map
 --  _____                      
@@ -40,11 +42,11 @@ data CustomerInfo = CustomerInfo
   , custBranchArea :: FA.Area
   } 
 
---                     __                  _   _                 
---                    / _|_   _ _ __   ___| |_(_) ___  _ __  ___ 
---                   | |_| | | | '_ \ / __| __| |/ _ \| '_ \/ __|
---                   |  _| |_| | | | | (__| |_| | (_) | | | \__ \
---                   |_|  \__,_|_| |_|\___|\__|_|\___/|_| |_|___/
+--   __                  _   _                 
+--  / _|_   _ _ __   ___| |_(_) ___  _ __  ___ 
+-- | |_| | | | '_ \ / __| __| |/ _ \| '_ \/ __|
+-- |  _| |_| | | | | (__| |_| | (_) | | | \__ \
+-- |_|  \__,_|_| |_|\___|\__|_|\___/|_| |_|___/
                                                               
 getInvoiceDatesForm startm endm = renderBootstrap3 BootstrapInlineForm form where
   form = (,) <$> areq dayField "Start" startm
@@ -164,6 +166,16 @@ postCustInvoiceDPDR key =  do
                             _ -> id
       
           filename = shCustomerName params <> "-Invoice-" <> tshow  key <> ".csv"
+          -- save shipping details
+          -- we need as well as the shipping details key
+          -- to save the details with the exact key as the one
+          -- we use to search the detail initially
+          shippingDetails = toDetails "DPD" params
+      let FA.DebtorTran{..} = iiInvoice info
+      customerInfo <- runDB $ loadCustomerInfo (fromJust debtorTranDebtorNo) debtorTranBranchCode
+      detailsFromInfo <- fillShippingForm info customerInfo
+      runDB $ saveShippingDetails shippingDetails { shippingDetailsKey = unDetailsKey . computeKey $  toDetails "DPD"  detailsFromInfo }
+      ---
       setAttachment $ fromString $ unpack filename
       respondSource ("text/csv") (makeDPDSource delivery productDetails .| mapC toFlushBuilder)
   
@@ -276,7 +288,14 @@ fillShippingForm info customerInfo = runDB $ do
       shTaxId = Just $ FA.debtorsMasterTaxId customer
       -- shCustomValue ::  Double
       -- shService = ""
-  return ShippingForm{..}
+      form = truncateForm ShippingForm{..}
+      details0 = toDetails "DPD" form
+  detailsm <- getShippingDetails details0
+  traceShowM ("DETAILS", detailsm)
+  case detailsm of
+    Nothing -> return form
+    Just details -> do
+      return  $ fromDetails form $ entityVal details
 
 customerCountryInfo :: CustomerInfo -> (Maybe CountryCode, Bool, ServiceCode)
 customerCountryInfo CustomerInfo{..} = 
@@ -290,12 +309,15 @@ customerCountryInfo CustomerInfo{..} =
       , InternationalClassic
       )
     _ -> (Nothing, True, InternationalClassic)
-  where
-    countryMap = Map.fromList $ map (fanl tshow) [minBound..maxBound]
+
+
+countryMap :: Map Text CountryCode
+countryMap = Map.fromList $ map (fanl tshow) [minBound..maxBound]
 
 
 shippingForm :: Maybe ShippingForm  -> Html -> MForm Handler (FormResult ShippingForm, Widget)
-shippingForm ship = renderBootstrap3 BootstrapBasicForm form where
+shippingForm (shipm)  = renderBootstrap3 BootstrapBasicForm form where
+  ship = truncateForm <$> shipm
   form = ShippingForm <$> areq textField (f 35 "Customer Name") (ship <&> take 35 . shCustomerName)
                       <*> aopt (selectField countryOptions) "Country" (ship <&> shCountry)
                       <*> areq textField (f 7 "Postal/Zip Code") (ship <&> take 7 . shPostalCode)
@@ -321,6 +343,25 @@ shippingForm ship = renderBootstrap3 BootstrapBasicForm form where
   p :: String -> Text
   p = pack
     
+-- | Truncate each fields of a form to its max length
+truncateForm :: ShippingForm -> ShippingForm
+truncateForm ShippingForm{..} =
+  ShippingForm (take 35 shCustomerName)
+               (shCountry)
+               (take 7 shPostalCode)
+               (take 35 shAddress1)
+               (fmap (take 35) shAddress2)
+               (take 35 shCity)
+               (fmap (take 35) shCountyState)
+               (take 25 shContact)
+               (take 15  shTelephone)
+               (fmap (take 35) shNotificationEmail)
+               ( fmap (take 35)shNotificationText)
+               (shNoOfPackages)
+               (shWeight)
+               (shGenerateCustomData)
+               ( fmap (take 35)shTaxId)
+               (shServiceCode)
   
 -- | Create form allowing to check and prefill information 
 -- to be generated for DPD.
@@ -474,3 +515,46 @@ loadCustomerInfo debtorNo branchNo = do
   custBranchArea <- getJust $ FA.AreaKey $ fromJust $ FA.custBranchArea cuBranch
 
   return $ CustomerInfo{..}
+
+
+
+toDetails :: Text ->  ShippingForm -> ShippingDetails
+toDetails shippingDetailsCourrier ShippingForm{..} = details {shippingDetailsKey = key } where
+  shippingDetailsShortName = shCustomerName
+  shippingDetailsPostCode =  shPostalCode
+  shippingDetailsCountry = tshow <$> shCountry
+  shippingDetailsOrganisation = shCustomerName
+  shippingDetailsAddress1 = shAddress1
+  shippingDetailsAddress2 = fromMaybe "" shAddress2
+  shippingDetailsTown = shCity
+  shippingDetailsCounty = fromMaybe "" shCountyState
+  shippingDetailsContact = shContact
+  shippingDetailsTelephone = Just shTelephone
+  shippingDetailsNotificationEmail = shNotificationEmail
+  shippingDetailsNotificationText = shNotificationText
+  shippingDetailsTaxId = shTaxId
+  details = ShippingDetails{shippingDetailsKey="",..}
+  DetailsKey key = computeKey details
+
+
+
+  
+
+
+fromDetails :: ShippingForm -> ShippingDetails -> ShippingForm
+fromDetails template ShippingDetails{..} = ShippingForm{..} where
+  shPostalCode =  shippingDetailsPostCode
+  shCountry = shippingDetailsCountry >>= flip lookup countryMap
+  shCustomerName = shippingDetailsOrganisation
+  shAddress1 = shippingDetailsAddress1
+  shAddress2 = Just shippingDetailsAddress2
+  shCity = shippingDetailsTown
+  shCountyState = Just shippingDetailsCounty
+  shContact = shippingDetailsContact
+  shTelephone = fromMaybe "" shippingDetailsTelephone
+  shNotificationEmail = shippingDetailsNotificationEmail
+  shNotificationText = shippingDetailsNotificationText
+  shTaxId = shippingDetailsTaxId
+  ShippingForm{shNoOfPackages, shWeight, shGenerateCustomData, shServiceCode} = template
+  
+  

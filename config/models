@@ -382,6 +382,38 @@ ItemCostSummary sql=check_item_cost_summary
   deriving Show
   deriving Eq
 
+-- * Shipping information
+-- | Mapping between free address/contact
+-- to structured information needed by courrier
+-- Address post code, contact phone etc
+-- The details can be found using a key
+-- with a hash of all the details information.
+-- Maybe value are unknown and could be overriden
+-- by other information sources.
+
+ShippingDetails sql=fames_shipping_details
+  Id sql=shipping_details_id
+  courrier Text
+  key Text -- | Hash of all words sorted alphabetically. Might contains the key type
+  shortName Text -- | reference
+  postCode Text
+  country Text Maybe
+  organisation Text
+  address1 Text -- | property street
+  address2 Text -- | Locallity
+  town Text     -- | address 3
+  contact Text -- |
+  county Text -- | addree 4
+  telephone Text Maybe
+  notificationEmail Text Maybe
+  notificationText Text Maybe
+  taxId Text Maybe
+  UniqueCB courrier key
+  deriving Show
+  deriving Eq
+
+
+
 
   
 
