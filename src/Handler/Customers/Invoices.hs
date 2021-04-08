@@ -348,20 +348,21 @@ truncateForm :: ShippingForm -> ShippingForm
 truncateForm ShippingForm{..} =
   ShippingForm (take 35 shCustomerName)
                (shCountry)
-               (take 7 shPostalCode)
+               (take 7 $ joinSpace shPostalCode)
                (take 35 shAddress1)
                (fmap (take 35) shAddress2)
                (take 35 shCity)
                (fmap (take 35) shCountyState)
                (take 25 shContact)
                (take 15  shTelephone)
-               (fmap (take 35) shNotificationEmail)
-               ( fmap (take 35)shNotificationText)
+               (fmap (take 35 . joinSpace) shNotificationEmail)
+               ( fmap (take 35 . joinSpace)shNotificationText)
                (shNoOfPackages)
                (shWeight)
                (shGenerateCustomData)
                ( fmap (take 35)shTaxId)
                (shServiceCode)
+  where joinSpace = mconcat . words
   
 -- | Create form allowing to check and prefill information 
 -- to be generated for DPD.

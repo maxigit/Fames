@@ -1,5 +1,6 @@
 module Main where
 
+import Prelude
 import DPDLib
 import Data.Text(pack)
 import System.Environment (getArgs)

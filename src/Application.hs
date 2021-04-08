@@ -144,7 +144,7 @@ getApplicationDev = do
     return (wsettings, app)
 
 getAppSettings :: IO AppSettings
-getAppSettings = loadYamlSettings [configSettingsYml] [] useEnv
+getAppSettings = loadYamlSettingsArgs [configSettingsYmlValue] useEnv
 
 -- | main function for use by yesod devel
 develMain :: IO ()

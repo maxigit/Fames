@@ -17,17 +17,18 @@ newtype DetailsKey = DetailsKey { unDetailsKey :: Text }
 
 computeKey :: ShippingDetails -> DetailsKey
 computeKey ShippingDetails{..} = let
-  address'contact = shippingDetailsPostCode
-                  : shippingDetailsCountry
-                  ?: shippingDetailsOrganisation
+  joinSpace = mconcat . words  :: Text -> Text
+  address'contact = joinSpace shippingDetailsPostCode
+                  -- : shippingDetailsCountry
+                  : shippingDetailsOrganisation
                   : shippingDetailsAddress1
                   : shippingDetailsAddress2
                   : shippingDetailsTown
                   : shippingDetailsCounty
                   : shippingDetailsContact
-                  : shippingDetailsTelephone
+                  : fmap joinSpace shippingDetailsTelephone
                   ?: shippingDetailsNotificationEmail
-                  ?: shippingDetailsNotificationText
+                  ?: fmap joinSpace shippingDetailsNotificationText
                   ?: []
   in makeKey address'contact
 
@@ -36,7 +37,8 @@ computeKey ShippingDetails{..} = let
 makeKey :: [Text] -> DetailsKey
 makeKey texts = let
   ws0 = concatMap words texts
-  ws = filter (not . null) ws0
+  ws = filter (not . null) $ map (filter (`notElem` (",.-'&/()[];:" :: String))) ws0
+  --ws = filter (not . null) $ map (filter (/=',')) ws0
   in DetailsKey $ unwords . nub . sort $ map toLower  ws
 
 -- | Clear contact details so we can generate

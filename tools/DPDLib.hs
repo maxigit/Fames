@@ -3,13 +3,14 @@
 {-# LANGUAGE DeriveGeneric #-}
 module DPDLib
     ( dumpFromWebsite
+    , CustomerInfo(..)
     ) where
 
+import Prelude
 import Test.WebDriver
-import Test.WebDriver.Commands
+-- import Test.WebDriver.Commands
 import Test.WebDriver.Commands.Wait
-import qualified Test.WebDriver.Common.Keys as K
-import Data.Default.Class
+-- import qualified Test.WebDriver.Common.Keys as K
 import Data.Text
 import Debug.Trace
 import Data.Csv
@@ -31,6 +32,7 @@ data CustomerInfo = CustomerInfo
   } deriving (Show, Read, Eq, Generic)
 
 instance ToNamedRecord CustomerInfo
+instance FromNamedRecord CustomerInfo
 
 instance DefaultOrdered CustomerInfo
 

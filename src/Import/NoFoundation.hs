@@ -32,6 +32,7 @@ module Import.NoFoundation
     , fanl, fanr
     , alignSorted
     , wordize
+    , textToMaybe
     , commasFixedWith
     , commasFixedWith'
     , commasFixed
@@ -391,6 +392,10 @@ wordize prefixM suffixM s0 = let
   withoutSuffix x = fromMaybe x (join $ stripSuffix <$> suffixM  <*> Just x)
   titles = Split.split (Split.keepDelimsL $ Split.whenElt isUpper) (unpack . withoutSuffix $ withoutPrefix s0)
   in intercalate " " (map pack titles)
+
+textToMaybe :: Text -> Maybe Text
+textToMaybe "" = Nothing
+textToMaybe t = Just t
 
 -- | Align two sorted list. Even though it could be lazy, it is probably not
 -- due to the strictness of Map used under the hood.
