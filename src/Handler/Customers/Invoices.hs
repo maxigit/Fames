@@ -291,7 +291,7 @@ fillShippingForm info customerInfo = runDB $ do
       form = truncateForm ShippingForm{..}
       details0 = toDetails "DPD" form
   detailsm <- getShippingDetails details0
-  traceShowM ("DETAILS", detailsm)
+  -- traceShowM ("DETAILS", detailsm)
   case detailsm of
     Nothing -> return form
     Just details -> do

@@ -183,6 +183,17 @@ executables:
 #k    - mysql-simple
 #k    default-extensions: [ImplicitPrelude]
 
+  DPDImport:
+    main: DPDImport.hs
+    source-dirs: tools
+    dependencies:
+    - base
+    - webdriver
+    - text
+    - cassava
+    - bytestring
+
+
 
 tests:
   test:
