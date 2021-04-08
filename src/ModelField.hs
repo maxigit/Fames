@@ -11,6 +11,7 @@ import Text.Printf(printf)
 import GL.Payroll.Timesheet (PayrollFrequency)
 import Data.Decimal
 import Data.Proxy
+import Data.ISO3166_CountryCodes
 
 -- * Warehouse
 -- | Where as a transaction has been processed or not.
@@ -225,4 +226,6 @@ instance PersistFieldSql Decimal where
 --     case eitherFromRational r of
 --       Left err -> fail err
 --       Right dec -> return dec
-  
+
+derivePersistField "CountryCode"
+

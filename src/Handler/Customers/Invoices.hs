@@ -523,7 +523,7 @@ toDetails :: Text ->  ShippingForm -> ShippingDetails
 toDetails shippingDetailsCourrier ShippingForm{..} = details {shippingDetailsKey = key } where
   shippingDetailsShortName = shCustomerName
   shippingDetailsPostCode =  shPostalCode
-  shippingDetailsCountry = tshow <$> shCountry
+  shippingDetailsCountry = shCountry
   shippingDetailsOrganisation = shCustomerName
   shippingDetailsAddress1 = shAddress1
   shippingDetailsAddress2 = fromMaybe "" shAddress2
@@ -545,7 +545,7 @@ toDetails shippingDetailsCourrier ShippingForm{..} = details {shippingDetailsKey
 fromDetails :: ShippingForm -> ShippingDetails -> ShippingForm
 fromDetails template ShippingDetails{..} = ShippingForm{..} where
   shPostalCode =  shippingDetailsPostCode
-  shCountry = shippingDetailsCountry >>= flip lookup countryMap
+  shCountry = shippingDetailsCountry
   shCustomerName = shippingDetailsOrganisation
   shAddress1 = shippingDetailsAddress1
   shAddress2 = Just shippingDetailsAddress2

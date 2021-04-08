@@ -397,7 +397,7 @@ ShippingDetails sql=fames_shipping_details
   key Text -- | Hash of all words sorted alphabetically. Might contains the key type
   shortName Text -- | reference
   postCode Text
-  country Text Maybe
+  country CountryCode Maybe
   organisation Text
   address1 Text -- | property street
   address2 Text -- | Locallity

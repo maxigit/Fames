@@ -19,8 +19,8 @@ computeKey :: ShippingDetails -> DetailsKey
 computeKey ShippingDetails{..} = let
   joinSpace = mconcat . words  :: Text -> Text
   address'contact = joinSpace shippingDetailsPostCode
-                  -- : shippingDetailsCountry
-                  : shippingDetailsOrganisation
+                  : fmap tshow shippingDetailsCountry
+                  ?: shippingDetailsOrganisation
                   : shippingDetailsAddress1
                   : shippingDetailsAddress2
                   : shippingDetailsTown

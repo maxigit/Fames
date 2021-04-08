@@ -5,6 +5,7 @@ import qualified Data.Csv  as Csv
 import qualified Data.ByteString.Lazy as BL
 import Application (db)
 import Handler.Customers.ShippingDetails
+import Data.ISO3166_CountryCodes
 
 
 main :: IO ()
@@ -30,7 +31,7 @@ mkShippingDetails CustomerInfo{..} = details {shippingDetailsKey = unDetailsKey 
   shippingDetailsCourrier = "DPD"
   shippingDetailsShortName =  shortName
   shippingDetailsPostCode = postCode
-  shippingDetailsCountry = Just country
+  shippingDetailsCountry = readCountry country
   shippingDetailsOrganisation =organisation
   shippingDetailsAddress1 = address1
   shippingDetailsAddress2 =  address2
@@ -42,5 +43,11 @@ mkShippingDetails CustomerInfo{..} = details {shippingDetailsKey = unDetailsKey 
   shippingDetailsNotificationText =  textToMaybe notification_text
   shippingDetailsTaxId = Nothing
   shippingDetailsKey = "" --  unDetailsKey $ computeKey details
+
+readCountry :: Text -> Maybe CountryCode
+readCountry name0 =
+    readMay name <|> lookup name (map (fanl $ toLower . readableCountryName ) [minBound..maxBound])
+                 <|> lookup name (map (fanl $ toLower . countryNameFromCode ) [minBound..maxBound])
+                 where name = toLower $ unpack name0
 
   
