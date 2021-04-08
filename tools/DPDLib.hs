@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveGeneric #-}
-module DPDImport
-    ( defaultMain
+module DPDLib
+    ( dumpFromWebsite
     ) where
 
 import Test.WebDriver
@@ -34,8 +34,8 @@ instance ToNamedRecord CustomerInfo
 
 instance DefaultOrdered CustomerInfo
 
-defaultMain :: Text -> Text -> IO ()
-defaultMain user password = do
+dumpFromWebsite :: Text -> Text -> IO ()
+dumpFromWebsite user password = do
   let config = useBrowser chrome defaultConfig 
   -- runSession config  . finallyClose $ do
   customers <- runSession config  $ do
@@ -45,13 +45,6 @@ defaultMain user password = do
   BS.writeFile "address-book.csv" bs
 
 
-main :: IO ()
-main = do
-  args <- getArgs
-  case args of
-    [user, password] -> defaultMain (pack user) (pack password)
-    _ -> error "DPDImport USER PASSWORD"
-  
     
 
 

@@ -183,15 +183,21 @@ executables:
 #k    - mysql-simple
 #k    default-extensions: [ImplicitPrelude]
 
-  DPDImport:
-    main: DPDImport.hs
+# Import contact details from DPD local website to csv (using Selenium webdriver)
+  DPDDump:
+    main: DPDDump.hs
     source-dirs: tools
+    default-extensions:
+    - ImplicitPrelude
+    other-modules:
+    - DPDLib
     dependencies:
     - base
     - webdriver
     - text
     - cassava
     - bytestring
+    - data-default-class
 
 
 

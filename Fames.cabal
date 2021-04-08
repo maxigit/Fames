@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 99507826b3ca81d01b04f03f0557e5713aa69fce37144e3a355b8fad413ccd5b
+-- hash: d7ffd9b373c7464c8bd0d438a5faeda77eed5a038f070016551b54f406c14b9a
 
 name:           Fames
 version:        0.0.1
@@ -270,12 +270,10 @@ library
     ghc-options: -W -fwarn-tabs -Wno-type-defaults -O2 -j6
   default-language: Haskell2010
 
-executable DPDImport
-  main-is: DPDImport.hs
+executable DPDDump
+  main-is: DPDDump.hs
   other-modules:
-      FAGenerator
-      TextcartHelper
-      Paths_Fames
+      DPDLib
   hs-source-dirs:
       tools
   default-extensions:
@@ -301,6 +299,7 @@ executable DPDImport
       StandaloneDeriving
       PartialTypeSignatures
       NamedWildCards
+      ImplicitPrelude
   build-depends:
       Decimal >=0.5.1 && <0.6
     , Glob
@@ -324,6 +323,7 @@ executable DPDImport
     , cryptohash
     , curl >=1.3.8 && <1.4
     , data-default
+    , data-default-class
     , diagrams-cairo ==1.4.*
     , diagrams-lib >=1.4.1.2 && <1.5
     , diagrams-svg ==1.4.*
