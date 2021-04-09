@@ -17,6 +17,7 @@ import Handler.Customers.DPD
 import Handler.Customers.ShippingDetails
 import Data.ISO3166_CountryCodes
 import qualified Data.Map as Map
+import Data.Text(strip)
 --  _____                      
 -- |_   _|   _ _ __   ___  ___ 
 --   | || | | | '_ \ / _ \/ __|
@@ -153,7 +154,7 @@ postCustInvoiceDPDR key =  do
                            settingsm
 
 
-  ((resp, __formW), __encType) <- runFormPost (shippingForm Nothing)
+  ((resp, __formW), __encType) <- runFormPost (shippingForm Nothing Nothing Nothing)
   case resp of
     FormMissing -> error "Form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
@@ -173,7 +174,7 @@ postCustInvoiceDPDR key =  do
           shippingDetails = toDetails "DPD" params
       let FA.DebtorTran{..} = iiInvoice info
       customerInfo <- runDB $ loadCustomerInfo (fromJust debtorTranDebtorNo) debtorTranBranchCode
-      detailsFromInfo <- fillShippingForm info customerInfo
+      (detailsFromInfo, _) <- fillShippingForm info customerInfo
       runDB $ saveShippingDetails shippingDetails { shippingDetailsKey = unDetailsKey . computeKey $  toDetails "DPD"  detailsFromInfo }
       ---
       setAttachment $ fromString $ unpack filename
@@ -259,7 +260,7 @@ data ShippingForm = ShippingForm
 -- and modify it if necessary.
 -- Also returns an extra widget with extra information like
 -- full address, order comments etc ...
-fillShippingForm :: InvoiceInfo -> CustomerInfo -> Handler ShippingForm
+fillShippingForm :: InvoiceInfo -> CustomerInfo -> Handler (ShippingForm, (ShippingDetails, Maybe ShippingDetails))
 fillShippingForm info customerInfo = runDB $ do
   -- Get address and Co
   let customer = cuDebtor customerInfo
@@ -293,9 +294,11 @@ fillShippingForm info customerInfo = runDB $ do
   detailsm <- getShippingDetails details0
   -- traceShowM ("DETAILS", detailsm)
   case detailsm of
-    Nothing -> return form
-    Just details -> do
-      return  $ fromDetails form $ entityVal details
+    Nothing -> return (form, (details0, Nothing))
+    Just (Entity _ details) -> do
+      return  (fromDetails form details
+              , (details0 , Just details)
+              )
 
 customerCountryInfo :: CustomerInfo -> (Maybe CountryCode, Bool, ServiceCode)
 customerCountryInfo CustomerInfo{..} = 
@@ -315,26 +318,74 @@ countryMap :: Map Text CountryCode
 countryMap = Map.fromList $ map (fanl tshow) [minBound..maxBound]
 
 
-shippingForm :: Maybe ShippingForm  -> Html -> MForm Handler (FormResult ShippingForm, Widget)
-shippingForm (shipm)  = renderBootstrap3 BootstrapBasicForm form where
-  ship = truncateForm <$> shipm
-  form = ShippingForm <$> areq textField (f 35 "Customer Name") (ship <&> take 35 . shCustomerName)
-                      <*> aopt (selectField countryOptions) "Country" (ship <&> shCountry)
-                      <*> areq textField (f 7 "Postal/Zip Code") (ship <&> take 7 . shPostalCode)
-                      <*> areq textField (f 35 "Address 1") (ship <&> take 35 . shAddress1)
-                      <*> aopt textField (f 35 "Address 2") (ship <&> fmap (take 35) . shAddress2)
-                      <*> areq textField (f 35 "City") (ship <&> take 35 . shCity)
-                      <*> aopt textField (f 35 "County/State") (ship <&> fmap (take 35) . shCountyState)
-                      <*> areq textField (f 25 "Contact") (ship <&> take 25 . shContact)
-                      <*> areq textField (f 15 "Telephone") (ship <&> take 15 .  shTelephone)
-                      <*> aopt textField (f 35 "Notification Email") (ship <&> fmap (take 35) . shNotificationEmail)
-                      <*> aopt textField (f 35 "Notification Text") (ship <&>  fmap (take 35) .shNotificationText)
-                      <*> areq intField "No of Packages" (ship <&> shNoOfPackages)
-                      <*> areq doubleField "Weight" (ship <&> shWeight)
-                      <*> areq boolField "Custom Data" (ship <&> shGenerateCustomData)
-                      <*> aopt textField (f 14 "EORI") (ship <&>  fmap (take 35) .shTaxId)
-                      <*> areq (selectField serviceOptions) "Service" (ship <&> shServiceCode)
+-- | Displays a form in the shape of a table showing also the values
+-- present in FrontAccounting DPD
+shippingForm :: Maybe ShippingDetails -> Maybe ShippingDetails ->  Maybe ShippingForm 
+              -> Html -> MForm Handler (FormResult ShippingForm, Widget)
+shippingForm fam dpdm (shipm)  extra =  do
+    customerName <- mreq textField (f 35 "Customer Name") (ship <&> take 35 . shCustomerName)
+    country <- mopt (selectField countryOptions) "Country" (ship <&> shCountry)
+    postalCode <- mreq textField (f 7 "Postal/Zip Code") (ship <&> take 7 . shPostalCode)
+    address1 <- mreq textField (f 35 "Address 1") (ship <&> take 35 . shAddress1)
+    address2 <- mopt textField (f 35 "Address 2") (ship <&> fmap (take 35) . shAddress2)
+    city <- mreq textField (f 35 "City") (ship <&> take 35 . shCity)
+    countyState <- mopt textField (f 35 "County/State") (ship <&> fmap (take 35) . shCountyState)
+    contact <- mreq textField (f 25 "Contact") (ship <&> take 25 . shContact)
+    telephone <- mreq textField (f 15 "Telephone") (ship <&> take 15 .  shTelephone)
+    notificationEmail <- mopt textField (f 35 "Notification Email") (ship <&> fmap (take 35) . shNotificationEmail)
+    notificationText <- mopt textField (f 35 "Notification Text") (ship <&>  fmap (take 35) .shNotificationText)
+    noOfPackages <- mreq intField "No of Packages" (ship <&> shNoOfPackages)
+    weight <- mreq doubleField "Weight" (ship <&> shWeight)
+    generateCustomData <- mreq boolField "Custom Data" (ship <&> shGenerateCustomData)
+    taxId <- mopt textField (f 14 "EORI") (ship <&>  fmap (take 35) .shTaxId)
+    serviceCode <- mreq (selectField serviceOptions) "Service" (ship <&> shServiceCode)
+    let widget = [whamlet|
+     #{extra}
+      <table.table.table-border>
+        <thead>
+          <th> 
+          <th> 
+          <th> FrontAccounting
+          <th> DPD
+        <tbody>
+          ^{renderRow id (maybe "" readableCountryName . shippingDetailsCountry) country}
+          ^{renderRow (mconcat . words)  shippingDetailsPostCode postalCode}
+          ^{renderRow normalize shippingDetailsAddress1 address1}
+          ^{renderRow normalize shippingDetailsAddress2 address2}
+          ^{renderRow normalize shippingDetailsTown city}
+          ^{renderRow normalize shippingDetailsCounty countyState}
+          ^{renderRow normalize shippingDetailsContact contact}
+          ^{renderRow normalize (fromMaybe "" . shippingDetailsTelephone) telephone}
+          ^{renderRow normalize (fromMaybe "" . shippingDetailsNotificationEmail) notificationEmail}
+          ^{renderRow normalize (fromMaybe "" . shippingDetailsNotificationText)  notificationText}
+          ^{renderRow0  noOfPackages}
+          ^{renderRow0  weight}
+          ^{renderRow0  generateCustomData}
+          ^{renderRow id (fromMaybe "" . shippingDetailsTaxId) taxId}
+          ^{renderRow0  serviceCode}
+    |]
+        normalize = toLower . strip
 
+    return (ShippingForm <$> fst customerName
+                 <*> fst country
+                 <*> fst postalCode
+                 <*> fst address1
+                 <*> fst address2
+                 <*> fst city
+                 <*> fst countyState
+                 <*> fst contact
+                 <*> fst telephone
+                 <*> fst notificationEmail
+                 <*> fst notificationText
+                 <*> fst noOfPackages
+                 <*> fst weight
+                 <*> fst generateCustomData
+                 <*> fst taxId
+                 <*> fst serviceCode
+          , widget)
+
+  where
+  ship = truncateForm <$> shipm
   countryOptions = optionsPairs $ map (fanl (p . readableCountryName)) [minBound..maxBound]
   serviceOptions = optionsPairs $ map (fanl tshow) [minBound..maxBound]
   -- fixed length text
@@ -342,6 +393,32 @@ shippingForm (shipm)  = renderBootstrap3 BootstrapBasicForm form where
   -- help type inference
   p :: String -> Text
   p = pack
+  shipd = toDetails "" <$> shipm
+  renderRow :: _ => (a -> a) ->  (ShippingDetails -> a) -> _ -> _b
+  renderRow f get (_res,view) = let
+    faOk = fmap f (get <$> fam) == fmap f  valuem
+    dpdOk = fmap f (get <$> dpdm) == fmap f valuem
+    valuem = get <$> shipd
+    (faClass, dpdClass) = case (faOk, dpdOk) of
+      (True, False) -> ("", "text-danger bg-danger") :: (Text, Text)
+      (False, True) -> ("text-danger bg-danger", "")
+      (True, True) -> ( "text-success bg-success","")
+
+      _ -> ("", "")
+    in [whamlet|
+    <tr ##{fvId view} >
+      <td> <label for=#{fvId view}> #{fvLabel view}
+      <td> ^{fvInput view}
+      <td class="#{faClass}"> #{maybe "" get fam}
+      <td class="#{dpdClass}"> #{maybe "" get dpdm}
+  |]
+  renderRow0 (_res,view) = [whamlet|
+    <tr ##{fvId view} >
+      <td> <label for=#{fvId view}> #{fvLabel view}
+      <td> ^{fvInput view}
+      <td>
+      <td>
+  |]
     
 -- | Truncate each fields of a form to its max length
 truncateForm :: ShippingForm -> ShippingForm
@@ -372,8 +449,9 @@ truncateForm ShippingForm{..} =
 dpdExportFrom info = do
   let FA.DebtorTran{..} = iiInvoice info
   customerInfo <- runDB $ loadCustomerInfo (fromJust debtorTranDebtorNo) debtorTranBranchCode
-  shipping <- fillShippingForm info customerInfo
-  (form, encType) <- generateFormPost $ shippingForm $ Just shipping
+  (shipping, (faDetails, dpdDetails)) <- fillShippingForm info customerInfo
+  (form, encType) <- generateFormPost $ shippingForm (Just faDetails) dpdDetails
+                                      $ Just shipping
   return [whamlet|
     ^{invoiceSummary info}
     ^{contactSummary $ cuContact customerInfo}

@@ -37,9 +37,13 @@ computeKey ShippingDetails{..} = let
 makeKey :: [Text] -> DetailsKey
 makeKey texts = let
   ws0 = concatMap words texts
-  ws = filter (not . null) $ map (filter (`notElem` (",.-'&/()[];:" :: String))) ws0
+  ws = filter (not . null) 
+     . filter (/= "the")
+     . map (filter (`notElem` (",.-'&/()[];:" :: String)))
+     . map toLower
+     $ ws0
   --ws = filter (not . null) $ map (filter (/=',')) ws0
-  in DetailsKey $ unwords . nub . sort $ map toLower  ws
+  in DetailsKey $ unwords . nub $ sort ws
 
 -- | Clear contact details so we can generate
 -- a key looking for the address only
