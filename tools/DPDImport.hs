@@ -22,7 +22,6 @@ importInfo :: CustomerInfo -> SqlHandler ()
 importInfo customer = do
   let details = mkShippingDetails customer
   saveShippingDetails details
-  saveShippingDetails $ clearContact details
 
 
 mkShippingDetails :: CustomerInfo -> ShippingDetails

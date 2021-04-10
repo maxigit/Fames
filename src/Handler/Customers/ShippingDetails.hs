@@ -64,7 +64,7 @@ saveShippingDetails :: ShippingDetails -> SqlHandler ()
 saveShippingDetails detail = do
   let keys = [ shippingDetailsKey detail
              , unDetailsKey $ computeKey detail -- in case set key is different
-              -- , unDetailsKey $ computeKey $ clearContact detail
+             , unDetailsKey $ computeKey $ clearContact detail
              ]
   forM_ (nub $ sort keys) $ \k -> do
     void $ upsert detail {shippingDetailsKey = k} []
