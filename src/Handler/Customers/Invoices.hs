@@ -174,8 +174,9 @@ postCustInvoiceDPDR key =  do
           shippingDetails = toDetails "DPD" params
       let FA.DebtorTran{..} = iiInvoice info
       customerInfo <- runDB $ loadCustomerInfo (fromJust debtorTranDebtorNo) debtorTranBranchCode
-      (detailsFromInfo, _) <- fillShippingForm info customerInfo
-      runDB $ saveShippingDetails shippingDetails { shippingDetailsKey = unDetailsKey . computeKey $  toDetails "DPD"  detailsFromInfo }
+      (_detailsFromInfo, (faDetails, _)) <- fillShippingForm info customerInfo
+      when (shSave params) $ do
+        runDB $ saveShippingDetails shippingDetails { shippingDetailsKey = unDetailsKey . computeKey $  faDetails }
       ---
       setAttachment $ fromString $ unpack filename
       respondSource ("text/csv") (makeDPDSource delivery productDetails .| mapC toFlushBuilder)
@@ -253,6 +254,7 @@ data ShippingForm = ShippingForm
   , shTaxId :: Maybe Text
   -- , shCustomValue ::  Double
   , shServiceCode :: ServiceCode
+  , shSave :: Bool
   } deriving Show
 
   
@@ -279,7 +281,7 @@ fillShippingForm info customerInfo = runDB $ do
           [add1,city,zip] -> (add1, Nothing, city, zip, Nothing)
           (add1: add2: city: zip: county:_) -> (add1, Just add2, city, zip, Just county)
           [add1, add2, city, zip] -> (add1, Just add2, city, zip, Nothing)
-          _ ->                       (""  , Nothing  , ""  , "" , Nothing)
+          ls ->                       (unlines ls  , Nothing  , ""  , "" , Nothing)
       shContact = intercalate " " $ catMaybes [ FA.crmPersonName <$> personm
                                               , personm >>= FA.crmPersonName2
                                               ]
@@ -291,6 +293,7 @@ fillShippingForm info customerInfo = runDB $ do
       shTaxId = Just $ FA.debtorsMasterTaxId customer
       -- shCustomValue ::  Double
       -- shService = ""
+      shSave = True
       form = truncateForm ShippingForm{..}
       details0 = toDetails "DPD" form
   detailsm <- getShippingDetails [minBound..maxBound] details0
@@ -341,8 +344,8 @@ shippingForm fam m'dpdm (shipm)  extra =  do
     generateCustomData <- mreq boolField "Custom Data" (ship <&> shGenerateCustomData)
     taxId <- mopt textField (f 14 "EORI") (ship <&>  fmap (take 35) .shTaxId)
     serviceCode <- mreq (selectField serviceOptions) "Service" (ship <&> shServiceCode)
+    save@(_, saveView) <- mreq boolField "Save" (ship <&> shSave)
     let widget = [whamlet|
-     #{tshow matchm}
      #{extra}
       <table.table.table-border>
         <thead>
@@ -351,6 +354,7 @@ shippingForm fam m'dpdm (shipm)  extra =  do
           <th> FrontAccounting
           <th> DPD
         <tbody>
+          ^{renderRow normalize shippingDetailsOrganisation customerName}
           ^{renderRow id (maybe "" readableCountryName . shippingDetailsCountry) country}
           ^{renderRow (mconcat . words)  shippingDetailsPostCode postalCode}
           ^{renderRow normalize shippingDetailsAddress1 address1}
@@ -366,6 +370,17 @@ shippingForm fam m'dpdm (shipm)  extra =  do
           ^{renderRow0  generateCustomData}
           ^{renderRow id (fromMaybe "" . shippingDetailsTaxId) taxId}
           ^{renderRow0  serviceCode}
+          <tr ##{fvId saveView} >
+            <td> <label for=#{fvId saveView}> #{fvLabel saveView}
+            <td> ^{fvInput saveView}
+            $case matchm
+              $of Just FullKeyMatch 
+               <td.text-success.bg-success> #{maybe "" tshow matchm}
+              $of Nothing
+               <td.bg-danger>
+              $of _
+               <td.text-warning.bg-warning> #{maybe "" tshow matchm}
+            <td> 
     |]
         normalize = toLower . strip
 
@@ -385,6 +400,7 @@ shippingForm fam m'dpdm (shipm)  extra =  do
                  <*> fst generateCustomData
                  <*> fst taxId
                  <*> fst serviceCode
+                 <*> fst save
           , widget)
 
   where
@@ -444,7 +460,7 @@ truncateForm ShippingForm{..} =
                (shGenerateCustomData)
                ( fmap (take 35)shTaxId)
                (shServiceCode)
-  where joinSpaces = mconcat . words
+               (shSave)
   
 -- | Create form allowing to check and prefill information 
 -- to be generated for DPD.
@@ -639,6 +655,6 @@ fromDetails template ShippingDetails{..} = ShippingForm{..} where
   shNotificationEmail = shippingDetailsNotificationEmail
   shNotificationText = shippingDetailsNotificationText
   shTaxId = shippingDetailsTaxId
-  ShippingForm{shNoOfPackages, shWeight, shGenerateCustomData, shServiceCode} = template
+  ShippingForm{shNoOfPackages, shWeight, shGenerateCustomData, shServiceCode, shSave} = template
   
   

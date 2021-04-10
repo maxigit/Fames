@@ -411,6 +411,7 @@ ShippingDetails sql=fames_shipping_details
   UniqueCB courrier key
   deriving Show
   deriving Eq
+  deriving Ord
 
 
 

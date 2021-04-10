@@ -66,11 +66,18 @@ saveShippingDetails detail = do
              , unDetailsKey $ computeKey detail -- in case set key is different
              , unDetailsKey $ computeKey $ clearContact detail
              ]
+  mapM traceShowM keys
   forM_ (nub $ sort keys) $ \k -> do
-    void $ upsert detail {shippingDetailsKey = k} []
+    traceShowM ("SAVING", k)
+    let d = detail { shippingDetailsKey = k }
+    inDB <- getBy $ UniqueCB (shippingDetailsCourrier detail) k
+    case inDB of
+      Nothing -> insert_  d
+      Just e | (traceShowId $ entityVal e) /= d -> replace (entityKey e)  d
+      _ -> return ()
 
 data Match = FullKeyMatch
-           | FullAddressMatch -- Only address stripped of contact
+           | AddressOnlyMatch -- Only address stripped of contact
            -- | FullContactMatch
            | TelephoneMatch
            | EmailMatch
@@ -84,7 +91,7 @@ getShippingDetails [] _ = return Nothing
 getShippingDetails (m:ms) details = do
   found <- case m of
     FullKeyMatch -> getBy $ UniqueCB (shippingDetailsCourrier details) (unDetailsKey $ computeKey details)
-    FullAddressMatch -> getBy $ UniqueCB (shippingDetailsCourrier details)
+    AddressOnlyMatch -> getBy $ UniqueCB (shippingDetailsCourrier details)
                                             (unDetailsKey . computeKey $ clearContact details)
     TelephoneMatch -> fmap join $ forM (shippingDetailsTelephone details) $ \tel ->
                          onlyOne <$> selectList [ShippingDetailsTelephone
@@ -98,8 +105,16 @@ getShippingDetails (m:ms) details = do
     Just e -> return $ Just (m, e)
     Nothing -> getShippingDetails ms details
   where
-    onlyOne [x] = Just x
-    onlyOne _ = Nothing
+    -- returns something
+    -- only if there is exactly one
+    -- or are duplicates with different keys.
+    -- Duplicates happens where saving the same details with different key
+    -- If all duplicates contains the same information we should return a value
+    onlyOne xs =
+      case nub . sort $ map (\(Entity _ d) -> d { shippingDetailsKey = "" }) xs of
+        [_] -> headMay xs
+        _ -> Nothing
+
 
 
 
