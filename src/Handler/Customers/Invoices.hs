@@ -260,7 +260,9 @@ data ShippingForm = ShippingForm
 -- and modify it if necessary.
 -- Also returns an extra widget with extra information like
 -- full address, order comments etc ...
-fillShippingForm :: InvoiceInfo -> CustomerInfo -> Handler (ShippingForm, (ShippingDetails, Maybe ShippingDetails))
+fillShippingForm :: InvoiceInfo -> CustomerInfo
+                 -> Handler (ShippingForm, (ShippingDetails
+                                           , Maybe (Match, ShippingDetails)))
 fillShippingForm info customerInfo = runDB $ do
   -- Get address and Co
   let customer = cuDebtor customerInfo
@@ -291,13 +293,13 @@ fillShippingForm info customerInfo = runDB $ do
       -- shService = ""
       form = truncateForm ShippingForm{..}
       details0 = toDetails "DPD" form
-  detailsm <- getShippingDetails details0
+  detailsm <- getShippingDetails [minBound..maxBound] details0
   -- traceShowM ("DETAILS", detailsm)
   case detailsm of
     Nothing -> return (form, (details0, Nothing))
-    Just (Entity _ details) -> do
+    Just (match, Entity _ details) -> do
       return  (fromDetails form details
-              , (details0 , Just details)
+              , (details0 , Just (match, details))
               )
 
 customerCountryInfo :: CustomerInfo -> (Maybe CountryCode, Bool, ServiceCode)
@@ -320,9 +322,9 @@ countryMap = Map.fromList $ map (fanl tshow) [minBound..maxBound]
 
 -- | Displays a form in the shape of a table showing also the values
 -- present in FrontAccounting DPD
-shippingForm :: Maybe ShippingDetails -> Maybe ShippingDetails ->  Maybe ShippingForm 
+shippingForm :: Maybe ShippingDetails -> Maybe (Match, ShippingDetails) ->  Maybe ShippingForm 
               -> Html -> MForm Handler (FormResult ShippingForm, Widget)
-shippingForm fam dpdm (shipm)  extra =  do
+shippingForm fam m'dpdm (shipm)  extra =  do
     customerName <- mreq textField (f 35 "Customer Name") (ship <&> take 35 . shCustomerName)
     country <- mopt (selectField countryOptions) "Country" (ship <&> shCountry)
     postalCode <- mreq textField (f 7 "Postal/Zip Code") (ship <&> take 7 . shPostalCode)
@@ -340,6 +342,7 @@ shippingForm fam dpdm (shipm)  extra =  do
     taxId <- mopt textField (f 14 "EORI") (ship <&>  fmap (take 35) .shTaxId)
     serviceCode <- mreq (selectField serviceOptions) "Service" (ship <&> shServiceCode)
     let widget = [whamlet|
+     #{tshow matchm}
      #{extra}
       <table.table.table-border>
         <thead>
@@ -386,6 +389,7 @@ shippingForm fam dpdm (shipm)  extra =  do
 
   where
   ship = truncateForm <$> shipm
+  (matchm, dpdm) = maybe (Nothing, Nothing) (\(a,b) -> (Just a, Just b)) m'dpdm
   countryOptions = optionsPairs $ map (fanl (p . readableCountryName)) [minBound..maxBound]
   serviceOptions = optionsPairs $ map (fanl tshow) [minBound..maxBound]
   -- fixed length text
@@ -400,6 +404,7 @@ shippingForm fam dpdm (shipm)  extra =  do
     dpdOk = fmap f (get <$> dpdm) == fmap f valuem
     valuem = get <$> shipd
     (faClass, dpdClass) = case (faOk, dpdOk) of
+      _ | matchm == Just FullKeyMatch -> ("", "text-success bg-success")
       (True, False) -> ("", "text-danger bg-danger") :: (Text, Text)
       (False, True) -> ("text-danger bg-danger", "")
       (True, True) -> ( "text-success bg-success","")
@@ -425,21 +430,21 @@ truncateForm :: ShippingForm -> ShippingForm
 truncateForm ShippingForm{..} =
   ShippingForm (take 35 shCustomerName)
                (shCountry)
-               (take 7 $ joinSpace shPostalCode)
+               (take 7 $ joinSpaces shPostalCode)
                (take 35 shAddress1)
                (fmap (take 35) shAddress2)
                (take 35 shCity)
                (fmap (take 35) shCountyState)
                (take 25 shContact)
                (take 15  shTelephone)
-               (fmap (take 35 . joinSpace) shNotificationEmail)
-               ( fmap (take 35 . joinSpace)shNotificationText)
+               (fmap (take 35 . joinSpaces) shNotificationEmail)
+               ( fmap (take 35 . joinSpaces)shNotificationText)
                (shNoOfPackages)
                (shWeight)
                (shGenerateCustomData)
                ( fmap (take 35)shTaxId)
                (shServiceCode)
-  where joinSpace = mconcat . words
+  where joinSpaces = mconcat . words
   
 -- | Create form allowing to check and prefill information 
 -- to be generated for DPD.

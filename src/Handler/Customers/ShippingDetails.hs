@@ -7,6 +7,8 @@ module Handler.Customers.ShippingDetails
 , saveShippingDetails
 , getShippingDetails
 , DetailsKey(..)
+, joinSpaces
+, Match(..)
 ) where
 
 import Import
@@ -17,8 +19,7 @@ newtype DetailsKey = DetailsKey { unDetailsKey :: Text }
 
 computeKey :: ShippingDetails -> DetailsKey
 computeKey ShippingDetails{..} = let
-  joinSpace = mconcat . words  :: Text -> Text
-  address'contact = joinSpace shippingDetailsPostCode
+  address'contact = joinSpaces shippingDetailsPostCode
                   : fmap tshow shippingDetailsCountry
                   ?: shippingDetailsOrganisation
                   : shippingDetailsAddress1
@@ -26,13 +27,15 @@ computeKey ShippingDetails{..} = let
                   : shippingDetailsTown
                   : shippingDetailsCounty
                   : shippingDetailsContact
-                  : fmap joinSpace shippingDetailsTelephone
+                  : fmap joinSpaces shippingDetailsTelephone
                   ?: shippingDetailsNotificationEmail
-                  ?: fmap joinSpace shippingDetailsNotificationText
+                  ?: fmap joinSpaces shippingDetailsNotificationText
                   ?: []
   in makeKey address'contact
 
       
+joinSpaces :: Text -> Text
+joinSpaces = mconcat . words  :: Text -> Text
 
 makeKey :: [Text] -> DetailsKey
 makeKey texts = let
@@ -66,13 +69,37 @@ saveShippingDetails detail = do
   forM_ (nub $ sort keys) $ \k -> do
     void $ upsert detail {shippingDetailsKey = k} []
 
+data Match = FullKeyMatch
+           | FullAddressMatch -- Only address stripped of contact
+           -- | FullContactMatch
+           | TelephoneMatch
+           | EmailMatch
+     deriving (Eq, Ord, Show, Read, Bounded, Enum)
 -- | Find the shipping details with the same key as the given one.
 -- This allow to find a valid version of the details even if
 -- fields are not field correctly (all information is there but not
 -- in the correct field. Example country in county field etc ...
-getShippingDetails :: ShippingDetails -> SqlHandler (Maybe (Entity ShippingDetails))
-getShippingDetails details =
-  getBy $ UniqueCB (shippingDetailsCourrier details) (unDetailsKey $ computeKey details)
+getShippingDetails :: [Match] -> ShippingDetails -> SqlHandler (Maybe (Match, Entity ShippingDetails))
+getShippingDetails [] _ = return Nothing
+getShippingDetails (m:ms) details = do
+  found <- case m of
+    FullKeyMatch -> getBy $ UniqueCB (shippingDetailsCourrier details) (unDetailsKey $ computeKey details)
+    FullAddressMatch -> getBy $ UniqueCB (shippingDetailsCourrier details)
+                                            (unDetailsKey . computeKey $ clearContact details)
+    TelephoneMatch -> fmap join $ forM (shippingDetailsTelephone details) $ \tel ->
+                         onlyOne <$> selectList [ShippingDetailsTelephone
+                                                 ==. Just (joinSpaces tel)
+                                                ] []
+    EmailMatch -> fmap join $ forM (shippingDetailsNotificationEmail details) $ \email -> 
+                         onlyOne <$> selectList [ShippingDetailsNotificationEmail
+                                                ==. Just (joinSpaces email)
+                                                ] []
+  case found of
+    Just e -> return $ Just (m, e)
+    Nothing -> getShippingDetails ms details
+  where
+    onlyOne [x] = Just x
+    onlyOne _ = Nothing
 
 
 
