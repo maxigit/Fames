@@ -275,7 +275,7 @@ fillShippingForm info customerInfo = runDB $ do
       (shAddress1, shAddress2, shCity, shPostalCode, shCountyState) =
         case lines (decodeHtmlEntities $ FA.salesOrderDeliveryAddress order) of
           [add1,city,zip] -> (add1, Nothing, city, zip, Nothing)
-          [add1, add2, city, zip, county] -> (add1, Just add2, city, zip, Just county)
+          (add1: add2: city: zip: county:_) -> (add1, Just add2, city, zip, Just county)
           [add1, add2, city, zip] -> (add1, Just add2, city, zip, Nothing)
           _ ->                       (""  , Nothing  , ""  , "" , Nothing)
       shContact = intercalate " " $ catMaybes [ FA.crmPersonName <$> personm
