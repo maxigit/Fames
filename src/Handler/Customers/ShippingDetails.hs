@@ -66,14 +66,12 @@ saveShippingDetails detail = do
              , unDetailsKey $ computeKey detail -- in case set key is different
              , unDetailsKey $ computeKey $ clearContact detail
              ]
-  mapM traceShowM keys
   forM_ (nub $ sort keys) $ \k -> do
-    traceShowM ("SAVING", k)
     let d = detail { shippingDetailsKey = k }
     inDB <- getBy $ UniqueCB (shippingDetailsCourrier detail) k
     case inDB of
       Nothing -> insert_  d
-      Just e | (traceShowId $ entityVal e) /= d -> replace (entityKey e)  d
+      Just e | entityVal e /= d -> replace (entityKey e)  d
       _ -> return ()
 
 data Match = FullKeyMatch
