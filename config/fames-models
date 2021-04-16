@@ -22,7 +22,7 @@ FamesBatchMatch sql=fames_batch_match
     target Int  sql=target
     targetColour Text  sql=target_colour
     operatorId Int Maybe sql=operator_id
-    quality Text  sql=quality
+    score Double  sql=score
     comment Text Maybe sql=comment default=NULL
     date Day  sql=date
     documentKeyId Int  sql=document_key_id
@@ -129,14 +129,23 @@ FamesPayrollShift sql=fames_payroll_shift
     date Day Maybe sql=date
     type Text  sql=type
 
-FamesShift sql=fames_shift
-    Id Int  sql=id
-    timesheetId Int  sql=timesheet_id
-    duration Double  sql=duration
-    cost Double  sql=cost
-    operatorId Int  sql=operator_id
-    date Day Maybe sql=date
-    type Text  sql=type
+FamesShippingDetail sql=fames_shipping_details
+    Id Int  sql=shipping_details_id
+    courrier Text  sql=courrier
+    key Text  sql=key
+    shortName Text  sql=short_name
+    postCode Text  sql=post_code
+    country Text Maybe sql=country default=NULL
+    organisation Text  sql=organisation
+    address1 Text  sql=address1
+    address2 Text  sql=address2
+    town Text  sql=town
+    contact Text  sql=contact
+    county Text  sql=county
+    telephone Text Maybe sql=telephone default=NULL
+    notificationEmail Text Maybe sql=notification_email default=NULL
+    notificationText Text Maybe sql=notification_text default=NULL
+    taxId Text Maybe sql=tax_id default=NULL
 
 FamesStocktake sql=fames_stocktake
     Id Int  sql=stocktake_id
@@ -168,6 +177,35 @@ FamesStockAdjDetail sql=fames_stock_adj_detail
     locFrom Text Maybe sql=loc_from default=NULL
     locTo Text Maybe sql=loc_to default=NULL
 
+FamesTaxReport sql=fames_tax_report
+    Id Int  sql=tax_report_id
+    type Text  sql=type
+    reference Text  sql=reference
+    start Day  sql=start
+    end Day  sql=end
+    status Text  sql=status
+    submittedAt UTCTime Maybe sql=submitted_at
+    externalReference Text Maybe sql=external_reference default=NULL
+    externalData ByteString Maybe sql=external_data
+
+FamesTaxReportBox sql=fames_tax_report_box
+    Id Int  sql=tax_report_boxes
+    taxReportId Int  sql=tax_report_id
+    name Text  sql=name
+    value Rational  sql=value
+
+FamesTaxReportDetail sql=fames_tax_report_detail
+    Id Int  sql=tax_report_detail_id
+    taxReportId Int  sql=tax_report_id
+    taxTransDetailId Int  sql=tax_trans_detail_id
+    netAmount Double  sql=net_amount
+    taxAmount Double  sql=tax_amount
+    rate Double  sql=rate
+    bucket Text  sql=bucket
+    faTransType Int  sql=fa_trans_type
+    faTransNo Int  sql=fa_trans_no
+    faTaxType Int  sql=fa_tax_type
+
 FamesTimesheet sql=fames_timesheet
     Id Int  sql=timesheet_id
     reference Text  sql=reference
@@ -183,6 +221,7 @@ FamesTransactionMap sql=fames_transaction_map
     faTransNo Int  sql=fa_trans_no
     eventType Int  sql=event_type
     eventNo Int  sql=event_no
+    voided Bool  sql=voided
 
 FamesUser sql=fames_user
     Id Int  sql=user_id

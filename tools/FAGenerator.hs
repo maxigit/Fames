@@ -197,9 +197,11 @@ generateHandler mode out module_ Table {..} = do
   let handlerName = "get" ++ handler module_ tableName
   hPrintf out
     "\
+\{-# NOINLINE %s #-}\n\
 \%s :: Handler Html \n\
 \%s = entityTableHandler (%s'R %s) ([] :: [Filter %s.%s]) \n\
 \\n"
+    handlerName
     handlerName
     handlerName
     module_

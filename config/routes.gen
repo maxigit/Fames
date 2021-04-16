@@ -306,10 +306,13 @@
   /fames_packinglist_detail FAMESFamesPackinglistDetailR GET !title=fames_packinglist_detail 
   /fames_payroll_item FAMESFamesPayrollItemR GET !title=fames_payroll_item 
   /fames_payroll_shift FAMESFamesPayrollShiftR GET !title=fames_payroll_shift 
-  /fames_shift FAMESFamesShiftR GET !title=fames_shift 
+  /fames_shipping_details FAMESFamesShippingDetailsR GET !title=fames_shipping_details 
   /fames_stocktake FAMESFamesStocktakeR GET !title=fames_stocktake 
   /fames_stock_adjustment FAMESFamesStockAdjustmentR GET !title=fames_stock_adjustment 
   /fames_stock_adj_detail FAMESFamesStockAdjDetailR GET !title=fames_stock_adj_detail 
+  /fames_tax_report FAMESFamesTaxReportR GET !title=fames_tax_report 
+  /fames_tax_report_box FAMESFamesTaxReportBoxR GET !title=fames_tax_report_box 
+  /fames_tax_report_detail FAMESFamesTaxReportDetailR GET !title=fames_tax_report_detail 
   /fames_timesheet FAMESFamesTimesheetR GET !title=fames_timesheet 
   /fames_transaction_map FAMESFamesTransactionMapR GET !title=fames_transaction_map 
   /fames_user FAMESFamesUserR GET !title=fames_user 

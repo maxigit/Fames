@@ -65,9 +65,9 @@ getFAMESFamesPayrollItemR = entityTableHandler (FAMES'R FAMESFamesPayrollItemR) 
 getFAMESFamesPayrollShiftR :: Handler Html 
 getFAMESFamesPayrollShiftR = entityTableHandler (FAMES'R FAMESFamesPayrollShiftR) ([] :: [Filter FAMES.FamesPayrollShift]) 
 
-{-# NOINLINE getFAMESFamesShiftR #-}
-getFAMESFamesShiftR :: Handler Html 
-getFAMESFamesShiftR = entityTableHandler (FAMES'R FAMESFamesShiftR) ([] :: [Filter FAMES.FamesShift]) 
+{-# NOINLINE getFAMESFamesShippingDetailsR #-}
+getFAMESFamesShippingDetailsR :: Handler Html 
+getFAMESFamesShippingDetailsR = entityTableHandler (FAMES'R FAMESFamesShippingDetailsR) ([] :: [Filter FAMES.FamesShippingDetail]) 
 
 {-# NOINLINE getFAMESFamesStocktakeR #-}
 getFAMESFamesStocktakeR :: Handler Html 
@@ -80,6 +80,18 @@ getFAMESFamesStockAdjustmentR = entityTableHandler (FAMES'R FAMESFamesStockAdjus
 {-# NOINLINE getFAMESFamesStockAdjDetailR #-}
 getFAMESFamesStockAdjDetailR :: Handler Html 
 getFAMESFamesStockAdjDetailR = entityTableHandler (FAMES'R FAMESFamesStockAdjDetailR) ([] :: [Filter FAMES.FamesStockAdjDetail]) 
+
+{-# NOINLINE getFAMESFamesTaxReportR #-}
+getFAMESFamesTaxReportR :: Handler Html 
+getFAMESFamesTaxReportR = entityTableHandler (FAMES'R FAMESFamesTaxReportR) ([] :: [Filter FAMES.FamesTaxReport]) 
+
+{-# NOINLINE getFAMESFamesTaxReportBoxR #-}
+getFAMESFamesTaxReportBoxR :: Handler Html 
+getFAMESFamesTaxReportBoxR = entityTableHandler (FAMES'R FAMESFamesTaxReportBoxR) ([] :: [Filter FAMES.FamesTaxReportBox]) 
+
+{-# NOINLINE getFAMESFamesTaxReportDetailR #-}
+getFAMESFamesTaxReportDetailR :: Handler Html 
+getFAMESFamesTaxReportDetailR = entityTableHandler (FAMES'R FAMESFamesTaxReportDetailR) ([] :: [Filter FAMES.FamesTaxReportDetail]) 
 
 {-# NOINLINE getFAMESFamesTimesheetR #-}
 getFAMESFamesTimesheetR :: Handler Html 

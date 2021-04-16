@@ -414,15 +414,11 @@ ShippingDetails sql=fames_shipping_details
   deriving Ord
 
 
-
-
-  
-
-
-
-
-
-
-
-  
-          
+-- {-
+-- After modifying it to don't forget
+-- To run
+-- :main: +aw s/^--// +x !sh < @<
+--   make config/fames-routes -B
+--   make config/routes.gen
+-- .main.
+-- -}
