@@ -166,7 +166,7 @@ postCustInvoiceDPDR key =  do
                             1 -> \detail -> detail { parcel = Right 1 }
                             _ -> id
       
-          filename = shCustomerName params <> "-Invoice-" <> tshow  key <> ".csv"
+          filename = shShortName params <> "-Invoice-" <> tshow  key <> ".csv"
           -- save shipping details
           -- we need as well as the shipping details key
           -- to save the details with the exact key as the one
@@ -187,8 +187,8 @@ mkDelivery info ShippingForm{..} DPDSettings{..} customValue =
     shipperContactTelephone = mconcat $ words shipperContactTelephone
     ,..
   } where
-  reference = shCustomerName
-  organisation'name = shCustomerName
+  reference = shShortName
+  organisation'name = shOrganisation
   addressLine1'property'street = shAddress1
   addressLine2'locality = shAddress2
   addressLine3'City = shCity
@@ -237,9 +237,10 @@ mkProductDetail categoryFor usePPD FA.DebtorTransDetail{..} = ProductDetail{..} 
   
   
 data ShippingForm = ShippingForm
-  { shCustomerName :: Text
+  { shShortName :: Text
   , shCountry :: Maybe CountryCode -- mandatory but we need to not have a default value
   , shPostalCode :: Text
+  , shOrganisation :: Text
   , shAddress1 :: Text
   , shAddress2 :: Maybe Text
   , shCity :: Text
@@ -274,7 +275,8 @@ fillShippingForm info customerInfo = runDB $ do
                  [] -> error "Unexpected happend. Invoice should have an order"
 
 
-  let shCustomerName = decodeHtmlEntities $  FA.debtorsMasterName customer
+  let shOrganisation = decodeHtmlEntities $  FA.debtorsMasterName customer
+      shShortName = decodeHtmlEntities $  FA.debtorsMasterDebtorRef customer
       (shCountry, shGenerateCustomData, shServiceCode) = customerCountryInfo customerInfo
       (shAddress1, shAddress2, shCity, shPostalCode, shCountyState) =
         case lines (decodeHtmlEntities $ FA.salesOrderDeliveryAddress order) of
@@ -328,9 +330,10 @@ countryMap = Map.fromList $ map (fanl tshow) [minBound..maxBound]
 shippingForm :: Maybe ShippingDetails -> Maybe (Match, ShippingDetails) ->  Maybe ShippingForm 
               -> Html -> MForm Handler (FormResult ShippingForm, Widget)
 shippingForm fam m'dpdm (shipm)  extra =  do
-    customerName <- mreq textField (f 35 "Customer Name") (ship <&> take 35 . shCustomerName)
+    shortName <- mreq textField (f 35 "Short Name") (ship <&> take 35 . shShortName)
     country <- mopt (selectField countryOptions) "Country" (ship <&> shCountry)
     postalCode <- mreq textField (f 7 "Postal/Zip Code") (ship <&> take 7 . shPostalCode)
+    organisation <- mreq textField (f 35 "Organisation") (ship <&> take 35 . shOrganisation)
     address1 <- mreq textField (f 35 "Address 1") (ship <&> take 35 . shAddress1)
     address2 <- mopt textField (f 35 "Address 2") (ship <&> fmap (take 35) . shAddress2)
     city <- mreq textField (f 35 "City") (ship <&> take 35 . shCity)
@@ -354,7 +357,8 @@ shippingForm fam m'dpdm (shipm)  extra =  do
           <th> FrontAccounting
           <th> DPD
         <tbody>
-          ^{renderRow normalize shippingDetailsOrganisation customerName}
+          ^{renderRow normalize shippingDetailsShortName shortName}
+          ^{renderRow normalize shippingDetailsOrganisation organisation}
           ^{renderRow id (maybe "" readableCountryName . shippingDetailsCountry) country}
           ^{renderRow (mconcat . words)  shippingDetailsPostCode postalCode}
           ^{renderRow normalize shippingDetailsAddress1 address1}
@@ -384,9 +388,10 @@ shippingForm fam m'dpdm (shipm)  extra =  do
     |]
         normalize = toLower . strip
 
-    return (ShippingForm <$> fst customerName
+    return (ShippingForm <$> fst shortName
                  <*> fst country
                  <*> fst postalCode
+                 <*> fst organisation
                  <*> fst address1
                  <*> fst address2
                  <*> fst city
@@ -444,9 +449,10 @@ shippingForm fam m'dpdm (shipm)  extra =  do
 -- | Truncate each fields of a form to its max length
 truncateForm :: ShippingForm -> ShippingForm
 truncateForm ShippingForm{..} =
-  ShippingForm (take 35 shCustomerName)
+  ShippingForm (take 35 shShortName)
                (shCountry)
                (take 7 $ joinSpaces shPostalCode)
+               (take 35 shOrganisation)
                (take 35 shAddress1)
                (fmap (take 35) shAddress2)
                (take 35 shCity)
@@ -620,10 +626,10 @@ loadCustomerInfo debtorNo branchNo = do
 
 toDetails :: Text ->  ShippingForm -> ShippingDetails
 toDetails shippingDetailsCourrier ShippingForm{..} = details {shippingDetailsKey = key } where
-  shippingDetailsShortName = shCustomerName
+  shippingDetailsShortName = shShortName
   shippingDetailsPostCode =  shPostalCode
   shippingDetailsCountry = shCountry
-  shippingDetailsOrganisation = shCustomerName
+  shippingDetailsOrganisation = shOrganisation
   shippingDetailsAddress1 = shAddress1
   shippingDetailsAddress2 = fromMaybe "" shAddress2
   shippingDetailsTown = shCity
@@ -643,9 +649,10 @@ toDetails shippingDetailsCourrier ShippingForm{..} = details {shippingDetailsKey
 
 fromDetails :: ShippingForm -> ShippingDetails -> ShippingForm
 fromDetails template ShippingDetails{..} = ShippingForm{..} where
-  shPostalCode =  shippingDetailsPostCode
+  shShortName = shippingDetailsShortName
   shCountry = shippingDetailsCountry
-  shCustomerName = shippingDetailsOrganisation
+  shPostalCode =  shippingDetailsPostCode
+  shOrganisation = shippingDetailsOrganisation
   shAddress1 = shippingDetailsAddress1
   shAddress2 = Just shippingDetailsAddress2
   shCity = shippingDetailsTown
