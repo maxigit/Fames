@@ -391,7 +391,7 @@ shippingForm fam m'dpdm (shipm)  extra =  do
     |]
         normalize = toLower . strip
 
-    return (ShippingForm <$> fst shortName
+    return (noinline ( ShippingForm <$> fst shortName
                  <*> fst country
                  <*> fst postalCode
                  <*> fst organisation
@@ -401,6 +401,8 @@ shippingForm fam m'dpdm (shipm)  extra =  do
                  <*> fst countyState
                  <*> fst contact
                  <*> fst telephone
+                 ) -- work around for GHC bug 
+                 -- https://gitlab.haskell.org/ghc/ghc/-/issues/19695#note_346705
                  <*> fst notificationEmail
                  <*> fst notificationText
                  <*> fst noOfPackages
@@ -412,6 +414,8 @@ shippingForm fam m'dpdm (shipm)  extra =  do
           , widget)
 
   where
+  {-# NOINLINE noinline #-}
+  noinline = id
   ship = truncateForm <$> shipm
   (matchm, dpdm) = maybe (Nothing, Nothing) (\(a,b) -> (Just a, Just b)) m'dpdm
   countryOptions = optionsPairs $ map (fanl (p . readableCountryName)) [minBound..maxBound]
