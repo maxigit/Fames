@@ -278,47 +278,47 @@ fillShippingForm :: InvoiceInfo -> CustomerInfo -> Maybe (Key ShippingDetails)
 fillShippingForm info customerInfo detailKeyM = do
   userm <- currentFAUser
   runDB $ do
-  -- Get address and Co
-  let customer = cuDebtor customerInfo
-      personm = cuContact customerInfo
-  let order = case reverse (iiDelivery'orders info) of
-                 (_,o):_ -> o
-                 [] -> error "Unexpected happend. Invoice should have an order"
+    -- Get address and Co
+    let customer = cuDebtor customerInfo
+        personm = cuContact customerInfo
+    let order = case reverse (iiDelivery'orders info) of
+                   (_,o):_ -> o
+                   [] -> error "Unexpected happend. Invoice should have an order"
 
 
-  let shOrganisation = decodeHtmlEntities $  FA.debtorsMasterName customer
-      shShortName = decodeHtmlEntities $  FA.debtorsMasterDebtorRef customer
-      (shCountry, shGenerateCustomData, shServiceCode) = customerCountryInfo customerInfo
-      (shAddress1, shAddress2, shCity, shPostalCode, shCountyState) =
-        case lines (decodeHtmlEntities $ FA.salesOrderDeliveryAddress order) of
-          [add1,city,zip] -> (add1, Nothing, city, zip, Nothing)
-          (add1: add2: city: zip: county:_) -> (add1, Just add2, city, zip, Just county)
-          [add1, add2, city, zip] -> (add1, Just add2, city, zip, Nothing)
-          ls ->                       (unlines ls  , Nothing  , ""  , "" , Nothing)
-      shContact = intercalate " " $ catMaybes [ FA.crmPersonName <$> personm
-                                              , personm >>= FA.crmPersonName2
-                                              ]
-      shTelephone = fromMaybe "<Phone>" (personm >>= FA.crmPersonPhone)
-      shNotificationEmail =  (personm >>= FA.crmPersonEmail) <|> (Just "<Email>")
-      shNotificationText =  ((personm >>= FA.crmPersonPhone2) <|> (personm >>= FA.crmPersonPhone)) <|> (Just "<Text>")
-      shNoOfPackages = 1
-      shWeight = 9
-      shTaxId = Just $ FA.debtorsMasterTaxId customer
-      -- shCustomValue ::  Double
-      -- shService = ""
-      shSave = True
-      form = truncateForm ShippingForm{..}
-      details0 = toDetails userm "DPD" form
-  detailsm <- case detailKeyM of
-                Just detailKey -> (\d -> (FullKeyMatch, Entity detailKey d)) <$$> get detailKey
-                Nothing -> getShippingDetails [minBound..maxBound] details0
-  -- traceShowM ("DETAILS", detailsm)
-  case detailsm of
-    Nothing -> return (form, (details0, Nothing))
-    Just (match, Entity _ details) -> do
-      return  (fromDetails form details
-              , (details0 , Just (match, details))
-              )
+    let shOrganisation = decodeHtmlEntities $  FA.debtorsMasterName customer
+        shShortName = decodeHtmlEntities $  FA.debtorsMasterDebtorRef customer
+        (shCountry, shGenerateCustomData, shServiceCode) = customerCountryInfo customerInfo
+        (shAddress1, shAddress2, shCity, shPostalCode, shCountyState) =
+          case lines (decodeHtmlEntities $ FA.salesOrderDeliveryAddress order) of
+            [add1,city,zip] -> (add1, Nothing, city, zip, Nothing)
+            (add1: add2: city: zip: county:_) -> (add1, Just add2, city, zip, Just county)
+            [add1, add2, city, zip] -> (add1, Just add2, city, zip, Nothing)
+            ls ->                       (unlines ls  , Nothing  , ""  , "" , Nothing)
+        shContact = intercalate " " $ catMaybes [ FA.crmPersonName <$> personm
+                                                , personm >>= FA.crmPersonName2
+                                                ]
+        shTelephone = fromMaybe "<Phone>" (personm >>= FA.crmPersonPhone)
+        shNotificationEmail =  (personm >>= FA.crmPersonEmail) <|> (Just "<Email>")
+        shNotificationText =  ((personm >>= FA.crmPersonPhone2) <|> (personm >>= FA.crmPersonPhone)) <|> (Just "<Text>")
+        shNoOfPackages = 1
+        shWeight = 9
+        shTaxId = Just $ FA.debtorsMasterTaxId customer
+        -- shCustomValue ::  Double
+        -- shService = ""
+        shSave = True
+        form = truncateForm ShippingForm{..}
+        details0 = toDetails userm "DPD" form
+    detailsm <- case detailKeyM of
+                  Just detailKey -> (\d -> (FullKeyMatch, Entity detailKey d)) <$$> get detailKey
+                  Nothing -> getShippingDetails [minBound..maxBound] details0
+    -- traceShowM ("DETAILS", detailsm)
+    case detailsm of
+      Nothing -> return (form, (details0, Nothing))
+      Just (match, Entity _ details) -> do
+        return  (fromDetails form details
+                , (details0 , Just (match, details))
+                )
 
 customerCountryInfo :: CustomerInfo -> (Maybe CountryCode, Bool, ServiceCode)
 customerCountryInfo CustomerInfo{..} = 
