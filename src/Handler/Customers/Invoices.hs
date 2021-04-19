@@ -150,6 +150,8 @@ getCustInvoiceCCodesR key detailIdM = do
 postCustInvoiceDPDR :: Int64 -> Handler TypedContent
 postCustInvoiceDPDR key =  do
   info <- runDB$ loadInvoiceInfo key
+  today <- todayH
+  userm <- currentFAUser
   settingsm <- getsYesod (appDPDSettings . appSettings)
   let settings = fromMaybe (error "Shipping settings missing. Please contact your administrator.")
                            settingsm
@@ -172,12 +174,18 @@ postCustInvoiceDPDR key =  do
           -- we need as well as the shipping details key
           -- to save the details with the exact key as the one
           -- we use to search the detail initially
-          shippingDetails = toDetails "DPD" params
+          shippingDetails = (toDetails userm "DPD" params )
+                            { shippingDetailsLastUsed = Just today }
       let FA.DebtorTran{..} = iiInvoice info
       customerInfo <- runDB $ loadCustomerInfo (fromJust debtorTranDebtorNo) debtorTranBranchCode
       (_detailsFromInfo, (faDetails, _)) <- fillShippingForm info customerInfo Nothing
-      when (shSave params) $ do
-        runDB $ saveShippingDetails shippingDetails { shippingDetailsKey = unDetailsKey . computeKey $  faDetails }
+      if (shSave params) 
+        then do
+        runDB $ saveShippingDetails shippingDetails { shippingDetailsKey = unDetailsKey $ computeKey faDetails }
+        else do -- update lastUsed if exist
+         runDB $ updateWhere [ ShippingDetailsKey ==. unDetailsKey ( computeKey shippingDetails) ]
+                             [ ShippingDetailsLastUsed =. Just today ]
+          
       ---
       setAttachment $ fromString $ unpack filename
       respondSource ("text/csv") (makeDPDSource delivery productDetails .| mapC toFlushBuilder)
@@ -267,7 +275,9 @@ data ShippingForm = ShippingForm
 fillShippingForm :: InvoiceInfo -> CustomerInfo -> Maybe (Key ShippingDetails)
                  -> Handler (ShippingForm, (ShippingDetails
                                            , Maybe (Match, ShippingDetails)))
-fillShippingForm info customerInfo detailKeyM = runDB $ do
+fillShippingForm info customerInfo detailKeyM = do
+  userm <- currentFAUser
+  runDB $ do
   -- Get address and Co
   let customer = cuDebtor customerInfo
       personm = cuContact customerInfo
@@ -298,7 +308,7 @@ fillShippingForm info customerInfo detailKeyM = runDB $ do
       -- shService = ""
       shSave = True
       form = truncateForm ShippingForm{..}
-      details0 = toDetails "DPD" form
+      details0 = toDetails userm "DPD" form
   detailsm <- case detailKeyM of
                 Just detailKey -> (\d -> (FullKeyMatch, Entity detailKey d)) <$$> get detailKey
                 Nothing -> getShippingDetails [minBound..maxBound] details0
@@ -402,7 +412,7 @@ shippingForm fam m'dpdm (shipm)  extra =  do
                  <*> fst contact
                  <*> fst telephone
                  ) -- work around for GHC bug 
-                 -- https://gitlab.haskell.org/ghc/ghc/-/issues/19695#note_346705
+                 -- https://gitlab.haskell.org/ghc/ghc/-/issues/19695#note_34670
                  <*> fst notificationEmail
                  <*> fst notificationText
                  <*> fst noOfPackages
@@ -425,7 +435,7 @@ shippingForm fam m'dpdm (shipm)  extra =  do
   -- help type inference
   p :: String -> Text
   p = pack
-  shipd = toDetails "" <$> shipm
+  shipd = toDetails Nothing "" <$> shipm
   renderRow :: _ => (a -> a) ->  (ShippingDetails -> a) -> _ -> _b
   renderRow f get (_res,view) = let
     faOk = fmap f (get <$> fam) == fmap f  valuem
@@ -633,8 +643,8 @@ loadCustomerInfo debtorNo branchNo = do
 
 
 
-toDetails :: Text ->  ShippingForm -> ShippingDetails
-toDetails shippingDetailsCourrier ShippingForm{..} = details {shippingDetailsKey = key } where
+toDetails :: Maybe FA.User  -> Text ->  ShippingForm -> ShippingDetails
+toDetails userm shippingDetailsCourrier ShippingForm{..} = details {shippingDetailsKey = key } where
   shippingDetailsShortName = shShortName
   shippingDetailsPostCode =  shPostalCode
   shippingDetailsCountry = shCountry
@@ -648,6 +658,8 @@ toDetails shippingDetailsCourrier ShippingForm{..} = details {shippingDetailsKey
   shippingDetailsNotificationEmail = shNotificationEmail
   shippingDetailsNotificationText = shNotificationText
   shippingDetailsTaxId = shTaxId
+  shippingDetailsLastUsed = Nothing
+  shippingDetailsSource = maybe "<Anonymous>" FA.userUserId userm
   details = ShippingDetails{shippingDetailsKey="",..}
   DetailsKey key = computeKey details
 

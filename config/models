@@ -394,6 +394,7 @@ ItemCostSummary sql=check_item_cost_summary
 ShippingDetails sql=fames_shipping_details
   Id sql=shipping_details_id
   courrier Text
+  source Text
   key Text -- | Hash of all words sorted alphabetically. Might contains the key type
   shortName Text -- | reference
   postCode Text
@@ -408,6 +409,7 @@ ShippingDetails sql=fames_shipping_details
   notificationEmail Text Maybe
   notificationText Text Maybe
   taxId Text Maybe
+  lastUsed Day Maybe
   UniqueCB courrier key
   deriving Show
   deriving Eq

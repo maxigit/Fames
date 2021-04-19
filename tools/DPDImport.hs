@@ -14,7 +14,7 @@ main = do
   case Csv.decodeByName csv of
     Left e -> error $ show e
     Right (_, infos) -> db $ do
-      deleteWhere ([] :: [Filter ShippingDetails])
+      deleteWhere ([ShippingDetailsSource ==. "DPDImport"] :: [Filter ShippingDetails])
       mapM_ importInfo infos
 
 
@@ -28,6 +28,7 @@ mkShippingDetails :: CustomerInfo -> ShippingDetails
 mkShippingDetails CustomerInfo{..} = details {shippingDetailsKey = unDetailsKey $ computeKey details } where
   details = ShippingDetails{..}
   shippingDetailsCourrier = "DPD"
+  shippingDetailsSource = "DPDImport"
   shippingDetailsShortName =  shortName
   shippingDetailsPostCode = postCode
   shippingDetailsCountry = readCountry country
@@ -41,7 +42,9 @@ mkShippingDetails CustomerInfo{..} = details {shippingDetailsKey = unDetailsKey 
   shippingDetailsNotificationEmail = textToMaybe notification_email
   shippingDetailsNotificationText =  textToMaybe notification_text
   shippingDetailsTaxId = Nothing
+  shippingDetailsLastUsed = Nothing
   shippingDetailsKey = "" --  unDetailsKey $ computeKey details
+
 
 readCountry :: Text -> Maybe CountryCode
 readCountry name0 =
