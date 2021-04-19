@@ -146,6 +146,8 @@ FamesShippingDetail sql=fames_shipping_details
     notificationEmail Text Maybe sql=notification_email default=NULL
     notificationText Text Maybe sql=notification_text default=NULL
     taxId Text Maybe sql=tax_id default=NULL
+    source Text  sql=source
+    lastUsed Day Maybe sql=last_used
 
 FamesStocktake sql=fames_stocktake
     Id Int  sql=stocktake_id
