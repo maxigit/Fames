@@ -18,6 +18,7 @@ import Handler.Customers.ShippingDetails
 import Data.ISO3166_CountryCodes
 import qualified Data.Map as Map
 import Data.Text(strip)
+import Database.Persist.Sql (toSqlKey)
 --  _____                      
 -- |_   _|   _ _ __   ___  ___ 
 --   | || | | | '_ \ / _ \/ __|
@@ -102,17 +103,17 @@ renderInvoices invoices = do
           <td> #{cust}
           <td> #{tshow $ FA.debtorTranTranDate inv}
           <td> #{formatDouble $ total inv}
-          <td> <a href="@{CustomersR $ CustInvoiceCCodesR $ fromIntegral $ FA.debtorTranTransNo inv}">
+          <td> <a href="@{CustomersR $ CustInvoiceCCodesR (fromIntegral $ FA.debtorTranTransNo inv) Nothing}">
                 details
   |]
   where total invoice = sum $ map ($ invoice) [FA.debtorTranOvAmount, FA.debtorTranOvGst, FA.debtorTranOvFreight, FA.debtorTranOvFreightTax]
   
 
-getCustInvoiceCCodesR :: Int64 -> Handler Html
-getCustInvoiceCCodesR key = do
+getCustInvoiceCCodesR :: Int64 -> Maybe Int64 -> Handler Html
+getCustInvoiceCCodesR key detailIdM = do
   info@(InvoiceInfo{..}) <- runDB $ loadInvoiceInfo key
   categoryFinder <- categoryFinderCached 
-  sForm <- dpdExportFrom info
+  sForm <- dpdExportFrom info (toSqlKey <$> detailIdM)
   let categoryFor cat detail = categoryFinder cat $ FA.StockMasterKey 
                                                   $ FA.debtorTransDetailStockId detail
   let ccode = fromMaybe "<Commodity Code>" . categoryFor "commodity_code"
@@ -174,7 +175,7 @@ postCustInvoiceDPDR key =  do
           shippingDetails = toDetails "DPD" params
       let FA.DebtorTran{..} = iiInvoice info
       customerInfo <- runDB $ loadCustomerInfo (fromJust debtorTranDebtorNo) debtorTranBranchCode
-      (_detailsFromInfo, (faDetails, _)) <- fillShippingForm info customerInfo
+      (_detailsFromInfo, (faDetails, _)) <- fillShippingForm info customerInfo Nothing
       when (shSave params) $ do
         runDB $ saveShippingDetails shippingDetails { shippingDetailsKey = unDetailsKey . computeKey $  faDetails }
       ---
@@ -263,10 +264,10 @@ data ShippingForm = ShippingForm
 -- and modify it if necessary.
 -- Also returns an extra widget with extra information like
 -- full address, order comments etc ...
-fillShippingForm :: InvoiceInfo -> CustomerInfo
+fillShippingForm :: InvoiceInfo -> CustomerInfo -> Maybe (Key ShippingDetails)
                  -> Handler (ShippingForm, (ShippingDetails
                                            , Maybe (Match, ShippingDetails)))
-fillShippingForm info customerInfo = runDB $ do
+fillShippingForm info customerInfo detailKeyM = runDB $ do
   -- Get address and Co
   let customer = cuDebtor customerInfo
       personm = cuContact customerInfo
@@ -298,7 +299,9 @@ fillShippingForm info customerInfo = runDB $ do
       shSave = True
       form = truncateForm ShippingForm{..}
       details0 = toDetails "DPD" form
-  detailsm <- getShippingDetails [minBound..maxBound] details0
+  detailsm <- case detailKeyM of
+                Just detailKey -> (\d -> (FullKeyMatch, Entity detailKey d)) <$$> get detailKey
+                Nothing -> getShippingDetails [minBound..maxBound] details0
   -- traceShowM ("DETAILS", detailsm)
   case detailsm of
     Nothing -> return (form, (details0, Nothing))
@@ -473,10 +476,10 @@ truncateForm ShippingForm{..} =
 -- The order is one of the orders if many possibly the first or the last.
 -- We use it for the address
 -- dpdExportFrom :: FA.DebtorTrans -> FA.SalesOrder -> Form
-dpdExportFrom info = do
+dpdExportFrom info detailKeyM  = do
   let FA.DebtorTran{..} = iiInvoice info
   customerInfo <- runDB $ loadCustomerInfo (fromJust debtorTranDebtorNo) debtorTranBranchCode
-  (shipping, (faDetails, dpdDetails)) <- fillShippingForm info customerInfo
+  (shipping, (faDetails, dpdDetails)) <- fillShippingForm info customerInfo detailKeyM
   (form, encType) <- generateFormPost $ shippingForm (Just faDetails) dpdDetails
                                       $ Just shipping
   return [whamlet|
@@ -485,6 +488,8 @@ dpdExportFrom info = do
     <form.form method=POST action="@{CustomersR $ CustInvoiceDPDR $ iiKey info}" enctype="#{encType}">
       ^{form}
       <button.btn.btn-warning> Download
+    <form.form method=GET action="@{CustomersR $ DPDLookupR $ iiKey info}">
+        <button.btn.btn-info> Lookup
   |]
    
 -- | Displays all information

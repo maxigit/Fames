@@ -143,8 +143,10 @@
 
 /customers CustomersR !customers: 
   /invoices CustInvoicesR GET !group=Customers !title=Invoices
-  /invoice/commodity_codes/#Int64 CustInvoiceCCodesR GET
+  /invoice/commodity_codes/#Int64/#Maybe-Int64 CustInvoiceCCodesR GET
   /invoice/forDPD/#Int64 CustInvoiceDPDR POST
+  /invoice/DPDlookup/#Int64 DPDLookupR GET
+
 /administrator AdministratorR !administrator:
   / AIndexR GET !group=Info !title=Index
   /testfa  ATestFAR GET !group=Test !title=FA_Connection
