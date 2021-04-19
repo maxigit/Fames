@@ -50,6 +50,7 @@ readCountry :: Text -> Maybe CountryCode
 readCountry name0 =
     readMay name <|> lookup name (map (fanl $ toLower . readableCountryName ) [minBound..maxBound])
                  <|> lookup name (map (fanl $ toLower . countryNameFromCode ) [minBound..maxBound])
+                 <|> if name == "republic of ireland" then Just IE else Nothing
                  where name = toLower $ unpack name0
 
   
