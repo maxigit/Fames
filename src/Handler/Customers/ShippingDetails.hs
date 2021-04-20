@@ -16,6 +16,7 @@ import Data.List(nub)
 
 
 newtype DetailsKey = DetailsKey { unDetailsKey :: Text }
+  deriving (Eq, Ord, Show, Read)
 
 computeKey :: ShippingDetails -> DetailsKey
 computeKey ShippingDetails{..} = let

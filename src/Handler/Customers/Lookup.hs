@@ -4,6 +4,8 @@ module Handler.Customers.Lookup
 
 import Import
 import Database.Persist.Sql (fromSqlKey)
+import qualified Data.Map as Map
+import Handler.Customers.ShippingDetails
 
 -- | Displays a datatable allowing
 -- to search dpd contact
@@ -12,10 +14,24 @@ import Database.Persist.Sql (fromSqlKey)
 -- filled with the chosen contact
 getDPDLookupR :: Int64 -> Handler Html
 getDPDLookupR invoiceNo = do
-  detailEs <- runDB $ selectList [ ShippingDetailsCourrier ==. "DPD" ]
+  detailEs0 <- runDB $ selectList [ ShippingDetailsCourrier ==. "DPD" ]
                                  [ Asc ShippingDetailsShortName 
                                  , Desc ShippingDetailsLastUsed
+                                 , Desc ShippingDetailsId -- (1)
                                  ]
+  -- (1) Trick so that the record with the full key appears
+  --     last. When creating the Map the last item overwrite
+  --     the existing one. That way the record with
+  --     the full key should be the one appearing on the list.
+  -- remove duplicates, ie details which corresponds to the same key
+  let byKey = Map.fromList $ map (fanl $ computeKey . entityVal) detailEs0
+      detailEs :: [Entity ShippingDetails]
+      detailEs = sortOn (\(Entity _ ShippingDetails{..}) -> ( shippingDetailsShortName
+                                                          , Down shippingDetailsLastUsed
+                                                          )
+                        )
+                        ( toList byKey )
+  
 
   let eDef = entityDef (map entityVal detailEs)
       keep e = getDBName e `notElem` ["key", "source", "last_used", "courrier"]
