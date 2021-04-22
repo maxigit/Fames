@@ -360,7 +360,7 @@ shippingForm fam m'dpdm (shipm)  extra =  do
     generateCustomData <- mreq boolField "Custom Data" (ship <&> shGenerateCustomData)
     taxId <- mopt textField (f 14 "EORI") (ship <&>  fmap (take 35) .shTaxId)
     serviceCode <- mreq (selectField serviceOptions) "Service" (ship <&> shServiceCode)
-    save@(_, saveView) <- mreq boolField "Save" (ship <&> shSave)
+    save <- mreq boolField "Save" (ship <&> shSave)
     let widget = [whamlet|
      #{extra}
       <table.table.table-border>
@@ -382,14 +382,15 @@ shippingForm fam m'dpdm (shipm)  extra =  do
           ^{renderRow normalize (fromMaybe "" . shippingDetailsTelephone) telephone}
           ^{renderRow normalize (fromMaybe "" . shippingDetailsNotificationEmail) notificationEmail}
           ^{renderRow normalize (fromMaybe "" . shippingDetailsNotificationText)  notificationText}
-          ^{renderRow0  noOfPackages}
-          ^{renderRow0  weight}
+          ^{renderRow0'  noOfPackages (tlabel "Source") source}
+          ^{renderRow0'  weight (tlabel "LastUsed") lastUsed}
           ^{renderRow0  generateCustomData}
           ^{renderRow id (fromMaybe "" . shippingDetailsTaxId) taxId}
           ^{renderRow0  serviceCode}
-          <tr ##{fvId saveView} >
-            <td> <label for=#{fvId saveView}> #{fvLabel saveView}
-            <td> ^{fvInput saveView}
+          ^{renderRow0' save         (tlabel "Match") keyMatch }
+    |]
+        normalize = toLower . strip
+        keyMatch =  [whamlet|
             $case matchm
               $of Just FullKeyMatch 
                <td.text-success.bg-success> #{maybe "" tshow matchm}
@@ -397,9 +398,9 @@ shippingForm fam m'dpdm (shipm)  extra =  do
                <td.bg-danger>
               $of _
                <td.text-warning.bg-warning> #{maybe "" tshow matchm}
-            <td> 
-    |]
-        normalize = toLower . strip
+               |]
+        lastUsed = [whamlet| <td> #{tshowM (dpdm >>= shippingDetailsLastUsed)} |]
+        source = [whamlet| <td> #{maybe "" shippingDetailsSource dpdm} |]
 
     return (noinline ( ShippingForm <$> fst shortName
                  <*> fst country
@@ -455,13 +456,19 @@ shippingForm fam m'dpdm (shipm)  extra =  do
       <td class="#{faClass}"> #{maybe "" get fam}
       <td class="#{dpdClass}"> #{maybe "" get dpdm}
   |]
-  renderRow0 (_res,view) = [whamlet|
+  renderRow0'(_res,view) w1 w2 = [whamlet|
     <tr ##{fvId view} >
       <td> <label for=#{fvId view}> #{fvLabel view}
       <td> ^{fvInput view}
-      <td>
-      <td>
+      ^{w1}
+      ^{w2}
   |]
+  renderRow0 v = renderRow0' v td0 td0
+  td :: Html -> Widget
+  td h = [whamlet|<td>#{h}|]
+  td0 = td ""
+  tlabel :: Text -> Widget
+  tlabel l = td [shamlet|<label>#{l}|]
     
 -- | Truncate each fields of a form to its max length
 truncateForm :: ShippingForm -> ShippingForm
