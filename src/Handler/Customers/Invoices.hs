@@ -355,7 +355,7 @@ shippingForm fam m'dpdm (shipm)  extra =  do
     telephone <- mreq textField (f 15 "Telephone") (ship <&> take 15 .  shTelephone)
     notificationEmail <- mopt textField (f 35 "Notification Email") (ship <&> fmap (take 35) . shNotificationEmail)
     notificationText <- mopt textField (f 35 "Notification Text") (ship <&>  fmap (take 35) .shNotificationText)
-    noOfPackages <- mreq intField "No of Packages" (ship <&> shNoOfPackages)
+    noOfPackages <- mreq intField "No of Packages" Nothing
     weight <- mreq doubleField "Weight" (ship <&> shWeight)
     generateCustomData <- mreq boolField "Custom Data" (ship <&> shGenerateCustomData)
     taxId <- mopt textField (f 14 "EORI") (ship <&>  fmap (take 35) .shTaxId)
