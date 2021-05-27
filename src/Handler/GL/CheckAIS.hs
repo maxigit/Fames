@@ -48,6 +48,7 @@ $newline text
 
 info = infoPanel' (Just "info") "Info"
   [whamlet|
+<p.text-break>
   Please enter the transaction as a <verbatim>,</verbatim{ separated list
   of invoice or credit note (prefixed with <verbatim>-</verbatim>.
   A transaction will be looked by reference unless it start with a <verbatim>#</verbatim>.
