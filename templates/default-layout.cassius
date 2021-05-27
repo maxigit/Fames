@@ -65,6 +65,9 @@ table.table-striped
   background: #fedede
   color: #d0534f
 
+.text-break
+  white-space: break-spaces
+
 .bracketed
   &:before
    content: "["

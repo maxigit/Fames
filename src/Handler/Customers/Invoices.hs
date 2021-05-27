@@ -113,17 +113,18 @@ getCustInvoiceCCodesR :: Int64 -> Maybe Int64 -> Handler Html
 getCustInvoiceCCodesR key detailIdM = do
   info@(InvoiceInfo{..}) <- runDB $ loadInvoiceInfo key
   categoryFinder <- categoryFinderCached 
-  sForm <- dpdExportFrom info (toSqlKey <$> detailIdM)
+  (sForm, encType) <- dpdExportFrom info (toSqlKey <$> detailIdM)
   let categoryFor cat detail = categoryFinder cat $ FA.StockMasterKey 
                                                   $ FA.debtorTransDetailStockId detail
   let ccode = fromMaybe "<Commodity Code>" . categoryFor "commodity_code"
   let weight = fromMaybe "<Weight>" . categoryFor "unit-weight-g"
   let duty = fromMaybe "<Duty>" . categoryFor "duty"
   let table = [whamlet|
-      <table *{datatable}>
+      <table *{datatable} data-tab-index=-1>
         <thead>
           <th> SKU
           <th> Quantity
+          <th> Box Number
           <th> Unit Price
           <th> Unit Price With PPD
           <th> Commodity Code
@@ -134,6 +135,8 @@ getCustInvoiceCCodesR key detailIdM = do
             <tr>
               <td> #{FA.debtorTransDetailStockId detail}
               <td> #{tshow $ FA.debtorTransDetailQuantity detail}
+              <td>
+                <input.input name="#{FA.debtorTransDetailStockId detail}-box" type=text>
               $with price <- FA.debtorTransDetailUnitPrice detail * (1 - FA.debtorTransDetailDiscountPercent detail)
                 <td> #{formatDouble $ price }
                 <td> #{formatDouble $ price * (1 - FA.debtorTransDetailPpd detail)}
@@ -141,10 +144,33 @@ getCustInvoiceCCodesR key detailIdM = do
               <td> #{weight detail}
               <td> #{duty detail}
     |]
+      info = infoPanel ("Info") [whamlet|$newline always
+    <p.text-break>
+      If custom data are required and there is more than one parcel,
+        please fill for each items the Box Number cell in the following table.
 
-  defaultLayout $ do
-    primaryPanel ("Invoice #" <> tshow key) table
-    primaryPanel ("DPD Shipping") sForm
+        Box number can be a number, ex 
+    <p.text-break>
+
+            <code>2</code> :  the parcel number 2
+
+        or in case of many items of the same style in different parcels,
+
+        a space separated list  of quantity@box_number ex
+    <p.text-break>
+
+          <code>10@1 2@3</code> : 10 in box 1 and 2 in box 3
+      |] 
+
+
+  defaultLayout $ [whamlet|
+    <form.form method=POST action="@{CustomersR $ CustInvoiceDPDR iiKey }" enctype="#{encType}">
+      ^{info}
+      ^{primaryPanel ("Invoice #" <> tshow key) table}
+      ^{primaryPanel ("DPD Shipping") sForm}
+    <form.form method=GET action="@{CustomersR $ DPDLookupR iiKey }">
+        <button.btn.btn-info> Lookup
+      |]
 
 -- | Upload a cs
 postCustInvoiceDPDR :: Int64 -> Handler TypedContent
@@ -163,11 +189,10 @@ postCustInvoiceDPDR key =  do
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess params -> do
       categoryFinder <- categoryFinderCached
+      boxNumberMap <- getBoxNumberMap
       let delivery = mkDelivery info params settings
-          productDetails = map (setParcelNb . mkProductDetail categoryFinder UsePPD ) (iiDetails info)
-          setParcelNb = case shNoOfPackages params of
-                            1 -> \detail -> detail { parcel = Right 1 }
-                            _ -> id
+          productDetails = concatMap (applyBoxNumber boxNumberMap (shNoOfPackages params)
+                                     . mkProductDetail categoryFinder UsePPD ) (iiDetails info)
       
           filename = shShortName params <> "-Invoice-" <> tshow  key <> ".csv"
           -- save shipping details
@@ -189,6 +214,52 @@ postCustInvoiceDPDR key =  do
       ---
       setAttachment $ fromString $ unpack filename
       respondSource ("text/csv") (makeDPDSource delivery productDetails .| mapC toFlushBuilder)
+
+-- | Extract box number (in which box an item is)
+-- from post data.
+-- It's a tuple Quantity BoxNumber
+-- It parse either : box or quantity@box
+getBoxNumberMap :: Handler (Map Text (Either Int [(Int, Int)]))
+getBoxNumberMap = do
+  (pp,_) <- runRequestBody
+  let parseQn :: Text -> Maybe (Either Int [(Int, Int)])
+      parseQn t = case readMay t of
+        Just q -> Just $ Left q
+        Nothing -> Right <$>  traverse parseQn' (words t)
+      -- parse quantity@box_number
+      parseQn' t = case break (=='@') (unpack t) of
+                        (q, '@':n) -> liftA2 (,) (readMay q) (readMay n)
+                        _ -> Nothing
+        
+  return $ mapFromList $ [(sku, qn)
+                         | (skuBox, t) <- pp
+                         , Just sku <- [stripSuffix "-box" skuBox]
+                         , Just qn <- [parseQn t]
+                         ]
+
+
+
+applyBoxNumber :: Map Text (Either Int [(Int, Int)]) -> Int ->  ProductDetail -> [ ProductDetail ]
+applyBoxNumber boxNumberMap noOfPackages detail =
+  case (noOfPackages, lookup (productCode detail) boxNumberMap) of
+    (1, _ ) -> [ detail { parcel = Right 1} ]
+    (_, Nothing) -> [ detail ]
+    (no, Just (Left p)) ->
+      if p <= no 
+      then [ detail { parcel = Right p } ]
+      else [ notEnoughParcel p ]
+    (no, Just (Right q'ns)) -> let
+      totals = sum $ map fst q'ns
+      in if totals > quantity detail
+         then [ detail {parcel = Left $ pack $ "<To many items : " <> show totals <> " for " <> show (quantity detail) <> ">"} ]
+         else map (\(q,n) -> if n > no
+                             then notEnoughParcel n
+                             else detail { parcel = Right n, quantity = q }
+                  ) q'ns
+  where notEnoughParcel n = detail {parcel = Left . pack $ "<" <> show n <> " > " <> show noOfPackages <> ">"}
+
+    
+
   
 mkDelivery :: InvoiceInfo -> ShippingForm -> DPDSettings -> Double -> Delivery
 mkDelivery info ShippingForm{..} DPDSettings{..} customValue =
@@ -518,15 +589,12 @@ dpdExportFrom info detailKeyM  = do
   (shipping, (faDetails, dpdDetails)) <- fillShippingForm info customerInfo detailKeyM
   (form, encType) <- generateFormPost $ shippingForm (Just faDetails) dpdDetails
                                       $ Just shipping
-  return [whamlet|
-    ^{invoiceSummary info}
-    ^{contactSummary $ cuContact customerInfo}
-    <form.form method=POST action="@{CustomersR $ CustInvoiceDPDR $ iiKey info}" enctype="#{encType}">
+  return ([whamlet|
+      ^{invoiceSummary info}
+      ^{contactSummary $ cuContact customerInfo}
       ^{form}
       <button.btn.btn-warning> Download
-    <form.form method=GET action="@{CustomersR $ DPDLookupR $ iiKey info}">
-        <button.btn.btn-info> Lookup
-  |]
+  |], encType)
    
 -- | Displays all information
 -- related to the invoice including
