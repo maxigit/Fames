@@ -225,24 +225,39 @@ mkDelivery info ShippingForm{..} DPDSettings{..} customValue =
 data UsePPD = UsePPD | NoPPD deriving (Show, Read)
 
 mkProductDetail :: (Text -> FA.StockMasterId -> Maybe Text) -> UsePPD -> FA.DebtorTransDetail -> ProductDetail
-mkProductDetail categoryFor usePPD FA.DebtorTransDetail{..} = ProductDetail{..} where
-  identifier = PRD
-  productCode = debtorTransDetailStockId
-  harmonisedCode = take 8 $  fromCat "commodity_code" "<CoCode>"
-  unitWeight = maybe (Left  "<Unit Weight (Kg)>")
-                     (Right . (/1000))
-                     (fromCat' "unit-weight-g" >>= readMay)
-  parcel = Left "<Box number>"
-  description = fromCat "dpd-description" "<Description>"
-  productType = fromCat "dpd-product-type" "<Product Type>"
-  itemOrigin = fromCat "dpd-origin" "<Item Origin>"
-  quantity = round $ debtorTransDetailQuantity
-  unitValue = case usePPD of
-                UsePPD -> debtorTransDetailUnitPrice * (1-debtorTransDetailDiscountPercent) * (1-debtorTransDetailPpd) 
-                NoPPD  -> debtorTransDetailUnitPrice * (1 - debtorTransDetailDiscountPercent)
-  ---------------------------------------------------------------------------
-  fromCat cat def = fromMaybe def $ fromCat' cat
-  fromCat' cat = categoryFor cat $ FA.StockMasterKey debtorTransDetailStockId
+mkProductDetail categoryFor usePPD FA.DebtorTransDetail{..} = 
+  let 
+    identifier = PRD
+    productCode = debtorTransDetailStockId
+    harmonisedCode = take 8 $  fromCat "commodity_code" "<CoCode>"
+    unitWeight = maybe (Left  "<Unit Weight (Kg)>")
+                       (Right . (/1000))
+                       (fromCat' "unit-weight-g" >>= readMay)
+    parcel = Left "<Box number>"
+    description = fromCat "dpd-description" "<Description>"
+    productType = fromCat "dpd-product-type" "<Product Type>"
+    itemOrigin = fromCat "dpd-origin" "<Item Origin>"
+    quantity = round $ debtorTransDetailQuantity
+    unitValue = case usePPD of
+                  UsePPD -> debtorTransDetailUnitPrice * (1-debtorTransDetailDiscountPercent) * (1-debtorTransDetailPpd) 
+                  NoPPD  -> debtorTransDetailUnitPrice * (1 - debtorTransDetailDiscountPercent)
+    ---------------------------------------------------------------------------
+    fromCat cat def = fromMaybe def $ fromCat' cat
+    fromCat' cat = categoryFor cat $ FA.StockMasterKey debtorTransDetailStockId
+    ---------------------------------------------------------------------------
+    -- If the weight is to low we need to make the item as a pack.
+    -- For example 250 feathers should be seen as 1x250 with the calculated weight
+    -- and amount. Without that, because of the minimum weigh of 10g, 250 feathers will be seen
+    -- weighing 250x0.01= 2.5kg
+  in case unitWeight of
+      Right w | w {- * debtorTransDetailQuantity -} < 0.01 ->
+           ProductDetail{ quantity=1
+                        , description= (fromString $ show quantity <> " x ") <>  description
+                        , unitValue = fromIntegral quantity * unitValue
+                        , unitWeight = fmap (fromIntegral quantity *) unitWeight
+                        ,..
+                        }
+      _ -> ProductDetail{..} where
   
   
 data ShippingForm = ShippingForm
