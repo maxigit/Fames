@@ -235,6 +235,7 @@ getBoxNumberMap = do
                          | (skuBox, t) <- pp
                          , Just sku <- [stripSuffix "-box" skuBox]
                          , Just qn <- [parseQn t]
+                         , qn /= Right []
                          ]
 
 
