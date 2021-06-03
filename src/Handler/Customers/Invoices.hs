@@ -411,7 +411,7 @@ customerCountryInfo :: CustomerInfo -> (Maybe CountryCode, Bool, ServiceCode)
 customerCountryInfo CustomerInfo{..} = 
   case FA.areaDescription custBranchArea of 
     "UK" -> (Just GB, False, ParcelNextDay)
-    "Northern Ireland" -> (Just GB, True, ParcelTwoDay)
+    "Northern Ireland" -> (Just GB, False, ParcelTwoDay)
     "Rep. of Ireland" -> (Just IE, True, ParcelTwoDay)
     "Europe" -> -- extract the code from the VAT
       ( lookup (take 2 $ FA.debtorsMasterTaxId cuDebtor) countryMap
