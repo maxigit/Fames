@@ -278,8 +278,8 @@ mkVatReturn vr_periodKey vr_finalised boxes = do -- Either
 -- | Validates the fraud preventions using HMRC test website
 validateHMRCFraudPreventionHeaders :: Text -> HMRCProcessorParameters -> Handler Html
 validateHMRCFraudPreventionHeaders taxReportType params = do
-  token <- getHMRCToken taxReportType params
   fraudPreventionHeaders <- fraudPreventionHeadersH params
+  token <- getHMRCToken taxReportType params
   let endPoint = "/test/fraud-prevention-headers/validate" 
       url = unpack $ baseUrl params <> endPoint
       pprint :: Value -> Text
@@ -309,8 +309,10 @@ validateHMRCFraudPreventionHeaders taxReportType params = do
 fraudPreventionHeadersH :: HMRCProcessorParameters -> Handler [String]
 fraudPreventionHeadersH HMRCProcessorParameters{..} = do
   muser <- maybeAuth
+  now <- liftIO getCurrentTime
   let githash = $gitHash :: String
-  return $ catMaybes
+      timestamp =  formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S.000Z" now
+  return $ traceShowId $  catMaybes
    [ Just "Gov-Client-Connection-Method: OTHER_DIRECT"
    , "Gov-Client-Device-ID: " <?> govClientDeviceId
    , "Gov-Client-User-IDs:  os=" <?> (userIdent . entityVal <$> muser)
@@ -318,8 +320,14 @@ fraudPreventionHeadersH HMRCProcessorParameters{..} = do
    , "Gov-Client-Local-IPs: " <?> govClientLocalIPs 
    , "Gov-Client-User-Agent: " <?>  govClientUserAgent
    , "Gov-Client-MAC-Addresses: " <?>  govClientMACAddress
+   -- , "Gov-Vendor-License-Ids: " <?> govVendorLicenseIds
+   , "Gov-Vendor-Product-Name: " <?> govVendorProductName
+   , "Gov-Client-Local-IPs-Timestamp: " <?> timestamp
+   , Just $ "Gov-Vendor-Product-Name: fames"
    , Just $ "Gov-Vendor-Version: fames="  <> githash
+   ] {-
    ]
+   -}
 
   
   

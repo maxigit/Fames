@@ -50,6 +50,7 @@ data HMRCProcessorParameters = HMRCProcessorParameters
        , govClientMACAddress :: Text
        , govClientDeviceId :: Maybe Text
        , govClientUserAgent :: Maybe Text
+       , govVendorProductName :: Text
        }
   deriving (Eq, Read, Show)
 data ManualProcessorParameters = ManualProcessorParameters
