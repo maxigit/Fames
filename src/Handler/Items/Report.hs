@@ -408,6 +408,12 @@ reportDoc = [shamlet|
 
 
 reportDoc' = [shamlet|
+      <p> Main input parameters can be swapped by using drag and drop.
+      <p> The default is to ignore and leave in place the residual/margin parameters (Residal, limits etc...)
+      <p> However holding <code>shift</code> whilst dropping will swap the full row of parameters.
+      <p> Holding <code>ctrl</code> will copy the parameters instead of swapping.
+      <p> In addition, dropping on a field, will only copy this field and the one of the right.
+      <p> Holding <code>shift</code> will not copy the residual parameters.
       <table.table.table-striped.table-hover>
         <thead>
           <tr>
