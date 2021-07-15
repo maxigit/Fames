@@ -7,11 +7,11 @@ function startDrag(wellId, e) {
         e.target.id = "dragged-" + new Date().getTime();
     }
     
-    e.dataTransfer.setData("text/x-fames;source-id", event.target.id);
-    e.dataTransfer.setData("text/x-fames;wellid", wellId);
+    setTransferData(e, "text/x-fames;source-id", event.target.id);
+    setTransferData(e, "text/x-fames;wellid", wellId);
     var json = JSON.stringify(getLabelValueMap(e.target));
-    e.dataTransfer.setData("Text", json);
-    e.dataTransfer.setData("text/plain", json);
+    setTransferData(e, "Text", json);
+    setTransferData(e, "text/plain", json);
     e.dataTransfer.dropEffect = "copy";
     e.dataTransfer.effectAllowed = "copyMove";
 
@@ -27,13 +27,13 @@ function dragOver(wellId, e) {
     // e.classList.add("dragged-over");
 }
 function dragEnter(wellId, e) {
-    var draggedId = e.dataTransfer.getData("text/x-fames;source-id")
+    var draggedId = getTransferData(e, "text/x-fames;source-id")
     if (draggedId == e.currentTarget.id) {
         e.dataTransfer.dropEffect = "none";
         return false;
     }
     var eWellId = null;
-    if (e.dataTransfer) eWellId = e.dataTransfer.getData("text/x-fames;wellid");
+    if (e.dataTransfer) eWellId = getTransferData(e, "text/x-fames;wellid");
     if (eWellId == null || eWellId == wellId) {
           e.currentTarget.classList.add("dropzone-active");
         if(eWellId == null || e.ctrlKey) {
@@ -59,7 +59,7 @@ function drop(wellId, e) {
     e.preventDefault();
     e.currentTarget.classList.remove("dropzone-active");
     e.target.classList.remove("dnd-target");
-    var draggedId = e.dataTransfer.getData("text/x-fames;source-id")
+    var draggedId = getTransferData(e, "text/x-fames;source-id")
     if (draggedId) {
       var dragged = document.getElementById(draggedId);
         if(e.ctrlKey) {
@@ -67,7 +67,7 @@ function drop(wellId, e) {
         }
         else swapInputValues(dragged, e.currentTarget);
     } else {
-        var json = e.dataTransfer.getData("text/plain");
+        var json = getTransferData(e, "text/plain");
         applyObject(JSON.parse(json), e.currentTarget)
         
     }
@@ -167,4 +167,25 @@ function getLabelValueMap(elem) {
         
     }
     return map;
+}
+ 
+/* Workaround to be able to get and set data
+ * To event using DnD API.
+ * Inspired by https://stackoverflow.com/questions/11927309/html5-dnd-datatransfer-setdata-or-getdata-not-working-in-every-browser-except-fi
+ */
+function setTransferData(e, key, value) {
+  var v = JSON.stringify(value)
+  e.dataTransfer.setData(key+v, value);
+}
+
+function getTransferData(e, key) {
+  var key_length = key.length;
+  var types = e.dataTransfer.types;
+  for (var i in types) {
+    if (types[i].substr(0, key_length) == key) {
+      return JSON.parse(types[i].substr(key_length));
+    }
+  }
+  return null
+  // return e.dataTransfer.getData(key);
 }
