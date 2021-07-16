@@ -51,7 +51,7 @@ getItemsCategoryTermsR name = do
               <tr>
                 <td>#{term}
                 <td>
-                  <a href=@?{(ItemsR (ItemsIndexR Nothing), [("category", name), ("category-filter_", term)])}>#{co}
+                  <a href=@?{(ItemsR (ItemsIndexR Nothing), [("category", name), ("category-filter", term)])}>#{co}
                  |]
 
 
