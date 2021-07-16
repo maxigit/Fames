@@ -1119,7 +1119,10 @@ columnForWebPrice colInt (ItemPriceF priceMap) = do
   return $  toHtml . (\x -> x :: String) . printf "%.2f"  <$> value
   
 columnForCategory :: Text -> Text -> ([Text], Html)
-columnForCategory catName category = ([], badgify catName category)
+columnForCategory catName category = ([], badgify catName category <> link ) where
+  link = [shamlet|<a href="/items/index/Nothing?category=#{catName}&category-filter=#{category}">@|]
+  --  hack because shamlet can't use a route, so we need to set the route manually instead
+  --  of using @{..}
 -- * Rendering
 renderButton :: IndexParam -> Text -> Button -> Html
 renderButton param bclass button = case buttonStatus param button of
