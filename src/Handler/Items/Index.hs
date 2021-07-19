@@ -164,9 +164,13 @@ purchaseAuth = do
     
 -- * Utils
 -- ** Constants
--- | Default cached delay. 1 day. Can be refreshed using the refresh cache button if needed.
+-- | Default cached delay. 5 minutes. Can be refreshed using the refresh cache button if needed.
+-- At the moment there is a bug in the Cache which prevent
+-- cache items to be purged before the delay expires.
+-- This means that a 1 Day item will stay in memory for one day even if we refresh the cache,
+-- so it is better at the moment to have of short life cache.
 cacheDelay :: CacheDelay
-cacheDelay = cacheDay 1
+cacheDelay = cacheMinute 5
 -- ** Params and Forms
 paramDef :: Maybe ItemViewMode -> IndexParam
 paramDef mode = IndexParam Nothing Nothing Nothing -- SKU category
