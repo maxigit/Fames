@@ -3,6 +3,8 @@ module Util.Cache
 ( DAction(..)
 , Delayed(..)
 , getDelayed
+, createDelayed 
+, cancelDelayed
 , startDelayed
 , statusDelayed
 , DelayedStatus
