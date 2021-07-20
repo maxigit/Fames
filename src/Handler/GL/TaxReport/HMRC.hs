@@ -312,7 +312,7 @@ fraudPreventionHeadersH HMRCProcessorParameters{..} = do
   now <- liftIO getCurrentTime
   let githash = $gitHash :: String
       timestamp =  formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S.000Z" now
-  return $ traceShowId $  catMaybes
+  return $ catMaybes
    [ Just "Gov-Client-Connection-Method: OTHER_DIRECT"
    , "Gov-Client-Device-ID: " <?> govClientDeviceId
    , "Gov-Client-User-IDs:  os=" <?> (userIdent . entityVal <$> muser)

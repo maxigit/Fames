@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, OverloadedLists #-}
-module RoleSpec where
+module RoleSpec (spec) where 
 
 import TestImport
 import Data.Yaml (decodeThrow)

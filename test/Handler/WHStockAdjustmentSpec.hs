@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Handler.WHStockAdjustmentSpec where
+module Handler.WHStockAdjustmentSpec (spec) where
 
 import TestImport
 import Handler.WH.StockAdjustment

@@ -247,7 +247,8 @@ tests:
     - yaml
     - temporary
     - http-types >=0.9
-  ghcid:
+      # zghcid: # z so test is picked first
+  zghicd:
     main: Spec.hs
     source-dirs:
     - test

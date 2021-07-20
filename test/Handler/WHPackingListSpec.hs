@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-missing-signatures -fno-warn-unused-binds #-}
 {-# LANGUAGE QuasiQuotes#-}
-module Handler.WHPackingListSpec where
+module Handler.WHPackingListSpec (spec) where
 
 import TestImport
 import Text.Shakespeare.Text (st)

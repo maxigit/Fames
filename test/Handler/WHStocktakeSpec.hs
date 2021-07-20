@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-missing-signatures -fno-warn-unused-binds #-}
 {-# LANGUAGE QuasiQuotes#-}
-module Handler.WHStocktakeSpec where
+module Handler.WHStocktakeSpec (spec) where
 
 import TestImport
 import Text.Shakespeare.Text (sbt)
@@ -388,7 +388,7 @@ appSpec = withAppWipe BypassAuth $ do
                               |]
         lengthShouldBe [BoxtakeActive ==. True] 1 
 
-      it "@focus does invalidate previous stocktakes" $ do
+      it"does invalidate previous stocktakes" $ do
         saveSTSheet 200 [sbt|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment
                               |t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack,
                               |,red,0,,,,,,,,

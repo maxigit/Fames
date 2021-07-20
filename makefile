@@ -72,19 +72,19 @@ ghcid-old:
 	$(GHCID) --command="stack exec ghci --test -- -iapp -ilegacy -isrc -ifay-shared -itest -iconfig/fa -hide-package=cryptonite  -w test/Spec.hs"   --test ":main --rerun --color"
 
 ghcid-focus: reset-hspec
-	$(GHCID) --command="stack ghci :ghcid" --test ":main --color -m@focus --rerun --rerun-all-on-success" $(GHCID_EXTRA)
+	$(GHCID) --command="stack zghci :ghcid" --test ":main --color -m@focus --rerun --rerun-all-on-success" $(GHCID_EXTRA)
 ghcid-test-all: reset-hspec
-	$(GHCID) --command="stack ghci :ghcid" --test ":main --color" $(GHCID_EXTRA) 
+	$(GHCID) --command="stack zghci :ghcid" --test ":main --color" $(GHCID_EXTRA) 
 ghcid-test-force:
-	$(GHCID) --command="stack ghci :test --ghc-options=-w --ghc-options=-fdefer-type-errors" --test ":main --color"
+	$(GHCID) --command="stack zghci :test --ghc-options=-w --ghc-options=-fdefer-type-errors" --test ":main --color"
 ghcid:
-	$(GHCID) --command="stack ghci --ghc-options=-w" $(GHCID_EXTRA)
+	$(GHCID) --command="stack zghci --ghc-options=-w" $(GHCID_EXTRA)
 ghcid-run:
-	$(GHCID) --command="stack ghci" --test "appMain" $(GHCID_EXTRA)
+	$(GHCID) --command="stack zghci" --test "appMain" $(GHCID_EXTRA)
 ghcid-run-force:
-	$(GHCID) --command="stack ghci --ghc-options=-w --ghc-options=-fdefer-type-errors" --test "appMain" $(GHCID_EXTRA)
+	$(GHCID) --command="stack zghci --ghc-options=-w --ghc-options=-fdefer-type-errors" --test "appMain" $(GHCID_EXTRA)
 ghcid-run-now:
-	$(GHCID) --command="stack ghci --ghc-options=-w" --test "appMain" $(GHCID_EXTRA)
+	$(GHCID) --command="stack zghci --ghc-options=-w" --test "appMain" $(GHCID_EXTRA)
 
 reset-hspec:
 	rm -rf .hspc-failures
@@ -163,7 +163,7 @@ run:
 	stack exec  Fames -- ${RUN_CONFIG}
 
 build_profile:
-	stack build --profile --work-dir .stack-profile --flag Fames:-dev --library-profiling --executable-profiling
+	stack build Fames:exe:Fames  --profile --work-dir .stack-profile --flag Fames:-dev --library-profiling --executable-profiling
 
 profile: build_profile
 	stack exec --work-dir .stack-profile Fames -- $(RUN_CONFIG) +RTS -p
