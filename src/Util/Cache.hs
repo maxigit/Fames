@@ -30,7 +30,7 @@ import Data.Dynamic
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict(Map)
 import UnliftIO
-import UnliftIO.Concurrent(threadDelay)
+-- import UnliftIO.Concurrent -- (threadDelay)
 import Data.Time
 
 import Control.Monad (filterM)
@@ -45,6 +45,7 @@ data DAction = DStart | DCancel deriving Show
 data Delayed m a = Delayed
   { blocker :: MVar DAction
   , action :: Async (m a)
+  , abort :: MVar ()
   } deriving Typeable
 
 data DelayedStatus = Waiting | InProgress | Finished | OnError deriving Show
@@ -61,18 +62,24 @@ createDelayed a = do
    -- don't actually start the action until mvar has been set
    as <- async (do
                    act <- do
+                     -- liftIO $ print "WAITING FOR ACTION"
                      act <- readMVar mvar
                      return act
                    case act of
                      DStart -> do
-                       v <- a
+                       -- liftIO $ print "STARTING ACTION"
+                       v <- a                
+                        --liftIO $ print "ACTION DONE"
                        return v
                      DCancel -> do
+                        --liftIO $ print "ACTION CANCELLED"
                        error "delayed cancelled"
                        
 
                )
-   return (Delayed mvar (fmap return as))
+   abortm <- newEmptyMVar
+
+   return (Delayed mvar (fmap return as) abortm)
 
 -- | Start the delayed action
 startDelayed :: MonadIO io =>  Delayed io a -> io ()
@@ -80,8 +87,13 @@ startDelayed d = liftIO $ do
   _ <- tryPutMVar (blocker d) DStart
   return ()
 
-cancelDelayed :: MonadIO io =>  Delayed io a -> io ()
+cancelDelayed :: MonadIO io =>  Delayed io2 a -> io ()
 cancelDelayed d = liftIO $ do
+  -- cancel the async (kill the thread, works it if it is already finished
+  cancel (action  d)
+  putMVar (abort d) ()
+  -- liftIO $ print "KILLING ACTION"
+  -- killThread $ asyncThreadId (action d)
   _ <- tryPutMVar (blocker d) DCancel
   return ()
 
@@ -129,7 +141,17 @@ newExpiryCache :: IO (MVar ExpiryCache)
 newExpiryCache = newMVar Nothing
 
 clearExpiryCache :: MVar ExpiryCache -> IO ()
-clearExpiryCache cvar = swapMVar cvar Nothing >> return ()
+clearExpiryCache cvar = do
+  -- get the list of key and purge them
+  -- this is to kill thread hanging with a timeout
+  -- created with preCache
+  -- We probably should use WeakRef instead.
+  --,Just (_, cache) <- readMVar cvar
+  cmap <- toCacheMap <$> readMVar cvar
+  let keys = Map.keys cmap
+  mapM_ (\k -> {- print ("PURGE", k) >> -} purgeKey' cvar k {- >> print ("XXXXXXXX PURGED", k) -} ) keys
+  return ()
+  -- swapMVar cvar Nothing >> return ()
 -- Compute or use the cached value.
 -- There is no way to get a value from the cache without actually
 -- specifying the way to compute value. This is to make sure
@@ -172,11 +194,25 @@ expCache force cvar key vio (CacheDelay seconds)  = purgeExpired cvar >> do
           putV mvar
 -- | Purge from the cache the given key
 purgeKey :: (MonadIO io, Show k) => MVar ExpiryCache -> k -> io ()
-purgeKey cvar key = liftIO $ modifyMVar_ cvar go
+purgeKey cvar key = purgeKey' cvar (show key)
+purgeKey' :: (MonadIO io) => MVar ExpiryCache -> String -> io ()
+purgeKey' cvar k = liftIO $ modifyMVar_ cvar go -- liftIO $ print "MODIY" >>  modifyMVar_ cvar go >> print "MODIFIED"
   where go Nothing = return Nothing
         go (Just (_, cache)) = do
-          let k = show key
-          cacheFromMap (Map.delete k cache)
+          -- check if the object is Delayed
+          -- and kill the thread if needs to be
+          ---    clear = castToDelayed cancelDelayed >> return ()
+          case Map.lookup k cache of
+            Just mvar -> do
+                -- print ("Lookup", k)
+                (cached, _) <- readMVar mvar
+                case castToDelayed id cached of
+                  Nothing -> return ()
+                  Just delayed -> do
+                      -- liftIO $ print ("CANCEL FROM PURGE", k)
+                      cancelDelayed delayed >> return ()
+            Nothing -> return ()
+          cacheFromMap  $ Map.delete k cache
     
 -- | Purge from the cache all expired value
 purgeExpired :: (MonadIO io) => MVar ExpiryCache -> io ()
@@ -230,8 +266,15 @@ preCache :: (MonadUnliftIO io, Show k, Typeable a, Typeable io)
          => Bool -> MVar ExpiryCache -> k -> io a -> CacheDelay -> io (Delayed io a)
 preCache force cvar key vio (CacheDelay delay) = do
   d <- createDelayed vio
+  let ab = abort d
+  -- ^ we don't need to keep a reference to d in the following thread
   _ <- async $ do
-    threadDelay ((delay+1)*1000000)
-    cancelDelayed d
-    purgeKey cvar key
+    abortedm <- timeout ((delay+1)*1000000) $ readMVar ab
+    case abortedm of
+      Nothing -> do -- timeout
+        -- liftIO $ print ("TIMED OUT" , key)
+        purgeKey cvar key
+      Just () -> do -- cancelled
+        -- liftIO $ print ("ABORTED" , key)
+        return ()
   expCache force cvar key (return d) (CacheDelay delay) 

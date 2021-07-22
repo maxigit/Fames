@@ -170,7 +170,7 @@ purchaseAuth = do
 -- This means that a 1 Day item will stay in memory for one day even if we refresh the cache,
 -- so it is better at the moment to have of short life cache.
 cacheDelay :: CacheDelay
-cacheDelay = cacheMinute 5
+cacheDelay = cacheMinute 15
 -- ** Params and Forms
 paramDef :: Maybe ItemViewMode -> IndexParam
 paramDef mode = IndexParam Nothing Nothing Nothing -- SKU category
@@ -319,7 +319,7 @@ fillIndexCache :: Handler IndexCache
 fillIndexCache = do
   categories <- categoriesH
   catFinder <- categoryFinderCached
-  cache0 False (cacheHour 1) "index_/static"  $ do
+  cache0 False (cacheDay 1) "index_/static"  $ do
       salesTypes <- runDB $ selectList [] [] -- [Entity SalesType]
       let priceListNames = mapFromList [ (k, salesTypeSalesType t)
                                       | (Entity (SalesTypeKey k) t) <- salesTypes
