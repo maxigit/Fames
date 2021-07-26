@@ -1,3 +1,4 @@
+{-# LANGUAGE NoImplicitPrelude #-}
 --  | Types corresponding to stock related Frontaccounting concepts.
 module WH.FA.Types
 ( module WH.FA.Types
@@ -5,8 +6,8 @@ module WH.FA.Types
 ) where
 
 import ClassyPrelude
-import ModelField
 import Data.Decimal
+import FATransType
 
 -- * Connection parametes
 data FAConnectInfo = FAConnectInfo

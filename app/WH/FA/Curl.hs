@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ImplicitParams #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE TypeFamilies, Rank2Types, FlexibleContexts  #-}
 -- | Post event to FA using Curl
 module WH.FA.Curl
 ( postStockAdjustment
@@ -200,7 +202,7 @@ supplierPaymentURL = ?baseURL <> "/purchasing/supplier_payment.php"
 newSupplierPaymentURL = supplierPaymentURL
 ajaxSupplierPaymentURL = toAjax supplierPaymentURL
 -- *** Void
-voidTransactionUrl :: (?baseURL :: String) => String
+voidTransactionUrl, ajaxVoidTransactionUrl :: (?baseURL :: String) => String
 voidTransactionUrl = ?baseURL <> "/admin/void_transaction.php" 
 ajaxVoidTransactionUrl = toAjax $ voidTransactionUrl
 

@@ -1,4 +1,7 @@
 {-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE FlexibleInstances, TypeFamilies  #-}
+{-# LANGUAGE OverloadedStrings  #-}
 module Curl where
 import Network.Curl
 import Text.HTML.TagSoup 
