@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 662aad96def1234c9eb0559af950e8155b3006543468782b993fdb33cbbad3c9
+-- hash: 8d4f355f7bc4d96789faebd7cc06541c2e9d08beb53835b2b3828977e28a7949
 
 name:           Fames
 version:        0.0.1
@@ -122,6 +122,7 @@ library
       WarehousePlanner.Type
       Curl
       Customers.Settings
+      FATransType
       GL
       GL.Check.ItemCostSettings
       GL.FA
@@ -633,6 +634,7 @@ executable Fames
   other-modules:
       Curl
       Customers.Settings
+      FATransType
       GL
       GL.Check.ItemCostSettings
       GL.FA
@@ -779,7 +781,7 @@ executable Fames
     ghc-options: -O2
   default-language: Haskell2010
 
-test-suite ghcid
+test-suite test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
@@ -792,7 +794,6 @@ test-suite ghcid
       Handler.FaSpec
       Handler.GLEnterReceiptSheetSpec
       Handler.Items.BatchSpec
-      Handler.WHBarcodeSpec
       Handler.WHBoxtake.AdjustementSpec
       Handler.WHBoxtake.UploadSpec
       Handler.WHPackingListSpec
@@ -804,6 +805,158 @@ test-suite ghcid
       Planner.InternalSpec
       RoleSpec
       TestImport
+      Util.CacheSpec
+      Util.DecimalSpec
+      WH.BarcodeSpec
+      WH.PackingList.InternalSpec
+      Paths_Fames
+  hs-source-dirs:
+      test
+  default-extensions:
+      TemplateHaskell
+      QuasiQuotes
+      OverloadedStrings
+      NoImplicitPrelude
+      MultiParamTypeClasses
+      TypeFamilies
+      GADTs
+      GeneralizedNewtypeDeriving
+      FlexibleContexts
+      FlexibleInstances
+      EmptyDataDecls
+      NoMonomorphismRestriction
+      RankNTypes
+      DeriveDataTypeable
+      ViewPatterns
+      TupleSections
+      RecordWildCards
+      PatternGuards
+      PatternSynonyms
+      StandaloneDeriving
+      PartialTypeSignatures
+      NamedWildCards
+  ghc-options: -w -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      Decimal >=0.5.1 && <0.6
+    , Fames
+    , Glob
+    , Metamorphosis >=0.1.0.1
+    , QuickCheck
+    , aeson
+    , aeson-qq
+    , base
+    , blaze-html
+    , blaze-markup
+    , bytestring >=0.9 && <0.11
+    , case-insensitive
+    , cassava
+    , classy-prelude
+    , classy-prelude-conduit >=0.10.2
+    , classy-prelude-yesod
+    , colour >=2.3.3 && <2.4
+    , comonad
+    , conduit >=1.0 && <2.0
+    , conduit-extra
+    , containers
+    , cryptohash
+    , curl >=1.3.8 && <1.4
+    , data-default
+    , diagrams-cairo ==1.4.*
+    , diagrams-lib >=1.4.1.2 && <1.5
+    , diagrams-svg ==1.4.*
+    , directory >=1.1 && <1.4
+    , fames-persist
+    , fast-logger >=2.2 && <2.5
+    , fay >=0.24.0.2 && <0.25
+    , fay-jquery ==0.6.*
+    , fay-text ==0.3.*
+    , file-embed
+    , filepath >=1.4.1.1 && <1.5
+    , formatting
+    , ghc-prim
+    , gitrev >=0.1.3.1 && <1.4
+    , hjsmin >=0.1 && <0.3
+    , hspec >=2.0.0
+    , http-conduit >=2.1 && <2.3
+    , http-types >=0.9
+    , iso3166-country-codes
+    , microlens >=0.4.1.1 && <0.5
+    , microlens-th >=0.4.1.1 && <0.5
+    , monad-control >=0.3 && <1.1
+    , monad-logger
+    , mtl ==2.2.*
+    , mysql
+    , mysql-simple
+    , one-liner >=1.0 && <2
+    , palette ==0.3.*
+    , parsec ==3.1.*
+    , path-pieces ==0.2.*
+    , persistent
+    , persistent-mysql
+    , persistent-template >=2.0 && <2.6
+    , pointed >=5
+    , pretty-simple
+    , reducers ==3.12.*
+    , regex-base
+    , regex-compat-tdfa
+    , regex-tdfa >=1.2.2 && <1.3
+    , resourcet
+    , safe
+    , shakespeare
+    , split
+    , streaming-commons
+    , tabular >=0.2.2.7 && <0.3
+    , tagged
+    , tagsoup >=0.14.1 && <0.15
+    , template-haskell
+    , temporary
+    , text >=0.11 && <2.0
+    , these
+    , time
+    , transformers
+    , unliftio
+    , unordered-containers
+    , vector
+    , wai
+    , wai-extra ==3.0.*
+    , wai-logger >=2.2 && <2.4
+    , warp >=3.0 && <3.3
+    , yaml
+    , yesod
+    , yesod-auth
+    , yesod-core
+    , yesod-fay >=0.7 && <0.9
+    , yesod-form >=1.4.0 && <1.5
+    , yesod-media-simple >=0.2.0.1 && <0.2.1
+    , yesod-static >=1.4.0.3 && <1.6
+    , yesod-test >=1.5.0.1 && <1.6
+  default-language: Haskell2010
+
+test-suite zghicd
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      GL.Payroll.ParserSpec
+      GL.Payroll.TimesheetSpec
+      GL.Payroll.UtilsSpec
+      GL.ReceiptProcessingSpec
+      Handler.AuthSpec
+      Handler.CommonSpec
+      Handler.FaSpec
+      Handler.GLEnterReceiptSheetSpec
+      Handler.Items.BatchSpec
+      Handler.WHBoxtake.AdjustementSpec
+      Handler.WHBoxtake.UploadSpec
+      Handler.WHPackingListSpec
+      Handler.WHStockAdjustmentSpec
+      Handler.WHStocktakeSpec
+      Items.CategorySpec
+      Items.InternalSpec
+      Legacy.BankReconciliateSpec
+      Planner.InternalSpec
+      RoleSpec
+      TestImport
+      Util.CacheSpec
       Util.DecimalSpec
       WH.BarcodeSpec
       WH.PackingList.InternalSpec
@@ -908,6 +1061,7 @@ test-suite ghcid
       Util.ValidField
       Curl
       Customers.Settings
+      FATransType
       GL
       GL.Check.ItemCostSettings
       GL.FA
@@ -964,157 +1118,6 @@ test-suite ghcid
   ghc-options: -w -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Decimal >=0.5.1 && <0.6
-    , Glob
-    , Metamorphosis >=0.1.0.1
-    , QuickCheck
-    , aeson
-    , aeson-qq
-    , base
-    , blaze-html
-    , blaze-markup
-    , bytestring >=0.9 && <0.11
-    , case-insensitive
-    , cassava
-    , classy-prelude
-    , classy-prelude-conduit >=0.10.2
-    , classy-prelude-yesod
-    , colour >=2.3.3 && <2.4
-    , comonad
-    , conduit >=1.0 && <2.0
-    , conduit-extra
-    , containers
-    , cryptohash
-    , curl >=1.3.8 && <1.4
-    , data-default
-    , diagrams-cairo ==1.4.*
-    , diagrams-lib >=1.4.1.2 && <1.5
-    , diagrams-svg ==1.4.*
-    , directory >=1.1 && <1.4
-    , fames-persist
-    , fast-logger >=2.2 && <2.5
-    , fay >=0.24.0.2 && <0.25
-    , fay-jquery ==0.6.*
-    , fay-text ==0.3.*
-    , file-embed
-    , filepath >=1.4.1.1 && <1.5
-    , formatting
-    , ghc-prim
-    , gitrev >=0.1.3.1 && <1.4
-    , hjsmin >=0.1 && <0.3
-    , hspec >=2.0.0
-    , http-conduit >=2.1 && <2.3
-    , http-types >=0.9
-    , iso3166-country-codes
-    , microlens >=0.4.1.1 && <0.5
-    , microlens-th >=0.4.1.1 && <0.5
-    , monad-control >=0.3 && <1.1
-    , monad-logger
-    , mtl ==2.2.*
-    , mysql
-    , mysql-simple
-    , one-liner >=1.0 && <2
-    , palette ==0.3.*
-    , parsec ==3.1.*
-    , path-pieces ==0.2.*
-    , persistent
-    , persistent-mysql
-    , persistent-template >=2.0 && <2.6
-    , pointed >=5
-    , pretty-simple
-    , reducers ==3.12.*
-    , regex-base
-    , regex-compat-tdfa
-    , regex-tdfa >=1.2.2 && <1.3
-    , resourcet
-    , safe
-    , shakespeare
-    , split
-    , streaming-commons
-    , tabular >=0.2.2.7 && <0.3
-    , tagged
-    , tagsoup >=0.14.1 && <0.15
-    , template-haskell
-    , temporary
-    , text >=0.11 && <2.0
-    , these
-    , time
-    , transformers
-    , unliftio
-    , unordered-containers
-    , vector
-    , wai
-    , wai-extra ==3.0.*
-    , wai-logger >=2.2 && <2.4
-    , warp >=3.0 && <3.3
-    , yaml
-    , yesod
-    , yesod-auth
-    , yesod-core
-    , yesod-fay >=0.7 && <0.9
-    , yesod-form >=1.4.0 && <1.5
-    , yesod-media-simple >=0.2.0.1 && <0.2.1
-    , yesod-static >=1.4.0.3 && <1.6
-    , yesod-test >=1.5.0.1 && <1.6
-  default-language: Haskell2010
-
-test-suite test
-  type: exitcode-stdio-1.0
-  main-is: Spec.hs
-  other-modules:
-      GL.Payroll.ParserSpec
-      GL.Payroll.TimesheetSpec
-      GL.Payroll.UtilsSpec
-      GL.ReceiptProcessingSpec
-      Handler.AuthSpec
-      Handler.CommonSpec
-      Handler.FaSpec
-      Handler.GLEnterReceiptSheetSpec
-      Handler.Items.BatchSpec
-      Handler.WHBarcodeSpec
-      Handler.WHBoxtake.AdjustementSpec
-      Handler.WHBoxtake.UploadSpec
-      Handler.WHPackingListSpec
-      Handler.WHStockAdjustmentSpec
-      Handler.WHStocktakeSpec
-      Items.CategorySpec
-      Items.InternalSpec
-      Legacy.BankReconciliateSpec
-      Planner.InternalSpec
-      RoleSpec
-      TestImport
-      Util.DecimalSpec
-      WH.BarcodeSpec
-      WH.PackingList.InternalSpec
-      Paths_Fames
-  hs-source-dirs:
-      test
-  default-extensions:
-      TemplateHaskell
-      QuasiQuotes
-      OverloadedStrings
-      NoImplicitPrelude
-      MultiParamTypeClasses
-      TypeFamilies
-      GADTs
-      GeneralizedNewtypeDeriving
-      FlexibleContexts
-      FlexibleInstances
-      EmptyDataDecls
-      NoMonomorphismRestriction
-      RankNTypes
-      DeriveDataTypeable
-      ViewPatterns
-      TupleSections
-      RecordWildCards
-      PatternGuards
-      PatternSynonyms
-      StandaloneDeriving
-      PartialTypeSignatures
-      NamedWildCards
-  ghc-options: -w -threaded -rtsopts -with-rtsopts=-N
-  build-depends:
-      Decimal >=0.5.1 && <0.6
-    , Fames
     , Glob
     , Metamorphosis >=0.1.0.1
     , QuickCheck

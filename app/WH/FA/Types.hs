@@ -145,8 +145,39 @@ data PurchaseCreditNote = PurchaseCreditNote
   , pcnDeliveryIds :: ![()] -- Not saved yet (Int, Maybe Int)] -- Id + number of expected items
   , pcnGLItems :: ![GLItem]
   } deriving (Eq,Show)
+-- * Sales
+data SalesOrder = SalesOrder
+    { soCustomerId :: !Int
+    , soBranchNo  :: !Int
+    , soReference :: !Text
+    , soItems :: ![SalesOrderItem]
+    -- , soPayment :: !
+    , soOrderDate :: !Day
+    , soDeliveryDate :: !Day
+    , soDeliverTo :: !Text
+    , soDeliveryAddress :: !Text
+    , soPhone :: !Text
+    , soComment :: !Text
+    -- Optional, taken from the customer default if needed
+    , soPayment :: !(Maybe Text)
+    , soSalesType :: !(Maybe Text)
+    , soNowOrNever :: !(Maybe Text)
+    , soLocation :: !(Maybe Text)
+    , soShipVia :: !(Maybe Text)
+    } deriving (Eq, Show)
 
--- ** Payment
+data SalesOrderItem = SalesOrderItem
+    { soiStockId :: !Text
+    , soiQuantity :: !Int
+    , soiPrice :: !Double
+    , soiDiscountPercent :: !Double
+    , soiNowOrNever :: !(Maybe NowOrNever)
+    } deriving (Eq, Show)
+
+data NowOrNever = HappyToWait | NowOrNever
+    deriving (Eq, Show, Enum)
+
+-- * Payment
 -- | Payment to a supplier. Items are the 
 data SupplierPayment = SupplierPayment
   { spSupplier :: !Int
@@ -166,7 +197,7 @@ data PaymentTransaction = PaymentTransaction
   } deriving (Eq, Show)
   
 
--- ** Voiding
+-- * Voiding
 data VoidTransaction = VoidTransaction
   { vtTransNo :: !Int
   , vtTransType :: !FATransType

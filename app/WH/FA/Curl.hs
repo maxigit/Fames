@@ -17,6 +17,7 @@ module WH.FA.Curl
 , postPurchaseCreditNote
 , postVoid
 , postCostUpdate
+, postSalesOrder
 ) where
 
 import ClassyPrelude hiding(traceM, mapM_)
@@ -70,6 +71,7 @@ curlSoup :: (?curl :: Curl)
 curlSoup = doCurlWith (const go) (const $ const Nothing) where
   go body = let
     tags = parseTags body
+    -- tags = parseTags $  traceId  body
     in case (extractErrorMsgFromSoup tags) of
       Nothing -> return tags
       Just err -> throwError $ {- traceShowId -} err
@@ -128,6 +130,18 @@ extractInputValue' :: Tag String -> Maybe (String, String)
 extractInputValue' tag | (tag ~== TagOpen ("input" :: String) [("name", ""), ("value", "")]) =
   Just (fromAttrib "name" tag, fromAttrib "value" tag)
 extractInputValue' _ = Nothing
+
+extractSelectedOptions :: [Tag String] -> [(String, String)]
+extractSelectedOptions tags = let
+    selects = partitions (~== TagOpen ("select" :: String) [("name", "")]) tags
+    getSelected (t:ts) =
+        case filter (~== TagOpen ("option" :: String)
+                                 [("selected", ""), ("value","")]
+                    ) ts of
+                          [op] -> Just (fromAttrib "name" t, fromAttrib "value" op)
+                          _ -> Nothing
+    getSelected [] = Nothing
+    in mapMaybe getSelected selects
 
 extractInputsToCurl :: [Tag String] -> CurlOption
 extractInputsToCurl tags = curlPostFields $ [name <=> value | (name, value) <- extractAllInputValues tags]
@@ -201,6 +215,12 @@ supplierPaymentURL, newSupplierPaymentURL, ajaxSupplierPaymentURL :: (?baseURL :
 supplierPaymentURL = ?baseURL <> "/purchasing/supplier_payment.php"
 newSupplierPaymentURL = supplierPaymentURL
 ajaxSupplierPaymentURL = toAjax supplierPaymentURL
+-- *** Sales
+salesOrderURL, newSalesOrderURL, ajaxSalesOrderItemURL:: (?baseURL :: URLString) => URLString
+salesOrderURL = ?baseURL <> "/sales/sales_order_entry.php"
+newSalesOrderURL = salesOrderURL <> "?NewOrder=Yes"
+ajaxSalesOrderItemURL = toAjax salesOrderURL
+
 -- *** Void
 voidTransactionUrl, ajaxVoidTransactionUrl :: (?baseURL :: String) => String
 voidTransactionUrl = ?baseURL <> "/admin/void_transaction.php" 
@@ -751,6 +771,91 @@ groupPaymentTransactions transactions = let
      | ((no, typ), Sum amount) <- mapToList m
      ]
   
+-- ** Sales
+-- *** Sales Order
+postSalesOrder :: FAConnectInfo -> SalesOrder -> IO (Either Text Int)
+postSalesOrder connectInfo SalesOrder{..} = do
+    let ?baseURL = faURL connectInfo
+    runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
+        __new <- curlSoup newSalesOrderURL method_GET [200] "Problem trying to create a new Sales Order"
+
+        let customerFields = curlPostFields [ "customer_id" <=> soCustomerId
+                             , "branch_id" <=> soBranchNo
+                             , Just "_branch_id_updated=1"
+                             ] : method_POST
+        response <- curlSoup (toAjax salesOrderURL) customerFields [200] "Problem trying to set Customer"
+        let selected = Map.fromList $ extractAllInputValues response ++ extractSelectedOptions response
+        let fromOpt name value = (name <=>) =<< (fmap unpack value <|> lookup name selected)
+        let nowOrNever = case fmap unpack soNowOrNever <|> lookup "now_or_never" selected of
+                             Just "0" -> Just HappyToWait
+                             Just "1" -> Just NowOrNever
+                             _ -> Just NowOrNever
+            setNowOrNever item = item { soiNowOrNever = soiNowOrNever item <|> nowOrNever }
+
+        mapM_ addSalesOrderItem (map setNowOrNever soItems)
+        
+        let process = curlPostFields [ "customer_id" <=> soCustomerId
+                                     , "branch_id" <=> soBranchNo
+                                     , "ref" <=> soReference
+                                     , "OrderDate" <=> soOrderDate
+                                     , "delivery_date" <=> soDeliveryDate
+                                     , "deliver_to" <=> soDeliverTo
+                                     , "delivery_address" <=> soDeliveryAddress
+                                     , "phone" <=> soPhone
+                                     , "Comments" <=> soComment
+                                     , fromOpt "payment" soPayment
+                                     , fromOpt "sales_type" soSalesType
+                                     , "now_or_never" <=> fmap fromEnum nowOrNever
+                                     , fromOpt "Location" soLocation
+                                     , fromOpt "ship_via" soShipVia
+                                     , Just "ProcessOrder=Place%20Order"
+                                     ] :method_POST
+
+        tags <- curlSoup (toAjax salesOrderURL) process [200] "Create new sales order"
+        case extractAddedId' "AddedID" "Sales Order" tags of
+            Left e -> throwError $ "Sales Order creation failed: " <> e
+            Right faId -> return faId
+
+addSalesOrderItem :: (?baseURL :: URLString, ?curl :: Curl)
+                  => SalesOrderItem -> ExceptT Text IO [Tag String]
+addSalesOrderItem SalesOrderItem{..} = do
+    let fields = curlPostFields [ Just "AddItem=Add%20Item"
+                               , "stock_id" <=> soiStockId
+                               -- , "now_or_never"
+                               , "qty" <=> soiQuantity
+                               , "price" <=> soiPrice
+                               , "Disc" <=> soiDiscountPercent
+                               , "now_or_never_detail" <=> fmap fromEnum soiNowOrNever
+                               ] : method_POST
+    curlSoup (ajaxSalesOrderItemURL) fields [200] "Add sales order item"
+        
+        {-
+test = do
+    let soCustomerId = 2 -- 218
+        soBranchNo = 2-- 227
+        soReference = "SESE now or never"
+        soOrderDate = fromGregorian 2021 08 23
+        soDeliveryDate = fromGregorian 2021 08 31
+        soDeliverTo = 
+        soDeliveryAddress = 
+        soPhone = "1234"
+        soComment = "From Servant"
+        soPayment = Nothing
+        soSalesType = Nothing
+        soNowOrNever = Nothing
+        soLocation = Nothing
+        soShipVia = Nothing
+    let soiStockId = 
+        soiQuantity = 13
+        soiPrice = 16
+        soiDiscountPercent = 10
+        soiNowOrNever = Just NowOrNever -- Nothing
+        soItems = [ SalesOrderItem{..} ] -- , Sale
+    let faURL = "127.0.0.1:3081"
+        faUser = "curl"
+        faPassword = 
+    postSalesOrder FAConnectInfo{..} SalesOrder{..}
+    -}
 
 -- ** Voiding
 postVoid ::  FAConnectInfo -> VoidTransaction -> IO (Either Text Int)

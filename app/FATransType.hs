@@ -1,6 +1,6 @@
 module FATransType
 where 
-
+import Prelude
 data FATransType
   = ST_JOURNAL
   | ST_BANKPAYMENT
