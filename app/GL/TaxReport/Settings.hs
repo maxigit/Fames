@@ -47,9 +47,7 @@ data HMRCProcessorParameters = HMRCProcessorParameters
        -- # endif
        , govClientTimezone :: Text
        , govClientLocalIPs :: Text
-       , govClientMACAddress :: Text
        , govClientDeviceId :: Maybe Text
-       , govClientUserAgent :: Maybe Text
        , govVendorProductName :: Text
        }
   deriving (Eq, Read, Show)

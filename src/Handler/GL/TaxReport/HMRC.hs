@@ -17,6 +17,8 @@ import Development.GitRev
 
 import Data.Fixed
 import Data.Yaml.Pretty(encodePretty, defConfig)
+import qualified Network.Wai as W
+import qualified Data.CaseInsensitive as CI
 
 -- * Types
 data VATObligation = VATObligation
@@ -310,24 +312,42 @@ fraudPreventionHeadersH :: HMRCProcessorParameters -> Handler [String]
 fraudPreventionHeadersH HMRCProcessorParameters{..} = do
   muser <- maybeAuth
   now <- liftIO getCurrentTime
+  request <- waiRequest
+
   let githash = $gitHash :: String
       timestamp =  formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S.000Z" now
+      license = "e5fa44f2b31c1fb553b6021e7360d07d5d91ff5e" :: String -- echo 1 | sha1sum
+      doNotTrack = if lookup (CI.mk "DNT") (W.requestHeaders request) == Just "1"
+                   then "true" :: String
+                   else "false"
+      userAgent = decodeUtf8 <$> W.requestHeaderUserAgent request
+      (clientPublicIP, _:rPort) = break (==':') $ show (W.remoteHost request)
+      vendorPublicIP = "87.102.31.114" :: String
+      hops = "by=" <> vendorPublicIP <> "&for=" <> clientPublicIP
+      version = "fames=" <> githash <> "&fames-front-end=" <> githash
+              
   return $ catMaybes
-   [ Just "Gov-Client-Connection-Method: OTHER_DIRECT"
-   , "Gov-Client-Device-ID: " <?> govClientDeviceId
-   , "Gov-Client-User-IDs:  os=" <?> (userIdent . entityVal <$> muser)
-   , "Gov-Client-Timezone:" <?> govClientTimezone
-   , "Gov-Client-Local-IPs: " <?> govClientLocalIPs 
-   , "Gov-Client-User-Agent: " <?>  govClientUserAgent
-   , "Gov-Client-MAC-Addresses: " <?>  govClientMACAddress
-   -- , "Gov-Vendor-License-Ids: " <?> govVendorLicenseIds
-   , "Gov-Vendor-Product-Name: " <?> govVendorProductName
-   , "Gov-Client-Local-IPs-Timestamp: " <?> timestamp
-   , Just $ "Gov-Vendor-Product-Name: fames"
-   , Just $ "Gov-Vendor-Version: fames="  <> githash
-   ] {-
+   [ Just "Gov-Client-Connection-Method: WEB_APP_VIA_SERVER"
+   ,      "Gov-Client-Browser-Do-Not-Track: " <?> doNotTrack
+   ,      "Gov-Client-Browser-JS-User-Agent: " <?>  userAgent
+   , Just "Gov-Client-Browser-Plugins: no%20plugins"
+   ,      "Gov-Client-Device-ID: " <?> govClientDeviceId
+   ,      "Gov-Client-Local-IPs: " <?> govClientLocalIPs 
+   ,      "Gov-Client-Local-IPs-Timestamp: " <?> timestamp
+   , Just "Gov-Client-Multi-Factor: type=OTHER"
+   ,      "Gov-Client-Public-IP: " <?> clientPublicIP
+   ,      "Gov-Client-Public-IP-Timestamp: " <?> timestamp
+   , "Gov-Client-Public-Port: " <?> rPort
+   , Just "Gov-Client-Screens: width=1920&height=1080&scaling-factor=1&colour-depth=16"
+   ,      "Gov-Client-Timezone:" <?> govClientTimezone
+   ,      "Gov-Client-User-IDs:  fames=" <?> (userIdent . entityVal <$> muser)
+   , Just "Gov-Client-Window-Size: width=850&height=1051"
+   ,      "Gov-Vendor-Forwarded: " <?> hops
+   ,      "Gov-Vendor-License-IDS: fames=" <?> license
+   ,      "Gov-Vendor-Product-Name: " <?> govVendorProductName
+   ,      "Gov-Vendor-Public-IP: " <?> vendorPublicIP
+   ,      "Gov-Vendor-Version: " <?> version
    ]
-   -}
 
   
   
