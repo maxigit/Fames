@@ -70,8 +70,8 @@ curlSoup :: (?curl :: Curl)
          => URLString -> [CurlOption] -> [Int] -> Text -> ExceptT Text IO [Tag String]
 curlSoup = doCurlWith (const go) (const $ const Nothing) where
   go body = let
-    tags = parseTags body
-    -- tags = parseTags $  traceId  body
+    -- tags = parseTags body
+    tags = parseTags $  traceId  body
     in case (extractErrorMsgFromSoup tags) of
       Nothing -> return tags
       Just err -> throwError $ {- traceShowId -} err
@@ -777,14 +777,20 @@ postSalesOrder :: FAConnectInfo -> SalesOrder -> IO (Either Text Int)
 postSalesOrder connectInfo SalesOrder{..} = do
     let ?baseURL = faURL connectInfo
     runExceptT $ withFACurlDo (faUser connectInfo) (faPassword connectInfo) $ do
-        __new <- curlSoup newSalesOrderURL method_GET [200] "Problem trying to create a new Sales Order"
+        new <- curlSoup newSalesOrderURL method_GET [200] "Problem trying to create a new Sales Order"
+        let selected0 = Map.fromList $ extractAllInputValues new ++ extractSelectedOptions new
 
         let customerFields = curlPostFields [ "customer_id" <=> soCustomerId
                              , "branch_id" <=> soBranchNo
                              , Just "_branch_id_updated=1"
+                             , ("sales_type" <=>) =<< lookup "sales_type" selected0
+                             -- ^ get the initial sales_type (price list)
+                             -- If it is not changed when setting the user
+                             -- it is not sent back and it won't be present in selected
                              ] : method_POST
         response <- curlSoup (toAjax salesOrderURL) customerFields [200] "Problem trying to set Customer"
         let selected = Map.fromList $ extractAllInputValues response ++ extractSelectedOptions response
+        -- traceShowM ("SELECTED", selected)
         let fromOpt name value = (name <=>) =<< (fmap unpack value <|> lookup name selected)
         let nowOrNever = case fmap unpack soNowOrNever <|> lookup "now_or_never" selected of
                              Just "0" -> Just HappyToWait
