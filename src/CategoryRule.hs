@@ -39,7 +39,7 @@ data RuleInput = RuleInput
 regexSub :: String -> String -> RegexSub
 regexSub regex replace = RegexSub (Rg.mkRegex $ regex ++ ".*") regex replace
 instance FromJSON (CategoryRule a) where
-  parseJSON v = parseJSON' "" v 
+  parseJSON v = flattenDisjunction <$> parseJSON' "" v 
 
 parseJSON' :: Text -> Value -> _Parser (CategoryRule a)
 parseJSON' key0 v = let
@@ -98,6 +98,17 @@ parseJSON' key0 v = let
        <|> withArray "rule list" (parseDisjunction key0) v
        <|> withObject "rule object - condition" (parseCondition key0) v
        <|> withObject ("rule object" <> show v) (parseMatcher key0) v
+
+
+flattenDisjunction :: CategoryRule a -> CategoryRule a
+flattenDisjunction (CategoryDisjunction rules) =
+  case map flattenDisjunction rules of
+    [rule] -> rule
+    flats -> CategoryDisjunction flats
+flattenDisjunction (SourceTransformer source rules) = SourceTransformer source (flattenDisjunction rules)
+flattenDisjunction (CategoryCondition rules1 rules2) = 
+  CategoryCondition (flattenDisjunction rules1) (flattenDisjunction rules2)
+flattenDisjunction rule = rule
 
 unpackT :: Text -> String
 unpackT = unpack
