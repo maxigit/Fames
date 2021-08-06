@@ -97,15 +97,35 @@ parseJSON' key0 v = let
     in withText "sub string" parseSkuString v
        <|> withArray "rule list" (parseDisjunction key0) v
        <|> withObject "rule object - condition" (parseCondition key0) v
-       <|> withObject "rule object" (parseMatcher key0) v
+       <|> withObject ("rule object" <> show v) (parseMatcher key0) v
 
 unpackT :: Text -> String
 unpackT = unpack
 instance ToJSON (CategoryRule a) where
-  toJSON (SkuTransformer (RegexSub _ origin replace)) = object [ pack replace .= origin ]  -- origin <> "/" <> replace
-  toJSON (CategoryDisjunction rules) = toJSON  rules
+  toJSON (SkuTransformer (RegexSub _ origin replace)) =
+    if '/' `elem` origin  || '(' `notElem` origin 
+    --  ^                         ^
+    --  |                         |
+    --  |                         +---   heuristic if search & replace involded prefer / notation 
+    --  +-----------------------------  / would  interfer with / notation
+    then object [ pack replace .= origin ]  -- origin <> "/" <> replace
+    else   toJSON $ origin <> "/" <> replace
+  toJSON (CategoryDisjunction rules) = let
+    -- group by replace string if possible toJSON  rules
+    go (SkuTransformer (RegexSub _ origin replace)) = Right (replace, origin)
+    go rule = Left rule
+    same (Right (a,_)) (Right (b,_)) = a == b
+    same _ _ = False
+    groups = groupBy same $ map go rules
+    groupToJSON g = case partitionEithers g of
+                      ([], [(replace,origin)]) -> [toJSON . SkuTransformer $ regexSub origin replace]
+                      ([], r'origins@((replace,_):_)) -> [object [ pack replace .=  map snd r'origins]]
+                      (others,_) -> map toJSON others
+    in  toJSON (concatMap groupToJSON groups :: [Value])
+
   toJSON (SalesPriceRanger (PriceRanger fromM toM target)) = object [pack target .= paramJ] where
     paramJ = object ["source" .= ("sales_price" :: Text), "from" .= fromM, "to" .= toM]
+  toJSON (SourceTransformer source0 (SkuTransformer(RegexSub _ origin _))) = object ["source" .= source0, "match" .= origin  ]
   toJSON (SourceTransformer source0 rule0) = object ["source" .= source0, "rules" .= rule0 ]
   toJSON (CategoryCondition condition rule0) = object ["if" .= condition, "then" .= rule0]
   
