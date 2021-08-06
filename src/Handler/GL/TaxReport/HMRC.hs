@@ -316,7 +316,7 @@ fraudPreventionHeadersH HMRCProcessorParameters{..} = do
 
   let githash = $gitHash :: String
       timestamp =  formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%S.000Z" now
-      license = "e5fa44f2b31c1fb553b6021e7360d07d5d91ff5e" :: String -- echo 1 | sha1sum
+      __license = "e5fa44f2b31c1fb553b6021e7360d07d5d91ff5e" :: String -- echo 1 | sha1sum
       doNotTrack = if lookup (CI.mk "DNT") (W.requestHeaders request) == Just "1"
                    then "true" :: String
                    else "false"
@@ -334,7 +334,7 @@ fraudPreventionHeadersH HMRCProcessorParameters{..} = do
    ,      "Gov-Client-Device-ID: " <?> govClientDeviceId
    ,      "Gov-Client-Local-IPs: " <?> govClientLocalIPs 
    ,      "Gov-Client-Local-IPs-Timestamp: " <?> timestamp
-   , Just "Gov-Client-Multi-Factor: type=OTHER"
+   -- , Not needed following the conversation with HMR>  Just "Gov-Client-Multi-Factor: type=OTHER"
    ,      "Gov-Client-Public-IP: " <?> clientPublicIP
    ,      "Gov-Client-Public-IP-Timestamp: " <?> timestamp
    , "Gov-Client-Public-Port: " <?> rPort
@@ -343,7 +343,7 @@ fraudPreventionHeadersH HMRCProcessorParameters{..} = do
    ,      "Gov-Client-User-IDs:  fames=" <?> (userIdent . entityVal <$> muser)
    , Just "Gov-Client-Window-Size: width=850&height=1051"
    ,      "Gov-Vendor-Forwarded: " <?> hops
-   ,      "Gov-Vendor-License-IDS: fames=" <?> license
+   -- Not needed following conversation with HMR> ,      "Gov-Vendor-License-IDS: fames=" <?> license
    ,      "Gov-Vendor-Product-Name: " <?> govVendorProductName
    ,      "Gov-Vendor-Public-IP: " <?> vendorPublicIP
    ,      "Gov-Vendor-Version: " <?> version
