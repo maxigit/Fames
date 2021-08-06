@@ -70,8 +70,8 @@ curlSoup :: (?curl :: Curl)
          => URLString -> [CurlOption] -> [Int] -> Text -> ExceptT Text IO [Tag String]
 curlSoup = doCurlWith (const go) (const $ const Nothing) where
   go body = let
-    -- tags = parseTags body
-    tags = parseTags $  traceId  body
+    tags = parseTags body
+    -- tags = parseTags $  traceId  body
     in case (extractErrorMsgFromSoup tags) of
       Nothing -> return tags
       Just err -> throwError $ {- traceShowId -} err
