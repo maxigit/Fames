@@ -6,6 +6,7 @@ import Handler.Table
 import Handler.Items.Category.Cache
 import Data.Yaml(decodeEither', encode)
 import qualified FA as FA
+import Yesod.Form.Bootstrap3 (bfs)
 
 -- * List of categories
 -- | Displays the list of categories
@@ -67,8 +68,8 @@ categoryTesterForm :: Maybe TesterParam -> _
 categoryTesterForm param = renderBootstrap3 BootstrapBasicForm form
   where form = TesterParam
          <$> areq filterEField "styles" (tpStockFilter <$> param)
-         <*> areq textareaField "configuration" (tpConfiguration <$> param)
-         <*> aopt textareaField "delivery  rule" (tpDeliveryRule <$> param)
+         <*> areq textareaField (bfs ("configuration" :: Text)) (tpConfiguration <$> param)
+         <*> aopt textareaField (bfs ("delivery  rule" :: Text)) (tpDeliveryRule <$> param)
          <*> areq boolField "show fields" (tpShowFields <$> param)
 
 {-# NOINLINE getItemsCategoryTesterR #-}
