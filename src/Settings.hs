@@ -11,9 +11,9 @@ module Settings where
 
 import ClassyPrelude.Yesod
 import Control.Exception          (throw)
-import Data.Aeson                 (Result (..), fromJSON, withObject, (.!=),
+import Data.Aeson                 (Result (..), fromJSON, withObject, (.!=), Object,
                                    (.:?))
-import Data.Aeson.Types (camelTo2)
+import Data.Aeson.Types (camelTo2, Parser)
 import qualified Data.Aeson as JSON
 import Data.Aeson.TH(deriveToJSON, deriveJSON, defaultOptions, Options(..), SumEncoding(..))
 import Data.FileEmbed             (embedFile)
@@ -217,11 +217,11 @@ instance FromJSON AppSettings  where
         appFALostLocation  <- o .:? "fa-lost-location" .!= "LOST"
         appFADefaultLocation  <- o .:? "fa-default-location" .!= "DEF"
         appFAStockLikeFilter  <- o .:? "fa-stock-like-filter" .!= "%"
-        appCategoryRules <- o .:? "category-rules" .!= []
+        appCategoryRules <- concatFromPrefix "category-rules" o .!= []
         appReverseCategoryKey <- o .:? "category-reverse-key" .!= False
-        appCustomerCategoryRules <- o .:? "customer-category-rules" .!= []
-        appOrderCategoryRules <- o .:? "order-category-rules" .!= []
-        appDeliveryCategoryRules <- o .:? "delivery-category-rules"  .!= []
+        appCustomerCategoryRules <- concatFromPrefix "customer-category-rules" o .!= []
+        appOrderCategoryRules <- concatFromPrefix "order-category-rules" o .!= []
+        appDeliveryCategoryRules <- concatFromPrefix "delivery-category-rules" o  .!= []
         appFAExternalURL <- o .:? "fa-x-url" .!= "http://127.0.0.1" -- for outsideworld 
         appFAURL <- o .:? "fa-url" .!= "http://127.0.0.1" -- from inside the Fames container
         appFAUser <- o .:? "fa-user" .!= "admin"
@@ -338,3 +338,14 @@ combineScripts :: Name -> [Route Static] -> Q Exp
 combineScripts = combineScripts'
     (appSkipCombining compileTimeAppSettings)
     combineSettings
+
+-- | Extract all the keys starting with the given prefix
+-- and concat them in the order. Usefull to split
+-- a entry in different files (like category-rules).
+-- This is only needed for list as hashmap are merged
+-- automatically.
+concatFromPrefix :: FromJSON a => Text -> Object -> Parser (Maybe [a])
+concatFromPrefix prefix o = do
+  let keys_ = filter (prefix `isPrefixOf`)  $ keys o
+  objects <- mapM (o .: ) (sort keys_)
+  return $ concat objects
