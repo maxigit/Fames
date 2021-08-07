@@ -6,6 +6,8 @@ import qualified Data.Map as Map
 import Data.Aeson
 
 import qualified Text.Regex as Rg
+import qualified Text.Regex.Base as Rg
+import qualified Text.Regex.TDFA.Common as Rg
 
 data PriceRanger = PriceRanger (Maybe Double) (Maybe Double) String deriving Show
 data RegexSub = RegexSub { rsRegex :: Rg.Regex, rsOriginal, rsReplace :: String }
@@ -37,7 +39,17 @@ data RuleInput = RuleInput
   , salesPrice :: Maybe Double
   }
 regexSub :: String -> String -> RegexSub
-regexSub regex replace = RegexSub (Rg.mkRegex $ regex ++ ".*") regex replace
+regexSub regex replace =
+  RegexSub ( Rg.makeRegexOpts
+            Rg.CompOption{..}
+            Rg.defaultExecOpt
+           $ regex ++ ".*"
+           ) regex replace where
+  caseSensitive = True
+  multiline = False
+  rightAssoc = True -- default
+  newSyntax = True
+  lastStarGreedy = True -- Faster
 instance FromJSON (CategoryRule a) where
   parseJSON v = parseJSON' "" v 
 
