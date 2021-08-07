@@ -1,6 +1,8 @@
 -- | Computes categories according to rules and input information
 module Handler.Items.Category.Cache 
 ( categoryFinderCached
+, categoryFinderCachedFor
+, categoryFinderCachedSlow
 , customerCategoryFinderCached
 , loadDebtorsMasterRuleInfos
 , loadStockMasterRuleInfos
@@ -75,35 +77,43 @@ type DebtorsMasterRuleInfo = (Key DebtorsMaster
 -- * Items
 -- | Return a function finding the category given a style
 -- The current implementation is based on TDFA regex
--- which are pretty so we cache it into a big map
-categoryFinderCached :: Handler (Text -> FA.StockMasterId -> Maybe Text)
-categoryFinderCached = cache0 False cacheForEver "category-finder" $ do
+-- which are pretty slow so we cache it into a big map
+-- However it seems to be really slow so we shouldn't call it.
+categoryFinderCachedSlow :: Handler (Text -> FA.StockMasterId -> Maybe Text)
+categoryFinderCachedSlow = do
+  categories <- categoriesH
+  categoryFinderCachedFor categories
+
+categoryFinderCachedFor :: [Text] -> Handler (Text -> FA.StockMasterId -> Maybe Text)
+categoryFinderCachedFor categories = do
+  finders <- mapM categoryFinderCached categories 
+  let cat'Finders :: Map Text (FA.StockMasterId -> Maybe Text)
+      cat'Finders = Map.fromList $ zip categories finders
+      finder :: Text -> FA.StockMasterId -> Maybe Text
+      finder category stockId = Map.lookup category cat'Finders >>=  ($ stockId)
+  return $ finder
+
+categoryFinderCached :: Text -> Handler (FA.StockMasterId -> Maybe Text)
+categoryFinderCached category =  cache0 False cacheForEver ("category-finder-" <> category) $ do
   reverseKey <- getsYesod appSettings <&> appReverseCategoryKey
-  refreshCategoryCache False Nothing
+  refreshCategoryCache False (Just category)
   -- we reverse the stock_id to speed up string comparison
   -- as most items share a common prefix, it might be faster to compare them from right to left 
   let (order_key, valueFinder ) = if reverseKey
                                   then ("REVERSE(stock_id)", \sku -> Map.lookup (reverse sku))
                                   else ("stock_id", \sku -> Map.lookup sku)
-  categories <- categoriesH
-  catMaps <- forM categories $ \category -> do
+  let sql =  "SELECT " <> order_key <> " AS order_key, value "
+          <> "FROM fames_item_category_cache "
+          <> "WHERE category = ?"
+          <> "ORDER by order_key"
+  key'values <- runDB $ rawSql sql [PersistText category]
+  -- Don't use fromAscList
+  let skuMap = Map.fromList [ (key , value )
+                               | (Single key, Single value) <- key'values
+                               ]
+  let finder (FA.StockMasterKey sku) = valueFinder sku skuMap
+  return $ skuMap `seq` finder
 
-         let sql =  "SELECT " <> order_key <> " AS order_key, value "
-                 <> "FROM fames_item_category_cache "
-                 <> "WHERE category = ?"
-                 <> "ORDER by order_key"
-         key'values <- runDB $ rawSql sql [PersistText category]
-         -- Don't use fromAscList
-         let skuMap = Map.fromList [ (key , value )
-                                      | (Single key, Single value) <- key'values
-                                      ]
-         return (category, skuMap)
-  let cat'skuMap = Map.fromList catMaps
-      finder category (FA.StockMasterKey sku) = do
-        keyValueMap <- Map.lookup category cat'skuMap
-        valueFinder sku keyValueMap
-
-  return $ cat'skuMap `seq` finder
 -- ** Category computation
 refreshCategoryFor :: (Maybe Text) -> Maybe FilterExpression -> Handler ()
 refreshCategoryFor textm stockFilterM = do
@@ -141,7 +151,7 @@ refreshCategoryFor textm stockFilterM = do
 computeOneCategory :: Text -> [Map Text DeliveryCategoryRule] -> ItemCategoryRule -> StockMasterRuleInfo -> SqlHandler [ItemCategory]
 computeOneCategory cat __deliveryRules rule ruleInfo@StockMasterRuleInfo{..} = do
   deliveryRules <- appDeliveryCategoryRules <$> getsYesod appSettings
-  catFinder <- lift categoryFinderCached
+  catFinder <- lift categoryFinderCachedSlow
   categories <- lift categoriesH
   let otherCategories = filter (/= cat) categories
       rulesMap = mapFromList $ [ (unpack c, unpack value)

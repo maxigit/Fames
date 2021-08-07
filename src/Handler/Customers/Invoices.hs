@@ -112,13 +112,13 @@ renderInvoices invoices = do
 getCustInvoiceCCodesR :: Int64 -> Maybe Int64 -> Handler Html
 getCustInvoiceCCodesR key detailIdM = do
   info@(InvoiceInfo{..}) <- runDB $ loadInvoiceInfo key
-  categoryFinder <- categoryFinderCached 
+  [commodity_code, unit_weight, duty_] <- mapM categoryFinderCached ["commodity_code", "unit-weight-g", "duty"]
   (sForm, encType) <- dpdExportFrom info (toSqlKey <$> detailIdM)
-  let categoryFor cat detail = categoryFinder cat $ FA.StockMasterKey 
+  let categoryFor getCat detail =  getCat $ FA.StockMasterKey 
                                                   $ FA.debtorTransDetailStockId detail
-  let ccode = fromMaybe "<Commodity Code>" . categoryFor "commodity_code"
-  let weight = fromMaybe "<Weight>" . categoryFor "unit-weight-g"
-  let duty = fromMaybe "<Duty>" . categoryFor "duty"
+  let ccode = fromMaybe "<Commodity Code>" . categoryFor commodity_code
+  let weight = fromMaybe "<Weight>" . categoryFor unit_weight
+  let duty = fromMaybe "<Duty>" . categoryFor duty_
   let table = [whamlet|
       <table *{datatable} data-tab-index=-1>
         <thead>
@@ -188,7 +188,13 @@ postCustInvoiceDPDR key =  do
     FormMissing -> error "Form missing"
     FormFailure a -> error $ "Form failure : " ++ show a
     FormSuccess params -> do
-      categoryFinder <- categoryFinderCached
+      categoryFinder <- categoryFinderCachedFor
+                          [ "commodity_code"
+                          , "unit-weight-g"
+                          , "dpd-description"
+                          , "dpd-product-type"
+                          , "dpd-origin"
+                          ]
       boxNumberMap <- getBoxNumberMap
       let delivery = mkDelivery info params settings
           productDetails = concatMap (applyBoxNumber boxNumberMap (shNoOfPackages params)
@@ -295,7 +301,7 @@ mkDelivery info ShippingForm{..} DPDSettings{..} customValue =
   receiverVAT'PID'EORI = fromMaybe "" shTaxId
   
 data UsePPD = UsePPD | NoPPD deriving (Show, Read)
-
+   
 mkProductDetail :: (Text -> FA.StockMasterId -> Maybe Text) -> UsePPD -> FA.DebtorTransDetail -> ProductDetail
 mkProductDetail categoryFor usePPD FA.DebtorTransDetail{..} = 
   let 

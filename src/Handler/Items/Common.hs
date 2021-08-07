@@ -13,7 +13,7 @@ import Handler.Items.Category.Cache
 -- construct the function depending on the category setting
 skuToStyleVarH :: Handler (Text -> (Text, Text))
 skuToStyleVarH = do
-  catFinder <- categoryFinderCached
+  [styleFn, varFn] <- mapM categoryFinderCached ["style", "colour"]
   categories <- categoriesH
   -- check style and colour categories exists
   let style = "style"
@@ -22,8 +22,6 @@ skuToStyleVarH = do
     setWarning "Style category not set. Please contact your Administrator."
   when (var `notElem` categories) $
     setWarning "Variation category not set. Please contact your Administrator."
-  let styleFn = catFinder style
-      varFn = catFinder var
   return $ (,) <$> (\sku -> fromMaybe sku $ styleFn (FA.StockMasterKey sku)) <*> (fromMaybe "" . varFn . FA.StockMasterKey)
 
 

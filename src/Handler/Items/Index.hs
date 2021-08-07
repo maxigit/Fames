@@ -318,7 +318,7 @@ checkFilter param sku0 =
 fillIndexCache :: Handler IndexCache
 fillIndexCache = do
   categories <- categoriesH
-  catFinder <- categoryFinderCached
+  catFinder <- categoryFinderCachedSlow
   cache0 False (cacheDay 1) "index_/static"  $ do
       salesTypes <- runDB $ selectList [] [] -- [Entity SalesType]
       let priceListNames = mapFromList [ (k, salesTypeSalesType t)
@@ -1535,7 +1535,7 @@ createMissingProducts
 createMissingProducts __cache group_ = do
   timestamp <- round <$> liftIO getPOSIXTime
   colorMap <- lift loadDCColorMap
-  catFinder <- lift categoryFinderCached
+  [base, trim] <- lift $ mapM categoryFinderCached ["base", "trim"]
   -- find items with no product information in DC
   -- ie, ItemWebStatusF not present 
   -- let missingProduct group_ = isJust (_ group_)
@@ -1545,10 +1545,9 @@ createMissingProducts __cache group_ = do
               ]
   let skus = map (iiSku.fst) infos
       prices = map snd infos
-      bases = map (\sku -> fromMaybe (error $ "Missing or invalid base color for " <> unpack sku) (findColour "base" sku)) skus 
-      trims = map (findColour "trim") skus 
-      findColour :: Text -> Text -> Maybe Int
-      findColour cat sku = (catFinder cat (FA.StockMasterKey sku) >>= flip Map.lookup colorMap )
+      bases = map (\sku -> fromMaybe (error $ "Missing or invalid base color for " <> unpack sku) (findColour base sku)) skus 
+      trims = map (findColour trim) skus 
+      findColour getCat sku = (getCat (FA.StockMasterKey sku) >>= flip Map.lookup colorMap )
 
   productEntities <- createAndInsertNewProducts timestamp skus
   prod'revKeys <- createAndInsertNewProductRevisions timestamp productEntities

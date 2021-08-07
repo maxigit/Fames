@@ -544,7 +544,7 @@ loadItemTransactions param grouper = do
   let loadIf f loader = if f param then loader else return []
   categories <- categoriesH
   custCategories <- customerCategoriesH
-  catFinder <- categoryFinderCached
+  catFinder <- categoryFinderCachedFor custCategories
   stockInfo <- loadStockInfo param
   custCatFinder <- customerCategoryFinderCached
   skuToStyleVar <- skuToStyleVarH

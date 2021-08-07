@@ -318,8 +318,8 @@ findBatch batchCategory sku Nothing = findBatchForSku  batchCategory sku
 findBatchForSku :: Text -> Text -> Handler (Either Text (Entity Batch, Text))
 findBatchForSku batchCategory sku = do
   skuToStyleVar <- skuToStyleVarH
-  catFinder <- categoryFinderCached
   categories <- batchCategoriesH
+  catFinder <- categoryFinderCached batchCategory
   let (_, colour) = skuToStyleVar sku
   case (batchCategory `elem` categories,  colour) of
     (False, _ ) -> do
@@ -329,7 +329,7 @@ findBatchForSku batchCategory sku = do
       setError(toHtml $ sku <> " doesn't have a colour")
       return $ Left $ sku <> " doesn't have a colour"
     (True, _) -> do
-      let batchm = catFinder batchCategory (FA.StockMasterKey sku)
+      let batchm = catFinder (FA.StockMasterKey sku)
       case batchm of
         Nothing -> return $ Left $ "no " <> batchCategory <> " value for " <> sku
         Just batch -> do
@@ -348,8 +348,8 @@ findBatchForBatchSku batchCategory batchName sku =  do
      case batchM of
         Nothing -> return . Just . Left $ batchName <> " is not a valid batch"
         Just batch -> do -- check the batch is authorized
-            catFinder <- categoryFinderCached
-            let batchNames = catFinder batchCategory (FA.StockMasterKey sku)
+            catFinder <- categoryFinderCached batchCategory
+            let batchNames = catFinder  (FA.StockMasterKey sku)
                 validBatches = maybe [] (splitOn " | ")  batchNames
             if batchName `elem` validBatches
             then return . Just $ Right (batch, colour)
