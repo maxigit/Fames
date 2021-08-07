@@ -323,7 +323,7 @@ fillIndexCache = fillIndexCache' (Just [])
 fillIndexCache' :: Maybe [Text] -> Handler IndexCache
 fillIndexCache' categoriesm = do
   categories <- case categoriesm of
-                   Nothing -> error "All categories" -- categoriesH
+                   Nothing -> categoriesH
                    Just cats -> return cats
   catFinder <- categoryFinderCachedFor categories
   mkCache <- cache0 False (cacheDay 1) ("index_/static")  $ do
