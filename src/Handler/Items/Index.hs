@@ -322,7 +322,6 @@ fillIndexCache :: Handler IndexCache
 fillIndexCache = fillIndexCache' (Just [])
 fillIndexCache' :: Maybe [Text] -> Handler IndexCache
 fillIndexCache' categoriesm = do
-  traceShowM ("CAT", categoriesm)
   categories <- case categoriesm of
                    Nothing -> error "All categories" -- categoriesH
                    Just cats -> return cats
@@ -347,8 +346,8 @@ fillIndexCache' categoriesm = do
                  , Just pId <- return $ readMay =<< stripPrefix "field_data_field_price_pl_" (table :: Text)
                  ]
 
-      return $ IndexCache salesTypes priceListNames supplierNames webPriceList_ catFinder
-  return $ mkCache categories
+      return $ IndexCache salesTypes priceListNames supplierNames webPriceList_
+  return $ mkCache catFinder categories
   
   
 -- ** StyleAdjustment
@@ -919,7 +918,6 @@ itemsTable cache param = do
 
 
   let columns = [CheckColumn, RadioColumn, StockIdColumn] ++ columnsFor cache (ipMode param) allItems
-  traceShowM ("COLUMS", columns)
 
   -- Church encoding ?
   let itemToF :: ItemInfo (ItemMasterAndPrices Identity)
