@@ -308,6 +308,7 @@ indexParam = I.IndexParam{..} where
   ipFAStatusFilter = Nothing
   ipWebStatusFilter = Nothing
   ipWebPriceStatusFilter = Nothing
+  ipCategories = Nothing
   ipBaseVariation= Nothing
 
 -- ** Live box status adjusted with realive QOH

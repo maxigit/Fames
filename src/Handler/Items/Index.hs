@@ -54,6 +54,7 @@ data IndexParam = IndexParam
   , ipFAStatusFilter :: Maybe [FARunningStatus]
   , ipWebStatusFilter :: Maybe [WebDisplayStatus]
   , ipWebPriceStatusFilter :: Maybe [PriceStatus]
+  , ipCategories :: Maybe [Text]
   , ipBaseVariation:: Maybe Text -- ^ to keep when filtering element, so that missing have a base
   } deriving (Eq, Show, Read)
 
@@ -179,7 +180,7 @@ paramDef mode = IndexParam Nothing Nothing Nothing -- SKU category
                            mempty empty empty
                            (fromMaybe ItemGLView mode)
                            False -- ^ clear c
-                           Nothing Nothing Nothing Nothing Nothing Nothing -- status filter
+                           Nothing Nothing Nothing Nothing Nothing Nothing Nothing -- status filter
                            Nothing -- ^ base variation
 
 -- g :: Applicative f => (f (Double -> Bool -> ABC)) -> _ -> f ABC
@@ -200,7 +201,7 @@ indexForm categories groups param extra = do
     (f2, w2 ) <- renderBootstrap3 BootstrapBasicForm (form2 $ pure (\a b f -> f a b )) ""
     (f2', w2' ) <- renderBootstrap3 BootstrapBasicForm (form2' $ pure (\a b f -> f a b)) ""
     (f3, _unused_w3 ) <- renderBootstrap3 BootstrapBasicForm (form3 $ pure (\a b c d e f -> f a b c d e)) ""
-    (f4, w4 ) <- renderBootstrap3 BootstrapBasicForm (form4 $ pure (\a b c d e x f -> f a b c d e x)) ""
+    (f4, w4 ) <- renderBootstrap3 BootstrapBasicForm (form4 $ pure (\a b c d e x y f -> f a b c d e x y)) ""
     (f5, w5 ) <- renderBootstrap3 BootstrapBasicForm (form5 $ pure (\a f -> f a)) ""
     let f = f1 <**> f2 <**> f2' <**> f3 <**> f4 <**> f5
         ws = map renderInline [w1 , w2, w2', w4 , w5]
@@ -228,6 +229,7 @@ indexForm categories groups param extra = do
           <*> (aopt (mkStatusOptions 2) (bfs' "Running status") (Just $ ipFAStatusFilter param)) 
           <*> (aopt (mkStatusOptions 3) (bfs' "Web Display status") (Just $ ipWebStatusFilter param)) 
           <*> (aopt (mkStatusOptions 5) (bfs' "Web Price status") (Just $ ipWebPriceStatusFilter param)) 
+          <*> (aopt multiCategories (bfs' "Categories") (Just $ ipCategories param)) 
         form5 f = f
           <*> (aopt textField (bfs' "base candidates") (Just $ ipBaseVariation param))
         -- form = form2 form1
@@ -236,6 +238,7 @@ indexForm categories groups param extra = do
         -- rstatus = optionsPairs $ map (fanl (drop 2 . tshow)) [minBound..maxBound]
         -- wstatus = optionsPairs $ map (fanl (drop 3 . tshow)) [minBound..maxBound]
         categoryOptions = [(cat, cat) | cat <-categories ]
+        multiCategories = multiSelectField $ optionsPairs categoryOptions
         bfs' t = t --  bfs (t :: Text)
         renderInline w = [whamlet|<div.well>
                                      <div.form-inline>^{w}
@@ -316,10 +319,15 @@ checkFilter param sku0 =
 
 -- ** Preloaded Cache
 fillIndexCache :: Handler IndexCache
-fillIndexCache = do
-  categories <- categoriesH
-  catFinder <- categoryFinderCachedSlow
-  cache0 False (cacheDay 1) "index_/static"  $ do
+fillIndexCache = fillIndexCache' (Just [])
+fillIndexCache' :: Maybe [Text] -> Handler IndexCache
+fillIndexCache' categoriesm = do
+  traceShowM ("CAT", categoriesm)
+  categories <- case categoriesm of
+                   Nothing -> error "All categories" -- categoriesH
+                   Just cats -> return cats
+  catFinder <- categoryFinderCachedFor categories
+  mkCache <- cache0 False (cacheDay 1) ("index_/static")  $ do
       salesTypes <- runDB $ selectList [] [] -- [Entity SalesType]
       let priceListNames = mapFromList [ (k, salesTypeSalesType t)
                                       | (Entity (SalesTypeKey k) t) <- salesTypes
@@ -339,7 +347,8 @@ fillIndexCache = do
                  , Just pId <- return $ readMay =<< stripPrefix "field_data_field_price_pl_" (table :: Text)
                  ]
 
-      return $ IndexCache salesTypes priceListNames supplierNames webPriceList_ catFinder categories
+      return $ IndexCache salesTypes priceListNames supplierNames webPriceList_ catFinder
+  return $ mkCache categories
   
   
 -- ** StyleAdjustment
@@ -910,6 +919,7 @@ itemsTable cache param = do
 
 
   let columns = [CheckColumn, RadioColumn, StockIdColumn] ++ columnsFor cache (ipMode param) allItems
+  traceShowM ("COLUMS", columns)
 
   -- Church encoding ?
   let itemToF :: ItemInfo (ItemMasterAndPrices Identity)
@@ -1173,7 +1183,10 @@ renderIndex :: (?skuToStyleVar :: Text -> (Text, Text))
                 => IndexParam -> Status -> Handler TypedContent
 renderIndex param0 status = do
   (param, form, encType) <- getPostIndexParam param0
-  cache <- fillIndexCache
+  let categoriesm = case ipMode param  of
+                      ItemCategoryView-> ipCategories param
+                      _ -> Just []
+  cache <- fillIndexCache' categoriesm
   ix <- itemsTable cache param
   purchAuth <- purchaseAuth
   if (ipMode param == ItemPurchaseView && not purchAuth)

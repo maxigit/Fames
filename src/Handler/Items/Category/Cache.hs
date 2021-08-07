@@ -94,7 +94,7 @@ categoryFinderCachedFor categories = do
   return $ finder
 
 categoryFinderCached :: Text -> Handler (FA.StockMasterId -> Maybe Text)
-categoryFinderCached category =  cache0 False cacheForEver ("category-finder-" <> category) $ do
+categoryFinderCached category =  cache0 False cacheForEver ("category-finder" , category) $ do
   reverseKey <- getsYesod appSettings <&> appReverseCategoryKey
   refreshCategoryCache False (Just category)
   -- we reverse the stock_id to speed up string comparison
