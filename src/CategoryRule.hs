@@ -39,7 +39,7 @@ data RuleInput = RuleInput
 regexSub :: String -> String -> RegexSub
 regexSub regex replace = RegexSub (Rg.mkRegex $ regex ++ ".*") regex replace
 instance FromJSON (CategoryRule a) where
-  parseJSON v = flattenDisjunction <$> parseJSON' "" v 
+  parseJSON v = parseJSON' "" v 
 
 parseJSON' :: Text -> Value -> _Parser (CategoryRule a)
 parseJSON' key0 v = let
@@ -100,16 +100,6 @@ parseJSON' key0 v = let
        <|> withObject ("rule object" <> show v) (parseMatcher key0) v
 
 
-flattenDisjunction :: CategoryRule a -> CategoryRule a
-flattenDisjunction (CategoryDisjunction rules) =
-  case map flattenDisjunction rules of
-    [rule] -> rule
-    flats -> CategoryDisjunction flats
-flattenDisjunction (SourceTransformer source rules) = SourceTransformer source (flattenDisjunction rules)
-flattenDisjunction (CategoryCondition rules1 rules2) = 
-  CategoryCondition (flattenDisjunction rules1) (flattenDisjunction rules2)
-flattenDisjunction rule = rule
-
 unpackT :: Text -> String
 unpackT = unpack
 instance ToJSON (CategoryRule a) where
@@ -136,10 +126,14 @@ instance ToJSON (CategoryRule a) where
 
   toJSON (SalesPriceRanger (PriceRanger fromM toM target)) = object [pack target .= paramJ] where
     paramJ = object ["source" .= ("sales_price" :: Text), "from" .= fromM, "to" .= toM]
-  toJSON (SourceTransformer source0 (SkuTransformer(RegexSub _ origin _))) = object ["source" .= source0, "match" .= origin  ]
+  -- toJSON (SourceTransformer source0 (SkuTransformer(RegexSub _ origin _))) = object ["source" .= source0, "match" .= origin  ]
   toJSON (SourceTransformer source0 rule0) = object ["source" .= source0, "rules" .= rule0 ]
-  toJSON (CategoryCondition condition rule0) = object ["if" .= condition, "then" .= rule0]
+  toJSON (CategoryCondition condition rule0) = object ["if" .= fromCondition condition, "then" .= rule0] where
+    fromCondition (SourceTransformer source0 (SkuTransformer(RegexSub _ origin _))) = object ["source" .= source0, "match" .= origin  ]
+    fromCondition (CategoryDisjunction [rule]) = fromCondition rule
+    fromCondition rule = toJSON rule
   
+
 
 
 
