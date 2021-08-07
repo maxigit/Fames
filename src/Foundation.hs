@@ -533,6 +533,11 @@ clearAppCache = do
   cache <- getsYesod appCache
   liftIO $ clearExpiryCache cache
 
+purgeCacheKey :: (Show k) => k -> Handler ()
+purgeCacheKey key = do
+  cache <- getsYesod appCache
+  purgeKey cache key
+
 -- * Colours
 blueBadgeBg , grayBadgeBg , greenBadgeBg , amberBadgeBg , redBadgeBg , blackBadgeBg :: Text
 blueBadgeBg = "#29abe0"

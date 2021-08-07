@@ -142,7 +142,10 @@ refreshCategoryFor textm stockFilterM = do
               let  rulem = lookup (unpack cat) rules
               case rulem of
                 Nothing -> return []
-                Just rule -> computeOneCategory cat deliveryRules rule  stockMaster
+                Just rule -> do
+                  r <- computeOneCategory cat deliveryRules rule  stockMaster
+                  lift (purgeCacheKey ("category-finder", cat))
+                  return r
       mapM_ insert_ categories
 
 
@@ -151,8 +154,8 @@ refreshCategoryFor textm stockFilterM = do
 computeOneCategory :: Text -> [Map Text DeliveryCategoryRule] -> ItemCategoryRule -> StockMasterRuleInfo -> SqlHandler [ItemCategory]
 computeOneCategory cat __deliveryRules rule ruleInfo@StockMasterRuleInfo{..} = do
   deliveryRules <- appDeliveryCategoryRules <$> getsYesod appSettings
-  catFinder <- lift categoryFinderCachedSlow
-  categories <- lift categoriesH
+  let categories = map pack $ ruleDependencies rule
+  catFinder <- lift $ categoryFinderCachedFor categories
   let otherCategories = filter (/= cat) categories
       rulesMap = mapFromList $ [ (unpack c, unpack value)
                              | c <- otherCategories

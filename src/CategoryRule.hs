@@ -2,6 +2,7 @@ module CategoryRule where
 
 import ClassyPrelude.Yesod hiding(replace)
 
+import Data.List(nub)
 import qualified Data.Map as Map
 import Data.Aeson
 
@@ -204,16 +205,17 @@ expandSource regexCache inputMap format = let
 mkCategoryRegex :: String -> Rg.Regex
 mkCategoryRegex category = Rg.mkRegex $ "(\\$" ++ category ++ "\\>)|(\\$\\{" ++ category ++ "\\})"
 
-  
 
-
-
-  
-
-  
-
-
-
-  
-
-  
+-- | Extract all the rules dependencies from a rule
+-- i.e. rules expanded in source.
+ruleDependencies :: CategoryRule a -> [String]
+ruleDependencies (SourceTransformer source _) = let
+  regex = mkCategoryRegex "([a-zA-Z0-9_-]+)"
+  go s = case Rg.matchRegexAll regex s of
+            Just (_, _matched, leftover,[_,"",_,inside]) -> inside : go leftover
+            Just (_, _matched, leftover,[_,inside,_,""]) -> inside : go leftover
+            --                             ^ -- first branch nested parenthise (our)
+            _ -> []
+  in go source
+ruleDependencies (CategoryDisjunction  rules) = nub . sort $ concatMap ruleDependencies rules
+ruleDependencies _ = []
