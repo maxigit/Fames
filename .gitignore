@@ -30,4 +30,5 @@ sql/bug*
 .hspec-failures
 TAGS
 tags
-.tags
+tags
+new-lts
