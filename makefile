@@ -166,12 +166,12 @@ build_profile:
 	stack build Fames:exe:Fames  --profile --work-dir .stack-profile --flag Fames:-dev --library-profiling --executable-profiling
 
 profile: build_profile
-	stack exec --work-dir .stack-profile Fames -- $(RUN_CONFIG) +RTS -p
+	stack exec --work-dir .stack-profile Fames --library-profiling -- $(RUN_CONFIG) +RTS -p
 	mkdir -p .prof
 	mv Fames.hp Fames.prof  .prof
 
 run_with_stack_trace: build_profile
-	stack exec --work-dir .stack-profile Fames -- $(RUN_CONFIG) +RTS -hy -p -xc
+	stack exec --work-dir .stack-profile Fames --library-profiling -- $(RUN_CONFIG) +RTS -hy -p -xc -M500M
 	mkdir -p .prof
 	mv Fames.hp Fames.prof  .prof
 
