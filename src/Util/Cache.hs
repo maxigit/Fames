@@ -205,8 +205,9 @@ purgeKey' cvar k = liftIO $ modifyMVar_ cvar go -- liftIO $ print "MODIY" >>  mo
           case Map.lookup k cache of
             Just mvar -> do
                 -- print ("Lookup", k)
-                (cached, _) <- readMVar mvar
-                case castToDelayed id cached of
+                cached <- timeout (30*1000*1000) $ readMVar mvar
+                --          ^ to avoid deadlock wait 30s
+                case castToDelayed id . fst  =<< cached of
                   Nothing -> return ()
                   Just delayed -> do
                       -- liftIO $ print ("CANCEL FROM PURGE", k)

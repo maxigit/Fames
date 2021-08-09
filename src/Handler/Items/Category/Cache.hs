@@ -144,9 +144,9 @@ refreshCategoryFor textm stockFilterM = do
                 Nothing -> return []
                 Just rule -> do
                   r <- computeOneCategory cat deliveryRules rule  stockMaster
-                  lift (purgeCacheKey ("category-finder", cat))
                   return r
       mapM_ insert_ categories
+  forM_ textm $ \cat -> purgeCacheKey ("category-finder", cat)
 
 
   
@@ -179,7 +179,7 @@ refreshCategoryCache force textm = do
   c <- runDB $ do
     when force (deleteWhere criteria)
     count criteria
-  when (c == 0) (refreshCategoryFor textm Nothing)
+  when (c == 0 ) (refreshCategoryFor textm Nothing)
   
 -- ** DB
 -- *** Standard rules
