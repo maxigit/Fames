@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 module CategoryRule where
 
 import ClassyPrelude.Yesod hiding(replace)
@@ -56,6 +57,7 @@ instance FromJSON (CategoryRule a) where
 
 parseJSON' :: Text -> Value -> _Parser (CategoryRule a)
 parseJSON' key0 v = let
+    parseSkuString (stripPrefix "=" -> Just t) = return $ SkuTransformer (regexSub (unpack t) (unpack key0))
     parseSkuString t = case break (=='/') (unpack t) of
       (regex, '/':replace) -> return $ SkuTransformer (regexSub regex replace)
       (regex, "") -> return $ SkuTransformer (regexSub regex (unpack key0))
