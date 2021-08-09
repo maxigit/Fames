@@ -14,13 +14,16 @@ import Yesod.Form.Bootstrap3 (bfs)
 getItemsCategoryR :: Handler Html
 getItemsCategoryR = do
   cats <- categoriesH
+  cat'counts  <- runDB $ forM cats $ \cat -> do
+    c <- count [ItemCategoryCategory ==. cat] 
+    return (cat, c)
   defaultLayout [whamlet|
    <div.well>
      <ul>
-       $forall cat <- cats
+       $forall (cat, cnt) <- cat'counts
          <li>
            <a href=@{ItemsR (ItemsCategoryTermsR cat)}>
-             #{cat}
+             #{cat} (#{cnt})
                  |]
 
 {-# NOINLINE getItemsCategoryTermsR #-}
