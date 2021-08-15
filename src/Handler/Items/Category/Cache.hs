@@ -35,6 +35,7 @@ data StockMasterRuleInfo = StockMasterRuleInfo
   , smLongDescription :: !String
   , smUnit :: !String
   , smMbFlag :: !String
+  , smInactive :: !Bool
   , smTaxTypeName :: !(Maybe String)
   , smCategoryDescription :: !(Maybe String)
   , smDimension1 :: !(Maybe String)
@@ -49,13 +50,13 @@ data StockMasterRuleInfo = StockMasterRuleInfo
 
 stockMasterRuleInfoToTuple StockMasterRuleInfo{..} =
   ( smStockId
-  , (Single smDescription, Single smLongDescription, Single smUnit, Single smMbFlag)
+  , (Single smDescription, Single smLongDescription, Single smUnit, Single smMbFlag, Single smInactive)
   , (Single smTaxTypeName, Single smCategoryDescription, Single smDimension1, Single smDimension2)
   , (Single smSalesAccount, Single smCogsAccount, Single smInventoryAccount, Single smAdjustmentAccount)
   , Single smSalesPrice
   )
 stockMasterRuleInfoFromTuple smDeliveries ( smStockId
-                             , (Single smDescription, Single smLongDescription, Single smUnit, Single smMbFlag)
+                             , (Single smDescription, Single smLongDescription, Single smUnit, Single smMbFlag, Single smInactive)
                              , (Single smTaxTypeName, Single smCategoryDescription, Single smDimension1, Single smDimension2)
                              , (Single smSalesAccount, Single smCogsAccount, Single smInventoryAccount, Single smAdjustmentAccount)
                              , Single smSalesPrice
@@ -193,6 +194,7 @@ loadStockMasterRuleInfos stockFilter = do
             <> "     , sm.long_description "
             <> "     , sm.units "
             <> "     , sm.mb_flag "
+            <> "     , sm.inactive "
 
             <> "     , tt.name "
             <> "     , cat.description as category "
@@ -255,6 +257,7 @@ applyCategoryRules extraInputs deliveryRules rules =
                                       ("longDescription", smLongDescription) :
                                       ("unit", smUnit) :
                                       ("mbFlag", smMbFlag) :
+                                      ("active", if smInactive then "Inactive" else "Active") :
                                       (("taxType",) <$> smTaxTypeName) ?:
                                       (("category",) <$> smCategoryDescription) ?:
                                       (("dimension1",) <$> smDimension1) ?:
