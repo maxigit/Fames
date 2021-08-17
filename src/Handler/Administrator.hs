@@ -94,24 +94,23 @@ getACacheR = do
   cvar <- getsYesod appCache
   now <- liftIO $ getCurrentTime
   cache <- toCacheMap <$> readMVar cvar
-  let expired t = t > now
+  let expired t = t < now
   -- sort by expiry date desc
   info <- mapM (\km ->traverse readMVar km) (Map.toList cache) 
-  let blockerH :: Delayed Maybe () -> MVar DAction
-      blockerH = blocker
+  let blockerH :: Delayed Maybe () -> Delayed Maybe ()
+      blockerH = id
   let sorted = sortBy (comparing (\(k, (_, t)) -> (Down t,k))) info
       extra :: Dynamic -> UTCTime -> Handler Html
       extra dyn t = case castToDelayed blockerH dyn of
         Nothing -> return ""
-        Just block -> do
-            mvarM <- liftIO $ tryReadMVar (block)
-            let status = case (mvarM, expired t) of
-                            (Nothing, True) -> [shamlet|<span.label.label-info>Waiting|]
-                            (Nothing, False) -> [shamlet|<span.label.label-danger>Waiting|]
-                            (Just DCancel, _) -> [shamlet|<span.label.label-warning>Cancelled|]
-                            (Just DStart, True) -> [shamlet|<span.label.label-success>Started|]
-                            (Just DStart, _) -> [shamlet|<span.label.label-warning>Started|]
-            return $ status
+        Just delayed -> do
+            status <- statusDelayed $ delayed
+            return $ case (status, expired t) of
+                      (s, True) -> [shamlet|<span.label.label-danger>#{show s}|]
+                      (Waiting, False) -> [shamlet|<span.label.info-info>Waiting|]
+                      (InProgress, False) -> [shamlet|<span.label.label-warning>In Progress|]
+                      (OnError, _) -> [shamlet|<span.label.label-danger>Error|]
+                      (Finished, False) -> [shamlet|<span.label.label-success>Ready|]
       getExtra (k, (dyn, t)) = do
         x <- extra dyn t
         return (k, dyn, t, x)
@@ -155,8 +154,14 @@ getAResetCategoryCacheR = do
   Cache.refreshCategoryFor catm (fromString . unpack <$> stockFilterM)
   setSuccess ("Category cache successfully refreshed")
   case catm of
-    Nothing -> getAIndexR
-    Just cat -> getItemsCategoryTermsR cat
+    Nothing -> do
+      -- clear all category keys
+      categories <- categoriesH
+      mapM (purgeCacheKey . Cache.categoryCacheKey) categories
+      getAIndexR
+    Just cat -> do
+      purgeCacheKey $ Cache.categoryCacheKey cat
+      getItemsCategoryTermsR cat
 
 -- ** Customer Categories
 {-# NOINLINE getAResetCustomerCategoryCacheR #-}

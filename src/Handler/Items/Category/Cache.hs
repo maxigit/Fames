@@ -3,6 +3,7 @@ module Handler.Items.Category.Cache
 ( categoryFinderCached
 , categoryFinderCachedFor
 , categoryFinderCachedSlow
+, categoryCacheKey
 , customerCategoryFinderCached
 , loadDebtorsMasterRuleInfos
 , loadStockMasterRuleInfos
@@ -95,7 +96,7 @@ categoryFinderCachedFor categories = do
   return $ finder
 
 categoryFinderCached :: Text -> Handler (FA.StockMasterId -> Maybe Text)
-categoryFinderCached category =  cache0 False cacheForEver ("category-finder" , category) $ do
+categoryFinderCached category =  cache0 False cacheForEver (categoryCacheKey category) $ do
   reverseKey <- getsYesod appSettings <&> appReverseCategoryKey
   refreshCategoryCache False (Just category)
   -- we reverse the stock_id to speed up string comparison
@@ -115,6 +116,8 @@ categoryFinderCached category =  cache0 False cacheForEver ("category-finder" , 
   let finder (FA.StockMasterKey sku) = valueFinder sku skuMap
   return $ skuMap `seq` finder
 
+categoryCacheKey :: Text -> (String, Text)
+categoryCacheKey = ("category-finder",)
 -- ** Category computation
 refreshCategoryFor :: (Maybe Text) -> Maybe FilterExpression -> Handler ()
 refreshCategoryFor textm stockFilterM = do
@@ -147,7 +150,6 @@ refreshCategoryFor textm stockFilterM = do
                   r <- computeOneCategory cat deliveryRules rule  stockMaster
                   return r
       mapM_ insert_ categories
-  forM_ textm $ \cat -> purgeCacheKey ("category-finder", cat)
 
 
   
@@ -155,7 +157,10 @@ refreshCategoryFor textm stockFilterM = do
 computeOneCategory :: Text -> [Map Text DeliveryCategoryRule] -> ItemCategoryRule -> StockMasterRuleInfo -> SqlHandler [ItemCategory]
 computeOneCategory cat __deliveryRules rule ruleInfo@StockMasterRuleInfo{..} = do
   deliveryRules <- appDeliveryCategoryRules <$> getsYesod appSettings
-  let categories = map pack $ ruleDependencies rule
+  allCategories <- lift $ categoriesH
+  -- only keep categories which are defined
+  -- and ignore the "source" one which are computed
+  let categories = filter (`elem` allCategories) $ map pack $ ruleDependencies rule
   catFinder <- lift $ categoryFinderCachedFor categories
   let otherCategories = filter (/= cat) categories
       rulesMap = mapFromList $ [ (unpack c, unpack value)

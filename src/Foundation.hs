@@ -515,6 +515,10 @@ getSuggestedLinks = do
 
 
 -- * Caching
+-- | Caches a Delayed action ie , cache the action
+-- but doesn't execute it until it started (or needed)
+-- The advantage is that the actual action is executed in a separated thread
+-- releasing the appCache MVar
 preCache0 :: (Show k, Typeable a) => Bool -> CacheDelay -> k -> Handler a -> Handler (Delayed Handler a)
 preCache0 force delay key action = do
   cache <- getsYesod appCache
@@ -523,10 +527,15 @@ preCache0 force delay key action = do
 preCache1 :: (Show k, Typeable a) => Bool -> CacheDelay -> k -> (k -> Handler a) -> Handler (Delayed Handler a)
 preCache1 force delay param action = preCache0 force delay param (action param)
 
+-- | Caches a action and wait for it to be executed.
+-- Internally we use a Delayed so that the actual action is executed in
+-- another thread avoiding appCache to be locked the fulltime the action is executed
 cache0 :: (Show k, Typeable a) => Bool -> CacheDelay -> k -> Handler a -> Handler a
 cache0 force delay key action = do
-  cache <- getsYesod appCache
-  expCache force cache key action delay
+  -- a <- action -- preCache0 force delay key action >>= getDelayed
+  a <- preCache0 force delay key action >>= getDelayed
+  return a
+
 
 clearAppCache :: Handler ()
 clearAppCache = do

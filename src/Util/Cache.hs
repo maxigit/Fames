@@ -7,7 +7,7 @@ module Util.Cache
 , cancelDelayed
 , startDelayed
 , statusDelayed
-, DelayedStatus
+, DelayedStatus(..)
 , CacheDelay
 , ExpiryCache
 , toCacheMap
@@ -118,7 +118,7 @@ castToDelayed k (Dynamic typeR v) =
 
 
 -- | Check if the job status
-statusDelayed :: (MonadUnliftIO io) => Delayed io a -> io DelayedStatus
+statusDelayed :: (MonadUnliftIO io) => Delayed m a -> io DelayedStatus
 statusDelayed d = liftIO $ do
   empty_ <- isEmptyMVar (blocker d)
   if empty_
