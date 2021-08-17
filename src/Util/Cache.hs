@@ -20,7 +20,7 @@ module Util.Cache
 , expCache
 , newExpiryCache
 , clearExpiryCache
-, purgeKey
+, purgeKey, purgeKey'
 , castToDelayed
 )
 where

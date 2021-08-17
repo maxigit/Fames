@@ -127,6 +127,7 @@ getACacheR = do
       <th>Key
       <th>Value
       <th>Extra
+      <th>
   $forall (k, dyn, t, ex) <- withExtra
     $with exp <- expired t
       <tr :exp:.txt-muted>
@@ -134,6 +135,9 @@ getACacheR = do
         <td>#{k}
         <td>#{tshow $ dynTypeRep dyn}
         <td>#{ex}
+        <td>
+          <form action=@{AdministratorR $ ACachePurgeKeyR $ pack k} method=POST>
+            <button.btn.btn-danger type=submit>Purge
 <form action=@{AdministratorR ACacheR} method=post>
   <button.btn.btn-danger type="submit">Clear 
                           |]
@@ -145,6 +149,17 @@ postACacheR = do
   clearAppCache
   getACacheR
 
+{-# NOINLINE postACachePurgeKeyR #-}
+postACachePurgeKeyR :: Text -> Handler Html
+postACachePurgeKeyR key = do
+  cache <- getsYesod appCache
+  purgeKey' cache $ unpack key
+  getACacheR
+
+-- | Only there so that refresh doesn't crash
+-- but returns something
+getACachePurgeKeyR :: Text -> Handler Html
+getACachePurgeKeyR _ = getACacheR
 -- ** Item Categories
 {-# NOINLINE getAResetCategoryCacheR #-}
 getAResetCategoryCacheR :: Handler Html
