@@ -1,0 +1,480 @@
+#    -*- mode: org -*-
+
+
+Archived entries from file /home/max/devel/mae/Fames/TODOs.org
+
+
+* Bugs
+  :PROPERTIES:
+  :ARCHIVE_TIME: 2019-08-12 Mon 15:16
+  :ARCHIVE_FILE: ~/devel/mae/Fames/TODOs.org
+  :ARCHIVE_CATEGORY: TODOs
+  :END:
+** Drupal Commerce borked
+Delete Website items doesn't work if people have a pending order
+There is a link between commerce_line_item and the product
+via field_data_commerce_product
+The following query shouldn't return anything
+#+BEGIN_SRC sql
+select * from dcx_field_data_commerce_product where commerce_product_product_id = 75661 limit 10
+select dcx_commerce_line_item.* from dcx_field_data_commerce_product
+left join dcx_commerce_product p on(product_id = commerce_product_product_id)
+left join dcx_commerce_line_item on(entity_id = line_item_id)
+where p.sku is NULL
+#+END_SRC
+
+If the database is corrupted we can either fix field_data_commerce_product manually
+by looking at the sku in commerce_line_item and find the correct product_id in commerce_product.
+
+The easiest however, is just to delete all commerce_line_item and then delete the order from the 
+DC order interface.
+
+Archived entries from file /home/max/devel/mae/Fames/TODOs.org
+
+
+* Doc
+  :PROPERTIES:
+  :ARCHIVE_TIME: 2019-08-12 Mon 15:16
+  :ARCHIVE_FILE: ~/devel/mae/Fames/TODOs.org
+  :ARCHIVE_CATEGORY: TODOs
+  :END:
+** Report table
+ |         | Table  | Chart | Pivot    | Bubble   | Scatter      |
+ |---------+--------+-------+----------+----------+--------------|
+ | Panel   | Panel  | Panel | Panel    | Panel    | Panell       |
+ | Band    | Row    | Band  | Band     | Band     | Band         |
+ | Serie   | Subrow | Line  | Row      | Y/Row    | Colour/Label |
+ | Column  | N/A    | X     | X/Column | X/Column | Point        |
+ | Trace 1 | N/A    | Line  | Z/Subrow | Z/Size   | X            |
+ | Trace 2 | N/A    | Line  | Z/Subrow | Z/Colour | Y            |
+ | Trace 3 | N/A    | Line  | Z/Subrow |          | Z/Size       |
+
+Archived entries from file /home/max/devel/mae/Fames/TODOs.org
+
+
+* Tax Digital
+:PROPERTIES:
+:header-args: :engine mysql :dbhost 127.0.0.1 :dbuser root :dbpassword stag :database fa :dbport 3308
+:ARCHIVE_TIME: 2019-08-12 Mon 15:17
+:ARCHIVE_FILE: ~/devel/mae/Fames/TODOs.org
+:ARCHIVE_CATEGORY: TODOs
+:END:
+** Todo [/]
+*** TODO Generate all bucket when checking config
+    without that, evaluating a box with a bucket not present crashse
+*** TODO use bucket in config as well as bucket in data
+    when checking config
+    This way it will show bucket not present in the config but present in the data
+*** TODO check buckets are present in configuration when saving/publishing report
+*** TODO add tax selector in box rule  ?
+** Overiew
+Generate tax report with the following features, 
+ - generate Tax report
+ - save to HMRC (push with API And change status) or XML at the beginning
+ - visualise previous ones
+ - allows compta des modifs
+ id est include transaction entered in the past to be included in the present VAT Return
+(even though the transaction date belongs to a previous return)
+   - 1. By associating each tax_trans to a tax return in Fames
+     - PROS: 
+       - easy traceability
+        Can display easily transactions modified in the past
+       - allow two stages: Collect and then submit
+     - CONs:
+       - complicated
+       - need fames
+       - Might not work with transaction with have been modified (ex customer payment with PPD)
+       - Doesn't work straight of the box for voided transaction
+         => Solution : provides date to check in the past from 
+         - :thumbsup: reverse tax_trans_details instead of voiding to 0 TODO
+         - the same for update. Don't update
+   - 2. By saving last tax report figures (could be done in FA)
+     - PROS: 
+       - simpler
+       - can be done in FA
+     - CONs:
+       - rounding error ?
+       - no visibility on what changed
+   - 3. Always do from beginning of time: compute t2 - t1 by doing (t2 - t0) - (t1 -t0)
+     - CONs: 
+       - no visibility on what changed
+       - slow ?
+       - rounding error ?
+     - PROs:
+       - secure ?
+       - work even if transaction are amended or voided
+   - 4. associate date in FA (Tax report)
+     add return date into current tax report
+     for that we need to save at the some point the return date
+     and generate the report from  ....
+     
+     - PROs: quick.
+       - tax_trans_
+     - CONs:
+** FA vs Fames  
+:PROPERTIES:
+:COLUMNS:  %ITEM %MIGRATION %OVERALL_COMPLEXITY %RETURN %RETURN_STATUS %RETURN_PERIOD %PREVENT_RETURN_MODIFICATION %REPORT_LISTS %SAVE_REPORT %COLLECT_REPORT %MULTIPLE_REPORT
+:MIGRATION_ALL: hello
+:END:
+***  FA : trans_tax_details.return_date
+    :PROPERTIES:
+    :MIGRATION: add column
+    :COLLECT_REPORT:
+    :OVERALL_COMPLEXITY: Simple
+    :END:
+*** FAMEs :trans_tax_details.return_date
+    :PROPERTIES:
+    :MIGRATION: add column
+    :END:
+*** FAMEs :trans_tax_details.return_id
+    :PROPERTIES:
+    :MIGRATION: add tables
+    :RETURN:   Own entity
+    :RETURN_STATUS: Yes
+    :RETURN_PERIOD: Yes
+    :PREVENT_RETURN_MODIFICATION: via return status
+    :REPORT_LISTS: Own page
+    :SAVE_REPORT: Needed
+    :COLLECT_REPORT: Needed
+    :MULTIPLE_REPORT: No
+    :END:
+*** join tables : 
+    :PROPERTIES:
+    :MIGRATION: add tables
+    :RETURN:   Own entity
+    :RETURN_STATUS: Yes
+    :RETURN_PERIOD: Yes
+    :PREVENT_RETURN_MODIFICATION: via return status
+    :OVERALL_COMPLEXITY: Complex
+    :SAVE_REPORT: Needed
+    :MULTIPLE_REPORT: Yes
+    :END:
+    allow n-to-n map between tax_trans_details and reports (VAT ECSL)
+    
+    
+** Issues   [0/0]
+***  TODO Amend of old transaction
+****  void transaction delete or null tax_trans_details
+     #+BEGIN_SRC sql
+ select *
+
+     #+END_SRC
+****  update transaction (ex PPD)
+****  TODO Solution [0/3]
+ - [ ] modify FA to not void transaction tax but instead reverse it, even on update.
+ - [ ] Check if it works
+ - [ ] check and fix bugs when reload trans_tax for payment and co
+** Sandbox  
+*** Last tax_trans_detail
+    #+NAME: last_trans_tax_id
+    #+BEGIN_SRC sql
+      select max(id)
+      from 0_trans_tax_details
+    #+END_SRC
+
+    #+RESULTS:
+    | max(id) |
+    |---------|
+    |   39951 |
+
+*** tax_trans_detail of the day
+    #+BEGIN_SRC sql :no_web yes
+          select *
+          from 0_trans_tax_details
+          where 
+      id > 39962
+      -- tran_date > '2019-02-04'
+      -- order by tran_date, trans_no, id
+
+    #+END_SRC
+
+    #+RESULTS:
+    |    id | trans_type | trans_no |  tran_date | tax_type_id | rate | ex_rate | included_in_price | net_amount | amount | memo       |
+    |-------+------------+----------+------------+-------------+------+---------+-------------------+------------+--------+------------|
+    | 39963 |          1 |     2219 | 2019-02-05 |           1 |   20 |       1 |                 0 |       -100 |    -20 |            |
+    | 39964 |          1 |     2219 | 2019-02-05 |           1 |   20 |       1 |                 0 |        -50 |    -10 |            |
+    | 39965 |          1 |     2220 | 2019-02-05 |           1 |   20 |       1 |                 0 |       -100 |    -20 | stationary |
+    | 39966 |          1 |     2220 | 2019-02-05 |           1 |   20 |       1 |                 0 |        -50 |    -10 | drawing    |
+    | 39967 |          1 |     2219 | 2019-02-05 |           1 |   20 |       1 |                 0 |        150 |     30 |            |
+    | 39968 |          1 |     2221 | 2019-02-05 |           1 |   20 |       1 |                 0 |       -100 |    -20 | stationary |
+    | 39969 |          1 |     2221 | 2019-02-05 |           1 |   20 |       1 |                 0 |        -50 |    -10 | drawing    |
+    | 39970 |          1 |     2220 | 2019-02-05 |           1 |   20 |       1 |                 0 |         50 |     10 | drawing    |
+    | 39971 |          1 |     2220 | 2019-02-05 |           1 |   20 |       1 |                 0 |        100 |     20 | stationary |
+    | 39972 |          1 |     2221 | 2019-02-05 |           1 |   20 |       1 |                 0 |         50 |     10 | drawing    |
+    | 39973 |          1 |     2221 | 2019-02-05 |           1 |   20 |       1 |                 0 |        100 |     20 | stationary |
+
+    #+RESULTS:
+
+
+    #+BEGIN_SRC  sql
+	SELECT trans_type, trans_no, tran_date, tax_type_id, 0_trans_tax_details.rate, ex_rate,
+            included_in_price, -SUM(net_amount) AS net_amount, -SUM(amount) AS amount, memo
+		,0_tax_types.name AS tax_type_name, 
+		0_trans_tax_details.rate AS effective_rate, 
+		0_tax_types.rate AS rate
+		FROM 0_trans_tax_details,0_tax_types
+		WHERE trans_type = 1
+		AND trans_no >= 2219
+		AND (net_amount != 0 OR amount != 0)
+		AND 0_tax_types.id = 0_trans_tax_details.tax_type_id
+        GROUP BY trans_type, trans_no, tran_date, tax_type_id, 0_trans_tax_details.rate, ex_rate, included_in_price, memo
+        HAVING (net_amount != 0 OR amount != 0)
+    #+END_SRC
+
+*** TODO ECSL
+    
+   ECSL needs to be compatible with amend in the past. Allowing
+modifying transaction in the past for VAT purpose, means we will
+modify things in the past which have a impact on ECSL.
+
+**** cheque tax_trans matches ECSL query
+    
+*****  ECSL query
+      #+BEGIN_SRC sql
+        SELECT type, d.debtor_no, d.name AS cust_name, d.tax_id, 
+         SUM(CASE WHEN dt.type=11 THEN (ov_amount+ov_freight+ov_discount)*-1 
+             ELSE (ov_amount+ov_freight+ov_discount) 
+         END *dt.rate) AS total
+                 , SUM(ttd.net_amount), sum(ttd.amount)
+         FROM 0_debtor_trans dt
+         LEFT JOIN 0_debtors_master d ON d.debtor_no=dt.debtor_no 
+        LEFT JOIN 0_trans_tax_details ttd ON (dt.type = ttd.trans_type AND dt.trans_no = ttd.trans_no)
+          WHERE dt.type IN (10,11) -- ,12)
+          AND tax_id <> '' AND dt.tran_date >= '2018-10-01' AND dt.tran_date <= '2018-12-31' 
+          GROUP BY debtor_no, type
+           -- with rollup
+
+      #+END_SRC
+
+      #+RESULTS:
+      | type | debtor_no | cust_name                            | tax_id        |             total | SUM(ttd.net_amount) | sum(ttd.amount) |
+      |------+-----------+--------------------------------------+---------------+-------------------+---------------------+-----------------|
+      |   10 |        72 | DEBCOR LTD T/A Nells Closet          | IE9771830B    |            162.41 |              142.41 |               0 |
+      |   10 |       107 | Prepy&#039;s                         | IE6586514H    |               283 |                 263 |               0 |
+      |   10 |       133 | Hattitude                            | IE9770194R    | 610.9499999999999 |   530.9499999999999 |               0 |
+      |   10 |       213 | Annbury&#039;s                       | IE8500528C    |            960.26 |              920.26 |               0 |
+      |   10 |       229 | High Society                         | IE5158135B    |             204.6 |               184.6 |               0 |
+      |   10 |       253 | Jasmine Design                       | IE6322596L    |            1419.3 |              1399.3 |               0 |
+      |   10 |       302 | The Forgotten Lady                   | IE8254859I    |            328.35 |              308.35 |               0 |
+      |   10 |       336 | Glamorize                            | IE8953261P    |            972.06 |   932.0600000000001 |               0 |
+      |   10 |       445 | Liz Collins Boutique                 | IE8742612Q    |            443.99 |              423.99 |               0 |
+      |   10 |       457 | Desiree Boutique                     | IE5940553G    |            171.57 |              151.57 |               0 |
+      |   11 |       519 | Moffitts of Sligo                    | IE0036695Q    |               -20 |                  20 |               0 |
+      |   10 |       531 | Studia Maglia di Gimapietro Tirsa    | IT01900981000 |               562 |                 532 |               0 |
+      |   10 |       574 | Active Workout Solutions Ltd Ireland | IE9762518V    |            395.78 |              375.78 |               0 |
+
+      #+BEGIN_SRC sql
+select * from 0_trans_tax_details
+where  trans_type = 12 and trans_no in (8517, 8456)
+#+END_SRC
+
+#+RESULTS:
+|    id | trans_type | trans_no |  tran_date | tax_type_id | rate | ex_rate | included_in_price | net_amount | amount | memo |
+|-------+------------+----------+------------+-------------+------+---------+-------------------+------------+--------+------|
+| 38458 |         12 |     8456 | 2018-10-09 |           1 |   20 |       1 |                 0 |      22.65 |      0 | PPD  |
+| 38645 |         12 |     8517 | 2018-10-22 |           1 |   20 |       1 |                 0 |      13.95 |      0 | PPD  |
+
+      #+END_SRC
+
+
+*** Check transaction without tax details 
+
+    #+BEGIN_SRC sql :no_web yes
+      select trans_type , max(gl_date), count(*), max(trans_no) from
+      (select type as trans_type, type_no as trans_no, sum(amount), tran_date as gl_date
+      from
+          0_gl_trans
+          group by type, type_No
+                ) As gl
+      left join 0_trans_tax_details using (trans_type, trans_no)
+      where id is NULL
+            group by trans_type
+
+
+                select *
+                from 0_trans_tax_details
+                where 
+            id > 39962
+            -- tran_date > '2019-02-04'
+            -- order by tran_date, trans_no, id
+
+
+      select * from 0_gl_trans
+                      where type_no = 12265 And type = 10\G
+      select * from 0_trans_tax_details
+       where trans_no = 12265 And trans_type = 10
+    #+END_SRC
+
+** Bugs [1/1]
+*** DONE voided invoice displays PPD when 0
+    CLOSED: [2019-02-06 Wed 12:35]
+*** TODO make ECSL compatible with amend in the past
+*** TODO add PPD in ECSL 
+*** TODO add shipping (from invoice) in ECSL  ? [0/2]
+    - [ ] is it a different line ? service ?
+    - [ ] configure Tax to use shipping. However, this is not the case for Uk (why ?)
+   
+** Model
+ReportTransDetails
+   id --
+   transType FATransType Sqltype=Int
+   transNo Int
+   netAmount Double
+   taxAmount Double
+   overallAmount -- ??
+   bin TaxBin
+   report Maybe TaxReportId
+   Unique transType transNo bin report -- one bin per transaction per report
+   
+
+-- | Instance of a reporttype
+TaxReport
+  id --
+  type Text -- 
+  reference Text
+  submissionReference Maybe Text
+  startPeriod Day
+  endPeriod Day
+  submitted Day
+  status Status | Closed, Open redundant with submitted ?
+  details Map Text Double -- JSON with reportDetail
+  UniqueReference type Reference
+  UniqueTypeStart type start
+  
+  
+TaxReportDetail
+  id --
+  report ReportID
+  bin Text
+  amount Double
+  
+
+** Curl
+ 
+#+begin_src sh :results output
+  curl -d '{ \
+  "periodKey": "#001",\
+  "vatDueSales": 100.00,\
+  "vatDueAcquisitions": 100.00,\
+  "totalVatDue": 200.00,\
+  "vatReclaimedCurrPeriod": 100.00,\
+  "netVatDue": 100.00,\
+  "totalValueSalesExVAT": 500,\
+  "totalValuePurchasesExVAT": 500,\
+  "totalValueGoodsSuppliedExVAT": 500,\
+  "totalAcquisitionsExVAT": 500,\
+  "finalised": true\
+}' \
+  -H 'Accept: application/vnd.hmrc.1.0+json' \
+  -H 'Content-Type: application/json'\
+  -H 'Authorization: Bearer e7c34865b684c7dfd9246b80eaed43da'\
+      https://test-api.service.hmrc.gov.uk/organisations/vat/661821243/returns
+#+end_src
+
+#+RESULTS:
+      
+
+
+#+end_src
+
+#+RESULTS:
+
+* DONE Split colours from TAgs
+  CLOSED: [2019-09-12 Thu 09:08]
+  :PROPERTIES:
+  :ARCHIVE_TIME: 2019-09-12 Thu 09:09
+  :ARCHIVE_FILE: ~/devel/mae/Fames/TODOs.org
+  :ARCHIVE_OLPATH: Planner
+  :ARCHIVE_CATEGORY: TODOs
+  :ARCHIVE_TODO: DONE
+  :END:
+
+* Planner [2/2]
+  :PROPERTIES:
+  :ARCHIVE_TIME: 2019-09-12 Thu 09:09
+  :ARCHIVE_FILE: ~/devel/mae/Fames/TODOs.org
+  :ARCHIVE_CATEGORY: TODOs
+  :END:
+** +DONE Speedup Tags+
+   CLOSED: [2019-08-12 Mon 15:30]
+   by using a set, instead of splitting a String on demand
+** DONE Make Map for properties
+   CLOSED: [2019-09-05 Thu 16:44]
+   This mean that p=x and p=y won't be allowed (p=y will override p=x)
+   however p+y (or p+=y) will set property to [x,y]
+   With, that colour can be erased by doing colour=. At the moment there is no way to remove all colours
+   
+** DONE Add Break   [/]
+   CLOSED: [2019-08-14 Wed 13:00]
+   Breaks act like page break in document but for shelves.
+   It should allow to start  a new shelf or a new bay for a new style or a 
+   or a new row for a new coluur
+   - [X] RowBreak - start-row
+   - [X] ShelfBreak
+   - [X] SlotBreak
+   - +[ ] BayBreak+
+
+* DONE Ghost using Add /duplicate [2/2]
+  CLOSED: [2019-08-16 Fri 08:56]
+  :PROPERTIES:
+  :ARCHIVE_TIME: 2019-09-12 Thu 09:09
+  :ARCHIVE_FILE: ~/devel/mae/Fames/TODOs.org
+  :ARCHIVE_CATEGORY: TODOs
+  :ARCHIVE_TODO: DONE
+  :END:
+  - [X] Add delete
+So we can delete ghost at the end of the script
+  - [X] Add clone
+So we can create  ghosts
+** DONE Bug [3/3]
+   CLOSED: [2019-09-02 Mon 11:14]
+   - [X] update doc 'l => 'l=
+   - [X] update property section
+   - [X] check similar group are sorting by prioriry
+** DONE Optimize [5/5]
+   CLOSED: [2019-09-02 Mon 11:14]
+   - [X] Add speed zone 
+     - [X] MAt
+     - [X] Delete
+   - [X] Tag = Map Text (Set Text)
+   - [X] add original tag in section
+ Replace hardcoded tag when creating box
+ Might be used to tag all boxes which have been moved or in error
+ - [X] in TAM only tag what has been moved
+   - [X] update doc
+   - [X] tag moved or left
+ - [X] 
+   - [X] use colour property
+     - [X] use colour property
+     - [X] add circle
+     - [X] use rgb
+     - [X] display tag/content
+** Link to Fames [0/7]
+    - [ ] Add external command
+      - [ ] format
+    #+begin_example
+    * External*
+    :EXTERN:
+    fames:pl/
+    :END:
+   
+ or  
+ @plugin:url 
+ @fames:...
+ @https:...
+    #+end_example  
+        fames:
+    - [ ] read current box situations
+      - [ ]  Generat
+    - [ ] read PL
+ total and left
+    - [ ]  read stock status (to create ghost form
+      - [ ] create ghost from box not existing anymore
+    - [ ] include other files
+    - [ ] automatize box down
+    - [ ]  read tag from box situations
+      - [ ] previous location
+      - [ ] batch
+       
+
+:TAM#new:

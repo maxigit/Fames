@@ -2,8 +2,11 @@
 static/tmp/
 static/combined/
 static/fay-runtime.js
+static/
 /static/faygen*.js
 config/client_session_key.aes
+config/dc-tables
+config/tables
 *.hi
 *.o
 *.sqlite3
@@ -32,3 +35,7 @@ TAGS
 tags
 tags
 new-lts
+.ghcid-reload
+stack.yaml.lock
+.trash
+nogit
