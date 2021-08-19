@@ -59,12 +59,34 @@ test: up
 	stack test
 	docker-compose down -v
 
+INSTALL_DIR= .stack-work/install/x86_64-linux-nix/77f18c4793f51d6c9c141f051304a7ece7fb039934a2ebe3aaedbae599cb5f6a/8.4.4/
 .PHONY: install
-install:
-	rsync -z .stack-work/install/x86_64-linux/lts-8.24/8.0.2/bin/Fames sinbad:prod/fames-config/bin/Fames
+install: install_bin install_static
+install_bin:
+	rsync -zz $(INSTALL_DIR)/bin/Fames sinbad:prod/fames-config/bin/Fames
+install_static:
+	rsync -zz static/ sinbad:prod/Fames/static
 
-install_local:
-	rsync -z .stack-work/install/x86_64-linux/lts-8.24/8.0.2/bin/Fames ../fames-config/bin/Fames
+install_hot: install_bin_hot install_static_hot
+install_bin_hot:
+	rsync -zz $(INSTALL_DIR)/bin/Fames sinbad:hot/fames-config/bin/Fames
+install_static_hot:
+	rsync -zz static/ sinbad:hot/Fames/static
+
+install_stag: install_bin_stag install_static_stag
+install_bin_stag:
+	rsync -zz $(INSTALL_DIR)/bin/Fames sinbad:stag/fames-config/bin/Fames
+install_static_stag:
+	rsync -zz -a static/ sinbad:stag/Fames/static
+
+restart_sinbad: install
+	ssh sinbad docker restart prod_fames_1
+restart_hot: install_hot
+	ssh sinbad docker restart hot_fames_1
+restart_stag: install_stag
+	ssh sinbad docker restart stag_fames_1
+
+install_all: build restart_sinbad restart_hot
 
 GHCID_EXTRA= --reload=.ghcid-reload --reload=../fames-config/staging.yml --restart=.ghcid-restart # -h65
 GHCID= LC_ALL=C.UTF-8 ghcid 
@@ -158,7 +180,9 @@ brestart: build restart
 build:
 	stack build
 
-RUN_CONFIG= ../fames-config/development.yml ../fames-config/staging.yml ../fames-config/variations.yml ../fames-config/default.yml ../fames-config/item-cost.yml
+
+CONFIG_DIR= /home/max/devel/mae/fames-config
+RUN_CONFIG= ${CONFIG_DIR}/development.yml ${CONFIG_DIR}/staging.yml ${CONFIG_DIR}/variations.yml ${CONFIG_DIR}/default.yml ${CONFIG_DIR}/item-cost.yml
 run:
 	stack exec  Fames -- ${RUN_CONFIG}
 
