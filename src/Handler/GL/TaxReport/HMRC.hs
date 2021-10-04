@@ -84,7 +84,9 @@ getHMRCAuthorizationCode reportType HMRCProcessorParameters{..} = do
       (dyn, _) <- readMVar mvar 
       case fromDynamic dyn of
         Nothing -> error $ "Authorization code of the wrong type for key: " <> show cacheKey
-        Just code -> return $ AuthorizationCode code
+        Just codeD -> do
+          code <- getDelayed codeD
+          return $ AuthorizationCode code
     Nothing -> do
       let 
         authUrl = intercalate "&"  $ [ baseUrl <> "/oauth/authorize?response_type=code"
@@ -117,8 +119,9 @@ getHMRCToken reportType params = do
       (dyn, cacheTime) <- readMVar mvar 
       case fromDynamic dyn of
         Nothing -> error $ "Authorization code of the wrong type for key: " <> show cacheKey
-        Just token -> do
+        Just tokenD -> do
           -- we check the expiration 
+          token <- getDelayed tokenD
           now <- liftIO getCurrentTime 
           if diffUTCTime now cacheTime >= fromIntegral (expiresIn token)
             then do
