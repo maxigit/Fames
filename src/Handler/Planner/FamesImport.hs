@@ -20,6 +20,7 @@ import qualified Items.Types as I
 import Database.Persist.Sql (toSqlKey)
 import Data.Conduit.List (consume, sourceList)
 import Data.Text(splitOn)
+import Data.List (nubBy)
 import System.FilePath.Glob(globDir1, compile, match)
 import Database.Persist.MySQL     (Single(..), rawSql)
 import qualified Data.Map as Map
@@ -357,7 +358,9 @@ importActiveBoxtakesLive :: Maybe Day -> [Text] -> Handler Section
 importActiveBoxtakesLive todaym tags = do
   today <- maybe todayH return todaym
   summaries <- loadLiveSummaries todaym
-  let boxes = [ Entity boxKey boxtake  {boxtakeDescription= Just $ (fromMaybe ""  $ boxtakeDescription boxtake) <> extraTags}
+  let sameBarcode op (Entity _ a) (Entity _ b) = boxtakeBarcode a `op` boxtakeBarcode b
+  let boxes = nubBy (sameBarcode (==)). sortBy (sameBarcode compare) $
+              [ Entity boxKey boxtake  {boxtakeDescription= Just $ (fromMaybe ""  $ boxtakeDescription boxtake) <> extraTags}
               | summary <- summaries
               , statusbox <- Box.ssBoxes summary
               , let (Entity boxKey boxtake, _) = Box.usedSubject statusbox
