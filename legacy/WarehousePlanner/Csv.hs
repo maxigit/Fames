@@ -354,7 +354,7 @@ processMovesAndTags (style, tags, locationM) = do
           untagOps = negateTagOperations tagOps
       new <- mapM (updateBoxTags tagOps) boxes
       -- traceShowM("UNTAG", untagOps, length $ concat leftoverss)
-      mapM_ (updateBoxTags untagOps >> const (return ())) (concat leftoverss)
+      _ <- mapM (updateBoxTags untagOps) (concat leftoverss)
       return new
 
 -- | read a file assigning tags to styles
