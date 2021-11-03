@@ -377,7 +377,7 @@ processBoxtakeAdjustment = do
     then setWarning "Nothing to activate or deactivate" 
     else runDB $ do
         forM_ toDeactivate (deactivateBoxtakeByKey today)
-        forM_ toActivate (reactivateBoxtake today)
+        forM_ toActivate (reactivateBoxtakeByKey today)
         setSuccess [shamlet|<p>#{length toDeactivate} boxtakes deactivated succsessfuly.
                             <p>#{length toActivate} boxtakes reactivated succsessfuly.
                            |]

@@ -370,7 +370,7 @@ loadMissingFromStyleAndShelves sessions0 = do
 saveFromSession :: Session -> SqlHandler ()
 saveFromSession Session{..} = do
   mapM_ saveLocation (sessionRows)
-  mapM_ (deactivateBoxtake sessionDate) sessionMissings
+  mapM_ (setActivateBoxtake False sessionDate) sessionMissings
 
 saveLocation :: Row  -> SqlHandler ()
 saveLocation Row{..} = do

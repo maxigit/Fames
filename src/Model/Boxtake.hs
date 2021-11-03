@@ -28,13 +28,16 @@ updateBoxtakeLocation location operatorId date (Entity key Boxtake{..}) = do
 -- but update the history. 
 -- without that, we will lose either the date when it was deactivated or the
 -- initial date when the last scan has been done.
-deactivateBoxtake :: Day -> Entity Boxtake -> SqlHandler ()
-deactivateBoxtake date (Entity key Boxtake{..}) = do
-  update key [ BoxtakeActive =. False
-             , BoxtakeLocationHistory =. (boxtakeDate
-                                         , boxtakeLocation
+-- The date is not changed neither because the box hasn't actually
+-- been scanned and therefore shouldn't have priority when deciding
+-- how to reactivate/deactiave boxes using automatic box adjustmente
+setActivateBoxtake :: Bool -> Day -> Entity Boxtake -> SqlHandler ()
+setActivateBoxtake active date (Entity key Boxtake{..}) = do
+  update key [ BoxtakeActive =. active
+             , BoxtakeLocationHistory =. (date
+                                         , "<Deactivated>"
                                          ) : boxtakeLocationHistory
-             , BoxtakeDate =. date
+             -- , BoxtakeDate =. date
              ]
 
 deactivateBoxtakeByKey :: Day -> Key Boxtake -> SqlHandler ()
@@ -42,11 +45,13 @@ deactivateBoxtakeByKey day key = do
   boxtakeM <- get key 
   case boxtakeM of
     Nothing -> setWarning . toHtml $ "Can't deactivate box #" <> tshow key <> ". Box doesn't exist."
-    Just boxtake -> deactivateBoxtake day (Entity key boxtake)
+    Just boxtake -> setActivateBoxtake False day (Entity key boxtake)
       
 
 
-reactivateBoxtake :: Day -> Key Boxtake -> SqlHandler ()
-reactivateBoxtake day key = do
-  updateWhere [BoxtakeId ==. key] [BoxtakeDate =. day, BoxtakeActive =. True]
-
+reactivateBoxtakeByKey :: Day -> Key Boxtake -> SqlHandler ()
+reactivateBoxtakeByKey day key = do
+  boxtakeM <- get key 
+  case boxtakeM of
+    Nothing -> setWarning . toHtml $ "Can't reactivate box #" <> tshow key <> ". Box doesn't exist."
+    Just boxtake -> setActivateBoxtake True day (Entity key boxtake)

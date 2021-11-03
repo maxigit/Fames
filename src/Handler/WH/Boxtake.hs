@@ -565,7 +565,7 @@ processBoxtakeMove Save _ (sessions, styleMissings) = do
         let maxDate = fromMaybe today $ maximumMay (map sessionDate sessions)
               
         mapM_ saveFromSession sessions
-        mapM_ (deactivateBoxtake maxDate) (concatMap missingBoxes styleMissings)
+        mapM_ (setActivateBoxtake False maxDate) (concatMap missingBoxes styleMissings)
   renderBoxtakeSheet Validate Nothing (fromEnum created201) (setSuccess "Boxtake uploaded successfully") (return ())
 
 -- ** Adjustment
