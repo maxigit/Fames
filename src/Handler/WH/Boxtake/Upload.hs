@@ -56,6 +56,7 @@ data WipeMode = FullShelves -- ^ Wipe all boxes previously on the scanned locati
                   -- styles, regardless of their location.
               | FullStylesAndShelves
               | Addition -- ^ Don't wipe anything. Just add new boxes 
+              | Deactivate -- deactivate all boxes instead of reactivate them. 
               deriving (Eq, Read, Show, Enum, Bounded)
 -- * Util
 
@@ -122,13 +123,16 @@ parseScan wipeMode spreadsheet = do -- Either
         Right raws -> do
           locations <- locationSet 
           findOperator <- operatorFinder
-          let isLocationValid loc  = loc `member` locations
+          let isLocationValid loc  = 
+                if wipeMode == Deactivate 
+                then True
+                else loc `member` locations
           rows <- mapM (loadRow isLocationValid findOperator) raws
           case sequence rows of
             Left _ -> -- there is some error
               return $ InvalidData [] (filter isLeft rows) rows
             Right rights_ -> do
-              let (_, fullEs) = mapAccumL makeRow (Nothing, Nothing, Nothing, Nothing) rights_
+              let (_, fullEs) = mapAccumL makeRow (Nothing, Nothing, if wipeMode == Deactivate then Just "LOST" else Nothing, Nothing) rights_
               case  sequence (catMaybes fullEs) of
                 Left _ -> let -- errors, we need to join them with initial rows
                   joinError raw _ (Just (Left e)) = Left (InvalidValueError e (rawText raw))
@@ -144,6 +148,7 @@ parseScan wipeMode spreadsheet = do -- Either
                         FullStyles -> loadMissingFromStyles sessions0
                         FullStylesAndShelves -> loadMissingFromStyleAndShelves sessions0
                         Addition -> return (sessions0, [])
+                        Deactivate ->  loadAsMissing  sessions0
                       return $ ParsingCorrect sessions
 
 
@@ -365,6 +370,12 @@ loadMissingFromStyleAndShelves sessions0 = do
   (sessions1, _) <- loadMissing sessions0
   loadMissingFromStyles sessions1
   
+-- ** Make all boxtake as missing
+loadAsMissing :: [Session] -> Handler ([Session], [StyleMissing])
+loadAsMissing sessions =  do
+  let barcodeSet = barcodeSetFor sessions
+  allBoxes <- runDB $ selectList [BoxtakeBarcode <-. toList barcodeSet] []
+  return ([], [StyleMissing "To Deactivate" allBoxes])
 -- ** Save boxtake
 -- | Update boxtake to the new location or disable them if missing. wwkk 1k
 saveFromSession :: Session -> SqlHandler ()
