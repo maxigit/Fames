@@ -97,7 +97,12 @@ postWHBoxtakeSaveR :: Handler TypedContent
 postWHBoxtakeSaveR = do
   actionM <- lookupPostParam "action"
   case actionM of
-    Just "Planner" -> spreadSheetToCsv
+    Just "Planner" -> spreadSheetToCsv (\Session{..} box -> box {boxtakeLocation = sessionLocation}) renderPlannerCsv
+    Just "Stocktake" -> let adjust Session{..} box = box {boxtakeLocation = sessionLocation
+    , boxtakeOperator = entityKey sessionOperator
+    , boxtakeDate = sessionDate
+    }
+                        in spreadSheetToCsv adjust renderStocktakeCsv
     _ -> processBoxtakeSheet Save
 
 -- * Planner
@@ -145,16 +150,47 @@ boxSourceToCsv boxSources = do
   yield ("Bay No,Style,QTY,Length,Width,Height,Orientations\n" :: Text)
   boxSources .| mapC toPlanner
   
-spreadSheetToCsv :: Handler TypedContent
-spreadSheetToCsv = processBoxtakeSheet' Save go
+spreadSheetToCsv :: (Session -> Boxtake -> Boxtake) ->  _conduit -> Handler TypedContent
+spreadSheetToCsv adjust renderCsv = processBoxtakeSheet' Save go
   where go _ _ (sessions, _) = do
           let boxSources = sourceList (concatMap sessionBoxesWithNewLocation sessions)
-          renderPlannerCsv boxSources
-        sessionBoxesWithNewLocation Session{..} = do -- []
-                 row <- sessionRows
+          renderCsv boxSources
+        sessionBoxesWithNewLocation session = do -- []
+                 row <- sessionRows session
                  Just (Entity bId box) <- return $ rowBoxtake row -- skip Nothing
-                 return $ Entity bId box {boxtakeLocation = sessionLocation}
+                 return $ Entity bId (adjust session box)
 
+-- * To Stocktake
+renderStocktakeCsv boxSources = do
+  today <- todayH
+  oMap <-  allOperators
+  let source = boxSourceToStocktake oMap boxSources
+  setAttachment ("scan-stocktake-" <> fromStrict (tshow today) <> ".csv")
+  respondSourceDB "text/plain" (source .| mapC (toFlushBuilder))
+
+
+boxSourceToStocktake :: Monad m => (Map (Key Operator) Operator) -> ConduitM i (Entity Boxtake) m () -> ConduitT i Text m ()
+boxSourceToStocktake opMap boxSources = do
+  yield "Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment\n"
+  boxSources .| mapC (toStocktake opMap)
+
+toStocktake :: (Map (Key Operator) Operator) -> (Entity Boxtake) -> Text
+toStocktake opMap (Entity _ Boxtake{..}) =
+   intercalate ","
+   [ maybe "" (take 8) boxtakeDescription --  Style
+   , "" -- Colour
+   , "" -- Quantity
+   , boxtakeLocation -- Location
+   , boxtakeBarcode -- Barcode Number
+   , "" -- Length
+   , "" -- Width
+   , "" -- Height
+   , tshow boxtakeDate -- Date Checked
+   , opName opMap boxtakeOperator -- Operator
+   , "Box scan\n" -- Comment
+   ]
+  
+  
 -- * Adjustment
 -- Boxtake Adjustment allows to validate or invalidate boxtake
 -- depending on the actual stock
@@ -512,6 +548,7 @@ renderBoxtakeSheet mode paramM status message pre = do
       <button type="submit" name="#{button}" .btn class="btn-#{btn}">#{button}
       $if (mode == Save) 
         <button type="submit" name="action" value="Planner" .btn.btn-info>Export
+        <button type="submit" name="action" value="Stocktake" .btn.btn-info>To Stocktake
 |]
 
 processBoxtakeSheet' :: SavingMode
