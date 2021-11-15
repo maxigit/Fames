@@ -105,7 +105,7 @@ renderGetWHBarcodeR date  start = do
   let table = entitiesToTable getDBName entities
   defaultLayout $ [whamlet|
 <h1> Barcode Generator
-  <form #barcode-form role=form method=post action=@{WarehouseR WHBarcodeR} enctype=#{encType}>
+  <form #barcode-form role=form method=POST action=@{WarehouseR WHBarcodeR} enctype=#{encType}>
     ^{form}
     <button type="submit" .btn .btn-default>Download
     <div>

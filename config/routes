@@ -80,7 +80,7 @@
 
 
 /warehouse WarehouseR !warehouse:
-  /barcodes WHBarcodeR GET !group=Barcodes !title=Generate
+  /barcodes WHBarcodeR GET POST !group=Barcodes !title=Generate
 
   /stocktake WHStocktakeR GET !stocktake !group=Stock !title=Stocktake
   /stocktake/history/#Maybe-Text WHStocktakeHistoryR GET !stocktake !group=Stock !title=Stocktake_History
