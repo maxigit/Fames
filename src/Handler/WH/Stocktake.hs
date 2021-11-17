@@ -1288,7 +1288,7 @@ lookupBarcode valid@(BLookupST TakeRow{..}) = do
                          | (colour, quantity) <- vars
                          ]
              (Left err, _) -> Left err
-             _ -> Left raw {rowBarcode = Left (InvalidValueError "the given barcode doesn't exist" barcode)}
+             _ -> Left raw {rowBarcode = Left (InvalidValueError " the given barcode doesn't have a corresponding stocktake" barcode)}
   
 lookupBarcode row = return . return $ return row
 
