@@ -5,7 +5,7 @@ module Handler.WHStocktakeSpec (spec) where
 import TestImport
 import Text.Shakespeare.Text (sbt)
 import ModelField
-import Database.Persist.Sql (toSqlKey)
+import Database.Persist.Sql (toSqlKey, rawExecute)
 import qualified Data.List as List
 import Model.DocumentKey
 
@@ -27,6 +27,20 @@ uploadSTSheet route status path overrideM = do
 
   runDB $ do
     insertUnique $ Operator "John" "Smith" "Jack" True
+    -- Variations need to exist in FrontAccounting to be valid
+    let skus = ["t-shirt-black"
+               ,"t-shirt-red"
+               ,"t-shirtA-black"
+               ,"t-shirtB-black"
+               ,"t-shirtC-black"
+               ,"t-shirtD-black"
+               ] ++ [ "t-shirt#" <> tshow i <> "-" <> colour
+                    | i <- [11..14]
+                    , colour <- ["black"]
+                    ]
+    mapM (\sku -> rawExecute "insert ignore into 0_stock_master (stock_id, long_description) values(?,?)" 
+                             $ map PersistText [sku, ""]
+         ) skus
   foundation <- getTestYesod
   request $ do
     setMethod "POST"
@@ -34,6 +48,7 @@ uploadSTSheet route status path overrideM = do
     byLabelExact "encoding" (tshow 1)
     byLabelExact "stylecomplete" (tshow 1)
     byLabelExact "displaymode" (tshow 1)
+    byLabelExact "comment" ""
     case overrideM of
       Nothing -> do
         addToken_ "form#upload-form"
@@ -262,7 +277,7 @@ appSpec = withAppWipe BypassAuth $ do
     describe "validation" $ do
       it "detects incorrect barcode on the first line" $ do
           postSTSheet 422 [sbt|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment
-                              |t-  shirt,black,120,shelf-1,ST16NV00399Z,34,20,17,2016/11/10,Jack,
+                              |t-shirt,black,120,shelf-1,ST16NV00399Z,34,20,17,2016/11/10,Jack,
                               |]  
           htmlAllContain "table td.stocktakeBarcode .parsing-error" "ST16NV00399Z"
 
@@ -278,7 +293,7 @@ appSpec = withAppWipe BypassAuth $ do
 
       it "detects incorrect partial barcode" $ do
           postSTSheet 422 [sbt|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment
-                              |t-  shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack,
+                              |t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack,
                               |t-shirt,red,120,shelf-1,400X,34,20,17,2016/11/10,Jack,
                               |]  
           htmlAllContain "table td.stocktakeBarcode .parsing-error" "400X"
@@ -287,9 +302,9 @@ appSpec = withAppWipe BypassAuth $ do
 
       it "detects incorrect barcode sequence" $ do
           postSTSheet 422 [sbt|Style,Colour,Quantity,Location,Barcode Number,Length,Width,Height,Date Checked,Operator,Comment
-                              |t-  shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack,
-                              |t-  shirt,red,120,shelf-1,,34,20,17,2016/11/10,Jack,
-                              |t-  shirt,red,120,shelf-1,00400E,34,20,17,2016/11/10,Jack,
+                              |t-shirt,black,120,shelf-1,ST16NV00399X,34,20,17,2016/11/10,Jack,
+                              |t-shirt,red,120,shelf-1,,34,20,17,2016/11/10,Jack,
+                              |t-shirt,red,120,shelf-1,00400E,34,20,17,2016/11/10,Jack,
                               |]  
           htmlAnyContain "table td.stocktakeBarcode. .parsing-error" "ST16NV00399X"
 

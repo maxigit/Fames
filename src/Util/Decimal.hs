@@ -39,6 +39,6 @@ applyRounding method x = case method of
   RoundAbs l_round -> signum x * applyRounding l_round (abs x)
     
 toDecimalWithRounding :: RealFrac f => RoundingMethod -> f -> Decimal
-toDecimalWithRounding method f = applyRounding method $ realFracToDecimal (roundDec method + 1) f
+toDecimalWithRounding method f = applyRounding method $ realFracToDecimal (roundDec method) f
 toDecimalWithRounding' :: RealFrac f => Word8 -> RoundingMethod -> f -> Decimal
 toDecimalWithRounding' dec method f = applyRounding method $ realFracToDecimal (dec) f
