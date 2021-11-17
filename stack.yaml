@@ -69,6 +69,7 @@ extra-package-dbs: []
 allow-newer: true
 nix:
   enable: true
+  pure: false
   packages:
     - pkg-config
     - curl

@@ -1,4 +1,6 @@
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -Wno-missing-exported-signatures #-}
+
 module TestImport
     ( module TestImport
     , module X
@@ -14,6 +16,8 @@ import Model                 as X
 import Test.Hspec            as X
 import Yesod.Default.Config2 (ignoreEnv, loadYamlSettings)
 import Yesod.Test            as X
+import Yesod.Core.Unsafe     (fakeHandlerGetLogger)
+import qualified Yesod.Persist.Core as Persist
 import Yesod.Auth (Route(LoginR))
 import Settings(appRoleFor)
 import Role(Role(Administrator), RoleFor(..))
@@ -30,10 +34,15 @@ logAsAdmin = do
        addPostParam "username" "admin"
        addPostParam "password" "password"
 
-runDB :: SqlPersistM a -> YesodExample App a
-runDB query = do
-    app <- getTestYesod
-    liftIO $ runDBWithApp app query
+runDB :: SqlHandler a -> YesodExample App a
+runDB sqlhandler = runHandler $ Persist.runDB sqlhandler
+    -- app <- getTestYesod
+    -- liftIO $ runDBWithApp app query
+                                          
+runHandler :: Handler a -> YesodExample App a
+runHandler handler = do
+  app <- getTestYesod
+  fakeHandlerGetLogger appLogger app handler
 
 runDBWithApp :: App -> SqlPersistM a -> IO a
 runDBWithApp app query = runSqlPersistMPool query (appConnPool app)

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4f54c9c02448f8e7008e3eebc35ae314f15426340bc9b47b0a15dd179ffcc979
+-- hash: 9662214627e70aa8e0d3d969f388587b0ae8ff578f29d31f3f08453a846af9fe
 
 name:           Fames
 version:        0.0.1
@@ -264,6 +264,7 @@ library
     , yesod-fay >=0.7 && <0.9
     , yesod-form >=1.4.0 && <1.5
     , yesod-media-simple >=0.2.0.1 && <0.2.1
+    , yesod-persistent >=1.6.0 && <1.7
     , yesod-static >=1.4.0.3 && <1.6
   if (flag(dev)) || (flag(library-only))
     ghc-options: -Werror -Wincomplete-patterns -W -Wno-partial-type-signatures -Wno-type-defaults -Wno-missing-local-signatures -O0 -j6
@@ -389,6 +390,7 @@ executable DPDDump
     , yesod-fay >=0.7 && <0.9
     , yesod-form >=1.4.0 && <1.5
     , yesod-media-simple >=0.2.0.1 && <0.2.1
+    , yesod-persistent >=1.6.0 && <1.7
     , yesod-static >=1.4.0.3 && <1.6
   default-language: Haskell2010
 
@@ -510,6 +512,7 @@ executable DPDImport
     , yesod-fay >=0.7 && <0.9
     , yesod-form >=1.4.0 && <1.5
     , yesod-media-simple >=0.2.0.1 && <0.2.1
+    , yesod-persistent >=1.6.0 && <1.7
     , yesod-static >=1.4.0.3 && <1.6
   default-language: Haskell2010
 
@@ -626,6 +629,7 @@ executable FAGenerator
     , yesod-fay >=0.7 && <0.9
     , yesod-form >=1.4.0 && <1.5
     , yesod-media-simple >=0.2.0.1 && <0.2.1
+    , yesod-persistent >=1.6.0 && <1.7
     , yesod-static >=1.4.0.3 && <1.6
   default-language: Haskell2010
 
@@ -772,6 +776,7 @@ executable Fames
     , yesod-fay >=0.7 && <0.9
     , yesod-form >=1.4.0 && <1.5
     , yesod-media-simple >=0.2.0.1 && <0.2.1
+    , yesod-persistent >=1.6.0 && <1.7
     , yesod-static >=1.4.0.3 && <1.6
   if flag(library-only)
     buildable: False
@@ -929,6 +934,7 @@ test-suite test
     , yesod-fay >=0.7 && <0.9
     , yesod-form >=1.4.0 && <1.5
     , yesod-media-simple >=0.2.0.1 && <0.2.1
+    , yesod-persistent >=1.6.0 && <1.7
     , yesod-static >=1.4.0.3 && <1.6
     , yesod-test >=1.5.0.1 && <1.6
   default-language: Haskell2010
@@ -1209,6 +1215,7 @@ test-suite zghicd
     , yesod-fay >=0.7 && <0.9
     , yesod-form >=1.4.0 && <1.5
     , yesod-media-simple >=0.2.0.1 && <0.2.1
+    , yesod-persistent >=1.6.0 && <1.7
     , yesod-static >=1.4.0.3 && <1.6
     , yesod-test >=1.5.0.1 && <1.6
   default-language: Haskell2010

@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 module Handler.Items.BatchSpec (spec) where
 
 import TestImport
