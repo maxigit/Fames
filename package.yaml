@@ -55,6 +55,8 @@ dependencies:
 - formatting
 - temporary
 - these
+- semialign
+- these-lens
 - Glob
 - mtl >=2.2 && <2.3
 - path-pieces >=0.2 && <0.3

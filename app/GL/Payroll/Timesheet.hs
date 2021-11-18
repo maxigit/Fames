@@ -31,6 +31,7 @@ import Data.Semigroup.Generator(reduceWith1)
 
 import Text.Printf(printf)
 import Data.These
+import Data.These.Lens
 import Data.Bifunctor (bimap)
 import qualified Data.Map as Map
 import Data.Map(Map)

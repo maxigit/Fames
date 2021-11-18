@@ -12,9 +12,7 @@ import           Data.Time ( -- Day
                            -- , addDays
                            -- , timeOfDayToTime
                            -- , formatTime
-                            fromGregorian
-                           , toGregorian
-                           , diffDays
+                           diffDays
                            -- , addGregorianMonthsClip
                            )
 import qualified FA as FA

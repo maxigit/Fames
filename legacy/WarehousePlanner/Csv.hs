@@ -10,7 +10,6 @@ import Control.Monad hiding(mapM_,foldM)
 -- import Data.List.Split (splitOn)
 import qualified Data.List as List
 import Data.Char(isDigit)
-import Data.Ord(comparing)
 import ClassyPrelude hiding(readFile)
 import Text.Read(readMaybe)
 import qualified Text.Parsec as P

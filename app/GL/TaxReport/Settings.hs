@@ -15,6 +15,7 @@ import GL.Payroll.Settings
 import GL.TaxReport.Types
 import Data.Text(strip)
 import Util.Decimal
+import Control.Monad.Fail (MonadFail(..))
 -- * Type
 -- | Main settins to define a report.
 -- The actual report name should be in the key map

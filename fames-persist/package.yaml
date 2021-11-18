@@ -88,6 +88,9 @@ default-extensions:
 - PatternSynonyms
 - StandaloneDeriving
 - PartialTypeSignatures
+- DerivingStrategies
+- UndecidableInstances
+- DataKinds
 
 library:
   source-dirs:
