@@ -9,7 +9,7 @@ module GL.TaxReport.Settings
 )
 where
 import ClassyPrelude
-import Data.Aeson.TH(deriveJSON, defaultOptions, fieldLabelModifier, sumEncoding, SumEncoding(..))
+import Data.Aeson.TH(deriveJSON)
 import Data.Aeson.Types
 import GL.Payroll.Settings
 import GL.TaxReport.Types

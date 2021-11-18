@@ -14,7 +14,6 @@ import ClassyPrelude hiding(readFile)
 import Text.Read(readMaybe)
 import qualified Text.Parsec as P
 import qualified Text.Parsec.Text as P
-import Data.Maybe(fromMaybe)
 import Control.Monad.State hiding(fix,mapM_,foldM)
 import qualified Text.Regex as Rg
 import qualified Text.Regex.Base.RegexLike as Rg

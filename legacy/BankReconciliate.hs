@@ -43,7 +43,7 @@ import Data.Text.Encoding (decodeUtf8', decodeLatin1)
 import System.FilePath.Glob (glob)
 import System.Directory(getModificationTime)
 import Data.Decimal
-import Data.List (sortBy, sortOn, minimumBy, mapAccumL, dropWhileEnd, lookup)
+import Data.List (sortBy, sortOn, minimumBy, mapAccumL, dropWhileEnd)
 import Data.Ord (comparing)
 import Data.String
 import Data.Time(Day, parseTimeM, formatTime, diffDays, addDays, UTCTime)

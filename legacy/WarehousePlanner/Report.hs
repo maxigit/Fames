@@ -31,7 +31,6 @@ import qualified Data.Map.Strict as Map'
 import qualified Data.Set as Set
 import qualified Data.Sequence as Seq
 import qualified Data.List as List
-import Data.Time(Day, formatTime, defaultTimeLocale)
 
 import Text.Tabular as Tabul
 import Data.Text(replace)

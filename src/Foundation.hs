@@ -22,7 +22,6 @@ import Database.Persist.MySQL (myConnInfo, withMySQLConn)
 import Text.Hamlet          (hamletFile)
 import Text.Jasmine         (minifym)
 import qualified Yesod.Auth.Message    as Msg
-import Yesod.Form (ireq, runInputPost, textField)
 import Yesod.Default.Util   (addStaticContentExternal)
 import Yesod.Core.Types     (Logger)
 import qualified Yesod.Core.Unsafe as Unsafe
@@ -37,7 +36,6 @@ import CategoryRule
 import RoutePiece
 import Util.SameCons-- (SameCons, sameCons)
 import Util.EnumTree
-import GHC.Generics(Generic)
 import Data.Foldable(toList)
 import qualified Data.List as List
 import Data.Maybe
@@ -296,9 +294,9 @@ instance YesodPersistRunner App where
 -- As we are not expecting it be used much
 -- we don't create a pool but create connection when needed
 runDCDB :: (MonadUnliftIO m1, MonadPlus m2, MonadHandler m1,
-             IsPersistBackend backend, HandlerSite m1 ~ App,
-             BaseBackend backend ~ SqlBackend) =>
-           ReaderT backend m1 (m2 a) -> m1 (m2 a)
+             MonadLoggerIO m1, HandlerSite m1 ~ App
+             ) =>
+           ReaderT SqlBackend m1 (m2 a) -> m1 (m2 a)
 runDCDB action = do
   master <- appSettings <$> getYesod 
   let dcConfM = appDatabaseDCConf master
