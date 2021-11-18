@@ -101,7 +101,6 @@ import Model.DocumentKey
 import Control.Monad.Except hiding(mapM_, filterM)
 import Text.Printf(printf) 
 import Data.Maybe(fromJust)
-import Text.Read(Read,readPrec)
 -- import Data.IOData (IOData)
 import Database.Persist.MySQL(unSqlBackendKey)
 import System.Directory(listDirectory, doesDirectoryExist)
@@ -154,7 +153,7 @@ entitiesToTable :: PersistEntity a => (FieldDef -> Text) -> [Entity a] -> Html
 entitiesToTable getColumn entities = do
   let eDef = entityDef (map entityVal entities)
   [shamlet|
-<table.table.table-bordered.table-striped.datatable-nopage.nowrap class="#{getHaskellName $ entityHaskell eDef}">
+<table.table.table-bordered.table-striped.datatable-nopage.nowrap class="#{unEntityNameHS $ getEntityHaskellName eDef}">
    #{entitiesToTableRows getColumn entities}
    |]
 
@@ -165,20 +164,20 @@ entitiesToTableRows getColumn entities = do
   <thead>
     <tr>
       <th> Id
-      $forall field <- entityFields eDef
+      $forall field <- getEntityFields eDef
         <th> #{getColumn field}
   $forall Entity eit entity  <- entities
     <tr>
       <td.id> #{renderPersistValue $ toPersistValue eit}
-      $forall (pfield, fieldDef) <- zip (toPersistFields entity) (entityFields eDef)
+      $forall (pfield, fieldDef) <- zip (toPersistFields entity) (getEntityFields eDef)
         <td class="#{getHaskellName fieldDef}" > #{renderPersistValue $ toPersistValue pfield}
 |]
 
 getDBName :: FieldDef -> Text
-getDBName = unDBName . fieldDB
+getDBName = unFieldNameDB . fieldDB
 
 getHaskellName :: FieldDef -> Text
-getHaskellName = unHaskellName . fieldHaskell
+getHaskellName = unFieldNameHS . fieldHaskell
 
 
 renderPersistValue :: PersistValue -> Text
@@ -479,12 +478,12 @@ filterE :: PersistField a =>
 filterE _ _ Nothing = []
 filterE conv field (Just (LikeFilter like)) = 
   [ Filter field
-         (Left $ conv like)
+         (FilterValue $ conv like)
          (BackendSpecificFilter "LIKE")
   ]
 filterE conv field (Just (RegexFilter regex)) =
   [ Filter field
-         (Left $ conv regex)
+         (FilterValue $ conv regex)
          (BackendSpecificFilter "RLIKE")
   ]
   

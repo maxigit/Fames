@@ -41,6 +41,7 @@ import qualified Data.List as List
 import Data.Maybe
 import qualified Data.Text as Text
 import Util.Cache
+import Control.Monad.Fail 
 
 -- | The foundation datatype for your application. This can be a good place to
 -- keep settings and values requiring initialization before your application
@@ -347,6 +348,9 @@ instance HasHttpManager App where
 unsafeHandler :: App -> Handler a -> IO a
 unsafeHandler = Unsafe.fakeHandlerGetLogger appLogger
 
+
+instance MonadFail Handler where
+  fail = error
 -- Note: Some functionality previously present in the scaffolding has been
 -- moved to documentation in the Wiki. Following are some hopefully helpful
 -- links:
