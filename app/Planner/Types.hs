@@ -3,8 +3,6 @@ module Planner.Types where
 
 import ClassyPrelude
 import Model.DocumentKey
-import GHC.Generics(Generic)
-
 
 type Content = Either DocumentHash [Text]
 

@@ -10,12 +10,10 @@ import Control.Monad hiding(mapM_,foldM)
 -- import Data.List.Split (splitOn)
 import qualified Data.List as List
 import Data.Char(isDigit)
-import Data.Ord(comparing)
 import ClassyPrelude hiding(readFile)
 import Text.Read(readMaybe)
 import qualified Text.Parsec as P
 import qualified Text.Parsec.Text as P
-import Data.Maybe(fromMaybe)
 import Control.Monad.State hiding(fix,mapM_,foldM)
 import qualified Text.Regex as Rg
 import qualified Text.Regex.Base.RegexLike as Rg

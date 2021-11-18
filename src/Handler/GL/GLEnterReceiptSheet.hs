@@ -31,6 +31,8 @@ import Data.Decimal
 import Database.Persist.Sql(Single(..), rawSql, unSqlBackendKey)
 import qualified Data.Map as Map
 import Lens.Micro.Extras (preview)
+import Data.These.Combinators
+import Data.These.Lens
 -- | Entry point to enter a receipts spreadsheet
 -- The use should be able to :
 --   - post a text

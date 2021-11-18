@@ -16,7 +16,7 @@ import qualified GL.Payroll.Report as TS
 import GL.Payroll.Settings
 import GL.Utils
 import Database.Persist.MySQL
-import Data.Time.Calendar
+import Data.Time.Calendar hiding(DayOfWeek(..), dayOfWeek)
 import Lens.Micro.Extras (view, preview)
 import Lens.Micro hiding ((<&>))
 import Data.List.NonEmpty (NonEmpty(..))

@@ -9,12 +9,13 @@ module GL.TaxReport.Settings
 )
 where
 import ClassyPrelude
-import Data.Aeson.TH(deriveJSON, defaultOptions, fieldLabelModifier, sumEncoding, SumEncoding(..))
+import Data.Aeson.TH(deriveJSON)
 import Data.Aeson.Types
 import GL.Payroll.Settings
 import GL.TaxReport.Types
 import Data.Text(strip)
 import Util.Decimal
+import Control.Monad.Fail (MonadFail(..))
 -- * Type
 -- | Main settins to define a report.
 -- The actual report name should be in the key map

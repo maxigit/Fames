@@ -9,8 +9,8 @@ import GL.TaxReport.Settings
 import Util.Cache
 import Data.Dynamic(fromDynamic)
 
-import Data.Aeson.TH(deriveJSON, defaultOptions, fieldLabelModifier)
-import Data.Aeson.Types
+import Data.Aeson.TH(deriveJSON)
+import Data.Aeson.Types hiding((<?>))
 import Data.Aeson(encode)
 import Data.Time(diffUTCTime)
 import Development.GitRev

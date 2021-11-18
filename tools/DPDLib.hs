@@ -16,6 +16,11 @@ import Debug.Trace
 import Data.Csv
 import qualified Data.ByteString.Lazy as BS
 import GHC.Generics
+import Control.Monad.Fail (MonadFail(..))
+
+instance MonadFail WD where
+  fail = error
+
 data CustomerInfo = CustomerInfo
   { shortName :: !Text
   , postCode :: !Text

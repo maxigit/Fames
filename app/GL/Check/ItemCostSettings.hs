@@ -1,9 +1,10 @@
 module GL.Check.ItemCostSettings
 where
 import ClassyPrelude
-import Data.Aeson.TH(deriveJSON, defaultOptions, {- fieldLabelModifier, -} sumEncoding, SumEncoding(..))
+import Data.Aeson.TH(deriveJSON)
 import Data.Aeson.Types
 import Data.Text(splitOn)
+import Control.Monad.Fail (MonadFail(..))
 -- * Type
 data Account = Account { fromAccount:: Text } deriving (Eq, Show, Read, Ord)
 

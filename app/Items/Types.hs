@@ -8,7 +8,6 @@ import Metamorphosis.Applicative
 import FA
 import Language.Haskell.TH.Syntax
 import Lens.Micro
-import Data.IntMap.Strict (IntMap)
 import qualified Data.Map as Map
 import ModelField
 import qualified Data.Foldable as Foldable

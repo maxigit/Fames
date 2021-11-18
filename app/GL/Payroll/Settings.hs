@@ -4,8 +4,9 @@
 module GL.Payroll.Settings where
 
 import ClassyPrelude
-import Data.Aeson.TH(deriveJSON, defaultOptions, fieldLabelModifier, sumEncoding, SumEncoding(..))
+import Data.Aeson.TH(deriveJSON)
 import Data.Aeson.Types
+import Control.Monad.Fail (MonadFail(..))
 
 -- * Types
 -- ** For config

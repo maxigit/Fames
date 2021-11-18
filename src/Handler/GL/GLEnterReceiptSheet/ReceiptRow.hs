@@ -13,7 +13,7 @@ import Handler.CsvUtils
 import GL.Receipt (ReceiptTemplateExpanded, ReceiptTemplate'(..))
 import Data.List(mapAccumL)
 import GL.FA
-import Data.Time(toGregorian, fromGregorianValid)
+import Data.Time(fromGregorianValid)
 
 -- | Represents a row of the spreadsheet.
 -- The actual type of each field depend of a status or stage

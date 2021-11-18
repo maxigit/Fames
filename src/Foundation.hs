@@ -22,7 +22,6 @@ import Database.Persist.MySQL (myConnInfo, withMySQLConn)
 import Text.Hamlet          (hamletFile)
 import Text.Jasmine         (minifym)
 import qualified Yesod.Auth.Message    as Msg
-import Yesod.Form (ireq, runInputPost, textField)
 import Yesod.Default.Util   (addStaticContentExternal)
 import Yesod.Core.Types     (Logger)
 import qualified Yesod.Core.Unsafe as Unsafe
@@ -37,12 +36,12 @@ import CategoryRule
 import RoutePiece
 import Util.SameCons-- (SameCons, sameCons)
 import Util.EnumTree
-import GHC.Generics(Generic)
 import Data.Foldable(toList)
 import qualified Data.List as List
 import Data.Maybe
 import qualified Data.Text as Text
 import Util.Cache
+import Control.Monad.Fail 
 
 -- | The foundation datatype for your application. This can be a good place to
 -- keep settings and values requiring initialization before your application
@@ -296,9 +295,9 @@ instance YesodPersistRunner App where
 -- As we are not expecting it be used much
 -- we don't create a pool but create connection when needed
 runDCDB :: (MonadUnliftIO m1, MonadPlus m2, MonadHandler m1,
-             IsPersistBackend backend, HandlerSite m1 ~ App,
-             BaseBackend backend ~ SqlBackend) =>
-           ReaderT backend m1 (m2 a) -> m1 (m2 a)
+             MonadLoggerIO m1, HandlerSite m1 ~ App
+             ) =>
+           ReaderT SqlBackend m1 (m2 a) -> m1 (m2 a)
 runDCDB action = do
   master <- appSettings <$> getYesod 
   let dcConfM = appDatabaseDCConf master
@@ -349,6 +348,9 @@ instance HasHttpManager App where
 unsafeHandler :: App -> Handler a -> IO a
 unsafeHandler = Unsafe.fakeHandlerGetLogger appLogger
 
+
+instance MonadFail Handler where
+  fail = error
 -- Note: Some functionality previously present in the scaffolding has been
 -- moved to documentation in the Wiki. Following are some hopefully helpful
 -- links:

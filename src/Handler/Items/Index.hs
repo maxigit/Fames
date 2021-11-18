@@ -1835,7 +1835,7 @@ loadProductDisplayInfo
   :: Text -> SqlHandler (DC.NodeTId, Maybe DC.NodeRevisionTId)
 loadProductDisplayInfo style = do
   -- workaround federated bug
-  pdKeys <- selectList [DC.NodeTTitle ==. style, Filter  DC.NodeTType (Left ("_roduct_display" :: Text)) (BackendSpecificFilter "LIKE") ] []
+  pdKeys <- selectList [DC.NodeTTitle ==. style, Filter  DC.NodeTType (FilterValue ("_roduct_display" :: Text)) (BackendSpecificFilter "LIKE") ] []
   case pdKeys of
     [Entity nodeKey node] -> let nodeId = nodeKey
                                  revId = DC.NodeRevisionTKey <$> DC.nodeTVid node

@@ -19,8 +19,8 @@ import Database.Persist.MySQL     (MySQLConf (..), Single(..), rawSql)
 import System.Directory
 import Text.Regex.TDFA ((=~)) -- , makeRegex, Regex)
 import Yesod.Form.Bootstrap3 (BootstrapFormLayout (..), renderBootstrap3)
--- import Data.These
-import Data.Time (diffDays,addDays, formatTime, defaultTimeLocale, utcToLocalTime, getCurrentTimeZone)
+import Data.These.Combinators
+import Data.Time (diffDays,addDays, utcToLocalTime, getCurrentTimeZone)
 import Lens.Micro.Extras (preview)
 import FA as FA
 import GL.Utils
@@ -35,9 +35,9 @@ import Util.Cache
 import Control.Monad.State(State, evalState)
 import qualified Text.Regex as Rg
 -- import CategoryRule(RegexSub(..), regexSub, subRegex)
-import CategoryRule(regexSub, subRegex)
 import Formatting as F
 import Util.Decimal
+import Data.These.Lens
 
 -- Transaction to reconciliate
 -- Transaction from a statement missing in FA

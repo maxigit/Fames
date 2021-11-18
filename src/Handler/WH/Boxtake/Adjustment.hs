@@ -1,7 +1,6 @@
 module Handler.WH.Boxtake.Adjustment
 where
 import Import hiding(Planner, leftover)
-import Database.Persist.Sql(Single(..), rawSql, unSqlBackendKey)
 import Database.Persist.MySQL -- (BackendKey(SqlBackendKey))
 import qualified Data.Map as Map
 import Data.Align
@@ -9,6 +8,7 @@ import Handler.WH.Boxtake.Common
 import Handler.Items.Common
 import Data.List(mapAccumL, tails, inits)
 import Lens.Micro.Extras (preview)
+import Data.These.Lens
 
 type BoxtakePlus = (Entity Boxtake , [Entity Stocktake])
 type StocktakePlus = (Entity Stocktake, Key Boxtake)
@@ -226,7 +226,7 @@ loadAdjustementInfo :: AdjustmentParam -> SqlHandler (Map Text StyleInfo)
 loadAdjustementInfo param = do
   boxGroups <- loadBoxForAdjustment param
   qs <- loadQohForAdjustment param
-  return $ malign (fmap (flip StyleInfo mempty . Map.fromAscList) qs)
+  return $ salign (fmap (flip StyleInfo mempty . Map.fromAscList) qs)
                   (fmap (StyleInfo mempty) boxGroups)
 
   

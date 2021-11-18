@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4d9b5e093e7387bcbd085dab40e3203ba5373e85b63322d778c44baa49e15226
+-- hash: ecb3933d09c62c01f1a04cfc438544943e5ccc3d780baf39a1871fee7a465310
 
 name:           fames-persist
 version:        0.0.1
@@ -48,6 +48,9 @@ library
       PatternSynonyms
       StandaloneDeriving
       PartialTypeSignatures
+      DerivingStrategies
+      UndecidableInstances
+      DataKinds
   build-depends:
       Glob
     , Metamorphosis >=0.1.0.1

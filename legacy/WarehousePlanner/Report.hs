@@ -30,11 +30,7 @@ import Text.Printf(printf)
 import qualified Data.Map.Strict as Map'
 import qualified Data.Set as Set
 import qualified Data.Sequence as Seq
-import Data.Sequence (Seq)
-import Data.Function(on)
 import qualified Data.List as List
-import Data.Ord (comparing, Down(..))
-import Data.Time(Day, formatTime, defaultTimeLocale)
 
 import Text.Tabular as Tabul
 import Data.Text(replace)

@@ -6,7 +6,6 @@ import Handler.Table
 import Handler.Items.Category.Cache
 import Data.Yaml(decodeEither', encode)
 import qualified FA as FA
-import Yesod.Form.Bootstrap3 (bfs)
 
 -- * List of categories
 -- | Displays the list of categories

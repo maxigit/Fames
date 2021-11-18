@@ -13,7 +13,6 @@ module Application
     , db
     ) where
 
-import Control.Monad.Logger                 (liftLoc, runLoggingT)
 import Database.Persist.MySQL               (createMySQLPool, myConnInfo,
                                              myPoolSize, runSqlPool)
 import Import
@@ -29,7 +28,7 @@ import Network.Wai.Middleware.RequestLogger (Destination (Logger),
                                              mkRequestLogger, outputFormat)
 import System.Log.FastLogger                (defaultBufSize 
                                             , newStderrLoggerSet
-                                            ,toLogStr)
+                                            )
 import Yesod.Fay                            (getFaySite)
 
 -- Import all relevant handler modules here.
@@ -91,7 +90,6 @@ makeFoundation appSettings = do
         (myPoolSize $ appDatabaseConf appSettings)
 
     -- Perform database migration using our application's logging settings.
-    runLoggingT (runSqlPool (runMigration migrateAll) pool) logFunc
 
     -- Return the foundation
     return $ mkFoundation pool

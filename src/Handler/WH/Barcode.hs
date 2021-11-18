@@ -7,7 +7,7 @@ import Formatting hiding(now)
 import Formatting.Time
 import WH.Barcode
 import qualified Data.Text.Lazy as L
-import Handler.Util(setAttachment, generateLabelsResponse, renderField)
+-- import Handler.Util(setAttachment, generateLabelsResponse, renderField)
 -- import Data.Streaming.Process (streamingProcess, proc, ClosedStream(..), waitForStreamingProcess)
 -- import System.IO.Temp (openTempFile)
 -- import System.Exit (ExitCode(..))

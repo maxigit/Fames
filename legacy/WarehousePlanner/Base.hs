@@ -58,13 +58,9 @@ import Data.Map.Merge.Lazy(merge, preserveMissing, mapMaybeMissing, zipWithMaybe
 -- import Data.List(sort, sortBy, groupBy, nub, (\\), union, maximumBy, delete, stripPrefix, partition)
 import Data.List(cycle)
 import qualified Data.List as List
-import Data.Ord (comparing, Down(..))
-import Data.Function(on)
-import Data.Traversable (traverse)
 import Data.STRef
 import Data.Sequence ((|>))
 import qualified Data.Sequence as Seq
-import Data.Set (Set)
 import qualified Data.Set as Set
 import WarehousePlanner.Type
 import WarehousePlanner.SimilarBy

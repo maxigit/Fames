@@ -24,7 +24,7 @@ import Handler.WH.Barcode
 import WH.Barcode
 import Data.List(scanl, length, (\\), nub)
 import qualified Data.List as List
-import Data.Time(fromGregorian, addDays)
+import Data.Time(addDays)
 
 import Database.Persist.Sql
 import qualified Data.Csv as Csv
@@ -87,7 +87,7 @@ getWHStocktakeR = do
   let filter_ = catMaybes
         [ (\i -> StocktakeId ==. StocktakeKey (SqlBackendKey i)) <$> (sId >>= readMay)
         , (StocktakeStockId ==. ) <$> stockId
-        , (\like -> Filter StocktakeStockId (Left $ like <> "%") (BackendSpecificFilter "LIKE")) <$> style
+        , (\like -> Filter StocktakeStockId (FilterValue $ like <> "%") (BackendSpecificFilter "LIKE")) <$> style
         , (StocktakeActive ==.) <$> (active >>= readMay)
         , (StocktakeDate ==.) <$> let d = date >>= readMay in  d
         , (\k -> StocktakeDocumentKey ==. DocumentKeyKey' (SqlBackendKey k) ) <$> (docId >>= readMay)

@@ -44,6 +44,7 @@ import Control.Monad.Except (runExceptT, ExceptT(..), mapM_)
 import Data.List(nub)
 import Data.Conduit.List(chunksOf, groupOn1)
 import Data.Time (addDays)
+import Data.These.Lens
 
 -- * Types
 
@@ -589,8 +590,6 @@ computeItemHistory behaviors_ account0 previousState all_@(sm'gl'seq@(sm'gl, (_s
       let (newSummary, newTrans) = updateSummaryFromAmount previous quantity moveCost faAmount
       in ((makeItemCostTransaction account0 previous sm'gl'seq newSummary newTrans) :) <$> computeItemHistory behaviors_ account0 (WithPrevious allowN newSummary)  sm'gls
 
-    (ST_SUPPRECEIVE, WithPrevious _ previous) | behavior `elem` map Just [UseMoveCost, UsePreviousCost], False -> 
-      historyForGrnInvoice behaviors_ account0 previous sm'gl'seq [] [] sm'gls 
     (ST_SUPPRECEIVE, WithPrevious _ previous) -> 
       computeItemHistory behaviors_ account0 (SupplierGRNWaitingForInvoice previous sm'gl'seq []) sm'gls
     -------------------------------  Inventory Adjustment ---------------------

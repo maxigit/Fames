@@ -2,6 +2,7 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-} -- TODO remove
 {-# OPTIONS_GHC -Wno-missing-exported-signatures #-} -- TODO remove
 {-# OPTIONS_GHC -Wno-unused-do-bind #-} -- TODO remove
+{-# OPTIONS_GHC -Wno-deprecations #-} -- TODO remove
 module Handler.GL.Payroll
 ( getGLPayrollR
 , postGLPayrollValidateR
@@ -32,6 +33,7 @@ import GL.Payroll.Settings
 import Data.Text (strip)
 import Database.Persist.MySQL
 import Lens.Micro.Extras (preview)
+import Data.These.Lens
 import Data.Align
 import Data.List(nub)
 import Control.Monad.Except

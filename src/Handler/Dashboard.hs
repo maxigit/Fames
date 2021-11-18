@@ -14,6 +14,7 @@ import GL.Utils
 import qualified Data.Map as Map
 import Formatting hiding(now)
 import Data.Aeson.QQ(aesonQQ)
+import Control.Monad.Fail (MonadFail(..))
 
 pivotCss = [cassius|
   div.pivot-inline

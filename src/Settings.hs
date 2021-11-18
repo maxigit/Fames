@@ -35,6 +35,7 @@ import qualified GL.Check.ItemCostSettings as ItemCost
 import GL.Receipt
 import qualified Data.Map as Map
 import Customers.Settings
+import Fay.Config(Config(..))
 
 
 
@@ -298,9 +299,10 @@ fayFile' :: Exp -> FayFile
 fayFile' staticR moduleName =
     (if appReloadTemplates compileTimeAppSettings
         then fayFileReload
-        else fayFileProd)
+        else fayFileProdWithConfig modifier )
      settings
   where
+    modifier config = config {configTypecheck = False }
     settings = (yesodFaySettings moduleName)
         { yfsSeparateRuntime = Just ("static", staticR)
         -- , yfsPostProcess = readProcess "java" ["-jar", "closure-compiler.jar"]

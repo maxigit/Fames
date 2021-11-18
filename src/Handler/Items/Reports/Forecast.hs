@@ -9,6 +9,7 @@ import Items.Internal
 import qualified Data.IntMap as IntMap
 import System.FilePath.Glob (glob)
 import FA as FA hiding (unUserKey)
+import Control.Monad.Fail (MonadFail(..))
 
 -- * Profiles
 -- | Read a map of season profiles from a valid csv
