@@ -101,6 +101,7 @@ import Model.DocumentKey
 import Control.Monad.Except hiding(mapM_, filterM)
 import Text.Printf(printf) 
 import Data.Maybe(fromJust)
+import Text.Read(readPrec)
 -- import Data.IOData (IOData)
 import Database.Persist.MySQL(unSqlBackendKey)
 import System.Directory(listDirectory, doesDirectoryExist)

@@ -11,7 +11,6 @@ module Handler.CsvUtils
 import Import hiding(toLower, Null)
 import qualified Data.Csv as Csv
 
-import Data.Time(parseTimeM)
 import qualified Data.Map as Map
 import Data.Char (ord,toUpper,toLower)
 import Data.List (nub)

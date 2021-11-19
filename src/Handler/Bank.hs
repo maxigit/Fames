@@ -38,6 +38,7 @@ import qualified Text.Regex as Rg
 import CategoryRule(regexSub, subRegex)
 import Formatting as F
 import Util.Decimal
+import Data.These.Lens
 
 -- Transaction to reconciliate
 -- Transaction from a statement missing in FA

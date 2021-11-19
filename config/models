@@ -120,7 +120,7 @@ Boxtake sql=fames_boxtake
 -- ** Packing list
 -- | A Packing lista (box descriptions: dimension + content)
 PackingList sql=fames_packinglist
-  Id sql=packinglist_id
+  Id sql=packinglist_id SqlBackendKey
   invoiceRef Text
   vessel Text Maybe default=NULL
   container Text Maybe default=NULL

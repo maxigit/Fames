@@ -717,8 +717,8 @@ fixGls glts = let
   (oks, notOks ) = partitionEithers (map isOk glts)
   isOk (These a b) | glTranAmount (entityVal a) == glTranAmount b = Left b
   isOk t = Right t
-  (wrongs, (faOnlys, newOnlys)) = partitionThese notOks
-  (toDeletes, toCreates) = unzip wrongs
+  (faOnlys, newOnlys, wrongs) = partitionThese notOks
+  (toDeletes, toCreates) =  unzip wrongs
 
   in GlDiffStatus  (oks ++ map entityVal faOnlys)
                    toDeletes
