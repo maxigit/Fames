@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DerivingStrategies, UndecidableInstances, DataKinds #-}
 {-# LANGUAGE TemplateHaskell, QuasiQuotes #-}
+{-# OPTIONS_GHC  -Wno-deprecations #-}
 
 module Model where
 

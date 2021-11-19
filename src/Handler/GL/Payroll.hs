@@ -2,6 +2,7 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-} -- TODO remove
 {-# OPTIONS_GHC -Wno-missing-exported-signatures #-} -- TODO remove
 {-# OPTIONS_GHC -Wno-unused-do-bind #-} -- TODO remove
+{-# OPTIONS_GHC -Wno-deprecations #-} -- TODO remove
 module Handler.GL.Payroll
 ( getGLPayrollR
 , postGLPayrollValidateR

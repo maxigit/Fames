@@ -28,7 +28,7 @@ import Network.Wai.Middleware.RequestLogger (Destination (Logger),
                                              mkRequestLogger, outputFormat)
 import System.Log.FastLogger                (defaultBufSize 
                                             , newStderrLoggerSet
-                                            ,toLogStr)
+                                            )
 import Yesod.Fay                            (getFaySite)
 
 -- Import all relevant handler modules here.
