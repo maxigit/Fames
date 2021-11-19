@@ -42,6 +42,7 @@ $(do
     , ''StockAdjustment
     , ''Operator
     , ''Batch
+    , ''User
     ]
   return $ concat dss
   )

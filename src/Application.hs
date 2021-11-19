@@ -13,7 +13,6 @@ module Application
     , db
     ) where
 
-import Control.Monad.Logger                 (liftLoc, runLoggingT)
 import Database.Persist.MySQL               (createMySQLPool, myConnInfo,
                                              myPoolSize, runSqlPool)
 import Import
