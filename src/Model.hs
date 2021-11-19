@@ -41,7 +41,12 @@ $(do
     ,''ItemCostValidation
     , ''StockAdjustment
     , ''Operator
+    , ''Batch
     ]
   return $ concat dss
   )
+
+instance ToBackendKey SqlBackend ShippingDetails where
+  toBackendKey = unShippingDetailsKey
+  fromBackendKey = ShippingDetailsKey'
 

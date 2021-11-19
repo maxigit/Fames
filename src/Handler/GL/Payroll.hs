@@ -32,6 +32,7 @@ import GL.Payroll.Settings
 import Data.Text (strip)
 import Database.Persist.MySQL
 import Lens.Micro.Extras (preview)
+import Data.These.Lens
 import Data.Align
 import Data.List(nub)
 import Control.Monad.Except

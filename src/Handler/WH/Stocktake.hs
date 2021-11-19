@@ -24,7 +24,7 @@ import Handler.WH.Barcode
 import WH.Barcode
 import Data.List(scanl, length, (\\), nub)
 import qualified Data.List as List
-import Data.Time(fromGregorian, addDays)
+import Data.Time(addDays)
 
 import Database.Persist.Sql
 import qualified Data.Csv as Csv

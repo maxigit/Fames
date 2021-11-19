@@ -9,7 +9,7 @@ import Handler.Items.Common
 import Handler.Items.Reports.Forecast
 import Handler.Items.Category.Cache
 import FA
-import Data.Time(addDays, formatTime, defaultTimeLocale)
+import Data.Time(addDays)
 import qualified Data.Map as Map
 import Data.List(cycle,scanl,scanl1,scanr1)
 import Database.Persist.MySQL(rawSql, Single(..))

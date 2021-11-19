@@ -381,7 +381,7 @@ submitButtonForm pre key = [whamlet|
 
 cancelSubmitButtonForm :: Key TaxReport -> Widget
 cancelSubmitButtonForm key = [whamlet|
-  <form method=GET action="@{GLR $ GLTaxReportR (fromSqlKeyFor key) Nothing}">
+  <form method=GET action="@{GLR $ GLTaxReportR (fromSqlKey key) Nothing}">
     <button.btn.btn-warning type="submit"> Cancel
                                |]
 

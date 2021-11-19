@@ -45,7 +45,7 @@ getDPDLookupR invoiceNo = do
         <tr>
           <th>
           <th> last_used
-          $forall field <- filter keep (entityFields eDef)
+          $forall field <- filter keep (getEntityFields eDef)
             <th> #{getDBName field}
           <th> source
           <th> courrier
@@ -55,7 +55,7 @@ getDPDLookupR invoiceNo = do
           <tr>
             <td> ^{formTo dId} 
             <td> #{tshowM (shippingDetailsLastUsed detail)}
-            $forall (pfield, _) <- filter (keep . snd) (zip (toPersistFields detail) (entityFields eDef))
+            $forall (pfield, _) <- filter (keep . snd) (zip (toPersistFields detail) (getEntityFields eDef))
               <td> #{renderPersistValue $ toPersistValue pfield}
             <td> #{shippingDetailsSource detail}
             <td> #{shippingDetailsCourrier detail}
