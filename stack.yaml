@@ -92,7 +92,7 @@ extra-package-dbs: []
 # compiler-check: newer-minor
 allow-newer: true
 nix:
-  enable: true
+  enable: false
   pure: false
   packages:
     - pkg-config

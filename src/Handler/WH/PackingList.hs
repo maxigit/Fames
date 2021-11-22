@@ -21,6 +21,7 @@ module Handler.WH.PackingList
 , postWHPackingListReportR
 , toPlanner
 , WithDetails(..)
+, toMorse
 ) where
 
 import Import
@@ -54,6 +55,7 @@ data UploadParam = UploadParam
   , invoiceRef :: Text -- ^ name of the file to upload
   , container :: Maybe Text
   , vessel :: Maybe Text
+  , batch :: Maybe Text
   , departure :: Maybe Day
   , arriving :: Maybe Day
   , comment :: Maybe Textarea -- ^ any comment
@@ -67,6 +69,7 @@ uploadForm param = renderBootstrap3 BootstrapBasicForm form
             <*> (areq textField "invoice ref" (fmap invoiceRef param ))
             <*> (aopt textField "container" (fmap container param ))
             <*> (aopt textField "vessel" (fmap vessel param ))
+            <*> (aopt textField "batch" (fmap batch param ))
             <*> (aopt dayField "departure" (fmap departure param ))
             <*> (aopt dayField "arriving" (fmap arriving param ))
             <*> (aopt textareaField "comment" (fmap comment param) )
@@ -141,6 +144,7 @@ viewPLLists = do
       <th> Id
       <th> Invoice Ref
       <th> Vessel
+      <th> Batch
       <th> Container
       <th> Left
       <th> Departure
@@ -152,6 +156,7 @@ viewPLLists = do
        ##{tshow $ unSqlBackendKey $ unPackingListKey key}
       <td> #{packingListInvoiceRef pl}
       <td> #{fromMaybe "" $ packingListVessel pl}
+      <td> #{fromMaybe "" $ packingListBatch pl}
       <td> #{fromMaybe "" $ packingListContainer pl}
       <td> #{packingListBoxesToDeliver_d pl}
       <td> #{maybe "" tshow (packingListDeparture pl) }
@@ -286,6 +291,7 @@ updatePackingList key param = do
                 [ (PackingListInvoiceRef =. invoiceRef param)
                 , (PackingListContainer =. container param)
                 , (PackingListVessel =. vessel param)
+                , (PackingListBatch =. fmap toUpper (batch param))
                 , (PackingListDeparture =. departure param)
                 , (PackingListArriving =. arriving param)
                 ]
@@ -441,6 +447,7 @@ viewPackingList mode key pre = do
                   ] :: [(Text, Text)]
       let fieldsS = [ [ ("Container" , packingListContainer pl )
                       , ("Vessel", packingListVessel pl)
+                      , ("Batch", packingListBatch pl)
                       ]
                     , [ -- ("Comment", Just $ documentKeyComment docKey)
                       ("user", Just . tshow . unSqlBackendKey . unUserKey $ documentKeyUserId docKey)
@@ -656,13 +663,15 @@ stickerSource ::
 stickerSource today pl entities = do
   let sorted = sortBy (comparing cmp) entities
       cmp (Entity _ detail) = (packingListDetailStyle detail, Down (packingListDetailContent detail, packingListDetailBoxNumber detail) )
-  yield "style,delivery_date,reference,number,barcode,a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4\n"
+  yield "style,delivery_date,reference,number,barcode,a1,a2,a3,a4,b1,b2,b3,b4,c1,c2,c3,c4,batch,a1Morse\n"
   yieldMany [ packingListDetailStyle detail
             <> "," <> (tshow $ fromMaybe today (packingListArriving pl) )
             <> "," <> (packingListDetailReference detail )
             <> "," <> (tshow $ packingListDetailBoxNumber detail )
             <> "," <> (packingListDetailBarcode detail)
             <> "," <> (intercalate "," (detailToStickerMarks detail))
+            <> "," <> (fromMaybe "" $ packingListBatch pl)
+            <> "," <> (toMorse . fromMaybe "" . headMay $ detailToStickerMarks detail)
             <> "\n"
             | (Entity _ detail) <- sorted
             ]
@@ -758,6 +767,7 @@ toPlanner withDetails PackingList{..} details = let
                              <> if withDetails == WithDetails
                                 then ("#barcode=" <> packingListDetailBarcode )
                                      <>  (maybe "" ("#pl-vessel=" <>) packingListVessel)
+                                     <>  (maybe "" ("#pl-batch=" <>) packingListBatch)
                                      <>  (maybe "" ("#pl-container=" <>) packingListContainer)
                                      <>  (maybe "" ("#pl-departure=" <>) $ fmap tshow packingListDeparture)
                                      <>  (maybe "" ("#pl-arriving=" <>) $ fmap tshow packingListArriving)
@@ -899,6 +909,7 @@ editForm pl doc = renderBootstrap3 BootstrapBasicForm form
             <*> (areq textField "invoice ref" (Just . packingListInvoiceRef =<< pl))
             <*> (aopt textField "container" (Just . packingListContainer =<< pl))
             <*> (aopt textField "vessel" (Just . packingListVessel =<< pl))
+            <*> (aopt textField "batch" (Just . packingListBatch =<< pl))
             <*> (aopt dayField "departure" (Just . packingListDeparture =<< pl))
             <*> (aopt dayField "arriving" (Just . packingListArriving =<< pl))
             <*> (aopt textareaField "comment" (Just . Just . Textarea . documentKeyComment =<< doc))
@@ -1393,6 +1404,7 @@ createPLFromForm docKey nOfBoxes =
   <*> (pure nOfBoxes)
   <*> departure
   <*> arriving
+  <*> batch
 
 createDetailsFromSection :: PackingListId -> (PLOrderRef, [PLBoxGroup]) -> [Text -> PackingListDetail]
 createDetailsFromSection pKey (orderRef, groups) = do
@@ -1849,3 +1861,41 @@ addDutyOn dutyFn style details = case (dutyFn) style of
                    cost = sum (toList $ deleteMap PackingListDutyE costMap)
                    newCost = insertMap PackingListDutyE (cost * duty) costMap
                 in return  details {diCostMap = newCost}
+
+
+toMorse :: Text -> Text
+toMorse =  intercalate "   " . map go . unpack . toUpper  where
+  go :: Char -> Text
+  go c = case c of
+    'A' -> "・ー" :: Text
+    'B' -> "ー・・・"
+    'C' -> "ー・ー・"
+    'D' -> "ー・・"
+    'E' -> "・"
+    'F' -> "・・ー・"
+    'G' -> "ーー・"
+    'H' -> "・・・・"
+    'I' -> "・・"
+    'J' -> "・ーーー"
+    'K' -> "ー・ー"
+    'L' -> "・ー・・"
+    'M' -> "ーー"
+    'N' -> "ー・"
+    'O' -> "ーーー"
+    'P' -> "・ーー・"
+    'Q' -> "ーー・ー"
+    'R' -> "・ー・"
+    'S' -> "・・・"
+    'T' -> "ー"
+    'U' -> "・・ー"
+    'V' -> "・・・ー"
+    'W' -> "・ーー"
+    'X' -> "ー・・ー"
+    'Y' -> "ー・ーー"
+    'Z' -> "ーー・・"
+    c -> pack [c]
+     
+
+
+
+

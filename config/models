@@ -129,6 +129,7 @@ PackingList sql=fames_packinglist
   boxesToDeliver_d Int
   departure Day Maybe
   arriving Day Maybe
+  batch Text Maybe
   UniquePL invoiceRef
   deriving Eq
   deriving Show
